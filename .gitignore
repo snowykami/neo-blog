@@ -1,0 +1,7 @@
+# ide
+.idea/
+.vscode/
+
+# config
+./configs
+.env
