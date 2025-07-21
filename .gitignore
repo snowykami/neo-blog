@@ -3,8 +3,8 @@
 .vscode/
 
 # config
-./configs
+configs/
 .env
 
 # data
-./data/
+data/
