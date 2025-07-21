@@ -5,4 +5,6 @@ const (
 	ErrUnauthorized = "unauthorized access"
 	ErrForbidden    = "access forbidden"
 	ErrNotFound     = "resource not found"
+
+	ErrInvalidCredentials = "invalid credentials"
 )

@@ -11,7 +11,7 @@ import (
 
 type UserService interface {
 	UserLogin(dto *dto.UserLoginReq) (*dto.UserLoginResp, error)
-	UserRegister(dto *dto.UserRegisterReq) (*dto.UserRegisterResp, error)
+	// TODO impl other user-related methods
 }
 
 type userService struct{}
@@ -28,5 +28,9 @@ func (s *userService) UserLogin(dto *dto.UserLoginReq) (*dto.UserLoginResp, erro
 	if user == nil {
 		return nil, errors.New(resps.ErrNotFound)
 	}
-	utils.Password.VerifyPassword(dto.Password, user.Password, utils.Env.Get(constant.EnvVarPasswordSalt, "default_salt"))
+	if utils.Password.VerifyPassword(dto.Password, user.Password, utils.Env.Get(constant.EnvVarPasswordSalt, "default_salt")) {
+		return nil, nil // TODO: Generate JWT token and return it in the response
+	} else {
+		return nil, errors.New(resps.ErrInvalidCredentials)
+	}
 }
