@@ -3,6 +3,8 @@ package v1
 import (
 	"context"
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
 type userType struct{}
@@ -10,11 +12,13 @@ type userType struct{}
 var User = new(userType)
 
 func (u *userType) Login(ctx context.Context, c *app.RequestContext) {
-	// TODO: Impl
+	var userLoginReq dto.UserLoginReq
+	if err := c.BindAndValidate(&userLoginReq); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+	}
 }
 
 func (u *userType) Register(ctx context.Context, c *app.RequestContext) {
-	// TODO: Impl
 }
 
 func (u *userType) Logout(ctx context.Context, c *app.RequestContext) {

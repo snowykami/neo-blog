@@ -10,7 +10,11 @@ func init() {
 	_ = godotenv.Load()
 }
 
-func Getenv(key string, defaultValue ...string) string {
+type envType struct{}
+
+var Env envType
+
+func (e *envType) Get(key string, defaultValue ...string) string {
 	value := os.Getenv(key)
 	if value == "" && len(defaultValue) > 0 {
 		return defaultValue[0]
@@ -18,7 +22,7 @@ func Getenv(key string, defaultValue ...string) string {
 	return value
 }
 
-func GetenvAsInt(key string, defaultValue ...int) int {
+func (e *envType) GetenvAsInt(key string, defaultValue ...int) int {
 	value := os.Getenv(key)
 	if value == "" && len(defaultValue) > 0 {
 		return defaultValue[0]
@@ -30,7 +34,7 @@ func GetenvAsInt(key string, defaultValue ...int) int {
 	return intValue
 }
 
-func GetenvAsBool(key string, defaultValue ...bool) bool {
+func (e *envType) GetenvAsBool(key string, defaultValue ...bool) bool {
 	value := os.Getenv(key)
 	if value == "" && len(defaultValue) > 0 {
 		return defaultValue[0]

@@ -11,7 +11,7 @@ import (
 var h *server.Hertz
 
 func Run() error {
-	mode := utils.Getenv("MODE", constant.ModeProd) // dev | prod
+	mode := utils.Env.Get("MODE", constant.ModeProd) // dev | prod
 	switch mode {
 	case constant.ModeProd:
 		h.Spin()
@@ -25,8 +25,8 @@ func Run() error {
 
 func init() {
 	h = server.New(
-		server.WithHostPorts(":"+utils.Getenv("PORT", "8888")),
-		server.WithMaxRequestBodySize(utils.GetenvAsInt("MAX_REQUEST_BODY_SIZE", 1048576000)), // 1000MiB
+		server.WithHostPorts(":"+utils.Env.Get("PORT", "8888")),
+		server.WithMaxRequestBodySize(utils.Env.GetenvAsInt("MAX_REQUEST_BODY_SIZE", 1048576000)), // 1000MiB
 	)
 	apiv1.RegisterRoutes(h)
 }
