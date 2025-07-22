@@ -73,12 +73,12 @@ func (e *emailUtils) SendEmail(emailConfig *EmailConfig, target, subject, conten
 
 func (e *emailUtils) GetEmailConfigFromEnv() *EmailConfig {
 	return &EmailConfig{
-		Enable:   Env.GetenvAsBool("EMAIL_ENABLE", false),
+		Enable:   Env.GetAsBool("EMAIL_ENABLE", false),
 		Username: Env.Get("EMAIL_USERNAME", ""),
 		Address:  Env.Get("EMAIL_ADDRESS", ""),
 		Host:     Env.Get("EMAIL_HOST", "smtp.example.com"),
-		Port:     Env.GetenvAsInt("EMAIL_PORT", 587),
+		Port:     Env.GetAsInt("EMAIL_PORT", 587),
 		Password: Env.Get("EMAIL_PASSWORD", ""),
-		SSL:      Env.GetenvAsBool("EMAIL_SSL", true),
+		SSL:      Env.GetAsBool("EMAIL_SSL", true),
 	}
 }

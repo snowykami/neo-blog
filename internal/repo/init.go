@@ -38,7 +38,7 @@ func loadDBConfig() DBConfig {
 		Driver:   utils.Env.Get("DB_DRIVER", "sqlite"),
 		Path:     utils.Env.Get("DB_PATH", "./data/data.db"),
 		Host:     utils.Env.Get("DB_HOST", "postgres"),
-		Port:     utils.Env.GetenvAsInt("DB_PORT", 5432),
+		Port:     utils.Env.GetAsInt("DB_PORT", 5432),
 		User:     utils.Env.Get("DB_USER", "blog"),
 		Password: utils.Env.Get("DB_PASSWORD", "blog"),
 		DBName:   utils.Env.Get("DB_NAME", "blog"),

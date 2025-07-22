@@ -23,7 +23,7 @@ func Run() error {
 func init() {
 	h = server.New(
 		server.WithHostPorts(":"+utils.Env.Get("PORT", "8888")),
-		server.WithMaxRequestBodySize(utils.Env.GetenvAsInt("MAX_REQUEST_BODY_SIZE", 1048576000)), // 1000MiB
+		server.WithMaxRequestBodySize(utils.Env.GetAsInt("MAX_REQUEST_BODY_SIZE", 1048576000)), // 1000MiB
 	)
 	apiv1.RegisterRoutes(h)
 }

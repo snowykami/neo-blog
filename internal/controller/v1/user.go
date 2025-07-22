@@ -101,7 +101,7 @@ func (u *userType) VerifyEmail(ctx context.Context, c *app.RequestContext) {
 }
 
 func (u *userType) setTokenCookie(c *app.RequestContext, token, refreshToken string) {
-	c.SetCookie("token", token, utils.Env.GetenvAsInt(constant.EnvKeyTokenDuration, constant.EnvKeyTokenDurationDefault), "/", "", protocol.CookieSameSiteLaxMode, true, true)
+	c.SetCookie("token", token, utils.Env.GetAsInt(constant.EnvKeyTokenDuration, constant.EnvKeyTokenDurationDefault), "/", "", protocol.CookieSameSiteLaxMode, true, true)
 	c.SetCookie("refresh_token", refreshToken, -1, "/", "", protocol.CookieSameSiteLaxMode, true, true)
 }
 

@@ -36,13 +36,13 @@ func (s *userService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, erro
 	}
 	if utils.Password.VerifyPassword(req.Password, user.Password, utils.Env.Get(constant.EnvKeyPasswordSalt, "default_salt")) {
 
-		token := utils.Jwt.NewClaims(user.ID, "", false, time.Duration(utils.Env.GetenvAsInt(constant.EnvKeyTokenDuration, 24)*int(time.Hour)))
+		token := utils.Jwt.NewClaims(user.ID, "", false, time.Duration(utils.Env.GetAsInt(constant.EnvKeyTokenDuration, 24)*int(time.Hour)))
 		tokenString, err := token.ToString()
 		if err != nil {
 			return nil, errs.ErrInternalServer
 		}
 
-		refreshToken := utils.Jwt.NewClaims(user.ID, utils.Strings.GenerateRandomString(64), true, time.Duration(utils.Env.GetenvAsInt(constant.EnvKeyRefreshTokenDuration, 30)*int(time.Hour)))
+		refreshToken := utils.Jwt.NewClaims(user.ID, utils.Strings.GenerateRandomString(64), true, time.Duration(utils.Env.GetAsInt(constant.EnvKeyRefreshTokenDuration, 30)*int(time.Hour)))
 		refreshTokenString, err := refreshToken.ToString()
 		if err != nil {
 			return nil, errs.ErrInternalServer
@@ -65,10 +65,15 @@ func (s *userService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, erro
 
 func (s *userService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterResp, error) {
 	// 验证邮箱验证码
-	kv := utils.KV.GetInstance()
-	verificationCode, ok := kv.Get(constant.KVKeyEmailVerificationCode + ":" + req.Email)
-	if !ok || verificationCode != req.VerificationCode {
-		return nil, errs.ErrInvalidCredentials
+	if !utils.Env.GetAsBool("ENABLE_REGISTER", true) {
+		return nil, errs.ErrForbidden
+	}
+	if utils.Env.GetAsBool("ENABLE_EMAIL_VERIFICATION", true) {
+		kv := utils.KV.GetInstance()
+		verificationCode, ok := kv.Get(constant.KVKeyEmailVerificationCode + ":" + req.Email)
+		if !ok || verificationCode != req.VerificationCode {
+			return nil, errs.ErrInvalidCredentials
+		}
 	}
 	// 检查用户名或邮箱是否已存在
 	existingUser, err := repo.User.GetByUsernameOrEmail(req.Username)
@@ -79,7 +84,6 @@ func (s *userService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 		return nil, errs.New(http.StatusConflict, "Username or email already exists", nil)
 	}
 	// 创建新用户
-
 	newUser := &model.User{
 		Username: req.Username,
 		Nickname: req.Nickname,
@@ -93,12 +97,12 @@ func (s *userService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 		return nil, errs.ErrInternalServer
 	}
 	// 生成访问令牌和刷新令牌
-	token := utils.Jwt.NewClaims(newUser.ID, "", false, time.Duration(utils.Env.GetenvAsInt(constant.EnvKeyTokenDuration, 24)*int(time.Hour)))
+	token := utils.Jwt.NewClaims(newUser.ID, "", false, time.Duration(utils.Env.GetAsInt(constant.EnvKeyTokenDuration, 24)*int(time.Hour)))
 	tokenString, err := token.ToString()
 	if err != nil {
 		return nil, errs.ErrInternalServer
 	}
-	refreshToken := utils.Jwt.NewClaims(newUser.ID, utils.Strings.GenerateRandomString(64), true, time.Duration(utils.Env.GetenvAsInt(constant.EnvKeyRefreshTokenDuration, 30)*int(time.Hour)))
+	refreshToken := utils.Jwt.NewClaims(newUser.ID, utils.Strings.GenerateRandomString(64), true, time.Duration(utils.Env.GetAsInt(constant.EnvKeyRefreshTokenDuration, 30)*int(time.Hour)))
 	refreshTokenString, err := refreshToken.ToString()
 	if err != nil {
 		return nil, errs.ErrInternalServer

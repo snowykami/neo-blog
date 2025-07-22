@@ -30,7 +30,7 @@ func (e *envUtils) Get(key string, defaultValue ...string) string {
 	return value
 }
 
-func (e *envUtils) GetenvAsInt(key string, defaultValue ...int) int {
+func (e *envUtils) GetAsInt(key string, defaultValue ...int) int {
 	value := os.Getenv(key)
 	if value == "" && len(defaultValue) > 0 {
 		return defaultValue[0]
@@ -42,7 +42,7 @@ func (e *envUtils) GetenvAsInt(key string, defaultValue ...int) int {
 	return intValue
 }
 
-func (e *envUtils) GetenvAsBool(key string, defaultValue ...bool) bool {
+func (e *envUtils) GetAsBool(key string, defaultValue ...bool) bool {
 	value := os.Getenv(key)
 	if value == "" && len(defaultValue) > 0 {
 		return defaultValue[0]
