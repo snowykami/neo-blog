@@ -1,16 +1,20 @@
 package service
 
 import (
-	"errors"
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/static"
 	"github.com/snowykami/neo-blog/pkg/constant"
-	"github.com/snowykami/neo-blog/pkg/resps"
+	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/utils"
+	"time"
 )
 
 type UserService interface {
-	UserLogin(dto *dto.UserLoginReq) (*dto.UserLoginResp, error)
+	UserLogin(*dto.UserLoginReq) (*dto.UserLoginResp, error)
+	UserRegister(*dto.UserRegisterReq) (*dto.UserRegisterResp, error)
+	VerifyEmail(*dto.VerifyEmailReq) (*dto.VerifyEmailResp, error)
 	// TODO impl other user-related methods
 }
 
@@ -20,17 +24,63 @@ func NewUserService() UserService {
 	return &userService{}
 }
 
-func (s *userService) UserLogin(dto *dto.UserLoginReq) (*dto.UserLoginResp, error) {
-	user, err := repo.User.GetByUsernameOrEmail(dto.Username)
+func (s *userService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, error) {
+	user, err := repo.User.GetByUsernameOrEmail(req.Username)
 	if err != nil {
-		return nil, err
+		return nil, errs.ErrInternalServer
 	}
 	if user == nil {
-		return nil, errors.New(resps.ErrNotFound)
+		return nil, errs.ErrNotFound
 	}
-	if utils.Password.VerifyPassword(dto.Password, user.Password, utils.Env.Get(constant.EnvVarPasswordSalt, "default_salt")) {
-		return nil, nil // TODO: Generate JWT token and return it in the response
+	if utils.Password.VerifyPassword(req.Password, user.Password, utils.Env.Get(constant.EnvKeyPasswordSalt, "default_salt")) {
+
+		token := utils.Jwt.NewClaims(user.ID, "", false, time.Duration(utils.Env.GetenvAsInt(constant.EnvKeyTokenDuration, 24)*int(time.Hour)))
+		tokenString, err := token.ToString()
+		if err != nil {
+			return nil, errs.ErrInternalServer
+		}
+
+		refreshToken := utils.Jwt.NewClaims(user.ID, utils.Strings.GenerateRandomString(64), true, time.Duration(utils.Env.GetenvAsInt(constant.EnvKeyRefreshTokenDuration, 30)*int(time.Hour)))
+		refreshTokenString, err := refreshToken.ToString()
+		if err != nil {
+			return nil, errs.ErrInternalServer
+		}
+		// 对refresh token进行持久化存储
+		err = repo.Session.SaveSession(refreshToken.SessionKey)
+		if err != nil {
+			return nil, errs.ErrInternalServer
+		}
+		resp := &dto.UserLoginResp{
+			Token:        tokenString,
+			RefreshToken: refreshTokenString,
+			User:         user.ToDto(),
+		}
+		return resp, nil
 	} else {
-		return nil, errors.New(resps.ErrInvalidCredentials)
+		return nil, errs.ErrInternalServer
 	}
+}
+
+func (s *userService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterResp, error) {
+	return nil, nil
+}
+
+func (s *userService) VerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEmailResp, error) {
+	generatedVerificationCode := utils.Strings.GenerateRandomStringWithCharset(6, "0123456789abcdef")
+	kv := utils.KV.GetInstance()
+	kv.Set(constant.KVKeyEmailVerificationCode+":"+req.Email, generatedVerificationCode, time.Minute*10)
+
+	template, err := static.RenderTemplate("email/verification-code.tmpl", map[string]interface{}{})
+	if err != nil {
+		return nil, errs.ErrInternalServer
+	}
+	if utils.IsDevMode {
+		logrus.Infoln("%s's verification code is %s", req.Email, generatedVerificationCode)
+	}
+	err = utils.Email.SendEmail(utils.Email.GetEmailConfigFromEnv(), req.Email, "验证你的电子邮件 / Verify your email", template, true)
+
+	if err != nil {
+		return nil, errs.ErrInternalServer
+	}
+	return &dto.VerifyEmailResp{Success: true}, nil
 }

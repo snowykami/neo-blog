@@ -14,9 +14,9 @@ type UserLoginReq struct {
 }
 
 type UserLoginResp struct {
-	Token        string  `json:"token"`
-	RefreshToken string  `json:"refresh_token"`
-	User         UserDto `json:"user"`
+	Token        string   `json:"token"`
+	RefreshToken string   `json:"refresh_token"`
+	User         *UserDto `json:"user"`
 }
 
 type UserRegisterReq struct {
@@ -30,4 +30,12 @@ type UserRegisterResp struct {
 	Token        string  `json:"token"`         // 访问令牌
 	RefreshToken string  `json:"refresh_token"` // 刷新令牌
 	User         UserDto `json:"user"`          // 用户信息
+}
+
+type VerifyEmailReq struct {
+	Email string `json:"email"` // 邮箱地址
+}
+
+type VerifyEmailResp struct {
+	Success bool `json:"success"` // 验证码发送成功与否
 }

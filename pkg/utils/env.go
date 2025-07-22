@@ -2,19 +2,27 @@ package utils
 
 import (
 	"github.com/joho/godotenv"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"os"
 	"strconv"
 )
 
+var (
+	IsDevMode = false
+)
+
 func init() {
 	_ = godotenv.Load()
+
+	// Init env
+	IsDevMode = Env.Get(constant.EnvKeyMode, constant.ModeDev) == constant.ModeDev
 }
 
-type envType struct{}
+type envUtils struct{}
 
-var Env envType
+var Env envUtils
 
-func (e *envType) Get(key string, defaultValue ...string) string {
+func (e *envUtils) Get(key string, defaultValue ...string) string {
 	value := os.Getenv(key)
 	if value == "" && len(defaultValue) > 0 {
 		return defaultValue[0]
@@ -22,7 +30,7 @@ func (e *envType) Get(key string, defaultValue ...string) string {
 	return value
 }
 
-func (e *envType) GetenvAsInt(key string, defaultValue ...int) int {
+func (e *envUtils) GetenvAsInt(key string, defaultValue ...int) int {
 	value := os.Getenv(key)
 	if value == "" && len(defaultValue) > 0 {
 		return defaultValue[0]
@@ -34,7 +42,7 @@ func (e *envType) GetenvAsInt(key string, defaultValue ...int) int {
 	return intValue
 }
 
-func (e *envType) GetenvAsBool(key string, defaultValue ...bool) bool {
+func (e *envUtils) GetenvAsBool(key string, defaultValue ...bool) bool {
 	value := os.Getenv(key)
 	if value == "" && len(defaultValue) > 0 {
 		return defaultValue[0]

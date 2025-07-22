@@ -1,25 +1,22 @@
 package router
 
 import (
-	"errors"
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/router/apiv1"
-	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
 var h *server.Hertz
 
 func Run() error {
-	mode := utils.Env.Get("MODE", constant.ModeProd) // dev | prod
-	switch mode {
-	case constant.ModeProd:
+	if utils.IsDevMode {
+		logrus.Infoln("Running in development mode")
+		return h.Run()
+	} else {
+		logrus.Infoln("Running in production mode")
 		h.Spin()
 		return nil
-	case constant.ModeDev:
-		return h.Run()
-	default:
-		return errors.New("unknown mode: " + mode)
 	}
 }
 

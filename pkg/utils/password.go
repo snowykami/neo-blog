@@ -6,13 +6,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type PasswordType struct {
+type PasswordUtils struct {
 }
 
-var Password = PasswordType{}
+var Password = PasswordUtils{}
 
 // HashPassword 密码哈希函数
-func (u *PasswordType) HashPassword(password string, salt string) (string, error) {
+func (u *PasswordUtils) HashPassword(password string, salt string) (string, error) {
 	saltedPassword := Password.addSalt(password, salt)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(saltedPassword), bcrypt.DefaultCost)
 	if err != nil {
@@ -22,7 +22,7 @@ func (u *PasswordType) HashPassword(password string, salt string) (string, error
 }
 
 // VerifyPassword 验证密码
-func (u *PasswordType) VerifyPassword(password, hashedPassword string, salt string) bool {
+func (u *PasswordUtils) VerifyPassword(password, hashedPassword string, salt string) bool {
 	if len(hashedPassword) == 0 || len(salt) == 0 {
 		// 防止oidc空密码出问题
 		return false
@@ -33,7 +33,7 @@ func (u *PasswordType) VerifyPassword(password, hashedPassword string, salt stri
 }
 
 // addSalt 加盐函数
-func (u *PasswordType) addSalt(password string, salt string) string {
+func (u *PasswordUtils) addSalt(password string, salt string) string {
 	combined := password + salt
 	hash := sha256.New()
 	hash.Write([]byte(combined))

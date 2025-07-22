@@ -13,6 +13,7 @@ func registerUserRoutes(group *route.RouterGroup) {
 	{
 		userGroupWithoutAuthNeedsCaptcha.POST("/login", v1.User.Login)
 		userGroupWithoutAuthNeedsCaptcha.POST("/register", v1.User.Register)
+		userGroupWithoutAuthNeedsCaptcha.POST("/email/verify", v1.User.VerifyEmail) // Send email verification code
 		userGroupWithoutAuth.GET("/oidc/list", v1.User.OidcList)
 		userGroupWithoutAuth.GET("/oidc/login/:name", v1.User.OidcLogin)
 		userGroupWithoutAuth.GET("/u/:id", v1.User.Get)

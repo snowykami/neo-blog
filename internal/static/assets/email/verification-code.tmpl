@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{.Title}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 24px;
+            color: #007BFF;
+        }
+        .content {
+            margin-bottom: 20px;
+        }
+        .content p {
+            margin: 10px 0;
+        }
+        .code {
+            font-size: 20px;
+            font-weight: bold;
+            color: #007BFF;
+            text-align: center;
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #f0f8ff;
+            border-radius: 4px;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>欢迎使用 {{.Title}}</h1>
+    </div>
+    <div class="content">
+        <p>尊敬的用户 {{.Email}}，您好！</p>
+        <p>{{.Details}} 以下是您的验证码：</p>
+        <div class="code">{{.VerifyCode}}</div>
+        <p>请在 <strong>{{.Expire}}</strong> 分钟内使用此验证码完成验证。</p>
+    </div>
+    <div class="footer">
+        <p>如果您未请求此邮件，请忽略。</p>
+    </div>
+</div>
+</body>
+</html>

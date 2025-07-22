@@ -1,6 +1,9 @@
 package model
 
-import "gorm.io/gorm"
+import (
+	"github.com/snowykami/neo-blog/internal/dto"
+	"gorm.io/gorm"
+)
 
 type User struct {
 	gorm.Model
@@ -12,4 +15,15 @@ type User struct {
 	Role      string `gorm:"default:'user'"`
 
 	Password string // 密码，存储加密后的值
+}
+
+func (user *User) ToDto() *dto.UserDto {
+	return &dto.UserDto{
+		Username:  user.Username,
+		Nickname:  user.Nickname,
+		AvatarUrl: user.AvatarUrl,
+		Email:     user.Email,
+		Gender:    user.Gender,
+		Role:      user.Role,
+	}
 }
