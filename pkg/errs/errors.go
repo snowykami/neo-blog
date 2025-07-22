@@ -24,6 +24,7 @@ func (e *ServiceError) Error() string {
 var (
 	ErrNotFound           = &ServiceError{Code: http.StatusNotFound, Message: "not found"}
 	ErrInvalidCredentials = &ServiceError{Code: http.StatusUnauthorized, Message: "invalid credentials"}
+	ErrConflict           = &ServiceError{Code: http.StatusConflict, Message: "resource conflict"}
 	ErrInternalServer     = &ServiceError{Code: http.StatusInternalServerError, Message: "internal server error"}
 	ErrBadRequest         = &ServiceError{Code: http.StatusBadRequest, Message: "invalid request parameters"}
 	ErrForbidden          = &ServiceError{Code: http.StatusForbidden, Message: "access forbidden"}

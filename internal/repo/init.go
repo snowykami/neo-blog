@@ -35,14 +35,14 @@ type DBConfig struct {
 // loadDBConfig 从配置文件加载数据库配置
 func loadDBConfig() DBConfig {
 	return DBConfig{
-		Driver:   utils.Env.Get("database.driver", "sqlite"),
-		Path:     utils.Env.Get("database.path", "./data/data.db"),
-		Host:     utils.Env.Get("database.host", "postgres"),
-		Port:     utils.Env.GetenvAsInt("database.port", 5432),
-		User:     utils.Env.Get("database.user", "spage"),
-		Password: utils.Env.Get("database.password", "spage"),
-		DBName:   utils.Env.Get("database.dbname", "spage"),
-		SSLMode:  utils.Env.Get("database.sslmode", "disable"),
+		Driver:   utils.Env.Get("DB_DRIVER", "sqlite"),
+		Path:     utils.Env.Get("DB_PATH", "./data/data.db"),
+		Host:     utils.Env.Get("DB_HOST", "postgres"),
+		Port:     utils.Env.GetenvAsInt("DB_PORT", 5432),
+		User:     utils.Env.Get("DB_USER", "blog"),
+		Password: utils.Env.Get("DB_PASSWORD", "blog"),
+		DBName:   utils.Env.Get("DB_NAME", "blog"),
+		SSLMode:  utils.Env.Get("DB_SSLMODE", "disable"),
 	}
 }
 

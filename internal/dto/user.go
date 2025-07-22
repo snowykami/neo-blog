@@ -20,16 +20,17 @@ type UserLoginResp struct {
 }
 
 type UserRegisterReq struct {
-	Username string `json:"username"` // 用户名
-	Nickname string `json:"nickname"` // 昵称
-	Password string `json:"password"` // 密码
-	Email    string `json:"email"`    // 邮箱
+	Username         string `json:"username"`          // 用户名
+	Nickname         string `json:"nickname"`          // 昵称
+	Password         string `json:"password"`          // 密码
+	Email            string `json:"email"`             // 邮箱
+	VerificationCode string `json:"verification_code"` // 邮箱验证码
 }
 
 type UserRegisterResp struct {
-	Token        string  `json:"token"`         // 访问令牌
-	RefreshToken string  `json:"refresh_token"` // 刷新令牌
-	User         UserDto `json:"user"`          // 用户信息
+	Token        string   `json:"token"`         // 访问令牌
+	RefreshToken string   `json:"refresh_token"` // 刷新令牌
+	User         *UserDto `json:"user"`          // 用户信息
 }
 
 type VerifyEmailReq struct {
