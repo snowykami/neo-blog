@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestAsServiceError(c) {
+func TestAsServiceError(t *testing.T) {
 	serviceError := ErrNotFound
 	err := AsServiceError(serviceError)
 	if err.Code != serviceError.Code || err.Message != serviceError.Message {
