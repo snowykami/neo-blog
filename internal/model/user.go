@@ -16,8 +16,17 @@ type User struct {
 	Password  string // 密码，存储加密后的值
 }
 
+type UserOpenID struct {
+	gorm.Model
+	UserID uint   `gorm:"uniqueIndex"`
+	User   User   `gorm:"foreignKey:UserID;references:ID"`
+	Issuer string `gorm:"index"` // OIDC Issuer
+	Sub    string `gorm:"index"` // OIDC Sub openid
+}
+
 func (user *User) ToDto() *dto.UserDto {
 	return &dto.UserDto{
+		ID:        user.ID,
 		Username:  user.Username,
 		Nickname:  user.Nickname,
 		AvatarUrl: user.AvatarUrl,

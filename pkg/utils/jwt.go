@@ -36,7 +36,7 @@ func (c *Claims) ToString() (string, error) {
 	return token.SignedString([]byte(Env.Get(constant.EnvKeyJwtSecrete, "default_jwt_secret")))
 }
 
-// ParseJsonWebTokenWithoutState 解析JWT令牌，不对有状态的Token进行状态检查
+// ParseJsonWebTokenWithoutState 解析JWT令牌，仅检查无状态下是否valid，不对有状态的Token进行状态检查
 func (j *jwtUtils) ParseJsonWebTokenWithoutState(tokenString string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {

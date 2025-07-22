@@ -11,6 +11,7 @@ func Custom(c *app.RequestContext, status int, message string, data any) {
 		"message": message,
 		"data":    data,
 	})
+	c.Abort()
 }
 
 func Ok(c *app.RequestContext, message string, data any) {

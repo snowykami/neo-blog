@@ -3,17 +3,17 @@ package v1
 import (
 	"context"
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
-	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
-	"github.com/snowykami/neo-blog/pkg/utils"
+	"strconv"
 )
 
 type userType struct {
-	service service.UserService
+	service *service.UserService
 }
 
 var User = &userType{
@@ -33,13 +33,11 @@ func (u *userType) Login(ctx context.Context, c *app.RequestContext) {
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
 		return
 	}
-	if resp == nil {
-		resps.UnAuthorized(c, resps.ErrInvalidCredentials)
-		return
-	} else {
-		u.setTokenCookie(c, resp.Token, resp.RefreshToken)
-		resps.Ok(c, resps.Success, resp)
-	}
+	ctxutils.SetTokenAndRefreshTokenCookie(c, resp.Token, resp.RefreshToken)
+	resps.Ok(c, resps.Success, utils.H{
+		"token": resp.Token,
+		"user":  resp.User,
+	})
 }
 
 func (u *userType) Register(ctx context.Context, c *app.RequestContext) {
@@ -55,46 +53,101 @@ func (u *userType) Register(ctx context.Context, c *app.RequestContext) {
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
 		return
 	}
-	if resp == nil {
-		resps.UnAuthorized(c, resps.ErrInvalidCredentials)
-		return
-	}
-	u.setTokenCookie(c, resp.Token, resp.RefreshToken)
-	resps.Ok(c, resps.Success, resp)
+
+	ctxutils.SetTokenAndRefreshTokenCookie(c, resp.Token, resp.RefreshToken)
+	resps.Ok(c, resps.Success, utils.H{
+		"token": resp.Token,
+		"user":  resp.User,
+	})
 }
 
 func (u *userType) Logout(ctx context.Context, c *app.RequestContext) {
-	u.clearTokenCookie(c)
+	ctxutils.ClearTokenAndRefreshTokenCookie(c)
 	resps.Ok(c, resps.Success, nil)
 }
 
 func (u *userType) OidcList(ctx context.Context, c *app.RequestContext) {
-	// TODO: Impl
+	resp, err := u.service.ListOidcConfigs()
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, map[string]any{
+		"oidc_configs": resp.OidcConfigs,
+	})
 }
 
 func (u *userType) OidcLogin(ctx context.Context, c *app.RequestContext) {
-	// TODO: Impl
+	name := c.Param("name")
+	code := c.Param("code")
+	state := c.Param("state")
+	oidcLoginReq := &dto.OidcLoginReq{
+		Name:  name,
+		Code:  code,
+		State: state,
+	}
+	resp, err := u.service.OidcLogin(oidcLoginReq)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	ctxutils.SetTokenAndRefreshTokenCookie(c, resp.Token, resp.RefreshToken)
+	resps.Ok(c, resps.Success, map[string]any{
+		"token": resp.Token,
+		"user":  resp.User,
+	})
 }
 
-func (u *userType) Get(ctx context.Context, c *app.RequestContext) {
-	// TODO: Impl
-}
-
-func (u *userType) Update(ctx context.Context, c *app.RequestContext) {
-	// TODO: Impl
-}
-
-func (u *userType) Delete(ctx context.Context, c *app.RequestContext) {
-	// TODO: Impl
-}
-
-func (u *userType) VerifyEmail(ctx context.Context, c *app.RequestContext) {
-	var verifyEmailReq dto.VerifyEmailReq
-	if err := c.BindAndValidate(&verifyEmailReq); err != nil {
+func (u *userType) GetUser(ctx context.Context, c *app.RequestContext) {
+	userID := c.Param("id")
+	if userID == "" {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	resp, err := u.service.VerifyEmail(&verifyEmailReq)
+	userIDInt, err := strconv.Atoi(userID)
+	if err != nil || userIDInt <= 0 {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+
+	resp, err := u.service.GetUser(&dto.GetUserReq{UserID: uint(userIDInt)})
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, resp.User)
+}
+
+func (u *userType) UpdateUser(ctx context.Context, c *app.RequestContext) {
+	userID := c.Param("id")
+	if userID == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	userIDInt, err := strconv.Atoi(userID)
+	if err != nil || userIDInt <= 0 {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	var updateUserReq dto.UpdateUserReq
+	if err := c.BindAndValidate(&updateUserReq); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	updateUserReq.ID = uint(userIDInt)
+	currentUser := ctxutils.GetCurrentUser(ctx)
+	if currentUser == nil {
+		resps.UnAuthorized(c, resps.ErrUnauthorized)
+		return
+	}
+	if currentUser.ID != updateUserReq.ID {
+		resps.Forbidden(c, resps.ErrForbidden)
+		return
+	}
+	resp, err := u.service.UpdateUser(&updateUserReq)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
@@ -103,12 +156,17 @@ func (u *userType) VerifyEmail(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, resp)
 }
 
-func (u *userType) setTokenCookie(c *app.RequestContext, token, refreshToken string) {
-	c.SetCookie("token", token, utils.Env.GetAsInt(constant.EnvKeyTokenDuration, constant.EnvKeyTokenDurationDefault), "/", "", protocol.CookieSameSiteLaxMode, true, true)
-	c.SetCookie("refresh_token", refreshToken, -1, "/", "", protocol.CookieSameSiteLaxMode, true, true)
-}
-
-func (u *userType) clearTokenCookie(c *app.RequestContext) {
-	c.SetCookie("token", "", -1, "/", "", protocol.CookieSameSiteLaxMode, true, true)
-	c.SetCookie("refresh_token", "", -1, "/", "", protocol.CookieSameSiteLaxMode, true, true)
+func (u *userType) VerifyEmail(ctx context.Context, c *app.RequestContext) {
+	var verifyEmailReq dto.VerifyEmailReq
+	if err := c.BindAndValidate(&verifyEmailReq); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	resp, err := u.service.RequestVerifyEmail(&verifyEmailReq)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, resp)
 }

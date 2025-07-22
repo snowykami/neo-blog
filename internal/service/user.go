@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
@@ -9,25 +10,20 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/utils"
+	"gorm.io/gorm"
 	"net/http"
+	"strings"
 	"time"
 )
 
-type UserService interface {
-	UserLogin(*dto.UserLoginReq) (*dto.UserLoginResp, error)
-	UserRegister(*dto.UserRegisterReq) (*dto.UserRegisterResp, error)
-	VerifyEmail(*dto.VerifyEmailReq) (*dto.VerifyEmailResp, error)
-	// TODO impl other user-related methods
+type UserService struct{}
+
+func NewUserService() *UserService {
+	return &UserService{}
 }
 
-type userService struct{}
-
-func NewUserService() UserService {
-	return &userService{}
-}
-
-func (s *userService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, error) {
-	user, err := repo.User.GetByUsernameOrEmail(req.Username)
+func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, error) {
+	user, err := repo.User.GetUserByUsernameOrEmail(req.Username)
 	if err != nil {
 		return nil, errs.ErrInternalServer
 	}
@@ -35,26 +31,14 @@ func (s *userService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, erro
 		return nil, errs.ErrNotFound
 	}
 	if utils.Password.VerifyPassword(req.Password, user.Password, utils.Env.Get(constant.EnvKeyPasswordSalt, "default_salt")) {
-
-		token := utils.Jwt.NewClaims(user.ID, "", false, time.Duration(utils.Env.GetAsInt(constant.EnvKeyTokenDuration, 24)*int(time.Hour)))
-		tokenString, err := token.ToString()
+		token, refreshToken, err := s.generate2Token(user.ID)
 		if err != nil {
-			return nil, errs.ErrInternalServer
-		}
-
-		refreshToken := utils.Jwt.NewClaims(user.ID, utils.Strings.GenerateRandomString(64), true, time.Duration(utils.Env.GetAsInt(constant.EnvKeyRefreshTokenDuration, 30)*int(time.Hour)))
-		refreshTokenString, err := refreshToken.ToString()
-		if err != nil {
-			return nil, errs.ErrInternalServer
-		}
-		// 对refresh token进行持久化存储
-		err = repo.Session.SaveSession(refreshToken.SessionKey)
-		if err != nil {
+			logrus.Errorln("Failed to generate tokens:", err)
 			return nil, errs.ErrInternalServer
 		}
 		resp := &dto.UserLoginResp{
-			Token:        tokenString,
-			RefreshToken: refreshTokenString,
+			Token:        token,
+			RefreshToken: refreshToken,
 			User:         user.ToDto(),
 		}
 		return resp, nil
@@ -63,16 +47,19 @@ func (s *userService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, erro
 	}
 }
 
-func (s *userService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterResp, error) {
+func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterResp, error) {
 	// 验证邮箱验证码
 	if !utils.Env.GetAsBool("ENABLE_REGISTER", true) {
 		return nil, errs.ErrForbidden
 	}
 	if utils.Env.GetAsBool("ENABLE_EMAIL_VERIFICATION", true) {
-		kv := utils.KV.GetInstance()
-		verificationCode, ok := kv.Get(constant.KVKeyEmailVerificationCode + ":" + req.Email)
-		if !ok || verificationCode != req.VerificationCode {
-			return nil, errs.ErrInvalidCredentials
+		ok, err := s.verifyEmail(req.Email, req.VerificationCode)
+		if err != nil {
+			logrus.Errorln("Failed to verify email:", err)
+			return nil, errs.ErrInternalServer
+		}
+		if !ok {
+			return nil, errs.New(http.StatusForbidden, "Invalid email verification code", nil)
 		}
 	}
 	// 检查用户名或邮箱是否已存在
@@ -101,39 +88,28 @@ func (s *userService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 		Role:     "user",
 		Password: hashedPassword,
 	}
-	err = repo.User.Create(newUser)
+	err = repo.User.CreateUser(newUser)
 	if err != nil {
 		return nil, errs.ErrInternalServer
 	}
 	// 生成访问令牌和刷新令牌
-	token := utils.Jwt.NewClaims(newUser.ID, "", false, time.Duration(utils.Env.GetAsInt(constant.EnvKeyTokenDuration, 24)*int(time.Hour)))
-	tokenString, err := token.ToString()
+	token, refreshToken, err := s.generate2Token(newUser.ID)
 	if err != nil {
+		logrus.Errorln("Failed to generate tokens:", err)
 		return nil, errs.ErrInternalServer
 	}
-	refreshToken := utils.Jwt.NewClaims(newUser.ID, utils.Strings.GenerateRandomString(64), true, time.Duration(utils.Env.GetAsInt(constant.EnvKeyRefreshTokenDuration, 30)*int(time.Hour)))
-	refreshTokenString, err := refreshToken.ToString()
-	if err != nil {
-		return nil, errs.ErrInternalServer
-	}
-	// 对refresh token进行持久化存储
-	err = repo.Session.SaveSession(refreshToken.SessionKey)
-	if err != nil {
-		return nil, errs.ErrInternalServer
-	}
-
 	resp := &dto.UserRegisterResp{
-		Token:        tokenString,
-		RefreshToken: refreshTokenString,
+		Token:        token,
+		RefreshToken: refreshToken,
 		User:         newUser.ToDto(),
 	}
 	return resp, nil
 }
 
-func (s *userService) VerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEmailResp, error) {
+func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEmailResp, error) {
 	generatedVerificationCode := utils.Strings.GenerateRandomStringWithCharset(6, "0123456789abcdef")
 	kv := utils.KV.GetInstance()
-	kv.Set(constant.KVKeyEmailVerificationCode+":"+req.Email, generatedVerificationCode, time.Minute*10)
+	kv.Set(constant.KVKeyEmailVerificationCode+req.Email, generatedVerificationCode, time.Minute*10)
 
 	template, err := static.RenderTemplate("email/verification-code.tmpl", map[string]interface{}{})
 	if err != nil {
@@ -148,4 +124,221 @@ func (s *userService) VerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEmailResp
 		return nil, errs.ErrInternalServer
 	}
 	return &dto.VerifyEmailResp{Success: true}, nil
+}
+
+func (s *UserService) ListOidcConfigs() (*dto.ListOidcConfigResp, error) {
+	enabledOidcConfigs, err := repo.User.ListOidcConfigs(true)
+	if err != nil {
+		return nil, errs.ErrInternalServer
+	}
+	var oidcConfigsDtos []dto.OidcConfigDto
+
+	for _, oidcConfig := range enabledOidcConfigs {
+		state := utils.Strings.GenerateRandomString(32)
+		kvStore := utils.KV.GetInstance()
+		kvStore.Set(constant.KVKeyOidcState+state, oidcConfig.Name, 5*time.Minute)
+		oidcConfigsDtos = append(oidcConfigsDtos, dto.OidcConfigDto{
+			Name:        oidcConfig.Name,
+			DisplayName: oidcConfig.DisplayName,
+			Icon:        oidcConfig.Icon,
+			LoginUrl: utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint, map[string]string{
+				"client_id":     oidcConfig.ClientID,
+				"redirect_uri":  strings.TrimSuffix(utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl), "/") + constant.OidcUri + oidcConfig.Name,
+				"response_type": "code",
+				"scope":         "openid email profile",
+				"state":         state,
+			}),
+		})
+	}
+	return &dto.ListOidcConfigResp{
+		OidcConfigs: oidcConfigsDtos,
+	}, nil
+}
+
+func (s *UserService) OidcLogin(req *dto.OidcLoginReq) (*dto.OidcLoginResp, error) {
+	// 验证state
+	kvStore := utils.KV.GetInstance()
+	storedName, ok := kvStore.Get(constant.KVKeyOidcState + req.State)
+	if !ok || storedName != req.Name {
+		return nil, errs.New(http.StatusForbidden, "invalid oidc state", nil)
+	}
+	// 获取OIDC配置
+	oidcConfig, err := repo.User.GetOidcConfigByName(req.Name)
+	if err != nil {
+		return nil, errs.ErrInternalServer
+	}
+	if oidcConfig == nil {
+		return nil, errs.New(http.StatusNotFound, "OIDC configuration not found", nil)
+	}
+	// 请求访问令牌
+	tokenResp, err := utils.Oidc.RequestToken(
+		oidcConfig.TokenEndpoint,
+		oidcConfig.ClientID,
+		oidcConfig.ClientSecret,
+		req.Code,
+		strings.TrimSuffix(utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl), "/")+constant.OidcUri+oidcConfig.Name,
+	)
+	if err != nil {
+		logrus.Errorln("Failed to request OIDC token:", err)
+		return nil, errs.ErrInternalServer
+	}
+	userInfo, err := utils.Oidc.RequestUserInfo(oidcConfig.UserInfoEndpoint, tokenResp.AccessToken)
+	if err != nil {
+		logrus.Errorln("Failed to request OIDC user info:", err)
+		return nil, errs.ErrInternalServer
+	}
+
+	// 绑定过登录
+	userOpenID, err := repo.User.GetUserOpenIDByIssuerAndSub(oidcConfig.Issuer, userInfo.Sub)
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, errs.ErrInternalServer
+	}
+	if userOpenID != nil {
+		user, err := repo.User.GetUserByID(userOpenID.UserID)
+		if err != nil {
+			return nil, errs.ErrInternalServer
+		}
+		token, refreshToken, err := s.generate2Token(user.ID)
+		if err != nil {
+			logrus.Errorln("Failed to generate tokens:", err)
+			return nil, errs.ErrInternalServer
+		}
+		resp := &dto.OidcLoginResp{
+			Token:        token,
+			RefreshToken: refreshToken,
+			User:         user.ToDto(),
+		}
+		return resp, nil
+	} else {
+		// 若没有绑定过登录，则先通过邮箱查找用户，若没有再创建新用户
+		user, err := repo.User.GetUserByEmail(userInfo.Email)
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			logrus.Errorln("Failed to get user by email:", err)
+			return nil, errs.ErrInternalServer
+		}
+		if user != nil {
+			userOpenID = &model.UserOpenID{
+				UserID: user.ID,
+				Issuer: oidcConfig.Issuer,
+				Sub:    userInfo.Sub,
+			}
+			err = repo.User.CreateOrUpdateUserOpenID(userOpenID)
+			if err != nil {
+				logrus.Errorln("Failed to create or update user OpenID:", err)
+				return nil, errs.ErrInternalServer
+			}
+			token, refreshToken, err := s.generate2Token(user.ID)
+			if err != nil {
+				logrus.Errorln("Failed to generate tokens:", err)
+				return nil, errs.ErrInternalServer
+			}
+			resp := &dto.OidcLoginResp{
+				Token:        token,
+				RefreshToken: refreshToken,
+				User:         user.ToDto(),
+			}
+			return resp, nil
+		} else {
+			user = &model.User{
+				Username:  userInfo.Name,
+				Nickname:  userInfo.Name,
+				AvatarUrl: userInfo.Picture,
+				Email:     userInfo.Email,
+			}
+			err = repo.User.CreateUser(user)
+			if err != nil {
+				logrus.Errorln("Failed to create user:", err)
+				return nil, errs.ErrInternalServer
+			}
+			userOpenID = &model.UserOpenID{
+				UserID: user.ID,
+				Issuer: oidcConfig.Issuer,
+				Sub:    userInfo.Sub,
+			}
+			err = repo.User.CreateOrUpdateUserOpenID(userOpenID)
+			if err != nil {
+				logrus.Errorln("Failed to create or update user OpenID:", err)
+				return nil, errs.ErrInternalServer
+			}
+			token, refreshToken, err := s.generate2Token(user.ID)
+			if err != nil {
+				logrus.Errorln("Failed to generate tokens:", err)
+				return nil, errs.ErrInternalServer
+			}
+			resp := &dto.OidcLoginResp{
+				Token:        token,
+				RefreshToken: refreshToken,
+				User:         user.ToDto(),
+			}
+			return resp, nil
+		}
+	}
+}
+
+func (s *UserService) GetUser(req *dto.GetUserReq) (*dto.GetUserResp, error) {
+	if req.UserID == 0 {
+		return nil, errs.New(http.StatusBadRequest, "user_id is required", nil)
+	}
+	user, err := repo.User.GetUserByID(req.UserID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errs.ErrNotFound
+		}
+		logrus.Errorln("Failed to get user by ID:", err)
+		return nil, errs.ErrInternalServer
+	}
+	if user == nil {
+		return nil, errs.ErrNotFound
+	}
+	return &dto.GetUserResp{
+		User: user.ToDto(),
+	}, nil
+}
+
+func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, error) {
+	user := &model.User{
+		Model: gorm.Model{
+			ID: req.ID,
+		},
+		Username:  req.Username,
+		Nickname:  req.Nickname,
+		Gender:    req.Gender,
+		AvatarUrl: req.AvatarUrl,
+	}
+	err := repo.User.UpdateUser(user)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errs.ErrNotFound
+		}
+		logrus.Errorln("Failed to update user:", err)
+		return nil, errs.ErrInternalServer
+	}
+	return &dto.UpdateUserResp{}, nil
+}
+
+func (s *UserService) generate2Token(userID uint) (string, string, error) {
+	token := utils.Jwt.NewClaims(userID, "", false, time.Duration(utils.Env.GetAsInt(constant.EnvKeyTokenDuration, 24)*int(time.Hour)))
+	tokenString, err := token.ToString()
+	if err != nil {
+		return "", "", errs.ErrInternalServer
+	}
+	refreshToken := utils.Jwt.NewClaims(userID, utils.Strings.GenerateRandomString(64), true, time.Duration(utils.Env.GetAsInt(constant.EnvKeyRefreshTokenDuration, 30)*int(time.Hour)))
+	refreshTokenString, err := refreshToken.ToString()
+	if err != nil {
+		return "", "", errs.ErrInternalServer
+	}
+	err = repo.Session.SaveSession(refreshToken.SessionKey)
+	if err != nil {
+		return "", "", errs.ErrInternalServer
+	}
+	return tokenString, refreshTokenString, nil
+}
+
+func (s *UserService) verifyEmail(email, code string) (bool, error) {
+	kv := utils.KV.GetInstance()
+	verificationCode, ok := kv.Get(constant.KVKeyEmailVerificationCode + email)
+	if !ok || verificationCode != code {
+		return false, errs.New(http.StatusForbidden, "Invalid email verification code", nil)
+	}
+	return true, nil
 }

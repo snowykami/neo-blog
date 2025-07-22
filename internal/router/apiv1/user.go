@@ -16,9 +16,8 @@ func registerUserRoutes(group *route.RouterGroup) {
 		userGroupWithoutAuthNeedsCaptcha.POST("/email/verify", v1.User.VerifyEmail) // Send email verification code
 		userGroupWithoutAuth.GET("/oidc/list", v1.User.OidcList)
 		userGroupWithoutAuth.GET("/oidc/login/:name", v1.User.OidcLogin)
-		userGroupWithoutAuth.GET("/u/:id", v1.User.Get)
+		userGroupWithoutAuth.GET("/u/:id", v1.User.GetUser)
 		userGroup.POST("/logout", v1.User.Logout)
-		userGroup.PUT("/u/:id", v1.User.Update)
-		userGroup.DELETE("/u/:id", v1.User.Delete)
+		userGroup.PUT("/u/:id", v1.User.UpdateUser)
 	}
 }
