@@ -27,6 +27,7 @@ var (
 	ErrConflict           = &ServiceError{Code: http.StatusConflict, Message: "resource conflict"}
 	ErrInternalServer     = &ServiceError{Code: http.StatusInternalServerError, Message: "internal server error"}
 	ErrBadRequest         = &ServiceError{Code: http.StatusBadRequest, Message: "invalid request parameters"}
+	ErrUnauthorized       = &ServiceError{Code: http.StatusUnauthorized, Message: "unauthorized access"}
 	ErrForbidden          = &ServiceError{Code: http.StatusForbidden, Message: "access forbidden"}
 )
 

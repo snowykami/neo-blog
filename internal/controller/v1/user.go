@@ -12,15 +12,17 @@ import (
 	"strconv"
 )
 
-type userType struct {
+type UserController struct {
 	service *service.UserService
 }
 
-var User = &userType{
-	service: service.NewUserService(),
+func NewUserController() *UserController {
+	return &UserController{
+		service: service.NewUserService(),
+	}
 }
 
-func (u *userType) Login(ctx context.Context, c *app.RequestContext) {
+func (u *UserController) Login(ctx context.Context, c *app.RequestContext) {
 	var userLoginReq dto.UserLoginReq
 	if err := c.BindAndValidate(&userLoginReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
@@ -40,7 +42,7 @@ func (u *userType) Login(ctx context.Context, c *app.RequestContext) {
 	})
 }
 
-func (u *userType) Register(ctx context.Context, c *app.RequestContext) {
+func (u *UserController) Register(ctx context.Context, c *app.RequestContext) {
 	var userRegisterReq dto.UserRegisterReq
 	if err := c.BindAndValidate(&userRegisterReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
@@ -61,12 +63,12 @@ func (u *userType) Register(ctx context.Context, c *app.RequestContext) {
 	})
 }
 
-func (u *userType) Logout(ctx context.Context, c *app.RequestContext) {
+func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 	ctxutils.ClearTokenAndRefreshTokenCookie(c)
 	resps.Ok(c, resps.Success, nil)
 }
 
-func (u *userType) OidcList(ctx context.Context, c *app.RequestContext) {
+func (u *UserController) OidcList(ctx context.Context, c *app.RequestContext) {
 	resp, err := u.service.ListOidcConfigs()
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
@@ -78,7 +80,7 @@ func (u *userType) OidcList(ctx context.Context, c *app.RequestContext) {
 	})
 }
 
-func (u *userType) OidcLogin(ctx context.Context, c *app.RequestContext) {
+func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 	name := c.Param("name")
 	code := c.Param("code")
 	state := c.Param("state")
@@ -100,7 +102,7 @@ func (u *userType) OidcLogin(ctx context.Context, c *app.RequestContext) {
 	})
 }
 
-func (u *userType) GetUser(ctx context.Context, c *app.RequestContext) {
+func (u *UserController) GetUser(ctx context.Context, c *app.RequestContext) {
 	userID := c.Param("id")
 	if userID == "" {
 		resps.BadRequest(c, resps.ErrParamInvalid)
@@ -121,7 +123,7 @@ func (u *userType) GetUser(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, resp.User)
 }
 
-func (u *userType) UpdateUser(ctx context.Context, c *app.RequestContext) {
+func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) {
 	userID := c.Param("id")
 	if userID == "" {
 		resps.BadRequest(c, resps.ErrParamInvalid)
@@ -156,7 +158,7 @@ func (u *userType) UpdateUser(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, resp)
 }
 
-func (u *userType) VerifyEmail(ctx context.Context, c *app.RequestContext) {
+func (u *UserController) VerifyEmail(ctx context.Context, c *app.RequestContext) {
 	var verifyEmailReq dto.VerifyEmailReq
 	if err := c.BindAndValidate(&verifyEmailReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)

@@ -83,11 +83,25 @@ func (o *OidcConfig) BeforeSave(tx *gorm.DB) (err error) {
 	return nil
 }
 
-// ToDto 不包含LoginUrl，在service层自行实现
-func (o *OidcConfig) ToDto() *dto.OidcConfigDto {
-	return &dto.OidcConfigDto{
+// ToUserDto 返回给用户侧
+func (o *OidcConfig) ToUserDto() *dto.UserOidcConfigDto {
+	return &dto.UserOidcConfigDto{
 		Name:        o.Name,
 		DisplayName: o.DisplayName,
 		Icon:        o.Icon,
+	}
+}
+
+// ToAdminDto 返回给管理员侧
+func (o *OidcConfig) ToAdminDto() *dto.AdminOidcConfigDto {
+	return &dto.AdminOidcConfigDto{
+		ID:               o.ID,
+		Name:             o.Name,
+		ClientID:         o.ClientID,
+		ClientSecret:     o.ClientSecret,
+		DisplayName:      o.DisplayName,
+		Icon:             o.Icon,
+		OidcDiscoveryUrl: o.OidcDiscoveryUrl,
+		Enabled:          o.Enabled,
 	}
 }

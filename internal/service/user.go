@@ -127,17 +127,17 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 }
 
 func (s *UserService) ListOidcConfigs() (*dto.ListOidcConfigResp, error) {
-	enabledOidcConfigs, err := repo.User.ListOidcConfigs(true)
+	enabledOidcConfigs, err := repo.Oidc.ListOidcConfigs(true)
 	if err != nil {
 		return nil, errs.ErrInternalServer
 	}
-	var oidcConfigsDtos []dto.OidcConfigDto
+	var oidcConfigsDtos []dto.UserOidcConfigDto
 
 	for _, oidcConfig := range enabledOidcConfigs {
 		state := utils.Strings.GenerateRandomString(32)
 		kvStore := utils.KV.GetInstance()
 		kvStore.Set(constant.KVKeyOidcState+state, oidcConfig.Name, 5*time.Minute)
-		oidcConfigsDtos = append(oidcConfigsDtos, dto.OidcConfigDto{
+		oidcConfigsDtos = append(oidcConfigsDtos, dto.UserOidcConfigDto{
 			Name:        oidcConfig.Name,
 			DisplayName: oidcConfig.DisplayName,
 			Icon:        oidcConfig.Icon,
@@ -163,7 +163,7 @@ func (s *UserService) OidcLogin(req *dto.OidcLoginReq) (*dto.OidcLoginResp, erro
 		return nil, errs.New(http.StatusForbidden, "invalid oidc state", nil)
 	}
 	// 获取OIDC配置
-	oidcConfig, err := repo.User.GetOidcConfigByName(req.Name)
+	oidcConfig, err := repo.Oidc.GetOidcConfigByName(req.Name)
 	if err != nil {
 		return nil, errs.ErrInternalServer
 	}

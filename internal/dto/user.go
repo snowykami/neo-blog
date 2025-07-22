@@ -10,7 +10,7 @@ type UserDto struct {
 	Role      string `json:"role"`
 }
 
-type OidcConfigDto struct {
+type UserOidcConfigDto struct {
 	Name        string `json:"name"`         // OIDC配置名称
 	DisplayName string `json:"display_name"` // OIDC配置显示名称
 	Icon        string `json:"icon"`         // OIDC配置图标URL
@@ -62,7 +62,7 @@ type OidcLoginResp struct {
 }
 
 type ListOidcConfigResp struct {
-	OidcConfigs []OidcConfigDto `json:"oidc_configs"` // OIDC配置列表
+	OidcConfigs []UserOidcConfigDto `json:"oidc_configs"` // OIDC配置列表
 }
 
 type GetUserReq struct {

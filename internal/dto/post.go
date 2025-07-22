@@ -8,9 +8,9 @@ type PostDto struct {
 	IsPrivate bool       `json:"is_private"` // 是否为私密帖子
 }
 
-type CreatePostReq struct {
-	Title     string     `json:"title"`
-	Content   string     `json:"content"`
-	Labels    []LabelDto `json:"labels"`
-	IsPrivate bool       `json:"is_private"`
+type CreateOrUpdatePostReq struct {
+	Title     string `json:"title"`
+	Content   string `json:"content"`
+	IsPrivate bool   `json:"is_private"`
+	Labels    []uint `json:"labels"` // 标签ID列表
 }

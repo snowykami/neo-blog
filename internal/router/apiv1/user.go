@@ -7,17 +7,18 @@ import (
 )
 
 func registerUserRoutes(group *route.RouterGroup) {
+	userController := v1.NewUserController()
 	userGroup := group.Group("/user").Use(middleware.UseAuth(true))
 	userGroupWithoutAuth := group.Group("/user")
 	userGroupWithoutAuthNeedsCaptcha := userGroupWithoutAuth.Use(middleware.UseCaptcha())
 	{
-		userGroupWithoutAuthNeedsCaptcha.POST("/login", v1.User.Login)
-		userGroupWithoutAuthNeedsCaptcha.POST("/register", v1.User.Register)
-		userGroupWithoutAuthNeedsCaptcha.POST("/email/verify", v1.User.VerifyEmail) // Send email verification code
-		userGroupWithoutAuth.GET("/oidc/list", v1.User.OidcList)
-		userGroupWithoutAuth.GET("/oidc/login/:name", v1.User.OidcLogin)
-		userGroupWithoutAuth.GET("/u/:id", v1.User.GetUser)
-		userGroup.POST("/logout", v1.User.Logout)
-		userGroup.PUT("/u/:id", v1.User.UpdateUser)
+		userGroupWithoutAuthNeedsCaptcha.POST("/login", userController.Login)
+		userGroupWithoutAuthNeedsCaptcha.POST("/register", userController.Register)
+		userGroupWithoutAuthNeedsCaptcha.POST("/email/verify", userController.VerifyEmail) // Send email verification code
+		userGroupWithoutAuth.GET("/oidc/list", userController.OidcList)
+		userGroupWithoutAuth.GET("/oidc/login/:name", userController.OidcLogin)
+		userGroupWithoutAuth.GET("/u/:id", userController.GetUser)
+		userGroup.POST("/logout", userController.Logout)
+		userGroup.PUT("/u/:id", userController.UpdateUser)
 	}
 }

@@ -6,6 +6,7 @@ func RegisterRoutes(h *server.Hertz) {
 	apiV1Group := h.Group("/api/v1")
 	{
 		registerCommentRoutes(apiV1Group)
+		registerAdminRoutes(apiV1Group)
 		registerFileRoutes(apiV1Group)
 		registerLabelRoutes(apiV1Group)
 		registerPageRoutes(apiV1Group)

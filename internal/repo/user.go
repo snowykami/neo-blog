@@ -68,28 +68,6 @@ func (user *userRepo) CheckEmailExists(email string) (bool, error) {
 	return count > 0, nil
 }
 
-func (user *userRepo) ListOidcConfigs(onlyEnabled bool) ([]model.OidcConfig, error) {
-	var configs []model.OidcConfig
-	if onlyEnabled {
-		if err := GetDB().Where("enabled = ?", true).Find(&configs).Error; err != nil {
-			return nil, err
-		}
-	} else {
-		if err := GetDB().Find(&configs).Error; err != nil {
-			return nil, err
-		}
-	}
-	return configs, nil
-}
-
-func (user *userRepo) GetOidcConfigByName(name string) (*model.OidcConfig, error) {
-	var config model.OidcConfig
-	if err := GetDB().Where("name = ?", name).First(&config).Error; err != nil {
-		return nil, err
-	}
-	return &config, nil
-}
-
 func (user *userRepo) CreateOrUpdateUserOpenID(userOpenID *model.UserOpenID) error {
 	if err := GetDB().Save(userOpenID).Error; err != nil {
 		return err
