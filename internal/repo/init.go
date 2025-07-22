@@ -126,8 +126,10 @@ func migrate() error {
 	return GetDB().AutoMigrate(
 		&model.Comment{},
 		&model.Label{},
+		&model.Like{},
 		&model.OidcConfig{},
 		&model.Post{},
 		&model.Session{},
-		&model.User{})
+		&model.User{},
+		&model.UserOpenID{})
 }

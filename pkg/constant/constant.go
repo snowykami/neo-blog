@@ -24,4 +24,7 @@ const (
 
 	OidcUri        = "/user/oidc/login"      // OIDC登录URI
 	DefaultBaseUrl = "http://localhost:3000" // 默认BaseUrl
+
+	TargetTypePost    = "post"
+	TargetTypeComment = "comment"
 )

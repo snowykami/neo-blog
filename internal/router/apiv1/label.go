@@ -7,8 +7,8 @@ import (
 )
 
 func registerLabelRoutes(group *route.RouterGroup) {
-	labelGroup := group.Group("/label").Use(middleware.UseAuth())
-	labelGroupWithoutAuth := group.Group("/label")
+	labelGroup := group.Group("/label").Use(middleware.UseAuth(true))
+	labelGroupWithoutAuth := group.Group("/label").Use(middleware.UseAuth(false))
 	{
 		labelGroupWithoutAuth.GET("/l/:id", v1.Label.Get)
 		labelGroupWithoutAuth.GET("/list", v1.Label.List)

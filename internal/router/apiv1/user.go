@@ -7,7 +7,7 @@ import (
 )
 
 func registerUserRoutes(group *route.RouterGroup) {
-	userGroup := group.Group("/user").Use(middleware.UseAuth())
+	userGroup := group.Group("/user").Use(middleware.UseAuth(true))
 	userGroupWithoutAuth := group.Group("/user")
 	userGroupWithoutAuthNeedsCaptcha := userGroupWithoutAuth.Use(middleware.UseCaptcha())
 	{

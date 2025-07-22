@@ -8,3 +8,7 @@ configs/
 
 # data
 data/
+
+# dist
+server
+main
