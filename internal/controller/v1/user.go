@@ -21,18 +21,21 @@ var User = &userType{
 }
 
 func (u *userType) Login(ctx context.Context, c *app.RequestContext) {
-	var userLoginReq *dto.UserLoginReq
-	if err := c.BindAndValidate(userLoginReq); err != nil {
+	var userLoginReq dto.UserLoginReq
+	if err := c.BindAndValidate(&userLoginReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
 	}
-	resp, err := u.service.UserLogin(userLoginReq)
+	resp, err := u.service.UserLogin(&userLoginReq)
 
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
 	}
 	if resp == nil {
 		resps.UnAuthorized(c, resps.ErrInvalidCredentials)
+		return
 	} else {
 		u.setTokenCookie(c, resp.Token, resp.RefreshToken)
 		resps.Ok(c, resps.Success, resp)
@@ -40,12 +43,12 @@ func (u *userType) Login(ctx context.Context, c *app.RequestContext) {
 }
 
 func (u *userType) Register(ctx context.Context, c *app.RequestContext) {
-	var userRegisterReq *dto.UserRegisterReq
-	if err := c.BindAndValidate(userRegisterReq); err != nil {
+	var userRegisterReq dto.UserRegisterReq
+	if err := c.BindAndValidate(&userRegisterReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	resp, err := u.service.UserRegister(userRegisterReq)
+	resp, err := u.service.UserRegister(&userRegisterReq)
 
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
@@ -86,12 +89,12 @@ func (u *userType) Delete(ctx context.Context, c *app.RequestContext) {
 }
 
 func (u *userType) VerifyEmail(ctx context.Context, c *app.RequestContext) {
-	var verifyEmailReq *dto.VerifyEmailReq
-	if err := c.BindAndValidate(verifyEmailReq); err != nil {
+	var verifyEmailReq dto.VerifyEmailReq
+	if err := c.BindAndValidate(&verifyEmailReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	resp, err := u.service.VerifyEmail(verifyEmailReq)
+	resp, err := u.service.VerifyEmail(&verifyEmailReq)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)

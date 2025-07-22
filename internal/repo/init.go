@@ -71,14 +71,12 @@ func InitDatabase() error {
 		return errors.New("unsupported database driver, only sqlite and postgres are supported")
 	}
 
-	return nil
+	// 迁移模型
+	if err = migrate(); err != nil {
+		logrus.Error("Failed to migrate models:", err)
+		return err
+	}
 	// TODO: impl
-
-	//// 迁移模型
-	//if err = models.Migrate(db); err != nil {
-	//	logrus.Error("Failed to migrate models:", err)
-	//	return err
-	//}
 	//// 执行初始化数据
 	//// 创建管理员账户
 	//hashedPassword, err := utils.Password.HashPassword(config.AdminPassword, config.JwtSecret)
@@ -95,7 +93,7 @@ func InitDatabase() error {
 	//	logrus.Error("Failed to update admin user:", err)
 	//	return err
 	//}
-	//return nil
+	return nil
 }
 
 // initPostgres 初始化PostgreSQL连接
@@ -128,6 +126,8 @@ func migrate() error {
 	return GetDB().AutoMigrate(
 		&model.Comment{},
 		&model.Label{},
+		&model.OidcConfig{},
 		&model.Post{},
+		&model.Session{},
 		&model.User{})
 }

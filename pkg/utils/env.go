@@ -15,7 +15,7 @@ func init() {
 	_ = godotenv.Load()
 
 	// Init env
-	IsDevMode = Env.Get(constant.EnvKeyMode, constant.ModeDev) == constant.ModeDev
+	IsDevMode = Env.Get(constant.EnvKeyMode, constant.ModeProd) == constant.ModeDev
 }
 
 type envUtils struct{}

@@ -76,21 +76,30 @@ func (s *userService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 		}
 	}
 	// 检查用户名或邮箱是否已存在
-	existingUser, err := repo.User.GetByUsernameOrEmail(req.Username)
+	usernameExist, err := repo.User.CheckUsernameExists(req.Username)
 	if err != nil {
 		return nil, errs.ErrInternalServer
 	}
-	if existingUser != nil {
+	emailExist, err := repo.User.CheckEmailExists(req.Email)
+	if err != nil {
+		return nil, errs.ErrInternalServer
+	}
+	if usernameExist || emailExist {
 		return nil, errs.New(http.StatusConflict, "Username or email already exists", nil)
 	}
 	// 创建新用户
+	hashedPassword, err := utils.Password.HashPassword(req.Password, utils.Env.Get(constant.EnvKeyPasswordSalt, "default_salt"))
+	if err != nil {
+		logrus.Errorln("Failed to hash password:", err)
+		return nil, errs.ErrInternalServer
+	}
 	newUser := &model.User{
 		Username: req.Username,
 		Nickname: req.Nickname,
 		Email:    req.Email,
 		Gender:   "",
 		Role:     "user",
-		Password: "",
+		Password: hashedPassword,
 	}
 	err = repo.User.Create(newUser)
 	if err != nil {
@@ -131,7 +140,7 @@ func (s *userService) VerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEmailResp
 		return nil, errs.ErrInternalServer
 	}
 	if utils.IsDevMode {
-		logrus.Infoln("%s's verification code is %s", req.Email, generatedVerificationCode)
+		logrus.Infof("%s's verification code is %s", req.Email, generatedVerificationCode)
 	}
 	err = utils.Email.SendEmail(utils.Email.GetEmailConfigFromEnv(), req.Email, "验证你的电子邮件 / Verify your email", template, true)
 
