@@ -32,12 +32,13 @@ const (
 	OrderedByLikeCount                     = "like_count"    // 按点赞数排序
 	OrderedByCommentCount                  = "comment_count" // 按评论数排序
 	OrderedByViewCount                     = "view_count"    // 按浏览量排序
-	HeatFactorViewWeight                   = 1               // 热度因子：浏览量权重
-	HeatFactorLikeWeight                   = 5               // 热度因子：点赞权重
-	HeatFactorCommentWeight                = 10              // 热度因子：评论权重
+	OrderedByHeat                          = "heat"
+	HeatFactorViewWeight                   = 1  // 热度因子：浏览量权重
+	HeatFactorLikeWeight                   = 5  // 热度因子：点赞权重
+	HeatFactorCommentWeight                = 10 // 热度因子：评论权重
 
 )
 
 var (
-	OrderedByEnumPost = []string{OrderedByCreatedAt, OrderedByUpdatedAt, OrderedByLikeCount, OrderedByCommentCount, OrderedByViewCount} // 帖子可用的排序方式
+	OrderedByEnumPost = []string{OrderedByCreatedAt, OrderedByUpdatedAt, OrderedByLikeCount, OrderedByCommentCount, OrderedByViewCount, OrderedByHeat} // 帖子可用的排序方式
 )

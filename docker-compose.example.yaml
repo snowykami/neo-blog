@@ -1,0 +1,21 @@
+services:
+  frontend:
+    container_name: neo-blog-frontend
+    networks:
+      - neo-blog-network
+    image: snowykami/neo-blog-frontend:latest
+    restart: always
+
+  backend:
+    container_name: neo-blog-backend
+    networks:
+      - neo-blog-network
+    image: snowykami/neo-blog-backend:latest
+    restart: always
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env
+
+networks:
+  neo-blog-network:
+    driver: bridge

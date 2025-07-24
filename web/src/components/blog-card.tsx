@@ -1,10 +1,9 @@
 import { Post } from "@/models/post";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
-import { Calendar, Clock, Eye, Heart, MessageCircle, Lock } from "lucide-react";
+import { Calendar,  Eye, Heart, MessageCircle, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import config from "@/config";
 
@@ -25,30 +24,30 @@ export function BlogCard({ post, className }: BlogCardProps) {
   };
 
   // 计算阅读时间（估算）
-  const getReadingTime = (content: string) => {
-    const wordsPerMinute = 200;
-    const wordCount = content.length;
-    const minutes = Math.ceil(wordCount / wordsPerMinute);
-    return `${minutes} 分钟阅读`;
-  };
+  // const getReadingTime = (content: string) => {
+  //   const wordsPerMinute = 200;
+  //   const wordCount = content.length;
+  //   const minutes = Math.ceil(wordCount / wordsPerMinute);
+  //   return `${minutes} 分钟阅读`;
+  // };
 
-  // 根据内容类型获取图标
-  const getContentTypeIcon = (type: Post['type']) => {
-    switch (type) {
-      case 'markdown':
-        return '📝';
-      case 'html':
-        return '🌐';
-      case 'text':
-        return '📄';
-      default:
-        return '📝';
-    }
-  };
+  // // 根据内容类型获取图标
+  // const getContentTypeIcon = (type: Post['type']) => {
+  //   switch (type) {
+  //     case 'markdown':
+  //       return '📝';
+  //     case 'html':
+  //       return '🌐';
+  //     case 'text':
+  //       return '📄';
+  //     default:
+  //       return '📝';
+  //   }
+  // };
 
   return (
     <Card className={cn(
-      "group overflow-hidden hover:shadow-xl transition-all duration-300 h-full flex flex-col cursor-pointer",
+      "group overflow-hidden hover:shadow-xl transition-all duration-300 h-full flex flex-col cursor-pointer pt-0 pb-4",
       className
     )}>
       {/* 封面图片区域 */}
@@ -65,44 +64,62 @@ export function BlogCard({ post, className }: BlogCardProps) {
           />
         ) : (
           // 默认渐变背景 - 基于热度生成颜色
-          <div 
+          <div
             className={cn(
               "w-full h-full bg-gradient-to-br",
               post.heat > 80 ? "from-red-400 via-pink-500 to-orange-500" :
-              post.heat > 60 ? "from-orange-400 via-yellow-500 to-red-500" :
-              post.heat > 40 ? "from-blue-400 via-purple-500 to-pink-500" :
-              post.heat > 20 ? "from-green-400 via-blue-500 to-purple-500" :
-              "from-gray-400 via-slate-500 to-gray-600"
+                post.heat > 60 ? "from-orange-400 via-yellow-500 to-red-500" :
+                  post.heat > 40 ? "from-blue-400 via-purple-500 to-pink-500" :
+                    post.heat > 20 ? "from-green-400 via-blue-500 to-purple-500" :
+                      "from-gray-400 via-slate-500 to-gray-600"
             )}
           />
         )}
-        
+
         {/* 覆盖层 */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-        
+
         {/* 私有文章标识 */}
         {post.isPrivate && (
-          <Badge 
-            variant="destructive" 
-            className="absolute top-4 left-4 bg-red-500/90 text-white hover:bg-red-500"
+          <Badge
+            variant="destructive"
+            className="absolute top-2 left-2 bg-blue-300/90 text-white hover:bg-blue-400 text-xs"
           >
             <Lock className="w-3 h-3 mr-1" />
             私有
           </Badge>
         )}
-        
-        {/* 内容类型标签 */}
-        <Badge 
-          variant="secondary"
-          className="absolute top-4 right-4 bg-white/90 text-gray-700 hover:bg-white"
-        >
-          {getContentTypeIcon(post.type)} {post.type.toUpperCase()}
-        </Badge>
+
+        {/* 统计信息 */}
+        <div className="absolute bottom-2 left-2">
+          <Badge className="bg-gradient-to-r from-blue-200 to-purple-300 text-white border-0 dark:bg-gradient-to-r dark:from-blue-700 dark:to-purple-700">
+            {/* 统计信息 */}
+            <div className="grid grid-cols-1 gap-4 text-muted-foreground">
+              <div className="flex items-center gap-3 text-xs">
+                {/* 点赞数 */}
+                <div className="flex items-center gap-1 ">
+                  <Heart className="w-3 h-3" />
+                  <span>{post.likeCount}</span>
+                </div>
+                {/* 评论数 */}
+                <div className="flex items-center gap-1">
+                  <MessageCircle className="w-3 h-3" />
+                  <span>{post.commentCount}</span>
+                </div>
+                {/* 阅读量 */}
+                <div className="flex items-center gap-1">
+                  <Eye className="w-3 h-3" />
+                  <span>{post.viewCount}</span>
+                </div>
+              </div>
+            </div>
+          </Badge>
+        </div>
 
         {/* 热度指示器 */}
         {post.heat > 50 && (
-          <div className="absolute bottom-4 right-4">
-            <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0">
+          <div className="absolute bottom-2 right-2">
+            <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-xs">
               🔥 {post.heat}
             </Badge>
           </div>
@@ -110,95 +127,32 @@ export function BlogCard({ post, className }: BlogCardProps) {
       </div>
 
       {/* Card Header - 标题区域 */}
-      <CardHeader className="pb-3">
+      <CardHeader className="">
         <CardTitle className="line-clamp-2 group-hover:text-primary transition-colors text-lg leading-tight">
           {post.title}
         </CardTitle>
+        
+      </CardHeader>
+      {/* Card Content - 主要内容 */}
+      <CardContent className="flex-1">
         <CardDescription className="line-clamp-3 leading-relaxed">
           {post.content.replace(/[#*`]/g, '').substring(0, 150)}
           {post.content.length > 150 ? '...' : ''}
         </CardDescription>
-      </CardHeader>
-
-      {/* Card Content - 主要内容 */}
-      <CardContent className="flex-1 pb-3">
-        {/* 标签列表 */}
-        {post.labels && post.labels.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {post.labels.slice(0, 3).map((label) => (
-              <Badge 
-                key={label.id} 
-                variant="outline" 
-                className="text-xs hover:bg-primary/10"
-                style={{ 
-                  borderColor: label.color || '#e5e7eb',
-                  color: label.color || '#6b7280'
-                }}
-              >
-                {label.key}
-              </Badge>
-            ))}
-            {post.labels.length > 3 && (
-              <Badge variant="outline" className="text-xs">
-                +{post.labels.length - 3}
-              </Badge>
-            )}
-          </div>
-        )}
-        
-        {/* 统计信息 */}
-        <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-3">
-            {/* 点赞数 */}
-            <div className="flex items-center gap-1">
-              <Heart className="w-4 h-4" />
-              <span>{post.likeCount}</span>
-            </div>
-            
-            {/* 评论数 */}
-            <div className="flex items-center gap-1">
-              <MessageCircle className="w-4 h-4" />
-              <span>{post.commentCount}</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-end gap-3">
-            {/* 阅读量 */}
-            <div className="flex items-center gap-1">
-              <Eye className="w-4 h-4" />
-              <span>{post.viewCount}</span>
-            </div>
-            
-            {/* 阅读时间 */}
-            <div className="flex items-center gap-1">
-              <Clock className="w-4 h-4" />
-              <span>{getReadingTime(post.content)}</span>
-            </div>
-          </div>
-        </div>
       </CardContent>
 
       {/* Card Footer - 日期和操作区域 */}
-      <CardFooter className="pt-3 border-t border-border/50 flex items-center justify-between">
-        {/* 创建日期 */}
+      <CardFooter className="pb-0 border-t border-border/50 flex items-center justify-between">
+        {/* 左侧：最新日期 */}
         <div className="flex items-center gap-1 text-sm text-muted-foreground">
           <Calendar className="w-4 h-4" />
-          <time dateTime={post.createdAt}>
-            {formatDate(post.createdAt)}
+          <time dateTime={post.updatedAt !== post.createdAt ? post.updatedAt : post.createdAt}>
+            {formatDate(post.updatedAt !== post.createdAt ? post.updatedAt : post.createdAt)}
           </time>
         </div>
-        
-        {/* 更新日期（如果与创建日期不同）或阅读提示 */}
-        {post.updatedAt !== post.createdAt ? (
-          <div className="text-xs text-muted-foreground">
-            更新于 {formatDate(post.updatedAt)}
-          </div>
-        ) : (
-          <div className="text-sm text-primary">
-            阅读更多 →
-          </div>
-        )}
       </CardFooter>
+
+
     </Card>
   );
 }
@@ -209,7 +163,7 @@ export function BlogCardSkeleton() {
     <Card className="overflow-hidden h-full flex flex-col">
       {/* 封面图片骨架 */}
       <div className="aspect-[16/9] bg-muted animate-pulse" />
-      
+
       {/* Header 骨架 */}
       <CardHeader className="pb-3">
         <div className="h-6 bg-muted rounded animate-pulse mb-2" />
@@ -219,7 +173,7 @@ export function BlogCardSkeleton() {
           <div className="h-4 bg-muted rounded w-1/2 animate-pulse" />
         </div>
       </CardHeader>
-      
+
       {/* Content 骨架 */}
       <CardContent className="flex-1 pb-3">
         <div className="flex gap-2 mb-4">
@@ -232,7 +186,7 @@ export function BlogCardSkeleton() {
           <div className="h-4 bg-muted rounded animate-pulse" />
         </div>
       </CardContent>
-      
+
       {/* Footer 骨架 */}
       <CardFooter className="pt-3 border-t">
         <div className="h-4 w-24 bg-muted rounded animate-pulse" />
@@ -243,12 +197,12 @@ export function BlogCardSkeleton() {
 }
 
 // 网格布局的博客卡片列表
-export function BlogCardGrid({ 
-  posts, 
+export function BlogCardGrid({
+  posts,
   isLoading,
   showPrivate = false
-}: { 
-  posts: Post[]; 
+}: {
+  posts: Post[];
   isLoading?: boolean;
   showPrivate?: boolean;
 }) {

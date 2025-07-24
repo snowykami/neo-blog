@@ -8,7 +8,9 @@ const config = {
     owner: {
         name: "Snowykami",
         description: "全栈开发工程师，喜欢分享技术心得和生活感悟。",
-        motto: "And now that story unfolds into a journey that, alone, I set out to"
+        motto: "And now that story unfolds into a journey that, alone, I set out to",
+        avatar: "https://cdn.liteyuki.org/snowykami/avatar.jpg",
+        gravatarEmail: "snowykami@outlook.com"
     }
 }
 

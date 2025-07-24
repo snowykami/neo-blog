@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -93,6 +94,7 @@ func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
 
 func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 	pagination := ctxutils.GetPaginationParams(c)
+	fmt.Println(pagination)
 	if pagination.OrderedBy == "" {
 		pagination.OrderedBy = constant.OrderedByUpdatedAt
 	}

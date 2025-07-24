@@ -10,6 +10,16 @@ interface ListPostsParams {
     keywords?: string;
 }
 
+export async function getPostById(id: string): Promise<Post | null> {
+    try {
+        const res = await axiosClient.get<BaseResponse<Post>>(`/post/p/${id}`);
+        return res.data.data;
+    } catch (error) {
+        console.error("Error fetching post by ID:", error);
+        return null;
+    }
+}
+
 export async function listPosts({
     page = 1,
     size = 10,

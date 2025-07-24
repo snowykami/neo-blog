@@ -41,8 +41,7 @@ const GravatarAvatar: React.FC<GravatarAvatarProps> = ({
     );
   }
 
-  // 使用 Gravatar
-  const gravatarUrl = getGravatarUrl(email, size, defaultType);
+  const gravatarUrl = getGravatarUrl(email, size * 10, defaultType);
   
   return (
     <Image

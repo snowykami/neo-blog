@@ -14,21 +14,8 @@ import {
 } from "@/components/ui/navigation-menu"
 import GravatarAvatar from "@/components/gravatar"
 import { useDevice } from "@/contexts/device-context"
-
-const components: { title: string; href: string }[] = [
-    {
-        title: "归档",
-        href: "/archives"
-    },
-    {
-        title: "标签",
-        href: "/labels"
-    },
-    {
-        title: "随机",
-        href: "/random"
-    }
-]
+import { metadata } from '../app/layout';
+import config from "@/config"
 
 const navbarMenuComponents = [
     {
@@ -59,7 +46,7 @@ export function Navbar() {
         <nav className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-12 px-4 w-full">
             <div className="flex items-center justify-start">
                 {/* 左侧内容 */}
-                <span className="font-bold truncate">Snowykami's Blog</span>
+                <span className="font-bold truncate">{config.metadata.name}</span>
             </div>
             <div className="flex items-center justify-center">
                 {/* 中间内容 - 完全居中 */}
@@ -67,7 +54,7 @@ export function Navbar() {
             </div>
             <div className="flex items-center justify-end">
                 {/* 右侧内容 */}
-                <GravatarAvatar email="snowykami@outlook.com" size={32} />
+                <GravatarAvatar email="snowykami@outlook.com"/>
             </div>
         </nav>
     )

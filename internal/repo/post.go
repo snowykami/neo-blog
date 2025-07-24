@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"fmt"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -64,12 +65,13 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, page, size u
 	} else {
 		query = query.Where("is_private = ?", false)
 	}
+	fmt.Println(keywords)
 	if len(keywords) > 0 {
 		for _, keyword := range keywords {
 			if keyword != "" {
 				// 使用LIKE进行模糊匹配，搜索标题、内容和标签
-				query = query.Where("title LIKE ? OR content LIKE ? OR tags LIKE ?",
-					"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+				query = query.Where("title LIKE ? OR content LIKE ?", // TODO: 支持标签搜索
+					"%"+keyword+"%", "%"+keyword+"%")
 			}
 		}
 	}
