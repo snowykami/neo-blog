@@ -68,7 +68,7 @@ export default function BlogHome() {
     // 获取标签
     useEffect(() => {
         listLabels().then(data => {
-            setLabels(data.data);
+            setLabels(data.data || []);
             console.log("Labels:", data.data);
         }).catch(error => {
             console.error("Failed to fetch labels:", error);
