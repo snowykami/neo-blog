@@ -11,7 +11,9 @@ type Post struct {
 	UserID       uint     `gorm:"index"`                                                                // 发布者的用户ID
 	User         User     `gorm:"foreignKey:UserID;references:ID"`                                      // 关联的用户
 	Title        string   `gorm:"type:text;not null"`                                                   // 帖子标题
+	Cover        string   `gorm:"type:text"`                                                            // 帖子封面图
 	Content      string   `gorm:"type:text;not null"`                                                   // 帖子内容
+	Type         string   `gorm:"type:text;default:markdown"`                                           // markdown类型，支持markdown或html
 	CategoryID   uint     `gorm:"index"`                                                                // 帖子分类ID
 	Category     Category `gorm:"foreignKey:CategoryID;references:ID"`                                  // 关联的分类
 	Labels       []Label  `gorm:"many2many:post_labels;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"` // 关联的标签
@@ -48,10 +50,14 @@ func (p *Post) ToDto() dto.PostDto {
 		UserID:       p.UserID,
 		Title:        p.Title,
 		Content:      p.Content,
+		Cover:        p.Cover,
+		Type:         p.Type,
 		IsPrivate:    p.IsPrivate,
 		LikeCount:    p.LikeCount,
 		CommentCount: p.CommentCount,
 		ViewCount:    p.ViewCount,
 		Heat:         p.Heat,
+		CreatedAt:    p.CreatedAt,
+		UpdatedAt:    p.UpdatedAt,
 	}
 }

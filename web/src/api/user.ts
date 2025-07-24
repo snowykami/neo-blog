@@ -1,56 +1,46 @@
-import axiosInstance from "./client";
-
+import axiosClient from "./client";
 import type { OidcConfig } from "@/models/oidc-config";
 import type { User } from "@/models/user";
 import type { BaseResponse } from "@/models/resp";
 
-export function userLogin(
-    username: string,
-    password: string
-): Promise<BaseResponse<{ token: string; user: User }>> {
-    return axiosInstance
-        .post<BaseResponse<{ token: string; user: User }>>(
-            "/user/login",
-            {
-                username,
-                password,
-            }
-        )
-        .then(res => res.data);
+export interface LoginRequest {
+    username: string;
+    password: string;
+    rememberMe?: boolean;  // 可以轻松添加新字段
+    captcha?: string;
 }
 
-export function userRegister(
-    username: string,
-    password: string,
-    nickname: string,
-    email: string,
-    verificationCode?: string
-): Promise<BaseResponse<{ token: string; user: User }>> {
-    return axiosInstance
-        .post<BaseResponse<{ token: string; user: User }>>(
-            "/user/register",
-            {
-                username,
-                password,
-                nickname,
-                email,
-                verificationCode,
-            }
-        )
-        .then(res => res.data);
+export interface RegisterRequest {
+    username: string;
+    password: string;
+    nickname: string;
+    email: string;
+    verificationCode?: string;
 }
 
-export function ListOidcConfigs(): Promise<BaseResponse<{ oidcConfigs: OidcConfig[] }>> {
-    return axiosInstance
-        .get<BaseResponse<{ oidcConfigs: OidcConfig[] }>>("/user/oidc/list")
-        .then(res => {
-            const data = res.data;
-            if ('configs' in data) {
-                return {
-                    ...data,
-                    oidcConfigs: data.configs,
-                };
-            }
-            return data;
-        });
+export async function userLogin(
+    data: LoginRequest
+): Promise<BaseResponse<{ token: string; user: User }>> {
+    const res = await axiosClient.post<BaseResponse<{ token: string; user: User }>>(
+        "/user/login",
+        data 
+    );
+    return res.data;
+}
+
+export async function userRegister(
+    data: RegisterRequest
+): Promise<BaseResponse<{ token: string; user: User }>> {
+    const res = await axiosClient.post<BaseResponse<{ token: string; user: User }>>(
+        "/user/register",
+        data
+    );
+    return res.data;
+}
+
+export async function ListOidcConfigs(): Promise<BaseResponse<OidcConfig[]>> {
+    const res = await axiosClient.get<BaseResponse<OidcConfig[]>>(
+        "/user/oidc/list"
+    );
+    return res.data;
 }

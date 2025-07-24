@@ -5,6 +5,7 @@ const (
 	CaptchaTypeHCaptcha                    = "hcaptcha"  // HCaptcha验证码
 	CaptchaTypeTurnstile                   = "turnstile" // Turnstile验证码
 	CaptchaTypeReCaptcha                   = "recaptcha" // ReCaptcha验证码
+	ContextKeyUserID                       = "user_id"   // 上下文键：用户ID
 	ModeDev                                = "dev"
 	ModeProd                               = "prod"
 	RoleUser                               = "user"

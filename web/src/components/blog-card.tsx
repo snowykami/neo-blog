@@ -1,0 +1,289 @@
+import { Post } from "@/models/post";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import Image from "next/image";
+import { Calendar, Clock, Eye, Heart, MessageCircle, Lock } from "lucide-react";
+import { cn } from "@/lib/utils";
+import config from "@/config";
+
+interface BlogCardProps {
+  post: Post;
+  className?: string;
+}
+
+export function BlogCard({ post, className }: BlogCardProps) {
+  // 格式化日期
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  };
+
+  // 计算阅读时间（估算）
+  const getReadingTime = (content: string) => {
+    const wordsPerMinute = 200;
+    const wordCount = content.length;
+    const minutes = Math.ceil(wordCount / wordsPerMinute);
+    return `${minutes} 分钟阅读`;
+  };
+
+  // 根据内容类型获取图标
+  const getContentTypeIcon = (type: Post['type']) => {
+    switch (type) {
+      case 'markdown':
+        return '📝';
+      case 'html':
+        return '🌐';
+      case 'text':
+        return '📄';
+      default:
+        return '📝';
+    }
+  };
+
+  return (
+    <Card className={cn(
+      "group overflow-hidden hover:shadow-xl transition-all duration-300 h-full flex flex-col cursor-pointer",
+      className
+    )}>
+      {/* 封面图片区域 */}
+      <div className="relative aspect-[16/9] overflow-hidden">
+        {/* 自定义封面图片 */}
+        {(post.cover || config.defaultCover) ? (
+          <Image
+            src={post.cover || config.defaultCover}
+            alt={post.title}
+            fill
+            className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+            sizes="(max-width: 768px) 100vw, 33vw"
+            priority={false}
+          />
+        ) : (
+          // 默认渐变背景 - 基于热度生成颜色
+          <div 
+            className={cn(
+              "w-full h-full bg-gradient-to-br",
+              post.heat > 80 ? "from-red-400 via-pink-500 to-orange-500" :
+              post.heat > 60 ? "from-orange-400 via-yellow-500 to-red-500" :
+              post.heat > 40 ? "from-blue-400 via-purple-500 to-pink-500" :
+              post.heat > 20 ? "from-green-400 via-blue-500 to-purple-500" :
+              "from-gray-400 via-slate-500 to-gray-600"
+            )}
+          />
+        )}
+        
+        {/* 覆盖层 */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        
+        {/* 私有文章标识 */}
+        {post.isPrivate && (
+          <Badge 
+            variant="destructive" 
+            className="absolute top-4 left-4 bg-red-500/90 text-white hover:bg-red-500"
+          >
+            <Lock className="w-3 h-3 mr-1" />
+            私有
+          </Badge>
+        )}
+        
+        {/* 内容类型标签 */}
+        <Badge 
+          variant="secondary"
+          className="absolute top-4 right-4 bg-white/90 text-gray-700 hover:bg-white"
+        >
+          {getContentTypeIcon(post.type)} {post.type.toUpperCase()}
+        </Badge>
+
+        {/* 热度指示器 */}
+        {post.heat > 50 && (
+          <div className="absolute bottom-4 right-4">
+            <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0">
+              🔥 {post.heat}
+            </Badge>
+          </div>
+        )}
+      </div>
+
+      {/* Card Header - 标题区域 */}
+      <CardHeader className="pb-3">
+        <CardTitle className="line-clamp-2 group-hover:text-primary transition-colors text-lg leading-tight">
+          {post.title}
+        </CardTitle>
+        <CardDescription className="line-clamp-3 leading-relaxed">
+          {post.content.replace(/[#*`]/g, '').substring(0, 150)}
+          {post.content.length > 150 ? '...' : ''}
+        </CardDescription>
+      </CardHeader>
+
+      {/* Card Content - 主要内容 */}
+      <CardContent className="flex-1 pb-3">
+        {/* 标签列表 */}
+        {post.labels && post.labels.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {post.labels.slice(0, 3).map((label) => (
+              <Badge 
+                key={label.id} 
+                variant="outline" 
+                className="text-xs hover:bg-primary/10"
+                style={{ 
+                  borderColor: label.color || '#e5e7eb',
+                  color: label.color || '#6b7280'
+                }}
+              >
+                {label.key}
+              </Badge>
+            ))}
+            {post.labels.length > 3 && (
+              <Badge variant="outline" className="text-xs">
+                +{post.labels.length - 3}
+              </Badge>
+            )}
+          </div>
+        )}
+        
+        {/* 统计信息 */}
+        <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3">
+            {/* 点赞数 */}
+            <div className="flex items-center gap-1">
+              <Heart className="w-4 h-4" />
+              <span>{post.likeCount}</span>
+            </div>
+            
+            {/* 评论数 */}
+            <div className="flex items-center gap-1">
+              <MessageCircle className="w-4 h-4" />
+              <span>{post.commentCount}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-end gap-3">
+            {/* 阅读量 */}
+            <div className="flex items-center gap-1">
+              <Eye className="w-4 h-4" />
+              <span>{post.viewCount}</span>
+            </div>
+            
+            {/* 阅读时间 */}
+            <div className="flex items-center gap-1">
+              <Clock className="w-4 h-4" />
+              <span>{getReadingTime(post.content)}</span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+
+      {/* Card Footer - 日期和操作区域 */}
+      <CardFooter className="pt-3 border-t border-border/50 flex items-center justify-between">
+        {/* 创建日期 */}
+        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+          <Calendar className="w-4 h-4" />
+          <time dateTime={post.createdAt}>
+            {formatDate(post.createdAt)}
+          </time>
+        </div>
+        
+        {/* 更新日期（如果与创建日期不同）或阅读提示 */}
+        {post.updatedAt !== post.createdAt ? (
+          <div className="text-xs text-muted-foreground">
+            更新于 {formatDate(post.updatedAt)}
+          </div>
+        ) : (
+          <div className="text-sm text-primary">
+            阅读更多 →
+          </div>
+        )}
+      </CardFooter>
+    </Card>
+  );
+}
+
+// 骨架屏加载组件 - 使用 shadcn Card 结构
+export function BlogCardSkeleton() {
+  return (
+    <Card className="overflow-hidden h-full flex flex-col">
+      {/* 封面图片骨架 */}
+      <div className="aspect-[16/9] bg-muted animate-pulse" />
+      
+      {/* Header 骨架 */}
+      <CardHeader className="pb-3">
+        <div className="h-6 bg-muted rounded animate-pulse mb-2" />
+        <div className="space-y-2">
+          <div className="h-4 bg-muted rounded animate-pulse" />
+          <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
+          <div className="h-4 bg-muted rounded w-1/2 animate-pulse" />
+        </div>
+      </CardHeader>
+      
+      {/* Content 骨架 */}
+      <CardContent className="flex-1 pb-3">
+        <div className="flex gap-2 mb-4">
+          <div className="h-6 w-16 bg-muted rounded animate-pulse" />
+          <div className="h-6 w-20 bg-muted rounded animate-pulse" />
+          <div className="h-6 w-14 bg-muted rounded animate-pulse" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="h-4 bg-muted rounded animate-pulse" />
+          <div className="h-4 bg-muted rounded animate-pulse" />
+        </div>
+      </CardContent>
+      
+      {/* Footer 骨架 */}
+      <CardFooter className="pt-3 border-t">
+        <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+        <div className="h-4 w-20 bg-muted rounded animate-pulse ml-auto" />
+      </CardFooter>
+    </Card>
+  );
+}
+
+// 网格布局的博客卡片列表
+export function BlogCardGrid({ 
+  posts, 
+  isLoading,
+  showPrivate = false
+}: { 
+  posts: Post[]; 
+  isLoading?: boolean;
+  showPrivate?: boolean;
+}) {
+  const filteredPosts = showPrivate ? posts : posts.filter(post => !post.isPrivate);
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <BlogCardSkeleton key={index} />
+        ))}
+      </div>
+    );
+  }
+
+  if (filteredPosts.length === 0) {
+    return (
+      <Card className="p-12 text-center">
+        <CardContent>
+          <p className="text-muted-foreground text-lg">暂无文章</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            {showPrivate ? '没有找到任何文章' : '没有找到公开的文章'}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {filteredPosts.map((post) => (
+        <Link key={post.id} href={`/posts/${post.id}`} className="block h-full">
+          <BlogCard post={post} />
+        </Link>
+      ))}
+    </div>
+  );
+}

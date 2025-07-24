@@ -70,15 +70,13 @@ func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 }
 
 func (u *UserController) OidcList(ctx context.Context, c *app.RequestContext) {
-	resp, err := u.service.ListOidcConfigs()
+	oidcConfigs, err := u.service.ListOidcConfigs()
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
 		return
 	}
-	resps.Ok(c, resps.Success, map[string]any{
-		"oidc_configs": resp.OidcConfigs,
-	})
+	resps.Ok(c, resps.Success, oidcConfigs)
 }
 
 func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
@@ -109,7 +107,12 @@ func (u *UserController) GetUser(ctx context.Context, c *app.RequestContext) {
 	userID := c.Param("id")
 	userIDInt, err := strconv.Atoi(userID)
 	if err != nil || userIDInt <= 0 {
-		userIDInt = int(ctxutils.GetCurrentUserID(ctx))
+		currentUserID, ok := ctxutils.GetCurrentUserID(ctx)
+		if !ok {
+			resps.Unauthorized(c, resps.ErrUnauthorized)
+			return
+		}
+		userIDInt = int(currentUserID)
 	}
 
 	resp, err := u.service.GetUser(&dto.GetUserReq{UserID: uint(userIDInt)})
@@ -138,8 +141,8 @@ func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) 
 		return
 	}
 	updateUserReq.ID = uint(userIDInt)
-	currentUser := ctxutils.GetCurrentUser(ctx)
-	if currentUser == nil {
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok {
 		resps.Unauthorized(c, resps.ErrUnauthorized)
 		return
 	}

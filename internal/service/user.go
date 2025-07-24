@@ -140,7 +140,7 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 	return &dto.VerifyEmailResp{Success: true}, nil
 }
 
-func (s *UserService) ListOidcConfigs() (*dto.ListOidcConfigResp, error) {
+func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, error) {
 	enabledOidcConfigs, err := repo.Oidc.ListOidcConfigs(true)
 	if err != nil {
 		return nil, errs.ErrInternalServer
@@ -187,9 +187,7 @@ func (s *UserService) ListOidcConfigs() (*dto.ListOidcConfigResp, error) {
 			LoginUrl:    loginUrl,
 		})
 	}
-	return &dto.ListOidcConfigResp{
-		OidcConfigs: oidcConfigsDtos,
-	}, nil
+	return oidcConfigsDtos, nil
 }
 
 func (s *UserService) OidcLogin(req *dto.OidcLoginReq) (*dto.OidcLoginResp, error) {

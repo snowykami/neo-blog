@@ -12,8 +12,8 @@ import {
     NavigationMenuTrigger,
     navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
-import GravatarAvatar from "./Gravatar"
-import { useDevice } from "@/contexts/DeviceContext"
+import GravatarAvatar from "@/components/gravatar"
+import { useDevice } from "@/contexts/device-context"
 
 const components: { title: string; href: string }[] = [
     {

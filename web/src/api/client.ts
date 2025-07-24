@@ -3,12 +3,12 @@ import { camelToSnakeObj, snakeToCamelObj } from "field-conv";
 
 const API_SUFFIX = "/api/v1";
 
-const axiosInstance = axios.create({
+const axiosClient = axios.create({
   baseURL: API_SUFFIX,
   timeout: 10000,
 });
 
-axiosInstance.interceptors.request.use((config) => {
+axiosClient.interceptors.request.use((config) => {
   if (config.data && typeof config.data === "object") {
     config.data = camelToSnakeObj(config.data);
   }
@@ -18,7 +18,7 @@ axiosInstance.interceptors.request.use((config) => {
   return config;
 });
 
-axiosInstance.interceptors.response.use(
+axiosClient.interceptors.response.use(
   (response) => {
     if (response.data && typeof response.data === "object") {
       response.data = snakeToCamelObj(response.data);
@@ -28,4 +28,4 @@ axiosInstance.interceptors.response.use(
   (error) => Promise.reject(error),
 );
 
-export default axiosInstance;
+export default axiosClient;

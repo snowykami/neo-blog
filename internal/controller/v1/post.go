@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
@@ -28,12 +29,13 @@ func (p *PostController) Create(ctx context.Context, c *app.RequestContext) {
 	if err := c.BindAndValidate(&req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 	}
-	if err := p.service.CreatePost(ctx, &req); err != nil {
+	postID, err := p.service.CreatePost(ctx, &req)
+	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
 		return
 	}
-	resps.Ok(c, resps.Success, nil)
+	resps.Ok(c, resps.Success, utils.H{"id": postID})
 }
 
 func (p *PostController) Delete(ctx context.Context, c *app.RequestContext) {
@@ -80,16 +82,20 @@ func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	if err := p.service.UpdatePost(ctx, id, &req); err != nil {
+	postID, err := p.service.UpdatePost(ctx, id, &req)
+	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
 		return
 	}
-	resps.Ok(c, resps.Success, nil)
+	resps.Ok(c, resps.Success, utils.H{"id": postID})
 }
 
 func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 	pagination := ctxutils.GetPaginationParams(c)
+	if pagination.OrderedBy == "" {
+		pagination.OrderedBy = constant.OrderedByUpdatedAt
+	}
 	if pagination.OrderedBy != "" && !slices.Contains(constant.OrderedByEnumPost, pagination.OrderedBy) {
 		resps.BadRequest(c, "无效的排序字段")
 		return
@@ -103,11 +109,11 @@ func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 		OrderedBy: pagination.OrderedBy,
 		Reverse:   pagination.Reverse,
 	}
-	resp, err := p.service.ListPosts(ctx, req)
+	posts, err := p.service.ListPosts(ctx, req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
 		return
 	}
-	resps.Ok(c, resps.Success, resp)
+	resps.Ok(c, resps.Success, posts)
 }

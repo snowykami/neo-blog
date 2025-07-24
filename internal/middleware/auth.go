@@ -20,7 +20,7 @@ func UseAuth(block bool) app.HandlerFunc {
 		// 尝试用普通 token 认证
 		tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(token)
 		if err == nil && tokenClaims != nil {
-			ctx = context.WithValue(ctx, "user_id", tokenClaims.UserID)
+			ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
 			c.Next(ctx)
 			return
 		}
@@ -30,8 +30,7 @@ func UseAuth(block bool) app.HandlerFunc {
 		if err == nil && refreshTokenClaims != nil {
 			ok, err := isStatefulJwtValid(refreshTokenClaims)
 			if err == nil && ok {
-				ctx = context.WithValue(ctx, "user_id", refreshTokenClaims.UserID)
-
+				ctx = context.WithValue(ctx, constant.ContextKeyUserID, refreshTokenClaims.UserID)
 				// 生成新 token
 				newTokenClaims := utils.Jwt.NewClaims(
 					refreshTokenClaims.UserID,

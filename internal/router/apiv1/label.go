@@ -7,14 +7,15 @@ import (
 )
 
 func registerLabelRoutes(group *route.RouterGroup) {
+	labelController := v1.NewLabelController()
 	labelGroup := group.Group("/label").Use(middleware.UseAuth(true))
 	labelGroupWithoutAuth := group.Group("/label").Use(middleware.UseAuth(false))
 	{
-		labelGroupWithoutAuth.GET("/l/:id", v1.Label.Get)
-		labelGroupWithoutAuth.GET("/list", v1.Label.List)
+		labelGroupWithoutAuth.GET("/l/:id", labelController.Get)
+		labelGroupWithoutAuth.GET("/list", labelController.List)
 
-		labelGroup.POST("/l", v1.Label.Create)
-		labelGroup.DELETE("/l/:id", v1.Label.Delete)
-		labelGroup.PUT("/l/:id", v1.Label.Update)
+		labelGroup.POST("/l", labelController.Create)
+		labelGroup.DELETE("/l/:id", labelController.Delete)
+		labelGroup.PUT("/l/:id", labelController.Update)
 	}
 }

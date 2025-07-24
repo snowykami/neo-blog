@@ -6,13 +6,7 @@ type labelRepo struct{}
 
 var Label = &labelRepo{}
 
-func (l *labelRepo) CreateLabel(key, value, color, tailwindClassName string) error {
-	label := &model.Label{
-		Key:               key,
-		Value:             value,
-		Color:             color,
-		TailwindClassName: tailwindClassName,
-	}
+func (l *labelRepo) CreateLabel(label *model.Label) error {
 	return GetDB().Create(label).Error
 }
 
@@ -24,7 +18,7 @@ func (l *labelRepo) GetLabelByKey(key string) (*model.Label, error) {
 	return &label, nil
 }
 
-func (l *labelRepo) GetLabelByID(id uint) (*model.Label, error) {
+func (l *labelRepo) GetLabelByID(id string) (*model.Label, error) {
 	var label model.Label
 	if err := GetDB().Where("id = ?", id).First(&label).Error; err != nil {
 		return nil, err
@@ -47,7 +41,7 @@ func (l *labelRepo) UpdateLabel(label *model.Label) error {
 	return nil
 }
 
-func (l *labelRepo) DeleteLabel(id uint) error {
+func (l *labelRepo) DeleteLabel(id string) error {
 	if err := GetDB().Where("id = ?", id).Delete(&model.Label{}).Error; err != nil {
 		return err
 	}

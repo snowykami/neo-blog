@@ -4,25 +4,29 @@ import (
 	"context"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
-func GetCurrentUser(ctx context.Context) *model.User {
-	userIDValue := ctx.Value("user_id").(uint)
-	if userIDValue <= 0 {
-		return nil
+// GetCurrentUser 从上下文中获取当前用户
+func GetCurrentUser(ctx context.Context) (*model.User, bool) {
+	val := ctx.Value(constant.ContextKeyUserID)
+	if val == nil {
+		return nil, false
 	}
-	user, err := repo.User.GetUserByID(userIDValue)
-	if err != nil || user == nil || user.ID == 0 {
-		return nil
+	user, err := repo.User.GetUserByID(val.(uint))
+	if err != nil {
+		return nil, false
 	}
-	return user
+
+	return user, true
 }
 
-// GetCurrentUserID 获取当前用户ID，如果未认证则返回0
-func GetCurrentUserID(ctx context.Context) uint {
-	user := GetCurrentUser(ctx)
-	if user == nil {
-		return 0
+// GetCurrentUserID 从上下文中获取当前用户ID
+func GetCurrentUserID(ctx context.Context) (uint, bool) {
+	user, ok := GetCurrentUser(ctx)
+	if !ok || user == nil {
+		return 0, false
 	}
-	return user.ID
+
+	return user.ID, true
 }

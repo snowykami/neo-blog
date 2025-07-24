@@ -15,7 +15,7 @@ import Image from "next/image"
 import { useEffect, useState } from "react"
 import type { OidcConfig } from "@/models/oidc-config"
 import { ListOidcConfigs, userLogin } from "@/api/user"
-import Link from "next/link" // 使用 Next.js 的 Link 而不是 lucide 的 Link
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 
 export function LoginForm({
@@ -32,8 +32,7 @@ export function LoginForm({
   useEffect(() => {
     ListOidcConfigs()
       .then((res) => {
-        setOidcConfigs(res.data.oidcConfigs || []) // 确保是数组
-        console.log("OIDC configs fetched:", res.data.oidcConfigs)
+        setOidcConfigs(res.data || []) // 确保是数组
       })
       .catch((error) => {
         console.error("Error fetching OIDC configs:", error)
@@ -44,7 +43,7 @@ export function LoginForm({
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const res = await userLogin(username, password)
+      const res = await userLogin({username, password})
       console.log("Login successful:", res)
       router.push(redirectBack)
     } catch (error) {
@@ -58,7 +57,7 @@ export function LoginForm({
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Welcome back</CardTitle>
           <CardDescription>
-            Login with Open ID Connect or your email and password.
+            Login with Open ID Connect.
           </CardDescription>
         </CardHeader>
         <CardContent>
