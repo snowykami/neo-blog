@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-      const backendUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8888")
+      const backendUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://neo-blog-backend:8888")
       console.log("Using development API base URL:", backendUrl);
       return [
         {

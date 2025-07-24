@@ -1,16 +1,18 @@
 services:
   frontend:
     container_name: neo-blog-frontend
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://neo-blog-backend:8888
+    image: snowykami/neo-blog-frontend:latest
     networks:
       - neo-blog-network
-    image: snowykami/neo-blog-frontend:latest
     restart: always
 
   backend:
     container_name: neo-blog-backend
+    image: snowykami/neo-blog-backend:latest
     networks:
       - neo-blog-network
-    image: snowykami/neo-blog-backend:latest
     restart: always
     volumes:
       - ./data:/app/data
