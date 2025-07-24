@@ -54,7 +54,7 @@ func UseAuth(block bool) app.HandlerFunc {
 		// 所有认证方式都失败
 		if block {
 			// 若需要阻断，返回未授权错误并中止请求
-			resps.UnAuthorized(c, resps.ErrUnauthorized)
+			resps.Unauthorized(c, resps.ErrUnauthorized)
 			c.Abort()
 		} else {
 			// 若不需要阻断，继续请求但不设置用户ID

@@ -62,7 +62,7 @@ func (o *oidcRepo) UpdateOidcConfig(oidcConfig *model.OidcConfig) error {
 	if oidcConfig.ID == 0 {
 		return errs.New(http.StatusBadRequest, "invalid OIDC config ID", nil)
 	}
-	if err := GetDB().Updates(oidcConfig).Error; err != nil {
+	if err := GetDB().Select("Enabled").Updates(oidcConfig).Error; err != nil {
 		return err
 	}
 	return nil

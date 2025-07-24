@@ -2,8 +2,10 @@ package repo
 
 import (
 	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"net/http"
+	"slices"
 )
 
 type postRepo struct{}
@@ -45,9 +47,34 @@ func (p *postRepo) UpdatePost(post *model.Post) error {
 	return nil
 }
 
-func (p *postRepo) ListPosts(limit, offset int) ([]model.Post, error) {
+func (p *postRepo) ListPosts(currentUserID uint, keywords []string, page, size uint64, orderedBy string, reverse bool) ([]model.Post, error) {
 	var posts []model.Post
-	if err := GetDB().Limit(limit).Offset(offset).Find(&posts).Error; err != nil {
+	if !slices.Contains(constant.OrderedByEnumPost, orderedBy) {
+		return nil, errs.New(http.StatusBadRequest, "invalid ordered_by parameter", nil)
+	}
+	order := orderedBy
+	if reverse {
+		order += " ASC"
+	} else {
+		order += " DESC"
+	}
+	query := GetDB().Model(&model.Post{}).Preload("User")
+	if currentUserID > 0 {
+		query = query.Where("is_private = ? OR (is_private = ? AND user_id = ?)", false, true, currentUserID)
+	} else {
+		query = query.Where("is_private = ?", false)
+	}
+	if len(keywords) > 0 {
+		for _, keyword := range keywords {
+			if keyword != "" {
+				// 使用LIKE进行模糊匹配，搜索标题、内容和标签
+				query = query.Where("title LIKE ? OR content LIKE ? OR tags LIKE ?",
+					"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+			}
+		}
+	}
+	query = query.Order(order).Offset(int((page - 1) * size)).Limit(int(size))
+	if err := query.Find(&posts).Error; err != nil {
 		return nil, err
 	}
 	return posts, nil

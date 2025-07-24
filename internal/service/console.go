@@ -23,6 +23,7 @@ func (c *AdminService) CreateOidcConfig(req *dto.AdminOidcConfigDto) error {
 		ClientSecret:     req.ClientSecret,
 		OidcDiscoveryUrl: req.OidcDiscoveryUrl,
 		Enabled:          req.Enabled,
+		Type:             req.Type,
 	}
 	return repo.Oidc.CreateOidcConfig(oidcConfig)
 }
@@ -70,6 +71,7 @@ func (c *AdminService) UpdateOidcConfig(req *dto.AdminOidcConfigDto) error {
 		ClientSecret:     req.ClientSecret,
 		OidcDiscoveryUrl: req.OidcDiscoveryUrl,
 		Enabled:          req.Enabled,
+		Type:             req.Type,
 	}
 	return repo.Oidc.UpdateOidcConfig(oidcConfig)
 }

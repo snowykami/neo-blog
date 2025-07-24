@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
@@ -25,6 +26,10 @@ func NewUserService() *UserService {
 func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, error) {
 	user, err := repo.User.GetUserByUsernameOrEmail(req.Username)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			logrus.Warnf("User not found: %s", req.Username)
+			return nil, errs.ErrNotFound
+		}
 		return nil, errs.ErrInternalServer
 	}
 	if user == nil {
@@ -92,6 +97,15 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 	if err != nil {
 		return nil, errs.ErrInternalServer
 	}
+	// 创建默认管理员账户
+	if newUser.ID == 1 {
+		newUser.Role = constant.RoleAdmin
+		err = repo.User.UpdateUser(newUser)
+		if err != nil {
+			logrus.Errorln("Failed to update user role to admin:", err)
+			return nil, errs.ErrInternalServer
+		}
+	}
 	// 生成访问令牌和刷新令牌
 	token, refreshToken, err := s.generate2Token(newUser.ID)
 	if err != nil {
@@ -137,17 +151,40 @@ func (s *UserService) ListOidcConfigs() (*dto.ListOidcConfigResp, error) {
 		state := utils.Strings.GenerateRandomString(32)
 		kvStore := utils.KV.GetInstance()
 		kvStore.Set(constant.KVKeyOidcState+state, oidcConfig.Name, 5*time.Minute)
+		loginUrl := utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint, map[string]string{
+			"client_id": oidcConfig.ClientID,
+			"redirect_uri": fmt.Sprintf("%s%s%s/%sREDIRECT_BACK", // 这个大占位符给前端替换用的，替换时也要uri编码因为是层层包的
+				strings.TrimSuffix(utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl), "/"),
+				constant.ApiSuffix,
+				constant.OidcUri,
+				oidcConfig.Name,
+			),
+			"response_type": "code",
+			"scope":         "openid email profile",
+			"state":         state,
+		})
+
+		if oidcConfig.Type == constant.OidcProviderTypeMisskey {
+			// Misskey OIDC 特殊处理
+			loginUrl = utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint, map[string]string{
+				"client_id": oidcConfig.ClientID,
+				"redirect_uri": fmt.Sprintf("%s%s%s/%s", // 这个大占位符给前端替换用的，替换时也要uri编码因为是层层包的
+					strings.TrimSuffix(utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl), "/"),
+					constant.ApiSuffix,
+					constant.OidcUri,
+					oidcConfig.Name,
+				),
+				"response_type": "code",
+				"scope":         "read:account",
+				"state":         state,
+			})
+		}
+
 		oidcConfigsDtos = append(oidcConfigsDtos, dto.UserOidcConfigDto{
 			Name:        oidcConfig.Name,
 			DisplayName: oidcConfig.DisplayName,
 			Icon:        oidcConfig.Icon,
-			LoginUrl: utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint, map[string]string{
-				"client_id":     oidcConfig.ClientID,
-				"redirect_uri":  strings.TrimSuffix(utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl), "/") + constant.OidcUri + oidcConfig.Name,
-				"response_type": "code",
-				"scope":         "openid email profile",
-				"state":         state,
-			}),
+			LoginUrl:    loginUrl,
 		})
 	}
 	return &dto.ListOidcConfigResp{
@@ -190,7 +227,7 @@ func (s *UserService) OidcLogin(req *dto.OidcLoginReq) (*dto.OidcLoginResp, erro
 
 	// 绑定过登录
 	userOpenID, err := repo.User.GetUserOpenIDByIssuerAndSub(oidcConfig.Issuer, userInfo.Sub)
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errs.ErrInternalServer
 	}
 	if userOpenID != nil {
@@ -212,7 +249,7 @@ func (s *UserService) OidcLogin(req *dto.OidcLoginReq) (*dto.OidcLoginResp, erro
 	} else {
 		// 若没有绑定过登录，则先通过邮箱查找用户，若没有再创建新用户
 		user, err := repo.User.GetUserByEmail(userInfo.Email)
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			logrus.Errorln("Failed to get user by email:", err)
 			return nil, errs.ErrInternalServer
 		}

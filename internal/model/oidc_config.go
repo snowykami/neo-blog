@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"gorm.io/gorm"
 	"resty.dev/v3"
@@ -17,6 +18,7 @@ type OidcConfig struct {
 	Icon             string // 图标url，为空则使用内置默认图标
 	OidcDiscoveryUrl string // OpenID自动发现URL，例如 ：https://pass.liteyuki.icu/.well-known/openid-configuration
 	Enabled          bool   `gorm:"default:true"` // 是否启用
+	Type             string `gorm:"oauth2"`       // OIDC类型，默认为oauth2,也可以为misskey
 	// 以下字段为自动获取字段，每次更新配置时自动填充
 	Issuer                string
 	AuthorizationEndpoint string
@@ -42,7 +44,7 @@ type oidcDiscoveryResp struct {
 	EndSessionEndpoint               string   `json:"end_session_endpoint,omitempty"`
 }
 
-func updateOidcConfigFromUrl(url string) (*oidcDiscoveryResp, error) {
+func updateOidcConfigFromUrl(url string, typ string) (*oidcDiscoveryResp, error) {
 	client := resty.New()
 	client.SetTimeout(10 * time.Second) // 设置超时时间
 	var discovery oidcDiscoveryResp
@@ -57,6 +59,11 @@ func updateOidcConfigFromUrl(url string) (*oidcDiscoveryResp, error) {
 		return nil, fmt.Errorf("请求OIDC发现端点失败，状态码: %d", resp.StatusCode())
 	}
 	// 验证必要字段
+	if typ == "misskey" {
+		discovery.UserInfoEndpoint = discovery.Issuer + "/api/users/me" // Misskey的用户信息端点
+		discovery.JwksUri = discovery.Issuer + "/api/jwks"
+	}
+	fmt.Println(discovery)
 	if discovery.Issuer == "" ||
 		discovery.AuthorizationEndpoint == "" ||
 		discovery.TokenEndpoint == "" ||
@@ -69,10 +76,12 @@ func updateOidcConfigFromUrl(url string) (*oidcDiscoveryResp, error) {
 
 func (o *OidcConfig) BeforeSave(tx *gorm.DB) (err error) {
 	// 只有在创建新记录或更新 OidcDiscoveryUrl 字段时才更新端点信息
-	if tx.Statement.Changed("OidcDiscoveryUrl") {
-		discoveryResp, err := updateOidcConfigFromUrl(o.OidcDiscoveryUrl)
+	if tx.Statement.Changed("OidcDiscoveryUrl") || o.ID == 0 {
+		logrus.Infof("Updating OIDC config for %s, OidcDiscoveryUrl: %s", o.Name, o.OidcDiscoveryUrl)
+		discoveryResp, err := updateOidcConfigFromUrl(o.OidcDiscoveryUrl, o.Type)
 		if err != nil {
-			return fmt.Errorf("更新OIDC配置失败: %w", err)
+			logrus.Error("Updating OIDC config failed: ", err)
+			return fmt.Errorf("updating OIDC config failed: %w", err)
 		}
 		o.Issuer = discoveryResp.Issuer
 		o.AuthorizationEndpoint = discoveryResp.AuthorizationEndpoint

@@ -42,7 +42,6 @@ func (u *oidcUtils) RequestUserInfo(userInfoEndpoint, accessToken string) (*User
 		SetHeader("Accept", "application/json").
 		SetResult(&UserInfo{}).
 		Get(userInfoEndpoint)
-
 	if err != nil {
 		return nil, err
 	}

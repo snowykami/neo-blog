@@ -7,6 +7,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
+	"strconv"
 )
 
 type AdminController struct {
@@ -22,7 +23,7 @@ func NewAdminController() *AdminController {
 func (cc *AdminController) CreateOidc(ctx context.Context, c *app.RequestContext) {
 	var adminCreateOidcReq dto.AdminOidcConfigDto
 	if err := c.BindAndValidate(&adminCreateOidcReq); err != nil {
-		c.JSON(400, map[string]string{"error": "Invalid parameters"})
+		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
 	err := cc.service.CreateOidcConfig(&adminCreateOidcReq)
@@ -77,12 +78,23 @@ func (cc *AdminController) ListOidc(ctx context.Context, c *app.RequestContext) 
 }
 
 func (cc *AdminController) UpdateOidc(ctx context.Context, c *app.RequestContext) {
-	var adminUpdateOidcReq dto.AdminOidcConfigDto
-	if err := c.BindAndValidate(&adminUpdateOidcReq); err != nil {
-		c.JSON(400, map[string]string{"error": "Invalid parameters"})
+	id := c.Param("id")
+	if id == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	err := cc.service.UpdateOidcConfig(&adminUpdateOidcReq)
+	idInt, err := strconv.Atoi(id)
+	if err != nil || idInt <= 0 {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	var adminUpdateOidcReq dto.AdminOidcConfigDto
+	if err := c.BindAndValidate(&adminUpdateOidcReq); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	adminUpdateOidcReq.ID = uint(idInt)
+	err = cc.service.UpdateOidcConfig(&adminUpdateOidcReq)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)

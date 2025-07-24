@@ -124,6 +124,7 @@ func initSQLite(path string, gormConfig *gorm.Config) (*gorm.DB, error) {
 
 func migrate() error {
 	return GetDB().AutoMigrate(
+		&model.Category{},
 		&model.Comment{},
 		&model.Label{},
 		&model.Like{},

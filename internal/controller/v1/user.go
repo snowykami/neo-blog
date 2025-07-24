@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -82,8 +83,13 @@ func (u *UserController) OidcList(ctx context.Context, c *app.RequestContext) {
 
 func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 	name := c.Param("name")
-	code := c.Param("code")
-	state := c.Param("state")
+	code := c.Query("code")
+	state := c.Query("state")
+	redirectUri := c.Query("redirect_back") // 前端路由登录前的重定向地址
+	if redirectUri == "" {
+		redirectUri = "/"
+	}
+	fmt.Println("redirectBack:", redirectUri)
 	oidcLoginReq := &dto.OidcLoginReq{
 		Name:  name,
 		Code:  code,
@@ -96,22 +102,14 @@ func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	ctxutils.SetTokenAndRefreshTokenCookie(c, resp.Token, resp.RefreshToken)
-	resps.Ok(c, resps.Success, map[string]any{
-		"token": resp.Token,
-		"user":  resp.User,
-	})
+	resps.Redirect(c, redirectUri) // 重定向到前端路由
 }
 
 func (u *UserController) GetUser(ctx context.Context, c *app.RequestContext) {
 	userID := c.Param("id")
-	if userID == "" {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
 	userIDInt, err := strconv.Atoi(userID)
 	if err != nil || userIDInt <= 0 {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
+		userIDInt = int(ctxutils.GetCurrentUserID(ctx))
 	}
 
 	resp, err := u.service.GetUser(&dto.GetUserReq{UserID: uint(userIDInt)})
@@ -142,7 +140,7 @@ func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) 
 	updateUserReq.ID = uint(userIDInt)
 	currentUser := ctxutils.GetCurrentUser(ctx)
 	if currentUser == nil {
-		resps.UnAuthorized(c, resps.ErrUnauthorized)
+		resps.Unauthorized(c, resps.ErrUnauthorized)
 		return
 	}
 	if currentUser.ID != updateUserReq.ID {

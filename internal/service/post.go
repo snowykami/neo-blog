@@ -7,7 +7,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/errs"
-	"net/http"
 )
 
 type PostService struct{}
@@ -21,15 +20,22 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	if currentUser == nil {
 		return errs.ErrUnauthorized
 	}
-
 	post := &model.Post{
-		Title:     req.Title,
-		Content:   req.Content,
-		UserID:    currentUser.ID,
-		Labels:    req.Labels,
+		Title:   req.Title,
+		Content: req.Content,
+		UserID:  currentUser.ID,
+		Labels: func() []model.Label {
+			labelModels := make([]model.Label, 0)
+			for _, labelID := range req.Labels {
+				labelModel, err := repo.Label.GetLabelByID(labelID)
+				if err == nil {
+					labelModels = append(labelModels, *labelModel)
+				}
+			}
+			return labelModels
+		}(),
 		IsPrivate: req.IsPrivate,
 	}
-
 	if err := repo.Post.CreatePost(post); err != nil {
 		return err
 	}
@@ -37,10 +43,103 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 }
 
 func (p *PostService) DeletePost(ctx context.Context, id string) error {
+	currentUser := ctxutils.GetCurrentUser(ctx)
+	if currentUser == nil {
+		return errs.ErrUnauthorized
+	}
+	if id == "" {
+		return errs.ErrBadRequest
+	}
+	post, err := repo.Post.GetPostByID(id)
+	if err != nil {
+		return errs.New(errs.ErrNotFound.Code, "post not found", err)
+	}
+	if post.UserID != currentUser.ID {
+		return errs.ErrForbidden
+	}
+	if err := repo.Post.DeletePost(id); err != nil {
+		return errs.ErrInternalServer
+	}
+	return nil
 }
 
-func (p *PostService) GetPost(ctx context.Context, id string) (*model.Post, error) {}
+func (p *PostService) GetPost(ctx context.Context, id string) (*dto.PostDto, error) {
+	currentUser := ctxutils.GetCurrentUser(ctx)
+	if currentUser == nil {
+		return nil, errs.ErrUnauthorized
+	}
+	if id == "" {
+		return nil, errs.ErrBadRequest
+	}
+	post, err := repo.Post.GetPostByID(id)
+	if err != nil {
+		return nil, errs.New(errs.ErrNotFound.Code, "post not found", err)
+	}
+	if post.IsPrivate && post.UserID != currentUser.ID {
+		return nil, errs.ErrForbidden
+	}
+	return &dto.PostDto{
+		UserID:  post.UserID,
+		Title:   post.Title,
+		Content: post.Content,
+		Labels: func() []dto.LabelDto {
+			labelDtos := make([]dto.LabelDto, 0)
+			for _, label := range post.Labels {
+				labelDtos = append(labelDtos, label.ToDto())
+			}
+			return labelDtos
+		}(),
+	}, nil
+}
 
-func (p *PostService) UpdatePost(req *dto.CreateOrUpdatePostReq) error {}
+func (p *PostService) UpdatePost(ctx context.Context, id string, req *dto.CreateOrUpdatePostReq) error {
+	currentUser := ctxutils.GetCurrentUser(ctx)
+	if currentUser == nil {
+		return errs.ErrUnauthorized
+	}
+	if id == "" {
+		return errs.ErrBadRequest
+	}
+	post, err := repo.Post.GetPostByID(id)
+	if err != nil {
+		return errs.New(errs.ErrNotFound.Code, "post not found", err)
+	}
+	if post.UserID != currentUser.ID {
+		return errs.ErrForbidden
+	}
+	post.Title = req.Title
+	post.Content = req.Content
+	post.IsPrivate = req.IsPrivate
+	post.Labels = func() []model.Label {
+		labelModels := make([]model.Label, len(req.Labels))
+		for _, labelID := range req.Labels {
+			labelModel, err := repo.Label.GetLabelByID(labelID)
+			if err == nil {
+				labelModels = append(labelModels, *labelModel)
+			}
+		}
+		return labelModels
+	}()
+	if err := repo.Post.UpdatePost(post); err != nil {
+		return errs.ErrInternalServer
+	}
+	return nil
+}
 
-func (p *PostService) ListPosts() {}
+func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) (*dto.ListPostResp, error) {
+	postDtos := make([]dto.PostDto, 0)
+	currentUserID := ctxutils.GetCurrentUserID(ctx)
+	posts, err := repo.Post.ListPosts(currentUserID, req.Keywords, req.Page, req.Size, req.OrderedBy, req.Reverse)
+	if err != nil {
+		return nil, errs.New(errs.ErrInternalServer.Code, "failed to list posts", err)
+	}
+	for _, post := range posts {
+		postDtos = append(postDtos, post.ToDto())
+	}
+	return &dto.ListPostResp{
+		Posts:     postDtos,
+		Total:     uint64(len(posts)),
+		OrderedBy: req.OrderedBy,
+		Reverse:   req.Reverse,
+	}, nil
+}

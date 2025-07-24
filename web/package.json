@@ -9,19 +9,32 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@radix-ui/react-label": "^2.1.7",
+    "@radix-ui/react-navigation-menu": "^1.2.13",
+    "@radix-ui/react-slot": "^1.2.3",
+    "axios": "^1.11.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "field-conv": "^1.0.9",
+    "i18next": "^25.3.2",
+    "lucide-react": "^0.525.0",
+    "next": "15.4.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.4.1"
+    "react-i18next": "^15.6.1",
+    "react-icons": "^5.5.0",
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "15.4.1",
-    "@eslint/eslintrc": "^3"
+    "tailwindcss": "^4",
+    "tw-animate-css": "^1.3.5",
+    "typescript": "^5"
   }
 }

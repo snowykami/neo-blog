@@ -8,5 +8,6 @@ type AdminOidcConfigDto struct {
 	DisplayName      string `json:"display_name"`
 	Icon             string `json:"icon"`
 	OidcDiscoveryUrl string `json:"oidc_discovery_url"`
+	Type             string `json:"type"` // oauth2 or misskey
 	Enabled          bool   `json:"enabled"`
 }

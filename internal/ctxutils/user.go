@@ -17,3 +17,12 @@ func GetCurrentUser(ctx context.Context) *model.User {
 	}
 	return user
 }
+
+// GetCurrentUserID 获取当前用户ID，如果未认证则返回0
+func GetCurrentUserID(ctx context.Context) uint {
+	user := GetCurrentUser(ctx)
+	if user == nil {
+		return 0
+	}
+	return user.ID
+}

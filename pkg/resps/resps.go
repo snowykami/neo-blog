@@ -18,11 +18,15 @@ func Ok(c *app.RequestContext, message string, data any) {
 	Custom(c, 200, message, data)
 }
 
+func Redirect(c *app.RequestContext, url string) {
+	c.Redirect(302, []byte(url))
+}
+
 func BadRequest(c *app.RequestContext, message string) {
 	Custom(c, 400, message, nil)
 }
 
-func UnAuthorized(c *app.RequestContext, message string) {
+func Unauthorized(c *app.RequestContext, message string) {
 	Custom(c, 401, message, nil)
 }
 
