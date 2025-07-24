@@ -11,8 +11,9 @@ interface ListPostsParams {
 }
 
 export async function getPostById(id: string): Promise<Post | null> {
+    console.log("Fetching post by ID:", id);
     try {
-        const res = await axiosClient.get<BaseResponse<Post>>(`/post/p/${id}`);
+        const res = await axiosClient.get<BaseResponse<Post>>(`/post/p/19`);
         return res.data.data;
     } catch (error) {
         console.error("Error fetching post by ID:", error);

@@ -14,8 +14,10 @@ import {
 } from "@/components/ui/navigation-menu"
 import GravatarAvatar from "@/components/gravatar"
 import { useDevice } from "@/contexts/device-context"
-import { metadata } from '../app/layout';
 import config from "@/config"
+import { useState, useEffect } from "react"
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Menu } from "lucide-react"
 
 const navbarMenuComponents = [
     {
@@ -43,24 +45,22 @@ const navbarMenuComponents = [
 
 export function Navbar() {
     return (
-        <nav className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-12 px-4 w-full">
+        <nav className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-16 px-4 w-full">
             <div className="flex items-center justify-start">
-                {/* 左侧内容 */}
                 <span className="font-bold truncate">{config.metadata.name}</span>
             </div>
             <div className="flex items-center justify-center">
-                {/* 中间内容 - 完全居中 */}
-                <NavMenu />
+                <NavMenuCenter />
             </div>
-            <div className="flex items-center justify-end">
-                {/* 右侧内容 */}
-                <GravatarAvatar email="snowykami@outlook.com"/>
+            <div className="flex items-center justify-end space-x-2">
+                <GravatarAvatar email="snowykami@outlook.com" />
+                <SidebarMenuClientOnly />
             </div>
         </nav>
     )
 }
 
-function NavMenu() {
+function NavMenuCenter() {
     const { isMobile } = useDevice()
     console.log("isMobile", isMobile)
     if (isMobile) return null
@@ -117,5 +117,66 @@ function ListItem({
                 </Link>
             </NavigationMenuLink>
         </li>
+    )
+}
+
+function SidebarMenuClientOnly() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return <SidebarMenu />;
+}
+
+function SidebarMenu() {
+    const [open, setOpen] = useState(false)
+    const { isMobile } = useDevice()
+
+    if (!isMobile) return null
+
+    return (
+        <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+                <button
+                    aria-label="打开菜单"
+                    className="p-2 rounded-md hover:bg-accent transition-colors"
+                >
+                    <Menu className="w-6 h-6" />
+                </button>
+            </SheetTrigger>
+            <SheetContent side="right" className="p-0 w-64">
+                {/* 可访问性要求的标题，视觉上隐藏 */}
+                <SheetTitle className="sr-only">侧边栏菜单</SheetTitle>
+                <nav className="flex flex-col gap-2 p-4">
+                    {navbarMenuComponents.map((item) =>
+                        item.href ? (
+                            <Link
+                                key={item.title}
+                                href={item.href}
+                                className="py-2 px-3 rounded hover:bg-accent font-bold transition-colors"
+                                onClick={() => setOpen(false)}
+                            >
+                                {item.title}
+                            </Link>
+                        ) : item.children ? (
+                            <div key={item.title} className="mb-2">
+                                <div className="font-bold px-3 py-2">{item.title}</div>
+                                <div className="flex flex-col pl-4">
+                                    {item.children.map((child) => (
+                                        <Link
+                                            key={child.title}
+                                            href={child.href}
+                                            className="py-2 px-3 rounded hover:bg-accent transition-colors"
+                                            onClick={() => setOpen(false)}
+                                        >
+                                            {child.title}
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null
+                    )}
+                </nav>
+            </SheetContent>
+        </Sheet>
     )
 }

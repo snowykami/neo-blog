@@ -65,10 +65,6 @@ func (p *PostService) DeletePost(ctx context.Context, id string) error {
 }
 
 func (p *PostService) GetPost(ctx context.Context, id string) (*dto.PostDto, error) {
-	currentUser, ok := ctxutils.GetCurrentUser(ctx)
-	if !ok {
-		return nil, errs.ErrUnauthorized
-	}
 	if id == "" {
 		return nil, errs.ErrBadRequest
 	}
@@ -76,7 +72,8 @@ func (p *PostService) GetPost(ctx context.Context, id string) (*dto.PostDto, err
 	if err != nil {
 		return nil, errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}
-	if post.IsPrivate && post.UserID != currentUser.ID {
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if post.IsPrivate && (!ok || post.UserID != currentUser.ID) {
 		return nil, errs.ErrForbidden
 	}
 	return &dto.PostDto{

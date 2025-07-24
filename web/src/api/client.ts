@@ -1,10 +1,14 @@
 import axios from "axios";
 import { camelToSnakeObj, snakeToCamelObj } from "field-conv";
 
+export const BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://neo-blog-backend:8888";
+
+const isServer = typeof window === "undefined";
+
 const API_SUFFIX = "/api/v1";
 
 const axiosClient = axios.create({
-  baseURL: API_SUFFIX,
+  baseURL: isServer ? BACKEND_URL + API_SUFFIX : API_SUFFIX,
   timeout: 10000,
 });
 

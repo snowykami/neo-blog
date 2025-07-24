@@ -1,3 +1,5 @@
+
+import { BACKEND_URL } from "@/api/client";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -19,7 +21,7 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-      const backendUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://neo-blog-backend:8888")
+      const backendUrl = BACKEND_URL
       console.log("Using development API base URL:", backendUrl);
       return [
         {
