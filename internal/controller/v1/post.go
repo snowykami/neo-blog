@@ -29,6 +29,7 @@ func (p *PostController) Create(ctx context.Context, c *app.RequestContext) {
 	var req dto.CreateOrUpdatePostReq
 	if err := c.BindAndValidate(&req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
 	}
 	postID, err := p.service.CreatePost(ctx, &req)
 	if err != nil {
