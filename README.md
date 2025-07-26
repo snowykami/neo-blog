@@ -46,6 +46,16 @@ docker compose up -d
 
 启动后，将外部网关请求转发到前端服务的端口即可
 
+### 使用容器化部署(Kubernetes)(推荐 但是还未发布helm chart)
+
+可以使用[Helm Chart](https://artifacthub.io/packages/helm/snowykami/neo-blog)进行部署。
+
+```bash
+helm repo add snowykami https://snowykami.github.io/neo-blog
+helm repo update
+helm install neo-blog snowykami/neo-blog --set backend.baseUrl=https://neo-blog-dev.sfkm.me
+```
+
 ### 使用源码构建部署(除开发场景外不推荐)
 
 需要准备：go、nodejs、pnpm
