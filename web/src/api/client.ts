@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { camelToSnakeObj, snakeToCamelObj } from 'field-conv'
 
-export const BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://neo-blog-backend:8888'
+export const BACKEND_URL = process.env.BACKEND_URL || 'http://neo-blog-backend:8888'
 
 const isServer = typeof window === 'undefined'
 
