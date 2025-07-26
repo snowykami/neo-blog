@@ -101,10 +101,8 @@ func initPostgres(config DBConfig, gormConfig *gorm.Config) (db *gorm.DB, err er
 	if config.Host == "" || config.User == "" || config.Password == "" || config.DBName == "" {
 		err = errors.New("PostgreSQL configuration is incomplete: host, user, password, and dbname are required")
 	}
-
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		config.Host, config.Port, config.User, config.Password, config.DBName, config.SSLMode)
-
 	db, err = gorm.Open(postgres.Open(dsn), gormConfig)
 	return
 }

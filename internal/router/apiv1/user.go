@@ -18,7 +18,7 @@ func registerUserRoutes(group *route.RouterGroup) {
 		userGroupWithoutAuth.GET("/oidc/list", userController.OidcList)
 		userGroupWithoutAuth.GET("/oidc/login/:name", userController.OidcLogin)
 		userGroupWithoutAuth.GET("/u/:id", userController.GetUser)
-		userGroup.GET("/u", userController.GetUser)
+		userGroup.GET("/me", userController.GetUser)
 		userGroup.POST("/logout", userController.Logout)
 		userGroup.PUT("/u/:id", userController.UpdateUser)
 	}

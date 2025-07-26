@@ -16,7 +16,7 @@ func registerPostRoutes(group *route.RouterGroup) {
 		postGroupWithoutAuth.GET("/p/:id", postController.Get)
 		postGroupWithoutAuth.GET("/list", postController.List)
 		postGroup.POST("/p", postController.Create)
-		postGroup.PUT("/p", postController.Update)
-		postGroup.DELETE("/p", postController.Delete)
+		postGroup.PUT("/p/:id", postController.Update)
+		postGroup.DELETE("/p/:id", postController.Delete)
 	}
 }

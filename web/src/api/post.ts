@@ -5,8 +5,8 @@ import axiosClient from "./client";
 interface ListPostsParams {
     page?: number;
     size?: number;
-    orderedBy?: string;
-    reverse?: boolean;
+    orderBy?: string;
+    desc?: boolean;
     keywords?: string;
 }
 
@@ -24,16 +24,16 @@ export async function getPostById(id: string): Promise<Post | null> {
 export async function listPosts({
     page = 1,
     size = 10,
-    orderedBy = 'updated_at',
-    reverse = false,
+    orderBy = 'updated_at',
+    desc = false,
     keywords = ''
 }: ListPostsParams = {}): Promise<BaseResponse<Post[]>> {
     const res = await axiosClient.get<BaseResponse<Post[]>>("/post/list", {
         params: {
             page,
             size,
-            orderedBy,
-            reverse,
+            orderBy,
+            desc,
             keywords
         }
     });

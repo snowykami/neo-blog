@@ -44,3 +44,17 @@ export async function ListOidcConfigs(): Promise<BaseResponse<OidcConfig[]>> {
     );
     return res.data;
 }
+
+export async function getLoginUser(token: string = ""): Promise<BaseResponse<User>> {
+    const res = await axiosClient.get<BaseResponse<User>>("/user/me", {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    });
+    return res.data;
+}
+
+export async function getUserById(id: number): Promise<BaseResponse<User>> {
+    const res = await axiosClient.get<BaseResponse<User>>(`/user/u/${id}`);
+    return res.data;
+}

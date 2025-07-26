@@ -8,6 +8,7 @@ type UserDto struct {
 	Email     string `json:"email"`      // 邮箱
 	Gender    string `json:"gender"`
 	Role      string `json:"role"`
+	Language  string `json:"language"` // 语言
 }
 
 type UserOidcConfigDto struct {

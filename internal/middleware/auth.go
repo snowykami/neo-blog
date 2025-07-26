@@ -8,30 +8,42 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	"github.com/snowykami/neo-blog/pkg/utils"
+	"strings"
 	"time"
 )
 
 func UseAuth(block bool) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		// For cookie
-		token := string(c.Cookie("token"))
+		tokenFromCookie := string(c.Cookie("tokenFromCookie"))
+		tokenFromHeader := strings.TrimPrefix(string(c.GetHeader("Authorization")), "Bearer ")
 		refreshToken := string(c.Cookie("refresh_token"))
 
-		// 尝试用普通 token 认证
-		tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(token)
-		if err == nil && tokenClaims != nil {
-			ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
-			c.Next(ctx)
-			return
+		// 尝试用普通 tokenFromCookie 认证
+		if tokenFromCookie != "" {
+			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(tokenFromCookie)
+			if err == nil && tokenClaims != nil {
+				ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
+				c.Next(ctx)
+				return
+			}
 		}
-
-		// token 失效 使用 refresh token 重新签发和鉴权
+		// tokenFromCookie 认证失败，尝试用 Bearer tokenFromHeader 认证
+		if tokenFromHeader != "" {
+			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(tokenFromHeader)
+			if err == nil && tokenClaims != nil {
+				ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
+				c.Next(ctx)
+				return
+			}
+		}
+		// tokenFromCookie 失效 使用 refresh tokenFromCookie 重新签发和鉴权
 		refreshTokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(refreshToken)
 		if err == nil && refreshTokenClaims != nil {
 			ok, err := isStatefulJwtValid(refreshTokenClaims)
 			if err == nil && ok {
 				ctx = context.WithValue(ctx, constant.ContextKeyUserID, refreshTokenClaims.UserID)
-				// 生成新 token
+				// 生成新 tokenFromCookie
 				newTokenClaims := utils.Jwt.NewClaims(
 					refreshTokenClaims.UserID,
 					refreshTokenClaims.SessionKey,

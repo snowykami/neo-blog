@@ -6,4 +6,5 @@ export interface User {
     email: string;
     gender: string;
     role: string;
+    language: string;
 }

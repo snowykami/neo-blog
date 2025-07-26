@@ -13,6 +13,7 @@ type User struct {
 	Email     string `gorm:"uniqueIndex"`
 	Gender    string
 	Role      string `gorm:"default:'user'"`
+	Language  string `gorm:"default:'en'"`
 	Password  string // 密码，存储加密后的值
 }
 
@@ -33,5 +34,6 @@ func (user *User) ToDto() *dto.UserDto {
 		Email:     user.Email,
 		Gender:    user.Gender,
 		Role:      user.Role,
+		Language:  user.Language,
 	}
 }

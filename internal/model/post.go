@@ -17,7 +17,7 @@ type Post struct {
 	CategoryID   uint     `gorm:"index"`                                                                // 帖子分类ID
 	Category     Category `gorm:"foreignKey:CategoryID;references:ID"`                                  // 关联的分类
 	Labels       []Label  `gorm:"many2many:post_labels;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"` // 关联的标签
-	IsPrivate    bool     `gorm:"default:false"`                                                        // 是否为私密帖子
+	IsPrivate    bool     `gorm:"default:false"`
 	LikeCount    uint64
 	CommentCount uint64
 	ViewCount    uint64
@@ -60,4 +60,15 @@ func (p *Post) ToDto() dto.PostDto {
 		CreatedAt:    p.CreatedAt,
 		UpdatedAt:    p.UpdatedAt,
 	}
+}
+
+// ToDtoWithShortContent 返回一个简化的 DTO，内容可以根据需要截断
+func (p *Post) ToDtoWithShortContent(contentLength int) dto.PostDto {
+	dtoPost := p.ToDto()
+	if len(p.Content) > contentLength {
+		dtoPost.Content = p.Content[:contentLength] + "..."
+	} else {
+		dtoPost.Content = p.Content
+	}
+	return dtoPost
 }

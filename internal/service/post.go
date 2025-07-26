@@ -127,12 +127,37 @@ func (p *PostService) UpdatePost(ctx context.Context, id string, req *dto.Create
 func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]dto.PostDto, error) {
 	postDtos := make([]dto.PostDto, 0)
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
-	posts, err := repo.Post.ListPosts(currentUserID, req.Keywords, req.Page, req.Size, req.OrderedBy, req.Reverse)
+	posts, err := repo.Post.ListPosts(currentUserID, req.Keywords, req.Page, req.Size, req.OrderBy, req.Desc)
 	if err != nil {
 		return nil, errs.New(errs.ErrInternalServer.Code, "failed to list posts", err)
 	}
 	for _, post := range posts {
-		postDtos = append(postDtos, post.ToDto())
+		postDtos = append(postDtos, post.ToDtoWithShortContent(100))
 	}
 	return postDtos, nil
+}
+
+func (p *PostService) ToggleLikePost(ctx context.Context, id string) error {
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok {
+		return errs.ErrUnauthorized
+	}
+	if id == "" {
+		return errs.ErrBadRequest
+	}
+	post, err := repo.Post.GetPostByID(id)
+	if err != nil {
+		return errs.New(errs.ErrNotFound.Code, "post not found", err)
+	}
+	if post.UserID == currentUser.ID {
+		return errs.ErrForbidden
+	}
+	idInt, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		return errs.New(errs.ErrBadRequest.Code, "invalid post ID", err)
+	}
+	if err := repo.Post.ToggleLikePost(uint(idInt), currentUser.ID); err != nil {
+		return errs.ErrInternalServer
+	}
+	return nil
 }

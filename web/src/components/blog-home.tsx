@@ -30,28 +30,28 @@ export default function BlogHome() {
         const fetchPosts = async () => {
             try {
                 setLoading(true);
-                let orderedBy: string;
-                let reverse: boolean;
+                let orderBy: string;
+                let desc: boolean;
                 switch (sortType) {
                     case 'latest':
-                        orderedBy = 'updated_at';
-                        reverse = false;
+                        orderBy = 'updated_at';
+                        desc = true;
                         break;
                     case 'popular':
-                        orderedBy = 'heat';
-                        reverse = false;
+                        orderBy = 'heat';
+                        desc = true;
                         break;
                     default:
-                        orderedBy = 'updated_at';
-                        reverse = false;
+                        orderBy = 'updated_at';
+                        desc = true;
                 }
                 // 处理关键词，空格分割转逗号
                 const keywords = debouncedSearch.trim() ? debouncedSearch.trim().split(/\s+/).join(",") : undefined;
                 const data = await listPosts({
                     page: 1,
                     size: 10,
-                    orderedBy,
-                    reverse,
+                    orderBy: orderBy,
+                    desc: desc,
                     keywords
                 });
                 setPosts(data.data);

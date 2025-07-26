@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import Image from "next/image";
-import { Calendar,  Eye, Heart, MessageCircle, Lock } from "lucide-react";
+import { Calendar, Eye, Heart, MessageCircle, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import config from "@/config";
 
@@ -23,27 +23,7 @@ export function BlogCard({ post, className }: BlogCardProps) {
     });
   };
 
-  // 计算阅读时间（估算）
-  // const getReadingTime = (content: string) => {
-  //   const wordsPerMinute = 200;
-  //   const wordCount = content.length;
-  //   const minutes = Math.ceil(wordCount / wordsPerMinute);
-  //   return `${minutes} 分钟阅读`;
-  // };
-
-  // // 根据内容类型获取图标
-  // const getContentTypeIcon = (type: Post['type']) => {
-  //   switch (type) {
-  //     case 'markdown':
-  //       return '📝';
-  //     case 'html':
-  //       return '🌐';
-  //     case 'text':
-  //       return '📄';
-  //     default:
-  //       return '📝';
-  //   }
-  // };
+  // TODO: 阅读时间估计
 
   return (
     <Card className={cn(
@@ -131,7 +111,7 @@ export function BlogCard({ post, className }: BlogCardProps) {
         <CardTitle className="line-clamp-2 group-hover:text-primary transition-colors text-lg leading-tight">
           {post.title}
         </CardTitle>
-        
+
       </CardHeader>
       {/* Card Content - 主要内容 */}
       <CardContent className="flex-1">

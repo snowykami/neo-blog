@@ -29,16 +29,16 @@ type CreateOrUpdatePostReq struct {
 }
 
 type ListPostReq struct {
-	Keywords  []string `json:"keywords"`   // 关键词列表
-	OrderedBy string   `json:"ordered_by"` // 排序方式
-	Page      uint64   `json:"page"`       // 页码
-	Size      uint64   `json:"size"`
-	Reverse   bool     `json:"reverse"`
+	Keywords []string `json:"keywords"` // 关键词列表
+	OrderBy  string   `json:"order_by"` // 排序方式
+	Page     uint64   `json:"page"`     // 页码
+	Size     uint64   `json:"size"`
+	Desc     bool     `json:"desc"`
 }
 
 type ListPostResp struct {
-	Posts     []PostDto `json:"posts"`
-	Total     uint64    `json:"total"`      // 总数
-	OrderedBy string    `json:"ordered_by"` // 排序方式
-	Reverse   bool      `json:"reverse"`
+	Posts   []PostDto `json:"posts"`
+	Total   uint64    `json:"total"`    // 总数
+	OrderBy string    `json:"order_by"` // 排序方式
+	Desc    bool      `json:"desc"`
 }

@@ -96,21 +96,21 @@ func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
 func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 	pagination := ctxutils.GetPaginationParams(c)
 	fmt.Println(pagination)
-	if pagination.OrderedBy == "" {
-		pagination.OrderedBy = constant.OrderedByUpdatedAt
+	if pagination.OrderBy == "" {
+		pagination.OrderBy = constant.OrderByUpdatedAt
 	}
-	if pagination.OrderedBy != "" && !slices.Contains(constant.OrderedByEnumPost, pagination.OrderedBy) {
+	if pagination.OrderBy != "" && !slices.Contains(constant.OrderByEnumPost, pagination.OrderBy) {
 		resps.BadRequest(c, "无效的排序字段")
 		return
 	}
 	keywords := c.Query("keywords")
 	keywordsArray := strings.Split(keywords, ",")
 	req := &dto.ListPostReq{
-		Keywords:  keywordsArray,
-		Page:      pagination.Page,
-		Size:      pagination.Size,
-		OrderedBy: pagination.OrderedBy,
-		Reverse:   pagination.Reverse,
+		Keywords: keywordsArray,
+		Page:     pagination.Page,
+		Size:     pagination.Size,
+		OrderBy:  pagination.OrderBy,
+		Desc:     pagination.Desc,
 	}
 	posts, err := p.service.ListPosts(ctx, req)
 	if err != nil {

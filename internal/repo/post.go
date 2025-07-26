@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"fmt"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -48,16 +47,9 @@ func (p *postRepo) UpdatePost(post *model.Post) error {
 	return nil
 }
 
-func (p *postRepo) ListPosts(currentUserID uint, keywords []string, page, size uint64, orderedBy string, reverse bool) ([]model.Post, error) {
-	var posts []model.Post
-	if !slices.Contains(constant.OrderedByEnumPost, orderedBy) {
-		return nil, errs.New(http.StatusBadRequest, "invalid ordered_by parameter", nil)
-	}
-	order := orderedBy
-	if reverse {
-		order += " ASC"
-	} else {
-		order += " DESC"
+func (p *postRepo) ListPosts(currentUserID uint, keywords []string, page, size uint64, orderBy string, desc bool) ([]model.Post, error) {
+	if !slices.Contains(constant.OrderByEnumPost, orderBy) {
+		return nil, errs.New(http.StatusBadRequest, "invalid order_by parameter", nil)
 	}
 	query := GetDB().Model(&model.Post{}).Preload("User")
 	if currentUserID > 0 {
@@ -65,7 +57,6 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, page, size u
 	} else {
 		query = query.Where("is_private = ?", false)
 	}
-	fmt.Println(keywords)
 	if len(keywords) > 0 {
 		for _, keyword := range keywords {
 			if keyword != "" {
@@ -75,9 +66,20 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, page, size u
 			}
 		}
 	}
-	query = query.Order(order).Offset(int((page - 1) * size)).Limit(int(size))
-	if err := query.Find(&posts).Error; err != nil {
+	items, _, err := PaginateQuery[model.Post](query, page, size, orderBy, desc)
+	if err != nil {
 		return nil, err
 	}
-	return posts, nil
+	return items, nil
+}
+
+func (p *postRepo) ToggleLikePost(postID uint, userID uint) error {
+	if postID == 0 || userID == 0 {
+		return errs.New(http.StatusBadRequest, "invalid post ID or user ID", nil)
+	}
+	err := Like.ToggleLike(userID, postID, constant.TargetTypePost)
+	if err != nil {
+		return err
+	}
+	return nil
 }

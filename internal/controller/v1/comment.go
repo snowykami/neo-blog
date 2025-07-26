@@ -1,1 +1,91 @@
 package v1
+
+import (
+	"context"
+	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/service"
+	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/resps"
+	"strconv"
+)
+
+type CommentController struct {
+	service *service.CommentService
+}
+
+func NewCommentController() *CommentController {
+	return &CommentController{
+		service: service.NewCommentService(),
+	}
+}
+
+func (cc *CommentController) CreateComment(ctx context.Context, c *app.RequestContext) {
+	var req dto.CreateCommentReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	err := cc.service.CreateComment(ctx, &req)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
+}
+
+func (cc *CommentController) UpdateComment(ctx context.Context, c *app.RequestContext) {
+	var req dto.UpdateCommentReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	id := c.Param("id")
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	req.CommentID = uint(idInt)
+
+	err = cc.service.UpdateComment(ctx, &req)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
+}
+
+func (cc *CommentController) DeleteComment(ctx context.Context, c *app.RequestContext) {
+	id := c.Param("id")
+	err := cc.service.DeleteComment(ctx, id)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
+}
+
+func (cc *CommentController) GetComment(ctx context.Context, c *app.RequestContext) {
+	id := c.Param("id")
+	if id == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	resp, err := cc.service.GetComment(ctx, id)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, resp)
+}
+
+func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestContext) {
+	// pagenation := ctxutils.GetPaginationParams(c)
+}
+
+func (cc *CommentController) ReactComment(ctx context.Context, c *app.RequestContext) {}

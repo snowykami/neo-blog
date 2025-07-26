@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import type { Label } from "@/models/label";
 import type { Post } from "@/models/post";
 import type configType from '@/config';
-import { t } from "i18next";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 // 侧边栏父组件，接收卡片组件列表
 export default function Sidebar({ cards }: { cards: React.ReactNode[] }) {
@@ -115,10 +115,11 @@ export function SidebarIframe(props?: { src?: string; scriptSrc?: string; title?
     title = "External Content",
     height = "400px",
   } = props || {};
+  const t = useTranslations('HomePage');
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t(title)}</CardTitle>
+        <CardTitle>{t("title")}</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <iframe
