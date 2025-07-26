@@ -17,9 +17,19 @@ type CreateCommentReq struct {
 	TargetType string `json:"target_type" binding:"required"` // 目标类型，如 "post", "page"
 	Content    string `json:"content" binding:"required"`     // 评论内容
 	ReplyID    uint   `json:"reply_id"`                       // 回复的评论ID
+	IsPrivate bool   `json:"is_private" binding:"required"`   // 是否私密
 }
 
 type UpdateCommentReq struct {
 	CommentID uint   `json:"comment_id" binding:"required"` // 评论ID
 	Content   string `json:"content" binding:"required"`    // 评论内容
+}
+
+type GetCommentListReq struct {
+	TargetID   uint   `json:"target_id" binding:"required"` 
+	TargetType string `json:"target_type" binding:"required"`
+	OrderBy  string   `json:"order_by"` // 排序方式
+	Page     uint64   `json:"page"`     // 页码
+	Size     uint64   `json:"size"`
+	Desc     bool     `json:"desc"`
 }
