@@ -13,6 +13,8 @@ services:
     networks:
       - internal-network
     restart: always
+    ports:
+      - "3000:3000"
     volumes:
       - .env.frontend:/app/.env.production:ro
 

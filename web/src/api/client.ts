@@ -3,6 +3,8 @@ import { camelToSnakeObj, snakeToCamelObj } from 'field-conv'
 
 export const BACKEND_URL = process.env.BACKEND_URL || 'http://neo-blog-backend:8888'
 
+console.info(`Using backend URL: ${BACKEND_URL}`)
+
 const isServer = typeof window === 'undefined'
 
 const API_SUFFIX = '/api/v1'

@@ -21,7 +21,6 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    console.log('Using development API base URL:', BACKEND_URL)
     return [
       {
         source: '/api/:path*',
