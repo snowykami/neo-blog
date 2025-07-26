@@ -83,3 +83,6 @@ pnpm start
 ```
 
 可以通过环境变量或者.env.production文件配置后端API端点
+
+## 环境变量配置
+后端所有环境变量及其示例在[`.env.example`](./.env.example)文件中
