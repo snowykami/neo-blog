@@ -93,7 +93,7 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 	if pagination.OrderBy == "" {
 		pagination.OrderBy = constant.OrderByUpdatedAt
 	}
-	if pagination.OrderBy != "" && !slices.Contains(constant.OrderByEnumPost, pagination.OrderBy) {
+	if pagination.OrderBy != "" && !slices.Contains(constant.OrderByEnumComment, pagination.OrderBy) {
 		resps.BadRequest(c, "无效的排序字段")
 		return
 	}
