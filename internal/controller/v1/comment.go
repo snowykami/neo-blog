@@ -2,12 +2,16 @@ package v1
 
 import (
 	"context"
+	"slices"
+	"strconv"
+
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
-	"strconv"
 )
 
 type CommentController struct {
@@ -23,7 +27,7 @@ func NewCommentController() *CommentController {
 func (cc *CommentController) CreateComment(ctx context.Context, c *app.RequestContext) {
 	var req dto.CreateCommentReq
 	if err := c.BindAndValidate(&req); err != nil {
-		resps.BadRequest(c, resps.ErrParamInvalid)
+		resps.BadRequest(c, err.Error())
 		return
 	}
 	err := cc.service.CreateComment(ctx, &req)
@@ -85,7 +89,35 @@ func (cc *CommentController) GetComment(ctx context.Context, c *app.RequestConte
 }
 
 func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestContext) {
-	// pagenation := ctxutils.GetPaginationParams(c)
+	pagination := ctxutils.GetPaginationParams(c)
+	if pagination.OrderBy == "" {
+		pagination.OrderBy = constant.OrderByUpdatedAt
+	}
+	if pagination.OrderBy != "" && !slices.Contains(constant.OrderByEnumPost, pagination.OrderBy) {
+		resps.BadRequest(c, "无效的排序字段")
+		return
+	}
+	targetID, err := strconv.Atoi(c.Query("target_id"))
+	if err != nil {
+		resps.BadRequest(c, "无效的 target_id")
+		return
+	}
+
+	req := dto.GetCommentListReq{
+		Desc:     pagination.Desc,
+		OrderBy:  pagination.OrderBy,
+		Page:     pagination.Page,
+		Size:     pagination.Size,
+		TargetID:  uint(targetID),
+		TargetType: c.Query("target_type"),
+	}
+	resp, err := cc.service.GetCommentList(ctx, &req)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, resp)
 }
 
 func (cc *CommentController) ReactComment(ctx context.Context, c *app.RequestContext) {}
