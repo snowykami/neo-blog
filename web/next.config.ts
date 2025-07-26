@@ -1,10 +1,9 @@
-
-import { BACKEND_URL } from "@/api/client";
-import type { NextConfig } from "next";
-import createNextIntlPlugin from 'next-intl/plugin';
+import type { NextConfig } from 'next'
+import createNextIntlPlugin from 'next-intl/plugin'
+import { BACKEND_URL } from '@/api/client'
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  output: 'standalone',
   images: {
     remotePatterns: [
       {
@@ -22,15 +21,14 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-      const backendUrl = BACKEND_URL
-      console.log("Using development API base URL:", backendUrl);
-      return [
-        {
-          source: '/api/:path*',
-          destination: backendUrl + '/api/:path*',
-        },
-      ]
-    }
-};
-const withNextIntl = createNextIntlPlugin();
-export default withNextIntl(nextConfig);
+    console.log('Using development API base URL:', BACKEND_URL)
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${BACKEND_URL}/api/:path*`,
+      },
+    ]
+  },
+}
+const withNextIntl = createNextIntlPlugin()
+export default withNextIntl(nextConfig)

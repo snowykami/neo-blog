@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import type { Post } from "@/models/post";
 
 function WaveHeader({ title }: { title: string }) {
@@ -74,7 +75,7 @@ function BlogContent({ post }: { post: Post }) {
   return (
     <main className="relative z-10 max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-8 -mt-32">
       {post.cover && (
-        <img
+        <Image
           src={post.cover}
           alt="cover"
           className="w-full h-64 object-cover rounded-lg mb-8"

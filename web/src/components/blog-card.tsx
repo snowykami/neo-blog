@@ -1,35 +1,36 @@
-import { Post } from "@/models/post";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import Image from "next/image";
-import { Calendar, Eye, Heart, MessageCircle, Lock } from "lucide-react";
-import { cn } from "@/lib/utils";
-import config from "@/config";
+import type { Post } from '@/models/post'
+import { Calendar, Eye, Heart, Lock, MessageCircle } from 'lucide-react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import config from '@/config'
+import { cn } from '@/lib/utils'
 
 interface BlogCardProps {
-  post: Post;
-  className?: string;
+  post: Post
+  className?: string
 }
 
 export function BlogCard({ post, className }: BlogCardProps) {
   // 格式化日期
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = new Date(dateString)
     return date.toLocaleDateString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
-      day: '2-digit'
-    });
-  };
+      day: '2-digit',
+    })
+  }
 
   // TODO: 阅读时间估计
 
   return (
     <Card className={cn(
-      "group overflow-hidden hover:shadow-xl transition-all duration-300 h-full flex flex-col cursor-pointer pt-0 pb-4",
-      className
-    )}>
+      'group overflow-hidden hover:shadow-xl transition-all duration-300 h-full flex flex-col cursor-pointer pt-0 pb-4',
+      className,
+    )}
+    >
       {/* 封面图片区域 */}
       <div className="relative aspect-[16/9] overflow-hidden">
         {/* 自定义封面图片 */}
@@ -46,12 +47,16 @@ export function BlogCard({ post, className }: BlogCardProps) {
           // 默认渐变背景 - 基于热度生成颜色
           <div
             className={cn(
-              "w-full h-full bg-gradient-to-br",
-              post.heat > 80 ? "from-red-400 via-pink-500 to-orange-500" :
-                post.heat > 60 ? "from-orange-400 via-yellow-500 to-red-500" :
-                  post.heat > 40 ? "from-blue-400 via-purple-500 to-pink-500" :
-                    post.heat > 20 ? "from-green-400 via-blue-500 to-purple-500" :
-                      "from-gray-400 via-slate-500 to-gray-600"
+              'w-full h-full bg-gradient-to-br',
+              post.heat > 80
+                ? 'from-red-400 via-pink-500 to-orange-500'
+                : post.heat > 60
+                  ? 'from-orange-400 via-yellow-500 to-red-500'
+                  : post.heat > 40
+                    ? 'from-blue-400 via-purple-500 to-pink-500'
+                    : post.heat > 20
+                      ? 'from-green-400 via-blue-500 to-purple-500'
+                      : 'from-gray-400 via-slate-500 to-gray-600',
             )}
           />
         )}
@@ -100,7 +105,9 @@ export function BlogCard({ post, className }: BlogCardProps) {
         {post.heat > 50 && (
           <div className="absolute bottom-2 right-2">
             <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-xs">
-              🔥 {post.heat}
+              🔥
+              {' '}
+              {post.heat}
             </Badge>
           </div>
         )}
@@ -132,9 +139,8 @@ export function BlogCard({ post, className }: BlogCardProps) {
         </div>
       </CardFooter>
 
-
     </Card>
-  );
+  )
 }
 
 // 骨架屏加载组件 - 使用 shadcn Card 结构
@@ -173,20 +179,20 @@ export function BlogCardSkeleton() {
         <div className="h-4 w-20 bg-muted rounded animate-pulse ml-auto" />
       </CardFooter>
     </Card>
-  );
+  )
 }
 
 // 网格布局的博客卡片列表
 export function BlogCardGrid({
   posts,
   isLoading,
-  showPrivate = false
+  showPrivate = false,
 }: {
-  posts: Post[];
-  isLoading?: boolean;
-  showPrivate?: boolean;
+  posts: Post[]
+  isLoading?: boolean
+  showPrivate?: boolean
 }) {
-  const filteredPosts = showPrivate ? posts : posts.filter(post => !post.isPrivate);
+  const filteredPosts = showPrivate ? posts : posts.filter(post => !post.isPrivate)
 
   if (isLoading) {
     return (
@@ -195,7 +201,7 @@ export function BlogCardGrid({
           <BlogCardSkeleton key={index} />
         ))}
       </div>
-    );
+    )
   }
 
   if (filteredPosts.length === 0) {
@@ -208,16 +214,16 @@ export function BlogCardGrid({
           </p>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {filteredPosts.map((post) => (
+      {filteredPosts.map(post => (
         <Link key={post.id} href={`/p/${post.id}`} className="block h-full">
           <BlogCard post={post} />
         </Link>
       ))}
     </div>
-  );
+  )
 }

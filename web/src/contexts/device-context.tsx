@@ -3,7 +3,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 type Mode = "light" | "dark";
-type Lang = string;
 
 interface DeviceContextProps {
   isMobile: boolean;

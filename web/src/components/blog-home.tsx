@@ -22,7 +22,6 @@ export default function BlogHome() {
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(false);
     const [sortType, setSortType, sortTypeLoaded] = useStoredState<SortType>(POST_SORT_TYPE, 'latest');
-    const [debouncedSearch, setDebouncedSearch] = useState("");
 
     // 根据排序类型和防抖后的搜索关键词获取文章
     useEffect(() => {
@@ -46,7 +45,7 @@ export default function BlogHome() {
                         desc = true;
                 }
                 // 处理关键词，空格分割转逗号
-                const keywords = debouncedSearch.trim() ? debouncedSearch.trim().split(/\s+/).join(",") : undefined;
+                const keywords = ""?.trim() ? ""?.trim().split(/\s+/).join(",") : undefined;
                 const data = await listPosts({
                     page: 1,
                     size: 10,
