@@ -9,6 +9,8 @@
 services:
   frontend:
     container_name: neo-blog-frontend
+    environment:
+      - BACKEND_URL=http://neo-blog-backend:8888  # 此处请保证和后端服务的名称一致
     image: snowykami/neo-blog-frontend:latest
     networks:
       - internal-network
@@ -22,7 +24,7 @@ services:
     container_name: neo-blog-backend
     image: snowykami/neo-blog-backend:latest
     environment:
-      - BASE_URL=https://neo-blog-dev.sfkm.me
+      - BASE_URL=https://neo-blog-dev.sfkm.me # 此处是外部用户访问端点，也许你使用了nginx等反向代理
     networks:
       - internal-network
     restart: always
@@ -35,7 +37,6 @@ networks:
     driver: bridge
 ```
 
-请勿更改后端容器名，前端容器构建时写死了后端API端点，若有更改请自行构建
 
 ```bash
 docker-compose up -d
@@ -43,7 +44,9 @@ docker-compose up -d
 docker compose up -d
 ```
 
-### 使用源码构建部署
+启动后，将外部网关请求转发到前端服务的端口即可
+
+### 使用源码构建部署(除开发场景外不推荐)
 
 需要准备：go、nodejs、pnpm
 
@@ -62,7 +65,6 @@ go build -o server ./cmd/server
 
 3. 构建前端
 
-此阶段可以通过.env.production文件配置后端API端点
 
 ```bash
 cd web
@@ -80,3 +82,4 @@ pnpm build
 pnpm start
 ```
 
+可以通过环境变量或者.env.production文件配置后端API端点
