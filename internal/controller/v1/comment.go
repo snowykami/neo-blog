@@ -102,13 +102,12 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 		resps.BadRequest(c, "无效的 target_id")
 		return
 	}
-
 	req := dto.GetCommentListReq{
-		Desc:     pagination.Desc,
-		OrderBy:  pagination.OrderBy,
-		Page:     pagination.Page,
-		Size:     pagination.Size,
-		TargetID:  uint(targetID),
+		Desc:       pagination.Desc,
+		OrderBy:    pagination.OrderBy,
+		Page:       pagination.Page,
+		Size:       pagination.Size,
+		TargetID:   uint(targetID),
 		TargetType: c.Query("target_type"),
 	}
 	resp, err := cc.service.GetCommentList(ctx, &req)
@@ -120,4 +119,6 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 	resps.Ok(c, resps.Success, resp)
 }
 
-func (cc *CommentController) ReactComment(ctx context.Context, c *app.RequestContext) {}
+func (cc *CommentController) ReactComment(ctx context.Context, c *app.RequestContext) {
+
+}

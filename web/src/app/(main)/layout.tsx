@@ -1,8 +1,9 @@
 'use client'
 
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
 import { Navbar } from '@/components/navbar'
+import { BackgroundProvider } from '@/contexts/background-context'
 
 export default function RootLayout({
   children,
@@ -15,22 +16,21 @@ export default function RootLayout({
       <header className="fixed top-0 left-0 w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur flex justify-center border-b border-slate-200 dark:border-slate-800">
         <Navbar />
       </header>
-      <AnimatePresence mode="wait">
-        <motion.main
-          key={pathname}
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 16 }}
-          transition={{
-            type: 'tween',
-            ease: 'easeOut',
-            duration: 0.18,
-          }}
-          className="pt-16"
-        >
-          {children}
-        </motion.main>
-      </AnimatePresence>
+      <motion.main
+        key={pathname}
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          type: 'tween',
+          ease: 'easeOut',
+          duration: 0.30,
+        }}
+        className="pt-16"
+      >
+        <BackgroundProvider>
+          <div className='container mx-auto px-4 sm:px-6 lg:px-10 max-w-7xl'>{children}</div>
+        </BackgroundProvider>
+      </motion.main>
     </>
   )
 }

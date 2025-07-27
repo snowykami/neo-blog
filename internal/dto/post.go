@@ -5,11 +5,13 @@ import "time"
 type PostDto struct {
 	ID           uint       `json:"id"`      // 帖子ID
 	UserID       uint       `json:"user_id"` // 发布者的用户ID
+	User         UserDto    `json:"user"`    // 发布者信息
 	Title        string     `json:"title"`   // 帖子标题
 	Content      string     `json:"content"`
 	Cover        string     `json:"cover"`         // 帖子封面图
 	Type         string     `json:"type"`          // 帖子类型 markdown / html / text
 	Labels       []LabelDto `json:"labels"`        // 关联的标签
+	IsOriginal   bool       `json:"is_original"`   // 是否为原创帖子
 	IsPrivate    bool       `json:"is_private"`    // 是否为私密帖子
 	LikeCount    uint64     `json:"like_count"`    // 点赞数
 	CommentCount uint64     `json:"comment_count"` // 评论数

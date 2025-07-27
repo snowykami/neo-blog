@@ -1,93 +1,98 @@
 "use client";
 
 import { useEffect } from "react";
-import Image from "next/image";
 import type { Post } from "@/models/post";
+import { Calendar, Clock, FileText, Flame, Heart, MessageCircle, PenLine, SquarePen } from "lucide-react";
 
-function WaveHeader({ title }: { title: string }) {
+function PostMeta({ post }: { post: Post }) {
+  // 假设 post 结构包含这些字段
+  // post.author, post.wordCount, post.readMinutes, post.createdAt, post.isOriginal, post.viewCount, post.commentCount
   return (
-    <div className="relative h-64 flex flex-col items-center justify-center">
-      {/* 波浪SVG，半透明悬浮 */}
-      <div className="absolute inset-0 w-full h-full pointer-events-none opacity-70 z-0">
-        <svg className="w-full h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="wave-gradient" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#4f8cff" />
-              <stop offset="100%" stopColor="#7b61ff" />
-            </linearGradient>
-          </defs>
-          <path
-            fill="url(#wave-gradient)"
-            fillOpacity="1"
-            d="
-              M0,160 
-              C360,240 1080,80 1440,160 
-              L1440,320 
-              L0,320 
-              Z
-            "
-          >
-            <animate
-              attributeName="d"
-              dur="8s"
-              repeatCount="indefinite"
-              values="
-                M0,160 C360,240 1080,80 1440,160 L1440,320 L0,320 Z;
-                M0,120 C400,200 1040,120 1440,200 L1440,320 L0,320 Z;
-                M0,160 C360,240 1080,80 1440,160 L1440,320 L0,320 Z
-              "
-            />
-          </path>
-        </svg>
-      </div>
-      {/* 标题 */}
-      <h1 className="relative z-10 text-white text-4xl md:text-5xl font-bold drop-shadow-lg mt-16 text-center">
-        {title}
-      </h1>
-    </div>
-  );
-}
-
-function BlogMeta({ post }: { post: Post }) {
-  return (
-    <div className="flex flex-col items-center mb-6">
-      <div className="flex gap-2 mb-2">
-        {post.labels?.map(label => (
-          <span
-            key={label.id}
-            className="bg-white/30 px-3 py-1 rounded-full text-sm font-medium backdrop-blur text-white"
-          >
-            {label.key}
-          </span>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-4 text-base text-white/90">
-        <span>发表于 {new Date(post.createdAt).toLocaleDateString()}</span>
-        <span>👁️ {post.viewCount}</span>
-        <span>💬 {post.commentCount}</span>
-        <span>🔥 {post.heat}</span>
-      </div>
-    </div>
-  );
-}
-
-function BlogContent({ post }: { post: Post }) {
-  return (
-    <main className="relative z-10 max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-8 -mt-32">
-      {post.cover && (
-        <Image
-          src={post.cover}
-          alt="cover"
-          className="w-full h-64 object-cover rounded-lg mb-8"
-        />
+    console.log(post),
+    <div className="flex flex-wrap items-center gap-4 mt-6">
+      {/* 作者 */}
+      <span className="flex items-center gap-1">
+        <PenLine className="w-4 h-4" />
+        {post.user.nickname || "未知作者"}
+      </span>
+      {/* 字数 */}
+      <span className="flex items-center gap-1">
+        <FileText className="w-4 h-4" />
+        {post.content.length || 0}
+      </span>
+      {/* 阅读时间 */}
+      <span className="flex items-center gap-1">
+        <Clock className="w-4 h-4" />
+        {post.content.length / 100 || 1} 分钟
+      </span>
+      {/* 发布时间 */}
+      <span className="flex items-center gap-1">
+        <Calendar className="w-4 h-4" />
+        {post.createdAt ? new Date(post.createdAt).toLocaleDateString("zh-CN") : ""}
+      </span>
+      {/* 最后编辑时间，如果和发布时间不一样 */}
+      {post.updatedAt && post.createdAt !== post.updatedAt && (
+        <span className="flex items-center gap-1">
+          <SquarePen className="w-4 h-4" />
+          {new Date(post.updatedAt).toLocaleDateString("zh-CN")}
+        </span>
       )}
-      <article
-        className="prose prose-lg max-w-none"
-        dangerouslySetInnerHTML={{ __html: post.content }}
-      />
-    </main>
+      {/* 浏览数 */}
+      <span className="flex items-center gap-1">
+        <Flame className="w-4 h-4" />
+        {post.viewCount || 0}
+      </span>
+      {/* 点赞数 */}
+      <span className="flex items-center gap-1">
+        <Heart className="w-4 h-4" />
+        {post.likeCount || 0}
+      </span>
+      {/* 评论数 */}
+      <span className="flex items-center gap-1">
+        <MessageCircle className="w-4 h-4" />
+        {post.commentCount || 0}
+      </span>
+      {/* 热度 */}
+      <span className="flex items-center gap-1">
+        <Flame className="w-4 h-4" />
+        {post.heat || 0}
+      </span>
+    </div>
   );
 }
+
+function PostHeader({ post }: { post: Post }) {
+  // 三排 标签/标题/一些元数据
+  return (
+    <div className="py-32">
+      {
+        post.labels && post.labels.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {post.labels.map(label => (
+              <span key={label.id} className="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded">
+                {label.key}
+              </span>
+            ))}
+          </div>
+        )
+      }
+      <h1 className="text-5xl font-bold mb-2">{post.title}</h1>
+      {/* 元数据区 */}
+      <div>
+        <PostMeta post={post} />
+      </div>
+    </div>
+  );
+}
+
+function PostContent({ post }: { post: Post }) {
+  return (
+    <div className="">
+      <div dangerouslySetInnerHTML={{ __html: post.content }} />
+    </div>
+  )
+}
+
 
 function BlogPost({ post }: { post: Post }) {
   useEffect(() => {
@@ -96,11 +101,10 @@ function BlogPost({ post }: { post: Post }) {
     }
   }, []);
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 relative">
-      <WaveHeader title={post.title} />
-      <div className="relative z-10 -mt-40">
-        <BlogMeta post={post} />
-        <BlogContent post={post} />
+    <div className="">
+      <PostHeader post={post} />
+      <div className="">
+        <PostContent post={post} />
       </div>
     </div>
   );

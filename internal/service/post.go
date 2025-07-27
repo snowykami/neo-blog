@@ -76,18 +76,7 @@ func (p *PostService) GetPost(ctx context.Context, id string) (*dto.PostDto, err
 	if post.IsPrivate && (!ok || post.UserID != currentUser.ID) {
 		return nil, errs.ErrForbidden
 	}
-	return &dto.PostDto{
-		UserID:  post.UserID,
-		Title:   post.Title,
-		Content: post.Content,
-		Labels: func() []dto.LabelDto {
-			labelDtos := make([]dto.LabelDto, 0)
-			for _, label := range post.Labels {
-				labelDtos = append(labelDtos, label.ToDto())
-			}
-			return labelDtos
-		}(),
-	}, nil
+	return post.ToDto(), nil
 }
 
 func (p *PostService) UpdatePost(ctx context.Context, id string, req *dto.CreateOrUpdatePostReq) (uint, error) {
@@ -124,8 +113,8 @@ func (p *PostService) UpdatePost(ctx context.Context, id string, req *dto.Create
 	return post.ID, nil
 }
 
-func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]dto.PostDto, error) {
-	postDtos := make([]dto.PostDto, 0)
+func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, error) {
+	postDtos := make([]*dto.PostDto, 0)
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
 	posts, err := repo.Post.ListPosts(currentUserID, req.Keywords, req.Page, req.Size, req.OrderBy, req.Desc)
 	if err != nil {

@@ -31,7 +31,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		UserID:     currentUser.ID,
 		IsPrivate:  req.IsPrivate,
 	}
-	
+
 	err := repo.Comment.CreateComment(comment)
 
 	if err != nil {
@@ -63,7 +63,7 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -100,15 +100,15 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID string) (*dt
 	}
 
 	commentDto := dto.CommentDto{
-		ID: comment.ID,
-		TargetID: comment.TargetID,
+		ID:         comment.ID,
+		TargetID:   comment.TargetID,
 		TargetType: comment.TargetType,
-		Content: comment.Content,
-		ReplyID: comment.ReplyID,
-		Depth: comment.Depth,
-		CreatedAt: comment.CreatedAt.String(),
-		UpdatedAt: comment.UpdatedAt.String(),
-		User: *comment.User.ToDto(),
+		Content:    comment.Content,
+		ReplyID:    comment.ReplyID,
+		Depth:      comment.Depth,
+		CreatedAt:  comment.CreatedAt.String(),
+		UpdatedAt:  comment.UpdatedAt.String(),
+		User:       comment.User.ToDto(),
 	}
 
 	return &commentDto, err
@@ -132,8 +132,8 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 			TargetType: comment.TargetType,
 			CreatedAt:  comment.CreatedAt.String(),
 			UpdatedAt:  comment.UpdatedAt.String(),
-			Depth:       comment.Depth,
-			User:       *comment.User.ToDto(),
+			Depth:      comment.Depth,
+			User:       comment.User.ToDto(),
 		}
 		commentDtos = append(commentDtos, commentDto)
 	}

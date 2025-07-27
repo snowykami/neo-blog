@@ -13,6 +13,8 @@ interface DeviceContextProps {
     width: number;
     height: number;
   };
+  navbarAdditionalClassName?: string; // 可选属性，允许传入额外的类名
+  setNavbarAdditionalClassName?: (className: string) => void; // 可选方法，允许设置额外的类名
 }
 
 const DeviceContext = createContext<DeviceContextProps>({
@@ -24,6 +26,8 @@ const DeviceContext = createContext<DeviceContextProps>({
     width: 0,
     height: 0,
   },
+  navbarAdditionalClassName: "",
+  setNavbarAdditionalClassName: () => {},
 });
 
 export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -33,6 +37,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     width: typeof window !== "undefined" ? window.innerWidth : 0,
     height: typeof window !== "undefined" ? window.innerHeight : 0,
   });
+  const [navbarAdditionalClassName, setNavbarAdditionalClassName] = useState<string>("");
 
   // 检查系统主题
   const getSystemTheme = () =>
@@ -109,7 +114,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <DeviceContext.Provider
-      value={{ isMobile, mode, setMode, toggleMode, viewport }}
+      value={{ isMobile, mode, setMode, toggleMode, viewport, navbarAdditionalClassName, setNavbarAdditionalClassName }}
     >
       {children}
     </DeviceContext.Provider>

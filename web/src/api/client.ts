@@ -1,9 +1,9 @@
 import axios from 'axios'
 import { camelToSnakeObj, snakeToCamelObj } from 'field-conv'
 
-export const BACKEND_URL = process.env.BACKEND_URL || 'http://neo-blog-backend:8888'
+export const BACKEND_URL = process.env.BACKEND_URL || (process.env.NODE_ENV == "production" ? 'http://neo-blog-backend:8888' : 'http://localhost:8888')
 
-console.info(`Using backend URL: ${BACKEND_URL}`)
+console.info(`Using ${process.env.NODE_ENV} backend URL: ${BACKEND_URL}`)
 
 const isServer = typeof window === 'undefined'
 

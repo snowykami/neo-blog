@@ -44,8 +44,9 @@ const navbarMenuComponents = [
 ]
 
 export function Navbar() {
+    const { navbarAdditionalClassName } = useDevice()
     return (
-        <nav className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-16 px-4 w-full">
+        <nav className={`grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-16 px-4 w-full ${navbarAdditionalClassName}`}>
             <div className="flex items-center justify-start">
                 <span className="font-bold truncate">{config.metadata.name}</span>
             </div>
@@ -62,7 +63,6 @@ export function Navbar() {
 
 function NavMenuCenter() {
     const { isMobile } = useDevice()
-    console.log("isMobile", isMobile)
     if (isMobile) return null
     return (
         <NavigationMenu viewport={false}>
@@ -121,10 +121,10 @@ function ListItem({
 }
 
 function SidebarMenuClientOnly() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
-  return <SidebarMenu />;
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
+    if (!mounted) return null;
+    return <SidebarMenu />;
 }
 
 function SidebarMenu() {

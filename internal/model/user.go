@@ -25,8 +25,8 @@ type UserOpenID struct {
 	Sub    string `gorm:"index"` // OIDC Sub openid
 }
 
-func (user *User) ToDto() *dto.UserDto {
-	return &dto.UserDto{
+func (user *User) ToDto() dto.UserDto {
+	return dto.UserDto{
 		ID:        user.ID,
 		Username:  user.Username,
 		Nickname:  user.Nickname,

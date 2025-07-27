@@ -23,9 +23,9 @@ type UserLoginReq struct {
 }
 
 type UserLoginResp struct {
-	Token        string   `json:"token"`
-	RefreshToken string   `json:"refresh_token"`
-	User         *UserDto `json:"user"`
+	Token        string  `json:"token"`
+	RefreshToken string  `json:"refresh_token"`
+	User         UserDto `json:"user"`
 }
 
 type UserRegisterReq struct {
@@ -37,9 +37,9 @@ type UserRegisterReq struct {
 }
 
 type UserRegisterResp struct {
-	Token        string   `json:"token"`         // 访问令牌
-	RefreshToken string   `json:"refresh_token"` // 刷新令牌
-	User         *UserDto `json:"user"`          // 用户信息
+	Token        string  `json:"token"`         // 访问令牌
+	RefreshToken string  `json:"refresh_token"` // 刷新令牌
+	User         UserDto `json:"user"`          // 用户信息
 }
 
 type VerifyEmailReq struct {
@@ -57,9 +57,9 @@ type OidcLoginReq struct {
 }
 
 type OidcLoginResp struct {
-	Token        string   `json:"token"`
-	RefreshToken string   `json:"refresh_token"`
-	User         *UserDto `json:"user"`
+	Token        string  `json:"token"`
+	RefreshToken string  `json:"refresh_token"`
+	User         UserDto `json:"user"`
 }
 
 type ListOidcConfigResp struct {
@@ -71,7 +71,7 @@ type GetUserReq struct {
 }
 
 type GetUserResp struct {
-	User *UserDto `json:"user"` // 用户信息
+	User UserDto `json:"user"` // 用户信息
 }
 
 type UpdateUserReq struct {

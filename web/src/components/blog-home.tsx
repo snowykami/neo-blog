@@ -9,10 +9,11 @@ import type { Label } from "@/models/label";
 import type { Post } from "@/models/post";
 import { listPosts } from "@/api/post";
 
-import { useEffect, useState } from "react";
+import {  useEffect, useState } from "react";
 import { useStoredState } from '@/hooks/use-storage-state';
 import { listLabels } from "@/api/label";
 import { POST_SORT_TYPE } from "@/localstore";
+import Image from "next/image";
 
 // 定义排序类型
 type SortType = 'latest' | 'popular';
@@ -84,7 +85,7 @@ export default function BlogHome() {
             {/* 主内容区域 */}
             <section className="py-16">
                 {/* 容器 - 关键布局 */}
-                <div className="container mx-auto px-4 sm:px-6 lg:px-10 max-w-7xl">
+                <div className="">
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                         {/* 主要内容区域 */}
                         <div className="lg:col-span-3 self-start">

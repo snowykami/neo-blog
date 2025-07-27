@@ -11,7 +11,9 @@ const config = {
         motto: "And now that story unfolds into a journey that, alone, I set out to",
         avatar: "https://cdn.liteyuki.org/snowykami/avatar.jpg",
         gravatarEmail: "snowykami@outlook.com"
-    }
+    },
+    bodyWidth: "80vw",
+    bodyWidthMobile: "100vw",
 }
 
 export default config
