@@ -1,7 +1,6 @@
 package model
 
 import (
-	"fmt"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"gorm.io/gorm"
@@ -47,7 +46,6 @@ func (p *Post) AfterUpdate(tx *gorm.DB) (err error) {
 }
 
 func (p *Post) ToDto() *dto.PostDto {
-	fmt.Println("User", p.User)
 	return &dto.PostDto{
 		ID:         p.ID,
 		UserID:     p.UserID,

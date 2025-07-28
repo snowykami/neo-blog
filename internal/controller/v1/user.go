@@ -67,6 +67,8 @@ func (u *UserController) Register(ctx context.Context, c *app.RequestContext) {
 func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 	ctxutils.ClearTokenAndRefreshTokenCookie(c)
 	resps.Ok(c, resps.Success, nil)
+	// 尝试吊销服务端状态：若用户登录的情况下
+	// TODO: 这里可以添加服务端状态的吊销逻辑
 }
 
 func (u *UserController) OidcList(ctx context.Context, c *app.RequestContext) {

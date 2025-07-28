@@ -9,7 +9,7 @@ import (
 func registerUserRoutes(group *route.RouterGroup) {
 	userController := v1.NewUserController()
 	userGroup := group.Group("/user").Use(middleware.UseAuth(true))
-	userGroupWithoutAuth := group.Group("/user")
+	userGroupWithoutAuth := group.Group("/user").Use(middleware.UseAuth(false))
 	userGroupWithoutAuthNeedsCaptcha := userGroupWithoutAuth.Use(middleware.UseCaptcha())
 	{
 		userGroupWithoutAuthNeedsCaptcha.POST("/login", userController.Login)
@@ -19,7 +19,7 @@ func registerUserRoutes(group *route.RouterGroup) {
 		userGroupWithoutAuth.GET("/oidc/login/:name", userController.OidcLogin)
 		userGroupWithoutAuth.GET("/u/:id", userController.GetUser)
 		userGroup.GET("/me", userController.GetUser)
-		userGroup.POST("/logout", userController.Logout)
+		userGroupWithoutAuth.POST("/logout", userController.Logout)
 		userGroup.PUT("/u/:id", userController.UpdateUser)
 	}
 }
