@@ -32,7 +32,7 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Toaster richColors/>
+        <Toaster richColors position="top-center" offset={80} />
         <DeviceProvider>
           <NextIntlClientProvider>{children}</NextIntlClientProvider>
         </DeviceProvider>

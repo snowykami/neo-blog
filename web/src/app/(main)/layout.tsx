@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
 import { Navbar } from '@/components/navbar'
 import { BackgroundProvider } from '@/contexts/background-context'
+import Footer from '@/components/footer'
 
 export default function RootLayout({
   children,
@@ -31,6 +32,7 @@ export default function RootLayout({
           <div className='container mx-auto px-4 sm:px-6 lg:px-10 max-w-7xl'>{children}</div>
         </BackgroundProvider>
       </motion.main>
+      <Footer />
     </>
   )
 }
