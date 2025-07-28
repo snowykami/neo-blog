@@ -14,6 +14,10 @@ const config = {
     },
     bodyWidth: "80vw",
     bodyWidthMobile: "100vw",
+    footer: {
+        text: "Liteyuki ICP备 1145141919810",
+        links: []
+    }
 }
 
 export default config
