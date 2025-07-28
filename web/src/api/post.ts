@@ -10,9 +10,13 @@ interface ListPostsParams {
   keywords?: string
 }
 
-export async function getPostById(id: string): Promise<Post | null> {
+export async function getPostById(id: string, token: string=""): Promise<Post | null> {
   try {
-    const res = await axiosClient.get<BaseResponse<Post>>(`/post/p/${id}`)
+    const res = await axiosClient.get<BaseResponse<Post>>(`/post/p/${id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
     return res.data.data
   }
   catch (error) {

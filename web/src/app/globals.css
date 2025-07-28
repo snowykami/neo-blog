@@ -120,3 +120,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+html, body {
+  transition: background-color 0.3s, color 0.3s !important;
+}

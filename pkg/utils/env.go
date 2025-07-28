@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"fmt"
 	"github.com/joho/godotenv"
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"os"
 	"strconv"
@@ -12,10 +14,26 @@ var (
 )
 
 func init() {
-	_ = godotenv.Load()
+	err := godotenv.Load()
+	if err != nil {
+		logrus.Warnf("Error loading .env file: %v", err)
+	}
 
+	logrus.Infof("env loaded")
 	// Init env
 	IsDevMode = Env.Get(constant.EnvKeyMode, constant.ModeProd) == constant.ModeDev
+	// Set log level
+	logrus.SetLevel(getLogLevel(Env.Get(constant.EnvKeyLogLevel, "info")))
+	if logrus.GetLevel() == logrus.DebugLevel {
+		logrus.Debug("Debug mode is enabled, printing environment variables:")
+		for _, e := range os.Environ() {
+			if len(e) > 0 && e[0] == '_' {
+				// Skip environment variables that start with '_'
+				continue
+			}
+			fmt.Printf("%s ", e)
+		}
+	}
 }
 
 type envUtils struct{}
@@ -55,4 +73,24 @@ func (e *envUtils) GetAsBool(key string, defaultValue ...bool) bool {
 		return false
 	}
 	return boolValue
+}
+
+func getLogLevel(levelString string) logrus.Level {
+	switch levelString {
+	case "debug":
+		return logrus.DebugLevel
+	case "info":
+		return logrus.InfoLevel
+	case "warn":
+		return logrus.WarnLevel
+	case "error":
+		return logrus.ErrorLevel
+	case "fatal":
+		return logrus.FatalLevel
+	case "panic":
+		return logrus.PanicLevel
+	default:
+		logrus.Warnf("Unknown log level: %s, defaulting to InfoLevel", levelString)
+		return logrus.InfoLevel
+	}
 }

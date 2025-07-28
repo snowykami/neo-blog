@@ -352,12 +352,12 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, e
 }
 
 func (s *UserService) generate2Token(userID uint) (string, string, error) {
-	token := utils.Jwt.NewClaims(userID, "", false, time.Duration(utils.Env.GetAsInt(constant.EnvKeyTokenDuration, 24)*int(time.Hour)))
+	token := utils.Jwt.NewClaims(userID, "", false, time.Duration(utils.Env.GetAsInt(constant.EnvKeyTokenDuration, constant.EnvKeyTokenDurationDefault)*int(time.Second)))
 	tokenString, err := token.ToString()
 	if err != nil {
 		return "", "", errs.ErrInternalServer
 	}
-	refreshToken := utils.Jwt.NewClaims(userID, utils.Strings.GenerateRandomString(64), true, time.Duration(utils.Env.GetAsInt(constant.EnvKeyRefreshTokenDuration, 30)*int(time.Hour)))
+	refreshToken := utils.Jwt.NewClaims(userID, utils.Strings.GenerateRandomString(64), true, time.Duration(utils.Env.GetAsInt(constant.EnvKeyRefreshTokenDuration, constant.EnvKeyRefreshTokenDurationDefault)*int(time.Second)))
 	refreshTokenString, err := refreshToken.ToString()
 	if err != nil {
 		return "", "", errs.ErrInternalServer

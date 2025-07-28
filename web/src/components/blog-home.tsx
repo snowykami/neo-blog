@@ -9,11 +9,11 @@ import type { Label } from "@/models/label";
 import type { Post } from "@/models/post";
 import { listPosts } from "@/api/post";
 
-import {  useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useStoredState } from '@/hooks/use-storage-state';
 import { listLabels } from "@/api/label";
 import { POST_SORT_TYPE } from "@/localstore";
-import Image from "next/image";
+
 
 // 定义排序类型
 type SortType = 'latest' | 'popular';
@@ -23,7 +23,6 @@ export default function BlogHome() {
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(false);
     const [sortType, setSortType, sortTypeLoaded] = useStoredState<SortType>(POST_SORT_TYPE, 'latest');
-
     // 根据排序类型和防抖后的搜索关键词获取文章
     useEffect(() => {
         if (!sortTypeLoaded) return;

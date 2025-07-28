@@ -2,6 +2,7 @@ import type { Label } from "@/models/label";
 import type { User } from "./user";
 
 export interface Post {
+    description: string;
     id: number;
     title: string;
     content: string;

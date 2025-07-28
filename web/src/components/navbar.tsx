@@ -18,6 +18,7 @@ import config from "@/config"
 import { useState, useEffect } from "react"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
+import { Switch } from "./ui/switch"
 
 const navbarMenuComponents = [
     {
@@ -44,7 +45,7 @@ const navbarMenuComponents = [
 ]
 
 export function Navbar() {
-    const { navbarAdditionalClassName } = useDevice()
+    const { navbarAdditionalClassName, setMode, mode } = useDevice()
     return (
         <nav className={`grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-16 px-4 w-full ${navbarAdditionalClassName}`}>
             <div className="flex items-center justify-start">
@@ -54,6 +55,7 @@ export function Navbar() {
                 <NavMenuCenter />
             </div>
             <div className="flex items-center justify-end space-x-2">
+                <Switch checked={mode === "dark"} onCheckedChange={(checked) => setMode(checked ? "dark" : "light")} />
                 <GravatarAvatar email="snowykami@outlook.com" />
                 <SidebarMenuClientOnly />
             </div>

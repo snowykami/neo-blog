@@ -11,11 +11,13 @@ const (
 	RoleUser                               = "user"
 	RoleAdmin                              = "admin"
 	EnvKeyBaseUrl                          = "BASE_URL"       // 环境变量：基础URL
+	EnvKeyLogLevel                         = "LOG_LEVEL"      // 环境变量：日志级别
 	EnvKeyMode                             = "MODE"           // 环境变量：运行模式
 	EnvKeyJwtSecrete                       = "JWT_SECRET"     // 环境变量：JWT密钥
 	EnvKeyPasswordSalt                     = "PASSWORD_SALT"  // 环境变量：密码盐
 	EnvKeyTokenDuration                    = "TOKEN_DURATION" // 环境变量：令牌有效期
 	EnvKeyTokenDurationDefault             = 300
+	EnvKeyRefreshTokenDurationDefault      = 604800
 	EnvKeyRefreshTokenDuration             = "REFRESH_TOKEN_DURATION"               // 环境变量：刷新令牌有效期
 	EnvKeyRefreshTokenDurationWithRemember = "REFRESH_TOKEN_DURATION_WITH_REMEMBER" // 环境变量：记住我刷新令牌有效期
 	KVKeyEmailVerificationCode             = "email_verification_code:"             // KV存储：邮箱验证码
@@ -40,6 +42,6 @@ const (
 )
 
 var (
-	OrderByEnumPost = []string{OrderByCreatedAt, OrderByUpdatedAt, OrderByLikeCount, OrderByCommentCount, OrderByViewCount, OrderByHeat} // 帖子可用的排序方式
-	OrderByEnumComment = []string{OrderByCreatedAt, OrderByUpdatedAt, OrderByCommentCount} // 评论可用的排序方式
+	OrderByEnumPost    = []string{OrderByCreatedAt, OrderByUpdatedAt, OrderByLikeCount, OrderByCommentCount, OrderByViewCount, OrderByHeat} // 帖子可用的排序方式
+	OrderByEnumComment = []string{OrderByCreatedAt, OrderByUpdatedAt, OrderByCommentCount}                                                  // 评论可用的排序方式
 )
