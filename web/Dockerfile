@@ -8,8 +8,7 @@ WORKDIR /app
 COPY . .
 RUN corepack enable pnpm && \
     pnpm install --frozen-lockfile && \
-    pnpm run build && \
-    pnpm prune --prod
+    pnpm build && 
 
 FROM node:20-alpine AS runner
 WORKDIR /app
