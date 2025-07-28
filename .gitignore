@@ -10,5 +10,5 @@ configs/
 data/
 
 # dist
-./server
+/server
 main
