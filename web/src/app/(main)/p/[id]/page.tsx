@@ -12,5 +12,9 @@ export default async function PostPage({ params }: Props) {
   const post = await getPostById(id, cookieStore.get('token')?.value || '');
   if (!post)
     return <div>文章不存在</div>
-  return <BlogPost post={post} />
+  return (
+    <div className="flex flex-col h-100vh">
+      <BlogPost post={post} />
+    </div>
+  )
 }

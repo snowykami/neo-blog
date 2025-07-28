@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import type { Post } from "@/models/post";
 import { Calendar, Clock, FileText, Flame, Heart, MessageCircle, PenLine, SquarePen } from "lucide-react";
-import { MDXRemote } from "next-mdx-remote-client/rsc";
 import ScrollToTop from "@/components/scroll-to-top.client";
 import { RenderMarkdown } from "@/components/markdown";
 import { isMobileByUA } from "@/utils/server/device";
@@ -134,10 +133,10 @@ async function PostContent({ post }: { post: Post }) {
 
 async function BlogPost({ post }: { post: Post }) {
   return (
-    <div className="">
-      <ScrollToTop />
+    <div className="h-full">
+      {/* <ScrollToTop /> */}
       <PostHeader post={post} />
-        <PostContent post={post} />
+      <PostContent post={post} />
     </div>
   );
 }
