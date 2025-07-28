@@ -4,6 +4,7 @@ import { Calendar, Clock, FileText, Flame, Heart, MessageCircle, PenLine, Square
 import { MDXRemote } from "next-mdx-remote-client/rsc";
 import ScrollToTop from "@/components/scroll-to-top.client";
 import { RenderMarkdown } from "@/components/markdown";
+import { isMobileByUA } from "@/utils/server/device";
 
 function PostMeta({ post }: { post: Post }) {
   return (
@@ -59,9 +60,10 @@ function PostMeta({ post }: { post: Post }) {
   );
 }
 
-function PostHeader({ post }: { post: Post }) {
+async function PostHeader({ post }: { post: Post }) {
+  const isMobile = await isMobileByUA();
   return (
-    <div className="relative py-32">
+    <div className={`relative ${isMobile ? "py-16" : "py-32"}`}>
       {/* 背景层 */}
       <div
         className="pointer-events-none absolute inset-0 left-1/2 right-1/2 w-screen -translate-x-1/2 bg-gradient-to-bl from-blue-700 to-purple-700 dark:from-blue-500 dark:to-purple-500"

@@ -14,7 +14,6 @@ import { useStoredState } from '@/hooks/use-storage-state';
 import { listLabels } from "@/api/label";
 import { POST_SORT_TYPE } from "@/localstore";
 
-
 // 定义排序类型
 type SortType = 'latest' | 'popular';
 

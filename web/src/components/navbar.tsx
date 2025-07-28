@@ -15,7 +15,7 @@ import {
 import GravatarAvatar from "@/components/gravatar"
 import { useDevice } from "@/contexts/device-context"
 import config from "@/config"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
 import { Switch } from "./ui/switch"
@@ -64,10 +64,8 @@ export function Navbar() {
 }
 
 function NavMenuCenter() {
-    const { isMobile } = useDevice()
-    if (isMobile) return null
     return (
-        <NavigationMenu viewport={false}>
+        <NavigationMenu viewport={false} className="hidden md:block">
             <NavigationMenuList className="flex space-x-1">
                 {navbarMenuComponents.map((item) => (
                     <NavigationMenuItem key={item.title}>
@@ -123,62 +121,57 @@ function ListItem({
 }
 
 function SidebarMenuClientOnly() {
-    const [mounted, setMounted] = useState(false);
-    useEffect(() => setMounted(true), []);
-    if (!mounted) return null;
     return <SidebarMenu />;
 }
 
 function SidebarMenu() {
     const [open, setOpen] = useState(false)
-    const { isMobile } = useDevice()
-
-    if (!isMobile) return null
-
     return (
-        <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-                <button
-                    aria-label="打开菜单"
-                    className="p-2 rounded-md hover:bg-accent transition-colors"
-                >
-                    <Menu className="w-6 h-6" />
-                </button>
-            </SheetTrigger>
-            <SheetContent side="right" className="p-0 w-64">
-                {/* 可访问性要求的标题，视觉上隐藏 */}
-                <SheetTitle className="sr-only">侧边栏菜单</SheetTitle>
-                <nav className="flex flex-col gap-2 p-4">
-                    {navbarMenuComponents.map((item) =>
-                        item.href ? (
-                            <Link
-                                key={item.title}
-                                href={item.href}
-                                className="py-2 px-3 rounded hover:bg-accent font-bold transition-colors"
-                                onClick={() => setOpen(false)}
-                            >
-                                {item.title}
-                            </Link>
-                        ) : item.children ? (
-                            <div key={item.title} className="mb-2">
-                                <div className="font-bold px-3 py-2">{item.title}</div>
-                                <div className="flex flex-col pl-4">
-                                    {item.children.map((child) => (
-                                        <Link
-                                            key={child.title}
-                                            href={child.href}
-                                            className="py-2 px-3 rounded hover:bg-accent transition-colors"
-                                            onClick={() => setOpen(false)}
-                                        >
-                                            {child.title}
-                                        </Link>
-                                    ))}
+        <div className="md:hidden">
+            <Sheet open={open} onOpenChange={setOpen}>
+                <SheetTrigger asChild>
+                    <button
+                        aria-label="打开菜单"
+                        className="p-2 rounded-md hover:bg-accent transition-colors"
+                    >
+                        <Menu className="w-6 h-6" />
+                    </button>
+                </SheetTrigger>
+                <SheetContent side="right" className="p-0 w-64">
+                    {/* 可访问性要求的标题，视觉上隐藏 */}
+                    <SheetTitle className="sr-only">侧边栏菜单</SheetTitle>
+                    <nav className="flex flex-col gap-2 p-4">
+                        {navbarMenuComponents.map((item) =>
+                            item.href ? (
+                                <Link
+                                    key={item.title}
+                                    href={item.href}
+                                    className="py-2 px-3 rounded hover:bg-accent font-bold transition-colors"
+                                    onClick={() => setOpen(false)}
+                                >
+                                    {item.title}
+                                </Link>
+                            ) : item.children ? (
+                                <div key={item.title} className="mb-2">
+                                    <div className="font-bold px-3 py-2">{item.title}</div>
+                                    <div className="flex flex-col pl-4">
+                                        {item.children.map((child) => (
+                                            <Link
+                                                key={child.title}
+                                                href={child.href}
+                                                className="py-2 px-3 rounded hover:bg-accent transition-colors"
+                                                onClick={() => setOpen(false)}
+                                            >
+                                                {child.title}
+                                            </Link>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        ) : null
-                    )}
-                </nav>
-            </SheetContent>
-        </Sheet>
+                            ) : null
+                        )}
+                    </nav>
+                </SheetContent>
+            </Sheet></div>
+
     )
 }
