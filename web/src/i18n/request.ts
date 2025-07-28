@@ -10,8 +10,7 @@ export default getRequestConfig(async () => {
       try {
         return (await import(`@/locales/${locale}.json`)).default;
       } catch (err) {
-        console.warn();
-        (err)
+        console.warn(`Failed to load locale ${locale}:`, err);
         return {};
       }
     })
