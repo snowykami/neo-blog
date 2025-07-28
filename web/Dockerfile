@@ -5,11 +5,11 @@ FROM node:20-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml* .npmrc* ./
-RUN corepack enable pnpm && pnpm install --frozen-lockfile
-
 COPY . .
-RUN pnpm run build
+RUN corepack enable pnpm && \
+    pnpm install --frozen-lockfile && \
+    pnpm run build && \
+    pnpm prune --prod
 
 FROM node:20-alpine AS runner
 WORKDIR /app
