@@ -2,26 +2,31 @@
 import React from "react";
 import { toast } from "sonner";
 
-function extractText(node: any): string {
+// 更安全的类型声明
+function extractText(node: React.ReactNode): string {
     if (typeof node === "string") return node;
     if (Array.isArray(node)) return node.map(extractText).join("");
-    if (node && typeof node === "object" && "props" in node) {
-        return extractText(node.props.children);
+    if (
+        React.isValidElement(node) &&
+        node.props &&
+        typeof node.props === "object" &&
+        "children" in node.props
+    ) {
+        return extractText(node.props.children as React.ReactNode);
     }
     return "";
 }
 
 export default function CodeBlock(props: React.ComponentPropsWithoutRef<"pre">) {
     let className: string | undefined = undefined;
+    const child = props.children as React.ReactElement<{ className?: string; children?: React.ReactNode }> | undefined;
     if (
-        props.children &&
-        typeof props.children === "object" &&
-        "props" in props.children &&
-        props.children &&
-        typeof (props.children as any).props === "object" &&
-        (props.children as any).props.className
+        child &&
+        typeof child === "object" &&
+        "props" in child &&
+        child.props.className
     ) {
-        className = (props.children as any).props.className as string | undefined;
+        className = child.props.className as string | undefined;
     }
     let language = "";
     if (className) {
@@ -32,12 +37,11 @@ export default function CodeBlock(props: React.ComponentPropsWithoutRef<"pre">) 
     }
     let codeContent = "";
     if (
-        props.children &&
-        typeof props.children === "object" &&
-        "props" in props.children &&
-        (props.children as any).props
+        child &&
+        typeof child === "object" &&
+        "props" in child
     ) {
-        codeContent = extractText((props.children as any).props.children);
+        codeContent = extractText(child.props.children);
     }
 
     function handleCopy(e: React.MouseEvent<HTMLButtonElement>) {
