@@ -1,0 +1,174 @@
+# 初始副本数
+replicaCount: 1
+
+# 镜像设置
+image:
+  registry: docker.io
+  backend: snowykami/neo-blog-backend
+  backendTag: latest
+  frontend: snowykami/neo-blog-frontend
+  frontendTag: latest
+  pullPolicy: IfNotPresent
+
+# 是否启用前端
+frontend:
+  enabled: true
+
+backend:
+  # 是否暴露后端
+  expose: false
+
+  # 后端环境变量
+  env:
+    # Captcha settings 机器人挑战配置
+    # 开发模式下的直接通过验证码
+    CAPTCHA_DEV_PASSCODE: "114514"
+    # captcha类型，支持turnstile recaptcha hcaptcha，disable为禁用验证码
+    CAPTCHA_TYPE: turnstile
+    # captcha设置
+    CAPTCHA_SITE_SECRET: 89dh29djha28dh
+    CAPTCHA_SECRET_KEY: 89dh28912dh1289dh128d9d
+
+    # Database settings 数据库配置
+    # 数据库驱动，支持sqlite postgres
+    DB_DRIVER: sqlite
+    DB_NAME: blog
+    DB_PATH: ./data/data.db
+    DB_HOST: postgres
+    DB_PORT: 5432
+    DB_USER: blog
+    DB_PASSWORD: blog
+    # postgres数据库SSL模式
+    DB_SSLMODE: disable
+
+    # Email settings 邮件配置
+    EMAIL_ENABLED: false
+    EMAIL_USERNAME: xxx@bbb.com
+    EMAIL_PASSWORD: xxx
+    EMAIL_ADDRESS: xxx@bbb.com
+    EMAIL_HOST: smtp.xxx.com
+    EMAIL_PORT: "465"
+    EMAIL_SSL: true
+
+    # App settings 应用程序配置
+    LOG_LEVEL: debug
+    BASE_URL: https://blog.shenyu.moe
+    MAX_REQUEST_BODY_SIZE: "1000000"
+    MODE: prod
+
+    # 后端端口，无需替换
+    PORT: "80"
+    PASSWORD_SALT: "1234567890"
+    JWT_SECRET: "1234567890"
+    TOKEN_DURATION: "3600"
+    REFRESH_TOKEN_DURATION: "604800"
+
+## 镜像拉取密钥
+imagePullSecrets: []
+
+# 覆盖ChartName
+nameOverride: ""
+fullnameOverride: ""
+
+# 服务账号
+serviceAccount:
+  # 是否创建
+  create: true
+  # 是否自动挂载
+  automount: true
+  # 自定义声明
+  annotations: {}
+  # 服务账号名
+  # 若未设置将自动生成
+  name: ""
+
+# This is for setting Kubernetes Annotations to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podAnnotations: {}
+# This is for setting Kubernetes Labels to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# 服务配置
+service:
+  type: ClusterIP
+  # 服务端口，非必要无需更改
+  port: 80
+
+# ingress 配置
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    frontend:
+      - host: neo-blog.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    backend:
+      - host: api.neo-blog.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+# 资源配置
+resources:
+  backend:
+    limits:
+      cpu: 2
+      memory: 2Gi
+    requests:
+      cpu: 2
+      memory: 2Gi
+  frontend:
+    limits:
+      cpu: 64
+      memory: 64Gi
+    requests:
+      cpu: 64
+      memory: 64Gi
+
+
+# 自动扩缩容
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# 存储卷
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
