@@ -1,24 +1,17 @@
 # syntax=docker.io/docker/dockerfile:1
 
-FROM node:20-alpine AS base
+FROM node:20-alpine AS builder
 
-# 安装依赖
-FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml* .npmrc* ./
 RUN corepack enable pnpm && pnpm install --frozen-lockfile
 
-# 构建
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN corepack enable pnpm && pnpm run build
+RUN pnpm run build
 
-# 生产环境
-FROM base AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
