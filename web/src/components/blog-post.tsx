@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import type { Post } from "@/models/post";
 import { Calendar, Clock, FileText, Flame, Heart, MessageCircle, PenLine, SquarePen } from "lucide-react";
 import { MDXRemote } from "next-mdx-remote-client/rsc";
+import ScrollToTop from "@/components/scroll-to-top.client";
+import { RenderMarkdown } from "@/components/markdown";
 
 function PostMeta({ post }: { post: Post }) {
   return (
@@ -19,7 +21,7 @@ function PostMeta({ post }: { post: Post }) {
       {/* 阅读时间 */}
       <span className="flex items-center gap-1">
         <Clock className="w-4 h-4" />
-        {post.content.length / 100 || 1} 分钟
+        {Math.ceil(post.content.length / 400 || 1)} 分钟
       </span>
       {/* 发布时间 */}
       <span className="flex items-center gap-1">
@@ -90,19 +92,32 @@ function PostHeader({ post }: { post: Post }) {
 }
 
 async function PostContent({ post }: { post: Post }) {
+    const markdownClass =
+    "prose prose-lg max-w-none dark:prose-invert " +
+    // h1-h6
+    "[&_h1]:scroll-m-20 [&_h1]:text-4xl [&_h1]:font-extrabold [&_h1]:tracking-tight [&_h1]:text-balance [&_h1]:mt-10 [&_h1]:mb-6 " +
+    "[&_h2]:scroll-m-20 [&_h2]:border-b [&_h2]:pb-2 [&_h2]:text-3xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:first:mt-0 [&_h2]:mt-8 [&_h2]:mb-4 " +
+    "[&_h3]:scroll-m-20 [&_h3]:text-2xl [&_h3]:font-semibold [&_h3]:tracking-tight [&_h3]:mt-6 [&_h3]:mb-3 " +
+    "[&_h4]:scroll-m-20 [&_h4]:text-xl [&_h4]:font-semibold [&_h4]:tracking-tight [&_h4]:mt-5 [&_h4]:mb-2 " +
+    // p
+    "[&_p]:leading-7 [&_p]:mt-4 [&_p]:mb-4 " +
+    // blockquote
+    "[&_blockquote]:border-l-4 [&_blockquote]:border-blue-400 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:my-6 [&_blockquote]:py-2 " +
+    // code
+    "[&_code]:bg-gray-100 [&_code]:dark:bg-gray-800 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-sm [&_code]:font-mono " +
+    // a
+    "[&_a]:text-blue-600 [&_a]:hover:underline";
   return (
-    <div className="py-12">
+    <div className="prose prose-lg max-w-none dark:prose-invert">
       {post.type === "html" && (
         <div
-          className="prose prose-lg max-w-none dark:prose-invert [&_h1]:text-5xl [&_h2]:text-4xl [&_h3]:text-3xl [&_h4]:text-2xl [&_h5]:text-xl [&_h6]:text-lg [&_p]:text-xl [&_p]:my-6 [&_ul]:my-6 [&_ol]:my-6 [&_pre]:my-8 [&_blockquote]:my-8"
+          className={`${markdownClass}`}
           dangerouslySetInnerHTML={{ __html: post.content }}
         />
       )}
       {post.type === "markdown" && (
         <Suspense>
-          <MDXRemote
-            source={post.content}
-          />
+          <RenderMarkdown source={post.content} />
         </Suspense>
       )}
       {post.type === "text" && (
@@ -118,10 +133,9 @@ async function PostContent({ post }: { post: Post }) {
 async function BlogPost({ post }: { post: Post }) {
   return (
     <div className="">
+      <ScrollToTop />
       <PostHeader post={post} />
-      <div className="">
         <PostContent post={post} />
-      </div>
     </div>
   );
 }

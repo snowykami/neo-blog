@@ -20,13 +20,17 @@
     "deepmerge": "^4.3.1",
     "field-conv": "^1.0.9",
     "framer-motion": "^12.23.9",
+    "highlight.js": "^11.11.1",
     "lucide-react": "^0.525.0",
     "next": "15.4.1",
     "next-intl": "^4.3.4",
     "next-mdx-remote-client": "^2.1.3",
+    "next-themes": "^0.4.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-icons": "^5.5.0",
+    "rehype-highlight": "^7.0.2",
+    "sonner": "^2.0.6",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {

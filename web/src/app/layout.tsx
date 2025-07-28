@@ -5,6 +5,7 @@ import { DeviceProvider } from "@/contexts/device-context";
 import { NextIntlClientProvider } from 'next-intl';
 import config from "@/config";
 import { getUserLocales } from "@/i18n/request";
+import { Toaster } from "@/components/ui/sonner"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +32,7 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <Toaster richColors/>
         <DeviceProvider>
           <NextIntlClientProvider>{children}</NextIntlClientProvider>
         </DeviceProvider>
