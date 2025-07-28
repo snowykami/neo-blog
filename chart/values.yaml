@@ -3,7 +3,7 @@ replicaCount: 1
 
 # 镜像设置
 image:
-  registry: docker.linkos.org
+  registry: docker.io
   backend: snowykami/neo-blog-backend
   backendTag: latest
   frontend: snowykami/neo-blog-frontend
