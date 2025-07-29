@@ -1,12 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Heart, TrendingUp, Eye } from "lucide-react";
-import GravatarAvatar from "./gravatar";
+import GravatarAvatar from "@/components/common/gravatar";
 import { Badge } from "@/components/ui/badge";
 import type { Label } from "@/models/label";
 import type { Post } from "@/models/post";
 import type configType from '@/config';
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
+import { getPostHref } from "@/utils/common/post";
 
 // 侧边栏父组件，接收卡片组件列表
 export default function Sidebar({ cards }: { cards: React.ReactNode[] }) {
@@ -57,12 +59,13 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
       </CardHeader>
       <CardContent className="space-y-4">
         {posts.slice(0, 3).map((post, index) => (
-          <div key={post.id} className="flex items-start gap-3">
-            <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold">
-              {index + 1}
-            </span>
-            <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-sm line-clamp-2 mb-1">
+          <Link href={getPostHref(post)} key={post.id} className="block hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-1 transition-colors">
+            <div className="flex items-start gap-3">
+              <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold">
+                {index + 1}
+              </span>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-medium text-sm line-clamp-2 mb-1">
                 {post.title}
               </h4>
               <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -77,7 +80,9 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
               </div>
             </div>
           </div>
-        ))}
+        </Link>
+
+      ))}
       </CardContent>
     </Card>
   );

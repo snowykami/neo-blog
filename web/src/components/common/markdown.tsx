@@ -3,7 +3,7 @@ import { MDXRemote, MDXRemoteProps } from "next-mdx-remote-client/rsc";
 import { Suspense } from "react";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github.css"; // 你可以换成喜欢的主题
-import CodeBlock from "@/components/markdown-codeblock";
+import CodeBlock from "@/components/common/markdown-codeblock";
 
 export const markdownComponents = {
     h1: (props: React.ComponentPropsWithoutRef<"h1">) => (

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import config from '@/config'
 import { cn } from '@/lib/utils'
+import { getPostHref } from '@/utils/common/post'
 
 interface BlogCardProps {
   post: Post
@@ -13,7 +14,6 @@ interface BlogCardProps {
 }
 
 export function BlogCard({ post, className }: BlogCardProps) {
-  // 格式化日期
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('zh-CN', {
@@ -22,9 +22,6 @@ export function BlogCard({ post, className }: BlogCardProps) {
       day: '2-digit',
     })
   }
-
-  // TODO: 阅读时间估计
-
   return (
     <Card className={cn(
       'group overflow-hidden hover:shadow-xl transition-all duration-300 h-full flex flex-col cursor-pointer pt-0 pb-4',
@@ -220,7 +217,7 @@ export function BlogCardGrid({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {filteredPosts.map(post => (
-        <Link key={post.id} href={`/p/${post.id}`} className="block h-full">
+        <Link key={post.id} href={getPostHref(post)} className="block h-full">
           <BlogCard post={post} />
         </Link>
       ))}

@@ -12,13 +12,13 @@ import {
     NavigationMenuTrigger,
     navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
-import GravatarAvatar from "@/components/gravatar"
+import GravatarAvatar from "@/components/common/gravatar"
 import { useDevice } from "@/contexts/device-context"
 import config from "@/config"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
-import { Switch } from "./ui/switch"
+import { Switch } from "../ui/switch"
 
 const navbarMenuComponents = [
     {
@@ -72,13 +72,13 @@ function NavMenuCenter() {
                         {item.href ? (
                             <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
                                 <Link href={item.href} className="flex items-center gap-1 font-extrabold">
-                                    {item.title}
+                                    <span>{item.title}</span>
                                 </Link>
                             </NavigationMenuLink>
                         ) : item.children ? (
                             <>
                                 <NavigationMenuTrigger className="flex items-center gap-1 font-extrabold">
-                                    {item.title}
+                                    <span>{item.title}</span>
                                 </NavigationMenuTrigger>
                                 <NavigationMenuContent>
                                     <ul className="grid gap-2 p-0 min-w-[200px] max-w-[600px] grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">

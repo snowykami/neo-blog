@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import type { Post } from "@/models/post";
 import { Calendar, Clock, FileText, Flame, Heart, MessageCircle, PenLine, SquarePen } from "lucide-react";
-import ScrollToTop from "@/components/scroll-to-top.client";
-import { RenderMarkdown } from "@/components/markdown";
+import { RenderMarkdown } from "@/components/common/markdown";
 import { isMobileByUA } from "@/utils/server/device";
+import { calculateReadingTime } from "@/utils/common/post";
+import Link from "next/link";
 
 function PostMeta({ post }: { post: Post }) {
   return (
@@ -21,7 +22,7 @@ function PostMeta({ post }: { post: Post }) {
       {/* 阅读时间 */}
       <span className="flex items-center gap-1">
         <Clock className="w-4 h-4" />
-        {Math.ceil(post.content.length / 400 || 1)} 分钟
+        {calculateReadingTime(post.content)} 分钟
       </span>
       {/* 发布时间 */}
       <span className="flex items-center gap-1">
@@ -74,6 +75,9 @@ async function PostHeader({ post }: { post: Post }) {
           {post.isOriginal && (
             <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded">
               原创
+              <Link href="./aa" className="text-green-600 hover:underline">
+                查看
+              </Link>
             </span>
           )}
           {(post.labels || []).map(label => (

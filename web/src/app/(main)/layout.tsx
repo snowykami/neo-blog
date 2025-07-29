@@ -2,9 +2,9 @@
 
 import { motion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
-import { Navbar } from '@/components/navbar'
+import { Navbar } from '@/components/layout/navbar'
 import { BackgroundProvider } from '@/contexts/background-context'
-import Footer from '@/components/footer'
+import Footer from '@/components/layout/footer'
 
 export default function RootLayout({
   children,

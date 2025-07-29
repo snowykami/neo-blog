@@ -1,9 +1,9 @@
 "use client";
 
-import { BlogCardGrid } from "@/components/blog-card";
+import { BlogCardGrid } from "@/components/blog-home/blog-home-card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Clock, } from "lucide-react";
-import Sidebar, { SidebarAbout, SidebarHotPosts, SidebarMisskeyIframe, SidebarTags } from "./blog-home-sidebar";
+import Sidebar, { SidebarAbout, SidebarHotPosts, SidebarMisskeyIframe, SidebarTags } from "../blog/blog-sidebar-card";
 import config from '@/config';
 import type { Label } from "@/models/label";
 import type { Post } from "@/models/post";
@@ -22,7 +22,6 @@ export default function BlogHome() {
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(false);
     const [sortType, setSortType, sortTypeLoaded] = useStoredState<SortType>(POST_SORT_TYPE, 'latest');
-    // 根据排序类型和防抖后的搜索关键词获取文章
     useEffect(() => {
         if (!sortTypeLoaded) return;
         const fetchPosts = async () => {

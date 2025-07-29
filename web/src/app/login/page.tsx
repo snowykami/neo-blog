@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import { Suspense } from 'react'
-import { LoginForm } from '@/components/login-form'
+import { LoginForm } from '@/components/login/login-form'
 import config from '@/config'
 
 function LoginPageContent() {

@@ -14,6 +14,7 @@ const config = {
     },
     bodyWidth: "80vw",
     bodyWidthMobile: "100vw",
+    postsPerPage: 12,
     footer: {
         text: "Liteyuki ICP备 1145141919810",
         links: []

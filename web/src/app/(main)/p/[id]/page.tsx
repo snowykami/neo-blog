@@ -1,6 +1,6 @@
 import { getPostById } from '@/api/post'
 import { cookies } from 'next/headers'
-import BlogPost from '@/components/blog-post'
+import BlogPost from '@/components/blog-post/blog-post'
 
 interface Props {
   params: Promise<{ id: string }>
