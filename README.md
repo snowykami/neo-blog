@@ -1,6 +1,20 @@
 # neo-blog
 新的博客，前端由next驱动，后端由hertz驱动
 
+## 功能列表
+
+- [x] 支持Markdown，HTML，Text格式的文章
+- [x] 支持文章分类和标签
+- [ ] 页面管理
+- [ ] 支持文章置顶
+- [x] OIDC认证和注册
+- [x] 支持多用户
+- [ ] 高级评论功能(后端已实装)
+- [ ] 支持多语言
+- [x] 移动端适配
+- [ ] 后台管理
+- [ ] 富文本编辑器
+
 ## 部署
 
 ### 使用容器化部署(Docker Compose)(推荐)
@@ -46,7 +60,7 @@ docker compose up -d
 
 启动后，将外部网关请求转发到前端服务的端口即可
 
-### 使用容器化部署(Kubernetes)(推荐 但是还未发布helm chart)
+### 使用容器化部署(Kubernetes 暂未完全支持，有需求者可以查看[helm](./helm)目录)
 
 可以使用[Helm Chart](https://artifacthub.io/packages/helm/snowykami/neo-blog)进行部署。
 
