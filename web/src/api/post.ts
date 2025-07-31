@@ -1,14 +1,8 @@
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
 import axiosClient from './client'
+import type { ListPostsParams } from '@/models/post'
 
-interface ListPostsParams {
-  page?: number
-  size?: number
-  orderBy?: string
-  desc?: boolean
-  keywords?: string
-}
 
 export async function getPostById(id: string, token: string=""): Promise<Post | null> {
   try {

@@ -3,6 +3,8 @@ import { MDXRemote, MDXRemoteProps } from "next-mdx-remote-client/rsc";
 import { Suspense } from "react";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github.css"; // 你可以换成喜欢的主题
+import "highlight.js/styles/github-dark.css"; // 适用于暗黑模式
+import "highlight.js/styles/github-dark-dimmed.css"; // 适用于暗黑模式
 import CodeBlock from "@/components/common/markdown-codeblock";
 
 export const markdownComponents = {

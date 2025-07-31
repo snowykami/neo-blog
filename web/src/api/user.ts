@@ -1,22 +1,7 @@
 import type { OidcConfig } from '@/models/oidc-config'
 import type { BaseResponse } from '@/models/resp'
-import type { User } from '@/models/user'
+import type { LoginRequest, RegisterRequest, User } from '@/models/user'
 import axiosClient from './client'
-
-export interface LoginRequest {
-  username: string
-  password: string
-  rememberMe?: boolean // 可以轻松添加新字段
-  captcha?: string
-}
-
-export interface RegisterRequest {
-  username: string
-  password: string
-  nickname: string
-  email: string
-  verificationCode?: string
-}
 
 export async function userLogin(
   data: LoginRequest,

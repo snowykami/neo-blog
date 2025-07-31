@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"strconv"
 
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -21,6 +22,13 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return errs.ErrUnauthorized
+	}
+
+	if ok, err := cs.checkTargetExists(req.TargetID, req.TargetType); !ok {
+		if err != nil {
+			return errs.New(errs.ErrBadRequest.Code, "target not found", err)
+		}
+		return errs.ErrBadRequest
 	}
 
 	comment := &model.Comment{
@@ -57,6 +65,7 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	}
 
 	comment.Content = req.Content
+	comment.IsPrivate = req.IsPrivate
 
 	err = repo.Comment.UpdateComment(comment)
 
@@ -117,7 +126,7 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID string) (*dt
 func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommentListReq) ([]dto.CommentDto, error) {
 	currentUser, _ := ctxutils.GetCurrentUser(ctx)
 
-	comments, err := repo.Comment.ListComments(currentUser.ID, req.TargetID, req.TargetType, req.Page, req.Size, req.OrderBy, req.Desc)
+	comments, err := repo.Comment.ListComments(currentUser.ID, req.TargetID, req.TargetType, req.Page, req.Size, req.OrderBy, req.Desc, req.Depth)
 	if err != nil {
 		return nil, errs.New(errs.ErrInternalServer.Code, "failed to list comments", err)
 	}
@@ -138,4 +147,16 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 		commentDtos = append(commentDtos, commentDto)
 	}
 	return commentDtos, nil
+}
+
+func (cs *CommentService) checkTargetExists(targetID uint, targetType string) (bool, error) {
+	switch targetType {
+	case constant.TargetTypePost:
+		if _, err := repo.Post.GetPostByID(strconv.Itoa(int(targetID))); err != nil {
+			return false, errs.New(errs.ErrNotFound.Code, "post not found", err)
+		}
+	default:
+		return false, errs.New(errs.ErrBadRequest.Code, "invalid target type", nil)
+	}
+	return true, nil
 }

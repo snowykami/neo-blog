@@ -48,7 +48,6 @@ func (cr *CommentRepo) isCircularReference(tx *gorm.DB, commentID, parentID uint
 	return false, nil
 }
 
-
 // 递归删除子评论的辅助函数
 func (cr *CommentRepo) deleteChildren(tx *gorm.DB, parentID uint) error {
 	var children []*model.Comment
@@ -99,7 +98,7 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) error {
 		if err := tx.Create(comment).Error; err != nil {
 			return err
 		}
-		
+
 		return nil
 	})
 
@@ -173,7 +172,7 @@ func (cr *CommentRepo) GetComment(commentID string) (*model.Comment, error) {
 	return &comment, nil
 }
 
-func (cr *CommentRepo) ListComments(currentUserID uint, targetID uint, targetType string, page, size uint64, orderBy string, desc bool) ([]model.Comment, error) {
+func (cr *CommentRepo) ListComments(currentUserID uint, targetID uint, targetType string, page, size uint64, orderBy string, desc bool, depth int) ([]model.Comment, error) {
 	if !slices.Contains(constant.OrderByEnumComment, orderBy) {
 		return nil, errs.New(http.StatusBadRequest, "invalid order_by parameter", nil)
 	}
@@ -196,9 +195,13 @@ func (cr *CommentRepo) ListComments(currentUserID uint, targetID uint, targetTyp
 		query = query.Where("is_private = ?", false)
 	}
 
-	query = query.Where("target_id = ? AND target_type = ?", targetID, targetType)
-
+	if depth > 0 {
+		query = query.Where("target_id = ? AND target_type = ? AND depth = ?", targetID, targetType, depth)
+	} else {
+		query = query.Where("target_id = ? AND target_type = ?", targetID, targetType)
+	}
 	items, _, err := PaginateQuery[model.Comment](query, page, size, orderBy, desc)
+
 	if err != nil {
 		return nil, err
 	}

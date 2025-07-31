@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
@@ -15,7 +16,7 @@ import (
 func UseAuth(block bool) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		// For cookie
-		tokenFromCookie := string(c.Cookie("tokenFromCookie"))
+		tokenFromCookie := string(c.Cookie("token"))
 		tokenFromHeader := strings.TrimPrefix(string(c.GetHeader("Authorization")), "Bearer ")
 		refreshToken := string(c.Cookie("refresh_token"))
 
@@ -25,8 +26,10 @@ func UseAuth(block bool) app.HandlerFunc {
 			if err == nil && tokenClaims != nil {
 				ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
 				c.Next(ctx)
+				logrus.Debugf("UseAuth: tokenFromCookie authenticated successfully, userID: %d", tokenClaims.UserID)
 				return
 			}
+			logrus.Debugf("UseAuth: tokenFromCookie authentication failed, error: %v", err)
 		}
 		// tokenFromCookie 认证失败，尝试用 Bearer tokenFromHeader 认证
 		if tokenFromHeader != "" {
@@ -34,8 +37,10 @@ func UseAuth(block bool) app.HandlerFunc {
 			if err == nil && tokenClaims != nil {
 				ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
 				c.Next(ctx)
+				logrus.Debugf("UseAuth: tokenFromHeader authenticated successfully, userID: %d", tokenClaims.UserID)
 				return
 			}
+			logrus.Debugf("UseAuth: tokenFromHeader authentication failed, error: %v", err)
 		}
 		// tokenFromCookie 失效 使用 refresh tokenFromCookie 重新签发和鉴权
 		refreshTokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(refreshToken)
@@ -56,19 +61,19 @@ func UseAuth(block bool) app.HandlerFunc {
 				} else {
 					resps.InternalServerError(c, resps.ErrInternalServerError)
 				}
-
 				c.Next(ctx)
+				logrus.Debugf("UseAuth: refreshToken authenticated successfully, userID: %d", refreshTokenClaims.UserID)
 				return
 			}
 		}
 
 		// 所有认证方式都失败
 		if block {
-			// 若需要阻断，返回未授权错误并中止请求
+			logrus.Debug("UseAuth: all authentication methods failed, blocking request")
 			resps.Unauthorized(c, resps.ErrUnauthorized)
 			c.Abort()
 		} else {
-			// 若不需要阻断，继续请求但不设置用户ID
+			logrus.Debug("UseAuth: all authentication methods failed, blocking request")
 			c.Next(ctx)
 		}
 	}

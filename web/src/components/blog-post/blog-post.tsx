@@ -4,7 +4,7 @@ import { Calendar, Clock, FileText, Flame, Heart, MessageCircle, PenLine, Square
 import { RenderMarkdown } from "@/components/common/markdown";
 import { isMobileByUA } from "@/utils/server/device";
 import { calculateReadingTime } from "@/utils/common/post";
-import Link from "next/link";
+import CommentSection from "@/components/comment";
 
 function PostMeta({ post }: { post: Post }) {
   return (
@@ -75,9 +75,6 @@ async function PostHeader({ post }: { post: Post }) {
           {post.isOriginal && (
             <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded">
               原创
-              <Link href="./aa" className="text-green-600 hover:underline">
-                查看
-              </Link>
             </span>
           )}
           {(post.labels || []).map(label => (
@@ -141,6 +138,7 @@ async function BlogPost({ post }: { post: Post }) {
       {/* <ScrollToTop /> */}
       <PostHeader post={post} />
       <PostContent post={post} />
+      <CommentSection targetType="post" targetId={post.id} />
     </div>
   );
 }

@@ -19,3 +19,11 @@ export interface Post {
     createdAt: string;
     updatedAt: string;
 }
+
+export interface ListPostsParams {
+  page?: number
+  size?: number
+  orderBy?: string
+  desc?: boolean
+  keywords?: string
+}

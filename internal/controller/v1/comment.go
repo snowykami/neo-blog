@@ -89,6 +89,11 @@ func (cc *CommentController) GetComment(ctx context.Context, c *app.RequestConte
 }
 
 func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestContext) {
+	depth := c.Query("depth")
+	depthInt, err := strconv.Atoi(depth)
+	if err != nil || depthInt < 0 {
+		depthInt = 1
+	}
 	pagination := ctxutils.GetPaginationParams(c)
 	if pagination.OrderBy == "" {
 		pagination.OrderBy = constant.OrderByUpdatedAt
@@ -107,6 +112,7 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 		OrderBy:    pagination.OrderBy,
 		Page:       pagination.Page,
 		Size:       pagination.Size,
+		Depth:      depthInt,
 		TargetID:   uint(targetID),
 		TargetType: c.Query("target_type"),
 	}

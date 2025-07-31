@@ -2,7 +2,6 @@
 import React from "react";
 import { toast } from "sonner";
 
-// 更安全的类型声明
 function extractText(node: React.ReactNode): string {
     if (typeof node === "string") return node;
     if (Array.isArray(node)) return node.map(extractText).join("");
@@ -71,7 +70,13 @@ export default function CodeBlock(props: React.ComponentPropsWithoutRef<"pre">) 
                         {language}
                     </span>
                 )}
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div
+                    className="absolute right-3 top-1/2 -translate-y-1/2 flex space-x-2
+                        opacity-100
+                        group-hover:opacity-100
+                        sm:opacity-0 sm:group-hover:opacity-100
+                        transition-opacity"
+                >
                     <button
                         type="button"
                         className="px-2 py-1 rounded text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600"
