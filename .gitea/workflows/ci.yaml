@@ -1,0 +1,35 @@
+name: Push to Helm Chart Repository
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+    USERNAME: ${{ secrets.HELM_REGISTRY_USERNAME }}
+    PASSWORD: ${{ secrets.HELM_REGISTRY_PASSWORD }}
+    REGISTRY: https://git.liteyuki.org/api/packages/kubernetes/helm
+
+jobs:
+  build:
+    runs-on: liteyukios-latest
+    steps:
+    - name: Checkout code
+      uses: https://git.liteyuki.org/actions/checkout@v4
+
+    - name: Install Helm
+      uses: https://git.liteyuki.org/actions/setup-helm@v4
+
+    - name: Set up Helm repository
+      run: |
+        helm repo add --username ${{ env.USERNAME }} --password ${{ env.PASSWORD }} my-repo ${{ env.REGISTRY }}
+        helm repo update
+        helm plugin install https://github.com/chartmuseum/helm-push
+
+    - name: Package Helm chart
+      run: |
+        helm package helm
+
+    - name: Push Helm chart
+      run: |
+        helm cm-push *.tgz my-repo
