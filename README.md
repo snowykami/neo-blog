@@ -65,9 +65,11 @@ docker compose up -d
 可以使用[Helm Chart](https://artifacthub.io/packages/helm/snowykami/neo-blog)进行部署。
 
 ```bash
-helm repo add snowykami https://snowykami.github.io/neo-blog
+# 从命令行设置此注册中心
+helm repo add git.liteyuki.org https://git.liteyuki.org/api/packages/kubernetes/helm
 helm repo update
-helm install neo-blog snowykami/neo-blog --set backend.baseUrl=https://neo-blog-dev.sfkm.me
+# 要安装包，请运行以下命令
+helm install neo-blog git.liteyuki.org/neo-blog
 ```
 
 ### 使用源码构建部署(除开发场景外不推荐)
