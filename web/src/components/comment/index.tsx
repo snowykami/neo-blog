@@ -5,6 +5,8 @@ import { CommentInput } from "@/components/comment/comment-input";
 import { useEffect, useState } from "react";
 import { listComments } from "@/api/comment";
 import { OrderBy } from "@/models/common";
+import { CommentItem } from "./comment-item";
+import { Separator } from "../ui/separator";
 
 interface CommentAreaProps {
   targetType: 'post' | 'page';
@@ -19,7 +21,15 @@ export default function CommentSection(props: CommentAreaProps) {
   const [newComment, setNewComment] = useState<string>("");
 
   useEffect(() => {
-    listComments({ page: 1, size: 10, orderBy: OrderBy.CreatedAt, desc: true }, 1)
+    listComments({
+      targetType,
+      targetId,
+      depth: 0,
+      orderBy: OrderBy.CreatedAt,
+      desc: true,
+      page: 1,
+      size: 10
+    })
       .then(response => {
         setComments(response.data);
       })
@@ -34,8 +44,19 @@ export default function CommentSection(props: CommentAreaProps) {
 
   return (
     <div>
-      <h2>评论区</h2>
+      <Separator className="my-16" />
+      <div className="font-bold text-2xl">评论</div>
       <CommentInput />
+      {loading && <p>加载中...</p>}
+      {error && <p className="text-red-500">{error}</p>}
+      <div className="mt-4">
+        {comments.map(comment => (
+          <div key={comment.id}>
+            <Separator className="my-2" />
+            <CommentItem {...comment} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

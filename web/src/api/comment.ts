@@ -23,18 +23,35 @@ export async function deleteComment(id: number): Promise<void> {
   await axiosClient.delete(`/comment/c/${id}`)
 }
 
-export async function listComments(
-  targetType: 'post' | 'page',
-  targetId: number,
-  pagination: PaginationParams = { orderBy: OrderBy.CreatedAt, desc: false, page: 1, size: 10 },
-  depth: number = 1
-): Promise<BaseResponse<Comment[]>> {
+export interface ListCommentsParams {
+  targetType: 'post' | 'page'
+  targetId: number
+  depth?: number
+  orderBy?: OrderBy
+  desc?: boolean
+  page?: number
+  size?: number
+}
+
+export async function listComments(params: ListCommentsParams): Promise<BaseResponse<Comment[]>> {
+  const {
+    targetType,
+    targetId,
+    depth = 0,
+    orderBy = OrderBy.CreatedAt,
+    desc = true,
+    page = 1,
+    size = 10,
+  } = params
   const res = await axiosClient.get<BaseResponse<Comment[]>>(`/comment/list`, {
     params: {
       targetType,
       targetId,
-      ...pagination,
-      depth
+      depth,
+      orderBy,
+      desc,
+      page,
+      size
     }
   })
   return res.data

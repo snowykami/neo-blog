@@ -1,14 +1,28 @@
 "use client";
 import { Textarea } from "@/components/ui/textarea"
-import Gravatar from "@/components/common/gravatar"
+import { getGravatarByUser } from "@/components/common/gravatar"
+
+import { useState, useEffect } from "react";
+import type { User } from "@/models/user";
+import { getLoginUser } from "@/api/user";
 
 export function CommentInput() {
+    const [user, setUser] = useState<User | null>(null); // 假设 User 是你的用户模型
+    useEffect(()=>{
+        getLoginUser()
+            .then(response => {
+                setUser(response.data);
+            })
+            .catch(error => {
+                console.error("获取用户信息失败:", error);
+            });
+    }, []);
     return (
         <div>
             <div className="flex py-4">
                 {/* Avatar */}
                 <div>
-                    <Gravatar email="snowykami@outlook.com" className="w-10 h-10 rounded-full" />
+                    {user && getGravatarByUser(user)}
                 </div>
                 {/* Input Area */}
                 <div className="flex-1 pl-2">

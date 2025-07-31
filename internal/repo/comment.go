@@ -190,7 +190,7 @@ func (cr *CommentRepo) ListComments(currentUserID uint, targetID uint, targetTyp
 	query := GetDB().Model(&model.Comment{}).Preload("User")
 
 	if currentUserID > 0 {
-		query = query.Where("is_private = ? OR (is_private = ? AND (user_id = ? OR user_id = ?))", false, true, currentUserID, masterID)
+		query = query.Where("(is_private = ? OR (is_private = ? AND (user_id = ? OR user_id = ?)))", false, true, currentUserID, masterID)
 	} else {
 		query = query.Where("is_private = ?", false)
 	}
