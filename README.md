@@ -60,7 +60,7 @@ docker compose up -d
 
 启动后，将外部网关请求转发到前端服务的端口即可
 
-### 使用容器化部署(Kubernetes 暂未完全支持，有需求者可以查看[helm](./helm)目录)
+### 使用容器化部署(Kubernetes helm)
 
 可以使用[Helm Chart](https://artifacthub.io/packages/helm/snowykami/neo-blog)进行部署。
 
