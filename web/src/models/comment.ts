@@ -1,8 +1,9 @@
+import { TargetType } from "./types"
 import type { User } from "./user"
 
-export interface Comment{
+export interface Comment {
     id: number
-    targetType: string
+    targetType: TargetType
     targetId: number
     content: string
     replyId: number
@@ -14,7 +15,7 @@ export interface Comment{
 }
 
 export interface CreateCommentRequest {
-    targetType: string
+    targetType: TargetType
     targetId: number
     content: string
     replyId?: number // 可选字段，默认为 null

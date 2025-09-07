@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
-	"github.com/snowykami/neo-blog/pkg/constant"
 	"strconv"
+
+	"github.com/snowykami/neo-blog/pkg/constant"
 
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -124,9 +125,12 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID string) (*dt
 }
 
 func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommentListReq) ([]dto.CommentDto, error) {
-	currentUser, _ := ctxutils.GetCurrentUser(ctx)
+	currentUserID := uint(0)
+	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
+		currentUserID = currentUser.ID
+	}
 
-	comments, err := repo.Comment.ListComments(currentUser.ID, req.TargetID, req.TargetType, req.Page, req.Size, req.OrderBy, req.Desc, req.Depth)
+	comments, err := repo.Comment.ListComments(currentUserID, req.TargetID, req.TargetType, req.Page, req.Size, req.OrderBy, req.Desc, req.Depth)
 	if err != nil {
 		return nil, errs.New(errs.ErrInternalServer.Code, "failed to list comments", err)
 	}

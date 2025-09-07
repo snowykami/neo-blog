@@ -1,5 +1,29 @@
 {
   "HomePage": {
     "title": "Hello world!"
+  },
+  "Comment": {
+    "placeholder": "写下你的评论...",
+    "submit": "提交",
+    "login_required": "请先登录后再评论。",
+    "content_required": "评论内容不能为空。",
+    "comment_success": "评论提交成功！",
+    "comment_failed": "评论提交失败"
+  },
+  "Login": {
+    "welcome": "欢迎回来",
+    "with_oidc": "使用第三方身份提供者",
+    "or_continue_with_local_account": "或使用用户名和密码",
+    "email_or_username": "邮箱或用户名",
+    "password": "密码",
+    "forgot_password": "忘记密码？",
+    "no_account": "还没有账号？",
+    "register": "注册",
+    "login": "登录",
+    "by_logging_in_you_agree_to_our": "登录即表示你同意我们的",
+    "terms_of_service": "服务条款",
+    "and": "和",
+    "privacy_policy": "隐私政策",
+    "login_failed": "登录失败，请检查你的凭据。"
   }
 }

@@ -5,6 +5,7 @@ import { RenderMarkdown } from "@/components/common/markdown";
 import { isMobileByUA } from "@/utils/server/device";
 import { calculateReadingTime } from "@/utils/common/post";
 import CommentSection from "@/components/comment";
+import { TargetType } from '../../models/types';
 
 function PostMeta({ post }: { post: Post }) {
   return (
@@ -94,7 +95,7 @@ async function PostHeader({ post }: { post: Post }) {
 }
 
 async function PostContent({ post }: { post: Post }) {
-    const markdownClass =
+  const markdownClass =
     "prose prose-lg max-w-none dark:prose-invert " +
     // h1-h6
     "[&_h1]:scroll-m-20 [&_h1]:text-4xl [&_h1]:font-extrabold [&_h1]:tracking-tight [&_h1]:text-balance [&_h1]:mt-10 [&_h1]:mb-6 " +
@@ -138,7 +139,7 @@ async function BlogPost({ post }: { post: Post }) {
       {/* <ScrollToTop /> */}
       <PostHeader post={post} />
       <PostContent post={post} />
-      <CommentSection targetType="post" targetId={post.id} />
+      <CommentSection targetType={TargetType.Post} targetId={post.id} />
     </div>
   );
 }

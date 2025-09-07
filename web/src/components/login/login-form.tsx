@@ -17,11 +17,13 @@ import type { OidcConfig } from "@/models/oidc-config"
 import { ListOidcConfigs, userLogin } from "@/api/user"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useTranslations } from "next-intl"
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const t = useTranslations('Login')
   const [oidcConfigs, setOidcConfigs] = useState<OidcConfig[]>([])
   const [{ username, password }, setCredentials] = useState({ username: '', password: '' })
   const router = useRouter()
@@ -55,9 +57,9 @@ export function LoginForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">Welcome back</CardTitle>
+          <CardTitle className="text-xl">{t("welcome")}</CardTitle>
           <CardDescription>
-            Login with Open ID Connect.
+            {t("with_oidc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -67,15 +69,15 @@ export function LoginForm({
               {oidcConfigs.length > 0 && (
                 <div className="flex flex-col gap-4">
                   {oidcConfigs.map((config, index) => {
-                    // 生成唯一的 key
                     const uniqueKey = config.id ||
                       config.loginUrl ||
                       `${config.displayName}-${index}` ||
                       `oidc-${index}`;
-
                     return (
                       <LoginWithOidc
                         key={uniqueKey}
+                        // 这个REDIRECT_BACK需要前端自己拼接，传给后端服务器，后端服务器拿来响应给前端另一个页面获取，然后改变路由   
+                        // 因为这个是我暑假那会写的，后面因为其他事情太忙了，好久没看了，忘了为什么当时要这么设计了，在弄清楚之前先保持这样                   
                         loginUrl={config.loginUrl.replace("REDIRECT_BACK", encodeURIComponent(`?redirect_back=${redirectBack}`))}
                         displayName={config.displayName}
                         icon={config.icon}
@@ -89,7 +91,7 @@ export function LoginForm({
               {oidcConfigs.length > 0 && (
                 <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
                   <span className="bg-card text-muted-foreground relative z-10 px-2">
-                    Or continue with
+                    {t("or_continue_with_local_account")}
                   </span>
                 </div>
               )}
@@ -97,7 +99,7 @@ export function LoginForm({
               {/* 邮箱密码登录 */}
               <div className="grid gap-6">
                 <div className="grid gap-3">
-                  <Label htmlFor="email">Email or Username</Label>
+                  <Label htmlFor="email">{t("email_or_username")}</Label>
                   <Input
                     id="email"
                     type="text"
@@ -109,12 +111,12 @@ export function LoginForm({
                 </div>
                 <div className="grid gap-3">
                   <div className="flex items-center">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">{t("password")}</Label>
                     <a
                       href="#"
                       className="ml-auto text-sm underline-offset-4 hover:underline"
                     >
-                      Forgot your password?
+                      {t("forgot_password")}
                     </a>
                   </div>
                   <Input
@@ -126,15 +128,15 @@ export function LoginForm({
                   />
                 </div>
                 <Button type="submit" className="w-full" onClick={handleLogin}>
-                  Login
+                  {t("login")}
                 </Button>
               </div>
 
               {/* 注册链接 */}
               <div className="text-center text-sm">
-                Don&apos;t have an account?{" "}
+                {t("no_account")}{" "}
                 <a href="#" className="underline underline-offset-4">
-                  Sign up
+                  {t("register")}
                 </a>
               </div>
             </div>
@@ -144,14 +146,14 @@ export function LoginForm({
 
       {/* 服务条款 */}
       <div className="text-muted-foreground text-center text-xs text-balance">
-        By clicking continue, you agree to our{" "}
+        {t("by_logging_in_you_agree_to_our")}{" "}
         <a href="#" className="underline underline-offset-4 hover:text-primary">
-          Terms of Service
+          {t("terms_of_service")}
         </a>{" "}
-        and{" "}
+        {t("and")}{" "}
         <a href="#" className="underline underline-offset-4 hover:text-primary">
-          Privacy Policy
-        </a>.
+          {t("privacy_policy")}
+        </a>
       </div>
     </div>
   )

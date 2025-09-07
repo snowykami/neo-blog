@@ -3,6 +3,7 @@ import { CreateCommentRequest, UpdateCommentRequest, Comment } from '@/models/co
 import type {  PaginationParams } from '@/models/common'
 import { OrderBy } from '@/models/common'
 import type { BaseResponse } from '@/models/resp'
+import { TargetType } from '@/models/types'
 
 
 export async function createComment(
@@ -24,7 +25,7 @@ export async function deleteComment(id: number): Promise<void> {
 }
 
 export interface ListCommentsParams {
-  targetType: 'post' | 'page'
+  targetType: TargetType
   targetId: number
   depth?: number
   orderBy?: OrderBy

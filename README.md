@@ -110,5 +110,27 @@ pnpm start
 
 可以通过环境变量或者.env.production文件配置后端API端点
 
+## 开发
+
+### 后端
+
+```bash
+# 启动后端服务器
+go run ./cmd/server
+```
+
+### 前端
+
+```bash
+# 进入前端目录
+cd web
+
+# 安装依赖
+pnpm install
+
+# 启动前端开发服务器
+pnpm dev
+```
+
 ## 环境变量配置
 后端所有环境变量及其示例在[`.env.example`](./.env.example)文件中

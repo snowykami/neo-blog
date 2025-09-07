@@ -13,7 +13,7 @@ export interface User {
 export interface LoginRequest {
   username: string
   password: string
-  rememberMe?: boolean // 可以轻松添加新字段
+  rememberMe?: boolean 
   captcha?: string
 }
 
