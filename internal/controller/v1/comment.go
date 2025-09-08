@@ -107,6 +107,16 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 		resps.BadRequest(c, "无效的 target_id")
 		return
 	}
+	commentIDStr := c.Query("comment_id")
+	var commentID uint
+	if commentIDStr != "" {
+		commentIDInt, err := strconv.Atoi(commentIDStr)
+		if err != nil {
+			resps.BadRequest(c, "无效的 comment_id")
+			return
+		}
+		commentID = uint(commentIDInt)
+	}
 	req := dto.GetCommentListReq{
 		Desc:       pagination.Desc,
 		OrderBy:    pagination.OrderBy,
@@ -115,6 +125,7 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 		Depth:      depthInt,
 		TargetID:   uint(targetID),
 		TargetType: c.Query("target_type"),
+		CommentID:  commentID,
 	}
 	resp, err := cc.service.GetCommentList(ctx, &req)
 	if err != nil {

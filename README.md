@@ -9,7 +9,7 @@
 - [ ] 支持文章置顶
 - [x] OIDC认证和注册
 - [x] 支持多用户
-- [ ] 高级评论功能(后端已实装)
+- [x] 高级评论功能(后端已实装)
 - [ ] 支持多语言
 - [x] 移动端适配
 - [ ] 后台管理
@@ -24,7 +24,7 @@ services:
   frontend:
     container_name: neo-blog-frontend
     environment:
-      - BACKEND_URL=http://neo-blog-backend:8888  # 此处请保证和后端服务的名称一致
+      - BACKEND_URL=http://neo-blog-backend:8888  # 此处的后端地址用于前端服务器访问后端服务
     image: snowykami/neo-blog-frontend:latest
     networks:
       - internal-network
@@ -38,7 +38,7 @@ services:
     container_name: neo-blog-backend
     image: snowykami/neo-blog-backend:latest
     environment:
-      - BASE_URL=https://neo-blog-dev.sfkm.me # 此处是外部用户访问端点，也许你使用了nginx等反向代理
+      - BASE_URL=https://neo-blog-dev.sfkm.me # 此处是外部用户访问端点，用于在某些情况下后端可以生成正确的URL
     networks:
       - internal-network
     restart: always
@@ -72,7 +72,7 @@ helm repo update
 helm install neo-blog git.liteyuki.org/neo-blog
 ```
 
-### 使用源码构建部署(除开发场景外不推荐)
+### 使用源码构建部署(不推荐)
 
 需要准备：go、nodejs、pnpm
 
@@ -132,5 +132,10 @@ pnpm install
 pnpm dev
 ```
 
+### 联合调试
+
+默认情况下，本机启动后端和前端服务器无须额外配置即可互联，若后端在不同的主机上，需要在.env.development(自己创建)中配置`BACKEND_URL`变量
+
 ## 环境变量配置
+
 后端所有环境变量及其示例在[`.env.example`](./.env.example)文件中

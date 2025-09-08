@@ -10,12 +10,13 @@ const (
 	ModeProd                               = "prod"
 	RoleUser                               = "user"
 	RoleAdmin                              = "admin"
-	EnvKeyBaseUrl                          = "BASE_URL"       // 环境变量：基础URL
-	EnvKeyLogLevel                         = "LOG_LEVEL"      // 环境变量：日志级别
-	EnvKeyMode                             = "MODE"           // 环境变量：运行模式
-	EnvKeyJwtSecrete                       = "JWT_SECRET"     // 环境变量：JWT密钥
-	EnvKeyPasswordSalt                     = "PASSWORD_SALT"  // 环境变量：密码盐
-	EnvKeyTokenDuration                    = "TOKEN_DURATION" // 环境变量：令牌有效期
+	EnvKeyBaseUrl                          = "BASE_URL"        // 环境变量：基础URL
+	EnvKeyLogLevel                         = "LOG_LEVEL"       // 环境变量：日志级别
+	EnvKeyMode                             = "MODE"            // 环境变量：运行模式
+	EnvKeyJwtSecrete                       = "JWT_SECRET"      // 环境变量：JWT密钥
+	EnvKeyPasswordSalt                     = "PASSWORD_SALT"   // 环境变量：密码盐
+	EnvKeyTokenDuration                    = "TOKEN_DURATION"  // 环境变量：令牌有效期
+	EnvKeyMaxReplyDepth                    = "MAX_REPLY_DEPTH" // 环境变量：最大回复深度
 	EnvKeyTokenDurationDefault             = 300
 	EnvKeyRefreshTokenDurationDefault      = 604800
 	EnvKeyRefreshTokenDuration             = "REFRESH_TOKEN_DURATION"               // 环境变量：刷新令牌有效期
@@ -35,6 +36,7 @@ const (
 	OrderByCommentCount                    = "comment_count" // 按评论数排序
 	OrderByViewCount                       = "view_count"    // 按浏览量排序
 	OrderByHeat                            = "heat"
+	MaxReplyDepthDefault                   = 3  // 默认最大回复深度
 	HeatFactorViewWeight                   = 1  // 热度因子：浏览量权重
 	HeatFactorLikeWeight                   = 5  // 热度因子：点赞权重
 	HeatFactorCommentWeight                = 10 // 热度因子：评论权重

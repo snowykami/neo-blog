@@ -9,7 +9,10 @@ type CommentDto struct {
 	Depth      int     `json:"depth"`    // 评论的层级深度
 	CreatedAt  string  `json:"created_at"`
 	UpdatedAt  string  `json:"updated_at"`
-	User       UserDto `json:"user"` // 评论的
+	User       UserDto `json:"user"`        // 评论的
+	ReplyCount int64   `json:"reply_count"` // 回复数量
+	LikeCount  uint64  `json:"like_count"`  // 点赞数量
+	IsLiked    bool    `json:"is_liked"`    // 当前用户是否点赞
 }
 
 type CreateCommentReq struct {
@@ -29,8 +32,9 @@ type UpdateCommentReq struct {
 type GetCommentListReq struct {
 	TargetID   uint   `json:"target_id" binding:"required"`
 	TargetType string `json:"target_type" binding:"required"`
-	OrderBy    string `json:"order_by"` // 排序方式
-	Page       uint64 `json:"page"`     // 页码
+	CommentID  uint   `json:"comment_id"` // 获取某条评论的所有子评论
+	OrderBy    string `json:"order_by"`   // 排序方式
+	Page       uint64 `json:"page"`       // 页码
 	Size       uint64 `json:"size"`
 	Desc       bool   `json:"desc"`
 	Depth      int    `json:"depth"` // 评论的层级深度

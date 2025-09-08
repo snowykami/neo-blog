@@ -2,12 +2,13 @@ package service
 
 import (
 	"context"
+	"strconv"
+
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/errs"
-	"strconv"
 )
 
 type PostService struct{}
@@ -126,27 +127,28 @@ func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*d
 	return postDtos, nil
 }
 
-func (p *PostService) ToggleLikePost(ctx context.Context, id string) error {
+func (p *PostService) ToggleLikePost(ctx context.Context, id string) (bool, error) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
-		return errs.ErrUnauthorized
+		return false, errs.ErrUnauthorized
 	}
 	if id == "" {
-		return errs.ErrBadRequest
+		return false, errs.ErrBadRequest
 	}
 	post, err := repo.Post.GetPostByID(id)
 	if err != nil {
-		return errs.New(errs.ErrNotFound.Code, "post not found", err)
+		return false, errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}
 	if post.UserID == currentUser.ID {
-		return errs.ErrForbidden
+		return false, errs.ErrForbidden
 	}
 	idInt, err := strconv.ParseUint(id, 10, 64)
 	if err != nil {
-		return errs.New(errs.ErrBadRequest.Code, "invalid post ID", err)
+		return false, errs.New(errs.ErrBadRequest.Code, "invalid post ID", err)
 	}
-	if err := repo.Post.ToggleLikePost(uint(idInt), currentUser.ID); err != nil {
-		return errs.ErrInternalServer
+	liked, err := repo.Post.ToggleLikePost(uint(idInt), currentUser.ID)
+	if err != nil {
+		return false, errs.ErrInternalServer
 	}
-	return nil
+	return liked, nil
 }

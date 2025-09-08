@@ -13,9 +13,13 @@ import { TargetType } from "@/models/types";
 import { useToLogin } from "@/hooks/use-to-login";
 import NeedLogin from "../common/need-login";
 
+
+import "./comment-animations.css";
+
 export function CommentInput(
-    { targetId, targetType, onCommentSubmitted }: { targetId: number, targetType: TargetType, onCommentSubmitted: () => void }
+    { targetId, targetType, replyId, onCommentSubmitted }: { targetId: number, targetType: TargetType, replyId: number | null, onCommentSubmitted: () => void }
 ) {
+
     const t = useTranslations('Comment')
     const toLogin = useToLogin()
     const [user, setUser] = useState<User | null>(null);
@@ -41,6 +45,8 @@ export function CommentInput(
             targetType: targetType,
             targetId: targetId,
             content: commentContent,
+            replyId: replyId,
+            isPrivate: false,
         }).then(response => {
             setCommentContent("");
             toast.success(t("comment_success"));
@@ -52,25 +58,25 @@ export function CommentInput(
         });
     };
     return (
-        <div>
-            <div className="flex py-4">
+        <div className="fade-in-up">
+            <div className="flex py-4 fade-in">
                 {/* Avatar */}
-                <div onClick={user ? undefined : toLogin} className="flex-shrink-0 w-10 h-10">
+                <div onClick={user ? undefined : toLogin} className="flex-shrink-0 w-10 h-10 fade-in">
                     {user && getGravatarByUser(user)}
-                    {!user && <CircleUser className="w-full h-full" />}
+                    {!user && <CircleUser className="w-full h-full fade-in" />}
                 </div>
                 {/* Input Area */}
-                <div className="flex-1 pl-2">
+                <div className="flex-1 pl-2 fade-in-up">
                     <Textarea
                         placeholder={t("placeholder")}
-                        className="w-full p-2 border border-gray-300 rounded-md"
+                        className="w-full p-2 border border-gray-300 rounded-md fade-in-up"
                         value={commentContent}
                         onChange={(e) => setCommentContent(e.target.value)}
                     />
                 </div>
             </div>
-            <div className="flex justify-end">
-                <button onClick={handleCommentSubmit} className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
+            <div className="flex justify-end fade-in-up">
+                <button onClick={handleCommentSubmit} className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors fade-in-up">
                     {t("submit")}
                 </button>
             </div>

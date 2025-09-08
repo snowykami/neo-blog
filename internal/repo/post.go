@@ -1,11 +1,12 @@
 package repo
 
 import (
+	"net/http"
+	"slices"
+
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
-	"net/http"
-	"slices"
 )
 
 type postRepo struct{}
@@ -73,13 +74,13 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, page, size u
 	return items, nil
 }
 
-func (p *postRepo) ToggleLikePost(postID uint, userID uint) error {
+func (p *postRepo) ToggleLikePost(postID uint, userID uint) (bool, error) {
 	if postID == 0 || userID == 0 {
-		return errs.New(http.StatusBadRequest, "invalid post ID or user ID", nil)
+		return false, errs.New(http.StatusBadRequest, "invalid post ID or user ID", nil)
 	}
-	err := Like.ToggleLike(userID, postID, constant.TargetTypePost)
+	liked, err := Like.ToggleLike(userID, postID, constant.TargetTypePost)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return nil
+	return liked, nil
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
 
@@ -92,16 +93,15 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) error {
 			}
 			depth = parentComment.Depth + 1
 		}
-
+		if depth > utils.Env.GetAsInt(constant.EnvKeyMaxReplyDepth, constant.MaxReplyDepthDefault) {
+			return errs.New(http.StatusBadRequest, "exceeded maximum reply depth", nil)
+		}
 		comment.Depth = depth
-
 		if err := tx.Create(comment).Error; err != nil {
 			return err
 		}
-
 		return nil
 	})
-
 	return err
 }
 
@@ -172,7 +172,7 @@ func (cr *CommentRepo) GetComment(commentID string) (*model.Comment, error) {
 	return &comment, nil
 }
 
-func (cr *CommentRepo) ListComments(currentUserID uint, targetID uint, targetType string, page, size uint64, orderBy string, desc bool, depth int) ([]model.Comment, error) {
+func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, targetType string, page, size uint64, orderBy string, desc bool, depth int) ([]model.Comment, error) {
 	if !slices.Contains(constant.OrderByEnumComment, orderBy) {
 		return nil, errs.New(http.StatusBadRequest, "invalid order_by parameter", nil)
 	}
@@ -189,13 +189,17 @@ func (cr *CommentRepo) ListComments(currentUserID uint, targetID uint, targetTyp
 
 	query := GetDB().Model(&model.Comment{}).Preload("User")
 
+	if commentID > 0 {
+		query = query.Where("reply_id = ?", commentID)
+	}
+
 	if currentUserID > 0 {
 		query = query.Where("(is_private = ? OR (is_private = ? AND (user_id = ? OR user_id = ?)))", false, true, currentUserID, masterID)
 	} else {
 		query = query.Where("is_private = ?", false)
 	}
 
-	if depth > 0 {
+	if depth >= 0 {
 		query = query.Where("target_id = ? AND target_type = ? AND depth = ?", targetID, targetType, depth)
 	} else {
 		query = query.Where("target_id = ? AND target_type = ?", targetID, targetType)
@@ -207,4 +211,12 @@ func (cr *CommentRepo) ListComments(currentUserID uint, targetID uint, targetTyp
 	}
 
 	return items, nil
+}
+
+func (cr *CommentRepo) CountReplyComments(commentID uint) (int64, error) {
+	var count int64
+	if err := GetDB().Model(&model.Comment{}).Where("reply_id = ?", commentID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
 }

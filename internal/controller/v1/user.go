@@ -3,6 +3,8 @@ package v1
 import (
 	"context"
 	"fmt"
+	"strconv"
+
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -10,7 +12,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
-	"strconv"
 )
 
 type UserController struct {

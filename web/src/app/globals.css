@@ -112,6 +112,10 @@
   --sidebar-ring: oklch(0.488 0.243 264.376);
 }
 
+:root {
+  --animation-duration: 0.6s;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

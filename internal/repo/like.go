@@ -2,6 +2,8 @@ package repo
 
 import (
 	"errors"
+
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"gorm.io/gorm"
@@ -11,24 +13,28 @@ type likeRepo struct{}
 
 var Like = &likeRepo{}
 
-func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string) error {
+func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string) (bool, error) {
 	err := l.checkTargetType(targetType)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return GetDB().Transaction(func(tx *gorm.DB) error {
-		// 判断是否已点赞
+	var finalStatus bool
+	err = GetDB().Transaction(func(tx *gorm.DB) error {
 		isLiked, err := l.IsLiked(userID, targetID, targetType)
 		if err != nil {
+			logrus.Error(err)
 			return err
 		}
 		if isLiked {
-			// 已点赞，执行取消点赞逻辑
-			if err := tx.Where("target_type = ? AND target_id = ? AND user_id = ?", targetType, targetID, userID).Delete(&model.Like{}).Error; err != nil {
+			if err :=
+				tx.Where("target_type = ? AND target_id = ? AND user_id = ?", targetType, targetID, userID).
+					Delete(&model.Like{TargetType: targetType, TargetID: targetID, UserID: userID}).
+					Error; err != nil {
+				logrus.Error(err)
 				return err
 			}
+			finalStatus = false
 		} else {
-			// 未点赞，执行新增点赞逻辑
 			like := &model.Like{
 				TargetType: targetType,
 				TargetID:   targetID,
@@ -37,6 +43,7 @@ func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string) error {
 			if err := tx.Create(like).Error; err != nil {
 				return err
 			}
+			finalStatus = true
 		}
 		// 重新计算点赞数量
 		var count int64
@@ -58,6 +65,7 @@ func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string) error {
 		}
 		return nil
 	})
+	return finalStatus, err
 }
 
 // IsLiked 检查是否点赞

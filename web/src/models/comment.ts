@@ -12,14 +12,17 @@ export interface Comment {
     createdAt: string
     updatedAt: string
     user: User
+    replyCount: number
+    likeCount: number
+    isLiked: boolean
 }
 
 export interface CreateCommentRequest {
     targetType: TargetType
     targetId: number
     content: string
-    replyId?: number // 可选字段，默认为 null
-    isPrivate?: boolean // 可选字段，默认为 false
+    replyId: number | null// 可选字段，默认为 null
+    isPrivate: boolean// 可选字段，默认为 false
 }
 
 export interface UpdateCommentRequest {

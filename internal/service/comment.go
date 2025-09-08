@@ -130,7 +130,7 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 		currentUserID = currentUser.ID
 	}
 
-	comments, err := repo.Comment.ListComments(currentUserID, req.TargetID, req.TargetType, req.Page, req.Size, req.OrderBy, req.Desc, req.Depth)
+	comments, err := repo.Comment.ListComments(currentUserID, req.TargetID, req.CommentID, req.TargetType, req.Page, req.Size, req.OrderBy, req.Desc, req.Depth)
 	if err != nil {
 		return nil, errs.New(errs.ErrInternalServer.Code, "failed to list comments", err)
 	}
@@ -138,15 +138,25 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 	commentDtos := make([]dto.CommentDto, 0)
 
 	for _, comment := range comments {
+		replyCount, _ := repo.Comment.CountReplyComments(comment.ID)
+		isLiked := false
+		if currentUserID != 0 {
+			isLiked, _ = repo.Like.IsLiked(currentUserID, comment.ID, constant.TargetTypeComment)
+		}
+
 		commentDto := dto.CommentDto{
 			ID:         comment.ID,
 			Content:    comment.Content,
 			TargetID:   comment.TargetID,
 			TargetType: comment.TargetType,
+			ReplyID:    comment.ReplyID,
 			CreatedAt:  comment.CreatedAt.String(),
 			UpdatedAt:  comment.UpdatedAt.String(),
 			Depth:      comment.Depth,
 			User:       comment.User.ToDto(),
+			ReplyCount: replyCount,
+			LikeCount:  comment.LikeCount,
+			IsLiked:    isLiked,
 		}
 		commentDtos = append(commentDtos, commentDto)
 	}

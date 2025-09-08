@@ -2,15 +2,39 @@ package v1
 
 import (
 	"context"
+
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/service"
+	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
-type LikeController struct{}
+type LikeController struct {
+	service *service.LikeService
+}
 
 func NewLikeController() *LikeController {
-	return &LikeController{}
+	return &LikeController{
+		service: service.NewLikeService(),
+	}
 }
 
 func (lc *LikeController) ToggleLike(ctx context.Context, c *app.RequestContext) {
-	// Implementation for creating a like
+	var toggleLikeReq dto.ToggleLikeReq
+	if err := c.BindAndValidate(&toggleLikeReq); err != nil {
+		logrus.Error(err)
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	liked, err := lc.service.ToggleLike(ctx, toggleLikeReq.TargetID, toggleLikeReq.TargetType)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		logrus.Error(serviceErr.Error())
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"status": liked})
 }

@@ -32,6 +32,7 @@ export interface ListCommentsParams {
   desc?: boolean
   page?: number
   size?: number
+  commentId?: number
 }
 
 export async function listComments(params: ListCommentsParams): Promise<BaseResponse<Comment[]>> {
@@ -43,6 +44,7 @@ export async function listComments(params: ListCommentsParams): Promise<BaseResp
     desc = true,
     page = 1,
     size = 10,
+    commentId = 0,
   } = params
   const res = await axiosClient.get<BaseResponse<Comment[]>>(`/comment/list`, {
     params: {
@@ -52,7 +54,8 @@ export async function listComments(params: ListCommentsParams): Promise<BaseResp
       orderBy,
       desc,
       page,
-      size
+      size,
+      commentId,
     }
   })
   return res.data
