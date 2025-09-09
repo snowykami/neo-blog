@@ -19,7 +19,7 @@
     "like": "点赞",
     "like_failed": "点赞失败",
     "like_success": "点赞成功",
-    "login_required": "请先登录后再评论。",
+    "login_required": "请先登录后再操作",
     "placeholder": "写你的评论...",
     "private": "私密评论",
     "reply": "回复",
@@ -27,6 +27,9 @@
     "unlike": "取消点赞",
     "unlike_success": "已取消点赞",
     "update": "更新"
+  },
+  "Common":{
+    "login": "登录"
   },
   "Login": {
     "welcome": "欢迎回来",

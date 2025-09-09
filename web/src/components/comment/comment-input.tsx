@@ -27,15 +27,22 @@ export function CommentInput(
   }
 ) {
   const t = useTranslations('Comment')
-  const handleToLogin = useToLogin()
-  const toUserProfile = useToUserProfile();
+  const commonT = useTranslations('Common')
+  const clickToLogin = useToLogin()
+  const clickToUserProfile = useToUserProfile();
 
   const [isPrivate, setIsPrivate] = useState(initIsPrivate);
   const [commentContent, setCommentContent] = useState(initContent);
 
   const handleCommentSubmit = async () => {
     if (!user) {
-      toast.error(<NeedLogin>{t("login_required")}</NeedLogin>);
+      // 通知
+      toast.error(t("login_required"), {
+        action: {
+          label: commonT("login"),
+          onClick: clickToLogin,
+        },
+      })
       return;
     }
     if (!commentContent.trim()) {
@@ -49,13 +56,13 @@ export function CommentInput(
   return (
     <div className="fade-in-up">
       <div className="flex py-4 fade-in">
-        <div onClick={user ? () => toUserProfile(user.username) : handleToLogin} className="flex-shrink-0 w-10 h-10 fade-in">
+        <div onClick={user ? () => clickToUserProfile(user.username) : clickToLogin} className="flex-shrink-0 w-10 h-10 fade-in">
           {user ? getGravatarByUser(user) : null}
           {!user && <CircleUser className="w-full h-full fade-in" />}
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <Textarea
-            placeholder={user?t("placeholder"):t("login_required")}
+            placeholder={user ? t("placeholder") : t("login_required", { loginButton: "登录" })}
             className="w-full p-2 border border-gray-300 rounded-md fade-in-up"
             value={commentContent}
             onChange={(e) => setCommentContent(e.target.value)}

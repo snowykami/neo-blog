@@ -1,4 +1,4 @@
-import { useToUserProfile } from "@/hooks/use-route";
+import { useToLogin, useToUserProfile } from "@/hooks/use-route";
 import { User } from "@/models/user";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -29,7 +29,9 @@ export function CommentItem(
   }
 ) {
   const t = useTranslations("Comment")
-  const toUserProfile = useToUserProfile();
+  const commonT = useTranslations('Common')
+  const clickToUserProfile = useToUserProfile();
+  const clickToLogin = useToLogin();
   const { confirming, onClick, onBlur } = useDoubleConfirm();
 
   const [likeCount, setLikeCount] = useState(comment.likeCount);
@@ -43,6 +45,19 @@ export function CommentItem(
   const [showEditInput, setShowEditInput] = useState(false);
 
   const handleToggleLike = () => {
+    if (!user) {
+      toast.error(t("login_required"), {
+        action: <div className="flex justify-end">
+          <button
+            onClick={clickToLogin}
+            className="ml-0 text-left bg-red-400 text-white dark:text-black px-3 py-1 rounded font-semibold hover:bg-red-600 transition-colors"
+          >
+            {commonT("login")}
+          </button>
+        </div>,
+      });
+      return;
+    }
     toggleLike(
       { targetType: TargetType.Comment, targetId: comment.id }
     ).then(res => {
@@ -133,7 +148,7 @@ export function CommentItem(
           }
           {
             parentComment &&
-            <>{t("reply")} <button onClick={() => toUserProfile(parentComment.user.nickname)} className="text-primary">{parentComment?.user.nickname}</button>: </>
+            <>{t("reply")} <button onClick={() => clickToUserProfile(parentComment.user.nickname)} className="text-primary">{parentComment?.user.nickname}</button>: </>
           }
           {comment.content}
         </p>

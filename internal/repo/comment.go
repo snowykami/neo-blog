@@ -214,9 +214,33 @@ func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, tar
 	return items, nil
 }
 
-func (cr *CommentRepo) CountReplyComments(commentID uint) (int64, error) {
+func (cr *CommentRepo) CountReplyComments(currentUserID, commentID uint) (int64, error) {
 	var count int64
-	if err := GetDB().Model(&model.Comment{}).Where("reply_id = ?", commentID).Count(&count).Error; err != nil {
+	var masterID uint
+
+	// 根据commentID查询所属对象的用户ID
+	comment, err := cr.GetComment(strconv.Itoa(int(commentID)))
+	if err != nil {
+		return 0, err
+	}
+	if comment.TargetType == constant.TargetTypePost {
+		post, err := Post.GetPostByID(strconv.Itoa(int(comment.TargetID)))
+		if err != nil {
+			return 0, err
+		}
+		masterID = post.UserID
+	} else {
+		// 如果不是文章类型，可以根据需要添加其他类型的处理逻辑
+		return 0, errs.New(http.StatusBadRequest, "unsupported target type for counting replies", nil)
+	}
+
+	query := GetDB().Model(&model.Comment{}).Where("reply_id = ?", commentID)
+	if currentUserID > 0 {
+		query = query.Where("(is_private = ? OR (is_private = ? AND (user_id = ? OR user_id = ?)))", false, true, currentUserID, masterID)
+	} else {
+		query = query.Where("is_private = ?", false)
+	}
+	if err := query.Count(&count).Error; err != nil {
 		return 0, err
 	}
 	return count, nil
