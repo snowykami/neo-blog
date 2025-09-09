@@ -38,7 +38,7 @@ export default function CommentSection(props: CommentAreaProps) {
       })
   }, [targetType, targetId]);
 
-  const onCommentSubmitted = () => {
+  const onCommentsChange = () => {
     // 重新加载评论列表
     listComments({
       targetType,
@@ -54,17 +54,19 @@ export default function CommentSection(props: CommentAreaProps) {
       })
   }
 
+  // TODO: 支持分页加载更多评论
+
   return (
     <div>
       <Separator className="my-16" />
       <div className="font-bold text-2xl">评论</div>
-      <CommentInput targetType={targetType} targetId={targetId} replyId={0} onCommentSubmitted={onCommentSubmitted} />
+      <CommentInput targetType={targetType} targetId={targetId} replyId={0} onCommentSubmitted={onCommentsChange} />
       <div className="mt-4">
         <Suspense fallback={<CommentLoading />}>
           {comments.map((comment, idx) => (
             <div key={comment.id} className="fade-in-up" style={{ animationDelay: `${idx * 60}ms` }}>
               <Separator className="my-2" />
-              <CommentItem comment={comment} parentComment={null} />
+              <CommentItem comment={comment} parentComment={null} onCommentDelete={onCommentsChange} />
             </div>
           ))}
         </Suspense>

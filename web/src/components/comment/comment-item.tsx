@@ -16,7 +16,7 @@ import type { User } from "@/models/user";
 import Link from "next/link";
 import "./comment-animations.css";
 
-export function CommentItem({comment, parentComment}:{comment: Comment, parentComment: Comment | null}) {
+export function CommentItem({comment, parentComment, onCommentDelete}:{comment: Comment, parentComment: Comment | null, onCommentDelete: () => void}) {
     const t = useTranslations("Comment")
     const [user, setUser] = useState<User | null>(null);
     const [liked, setLiked] = useState(comment.isLiked);
@@ -50,6 +50,7 @@ export function CommentItem({comment, parentComment}:{comment: Comment, parentCo
         deleteComment(id)
             .then(() => {
                 toast.success(t("delete_success"));
+                onCommentDelete();
             })
             .catch(error => {
                 toast.error(t("delete_failed") + ": " + error.message);
@@ -143,11 +144,28 @@ function RepliesList({ parentComment }: { parentComment: Comment }) {
         });
     }, [parentComment])
 
+    const onCommentDelete = () => {
+        listComments({
+            targetType: parentComment.targetType,
+            targetId: parentComment.targetId,
+            commentId: parentComment.id,
+            depth: parentComment.depth + 1,
+            orderBy: OrderBy.CreatedAt,
+            desc: false,
+            page: 1,
+            size: 9999,
+        }).then(res => {
+            setReplies(res.data);
+        }).catch(error => {
+            toast.error(t("load_replies_failed") + ": " + error.message);
+        });
+    }
+
     return (
         <div className="mt-4 border-l border-slate-300 pl-4">
             {replies.map(reply => (
                 <div key={reply.id} className="mb-4">
-                    <CommentItem comment={reply} parentComment={parentComment} />
+                    <CommentItem comment={reply} parentComment={parentComment} onCommentDelete={onCommentDelete} />
                 </div>
             ))}
         </div>

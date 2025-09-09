@@ -10,7 +10,7 @@ import { createComment } from "@/api/comment";
 import { CircleUser } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { TargetType } from "@/models/types";
-import { useToLogin } from "@/hooks/use-to-login";
+import { useToLogin } from "@/hooks/use-route";
 import NeedLogin from "../common/need-login";
 
 
@@ -57,6 +57,7 @@ export function CommentInput(
             );
         });
     };
+
     return (
         <div className="fade-in-up">
             <div className="flex py-4 fade-in">
