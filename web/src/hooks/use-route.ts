@@ -12,11 +12,11 @@ export function useToLogin() {
   }
 }
 
-export function clickToUserprofile(username: string) {
-  const router = useRouter()
-  return () => {
-    router.push(`/user/${username}`)
-  }
+export function useToUserProfile() {
+  const router = useRouter();
+  return (username: string) => {
+    router.push(`/u/${username}`);
+  };
 }
 
 export function clickToPost(postId: number) {

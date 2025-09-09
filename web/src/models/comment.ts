@@ -18,7 +18,5 @@ export interface Comment {
 }
 
 export interface UpdateCommentRequest {
-  id: number
-  content: string
-  isPrivate?: boolean // 可选字段，默认为 false
+  
 }

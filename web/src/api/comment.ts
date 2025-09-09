@@ -1,5 +1,5 @@
 import axiosClient from './client'
-import { UpdateCommentRequest, Comment } from '@/models/comment'
+import { Comment } from '@/models/comment'
 import { PaginationParams } from '@/models/common'
 import { OrderBy } from '@/models/common'
 import type { BaseResponse } from '@/models/resp'
@@ -32,13 +32,23 @@ export async function createComment(
 }
 
 export async function updateComment(
-  data: UpdateCommentRequest,
+  {
+    id, content,
+    isPrivate = false
+  }: {
+    id: number
+    content: string
+    isPrivate?: boolean // 可选字段，默认为 false
+  }
 ): Promise<BaseResponse<Comment>> {
-  const res = await axiosClient.put<BaseResponse<Comment>>(`/comment/c/${data.id}`, data)
+  const res = await axiosClient.put<BaseResponse<Comment>>(`/comment/c/${id}`, {
+    content,
+    isPrivate
+  })
   return res.data
 }
 
-export async function deleteComment(id: number): Promise<void> {
+export async function deleteComment({ id }: { id: number }): Promise<void> {
   await axiosClient.delete(`/comment/c/${id}`)
 }
 
