@@ -16,7 +16,3 @@ export interface Comment {
   likeCount: number
   isLiked: boolean
 }
-
-export interface UpdateCommentRequest {
-  
-}

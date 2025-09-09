@@ -19,9 +19,3 @@ export function useToUserProfile() {
   };
 }
 
-export function clickToPost(postId: number) {
-  const router = useRouter()
-  return () => {
-    router.push(`/p/${postId}`)
-  }
-}
