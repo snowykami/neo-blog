@@ -110,7 +110,7 @@ func (cr *CommentRepo) UpdateComment(comment *model.Comment) error {
 		return errs.New(http.StatusBadRequest, "invalid comment ID", nil)
 	}
 
-	if err := GetDB().Updates(comment).Error; err != nil {
+	if err := GetDB().Select("IsPrivate", "Content").Updates(comment).Error; err != nil {
 		return err
 	}
 
@@ -204,6 +204,7 @@ func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, tar
 	} else {
 		query = query.Where("target_id = ? AND target_type = ?", targetID, targetType)
 	}
+
 	items, _, err := PaginateQuery[model.Comment](query, page, size, orderBy, desc)
 
 	if err != nil {

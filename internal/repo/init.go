@@ -3,6 +3,9 @@ package repo
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/glebarez/sqlite"
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/model"
@@ -10,8 +13,6 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"os"
-	"path/filepath"
 )
 
 var db *gorm.DB

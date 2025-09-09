@@ -11,11 +11,11 @@ import { OrderBy } from "@/models/common";
 import { Separator } from "@/components/ui/separator";
 import { getLoginUser } from "@/api/user";
 import { Skeleton } from "@/components/ui/skeleton";
-
-import "./style.css";
 import { CommentInput } from "./comment-input";
 import { CommentItem } from "./comment-item";
 import config from "@/config";
+
+import "./style.css";
 
 
 

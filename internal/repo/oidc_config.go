@@ -1,9 +1,10 @@
 package repo
 
 import (
+	"net/http"
+
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/errs"
-	"net/http"
 )
 
 type oidcRepo struct {
@@ -62,7 +63,9 @@ func (o *oidcRepo) UpdateOidcConfig(oidcConfig *model.OidcConfig) error {
 	if oidcConfig.ID == 0 {
 		return errs.New(http.StatusBadRequest, "invalid OIDC config ID", nil)
 	}
-	if err := GetDB().Select("Enabled").Updates(oidcConfig).Error; err != nil {
+	if err := GetDB().Select("Name", "ClientID", "ClientSecret",
+		"DisplayName", "Icon", "OidcDiscoveryUrl",
+		"Enabled", "Type").Updates(oidcConfig).Error; err != nil {
 		return err
 	}
 	return nil

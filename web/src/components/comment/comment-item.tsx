@@ -14,6 +14,7 @@ import { createComment, deleteComment, listComments, updateComment } from "@/api
 import { OrderBy } from "@/models/common";
 import config from "@/config";
 
+
 export function CommentItem(
   {
     user,
@@ -33,6 +34,7 @@ export function CommentItem(
 
   const [likeCount, setLikeCount] = useState(comment.likeCount);
   const [liked, setLiked] = useState(comment.isLiked);
+  const [isPrivate, setIsPrivate] = useState(comment.isPrivate);
   const [replyCount, setReplyCount] = useState(comment.replyCount);
   const [showReplies, setShowReplies] = useState(false);
   const [showReplyInput, setShowReplyInput] = useState(false);
@@ -81,7 +83,7 @@ export function CommentItem(
     updateComment({ id: comment.id, content: newContent, isPrivate }).then(() => {
       toast.success(t("edit_success"));
       comment.content = newContent;
-      comment.isPrivate = isPrivate;
+      setIsPrivate(isPrivate);
       setShowEditInput(false);
     }).catch(error => {
       toast.error(t("edit_failed") + ": " + error.message);
@@ -127,7 +129,7 @@ export function CommentItem(
         <div className="font-bold text-base text-slate-800 dark:text-slate-100 fade-in-up">{comment.user.nickname}</div>
         <p className="text-lg text-slate-600 dark:text-slate-400 fade-in">
           {
-            comment.isPrivate && <Lock className="inline w-4 h-4 mr-1 mb-1 text-slate-500 dark:text-slate-400" />
+            isPrivate && <Lock className="inline w-4 h-4 mr-1 mb-1 text-slate-500 dark:text-slate-400" />
           }
           {
             parentComment &&
@@ -201,7 +203,7 @@ export function CommentItem(
         {showEditInput && !showReplyInput && <CommentInput
           user={user}
           initContent={comment.content}
-          initIsPrivate={comment.isPrivate}
+          initIsPrivate={isPrivate}
           onCommentSubmitted={onCommentEdit}
           isUpdate={true}
         />}

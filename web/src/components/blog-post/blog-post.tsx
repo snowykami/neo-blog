@@ -4,7 +4,7 @@ import { Calendar, Clock, FileText, Flame, Heart, MessageCircle, PenLine, Square
 import { RenderMarkdown } from "@/components/common/markdown";
 import { isMobileByUA } from "@/utils/server/device";
 import { calculateReadingTime } from "@/utils/common/post";
-import {CommentSection} from "@/components/neo-comment";
+import {CommentSection} from "@/components/comment";
 import { TargetType } from '../../models/types';
 
 function PostMeta({ post }: { post: Post }) {

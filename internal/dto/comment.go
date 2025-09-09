@@ -13,6 +13,7 @@ type CommentDto struct {
 	ReplyCount int64   `json:"reply_count"` // 回复数量
 	LikeCount  uint64  `json:"like_count"`  // 点赞数量
 	IsLiked    bool    `json:"is_liked"`    // 当前用户是否点赞
+	IsPrivate  bool    `json:"is_private"`
 }
 
 type CreateCommentReq struct {

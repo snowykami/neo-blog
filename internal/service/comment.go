@@ -157,6 +157,7 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 			ReplyCount: replyCount,
 			LikeCount:  comment.LikeCount,
 			IsLiked:    isLiked,
+			IsPrivate:  comment.IsPrivate,
 		}
 		commentDtos = append(commentDtos, commentDto)
 	}

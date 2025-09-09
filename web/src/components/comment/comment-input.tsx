@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label";
 
+
 export function CommentInput(
   {
     user,
@@ -54,7 +55,7 @@ export function CommentInput(
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <Textarea
-            placeholder={t("placeholder")}
+            placeholder={user?t("placeholder"):t("login_required")}
             className="w-full p-2 border border-gray-300 rounded-md fade-in-up"
             value={commentContent}
             onChange={(e) => setCommentContent(e.target.value)}
