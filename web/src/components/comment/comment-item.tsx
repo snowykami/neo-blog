@@ -3,7 +3,7 @@ import { User } from "@/models/user";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getGravatarByUser } from "@/components/common/gravatar";
+import GravatarAvatar, { getGravatarByUser } from "@/components/common/gravatar";
 import { Reply, Trash, Heart, Pencil, Lock } from "lucide-react";
 import { Comment } from "@/models/comment";
 import { TargetType } from "@/models/types";
@@ -158,8 +158,8 @@ export function CommentItem(
   return (
     <div>
       <div className="flex">
-        <div onClick={() => clickToUserProfile(comment.user.username)} className="cursor-pointer fade-in">
-          {getGravatarByUser(comment.user)}
+        <div onClick={() => clickToUserProfile(comment.user.username)} className="cursor-pointer fade-in w-12 h-12">
+          <GravatarAvatar email={comment.user.email} size={120}/>
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <div className="flex gap-2 md:gap-4 items-center">

@@ -28,27 +28,25 @@ const GravatarAvatar: React.FC<GravatarAvatarProps> = ({
   defaultType = "identicon"
 }) => {
   // 如果有自定义URL，使用自定义URL
-  if (url) {
+  if (url && url.trim() !== "") {
     return (
       <Image
         src={url}
         width={size}
         height={size}
-        className={`rounded-full object-cover ${className}`}
+        className={`rounded-full object-cover w-full h-full ${className}`}
         alt={alt}
         referrerPolicy="no-referrer"
       />
     );
   }
-
   const gravatarUrl = getGravatarUrl(email, size * 10, defaultType);
-  
   return (
     <Image
       src={gravatarUrl}
       width={size}
       height={size}
-      className={`rounded-full object-cover ${className}`}
+      className={`rounded-full object-cover w-full h-full ${className}`}
       alt={alt}
       referrerPolicy="no-referrer"
     />
@@ -63,14 +61,14 @@ interface User {
   avatarUrl?: string;
 }
 
-export function getGravatarByUser(user?: User, className: string = ""): React.ReactElement {
+export function getGravatarByUser({user, className="", size=640}:{user?: User, className?: string, size?: number}): React.ReactElement {
   if (!user) {
     return <GravatarAvatar email="" className={className} />;
   }
   return (
     <GravatarAvatar
       email={user.email || ""}
-      size={40}
+      size={size}
       className={className}
       alt={user.displayName || user.name || "User Avatar"}
       url={user.avatarUrl}

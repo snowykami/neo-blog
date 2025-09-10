@@ -1,0 +1,54 @@
+import { useState } from "react";
+import { CaptchaProps } from ".";
+import { Turnstile } from "@marsidev/react-turnstile";
+import { useTranslations } from "next-intl";
+// 简单的转圈圈动画
+function Spinner() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 40 }}>
+      <svg className="animate-spin" width="32" height="32" viewBox="0 0 50 50">
+        <circle className="opacity-25" cx="25" cy="25" r="20" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+        <circle className="opacity-75" cx="25" cy="25" r="20" fill="none" stroke="#6366f1" strokeWidth="5" strokeDasharray="90 150" strokeDashoffset="0" />
+      </svg>
+    </div>
+  );
+}
+
+// 勾勾动画
+function CheckMark() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 40 }}>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="20 6 10 18 4 12" />
+      </svg>
+    </div>
+  );
+}
+
+export function OfficialTurnstileWidget(props: CaptchaProps) {
+  return <div>
+    <Turnstile className="w-full" options={{ size: "invisible" }} siteKey={props.siteKey} onSuccess={props.onSuccess} />
+  </div>;
+}
+
+// 自定义包装组件
+export function TurnstileWidget(props: CaptchaProps) {
+  const t = useTranslations("Captcha");
+  const [status, setStatus] = useState<'loading' | 'success'>('loading');
+
+  // 只在验证通过时才显示勾
+  const handleSuccess = (token: string) => {
+    setStatus('success');
+    props.onSuccess(token);
+  };
+  return (
+    <div className="flex items-center justify-evenly w-full border border-gray-300 rounded-md px-4 py-2 relative">
+      {status === 'loading' && <Spinner />}
+      {status === 'success' && <CheckMark />}
+      <div className="flex-1 text-center">{status === 'success' ? t("success") :t("doing")}</div>
+      <div className="absolute inset-0 opacity-0 pointer-events-none">
+        <OfficialTurnstileWidget {...props} onSuccess={handleSuccess} />
+      </div>
+    </div>
+  );
+}

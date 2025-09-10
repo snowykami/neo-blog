@@ -2,6 +2,10 @@
   "HomePage": {
     "title": "Hello world!"
   },
+  "Captcha": {
+    "doing": "正在检测你是不是机器人...",
+    "success": "恭喜，你是人类！"
+  },
   "Comment": {
     "collapse_replies": "收起",
     "comment": "评论",
@@ -41,6 +45,7 @@
     "secondsAgo": "秒前"
   },
   "Login": {
+    "captcha_error": "验证错误，请重试。",
     "welcome": "欢迎回来",
     "with_oidc": "使用第三方身份提供者",
     "or_continue_with_local_account": "或使用用户名和密码",

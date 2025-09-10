@@ -14,10 +14,12 @@ import { Label } from "@/components/ui/label"
 import Image from "next/image"
 import { useEffect, useState } from "react"
 import type { OidcConfig } from "@/models/oidc-config"
-import { ListOidcConfigs, userLogin } from "@/api/user"
+import { getCaptchaConfig, ListOidcConfigs, userLogin } from "@/api/user"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
+import Captcha from "../common/captcha"
+import { CaptchaProvider } from "@/models/captcha"
 
 export function LoginForm({
   className,
@@ -25,11 +27,17 @@ export function LoginForm({
 }: React.ComponentProps<"div">) {
   const t = useTranslations('Login')
   const [oidcConfigs, setOidcConfigs] = useState<OidcConfig[]>([])
+  const [captchaProps, setCaptchaProps] = useState<{
+    provider: CaptchaProvider
+    siteKey: string
+    url?: string
+  } | null>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [captchaError, setCaptchaError] = useState<string | null>(null)
   const [{ username, password }, setCredentials] = useState({ username: '', password: '' })
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectBack = searchParams.get("redirect_back") || "/"
-
 
   useEffect(() => {
     ListOidcConfigs()
@@ -42,10 +50,20 @@ export function LoginForm({
       })
   }, [])
 
+  useEffect(() => {
+    getCaptchaConfig()
+      .then((res) => {
+        setCaptchaProps(res.data)
+      })
+      .catch((error) => {
+        console.error("Error fetching captcha config:", error)
+      })
+  }, [])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const res = await userLogin({username, password})
+      const res = await userLogin({ username, password, captcha: captchaToken || "" })
       console.log("Login successful:", res)
       router.push(redirectBack)
     } catch (error) {
@@ -128,7 +146,19 @@ export function LoginForm({
                     onChange={e => setCredentials(c => ({ ...c, password: e.target.value }))}
                   />
                 </div>
-                <Button type="submit" className="w-full" onClick={handleLogin}>
+                {captchaProps &&
+                  <div className="flex justify-center items-center w-full">
+                      <Captcha {...captchaProps} onSuccess={setCaptchaToken} onError={setCaptchaError} />
+                  </div>
+                }
+                {captchaError && <div>
+                  {t("captcha_error")}</div>}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  onClick={handleLogin}
+                  disabled={!captchaToken}
+                >
                   {t("login")}
                 </Button>
               </div>

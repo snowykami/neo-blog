@@ -10,8 +10,10 @@ import (
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
+	utils2 "github.com/snowykami/neo-blog/pkg/utils"
 )
 
 type UserController struct {
@@ -125,6 +127,22 @@ func (u *UserController) GetUser(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	resps.Ok(c, resps.Success, resp.User)
+
+}
+
+func (u *UserController) GetUserByUsername(ctx context.Context, c *app.RequestContext) {
+	username := c.Param("username")
+	if username == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	resp, err := u.service.GetUserByUsername(&dto.GetUserByUsernameReq{Username: username})
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, resp.User)
 }
 
 func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) {
@@ -183,4 +201,12 @@ func (u *UserController) ChangePassword(ctx context.Context, c *app.RequestConte
 
 func (u *UserController) ChangeEmail(ctx context.Context, c *app.RequestContext) {
 	// TODO: 实现修改邮箱功能
+}
+
+func (u *UserController) GetCaptchaConfig(ctx context.Context, c *app.RequestContext) {
+	resps.Ok(c, "ok", utils.H{
+		"provider": utils2.Env.Get(constant.EnvKeyCaptchaProvider),
+		"site_key": utils2.Env.Get(constant.EnvKeyCaptchaSiteKey),
+		"url":      utils2.Env.Get(constant.EnvKeyCaptchaUrl),
+	})
 }

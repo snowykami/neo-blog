@@ -3,7 +3,7 @@ import { User } from "@/models/user";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getGravatarByUser } from "@/components/common/gravatar";
+import GravatarAvatar, { getGravatarByUser } from "@/components/common/gravatar";
 import { CircleUser } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox"
@@ -60,7 +60,7 @@ export function CommentInput(
     <div className="fade-in-up">
       <div className="flex py-4 fade-in">
         <div onClick={user ? () => clickToUserProfile(user.username) : clickToLogin} className="cursor-pointer flex-shrink-0 w-10 h-10 fade-in">
-          {user ? getGravatarByUser(user) : null}
+          {user && <GravatarAvatar url={user.avatarUrl} email={user.email} size={100}/>}
           {!user && <CircleUser className="w-full h-full fade-in" />}
         </div>
         <div className="flex-1 pl-2 fade-in-up">

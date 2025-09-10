@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Navbar } from '@/components/layout/navbar'
 import { BackgroundProvider } from '@/contexts/background-context'
 import Footer from '@/components/layout/footer'
+import config from '@/config'
 
 export default function RootLayout({
   children,
@@ -14,25 +15,18 @@ export default function RootLayout({
   const pathname = usePathname()
   return (
     <>
-    <header className="fixed top-0 left-0 w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur flex justify-center border-b border-slate-200 dark:border-slate-800">
+      <motion.nav
+        initial={{ y: -64, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}>
+        <header className="fixed top-0 left-0 h-16 w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur flex justify-center border-b border-slate-200 dark:border-slate-800">
           <Navbar />
         </header>
-      <motion.main
-        key={pathname}
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{
-          type: 'tween',
-          ease: 'easeOut',
-          duration: 0.30,
-        }}
-        className="pt-16"
-      >
-        
-        <BackgroundProvider>
-          <div className='container mx-auto px-4 sm:px-6 lg:px-10 max-w-7xl'>{children}</div>
-        </BackgroundProvider>
-      </motion.main>
+      </motion.nav>
+
+      <BackgroundProvider>
+        <div className='container mx-auto pt-16 px-4 sm:px-6 lg:px-10 max-w-7xl'>{children}</div>
+      </BackgroundProvider>
       <Footer />
     </>
   )

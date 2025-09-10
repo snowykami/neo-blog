@@ -12,16 +12,16 @@ type captchaUtils struct{}
 var Captcha = captchaUtils{}
 
 type CaptchaConfig struct {
-	Type       string
-	SiteSecret string // Site secret key for the captcha service
-	SecretKey  string // Secret key for the captcha service
+	Type      string
+	SiteKey   string // Site secret key for the captcha service
+	SecretKey string // Secret key for the captcha service
 }
 
 func (c *captchaUtils) GetCaptchaConfigFromEnv() *CaptchaConfig {
 	return &CaptchaConfig{
-		Type:       Env.Get("CAPTCHA_TYPE", "disable"),
-		SiteSecret: Env.Get("CAPTCHA_SITE_SECRET", ""),
-		SecretKey:  Env.Get("CAPTCHA_SECRET_KEY", ""),
+		Type:      Env.Get(constant.EnvKeyCaptchaProvider, constant.CaptchaTypeDisable),
+		SiteKey:   Env.Get(constant.EnvKeyCaptchaSiteKey, ""),
+		SecretKey: Env.Get(constant.EnvKeyCaptchaSecreteKey, ""),
 	}
 }
 

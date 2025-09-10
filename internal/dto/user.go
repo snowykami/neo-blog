@@ -70,6 +70,10 @@ type GetUserReq struct {
 	UserID uint `json:"user_id"`
 }
 
+type GetUserByUsernameReq struct {
+	Username string `json:"username"`
+}
+
 type GetUserResp struct {
 	User UserDto `json:"user"` // 用户信息
 }
