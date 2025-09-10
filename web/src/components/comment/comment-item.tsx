@@ -228,6 +228,7 @@ export function CommentItem(
           {showReplyInput && !showEditInput && <CommentInput
             user={user}
             onCommentSubmitted={onReply}
+            initIsPrivate={isPrivate}
           />}
           {showEditInput && !showReplyInput && <CommentInput
             user={user}
