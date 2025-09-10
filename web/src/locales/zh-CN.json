@@ -47,6 +47,7 @@
   },
   "Login": {
     "captcha_error": "验证错误，请重试。",
+    "logging": "正在登录...",
     "welcome": "欢迎回来",
     "with_oidc": "使用第三方身份提供者",
     "or_continue_with_local_account": "或使用用户名和密码",

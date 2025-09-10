@@ -34,6 +34,7 @@ export function LoginForm({
   } | null>(null)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [captchaError, setCaptchaError] = useState<string | null>(null)
+  const [isLogging, setIsLogging] = useState(false)
   const [refreshCaptchaKey, setRefreshCaptchaKey] = useState(0)
   const [{ username, password }, setCredentials] = useState({ username: '', password: '' })
   const router = useRouter()
@@ -164,9 +165,9 @@ export function LoginForm({
                   type="submit"
                   className="w-full"
                   onClick={handleLogin}
-                  disabled={!captchaToken}
+                  disabled={!captchaToken || isLogging}
                 >
-                  {t("login")}
+                  {isLogging ? t("logging") : t("login")}
                 </Button>
               </div>
 
