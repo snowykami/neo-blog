@@ -36,6 +36,7 @@ export function CommentItem(
 
   const [likeCount, setLikeCount] = useState(comment.likeCount);
   const [liked, setLiked] = useState(comment.isLiked);
+  const [canClickLike, setCanClickLike] = useState(true);
   const [isPrivate, setIsPrivate] = useState(comment.isPrivate);
   const [replyCount, setReplyCount] = useState(comment.replyCount);
   const [showReplies, setShowReplies] = useState(false);
@@ -45,6 +46,10 @@ export function CommentItem(
   const [showEditInput, setShowEditInput] = useState(false);
 
   const handleToggleLike = () => {
+    if (!canClickLike) {
+      return;
+    }
+    setCanClickLike(false);
     if (!user) {
       toast.error(t("login_required"), {
         action: <div className="flex justify-end">
@@ -58,6 +63,7 @@ export function CommentItem(
       });
       return;
     }
+    setLiked(!liked)  // 提前转换状态，让用户觉得响应很快
     toggleLike(
       { targetType: TargetType.Comment, targetId: comment.id }
     ).then(res => {
@@ -67,6 +73,7 @@ export function CommentItem(
     }).catch(error => {
       toast.error(t("like_failed") + ": " + error.message);
     });
+    setCanClickLike(true);
   }
 
   const reloadReplies = () => {
