@@ -156,8 +156,8 @@ export default function BlogHome() {
             {/* 侧边栏 */}
             <motion.div
               initial={isMobile ? { y: 30, opacity: 0 } : { x: 80, opacity: 0 }}
-              animate={isMobile ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }}
-              transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}
+              animate={{ x: 0, y: 0, opacity: 1 }}
+              transition={{ duration: config.animationDurationSecond , ease: "easeOut" }}
             >
               <Sidebar
                 cards={[
