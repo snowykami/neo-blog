@@ -73,11 +73,8 @@ async function PostHeader({ post }: { post: Post }) {
         aria-hidden="true"
         style={{ zIndex: -1 }}
       />
-      <motion.div
-        initial={{ opacity: 0, x: -50 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}
-        className="container mx-auto px-4"
+      <div
+        className={`container mx-auto px-4`}
       >
         {(post.labels || post.isOriginal) && (
           <div className="flex flex-wrap gap-2 mb-4">
@@ -98,7 +95,7 @@ async function PostHeader({ post }: { post: Post }) {
         <div>
           <PostMeta post={post} />
         </div>
-      </motion.div>
+      </div>
 
     </div>
   );
@@ -145,10 +142,23 @@ async function PostContent({ post }: { post: Post }) {
 
 async function BlogPost({ post }: { post: Post }) {
   return (
-    <div className="h-full">
+    <div className="h-full"
+    >
       {/* <ScrollToTop /> */}
-      <PostHeader post={post} />
-      <PostContent post={post} />
+      <motion.div
+        initial={{ opacity: 0, y: -30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}>
+        <PostHeader post={post} />
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}>
+        <PostContent post={post} />
+      </motion.div>
+
       <CommentSection targetType={TargetType.Post} targetId={post.id} totalCount={post.commentCount} />
     </div>
   );
