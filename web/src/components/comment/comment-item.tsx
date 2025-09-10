@@ -63,16 +63,21 @@ export function CommentItem(
       });
       return;
     }
-    setLiked(!liked)  // 提前转换状态，让用户觉得响应很快
+    // 提前转换状态，让用户觉得响应很快
+    const likedPrev = liked;
+    const likeCountPrev = likeCount;
+    setLiked(prev => !prev);
+    setLikeCount(prev => prev + (likedPrev ? -1 : 1));
     toggleLike(
       { targetType: TargetType.Comment, targetId: comment.id }
     ).then(res => {
       toast.success(res.data.status ? t("like_success") : t("unlike_success"));
-      setLiked(res.data.status);
-      setLikeCount(res.data.status ? likeCount + 1 : likeCount - 1);
       setCanClickLike(true);
     }).catch(error => {
       toast.error(t("like_failed") + ": " + error.message);
+      // 失败回滚
+      setLiked(likedPrev);
+      setLikeCount(likeCountPrev);
       setCanClickLike(true);
     });
   }
