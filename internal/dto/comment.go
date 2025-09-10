@@ -10,7 +10,7 @@ type CommentDto struct {
 	CreatedAt  string  `json:"created_at"`
 	UpdatedAt  string  `json:"updated_at"`
 	User       UserDto `json:"user"`        // 评论的
-	ReplyCount int64   `json:"reply_count"` // 回复数量
+	ReplyCount uint64  `json:"reply_count"` // 回复数量
 	LikeCount  uint64  `json:"like_count"`  // 点赞数量
 	IsLiked    bool    `json:"is_liked"`    // 当前用户是否点赞
 	IsPrivate  bool    `json:"is_private"`

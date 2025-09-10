@@ -88,7 +88,7 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) error {
 				return err
 			}
 			parentComment.CommentCount += 1
-			if err := tx.Save(&parentComment).Error; err != nil {
+			if err := tx.Model(&parentComment).UpdateColumn("CommentCount", parentComment.CommentCount).Error; err != nil {
 				return err
 			}
 			depth = parentComment.Depth + 1

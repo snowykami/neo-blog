@@ -138,7 +138,7 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 	commentDtos := make([]dto.CommentDto, 0)
 
 	for _, comment := range comments {
-		replyCount, _ := repo.Comment.CountReplyComments(currentUserID, comment.ID)
+		//replyCount, _ := repo.Comment.CountReplyComments(currentUserID, comment.ID)
 		isLiked := false
 		if currentUserID != 0 {
 			isLiked, _ = repo.Like.IsLiked(currentUserID, comment.ID, constant.TargetTypeComment)
@@ -154,7 +154,7 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 			UpdatedAt:  comment.UpdatedAt.String(),
 			Depth:      comment.Depth,
 			User:       comment.User.ToDto(),
-			ReplyCount: replyCount,
+			ReplyCount: comment.CommentCount,
 			LikeCount:  comment.LikeCount,
 			IsLiked:    isLiked,
 			IsPrivate:  comment.IsPrivate,
