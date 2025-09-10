@@ -78,7 +78,7 @@ export function CommentInput(
             checked={isPrivate}
             onCheckedChange={checked => setIsPrivate(checked === true)}
           />
-          <Label>{t("private")}</Label>
+          <Label onClick={() => setIsPrivate(prev => !prev)}>{t("private")}</Label>
         </div>
         <button onClick={handleCommentSubmit} className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors fade-in-up">
           {isUpdate ? t("update") : t("submit")}
