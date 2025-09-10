@@ -15,6 +15,7 @@ export type CaptchaProps = {
   url?: string;
   onSuccess: (token: string) => void;
   onError: (error: string) => void;
+  onAbort?: () => void;
 };
 
 export function ReCaptchaWidget(props: CaptchaProps) {

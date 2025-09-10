@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CaptchaProps } from ".";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTranslations } from "next-intl";
+
+const TURNSTILE_TIMEOUT = 15
 // 简单的转圈圈动画
 function Spinner() {
   return (
@@ -39,14 +41,14 @@ function ErrorMark() {
 
 export function OfficialTurnstileWidget(props: CaptchaProps) {
   return <div>
-    <Turnstile className="w-full" options={{ size: "invisible" }} siteKey={props.siteKey} onSuccess={props.onSuccess} />
+    <Turnstile className="w-full" options={{ size: "invisible" }} siteKey={props.siteKey} onSuccess={props.onSuccess} onError={props.onError} onAbort={props.onAbort} />
   </div>;
 }
 
-// 自定义包装组件
 export function TurnstileWidget(props: CaptchaProps) {
   const t = useTranslations("Captcha");
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [error, setError] = useState<string | null>(null);
 
   // 只在验证通过时才显示勾
   const handleSuccess = (token: string) => {
@@ -56,15 +58,27 @@ export function TurnstileWidget(props: CaptchaProps) {
 
   const handleError = (error: string) => {
     setStatus('error');
+    setError(error);
     props.onError && props.onError(error);
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (status === 'loading') {
+        setStatus('error');
+        setError('timeout');
+        props.onError && props.onError('timeout');
+      }
+    }, TURNSTILE_TIMEOUT * 1000);
+    return () => clearTimeout(timer);
+  })
 
   return (
     <div className="flex items-center justify-evenly w-full border border-gray-300 rounded-md px-4 py-2 relative">
       {status === 'loading' && <Spinner />}
       {status === 'success' && <CheckMark />}
       {status === 'error' && <ErrorMark />}
-      <div className="flex-1 text-center">{status === 'success' ? t("success") : (status === 'error' ? t("error") : t("doing"))}</div>
+      <div className="flex-1 text-center">{status === 'success' ? t("success") : (status === 'error' ? t("error") : t("doing"))} {error && t(error)}</div>
       <div className="absolute inset-0 opacity-0 pointer-events-none">
         <OfficialTurnstileWidget {...props} onSuccess={handleSuccess} onError={handleError} />
       </div>

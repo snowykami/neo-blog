@@ -34,6 +34,7 @@ export function LoginForm({
   } | null>(null)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [captchaError, setCaptchaError] = useState<string | null>(null)
+  const [refreshCaptchaKey, setRefreshCaptchaKey] = useState(0)
   const [{ username, password }, setCredentials] = useState({ username: '', password: '' })
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -58,7 +59,7 @@ export function LoginForm({
       .catch((error) => {
         console.error("Error fetching captcha config:", error)
       })
-  }, [])
+  }, [refreshCaptchaKey])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,6 +70,14 @@ export function LoginForm({
     } catch (error) {
       console.error("Login failed:", error)
     }
+  }
+
+  const handleCaptchaError = (error: string) => {
+    setCaptchaError(error);
+    // 刷新验证码
+    setTimeout(() => {
+      setRefreshCaptchaKey(k => k + 1);
+    }, 1500);
   }
 
   return (
@@ -148,11 +157,9 @@ export function LoginForm({
                 </div>
                 {captchaProps &&
                   <div className="flex justify-center items-center w-full">
-                      <Captcha {...captchaProps} onSuccess={setCaptchaToken} onError={setCaptchaError} />
+                    <Captcha {...captchaProps} onSuccess={setCaptchaToken} onError={handleCaptchaError} key={refreshCaptchaKey} />
                   </div>
                 }
-                {captchaError && <div>
-                  {t("captcha_error")}</div>}
                 <Button
                   type="submit"
                   className="w-full"
