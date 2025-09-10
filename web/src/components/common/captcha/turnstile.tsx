@@ -63,7 +63,8 @@ export function TurnstileWidget(props: CaptchaProps) {
     <div className="flex items-center justify-evenly w-full border border-gray-300 rounded-md px-4 py-2 relative">
       {status === 'loading' && <Spinner />}
       {status === 'success' && <CheckMark />}
-      <div className="flex-1 text-center">{status === 'success' ? t("success") :t("doing")}</div>
+      {status === 'error' && <ErrorMark />}
+      <div className="flex-1 text-center">{status === 'success' ? t("success") : (status === 'error' ? t("error") : t("doing"))}</div>
       <div className="absolute inset-0 opacity-0 pointer-events-none">
         <OfficialTurnstileWidget {...props} onSuccess={handleSuccess} onError={handleError} />
       </div>
