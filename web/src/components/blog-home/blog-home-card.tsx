@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import config from '@/config'
 import { cn } from '@/lib/utils'
 import { getPostHref } from '@/utils/common/post'
+import { motion } from 'framer-motion'
+import { deceleration } from '@/motion/curve'
 
 interface BlogCardProps {
   post: Post
@@ -29,34 +31,47 @@ export function BlogCard({ post, className }: BlogCardProps) {
     )}
     >
       {/* 封面图片区域 */}
-      <div className="relative aspect-[16/9] overflow-hidden">
+      <div
+        className="relative aspect-[16/9] overflow-hidden"
+      >
         {/* 自定义封面图片 */}
-        {(post.cover || config.defaultCover) ? (
-          <Image
-            src={post.cover || config.defaultCover}
-            alt={post.title}
-            fill
-            className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
-            sizes="(max-width: 768px) 100vw, 33vw"
-            priority={false}
-          />
-        ) : (
-          // 默认渐变背景 - 基于热度生成颜色
-          <div
-            className={cn(
-              'w-full h-full bg-gradient-to-br',
-              post.heat > 80
-                ? 'from-red-400 via-pink-500 to-orange-500'
-                : post.heat > 60
-                  ? 'from-orange-400 via-yellow-500 to-red-500'
-                  : post.heat > 40
-                    ? 'from-blue-400 via-purple-500 to-pink-500'
-                    : post.heat > 20
-                      ? 'from-green-400 via-blue-500 to-purple-500'
-                      : 'from-gray-400 via-slate-500 to-gray-600',
-            )}
-          />
-        )}
+        <motion.div
+          initial={{ scale: 1.2, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{
+            duration: config.animationDurationSecond,
+            ease: deceleration,
+          }}
+          className="absolute inset-0 w-full h-full"
+        >
+          {(post.cover || config.defaultCover) ? (
+            <Image
+              src={post.cover || config.defaultCover}
+              alt={post.title}
+              fill
+              className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+              sizes="(max-width: 768px) 100vw, 33vw"
+              priority={false}
+            />
+          ) : (
+            // 默认渐变背景 - 基于热度生成颜色
+            <div
+              className={cn(
+          'w-full h-full bg-gradient-to-br',
+          post.heat > 80
+            ? 'from-red-400 via-pink-500 to-orange-500'
+            : post.heat > 60
+              ? 'from-orange-400 via-yellow-500 to-red-500'
+              : post.heat > 40
+                ? 'from-blue-400 via-purple-500 to-pink-500'
+                : post.heat > 20
+            ? 'from-green-400 via-blue-500 to-purple-500'
+            : 'from-gray-400 via-slate-500 to-gray-600',
+              )}
+            />
+          )}
+        </motion.div>
+
 
         {/* 覆盖层 */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
@@ -117,6 +132,7 @@ export function BlogCard({ post, className }: BlogCardProps) {
         </CardTitle>
 
       </CardHeader>
+
       {/* Card Content - 主要内容 */}
       <CardContent className="flex-1">
         <CardDescription className="line-clamp-3 leading-relaxed">

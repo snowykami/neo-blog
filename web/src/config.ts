@@ -16,7 +16,7 @@ const config = {
     bodyWidthMobile: "100vw",
     postsPerPage: 12,
     commentsPerPage: 8,
-    animationDurationSecond: 0.5,
+    animationDurationSecond: 0.618,
     footer: {
         text: "Liteyuki ICP备 1145141919810",
         links: []

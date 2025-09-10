@@ -6,6 +6,8 @@ import { isMobileByUA } from "@/utils/server/device";
 import { calculateReadingTime } from "@/utils/common/post";
 import { CommentSection } from "@/components/comment";
 import { TargetType } from '@/models/types';
+import * as motion from "motion/react-client"
+import config from "@/config";
 
 function PostMeta({ post }: { post: Post }) {
   return (
@@ -71,25 +73,33 @@ async function PostHeader({ post }: { post: Post }) {
         aria-hidden="true"
         style={{ zIndex: -1 }}
       />
-      {(post.labels || post.isOriginal) && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {post.isOriginal && (
-            <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded">
-              原创
-            </span>
-          )}
-          {(post.labels || []).map(label => (
-            <span key={label.id} className="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded">
-              {label.key}
-            </span>
-          ))}
+      <motion.div
+        initial={{ opacity: 0, x: -50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}
+        className="container mx-auto px-4"
+      >
+        {(post.labels || post.isOriginal) && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {post.isOriginal && (
+              <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded">
+                原创
+              </span>
+            )}
+            {(post.labels || []).map(label => (
+              <span key={label.id} className="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded">
+                {label.key}
+              </span>
+            ))}
+          </div>
+        )}
+        <h1 className="text-5xl font-bold mb-2 text-primary-foreground">{post.title}</h1>
+        {/* 元数据区 */}
+        <div>
+          <PostMeta post={post} />
         </div>
-      )}
-      <h1 className="text-5xl font-bold mb-2 text-primary-foreground">{post.title}</h1>
-      {/* 元数据区 */}
-      <div>
-        <PostMeta post={post} />
-      </div>
+      </motion.div>
+
     </div>
   );
 }
