@@ -70,10 +70,11 @@ export function CommentItem(
       toast.success(res.data.status ? t("like_success") : t("unlike_success"));
       setLiked(res.data.status);
       setLikeCount(res.data.status ? likeCount + 1 : likeCount - 1);
+      setCanClickLike(true);
     }).catch(error => {
       toast.error(t("like_failed") + ": " + error.message);
+      setCanClickLike(true);
     });
-    setCanClickLike(true);
   }
 
   const reloadReplies = () => {
