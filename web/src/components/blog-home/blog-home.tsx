@@ -14,6 +14,7 @@ import { useStoredState } from '@/hooks/use-storage-state';
 import { listLabels } from "@/api/label";
 import { POST_SORT_TYPE } from "@/localstore";
 import { motion } from "framer-motion";
+import { useDevice } from "@/hooks/use-device";
 
 // 定义排序类型
 type SortType = 'latest' | 'popular';
@@ -22,6 +23,7 @@ export default function BlogHome() {
   const [labels, setLabels] = useState<Label[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(false);
+  const { isMobile } = useDevice();
   const [sortType, setSortType, sortTypeLoaded] = useStoredState<SortType>(POST_SORT_TYPE, 'latest');
   useEffect(() => {
     if (!sortTypeLoaded) return;
@@ -88,7 +90,7 @@ export default function BlogHome() {
             {/* 主要内容区域 */}
             <motion.div
               className="lg:col-span-3 self-start"
-              initial={{ y: 150, opacity: 0 }}
+              initial={{ y: isMobile ? 30 : 60, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}>
               {/* 文章列表标题 */}
@@ -153,8 +155,8 @@ export default function BlogHome() {
 
             {/* 侧边栏 */}
             <motion.div
-              initial={{ x: 200, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
+              initial={isMobile ? { y: 30, opacity: 0 } : { x: 80, opacity: 0 }}
+              animate={isMobile ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }}
               transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}
             >
               <Sidebar
