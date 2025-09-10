@@ -3,9 +3,9 @@
     "title": "Hello world!"
   },
   "Captcha": {
-    "doing": "正在检测你是不是机器人...",
+    "doing": "正在检查你是不是个人...",
     "error": "验证失败",
-    "success": "恭喜，你是人类！"
+    "success": "恭喜呀，你是个人！"
   },
   "Comment": {
     "collapse_replies": "收起",

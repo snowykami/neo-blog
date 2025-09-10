@@ -50,7 +50,6 @@ export function TurnstileWidget(props: CaptchaProps) {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
-  // 只在验证通过时才显示勾
   const handleSuccess = (token: string) => {
     setStatus('success');
     props.onSuccess(token);
