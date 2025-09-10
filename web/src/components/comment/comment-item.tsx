@@ -149,106 +149,108 @@ export function CommentItem(
   }
 
   return (
-    <div className="flex">
-      <div className="fade-in">
-        {getGravatarByUser(comment.user)}
-      </div>
-      <div className="flex-1 pl-2 fade-in-up">
-        <div className="font-bold text-base text-slate-800 dark:text-slate-100 fade-in-up">{comment.user.nickname}</div>
-        <p className="text-lg text-slate-600 dark:text-slate-400 fade-in">
-          {
-            isPrivate && <Lock className="inline w-4 h-4 mr-1 mb-1 text-slate-500 dark:text-slate-400" />
-          }
-          {
-            parentComment &&
-            <>{t("reply")} <button onClick={() => clickToUserProfile(parentComment.user.nickname)} className="text-primary">{parentComment?.user.nickname}</button>: </>
-          }
-          {comment.content}
-        </p>
-        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-4 fade-in">
-          <span>{new Date(comment.updatedAt).toLocaleString()}</span>
-          {/* 点赞按钮 */}
-          <button
-            title={t(liked ? "unlike" : "like")}
-            onClick={handleToggleLike}
-            className={`flex items-center justify-center px-2 py-1 h-5 gap-1 text-xs rounded 
+    <div>
+      <div className="flex">
+        <div onClick={() => clickToUserProfile(comment.user.username)} className="cursor-pointer fade-in">
+          {getGravatarByUser(comment.user)}
+        </div>
+        <div className="flex-1 pl-2 fade-in-up">
+          <div onClick={() => clickToUserProfile(comment.user.username)} className="font-bold text-base text-slate-800 dark:text-slate-100 cursor-pointer fade-in-up">{comment.user.nickname}</div>
+          <p className="text-lg text-slate-600 dark:text-slate-400 fade-in">
+            {
+              isPrivate && <Lock className="inline w-4 h-4 mr-1 mb-1 text-slate-500 dark:text-slate-400" />
+            }
+            {
+              parentComment &&
+              <>{t("reply")} <button onClick={() => clickToUserProfile(parentComment.user.nickname)} className="text-primary">{parentComment?.user.nickname}</button>: </>
+            }
+            {comment.content}
+          </p>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-4 fade-in">
+            <span>{new Date(comment.updatedAt).toLocaleString()}</span>
+            {/* 点赞按钮 */}
+            <button
+              title={t(liked ? "unlike" : "like")}
+              onClick={handleToggleLike}
+              className={`flex items-center justify-center px-2 py-1 h-5 gap-1 text-xs rounded 
                         ${liked ? 'bg-primary ' : 'bg-slate-400 hover:bg-slate-600'}
                          text-primary-foreground dark:text-white dark:hover:bg-slate-500 fade-in`}
-          >
-            <Heart className="w-3 h-3" /> <div>{likeCount}</div>
-          </button>
-          {/* 回复按钮 */}
-          <button
-            title={t("reply")}
-            onClick={() => { setShowReplyInput(!showReplyInput); setShowEditInput(false); }}
-            className={`flex items-center justify-center px-2 py-1 h-5 
+            >
+              <Heart className="w-3 h-3" /> <div>{likeCount}</div>
+            </button>
+            {/* 回复按钮 */}
+            <button
+              title={t("reply")}
+              onClick={() => { setShowReplyInput(!showReplyInput); setShowEditInput(false); }}
+              className={`flex items-center justify-center px-2 py-1 h-5 
                         text-primary-foreground dark:text-white text-xs 
                         rounded ${showReplyInput ? "bg-slate-600" : "bg-slate-400"} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}>
-            <Reply className="w-3 h-3" />
-          </button>
-          {/* 编辑和删除按钮 仅自己的评论可见 */}
-          {user?.id === comment.user.id && (
-            <>
-              <button
-                title={t("edit")}
-                className={`
+              <Reply className="w-3 h-3" />
+            </button>
+            {/* 编辑和删除按钮 仅自己的评论可见 */}
+            {user?.id === comment.user.id && (
+              <>
+                <button
+                  title={t("edit")}
+                  className={`
                 flex items-center justify-center px-2 py-1 h-5 
                 text-primary-foreground dark:text-white text-xs 
                 rounded ${showEditInput ? "bg-slate-600" : "bg-slate-400"} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}
-                onClick={() => { setShowEditInput(!showEditInput); setShowReplyInput(false); }}
-              >
-                <Pencil className="w-3 h-3" />
-              </button>
+                  onClick={() => { setShowEditInput(!showEditInput); setShowReplyInput(false); }}
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
 
-              <button
-                title={t("delete")}
-                className={`flex items-center justify-center px-2 py-1 h-5 rounded
+                <button
+                  title={t("delete")}
+                  className={`flex items-center justify-center px-2 py-1 h-5 rounded
                   text-primary-foreground dark:text-white text-xs 
                   ${confirming ? 'bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600' : 'bg-slate-400 hover:bg-slate-600 dark:hover:bg-slate-500'} fade-in`}
-                onClick={() => onClick(() => { onCommentDelete({ commentId: comment.id }); })}
-                onBlur={onBlur}
-              >
+                  onClick={() => onClick(() => { onCommentDelete({ commentId: comment.id }); })}
+                  onBlur={onBlur}
+                >
 
-                <Trash className="w-3 h-3" />
-                {confirming && (
-                  <span className="ml-1 confirm-delete-anim">{t("confirm_delete")}</span>
-                )}
+                  <Trash className="w-3 h-3" />
+                  {confirming && (
+                    <span className="ml-1 confirm-delete-anim">{t("confirm_delete")}</span>
+                  )}
+                </button>
+              </>
+            )}
+
+            {replyCount > 0 &&
+              <button onClick={toggleReplies} className="fade-in-up">
+                {!showReplies ? t("expand_replies", { count: replyCount }) : t("collapse_replies")}
               </button>
-            </>
-          )}
-
-          {replyCount > 0 &&
-            <button onClick={toggleReplies} className="fade-in-up">
-              {!showReplies ? t("expand_replies", { count: replyCount }) : t("collapse_replies")}
-            </button>
-          }
-        </div>
-        {/* 这俩输入框一次只能显示一个 */}
-        {showReplyInput && !showEditInput && <CommentInput
-          user={user}
-          onCommentSubmitted={onReply}
-        />}
-        {showEditInput && !showReplyInput && <CommentInput
-          user={user}
-          initContent={comment.content}
-          initIsPrivate={isPrivate}
-          onCommentSubmitted={onCommentEdit}
-          isUpdate={true}
-        />}
-        {showReplies && replies.length > 0 && (
-          <div className="mt-4 pl-4 border-l border-slate-300 dark:border-slate-600 space-y-4">
-            {replies.map((reply) => (
-              <CommentItem
-                key={reply.id}
-                user={reply.user}
-                comment={reply}
-                parentComment={comment}
-                onCommentDelete={onReplyDelete}
-              />
-            ))}
+            }
           </div>
-        )}
-      </div>
-    </div >
+          {/* 这俩输入框一次只能显示一个 */}
+          {showReplyInput && !showEditInput && <CommentInput
+            user={user}
+            onCommentSubmitted={onReply}
+          />}
+          {showEditInput && !showReplyInput && <CommentInput
+            user={user}
+            initContent={comment.content}
+            initIsPrivate={isPrivate}
+            onCommentSubmitted={onCommentEdit}
+            isUpdate={true}
+          />}
+
+        </div>
+      </div >
+      {showReplies && replies.length > 0 && (
+        <div className="mt-4 pl-4 md:pl-8 border-l border-slate-300 dark:border-slate-600 space-y-4">
+          {replies.map((reply) => (
+            <CommentItem
+              key={reply.id}
+              user={reply.user}
+              comment={reply}
+              parentComment={comment}
+              onCommentDelete={onReplyDelete}
+            />
+          ))}
+        </div>
+      )}</div>
   )
 }
