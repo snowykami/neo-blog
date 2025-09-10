@@ -25,6 +25,18 @@ function CheckMark() {
   );
 }
 
+// 错误的叉
+function ErrorMark() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 40 }}>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    </div>
+  );
+}
+
 export function OfficialTurnstileWidget(props: CaptchaProps) {
   return <div>
     <Turnstile className="w-full" options={{ size: "invisible" }} siteKey={props.siteKey} onSuccess={props.onSuccess} />
@@ -34,20 +46,26 @@ export function OfficialTurnstileWidget(props: CaptchaProps) {
 // 自定义包装组件
 export function TurnstileWidget(props: CaptchaProps) {
   const t = useTranslations("Captcha");
-  const [status, setStatus] = useState<'loading' | 'success'>('loading');
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
 
   // 只在验证通过时才显示勾
   const handleSuccess = (token: string) => {
     setStatus('success');
     props.onSuccess(token);
   };
+
+  const handleError = (error: string) => {
+    setStatus('error');
+    props.onError && props.onError(error);
+  };
+
   return (
     <div className="flex items-center justify-evenly w-full border border-gray-300 rounded-md px-4 py-2 relative">
       {status === 'loading' && <Spinner />}
       {status === 'success' && <CheckMark />}
       <div className="flex-1 text-center">{status === 'success' ? t("success") :t("doing")}</div>
       <div className="absolute inset-0 opacity-0 pointer-events-none">
-        <OfficialTurnstileWidget {...props} onSuccess={handleSuccess} />
+        <OfficialTurnstileWidget {...props} onSuccess={handleSuccess} onError={handleError} />
       </div>
     </div>
   );

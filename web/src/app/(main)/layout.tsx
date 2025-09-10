@@ -23,7 +23,6 @@ export default function RootLayout({
           <Navbar />
         </header>
       </motion.nav>
-
       <BackgroundProvider>
         <div className='container mx-auto pt-16 px-4 sm:px-6 lg:px-10 max-w-7xl'>{children}</div>
       </BackgroundProvider>
