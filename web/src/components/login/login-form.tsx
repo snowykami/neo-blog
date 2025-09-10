@@ -63,14 +63,19 @@ export function LoginForm({
   }, [refreshCaptchaKey])
 
   const handleLogin = async (e: React.FormEvent) => {
+    setIsLogging(true)
     e.preventDefault()
-    try {
-      const res = await userLogin({ username, password, captcha: captchaToken || "" })
-      console.log("Login successful:", res)
-      router.push(redirectBack)
-    } catch (error) {
-      console.error("Login failed:", error)
-    }
+    userLogin({ username, password, captcha: captchaToken || "" })
+      .then(res => {
+        console.log("Login successful:", res)
+        router.push(redirectBack)
+      })
+      .catch(error => {
+        console.error("Login failed:", error)
+      })
+      .finally(() => {
+        setIsLogging(false)
+      })
   }
 
   const handleCaptchaError = (error: string) => {
