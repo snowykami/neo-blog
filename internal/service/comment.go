@@ -19,17 +19,17 @@ func NewCommentService() *CommentService {
 	return &CommentService{}
 }
 
-func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateCommentReq) error {
+func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateCommentReq) (uint, error) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
-		return errs.ErrUnauthorized
+		return 0, errs.ErrUnauthorized
 	}
 
 	if ok, err := cs.checkTargetExists(req.TargetID, req.TargetType); !ok {
 		if err != nil {
-			return errs.New(errs.ErrBadRequest.Code, "target not found", err)
+			return 0, errs.New(errs.ErrBadRequest.Code, "target not found", err)
 		}
-		return errs.ErrBadRequest
+		return 0, errs.ErrBadRequest
 	}
 
 	comment := &model.Comment{
@@ -41,13 +41,13 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		IsPrivate:  req.IsPrivate,
 	}
 
-	err := repo.Comment.CreateComment(comment)
+	commentID, err := repo.Comment.CreateComment(comment)
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return commentID, nil
 }
 
 func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateCommentReq) error {

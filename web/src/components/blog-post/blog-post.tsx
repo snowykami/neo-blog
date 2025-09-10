@@ -4,8 +4,8 @@ import { Calendar, Clock, FileText, Flame, Heart, MessageCircle, PenLine, Square
 import { RenderMarkdown } from "@/components/common/markdown";
 import { isMobileByUA } from "@/utils/server/device";
 import { calculateReadingTime } from "@/utils/common/post";
-import {CommentSection} from "@/components/comment";
-import { TargetType } from '../../models/types';
+import { CommentSection } from "@/components/comment";
+import { TargetType } from '@/models/types';
 
 function PostMeta({ post }: { post: Post }) {
   return (
@@ -139,7 +139,7 @@ async function BlogPost({ post }: { post: Post }) {
       {/* <ScrollToTop /> */}
       <PostHeader post={post} />
       <PostContent post={post} />
-      <CommentSection targetType={TargetType.Post} targetId={post.id} />
+      <CommentSection targetType={TargetType.Post} targetId={post.id} totalCount={post.commentCount} />
     </div>
   );
 }

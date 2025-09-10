@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
@@ -30,13 +31,13 @@ func (cc *CommentController) CreateComment(ctx context.Context, c *app.RequestCo
 		resps.BadRequest(c, err.Error())
 		return
 	}
-	err := cc.service.CreateComment(ctx, &req)
+	commentID, err := cc.service.CreateComment(ctx, &req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
 		return
 	}
-	resps.Ok(c, resps.Success, nil)
+	resps.Ok(c, resps.Success, utils.H{"id": commentID})
 }
 
 func (cc *CommentController) UpdateComment(ctx context.Context, c *app.RequestContext) {

@@ -12,7 +12,6 @@ import { useDoubleConfirm } from "@/hooks/use-double-confirm";
 import { CommentInput } from "./comment-input";
 import { createComment, deleteComment, listComments, updateComment } from "@/api/comment";
 import { OrderBy } from "@/models/common";
-import config from "@/config";
 import { formatDateTime } from "@/utils/common/datetime";
 
 
@@ -23,7 +22,8 @@ export function CommentItem(
     parentComment,
     onCommentDelete,
     activeInput,
-    setActiveInputId
+    setActiveInputId,
+    onReplySubmitted  // 评论区计数更新用
   }: {
     user: User | null,
     comment: Comment,
@@ -31,6 +31,7 @@ export function CommentItem(
     onCommentDelete: ({ commentId }: { commentId: number }) => void,
     activeInput: { id: number; type: 'reply' | 'edit' } | null,
     setActiveInputId: (input: { id: number; type: 'reply' | 'edit' } | null) => void,
+    onReplySubmitted: ({ commentContent, isPrivate }: { commentContent: string, isPrivate: boolean }) => void,
   }
 ) {
   const locale = useLocale();
@@ -96,7 +97,7 @@ export function CommentItem(
         orderBy: OrderBy.CreatedAt,
         desc: false,
         page: 1,
-        size: config.commentsPerPage,
+        size: 999999,
         commentId: comment.id
       }
     ).then(response => {
@@ -136,6 +137,7 @@ export function CommentItem(
       setShowReplies(true);
       setActiveInputId(null);
       setReplyCount(replyCount + 1);
+      onReplySubmitted({ commentContent, isPrivate });
     }).catch(error => {
       toast.error(t("comment_failed") + ": " +
         error?.response?.data?.message || error?.message
@@ -289,6 +291,7 @@ export function CommentItem(
               onCommentDelete={onReplyDelete}
               activeInput={activeInput}
               setActiveInputId={setActiveInputId}
+              onReplySubmitted={onReplySubmitted}
             />
           ))}
         </div>

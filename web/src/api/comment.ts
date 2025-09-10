@@ -20,8 +20,8 @@ export async function createComment(
     replyId: number | null
     isPrivate: boolean
   }
-): Promise<BaseResponse<Comment>> {
-  const res = await axiosClient.post<BaseResponse<Comment>>('/comment/c', {
+): Promise<BaseResponse<{id: number}>> {
+  const res = await axiosClient.post<BaseResponse<{id: number}>>('/comment/c', {
     targetType,
     targetId,
     content,
@@ -52,7 +52,6 @@ export async function deleteComment({ id }: { id: number }): Promise<void> {
   await axiosClient.delete(`/comment/c/${id}`)
 }
 
-
 export async function listComments({
   targetType,
   targetId,
@@ -81,5 +80,10 @@ export async function listComments({
       commentId,
     }
   })
+  return res.data
+}
+
+export async function getComment({ id }: { id: number }): Promise<BaseResponse<Comment>> {
+  const res = await axiosClient.get<BaseResponse<Comment>>(`/comment/c/${id}`)
   return res.data
 }

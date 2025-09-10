@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Comment } from "@/models/comment";
-import { createComment, deleteComment, listComments } from "@/api/comment";
+import { createComment, deleteComment, getComment, listComments } from "@/api/comment";
 import { TargetType } from "@/models/types";
 import { OrderBy } from "@/models/common";
 import { Separator } from "@/components/ui/separator";
@@ -22,18 +22,22 @@ import "./style.css";
 export function CommentSection(
   {
     targetType,
-    targetId
+    targetId,
+    totalCount = 0
   }: {
     targetType: TargetType,
-    targetId: number
+    targetId: number,
+    totalCount?: number
   }
 ) {
   const t = useTranslations('Comment')
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [refreshCommentsKey, setRefreshCommentsKey] = useState(0);
   const [activeInput, setActiveInput] = useState<{ id: number; type: 'reply' | 'edit' } | null>(null);
+  const [page, setPage] = useState(1); // 当前页码
+  const [totalCommentCount, setTotalCommentCount] = useState(totalCount); // 评论总数
+  const [needLoadMore, setNeedLoadMore] = useState(true); // 是否需要加载更多，当最后一次获取的评论数小于分页大小时设为false
 
   // 获取当前登录用户
   useEffect(() => {
@@ -51,13 +55,13 @@ export function CommentSection(
       depth: 0,
       orderBy: OrderBy.CreatedAt,
       desc: true,
-      page: 1,
+      page: page,
       size: config.commentsPerPage,
       commentId: 0
     }).then(response => {
       setComments(response.data);
     });
-  }, [refreshCommentsKey])
+  }, [])
 
   const onCommentSubmitted = ({ commentContent, isPrivate }: { commentContent: string, isPrivate: boolean }) => {
     createComment({
@@ -66,25 +70,56 @@ export function CommentSection(
       content: commentContent,
       replyId: null,
       isPrivate,
-    }).then(() => {
+    }).then(res => {
       toast.success(t("comment_success"));
-      setRefreshCommentsKey(k => k + 1);
+      setTotalCommentCount(c => c + 1);
+      setComments(prevComments => prevComments.slice(0, -1));
+      getComment({ id: res.data.id }).then(response => {
+        console.log("New comment fetched:", response.data);
+        setComments(prevComments => [response.data, ...prevComments]);
+      });
+      setActiveInput(null);
     })
+  }
+
+  const onReplySubmitted = ({ }: { commentContent: string, isPrivate: boolean }) => {
+    setTotalCommentCount(c => c + 1);
   }
 
   const onCommentDelete = ({ commentId }: { commentId: number }) => {
     deleteComment({ id: commentId }).then(() => {
       toast.success(t("delete_success"));
-      setRefreshCommentsKey(k => k + 1);
+      setComments(prevComments => prevComments.filter(comment => comment.id !== commentId));
+      setTotalCommentCount(c => c - 1);
     }).catch(error => {
       toast.error(t("delete_failed") + ": " + error.message);
+    });
+  }
+
+  const handleLoadMore = () => {
+    const nextPage = page + 1;
+    listComments({
+      targetType,
+      targetId,
+      depth: 0,
+      orderBy: OrderBy.CreatedAt,
+      desc: true,
+      page: nextPage,
+      size: config.commentsPerPage,
+      commentId: 0
+    }).then(response => {
+      if (response.data.length < config.commentsPerPage) {
+        setNeedLoadMore(false);
+      }
+      setComments(prevComments => [...prevComments, ...response.data]);
+      setPage(nextPage);
     });
   }
 
   return (
     <div>
       <Separator className="my-16" />
-      <div className="font-bold text-2xl">{t("comment")}</div>
+      <div className="font-bold text-2xl">{t("comment")} ({totalCommentCount})</div>
       <CommentInput
         user={currentUser}
         onCommentSubmitted={onCommentSubmitted}
@@ -92,7 +127,7 @@ export function CommentSection(
       <div className="mt-4">
         <Suspense fallback={<CommentLoading />}>
           {comments.map((comment, idx) => (
-            <div key={comment.id} className="fade-in-up" style={{ animationDelay: `${idx * 60}ms` }}>
+            <div key={comment.id} className="" style={{ animationDelay: `${idx * 60}ms` }}>
               <Separator className="my-2" />
               <CommentItem
                 user={currentUser}
@@ -101,10 +136,20 @@ export function CommentSection(
                 onCommentDelete={onCommentDelete}
                 activeInput={activeInput}
                 setActiveInputId={setActiveInput}
+                onReplySubmitted={onReplySubmitted}
               />
             </div>
           ))}
         </Suspense>
+        {needLoadMore ?
+          <p onClick={handleLoadMore} className="text-center text-sm text-gray-500 my-4 cursor-pointer hover:underline">
+              {t("load_more")}
+          </p>
+          :
+          <p className="text-center text-sm text-gray-500 my-4">
+            {t("no_more")}
+          </p>
+        }
       </div>
     </div>
   )

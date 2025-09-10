@@ -69,7 +69,7 @@ func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 	ctxutils.ClearTokenAndRefreshTokenCookie(c)
 	resps.Ok(c, resps.Success, nil)
 	// 尝试吊销服务端状态：若用户登录的情况下
-	// TODO: 这里可以添加服务端状态的吊销逻辑
+	// TODO: 添加服务端状态的吊销逻辑
 }
 
 func (u *UserController) OidcList(ctx context.Context, c *app.RequestContext) {
@@ -175,4 +175,12 @@ func (u *UserController) VerifyEmail(ctx context.Context, c *app.RequestContext)
 		return
 	}
 	resps.Ok(c, resps.Success, resp)
+}
+
+func (u *UserController) ChangePassword(ctx context.Context, c *app.RequestContext) {
+	// TODO: 实现修改密码功能
+}
+
+func (u *UserController) ChangeEmail(ctx context.Context, c *app.RequestContext) {
+	// TODO: 实现修改邮箱功能
 }
