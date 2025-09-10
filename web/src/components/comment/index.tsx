@@ -33,6 +33,7 @@ export function CommentSection(
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [refreshCommentsKey, setRefreshCommentsKey] = useState(0);
+  const [activeInput, setActiveInput] = useState<{ id: number; type: 'reply' | 'edit' } | null>(null);
 
   // 获取当前登录用户
   useEffect(() => {
@@ -98,6 +99,8 @@ export function CommentSection(
                 comment={comment}
                 parentComment={null}
                 onCommentDelete={onCommentDelete}
+                activeInput={activeInput}
+                setActiveInputId={setActiveInput}
               />
             </div>
           ))}

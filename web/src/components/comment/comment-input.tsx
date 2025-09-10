@@ -49,6 +49,10 @@ export function CommentInput(
       toast.error(t("content_required"));
       return;
     }
+    if (initContent === commentContent.trim() && initIsPrivate === isPrivate) {
+      toast.warning(t("comment_unchanged"));
+      return;
+    }
     onCommentSubmitted({ commentContent, isPrivate });
     setCommentContent("");
   };
@@ -62,7 +66,7 @@ export function CommentInput(
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <Textarea
-            placeholder={user ? t("placeholder") : t("login_required", { loginButton: "登录" })}
+            placeholder={user ? (isPrivate ? t("private_placeholder") : t("placeholder")) : t("login_required", { loginButton: "登录" })}
             className="w-full p-2 border border-gray-300 rounded-md fade-in-up"
             value={commentContent}
             onChange={(e) => setCommentContent(e.target.value)}
@@ -77,7 +81,6 @@ export function CommentInput(
           />
           <Label>{t("private")}</Label>
         </div>
-
         <button onClick={handleCommentSubmit} className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors fade-in-up">
           {isUpdate ? t("update") : t("submit")}
         </button>

@@ -21,11 +21,15 @@ export function CommentItem(
     comment,
     parentComment,
     onCommentDelete,
+    activeInput,
+    setActiveInputId
   }: {
     user: User | null,
     comment: Comment,
     parentComment: Comment | null,
     onCommentDelete: ({ commentId }: { commentId: number }) => void,
+    activeInput: { id: number; type: 'reply' | 'edit' } | null,
+    setActiveInputId: (input: { id: number; type: 'reply' | 'edit' } | null) => void,
   }
 ) {
   const t = useTranslations("Comment")
@@ -40,10 +44,8 @@ export function CommentItem(
   const [isPrivate, setIsPrivate] = useState(comment.isPrivate);
   const [replyCount, setReplyCount] = useState(comment.replyCount);
   const [showReplies, setShowReplies] = useState(false);
-  const [showReplyInput, setShowReplyInput] = useState(false);
   const [replies, setReplies] = useState<Comment[]>([]);
   const [repliesLoaded, setRepliesLoaded] = useState(false);
-  const [showEditInput, setShowEditInput] = useState(false);
 
   const handleToggleLike = () => {
     if (!canClickLike) {
@@ -112,7 +114,7 @@ export function CommentItem(
       toast.success(t("edit_success"));
       comment.content = newContent;
       setIsPrivate(isPrivate);
-      setShowEditInput(false);
+      setActiveInputId(null);
     }).catch(error => {
       toast.error(t("edit_failed") + ": " + error.message);
     });
@@ -129,7 +131,7 @@ export function CommentItem(
       toast.success(t("comment_success"));
       reloadReplies();
       setShowReplies(true);
-      setShowReplyInput(false);
+      setActiveInputId(null);
       setReplyCount(replyCount + 1);
     }).catch(error => {
       toast.error(t("comment_failed") + ": " +
@@ -181,10 +183,16 @@ export function CommentItem(
             {/* 回复按钮 */}
             <button
               title={t("reply")}
-              onClick={() => { setShowReplyInput(!showReplyInput); setShowEditInput(false); }}
+              onClick={() => {
+                if (activeInput?.type === 'reply' && activeInput.id === comment.id) {
+                  setActiveInputId(null);
+                } else {
+                  setActiveInputId({ id: comment.id, type: 'reply' });
+                }
+              }}
               className={`flex items-center justify-center px-2 py-1 h-5 
-                        text-primary-foreground dark:text-white text-xs 
-                        rounded ${showReplyInput ? "bg-slate-600" : "bg-slate-400"} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}>
+                  text-primary-foreground dark:text-white text-xs 
+                  rounded ${activeInput?.type === 'reply' && activeInput.id === comment.id ? "bg-slate-600" : "bg-slate-400"} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}>
               <Reply className="w-3 h-3" />
             </button>
             {/* 编辑和删除按钮 仅自己的评论可见 */}
@@ -192,11 +200,18 @@ export function CommentItem(
               <>
                 <button
                   title={t("edit")}
+                  onClick={() => {
+                    if (activeInput?.type === 'edit' && activeInput.id === comment.id) {
+                      setActiveInputId(null);
+                    } else {
+                      setActiveInputId({ id: comment.id, type: 'edit' });
+                    }
+                  }}
                   className={`
                 flex items-center justify-center px-2 py-1 h-5 
                 text-primary-foreground dark:text-white text-xs 
-                rounded ${showEditInput ? "bg-slate-600" : "bg-slate-400"} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}
-                  onClick={() => { setShowEditInput(!showEditInput); setShowReplyInput(false); }}
+                rounded ${activeInput?.type === 'edit' && activeInput.id === comment.id ? "bg-slate-600" : "bg-slate-400"} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}
+
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
@@ -225,12 +240,12 @@ export function CommentItem(
             }
           </div>
           {/* 这俩输入框一次只能显示一个 */}
-          {showReplyInput && !showEditInput && <CommentInput
+          {activeInput && activeInput.type === 'reply' && activeInput.id === comment.id && <CommentInput
             user={user}
             onCommentSubmitted={onReply}
             initIsPrivate={isPrivate}
           />}
-          {showEditInput && !showReplyInput && <CommentInput
+          {activeInput && activeInput.type === 'edit' && activeInput.id === comment.id && <CommentInput
             user={user}
             initContent={comment.content}
             initIsPrivate={isPrivate}
@@ -249,6 +264,8 @@ export function CommentItem(
               comment={reply}
               parentComment={comment}
               onCommentDelete={onReplyDelete}
+              activeInput={activeInput}
+              setActiveInputId={setActiveInputId}
             />
           ))}
         </div>
