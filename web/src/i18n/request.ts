@@ -16,7 +16,7 @@ export default getRequestConfig(async () => {
     })
   ).then((msgs) => msgs.reduce((acc, msg) => deepmerge(acc, msg), {}));
   return {
-    locale: locales[0],
+    locale: locales[locales.length - 1] || 'en',
     messages
   };
 });

@@ -1,6 +1,6 @@
 import { useToLogin, useToUserProfile } from "@/hooks/use-route";
 import { User } from "@/models/user";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { getGravatarByUser } from "@/components/common/gravatar";
@@ -13,6 +13,7 @@ import { CommentInput } from "./comment-input";
 import { createComment, deleteComment, listComments, updateComment } from "@/api/comment";
 import { OrderBy } from "@/models/common";
 import config from "@/config";
+import { formatDateTime } from "@/utils/common/datetime";
 
 
 export function CommentItem(
@@ -32,8 +33,10 @@ export function CommentItem(
     setActiveInputId: (input: { id: number; type: 'reply' | 'edit' } | null) => void,
   }
 ) {
-  const t = useTranslations("Comment")
-  const commonT = useTranslations('Common')
+  const locale = useLocale();
+  console.log("locale", locale);
+  const t = useTranslations("Comment");
+  const commonT = useTranslations("Common");
   const clickToUserProfile = useToUserProfile();
   const clickToLogin = useToLogin();
   const { confirming, onClick, onBlur } = useDoubleConfirm();
@@ -157,7 +160,27 @@ export function CommentItem(
           {getGravatarByUser(comment.user)}
         </div>
         <div className="flex-1 pl-2 fade-in-up">
-          <div onClick={() => clickToUserProfile(comment.user.username)} className="font-bold text-base text-slate-800 dark:text-slate-100 cursor-pointer fade-in-up">{comment.user.nickname}</div>
+          <div className="flex gap-2 md:gap-4 items-center">
+            <div onClick={() => clickToUserProfile(comment.user.username)} className="font-bold text-base text-slate-800 dark:text-slate-100 cursor-pointer fade-in-up">
+              {comment.user.nickname}
+            </div>
+            <span className="text-xs">{formatDateTime({
+              dateTimeString: comment.createdAt,
+              locale,
+              convertShortAgo: true,
+              unitI18n: { secondsAgo: commonT("secondsAgo"), minutesAgo: commonT("minutesAgo"), hoursAgo: commonT("hoursAgo"), daysAgo: commonT("daysAgo") }
+            })}</span>
+            {comment.createdAt !== comment.updatedAt &&
+              <span className="text-xs">{t("edit_at", {
+                time: formatDateTime({
+                  dateTimeString: comment.updatedAt,
+                  locale,
+                  convertShortAgo: true,
+                  unitI18n: { secondsAgo: commonT("secondsAgo"), minutesAgo: commonT("minutesAgo"), hoursAgo: commonT("hoursAgo"), daysAgo: commonT("daysAgo") }
+                })
+              })}</span>}
+          </div>
+
           <p className="text-lg text-slate-600 dark:text-slate-400 fade-in">
             {
               isPrivate && <Lock className="inline w-4 h-4 mr-1 mb-1 text-slate-500 dark:text-slate-400" />
@@ -169,7 +192,7 @@ export function CommentItem(
             {comment.content}
           </p>
           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-4 fade-in">
-            <span>{new Date(comment.updatedAt).toLocaleString()}</span>
+
             {/* 点赞按钮 */}
             <button
               title={t(liked ? "unlike" : "like")}

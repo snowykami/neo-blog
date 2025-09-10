@@ -2,7 +2,6 @@ import { useToLogin, useToUserProfile } from "@/hooks/use-route";
 import { User } from "@/models/user";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
-import NeedLogin from "@/components/common/need-login";
 import { toast } from "sonner";
 import { getGravatarByUser } from "@/components/common/gravatar";
 import { CircleUser } from "lucide-react";
@@ -60,7 +59,7 @@ export function CommentInput(
   return (
     <div className="fade-in-up">
       <div className="flex py-4 fade-in">
-        <div onClick={user ? () => clickToUserProfile(user.username) : clickToLogin} className="flex-shrink-0 w-10 h-10 fade-in">
+        <div onClick={user ? () => clickToUserProfile(user.username) : clickToLogin} className="cursor-pointer flex-shrink-0 w-10 h-10 fade-in">
           {user ? getGravatarByUser(user) : null}
           {!user && <CircleUser className="w-full h-full fade-in" />}
         </div>
