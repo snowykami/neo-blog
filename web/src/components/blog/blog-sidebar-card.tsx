@@ -34,7 +34,7 @@ export function SidebarAbout({ config }: { config: typeof configType }) {
       <CardContent>
         <div className="text-center mb-4">
           <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
-            <GravatarAvatar email={config.owner.gravatarEmail} className="w-full h-full object-cover" />
+            <GravatarAvatar email={config.owner.gravatarEmail} className="w-full h-full object-cover" size={200} />
           </div>
           <h3 className="font-semibold text-lg">{config.owner.name}</h3>
           <p className="text-sm text-slate-600">{config.owner.motto}</p>

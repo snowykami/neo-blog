@@ -1,84 +1,83 @@
-"use client";
+"use client"
 
 import { BlogCardGrid } from "@/components/blog-home/blog-home-card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Clock, } from "lucide-react";
 import Sidebar, { SidebarAbout, SidebarHotPosts, SidebarMisskeyIframe, SidebarTags } from "../blog/blog-sidebar-card";
 import config from '@/config';
-import type { Label } from "@/models/label";
 import type { Post } from "@/models/post";
 import { listPosts } from "@/api/post";
 
 import { useEffect, useState } from "react";
-import { useStoredState } from '@/hooks/use-storage-state';
-import { listLabels } from "@/api/label";
-import { POST_SORT_TYPE } from "@/localstore";
-import { motion } from "framer-motion";
-import { useDevice } from "@/hooks/use-device";
-import { checkIsMobile } from "@/utils/client/device";
+import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
+import { OrderBy } from "@/models/common";
+import { PaginationController } from "@/components/common/pagination";
+import { QueryKey } from "@/constant";
+import { useStoredState } from "@/hooks/use-storage-state";
 
 // 定义排序类型
-type SortType = 'latest' | 'popular';
+enum SortBy {
+  Latest = 'latest',
+  Hottest = 'hottest',
+}
+
+const DEFAULT_SORTBY: SortBy = SortBy.Latest;
 
 export default function BlogHome() {
-  const [labels, setLabels] = useState<Label[]>([]);
+  // 从路由查询参数中获取页码和标签们
+  const searchParams = useSearchParams();
+  const t = useTranslations("BlogHome");
+
+  const [labels, setLabels] = useState<string[]>([]);
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [totalPosts, setTotalPosts] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [sortType, setSortType, sortTypeLoaded] = useStoredState<SortType>(POST_SORT_TYPE, 'latest');
+  const [sortBy, setSortBy, isSortByLoaded] = useStoredState<SortBy>(QueryKey.SortBy, DEFAULT_SORTBY);
+
   useEffect(() => {
-    if (!sortTypeLoaded) return;
-    const fetchPosts = async () => {
-      try {
-        setLoading(true);
-        let orderBy: string;
-        let desc: boolean;
-        switch (sortType) {
-          case 'latest':
-            orderBy = 'updated_at';
-            desc = true;
-            break;
-          case 'popular':
-            orderBy = 'heat';
-            desc = true;
-            break;
-          default:
-            orderBy = 'updated_at';
-            desc = true;
-        }
-        // 处理关键词，空格分割转逗号
-        const keywords = ""?.trim() ? ""?.trim().split(/\s+/).join(",") : undefined;
-        const data = await listPosts({
-          page: 1,
-          size: 10,
-          orderBy: orderBy,
-          desc: desc,
-          keywords
-        });
-        setPosts(data.data);
-      } catch (error) {
-        console.error("Failed to fetch posts:", error);
-      } finally {
-        setLoading(false);
+    if (!isSortByLoaded) return; // wait for stored state loaded
+    setLoading(true);
+    listPosts(
+      {
+        page: currentPage,
+        size: config.postsPerPage,
+        orderBy: sortBy === SortBy.Latest ? OrderBy.CreatedAt : OrderBy.Heat,
+        desc: true,
+        keywords: keywords.join(",") || undefined,
+        labels: labels.join(",") || undefined,
       }
-    };
-    fetchPosts();
-  }, [sortType, sortTypeLoaded]);
-
-  // 获取标签
-  useEffect(() => {
-    listLabels().then(data => {
-      setLabels(data.data || []);
-    }).catch(error => {
-      console.error("Failed to fetch labels:", error);
+    ).then(res => {
+      setPosts(res.data.posts);
+      setTotalPosts(res.data.total);
+      setLoading(false);
+    }).catch(err => {
+      console.error(err);
+      setLoading(false);
     });
-  }, []);
+  }, [keywords, labels, currentPage, sortBy, isSortByLoaded]);
 
-  // 处理排序切换
-  const handleSortChange = (type: SortType) => {
-    if (sortType !== type) {
-      setSortType(type);
+  const handleSortChange = (type: SortBy) => {
+    if (sortBy !== type) {
+      setSortBy(type);
+      setCurrentPage(1);
     }
   };
+
+  const handlePageChange = (page: number) => {
+    // 修改查询参数和状态
+    setCurrentPage(page);
+    // 不滚动到顶部，用户可能在阅读侧边栏
+    // window.scrollTo({ top: 0, behavior: 'smooth' });
+    // 修改查询参数
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('page', page.toString());
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newUrl);
+  }
 
   return (
     <>
@@ -90,80 +89,75 @@ export default function BlogHome() {
             {/* 主要内容区域 */}
             <motion.div
               className="lg:col-span-3 self-start"
-              initial={{ y: checkIsMobile() ? 30 : 60, opacity: 0 }}
+              initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}>
               {/* 文章列表标题 */}
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                  {sortType === 'latest' ? '最新文章' : '热门文章'}
+                  {sortBy === 'latest' ? t("latest_posts") : t("hottest_posts")}
                   {posts.length > 0 && (
-                    <span className="text-sm font-normal text-slate-500 ml-2">
-                      ({posts.length} 篇)
+                    <span className="text-xl font-normal text-slate-500 ml-2">
+                      ({posts.length})
                     </span>
                   )}
                 </h2>
-
                 {/* 排序按钮组 */}
-                <div className="flex items-center gap-2">
+                {isSortByLoaded && <div className="flex items-center gap-2">
                   <Button
-                    variant={sortType === 'latest' ? 'default' : 'outline'}
+                    variant={sortBy === SortBy.Latest ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => handleSortChange('latest')}
+                    onClick={() => handleSortChange(SortBy.Latest)}
                     disabled={loading}
                     className="transition-all duration-200"
                   >
                     <Clock className="w-4 h-4 mr-2" />
-                    最新
+                    {t("latest")}
                   </Button>
                   <Button
-                    variant={sortType === 'popular' ? 'default' : 'outline'}
+                    variant={sortBy === 'hottest' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => handleSortChange('popular')}
+                    onClick={() => handleSortChange(SortBy.Hottest)}
                     disabled={loading}
                     className="transition-all duration-200"
                   >
                     <TrendingUp className="w-4 h-4 mr-2" />
-                    热门
+                    {t("hottest")}
                   </Button>
-                </div>
+                </div>}
               </div>
-
               {/* 博客卡片网格 */}
               <BlogCardGrid posts={posts} isLoading={loading} showPrivate={true} />
-
-              {/* 加载更多按钮 */}
-              {!loading && posts.length > 0 && (
-                <div className="text-center mt-12">
-                  <Button size="lg" className="px-8">
-                    加载更多文章
-                  </Button>
-                </div>
-              )}
-
+              {/* 分页控制器 */}
+              <div className="mt-8">
+                <PaginationController
+                  className="pt-4 flex justify-center"
+                  initialPage={currentPage}
+                  totalPages={Math.ceil(totalPosts / config.postsPerPage)}
+                  onPageChange={handlePageChange}
+                />
+              </div>
               {/* 加载状态指示器 */}
               {loading && (
                 <div className="text-center py-8">
                   <div className="inline-flex items-center gap-2 text-slate-600">
                     <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    正在加载{sortType === 'latest' ? '最新' : '热门'}文章...
+                    <span>{t("loading")}</span>
                   </div>
                 </div>
               )}
             </motion.div>
-
-
             {/* 侧边栏 */}
             <motion.div
-              initial={checkIsMobile() ? { y: 30, opacity: 0 } : { x: 80, opacity: 0 }}
+              initial={{ x: 80, opacity: 0 }}
               animate={{ x: 0, y: 0, opacity: 1 }}
               transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}
             >
               <Sidebar
                 cards={[
                   <SidebarAbout key="about" config={config} />,
-                  posts.length > 0 ? <SidebarHotPosts key="hot" posts={posts} sortType={sortType} /> : null,
-                  <SidebarTags key="tags" labels={labels} />,
+                  posts.length > 0 ? <SidebarHotPosts key="hot" posts={posts} sortType={sortBy} /> : null,
+                  <SidebarTags key="tags" labels={[]} />,
                   <SidebarMisskeyIframe key="misskey" />,
                 ].filter(Boolean)}
               />

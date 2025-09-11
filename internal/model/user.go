@@ -12,7 +12,7 @@ type User struct {
 	AvatarUrl string
 	Email     string `gorm:"uniqueIndex"`
 	Gender    string
-	Role      string `gorm:"default:'user'"`
+	Role      string `gorm:"default:'user'"` // user editor admin
 	Language  string `gorm:"default:'en'"`
 	Password  string // 密码，存储加密后的值
 }

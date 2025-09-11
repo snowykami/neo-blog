@@ -12,13 +12,13 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
-import GravatarAvatar from "@/components/common/gravatar"
 import { useDevice } from "@/contexts/device-context"
 import config from "@/config"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
 import { Switch } from "../ui/switch"
+import { ThemeModeToggle } from "../common/theme-toggle"
 
 const navbarMenuComponents = [
   {
@@ -55,7 +55,7 @@ export function Navbar() {
         <NavMenuCenter />
       </div>
       <div className="flex items-center justify-end space-x-2">
-        <Switch checked={mode === "dark"} onCheckedChange={(checked) => setMode(checked ? "dark" : "light")} />
+        <ThemeModeToggle className="hidden md:block" />
         <SidebarMenuClientOnly />
       </div>
     </nav>
@@ -169,8 +169,11 @@ function SidebarMenu() {
               ) : null
             )}
           </nav>
+          <div className="flex items-center justify-center p-4 border-t border-border">
+            <ThemeModeToggle/>
+          </div>
+          
         </SheetContent>
       </Sheet></div>
-
   )
 }

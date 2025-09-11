@@ -132,3 +132,23 @@ html, body {
 .sonner-toast {
   background-color: aqua;
 }
+
+::-webkit-scrollbar {
+  width: 4px;           /* 垂直滚动条宽度 */
+  height: 4px;          /* 水平滚动条高度 */
+  background: transparent; /* 滚动条轨道背景 */
+  position: absolute;   /* 实际不会影响内容布局 */
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.15); /* 滚动条滑块颜色 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.3);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

@@ -7,15 +7,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import config from '@/config'
 import { cn } from '@/lib/utils'
 import { getPostHref } from '@/utils/common/post'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { deceleration } from '@/motion/curve'
 
-interface BlogCardProps {
+
+export function BlogCard({ post, className }: {
   post: Post
   className?: string
-}
-
-export function BlogCard({ post, className }: BlogCardProps) {
+}) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('zh-CN', {
@@ -57,16 +56,16 @@ export function BlogCard({ post, className }: BlogCardProps) {
             // 默认渐变背景 - 基于热度生成颜色
             <div
               className={cn(
-          'w-full h-full bg-gradient-to-br',
-          post.heat > 80
-            ? 'from-red-400 via-pink-500 to-orange-500'
-            : post.heat > 60
-              ? 'from-orange-400 via-yellow-500 to-red-500'
-              : post.heat > 40
-                ? 'from-blue-400 via-purple-500 to-pink-500'
-                : post.heat > 20
-            ? 'from-green-400 via-blue-500 to-purple-500'
-            : 'from-gray-400 via-slate-500 to-gray-600',
+                'w-full h-full bg-gradient-to-br',
+                post.heat > 80
+                  ? 'from-red-400 via-pink-500 to-orange-500'
+                  : post.heat > 60
+                    ? 'from-orange-400 via-yellow-500 to-red-500'
+                    : post.heat > 40
+                      ? 'from-blue-400 via-purple-500 to-pink-500'
+                      : post.heat > 20
+                        ? 'from-green-400 via-blue-500 to-purple-500'
+                        : 'from-gray-400 via-slate-500 to-gray-600',
               )}
             />
           )}
@@ -210,7 +209,7 @@ export function BlogCardGrid({
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {Array.from({ length: 6 }).map((_, index) => (
+        {Array.from({ length: config.postsPerPage }).map((_, index) => (
           <BlogCardSkeleton key={index} />
         ))}
       </div>

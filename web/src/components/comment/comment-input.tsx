@@ -60,7 +60,7 @@ export function CommentInput(
     <div className="fade-in-up">
       <div className="flex py-4 fade-in">
         <div onClick={user ? () => clickToUserProfile(user.username) : clickToLogin} className="cursor-pointer flex-shrink-0 w-10 h-10 fade-in">
-          {user && <GravatarAvatar url={user.avatarUrl} email={user.email} size={100}/>}
+          {user && <GravatarAvatar className="w-full h-full" url={user.avatarUrl} email={user.email} size={100}/>}
           {!user && <CircleUser className="w-full h-full fade-in" />}
         </div>
         <div className="flex-1 pl-2 fade-in-up">

@@ -18,6 +18,26 @@ func (l *labelRepo) GetLabelByKey(key string) (*model.Label, error) {
 	return &label, nil
 }
 
+func (l *labelRepo) GetLabelByValue(value string) (*model.Label, error) {
+	var label model.Label
+	if err := GetDB().Where("value = ?", value).First(&label).Error; err != nil {
+		return nil, err
+	}
+	return &label, nil
+}
+
+func (l *labelRepo) GetLabelByKeyAndValue(key, value string) (*model.Label, error) {
+	var label model.Label
+	query := GetDB().Where("key = ?", key)
+	if value != "" {
+		query = query.Where("value = ?", value)
+	}
+	if err := GetDB().Where(query).First(&label).Error; err != nil {
+		return nil, err
+	}
+	return &label, nil
+}
+
 func (l *labelRepo) GetLabelByID(id string) (*model.Label, error) {
 	var label model.Label
 	if err := GetDB().Where("id = ?", id).First(&label).Error; err != nil {

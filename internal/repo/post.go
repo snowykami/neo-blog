@@ -1,12 +1,15 @@
 package repo
 
 import (
+	"errors"
 	"net/http"
 	"slices"
 
+	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"gorm.io/gorm"
 )
 
 type postRepo struct{}
@@ -48,9 +51,9 @@ func (p *postRepo) UpdatePost(post *model.Post) error {
 	return nil
 }
 
-func (p *postRepo) ListPosts(currentUserID uint, keywords []string, page, size uint64, orderBy string, desc bool) ([]model.Post, error) {
+func (p *postRepo) ListPosts(currentUserID uint, keywords []string, labels []dto.LabelDto, labelRule string, page, size uint64, orderBy string, desc bool) ([]model.Post, int64, error) {
 	if !slices.Contains(constant.OrderByEnumPost, orderBy) {
-		return nil, errs.New(http.StatusBadRequest, "invalid order_by parameter", nil)
+		return nil, 0, errs.New(http.StatusBadRequest, "invalid order_by parameter", nil)
 	}
 	query := GetDB().Model(&model.Post{}).Preload("User")
 	if currentUserID > 0 {
@@ -58,20 +61,43 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, page, size u
 	} else {
 		query = query.Where("is_private = ?", false)
 	}
+
+	if len(labels) > 0 {
+		var labelIds []uint
+		for _, labelDto := range labels {
+			label, _ := Label.GetLabelByKeyAndValue(labelDto.Key, labelDto.Value)
+			labelIds = append(labelIds, label.ID)
+		}
+		if labelRule == "intersection" {
+			query = query.Joins("JOIN post_labels ON post_labels.post_id = posts.id").
+				Where("post_labels.label_id IN ?", labelIds).
+				Group("posts.id").
+				Having("COUNT(DISTINCT post_labels.label_id) = ?", len(labelIds))
+		} else {
+			query = query.Joins("JOIN post_labels ON post_labels.post_id = posts.id").
+				Where("post_labels.label_id IN ?", labelIds)
+		}
+	}
+
 	if len(keywords) > 0 {
 		for _, keyword := range keywords {
 			if keyword != "" {
-				// 使用LIKE进行模糊匹配，搜索标题、内容和标签
-				query = query.Where("title LIKE ? OR content LIKE ?", // TODO: 支持标签搜索
+				query = query.Where("title LIKE ? OR content LIKE ?",
 					"%"+keyword+"%", "%"+keyword+"%")
 			}
 		}
 	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, 0, err
+	}
+
 	items, _, err := PaginateQuery[model.Post](query, page, size, orderBy, desc)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return items, nil
+	return items, total, nil
 }
 
 func (p *postRepo) ToggleLikePost(postID uint, userID uint) (bool, error) {

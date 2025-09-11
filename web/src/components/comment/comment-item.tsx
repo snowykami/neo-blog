@@ -101,7 +101,7 @@ export function CommentItem(
         commentId: comment.id
       }
     ).then(response => {
-      setReplies(response.data);
+      setReplies(response.data.comments);
       setRepliesLoaded(true);
     });
   }
@@ -159,7 +159,7 @@ export function CommentItem(
     <div>
       <div className="flex">
         <div onClick={() => clickToUserProfile(comment.user.username)} className="cursor-pointer fade-in w-12 h-12">
-          <GravatarAvatar email={comment.user.email} size={120}/>
+          <GravatarAvatar className="w-full h-full" url={comment.user.avatarUrl} email={comment.user.email} size={100}/>
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <div className="flex gap-2 md:gap-4 items-center">

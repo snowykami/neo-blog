@@ -114,17 +114,17 @@ func (p *PostService) UpdatePost(ctx context.Context, id string, req *dto.Create
 	return post.ID, nil
 }
 
-func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, error) {
+func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, error) {
 	postDtos := make([]*dto.PostDto, 0)
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
-	posts, err := repo.Post.ListPosts(currentUserID, req.Keywords, req.Page, req.Size, req.OrderBy, req.Desc)
+	posts, total, err := repo.Post.ListPosts(currentUserID, req.Keywords, req.Labels, req.LabelRule, req.Page, req.Size, req.OrderBy, req.Desc)
 	if err != nil {
-		return nil, errs.New(errs.ErrInternalServer.Code, "failed to list posts", err)
+		return nil, total, errs.New(errs.ErrInternalServer.Code, "failed to list posts", err)
 	}
 	for _, post := range posts {
 		postDtos = append(postDtos, post.ToDtoWithShortContent(100))
 	}
-	return postDtos, nil
+	return postDtos, total, nil
 }
 
 func (p *PostService) ToggleLikePost(ctx context.Context, id string) (bool, error) {

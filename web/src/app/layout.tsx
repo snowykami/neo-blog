@@ -34,7 +34,7 @@ export default async function RootLayout({
       >
         <Toaster richColors position="top-center" offset={80} />
         <DeviceProvider>
-          <NextIntlClientProvider>{children}</NextIntlClientProvider>
+            <NextIntlClientProvider>{children}</NextIntlClientProvider>
         </DeviceProvider>
       </body>
     </html>

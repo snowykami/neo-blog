@@ -20,8 +20,8 @@ export async function createComment(
     replyId: number | null
     isPrivate: boolean
   }
-): Promise<BaseResponse<{id: number}>> {
-  const res = await axiosClient.post<BaseResponse<{id: number}>>('/comment/c', {
+): Promise<BaseResponse<{ id: number }>> {
+  const res = await axiosClient.post<BaseResponse<{ id: number }>>('/comment/c', {
     targetType,
     targetId,
     content,
@@ -68,7 +68,7 @@ export async function listComments({
   commentId: number
 } & PaginationParams
 ) {
-  const res = await axiosClient.get<BaseResponse<Comment[]>>(`/comment/list`, {
+  const res = await axiosClient.get<BaseResponse<{ "comments": Comment[] }>>(`/comment/list`, {
     params: {
       targetType,
       targetId,

@@ -17,8 +17,6 @@ import config from "@/config";
 
 import "./style.css";
 
-
-
 export function CommentSection(
   {
     targetType,
@@ -59,7 +57,7 @@ export function CommentSection(
       size: config.commentsPerPage,
       commentId: 0
     }).then(response => {
-      setComments(response.data);
+      setComments(response.data.comments);
     });
   }, [])
 
@@ -108,10 +106,10 @@ export function CommentSection(
       size: config.commentsPerPage,
       commentId: 0
     }).then(response => {
-      if (response.data.length < config.commentsPerPage) {
+      if (response.data.comments.length < config.commentsPerPage) {
         setNeedLoadMore(false);
       }
-      setComments(prevComments => [...prevComments, ...response.data]);
+      setComments(prevComments => [...prevComments, ...response.data.comments]);
       setPage(nextPage);
     });
   }

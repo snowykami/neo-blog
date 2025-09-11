@@ -5,7 +5,7 @@ import Image from "next/image";
 import crypto from "crypto";
 
 // 生成 Gravatar URL 的函数
-function getGravatarUrl(email: string, size: number = 40, defaultType: string = "identicon"): string {
+function getGravatarUrl(email: string, size: number = 200, defaultType: string = "identicon"): string {
   const hash = crypto.createHash('md5').update(email.toLowerCase().trim()).digest('hex');
   return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=${defaultType}`;
 }
@@ -21,35 +21,26 @@ interface GravatarAvatarProps {
 
 const GravatarAvatar: React.FC<GravatarAvatarProps> = ({
   email,
-  size = 40,
+  size = 200,
   className = "",
   alt = "avatar",
   url,
   defaultType = "identicon"
 }) => {
-  // 如果有自定义URL，使用自定义URL
-  if (url && url.trim() !== "") {
-    return (
+  // 把尺寸控制交给父组件的 wrapper（父组件通过 tailwind 的 w-.. h-.. 控制）
+  const gravatarUrl = url && url.trim() !== "" ? url : getGravatarUrl(email, size , defaultType);
+
+  return (
+    <div className={`relative overflow-hidden ${className}`}>
       <Image
-        src={url}
-        width={size}
-        height={size}
-        className={`rounded-full object-cover w-full h-full ${className}`}
+        src={gravatarUrl}
         alt={alt}
+        fill
+        sizes="(max-width: 640px) 64px, 200px"
+        className="rounded-full object-cover"
         referrerPolicy="no-referrer"
       />
-    );
-  }
-  const gravatarUrl = getGravatarUrl(email, size * 10, defaultType);
-  return (
-    <Image
-      src={gravatarUrl}
-      width={size}
-      height={size}
-      className={`rounded-full object-cover w-full h-full ${className}`}
-      alt={alt}
-      referrerPolicy="no-referrer"
-    />
+    </div>
   );
 };
 

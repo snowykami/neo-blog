@@ -14,7 +14,7 @@ const config = {
     },
     bodyWidth: "80vw",
     bodyWidthMobile: "100vw",
-    postsPerPage: 12,
+    postsPerPage: 9,
     commentsPerPage: 8,
     animationDurationSecond: 0.618,
     footer: {

@@ -2,6 +2,15 @@
   "HomePage": {
     "title": "Hello world!"
   },
+  "BlogHome": {
+    "hottest": "热门",
+    "hottest_posts": "热门文章",
+    "latest": "最新",
+    "latest_posts": "最新文章",
+    "loading": "加载中...",
+    "load_more": "加载更多",
+    "no_more": "没有更多了！"
+  },
   "Captcha": {
     "doing": "正在检查你是不是个人...",
     "error": "验证失败",

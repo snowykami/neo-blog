@@ -128,13 +128,13 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 		TargetType: c.Query("target_type"),
 		CommentID:  commentID,
 	}
-	resp, err := cc.service.GetCommentList(ctx, &req)
+	commentDtos, err := cc.service.GetCommentList(ctx, &req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
 		return
 	}
-	resps.Ok(c, resps.Success, resp)
+	resps.Ok(c, resps.Success, utils.H{"comments": commentDtos})
 }
 
 func (cc *CommentController) ReactComment(ctx context.Context, c *app.RequestContext) {

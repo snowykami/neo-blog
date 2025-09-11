@@ -1,8 +1,8 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { usePathname } from 'next/navigation'
-import { Navbar } from '@/components/layout/navbar'
+import { Navbar } from '@/components/layout/navbar-or-side'
 import { BackgroundProvider } from '@/contexts/background-context'
 import Footer from '@/components/layout/footer'
 import config from '@/config'
@@ -12,7 +12,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const pathname = usePathname()
   return (
     <>
       <motion.nav
@@ -23,10 +22,10 @@ export default function RootLayout({
           <Navbar />
         </header>
       </motion.nav>
-      <BackgroundProvider>
-        <div className='container mx-auto pt-16 px-4 sm:px-6 lg:px-10 max-w-7xl'>{children}</div>
-      </BackgroundProvider>
-      <Footer />
+        <BackgroundProvider>
+          <div className='container mx-auto pt-16 px-4 sm:px-6 lg:px-10 max-w-7xl'>{children}</div>
+        </BackgroundProvider>
+        <Footer />
     </>
   )
 }

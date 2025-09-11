@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-type Mode = "light" | "dark";
+type Mode = "light" | "dark" | "system";
 
 interface DeviceContextProps {
   isMobile: boolean;
@@ -19,7 +19,7 @@ interface DeviceContextProps {
 
 const DeviceContext = createContext<DeviceContextProps>({
   isMobile: false,
-  mode: "light",
+  mode: "system",
   setMode: () => {},
   toggleMode: () => {},
   viewport: {
@@ -32,7 +32,7 @@ const DeviceContext = createContext<DeviceContextProps>({
 
 export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isMobile, setIsMobile] = useState(false);
-  const [mode, setModeState] = useState<Mode>("light");
+  const [mode, setModeState] = useState<Mode>("system");
   const [viewport, setViewport] = useState({
     width: typeof window !== "undefined" ? window.innerWidth : 0,
     height: typeof window !== "undefined" ? window.innerHeight : 0,
@@ -44,6 +44,18 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
       ? "dark"
       : "light";
+
+  // 应用主题到 document
+  const applyTheme = useCallback(
+    (theme: Mode) => {
+      let effectiveTheme = theme;
+      if (theme === "system") {
+        effectiveTheme = getSystemTheme();
+      }
+      document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
+    },
+    []
+  );
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -70,47 +82,48 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedTheme = localStorage.getItem("theme") as Mode | null;
-      const systemTheme = getSystemTheme();
-      const theme = savedTheme || systemTheme;
+      const theme = savedTheme || "system";
       setModeState(theme);
-      document.documentElement.classList.toggle("dark", theme === "dark");
+      applyTheme(theme);
 
       // 监听系统主题变动
       const media = window.matchMedia("(prefers-color-scheme: dark)");
       const handleChange = (e: MediaQueryListEvent) => {
-        if (!localStorage.getItem("theme")) {
-          const newTheme = e.matches ? "dark" : "light";
-          setModeState(newTheme);
-          document.documentElement.classList.toggle("dark", newTheme === "dark");
+        if (!localStorage.getItem("theme") || localStorage.getItem("theme") === "system") {
+          applyTheme("system");
         }
       };
       media.addEventListener("change", handleChange);
       return () => media.removeEventListener("change", handleChange);
     }
-  }, []);
+  }, [applyTheme]);
 
   const setMode = useCallback((newMode: Mode) => {
     setModeState(newMode);
-    document.documentElement.classList.toggle("dark", newMode === "dark");
-    if (newMode === getSystemTheme()) {
+    applyTheme(newMode);
+    if (newMode === "system") {
       localStorage.removeItem("theme");
     } else {
       localStorage.setItem("theme", newMode);
     }
-  }, []);
+  }, [applyTheme]);
 
+  // 支持三种状态的切换：light -> dark -> system -> light ...
   const toggleMode = useCallback(() => {
     setModeState((prev) => {
-      const newMode = prev === "dark" ? "light" : "dark";
-      document.documentElement.classList.toggle("dark", newMode === "dark");
-      if (newMode === getSystemTheme()) {
+      let newMode: Mode;
+      if (prev === "light") newMode = "dark";
+      else if (prev === "dark") newMode = "system";
+      else newMode = "light";
+      applyTheme(newMode);
+      if (newMode === "system") {
         localStorage.removeItem("theme");
       } else {
         localStorage.setItem("theme", newMode);
       }
       return newMode;
     });
-  }, []);
+  }, [applyTheme]);
 
   return (
     <DeviceContext.Provider
