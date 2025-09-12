@@ -71,7 +71,6 @@ export function CommentSection(
     }).then(res => {
       toast.success(t("comment_success"));
       setTotalCommentCount(c => c + 1);
-      setComments(prevComments => prevComments.slice(0, -1));
       getComment({ id: res.data.id }).then(response => {
         console.log("New comment fetched:", response.data);
         setComments(prevComments => [response.data, ...prevComments]);
