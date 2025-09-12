@@ -22,6 +22,7 @@ type CreateCommentReq struct {
 	Content    string `json:"content" binding:"required"`     // 评论内容
 	ReplyID    uint   `json:"reply_id"`                       // 回复的评论ID
 	IsPrivate  bool   `json:"is_private"`                     // 是否私密评论，默认false
+	RemoteAddr string `json:"remote_addr"`                    // 远程地址
 }
 
 type UpdateCommentReq struct {

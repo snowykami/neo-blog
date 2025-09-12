@@ -14,6 +14,7 @@ type Comment struct {
 	Content      string `gorm:"type:text"`                       // 评论内容
 	Depth        int    `gorm:"default:0"`                       // 评论的层级深度,从0开始计数
 	IsPrivate    bool   `gorm:"default:false"`                   // 是否为私密评论，私密评论只有评论者和被评论对象所有者可见
+	RemoteAddr   string `gorm:"type:text"`                       // 远程地址
 	LikeCount    uint64
 	CommentCount uint64
 }
