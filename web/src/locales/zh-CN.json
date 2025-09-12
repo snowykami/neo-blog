@@ -56,7 +56,11 @@
   },
   "Login": {
     "captcha_error": "验证错误，请重试。",
+    "fetch_captcha_config_failed": "获取验证码失败，请稍后重试。",
+    "fetch_oidc_configs_failed": "获取第三方身份提供者配置失败。",
     "logging": "正在登录...",
+    "login_success": "登录成功！",
+    "login_failed": "登录失败",
     "welcome": "欢迎回来",
     "with_oidc": "使用第三方身份提供者",
     "or_continue_with_local_account": "或使用用户名和密码",
@@ -69,7 +73,6 @@
     "by_logging_in_you_agree_to_our": "登录即表示你同意我们的",
     "terms_of_service": "服务条款",
     "and": "和",
-    "privacy_policy": "隐私政策",
-    "login_failed": "登录失败，请检查你的凭据。"
+    "privacy_policy": "隐私政策"
   }
 }
