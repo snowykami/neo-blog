@@ -20,6 +20,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import Captcha from "../common/captcha"
 import { CaptchaProvider } from "@/models/captcha"
+import { toast } from "sonner"
 
 export function LoginForm({
   className,
@@ -47,7 +48,7 @@ export function LoginForm({
         setOidcConfigs(res.data || []) // 确保是数组
       })
       .catch((error) => {
-        console.error("Error fetching OIDC configs:", error)
+        toast.error(t("fetch_oidc_configs_failed") + (error?.message ? `: ${error.message}` : ""))
         setOidcConfigs([]) // 错误时设置为空数组
       })
   }, [])
@@ -58,7 +59,8 @@ export function LoginForm({
         setCaptchaProps(res.data)
       })
       .catch((error) => {
-        console.error("Error fetching captcha config:", error)
+        toast.error(t("fetch_captcha_config_failed") + (error?.message ? `: ${error.message}` : ""))
+        setCaptchaProps(null)
       })
   }, [refreshCaptchaKey])
 
@@ -67,11 +69,14 @@ export function LoginForm({
     e.preventDefault()
     userLogin({ username, password, captcha: captchaToken || "" })
       .then(res => {
-        console.log("Login successful:", res)
+        toast.success(t("login_success") + ` ${res.data.user.nickname || res.data.user.username}`);
         router.push(redirectBack)
       })
       .catch(error => {
-        console.error("Login failed:", error)
+        console.log(error)
+        toast.error(t("login_failed") + (error?.response?.data?.message ? `: ${error.response.data.message}` : ""))
+        setRefreshCaptchaKey(k => k + 1)
+        setCaptchaToken(null)
       })
       .finally(() => {
         setIsLogging(false)
