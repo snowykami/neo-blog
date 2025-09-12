@@ -268,6 +268,7 @@ export function CommentItem(
             user={user}
             onCommentSubmitted={onReply}
             initIsPrivate={isPrivate}
+            placeholder={`${t("reply")} ${comment.user.nickname} :`}
           />}
           {activeInput && activeInput.type === 'edit' && activeInput.id === comment.id && <CommentInput
             user={user}

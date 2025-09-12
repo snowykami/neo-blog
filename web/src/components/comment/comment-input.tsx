@@ -16,12 +16,14 @@ export function CommentInput(
     onCommentSubmitted,
     initContent = "",
     initIsPrivate = false,
+    placeholder = "",
     isUpdate = false
   }: {
     user: User | null,
     onCommentSubmitted: ({ commentContent, isPrivate }: { commentContent: string, isPrivate: boolean }) => void,
     initContent?: string,
     initIsPrivate?: boolean,
+    placeholder?: string,
     isUpdate?: boolean,
   }
 ) {
@@ -65,7 +67,7 @@ export function CommentInput(
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <Textarea
-            placeholder={user ? (isPrivate ? t("private_placeholder") : t("placeholder")) : t("login_required", { loginButton: "登录" })}
+            placeholder={placeholder || (user ? (isPrivate ? t("private_placeholder") : t("placeholder")) : t("login_required", { loginButton: "登录" }))}
             className="w-full p-2 border border-gray-300 rounded-md fade-in-up"
             value={commentContent}
             onChange={(e) => setCommentContent(e.target.value)}
