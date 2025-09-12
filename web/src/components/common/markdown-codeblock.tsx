@@ -78,7 +78,7 @@ export default function CodeBlock(props: React.ComponentPropsWithoutRef<"pre">) 
           <button
             type="button"
             className="px-2 py-1 rounded text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600"
-            title="复制代码"
+            title={t("copy")}
             onClick={handleCopy}
             tabIndex={-1}
           >
