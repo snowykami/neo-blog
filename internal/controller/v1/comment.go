@@ -32,6 +32,7 @@ func (cc *CommentController) CreateComment(ctx context.Context, c *app.RequestCo
 		return
 	}
 	req.RemoteAddr = c.RemoteAddr().String()
+	req.UserAgent = string(c.UserAgent())
 	commentID, err := cc.service.CreateComment(ctx, &req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)

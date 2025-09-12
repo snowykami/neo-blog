@@ -40,6 +40,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
     UserID:     currentUser.ID,
     IsPrivate:  req.IsPrivate,
     RemoteAddr: req.RemoteAddr,
+    UserAgent:  req.UserAgent,
   }
 
   commentID, err := repo.Comment.CreateComment(comment)
