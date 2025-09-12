@@ -35,7 +35,6 @@ export function CommentItem(
   }
 ) {
   const locale = useLocale();
-  console.log("locale", locale);
   const t = useTranslations("Comment");
   const commonT = useTranslations("Common");
   const clickToUserProfile = useToUserProfile();

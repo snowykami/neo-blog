@@ -4,7 +4,7 @@ import "./globals.css";
 import { DeviceProvider } from "@/contexts/device-context";
 import { NextIntlClientProvider } from 'next-intl';
 import config from "@/config";
-import { getUserLocales } from "@/i18n/request";
+import { getUserLocales, getFirstLocale } from '@/i18n/request';
 import { Toaster } from "@/components/ui/sonner"
 
 const geistSans = Geist({
@@ -28,7 +28,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang={(await getUserLocales())[0] || "en"} className="h-full">
+    <html lang={await getFirstLocale() || "en"} className="h-full">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

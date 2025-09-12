@@ -10,7 +10,6 @@ export default getRequestConfig(async () => {
       try {
         return (await import(`@/locales/${locale}.json`)).default;
       } catch (err) {
-        console.debug(`Failed to load locale ${locale}:`);
         return {};
       }
     })
@@ -30,8 +29,7 @@ export async function getUserLocales(): Promise<string[]> {
     const user = (await getLoginUser(token)).data;
     locales.push(user.language);
     locales.push(user.language.split('-')[0]);
-  } catch (error) {
-    console.info("获取用户信息失败，使用默认语言", error);
+  } catch {
   }
   const languageInCookie = cookieStore.get('language')?.value;
   if (languageInCookie) {
@@ -45,4 +43,9 @@ export async function getUserLocales(): Promise<string[]> {
     locales = [...new Set([...locales, ...languages, ...languagesWithoutRegion])];
   }
   return locales.reverse();
+}
+
+export async function getFirstLocale(): Promise<string> {
+  const locales = await getUserLocales();
+  return locales.reverse()[0] || 'en';
 }
