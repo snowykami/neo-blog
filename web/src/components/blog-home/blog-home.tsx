@@ -68,11 +68,8 @@ export default function BlogHome() {
   };
 
   const handlePageChange = (page: number) => {
-    // 修改查询参数和状态
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     setCurrentPage(page);
-    // 不滚动到顶部，用户可能在阅读侧边栏
-    // window.scrollTo({ top: 0, behavior: 'smooth' });
-    // 修改查询参数
     const params = new URLSearchParams(searchParams.toString());
     params.set('page', page.toString());
     const newUrl = `${window.location.pathname}?${params.toString()}`;
