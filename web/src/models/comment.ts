@@ -18,4 +18,5 @@ export interface Comment {
   os: string
   browser: string
   location: string
+  showClientInfo: boolean
 }

@@ -127,7 +127,7 @@ func (cr *CommentRepo) UpdateComment(comment *model.Comment) error {
 		return errs.New(http.StatusBadRequest, "invalid comment ID", nil)
 	}
 
-	if err := GetDB().Select("IsPrivate", "Content").Updates(comment).Error; err != nil {
+	if err := GetDB().Select("IsPrivate", "ShowClientInfo", "Content").Updates(comment).Error; err != nil {
 		return err
 	}
 

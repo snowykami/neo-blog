@@ -17,7 +17,8 @@ export function CommentInput(
     initContent = "",
     initIsPrivate = false,
     placeholder = "",
-    isUpdate = false
+    isUpdate = false,
+    initShowClientInfo = true
   }: {
     user: User | null,
     onCommentSubmitted: ({ commentContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => void,
@@ -25,6 +26,7 @@ export function CommentInput(
     initIsPrivate?: boolean,
     placeholder?: string,
     isUpdate?: boolean,
+    initShowClientInfo?: boolean
   }
 ) {
   const t = useTranslations('Comment')
@@ -33,7 +35,7 @@ export function CommentInput(
   const clickToUserProfile = useToUserProfile();
 
   const [isPrivate, setIsPrivate] = useState(initIsPrivate);
-  const [showClientInfo, setShowClientInfo] = useState(true);
+  const [showClientInfo, setShowClientInfo] = useState(initShowClientInfo);
   const [commentContent, setCommentContent] = useState(initContent);
 
   const handleCommentSubmit = async () => {
@@ -51,7 +53,7 @@ export function CommentInput(
       toast.error(t("content_required"));
       return;
     }
-    if (initContent === commentContent.trim() && initIsPrivate === isPrivate) {
+    if (initContent === commentContent.trim() && initIsPrivate === isPrivate && initShowClientInfo === showClientInfo) {
       toast.warning(t("comment_unchanged"));
       return;
     }

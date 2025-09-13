@@ -36,17 +36,21 @@ export async function createComment(
 
 export async function updateComment(
   {
-    id, content,
-    isPrivate = false
+    id, 
+    content,
+    isPrivate = false,
+    showClientInfo = true
   }: {
     id: number
     content: string
     isPrivate?: boolean // 可选字段，默认为 false
+    showClientInfo?: boolean
   }
 ): Promise<BaseResponse<Comment>> {
   const res = await axiosClient.put<BaseResponse<Comment>>(`/comment/c/${id}`, {
     content,
-    isPrivate
+    isPrivate,
+    showClientInfo,
   })
   return res.data
 }

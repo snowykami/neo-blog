@@ -59,6 +59,63 @@ export const markdownComponents = {
       {...props}
     />
   ),
+  table: (props: React.ComponentPropsWithoutRef<"table">) => {
+    const { children, className, ...rest } = props;
+    return (
+      <div className="my-4 overflow-auto rounded-md shadow-sm">
+        <table
+          className={`min-w-full divide-y divide-gray-200 dark:divide-gray-700 ${className ?? ""}`}
+          {...rest}
+        >
+          {children}
+        </table>
+      </div>
+    );
+  },
+  thead: (props: React.ComponentPropsWithoutRef<"thead">) => {
+    const { children, className, ...rest } = props;
+    return (
+      <thead className={`bg-gray-50 dark:bg-gray-800 ${className ?? ""}`} {...rest}>
+        {children}
+      </thead>
+    );
+  },
+  tbody: (props: React.ComponentPropsWithoutRef<"tbody">) => {
+    const { children, className, ...rest } = props;
+    return (
+      <tbody className={`bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700 ${className ?? ""}`} {...rest}>
+        {children}
+      </tbody>
+    );
+  },
+  tr: (props: React.ComponentPropsWithoutRef<"tr">) => {
+    const { children, className, ...rest } = props;
+    return (
+      <tr className={`odd:bg-white even:bg-gray-50 dark:odd:bg-gray-900 dark:even:bg-gray-800 ${className ?? ""}`} {...rest}>
+        {children}
+      </tr>
+    );
+  },
+  th: (props: React.ComponentPropsWithoutRef<"th">) => {
+    const { children, className, ...rest } = props;
+    return (
+      <th
+        scope="col"
+        className={`px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400 ${className ?? ""}`}
+        {...rest}
+      >
+        {children}
+      </th>
+    );
+  },
+  td: (props: React.ComponentPropsWithoutRef<"td">) => {
+    const { children, className, ...rest } = props;
+    return (
+      <td className={`px-3 py-2 align-top text-sm text-gray-700 dark:text-gray-300 ${className ?? ""}`} {...rest}>
+        {children}
+      </td>
+    );
+  },
 };
 
 export function RenderMarkdown(props: Omit<MDXRemoteProps, "components">) {

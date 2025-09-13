@@ -4,6 +4,7 @@ import (
   "context"
   "strconv"
 
+  "github.com/sirupsen/logrus"
   "github.com/snowykami/neo-blog/pkg/constant"
   "github.com/snowykami/neo-blog/pkg/utils"
 
@@ -59,6 +60,7 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
   if !ok {
     return errs.ErrUnauthorized
   }
+  logrus.Infof("UpdateComment: currentUser ID %d, req.CommentID %d", currentUser.ID, req.CommentID)
 
   comment, err := repo.Comment.GetComment(strconv.Itoa(int(req.CommentID)))
   if err != nil {
@@ -71,13 +73,11 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 
   comment.Content = req.Content
   comment.IsPrivate = req.IsPrivate
-
+  comment.ShowClientInfo = req.ShowClientInfo
   err = repo.Comment.UpdateComment(comment)
-
   if err != nil {
     return err
   }
-
   return nil
 }
 
@@ -102,7 +102,6 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID string) e
   if err := repo.Comment.DeleteComment(commentID); err != nil {
     return err
   }
-
   return nil
 }
 
@@ -120,38 +119,7 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID string) (*dt
   if comment.IsPrivate && currentUserID != comment.UserID {
     return nil, errs.ErrForbidden
   }
-  isLiked := false
-  if currentUserID != 0 {
-    isLiked, _ = repo.Like.IsLiked(currentUserID, comment.ID, constant.TargetTypeComment)
-  }
-  ua := utils.ParseUA(comment.UserAgent)
-  if !comment.ShowClientInfo {
-    comment.Location = ""
-    ua.OS = ""
-    ua.OSVersion = ""
-    ua.Browser = ""
-    ua.BrowserVer = ""
-  }
-
-  commentDto := dto.CommentDto{
-    ID:         comment.ID,
-    Content:    comment.Content,
-    TargetID:   comment.TargetID,
-    TargetType: comment.TargetType,
-    ReplyID:    comment.ReplyID,
-    CreatedAt:  comment.CreatedAt.String(),
-    UpdatedAt:  comment.UpdatedAt.String(),
-    Depth:      comment.Depth,
-    User:       comment.User.ToDto(),
-    ReplyCount: comment.CommentCount,
-    LikeCount:  comment.LikeCount,
-    IsLiked:    isLiked,
-    IsPrivate:  comment.IsPrivate,
-    OS:         ua.OS + " " + ua.OSVersion,
-    Browser:    ua.Browser + " " + ua.BrowserVer,
-    Location:   comment.Location,
-  }
-
+  commentDto := cs.toGetCommentDto(comment, currentUserID)
   return &commentDto, err
 }
 
@@ -167,39 +135,46 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
   commentDtos := make([]dto.CommentDto, 0)
   for _, comment := range comments {
     //replyCount, _ := repo.Comment.CountReplyComments(currentUserID, comment.ID)
-    isLiked := false
-    if currentUserID != 0 {
-      isLiked, _ = repo.Like.IsLiked(currentUserID, comment.ID, constant.TargetTypeComment)
-    }
-    ua := utils.ParseUA(comment.UserAgent)
-    commentDto := dto.CommentDto{
-      ID:         comment.ID,
-      Content:    comment.Content,
-      TargetID:   comment.TargetID,
-      TargetType: comment.TargetType,
-      ReplyID:    comment.ReplyID,
-      CreatedAt:  comment.CreatedAt.String(),
-      UpdatedAt:  comment.UpdatedAt.String(),
-      Depth:      comment.Depth,
-      User:       comment.User.ToDto(),
-      ReplyCount: comment.CommentCount,
-      LikeCount:  comment.LikeCount,
-      IsLiked:    isLiked,
-      IsPrivate:  comment.IsPrivate,
-      OS:         ua.OS + " " + ua.OSVersion,
-      Browser:    ua.Browser + " " + ua.BrowserVer,
-      Location:   comment.Location,
-    }
-    if !comment.ShowClientInfo {
-      commentDto.Location = ""
-      commentDto.OS = ""
-      commentDto.Browser = ""
-    }
+    commentDto := cs.toGetCommentDto(&comment, currentUserID)
     commentDtos = append(commentDtos, commentDto)
   }
   return commentDtos, nil
 }
 
+func (cs *CommentService) toGetCommentDto(comment *model.Comment, currentUserID uint) dto.CommentDto {
+  isLiked := false
+  if currentUserID != 0 {
+    isLiked, _ = repo.Like.IsLiked(currentUserID, comment.ID, constant.TargetTypeComment)
+  }
+  ua := utils.ParseUA(comment.UserAgent)
+  if !comment.ShowClientInfo {
+    comment.Location = ""
+    ua.OS = ""
+    ua.OSVersion = ""
+    ua.Browser = ""
+    ua.BrowserVer = ""
+  }
+
+  return dto.CommentDto{
+    ID:             comment.ID,
+    Content:        comment.Content,
+    TargetID:       comment.TargetID,
+    TargetType:     comment.TargetType,
+    ReplyID:        comment.ReplyID,
+    CreatedAt:      comment.CreatedAt.String(),
+    UpdatedAt:      comment.UpdatedAt.String(),
+    Depth:          comment.Depth,
+    User:           comment.User.ToDto(),
+    ReplyCount:     comment.CommentCount,
+    LikeCount:      comment.LikeCount,
+    IsLiked:        isLiked,
+    IsPrivate:      comment.IsPrivate,
+    OS:             ua.OS + " " + ua.OSVersion,
+    Browser:        ua.Browser + " " + ua.BrowserVer,
+    Location:       comment.Location,
+    ShowClientInfo: comment.ShowClientInfo,
+  }
+}
 func (cs *CommentService) checkTargetExists(targetID uint, targetType string) (bool, error) {
   switch targetType {
   case constant.TargetTypePost:
