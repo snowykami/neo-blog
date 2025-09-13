@@ -123,13 +123,14 @@ export function CommentItem(
     });
   }
 
-  const onReply = ({ commentContent, isPrivate }: { commentContent: string, isPrivate: boolean }) => {
+  const onReply = ({ commentContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => {
     createComment({
       targetType: comment.targetType,
       targetId: comment.targetId,
       content: commentContent,
       replyId: comment.id,
       isPrivate,
+      showClientInfo
     }).then(() => {
       toast.success(t("comment_success"));
       reloadReplies();

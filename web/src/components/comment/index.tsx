@@ -61,18 +61,18 @@ export function CommentSection(
     });
   }, [])
 
-  const onCommentSubmitted = ({ commentContent, isPrivate }: { commentContent: string, isPrivate: boolean }) => {
+  const onCommentSubmitted = ({ commentContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => {
     createComment({
       targetType,
       targetId,
       content: commentContent,
       replyId: null,
       isPrivate,
+      showClientInfo
     }).then(res => {
       toast.success(t("comment_success"));
       setTotalCommentCount(c => c + 1);
       getComment({ id: res.data.id }).then(response => {
-        console.log("New comment fetched:", response.data);
         setComments(prevComments => [response.data, ...prevComments]);
       });
       setActiveInput(null);

@@ -121,6 +121,7 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) (uint, error) {
 	})
 	return commentID, err
 }
+
 func (cr *CommentRepo) UpdateComment(comment *model.Comment) error {
 	if comment.ID == 0 {
 		return errs.New(http.StatusBadRequest, "invalid comment ID", nil)

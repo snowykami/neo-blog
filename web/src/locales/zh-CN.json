@@ -47,6 +47,7 @@
     "private": "私密评论",
     "private_placeholder": "悄悄地说一句...",
     "reply": "回复",
+    "show_client_info": "展示客户端信息",
     "submit": "提交",
     "unlike": "取消点赞",
     "unlike_success": "已取消点赞",

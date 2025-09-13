@@ -12,13 +12,15 @@ export async function createComment(
     targetId,
     content,
     replyId = null,
-    isPrivate = false
+    isPrivate = false,
+    showClientInfo = true,
   }: {
     targetType: TargetType
     targetId: number
     content: string
     replyId: number | null
     isPrivate: boolean
+    showClientInfo: boolean
   }
 ): Promise<BaseResponse<{ id: number }>> {
   const res = await axiosClient.post<BaseResponse<{ id: number }>>('/comment/c', {
@@ -26,7 +28,8 @@ export async function createComment(
     targetId,
     content,
     replyId,
-    isPrivate
+    isPrivate,
+    showClientInfo,
   })
   return res.data
 }
