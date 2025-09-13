@@ -1,6 +1,7 @@
 package model
 
 import (
+	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
 
@@ -16,6 +17,12 @@ type Comment struct {
 	IsPrivate    bool   `gorm:"default:false"`                   // 是否为私密评论，私密评论只有评论者和被评论对象所有者可见
 	RemoteAddr   string `gorm:"type:text"`                       // 远程地址
 	UserAgent    string `gorm:"type:text"`
+	Location     string `gorm:"type:text"` // 用户位置，基于IP
 	LikeCount    uint64
 	CommentCount uint64
+}
+
+func (c *Comment) AfterCreate(tx *gorm.DB) (err error) {
+	// 更新评论IP
+	return tx.Model(c).Update("Location", utils.GetLocationString(c.RemoteAddr)).Error
 }

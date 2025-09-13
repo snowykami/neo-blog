@@ -14,6 +14,9 @@ type CommentDto struct {
 	LikeCount  uint64  `json:"like_count"`  // 点赞数量
 	IsLiked    bool    `json:"is_liked"`    // 当前用户是否点赞
 	IsPrivate  bool    `json:"is_private"`
+	Location   string  `json:"location"` // 用户位置，基于IP
+	OS         string  `json:"os"`       // 用户操作系统，基于User-Agent
+	Browser    string  `json:"browser"`  // 用户浏览器，基于User-Agent
 }
 
 type CreateCommentReq struct {

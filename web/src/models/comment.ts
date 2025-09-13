@@ -15,4 +15,7 @@ export interface Comment {
   replyCount: number
   likeCount: number
   isLiked: boolean
+  os: string
+  browser: string
+  location: string
 }

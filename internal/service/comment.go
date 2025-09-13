@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/utils"
 
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -122,6 +123,7 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID string) (*dt
 		UpdatedAt:  comment.UpdatedAt.String(),
 		User:       comment.User.ToDto(),
 	}
+	// TODO: 返回更多字段
 
 	return &commentDto, err
 }
@@ -145,7 +147,7 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 		if currentUserID != 0 {
 			isLiked, _ = repo.Like.IsLiked(currentUserID, comment.ID, constant.TargetTypeComment)
 		}
-
+		ua := utils.ParseUA(comment.UserAgent)
 		commentDto := dto.CommentDto{
 			ID:         comment.ID,
 			Content:    comment.Content,
@@ -160,6 +162,9 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 			LikeCount:  comment.LikeCount,
 			IsLiked:    isLiked,
 			IsPrivate:  comment.IsPrivate,
+			OS:         ua.OS + " " + ua.OSVersion,
+			Browser:    ua.Browser + " " + ua.BrowserVer,
+			Location:   comment.Location,
 		}
 		commentDtos = append(commentDtos, commentDto)
 	}

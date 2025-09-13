@@ -1,9 +1,10 @@
 package utils
 
 import (
+	"time"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/snowykami/neo-blog/pkg/constant"
-	"time"
 )
 
 type jwtUtils struct{}

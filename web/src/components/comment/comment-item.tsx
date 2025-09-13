@@ -158,7 +158,7 @@ export function CommentItem(
     <div>
       <div className="flex">
         <div onClick={() => clickToUserProfile(comment.user.username)} className="cursor-pointer fade-in w-12 h-12">
-          <GravatarAvatar className="w-full h-full" url={comment.user.avatarUrl} email={comment.user.email} size={100}/>
+          <GravatarAvatar className="w-full h-full" url={comment.user.avatarUrl} email={comment.user.email} size={100} />
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <div className="flex gap-2 md:gap-4 items-center">
@@ -181,7 +181,6 @@ export function CommentItem(
                 })
               })}</span>}
           </div>
-
           <p className="text-lg text-slate-600 dark:text-slate-400 fade-in">
             {
               isPrivate && <Lock className="inline w-4 h-4 mr-1 mb-1 text-slate-500 dark:text-slate-400" />
@@ -192,77 +191,84 @@ export function CommentItem(
             }
             {comment.content}
           </p>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-4 fade-in">
-
-            {/* 点赞按钮 */}
-            <button
-              title={t(liked ? "unlike" : "like")}
-              onClick={handleToggleLike}
-              className={`flex items-center justify-center px-2 py-1 h-5 gap-1 text-xs rounded 
-                        ${liked ? 'bg-primary ' : 'bg-slate-400 hover:bg-slate-600'}
-                         text-primary-foreground dark:text-white dark:hover:bg-slate-500 fade-in`}
-            >
-              <Heart className="w-3 h-3" /> <div>{likeCount}</div>
-            </button>
-            {/* 回复按钮 */}
-            <button
+            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 fade-in flex flex-col md:flex-row items-start md:items-center md:justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* 用户地理，浏览器，系统信息 */}
+              {comment.location && <span title={comment.location} >{comment.location}</span>}
+              {comment.browser && <span title={comment.browser}>{comment.browser}</span>}
+              {comment.os && <span title={comment.os}>{comment.os}</span>}
+            </div>
+            <div className="flex items-center gap-4 w-full md:w-auto">
+              {/* 回复按钮 */}
+              <button
               title={t("reply")}
               onClick={() => {
                 if (activeInput?.type === 'reply' && activeInput.id === comment.id) {
-                  setActiveInputId(null);
+                setActiveInputId(null);
                 } else {
-                  setActiveInputId({ id: comment.id, type: 'reply' });
+                setActiveInputId({ id: comment.id, type: 'reply' });
                 }
               }}
               className={`flex items-center justify-center px-2 py-1 h-5 
-                  text-primary-foreground dark:text-white text-xs 
-                  rounded ${activeInput?.type === 'reply' && activeInput.id === comment.id ? "bg-slate-600" : "bg-slate-400"} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}>
+              text-primary-foreground dark:text-white text-xs 
+              rounded ${activeInput?.type === 'reply' && activeInput.id === comment.id ? "bg-slate-600" : "bg-slate-400"} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}
+              >
               <Reply className="w-3 h-3" />
-            </button>
-            {/* 编辑和删除按钮 仅自己的评论可见 */}
-            {user?.id === comment.user.id && (
+              </button>
+              {/* 点赞按钮 */}
+              <button
+              title={t(liked ? "unlike" : "like")}
+              onClick={handleToggleLike}
+              className={`flex items-center justify-center px-2 py-1 h-5 gap-1 text-xs rounded 
+                ${liked ? 'bg-primary' : 'bg-slate-400 hover:bg-slate-600'}
+                 text-primary-foreground dark:text-white dark:hover:bg-slate-500 fade-in`}
+              >
+              <Heart className="w-3 h-3" /> <div>{likeCount}</div>
+              </button>
+
+              {/* 编辑和删除按钮 仅自己的评论可见 */}
+              {user?.id === comment.user.id && (
               <>
                 <button
-                  title={t("edit")}
-                  onClick={() => {
-                    if (activeInput?.type === 'edit' && activeInput.id === comment.id) {
-                      setActiveInputId(null);
-                    } else {
-                      setActiveInputId({ id: comment.id, type: 'edit' });
-                    }
-                  }}
-                  className={`
+                title={t("edit")}
+                onClick={() => {
+                  if (activeInput?.type === 'edit' && activeInput.id === comment.id) {
+                  setActiveInputId(null);
+                  } else {
+                  setActiveInputId({ id: comment.id, type: 'edit' });
+                  }
+                }}
+                className={`
                 flex items-center justify-center px-2 py-1 h-5 
                 text-primary-foreground dark:text-white text-xs 
                 rounded ${activeInput?.type === 'edit' && activeInput.id === comment.id ? "bg-slate-600" : "bg-slate-400"} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}
-
                 >
-                  <Pencil className="w-3 h-3" />
+                <Pencil className="w-3 h-3" />
                 </button>
 
                 <button
-                  title={t("delete")}
-                  className={`flex items-center justify-center px-2 py-1 h-5 rounded
-                  text-primary-foreground dark:text-white text-xs 
-                  ${confirming ? 'bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600' : 'bg-slate-400 hover:bg-slate-600 dark:hover:bg-slate-500'} fade-in`}
-                  onClick={() => onClick(() => { onCommentDelete({ commentId: comment.id }); })}
-                  onBlur={onBlur}
+                title={t("delete")}
+                className={`flex items-center justify-center px-2 py-1 h-5 rounded
+                text-primary-foreground dark:text-white text-xs 
+                ${confirming ? 'bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600' : 'bg-slate-400 hover:bg-slate-600 dark:hover:bg-slate-500'} fade-in`}
+                onClick={() => onClick(() => { onCommentDelete({ commentId: comment.id }); })}
+                onBlur={onBlur}
                 >
-
-                  <Trash className="w-3 h-3" />
-                  {confirming && (
-                    <span className="ml-1 confirm-delete-anim">{t("confirm_delete")}</span>
-                  )}
+                <Trash className="w-3 h-3" />
+                {confirming && (
+                  <span className="ml-1 confirm-delete-anim">{t("confirm_delete")}</span>
+                )}
                 </button>
               </>
-            )}
+              )}
 
-            {replyCount > 0 &&
+              {replyCount > 0 && (
               <button onClick={toggleReplies} className="fade-in-up">
                 {!showReplies ? t("expand_replies", { count: replyCount }) : t("collapse_replies")}
               </button>
-            }
-          </div>
+              )}
+            </div>
+            </div>
           {/* 这俩输入框一次只能显示一个 */}
           {activeInput && activeInput.type === 'reply' && activeInput.id === comment.id && <CommentInput
             user={user}
