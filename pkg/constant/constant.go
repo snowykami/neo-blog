@@ -8,7 +8,8 @@ const (
   ContextKeyUserID                       = "user_id"   // 上下文键：用户ID
   ModeDev                                = "dev"
   ModeProd                               = "prod"
-  RoleUser                               = "user"
+  RoleUser                               = "user"   // 普通用户 仅有阅读和评论权限
+  RoleEditor                             = "editor" // 能够发布和管理自己内容的用户
   RoleAdmin                              = "admin"
   EnvKeyBaseUrl                          = "BASE_URL"                             // 环境变量：基础URL
   EnvKeyCaptchaProvider                  = "CAPTCHA_PROVIDER"                     // captcha提供者

@@ -95,7 +95,15 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID string) e
 		return errs.New(errs.ErrNotFound.Code, "comment not found", err)
 	}
 
-	if comment.UserID != currentUser.ID {
+	isTargetOwner := false
+	if comment.TargetType == constant.TargetTypePost {
+		post, err := repo.Post.GetPostByID(strconv.Itoa(int(comment.TargetID)))
+		if err == nil && post.UserID == currentUser.ID {
+			isTargetOwner = true
+		}
+	}
+
+	if comment.UserID != currentUser.ID || isTargetOwner {
 		return errs.ErrForbidden
 	}
 
