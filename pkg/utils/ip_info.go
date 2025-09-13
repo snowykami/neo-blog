@@ -1,9 +1,12 @@
 package utils
 
 import (
+	"bytes"
 	"fmt"
+	"text/template"
 
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
 type IPData struct {
@@ -56,5 +59,18 @@ func GetLocationString(ip string) string {
 	if ipInfo == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s %s %s %s", ipInfo.Country, ipInfo.Province, ipInfo.City, ipInfo.ISP)
+
+	tpl := Env.Get(constant.EnvKeyLocationFormat, "{{.Country}} {{.Province}} {{.City}} {{.ISP}}")
+	t, err := template.New("location").Parse(tpl)
+	if err != nil {
+		logrus.Error(err)
+		return ""
+	}
+
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, ipInfo); err != nil {
+		logrus.Error(err)
+		return ""
+	}
+	return buf.String()
 }
