@@ -3,7 +3,10 @@ import { cookies } from 'next/headers'
 import BlogPost from '@/components/blog-post/blog-post'
 
 // 这个是approuter固定的传入格式，无法更改
-export default async function PostPage({ params }: { params: { id: string } }) {
+interface PostPageProps {
+  params: { id: string }
+}
+export default async function PostPage({ params }: PostPageProps) {
   const cookieStore = await cookies();
   const { id } = params;
   const post = await getPostById({id, token: cookieStore.get('token')?.value || ''});
