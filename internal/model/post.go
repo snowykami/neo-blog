@@ -22,7 +22,7 @@ type Post struct {
 	LikeCount    uint64
 	CommentCount uint64
 	ViewCount    uint64
-	Heat         uint64 `gorm:"default:0"`
+	Heat         uint64
 }
 
 // CalculateHeat 热度计算
@@ -32,17 +32,6 @@ func (p *Post) CalculateHeat() float64 {
 			p.CommentCount*constant.HeatFactorCommentWeight +
 			p.ViewCount*constant.HeatFactorViewWeight,
 	)
-}
-
-// AfterUpdate 热度指标更新后更新热度
-func (p *Post) AfterUpdate(tx *gorm.DB) (err error) {
-	if tx.Statement.Changed("LikeCount") || tx.Statement.Changed("CommentCount") || tx.Statement.Changed("ViewCount") {
-		p.Heat = uint64(p.CalculateHeat())
-		if err := tx.Model(p).Update("heat", p.Heat).Error; err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (p *Post) ToDto() *dto.PostDto {
@@ -65,7 +54,7 @@ func (p *Post) ToDto() *dto.PostDto {
 		LikeCount:    p.LikeCount,
 		CommentCount: p.CommentCount,
 		ViewCount:    p.ViewCount,
-		Heat:         p.Heat,
+		Heat:         uint64(p.CalculateHeat()),
 		CreatedAt:    p.CreatedAt,
 		UpdatedAt:    p.UpdatedAt,
 		User:         p.User.ToDto(),

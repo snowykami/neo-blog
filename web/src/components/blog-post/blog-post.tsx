@@ -15,7 +15,7 @@ function PostMeta({ post }: { post: Post }) {
       {/* 作者 */}
       <span className="flex items-center gap-1">
         <PenLine className="w-4 h-4" />
-        {post.user.nickname || "未知作者"}
+        {post.user.nickname || post.user.username || "未知作者"}
       </span>
       {/* 字数 */}
       <span className="flex items-center gap-1">
@@ -140,10 +140,10 @@ async function PostContent({ post }: { post: Post }) {
 }
 
 
-async function BlogPost({ post }: { post: Post }) {
+async function BlogPost({ post }: { post: Post}) {
   return (
     <div className="h-full"
-    >
+    > 
       {/* <ScrollToTop /> */}
       <motion.div
         initial={{ opacity: 0, y: -30 }}

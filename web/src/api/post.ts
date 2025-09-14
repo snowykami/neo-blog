@@ -4,7 +4,7 @@ import axiosClient from './client'
 import { OrderBy, PaginationParams } from '@/models/common'
 
 
-export async function getPostById(id: string, token: string=""): Promise<Post | null> {
+export async function getPostById({id, token = ""}: {id: string, token: string}): Promise<Post | null> {
   try {
     const res = await axiosClient.get<BaseResponse<Post>>(`/post/p/${id}`, {
       headers: {

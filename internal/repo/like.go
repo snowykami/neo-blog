@@ -50,19 +50,6 @@ func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string) (bool, e
 		if err := tx.Model(&model.Like{}).Where("target_type = ? AND target_id = ?", targetType, targetID).Count(&count).Error; err != nil {
 			return err
 		}
-		// 更新目标的点赞数量
-		//switch targetType {
-		//case constant.TargetTypePost:
-		//	if err := tx.Model(&model.Post{}).Where("id = ?", targetID).UpdateColumn("like_count", count).Error; err != nil {
-		//		return err
-		//	}
-		//case constant.TargetTypeComment:
-		//	if err := tx.Model(&model.Comment{}).Where("id = ?", targetID).UpdateColumn("like_count", count).Error; err != nil {
-		//		return err
-		//	}
-		//default:
-		//	return errors.New("invalid target type")
-		//}
 		return nil
 	})
 	return finalStatus, err

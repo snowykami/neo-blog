@@ -2,6 +2,9 @@ package middleware
 
 import (
 	"context"
+	"strings"
+	"time"
+
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -9,8 +12,6 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	"github.com/snowykami/neo-blog/pkg/utils"
-	"strings"
-	"time"
 )
 
 func UseAuth(block bool) app.HandlerFunc {
@@ -76,6 +77,46 @@ func UseAuth(block bool) app.HandlerFunc {
 			logrus.Debug("UseAuth: all authentication methods failed, blocking request")
 			c.Next(ctx)
 		}
+	}
+}
+
+// UseRole 检查用户角色是否符合要求，必须在 UseAuth 之后使用
+// requiredRole 可以是 "admin", "editor", "user" 等
+// admin包含editor， editor包含user
+func UseRole(requiredRole string) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		currentUserID := ctx.Value(constant.ContextKeyUserID)
+		if currentUserID == nil {
+			resps.Unauthorized(c, resps.ErrUnauthorized)
+			c.Abort()
+			return
+		}
+		userID := currentUserID.(uint)
+		user, err := repo.User.GetUserByID(userID)
+		if err != nil {
+			resps.InternalServerError(c, resps.ErrInternalServerError)
+			c.Abort()
+			return
+		}
+		if user == nil {
+			resps.Unauthorized(c, resps.ErrUnauthorized)
+			c.Abort()
+			return
+		}
+
+		roleHierarchy := map[string]int{
+			constant.RoleUser:   1,
+			constant.RoleEditor: 2,
+			constant.RoleAdmin:  3,
+		}
+		userRoleLevel := roleHierarchy[user.Role]
+		requiredRoleLevel := roleHierarchy[requiredRole]
+		if userRoleLevel < requiredRoleLevel {
+			resps.Forbidden(c, resps.ErrForbidden)
+			c.Abort()
+			return
+		}
+		c.Next(ctx)
 	}
 }
 

@@ -17,8 +17,8 @@ import config from "@/config"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
-import { Switch } from "../ui/switch"
 import { ThemeModeToggle } from "../common/theme-toggle"
+import { AvatarWithDropdownMenu } from "./avatar-with-dropdown-menu"
 
 const navbarMenuComponents = [
   {
@@ -49,12 +49,13 @@ export function Navbar() {
   return (
     <nav className={`grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-full px-4 w-full ${navbarAdditionalClassName}`}>
       <div className="flex items-center justify-start">
-        <span className="font-bold truncate">{config.metadata.name}</span>
+        <span className="font-bold truncate"><Link href="/">{config.metadata.name}</Link></span>
       </div>
       <div className="flex items-center justify-center">
         <NavMenuCenter />
       </div>
       <div className="flex items-center justify-end space-x-2">
+        <AvatarWithDropdownMenu />
         <ThemeModeToggle className="hidden md:block" />
         <SidebarMenuClientOnly />
       </div>
@@ -137,7 +138,6 @@ function SidebarMenu() {
           </button>
         </SheetTrigger>
         <SheetContent side="right" className="p-0 w-64">
-          {/* 可访问性要求的标题，视觉上隐藏 */}
           <SheetTitle className="sr-only">侧边栏菜单</SheetTitle>
           <nav className="flex flex-col gap-2 p-4">
             {navbarMenuComponents.map((item) =>

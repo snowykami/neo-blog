@@ -25,6 +25,11 @@ export async function userLogin(
   return res.data
 }
 
+export async function userLogout(): Promise<BaseResponse<null>> {
+  const res = await axiosClient.post<BaseResponse<null>>('/user/logout')
+  return res.data
+}
+
 export async function userRegister(
   data: RegisterRequest,
 ): Promise<BaseResponse<{ token: string, user: User }>> {

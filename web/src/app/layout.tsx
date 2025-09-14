@@ -4,7 +4,7 @@ import "./globals.css";
 import { DeviceProvider } from "@/contexts/device-context";
 import { NextIntlClientProvider } from 'next-intl';
 import config from "@/config";
-import { getUserLocales, getFirstLocale } from '@/i18n/request';
+import { getFirstLocale } from '@/i18n/request';
 import { Toaster } from "@/components/ui/sonner"
 
 const geistSans = Geist({
@@ -34,7 +34,9 @@ export default async function RootLayout({
       >
         <Toaster richColors position="top-center" offset={80} />
         <DeviceProvider>
-            <NextIntlClientProvider>{children}</NextIntlClientProvider>
+            <NextIntlClientProvider>
+              {children}
+            </NextIntlClientProvider>
         </DeviceProvider>
       </body>
     </html>

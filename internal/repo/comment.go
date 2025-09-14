@@ -102,6 +102,7 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) (uint, error) {
 			return err
 		}
 		commentID = comment.ID // 记录主键
+		// 更新目标的评论数量
 		switch comment.TargetType {
 		case constant.TargetTypePost:
 			var count int64
@@ -112,6 +113,15 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) (uint, error) {
 			}
 			if err := tx.Model(&model.Post{}).Where("id = ?", comment.TargetID).
 				UpdateColumn("comment_count", count).Error; err != nil {
+				return err
+			}
+			// 查询最新 Post
+			var post model.Post
+			if err := tx.Where("id = ?", comment.TargetID).First(&post).Error; err != nil {
+				return err
+			}
+			// 更新热度
+			if err := tx.Model(&post).UpdateColumn("heat", post.CalculateHeat()).Error; err != nil {
 				return err
 			}
 		default:

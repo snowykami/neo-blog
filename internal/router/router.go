@@ -4,6 +4,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/internal/middleware"
 	"github.com/snowykami/neo-blog/internal/router/apiv1"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -26,6 +27,6 @@ func init() {
 		server.WithHostPorts(":"+utils.Env.Get("PORT", "8888")),
 		server.WithMaxRequestBodySize(utils.Env.GetAsInt("MAX_REQUEST_BODY_SIZE", 1048576000)), // 1000MiB
 	)
-	h.Use(recovery.Recovery())
+	h.Use(recovery.Recovery(), middleware.UseTrack())
 	apiv1.RegisterRoutes(h)
 }

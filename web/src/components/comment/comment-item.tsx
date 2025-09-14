@@ -190,7 +190,7 @@ export function CommentItem(
             }
             {
               parentComment &&
-              <>{t("reply")} <button onClick={() => clickToUserProfile(parentComment.user.nickname)} className="text-primary">{parentComment?.user.nickname}</button>: </>
+              <>{t("reply")} <button onClick={() => clickToUserProfile(parentComment.user.username)} className="text-primary">{parentComment.user.nickname || parentComment.user.username}</button>: </>
             }
             {commentState.content}
           </p>
@@ -277,7 +277,7 @@ export function CommentItem(
             user={user}
             onCommentSubmitted={onReply}
             initIsPrivate={commentState.isPrivate}
-            placeholder={`${t("reply")} ${commentState.user.nickname} :`}
+            placeholder={`${t("reply")} ${commentState.user.nickname || commentState.user.username} :`}
           />}
           {activeInput && activeInput.type === 'edit' && activeInput.id === commentState.id && <CommentInput
             user={user}

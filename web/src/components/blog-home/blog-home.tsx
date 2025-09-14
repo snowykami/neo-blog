@@ -29,7 +29,6 @@ export default function BlogHome() {
   // 从路由查询参数中获取页码和标签们
   const searchParams = useSearchParams();
   const t = useTranslations("BlogHome");
-
   const [labels, setLabels] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);

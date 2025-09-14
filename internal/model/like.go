@@ -18,8 +18,18 @@ type Like struct {
 func (l *Like) AfterCreate(tx *gorm.DB) (err error) {
 	switch l.TargetType {
 	case constant.TargetTypePost:
-		return tx.Model(&Post{}).Where("id = ?", l.TargetID).
-			UpdateColumn("like_count", gorm.Expr("like_count + ?", 1)).Error
+		// 点赞数+1
+		if err := tx.Model(&Post{}).Where("id = ?", l.TargetID).
+			UpdateColumn("like_count", gorm.Expr("like_count + ?", 1)).Error; err != nil {
+			return err
+		}
+		// 查询最新 Post
+		var post Post
+		if err := tx.First(&post, l.TargetID).Error; err != nil {
+			return err
+		}
+		// 更新热度
+		return tx.Model(&post).UpdateColumn("heat", post.CalculateHeat()).Error
 	case constant.TargetTypeComment:
 		return tx.Model(&Comment{}).Where("id = ?", l.TargetID).
 			UpdateColumn("like_count", gorm.Expr("like_count + ?", 1)).Error
