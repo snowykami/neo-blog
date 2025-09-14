@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -92,7 +91,6 @@ func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 	if redirectUri == "" {
 		redirectUri = "/"
 	}
-	fmt.Println("redirectBack:", redirectUri)
 	oidcLoginReq := &dto.OidcLoginReq{
 		Name:  name,
 		Code:  code,

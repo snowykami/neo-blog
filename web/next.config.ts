@@ -18,6 +18,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'pass.liteyuki.org',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
   async rewrites() {

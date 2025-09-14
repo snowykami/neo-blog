@@ -166,7 +166,7 @@ export function CommentItem(
         <div className="flex-1 pl-2 fade-in-up">
           <div className="flex gap-2 md:gap-4 items-center">
             <div onClick={() => clickToUserProfile(commentState.user.username)} className="font-bold text-base text-slate-800 dark:text-slate-100 cursor-pointer fade-in-up">
-              {commentState.user.nickname}
+              {commentState.user.nickname || commentState.user.username}
             </div>
             <span className="text-xs">{formatDateTime({
               dateTimeString: commentState.createdAt,

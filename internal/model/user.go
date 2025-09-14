@@ -7,7 +7,7 @@ import (
 
 type User struct {
 	gorm.Model
-	Username  string `gorm:"uniqueIndex"` // 用户名，唯一
+	Username  string `gorm:"uniqueIndex;not null"` // 用户名，唯一
 	Nickname  string
 	AvatarUrl string
 	Email     string `gorm:"uniqueIndex"`
