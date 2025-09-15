@@ -20,6 +20,7 @@ import { getLoginUser, userLogout } from "@/api/user";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useToLogin } from "@/hooks/use-route";
+import { CircleUser } from "lucide-react";
 
 export function AvatarWithDropdownMenu() {
   const [user, setUser] = useState<User | null>(null);
@@ -43,19 +44,16 @@ export function AvatarWithDropdownMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="rounded-full overflow-hidden">
-          <GravatarAvatar className="w-9 h-9" email={user?.email || ""} url={user?.avatarUrl || ""} />
+          {user ? <GravatarAvatar className="w-8 h-8" email={user?.email || ""} url={user?.avatarUrl || ""} /> : <CircleUser className="w-9 h-9" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="start">
         <DropdownMenuLabel>My Account</DropdownMenuLabel>
         <DropdownMenuGroup>
-          <DropdownMenuItem asChild>
+          {user && <DropdownMenuItem asChild>
             <Link href={`/u/${user?.username}`}>Profile</Link>
-          </DropdownMenuItem>
+          </DropdownMenuItem>}
           <DropdownMenuItem asChild>
-            <Link href="/billing">Billing</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
             <Link href="/console">Console</Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>

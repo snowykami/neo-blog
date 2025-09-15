@@ -17,7 +17,7 @@ import { formatDateTime } from "@/utils/common/datetime";
 
 export function CommentItem(
   {
-    user,
+    loginUser,
     comment,
     parentComment,
     onCommentDelete,
@@ -25,7 +25,7 @@ export function CommentItem(
     setActiveInputId,
     onReplySubmitted  // 评论区计数更新用
   }: {
-    user: User | null,
+    loginUser: User | null,
     comment: Comment,
     parentComment: Comment | null,
     onCommentDelete: ({ commentId }: { commentId: number }) => void,
@@ -55,17 +55,13 @@ export function CommentItem(
       return;
     }
     setCanClickLike(false);
-    if (!user) {
+    if (!loginUser) {
       toast.error(t("login_required"), {
-        action: <div className="flex justify-end">
-          <button
-            onClick={clickToLogin}
-            className="ml-0 text-left bg-red-400 text-white dark:text-black px-3 py-1 rounded font-semibold hover:bg-red-600 transition-colors"
-          >
-            {commonT("login")}
-          </button>
-        </div>,
-      });
+        action: {
+          label: commonT("login"),
+          onClick: clickToLogin,
+        },
+      })
       return;
     }
     // 提前转换状态，让用户觉得响应很快
@@ -202,6 +198,11 @@ export function CommentItem(
               {commentState.os && <span title={commentState.os}>{commentState.os}</span>}
             </div>
             <div className="flex items-center gap-4 w-full md:w-auto">
+              {replyCount > 0 && (
+                <button onClick={toggleReplies} className="fade-in-up">
+                  {!showReplies ? t("expand_replies", { count: replyCount }) : t("collapse_replies")}
+                </button>
+              )}
               {/* 回复按钮 */}
               <button
                 title={t("reply")}
@@ -228,9 +229,9 @@ export function CommentItem(
               >
                 <Heart className="w-3 h-3" /> <div>{likeCount}</div>
               </button>
-
+              
               {/* 编辑和删除按钮 仅自己的评论可见 */}
-              {user?.id === commentState.user.id && (
+              {loginUser?.id === commentState.user.id && (
                 <>
                   <button
                     title={t("edit")}
@@ -265,22 +266,18 @@ export function CommentItem(
                 </>
               )}
 
-              {replyCount > 0 && (
-                <button onClick={toggleReplies} className="fade-in-up">
-                  {!showReplies ? t("expand_replies", { count: replyCount }) : t("collapse_replies")}
-                </button>
-              )}
+              
             </div>
           </div>
           {/* 这俩输入框一次只能显示一个 */}
           {activeInput && activeInput.type === 'reply' && activeInput.id === commentState.id && <CommentInput
-            user={user}
+            user={loginUser}
             onCommentSubmitted={onReply}
             initIsPrivate={commentState.isPrivate}
             placeholder={`${t("reply")} ${commentState.user.nickname || commentState.user.username} :`}
           />}
           {activeInput && activeInput.type === 'edit' && activeInput.id === commentState.id && <CommentInput
-            user={user}
+            user={loginUser}
             initContent={commentState.content}
             initIsPrivate={commentState.isPrivate}
             onCommentSubmitted={onCommentEdit}
@@ -295,7 +292,7 @@ export function CommentItem(
           {replies.map((reply) => (
             <CommentItem
               key={reply.id}
-              user={reply.user}
+              loginUser={loginUser}
               comment={reply}
               parentComment={commentState}
               onCommentDelete={onReplyDelete}

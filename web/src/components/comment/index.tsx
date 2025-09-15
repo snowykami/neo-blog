@@ -29,7 +29,7 @@ export function CommentSection(
   }
 ) {
   const t = useTranslations('Comment')
-  const [user, setUser] = useState<User | null>(null);
+  const [loginUser, setLoginUser] = useState<User | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [activeInput, setActiveInput] = useState<{ id: number; type: 'reply' | 'edit' } | null>(null);
   const [page, setPage] = useState(1); // 当前页码
@@ -39,9 +39,10 @@ export function CommentSection(
   // 获取登录用户信息
   useEffect(() => {
     getLoginUser().then(res => {
-      setUser(res.data);
+      setLoginUser(res.data);
+      console.log("login user:", res.data);
     }).catch(() => {
-      setUser(null);
+      setLoginUser(null);
     });
   }, []);
   // 加载0/顶层评论
@@ -117,7 +118,7 @@ export function CommentSection(
       <Separator className="my-16" />
       <div className="font-bold text-2xl">{t("comment")} ({totalCommentCount})</div>
       <CommentInput
-        user={user}
+        user={loginUser}
         onCommentSubmitted={onCommentSubmitted}
       />
       <div className="mt-4">
@@ -126,7 +127,7 @@ export function CommentSection(
             <div key={comment.id} className="" style={{ animationDelay: `${idx * 60}ms` }}>
               <Separator className="my-2" />
               <CommentItem
-                user={user}
+                loginUser={loginUser}
                 comment={comment}
                 parentComment={null}
                 onCommentDelete={onCommentDelete}
