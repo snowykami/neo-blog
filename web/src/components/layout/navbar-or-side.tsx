@@ -19,6 +19,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { Menu } from "lucide-react"
 import { ThemeModeToggle } from "../common/theme-toggle"
 import { AvatarWithDropdownMenu } from "./avatar-with-dropdown-menu"
+import { cn } from "@/lib/utils"
 
 const navbarMenuComponents = [
   {
@@ -70,18 +71,18 @@ function NavMenuCenter() {
         {navbarMenuComponents.map((item) => (
           <NavigationMenuItem key={item.title}>
             {item.href ? (
-              <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+              <NavigationMenuLink asChild className={cn(navigationMenuTriggerStyle(), "bg-transparent")}>
                 <Link href={item.href} className="flex items-center gap-1 font-extrabold">
                   <span>{item.title}</span>
                 </Link>
               </NavigationMenuLink>
             ) : item.children ? (
               <>
-                <NavigationMenuTrigger className="flex items-center gap-1 font-extrabold">
+                <NavigationMenuTrigger className="flex items-center gap-1 font-extrabold bg-transparent">
                   <span>{item.title}</span>
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
-                  <ul className="grid gap-2 p-0 min-w-[200px] max-w-[600px] grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
+                  <ul className="grid gap-2 p-0 min-w-[200px] max-w-[600px] grid-cols-[repeat(auto-fit,minmax(120px,1fr))] ">
                     {item.children.map((child) => (
                       <ListItem
                         key={child.title}
