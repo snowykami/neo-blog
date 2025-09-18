@@ -35,10 +35,10 @@ import { getFallbackAvatarFromUsername } from "@/utils/common/username"
 export function NavUser({
   user,
 }: {
-  user: User
+  user?: User
 }) {
   const { isMobile } = useSidebar()
-
+  if (!user) return null
   return (
     <SidebarMenu>
       <SidebarMenuItem>

@@ -1,12 +1,7 @@
 "use client"
-import { useEffect, useState } from "react"
+
 import {
-  IconChartBar,
-  IconDashboard,
-  IconFolder,
   IconInnerShadowTop,
-  IconListDetails,
-  IconUsers,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/console/nav-main"
@@ -22,52 +17,39 @@ import {
 } from "@/components/ui/sidebar"
 import config from "@/config"
 import Link from "next/link"
-import { getLoginUser } from "@/api/user"
-import { User } from "@/models/user"
+import { Folder, Gauge, MessageCircle, Newspaper, Users } from "lucide-react"
 
 const data = {
   navMain: [
     {
       title: "大石坝",
       url: "/console",
-      icon: IconDashboard,
+      icon: Gauge,
     },
     {
       title: "文章管理",
       url: "/console/post",
-      icon: IconListDetails,
+      icon: Newspaper,
     },
     {
       title: "评论管理",
       url: "/console/comment",
-      icon: IconChartBar,
+      icon: MessageCircle,
     },
     {
       title: "文件管理",
       url: "/console/file",
-      icon: IconFolder,
+      icon: Folder,
     },
     {
       title: "用户管理",
       url: "/console/user",
-      icon: IconUsers,
+      icon: Users,
     },
   ]
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const [loginUser, setLoginUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    getLoginUser().then(resp => {
-      setLoginUser(resp.data);
-    });
-  }, [])
-
-  if (!loginUser) {
-    return null; // 或者返回一个加载指示器
-  }
-
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -89,7 +71,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain items={data.navMain} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={loginUser} />
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
   )

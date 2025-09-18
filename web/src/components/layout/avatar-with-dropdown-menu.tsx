@@ -8,9 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { User } from "@/models/user";
-import { useEffect, useState } from "react";
-import { getLoginUser, userLogout } from "@/api/user";
+import { userLogout } from "@/api/user";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useToLogin } from "@/hooks/use-route";
@@ -18,17 +16,11 @@ import { CircleUser } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarFromUser } from "@/utils/common/gravatar";
 import { getFallbackAvatarFromUsername } from "@/utils/common/username";
+import { useAuth } from "@/contexts/auth-context";
 
 export function AvatarWithDropdownMenu() {
-  const [user, setUser] = useState<User | null>(null);
+  const {user} = useAuth();
   const toLogin = useToLogin();
-  useEffect(() => {
-    getLoginUser().then(res => {
-      setUser(res.data);
-    }).catch(() => {
-      setUser(null);
-    });
-  }, []);
 
   const handleLogout = () => {
     userLogout().then(() => {

@@ -12,7 +12,6 @@ import type { User } from '@/models/user';
 
 export function getGravatarUrl({ email, size, proxy }: { email: string, size?: number, proxy?: string }): string {
   const hash = md5(email.trim().toLowerCase());
-  console.log(`https://${proxy ? proxy : "www.gravatar.com"}/avatar/${hash}?s=${size}&d=identicon`)
   return `https://${proxy ? proxy : "www.gravatar.com"}/avatar/${hash}?s=${size}&d=identicon`;
 }
 

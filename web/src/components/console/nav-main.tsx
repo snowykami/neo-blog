@@ -1,7 +1,5 @@
 "use client"
 
-import { type Icon } from "@tabler/icons-react"
-
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -10,6 +8,9 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import Link from "next/link"
+import type { LucideProps } from "lucide-react";
+import { ComponentType, SVGProps } from "react"
+import { usePathname } from "next/navigation";
 
 export function NavMain({
   items,
@@ -17,9 +18,12 @@ export function NavMain({
   items: {
     title: string
     url: string
-    icon?: Icon
+    icon?: ComponentType<SVGProps<SVGSVGElement> & LucideProps>;
   }[]
 }) {
+  const pathname = usePathname() ?? "/"
+  console.log("pathname", pathname)
+
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
@@ -27,7 +31,7 @@ export function NavMain({
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
               <Link href={item.url}>
-                <SidebarMenuButton tooltip={item.title}>
+                <SidebarMenuButton tooltip={item.title} isActive={pathname===item.url}>
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>
                 </SidebarMenuButton>

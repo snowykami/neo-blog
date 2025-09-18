@@ -1,6 +1,6 @@
 import type { OidcConfig } from '@/models/oidc-config'
 import type { BaseResponse } from '@/models/resp'
-import type {  RegisterRequest, User } from '@/models/user'
+import type { RegisterRequest, User } from '@/models/user'
 import axiosClient from './client'
 import { CaptchaProvider } from '@/models/captcha'
 
@@ -47,12 +47,18 @@ export async function ListOidcConfigs(): Promise<BaseResponse<OidcConfig[]>> {
   return res.data
 }
 
-export async function getLoginUser(token: string = ''): Promise<BaseResponse<User>> {
-  const res = await axiosClient.get<BaseResponse<User>>('/user/me', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
+export async function getLoginUser(
+  { token = '', refreshToken = '' }: { token?: string, refreshToken?: string } = {}
+): Promise<BaseResponse<User>> {
+  if (token) {
+    const cookieParts = [`token=${token}`]
+    if (refreshToken) cookieParts.push(`refresh_token=${refreshToken}`)
+    const res = await axiosClient.get<BaseResponse<User>>('/user/me', {
+      headers: { Cookie: cookieParts.join('; ') },
+    })
+    return res.data
+  }
+  const res = await axiosClient.get<BaseResponse<User>>('/user/me')
   return res.data
 }
 

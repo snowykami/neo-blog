@@ -7,29 +7,22 @@ import {
 } from "@/components/ui/sidebar"
 
 import { useToLogin } from "@/hooks/use-route"
-import { useEffect, useState } from "react"
-import { User } from "@/models/user"
-import { getLoginUser } from "@/api/user"
+import { useEffect } from "react"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function ConsoleLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuth();
   const toLogin = useToLogin();
 
   useEffect(() => {
-    getLoginUser().then(res => {
-      setUser(res.data);
-    }).catch(() => {
-      setUser(null);
+    if (!user) {
       toLogin();
-    });
-  }, [toLogin]);
-  if (user === null) {
-    return null;
-  }
+    }
+  }, [user, toLogin]);
 
   return (
     <SidebarProvider

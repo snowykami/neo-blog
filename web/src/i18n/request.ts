@@ -26,7 +26,8 @@ export async function getUserLocales(): Promise<string[]> {
   const cookieStore = await cookies();
   try {
     const token = cookieStore.get('token')?.value || '';
-    const user = (await getLoginUser(token)).data;
+    const refreshToken = cookieStore.get('refresh_token')?.value || '';
+    const user = (await getLoginUser({token, refreshToken})).data;
     locales.push(user.language);
     locales.push(user.language.split('-')[0]);
   } catch {

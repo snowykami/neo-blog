@@ -1,6 +1,4 @@
 "use client"
-
-import { User } from "@/models/user";
 import { useTranslations } from "next-intl";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -12,9 +10,10 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CommentInput } from "./comment-input";
 import { CommentItem } from "./comment-item";
+import { useAuth } from "@/contexts/auth-context";
 import config from "@/config";
 import "./style.css";
-import { getLoginUser } from "@/api/user";
+
 
 
 export function CommentSection(
@@ -29,7 +28,6 @@ export function CommentSection(
   }
 ) {
   const t = useTranslations('Comment')
-  const [loginUser, setLoginUser] = useState<User | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [activeInput, setActiveInput] = useState<{ id: number; type: 'reply' | 'edit' } | null>(null);
   const [page, setPage] = useState(1); // 当前页码
@@ -37,14 +35,7 @@ export function CommentSection(
   const [needLoadMore, setNeedLoadMore] = useState(true); // 是否需要加载更多，当最后一次获取的评论数小于分页大小时设为false
 
   // 获取登录用户信息
-  useEffect(() => {
-    getLoginUser().then(res => {
-      setLoginUser(res.data);
-      console.log("login user:", res.data);
-    }).catch(() => {
-      setLoginUser(null);
-    });
-  }, []);
+  const {user} = useAuth();
   // 加载0/顶层评论
   useEffect(() => {
     listComments({
@@ -118,7 +109,7 @@ export function CommentSection(
       <Separator className="my-16" />
       <div className="font-bold text-2xl">{t("comment")} ({totalCommentCount})</div>
       <CommentInput
-        user={loginUser}
+        user={user}
         onCommentSubmitted={onCommentSubmitted}
       />
       <div className="mt-4">
@@ -127,7 +118,7 @@ export function CommentSection(
             <div key={comment.id} className="" style={{ animationDelay: `${idx * 60}ms` }}>
               <Separator className="my-2" />
               <CommentItem
-                loginUser={loginUser}
+                loginUser={user}
                 comment={comment}
                 parentComment={null}
                 onCommentDelete={onCommentDelete}
