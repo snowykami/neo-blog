@@ -31,13 +31,11 @@ import {
 import { User } from "@/models/user"
 import { getGravatarFromUser } from "@/utils/common/gravatar"
 import { getFallbackAvatarFromUsername } from "@/utils/common/username"
+import { useAuth } from "@/contexts/auth-context"
 
-export function NavUser({
-  user,
-}: {
-  user?: User
-}) {
+export function NavUser({}: {}) {
   const { isMobile } = useSidebar()
+  const {user} = useAuth();
   if (!user) return null
   return (
     <SidebarMenu>

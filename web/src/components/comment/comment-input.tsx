@@ -10,11 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarUrl } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
+import { useAuth } from "@/contexts/auth-context";
 
 
 export function CommentInput(
   {
-    user,
     onCommentSubmitted,
     initContent = "",
     initIsPrivate = false,
@@ -22,7 +22,6 @@ export function CommentInput(
     isUpdate = false,
     initShowClientInfo = true
   }: {
-    user: User | null,
     onCommentSubmitted: ({ commentContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => void,
     initContent?: string,
     initIsPrivate?: boolean,
@@ -31,6 +30,7 @@ export function CommentInput(
     initShowClientInfo?: boolean
   }
 ) {
+  const {user} = useAuth();
   const t = useTranslations('Comment')
   const commonT = useTranslations('Common')
   const clickToLogin = useToLogin()

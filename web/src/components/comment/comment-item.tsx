@@ -15,11 +15,11 @@ import { formatDateTime } from "@/utils/common/datetime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarUrl } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
+import { useAuth } from "@/contexts/auth-context";
 
 
 export function CommentItem(
   {
-    loginUser,
     comment,
     parentComment,
     onCommentDelete,
@@ -27,7 +27,6 @@ export function CommentItem(
     setActiveInputId,
     onReplySubmitted  // 评论区计数更新用
   }: {
-    loginUser: User | null,
     comment: Comment,
     parentComment: Comment | null,
     onCommentDelete: ({ commentId }: { commentId: number }) => void,
@@ -36,6 +35,7 @@ export function CommentItem(
     onReplySubmitted: ({ commentContent, isPrivate }: { commentContent: string, isPrivate: boolean }) => void,
   }
 ) {
+  const {user} = useAuth();
   const locale = useLocale();
   const t = useTranslations("Comment");
   const commonT = useTranslations("Common");
@@ -57,7 +57,7 @@ export function CommentItem(
       return;
     }
     setCanClickLike(false);
-    if (!loginUser) {
+    if (!user) {
       toast.error(t("login_required"), {
         action: {
           label: commonT("login"),
@@ -236,7 +236,7 @@ export function CommentItem(
               </button>
               
               {/* 编辑和删除按钮 仅自己的评论可见 */}
-              {loginUser?.id === commentState.user.id && (
+              {user?.id === commentState.user.id && (
                 <>
                   <button
                     title={t("edit")}
@@ -276,13 +276,11 @@ export function CommentItem(
           </div>
           {/* 这俩输入框一次只能显示一个 */}
           {activeInput && activeInput.type === 'reply' && activeInput.id === commentState.id && <CommentInput
-            user={loginUser}
             onCommentSubmitted={onReply}
             initIsPrivate={commentState.isPrivate}
             placeholder={`${t("reply")} ${commentState.user.nickname || commentState.user.username} :`}
           />}
           {activeInput && activeInput.type === 'edit' && activeInput.id === commentState.id && <CommentInput
-            user={loginUser}
             initContent={commentState.content}
             initIsPrivate={commentState.isPrivate}
             onCommentSubmitted={onCommentEdit}
@@ -297,7 +295,6 @@ export function CommentItem(
           {replies.map((reply) => (
             <CommentItem
               key={reply.id}
-              loginUser={loginUser}
               comment={reply}
               parentComment={commentState}
               onCommentDelete={onReplyDelete}

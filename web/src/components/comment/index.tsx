@@ -109,7 +109,6 @@ export function CommentSection(
       <Separator className="my-16" />
       <div className="font-bold text-2xl">{t("comment")} ({totalCommentCount})</div>
       <CommentInput
-        user={user}
         onCommentSubmitted={onCommentSubmitted}
       />
       <div className="mt-4">
@@ -118,7 +117,6 @@ export function CommentSection(
             <div key={comment.id} className="" style={{ animationDelay: `${idx * 60}ms` }}>
               <Separator className="my-2" />
               <CommentItem
-                loginUser={user}
                 comment={comment}
                 parentComment={null}
                 onCommentDelete={onCommentDelete}
