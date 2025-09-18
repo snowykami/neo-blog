@@ -38,7 +38,7 @@ export default function BlogHome() {
   const [sortBy, setSortBy, isSortByLoaded] = useStoredState<SortBy>(QueryKey.SortBy, DEFAULT_SORTBY);
 
   useEffect(() => {
-    if (!isSortByLoaded) return; // wait for stored state loaded
+    if (!isSortByLoaded) return;
     setLoading(true);
     listPosts(
       {

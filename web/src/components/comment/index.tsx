@@ -59,7 +59,7 @@ export function CommentSection(
     }).then(response => {
       setComments(response.data.comments);
     });
-  }, [])
+  }, [page, targetId, targetType]);
 
   const onCommentSubmitted = ({ commentContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => {
     createComment({

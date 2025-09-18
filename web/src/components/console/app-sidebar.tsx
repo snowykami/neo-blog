@@ -1,29 +1,16 @@
 "use client"
-
-import * as React from "react"
+import { useEffect, useState } from "react"
 import {
-  IconCamera,
   IconChartBar,
   IconDashboard,
-  IconDatabase,
-  IconFileAi,
-  IconFileDescription,
-  IconFileWord,
   IconFolder,
-  IconHelp,
   IconInnerShadowTop,
   IconListDetails,
-  IconReport,
-  IconSearch,
-  IconSettings,
   IconUsers,
 } from "@tabler/icons-react"
 
-import { NavDocuments } from "@/components/console/nav-documents"
 import { NavMain } from "@/components/console/nav-main"
-import { NavSecondary } from "@/components/console/nav-secondary"
 import { NavUser } from "@/components/console/nav-user"
-import { metadata } from '../../app/layout';
 import {
   Sidebar,
   SidebarContent,
@@ -34,125 +21,53 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import config from "@/config"
+import Link from "next/link"
+import { getLoginUser } from "@/api/user"
+import { User } from "@/models/user"
 
 const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
   navMain: [
     {
-      title: "Dashboard",
-      url: "#",
+      title: "大石坝",
+      url: "/console",
       icon: IconDashboard,
     },
     {
-      title: "Lifecycle",
-      url: "#",
+      title: "文章管理",
+      url: "/console/post",
       icon: IconListDetails,
     },
     {
-      title: "Analytics",
-      url: "#",
+      title: "评论管理",
+      url: "/console/comment",
       icon: IconChartBar,
     },
     {
-      title: "Projects",
-      url: "#",
+      title: "文件管理",
+      url: "/console/file",
       icon: IconFolder,
     },
     {
-      title: "Team",
-      url: "#",
+      title: "用户管理",
+      url: "/console/user",
       icon: IconUsers,
     },
-  ],
-  navClouds: [
-    {
-      title: "Capture",
-      icon: IconCamera,
-      isActive: true,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Proposal",
-      icon: IconFileDescription,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Prompts",
-      icon: IconFileAi,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: IconSettings,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: IconSearch,
-    },
-  ],
-  documents: [
-    {
-      name: "Data Library",
-      url: "#",
-      icon: IconDatabase,
-    },
-    {
-      name: "Reports",
-      url: "#",
-      icon: IconReport,
-    },
-    {
-      name: "Word Assistant",
-      url: "#",
-      icon: IconFileWord,
-    },
-  ],
+  ]
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [loginUser, setLoginUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    getLoginUser().then(resp => {
+      setLoginUser(resp.data);
+    });
+  }, [])
+
+  if (!loginUser) {
+    return null; // 或者返回一个加载指示器
+  }
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -162,21 +77,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="#">
+              <Link href="/">
                 <IconInnerShadowTop className="!size-5" />
                 <span className="text-base font-semibold">{config.metadata.name}</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        <NavDocuments items={data.documents} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={loginUser} />
       </SidebarFooter>
     </Sidebar>
   )

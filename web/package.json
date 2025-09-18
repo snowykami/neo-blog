@@ -38,6 +38,7 @@
     "field-conv": "^1.0.9",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.525.0",
+    "md5": "^2.3.0",
     "motion": "^12.23.12",
     "next": "15.4.1",
     "next-intl": "^4.3.4",
@@ -56,6 +57,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/md5": "^2.3.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

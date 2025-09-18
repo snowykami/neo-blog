@@ -12,7 +12,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       await navigator.clipboard.writeText(text);
       return true;
     }
-  } catch (err) {
+  } catch  {
   }
   if (typeof document === 'undefined') return false;
 
@@ -42,7 +42,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       if (originalRange) selection.addRange(originalRange);
     }
     return Boolean(successful);
-  } catch (err) {
+  } catch {
     document.body.removeChild(textarea);
     if (selection) {
       selection.removeAllRanges();

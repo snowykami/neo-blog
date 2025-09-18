@@ -52,13 +52,13 @@ export function TurnstileWidget(props: CaptchaProps) {
 
   const handleSuccess = (token: string) => {
     setStatus('success');
-    props.onSuccess(token);
+    return props.onSuccess && props.onSuccess(token);
   };
 
   const handleError = (error: string) => {
     setStatus('error');
     setError(error);
-    props.onError && props.onError(error);
+    return props.onError && props.onError(error);
   };
 
   useEffect(() => {
@@ -66,11 +66,11 @@ export function TurnstileWidget(props: CaptchaProps) {
       if (status === 'loading') {
         setStatus('error');
         setError('timeout');
-        props.onError && props.onError('timeout');
+        return props.onError && props.onError('timeout');
       }
     }, TURNSTILE_TIMEOUT * 1000);
     return () => clearTimeout(timer);
-  })
+  }, [status, props]);
 
   return (
     <div className="flex items-center justify-evenly w-full border border-gray-300 rounded-md px-4 py-2 relative">

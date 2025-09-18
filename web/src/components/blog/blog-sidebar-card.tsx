@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Heart, TrendingUp, Eye } from "lucide-react";
-import GravatarAvatar from "@/components/common/gravatar";
 import { Badge } from "@/components/ui/badge";
 import type { Label } from "@/models/label";
 import type { Post } from "@/models/post";
@@ -9,6 +8,9 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { getPostHref } from "@/utils/common/post";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getGravatarUrl } from "@/utils/common/gravatar";
+import { getFallbackAvatarFromUsername } from "@/utils/common/username";
 
 // 侧边栏父组件，接收卡片组件列表
 export default function Sidebar({ cards }: { cards: React.ReactNode[] }) {
@@ -34,7 +36,10 @@ export function SidebarAbout({ config }: { config: typeof configType }) {
       <CardContent>
         <div className="text-center mb-4">
           <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
-            <GravatarAvatar email={config.owner.gravatarEmail} className="w-full h-full object-cover" size={200} />
+            <Avatar className="h-full w-full rounded-full">
+              <AvatarImage src={getGravatarUrl({email: config.owner.gravatarEmail, size: 256})} alt={config.owner.name} />
+              <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(config.owner.name)}</AvatarFallback>
+            </Avatar>
           </div>
           <h3 className="font-semibold text-lg">{config.owner.name}</h3>
           <p className="text-sm text-slate-600">{config.owner.motto}</p>
@@ -66,23 +71,23 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
               </span>
               <div className="flex-1 min-w-0">
                 <h4 className="font-medium text-sm line-clamp-2 mb-1">
-                {post.title}
-              </h4>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <span className="flex items-center gap-1">
-                  <Eye className="w-3 h-3" />
-                  {post.viewCount}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Heart className="w-3 h-3" />
-                  {post.likeCount}
-                </span>
+                  {post.title}
+                </h4>
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <span className="flex items-center gap-1">
+                    <Eye className="w-3 h-3" />
+                    {post.viewCount}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Heart className="w-3 h-3" />
+                    {post.likeCount}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        </Link>
+          </Link>
 
-      ))}
+        ))}
       </CardContent>
     </Card>
   );

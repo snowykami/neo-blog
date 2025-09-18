@@ -1,3 +1,3 @@
 export default function Page() {
-  return <div>Console</div>;
+  return <div>评论管理</div>;
 }

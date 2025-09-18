@@ -1,7 +1,9 @@
 "use client"
 import { User } from "@/models/user";
-import GravatarAvatar from "@/components/common/gravatar";
 import { Mail, User as UserIcon, Shield } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { getGravatarUrl } from "@/utils/common/gravatar";
+import { getFirstCharFromUser } from "@/utils/common/username";
 
 export function UserHeader({ user }: { user: User }) {
   return (
@@ -10,7 +12,10 @@ export function UserHeader({ user }: { user: User }) {
       <div className="md:basis-[20%] flex justify-center items-center p-4">
         {/* wrapper 控制显示大小，父组件给具体 w/h */}
         <div className="w-40 h-40 md:w-48 md:h-48 relative">
-          <GravatarAvatar className="rounded-full w-full h-full" url={user.avatarUrl} email={user.email} size={200} />
+          <Avatar className="h-full w-full rounded-full">
+            <AvatarImage src={getGravatarUrl({ email: user.email, size: 120 })} alt={user.nickname} />
+              <AvatarFallback className="rounded-full">{getFirstCharFromUser(user)}</AvatarFallback>
+            </Avatar>
         </div>
       </div>
 

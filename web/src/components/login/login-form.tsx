@@ -34,7 +34,6 @@ export function LoginForm({
     url?: string
   } | null>(null)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
-  const [captchaError, setCaptchaError] = useState<string | null>(null)
   const [isLogging, setIsLogging] = useState(false)
   const [refreshCaptchaKey, setRefreshCaptchaKey] = useState(0)
   const [{ username, password }, setCredentials] = useState({ username: '', password: '' })
@@ -51,7 +50,7 @@ export function LoginForm({
         toast.error(t("fetch_oidc_configs_failed") + (error?.message ? `: ${error.message}` : ""))
         setOidcConfigs([]) // 错误时设置为空数组
       })
-  }, [])
+  }, [t])
 
   useEffect(() => {
     getCaptchaConfig()
@@ -62,7 +61,7 @@ export function LoginForm({
         toast.error(t("fetch_captcha_config_failed") + (error?.message ? `: ${error.message}` : ""))
         setCaptchaProps(null)
       })
-  }, [refreshCaptchaKey])
+  }, [refreshCaptchaKey, t])
 
   const handleLogin = async (e: React.FormEvent) => {
     setIsLogging(true)
@@ -84,8 +83,7 @@ export function LoginForm({
   }
 
   const handleCaptchaError = (error: string) => {
-    setCaptchaError(error);
-    // 刷新验证码
+    toast.error(t("captcha_error") + (error ? `: ${error}` : ""));
     setTimeout(() => {
       setRefreshCaptchaKey(k => k + 1);
     }, 1500);

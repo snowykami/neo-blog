@@ -21,15 +21,10 @@ export function PaginationController({
   buttons?: number
   onPageChange?: (page: number) => void
 } & React.HTMLAttributes<HTMLDivElement>) {
-  // normalize buttons
   const btns = Math.max(5, buttons ?? 7);
   const buttonsToShow = totalPages < btns ? totalPages : btns;
-  // rely on shadcn buttonVariants and PaginationLink's isActive prop for styling
 
   const [currentPage, setCurrentPage] = useState(() => Math.min(Math.max(1, initialPage ?? 1), Math.max(1, totalPages)));
-  const [direction, setDirection] = useState(0) // 1 = forward (right->left), -1 = backward
-
-  // sync when initialPage or totalPages props change
   useEffect(() => {
     const p = Math.min(Math.max(1, initialPage ?? 1), Math.max(1, totalPages));
     setCurrentPage(p);
@@ -37,10 +32,9 @@ export function PaginationController({
 
   const handleSetPage = useCallback((p: number) => {
     const next = Math.min(Math.max(1, Math.floor(p)), Math.max(1, totalPages));
-    setDirection(next > currentPage ? 1 : next < currentPage ? -1 : 0);
     setCurrentPage(next);
     if (typeof onPageChange === 'function') onPageChange(next);
-  }, [onPageChange, totalPages, currentPage]);
+  }, [onPageChange, totalPages]);
 
   // helper to render page link
   const renderPage = (pageNum: number) => (

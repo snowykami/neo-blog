@@ -46,7 +46,7 @@ const navbarMenuComponents = [
 ]
 
 export function Navbar() {
-  const { navbarAdditionalClassName, setMode, mode } = useDevice()
+  const { navbarAdditionalClassName} = useDevice()
   return (
     <nav className={`grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-full px-4 w-full ${navbarAdditionalClassName}`}>
       <div className="flex items-center justify-start">

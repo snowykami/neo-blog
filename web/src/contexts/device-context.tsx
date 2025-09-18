@@ -88,7 +88,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // 监听系统主题变动
       const media = window.matchMedia("(prefers-color-scheme: dark)");
-      const handleChange = (e: MediaQueryListEvent) => {
+      const handleChange = () => {
         if (!localStorage.getItem("theme") || localStorage.getItem("theme") === "system") {
           applyTheme("system");
         }

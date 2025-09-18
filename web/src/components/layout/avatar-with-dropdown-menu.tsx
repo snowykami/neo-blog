@@ -5,15 +5,9 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuPortal,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import GravatarAvatar from "../common/gravatar"
 import { User } from "@/models/user";
 import { useEffect, useState } from "react";
 import { getLoginUser, userLogout } from "@/api/user";
@@ -21,6 +15,9 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useToLogin } from "@/hooks/use-route";
 import { CircleUser } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getGravatarFromUser } from "@/utils/common/gravatar";
+import { getFallbackAvatarFromUsername } from "@/utils/common/username";
 
 export function AvatarWithDropdownMenu() {
   const [user, setUser] = useState<User | null>(null);
@@ -44,7 +41,10 @@ export function AvatarWithDropdownMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="rounded-full overflow-hidden">
-          {user ? <GravatarAvatar className="w-8 h-8" email={user?.email || ""} url={user?.avatarUrl || ""} /> : <CircleUser className="w-9 h-9" />}
+          {user ? <Avatar className="h-8 w-8 rounded-full">
+            <AvatarImage src={getGravatarFromUser({ user })} alt={user.username} />
+            <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
+          </Avatar> : <CircleUser className="w-9 h-9" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="start">
@@ -57,29 +57,6 @@ export function AvatarWithDropdownMenu() {
             <Link href="/console">Console</Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem>Team</DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Invite users</DropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem>Email</DropdownMenuItem>
-                <DropdownMenuItem>Message</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>More...</DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuPortal>
-          </DropdownMenuSub>
-          <DropdownMenuItem>
-            New Team
-            <DropdownMenuShortcut>⌘+T</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>GitHub</DropdownMenuItem>
-        <DropdownMenuItem>Support</DropdownMenuItem>
-        <DropdownMenuItem disabled>API</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={user ? handleLogout : toLogin}>
           {user ? `Logout (${user.username})` : "Login"}

@@ -9,7 +9,7 @@ export default getRequestConfig(async () => {
     locales.map(async (locale) => {
       try {
         return (await import(`@/locales/${locale}.json`)).default;
-      } catch (err) {
+      } catch  {
         return {};
       }
     })

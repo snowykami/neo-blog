@@ -46,7 +46,7 @@ export default function CodeBlock(props: React.ComponentPropsWithoutRef<"pre">) 
     codeContent = extractText(child.props.children);
   }
 
-  async function handleCopy(e: React.MouseEvent<HTMLButtonElement>) {
+  async function handleCopy() {
     try {
       const ok = await copyToClipboard(codeContent);
       if (ok) toast.success(t("copy_success"));

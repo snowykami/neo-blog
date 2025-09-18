@@ -3,11 +3,13 @@ import { User } from "@/models/user";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
-import GravatarAvatar from "@/components/common/gravatar";
 import { CircleUser } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getGravatarUrl } from "@/utils/common/gravatar";
+import { getFirstCharFromUser } from "@/utils/common/username";
 
 
 export function CommentInput(
@@ -65,7 +67,10 @@ export function CommentInput(
     <div className="fade-in-up">
       <div className="flex py-4 fade-in">
         <div onClick={user ? () => clickToUserProfile(user.username) : clickToLogin} className="cursor-pointer flex-shrink-0 w-10 h-10 fade-in">
-          {user && <GravatarAvatar className="w-full h-full" url={user.avatarUrl} email={user.email} size={100} />}
+          {user && <Avatar className="h-full w-full rounded-full">
+            <AvatarImage src={getGravatarUrl({ email: user.email, size: 120 })} alt={user.nickname} />
+            <AvatarFallback className="rounded-full">{getFirstCharFromUser(user)}</AvatarFallback>
+          </Avatar>}
           {!user && <CircleUser className="w-full h-full fade-in" />}
         </div>
         <div className="flex-1 pl-2 fade-in-up">

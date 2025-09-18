@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { GoogleReCaptcha, GoogleReCaptchaProvider } from "react-google-recaptcha-v3";
 import HCaptcha from "@hcaptcha/react-hcaptcha";
-import { Turnstile } from "@marsidev/react-turnstile";
 import { CaptchaProvider } from "@/models/captcha";
 import "./captcha.css";
 import { TurnstileWidget } from "./turnstile";

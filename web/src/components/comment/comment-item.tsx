@@ -3,7 +3,6 @@ import { User } from "@/models/user";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
-import GravatarAvatar, { getGravatarByUser } from "@/components/common/gravatar";
 import { Reply, Trash, Heart, Pencil, Lock } from "lucide-react";
 import { Comment } from "@/models/comment";
 import { TargetType } from "@/models/types";
@@ -13,6 +12,9 @@ import { CommentInput } from "./comment-input";
 import { createComment, deleteComment, getComment, listComments, updateComment } from "@/api/comment";
 import { OrderBy } from "@/models/common";
 import { formatDateTime } from "@/utils/common/datetime";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getGravatarUrl } from "@/utils/common/gravatar";
+import { getFirstCharFromUser } from "@/utils/common/username";
 
 
 export function CommentItem(
@@ -157,7 +159,10 @@ export function CommentItem(
     <div>
       <div className="flex">
         <div onClick={() => clickToUserProfile(commentState.user.username)} className="cursor-pointer fade-in w-12 h-12">
-          <GravatarAvatar className="w-full h-full" url={commentState.user.avatarUrl} email={commentState.user.email} size={100} />
+          <Avatar className="h-full w-full rounded-full">
+              <AvatarImage src={getGravatarUrl({email: commentState.user.email, size: 120})} alt={commentState.user.nickname} />
+              <AvatarFallback className="rounded-full">{getFirstCharFromUser(commentState.user)}</AvatarFallback>
+            </Avatar>
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <div className="flex gap-2 md:gap-4 items-center">
