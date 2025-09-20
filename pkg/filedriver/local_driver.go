@@ -1,10 +1,11 @@
 package filedriver
 
 import (
-	"github.com/cloudwego/hertz/pkg/app"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/cloudwego/hertz/pkg/app"
 )
 
 type LocalDriver struct {

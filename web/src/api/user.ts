@@ -1,8 +1,8 @@
 import type { OidcConfig } from '@/models/oidc-config'
 import type { BaseResponse } from '@/models/resp'
 import type { RegisterRequest, User } from '@/models/user'
-import axiosClient from './client'
 import { CaptchaProvider } from '@/models/captcha'
+import axiosClient from './client'
 
 export async function userLogin(
   {
@@ -82,5 +82,10 @@ export async function getCaptchaConfig(): Promise<BaseResponse<{
     siteKey: string
     url?: string
   }>>('/user/captcha')
+  return res.data
+}
+
+export async function updateUser(data: Partial<User>): Promise<BaseResponse<User>> {
+  const res = await axiosClient.put<BaseResponse<User>>(`/user/u/${data.id}`, data)
   return res.data
 }

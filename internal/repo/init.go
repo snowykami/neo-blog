@@ -127,6 +127,7 @@ func migrate() error {
 		&model.Comment{},
 		&model.Label{},
 		&model.Like{},
+		&model.File{},
 		&model.OidcConfig{},
 		&model.Post{},
 		&model.Session{},

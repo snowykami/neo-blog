@@ -13,7 +13,7 @@ import { createComment, deleteComment, getComment, listComments, updateComment }
 import { OrderBy } from "@/models/common";
 import { formatDateTime } from "@/utils/common/datetime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getGravatarUrl } from "@/utils/common/gravatar";
+import { getGravatarFromUser, getGravatarUrl } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -35,7 +35,7 @@ export function CommentItem(
     onReplySubmitted: ({ commentContent, isPrivate }: { commentContent: string, isPrivate: boolean }) => void,
   }
 ) {
-  const {user} = useAuth();
+  const { user } = useAuth();
   const locale = useLocale();
   const t = useTranslations("Comment");
   const commonT = useTranslations("Common");
@@ -160,9 +160,9 @@ export function CommentItem(
       <div className="flex">
         <div onClick={() => clickToUserProfile(commentState.user.username)} className="cursor-pointer fade-in w-12 h-12">
           <Avatar className="h-full w-full rounded-full">
-              <AvatarImage src={getGravatarUrl({email: commentState.user.email, size: 120})} alt={commentState.user.nickname} />
-              <AvatarFallback className="rounded-full">{getFirstCharFromUser(commentState.user)}</AvatarFallback>
-            </Avatar>
+            <AvatarImage src={getGravatarFromUser({ user: commentState.user, size: 120 })} alt={commentState.user.nickname} />
+            <AvatarFallback className="rounded-full">{getFirstCharFromUser(commentState.user)}</AvatarFallback>
+          </Avatar>
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <div className="flex gap-2 md:gap-4 items-center">
@@ -234,7 +234,7 @@ export function CommentItem(
               >
                 <Heart className="w-3 h-3" /> <div>{likeCount}</div>
               </button>
-              
+
               {/* 编辑和删除按钮 仅自己的评论可见 */}
               {user?.id === commentState.user.id && (
                 <>
@@ -271,7 +271,7 @@ export function CommentItem(
                 </>
               )}
 
-              
+
             </div>
           </div>
           {/* 这俩输入框一次只能显示一个 */}

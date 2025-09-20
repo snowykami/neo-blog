@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { getPostHref } from '@/utils/common/post'
 import { motion } from 'motion/react'
 import { deceleration } from '@/motion/curve'
+import { Skeleton } from '@/components/ui/skeleton'
 
 
 export function BlogCard({ post, className }: {
@@ -158,37 +159,58 @@ export function BlogCard({ post, className }: {
 // 骨架屏加载组件 - 使用 shadcn Card 结构
 export function BlogCardSkeleton() {
   return (
-    <Card className="overflow-hidden h-full flex flex-col">
-      {/* 封面图片骨架 */}
-      <div className="aspect-[16/9] bg-muted animate-pulse" />
+    <Card className="group overflow-hidden hover:shadow-xl transition-all duration-300 h-full flex flex-col cursor-default pt-0 pb-4">
+      {/* 封面骨架 */}
+      <div className="relative aspect-[16/9] overflow-hidden">
+        <Skeleton className="absolute inset-0" />
 
-      {/* Header 骨架 */}
-      <CardHeader className="pb-3">
-        <div className="h-6 bg-muted rounded animate-pulse mb-2" />
-        <div className="space-y-2">
-          <div className="h-4 bg-muted rounded animate-pulse" />
-          <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
-          <div className="h-4 bg-muted rounded w-1/2 animate-pulse" />
+        {/* 覆盖层（模拟暗色遮罩） */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+
+        {/* 私有标识骨架 */}
+        <div className="absolute top-2 left-2">
+          <Skeleton className="h-6 w-14 rounded-md" />
         </div>
+
+        {/* 统计信息骨架 */}
+        <div className="absolute bottom-2 left-2">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-3 w-6 rounded" />
+            <Skeleton className="h-3 w-6 rounded" />
+            <Skeleton className="h-3 w-6 rounded" />
+          </div>
+        </div>
+
+        {/* 热度骨架 */}
+        <div className="absolute bottom-2 right-2">
+          <Skeleton className="h-6 w-12 rounded-md" />
+        </div>
+      </div>
+
+      {/* 标题骨架 */}
+      <CardHeader className="pb-3">
+        <CardTitle>
+          <Skeleton className="h-5 w-3/4 rounded" />
+        </CardTitle>
       </CardHeader>
 
-      {/* Content 骨架 */}
-      <CardContent className="flex-1 pb-3">
-        <div className="flex gap-2 mb-4">
-          <div className="h-6 w-16 bg-muted rounded animate-pulse" />
-          <div className="h-6 w-20 bg-muted rounded animate-pulse" />
-          <div className="h-6 w-14 bg-muted rounded animate-pulse" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="h-4 bg-muted rounded animate-pulse" />
-          <div className="h-4 bg-muted rounded animate-pulse" />
-        </div>
+      {/* 内容骨架 */}
+      <CardContent className="flex-1">
+        <CardDescription>
+          <div className="space-y-2">
+            <Skeleton className="h-4 rounded" />
+            <Skeleton className="h-4 w-5/6 rounded" />
+            <Skeleton className="h-4 w-2/3 rounded" />
+          </div>
+        </CardDescription>
       </CardContent>
 
-      {/* Footer 骨架 */}
-      <CardFooter className="pt-3 border-t">
-        <div className="h-4 w-24 bg-muted rounded animate-pulse" />
-        <div className="h-4 w-20 bg-muted rounded animate-pulse ml-auto" />
+      {/* 底部骨架 */}
+      <CardFooter className="pb-0 border-t border-border/50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-24 rounded" />
+        </div>
+        <Skeleton className="h-4 w-20 rounded" />
       </CardFooter>
     </Card>
   )

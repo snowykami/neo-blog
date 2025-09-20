@@ -59,7 +59,7 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-orange-500" />
-          {sortType === 'latest' ? '热门文章' : '最新文章'}
+          {sortType === 'latest' ? '最新文章' : '热门文章'}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">

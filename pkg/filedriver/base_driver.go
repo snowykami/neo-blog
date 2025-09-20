@@ -2,10 +2,13 @@ package filedriver
 
 import (
 	"fmt"
-	"github.com/LiteyukiStudio/spage/pkg/constants"
-	"github.com/cloudwego/hertz/pkg/app"
+
 	"io"
 	"os"
+
+	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
 type FileDriver interface {
@@ -18,19 +21,30 @@ type FileDriver interface {
 }
 
 type DriverConfig struct {
-	Type           string `mapstructure:"file.driver.type"`
-	BasePath       string `mapstructure:"file.driver.base_path"`
-	WebDavUrl      string `mapstructure:"file.driver.webdav.url"`
-	WebDavUser     string `mapstructure:"file.driver.webdav.user"`
-	WebDavPassword string `mapstructure:"file.driver.webdav.password"`
-	WebDavPolicy   string `mapstructure:"file.driver.webdav.policy"` // proxy|redirect
+	Type           string
+	BasePath       string
+	WebDavUrl      string
+	WebDavUser     string
+	WebDavPassword string
+	WebDavPolicy   string
+}
+
+func GetWebdavDriverConfig() *DriverConfig {
+	return &DriverConfig{
+		Type:           utils.Env.Get(constant.EnvKeyFileDriverType, constant.FileDriverTypeLocal),
+		BasePath:       utils.Env.Get(constant.EnvKeyFileBasepath, constant.DefaultFileBasePath),
+		WebDavUrl:      utils.Env.Get(constant.EnvKeyFileWebdavUrl),
+		WebDavUser:     utils.Env.Get(constant.EnvKeyFileWebdavUser),
+		WebDavPassword: utils.Env.Get(constant.EnvKeyFileWebdavPassword),
+		WebDavPolicy:   utils.Env.Get(constant.EnvKeyFileWebdavPolicy),
+	}
 }
 
 func GetFileDriver(driverConfig *DriverConfig) (FileDriver, error) {
 	switch driverConfig.Type {
-	case constants.FileDriverLocal:
+	case constant.FileDriverTypeLocal:
 		return NewLocalDriver(driverConfig), nil
-	case constants.FileDriverWebdav:
+	case constant.FileDriverTypeWebdav:
 		return NewWebDAVClientDriver(driverConfig), nil
 	default:
 		return nil, fmt.Errorf("unsupported file driver type: %s", driverConfig.Type)

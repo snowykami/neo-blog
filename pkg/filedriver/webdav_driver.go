@@ -3,9 +3,11 @@ package filedriver
 import (
 	"bytes"
 	"fmt"
-	"github.com/LiteyukiStudio/spage/pkg/constants"
-	"github.com/LiteyukiStudio/spage/pkg/resps"
+
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/resps"
+
 	"io"
 	"os"
 	"path"
@@ -48,7 +50,7 @@ func (d *WebDAVClientDriver) Open(ctx *app.RequestContext, p string) (io.ReadClo
 }
 
 func (d *WebDAVClientDriver) Get(ctx *app.RequestContext, p string) {
-	if d.config.WebDavPolicy == constants.WebDavPolicyRedirect {
+	if d.config.WebDavPolicy == constant.WebdavPolicyRedirect {
 		ctx.Redirect(302, []byte(d.config.WebDavUrl+d.fullPath(p)))
 		return
 	} else {

@@ -17,37 +17,10 @@ import {
 } from "@/components/ui/sidebar"
 import config from "@/config"
 import Link from "next/link"
-import { Folder, Gauge, MessageCircle, Newspaper, Users } from "lucide-react"
+import { NavUserCenter } from "./nav-ucenter"
+import { sidebarData } from "./data"
 
-const data = {
-  navMain: [
-    {
-      title: "大石坝",
-      url: "/console",
-      icon: Gauge,
-    },
-    {
-      title: "文章管理",
-      url: "/console/post",
-      icon: Newspaper,
-    },
-    {
-      title: "评论管理",
-      url: "/console/comment",
-      icon: MessageCircle,
-    },
-    {
-      title: "文件管理",
-      url: "/console/file",
-      icon: Folder,
-    },
-    {
-      title: "用户管理",
-      url: "/console/user",
-      icon: Users,
-    },
-  ]
-}
+
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
@@ -68,7 +41,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={sidebarData.navMain} />
+        <NavUserCenter items={sidebarData.navUserCenter} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser />

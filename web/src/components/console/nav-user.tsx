@@ -28,14 +28,24 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { User } from "@/models/user"
+
 import { getGravatarFromUser } from "@/utils/common/gravatar"
 import { getFallbackAvatarFromUsername } from "@/utils/common/username"
 import { useAuth } from "@/contexts/auth-context"
+import { userLogout } from "@/api/user"
+import { toast } from "sonner"
 
-export function NavUser({}: {}) {
+export function NavUser({ }: {}) {
   const { isMobile } = useSidebar()
-  const {user} = useAuth();
+  const { user } = useAuth();
+
+  const handleLogout = () => {
+    userLogout().then(() => {
+      toast.success("Logged out successfully");
+      window.location.reload();
+    })
+  }
+
   if (!user) return null
   return (
     <SidebarMenu>
@@ -95,7 +105,7 @@ export function NavUser({}: {}) {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <IconLogout />
               Log out
             </DropdownMenuItem>

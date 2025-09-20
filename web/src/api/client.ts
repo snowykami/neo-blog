@@ -14,9 +14,26 @@ const axiosClient = axios.create({
   timeout: 10000,
 })
 
+function isBrowserFormData(v: any) {
+  return typeof FormData !== 'undefined' && v instanceof FormData
+}
+// node form-data (form-data package) heuristic
+function isNodeFormData(v: any) {
+  return v && typeof v.getHeaders === 'function' && typeof v.pipe === 'function'
+}
+
 axiosClient.interceptors.request.use((config) => {
-  if (config.data && typeof config.data === 'object') {
+  // 如果是 FormData（浏览器）或 node form-data，跳过对象转换
+  if (config.data && typeof config.data === 'object' && !isBrowserFormData(config.data) && !isNodeFormData(config.data)) {
     config.data = camelToSnakeObj(config.data)
+  } else if (isBrowserFormData(config.data)) {
+    // 只处理键
+    const formData = config.data as FormData
+    const newFormData = new FormData()
+    for (const [key, value] of formData.entries()) {
+      newFormData.append(camelToSnakeObj(key), value)
+    }
+    config.data = newFormData
   }
   if (config.params && typeof config.params === 'object') {
     config.params = camelToSnakeObj(config.params)

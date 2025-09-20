@@ -368,7 +368,7 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, e
 			return nil, errs.ErrNotFound
 		}
 		logrus.Errorln("Failed to update user:", err)
-		return nil, errs.ErrInternalServer
+		return nil, err
 	}
 	return &dto.UpdateUserResp{}, nil
 }

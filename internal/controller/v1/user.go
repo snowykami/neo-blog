@@ -172,7 +172,7 @@ func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) 
 	resp, err := u.service.UpdateUser(&updateUserReq)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		resps.Custom(c, serviceErr.Code, err.Error(), nil)
 		return
 	}
 	resps.Ok(c, resps.Success, resp)

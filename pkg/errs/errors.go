@@ -2,8 +2,9 @@ package errs
 
 import (
 	"errors"
-	"github.com/cloudwego/hertz/pkg/app"
 	"net/http"
+
+	"github.com/cloudwego/hertz/pkg/app"
 )
 
 // ServiceError 业务错误结构

@@ -21,12 +21,14 @@ import { useTranslations } from "next-intl"
 import Captcha from "../common/captcha"
 import { CaptchaProvider } from "@/models/captcha"
 import { toast } from "sonner"
+import { useAuth } from "@/contexts/auth-context"
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const t = useTranslations('Login')
+  const {user, setUser} = useAuth();
   const [oidcConfigs, setOidcConfigs] = useState<OidcConfig[]>([])
   const [captchaProps, setCaptchaProps] = useState<{
     provider: CaptchaProvider
@@ -42,13 +44,19 @@ export function LoginForm({
   const redirectBack = searchParams.get("redirect_back") || "/"
 
   useEffect(() => {
+    if (user) {
+      router.push(redirectBack);
+    }
+  }, [user, router, redirectBack]);
+
+  useEffect(() => {
     ListOidcConfigs()
       .then((res) => {
-        setOidcConfigs(res.data || []) // 确保是数组
+        setOidcConfigs(res.data || [])
       })
       .catch((error) => {
         toast.error(t("fetch_oidc_configs_failed") + (error?.message ? `: ${error.message}` : ""))
-        setOidcConfigs([]) // 错误时设置为空数组
+        setOidcConfigs([])
       })
   }, [t])
 
@@ -69,6 +77,7 @@ export function LoginForm({
     userLogin({ username, password, captcha: captchaToken || "" })
       .then(res => {
         toast.success(t("login_success") + ` ${res.data.user.nickname || res.data.user.username}`);
+        setUser(res.data.user);
         router.push(redirectBack)
       })
       .catch(error => {

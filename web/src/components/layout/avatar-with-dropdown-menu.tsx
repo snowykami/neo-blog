@@ -36,7 +36,7 @@ export function AvatarWithDropdownMenu() {
           {user ? <Avatar className="h-8 w-8 rounded-full">
             <AvatarImage src={getGravatarFromUser({ user })} alt={user.username} />
             <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
-          </Avatar> : <CircleUser className="w-9 h-9" />}
+          </Avatar> : <CircleUser className="h-8 w-8" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="start">

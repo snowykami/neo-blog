@@ -1,8 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useState, useMemo } from "react";
+import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
 import type { User } from "@/models/user";
-import { userLogout } from "@/api/user";
+import { getLoginUser, userLogout } from "@/api/user";
 
 type AuthContextValue = {
   user: User | null;
@@ -20,6 +20,16 @@ export function AuthProvider({
   initialUser?: User | null;
 }) {
   const [user, setUser] = useState<User | null>(initialUser);
+
+  useEffect(() => {
+    if (!user){
+      getLoginUser().then(res => {
+      setUser(res.data);
+    }).catch(() => {
+      setUser(null);
+    });
+    }
+  }, [user]);
 
   const logout = async () => {
     setUser(null);

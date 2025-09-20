@@ -9,6 +9,11 @@ export interface User {
     language: string;
 }
 
+export enum Role {
+  ADMIN = "admin",
+  USER = "user",
+  EDITOR = "editor",
+}
 
 export interface RegisterRequest {
   username: string

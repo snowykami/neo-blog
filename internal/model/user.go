@@ -8,10 +8,10 @@ import (
 type User struct {
 	gorm.Model
 	Username  string `gorm:"uniqueIndex;not null"` // 用户名，唯一
-	Nickname  string
+	Nickname  string `gorm:"default:''"`           // 昵称
 	AvatarUrl string
 	Email     string `gorm:"uniqueIndex"`
-	Gender    string
+	Gender    string `gorm:"default:''"`
 	Role      string `gorm:"default:'user'"` // user editor admin
 	Language  string `gorm:"default:'en'"`
 	Password  string // 密码，存储加密后的值

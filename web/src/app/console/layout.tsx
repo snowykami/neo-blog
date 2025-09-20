@@ -7,8 +7,10 @@ import {
 } from "@/components/ui/sidebar"
 
 import { useToLogin } from "@/hooks/use-route"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { sidebarData, SidebarItem } from "@/components/console/data"
+import { usePathname } from "next/navigation"
 
 export default function ConsoleLayout({
   children,
@@ -16,7 +18,21 @@ export default function ConsoleLayout({
   children: React.ReactNode;
 }>) {
   const { user } = useAuth();
+  const [title, setTitle] = useState("Title");
   const toLogin = useToLogin();
+  const pathname = usePathname() ?? "/"
+
+  const sideBarItems: SidebarItem[] = sidebarData.navMain.concat(sidebarData.navUserCenter);
+
+  useEffect(() => {
+    const currentItem = sideBarItems.find(item => item.url === pathname);
+    if (currentItem) {
+      setTitle(currentItem.title);
+      document.title = `${currentItem.title} - 控制台`;
+    } else {
+      setTitle("Title");
+    }
+  }, [pathname])
 
   useEffect(() => {
     if (!user) {
@@ -35,8 +51,10 @@ export default function ConsoleLayout({
     >
       <AppSidebar variant="inset" />
       <SidebarInset>
-        <SiteHeader />
-        {children}
+        <SiteHeader title={title} />
+        <div className="p-5 md:p-8">
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )
