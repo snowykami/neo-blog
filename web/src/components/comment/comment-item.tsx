@@ -1,5 +1,4 @@
 import { useToLogin, useToUserProfile } from "@/hooks/use-route";
-import { User } from "@/models/user";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -13,7 +12,7 @@ import { createComment, deleteComment, getComment, listComments, updateComment }
 import { OrderBy } from "@/models/common";
 import { formatDateTime } from "@/utils/common/datetime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getGravatarFromUser, getGravatarUrl } from "@/utils/common/gravatar";
+import { getGravatarFromUser } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
 import { useAuth } from "@/contexts/auth-context";
 

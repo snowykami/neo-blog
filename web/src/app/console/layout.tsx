@@ -32,7 +32,7 @@ export default function ConsoleLayout({
     } else {
       setTitle("Title");
     }
-  }, [pathname])
+  }, [pathname, sideBarItems]);
 
   useEffect(() => {
     if (!user) {

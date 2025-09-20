@@ -14,12 +14,16 @@ const axiosClient = axios.create({
   timeout: 10000,
 })
 
-function isBrowserFormData(v: any) {
+function isBrowserFormData(v: unknown): v is FormData {
   return typeof FormData !== 'undefined' && v instanceof FormData
 }
 // node form-data (form-data package) heuristic
-function isNodeFormData(v: any) {
-  return v && typeof v.getHeaders === 'function' && typeof v.pipe === 'function'
+function isNodeFormData(v: unknown): v is { getHeaders: (...args: unknown[]) => Record<string, string>; pipe: (...args: unknown[]) => unknown } {
+  return Boolean(
+    v &&
+    typeof (v as { getHeaders?: unknown }).getHeaders === 'function' &&
+    typeof (v as { pipe?: unknown }).pipe === 'function'
+  )
 }
 
 axiosClient.interceptors.request.use((config) => {

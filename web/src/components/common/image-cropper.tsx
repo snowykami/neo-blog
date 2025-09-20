@@ -1,28 +1,232 @@
+"use client"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import Image from "next/image"
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import ReactCrop, { Crop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css'
 
-export function ImageCropper({ image, onCropped, onCancel }: { image: File, onCropped: (blob: Blob) => void, onCancel: () => void }) {
+export function ImageCropper({
+  image,
+  onCropped,
+  onCancel,
+}: {
+  image: File | Blob | null;
+  onCropped: (blob: Blob) => void;
+  onCancel?: () => void;
+}) {
+  const [crop, setCrop] = useState<Partial<Crop>>({
+    unit: '%',
+    x: 25,
+    y: 25,
+    width: 50,
+    height: 50,
+  })
+
+  const [imageSrc, setImageSrc] = useState<string>("")
+  const [open, setOpen] = useState<boolean>(false)
+  const imgRef = useRef<HTMLImageElement | null>(null)
+  const objectUrlRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    // 清理旧的 objectURL
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current)
+      objectUrlRef.current = null
+    }
+
+    if (!image) {
+      setImageSrc("")
+      return
+    }
+
+    if (typeof image === "string") {
+      setImageSrc(image)
+      return
+    }
+
+    try {
+      const url = URL.createObjectURL(image as Blob)
+      objectUrlRef.current = url
+      setImageSrc(url)
+    } catch (err) {
+      console.error("createObjectURL failed", err)
+      setImageSrc("")
+    }
+
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current)
+        objectUrlRef.current = null
+      }
+    }
+  }, [image])
+
+  const onImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    imgRef.current = e.currentTarget
+  }, [])
+
+  const getCroppedBlob = useCallback(async (): Promise<Blob | null> => {
+    const img = imgRef.current
+    if (!img || !crop) return null
+
+    // 计算渲染像素上的裁剪区域（支持 '%' 或 'px'）
+    const unitIsPercent = (crop.unit ?? '%') === '%'
+    const renderWidth = img.width
+    const renderHeight = img.height
+
+    const sxRender = unitIsPercent ? ((crop.x ?? 0) / 100) * renderWidth : (crop.x ?? 0)
+    const syRender = unitIsPercent ? ((crop.y ?? 0) / 100) * renderHeight : (crop.y ?? 0)
+    const swRender = unitIsPercent ? ((crop.width ?? 0) / 100) * renderWidth : (crop.width ?? 0)
+    const shRender = unitIsPercent ? ((crop.height ?? 0) / 100) * renderHeight : (crop.height ?? 0)
+
+    // 把渲染像素坐标映射到原始图片像素（naturalWidth/naturalHeight）
+    const scaleX = img.naturalWidth / renderWidth
+    const scaleY = img.naturalHeight / renderHeight
+    const sx = Math.round(sxRender * scaleX)
+    const sy = Math.round(syRender * scaleY)
+    const sw = Math.max(1, Math.round(swRender * scaleX))
+    const sh = Math.max(1, Math.round(shRender * scaleY))
+
+    const canvas = document.createElement('canvas')
+    canvas.width = sw
+    canvas.height = sh
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.clearRect(0, 0, sw, sh)
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh)
+
+    return await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), 'image/png', 0.95)
+    })
+  }, [crop])
+
+  const handleClose = () => {
+    setOpen(false)
+  }
+
   return (
-    <Dialog>
-      <form>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen)
+      if (!isOpen && onCancel) onCancel()
+    }}>
+      <form onSubmit={(e) => e.preventDefault()}>
         <DialogTrigger asChild>
-          <Button variant="outline">Edit</Button>
+          <Button
+            variant="outline"
+            disabled={!image}
+            className={!image ? "opacity-50 cursor-not-allowed" : ""}
+          >
+            Edit
+          </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
 
-        </DialogContent>
+        {image && (
+          <DialogContent className="sm:max-w-[425px]">
+            <h2 className="text-lg font-medium mb-2">裁剪图片</h2>
+            <div className="w-full h-[360px] bg-gray-100 flex items-center justify-center overflow-auto">
+              {imageSrc ? (
+                <ReactCrop
+                  crop={crop as Crop}
+                  onChange={(c) => setCrop(c)}
+                  // 保持正方形，可按需移除
+                  aspect={1}
+                >
+                  {/* 必须用原生 img 元素 */}
+                  <Image
+                    src={imageSrc}
+                    alt="source"
+                    onLoad={onImageLoad}
+                    width={640}
+                    height={640}
+                    style={{ maxWidth: '100%', maxHeight: '60vh', display: 'block' }}
+                  />
+                </ReactCrop>
+              ) : (
+                <div className="text-sm text-muted-foreground">没有待裁剪图片</div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-4 mt-4">
+              <div className="flex-1">
+                <Label>预览</Label>
+                <div className="w-32 h-32 border bg-white overflow-hidden">
+                  {/* 临时预览：把裁剪结果画到 canvas 并显示 */}
+                  <PreviewCanvas crop={crop} imgRef={imgRef} />
+                </div>
+              </div>
+              <div className="flex-1">
+                <Label>提示</Label>
+                <div className="text-sm text-muted-foreground">
+                  建议上传正方形头像；裁剪将导出 PNG 文件。
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="mt-4">
+              <Button variant="outline" type="button" onClick={handleClose}>取消</Button>
+              <Button
+                type="button"
+                onClick={async () => {
+                  const blob = await getCroppedBlob()
+                  if (blob) {
+                    onCropped(blob)
+                    handleClose()
+                  }
+                }}
+              >
+                确认
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
       </form>
     </Dialog>
   )
+}
+
+// 简单的预览 canvas 组件（显示当前裁剪区域）
+function PreviewCanvas({ crop, imgRef }: { crop: Partial<Crop>, imgRef: React.RefObject<HTMLImageElement | null> }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  useEffect(() => {
+    const img = imgRef.current
+    const canvas = canvasRef.current
+    if (!img || !canvas || !crop) return
+
+    const unitIsPercent = (crop.unit ?? '%') === '%'
+    const renderWidth = img.width
+    const renderHeight = img.height
+
+    const sxRender = unitIsPercent ? ((crop.x ?? 0) / 100) * renderWidth : (crop.x ?? 0)
+    const syRender = unitIsPercent ? ((crop.y ?? 0) / 100) * renderHeight : (crop.y ?? 0)
+    const swRender = unitIsPercent ? ((crop.width ?? 0) / 100) * renderWidth : (crop.width ?? 0)
+    const shRender = unitIsPercent ? ((crop.height ?? 0) / 100) * renderHeight : (crop.height ?? 0)
+
+    const scaleX = img.naturalWidth / renderWidth
+    const scaleY = img.naturalHeight / renderHeight
+    const sx = Math.round(sxRender * scaleX)
+    const sy = Math.round(syRender * scaleY)
+    const sw = Math.max(1, Math.round(swRender * scaleX))
+    const sh = Math.max(1, Math.round(shRender * scaleY))
+
+    // 画到 preview canvas（缩放以适应 128x128）
+    const outW = 128
+    const outH = Math.max(1, Math.round((sh / sw) * outW))
+    canvas.width = outW
+    canvas.height = outH
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, outW, outH)
+    // drawImage 使用 natural pixel 区域
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH)
+  }, [crop, imgRef])
+
+  return <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
 }

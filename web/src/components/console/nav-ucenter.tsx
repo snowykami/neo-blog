@@ -1,35 +1,18 @@
 "use client"
 
-import {
-  IconDots,
-  IconFolder,
-  IconShare3,
-  IconTrash,
-  type Icon,
-} from "@tabler/icons-react"
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
 } from "@/components/ui/sidebar"
-import { ComponentType, SVGProps } from "react"
-import { LucideProps } from "lucide-react"
 import { User } from "@/models/user"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { IconType } from "@/types/icon"
 
 export function NavUserCenter({
   items,
@@ -37,11 +20,10 @@ export function NavUserCenter({
   items: {
     title: string
     url: string
-    icon?: ComponentType<SVGProps<SVGSVGElement> & LucideProps>;
+    icon?: IconType;
     permission: ({ user }: { user: User }) => boolean
   }[]
 }) {
-  const { isMobile } = useSidebar()
   const { user } = useAuth();
   const pathname = usePathname() ?? "/"
 

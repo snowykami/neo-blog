@@ -9,11 +9,10 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import Link from "next/link"
-import type { LucideProps } from "lucide-react";
-import { ComponentType, SVGProps } from "react"
 import { usePathname } from "next/navigation";
 import { User } from "@/models/user";
 import { useAuth } from "@/contexts/auth-context";
+import { IconType } from "@/types/icon";
 
 export function NavMain({
   items,
@@ -21,7 +20,7 @@ export function NavMain({
   items: {
     title: string
     url: string
-    icon?: ComponentType<SVGProps<SVGSVGElement> & LucideProps>;
+    icon?: IconType;
     permission: ({ user }: { user: User }) => boolean
   }[]
 }) {

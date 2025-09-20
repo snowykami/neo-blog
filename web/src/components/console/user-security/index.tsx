@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/input-otp"
 import { useEffect, useState } from "react";
 
-const VERIFY_CODE_COOL_DOWN = 60; // seconds
+// const VERIFY_CODE_COOL_DOWN = 60; // seconds
 
 export function UserSecurityPage() {
   const [email, setEmail] = useState("")

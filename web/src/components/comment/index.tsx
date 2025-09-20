@@ -10,7 +10,6 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CommentInput } from "./comment-input";
 import { CommentItem } from "./comment-item";
-import { useAuth } from "@/contexts/auth-context";
 import config from "@/config";
 import "./style.css";
 
@@ -33,9 +32,6 @@ export function CommentSection(
   const [page, setPage] = useState(1); // 当前页码
   const [totalCommentCount, setTotalCommentCount] = useState(totalCount); // 评论总数
   const [needLoadMore, setNeedLoadMore] = useState(true); // 是否需要加载更多，当最后一次获取的评论数小于分页大小时设为false
-
-  // 获取登录用户信息
-  const {user} = useAuth();
   // 加载0/顶层评论
   useEffect(() => {
     listComments({

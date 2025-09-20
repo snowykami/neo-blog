@@ -1,11 +1,13 @@
 import type { User } from "@/models/user";
+import { IconType } from "@/types/icon";
 import { isAdmin, isEditor } from "@/utils/common/permission";
 import { Folder, Gauge, MessageCircle, Newspaper, Palette, Settings, ShieldCheck, UserPen, Users } from "lucide-react";
+
 
 export interface SidebarItem {
   title: string;
   url: string;
-  icon: React.ComponentType<any>;
+  icon: IconType;
   permission: ({ user }: { user: User }) => boolean;
 }
 
