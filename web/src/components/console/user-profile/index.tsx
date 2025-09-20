@@ -32,6 +32,7 @@ export function UserProfilePage() {
   const [username, setUsername] = useState(user?.username || '')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarFileUrl, setAvatarFileUrl] = useState<string | null>(null) // 这部分交由useEffect控制，监听 avatarFile 变化
+  const [submitting, setSubmitting] = useState(false)
   const [gender, setGender] = useState(user?.gender || '')
   
 
@@ -101,6 +102,7 @@ export function UserProfilePage() {
     }
 
     let avatarUrl = user.avatarUrl;
+    setSubmitting(true);
     (async () => {
       if (avatarFile) {
         try {
@@ -119,8 +121,11 @@ export function UserProfilePage() {
         window.location.reload();
       } catch (error: unknown) {
         toast.error(`Failed to update profile ${error}`);
+      } finally {
+        setSubmitting(false);
       }
     })();
+    
   }
 
   const handleCropped = (blob: Blob) => {
@@ -157,8 +162,8 @@ export function UserProfilePage() {
         <Label htmlFor="username">Username</Label>
         <Input type="username" id="username" value={username} onChange={(e) => setUsername(e.target.value)} />
         <Label htmlFor="gender">Gender</Label>
-        <Input type="gender" id="gender" value={gender} onChange={(e) => setGender(e.target.value)} />
-        <Button className="max-w-1/3" onClick={handleSubmit}>Submit</Button>
+        <Input type="gender" id="gender" value={gender} onChange={(e) => setGender(e.target.value)}/>
+        <Button className="max-w-1/3" onClick={handleSubmit} disabled={submitting}>Submit{submitting && '...'}</Button>
       </div>
     </div>
   )
