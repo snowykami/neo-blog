@@ -14,57 +14,57 @@ export interface SidebarItem {
 export const sidebarData: { navMain: SidebarItem[]; navUserCenter: SidebarItem[] } = {
   navMain: [
     {
-      title: "大石坝",
+      title: "dashboard.title",
       url: "/console",
       icon: Gauge,
       permission: isAdmin
     },
     {
-      title: "文章管理",
+      title: "post.title",
       url: "/console/post",
       icon: Newspaper,
       permission: isEditor
     },
     {
-      title: "评论管理",
+      title: "comment.title",
       url: "/console/comment",
       icon: MessageCircle,
       permission: isEditor
     },
     {
-      title: "文件管理",
+      title: "file.title",
       url: "/console/file",
       icon: Folder,
       permission: () => true
     },
     {
-      title: "用户管理",
+      title: "user.title",
       url: "/console/user",
       icon: Users,
       permission: isAdmin
     },
     {
-      title: "全局设置",
-      url: "/console/setting",
+      title: "global.title",
+      url: "/console/global",
       icon: Settings,
       permission: isAdmin
     },
   ],
   navUserCenter: [
     {
-      title: "个人资料",
+      title: "user_profile.title",
       url: "/console/user-profile",
       icon: UserPen,
       permission: () => true
     },
     {
-      title: "安全设置",
+      title: "user_security.title",
       url: "/console/user-security",
       icon: ShieldCheck,
       permission: () => true
     },
     {
-      title: "个性化",
+      title: "user-preference.title",
       url: "/console/user-preference",
       icon: Palette,
       permission: () => true

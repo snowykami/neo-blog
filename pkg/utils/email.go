@@ -3,9 +3,12 @@ package utils
 import (
 	"bytes"
 	"crypto/tls"
+	"errors"
 	"fmt"
-	"gopkg.in/gomail.v2"
 	"html/template"
+
+	"github.com/snowykami/neo-blog/pkg/constant"
+	"gopkg.in/gomail.v2"
 )
 
 type emailUtils struct{}
@@ -42,7 +45,7 @@ func (e *emailUtils) SendTemplate(emailConfig *EmailConfig, target, subject, htm
 // SendEmail 使用gomail库发送邮件
 func (e *emailUtils) SendEmail(emailConfig *EmailConfig, target, subject, content string, isHTML bool) error {
 	if !emailConfig.Enable {
-		return nil
+		return errors.New("邮箱服务未启用")
 	}
 	// 创建新邮件
 	m := gomail.NewMessage()
@@ -73,12 +76,12 @@ func (e *emailUtils) SendEmail(emailConfig *EmailConfig, target, subject, conten
 
 func (e *emailUtils) GetEmailConfigFromEnv() *EmailConfig {
 	return &EmailConfig{
-		Enable:   Env.GetAsBool("EMAIL_ENABLE", false),
-		Username: Env.Get("EMAIL_USERNAME", ""),
-		Address:  Env.Get("EMAIL_ADDRESS", ""),
-		Host:     Env.Get("EMAIL_HOST", "smtp.example.com"),
-		Port:     Env.GetAsInt("EMAIL_PORT", 587),
-		Password: Env.Get("EMAIL_PASSWORD", ""),
-		SSL:      Env.GetAsBool("EMAIL_SSL", true),
+		Enable:   Env.GetAsBool(constant.EnvKeyEmailEnable, false),
+		Username: Env.Get(constant.EnvKeyEmailUsername, ""),
+		Address:  Env.Get(constant.EnvKeyEmailAddress, ""),
+		Host:     Env.Get(constant.EnvKeyEmailHost, "smtp.example.com"),
+		Port:     Env.GetAsInt(constant.EnvKeyEmailPort, 587),
+		Password: Env.Get(constant.EnvKeyEmailPassword, ""),
+		SSL:      Env.GetAsBool(constant.EnvKeyEmailSsl, true),
 	}
 }

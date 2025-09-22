@@ -7,10 +7,11 @@ import (
 )
 
 func registerUserRoutes(group *route.RouterGroup) {
+	const userRoute = "/user"
 	userController := v1.NewUserController()
-	userGroup := group.Group("/user").Use(middleware.UseAuth(true))
-	userGroupWithoutAuth := group.Group("/user").Use(middleware.UseAuth(false))
-	userGroupWithoutAuthNeedsCaptcha := group.Group("/user").Use(middleware.UseCaptcha())
+	userGroup := group.Group(userRoute).Use(middleware.UseAuth(true))
+	userGroupWithoutAuth := group.Group(userRoute).Use(middleware.UseAuth(false))
+	userGroupWithoutAuthNeedsCaptcha := group.Group(userRoute).Use(middleware.UseCaptcha())
 	{
 		userGroupWithoutAuthNeedsCaptcha.POST("/login", userController.Login)
 		userGroupWithoutAuthNeedsCaptcha.POST("/register", userController.Register)
@@ -20,10 +21,11 @@ func registerUserRoutes(group *route.RouterGroup) {
 		userGroupWithoutAuth.GET("/oidc/login/:name", userController.OidcLogin)
 		userGroupWithoutAuth.GET("/u/:id", userController.GetUser)
 		userGroupWithoutAuth.GET("/username/:username", userController.GetUserByUsername)
+		userGroup.POST("/logout", userController.Logout)
 		userGroup.GET("/me", userController.GetUser)
-		userGroupWithoutAuth.POST("/logout", userController.Logout)
 		userGroup.PUT("/u/:id", userController.UpdateUser)
 		userGroup.PUT("/password/edit", userController.ChangePassword)
-		userGroup.PUT("/email/edit", userController.ChangeEmail)
+		group.Group(userRoute).Use(middleware.UseEmailVerify()).PUT("/password/reset", userController.ResetPassword) // 不需要登录
+		group.Group(userRoute).Use(middleware.UseAuth(true), middleware.UseEmailVerify()).PUT("/email/edit", userController.ChangeEmail)
 	}
 }

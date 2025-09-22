@@ -40,7 +40,7 @@ export async function userRegister(
   return res.data
 }
 
-export async function ListOidcConfigs(): Promise<BaseResponse<OidcConfig[]>> {
+export async function listOidcConfigs(): Promise<BaseResponse<OidcConfig[]>> {
   const res = await axiosClient.get<BaseResponse<OidcConfig[]>>(
     '/user/oidc/list',
   )
@@ -87,5 +87,25 @@ export async function getCaptchaConfig(): Promise<BaseResponse<{
 
 export async function updateUser(data: Partial<User>): Promise<BaseResponse<User>> {
   const res = await axiosClient.put<BaseResponse<User>>(`/user/u/${data.id}`, data)
+  return res.data
+}
+
+export async function requestEmailVerifyCode(email: string): Promise<BaseResponse<{ coolDown: number }>> {
+  const res = await axiosClient.post<BaseResponse<{ coolDown: number }>>('/user/email/verify', { email })
+  return res.data
+}
+
+export async function updatePassword({ oldPassword, newPassword }: { oldPassword: string, newPassword: string }): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put<BaseResponse<null>>('/user/password/edit', { oldPassword, newPassword })
+  return res.data
+}
+
+export async function resetPassword({ email, newPassword, verifyCode }: { email: string, newPassword: string, verifyCode: string }): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put<BaseResponse<null>>('/user/password/reset', { newPassword }, { headers: { 'X-Email': email, 'X-VerifyCode': verifyCode } })
+  return res.data
+}
+
+export async function updateEmail({ newEmail, verifyCode }: { newEmail: string, verifyCode: string }): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put<BaseResponse<null>>('/user/email/edit', null, { headers: { 'X-Email': newEmail, 'X-VerifyCode': verifyCode } })
   return res.data
 }

@@ -3,6 +3,7 @@ package utils
 import (
 	"crypto/sha256"
 	"encoding/hex"
+
 	"golang.org/x/crypto/bcrypt"
 )
 

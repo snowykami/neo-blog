@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { getFileUri } from "@/utils/client/file";
 import { getGravatarFromUser } from "@/utils/common/gravatar";
 import { getFallbackAvatarFromUsername } from "@/utils/common/username";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -25,9 +26,8 @@ interface PictureInputChangeEvent {
 }
 
 export function UserProfilePage() {
+  const t = useTranslations("Console.user_profile")
   const { user } = useAuth();
-  
-
   const [nickname, setNickname] = useState(user?.nickname || '')
   const [username, setUsername] = useState(user?.username || '')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
@@ -62,12 +62,12 @@ export function UserProfilePage() {
     };
     if (!file.type || !file.type.startsWith('image/') || !constraints.allowedTypes.includes(file.type)) {
       setAvatarFile(null);
-      toast.error('只允许上传 PNG / JPEG / WEBP / GIF 格式的图片');
+      toast.error(t("only_allow_picture"));
       return;
     }
     if (file.size > constraints.maxSize) {
       setAvatarFile(null);
-      toast.error('图片大小不能超过 5MB');
+      toast.error(t("picture_size_cannot_exceed", {"size": "5MiB"}));
       return;
     }
     setAvatarFile(file);
@@ -79,15 +79,15 @@ export function UserProfilePage() {
       nickname.trim() === '' ||
       username.trim() === ''
     ) {
-      toast.error('Nickname and Username cannot be empty')
+      toast.error(t("nickname_and_username_cannot_be_empty"))
       return
     }
 
     if (
-      (username.length < 3 || username.length > 20) ||
+      (username.length < 1 || username.length > 20) ||
       (nickname.length < 1 || nickname.length > 20)
     ) {
-      toast.error('Nickname and Username must be between 3 and 20 characters')
+      toast.error(t("nickname_and_username_must_be_between", {"min": 1, "max": 20}))
       return
     }
 
@@ -97,7 +97,7 @@ export function UserProfilePage() {
       gender === user.gender &&
       avatarFile === null
     ) {
-      toast.warning('No changes made')
+      toast.warning(t("no_changes_made"))
       return
     }
 
@@ -108,19 +108,17 @@ export function UserProfilePage() {
         try {
           const resp = await uploadFile({ file: avatarFile });
           avatarUrl = getFileUri(resp.data.id);
-          console.log('Uploaded avatar, got URL:', avatarUrl);
         } catch (error: unknown) {
-          toast.error(`Failed to upload avatar ${error}`);
+          toast.error(`${t("failed_to_upload_avatar")}: ${error}`);
           return;
         }
       }
 
       try {
         await updateUser({ nickname, username, avatarUrl, gender, id: user.id });
-        toast.success('Profile updated successfully');
         window.location.reload();
       } catch (error: unknown) {
-        toast.error(`Failed to update profile ${error}`);
+        toast.error(`${t("failed_to_update_profile")}: ${error}`);
       } finally {
         setSubmitting(false);
       }
@@ -138,11 +136,11 @@ export function UserProfilePage() {
   return (
     <div>
       <h1 className="text-2xl font-bold">
-        Public Profile
+        {t("public_profile")}
       </h1>
       <Separator className="my-2" />
       <div className="grid w-full max-w-sm items-center gap-3">
-        <Label htmlFor="picture">Picture</Label>
+        <Label htmlFor="picture">{t("picture")}</Label>
         <Avatar className="h-40 w-40 rounded-xl border-2">
           {avatarFileUrl ?
             <AvatarImage src={avatarFileUrl} alt={nickname || username} /> :
@@ -157,13 +155,13 @@ export function UserProfilePage() {
         />
           <ImageCropper image={avatarFile} onCropped={handleCropped} />
         </div>
-        <Label htmlFor="nickname">Nickname</Label>
+        <Label htmlFor="nickname">{t("nickname")}</Label>
         <Input type="nickname" id="nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} />
-        <Label htmlFor="username">Username</Label>
+        <Label htmlFor="username">{t("username")}</Label>
         <Input type="username" id="username" value={username} onChange={(e) => setUsername(e.target.value)} />
-        <Label htmlFor="gender">Gender</Label>
+        <Label htmlFor="gender">{t("gender")}</Label>
         <Input type="gender" id="gender" value={gender} onChange={(e) => setGender(e.target.value)}/>
-        <Button className="max-w-1/3" onClick={handleSubmit} disabled={submitting}>Submit{submitting && '...'}</Button>
+        <Button className="max-w-1/3" onClick={handleSubmit} disabled={submitting}>{t("update_profile")}{submitting && '...'}</Button>
       </div>
     </div>
   )

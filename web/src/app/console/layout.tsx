@@ -11,12 +11,14 @@ import { useEffect, useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { sidebarData, SidebarItem } from "@/components/console/data"
 import { usePathname } from "next/navigation"
+import { useTranslations } from "next-intl"
 
 export default function ConsoleLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const t  = useTranslations("Console")
   const { user } = useAuth();
   const [title, setTitle] = useState("Title");
   const toLogin = useToLogin();
@@ -27,12 +29,12 @@ export default function ConsoleLayout({
   useEffect(() => {
     const currentItem = sideBarItems.find(item => item.url === pathname);
     if (currentItem) {
-      setTitle(currentItem.title);
-      document.title = `${currentItem.title} - 控制台`;
+      setTitle(t(currentItem.title));
+      document.title = `${t(currentItem.title)} - 控制台`;
     } else {
       setTitle("Title");
     }
-  }, [pathname, sideBarItems]);
+  }, [pathname, sideBarItems, t]);
 
   useEffect(() => {
     if (!user) {

@@ -3,82 +3,95 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp"
-import { useEffect, useState } from "react";
-
+import { useState } from "react";
+import { requestEmailVerifyCode, updateEmail, updatePassword } from "@/api/user";
+import { toast } from "sonner";
+import { useTranslations } from "next-intl";
+import { BaseErrorResponse } from "@/models/resp";
+import { useAuth } from "@/contexts/auth-context";
+import { useToResetPassword } from "@/hooks/use-route";
+import { InputOTPControlled } from "@/components/common/input-otp";
 // const VERIFY_CODE_COOL_DOWN = 60; // seconds
 
 export function UserSecurityPage() {
-  const [email, setEmail] = useState("")
+  const t = useTranslations("Console.user_security")
+  const { user, setUser } = useAuth();
+  const toResetPassword = useToResetPassword();
+  const [email, setEmail] = useState(user?.email || "")
   const [verifyCode, setVerifyCode] = useState("")
   const [oldPassword, setOldPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
-  const handleSubmitPassword = () => {
 
+  const handleSubmitPassword = () => {
+    updatePassword({ oldPassword, newPassword }).then(() => {
+      toast.success(t("update_password_success"))
+      setOldPassword("")
+      setNewPassword("")
+    }).catch((error: BaseErrorResponse) => {
+      toast.error(`${t("update_password_failed")}: ${error.response.data.message}`)
+    })
   }
+
   const handleSendVerifyCode = () => {
-    console.log("send verify code to ", email)
+    requestEmailVerifyCode(email)
+      .then(() => {
+        toast.success(t("send_verify_code_success"))
+      })
+      .catch((error: BaseErrorResponse) => {
+        console.log("error", error)
+        toast.error(`${t("send_verify_code_failed")}: ${error.response.data.message}`)
+      })
   }
+
   const handleSubmitEmail = () => {
-    console.log("submit email ", email, verifyCode)
+    updateEmail({ newEmail: email, verifyCode }).then(() => {
+      toast.success(t("update_email_success"))
+      if (user) {
+        setUser({
+          ...user,
+          email,
+        })
+      }
+      setVerifyCode("")
+    }).catch((error: BaseErrorResponse) => {
+      toast.error(`${t("update_email_failed")}: ${error.response.data.message}`)
+    })
   }
+  if (!user) return null;
   return (
     <div>
       <div className="grid w-full max-w-sm items-center gap-3">
         <h1 className="text-2xl font-bold">
-          密码设置
+          {t("password_setting")}
         </h1>
-        <Label htmlFor="password">Old Password</Label>
+        <Label htmlFor="password">{t("old_password")}</Label>
         <Input id="password" type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
-        <Label htmlFor="password">New Password</Label>
+        <Label htmlFor="password">{t("new_password")}</Label>
         <Input id="password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-        <Button className="max-w-1/3 border-2" onClick={handleSubmitPassword}>Submit</Button>
+        <div className="flex w-full items-center justify-between">
+          <Button disabled={!oldPassword || !newPassword} className="max-w-1/3 border-2" onClick={handleSubmitPassword}>{t("update_password")}</Button>
+          <Button onClick={toResetPassword} variant="ghost">{t("forgot_password_or_no_password")}</Button>
+        </div>
+        
       </div>
       <Separator className="my-4" />
       <div className="grid w-full max-w-sm items-center gap-3 py-4">
         <h1 className="text-2xl font-bold">
-          邮箱设置
+          {t("email_setting")}
         </h1>
-        <Label htmlFor="email">email</Label>
+        <Label htmlFor="email">{t("email")}</Label>
         <div className="flex gap-3">
           <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <Button variant="outline" className="border-2" onClick={handleSendVerifyCode}>发送验证码</Button>
+          <Button disabled={!email || email == user.email} variant="outline" className="border-2" onClick={handleSendVerifyCode}>{t("send_verify_code")}</Button>
         </div>
-        <Label htmlFor="verify-code">verify code</Label>
+        <Label htmlFor="verify-code">{t("verify_code")}</Label>
         <div className="flex gap-3">
           <InputOTPControlled onChange={(value) => setVerifyCode(value)} />
-          <Button className="border-2" onClick={handleSubmitEmail}>Submit</Button>
+          <Button disabled={verifyCode.length < 6} className="border-2" onClick={handleSubmitEmail}>{t("update_email")}</Button>
         </div>
       </div>
     </div>
   )
 }
 
-function InputOTPControlled({ onChange }: { onChange: (value: string) => void }) {
-  const [value, setValue] = useState("")
-  useEffect(() => {
-    onChange(value)
-  }, [value, onChange])
-  return (
-    <div className="space-y-2">
-      <InputOTP
-        maxLength={6}
-        value={value}
-        onChange={(value) => setValue(value)}
-      >
-        <InputOTPGroup>
-          <InputOTPSlot index={0} />
-          <InputOTPSlot index={1} />
-          <InputOTPSlot index={2} />
-          <InputOTPSlot index={3} />
-          <InputOTPSlot index={4} />
-          <InputOTPSlot index={5} />
-        </InputOTPGroup>
-      </InputOTP>
-    </div>
-  )
-}
+

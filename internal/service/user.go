@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
@@ -36,7 +38,7 @@ func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, erro
 	if user == nil {
 		return nil, errs.ErrNotFound
 	}
-	if utils.Password.VerifyPassword(req.Password, user.Password, utils.Env.Get(constant.EnvKeyPasswordSalt, "default_salt")) {
+	if utils.Password.VerifyPassword(req.Password, user.Password, utils.Env.Get(constant.EnvKeyPasswordSalt, constant.DefaultPasswordSalt)) {
 		token, refreshToken, err := s.generate2Token(user.ID)
 		if err != nil {
 			logrus.Errorln("Failed to generate tokens:", err)
@@ -55,15 +57,11 @@ func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, erro
 
 func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterResp, error) {
 	// 验证邮箱验证码
-	if !utils.Env.GetAsBool("ENABLE_REGISTER", true) {
+	if !utils.Env.GetAsBool(constant.EnvKeyEnableRegister, true) {
 		return nil, errs.ErrForbidden
 	}
-	if utils.Env.GetAsBool("ENABLE_EMAIL_VERIFICATION", true) {
-		ok, err := s.verifyEmail(req.Email, req.VerificationCode)
-		if err != nil {
-			logrus.Errorln("Failed to verify email:", err)
-			return nil, errs.ErrInternalServer
-		}
+	if utils.Env.GetAsBool(constant.EnvKeyEnableEmailVerify, true) {
+		ok := utils.VerifyEmailCode(req.Email, req.VerificationCode)
 		if !ok {
 			return nil, errs.New(http.StatusForbidden, "Invalid email verification code", nil)
 		}
@@ -81,7 +79,7 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 		return nil, errs.New(http.StatusConflict, "Username or email already exists", nil)
 	}
 	// 创建新用户
-	hashedPassword, err := utils.Password.HashPassword(req.Password, utils.Env.Get(constant.EnvKeyPasswordSalt, "default_salt"))
+	hashedPassword, err := utils.Password.HashPassword(req.Password, utils.Env.Get(constant.EnvKeyPasswordSalt, constant.DefaultPasswordSalt))
 	if err != nil {
 		logrus.Errorln("Failed to hash password:", err)
 		return nil, errs.ErrInternalServer
@@ -122,19 +120,15 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 }
 
 func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEmailResp, error) {
-	generatedVerificationCode := utils.Strings.GenerateRandomStringWithCharset(6, "0123456789abcdef")
-	kv := utils.KV.GetInstance()
-	kv.Set(constant.KVKeyEmailVerificationCode+req.Email, generatedVerificationCode, time.Minute*10)
-
+	verifyCode := utils.RequestEmailVerify(req.Email)
 	template, err := static.RenderTemplate("email/verification-code.tmpl", map[string]interface{}{})
 	if err != nil {
 		return nil, errs.ErrInternalServer
 	}
 	if utils.IsDevMode {
-		logrus.Infof("%s's verification code is %s", req.Email, generatedVerificationCode)
+		logrus.Infof("%s's verification code is %s", req.Email, verifyCode)
 	}
 	err = utils.Email.SendEmail(utils.Email.GetEmailConfigFromEnv(), req.Email, "验证你的电子邮件 / Verify your email", template, true)
-
 	if err != nil {
 		return nil, errs.ErrInternalServer
 	}
@@ -373,6 +367,56 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, e
 	return &dto.UpdateUserResp{}, nil
 }
 
+func (s *UserService) UpdatePassword(ctx context.Context, req *dto.UpdatePasswordReq) (bool, error) {
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok || currentUser == nil {
+		return false, errs.ErrUnauthorized
+	}
+	if !utils.Password.VerifyPassword(req.OldPassword, currentUser.Password, utils.Env.Get(constant.EnvKeyPasswordSalt, constant.DefaultPasswordSalt)) {
+		return false, errs.New(http.StatusForbidden, "Old password is incorrect", nil)
+	}
+	hashedPassword, err := utils.Password.HashPassword(req.NewPassword, utils.Env.Get(constant.EnvKeyPasswordSalt, constant.DefaultPasswordSalt))
+	if err != nil {
+		logrus.Errorln("Failed to update password:", err)
+	}
+	currentUser.Password = hashedPassword
+	err = repo.GetDB().Save(currentUser).Error
+	if err != nil {
+		return false, errs.ErrInternalServer
+	}
+	return true, nil
+}
+
+func (s *UserService) ResetPassword(req *dto.ResetPasswordReq) (bool, error) {
+	user, err := repo.User.GetUserByEmail(req.Email)
+	if err != nil {
+		return false, errs.ErrInternalServer
+	}
+	hashedPassword, err := utils.Password.HashPassword(req.NewPassword, utils.Env.Get(constant.EnvKeyPasswordSalt, constant.DefaultPasswordSalt))
+	if err != nil {
+		return false, errs.ErrInternalServer
+	}
+	user.Password = hashedPassword
+	err = repo.User.UpdateUser(user)
+	if err != nil {
+		return false, errs.ErrInternalServer
+	}
+	return true, nil
+}
+
+func (s *UserService) UpdateEmail(ctx context.Context, email string) (bool, error) {
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok || currentUser == nil {
+		return false, errs.ErrUnauthorized
+	}
+	currentUser.Email = email
+	err := repo.GetDB().Save(currentUser).Error
+	if err != nil {
+		return false, errs.ErrInternalServer
+	}
+	return true, nil
+}
+
 func (s *UserService) generate2Token(userID uint) (string, string, error) {
 	token := utils.Jwt.NewClaims(userID, "", false, time.Duration(utils.Env.GetAsInt(constant.EnvKeyTokenDuration, constant.EnvKeyTokenDurationDefault))*time.Second)
 	tokenString, err := token.ToString()
@@ -389,13 +433,4 @@ func (s *UserService) generate2Token(userID uint) (string, string, error) {
 		return "", "", errs.ErrInternalServer
 	}
 	return tokenString, refreshTokenString, nil
-}
-
-func (s *UserService) verifyEmail(email, code string) (bool, error) {
-	kv := utils.KV.GetInstance()
-	verificationCode, ok := kv.Get(constant.KVKeyEmailVerificationCode + email)
-	if !ok || verificationCode != code {
-		return false, errs.New(http.StatusForbidden, "Invalid email verification code", nil)
-	}
-	return true, nil
 }

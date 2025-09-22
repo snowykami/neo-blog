@@ -1,6 +1,5 @@
 "use client"
 
-
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -13,6 +12,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { IconType } from "@/types/icon"
+import { useTranslations } from "next-intl"
 
 export function NavUserCenter({
   items,
@@ -24,6 +24,7 @@ export function NavUserCenter({
     permission: ({ user }: { user: User }) => boolean
   }[]
 }) {
+  const t  = useTranslations("Console")
   const { user } = useAuth();
   const pathname = usePathname() ?? "/"
 
@@ -38,7 +39,7 @@ export function NavUserCenter({
             <Link href={item.url}>
               <SidebarMenuButton tooltip={item.title} isActive={pathname === item.url}>
                 {item.icon && <item.icon />}
-                <span>{item.title}</span>
+                <span>{t(item.title)}</span>
               </SidebarMenuButton>
             </Link>
           </SidebarMenuItem>

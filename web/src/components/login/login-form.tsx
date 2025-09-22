@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import Image from "next/image"
 import { useEffect, useState } from "react"
 import type { OidcConfig } from "@/models/oidc-config"
-import { getCaptchaConfig, ListOidcConfigs, userLogin } from "@/api/user"
+import { getCaptchaConfig, listOidcConfigs, userLogin } from "@/api/user"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
@@ -22,12 +22,14 @@ import Captcha from "../common/captcha"
 import { CaptchaProvider } from "@/models/captcha"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
+import { resetPasswordPath, useToResetPassword } from "@/hooks/use-route"
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const t = useTranslations('Login')
+  const toResetPassword = useToResetPassword();
   const {user, setUser} = useAuth();
   const [oidcConfigs, setOidcConfigs] = useState<OidcConfig[]>([])
   const [captchaProps, setCaptchaProps] = useState<{
@@ -50,7 +52,7 @@ export function LoginForm({
   }, [user, router, redirectBack]);
 
   useEffect(() => {
-    ListOidcConfigs()
+    listOidcConfigs()
       .then((res) => {
         setOidcConfigs(res.data || [])
       })
@@ -158,12 +160,12 @@ export function LoginForm({
                 <div className="grid gap-3">
                   <div className="flex items-center">
                     <Label htmlFor="password">{t("password")}</Label>
-                    <a
-                      href="#"
+                    <Link
+                      href={resetPasswordPath}
                       className="ml-auto text-sm underline-offset-4 hover:underline"
                     >
                       {t("forgot_password")}
-                    </a>
+                    </Link>
                   </div>
                   <Input
                     id="password"
@@ -179,7 +181,7 @@ export function LoginForm({
                   </div>
                 }
                 <Button
-                  type="submit"
+                  type="button"
                   className="w-full"
                   onClick={handleLogin}
                   disabled={!captchaToken || isLogging}
@@ -191,9 +193,9 @@ export function LoginForm({
               {/* 注册链接 */}
               <div className="text-center text-sm">
                 {t("no_account")}{" "}
-                <a href="#" className="underline underline-offset-4">
+                <Link href="#" className="underline underline-offset-4">
                   {t("register")}
-                </a>
+                </Link>
               </div>
             </div>
           </form>

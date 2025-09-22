@@ -9,6 +9,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -36,14 +37,14 @@ type DBConfig struct {
 // loadDBConfig 从配置文件加载数据库配置
 func loadDBConfig() DBConfig {
 	return DBConfig{
-		Driver:   utils.Env.Get("DB_DRIVER", "sqlite"),
-		Path:     utils.Env.Get("DB_PATH", "./data/data.db"),
-		Host:     utils.Env.Get("DB_HOST", "postgres"),
-		Port:     utils.Env.GetAsInt("DB_PORT", 5432),
-		User:     utils.Env.Get("DB_USER", "blog"),
-		Password: utils.Env.Get("DB_PASSWORD", "blog"),
-		DBName:   utils.Env.Get("DB_NAME", "blog"),
-		SSLMode:  utils.Env.Get("DB_SSLMODE", "disable"),
+		Driver:   utils.Env.Get(constant.EnvKeyDBDriver, "sqlite"),
+		Path:     utils.Env.Get(constant.EnvKeyDBPath, "./data/data.db"),
+		Host:     utils.Env.Get(constant.EnvKeyDBHost, "postgres"),
+		Port:     utils.Env.GetAsInt(constant.EnvKeyDBPort, 5432),
+		User:     utils.Env.Get(constant.EnvKeyDBUser, "blog"),
+		Password: utils.Env.Get(constant.EnvKeyDBPassword, "blog"),
+		DBName:   utils.Env.Get(constant.EnvKeyDBName, "blog"),
+		SSLMode:  utils.Env.Get(constant.EnvKeyDBSSLMode, "disable"),
 	}
 }
 

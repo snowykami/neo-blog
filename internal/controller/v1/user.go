@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -184,6 +185,9 @@ func (u *UserController) VerifyEmail(ctx context.Context, c *app.RequestContext)
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
+	if verifyEmailReq.Email == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+	}
 	resp, err := u.service.RequestVerifyEmail(&verifyEmailReq)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
@@ -194,11 +198,63 @@ func (u *UserController) VerifyEmail(ctx context.Context, c *app.RequestContext)
 }
 
 func (u *UserController) ChangePassword(ctx context.Context, c *app.RequestContext) {
-	// TODO: 实现修改密码功能
+	var updatePasswordReq dto.UpdatePasswordReq
+	if err := c.BindAndValidate(&updatePasswordReq); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	ok, err := u.service.UpdatePassword(ctx, &updatePasswordReq)
+	if err != nil {
+		resps.InternalServerError(c, err.Error())
+		return
+	}
+	if !ok {
+		resps.BadRequest(c, "Failed to change password")
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
+}
+
+func (u *UserController) ResetPassword(ctx context.Context, c *app.RequestContext) {
+	var resetPasswordReq dto.ResetPasswordReq
+	if err := c.BindAndValidate(&resetPasswordReq); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	email := strings.TrimSpace(string(c.GetHeader(constant.HeaderKeyEmail)))
+	if email == "" {
+		resps.BadRequest(c, "Email header is required")
+		return
+	}
+	resetPasswordReq.Email = email
+	ok, err := u.service.ResetPassword(&resetPasswordReq)
+	if err != nil {
+		resps.InternalServerError(c, err.Error())
+		return
+	}
+	if !ok {
+		resps.BadRequest(c, "Failed to reset password")
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
 }
 
 func (u *UserController) ChangeEmail(ctx context.Context, c *app.RequestContext) {
-	// TODO: 实现修改邮箱功能
+	email := strings.TrimSpace(string(c.GetHeader(constant.HeaderKeyEmail)))
+	if email == "" {
+		resps.BadRequest(c, "Email header is required")
+		return
+	}
+	ok, err := u.service.UpdateEmail(ctx, email)
+	if err != nil {
+		resps.InternalServerError(c, err.Error())
+		return
+	}
+	if !ok {
+		resps.BadRequest(c, "Failed to change email")
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
 }
 
 func (u *UserController) GetCaptchaConfig(ctx context.Context, c *app.RequestContext) {
