@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/sidebar"
 
 import { getGravatarFromUser } from "@/utils/common/gravatar"
-import { getFallbackAvatarFromUsername } from "@/utils/common/username"
+import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common/username"
 import { useAuth } from "@/contexts/auth-context"
 import { userLogout } from "@/api/user"
 import { toast } from "sonner"
@@ -61,7 +61,7 @@ export function NavUser() {
                 <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.nickname}({user.username})</span>
+                <span className="truncate font-medium">{formatDisplayName(user)}</span>
                 <span className="text-muted-foreground truncate text-xs">
                   {user.email}
                 </span>
@@ -82,7 +82,7 @@ export function NavUser() {
                   <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.nickname}({user.username})</span>
+                  <span className="truncate font-medium">{formatDisplayName(user)}</span>
                   <span className="text-muted-foreground truncate text-xs">
                     {user.email}
                   </span>

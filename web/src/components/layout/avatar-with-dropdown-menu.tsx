@@ -15,11 +15,11 @@ import { useToLogin } from "@/hooks/use-route";
 import { CircleUser } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarFromUser } from "@/utils/common/gravatar";
-import { getFallbackAvatarFromUsername } from "@/utils/common/username";
+import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common/username";
 import { useAuth } from "@/contexts/auth-context";
 
 export function AvatarWithDropdownMenu() {
-  const {user} = useAuth();
+  const { user } = useAuth();
   const toLogin = useToLogin();
 
   const handleLogout = () => {
@@ -39,8 +39,17 @@ export function AvatarWithDropdownMenu() {
           </Avatar> : <CircleUser className="h-8 w-8" />}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="start">
-        <DropdownMenuLabel>My Account</DropdownMenuLabel>
+      <DropdownMenuContent className="w-auto" align="start">
+        <DropdownMenuLabel>
+          {user && <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+            <div className="grid flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-medium">{formatDisplayName(user)}</span>
+              <span className="text-muted-foreground truncate text-xs">
+                {user.email}
+              </span>
+            </div>
+          </div>}
+        </DropdownMenuLabel>
         <DropdownMenuGroup>
           {user && <DropdownMenuItem asChild>
             <Link href={`/u/${user?.username}`}>Profile</Link>
@@ -51,7 +60,7 @@ export function AvatarWithDropdownMenu() {
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={user ? handleLogout : toLogin}>
-          {user ? `Logout (${user.username})` : "Login"}
+          {user ? "Logout" : "Login"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

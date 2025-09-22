@@ -1,12 +1,12 @@
 export interface User {
     id: number;
     username: string;
-    nickname: string;
-    avatarUrl: string;
+    nickname?: string;
+    avatarUrl?: string;
     email: string;
-    gender: string;
+    gender?: string;
     role: string;
-    language: string;
+    language?: string;
 }
 
 export enum Role {
