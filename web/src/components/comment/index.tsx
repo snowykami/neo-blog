@@ -34,19 +34,27 @@ export function CommentSection(
   const [needLoadMore, setNeedLoadMore] = useState(true); // 是否需要加载更多，当最后一次获取的评论数小于分页大小时设为false
   // 加载0/顶层评论
   useEffect(() => {
+    // Reset pagination state when target changes
+    setPage(1);
+    setNeedLoadMore(true);
+    
     listComments({
       targetType,
       targetId,
       depth: 0,
       orderBy: OrderBy.CreatedAt,
       desc: true,
-      page: page,
+      page: 1,
       size: config.commentsPerPage,
       commentId: 0
     }).then(response => {
       setComments(response.data.comments);
+      // If we got fewer comments than requested, no more pages
+      if (response.data.comments.length < config.commentsPerPage) {
+        setNeedLoadMore(false);
+      }
     });
-  }, [page, targetId, targetType]);
+  }, [targetId, targetType]);
 
   const onCommentSubmitted = ({ commentContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => {
     createComment({
