@@ -28,8 +28,8 @@ export async function getUserLocales(): Promise<string[]> {
     const token = cookieStore.get('token')?.value || '';
     const refreshToken = cookieStore.get('refresh_token')?.value || '';
     const user = (await getLoginUser({token, refreshToken})).data;
-    locales.push(user.language);
-    locales.push(user.language.split('-')[0]);
+    locales.push(user?.language || '');
+    locales.push((user?.language || '').split('-')[0]);
   } catch {
   }
   const languageInCookie = cookieStore.get('language')?.value;
