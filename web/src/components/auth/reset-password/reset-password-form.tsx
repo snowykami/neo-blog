@@ -10,15 +10,13 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import Image from "next/image"
 import { useState } from "react"
 import { requestEmailVerifyCode, resetPassword } from "@/api/user"
-import Link from "next/link"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { InputOTPControlled } from "@/components/common/input-otp"
 import { BaseErrorResponse } from "@/models/resp"
-import { loginPath, useToLogin } from "@/hooks/use-route"
+import { loginPath } from "@/hooks/use-route"
 import router from "next/router"
 
 export function ResetPasswordForm({
@@ -26,7 +24,7 @@ export function ResetPasswordForm({
   ...props
 }: React.ComponentProps<"div">) {
   const t = useTranslations('ResetPassword')
-  const toLogin = useToLogin();
+  const commonT = useTranslations('Common')
   const [email, setEmail] = useState("")
   const [verifyCode, setVerifyCode] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -65,7 +63,7 @@ export function ResetPasswordForm({
                   <Input id="password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
                 </div>
                 <div className="grid gap-3">
-                  <Label htmlFor="email">{t("email")}</Label>
+                  <Label htmlFor="email">{commonT("email")}</Label>
                   <div className="flex gap-3">
                     <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
                     <Button

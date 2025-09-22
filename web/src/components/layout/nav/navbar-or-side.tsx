@@ -17,8 +17,8 @@ import config from "@/config"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
-import { ThemeModeToggle } from "../common/theme-toggle"
-import { AvatarWithDropdownMenu } from "./avatar-with-dropdown-menu"
+import { ThemeModeToggle } from "@/components/common/theme-toggle"
+import { AvatarWithDropdownMenu } from "@/components/layout/nav/avatar-with-dropdown-menu"
 import { cn } from "@/lib/utils"
 
 const navbarMenuComponents = [

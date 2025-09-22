@@ -54,13 +54,19 @@
     "update": "更新"
   },
   "Common": {
+    "email": "邮箱",
+    "forgot_password": "忘记密码？",
     "login": "登录",
     "daysAgo": "天前",
     "hoursAgo": "小时前",
     "minutesAgo": "分钟前",
+    "password": "密码",
     "secondsAgo": "秒前",
+    "send_verify_code": "发送验证码",
     "submit": "提交",
-    "update": "更新"
+    "update": "更新",
+    "username": "用户名",
+    "verify_code": "验证码"
   },
   "Console": {
     "comment": {
@@ -101,7 +107,6 @@
     },
     "user_security": {
       "title": "安全设置",
-      "email": "邮箱",
       "email_setting": "邮箱设置",
       "forgot_password_or_no_password": "忘记密码或没有密码",
       "new_password": "新密码",
@@ -124,6 +129,8 @@
   },
   "Login": {
     "captcha_error": "验证错误，请重试。",
+    "continue": "继续",
+    "currently_logged_in": "当前已登录为",
     "fetch_captcha_config_failed": "获取验证码失败，请稍后重试。",
     "fetch_oidc_configs_failed": "获取第三方身份提供者配置失败。",
     "logging": "正在登录...",
@@ -143,9 +150,16 @@
     "and": "和",
     "privacy_policy": "隐私政策"
   },
+  "Register": {
+    "title": "注册",
+    "register": "注册",
+    "registering": "注册中...",
+    "register_a_new_account": "注册一个新账号",
+    "register_failed": "注册失败",
+    "register_success": "注册成功！"
+  },
   "ResetPassword": {
     "title": "重置密码",
-    "email": "邮箱",
     "new_password": "新密码",
     "reset_password": "重置密码",
     "reset_password_failed": "重置密码失败",

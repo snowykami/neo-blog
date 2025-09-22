@@ -14,11 +14,3 @@ export enum Role {
   USER = "user",
   EDITOR = "editor",
 }
-
-export interface RegisterRequest {
-  username: string
-  password: string
-  nickname: string
-  email: string
-  verificationCode?: string
-}

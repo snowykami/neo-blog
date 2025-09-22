@@ -15,7 +15,7 @@ func registerUserRoutes(group *route.RouterGroup) {
 	{
 		userGroupWithoutAuthNeedsCaptcha.POST("/login", userController.Login)
 		userGroupWithoutAuthNeedsCaptcha.POST("/register", userController.Register)
-		userGroupWithoutAuthNeedsCaptcha.POST("/email/verify", userController.VerifyEmail) // Send email verification code
+		userGroupWithoutAuth.POST("/email/verify", userController.VerifyEmail) // Send email verification code
 		userGroupWithoutAuth.GET("/captcha", userController.GetCaptchaConfig)
 		userGroupWithoutAuth.GET("/oidc/list", userController.OidcList)
 		userGroupWithoutAuth.GET("/oidc/login/:name", userController.OidcLogin)

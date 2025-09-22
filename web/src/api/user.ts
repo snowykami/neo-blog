@@ -1,6 +1,6 @@
 import type { OidcConfig } from '@/models/oidc-config'
 import type { BaseResponse } from '@/models/resp'
-import type { RegisterRequest, User } from '@/models/user'
+import type { User } from '@/models/user'
 import { CaptchaProvider } from '@/models/captcha'
 import axiosClient from './client'
 
@@ -31,11 +31,18 @@ export async function userLogout(): Promise<BaseResponse<null>> {
 }
 
 export async function userRegister(
-  data: RegisterRequest,
+  { username, password, email, verifyCode, captchaToken }: {
+    username: string
+    password: string
+    email: string
+    verifyCode?: string
+    captchaToken?: string
+  },
 ): Promise<BaseResponse<{ token: string, user: User }>> {
   const res = await axiosClient.post<BaseResponse<{ token: string, user: User }>>(
     '/user/register',
-    data,
+    { username, password, },
+    { headers: { 'X-Email': email, 'X-VerifyCode': verifyCode || '' , 'X-Captcha-Token': captchaToken || ''} },
   )
   return res.data
 }

@@ -18,19 +18,20 @@ import { getCaptchaConfig, listOidcConfigs, userLogin } from "@/api/user"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
-import Captcha from "../common/captcha"
+import Captcha from "@/components/common/captcha"
 import { CaptchaProvider } from "@/models/captcha"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
-import { resetPasswordPath, useToResetPassword } from "@/hooks/use-route"
+import { registerPath, resetPasswordPath } from "@/hooks/use-route"
+import { CurrentLogged } from "@/components/auth/common/current-logged"
+import { SectionDivider } from "@/components/common/section-divider"
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const t = useTranslations('Login')
-  const toResetPassword = useToResetPassword();
-  const {user, setUser} = useAuth();
+  const { user, setUser } = useAuth();
   const [oidcConfigs, setOidcConfigs] = useState<OidcConfig[]>([])
   const [captchaProps, setCaptchaProps] = useState<{
     provider: CaptchaProvider
@@ -44,12 +45,6 @@ export function LoginForm({
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectBack = searchParams.get("redirect_back") || "/"
-
-  useEffect(() => {
-    if (user) {
-      router.push(redirectBack);
-    }
-  }, [user, router, redirectBack]);
 
   useEffect(() => {
     listOidcConfigs()
@@ -105,11 +100,10 @@ export function LoginForm({
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-xl">{t("welcome")}</CardTitle>
-          <CardDescription>
-            {t("with_oidc")}
-          </CardDescription>
         </CardHeader>
         <CardContent>
+          <CurrentLogged />
+          <SectionDivider className="my-4">{t("with_oidc")}</SectionDivider>
           <form>
             <div className="grid gap-6">
               {/* OIDC 登录选项 */}
@@ -134,16 +128,10 @@ export function LoginForm({
                   })}
                 </div>
               )}
-
               {/* 分隔线 */}
               {oidcConfigs.length > 0 && (
-                <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
-                  <span className="bg-card text-muted-foreground relative z-10 px-2">
-                    {t("or_continue_with_local_account")}
-                  </span>
-                </div>
+                <SectionDivider className="my-0"> {t("or_continue_with_local_account")}</SectionDivider>
               )}
-
               {/* 邮箱密码登录 */}
               <div className="grid gap-6">
                 <div className="grid gap-3">
@@ -193,7 +181,7 @@ export function LoginForm({
               {/* 注册链接 */}
               <div className="text-center text-sm">
                 {t("no_account")}{" "}
-                <Link href="#" className="underline underline-offset-4">
+                <Link href={registerPath+"?redirect_back="+encodeURIComponent(redirectBack)} className="underline underline-offset-4">
                   {t("register")}
                 </Link>
               </div>
@@ -201,18 +189,6 @@ export function LoginForm({
           </form>
         </CardContent>
       </Card>
-
-      {/* 服务条款 */}
-      <div className="text-muted-foreground text-center text-xs text-balance">
-        {t("by_logging_in_you_agree_to_our")}{" "}
-        <a href="#" className="underline underline-offset-4 hover:text-primary">
-          {t("terms_of_service")}
-        </a>{" "}
-        {t("and")}{" "}
-        <a href="#" className="underline underline-offset-4 hover:text-primary">
-          {t("privacy_policy")}
-        </a>
-      </div>
     </div>
   )
 }

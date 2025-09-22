@@ -56,15 +56,8 @@ func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, erro
 }
 
 func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterResp, error) {
-	// 验证邮箱验证码
 	if !utils.Env.GetAsBool(constant.EnvKeyEnableRegister, true) {
 		return nil, errs.ErrForbidden
-	}
-	if utils.Env.GetAsBool(constant.EnvKeyEnableEmailVerify, true) {
-		ok := utils.VerifyEmailCode(req.Email, req.VerificationCode)
-		if !ok {
-			return nil, errs.New(http.StatusForbidden, "Invalid email verification code", nil)
-		}
 	}
 	// 检查用户名或邮箱是否已存在
 	usernameExist, err := repo.User.CheckUsernameExists(req.Username)
@@ -185,7 +178,7 @@ func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, error) {
 	return oidcConfigsDtos, nil
 }
 
-func (s *UserService) OidcLogin(req *dto.OidcLoginReq) (*dto.OidcLoginResp, error) {
+func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dto.OidcLoginResp, error) {
 	// 验证state
 	kvStore := utils.KV.GetInstance()
 	storedName, ok := kvStore.Get(constant.KVKeyOidcState + req.State)

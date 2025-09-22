@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'motion/react'
-import { Navbar } from '@/components/layout/navbar-or-side'
+import { Navbar } from '@/components/layout/nav/navbar-or-side'
 import { BackgroundProvider } from '@/contexts/background-context'
 import Footer from '@/components/layout/footer'
 import config from '@/config'

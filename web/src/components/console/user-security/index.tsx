@@ -9,14 +9,15 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { BaseErrorResponse } from "@/models/resp";
 import { useAuth } from "@/contexts/auth-context";
-import { useToResetPassword } from "@/hooks/use-route";
+import { resetPasswordPath } from "@/hooks/use-route";
 import { InputOTPControlled } from "@/components/common/input-otp";
+import Link from "next/link";
 // const VERIFY_CODE_COOL_DOWN = 60; // seconds
 
 export function UserSecurityPage() {
   const t = useTranslations("Console.user_security")
+  const commonT = useTranslations("Common")
   const { user, setUser } = useAuth();
-  const toResetPassword = useToResetPassword();
   const [email, setEmail] = useState(user?.email || "")
   const [verifyCode, setVerifyCode] = useState("")
   const [oldPassword, setOldPassword] = useState("")
@@ -70,7 +71,7 @@ export function UserSecurityPage() {
         <Input id="password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
         <div className="flex w-full items-center justify-between">
           <Button disabled={!oldPassword || !newPassword} className="max-w-1/3 border-2" onClick={handleSubmitPassword}>{t("update_password")}</Button>
-          <Button onClick={toResetPassword} variant="ghost">{t("forgot_password_or_no_password")}</Button>
+          <Link href={resetPasswordPath}>{t("forgot_password_or_no_password")}</Link>
         </div>
         
       </div>
@@ -79,7 +80,7 @@ export function UserSecurityPage() {
         <h1 className="text-2xl font-bold">
           {t("email_setting")}
         </h1>
-        <Label htmlFor="email">{t("email")}</Label>
+        <Label htmlFor="email">{commonT("email")}</Label>
         <div className="flex gap-3">
           <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <Button disabled={!email || email == user.email} variant="outline" className="border-2" onClick={handleSendVerifyCode}>{t("send_verify_code")}</Button>

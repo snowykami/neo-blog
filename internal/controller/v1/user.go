@@ -52,6 +52,12 @@ func (u *UserController) Register(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
+	email := strings.TrimSpace(string(c.GetHeader(constant.HeaderKeyEmail)))
+	if email == "" {
+		resps.BadRequest(c, "Email header is required")
+		return
+	}
+	userRegisterReq.Email = email
 	resp, err := u.service.UserRegister(&userRegisterReq)
 
 	if err != nil {
@@ -97,7 +103,7 @@ func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 		Code:  code,
 		State: state,
 	}
-	resp, err := u.service.OidcLogin(oidcLoginReq)
+	resp, err := u.service.OidcLogin(ctx, oidcLoginReq)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)

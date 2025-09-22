@@ -31,6 +31,7 @@ export function AvatarWithDropdownMenu() {
 
   return (
     <DropdownMenu>
+      
       <DropdownMenuTrigger asChild>
         <button className="rounded-full overflow-hidden">
           {user ? <Avatar className="h-8 w-8 rounded-full">
@@ -39,26 +40,33 @@ export function AvatarWithDropdownMenu() {
           </Avatar> : <CircleUser className="h-8 w-8" />}
         </button>
       </DropdownMenuTrigger>
+
       <DropdownMenuContent className="w-auto" align="start">
-        <DropdownMenuLabel>
-          {user && <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+        {user && <DropdownMenuLabel>
+          <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">{formatDisplayName(user)}</span>
               <span className="text-muted-foreground truncate text-xs">
                 {user.email}
               </span>
             </div>
-          </div>}
-        </DropdownMenuLabel>
-        <DropdownMenuGroup>
-          {user && <DropdownMenuItem asChild>
-            <Link href={`/u/${user?.username}`}>Profile</Link>
-          </DropdownMenuItem>}
-          <DropdownMenuItem asChild>
-            <Link href="/console">Console</Link>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
+          </div>
+        </DropdownMenuLabel>}
+
+        {user &&
+          <>
+            <DropdownMenuGroup>
+              <DropdownMenuItem asChild>
+                <Link href={`/u/${user?.username}`}>Profile</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/console">Console</Link>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+          </>
+        }
+
         <DropdownMenuItem onClick={user ? handleLogout : toLogin}>
           {user ? "Logout" : "Login"}
         </DropdownMenuItem>

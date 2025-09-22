@@ -29,11 +29,10 @@ type UserLoginResp struct {
 }
 
 type UserRegisterReq struct {
-  Username         string `json:"username"`          // 用户名
-  Nickname         string `json:"nickname"`          // 昵称
-  Password         string `json:"password"`          // 密码
-  Email            string `json:"email"`             // 邮箱
-  VerificationCode string `json:"verification_code"` // 邮箱验证码
+  Username string `json:"username"` // 用户名
+  Nickname string `json:"nickname"` // 昵称
+  Password string `json:"password"` // 密码
+  Email    string `json:"-" binding:"-"`
 }
 
 type UserRegisterResp struct {
