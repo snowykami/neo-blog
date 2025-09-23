@@ -109,10 +109,10 @@ export function RegisterForm({
         <CardContent>
           <CurrentLogged />
           <form>
-            <div className="grid gap-6">
-              <SectionDivider className="mt-4">{t("register_a_new_account")}</SectionDivider>
+            <div className="grid gap-4">
+              <SectionDivider className="mt-0">{t("register_a_new_account")}</SectionDivider>
 
-              <div className="grid gap-6">
+              <div className="grid gap-4">
 
                 {/* 用户名 */}
                 <div className="grid gap-3">
@@ -152,17 +152,21 @@ export function RegisterForm({
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                     />
-                    <Button onClick={handleSendVerifyCode} disabled={!email} variant="outline" className="border-2" type="button">
-                      {commonT("send_verify_code")}
-                    </Button>
+
                   </div>
                 </div>
                 {/* 邮箱验证码 */}
                 <div className="grid gap-3">
                   <Label htmlFor="email">{commonT("verify_code")}</Label>
-                  <InputOTPControlled
-                    onChange={value => setVerifyCode(value)}
-                  />
+                  <div className="flex justify-between">
+                    <InputOTPControlled
+                      onChange={value => setVerifyCode(value)}
+                    />
+                    <Button onClick={handleSendVerifyCode} disabled={!email} variant="outline" className="border-2" type="button">
+                      {commonT("send_verify_code")}
+                    </Button>
+                  </div>
+
                 </div>
                 {captchaProps &&
                   <div className="flex justify-center items-center w-full">

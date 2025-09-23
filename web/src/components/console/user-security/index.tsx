@@ -73,7 +73,7 @@ export function UserSecurityPage() {
           <Button disabled={!oldPassword || !newPassword} className="max-w-1/3 border-2" onClick={handleSubmitPassword}>{t("update_password")}</Button>
           <Link href={resetPasswordPath}>{t("forgot_password_or_no_password")}</Link>
         </div>
-        
+
       </div>
       <Separator className="my-4" />
       <div className="grid w-full max-w-sm items-center gap-3 py-4">
@@ -83,13 +83,14 @@ export function UserSecurityPage() {
         <Label htmlFor="email">{commonT("email")}</Label>
         <div className="flex gap-3">
           <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <Button disabled={!email || email == user.email} variant="outline" className="border-2" onClick={handleSendVerifyCode}>{t("send_verify_code")}</Button>
+
         </div>
         <Label htmlFor="verify-code">{t("verify_code")}</Label>
-        <div className="flex gap-3">
+        <div className="flex justify-between">
           <InputOTPControlled onChange={(value) => setVerifyCode(value)} />
-          <Button disabled={verifyCode.length < 6} className="border-2" onClick={handleSubmitEmail}>{t("update_email")}</Button>
+          <Button disabled={!email || email == user.email} variant="outline" className="border-2" onClick={handleSendVerifyCode}>{t("send_verify_code")}</Button>
         </div>
+        <Button disabled={verifyCode.length < 6} className="border-2" onClick={handleSubmitEmail}>{t("update_email")}</Button>
       </div>
     </div>
   )
