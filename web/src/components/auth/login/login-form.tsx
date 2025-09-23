@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import Image from "next/image"
 import { useEffect, useState } from "react"
 import type { OidcConfig } from "@/models/oidc-config"
-import { getCaptchaConfig, listOidcConfigs, userLogin } from "@/api/user"
+import { getCaptchaConfig, listOidcConfigs, userLogin, userLogout } from "@/api/user"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
@@ -104,7 +104,7 @@ export function LoginForm({
         </CardHeader>
         <CardContent>
           <CurrentLogged />
-          <SectionDivider className="mb-6">{user ? t("bind_oidc") : t("with_oidc")}</SectionDivider>
+          <SectionDivider className="mb-6">{t("with_oidc")}</SectionDivider>
           <form>
             <div className="grid gap-4">
               {/* OIDC 登录选项 */}
@@ -205,19 +205,27 @@ function LoginWithOidc({
   displayName = "Login with OIDC",
   icon = "/oidc-icon.svg",
 }: LoginWithOidcProps) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const handleOidcLogin = async () => {
+    // 使用第三方登录时，如果当前已经有登录用户了，则先登出当前用户，避免后端直接使用登录态进行绑定（接口是这样设计的）
+    if (user) {
+      await userLogout()
+    }
+    router.push(loginUrl);
+  }
+
   return (
     <Button
       variant="outline"
       className="w-full"
-      asChild
+      onClick={handleOidcLogin}
     >
-      <Link href={loginUrl}>
-        <Avatar className="h-6 w-6 rounded-full">
-          <AvatarImage src={icon} alt={displayName} />
-          <AvatarFallback className="rounded-full"></AvatarFallback>
-        </Avatar>
-        {displayName}
-      </Link>
+      <Avatar className="h-6 w-6 rounded-full">
+        <AvatarImage src={icon} alt={displayName} />
+        <AvatarFallback className="rounded-full"></AvatarFallback>
+      </Avatar>
+      {displayName}
     </Button>
   )
 }
