@@ -8,33 +8,49 @@ import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 import { SectionDivider } from '@/components/common/section-divider';
+import { LogOut } from "lucide-react";
+import { userLogout } from "@/api/user";
+import { toast } from "sonner";
 
 export function CurrentLogged() {
   const t = useTranslations("Login");
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectBack = searchParams.get("redirect_back") || "/"
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const handleLoggedContinue = () => {
     router.push(redirectBack);
   }
+
+  const handleLogOut = () => {
+    userLogout().then(() => {
+      logout();
+      toast.success(t("logout_success"));
+    })
+  }
+
   if (!user) return null;
   return (
-    <div>
+    <div className="mb-4">
       <SectionDivider className="mb-4">{t("currently_logged_in")}</SectionDivider>
-      <div onClick={handleLoggedContinue} className="cursor-pointer">
-        <div className="flex gap-2 justify-center items-center">
-          <Avatar className="h-10 w-10 rounded-full">
-            <AvatarImage src={getGravatarFromUser({ user })} alt={user.username} />
-            <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
-          </Avatar>
+      <div className="flex justify-evenly items-center">
+        <div className="flex gap-4 items-center cursor-pointer">
+          <div onClick={handleLoggedContinue} className="flex gap-2 justify-center items-center  ">
+            <Avatar className="h-10 w-10 rounded-full">
+              <AvatarImage src={getGravatarFromUser({ user })} alt={user.username} />
+              <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
+            </Avatar>
+          </div>
+          <div className="grid place-items-center text-sm leading-tight text-center">
+            <span className="text-primary font-medium">{formatDisplayName(user)}</span>
+            <span className="text-muted-foreground truncate text-xs">
+              {user.email}
+            </span>
+          </div>
         </div>
-        <div className="grid place-items-center text-sm leading-tight text-center">
-          <span className="text-primary font-medium">{formatDisplayName(user)}</span>
-          <span className="text-muted-foreground truncate text-xs">
-            {user.email}
-          </span>
+        <div>
+          <LogOut onClick={handleLogOut} className="text-muted-foreground cursor-pointer" />
         </div>
       </div>
     </div>

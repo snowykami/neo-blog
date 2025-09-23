@@ -128,6 +128,7 @@
     }
   },
   "Login": {
+    "bind_oidc": "绑定第三方账号",
     "captcha_error": "验证错误，请重试。",
     "continue": "继续",
     "currently_logged_in": "当前已登录为",
@@ -137,7 +138,7 @@
     "login_success": "登录成功！",
     "login_failed": "登录失败",
     "welcome": "欢迎回来",
-    "with_oidc": "使用第三方身份提供者",
+    "with_oidc": "使用第三方账号",
     "or_continue_with_local_account": "或使用用户名和密码",
     "email_or_username": "邮箱或用户名",
     "password": "密码",

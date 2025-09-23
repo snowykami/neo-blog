@@ -25,6 +25,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { registerPath, resetPasswordPath } from "@/hooks/use-route"
 import { CurrentLogged } from "@/components/auth/common/current-logged"
 import { SectionDivider } from "@/components/common/section-divider"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export function LoginForm({
   className,
@@ -103,9 +104,9 @@ export function LoginForm({
         </CardHeader>
         <CardContent>
           <CurrentLogged />
-          <SectionDivider className="my-4">{t("with_oidc")}</SectionDivider>
+          <SectionDivider className="mb-6">{user ? t("bind_oidc") : t("with_oidc")}</SectionDivider>
           <form>
-            <div className="grid gap-6">
+            <div className="grid gap-4">
               {/* OIDC 登录选项 */}
               {oidcConfigs.length > 0 && (
                 <div className="flex flex-col gap-4">
@@ -130,10 +131,10 @@ export function LoginForm({
               )}
               {/* 分隔线 */}
               {oidcConfigs.length > 0 && (
-                <SectionDivider className="my-0"> {t("or_continue_with_local_account")}</SectionDivider>
+                <SectionDivider className="my-2"> {t("or_continue_with_local_account")}</SectionDivider>
               )}
               {/* 邮箱密码登录 */}
-              <div className="grid gap-6">
+              <div className="grid gap-4">
                 <div className="grid gap-3">
                   <Label htmlFor="email">{t("email_or_username")}</Label>
                   <Input
@@ -181,7 +182,7 @@ export function LoginForm({
               {/* 注册链接 */}
               <div className="text-center text-sm">
                 {t("no_account")}{" "}
-                <Link href={registerPath+"?redirect_back="+encodeURIComponent(redirectBack)} className="underline underline-offset-4">
+                <Link href={registerPath + "?redirect_back=" + encodeURIComponent(redirectBack)} className="underline underline-offset-4">
                   {t("register")}
                 </Link>
               </div>
@@ -211,20 +212,10 @@ function LoginWithOidc({
       asChild
     >
       <Link href={loginUrl}>
-        <Image
-          src={icon}
-          alt={`${displayName} icon`}
-          width={16}
-          height={16}
-          style={{
-            width: '16px',
-            height: '16px',
-            marginRight: '8px'
-          }}
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-          }}
-        />
+        <Avatar className="h-6 w-6 rounded-full">
+          <AvatarImage src={icon} alt={displayName} />
+          <AvatarFallback className="rounded-full"></AvatarFallback>
+        </Avatar>
         {displayName}
       </Link>
     </Button>
