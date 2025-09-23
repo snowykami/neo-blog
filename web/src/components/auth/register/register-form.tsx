@@ -22,6 +22,8 @@ import { SectionDivider } from "@/components/common/section-divider"
 import { InputOTPControlled } from "@/components/common/input-otp"
 import { BaseErrorResponse } from "@/models/resp"
 import { useAuth } from "@/contexts/auth-context"
+import Link from "next/link"
+import { loginPath } from "@/hooks/use-route"
 
 export function RegisterForm({
   className,
@@ -181,6 +183,13 @@ export function RegisterForm({
                 >
                   {isLogging ? t("registering") : t("register")}
                 </Button>
+                {/* 注册链接 */}
+                <div className="text-center text-sm">
+                  {t("already_have_account")}{" "}
+                  <Link href={loginPath + "?redirect_back=" + encodeURIComponent(redirectBack)} className="underline underline-offset-4">
+                    {commonT("login")}
+                  </Link>
+                </div>
               </div>
             </div>
           </form>

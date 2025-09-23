@@ -8,9 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { userLogout } from "@/api/user";
 import Link from "next/link";
-import { toast } from "sonner";
 import { useToLogin } from "@/hooks/use-route";
 import { CircleUser } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -19,19 +17,16 @@ import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common
 import { useAuth } from "@/contexts/auth-context";
 
 export function AvatarWithDropdownMenu() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const toLogin = useToLogin();
 
   const handleLogout = () => {
-    userLogout().then(() => {
-      toast.success("Logged out successfully");
-      window.location.reload();
-    })
+    logout()
   }
 
   return (
     <DropdownMenu>
-      
+
       <DropdownMenuTrigger asChild>
         <button className="rounded-full overflow-hidden">
           {user ? <Avatar className="h-8 w-8 rounded-full">

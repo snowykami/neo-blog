@@ -9,8 +9,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 import { SectionDivider } from '@/components/common/section-divider';
 import { LogOut } from "lucide-react";
-import { userLogout } from "@/api/user";
-import { toast } from "sonner";
 
 export function CurrentLogged() {
   const t = useTranslations("Login");
@@ -24,10 +22,7 @@ export function CurrentLogged() {
   }
 
   const handleLogOut = () => {
-    userLogout().then(() => {
       logout();
-      toast.success(t("logout_success"));
-    })
   }
 
   if (!user) return null;

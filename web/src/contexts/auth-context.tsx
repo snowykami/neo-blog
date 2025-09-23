@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
 import type { User } from "@/models/user";
 import { getLoginUser, userLogout } from "@/api/user";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 type AuthContextValue = {
   user: User | null;
@@ -20,6 +22,7 @@ export function AuthProvider({
   initialUser?: User | null;
 }) {
   const [user, setUser] = useState<User | null>(initialUser);
+  const commonT = useTranslations("Common");
 
   useEffect(() => {
     if (!user){
@@ -31,9 +34,13 @@ export function AuthProvider({
     }
   }, [user]);
 
-  const logout = async () => {
-    setUser(null);
-    await userLogout();
+  const logout = () => {
+    userLogout().then(() => {
+      toast.success(commonT("logout_success"));
+      setUser(null);
+    }).catch(() => {
+      toast.error(commonT("logout_failed"));
+    });
   };
   const value = useMemo(() => ({ user, setUser, logout }), [user]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

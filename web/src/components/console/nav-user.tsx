@@ -32,18 +32,13 @@ import {
 import { getGravatarFromUser } from "@/utils/common/gravatar"
 import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common/username"
 import { useAuth } from "@/contexts/auth-context"
-import { userLogout } from "@/api/user"
-import { toast } from "sonner"
 
 export function NavUser() {
   const { isMobile } = useSidebar()
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const handleLogout = () => {
-    userLogout().then(() => {
-      toast.success("Logged out successfully");
-      window.location.reload();
-    })
+    logout()
   }
 
   if (!user) return null

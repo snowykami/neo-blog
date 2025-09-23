@@ -11,10 +11,9 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import Image from "next/image"
 import { useEffect, useState } from "react"
 import type { OidcConfig } from "@/models/oidc-config"
-import { getCaptchaConfig, listOidcConfigs, userLogin, userLogout } from "@/api/user"
+import { getCaptchaConfig, listOidcConfigs, userLogin} from "@/api/user"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
@@ -205,12 +204,12 @@ function LoginWithOidc({
   displayName = "Login with OIDC",
   icon = "/oidc-icon.svg",
 }: LoginWithOidcProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const handleOidcLogin = async () => {
     // 使用第三方登录时，如果当前已经有登录用户了，则先登出当前用户，避免后端直接使用登录态进行绑定（接口是这样设计的）
     if (user) {
-      await userLogout()
+      logout()
     }
     router.push(loginUrl);
   }
