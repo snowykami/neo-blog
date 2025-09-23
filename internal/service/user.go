@@ -180,6 +180,7 @@ func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, error) {
 
 func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dto.OidcLoginResp, error) {
 	// 验证state
+	currentUser, userOk := ctxutils.GetCurrentUser(ctx)
 	kvStore := utils.KV.GetInstance()
 	storedName, ok := kvStore.Get(constant.KVKeyOidcState + req.State)
 	if !ok || storedName != req.Name {
@@ -211,7 +212,7 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		return nil, errs.ErrInternalServer
 	}
 
-	// 绑定过登录
+	// 1.绑定过登录
 	userOpenID, err := repo.User.GetUserOpenIDByIssuerAndSub(oidcConfig.Issuer, userInfo.Sub)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errs.ErrInternalServer
@@ -233,12 +234,16 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		}
 		return resp, nil
 	} else {
-		// 若没有绑定过登录，则先通过邮箱查找用户，若没有再创建新用户
-		user, err := repo.User.GetUserByEmail(userInfo.Email)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			logrus.Errorln("Failed to get user by email:", err)
-			return nil, errs.ErrInternalServer
+		// 2.若没有绑定过登录，则判断当前有无用户登录，有则绑定，没有登录先通过邮箱查找用户
+		user := currentUser
+		if user == nil || !userOk {
+			user, err = repo.User.GetUserByEmail(userInfo.Email)
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				logrus.Errorln("Failed to get user by email:", err)
+				return nil, errs.ErrInternalServer
+			}
 		}
+
 		if user != nil {
 			userOpenID = &model.UserOpenID{
 				UserID: user.ID,
@@ -262,7 +267,7 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 			}
 			return resp, nil
 		} else {
-			// 第一次登录，创建新用户时才获取头像
+			// 3.第一次登录，创建新用户时才获取头像
 			user = &model.User{
 				Username:  userInfo.PreferredUsername,
 				Nickname:  userInfo.Name,
