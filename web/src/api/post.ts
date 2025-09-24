@@ -45,3 +45,13 @@ export async function listPosts({
   })
   return res.data
 }
+
+export async function updatePost({post}: {post: Post}): Promise<BaseResponse<Post>> {
+  const res = await axiosClient.put<BaseResponse<Post>>(`/post/p/${post.id}`, post)
+  return res.data
+}
+
+export async function deletePost({id}: {id: number}): Promise<null> {
+    const res = await axiosClient.delete(`/post/p/${id}`)
+    return res.data
+}

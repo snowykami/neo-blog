@@ -1,5 +1,7 @@
-package main
+package v1
 
-func main() {
+type ConfigController struct{}
 
+func NewConfigController() *ConfigController {
+	return &ConfigController{}
 }

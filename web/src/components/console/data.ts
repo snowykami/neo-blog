@@ -1,3 +1,4 @@
+import { consolePath } from "@/hooks/use-route";
 import type { User } from "@/models/user";
 import { IconType } from "@/types/icon";
 import { isAdmin, isEditor } from "@/utils/common/permission";
@@ -11,53 +12,41 @@ export interface SidebarItem {
   permission: ({ user }: { user: User }) => boolean;
 }
 
-export const path = {
-  dashboard: "/console",
-  post: "/console/post",
-  comment: "/console/comment",
-  file: "/console/file",
-  user: "/console/user",
-  global: "/console/global",
-  userProfile: "/console/user-profile",
-  userSecurity: "/console/user-security",
-  userPreference: "/console/user-preference",
-}
-
 export const sidebarData: { navMain: SidebarItem[]; navUserCenter: SidebarItem[] } = {
   navMain: [
     {
       title: "dashboard.title",
-      url: path.dashboard,
+      url: consolePath.dashboard,
       icon: Gauge,
       permission: isAdmin
     },
     {
       title: "post.title",
-      url: path.post,
+      url: consolePath.post,
       icon: Newspaper,
       permission: isEditor
     },
     {
       title: "comment.title",
-      url: path.comment,
+      url: consolePath.comment,
       icon: MessageCircle,
       permission: isEditor
     },
     {
       title: "file.title",
-      url: path.file,
+      url: consolePath.file,
       icon: Folder,
       permission: () => true
     },
     {
       title: "user.title",
-      url: path.user,
+      url: consolePath.user,
       icon: Users,
       permission: isAdmin
     },
     {
       title: "global.title",
-      url: path.global,
+      url: consolePath.global,
       icon: Settings,
       permission: isAdmin
     },
@@ -65,19 +54,19 @@ export const sidebarData: { navMain: SidebarItem[]; navUserCenter: SidebarItem[]
   navUserCenter: [
     {
       title: "user_profile.title",
-      url: path.userProfile,
+      url: consolePath.userProfile,
       icon: UserPen,
       permission: () => true
     },
     {
       title: "user_security.title",
-      url: path.userSecurity,
+      url: consolePath.userSecurity,
       icon: ShieldCheck,
       permission: () => true
     },
     {
       title: "user-preference.title",
-      url: path.userPreference,
+      url: consolePath.userPreference,
       icon: Palette,
       permission: () => true
     }

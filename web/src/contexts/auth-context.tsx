@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
+import React, { createContext, useContext, useState, useMemo, useEffect, useCallback } from "react";
 import type { User } from "@/models/user";
 import { getLoginUser, userLogout } from "@/api/user";
 import { useTranslations } from "next-intl";
@@ -34,15 +34,15 @@ export function AuthProvider({
     }
   }, [user]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     userLogout().then(() => {
       toast.success(commonT("logout_success"));
       setUser(null);
     }).catch(() => {
       toast.error(commonT("logout_failed"));
     });
-  };
-  const value = useMemo(() => ({ user, setUser, logout }), [user]);
+  }, [commonT]);
+  const value = useMemo(() => ({ user, setUser, logout }), [user, logout]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

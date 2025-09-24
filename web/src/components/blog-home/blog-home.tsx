@@ -16,6 +16,7 @@ import { OrderBy } from "@/models/common";
 import { PaginationController } from "@/components/common/pagination";
 import { QueryKey } from "@/constant";
 import { useStoredState } from "@/hooks/use-storage-state";
+import { parseAsInteger, useQueryState } from "nuqs";
 
 // 定义排序类型
 enum SortBy {
@@ -27,11 +28,10 @@ const DEFAULT_SORTBY: SortBy = SortBy.Latest;
 
 export default function BlogHome() {
   // 从路由查询参数中获取页码和标签们
-  const searchParams = useSearchParams();
   const t = useTranslations("BlogHome");
   const [labels, setLabels] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1).withOptions({ history: "replace", clearOnDefault: true }));
   const [posts, setPosts] = useState<Post[]>([]);
   const [totalPosts, setTotalPosts] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -42,7 +42,7 @@ export default function BlogHome() {
     setLoading(true);
     listPosts(
       {
-        page: currentPage,
+        page,
         size: config.postsPerPage,
         orderBy: sortBy === SortBy.Latest ? OrderBy.CreatedAt : OrderBy.Heat,
         desc: true,
@@ -57,22 +57,18 @@ export default function BlogHome() {
       console.error(err);
       setLoading(false);
     });
-  }, [keywords, labels, currentPage, sortBy, isSortByLoaded]);
+  }, [keywords, labels, page, sortBy, isSortByLoaded]);
 
   const handleSortChange = (type: SortBy) => {
     if (sortBy !== type) {
       setSortBy(type);
-      setCurrentPage(1);
+      setPage(1);
     }
   };
 
   const handlePageChange = (page: number) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    setCurrentPage(page);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', page.toString());
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
-    window.history.replaceState({}, '', newUrl);
+    setPage(page);
   }
 
   return (
@@ -126,12 +122,13 @@ export default function BlogHome() {
               <BlogCardGrid posts={posts} isLoading={loading} showPrivate={true} />
               {/* 分页控制器 */}
               <div className="mt-8">
-                <PaginationController
+                {totalPosts > 0 && <PaginationController
                   className="pt-4 flex justify-center"
-                  initialPage={currentPage}
-                  totalPages={Math.ceil(totalPosts / config.postsPerPage)}
+                  pageSize={config.postsPerPage}
+                  initialPage={page}
+                  total={totalPosts}
                   onPageChange={handlePageChange}
-                />
+                />}
               </div>
               {/* 加载状态指示器 */}
               {loading && (

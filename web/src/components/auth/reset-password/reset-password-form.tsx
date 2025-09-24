@@ -17,7 +17,7 @@ import { toast } from "sonner"
 import { InputOTPControlled } from "@/components/common/input-otp"
 import { BaseErrorResponse } from "@/models/resp"
 import { loginPath, registerPath } from "@/hooks/use-route"
-import {useRouter} from "next/navigation"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 
 export function ResetPasswordForm({
@@ -75,21 +75,21 @@ export function ResetPasswordForm({
         <CardContent>
           <form>
             <div className="grid gap-6">
-              <div className="grid gap-6">
-                <div className="grid gap-3">
+              <div className="grid gap-4">
+                <div className="grid gap-2">
                   <Label htmlFor="password">{t("new_password")}</Label>
                   <Input id="password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
                 </div>
-                <div className="grid gap-3">
+                <div className="grid gap-2">
                   <Label htmlFor="email">{commonT("email")}</Label>
-                  <div className="flex gap-3">
+                  <div className="flex gap-2">
                     <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
 
                   </div>
                 </div>
-                <div className="grid gap-3">
+                <div className="grid gap-2">
                   <Label htmlFor="verify_code">{t("verify_code")}</Label>
-                  <div className="flex gap-3 justify-between">
+                  <div className="flex gap-2 justify-between">
                     <InputOTPControlled onChange={value => setVerifyCode(value)} />
                     <Button
                       disabled={!email || coolDown > 0}

@@ -32,8 +32,13 @@ import {
 import { getGravatarFromUser } from "@/utils/common/gravatar"
 import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common/username"
 import { useAuth } from "@/contexts/auth-context"
+import { useTranslations } from "next-intl"
+import { useToUserProfile } from "@/hooks/use-route"
 
 export function NavUser() {
+  const operationT = useTranslations("Operation");
+  const routeT = useTranslations("Route");
+  const clickToProfile = useToUserProfile();
   const { isMobile } = useSidebar()
   const { user, logout } = useAuth();
 
@@ -86,9 +91,9 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={()=>{clickToProfile(user.username)}}>
                 <IconUserCircle />
-                Account
+                {routeT("profile")}
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <IconCreditCard />
@@ -102,7 +107,7 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <IconLogout />
-              Log out
+              {operationT("logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -74,15 +74,14 @@ export function ThemeModeSegmented(props: React.HTMLAttributes<HTMLDivElement> &
           </button>
         ))}
       </div>
-  </div>
+    </div>
   );
 }
 
 // 总组件：根据设备类型渲染
-export function ThemeModeToggle(props: React.HTMLAttributes<HTMLElement> = {}) {
-  const { isMobile, mode, setMode } = useDevice();
-  const Comp: React.ElementType = isMobile ? ThemeModeSegmented : ThemeModeCycleButton;
+export function ThemeModeToggle(props: React.HTMLAttributes<HTMLElement> & { showSegmented?: boolean }) {
+  const { mode, setMode } = useDevice();
+  const Comp: React.ElementType = props.showSegmented ? ThemeModeSegmented : ThemeModeCycleButton;
   const { className, style } = props;
-  // 仅转发 className / style，避免复杂的 prop 类型不匹配
   return <Comp mode={mode} setMode={setMode} className={className} style={style} />;
 }

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -102,7 +101,7 @@ export function LoginForm({
           <CardTitle className="text-xl">{t("welcome")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <CurrentLogged />
+          {user && <CurrentLogged />}
           <SectionDivider className="mb-6">{t("with_oidc")}</SectionDivider>
           <form>
             <div className="grid gap-4">
@@ -134,7 +133,7 @@ export function LoginForm({
               )}
               {/* 邮箱密码登录 */}
               <div className="grid gap-4">
-                <div className="grid gap-3">
+                <div className="grid gap-2">
                   <Label htmlFor="email">{t("email_or_username")}</Label>
                   <Input
                     id="email"
@@ -145,7 +144,7 @@ export function LoginForm({
                     onChange={e => setCredentials(c => ({ ...c, username: e.target.value }))}
                   />
                 </div>
-                <div className="grid gap-3">
+                <div className="grid gap-2">
                   <div className="flex items-center">
                     <Label htmlFor="password">{t("password")}</Label>
                     <Link

@@ -132,6 +132,12 @@ pnpm install
 pnpm dev
 ```
 
+### 前端规范
+
+表单元素使用`grid gap-4`作为容器，表单项使用`grid gap-2`作为容器
+
+flex布局横向使用`flex gap-3`作为容器
+
 ### 联合调试
 
 默认情况下，本机启动后端和前端服务器无须额外配置即可互联，若后端在不同的主机上，需要在.env.development(自己创建)中配置`BACKEND_URL`变量

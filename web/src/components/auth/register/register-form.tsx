@@ -132,7 +132,7 @@ export function RegisterForm({
               <div className="grid gap-4">
 
                 {/* 用户名 */}
-                <div className="grid gap-3">
+                <div className="grid gap-2">
                   <div className="flex items-center">
                     <Label htmlFor="username">{commonT("username")}</Label>
                   </div>
@@ -145,7 +145,7 @@ export function RegisterForm({
                   />
                 </div>
                 {/* 密码 */}
-                <div className="grid gap-3">
+                <div className="grid gap-2">
                   <div className="flex items-center">
                     <Label htmlFor="password">{commonT("password")}</Label>
                   </div>
@@ -158,7 +158,7 @@ export function RegisterForm({
                   />
                 </div>
                 {/* 邮箱 */}
-                <div className="grid gap-3">
+                <div className="grid gap-2">
                   <Label htmlFor="email">{commonT("email")}</Label>
                   <div className="flex gap-3">
                     <Input
@@ -173,7 +173,7 @@ export function RegisterForm({
                   </div>
                 </div>
                 {/* 邮箱验证码 */}
-                <div className="grid gap-3">
+                <div className="grid gap-2">
                   <Label htmlFor="email">{commonT("verify_code")}</Label>
                   <div className="flex justify-between">
                     <InputOTPControlled

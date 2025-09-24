@@ -19,6 +19,7 @@ import config from "@/config"
 import Link from "next/link"
 import { NavUserCenter } from "./nav-ucenter"
 import { sidebarData } from "./data"
+import { ThemeModeToggle } from "../common/theme-toggle"
 
 
 
@@ -45,6 +46,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavUserCenter items={sidebarData.navUserCenter} />
       </SidebarContent>
       <SidebarFooter>
+        <div className="mb-2 flex justify-center">
+          <ThemeModeToggle showSegmented={true} />
+        </div>
         <NavUser />
       </SidebarFooter>
     </Sidebar>

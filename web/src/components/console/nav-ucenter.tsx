@@ -32,7 +32,7 @@ export function NavUserCenter({
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel>Personal</SidebarGroupLabel>
+      <SidebarGroupLabel>{t("personal")}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
           item.permission({ user }) && <SidebarMenuItem key={item.title}>

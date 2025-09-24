@@ -8,6 +8,7 @@ import config from "@/config";
 import { getFirstLocale } from '@/i18n/request';
 import { Toaster } from "@/components/ui/sonner"
 import { getLoginUser } from "@/api/user";
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import "./globals.css";
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,7 +32,7 @@ export default async function RootLayout({
 }>) {
   const token = (await cookies()).get("token")?.value || "";
   const refreshToken = (await cookies()).get("refresh_token")?.value || "";
-  const user = await getLoginUser({token, refreshToken}).then(res => res.data).catch(() => null);
+  const user = await getLoginUser({ token, refreshToken }).then(res => res.data).catch(() => null);
 
   return (
     <html lang={await getFirstLocale() || "en"} className="h-full">
@@ -39,13 +40,15 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Toaster richColors position="top-center" offset={80} />
-        <DeviceProvider>
-          <NextIntlClientProvider>
-            <AuthProvider initialUser={user}>
-              {children}
-            </AuthProvider>
-          </NextIntlClientProvider>
-        </DeviceProvider>
+        <NuqsAdapter>
+          <DeviceProvider>
+            <NextIntlClientProvider>
+              <AuthProvider initialUser={user}>
+                {children}
+              </AuthProvider>
+            </NextIntlClientProvider>
+          </DeviceProvider>
+        </ NuqsAdapter>
       </body>
     </html>
   );

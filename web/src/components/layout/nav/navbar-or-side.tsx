@@ -171,7 +171,7 @@ function SidebarMenu() {
             )}
           </nav>
           <div className="flex items-center justify-center p-4 border-t border-border">
-            <ThemeModeToggle/>
+            <ThemeModeToggle showSegmented={true} />
           </div>
           
         </SheetContent>

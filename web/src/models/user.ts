@@ -3,6 +3,7 @@ export interface User {
     username: string;
     nickname?: string;
     avatarUrl?: string;
+    backgroundUrl?: string;
     email: string;
     gender?: string;
     role: string;

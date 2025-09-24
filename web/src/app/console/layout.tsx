@@ -54,7 +54,7 @@ export default function ConsoleLayout({
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader title={title} />
-        <div className="p-5 md:p-8">
+        <div className="p-4 md:p-4">
           {children}
         </div>
       </SidebarInset>

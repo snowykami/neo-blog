@@ -2,11 +2,11 @@
 import { getDashboard, DashboardResp } from "@/api/admin"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, MessageCircle, Newspaper, Users } from "lucide-react"
-import { JSX, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { path } from "../data"
 import Link from "next/link"
 import { IconType } from "@/types/icon"
+import { consolePath } from "@/hooks/use-route"
 
 export function Dashboard() {
   return (
@@ -22,25 +22,25 @@ function DataOverview() {
       key: "totalPosts",
       label: "Total Posts",
       icon: Newspaper,
-      url: path.post
+      url: consolePath.post
     },
     {
       key: "totalUsers",
       label: "Total Users",
       icon: Users,
-      url: path.user
+      url: consolePath.user
     },
     {
       key: "totalComments",
       label: "Total Comments",
       icon: MessageCircle,
-      url: path.comment
+      url: consolePath.comment
     },
     {
       key: "totalViews",
       label: "Total Views",
       icon: Eye,
-      url: path.file
+      url: consolePath.file
     },
   ]
 
