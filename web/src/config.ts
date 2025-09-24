@@ -16,6 +16,7 @@ const config = {
     bodyWidthMobile: "100vw",
     postsPerPage: 9,
     commentsPerPage: 8,
+    verifyCodeCoolDown: 60,
     animationDurationSecond: 0.618,
     footer: {
         text: "Liteyuki ICP备 1145141919810",

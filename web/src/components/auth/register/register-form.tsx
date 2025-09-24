@@ -15,7 +15,7 @@ import { getCaptchaConfig, requestEmailVerifyCode, userRegister } from "@/api/us
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import Captcha from "@/components/common/captcha"
-import { CaptchaProvider } from "@/models/captcha"
+import { CaptchaProvider } from "@/types/captcha"
 import { toast } from "sonner"
 import { CurrentLogged } from "@/components/auth/common/current-logged"
 import { SectionDivider } from "@/components/common/section-divider"
@@ -41,13 +41,22 @@ export function RegisterForm({
     url?: string
   } | null>(null)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
-  const [isLogging, setIsLogging] = useState(false)
   const [refreshCaptchaKey, setRefreshCaptchaKey] = useState(0)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [email, setEmail] = useState('')
   const [verifyCode, setVerifyCode] = useState('')
+  const [sendingVerifyCode, setSendingVerifyCode] = useState(false)
+  const [registering, setRegistering] = useState(false)
+  const [coolDown, setCoolDown] = useState(0)
 
+  useEffect(() => {
+    if (coolDown <= 0) return
+    const id = setInterval(() => {
+      setCoolDown(c => (c > 1 ? c - 1 : 0))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [coolDown])
 
   useEffect(() => {
     getCaptchaConfig()
@@ -68,12 +77,18 @@ export function RegisterForm({
   }
 
   const handleSendVerifyCode = () => {
-    requestEmailVerifyCode(email)
+    if (!email || coolDown > 0 || sendingVerifyCode) return;
+    setSendingVerifyCode(true);
+    requestEmailVerifyCode({ email, captchaToken: captchaToken || '' })
       .then(() => {
         toast.success(t("send_verify_code_success"))
       })
       .catch((error: BaseErrorResponse) => {
         toast.error(`${t("send_verify_code_failed")}: ${error.response.data.message}`)
+      })
+      .finally(() => {
+        setSendingVerifyCode(false);
+        setCoolDown(60);
       })
   }
 
@@ -83,9 +98,9 @@ export function RegisterForm({
       return;
     }
     if (!captchaToken) {
-      toast.error(t("please_complete_captcha_verification"));
       return;
     }
+    setRegistering(true)
     userRegister({ username, password, email, verifyCode, captchaToken })
       .then(res => {
         toast.success(t("register_success") + ` ${res.data.user.nickname || res.data.user.username}`);
@@ -98,12 +113,12 @@ export function RegisterForm({
         setCaptchaToken(null)
       })
       .finally(() => {
-        setIsLogging(false)
+        setRegistering(false)
       })
   }
 
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
+    <div className={cn("", className)} {...props}>
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-xl">{t("title")}</CardTitle>
@@ -164,11 +179,10 @@ export function RegisterForm({
                     <InputOTPControlled
                       onChange={value => setVerifyCode(value)}
                     />
-                    <Button onClick={handleSendVerifyCode} disabled={!email} variant="outline" className="border-2" type="button">
-                      {commonT("send_verify_code")}
+                    <Button onClick={handleSendVerifyCode} disabled={!email || coolDown > 0 || sendingVerifyCode} variant="outline" className="border-2" type="button">
+                      {commonT("send_verify_code")}{coolDown > 0 ? `(${coolDown})` : ""}
                     </Button>
                   </div>
-
                 </div>
                 {captchaProps &&
                   <div className="flex justify-center items-center w-full">
@@ -179,9 +193,9 @@ export function RegisterForm({
                   type="button"
                   className="w-full"
                   onClick={handleRegister}
-                  disabled={!captchaToken || isLogging || !username || !password || !email}
+                  disabled={!captchaToken || registering || !username || !password || !email || !(verifyCode.length == 6)}
                 >
-                  {isLogging ? t("registering") : t("register")}
+                  {registering ? t("registering") : t("register")}
                 </Button>
                 {/* 注册链接 */}
                 <div className="text-center text-sm">

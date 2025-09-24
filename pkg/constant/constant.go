@@ -14,7 +14,8 @@ const (
 	RoleEditor                             = "editor" // 能够发布和管理自己内容的用户
 	RoleAdmin                              = "admin"
 	DefaultFileBasePath                    = "./data/uploads"
-	EnvKeyBaseUrl                          = "BASE_URL"           // 环境变量：基础URL
+	EnvKeyBaseUrl                          = "BASE_URL" // 环境变量：基础URL
+	EnvKeyPasscode                         = "\"CAPTCHA_DEV_PASSCODE\""
 	EnvKeyCaptchaProvider                  = "CAPTCHA_PROVIDER"   // captcha提供者
 	EnvKeyCaptchaSecreteKey                = "CAPTCHA_SECRET_KEY" // captcha站点密钥
 	EnvKeyCaptchaUrl                       = "CAPTCHA_URL"        // 某些自托管的captcha的url
@@ -64,7 +65,8 @@ const (
 	OidcUri                                = "/user/oidc/login"         // OIDC登录URI
 	OidcProviderTypeMisskey                = "misskey"                  // OIDC提供者类型：Misskey
 	OidcProviderTypeOauth2                 = "oauth2"                   // OIDC提供者类型：GitHub
-	DefaultBaseUrl                         = "http://localhost:3000"    // 默认BaseUrl
+	DefaultCaptchaDevPasscode              = "dev_passcode"
+	DefaultBaseUrl                         = "http://localhost:3000" // 默认BaseUrl
 	DefaultPasswordSalt                    = "default_salt_114514"
 	TargetTypePost                         = "post"
 	TargetTypeComment                      = "comment"

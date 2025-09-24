@@ -114,7 +114,13 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 
 func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEmailResp, error) {
 	verifyCode := utils.RequestEmailVerify(req.Email)
-	template, err := static.RenderTemplate("email/verification-code.tmpl", map[string]interface{}{})
+	template, err := static.RenderTemplate("email/verification-code.tmpl", map[string]interface{}{
+		"Title":      "NEO-BLOG",
+		"Email":      req.Email,
+		"VerifyCode": verifyCode,
+		"Expire":     10,
+		"Details":    "你正在验证电子邮件所有权",
+	})
 	if err != nil {
 		return nil, errs.ErrInternalServer
 	}

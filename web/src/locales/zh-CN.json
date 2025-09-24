@@ -156,6 +156,7 @@
   "Register": {
     "title": "注册",
     "already_have_account": "已经有账号？",
+    "please_fill_in_all_required_fields": "请填写所有必填项",
     "register": "注册",
     "registering": "注册中...",
     "register_a_new_account": "注册一个新账号",

@@ -5,6 +5,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -14,8 +15,8 @@ func UseCaptcha() app.HandlerFunc {
 	captchaConfig := utils.Captcha.GetCaptchaConfigFromEnv()
 	return func(ctx context.Context, c *app.RequestContext) {
 		CaptchaToken := string(c.GetHeader("X-Captcha-Token"))
-		if utils.IsDevMode && CaptchaToken == utils.Env.Get("CAPTCHA_DEV_PASSCODE", "dev_passcode") {
-			// 开发模式直接通过密钥
+		if utils.IsDevMode && CaptchaToken == utils.Env.Get(constant.EnvKeyPasscode, constant.DefaultCaptchaDevPasscode) {
+			// 开发模式直接通过密钥，开启开发模式后，Captcha可被绕过，请注意安全
 			c.Next(ctx)
 			return
 		}
