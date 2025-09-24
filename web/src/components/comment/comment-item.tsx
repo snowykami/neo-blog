@@ -276,22 +276,21 @@ export function CommentItem(
 
             </div>
           </div>
-          {/* 这俩输入框一次只能显示一个 */}
-          {activeInput && activeInput.type === 'reply' && activeInput.id === commentState.id && <CommentInput
-            onCommentSubmitted={onReply}
-            initIsPrivate={commentState.isPrivate}
-            placeholder={`${t("reply")} ${commentState.user.nickname || commentState.user.username} :`}
-          />}
-          {activeInput && activeInput.type === 'edit' && activeInput.id === commentState.id && <CommentInput
-            initContent={commentState.content}
-            initIsPrivate={commentState.isPrivate}
-            onCommentSubmitted={onCommentEdit}
-            isUpdate={true}
-            initShowClientInfo={commentState.showClientInfo}
-          />}
-
         </div>
+        {/* 这俩输入框一次只能显示一个 */}
       </div >
+      {activeInput && activeInput.type === 'reply' && activeInput.id === commentState.id && <CommentInput
+        onCommentSubmitted={onReply}
+        initIsPrivate={commentState.isPrivate}
+        placeholder={`${t("reply")} ${commentState.user.nickname || commentState.user.username} :`}
+      />}
+      {activeInput && activeInput.type === 'edit' && activeInput.id === commentState.id && <CommentInput
+        initContent={commentState.content}
+        initIsPrivate={commentState.isPrivate}
+        onCommentSubmitted={onCommentEdit}
+        isUpdate={true}
+        initShowClientInfo={commentState.showClientInfo}
+      />}
       {showReplies && replies.length > 0 && (
         <div className="mt-4 pl-4 md:pl-8 border-l border-slate-300 dark:border-slate-600 space-y-4">
           {replies.map((reply) => (
