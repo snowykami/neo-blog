@@ -16,8 +16,9 @@ import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { InputOTPControlled } from "@/components/common/input-otp"
 import { BaseErrorResponse } from "@/models/resp"
-import { loginPath } from "@/hooks/use-route"
+import { loginPath, registerPath } from "@/hooks/use-route"
 import router from "next/router"
+import Link from "next/link"
 
 export function ResetPasswordForm({
   className,
@@ -108,8 +109,16 @@ export function ResetPasswordForm({
                 >
                   {t("title")}
                 </Button>
+                <div className="text-center text-sm">
+                  <Link href={loginPath} className="underline underline-offset-4">
+                    {commonT("login")}
+                  </Link>
+                  {"  "}
+                  <Link href={registerPath} className="underline underline-offset-4">
+                    {commonT("register")}
+                  </Link>
+                </div>
               </div>
-
               {/* TODO 回归登录和注册链接 */}
             </div>
           </form>
