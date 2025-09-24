@@ -2,12 +2,13 @@ package v1
 
 import (
 	"context"
+	"strconv"
+
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
-	"strconv"
 )
 
 type AdminController struct {
@@ -18,6 +19,15 @@ func NewAdminController() *AdminController {
 	return &AdminController{
 		service: service.NewAdminService(),
 	}
+}
+
+func (cc *AdminController) GetDashboard(ctx context.Context, c *app.RequestContext) {
+	dashboardData, err := cc.service.GetDashboard()
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+	}
+	resps.Ok(c, resps.Success, dashboardData)
 }
 
 func (cc *AdminController) CreateOidc(ctx context.Context, c *app.RequestContext) {

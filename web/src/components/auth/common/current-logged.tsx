@@ -18,11 +18,12 @@ export function CurrentLogged() {
   const { user, logout } = useAuth();
 
   const handleLoggedContinue = () => {
+    console.log("continue to", redirectBack);
     router.push(redirectBack);
   }
 
   const handleLogOut = () => {
-      logout();
+    logout();
   }
 
   if (!user) return null;
@@ -30,8 +31,8 @@ export function CurrentLogged() {
     <div className="mb-4">
       <SectionDivider className="mb-4">{t("currently_logged_in")}</SectionDivider>
       <div className="flex justify-evenly items-center border border-border rounded-md p-2">
-        <div className="flex gap-4 items-center cursor-pointer">
-          <div onClick={handleLoggedContinue} className="flex gap-2 justify-center items-center  ">
+        <div onClick={handleLoggedContinue} className="flex gap-4 items-center cursor-pointer">
+          <div className="flex gap-2 justify-center items-center  ">
             <Avatar className="h-10 w-10 rounded-full">
               <AvatarImage src={getGravatarFromUser({ user })} alt={user.username} />
               <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>

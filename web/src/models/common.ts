@@ -1,6 +1,6 @@
 export interface PaginationParams {
   orderBy: OrderBy
-  desc: boolean
+  desc: boolean // 是否降序
   page: number
   size: number
 }

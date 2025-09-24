@@ -11,41 +11,53 @@ export interface SidebarItem {
   permission: ({ user }: { user: User }) => boolean;
 }
 
+export const path = {
+  dashboard: "/console",
+  post: "/console/post",
+  comment: "/console/comment",
+  file: "/console/file",
+  user: "/console/user",
+  global: "/console/global",
+  userProfile: "/console/user-profile",
+  userSecurity: "/console/user-security",
+  userPreference: "/console/user-preference",
+}
+
 export const sidebarData: { navMain: SidebarItem[]; navUserCenter: SidebarItem[] } = {
   navMain: [
     {
       title: "dashboard.title",
-      url: "/console",
+      url: path.dashboard,
       icon: Gauge,
       permission: isAdmin
     },
     {
       title: "post.title",
-      url: "/console/post",
+      url: path.post,
       icon: Newspaper,
       permission: isEditor
     },
     {
       title: "comment.title",
-      url: "/console/comment",
+      url: path.comment,
       icon: MessageCircle,
       permission: isEditor
     },
     {
       title: "file.title",
-      url: "/console/file",
+      url: path.file,
       icon: Folder,
       permission: () => true
     },
     {
       title: "user.title",
-      url: "/console/user",
+      url: path.user,
       icon: Users,
       permission: isAdmin
     },
     {
       title: "global.title",
-      url: "/console/global",
+      url: path.global,
       icon: Settings,
       permission: isAdmin
     },
@@ -53,19 +65,19 @@ export const sidebarData: { navMain: SidebarItem[]; navUserCenter: SidebarItem[]
   navUserCenter: [
     {
       title: "user_profile.title",
-      url: "/console/user-profile",
+      url: path.userProfile,
       icon: UserPen,
       permission: () => true
     },
     {
       title: "user_security.title",
-      url: "/console/user-security",
+      url: path.userSecurity,
       icon: ShieldCheck,
       permission: () => true
     },
     {
       title: "user-preference.title",
-      url: "/console/user-preference",
+      url: path.userPreference,
       icon: Palette,
       permission: () => true
     }

@@ -1,0 +1,73 @@
+"use client"
+import { getDashboard, DashboardResp } from "@/api/admin"
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Eye, MessageCircle, Newspaper, Users } from "lucide-react"
+import { useEffect, useState } from "react"
+import { toast } from "sonner"
+import { path } from "../data"
+import Link from "next/link"
+
+export function Dashboard() {
+  return (
+    <div className="">
+      <DataOverview />
+    </div>
+  )
+}
+
+function DataOverview() {
+  const data = [
+    {
+      "key": "totalPosts",
+      "label": "Total Posts",
+      "icon": Newspaper,
+      "url": path.post
+    },
+    {
+      "key": "totalUsers",
+      "label": "Total Users",
+      "icon": Users,
+      "url": path.user
+    },
+    {
+      "key": "totalComments",
+      "label": "Total Comments",
+      "icon": MessageCircle,
+      "url": path.comment
+    },
+    {
+      "key": "totalViews",
+      "label": "Total Views",
+      "icon": Eye,
+      "url": path.file
+    },
+  ]
+
+  const [fetchData, setFetchData] = useState<DashboardResp | null>(null);
+
+  useEffect(() => {
+    getDashboard().then(res => {
+      setFetchData(res.data);
+    }).catch(err => {
+      toast.error(err.message || "Failed to fetch dashboard data");
+    });
+  }, [])
+
+  if (!fetchData) return <div>Loading...</div>
+
+  return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+    {data.map(item => (
+      <Link key={item.key} href={item.url}>
+        <Card key={item.key} className="p-4">
+          <CardHeader className="pb-2 text-lg font-medium">
+            <CardDescription>{item.label}</CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl text-primary">
+              <item.icon className="inline mr-2" />
+              {(fetchData as any)[item.key]}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      </Link>
+    ))}
+  </div>
+}

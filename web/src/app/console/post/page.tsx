@@ -1,3 +1,5 @@
+import { PostManage } from "@/components/console/post-manage";
+
 export default function Page() {
-  return <div>文章管理</div>;
+  return <PostManage />;
 }

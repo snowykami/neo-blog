@@ -1,3 +1,5 @@
+import { Dashboard } from "@/components/console/dashboard";
+
 export default function Page() {
-  return <div>Console</div>;
+  return <Dashboard />;
 }
