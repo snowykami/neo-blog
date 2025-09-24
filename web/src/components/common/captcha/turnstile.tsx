@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { CaptchaProps } from ".";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTranslations } from "next-intl";
+import { CaptchaProps } from "@/types/captcha";
 
 const TURNSTILE_TIMEOUT = 15
 // 简单的转圈圈动画

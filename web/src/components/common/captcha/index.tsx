@@ -3,19 +3,12 @@
 import { useEffect } from "react";
 import { GoogleReCaptcha, GoogleReCaptchaProvider } from "react-google-recaptcha-v3";
 import HCaptcha from "@hcaptcha/react-hcaptcha";
-import { CaptchaProvider } from "@/models/captcha";
 import "./captcha.css";
 import { TurnstileWidget } from "./turnstile";
+import { CaptchaProps, CaptchaProvider } from "@/types/captcha";
 
 
-export type CaptchaProps = {
-  provider: CaptchaProvider;
-  siteKey: string;
-  url?: string;
-  onSuccess: (token: string) => void;
-  onError: (error: string) => void;
-  onAbort?: () => void;
-};
+
 
 export function ReCaptchaWidget(props: CaptchaProps) {
   return (

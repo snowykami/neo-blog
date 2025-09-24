@@ -34,7 +34,7 @@ export function UserSecurityPage() {
   }
 
   const handleSendVerifyCode = () => {
-    requestEmailVerifyCode(email)
+    requestEmailVerifyCode({email})
       .then(() => {
         toast.success(t("send_verify_code_success"))
       })

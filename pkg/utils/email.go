@@ -25,21 +25,17 @@ type EmailConfig struct {
 	SSL      bool   // 是否使用SSL
 }
 
-// SendTemplate 发送HTML模板，从配置文件中读取邮箱配置，支持上下文控制
-func (e *emailUtils) SendTemplate(emailConfig *EmailConfig, target, subject, htmlTemplate string, data map[string]interface{}) error {
+func (e *emailUtils) RenderTemplate(htmlTemplate string, data map[string]interface{}) (string, error) {
 	// 使用Go的模板系统处理HTML模板
 	tmpl, err := template.New("email").Parse(htmlTemplate)
 	if err != nil {
-		return fmt.Errorf("解析模板失败: %w", err)
+		return "", fmt.Errorf("解析模板失败: %w", err)
 	}
-
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("执行模板失败: %w", err)
+		return "", fmt.Errorf("执行模板失败: %w", err)
 	}
-
-	// 发送处理后的HTML内容
-	return e.SendEmail(emailConfig, target, subject, buf.String(), true)
+	return buf.String(), nil
 }
 
 // SendEmail 使用gomail库发送邮件

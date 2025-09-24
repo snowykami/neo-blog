@@ -1,7 +1,7 @@
 import type { OidcConfig } from '@/models/oidc-config'
 import type { BaseResponse } from '@/models/resp'
 import type { User } from '@/models/user'
-import { CaptchaProvider } from '@/models/captcha'
+import { CaptchaProvider } from '@/types/captcha'
 import axiosClient from './client'
 
 export async function userLogin(
@@ -97,8 +97,8 @@ export async function updateUser(data: Partial<User>): Promise<BaseResponse<User
   return res.data
 }
 
-export async function requestEmailVerifyCode(email: string): Promise<BaseResponse<{ coolDown: number }>> {
-  const res = await axiosClient.post<BaseResponse<{ coolDown: number }>>('/user/email/verify', { email })
+export async function requestEmailVerifyCode({email, captchaToken}: {email: string, captchaToken?: string}): Promise<BaseResponse<{ coolDown: number }>> {
+  const res = await axiosClient.post<BaseResponse<{ coolDown: number }>>('/user/email/verify', { email }, { headers: { 'X-Captcha-Token': captchaToken } })
   return res.data
 }
 
