@@ -4,7 +4,7 @@ import { AuthHeader } from '@/components/auth/common/auth-header'
 
 function LoginPageContent() {
   return (
-    <div className="bg-muted flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
+    <div className="bg-muted flex min-h-svh flex-col items-center justify-center gap-6 p-2 md:p-10">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <AuthHeader />
         <LoginForm />
@@ -16,7 +16,7 @@ function LoginPageContent() {
 export default function LoginPage() {
   return (
     <Suspense fallback={(
-      <div className="bg-muted flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
+      <div className="bg-muted flex min-h-svh flex-col items-center justify-center gap-6 p-2 md:p-10">
         <div className="flex w-full max-w-sm flex-col gap-6">
           <div className="animate-pulse">
             <div className="flex items-center gap-3 self-center mb-6">
