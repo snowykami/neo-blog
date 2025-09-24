@@ -51,6 +51,8 @@ export function CommentItem(
   const [replies, setReplies] = useState<Comment[]>([]);
   const [repliesLoaded, setRepliesLoaded] = useState(false);
 
+  console.log(comment)
+
   const handleToggleLike = () => {
     if (!canClickLike) {
       return;
@@ -175,6 +177,7 @@ export function CommentItem(
               unitI18n: { secondsAgo: commonT("secondsAgo"), minutesAgo: commonT("minutesAgo"), hoursAgo: commonT("hoursAgo"), daysAgo: commonT("daysAgo") }
             })}</span>
             {commentState.createdAt !== commentState.updatedAt &&
+              (new Date(commentState.updatedAt).getTime() - new Date(commentState.createdAt).getTime()) > 10000 &&
               <span className="text-xs">{t("edit_at", {
                 time: formatDateTime({
                   dateTimeString: commentState.updatedAt,

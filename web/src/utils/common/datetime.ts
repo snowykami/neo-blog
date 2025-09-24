@@ -40,13 +40,17 @@ export function formatDateTime({
     return getAgoString(diff, unitI18n);
   }
 
+  if (now.getFullYear() !== date.getFullYear()) {
+    // 不同年，显示完整日期时间
+    return date.toLocaleString(locale, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } 
+
   return date.toLocaleString(locale, {
-    year: 'numeric',
     month: 'short',
     day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
   });
 }
