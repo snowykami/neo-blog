@@ -95,7 +95,7 @@ export function ResetPasswordForm({
                       className="border-2"
                       type="button"
                       onClick={handleSendVerifyCode}>
-                      {t("send_verify_code")}{coolDown > 0 ? `(${coolDown})` : ""}
+                      {commonT("obtain")}{coolDown > 0 ? `(${coolDown})` : ""}
                     </Button>
                   </div>
 

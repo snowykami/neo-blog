@@ -180,7 +180,7 @@ export function RegisterForm({
                       onChange={value => setVerifyCode(value)}
                     />
                     <Button onClick={handleSendVerifyCode} disabled={!email || coolDown > 0 || sendingVerifyCode} variant="outline" className="border-2" type="button">
-                      {commonT("send_verify_code")}{coolDown > 0 ? `(${coolDown})` : ""}
+                      {commonT("obtain")}{coolDown > 0 ? `(${coolDown})` : ""}
                     </Button>
                   </div>
                 </div>
