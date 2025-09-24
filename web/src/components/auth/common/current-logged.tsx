@@ -29,7 +29,7 @@ export function CurrentLogged() {
   return (
     <div className="mb-4">
       <SectionDivider className="mb-4">{t("currently_logged_in")}</SectionDivider>
-      <div className="flex justify-evenly items-center">
+      <div className="flex justify-evenly items-center border border-border rounded-md p-2">
         <div className="flex gap-4 items-center cursor-pointer">
           <div onClick={handleLoggedContinue} className="flex gap-2 justify-center items-center  ">
             <Avatar className="h-10 w-10 rounded-full">
