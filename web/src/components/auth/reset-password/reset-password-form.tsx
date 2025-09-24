@@ -17,7 +17,7 @@ import { toast } from "sonner"
 import { InputOTPControlled } from "@/components/common/input-otp"
 import { BaseErrorResponse } from "@/models/resp"
 import { loginPath, registerPath } from "@/hooks/use-route"
-import router from "next/router"
+import {useRouter} from "next/navigation"
 import Link from "next/link"
 
 export function ResetPasswordForm({
@@ -26,6 +26,7 @@ export function ResetPasswordForm({
 }: React.ComponentProps<"div">) {
   const t = useTranslations('ResetPassword')
   const commonT = useTranslations('Common')
+  const router = useRouter()
   const [email, setEmail] = useState("")
   const [verifyCode, setVerifyCode] = useState("")
   const [newPassword, setNewPassword] = useState("")
