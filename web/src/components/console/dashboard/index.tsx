@@ -2,10 +2,11 @@
 import { getDashboard, DashboardResp } from "@/api/admin"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, MessageCircle, Newspaper, Users } from "lucide-react"
-import { useEffect, useState } from "react"
+import { JSX, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { path } from "../data"
 import Link from "next/link"
+import { IconType } from "@/types/icon"
 
 export function Dashboard() {
   return (
@@ -16,30 +17,30 @@ export function Dashboard() {
 }
 
 function DataOverview() {
-  const data = [
+  const data: { key: keyof DashboardResp; label: string; icon: IconType; url: string }[] = [
     {
-      "key": "totalPosts",
-      "label": "Total Posts",
-      "icon": Newspaper,
-      "url": path.post
+      key: "totalPosts",
+      label: "Total Posts",
+      icon: Newspaper,
+      url: path.post
     },
     {
-      "key": "totalUsers",
-      "label": "Total Users",
-      "icon": Users,
-      "url": path.user
+      key: "totalUsers",
+      label: "Total Users",
+      icon: Users,
+      url: path.user
     },
     {
-      "key": "totalComments",
-      "label": "Total Comments",
-      "icon": MessageCircle,
-      "url": path.comment
+      key: "totalComments",
+      label: "Total Comments",
+      icon: MessageCircle,
+      url: path.comment
     },
     {
-      "key": "totalViews",
-      "label": "Total Views",
-      "icon": Eye,
-      "url": path.file
+      key: "totalViews",
+      label: "Total Views",
+      icon: Eye,
+      url: path.file
     },
   ]
 
@@ -63,7 +64,7 @@ function DataOverview() {
             <CardDescription>{item.label}</CardDescription>
             <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl text-primary">
               <item.icon className="inline mr-2" />
-              {(fetchData as any)[item.key]}
+              {fetchData[item.key]}
             </CardTitle>
           </CardHeader>
         </Card>
