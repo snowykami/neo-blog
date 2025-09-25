@@ -6,6 +6,7 @@ import { Folder, Gauge, MessageCircle, Newspaper, Palette, Settings, ShieldCheck
 
 
 export interface SidebarItem {
+  id: string;
   title: string;
   url: string;
   icon: IconType;
@@ -15,36 +16,42 @@ export interface SidebarItem {
 export const sidebarData: { navMain: SidebarItem[]; navUserCenter: SidebarItem[] } = {
   navMain: [
     {
+      id: "dashboard",
       title: "dashboard.title",
       url: consolePath.dashboard,
       icon: Gauge,
       permission: isAdmin
     },
     {
+      id: "post",
       title: "post.title",
       url: consolePath.post,
       icon: Newspaper,
       permission: isEditor
     },
     {
+      id: "comment",
       title: "comment.title",
       url: consolePath.comment,
       icon: MessageCircle,
       permission: isEditor
     },
     {
+      id: "file",
       title: "file.title",
       url: consolePath.file,
       icon: Folder,
       permission: () => true
     },
     {
+      id: "user",
       title: "user.title",
       url: consolePath.user,
       icon: Users,
       permission: isAdmin
     },
     {
+      id: "global",
       title: "global.title",
       url: consolePath.global,
       icon: Settings,
@@ -53,19 +60,22 @@ export const sidebarData: { navMain: SidebarItem[]; navUserCenter: SidebarItem[]
   ],
   navUserCenter: [
     {
+      id: "user_profile",
       title: "user_profile.title",
       url: consolePath.userProfile,
       icon: UserPen,
       permission: () => true
     },
     {
+      id: "user_security",
       title: "user_security.title",
       url: consolePath.userSecurity,
       icon: ShieldCheck,
       permission: () => true
     },
     {
-      title: "user-preference.title",
+      id: "user_preference",
+      title: "user_preference.title",
       url: consolePath.userPreference,
       icon: Palette,
       permission: () => true

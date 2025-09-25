@@ -10,39 +10,34 @@ import {
 } from "@/components/ui/sidebar"
 import Link from "next/link"
 import { usePathname } from "next/navigation";
-import { User } from "@/models/user";
 import { useAuth } from "@/contexts/auth-context";
-import { IconType } from "@/types/icon";
-import { useTranslations } from "next-intl";
 import { consolePath } from "@/hooks/use-route";
+import { SidebarItem } from "./data";
 
-export function NavMain({
+export function NavGroup({
   items,
+  title,
+  activeId,
+  setActiveId
 }: {
-  items: {
-    title: string
-    url: string
-    icon?: IconType;
-    permission: ({ user }: { user: User }) => boolean
-  }[]
+  items: SidebarItem[],
+  title: string,
+  activeId: string,
+  setActiveId? :(id: string) => void
 }) {
-  const t  = useTranslations("Console")
   const { user } = useAuth();
-  const pathname = usePathname() ?? "/"
-
   if (!user) return null;
-
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
-        <SidebarGroupLabel>{t("general")}</SidebarGroupLabel>
+        <SidebarGroupLabel>{title}</SidebarGroupLabel>
         <SidebarMenu>
           {items.map((item) => (
             item.permission({ user }) && <SidebarMenuItem key={item.title}>
-              <Link href={item.url}>
-                <SidebarMenuButton tooltip={item.title} isActive={item.url != consolePath.dashboard && pathname.startsWith(item.url) || item.url === pathname}>
+              <Link href={item.url} onClick={() => setActiveId && setActiveId(item.id)}>
+                <SidebarMenuButton tooltip={item.title} isActive={activeId === item.id}>
                   {item.icon && <item.icon />}
-                  <span>{t(item.title)}</span>
+                  <span>{item.title}</span>
                 </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
