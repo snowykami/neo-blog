@@ -34,7 +34,7 @@ export type SiteInfo = {
 export const fallbackSiteInfo: SiteInfo = {
   colorSchemes: ["blue", "green", "orange", "red", "rose", "violet", "yellow"],
   metadata: {
-    name: "Failed to Fetch Name",
+    name: "Failed to Fetch",
     icon: "",
     description: "Failed to fetch site info from server.",
   },
@@ -87,8 +87,8 @@ function mergeWithFallback<T extends Record<string, unknown>>(initial: T, fallba
         typeof fallbackValue === 'object' && 
         !Array.isArray(fallbackValue)
       ) {
-        // 如果都是对象（非数组），也不要递归合并
-        result[key] = { ...initialValue, ...fallbackValue };
+        // 如果都是对象（非数组），递归合并
+        result[key] = mergeWithFallback(initialValue as Record<string, unknown>, fallbackValue as Record<string, unknown>) as T[typeof key];
       }
       // 否则保持 initial 的值不变
     }
