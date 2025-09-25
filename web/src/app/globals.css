@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./styles/blue.css";
+@import "./styles/green.css";
+@import "./styles/orange.css";
+@import "./styles/red.css";
+@import "./styles/rose.css";
 @import "./styles/violet.css";
+@import "./styles/yellow.css";
+
 
 @custom-variant dark (&:is(.dark *));
 

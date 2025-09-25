@@ -10,6 +10,8 @@ import { Toaster } from "@/components/ui/sonner"
 import { getLoginUser } from "@/api/user";
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import "./globals.css";
+
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -30,12 +32,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  
   const token = (await cookies()).get("token")?.value || "";
   const refreshToken = (await cookies()).get("refresh_token")?.value || "";
   const user = await getLoginUser({ token, refreshToken }).then(res => res.data).catch(() => null);
 
   return (
-    <html lang={await getFirstLocale() || "en"} className="h-full">
+    <html lang={await getFirstLocale() || "en"} className="h-full" user-color="blue">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

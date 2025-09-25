@@ -37,20 +37,23 @@ export function AvatarWithDropdownMenu() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent className="w-auto" align="start">
-        {user && <DropdownMenuLabel>
-          <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">{formatDisplayName(user)}</span>
-              <span className="text-muted-foreground truncate text-xs">
-                {user.email}
-              </span>
-            </div>
-          </div>
-        </DropdownMenuLabel>}
+        {user &&
+          <>
+            <DropdownMenuLabel>
+              <div className="flex items-center gap-2 p-0 text-left text-sm">
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">{formatDisplayName(user)}</span>
+                  <span className="text-muted-foreground truncate text-xs">
+                    {user.email}
+                  </span>
+                </div>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator /></>}
 
         {user &&
           <>
-            <DropdownMenuGroup>
+            <DropdownMenuGroup className="p-0">
               <DropdownMenuItem asChild>
                 <Link href={`/u/${user?.username}`}>Profile</Link>
               </DropdownMenuItem>
