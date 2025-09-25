@@ -220,16 +220,8 @@ export function UserProfilePage() {
           <Label htmlFor="gender">{t("gender")}</Label>
           <Input type="gender" id="gender" value={gender} onChange={(e) => setGender(e.target.value)} />
         </div>
-
-
-
-
         <Button className="max-w-1/3" onClick={handleSubmit} disabled={submitting}>{t("update_profile")}{submitting && '...'}</Button>
       </div>
     </div>
   )
-}
-
-export function PictureEditor({ }) {
-
 }
