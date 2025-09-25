@@ -9,14 +9,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link";
-import { useToLogin } from "@/hooks/use-route";
+import { consolePath, useToLogin } from "@/hooks/use-route";
 import { CircleUser } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarFromUser } from "@/utils/common/gravatar";
 import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common/username";
 import { useAuth } from "@/contexts/auth-context";
+import { useTranslations } from "next-intl";
+import { Role } from "@/models/user";
 
 export function AvatarWithDropdownMenu() {
+  const routeT = useTranslations("Route");
   const { user, logout } = useAuth();
   const toLogin = useToLogin();
 
@@ -26,7 +29,6 @@ export function AvatarWithDropdownMenu() {
 
   return (
     <DropdownMenu>
-
       <DropdownMenuTrigger asChild>
         <button className="rounded-full overflow-hidden">
           {user ? <Avatar className="h-8 w-8 rounded-full">
@@ -55,10 +57,10 @@ export function AvatarWithDropdownMenu() {
           <>
             <DropdownMenuGroup className="p-0">
               <DropdownMenuItem asChild>
-                <Link href={`/u/${user?.username}`}>Profile</Link>
+                <Link href={`/u/${user?.username}`}>{routeT("profile")}</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/console">Console</Link>
+                <Link href={user.role === Role.ADMIN ? consolePath.dashboard : consolePath.userProfile}>{routeT("console")}</Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

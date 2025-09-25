@@ -4,7 +4,6 @@ import { BlogCardGrid } from "@/components/blog-home/blog-home-card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Clock, } from "lucide-react";
 import Sidebar, { SidebarAbout, SidebarHotPosts, SidebarMisskeyIframe, SidebarTags } from "../blog/blog-sidebar-card";
-import config from '@/config';
 import type { Post } from "@/models/post";
 import { listPosts } from "@/api/post";
 
@@ -17,6 +16,7 @@ import { PaginationController } from "@/components/common/pagination";
 import { QueryKey } from "@/constant";
 import { useStoredState } from "@/hooks/use-storage-state";
 import { parseAsInteger, useQueryState } from "nuqs";
+import { useSiteInfo } from "@/contexts/site-info-context";
 
 // 定义排序类型
 enum SortBy {
@@ -29,6 +29,7 @@ const DEFAULT_SORTBY: SortBy = SortBy.Latest;
 export default function BlogHome() {
   // 从路由查询参数中获取页码和标签们
   const t = useTranslations("BlogHome");
+  const {siteInfo} = useSiteInfo();
   const [labels, setLabels] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1).withOptions({ history: "replace", clearOnDefault: true }));
@@ -43,7 +44,7 @@ export default function BlogHome() {
     listPosts(
       {
         page,
-        size: config.postsPerPage,
+        size: siteInfo.postsPerPage || 9,
         orderBy: sortBy === SortBy.Latest ? OrderBy.CreatedAt : OrderBy.Heat,
         desc: true,
         keywords: keywords.join(",") || undefined,
@@ -83,7 +84,7 @@ export default function BlogHome() {
               className="lg:col-span-3 self-start"
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}>
+              transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
               {/* 文章列表标题 */}
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
@@ -124,7 +125,7 @@ export default function BlogHome() {
               <div className="mt-8">
                 {totalPosts > 0 && <PaginationController
                   className="pt-4 flex justify-center"
-                  pageSize={config.postsPerPage}
+                  pageSize={siteInfo.postsPerPage}
                   initialPage={page}
                   total={totalPosts}
                   onPageChange={handlePageChange}
@@ -144,11 +145,11 @@ export default function BlogHome() {
             <motion.div
               initial={{ x: 80, opacity: 0 }}
               animate={{ x: 0, y: 0, opacity: 1 }}
-              transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}
+              transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}
             >
               <Sidebar
                 cards={[
-                  <SidebarAbout key="about" config={config} />,
+                  <SidebarAbout key="about" />,
                   posts.length > 0 ? <SidebarHotPosts key="hot" posts={posts} sortType={sortBy} /> : null,
                   <SidebarTags key="tags" labels={[]} />,
                   <SidebarMisskeyIframe key="misskey" />,

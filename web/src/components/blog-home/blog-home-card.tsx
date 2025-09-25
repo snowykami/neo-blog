@@ -4,18 +4,19 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import config from '@/config'
 import { cn } from '@/lib/utils'
 import { getPostHref } from '@/utils/common/post'
 import { motion } from 'motion/react'
 import { deceleration } from '@/motion/curve'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useSiteInfo } from '@/contexts/site-info-context'
 
 
 export function BlogCard({ post, className }: {
   post: Post
   className?: string
 }) {
+  const {siteInfo} = useSiteInfo();
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('zh-CN', {
@@ -39,14 +40,14 @@ export function BlogCard({ post, className }: {
           initial={{ scale: 1.2, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{
-            duration: config.animationDurationSecond,
+            duration: siteInfo.animationDurationSecond,
             ease: deceleration,
           }}
           className="absolute inset-0 w-full h-full"
         >
-          {(post.cover || config.defaultCover) ? (
+          {(post.cover || siteInfo.defaultCover) ? (
             <Image
-              src={post.cover || config.defaultCover}
+              src={post.cover || siteInfo.defaultCover || "https://cdn.liteyuki.org/blog/background.png"}
               alt={post.title}
               fill
               className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
@@ -226,12 +227,13 @@ export function BlogCardGrid({
   isLoading?: boolean
   showPrivate?: boolean
 }) {
+  const {siteInfo} = useSiteInfo();
   const filteredPosts = showPrivate ? posts : posts.filter(post => !post.isPrivate)
 
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {Array.from({ length: config.postsPerPage }).map((_, index) => (
+        {Array.from({ length: siteInfo.postsPerPage || 9 }).map((_, index) => (
           <BlogCardSkeleton key={index} />
         ))}
       </div>

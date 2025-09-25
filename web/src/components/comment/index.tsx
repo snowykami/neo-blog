@@ -10,8 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CommentInput } from "./comment-input";
 import { CommentItem } from "./comment-item";
-import config from "@/config";
 import "./style.css";
+import { useSiteInfo } from "@/contexts/site-info-context";
 
 
 
@@ -26,6 +26,7 @@ export function CommentSection(
     totalCount?: number
   }
 ) {
+  const {siteInfo} = useSiteInfo();
   const t = useTranslations('Comment')
   const [comments, setComments] = useState<Comment[]>([]);
   const [activeInput, setActiveInput] = useState<{ id: number; type: 'reply' | 'edit' } | null>(null);
@@ -45,12 +46,12 @@ export function CommentSection(
       orderBy: OrderBy.CreatedAt,
       desc: true,
       page: 1,
-      size: config.commentsPerPage,
+      size: siteInfo.commentsPerPage || 8,
       commentId: 0
     }).then(response => {
       setComments(response.data.comments);
       // If we got fewer comments than requested, no more pages
-      if (response.data.comments.length < config.commentsPerPage) {
+      if (response.data.comments.length < (siteInfo.commentsPerPage || 8)) {
         setNeedLoadMore(false);
       }
     });
@@ -97,10 +98,10 @@ export function CommentSection(
       orderBy: OrderBy.CreatedAt,
       desc: true,
       page: nextPage,
-      size: config.commentsPerPage,
+      size: siteInfo.commentsPerPage || 8,
       commentId: 0
     }).then(response => {
-      if (response.data.comments.length < config.commentsPerPage) {
+      if (response.data.comments.length < (siteInfo.commentsPerPage || 8)) {
         setNeedLoadMore(false);
       }
       setComments(prevComments => [...prevComments, ...response.data.comments]);

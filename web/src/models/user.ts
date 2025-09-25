@@ -4,6 +4,7 @@ export interface User {
     nickname?: string;
     avatarUrl?: string;
     backgroundUrl?: string;
+    preferredColor?: string;
     email: string;
     gender?: string;
     role: string;

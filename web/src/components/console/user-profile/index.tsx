@@ -185,11 +185,10 @@ export function UserProfilePage() {
   if (!user) return null
 
   return (
-    <div>
+    <div className="grid w-full max-w-sm items-center gap-4">
       <h1 className="text-2xl font-bold">
         {t("public_profile")}
       </h1>
-      <Separator className="my-2" />
       <div className="grid w-full max-w-sm items-center gap-4">
         <div className="grid gap-2">
           <Label htmlFor="picture">{t("picture")}</Label>

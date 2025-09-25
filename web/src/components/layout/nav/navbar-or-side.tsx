@@ -13,13 +13,13 @@ import {
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
 import { useDevice } from "@/contexts/device-context"
-import config from "@/config"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
 import { ThemeModeToggle } from "@/components/common/theme-toggle"
 import { AvatarWithDropdownMenu } from "@/components/layout/nav/avatar-with-dropdown-menu"
 import { cn } from "@/lib/utils"
+import { useSiteInfo } from "@/contexts/site-info-context"
 
 const navbarMenuComponents = [
   {
@@ -46,11 +46,12 @@ const navbarMenuComponents = [
 ]
 
 export function Navbar() {
-  const { navbarAdditionalClassName} = useDevice()
+  const { navbarAdditionalClassName } = useDevice()
+  const { siteInfo } = useSiteInfo();
   return (
     <nav className={`grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-full px-4 w-full ${navbarAdditionalClassName}`}>
       <div className="flex items-center justify-start">
-        <span className="font-bold truncate"><Link href="/">{config.metadata.name}</Link></span>
+        <span className="font-bold truncate"><Link href="/">{siteInfo.metadata.name}</Link></span>
       </div>
       <div className="flex items-center justify-center">
         <NavMenuCenter />
@@ -173,7 +174,7 @@ function SidebarMenu() {
           <div className="flex items-center justify-center p-4 border-t border-border">
             <ThemeModeToggle showSegmented={true} />
           </div>
-          
+
         </SheetContent>
       </Sheet></div>
   )

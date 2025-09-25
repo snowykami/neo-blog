@@ -15,16 +15,17 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import config from "@/config"
 import Link from "next/link"
 import { sidebarData } from "./data"
 import { ThemeModeToggle } from "../common/theme-toggle"
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useSiteInfo } from "@/contexts/site-info-context"
 
 
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const {siteInfo} = useSiteInfo();
   const [activeId, setActiveId] = useState("dashboard")
   const consoleT = useTranslations("Console")
   return (
@@ -38,7 +39,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <Link href="/">
                 <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">{config.metadata.name}</span>
+                <span className="text-base font-semibold">{siteInfo?.metadata?.name}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

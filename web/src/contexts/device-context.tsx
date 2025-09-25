@@ -7,6 +7,7 @@ type Mode = "light" | "dark" | "system";
 interface DeviceContextProps {
   isMobile: boolean;
   mode: Mode;
+  isDark: boolean;
   setMode: (mode: Mode) => void;
   toggleMode: () => void;
   viewport: {
@@ -20,6 +21,7 @@ interface DeviceContextProps {
 const DeviceContext = createContext<DeviceContextProps>({
   isMobile: false,
   mode: "system",
+  isDark: false,
   setMode: () => {},
   toggleMode: () => {},
   viewport: {
@@ -32,6 +34,7 @@ const DeviceContext = createContext<DeviceContextProps>({
 
 export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isMobile, setIsMobile] = useState(false);
+  const [isDark, setIsDark] = useState(false);
   const [mode, setModeState] = useState<Mode>("system");
   const [viewport, setViewport] = useState({
     width: typeof window !== "undefined" ? window.innerWidth : 0,
@@ -48,6 +51,8 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // 应用主题到 document
   const applyTheme = useCallback(
     (theme: Mode) => {
+      const isDarkMode = theme === "dark" || (theme === "system" && getSystemTheme() === "dark");
+      setIsDark(isDarkMode);
       let effectiveTheme = theme;
       if (theme === "system") {
         effectiveTheme = getSystemTheme();
@@ -127,7 +132,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <DeviceContext.Provider
-      value={{ isMobile, mode, setMode, toggleMode, viewport, navbarAdditionalClassName, setNavbarAdditionalClassName }}
+      value={{ isMobile, isDark, mode, setMode, toggleMode, viewport, navbarAdditionalClassName, setNavbarAdditionalClassName }}
     >
       {children}
     </DeviceContext.Provider>
