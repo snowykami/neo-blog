@@ -4,7 +4,7 @@ import {
   IconInnerShadowTop,
 } from "@tabler/icons-react"
 
-import { NavMain } from "@/components/console/nav-main"
+import { NavGroup } from "@/components/console/nav-group"
 import { NavUser } from "@/components/console/nav-user"
 import {
   Sidebar,
@@ -17,13 +17,16 @@ import {
 } from "@/components/ui/sidebar"
 import config from "@/config"
 import Link from "next/link"
-import { NavUserCenter } from "./nav-ucenter"
 import { sidebarData } from "./data"
 import { ThemeModeToggle } from "../common/theme-toggle"
+import { useState } from "react"
+import { useTranslations } from "next-intl"
 
 
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [activeId, setActiveId] = useState("dashboard")
+  const consoleT = useTranslations("Console")
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -42,8 +45,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={sidebarData.navMain} />
-        <NavUserCenter items={sidebarData.navUserCenter} />
+        <NavGroup title={consoleT("general")} activeId={activeId} setActiveId={setActiveId} items={sidebarData.navMain.map((item) => ({...item, title: consoleT(item.title)}))} />
+        <NavGroup title={consoleT("personal")} activeId={activeId} setActiveId={setActiveId} items={sidebarData.navUserCenter.map((item) => ({...item, title: consoleT(item.title)}))} />
       </SidebarContent>
       <SidebarFooter>
         <div className="mb-2 flex justify-center">

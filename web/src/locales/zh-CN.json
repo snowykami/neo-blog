@@ -133,7 +133,7 @@
       "update_password_success": "密码已更新",
       "verify_code": "验证码"
     },
-    "user-preference": {
+    "user_preference": {
       "title": "个性化"
     }
   },
