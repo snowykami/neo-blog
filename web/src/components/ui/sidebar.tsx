@@ -24,6 +24,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { usePathname } from "next/navigation"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -698,6 +699,18 @@ function SidebarMenuSubButton({
   )
 }
 
+function SidebarAutoCloseOnRouteChange() {
+  const { isMobile, setOpenMobile } = useSidebar()
+  const pathname = usePathname() ?? "/"
+
+  React.useEffect(() => {
+    if (isMobile) setOpenMobile(false) // 只在 pathname 变化时执行
+  }, [pathname, isMobile, setOpenMobile])
+
+  return null
+}
+
+
 export {
   Sidebar,
   SidebarContent,
@@ -723,4 +736,5 @@ export {
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,
+  SidebarAutoCloseOnRouteChange,
 }

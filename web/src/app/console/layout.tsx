@@ -2,6 +2,7 @@
 import { AppSidebar } from "@/components/console/app-sidebar"
 import { SiteHeader } from "@/components/console/site-header"
 import {
+  SidebarAutoCloseOnRouteChange,
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
@@ -51,6 +52,7 @@ export default function ConsoleLayout({
         } as React.CSSProperties
       }
     >
+      <SidebarAutoCloseOnRouteChange />
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader title={title} />
