@@ -1,3 +1,5 @@
+"use client"
+
 import type { Post } from '@/models/post'
 import { Calendar, Eye, Heart, Lock, MessageCircle } from 'lucide-react'
 import Image from 'next/image'

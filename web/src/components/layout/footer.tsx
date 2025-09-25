@@ -1,3 +1,4 @@
+"use client"
 import { useSiteInfo } from "@/contexts/site-info-context";
 import React from "react";
 

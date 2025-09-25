@@ -1,3 +1,5 @@
+"use client"
+
 import { useSiteInfo } from "@/contexts/site-info-context";
 import Image from "next/image";
 import Link from "next/link";

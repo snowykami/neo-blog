@@ -1,3 +1,4 @@
+
 import { Suspense } from "react";
 import type { Post } from "@/models/post";
 import { Calendar, Clock, FileText, Flame, Heart, MessageCircle, PenLine, SquarePen } from "lucide-react";
@@ -7,7 +8,7 @@ import { calculateReadingTime } from "@/utils/common/post";
 import { CommentSection } from "@/components/comment";
 import { TargetType } from '@/models/types';
 import * as motion from "motion/react-client"
-import { fallbackSiteInfo, useSiteInfo } from "@/contexts/site-info-context";
+import { fallbackSiteInfo } from "@/contexts/site-info-context";
 import { getSiteInfo } from "@/api/misc";
 
 function PostMeta({ post }: { post: Post }) {
