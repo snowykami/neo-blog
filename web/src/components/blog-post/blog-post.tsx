@@ -7,7 +7,8 @@ import { calculateReadingTime } from "@/utils/common/post";
 import { CommentSection } from "@/components/comment";
 import { TargetType } from '@/models/types';
 import * as motion from "motion/react-client"
-import config from "@/config";
+import { fallbackSiteInfo, useSiteInfo } from "@/contexts/site-info-context";
+import { getSiteInfo } from "@/api/misc";
 
 function PostMeta({ post }: { post: Post }) {
   return (
@@ -141,6 +142,7 @@ async function PostContent({ post }: { post: Post }) {
 
 
 async function BlogPost({ post }: { post: Post}) {
+  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
   return (
     <div className="h-full"
     > 
@@ -148,14 +150,14 @@ async function BlogPost({ post }: { post: Post}) {
       <motion.div
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}>
+        transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
         <PostHeader post={post} />
       </motion.div>
 
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: config.animationDurationSecond, ease: "easeOut" }}>
+        transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
         <PostContent post={post} />
       </motion.div>
 

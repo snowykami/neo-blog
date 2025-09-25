@@ -3,7 +3,6 @@ import { Heart, TrendingUp, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Label } from "@/models/label";
 import type { Post } from "@/models/post";
-import type configType from '@/config';
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -11,6 +10,7 @@ import { getPostHref } from "@/utils/common/post";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarUrl } from "@/utils/common/gravatar";
 import { getFallbackAvatarFromUsername } from "@/utils/common/username";
+import { useSiteInfo } from "@/contexts/site-info-context";
 
 // 侧边栏父组件，接收卡片组件列表
 export default function Sidebar({ cards }: { cards: React.ReactNode[] }) {
@@ -24,7 +24,9 @@ export default function Sidebar({ cards }: { cards: React.ReactNode[] }) {
 }
 
 // 关于我卡片
-export function SidebarAbout({ config }: { config: typeof configType }) {
+export function SidebarAbout() {
+  const {siteInfo} = useSiteInfo();
+  if (!siteInfo) return null;
   return (
     <Card>
       <CardHeader>
@@ -37,15 +39,15 @@ export function SidebarAbout({ config }: { config: typeof configType }) {
         <div className="text-center mb-4">
           <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
             <Avatar className="h-full w-full rounded-full">
-              <AvatarImage src={getGravatarUrl({email: config.owner.gravatarEmail, size: 256})} alt={config.owner.name} />
-              <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(config.owner.name)}</AvatarFallback>
+              <AvatarImage src={getGravatarUrl({email: siteInfo?.owner?.gravatarEmail || "snowykami@outlook.com", size: 256})} alt={siteInfo?.owner?.name} />
+              <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(siteInfo?.owner?.name || "Failed")}</AvatarFallback>
             </Avatar>
           </div>
-          <h3 className="font-semibold text-lg">{config.owner.name}</h3>
-          <p className="text-sm text-slate-600">{config.owner.motto}</p>
+          <h3 className="font-semibold text-lg">{siteInfo?.owner?.name || "Failed H3"}</h3>
+          <p className="text-sm text-slate-600">{siteInfo?.owner?.motto || "Failed Motto"}</p>
         </div>
         <p className="text-sm text-slate-600 leading-relaxed">
-          {config.owner.description}
+          {siteInfo?.owner?.description || "Failed Description"}
         </p>
       </CardContent>
     </Card>

@@ -16,7 +16,6 @@ export async function userLogin(
     rememberMe?: boolean,
     captcha?: string,
   }): Promise<BaseResponse<{ token: string, user: User }>> {
-  console.log("Logging in with captcha:", captcha)
   const res = await axiosClient.post<BaseResponse<{ token: string, user: User }>>(
     '/user/login',
     { username, password, rememberMe },

@@ -355,10 +355,12 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, e
 		Model: gorm.Model{
 			ID: req.ID,
 		},
-		Username:  req.Username,
-		Nickname:  req.Nickname,
-		Gender:    req.Gender,
-		AvatarUrl: req.AvatarUrl,
+		Username:       req.Username,
+		Nickname:       req.Nickname,
+		Gender:         req.Gender,
+		AvatarUrl:      req.AvatarUrl,
+		BackgroundUrl:  req.BackgroundUrl,
+		PreferredColor: req.PreferredColor,
 	}
 	err := repo.User.UpdateUser(user)
 	if err != nil {

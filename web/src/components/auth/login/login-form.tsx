@@ -103,7 +103,7 @@ export function LoginForm({
         <CardContent>
           {user && <CurrentLogged />}
           <SectionDivider className="mb-6">{t("with_oidc")}</SectionDivider>
-          <form>
+          <form onSubmit={handleLogin}>
             <div className="grid gap-4">
               {/* OIDC 登录选项 */}
               {oidcConfigs.length > 0 && (
@@ -168,9 +168,8 @@ export function LoginForm({
                   </div>
                 }
                 <Button
-                  type="button"
+                  type="submit"
                   className="w-full"
-                  onClick={handleLogin}
                   disabled={!captchaToken || isLogging}
                 >
                   {isLogging ? t("logging") : t("login")}
@@ -215,6 +214,7 @@ function LoginWithOidc({
 
   return (
     <Button
+      type="button"
       variant="outline"
       className="w-full"
       onClick={handleOidcLogin}

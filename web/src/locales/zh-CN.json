@@ -134,7 +134,8 @@
       "verify_code": "验证码"
     },
     "user_preference": {
-      "title": "个性化"
+      "title": "个性化",
+      "color_scheme": "颜色风格"
     }
   },
   "Login": {
@@ -192,6 +193,7 @@
     "updated_at": "更新时间",
     "view_count": "浏览数"
   },
+  
   "Register": {
     "title": "注册",
     "already_have_account": "已经有账号？",
@@ -214,7 +216,8 @@
     "verify_code": "验证码"
   },
   "Route": {
-    "profile": "个人资料"
+    "profile": "个人资料",
+    "console": "控制台"
   },
   "State": {
     "private": "私密",
