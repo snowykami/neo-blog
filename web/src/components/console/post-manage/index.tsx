@@ -58,6 +58,10 @@ export function PostManage() {
     setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, ...post } : p)));
   }, [setPosts]);
 
+  const onPostDelete = useCallback(({ postId }: { postId: number }) => {
+    setPosts((prev) => prev.filter((p) => p.id !== postId));
+  }, [setPosts]);
+
   const onOrderChange = useCallback(({ orderBy, desc }: { orderBy: OrderBy; desc: boolean }) => {
     setOrderBy(orderBy);
     setDesc(desc);
@@ -82,7 +86,7 @@ export function PostManage() {
     </div>
     <Separator className="flex-1" />
     {posts.map(post => <div key={post.id}>
-      <PostItem post={post} onPostUpdate={onPostUpdate} />
+      <PostItem post={post} onPostUpdate={onPostUpdate} onPostDelete={onPostDelete}/>
       <Separator className="flex-1" />
     </div>)}
     <div className="flex justify-center items-center py-4">
@@ -92,7 +96,7 @@ export function PostManage() {
   </div>;
 }
 
-function PostItem({ post, onPostUpdate }: { post: Post, onPostUpdate?: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void }) {
+function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void ,onPostDelete: ({ postId }: { postId: number }) => void}) {
   const commonT = useTranslations("Common");
   const postT = useTranslations("Metrics");
   const stateT = useTranslations("State");
@@ -120,14 +124,14 @@ function PostItem({ post, onPostUpdate }: { post: Post, onPostUpdate?: ({ post }
           <Button variant="ghost" size="sm" onClick={() => clickToPost({ post })}>
             <Eye className="inline size-4 mr-1" />
           </Button>
-          <PostDropdownMenu post={post} onPostUpdate={onPostUpdate} />
+          <PostDropdownMenu post={post} onPostUpdate={onPostUpdate} onPostDelete={onPostDelete}/>
         </div>
       </div>
     </div>
   )
 }
 
-function PostDropdownMenu({ post, onPostUpdate }: { post: Post, onPostUpdate?: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void }) {
+function PostDropdownMenu({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void, onPostDelete: ({ postId }: { postId: number }) => void  }) {
   const operationT = useTranslations("Operation");
   const clickToPostEdit = useToEditPost();
   const clickToPost = useToPost();
@@ -137,7 +141,7 @@ function PostDropdownMenu({ post, onPostUpdate }: { post: Post, onPostUpdate?: (
     updatePost({ post: { ...post, isPrivate: !post.isPrivate } })
       .then(() => {
         toast.success(operationT("update_success"));
-        onPostUpdate?.({ post: { id: post.id, isPrivate: !post.isPrivate } });
+        onPostUpdate({ post: { id: post.id, isPrivate: !post.isPrivate } });
       })
       .catch(() => {
         toast.error(operationT("update_failed"));
@@ -148,7 +152,7 @@ function PostDropdownMenu({ post, onPostUpdate }: { post: Post, onPostUpdate?: (
     deletePost({ id: post.id })
       .then(() => {
         toast.success(operationT("delete_success"));
-        onPostUpdate?.({ post: { id: post.id } });
+        onPostDelete({ postId: post.id });
       })
       .catch(() => {
         toast.error(operationT("delete_failed"));
