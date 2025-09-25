@@ -9,9 +9,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import Link from "next/link"
-import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import { consolePath } from "@/hooks/use-route";
 import { SidebarItem } from "./data";
 
 export function NavGroup({
