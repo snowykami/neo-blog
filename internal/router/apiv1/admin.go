@@ -17,6 +17,7 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.GET("/oidc/o/:id", adminController.GetOidcByID)
 		consoleGroup.GET("/oidc/list", adminController.ListOidc)
 		consoleGroup.PUT("/oidc/o/:id", adminController.UpdateOidc)
+
 		consoleGroup.GET("/dashboard", adminController.GetDashboard)
 	}
 }

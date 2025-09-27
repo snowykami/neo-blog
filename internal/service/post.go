@@ -54,7 +54,7 @@ func (p *PostService) DeletePost(ctx context.Context, id string) error {
 	if id == "" {
 		return errs.ErrBadRequest
 	}
-	post, err := repo.Post.GetPostByID(id)
+	post, err := repo.Post.GetPostBySlugOrID(id)
 	if err != nil {
 		return errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}
@@ -71,7 +71,7 @@ func (p *PostService) GetPost(ctx context.Context, id string) (*dto.PostDto, err
 	if id == "" {
 		return nil, errs.ErrBadRequest
 	}
-	post, err := repo.Post.GetPostByID(id)
+	post, err := repo.Post.GetPostBySlugOrID(id)
 	if err != nil {
 		return nil, errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}
@@ -91,7 +91,7 @@ func (p *PostService) UpdatePost(ctx context.Context, id string, req *dto.Create
 	if id == "" {
 		return 0, errs.ErrBadRequest
 	}
-	post, err := repo.Post.GetPostByID(id)
+	post, err := repo.Post.GetPostBySlugOrID(id)
 	if err != nil {
 		return 0, errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}
@@ -101,6 +101,7 @@ func (p *PostService) UpdatePost(ctx context.Context, id string, req *dto.Create
 	post.Title = req.Title
 	post.Content = req.Content
 	post.IsPrivate = req.IsPrivate
+	post.Slug = req.Slug
 	post.Labels = func() []model.Label {
 		labelModels := make([]model.Label, len(req.Labels))
 		for _, labelID := range req.Labels {
@@ -138,7 +139,7 @@ func (p *PostService) ToggleLikePost(ctx context.Context, id string) (bool, erro
 	if id == "" {
 		return false, errs.ErrBadRequest
 	}
-	post, err := repo.Post.GetPostByID(id)
+	post, err := repo.Post.GetPostBySlugOrID(id)
 	if err != nil {
 		return false, errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}

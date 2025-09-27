@@ -34,6 +34,25 @@ const nextConfig: NextConfig = {
       },
     ]
   },
+  async redirects() {
+    return [
+      {
+        source: '/feed',
+        destination: '/rss.xml',
+        permanent: true
+      },
+      {
+        source: '/rss',
+        destination: '/rss.xml',
+        permanent: true
+      },
+      {
+        source: '/feed.xml',
+        destination: '/rss.xml',
+        permanent: true
+      },
+    ]
+  }
 }
 const withNextIntl = createNextIntlPlugin()
 export default withNextIntl(nextConfig)

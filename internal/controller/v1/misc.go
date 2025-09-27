@@ -2,11 +2,17 @@ package v1
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
+	utils2 "github.com/snowykami/neo-blog/pkg/utils"
 )
 
 const (
@@ -61,4 +67,140 @@ func (mc *MiscController) SetSiteInfo(ctx context.Context, c *app.RequestContext
 		resps.InternalServerError(c, err.Error())
 	}
 	resps.Ok(c, "", nil)
+}
+
+func (mc *MiscController) GetPublicConfig(ctx context.Context, c *app.RequestContext) {
+	keysParam := c.Query("keys")
+	if keysParam == "" {
+		resps.BadRequest(c, "keys parameter is required")
+		return
+	}
+	keys := strings.Split(keysParam, ",")
+	result := make(map[string]interface{})
+	for _, key := range keys {
+		value, err := repo.KV.GetKV(key)
+		if err != nil {
+			continue
+		}
+		result[key] = value
+	}
+	resps.Ok(c, "", result)
+}
+
+func (mc *MiscController) SetPublicConfig(ctx context.Context, c *app.RequestContext) {
+	data := make(map[string]interface{})
+	err := c.BindAndValidate(&data)
+	if err != nil {
+		resps.BadRequest(c, err.Error())
+		return
+	}
+	for key, value := range data {
+		err = repo.KV.SetKV(key, value)
+		if err != nil {
+			resps.InternalServerError(c, err.Error())
+			return
+		}
+	}
+	resps.Ok(c, "", nil)
+}
+
+func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestContext) {
+	// 此函数不加错误处理，能返回多少算多少
+	var posts []model.Post
+	repo.GetDB().Model(&model.Post{}).
+		Select("id, slug, created_at, updated_at").
+		Where("is_private = ?", false).
+		Order("created_at DESC").
+		Limit(utils2.Env.GetAsInt(constant.EnvKeySitemapLimit, constant.DefaultSitemapLimit)).
+		Find(&posts)
+
+	var editors []model.User
+	repo.GetDB().Model(&model.User{}).
+		Select("id, username, updated_at").
+		Where("role IN ?", []string{constant.RoleEditor, constant.RoleAdmin}).
+		Order("updated_at DESC").
+		Limit(utils2.Env.GetAsInt(constant.EnvKeySitemapLimit, constant.DefaultSitemapLimit)).
+		Find(&editors)
+
+	resps.Ok(c, "", utils.H{
+		"base_url":   utils2.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl),
+		"archives":   []string{},
+		"labels":     []string{},
+		"categories": []string{},
+		"posts": func() []map[string]any {
+			m := make([]map[string]any, 0)
+			for _, post := range posts {
+				m = append(m, map[string]any{
+					"id":         post.ID,
+					"created_at": post.CreatedAt,
+					"updated_at": post.UpdatedAt,
+					"slug":       post.Slug,
+				})
+			}
+			return m
+		}(),
+		"editors": func() []map[string]any {
+			m := make([]map[string]any, 0)
+			for _, editor := range editors {
+				m = append(m, map[string]any{
+					"username":   editor.Username,
+					"id":         editor.ID,
+					"updated_at": editor.UpdatedAt,
+				})
+			}
+			return m
+		}(),
+	})
+}
+
+func (mc *MiscController) GetRssData(ctx context.Context, c *app.RequestContext) {
+	var posts []model.Post
+	if err := repo.GetDB().Model(&model.Post{}).
+		Where("is_private = ?", false).
+		Order("created_at DESC").
+		Limit(utils2.Env.GetAsInt(constant.EnvKeyRssLimit, constant.DefaultRssLimit)).
+		Preload("User").
+		Find(&posts).Error; err != nil {
+		resps.InternalServerError(c, err.Error())
+		return
+	}
+
+	resps.Ok(c, "", map[string]any{
+		"title":              repo.KV.GetKVWithoutErr(constant.KeySiteTitle, "Neo Blog Default Title"),
+		"description":        repo.KV.GetKVWithoutErr(constant.KeySiteDescription, "The default description of Neo Blog."),
+		"site_url":           repo.KV.GetKVWithoutErr(constant.KeyBaseUrl, utils2.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl)),
+		"feed_url":           repo.KV.GetStringWithoutErr(constant.KeyBaseUrl, utils2.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl)) + "/rss.xml",
+		"author":             repo.KV.GetKVWithoutErr(constant.KeySiteAuthor, "Neo Bloger"),
+		"copyright":          repo.KV.GetKVWithoutErr(constant.KeySiteCopyright, "CC BY-NC-SA 4.0"),
+		"image_url":          repo.KV.GetKVWithoutErr(constant.KeySiteImage, ""),
+		"language":           repo.KV.GetKVWithoutErr(constant.KeyDefaultLanguage, "en-us"),
+		"post_default_cover": repo.KV.GetKVWithoutErr(constant.KeyPostDefaultCover, "https://cdn.liteyuki.org/blog/background.png"),
+		"pub_date": func() time.Time {
+			if len(posts) > 0 {
+				return posts[0].UpdatedAt
+			}
+			return time.Now()
+		}(),
+		"posts": func() []map[string]any {
+			m := make([]map[string]any, 0)
+			for _, post := range posts {
+				m = append(m, map[string]any{
+					"id":         post.ID,
+					"title":      post.Title,
+					"slug":       post.Slug,
+					"content":    post.Content,
+					"created_at": post.CreatedAt,
+					"updated_at": post.UpdatedAt,
+					"user":       post.User.ToDto(),
+					"category": func() *dto.CategoryDto {
+						if post.Category == nil {
+							return nil
+						}
+						return post.Category.ToDto()
+					}(),
+					"cover": post.Cover,
+				})
+			}
+			return m
+		}()})
 }
