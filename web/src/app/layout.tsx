@@ -72,8 +72,6 @@ export default async function RootLayout({
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
   const colorSchemes = siteInfo?.colorSchemes ? siteInfo.colorSchemes : fallbackSiteInfo.colorSchemes;
 
-  console.log(siteInfo)
-
   return (
     <html lang={await getFirstLocale() || "en"} className="h-full" data-user-color={colorSchemes.includes(user?.preferredColor || "") ? user?.preferredColor : "blue"}>
       <body

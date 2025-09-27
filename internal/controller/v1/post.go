@@ -1,150 +1,141 @@
 package v1
 
 import (
-  "context"
-  "slices"
-  "strings"
+	"context"
+	"slices"
+	"strings"
 
-  "github.com/cloudwego/hertz/pkg/app"
-  "github.com/cloudwego/hertz/pkg/common/utils"
-  "github.com/snowykami/neo-blog/internal/ctxutils"
-  "github.com/snowykami/neo-blog/internal/dto"
-  "github.com/snowykami/neo-blog/internal/service"
-  "github.com/snowykami/neo-blog/pkg/constant"
-  "github.com/snowykami/neo-blog/pkg/errs"
-  "github.com/snowykami/neo-blog/pkg/resps"
+	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/snowykami/neo-blog/internal/ctxutils"
+	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/service"
+	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
 type PostController struct {
-  service *service.PostService
+	service *service.PostService
 }
 
 func NewPostController() *PostController {
-  return &PostController{
-    service: service.NewPostService(),
-  }
+	return &PostController{
+		service: service.NewPostService(),
+	}
 }
 
 func (p *PostController) Create(ctx context.Context, c *app.RequestContext) {
-  var req dto.CreateOrUpdatePostReq
-  if err := c.BindAndValidate(&req); err != nil {
-    resps.BadRequest(c, resps.ErrParamInvalid)
-    return
-  }
-  postID, err := p.service.CreatePost(ctx, &req)
-  if err != nil {
-    serviceErr := errs.AsServiceError(err)
-    resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
-    return
-  }
-  resps.Ok(c, resps.Success, utils.H{"id": postID})
+	var req dto.CreateOrUpdatePostReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	postID, err := p.service.CreatePost(ctx, &req)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"id": postID})
 }
 
 func (p *PostController) Delete(ctx context.Context, c *app.RequestContext) {
-  id := c.Param("id")
-  if id == "" {
-    resps.BadRequest(c, resps.ErrParamInvalid)
-    return
-  }
-  if err := p.service.DeletePost(ctx, id); err != nil {
-    serviceErr := errs.AsServiceError(err)
-    resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
-    return
-  }
-  resps.Ok(c, resps.Success, nil)
+	id := c.Param("id")
+	if id == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if err := p.service.DeletePost(ctx, id); err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
 }
 
 func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
-  id := c.Param("id")
-  if id == "" {
-    resps.BadRequest(c, resps.ErrParamInvalid)
-    return
-  }
-  post, err := p.service.GetPost(ctx, id)
-  if err != nil {
-    serviceErr := errs.AsServiceError(err)
-    resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
-    return
-  }
-  if post == nil {
-    resps.NotFound(c, resps.ErrNotFound)
-    return
-  }
-  resps.Ok(c, resps.Success, post)
+	id := c.Param("slug_or_id")
+	if id == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	// 支持slug
+	post, err := p.service.GetPost(ctx, id)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	if post == nil {
+		resps.NotFound(c, resps.ErrNotFound)
+		return
+	}
+	resps.Ok(c, resps.Success, post)
 }
 
 func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
-  var req dto.CreateOrUpdatePostReq
-  if err := c.BindAndValidate(&req); err != nil {
-    resps.BadRequest(c, resps.ErrParamInvalid)
-    return
-  }
-  id := c.Param("id")
-  if id == "" {
-    resps.BadRequest(c, resps.ErrParamInvalid)
-    return
-  }
-  postID, err := p.service.UpdatePost(ctx, id, &req)
-  if err != nil {
-    serviceErr := errs.AsServiceError(err)
-    resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
-    return
-  }
-  resps.Ok(c, resps.Success, utils.H{"id": postID})
+	var req dto.CreateOrUpdatePostReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	id := c.Param("id")
+	if id == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	postID, err := p.service.UpdatePost(ctx, id, &req)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"id": postID})
 }
 
 func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
-  pagination := ctxutils.GetPaginationParams(c)
-  if pagination.OrderBy == "" {
-    pagination.OrderBy = constant.OrderByUpdatedAt
-  }
-  if pagination.OrderBy != "" && !slices.Contains(constant.OrderByEnumPost, pagination.OrderBy) {
-    resps.BadRequest(c, "无效的排序字段")
-    return
-  }
-  keywords := c.Query("keywords")
-  keywordsArray := strings.Split(keywords, ",")
-  labels := c.Query("labels")
-  labelStringArray := strings.Split(labels, ",")
+	pagination := ctxutils.GetPaginationParams(c)
+	if pagination.OrderBy == "" {
+		pagination.OrderBy = constant.OrderByUpdatedAt
+	}
+	if pagination.OrderBy != "" && !slices.Contains(constant.OrderByEnumPost, pagination.OrderBy) {
+		resps.BadRequest(c, "无效的排序字段")
+		return
+	}
+	keywords := c.Query("keywords")
+	keywordsArray := strings.Split(keywords, ",")
+	labels := c.Query("labels")
+	labelStringArray := strings.Split(labels, ",")
 
-  labelRule := c.Query("label_rule")
-  if labelRule != "intersection" {
-    labelRule = "union"
-  }
+	labelRule := c.Query("label_rule")
+	if labelRule != "intersection" {
+		labelRule = "union"
+	}
 
-  labelDtos := make([]dto.LabelDto, 0, len(labelStringArray))
-  for _, labelString := range labelStringArray {
-    // :分割key和value
-    if labelString == "" {
-      continue
-    }
-    parts := strings.SplitN(labelString, ":", 2)
-    if len(parts) == 2 {
-      labelDtos = append(labelDtos, dto.LabelDto{
-        Key:   parts[0],
-        Value: parts[1],
-      })
-    } else {
-      labelDtos = append(labelDtos, dto.LabelDto{
-        Key:   parts[0],
-        Value: "",
-      })
-    }
-  }
-  req := &dto.ListPostReq{
-    Keywords:  keywordsArray,
-    Labels:    labelDtos,
-    LabelRule: labelRule,
-    Page:      pagination.Page,
-    Size:      pagination.Size,
-    OrderBy:   pagination.OrderBy,
-    Desc:      pagination.Desc,
-  }
-  posts, total, err := p.service.ListPosts(ctx, req)
-  if err != nil {
-    serviceErr := errs.AsServiceError(err)
-    resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
-    return
-  }
-  resps.Ok(c, resps.Success, utils.H{"posts": posts, "total": total})
+	labelDtos := make([]dto.LabelDto, 0, len(labelStringArray))
+	for _, labelString := range labelStringArray {
+		if labelString == "" {
+			continue
+		}
+		labelDtos = append(labelDtos, dto.LabelDto{
+			Value: labelString,
+		})
+	}
+	req := &dto.ListPostReq{
+		Keywords:  keywordsArray,
+		Labels:    labelDtos,
+		LabelRule: labelRule,
+		Page:      pagination.Page,
+		Size:      pagination.Size,
+		OrderBy:   pagination.OrderBy,
+		Desc:      pagination.Desc,
+	}
+	posts, total, err := p.service.ListPosts(ctx, req)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"posts": posts, "total": total})
 }

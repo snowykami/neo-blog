@@ -6,6 +6,7 @@ type PostDto struct {
 	ID           uint       `json:"id"`      // 帖子ID
 	UserID       uint       `json:"user_id"` // 发布者的用户ID
 	User         UserDto    `json:"user"`    // 发布者信息
+	Slug         string     `json:"slug"`    // 帖子别名
 	Title        string     `json:"title"`   // 帖子标题
 	Content      string     `json:"content"`
 	Cover        string     `json:"cover"`         // 帖子封面图
@@ -22,12 +23,13 @@ type PostDto struct {
 }
 
 type CreateOrUpdatePostReq struct {
-	Title     string `json:"title"`
-	Content   string `json:"content"`
-	Cover     string `json:"cover"`
-	IsPrivate bool   `json:"is_private"`
-	Type      string `json:"type"`
-	Labels    []uint `json:"labels"` // 标签ID列表
+	Title     string  `json:"title"`
+	Slug      *string `json:"slug"`
+	Content   string  `json:"content"`
+	Cover     string  `json:"cover"`
+	IsPrivate bool    `json:"is_private"`
+	Type      string  `json:"type"`
+	Labels    []uint  `json:"labels"` // 标签ID列表
 }
 
 type ListPostReq struct {

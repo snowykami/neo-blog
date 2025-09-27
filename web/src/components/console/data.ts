@@ -1,4 +1,4 @@
-import { consolePath } from "@/hooks/use-route";
+import { consolePath } from "@/utils/common/route";
 import type { User } from "@/models/user";
 import { IconType } from "@/types/icon";
 import { isAdmin, isEditor } from "@/utils/common/permission";

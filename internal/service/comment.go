@@ -97,7 +97,7 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID string) e
 
 	isTargetOwner := false
 	if comment.TargetType == constant.TargetTypePost {
-		post, err := repo.Post.GetPostByID(strconv.Itoa(int(comment.TargetID)))
+		post, err := repo.Post.GetPostBySlugOrID(strconv.Itoa(int(comment.TargetID)))
 		if err == nil && post.UserID == currentUser.ID {
 			isTargetOwner = true
 		}
@@ -186,7 +186,7 @@ func (cs *CommentService) toGetCommentDto(comment *model.Comment, currentUserID 
 func (cs *CommentService) checkTargetExists(targetID uint, targetType string) (bool, error) {
 	switch targetType {
 	case constant.TargetTypePost:
-		if _, err := repo.Post.GetPostByID(strconv.Itoa(int(targetID))); err != nil {
+		if _, err := repo.Post.GetPostBySlugOrID(strconv.Itoa(int(targetID))); err != nil {
 			return false, errs.New(errs.ErrNotFound.Code, "post not found", err)
 		}
 	default:

@@ -15,9 +15,7 @@ func NewLabelService() *LabelService {
 
 func (l *LabelService) CreateLabel(req *dto.LabelDto) (uint, error) {
 	label := &model.Label{
-		Key:               req.Key,
 		Value:             req.Value,
-		Color:             req.Color,
 		TailwindClassName: req.TailwindClassName,
 	}
 	return label.ID, repo.Label.CreateLabel(label)
@@ -26,9 +24,7 @@ func (l *LabelService) CreateLabel(req *dto.LabelDto) (uint, error) {
 func (l *LabelService) UpdateLabel(req *dto.LabelDto) (uint, error) {
 	label := &model.Label{
 		Model:             gorm.Model{ID: req.ID},
-		Key:               req.Key,
 		Value:             req.Value,
-		Color:             req.Color,
 		TailwindClassName: req.TailwindClassName,
 	}
 	return label.ID, repo.Label.UpdateLabel(label)
@@ -38,20 +34,6 @@ func (l *LabelService) DeleteLabel(id string) error {
 	return repo.Label.DeleteLabel(id)
 }
 
-func (l *LabelService) GetLabelByKey(key string) (*dto.LabelDto, error) {
-	label, err := repo.Label.GetLabelByKey(key)
-	if err != nil {
-		return nil, err
-	}
-	return &dto.LabelDto{
-		ID:                label.ID,
-		Key:               label.Key,
-		Value:             label.Value,
-		Color:             label.Color,
-		TailwindClassName: label.TailwindClassName,
-	}, nil
-}
-
 func (l *LabelService) GetLabelByID(id string) (*dto.LabelDto, error) {
 	label, err := repo.Label.GetLabelByID(id)
 	if err != nil {
@@ -59,9 +41,7 @@ func (l *LabelService) GetLabelByID(id string) (*dto.LabelDto, error) {
 	}
 	return &dto.LabelDto{
 		ID:                label.ID,
-		Key:               label.Key,
 		Value:             label.Value,
-		Color:             label.Color,
 		TailwindClassName: label.TailwindClassName,
 	}, nil
 }
@@ -75,9 +55,7 @@ func (l *LabelService) ListLabels() ([]dto.LabelDto, error) {
 	for _, label := range labels {
 		labelDtos = append(labelDtos, dto.LabelDto{
 			ID:                label.ID,
-			Key:               label.Key,
 			Value:             label.Value,
-			Color:             label.Color,
 			TailwindClassName: label.TailwindClassName,
 		})
 	}

@@ -7,11 +7,12 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { getPostHref } from '@/utils/common/post'
+
 import { motion } from 'motion/react'
 import { deceleration } from '@/motion/curve'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { getPostUrl } from '@/utils/common/route'
 
 
 export function BlogCard({ post, className }: {
@@ -258,7 +259,7 @@ export function BlogCardGrid({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {filteredPosts.map(post => (
-        <Link key={post.id} href={getPostHref(post)} className="block h-full">
+        <Link key={post.id} href={getPostUrl(post)} className="block h-full">
           <BlogCard post={post} />
         </Link>
       ))}
