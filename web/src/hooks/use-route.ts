@@ -1,5 +1,6 @@
 
 import { Post } from "@/models/post"
+import { consolePath, getPostUrl, getUserUrl } from "@/utils/common/route"
 import { useRouter, usePathname } from "next/navigation"
 
 /**
@@ -11,17 +12,7 @@ export const loginPath = authPath + "/login"
 export const registerPath = authPath + "/register"
 export const resetPasswordPath = authPath + "/reset-password"
 
-export const consolePath = {
-  dashboard: "/console",
-  post: "/console/post",
-  comment: "/console/comment",
-  file: "/console/file",
-  user: "/console/user",
-  global: "/console/global",
-  userProfile: "/console/user-profile",
-  userSecurity: "/console/user-security",
-  userPreference: "/console/user-preference",
-}
+
 
 export function useToLogin() {
   const router = useRouter()
@@ -31,17 +22,20 @@ export function useToLogin() {
   }
 }
 
+
 export function useToUserProfile() {
   const router = useRouter();
   return (username: string) => {
-    router.push(`/u/${username}`);
+    router.push(getUserUrl({username}));
   };
 }
+
+
 
 export function useToPost(){
   const router = useRouter();
   return ({post}:{post: Post}) => {
-    router.push(`/p/${post.id}`);
+    router.push(getPostUrl(post));
   };
 }
 
@@ -51,3 +45,4 @@ export function useToEditPost(){
     router.push(`${consolePath.post}/edit/${post.id}`);
   };
 }
+

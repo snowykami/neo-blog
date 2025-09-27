@@ -224,7 +224,7 @@ func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, tar
 	var masterID uint
 
 	if targetType == constant.TargetTypePost {
-		post, err := Post.GetPostByID(strconv.Itoa(int(targetID)))
+		post, err := Post.GetPostBySlugOrID(strconv.Itoa(int(targetID)))
 		if err != nil {
 			return nil, err
 		}

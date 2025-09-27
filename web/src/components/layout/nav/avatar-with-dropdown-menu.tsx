@@ -9,7 +9,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link";
-import { consolePath, useToLogin } from "@/hooks/use-route";
+import { useToLogin } from "@/hooks/use-route";
+import { consolePath } from "@/utils/common/route";
 import { CircleUser } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarFromUser } from "@/utils/common/gravatar";

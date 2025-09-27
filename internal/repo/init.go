@@ -44,7 +44,7 @@ func loadDBConfig() DBConfig {
 		User:     utils.Env.Get(constant.EnvKeyDBUser, "blog"),
 		Password: utils.Env.Get(constant.EnvKeyDBPassword, "blog"),
 		DBName:   utils.Env.Get(constant.EnvKeyDBName, "blog"),
-		SSLMode:  utils.Env.Get(constant.EnvKeyDBSSLMode, "disable"),
+		SSLMode:  utils.Env.Get(constant.EnvKeyDBSslMode, "disable"),
 	}
 }
 
@@ -124,7 +124,6 @@ func initSQLite(path string, gormConfig *gorm.Config) (*gorm.DB, error) {
 
 func migrate() error {
 	return GetDB().AutoMigrate(
-		&model.Category{},
 		&model.Comment{},
 		&model.Label{},
 		&model.Like{},

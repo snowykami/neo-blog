@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import Link from "next/link"
 import { IconType } from "@/types/icon"
-import { consolePath } from "@/hooks/use-route"
+import { consolePath } from "@/utils/common/route";
 
 export function Dashboard() {
   return (

@@ -14,7 +14,7 @@ const (
 	RoleEditor                             = "editor" // 能够发布和管理自己内容的用户
 	RoleAdmin                              = "admin"
 	DefaultFileBasePath                    = "./data/uploads"
-	EnvKeyBaseUrl                          = "BASE_URL" // 环境变量：基础URL
+	EnvKeyBaseUrl                          = KeyBaseUrl // 环境变量：基础URL
 	EnvKeyPasscode                         = "\"CAPTCHA_DEV_PASSCODE\""
 	EnvKeyCaptchaProvider                  = "CAPTCHA_PROVIDER"   // captcha提供者
 	EnvKeyCaptchaSecreteKey                = "CAPTCHA_SECRET_KEY" // captcha站点密钥
@@ -27,7 +27,7 @@ const (
 	EnvKeyDBUser                           = "DB_USER"            // 环境变量：数据库用户（仅适用于PostgreSQL）
 	EnvKeyDBPassword                       = "DB_PASSWORD"        // 环境变量：数据库密码（仅适用于PostgreSQL）
 	EnvKeyDBName                           = "DB_NAME"            // 环境变量：数据库名称（仅适用于PostgreSQL）
-	EnvKeyDBSSLMode                        = "DB_SSLMODE"         // 环境变量：数据库SSL模式（仅适用于PostgreSQL）
+	EnvKeyDBSslMode                        = "DB_SSLMODE"         // 环境变量：数据库SSL模式（仅适用于PostgreSQL）
 	EnvKeyEmailAddress                     = "EMAIL_ADDRESS"
 	EnvKeyEmailEnable                      = "EMAIL_ENABLE"
 	EnvKeyEmailHost                        = "EMAIL_HOST"
@@ -48,6 +48,8 @@ const (
 	EnvKeyMode                             = "MODE"                                 // 环境变量：运行模式
 	EnvKeyJwtSecrete                       = "JWT_SECRET"                           // 环境变量：JWT密钥
 	EnvKeyPasswordSalt                     = "PASSWORD_SALT"                        // 环境变量：密码盐
+	EnvKeyRssLimit                         = "RSS_LIMIT"                            // 环境变量：RSS限制
+	EnvKeySitemapLimit                     = "SITEMAP_LIMIT"                        // 环境变量：站点地图限制
 	EnvKeyTokenDuration                    = "TOKEN_DURATION"                       // 环境变量：令牌有效期
 	EnvKeyMaxReplyDepth                    = "MAX_REPLY_DEPTH"                      // 环境变量：最大回复深度
 	EnvKeyTokenDurationDefault             = 500                                    // Token有效时长
@@ -68,6 +70,8 @@ const (
 	DefaultCaptchaDevPasscode              = "dev_passcode"
 	DefaultBaseUrl                         = "http://localhost:3000" // 默认BaseUrl
 	DefaultPasswordSalt                    = "default_salt_114514"
+	DefaultRssLimit                        = 30
+	DefaultSitemapLimit                    = 5000
 	TargetTypePost                         = "post"
 	TargetTypeComment                      = "comment"
 	WebdavPolicyProxy                      = "proxy"
