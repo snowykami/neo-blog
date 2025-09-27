@@ -26,7 +26,7 @@ export function UserPreferencePage() {
         setColor(previousColor || null);
         toast.error("Failed to update color scheme", { description: error.message });
       });
-  }, [color])
+  }, [color, user?.id, user?.preferredColor]);
   
   return (
     <div>
