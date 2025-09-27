@@ -144,8 +144,8 @@ func (cr *CommentRepo) UpdateComment(comment *model.Comment) error {
 	return nil
 }
 
-func (cr *CommentRepo) DeleteComment(commentID string) error {
-	if commentID == "" {
+func (cr *CommentRepo) DeleteComment(commentID uint) error {
+	if commentID == 0 {
 		return errs.New(http.StatusBadRequest, "invalid comment ID", nil)
 	}
 
@@ -208,7 +208,7 @@ func (cr *CommentRepo) DeleteComment(commentID string) error {
 	return nil
 }
 
-func (cr *CommentRepo) GetComment(commentID string) (*model.Comment, error) {
+func (cr *CommentRepo) GetComment(commentID uint) (*model.Comment, error) {
 	var comment model.Comment
 	if err := GetDB().Where("id = ?", commentID).Preload("User").First(&comment).Error; err != nil {
 		return nil, err
@@ -216,7 +216,7 @@ func (cr *CommentRepo) GetComment(commentID string) (*model.Comment, error) {
 	return &comment, nil
 }
 
-func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, targetType string, page, size uint64, orderBy string, desc bool, depth int) ([]model.Comment, error) {
+func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, targetType string, page, size uint64, orderBy string, desc bool, depth *int) ([]model.Comment, error) {
 	if !slices.Contains(constant.OrderByEnumComment, orderBy) {
 		return nil, errs.New(http.StatusBadRequest, "invalid order_by parameter", nil)
 	}
@@ -243,8 +243,8 @@ func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, tar
 		query = query.Where("is_private = ?", false)
 	}
 
-	if depth >= 0 {
-		query = query.Where("target_id = ? AND target_type = ? AND depth = ?", targetID, targetType, depth)
+	if depth != nil && *depth >= 0 {
+		query = query.Where("target_id = ? AND target_type = ? AND depth = ?", targetID, targetType, *depth)
 	} else {
 		query = query.Where("target_id = ? AND target_type = ?", targetID, targetType)
 	}

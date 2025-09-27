@@ -9,14 +9,14 @@ type oidcUtils struct{}
 var Oidc = oidcUtils{}
 
 // RequestToken 请求访问令牌
-func (u *oidcUtils) RequestToken(tokenEndpoint, clientID, clientSecret, code, redirectURI string) (*TokenResponse, error) {
+func (u *oidcUtils) RequestToken(tokenEndpoint, clientID, clientSecret, code, redirectUri string) (*TokenResponse, error) {
 	tokenResp, err := client.R().
 		SetFormData(map[string]string{
 			"grant_type":    "authorization_code",
 			"client_id":     clientID,
 			"client_secret": clientSecret,
 			"code":          code,
-			"redirect_uri":  redirectURI,
+			"redirect_uri":  redirectUri,
 		}).
 		SetHeader("Accept", "application/json").
 		SetResult(&TokenResponse{}).

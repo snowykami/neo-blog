@@ -33,13 +33,9 @@ type CreateOrUpdatePostReq struct {
 }
 
 type ListPostReq struct {
-	Keywords  []string   `json:"keywords"` // 关键词列表
-	OrderBy   string     `json:"order_by"` // 排序方式
-	Page      uint64     `json:"page"`     // 页码
-	Size      uint64     `json:"size"`
-	Desc      bool       `json:"desc"`
-	Labels    []LabelDto `json:"labels"`
-	LabelRule string     `json:"label_rule"` // 标签过滤规则 union or intersection
+	PaginationParams
+	Keywords string `query:"keywords"` // 关键词列表
+	Label    string `query:"label"`    // 单个标签过滤
 }
 
 type ListPostResp struct {

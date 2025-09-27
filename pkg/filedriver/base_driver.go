@@ -29,7 +29,7 @@ type DriverConfig struct {
 	WebDavPolicy   string
 }
 
-func GetWebdavDriverConfig() *DriverConfig {
+func GetFileDriverConfig() *DriverConfig {
 	return &DriverConfig{
 		Type:           utils.Env.Get(constant.EnvKeyFileDriverType, constant.FileDriverTypeLocal),
 		BasePath:       utils.Env.Get(constant.EnvKeyFileBasepath, constant.DefaultFileBasePath),

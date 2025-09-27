@@ -4,7 +4,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
-	"github.com/snowykami/neo-blog/pkg/errs"
 	"gorm.io/gorm"
 )
 
@@ -61,17 +60,11 @@ func (c *AdminService) CreateOidcConfig(req *dto.AdminOidcConfigDto) error {
 	return repo.Oidc.CreateOidcConfig(oidcConfig)
 }
 
-func (c *AdminService) DeleteOidcConfig(id string) error {
-	if id == "" {
-		return errs.ErrBadRequest
-	}
+func (c *AdminService) DeleteOidcConfig(id uint) error {
 	return repo.Oidc.DeleteOidcConfig(id)
 }
 
-func (c *AdminService) GetOidcConfigByID(id string) (*dto.AdminOidcConfigDto, error) {
-	if id == "" {
-		return nil, errs.ErrBadRequest
-	}
+func (c *AdminService) GetOidcConfigByID(id uint) (*dto.AdminOidcConfigDto, error) {
 	config, err := repo.Oidc.GetOidcConfigByID(id)
 	if err != nil {
 		return nil, err
@@ -92,9 +85,6 @@ func (c *AdminService) ListOidcConfigs(onlyEnabled bool) ([]*dto.AdminOidcConfig
 }
 
 func (c *AdminService) UpdateOidcConfig(req *dto.AdminOidcConfigDto) error {
-	if req.ID == 0 {
-		return errs.ErrBadRequest
-	}
 	oidcConfig := &model.OidcConfig{
 		Model:            gorm.Model{ID: req.ID},
 		Name:             req.Name,

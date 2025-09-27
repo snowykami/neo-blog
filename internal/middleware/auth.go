@@ -8,6 +8,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
+	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
@@ -17,13 +18,16 @@ import (
 func UseAuth(block bool) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		// For cookie
-		tokenFromCookie := string(c.Cookie("token"))
-		tokenFromHeader := strings.TrimPrefix(string(c.GetHeader("Authorization")), "Bearer ")
-		refreshToken := string(c.Cookie("refresh_token"))
+		req := &dto.AuthReq{}
+		err := c.Bind(req)
+		if err != nil {
+			logrus.Errorf("UseAuth: failed to bind request: %v", err)
+		}
+		req.TokenFromHeader = strings.TrimPrefix(req.TokenFromHeader, "Bearer ")
 
 		// 尝试用普通 tokenFromCookie 认证
-		if tokenFromCookie != "" {
-			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(tokenFromCookie)
+		if req.TokenFromCookie != "" {
+			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(req.TokenFromCookie)
 			if err == nil && tokenClaims != nil {
 				ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
 				c.Next(ctx)
@@ -33,8 +37,8 @@ func UseAuth(block bool) app.HandlerFunc {
 			logrus.Debugf("UseAuth: tokenFromCookie authentication failed, error: %v", err)
 		}
 		// tokenFromCookie 认证失败，尝试用 Bearer tokenFromHeader 认证
-		if tokenFromHeader != "" {
-			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(tokenFromHeader)
+		if req.TokenFromHeader != "" {
+			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(req.TokenFromHeader)
 			if err == nil && tokenClaims != nil {
 				ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
 				c.Next(ctx)
@@ -44,7 +48,7 @@ func UseAuth(block bool) app.HandlerFunc {
 			logrus.Debugf("UseAuth: tokenFromHeader authentication failed, error: %v", err)
 		}
 		// tokenFromCookie 失效 使用 refresh tokenFromCookie 重新签发和鉴权
-		refreshTokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(refreshToken)
+		refreshTokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(req.RefreshTokenFromCookie)
 		if err == nil && refreshTokenClaims != nil {
 			ok, err := isStatefulJwtValid(refreshTokenClaims)
 			if err == nil && ok {

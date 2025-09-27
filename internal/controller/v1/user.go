@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"strconv"
 	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -52,7 +51,7 @@ func (u *UserController) Register(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	email := strings.TrimSpace(string(c.GetHeader(constant.HeaderKeyEmail)))
+	email := strings.TrimSpace(string(c.GetHeader("X-Email")))
 	if email == "" {
 		resps.BadRequest(c, "Email header is required")
 		return
@@ -84,55 +83,37 @@ func (u *UserController) OidcList(ctx context.Context, c *app.RequestContext) {
 	oidcConfigs, err := u.service.ListOidcConfigs()
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
 		return
 	}
 	resps.Ok(c, resps.Success, oidcConfigs)
 }
 
 func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
-	name := c.Param("name")
-	code := c.Query("code")
-	state := c.Query("state")
-	redirectUri := c.Query("redirect_back") // 前端路由登录前的重定向地址
-	if redirectUri == "" {
-		redirectUri = "/"
+	req := &dto.OidcLoginReq{}
+	if err := c.Bind(req); err != nil {
+		resps.BadRequest(c, err.Error())
+		return
 	}
-	oidcLoginReq := &dto.OidcLoginReq{
-		Name:  name,
-		Code:  code,
-		State: state,
-	}
-	resp, err := u.service.OidcLogin(ctx, oidcLoginReq)
+	resp, err := u.service.OidcLogin(ctx, req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
 		return
 	}
 	ctxutils.SetTokenAndRefreshTokenCookie(c, resp.Token, resp.RefreshToken)
-	resps.Redirect(c, redirectUri) // 重定向到前端路由
+	resps.Redirect(c, req.RedirectBack) // 重定向到前端路由
 }
 
 func (u *UserController) GetUser(ctx context.Context, c *app.RequestContext) {
-	userID := c.Param("id")
-	userIDInt, err := strconv.Atoi(userID)
-	if err != nil || userIDInt <= 0 {
-		currentUserID, ok := ctxutils.GetCurrentUserID(ctx)
-		if !ok {
-			resps.Unauthorized(c, resps.ErrUnauthorized)
-			return
-		}
-		userIDInt = int(currentUserID)
-	}
-
-	resp, err := u.service.GetUser(&dto.GetUserReq{UserID: uint(userIDInt)})
+	userID := ctxutils.GetIDParam(c).Uint
+	resp, err := u.service.GetUser(&dto.GetUserReq{UserID: userID})
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
 		return
 	}
 	resps.Ok(c, resps.Success, resp.User)
-
 }
 
 func (u *UserController) GetUserByUsername(ctx context.Context, c *app.RequestContext) {
@@ -151,22 +132,11 @@ func (u *UserController) GetUserByUsername(ctx context.Context, c *app.RequestCo
 }
 
 func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) {
-	userID := c.Param("id")
-	if userID == "" {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
-	userIDInt, err := strconv.Atoi(userID)
-	if err != nil || userIDInt <= 0 {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
 	var updateUserReq dto.UpdateUserReq
 	if err := c.BindAndValidate(&updateUserReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	updateUserReq.ID = uint(userIDInt)
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		resps.Unauthorized(c, resps.ErrUnauthorized)
@@ -227,7 +197,7 @@ func (u *UserController) ResetPassword(ctx context.Context, c *app.RequestContex
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	email := strings.TrimSpace(string(c.GetHeader(constant.HeaderKeyEmail)))
+	email := strings.TrimSpace(string(c.GetHeader("X-Email")))
 	if email == "" {
 		resps.BadRequest(c, "Email header is required")
 		return
@@ -246,7 +216,7 @@ func (u *UserController) ResetPassword(ctx context.Context, c *app.RequestContex
 }
 
 func (u *UserController) ChangeEmail(ctx context.Context, c *app.RequestContext) {
-	email := strings.TrimSpace(string(c.GetHeader(constant.HeaderKeyEmail)))
+	email := strings.TrimSpace(string(c.GetHeader("X-Email")))
 	if email == "" {
 		resps.BadRequest(c, "Email header is required")
 		return

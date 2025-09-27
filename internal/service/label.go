@@ -30,11 +30,11 @@ func (l *LabelService) UpdateLabel(req *dto.LabelDto) (uint, error) {
 	return label.ID, repo.Label.UpdateLabel(label)
 }
 
-func (l *LabelService) DeleteLabel(id string) error {
+func (l *LabelService) DeleteLabel(id uint) error {
 	return repo.Label.DeleteLabel(id)
 }
 
-func (l *LabelService) GetLabelByID(id string) (*dto.LabelDto, error) {
+func (l *LabelService) GetLabelByID(id uint) (*dto.LabelDto, error) {
 	label, err := repo.Label.GetLabelByID(id)
 	if err != nil {
 		return nil, err

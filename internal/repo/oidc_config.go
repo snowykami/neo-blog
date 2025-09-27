@@ -19,10 +19,7 @@ func (o *oidcRepo) CreateOidcConfig(oidcConfig *model.OidcConfig) error {
 	return nil
 }
 
-func (o *oidcRepo) DeleteOidcConfig(id string) error {
-	if id == "" {
-		return errs.New(http.StatusBadRequest, "invalid OIDC config ID", nil)
-	}
+func (o *oidcRepo) DeleteOidcConfig(id uint) error {
 	if err := GetDB().Where("id = ?", id).Delete(&model.OidcConfig{}).Error; err != nil {
 		return err
 	}
@@ -51,7 +48,7 @@ func (o *oidcRepo) GetOidcConfigByName(name string) (*model.OidcConfig, error) {
 	return &config, nil
 }
 
-func (o *oidcRepo) GetOidcConfigByID(id string) (*model.OidcConfig, error) {
+func (o *oidcRepo) GetOidcConfigByID(id uint) (*model.OidcConfig, error) {
 	var config model.OidcConfig
 	if err := GetDB().Where("id = ?", id).First(&config).Error; err != nil {
 		return nil, err

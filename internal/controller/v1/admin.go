@@ -2,9 +2,9 @@ package v1
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -46,8 +46,8 @@ func (cc *AdminController) CreateOidc(ctx context.Context, c *app.RequestContext
 }
 
 func (cc *AdminController) DeleteOidc(ctx context.Context, c *app.RequestContext) {
-	id := c.Param("id")
-	if id == "" {
+	id := ctxutils.GetIDParam(c).Uint
+	if id == 0 {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
@@ -55,15 +55,15 @@ func (cc *AdminController) DeleteOidc(ctx context.Context, c *app.RequestContext
 	err := cc.service.DeleteOidcConfig(id)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		resps.Custom(c, serviceErr.Code, err.Error(), nil)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
 }
 
 func (cc *AdminController) GetOidcByID(ctx context.Context, c *app.RequestContext) {
-	id := c.Param("id")
-	if id == "" {
+	id := ctxutils.GetIDParam(c).Uint
+	if id == 0 {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
@@ -88,23 +88,12 @@ func (cc *AdminController) ListOidc(ctx context.Context, c *app.RequestContext) 
 }
 
 func (cc *AdminController) UpdateOidc(ctx context.Context, c *app.RequestContext) {
-	id := c.Param("id")
-	if id == "" {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
-	idInt, err := strconv.Atoi(id)
-	if err != nil || idInt <= 0 {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
 	var adminUpdateOidcReq dto.AdminOidcConfigDto
 	if err := c.BindAndValidate(&adminUpdateOidcReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	adminUpdateOidcReq.ID = uint(idInt)
-	err = cc.service.UpdateOidcConfig(&adminUpdateOidcReq)
+	err := cc.service.UpdateOidcConfig(&adminUpdateOidcReq)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
