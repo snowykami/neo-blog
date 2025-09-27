@@ -116,6 +116,21 @@ func (u *UserController) GetUser(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, resp.User)
 }
 
+func (u *UserController) GetLoginUser(ctx context.Context, c *app.RequestContext) {
+	userID, ok := ctxutils.GetCurrentUserID(ctx)
+	if !ok {
+		resps.Unauthorized(c, resps.ErrUnauthorized)
+		return
+	}
+	resp, err := u.service.GetUser(&dto.GetUserReq{UserID: userID})
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, resp.User)
+}
+
 func (u *UserController) GetUserByUsername(ctx context.Context, c *app.RequestContext) {
 	username := c.Param("username")
 	if username == "" {

@@ -2,7 +2,7 @@ package apiv1
 
 import (
 	"github.com/cloudwego/hertz/pkg/route"
-	"github.com/snowykami/neo-blog/internal/controller/v1"
+	v1 "github.com/snowykami/neo-blog/internal/controller/v1"
 	"github.com/snowykami/neo-blog/internal/middleware"
 )
 
@@ -22,7 +22,7 @@ func registerUserRoutes(group *route.RouterGroup) {
 		userGroupWithoutAuth.GET("/u/:id", userController.GetUser)
 		userGroupWithoutAuth.GET("/username/:username", userController.GetUserByUsername)
 		userGroup.POST("/logout", userController.Logout)
-		userGroup.GET("/me", userController.GetUser)
+		userGroup.GET("/me", userController.GetLoginUser)
 		userGroup.PUT("/u/:id", userController.UpdateUser)
 		userGroup.PUT("/password/edit", userController.ChangePassword)
 		group.Group(userRoute).Use(middleware.UseEmailVerify()).PUT("/password/reset", userController.ResetPassword) // 不需要登录

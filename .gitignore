@@ -12,3 +12,6 @@ data/
 # dist
 /server
 main
+
+# debug bin
+__debug_bin*
