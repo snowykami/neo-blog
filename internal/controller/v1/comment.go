@@ -3,7 +3,6 @@ package v1
 import (
 	"context"
 	"slices"
-	"strconv"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -31,8 +30,6 @@ func (cc *CommentController) CreateComment(ctx context.Context, c *app.RequestCo
 		resps.BadRequest(c, err.Error())
 		return
 	}
-	req.RemoteAddr = c.ClientIP()
-	req.UserAgent = string(c.UserAgent())
 	commentID, err := cc.service.CreateComment(ctx, &req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
@@ -48,25 +45,17 @@ func (cc *CommentController) UpdateComment(ctx context.Context, c *app.RequestCo
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	id := c.Param("id")
-	idInt, err := strconv.Atoi(id)
-	if err != nil {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
-	req.CommentID = uint(idInt)
-
-	err = cc.service.UpdateComment(ctx, &req)
+	err := cc.service.UpdateComment(ctx, &req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
 }
 
 func (cc *CommentController) DeleteComment(ctx context.Context, c *app.RequestContext) {
-	id := c.Param("id")
+	id := ctxutils.GetIDParam(c).Uint
 	err := cc.service.DeleteComment(ctx, id)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
@@ -77,11 +66,7 @@ func (cc *CommentController) DeleteComment(ctx context.Context, c *app.RequestCo
 }
 
 func (cc *CommentController) GetComment(ctx context.Context, c *app.RequestContext) {
-	id := c.Param("id")
-	if id == "" {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
+	id := ctxutils.GetIDParam(c).Uint
 	resp, err := cc.service.GetComment(ctx, id)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
@@ -92,45 +77,17 @@ func (cc *CommentController) GetComment(ctx context.Context, c *app.RequestConte
 }
 
 func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestContext) {
-	depth := c.Query("depth")
-	depthInt, err := strconv.Atoi(depth)
-	if err != nil || depthInt < 0 {
-		depthInt = 1
+	req := &dto.GetCommentListReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
 	}
-	pagination := ctxutils.GetPaginationParams(c)
-	if pagination.OrderBy == "" {
-		pagination.OrderBy = constant.OrderByUpdatedAt
-	}
-	if pagination.OrderBy != "" && !slices.Contains(constant.OrderByEnumComment, pagination.OrderBy) {
+	// 校验排序字段
+	if !slices.Contains(constant.OrderByEnumComment, req.OrderBy) {
 		resps.BadRequest(c, "无效的排序字段")
 		return
 	}
-	targetID, err := strconv.Atoi(c.Query("target_id"))
-	if err != nil {
-		resps.BadRequest(c, "无效的 target_id")
-		return
-	}
-	commentIDStr := c.Query("comment_id")
-	var commentID uint
-	if commentIDStr != "" {
-		commentIDInt, err := strconv.Atoi(commentIDStr)
-		if err != nil {
-			resps.BadRequest(c, "无效的 comment_id")
-			return
-		}
-		commentID = uint(commentIDInt)
-	}
-	req := dto.GetCommentListReq{
-		Desc:       pagination.Desc,
-		OrderBy:    pagination.OrderBy,
-		Page:       pagination.Page,
-		Size:       pagination.Size,
-		Depth:      depthInt,
-		TargetID:   uint(targetID),
-		TargetType: c.Query("target_type"),
-		CommentID:  commentID,
-	}
-	commentDtos, err := cc.service.GetCommentList(ctx, &req)
+	commentDtos, err := cc.service.GetCommentList(ctx, req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)

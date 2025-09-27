@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 )
 
@@ -30,7 +32,7 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			Labels: func() []model.Label {
 				labelModels := make([]model.Label, 0)
 				for _, labelID := range req.Labels {
-					labelModel, err := repo.Label.GetLabelByID(strconv.Itoa(int(labelID)))
+					labelModel, err := repo.Label.GetLabelByID(labelID)
 					if err == nil {
 						labelModels = append(labelModels, *labelModel)
 					}
@@ -46,19 +48,19 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	return post.ID, nil
 }
 
-func (p *PostService) DeletePost(ctx context.Context, id string) error {
+func (p *PostService) DeletePost(ctx context.Context, id uint) error {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return errs.ErrUnauthorized
 	}
-	if id == "" {
+	if id == 0 {
 		return errs.ErrBadRequest
 	}
-	post, err := repo.Post.GetPostBySlugOrID(id)
+	post, err := repo.Post.GetPostBySlugOrID(string(id))
 	if err != nil {
 		return errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}
-	if post.UserID != currentUser.ID {
+	if (post.UserID != currentUser.ID) && (currentUser.Role != constant.RoleAdmin) {
 		return errs.ErrForbidden
 	}
 	if err := repo.Post.DeletePost(id); err != nil {
@@ -67,11 +69,11 @@ func (p *PostService) DeletePost(ctx context.Context, id string) error {
 	return nil
 }
 
-func (p *PostService) GetPost(ctx context.Context, id string) (*dto.PostDto, error) {
-	if id == "" {
+func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dto.PostDto, error) {
+	if slugOrId == "" {
 		return nil, errs.ErrBadRequest
 	}
-	post, err := repo.Post.GetPostBySlugOrID(id)
+	post, err := repo.Post.GetPostBySlugOrID(slugOrId)
 	if err != nil {
 		return nil, errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}
@@ -105,7 +107,7 @@ func (p *PostService) UpdatePost(ctx context.Context, id string, req *dto.Create
 	post.Labels = func() []model.Label {
 		labelModels := make([]model.Label, len(req.Labels))
 		for _, labelID := range req.Labels {
-			labelModel, err := repo.Label.GetLabelByID(strconv.Itoa(int(labelID)))
+			labelModel, err := repo.Label.GetLabelByID(labelID)
 			if err == nil {
 				labelModels = append(labelModels, *labelModel)
 			}
@@ -121,7 +123,13 @@ func (p *PostService) UpdatePost(ctx context.Context, id string, req *dto.Create
 func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, error) {
 	postDtos := make([]*dto.PostDto, 0)
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
-	posts, total, err := repo.Post.ListPosts(currentUserID, req.Keywords, req.Labels, req.LabelRule, req.Page, req.Size, req.OrderBy, req.Desc)
+	keywordsArray := make([]string, 0)
+	if req.Keywords != "" {
+		for _, kw := range strings.Split(req.Keywords, ",") {
+			keywordsArray = append(keywordsArray, strings.TrimSpace(kw))
+		}
+	}
+	posts, total, err := repo.Post.ListPosts(currentUserID, keywordsArray, req.Label, req.Page, req.Size, req.OrderBy, req.Desc)
 	if err != nil {
 		return nil, total, errs.New(errs.ErrInternalServer.Code, "failed to list posts", err)
 	}

@@ -3,7 +3,6 @@ package v1
 import (
 	"context"
 	"slices"
-	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -41,11 +40,7 @@ func (p *PostController) Create(ctx context.Context, c *app.RequestContext) {
 }
 
 func (p *PostController) Delete(ctx context.Context, c *app.RequestContext) {
-	id := c.Param("id")
-	if id == "" {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
+	id := ctxutils.GetIDParam(c).Uint
 	if err := p.service.DeletePost(ctx, id); err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
@@ -55,13 +50,13 @@ func (p *PostController) Delete(ctx context.Context, c *app.RequestContext) {
 }
 
 func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
-	id := c.Param("slug_or_id")
-	if id == "" {
+	slugOrId := c.Param("slug_or_id") // 此处不用ctxutils bind是因为允许slug string类型
+	if slugOrId == "" {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
 	// 支持slug
-	post, err := p.service.GetPost(ctx, id)
+	post, err := p.service.GetPostSlugOrId(ctx, slugOrId)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
@@ -95,41 +90,14 @@ func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
 }
 
 func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
-	pagination := ctxutils.GetPaginationParams(c)
-	if pagination.OrderBy == "" {
-		pagination.OrderBy = constant.OrderByUpdatedAt
-	}
-	if pagination.OrderBy != "" && !slices.Contains(constant.OrderByEnumPost, pagination.OrderBy) {
-		resps.BadRequest(c, "无效的排序字段")
+	req := &dto.ListPostReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	keywords := c.Query("keywords")
-	keywordsArray := strings.Split(keywords, ",")
-	labels := c.Query("labels")
-	labelStringArray := strings.Split(labels, ",")
-
-	labelRule := c.Query("label_rule")
-	if labelRule != "intersection" {
-		labelRule = "union"
-	}
-
-	labelDtos := make([]dto.LabelDto, 0, len(labelStringArray))
-	for _, labelString := range labelStringArray {
-		if labelString == "" {
-			continue
-		}
-		labelDtos = append(labelDtos, dto.LabelDto{
-			Value: labelString,
-		})
-	}
-	req := &dto.ListPostReq{
-		Keywords:  keywordsArray,
-		Labels:    labelDtos,
-		LabelRule: labelRule,
-		Page:      pagination.Page,
-		Size:      pagination.Size,
-		OrderBy:   pagination.OrderBy,
-		Desc:      pagination.Desc,
+	if !slices.Contains(constant.OrderByEnumPost, req.OrderBy) {
+		resps.BadRequest(c, "无效的排序字段")
+		return
 	}
 	posts, total, err := p.service.ListPosts(ctx, req)
 	if err != nil {

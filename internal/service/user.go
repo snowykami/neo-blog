@@ -184,11 +184,13 @@ func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, error) {
 	return oidcConfigsDtos, nil
 }
 
+// OidcLogin 此函数用于oidc provider响应给前端的重定向
 func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dto.OidcLoginResp, error) {
 	// 验证state
 	currentUser, userOk := ctxutils.GetCurrentUser(ctx)
 	kvStore := utils.KV.GetInstance()
 	storedName, ok := kvStore.Get(constant.KVKeyOidcState + req.State)
+	logrus.Debugf("OIDC Login state: got %s, stored %v (ok: %v)", req.Name, storedName, ok)
 	if !ok || storedName != req.Name {
 		return nil, errs.New(http.StatusForbidden, "invalid oidc state", nil)
 	}
@@ -206,7 +208,7 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		oidcConfig.ClientID,
 		oidcConfig.ClientSecret,
 		req.Code,
-		strings.TrimSuffix(utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl), "/")+constant.OidcUri+oidcConfig.Name,
+		strings.TrimSuffix(repo.KV.GetStringWithoutErr(constant.KeyBaseUrl, utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl)), "/")+constant.OidcUri+"/"+oidcConfig.Name,
 	)
 	if err != nil {
 		logrus.Errorln("Failed to request OIDC token:", err)

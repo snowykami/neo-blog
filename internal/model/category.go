@@ -1,9 +1,12 @@
 package model
 
-import "github.com/snowykami/neo-blog/internal/dto"
+import (
+	"github.com/snowykami/neo-blog/internal/dto"
+	"gorm.io/gorm"
+)
 
 type Category struct {
-	ID          uint   `gorm:"primaryKey"`
+	gorm.Model
 	Name        string `gorm:"type:text;not null;uniqueIndex"`
 	Description string `gorm:"type:text"`
 	Slug        string `gorm:"type:text;not null;uniqueIndex"`

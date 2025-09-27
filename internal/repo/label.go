@@ -18,7 +18,7 @@ func (l *labelRepo) GetLabelByValue(value string) (*model.Label, error) {
 	return &label, nil
 }
 
-func (l *labelRepo) GetLabelByID(id string) (*model.Label, error) {
+func (l *labelRepo) GetLabelByID(id uint) (*model.Label, error) {
 	var label model.Label
 	if err := GetDB().Where("id = ?", id).First(&label).Error; err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func (l *labelRepo) UpdateLabel(label *model.Label) error {
 	return nil
 }
 
-func (l *labelRepo) DeleteLabel(id string) error {
+func (l *labelRepo) DeleteLabel(id uint) error {
 	if err := GetDB().Where("id = ?", id).Delete(&model.Label{}).Error; err != nil {
 		return err
 	}

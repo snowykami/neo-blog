@@ -26,25 +26,22 @@ type CreateCommentReq struct {
 	Content        string `json:"content" binding:"required"`     // 评论内容
 	ReplyID        uint   `json:"reply_id"`                       // 回复的评论ID
 	IsPrivate      bool   `json:"is_private"`                     // 是否私密评论，默认false
-	RemoteAddr     string `json:"remote_addr"`                    // 远程地址
-	UserAgent      string `json:"user_agent"`                     // 用户代理
+	RemoteAddr     string `header:"X-Real-IP"`                    // 远程地址
+	UserAgent      string `header:"User-Agent"`                   // 用户代理
 	ShowClientInfo bool   `json:"show_client_info"`               // 是否显示客户端信息
 }
 
 type UpdateCommentReq struct {
-	CommentID      uint   `json:"comment_id" binding:"required"` // 评论ID
-	Content        string `json:"content" binding:"required"`    // 评论内容
-	IsPrivate      bool   `json:"is_private"`                    // 是否私密
-	ShowClientInfo bool   `json:"show_client_info"`              // 是否显示客户端信息
+	ID             uint   `path:"comment_id"`                 // 评论ID
+	Content        string `json:"content" binding:"required"` // 评论内容
+	IsPrivate      bool   `json:"is_private"`                 // 是否私密
+	ShowClientInfo bool   `json:"show_client_info"`           // 是否显示客户端信息
 }
 
 type GetCommentListReq struct {
-	TargetID   uint   `json:"target_id" binding:"required"`
-	TargetType string `json:"target_type" binding:"required"`
-	CommentID  uint   `json:"comment_id"` // 获取某条评论的所有子评论
-	OrderBy    string `json:"order_by"`   // 排序方式
-	Page       uint64 `json:"page"`       // 页码
-	Size       uint64 `json:"size"`
-	Desc       bool   `json:"desc"`
-	Depth      int    `json:"depth"` // 评论的层级深度
+	PaginationParams
+	TargetID   uint   `query:"target_id" binding:"required" vd:"$>0"`
+	TargetType string `query:"target_type" binding:"required"`
+	CommentID  uint   `query:"comment_id"`                  // 获取某条评论的所有子评论
+	Depth      *int   `query:"depth" default:"1" vd:"$>-1"` // 评论的层级深度
 }

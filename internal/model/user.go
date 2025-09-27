@@ -2,6 +2,7 @@ package model
 
 import (
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"gorm.io/gorm"
 )
 
@@ -40,4 +41,16 @@ func (user *User) ToDto() dto.UserDto {
 		Role:           user.Role,
 		Language:       user.Language,
 	}
+}
+
+func (user *User) IsAdmin() bool {
+	return user.Role == constant.RoleAdmin
+}
+
+func (user *User) IsEditor() bool {
+	return user.Role == constant.RoleEditor
+}
+
+func (user *User) GreaterThanEditor() bool {
+	return user.Role == constant.RoleAdmin || user.Role == constant.RoleEditor
 }

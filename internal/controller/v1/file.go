@@ -4,11 +4,11 @@ import (
 	"context"
 	"io"
 	"path/filepath"
-	"strconv"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
+	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/filedriver"
@@ -24,18 +24,19 @@ func NewFileController() *FileController {
 
 func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestContext) {
 	// 获取文件信息
+	req := &dto.FileUploadReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
 	file, err := c.FormFile("file")
 	if err != nil {
 		logrus.Error("无法读取文件: ", err)
 		resps.BadRequest(c, err.Error())
 		return
 	}
-
-	group := string(c.FormValue("group"))
-	name := string(c.FormValue("name"))
-
 	// 初始化文件驱动
-	driver, err := filedriver.GetFileDriver(filedriver.GetWebdavDriverConfig())
+	driver, err := filedriver.GetFileDriver(filedriver.GetFileDriverConfig())
 	if err != nil {
 		logrus.Error("获取文件驱动失败: ", err)
 		resps.InternalServerError(c, "获取文件驱动失败")
@@ -70,8 +71,8 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 	}
 
 	// 根据哈希值生成存储路径
-	dir, fileName := utils.FilePath(hash)
-	storagePath := filepath.Join(dir, fileName)
+	dir, fileNameHash := utils.FilePath(hash)
+	storagePath := filepath.Join(dir, fileNameHash)
 	// 保存文件
 	if _, err := src.Seek(0, io.SeekStart); err != nil {
 		logrus.Error("无法重置文件流位置: ", err)
@@ -92,8 +93,8 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 	fileModel := &model.File{
 		Hash:   hash,
 		UserID: currentUser.ID,
-		Group:  group,
-		Name:   name,
+		Group:  req.Group,
+		Name:   req.Name,
 	}
 
 	if err := repo.File.Create(fileModel); err != nil {
@@ -105,20 +106,14 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 }
 
 func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
-	fileIdString := c.Param("id")
-	fileId, err := strconv.ParseUint(fileIdString, 10, 64)
-	if err != nil {
-		logrus.Error("无效的文件ID: ", err)
-		resps.BadRequest(c, "无效的文件ID")
-		return
-	}
-	fileModel, err := repo.File.GetByID(uint(fileId))
+	fileId := ctxutils.GetIDParam(c).Uint
+	fileModel, err := repo.File.GetByID(fileId)
 	if err != nil {
 		logrus.Error("获取文件信息失败: ", err)
 		resps.InternalServerError(c, "获取文件信息失败")
 		return
 	}
-	driver, err := filedriver.GetFileDriver(filedriver.GetWebdavDriverConfig())
+	driver, err := filedriver.GetFileDriver(filedriver.GetFileDriverConfig())
 	if err != nil {
 		logrus.Error("获取文件驱动失败: ", err)
 		resps.InternalServerError(c, "获取文件驱动失败")
@@ -126,4 +121,27 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	}
 	filePath := filepath.Join(utils.FilePath(fileModel.Hash))
 	driver.Get(c, filePath)
+}
+
+func (f *FileController) DeleteFile(ctx context.Context, c *app.RequestContext) {
+	fileId := ctxutils.GetIDParam(c).Uint
+	fileModel, err := repo.File.GetByID(fileId)
+	if err != nil {
+		logrus.Error("获取文件信息失败: ", err)
+		resps.InternalServerError(c, "获取文件信息失败")
+		return
+	}
+	// 权限判断
+	if !(ctxutils.IsOwnerOfTarget(ctx, fileModel.UserID) || ctxutils.IsAdmin(ctx)) {
+		resps.Forbidden(c, "没有权限删除该文件")
+		return
+	}
+	driver, err := filedriver.GetFileDriver(filedriver.GetFileDriverConfig())
+	if err != nil {
+		logrus.Error("获取文件驱动失败: ", err)
+		resps.InternalServerError(c, "获取文件驱动失败")
+		return
+	}
+	filePath := filepath.Join(utils.FilePath(fileModel.Hash))
+	driver.Delete(c, filePath)
 }

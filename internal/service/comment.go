@@ -60,9 +60,9 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	if !ok {
 		return errs.ErrUnauthorized
 	}
-	logrus.Infof("UpdateComment: currentUser ID %d, req.CommentID %d", currentUser.ID, req.CommentID)
+	logrus.Infof("UpdateComment: currentUser ID %d, req.CommentID %d", currentUser.ID, req.ID)
 
-	comment, err := repo.Comment.GetComment(strconv.Itoa(int(req.CommentID)))
+	comment, err := repo.Comment.GetComment(req.ID)
 	if err != nil {
 		return err
 	}
@@ -81,12 +81,12 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	return nil
 }
 
-func (cs *CommentService) DeleteComment(ctx context.Context, commentID string) error {
+func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) error {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return errs.ErrUnauthorized
 	}
-	if commentID == "" {
+	if commentID == 0 {
 		return errs.ErrBadRequest
 	}
 
@@ -113,13 +113,11 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID string) e
 	return nil
 }
 
-func (cs *CommentService) GetComment(ctx context.Context, commentID string) (*dto.CommentDto, error) {
+func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.CommentDto, error) {
 	comment, err := repo.Comment.GetComment(commentID)
-
 	if err != nil {
 		return nil, errs.New(errs.ErrNotFound.Code, "comment not found", err)
 	}
-
 	currentUserID := uint(0)
 	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
 		currentUserID = currentUser.ID
@@ -142,7 +140,6 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 	}
 	commentDtos := make([]dto.CommentDto, 0)
 	for _, comment := range comments {
-		//replyCount, _ := repo.Comment.CountReplyComments(currentUserID, comment.ID)
 		commentDto := cs.toGetCommentDto(&comment, currentUserID)
 		commentDtos = append(commentDtos, commentDto)
 	}

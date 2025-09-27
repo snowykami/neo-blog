@@ -52,9 +52,10 @@ type VerifyEmailResp struct {
 }
 
 type OidcLoginReq struct {
-	Name  string `json:"name"` // OIDC配置名称
-	Code  string `json:"code"` // OIDC授权码
-	State string `json:"state"`
+	Name         string `path:"name" validate:"required"`
+	Code         string `query:"code" validate:"required"`
+	State        string `query:"state"`
+	RedirectBack string `query:"redirect_back" default:"/"` // 这是个非标的，前端REPLACE填充生成的
 }
 
 type OidcLoginResp struct {
@@ -80,7 +81,7 @@ type GetUserResp struct {
 }
 
 type UpdateUserReq struct {
-	ID             uint   `json:"id"`
+	ID             uint   `path:"id" vd:"$>0"`
 	Username       string `json:"username"`
 	Nickname       string `json:"nickname"`
 	AvatarUrl      string `json:"avatar_url"`

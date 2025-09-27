@@ -33,7 +33,7 @@ func (lc *LikeController) ToggleLike(ctx context.Context, c *app.RequestContext)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		logrus.Error(serviceErr.Error())
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"status": liked})
