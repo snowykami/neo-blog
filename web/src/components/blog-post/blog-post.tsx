@@ -87,7 +87,7 @@ async function PostHeader({ post }: { post: Post }) {
             )}
             {(post.labels || []).map(label => (
               <span key={label.id} className="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded">
-                {label.key}
+                {label.name}
               </span>
             ))}
           </div>
