@@ -1,7 +1,5 @@
 export interface Label {
     id: number;
-    key: string;
-    value: string;
-    color: string;
+    name: string;
     className?: string;
 }

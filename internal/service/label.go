@@ -13,9 +13,9 @@ func NewLabelService() *LabelService {
 	return &LabelService{}
 }
 
-func (l *LabelService) CreateLabel(req *dto.LabelDto) (uint, error) {
+func (l *LabelService) CreateLabel(req *dto.CreateLabelReq) (uint, error) {
 	label := &model.Label{
-		Value:             req.Value,
+		Name:              req.Name,
 		TailwindClassName: req.TailwindClassName,
 	}
 	return label.ID, repo.Label.CreateLabel(label)
@@ -24,7 +24,7 @@ func (l *LabelService) CreateLabel(req *dto.LabelDto) (uint, error) {
 func (l *LabelService) UpdateLabel(req *dto.LabelDto) (uint, error) {
 	label := &model.Label{
 		Model:             gorm.Model{ID: req.ID},
-		Value:             req.Value,
+		Name:              req.Name,
 		TailwindClassName: req.TailwindClassName,
 	}
 	return label.ID, repo.Label.UpdateLabel(label)
@@ -40,9 +40,11 @@ func (l *LabelService) GetLabelByID(id uint) (*dto.LabelDto, error) {
 		return nil, err
 	}
 	return &dto.LabelDto{
-		ID:                label.ID,
-		Value:             label.Value,
-		TailwindClassName: label.TailwindClassName,
+		ID: label.ID,
+		LabelBase: dto.LabelBase{
+			Name:              label.Name,
+			TailwindClassName: label.TailwindClassName,
+		},
 	}, nil
 }
 
@@ -54,9 +56,11 @@ func (l *LabelService) ListLabels() ([]dto.LabelDto, error) {
 	}
 	for _, label := range labels {
 		labelDtos = append(labelDtos, dto.LabelDto{
-			ID:                label.ID,
-			Value:             label.Value,
-			TailwindClassName: label.TailwindClassName,
+			ID: label.ID,
+			LabelBase: dto.LabelBase{
+				Name:              label.Name,
+				TailwindClassName: label.TailwindClassName,
+			},
 		})
 	}
 	return labelDtos, nil

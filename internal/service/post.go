@@ -56,7 +56,7 @@ func (p *PostService) DeletePost(ctx context.Context, id uint) error {
 	if id == 0 {
 		return errs.ErrBadRequest
 	}
-	post, err := repo.Post.GetPostBySlugOrID(string(id))
+	post, err := repo.Post.GetPostBySlugOrID(strconv.FormatUint(uint64(id), 10))
 	if err != nil {
 		return errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}
@@ -85,15 +85,15 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 	return post.ToDto(), nil
 }
 
-func (p *PostService) UpdatePost(ctx context.Context, id string, req *dto.CreateOrUpdatePostReq) (uint, error) {
+func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOrUpdatePostReq) (uint, error) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return 0, errs.ErrUnauthorized
 	}
-	if id == "" {
+	if id == 0 {
 		return 0, errs.ErrBadRequest
 	}
-	post, err := repo.Post.GetPostBySlugOrID(id)
+	post, err := repo.Post.GetPostBySlugOrID(strconv.FormatUint(uint64(id), 10))
 	if err != nil {
 		return 0, errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}

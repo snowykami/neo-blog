@@ -25,12 +25,10 @@ export async function listPosts({
   orderBy = OrderBy.CreatedAt,
   desc = false,
   keywords = '',
-  labels = '',
-  labelRule = 'union',
+  label = '',
 }: {
   keywords?: string, // 关键词，逗号分割
-  labels?: string, // 标签，逗号分割
-  labelRule?: 'union' | 'intersection' // 标签规则，默认并集
+  label?: string, // 标签，逗号分割
 } & PaginationParams): Promise<BaseResponse<{"posts": Post[], "total" : number}>> {
   const res = await axiosClient.get<BaseResponse<{"posts": Post[], "total": number}>>('/post/list', {
     params: {
@@ -39,8 +37,7 @@ export async function listPosts({
       orderBy,
       desc,
       keywords,
-      labels,
-      labelRule
+      label,
     },
   })
   return res.data

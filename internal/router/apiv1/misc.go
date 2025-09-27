@@ -16,8 +16,6 @@ func registerMiscRoutes(group *route.RouterGroup) {
 		miscGroupWithoutAuth.GET("/public-config", miscController.GetPublicConfig)
 		miscGroupWithoutAuth.GET("/sitemap-data", miscController.GetSitemapData) // 用于sitemap
 		miscGroupWithoutAuth.GET("/rss-data", miscController.GetRssData)         // 用于rss
-
-		miscGroupAdmin.PUT("/site-info", miscController.SetSiteInfo)
 		miscGroupAdmin.PUT("/public-config", miscController.SetPublicConfig)
 	}
 }

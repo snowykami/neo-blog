@@ -6,7 +6,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import { getFileUri } from "@/utils/client/file";
 import { getGravatarFromUser } from "@/utils/common/gravatar";
@@ -204,7 +203,25 @@ export function UserProfilePage() {
             accept="image/png,image/jpeg,image/webp,image/gif,image/*"
             onChange={handlePictureSelected}
           />
-            <ImageCropper image={avatarFile} onCropped={handleCropped} />
+            <ImageCropper image={avatarFile} onCropped={handleCropped} initialAspect={1} lockAspect={true} />
+          </div>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="background">{t("background")}</Label>
+          <Avatar className="h-40 w-80 rounded-xl border-2">
+            {backgroundFileUrl ?
+              <AvatarImage src={backgroundFileUrl} alt={nickname || username} /> :
+              <AvatarImage src={user.backgroundUrl} alt={nickname || username} />
+            }
+            <AvatarFallback>{t("background")}</AvatarFallback>
+          </Avatar>
+          <div className="flex gap-2"><Input
+            id="background"
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/*"
+            onChange={handleBackgroundSelected}
+          />
+            <ImageCropper image={backgroundFile} onCropped={handleCropped} initialAspect={3} lockAspect={false} />
           </div>
         </div>
         <div className="grid gap-2">

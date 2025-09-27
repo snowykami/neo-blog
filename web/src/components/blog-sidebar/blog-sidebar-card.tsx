@@ -12,17 +12,10 @@ import { getGravatarUrl } from "@/utils/common/gravatar";
 import { getFallbackAvatarFromUsername } from "@/utils/common/username";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import { getPostUrl } from "@/utils/common/route";
+import { listLabels } from "@/api/label";
 
 // 侧边栏父组件，接收卡片组件列表
-export default function Sidebar({ cards }: { cards: React.ReactNode[] }) {
-  return (
-    <div className="lg:col-span-1 space-y-6 self-start">
-      {cards.map((card, idx) => (
-        <div key={idx}>{card}</div>
-      ))}
-    </div>
-  );
-}
+
 
 // 关于我卡片
 export function SidebarAbout() {
@@ -97,7 +90,13 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
 }
 
 // 标签云卡片
-export function SidebarTags({ labels }: { labels: Label[] }) {
+export function SidebarLabels({ label, setLabel }: { label: string | null, setLabel: (label: string | null) => void }) {
+  const [labels, setLabels] = useState<Label[]>([]);
+  useEffect(() => {
+    listLabels().then(res => {
+      setLabels(res.data.labels);
+    })
+  }, []);
   return (
     <Card>
       <CardHeader>
@@ -105,13 +104,14 @@ export function SidebarTags({ labels }: { labels: Label[] }) {
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-2">
-          {labels.map((label) => (
+          {labels.map((l) => (
             <Badge
-              key={label.id}
+              key={l.name}
               variant="outline"
-              className="text-xs hover:bg-blue-50 cursor-pointer"
+              onClick={() => {setLabel(l.name === label ? null : l.name)}}
+              className={`text-xs hover:bg-blue-50 cursor-pointer` + (label === l.name ? " bg-blue-100 text-blue-700 hover:bg-blue-200" : "")}
             >
-              {label.key}
+              {l.name}
             </Badge>
           ))}
         </div>

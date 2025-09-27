@@ -4,24 +4,6 @@ import { MetadataRoute } from 'next'
 
 export const revalidate = 3600 // 1 小时缓存
 
-type PostForSitemap = {
-  id: number
-  slug: string
-  createdAt: string
-  updatedAt: string
-}
-
-type EditorForSitemap = {
-  id: number
-  username: string
-  updatedAt: string
-}
-
-type SitemapData = {
-  baseUrl: string
-  posts: PostForSitemap[]
-  editors: EditorForSitemap[]
-}
 
 function getChangeFreqAndPriority(lastModified: Date) {
   const ageDays = (Date.now() - lastModified.getTime()) / (1000 * 60 * 60 * 24)

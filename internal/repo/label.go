@@ -10,9 +10,9 @@ func (l *labelRepo) CreateLabel(label *model.Label) error {
 	return GetDB().Create(label).Error
 }
 
-func (l *labelRepo) GetLabelByValue(value string) (*model.Label, error) {
+func (l *labelRepo) GetLabelByName(name string) (*model.Label, error) {
 	var label model.Label
-	if err := GetDB().Where("value = ?", value).First(&label).Error; err != nil {
+	if err := GetDB().Where("name = ?", name).First(&label).Error; err != nil {
 		return nil, err
 	}
 	return &label, nil

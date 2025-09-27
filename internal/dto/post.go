@@ -33,9 +33,9 @@ type CreateOrUpdatePostReq struct {
 }
 
 type ListPostReq struct {
-	PaginationParams
 	Keywords string `query:"keywords"` // 关键词列表
-	Label    string `query:"label"`    // 单个标签过滤
+	PaginationParams
+	Label string `query:"label"`
 }
 
 type ListPostResp struct {

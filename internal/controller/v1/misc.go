@@ -27,46 +27,32 @@ func NewMiscController() *MiscController {
 
 func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext) {
 	value, err := repo.KV.GetKV(KeySiteInfo, utils.H{
-		"metadata": utils.H{
+		"metadata": repo.KV.GetKVWithoutErr("metadata", utils.H{
 			"name":        "Neo Blog S",
 			"icon":        "https://cdn.liteyuki.org/snowykami/avatar.jpg",
 			"description": "A neo blog system.",
-		},
-		"color_schemes": []string{"blue", "green", "orange", "red", "rose", "violet", "yellow"},
-		"default_cover": "https://cdn.liteyuki.org/blog/background.png",
-		"owner": utils.H{
+		}),
+		"color_schemes": repo.KV.GetKVWithoutErr("color_schemes", []string{"blue", "green", "orange", "red", "rose", "violet", "yellow"}),
+		"default_cover": repo.KV.GetKVWithoutErr("default_cover", "https://cdn.liteyuki.org/blog/background.png"),
+		"owner": repo.KV.GetKVWithoutErr("owner", utils.H{
 			"name":        "SnowyKami",
 			"description": "A full-stack developer.",
 			"avatar":      "https://cdn.liteyuki.org/snowykami/avatar.jpg",
-		},
-		"posts_per_page":            9,
-		"comments_per_page":         8,
-		"verify_code_cool_down":     60,
-		"animation_duration_second": 0.618,
-		"footer": utils.H{
+		}),
+		"posts_per_page":            repo.KV.GetKVWithoutErr("posts_per_page", 10),
+		"comments_per_page":         repo.KV.GetKVWithoutErr("comments_per_page", 10),
+		"verify_code_cool_down":     repo.KV.GetKVWithoutErr("verify_code_cool_down", 60), // 单位秒
+		"animation_duration_second": repo.KV.GetKVWithoutErr("animation_duration_second", 0.3),
+		"footer": repo.KV.GetKVWithoutErr("footer", utils.H{
 			"text":  "Liteyuki ICP 114514",
 			"links": []string{"https://www.liteyuki.com/"},
-		},
+		}),
 	})
 	if err != nil {
 		resps.InternalServerError(c, err.Error())
 		return
 	}
 	resps.Ok(c, "", value)
-}
-
-func (mc *MiscController) SetSiteInfo(ctx context.Context, c *app.RequestContext) {
-	data := make(map[string]interface{})
-	err := c.BindAndValidate(&data)
-	if err != nil {
-		resps.BadRequest(c, err.Error())
-		return
-	}
-	err = repo.KV.SetKV(KeySiteInfo, data)
-	if err != nil {
-		resps.InternalServerError(c, err.Error())
-	}
-	resps.Ok(c, "", nil)
 }
 
 func (mc *MiscController) GetPublicConfig(ctx context.Context, c *app.RequestContext) {

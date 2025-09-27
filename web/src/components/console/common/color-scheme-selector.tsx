@@ -67,7 +67,7 @@ export function ColorSchemeSelector({color,  onColorChange }: { color: string | 
   useEffect(() => {
     onColorChange?.(selectedColor!);
     if (!selectedColor) return;
-  }, [selectedColor]);
+  }, [selectedColor, onColorChange]);
 
   if (!selectedColor) return null;
   return (

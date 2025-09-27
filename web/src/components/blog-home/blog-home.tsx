@@ -3,20 +3,19 @@
 import { BlogCardGrid } from "@/components/blog-home/blog-home-card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Clock, } from "lucide-react";
-import Sidebar, { SidebarAbout, SidebarHotPosts, SidebarMisskeyIframe, SidebarTags } from "../blog/blog-sidebar-card";
+import { SidebarAbout, SidebarHotPosts, SidebarMisskeyIframe, SidebarLabels } from "../blog-sidebar/blog-sidebar-card";
 import type { Post } from "@/models/post";
 import { listPosts } from "@/api/post";
-
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { useSearchParams } from "next/navigation";
 import { OrderBy } from "@/models/common";
 import { PaginationController } from "@/components/common/pagination";
 import { QueryKey } from "@/constant";
 import { useStoredState } from "@/hooks/use-storage-state";
 import { parseAsInteger, useQueryState } from "nuqs";
 import { useSiteInfo } from "@/contexts/site-info-context";
+import Sidebar from "../blog-sidebar";
 
 // 定义排序类型
 enum SortBy {
@@ -29,9 +28,9 @@ const DEFAULT_SORTBY: SortBy = SortBy.Latest;
 export default function BlogHome() {
   // 从路由查询参数中获取页码和标签们
   const t = useTranslations("BlogHome");
-  const {siteInfo} = useSiteInfo();
-  const [labels, setLabels] = useState<string[]>([]);
+  const { siteInfo } = useSiteInfo();
   const [keywords, setKeywords] = useState<string[]>([]);
+  const [label, setLabel] = useQueryState("label");
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1).withOptions({ history: "replace", clearOnDefault: true }));
   const [posts, setPosts] = useState<Post[]>([]);
   const [totalPosts, setTotalPosts] = useState(0);
@@ -48,7 +47,7 @@ export default function BlogHome() {
         orderBy: sortBy === SortBy.Latest ? OrderBy.CreatedAt : OrderBy.Heat,
         desc: true,
         keywords: keywords.join(",") || undefined,
-        labels: labels.join(",") || undefined,
+        label: label|| undefined,
       }
     ).then(res => {
       setPosts(res.data.posts);
@@ -58,7 +57,7 @@ export default function BlogHome() {
       console.error(err);
       setLoading(false);
     });
-  }, [keywords, labels, page, sortBy, isSortByLoaded]);
+  }, [keywords, label, page, sortBy, isSortByLoaded, siteInfo.postsPerPage]);
 
   const handleSortChange = (type: SortBy) => {
     if (sortBy !== type) {
@@ -151,7 +150,7 @@ export default function BlogHome() {
                 cards={[
                   <SidebarAbout key="about" />,
                   posts.length > 0 ? <SidebarHotPosts key="hot" posts={posts} sortType={sortBy} /> : null,
-                  <SidebarTags key="tags" labels={[]} />,
+                  <SidebarLabels key="tags" label={label} setLabel={setLabel} />,
                   <SidebarMisskeyIframe key="misskey" />,
                 ].filter(Boolean)}
               />

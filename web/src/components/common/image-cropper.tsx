@@ -16,18 +16,49 @@ export function ImageCropper({
   image,
   onCropped,
   onCancel,
+  initialAspect = 1.0,
+  lockAspect = false,
 }: {
   image: File | Blob | null;
   onCropped: (blob: Blob) => void;
   onCancel?: () => void;
+  initialAspect?: number;
+  lockAspect?: boolean;
 }) {
-  const [crop, setCrop] = useState<Partial<Crop>>({
-    unit: '%',
-    x: 25,
-    y: 25,
-    width: 50,
-    height: 50,
-  })
+  const normalizeAspect = (a: number | undefined) => {
+    const v = typeof a === "number" && isFinite(a) && a > 0 ? a : 1.0;
+    return v;
+  };
+
+  const computeInitialCrop = (aspect: number): Partial<Crop> => {
+    // use percent units for initial crop and center it
+    let w = 50;
+    let h = w / aspect;
+
+    if (h > 100) {
+      h = 100;
+      w = Math.min(100, 100 * aspect);
+    }
+    if (w > 100) {
+      w = 100;
+      h = Math.min(100, w / aspect);
+    }
+
+    const x = Math.max(0, (100 - w) / 2);
+    const y = Math.max(0, (100 - h) / 2);
+
+    return {
+      unit: '%',
+      x,
+      y,
+      width: w,
+      height: h,
+    };
+  };
+
+  const [crop, setCrop] = useState<Partial<Crop>>(() =>
+    computeInitialCrop(normalizeAspect(initialAspect))
+  );
 
   const [imageSrc, setImageSrc] = useState<string>("")
   const [open, setOpen] = useState<boolean>(false)
@@ -67,6 +98,33 @@ export function ImageCropper({
       }
     }
   }, [image])
+
+  // If initialAspect or lockAspect changes while mounted, optionally update crop to match new aspect
+  useEffect(() => {
+    const aspect = normalizeAspect(initialAspect)
+    if (lockAspect) {
+      setCrop((c) => {
+        // try to preserve width and center; fallback to computed initial crop
+        const width = typeof c.width === 'number' ? c.width : 50
+        let height = width / aspect
+        let w = width
+        if (height > 100) {
+          height = 100
+          w = Math.min(100, 100 * aspect)
+        }
+        if (w > 100) {
+          w = 100
+          height = Math.min(100, w / aspect)
+        }
+        const x = Math.max(0, (100 - w) / 2)
+        const y = Math.max(0, (100 - height) / 2)
+        return { ...(c ?? {}), unit: '%', width: w, height, x, y }
+      })
+    } else {
+      // when unlocking, keep current crop as-is; no change required
+    }
+    // only respond to changes of initialAspect or lockAspect
+  }, [initialAspect, lockAspect])
 
   const onImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     imgRef.current = e.currentTarget
@@ -135,8 +193,8 @@ export function ImageCropper({
                 <ReactCrop
                   crop={crop as Crop}
                   onChange={(c) => setCrop(c)}
-                  // 保持正方形，可按需移除
-                  aspect={1}
+                  // 根据 lockAspect 决定是否锁定宽高比
+                  aspect={lockAspect ? normalizeAspect(initialAspect) : undefined}
                 >
                   {/* 必须用原生 img 元素 */}
                   <Image

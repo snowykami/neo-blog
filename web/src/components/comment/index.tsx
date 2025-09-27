@@ -55,7 +55,7 @@ export function CommentSection(
         setNeedLoadMore(false);
       }
     });
-  }, [targetId, targetType]);
+  }, [targetId, targetType, siteInfo.commentsPerPage]);
 
   const onCommentSubmitted = ({ commentContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => {
     createComment({

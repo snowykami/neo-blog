@@ -100,6 +100,7 @@
     },
     "user_profile": {
       "title": "资料设置",
+      "background": "背景图",
       "edit": "编辑",
       "failed_to_upload_avatar": "上传头像失败",
       "failed_to_update_profile": "更新个人资料失败",

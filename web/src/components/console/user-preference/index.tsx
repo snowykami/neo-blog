@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl"
 import { ColorSchemeSelector } from "../common/color-scheme-selector"
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { updateUser } from "@/api/user";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "sonner";
@@ -27,6 +27,10 @@ export function UserPreferencePage() {
         toast.error("Failed to update color scheme", { description: error.message });
       });
   }, [color, user?.id, user?.preferredColor]);
+
+  const onColorChange = useCallback((color: string) => {
+    setColor(color);
+  }, []);
   
   return (
     <div>
@@ -36,7 +40,7 @@ export function UserPreferencePage() {
         </h1>
         <div className="grid gap-2">
           <h2 className="text">{t("color_scheme")}</h2>
-          <ColorSchemeSelector color={color} onColorChange={setColor} />
+          <ColorSchemeSelector color={color} onColorChange={onColorChange} />
         </div>
       </div>
     </div>

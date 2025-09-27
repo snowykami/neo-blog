@@ -23,12 +23,12 @@ func NewLabelController() *LabelController {
 }
 
 func (l *LabelController) Create(ctx context.Context, c *app.RequestContext) {
-	var req dto.LabelDto
-	if err := c.BindAndValidate(&req); err != nil {
+	req := &dto.CreateLabelReq{}
+	if err := c.BindAndValidate(req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	labelID, err := l.service.CreateLabel(&req)
+	labelID, err := l.service.CreateLabel(req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
@@ -85,5 +85,5 @@ func (l *LabelController) List(ctx context.Context, c *app.RequestContext) {
 		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
 		return
 	}
-	resps.Ok(c, resps.Success, labels)
+	resps.Ok(c, resps.Success, utils.H{"labels": labels})
 }

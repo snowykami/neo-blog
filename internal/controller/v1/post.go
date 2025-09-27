@@ -75,11 +75,7 @@ func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	id := c.Param("id")
-	if id == "" {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
+	id := ctxutils.GetIDParam(c).Uint
 	postID, err := p.service.UpdatePost(ctx, id, &req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
