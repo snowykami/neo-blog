@@ -217,9 +217,14 @@
     "verify_code": "验证码"
   },
   "Route": {
+    "archive": "归档",
+    "console": "控制台",
     "homepage": "首页",
+    "label": "标签",
+    "page": "页面",
+    "post": "文章",
     "profile": "个人资料",
-    "console": "控制台"
+    "random": "随机"
   },
   "State": {
     "private": "私密",

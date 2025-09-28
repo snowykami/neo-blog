@@ -20,22 +20,23 @@ import { ThemeModeToggle } from "@/components/common/theme-toggle"
 import { AvatarWithDropdownMenu } from "@/components/layout/nav/avatar-with-dropdown-menu"
 import { cn } from "@/lib/utils"
 import { useSiteInfo } from "@/contexts/site-info-context"
+import { useTranslations } from 'next-intl';
 
 const navbarMenuComponents = [
   {
-    title: "首页",
+    title: "homepage",
     href: "/"
   },
   {
-    title: "文章",
+    title: "post",
     children: [
-      { title: "归档", href: "/archives" },
-      { title: "标签", href: "/labels" },
-      { title: "随机", href: "/random" }
+      { title: "archive", href: "/archives" },
+      { title: "random", href: "/labels" },
+      { title: "label", href: "/random" }
     ]
   },
   {
-    title: "页面",
+    title: "page",
     children: [
       { title: "关于我", href: "/about" },
       { title: "联系我", href: "/contact" },
@@ -66,21 +67,22 @@ export default function Navbar() {
 }
 
 function NavMenuCenter() {
+  const routeT = useTranslations("Route");
   return (
     <NavigationMenu viewport={false} className="hidden md:block">
-      <NavigationMenuList className="flex space-x-1">
+      <NavigationMenuList className="flex space-x-1" key="navbar-menu">
         {navbarMenuComponents.map((item) => (
           <NavigationMenuItem key={item.title}>
             {item.href ? (
-              <NavigationMenuLink asChild className={cn(navigationMenuTriggerStyle(), "bg-transparent")}>
+              <NavigationMenuLink asChild className={cn(navigationMenuTriggerStyle(), "font-extrabold bg-transparent")}>
                 <Link href={item.href} className="flex items-center gap-1 font-extrabold">
-                  <span>{item.title}</span>
+                  <span>{routeT(item.title)}</span>
                 </Link>
               </NavigationMenuLink>
             ) : item.children ? (
               <>
                 <NavigationMenuTrigger className="flex items-center gap-1 font-extrabold bg-transparent">
-                  <span>{item.title}</span>
+                  <span>{routeT(item.title)}</span>
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
                   <ul className="grid gap-2 p-0 min-w-[200px] max-w-[600px] grid-cols-[repeat(auto-fit,minmax(120px,1fr))] ">

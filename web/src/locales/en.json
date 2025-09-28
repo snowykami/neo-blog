@@ -1,5 +1,232 @@
 {
   "HomePage": {
     "title": "Hello world!"
+  },
+  "BlogHome": {
+    "hottest": "Hottest",
+    "hottest_posts": "Hottest Posts",
+    "latest": "Latest",
+    "latest_posts": "Latest Posts",
+    "loading": "Loading...",
+    "load_more": "Load more",
+    "no_more": "No more!"
+  },
+  "Captcha": {
+    "doing": "Checking if you're human...",
+    "error": "Verification failed",
+    "success": "Congrats, you're human!"
+  },
+  "CodeBlock": {
+    "copy": "Copy",
+    "copy_success": "Copied to clipboard",
+    "copy_failed": "Copy failed, please copy manually"
+  },
+  "Comment": {
+    "collapse_replies": "Collapse",
+    "comment": "Comment",
+    "comment_failed": "Failed to post comment",
+    "comment_success": "Comment posted!",
+    "comment_unchanged": "Comment content unchanged.",
+    "confirm_delete": "Are you sure?",
+    "content_required": "Comment content cannot be empty.",
+    "delete": "Delete",
+    "delete_failed": "Failed to delete comment",
+    "delete_success": "Comment deleted",
+    "edit": "Edit",
+    "edit_at": "Edited at {time}",
+    "edit_failed": "Failed to edit comment",
+    "edit_success": "Comment updated",
+    "expand_replies": "Show {count} replies",
+    "like": "Like",
+    "like_failed": "Like failed",
+    "like_success": "Liked",
+    "load_more": "Load more",
+    "login_required": "Please log in first",
+    "no_more": "No more!",
+    "placeholder": "Write your comment...",
+    "private": "Private comment",
+    "private_placeholder": "Say it quietly...",
+    "reply": "Reply",
+    "show_client_info": "Show client info",
+    "unlike": "Unlike",
+    "unlike_success": "Unliked"
+  },
+  "Common": {
+    "created_at": "Created at",
+    "email": "Email",
+    "forgot_password": "Forgot password?",
+    "id": "ID",
+    "logout_failed": "Logout failed",
+    "logout_success": "Logged out",
+    "daysAgo": "days ago",
+    "hoursAgo": "hours ago",
+    "minutesAgo": "minutes ago",
+    "obtain": "Obtain",
+    "password": "Password",
+    "search": "Search",
+    "secondsAgo": "seconds ago",
+    "send_verify_code": "Send verification code",
+    "updated_at": "Updated at",
+    "username": "Username",
+    "verify_code": "Verification code"
+  },
+  "Console": {
+    "comments": {
+      "title": "Comments Management"
+    },
+    "dashboard": {
+      "title": "Dashboard"
+    },
+    "files": {
+      "title": "File Management"
+    },
+    "general": "General",
+    "global": {
+      "title": "Global Settings"
+    },
+    "login_required": "Please log in to access the console",
+    "personal": "Personal",
+    "posts": {
+      "title": "Posts Management"
+    },
+    "users": {
+      "title": "Users Management"
+    },
+    "user_profile": {
+      "title": "Profile Settings",
+      "background": "Background image",
+      "edit": "Edit",
+      "failed_to_upload_avatar": "Failed to upload avatar",
+      "failed_to_update_profile": "Failed to update profile",
+      "gender": "Gender",
+      "nickname": "Nickname",
+      "nickname_and_username_cannot_be_empty": "Nickname and username cannot be empty",
+      "nickname_and_username_must_be_between": "Nickname and username must be between {min} and {max} characters",
+      "no_changes_made": "No changes made",
+      "only_allow_picture": "Only image formats allowed: PNG / JPEG / WEBP / GIF",
+      "picture": "Avatar",
+      "picture_size_cannot_exceed": "Image size cannot exceed {size}",
+      "public_profile": "Public profile",
+      "username": "Username",
+      "update_profile": "Update profile"
+    },
+    "user_security": {
+      "title": "Security Settings",
+      "email_setting": "Email settings",
+      "forgot_password_or_no_password": "Forgot password or no password",
+      "new_password": "New password",
+      "old_password": "Old password",
+      "password_setting": "Password settings",
+      "send_verify_code": "Send verification code",
+      "send_verify_code_failed": "Failed to send verification code",
+      "send_verify_code_success": "Verification code sent",
+      "update_email": "Update email",
+      "update_email_failed": "Failed to update email",
+      "update_email_success": "Email updated",
+      "update_password": "Update password",
+      "update_password_failed": "Failed to update password",
+      "update_password_success": "Password updated",
+      "verify_code": "Verification code"
+    },
+    "user_preference": {
+      "title": "Preferences",
+      "color_scheme": "Color scheme"
+    }
+  },
+  "Login": {
+    "bind_oidc": "Continue to bind third-party account",
+    "captcha_error": "Verification error, please try again.",
+    "continue": "Continue",
+    "currently_logged_in": "Currently logged in as",
+    "fetch_captcha_config_failed": "Failed to get captcha config, please try later.",
+    "fetch_oidc_configs_failed": "Failed to get third-party identity provider configs.",
+    "logging": "Logging in...",
+    "login_success": "Login successful!",
+    "login_failed": "Login failed",
+    "welcome": "Welcome back",
+    "with_oidc": "Use third-party account",
+    "or_continue_with_local_account": "Or continue with a local account",
+    "email_or_username": "Email or username",
+    "password": "Password",
+    "forgot_password": "Forgot password?",
+    "no_account": "No account?",
+    "register": "Register",
+    "by_logging_in_you_agree_to_our": "By logging in you agree to our",
+    "terms_of_service": "Terms of Service",
+    "and": "and",
+    "privacy_policy": "Privacy Policy"
+  },
+  "Metrics": {
+    "comment_count": "Comment count",
+    "like_count": "Like count",
+    "per_page": " /page",
+    "view_count": "View count"
+  },
+  "Operation": {
+    "confirm_delete": "Confirm delete?",
+    "delete": "Delete",
+    "delete_failed": "Delete failed",
+    "delete_success": "Delete successful",
+    "edit": "Edit",
+    "login": "Login",
+    "logout": "Logout",
+    "previous": "Previous",
+    "next": "Next",
+    "register": "Register",
+    "reset": "Reset",
+    "save": "Save",
+    "select": "Select",
+    "select_all": "Select all",
+    "select_file": "Select file",
+    "set_private": "Set private",
+    "set_public": "Set public",
+    "submit": "Submit",
+    "update": "Update",
+    "update_failed": "Update failed",
+    "update_success": "Update successful",
+    "view": "View"
+  },
+  "Order": {
+    "order": "Order",
+    "comment_count": "Comment count",
+    "created_at": "Created at",
+    "heat": "Heat",
+    "like_count": "Like count",
+    "updated_at": "Updated at",
+    "view_count": "View count"
+  },
+  "Register": {
+    "title": "Register",
+    "already_have_account": "Already have an account?",
+    "please_fill_in_all_required_fields": "Please fill in all required fields",
+    "registering": "Registering...",
+    "register_a_new_account": "Register a new account",
+    "register_failed": "Register failed",
+    "register_success": "Registration successful!"
+  },
+  "ResetPassword": {
+    "title": "Reset password",
+    "new_password": "New password",
+    "reset_password": "Reset password",
+    "reset_password_failed": "Failed to reset password",
+    "reset_password_success": "Password reset successful, please log in with your new password",
+    "send_verify_code": "Send verification code",
+    "send_verify_code_failed": "Failed to send verification code",
+    "send_verify_code_success": "Verification code sent",
+    "verify_code": "Verification code"
+  },
+  "Route": {
+    "archive": "Archive",
+    "console": "Console",
+    "homepage": "Homepage",
+    "label": "Label",
+    "page": "Page",
+    "post": "Post",
+    "profile": "Profile",
+    "random": "Random"
+  },
+  "State": {
+    "private": "Private",
+    "public": "Public"
   }
 }

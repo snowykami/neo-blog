@@ -71,8 +71,6 @@ export default function BlogHome() {
     setPage(page);
   }
 
-  console.log("Mount BlogHome", { posts, totalPosts, page, label, sortBy });
-
   return (
     <>
       {/* 主内容区域 */}
