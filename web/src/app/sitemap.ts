@@ -15,6 +15,7 @@ function getChangeFreqAndPriority(lastModified: Date) {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const sitemapData = await getSitemapData().then(res => res.data).catch(() => null)
+  console.log("sitemapData", sitemapData)
   if (!sitemapData) {
     return []
   }
