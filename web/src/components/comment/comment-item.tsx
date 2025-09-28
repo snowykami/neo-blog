@@ -2,7 +2,7 @@ import { useToLogin, useToUserProfile } from "@/hooks/use-route";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Reply, Trash, Heart, Pencil, Lock, Ellipsis } from "lucide-react";
+import { Reply, Heart, Lock, Ellipsis } from "lucide-react";
 import { Comment } from "@/models/comment";
 import { TargetType } from "@/models/types";
 import { toggleLike } from "@/api/like";

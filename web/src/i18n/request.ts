@@ -1,5 +1,5 @@
 import { getRequestConfig } from 'next-intl/server';
-import { cookies, headers } from 'next/headers';
+import {  headers } from 'next/headers';
 import deepmerge from 'deepmerge';
 import { getLoginUserServer } from '@/api/user.server';
 
