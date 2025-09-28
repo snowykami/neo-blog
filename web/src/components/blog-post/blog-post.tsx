@@ -166,7 +166,7 @@ async function BlogPost({ post }: { post: Post }) {
         </motion.div>
 
         <motion.div
-        className="pt-6"
+        className="pt-4"
           initial={{ x: 80, opacity: 0 }}
           animate={{ x: 0, y: 0, opacity: 1 }}
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}
