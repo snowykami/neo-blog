@@ -1,9 +1,9 @@
 export const consolePath = {
   dashboard: "/console",
-  post: "/console/post",
-  comment: "/console/comment",
-  file: "/console/file",
-  user: "/console/user",
+  post: "/console/posts",
+  comment: "/console/comments",
+  file: "/console/files",
+  user: "/console/users",
   global: "/console/global",
   userProfile: "/console/user-profile",
   userSecurity: "/console/user-security",

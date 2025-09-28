@@ -4,19 +4,13 @@ import axiosClient from './client'
 import { OrderBy, PaginationParams } from '@/models/common'
 
 
-export async function getPostById({id, token = ""}: {id: string, token: string}): Promise<Post | null> {
-  try {
-    const res = await axiosClient.get<BaseResponse<Post>>(`/post/p/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-    return res.data.data
-  }
-  catch (error) {
-    console.error('Error fetching post by ID:', error)
-    return null
-  }
+export async function getPostById({ id, token = "" }: { id: string, token?: string }): Promise<BaseResponse<Post | null>> {
+  const res = await axiosClient.get<BaseResponse<Post>>(`/post/p/${id}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+  return res.data
 }
 
 export async function listPosts({
@@ -29,8 +23,8 @@ export async function listPosts({
 }: {
   keywords?: string, // 关键词，逗号分割
   label?: string, // 标签，逗号分割
-} & PaginationParams): Promise<BaseResponse<{"posts": Post[], "total" : number}>> {
-  const res = await axiosClient.get<BaseResponse<{"posts": Post[], "total": number}>>('/post/list', {
+} & PaginationParams): Promise<BaseResponse<{ "posts": Post[], "total": number }>> {
+  const res = await axiosClient.get<BaseResponse<{ "posts": Post[], "total": number }>>('/post/list', {
     params: {
       page,
       size,
@@ -43,12 +37,12 @@ export async function listPosts({
   return res.data
 }
 
-export async function updatePost({post}: {post: Post}): Promise<BaseResponse<Post>> {
+export async function updatePost({ post }: { post: Post }): Promise<BaseResponse<Post>> {
   const res = await axiosClient.put<BaseResponse<Post>>(`/post/p/${post.id}`, post)
   return res.data
 }
 
-export async function deletePost({id}: {id: number}): Promise<null> {
-    const res = await axiosClient.delete(`/post/p/${id}`)
-    return res.data
+export async function deletePost({ id }: { id: number }): Promise<null> {
+  const res = await axiosClient.delete(`/post/p/${id}`)
+  return res.data
 }

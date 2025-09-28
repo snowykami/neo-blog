@@ -2,7 +2,7 @@ import { useToLogin, useToUserProfile } from "@/hooks/use-route";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Reply, Trash, Heart, Pencil, Lock } from "lucide-react";
+import { Reply, Trash, Heart, Pencil, Lock, Ellipsis } from "lucide-react";
 import { Comment } from "@/models/comment";
 import { TargetType } from "@/models/types";
 import { toggleLike } from "@/api/like";
@@ -15,6 +15,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarFromUser } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
 import { useAuth } from "@/contexts/auth-context";
+import { DropdownMenu } from "@radix-ui/react-dropdown-menu";
+import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 
 export function CommentItem(
@@ -210,6 +213,8 @@ export function CommentItem(
                   {!showReplies ? t("expand_replies", { count: replyCount }) : t("collapse_replies")}
                 </button>
               )}
+              {/* 更多 */}
+              
               {/* 回复按钮 */}
               <button
                 title={t("reply")}
@@ -236,44 +241,7 @@ export function CommentItem(
               >
                 <Heart className="w-3 h-3" /> <div>{likeCount}</div>
               </button>
-
-              {/* 编辑和删除按钮 仅自己的评论可见 */}
-              {user?.id === commentState.user.id && (
-                <>
-                  <button
-                    title={t("edit")}
-                    onClick={() => {
-                      if (activeInput?.type === 'edit' && activeInput.id === commentState.id) {
-                        setActiveInputId(null);
-                      } else {
-                        setActiveInputId({ id: commentState.id, type: 'edit' });
-                      }
-                    }}
-                    className={`
-                flex items-center justify-center px-2 py-1 h-5 
-                text-primary-foreground dark:text-white text-xs 
-                rounded ${activeInput?.type === 'edit' && activeInput.id === commentState.id ? "bg-slate-600" : "bg-slate-400"} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </button>
-
-                  <button
-                    title={t("delete")}
-                    className={`flex items-center justify-center px-2 py-1 h-5 rounded
-                text-primary-foreground dark:text-white text-xs 
-                ${confirming ? 'bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600' : 'bg-slate-400 hover:bg-slate-600 dark:hover:bg-slate-500'} fade-in`}
-                    onClick={() => onClick(() => { onCommentDelete({ commentId: commentState.id }); })}
-                    onBlur={onBlur}
-                  >
-                    <Trash className="w-3 h-3" />
-                    {confirming && (
-                      <span className="ml-1 confirm-delete-anim">{t("confirm_delete")}</span>
-                    )}
-                  </button>
-                </>
-              )}
-
-
+              {user?.id === comment.user.id && <CommentDropdownMenu comment={commentState} setActiveInputId={setActiveInputId} onCommentDelete={onCommentDelete} />}
             </div>
           </div>
         </div>
@@ -306,5 +274,49 @@ export function CommentItem(
           ))}
         </div>
       )}</div>
+  )
+}
+
+function CommentDropdownMenu(
+  {
+    comment,
+    setActiveInputId,
+    onCommentDelete
+  }: {
+    comment: Comment,
+    setActiveInputId: (input: { id: number; type: 'reply' | 'edit' } | null) => void,
+    onCommentDelete: ({ commentId }: { commentId: number }) => void
+  }
+) {
+  const { confirming: confirmingDelete, onClick: onDeleteClick } = useDoubleConfirm();
+  const operationT = useTranslations("Operation");
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm">
+          <Ellipsis className="w-4 h-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem
+          className="cursor-pointer"
+          onClick={() => setActiveInputId({ id: comment.id, type: 'edit' })}>
+          {operationT("edit")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={(e) => {
+            if (!confirmingDelete) {
+              e.preventDefault();
+              onDeleteClick(() => onCommentDelete({ commentId: comment.id }));
+            } else {
+              onDeleteClick(() => onCommentDelete({ commentId: comment.id }));
+            }
+          }}
+          className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer">
+          {confirmingDelete ? operationT("confirm_delete") : operationT("delete")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

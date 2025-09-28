@@ -23,29 +23,29 @@ export const sidebarData: { navMain: SidebarItem[]; navUserCenter: SidebarItem[]
       permission: isAdmin
     },
     {
-      id: "post",
-      title: "post.title",
+      id: "posts",
+      title: "posts.title",
       url: consolePath.post,
       icon: Newspaper,
       permission: isEditor
     },
     {
-      id: "comment",
-      title: "comment.title",
+      id: "comments",
+      title: "comments.title",
       url: consolePath.comment,
       icon: MessageCircle,
       permission: isEditor
     },
     {
-      id: "file",
-      title: "file.title",
+      id: "files",
+      title: "files.title",
       url: consolePath.file,
       icon: Folder,
       permission: () => true
     },
     {
-      id: "user",
-      title: "user.title",
+      id: "users",
+      title: "users.title",
       url: consolePath.user,
       icon: Users,
       permission: isAdmin

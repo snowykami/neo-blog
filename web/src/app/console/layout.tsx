@@ -13,29 +13,31 @@ import { useAuth } from "@/contexts/auth-context"
 import { sidebarData, SidebarItem } from "@/components/console/data"
 import { usePathname } from "next/navigation"
 import { useTranslations } from "next-intl"
+import { consolePath } from "@/utils/common/route"
 
 export default function ConsoleLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const t  = useTranslations("Console")
+  const t = useTranslations("Console")
   const { user } = useAuth();
   const [title, setTitle] = useState("Title");
   const toLogin = useToLogin();
   const pathname = usePathname() ?? "/"
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   const sideBarItems: SidebarItem[] = sidebarData.navMain.concat(sidebarData.navUserCenter);
 
   useEffect(() => {
-    const currentItem = sideBarItems.find(item => item.url === pathname);
-    if (currentItem) {
-      setTitle(t(currentItem.title));
-      document.title = `${t(currentItem.title)} - 控制台`;
-    } else {
-      setTitle("Title");
-    }
-  }, [pathname, sideBarItems, t]);
+    if (!pathname) return
+    const all = [...sidebarData.navMain, ...sidebarData.navUserCenter]
+    const match = all.find(item => {
+      if (!item.url) return false
+      return pathname === item.url || (item.url !== consolePath.dashboard && pathname.startsWith(item.url + "/"))
+    })
+    if (match?.id) setActiveId(match.id)
+  }, [pathname])
 
   useEffect(() => {
     if (!user) {
@@ -53,7 +55,7 @@ export default function ConsoleLayout({
       }
     >
       <SidebarAutoCloseOnRouteChange />
-      <AppSidebar variant="inset" />
+      <AppSidebar variant="inset" activeId={activeId} setActiveId={setActiveId} />
       <SidebarInset>
         <SiteHeader title={title} />
         <div className="p-4 md:p-4">

@@ -163,10 +163,11 @@ async function BlogPost({ post }: { post: Post }) {
           className="lg:col-span-3"
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
           <PostContent post={post} />
+          <CommentSection targetType={TargetType.Post} targetId={post.id} totalCount={post.commentCount} />
         </motion.div>
 
         <motion.div
-        className="pt-4"
+          className="pt-4"
           initial={{ x: 80, opacity: 0 }}
           animate={{ x: 0, y: 0, opacity: 1 }}
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}
@@ -181,7 +182,7 @@ async function BlogPost({ post }: { post: Post }) {
         </motion.div>
       </div>
 
-      <CommentSection targetType={TargetType.Post} targetId={post.id} totalCount={post.commentCount} />
+
     </div>
   );
 }

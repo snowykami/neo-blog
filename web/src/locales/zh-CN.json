@@ -71,13 +71,13 @@
     "verify_code": "验证码"
   },
   "Console": {
-    "comment": {
+    "comments": {
       "title": "评论管理"
     },
     "dashboard": {
       "title": "大石坝"
     },
-    "file": {
+    "files": {
       "title": "文件管理"
     },
     "general": "常规",
@@ -86,10 +86,10 @@
     },
     "login_required": "请先登录再进入后台",
     "personal": "个人",
-    "post": {
+    "posts": {
       "title": "文章管理"
     },
-    "user": {
+    "users": {
       "title": "用户管理"
     },
     "user_profile": {
@@ -217,6 +217,7 @@
     "verify_code": "验证码"
   },
   "Route": {
+    "homepage": "首页",
     "profile": "个人资料",
     "console": "控制台"
   },

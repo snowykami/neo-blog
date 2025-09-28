@@ -45,7 +45,7 @@ const navbarMenuComponents = [
   }
 ]
 
-export function Navbar() {
+export default function Navbar() {
   const { navbarAdditionalClassName } = useDevice()
   const { siteInfo } = useSiteInfo();
   return (

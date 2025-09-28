@@ -86,7 +86,7 @@ export function PostManage() {
     </div>
     <Separator className="flex-1" />
     {posts.map(post => <div key={post.id}>
-      <PostItem post={post} onPostUpdate={onPostUpdate} onPostDelete={onPostDelete}/>
+      <PostItem post={post} onPostUpdate={onPostUpdate} onPostDelete={onPostDelete} />
       <Separator className="flex-1" />
     </div>)}
     <div className="flex justify-center items-center py-4">
@@ -96,7 +96,7 @@ export function PostManage() {
   </div>;
 }
 
-function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void ,onPostDelete: ({ postId }: { postId: number }) => void}) {
+function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void, onPostDelete: ({ postId }: { postId: number }) => void }) {
   const commonT = useTranslations("Common");
   const postT = useTranslations("Metrics");
   const stateT = useTranslations("State");
@@ -124,14 +124,24 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
           <Button variant="ghost" size="sm" onClick={() => clickToPost({ post })}>
             <Eye className="inline size-4 mr-1" />
           </Button>
-          <PostDropdownMenu post={post} onPostUpdate={onPostUpdate} onPostDelete={onPostDelete}/>
+          <PostDropdownMenu post={post} onPostUpdate={onPostUpdate} onPostDelete={onPostDelete} />
         </div>
       </div>
     </div>
   )
 }
 
-function PostDropdownMenu({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void, onPostDelete: ({ postId }: { postId: number }) => void  }) {
+function PostDropdownMenu(
+  {
+    post,
+    onPostUpdate,
+    onPostDelete
+  }: {
+    post: Post,
+    onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void,
+    onPostDelete: ({ postId }: { postId: number }) => void
+  }
+) {
   const operationT = useTranslations("Operation");
   const clickToPostEdit = useToEditPost();
   const clickToPost = useToPost();
@@ -183,7 +193,7 @@ function PostDropdownMenu({ post, onPostUpdate, onPostDelete }: { post: Post, on
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={handleTogglePrivate} className="text-red-600 hover:bg-red-600/10 focus:bg-red-600/10 cursor-pointer">
+          <DropdownMenuItem onClick={handleTogglePrivate} className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer">
             {operationT(post.isPrivate ? "set_public" : "set_private")}
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -195,7 +205,7 @@ function PostDropdownMenu({ post, onPostUpdate, onPostDelete }: { post: Post, on
                 onDeleteClick(() => handleDelete());
               }
             }}
-            className="text-red-600 hover:bg-red-600/10 focus:bg-red-600/10 cursor-pointer">
+            className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer">
             {confirmingDelete ? operationT("confirm_delete") : operationT("delete")}
           </DropdownMenuItem>
         </DropdownMenuGroup>

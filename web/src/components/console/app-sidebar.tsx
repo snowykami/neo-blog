@@ -18,29 +18,12 @@ import {
 import Link from "next/link"
 import { sidebarData } from "./data"
 import { ThemeModeToggle } from "../common/theme-toggle"
-import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { useSiteInfo } from "@/contexts/site-info-context"
-import { usePathname } from "next/navigation"
 
-
-
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const pathname = usePathname();
+export function AppSidebar({ activeId , setActiveId, ...props }: React.ComponentProps<typeof Sidebar> & {activeId: string | null, setActiveId: (id: string) => void}) {
   const { siteInfo } = useSiteInfo();
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const consoleT = useTranslations("Console")
-
-  useEffect(() => {
-    if (!pathname) return
-    const all = [...sidebarData.navMain, ...sidebarData.navUserCenter]
-    const match = all.find(item => {
-      if (!item.url) return false
-      // 精确或前缀匹配（根据你的路由规则调整）
-      return item.url === pathname
-    })
-    if (match?.id) setActiveId(match.id)
-  }, [pathname])
+  const consoleT = useTranslations("Console");
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>

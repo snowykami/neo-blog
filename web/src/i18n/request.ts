@@ -1,7 +1,7 @@
 import { getRequestConfig } from 'next-intl/server';
 import { cookies, headers } from 'next/headers';
 import deepmerge from 'deepmerge';
-import { getLoginUser } from '@/api/user';
+import { getLoginUserServer } from '@/api/user.server';
 
 export default getRequestConfig(async () => {
   const locales = await getUserLocales();
@@ -25,9 +25,7 @@ export async function getUserLocales(): Promise<string[]> {
   const headersList = await headers();
   const cookieStore = await cookies();
   try {
-    const token = cookieStore.get('token')?.value || '';
-    const refreshToken = cookieStore.get('refresh_token')?.value || '';
-    const user = (await getLoginUser({token, refreshToken})).data;
+    const user = (await getLoginUserServer()).data;
     locales.push(user?.language || '');
     locales.push((user?.language || '').split('-')[0]);
   } catch {

@@ -1,13 +1,12 @@
-import GlobalPage from "@/components/console/global";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console');
   return {
-    title: consoleT('global.title'),
+    title: consoleT('files.title'),
   };
 }
 
 export default function Page() {
-  return <GlobalPage />;
+  return <div>文件管理</div>;
 }

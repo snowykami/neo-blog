@@ -1,3 +1,9 @@
+import { Metadata } from "next";
+
+export const generateMetadata = (): Metadata => {
+  return { title: "Archive" };
+}
+
 export default function ArchivesPage() {
   return (
     <div>

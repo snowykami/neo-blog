@@ -1,13 +1,13 @@
-import GlobalPage from "@/components/console/global";
+import { PostManage } from "@/components/console/post-manage";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console');
   return {
-    title: consoleT('global.title'),
+    title: consoleT('posts.title'),
   };
 }
 
 export default function Page() {
-  return <GlobalPage />;
+  return <PostManage />;
 }

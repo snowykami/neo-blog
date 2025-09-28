@@ -1,0 +1,65 @@
+ @layer base {
+   .typography h1 {
+     @apply scroll-m-20 text-4xl font-extrabold tracking-tight text-balance;
+   }
+
+   .typography h2 {
+     @apply scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight first:mt-0;
+   }
+
+   .typography h3 {
+     @apply scroll-m-20 text-2xl font-semibold tracking-tight;
+   }
+
+   .typography h4 {
+     @apply scroll-m-20 text-xl font-semibold tracking-tight;
+   }
+
+   .typography h5 {
+      @apply scroll-m-20 text-lg font-semibold tracking-tight;
+    }
+
+    .typography h6 {
+      @apply scroll-m-20 text-base font-semibold tracking-tight;
+    }
+
+   .typography p {
+     @apply leading-7 [&:not(:first-child)]:mt-6;
+   }
+
+   .typography blockquote {
+     @apply mt-6 border-l-2 pl-6 italic;
+   }
+
+   /* table */
+   .typography tr {
+     @apply even:bg-muted m-0 border-t p-0;
+   }
+
+   .typography th {
+     @apply border px-4 py-2 text-left font-bold [&[align=center]]:text-center [&[align=right]]:text-right;
+   }
+
+   /* list */
+   .typography ul {
+     @apply my-6 ml-6 list-disc [&>li]:mt-2;
+   }
+
+   /* inline code */
+   .typography code {
+     @apply bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold;
+   }
+
+   /* lead */
+   .typography .lead {
+     @apply text-xl text-muted-foreground;
+   }
+
+   .typography .large {
+     @apply text-lg font-semibold;
+   }
+
+   .typography .small {
+     @apply text-sm leading-none font-medium;
+   }
+ }

@@ -40,7 +40,7 @@ export function UserPreferencePage() {
         </h1>
         <div className="grid gap-2">
           <h2 className="text">{t("color_scheme")}</h2>
-          <ColorSchemeSelector color={color} onColorChange={onColorChange} />
+          {user && <ColorSchemeSelector color={color} onColorChange={onColorChange} />}
         </div>
       </div>
     </div>
