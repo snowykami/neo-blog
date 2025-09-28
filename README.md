@@ -31,6 +31,9 @@ services:
     restart: always
     ports:
       - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_started
     volumes:
       - .env.frontend:/app/.env.production:ro
 

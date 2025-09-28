@@ -2,7 +2,7 @@ import { getSitemapData } from '@/api/misc'
 import { getCategoryUrl, getLabelUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 import { MetadataRoute } from 'next'
 
-export const revalidate = 600 // 1 小时缓存
+export const revalidate = 3600 // 1 hour
 
 
 function getChangeFreqAndPriority(lastModified: Date) {
@@ -16,12 +16,7 @@ function getChangeFreqAndPriority(lastModified: Date) {
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const sitemapData = await getSitemapData().then(res => res.data).catch(() => null)
   if (!sitemapData) {
-    return [{
-      url: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
-      lastModified: new Date(),
-      changeFrequency: 'daily',
-      priority: 1,
-    }]
+    return []
   }
 
   const items: MetadataRoute.Sitemap = []

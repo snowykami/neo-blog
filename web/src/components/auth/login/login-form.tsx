@@ -30,6 +30,7 @@ export function LoginForm({
   ...props
 }: React.ComponentProps<"div">) {
   const t = useTranslations('Login')
+  const operationT = useTranslations("Operation")
   const { user, setUser } = useAuth();
   const [oidcConfigs, setOidcConfigs] = useState<OidcConfig[]>([])
   const [captchaProps, setCaptchaProps] = useState<{
@@ -172,7 +173,7 @@ export function LoginForm({
                   className="w-full"
                   disabled={!captchaToken || isLogging}
                 >
-                  {isLogging ? t("logging") : t("login")}
+                  {isLogging ? t("logging") : operationT("login")}
                 </Button>
               </div>
 

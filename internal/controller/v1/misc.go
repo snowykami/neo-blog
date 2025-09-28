@@ -32,7 +32,7 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 			"icon":        "https://cdn.liteyuki.org/snowykami/avatar.jpg",
 			"description": "A neo blog system.",
 		}),
-		"color_schemes": repo.KV.GetKVWithoutErr("color_schemes", []string{"blue", "green", "orange", "red", "rose", "violet", "yellow"}),
+		"color_schemes": repo.KV.GetKVWithoutErr("color_schemes", []string{"blue", "green", "orange", "red", "rose", "pink", "violet", "yellow"}),
 		"default_cover": repo.KV.GetKVWithoutErr("default_cover", "https://cdn.liteyuki.org/blog/background.png"),
 		"owner": repo.KV.GetKVWithoutErr("owner", utils.H{
 			"name":        "SnowyKami",
@@ -42,7 +42,7 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 		"posts_per_page":            repo.KV.GetKVWithoutErr("posts_per_page", 10),
 		"comments_per_page":         repo.KV.GetKVWithoutErr("comments_per_page", 10),
 		"verify_code_cool_down":     repo.KV.GetKVWithoutErr("verify_code_cool_down", 60), // 单位秒
-		"animation_duration_second": repo.KV.GetKVWithoutErr("animation_duration_second", 0.3),
+		"animation_duration_second": repo.KV.GetKVWithoutErr("animation_duration_second", 0.618),
 		"footer": repo.KV.GetKVWithoutErr("footer", utils.H{
 			"text":  "Liteyuki ICP 114514",
 			"links": []string{"https://www.liteyuki.com/"},

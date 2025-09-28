@@ -16,23 +16,6 @@ export function ColorScheme(
         <div className="font-bold text-primary">{color.toUpperCase()}</div>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <div className="flex flex-col items-center gap-2">
-          <div className="h-8 w-full rounded-md border border-border bg-card" />
-          <div className="text-xs text-muted-foreground"><Skeleton className="h-3 w-12" /></div>
-        </div>
-
-        <div className="flex flex-col items-center gap-2">
-          <div className="h-8 w-full rounded-md border border-border bg-ring" />
-          <div className="text-xs text-ring-foreground"><Skeleton className="h-3 w-12" /></div>
-        </div>
-
-        <div className="flex flex-col items-center gap-2">
-          <div className="h-8 w-full rounded-md border border-border bg-destructive" />
-          <div className="text-xs text-destructive-foreground"><Skeleton className="h-3 w-12" /></div>
-        </div>
-      </div>
-
       <div className="mt-3 space-y-2">
         <div className="rounded-md border border-border p-2">
           <div className="h-8 w-full rounded flex items-center justify-between px-3 bg-primary/10">
@@ -47,19 +30,25 @@ export function ColorScheme(
               <Skeleton className="h-3 w-3/4" />
             </div>
           </div>
-        </div>
-
-        <div className="flex gap-2">
-          <div className="flex-1 h-8 rounded border border-border bg-primary" />
-          <div className="flex-1 h-8 rounded border border-border bg-primary-foreground" />
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-8 w-full rounded-md border border-border bg-card" />
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-8 w-full rounded-md border border-border bg-primary" />
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-8 w-full rounded-md border border-border bg-destructive" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-export function ColorSchemeSelector({color,  onColorChange }: { color: string | null, onColorChange?: (color: string) => void }) {
-  const {siteInfo} = useSiteInfo();
+export function ColorSchemeSelector({ color, onColorChange }: { color: string | null, onColorChange?: (color: string) => void }) {
+  const { siteInfo } = useSiteInfo();
   const colorSchemes = siteInfo?.colorSchemes ? siteInfo.colorSchemes : fallbackSiteInfo.colorSchemes;
   const [selectedColor, setSelectedColor] = useState<string | null>(colorSchemes.includes(color || "") ? color : colorSchemes[0]);
   const { isDark } = useDevice();

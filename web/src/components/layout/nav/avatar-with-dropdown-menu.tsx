@@ -20,6 +20,7 @@ import { useTranslations } from "next-intl";
 import { Role } from "@/models/user";
 
 export function AvatarWithDropdownMenu() {
+  const operationT = useTranslations("Operation");
   const routeT = useTranslations("Route");
   const { user, logout } = useAuth();
   const toLogin = useToLogin();
@@ -69,7 +70,7 @@ export function AvatarWithDropdownMenu() {
         }
 
         <DropdownMenuItem onClick={user ? handleLogout : toLogin}>
-          {user ? "Logout" : "Login"}
+          {user ? operationT("logout") : operationT("login")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

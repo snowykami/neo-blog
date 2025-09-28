@@ -174,7 +174,7 @@ export function ImageCropper({
       setOpen(isOpen)
       if (!isOpen && onCancel) onCancel()
     }}>
-      <form onSubmit={(e) => e.preventDefault()}>
+      <div onSubmit={(e) => e.preventDefault()}>
         <DialogTrigger asChild>
           <Button
             variant="outline"
@@ -244,7 +244,7 @@ export function ImageCropper({
             </DialogFooter>
           </DialogContent>
         )}
-      </form>
+      </div>
     </Dialog>
   )
 }

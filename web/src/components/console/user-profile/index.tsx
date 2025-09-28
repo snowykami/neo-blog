@@ -14,6 +14,15 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { useForm } from "react-hook-form";
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+} from "@/components/ui/form";
 
 interface UploadConstraints {
   allowedTypes: string[];
@@ -24,18 +33,29 @@ interface PictureInputChangeEvent {
   target: HTMLInputElement & { files?: FileList | null };
 }
 
+type FormValues = {
+  nickname: string;
+  username: string;
+  gender: string;
+};
+
 export function UserProfilePage() {
   const t = useTranslations("Console.user_profile")
+  const operationT = useTranslations("Operation")
   const { user } = useAuth();
-  const [nickname, setNickname] = useState(user?.nickname || '')
-  const [username, setUsername] = useState(user?.username || '')
+
+  const form = useForm<FormValues>({
+    defaultValues: {
+      nickname: user?.nickname ?? "",
+      username: user?.username ?? "",
+      gender: user?.gender ?? "",
+    },
+  });
+
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [avatarFileUrl, setAvatarFileUrl] = useState<string | null>(null) // 这部分交由useEffect控制，监听 avatarFile 变化
+  const [avatarFileUrl, setAvatarFileUrl] = useState<string | null>(null)
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null)
   const [backgroundFileUrl, setBackgroundFileUrl] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [gender, setGender] = useState(user?.gender || '')
-
 
   useEffect(() => {
     if (!user) return;
@@ -73,7 +93,7 @@ export function UserProfilePage() {
     }
     const constraints: UploadConstraints = {
       allowedTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
-      maxSize: 5 * 1024 * 1024, // 5 MB
+      maxSize: 5 * 1024 * 1024,
     };
     if (!file.type || !file.type.startsWith('image/') || !constraints.allowedTypes.includes(file.type)) {
       setAvatarFile(null);
@@ -96,7 +116,7 @@ export function UserProfilePage() {
     }
     const constraints: UploadConstraints = {
       allowedTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
-      maxSize: 5 * 1024 * 1024, // 5 MB
+      maxSize: 5 * 1024 * 1024,
     };
     if (!file.type || !file.type.startsWith('image/') || !constraints.allowedTypes.includes(file.type)) {
       setBackgroundFile(null);
@@ -111,71 +131,6 @@ export function UserProfilePage() {
     setBackgroundFile(file);
   }
 
-  const handleSubmit = () => {
-    if (!user) return;
-    if (
-      nickname.trim() === '' ||
-      username.trim() === ''
-    ) {
-      toast.error(t("nickname_and_username_cannot_be_empty"))
-      return
-    }
-
-    if (
-      (username.length < 1 || username.length > 20) ||
-      (nickname.length < 1 || nickname.length > 20)
-    ) {
-      toast.error(t("nickname_and_username_must_be_between", { "min": 1, "max": 20 }))
-      return
-    }
-
-    if (
-      username === user.username &&
-      nickname === user.nickname &&
-      gender === user.gender &&
-      avatarFile === null &&
-      backgroundFile === null
-    ) {
-      toast.warning(t("no_changes_made"))
-      return
-    }
-
-    let avatarUrl = user.avatarUrl;
-    let backgroundUrl = user.backgroundUrl;
-    setSubmitting(true);
-    (async () => {
-      if (avatarFile) {
-        try {
-          const resp = await uploadFile({ file: avatarFile });
-          avatarUrl = getFileUri(resp.data.id);
-        } catch (error: unknown) {
-          toast.error(`${t("failed_to_upload_avatar")}: ${error}`);
-          return;
-        }
-      }
-
-      if (backgroundFile) {
-        try {
-          const resp = await uploadFile({ file: backgroundFile });
-          backgroundUrl = getFileUri(resp.data.id);
-        } catch (error: unknown) {
-          toast.error(`${t("failed_to_upload_background")}: ${error}`);
-          return;
-        }
-      }
-
-      try {
-        await updateUser({ nickname, username, avatarUrl, backgroundUrl, gender, id: user.id });
-        window.location.reload();
-      } catch (error: unknown) {
-        toast.error(`${t("failed_to_update_profile")}: ${error}`);
-      } finally {
-        setSubmitting(false);
-      }
-    })();
-
-  }
-
   const handleCropped = (blob: Blob) => {
     const file = new File([blob], 'avatar.png', { type: blob.type });
     setAvatarFile(file);
@@ -183,61 +138,151 @@ export function UserProfilePage() {
 
   if (!user) return null
 
+  const onSubmit = form.handleSubmit(async (values) => {
+    // basic validation as before
+    if (values.nickname.trim() === '' || values.username.trim() === '') {
+      toast.error(t("nickname_and_username_cannot_be_empty"))
+      return;
+    }
+    if (
+      (values.username.length < 1 || values.username.length > 20) ||
+      (values.nickname.length < 1 || values.nickname.length > 20)
+    ) {
+      toast.error(t("nickname_and_username_must_be_between", { "min": 1, "max": 20 }))
+      return;
+    }
+
+    if (
+      values.username === user.username &&
+      values.nickname === user.nickname &&
+      values.gender === user.gender &&
+      avatarFile === null &&
+      backgroundFile === null
+    ) {
+      toast.warning(t("no_changes_made"))
+      return;
+    }
+
+    let avatarUrl = user.avatarUrl;
+    let backgroundUrl = user.backgroundUrl;
+
+    try {
+      if (avatarFile) {
+        const resp = await uploadFile({ file: avatarFile });
+        avatarUrl = getFileUri(resp.data.id);
+      }
+      if (backgroundFile) {
+        const resp = await uploadFile({ file: backgroundFile });
+        backgroundUrl = getFileUri(resp.data.id);
+      }
+
+      await updateUser({ nickname: values.nickname, username: values.username, avatarUrl, backgroundUrl, gender: values.gender, id: user.id });
+      window.location.reload();
+    } catch (error: unknown) {
+      toast.error(`${t("failed_to_update_profile")}: ${String(error)}`);
+    }
+  });
+
   return (
-    <div className="grid w-full max-w-sm items-center gap-4">
-      <h1 className="text-2xl font-bold">
-        {t("public_profile")}
-      </h1>
-      <div className="grid w-full max-w-sm items-center gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="picture">{t("picture")}</Label>
-          <Avatar className="h-40 w-40 rounded-xl border-2">
-            {avatarFileUrl ?
-              <AvatarImage src={avatarFileUrl} alt={nickname || username} /> :
-              <AvatarImage src={getGravatarFromUser({ user })} alt={nickname || username} />}
-            <AvatarFallback>{getFallbackAvatarFromUsername(nickname || username)}</AvatarFallback>
-          </Avatar>
-          <div className="flex gap-2"><Input
-            id="picture"
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif,image/*"
-            onChange={handlePictureSelected}
-          />
-            <ImageCropper image={avatarFile} onCropped={handleCropped} initialAspect={1} lockAspect={true} />
+    <Form {...form}>
+      <form onSubmit={onSubmit} className="grid w-full max-w-sm items-center gap-4">
+        <h1 className="text-2xl font-bold">{t("public_profile")}</h1>
+
+        <div className="grid w-full items-center gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="picture">{t("picture")}</Label>
+            <Avatar className="h-40 w-40 rounded-xl border-2">
+              {avatarFileUrl ?
+                <AvatarImage src={avatarFileUrl} alt={form.getValues("nickname") || form.getValues("username")} /> :
+                <AvatarImage src={getGravatarFromUser({ user })} alt={form.getValues("nickname") || form.getValues("username")} />}
+              <AvatarFallback>{getFallbackAvatarFromUsername(form.getValues("nickname") || form.getValues("username"))}</AvatarFallback>
+            </Avatar>
+            <div className="flex gap-2">
+              <input
+                id="picture"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/*"
+                onChange={handlePictureSelected}
+                className="hidden"
+              />
+              <label htmlFor="picture" className="btn btn-sm">{operationT("select_file")}</label>
+              <ImageCropper image={avatarFile} onCropped={handleCropped} initialAspect={1} lockAspect={true} />
+            </div>
           </div>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="background">{t("background")}</Label>
-          <Avatar className="h-40 w-80 rounded-xl border-2">
-            {backgroundFileUrl ?
-              <AvatarImage src={backgroundFileUrl} alt={nickname || username} /> :
-              <AvatarImage src={user.backgroundUrl} alt={nickname || username} />
-            }
-            <AvatarFallback>{t("background")}</AvatarFallback>
-          </Avatar>
-          <div className="flex gap-2"><Input
-            id="background"
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif,image/*"
-            onChange={handleBackgroundSelected}
-          />
-            <ImageCropper image={backgroundFile} onCropped={handleCropped} initialAspect={3} lockAspect={false} />
+
+          <div className="grid gap-2">
+            <Label htmlFor="background">{t("background")}</Label>
+            <Avatar className="h-40 w-80 rounded-xl border-2">
+              {backgroundFileUrl ?
+                <AvatarImage src={backgroundFileUrl} alt={form.getValues("nickname") || form.getValues("username")} /> :
+                <AvatarImage src={user.backgroundUrl} alt={form.getValues("nickname") || form.getValues("username")} />
+              }
+              <AvatarFallback>{t("background")}</AvatarFallback>
+            </Avatar>
+            <div className="flex gap-2">
+              <input
+                id="background"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/*"
+                onChange={handleBackgroundSelected}
+                className="hidden"
+              />
+              <label htmlFor="background" className="btn btn-sm">{operationT("select_file")}</label>
+              <ImageCropper image={backgroundFile} onCropped={(blob) => {
+                const file = new File([blob], 'background.png', { type: blob.type });
+                setBackgroundFile(file);
+              }} initialAspect={3} lockAspect={false} />
+            </div>
           </div>
+
+          <FormField
+            control={form.control}
+            name="nickname"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nickname")}</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="username"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("username")}</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="gender"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("gender")}</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <Button type="submit" disabled={form.formState.isSubmitting}>
+            {t("update_profile")}
+            {form.formState.isSubmitting && '...'}
+          </Button>
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="nickname">{t("nickname")}</Label>
-          <Input type="nickname" id="nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="username">{t("username")}</Label>
-          <Input type="username" id="username" value={username} onChange={(e) => setUsername(e.target.value)} />
-        </div >
-        <div className="grid gap-2">
-          <Label htmlFor="gender">{t("gender")}</Label>
-          <Input type="gender" id="gender" value={gender} onChange={(e) => setGender(e.target.value)} />
-        </div>
-        <Button className="max-w-1/3" onClick={handleSubmit} disabled={submitting}>{t("update_profile")}{submitting && '...'}</Button>
-      </div>
-    </div>
+      </form>
+    </Form>
   )
 }

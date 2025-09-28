@@ -32,6 +32,7 @@ export function RegisterForm({
   const { setUser } = useAuth();
   const t = useTranslations('Register')
   const commonT = useTranslations('Common')
+  const operationT = useTranslations("Operation")
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectBack = searchParams.get("redirect_back") || "/"
@@ -195,13 +196,13 @@ export function RegisterForm({
                   onClick={handleRegister}
                   disabled={!captchaToken || registering || !username || !password || !email || !(verifyCode.length == 6)}
                 >
-                  {registering ? t("registering") : t("register")}
+                  {registering ? t("registering") : operationT("register")}
                 </Button>
                 {/* 注册链接 */}
                 <div className="text-center text-sm">
                   {t("already_have_account")}{" "}
                   <Link href={loginPath + "?redirect_back=" + encodeURIComponent(redirectBack)} className="underline underline-offset-4">
-                    {commonT("login")}
+                    {operationT("login")}
                   </Link>
                 </div>
               </div>

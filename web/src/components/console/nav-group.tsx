@@ -20,7 +20,7 @@ export function NavGroup({
 }: {
   items: SidebarItem[],
   title: string,
-  activeId: string,
+  activeId: string | null,
   setActiveId? :(id: string) => void
 }) {
   const { user } = useAuth();

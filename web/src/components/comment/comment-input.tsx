@@ -31,7 +31,7 @@ export function CommentInput(
 ) {
   const {user} = useAuth();
   const t = useTranslations('Comment')
-  const commonT = useTranslations('Common')
+  const operationT = useTranslations('Operation')
   const clickToLogin = useToLogin()
   const clickToUserProfile = useToUserProfile();
 
@@ -44,7 +44,7 @@ export function CommentInput(
       // 通知
       toast.error(t("login_required"), {
         action: {
-          label: commonT("login"),
+          label: operationT("login"),
           onClick: clickToLogin,
         },
       })
@@ -97,7 +97,7 @@ export function CommentInput(
           <Label onClick={() => setIsPrivate(prev => !prev)}>{t("private")}</Label>
         </div>
         <button onClick={handleCommentSubmit} className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors fade-in-up">
-          {isUpdate ? t("update") : t("submit")}
+          {isUpdate ? operationT("update") : operationT("submit")}
         </button>
       </div>
     </div>

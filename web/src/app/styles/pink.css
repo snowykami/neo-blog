@@ -1,0 +1,70 @@
+/* ...existing code... */
+[data-user-color="pink"] {
+  --radius: 0.65rem;
+  --background: #fff5f8;           /* soft pink (pink-50) */
+  --foreground: #0f172a;           /* slate-900, 中性色用于正文，不全粉 */
+  --card: #ffffff;                 /* card on light */
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #ec4899;              /* pink-500 (accent) */
+  --primary-foreground: #ffffff;
+  --secondary: #fbcfe8;            /* pink-200 */
+  --secondary-foreground: #7f1d4a; /* 深一点的中性色作为次要文字 */
+  --muted: #fdf2f8;                /* 更淡的粉，用于次级背景 */
+  --muted-foreground: #6b7280;     /* gray-500，用于较不显眼文字 */
+  --accent: #f9a8d4;               /* pink-300 */
+  --accent-foreground: #7f1d4a;
+  --destructive: #dc2626;          /* red-600 (destructive) */
+  --border: #f3c7dc;               /* 淡粉边框 */
+  --input: #ffffff;
+  --ring: #f9a8d4;
+  --chart-1: #f472b6;              /* pink-400 */
+  --chart-2: #db2777;              /* pink-600 */
+  --chart-3: #7f1d4a;              /* 深色用于对比 */
+  --chart-4: #f9a8d4;              /* pink-300 */
+  --chart-5: #ec4899;              /* pink-500 */
+  --sidebar: #fff7fb;              /* 侧边浅粉但更接近白 */
+  --sidebar-foreground: #0f172a;    /* 中性色用于侧边文字 */
+  --sidebar-primary: #ec4899;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #fbcfe8;
+  --sidebar-accent-foreground: #7f1d4a;
+  --sidebar-border: #f3c7dc;
+  --sidebar-ring: #f9a8d4;
+}
+
+.dark[data-user-color="pink"] {
+  --background: #0b1220;           /* 更中性的深色背景，减少强粉感 */
+  --foreground: #f8fafc;           /* 轻色文字用于对比 */
+  --card: #111827;                 /* 暗色卡片 */
+  --card-foreground: #f8fafc;
+  --popover: #0f172a;
+  --popover-foreground: #f8fafc;
+  --primary: #f472b6;              /* pink-400（暗模式下稍亮） */
+  --primary-foreground: #0f172a;   /* 深色用于按钮文字反差 */
+  --secondary: #be185d;            /* pink-700 */
+  --secondary-foreground: #f8fafc;
+  --muted: #3f2a33;                /* 暗模式下的柔和背景色 */
+  --muted-foreground: #e6e6ea;     /* 柔和的浅色文字 */
+  --accent: #f9a8d4;
+  --accent-foreground: #0f172a;
+  --destructive: #b91c1c;          /* red-700 */
+  --border: rgba(255,255,255,0.06);
+  --input: rgba(255,255,255,0.06);
+  --ring: #f472b6;
+  --chart-1: #f472b6;
+  --chart-2: #db2777;
+  --chart-3: #be185d;
+  --chart-4: #f9a8d4;
+  --chart-5: #ec4899;
+  --sidebar: #111827;
+  --sidebar-foreground: #f8fafc;
+  --sidebar-primary: #f472b6;
+  --sidebar-primary-foreground: #0f172a;
+  --sidebar-accent: #be185d;
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: rgba(255,255,255,0.06);
+  --sidebar-ring: #f472b6;
+}
+/* ...existing code... */
