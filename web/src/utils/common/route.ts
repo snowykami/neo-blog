@@ -13,7 +13,6 @@ export const consolePath = {
 export function getPostUrl<T extends { slug?: string | null; id?: string | number | null }>(
   post: T
 ): string {
-  console.log(post);
   const key = post.slug || post.id;
   if (key == null) {
     throw new Error('toPostUrl: object must contain slug or id')

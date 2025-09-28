@@ -71,6 +71,8 @@ export default function BlogHome() {
     setPage(page);
   }
 
+  console.log("Mount BlogHome", { posts, totalPosts, page, label, sortBy });
+
   return (
     <>
       {/* 主内容区域 */}
@@ -83,7 +85,7 @@ export default function BlogHome() {
               className="lg:col-span-3 self-start"
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              key={`${page}-${label ?? "none"}-${totalPosts}`}
+              key={`${page}-${label ?? "none"}`}
               transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
               {/* 文章列表标题 */}
               <div className="flex items-center justify-between mb-8">
