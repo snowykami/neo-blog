@@ -3,7 +3,6 @@ import type { BaseResponse } from '@/models/resp'
 import type { User } from '@/models/user'
 import { CaptchaProvider } from '@/types/captcha'
 import axiosClient from './client'
-import { isClient } from '@/utils/common/is-client'
 
 
 export async function userLogin(
@@ -56,7 +55,6 @@ export async function listOidcConfigs(): Promise<BaseResponse<OidcConfig[]>> {
 }
 
 export async function getLoginUser(
-  { }: {} = {}
 ): Promise<BaseResponse<User>> {
   const res = await axiosClient.get<BaseResponse<User>>('/user/me')
   return res.data
