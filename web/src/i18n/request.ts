@@ -6,7 +6,7 @@ import { getLoginUserServer } from '@/api/user.server';
 export default getRequestConfig(async () => {
   const locales = await getUserLocales();
   const messages = await Promise.all(
-    locales.map(async (locale) => {
+    locales.reverse().map(async (locale) => {
       try {
         return (await import(`@/locales/${locale}.json`)).default;
       } catch {
@@ -14,7 +14,6 @@ export default getRequestConfig(async () => {
       }
     })
   ).then((msgs) => msgs.reduce((acc, msg) => deepmerge(acc, msg), {}));
-  console.log('Determined locales:', locales);
   return {
     locale: locales[0],
     messages
