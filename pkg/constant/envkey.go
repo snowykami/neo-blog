@@ -39,8 +39,8 @@ const (
 	EnvKeySitemapLimit                     = "SITEMAP_LIMIT"                        // 环境变量：站点地图限制
 	EnvKeyTokenDuration                    = "TOKEN_DURATION"                       // 环境变量：令牌有效期
 	EnvKeyMaxReplyDepth                    = "MAX_REPLY_DEPTH"                      // 环境变量：最大回复深度
-	EnvKeyTokenDurationDefault             = 500                                    // Token有效时长
-	EnvKeyRefreshTokenDurationDefault      = 6000000                                // refresh token有效时长
+	DefaultTokenDuration                   = 500                                    // Token有效时长
+	DefaultRefreshTokenDuration            = 604800                                 // refresh token有效时长
 	EnvKeyRefreshTokenDuration             = "REFRESH_TOKEN_DURATION"               // 环境变量：刷新令牌有效期
 	EnvKeyRefreshTokenDurationWithRemember = "REFRESH_TOKEN_DURATION_WITH_REMEMBER" // 环境变量：记住我刷新令牌有效期
 )

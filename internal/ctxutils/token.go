@@ -8,12 +8,12 @@ import (
 )
 
 func SetTokenCookie(c *app.RequestContext, token string) {
-	c.SetCookie("token", token, utils.Env.GetAsInt(constant.EnvKeyTokenDuration, constant.EnvKeyTokenDurationDefault), "/", "", protocol.CookieSameSiteLaxMode, true, true)
+	c.SetCookie("token", token, utils.Env.GetAsInt(constant.EnvKeyTokenDuration, constant.DefaultTokenDuration), "/", "", protocol.CookieSameSiteLaxMode, true, true)
 }
 
 func SetTokenAndRefreshTokenCookie(c *app.RequestContext, token, refreshToken string) {
-	c.SetCookie("token", token, utils.Env.GetAsInt(constant.EnvKeyTokenDuration, constant.EnvKeyTokenDurationDefault), "/", "", protocol.CookieSameSiteLaxMode, true, true)
-	c.SetCookie("refresh_token", refreshToken, utils.Env.GetAsInt(constant.EnvKeyRefreshTokenDuration, constant.EnvKeyRefreshTokenDurationDefault), "/", "", protocol.CookieSameSiteLaxMode, true, true)
+	c.SetCookie("token", token, utils.Env.GetAsInt(constant.EnvKeyTokenDuration, constant.DefaultTokenDuration), "/", "", protocol.CookieSameSiteLaxMode, true, true)
+	c.SetCookie("refresh_token", refreshToken, utils.Env.GetAsInt(constant.EnvKeyRefreshTokenDuration, constant.DefaultRefreshTokenDuration), "/", "", protocol.CookieSameSiteLaxMode, true, true)
 }
 
 func ClearTokenAndRefreshTokenCookie(c *app.RequestContext) {
