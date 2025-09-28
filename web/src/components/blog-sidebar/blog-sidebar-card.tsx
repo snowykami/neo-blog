@@ -13,13 +13,14 @@ import { getFallbackAvatarFromUsername } from "@/utils/common/username";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import { getPostUrl } from "@/utils/common/route";
 import { listLabels } from "@/api/label";
+import { useRouter } from "next/navigation";
 
 // 侧边栏父组件，接收卡片组件列表
 
 
 // 关于我卡片
 export function SidebarAbout() {
-  const {siteInfo} = useSiteInfo();
+  const { siteInfo } = useSiteInfo();
   if (!siteInfo) return null;
   return (
     <Card>
@@ -33,7 +34,7 @@ export function SidebarAbout() {
         <div className="text-center mb-4">
           <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
             <Avatar className="h-full w-full rounded-full">
-              <AvatarImage src={getGravatarUrl({email: siteInfo?.owner?.gravatarEmail || "snowykami@outlook.com", size: 256})} alt={siteInfo?.owner?.name} />
+              <AvatarImage src={getGravatarUrl({ email: siteInfo?.owner?.gravatarEmail || "snowykami@outlook.com", size: 256 })} alt={siteInfo?.owner?.name} />
               <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(siteInfo?.owner?.name || "Failed")}</AvatarFallback>
             </Avatar>
           </div>
@@ -90,13 +91,23 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
 }
 
 // 标签云卡片
-export function SidebarLabels({ label, setLabel }: { label: string | null, setLabel: (label: string | null) => void }) {
+export function SidebarLabels({ label = null, setLabel }: { label?: string | null, setLabel?: (label: string | null) => void }) {
   const [labels, setLabels] = useState<Label[]>([]);
+  const router = useRouter();
   useEffect(() => {
     listLabels().then(res => {
       setLabels(res.data.labels);
     })
   }, []);
+
+  const onClickLabel = (labelName: string) => {
+    if (setLabel) {
+      setLabel(labelName === label ? null : labelName);
+    } else {
+      router.push(`/?label=${labelName}`);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -108,7 +119,7 @@ export function SidebarLabels({ label, setLabel }: { label: string | null, setLa
             <Badge
               key={l.name}
               variant="outline"
-              onClick={() => {setLabel(l.name === label ? null : l.name)}}
+              onClick={() => onClickLabel(l.name)}
               className={`text-xs hover:bg-blue-50 cursor-pointer` + (label === l.name ? " bg-blue-100 text-blue-700 hover:bg-blue-200" : "")}
             >
               {l.name}

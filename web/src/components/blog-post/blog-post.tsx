@@ -10,6 +10,8 @@ import { TargetType } from '@/models/types';
 import * as motion from "motion/react-client"
 import { fallbackSiteInfo } from "@/contexts/site-info-context";
 import { getSiteInfo } from "@/api/misc";
+import Sidebar from "../blog-sidebar";
+import { SidebarAbout, SidebarLabels, SidebarMisskeyIframe } from "../blog-sidebar/blog-sidebar-card";
 
 function PostMeta({ post }: { post: Post }) {
   return (
@@ -142,11 +144,10 @@ async function PostContent({ post }: { post: Post }) {
 }
 
 
-async function BlogPost({ post }: { post: Post}) {
+async function BlogPost({ post }: { post: Post }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
   return (
-    <div className="h-full"
-    > 
+    <div className="h-full">
       {/* <ScrollToTop /> */}
       <motion.div
         initial={{ opacity: 0, y: -30 }}
@@ -155,12 +156,30 @@ async function BlogPost({ post }: { post: Post}) {
         <PostHeader post={post} />
       </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
-        <PostContent post={post} />
-      </motion.div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="lg:col-span-3"
+          transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
+          <PostContent post={post} />
+        </motion.div>
+
+        <motion.div
+        className="pt-6"
+          initial={{ x: 80, opacity: 0 }}
+          animate={{ x: 0, y: 0, opacity: 1 }}
+          transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}
+        >
+          <Sidebar
+            cards={[
+              <SidebarAbout key="about" />,
+              <SidebarLabels key="labels" />,
+              <SidebarMisskeyIframe key="misskey" />,
+            ].filter(Boolean)}
+          />
+        </motion.div>
+      </div>
 
       <CommentSection targetType={TargetType.Post} targetId={post.id} totalCount={post.commentCount} />
     </div>
