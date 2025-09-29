@@ -130,6 +130,7 @@ function SidebarMenuClientOnly() {
 
 function SidebarMenu() {
   const [open, setOpen] = useState(false)
+  const routeT = useTranslations("Route");
   return (
     <div className="md:hidden">
       <Sheet open={open} onOpenChange={setOpen}>
@@ -152,11 +153,11 @@ function SidebarMenu() {
                   className="py-2 px-3 rounded hover:bg-accent font-bold transition-colors"
                   onClick={() => setOpen(false)}
                 >
-                  {item.title}
+                  {routeT(item.title)}
                 </Link>
               ) : item.children ? (
                 <div key={item.title} className="mb-2">
-                  <div className="font-bold px-3 py-2">{item.title}</div>
+                  <div className="font-bold px-3 py-2">{routeT(item.title)}</div>
                   <div className="flex flex-col pl-4">
                     {item.children.map((child) => (
                       <Link
@@ -165,7 +166,7 @@ function SidebarMenu() {
                         className="py-2 px-3 rounded hover:bg-accent transition-colors"
                         onClick={() => setOpen(false)}
                       >
-                        {child.title}
+                        {routeT(child.title)}
                       </Link>
                     ))}
                   </div>

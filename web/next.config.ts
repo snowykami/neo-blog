@@ -6,25 +6,10 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'www.gravatar.com',
-        port: '',
-        pathname: '/avatar/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'cdn.liteyuki.org',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'pass.liteyuki.org',
-        port: '',
-        pathname: '/**',
-      },
+      { protocol: 'https', hostname: '**', port: '', pathname: '/**' },
+      { protocol: 'http', hostname: '**', port: '', pathname: '/**' }
     ],
+    unoptimized: true,
   },
   async rewrites() {
     return [
