@@ -20,7 +20,7 @@ export default getRequestConfig(async () => {
 // 用户语言偏好获取逻辑
 // 优先级：用户设置 > 浏览器语言，优先级从高到低排列
 export async function getUserLocales(): Promise<string[]> {
-  let locales: string[] = [];
+  const locales: string[] = [];
 
   try {
     const user = (await getLoginUserServer()).data;
