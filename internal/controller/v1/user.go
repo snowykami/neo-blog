@@ -152,12 +152,7 @@ func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) 
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	currentUser, ok := ctxutils.GetCurrentUser(ctx)
-	if !ok {
-		resps.Unauthorized(c, resps.ErrUnauthorized)
-		return
-	}
-	if currentUser.ID != updateUserReq.ID {
+	if !ctxutils.IsOwnerOfTarget(ctx, updateUserReq.ID) && !ctxutils.IsAdmin(ctx) {
 		resps.Forbidden(c, resps.ErrForbidden)
 		return
 	}

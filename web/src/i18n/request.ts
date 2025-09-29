@@ -1,17 +1,14 @@
 import { getRequestConfig } from 'next-intl/server';
-import {  headers } from 'next/headers';
+import { headers } from 'next/headers';
 import deepmerge from 'deepmerge';
 import { getLoginUserServer } from '@/api/user.server';
+import { localesData } from '@/locales';
 
 export default getRequestConfig(async () => {
   const locales = await getUserLocales();
   const messages = await Promise.all(
     locales.reverse().map(async (locale) => {
-      try {
-        return (await import(`@/locales/${locale}.json`)).default;
-      } catch {
-        return {};
-      }
+      return localesData[locale]?.data || {};
     })
   ).then((msgs) => msgs.reduce((acc, msg) => deepmerge(acc, msg), {}));
   return {
@@ -34,9 +31,16 @@ export async function getUserLocales(): Promise<string[]> {
   const headersList = await headers();
   const acceptLanguage = headersList.get('accept-language');
   if (acceptLanguage) {
-    const languages = acceptLanguage.split(',').map(lang => lang.split(';')[0]);
-    const languagesWithoutRegion = languages.map(lang => lang.split('-')[0]);
-    locales = locales.concat(languages).concat(languagesWithoutRegion);
+    acceptLanguage.split(',').forEach(lang => {
+      const locale = lang.split(';')[0].trim();
+      if (locale) {
+        if (!locales.includes(locale) && localesData[locale]) { locales.push(locale); }
+        const localeWithoutRegion = locale.split('-')[0];
+        if (localeWithoutRegion) {
+          if (!locales.includes(localeWithoutRegion) && localesData[localeWithoutRegion]) { locales.push(localeWithoutRegion); }
+        }
+      }
+    });
   }
 
   // 有序去重、去空并归一化（小写）

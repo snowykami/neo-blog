@@ -15,12 +15,13 @@ import {
 import { useDevice } from "@/contexts/device-context"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Menu } from "lucide-react"
 import { ThemeModeToggle } from "@/components/common/theme-toggle"
 import { AvatarWithDropdownMenu } from "@/components/layout/nav/avatar-with-dropdown-menu"
 import { cn } from "@/lib/utils"
 import { useSiteInfo } from "@/contexts/site-info-context"
 import { useTranslations } from 'next-intl';
+import { PanelRight } from "lucide-react"
+import { mainPath } from "@/utils/common/route"
 
 const navbarMenuComponents = [
   {
@@ -30,9 +31,9 @@ const navbarMenuComponents = [
   {
     title: "post",
     children: [
-      { title: "archive", href: "/archives" },
-      { title: "random", href: "/labels" },
-      { title: "label", href: "/random" }
+      { title: "archive", href: mainPath.archive },
+      { title: "random", href: mainPath.random },
+      { title: "label", href: mainPath.label },
     ]
   },
   {
@@ -139,7 +140,7 @@ function SidebarMenu() {
             aria-label="打开菜单"
             className="p-2 rounded-md hover:bg-accent transition-colors"
           >
-            <Menu className="w-6 h-6" />
+            <PanelRight className="w-6 h-6" />
           </button>
         </SheetTrigger>
         <SheetContent side="right" className="p-0 w-64">

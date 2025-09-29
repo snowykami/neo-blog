@@ -27,8 +27,6 @@ export default function ConsoleLayout({
   const pathname = usePathname() ?? "/"
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  const sideBarItems: SidebarItem[] = sidebarData.navMain.concat(sidebarData.navUserCenter);
-
   useEffect(() => {
     if (!pathname) return
     const all = [...sidebarData.navMain, ...sidebarData.navUserCenter]
@@ -36,7 +34,10 @@ export default function ConsoleLayout({
       if (!item.url) return false
       return pathname === item.url || (item.url !== consolePath.dashboard && pathname.startsWith(item.url + "/"))
     })
-    if (match?.id) setActiveId(match.id)
+    if (match?.id) {
+      setActiveId(match.id) 
+      setTitle(t(match.title))
+    }
   }, [pathname])
 
   useEffect(() => {

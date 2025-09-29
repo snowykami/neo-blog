@@ -11,7 +11,7 @@ import {
 import Link from "next/link";
 import { useToLogin } from "@/hooks/use-route";
 import { consolePath } from "@/utils/common/route";
-import { CircleUser } from "lucide-react";
+import { CircleUser, LogIn, LogOut, PanelLeft, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarFromUser } from "@/utils/common/gravatar";
 import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common/username";
@@ -59,10 +59,15 @@ export function AvatarWithDropdownMenu() {
           <>
             <DropdownMenuGroup className="p-0">
               <DropdownMenuItem asChild>
-                <Link href={`/u/${user?.username}`}>{routeT("profile")}</Link>
+                <Link href={`/u/${user?.username}`}>
+                <User />{routeT("profile")}
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href={user.role === Role.ADMIN ? consolePath.dashboard : consolePath.userProfile}>{routeT("console")}</Link>
+                <Link href={user.role === Role.ADMIN ? consolePath.dashboard : consolePath.userProfile}>
+                <PanelLeft />
+                {routeT("console")}
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
@@ -70,7 +75,7 @@ export function AvatarWithDropdownMenu() {
         }
 
         <DropdownMenuItem onClick={user ? handleLogout : toLogin}>
-          {user ? operationT("logout") : operationT("login")}
+          {user ? <><LogOut />{operationT("logout")}</> : <><LogIn />{operationT("login")}</>}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

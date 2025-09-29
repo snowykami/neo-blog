@@ -23,6 +23,8 @@ import {
   FormControl,
   FormMessage,
 } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { localesData } from "@/locales";
 
 interface UploadConstraints {
   allowedTypes: string[];
@@ -37,6 +39,7 @@ type FormValues = {
   nickname: string;
   username: string;
   gender: string;
+  language: string;
 };
 
 export function UserProfilePage() {
@@ -49,6 +52,7 @@ export function UserProfilePage() {
       nickname: user?.nickname ?? "",
       username: user?.username ?? "",
       gender: user?.gender ?? "",
+      language: user?.language ?? "en",
     },
   });
 
@@ -139,7 +143,7 @@ export function UserProfilePage() {
   if (!user) return null
 
   const onSubmit = form.handleSubmit(async (values) => {
-    // basic validation as before
+    // check values
     if (values.nickname.trim() === '' || values.username.trim() === '') {
       toast.error(t("nickname_and_username_cannot_be_empty"))
       return;
@@ -156,6 +160,7 @@ export function UserProfilePage() {
       values.username === user.username &&
       values.nickname === user.nickname &&
       values.gender === user.gender &&
+      values.language === user.language &&
       avatarFile === null &&
       backgroundFile === null
     ) {
@@ -176,7 +181,15 @@ export function UserProfilePage() {
         backgroundUrl = getFileUri(resp.data.id);
       }
 
-      await updateUser({ nickname: values.nickname, username: values.username, avatarUrl, backgroundUrl, gender: values.gender, id: user.id });
+      await updateUser({
+        id: user.id,
+        nickname: values.nickname,
+        username: values.username,
+        gender: values.gender,
+        language: values.language,
+        avatarUrl,
+        backgroundUrl,
+      });
       window.location.reload();
     } catch (error: unknown) {
       toast.error(`${t("failed_to_update_profile")}: ${String(error)}`);
@@ -272,6 +285,31 @@ export function UserProfilePage() {
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="language"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("language")}</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a language" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {localesData && Object.keys(localesData).map((locale) => (
+                      <SelectItem key={locale} value={locale}>
+                        {localesData[locale].name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

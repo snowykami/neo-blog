@@ -88,6 +88,7 @@ type UpdateUserReq struct {
 	BackgroundUrl  string `json:"background_url"`
 	PreferredColor string `json:"preferred_color"`
 	Gender         string `json:"gender"`
+	Language       string `json:"language"`
 }
 
 type UpdateUserResp struct {

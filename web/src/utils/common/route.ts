@@ -10,6 +10,16 @@ export const consolePath = {
   userPreference: "/console/user-preference",
 }
 
+export const mainPath = {
+  home: "/",
+  feed: "/rss.xml",
+  sitemap: "/sitemap.xml",
+  archive: "/archive",
+  label: "/labels",
+  category: "/categories",
+  random: "/random",
+}
+
 export function getPostUrl<T extends { slug?: string | null; id?: string | number | null }>(
   post: T
 ): string {
