@@ -2,7 +2,7 @@ import { getSitemapData } from '@/api/misc'
 import { getCategoryUrl, getLabelUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 import { MetadataRoute } from 'next'
 
-// export const revalidate = 3600 // 1 hour
+export const revalidate = 0
 
 
 function getChangeFreqAndPriority(lastModified: Date) {
