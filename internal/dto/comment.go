@@ -26,9 +26,9 @@ type CreateCommentReq struct {
 	Content        string `json:"content" binding:"required"`     // 评论内容
 	ReplyID        uint   `json:"reply_id"`                       // 回复的评论ID
 	IsPrivate      bool   `json:"is_private"`                     // 是否私密评论，默认false
-	RemoteAddr     string `header:"X-Real-IP"`                    // 远程地址
-	UserAgent      string `header:"User-Agent"`                   // 用户代理
-	ShowClientInfo bool   `json:"show_client_info"`               // 是否显示客户端信息
+	RemoteAddr     string // 远程地址
+	UserAgent      string `header:"User-Agent"`     // 用户代理
+	ShowClientInfo bool   `json:"show_client_info"` // 是否显示客户端信息
 }
 
 type UpdateCommentReq struct {
