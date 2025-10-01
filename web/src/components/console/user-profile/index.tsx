@@ -44,7 +44,6 @@ type FormValues = {
 
 export function UserProfilePage() {
   const t = useTranslations("Console.user_profile")
-  const operationT = useTranslations("Operation")
   const { user } = useAuth();
 
   const form = useForm<FormValues>({
@@ -88,6 +87,19 @@ export function UserProfilePage() {
       setBackgroundFileUrl(null);
     };
   }, [backgroundFile, user]);
+
+  const isProfileChanged = (): boolean => {
+    if (!user) return false;
+    const values = form.getValues();
+    return (
+      values.nickname !== user.nickname ||
+      values.username !== user.username ||
+      values.gender !== user.gender ||
+      values.language !== user.language ||
+      avatarFile !== null ||
+      backgroundFile !== null
+    );
+  }
 
   const handlePictureSelected = (e: PictureInputChangeEvent): void => {
     const file: File | null = e.target.files?.[0] ?? null;
@@ -156,14 +168,7 @@ export function UserProfilePage() {
       return;
     }
 
-    if (
-      values.username === user.username &&
-      values.nickname === user.nickname &&
-      values.gender === user.gender &&
-      values.language === user.language &&
-      avatarFile === null &&
-      backgroundFile === null
-    ) {
+    if (!isProfileChanged()) {
       toast.warning(t("no_changes_made"))
       return;
     }
@@ -173,11 +178,11 @@ export function UserProfilePage() {
 
     try {
       if (avatarFile) {
-        const resp = await uploadFile({ file: avatarFile });
+        const resp = await uploadFile({ file: avatarFile, name: avatarFile.name });
         avatarUrl = getFileUri(resp.data.id);
       }
       if (backgroundFile) {
-        const resp = await uploadFile({ file: backgroundFile });
+        const resp = await uploadFile({ file: backgroundFile, name: backgroundFile.name });
         backgroundUrl = getFileUri(resp.data.id);
       }
 
@@ -211,14 +216,12 @@ export function UserProfilePage() {
               <AvatarFallback>{getFallbackAvatarFromUsername(form.getValues("nickname") || form.getValues("username"))}</AvatarFallback>
             </Avatar>
             <div className="flex gap-2">
-              <input
+              <Input
                 id="picture"
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/gif,image/*"
                 onChange={handlePictureSelected}
-                className="hidden"
               />
-              <label htmlFor="picture" className="btn btn-sm">{operationT("select_file")}</label>
               <ImageCropper image={avatarFile} onCropped={handleCropped} initialAspect={1} lockAspect={true} />
             </div>
           </div>
@@ -227,20 +230,18 @@ export function UserProfilePage() {
             <Label htmlFor="background">{t("background")}</Label>
             <Avatar className="h-40 w-80 rounded-xl border-2">
               {backgroundFileUrl ?
-                <AvatarImage src={backgroundFileUrl} alt={form.getValues("nickname") || form.getValues("username")} /> :
-                <AvatarImage src={user.backgroundUrl} alt={form.getValues("nickname") || form.getValues("username")} />
+                <AvatarImage className="object-cover" src={backgroundFileUrl} alt={form.getValues("nickname") || form.getValues("username")} /> :
+                <AvatarImage className="object-cover" src={user.backgroundUrl} alt={form.getValues("nickname") || form.getValues("username")} />
               }
               <AvatarFallback>{t("background")}</AvatarFallback>
             </Avatar>
             <div className="flex gap-2">
-              <input
+              <Input
                 id="background"
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/gif,image/*"
                 onChange={handleBackgroundSelected}
-                className="hidden"
               />
-              <label htmlFor="background" className="btn btn-sm">{operationT("select_file")}</label>
               <ImageCropper image={backgroundFile} onCropped={(blob) => {
                 const file = new File([blob], 'background.png', { type: blob.type });
                 setBackgroundFile(file);
@@ -315,7 +316,7 @@ export function UserProfilePage() {
             )}
           />
 
-          <Button type="submit" disabled={form.formState.isSubmitting}>
+          <Button type="submit" disabled={form.formState.isSubmitting || !isProfileChanged()} className="w-full">
             {t("update_profile")}
             {form.formState.isSubmitting && '...'}
           </Button>

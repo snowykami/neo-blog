@@ -33,6 +33,7 @@ export function AppSidebar({ activeId , setActiveId, ...props }: React.Component
             <SidebarMenuButton
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
+              id="app-logo"
             >
               <Link href="/">
                 <IconInnerShadowTop className="!size-5" />

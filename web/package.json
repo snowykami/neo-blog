@@ -44,6 +44,7 @@
     "input-otp": "^1.4.2",
     "lucide-react": "^0.544.0",
     "md5": "^2.3.0",
+    "mime-types": "^3.0.1",
     "motion": "^12.23.22",
     "next": "15.5.4",
     "next-intl": "^4.3.9",
@@ -67,6 +68,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",
     "@types/md5": "^2.3.5",
+    "@types/mime-types": "^3.0.1",
     "@types/node": "^24.5.2",
     "@types/react": "^19.1.15",
     "@types/react-dom": "^19.1.9",

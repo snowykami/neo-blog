@@ -149,7 +149,7 @@ func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, error) {
 			"client_id": oidcConfig.ClientID,
 			"redirect_uri": fmt.Sprintf("%s%s%s/%sREDIRECT_BACK", // 这个大占位符给前端替换用的，替换时也要uri编码因为是层层包的
 				strings.TrimSuffix(utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl), "/"),
-				constant.ApiSuffix,
+				constant.ApiPrefix,
 				constant.OidcUri,
 				oidcConfig.Name,
 			),
@@ -164,7 +164,7 @@ func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, error) {
 				"client_id": oidcConfig.ClientID,
 				"redirect_uri": fmt.Sprintf("%s%s%s/%s", // 这个大占位符给前端替换用的，替换时也要uri编码因为是层层包的
 					strings.TrimSuffix(utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl), "/"),
-					constant.ApiSuffix,
+					constant.ApiPrefix,
 					constant.OidcUri,
 					oidcConfig.Name,
 				),

@@ -1,5 +1,4 @@
 "use client";
-import { deletePost, listPosts, updatePost } from "@/api/post";
 import { OrderSelector } from "@/components/common/orderby-selector";
 import { PageSizeSelector, PaginationController } from "@/components/common/pagination";
 import { Button } from "@/components/ui/button";
@@ -8,13 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useDevice } from "@/contexts/device-context";
 import { useDoubleConfirm } from "@/hooks/use-double-confirm";
-import { useToEditPost, useToPost } from "@/hooks/use-route";
-import { OrderBy } from "@/models/common";
-import { Post } from "@/models/post"
+import { ArrangementMode, OrderBy } from "@/models/common";
 import { DropdownMenuGroup } from "@radix-ui/react-dropdown-menu";
-import { Ellipsis, Eye } from "lucide-react";
+import { Ellipsis, Eye, FileIcon, FilePlayIcon, ImageIcon, Link, MusicIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
+import mime from 'mime-types';
 import { toast } from "sonner";
 import {
   useQueryState,
@@ -24,28 +22,42 @@ import {
   parseAsString
 } from "nuqs";
 import { useDebouncedState } from "@/hooks/use-debounce";
+import { deleteFile, listFiles } from "@/api/file";
+import { BaseErrorResponse } from "@/models/resp";
+import { formatDataSize } from "@/utils/common/datasize";
+import { getFileUri } from "@/utils/client/file";
+import { Checkbox } from "@/components/ui/checkbox"
+import { ArrangementSelector } from "@/components/common/arrangement-selector";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
 
-export function PostManage() {
-  const orderT = useTranslations("Order");
+const mimeTypeIcons = {
+  "image": ImageIcon,
+  "audio": MusicIcon,
+  "video": FilePlayIcon,
+}
+
+export function FileManage() {
   const commonT = useTranslations("Common");
   const metricsT = useTranslations("Metrics");
   const { isMobile } = useDevice();
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [files, setFiles] = useState<FileModel[]>([]);
   const [total, setTotal] = useState(0);
+  const [arrangement, setArrangement] = useQueryState("arrangement", parseAsStringEnum<ArrangementMode>(Object.values(ArrangementMode)).withDefault(ArrangementMode.List).withOptions({ history: "replace", clearOnDefault: true }));
   const [orderBy, setOrderBy] = useQueryState("order_by", parseAsStringEnum<OrderBy>(Object.values(OrderBy)).withDefault(OrderBy.CreatedAt).withOptions({ history: "replace", clearOnDefault: true }));
   const [desc, setDesc] = useQueryState("desc", parseAsBoolean.withDefault(true).withOptions({ history: "replace", clearOnDefault: true }));
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1).withOptions({ history: "replace", clearOnDefault: true }));
   const [size, setSize] = useQueryState("size", parseAsInteger.withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE).withOptions({ history: "replace", clearOnDefault: true }));
   const [keywords, setKeywords] = useQueryState("keywords", parseAsString.withDefault("").withOptions({ history: "replace", clearOnDefault: true }));
   const [keywordsInput, setKeywordsInput, debouncedKeywordsInput] = useDebouncedState(keywords, 200);
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    listPosts({ page, size, orderBy, desc, keywords }).
+    listFiles({ page, size, orderBy, desc, keywords }).
       then(res => {
-        setPosts(res.data.posts);
+        setFiles(res.data.files);
         setTotal(res.data.total);
       });
   }, [page, orderBy, desc, size, keywords]);
@@ -54,13 +66,9 @@ export function PostManage() {
     setKeywords(debouncedKeywordsInput)
   }, [debouncedKeywordsInput, setKeywords, keywords])
 
-  const onPostUpdate = useCallback(({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => {
-    setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, ...post } : p)));
-  }, [setPosts]);
-
-  const onPostDelete = useCallback(({ postId }: { postId: number }) => {
-    setPosts((prev) => prev.filter((p) => p.id !== postId));
-  }, [setPosts]);
+  const onFileDelete = useCallback(({ fileId }: { fileId: number }) => {
+    setFiles((prev) => prev.filter((f) => f.id !== fileId));
+  }, [setFiles]);
 
   const onOrderChange = useCallback(({ orderBy, desc }: { orderBy: OrderBy; desc: boolean }) => {
     setOrderBy(orderBy);
@@ -72,20 +80,52 @@ export function PostManage() {
     setPage(p);
   }, [setPage]);
 
+  const onFileIdSelect = useCallback((fileId: number) => {
+    return (selected: boolean) => {
+      setSelectedFileIds((prev) => {
+        const newSet = new Set(prev);
+        if (selected) {
+          newSet.add(fileId);
+        } else {
+          newSet.delete(fileId);
+        }
+        return newSet;
+      });
+    }
+  }, [setSelectedFileIds]);
+
+  const onAllFileSelect = useCallback((selected: boolean) => {
+    setSelectedFileIds((prev) => {
+      const newSet = new Set(prev);
+      if (selected) {
+        files.forEach(file => newSet.add(file.id));
+      } else {
+        files.forEach(file => newSet.delete(file.id));
+      }
+      return newSet;
+    });
+  }, [files]);
+
   return <div>
     <div className="flex items-center justify-between mb-4">
-      <div>
+      <div className="flex items-center gap-3">
+        <Checkbox checked={selectedFileIds.size === files.length} onCheckedChange={onAllFileSelect} />
         <Input type="search" placeholder={commonT("search")} value={keywordsInput} onChange={(e) => setKeywordsInput(e.target.value)} />
       </div>
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
-          {<OrderSelector initialOrder={{ orderBy, desc }} onOrderChange={onOrderChange} />}
+          <ArrangementSelector initialArrangement={arrangement} onArrangementChange={setArrangement} />
+          <OrderSelector
+            initialOrder={{ orderBy, desc }}
+            onOrderChange={onOrderChange}
+            orderBys={[OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.Name, OrderBy.Size]}
+          />
         </div>
       </div>
     </div>
     <Separator className="flex-1" />
-    {posts.map(post => <div key={post.id}>
-      <PostItem post={post} onPostUpdate={onPostUpdate} onPostDelete={onPostDelete} />
+    {files.map(file => <div key={file.id}>
+      <FileItem file={file} onFileDelete={onFileDelete} selected={selectedFileIds.has(file.id)} onSelect={onFileIdSelect(file.id)} />
       <Separator className="flex-1" />
     </div>)}
     <div className="flex justify-center items-center py-4">
@@ -95,76 +135,81 @@ export function PostManage() {
   </div>;
 }
 
-function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void, onPostDelete: ({ postId }: { postId: number }) => void }) {
+
+
+function FileItem({
+  file,
+  onFileDelete,
+  selected,
+  onSelect,
+}: {
+  file: FileModel,
+  onFileDelete: ({ fileId }: { fileId: number }) => void
+  selected: boolean,
+  onSelect: (selected: boolean) => void
+}) {
   const commonT = useTranslations("Common");
-  const postT = useTranslations("Metrics");
-  const stateT = useTranslations("State");
-  const clickToPost = useToPost();
   return (
     <div>
       <div className="flex w-full items-center gap-3 py-2">
         {/* left */}
-        <div>
-          <div className="text-sm font-medium">
-            {post.title}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-3">
-            <span className="text-xs text-muted-foreground">{stateT(post.isPrivate ? "private" : "public")}</span>
-            <span className="text-xs text-muted-foreground">{postT("view_count")}: {post.viewCount}</span>
-            <span className="text-xs text-muted-foreground">{postT("like_count")}: {post.likeCount}</span>
-            <span className="text-xs text-muted-foreground">{postT("comment_count")}: {post.commentCount}</span>
-            <span className="text-xs text-muted-foreground">{commonT("id")}: {post.id}</span>
-            <span className="text-xs text-muted-foreground">{commonT("created_at")}: {new Date(post.createdAt).toLocaleDateString()}</span>
-            <span className="text-xs text-muted-foreground">{commonT("updated_at")}: {new Date(post.updatedAt).toLocaleDateString()}</span>
+        <div className="flex items-center gap-3">
+          <Checkbox checked={selected} onCheckedChange={onSelect} />
+          <Avatar className="h-8 w-8 rounded-sm">
+            <AvatarImage src={getFileUri(file.id)} alt={file.name} width={40} height={40} />
+            <AvatarFallback>
+              {(() => {
+                const mimeType = file.mimeType || mime.lookup(file.name) || "";
+                const IconComponent = mimeTypeIcons[mimeType.split("/")[0] as keyof typeof mimeTypeIcons];
+                return IconComponent ? <IconComponent className="w-4 h-4" /> : <FileIcon className="w-4 h-4" />;
+              })()}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="text-sm font-medium">
+              {file.name}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              <span className="text-xs text-muted-foreground">{commonT("size")}: {formatDataSize({ size: file.size })}</span>
+              <span className="text-xs text-muted-foreground">{commonT("mime_type")}: {file.mimeType}</span>
+              <span className="text-xs text-muted-foreground">{commonT("id")}: {file.id}</span>
+              <span className="text-xs text-muted-foreground">{commonT("created_at")}: {new Date(file.createdAt).toLocaleString()}</span>
+            </div>
           </div>
         </div>
         {/* right */}
         <div className="flex items-center ml-auto">
-          <Button variant="ghost" size="sm" onClick={() => clickToPost({ post })}>
-            <Eye className="inline size-4 mr-1" />
+          <Button variant="ghost" size="sm" onClick={() => window.open(getFileUri(file.id) + `/${file.name}`, "_blank")}>
+            <Link className="inline size-4 mr-1" />
           </Button>
-          <PostDropdownMenu post={post} onPostUpdate={onPostUpdate} onPostDelete={onPostDelete} />
+          <FileDropdownMenu file={file} onFileDelete={onFileDelete} />
         </div>
       </div>
     </div>
   )
 }
 
-function PostDropdownMenu(
+function FileDropdownMenu(
   {
-    post,
-    onPostUpdate,
-    onPostDelete
+    file,
+    onFileDelete
   }: {
-    post: Post,
-    onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void,
-    onPostDelete: ({ postId }: { postId: number }) => void
+    file: FileModel,
+    onFileDelete: ({ fileId }: { fileId: number }) => void
   }
 ) {
   const operationT = useTranslations("Operation");
-  const clickToPostEdit = useToEditPost();
-  const clickToPost = useToPost();
   const { confirming: confirmingDelete, onClick: onDeleteClick, onBlur: onDeleteBlur } = useDoubleConfirm();
   const [open, setOpen] = useState(false);
-  const handleTogglePrivate = () => {
-    updatePost({ post: { ...post, isPrivate: !post.isPrivate } })
-      .then(() => {
-        toast.success(operationT("update_success"));
-        onPostUpdate({ post: { id: post.id, isPrivate: !post.isPrivate } });
-      })
-      .catch(() => {
-        toast.error(operationT("update_failed"));
-      });
-  }
 
   const handleDelete = () => {
-    deletePost({ id: post.id })
+    deleteFile({ id: file.id })
       .then(() => {
         toast.success(operationT("delete_success"));
-        onPostDelete({ postId: post.id });
+        onFileDelete({ fileId: file.id });
       })
-      .catch(() => {
-        toast.error(operationT("delete_failed"));
+      .catch((error: BaseErrorResponse) => {
+        toast.error(operationT("delete_failed") + ": " + error.message);
       });
   };
 
@@ -183,18 +228,12 @@ function PostDropdownMenu(
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-4" align="start">
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => clickToPostEdit({ post })} className="cursor-pointer" >
-            {operationT("edit")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => clickToPost({ post })} className="cursor-pointer" >
+          <DropdownMenuItem onClick={() => { }} className="cursor-pointer" >
             {operationT("view")}
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={handleTogglePrivate} className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer">
-            {operationT(post.isPrivate ? "set_public" : "set_private")}
-          </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(e) => {
               if (!confirmingDelete) {

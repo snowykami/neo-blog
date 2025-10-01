@@ -7,16 +7,17 @@ import (
 )
 
 type PostBase struct {
-	Title      string    `gorm:"type:text;not null"`
-	Slug       *string   `gorm:"type:text;index;uniqueIndex"` // 改为指针并加 uniqueIndex
-	Cover      string    `gorm:"type:text"`
-	Content    string    `gorm:"type:text;not null"`
-	Type       string    `gorm:"type:text;default:markdown"`
-	CategoryID *uint     `gorm:"index"`
-	Category   *Category `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
-	Labels     []Label   `gorm:"many2many:post_labels;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
-	IsOriginal bool      `gorm:"default:true"`
-	IsPrivate  bool      `gorm:"default:false"`
+	Title       string    `gorm:"type:text;not null"`
+	Description string    `gorm:"type:text"`
+	Slug        *string   `gorm:"type:text;index;uniqueIndex"` // 改为指针并加 uniqueIndex
+	Cover       string    `gorm:"type:text"`
+	Content     string    `gorm:"type:text;not null"`
+	Type        string    `gorm:"type:text;default:markdown"`
+	CategoryID  *uint     `gorm:"index"`
+	Category    *Category `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	Labels      []Label   `gorm:"many2many:post_labels;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	IsOriginal  bool      `gorm:"default:true"`
+	IsPrivate   bool      `gorm:"default:false"`
 }
 type Post struct {
 	gorm.Model

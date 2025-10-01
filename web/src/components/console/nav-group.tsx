@@ -33,7 +33,7 @@ export function NavGroup({
           {items.map((item) => (
             item.permission({ user }) && <SidebarMenuItem key={item.title}>
               <Link href={item.url} onClick={() => setActiveId && setActiveId(item.id)}>
-                <SidebarMenuButton tooltip={item.title} isActive={activeId === item.id}>
+                <SidebarMenuButton id={`nav-item-${item.id}`} tooltip={item.title} isActive={activeId === item.id}>
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>
                 </SidebarMenuButton>

@@ -2,8 +2,12 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net/url"
 	"path/filepath"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/sirupsen/logrus"
@@ -11,7 +15,10 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
-	"github.com/snowykami/neo-blog/pkg/filedriver"
+	"github.com/snowykami/neo-blog/internal/storage"
+	"github.com/snowykami/neo-blog/internal/tasks"
+	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -29,6 +36,9 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
+	if req.ProviderID == 0 {
+		req.ProviderID = storage.GetDefaultStorageProviderID()
+	}
 	file, err := c.FormFile("file")
 	if err != nil {
 		logrus.Error("无法读取文件: ", err)
@@ -36,10 +46,9 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		return
 	}
 	// 初始化文件驱动
-	driver, err := filedriver.GetFileDriver(filedriver.GetFileDriverConfig())
-	if err != nil {
-		logrus.Error("获取文件驱动失败: ", err)
-		resps.InternalServerError(c, "获取文件驱动失败")
+	provider, ok := storage.GetStorageProvider(req.ProviderID)
+	if !ok {
+		resps.InternalServerError(c, "没有可用的存储提供者")
 		return
 	}
 
@@ -47,7 +56,7 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 	if hashForm := string(c.FormValue("hash")); hashForm != "" {
 		dir, fileName := utils.FilePath(hashForm)
 		storagePath := filepath.Join(dir, fileName)
-		if _, err := driver.Stat(c, storagePath); err == nil {
+		if _, err := provider.Stat(ctx, storagePath); err == nil {
 			resps.Ok(c, "文件已存在", map[string]any{"hash": hashForm})
 			return
 		}
@@ -79,7 +88,7 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		resps.BadRequest(c, err.Error())
 		return
 	}
-	if err := driver.Save(c, storagePath, src); err != nil {
+	if err := provider.Save(ctx, storagePath, src); err != nil {
 		logrus.Error("保存文件失败: ", err)
 		resps.InternalServerError(c, err.Error())
 		return
@@ -91,10 +100,13 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		return
 	}
 	fileModel := &model.File{
-		Hash:   hash,
-		UserID: currentUser.ID,
-		Group:  req.Group,
-		Name:   req.Name,
+		Hash:       hash,
+		UserID:     currentUser.ID,
+		Group:      req.Group,
+		Name:       req.Name,
+		ProviderID: req.ProviderID,
+		Size:       file.Size,
+		MimeType:   f.getContentType(file.Filename),
 	}
 
 	if err := repo.File.Create(fileModel); err != nil {
@@ -102,25 +114,105 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		resps.InternalServerError(c, "数据库索引建立失败")
 		return
 	}
-	resps.Ok(c, "文件上传成功", map[string]any{"hash": hash, "id": fileModel.ID})
+
+	// 非后端代理请求，直接返回文件URL
+	if !provider.IsProxy() {
+		url, err := provider.GetURL(ctx, storagePath, 0)
+		if err != nil {
+			logrus.Error("获取文件访问URL失败: ", err)
+		}
+		resps.Ok(c, "文件上传成功(直链)", map[string]any{
+			"hash": hash,
+			"id":   fileModel.ID,
+			"url":  url,
+		})
+		return
+	}
+
+	resps.Ok(c, "文件上传成功", map[string]any{
+		"hash": hash,
+		"id":   fileModel.ID,
+		"url":  fmt.Sprintf("%s%s%s/%d", repo.KV.GetStringWithoutErr(constant.KeyBaseUrl, utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl)), constant.ApiPrefix, constant.FileUriPrefix, fileModel.ID),
+	})
 }
 
 func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	fileId := ctxutils.GetIDParam(c).Uint
+	fileName := c.Param("filename") // 此处的filename是请求时传入的文件名，可以整治浏览器直接访问时响应id作为文件名的情况
 	fileModel, err := repo.File.GetByID(fileId)
 	if err != nil {
 		logrus.Error("获取文件信息失败: ", err)
 		resps.InternalServerError(c, "获取文件信息失败")
 		return
 	}
-	driver, err := filedriver.GetFileDriver(filedriver.GetFileDriverConfig())
-	if err != nil {
-		logrus.Error("获取文件驱动失败: ", err)
-		resps.InternalServerError(c, "获取文件驱动失败")
+
+	provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
+	if !ok {
+		resps.BadRequest(c, "文件存储提供者不存在")
 		return
 	}
+
 	filePath := filepath.Join(utils.FilePath(fileModel.Hash))
-	driver.Get(c, filePath)
+	readableFile, err := provider.Open(ctx, filePath)
+	if err != nil {
+		logrus.Error("打开文件失败: ", err)
+		resps.InternalServerError(c, "打开文件失败")
+		return
+	}
+
+	if fileName != "" {
+		fileModel.Name = fileName // 使用请求中的文件名，避免浏览器下载时文件名为id
+	}
+
+	// 设置响应头
+	c.Header("Content-Type", f.getContentType(fileModel.Name))
+	c.Header("Content-Length", fmt.Sprintf("%d", readableFile.Size()))
+	c.Header("Content-Disposition", f.buildContentDisposition(fileModel.Name))
+	c.Header("Accept-Ranges", "bytes")
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.Header("ETag", fmt.Sprintf("\"%s\"", fileModel.Hash))
+
+	// 设置流式响应体
+	c.SetBodyStream(readableFile, int(readableFile.Size()))
+
+	// 只监听请求完成，让 Hertz 框架自己管理流的生命周期
+	go func() {
+		<-c.Finished()
+		readableFile.Close()
+		logrus.Debug("文件请求处理结束, fileId:", fileId)
+	}()
+}
+
+func (f *FileController) ListFiles(ctx context.Context, c *app.RequestContext) {
+	// 列出用户自己的文件
+	var paginationParams dto.PaginationParams
+	if err := c.BindAndValidate(&paginationParams); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+
+	keywords := strings.Split(c.Query("keywords"), ",")
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok {
+		resps.InternalServerError(c, "获取当前用户失败")
+		return
+	}
+	files, total, err := repo.File.ListFiles(currentUser.ID, &paginationParams, keywords)
+	if err != nil {
+		logrus.Error("获取文件列表失败: ", err)
+		resps.InternalServerError(c, "获取文件列表失败")
+		return
+	}
+	resps.Ok(c, "获取文件列表成功", map[string]any{
+		"files": func() []map[string]any {
+			dtos := make([]map[string]any, 0, len(files))
+			for _, file := range files {
+				dtos = append(dtos, file.ToDto())
+			}
+			return dtos
+		}(),
+		"total": total,
+	})
 }
 
 func (f *FileController) DeleteFile(ctx context.Context, c *app.RequestContext) {
@@ -136,12 +228,159 @@ func (f *FileController) DeleteFile(ctx context.Context, c *app.RequestContext) 
 		resps.Forbidden(c, "没有权限删除该文件")
 		return
 	}
-	driver, err := filedriver.GetFileDriver(filedriver.GetFileDriverConfig())
-	if err != nil {
-		logrus.Error("获取文件驱动失败: ", err)
-		resps.InternalServerError(c, "获取文件驱动失败")
+	provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
+	if !ok {
+		resps.BadRequest(c, "文件存储提供者不存在")
+		return
+	}
+	if err := repo.File.DeleteByID(fileId); err != nil {
+		logrus.Error("删除文件记录失败: ", err)
+		resps.InternalServerError(c, "删除文件记录失败")
 		return
 	}
 	filePath := filepath.Join(utils.FilePath(fileModel.Hash))
-	driver.Delete(c, filePath)
+	if err = provider.Delete(ctx, filePath); err != nil {
+		logrus.Error("删除文件失败: ", err)
+		resps.InternalServerError(c, "删除文件失败")
+		return
+	}
+	resps.Ok(c, "文件删除成功", nil)
+}
+
+func (f *FileController) CreateStorageProvider(ctx context.Context, c *app.RequestContext) {
+	var req model.StorageProviderModelAndDto
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if req.Type == "" || req.Name == "" {
+		resps.BadRequest(c, "存储提供者名称和类型不能为空")
+		return
+	}
+	err := repo.File.CreateStorageProvider(&req)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	if err := tasks.ReloadStorageProviders(); err != nil {
+		logrus.Error("重载存储提供者失败: ", err)
+		resps.InternalServerError(c, "重载存储提供者失败")
+		return
+	}
+	resps.Ok(c, "存储提供者创建成功", req)
+}
+
+func (f *FileController) UpdateStorageProvider(ctx context.Context, c *app.RequestContext) {
+	id := ctxutils.GetIDParam(c).Uint
+	var req model.StorageProviderModelAndDto
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if req.Type == "" || req.Name == "" {
+		resps.BadRequest(c, "存储提供者名称和类型不能为空")
+		return
+	}
+
+	if err := repo.File.UpdateStorageProvider(id, &req); err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+
+	if err := tasks.ReloadStorageProviders(); err != nil {
+		logrus.Error("重载存储提供者失败: ", err)
+		resps.InternalServerError(c, "重载存储提供者失败")
+		return
+	}
+	resps.Ok(c, "存储提供者更新成功", req)
+}
+
+func (f *FileController) DeleteStorageProvider(ctx context.Context, c *app.RequestContext) {
+	id := ctxutils.GetIDParam(c).Uint
+
+	if err := repo.File.UnsetDefaultStorageProvider(id); err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+
+	if err := repo.File.DeleteStorageProvider(id); err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+
+	if err := tasks.ReloadStorageProviders(); err != nil {
+		logrus.Error("重载存储提供者失败: ", err)
+		resps.InternalServerError(c, "重载存储提供者失败")
+		return
+	}
+	resps.Ok(c, "存储提供者删除成功", nil)
+}
+
+func (f *FileController) ListStorageProviders(ctx context.Context, c *app.RequestContext) {
+	providers, err := repo.File.ListStorageProviders()
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, "存储提供者列表", map[string]any{"providers": providers})
+}
+
+func (f *FileController) getContentType(filename string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	contentTypes := map[string]string{
+		".jpg":  "image/jpeg",
+		".jpeg": "image/jpeg",
+		".png":  "image/png",
+		".gif":  "image/gif",
+		".webp": "image/webp",
+		".svg":  "image/svg+xml",
+		".mp4":  "video/mp4",
+		".webm": "video/webm",
+		".avi":  "video/x-msvideo",
+		".mov":  "video/quicktime",
+		".mp3":  "audio/mpeg",
+		".wav":  "audio/wav",
+		".flac": "audio/flac",
+		".pdf":  "application/pdf",
+		".txt":  "text/plain; charset=utf-8",
+		".html": "text/html; charset=utf-8",
+		".css":  "text/css; charset=utf-8",
+		".js":   "application/javascript; charset=utf-8",
+		".json": "application/json; charset=utf-8",
+		".xml":  "application/xml; charset=utf-8",
+		".zip":  "application/zip",
+		".rar":  "application/x-rar-compressed",
+		".7z":   "application/x-7z-compressed",
+	}
+
+	if contentType, exists := contentTypes[ext]; exists {
+		return contentType
+	}
+
+	return "application/octet-stream"
+}
+
+func (f *FileController) buildContentDisposition(fileName string) string {
+	// 如果文件名只包含ASCII字符
+	if utf8.ValidString(fileName) && isASCII(fileName) {
+		return fmt.Sprintf("inline; filename=\"%s\"", fileName)
+	}
+
+	// 如果包含非ASCII字符，使用RFC5987编码
+	encodedName := url.QueryEscape(fileName)
+	return fmt.Sprintf("inline; filename*=UTF-8''%s", encodedName)
+}
+
+func isASCII(s string) bool {
+	for _, r := range s {
+		if r > 127 {
+			return false
+		}
+	}
+	return true
 }

@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarFromUser } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
 import { useAuth } from "@/contexts/auth-context";
+import { Button } from "../ui/button";
 
 
 export function CommentInput(
@@ -96,9 +97,11 @@ export function CommentInput(
           />
           <Label onClick={() => setIsPrivate(prev => !prev)}>{t("private")}</Label>
         </div>
-        <button onClick={handleCommentSubmit} className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors fade-in-up">
+        <Button
+          onClick={handleCommentSubmit}
+        >
           {isUpdate ? operationT("update") : operationT("submit")}
-        </button>
+        </Button>
       </div>
     </div>
   );

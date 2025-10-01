@@ -101,6 +101,7 @@ func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOr
 		return 0, errs.ErrForbidden
 	}
 	post.Title = req.Title
+	post.Description = req.Description
 	post.Content = req.Content
 	post.IsPrivate = req.IsPrivate
 	post.Slug = req.Slug

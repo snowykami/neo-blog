@@ -6,10 +6,17 @@ export interface PaginationParams {
 }
 
 export enum OrderBy {
+  Name = 'name',  // 文章不能用 name 排序
   CreatedAt = 'created_at',
   UpdatedAt = 'updated_at',
   Heat = 'heat',
   CommentCount = 'comment_count',
   LikeCount = 'like_count',
   ViewCount = 'view_count',
+  Size = 'size',
+}
+export enum ArrangementMode {
+  Grid = "grid",
+  List = "list", 
+  Card = "card",
 }

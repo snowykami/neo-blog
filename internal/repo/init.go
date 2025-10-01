@@ -78,23 +78,28 @@ func InitDatabase() error {
 		logrus.Error("Failed to migrate models:", err)
 		return err
 	}
-	// TODO: impl
-	//// 执行初始化数据
-	//// 创建管理员账户
-	//hashedPassword, err := utils.Password.HashPassword(config.AdminPassword, config.JwtSecret)
-	//if err != nil {
-	//	logrus.Error("Failed to hash password:", err)
-	//	return err
-	//}
-	//user := &models.User{
-	//	Name:     config.AdminUsername,
-	//	Password: &hashedPassword,
-	//	Role:     constants.GlobalRoleAdmin,
-	//}
-	//if err = User.UpdateSystemAdmin(user); err != nil {
-	//	logrus.Error("Failed to update admin user:", err)
-	//	return err
-	//}
+
+	// 若一个储存提供者都没有，则在数据库中创建本地存储提供者的默认配置
+	var providerCount int64
+	err = db.Model(&model.StorageProviderModelAndDto{}).Count(&providerCount).Error
+	if err != nil {
+		return err
+	}
+	if providerCount == 0 {
+		localProvider := &model.StorageProviderModelAndDto{
+			Name:                  "Default Local Storage",
+			Type:                  "local",
+			IsDefault:             true,
+			StorageProviderConfig: model.StorageProviderConfig{BaseDir: "./data/uploads"},
+		}
+		if err != nil {
+			return err
+		}
+		err = db.Create(localProvider).Error
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -128,6 +133,7 @@ func migrate() error {
 		&model.Label{},
 		&model.Like{},
 		&model.File{},
+		&model.StorageProviderModelAndDto{},
 		&model.KV{},
 		&model.OidcConfig{},
 		&model.Post{},

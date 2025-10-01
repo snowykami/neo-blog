@@ -21,6 +21,7 @@ import { useTranslations } from 'next-intl'
 import { Input } from '@/components/ui/input'
 import { useParams } from 'next/navigation'
 import { getPostById } from '@/api/post'
+import { PostSettingButtonWithDialog } from './post-meta-dialog-form'
 
 export function PostEdit() {
   const { id } = useParams() as { id: string };
@@ -37,9 +38,11 @@ export function PostEdit() {
     editorRef.current?.setMarkdown(post?.content || "")
   }, [post?.content])
 
+  if (!post) return null;
+
   return (
     <div>
-      <EditorNavbar editorRef={editorRef} />
+      <EditorNavbar editorRef={editorRef} post={post} />
       <EditorToolbar editorRef={editorRef} />
       <div className="mt-4 border-1 rounded-sm">
         <InitializedMDXEditor className="typography" editorRef={editorRef} markdown={post?.content || ''} />
@@ -69,7 +72,7 @@ export function InitializedMDXEditor({
   )
 }
 
-function EditorNavbar({ editorRef }: { editorRef: ForwardedRef<MDXEditorMethods> | null }) {
+function EditorNavbar({ editorRef, post }: { post: Post,editorRef: ForwardedRef<MDXEditorMethods> | null }) {
   const t = useTranslations("Console.post_edit")
   const operationT = useTranslations("Operation")
   return (
@@ -78,7 +81,7 @@ function EditorNavbar({ editorRef }: { editorRef: ForwardedRef<MDXEditorMethods>
         <Input placeholder={t("title_placeholder")} />
       </div>
       <div className="flex items-center space-x-2">
-        <Button variant="outline">{operationT("setting")}</Button>
+        <PostSettingButtonWithDialog post={post} />
         <Button variant="outline">{t("save_draft")}</Button>
         <Button >{operationT("publish")}</Button>
       </div>
@@ -103,3 +106,4 @@ function EditorToolbar({ editorRef }: { editorRef: ForwardedRef<MDXEditorMethods
     </div>
   )
 }
+

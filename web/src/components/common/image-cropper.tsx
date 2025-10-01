@@ -2,11 +2,13 @@
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogTitle,
   DialogContent,
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { useTranslations } from "next-intl"
 import Image from "next/image"
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import ReactCrop, { Crop } from 'react-image-crop';
@@ -25,6 +27,8 @@ export function ImageCropper({
   initialAspect?: number;
   lockAspect?: boolean;
 }) {
+  const operationT = useTranslations("Operation")
+  const t = useTranslations("Components.image_cropper")
   const normalizeAspect = (a: number | undefined) => {
     const v = typeof a === "number" && isFinite(a) && a > 0 ? a : 1.0;
     return v;
@@ -181,13 +185,13 @@ export function ImageCropper({
             disabled={!image}
             className={!image ? "opacity-50 cursor-not-allowed" : ""}
           >
-            Edit
+            {operationT("edit")}
           </Button>
         </DialogTrigger>
 
         {image && (
           <DialogContent className="sm:max-w-[425px]">
-            <h2 className="text-lg font-medium mb-2">裁剪图片</h2>
+            <DialogTitle className="text-lg font-medium mb-2">{t("crop_image")}</DialogTitle>
             <div className="w-full h-[360px] bg-gray-100 flex items-center justify-center overflow-auto">
               {imageSrc ? (
                 <ReactCrop
@@ -207,28 +211,22 @@ export function ImageCropper({
                   />
                 </ReactCrop>
               ) : (
-                <div className="text-sm text-muted-foreground">没有待裁剪图片</div>
+                <div className="text-sm text-muted-foreground">{t("no_image_to_crop")}</div>
               )}
             </div>
 
             <div className="flex items-center gap-4 mt-4">
               <div className="flex-1">
-                <Label>预览</Label>
+                <Label>{operationT("preview")}</Label>
                 <div className="w-32 h-32 border bg-white overflow-hidden">
                   {/* 临时预览：把裁剪结果画到 canvas 并显示 */}
                   <PreviewCanvas crop={crop} imgRef={imgRef} />
                 </div>
               </div>
-              <div className="flex-1">
-                <Label>提示</Label>
-                <div className="text-sm text-muted-foreground">
-                  建议上传正方形头像；裁剪将导出 PNG 文件。
-                </div>
-              </div>
             </div>
 
             <DialogFooter className="mt-4">
-              <Button variant="outline" type="button" onClick={handleClose}>取消</Button>
+              <Button variant="outline" type="button" onClick={handleClose}>{operationT("cancel")}</Button>
               <Button
                 type="button"
                 onClick={async () => {
@@ -250,7 +248,15 @@ export function ImageCropper({
 }
 
 // 简单的预览 canvas 组件（显示当前裁剪区域）
-function PreviewCanvas({ crop, imgRef }: { crop: Partial<Crop>, imgRef: React.RefObject<HTMLImageElement | null> }) {
+function PreviewCanvas({
+  crop,
+  imgRef,
+  aspect,
+}: {
+  crop: Partial<Crop>
+  imgRef: React.RefObject<HTMLImageElement | null>
+  aspect?: number // width / height
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
@@ -274,17 +280,44 @@ function PreviewCanvas({ crop, imgRef }: { crop: Partial<Crop>, imgRef: React.Re
     const sw = Math.max(1, Math.round(swRender * scaleX))
     const sh = Math.max(1, Math.round(shRender * scaleY))
 
-    // 画到 preview canvas（缩放以适应 128x128）
-    const outW = 128
-    const outH = Math.max(1, Math.round((sh / sw) * outW))
-    canvas.width = outW
-    canvas.height = outH
+    // container available size (CSS pixels)
+    const parent = canvas.parentElement
+    const availW = parent?.clientWidth ?? 128
+    const availH = parent?.clientHeight ?? 128
+
+    // Start with keeping height constant (availH). Compute desired width from aspect.
+    // If no aspect provided or invalid, use source region aspect (sw/sh).
+    const srcAspect = sw > 0 && sh > 0 ? sw / sh : 1
+    const asp = typeof aspect === 'number' && isFinite(aspect) && aspect > 0 ? aspect : srcAspect
+
+    let outH = Math.max(1, availH)
+    let outW = Math.max(1, Math.round(asp * outH))
+
+    // If width exceeds available width, scale down to fit; recalc height to preserve aspect.
+    if (outW > availW) {
+      outW = availW
+      outH = Math.max(1, Math.round(outW / asp))
+    }
+    // If height somehow exceeds available height (guard), scale down.
+    if (outH > availH) {
+      outH = availH
+      outW = Math.max(1, Math.round(outH * asp))
+    }
+
+    // handle device pixel ratio for crisp rendering
+    const dpr = Math.max(1, window.devicePixelRatio || 1)
+    canvas.width = outW * dpr
+    canvas.height = outH * dpr
+    canvas.style.width = `${outW}px`
+    canvas.style.height = `${outH}px`
+
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0) // scale drawing operations
     ctx.clearRect(0, 0, outW, outH)
-    // drawImage 使用 natural pixel 区域
+    // draw the selected natural-pixel region into the output size
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH)
-  }, [crop, imgRef])
+  }, [crop, imgRef, aspect])
 
-  return <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+  return <canvas ref={canvasRef} style={{ display: 'block' }} />
 }

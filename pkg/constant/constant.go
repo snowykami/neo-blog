@@ -13,15 +13,15 @@ const (
 	RoleUser             = "user"   // 普通用户 仅有阅读和评论权限
 	RoleEditor           = "editor" // 能够发布和管理自己内容的用户
 	RoleAdmin            = "admin"
-	DefaultFileBasePath  = "./data/uploads"
 
 	FileDriverTypeLocal        = "local"
 	FileDriverTypeWebdav       = "webdav"
 	FileDriverTypeS3           = "s3"
 	KVKeyEmailVerificationCode = "email_verification_code:" // KV存储：邮箱验证码
 	KVKeyOidcState             = "oidc_state:"              // KV存储：OIDC状态
-	ApiSuffix                  = "/api/v1"                  // API版本前缀
+	ApiPrefix                  = "/api/v1"                  // API版本前缀
 	OidcUri                    = "/user/oidc/login"         // OIDC登录URI
+	FileUriPrefix              = "/file/f"                  // 文件访问URI前缀
 	OidcProviderTypeMisskey    = "misskey"                  // OIDC提供者类型：Misskey
 	OidcProviderTypeOauth2     = "oauth2"                   // OIDC提供者类型：GitHub
 	DefaultCaptchaDevPasscode  = "dev_passcode"

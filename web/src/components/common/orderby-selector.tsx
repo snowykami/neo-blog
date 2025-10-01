@@ -9,21 +9,21 @@ interface Order {
   desc: boolean
 }
 
-export function OrderSelector({ initialOrder, onOrderChange }: { initialOrder: Order, onOrderChange: (order: Order) => void }) {
+export function OrderSelector({ initialOrder, onOrderChange, orderBys }: { initialOrder: Order, orderBys?: OrderBy[], onOrderChange: (order: Order) => void }) {
   const orderT = useTranslations("Order")
   const [open, setOpen] = useState(false)
   const [order, setOrder] = useState<Order>(initialOrder)
 
-  const orderBys = [OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.Heat, OrderBy.CommentCount, OrderBy.LikeCount, OrderBy.ViewCount]
+  orderBys = orderBys || [OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.Heat, OrderBy.CommentCount, OrderBy.LikeCount, OrderBy.ViewCount]
 
   return (
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
-          {orderT(order.orderBy)} {order.desc ? "↓" : "↑"}
+          <div className="text-sm font-bold">{orderT("order")}</div> {orderT(order.orderBy)} {order.desc ? "↓" : "↑"}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-40 p-0" align="end" side="bottom" sideOffset={8}>
+      <PopoverContent className="w-auto p-0" align="end" side="bottom" sideOffset={8}>
         <div className="flex flex-col">
           {orderBys.map((ob) => (
             [true, false].map((desc) => (

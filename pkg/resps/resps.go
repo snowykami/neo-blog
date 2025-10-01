@@ -3,6 +3,7 @@ package resps
 import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/sirupsen/logrus"
 )
 
 func Custom(c *app.RequestContext, status int, message string, data any) {
@@ -12,6 +13,10 @@ func Custom(c *app.RequestContext, status int, message string, data any) {
 		"data":    data,
 	})
 	c.Abort()
+	if status >= 400 {
+		c.Set("error", message)
+		logrus.Error(message)
+	}
 }
 
 func Ok(c *app.RequestContext, message string, data any) {

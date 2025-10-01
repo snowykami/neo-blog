@@ -1,3 +1,4 @@
+import { FileManage } from "@/components/console/file-manage";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata() {
@@ -8,5 +9,7 @@ export async function generateMetadata() {
 }
 
 export default function Page() {
-  return <div>文件管理</div>;
+  return (
+    <FileManage />
+  )
 }
