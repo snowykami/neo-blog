@@ -29,7 +29,7 @@ export default function ConsoleLayout({
 
   useEffect(() => {
     if (!pathname) return
-    const all = [...sidebarData.navMain, ...sidebarData.navUserCenter]
+    const all = [...sidebarData.navContent, ...sidebarData.navPersonal]
     const match = all.find(item => {
       if (!item.url) return false
       return pathname === item.url || (item.url !== consolePath.dashboard && pathname.startsWith(item.url + "/"))

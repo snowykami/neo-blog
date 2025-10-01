@@ -85,6 +85,9 @@
     }
   },
   "Console": {
+    "about_content": "内容相关",
+    "about_system": "系统相关",
+    "about_user": "用户相关",
     "comments": {
       "title": "评论管理"
     },
@@ -100,6 +103,9 @@
       "title": "全局配置"
     },
     "login_required": "请先登录再进入后台",
+    "oidc": {
+      "title": "认证源"
+    },
     "personal": "个人",
     "posts": {
       "title": "文章管理"
@@ -113,6 +119,9 @@
       "post_title": "标题",
       "title_placeholder": "输入标题...",
       "save_draft": "存草稿"
+    },
+    "storages": {
+      "title": "存储供应商"
     },
     "users": {
       "title": "用户管理"

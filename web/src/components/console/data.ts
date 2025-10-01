@@ -2,7 +2,7 @@ import { consolePath } from "@/utils/common/route";
 import type { User } from "@/models/user";
 import { IconType } from "@/types/icon";
 import { isAdmin, isEditor } from "@/utils/common/permission";
-import { Folder, Gauge, MessageCircle, Newspaper, Palette, Settings, ShieldCheck, UserPen, Users } from "lucide-react";
+import { Database, Folder, Gauge, IdCard, MessageCircle, Newspaper, Palette, Settings, ShieldCheck, UserPen, Users } from "lucide-react";
 
 
 export interface SidebarItem {
@@ -13,8 +13,8 @@ export interface SidebarItem {
   permission: ({ user }: { user: User }) => boolean;
 }
 
-export const sidebarData: { navMain: SidebarItem[]; navUserCenter: SidebarItem[] } = {
-  navMain: [
+export const sidebarData: { navContent: SidebarItem[]; navPersonal: SidebarItem[]; navSystem: SidebarItem[]; navUser: SidebarItem[] } = {
+  navContent: [
     {
       id: "dashboard",
       title: "dashboard.title",
@@ -43,6 +43,8 @@ export const sidebarData: { navMain: SidebarItem[]; navUserCenter: SidebarItem[]
       icon: Folder,
       permission: () => true
     },
+  ],
+  navUser: [
     {
       id: "users",
       title: "users.title",
@@ -51,14 +53,30 @@ export const sidebarData: { navMain: SidebarItem[]; navUserCenter: SidebarItem[]
       permission: isAdmin
     },
     {
+      id: "oidc",
+      title: "oidc.title",
+      url: consolePath.oidc,
+      icon: IdCard,
+      permission: isAdmin
+    },
+  ],
+  navSystem: [
+    {
       id: "global",
       title: "global.title",
       url: consolePath.global,
       icon: Settings,
       permission: isAdmin
     },
+    {
+      id: "storages",
+      title: "storages.title",
+      url: consolePath.storage,
+      icon: Database,
+      permission: isAdmin
+    },
   ],
-  navUserCenter: [
+  navPersonal: [
     {
       id: "user_profile",
       title: "user_profile.title",

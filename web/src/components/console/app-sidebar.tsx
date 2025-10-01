@@ -21,7 +21,7 @@ import { ThemeModeToggle } from "../common/theme-toggle"
 import { useTranslations } from "next-intl"
 import { useSiteInfo } from "@/contexts/site-info-context"
 
-export function AppSidebar({ activeId , setActiveId, ...props }: React.ComponentProps<typeof Sidebar> & {activeId: string | null, setActiveId: (id: string) => void}) {
+export function AppSidebar({ activeId, setActiveId, ...props }: React.ComponentProps<typeof Sidebar> & { activeId: string | null, setActiveId: (id: string) => void }) {
   const { siteInfo } = useSiteInfo();
   const consoleT = useTranslations("Console");
 
@@ -44,8 +44,30 @@ export function AppSidebar({ activeId , setActiveId, ...props }: React.Component
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavGroup title={consoleT("general")} activeId={activeId} setActiveId={setActiveId} items={sidebarData.navMain.map((item) => ({ ...item, title: consoleT(item.title) }))} />
-        <NavGroup title={consoleT("personal")} activeId={activeId} setActiveId={setActiveId} items={sidebarData.navUserCenter.map((item) => ({ ...item, title: consoleT(item.title) }))} />
+        <NavGroup
+          title={consoleT("about_content")}
+          activeId={activeId}
+          setActiveId={setActiveId}
+          items={sidebarData.navContent.map((item) => ({ ...item, title: consoleT(item.title) }))}
+        />
+        <NavGroup
+          title={consoleT("about_system")}
+          activeId={activeId}
+          setActiveId={setActiveId}
+          items={sidebarData.navSystem.map((item) => ({ ...item, title: consoleT(item.title) }))}
+        />
+        <NavGroup
+          title={consoleT("about_user")}
+          activeId={activeId}
+          setActiveId={setActiveId}
+          items={sidebarData.navUser.map((item) => ({ ...item, title: consoleT(item.title) }))}
+        />
+        <NavGroup
+          title={consoleT("personal")}
+          activeId={activeId}
+          setActiveId={setActiveId}
+          items={sidebarData.navPersonal.map((item) => ({ ...item, title: consoleT(item.title) }))}
+        />
       </SidebarContent>
       <SidebarFooter>
         <div className="mb-2 flex justify-center">
