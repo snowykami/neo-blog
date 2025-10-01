@@ -92,7 +92,8 @@
       "title": "大石坝"
     },
     "files": {
-      "title": "文件管理"
+      "title": "文件管理",
+      "will_delete_n_files": "将删除 {n} 个文件"
     },
     "general": "常规",
     "global": {
@@ -188,6 +189,7 @@
     "view_count": "浏览数"
   },
   "Operation": {
+    "batch_delete": "批量删除",
     "cancel": "取消",
     "confirm_delete": "确认删除？",
     "delete": "删除",

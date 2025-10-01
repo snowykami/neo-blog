@@ -1,11 +1,12 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Category } from "@/models/category"
 import { Post } from "@/models/post"
+import { DialogClose } from "@radix-ui/react-dialog"
 import { useTranslations } from "next-intl"
 import { SubmitHandler, useForm } from "react-hook-form"
 
@@ -107,7 +108,14 @@ export function PostSettingButtonWithDialog({ post, onMetaChange }: { post: Post
             />
           </form>
         </Form>
-
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">{operationT("cancel")}</Button>
+          </DialogClose>
+          <DialogClose asChild>
+            <Button onClick={form.handleSubmit(onSubmit)}>{operationT("save")}</Button>
+          </DialogClose>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

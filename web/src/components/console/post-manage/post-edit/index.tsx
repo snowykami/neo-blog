@@ -78,7 +78,6 @@ function EditorNavbar({ editorRef, post }: { post: Post,editorRef: ForwardedRef<
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center space-x-2">
-        <Input placeholder={t("title_placeholder")} />
       </div>
       <div className="flex items-center space-x-2">
         <PostSettingButtonWithDialog post={post} />

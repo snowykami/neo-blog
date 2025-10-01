@@ -41,6 +41,19 @@ export async function deleteFile({ id }: { id: number }): Promise<BaseResponse<n
   return res.data
 }
 
+export async function batchDeleteFiles({ ids }: { ids: number[] }): Promise<BaseResponse<{
+  deleted_count: number,
+  failed_ids: number[]
+}>> {
+  const res = await axiosClient.delete<BaseResponse<{
+    deleted_count: number,
+    failed_ids: number[]
+  }>>('/file/batch', {
+    params: { ids: ids.join(',') },
+  })
+  return res.data
+}
+
 export async function listFiles({ page, size, keywords, orderBy, desc }: { page: number, size: number, keywords?: string, orderBy?: string, desc?: boolean }): Promise<BaseResponse<{
   total: number,
   files: Array<FileModel>

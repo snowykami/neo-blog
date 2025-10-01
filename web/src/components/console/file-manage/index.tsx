@@ -22,13 +22,14 @@ import {
   parseAsString
 } from "nuqs";
 import { useDebouncedState } from "@/hooks/use-debounce";
-import { deleteFile, listFiles } from "@/api/file";
+import { batchDeleteFiles, deleteFile, listFiles } from "@/api/file";
 import { BaseErrorResponse } from "@/models/resp";
 import { formatDataSize } from "@/utils/common/datasize";
 import { getFileUri } from "@/utils/client/file";
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrangementSelector } from "@/components/common/arrangement-selector";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogClose, DialogFooter, DialogHeader, DialogTitle, DialogContent, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
@@ -42,6 +43,7 @@ const mimeTypeIcons = {
 export function FileManage() {
   const commonT = useTranslations("Common");
   const metricsT = useTranslations("Metrics");
+  const operationT = useTranslations("Operation");
   const { isMobile } = useDevice();
   const [files, setFiles] = useState<FileModel[]>([]);
   const [total, setTotal] = useState(0);
@@ -110,6 +112,7 @@ export function FileManage() {
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-3">
         <Checkbox checked={selectedFileIds.size === files.length} onCheckedChange={onAllFileSelect} />
+        <BatchDeleteDialogWithButton ids={Array.from(selectedFileIds)} onFileDelete={onFileDelete} />
         <Input type="search" placeholder={commonT("search")} value={keywordsInput} onChange={(e) => setKeywordsInput(e.target.value)} />
       </div>
       <div className="flex items-center gap-4">
@@ -124,10 +127,16 @@ export function FileManage() {
       </div>
     </div>
     <Separator className="flex-1" />
-    {files.map(file => <div key={file.id}>
-      <FileItem file={file} onFileDelete={onFileDelete} selected={selectedFileIds.has(file.id)} onSelect={onFileIdSelect(file.id)} />
+    {/* 列表 */}
+    {arrangement === ArrangementMode.List && files.map(file => <div key={file.id}>
+      <FileItem file={file} layout={ArrangementMode.List} onFileDelete={onFileDelete} selected={selectedFileIds.has(file.id)} onSelect={onFileIdSelect(file.id)} />
       <Separator className="flex-1" />
     </div>)}
+    {/* 网格 */}
+    {arrangement === ArrangementMode.Grid && <div className={`grid gap-4 ${isMobile ? "grid-cols-2" : "grid-cols-4"}`}>
+      {files.map(file => <FileItem key={file.id} file={file} layout={ArrangementMode.Grid} onFileDelete={onFileDelete} selected={selectedFileIds.has(file.id)} onSelect={onFileIdSelect(file.id)} />)}
+    </div>}
+    {/* 分页 */}
     <div className="flex justify-center items-center py-4">
       {total > 0 && <PaginationController initialPage={page} onPageChange={onPageChange} total={total} pageSize={size} />}
       <PageSizeSelector initialSize={size} onSizeChange={(s) => { setSize(s); setPage(1); }} /> {metricsT("per_page")}
@@ -135,28 +144,82 @@ export function FileManage() {
   </div>;
 }
 
-
-
 function FileItem({
   file,
+  layout,
   onFileDelete,
   selected,
   onSelect,
 }: {
   file: FileModel,
+  layout: ArrangementMode,
   onFileDelete: ({ fileId }: { fileId: number }) => void
   selected: boolean,
   onSelect: (selected: boolean) => void
 }) {
   const commonT = useTranslations("Common");
+  if (layout === ArrangementMode.Grid) {
+    return (
+      <div className="relative group">
+        <div className="flex flex-col items-center p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+          {/* 选择框 */}
+          <div className="absolute top-2 left-2">
+            <Checkbox checked={selected} onCheckedChange={onSelect} />
+          </div>
+
+          {/* 文件预览/图标 */}
+          <div className="mb-3">
+            <Avatar className="h-40 w-40 rounded-none">
+              <AvatarImage className="object-contain" src={getFileUri(file.id)} alt={file.name} />
+              <AvatarFallback>
+                {(() => {
+                  const mimeType = file.mimeType || mime.lookup(file.name) || "";
+                  const IconComponent = mimeTypeIcons[mimeType.split("/")[0] as keyof typeof mimeTypeIcons];
+                  return IconComponent ? <IconComponent className="w-8 h-8" /> : <FileIcon className="w-8 h-8" />;
+                })()}
+              </AvatarFallback>
+            </Avatar>
+          </div>
+
+          {/* 文件信息 */}
+          <div className="text-center w-full">
+            <div className="text-sm font-medium truncate mb-1" title={file.name}>
+              {file.name}
+            </div>
+            <div className="flex flex-wrap justify-center items-center gap-2">
+              <span className="text-xs text-muted-foreground">{commonT("id")}: {file.id}</span>
+              <span className="text-xs text-muted-foreground">{formatDataSize({ size: file.size })}</span>
+
+            </div>
+          </div>
+
+          {/* 操作按钮 - 悬停时显示 */}
+          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => window.open(getFileUri(file.id) + `/${file.name}`, "_blank")}
+              >
+                <Link className="w-3 h-3" />
+              </Button>
+              <FileDropdownMenu file={file} onFileDelete={onFileDelete} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex w-full items-center gap-3 py-2">
         {/* left */}
         <div className="flex items-center gap-3">
           <Checkbox checked={selected} onCheckedChange={onSelect} />
-          <Avatar className="h-8 w-8 rounded-sm">
-            <AvatarImage src={getFileUri(file.id)} alt={file.name} width={40} height={40} />
+          <Avatar className="h-10 w-10 rounded-none">
+            <AvatarImage className="object-contain" src={getFileUri(file.id)} alt={file.name} width={40} height={40} />
             <AvatarFallback>
               {(() => {
                 const mimeType = file.mimeType || mime.lookup(file.name) || "";
@@ -170,9 +233,9 @@ function FileItem({
               {file.name}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-3">
+              <span className="text-xs text-muted-foreground">{commonT("id")}: {file.id}</span>
               <span className="text-xs text-muted-foreground">{commonT("size")}: {formatDataSize({ size: file.size })}</span>
               <span className="text-xs text-muted-foreground">{commonT("mime_type")}: {file.mimeType}</span>
-              <span className="text-xs text-muted-foreground">{commonT("id")}: {file.id}</span>
               <span className="text-xs text-muted-foreground">{commonT("created_at")}: {new Date(file.createdAt).toLocaleString()}</span>
             </div>
           </div>
@@ -249,5 +312,53 @@ function FileDropdownMenu(
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+function BatchDeleteDialogWithButton({ ids, onFileDelete }: { ids: number[], onFileDelete: ({ fileId }: { fileId: number }) => void }) {
+  const t = useTranslations("Console.files");
+  const operationT = useTranslations("Operation");
+
+  const handleBatchDelete = () => {
+    batchDeleteFiles({ ids })
+      .then(() => {
+        toast.success(operationT("delete_success"));
+        ids.forEach(id => onFileDelete({ fileId: id }));
+      })
+      .catch((error: BaseErrorResponse) => {
+        toast.error(operationT("delete_failed") + ": " + error.message);
+      });
+  }
+
+  return (
+    <Dialog>
+      <form>
+        <DialogTrigger asChild>
+          <Button variant="destructive" size="sm" disabled={ids.length === 0}>
+            {operationT("batch_delete")}
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{operationT("batch_delete")}</DialogTitle>
+            <DialogDescription>
+              {t("will_delete_n_files", { n: ids.length })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">
+                {operationT("cancel")}
+              </Button>
+            </DialogClose>
+            <DialogClose asChild>
+              <Button onClick={handleBatchDelete} type="button" variant="destructive">
+                {operationT("confirm_delete")}
+              </Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </form>
+    </Dialog>
   )
 }
