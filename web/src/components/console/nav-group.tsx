@@ -21,27 +21,30 @@ export function NavGroup({
   items: SidebarItem[],
   title: string,
   activeId: string | null,
-  setActiveId? :(id: string) => void
+  setActiveId?: (id: string) => void
 }) {
   const { user } = useAuth();
   if (!user) return null;
+  const hasAnyPermission = items.some(item => item.permission({ user }));
   return (
-    <SidebarGroup>
-      <SidebarGroupContent className="flex flex-col gap-2">
-        <SidebarGroupLabel>{title}</SidebarGroupLabel>
-        <SidebarMenu>
-          {items.map((item) => (
-            item.permission({ user }) && <SidebarMenuItem key={item.title}>
-              <Link href={item.url} onClick={() => setActiveId && setActiveId(item.id)}>
-                <SidebarMenuButton id={`nav-item-${item.id}`} tooltip={item.title} isActive={activeId === item.id}>
-                  {item.icon && <item.icon />}
-                  <span>{item.title}</span>
-                </SidebarMenuButton>
-              </Link>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+    <>
+      {hasAnyPermission && <SidebarGroup>
+        <SidebarGroupContent className="flex flex-col gap-2">
+          <SidebarGroupLabel>{title}</SidebarGroupLabel>
+          <SidebarMenu>
+            {items.map((item) => (
+              item.permission({ user }) && <SidebarMenuItem key={item.title}>
+                <Link href={item.url} onClick={() => setActiveId && setActiveId(item.id)}>
+                  <SidebarMenuButton id={`nav-item-${item.id}`} tooltip={item.title} isActive={activeId === item.id}>
+                    {item.icon && <item.icon />}
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>}
+    </>
   )
 }
