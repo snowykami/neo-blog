@@ -172,8 +172,8 @@ function FileItem({
           </div>
 
           {/* 文件预览/图标 */}
-          <div className="mb-3">
-            <Avatar className="h-40 w-40 rounded-none">
+          <div className="p-2">
+            <Avatar className="h-auto w-auto rounded-sm">
               <AvatarImage className="object-contain" src={getFileUri(file.id)} alt={file.name} />
               <AvatarFallback>
                 {(() => {

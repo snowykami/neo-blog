@@ -20,7 +20,7 @@ export function OrderSelector({ initialOrder, onOrderChange, orderBys }: { initi
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
-          <div className="text-sm font-bold">{orderT("order")}</div> {orderT(order.orderBy)} {order.desc ? "↓" : "↑"}
+          <div className="text-sm font-bold hidden md:block">{orderT("order")}</div> {orderT(order.orderBy)} {order.desc ? "↓" : "↑"}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="end" side="bottom" sideOffset={8}>

@@ -42,7 +42,7 @@ export function ArrangementSelector({
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
           {getCurrentIcon()}
-          <span className="ml-1">{arrangementT(arrangement)}</span>
+          <span className="ml-1 hidden md:block">{arrangementT(arrangement)}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="end" side="bottom" sideOffset={8}>
