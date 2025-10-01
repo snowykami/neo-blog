@@ -9,7 +9,7 @@ import { useDevice } from "@/contexts/device-context";
 import { useDoubleConfirm } from "@/hooks/use-double-confirm";
 import { ArrangementMode, OrderBy } from "@/models/common";
 import { DropdownMenuGroup } from "@radix-ui/react-dropdown-menu";
-import { Ellipsis, Eye, FileIcon, FilePlayIcon, ImageIcon, Link, MusicIcon } from "lucide-react";
+import { Ellipsis, FileIcon, FilePlayIcon, ImageIcon, Link, MusicIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import mime from 'mime-types';
@@ -43,7 +43,6 @@ const mimeTypeIcons = {
 export function FileManage() {
   const commonT = useTranslations("Common");
   const metricsT = useTranslations("Metrics");
-  const operationT = useTranslations("Operation");
   const { isMobile } = useDevice();
   const [files, setFiles] = useState<FileModel[]>([]);
   const [total, setTotal] = useState(0);
@@ -70,6 +69,11 @@ export function FileManage() {
 
   const onFileDelete = useCallback(({ fileId }: { fileId: number }) => {
     setFiles((prev) => prev.filter((f) => f.id !== fileId));
+    setSelectedFileIds((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(fileId);
+      return newSet;
+    });
   }, [setFiles]);
 
   const onOrderChange = useCallback(({ orderBy, desc }: { orderBy: OrderBy; desc: boolean }) => {
