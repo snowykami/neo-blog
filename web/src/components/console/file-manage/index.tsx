@@ -164,15 +164,28 @@ function FileItem({
   const commonT = useTranslations("Common");
   if (layout === ArrangementMode.Grid) {
     return (
-      <div className="relative group">
-        <div className="flex flex-col items-center p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-          {/* 选择框 */}
-          <div className="absolute top-2 left-2">
-            <Checkbox checked={selected} onCheckedChange={onSelect} />
+      <div className="group">
+        <div className="flex flex-col items-center px-2 border rounded-lg hover:bg-accent/50 transition-colors">
+          {/* 顶部操作行：选择框 + 链接按钮 与 更多 按钮 在同一行 */}
+          <div className="flex items-center justify-between w-full mb-0">
+            <div className="flex items-center gap-2">
+              <Checkbox checked={selected} onCheckedChange={onSelect} />
+            </div>
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => window.open(getFileUri(file.id) + `/${file.name}`, "_blank")}
+              >
+                <Link className="w-3 h-3" />
+              </Button>
+              <FileDropdownMenu file={file} onFileDelete={onFileDelete} />
+            </div>
           </div>
 
           {/* 文件预览/图标 */}
-          <div className="p-2">
+          <div>
             <Avatar className="h-auto w-auto rounded-sm">
               <AvatarImage className="object-contain" src={getFileUri(file.id)} alt={file.name} />
               <AvatarFallback>
@@ -193,22 +206,6 @@ function FileItem({
             <div className="flex flex-wrap justify-center items-center gap-2">
               <span className="text-xs text-muted-foreground">{commonT("id")}: {file.id}</span>
               <span className="text-xs text-muted-foreground">{formatDataSize({ size: file.size })}</span>
-
-            </div>
-          </div>
-
-          {/* 操作按钮 - 悬停时显示 */}
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => window.open(getFileUri(file.id) + `/${file.name}`, "_blank")}
-              >
-                <Link className="w-3 h-3" />
-              </Button>
-              <FileDropdownMenu file={file} onFileDelete={onFileDelete} />
             </div>
           </div>
         </div>
