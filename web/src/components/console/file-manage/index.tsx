@@ -23,22 +23,23 @@ import {
 } from "nuqs";
 import { useDebouncedState } from "@/hooks/use-debounce";
 import { batchDeleteFiles, deleteFile, listFiles } from "@/api/file";
-import { BaseErrorResponse } from "@/models/resp";
+import { BaseResponseError } from "@/models/resp";
 import { formatDataSize } from "@/utils/common/datasize";
 import { getFileUri } from "@/utils/client/file";
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrangementSelector } from "@/components/common/arrangement-selector";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogClose, DialogFooter, DialogHeader, DialogTitle, DialogContent, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+import { FileUploadDialogWithButton } from "./file-uploader";
+import { mimeTypeIcons } from "@/utils/common/mimetype";
+import copyToClipboard from "@/lib/clipboard";
+import { useSiteInfo } from "@/contexts/site-info-context";
+import { FileModel } from "@/models/file";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
 
-const mimeTypeIcons = {
-  "image": ImageIcon,
-  "audio": MusicIcon,
-  "video": FilePlayIcon,
-}
+
 
 export function FileManage() {
   const commonT = useTranslations("Common");
@@ -54,6 +55,7 @@ export function FileManage() {
   const [keywords, setKeywords] = useQueryState("keywords", parseAsString.withDefault("").withOptions({ history: "replace", clearOnDefault: true }));
   const [keywordsInput, setKeywordsInput, debouncedKeywordsInput] = useDebouncedState(keywords, 200);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(new Set());
+  const [fileListRefreshIndex, setFileListRefreshIndex] = useState(0); // 用于强制刷新文件列表
 
   useEffect(() => {
     listFiles({ page, size, orderBy, desc, keywords }).
@@ -61,7 +63,7 @@ export function FileManage() {
         setFiles(res.data.files);
         setTotal(res.data.total);
       });
-  }, [page, orderBy, desc, size, keywords]);
+  }, [page, orderBy, desc, size, keywords, fileListRefreshIndex]);
 
   useEffect(() => {
     setKeywords(debouncedKeywordsInput)
@@ -112,25 +114,39 @@ export function FileManage() {
     });
   }, [files]);
 
+  const onFilesUpload = useCallback(() => {
+    setPage(1);
+    setOrderBy(OrderBy.CreatedAt);
+    setDesc(true);
+    setFileListRefreshIndex(idx => idx + 1);
+  },[])
+
   return <div>
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center gap-3">
-        <Checkbox checked={selectedFileIds.size === files.length} onCheckedChange={onAllFileSelect} />
+    <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
+      <div className="flex items-center gap-3 w-full sm:w-auto">
+        <Checkbox checked={files.length !== 0 && selectedFileIds.size === files.length} onCheckedChange={onAllFileSelect} />
         <BatchDeleteDialogWithButton ids={Array.from(selectedFileIds)} onFileDelete={onFileDelete} />
-        <Input type="search" placeholder={commonT("search")} value={keywordsInput} onChange={(e) => setKeywordsInput(e.target.value)} />
+        <Input
+          type="search"
+          placeholder={commonT("search")}
+          value={keywordsInput}
+          onChange={(e) => setKeywordsInput(e.target.value)}
+          className="flex-1 min-w-0"
+        />
       </div>
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
+        <div className="flex items-center gap-2 ml-auto sm:ml-0">
           <ArrangementSelector initialArrangement={arrangement} onArrangementChange={setArrangement} />
           <OrderSelector
             initialOrder={{ orderBy, desc }}
             onOrderChange={onOrderChange}
             orderBys={[OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.Name, OrderBy.Size]}
           />
+          <FileUploadDialogWithButton onFilesUpload={onFilesUpload}/>
         </div>
       </div>
     </div>
-    <Separator className="flex-1 mb-4" />
+    <Separator className="flex-1" />
     {/* 列表 */}
     {arrangement === ArrangementMode.List && files.map(file => <div key={file.id}>
       <FileItem file={file} layout={ArrangementMode.List} onFileDelete={onFileDelete} selected={selectedFileIds.has(file.id)} onSelect={onFileIdSelect(file.id)} />
@@ -186,9 +202,9 @@ function FileItem({
 
           {/* 文件预览/图标 */}
           <div>
-            <Avatar className="h-40 w-40 rounded-sm">
-              <AvatarImage className="object-contain" src={getFileUri(file.id)} alt={file.name} />
-              <AvatarFallback>
+            <Avatar className="h-40 w-40 rounded-sm p-1">
+              <AvatarImage className="object-contain rounded-sm" src={getFileUri(file.id)} alt={file.name} />
+              <AvatarFallback className="rounded-sm">
                 {(() => {
                   const mimeType = file.mimeType || mime.lookup(file.name) || "";
                   const IconComponent = mimeTypeIcons[mimeType.split("/")[0] as keyof typeof mimeTypeIcons];
@@ -220,8 +236,8 @@ function FileItem({
         <div className="flex items-center gap-3">
           <Checkbox checked={selected} onCheckedChange={onSelect} />
           <Avatar className="h-10 w-10 rounded-none">
-            <AvatarImage className="object-contain" src={getFileUri(file.id)} alt={file.name} width={40} height={40} />
-            <AvatarFallback>
+            <AvatarImage className="object-contain rounded-sm" src={getFileUri(file.id)} alt={file.name} width={40} height={40} />
+            <AvatarFallback className="rounded-sm">
               {(() => {
                 const mimeType = file.mimeType || mime.lookup(file.name) || "";
                 const IconComponent = mimeTypeIcons[mimeType.split("/")[0] as keyof typeof mimeTypeIcons];
@@ -265,6 +281,7 @@ function FileDropdownMenu(
   const operationT = useTranslations("Operation");
   const { confirming: confirmingDelete, onClick: onDeleteClick, onBlur: onDeleteBlur } = useDoubleConfirm();
   const [open, setOpen] = useState(false);
+  const {siteInfo} = useSiteInfo();
 
   const handleDelete = () => {
     deleteFile({ id: file.id })
@@ -272,10 +289,21 @@ function FileDropdownMenu(
         toast.success(operationT("delete_success"));
         onFileDelete({ fileId: file.id });
       })
-      .catch((error: BaseErrorResponse) => {
+      .catch((error: BaseResponseError) => {
         toast.error(operationT("delete_failed") + ": " + error.message);
       });
   };
+
+  const handleCopyLink = () => {
+    copyToClipboard(
+      `${siteInfo?.baseUrl ?? window.location.origin}${getFileUri(file.id)}/${file.name}`
+    ).then(() => {
+      toast.success(operationT("copy_link_success"));
+    }).catch(() => {
+      toast.error(operationT("copy_link_failed"));
+    });
+    setOpen(false);
+  }
 
   return (
     <DropdownMenu
@@ -292,8 +320,8 @@ function FileDropdownMenu(
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-4" align="start">
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => { }} className="cursor-pointer" >
-            {operationT("view")}
+          <DropdownMenuItem onClick={handleCopyLink} className="cursor-pointer" >
+            {operationT("copy_link")}
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
@@ -326,7 +354,7 @@ function BatchDeleteDialogWithButton({ ids, onFileDelete }: { ids: number[], onF
         toast.success(operationT("delete_success"));
         ids.forEach(id => onFileDelete({ fileId: id }));
       })
-      .catch((error: BaseErrorResponse) => {
+      .catch((error: BaseResponseError) => {
         toast.error(operationT("delete_failed") + ": " + error.message);
       });
   }
@@ -363,3 +391,4 @@ function BatchDeleteDialogWithButton({ ids, onFileDelete }: { ids: number[], onF
     </Dialog>
   )
 }
+

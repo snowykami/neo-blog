@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 
 export type SiteInfo = {
   colorSchemes: string[];
+  baseUrl?: string;
   metadata: {
     name?: string;
     icon?: string;

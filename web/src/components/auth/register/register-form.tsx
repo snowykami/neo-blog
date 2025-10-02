@@ -20,7 +20,7 @@ import { toast } from "sonner"
 import { CurrentLogged } from "@/components/auth/common/current-logged"
 import { SectionDivider } from "@/components/common/section-divider"
 import { InputOTPControlled } from "@/components/common/input-otp"
-import { BaseErrorResponse } from "@/models/resp"
+import { BaseResponseError } from "@/models/resp"
 import { useAuth } from "@/contexts/auth-context"
 import Link from "next/link"
 import { loginPath } from "@/hooks/use-route"
@@ -84,7 +84,7 @@ export function RegisterForm({
       .then(() => {
         toast.success(t("send_verify_code_success"))
       })
-      .catch((error: BaseErrorResponse) => {
+      .catch((error: BaseResponseError) => {
         toast.error(`${t("send_verify_code_failed")}: ${error.response.data.message}`)
       })
       .finally(() => {
@@ -108,7 +108,7 @@ export function RegisterForm({
         setUser(res.data.user);
         router.push(redirectBack)
       })
-      .catch((error: BaseErrorResponse) => {
+      .catch((error: BaseResponseError) => {
         toast.error(t("register_failed") + (error?.response?.data?.message ? `: ${error.response.data.message}` : ""))
         setRefreshCaptchaKey(k => k + 1)
         setCaptchaToken(null)

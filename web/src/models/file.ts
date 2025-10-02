@@ -1,4 +1,4 @@
-type FileModel = {
+export type FileModel = {
   id: number;
   name: string;
   hash: string;
@@ -12,7 +12,7 @@ type FileModel = {
   mimeType: string; // 文件 MIME 类型 File MIME type
 }
 
-type StorageProviderConfig = {
+export type StorageProviderConfig = {
   id: number;
   name: string;
   type: string;

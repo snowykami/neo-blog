@@ -28,8 +28,10 @@ type CreateOrUpdatePostReq struct {
 	Description string  `json:"description"`
 	Slug        *string `json:"slug"`
 	Content     string  `json:"content"`
+	CategoryID  *uint   `json:"category_id"`
 	Cover       string  `json:"cover"`
 	IsPrivate   bool    `json:"is_private"`
+	IsOriginal  bool    `json:"is_original"`
 	Type        string  `json:"type"`
 	Labels      []uint  `json:"labels"` // 标签ID列表
 }

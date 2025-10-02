@@ -7,7 +7,7 @@ import { useState } from "react";
 import { requestEmailVerifyCode, updateEmail, updatePassword } from "@/api/user";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { BaseErrorResponse } from "@/models/resp";
+import { BaseResponseError } from "@/models/resp";
 import { useAuth } from "@/contexts/auth-context";
 import { resetPasswordPath } from "@/hooks/use-route";
 import { InputOTPControlled } from "@/components/common/input-otp";
@@ -28,7 +28,7 @@ export function UserSecurityPage() {
       toast.success(t("update_password_success"))
       setOldPassword("")
       setNewPassword("")
-    }).catch((error: BaseErrorResponse) => {
+    }).catch((error: BaseResponseError) => {
       toast.error(`${t("update_password_failed")}: ${error.response.data.message}`)
     })
   }
@@ -38,7 +38,7 @@ export function UserSecurityPage() {
       .then(() => {
         toast.success(t("send_verify_code_success"))
       })
-      .catch((error: BaseErrorResponse) => {
+      .catch((error: BaseResponseError) => {
         console.log("error", error)
         toast.error(`${t("send_verify_code_failed")}: ${error.response.data.message}`)
       })
@@ -54,7 +54,7 @@ export function UserSecurityPage() {
         })
       }
       setVerifyCode("")
-    }).catch((error: BaseErrorResponse) => {
+    }).catch((error: BaseResponseError) => {
       toast.error(`${t("update_email_failed")}: ${error.response.data.message}`)
     })
   }

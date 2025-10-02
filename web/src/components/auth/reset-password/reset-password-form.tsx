@@ -15,7 +15,7 @@ import { requestEmailVerifyCode, resetPassword } from "@/api/user"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { InputOTPControlled } from "@/components/common/input-otp"
-import { BaseErrorResponse } from "@/models/resp"
+import { BaseResponseError } from "@/models/resp"
 import { loginPath, registerPath } from "@/hooks/use-route"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -48,7 +48,7 @@ export function ResetPasswordForm({
       .then(() => {
         toast.success(t("send_verify_code_success"))
       })
-      .catch((error: BaseErrorResponse) => {
+      .catch((error: BaseResponseError) => {
         toast.error(`${t("send_verify_code_failed")}: ${error.response.data.message}`)
       })
       .finally(() => {
@@ -61,7 +61,7 @@ export function ResetPasswordForm({
     resetPassword({ email, newPassword, verifyCode }).then(() => {
       toast.success(t("reset_password_success"))
       router.push(loginPath);
-    }).catch((error: BaseErrorResponse) => {
+    }).catch((error: BaseResponseError) => {
       toast.error(`${t("reset_password_failed")}: ${error.response.data.message}`)
     })
   }

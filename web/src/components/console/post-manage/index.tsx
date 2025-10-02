@@ -24,6 +24,7 @@ import {
   parseAsString
 } from "nuqs";
 import { useDebouncedState } from "@/hooks/use-debounce";
+import { Badge } from "@/components/ui/badge";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
@@ -109,13 +110,26 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
             {post.title}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-3">
-            <span className="text-xs text-muted-foreground">{stateT(post.isPrivate ? "private" : "public")}</span>
-            <span className="text-xs text-muted-foreground">{postT("view_count")}: {post.viewCount}</span>
-            <span className="text-xs text-muted-foreground">{postT("like_count")}: {post.likeCount}</span>
-            <span className="text-xs text-muted-foreground">{postT("comment_count")}: {post.commentCount}</span>
-            <span className="text-xs text-muted-foreground">{commonT("id")}: {post.id}</span>
-            <span className="text-xs text-muted-foreground">{commonT("created_at")}: {new Date(post.createdAt).toLocaleDateString()}</span>
-            <span className="text-xs text-muted-foreground">{commonT("updated_at")}: {new Date(post.updatedAt).toLocaleDateString()}</span>
+            {(() => {
+              const items: { value: string; className: string }[] = [
+                {
+                  value: stateT(post.isPrivate ? "private" : "public"),
+                  className: post.isPrivate ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+                },
+                { value: `${postT("view_count")}: ${post.viewCount}`, className: "bg-slate-100 text-slate-800" },
+                { value: `${postT("like_count")}: ${post.likeCount}`, className: "bg-slate-100 text-slate-800" },
+                { value: `${postT("comment_count")}: ${post.commentCount}`, className: "bg-slate-100 text-slate-800" },
+                { value: `${commonT("id")}: ${post.id}`, className: "bg-indigo-100 text-indigo-800" },
+                { value: `${commonT("created_at")}: ${new Date(post.createdAt).toLocaleDateString()}`, className: "bg-gray-100 text-gray-800" },
+                { value: `${commonT("updated_at")}: ${new Date(post.updatedAt).toLocaleDateString()}`, className: "bg-gray-100 text-gray-800" }
+              ];
+
+              return items.map((item, idx) => (
+                <Badge key={idx} className={`text-xs ${item.className}`} variant="secondary">
+                  {item.value}
+                </Badge>
+              ));
+            })()}
           </div>
         </div>
         {/* right */}
@@ -148,7 +162,7 @@ function PostDropdownMenu(
   const [open, setOpen] = useState(false);
   const handleTogglePrivate = () => {
     updatePost({ post: { ...post, isPrivate: !post.isPrivate } })
-      .then(() => {
+      .then(() => { 
         toast.success(operationT("update_success"));
         onPostUpdate({ post: { id: post.id, isPrivate: !post.isPrivate } });
       })

@@ -11,6 +11,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
 type PostService struct{}
@@ -100,11 +101,15 @@ func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOr
 	if post.UserID != currentUser.ID {
 		return 0, errs.ErrForbidden
 	}
-	post.Title = req.Title
-	post.Description = req.Description
-	post.Content = req.Content
-	post.IsPrivate = req.IsPrivate
-	post.Slug = req.Slug
+	utils.UpdateNonEmpty(&post.Title, req.Title)
+	utils.UpdateNonEmpty(&post.Description, req.Description)
+	utils.UpdateNonEmpty(&post.Content, req.Content)
+	utils.UpdateNonEmpty(&post.Cover, req.Cover)
+	utils.UpdateNonEmpty(&post.Type, req.Type)
+	utils.UpdatePtrNonZero(&post.Slug, req.Slug)
+	utils.UpdatePtrUint(&post.CategoryID, req.CategoryID)
+	utils.UpdateBool(&post.IsPrivate, req.IsPrivate)
+	utils.UpdateBool(&post.IsOriginal, req.IsOriginal)
 	post.Labels = func() []model.Label {
 		labelModels := make([]model.Label, len(req.Labels))
 		for _, labelID := range req.Labels {

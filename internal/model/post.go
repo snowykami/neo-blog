@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// 每次增加新的可变字段请在更新逻辑中添加对应的空值检验
 type PostBase struct {
 	Title       string    `gorm:"type:text;not null"`
 	Description string    `gorm:"type:text"`

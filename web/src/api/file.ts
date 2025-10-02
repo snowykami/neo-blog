@@ -1,5 +1,6 @@
 import { BaseResponse } from '@/models/resp'
 import axiosClient from './client'
+import { FileModel, StorageProviderConfig } from '@/models/file'
 
 export async function uploadFile(
   {
@@ -9,7 +10,7 @@ export async function uploadFile(
     group,
   }: {
     file: File,
-    name: string,
+    name?: string,  // 不传则使用 file.name
     providerId?: string,
     group?: string
   }
@@ -69,6 +70,45 @@ export async function listFiles({ page, size, keywords, orderBy, desc }: { page:
       orderBy,
       desc,
     },
+    withCredentials: true,
+  })
+  return res.data
+}
+
+export async function listStorageProviders(): Promise<BaseResponse<{
+  providers: Array<StorageProviderConfig>
+}>> {
+  const res = await axiosClient.get<BaseResponse<{
+    providers: Array<StorageProviderConfig>
+  }>>('/file/provider-list', {
+    withCredentials: true,
+  })
+  return res.data
+}
+
+export async function createStorageProvider({provider}:{provider: StorageProviderConfig}): Promise<BaseResponse<null>> {
+  const res = await axiosClient.post<BaseResponse<null>>('/file/provider', provider, {
+    withCredentials: true,
+  })
+  return res.data
+}
+
+export async function updateStorageProvider({provider}:{provider: StorageProviderConfig}): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put<BaseResponse<null>>(`/file/provider/${provider.id}`, provider, {
+    withCredentials: true,
+  })
+  return res.data
+}
+
+export async function deleteStorageProvider({id}:{id: number}): Promise<BaseResponse<null>> {
+  const res = await axiosClient.delete<BaseResponse<null>>(`/file/provider/${id}`, {
+    withCredentials: true,
+  })
+  return res.data
+}
+
+export async function setDefaultStorageProvider({id}:{id: number}): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put<BaseResponse<null>>(`/file/provider/${id}/set-default`, {}, {
     withCredentials: true,
   })
   return res.data

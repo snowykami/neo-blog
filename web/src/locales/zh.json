@@ -96,6 +96,11 @@
     },
     "files": {
       "title": "文件管理",
+      "can_only_upload_n_files_at_a_time": "一次只能上传 {n} 个文件",
+      "select_file": "选择文件",
+      "upload_file": "上传文件",
+      "upload_file_failed": "文件 {name} 上传失败",
+      "upload_file_success": "文件 {name} 上传成功",
       "will_delete_n_files": "将删除 {n} 个文件"
     },
     "general": "常规",
@@ -121,7 +126,11 @@
       "save_draft": "存草稿"
     },
     "storages": {
-      "title": "存储供应商"
+      "title": "存储供应商",
+      "create_storage": "创建存储供应商",
+      "fetch_storages_failed": "获取存储供应商失败",
+      "no_storages": "还没有存储供应商，创建一个吧！",
+      "storage_type": "存储类型"
     },
     "users": {
       "title": "用户管理"
@@ -201,6 +210,10 @@
     "batch_delete": "批量删除",
     "cancel": "取消",
     "confirm_delete": "确认删除？",
+    "copy_link": "复制链接",
+    "copy_link_failed": "复制链接失败，请手动复制",
+    "copy_link_success": "链接已复制到剪贴板",
+    "create": "创建",
     "delete": "删除",
     "delete_failed": "删除失败",
     "delete_success": "删除成功",
@@ -225,6 +238,7 @@
     "update": "更新",
     "update_failed": "更新失败",
     "update_success": "更新成功",
+    "upload": "上传",
     "view": "查看"
   },
   "Order": {

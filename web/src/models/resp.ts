@@ -6,7 +6,7 @@ export interface BaseResponse<T> {
     status: number;
 }
 
-export interface BaseErrorResponse<T = unknown, E = Record<string, unknown>> extends AxiosError<T> {
+export interface BaseResponseError<T = unknown, E = Record<string, unknown>> extends AxiosError<T> {
   response: AxiosResponse & {
     data: E & BaseResponse<null>;
   };

@@ -1,3 +1,4 @@
+import { StorageProviderManage } from "@/components/console/storages";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata() {
@@ -8,5 +9,7 @@ export async function generateMetadata() {
 }
 
 export default function Page() {
-  return (<div><h1>存储管理</h1></div>);
+  return (
+    <StorageProviderManage />
+  );
 }

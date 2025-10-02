@@ -10,6 +10,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
@@ -47,6 +48,7 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 			"text":  "Liteyuki ICP 114514",
 			"links": []string{"https://www.liteyuki.com/"},
 		}),
+		"base_url": tools.GetBaseUrl(),
 	})
 	if err != nil {
 		resps.InternalServerError(c, err.Error())
@@ -109,7 +111,7 @@ func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestCont
 		Find(&editors)
 
 	resps.Ok(c, "", utils.H{
-		"base_url":   utils2.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl),
+		"base_url":   tools.GetBaseUrl(),
 		"archives":   []string{},
 		"labels":     []string{},
 		"categories": []string{},

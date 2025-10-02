@@ -342,9 +342,8 @@ func (f *FileController) BatchDeleteFiles(ctx context.Context, c *app.RequestCon
 	for _, id := range idUints {
 		fileModel, err := repo.File.GetByID(id)
 		if err != nil {
-			logrus.Error("获取文件信息失败: ", err)
-			resps.InternalServerError(c, "获取文件信息失败")
-			return
+			logrus.Error("获取文件信息失败，跳过: ", err)
+			continue
 		}
 		if !(ctxutils.IsOwnerOfTarget(ctx, fileModel.UserID) || ctxutils.IsAdmin(ctx)) {
 			resps.Forbidden(c, fmt.Sprintf("没有权限删除文件ID为%d的文件", id))
@@ -354,27 +353,26 @@ func (f *FileController) BatchDeleteFiles(ctx context.Context, c *app.RequestCon
 
 	// 批量删除文件记录和存储中的文件
 	for _, id := range idUints {
+		// 删除数据库记录
 		fileModel, err := repo.File.GetByID(id)
 		if err != nil {
 			logrus.Error("获取文件信息失败: ", err)
-			resps.InternalServerError(c, "获取文件信息失败")
-			return
+			continue
 		}
+		if err := repo.File.DeleteByID(id); err != nil {
+			logrus.Error("删除文件记录失败: ", err)
+			continue
+		}
+		// 删除实体文件
 		provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
 		if !ok {
 			resps.BadRequest(c, "文件存储提供者不存在")
 			return
 		}
-		if err := repo.File.DeleteByID(id); err != nil {
-			logrus.Error("删除文件记录失败: ", err)
-			resps.InternalServerError(c, "删除文件记录失败")
-			return
-		}
 		filePath := filepath.Join(utils.FilePath(fileModel.Hash))
 		if err = provider.Delete(ctx, filePath); err != nil {
 			logrus.Error("删除文件失败: ", err)
-			resps.InternalServerError(c, "删除文件失败")
-			return
+			continue
 		}
 	}
 
