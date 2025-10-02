@@ -130,7 +130,7 @@ export function FileManage() {
         </div>
       </div>
     </div>
-    <Separator className="flex-1" />
+    <Separator className="flex-1 mb-4" />
     {/* 列表 */}
     {arrangement === ArrangementMode.List && files.map(file => <div key={file.id}>
       <FileItem file={file} layout={ArrangementMode.List} onFileDelete={onFileDelete} selected={selectedFileIds.has(file.id)} onSelect={onFileIdSelect(file.id)} />
@@ -186,7 +186,7 @@ function FileItem({
 
           {/* 文件预览/图标 */}
           <div>
-            <Avatar className="h-auto w-auto rounded-sm">
+            <Avatar className="h-40 w-40 rounded-sm">
               <AvatarImage className="object-contain" src={getFileUri(file.id)} alt={file.name} />
               <AvatarFallback>
                 {(() => {

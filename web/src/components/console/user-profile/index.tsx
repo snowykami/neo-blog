@@ -228,12 +228,12 @@ export function UserProfilePage() {
 
           <div className="grid gap-2">
             <Label htmlFor="background">{t("background")}</Label>
-            <Avatar className="h-40 w-80 rounded-xl border-2">
+            <Avatar className="h-40 w-80 rounded-sm border-2">
               {backgroundFileUrl ?
-                <AvatarImage className="object-cover" src={backgroundFileUrl} alt={form.getValues("nickname") || form.getValues("username")} /> :
-                <AvatarImage className="object-cover" src={user.backgroundUrl} alt={form.getValues("nickname") || form.getValues("username")} />
+                <AvatarImage className="object-cover rounded-none" src={backgroundFileUrl} alt={form.getValues("nickname") || form.getValues("username")} /> :
+                <AvatarImage className="object-cover rounded-none" src={user.backgroundUrl} alt={form.getValues("nickname") || form.getValues("username")} />
               }
-              <AvatarFallback>{t("background")}</AvatarFallback>
+              <AvatarFallback className="rounded-none">{t("background")}</AvatarFallback>
             </Avatar>
             <div className="flex gap-2">
               <Input
