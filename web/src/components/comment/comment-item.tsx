@@ -164,8 +164,8 @@ export function CommentItem(
   }
 
   return (
-    <div>
-      <div className="flex">
+    <div className={`${commentState.replyCount > 0 && showReplies ? "border-l-2" : ""}`}>
+      <div className="flex gap-2">
         <div onClick={() => clickToUserProfile(commentState.user.username)} className="cursor-pointer fade-in w-12 h-12">
           <Avatar className="h-full w-full rounded-full border-2">
             <AvatarImage src={getGravatarFromUser({ user: commentState.user, size: 120 })} alt={commentState.user.nickname} />
@@ -265,7 +265,6 @@ export function CommentItem(
               >
                 <Heart className="w-3 h-3" /> <div>{likeCount}</div>
               </button>
-
             </div>
           </div>
         </div>
@@ -284,7 +283,7 @@ export function CommentItem(
         initShowClientInfo={commentState.showClientInfo}
       />}
       {showReplies && replies.length > 0 && (
-        <div className="mt-4 pl-4 md:pl-8 border-l border-slate-300 dark:border-slate-600 space-y-4">
+        <div className="mt-4 pl-4 md:pl-8 space-y-4">
           {replies.map((reply) => (
             <CommentItem
               key={reply.id}

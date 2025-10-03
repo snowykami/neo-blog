@@ -12,6 +12,7 @@ import { CommentInput } from "./comment-input";
 import { CommentItem } from "./comment-item";
 import "./style.css";
 import { useSiteInfo } from "@/contexts/site-info-context";
+import { OrderSelector } from "../common/orderby-selector";
 
 
 
@@ -28,25 +29,27 @@ export function CommentSection(
     ownerId?: number,
   }
 ) {
-  const {siteInfo} = useSiteInfo();
+  const { siteInfo } = useSiteInfo();
   const t = useTranslations('Comment')
   const [comments, setComments] = useState<Comment[]>([]);
   const [activeInput, setActiveInput] = useState<{ id: number; type: 'reply' | 'edit' } | null>(null);
   const [page, setPage] = useState(1); // 当前页码
   const [totalCommentCount, setTotalCommentCount] = useState(totalCount); // 评论总数
   const [needLoadMore, setNeedLoadMore] = useState(true); // 是否需要加载更多，当最后一次获取的评论数小于分页大小时设为false
+  const [orderBy, setOrderBy] = useState<OrderBy>(OrderBy.CreatedAt); // 排序字段，默认按创建时间
+  const [desc, setDesc] = useState(true); // 是否降序，默认降序
   // 加载0/顶层评论
   useEffect(() => {
     // Reset pagination state when target changes
     setPage(1);
     setNeedLoadMore(true);
-    
+
     listComments({
       targetType,
       targetId,
       depth: 0,
-      orderBy: OrderBy.CreatedAt,
-      desc: true,
+      orderBy: orderBy,
+      desc: desc,
       page: 1,
       size: siteInfo.commentsPerPage || 8,
       commentId: 0
@@ -57,7 +60,7 @@ export function CommentSection(
         setNeedLoadMore(false);
       }
     });
-  }, [targetId, targetType, siteInfo.commentsPerPage]);
+  }, [targetId, targetType, siteInfo.commentsPerPage, orderBy, desc]);
 
   const onCommentSubmitted = ({ commentContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => {
     createComment({
@@ -97,8 +100,8 @@ export function CommentSection(
       targetType,
       targetId,
       depth: 0,
-      orderBy: OrderBy.CreatedAt,
-      desc: true,
+      orderBy: orderBy,
+      desc: desc,
       page: nextPage,
       size: siteInfo.commentsPerPage || 8,
       commentId: 0
@@ -113,7 +116,21 @@ export function CommentSection(
 
   return (
     <div>
-      <div className="font-bold text-2xl">{t("comment")} ({totalCommentCount})</div>
+      <div className="flex justify-between">
+        <div className="font-bold text-2xl">
+        {t("comment")} ({totalCommentCount})
+        </div>
+        <div className="flex"> 
+          <OrderSelector
+            initialOrder={{ orderBy, desc }}
+            onOrderChange={(o) => {
+              setOrderBy(o.orderBy);
+              setDesc(o.desc);
+            }}
+            orderBys={[OrderBy.CreatedAt, OrderBy.Like, OrderBy.CommentCount, OrderBy.UpdatedAt]}
+          />
+        </div>
+      </div>
       <CommentInput
         onCommentSubmitted={onCommentSubmitted}
       />
@@ -136,7 +153,7 @@ export function CommentSection(
         </Suspense>
         {needLoadMore ?
           <p onClick={handleLoadMore} className="text-center text-sm text-gray-500 my-4 cursor-pointer hover:underline">
-              {t("load_more")}
+            {t("load_more")}
           </p>
           :
           <p className="text-center text-sm text-gray-500 my-4">
