@@ -25,9 +25,6 @@ export function SidebarAbout() {
   return (
     <Card
       className="relative overflow-hidden text-white"
-      style={{
-        backgroundImage: "url(https://cdn.liteyuki.org/snowykami/dark_2.png)"
-      }}
     >
       <div
         className="absolute inset-0 bg-cover bg-center blur-sm"
@@ -48,17 +45,14 @@ export function SidebarAbout() {
         <CardContent>
           <div className="text-center mb-4">
             <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
-              <Avatar className="h-full w-full rounded-full">
+              <Avatar className="h-full w-full rounded-full border-2">
                 <AvatarImage src={getGravatarUrl({ email: siteInfo?.owner?.gravatarEmail || "snowykami@outlook.com", size: 256 })} alt={siteInfo?.owner?.name} />
                 <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(siteInfo?.owner?.name || "Failed")}</AvatarFallback>
               </Avatar>
             </div>
-            <h3 className="font-semibold text-lg">{siteInfo?.owner?.name || "Failed H3"}</h3>
-            <p className="text-sm text-white-600">{siteInfo?.owner?.motto || "Failed Motto"}</p>
+            <h3 className="font-semibold text-lg py-4">{siteInfo?.owner?.name || "Failed H3"}</h3>
+            <p className="text-sm text-white-600">{siteInfo?.owner?.description || "Failed Motto"}</p>
           </div>
-          <p className="text-sm text-white-600 leading-relaxed">
-            {siteInfo?.owner?.description || "Failed Description"}
-          </p>
         </CardContent>
       </div>
     </Card>

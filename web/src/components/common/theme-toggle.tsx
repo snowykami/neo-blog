@@ -1,6 +1,6 @@
 
 import { useDevice } from "@/contexts/device-context";
-import { Sun, Moon, SunMoon } from "lucide-react";
+import { Sun, Moon, SunMoon, EclipseIcon } from "lucide-react";
 import { motion } from "motion/react";
 import type React from "react";
 import { cn } from "@/lib/utils";
@@ -14,10 +14,10 @@ export function ThemeModeCycleButton({ mode, setMode }: { mode: ThemeMode; setMo
     if (mode === "dark") return "system";
     return "light";
   };
-  const icon = mode === "light" ? <Sun className="w-6 h-6" /> : mode === "dark" ? <Moon className="w-6 h-6" /> : <SunMoon className="w-6 h-6" />;
+  const icon = mode === "light" ? <Sun className="w-full h-full" /> : mode === "dark" ? <Moon className="w-full h-full" /> : <EclipseIcon className="w-full h-full" />;
   return (
     <div
-      className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-accent/50 transition-all duration-200 text-primary"
+      className="flex items-center justify-center"
       onClick={() => setMode(nextMode(mode))}
       title={mode === "light" ? "Light Mode" : mode === "dark" ? "Dark Mode" : "System Mode"}
       role="button"
@@ -38,7 +38,7 @@ export function ThemeModeSegmented(props: React.HTMLAttributes<HTMLDivElement> &
   const { mode, setMode, className, style, ...rest } = props;
   const modes: { value: ThemeMode; icon: React.ReactNode; label: string }[] = [
     { value: "light", icon: <Sun className="w-4 h-4" />, label: "Light" },
-    { value: "system", icon: <SunMoon className="w-4 h-4" />, label: "System" },
+    { value: "system", icon: <EclipseIcon className="w-4 h-4" />, label: "System" },
     { value: "dark", icon: <Moon className="w-4 h-4" />, label: "Dark" },
   ];
   const activeIndex = modes.findIndex((m) => m.value === mode);

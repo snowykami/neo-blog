@@ -231,6 +231,7 @@
     "edit": "编辑",
     "login": "登录",
     "logout": "登出",
+    "open": "打开",
     "preview": "预览",
     "previous": "上一页",
     "publish": "发布",
@@ -283,6 +284,13 @@
     "send_verify_code_failed": "发送验证码失败",
     "send_verify_code_success": "验证码已发送",
     "verify_code": "验证码"
+  },
+  "Role": {
+    "admin": "管理员",
+    "author": "作者",
+    "editor": "编辑者",
+    "me": "我",
+    "user": "用户"
   },
   "Route": {
     "about": "关于我",

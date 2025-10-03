@@ -16,6 +16,7 @@ import { useStoredState } from "@/hooks/use-storage-state";
 import { parseAsInteger, useQueryState } from "nuqs";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import Sidebar from "../blog-sidebar";
+import { navHeight } from "@/utils/common/layout-size";
 
 // 定义排序类型
 enum SortBy {
@@ -143,6 +144,7 @@ export default function BlogHome() {
             </motion.div>
             {/* 侧边栏 */}
             <motion.div
+              className={`sticky top-${navHeight + 4} self-start`}
               initial={{ x: 80, opacity: 0 }}
               animate={{ x: 0, y: 0, opacity: 1 }}
               transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}
@@ -159,7 +161,7 @@ export default function BlogHome() {
 
           </div>
         </div>
-      </section>
+      </section >
     </>
   );
 }

@@ -7,7 +7,7 @@ export interface User {
     preferredColor?: string;
     email: string;
     gender?: string;
-    role: string;
+    role: Role;
     language?: string;
 }
 

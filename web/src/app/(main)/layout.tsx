@@ -8,6 +8,7 @@ import { useSiteInfo } from '@/contexts/site-info-context'
 import { cn } from '@/lib/utils';
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { contentAreaMaxWidthClass, contentAreaPaddingClass } from '@/utils/common/layout-size';
 
 const withoutNavPaddingPaths = [
   "/p"
@@ -43,7 +44,7 @@ export default function RootLayout({
         </header>
       </motion.nav>
       <BackgroundProvider>
-        <div className={`container mx-auto px-4 sm:px-6 lg:px-10 max-w-7xl ${hasNavPadding ? 'pt-16' : ''}`}>{children}</div>
+        <div className={`container mx-auto ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${hasNavPadding ? 'pt-16' : ''}`}>{children}</div>
       </BackgroundProvider>
       <Footer />
     </>

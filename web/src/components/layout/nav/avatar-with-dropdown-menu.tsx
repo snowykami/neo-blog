@@ -32,11 +32,17 @@ export function AvatarWithDropdownMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <div className="rounded-full w-8 h-8 overflow-hidden flex items-center justify-center">
-          {user ? <Avatar className="h-6 w-6 rounded-full">
-            <AvatarImage src={getGravatarFromUser({ user })} alt={user.username} />
-            <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
-          </Avatar> : <User className="h-6 w-6 text-primary" />}
+        <div className="">
+          {
+            user
+              ?
+              <Avatar className="h-full w-full rounded-full border-1">
+                <AvatarImage className="rounded-full" src={getGravatarFromUser({ user })} alt={user.username} />
+                <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
+              </Avatar>
+              :
+              <User className="h-full w-full" />
+          }
         </div>
       </DropdownMenuTrigger>
 

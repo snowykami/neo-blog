@@ -7,6 +7,8 @@ import "highlight.js/styles/github-dark.css"; // 适用于暗黑模式
 import "highlight.js/styles/github-dark-dimmed.css"; // 适用于暗黑模式
 import CodeBlock from "@/components/common/markdown-codeblock";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ExternalLinkIcon } from "lucide-react";
+import { EnhancedLink } from "./markdown-a";
 
 export const markdownComponents = {
   h1: (props: React.ComponentPropsWithoutRef<"h1">) => (
@@ -54,10 +56,9 @@ export const markdownComponents = {
     <CodeBlock {...props}>{children}</CodeBlock>
   ),
   a: (props: React.ComponentPropsWithoutRef<"a">) => (
-    <a
-      className="text-primary/80 hover:text-primary font-bold underline decoration-dashed decoration-primary/50 hover:decoration-primary underline-offset-2"
-      {...props}
-    />
+    <EnhancedLink href={props.href || '#'} {...props}>
+      {props.children}
+    </EnhancedLink>
   ),
   table: (props: React.ComponentPropsWithoutRef<"table">) => {
     const { children, className, ...rest } = props;

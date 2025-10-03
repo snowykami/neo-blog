@@ -14,7 +14,8 @@ import Sidebar from "../blog-sidebar";
 import { SidebarAbout, SidebarLabels, SidebarMisskeyIframe } from "../blog-sidebar/blog-sidebar-card";
 import CopyrightCard from "./blog-copyright.client";
 import { WaveEffects } from "./wave-effect";
-import { navHeight } from "@/utils/common/nav";
+import { navHeight } from "@/utils/common/layout-size";
+import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size";
 
 async function PostHeader({ post }: { post: Post }) {
   const isMobile = await isMobileByUA();
@@ -41,9 +42,8 @@ async function PostHeader({ post }: { post: Post }) {
         aria-hidden="true"
       />
 
-
       {/* 内容层 */}
-      <div className="container mx-auto px-4 relative z-10">
+      <div className={`container mx-auto ${contentAreaPaddingClass} ${contentAreaMaxWidthClass} relative z-10`}>
         {/* 标签 */}
         {post.labels && post.labels.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
@@ -170,7 +170,7 @@ async function BlogPost({ post }: { post: Post }) {
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
           <PostContent post={post} />
           <div className="bg-background mt-4 p-4 md:p-8 rounded-xl border border-border">
-            <CommentSection targetType={TargetType.Post} targetId={post.id} totalCount={post.commentCount} />
+            <CommentSection targetType={TargetType.Post} ownerId={post.user.id} targetId={post.id} totalCount={post.commentCount} />
           </div>
         </motion.div>
 

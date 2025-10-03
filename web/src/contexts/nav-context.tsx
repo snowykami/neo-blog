@@ -1,6 +1,6 @@
 "use client";
 
-import { navHeight } from "@/utils/common/nav";
+import { navHeight } from "@/utils/common/layout-size";
 import React, { createContext, useContext, useState, useMemo, useCallback } from "react";
 
 type NavPaddingContextValue = {

@@ -2,6 +2,7 @@
 
 import { useBackground } from "@/contexts/background-context";
 import { useNavControl } from "@/contexts/nav-context";
+import { blogPostWithTransparentNavScrollMaxHeight } from "@/utils/common/layout-size";
 import { useEffect, useState } from "react";
 
 export default function RootLayout({
@@ -36,9 +37,9 @@ export default function RootLayout({
   }, [resetNavStyle]);
 
   useEffect(() => {
-    const maxGradientScroll = 160;
+    const maxGradientScroll = blogPostWithTransparentNavScrollMaxHeight;
     if (scrollY <= maxGradientScroll) {
-      setNavClassName(`bg-background/0 !text-white backdrop-blur-none transition-[color,background-color,border-color]`);
+      setNavClassName(`bg-background/0 !text-white [&_.text-primary]:!text-white backdrop-blur-none transition-[color,background-color,border-color]`);
     } else {
       resetNavStyle();
     }

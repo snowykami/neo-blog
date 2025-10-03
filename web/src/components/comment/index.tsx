@@ -20,10 +20,12 @@ export function CommentSection(
     targetType,
     targetId,
     totalCount = 0,
+    ownerId
   }: {
     targetType: TargetType,
     targetId: number,
     totalCount?: number
+    ownerId?: number,
   }
 ) {
   const {siteInfo} = useSiteInfo();
@@ -127,6 +129,7 @@ export function CommentSection(
                 activeInput={activeInput}
                 setActiveInputId={setActiveInput}
                 onReplySubmitted={onReplySubmitted}
+                ownerId={ownerId}
               />
             </div>
           ))}

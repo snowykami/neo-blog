@@ -18,11 +18,15 @@ import { useAuth } from "@/contexts/auth-context";
 import { DropdownMenu } from "@radix-ui/react-dropdown-menu";
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { useSiteInfo } from "@/contexts/site-info-context";
+import { Role } from "@/models/user";
+import { Badge } from "@/components/ui/badge";
 
 
 export function CommentItem(
   {
     comment,
+    ownerId,
     parentComment,
     onCommentDelete,
     activeInput,
@@ -30,6 +34,7 @@ export function CommentItem(
     onReplySubmitted  // 评论区计数更新用
   }: {
     comment: Comment,
+    ownerId?: number, // 不是评论的作者ID，而是文章的作者ID
     parentComment: Comment | null,
     onCommentDelete: ({ commentId }: { commentId: number }) => void,
     activeInput: { id: number; type: 'reply' | 'edit' } | null,
@@ -37,13 +42,14 @@ export function CommentItem(
     onReplySubmitted: ({ commentContent, isPrivate }: { commentContent: string, isPrivate: boolean }) => void,
   }
 ) {
+  const { siteInfo } = useSiteInfo();
   const { user } = useAuth();
   const locale = useLocale();
   const t = useTranslations("Comment");
+  const roleT = useTranslations("Role");
   const commonT = useTranslations("Common");
   const clickToUserProfile = useToUserProfile();
   const clickToLogin = useToLogin();
-  const { confirming, onClick, onBlur } = useDoubleConfirm();
 
   const [commentState, setCommentState] = useState<Comment>(comment); // 用于更新评论内容
   const [likeCount, setLikeCount] = useState(commentState.likeCount);
@@ -53,8 +59,6 @@ export function CommentItem(
   const [showReplies, setShowReplies] = useState(false);
   const [replies, setReplies] = useState<Comment[]>([]);
   const [repliesLoaded, setRepliesLoaded] = useState(false);
-
-  console.log(comment)
 
   const handleToggleLike = () => {
     if (!canClickLike) {
@@ -163,16 +167,31 @@ export function CommentItem(
     <div>
       <div className="flex">
         <div onClick={() => clickToUserProfile(commentState.user.username)} className="cursor-pointer fade-in w-12 h-12">
-          <Avatar className="h-full w-full rounded-full">
+          <Avatar className="h-full w-full rounded-full border-2">
             <AvatarImage src={getGravatarFromUser({ user: commentState.user, size: 120 })} alt={commentState.user.nickname} />
             <AvatarFallback className="rounded-full">{getFirstCharFromUser(commentState.user)}</AvatarFallback>
           </Avatar>
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <div className="flex gap-2 md:gap-4 items-center">
-            <div onClick={() => clickToUserProfile(commentState.user.username)} className="font-bold text-base text-slate-800 dark:text-slate-100 cursor-pointer fade-in-up">
+            {/* 用户名 */}
+            <div
+              onClick={() => clickToUserProfile(commentState.user.username)}
+              data-user-color={commentState.user.preferredColor || siteInfo.colorSchemes?.[0] || "blue"}
+              className="text-primary font-bold text-lg border-b-4 border-primary/40 hover:border-primary/70 cursor-pointer transition-colors duration-200">
               {commentState.user.nickname || commentState.user.username}
             </div>
+            {/* 吧唧 */}
+            {commentState.user.id === user?.id && <Badge className="bg-primary text-white"> {roleT("me")} </Badge>}
+            {commentState.user.id === ownerId && <Badge className="bg-pink-500 text-white"> {roleT("author")} </Badge>}
+            <Badge className={`
+              ${commentState.user.role === Role.ADMIN ? "bg-orange-500 text-white" : ""}
+              ${commentState.user.role === Role.EDITOR ? "bg-green-500 text-white" : ""}
+              ${commentState.user.role === Role.USER ? "bg-blue-500 text-white" : ""}
+              `}>
+              {roleT(commentState.user.role)}
+            </Badge>
+            {/* 创建时间 */}
             <span className="text-xs">{formatDateTime({
               dateTimeString: commentState.createdAt,
               locale,
@@ -190,13 +209,17 @@ export function CommentItem(
                 })
               })}</span>}
           </div>
-          <p className="text-lg text-slate-600 dark:text-slate-400 fade-in">
-            {
-              commentState.isPrivate && <Lock className="inline w-4 h-4 mr-1 mb-1 text-slate-500 dark:text-slate-400" />
-            }
-            {
-              parentComment &&
-              <>{t("reply")} <button onClick={() => clickToUserProfile(parentComment.user.username)} className="text-primary">{parentComment.user.nickname || parentComment.user.username}</button>: </>
+          <p className="text-lg text-slate-600 dark:text-slate-400 fade-in bg-accent rounded-xl px-4 py-2 my-2">
+            {commentState.isPrivate && <Lock className="inline w-4 h-4 mr-1 mb-1 text-slate-500 dark:text-slate-400" />}
+            {/* 回复提示 */}
+            {parentComment &&
+              <span>
+                {t("reply")}
+                <span onClick={() => clickToUserProfile(parentComment.user.username)}
+                  className="text-primary font-semibold border-b-4 border-primary/40 cursor-pointer hover:border-primary/70 transition-colors mx-1">
+                  {parentComment.user.nickname || parentComment.user.username}
+                </span>:{" "}
+              </span>
             }
             {commentState.content}
           </p>
@@ -215,7 +238,7 @@ export function CommentItem(
               )}
               {/* 更多 */}
               {user?.id === comment.user.id && <CommentDropdownMenu comment={commentState} setActiveInputId={setActiveInputId} onCommentDelete={onCommentDelete} />}
-              
+
               {/* 回复按钮 */}
               <button
                 title={t("reply")}
@@ -242,7 +265,7 @@ export function CommentItem(
               >
                 <Heart className="w-3 h-3" /> <div>{likeCount}</div>
               </button>
-              
+
             </div>
           </div>
         </div>
@@ -266,6 +289,7 @@ export function CommentItem(
             <CommentItem
               key={reply.id}
               comment={reply}
+              ownerId={ownerId}
               parentComment={commentState}
               onCommentDelete={onReplyDelete}
               activeInput={activeInput}

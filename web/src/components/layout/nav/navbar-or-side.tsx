@@ -22,6 +22,7 @@ import { useSiteInfo } from "@/contexts/site-info-context"
 import { useTranslations } from 'next-intl';
 import { AppWindowMacIcon, ArchiveIcon, ContactIcon, HouseIcon, InfoIcon, Link2Icon, NewspaperIcon, PanelRight, PanelsTopLeftIcon, RssIcon, ShuffleIcon, TagsIcon } from "lucide-react"
 import { mainPath } from "@/utils/common/route"
+import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size"
 
 const navbarMenuComponents = [
   {
@@ -77,7 +78,8 @@ export default function Navbar() {
   const { navbarAdditionalClassName } = useDevice()
   const { siteInfo } = useSiteInfo();
   return (
-    <nav className={`grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-full px-4 w-full ${navbarAdditionalClassName}`}>
+    <nav className={`grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-full px-4 w-full 
+    ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${navbarAdditionalClassName}`}>
       <div className="flex items-center justify-start">
         <span className="font-bold text-lg truncate text-primary">
           <Link href="/" className="flex items-center">
@@ -90,12 +92,20 @@ export default function Navbar() {
         <NavMenuCenter />
       </div>
       <div className="flex items-center justify-end gap-3 md:gap-4">
-        <AvatarWithDropdownMenu />
-        <ThemeModeToggle className="hidden md:block" />
-        <Link href="/rss.xml" className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-accent/50 transition-all duration-200 text-primary">
-          <RssIcon className="w-6 h-6 text-primary" />
-        </Link>
-        <SidebarMenu />
+        {[
+          <AvatarWithDropdownMenu key="a8d92h1" />,
+          <ThemeModeToggle className="hidden md:block" key="a8d92h2" />,
+          <Link href="/rss.xml" className="flex items-center justify-center" key="a8d92h3">
+            <RssIcon className="w-full h-full" />
+          </Link>,
+        ].map((Comp, index) => (
+          <div
+            key={index}
+            className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-accent/50 transition-all duration-200 text-primary cursor-pointer">
+            {Comp}
+          </div>
+        ))}
+        {<SidebarMenu />}
       </div>
     </nav>
   )
@@ -170,7 +180,7 @@ function SidebarMenu() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
           <button
-            className="p-2 rounded-md hover:bg-accent transition-colors"
+            className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-accent/50 transition-all duration-200 text-primary cursor-pointer"
           >
             <PanelRight className="w-6 h-6 text-primary" />
           </button>
