@@ -30,6 +30,9 @@ export async function generateMetadata(): Promise<Metadata> {
       default: siteInfo.metadata.name || "Error Blog",
       template: `%s - ${siteInfo.metadata.name}`,
     },
+    icons: [
+      { rel: 'icon', url: siteInfo.metadata.icon },
+    ]
   };
 }
 

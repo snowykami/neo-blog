@@ -6,9 +6,9 @@ export type SiteInfo = {
   colorSchemes: string[];
   baseUrl?: string;
   metadata: {
-    name?: string;
-    icon?: string;
-    description?: string;
+    name: string;
+    icon: string;
+    description: string;
   };
   defaultCover: string;
   owner: {
@@ -38,7 +38,7 @@ export const fallbackSiteInfo: SiteInfo = {
   colorSchemes: ["blue", "green", "orange", "red", "rose", "violet", "yellow"],
   metadata: {
     name: "Failed to Fetch",
-    icon: "",
+    icon: "https://cdn.liteyuki.org/snowykami/avatar_alpha.png",
     description: "Failed to fetch site info from server.",
   },
   defaultCover: "https://cdn.liteyuki.org/blog/background.png",

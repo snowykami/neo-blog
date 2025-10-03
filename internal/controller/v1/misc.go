@@ -30,7 +30,7 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 	value, err := repo.KV.GetKV(KeySiteInfo, utils.H{
 		"metadata": repo.KV.GetKVWithoutErr("metadata", utils.H{
 			"name":        "Neo Blog S",
-			"icon":        "https://cdn.liteyuki.org/snowykami/avatar.jpg",
+			"icon":        "https://cdn.liteyuki.org/snowykami/avatar_alpha.png",
 			"description": "A neo blog system.",
 		}),
 		"color_schemes": repo.KV.GetKVWithoutErr("color_schemes", []string{"blue", "green", "orange", "red", "rose", "pink", "violet", "yellow"}),
