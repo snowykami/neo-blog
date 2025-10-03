@@ -180,7 +180,7 @@
   "Copyright": {
     "author": "作者",
     "copyright_notice": "版权声明",
-    "default_copyright": "除非另有说明，本文均采用 {license} 许可协议，转载请注明出处。",
+    "default_copyright": "除非另有说明，本站文章许可协议都是 {license}，转载请注明出处。",
     "license": "许可协议",
     "no_copyright": "本文暂无版权声明，但转载时请注明出处。",
     "no_derivative_works": "禁止演绎",
