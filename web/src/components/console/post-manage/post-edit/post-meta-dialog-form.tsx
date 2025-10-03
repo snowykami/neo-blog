@@ -33,7 +33,6 @@ export function PostSettingButtonWithDialog({ post, onMetaChange }: { post: Post
       cover: post.cover || "",
       category: post.category,
       labels: post.labels ? post.labels.map(label => label.id) : [],
-      isOrigin: post.isOriginal,
       isPrivate: post.isPrivate,
     }
   })

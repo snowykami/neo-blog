@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { DeviceProvider } from "@/contexts/device-context";
 import { NextIntlClientProvider } from 'next-intl';
 import { AuthProvider } from "@/contexts/auth-context";
+import { NavPaddingProvider } from "@/contexts/nav-context";
 import { getFirstLocale } from '@/i18n/request';
 import { Toaster } from "@/components/ui/sonner"
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
@@ -54,7 +54,10 @@ export default async function RootLayout({
             <NextIntlClientProvider>
               <AuthProvider initialUser={user}>
                 <SiteInfoProvider initialData={siteInfo!}>
-                  {children}
+                  <NavPaddingProvider>
+
+                    {children}
+                  </NavPaddingProvider>
                 </SiteInfoProvider>
               </AuthProvider>
             </NextIntlClientProvider>

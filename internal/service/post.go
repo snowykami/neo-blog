@@ -20,7 +20,7 @@ func NewPostService() *PostService {
 	return &PostService{}
 }
 
-func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (uint, error) {
+func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePostOrDraftReq) (uint, error) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return 0, errs.ErrUnauthorized
@@ -86,7 +86,7 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 	return post.ToDto(), nil
 }
 
-func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOrUpdatePostReq) (uint, error) {
+func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOrUpdatePostOrDraftReq) (uint, error) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return 0, errs.ErrUnauthorized
@@ -105,11 +105,9 @@ func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOr
 	utils.UpdateNonEmpty(&post.Description, req.Description)
 	utils.UpdateNonEmpty(&post.Content, req.Content)
 	utils.UpdateNonEmpty(&post.Cover, req.Cover)
-	utils.UpdateNonEmpty(&post.Type, req.Type)
 	utils.UpdatePtrNonZero(&post.Slug, req.Slug)
 	utils.UpdatePtrUint(&post.CategoryID, req.CategoryID)
 	utils.UpdateBool(&post.IsPrivate, req.IsPrivate)
-	utils.UpdateBool(&post.IsOriginal, req.IsOriginal)
 	post.Labels = func() []model.Label {
 		labelModels := make([]model.Label, len(req.Labels))
 		for _, labelID := range req.Labels {

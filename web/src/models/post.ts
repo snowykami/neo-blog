@@ -10,11 +10,9 @@ export interface Post {
     content: string;
     cover: string | null; // 封面可以为空
     category: Category | null; // 分类可以为空
-    type: "markdown" | "html" | "text";
     labels: Label[] | null; // 标签可以为空
     user: User
     isPrivate: boolean;
-    isOriginal: boolean;
     likeCount: number;
     commentCount: number;
     viewCount: number;

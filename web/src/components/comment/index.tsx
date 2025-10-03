@@ -111,7 +111,6 @@ export function CommentSection(
 
   return (
     <div>
-      <Separator className="my-16" />
       <div className="font-bold text-2xl">{t("comment")} ({totalCommentCount})</div>
       <CommentInput
         onCommentSubmitted={onCommentSubmitted}

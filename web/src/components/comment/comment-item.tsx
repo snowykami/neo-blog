@@ -214,6 +214,7 @@ export function CommentItem(
                 </button>
               )}
               {/* 更多 */}
+              {user?.id === comment.user.id && <CommentDropdownMenu comment={commentState} setActiveInputId={setActiveInputId} onCommentDelete={onCommentDelete} />}
               
               {/* 回复按钮 */}
               <button
@@ -241,7 +242,7 @@ export function CommentItem(
               >
                 <Heart className="w-3 h-3" /> <div>{likeCount}</div>
               </button>
-              {user?.id === comment.user.id && <CommentDropdownMenu comment={commentState} setActiveInputId={setActiveInputId} onCommentDelete={onCommentDelete} />}
+              
             </div>
           </div>
         </div>

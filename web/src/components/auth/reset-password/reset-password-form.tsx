@@ -26,6 +26,7 @@ export function ResetPasswordForm({
 }: React.ComponentProps<"div">) {
   const t = useTranslations('ResetPassword')
   const commonT = useTranslations('Common')
+  const operationT = useTranslations("Operation")
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [verifyCode, setVerifyCode] = useState("")
@@ -112,11 +113,11 @@ export function ResetPasswordForm({
                 </Button>
                 <div className="text-center text-sm">
                   <Link href={loginPath} className="underline underline-offset-4">
-                    {commonT("login")}
+                    {operationT("login")}
                   </Link>
                   {"  "}
                   <Link href={registerPath} className="underline underline-offset-4">
-                    {commonT("register")}
+                    {operationT("register")}
                   </Link>
                 </div>
               </div>

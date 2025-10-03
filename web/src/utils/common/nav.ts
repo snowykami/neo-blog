@@ -1,0 +1,1 @@
+export const navHeight = 16; // px

@@ -8,6 +8,8 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -25,7 +27,7 @@ func NewPostController() *PostController {
 }
 
 func (p *PostController) Create(ctx context.Context, c *app.RequestContext) {
-	var req dto.CreateOrUpdatePostReq
+	var req dto.CreateOrUpdatePostOrDraftReq
 	if err := c.BindAndValidate(&req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
@@ -70,7 +72,7 @@ func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 }
 
 func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
-	var req dto.CreateOrUpdatePostReq
+	var req dto.CreateOrUpdatePostOrDraftReq
 	if err := c.BindAndValidate(&req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
@@ -103,3 +105,16 @@ func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 	}
 	resps.Ok(c, resps.Success, utils.H{"posts": posts, "total": total})
 }
+
+func (p *PostController) GetDraft(ctx context.Context, c *app.RequestContext) {
+	id := ctxutils.GetIDParam(c).Uint
+	draft := model.Draft{}
+	repo.GetDB().Where("id = ?", id).First(&draft)
+	resps.Ok(c, resps.Success, draft)
+}
+
+func (p *PostController) CreateDraft(ctx context.Context, c *app.RequestContext) {}
+
+func (p *PostController) UpdateDraft(ctx context.Context, c *app.RequestContext) {}
+
+func (p *PostController) DeleteDraft(ctx context.Context, c *app.RequestContext) {}

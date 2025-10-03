@@ -22,6 +22,8 @@ export type SiteInfo = {
   commentsPerPage: number;
   verifyCodeCoolDown: number;
   animationDurationSecond: number;
+  copyright?: string;
+  copyrightLink?: string;
   footer: {
     text?: string;
     links?: {
@@ -51,6 +53,8 @@ export const fallbackSiteInfo: SiteInfo = {
   commentsPerPage: 10,
   verifyCodeCoolDown: 60,
   animationDurationSecond: 0.3,
+  copyright: "CC BY-NC-SA 4.0",
+  copyrightLink: "https://creativecommons.org/licenses/by/4.0/",
   footer: {
     text: "Default footer text",
     links: [

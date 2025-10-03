@@ -12,133 +12,138 @@ import { fallbackSiteInfo } from "@/contexts/site-info-context";
 import { getSiteInfo } from "@/api/misc";
 import Sidebar from "../blog-sidebar";
 import { SidebarAbout, SidebarLabels, SidebarMisskeyIframe } from "../blog-sidebar/blog-sidebar-card";
-
-function PostMeta({ post }: { post: Post }) {
-  return (
-    <div className="flex flex-wrap items-center gap-4 mt-6 text-secondary">
-      {/* 作者 */}
-      <span className="flex items-center gap-1">
-        <PenLine className="w-4 h-4" />
-        {post.user.nickname || post.user.username || "未知作者"}
-      </span>
-      {/* 字数 */}
-      <span className="flex items-center gap-1">
-        <FileText className="w-4 h-4" />
-        {post.content.length || 0}
-      </span>
-      {/* 阅读时间 */}
-      <span className="flex items-center gap-1">
-        <Clock className="w-4 h-4" />
-        {calculateReadingTime(post.content)} 分钟
-      </span>
-      {/* 发布时间 */}
-      <span className="flex items-center gap-1">
-        <Calendar className="w-4 h-4" />
-        {post.createdAt ? new Date(post.createdAt).toLocaleDateString("zh-CN") : ""}
-      </span>
-      {/* 最后编辑时间，如果和发布时间不一样 */}
-      {post.updatedAt && post.createdAt !== post.updatedAt && (
-        <span className="flex items-center gap-1">
-          <SquarePen className="w-4 h-4" />
-          {new Date(post.updatedAt).toLocaleDateString("zh-CN")}
-        </span>
-      )}
-      {/* 浏览数 */}
-      <span className="flex items-center gap-1">
-        <Flame className="w-4 h-4" />
-        {post.viewCount || 0}
-      </span>
-      {/* 点赞数 */}
-      <span className="flex items-center gap-1">
-        <Heart className="w-4 h-4" />
-        {post.likeCount || 0}
-      </span>
-      {/* 评论数 */}
-      <span className="flex items-center gap-1">
-        <MessageCircle className="w-4 h-4" />
-        {post.commentCount || 0}
-      </span>
-      {/* 热度 */}
-      <span className="flex items-center gap-1">
-        <Flame className="w-4 h-4" />
-        {post.heat || 0}
-      </span>
-    </div>
-  );
-}
+import CopyrightCard from "./blog-copyright.client";
+import { WaveEffects } from "./wave-effect";
+import { navHeight } from "@/utils/common/nav";
 
 async function PostHeader({ post }: { post: Post }) {
   const isMobile = await isMobileByUA();
+  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
+
   return (
-    <div className={`relative ${isMobile ? "py-16" : "py-32"}`}>
-      {/* 背景层 */}
+    <div className={`relative ${isMobile ? "py-16" : "py-32"} overflow-hidden`} style={{ width: '100vw', marginLeft: '50%', transform: 'translateX(-50%)' }}>
+      {/* 背景图片层 */}
       <div
-        className="pointer-events-none absolute inset-0 left-1/2 right-1/2 w-screen -translate-x-1/2 bg-gradient-to-bl from-blue-700 to-purple-700 dark:from-blue-500 dark:to-purple-500"
+        className="absolute inset-0"
+        style={{
+          zIndex: -3,
+          backgroundImage: `url(${post.cover || siteInfo.defaultCover})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
         aria-hidden="true"
-        style={{ zIndex: -1 }}
       />
+
+      {/* 模糊遮罩层 */}
       <div
-        className={`container mx-auto px-4`}
-      >
-        {(post.labels || post.isOriginal) && (
+        className="absolute inset-0 backdrop-blur-md bg-black/30"
+        style={{ zIndex: -2 }}
+        aria-hidden="true"
+      />
+
+
+      {/* 内容层 */}
+      <div className="container mx-auto px-4 relative z-10">
+        {/* 标签 */}
+        {post.labels && post.labels.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
-            {post.isOriginal && (
-              <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded">
-                原创
-              </span>
-            )}
-            {(post.labels || []).map(label => (
-              <span key={label.id} className="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded">
+            {post.labels.map(label => (
+              <span
+                key={label.id}
+                className="bg-white/20 backdrop-blur-sm text-white border border-white/30 text-xs px-3 py-1 rounded-full font-medium shadow-sm"
+              >
                 {label.name}
               </span>
             ))}
           </div>
         )}
-        <h1 className="text-5xl font-bold mb-2 text-primary-foreground">{post.title}</h1>
-        {/* 元数据区 */}
-        <div>
-          <PostMeta post={post} />
+
+        <h1 className="text-3xl md:text-5xl font-bold mb-4 text-white drop-shadow-lg leading-tight">
+          {post.title}
+        </h1>
+
+        {post.description && (
+          <p className="text-lg md:text-xl text-white/90 mb-6 max-w-3xl leading-relaxed drop-shadow-sm">
+            {post.description}
+          </p>
+        )}
+
+        <div className="backdrop-blur-sm bg-white/15 rounded-lg p-4 border border-white/20 shadow-lg">
+          <PostMetaWhite post={post} />
         </div>
       </div>
 
+      {/* 波浪层 */}
+      <WaveEffects />
+    </div>
+  );
+}
+
+// 适配白色背景的 PostMeta 组件
+function PostMetaWhite({ post }: { post: Post }) {
+  const metaItems = [
+    {
+      icon: PenLine,
+      text: post.user.nickname || post.user.username || "未知作者",
+      label: "作者"
+    },
+    {
+      icon: FileText,
+      text: `${post.content.length || 0} 字`,
+      label: "字数"
+    },
+    {
+      icon: Clock,
+      text: `${calculateReadingTime(post.content)} 分钟`,
+      label: "阅读时间"
+    },
+    {
+      icon: Calendar,
+      text: post.createdAt ? new Date(post.createdAt).toLocaleDateString("zh-CN") : "",
+      label: "发布时间"
+    },
+    ...(post.updatedAt && post.createdAt !== post.updatedAt ? [{
+      icon: SquarePen,
+      text: new Date(post.updatedAt).toLocaleDateString("zh-CN"),
+      label: "最后编辑"
+    }] : []),
+    {
+      icon: Flame,
+      text: post.viewCount || 0,
+      label: "浏览"
+    },
+    {
+      icon: Heart,
+      text: post.likeCount || 0,
+      label: "点赞"
+    },
+    {
+      icon: MessageCircle,
+      text: post.commentCount || 0,
+      label: "评论"
+    }
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-white/90">
+      {metaItems.map((item, index) => (
+        <span key={index} className="flex items-center gap-1.5 text-sm">
+          <item.icon className="w-4 h-4 text-white/70" />
+          <span className="font-medium">{item.text}</span>
+        </span>
+      ))}
     </div>
   );
 }
 
 async function PostContent({ post }: { post: Post }) {
-  const markdownClass =
-    "prose prose-lg max-w-none dark:prose-invert " +
-    // h1-h6
-    "[&_h1]:scroll-m-20 [&_h1]:text-4xl [&_h1]:font-extrabold [&_h1]:tracking-tight [&_h1]:text-balance [&_h1]:mt-10 [&_h1]:mb-6 " +
-    "[&_h2]:scroll-m-20 [&_h2]:border-b [&_h2]:pb-2 [&_h2]:text-3xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:first:mt-0 [&_h2]:mt-8 [&_h2]:mb-4 " +
-    "[&_h3]:scroll-m-20 [&_h3]:text-2xl [&_h3]:font-semibold [&_h3]:tracking-tight [&_h3]:mt-6 [&_h3]:mb-3 " +
-    "[&_h4]:scroll-m-20 [&_h4]:text-xl [&_h4]:font-semibold [&_h4]:tracking-tight [&_h4]:mt-5 [&_h4]:mb-2 " +
-    // p
-    "[&_p]:leading-7 [&_p]:mt-4 [&_p]:mb-4 " +
-    // blockquote
-    "[&_blockquote]:border-l-4 [&_blockquote]:border-blue-400 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:my-6 [&_blockquote]:py-2 " +
-    // code
-    "[&_code]:bg-gray-100 [&_code]:dark:bg-gray-800 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-sm [&_code]:font-mono " +
-    // a
-    "[&_a]:text-blue-600 [&_a]:hover:underline";
   return (
-    <div className="prose prose-lg max-w-none dark:prose-invert">
-      {post.type === "html" && (
-        <div
-          className={`${markdownClass}`}
-          dangerouslySetInnerHTML={{ __html: post.content }}
-        />
-      )}
-      {post.type === "markdown" && (
-        <Suspense>
-          <RenderMarkdown source={post.content} />
-        </Suspense>
-      )}
-      {post.type === "text" && (
-        <div className="text-xl text-slate-700 dark:text-slate-300 my-6">
-          {post.content}
-        </div>
-      )}
+    <div className="bg-background prose prose-lg max-w-none dark:prose-invert border-1 pt-0 p-4 md:p-8 rounded-xl">
+      <Suspense>
+        <RenderMarkdown source={post.content} />
+      </Suspense>
+      {/* 版权卡片 */}
+      <CopyrightCard post={post} />
     </div>
   );
 }
@@ -156,18 +161,22 @@ async function BlogPost({ post }: { post: Post }) {
         <PostHeader post={post} />
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 py-4">
+        {/* 正文和评论区 */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           className="lg:col-span-3"
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
           <PostContent post={post} />
-          <CommentSection targetType={TargetType.Post} targetId={post.id} totalCount={post.commentCount} />
+          <div className="bg-background mt-4 p-4 md:p-8 rounded-xl border border-border">
+            <CommentSection targetType={TargetType.Post} targetId={post.id} totalCount={post.commentCount} />
+          </div>
         </motion.div>
 
+        {/* 侧边栏 */}
         <motion.div
-          className="pt-4"
+          className={`sticky top-${navHeight + 4} self-start`}
           initial={{ x: 80, opacity: 0 }}
           animate={{ x: 0, y: 0, opacity: 1 }}
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}
@@ -181,8 +190,6 @@ async function BlogPost({ post }: { post: Post }) {
           />
         </motion.div>
       </div>
-
-
     </div>
   );
 }

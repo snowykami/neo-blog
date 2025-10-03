@@ -2,28 +2,38 @@ package dto
 
 import "time"
 
-type PostDto struct {
-	ID           uint       `json:"id"`          // 帖子ID
-	UserID       uint       `json:"user_id"`     // 发布者的用户ID
-	User         UserDto    `json:"user"`        // 发布者信息
-	Slug         string     `json:"slug"`        // 帖子别名
-	Title        string     `json:"title"`       // 帖子标题
-	Description  string     `json:"description"` // 帖子描述
-	Content      string     `json:"content"`
-	Cover        string     `json:"cover"`         // 帖子封面图
-	Type         string     `json:"type"`          // 帖子类型 markdown / html / text
-	Labels       []LabelDto `json:"labels"`        // 关联的标签
-	IsOriginal   bool       `json:"is_original"`   // 是否为原创帖子
-	IsPrivate    bool       `json:"is_private"`    // 是否为私密帖子
-	LikeCount    uint64     `json:"like_count"`    // 点赞数
-	CommentCount uint64     `json:"comment_count"` // 评论数
-	ViewCount    uint64     `json:"view_count"`    // 浏览数
-	Heat         uint64     `json:"heat"`          // 热度
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"` // 更新时间
+type PostBaseDto struct {
+	Title       string       `json:"title"`
+	Description string       `json:"description"`
+	Slug        *string      `json:"slug"`
+	Cover       string       `json:"cover"`
+	Content     string       `json:"content"`
+	Type        string       `json:"type"`
+	Category    *CategoryDto `json:"category"`
+	Labels      []LabelDto   `json:"labels"`
+	IsOriginal  bool         `json:"is_original"`
+	IsPrivate   bool         `json:"is_private"`
 }
 
-type CreateOrUpdatePostReq struct {
+type PostDto struct {
+	ID     uint    `json:"id"`      // 帖子ID
+	UserID uint    `json:"user_id"` // 发布者的用户ID
+	User   UserDto `json:"user"`    // 发布者信息
+	PostBaseDto
+	LikeCount    uint64    `json:"like_count"`    // 点赞数
+	CommentCount uint64    `json:"comment_count"` // 评论数
+	ViewCount    uint64    `json:"view_count"`    // 浏览数
+	Heat         uint64    `json:"heat"`          // 热度
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"` // 更新时间
+}
+
+type DraftDto struct {
+	PostID uint `json:"post_id"` // 关联的帖子ID，如果有的话
+	PostBaseDto
+}
+
+type CreateOrUpdatePostOrDraftReq struct {
 	Title       string  `json:"title"`
 	Description string  `json:"description"`
 	Slug        *string `json:"slug"`

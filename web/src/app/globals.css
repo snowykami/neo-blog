@@ -53,10 +53,6 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-:root {
-  --animation-duration: 0.6s;
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -66,17 +62,13 @@
   }
 }
 
-html, body {
-  transition: background-color 0.2s !important;
-}
-
 .sonner-toast {
   background-color: aqua;
 }
 
 ::-webkit-scrollbar {
-  width: 2px;           /* 垂直滚动条宽度 */
-  height: 2px;          /* 水平滚动条高度 */
+  width: 6px;           /* 垂直滚动条宽度 */
+  height: 6px;          /* 水平滚动条高度 */
   background: transparent; /* 滚动条轨道背景 */
   position: absolute;   /* 实际不会影响内容布局 */
 }

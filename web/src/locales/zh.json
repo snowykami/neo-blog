@@ -177,6 +177,17 @@
       "color_scheme": "颜色风格"
     }
   },
+  "Copyright": {
+    "author": "作者",
+    "copyright_notice": "版权声明",
+    "default_copyright": "除非另有说明，本文均采用 {license} 许可协议，转载请注明出处。",
+    "license": "许可协议",
+    "no_copyright": "本文暂无版权声明，但转载时请注明出处。",
+    "no_derivative_works": "禁止演绎",
+    "no_reuse": "禁止转载",
+    "original_link": "原文链接",
+    "post_at": "发布于"
+  },
   "Login": {
     "bind_oidc": "继续绑定第三方账号",
     "captcha_error": "验证错误，请重试。",
@@ -234,6 +245,7 @@
     "set_private": "设为私密",
     "set_public": "设为公开",
     "submit": "提交",
+    "switch_account": "切换账号",
     "tips": "提示",
     "update": "更新",
     "update_failed": "更新失败",
@@ -273,12 +285,16 @@
     "verify_code": "验证码"
   },
   "Route": {
+    "about": "关于我",
     "archive": "归档",
     "console": "控制台",
+    "contact": "联系我",
+    "friends": "友链",
     "homepage": "首页",
     "label": "标签",
     "page": "页面",
     "post": "文章",
+    "privacy_policy": "隐私政策",
     "profile": "个人资料",
     "random": "随机"
   },

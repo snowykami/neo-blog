@@ -20,9 +20,9 @@ func registerPostRoutes(group *route.RouterGroup) {
 		postGroup.PUT("/p/:id", postController.Update)
 		postGroup.DELETE("/p/:id", postController.Delete)
 		// draft TODO
-		postGroup.GET("/d/:id")
-		postGroup.POST("/d")
-		postGroup.PUT("/d/:id")
-		postGroup.DELETE("/d/:id")
+		postGroup.GET("/d/:id", postController.GetDraft)
+		postGroup.POST("/d", postController.CreateDraft)
+		postGroup.PUT("/d/:id", postController.UpdateDraft)
+		postGroup.DELETE("/d/:id", postController.DeleteDraft)
 	}
 }

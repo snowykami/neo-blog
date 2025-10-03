@@ -23,28 +23,44 @@ export function SidebarAbout() {
   const { siteInfo } = useSiteInfo();
   if (!siteInfo) return null;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Heart className="w-5 h-5 text-red-500" />
-          关于我
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-center mb-4">
-          <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
-            <Avatar className="h-full w-full rounded-full">
-              <AvatarImage src={getGravatarUrl({ email: siteInfo?.owner?.gravatarEmail || "snowykami@outlook.com", size: 256 })} alt={siteInfo?.owner?.name} />
-              <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(siteInfo?.owner?.name || "Failed")}</AvatarFallback>
-            </Avatar>
+    <Card
+      className="relative overflow-hidden text-white"
+      style={{
+        backgroundImage: "url(https://cdn.liteyuki.org/snowykami/dark_2.png)"
+      }}
+    >
+      <div
+        className="absolute inset-0 bg-cover bg-center blur-sm"
+        style={{
+          backgroundImage: "url(https://cdn.liteyuki.org/snowykami/dark_2.png)",
+          filter: "blur(4px)",
+          transform: "scale(1.1)" // 避免模糊边缘
+        }}
+      />
+      <div className="absolute inset-0 bg-white/0 dark:bg-gray-900/20" />
+      <div className="relative z-10">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 ">
+            <Heart className="w-5 h-5 text-red-500"/>
+            关于我
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center mb-4">
+            <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
+              <Avatar className="h-full w-full rounded-full">
+                <AvatarImage src={getGravatarUrl({ email: siteInfo?.owner?.gravatarEmail || "snowykami@outlook.com", size: 256 })} alt={siteInfo?.owner?.name} />
+                <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(siteInfo?.owner?.name || "Failed")}</AvatarFallback>
+              </Avatar>
+            </div>
+            <h3 className="font-semibold text-lg">{siteInfo?.owner?.name || "Failed H3"}</h3>
+            <p className="text-sm text-white-600">{siteInfo?.owner?.motto || "Failed Motto"}</p>
           </div>
-          <h3 className="font-semibold text-lg">{siteInfo?.owner?.name || "Failed H3"}</h3>
-          <p className="text-sm text-slate-600">{siteInfo?.owner?.motto || "Failed Motto"}</p>
-        </div>
-        <p className="text-sm text-slate-600 leading-relaxed">
-          {siteInfo?.owner?.description || "Failed Description"}
-        </p>
-      </CardContent>
+          <p className="text-sm text-white-600 leading-relaxed">
+            {siteInfo?.owner?.description || "Failed Description"}
+          </p>
+        </CardContent>
+      </div>
     </Card>
   );
 }

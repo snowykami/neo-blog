@@ -11,7 +11,7 @@ import {
 import Link from "next/link";
 import { useToLogin } from "@/hooks/use-route";
 import { consolePath } from "@/utils/common/route";
-import { CircleUser, LogIn, LogOut, PanelLeft, User } from "lucide-react";
+import { ArrowLeftRightIcon, LogIn, LogOut, PanelLeft, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarFromUser } from "@/utils/common/gravatar";
 import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common/username";
@@ -32,12 +32,12 @@ export function AvatarWithDropdownMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="rounded-full overflow-hidden">
-          {user ? <Avatar className="h-8 w-8 rounded-full">
+        <div className="rounded-full w-8 h-8 overflow-hidden flex items-center justify-center">
+          {user ? <Avatar className="h-6 w-6 rounded-full">
             <AvatarImage src={getGravatarFromUser({ user })} alt={user.username} />
             <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
-          </Avatar> : <CircleUser className="h-8 w-8" />}
-        </button>
+          </Avatar> : <User className="h-full w-full text-primary" />}
+        </div>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent className="w-auto" align="start">
@@ -60,23 +60,27 @@ export function AvatarWithDropdownMenu() {
             <DropdownMenuGroup className="p-0">
               <DropdownMenuItem asChild>
                 <Link href={`/u/${user?.username}`}>
-                <User />{routeT("profile")}
+                  <User />{routeT("profile")}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href={user.role === Role.ADMIN ? consolePath.dashboard : consolePath.userProfile}>
-                <PanelLeft />
-                {routeT("console")}
+                  <PanelLeft />
+                  {routeT("console")}
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
           </>
         }
-
-        <DropdownMenuItem onClick={user ? handleLogout : toLogin}>
-          {user ? <><LogOut />{operationT("logout")}</> : <><LogIn />{operationT("login")}</>}
-        </DropdownMenuItem>
+        <DropdownMenuGroup className="p-0">
+          {user && <DropdownMenuItem onClick={toLogin}>
+            <ArrowLeftRightIcon />{operationT("switch_account")}
+          </DropdownMenuItem>}
+          <DropdownMenuItem onClick={user ? handleLogout : toLogin}>
+            {user ? <><LogOut />{operationT("logout")}</> : <><LogIn />{operationT("login")}</>}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

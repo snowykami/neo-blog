@@ -1,6 +1,6 @@
 
 import { useDevice } from "@/contexts/device-context";
-import { Sun, Moon, Monitor } from "lucide-react";
+import { Sun, Moon, SunMoon } from "lucide-react";
 import { motion } from "motion/react";
 import type React from "react";
 import { cn } from "@/lib/utils";
@@ -8,32 +8,28 @@ import { cn } from "@/lib/utils";
 type ThemeMode = "light" | "dark" | "system";
 
 // PC端：三状态轮换按钮
-export function ThemeModeCycleButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { mode: ThemeMode; setMode: (m: ThemeMode) => void }) {
-  const { mode, setMode, className, style, onClick, ...rest } = props;
+export function ThemeModeCycleButton({ mode, setMode }: { mode: ThemeMode; setMode: (m: ThemeMode) => void }) {
   const nextMode = (mode: ThemeMode): ThemeMode => {
     if (mode === "light") return "dark";
     if (mode === "dark") return "system";
     return "light";
   };
-  const icon = mode === "light" ? <Sun className="w-4 h-4" /> : mode === "dark" ? <Moon className="w-4 h-4" /> : <Monitor className="w-4 h-4" />;
-  const label = mode.charAt(0).toUpperCase() + mode.slice(1);
-
-  const baseCls = "flex items-center gap-2 px-2 py-2 rounded-full bg-muted hover:bg-accent border border-input text-sm font-medium transition-all";
-  const mergedClassName = cn(baseCls, className);
-
+  const icon = mode === "light" ? <Sun className="w-6 h-6" /> : mode === "dark" ? <Moon className="w-6 h-6" /> : <SunMoon className="w-6 h-6" />;
   return (
-    <button
-      className={mergedClassName}
-      style={style}
-      onClick={(e) => {
-        setMode(nextMode(mode));
-        onClick?.(e);
+    <div
+      className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-accent/50 transition-all duration-200 text-primary"
+      onClick={() => setMode(nextMode(mode))}
+      title={mode === "light" ? "Light Mode" : mode === "dark" ? "Dark Mode" : "System Mode"}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          setMode(nextMode(mode));
+        }
       }}
-      title={`切换主题（当前：${label}）`}
-      {...rest}
     >
       {icon}
-    </button>
+    </div>
   );
 }
 
@@ -42,7 +38,7 @@ export function ThemeModeSegmented(props: React.HTMLAttributes<HTMLDivElement> &
   const { mode, setMode, className, style, ...rest } = props;
   const modes: { value: ThemeMode; icon: React.ReactNode; label: string }[] = [
     { value: "light", icon: <Sun className="w-4 h-4" />, label: "Light" },
-    { value: "system", icon: <Monitor className="w-4 h-4" />, label: "System" },
+    { value: "system", icon: <SunMoon className="w-4 h-4" />, label: "System" },
     { value: "dark", icon: <Moon className="w-4 h-4" />, label: "Dark" },
   ];
   const activeIndex = modes.findIndex((m) => m.value === mode);
