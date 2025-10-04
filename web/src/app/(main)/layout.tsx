@@ -19,7 +19,7 @@ export default function RootLayout({
   return (
     <>
       <motion.nav
-        className='transition-none w-full fixed inset-x-0 z-9999' // 禁用全局动画，使用motion.div单独控制动画
+        className='w-full fixed inset-x-0 z-9999' // 禁用全局动画，使用motion.div单独控制动画
         initial={{ y: -64 }}
         animate={{ y: 0 }}
         transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
@@ -29,8 +29,10 @@ export default function RootLayout({
           </div>
         </div>
       </motion.nav>
-      <BackgroundProvider>
-        <div className={`transition-none mx-auto ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${hasNavPadding ? 'pt-16' : ''}`}>{children}</div>
+      <BackgroundProvider defaultBackground={
+        <div className="absolute inset-0 -z-10 bg-primary/20" />
+      }>
+        <div className={`mx-auto ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${hasNavPadding ? 'pt-16' : ''}`}>{children}</div>
       </BackgroundProvider>
       <Footer />
     </>

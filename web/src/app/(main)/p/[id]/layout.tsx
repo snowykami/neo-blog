@@ -11,7 +11,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const { setBackground } = useBackground();
+  const { setBackground, resetBackground } = useBackground();
   const { setNavStyle, resetNavStyle, setHasNavPadding } = useNav();
   const [scrollY, setScrollY] = useState(typeof window !== "undefined" ? window.scrollY : 0);
 
@@ -21,7 +21,7 @@ export default function RootLayout({
       <div className="absolute inset-0 -z-10 bg-primary/20">
       </div>
     )
-    return () => setBackground(null);
+    return () => resetBackground();
   }, [setBackground]);
 
   // 设置无导航栏内边距
@@ -50,7 +50,7 @@ export default function RootLayout({
     if (scrollY <= maxGradientScroll / 2) {
       setNavStyle(`bg-transparent backdrop-blur-none !text-white [&_.text-primary]:text-white`);
     } else if (scrollY < maxGradientScroll) {
-      setNavStyle(`bg-background/40 backdrop-blur- !text-white [&_.text-primary]:text-white`);
+      setNavStyle(`bg-background/40 backdrop-blur !text-white [&_.text-primary]:text-white`);
     } else {
       resetNavStyle();
     }
