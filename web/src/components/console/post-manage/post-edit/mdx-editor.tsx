@@ -42,6 +42,87 @@ import {
 } from "@mdxeditor/editor";
 import { ForwardedRef } from "react";
 import '@mdxeditor/editor/style.css';
+import { uploadFile } from "@/api/file";
+import { toast } from "sonner";
+import { useTranslations } from "next-intl";
+
+export function InitializedMDXEditor({
+  editorRef,
+  ...props
+}: { editorRef: ForwardedRef<MDXEditorMethods> | null } & MDXEditorProps) {
+  const operationT = useTranslations("Operation");
+  return (
+    <MDXEditor
+      {...props}
+      ref={editorRef}
+      plugins={[
+        codeBlockPlugin({ defaultCodeBlockLanguage: 'yaml' }),
+        codeMirrorPlugin({
+          codeBlockLanguages: codeBlockLanguages
+        }),
+        diffSourcePlugin(),
+        directivesPlugin({
+          directiveDescriptors: [AdmonitionDirectiveDescriptor],
+        }),
+        frontmatterPlugin(),
+        headingsPlugin(),
+        imagePlugin({
+          imageUploadHandler: getImageUploadHandler(operationT),
+        }),
+        jsxPlugin(),
+        linkPlugin(),
+        linkDialogPlugin(),
+        listsPlugin(),
+        markdownShortcutPlugin(),
+        quotePlugin(),
+        sandpackPlugin({ sandpackConfig: simpleSandpackConfig }),
+        tablePlugin(),
+        thematicBreakPlugin(),
+        toolbarPlugin({
+          toolbarClassName: 'mdx-toolbar',
+          toolbarContents: () => (
+            <>
+              <DiffSourceToggleWrapper>
+                <UndoRedo />
+                <BoldItalicUnderlineToggles />
+                <BlockTypeSelect />
+                {/* <ChangeAdmonitionType /> */}
+                {/* <ChangeCodeMirrorLanguage /> */}
+                <CodeToggle />
+                <CreateLink />
+                <InsertAdmonition />
+                <InsertCodeBlock />
+                <InsertFrontmatter />
+                <InsertImage />
+                <InsertSandpack />
+                <InsertTable />
+                <InsertThematicBreak />
+                <ListsToggle />
+                {/* <ShowSandpackInfo /> */}
+              </DiffSourceToggleWrapper>
+            </>
+          )
+        }),
+      ]}
+
+    />
+  )
+}
+
+
+function getImageUploadHandler(operationT: ReturnType<typeof useTranslations>): (image: File) => Promise<string> {
+  return (image: File) => {
+    return uploadFile(
+      { file: image, group: 'post' },
+    ).then(res => {
+      toast.success(operationT("upload_success"));
+      return res.data.url;
+    }).catch(() => {
+      toast.error(operationT("upload_failed"));
+      return '';
+    });
+  }
+}
 
 const codeBlockLanguages = {
   py: "Python",
@@ -94,66 +175,4 @@ const simpleSandpackConfig: SandpackConfig = {
       initialSnippetContent: defaultSnippetContent
     }
   ]
-}
-
-
-export function InitializedMDXEditor({
-  editorRef,
-  ...props
-}: { editorRef: ForwardedRef<MDXEditorMethods> | null } & MDXEditorProps) {
-  return (
-    <MDXEditor
-      {...props}
-      ref={editorRef}
-      plugins={[
-        codeBlockPlugin({ defaultCodeBlockLanguage: 'yaml' }),
-        codeMirrorPlugin({
-          codeBlockLanguages: codeBlockLanguages
-        }),
-        diffSourcePlugin(),
-        directivesPlugin({
-          directiveDescriptors: [AdmonitionDirectiveDescriptor],
-        }),
-        frontmatterPlugin(),
-        headingsPlugin(),
-        imagePlugin(),
-        jsxPlugin(),
-        linkPlugin(),
-        linkDialogPlugin(),
-        listsPlugin(),
-        markdownShortcutPlugin(),
-        quotePlugin(),
-        sandpackPlugin({ sandpackConfig: simpleSandpackConfig }),
-        tablePlugin(),
-        thematicBreakPlugin(),
-        toolbarPlugin({
-          toolbarClassName: 'mdx-toolbar',
-          toolbarContents: () => (
-            <>
-              <DiffSourceToggleWrapper>
-                <UndoRedo />
-                <BoldItalicUnderlineToggles />
-                <BlockTypeSelect />
-                {/* <ChangeAdmonitionType /> */}
-
-                {/* <ChangeCodeMirrorLanguage /> */}
-                <CodeToggle />
-                <CreateLink />
-                <InsertAdmonition />
-                <InsertCodeBlock />
-                <InsertFrontmatter />
-                <InsertImage />
-                <InsertSandpack />
-                <InsertTable />
-                <InsertThematicBreak />
-                <ListsToggle />
-                {/* <ShowSandpackInfo /> */}
-              </DiffSourceToggleWrapper>
-            </>
-          )
-        }),
-      ]}
-
-    />
-  )
 }

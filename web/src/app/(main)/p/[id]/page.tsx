@@ -22,7 +22,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function PostPage({ params }: Props) {
-  const cookieStore = await cookies();
   const { id } = await params;
   const post = await getPostByIdServer({ id}).then(res => res.data).catch(() => null);
   if (!post) return <div>Not Found</div>

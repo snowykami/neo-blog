@@ -114,6 +114,7 @@
     },
     "post_edit": {
       "title": "编辑文章",
+      "last_saved_at": "最后保存于 {time}",
       "no_category": "没有分类",
       "no_label": "没有标签",
       "post_category": "分类",
@@ -125,6 +126,7 @@
       "post_title": "标题",
       "title_placeholder": "输入标题...",
       "save_draft": "存草稿",
+      "saving_draft": "保存中...",
       "select_category": "选择分类",
       "select_labels": "选择标签",
       "uncategorized": "未分类"
@@ -269,6 +271,8 @@
     "update_failed": "更新失败",
     "update_success": "更新成功",
     "upload": "上传",
+    "upload_failed": "上传失败",
+    "upload_success": "上传成功",
     "view": "查看"
   },
   "Order": {

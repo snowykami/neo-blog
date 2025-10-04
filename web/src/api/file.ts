@@ -17,6 +17,7 @@ export async function uploadFile(
 ): Promise<BaseResponse<{
   hash: string,
   id: number,
+  url: string
 }>> {
   if (typeof window === 'undefined') {
     throw new Error('uploadFile can only be used in the browser')
@@ -32,6 +33,7 @@ export async function uploadFile(
   const res = await axiosClient.post<BaseResponse<{
     hash: string,
     id: number,
+    url: string
   }>>('/file/f', formData, {
   })
   return res.data

@@ -31,7 +31,7 @@ func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 	var post model.Post
 
 	// 先按 slug 查找（优先）
-	if err := GetDB().Where("slug = ?", slugOrId).Preload("User").First(&post).Error; err != nil {
+	if err := GetDB().Where("slug = ?", slugOrId).Preload("User").Preload("Labels").Preload("Category").First(&post).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
@@ -90,7 +90,7 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, label string
 
 	if label != "" {
 		var labelModel model.Label
-		if err := GetDB().Where("name = ?", label).First(&labelModel).Error; err != nil {
+		if err := GetDB().Where("name = ? OR slug = ?", label, label).First(&labelModel).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// 标签不存在，直接返回空结果
 				return []model.Post{}, 0, nil

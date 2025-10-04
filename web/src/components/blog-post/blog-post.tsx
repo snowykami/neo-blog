@@ -7,7 +7,6 @@ import { calculateReadingTime } from "@/utils/common/post";
 import { CommentSection } from "@/components/comment";
 import { TargetType } from '@/models/types';
 import * as motion from "motion/react-client"
-import { fallbackSiteInfo } from "@/contexts/site-info-context";
 import { getSiteInfo } from "@/api/misc";
 import Sidebar from "../blog-sidebar";
 import { SidebarAbout, SidebarLabels, SidebarMisskeyIframe } from "../blog-sidebar/blog-sidebar-card";
@@ -16,10 +15,12 @@ import { WaveEffects } from "./wave-effect";
 import { navStickyTopPx } from "@/utils/common/layout-size";
 import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size";
 import { BlogLikeButton } from "./blog-like-button.client";
+import { fallbackSiteInfo } from "@/utils/common/siteinfo";
+import Link from "next/link";
+import { getLabelUrl } from "@/utils/common/route";
 
 async function PostHeader({ post }: { post: Post }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
-
   return (
     <div className={`relative pt-30 pb-36 md:pt-36 md:pb-48 overflow-hidden transition-none`} style={{ width: '100vw', marginLeft: '50%', transform: 'translateX(-50%)' }}>
       {/* 背景图片层 */}
@@ -47,12 +48,13 @@ async function PostHeader({ post }: { post: Post }) {
         {post.labels && post.labels.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {post.labels.map(label => (
-              <span
-                key={label.id}
-                className="bg-white/20 backdrop-blur-sm text-white border border-white/30 text-xs px-3 py-1 rounded-full font-medium shadow-sm"
-              >
-                {label.name}
-              </span>
+              <Link href={getLabelUrl(label)} passHref>
+                <span
+                  className="bg-white/20 backdrop-blur-sm text-white border border-white/30 text-xs px-3 py-1 rounded-full font-medium shadow-sm"
+                >
+                  {label.name}
+                </span>
+              </Link>
             ))}
           </div>
         )}
@@ -78,42 +80,34 @@ function PostMetaWhite({ post }: { post: Post }) {
     {
       icon: PenLine,
       text: post.user.nickname || post.user.username || "未知作者",
-      label: "作者"
     },
     {
       icon: FileText,
       text: `${post.content.length || 0} 字`,
-      label: "字数"
     },
     {
       icon: Clock,
       text: `${calculateReadingTime(post.content)} 分钟`,
-      label: "阅读时间"
     },
     {
       icon: Calendar,
       text: post.createdAt ? new Date(post.createdAt).toLocaleDateString("zh-CN") : "",
-      label: "发布时间"
     },
     ...(post.updatedAt && post.createdAt !== post.updatedAt ? [{
       icon: SquarePen,
       text: new Date(post.updatedAt).toLocaleDateString("zh-CN"),
-      label: "最后编辑"
     }] : []),
     {
       icon: Flame,
       text: post.viewCount || 0,
-      label: "浏览"
     },
     {
       icon: Heart,
       text: post.likeCount || 0,
-      label: "点赞"
     },
     {
       icon: MessageCircle,
       text: post.commentCount || 0,
-      label: "评论"
     }
   ];
 

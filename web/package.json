@@ -60,6 +60,7 @@
     "react-image-crop": "^11.0.10",
     "recharts": "3.2.1",
     "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
     "rss": "^1.2.2",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",

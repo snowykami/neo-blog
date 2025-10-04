@@ -40,6 +40,6 @@ export function getCategoryUrl<T extends { slug: string }>(category: T): string 
   return `/c/${category.slug}`;
 }
 
-export function getLabelUrl<T extends { slug: string }>(label: T): string {
-  return `/l/${label.slug}`;
+export function getLabelUrl<T extends { slug: string, name: string }>(label: T): string {
+  return `/?label=${label.slug || label.name}`;
 }

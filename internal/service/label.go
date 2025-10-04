@@ -55,13 +55,7 @@ func (l *LabelService) ListLabels() ([]dto.LabelDto, error) {
 		return labelDtos, err
 	}
 	for _, label := range labels {
-		labelDtos = append(labelDtos, dto.LabelDto{
-			ID: label.ID,
-			LabelBase: dto.LabelBase{
-				Name:              label.Name,
-				TailwindClassName: label.TailwindClassName,
-			},
-		})
+		labelDtos = append(labelDtos, label.ToDto())
 	}
 	return labelDtos, nil
 }

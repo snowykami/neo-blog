@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getGravatarUrl } from "@/utils/common/gravatar";
 import { getFallbackAvatarFromUsername } from "@/utils/common/username";
 import { useSiteInfo } from "@/contexts/site-info-context";
-import { getPostUrl } from "@/utils/common/route";
+import { getLabelUrl, getPostUrl } from "@/utils/common/route";
 import { getLabels } from "@/api/label";
 import { useRouter } from "next/navigation";
 
@@ -110,11 +110,11 @@ export function SidebarLabels({ label = null, setLabel }: { label?: string | nul
     })
   }, []);
 
-  const onClickLabel = (labelName: string) => {
+  const onClickLabel = (l: Label) => {
     if (setLabel) {
-      setLabel(labelName === label ? null : labelName);
+      setLabel(label === l.slug ? null : l.slug);
     } else {
-      router.push(`/?label=${labelName}`);
+      router.push(getLabelUrl(l));
     }
   };
 
@@ -129,8 +129,8 @@ export function SidebarLabels({ label = null, setLabel }: { label?: string | nul
             <Badge
               key={l.name}
               variant="outline"
-              onClick={() => onClickLabel(l.name)}
-              className={`text-xs hover:bg-blue-50 cursor-pointer` + (label === l.name ? " bg-blue-100 text-blue-700 hover:bg-blue-200" : "")}
+              onClick={() => onClickLabel(l)}
+              className={`text-xs hover:bg-blue-50 cursor-pointer` + (label === l.slug ? " bg-blue-100 text-blue-700 hover:bg-blue-200" : "")}
             >
               {l.name}
             </Badge>
