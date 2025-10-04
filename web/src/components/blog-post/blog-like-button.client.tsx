@@ -14,6 +14,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { getGravatarFromUser } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
 
+const MAX_LIKED_USERS = 5;
+
 export function BlogLikeButton({
   post
 }: { post: Post }) {
@@ -29,7 +31,7 @@ export function BlogLikeButton({
 
   useEffect(() => {
     getLikedUsers({ targetType: TargetType.Post, targetId: post.id, number: 5 }).then(res => {
-      setLikedUsers(res.data.users || []);
+      setLikedUsers(res.data.users?.slice(0, MAX_LIKED_USERS) || []);
     }).catch(() => {
       setLikedUsers([]);
     });
