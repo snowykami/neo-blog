@@ -14,7 +14,7 @@ export function ThemeModeCycleButton({ mode, setMode }: { mode: ThemeMode; setMo
     if (mode === "dark") return "system";
     return "light";
   };
-  const icon = mode === "light" ? <Sun className="w-full h-full" /> : mode === "dark" ? <Moon className="w-full h-full" /> : <EclipseIcon className="w-full h-full" />;
+  const icon = mode === "light" ? <Sun className="w-6 h-6" /> : mode === "dark" ? <Moon className="w-6 h-6" /> : <EclipseIcon className="w-6 h-6" />;
   return (
     <div
       className="flex items-center justify-center"

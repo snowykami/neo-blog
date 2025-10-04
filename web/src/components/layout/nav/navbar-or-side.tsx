@@ -98,7 +98,7 @@ export default function Navbar() {
           <AvatarWithDropdownMenu key="a8d92h1" />,
           <ThemeModeToggle className="hidden md:block" key="a8d92h2" />,
           <Link href="/rss.xml" className="flex items-center justify-center" key="a8d92h3">
-            <RssIcon className="w-full h-full text-primary" />
+            <RssIcon className="w-6 h-6 text-primary" />
           </Link>,
         ].map((Comp, index) => (
           <div
