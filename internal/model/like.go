@@ -12,6 +12,7 @@ type Like struct {
 	TargetType string
 	TargetID   uint
 	UserID     uint
+	User       User `gorm:"foreignKey:UserID"`
 }
 
 // AfterCreate 点赞后更新被点赞对象的计数

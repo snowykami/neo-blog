@@ -86,6 +86,28 @@ func (l *likeRepo) Count(targetID uint, targetType string) (int64, error) {
 	return count, nil
 }
 
+// GetLikedUsers 获取点赞用户列表
+func (l *likeRepo) GetLikedUsers(targetID uint, targetType string) ([]model.User, error) {
+	if err := l.checkTargetType(targetType); err != nil {
+		return nil, err
+	}
+
+	var users []model.User
+	db := GetDB()
+
+	// 使用 join + group/distinct 确保每个用户只返回一次
+	if err := db.Model(&model.User{}).
+		Select("users.*").
+		Joins("JOIN likes ON likes.user_id = users.id").
+		Where("likes.target_type = ? AND likes.target_id = ?", targetType, targetID).
+		Group("users.id").
+		Find(&users).Error; err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
 func (l *likeRepo) checkTargetType(targetType string) error {
 	switch targetType {
 	case constant.TargetTypePost, constant.TargetTypeComment:

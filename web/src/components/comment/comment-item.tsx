@@ -49,6 +49,7 @@ export function CommentItem(
   const t = useTranslations("Comment");
   const roleT = useTranslations("Role");
   const commonT = useTranslations("Common");
+  const operationT = useTranslations("Operation");
   const clickToUserProfile = useToUserProfile();
   const clickToLogin = useToLogin();
 
@@ -69,7 +70,7 @@ export function CommentItem(
     if (!user) {
       toast.error(commonT("login_required"), {
         action: {
-          label: commonT("login"),
+          label: operationT("login"),
           onClick: clickToLogin,
         },
       })
@@ -83,10 +84,10 @@ export function CommentItem(
     toggleLike(
       { targetType: TargetType.Comment, targetId: commentState.id }
     ).then(res => {
-      toast.success(res.data.status ? t("like_success") : t("unlike_success"));
+      toast.success(res.data.status ? operationT("like_success") : operationT("unlike_success"));
       setCanClickLike(true);
     }).catch(error => {
-      toast.error(t("like_failed") + ": " + error.message);
+      toast.error(operationT("like_failed") + ": " + error.message);
       // 失败回滚
       setLiked(likedPrev);
       setLikeCount(likeCountPrev);

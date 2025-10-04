@@ -23,7 +23,7 @@ func NewLikeController() *LikeController {
 }
 
 func (lc *LikeController) ToggleLike(ctx context.Context, c *app.RequestContext) {
-	var toggleLikeReq dto.ToggleLikeReq
+	var toggleLikeReq dto.ToggleLikeOrIsLikedOrLikedUsersReq
 	if err := c.BindAndValidate(&toggleLikeReq); err != nil {
 		logrus.Error(err)
 		resps.BadRequest(c, resps.ErrParamInvalid)
@@ -37,4 +37,21 @@ func (lc *LikeController) ToggleLike(ctx context.Context, c *app.RequestContext)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"status": liked})
+}
+
+func (lc *LikeController) GetLikedUsers(ctx context.Context, c *app.RequestContext) {
+	var req dto.ToggleLikeOrIsLikedOrLikedUsersReq
+	if err := c.BindAndValidate(&req); err != nil {
+		logrus.Error(err)
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	users, err := lc.service.GetLikedUsers(ctx, req.TargetID, req.TargetType)
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		logrus.Error(serviceErr.Error())
+		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"users": users})
 }

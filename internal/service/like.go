@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/snowykami/neo-blog/internal/ctxutils"
+	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/errs"
 )
@@ -20,4 +21,16 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 		return false, errs.ErrUnauthorized
 	}
 	return repo.Like.ToggleLike(currentUser.ID, targetID, targetType)
+}
+
+func (ls *LikeService) GetLikedUsers(ctx context.Context, targetID uint, targetType string) ([]dto.UserDto, error) {
+	users, err := repo.Like.GetLikedUsers(targetID, targetType)
+	if err != nil {
+		return nil, err
+	}
+	var userDtos []dto.UserDto
+	for _, user := range users {
+		userDtos = append(userDtos, user.ToDto())
+	}
+	return userDtos, nil
 }

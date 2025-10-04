@@ -43,9 +43,6 @@
     "edit_failed": "编辑评论失败",
     "edit_success": "评论已更新",
     "expand_replies": "展开 {count} 条",
-    "like": "点赞",
-    "like_failed": "点赞失败",
-    "like_success": "点赞成功",
     "load_more": "加载更多",
     "no_more": "没有更多了!",
     "placeholder": "写下你的评论...",
@@ -234,6 +231,7 @@
     "like_success": "点赞成功",
     "login": "登录",
     "logout": "登出",
+    "n_users_liked": "{n} 人已点赞",
     "open": "打开",
     "preview": "预览",
     "previous": "上一页",
@@ -281,7 +279,10 @@
     "registering": "注册中...",
     "register_a_new_account": "注册一个新账号",
     "register_failed": "注册失败",
-    "register_success": "注册成功！"
+    "register_success": "注册成功！",
+    "send_verify_code": "发送验证码",
+    "send_verify_code_failed": "发送验证码失败",
+    "send_verify_code_success": "注册验证码已发送"
   },
   "ResetPassword": {
     "title": "重置密码",
@@ -291,7 +292,7 @@
     "reset_password_success": "密码已重置，请使用新密码登录",
     "send_verify_code": "发送验证码",
     "send_verify_code_failed": "发送验证码失败",
-    "send_verify_code_success": "验证码已发送",
+    "send_verify_code_success": "重置密码验证码已发送",
     "verify_code": "验证码"
   },
   "Role": {

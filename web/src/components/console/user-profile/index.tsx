@@ -59,7 +59,6 @@ export function UserProfilePage() {
   const [avatarFileUrl, setAvatarFileUrl] = useState<string | null>(null)
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null)
   const [backgroundFileUrl, setBackgroundFileUrl] = useState<string | null>(null)
-  const [isFormChanged, setIsFormChanged] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -156,14 +155,14 @@ export function UserProfilePage() {
   if (!user) return null
 
   const onSubmit = form.handleSubmit(async (values) => {
-    // check values
-    if (values.nickname.trim() === '' || values.username.trim() === '') {
+    // check values nickname可为空
+    if (values.username.trim() === '') {
       toast.error(t("nickname_and_username_cannot_be_empty"))
       return;
     }
     if (
       (values.username.length < 1 || values.username.length > 20) ||
-      (values.nickname.length < 1 || values.nickname.length > 20)
+      (values.nickname.length > 20)
     ) {
       toast.error(t("nickname_and_username_must_be_between", { "min": 1, "max": 20 }))
       return;
