@@ -14,7 +14,7 @@ import Sidebar from "../blog-sidebar";
 import { SidebarAbout, SidebarLabels, SidebarMisskeyIframe } from "../blog-sidebar/blog-sidebar-card";
 import CopyrightCard from "./blog-copyright.client";
 import { WaveEffects } from "./wave-effect";
-import { navHeight } from "@/utils/common/layout-size";
+import { navHeight, navStickyTopPx } from "@/utils/common/layout-size";
 import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size";
 
 async function PostHeader({ post }: { post: Post }) {
@@ -178,9 +178,10 @@ async function BlogPost({ post }: { post: Post }) {
 
         {/* 侧边栏 */}
         <motion.div
-          className={`sticky top-${sideCardTop} self-start transition-none`}
+          className={`sticky self-start transition-none`}
           initial={{ x: 80, opacity: 0 }}
           animate={{ x: 0, y: 0, opacity: 1 }}
+          style={{ top: navStickyTopPx }}
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}
         >
           <Sidebar
