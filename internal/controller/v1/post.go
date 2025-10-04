@@ -12,6 +12,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
+	utils2 "github.com/snowykami/neo-blog/pkg/utils"
 )
 
 type PostController struct {
@@ -67,14 +68,14 @@ func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 		resps.NotFound(c, resps.ErrNotFound)
 		return
 	}
+
 	if isDraft {
 		// 草稿请求仅允许作者本人查看
 		if !ctxutils.IsOwnerOfTarget(ctx, post.UserID) && !ctxutils.IsAdmin(ctx) {
 			resps.Forbidden(c, resps.ErrForbidden)
 			return
 		}
-		resps.Ok(c, resps.Success, utils.H{"draft_content": post.DraftContent})
-		return
+		post.DraftContent = utils2.Ternary(post.DraftContent == nil, &post.Content, post.DraftContent)
 	} else {
 		post.DraftContent = nil // 非草稿请求不返回草稿内容
 	}

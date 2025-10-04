@@ -78,7 +78,7 @@ func UseAuth(block bool) app.HandlerFunc {
 			resps.Unauthorized(c, resps.ErrUnauthorized)
 			c.Abort()
 		} else {
-			logrus.Debug("UseAuth: all authentication methods failed, blocking request")
+			logrus.Debug("UseAuth: all authentication methods failed, pass request")
 			c.Next(ctx)
 		}
 	}

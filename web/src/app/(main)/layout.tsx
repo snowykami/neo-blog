@@ -6,7 +6,6 @@ import Footer from '@/components/layout/footer'
 import Navbar from '@/components/layout/nav/navbar-or-side'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { contentAreaMaxWidthClass, contentAreaPaddingClass, navHeight } from '@/utils/common/layout-size';
-import ScrollbarOverlay from '@/components/common/scrollbar-overlay';
 
 
 export default function RootLayout({
@@ -33,7 +32,6 @@ export default function RootLayout({
       <BackgroundProvider>
         <div className={`transition-none mx-auto ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${hasNavPadding ? 'pt-16' : ''}`}>{children}</div>
       </BackgroundProvider>
-      <ScrollbarOverlay />
       <Footer />
     </>
   )

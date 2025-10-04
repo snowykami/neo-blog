@@ -18,10 +18,10 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Bold, Italic, Underline } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslations } from 'next-intl'
-import { Input } from '@/components/ui/input'
 import { useParams } from 'next/navigation'
-import { getPostById } from '@/api/post'
+import { getPostById, updatePost } from '@/api/post'
 import { PostSettingButtonWithDialog } from './post-meta-dialog-form'
+import { toast } from 'sonner'
 
 export function PostEdit() {
   const { id } = useParams() as { id: string };
@@ -35,8 +35,8 @@ export function PostEdit() {
   }, [id]);
 
   useEffect(() => {
-    editorRef.current?.setMarkdown(post?.content || "")
-  }, [post?.content])
+    editorRef.current?.setMarkdown(post?.draftContent || "")
+  }, [post?.draftContent])
 
   if (!post) return null;
 
@@ -45,7 +45,7 @@ export function PostEdit() {
       <EditorNavbar editorRef={editorRef} post={post} />
       <EditorToolbar editorRef={editorRef} />
       <div className="mt-4 border-1 rounded-sm">
-        <InitializedMDXEditor className="typography" editorRef={editorRef} markdown={post?.content || ''} />
+        <InitializedMDXEditor className="typography" editorRef={editorRef} markdown={post?.draftContent || ''} />
       </div>
     </div>
   )
@@ -75,13 +75,23 @@ export function InitializedMDXEditor({
 function EditorNavbar({ editorRef, post }: { post: Post,editorRef: ForwardedRef<MDXEditorMethods> | null }) {
   const t = useTranslations("Console.post_edit")
   const operationT = useTranslations("Operation")
+
+  const saveDraft = () => {
+    const markdown = editorRef && 'current' in editorRef && editorRef.current ? editorRef.current.getMarkdown() : '';
+    updatePost({ post: { id: post.id, draftContent: markdown } }).then(res => {
+      toast.success(operationT("save_success"));
+    }).catch(() => {
+      toast.error(operationT("save_failed"));
+    });
+  }
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center space-x-2">
       </div>
       <div className="flex items-center space-x-2">
         <PostSettingButtonWithDialog post={post} />
-        <Button variant="outline">{t("save_draft")}</Button>
+        <Button onClick={saveDraft} variant="outline">{t("save_draft")}</Button>
         <Button >{operationT("publish")}</Button>
       </div>
     </div>

@@ -8,9 +8,12 @@ export interface Post {
     title: string;
     slug: string | null;
     content: string;
+    draftContent: string | null; // 草稿内容，仅在请求草稿时返回
     cover: string | null; // 封面可以为空
     category: Category | null; // 分类可以为空
+    categoryId: number | null; // 分类 ID，可以为空
     labels: Label[] | null; // 标签可以为空
+    labelIds: number[] | null; // 标签 ID 列表，可以为空
     user: User
     isPrivate: boolean;
     likeCount: number;

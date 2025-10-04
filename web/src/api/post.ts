@@ -4,11 +4,12 @@ import axiosClient from './client'
 import { OrderBy, PaginationParams } from '@/models/common'
 
 
-export async function getPostById({ id, token = "" }: { id: string, token?: string }): Promise<BaseResponse<Post | null>> {
-  const res = await axiosClient.get<BaseResponse<Post>>(`/post/p/${id}`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
+export async function getPostById(
+  { id, token = '', type = 'normal' }: { id: string; type?: 'draft' | 'normal'; token?: string }
+): Promise<BaseResponse<any>> {
+  const res = await axiosClient.get<BaseResponse<any>>(`/post/p/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { type },
   })
   return res.data
 }
@@ -37,7 +38,7 @@ export async function listPosts({
   return res.data
 }
 
-export async function updatePost({ post }: { post: Post }): Promise<BaseResponse<Post>> {
+export async function updatePost({ post }: { post: Partial<Post> & Pick<Post, 'id'> }): Promise<BaseResponse<Post>> {
   const res = await axiosClient.put<BaseResponse<Post>>(`/post/p/${post.id}`, post)
   return res.data
 }

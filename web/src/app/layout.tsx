@@ -11,6 +11,7 @@ import "./globals.css";
 import { fallbackSiteInfo, SiteInfoProvider } from "@/contexts/site-info-context";
 import { getSiteInfo } from "@/api/misc";
 import { getLoginUserServer } from "@/api/user.server";
+import ScrollbarOverlay from "@/components/common/scrollbar-overlay";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -58,8 +59,8 @@ export default async function RootLayout({
               <AuthProvider initialUser={user}>
                 <SiteInfoProvider initialData={siteInfo!}>
                   <NavPaddingProvider>
-
                     {children}
+                    <ScrollbarOverlay />
                   </NavPaddingProvider>
                 </SiteInfoProvider>
               </AuthProvider>
