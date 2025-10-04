@@ -64,6 +64,7 @@ func (p *Post) ToDto() *dto.PostDto {
 				return labelDtos
 			}(),
 		},
+		IsLiked:      false, // 默认未点赞，需在业务逻辑中设置
 		LikeCount:    p.LikeCount,
 		CommentCount: p.CommentCount,
 		ViewCount:    p.ViewCount,

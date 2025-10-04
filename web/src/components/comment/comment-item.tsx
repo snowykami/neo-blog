@@ -184,15 +184,7 @@ export function CommentItem(
 
             <div className="flex items-center gap-2 flex-wrap">
               {/* 吧唧 */}
-              {commentState.user.id === user?.id && <Badge className="bg-primary text-white"> {roleT("me")} </Badge>}
               {commentState.user.id === ownerId && <Badge className="bg-pink-500 text-white"> {roleT("author")} </Badge>}
-              <Badge className={`
-              ${commentState.user.role === Role.ADMIN ? "bg-orange-500 text-white" : ""}
-              ${commentState.user.role === Role.EDITOR ? "bg-green-500 text-white" : ""}
-              ${commentState.user.role === Role.USER ? "bg-blue-500 text-white" : ""}
-              `}>
-                {roleT(commentState.user.role)}
-              </Badge>
               {/* 创建时间 */}
               <span className="text-xs">{formatDateTime({
                 dateTimeString: commentState.createdAt,
@@ -202,14 +194,16 @@ export function CommentItem(
               })}</span>
               {commentState.createdAt !== commentState.updatedAt &&
                 (new Date(commentState.updatedAt).getTime() - new Date(commentState.createdAt).getTime()) > 10000 &&
-                <span className="text-xs">{t("edit_at", {
+                <span className="text-xs hidden md:flex">{t("edit_at", {
                   time: formatDateTime({
                     dateTimeString: commentState.updatedAt,
                     locale,
                     convertShortAgo: true,
                     unitI18n: { secondsAgo: commonT("secondsAgo"), minutesAgo: commonT("minutesAgo"), hoursAgo: commonT("hoursAgo"), daysAgo: commonT("daysAgo") }
                   })
-                })}</span>}
+                })}
+                </span>
+              }
             </div>
 
           </div>
@@ -227,14 +221,14 @@ export function CommentItem(
             }
             {commentState.content}
           </p>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 fade-in flex flex-col md:flex-row items-start md:items-center md:justify-between gap-2">
+          <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 flex-wrap">
               {/* 用户地理，浏览器，系统信息 */}
               {commentState.location && <span title={commentState.location} >{commentState.location}</span>}
-              {commentState.browser && <span title={commentState.browser}>{commentState.browser}</span>}
-              {commentState.os && <span title={commentState.os}>{commentState.os}</span>}
+              {commentState.browser && <span className="hidden md:flex" title={commentState.browser}>{commentState.browser}</span>}
+              {commentState.os && <span className="hidden md:flex" title={commentState.os}>{commentState.os}</span>}
             </div>
-            <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className="flex items-center gap-4 w-full md:w-auto justify-end">
               {replyCount > 0 && (
                 <button onClick={toggleReplies} className="fade-in-up">
                   {!showReplies ? t("expand_replies", { count: replyCount }) : t("collapse_replies")}

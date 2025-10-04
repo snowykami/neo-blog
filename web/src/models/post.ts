@@ -15,6 +15,7 @@ export interface Post {
     labels: Label[] | null; // 标签可以为空
     labelIds: number[] | null; // 标签 ID 列表，可以为空
     user: User
+    isLiked: boolean; // 当前用户是否点赞
     isPrivate: boolean;
     likeCount: number;
     commentCount: number;

@@ -10,22 +10,11 @@ interface Props {
   params: Promise<{ id: string }>
 }
 
-const postCache = new Map<string, Promise<Post | null>>()
-
-async function getPostCached(id: string, token: string) {
-  const key = `${id}::${token || ''}`
-  let p = postCache.get(key)
-  if (!p) {
-    p = getPostById({ id, token }).then(res => res.data).catch(() => null)
-    postCache.set(key, p)
-  }
-  return p
-}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const cookieStore = await cookies();
   const { id } = await params;
-  const post = await getPostCached(id, cookieStore.get('token')?.value || '');
+  const post = await getPostById({ id, token: cookieStore.get('token')?.value || '' }).then(res => res.data).catch(() => null);
   return {
     title: post?.title || 'Post',
     description: post?.description || undefined,
@@ -35,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PostPage({ params }: Props) {
   const cookieStore = await cookies();
   const { id } = await params;
-  const post = await getPostCached(id, cookieStore.get('token')?.value || '');
+  const post = await getPostById({ id, token: cookieStore.get('token')?.value || '' }).then(res => res.data).catch(() => null);
   if (!post) return <div>Not Found</div>
   if (post.slug && post.slug !== id) {
     redirect(`/p/${post.slug}`)

@@ -81,12 +81,19 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 	if err != nil {
 		return nil, errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}
-	currentUser, ok := ctxutils.GetCurrentUser(ctx)
-	if post.IsPrivate && (!ok || post.UserID != currentUser.ID) {
+	currentUser, userOk := ctxutils.GetCurrentUser(ctx)
+	if post.IsPrivate && (!userOk || post.UserID != currentUser.ID) {
 		return nil, errs.ErrForbidden
 	}
-
-	return post.ToDto(), nil
+	// 检测用户是否点赞
+	postDto := post.ToDto()
+	if userOk {
+		liked, err := repo.Like.IsLiked(currentUser.ID, post.ID, constant.TargetTypePost)
+		if err == nil {
+			postDto.IsLiked = liked
+		}
+	}
+	return postDto, nil
 }
 
 func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOrUpdatePostReq) (uint, error) {

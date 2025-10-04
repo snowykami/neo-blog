@@ -23,6 +23,7 @@ type PostDto struct {
 	UserID uint    `json:"user_id"` // 发布者的用户ID
 	User   UserDto `json:"user"`    // 发布者信息
 	PostBaseDto
+	IsLiked      bool      `json:"is_liked"`      // 当前用户是否点赞
 	LikeCount    uint64    `json:"like_count"`    // 点赞数
 	CommentCount uint64    `json:"comment_count"` // 评论数
 	ViewCount    uint64    `json:"view_count"`    // 浏览数

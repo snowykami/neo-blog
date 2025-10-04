@@ -16,7 +16,7 @@ export function BlogLikeButton({
   const operationT = useTranslations("Operation");
   const { user } = useAuth();
   const clickToLogin = useToLogin();
-  const [liked, setLiked] = useState(false);
+  const [liked, setLiked] = useState(post.isLiked);
   const [likeCount, setLikeCount] = useState(post.likeCount || 0);
   const [canClickLike, setCanClickLike] = useState(true);
 
