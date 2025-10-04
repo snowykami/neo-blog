@@ -66,6 +66,7 @@ type SitemapData = {
     id: number;
     slug: string;
     updatedAt: string;
+    name: string;
   }[]
 }
 

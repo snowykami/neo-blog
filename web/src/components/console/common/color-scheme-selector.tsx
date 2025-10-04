@@ -4,7 +4,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useState } from "react";
 import { useDevice } from "@/contexts/device-context";
-import { fallbackSiteInfo, useSiteInfo } from "@/contexts/site-info-context";
+import { useSiteInfo } from "@/contexts/site-info-context";
+import { fallbackSiteInfo } from "@/utils/common/siteinfo";
 
 export function ColorScheme(
   { className, color, selectedColor, setSelectedColor }:
