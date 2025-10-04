@@ -108,15 +108,15 @@ export default function Navbar() {
           </div>
         ))} */}
         <div
-          className=" transition-none duration-0 flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
+          className="flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
           <AvatarWithDropdownMenu key="a8d92h1" />
         </div>
         <div
-          className=" transition-none duration-0 flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
-          <ThemeModeToggle className="hidden md:block" key="a8d92h2" />
+          className="flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
+          <ThemeModeToggle key="a8d92h2" />
         </div>
         <div
-          className=" transition-none duration-0 flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
+          className="flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
           <Link href="/rss.xml" className="flex items-center justify-center" key="a8d92h3">
             <RssIcon className="w-6 h-6 text-primary" />
           </Link>
