@@ -133,6 +133,17 @@
       "color_scheme": "Color scheme"
     }
   },
+  "Copyright": {
+    "author": "Author",
+    "copyright_notice": "Copyright Notice",
+    "default_copyright": "Unless otherwise stated, articles on this site are licensed under {license}. Please indicate the source when reposting.",
+    "license": "License",
+    "no_copyright": "There is no copyright statement for this article; please indicate the source when reposting.",
+    "no_derivative_works": "No derivative works",
+    "no_reuse": "No reposting",
+    "original_link": "Original Link",
+    "post_at": "Posted at"
+  },
   "Login": {
     "bind_oidc": "Continue to bind third-party account",
     "captcha_error": "Verification error, please try again.",
@@ -214,6 +225,13 @@
     "send_verify_code_failed": "Failed to send verification code",
     "send_verify_code_success": "Verification code sent",
     "verify_code": "Verification code"
+  },
+  "Role": {
+    "admin": "Administrator",
+    "author": "Author",
+    "editor": "Editor",
+    "me": "Me",
+    "user": "User"
   },
   "Route": {
     "archive": "Archive",

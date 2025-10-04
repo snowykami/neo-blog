@@ -47,8 +47,10 @@ export default function RootLayout({
   // 根据滚动位置设置导航栏样式
   useEffect(() => {
     const maxGradientScroll = blogPostWithTransparentNavScrollMaxHeight;
-    if (scrollY <= maxGradientScroll) {
+    if (scrollY <= maxGradientScroll / 2) {
       setNavStyle(`bg-transparent backdrop-blur-none !text-white [&_.text-primary]:text-white`);
+    } else if (scrollY < maxGradientScroll) {
+      setNavStyle(`bg-background/40 backdrop-blur-lg !text-white [&_.text-primary]:text-white`);
     } else {
       resetNavStyle();
     }

@@ -1,7 +1,7 @@
 @layer base {
   /* 全局仅颜色相关过渡（避免布局/transform/opacity 被动画化） */
   * {
-    transition-property: color, background-color, border-color, box-shadow, fill, stroke;
+    transition-property: color, background-color, border-color, box-shadow, opacity, fill, stroke;
     transition-duration: 0.3s;
     transition-timing-function: ease-in-out;
   }

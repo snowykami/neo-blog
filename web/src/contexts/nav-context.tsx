@@ -2,7 +2,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { navHeight } from "@/utils/common/layout-size";
+import { contentAreaPaddingClass, navHeight } from "@/utils/common/layout-size";
 import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from "react";
 
 type NavContextValue = {
@@ -28,8 +28,7 @@ type NavContextValue = {
   setFloatingNav: () => void;
 };
 
-export const DEFAULT_NAV_CLASSNAME = `fixed top-0 left-0 h-${navHeight} w-full z-50 
-  bg-background/80 backdrop-blur flex justify-center`;
+export const DEFAULT_NAV_CLASSNAME = `bg-background/90 backdrop-blur md:rounded-b-2xl h-${navHeight} ${contentAreaPaddingClass}`;
 
 const NavContext = createContext<NavContextValue | undefined>(undefined);
 

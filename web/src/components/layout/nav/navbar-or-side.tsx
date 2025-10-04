@@ -25,6 +25,7 @@ import { mainPath } from "@/utils/common/route"
 import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size"
 import { useRouter } from "next/navigation"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useNav } from "@/contexts/nav-context"
 
 const navbarMenuComponents = [
   {
@@ -77,12 +78,10 @@ const navbarMenuComponents = [
 ]
 
 export default function Navbar() {
-  const isMobile = useIsMobile()
-  const { navbarAdditionalClassName } = useDevice()
   const { siteInfo } = useSiteInfo();
+  const { navClassName } = useNav();
   return (
-    <nav className={`flex items-center justify-between w-full
-    ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${navbarAdditionalClassName}`}>
+    <div className={cn(`flex items-center justify-between w-full`, navClassName)}>
       <div className="flex items-center justify-start">
         <span className="font-bold text-lg truncate">
           <Link href="/" className="flex items-center text-primary">
@@ -110,7 +109,7 @@ export default function Navbar() {
         ))}
         <SidebarMenu />
       </div>
-    </nav>
+    </div>
   )
 }
 
