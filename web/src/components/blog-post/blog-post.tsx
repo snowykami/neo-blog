@@ -151,6 +151,7 @@ async function PostContent({ post }: { post: Post }) {
 
 async function BlogPost({ post }: { post: Post }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
+  const sideCardTop = navHeight + 4;
   return (
     <div className="h-full">
       {/* <ScrollToTop /> */}
@@ -177,7 +178,7 @@ async function BlogPost({ post }: { post: Post }) {
 
         {/* 侧边栏 */}
         <motion.div
-          className={`sticky top-${navHeight + 4} self-start transition-none`}
+          className={`sticky top-${sideCardTop} self-start transition-none`}
           initial={{ x: 80, opacity: 0 }}
           animate={{ x: 0, y: 0, opacity: 1 }}
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}
