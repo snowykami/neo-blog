@@ -21,7 +21,7 @@ export function StorageProviderManage() {
         toast.error(t("fetch_storages_failed") + (error?.message ? `: ${error.message}` : ""));
         setStorages([]);
       });
-  }, [])
+  }, [t])
 
   const onStorageProviderCreate = useCallback(() => {
 

@@ -1,6 +1,6 @@
 
 import { useDevice } from "@/contexts/device-context";
-import { Sun, Moon, SunMoon, EclipseIcon } from "lucide-react";
+import { Sun, Moon, EclipseIcon } from "lucide-react";
 import { motion } from "motion/react";
 import type React from "react";
 import { cn } from "@/lib/utils";

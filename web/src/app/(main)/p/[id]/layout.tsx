@@ -3,7 +3,6 @@
 import { useBackground } from "@/contexts/background-context";
 import { useNav } from "@/contexts/nav-context";
 import { blogPostWithTransparentNavScrollMaxHeight } from "@/utils/common/layout-size";
-import { setStyle } from "motion/react";
 import { useEffect, useState } from "react";
 
 export default function RootLayout({
@@ -22,7 +21,7 @@ export default function RootLayout({
       </div>
     )
     return () => resetBackground();
-  }, [setBackground]);
+  }, [setBackground, resetBackground]);
 
   // 设置无导航栏内边距
   useEffect(() => {

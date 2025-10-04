@@ -7,7 +7,6 @@ import "highlight.js/styles/github-dark.css"; // 适用于暗黑模式
 import "highlight.js/styles/github-dark-dimmed.css"; // 适用于暗黑模式
 import CodeBlock from "@/components/common/markdown-codeblock";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ExternalLinkIcon } from "lucide-react";
 import { EnhancedLink } from "./markdown-a";
 
 export const markdownComponents = {

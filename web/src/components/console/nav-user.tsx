@@ -1,10 +1,8 @@
 "use client"
 
 import {
-  IconCreditCard,
   IconDotsVertical,
   IconLogout,
-  IconNotification,
   IconUserCircle,
 } from "@tabler/icons-react"
 
@@ -33,7 +31,8 @@ import { getGravatarFromUser } from "@/utils/common/gravatar"
 import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common/username"
 import { useAuth } from "@/contexts/auth-context"
 import { useTranslations } from "next-intl"
-import { useToUserProfile } from "@/hooks/use-route"
+import { useToLogin, useToUserProfile } from "@/hooks/use-route"
+import { ArrowLeftRightIcon } from "lucide-react"
 
 export function NavUser() {
   const operationT = useTranslations("Operation");
@@ -41,6 +40,8 @@ export function NavUser() {
   const clickToProfile = useToUserProfile();
   const { isMobile } = useSidebar()
   const { user, logout } = useAuth();
+
+  const clickToLogin = useToLogin();
 
   const handleLogout = () => {
     logout()
@@ -91,24 +92,22 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={()=>{clickToProfile(user.username)}}>
+              <DropdownMenuItem onClick={() => { clickToProfile(user.username) }}>
                 <IconUserCircle />
                 {routeT("profile")}
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconCreditCard />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconNotification />
-                Notifications
-              </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
-              <IconLogout />
-              {operationT("logout")}
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem onClick={clickToLogin}>
+                <ArrowLeftRightIcon />
+                {operationT("switch_account")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>
+                <IconLogout />
+                {operationT("logout")}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

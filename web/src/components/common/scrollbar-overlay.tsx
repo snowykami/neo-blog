@@ -73,7 +73,7 @@ export default function ScrollbarOverlay() {
       if (hideTimer.current) window.clearTimeout(hideTimer.current);
       document.documentElement.classList.remove("hide-native-scrollbar");
     };
-  }, []);
+  }, [updateThumb]);
 
   // click on track -> jump
   useEffect(() => {
@@ -120,7 +120,6 @@ export default function ScrollbarOverlay() {
       const thumbEl = thumbRef.current;
       if (!overlay || !thumbEl) return;
 
-      const rect = overlay.getBoundingClientRect();
       const winH = window.innerHeight;
       const doc = document.documentElement;
       const body = document.body;

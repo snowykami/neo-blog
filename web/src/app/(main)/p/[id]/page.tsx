@@ -3,7 +3,6 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import BlogPost from '@/components/blog-post/blog-post'
 import { Metadata } from 'next'
-import { Post } from '@/models/post'
 
 // 这个是approuter固定的传入格式，无法更改
 interface Props {

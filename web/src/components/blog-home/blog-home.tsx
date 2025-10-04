@@ -16,7 +16,7 @@ import { useStoredState } from "@/hooks/use-storage-state";
 import { parseAsInteger, useQueryState } from "nuqs";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import Sidebar from "../blog-sidebar";
-import { navHeight, navStickyTopPx } from "@/utils/common/layout-size";
+import { navStickyTopPx } from "@/utils/common/layout-size";
 
 // 定义排序类型
 enum SortBy {

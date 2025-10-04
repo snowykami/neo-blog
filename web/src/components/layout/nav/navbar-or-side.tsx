@@ -12,7 +12,6 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
-import { useDevice } from "@/contexts/device-context"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { ThemeModeToggle } from "@/components/common/theme-toggle"
@@ -22,9 +21,7 @@ import { useSiteInfo } from "@/contexts/site-info-context"
 import { useTranslations } from 'next-intl';
 import { AppWindowMacIcon, ArchiveIcon, ContactIcon, HouseIcon, InfoIcon, Link2Icon, NewspaperIcon, PanelRight, PanelsTopLeftIcon, RssIcon, ShuffleIcon, TagsIcon } from "lucide-react"
 import { mainPath } from "@/utils/common/route"
-import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size"
 import { useRouter } from "next/navigation"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { useNav } from "@/contexts/nav-context"
 
 const navbarMenuComponents = [

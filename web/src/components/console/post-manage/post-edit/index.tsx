@@ -78,7 +78,7 @@ function EditorNavbar({ editorRef, post }: { post: Post,editorRef: ForwardedRef<
 
   const saveDraft = () => {
     const markdown = editorRef && 'current' in editorRef && editorRef.current ? editorRef.current.getMarkdown() : '';
-    updatePost({ post: { id: post.id, draftContent: markdown } }).then(res => {
+    updatePost({ post: { id: post.id, draftContent: markdown } }).then(() => {
       toast.success(operationT("save_success"));
     }).catch(() => {
       toast.error(operationT("save_failed"));

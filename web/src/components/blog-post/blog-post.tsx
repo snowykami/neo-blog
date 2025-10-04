@@ -3,7 +3,6 @@ import { Suspense } from "react";
 import type { Post } from "@/models/post";
 import { Calendar, Clock, FileText, Flame, Heart, MessageCircle, PenLine, SquarePen } from "lucide-react";
 import { RenderMarkdown } from "@/components/common/markdown";
-import { isMobileByUA } from "@/utils/server/device";
 import { calculateReadingTime } from "@/utils/common/post";
 import { CommentSection } from "@/components/comment";
 import { TargetType } from '@/models/types';
@@ -19,7 +18,6 @@ import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/commo
 import { BlogLikeButton } from "./blog-like-button.client";
 
 async function PostHeader({ post }: { post: Post }) {
-  const isMobile = await isMobileByUA();
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
 
   return (

@@ -30,7 +30,6 @@ const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
 
 export function PostManage() {
-  const orderT = useTranslations("Order");
   const commonT = useTranslations("Common");
   const metricsT = useTranslations("Metrics");
   const { isMobile } = useDevice();

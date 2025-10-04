@@ -10,7 +10,7 @@ import {
 import { useToLogin } from "@/hooks/use-route"
 import { useEffect, useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { sidebarData, SidebarItem } from "@/components/console/data"
+import { sidebarData} from "@/components/console/data"
 import { usePathname } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { consolePath } from "@/utils/common/route"
@@ -38,7 +38,7 @@ export default function ConsoleLayout({
       setActiveId(match.id) 
       setTitle(t(match.title))
     }
-  }, [pathname])
+  }, [pathname, t])
 
   useEffect(() => {
     if (!user) {

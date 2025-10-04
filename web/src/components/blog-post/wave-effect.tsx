@@ -1,7 +1,5 @@
 "use client";
 
-import { motion } from "motion/react";
-
 export function WaveEffects() {
   return (
     <section className="absolute left-0 w-full z-0" style={{ bottom: '-11px' }}>

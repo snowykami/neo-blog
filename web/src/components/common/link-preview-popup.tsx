@@ -6,6 +6,7 @@ import type { LinkPreview } from '@/app/api/get-link-info/route';
 import copyToClipboard from '@/lib/clipboard';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import Image from 'next/image';
 
 interface LinkPreviewPopupProps {
   url: string;
@@ -85,6 +86,7 @@ export function LinkPreviewPopup({ url, children }: LinkPreviewPopupProps) {
           setError(true);
         }
       } catch (err) {
+        console.error('fetch link preview failed', err);
         setError(true);
       } finally {
         setLoading(false);
@@ -141,9 +143,11 @@ export function LinkPreviewPopup({ url, children }: LinkPreviewPopupProps) {
             <div className="overflow-hidden cursor-default">
               {preview.image && (
                 <div className="relative h-32 bg-muted">
-                  <img
+                  <Image
                     src={preview.image}
                     alt={preview.title}
+                    width={320}
+                    height={128}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
@@ -155,9 +159,11 @@ export function LinkPreviewPopup({ url, children }: LinkPreviewPopupProps) {
               <div className="p-4">
                 <div className="flex items-start gap-3">
                   {preview.favicon && (
-                    <img
+                    <Image
                       src={preview.favicon}
                       alt=""
+                      width={16}
+                      height={16}
                       className="w-4 h-4 mt-0.5 flex-shrink-0"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';

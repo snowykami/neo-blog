@@ -9,7 +9,7 @@ import { useDevice } from "@/contexts/device-context";
 import { useDoubleConfirm } from "@/hooks/use-double-confirm";
 import { ArrangementMode, OrderBy } from "@/models/common";
 import { DropdownMenuGroup } from "@radix-ui/react-dropdown-menu";
-import { Ellipsis, FileIcon, FilePlayIcon, ImageIcon, Link, MusicIcon } from "lucide-react";
+import { Ellipsis, FileIcon, Link } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import mime from 'mime-types';
@@ -119,7 +119,7 @@ export function FileManage() {
     setOrderBy(OrderBy.CreatedAt);
     setDesc(true);
     setFileListRefreshIndex(idx => idx + 1);
-  },[])
+  },[setPage, setOrderBy, setDesc]);
 
   return <div>
     <div className="flex flex-wrap items-center justify-between mb-4 gap-3">

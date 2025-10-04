@@ -19,7 +19,6 @@ import { DropdownMenu } from "@radix-ui/react-dropdown-menu";
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useSiteInfo } from "@/contexts/site-info-context";
-import { Role } from "@/models/user";
 import { Badge } from "@/components/ui/badge";
 import { formatLocation } from "@/utils/common/location";
 
