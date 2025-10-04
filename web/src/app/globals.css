@@ -9,6 +9,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "./styles/typography.css";
+@import "./styles/animation.css"; 
 
 
 @custom-variant dark (&:is(.dark *));
@@ -52,6 +53,8 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 }
+
+
 
 @layer base {
   * {

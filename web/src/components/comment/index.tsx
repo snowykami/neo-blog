@@ -127,7 +127,7 @@ export function CommentSection(
               setOrderBy(o.orderBy);
               setDesc(o.desc);
             }}
-            orderBys={[OrderBy.CreatedAt, OrderBy.Like, OrderBy.CommentCount, OrderBy.UpdatedAt]}
+            orderBys={[OrderBy.CreatedAt, OrderBy.LikeCount, OrderBy.CommentCount, OrderBy.UpdatedAt]}
           />
         </div>
       </div>

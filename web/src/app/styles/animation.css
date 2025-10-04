@@ -1,0 +1,26 @@
+@layer base {
+  /* 全局仅颜色相关过渡（避免布局/transform/opacity 被动画化） */
+  * {
+    transition-property: color, background-color, border-color, box-shadow, fill, stroke;
+    transition-duration: 0.3s;
+    transition-timing-function: ease-in-out;
+  }
+
+  /* 常见交互元素补充（保留透明度变化等可选项） */
+  a, button, input, textarea, select {
+    transition-property: color, background-color, border-color, box-shadow, opacity;
+    transition-duration: 0.3s;
+    transition-timing-function: ease-in-out;
+  }
+
+  /* 针对需要平移动画/变换的组件，请单独添加 transition（不要使用全局 all） */
+  /* 例如：.card { transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out; } */
+
+  /* 响应式动画 - 根据用户偏好禁用 */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition-property: none !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

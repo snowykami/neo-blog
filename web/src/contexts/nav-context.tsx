@@ -1,23 +1,37 @@
+// ...existing code...
 "use client";
 
+import { cn } from "@/lib/utils";
 import { navHeight } from "@/utils/common/layout-size";
-import React, { createContext, useContext, useState, useMemo, useCallback } from "react";
+import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from "react";
 
-type NavPaddingContextValue = {
+type NavContextValue = {
   hasNavPadding: boolean;
   setHasNavPadding: (hasPadding: boolean) => void;
   toggleNavPadding: () => void;
+
   navClassName: string;
-  setNavClassName: (className: string) => void;
+  setNavStyle: (className: string) => void;
+
+  // 保留原有 reset 名称（还原到 initialNavClassName）
   resetNavClassName: () => void;
+  // useNavControl 中的重置（还原到 DEFAULT_NAV_CLASSNAME）
+  resetNavStyle: () => void;
+
+  // 便捷控制
+  disableNavPadding: () => void;
+  enableNavPadding: () => void;
+
+  // 预设样式
+  setTransparentNav: () => void;
+  setSolidNav: () => void;
+  setFloatingNav: () => void;
 };
 
-// 默认的导航栏样式
 export const DEFAULT_NAV_CLASSNAME = `fixed top-0 left-0 h-${navHeight} w-full z-50 
-  bg-background/80 backdrop-blur flex justify-center
-  transition-all duration-300 ease-in-out`;
+  bg-background/80 backdrop-blur flex justify-center`;
 
-const NavPaddingContext = createContext<NavPaddingContextValue | undefined>(undefined);
+const NavContext = createContext<NavContextValue | undefined>(undefined);
 
 export function NavPaddingProvider({
   children,
@@ -29,7 +43,7 @@ export function NavPaddingProvider({
   initialNavClassName?: string;
 }) {
   const [hasNavPadding, setHasNavPadding] = useState<boolean>(initialHasNavPadding);
-  const [navClassName, setNavClassName] = useState<string>(initialNavClassName);
+  const [navClassName, setNavClassName] = useState<string>(cn(DEFAULT_NAV_CLASSNAME, initialNavClassName));
 
   const toggleNavPadding = useCallback(() => {
     setHasNavPadding(prev => !prev);
@@ -39,75 +53,80 @@ export function NavPaddingProvider({
     setNavClassName(initialNavClassName);
   }, [initialNavClassName]);
 
-  const value = useMemo(() => ({ 
-    hasNavPadding, 
-    setHasNavPadding, 
-    toggleNavPadding,
-    navClassName,
-    setNavClassName,
-    resetNavClassName,
-  }), [
-    hasNavPadding, 
-    toggleNavPadding, 
-    navClassName, 
-    resetNavClassName
-  ]);
+  const resetNavStyle = useCallback(() => {
+    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, initialNavClassName));
+  }, []);
 
-  return (
-    <NavPaddingContext.Provider value={value}>
-      {children}
-    </NavPaddingContext.Provider>
-  );
-}
+  const setNavStyle = useCallback((className: string) => {
+    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, className));
+  }, []);
 
-export function useNavPadding() {
-  const ctx = useContext(NavPaddingContext);
-  if (!ctx) {
-    throw new Error("useNavPadding must be used within a NavPaddingProvider");
-  }
-  return ctx;
-}
-
-// 便利的自定义 Hook
-export function useNavControl() {
-  const { 
-    setHasNavPadding, 
-    setNavClassName, 
-    resetNavClassName 
-  } = useNavPadding();
-  
   const disableNavPadding = useCallback(() => {
     setHasNavPadding(false);
-  }, [setHasNavPadding]);
-  
+  }, []);
+
   const enableNavPadding = useCallback(() => {
     setHasNavPadding(true);
-  }, [setHasNavPadding]);
+  }, []);
 
-  // 预设的样式
   const setTransparentNav = useCallback(() => {
     setNavClassName("bg-transparent backdrop-blur-md");
-  }, [setNavClassName]);
+  }, []);
 
   const setSolidNav = useCallback(() => {
     setNavClassName("bg-background border-b");
-  }, [setNavClassName]);
+  }, []);
 
   const setFloatingNav = useCallback(() => {
     setNavClassName("fixed top-4 left-4 right-4 rounded-lg shadow-lg bg-background/90 backdrop-blur-md");
-  }, [setNavClassName]);
+  }, []);
 
-  const resetNavStyle = useCallback(() => {
-    setNavClassName(DEFAULT_NAV_CLASSNAME);
-  }, [resetNavClassName]);
-  
-  return { 
-    disableNavPadding, 
+  const value = useMemo(() => ({
+    hasNavPadding,
+    setHasNavPadding,
+    toggleNavPadding,
+
+    navClassName,
+
+    resetNavClassName,
+    resetNavStyle,
+    setNavStyle,
+
+    disableNavPadding,
+    enableNavPadding,
+
+    setTransparentNav,
+    setSolidNav,
+    setFloatingNav,
+  }), [
+    hasNavPadding,
+    navClassName,
+    toggleNavPadding,
+    resetNavClassName,
+    resetNavStyle,
+    setNavStyle,
+    disableNavPadding,
     enableNavPadding,
     setTransparentNav,
     setSolidNav,
     setFloatingNav,
-    resetNavStyle,
-    setNavClassName,
-  };
+  ]);
+
+  useEffect(() => {
+    console.log("Nav className updated:", navClassName);
+  },[navClassName])
+
+  return (
+    <NavContext.Provider value={value}>
+      {children}
+    </NavContext.Provider>
+  );
+}
+
+export function useNav() {
+  const ctx = useContext(NavContext);
+  if (!ctx) {
+    throw new Error("useNav must be used within a NavPaddingProvider");
+  }
+  return ctx;
 }

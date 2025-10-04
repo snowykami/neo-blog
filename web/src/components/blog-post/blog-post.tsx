@@ -22,7 +22,7 @@ async function PostHeader({ post }: { post: Post }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
 
   return (
-    <div className={`relative ${isMobile ? "py-16" : "py-32"} overflow-hidden`} style={{ width: '100vw', marginLeft: '50%', transform: 'translateX(-50%)' }}>
+    <div className={`relative ${isMobile ? "py-24" : "py-32"} overflow-hidden transition-none`} style={{ width: '100vw', marginLeft: '50%', transform: 'translateX(-50%)' }}>
       {/* 背景图片层 */}
       <div
         className="absolute inset-0"
@@ -157,6 +157,7 @@ async function BlogPost({ post }: { post: Post }) {
       <motion.div
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
+        className="transition-none"
         transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
         <PostHeader post={post} />
       </motion.div>
@@ -166,7 +167,7 @@ async function BlogPost({ post }: { post: Post }) {
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          className="lg:col-span-3"
+          className="lg:col-span-3 transition-none"
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
           <PostContent post={post} />
           <div className="bg-background mt-4 p-4 md:p-8 rounded-xl border border-border">
@@ -176,7 +177,7 @@ async function BlogPost({ post }: { post: Post }) {
 
         {/* 侧边栏 */}
         <motion.div
-          className={`sticky top-${navHeight + 4} self-start`}
+          className={`sticky top-${navHeight + 4} self-start transition-none`}
           initial={{ x: 80, opacity: 0 }}
           animate={{ x: 0, y: 0, opacity: 1 }}
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}

@@ -46,7 +46,7 @@ export function BlogCard({ post, className }: {
             duration: siteInfo.animationDurationSecond,
             ease: deceleration,
           }}
-          className="absolute inset-0 w-full h-full"
+          className="absolute inset-0 w-full h-full transition-none"
         >
           {(post.cover || siteInfo.defaultCover) ? (
             <Image

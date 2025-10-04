@@ -1,18 +1,13 @@
 "use client"
-import { motion } from 'motion/react'
-import { BackgroundProvider, useBackground } from '@/contexts/background-context'
-import { DEFAULT_NAV_CLASSNAME, useNavPadding } from "@/contexts/nav-context";
+import { motion } from 'motion/react';
+import { BackgroundProvider } from '@/contexts/background-context'
+import {  useNav } from "@/contexts/nav-context";
 import Footer from '@/components/layout/footer'
 import Navbar from '@/components/layout/nav/navbar-or-side'
 import { useSiteInfo } from '@/contexts/site-info-context'
-import { cn } from '@/lib/utils';
-import { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
 import { contentAreaMaxWidthClass, contentAreaPaddingClass } from '@/utils/common/layout-size';
+import { cn } from '@/lib/utils';
 
-const withoutNavPaddingPaths = [
-  "/p"
-]
 
 export default function RootLayout({
   children,
@@ -20,31 +15,21 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   const { siteInfo } = useSiteInfo();
-  const { setHasNavPadding, hasNavPadding, navClassName } = useNavPadding();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    if (withoutNavPaddingPaths.some(p => pathname.startsWith(p))) {
-      setHasNavPadding(false);
-    } else {
-      setHasNavPadding(true);
-    }
-  }, [
-    pathname
-  ])
+  const { hasNavPadding, navClassName } = useNav();
 
   return (
     <>
       <motion.nav
-        initial={{ y: -64, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
+        className='transition-none' // 禁用全局动画，使用motion.div单独控制动画
+        initial={{ y: -64 }}
+        animate={{ y: 0 }}
         transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
-        <header className={cn(DEFAULT_NAV_CLASSNAME, navClassName)}>
+        <header className={cn(navClassName)}>
           <Navbar />
         </header>
       </motion.nav>
       <BackgroundProvider>
-        <div className={`container mx-auto ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${hasNavPadding ? 'pt-16' : ''}`}>{children}</div>
+        <div className={`transition-none container mx-auto ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${hasNavPadding ? 'pt-16' : ''}`}>{children}</div>
       </BackgroundProvider>
       <Footer />
     </>

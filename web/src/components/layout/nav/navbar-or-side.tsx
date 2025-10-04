@@ -23,6 +23,8 @@ import { useTranslations } from 'next-intl';
 import { AppWindowMacIcon, ArchiveIcon, ContactIcon, HouseIcon, InfoIcon, Link2Icon, NewspaperIcon, PanelRight, PanelsTopLeftIcon, RssIcon, ShuffleIcon, TagsIcon } from "lucide-react"
 import { mainPath } from "@/utils/common/route"
 import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size"
+import { useRouter } from "next/navigation"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 const navbarMenuComponents = [
   {
@@ -75,69 +77,66 @@ const navbarMenuComponents = [
 ]
 
 export default function Navbar() {
+  const isMobile = useIsMobile()
   const { navbarAdditionalClassName } = useDevice()
   const { siteInfo } = useSiteInfo();
   return (
-    <nav className={`grid grid-cols-[1fr_auto_1fr] items-center gap-4 h-full px-4 w-full 
+    <nav className={`flex items-center justify-between w-full
     ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${navbarAdditionalClassName}`}>
       <div className="flex items-center justify-start">
-        <span className="font-bold text-lg truncate text-primary">
-          <Link href="/" className="flex items-center">
+        <span className="font-bold text-lg truncate">
+          <Link href="/" className="flex items-center text-primary">
             <AppWindowMacIcon className="inline w-6 h-6 mr-2 text-primary" />
             {siteInfo.metadata.name}
           </Link>
         </span>
       </div>
-      <div className="flex items-center justify-center">
+      <div className="items-center justify-center hidden md:flex">
         <NavMenuCenter />
       </div>
-      <div className="flex items-center justify-end gap-3 md:gap-4">
+      <div className="flex items-center justify-end gap-2 md:gap-3">
         {[
           <AvatarWithDropdownMenu key="a8d92h1" />,
           <ThemeModeToggle className="hidden md:block" key="a8d92h2" />,
           <Link href="/rss.xml" className="flex items-center justify-center" key="a8d92h3">
-            <RssIcon className="w-full h-full" />
+            <RssIcon className="w-full h-full text-primary" />
           </Link>,
         ].map((Comp, index) => (
           <div
             key={index}
-            className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-accent/50 transition-all duration-200 text-primary cursor-pointer">
+            className=" transition-none duration-0 flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
             {Comp}
           </div>
         ))}
-        {<SidebarMenu />}
+        <SidebarMenu />
       </div>
     </nav>
   )
 }
 
 function NavMenuCenter() {
+  const router = useRouter();
   const routeT = useTranslations("Route");
   return (
-    <NavigationMenu viewport={false} className="hidden md:block">
+    <NavigationMenu viewport={false} className="">
       <NavigationMenuList className="flex space-x-1" key="navbar-menu">
         {navbarMenuComponents.map((item) => (
           <NavigationMenuItem key={item.title}>
             {item.href ? (
               // 修复：只在 Link 上应用样式，移除 NavigationMenuLink 上的重复样式
-              <NavigationMenuLink asChild>
-                <Link
-                  href={item.href}
-                  className={cn(navigationMenuTriggerStyle(), "font-extrabold !text-lg bg-transparent duration-0")}
-                >
-                  <div className="flex items-center gap-2">
-                    <item.icon className="!w-6 !h-6 text-inherit" />
-                    {routeT(item.title)}
-                  </div>
-                </Link>
+              <NavigationMenuLink onClick={() => router.push(item.href)} className={cn(navigationMenuTriggerStyle(), "font-extrabold text-lg bg-transparent")}>
+                <div className="flex items-center gap-2">
+                  <item.icon className="!w-6 !h-6 text-inherit" />
+                  <span>{routeT(item.title)}</span>
+                </div>
               </NavigationMenuLink>
             ) : item.children ? (
               <>
                 {/* Trigger 保持不变 */}
-                <NavigationMenuTrigger className={cn(navigationMenuTriggerStyle(), "font-extrabold text-lg bg-transparent duration-0")}>
+                <NavigationMenuTrigger className={cn(navigationMenuTriggerStyle(), "font-extrabold text-lg bg-transparent")}>
                   <div className="flex items-center gap-2">
                     <item.icon className="w-6 h-6" />
-                    {routeT(item.title)}
+                    <span>{routeT(item.title)}</span>
                   </div>
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
@@ -176,7 +175,7 @@ function SidebarMenu() {
   const [open, setOpen] = useState(false)
   const routeT = useTranslations("Route");
   return (
-    <div className="md:hidden">
+    <div className="">
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
           <button

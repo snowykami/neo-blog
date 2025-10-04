@@ -78,10 +78,10 @@ export default function BlogHome() {
       <section className="py-16">
         {/* 容器 - 关键布局 */}
         <div className="">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 ">
             {/* 主要内容区域 */}
             <motion.div
-              className="lg:col-span-3 self-start"
+              className="lg:col-span-3 self-start transition-none"
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               key={`${page}-${label ?? "none"}`}
@@ -144,7 +144,7 @@ export default function BlogHome() {
             </motion.div>
             {/* 侧边栏 */}
             <motion.div
-              className={`sticky top-${navHeight + 4} self-start`}
+              className={`sticky top-${navHeight + 4} self-start transition-none`}
               initial={{ x: 80, opacity: 0 }}
               animate={{ x: 0, y: 0, opacity: 1 }}
               transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}
@@ -158,7 +158,6 @@ export default function BlogHome() {
                 ].filter(Boolean)}
               />
             </motion.div>
-
           </div>
         </div>
       </section >

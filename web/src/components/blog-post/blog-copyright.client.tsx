@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import { Post } from "@/models/post";
 import { getPostUrl } from "@/utils/common/route";
+import { formatDisplayName } from "@/utils/common/username";
 import { CopyrightIcon, ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -16,8 +17,6 @@ function CopyrightCard({ post }:
   const copyrightT = useTranslations("Copyright");
   const { user } = useAuth();
   const postUrl = siteInfo.baseUrl + getPostUrl(post);
-
-  
 
   return (
     <div className="mt-8 p-4 md:p-6 bg-primary/10 rounded-lg 
@@ -42,13 +41,13 @@ function CopyrightCard({ post }:
       </div>
 
       {/* 版权信息表格 */}
-      <div className="grid grid-cols-3 gap-4 text-sm">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
         <div>
           <div className="text-gray-500 dark:text-gray-400 mb-1">
             {copyrightT("author")}
           </div>
           <div className="text-gray-800 text-lg font-semibold dark:text-gray-200">
-            {post.user?.nickname || post.user?.username || siteInfo?.owner?.name || "Unknown"}
+            {formatDisplayName(post.user)}
           </div>
         </div>
 
