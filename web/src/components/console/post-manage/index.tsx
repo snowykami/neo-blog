@@ -26,7 +26,6 @@ import {
 import { useDebouncedState } from "@/hooks/use-debounce";
 import { Badge } from "@/components/ui/badge";
 import {  PostMetaSettingButtonWithDialog } from "./post-meta-dialog-form";
-import { CreateOrUpdateCategoryDialogWithButton, CreateOrUpdateLabelDialogWithButton } from "../common/create-label-and-category";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
@@ -82,8 +81,6 @@ export function PostManage() {
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           {<OrderSelector initialOrder={{ orderBy, desc }} onOrderChange={onOrderChange} />}
-          <CreateOrUpdateLabelDialogWithButton />
-          <CreateOrUpdateCategoryDialogWithButton />
         </div>
       </div>
     </div>
