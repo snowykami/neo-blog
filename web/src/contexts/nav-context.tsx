@@ -13,8 +13,6 @@ type NavContextValue = {
   navClassName: string;
   setNavStyle: (className: string) => void;
 
-  // 保留原有 reset 名称（还原到 initialNavClassName）
-  resetNavClassName: () => void;
   // useNavControl 中的重置（还原到 DEFAULT_NAV_CLASSNAME）
   resetNavStyle: () => void;
 
@@ -48,13 +46,9 @@ export function NavPaddingProvider({
     setHasNavPadding(prev => !prev);
   }, []);
 
-  const resetNavClassName = useCallback(() => {
-    setNavClassName(initialNavClassName);
-  }, [initialNavClassName]);
-
   const resetNavStyle = useCallback(() => {
     setNavClassName(cn(DEFAULT_NAV_CLASSNAME, initialNavClassName));
-  }, []);
+  }, [initialNavClassName]);
 
   const setNavStyle = useCallback((className: string) => {
     setNavClassName(cn(DEFAULT_NAV_CLASSNAME, className));
@@ -86,8 +80,6 @@ export function NavPaddingProvider({
     toggleNavPadding,
 
     navClassName,
-
-    resetNavClassName,
     resetNavStyle,
     setNavStyle,
 
@@ -101,7 +93,6 @@ export function NavPaddingProvider({
     hasNavPadding,
     navClassName,
     toggleNavPadding,
-    resetNavClassName,
     resetNavStyle,
     setNavStyle,
     disableNavPadding,

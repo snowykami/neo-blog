@@ -181,33 +181,37 @@ export function CommentItem(
               className="text-primary font-bold text-lg border-b-4 border-primary/40 hover:border-primary/70 cursor-pointer transition-colors duration-200">
               {commentState.user.nickname || commentState.user.username}
             </div>
-            {/* 吧唧 */}
-            {commentState.user.id === user?.id && <Badge className="bg-primary text-white"> {roleT("me")} </Badge>}
-            {commentState.user.id === ownerId && <Badge className="bg-pink-500 text-white"> {roleT("author")} </Badge>}
-            <Badge className={`
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* 吧唧 */}
+              {commentState.user.id === user?.id && <Badge className="bg-primary text-white"> {roleT("me")} </Badge>}
+              {commentState.user.id === ownerId && <Badge className="bg-pink-500 text-white"> {roleT("author")} </Badge>}
+              <Badge className={`
               ${commentState.user.role === Role.ADMIN ? "bg-orange-500 text-white" : ""}
               ${commentState.user.role === Role.EDITOR ? "bg-green-500 text-white" : ""}
               ${commentState.user.role === Role.USER ? "bg-blue-500 text-white" : ""}
               `}>
-              {roleT(commentState.user.role)}
-            </Badge>
-            {/* 创建时间 */}
-            <span className="text-xs">{formatDateTime({
-              dateTimeString: commentState.createdAt,
-              locale,
-              convertShortAgo: true,
-              unitI18n: { secondsAgo: commonT("secondsAgo"), minutesAgo: commonT("minutesAgo"), hoursAgo: commonT("hoursAgo"), daysAgo: commonT("daysAgo") }
-            })}</span>
-            {commentState.createdAt !== commentState.updatedAt &&
-              (new Date(commentState.updatedAt).getTime() - new Date(commentState.createdAt).getTime()) > 10000 &&
-              <span className="text-xs">{t("edit_at", {
-                time: formatDateTime({
-                  dateTimeString: commentState.updatedAt,
-                  locale,
-                  convertShortAgo: true,
-                  unitI18n: { secondsAgo: commonT("secondsAgo"), minutesAgo: commonT("minutesAgo"), hoursAgo: commonT("hoursAgo"), daysAgo: commonT("daysAgo") }
-                })
-              })}</span>}
+                {roleT(commentState.user.role)}
+              </Badge>
+              {/* 创建时间 */}
+              <span className="text-xs">{formatDateTime({
+                dateTimeString: commentState.createdAt,
+                locale,
+                convertShortAgo: true,
+                unitI18n: { secondsAgo: commonT("secondsAgo"), minutesAgo: commonT("minutesAgo"), hoursAgo: commonT("hoursAgo"), daysAgo: commonT("daysAgo") }
+              })}</span>
+              {commentState.createdAt !== commentState.updatedAt &&
+                (new Date(commentState.updatedAt).getTime() - new Date(commentState.createdAt).getTime()) > 10000 &&
+                <span className="text-xs">{t("edit_at", {
+                  time: formatDateTime({
+                    dateTimeString: commentState.updatedAt,
+                    locale,
+                    convertShortAgo: true,
+                    unitI18n: { secondsAgo: commonT("secondsAgo"), minutesAgo: commonT("minutesAgo"), hoursAgo: commonT("hoursAgo"), daysAgo: commonT("daysAgo") }
+                  })
+                })}</span>}
+            </div>
+
           </div>
           <p className="text-lg text-slate-600 dark:text-slate-400 fade-in bg-accent rounded-xl px-4 py-2 my-2">
             {commentState.isPrivate && <Lock className="inline w-4 h-4 mr-1 mb-1 text-slate-500 dark:text-slate-400" />}

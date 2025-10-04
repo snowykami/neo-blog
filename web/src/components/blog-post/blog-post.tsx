@@ -14,7 +14,7 @@ import Sidebar from "../blog-sidebar";
 import { SidebarAbout, SidebarLabels, SidebarMisskeyIframe } from "../blog-sidebar/blog-sidebar-card";
 import CopyrightCard from "./blog-copyright.client";
 import { WaveEffects } from "./wave-effect";
-import { navHeight, navStickyTopPx } from "@/utils/common/layout-size";
+import { navStickyTopPx } from "@/utils/common/layout-size";
 import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size";
 
 async function PostHeader({ post }: { post: Post }) {
@@ -151,7 +151,6 @@ async function PostContent({ post }: { post: Post }) {
 
 async function BlogPost({ post }: { post: Post }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
-  const sideCardTop = navHeight + 4;
   return (
     <div className="h-full">
       {/* <ScrollToTop /> */}

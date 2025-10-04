@@ -50,7 +50,7 @@ export default function RootLayout({
     if (scrollY <= maxGradientScroll / 2) {
       setNavStyle(`bg-transparent backdrop-blur-none !text-white [&_.text-primary]:text-white`);
     } else if (scrollY < maxGradientScroll) {
-      setNavStyle(`bg-background/40 backdrop-blur-lg !text-white [&_.text-primary]:text-white`);
+      setNavStyle(`bg-background/40 backdrop-blur- !text-white [&_.text-primary]:text-white`);
     } else {
       resetNavStyle();
     }
