@@ -81,7 +81,7 @@ export default function Navbar() {
   const { siteInfo } = useSiteInfo();
   const { navClassName } = useNav();
   return (
-    <div className={cn(`flex items-center justify-between w-full`, navClassName)}>
+    <div className={cn(`flex items-center justify-between w-full max-w-screen`, navClassName)}>
       <div className="flex items-center justify-start">
         <span className="font-bold text-lg truncate">
           <Link href="/" className="flex items-center text-primary">
@@ -93,13 +93,13 @@ export default function Navbar() {
       <div className="items-center justify-center hidden md:flex">
         <NavMenuCenter />
       </div>
-      <div className="flex items-center justify-end gap-2 md:gap-3">
+      <div className="flex items-center justify-end-safe gap-2">
         {[
           <AvatarWithDropdownMenu key="a8d92h1" />,
           <ThemeModeToggle key="a8d92h2" />,
           <Link href="/rss.xml" className="flex items-center justify-center" key="a8d92h3">
             <RssIcon className="w-6 h-6 text-primary" />
-          </Link>,
+          </Link>
         ].map((Comp, index) => (
           <div
             key={index}
@@ -107,20 +107,6 @@ export default function Navbar() {
             {Comp}
           </div>
         ))}
-        {/* <div
-          className="flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
-          <AvatarWithDropdownMenu key="a8d92h1" />
-        </div>
-        <div
-          className="flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
-          <ThemeModeToggle key="a8d92h2" />
-        </div>
-        <div
-          className="flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
-          <Link href="/rss.xml" className="flex items-center justify-center" key="a8d92h3">
-            <RssIcon className="w-6 h-6 text-primary" />
-          </Link>
-        </div> */}
         <SidebarMenu />
       </div>
     </div>

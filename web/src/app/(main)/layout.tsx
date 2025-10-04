@@ -20,12 +20,12 @@ export default function RootLayout({
   return (
     <>
       <motion.nav
-        className='transition-none w-full fixed inset-x-0 top-0 z-50' // 禁用全局动画，使用motion.div单独控制动画
-        initial={{ y: 0 }}
+        className='transition-none w-full fixed inset-x-0 z-9999' // 禁用全局动画，使用motion.div单独控制动画
+        initial={{ y: -64 }}
         animate={{ y: 0 }}
         transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
-        <div className={`fixed top-0 left-0 h-${navHeight} w-full z-50 flex justify-center`}>
-          <div className={`mx-auto ${contentAreaMaxWidthClass} px-0 md:${contentAreaPaddingClass} flex items-center w-full`}>
+        <div className={`top-0 left-0 h-${navHeight} w-full flex justify-center`}>
+          <div className={`${contentAreaMaxWidthClass} px-0 md:${contentAreaPaddingClass} flex items-center w-full`}>
             <Navbar />
           </div>
         </div>
