@@ -243,7 +243,7 @@ function FileItem({
 
           {/* 文件信息 */}
           <div className="text-center w-full">
-            <div className="text-sm font-medium truncate mb-1" title={file.name}>
+            <div className="text-sm font-medium mb-1 w-full overflow-hidden whitespace-nowrap truncate" title={file.name}>
               {file.name}
             </div>
             <div className="flex flex-wrap justify-center items-center gap-2">
@@ -273,7 +273,7 @@ function FileItem({
             </AvatarFallback>
           </Avatar>
           <div>
-            <div className="text-sm font-medium">
+            <div className="text-sm font-medium min-w-0 overflow-hidden whitespace-nowrap truncate" title={file.name}>
               {file.name}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-3">
