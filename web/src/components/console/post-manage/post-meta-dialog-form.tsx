@@ -173,7 +173,7 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
             <DialogFooter>
               <DialogClose asChild>
                 <div className="flex gap-2">
-                  <Button onClick={handleCancel} variant="outline">{operationT("cancel")}</Button>
+                  <Button onClick={handleCancel} type="button" variant="outline">{operationT("cancel")}</Button>
                   <Button onClick={() => form.handleSubmit(onSubmit)}>{post ? operationT("update") : operationT("create")}</Button>
                 </div>
               </DialogClose>
