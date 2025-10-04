@@ -31,7 +31,7 @@ func (cc *AdminController) GetDashboard(ctx context.Context, c *app.RequestConte
 }
 
 func (cc *AdminController) CreateOidc(ctx context.Context, c *app.RequestContext) {
-	var adminCreateOidcReq dto.AdminOidcConfigDto
+	var adminCreateOidcReq dto.CreateOidcConfigDto
 	if err := c.BindAndValidate(&adminCreateOidcReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
@@ -88,7 +88,7 @@ func (cc *AdminController) ListOidc(ctx context.Context, c *app.RequestContext) 
 }
 
 func (cc *AdminController) UpdateOidc(ctx context.Context, c *app.RequestContext) {
-	var adminUpdateOidcReq dto.AdminOidcConfigDto
+	var adminUpdateOidcReq dto.UpdateOidcConfigDto
 	if err := c.BindAndValidate(&adminUpdateOidcReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return

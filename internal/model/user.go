@@ -12,7 +12,7 @@ type User struct {
 	Nickname       string `gorm:"default:''"`           // 昵称
 	AvatarUrl      string
 	BackgroundUrl  string
-	PreferredColor string `gorm:"default:'global'"` // 主题色
+	PreferredColor string `gorm:"default:''"` // 主题色
 	Email          string `gorm:"uniqueIndex"`
 	Gender         string `gorm:"default:''"`
 	Role           string `gorm:"default:'user'"` // user editor admin

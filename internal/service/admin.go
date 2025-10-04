@@ -46,7 +46,7 @@ func (c *AdminService) GetDashboard() (map[string]any, error) {
 	}, nil
 }
 
-func (c *AdminService) CreateOidcConfig(req *dto.AdminOidcConfigDto) error {
+func (c *AdminService) CreateOidcConfig(req *dto.CreateOidcConfigDto) error {
 	oidcConfig := &model.OidcConfig{
 		Name:             req.Name,
 		DisplayName:      req.DisplayName,
@@ -84,7 +84,7 @@ func (c *AdminService) ListOidcConfigs(onlyEnabled bool) ([]*dto.AdminOidcConfig
 	return dtos, nil
 }
 
-func (c *AdminService) UpdateOidcConfig(req *dto.AdminOidcConfigDto) error {
+func (c *AdminService) UpdateOidcConfig(req *dto.UpdateOidcConfigDto) error {
 	oidcConfig := &model.OidcConfig{
 		Model:            gorm.Model{ID: req.ID},
 		Name:             req.Name,
