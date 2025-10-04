@@ -28,7 +28,7 @@ func (l *labelRepo) GetLabelByID(id uint) (*model.Label, error) {
 
 func (l *labelRepo) ListLabels() ([]model.Label, error) {
 	var labels []model.Label
-	if err := GetDB().Find(&labels).Error; err != nil {
+	if err := GetDB().Order("id DESC").Find(&labels).Error; err != nil {
 		return nil, err
 	}
 	return labels, nil

@@ -85,6 +85,20 @@
     "about_content": "内容相关",
     "about_system": "系统相关",
     "about_user": "用户相关",
+    "categories": {
+      "title": "分类管理",
+      "category_manage": "分类管理",
+      "category_name": "分类名称",
+      "category_name_and_slug_cannot_be_empty": "分类名称和 Slug 不能为空",
+      "category_slug": "分类 Slug (用于 URL)",
+      "category_description": "分类描述",
+      "create_category": "创建分类",
+      "delete_category": "删除分类",
+      "delete_category_description": "删除分类不会删除文章，但会将该分类从所有文章中移除。",
+      "edit_category": "编辑分类",
+      "no_categories": "还没有分类，创建一个吧！",
+      "search_categories": "搜索分类..."
+    },
     "comments": {
       "title": "评论管理"
     },
@@ -104,6 +118,20 @@
     "global": {
       "title": "全局配置"
     },
+    "labels": {
+      "title": "标签管理",
+      "create_label": "创建标签",
+      "delete_label": "删除标签",
+      "delete_label_description": "删除标签不会删除文章，但会将该标签从所有文章中移除。",
+      "edit_label": "编辑标签",
+      "label_manage": "标签管理",
+      "label_name": "标签名称",
+      "label_name_and_slug_cannot_be_empty": "标签名称和 Slug 不能为空",
+      "label_slug": "标签 Slug (用于 URL)",
+      "label_tailwind_class": "Tailwind CSS 类名",
+      "no_labels": "还没有标签，创建一个吧！",
+      "search_labels": "搜索标签..."
+    },
     "login_required": "请先登录再进入后台",
     "oidc": {
       "title": "认证源"
@@ -114,16 +142,6 @@
     },
     "post_edit": {
       "title": "编辑文章",
-      "category_name": "分类名称",
-      "category_name_and_slug_cannot_be_empty": "分类名称和 Slug 不能为空",
-      "category_slug": "分类 Slug (用于 URL)",
-      "category_description": "分类描述",
-      "create_category": "创建分类",
-      "create_label": "创建标签",
-      "label_name": "标签名称",
-      "label_name_and_slug_cannot_be_empty": "标签名称和 Slug 不能为空",
-      "label_slug": "标签 Slug (用于 URL)",
-      "label_tailwind_class": "Tailwind CSS 类名",
       "last_saved_at": "最后保存于 {time}",
       "no_category": "没有分类",
       "no_label": "没有标签",

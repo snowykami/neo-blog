@@ -35,6 +35,7 @@ import { mimeTypeIcons } from "@/utils/common/mimetype";
 import copyToClipboard from "@/lib/clipboard";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import { FileModel } from "@/models/file";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
@@ -42,8 +43,10 @@ const MOBILE_PAGE_SIZE = 10;
 
 
 export function FileManage() {
+  const t = useTranslations("Console.files");
   const commonT = useTranslations("Common");
   const metricsT = useTranslations("Metrics");
+  const operationT = useTranslations("Operation");
   const { isMobile } = useDevice();
   const [files, setFiles] = useState<FileModel[]>([]);
   const [total, setTotal] = useState(0);
@@ -119,13 +122,37 @@ export function FileManage() {
     setOrderBy(OrderBy.CreatedAt);
     setDesc(true);
     setFileListRefreshIndex(idx => idx + 1);
-  },[setPage, setOrderBy, setDesc]);
+  }, [setPage, setOrderBy, setDesc]);
+
+  const handleBatchDelete = () => {
+    batchDeleteFiles({ ids: Array.from(selectedFileIds) })
+      .then(() => {
+        toast.success(operationT("delete_success"));
+        Array.from(selectedFileIds).forEach(id => onFileDelete({ fileId: id }));
+      })
+      .catch((error: BaseResponseError) => {
+        toast.error(operationT("delete_failed") + ": " + error.message);
+      });
+  }
 
   return <div>
     <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
       <div className="flex items-center gap-3 w-full sm:w-auto">
         <Checkbox checked={files.length !== 0 && selectedFileIds.size === files.length} onCheckedChange={onAllFileSelect} />
-        <BatchDeleteDialogWithButton ids={Array.from(selectedFileIds)} onFileDelete={onFileDelete} />
+        <ConfirmDialog
+          description={t("will_delete_n_files", { n: selectedFileIds.size })}
+          title={operationT("batch_delete")}
+          confirmLabel={operationT("confirm_delete")}
+          cancelLabel={operationT("cancel")}
+          confirmVariant="destructive"
+          disabled={selectedFileIds.size === 0}
+          onConfirm={handleBatchDelete}
+          closeOnConfirm={true}
+        >
+          <Button variant="destructive" size="sm" disabled={Array.from(selectedFileIds).length === 0}>
+            {operationT("batch_delete")}
+          </Button>
+        </ConfirmDialog>
         <Input
           type="search"
           placeholder={commonT("search")}
@@ -142,7 +169,7 @@ export function FileManage() {
             onOrderChange={onOrderChange}
             orderBys={[OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.Name, OrderBy.Size]}
           />
-          <FileUploadDialogWithButton onFilesUpload={onFilesUpload}/>
+          <FileUploadDialogWithButton onFilesUpload={onFilesUpload} />
         </div>
       </div>
     </div>
@@ -281,7 +308,7 @@ function FileDropdownMenu(
   const operationT = useTranslations("Operation");
   const { confirming: confirmingDelete, onClick: onDeleteClick, onBlur: onDeleteBlur } = useDoubleConfirm();
   const [open, setOpen] = useState(false);
-  const {siteInfo} = useSiteInfo();
+  const { siteInfo } = useSiteInfo();
 
   const handleDelete = () => {
     deleteFile({ id: file.id })
@@ -343,52 +370,3 @@ function FileDropdownMenu(
     </DropdownMenu>
   )
 }
-
-function BatchDeleteDialogWithButton({ ids, onFileDelete }: { ids: number[], onFileDelete: ({ fileId }: { fileId: number }) => void }) {
-  const t = useTranslations("Console.files");
-  const operationT = useTranslations("Operation");
-
-  const handleBatchDelete = () => {
-    batchDeleteFiles({ ids })
-      .then(() => {
-        toast.success(operationT("delete_success"));
-        ids.forEach(id => onFileDelete({ fileId: id }));
-      })
-      .catch((error: BaseResponseError) => {
-        toast.error(operationT("delete_failed") + ": " + error.message);
-      });
-  }
-
-  return (
-    <Dialog>
-      <form>
-        <DialogTrigger asChild>
-          <Button variant="destructive" size="sm" disabled={ids.length === 0}>
-            {operationT("batch_delete")}
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{operationT("batch_delete")}</DialogTitle>
-            <DialogDescription>
-              {t("will_delete_n_files", { n: ids.length })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">
-                {operationT("cancel")}
-              </Button>
-            </DialogClose>
-            <DialogClose asChild>
-              <Button onClick={handleBatchDelete} type="button" variant="destructive">
-                {operationT("confirm_delete")}
-              </Button>
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </form>
-    </Dialog>
-  )
-}
-

@@ -127,7 +127,7 @@ export function SidebarLabels({ label = null, setLabel }: { label?: string | nul
         <div className="flex flex-wrap gap-2">
           {labels.map((l) => (
             <Badge
-              key={l.name}
+              key={l.id}
               variant="outline"
               onClick={() => onClickLabel(l)}
               className={`text-xs hover:bg-blue-50 cursor-pointer` + (label === l.slug ? " bg-blue-100 text-blue-700 hover:bg-blue-200" : "")}

@@ -16,7 +16,7 @@ import { useTranslations } from "next-intl"
 import { useEffect, useState } from "react"
 import { SubmitHandler, useForm } from "react-hook-form"
 import { Label } from '@/models/label';
-import { createLabel, getLabels } from "@/api/label"
+import { getLabels } from "@/api/label"
 import { toast } from "sonner"
 
 interface PostMetaForm {
@@ -32,10 +32,12 @@ interface PostMetaForm {
 
 export function PostMetaSettingButtonWithDialog({
   post, onMetaChange,
-  open, onOpenChange
+  open, onOpenChange,
+  isCreate = false
 }: {
   post: Post, onMetaChange: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void,
-  open: boolean, onOpenChange: (open: boolean) => void
+  open: boolean, onOpenChange: (open: boolean) => void,
+  isCreate?: boolean
 }) {
   const operationT = useTranslations("Operation")
   const t = useTranslations("Console.post_edit")

@@ -122,7 +122,7 @@ func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 
 func (p *PostController) GetCategories(ctx context.Context, c *app.RequestContext) {
 	var categories []model.Category
-	err := repo.GetDB().Find(&categories).Error
+	err := repo.GetDB().Order("id DESC").Find(&categories).Error
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, err.Error(), nil)

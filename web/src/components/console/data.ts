@@ -2,7 +2,7 @@ import { consolePath } from "@/utils/common/route";
 import type { User } from "@/models/user";
 import { IconType } from "@/types/icon";
 import { isAdmin, isEditor } from "@/utils/common/permission";
-import { Database, Folder, Gauge, IdCard, MessageCircle, Newspaper, Palette, Settings, ShieldCheck, UserPen, Users } from "lucide-react";
+import { ChartBarStackedIcon, Database, Folder, Gauge, IdCard, MessageCircle, Newspaper, Palette, Settings, ShieldCheck, TagsIcon, UserPen, Users } from "lucide-react";
 
 
 export interface SidebarItem {
@@ -27,6 +27,20 @@ export const sidebarData: { navContent: SidebarItem[]; navPersonal: SidebarItem[
       title: "posts.title",
       url: consolePath.post,
       icon: Newspaper,
+      permission: isEditor
+    },
+    {
+      id: "categories",
+      title: "categories.title",
+      url: consolePath.category,
+      icon: ChartBarStackedIcon,
+      permission: isEditor
+    },
+    {
+      id: "labels",
+      title: "labels.title",
+      url: consolePath.label,
+      icon: TagsIcon,
       permission: isEditor
     },
     {

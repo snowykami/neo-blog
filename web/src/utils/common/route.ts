@@ -1,5 +1,7 @@
 export const consolePath = {
+  category : "/console/categories",
   dashboard: "/console",
+  label: "/console/labels",
   post: "/console/posts",
   comment: "/console/comments",
   file: "/console/files",
