@@ -1,8 +1,8 @@
 import { BaseResponse } from "@/models/resp";
 import axiosClient from "./client";
-import type { SiteInfo } from "@/contexts/site-info-context";
 import { User } from "@/models/user";
 import { Category } from "@/models/category";
+import { SiteInfo } from "@/utils/common/siteinfo";
 
 
 export async function getSiteInfo(): Promise<BaseResponse<SiteInfo>> {
