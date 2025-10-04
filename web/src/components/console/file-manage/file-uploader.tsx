@@ -61,7 +61,7 @@ export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: (
     if (failedCount > 0) {
       toast.error(`${failedCount} 个文件上传失败`);
     }
-    // 调用回调
+    setFiles([]);
     onFilesUpload();
   };
 
@@ -124,7 +124,18 @@ function FileUploadPreviewItem({ file, onFileCancel }: { file: File, onFileCance
         </Avatar>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-primary truncate">{file.name}</div>
+        {(() => {
+          const name = file.name;
+          const MAX_LEN = 50; // 小于该长度直接完整显示
+          const HEAD = 30; // 前缀保留长度
+          const TAIL = 15; // 后缀保留长度（保留扩展名等）
+          if (name.length <= MAX_LEN) {
+            return <div className="text-sm font-medium text-primary truncate" title={name}>{name}</div>;
+          }
+
+          const truncated = `${name.slice(0, HEAD)}…${name.slice(-TAIL)}`;
+          return <div className="text-sm font-medium text-primary truncate" title={name}>{truncated}</div>;
+        })()}
         <div className="text-xs text-muted-foreground">{formatDataSize({ size: file.size })}</div>
       </div>
       <Button variant="ghost" size="icon" onClick={() => onFileCancel(file)}>
