@@ -48,7 +48,7 @@ async function PostHeader({ post }: { post: Post }) {
         {post.labels && post.labels.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {post.labels.map(label => (
-              <Link href={getLabelUrl(label)} passHref>
+              <Link href={getLabelUrl(label)} key={label.id}>
                 <span
                   className="bg-white/20 backdrop-blur-sm text-white border border-white/30 text-xs px-3 py-1 rounded-full font-medium shadow-sm"
                 >
