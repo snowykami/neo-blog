@@ -6,7 +6,7 @@ import { TrendingUp, Clock, } from "lucide-react";
 import { SidebarAbout, SidebarHotPosts, SidebarMisskeyIframe, SidebarLabels } from "../blog-sidebar/blog-sidebar-card";
 import type { Post } from "@/models/post";
 import { listPosts } from "@/api/post";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { OrderBy } from "@/models/common";
@@ -38,6 +38,25 @@ export default function BlogHome() {
   const [loading, setLoading] = useState(false);
   const [sortBy, setSortBy, isSortByLoaded] = useStoredState<SortBy>(QueryKey.SortBy, DEFAULT_SORTBY);
 
+  // 区分浏览器 history popstate（回退/前进）与用户主动触发的分页
+  const popStateRef = useRef(false);
+  useEffect(() => {
+    const onPop = () => { popStateRef.current = true; };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // 监听 page 变化，只有在非 popstate 情况下滚动到顶部
+  useEffect(() => {
+    if (popStateRef.current) {
+      // 清除标记，不执行滚动（这是浏览器回退/前进恢复）
+      popStateRef.current = false;
+      return;
+    }
+    // 用户主动触发分页时滚动
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [page]);
+
   useEffect(() => {
     if (!isSortByLoaded) return;
     setLoading(true);
@@ -68,8 +87,7 @@ export default function BlogHome() {
   };
 
   const handlePageChange = (page: number) => {
-    console.log("切换到第", page, "页");
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // 仅设置 page，滚动逻辑由上面的 effect 处理（会避开 popstate）
     setPage(page);
   }
 
