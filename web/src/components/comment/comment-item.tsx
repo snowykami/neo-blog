@@ -167,13 +167,13 @@ export function CommentItem(
   return (
     <div className={`${commentState.replyCount > 0 && showReplies ? "border-l-2" : ""}`}>
       <div className="flex gap-2">
-        <div onClick={() => clickToUserProfile(commentState.user.username)} className="cursor-pointer fade-in w-12 h-12">
+        <div onClick={() => clickToUserProfile(commentState.user.username)} className="cursor-pointer fade-in w-10 h-10">
           <Avatar className="h-full w-full rounded-full border-2">
             <AvatarImage src={getGravatarFromUser({ user: commentState.user, size: 120 })} alt={commentState.user.nickname} />
             <AvatarFallback className="rounded-full">{getFirstCharFromUser(commentState.user)}</AvatarFallback>
           </Avatar>
         </div>
-        <div className="flex-1 pl-2 fade-in-up">
+        <div className="flex-1 fade-in-up">
           <div className="flex gap-2 md:gap-4 items-center flex-wrap">
             {/* 用户名 */}
             <div
