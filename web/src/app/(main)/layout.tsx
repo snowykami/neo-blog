@@ -21,7 +21,7 @@ export default function RootLayout({
     <>
       <motion.nav
         className='transition-none w-full fixed inset-x-0 top-0 z-50' // 禁用全局动画，使用motion.div单独控制动画
-        initial={{ y: -64 }}
+        initial={{ y: 0 }}
         animate={{ y: 0 }}
         transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
         <div className={`fixed top-0 left-0 h-${navHeight} w-full z-50 flex justify-center`}>
