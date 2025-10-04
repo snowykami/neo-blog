@@ -117,7 +117,7 @@ function NavMenuCenter() {
   const router = useRouter();
   const routeT = useTranslations("Route");
   return (
-    <NavigationMenu viewport={false} className="">
+    <NavigationMenu viewport={false}>
       <NavigationMenuList className="flex space-x-1" key="navbar-menu">
         {navbarMenuComponents.map((item) => (
           <NavigationMenuItem key={item.title}>
@@ -174,7 +174,7 @@ function SidebarMenu() {
   const [open, setOpen] = useState(false)
   const routeT = useTranslations("Route");
   return (
-    <div className="">
+    <div className="flex md:hidden">
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
           <button
@@ -183,7 +183,7 @@ function SidebarMenu() {
             <PanelRight className="w-6 h-6 text-primary" />
           </button>
         </SheetTrigger>
-        <SheetContent side="right" className="p-0 w-64">
+        <SheetContent side="right" className="pt-6 w-64 z-999999">
           <SheetTitle className="sr-only">侧边栏菜单</SheetTitle>
           <nav className="flex flex-col gap-2 p-4">
             {navbarMenuComponents.map((item) =>

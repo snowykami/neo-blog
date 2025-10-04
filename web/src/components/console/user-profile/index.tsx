@@ -59,6 +59,7 @@ export function UserProfilePage() {
   const [avatarFileUrl, setAvatarFileUrl] = useState<string | null>(null)
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null)
   const [backgroundFileUrl, setBackgroundFileUrl] = useState<string | null>(null)
+  const [isFormChanged, setIsFormChanged] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -92,10 +93,10 @@ export function UserProfilePage() {
     if (!user) return false;
     const values = form.getValues();
     return (
-      values.nickname !== user.nickname ||
-      values.username !== user.username ||
-      values.gender !== user.gender ||
-      values.language !== user.language ||
+      values.nickname.trim() !== (user.nickname ?? "") ||
+      values.username.trim() !== (user.username ?? "") ||
+      values.gender !== (user.gender ?? "") ||
+      values.language !== (user.language ?? "") ||
       avatarFile !== null ||
       backgroundFile !== null
     );
@@ -316,7 +317,7 @@ export function UserProfilePage() {
             )}
           />
 
-          <Button type="submit" disabled={form.formState.isSubmitting || !isProfileChanged()} className="w-full">
+          <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
             {t("update_profile")}
             {form.formState.isSubmitting && '...'}
           </Button>

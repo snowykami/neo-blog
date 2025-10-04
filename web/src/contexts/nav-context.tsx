@@ -26,7 +26,7 @@ type NavContextValue = {
   setFloatingNav: () => void;
 };
 
-export const DEFAULT_NAV_CLASSNAME = `bg-background/90 backdrop-blur md:rounded-b-2xl h-${navHeight} ${contentAreaPaddingClass}`;
+export const DEFAULT_NAV_CLASSNAME = `bg-background/90 backdrop-blur md:rounded-b-2xl transition duration-200 h-${navHeight} ${contentAreaPaddingClass}`;
 
 const NavContext = createContext<NavContextValue | undefined>(undefined);
 
