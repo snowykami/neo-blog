@@ -35,7 +35,7 @@ export function BlogLikeButton({
     }).catch(() => {
       setLikedUsers([]);
     });
-  }, [liked, setLikedUsers, likeCount]);
+  }, [liked, setLikedUsers, likeCount, post.id]);
 
 
   const handleToggleLike = () => {
