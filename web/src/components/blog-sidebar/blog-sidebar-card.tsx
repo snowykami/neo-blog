@@ -38,7 +38,7 @@ export function SidebarAbout() {
       <div className="relative z-10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 ">
-            <Heart className="w-5 h-5 text-red-500"/>
+            <Heart className="w-5 h-5 text-red-500" />
             关于我
           </CardTitle>
         </CardHeader>
@@ -106,7 +106,7 @@ export function SidebarLabels({ label = null, setLabel }: { label?: string | nul
   const router = useRouter();
   useEffect(() => {
     getLabels().then(res => {
-      setLabels(res.data.labels);
+      setLabels(res.data.labels || []);
     })
   }, []);
 
