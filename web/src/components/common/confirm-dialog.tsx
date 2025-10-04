@@ -77,7 +77,7 @@ export function ConfirmDialog({
           </DialogClose>
           <Button
             onClick={handleConfirm}
-            variant={confirmVariant as any}
+            variant={confirmVariant as unknown as "default"}
             disabled={disabled || loading}
             type="button"
           >
