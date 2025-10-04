@@ -26,7 +26,7 @@ export function CategoryManage() {
       .then(res => setCategories(res.data.categories || []))
       .catch(() => toast.error(operationT("fetch_failed")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [operationT]);
 
   const onCategoryCreatedOrUpdated = (cat: Category) => {
     setCategories(prev => {

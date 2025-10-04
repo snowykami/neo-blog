@@ -1,6 +1,6 @@
 'use client'
 // InitializedMDXEditor.tsx
-import { useEffect, useRef, useState, type ForwardedRef } from 'react'
+import { useCallback, useEffect, useRef, useState, type ForwardedRef } from 'react'
 import {
   type MDXEditorMethods
 } from '@mdxeditor/editor'
@@ -52,28 +52,7 @@ function EditorNavbar({ editorRef, post, onPostUpdate }: { post: Post, onPostUpd
   const [savingDraft, setSavingDraft] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
-  // 定时保存
-  useEffect(() => {
-    const AUTOSAVE_MS = 10_000;
-    const iv = setInterval(() => {
-      if (!post) return;
-      saveDraft(false);
-    }, AUTOSAVE_MS);
-    return () => clearInterval(iv);
-  }, [post, editorRef]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        saveDraft(true);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [post, editorRef]);
-
-  const saveDraft = (showToast: boolean) => {
+  const saveDraft = useCallback((showToast: boolean) => {
     const markdown = editorRef && 'current' in editorRef && editorRef.current ? editorRef.current.getMarkdown() : '';
     setSavingDraft(true);
     updatePost({ post: { id: post.id, draftContent: markdown } }).then(() => {
@@ -84,7 +63,30 @@ function EditorNavbar({ editorRef, post, onPostUpdate }: { post: Post, onPostUpd
     }).finally(() => {
       setSavingDraft(false);
     });
-  }
+  }, [post, editorRef, operationT]);
+  
+  // 定时保存
+  useEffect(() => {
+    const AUTOSAVE_MS = 10_000;
+    const iv = setInterval(() => {
+      if (!post) return;
+      saveDraft(false);
+    }, AUTOSAVE_MS);
+    return () => clearInterval(iv);
+  }, [post, editorRef, saveDraft]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveDraft(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [post, editorRef, saveDraft]);
+
+
 
   const publishPost = () => {
     const markdown = editorRef && 'current' in editorRef && editorRef.current ? editorRef.current.getMarkdown() : '';

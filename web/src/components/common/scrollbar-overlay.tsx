@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 export default function ScrollbarOverlay() {
   const thumbRef = useRef<HTMLDivElement | null>(null);
@@ -16,7 +16,7 @@ export default function ScrollbarOverlay() {
     return nav ? Math.max(0, Math.round(nav.getBoundingClientRect().height)) : 0;
   };
 
-  const updateThumb = () => {
+  const updateThumb = useCallback(() => {
     const doc = document.documentElement;
     const body = document.body;
     const scrollTop = window.scrollY || doc.scrollTop || body.scrollTop || 0;
@@ -41,7 +41,7 @@ export default function ScrollbarOverlay() {
     const t = thumbRef.current;
     t.style.height = `${h}px`;
     t.style.transform = `translateY(${top}px)`;
-  };
+  }, []);
 
   useEffect(() => {
     // keep native scrolling but hide native visuals via CSS class

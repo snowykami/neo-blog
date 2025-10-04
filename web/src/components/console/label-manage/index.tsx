@@ -25,7 +25,7 @@ export function LabelManage() {
       .then(res => setLabels(res.data.labels || []))
       .catch(() => toast.error(operationT("fetch_failed")))
       .finally(() => setLoading(false))
-  }, [])
+  }, [operationT])
 
   const handleDelete = async (id: number) => {
     deleteLabel({ id })

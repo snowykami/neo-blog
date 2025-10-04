@@ -60,7 +60,7 @@ export function PostManage() {
 
   const onPostCreate = useCallback(({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => {
     setRefreshKey((k) => k + 1);
-  }, [setPosts]);
+  }, []);
 
   const onPostUpdate = useCallback(({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => {
     setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, ...post } : p)));
