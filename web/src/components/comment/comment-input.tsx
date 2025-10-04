@@ -30,7 +30,7 @@ export function CommentInput(
     initShowClientInfo?: boolean
   }
 ) {
-  const {user} = useAuth();
+  const { user } = useAuth();
   const t = useTranslations('Comment')
   const operationT = useTranslations('Operation')
   const clickToLogin = useToLogin()
@@ -98,6 +98,7 @@ export function CommentInput(
           <Label onClick={() => setIsPrivate(prev => !prev)}>{t("private")}</Label>
         </div>
         <Button
+          size="sm"
           onClick={handleCommentSubmit}
         >
           {isUpdate ? operationT("update") : operationT("submit")}

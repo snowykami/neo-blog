@@ -66,7 +66,7 @@ export function CommentItem(
     }
     setCanClickLike(false);
     if (!user) {
-      toast.error(t("login_required"), {
+      toast.error(commonT("login_required"), {
         action: {
           label: commonT("login"),
           onClick: clickToLogin,
@@ -173,7 +173,7 @@ export function CommentItem(
           </Avatar>
         </div>
         <div className="flex-1 pl-2 fade-in-up">
-          <div className="flex gap-2 md:gap-4 items-center">
+          <div className="flex gap-2 md:gap-4 items-center flex-wrap">
             {/* 用户名 */}
             <div
               onClick={() => clickToUserProfile(commentState.user.username)}

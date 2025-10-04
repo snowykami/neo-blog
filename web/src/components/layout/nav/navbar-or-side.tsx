@@ -93,7 +93,7 @@ export default function Navbar() {
       <div className="items-center justify-center hidden md:flex">
         <NavMenuCenter />
       </div>
-      <div className="flex items-center justify-end-safe gap-2">
+      <div className="flex items-center justify-end-safe gap-2 md:gap-4">
         {[
           <AvatarWithDropdownMenu key="a8d92h1" />,
           <ThemeModeToggle key="a8d92h2" />,

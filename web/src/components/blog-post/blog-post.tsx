@@ -16,13 +16,14 @@ import CopyrightCard from "./blog-copyright.client";
 import { WaveEffects } from "./wave-effect";
 import { navStickyTopPx } from "@/utils/common/layout-size";
 import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size";
+import { BlogLikeButton } from "./blog-like-button.client";
 
 async function PostHeader({ post }: { post: Post }) {
   const isMobile = await isMobileByUA();
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
 
   return (
-    <div className={`relative ${isMobile ? "py-24" : "py-32"} overflow-hidden transition-none`} style={{ width: '100vw', marginLeft: '50%', transform: 'translateX(-50%)' }}>
+    <div className={`relative pt-30 pb-36 md:pt-36 md:pb-48 overflow-hidden transition-none`} style={{ width: '100vw', marginLeft: '50%', transform: 'translateX(-50%)' }}>
       {/* 背景图片层 */}
       <div
         className="absolute inset-0"
@@ -144,6 +145,8 @@ async function PostContent({ post }: { post: Post }) {
       </Suspense>
       {/* 版权卡片 */}
       <CopyrightCard post={post} />
+      {/* 点赞按钮 */}
+      <BlogLikeButton post={post} />
     </div>
   );
 }
