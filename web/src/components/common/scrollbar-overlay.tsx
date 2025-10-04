@@ -166,9 +166,9 @@ export default function ScrollbarOverlay() {
       window.addEventListener("pointerup", onPointerUp, { passive: true });
     };
 
-    thumb.addEventListener("pointerdown", onPointerDown as any);
+    thumb.addEventListener("pointerdown", onPointerDown);
     return () => {
-      thumb.removeEventListener("pointerdown", onPointerDown as any);
+      thumb.removeEventListener("pointerdown", onPointerDown );
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
