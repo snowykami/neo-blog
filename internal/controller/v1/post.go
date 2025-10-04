@@ -8,8 +8,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
-	"github.com/snowykami/neo-blog/internal/model"
-	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -27,7 +25,7 @@ func NewPostController() *PostController {
 }
 
 func (p *PostController) Create(ctx context.Context, c *app.RequestContext) {
-	var req dto.CreateOrUpdatePostOrDraftReq
+	var req dto.CreateOrUpdatePostReq
 	if err := c.BindAndValidate(&req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
@@ -53,6 +51,7 @@ func (p *PostController) Delete(ctx context.Context, c *app.RequestContext) {
 
 func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 	slugOrId := c.Param("slug_or_id") // 此处不用ctxutils bind是因为允许slug string类型
+	isDraft := c.Query("type") == "draft"
 	if slugOrId == "" {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
@@ -68,11 +67,22 @@ func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 		resps.NotFound(c, resps.ErrNotFound)
 		return
 	}
+	if isDraft {
+		// 草稿请求仅允许作者本人查看
+		if !ctxutils.IsOwnerOfTarget(ctx, post.UserID) && !ctxutils.IsAdmin(ctx) {
+			resps.Forbidden(c, resps.ErrForbidden)
+			return
+		}
+		resps.Ok(c, resps.Success, utils.H{"draft_content": post.DraftContent})
+		return
+	} else {
+		post.DraftContent = nil // 非草稿请求不返回草稿内容
+	}
 	resps.Ok(c, resps.Success, post)
 }
 
 func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
-	var req dto.CreateOrUpdatePostOrDraftReq
+	var req dto.CreateOrUpdatePostReq
 	if err := c.BindAndValidate(&req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
@@ -105,16 +115,3 @@ func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 	}
 	resps.Ok(c, resps.Success, utils.H{"posts": posts, "total": total})
 }
-
-func (p *PostController) GetDraft(ctx context.Context, c *app.RequestContext) {
-	id := ctxutils.GetIDParam(c).Uint
-	draft := model.Draft{}
-	repo.GetDB().Where("id = ?", id).First(&draft)
-	resps.Ok(c, resps.Success, draft)
-}
-
-func (p *PostController) CreateDraft(ctx context.Context, c *app.RequestContext) {}
-
-func (p *PostController) UpdateDraft(ctx context.Context, c *app.RequestContext) {}
-
-func (p *PostController) DeleteDraft(ctx context.Context, c *app.RequestContext) {}

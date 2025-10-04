@@ -17,10 +17,7 @@ type postRepo struct{}
 var Post = &postRepo{}
 
 func (p *postRepo) CreatePost(post *model.Post) error {
-	if err := GetDB().Create(post).Error; err != nil {
-		return err
-	}
-	return nil
+	return GetDB().Create(post).Error
 }
 
 func (p *postRepo) DeletePost(id uint) error {

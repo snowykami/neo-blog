@@ -20,7 +20,7 @@ func NewPostService() *PostService {
 	return &PostService{}
 }
 
-func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePostOrDraftReq) (uint, error) {
+func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (uint, error) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return 0, errs.ErrUnauthorized
@@ -28,11 +28,13 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	post := &model.Post{
 		UserID: currentUser.ID,
 		PostBase: model.PostBase{
-			Title:   req.Title,
-			Content: req.Content,
+			CategoryID: req.CategoryID,
+			Cover:      req.Cover,
+			Content:    req.Content,
+			IsPrivate:  req.IsPrivate,
 			Labels: func() []model.Label {
 				labelModels := make([]model.Label, 0)
-				for _, labelID := range req.Labels {
+				for _, labelID := range req.LabelIds {
 					labelModel, err := repo.Label.GetLabelByID(labelID)
 					if err == nil {
 						labelModels = append(labelModels, *labelModel)
@@ -40,7 +42,8 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 				}
 				return labelModels
 			}(),
-			IsPrivate: req.IsPrivate,
+			Slug:  req.Slug,
+			Title: req.Title,
 		},
 	}
 	if err := repo.Post.CreatePost(post); err != nil {
@@ -86,7 +89,7 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 	return post.ToDto(), nil
 }
 
-func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOrUpdatePostOrDraftReq) (uint, error) {
+func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOrUpdatePostReq) (uint, error) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return 0, errs.ErrUnauthorized
@@ -102,18 +105,20 @@ func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOr
 		return 0, errs.ErrForbidden
 	}
 	utils.UpdateNonEmpty(&post.Title, req.Title)
-	utils.UpdateNonEmpty(&post.Description, req.Description)
 	utils.UpdateNonEmpty(&post.Content, req.Content)
 	utils.UpdateNonEmpty(&post.Cover, req.Cover)
+	utils.UpdatePtrNonZero(&post.DraftContent, req.DraftContent)
 	utils.UpdatePtrNonZero(&post.Slug, req.Slug)
 	utils.UpdatePtrUint(&post.CategoryID, req.CategoryID)
 	utils.UpdateBool(&post.IsPrivate, req.IsPrivate)
 	post.Labels = func() []model.Label {
-		labelModels := make([]model.Label, len(req.Labels))
-		for _, labelID := range req.Labels {
+		labelModels := make([]model.Label, len(req.LabelIds))
+		for i, labelID := range req.LabelIds {
 			labelModel, err := repo.Label.GetLabelByID(labelID)
 			if err == nil {
-				labelModels = append(labelModels, *labelModel)
+				labelModels[i] = *labelModel
+			} else {
+				labelModels = append(labelModels[:i], labelModels[i+1:]...)
 			}
 		}
 		return labelModels

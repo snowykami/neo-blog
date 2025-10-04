@@ -3,16 +3,19 @@ package dto
 import "time"
 
 type PostBaseDto struct {
-	Title       string       `json:"title"`
-	Description string       `json:"description"`
-	Slug        *string      `json:"slug"`
-	Cover       string       `json:"cover"`
-	Content     string       `json:"content"`
-	Type        string       `json:"type"`
-	Category    *CategoryDto `json:"category"`
-	Labels      []LabelDto   `json:"labels"`
-	IsOriginal  bool         `json:"is_original"`
-	IsPrivate   bool         `json:"is_private"`
+	Title        string       `json:"title"`
+	Description  string       `json:"description"`
+	Slug         *string      `json:"slug"`
+	Cover        string       `json:"cover"`
+	Content      string       `json:"content"`
+	DraftContent *string      `json:"draft_content"`
+	Type         string       `json:"type"`
+	Category     *CategoryDto `json:"category"`
+	CategoryID   *uint        `json:"category_id"`
+	Labels       []LabelDto   `json:"labels"`
+	LabelIds     []uint       `json:"label_ids"`
+	IsOriginal   bool         `json:"is_original"`
+	IsPrivate    bool         `json:"is_private"`
 }
 
 type PostDto struct {
@@ -33,17 +36,15 @@ type DraftDto struct {
 	PostBaseDto
 }
 
-type CreateOrUpdatePostOrDraftReq struct {
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	Slug        *string `json:"slug"`
-	Content     string  `json:"content"`
-	CategoryID  *uint   `json:"category_id"`
-	Cover       string  `json:"cover"`
-	IsPrivate   bool    `json:"is_private"`
-	IsOriginal  bool    `json:"is_original"`
-	Type        string  `json:"type"`
-	Labels      []uint  `json:"labels"` // 标签ID列表
+type CreateOrUpdatePostReq struct {
+	ID uint `path:"id" json:"id"` // 文章ID，更新时需要
+	PostBaseDto
+}
+
+type CreateOrUpdateDraftReq struct {
+	ID     uint  `path:"id" json:"id"` // Draft ID 更新需要
+	PostID *uint `json:"post_id"`      // 关联的帖子ID，如果有的话
+	PostBaseDto
 }
 
 type ListPostReq struct {
