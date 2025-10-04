@@ -110,6 +110,8 @@ func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestCont
 		Limit(utils2.Env.GetAsInt(constant.EnvKeySitemapLimit, constant.DefaultSitemapLimit)).
 		Find(&editors)
 
+		// TODO: 未来可以考虑加入 categories, labels, archives
+
 	resps.Ok(c, "", utils.H{
 		"base_url":   tools.GetBaseUrl(),
 		"archives":   []string{},
