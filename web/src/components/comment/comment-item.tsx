@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import { Role } from "@/models/user";
 import { Badge } from "@/components/ui/badge";
+import { formatLocation } from "@/utils/common/location";
 
 
 export function CommentItem(
@@ -222,13 +223,13 @@ export function CommentItem(
             {commentState.content}
           </p>
           <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 justify-start flex-wrap">
               {/* 用户地理，浏览器，系统信息 */}
-              {commentState.location && <span title={commentState.location} >{commentState.location}</span>}
-              {commentState.browser && <span className="hidden md:flex" title={commentState.browser}>{commentState.browser}</span>}
-              {commentState.os && <span className="hidden md:flex" title={commentState.os}>{commentState.os}</span>}
+              {commentState.location && <span >{formatLocation({location: commentState.location, short: true})}</span>}
+              {commentState.browser && <span className="hidden md:flex">{commentState.browser}</span>}
+              {commentState.os && <span className="hidden md:flex">{commentState.os}</span>}
             </div>
-            <div className="flex items-center gap-4 w-full md:w-auto justify-end">
+            <div className="flex items-center gap-2 md:w-auto justify-end">
               {replyCount > 0 && (
                 <button onClick={toggleReplies} className="fade-in-up">
                   {!showReplies ? t("expand_replies", { count: replyCount }) : t("collapse_replies")}

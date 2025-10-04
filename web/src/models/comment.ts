@@ -17,6 +17,15 @@ export interface Comment {
   isLiked: boolean
   os: string
   browser: string
-  location: string
+  location: CommentLocation
   showClientInfo: boolean
+}
+
+export interface CommentLocation {
+  country: string
+  province: string
+  city: string
+  districts: string
+  isp: string
+  idc: string
 }

@@ -153,7 +153,7 @@ func (cs *CommentService) toGetCommentDto(comment *model.Comment, currentUserID 
 	}
 	ua := utils.ParseUA(comment.UserAgent)
 	if !comment.ShowClientInfo {
-		comment.Location = ""
+		comment.CommentLocation = model.CommentLocation{}
 		ua.OS = ""
 		ua.OSVersion = ""
 		ua.Browser = ""
@@ -161,22 +161,29 @@ func (cs *CommentService) toGetCommentDto(comment *model.Comment, currentUserID 
 	}
 
 	return dto.CommentDto{
-		ID:             comment.ID,
-		Content:        comment.Content,
-		TargetID:       comment.TargetID,
-		TargetType:     comment.TargetType,
-		ReplyID:        comment.ReplyID,
-		CreatedAt:      comment.CreatedAt.String(),
-		UpdatedAt:      comment.UpdatedAt.String(),
-		Depth:          comment.Depth,
-		User:           comment.User.ToDto(),
-		ReplyCount:     comment.CommentCount,
-		LikeCount:      comment.LikeCount,
-		IsLiked:        isLiked,
-		IsPrivate:      comment.IsPrivate,
-		OS:             ua.OS + " " + ua.OSVersion,
-		Browser:        ua.Browser + " " + ua.BrowserVer,
-		Location:       comment.Location,
+		ID:         comment.ID,
+		Content:    comment.Content,
+		TargetID:   comment.TargetID,
+		TargetType: comment.TargetType,
+		ReplyID:    comment.ReplyID,
+		CreatedAt:  comment.CreatedAt.String(),
+		UpdatedAt:  comment.UpdatedAt.String(),
+		Depth:      comment.Depth,
+		User:       comment.User.ToDto(),
+		ReplyCount: comment.CommentCount,
+		LikeCount:  comment.LikeCount,
+		IsLiked:    isLiked,
+		IsPrivate:  comment.IsPrivate,
+		OS:         ua.OS + " " + ua.OSVersion,
+		Browser:    ua.Browser + " " + ua.BrowserVer,
+		Location: dto.CommentLocationDto{
+			Country:   comment.Country,
+			Province:  comment.Province,
+			City:      comment.City,
+			Districts: comment.Districts,
+			ISP:       comment.ISP,
+			IDC:       comment.IDC,
+		},
 		ShowClientInfo: comment.ShowClientInfo,
 	}
 }
