@@ -1,6 +1,6 @@
 "use client"
 
-import { getCategories, updatePost } from "@/api/post"
+import { createPost, getCategories, updatePost } from "@/api/post"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -30,55 +30,80 @@ interface PostMetaForm {
 }
 
 
-export function PostMetaSettingButtonWithDialog({
+export function CreateOrUpdatePostMetaButtonWithDialog({
   post, onMetaChange,
   open, onOpenChange,
-  isCreate = false
 }: {
-  post: Post, onMetaChange: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void,
+  post: Post | null, onMetaChange: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void,
   open: boolean, onOpenChange: (open: boolean) => void,
-  isCreate?: boolean
 }) {
   const operationT = useTranslations("Operation")
   const t = useTranslations("Console.post_edit")
   const form = useForm<PostMetaForm>({
-    defaultValues: {
+    defaultValues: post ? {
       title: post.title,
       slug: post.slug || "",
       cover: post.cover || "",
       category: post.category,
       labels: post.labels || [],
       isPrivate: post.isPrivate,
+    } : {
+      title: "",
+      slug: "",
+      cover: "",
+      category: null,
+      labels: [],
+      isPrivate: false,
     }
   })
 
   const onSubmit: SubmitHandler<PostMetaForm> = (data) => {
-    onMetaChange && onMetaChange({
-      post: {
-        id: post.id,
-        title: data.title,
-        slug: data.slug,
-        cover: data.cover,
-        category: data.category || undefined,
-        labels: data.labels,
-        isPrivate: data.isPrivate,
-      }
-    })
-    updatePost({
-      post: {
-        id: post.id,
-        title: data.title,
-        slug: data.slug,
-        cover: data.cover,
-        categoryId: data.category?.id,
-        labelIds: data.labels.map(l => l.id),
-        isPrivate: data.isPrivate,
-      }
-    }).then(() => {
-      toast.success(operationT("update_success"))
-    }).catch(() => {
-      toast.error(operationT("update_failed"))
-    })
+    if (post) {
+      updatePost({
+        post: {
+          id: post.id,
+          title: data.title,
+          slug: data.slug,
+          cover: data.cover,
+          categoryId: data.category?.id,
+          labelIds: data.labels.map(l => l.id),
+          isPrivate: data.isPrivate,
+        }
+      }).then(() => {
+        toast.success(operationT("update_success"))
+        onMetaChange({ post: {
+          id: post.id,
+          title: data.title,
+          slug: data.slug,
+          cover: data.cover,
+          category: data.category,
+          labels: data.labels,
+          isPrivate: data.isPrivate,
+        } })
+        onOpenChange(false)
+      }).catch(() => {
+        toast.error(operationT("update_failed"))
+      })
+    } else {
+      createPost({
+        post: {
+          title: data.title,
+          slug: data.slug,
+          cover: data.cover,
+          categoryId: data.category?.id || null,
+          labelIds: data.labels.map(l => l.id),
+          isPrivate: data.isPrivate,
+          content: `# ${data.title}`
+        }
+      }).then((res) => {
+        toast.success(operationT("create_success"))
+        onMetaChange({ post: res.data })
+        form.reset()
+        onOpenChange(false)
+      }).catch(() => {
+        toast.error(operationT("create_failed"))
+      })
+    }
   }
 
   const handleCancel = () => {
@@ -90,7 +115,7 @@ export function PostMetaSettingButtonWithDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {t("post_meta")}
+            {post ? operationT("update") : operationT("create")} {t("post_meta")}
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
@@ -149,7 +174,7 @@ export function PostMetaSettingButtonWithDialog({
               <DialogClose asChild>
                 <div className="flex gap-2">
                   <Button onClick={handleCancel} variant="outline">{operationT("cancel")}</Button>
-                  <Button onClick={() => form.handleSubmit(onSubmit)}>{operationT("save")}</Button>
+                  <Button onClick={() => form.handleSubmit(onSubmit)}>{post ? operationT("update") : operationT("create")}</Button>
                 </div>
               </DialogClose>
             </DialogFooter>
@@ -223,7 +248,6 @@ function PostCategorySelector(
               </PopoverContent>
             </Popover>
           </FormControl>
-          <FormDescription>{t("post_category_desc")}</FormDescription>
           <FormMessage />
         </FormItem>
       )}

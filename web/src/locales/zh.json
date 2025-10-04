@@ -142,6 +142,7 @@
     },
     "post_edit": {
       "title": "编辑文章",
+      "create_post": "创建文章",
       "last_saved_at": "最后保存于 {time}",
       "no_category": "没有分类",
       "no_label": "没有标签",

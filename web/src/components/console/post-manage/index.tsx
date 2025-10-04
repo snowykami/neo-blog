@@ -25,12 +25,13 @@ import {
 } from "nuqs";
 import { useDebouncedState } from "@/hooks/use-debounce";
 import { Badge } from "@/components/ui/badge";
-import {  PostMetaSettingButtonWithDialog } from "./post-meta-dialog-form";
+import {  CreateOrUpdatePostMetaButtonWithDialog } from "./post-meta-dialog-form";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
 
 export function PostManage() {
+  const t = useTranslations("Console.post_edit");
   const commonT = useTranslations("Common");
   const metricsT = useTranslations("Metrics");
   const { isMobile } = useDevice();
@@ -42,6 +43,8 @@ export function PostManage() {
   const [size, setSize] = useQueryState("size", parseAsInteger.withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE).withOptions({ history: "replace", clearOnDefault: true }));
   const [keywords, setKeywords] = useQueryState("keywords", parseAsString.withDefault("").withOptions({ history: "replace", clearOnDefault: true }));
   const [keywordsInput, setKeywordsInput, debouncedKeywordsInput] = useDebouncedState(keywords, 200);
+  const [createPostDialogOpen, setCreatePostDialogOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // 用于强制刷新列表
 
   useEffect(() => {
     listPosts({ page, size, orderBy, desc, keywords }).
@@ -49,11 +52,15 @@ export function PostManage() {
         setPosts(res.data.posts);
         setTotal(res.data.total);
       });
-  }, [page, orderBy, desc, size, keywords]);
+  }, [page, orderBy, desc, size, keywords, refreshKey]);
 
   useEffect(() => {
     setKeywords(debouncedKeywordsInput)
   }, [debouncedKeywordsInput, setKeywords, keywords])
+
+  const onPostCreate = useCallback(({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => {
+    setRefreshKey((k) => k + 1);
+  }, [setPosts]);
 
   const onPostUpdate = useCallback(({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => {
     setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, ...post } : p)));
@@ -81,6 +88,13 @@ export function PostManage() {
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           {<OrderSelector initialOrder={{ orderBy, desc }} onOrderChange={onOrderChange} />}
+          <Button size="sm" onClick={() => setCreatePostDialogOpen(true)}>{t("create_post")}</Button>
+          <CreateOrUpdatePostMetaButtonWithDialog
+           open={createPostDialogOpen} 
+           onOpenChange={setCreatePostDialogOpen} 
+           post={null}
+           onMetaChange={onPostCreate}
+           />
         </div>
       </div>
     </div>
@@ -145,7 +159,7 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
             metaDialogOpen={metaDialogOpen}
             setMetaDialogOpen={setMetaDialogOpen}
           />
-          <PostMetaSettingButtonWithDialog
+          <CreateOrUpdatePostMetaButtonWithDialog
             post={post}
             onMetaChange={onPostUpdate}
             open={metaDialogOpen}

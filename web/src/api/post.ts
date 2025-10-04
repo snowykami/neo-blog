@@ -38,6 +38,14 @@ export async function listPosts({
   return res.data
 }
 
+export async function createPost(
+  { post }:
+    { post: Partial<Omit<Post, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'isLiked' | 'draftContent'>> }
+): Promise<BaseResponse<Post>> {
+  const res = await axiosClient.post<BaseResponse<Post>>('/post/p', post)
+  return res.data
+}
+
 export async function updatePost({ post }: { post: Partial<Post> & Pick<Post, 'id'> }): Promise<BaseResponse<Post>> {
   const res = await axiosClient.put<BaseResponse<Post>>(`/post/p/${post.id}`, post)
   return res.data
@@ -53,7 +61,7 @@ export async function getCategories(): Promise<BaseResponse<{ categories: Catego
   return res.data
 }
 
-export async function createCategory({category}:{category: Omit<Category, 'id'>}): Promise<BaseResponse<Category>> {
+export async function createCategory({ category }: { category: Omit<Category, 'id'> }): Promise<BaseResponse<Category>> {
   const res = await axiosClient.post<BaseResponse<Category>>('/post/c', category)
   return res.data
 }
