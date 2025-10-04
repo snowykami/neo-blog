@@ -1,10 +1,5 @@
 @layer base {
   /* 全局仅颜色相关过渡（避免布局/transform/opacity 被动画化） */
-  * {
-    transition-property: color, background-color, border-color, box-shadow, opacity, fill, stroke;
-    transition-duration: 0.3s;
-    transition-timing-function: ease-in-out;
-  }
 
   /* 常见交互元素补充（保留透明度变化等可选项） */
   a, button, input, textarea, select {
@@ -23,4 +18,10 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+:root * {
+  transition-property: color, background-color, border-color, box-shadow, fill, stroke;
+  transition-duration: 0.2s;
+  transition-timing-function: ease-in-out;
 }
