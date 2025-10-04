@@ -6,8 +6,8 @@ import { OrderBy, PaginationParams } from '@/models/common'
 
 export async function getPostById(
   { id, token = '', type = 'normal' }: { id: string; type?: 'draft' | 'normal'; token?: string }
-): Promise<BaseResponse<any>> {
-  const res = await axiosClient.get<BaseResponse<any>>(`/post/p/${id}`, {
+): Promise<BaseResponse<Post | null>> {
+  const res = await axiosClient.get<BaseResponse<Post | null>>(`/post/p/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
     params: { type },
   })
