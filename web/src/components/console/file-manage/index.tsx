@@ -256,13 +256,16 @@ function FileItem({
     );
   }
 
+  // List 布局
   return (
     <div>
       <div className="flex w-full items-center gap-3 py-2">
         {/* left */}
-        <div className="flex items-center gap-3">
-          <Checkbox checked={selected} onCheckedChange={onSelect} />
-          <Avatar className="h-10 w-10 rounded-none">
+        <div className="flex items-center gap-3 w-0 flex-1 min-w-0">
+          <div className="flex-shrink-0">
+            <Checkbox checked={selected} onCheckedChange={onSelect} />
+          </div>
+          <Avatar className="h-10 w-10 rounded-none flex-shrink-0">
             <AvatarImage className="object-contain rounded-sm" src={getFileUri(file.id)} alt={file.name} width={40} height={40} />
             <AvatarFallback className="rounded-sm">
               {(() => {
@@ -272,8 +275,8 @@ function FileItem({
               })()}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <div className="text-sm font-medium min-w-0 overflow-hidden whitespace-nowrap truncate" title={file.name}>
+          <div className="w-0 flex-1 min-w-0">
+            <div className="text-sm font-medium overflow-hidden whitespace-nowrap truncate" title={file.name}>
               {file.name}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-3">

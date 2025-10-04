@@ -68,6 +68,7 @@ export default function BlogHome() {
   };
 
   const handlePageChange = (page: number) => {
+    console.log("切换到第", page, "页");
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setPage(page);
   }

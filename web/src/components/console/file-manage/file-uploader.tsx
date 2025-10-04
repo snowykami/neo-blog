@@ -110,10 +110,10 @@ export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: (
 
 function FileUploadPreviewItem({ file, onFileCancel }: { file: File, onFileCancel: (file: File) => void }) {
   return (
-    <div className="flex items-center gap-3 p-2 border border-border rounded">
+    <div className="flex items-center gap-3 p-2 border border-border rounded w-full overflow-hidden">
       <div className="flex-shrink-0 w-10 h-10 bg-muted rounded overflow-hidden flex items-center justify-center">
         <Avatar className="h-full w-full rounded-sm">
-          <AvatarImage className="object-contain" src={URL.createObjectURL(file)} alt={file.name} />
+          <AvatarImage className="object-contain w-full h-full" src={URL.createObjectURL(file)} alt={file.name} />
           <AvatarFallback>
             {(() => {
               const mimeType = file.type.split("/")[0] || mime.lookup(file.name) || "";
@@ -123,22 +123,15 @@ function FileUploadPreviewItem({ file, onFileCancel }: { file: File, onFileCance
           </AvatarFallback>
         </Avatar>
       </div>
-      <div className="flex-1 min-w-0">
-        {(() => {
-          const name = file.name;
-          const MAX_LEN = 50; // 小于该长度直接完整显示
-          const HEAD = 30; // 前缀保留长度
-          const TAIL = 15; // 后缀保留长度（保留扩展名等）
-          if (name.length <= MAX_LEN) {
-            return <div className="text-sm font-medium text-primary truncate" title={name}>{name}</div>;
-          }
 
-          const truncated = `${name.slice(0, HEAD)}…${name.slice(-TAIL)}`;
-          return <div className="text-sm font-medium text-primary truncate" title={name}>{truncated}</div>;
-        })()}
+      <div className="w-0 flex-1">
+        <div className="font-medium leading-none truncate max-w-full">
+          {file.name}
+        </div>
         <div className="text-xs text-muted-foreground">{formatDataSize({ size: file.size })}</div>
       </div>
-      <Button variant="ghost" size="icon" onClick={() => onFileCancel(file)}>
+
+      <Button className="flex-shrink-0" variant="ghost" size="icon" onClick={() => onFileCancel(file)}>
         <CircleXIcon className="w-5 h-5" />
       </Button>
     </div>

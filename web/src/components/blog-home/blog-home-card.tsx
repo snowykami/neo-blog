@@ -30,7 +30,7 @@ export function BlogCard({ post, className }: {
   }
   return (
     <Card className={cn(
-      'group overflow-hidden hover:shadow-xl transition-all duration-300 h-full flex flex-col cursor-pointer pt-0 pb-4',
+      'group overflow-hidden hover:shadow-xl h-full flex flex-col cursor-pointer pt-0 pb-4',
       className,
     )}
     >
@@ -46,34 +46,16 @@ export function BlogCard({ post, className }: {
             duration: siteInfo.animationDurationSecond,
             ease: deceleration,
           }}
-          className="absolute inset-0 w-full h-full transition-none"
+          className="absolute inset-0 w-full h-full"
         >
-          {(post.cover || siteInfo.defaultCover) ? (
             <Image
               src={post.cover || siteInfo.defaultCover || "https://cdn.liteyuki.org/blog/background.png"}
               alt={post.title}
               fill
-              className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+              className="object-cover w-full h-full group-hover:scale-105 !duration-300 !transition-transform"
               sizes="(max-width: 768px) 100vw, 33vw"
               priority={false}
             />
-          ) : (
-            // 默认渐变背景 - 基于热度生成颜色
-            <div
-              className={cn(
-                'w-full h-full bg-gradient-to-br',
-                post.heat > 80
-                  ? 'from-red-400 via-pink-500 to-orange-500'
-                  : post.heat > 60
-                    ? 'from-orange-400 via-yellow-500 to-red-500'
-                    : post.heat > 40
-                      ? 'from-blue-400 via-purple-500 to-pink-500'
-                      : post.heat > 20
-                        ? 'from-green-400 via-blue-500 to-purple-500'
-                        : 'from-gray-400 via-slate-500 to-gray-600',
-              )}
-            />
-          )}
         </motion.div>
 
 
