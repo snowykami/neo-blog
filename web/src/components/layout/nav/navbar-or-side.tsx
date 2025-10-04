@@ -94,7 +94,7 @@ export default function Navbar() {
         <NavMenuCenter />
       </div>
       <div className="flex items-center justify-end gap-2 md:gap-3">
-        {[
+        {/* {[
           <AvatarWithDropdownMenu key="a8d92h1" />,
           <ThemeModeToggle className="hidden md:block" key="a8d92h2" />,
           <Link href="/rss.xml" className="flex items-center justify-center" key="a8d92h3">
@@ -106,7 +106,21 @@ export default function Navbar() {
             className=" transition-none duration-0 flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
             {Comp}
           </div>
-        ))}
+        ))} */}
+        <div
+          className=" transition-none duration-0 flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
+          <AvatarWithDropdownMenu key="a8d92h1" />
+        </div>
+        <div
+          className=" transition-none duration-0 flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
+          <ThemeModeToggle className="hidden md:block" key="a8d92h2" />
+        </div>
+        <div
+          className=" transition-none duration-0 flex items-center gap-2 justify-center h-8 w-8 rounded-lg hover:bg-accent/50 text-primary cursor-pointer">
+          <Link href="/rss.xml" className="flex items-center justify-center" key="a8d92h3">
+            <RssIcon className="w-6 h-6 text-primary" />
+          </Link>
+        </div>
         <SidebarMenu />
       </div>
     </div>
