@@ -41,7 +41,7 @@ func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 			// 既不是存在的 slug，也不是合法 id
 			return nil, err
 		}
-		if err := GetDB().Preload("User").First(&post, uint(id)).Error; err != nil {
+		if err := GetDB().Preload("User").Preload("Labels").Preload("Category").First(&post, uint(id)).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -81,7 +81,7 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, label string
 	if !slices.Contains(constant.OrderByEnumPost, orderBy) {
 		return nil, 0, errs.New(http.StatusBadRequest, "invalid order_by parameter", nil)
 	}
-	query := GetDB().Model(&model.Post{}).Preload("User")
+	query := GetDB().Model(&model.Post{}).Preload("User").Preload("Category").Preload("Labels")
 	if currentUserID > 0 {
 		query = query.Where("is_private = ? OR (is_private = ? AND user_id = ?)", false, true, currentUserID)
 	} else {

@@ -1,68 +1,9 @@
 "use client"
 
+import { fallbackSiteInfo, SiteInfo } from "@/utils/common/siteinfo";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-export type SiteInfo = {
-  colorSchemes: string[];
-  baseUrl?: string;
-  metadata: {
-    name: string;
-    icon: string;
-    description: string;
-  };
-  defaultCover: string;
-  owner: {
-    name: string;
-    description?: string;
-    motto?: string;
-    avatar?: string;
-    gravatarEmail?: string;
-  };
-  postsPerPage: number;
-  commentsPerPage: number;
-  verifyCodeCoolDown: number;
-  animationDurationSecond: number;
-  copyright?: string;
-  copyrightLink?: string;
-  footer: {
-    text?: string;
-    links?: {
-      text: string;
-      href: string;
-    }[];
-  };
-};
 
-// 这里不写类型定义，是让编辑器根据实际内容推断类型
-export const fallbackSiteInfo: SiteInfo = {
-  colorSchemes: ["blue", "green", "orange", "red", "rose", "violet", "yellow"],
-  metadata: {
-    name: "Failed to Fetch",
-    icon: "https://cdn.liteyuki.org/snowykami/avatar_alpha.png",
-    description: "Failed to fetch site info from server.",
-  },
-  defaultCover: "https://cdn.liteyuki.org/blog/background.png",
-  owner: {
-    name: "Site Owner",
-    description: "The owner of this site",
-    motto: "This is a default motto.",
-    avatar: "",
-    gravatarEmail: "",
-  },
-  postsPerPage: 10,
-  commentsPerPage: 10,
-  verifyCodeCoolDown: 60,
-  animationDurationSecond: 0.3,
-  copyright: "CC BY-NC-SA 4.0",
-  copyrightLink: "https://creativecommons.org/licenses/by/4.0/",
-  footer: {
-    text: "Default footer text",
-    links: [
-      { text: "Home", href: "/" },
-      { text: "About", href: "/about" },
-    ],
-  },
-};
 
 type SiteInfoContextValue = {
   siteInfo: SiteInfo;
@@ -103,13 +44,11 @@ function mergeWithFallback<T extends Record<string, unknown>>(initial: T, fallba
 }
 
 export const SiteInfoProvider: React.FC<{ initialData?: SiteInfo; children: React.ReactNode }> = ({ initialData, children }) => {
-  // 合并初始数据和 fallback，确保所有字段都有值
   const mergedInitialData = initialData ? mergeWithFallback(initialData, fallbackSiteInfo) : fallbackSiteInfo;
   
   const [siteInfo, setSiteInfo] = useState<SiteInfo>(mergedInitialData);
   const [isLoaded, setIsLoaded] = useState<boolean>(Boolean(initialData));
   
-  // If initialData is not provided (rare), you can fetch on client as fallback.
   useEffect(() => {
     if (initialData) return;
     let mounted = true;

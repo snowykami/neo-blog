@@ -61,12 +61,6 @@ async function PostHeader({ post }: { post: Post }) {
           {post.title}
         </h1>
 
-        {post.description && (
-          <p className="text-lg md:text-xl text-white/90 mb-6 max-w-3xl leading-relaxed drop-shadow-sm">
-            {post.description}
-          </p>
-        )}
-
         <div className="backdrop-blur-sm bg-white/15 rounded-lg p-4 border border-white/20 shadow-lg">
           <PostMetaWhite post={post} />
         </div>

@@ -45,7 +45,7 @@ func (p *Post) ToDto() *dto.PostDto {
 		UserID: p.UserID,
 		PostBaseDto: dto.PostBaseDto{
 			Title:   p.Title,
-			Slug:    utils.Ternary(p.Slug == nil, p.Slug, nil),
+			Slug:    utils.Ternary(p.Slug != nil, p.Slug, nil),
 			Content: p.Content,
 			Cover:   p.Cover,
 			Category: func() *dto.CategoryDto {

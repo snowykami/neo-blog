@@ -8,11 +8,14 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
+	"gorm.io/gorm"
 )
 
 type PostController struct {
@@ -115,4 +118,70 @@ func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"posts": posts, "total": total})
+}
+
+func (p *PostController) GetCategories(ctx context.Context, c *app.RequestContext) {
+	var categories []model.Category
+	err := repo.GetDB().Find(&categories).Error
+	if err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"categories": func() []dto.CategoryDto {
+		dtos := make([]dto.CategoryDto, len(categories))
+		for i, category := range categories {
+			dtos[i] = *category.ToDto()
+		}
+		return dtos
+	}()})
+}
+
+func (p *PostController) CreateCategory(ctx context.Context, c *app.RequestContext) {
+	var req dto.CategoryDto
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	categoryModel := &model.Category{
+		Name:        req.Name,
+		Description: req.Description,
+		Slug:        req.Slug,
+	}
+	if err := repo.GetDB().Create(categoryModel).Error; err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"id": categoryModel.ID})
+}
+
+func (p *PostController) UpdateCategory(ctx context.Context, c *app.RequestContext) {
+	var req dto.CategoryDto
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	categoryModel := &model.Category{
+		Model:       gorm.Model{ID: req.ID},
+		Name:        req.Name,
+		Description: req.Description,
+		Slug:        req.Slug,
+	}
+	if err := repo.GetDB().Updates(categoryModel).Error; err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"id": categoryModel.ID})
+}
+
+func (p *PostController) DeleteCategory(ctx context.Context, c *app.RequestContext) {
+	id := ctxutils.GetIDParam(c).Uint
+	if err := repo.GetDB().Delete(&model.Category{}, id).Error; err != nil {
+		serviceErr := errs.AsServiceError(err)
+		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
 }

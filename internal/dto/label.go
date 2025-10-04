@@ -2,11 +2,12 @@ package dto
 
 type LabelBase struct {
 	Name              string `json:"name"`
+	Slug              string `json:"slug"`
 	TailwindClassName string `json:"tailwind_class_name"`
 }
 
 type LabelDto struct {
-	ID uint `path:"id" vd:"$>0"` // 标签ID
+	ID uint `path:"id" vd:"$>0" json:"id"` // 标签ID
 	LabelBase
 }
 

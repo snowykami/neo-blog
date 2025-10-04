@@ -8,10 +8,11 @@ import { getFirstLocale } from '@/i18n/request';
 import { Toaster } from "@/components/ui/sonner"
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import "./globals.css";
-import { fallbackSiteInfo, SiteInfoProvider } from "@/contexts/site-info-context";
+import { SiteInfoProvider } from "@/contexts/site-info-context";
 import { getSiteInfo } from "@/api/misc";
 import { getLoginUserServer } from "@/api/user.server";
 import ScrollbarOverlay from "@/components/common/scrollbar-overlay";
+import { fallbackSiteInfo } from "@/utils/common/siteinfo";
 
 
 const geistSans = Geist({
@@ -26,10 +27,9 @@ const geistMono = Geist_Mono({
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
-
   return {
     title: {
-      default: siteInfo.metadata.name || "Error Blog",
+      default: siteInfo.metadata.name,
       template: `%s - ${siteInfo.metadata.name}`,
     },
     icons: [
@@ -45,11 +45,14 @@ export default async function RootLayout({
 }>) {
 
   const user = await getLoginUserServer().then(res => res.data).catch(() => null);
-  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
-  const colorSchemes = siteInfo?.colorSchemes ? siteInfo.colorSchemes : fallbackSiteInfo.colorSchemes;
-
+  const siteInfo = await getSiteInfo().then(res => res.data).catch(
+    () => {
+      console.error("Failed to fetch site info from backend server, using fallback.");
+      return fallbackSiteInfo
+    }
+  );
   return (
-    <html lang={await getFirstLocale() || "en"} className="h-full" data-user-color={colorSchemes.includes(user?.preferredColor || "") ? user?.preferredColor : "blue"}>
+    <html lang={await getFirstLocale() || "en"} className="h-full" data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || "blue"}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

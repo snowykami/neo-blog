@@ -25,6 +25,7 @@ import {
 } from "nuqs";
 import { useDebouncedState } from "@/hooks/use-debounce";
 import { Badge } from "@/components/ui/badge";
+import { PostMetaSettingButtonWithDialog } from "./post-meta-dialog-form";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
@@ -100,6 +101,7 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
   const postT = useTranslations("Metrics");
   const stateT = useTranslations("State");
   const clickToPost = useToPost();
+  const [metaDialogOpen, setMetaDialogOpen] = useState(false);
   return (
     <div>
       <div className="flex w-full items-center gap-3 py-2">
@@ -136,7 +138,19 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
           <Button variant="ghost" size="sm" onClick={() => clickToPost({ post })}>
             <Eye className="inline size-4 mr-1" />
           </Button>
-          <PostDropdownMenu post={post} onPostUpdate={onPostUpdate} onPostDelete={onPostDelete} />
+          <PostDropdownMenu
+            post={post}
+            onPostUpdate={onPostUpdate}
+            onPostDelete={onPostDelete}
+            metaDialogOpen={metaDialogOpen}
+            setMetaDialogOpen={setMetaDialogOpen}
+          />
+          <PostMetaSettingButtonWithDialog
+            post={post}
+            onMetaChange={onPostUpdate}
+            open={metaDialogOpen}
+            onOpenChange={setMetaDialogOpen}
+          />
         </div>
       </div>
     </div>
@@ -147,11 +161,15 @@ function PostDropdownMenu(
   {
     post,
     onPostUpdate,
-    onPostDelete
+    onPostDelete,
+    metaDialogOpen,
+    setMetaDialogOpen
   }: {
     post: Post,
     onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void,
-    onPostDelete: ({ postId }: { postId: number }) => void
+    onPostDelete: ({ postId }: { postId: number }) => void,
+    metaDialogOpen: boolean,
+    setMetaDialogOpen: (open: boolean) => void
   }
 ) {
   const operationT = useTranslations("Operation");
@@ -161,7 +179,7 @@ function PostDropdownMenu(
   const [open, setOpen] = useState(false);
   const handleTogglePrivate = () => {
     updatePost({ post: { ...post, isPrivate: !post.isPrivate } })
-      .then(() => { 
+      .then(() => {
         toast.success(operationT("update_success"));
         onPostUpdate({ post: { id: post.id, isPrivate: !post.isPrivate } });
       })
@@ -198,6 +216,9 @@ function PostDropdownMenu(
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={() => clickToPostEdit({ post })} className="cursor-pointer" >
             {operationT("edit")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setMetaDialogOpen(true)} className="cursor-pointer" >
+            {operationT("setting")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => clickToPost({ post })} className="cursor-pointer" >
             {operationT("view")}

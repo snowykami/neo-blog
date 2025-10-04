@@ -35,7 +35,7 @@ export function BlogLikeButton({
     }).catch(() => {
       setLikedUsers([]);
     });
-  }, [post.isLiked, post.likeCount, post.id]);
+  }, [liked, setLikedUsers, likeCount]);
 
 
   const handleToggleLike = () => {
@@ -53,19 +53,15 @@ export function BlogLikeButton({
       return;
     }
     // 提前转换状态，让用户觉得响应很快
-    const likedPrev = liked;
-    const likeCountPrev = likeCount;
-    setLiked(prev => !prev);
-    setLikeCount(prev => prev + (likedPrev ? -1 : 1));
     toggleLike(
       { targetType: TargetType.Post, targetId: post.id }
     ).then(res => {
       toast.success(res.data.status ? operationT("like_success") : operationT("unlike_success"));
-      setCanClickLike(true);
+      setLiked(res.data.status);
+      setLikeCount(likeCount + (res.data.status ? 1 : -1));
     }).catch(error => {
       toast.error(operationT("like_failed") + ": " + error.message);
-      setLiked(likedPrev);
-      setLikeCount(likeCountPrev);
+    }).finally(() => {
       setCanClickLike(true);
     });
   }

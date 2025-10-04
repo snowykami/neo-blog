@@ -91,18 +91,18 @@ func (l *likeRepo) GetLikedUsers(targetID uint, targetType string) ([]model.User
 	if err := l.checkTargetType(targetType); err != nil {
 		return nil, err
 	}
-
 	var users []model.User
-	db := GetDB()
-
-	// 使用 join + group/distinct 确保每个用户只返回一次
-	if err := db.Model(&model.User{}).
-		Select("users.*").
-		Joins("JOIN likes ON likes.user_id = users.id").
-		Where("likes.target_type = ? AND likes.target_id = ?", targetType, targetID).
-		Group("users.id").
-		Find(&users).Error; err != nil {
+	var likes []model.Like
+	// 先查询所有相关的点赞记录并 preload 关联的 User
+	if err := GetDB().Where("target_type = ? AND target_id = ?", targetType, targetID).
+		Preload("User").
+		Find(&likes).Error; err != nil {
 		return nil, err
+	}
+	// 直接按 likes 顺序把 User 添加到列表（不用去重）
+	users = make([]model.User, 0, len(likes))
+	for _, lk := range likes {
+		users = append(users, lk.User)
 	}
 
 	return users, nil

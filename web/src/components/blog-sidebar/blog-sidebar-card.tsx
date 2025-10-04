@@ -12,7 +12,7 @@ import { getGravatarUrl } from "@/utils/common/gravatar";
 import { getFallbackAvatarFromUsername } from "@/utils/common/username";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import { getPostUrl } from "@/utils/common/route";
-import { listLabels } from "@/api/label";
+import { getLabels } from "@/api/label";
 import { useRouter } from "next/navigation";
 
 // 侧边栏父组件，接收卡片组件列表
@@ -105,7 +105,7 @@ export function SidebarLabels({ label = null, setLabel }: { label?: string | nul
   const [labels, setLabels] = useState<Label[]>([]);
   const router = useRouter();
   useEffect(() => {
-    listLabels().then(res => {
+    getLabels().then(res => {
       setLabels(res.data.labels);
     })
   }, []);
