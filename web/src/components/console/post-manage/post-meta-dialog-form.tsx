@@ -16,7 +16,7 @@ import { useTranslations } from "next-intl"
 import { useEffect, useState } from "react"
 import { SubmitHandler, useForm } from "react-hook-form"
 import { Label } from '@/models/label';
-import { getLabels } from "@/api/label"
+import { createLabel, getLabels } from "@/api/label"
 import { toast } from "sonner"
 
 interface PostMetaForm {
@@ -136,6 +136,7 @@ export function PostMetaSettingButtonWithDialog({
               category={form.watch("category")}
               onCategoryChange={(category) => form.setValue("category", category)}
             />
+
 
             <PostLabelSelector
               labels={form.watch("labels")}

@@ -25,7 +25,8 @@ import {
 } from "nuqs";
 import { useDebouncedState } from "@/hooks/use-debounce";
 import { Badge } from "@/components/ui/badge";
-import { PostMetaSettingButtonWithDialog } from "./post-meta-dialog-form";
+import {  PostMetaSettingButtonWithDialog } from "./post-meta-dialog-form";
+import { CreateCategoryDialogWithButton, CreateLabelDialogWithButton } from "./create-label-and-category";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
@@ -74,12 +75,14 @@ export function PostManage() {
   }, [setPage]);
 
   return <div>
-    <div className="flex items-center justify-between mb-4">
+    <div className="flex items-center justify-between mb-4 flex-wrap">
       <div>
         <Input type="search" placeholder={commonT("search")} value={keywordsInput} onChange={(e) => setKeywordsInput(e.target.value)} />
       </div>
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
+          <CreateLabelDialogWithButton />
+          <CreateCategoryDialogWithButton />
           {<OrderSelector initialOrder={{ orderBy, desc }} onOrderChange={onOrderChange} />}
         </div>
       </div>
