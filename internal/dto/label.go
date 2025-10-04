@@ -7,10 +7,15 @@ type LabelBase struct {
 }
 
 type LabelDto struct {
-	ID uint `path:"id" vd:"$>0" json:"id"` // 标签ID
+	ID uint `json:"id"` // 标签ID
 	LabelBase
 }
 
 type CreateLabelReq struct {
+	LabelBase
+}
+
+type UpdateLabelReq struct {
+	ID uint `path:"id" vd:"$>0" json:"id"` // 标签ID
 	LabelBase
 }

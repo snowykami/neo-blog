@@ -17,15 +17,17 @@ func (l *LabelService) CreateLabel(req *dto.CreateLabelReq) (uint, error) {
 	label := &model.Label{
 		Name:              req.Name,
 		TailwindClassName: req.TailwindClassName,
+		Slug:              req.Slug,
 	}
 	return label.ID, repo.Label.CreateLabel(label)
 }
 
-func (l *LabelService) UpdateLabel(req *dto.LabelDto) (uint, error) {
+func (l *LabelService) UpdateLabel(req *dto.UpdateLabelReq) (uint, error) {
 	label := &model.Label{
 		Model:             gorm.Model{ID: req.ID},
 		Name:              req.Name,
 		TailwindClassName: req.TailwindClassName,
+		Slug:              req.Slug,
 	}
 	return label.ID, repo.Label.UpdateLabel(label)
 }

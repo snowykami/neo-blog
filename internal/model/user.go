@@ -16,7 +16,7 @@ type User struct {
 	Email          string `gorm:"uniqueIndex"`
 	Gender         string `gorm:"default:''"`
 	Role           string `gorm:"default:'user'"` // user editor admin
-	Language       string `gorm:"default:'en'"`
+	Language       string `gorm:"default:'zh'"`
 	Password       string // 密码，存储加密后的值
 }
 

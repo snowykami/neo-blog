@@ -64,7 +64,7 @@ func (l *LabelController) Get(ctx context.Context, c *app.RequestContext) {
 }
 
 func (l *LabelController) Update(ctx context.Context, c *app.RequestContext) {
-	req := &dto.LabelDto{}
+	req := &dto.UpdateLabelReq{}
 	if err := c.BindAndValidate(req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return

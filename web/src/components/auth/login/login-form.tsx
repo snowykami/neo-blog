@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useEffect, useState } from "react"
 import type { OidcConfig } from "@/models/oidc-config"
-import { getCaptchaConfig, listOidcConfigs, userLogin} from "@/api/user"
+import { getCaptchaConfig, listOidcConfigs, userLogin } from "@/api/user"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
@@ -103,7 +103,7 @@ export function LoginForm({
         </CardHeader>
         <CardContent>
           {user && <CurrentLogged />}
-          <SectionDivider className="mb-6">{t("with_oidc")}</SectionDivider>
+          {oidcConfigs.length > 0 && <SectionDivider className="mb-6">{t("with_oidc")}</SectionDivider>}
           <form onSubmit={handleLogin}>
             <div className="grid gap-4">
               {/* OIDC 登录选项 */}
@@ -129,9 +129,7 @@ export function LoginForm({
                 </div>
               )}
               {/* 分隔线 */}
-              {oidcConfigs.length > 0 && (
-                <SectionDivider className="my-2"> {t("or_continue_with_local_account")}</SectionDivider>
-              )}
+              <SectionDivider className="my-2"> {t("or_continue_with_local_account")}</SectionDivider>
               {/* 邮箱密码登录 */}
               <div className="grid gap-4">
                 <div className="grid gap-2">
