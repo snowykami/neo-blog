@@ -19,7 +19,7 @@ export default function RootLayout({
   return (
     <>
       <motion.nav
-        className='w-full fixed inset-x-0 z-9999' // 禁用全局动画，使用motion.div单独控制动画
+        className='w-full fixed inset-x-0 z-5' // 禁用全局动画，使用motion.div单独控制动画
         initial={{ y: -64 }}
         animate={{ y: 0 }}
         transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
