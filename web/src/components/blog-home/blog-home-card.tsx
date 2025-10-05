@@ -35,7 +35,7 @@ export function BlogCard({ post, className }: {
     >
       {/* 封面图片区域 */}
       <div
-        className="relative aspect-[16/8] overflow-hidden"
+        className="relative aspect-[16/9] overflow-hidden"
       >
         {/* 自定义封面图片 */}
         <motion.div

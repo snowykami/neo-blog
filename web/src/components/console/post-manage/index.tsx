@@ -129,8 +129,8 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
             src={post.cover || siteInfo.defaultCover || "/default-post-cover.png"}
             alt={post.title}
             width={80}
-            height={80}
-            className="w-16 h-10 object-cover rounded-md mb-0"
+            height={45}
+            className="w-16 h-9 object-cover rounded-md mb-0"
           />
           <div className="min-w-0">
             <div className="text-sm font-medium">
