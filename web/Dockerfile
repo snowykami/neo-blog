@@ -1,54 +1,50 @@
 # -----------------------------------------------------------------------------
-# This Dockerfile.bun is specifically configured for projects using Bun
-# For npm/pnpm or yarn, refer to the Dockerfile instead
+# This Dockerfile is specifically configured for projects using Node and pnpm
+# For Bun or yarn, refer to the Dockerfile.bun instead
 # -----------------------------------------------------------------------------
 
-# Use Bun's official image
-FROM oven/bun:1 AS base
-
+# Use official Node image and pnpm
+FROM node:22-alpine AS builder
 WORKDIR /app
 
-# Install dependencies with bun
-FROM base AS deps
-COPY package.json bun.lock* ./
-RUN bun install --no-save --frozen-lockfile
+# enable corepack and activate pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Rebuild the source code only when needed
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# copy lock & package then install (dev deps needed for build)
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# copy source and build
 COPY . .
+RUN pnpm run build
 
-# Next.js collects completely anonymous telemetry data about general usage.
-# Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line in case you want to disable telemetry during the build.
-# ENV NEXT_TELEMETRY_DISABLED=1
-
-RUN bun run build
-
-# Production image, copy all the files and run next
-FROM base AS runner
+# production image
+FROM node:22-alpine AS runner
 WORKDIR /app
-
-# Uncomment the following line in case you want to disable telemetry during runtime.
-# ENV NEXT_TELEMETRY_DISABLED=1
 
 ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME="0.0.0.0"
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+# enable corepack for pnpm in runner
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# create non-root user
+RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
+
+# copy public and standalone output from builder
 COPY --from=builder /app/public ./public
-
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# (optional) install production deps if standalone didn't include them
+# COPY --from=builder /app/package.json ./package.json
+# COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
+# RUN pnpm install --prod --frozen-lockfile --reporter=silent
 
 USER nextjs
 
 EXPOSE 3000
 
-CMD ["bun", "./server.js"]
+# run with node (standalone/server.js)
+CMD ["node", "server.js"]
