@@ -46,7 +46,14 @@ func (lc *LikeController) GetLikedUsers(ctx context.Context, c *app.RequestConte
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	users, err := lc.service.GetLikedUsers(ctx, req.TargetID, req.TargetType)
+	// Set default and maximum limits
+	if req.Number <= 0 {
+		req.Number = 20
+	}
+	if req.Number > 100 {
+		req.Number = 100
+	}
+	users, err := lc.service.GetLikedUsers(ctx, req.TargetID, req.TargetType, req.Number)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		logrus.Error(serviceErr.Error())

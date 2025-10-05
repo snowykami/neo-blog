@@ -11,6 +11,6 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
         disallow: ['/console/'],
       },
     ],
-    sitemap: sitemapData?.baseUrl + "/sitemap.xml",
+    sitemap: sitemapData?.baseUrl ? sitemapData.baseUrl + "/sitemap.xml" : undefined,
   }
 }

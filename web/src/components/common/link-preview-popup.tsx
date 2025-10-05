@@ -105,25 +105,21 @@ export function LinkPreviewPopup({ url, children }: LinkPreviewPopupProps) {
   }, []);
 
   return (
-    <div className="relative inline-block">
+    <span className="relative inline">
       {/* 链接部分 */}
-      <div 
+      <span 
         onMouseEnter={handleMouseEnter} 
         onMouseLeave={handleMouseLeave}
       >
         {children}
-      </div>
+      </span>
       
       {/* 预览弹窗 */}
       {isVisible && (
         <div 
-          className="absolute z-50 w-80 mt-2 left-0 bg-background border border-border rounded-lg shadow-lg overflow-hidden transition-all duration-200 opacity-100 scale-100"
+          className="absolute z-[9999] w-80 mt-2 left-0 bg-background border border-border rounded-lg shadow-lg overflow-hidden transition-all duration-200 opacity-100 scale-100"
           onMouseEnter={handlePreviewMouseEnter}
           onMouseLeave={handlePreviewMouseLeave}
-          style={{
-            // 确保弹窗不会被其他元素遮挡
-            zIndex: 9999,
-          }}
         >
           {loading && (
             <div className="p-4 flex items-center gap-3">
@@ -219,6 +215,6 @@ export function LinkPreviewPopup({ url, children }: LinkPreviewPopupProps) {
           )}
         </div>
       )}
-    </div>
+    </span>
   );
 }

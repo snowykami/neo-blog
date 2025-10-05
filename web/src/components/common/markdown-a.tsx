@@ -28,7 +28,7 @@ export function EnhancedLink({ href, children, ...props }: EnhancedLinkProps) {
 
   const linkContent = (
     <a
-      className="inline-flex items-center gap-1 px-1 text-primary/80 hover:text-primary font-bold border-b-4 border-b-dashed border-primary/40 hover:border-primary/70 transition-colors duration-200"
+      className="inline-flex items-center gap-1 px-1 text-primary/80 hover:text-primary font-bold border-b-2 border-b-dashed border-primary/40 hover:border-primary/70 transition-colors duration-200"
       href={href}
       {...(isExternalLink && {
         target: '_blank',

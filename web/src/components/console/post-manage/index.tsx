@@ -87,7 +87,7 @@ export function PostManage() {
   }, [setPage]);
 
   return <div>
-    <div className="flex items-center justify-between mb-4 flex-wrap">
+    <div className="flex items-center justify-between mb-4 flex-wrap gap-y-4">
       <div>
         <Input type="search" placeholder={commonT("search")} value={keywordsInput} onChange={(e) => setKeywordsInput(e.target.value)} />
       </div>
