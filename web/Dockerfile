@@ -6,11 +6,11 @@ WORKDIR /app
 
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
-RUN bun install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 # Copy source files
 COPY . .
-RUN bun run build
+RUN pnpm run build
 
 FROM node:24-alpine AS runner
 WORKDIR /app
