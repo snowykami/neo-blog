@@ -174,7 +174,7 @@ export default function ScrollbarOverlay() {
   }, []);
 
   return (
-    <div ref={overlayRef} className="scrollbar-overlay " aria-hidden>
+    <div ref={overlayRef} className="scrollbar-overlay" aria-hidden>
       <div
         ref={thumbRef}
         className="scrollbar-overlay__thumb"

@@ -77,11 +77,16 @@ func (p *postRepo) UpdatePost(post *model.Post) error {
 	return nil
 }
 
-func (p *postRepo) ListPosts(currentUserID uint, keywords []string, label string, page, size uint64, orderBy string, desc bool) ([]model.Post, int64, error) {
+func (p *postRepo) ListPosts(currentUserID uint, keywords []string, label string, page, size uint64, orderBy string, desc bool, userId uint) ([]model.Post, int64, error) {
 	if !slices.Contains(constant.OrderByEnumPost, orderBy) {
 		return nil, 0, errs.New(http.StatusBadRequest, "invalid order_by parameter", nil)
 	}
+
 	query := GetDB().Model(&model.Post{}).Preload("User").Preload("Category").Preload("Labels")
+	if userId > 0 {
+		query = query.Where("user_id = ?", userId)
+	}
+
 	if currentUserID > 0 {
 		query = query.Where("is_private = ? OR (is_private = ? AND user_id = ?)", false, true, currentUserID)
 	} else {

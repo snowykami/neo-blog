@@ -23,10 +23,13 @@ type NavContextValue = {
   // 预设样式
   setTransparentNav: () => void;
   setSolidNav: () => void;
-  setFloatingNav: () => void;
+
+  // navTitle: string;
+  navTitle: string;
+  setNavTitle: (title: string) => void;
 };
 
-export const DEFAULT_NAV_CLASSNAME = `bg-background/90 backdrop-blur md:rounded-b-2xl shadow-md border-b border-border/50 h-${navHeight} ${contentAreaPaddingClass}`;
+export const DEFAULT_NAV_CLASSNAME = `bg-background/90 backdrop-blur md:rounded-b-2xl shadow-md border-b border-border/50 px-4 md:px-0 h-${navHeight} ${contentAreaPaddingClass}`;
 
 const NavContext = createContext<NavContextValue | undefined>(undefined);
 
@@ -41,6 +44,7 @@ export function NavPaddingProvider({
 }) {
   const [hasNavPadding, setHasNavPadding] = useState<boolean>(initialHasNavPadding);
   const [navClassName, setNavClassName] = useState<string>(cn(DEFAULT_NAV_CLASSNAME, initialNavClassName));
+  const [navTitle, setNavTitle] = useState<string>("");
 
   const toggleNavPadding = useCallback(() => {
     setHasNavPadding(prev => !prev);
@@ -63,15 +67,11 @@ export function NavPaddingProvider({
   }, []);
 
   const setTransparentNav = useCallback(() => {
-    setNavClassName("bg-transparent backdrop-blur-md");
+    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, "bg-transparent backdrop-blur-md"));
   }, []);
 
   const setSolidNav = useCallback(() => {
-    setNavClassName("bg-background border-b");
-  }, []);
-
-  const setFloatingNav = useCallback(() => {
-    setNavClassName("fixed top-4 left-4 right-4 rounded-lg shadow-lg bg-background/90 backdrop-blur-md");
+    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, "bg-background border-b"));
   }, []);
 
   const value = useMemo(() => ({
@@ -88,10 +88,13 @@ export function NavPaddingProvider({
 
     setTransparentNav,
     setSolidNav,
-    setFloatingNav,
+
+    navTitle,
+    setNavTitle,
   }), [
     hasNavPadding,
     navClassName,
+    navTitle,
     toggleNavPadding,
     resetNavStyle,
     setNavStyle,
@@ -99,7 +102,7 @@ export function NavPaddingProvider({
     enableNavPadding,
     setTransparentNav,
     setSolidNav,
-    setFloatingNav,
+    setNavTitle
   ]);
 
   useEffect(() => {

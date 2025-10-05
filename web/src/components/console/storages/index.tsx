@@ -24,7 +24,6 @@ export function StorageProviderManage() {
   }, [t])
 
   const onStorageProviderCreate = useCallback(() => {
-
   }, [])
 
   return (

@@ -24,6 +24,11 @@ export const mainPath = {
   random: "/random",
 }
 
+/**
+ * 获取文章的 URL优先使用 slug，没有则使用 id
+ * @param post 对象必须包含 slug 或 id 字段
+ * @returns 
+ */
 export function getPostUrl<T extends { slug?: string | null; id?: string | number | null }>(
   post: T
 ): string {

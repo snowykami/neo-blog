@@ -8,6 +8,7 @@ export interface Post {
     title: string;
     slug: string | null;
     content: string;
+    description: string; // 描述
     draftContent: string | null; // 草稿内容，仅在请求草稿时返回
     cover: string | null; // 封面可以为空
     category: Category | null; // 分类可以为空

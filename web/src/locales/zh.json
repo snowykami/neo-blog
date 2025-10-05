@@ -55,7 +55,9 @@
   },
   "Common": {
     "created_at": "创建于",
+    "digest": "摘要",
     "email": "邮箱",
+    "forbidden": "抱歉，您无权访问该内容",
     "forgot_password": "忘记密码？",
     "id": "编号",
     "login_required": "请先登录后再操作",
@@ -65,6 +67,7 @@
     "hoursAgo": "小时前",
     "mime_type": "文件类型",
     "minutesAgo": "分钟前",
+    "not_found": "抱歉，内容未找到",
     "obtain": "获取",
     "password": "密码",
     "search": "搜索",
@@ -142,13 +145,19 @@
     },
     "post_edit": {
       "title": "编辑文章",
+      "category": "分类",
+      "comment_count": "评论数",
       "create_post": "创建文章",
+      "labels": "标签",
       "last_saved_at": "最后保存于 {time}",
+      "like_count": "点赞数",
       "no_category": "没有分类",
       "no_label": "没有标签",
+      "per_page": " /页",
       "post_category": "分类",
       "post_category_desc": "为文章选择一个分类",
       "post_cover": "封面",
+      "post_description": "描述",
       "post_labels": "标签",
       "post_meta": "文章元信息",
       "post_slug": "Slug (用于 URL)",
@@ -158,7 +167,8 @@
       "saving_draft": "保存中...",
       "select_category": "选择分类",
       "select_labels": "选择标签",
-      "uncategorized": "未分类"
+      "uncategorized": "未分类",
+      "view_count": "浏览数"
     },
     "storages": {
       "title": "存储供应商",
@@ -246,13 +256,8 @@
     "and": "和",
     "privacy_policy": "隐私政策"
   },
-  "Metrics": {
-    "comment_count": "评论数",
-    "like_count": "点赞数",
-    "per_page": " /页",
-    "view_count": "浏览数"
-  },
   "Operation": {
+    "back_to_home": "返回首页",
     "batch_delete": "批量删除",
     "cancel": "取消",
     "confirm_delete": "确认删除？",
@@ -316,6 +321,12 @@
     "size": "大小",
     "updated_at": "更新时间",
     "view_count": "浏览数"
+  },
+  "Random": {
+    "title": "随机文章",
+    "coming_soon": "即将前往",
+    "jumping_to_post": "正在跳转到随机文章...",
+    "selecting_post": "正在为你选择一篇精品文章，请稍候..."
   },
   "Register": {
     "title": "注册",

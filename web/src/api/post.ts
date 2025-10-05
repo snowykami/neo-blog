@@ -14,6 +14,11 @@ export async function getPostById(
   return res.data
 }
 
+export async function getRandomPost(): Promise<BaseResponse<Post>> {
+  const res = await axiosClient.get<BaseResponse<Post>>('/post/random')
+  return res.data
+}
+
 export async function listPosts({
   page = 1,
   size = 10,
@@ -21,9 +26,11 @@ export async function listPosts({
   desc = false,
   keywords = '',
   label = '',
+  userId = 0,
 }: {
   keywords?: string, // 关键词，逗号分割
   label?: string, // 标签，逗号分割
+  userId?: number, // 用户ID，管理员可查看指定用户的文章
 } & PaginationParams): Promise<BaseResponse<{ "posts": Post[], "total": number }>> {
   const res = await axiosClient.get<BaseResponse<{ "posts": Post[], "total": number }>>('/post/list', {
     params: {
@@ -33,6 +40,7 @@ export async function listPosts({
       desc,
       keywords,
       label,
+      userId,
     },
   })
   return res.data

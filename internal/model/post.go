@@ -13,10 +13,11 @@ type PostBase struct {
 	CategoryID   *uint     `gorm:"index"`
 	Cover        string    `gorm:"type:text"`
 	Content      string    `gorm:"type:text;not null"`
+	Description  string    `gorm:"type:text;not null"`
 	DraftContent *string   `gorm:"type:text"` // 草稿内容
 	IsPrivate    bool      `gorm:"default:false"`
 	Labels       []Label   `gorm:"many2many:post_labels;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
-	Slug         *string   `gorm:"type:text;index;uniqueIndex"` // 改为指针并加 uniqueIndex
+	Slug         *string   `gorm:"type:text;index;uniqueIndex"` // 友好链接
 	Title        string    `gorm:"type:text;not null"`
 }
 type Post struct {
@@ -54,6 +55,7 @@ func (p *Post) ToDto() *dto.PostDto {
 				}
 				return nil
 			}(),
+			Description:  p.Description,
 			DraftContent: p.DraftContent,
 			IsPrivate:    p.IsPrivate,
 			Labels: func() []dto.LabelDto {

@@ -23,6 +23,8 @@ import { AppWindowMacIcon, ArchiveIcon, ContactIcon, HouseIcon, InfoIcon, Link2I
 import { mainPath } from "@/utils/common/route"
 import { useRouter } from "next/navigation"
 import { useNav } from "@/contexts/nav-context"
+import { IconInnerShadowTop } from "@tabler/icons-react"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 const navbarMenuComponents = [
   {
@@ -76,14 +78,15 @@ const navbarMenuComponents = [
 
 export default function Navbar() {
   const { siteInfo } = useSiteInfo();
-  const { navClassName } = useNav();
+  const isMobile = useIsMobile()
+  const { navClassName, navTitle } = useNav();
   return (
     <div className={cn(`flex items-center justify-between w-full max-w-screen`, navClassName)}>
       <div className="flex items-center justify-start">
         <span className="font-bold text-lg truncate">
-          <Link href="/" className="flex items-center text-primary">
-            <AppWindowMacIcon className="inline w-6 h-6 mr-2 text-primary" />
-            {siteInfo.metadata.name}
+          <Link href="/" className="flex items-center text-primary gap-1">
+            <IconInnerShadowTop className="!size-6" />
+            {navTitle || siteInfo.metadata.name}
           </Link>
         </span>
       </div>
@@ -93,10 +96,10 @@ export default function Navbar() {
       <div className="flex items-center justify-end-safe gap-2 md:gap-4">
         {[
           <AvatarWithDropdownMenu key="a8d92h1" />,
-          <ThemeModeToggle key="a8d92h2" />,
+          ...(isMobile ? [] : [<ThemeModeToggle key="a8d92h2" />,
           <Link href="/rss.xml" className="flex items-center justify-center" key="a8d92h3">
             <RssIcon className="w-6 h-6 text-primary" />
-          </Link>
+          </Link>])
         ].map((Comp, index) => (
           <div
             key={index}
@@ -181,7 +184,6 @@ function SidebarMenu() {
           </button>
         </SheetTrigger>
         <SheetContent side="right" className="pt-6 w-64 z-999999">
-          <SheetTitle className="sr-only">侧边栏菜单</SheetTitle>
           <nav className="flex flex-col gap-2 p-4">
             {navbarMenuComponents.map((item) =>
               item.href ? (
@@ -211,7 +213,14 @@ function SidebarMenu() {
                 </div>
               ) : null
             )}
+            {/* 小物件区 */}
+            <div className="flex gap-2 mt-2 justify-center">
+              <Link href="/rss.xml" className="flex items-center gap-2 py-2 px-3 rounded-xl hover:bg-accent transition-colors">
+                <RssIcon className="w-5 h-5 text-primary" />
+              </Link>
+            </div>
           </nav>
+
           <div className="flex items-center justify-center p-4 border-t border-border">
             <ThemeModeToggle showSegmented={true} />
           </div>

@@ -28,6 +28,8 @@ import { useDebouncedState } from "@/hooks/use-debounce";
 import { Badge } from "@/components/ui/badge";
 import { CreateOrUpdatePostMetaButtonWithDialog } from "./post-meta-dialog-form";
 import { useSiteInfo } from "@/contexts/site-info-context";
+import { useAuth } from "@/contexts/auth-context";
+import { BaseResponseError } from "@/models/resp";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
@@ -37,6 +39,7 @@ export function PostManage() {
   const commonT = useTranslations("Common");
   const metricsT = useTranslations("Metrics");
   const { isMobile } = useDevice();
+  const {user} = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [total, setTotal] = useState(0);
   const [orderBy, setOrderBy] = useQueryState("order_by", parseAsStringEnum<OrderBy>(Object.values(OrderBy)).withDefault(OrderBy.CreatedAt).withOptions({ history: "replace", clearOnDefault: true }));
@@ -49,7 +52,8 @@ export function PostManage() {
   const [refreshKey, setRefreshKey] = useState(0); // 用于强制刷新列表
 
   useEffect(() => {
-    listPosts({ page, size, orderBy, desc, keywords }).
+    if (!user) return;
+    listPosts({ page, size, orderBy, desc, keywords, userId: user.id }).
       then(res => {
         setPosts(res.data.posts);
         setTotal(res.data.total);
@@ -114,7 +118,7 @@ export function PostManage() {
 
 function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void, onPostDelete: ({ postId }: { postId: number }) => void }) {
   const commonT = useTranslations("Common");
-  const postT = useTranslations("Metrics");
+  const postT = useTranslations("Console.post_edit");
   const stateT = useTranslations("State");
   const { siteInfo } = useSiteInfo();
   const clickToPost = useToPost();
@@ -125,32 +129,40 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
         {/* left */}
         <div className="flex justify-start items-center gap-4">
           {/* avatar */}
-          <Image
-            src={post.cover || siteInfo.defaultCover || "/default-post-cover.png"}
-            alt={post.title}
-            width={80}
-            height={45}
-            className="w-16 h-9 object-cover rounded-md mb-0"
-          />
+          <div className="flex-shrink-0 w-16 h-9 rounded-md overflow-hidden">
+            <Image
+              src={post.cover || siteInfo.defaultCover || "/default-post-cover.png"}
+              alt={post.title}
+              width={64}   // 和 w-16 (4rem=64px) 保持一致
+              height={36}  // 和 h-9 (2.25rem=36px) 保持一致
+              className="w-full h-full object-cover"
+            />
+          </div>
           <div className="min-w-0">
             <div className="text-sm font-medium">
               {post.title}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-3">
               {(() => {
-                const items: { value: string; className: string }[] = [
-                  {
-                    value: stateT(post.isPrivate ? "private" : "public"),
-                    className: post.isPrivate ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-                  },
-                  { value: `${postT("view_count")}: ${post.viewCount}`, className: "bg-slate-100 text-slate-800" },
-                  { value: `${postT("like_count")}: ${post.likeCount}`, className: "bg-slate-100 text-slate-800" },
-                  { value: `${postT("comment_count")}: ${post.commentCount}`, className: "bg-slate-100 text-slate-800" },
-                  { value: `${commonT("id")}: ${post.id}`, className: "bg-indigo-100 text-indigo-800" },
-                  { value: `${commonT("created_at")}: ${new Date(post.createdAt).toLocaleDateString()}`, className: "bg-gray-100 text-gray-800" },
-                  { value: `${commonT("updated_at")}: ${new Date(post.updatedAt).toLocaleDateString()}`, className: "bg-gray-100 text-gray-800" }
-                ];
+                const labels = post.labels || [];
+                const labelsValue = labels.length === 0
+                  ? postT("no_label")
+                  : labels.length <= 3
+                    ? `${postT("labels")}: ${labels.map(l => l.name).join(" | ")}`
+                    : `${postT("labels")}: ${labels.slice(0, 3).map(l => l.name).join(" | ")} ... (+${labels.length - 3})`;
 
+                const items: { value: string; className: string }[] = [
+                  { value: `${commonT("id")}: ${post.id}`, className: "bg-indigo-100 text-indigo-800" },
+                  { value: stateT(post.isPrivate ? "private" : "public"), className: post.isPrivate ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800" },
+                  { 
+                    value: post.category ? `${postT("category")}: ${post.category?.name}` : postT("uncategorized"), 
+                    className: post.category ? "bg-pink-100 text-pink-800" : "bg-gray-100 text-gray-800"
+                  },
+                  { 
+                    value: labelsValue, 
+                    className: post.labels && post.labels.length > 0 ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"
+                  },
+                ];
                 return items.map((item, idx) => (
                   <Badge key={idx} className={`text-xs ${item.className}`} variant="secondary">
                     {item.value}
@@ -211,8 +223,8 @@ function PostDropdownMenu(
         toast.success(operationT("update_success"));
         onPostUpdate({ post: { id: post.id, isPrivate: !post.isPrivate } });
       })
-      .catch(() => {
-        toast.error(operationT("update_failed"));
+      .catch((error: BaseResponseError) => {
+        toast.error(operationT("update_failed") + ": " + (error?.response?.data?.message || error.message));
       });
   }
 
@@ -222,8 +234,8 @@ function PostDropdownMenu(
         toast.success(operationT("delete_success"));
         onPostDelete({ postId: post.id });
       })
-      .catch(() => {
-        toast.error(operationT("delete_failed"));
+      .catch((error: BaseResponseError) => {
+        toast.error(operationT("delete_failed") + ": " + (error?.response?.data?.message || error.message));
       });
   };
 

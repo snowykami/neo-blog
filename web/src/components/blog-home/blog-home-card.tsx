@@ -36,7 +36,7 @@ export function BlogCard({ post, className }: {
     >
       {/* 封面图片区域 */}
       <div
-        className="relative aspect-[16/9] overflow-hidden"
+        className="relative aspect-[16/8] overflow-hidden"
       >
         {/* 自定义封面图片 */}
         <motion.div
@@ -148,7 +148,7 @@ export function BlogCardSkeleton({ className }: { className?: string }) {
       className,
     )}>
       {/* 封面图片骨架 */}
-      <Skeleton className="relative aspect-[16/9]" />
+      <Skeleton className="relative aspect-[16/8]" />
       
       {/* Card Header - 标题骨架 */}
       <CardHeader className="mt-2 lg:mt-4">

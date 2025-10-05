@@ -17,6 +17,7 @@ func registerPostRoutes(group *route.RouterGroup) {
 		postGroupWithoutAuth.GET("/p/:slug_or_id", postController.Get)
 		postGroupWithoutAuth.GET("/list", postController.List)
 		postGroupWithoutAuth.GET("/categories", postController.GetCategories) // 获取文章分类列表 Get post categories list
+		postGroupWithoutAuth.GET("/random", postController.GetRandom)         // 获取随机文章ID Get random post ID
 
 		postGroup.POST("/p", postController.Create)
 		postGroup.PUT("/p/:id", postController.Update)

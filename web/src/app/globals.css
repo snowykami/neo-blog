@@ -9,7 +9,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "./styles/typography.css";
-@import "./styles/animation.css"; 
+@import "./styles/animation.css";
 
 
 @custom-variant dark (&:is(.dark *));
@@ -60,6 +60,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -70,19 +71,24 @@
 }
 
 ::-webkit-scrollbar {
-  width: 0px;           /* 垂直滚动条宽度 */
-  height: 0px;          /* 水平滚动条高度 */
-  background: transparent; /* 滚动条轨道背景 */
-  position: absolute;   /* 实际不会影响内容布局 */
+  width: 0px;
+  /* 垂直滚动条宽度 */
+  height: 0px;
+  /* 水平滚动条高度 */
+  background: transparent;
+  /* 滚动条轨道背景 */
+  position: absolute;
+  /* 实际不会影响内容布局 */
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.15); /* 滚动条滑块颜色 */
+  background: rgba(0, 0, 0, 0.15);
+  /* 滚动条滑块颜色 */
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0,0,0,0.3);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 ::-webkit-scrollbar-corner {
@@ -94,8 +100,10 @@
   right: 0;
   top: 0;
   bottom: 0;
-  width: 20px; /* 包含可点击区域 */
-  pointer-events: auto; /* 允许点击/拖拽 */
+  width: 20px;
+  /* 包含可点击区域 */
+  pointer-events: auto;
+  /* 允许点击/拖拽 */
   z-index: 9999;
   /* 不遮挡交互：thumb 本身 pointer-events:auto，overlay 只用于接收 clicks */
 }
@@ -106,20 +114,35 @@
   right: 4px;
   width: 8px;
   border-radius: 999px;
-  background: rgba(0,0,0,0.45);
+  background: rgba(0, 0, 0, 0.45);
   transition: opacity 120ms linear;
   will-change: transform, opacity;
-  pointer-events: auto; /* 允许拖拽 */
-  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  pointer-events: auto;
+  /* 允许拖拽 */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   opacity: 0;
 }
 
 /* 鼠标悬停时保持可见 */
 @media (hover: hover) {
-  .scrollbar-overlay:hover .scrollbar-overlay__thumb { opacity: 1; }
+  .scrollbar-overlay:hover .scrollbar-overlay__thumb {
+    opacity: 1;
+  }
 }
 
 /* 暗色主题 */
 .dark .scrollbar-overlay__thumb {
-  background: rgba(255,255,255,0.36);
+  background: rgba(255, 255, 255, 0.36);
+}
+
+.scrollbar-overlay__thumb {
+  background: rgba(0, 0, 0, 0.40);
+}
+
+/* hover / active */
+.scrollbar-overlay__thumb:hover,
+.scrollbar-overlay__thumb:active {
+  background: rgba(0, 0, 0, 0.6);
+  transform: scaleY(1.02);
+  opacity: 1;
 }

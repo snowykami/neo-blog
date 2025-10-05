@@ -114,6 +114,7 @@ func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOr
 	utils.UpdateNonEmpty(&post.Title, req.Title)
 	utils.UpdateNonEmpty(&post.Content, req.Content)
 	utils.UpdateNonEmpty(&post.Cover, req.Cover)
+	utils.UpdateNonEmpty(&post.Description, req.Description)
 	utils.UpdatePtrNonZero(&post.DraftContent, req.DraftContent)
 	utils.UpdatePtrNonZero(&post.Slug, req.Slug)
 	utils.UpdatePtrUint(&post.CategoryID, req.CategoryID)
@@ -145,7 +146,7 @@ func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*d
 			keywordsArray = append(keywordsArray, strings.TrimSpace(kw))
 		}
 	}
-	posts, total, err := repo.Post.ListPosts(currentUserID, keywordsArray, req.Label, req.Page, req.Size, req.OrderBy, req.Desc)
+	posts, total, err := repo.Post.ListPosts(currentUserID, keywordsArray, req.Label, req.Page, req.Size, req.OrderBy, req.Desc, req.UserID)
 	if err != nil {
 		return nil, total, errs.New(errs.ErrInternalServer.Code, "failed to list posts", err)
 	}

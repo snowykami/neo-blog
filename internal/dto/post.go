@@ -51,7 +51,8 @@ type CreateOrUpdateDraftReq struct {
 type ListPostReq struct {
 	Keywords string `query:"keywords"` // 关键词列表
 	PaginationParams
-	Label string `query:"label"`
+	Label  string `query:"label"`
+	UserID uint   `query:"user_id"` // 用户ID，管理员可查看指定用户的文章
 }
 
 type ListPostResp struct {

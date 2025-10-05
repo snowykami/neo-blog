@@ -1,7 +1,7 @@
 
 import { Suspense } from "react";
 import type { Post } from "@/models/post";
-import { Calendar, Clock, FileText, Flame, Heart, MessageCircle, PenLine, SquarePen } from "lucide-react";
+import { Calendar, Clock, FileText, Flame, Heart, Info, MessageCircle, PenLine, SquarePen } from "lucide-react";
 import { RenderMarkdown } from "@/components/common/markdown";
 import { calculateReadingTime } from "@/utils/common/post";
 import { CommentSection } from "@/components/comment";
@@ -18,6 +18,9 @@ import { BlogLikeButton } from "./blog-like-button.client";
 import { fallbackSiteInfo } from "@/utils/common/siteinfo";
 import Link from "next/link";
 import { getLabelUrl } from "@/utils/common/route";
+import { getTranslations } from "next-intl/server";
+import { Separator } from "../ui/separator";
+import Typewriter from "../common/typewriter";
 
 async function PostHeader({ post }: { post: Post }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
@@ -43,7 +46,7 @@ async function PostHeader({ post }: { post: Post }) {
       />
 
       {/* 内容层 */}
-      <div className={`container mx-auto ${contentAreaPaddingClass} ${contentAreaMaxWidthClass} relative z-10`}>
+      <div className={`container px-4 md:px-0 mx-auto ${contentAreaPaddingClass} ${contentAreaMaxWidthClass} relative z-10`}>
         {/* 标签 */}
         {post.labels && post.labels.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
@@ -59,7 +62,9 @@ async function PostHeader({ post }: { post: Post }) {
           </div>
         )}
 
-        <h1 className="text-3xl md:text-5xl font-bold mb-4 text-white drop-shadow-lg leading-tight">
+        <h1
+          className="text-3xl md:text-5xl font-bold mb-4 text-white drop-shadow-lg leading-tight"
+        >
           {post.title}
         </h1>
 
@@ -124,8 +129,17 @@ function PostMetaWhite({ post }: { post: Post }) {
 }
 
 async function PostContent({ post }: { post: Post }) {
+  const t = await getTranslations("Common")
   return (
     <div className="bg-background prose prose-lg max-w-none dark:prose-invert border-1 pt-0 p-4 md:p-8 rounded-xl">
+      {post.description && <div className="mt-4 mb-6 text-lg text-muted-foreground border-1 rounded-xl p-4 font-mono">
+        <div className="flex items-center mb-2 text-lg text-primary font-medium">
+          <Info className="w-5 h-5 mr-2" />
+          {t("digest")}
+        </div>
+        <Separator className="my-2" />
+        <Typewriter text={post.description} />
+      </div>}
       <Suspense>
         <RenderMarkdown source={post.content} />
       </Suspense>

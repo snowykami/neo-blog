@@ -10,9 +10,11 @@ import { getLabels, deleteLabel } from "@/api/label"
 import type { Label } from "@/models/label"
 import { CreateOrUpdateLabelDialogWithButton } from "../common/create-label-and-category"
 import { ConfirmDialog } from "@/components/common/confirm-dialog"
+import { useAuth } from "@/contexts/auth-context"
 
 export function LabelManage() {
   const t = useTranslations("Console.labels")
+  const {user} = useAuth();
   const operationT = useTranslations("Operation")
 
   const [labels, setLabels] = useState<Label[]>([])

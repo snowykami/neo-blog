@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { Category } from "@/models/category"
 import { Post } from "@/models/post"
-import { DialogClose } from "@radix-ui/react-dialog"
+import { DialogClose, DialogDescription } from "@radix-ui/react-dialog"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useEffect, useState } from "react"
@@ -19,6 +19,8 @@ import { Label } from '@/models/label';
 import { getLabels } from "@/api/label"
 import { toast } from "sonner"
 import { CreateOrUpdateCategoryDialogWithButton, CreateOrUpdateLabelDialogWithButton } from "../common/create-label-and-category"
+import { Textarea } from "@/components/ui/textarea"
+import { BaseResponseError } from "@/models/resp"
 
 interface PostMetaForm {
   title: string
@@ -26,8 +28,8 @@ interface PostMetaForm {
   cover: string
   category: Category | null
   labels: Label[]
-  isOrigin: boolean
   isPrivate: boolean
+  description: string
 }
 
 
@@ -39,6 +41,7 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
   open: boolean, onOpenChange: (open: boolean) => void,
 }) {
   const operationT = useTranslations("Operation")
+  const commonT = useTranslations("Common")
   const t = useTranslations("Console.post_edit")
   const form = useForm<PostMetaForm>({
     defaultValues: post ? {
@@ -60,6 +63,7 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
 
   const onSubmit: SubmitHandler<PostMetaForm> = (data) => {
     if (post) {
+      // 更新文章元信息
       updatePost({
         post: {
           id: post.id,
@@ -67,6 +71,7 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
           slug: data.slug,
           cover: data.cover,
           categoryId: data.category?.id,
+          description: data.description,
           labelIds: data.labels.map(l => l.id),
           isPrivate: data.isPrivate,
         }
@@ -79,21 +84,24 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
             slug: data.slug,
             cover: data.cover,
             category: data.category,
+            description: data.description,
             labels: data.labels,
             isPrivate: data.isPrivate,
           }
         })
         onOpenChange(false)
-      }).catch(() => {
-        toast.error(operationT("update_failed"))
+      }).catch((error: BaseResponseError) => {
+        toast.error(operationT("update_failed") + ": " + (error?.response?.data?.message || error.message));
       })
     } else {
+      // 创建新文章时，同时创建文章内容
       createPost({
         post: {
           title: data.title,
           slug: data.slug,
           cover: data.cover,
           categoryId: data.category?.id || null,
+          description: data.description,
           labelIds: data.labels.map(l => l.id),
           isPrivate: data.isPrivate,
           content: `# ${data.title}`
@@ -103,8 +111,8 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
         onMetaChange({ post: res.data })
         form.reset()
         onOpenChange(false)
-      }).catch(() => {
-        toast.error(operationT("create_failed"))
+      }).catch((error: BaseResponseError) => {
+        toast.error(operationT("create_failed") + ": " + (error?.response?.data?.message || error.message))
       })
     }
   }
@@ -120,6 +128,14 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
           <DialogTitle>
             {post ? operationT("update") : operationT("create")} {t("post_meta")}
           </DialogTitle>
+          {post && <>
+            <div className="font-mono text-sm">
+              {commonT("created_at")}: {new Date(post.createdAt).toLocaleString()}
+            </div>
+            <div className="font-mono text-sm">
+              {commonT("updated_at")}: {new Date(post.updatedAt).toLocaleString()}
+            </div>
+          </>}
         </DialogHeader>
         <Form {...form}>
           <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
@@ -157,6 +173,19 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
                   <FormLabel>{t("post_cover")}</FormLabel>
                   <FormControl>
                     <Input {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("post_description")}</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} />
                   </FormControl>
                 </FormItem>
               )}

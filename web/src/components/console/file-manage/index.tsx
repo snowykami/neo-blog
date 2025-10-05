@@ -29,24 +29,23 @@ import { getFileUri } from "@/utils/client/file";
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrangementSelector } from "@/components/common/arrangement-selector";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Dialog, DialogClose, DialogFooter, DialogHeader, DialogTitle, DialogContent, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { FileUploadDialogWithButton } from "./file-uploader";
 import { mimeTypeIcons } from "@/utils/common/mimetype";
 import copyToClipboard from "@/lib/clipboard";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import { FileModel } from "@/models/file";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { useAuth } from "@/contexts/auth-context";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
-
-
 
 export function FileManage() {
   const t = useTranslations("Console.files");
   const commonT = useTranslations("Common");
   const metricsT = useTranslations("Metrics");
   const operationT = useTranslations("Operation");
+  const {user} = useAuth();
   const { isMobile } = useDevice();
   const [files, setFiles] = useState<FileModel[]>([]);
   const [total, setTotal] = useState(0);

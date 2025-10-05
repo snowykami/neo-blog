@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import Link from "next/link"
 import { IconType } from "@/types/icon"
 import { consolePath } from "@/utils/common/route";
+import { useAuth } from "@/contexts/auth-context"
 
 export function Dashboard() {
   return (
@@ -43,7 +44,7 @@ function DataOverview() {
       url: consolePath.file
     },
   ]
-
+  const { user } = useAuth();
   const [fetchData, setFetchData] = useState<DashboardResp | null>(null);
 
   useEffect(() => {
@@ -54,7 +55,7 @@ function DataOverview() {
     });
   }, [])
 
-  if (!fetchData) return <div>Loading...</div>
+  if (!fetchData) return <div>Loading...</div>;
 
   return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
     {data.map(item => (

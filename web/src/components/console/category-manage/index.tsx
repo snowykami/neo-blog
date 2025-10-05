@@ -2,19 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useForm, type SubmitHandler } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Edit3, Trash, Plus } from "lucide-react";
-import { getCategories, createCategory, updateCategory, deleteCategory } from "@/api/post";
+import { Trash } from "lucide-react";
+import { getCategories, deleteCategory } from "@/api/post";
 import type { Category } from "@/models/category";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 
 export function CategoryManage() {
   const t = useTranslations("Console.categories");
   const operationT = useTranslations("Operation");
+  const { user } = useAuth();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,6 +49,8 @@ export function CategoryManage() {
     c.name.toLowerCase().includes(query.toLowerCase()) ||
     c.slug.toLowerCase().includes(query.toLowerCase())
   );
+
+    if (!user || !isAdmin({ user }) && !isEditor({ user })) return <Forbidden />;
 
   return (
     <div>
@@ -103,23 +104,8 @@ export function CategoryManage() {
   );
 }
 
-function DialogTriggerButton({ openSetter, isEdit }: { openSetter: (v: boolean) => void, isEdit: boolean }) {
-  return (
-    <>
-      {isEdit ? (
-        <Button variant="ghost" size="sm" onClick={() => openSetter(true)}><Edit3 className="w-4 h-4" /></Button>
-      ) : (
-        <Button variant="outline" size="sm" onClick={() => openSetter(true)}><Plus className="mr-2" />Create</Button>
-      )}
-    </>
-  );
-}
-
 /* External Dialog components used above - import here to keep file self-contained */
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { CreateOrUpdateCategoryDialogWithButton } from "../common/create-label-and-category";
+import { CreateOrUpdateCategoryDialogWithButton } from "../common/create-label-and-category";import { useAuth } from "@/contexts/auth-context";
+import { isAdmin, isEditor } from "@/utils/common/permission";
+import Forbidden from "@/components/common/forbidden";
+
