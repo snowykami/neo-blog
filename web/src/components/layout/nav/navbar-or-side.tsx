@@ -19,7 +19,7 @@ import { AvatarWithDropdownMenu } from "@/components/layout/nav/avatar-with-drop
 import { cn } from "@/lib/utils"
 import { useSiteInfo } from "@/contexts/site-info-context"
 import { useTranslations } from 'next-intl';
-import { AppWindowMacIcon, ArchiveIcon, ContactIcon, HouseIcon, InfoIcon, Link2Icon, NewspaperIcon, PanelRight, PanelsTopLeftIcon, RssIcon, ShuffleIcon, TagsIcon } from "lucide-react"
+import { ArchiveIcon, ContactIcon, HouseIcon, InfoIcon, Link2Icon, NewspaperIcon, PanelRight, PanelsTopLeftIcon, RssIcon, ShuffleIcon, TagsIcon } from "lucide-react"
 import { mainPath } from "@/utils/common/route"
 import { useRouter } from "next/navigation"
 import { useNav } from "@/contexts/nav-context"
@@ -184,7 +184,8 @@ function SidebarMenu() {
           </button>
         </SheetTrigger>
         <SheetContent side="right" className="pt-6 w-64 z-999999">
-          <nav className="flex flex-col gap-2 p-4">
+          <SheetTitle className="px-4 text-lg font-bold">{routeT("menu")}</SheetTitle>
+          <nav className="flex flex-col gap-2 px-2">
             {navbarMenuComponents.map((item) =>
               item.href ? (
                 <Link

@@ -89,7 +89,7 @@ function RandomPostPreview({ post }: { post: Post }) {
   return (
     <div className="w-full max-w-3xl px-4 md:px-0">
       <div className="space-y-4">
-        <div className="w-full h-48 rounded-lg overflow-hidden">
+        <div className="w-full h-60 rounded-lg overflow-hidden">
           <Image
             src={post.cover || siteInfo.defaultCover}
             alt={post.title}
