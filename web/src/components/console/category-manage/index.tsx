@@ -71,10 +71,10 @@ export function CategoryManage() {
         {!loading && filtered.length === 0 && <div className="text-sm text-muted-foreground">{t("no_categories")}</div>}
         {filtered.map(c => (
           <div key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-white dark:bg-gray-900">
-            <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium">{c.name}</span>
-                <div className="text-sm text-muted-foreground truncate">{c.id} - {c.slug}</div>
+            <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-sm font-medium flex-shrink-0">{c.name}</span>
+                <div className="text-sm text-muted-foreground truncate min-w-0">{c.id} - {c.slug}</div>
               </div>
               {c.description && <div className="text-sm text-muted-foreground truncate mt-1">{c.description}</div>}
             </div>
