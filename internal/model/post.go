@@ -12,8 +12,8 @@ type PostBase struct {
 	Category     *Category `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	CategoryID   *uint     `gorm:"index"`
 	Cover        string    `gorm:"type:text"`
-	Content      string    `gorm:"type:text;not null"`
-	Description  string    `gorm:"type:text;not null"`
+	Content      string    `gorm:"type:text"`
+	Description  string    `gorm:"type:text"`
 	DraftContent *string   `gorm:"type:text"` // 草稿内容
 	IsPrivate    bool      `gorm:"default:false"`
 	Labels       []Label   `gorm:"many2many:post_labels;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
