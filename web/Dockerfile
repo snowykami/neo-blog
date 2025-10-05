@@ -1,17 +1,18 @@
 # syntax=docker.io/docker/dockerfile:1
 
-FROM node:20-alpine AS builder
+FROM oven/bun:1-alpine AS builder
 
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY . .
-RUN corepack enable pnpm && \
-    pnpm install --frozen-lockfile && \
-    pnpm run build && \
-    pnpm prune --prod
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+RUN bun install --frozen-lockfile
 
-FROM node:20-alpine AS runner
+# Copy source files
+COPY . .
+RUN bun run build
+
+FROM oven/bun:1-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -29,4 +30,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+CMD ["bun", "server.js"]
