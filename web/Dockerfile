@@ -1,8 +1,10 @@
 # syntax=docker.io/docker/dockerfile:1
 
 FROM node:24-alpine AS builder
-
 WORKDIR /app
+
+# 启用 corepack 并激活 pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
