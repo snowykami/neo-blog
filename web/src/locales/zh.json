@@ -54,6 +54,7 @@
     "unlike_success": "已取消点赞"
   },
   "Common": {
+    "char": "字",
     "created_at": "创建于",
     "digest": "摘要",
     "email": "邮箱",
@@ -66,6 +67,7 @@
     "daysAgo": "天前",
     "hoursAgo": "小时前",
     "mime_type": "文件类型",
+    "minutes": "分钟",
     "minutesAgo": "分钟前",
     "not_found": "抱歉，内容未找到",
     "obtain": "获取",
@@ -74,6 +76,7 @@
     "secondsAgo": "秒前",
     "send_verify_code": "发送验证码",
     "size": "大小",
+    "unknown_author": "未知作者",
     "updated_at": "更新于",
     "username": "用户名",
     "verify_code": "验证码"

@@ -1,7 +1,7 @@
 
 import { Suspense } from "react";
 import type { Post } from "@/models/post";
-import { Calendar, Clock, FileText, Flame, Heart, Info, MessageCircle, PenLine, SquarePen } from "lucide-react";
+import { ArchiveIcon, Calendar, Clock, FileText, Flame, Heart, Info, MessageCircle, PenLine, SquarePen } from "lucide-react";
 import { RenderMarkdown } from "@/components/common/markdown";
 import { calculateReadingTime } from "@/utils/common/post";
 import { CommentSection } from "@/components/comment";
@@ -47,6 +47,12 @@ async function PostHeader({ post }: { post: Post }) {
 
       {/* 内容层 */}
       <div className={`container px-4 md:px-0 mx-auto ${contentAreaPaddingClass} ${contentAreaMaxWidthClass} relative z-10`}>
+
+        <h1
+          className="text-3xl md:text-5xl font-bold mb-4 text-white drop-shadow-lg leading-tight"
+        >
+          {post.title}
+        </h1>
         {/* 标签 */}
         {post.labels && post.labels.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
@@ -62,15 +68,10 @@ async function PostHeader({ post }: { post: Post }) {
           </div>
         )}
 
-        <h1
-          className="text-3xl md:text-5xl font-bold mb-4 text-white drop-shadow-lg leading-tight"
-        >
-          {post.title}
-        </h1>
-
         <div className="backdrop-blur-sm bg-white/15 rounded-lg p-4 border border-white/20 shadow-lg">
           <PostMetaWhite post={post} />
         </div>
+
       </div>
 
       {/* 波浪层 */}
@@ -80,28 +81,25 @@ async function PostHeader({ post }: { post: Post }) {
 }
 
 // 适配白色背景的 PostMeta 组件
-function PostMetaWhite({ post }: { post: Post }) {
+async function PostMetaWhite({ post }: { post: Post }) {
+  const t = await getTranslations()
   const metaItems = [
     {
       icon: PenLine,
-      text: post.user.nickname || post.user.username || "未知作者",
+      text: post.user.nickname || post.user.username || t("Common.unknown_author"),
     },
     {
-      icon: FileText,
-      text: `${post.content.length || 0} 字`,
-    },
-    {
-      icon: Clock,
-      text: `${calculateReadingTime(post.content)} 分钟`,
+      icon: ArchiveIcon,
+      text: post.category ? post.category.name : t("Console.post_edit.uncategorized"),
     },
     {
       icon: Calendar,
       text: post.createdAt ? new Date(post.createdAt).toLocaleDateString("zh-CN") : "",
     },
-    ...(post.updatedAt && post.createdAt !== post.updatedAt ? [{
-      icon: SquarePen,
-      text: new Date(post.updatedAt).toLocaleDateString("zh-CN"),
-    }] : []),
+    {
+      icon: Clock,
+      text: `${calculateReadingTime(post.content)} ${t("Common.minutes")}`,
+    },
     {
       icon: Flame,
       text: post.viewCount || 0,
@@ -113,8 +111,12 @@ function PostMetaWhite({ post }: { post: Post }) {
     {
       icon: MessageCircle,
       text: post.commentCount || 0,
+    },
+    {
+      icon: FileText,
+      text: `${post.content.length || 0} ${t("Common.char")}`,
     }
-  ];
+  ]
 
   return (
     <div className="flex flex-wrap items-center gap-3 text-white/90">
