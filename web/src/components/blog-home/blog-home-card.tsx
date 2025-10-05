@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 
 import { motion } from 'motion/react'
 import { deceleration } from '@/motion/curve'
@@ -139,15 +140,59 @@ export function BlogCard({ post, className }: {
   )
 }
 
+// 博客卡片骨架屏
+export function BlogCardSkeleton({ className }: { className?: string }) {
+  return (
+    <Card className={cn(
+      'overflow-hidden h-full flex flex-col gap-2 pt-0',
+      className,
+    )}>
+      {/* 封面图片骨架 */}
+      <Skeleton className="relative aspect-[16/9]" />
+      
+      {/* Card Header - 标题骨架 */}
+      <CardHeader className="mt-2 lg:mt-4">
+        <Skeleton className="h-7 w-4/5" />
+        <Skeleton className="h-7 w-3/5 mt-2" />
+      </CardHeader>
+
+      {/* Card Content - 内容骨架 */}
+      <CardContent className="flex-1">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-full mt-2" />
+        <Skeleton className="h-4 w-3/4 mt-2" />
+      </CardContent>
+
+      {/* Card Footer - 底部骨架 */}
+      <CardFooter className="!pt-4 border-t border-border/50">
+        <Skeleton className="h-4 w-24" />
+      </CardFooter>
+    </Card>
+  )
+}
+
 // 网格布局的博客卡片列表
 export function BlogCardGrid({
   posts,
   showPrivate = false,
+  isLoading = false,
 }: {
   posts: Post[]
   showPrivate?: boolean
+  isLoading?: boolean
 }) {
   const filteredPosts = showPrivate ? posts : posts.filter(post => !post.isPrivate)
+
+  // 显示骨架屏
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-6">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <BlogCardSkeleton key={index} />
+        ))}
+      </div>
+    )
+  }
 
   if (filteredPosts.length === 0) {
     return (

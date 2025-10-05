@@ -140,7 +140,7 @@ export default function BlogHome() {
                 </div>}
               </div>
               {/* 博客卡片网格 */}
-              <BlogCardGrid posts={posts} showPrivate={true} />
+              <BlogCardGrid posts={posts} showPrivate={true} isLoading={loading} />
               {/* 分页控制器 */}
               <div className="mt-8">
                 {totalPosts > 0 && <PaginationController
@@ -151,15 +151,6 @@ export default function BlogHome() {
                   onPageChange={handlePageChange}
                 />}
               </div>
-              {/* 加载状态指示器 */}
-              {loading && (
-                <div className="text-center py-8">
-                  <div className="inline-flex items-center gap-2 text-slate-600">
-                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <span>{t("loading")}</span>
-                  </div>
-                </div>
-              )}
             </motion.div>
             {/* 侧边栏 */}
             <motion.div
