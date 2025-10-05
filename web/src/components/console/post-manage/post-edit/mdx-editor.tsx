@@ -81,7 +81,7 @@ export function InitializedMDXEditor({
         toolbarPlugin({
           toolbarClassName: 'mdx-toolbar',
           toolbarContents: () => (
-            <>
+            <div className="flex flex-wrap gap-1 p-1 sticky top-0 z-10">
               <DiffSourceToggleWrapper>
                 <UndoRedo />
                 <BoldItalicUnderlineToggles />
@@ -100,7 +100,7 @@ export function InitializedMDXEditor({
                 <ListsToggle />
                 {/* <ShowSandpackInfo /> */}
               </DiffSourceToggleWrapper>
-            </>
+            </div>
           )
         }),
       ]}

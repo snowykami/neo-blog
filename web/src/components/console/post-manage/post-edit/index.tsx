@@ -35,7 +35,8 @@ export function PostEdit() {
   return (
     <div>
       <EditorNavbar editorRef={editorRef} post={post} onPostUpdate={onPostUpdate} />
-      <div ref={wrapperRef} className="mt-4 border-1 rounded-sm relative overflow-hidden">
+      {/* 去掉 overflow-hidden，避免创建局部滚动上下文，让 sticky 相对于页面/外层滚动生效 */}
+      <div ref={wrapperRef} className="mt-4 border-1 rounded-sm relative">
         <InitializedMDXEditor
           className="typography"
           editorRef={editorRef}
@@ -85,8 +86,6 @@ function EditorNavbar({ editorRef, post, onPostUpdate }: { post: Post, onPostUpd
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [post, editorRef, saveDraft]);
-
-
 
   const publishPost = () => {
     const markdown = editorRef && 'current' in editorRef && editorRef.current ? editorRef.current.getMarkdown() : '';

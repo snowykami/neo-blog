@@ -1,0 +1,12 @@
+.mdx-editor {
+  overflow: visible; /* 如果其它祖先也有 overflow，需要调整它们 */
+}
+
+/* toolbar 做 sticky（相对于最近非滚动祖先，这里希望是文档） */
+.mdx-toolbar-inner {
+  position: sticky;
+  top: var(--site-nav-height, 64px); /* 根据你导航高度调整 */
+  z-index: 60;
+  background: rgba(255,255,255,0.85); /* 遮挡内容时需要背景 */
+  backdrop-filter: blur(6px);
+}
