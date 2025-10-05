@@ -152,6 +152,13 @@ func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) 
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
+	// 检测头像链接
+	pass1 := utils2.Url.IsValidUrl(updateUserReq.AvatarUrl)
+	pass2 := utils2.Url.IsValidUrl(updateUserReq.BackgroundUrl)
+	if !pass1 || !pass2 {
+		resps.BadRequest(c, "Avatar URL or Background URL is invalid")
+		return
+	}
 	if !ctxutils.IsOwnerOfTarget(ctx, updateUserReq.ID) && !ctxutils.IsAdmin(ctx) {
 		resps.Forbidden(c, resps.ErrForbidden)
 		return

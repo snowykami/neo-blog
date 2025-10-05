@@ -91,6 +91,12 @@ func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
+	// 检测封面链接
+	pass := utils2.Url.IsValidUrl(req.Cover)
+	if !pass {
+		resps.BadRequest(c, "Cover URL is invalid")
+		return
+	}
 	id := ctxutils.GetIDParam(c).Uint
 	postID, err := p.service.UpdatePost(ctx, id, &req)
 	if err != nil {

@@ -18,3 +18,8 @@ func (u *urlUtils) BuildUrl(baseUrl string, queryParams map[string]string) strin
 	newUrl.RawQuery = q.Encode()
 	return newUrl.String()
 }
+
+func (u *urlUtils) IsValidUrl(toTest string) bool {
+	_, err := url.ParseRequestURI(toTest)
+	return err == nil
+}
