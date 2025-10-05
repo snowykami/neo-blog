@@ -40,7 +40,7 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 			"description": "A full-stack developer.",
 			"avatar":      "https://cdn.liteyuki.org/snowykami/avatar.jpg",
 		}),
-		"posts_per_page":            repo.KV.GetKVWithoutErr("posts_per_page", 9),
+		"posts_per_page":            repo.KV.GetKVWithoutErr("posts_per_page", 10),
 		"comments_per_page":         repo.KV.GetKVWithoutErr("comments_per_page", 10),
 		"verify_code_cool_down":     repo.KV.GetKVWithoutErr("verify_code_cool_down", 60), // 单位秒
 		"animation_duration_second": repo.KV.GetKVWithoutErr("animation_duration_second", 0.618),

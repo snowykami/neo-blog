@@ -140,7 +140,7 @@ export default function BlogHome() {
                 </div>}
               </div>
               {/* 博客卡片网格 */}
-              <BlogCardGrid posts={posts} isLoading={loading} showPrivate={true} />
+              <BlogCardGrid posts={posts} showPrivate={true} />
               {/* 分页控制器 */}
               <div className="mt-8">
                 {totalPosts > 0 && <PaginationController

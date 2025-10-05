@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils'
 
 import { motion } from 'motion/react'
 import { deceleration } from '@/motion/curve'
-import { Skeleton } from '@/components/ui/skeleton'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { getPostUrl } from '@/utils/common/route'
 
@@ -140,88 +139,15 @@ export function BlogCard({ post, className }: {
   )
 }
 
-// 骨架屏加载组件 - 使用 shadcn Card 结构
-export function BlogCardSkeleton() {
-  return (
-    <Card className="group overflow-hidden hover:shadow-xl transition-all duration-300 h-full flex flex-col cursor-default pt-0 pb-4">
-      {/* 封面骨架 */}
-      <div className="relative aspect-[16/9] overflow-hidden">
-        <Skeleton className="absolute inset-0" />
-
-        {/* 覆盖层（模拟暗色遮罩） */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-
-        {/* 私有标识骨架 */}
-        <div className="absolute top-2 left-2">
-          <Skeleton className="h-6 w-14 rounded-md" />
-        </div>
-
-        {/* 统计信息骨架 */}
-        <div className="absolute bottom-2 left-2">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-3 w-6 rounded" />
-            <Skeleton className="h-3 w-6 rounded" />
-            <Skeleton className="h-3 w-6 rounded" />
-          </div>
-        </div>
-
-        {/* 热度骨架 */}
-        <div className="absolute bottom-2 right-2">
-          <Skeleton className="h-6 w-12 rounded-md" />
-        </div>
-      </div>
-
-      {/* 标题骨架 */}
-      <CardHeader className="pb-3">
-        <CardTitle>
-          <Skeleton className="h-5 w-3/4 rounded" />
-        </CardTitle>
-      </CardHeader>
-
-      {/* 内容骨架 */}
-      <CardContent className="flex-1">
-        <CardDescription>
-          <div className="space-y-2">
-            <Skeleton className="h-4 rounded" />
-            <Skeleton className="h-4 w-5/6 rounded" />
-            <Skeleton className="h-4 w-2/3 rounded" />
-          </div>
-        </CardDescription>
-      </CardContent>
-
-      {/* 底部骨架 */}
-      <CardFooter className="pb-0 border-t border-border/50 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-4 w-24 rounded" />
-        </div>
-        <Skeleton className="h-4 w-20 rounded" />
-      </CardFooter>
-    </Card>
-  )
-}
-
 // 网格布局的博客卡片列表
 export function BlogCardGrid({
   posts,
-  isLoading,
   showPrivate = false,
 }: {
   posts: Post[]
-  isLoading?: boolean
   showPrivate?: boolean
 }) {
-  const {siteInfo} = useSiteInfo();
   const filteredPosts = showPrivate ? posts : posts.filter(post => !post.isPrivate)
-
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-6">
-        {Array.from({ length: siteInfo.postsPerPage || 9 }).map((_, index) => (
-          <BlogCardSkeleton key={index} />
-        ))}
-      </div>
-    )
-  }
 
   if (filteredPosts.length === 0) {
     return (
