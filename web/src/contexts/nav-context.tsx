@@ -29,7 +29,7 @@ type NavContextValue = {
   setNavTitle: (title: string) => void;
 };
 
-export const DEFAULT_NAV_CLASSNAME = `bg-background/90 backdrop-blur md:rounded-b-2xl shadow-md border-b border-border/50 px-4 md:px-0 h-${navHeight} ${contentAreaPaddingClass}`;
+export const DEFAULT_NAV_CLASSNAME = `bg-background/90 backdrop-blur md:rounded-b-2xl shadow-md border-b border-border/50 h-${navHeight} ${contentAreaPaddingClass}`;
 
 const NavContext = createContext<NavContextValue | undefined>(undefined);
 

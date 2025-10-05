@@ -25,6 +25,7 @@ import { useRouter } from "next/navigation"
 import { useNav } from "@/contexts/nav-context"
 import { IconInnerShadowTop } from "@tabler/icons-react"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { contentAreaPaddingClass } from "@/utils/common/layout-size"
 
 const navbarMenuComponents = [
   {
