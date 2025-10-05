@@ -324,24 +324,29 @@ function PostLabelSelector(
   useEffect(() => {
     console.log("refreshing labels...");
     getLabels().then(res => {
-      setItems(res.data.labels);
+      // 防御：确保不会把 null/undefined 赋给 items
+      setItems(res?.data?.labels ?? []);
     }).catch(() => {
     });
   }, [refreshKey]);
 
   const toggle = (label: Label) => {
-    const exists = labels.find((l) => l.id === label.id);
+    const exists = (labels ?? []).find((l) => l.id === label.id);
     if (exists) {
-      onSelectedLabelsChange(labels.filter((l) => l.id !== label.id));
+      onSelectedLabelsChange((labels ?? []).filter((l) => l.id !== label.id));
     } else {
-      onSelectedLabelsChange([...labels, label]);
+      onSelectedLabelsChange([...(labels ?? []), label]);
     }
   };
 
   const remove = (label: Label, e: React.MouseEvent) => {
     e.stopPropagation();
-    onSelectedLabelsChange(labels.filter((l) => l.id !== label.id));
+    onSelectedLabelsChange((labels ?? []).filter((l) => l.id !== label.id));
   };
+
+  // 渲染时也使用安全变量
+  const safeItems = items ?? [];
+  const safeLabels = labels ?? [];
 
   return (
     <FormField
@@ -359,10 +364,10 @@ function PostLabelSelector(
                       size="sm"
                       role="combobox"
                       aria-expanded={open}
-                      className={cn("w-full h-auto py-2 justify-between text-left", labels.length === 0 && "text-muted-foreground")}
+                      className={cn("w-full h-auto py-2 justify-between text-left", safeLabels.length === 0 && "text-muted-foreground")}
                     >
                       <div className="flex flex-wrap gap-2 max-w-full">
-                        {labels.length === 0 ? t("select_labels") : labels.map(l => (
+                        {safeLabels.length === 0 ? t("select_labels") : safeLabels.map(l => (
                           <span
                             key={l.id}
                             className="inline-flex items-center gap-2 px-2 py-0.5 rounded-lg bg-muted text-sm"
@@ -396,7 +401,7 @@ function PostLabelSelector(
                   <CommandList>
                     <CommandEmpty>{t("no_label")}</CommandEmpty>
                     <CommandGroup>
-                      {items.map((l) => {
+                      {safeItems.map((l) => {
                         return (
                           <CommandItem
                             key={l.id}
@@ -406,7 +411,7 @@ function PostLabelSelector(
                             }}
                           >
                             {l.name} ({l.slug})
-                            <Check className={cn("ml-auto", labels.find((label) => label.id === l.id) ? "opacity-100" : "opacity-0")} />
+                            <Check className={cn("ml-auto", safeLabels.find((label) => label.id === l.id) ? "opacity-100" : "opacity-0")} />
                           </CommandItem>
                         );
                       })}
