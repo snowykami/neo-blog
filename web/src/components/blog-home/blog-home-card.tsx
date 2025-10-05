@@ -30,13 +30,13 @@ export function BlogCard({ post, className }: {
   }
   return (
     <Card className={cn(
-      'group overflow-hidden hover:shadow-xl h-full flex flex-col cursor-pointer pt-0 pb-4',
+      'group overflow-hidden hover:shadow-xl h-full flex flex-col cursor-pointer pt-0',
       className,
     )}
     >
       {/* 封面图片区域 */}
       <div
-        className="relative aspect-[16/9] overflow-hidden"
+        className="relative aspect-[16/6] md:aspect-[16/9] overflow-hidden"
       >
         {/* 自定义封面图片 */}
         <motion.div
@@ -113,10 +113,9 @@ export function BlogCard({ post, className }: {
 
       {/* Card Header - 标题区域 */}
       <CardHeader className="">
-        <CardTitle className="line-clamp-2 group-hover:text-primary transition-colors text-lg leading-tight">
+        <CardTitle className="line-clamp-2 group-hover:text-primary transition-colors text-xl leading-tight">
           {post.title}
         </CardTitle>
-
       </CardHeader>
 
       {/* Card Content - 主要内容 */}
@@ -128,7 +127,7 @@ export function BlogCard({ post, className }: {
       </CardContent>
 
       {/* Card Footer - 日期和操作区域 */}
-      <CardFooter className="pb-0 border-t border-border/50 flex items-center justify-between">
+      <CardFooter className="pb-0  border-t border-border/50 flex items-center justify-between">
         {/* 左侧：最新日期 */}
         <div className="flex items-center gap-1 text-sm text-muted-foreground">
           <Calendar className="w-4 h-4" />
@@ -217,7 +216,7 @@ export function BlogCardGrid({
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {Array.from({ length: siteInfo.postsPerPage || 9 }).map((_, index) => (
           <BlogCardSkeleton key={index} />
         ))}
@@ -239,7 +238,7 @@ export function BlogCardGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
       {filteredPosts.map(post => (
         <Link key={post.id} href={getPostUrl(post)} className="block h-full">
           <BlogCard post={post} />
