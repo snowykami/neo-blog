@@ -58,7 +58,8 @@ export function InitializedMDXEditor({
       plugins={[
         codeBlockPlugin({ defaultCodeBlockLanguage: 'yaml' }),
         codeMirrorPlugin({
-          codeBlockLanguages: codeBlockLanguages
+          codeBlockLanguages: codeBlockLanguages,
+          autoLoadLanguageSupport: true,
         }),
         diffSourcePlugin(),
         directivesPlugin({
@@ -81,7 +82,7 @@ export function InitializedMDXEditor({
         toolbarPlugin({
           toolbarClassName: 'mdx-toolbar',
           toolbarContents: () => (
-            <div className="flex flex-wrap gap-1 p-1 sticky top-0 z-10">
+            <>
               <DiffSourceToggleWrapper>
                 <UndoRedo />
                 <BoldItalicUnderlineToggles />
@@ -100,7 +101,7 @@ export function InitializedMDXEditor({
                 <ListsToggle />
                 {/* <ShowSandpackInfo /> */}
               </DiffSourceToggleWrapper>
-            </div>
+            </>
           )
         }),
       ]}
@@ -126,28 +127,25 @@ function getImageUploadHandler(operationT: ReturnType<typeof useTranslations>): 
 
 const codeBlockLanguages = {
   py: "Python",
-  cpp: "C++",
-  c: "C",
-  java: "Java",
   json: "JSON",
   css: "CSS",
   html: "HTML",
   yaml: "YAML",
   markdown: "Markdown",
-  r: "R",
-  rb: "Ruby",
-  php: "PHP",
   go: "Go",
-  bash: "Shell",
+  bash: "Bash",
+  shell: "Shell",
   lua: "Lua",
   swift: "Swift",
+  cpp: "C++",
+  c: "C",
   kt: "Kotlin",
   kts: "Kotlin",
   dart: "Dart",
   js: "JavaScript",
-  jsx: "JavaScriptX",
+  jsx: "JSX",
   ts: "TypeScript",
-  tsx: "TypeScriptX",
+  tsx: "TSX",
 }
 
 const defaultSnippetContent = `
