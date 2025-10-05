@@ -151,7 +151,7 @@ func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*d
 		return nil, total, errs.New(errs.ErrInternalServer.Code, "failed to list posts", err)
 	}
 	for _, post := range posts {
-		postDtos = append(postDtos, post.ToDtoWithShortContent(100))
+		postDtos = append(postDtos, post.ToDtoWithShortContent(200))
 	}
 	return postDtos, total, nil
 }

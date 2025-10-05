@@ -80,8 +80,13 @@ func (p *Post) ToDto() *dto.PostDto {
 // ToDtoWithShortContent 返回一个简化的 DTO，内容可以根据需要截断
 func (p *Post) ToDtoWithShortContent(contentLength int) *dto.PostDto {
 	dtoPost := p.ToDto()
-	if len(p.Content) > contentLength {
-		dtoPost.Content = p.Content[:contentLength] + "..."
+	if contentLength <= 0 {
+		dtoPost.Content = ""
+		return dtoPost
+	}
+	runes := []rune(p.Content)
+	if len(runes) > contentLength {
+		dtoPost.Content = string(runes[:contentLength]) + "..."
 	} else {
 		dtoPost.Content = p.Content
 	}
