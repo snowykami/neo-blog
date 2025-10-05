@@ -120,7 +120,7 @@ export function BlogCard({ post, className }: {
 
       {/* Card Content - 主要内容 */}
       <CardContent className="flex-1">
-        <CardDescription className="line-clamp-3 leading-relaxed">
+        <CardDescription className="line-clamp-3 leading-relaxed text-xs">
           {post.content.replace(/[#*`]/g, '').substring(0, 150)}
           {post.content.length > 150 ? '...' : ''}
         </CardDescription>

@@ -156,7 +156,6 @@
       "like_count": "点赞数",
       "no_category": "没有分类",
       "no_label": "没有标签",
-      "per_page": " /页",
       "post_category": "分类",
       "post_category_desc": "为文章选择一个分类",
       "post_cover": "封面",
@@ -313,6 +312,12 @@
     "upload_failed": "上传失败",
     "upload_success": "上传成功",
     "view": "查看"
+  },
+  "Metrics": {
+    "comment_count": "评论数",
+    "like_count": "点赞数",
+    "per_page": " /页",
+    "view_count": "浏览数"
   },
   "Order": {
     "order": "排序",
