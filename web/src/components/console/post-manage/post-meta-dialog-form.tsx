@@ -18,6 +18,7 @@ import { SubmitHandler, useForm } from "react-hook-form"
 import { Label } from '@/models/label';
 import { getLabels } from "@/api/label"
 import { toast } from "sonner"
+import { CreateOrUpdateCategoryDialogWithButton, CreateOrUpdateLabelDialogWithButton } from "../common/create-label-and-category"
 
 interface PostMetaForm {
   title: string
@@ -71,15 +72,17 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
         }
       }).then(() => {
         toast.success(operationT("update_success"))
-        onMetaChange({ post: {
-          id: post.id,
-          title: data.title,
-          slug: data.slug,
-          cover: data.cover,
-          category: data.category,
-          labels: data.labels,
-          isPrivate: data.isPrivate,
-        } })
+        onMetaChange({
+          post: {
+            id: post.id,
+            title: data.title,
+            slug: data.slug,
+            cover: data.cover,
+            category: data.category,
+            labels: data.labels,
+            isPrivate: data.isPrivate,
+          }
+        })
         onOpenChange(false)
       }).catch(() => {
         toast.error(operationT("update_failed"))
@@ -186,19 +189,26 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
 }
 
 function PostCategorySelector(
-  { category, onCategoryChange }:
-    { category: Category | null, onCategoryChange: (category: Category | null) => void }) {
+  {
+    category,
+    onCategoryChange,
+  }:
+    {
+      category: Category | null,
+      onCategoryChange: (category: Category | null) => void,
+    }) {
   const t = useTranslations("Console.post_edit")
   const operationT = useTranslations("Operation")
   const [items, setItems] = useState<Category[]>([])
   const [open, setOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     getCategories().then(res => {
       setItems(res.data.categories)
     }).catch(() => {
     })
-  }, [])
+  }, [refreshKey])
 
   return (
     <FormField
@@ -208,18 +218,29 @@ function PostCategorySelector(
           <FormLabel>{t("post_category")}</FormLabel>
           <FormControl>
             <Popover open={open} onOpenChange={setOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  role="combobox"
-                  aria-expanded={open}
-                  className={cn("w-auto justify-between", !category && "text-muted-foreground")}
-                >
-                  {category ? `${category.name} (${category.slug})` : t("select_category")}
-                  <ChevronsUpDown className="ml-2 opacity-50" />
-                </Button>
-              </PopoverTrigger>
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      role="combobox"
+                      aria-expanded={open}
+                      className={cn("w-full h-auto py-2 justify-between text-left", !category && "text-muted-foreground")}
+                    >
+                      {category ? `${category.name} (${category.slug})` : t("select_category")}
+                      <ChevronsUpDown className="ml-2 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                </div>
+                <div className="flex-shrink-0">
+                  <CreateOrUpdateCategoryDialogWithButton
+                    category={null}
+                    buttonSize={"default"}
+                    onSaved={() => setRefreshKey((k) => k + 1)}
+                  />
+                </div>
+              </div>
               <PopoverContent className="w-[240px] p-0">
                 <Command>
                   <CommandInput
@@ -256,19 +277,28 @@ function PostCategorySelector(
 }
 
 function PostLabelSelector(
-  { labels, onSelectedLabelsChange }: { labels: Label[], onSelectedLabelsChange: (labels: Label[]) => void }
+  {
+    labels,
+    onSelectedLabelsChange,
+  }: {
+    labels: Label[],
+    onSelectedLabelsChange: (labels: Label[]) => void,
+  }
 ) {
   const t = useTranslations("Console.post_edit");
   const operationT = useTranslations("Operation");
   const [items, setItems] = useState<Label[]>([]);
   const [open, setOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
 
   useEffect(() => {
+    console.log("refreshing labels...");
     getLabels().then(res => {
       setItems(res.data.labels);
     }).catch(() => {
     });
-  }, []);
+  }, [refreshKey]);
 
   const toggle = (label: Label) => {
     const exists = labels.find((l) => l.id === label.id);
@@ -292,32 +322,42 @@ function PostLabelSelector(
           <FormLabel>{t("post_labels")}</FormLabel>
           <FormControl>
             <Popover open={open} onOpenChange={setOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  role="combobox"
-                  aria-expanded={open}
-                  className={cn("w-full h-auto py-2 justify-between text-left", labels.length === 0 && "text-muted-foreground")}
-                >
-                  <div className="flex flex-wrap gap-2 max-w-[60%]">
-                    {labels.length === 0 ? t("select_labels") : labels.map(l => (
-                      <span
-                        key={l.id}
-                        className="inline-flex items-center gap-2 px-2 py-0.5 rounded-lg bg-muted text-sm"
-                        onClick={(e) => remove(l, e)}
-                      >
-                        <span>{l.name}</span>
-                        <svg className="w-3 h-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </span>
-                    ))}
-                  </div>
-                  <ChevronsUpDown className="ml-2 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      role="combobox"
+                      aria-expanded={open}
+                      className={cn("w-full h-auto py-2 justify-between text-left", labels.length === 0 && "text-muted-foreground")}
+                    >
+                      <div className="flex flex-wrap gap-2 max-w-full">
+                        {labels.length === 0 ? t("select_labels") : labels.map(l => (
+                          <span
+                            key={l.id}
+                            className="inline-flex items-center gap-2 px-2 py-0.5 rounded-lg bg-muted text-sm"
+                            onClick={(e) => remove(l, e)}
+                          >
+                            <span>{l.name}</span>
+                            <svg className="w-3 h-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </span>
+                        ))}
+                      </div>
+                      <ChevronsUpDown className="ml-2 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                </div>
+                <div className="flex-shrink-0">
+                  <CreateOrUpdateLabelDialogWithButton
+                    buttonSize={"default"}
+                    label={null}
+                    onLabelCreated={() => setRefreshKey((key) => key + 1)}
+                  />
+                </div>
+              </div>
               <PopoverContent className="w-auto p-0">
                 <Command>
                   <CommandInput

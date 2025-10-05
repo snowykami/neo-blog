@@ -14,7 +14,14 @@ import { useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
-export function CreateOrUpdateLabelDialogWithButton({ label, onLabelCreated }: { label: Label | null, onLabelCreated?: (label: Label) => void }) {
+export function CreateOrUpdateLabelDialogWithButton({ 
+  label, onLabelCreated,
+  buttonSize = "sm"
+}: 
+  { label: Label | null, 
+    onLabelCreated?: (label: Label) => void,
+    buttonSize?: "sm" | "lg" | "icon" | "icon-sm" | "icon-lg" | "default" | null | undefined
+   }) {
   const t = useTranslations("Console.labels");
   const operationT = useTranslations("Operation");
   const [open, setOpen] = useState(false);
@@ -76,7 +83,7 @@ export function CreateOrUpdateLabelDialogWithButton({ label, onLabelCreated }: {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">{label ? t("edit_label") : t("create_label")}</Button>
+        <Button variant="outline" size={buttonSize}>{label ? t("edit_label") : t("create_label")}</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -130,7 +137,7 @@ export function CreateOrUpdateLabelDialogWithButton({ label, onLabelCreated }: {
               <DialogClose asChild>
                 <div className="flex gap-2">
                   <Button onClick={handleCancel} variant="outline" type="button">{operationT("cancel")}</Button>
-                  <Button disabled={!form.formState.isValid} onClick={() => form.handleSubmit(onSubmit)}>{label ? operationT("update") : operationT("create")}</Button>
+                  <Button disabled={!form.formState.isValid} type="button" onClick={form.handleSubmit(onSubmit)}>{label ? operationT("update") : operationT("create")}</Button>
                 </div>
               </DialogClose>
             </DialogFooter>
@@ -144,10 +151,13 @@ export function CreateOrUpdateLabelDialogWithButton({ label, onLabelCreated }: {
 
 export function CreateOrUpdateCategoryDialogWithButton(
   {
-    category, onSaved
+    category, 
+    onSaved,
+    buttonSize = "sm"
   }: {
     category: Category | null,
-    onSaved?: (category: Category) => void
+    onSaved?: (category: Category) => void,
+    buttonSize?: "sm" | "lg" | "icon" | "icon-sm" | "icon-lg" | "default" | null | undefined
   }
 ) {
   const t = useTranslations("Console.categories");
@@ -222,7 +232,7 @@ export function CreateOrUpdateCategoryDialogWithButton(
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">{category ? t("edit_category") : t("create_category")}</Button>
+        <Button variant="outline" size={buttonSize}>{category ? t("edit_category") : t("create_category")}</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -280,7 +290,7 @@ export function CreateOrUpdateCategoryDialogWithButton(
               <DialogClose asChild>
                 <div className="flex gap-2">
                   <Button onClick={handleCancel} variant="outline" type="button">{operationT("cancel")}</Button>
-                  <Button disabled={!form.formState.isValid} onClick={() => form.handleSubmit(onSubmit)}>{category ? operationT("update") : operationT("create")}</Button>
+                  <Button disabled={!form.formState.isValid} onClick={form.handleSubmit(onSubmit)}>{category ? operationT("update") : operationT("create")}</Button>
                 </div>
               </DialogClose>
             </DialogFooter>

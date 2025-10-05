@@ -16,6 +16,7 @@ import { Ellipsis, Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import Image from "next/image";
 import {
   useQueryState,
   parseAsInteger,
@@ -25,7 +26,8 @@ import {
 } from "nuqs";
 import { useDebouncedState } from "@/hooks/use-debounce";
 import { Badge } from "@/components/ui/badge";
-import {  CreateOrUpdatePostMetaButtonWithDialog } from "./post-meta-dialog-form";
+import { CreateOrUpdatePostMetaButtonWithDialog } from "./post-meta-dialog-form";
+import { useSiteInfo } from "@/contexts/site-info-context";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
@@ -90,11 +92,11 @@ export function PostManage() {
           {<OrderSelector initialOrder={{ orderBy, desc }} onOrderChange={onOrderChange} />}
           <Button size="sm" onClick={() => setCreatePostDialogOpen(true)}>{t("create_post")}</Button>
           <CreateOrUpdatePostMetaButtonWithDialog
-           open={createPostDialogOpen} 
-           onOpenChange={setCreatePostDialogOpen} 
-           post={null}
-           onMetaChange={onPostCreate}
-           />
+            open={createPostDialogOpen}
+            onOpenChange={setCreatePostDialogOpen}
+            post={null}
+            onMetaChange={onPostCreate}
+          />
         </div>
       </div>
     </div>
@@ -114,38 +116,50 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
   const commonT = useTranslations("Common");
   const postT = useTranslations("Metrics");
   const stateT = useTranslations("State");
+  const { siteInfo } = useSiteInfo();
   const clickToPost = useToPost();
   const [metaDialogOpen, setMetaDialogOpen] = useState(false);
   return (
     <div>
-      <div className="flex w-full items-center gap-3 py-2">
+      <div className="flex w-full items-center gap-3 py-3">
         {/* left */}
-        <div>
-          <div className="text-sm font-medium">
-            {post.title}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-3">
-            {(() => {
-              const items: { value: string; className: string }[] = [
-                {
-                  value: stateT(post.isPrivate ? "private" : "public"),
-                  className: post.isPrivate ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-                },
-                { value: `${postT("view_count")}: ${post.viewCount}`, className: "bg-slate-100 text-slate-800" },
-                { value: `${postT("like_count")}: ${post.likeCount}`, className: "bg-slate-100 text-slate-800" },
-                { value: `${postT("comment_count")}: ${post.commentCount}`, className: "bg-slate-100 text-slate-800" },
-                { value: `${commonT("id")}: ${post.id}`, className: "bg-indigo-100 text-indigo-800" },
-                { value: `${commonT("created_at")}: ${new Date(post.createdAt).toLocaleDateString()}`, className: "bg-gray-100 text-gray-800" },
-                { value: `${commonT("updated_at")}: ${new Date(post.updatedAt).toLocaleDateString()}`, className: "bg-gray-100 text-gray-800" }
-              ];
+        <div className="flex justify-start items-center gap-4">
+          {/* avatar */}
+          <Image
+            src={post.cover || siteInfo.defaultCover || "/default-post-cover.png"}
+            alt={post.title}
+            width={80}
+            height={80}
+            className="w-16 h-10 object-cover rounded-md mb-0"
+          />
+          <div className="min-w-0">
+            <div className="text-sm font-medium">
+              {post.title}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              {(() => {
+                const items: { value: string; className: string }[] = [
+                  {
+                    value: stateT(post.isPrivate ? "private" : "public"),
+                    className: post.isPrivate ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
+                  },
+                  { value: `${postT("view_count")}: ${post.viewCount}`, className: "bg-slate-100 text-slate-800" },
+                  { value: `${postT("like_count")}: ${post.likeCount}`, className: "bg-slate-100 text-slate-800" },
+                  { value: `${postT("comment_count")}: ${post.commentCount}`, className: "bg-slate-100 text-slate-800" },
+                  { value: `${commonT("id")}: ${post.id}`, className: "bg-indigo-100 text-indigo-800" },
+                  { value: `${commonT("created_at")}: ${new Date(post.createdAt).toLocaleDateString()}`, className: "bg-gray-100 text-gray-800" },
+                  { value: `${commonT("updated_at")}: ${new Date(post.updatedAt).toLocaleDateString()}`, className: "bg-gray-100 text-gray-800" }
+                ];
 
-              return items.map((item, idx) => (
-                <Badge key={idx} className={`text-xs ${item.className}`} variant="secondary">
-                  {item.value}
-                </Badge>
-              ));
-            })()}
+                return items.map((item, idx) => (
+                  <Badge key={idx} className={`text-xs ${item.className}`} variant="secondary">
+                    {item.value}
+                  </Badge>
+                ));
+              })()}
+            </div>
           </div>
+
         </div>
         {/* right */}
         <div className="flex items-center ml-auto">
