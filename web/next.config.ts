@@ -3,7 +3,7 @@ import createNextIntlPlugin from 'next-intl/plugin'
 import { BACKEND_URL } from '@/api/client'
 
 const nextConfig: NextConfig = {
-  // output: 'standalone',
+  output: 'standalone',
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**', port: '', pathname: '/**' },
