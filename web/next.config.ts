@@ -9,7 +9,6 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '**', port: '', pathname: '/**' },
       { protocol: 'http', hostname: '**', port: '', pathname: '/**' }
     ],
-    unoptimized: true,
   },
   async rewrites() {
     return [
