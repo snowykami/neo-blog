@@ -42,7 +42,7 @@ export const markdownComponents = {
   ),
   blockquote: (props: React.ComponentPropsWithoutRef<"blockquote">) => (
     <blockquote
-      className="border-l-4 border-blue-400 pl-4 italic my-6 py-2 "
+      className="border-l-4 border-primary pl-4 italic my-6 py-2 "
       {...props}
     />
   ),

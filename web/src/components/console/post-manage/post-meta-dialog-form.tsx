@@ -324,7 +324,6 @@ function PostLabelSelector(
   useEffect(() => {
     console.log("refreshing labels...");
     getLabels().then(res => {
-      // 防御：确保不会把 null/undefined 赋给 items
       setItems(res?.data?.labels ?? []);
     }).catch(() => {
     });
