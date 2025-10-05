@@ -4,7 +4,7 @@
 # -----------------------------------------------------------------------------
 
 # Use official Node image and pnpm
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 
 # enable corepack and activate pnpm
@@ -19,7 +19,7 @@ COPY . .
 RUN pnpm run build
 
 # production image
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \
