@@ -26,7 +26,7 @@ import {
 } from "nuqs";
 import { useDebouncedState } from "@/hooks/use-debounce";
 import { Badge } from "@/components/ui/badge";
-import { CreateOrUpdatePostMetaButtonWithDialog } from "./post-meta-dialog-form";
+import { CreateOrUpdatePostMetaDialogWithoutButton } from "../common/post-meta-dialog-form";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import { useAuth } from "@/contexts/auth-context";
 import { BaseResponseError } from "@/models/resp";
@@ -95,11 +95,11 @@ export function PostManage() {
         <div className="flex items-center gap-2">
           {<OrderSelector initialOrder={{ orderBy, desc }} onOrderChange={onOrderChange} />}
           <Button size="sm" onClick={() => setCreatePostDialogOpen(true)}>{t("create_post")}</Button>
-          <CreateOrUpdatePostMetaButtonWithDialog
+          <CreateOrUpdatePostMetaDialogWithoutButton
             open={createPostDialogOpen}
             onOpenChange={setCreatePostDialogOpen}
             post={null}
-            onMetaChange={onPostCreate}
+            onPostChange={onPostCreate}
           />
         </div>
       </div>
@@ -185,9 +185,9 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
             metaDialogOpen={metaDialogOpen}
             setMetaDialogOpen={setMetaDialogOpen}
           />
-          <CreateOrUpdatePostMetaButtonWithDialog
+          <CreateOrUpdatePostMetaDialogWithoutButton
             post={post}
-            onMetaChange={onPostUpdate}
+            onPostChange={onPostUpdate}
             open={metaDialogOpen}
             onOpenChange={setMetaDialogOpen}
           />

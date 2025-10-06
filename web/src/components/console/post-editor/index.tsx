@@ -21,6 +21,7 @@ import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { uploadFile } from '@/api/file'
+import { CreateOrUpdatePostMetaDialogWithoutButton } from "../common/post-meta-dialog-form";
 
 export function PostEditor() {
   const { id } = useParams() as { id: string };
@@ -87,8 +88,8 @@ export function PostEditor() {
     editor.commands.setContent(post?.content || '<p>Empty</p>');
   }, [post, editor]);
 
-  const onPostUpdate = (meta: Partial<Post>) => {
-    setPost(prev => prev ? { ...prev, ...meta } : prev);
+  const onPostUpdate = ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => {
+    setPost(prev => prev ? { ...prev, ...post } : prev);
   }
 
   if (!post || !editor) return <div>Loading...</div>;
@@ -103,11 +104,12 @@ export function PostEditor() {
   )
 }
 
-function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate: (meta: Partial<Post>) => void, editor: Editor }) {
+function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void, editor: Editor }) {
   const t = useTranslations("Console.post_edit")
   const operationT = useTranslations("Operation")
   const [savingDraft, setSavingDraft] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [settingDialogOpen, setSettingDialogOpen] = useState(false);
 
   const saveDraft = useCallback((showToast: boolean) => {
     const jsonStringDraft = JSON.stringify(editor.getJSON() || {});
@@ -161,6 +163,8 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
       </div>
       <div className="flex items-center space-x-2">
         {lastSavedAt && <span className="text-sm text-muted-foreground">{t("last_saved_at", { time: lastSavedAt.toLocaleTimeString() })}</span>}
+        <CreateOrUpdatePostMetaDialogWithoutButton open={settingDialogOpen} onOpenChange={setSettingDialogOpen} post={post} onPostChange={onPostUpdate} />
+        <Button onClick={() => setSettingDialogOpen(true)} variant="outline">{t("setting")}</Button>
         <Button onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft}>{savingDraft ? t("saving_draft") : t("save_draft")}</Button>
         <Button onClick={publishPost}>{operationT("publish")}</Button>
       </div>

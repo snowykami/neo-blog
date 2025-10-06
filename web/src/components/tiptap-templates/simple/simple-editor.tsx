@@ -62,6 +62,7 @@ import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle"
 // --- Styles ---
 import '@/styles/_variables.scss';
 import '@/styles/_keyframe-animations.scss';
+import { ImageNodeFloating } from "@/components/tiptap-node/image-node/image-node-floating"
 
 
 const MainToolbarContent = ({
@@ -130,12 +131,12 @@ const MainToolbarContent = ({
 
       <ToolbarGroup>
         <ImageUploadButton text="Add" />
+        <ImageNodeFloating />
       </ToolbarGroup>
 
       <Spacer />
 
       {isMobile && <ToolbarSeparator />}
-
       <ToolbarGroup>
         <ThemeToggle />
       </ToolbarGroup>
@@ -194,19 +195,31 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
   return (
     <div className="w-full h-[85vh] overflow-auto box-border border-2 border-primary rounded-lg">
       <EditorContext.Provider value={{ editor }}>
+        {/**
+         * On desktop we keep the horizontal scroll behavior (overflow-x-auto + whitespace-nowrap)
+         * On mobile we allow the toolbar to wrap (flex-wrap) so buttons flow to multiple lines.
+         */}
         <Toolbar
           ref={toolbarRef}
-          className="overflow-x-auto whitespace-nowrap"
-          // inline style 用于启用移动端平滑滚动和优先横向手势
-          style={{
-            WebkitOverflowScrolling: "touch",
-            touchAction: "pan-x",
-            ...(isMobile
+          className={
+            isMobile
+              ? "flex flex-wrap items-center gap-2 px-2 py-1"
+              : "overflow-x-auto whitespace-nowrap"
+          }
+          style={
+            isMobile
               ? {
+                  WebkitOverflowScrolling: "touch",
+                  // allow normal vertical scrolling / gestures on mobile
+                  touchAction: "auto",
                   bottom: `calc(100% - ${height - rect.y}px)`,
                 }
-              : {}),
-          }}
+              : {
+                  WebkitOverflowScrolling: "touch",
+                  // prefer horizontal panning on desktop toolbar
+                  touchAction: "pan-x",
+                }
+          }
         >
           {mobileView === "main" ? (
             <MainToolbarContent
@@ -221,15 +234,16 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
             />
           )}
         </Toolbar>
-
         {/* content wrapper: 等价于 .simple-editor-content (max-width:648px, center, flex layout) */}
         <div className="max-w-[900px] w-full mx-auto h-full flex flex-col flex-1 box-border">
           {/* ProseMirror padding: desktop: pt-12 px-12 pb-[30vh]; small screens: pt-4 px-6 pb-[30vh] */}
+
           <EditorContent
             editor={editor}
             role="presentation"
             className="tiptap ProseMirror simple-editor flex-1 pt-12 px-12 pb-[30vh] sm:pt-4 sm:px-6"
-          />
+          >
+          </EditorContent>
         </div>
       </EditorContext.Provider>
     </div>

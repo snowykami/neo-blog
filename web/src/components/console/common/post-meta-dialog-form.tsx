@@ -33,11 +33,11 @@ interface PostMetaForm {
 }
 
 
-export function CreateOrUpdatePostMetaButtonWithDialog({
-  post, onMetaChange,
+export function CreateOrUpdatePostMetaDialogWithoutButton({
+  post, onPostChange: onMetaChange,
   open, onOpenChange,
 }: {
-  post: Post | null, onMetaChange: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void,
+  post: Post | null, onPostChange: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void,
   open: boolean, onOpenChange: (open: boolean) => void,
 }) {
   const operationT = useTranslations("Operation")
