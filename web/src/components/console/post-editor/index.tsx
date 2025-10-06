@@ -19,7 +19,7 @@ import Subscript from '@tiptap/extension-subscript'
 import { Highlight } from "@tiptap/extension-highlight"
 import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
-import ImageExtension from '@tiptap/extension-image'
+import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { uploadFile } from '@/api/file'
 
 export function PostEditor() {
@@ -62,7 +62,7 @@ export function PostEditor() {
       TaskList,
       TaskItem.configure({ nested: true }),
       Highlight.configure({ multicolor: true }),
-      ImageExtension,
+      Image,
       Typography,
       Superscript,
       Subscript,

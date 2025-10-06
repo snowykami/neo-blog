@@ -102,8 +102,15 @@ async function PostContent({ post }: { post: Post }) {
 
       {post.type === "html" && (
         <>
-          <div id="blog-content-8h89w" className="prose prose-lg max-w-none dark:prose-invert p-4 md:p-8 rounded-xl bg-background border border-border" dangerouslySetInnerHTML={{ __html: post.content }} />
-          <HtmlEnhancer containerId="blog-content-8h89w" />
+          <article id="blog-content-8h89w" className="prose prose-lg max-w-none dark:prose-invert 
+          p-4 md:p-8 rounded-xl bg-background border border-border
+          prose-img:rounded-lg prose-img:shadow-md prose-img:border prose-img:border-border
+          prose-a:text-primary prose-a:no-underline prose-a:font-medium prose-a:hover:underline
+          prose-pre:bg-muted prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto
+          prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-sm
+          prose-blockquote:border-l-4 prose-blockquote:border-primary/70 prose-blockquote:bg-muted/50 prose-blockquote:px-4 prose-blockquote:py-2
+          " dangerouslySetInnerHTML={{ __html: post.content }} />
+          {/* <HtmlEnhancer containerId="blog-content-8h89w" /> */}
         </>
       )}
       {/* 版权卡片 */}
