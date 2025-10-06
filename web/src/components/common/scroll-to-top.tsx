@@ -4,22 +4,16 @@ import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUp } from "lucide-react";
 
-type Position = {
-  right?: number;
-  left?: number;
-  bottom?: number;
-  top?: number;
-};
 
 export default function ScrollToTopButton({
   threshold = 0.1, // 显示阈值（滚动进度），默认 10%
-  position = { right: 20, bottom: 20 }, // 位置（像素）
+  positionClass = "right-4 bottom-4", // 通过 Tailwind 类控制位置（字符串）
   className = "",
   showProgress = true,
   size = 44,
 }: {
   threshold?: number;
-  position?: Position;
+  positionClass?: string;
   className?: string;
   showProgress?: boolean;
   size?: number;
@@ -68,14 +62,8 @@ export default function ScrollToTopButton({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const stylePos: React.CSSProperties = {
-    position: "fixed",
-    right: position.right ?? undefined,
-    left: position.left ?? undefined,
-    bottom: position.bottom ?? undefined,
-    top: position.top ?? undefined,
-    zIndex: 60,
-  };
+  // 通过 className 控制位置，wrapper 仍然固定定位以相对于视口
+  const wrapperClass = `fixed z-60 ${positionClass} ${className}`.trim();
 
   // 简单进度圆环用 SVG
   const stroke = 3;
@@ -84,7 +72,7 @@ export default function ScrollToTopButton({
   const dash = Math.max(0, Math.min(1, progress)) * c;
 
   const node = (
-    <div style={stylePos} aria-hidden={!visible}>
+    <div className={wrapperClass} aria-hidden={!visible}>
       <button
         onClick={handleClick}
         aria-label="Back to top"

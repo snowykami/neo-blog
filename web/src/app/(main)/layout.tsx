@@ -6,7 +6,7 @@ import Footer from '@/components/layout/footer'
 import Navbar from '@/components/layout/nav/navbar-or-side'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { contentAreaMaxWidthClass, contentAreaPaddingClass, navHeight } from '@/utils/common/layout-size';
-import ScrollToTopButton from '@/components/common/scroll-to-top';
+import { FloatingWidgets } from './main-floating-widgets';
 
 export default function RootLayout({
   children,
@@ -21,6 +21,7 @@ export default function RootLayout({
 
   return (
     <div className='flex flex-col min-h-screen'>
+      <FloatingWidgets />
       <motion.nav
         className='w-full fixed inset-x-0 z-5'
         initial={{ y: -64 }}
@@ -37,7 +38,6 @@ export default function RootLayout({
           style={{ minHeight: minMainHeight }}
           className={`mx-auto ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${hasNavPadding ? 'pt-16' : ''} min-h-0`}
         >
-          <ScrollToTopButton position={{ right: 24, bottom: 90 }} />
           {children}
         </main>
       </BackgroundProvider>
