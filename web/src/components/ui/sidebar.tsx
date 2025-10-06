@@ -376,6 +376,8 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
       data-sidebar="content"
       className={cn(
         "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        "[box-shadow:inset_0_4px_6px_-2px_rgba(0,0,0,0.1),inset_0_-4px_6px_-2px_rgba(0,0,0,0.1)]",
+        "dark:[box-shadow:inset_0_4px_6px_-2px_rgba(255,255,255,0.05),inset_0_-4px_6px_-2px_rgba(255,255,255,0.05)]",
         className
       )}
       {...props}
