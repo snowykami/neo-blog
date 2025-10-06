@@ -5,7 +5,7 @@ import { useNav } from "@/contexts/nav-context";
 import Footer from '@/components/layout/footer'
 import Navbar from '@/components/layout/nav/navbar-or-side'
 import { useSiteInfo } from '@/contexts/site-info-context'
-import { contentAreaMaxWidthClass, contentAreaPaddingClass, navAreaPaddingClass, navHeight } from '@/utils/common/layout-size';
+import { contentAreaMaxWidthClass, contentAreaPaddingClass, navHeight } from '@/utils/common/layout-size';
 
 export default function RootLayout({
   children,
@@ -26,7 +26,7 @@ export default function RootLayout({
         animate={{ y: 0 }}
         transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
         <div className={`top-0 left-0 h-${navHeight} w-full flex justify-center`}>
-          <div className={`${contentAreaMaxWidthClass} ${navAreaPaddingClass} flex items-center w-full`}>
+          <div className={`${contentAreaMaxWidthClass} flex items-center w-full`}>
             <Navbar />
           </div>
         </div>

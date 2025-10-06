@@ -140,7 +140,7 @@ function NavMenuCenter() {
                   </div>
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
-                  <ul className="grid gap-2 p-0 min-w-[200px] max-w-[600px] grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
+                  <ul className="grid gap-2 p-0 min-w-auto max-w-[600px] grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
                     {item.children.map((child) => (
                       <li key={child.title}>
                         <NavigationMenuLink asChild>

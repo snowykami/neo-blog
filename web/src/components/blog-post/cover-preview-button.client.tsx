@@ -3,22 +3,28 @@
 import { Eye } from "lucide-react";
 import { useState } from "react";
 import { navStickyTopPx } from "@/utils/common/layout-size";
+import { useNav } from "@/contexts/nav-context";
 
-export function CoverPreviewButton({ 
-  onPreviewChange 
-}: { 
-  onPreviewChange: (isPreviewing: boolean) => void 
+export function CoverPreviewButton({
+  onPreviewChange
+}: {
+  onPreviewChange: (isPreviewing: boolean) => void
 }) {
+  const { setSolidNav, setNavStyle, navClassName } = useNav();
+  const [prevNavClassName, setPrevNavClassName] = useState<string>("");
   const [isPreviewing, setIsPreviewing] = useState(false);
 
   const handleMouseDown = () => {
     setIsPreviewing(true);
     onPreviewChange(true);
+    setPrevNavClassName(navClassName);
+    setSolidNav();
   };
 
   const handleMouseUp = () => {
     setIsPreviewing(false);
     onPreviewChange(false);
+    setNavStyle(prevNavClassName);
   };
 
   const handleMouseLeave = () => {
