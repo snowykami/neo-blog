@@ -19,7 +19,7 @@ export function CreateOrUpdateLabelDialogWithButton({
   buttonSize = "sm"
 }: 
   { label: Label | null, 
-    onLabelCreated?: (label: Label) => void,
+    onLabelCreated?: (label: Omit<Label, 'postCount'>) => void,
     buttonSize?: "sm" | "lg" | "icon" | "icon-sm" | "icon-lg" | "default" | null | undefined
    }) {
   const t = useTranslations("Console.labels");

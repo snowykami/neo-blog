@@ -125,7 +125,7 @@ export function SidebarLabels({ label = null, setLabel }: { label?: string | nul
       <CardContent>
         <div className="flex flex-wrap gap-2">
           {labels.map((l) => (
-            l.postCount > 0 && <div key={l.id} className="relative">
+            l?.postCount && l.postCount > 0 && <div key={l.id} className="relative">
               <Badge
                 variant="outline"
                 onClick={() => onClickLabel(l)}
