@@ -85,7 +85,11 @@ export function PostEditor() {
 
   useEffect(() => {
     if (!editor) return;
-    editor.commands.setContent(post?.content || '<p>Empty</p>');
+    const content = post?.content || '<p>Empty</p>';
+    const t = window.setTimeout(() => {
+      editor.commands.setContent(content);
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [post, editor]);
 
   const onPostUpdate = ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => {
