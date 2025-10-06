@@ -7,7 +7,6 @@ import { toast } from "sonner"
 import Link from "next/link"
 import { IconType } from "@/types/icon"
 import { consolePath } from "@/utils/common/route";
-import { useAuth } from "@/contexts/auth-context"
 
 export function Dashboard() {
   return (
@@ -44,7 +43,6 @@ function DataOverview() {
       url: consolePath.file
     },
   ]
-  const { user } = useAuth();
   const [fetchData, setFetchData] = useState<DashboardResp | null>(null);
 
   useEffect(() => {
@@ -63,7 +61,7 @@ function DataOverview() {
         <Card key={item.key} className="p-4">
           <CardHeader className="pb-2 text-lg font-medium">
             <CardDescription>{item.label}</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl text-primary">
+            <CardTitle className="flex items-center text-2xl font-semibold tabular-nums @[250px]/card:text-3xl text-primary">
               <item.icon className="inline mr-2" />
               {fetchData[item.key]}
             </CardTitle>
