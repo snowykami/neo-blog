@@ -56,6 +56,7 @@ type TokenResponse struct {
 	ExpiresIn    int    `json:"expires_in"`
 	IDToken      string `json:"id_token,omitempty"`
 	RefreshToken string `json:"refresh_token,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 // Userinfo 定义用户信息结构
