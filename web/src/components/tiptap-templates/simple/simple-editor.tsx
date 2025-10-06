@@ -204,15 +204,11 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
   return (
     <div className="w-full h-[85vh] overflow-auto box-border border-2 border-primary rounded-lg">
       <EditorContext.Provider value={{ editor }}>
-        {/**
-         * On desktop we keep the horizontal scroll behavior (overflow-x-auto + whitespace-nowrap)
-         * On mobile we allow the toolbar to wrap (flex-wrap) so buttons flow to multiple lines.
-         */}
         <Toolbar
           ref={toolbarRef}
           className={
             isMobile
-              ? "flex flex-wrap items-center gap-2 px-2 py-1"
+              ? "flex flex-wrap items-center gap-2 px-2 py-1 sticky top-0 z-10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm"
               : "overflow-x-auto whitespace-nowrap"
           }
           style={
@@ -221,7 +217,7 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
                   WebkitOverflowScrolling: "touch",
                   // allow normal vertical scrolling / gestures on mobile
                   touchAction: "auto",
-                  bottom: `calc(100% - ${height - rect.y}px)`,
+                  top: 0,
                 }
               : {
                   WebkitOverflowScrolling: "touch",
@@ -243,14 +239,12 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
             />
           )}
         </Toolbar>
-        {/* content wrapper: 等价于 .simple-editor-content (max-width:648px, center, flex layout) */}
         <div className="max-w-[900px] w-full mx-auto h-full flex flex-col flex-1 box-border">
-          {/* ProseMirror padding: desktop: pt-12 px-12 pb-[30vh]; small screens: pt-4 px-6 pb-[30vh] */}
 
           <EditorContent
             editor={editor}
             role="presentation"
-            className="tiptap ProseMirror simple-editor flex-1 pt-12 px-12 pb-[30vh] sm:pt-4 sm:px-6"
+            className="tiptap ProseMirror simple-editor flex-1 pt-6 lg:pt-10 px-6 lg:px-10 pb-[30vh] sm:pt-4 sm:px-6"
           >
           </EditorContent>
         </div>
