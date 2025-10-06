@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Raleway } from "next/font/google";
 import { DeviceProvider } from "@/contexts/device-context";
 import { NextIntlClientProvider } from 'next-intl';
 import { AuthProvider } from "@/contexts/auth-context";
@@ -22,6 +22,13 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const geistRaleway = Raleway({
+  variable: "--font-geist-raleway",
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
   subsets: ["latin"],
 });
 
@@ -54,7 +61,7 @@ export default async function RootLayout({
   return (
     <html lang={await getFirstLocale() || "en"} className="h-full" data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || "blue"}>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistMono.className} ${geistSans.className} ${geistRaleway.className}  antialiased`}
       >
         <Toaster richColors position="top-center" offset={80} />
         <NuqsAdapter>
