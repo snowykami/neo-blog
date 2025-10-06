@@ -2,7 +2,7 @@
 import { User } from "@/models/user";
 import { Mail, User as UserIcon, Shield } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { getGravatarFromUser } from "@/utils/common/gravatar";
+import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
 
 export function UserHeader({ user }: { user: User }) {
@@ -13,7 +13,7 @@ export function UserHeader({ user }: { user: User }) {
         {/* wrapper 控制显示大小，父组件给具体 w/h */}
         <div className="w-40 h-40 md:w-48 md:h-48 relative">
           <Avatar className="h-full w-full rounded-full">
-            <AvatarImage src={getGravatarFromUser({user})} alt={user.nickname} />
+            <AvatarImage src={getAvatarOrGravatarUrlFromUser({user})} alt={user.nickname} />
               <AvatarFallback className="rounded-full">{getFirstCharFromUser(user)}</AvatarFallback>
             </Avatar>
         </div>

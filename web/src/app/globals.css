@@ -11,6 +11,9 @@
 @import "./styles/typography.css";
 @import "./styles/animation.css";
 
+@plugin "@tailwindcss/typography";
+
+
 
 @custom-variant dark (&:is(.dark *));
 

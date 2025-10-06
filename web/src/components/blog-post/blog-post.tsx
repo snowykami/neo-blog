@@ -18,6 +18,7 @@ import { getTranslations } from "next-intl/server";
 import { Separator } from "../ui/separator";
 import Typewriter from "../common/typewriter";
 import { PostHeaderClient } from "./post-header.client";
+import HtmlEnhancer from "./blog-content-enhanced";
 
 async function PostHeader({ post }: { post: Post }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
@@ -81,7 +82,7 @@ async function PostMetaWhite({ post }: { post: Post }) {
 async function PostContent({ post }: { post: Post }) {
   const t = await getTranslations("Common")
   return (
-    <div className="bg-background prose prose-lg max-w-none dark:prose-invert border-1 pt-0 p-4 md:p-8 rounded-xl">
+    <div className="bg-background border-1 pt-0 p-4 md:p-8 rounded-xl">
       {post.description && <div className="mt-4 mb-6 text-lg text-muted-foreground border-1 rounded-xl p-4 font-mono">
         <div className="flex items-center mb-2 text-lg text-primary font-medium">
           <Info className="w-5 h-5 mr-2" />
@@ -90,9 +91,21 @@ async function PostContent({ post }: { post: Post }) {
         <Separator className="my-2" />
         <Typewriter text={post.description} />
       </div>}
-      <Suspense>
-        <RenderMarkdown source={post.content} />
-      </Suspense>
+
+      {post.type === "markdown" && (
+        <Suspense>
+          <div className="prose prose-lg max-w-none dark:prose-invert p-4 md:p-8 rounded-xl bg-background border border-border">
+            <RenderMarkdown source={post.content} />
+          </div>
+        </Suspense>
+      )}
+
+      {post.type === "html" && (
+        <>
+          <div id="blog-content-8h89w" className="prose prose-lg max-w-none dark:prose-invert p-4 md:p-8 rounded-xl bg-background border border-border" dangerouslySetInnerHTML={{ __html: post.content }} />
+          <HtmlEnhancer containerId="blog-content-8h89w" />
+        </>
+      )}
       {/* 版权卡片 */}
       <CopyrightCard post={post} />
       {/* 点赞按钮 */}

@@ -2,7 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/auth-context";
-import { getGravatarFromUser } from "@/utils/common/gravatar";
+import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
 import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common/username";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -34,7 +34,7 @@ export function CurrentLogged() {
         <div onClick={handleLoggedContinue} className="flex gap-4 items-center cursor-pointer">
           <div className="flex gap-2 justify-center items-center  ">
             <Avatar className="h-10 w-10 rounded-full">
-              <AvatarImage src={getGravatarFromUser({ user })} alt={user.username} />
+              <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.username} />
               <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
             </Avatar>
           </div>

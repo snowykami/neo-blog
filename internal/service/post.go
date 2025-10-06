@@ -28,10 +28,11 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	post := &model.Post{
 		UserID: currentUser.ID,
 		PostBase: model.PostBase{
-			CategoryID: req.CategoryID,
-			Cover:      req.Cover,
-			Content:    req.Content,
-			IsPrivate:  req.IsPrivate,
+			CategoryID:  req.CategoryID,
+			Cover:       req.Cover,
+			Content:     req.Content,
+			Description: req.Description,
+			IsPrivate:   req.IsPrivate,
 			Labels: func() []model.Label {
 				labelModels := make([]model.Label, 0)
 				for _, labelID := range req.LabelIds {
@@ -44,6 +45,7 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			}(),
 			Slug:  req.Slug,
 			Title: req.Title,
+			Type:  req.Type,
 		},
 	}
 	if err := repo.Post.CreatePost(post); err != nil {
@@ -107,6 +109,7 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	}
 
 	utils.UpdateNonEmpty(&post.Title, req.Title)
+	utils.UpdateNonEmpty(&post.Type, req.Type)
 	utils.UpdateNonEmpty(&post.Content, req.Content)
 	utils.UpdateNonEmpty(&post.Cover, req.Cover)
 	utils.UpdateNonEmpty(&post.Description, req.Description)

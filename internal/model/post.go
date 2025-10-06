@@ -19,6 +19,7 @@ type PostBase struct {
 	Labels       []Label   `gorm:"many2many:post_labels;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	Slug         *string   `gorm:"type:text;index;uniqueIndex"` // 友好链接
 	Title        string    `gorm:"type:text;not null"`
+	Type         string    `gorm:"type:varchar(20);default:'html'"` // 文章类型，默认为 'markdown'，可为html或其他
 }
 type Post struct {
 	gorm.Model
@@ -54,6 +55,7 @@ func (p *Post) ToDto() *dto.PostDto {
 		}(),
 		PostBaseDto: dto.PostBaseDto{
 			Title:   p.Title,
+			Type:    p.Type,
 			Slug:    utils.Ternary(p.Slug != nil, p.Slug, nil),
 			Content: p.Content,
 			Cover:   p.Cover,

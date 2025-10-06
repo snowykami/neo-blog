@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getGravatarFromUser } from "@/utils/common/gravatar";
+import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "../ui/button";
@@ -68,7 +68,7 @@ export function CommentInput(
       <div className="flex py-4 fade-in">
         <div onClick={user ? () => clickToUserProfile(user.username) : clickToLogin} className="cursor-pointer flex-shrink-0 w-10 h-10 fade-in">
           {user && <Avatar className="h-full w-full rounded-full">
-            <AvatarImage src={getGravatarFromUser({ user, size: 120 })} alt={user.nickname} />
+            <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user, size: 120 })} alt={user.nickname} />
             <AvatarFallback className="rounded-full">{getFirstCharFromUser(user)}</AvatarFallback>
           </Avatar>}
           {!user && <CircleUser className="w-full h-full fade-in" />}

@@ -14,7 +14,6 @@ type PostBaseDto struct {
 	CategoryID   *uint        `json:"category_id"`
 	Labels       []LabelDto   `json:"labels"`
 	LabelIds     []uint       `json:"label_ids"`
-	IsOriginal   bool         `json:"is_original"`
 	IsPrivate    bool         `json:"is_private"`
 }
 

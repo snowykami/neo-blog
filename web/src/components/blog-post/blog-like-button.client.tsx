@@ -11,7 +11,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { getGravatarFromUser } from "@/utils/common/gravatar";
+import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
 
 const MAX_LIKED_USERS = 5;
@@ -76,10 +76,10 @@ export function BlogLikeButton({
         </div>
       </div>
       <div className="text-lg py-4 text-gray-500 flex justify-center">{operationT("n_users_liked", { n: likeCount })}</div>
-      {likedUsers.length > 0 && <div className="flex justify-center gap-2">
+      {likedUsers.length > 0 && <div className="flex justify-center gap-2 h-8 w-full">
         {likedUsers.map(u => (
           <Avatar onClick={() => clickToUserProfile(u.username)} className="h-8 w-8 rounded-full border-2" key={u.id}>
-            <AvatarImage src={getGravatarFromUser({ user: u, size: 60 })} alt={u.nickname} />
+            <AvatarImage className="rounded-full" src={getAvatarOrGravatarUrlFromUser({ user: u })} alt={u.nickname} />
             <AvatarFallback className="rounded-full">{getFirstCharFromUser(u)}</AvatarFallback>
           </Avatar>
         ))}

@@ -15,6 +15,6 @@ export function getGravatarUrl({ email, size, proxy="cn.gravatar.com" }: { email
   return `https://${proxy ? proxy : "www.gravatar.com"}/avatar/${hash}?s=${size}&d=identicon`;
 }
 
-export function getGravatarFromUser({ user, size = 120 }: { user: User, size?: number }): string {
+export function getAvatarOrGravatarUrlFromUser({ user, size = 120 }: { user: User, size?: number }): string {
   return user.avatarUrl || getGravatarUrl({ email: user.email, size: size });
 }

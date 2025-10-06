@@ -1,5 +1,5 @@
 import { getPostByIdServer } from "@/api/post.server";
-import { PostEdit } from "@/components/console/post-manage/post-edit";
+import { PostEditor } from "@/components/console/post-editor";
 import { getTranslations } from "next-intl/server";
 
 
@@ -15,6 +15,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default function EditPostPage() {
   return (
-    <PostEdit />
+    <PostEditor />
   );
 }

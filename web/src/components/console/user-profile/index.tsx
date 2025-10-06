@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-context";
 import { getFileUri } from "@/utils/client/file";
-import { getGravatarFromUser } from "@/utils/common/gravatar";
+import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
 import { getFallbackAvatarFromUsername } from "@/utils/common/username";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
@@ -63,14 +63,14 @@ export function UserProfilePage() {
   useEffect(() => {
     if (!user) return;
     if (!avatarFile) {
-      setAvatarFileUrl(getGravatarFromUser({ user }));
+      setAvatarFileUrl(getAvatarOrGravatarUrlFromUser({ user }));
       return;
     }
     const url = URL.createObjectURL(avatarFile);
     setAvatarFileUrl(url);
     return () => {
       URL.revokeObjectURL(url);
-      setAvatarFileUrl(getGravatarFromUser({ user }));
+      setAvatarFileUrl(getAvatarOrGravatarUrlFromUser({ user }));
     };
   }, [avatarFile, user]);
 
@@ -212,7 +212,7 @@ export function UserProfilePage() {
             <Avatar className="h-40 w-40 rounded-xl border-2">
               {avatarFileUrl ?
                 <AvatarImage src={avatarFileUrl} alt={form.getValues("nickname") || form.getValues("username")} /> :
-                <AvatarImage src={getGravatarFromUser({ user })} alt={form.getValues("nickname") || form.getValues("username")} />}
+                <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={form.getValues("nickname") || form.getValues("username")} />}
               <AvatarFallback>{getFallbackAvatarFromUsername(form.getValues("nickname") || form.getValues("username"))}</AvatarFallback>
             </Avatar>
             <div className="flex gap-2">

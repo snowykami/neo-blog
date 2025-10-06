@@ -13,7 +13,7 @@ import { useToLogin } from "@/hooks/use-route";
 import { consolePath } from "@/utils/common/route";
 import { ArrowLeftRightIcon, LogIn, LogOut, PanelLeft, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getGravatarFromUser } from "@/utils/common/gravatar";
+import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
 import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common/username";
 import { useAuth } from "@/contexts/auth-context";
 import { useTranslations } from "next-intl";
@@ -37,7 +37,7 @@ export function AvatarWithDropdownMenu() {
             user
               ?
               <Avatar className="h-7 w-7 rounded-full border-1">
-                <AvatarImage className="rounded-full h-7 w-7" src={getGravatarFromUser({ user })} alt={user.username} />
+                <AvatarImage className="rounded-full h-7 w-7" src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.username} />
                 <AvatarFallback className="rounded-full h-7 w-7">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
               </Avatar>
               :

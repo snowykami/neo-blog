@@ -87,6 +87,7 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
             description: data.description,
             labels: data.labels,
             isPrivate: data.isPrivate,
+            type: "html",
           }
         })
         onOpenChange(false)
@@ -104,7 +105,8 @@ export function CreateOrUpdatePostMetaButtonWithDialog({
           description: data.description,
           labelIds: data.labels.map(l => l.id),
           isPrivate: data.isPrivate,
-          content: `# ${data.title}`
+          content: `<h1>${data.title}</h1>`,
+          type: "html",
         }
       }).then((res) => {
         toast.success(operationT("create_success"))

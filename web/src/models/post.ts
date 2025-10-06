@@ -15,6 +15,7 @@ export interface Post {
     categoryId: number | null; // 分类 ID，可以为空
     labels: Label[] | null; // 标签可以为空
     labelIds: number[] | null; // 标签 ID 列表，可以为空
+    type: 'markdown' | 'html'; // 文章类型，markdown 或 html
     // 不可编辑字段
     user: User
     isLiked: boolean; // 当前用户是否点赞

@@ -13,6 +13,7 @@ import { motion } from 'motion/react'
 import { deceleration } from '@/motion/curve'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { getPostUrl } from '@/utils/common/route'
+import { htmlToText } from '@/utils/common/string'
 
 
 export function BlogCard({ post, className }: {
@@ -77,7 +78,7 @@ export function BlogCard({ post, className }: {
         {
           post.category && (
             <div className="absolute top-2 right-2">
-              <Badge className="bg-primary/70 text-white border-0 dark:bg-gradient-to-r dark:from-green-700 dark:to-lime-700 text-sm rounded-full">
+              <Badge className="bg-primary/70 text-white border-0 text-sm rounded-full">
                 <ChartBarStackedIcon />
                 {post.category.name}
               </Badge>
@@ -134,8 +135,8 @@ export function BlogCard({ post, className }: {
       {/* Card Content - 主要内容 */}
       <CardContent className="flex-1">
         <CardDescription className="line-clamp-3 leading-relaxed text-sm">
-          {post.content.replace(/[#*`]/g, '').substring(0, 150)}
-          {post.content.length > 150 ? '...' : ''}
+          {htmlToText(post.content).replace(/[#*`]/g, '').substring(0, 150)}
+          {htmlToText(post.content).length > 150 ? '...' : ''}
         </CardDescription>
       </CardContent>
 

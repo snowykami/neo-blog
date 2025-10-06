@@ -12,7 +12,7 @@ import { createComment, deleteComment, getComment, listComments, updateComment }
 import { OrderBy } from "@/models/common";
 import { formatDateTime } from "@/utils/common/datetime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getGravatarFromUser } from "@/utils/common/gravatar";
+import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
 import { useAuth } from "@/contexts/auth-context";
 import { DropdownMenu } from "@radix-ui/react-dropdown-menu";
@@ -170,7 +170,7 @@ export function CommentItem(
       <div className="flex gap-2">
         <div onClick={() => clickToUserProfile(commentState.user.username)} className="cursor-pointer fade-in w-10 h-10">
           <Avatar className="h-full w-full rounded-full border-2">
-            <AvatarImage src={getGravatarFromUser({ user: commentState.user, size: 120 })} alt={commentState.user.nickname} />
+            <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user: commentState.user, size: 120 })} alt={commentState.user.nickname} />
             <AvatarFallback className="rounded-full">{getFirstCharFromUser(commentState.user)}</AvatarFallback>
           </Avatar>
         </div>
