@@ -1,15 +1,19 @@
 package dto
 
 type AdminOidcConfigDto struct {
-	ID               uint   `json:"id"`
-	Name             string `json:"name"`
-	ClientID         string `json:"client_id"`
-	ClientSecret     string `json:"client_secret"`
-	DisplayName      string `json:"display_name"`
-	Icon             string `json:"icon"`
-	OidcDiscoveryUrl string `json:"oidc_discovery_url"`
-	Type             string `json:"type"` // oauth2 or misskey
-	Enabled          bool   `json:"enabled"`
+	ID                    uint   `json:"id"`
+	Name                  string `json:"name"`
+	ClientID              string `json:"client_id"`
+	ClientSecret          string `json:"client_secret"`
+	DisplayName           string `json:"display_name"`
+	Icon                  string `json:"icon"`
+	OidcDiscoveryUrl      string `json:"oidc_discovery_url"` // 自动发现url
+	AuthorizationEndpoint string `json:"authorization_endpoint"`
+	TokenEndpoint         string `json:"token_endpoint"`
+	UserInfoEndpoint      string `json:"user_info_endpoint"`
+	JwksUri               string `json:"jwks_uri"`
+	Type                  string `json:"type"` // oauth2 or misskey
+	Enabled               bool   `json:"enabled"`
 }
 
 type CreateOidcConfigDto struct {

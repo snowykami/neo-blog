@@ -48,14 +48,18 @@ func (c *AdminService) GetDashboard() (map[string]any, error) {
 
 func (c *AdminService) CreateOidcConfig(req *dto.CreateOidcConfigDto) error {
 	oidcConfig := &model.OidcConfig{
-		Name:             req.Name,
-		DisplayName:      req.DisplayName,
-		Icon:             req.Icon,
-		ClientID:         req.ClientID,
-		ClientSecret:     req.ClientSecret,
-		OidcDiscoveryUrl: req.OidcDiscoveryUrl,
-		Enabled:          req.Enabled,
-		Type:             req.Type,
+		Name:                  req.Name,
+		DisplayName:           req.DisplayName,
+		Icon:                  req.Icon,
+		ClientID:              req.ClientID,
+		ClientSecret:          req.ClientSecret,
+		OidcDiscoveryUrl:      req.OidcDiscoveryUrl,
+		AuthorizationEndpoint: req.AuthorizationEndpoint,
+		TokenEndpoint:         req.TokenEndpoint,
+		UserInfoEndpoint:      req.UserInfoEndpoint,
+		JwksUri:               req.JwksUri,
+		Enabled:               req.Enabled,
+		Type:                  req.Type,
 	}
 	return repo.Oidc.CreateOidcConfig(oidcConfig)
 }
@@ -86,15 +90,19 @@ func (c *AdminService) ListOidcConfigs(onlyEnabled bool) ([]*dto.AdminOidcConfig
 
 func (c *AdminService) UpdateOidcConfig(req *dto.UpdateOidcConfigDto) error {
 	oidcConfig := &model.OidcConfig{
-		Model:            gorm.Model{ID: req.ID},
-		Name:             req.Name,
-		DisplayName:      req.DisplayName,
-		Icon:             req.Icon,
-		ClientID:         req.ClientID,
-		ClientSecret:     req.ClientSecret,
-		OidcDiscoveryUrl: req.OidcDiscoveryUrl,
-		Enabled:          req.Enabled,
-		Type:             req.Type,
+		Model:                 gorm.Model{ID: req.ID},
+		Name:                  req.Name,
+		DisplayName:           req.DisplayName,
+		Icon:                  req.Icon,
+		ClientID:              req.ClientID,
+		ClientSecret:          req.ClientSecret,
+		OidcDiscoveryUrl:      req.OidcDiscoveryUrl,
+		AuthorizationEndpoint: req.AuthorizationEndpoint,
+		TokenEndpoint:         req.TokenEndpoint,
+		UserInfoEndpoint:      req.UserInfoEndpoint,
+		JwksUri:               req.JwksUri,
+		Enabled:               req.Enabled,
+		Type:                  req.Type,
 	}
 	return repo.Oidc.UpdateOidcConfig(oidcConfig)
 }

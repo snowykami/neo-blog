@@ -20,7 +20,7 @@ type OidcConfig struct {
 	OidcDiscoveryUrl string // OpenID自动发现URL，例如 ：https://pass.liteyuki.org/.well-known/openid-configuration
 	Enabled          bool   `gorm:"default:true"` // 是否启用
 	Type             string `gorm:"oauth2"`       // OIDC类型，默认为oauth2,也可以为misskey
-	// 以下字段为自动获取字段，每次更新配置时自动填充
+	// 以下字段为自动获取字段（若提供了oidc发现端点，没有还需手动请求添加），每次更新配置时自动填充
 	Issuer                string
 	AuthorizationEndpoint string
 	TokenEndpoint         string
@@ -76,8 +76,8 @@ func updateOidcConfigFromUrl(url string, typ string) (*oidcDiscoveryResp, error)
 }
 
 func (o *OidcConfig) BeforeSave(tx *gorm.DB) (err error) {
-	// 只有在创建新记录或更新 OidcDiscoveryUrl 字段时才更新端点信息
-	if tx.Statement.Changed("OidcDiscoveryUrl") || o.ID == 0 {
+	// 只有在创建新记录或更新 OidcDiscoveryUrl 字段时才更新端点信息,为空则手动传入
+	if (tx.Statement.Changed("OidcDiscoveryUrl") || o.ID == 0) && o.OidcDiscoveryUrl != "" {
 		logrus.Infof("Updating OIDC config for %s, OidcDiscoveryUrl: %s", o.Name, o.OidcDiscoveryUrl)
 		discoveryResp, err := updateOidcConfigFromUrl(o.OidcDiscoveryUrl, o.Type)
 		if err != nil {
