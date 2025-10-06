@@ -11,6 +11,7 @@ type Comment struct {
 	User       User   `gorm:"foreignKey:UserID;references:ID"` // 关联的用户
 	TargetID   uint   `gorm:"index"`                           // 目标ID
 	TargetType string `gorm:"index"`                           // 目标类型，如 "post", "page"
+	RootID     uint   `gorm:"index;default:0"`                 // 根评论ID,用于分组同一线程的评论
 	ReplyID    uint   `gorm:"index"`                           // 回复的评论ID
 	Content    string `gorm:"type:text"`                       // 评论内容
 	Depth      int    `gorm:"default:0"`                       // 评论的层级深度,从0开始计数

@@ -41,7 +41,7 @@ type CreateCommentReq struct {
 }
 
 type UpdateCommentReq struct {
-	ID             uint   `path:"comment_id"`                 // 评论ID
+	ID             uint   `path:"id"`                         // 评论ID
 	Content        string `json:"content" binding:"required"` // 评论内容
 	IsPrivate      bool   `json:"is_private"`                 // 是否私密
 	ShowClientInfo bool   `json:"show_client_info"`           // 是否显示客户端信息

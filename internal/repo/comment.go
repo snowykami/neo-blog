@@ -88,11 +88,24 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) (uint, error) {
 			if err := tx.Where("id = ?", comment.ReplyID).First(&parentComment).Error; err != nil {
 				return err
 			}
+			// 继承 root_id：如果 parentComment.RootID 非空则继承，否则 parent 自己为 root
+			if parentComment.RootID != 0 {
+				comment.RootID = parentComment.RootID
+			} else {
+				comment.RootID = parentComment.ID
+			}
+			// 若父评论是私密，强制把子评论设为私密（私密树内全部为私密）
+			if parentComment.IsPrivate {
+				comment.IsPrivate = true
+			}
 			parentComment.CommentCount += 1
 			if err := tx.Model(&parentComment).UpdateColumn("CommentCount", parentComment.CommentCount).Error; err != nil {
 				return err
 			}
 			depth = parentComment.Depth + 1
+		} else {
+			// 根评论：暂时把 RootID 设为 0，创建后再更新为自身 ID（回写）
+			comment.RootID = 0
 		}
 		if depth > utils.Env.GetAsInt(constant.EnvKeyMaxReplyDepth, constant.MaxReplyDepthDefault) {
 			return errs.New(http.StatusBadRequest, "exceeded maximum reply depth", nil)
@@ -100,6 +113,13 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) (uint, error) {
 		comment.Depth = depth
 		if err := tx.Create(comment).Error; err != nil {
 			return err
+		}
+		// 如果是根评论，回写 root_id 为自身 ID
+		if comment.RootID == 0 {
+			if err := tx.Model(comment).UpdateColumn("root_id", comment.ID).Error; err != nil {
+				return err
+			}
+			comment.RootID = comment.ID
 		}
 		commentID = comment.ID // 记录主键
 		// 更新目标的评论数量
@@ -181,7 +201,7 @@ func (cr *CommentRepo) DeleteComment(commentID uint) error {
 			}
 		}
 
-		// 5. 更新目标的评论数量
+		// 5. 重新计算更新目标的评论数量
 		switch comment.TargetType {
 		case constant.TargetTypePost:
 			var count int64
@@ -237,18 +257,17 @@ func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, tar
 		query = query.Where("reply_id = ?", commentID)
 	}
 
-	// 可见性规则：
-	// - 未登录用户：只看公开评论
-	// - 博主（文章作者）：可见该文章下所有评论（包括私密）
-	// - 其它已登录用户：可见公开评论 + 仅自己发布的私密评论
+	// 可见性规则（基于 root_id）：
 	if currentUserID == 0 {
-		// 游客
+		// 游客只看公开
 		query = query.Where("is_private = ?", false)
 	} else if targetType == constant.TargetTypePost && currentUserID == masterID {
-		// 博主：不加 is_private 过滤（可查看所有）
+		// 博主可见所有（不加过滤）
 	} else {
-		// 普通已登录用户：公开或自己写的私密评论
-		query = query.Where("(is_private = ? OR (is_private = ? AND user_id = ?))", false, true, currentUserID)
+		// 普通用户：公开评论，或私密但所属 root_id 在用户参与的那些树中
+		// 子查询：当前用户参与的 root_id 列表
+		sub := GetDB().Model(&model.Comment{}).Select("distinct root_id").Where("user_id = ?", currentUserID)
+		query = query.Where("(is_private = ? OR (is_private = ? AND root_id IN (?)))", false, true, sub)
 	}
 
 	if depth != nil && *depth >= 0 {
@@ -258,11 +277,9 @@ func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, tar
 	}
 
 	items, _, err := PaginateQuery[model.Comment](query, page, size, orderBy, desc)
-
 	if err != nil {
 		return nil, err
 	}
-
 	return items, nil
 }
 
