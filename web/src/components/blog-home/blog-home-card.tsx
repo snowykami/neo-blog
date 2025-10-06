@@ -1,7 +1,7 @@
 "use client"
 
 import type { Post } from '@/models/post'
-import { Calendar, Eye, Heart, Lock, MessageCircle } from 'lucide-react'
+import { Calendar, ChartBarStackedIcon, Eye, FlameIcon, Heart, Lock, MessageCircle, UserIcon } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -19,7 +19,7 @@ export function BlogCard({ post, className }: {
   post: Post
   className?: string
 }) {
-  const {siteInfo} = useSiteInfo();
+  const { siteInfo } = useSiteInfo();
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('zh-CN', {
@@ -48,14 +48,14 @@ export function BlogCard({ post, className }: {
           }}
           className="absolute inset-0 w-full h-full"
         >
-            <Image
-              src={post.cover || siteInfo.defaultCover || "https://cdn.liteyuki.org/blog/background.png"}
-              alt={post.title}
-              fill
-              className="object-cover w-full h-full group-hover:scale-105 !duration-300 !transition-transform"
-              sizes="(max-width: 768px) 100vw, 33vw"
-              priority={false}
-            />
+          <Image
+            src={post.cover || siteInfo.defaultCover || "https://cdn.liteyuki.org/blog/background.png"}
+            alt={post.title}
+            fill
+            className="object-cover w-full h-full group-hover:scale-105 !duration-300 !transition-transform"
+            sizes="(max-width: 768px) 100vw, 33vw"
+            priority={false}
+          />
         </motion.div>
 
 
@@ -73,25 +73,39 @@ export function BlogCard({ post, className }: {
           </Badge>
         )}
 
-        {/* 统计信息 */}
+        {/* 右上角 分类 */}
+        {
+          post.category && (
+            <div className="absolute top-2 right-2">
+              <Badge className="bg-primary/70 text-white border-0 dark:bg-gradient-to-r dark:from-green-700 dark:to-lime-700 text-sm rounded-full">
+                <ChartBarStackedIcon />
+                {post.category.name}
+              </Badge>
+            </div>
+          )
+        }
+
+        {/* 左下角 统计信息 */}
         <div className="absolute bottom-2 left-2">
-          <Badge className="bg-gradient-to-r from-blue-200 to-purple-300 text-white border-0 dark:bg-gradient-to-r dark:from-blue-700 dark:to-purple-700">
+          <Badge className="bg-gradient-to-r from-blue-200 to-purple-300 dark:bg-gradient-to-r
+           dark:from-blue-700 dark:to-purple-700 text-muted-foreground dark:text-foreground text-sm rounded-full"
+          >
             {/* 统计信息 */}
-            <div className="grid grid-cols-1 gap-4 text-muted-foreground">
-              <div className="flex items-center gap-3 text-xs">
+            <div className="grid grid-cols-1 gap-4">
+              <div className="flex items-center gap-3">
                 {/* 点赞数 */}
                 <div className="flex items-center gap-1 ">
-                  <Heart className="w-3 h-3" />
+                  <Heart className="w-4 h-4" />
                   <span>{post.likeCount}</span>
                 </div>
                 {/* 评论数 */}
                 <div className="flex items-center gap-1">
-                  <MessageCircle className="w-3 h-3" />
+                  <MessageCircle className="w-4 h-4" />
                   <span>{post.commentCount}</span>
                 </div>
                 {/* 阅读量 */}
                 <div className="flex items-center gap-1">
-                  <Eye className="w-3 h-3" />
+                  <Eye className="w-4 h-4" />
                   <span>{post.viewCount}</span>
                 </div>
               </div>
@@ -102,9 +116,8 @@ export function BlogCard({ post, className }: {
         {/* 热度指示器 */}
         {post.heat > 50 && (
           <div className="absolute bottom-2 right-2">
-            <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-xs">
-              🔥
-              {' '}
+            <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-sm rounded-full">
+              <FlameIcon className='w-5 h-5'/>
               {post.heat}
             </Badge>
           </div>
@@ -120,20 +133,29 @@ export function BlogCard({ post, className }: {
 
       {/* Card Content - 主要内容 */}
       <CardContent className="flex-1">
-        <CardDescription className="line-clamp-3 leading-relaxed text-xs">
+        <CardDescription className="line-clamp-3 leading-relaxed text-sm">
           {post.content.replace(/[#*`]/g, '').substring(0, 150)}
           {post.content.length > 150 ? '...' : ''}
         </CardDescription>
       </CardContent>
 
       {/* Card Footer - 日期和操作区域 */}
-      <CardFooter className="!pt-4 border-t border-border/50 flex items-center justify-between">
+      <CardFooter className="!pt-4 border-t border-border/50 text-sm text-muted-foreground flex items-center justify-between">
         {/* 左侧：最新日期 */}
-        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-          <Calendar className="w-4 h-4" />
-          <time dateTime={post.updatedAt !== post.createdAt ? post.updatedAt : post.createdAt}>
-            {formatDate(post.updatedAt !== post.createdAt ? post.updatedAt : post.createdAt)}
-          </time>
+        <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1">
+            <Calendar className="w-4 h-4" />
+            <time dateTime={post.updatedAt !== post.createdAt ? post.updatedAt : post.createdAt}>
+              {formatDate(post.updatedAt !== post.createdAt ? post.updatedAt : post.createdAt)}
+            </time>
+          </div>
+        </div>
+        {/* 右侧 */}
+        <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1">
+            <UserIcon className="w-4 h-4" />
+            {post.user.nickname || post.user.username}
+          </div>
         </div>
       </CardFooter>
     </Card>
@@ -149,7 +171,7 @@ export function BlogCardSkeleton({ className }: { className?: string }) {
     )}>
       {/* 封面图片骨架 */}
       <Skeleton className="relative aspect-[16/8]" />
-      
+
       {/* Card Header - 标题骨架 */}
       <CardHeader className="mt-2 lg:mt-4">
         <Skeleton className="h-7 w-4/5" />

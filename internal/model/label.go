@@ -21,5 +21,6 @@ func (l *Label) ToDto() dto.LabelDto {
 			TailwindClassName: l.TailwindClassName,
 			Slug:              l.Slug,
 		},
+		PostCount: int64(len(l.Posts)),
 	}
 }

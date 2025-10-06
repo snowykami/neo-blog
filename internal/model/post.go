@@ -22,8 +22,9 @@ type PostBase struct {
 }
 type Post struct {
 	gorm.Model
-	UserID uint `gorm:"index"`                           // 发布者的用户ID
-	User   User `gorm:"foreignKey:UserID;references:ID"` // 关联的用户
+	UserID        uint   `gorm:"index"`                                                                       // 发布者的用户ID
+	User          User   `gorm:"foreignKey:UserID;references:ID"`                                             // 关联的用户
+	Collaborators []User `gorm:"many2many:post_collaborators;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"` // 协作者列表
 	PostBase
 	LikeCount    uint64
 	CommentCount uint64
@@ -44,6 +45,13 @@ func (p *Post) ToDto() *dto.PostDto {
 	return &dto.PostDto{
 		ID:     p.ID,
 		UserID: p.UserID,
+		Collaborators: func() []dto.UserDto {
+			collaboratorDtos := make([]dto.UserDto, len(p.Collaborators))
+			for i, collaborator := range p.Collaborators {
+				collaboratorDtos[i] = collaborator.ToDto()
+			}
+			return collaboratorDtos
+		}(),
 		PostBaseDto: dto.PostBaseDto{
 			Title:   p.Title,
 			Slug:    utils.Ternary(p.Slug != nil, p.Slug, nil),

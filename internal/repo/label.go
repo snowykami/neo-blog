@@ -12,7 +12,7 @@ func (l *labelRepo) CreateLabel(label *model.Label) error {
 
 func (l *labelRepo) GetLabelByName(name string) (*model.Label, error) {
 	var label model.Label
-	if err := GetDB().Where("name = ?", name).First(&label).Error; err != nil {
+	if err := GetDB().Preload("Posts").Where("name = ?", name).First(&label).Error; err != nil {
 		return nil, err
 	}
 	return &label, nil
@@ -20,7 +20,7 @@ func (l *labelRepo) GetLabelByName(name string) (*model.Label, error) {
 
 func (l *labelRepo) GetLabelByID(id uint) (*model.Label, error) {
 	var label model.Label
-	if err := GetDB().Where("id = ?", id).First(&label).Error; err != nil {
+	if err := GetDB().Preload("Posts").Where("id = ?", id).First(&label).Error; err != nil {
 		return nil, err
 	}
 	return &label, nil
@@ -28,22 +28,22 @@ func (l *labelRepo) GetLabelByID(id uint) (*model.Label, error) {
 
 func (l *labelRepo) ListLabels() ([]model.Label, error) {
 	var labels []model.Label
-	if err := GetDB().Order("id DESC").Find(&labels).Error; err != nil {
+	if err := GetDB().Preload("Posts").Order("id DESC").Find(&labels).Error; err != nil {
 		return nil, err
 	}
 	return labels, nil
 }
 
 func (l *labelRepo) UpdateLabel(label *model.Label) error {
-	if err := GetDB().Save(label).Error; err != nil {
-		return err
-	}
-	return nil
+	return GetDB().Updates(label).Error
 }
 
 func (l *labelRepo) DeleteLabel(id uint) error {
-	if err := GetDB().Where("id = ?", id).Delete(&model.Label{}).Error; err != nil {
-		return err
-	}
-	return nil
+	return GetDB().Where("id = ?", id).Delete(&model.Label{}).Error
+}
+
+func (l *labelRepo) CountPostsByLabelID(id uint) (int64, error) {
+	var count int64
+	err := GetDB().Model(&model.Post{}).Joins("JOIN post_labels ON post_labels.post_id = posts.id").Where("post_labels.label_id = ?", id).Count(&count).Error
+	return count, err
 }

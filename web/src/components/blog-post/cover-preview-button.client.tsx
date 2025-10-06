@@ -40,7 +40,7 @@ export function CoverPreviewButton({
 
   return (
     <button
-      className="fixed right-4 md:right-8 z-20 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 rounded-full p-2 shadow-lg transition-all duration-300 hover:scale-110"
+      className="fixed right-4 md:right-10 z-20 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 rounded-full p-2 shadow-lg transition-all duration-300 hover:scale-110"
       style={{ top: `${navStickyTopPx + 8}px` }}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}

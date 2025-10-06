@@ -57,6 +57,9 @@ func (l *LabelService) ListLabels() ([]dto.LabelDto, error) {
 		return labelDtos, err
 	}
 	for _, label := range labels {
+		if err != nil {
+			return nil, err
+		}
 		labelDtos = append(labelDtos, label.ToDto())
 	}
 	return labelDtos, nil

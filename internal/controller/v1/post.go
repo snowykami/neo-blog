@@ -117,8 +117,7 @@ func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
 			return
 		}
 	}
-	id := ctxutils.GetIDParam(c).Uint
-	postID, err := p.service.UpdatePost(ctx, id, &req)
+	postID, err := p.service.UpdatePost(ctx, &req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)

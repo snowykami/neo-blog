@@ -16,8 +16,6 @@ import { getLabels } from "@/api/label";
 import { useRouter } from "next/navigation";
 
 // 侧边栏父组件，接收卡片组件列表
-
-
 // 关于我卡片
 export function SidebarAbout() {
   const { siteInfo } = useSiteInfo();
@@ -102,6 +100,7 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
 
 // 标签云卡片
 export function SidebarLabels({ label = null, setLabel }: { label?: string | null, setLabel?: (label: string | null) => void }) {
+  const t = useTranslations();
   const [labels, setLabels] = useState<Label[]>([]);
   const router = useRouter();
   useEffect(() => {
@@ -121,19 +120,23 @@ export function SidebarLabels({ label = null, setLabel }: { label?: string | nul
   return (
     <Card>
       <CardHeader>
-        <CardTitle>标签云</CardTitle>
+        <CardTitle>{t("Common.labels_cloud")}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-2">
           {labels.map((l) => (
-            <Badge
-              key={l.id}
-              variant="outline"
-              onClick={() => onClickLabel(l)}
-              className={`text-xs hover:bg-blue-50 cursor-pointer` + (label === l.slug ? " bg-blue-100 text-blue-700 hover:bg-blue-200" : "")}
-            >
-              {l.name}
-            </Badge>
+            l.postCount > 0 && <div key={l.id} className="relative">
+              <Badge
+                variant="outline"
+                onClick={() => onClickLabel(l)}
+                className={`text-xs hover:bg-blue-50 cursor-pointer ${label === l.slug ? " bg-blue-100 text-blue-700 hover:bg-blue-200" : ""}`}
+              >
+                {l.name}
+              </Badge>
+              <span className="absolute -top-1.5 -right-1.5 bg-primary/70 text-[10px] rounded-full w-4.5 h-4.5 flex items-center justify-center pointer-events-none">
+                {l.postCount > 0 ? (l.postCount > 99 ? "99+" : l.postCount) : 0}
+              </span>
+            </div>
           ))}
         </div>
       </CardContent>

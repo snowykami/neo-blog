@@ -9,6 +9,7 @@ type LabelBase struct {
 type LabelDto struct {
 	ID uint `json:"id"` // 标签ID
 	LabelBase
+	PostCount int64 `json:"post_count"` // 该标签下的文章数量
 }
 
 type CreateLabelReq struct {

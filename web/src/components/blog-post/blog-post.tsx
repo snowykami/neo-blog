@@ -12,7 +12,6 @@ import Sidebar from "../blog-sidebar";
 import { SidebarAbout, SidebarLabels, SidebarMisskeyIframe } from "../blog-sidebar/blog-sidebar-card";
 import CopyrightCard from "./blog-copyright.client";
 import { navStickyTopPx } from "@/utils/common/layout-size";
-import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size";
 import { BlogLikeButton } from "./blog-like-button.client";
 import { fallbackSiteInfo } from "@/utils/common/siteinfo";
 import { getTranslations } from "next-intl/server";
@@ -103,7 +102,7 @@ async function PostContent({ post }: { post: Post }) {
 }
 
 
-async function BlogPost({ post }: { post: Post }) {
+export async function BlogPost({ post }: { post: Post }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
   return (
     <div className="h-full">
@@ -149,5 +148,3 @@ async function BlogPost({ post }: { post: Post }) {
     </div>
   );
 }
-
-export default BlogPost;

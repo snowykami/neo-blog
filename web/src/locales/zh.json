@@ -61,6 +61,7 @@
     "forbidden": "抱歉，您无权访问该内容",
     "forgot_password": "忘记密码？",
     "id": "编号",
+    "labels_cloud": "标签云",
     "login_required": "请先登录后再操作",
     "logout_failed": "退出登录失败",
     "logout_success": "退出登录成功",

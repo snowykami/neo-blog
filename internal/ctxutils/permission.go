@@ -19,3 +19,11 @@ func IsAdmin(ctx context.Context) bool {
 	}
 	return user.IsAdmin()
 }
+
+func IsEditor(ctx context.Context) bool {
+	user, ok := GetCurrentUser(ctx)
+	if !ok {
+		return false
+	}
+	return user.IsEditor()
+}

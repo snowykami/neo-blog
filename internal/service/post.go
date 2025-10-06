@@ -96,21 +96,16 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 	return postDto, nil
 }
 
-func (p *PostService) UpdatePost(ctx context.Context, id uint, req *dto.CreateOrUpdatePostReq) (uint, error) {
-	currentUser, ok := ctxutils.GetCurrentUser(ctx)
-	if !ok {
-		return 0, errs.ErrUnauthorized
-	}
-	if id == 0 {
-		return 0, errs.ErrBadRequest
-	}
-	post, err := repo.Post.GetPostBySlugOrID(strconv.FormatUint(uint64(id), 10))
+func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (uint, error) {
+	post, err := repo.Post.GetPostBySlugOrID(strconv.FormatUint(uint64(req.ID), 10))
 	if err != nil {
 		return 0, errs.New(errs.ErrNotFound.Code, "post not found", err)
 	}
-	if post.UserID != currentUser.ID {
+
+	if !ctxutils.IsAdmin(ctx) && !ctxutils.IsEditor(ctx) && !ctxutils.IsOwnerOfTarget(ctx, post.UserID) {
 		return 0, errs.ErrForbidden
 	}
+
 	utils.UpdateNonEmpty(&post.Title, req.Title)
 	utils.UpdateNonEmpty(&post.Content, req.Content)
 	utils.UpdateNonEmpty(&post.Cover, req.Cover)
