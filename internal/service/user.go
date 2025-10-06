@@ -214,6 +214,7 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		logrus.Errorln("Failed to request OIDC token:", err)
 		return nil, errs.ErrInternalServer
 	}
+
 	userInfo, err := utils.Oidc.RequestUserinfo(oidcConfig.UserinfoEndpoint, tokenResp.AccessToken)
 	if err != nil {
 		logrus.Errorln("Failed to request OIDC user info:", err)

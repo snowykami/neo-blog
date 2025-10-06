@@ -10,7 +10,8 @@ var Oidc = oidcUtils{}
 
 // RequestToken 请求访问令牌
 func (u *oidcUtils) RequestToken(tokenEndpoint, clientID, clientSecret, code, redirectUri string) (*TokenResponse, error) {
-	tokenResp, err := client.R().
+	tokenResp := TokenResponse{}
+	resp, err := client.R().
 		SetFormData(map[string]string{
 			"grant_type":    "authorization_code",
 			"client_id":     clientID,
@@ -19,17 +20,16 @@ func (u *oidcUtils) RequestToken(tokenEndpoint, clientID, clientSecret, code, re
 			"redirect_uri":  redirectUri,
 		}).
 		SetHeader("Accept", "application/json").
-		SetResult(&TokenResponse{}).
+		SetResult(&tokenResp).
 		Post(tokenEndpoint)
 
 	if err != nil {
 		return nil, err
 	}
-
-	if tokenResp.StatusCode() != 200 {
-		return nil, fmt.Errorf("状态码: %d，响应: %s", tokenResp.StatusCode(), tokenResp.String())
+	if resp.StatusCode() != 200 {
+		return nil, fmt.Errorf("状态码: %d，响应: %s", resp.StatusCode(), resp.String())
 	}
-	return tokenResp.Result().(*TokenResponse), nil
+	return &tokenResp, nil
 }
 
 // RequestUserinfo 请求用户信息
