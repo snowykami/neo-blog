@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Raleway } from "next/font/google";
+import { Geist, Geist_Mono, Source_Code_Pro, Josefin_Sans } from "next/font/google";
 import { DeviceProvider } from "@/contexts/device-context";
 import { NextIntlClientProvider } from 'next-intl';
 import { AuthProvider } from "@/contexts/auth-context";
@@ -15,22 +15,16 @@ import ScrollbarOverlay from "@/components/common/scrollbar-overlay";
 import { fallbackSiteInfo } from "@/utils/common/siteinfo";
 
 
-const geistSans = Geist({
+const geistSans = Josefin_Sans({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
+const geistMono = Source_Code_Pro({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
-const geistRaleway = Raleway({
-  variable: "--font-geist-raleway",
-  weight: ["400", "700"],
-  style: ["normal", "italic"],
-  subsets: ["latin"],
-});
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
@@ -61,7 +55,7 @@ export default async function RootLayout({
   return (
     <html lang={await getFirstLocale() || "en"} className="h-full" data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || "blue"}>
       <body
-        className={`${geistMono.className} ${geistSans.className} ${geistRaleway.className}  antialiased`}
+        className={`${geistMono.className} ${geistSans.className} antialiased`}
       >
         <Toaster richColors position="top-center" offset={80} />
         <NuqsAdapter>
