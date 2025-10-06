@@ -237,10 +237,18 @@ func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, tar
 		query = query.Where("reply_id = ?", commentID)
 	}
 
-	if currentUserID > 0 {
-		query = query.Where("(is_private = ? OR (is_private = ? AND (user_id = ? OR user_id = ?)))", false, true, currentUserID, masterID)
-	} else {
+	// 可见性规则：
+	// - 未登录用户：只看公开评论
+	// - 博主（文章作者）：可见该文章下所有评论（包括私密）
+	// - 其它已登录用户：可见公开评论 + 仅自己发布的私密评论
+	if currentUserID == 0 {
+		// 游客
 		query = query.Where("is_private = ?", false)
+	} else if targetType == constant.TargetTypePost && currentUserID == masterID {
+		// 博主：不加 is_private 过滤（可查看所有）
+	} else {
+		// 普通已登录用户：公开或自己写的私密评论
+		query = query.Where("(is_private = ? OR (is_private = ? AND user_id = ?))", false, true, currentUserID)
 	}
 
 	if depth != nil && *depth >= 0 {
