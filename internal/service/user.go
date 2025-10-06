@@ -208,7 +208,7 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		oidcConfig.ClientID,
 		oidcConfig.ClientSecret,
 		req.Code,
-		strings.TrimSuffix(repo.KV.GetStringWithoutErr(constant.KeyBaseUrl, utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl)), "/")+constant.OidcUri+"/"+oidcConfig.Name,
+		strings.TrimSuffix(repo.KV.GetStringWithoutErr(constant.KeyBaseUrl, utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl)), "/")+constant.ApiPrefix+constant.OidcUri+"/"+oidcConfig.Name,
 	)
 	if err != nil {
 		logrus.Errorln("Failed to request OIDC token:", err)
