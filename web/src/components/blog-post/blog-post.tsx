@@ -84,7 +84,7 @@ async function PostContent({ post }: { post: Post }) {
   const t = await getTranslations("Common")
   return (
     <div className="bg-background border-1 pt-0 p-4 md:p-8 rounded-xl">
-      {post.description && <div className="mt-0 mb-8 bg-primary/10 text-lg text-muted-foreground border-1 rounded-xl p-4 font-mono">
+      {post.description && <div className="mt-4 md:mt-0 mb-8 bg-primary/10 text-lg text-muted-foreground border-1 rounded-xl p-4 font-mono">
         <div className="flex items-center mb-2 text-lg text-primary font-medium">
           <Info className="w-5 h-5 mr-2" />
           {t("digest")}

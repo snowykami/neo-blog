@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Source_Code_Pro, Josefin_Sans } from "next/font/google";
+import { Source_Code_Pro, Josefin_Sans } from "next/font/google";
 import { DeviceProvider } from "@/contexts/device-context";
 import { NextIntlClientProvider } from 'next-intl';
 import { AuthProvider } from "@/contexts/auth-context";
