@@ -32,12 +32,12 @@ func (u *oidcUtils) RequestToken(tokenEndpoint, clientID, clientSecret, code, re
 	return tokenResp.Result().(*TokenResponse), nil
 }
 
-// RequestUserInfo 请求用户信息
-func (u *oidcUtils) RequestUserInfo(userInfoEndpoint, accessToken string) (*UserInfo, error) {
+// RequestUserinfo 请求用户信息
+func (u *oidcUtils) RequestUserinfo(userInfoEndpoint, accessToken string) (*Userinfo, error) {
 	userInfoResp, err := client.R().
 		SetHeader("Authorization", "Bearer "+accessToken).
 		SetHeader("Accept", "application/json").
-		SetResult(&UserInfo{}).
+		SetResult(&Userinfo{}).
 		Get(userInfoEndpoint)
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func (u *oidcUtils) RequestUserInfo(userInfoEndpoint, accessToken string) (*User
 		return nil, fmt.Errorf("状态码: %d，响应: %s", userInfoResp.StatusCode(), userInfoResp.String())
 	}
 
-	return userInfoResp.Result().(*UserInfo), nil
+	return userInfoResp.Result().(*Userinfo), nil
 }
 
 type TokenResponse struct {
@@ -58,8 +58,8 @@ type TokenResponse struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
-// UserInfo 定义用户信息结构
-type UserInfo struct {
+// Userinfo 定义用户信息结构
+type Userinfo struct {
 	Sub               string   `json:"sub"`
 	Name              string   `json:"name"`
 	Email             string   `json:"email"`

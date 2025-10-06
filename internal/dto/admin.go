@@ -10,7 +10,7 @@ type AdminOidcConfigDto struct {
 	OidcDiscoveryUrl      string `json:"oidc_discovery_url"` // 自动发现url
 	AuthorizationEndpoint string `json:"authorization_endpoint"`
 	TokenEndpoint         string `json:"token_endpoint"`
-	UserInfoEndpoint      string `json:"user_info_endpoint"`
+	UserinfoEndpoint      string `json:"userinfo_endpoint"`
 	JwksUri               string `json:"jwks_uri"`
 	Type                  string `json:"type"` // oauth2 or misskey
 	Enabled               bool   `json:"enabled"`

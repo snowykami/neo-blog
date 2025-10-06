@@ -24,7 +24,7 @@ type OidcConfig struct {
 	Issuer                string
 	AuthorizationEndpoint string
 	TokenEndpoint         string
-	UserInfoEndpoint      string
+	UserinfoEndpoint      string
 	JwksUri               string
 }
 
@@ -32,7 +32,7 @@ type oidcDiscoveryResp struct {
 	Issuer                string `json:"issuer" validate:"required"`
 	AuthorizationEndpoint string `json:"authorization_endpoint" validate:"required"`
 	TokenEndpoint         string `json:"token_endpoint" validate:"required"`
-	UserInfoEndpoint      string `json:"userinfo_endpoint" validate:"required"`
+	UserinfoEndpoint      string `json:"userinfo_endpoint" validate:"required"`
 	JwksUri               string `json:"jwks_uri" validate:"required"`
 	// 可选字段
 	RegistrationEndpoint             string   `json:"registration_endpoint,omitempty"`
@@ -61,14 +61,14 @@ func updateOidcConfigFromUrl(url string, typ string) (*oidcDiscoveryResp, error)
 	}
 	// 验证必要字段
 	if typ == "misskey" {
-		discovery.UserInfoEndpoint = discovery.Issuer + "/api/users/me" // Misskey的用户信息端点
+		discovery.UserinfoEndpoint = discovery.Issuer + "/api/users/me" // Misskey的用户信息端点
 		discovery.JwksUri = discovery.Issuer + "/api/jwks"
 	}
 	fmt.Println(discovery)
 	if discovery.Issuer == "" ||
 		discovery.AuthorizationEndpoint == "" ||
 		discovery.TokenEndpoint == "" ||
-		discovery.UserInfoEndpoint == "" ||
+		discovery.UserinfoEndpoint == "" ||
 		discovery.JwksUri == "" {
 		return nil, fmt.Errorf("OIDC发现端点响应缺少必要字段")
 	}
@@ -87,7 +87,7 @@ func (o *OidcConfig) BeforeSave(tx *gorm.DB) (err error) {
 		o.Issuer = discoveryResp.Issuer
 		o.AuthorizationEndpoint = discoveryResp.AuthorizationEndpoint
 		o.TokenEndpoint = discoveryResp.TokenEndpoint
-		o.UserInfoEndpoint = discoveryResp.UserInfoEndpoint
+		o.UserinfoEndpoint = discoveryResp.UserinfoEndpoint
 		o.JwksUri = discoveryResp.JwksUri
 	}
 	return nil
@@ -105,13 +105,17 @@ func (o *OidcConfig) ToUserDto() *dto.UserOidcConfigDto {
 // ToAdminDto 返回给管理员侧
 func (o *OidcConfig) ToAdminDto() *dto.AdminOidcConfigDto {
 	return &dto.AdminOidcConfigDto{
-		ID:               o.ID,
-		Name:             o.Name,
-		ClientID:         o.ClientID,
-		ClientSecret:     o.ClientSecret,
-		DisplayName:      o.DisplayName,
-		Icon:             o.Icon,
-		OidcDiscoveryUrl: o.OidcDiscoveryUrl,
-		Enabled:          o.Enabled,
+		ID:                    o.ID,
+		Name:                  o.Name,
+		ClientID:              o.ClientID,
+		ClientSecret:          o.ClientSecret,
+		DisplayName:           o.DisplayName,
+		Icon:                  o.Icon,
+		OidcDiscoveryUrl:      o.OidcDiscoveryUrl,
+		AuthorizationEndpoint: o.AuthorizationEndpoint,
+		TokenEndpoint:         o.TokenEndpoint,
+		UserinfoEndpoint:      o.UserinfoEndpoint,
+		JwksUri:               o.JwksUri,
+		Enabled:               o.Enabled,
 	}
 }
