@@ -50,8 +50,6 @@ import { HighlighterIcon } from "@/components/tiptap-icons/highlighter-icon"
 import { LinkIcon } from "@/components/tiptap-icons/link-icon"
 
 // --- Hooks ---
-import { useIsMobile } from "@/hooks/use-mobile"
-import { useWindowSize } from "@/hooks/use-window-size"
 import { useCursorVisibility } from "@/hooks/use-cursor-visibility"
 
 // --- Components ---
@@ -73,11 +71,9 @@ import 'highlight.js/styles/github-dark.css';
 const MainToolbarContent = ({
   onHighlighterClick,
   onLinkClick,
-  isMobile,
 }: {
   onHighlighterClick: () => void
   onLinkClick: () => void
-  isMobile: boolean
 }) => {
   return (
     <>
@@ -91,10 +87,10 @@ const MainToolbarContent = ({
       <ToolbarSeparator />
 
       <ToolbarGroup>
-        <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={isMobile} />
+        <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={false} />
         <ListDropdownMenu
           types={["bulletList", "orderedList", "taskList"]}
-          portal={isMobile}
+          portal={false}
         />
         <BlockquoteButton />
         <CodeBlockButton />
@@ -108,12 +104,8 @@ const MainToolbarContent = ({
         <MarkButton type="strike" />
         <MarkButton type="code" />
         <MarkButton type="underline" />
-        {!isMobile ? (
-          <ColorHighlightPopover />
-        ) : (
-          <ColorHighlightPopoverButton onClick={onHighlighterClick} />
-        )}
-        {!isMobile ? <LinkPopover /> : <LinkButton onClick={onLinkClick} />}
+        <ColorHighlightPopover />
+        <LinkPopover />
       </ToolbarGroup>
 
       <ToolbarSeparator />
@@ -141,7 +133,7 @@ const MainToolbarContent = ({
 
       <Spacer />
 
-      {isMobile && <ToolbarSeparator />}
+      <ToolbarSeparator />
       <ToolbarGroup>
         <ThemeToggle />
       </ToolbarGroup>
@@ -149,104 +141,39 @@ const MainToolbarContent = ({
   )
 }
 
-const MobileToolbarContent = ({
-  type,
-  onBack,
-}: {
-  type: "highlighter" | "link"
-  onBack: () => void
-}) => (
-  <>
-    <ToolbarGroup>
-      <Button data-style="ghost" onClick={onBack}>
-        <ArrowLeftIcon className="tiptap-button-icon" />
-        {type === "highlighter" ? (
-          <HighlighterIcon className="tiptap-button-icon" />
-        ) : (
-          <LinkIcon className="tiptap-button-icon" />
-        )}
-      </Button>
-    </ToolbarGroup>
-
-    <ToolbarSeparator />
-
-    {type === "highlighter" ? (
-      <ColorHighlightPopoverContent />
-    ) : (
-      <LinkContent />
-    )}
-  </>
-)
+// 移除了移动端独立 Toolbar 内容，统一使用 MainToolbarContent
 
 export function SimpleEditor({ editor }: { editor: Editor }) {
-  const isMobile = useIsMobile()
-  const { height } = useWindowSize()
-  const [mobileView, setMobileView] = React.useState<
-    "main" | "highlighter" | "link"
-  >("main")
   const toolbarRef = React.useRef<HTMLDivElement>(null)
 
-  const rect = useCursorVisibility({
-    editor,
-    overlayHeight: toolbarRef.current?.getBoundingClientRect().height ?? 0,
-  })
-
   React.useEffect(() => {
-    if (!isMobile && mobileView !== "main") {
-      setMobileView("main")
-    }
-  }, [isMobile, mobileView])
-
-  React.useEffect(() => {
-    hljs.highlightAll();
-  },[])
+    hljs.highlightAll()
+  }, [])
 
   return (
-    <div className="w-full h-[85vh] overflow-auto box-border border-2 border-primary rounded-lg">
+    <div className="w-full h-[85vh] box-border border-2 border-primary rounded-lg overflow-hidden">
       <EditorContext.Provider value={{ editor }}>
-        <Toolbar
-          ref={toolbarRef}
-          className={
-            isMobile
-              ? "flex flex-wrap items-center gap-2 px-2 py-1 sticky top-0 z-10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm"
-              : "overflow-x-auto whitespace-nowrap"
-          }
-          style={
-            isMobile
-              ? {
-                  WebkitOverflowScrolling: "touch",
-                  // allow normal vertical scrolling / gestures on mobile
-                  touchAction: "auto",
-                  top: 0,
-                }
-              : {
-                  WebkitOverflowScrolling: "touch",
-                  // prefer horizontal panning on desktop toolbar
-                  touchAction: "pan-x",
-                }
-          }
-        >
-          {mobileView === "main" ? (
+        <div className="max-w-[900px] w-full mx-auto h-full flex flex-col flex-1 box-border overflow-auto">
+          <Toolbar
+            ref={toolbarRef}
+            className="editor-toolbar sticky top-0 z-10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm flex flex-wrap items-center gap-3 px-4 py-3 w-full min-h-[60px] sm:min-h-[40px]"
+            style={{
+              WebkitOverflowScrolling: "touch",
+              touchAction: "auto",
+              paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`,
+            }}
+          >
             <MainToolbarContent
-              onHighlighterClick={() => setMobileView("highlighter")}
-              onLinkClick={() => setMobileView("link")}
-              isMobile={isMobile}
+              onHighlighterClick={() => {}}
+              onLinkClick={() => {}}
             />
-          ) : (
-            <MobileToolbarContent
-              type={mobileView === "highlighter" ? "highlighter" : "link"}
-              onBack={() => setMobileView("main")}
-            />
-          )}
-        </Toolbar>
-        <div className="max-w-[900px] w-full mx-auto h-full flex flex-col flex-1 box-border">
+          </Toolbar>
 
           <EditorContent
             editor={editor}
             role="presentation"
-            className="tiptap ProseMirror simple-editor flex-1 pt-6 lg:pt-10 px-6 lg:px-10 pb-[30vh] sm:pt-4 sm:px-6"
-          >
-          </EditorContent>
+            className="tiptap ProseMirror simple-editor flex-1 px-6 py-6 lg:px-10 pb-[30vh] sm:px-6"
+          />
         </div>
       </EditorContext.Provider>
     </div>

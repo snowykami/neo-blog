@@ -30,6 +30,7 @@ import { CreateOrUpdatePostMetaDialogWithoutButton } from "../common/post-meta-d
 import { useSiteInfo } from "@/contexts/site-info-context";
 import { useAuth } from "@/contexts/auth-context";
 import { BaseResponseError } from "@/models/resp";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
@@ -118,6 +119,8 @@ export function PostManage() {
 
 function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void, onPostDelete: ({ postId }: { postId: number }) => void }) {
   const commonT = useTranslations("Common");
+  const isMobile  = useIsMobile();
+  const labelCount = isMobile ? 1 : 3;
   const postT = useTranslations("Console.post_edit");
   const stateT = useTranslations("State");
   const { siteInfo } = useSiteInfo();
@@ -149,7 +152,7 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
                   ? postT("no_label")
                   : labels.length <= 3
                     ? `${postT("labels")}: ${labels.map(l => l.name).join(" | ")}`
-                    : `${postT("labels")}: ${labels.slice(0, 3).map(l => l.name).join(" | ")} ... (+${labels.length - 3})`;
+                    : `${postT("labels")}: ${labels.slice(0, labelCount).map(l => l.name).join(" | ")} ... (+${labels.length - labelCount})`;
 
                 const items: { value: string; className: string }[] = [
                   { value: `${commonT("id")}: ${post.id}`, className: "bg-indigo-100 text-indigo-800" },
