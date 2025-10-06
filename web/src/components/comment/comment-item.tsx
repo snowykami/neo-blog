@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import { Badge } from "@/components/ui/badge";
 import { formatLocation } from "@/utils/common/location";
+import { isAdmin } from "@/utils/common/permission";
 
 
 export function CommentItem(
@@ -236,7 +237,7 @@ export function CommentItem(
                 </button>
               )}
               {/* 更多 */}
-              {user?.id === comment.user.id && <CommentDropdownMenu comment={commentState} setActiveInputId={setActiveInputId} onCommentDelete={onCommentDelete} />}
+              {user && (user.id === comment.user.id || isAdmin({user})) && <CommentDropdownMenu comment={commentState} setActiveInputId={setActiveInputId} onCommentDelete={onCommentDelete} />}
 
               {/* 回复按钮 */}
               <button

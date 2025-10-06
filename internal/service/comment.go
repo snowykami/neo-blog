@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/pkg/constant"
@@ -34,8 +35,17 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		return 0, errs.ErrBadRequest
 	}
 
+	// 内容校验：去首尾空白，非空且字符数不超过 200
+	content := strings.TrimSpace(req.Content)
+	if content == "" {
+		return 0, errs.New(errs.ErrBadRequest.Code, "comment content is empty", nil)
+	}
+	if len([]rune(content)) > 200 {
+		return 0, errs.New(errs.ErrBadRequest.Code, "comment content exceeds 200 characters", nil)
+	}
+
 	comment := &model.Comment{
-		Content:        req.Content,
+		Content:        content,
 		ReplyID:        req.ReplyID,
 		TargetID:       req.TargetID,
 		TargetType:     req.TargetType,
@@ -67,11 +77,21 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 		return err
 	}
 
-	if currentUser.ID != comment.UserID {
+	// 仅管理员或评论主人可以修改评论
+	if !ctxutils.IsAdmin(ctx) && !ctxutils.IsOwnerOfTarget(ctx, comment.UserID) {
 		return errs.ErrForbidden
 	}
 
-	comment.Content = req.Content
+	// 内容校验：去首尾空白，非空且字符数不超过 200
+	content := strings.TrimSpace(req.Content)
+	if content == "" {
+		return errs.New(errs.ErrBadRequest.Code, "comment content is empty", nil)
+	}
+	if len([]rune(content)) > 200 {
+		return errs.New(errs.ErrBadRequest.Code, "comment content exceeds 200 characters", nil)
+	}
+
+	comment.Content = content
 	comment.IsPrivate = req.IsPrivate
 	comment.ShowClientInfo = req.ShowClientInfo
 	err = repo.Comment.UpdateComment(comment)
@@ -95,15 +115,16 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) err
 		return errs.New(errs.ErrNotFound.Code, "comment not found", err)
 	}
 
-	isTargetOwner := false
+	var targetOwnerId uint
 	if comment.TargetType == constant.TargetTypePost {
 		post, err := repo.Post.GetPostBySlugOrID(strconv.Itoa(int(comment.TargetID)))
 		if err == nil && post.UserID == currentUser.ID {
-			isTargetOwner = true
+			targetOwnerId = post.UserID
 		}
 	}
 
-	if comment.UserID != currentUser.ID && isTargetOwner {
+	// 仅管理员，目标对象主人，评论主人可以删评
+	if !ctxutils.IsAdmin(ctx) && !ctxutils.IsOwnerOfTarget(ctx, targetOwnerId) && !ctxutils.IsOwnerOfTarget(ctx, comment.UserID) {
 		return errs.ErrForbidden
 	}
 
@@ -122,8 +143,23 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.
 	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
 		currentUserID = currentUser.ID
 	}
-	if comment.IsPrivate && currentUserID != comment.UserID {
-		return nil, errs.ErrForbidden
+	// 私密评论可见性：评论作者、文章作者（若目标为文章）、管理员可见
+	if comment.IsPrivate {
+		if ctxutils.IsAdmin(ctx) {
+			// 管理员可见
+		} else if currentUserID == comment.UserID {
+			// 评论作者可见
+		} else if comment.TargetType == constant.TargetTypePost {
+			post, err := repo.Post.GetPostBySlugOrID(strconv.Itoa(int(comment.TargetID)))
+			if err != nil {
+				return nil, errs.ErrForbidden
+			}
+			if post.UserID != currentUserID {
+				return nil, errs.ErrForbidden
+			}
+		} else {
+			return nil, errs.ErrForbidden
+		}
 	}
 	commentDto := cs.toGetCommentDto(comment, currentUserID)
 	return &commentDto, err
