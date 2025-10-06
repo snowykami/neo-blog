@@ -121,7 +121,7 @@ function NavMenuCenter() {
     <NavigationMenu viewport={false}>
       <NavigationMenuList className="flex space-x-1" key="navbar-menu">
         {navbarMenuComponents.map((item) => (
-          <NavigationMenuItem key={item.title}>
+          <NavigationMenuItem key={item.title} id={item.title}>
             {item.href ? (
               // 修复：只在 Link 上应用样式，移除 NavigationMenuLink 上的重复样式
               <NavigationMenuLink onClick={() => router.push(item.href)} className={cn(navigationMenuTriggerStyle(), "font-extrabold text-lg bg-transparent")}>

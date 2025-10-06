@@ -105,9 +105,6 @@ export function NavPaddingProvider({
     setNavTitle
   ]);
 
-  useEffect(() => {
-    console.log("Nav className updated:", navClassName);
-  },[navClassName])
 
   return (
     <NavContext.Provider value={value}>

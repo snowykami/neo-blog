@@ -46,8 +46,9 @@ export function CoverPreviewButton({
 
   return (
     <button
-      className="fixed right-4 md:right-10 z-20 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 rounded-full p-2 shadow-lg transition-all duration-300 hover:scale-110"
-      style={{ top: `${navStickyTopPx + 8}px` }}
+      // 负 top 将按钮放到容器顶部之外；调整 -16/-20px 以适配视觉
+      className="absolute right-4 md:right-10 z-20 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 rounded-full p-2 shadow-lg transition-all duration-300 hover:scale-110"
+      style={{ top: '-2.5rem' }}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}

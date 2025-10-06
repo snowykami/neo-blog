@@ -6,6 +6,7 @@ import Footer from '@/components/layout/footer'
 import Navbar from '@/components/layout/nav/navbar-or-side'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { contentAreaMaxWidthClass, contentAreaPaddingClass, navHeight } from '@/utils/common/layout-size';
+import ScrollToTopButton from '@/components/common/scroll-to-top';
 
 export default function RootLayout({
   children,
@@ -31,12 +32,12 @@ export default function RootLayout({
           </div>
         </div>
       </motion.nav>
-
       <BackgroundProvider defaultBackground={<div className="absolute inset-0 -z-10 bg-primary/20" />}>
         <main
           style={{ minHeight: minMainHeight }}
           className={`mx-auto ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${hasNavPadding ? 'pt-16' : ''} min-h-0`}
         >
+          <ScrollToTopButton position={{ right: 24, bottom: 90 }} />
           {children}
         </main>
       </BackgroundProvider>
