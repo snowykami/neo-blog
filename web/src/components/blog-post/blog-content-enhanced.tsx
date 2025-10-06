@@ -1,10 +1,12 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { useEffect } from "react";
 import copyToClipboard from "@/lib/clipboard";
 import { toast } from "sonner";
 import { languageMap } from "@/utils/common/post-render";
 import { useTranslations } from "next-intl";
+import hljs from 'highlight.js';
+import 'highlight.js/styles/github-dark.css';
 
 /**
  * HtmlEnhancer
@@ -31,6 +33,9 @@ declare global {
 export default function HtmlEnhancer({ containerId }: { containerId: string }) {
   const t = useTranslations("CodeBlock");
   useEffect(() => {
+    hljs.highlightAll();
+  },[])
+  useEffect(() => {
     const container = document.getElementById(containerId);
     if (!container) return;
 
@@ -46,7 +51,7 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
       // build wrapper similar to markdown-codeblock, minimal DOM ops
       const wrapper = document.createElement("div");
       wrapper.className =
-        "relative my-6 rounded-2xl overflow-hidden bg-[#f5f5f7] dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 shadow-sm group";
+        "relative my-0 rounded-2xl overflow-hidden bg-[#f5f5f7] dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 shadow-sm group";
 
       const toolbar = document.createElement("div");
       toolbar.className =
@@ -95,7 +100,7 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
         "overflow-x-auto",
         "bg-transparent",
         "text-sm",
-        "p-4",
+        "p-0",
         "m-0",
         "rounded-t-none",
         "text-gray-800",

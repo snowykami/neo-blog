@@ -23,6 +23,7 @@ import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { uploadFile } from '@/api/file'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from "../common/post-meta-dialog-form";
 
+
 export function PostEditor() {
   const { id } = useParams() as { id: string };
   const [post, setPost] = useState<Post | null>(null);
@@ -77,15 +78,19 @@ export function PostEditor() {
     ],
   })
 
+  // source mode removed; always use rich text editor
+
   useEffect(() => {
     getPostById({ id, type: "draft" }).then(res => {
+      console.log()
       setPost(res.data);
     });
   }, [id]);
 
   useEffect(() => {
     if (!editor) return;
-    const content = post?.content || '<p>Empty</p>';
+    if (!post) return;
+    const content = post.draftContent || post.content || '<p>Empty</p>';
     const t = window.setTimeout(() => {
       editor.commands.setContent(content);
     }, 0);
@@ -116,9 +121,9 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
   const [settingDialogOpen, setSettingDialogOpen] = useState(false);
 
   const saveDraft = useCallback((showToast: boolean) => {
-    const jsonStringDraft = JSON.stringify(editor.getJSON() || {});
+    const htmlToSave = editor.getHTML();
     setSavingDraft(true);
-    updatePost({ post: { id: post.id, draftContent: jsonStringDraft } }).then(() => {
+    updatePost({ post: { id: post.id, draftContent: htmlToSave } }).then(() => {
       if (showToast) toast.success(operationT("save_success"));
       setLastSavedAt(new Date());
     }).catch(() => {
@@ -138,7 +143,6 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
     return () => clearInterval(iv);
   }, [post, editor, saveDraft]);
 
-  // 快捷键
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -151,9 +155,8 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
   }, [post, editor, saveDraft]);
 
   const publishPost = () => {
-    const html = editor.getHTML();
-    const jsonStringDraft = JSON.stringify(editor.getJSON() || {});
-    updatePost({ post: { id: post.id, draftContent: jsonStringDraft, content: html, type: "html" } }).then(() => {
+    const htmlToPublish = editor.getHTML();
+    updatePost({ post: { id: post.id, draftContent: htmlToPublish, content: htmlToPublish, type: "html" } }).then(() => {
       toast.success(operationT("publish_success"));
     }).catch(() => {
       toast.error(operationT("publish_failed"));
@@ -168,6 +171,7 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
       <div className="flex flex-wrap items-center justify-end gap-2">
         {lastSavedAt && <span className="text-sm text-muted-foreground w-full md:w-auto">{t("last_saved_at", { time: lastSavedAt.toLocaleTimeString() })}</span>}
         <CreateOrUpdatePostMetaDialogWithoutButton open={settingDialogOpen} onOpenChange={setSettingDialogOpen} post={post} onPostChange={onPostUpdate} />
+        {/* source mode removed */}
         <Button onClick={() => setSettingDialogOpen(true)} variant="outline">{t("setting")}</Button>
         <Button onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft}>{savingDraft ? t("saving_draft") : t("save_draft")}</Button>
         <Button onClick={publishPost}>{operationT("publish")}</Button>

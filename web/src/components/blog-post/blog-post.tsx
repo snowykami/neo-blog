@@ -18,9 +18,8 @@ import { Separator } from "../ui/separator";
 import Typewriter from "../common/typewriter";
 import { PostHeaderClient } from "./post-header.client";
 import "./blog-post-align.scss";
-import "highlight.js/styles/github-dark.css";
+
 import HtmlEnhancer from "./blog-content-enhanced";
-import { isAdmin } from "@/utils/common/permission";
 
 async function PostHeader({ post }: { post: Post }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);

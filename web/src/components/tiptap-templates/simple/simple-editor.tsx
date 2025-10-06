@@ -60,9 +60,14 @@ import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle"
 // --- Lib ---
 
 // --- Styles ---
+
+import { ImageNodeFloating } from "@/components/tiptap-node/image-node/image-node-floating"
+
 import '@/styles/_variables.scss';
 import '@/styles/_keyframe-animations.scss';
-import { ImageNodeFloating } from "@/components/tiptap-node/image-node/image-node-floating"
+
+import hljs from 'highlight.js';
+import 'highlight.js/styles/github-dark.css';
 
 
 const MainToolbarContent = ({
@@ -191,6 +196,10 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
       setMobileView("main")
     }
   }, [isMobile, mobileView])
+
+  React.useEffect(() => {
+    hljs.highlightAll();
+  },[])
 
   return (
     <div className="w-full h-[85vh] overflow-auto box-border border-2 border-primary rounded-lg">

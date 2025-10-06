@@ -8,10 +8,9 @@
 @import "./styles/yellow.css";
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "./styles/typography.css";
 @import "./styles/animation.css";
 
-@plugin "@tailwindcss/typography";
+/* @plugin "@tailwindcss/typography"; */
 
 
 

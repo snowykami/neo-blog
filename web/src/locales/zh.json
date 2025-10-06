@@ -168,11 +168,13 @@
       "post_slug": "Slug (用于 URL)",
       "post_title": "标题",
       "title_placeholder": "输入标题...",
+      "rich_text_mode": "富文本模式",
       "save_draft": "存草稿",
       "saving_draft": "保存中...",
       "select_category": "选择分类",
       "select_labels": "选择标签",
       "setting": "设置",
+      "source_mode": "源码模式",
       "uncategorized": "未分类",
       "view_count": "浏览数"
     },
