@@ -8,6 +8,7 @@ type AdminOidcConfigDto struct {
 	DisplayName           string `json:"display_name"`
 	Icon                  string `json:"icon"`
 	OidcDiscoveryUrl      string `json:"oidc_discovery_url"` // 自动发现url
+	Issuer                string `json:"issuer"`
 	AuthorizationEndpoint string `json:"authorization_endpoint"`
 	TokenEndpoint         string `json:"token_endpoint"`
 	UserinfoEndpoint      string `json:"userinfo_endpoint"`
