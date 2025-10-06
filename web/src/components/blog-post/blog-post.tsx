@@ -11,72 +11,21 @@ import { getSiteInfo } from "@/api/misc";
 import Sidebar from "../blog-sidebar";
 import { SidebarAbout, SidebarLabels, SidebarMisskeyIframe } from "../blog-sidebar/blog-sidebar-card";
 import CopyrightCard from "./blog-copyright.client";
-import { WaveEffects } from "./wave-effect";
 import { navStickyTopPx } from "@/utils/common/layout-size";
 import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size";
 import { BlogLikeButton } from "./blog-like-button.client";
 import { fallbackSiteInfo } from "@/utils/common/siteinfo";
-import Link from "next/link";
-import { getLabelUrl } from "@/utils/common/route";
 import { getTranslations } from "next-intl/server";
 import { Separator } from "../ui/separator";
 import Typewriter from "../common/typewriter";
+import { PostHeaderClient } from "./post-header.client";
 
 async function PostHeader({ post }: { post: Post }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
   return (
-    <div className={`relative pt-30 pb-36 md:pt-36 md:pb-48 overflow-hidden transition-none`} style={{ width: '100vw', marginLeft: '50%', transform: 'translateX(-50%)' }}>
-      {/* 背景图片层 */}
-      <div
-        className="absolute inset-0"
-        style={{
-          zIndex: -3,
-          backgroundImage: `url(${post.cover || siteInfo.defaultCover})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-        aria-hidden="true"
-      />
-
-      {/* 模糊遮罩层 */}
-      <div
-        className="absolute inset-0 backdrop-blur-md bg-black/30"
-        style={{ zIndex: -2 }}
-        aria-hidden="true"
-      />
-
-      {/* 内容层 */}
-      <div className={`container px-4 md:px-0 mx-auto ${contentAreaPaddingClass} ${contentAreaMaxWidthClass} relative z-10`}>
-
-        <h1
-          className="text-3xl md:text-5xl font-bold mb-4 text-white drop-shadow-lg leading-tight"
-        >
-          {post.title}
-        </h1>
-        {/* 标签 */}
-        {post.labels && post.labels.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {post.labels.map(label => (
-              <Link href={getLabelUrl(label)} key={label.id}>
-                <span
-                  className="bg-white/20 backdrop-blur-sm text-white border border-white/30 text-xs px-3 py-1 rounded-full font-medium shadow-sm"
-                >
-                  {label.name}
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
-
-        <div className="backdrop-blur-sm bg-white/15 rounded-lg p-4 border border-white/20 shadow-lg">
-          <PostMetaWhite post={post} />
-        </div>
-
-      </div>
-
-      {/* 波浪层 */}
-      <WaveEffects />
-    </div>
+    <PostHeaderClient post={post} siteInfo={{ defaultCover: siteInfo.defaultCover }}>
+      <PostMetaWhite post={post} />
+    </PostHeaderClient>
   );
 }
 
