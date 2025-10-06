@@ -1,0 +1,25 @@
+/* Align images in the blog content based on data-align attribute */
+article img[data-align="center"],
+article img[data-align="middle"] {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+article img[data-align="left"] {
+  display: block;
+  margin-left: 0;
+  margin-right: auto;
+}
+
+article img[data-align="right"] {
+  display: block;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+/* make sure images don't overflow the content */
+article img {
+  max-width: 100%;
+  height: auto;
+}

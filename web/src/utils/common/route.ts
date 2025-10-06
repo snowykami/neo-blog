@@ -39,6 +39,16 @@ export function getPostUrl<T extends { slug?: string | null; id?: string | numbe
   return `/p/${String(key)}`
 }
 
+export function getPostEditUrl<T extends { slug?: string | null; id?: string | number | null }>(
+  post: T
+): string {
+  const key = post.slug || post.id;
+  if (key == null) {
+    throw new Error('toEditUrl: object must contain slug or id')
+  }
+  return `/console/posts/edit/${String(key)}`
+}
+
 export function getUserUrl<T extends { username: string }>(user: T): string {
   return `/u/${user.username}`;
 }

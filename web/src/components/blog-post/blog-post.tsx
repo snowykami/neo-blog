@@ -2,7 +2,6 @@
 import { Suspense } from "react";
 import type { Post } from "@/models/post";
 import { ArchiveIcon, Calendar, Clock, FileText, Flame, Heart, Info, MessageCircle, PenLine, SquarePen } from "lucide-react";
-import { RenderMarkdown } from "@/components/common/markdown";
 import { calculateReadingTime } from "@/utils/common/post";
 import { CommentSection } from "@/components/comment";
 import { TargetType } from '@/models/types';
@@ -18,7 +17,10 @@ import { getTranslations } from "next-intl/server";
 import { Separator } from "../ui/separator";
 import Typewriter from "../common/typewriter";
 import { PostHeaderClient } from "./post-header.client";
+import "./blog-post-align.scss";
+import "highlight.js/styles/github-dark.css";
 import HtmlEnhancer from "./blog-content-enhanced";
+import { isAdmin } from "@/utils/common/permission";
 
 async function PostHeader({ post }: { post: Post }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
@@ -64,7 +66,7 @@ async function PostMetaWhite({ post }: { post: Post }) {
     {
       icon: FileText,
       text: `${post.content.length || 0} ${t("Common.char")}`,
-    }
+    },
   ]
 
   return (
@@ -83,7 +85,7 @@ async function PostContent({ post }: { post: Post }) {
   const t = await getTranslations("Common")
   return (
     <div className="bg-background border-1 pt-0 p-4 md:p-8 rounded-xl">
-      {post.description && <div className="mt-4 mb-6 text-lg text-muted-foreground border-1 rounded-xl p-4 font-mono">
+      {post.description && <div className="mt-0 mb-8 bg-primary/10 text-lg text-muted-foreground border-1 rounded-xl p-4 font-mono">
         <div className="flex items-center mb-2 text-lg text-primary font-medium">
           <Info className="w-5 h-5 mr-2" />
           {t("digest")}
@@ -92,25 +94,17 @@ async function PostContent({ post }: { post: Post }) {
         <Typewriter text={post.description} />
       </div>}
 
-      {post.type === "markdown" && (
-        <Suspense>
-          <div className="prose prose-lg max-w-none dark:prose-invert p-4 md:p-8 rounded-xl bg-background border border-border">
-            <RenderMarkdown source={post.content} />
-          </div>
-        </Suspense>
-      )}
-
       {post.type === "html" && (
         <>
-          <article id="blog-content-8h89w" className="prose prose-lg max-w-none dark:prose-invert 
+          <article id="blog-content" className="prose prose-lg max-w-none dark:prose-invert 
           p-4 md:p-8 rounded-xl bg-background border border-border
-          prose-img:rounded-lg prose-img:shadow-md prose-img:border prose-img:border-border
-          prose-a:text-primary prose-a:no-underline prose-a:font-medium prose-a:hover:underline
-          prose-pre:bg-muted prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto
-          prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-sm
+          prose-img:block prose-img:mx-auto prose-img:my-4 prose-img:rounded-lg prose-img:shadow-md prose-img:border prose-img:border-border
+          prose-a:text-primary prose-a:no-underline prose-a:font-medium prose-a:hover:underline prose-a:px-1
+          prose-h1:scroll-mt-24 prose-h2:scroll-mt-24 prose-h3:scroll-mt-24 prose-h4:scroll-mt-24
+          prose-blockquote:dark:border-primary/70
           prose-blockquote:border-l-4 prose-blockquote:border-primary/70 prose-blockquote:bg-muted/50 prose-blockquote:px-4 prose-blockquote:py-2
           " dangerouslySetInnerHTML={{ __html: post.content }} />
-          {/* <HtmlEnhancer containerId="blog-content-8h89w" /> */}
+          <HtmlEnhancer containerId="blog-content" />
         </>
       )}
       {/* 版权卡片 */}
@@ -143,7 +137,7 @@ export async function BlogPost({ post }: { post: Post }) {
           className="lg:col-span-3 transition-none"
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
           <PostContent post={post} />
-          <div className="bg-background mt-4 p-4 md:p-8 rounded-xl border border-border">
+          <div className="bg-background mt-4 p-0 md:p-8 rounded-xl border border-border">
             <CommentSection targetType={TargetType.Post} ownerId={post.user.id} targetId={post.id} totalCount={post.commentCount} />
           </div>
         </motion.div>

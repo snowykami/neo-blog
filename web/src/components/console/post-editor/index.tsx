@@ -161,12 +161,12 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
   }
 
   return (
-    <div className="flex items-center justify-between mb-1">
-      <div className="flex items-center space-x-2">
-        <span className="text-lg font-semibold">{post.title || t("untitled")}</span>
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-1 gap-2">
+      <div className="flex items-center gap-2">
+        <span className="text-lg font-semibold break-words">{post.title || t("untitled")}</span>
       </div>
-      <div className="flex items-center space-x-2">
-        {lastSavedAt && <span className="text-sm text-muted-foreground">{t("last_saved_at", { time: lastSavedAt.toLocaleTimeString() })}</span>}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {lastSavedAt && <span className="text-sm text-muted-foreground w-full md:w-auto">{t("last_saved_at", { time: lastSavedAt.toLocaleTimeString() })}</span>}
         <CreateOrUpdatePostMetaDialogWithoutButton open={settingDialogOpen} onOpenChange={setSettingDialogOpen} post={post} onPostChange={onPostUpdate} />
         <Button onClick={() => setSettingDialogOpen(true)} variant="outline">{t("setting")}</Button>
         <Button onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft}>{savingDraft ? t("saving_draft") : t("save_draft")}</Button>

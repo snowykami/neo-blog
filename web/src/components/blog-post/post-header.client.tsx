@@ -5,7 +5,7 @@ import type { Post } from "@/models/post";
 import Link from "next/link";
 import { getLabelUrl } from "@/utils/common/route";
 import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size";
-import { CoverPreviewButton } from "./cover-preview-button.client";
+import PostToolbar from "./post-toolbar.client";
 import { WaveEffects } from "./wave-effect";
 
 export function PostHeaderClient({
@@ -50,8 +50,10 @@ export function PostHeaderClient({
         className={`container px-4 md:px-0 mx-auto ${contentAreaPaddingClass} ${contentAreaMaxWidthClass} relative z-10 transition-opacity duration-500 ease-in-out`}
 
       >
-        {/* Preview button */}
-        <CoverPreviewButton onPreviewChange={setIsPreviewing} />
+        <PostToolbar post={post} onPreviewChange={setIsPreviewing} onQuickEdit={() => {
+          // TODO: open quick edit; placeholder for now
+          console.log('quick edit');
+        }} />
         <div style={{ opacity: isPreviewing ? 0 : 1 }}>
           <h1
             className="text-3xl md:text-5xl font-bold mb-4 text-white drop-shadow-lg leading-tight"
