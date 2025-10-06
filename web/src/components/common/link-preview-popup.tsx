@@ -81,7 +81,7 @@ export function LinkPreviewPopup({ url, children }: LinkPreviewPopupProps) {
         {preview && (
           <div className="overflow-hidden cursor-default">
             {preview.image && (
-              <div className="relative h-32 bg-muted">
+              <div className="relative h-32 bg-muted rounded-t-md overflow-hidden">
                 <Image
                   src={preview.image}
                   alt={preview.title}
