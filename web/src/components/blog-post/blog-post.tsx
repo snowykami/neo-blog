@@ -84,7 +84,7 @@ async function PostContent({ post }: { post: Post }) {
   const t = await getTranslations("Common")
   return (
     <div className="bg-background border-1 pt-4 p-4 md:pt-8 md:p-8 rounded-xl">
-      {post.description && <div className="md:mt-0 mb-8 bg-primary/10 text-lg text-muted-foreground border-1 rounded-xl p-4 font-mono">
+      {post.description && <div className="md:mt-0 mb-4 md:mb-8 bg-primary/10 text-lg text-muted-foreground border-1 rounded-xl p-4 font-mono">
         <div className="flex items-center mb-2 text-lg text-primary font-medium">
           <Info className="w-5 h-5 mr-2" />
           {t("digest")}
@@ -108,9 +108,15 @@ async function PostContent({ post }: { post: Post }) {
         </>
       )}
       {/* 版权卡片 */}
-      <CopyrightCard post={post} />
+      <div className="mt-4 md:mt-8">
+        <CopyrightCard post={post} />
+      </div>
+
       {/* 点赞按钮 */}
-      <BlogLikeButton post={post} />
+      <div className="mt-4 md:mt-8">
+        <BlogLikeButton post={post} />
+      </div>
+      
     </div>
   );
 }

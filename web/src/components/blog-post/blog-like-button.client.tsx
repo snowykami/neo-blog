@@ -68,7 +68,7 @@ export function BlogLikeButton({
 
   return (
     <div>
-      <div className="flex justify-center pt-6">
+      <div className="flex justify-center pt-0">
         <div
           onClick={handleToggleLike}
           className={`rounded-full border-2 ${liked ? "bg-red-500" : "border-gray-300"} w-16 h-16 flex items-center justify-center cursor-pointer select-none`}>

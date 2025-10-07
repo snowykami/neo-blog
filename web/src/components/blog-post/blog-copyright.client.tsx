@@ -19,8 +19,8 @@ function CopyrightCard({ post }:
   const postUrl = siteInfo.baseUrl + getPostUrl(post);
 
   return (
-    <div className="mt-8 p-4 md:p-6 bg-primary/10 rounded-lg 
-    border border-primary/20">
+    <div className="bg-primary/10 rounded-lg 
+    border border-primary/20 p-4 md:p-6">
       {/* 标题 */}
       <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
         <CopyrightIcon className="w-5 h-5 text-primary" />
