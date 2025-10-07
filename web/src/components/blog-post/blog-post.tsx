@@ -102,6 +102,7 @@ async function PostContent({ post }: { post: Post }) {
           prose-h1:scroll-mt-24 prose-h2:scroll-mt-24 prose-h3:scroll-mt-24 prose-h4:scroll-mt-24
           prose-blockquote:dark:border-primary/70
           prose-blockquote:border-l-4 prose-blockquote:border-primary/70 prose-blockquote:bg-muted/50 prose-blockquote:px-4 prose-blockquote:py-2
+          text-sm
           " dangerouslySetInnerHTML={{ __html: post.content }} />
           <HtmlEnhancer containerId="blog-content" />
         </>
