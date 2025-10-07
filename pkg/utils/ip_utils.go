@@ -3,6 +3,8 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"net"
+	"strings"
 	"text/template"
 	"time"
 
@@ -78,4 +80,57 @@ func GetLocationString(ip string) string {
 
 func NewIPRecord(ip string) string {
 	return fmt.Sprintf("%d,%s;", time.Now().Unix(), ip)
+}
+
+var reservedNets []*net.IPNet
+
+func init() {
+	cidrs := []string{
+		// IPv4 私有/保留/特殊
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",     // loopback
+		"169.254.0.0/16",  // link-local (APIPA)
+		"100.64.0.0/10",   // CGN
+		"192.0.2.0/24",    // TEST-NET-1
+		"198.51.100.0/24", // TEST-NET-2
+		"203.0.113.0/24",  // TEST-NET-3
+		"224.0.0.0/4",     // multicast
+		"240.0.0.0/4",     // reserved
+		// IPv6 私有/保留/特殊
+		"::1/128",       // loopback
+		"fc00::/7",      // unique local
+		"fe80::/10",     // link-local
+		"2001:db8::/32", // documentation
+		"::/128",        // unspecified
+		"ff00::/8",      // multicast
+	}
+	for _, s := range cidrs {
+		if _, n, err := net.ParseCIDR(s); err == nil {
+			reservedNets = append(reservedNets, n)
+		}
+	}
+}
+
+func IsReservedIP(ip string) bool {
+	// empty 字符串视为保留/不可用
+	if strings.TrimSpace(ip) == "" {
+		return true
+	}
+	// 去掉 IPv6 zone，如 "fe80::1%en0"
+	if i := strings.Index(ip, "%"); i >= 0 {
+		ip = ip[:i]
+	}
+	parsed := net.ParseIP(strings.TrimSpace(ip))
+	if parsed == nil {
+		// 无法解析的也当作保留/不可信
+		return true
+	}
+	for _, n := range reservedNets {
+		if n.Contains(parsed) {
+			return true
+		}
+	}
+	return false
 }

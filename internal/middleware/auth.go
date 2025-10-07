@@ -132,6 +132,10 @@ func recordUserIP(sessionId, ip string) error {
 	if sessionId == "" || ip == "" {
 		return nil
 	}
+	// 保留地址排除
+	if utils.IsReservedIP(ip) {
+		return nil
+	}
 
 	kv := utils.KV.GetInstance()
 	key := "session_ip_" + sessionId
