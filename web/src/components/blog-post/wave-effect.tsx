@@ -27,7 +27,7 @@ export function WaveEffects() {
             href="#gentle-wave"
             x="48"
             y="0"
-            className="fill-primary/20 animate-wave-1"
+            className="fill-primary/10 animate-wave-1"
           />
 
           <use
@@ -40,7 +40,7 @@ export function WaveEffects() {
             href="#gentle-wave"
             x="48"
             y="3"
-            className="fill-primary/20 animate-wave-2"
+            className="fill-primary/10 animate-wave-2"
           />
 
           <use
@@ -53,7 +53,7 @@ export function WaveEffects() {
             href="#gentle-wave"
             x="48"
             y="5"
-            className="fill-primary/20 animate-wave-3"
+            className="fill-primary/10 animate-wave-3"
           />
 
           <use
@@ -66,7 +66,7 @@ export function WaveEffects() {
             href="#gentle-wave"
             x="48"
             y="7"
-            className="fill-primary/20 animate-wave-3"
+            className="fill-primary/10 animate-wave-3"
           />
         </g>
       </svg>

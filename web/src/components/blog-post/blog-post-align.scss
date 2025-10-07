@@ -18,17 +18,12 @@ article img[data-align="right"] {
   margin-right: 0;
 }
 
-/* make sure images don't overflow the content */
-article img {
-  max-width: 100%;
-  height: auto;
-}
-
 /* Prevent text overflow in article content */
 article {
   overflow-wrap: anywhere;
   word-wrap: break-word;
   max-width: 100%;
+  background-color: transparent;
 }
 
 /* Handle long unbreakable strings (URLs, code, etc.) */
@@ -56,4 +51,58 @@ article table {
   max-width: 100%;
   overflow-x: auto;
   word-wrap: break-word;
+}
+
+/* Tailwind-style prose utilities 映射到 CSS（优先用于 article/prose 内容） */
+/* 图像：block、水平居中、垂直间距、圆角、阴影、边框 */
+article img {
+  max-width: 100%;
+  height: auto;
+  display: block;               /* prose-img:block */
+  margin-left: auto;            /* prose-img:mx-auto */
+  margin-right: auto;           /* prose-img:mx-auto */
+  margin-top: 1rem;             /* prose-img:my-4 */
+  margin-bottom: 1rem;          /* prose-img:my-4 */
+  border-radius: 0.5rem;        /* rounded-lg */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08); /* shadow-md */
+  border: 1px solid var(--border, rgba(0,0,0,0.08)); /* border & border-border */
+}
+
+/* 链接样式：主色、无下划线、加粗、悬停下划线、左右内间距 */
+article a {
+  color: var(--primary, #3b82f6);    /* prose-a:text-primary */
+  text-decoration: none;             /* prose-a:no-underline */
+  font-weight: 500;                  /* prose-a:font-medium */
+  padding-left: 0.25rem;             /* prose-a:px-1 */
+  padding-right: 0.25rem;            /* prose-a:px-1 */
+}
+article a:hover {
+  text-decoration: underline;        /* prose-a:hover:underline */
+}
+
+/* 标题锚点滚动偏移（scroll-mt-24 ~ 6rem） */
+article h1,
+article h2,
+article h3,
+article h4 {
+  scroll-margin-top: 6rem; /* prose-h*:scroll-mt-24 */
+}
+
+/* blockquote：左边框、背景、内间距；暗色模式下使用半透明主色作为边框 */
+article blockquote {
+  border-left: 4px solid rgba(59,130,246,0.7); /* prose-blockquote:border-l-4 + color */
+  background: rgba(0,0,0,0.03);               /* prose-blockquote:bg-muted/50 (approx) */
+  padding: 0.5rem 1rem;                       /* prose-blockquote:px-4 prose-blockquote:py-2 */
+}
+/* 若项目使用 .dark 类或 data-theme="dark"，在暗色模式下微调 blockquote */
+.dark article blockquote,
+[data-theme="dark"] article blockquote {
+  border-left-color: rgba(59,130,246,0.7); /* prose-blockquote:dark:border-primary/70 */
+  background: rgba(59,130,246,0.04);
+}
+
+article p {
+  // 增大行距
+  font-size: 1rem;
+  line-height: 1.8;
 }

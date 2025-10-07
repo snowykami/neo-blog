@@ -16,7 +16,7 @@ export default function RootLayout({
 
   useEffect(() => {
     setBackground(
-      <div className="absolute inset-0 -z-10 bg-primary/20">
+      <div className="absolute inset-0 -z-10 bg-primary/10">
       </div>
     )
     return () => resetBackground();

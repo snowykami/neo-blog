@@ -1,5 +1,4 @@
 
-import { Suspense } from "react";
 import type { Post } from "@/models/post";
 import { ArchiveIcon, Calendar, Clock, FileText, Flame, Heart, Info, MessageCircle, PenLine, SquarePen } from "lucide-react";
 import { calculateReadingTime } from "@/utils/common/post";
@@ -83,7 +82,7 @@ async function PostMetaWhite({ post }: { post: Post }) {
 async function PostContent({ post }: { post: Post }) {
   const t = await getTranslations("Common")
   return (
-    <div className="bg-background border-1 pt-4 p-4 md:pt-8 md:p-8 rounded-xl">
+    <div className="bg-transparent md:bg-background md:border-1 pt-4 p-4 md:pt-8 md:p-8 rounded-none md:rounded-xl -mx-4 md:mx-0">
       {post.description && <div className="md:mt-0 mb-4 md:mb-8 bg-primary/10 text-lg text-muted-foreground border-1 rounded-xl p-4 font-mono">
         <div className="flex items-center mb-2 text-lg text-primary font-medium">
           <Info className="w-5 h-5 mr-2" />
@@ -97,12 +96,7 @@ async function PostContent({ post }: { post: Post }) {
         <>
           <article id="blog-content" className="prose prose-lg max-w-none dark:prose-invert 
           rounded-xl bg-background
-          prose-img:block prose-img:mx-auto prose-img:my-4 prose-img:rounded-lg prose-img:shadow-md prose-img:border prose-img:border-border
-          prose-a:text-primary prose-a:no-underline prose-a:font-medium prose-a:hover:underline prose-a:px-1
-          prose-h1:scroll-mt-24 prose-h2:scroll-mt-24 prose-h3:scroll-mt-24 prose-h4:scroll-mt-24
-          prose-blockquote:dark:border-primary/70
-          prose-blockquote:border-l-4 prose-blockquote:border-primary/70 prose-blockquote:bg-muted/50 prose-blockquote:px-4 prose-blockquote:py-2
-          text-sm
+          text-sm md:text-lg
           " dangerouslySetInnerHTML={{ __html: post.content }} />
           <HtmlEnhancer containerId="blog-content" />
         </>
@@ -140,7 +134,7 @@ export async function BlogPost({ post }: { post: Post }) {
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          className="lg:col-span-3 transition-none"
+          className="lg:col-span-3 transition-none "
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
           <PostContent post={post} />
           <div className={`bg-background mt-4 rounded-xl border border-border ${contentAreaPaddingClass} py-4 md:py-8`}>
