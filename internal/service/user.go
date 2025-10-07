@@ -233,7 +233,23 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 			logrus.Errorln("Failed to request GitHub user emails:", err)
 		} else if len(emails) > 0 {
 			// RequestUserEmails 已按策略返回：verified 且优先 primary -> public -> others
-			userInfo.Email = emails[0]
+			// 遍历邮箱，在数据库中找已存在的邮箱，找到直接赋值，找不到则使用第一个
+			emailFound := false
+			for _, email := range emails {
+				exists, err := repo.User.CheckEmailExists(email)
+				if err != nil {
+					logrus.Errorln("Failed to check email existence:", err)
+					return nil, errs.ErrInternalServer
+				}
+				if exists {
+					userInfo.Email = email
+					emailFound = true
+					break
+				}
+			}
+			if !emailFound && len(emails) > 0 {
+				userInfo.Email = emails[0]
+			}
 		}
 	}
 
