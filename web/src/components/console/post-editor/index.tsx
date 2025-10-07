@@ -22,7 +22,12 @@ import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { uploadFile } from '@/api/file'
 import Color from "@tiptap/extension-color"
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import { TextStyleKit } from '@tiptap/extension-text-style'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from "../common/post-meta-dialog-form";
+import {common, createLowlight} from 'lowlight'
+
+const lowlight = createLowlight(common)
 
 
 export function PostEditor() {
@@ -63,6 +68,7 @@ export function PostEditor() {
       Color.configure({ types: ["textStyle"] }),
       HorizontalRule,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
+      TextStyleKit,
       TaskList,
       TaskItem.configure({ nested: true }),
       Highlight.configure({ multicolor: true }),
@@ -70,6 +76,9 @@ export function PostEditor() {
       Typography,
       Superscript,
       Subscript,
+      CodeBlockLowlight.configure({
+        lowlight,
+      }),
       ImageUploadNode.configure({
         accept: "image/*",
         maxSize: MAX_FILE_SIZE,

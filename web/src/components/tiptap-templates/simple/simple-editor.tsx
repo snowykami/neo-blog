@@ -108,7 +108,6 @@ const MainToolbarContent = ({
             console.log(`Applied ${type} color: ${label} (${value})`)
           }
         />
-        
 
         <LinkPopover />
       </ToolbarGroup>

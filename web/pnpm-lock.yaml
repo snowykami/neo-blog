@@ -98,6 +98,9 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@tiptap/extension-code-block-lowlight':
+        specifier: ^3.6.5
+        version: 3.6.5(@tiptap/core@3.6.5(@tiptap/pm@3.6.5))(@tiptap/extension-code-block@3.6.5(@tiptap/core@3.6.5(@tiptap/pm@3.6.5))(@tiptap/pm@3.6.5))(@tiptap/pm@3.6.5)(highlight.js@11.11.1)(lowlight@3.3.0)
       '@tiptap/extension-color':
         specifier: ^3.6.5
         version: 3.6.5(@tiptap/extension-text-style@3.6.5(@tiptap/core@3.6.5(@tiptap/pm@3.6.5)))
@@ -185,6 +188,9 @@ importers:
       lodash.throttle:
         specifier: ^4.1.1
         version: 4.1.1
+      lowlight:
+        specifier: ^3.3.0
+        version: 3.3.0
       lucide-react:
         specifier: ^0.544.0
         version: 0.544.0(react@19.1.1)
@@ -1775,6 +1781,15 @@ packages:
     resolution: {integrity: sha512-AP81hyN7oTyv5zbNVRK35cQA7zuLnI5ItFFyqMQKWh90vfftXi/zhC9C7FWvKtEH7Kk68B338G2mi4tlXDgBFQ==}
     peerDependencies:
       '@tiptap/extension-list': ^3.6.5
+
+  '@tiptap/extension-code-block-lowlight@3.6.5':
+    resolution: {integrity: sha512-/LMFRigo9zXUXZ9CYuB/L3VKcGZHlwBeoZruSPctWZccKgwbTNdwdY2RJ6LUo/dIgC3YmlGUBwQo/WsZIKuFeg==}
+    peerDependencies:
+      '@tiptap/core': ^3.6.5
+      '@tiptap/extension-code-block': ^3.6.5
+      '@tiptap/pm': ^3.6.5
+      highlight.js: ^11
+      lowlight: ^2 || ^3
 
   '@tiptap/extension-code-block@3.6.5':
     resolution: {integrity: sha512-VPPke3LqZYKPlbDBp8IcTJQwvYb1PP0L+2Qi2n3ebN4+gKn+KGhrjnkO+xNHCySWlqywQmMTIfWX1sxA0eVVdQ==}
@@ -6484,6 +6499,14 @@ snapshots:
   '@tiptap/extension-bullet-list@3.6.5(@tiptap/extension-list@3.6.5(@tiptap/core@3.6.5(@tiptap/pm@3.6.5))(@tiptap/pm@3.6.5))':
     dependencies:
       '@tiptap/extension-list': 3.6.5(@tiptap/core@3.6.5(@tiptap/pm@3.6.5))(@tiptap/pm@3.6.5)
+
+  '@tiptap/extension-code-block-lowlight@3.6.5(@tiptap/core@3.6.5(@tiptap/pm@3.6.5))(@tiptap/extension-code-block@3.6.5(@tiptap/core@3.6.5(@tiptap/pm@3.6.5))(@tiptap/pm@3.6.5))(@tiptap/pm@3.6.5)(highlight.js@11.11.1)(lowlight@3.3.0)':
+    dependencies:
+      '@tiptap/core': 3.6.5(@tiptap/pm@3.6.5)
+      '@tiptap/extension-code-block': 3.6.5(@tiptap/core@3.6.5(@tiptap/pm@3.6.5))(@tiptap/pm@3.6.5)
+      '@tiptap/pm': 3.6.5
+      highlight.js: 11.11.1
+      lowlight: 3.3.0
 
   '@tiptap/extension-code-block@3.6.5(@tiptap/core@3.6.5(@tiptap/pm@3.6.5))(@tiptap/pm@3.6.5)':
     dependencies:
