@@ -253,6 +253,12 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		}
 	}
 
+	// 若请求的用户email不存在时，将email字段赋值为用户名@localhost继续（GitHub登录除外）
+	if userInfo.Email == "" && !strings.Contains(oidcConfig.TokenEndpoint, "https://github.com") {
+		userInfo.Email = userInfo.PreferredUsername + "@localhost"
+		logrus.Warnf("OIDC user info missing email, using fallback: %s", userInfo.Email)
+	}
+
 	if userInfo.Sub == "" || userInfo.Email == "" || userInfo.PreferredUsername == "" {
 		if userInfo.Sub == "" {
 			logrus.Errorln("OIDC user info missing sub")
@@ -322,8 +328,34 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 			return resp, nil
 		} else {
 			// 3.第一次登录，创建新用户时才获取头像
+			// 创建新用户时，先检查username是否存在，若username存在，尝试在后面追加随机字符串来解决冲突的问题
+			username := userInfo.PreferredUsername
+			usernameExists, err := repo.User.CheckUsernameExists(username)
+			if err != nil {
+				logrus.Errorln("Failed to check username existence:", err)
+				return nil, errs.ErrInternalServer
+			}
+			// 如果用户名已存在，尝试添加随机后缀
+			if usernameExists {
+				for i := 0; i < 10; i++ { // 最多尝试10次
+					randomSuffix := utils.Strings.GenerateRandomString(6)
+					newUsername := username + "_" + randomSuffix
+					exists, err := repo.User.CheckUsernameExists(newUsername)
+					if err != nil {
+						logrus.Errorln("Failed to check username existence:", err)
+						return nil, errs.ErrInternalServer
+					}
+					if !exists {
+						username = newUsername
+						logrus.Infof("Username conflict resolved: %s -> %s", userInfo.PreferredUsername, username)
+						break
+					}
+				}
+				// 如果10次尝试都失败了，使用最后一次生成的用户名（概率极低会冲突）
+			}
+
 			user = &model.User{
-				Username:  userInfo.PreferredUsername,
+				Username:  username,
 				Nickname:  userInfo.Name,
 				AvatarUrl: userInfo.Picture,
 				Email:     userInfo.Email,
