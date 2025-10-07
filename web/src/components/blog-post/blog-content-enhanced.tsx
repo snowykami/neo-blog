@@ -51,7 +51,7 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
       // build wrapper similar to markdown-codeblock, minimal DOM ops
       const wrapper = document.createElement("div");
       wrapper.className =
-        "relative my-0 rounded-2xl overflow-hidden bg-[#f5f5f7] dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 shadow-sm group";
+        "relative my-0 -mx-4 md:-mx-8 rounded-2xl overflow-hidden bg-[#f5f5f7] dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 shadow-sm group";
 
       const toolbar = document.createElement("div");
       toolbar.className =
@@ -100,7 +100,8 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
         "overflow-x-auto",
         "bg-transparent",
         "text-sm",
-        "p-0",
+        "p-4",
+        "md:p-8",
         "m-0",
         "rounded-t-none",
         "text-gray-800",
