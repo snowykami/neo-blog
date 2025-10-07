@@ -15,8 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
 import { useAuth } from "@/contexts/auth-context";
-import { DropdownMenu } from "@radix-ui/react-dropdown-menu";
-import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { useSiteInfo } from "@/contexts/site-info-context";
 import { Badge } from "@/components/ui/badge";
@@ -315,57 +314,50 @@ function CommentDropdownMenu(
   const { confirming: confirmingDelete, onClick: onDeleteClick } = useDoubleConfirm();
   const operationT = useTranslations("Operation");
   const [open, setOpen] = useState(false);
-  const [touchStarted, setTouchStarted] = useState(false);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStarted(true);
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStarted) {
-      setTouchStarted(false);
-      // Only open the menu if the touch ended (not just started)
-      setOpen(true);
-    }
-  };
-
-  const handleTouchCancel = () => {
-    setTouchStarted(false);
-  };
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button 
-          variant="ghost" 
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
           size="sm"
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchCancel}
         >
           <Ellipsis className="w-4 h-4" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        <DropdownMenuItem
-          className="cursor-pointer"
-          onClick={() => setActiveInputId({ id: comment.id, type: 'edit' })}>
-          {operationT("edit")}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={(e) => {
-            if (!confirmingDelete) {
-              e.preventDefault();
-              onDeleteClick(() => onCommentDelete({ commentId: comment.id }));
-            } else {
-              onDeleteClick(() => onCommentDelete({ commentId: comment.id }));
-            }
-          }}
-          className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer">
-          {confirmingDelete ? operationT("confirm_delete") : operationT("delete")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-1">
+        <div className="flex flex-col">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start cursor-pointer"
+            onClick={() => {
+              setActiveInputId({ id: comment.id, type: 'edit' });
+              setOpen(false);
+            }}
+          >
+            {operationT("edit")}
+          </Button>
+          <div className="h-px bg-border my-1" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start text-destructive"
+            onClick={(e) => {
+              // double confirm hook 控制是否需要二次确认
+              if (!confirmingDelete) {
+                e.preventDefault();
+                onDeleteClick(() => onCommentDelete({ commentId: comment.id }));
+              } else {
+                onDeleteClick(() => onCommentDelete({ commentId: comment.id }));
+                setOpen(false);
+              }
+            }}
+          >
+            {confirmingDelete ? operationT("confirm_delete") : operationT("delete")}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
