@@ -19,8 +19,10 @@ func UseEmailVerify() app.HandlerFunc {
 			resps.BadRequest(c, "缺失email和verifyCode")
 			return
 		}
+		// 如果全局关闭，则直接放行（并立即返回）
 		if !utils.Env.GetAsBool(constant.EnvKeyEnableEmailVerify, true) {
 			c.Next(ctx)
+			return
 		}
 		if req.Email == "" || req.VerifyCode == "" {
 			resps.BadRequest(c, "缺失email和verifyCode")
