@@ -10,7 +10,7 @@ import { getSiteInfo } from "@/api/misc";
 import Sidebar from "../blog-sidebar";
 import { SidebarAbout, SidebarLabels, SidebarMisskeyIframe } from "../blog-sidebar/blog-sidebar-card";
 import CopyrightCard from "./blog-copyright.client";
-import { navStickyTopPx } from "@/utils/common/layout-size";
+import { navStickyTopPx, contentAreaPaddingClass } from "@/utils/common/layout-size";
 import { BlogLikeButton } from "./blog-like-button.client";
 import { fallbackSiteInfo } from "@/utils/common/siteinfo";
 import { getTranslations } from "next-intl/server";
@@ -136,7 +136,7 @@ export async function BlogPost({ post }: { post: Post }) {
           className="lg:col-span-3 transition-none"
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
           <PostContent post={post} />
-          <div className="bg-background mt-4 p-0 md:p-8 rounded-xl border border-border">
+          <div className={`bg-background mt-4 rounded-xl border border-border ${contentAreaPaddingClass} py-4 md:py-8`}>
             <CommentSection targetType={TargetType.Post} ownerId={post.user.id} targetId={post.id} totalCount={post.commentCount} />
           </div>
         </motion.div>
