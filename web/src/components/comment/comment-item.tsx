@@ -257,7 +257,7 @@ export function CommentItem(
               </button>
               {/* 点赞按钮 */}
               <button
-                title={t(liked ? "unlike" : "like")}
+                title={liked ? "unlike" : "like"}
                 onClick={handleToggleLike}
                 className={`flex items-center justify-center px-2 py-1 h-5 gap-1 text-xs rounded 
                 ${liked ? 'bg-primary' : 'bg-slate-400 hover:bg-slate-600'}
