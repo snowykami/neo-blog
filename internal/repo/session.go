@@ -1,13 +1,12 @@
 package repo
 
 import (
-	"fmt"
-	"net"
 	"strings"
 
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type sessionRepo struct{}
@@ -34,10 +33,23 @@ func (s *sessionRepo) RevokeSession(sessionID string) error {
 
 // 在UserIP字段添加一条新的IP记录，记录格式为 "ip,timestamp;"
 func (s *sessionRepo) AddSessionIPRecord(sessionID string, ip string) error {
-	entry := utils.NewIPRecord(ip) // {timestamp},{ip};
-	return db.Model(&model.Session{}).
-		Where("session_id = ?", sessionID).
-		UpdateColumn("user_ip", gorm.Expr("CONCAT_WS('', COALESCE(user_ip, ''), ?)", entry)).Error
+	// 使用行级锁（SELECT ... FOR UPDATE）在事务内更新，避免并发拼接丢失
+	if sessionID == "" || ip == "" {
+		return nil
+	}
+	entry := utils.NewIPRecord(ip) // 格式：timestamp,ip;
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		var sess model.Session
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("session_id = ?", sessionID).
+			First(&sess).Error; err != nil {
+			return err
+		}
+		// 在锁保护下安全拼接并写回
+		return tx.Model(&sess).
+			UpdateColumn("user_ip", gorm.Expr("COALESCE(user_ip, '') || ?", entry)).Error
+	})
 }
 
 func (s *sessionRepo) GetSessionLastIP(sessionID string) (string, error) {
@@ -58,26 +70,18 @@ func (s *sessionRepo) GetSessionLastIP(sessionID string) (string, error) {
 	records := strings.Split(trimmed, ";")
 	lastRecord := strings.TrimSpace(records[len(records)-1])
 
-	// 期望格式 "timestamp,ip"
+	// 支持 "timestamp,ip" 格式；只要能取到非空 ip 字符串就返回
 	parts := strings.SplitN(lastRecord, ",", 2)
-	if len(parts) != 2 {
-		return "", fmt.Errorf("invalid IP record format")
+	var ipRaw string
+	if len(parts) == 2 {
+		ipRaw = strings.TrimSpace(parts[1])
+	} else {
+		// 若不符合 "time,ip" 格式，直接返回整条记录（简化需求）
+		ipRaw = lastRecord
 	}
 
-	ipRaw := strings.TrimSpace(parts[1])
 	if ipRaw == "" {
-		return "", fmt.Errorf("empty ip in record")
+		return "", nil
 	}
-
-	// 验证 IP（对带 zone 的 IPv6，去掉 zone 后验证）
-	ipToCheck := ipRaw
-	if idx := strings.Index(ipToCheck, "%"); idx >= 0 {
-		ipToCheck = ipToCheck[:idx]
-	}
-	if net.ParseIP(ipToCheck) == nil {
-		return "", fmt.Errorf("invalid IP address")
-	}
-
-	// 返回原始 ip 字符串（保留 zone 如果有）
 	return ipRaw, nil
 }
