@@ -154,7 +154,7 @@ func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, error) {
 				oidcConfig.Name,
 			),
 			"response_type": "code",
-			"scope":         "openid email profile user:email read:user",
+			"scope":         "openid email profile",
 			"state":         state,
 		})
 
@@ -237,7 +237,16 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		}
 	}
 
-	if userInfo.Sub == "" || userInfo.Email == "" {
+	if userInfo.Sub == "" || userInfo.Email == "" || userInfo.PreferredUsername == "" {
+		if userInfo.Sub == "" {
+			logrus.Errorln("OIDC user info missing sub")
+		}
+		if userInfo.Email == "" {
+			logrus.Errorln("OIDC user info missing email")
+		}
+		if userInfo.PreferredUsername == "" {
+			logrus.Errorln("OIDC user info missing preferred_username")
+		}
 		return nil, errs.New(http.StatusInternalServerError, "OIDC user info is missing required fields", nil)
 	}
 
