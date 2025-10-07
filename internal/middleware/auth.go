@@ -132,7 +132,7 @@ func recordUserIP(sessionId, ip string) error {
 	if sessionId == "" || ip == "" {
 		return nil
 	}
-	// 保留地址排除
+	// 保留地址排除，有可能是前端服务端在请求
 	if utils.IsReservedIP(ip) {
 		return nil
 	}
