@@ -81,6 +81,24 @@ func (s *KVStore) Delete(key string) {
 	delete(s.data, key)
 }
 
+// Lookup 检查键是否存在且未过期
+func (s *KVStore) Lookup(key string) bool {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	item, exists := s.data[key]
+	if !exists {
+		return false
+	}
+
+	// 检查是否过期
+	if item.expiration > 0 && time.Now().Unix() > item.expiration {
+		return false
+	}
+
+	return true
+}
+
 // Clear 清空所有键值对
 func (s *KVStore) Clear() {
 	s.mutex.Lock()

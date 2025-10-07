@@ -24,6 +24,7 @@ import { registerPath, resetPasswordPath } from "@/hooks/use-route"
 import { CurrentLogged } from "@/components/auth/common/current-logged"
 import { SectionDivider } from "@/components/common/section-divider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export function LoginForm({
   className,
@@ -42,6 +43,7 @@ export function LoginForm({
   const [isLogging, setIsLogging] = useState(false)
   const [refreshCaptchaKey, setRefreshCaptchaKey] = useState(0)
   const [{ username, password }, setCredentials] = useState({ username: '', password: '' })
+  const [rememberMe, setRememberMe] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectBack = searchParams.get("redirect_back") || "/"
@@ -71,7 +73,7 @@ export function LoginForm({
   const handleLogin = async (e: React.FormEvent) => {
     setIsLogging(true)
     e.preventDefault()
-    userLogin({ username, password, captcha: captchaToken || "" })
+    userLogin({ username, password, rememberMe, captcha: captchaToken || "" })
       .then(res => {
         toast.success(t("login_success") + ` ${res.data.user.nickname || res.data.user.username}`);
         setUser(res.data.user);
@@ -133,7 +135,16 @@ export function LoginForm({
               {/* 邮箱密码登录 */}
               <div className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="email">{t("email_or_username")}</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="email">{t("email_or_username")}</Label>
+                    <Label className="text-sm cursor-pointer">
+                      <Checkbox
+                        checked={rememberMe}
+                        onCheckedChange={checked => setRememberMe(!!checked)}
+                      />
+                      {t("remember_me")}
+                    </Label>
+                  </div>
                   <Input
                     id="email"
                     type="text"

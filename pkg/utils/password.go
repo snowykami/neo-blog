@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -13,7 +14,8 @@ type PasswordUtils struct {
 var Password = PasswordUtils{}
 
 // HashPassword 密码哈希函数
-func (u *PasswordUtils) HashPassword(password string, salt string) (string, error) {
+func (u *PasswordUtils) HashPassword(password string) (string, error) {
+	salt := Env.Get(constant.EnvKeyPasswordSalt, constant.DefaultPasswordSalt)
 	saltedPassword := Password.addSalt(password, salt)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(saltedPassword), bcrypt.DefaultCost)
 	if err != nil {
@@ -23,7 +25,8 @@ func (u *PasswordUtils) HashPassword(password string, salt string) (string, erro
 }
 
 // VerifyPassword 验证密码
-func (u *PasswordUtils) VerifyPassword(password, hashedPassword string, salt string) bool {
+func (u *PasswordUtils) VerifyPassword(password, hashedPassword string) bool {
+	salt := Env.Get(constant.EnvKeyPasswordSalt, constant.DefaultPasswordSalt)
 	if len(hashedPassword) == 0 || len(salt) == 0 {
 		// 防止oidc空密码出问题
 		return false

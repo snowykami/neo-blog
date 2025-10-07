@@ -27,22 +27,28 @@ func NewUserController() *UserController {
 }
 
 func (u *UserController) Login(ctx context.Context, c *app.RequestContext) {
-	var userLoginReq dto.UserLoginReq
+	// 绑定参数
+	userLoginReq := dto.UserLoginReq{
+		UserIP: c.ClientIP(),
+	}
 	if err := c.BindAndValidate(&userLoginReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
+	// 校验输入
 	if userLoginReq.Password == "" || userLoginReq.Username == "" {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
+	// 处理请求
 	resp, err := u.service.UserLogin(&userLoginReq)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		resps.Custom(c, serviceErr.Code, err.Error(), nil)
 		return
 	}
-	ctxutils.SetTokenAndRefreshTokenCookie(c, resp.Token, resp.RefreshToken)
+	// 设置Cookie并响应
+	ctxutils.Set2Tokens(c, resp.Token, resp.RefreshToken)
 	resps.Ok(c, resps.Success, utils.H{
 		"token": resp.Token,
 		"user":  resp.User,
@@ -50,27 +56,32 @@ func (u *UserController) Login(ctx context.Context, c *app.RequestContext) {
 }
 
 func (u *UserController) Register(ctx context.Context, c *app.RequestContext) {
-	var userRegisterReq dto.UserRegisterReq
+	// 绑定参数
+	userRegisterReq := dto.UserRegisterReq{
+		UserIP: c.ClientIP(),
+	}
 	if err := c.BindAndValidate(&userRegisterReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
+	// 校验输入
 	if userRegisterReq.Email == "" {
 		resps.BadRequest(c, "Email header is required")
 		return
 	}
 	if userRegisterReq.Password == "" || userRegisterReq.Username == "" {
-		resps.BadRequest(c, resps.ErrParamInvalid)
+		resps.BadRequest(c, "Username and password are required")
 		return
 	}
+	// 从Header获取Email
 	resp, err := u.service.UserRegister(&userRegisterReq)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
 		return
 	}
-
-	ctxutils.SetTokenAndRefreshTokenCookie(c, resp.Token, resp.RefreshToken)
+	// 设置Cookie并响应
+	ctxutils.Set2Tokens(c, resp.Token, resp.RefreshToken)
 	resps.Ok(c, resps.Success, utils.H{
 		"token": resp.Token,
 		"user":  resp.User,
@@ -78,16 +89,18 @@ func (u *UserController) Register(ctx context.Context, c *app.RequestContext) {
 }
 
 func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
-	ctxutils.ClearTokenAndRefreshTokenCookie(c)
-	repo.GetDB()
-	// 服务端吊销
-	sessionKey := ctx.Value(constant.ContextKeySessionKey).(string)
-	if sessionKey != "" {
-		err := repo.Session.RevokeSession(sessionKey)
-		if err != nil {
-			resps.InternalServerError(c, resps.ErrInternalServerError)
-			return
-		}
+	// 清除客户端Cookie
+	ctxutils.Clear2Tokens(c)
+	sessionId := ctx.Value("session_id").(string)
+	if sessionId == "" {
+		resps.Ok(c, resps.Success, nil)
+		return
+	}
+	// 服务端删除Session
+	err := repo.Session.RevokeSession(sessionId)
+	if err != nil {
+		resps.InternalServerError(c, err.Error())
+		return
 	}
 	resps.Ok(c, resps.Success, nil)
 }
@@ -96,14 +109,16 @@ func (u *UserController) OidcList(ctx context.Context, c *app.RequestContext) {
 	oidcConfigs, err := u.service.ListOidcConfigs()
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
+		resps.Custom(c, serviceErr.Code, err.Error(), nil)
 		return
 	}
 	resps.Ok(c, resps.Success, oidcConfigs)
 }
 
 func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
-	req := &dto.OidcLoginReq{}
+	req := &dto.OidcLoginReq{
+		UserIP: c.ClientIP(),
+	}
 	if err := c.Bind(req); err != nil {
 		resps.BadRequest(c, err.Error())
 		return
@@ -111,11 +126,13 @@ func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 	resp, err := u.service.OidcLogin(ctx, req)
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
+		resps.Custom(c, serviceErr.Code, err.Error(), nil)
 		return
 	}
-	ctxutils.SetTokenAndRefreshTokenCookie(c, resp.Token, resp.RefreshToken)
-	resps.Redirect(c, req.RedirectBack) // 重定向到前端路由
+	// 设置Cookie
+	ctxutils.Set2Tokens(c, resp.Token, resp.RefreshToken)
+	// 重定向回前端传来的页面
+	resps.Redirect(c, req.RedirectBack)
 }
 
 func (u *UserController) GetUser(ctx context.Context, c *app.RequestContext) {

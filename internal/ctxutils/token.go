@@ -3,20 +3,19 @@ package ctxutils
 import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol"
-	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
 func SetTokenCookie(c *app.RequestContext, token string) {
-	c.SetCookie("token", token, utils.Env.GetAsInt(constant.EnvKeyTokenDuration, constant.DefaultTokenDuration), "/", "", protocol.CookieSameSiteLaxMode, true, true)
+	c.SetCookie("token", token, int(utils.Jwt.TokenDuration.Seconds()), "/", "", protocol.CookieSameSiteLaxMode, true, true)
 }
 
-func SetTokenAndRefreshTokenCookie(c *app.RequestContext, token, refreshToken string) {
-	c.SetCookie("token", token, utils.Env.GetAsInt(constant.EnvKeyTokenDuration, constant.DefaultTokenDuration), "/", "", protocol.CookieSameSiteLaxMode, true, true)
-	c.SetCookie("refresh_token", refreshToken, utils.Env.GetAsInt(constant.EnvKeyRefreshTokenDuration, constant.DefaultRefreshTokenDuration), "/", "", protocol.CookieSameSiteLaxMode, true, true)
+func Set2Tokens(c *app.RequestContext, token, refreshToken string) {
+	c.SetCookie("token", token, int(utils.Jwt.TokenDuration.Seconds()), "/", "", protocol.CookieSameSiteLaxMode, true, true)
+	c.SetCookie("refresh_token", refreshToken, int(utils.Jwt.RefreshTokenDuration.Seconds()), "/", "", protocol.CookieSameSiteLaxMode, true, true)
 }
 
-func ClearTokenAndRefreshTokenCookie(c *app.RequestContext) {
+func Clear2Tokens(c *app.RequestContext) {
 	c.SetCookie("token", "", -1, "/", "", protocol.CookieSameSiteLaxMode, true, true)
 	c.SetCookie("refresh_token", "", -1, "/", "", protocol.CookieSameSiteLaxMode, true, true)
 }

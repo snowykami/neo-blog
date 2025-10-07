@@ -7,23 +7,35 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
-type jwtUtils struct{}
+type jwtUtils struct {
+	TokenDuration                      time.Duration
+	RefreshTokenDuration               time.Duration
+	RefreshTokenDurationWithRememberMe time.Duration
+}
 
-var Jwt = jwtUtils{}
+var Jwt = jwtUtils{
+	TokenDuration:                      time.Second * 60,    // 默认Token有效期
+	RefreshTokenDuration:               time.Hour * 24 * 3,  // 默认Refresh Token有效期
+	RefreshTokenDurationWithRememberMe: time.Hour * 24 * 15, // 记住我情况下的Refresh Token有效期
+}
 
 type Claims struct {
 	jwt.RegisteredClaims
-	UserID     uint   `json:"user_id"`
-	SessionKey string `json:"session_key"` // 会话ID，仅在有状态Token中使用
-	Stateful   bool   `json:"stateful"`    // 是否为有状态Token
+	UserID    uint   `json:"user_id"`
+	SessionID string `json:"session_id"` // 会话ID，仅在有状态Token中使用
 }
 
-// NewClaims 创建一个新的Claims实例，对于无状态
-func (j *jwtUtils) NewClaims(userID uint, sessionKey string, stateful bool, duration time.Duration) *Claims {
+// ToString 将Claims转换为JWT字符串
+func (c *Claims) ToString() (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, c)
+	return token.SignedString([]byte(Env.Get(constant.EnvKeyJwtSecrete, "default_jwt_secret")))
+}
+
+// NewClaims 创建一个新的Claims实例
+func (j *jwtUtils) NewClaims(userID uint, sessionID string, duration time.Duration) *Claims {
 	return &Claims{
-		UserID:     userID,
-		SessionKey: sessionKey,
-		Stateful:   stateful,
+		UserID:    userID,
+		SessionID: sessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),
@@ -31,10 +43,30 @@ func (j *jwtUtils) NewClaims(userID uint, sessionKey string, stateful bool, dura
 	}
 }
 
-// ToString 将Claims转换为JWT字符串
-func (c *Claims) ToString() (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, c)
-	return token.SignedString([]byte(Env.Get(constant.EnvKeyJwtSecrete, "default_jwt_secret")))
+func (j *jwtUtils) NewTokenClaims(userID uint, sessionID string) *Claims {
+	return j.NewClaims(userID, sessionID, j.TokenDuration)
+}
+
+func (j *jwtUtils) NewRefreshClaims(userID uint, sessionID string, rememberMe bool) *Claims {
+	if rememberMe {
+		return j.NewClaims(userID, sessionID, j.RefreshTokenDurationWithRememberMe)
+	}
+	return j.NewClaims(userID, sessionID, j.RefreshTokenDuration)
+}
+
+// New2Tokens 同时生成访问Token和刷新Token，自行处理持久化
+func (j *jwtUtils) New2Tokens(userID uint, sessionID string, rememberMe bool) (tokenString, refreshTokenString string, err error) {
+	tokenClaims := j.NewTokenClaims(userID, sessionID)
+	tokenString, err = tokenClaims.ToString()
+	if err != nil {
+		return "", "", err
+	}
+	refreshClaims := j.NewRefreshClaims(userID, sessionID, rememberMe)
+	refreshTokenString, err = refreshClaims.ToString()
+	if err != nil {
+		return "", "", err
+	}
+	return tokenString, refreshTokenString, nil
 }
 
 // ParseJsonWebTokenWithoutState 解析JWT令牌，仅检查无状态下是否valid，不对有状态的Token进行状态检查

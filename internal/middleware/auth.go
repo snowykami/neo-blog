@@ -8,82 +8,82 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
-	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	"github.com/snowykami/neo-blog/pkg/utils"
+	"golang.org/x/sync/singleflight"
 )
+
+var ipCacheDuration = 30 * time.Minute
+var ipSingleflight singleflight.Group
 
 func UseAuth(block bool) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
-		// For cookie
-		req := &dto.AuthReq{}
-		err := c.Bind(req)
-		if err != nil {
-			logrus.Errorf("UseAuth: failed to bind request: %v", err)
+		token := string(c.Cookie("token"))
+		if token == "" {
+			token = strings.TrimPrefix(string(c.GetHeader("Authorization")), "Bearer ")
 		}
-		req.TokenFromHeader = strings.TrimPrefix(req.TokenFromHeader, "Bearer ")
-		// 尝试用普通 tokenFromCookie 认证
-		if req.TokenFromCookie != "" {
-			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(req.TokenFromCookie)
+
+		// 解析 无状态token
+		if token != "" {
+			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(token)
 			if err == nil && tokenClaims != nil {
-				ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
-				ctx = context.WithValue(ctx, constant.ContextKeySessionKey, tokenClaims.SessionKey)
-				c.Next(ctx)
-				logrus.Debugf("User: %d , SessionKey: %s pass", tokenClaims.UserID, tokenClaims.SessionKey)
-				return
-			}
-			logrus.Debugf("Auth failed, error: %v", err)
-		}
-		// tokenFromCookie 认证失败，尝试用 Bearer tokenFromHeader 认证
-		if req.TokenFromHeader != "" {
-			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(req.TokenFromHeader)
-			if err == nil && tokenClaims != nil {
-				ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
-				ctx = context.WithValue(ctx, constant.ContextKeySessionKey, tokenClaims.SessionKey)
-				c.Next(ctx)
-				logrus.Debugf("UseAuth: tokenFromHeader authenticated successfully, userID: %d", tokenClaims.UserID)
-				return
-			}
-			logrus.Debugf("UseAuth: tokenFromHeader authentication failed, error: %v", err)
-		}
-		// tokenFromCookie 失效 使用 refresh tokenFromCookie 重新签发和鉴权
-		refreshTokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(req.RefreshTokenFromCookie)
-		if err == nil && refreshTokenClaims != nil {
-			// 检查refresh token有效期
-			ok, err := isStatefulJwtValid(refreshTokenClaims)
-			if err == nil && ok {
-				ctx = context.WithValue(ctx, constant.ContextKeyUserID, refreshTokenClaims.UserID)
-				ctx = context.WithValue(ctx, constant.ContextKeySessionKey, refreshTokenClaims.SessionKey)
-				// 生成新 tokenFromCookie
-				newTokenClaims := utils.Jwt.NewClaims(
-					refreshTokenClaims.UserID,
-					refreshTokenClaims.SessionKey,
-					refreshTokenClaims.Stateful,
-					time.Duration(utils.Env.GetAsInt(constant.EnvKeyRefreshTokenDuration, 30)*int(time.Hour)),
-				)
-				newToken, err := newTokenClaims.ToString()
-				if err == nil {
-					ctxutils.SetTokenCookie(c, newToken)
-				} else {
-					resps.InternalServerError(c, resps.ErrInternalServerError)
+				ctx = context.WithValue(ctx, "user_id", tokenClaims.UserID)
+				ctx = context.WithValue(ctx, "session_id", tokenClaims.SessionID)
+				err := recordUserIP(tokenClaims.SessionID, c.ClientIP())
+				if err != nil {
+					logrus.Warnf("recordUserIP error: %v", err)
 				}
+				logrus.Debugf("user_id: %d, session_id: %s pass", tokenClaims.UserID, tokenClaims.SessionID)
 				c.Next(ctx)
-				logrus.Debugf("UseAuth: refreshToken authenticated successfully, userID: %d", refreshTokenClaims.UserID)
 				return
 			}
 		}
 
-		// 所有认证方式都失败
+		// token解析失败，尝试解析 有状态 refresh token
+		refreshToken := string(c.Cookie("refresh_token"))
+		if refreshToken != "" {
+			refreshTokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(refreshToken)
+			if err == nil || refreshTokenClaims != nil {
+				valid, err := isStatefulJwtValid(refreshTokenClaims)
+				if err == nil && valid {
+					// 刷新双token
+					newToken, newRefreshToken, err := utils.Jwt.New2Tokens(refreshTokenClaims.UserID, refreshTokenClaims.SessionID, false)
+					if err != nil {
+						resps.InternalServerError(c, "Failed to generate new tokens")
+						c.Abort()
+						return
+					}
+					// 判断refreshToken有效期是否充足，若是则赋值为旧的refreshToken，这是为了应对rememberMe策略的长session
+					if time.Until(refreshTokenClaims.ExpiresAt.Time) > 30*time.Minute {
+						newRefreshToken = refreshToken
+					}
+
+					ctxutils.Set2Tokens(c, newToken, newRefreshToken)
+					ctx = context.WithValue(ctx, "user_id", refreshTokenClaims.UserID)
+					ctx = context.WithValue(ctx, "session_id", refreshTokenClaims.SessionID)
+					err = recordUserIP(refreshTokenClaims.SessionID, c.ClientIP())
+					if err != nil {
+						logrus.Warnf("recordUserIP error: %v", err)
+					}
+					logrus.Debugf("user_id: %d, session_id: %s refresh pass", refreshTokenClaims.UserID, refreshTokenClaims.SessionID)
+					c.Next(ctx)
+					return
+				}
+			}
+		}
+
+		// 认证失败
 		if block {
-			logrus.Debug("UseAuth: all authentication methods failed, blocking request")
+			logrus.Debug("UseAuth: failed and blocking request")
 			resps.Unauthorized(c, resps.ErrUnauthorized)
 			c.Abort()
-		} else {
-			logrus.Debug("UseAuth: all authentication methods failed, pass request")
-			c.Next(ctx)
+			return
 		}
+		// 不阻断请求，继续传递
+		logrus.Debug("UseAuth: failed but not blocking request")
+		c.Next(ctx)
 	}
 }
 
@@ -92,34 +92,29 @@ func UseAuth(block bool) app.HandlerFunc {
 // admin包含editor， editor包含user
 func UseRole(requiredRole string) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
-		currentUserID := ctx.Value(constant.ContextKeyUserID)
-		if currentUserID == nil {
+		currentUser, ok := ctxutils.GetCurrentUser(ctx)
+		if !ok || currentUser == nil {
 			resps.Unauthorized(c, resps.ErrUnauthorized)
 			c.Abort()
 			return
 		}
-		userID := currentUserID.(uint)
-		user, err := repo.User.GetUserByID(userID)
-		if err != nil {
-			resps.InternalServerError(c, resps.ErrInternalServerError)
-			c.Abort()
-			return
-		}
-		if user == nil {
-			resps.Unauthorized(c, resps.ErrUnauthorized)
-			c.Abort()
-			return
-		}
-
-		roleHierarchy := map[string]int{
-			constant.RoleUser:   1,
-			constant.RoleEditor: 2,
-			constant.RoleAdmin:  3,
-		}
-		userRoleLevel := roleHierarchy[user.Role]
-		requiredRoleLevel := roleHierarchy[requiredRole]
-		if userRoleLevel < requiredRoleLevel {
-			resps.Forbidden(c, resps.ErrForbidden)
+		switch requiredRole {
+		case constant.RoleAdmin:
+			if !currentUser.IsAdmin() {
+				resps.Forbidden(c, resps.ErrForbidden)
+				c.Abort()
+				return
+			}
+		case constant.RoleEditor:
+			if !(currentUser.IsAdmin() || currentUser.IsEditor()) {
+				resps.Forbidden(c, resps.ErrForbidden)
+				c.Abort()
+				return
+			}
+		case constant.RoleUser:
+			// 所有登录用户均为user，无需额外检查
+		default:
+			resps.InternalServerError(c, "Invalid role configuration")
 			c.Abort()
 			return
 		}
@@ -128,8 +123,53 @@ func UseRole(requiredRole string) app.HandlerFunc {
 }
 
 func isStatefulJwtValid(claims *utils.Claims) (bool, error) {
-	if !claims.Stateful {
-		return true, nil
+	return repo.Session.IsSessionValid(claims.SessionID)
+}
+
+// 这块缓存到kv中，当kv中没有时再查库，然后更新到数据库，ip缓存时间为30分钟，防止内存中存储过多ip
+func recordUserIP(sessionId, ip string) error {
+	// 参数校验
+	if sessionId == "" || ip == "" {
+		return nil
 	}
-	return repo.Session.IsSessionValid(claims.SessionKey)
+
+	kv := utils.KV.GetInstance()
+	key := "session_ip_" + sessionId
+
+	// 先尝试从 KV 读取，若一致则直接返回
+	if v, ok := kv.Get(key); ok {
+		if cur, _ := v.(string); cur == ip {
+			return nil
+		}
+	}
+
+	// singleflight 避免并发短时间内多次写 DB
+	_, err, _ := ipSingleflight.Do(key, func() (interface{}, error) {
+		// 再次校验 KV，减少窗口期写入
+		if v2, ok2 := kv.Get(key); ok2 {
+			if cur2, _ := v2.(string); cur2 == ip {
+				return nil, nil
+			}
+		}
+
+		// 从 DB 读取最后一次 IP（防止 KV 丢失导致重复写）
+		lastIP, dbErr := repo.Session.GetSessionLastIP(sessionId)
+		if dbErr != nil {
+			return nil, dbErr
+		}
+		if lastIP == ip {
+			// 更新 KV 并结束
+			kv.Set(key, ip, ipCacheDuration)
+			return nil, nil
+		}
+
+		// 写入 DB（附带时间戳），写成功后再更新 KV
+		if dbErr = repo.Session.AddSessionIPRecord(sessionId, ip); dbErr != nil {
+			return nil, dbErr
+		}
+		kv.Set(key, ip, ipCacheDuration)
+		return nil, nil
+	})
+
+	return err
 }

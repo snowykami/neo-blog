@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"text/template"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/pkg/constant"
@@ -73,4 +74,8 @@ func GetLocationString(ip string) string {
 		return ""
 	}
 	return buf.String()
+}
+
+func NewIPRecord(ip string) string {
+	return fmt.Sprintf("%d,%s;", time.Now().Unix(), ip)
 }

@@ -20,8 +20,10 @@ type UserOidcConfigDto struct {
 	LoginUrl    string `json:"login_url"`    // OIDC登录URL
 }
 type UserLoginReq struct {
-	Username string `json:"username"` // username or email
-	Password string `json:"password"`
+	Username   string `json:"username"` // username or email
+	Password   string `json:"password"`
+	RememberMe bool   `json:"remember_me" default:"false"`
+	UserIP     string
 }
 
 type UserLoginResp struct {
@@ -35,6 +37,7 @@ type UserRegisterReq struct {
 	Nickname string `json:"nickname"` // 昵称
 	Password string `json:"password"` // 密码
 	Email    string `header:"X-Email" json:"-" binding:"-"`
+	UserIP   string
 }
 
 type UserRegisterResp struct {
@@ -54,8 +57,10 @@ type VerifyEmailResp struct {
 type OidcLoginReq struct {
 	Name         string `path:"name" validate:"required"`
 	Code         string `query:"code" validate:"required"`
-	State        string `query:"state"`
-	RedirectBack string `query:"redirect_back" default:"/"` // 这是个非标的，前端REPLACE填充生成的
+	State        string `query:"state" validate:"required"`
+	RedirectBack string `query:"redirect_back" default:"/"` // 非标，前端获取到的登录链接里面有后端拼接REDIRECT_BACK占位符，
+	IsBind       bool   `query:"is_bind" default:"false"`   // 非标，是否是绑定操作
+	UserIP       string
 }
 
 type OidcLoginResp struct {

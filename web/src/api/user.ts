@@ -9,7 +9,7 @@ export async function userLogin(
   {
     username,
     password,
-    rememberMe,
+    rememberMe = false,
     captcha
   }: {
     username: string,

@@ -5,12 +5,11 @@ import (
 
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
-	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
 // GetCurrentUser 从上下文中获取当前用户
 func GetCurrentUser(ctx context.Context) (*model.User, bool) {
-	val := ctx.Value(constant.ContextKeyUserID)
+	val := ctx.Value("user_id")
 	if val == nil {
 		return nil, false
 	}
@@ -18,7 +17,6 @@ func GetCurrentUser(ctx context.Context) (*model.User, bool) {
 	if err != nil {
 		return nil, false
 	}
-
 	return user, true
 }
 
