@@ -154,7 +154,7 @@ func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, error) {
 				oidcConfig.Name,
 			),
 			"response_type": "code",
-			"scope":         "openid email profile",
+			"scope":         "openid email profile user:email read:user",
 			"state":         state,
 		})
 
@@ -221,7 +221,22 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		return nil, errs.ErrInternalServer
 	}
 
-	// 校验userinfo
+	// GitHub 特例处理：没有 sub 时用不可变 id 做 sub（加 provider 前缀），并尝试获取优先邮箱
+	if strings.Contains(oidcConfig.TokenEndpoint, "https://github.com") {
+		// 用 provider 前缀 + immutable id 作为 sub，避免后续冲突
+		userInfo.PreferredUsername = userInfo.Login
+		if userInfo.Sub == "" && userInfo.ID != 0 {
+			userInfo.Sub = fmt.Sprintf("github:%d", userInfo.ID)
+		}
+		emails, err := utils.Oidc.RequestUserEmails("https://api.github.com/user/emails", tokenResp.AccessToken)
+		if err != nil {
+			logrus.Errorln("Failed to request GitHub user emails:", err)
+		} else if len(emails) > 0 {
+			// RequestUserEmails 已按策略返回：verified 且优先 primary -> public -> others
+			userInfo.Email = emails[0]
+		}
+	}
+
 	if userInfo.Sub == "" || userInfo.Email == "" {
 		return nil, errs.New(http.StatusInternalServerError, "OIDC user info is missing required fields", nil)
 	}
