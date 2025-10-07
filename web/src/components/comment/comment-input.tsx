@@ -32,6 +32,7 @@ export function CommentInput(
 ) {
   const { user } = useAuth();
   const t = useTranslations('Comment')
+  const commonT = useTranslations('Common')
   const operationT = useTranslations('Operation')
   const clickToLogin = useToLogin()
   const clickToUserProfile = useToUserProfile();
@@ -75,7 +76,7 @@ export function CommentInput(
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <Textarea
-            placeholder={placeholder || (user ? (isPrivate ? t("private_placeholder") : t("placeholder")) : t("login_required", { loginButton: "登录" }))}
+            placeholder={placeholder || (user ? (isPrivate ? t("private_placeholder") : t("placeholder")) : commonT("login_required", { loginButton: "登录" }))}
             className="w-full p-2 border border-gray-300 rounded-md fade-in-up"
             value={commentContent}
             onChange={(e) => setCommentContent(e.target.value)}

@@ -82,7 +82,7 @@ async function PostMetaWhite({ post }: { post: Post }) {
 async function PostContent({ post }: { post: Post }) {
   const t = await getTranslations("Common")
   return (
-    <div className="bg-transparent md:bg-background md:border-1 pt-4 p-4 md:pt-8 md:p-8 rounded-none md:rounded-xl -mx-4 md:mx-0">
+    <div className="bg-transparent md:bg-background md:border-1 pt-4 px-2 md:px-8 md:pt-8 md:p-8 rounded-none md:rounded-xl">
       {post.description && <div className="md:mt-0 mb-4 md:mb-8 bg-primary/10 text-lg text-muted-foreground border-1 rounded-xl p-4 font-mono">
         <div className="flex items-center mb-2 text-lg text-primary font-medium">
           <Info className="w-5 h-5 mr-2" />
