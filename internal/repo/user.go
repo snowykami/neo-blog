@@ -1,12 +1,20 @@
 package repo
 
-import "github.com/snowykami/neo-blog/internal/model"
+import (
+	"net/http"
+
+	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/pkg/errs"
+)
 
 type userRepo struct{}
 
 var User = &userRepo{}
 
 func (user *userRepo) GetUserByUsername(username string) (*model.User, error) {
+	if username == "" {
+		return nil, errs.New(http.StatusBadRequest, "username is required", nil)
+	}
 	var userModel model.User
 	if err := GetDB().Where("username = ?", username).First(&userModel).Error; err != nil {
 		return nil, err
@@ -15,6 +23,9 @@ func (user *userRepo) GetUserByUsername(username string) (*model.User, error) {
 }
 
 func (user *userRepo) GetUserByEmail(email string) (*model.User, error) {
+	if email == "" {
+		return nil, errs.New(http.StatusBadRequest, "email is required", nil)
+	}
 	var userModel model.User
 	if err := GetDB().Where("email = ?", email).First(&userModel).Error; err != nil {
 		return nil, err
@@ -31,6 +42,9 @@ func (user *userRepo) GetUserByID(id uint) (*model.User, error) {
 }
 
 func (user *userRepo) GetUserByUsernameOrEmail(usernameOrEmail string) (*model.User, error) {
+	if usernameOrEmail == "" {
+		return nil, errs.New(http.StatusBadRequest, "username or email is required", nil)
+	}
 	var userModel model.User
 	if err := GetDB().Where("username = ? OR email = ?", usernameOrEmail, usernameOrEmail).First(&userModel).Error; err != nil {
 		return nil, err
@@ -76,6 +90,9 @@ func (user *userRepo) CreateOrUpdateUserOpenID(userOpenID *model.UserOpenID) err
 }
 
 func (user *userRepo) GetUserOpenIDByIssuerAndSub(issuer, sub string) (*model.UserOpenID, error) {
+	if issuer == "" || sub == "" {
+		return nil, errs.New(http.StatusBadRequest, "issuer and sub are required", nil)
+	}
 	var userOpenID model.UserOpenID
 	if err := GetDB().Where("issuer = ? AND sub = ?", issuer, sub).First(&userOpenID).Error; err != nil {
 		return nil, err
