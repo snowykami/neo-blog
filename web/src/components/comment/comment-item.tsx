@@ -314,10 +314,35 @@ function CommentDropdownMenu(
 ) {
   const { confirming: confirmingDelete, onClick: onDeleteClick } = useDoubleConfirm();
   const operationT = useTranslations("Operation");
+  const [open, setOpen] = useState(false);
+  const [touchStarted, setTouchStarted] = useState(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStarted(true);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStarted) {
+      setTouchStarted(false);
+      // Only open the menu if the touch ended (not just started)
+      setOpen(true);
+    }
+  };
+
+  const handleTouchCancel = () => {
+    setTouchStarted(false);
+  };
+
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm">
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
+        >
           <Ellipsis className="w-4 h-4" />
         </Button>
       </DropdownMenuTrigger>
