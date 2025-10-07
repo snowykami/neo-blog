@@ -8,6 +8,7 @@ const (
 	ContextKeyUserID     = "user_id"     // 上下文键：用户ID
 	ContextKeyRemoteAddr = "remote_addr" // 上下文键：远程地址
 	ContextKeyUserAgent  = "user_agent"  // 上下文键：用户代理
+	ContextKeySessionKey = "session_key"
 	ModeDev              = "dev"
 	ModeProd             = "prod"
 	RoleUser             = "user"   // 普通用户 仅有阅读和评论权限

@@ -8,6 +8,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -31,8 +32,11 @@ func (u *UserController) Login(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
+	if userLoginReq.Password == "" || userLoginReq.Username == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
 	resp, err := u.service.UserLogin(&userLoginReq)
-
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
@@ -51,14 +55,15 @@ func (u *UserController) Register(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	email := strings.TrimSpace(string(c.GetHeader("X-Email")))
-	if email == "" {
+	if userRegisterReq.Email == "" {
 		resps.BadRequest(c, "Email header is required")
 		return
 	}
-	userRegisterReq.Email = email
+	if userRegisterReq.Password == "" || userRegisterReq.Username == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
 	resp, err := u.service.UserRegister(&userRegisterReq)
-
 	if err != nil {
 		serviceErr := errs.AsServiceError(err)
 		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
@@ -74,9 +79,17 @@ func (u *UserController) Register(ctx context.Context, c *app.RequestContext) {
 
 func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 	ctxutils.ClearTokenAndRefreshTokenCookie(c)
+	repo.GetDB()
+	// 服务端吊销
+	sessionKey := ctx.Value(constant.ContextKeySessionKey).(string)
+	if sessionKey != "" {
+		err := repo.Session.RevokeSession(sessionKey)
+		if err != nil {
+			resps.InternalServerError(c, resps.ErrInternalServerError)
+			return
+		}
+	}
 	resps.Ok(c, resps.Success, nil)
-	// 尝试吊销服务端状态：若用户登录的情况下
-	// TODO: 添加服务端状态的吊销逻辑
 }
 
 func (u *UserController) OidcList(ctx context.Context, c *app.RequestContext) {

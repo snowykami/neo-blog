@@ -34,7 +34,7 @@ type UserRegisterReq struct {
 	Username string `json:"username"` // 用户名
 	Nickname string `json:"nickname"` // 昵称
 	Password string `json:"password"` // 密码
-	Email    string `json:"-" binding:"-"`
+	Email    string `header:"X-Email" json:"-" binding:"-"`
 }
 
 type UserRegisterResp struct {

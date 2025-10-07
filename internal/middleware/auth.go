@@ -24,23 +24,24 @@ func UseAuth(block bool) app.HandlerFunc {
 			logrus.Errorf("UseAuth: failed to bind request: %v", err)
 		}
 		req.TokenFromHeader = strings.TrimPrefix(req.TokenFromHeader, "Bearer ")
-
 		// 尝试用普通 tokenFromCookie 认证
 		if req.TokenFromCookie != "" {
 			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(req.TokenFromCookie)
 			if err == nil && tokenClaims != nil {
 				ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
+				ctx = context.WithValue(ctx, constant.ContextKeySessionKey, tokenClaims.SessionKey)
 				c.Next(ctx)
-				logrus.Debugf("UseAuth: tokenFromCookie authenticated successfully, userID: %d", tokenClaims.UserID)
+				logrus.Debugf("User: %d , SessionKey: %s pass", tokenClaims.UserID, tokenClaims.SessionKey)
 				return
 			}
-			logrus.Debugf("UseAuth: tokenFromCookie authentication failed, error: %v", err)
+			logrus.Debugf("Auth failed, error: %v", err)
 		}
 		// tokenFromCookie 认证失败，尝试用 Bearer tokenFromHeader 认证
 		if req.TokenFromHeader != "" {
 			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(req.TokenFromHeader)
 			if err == nil && tokenClaims != nil {
 				ctx = context.WithValue(ctx, constant.ContextKeyUserID, tokenClaims.UserID)
+				ctx = context.WithValue(ctx, constant.ContextKeySessionKey, tokenClaims.SessionKey)
 				c.Next(ctx)
 				logrus.Debugf("UseAuth: tokenFromHeader authenticated successfully, userID: %d", tokenClaims.UserID)
 				return
@@ -50,9 +51,11 @@ func UseAuth(block bool) app.HandlerFunc {
 		// tokenFromCookie 失效 使用 refresh tokenFromCookie 重新签发和鉴权
 		refreshTokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(req.RefreshTokenFromCookie)
 		if err == nil && refreshTokenClaims != nil {
+			// 检查refresh token有效期
 			ok, err := isStatefulJwtValid(refreshTokenClaims)
 			if err == nil && ok {
 				ctx = context.WithValue(ctx, constant.ContextKeyUserID, refreshTokenClaims.UserID)
+				ctx = context.WithValue(ctx, constant.ContextKeySessionKey, refreshTokenClaims.SessionKey)
 				// 生成新 tokenFromCookie
 				newTokenClaims := utils.Jwt.NewClaims(
 					refreshTokenClaims.UserID,

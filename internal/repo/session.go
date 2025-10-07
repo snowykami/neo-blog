@@ -21,3 +21,7 @@ func (s *sessionRepo) IsSessionValid(sessionKey string) (bool, error) {
 	}
 	return count > 0, nil
 }
+
+func (s *sessionRepo) RevokeSession(sessionKey string) error {
+	return db.Where("session_key = ?", sessionKey).Delete(&model.Session{}).Error
+}
