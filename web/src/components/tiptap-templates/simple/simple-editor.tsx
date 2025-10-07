@@ -160,7 +160,7 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
         <div className="max-w-[900px] w-full mx-auto h-full flex flex-col flex-1 box-border overflow-auto">
           <Toolbar
             ref={toolbarRef}
-            className="editor-toolbar sticky top-0 z-10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm flex flex-wrap items-center gap-3 px-4 py-3 w-full min-h-[60px] sm:min-h-[40px]"
+            className="editor-toolbar sticky top-0 z-10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm flex items-center gap-3 px-4 py-3 w-full min-h-[60px] sm:min-h-[40px]"
             style={{
               WebkitOverflowScrolling: "touch",
               touchAction: "auto",

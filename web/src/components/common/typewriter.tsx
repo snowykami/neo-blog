@@ -35,7 +35,7 @@ export default function Typewriter({
   }, []);
 
   return (
-    <div style={{ whiteSpace: "pre-wrap", position: "relative", fontSize: "0.875rem" }}>
+    <div style={{ whiteSpace: "pre-wrap", position: "relative", fontSize: "0.875rem", overflowWrap: "anywhere", wordWrap: "break-word" }}>
       {/* 预先撑开高度的隐藏文本 */}
       {reserveHeight && (
         <div aria-hidden="true" style={{ visibility: "hidden", height: "auto" }}>

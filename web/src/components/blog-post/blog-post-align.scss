@@ -23,3 +23,37 @@ article img {
   max-width: 100%;
   height: auto;
 }
+
+/* Prevent text overflow in article content */
+article {
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+  max-width: 100%;
+}
+
+/* Handle long unbreakable strings (URLs, code, etc.) */
+article p,
+article li,
+article td,
+article th,
+article div {
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+}
+
+/* Specifically handle code blocks and pre elements */
+article pre,
+article code {
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  max-width: 100%;
+}
+
+/* Handle tables to prevent overflow */
+article table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  word-wrap: break-word;
+}
