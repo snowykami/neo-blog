@@ -75,6 +75,9 @@ func (user *userRepo) CheckUsernameExists(username string) (bool, error) {
 }
 
 func (user *userRepo) CheckEmailExists(email string) (bool, error) {
+	if email == "" {
+		return false, errs.New(http.StatusBadRequest, "email is required", nil)
+	}
 	var count int64
 	if err := GetDB().Model(&model.User{}).Where("email = ?", email).Count(&count).Error; err != nil {
 		return false, err
