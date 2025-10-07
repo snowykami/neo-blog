@@ -50,14 +50,17 @@
     }
 
     @media (max-width: 480px) {
-      position: absolute;
-      top: auto;
-      height: calc(var(--tt-toolbar-height) + var(--tt-safe-area-bottom));
-      border-top: 1px solid var(--tt-toolbar-border-color);
-      border-bottom: none;
-      padding: 0 0.5rem var(--tt-safe-area-bottom);
+      position: sticky;
+      top: 0;
+      height: auto;
+      min-height: var(--tt-toolbar-height);
+      max-height: calc(var(--tt-toolbar-height) * 2);
+      border-top: none;
+      border-bottom: 1px solid var(--tt-toolbar-border-color);
+      padding: 0 0.5rem;
       /* single row toolbar with horizontal scrolling on mobile */
       flex-wrap: nowrap;
+      overflow-y: hidden;
     }
   }
 
