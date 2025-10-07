@@ -6,7 +6,6 @@ import { Editor, EditorContent, EditorContext } from "@tiptap/react"
 // --- Tiptap Core Extensions ---
 
 // --- UI Primitives ---
-import { Button } from "@/components/tiptap-ui-primitive/button"
 import { Spacer } from "@/components/tiptap-ui-primitive/spacer"
 import {
   Toolbar,
@@ -32,25 +31,17 @@ import { BlockquoteButton } from "@/components/tiptap-ui/blockquote-button"
 import { CodeBlockButton } from "@/components/tiptap-ui/code-block-button"
 import {
   ColorHighlightPopover,
-  ColorHighlightPopoverContent,
-  ColorHighlightPopoverButton,
 } from "@/components/tiptap-ui/color-highlight-popover"
 import {
   LinkPopover,
-  LinkContent,
-  LinkButton,
 } from "@/components/tiptap-ui/link-popover"
 import { MarkButton } from "@/components/tiptap-ui/mark-button"
 import { TextAlignButton } from "@/components/tiptap-ui/text-align-button"
 import { UndoRedoButton } from "@/components/tiptap-ui/undo-redo-button"
 
 // --- Icons ---
-import { ArrowLeftIcon } from "@/components/tiptap-icons/arrow-left-icon"
-import { HighlighterIcon } from "@/components/tiptap-icons/highlighter-icon"
-import { LinkIcon } from "@/components/tiptap-icons/link-icon"
 
 // --- Hooks ---
-import { useCursorVisibility } from "@/hooks/use-cursor-visibility"
 
 // --- Components ---
 import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle"
@@ -66,14 +57,18 @@ import '@/styles/_keyframe-animations.scss';
 
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
+import { ColorTextPopover } from "@/components/tiptap-ui/color-text-popover"
+import { ColorTextButton } from "@/components/tiptap-ui/color-text-button"
 
 
 const MainToolbarContent = ({
   onHighlighterClick,
   onLinkClick,
+  editor,
 }: {
   onHighlighterClick: () => void
   onLinkClick: () => void
+  editor: Editor
 }) => {
   return (
     <>
@@ -87,10 +82,11 @@ const MainToolbarContent = ({
       <ToolbarSeparator />
 
       <ToolbarGroup>
-        <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={false} />
+        {/* 使用 portal 渲染，避免下拉影响工具条布局 */}
+        <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={true} />
         <ListDropdownMenu
           types={["bulletList", "orderedList", "taskList"]}
-          portal={false}
+          portal={true}
         />
         <BlockquoteButton />
         <CodeBlockButton />
@@ -104,7 +100,16 @@ const MainToolbarContent = ({
         <MarkButton type="strike" />
         <MarkButton type="code" />
         <MarkButton type="underline" />
-        <ColorHighlightPopover />
+
+        <ColorTextPopover
+          editor={editor}
+          hideWhenUnavailable={true}
+          onColorChanged={({ type, label, value }) =>
+            console.log(`Applied ${type} color: ${label} (${value})`)
+          }
+        />
+        
+
         <LinkPopover />
       </ToolbarGroup>
 
@@ -164,8 +169,9 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
             }}
           >
             <MainToolbarContent
-              onHighlighterClick={() => {}}
-              onLinkClick={() => {}}
+              onHighlighterClick={() => { }}
+              onLinkClick={() => { }}
+              editor={editor}
             />
           </Toolbar>
 

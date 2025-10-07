@@ -21,6 +21,7 @@ import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { uploadFile } from '@/api/file'
+import Color from "@tiptap/extension-color"
 import { CreateOrUpdatePostMetaDialogWithoutButton } from "../common/post-meta-dialog-form";
 
 
@@ -59,6 +60,7 @@ export function PostEditor() {
           enableClickSelection: true,
         },
       }),
+      Color.configure({ types: ["textStyle"] }),
       HorizontalRule,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       TaskList,
