@@ -51,6 +51,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
       category: post.category,
       labels: post.labels || [],
       isPrivate: post.isPrivate,
+      description: post.description || "",
     } : {
       title: "",
       slug: "",
@@ -58,6 +59,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
       category: null,
       labels: [],
       isPrivate: false,
+      description: "",
     }
   })
 

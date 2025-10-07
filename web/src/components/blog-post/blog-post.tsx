@@ -93,10 +93,10 @@ async function PostContent({ post }: { post: Post }) {
         <Typewriter text={post.description} />
       </div>}
 
-      {post.type === "html" && (
+      {post.content && post.type === "html" && (
         <>
           <article id="blog-content" className="prose prose-lg max-w-none dark:prose-invert 
-          p-4 md:p-8 rounded-xl bg-background border border-border
+          rounded-xl bg-background
           prose-img:block prose-img:mx-auto prose-img:my-4 prose-img:rounded-lg prose-img:shadow-md prose-img:border prose-img:border-border
           prose-a:text-primary prose-a:no-underline prose-a:font-medium prose-a:hover:underline prose-a:px-1
           prose-h1:scroll-mt-24 prose-h2:scroll-mt-24 prose-h3:scroll-mt-24 prose-h4:scroll-mt-24
