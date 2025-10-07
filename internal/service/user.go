@@ -221,6 +221,11 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		return nil, errs.ErrInternalServer
 	}
 
+	// 校验userinfo
+	if userInfo.Sub == "" || userInfo.Email == "" {
+		return nil, errs.New(http.StatusInternalServerError, "OIDC user info is missing required fields", nil)
+	}
+
 	// 1.绑定过登录
 	userOpenID, err := repo.User.GetUserOpenIDByIssuerAndSub(oidcConfig.Issuer, userInfo.Sub)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -246,9 +251,6 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		// 2.若没有绑定过登录，则判断当前有无用户登录，有则绑定，没有登录先通过邮箱查找用户
 		user := currentUser
 		if user == nil || !userOk {
-			if userInfo.Email == "" {
-				return nil, errs.New(http.StatusBadRequest, "email is required but not provided by OIDC provider", nil)
-			}
 			user, err = repo.User.GetUserByEmail(userInfo.Email)
 			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				logrus.Errorln("Failed to get user by email:", err)
