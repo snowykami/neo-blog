@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
-	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
@@ -29,11 +28,10 @@ func (lc *LikeController) ToggleLike(ctx context.Context, c *app.RequestContext)
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	liked, err := lc.service.ToggleLike(ctx, toggleLikeReq.TargetID, toggleLikeReq.TargetType)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		logrus.Error(serviceErr.Error())
-		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
+	liked, svcerr := lc.service.ToggleLike(ctx, toggleLikeReq.TargetID, toggleLikeReq.TargetType)
+	if svcerr != nil {
+		logrus.Error(svcerr.Error())
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"status": liked})
@@ -53,11 +51,10 @@ func (lc *LikeController) GetLikedUsers(ctx context.Context, c *app.RequestConte
 	if req.Number > 100 {
 		req.Number = 100
 	}
-	users, err := lc.service.GetLikedUsers(ctx, req.TargetID, req.TargetType, req.Number)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		logrus.Error(serviceErr.Error())
-		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
+	users, svcerr := lc.service.GetLikedUsers(ctx, req.TargetID, req.TargetType, req.Number)
+	if svcerr != nil {
+		logrus.Error(svcerr.Error())
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"users": users})

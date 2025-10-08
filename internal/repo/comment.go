@@ -2,7 +2,6 @@ package repo
 
 import (
 	"errors"
-	"net/http"
 	"slices"
 	"strconv"
 
@@ -82,7 +81,7 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) (uint, error) {
 				return err
 			}
 			if isCircular {
-				return errs.New(http.StatusBadRequest, "circular reference detected in comment tree", nil)
+				return errs.NewBadRequest("invalid_request_parameters")
 			}
 			var parentComment model.Comment
 			if err := tx.Where("id = ?", comment.ReplyID).First(&parentComment).Error; err != nil {
@@ -108,7 +107,7 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) (uint, error) {
 			comment.RootID = 0
 		}
 		if depth > utils.Env.GetAsInt(constant.EnvKeyMaxReplyDepth, constant.MaxReplyDepthDefault) {
-			return errs.New(http.StatusBadRequest, "exceeded maximum reply depth", nil)
+			return errs.NewBadRequest("exceeded_maximum_reply_depth")
 		}
 		comment.Depth = depth
 		if err := tx.Create(comment).Error; err != nil {
@@ -145,7 +144,7 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) (uint, error) {
 				return err
 			}
 		default:
-			return errs.New(http.StatusBadRequest, "unsupported target type: "+comment.TargetType, nil)
+			return errs.NewBadRequest("invalid_request_parameters")
 		}
 		return nil
 	})
@@ -154,7 +153,7 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) (uint, error) {
 
 func (cr *CommentRepo) UpdateComment(comment *model.Comment) error {
 	if comment.ID == 0 {
-		return errs.New(http.StatusBadRequest, "invalid comment ID", nil)
+		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
 
 	if err := GetDB().Select("IsPrivate", "ShowClientInfo", "Content").Updates(comment).Error; err != nil {
@@ -166,7 +165,7 @@ func (cr *CommentRepo) UpdateComment(comment *model.Comment) error {
 
 func (cr *CommentRepo) DeleteComment(commentID uint) error {
 	if commentID == 0 {
-		return errs.New(http.StatusBadRequest, "invalid comment ID", nil)
+		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
 
 	err := GetDB().Transaction(func(tx *gorm.DB) error {
@@ -215,7 +214,7 @@ func (cr *CommentRepo) DeleteComment(commentID uint) error {
 				return err
 			}
 		default:
-			return errs.New(http.StatusBadRequest, "unsupported target type: "+comment.TargetType, nil)
+			return errs.NewBadRequest("invalid_request_parameters")
 		}
 
 		return nil
@@ -238,7 +237,7 @@ func (cr *CommentRepo) GetComment(commentID uint) (*model.Comment, error) {
 
 func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, targetType string, page, size uint64, orderBy string, desc bool, depth *int) ([]model.Comment, error) {
 	if !slices.Contains(constant.OrderByEnumComment, orderBy) {
-		return nil, errs.New(http.StatusBadRequest, "invalid order_by parameter", nil)
+		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
 
 	var masterID uint

@@ -10,7 +10,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
-	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
@@ -31,10 +30,9 @@ func (cc *CommentController) CreateComment(ctx context.Context, c *app.RequestCo
 		return
 	}
 	req.RemoteAddr = c.ClientIP()
-	commentID, err := cc.service.CreateComment(ctx, &req)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	commentID, svcerr := cc.service.CreateComment(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"id": commentID})
@@ -46,10 +44,9 @@ func (cc *CommentController) UpdateComment(ctx context.Context, c *app.RequestCo
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	err := cc.service.UpdateComment(ctx, &req)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
+	svcerr := cc.service.UpdateComment(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -57,10 +54,9 @@ func (cc *CommentController) UpdateComment(ctx context.Context, c *app.RequestCo
 
 func (cc *CommentController) DeleteComment(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
-	err := cc.service.DeleteComment(ctx, id)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	svcerr := cc.service.DeleteComment(ctx, id)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -68,10 +64,9 @@ func (cc *CommentController) DeleteComment(ctx context.Context, c *app.RequestCo
 
 func (cc *CommentController) GetComment(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
-	resp, err := cc.service.GetComment(ctx, id)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	resp, svcerr := cc.service.GetComment(ctx, id)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, resp)
@@ -88,10 +83,9 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 		resps.BadRequest(c, "无效的排序字段")
 		return
 	}
-	commentDtos, err := cc.service.GetCommentList(ctx, req)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	commentDtos, svcerr := cc.service.GetCommentList(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"comments": commentDtos})

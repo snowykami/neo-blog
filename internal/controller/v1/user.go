@@ -11,7 +11,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
-	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -41,10 +40,9 @@ func (u *UserController) Login(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	// 处理请求
-	resp, err := u.service.UserLogin(&userLoginReq)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+	resp, svcerr := u.service.UserLogin(&userLoginReq)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	// 设置Cookie并响应
@@ -74,10 +72,9 @@ func (u *UserController) Register(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	// 从Header获取Email
-	resp, err := u.service.UserRegister(&userRegisterReq)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	resp, svcerr := u.service.UserRegister(&userRegisterReq)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	// 设置Cookie并响应
@@ -106,10 +103,9 @@ func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 }
 
 func (u *UserController) OidcList(ctx context.Context, c *app.RequestContext) {
-	oidcConfigs, err := u.service.ListOidcConfigs()
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+	oidcConfigs, svcerr := u.service.ListOidcConfigs()
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, oidcConfigs)
@@ -123,10 +119,9 @@ func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, err.Error())
 		return
 	}
-	resp, err := u.service.OidcLogin(ctx, req)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+	resp, svcerr := u.service.OidcLogin(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	// 设置Cookie
@@ -137,10 +132,9 @@ func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 
 func (u *UserController) GetUser(ctx context.Context, c *app.RequestContext) {
 	userID := ctxutils.GetIDParam(c).Uint
-	resp, err := u.service.GetUser(&dto.GetUserReq{UserID: userID})
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	resp, svcerr := u.service.GetUser(&dto.GetUserReq{UserID: userID})
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, resp.User)
@@ -152,10 +146,9 @@ func (u *UserController) GetLoginUser(ctx context.Context, c *app.RequestContext
 		resps.Unauthorized(c, resps.ErrUnauthorized)
 		return
 	}
-	resp, err := u.service.GetUser(&dto.GetUserReq{UserID: userID})
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	resp, svcerr := u.service.GetUser(&dto.GetUserReq{UserID: userID})
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, resp.User)
@@ -167,10 +160,9 @@ func (u *UserController) GetUserByUsername(ctx context.Context, c *app.RequestCo
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	resp, err := u.service.GetUserByUsername(&dto.GetUserByUsernameReq{Username: username})
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	resp, svcerr := u.service.GetUserByUsername(&dto.GetUserByUsernameReq{Username: username})
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, resp.User)
@@ -201,10 +193,9 @@ func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) 
 		resps.Forbidden(c, resps.ErrForbidden)
 		return
 	}
-	resp, err := u.service.UpdateUser(&updateUserReq)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+	resp, svcerr := u.service.UpdateUser(&updateUserReq)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, resp)
@@ -218,11 +209,11 @@ func (u *UserController) VerifyEmail(ctx context.Context, c *app.RequestContext)
 	}
 	if verifyEmailReq.Email == "" {
 		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
 	}
-	resp, err := u.service.RequestVerifyEmail(&verifyEmailReq)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	resp, svcerr := u.service.RequestVerifyEmail(&verifyEmailReq)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, resp)

@@ -7,7 +7,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
-	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
@@ -22,10 +21,10 @@ func NewAdminController() *AdminController {
 }
 
 func (cc *AdminController) GetDashboard(ctx context.Context, c *app.RequestContext) {
-	dashboardData, err := cc.service.GetDashboard()
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+	dashboardData, svcerr := cc.service.GetDashboard()
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
 	}
 	resps.Ok(c, resps.Success, dashboardData)
 }
@@ -36,10 +35,9 @@ func (cc *AdminController) CreateOidc(ctx context.Context, c *app.RequestContext
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	err := cc.service.CreateOidcConfig(&adminCreateOidcReq)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	svcerr := cc.service.CreateOidcConfig(&adminCreateOidcReq)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -52,10 +50,9 @@ func (cc *AdminController) DeleteOidc(ctx context.Context, c *app.RequestContext
 		return
 	}
 
-	err := cc.service.DeleteOidcConfig(id)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+	svcerr := cc.service.DeleteOidcConfig(id)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -68,20 +65,18 @@ func (cc *AdminController) GetOidcByID(ctx context.Context, c *app.RequestContex
 		return
 	}
 
-	config, err := cc.service.GetOidcConfigByID(id)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	config, svcerr := cc.service.GetOidcConfigByID(id)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, config)
 }
 
 func (cc *AdminController) ListOidc(ctx context.Context, c *app.RequestContext) {
-	configs, err := cc.service.ListOidcConfigs(false)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	configs, svcerr := cc.service.ListOidcConfigs(false)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, configs)
@@ -93,10 +88,9 @@ func (cc *AdminController) UpdateOidc(ctx context.Context, c *app.RequestContext
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	err := cc.service.UpdateOidcConfig(&adminUpdateOidcReq)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	svcerr := cc.service.UpdateOidcConfig(&adminUpdateOidcReq)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)

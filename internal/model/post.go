@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// 每次增加新的可变字段请在更新逻辑中添加对应的空值检验
+// TIPS: 每次增加新的可变字段请在更新逻辑中添加对应的空值检验
 type PostBase struct {
 	Category     *Category `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	CategoryID   *uint     `gorm:"index"`
@@ -20,6 +20,7 @@ type PostBase struct {
 	Slug         *string   `gorm:"type:text;index;uniqueIndex"` // 友好链接
 	Title        string    `gorm:"type:text;not null"`
 	Type         string    `gorm:"type:varchar(20);default:'html'"` // 文章类型，默认为 'markdown'，可为html或其他
+	Top          uint      `gorm:"default:0;index"`                 // 置顶级别，0表示不置顶，数值越大优先级越高
 }
 type Post struct {
 	gorm.Model

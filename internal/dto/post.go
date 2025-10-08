@@ -15,6 +15,7 @@ type PostBaseDto struct {
 	Labels       []LabelDto   `json:"labels"`
 	LabelIds     []uint       `json:"label_ids"`
 	IsPrivate    bool         `json:"is_private"`
+	Top          uint         `json:"top"` // 置顶级别，0表示不置顶，数值越大优先级越高
 }
 
 type PostDto struct {
@@ -30,6 +31,7 @@ type PostDto struct {
 	Heat         uint64    `json:"heat"`          // 热度
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"` // 更新时间
+
 }
 
 type DraftDto struct {

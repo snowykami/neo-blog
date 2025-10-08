@@ -28,7 +28,14 @@ func (l *labelRepo) GetLabelByID(id uint) (*model.Label, error) {
 
 func (l *labelRepo) ListLabels() ([]model.Label, error) {
 	var labels []model.Label
-	if err := GetDB().Preload("Posts").Order("id DESC").Find(&labels).Error; err != nil {
+	db := GetDB().
+		Model(&model.Label{}).
+		Preload("Posts").
+		Joins("LEFT JOIN post_labels ON post_labels.label_id = labels.id").
+		Group("labels.id").
+		Order("COUNT(post_labels.post_id) DESC")
+
+	if err := db.Find(&labels).Error; err != nil {
 		return nil, err
 	}
 	return labels, nil

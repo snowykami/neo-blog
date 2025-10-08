@@ -22,26 +22,27 @@ func NewCommentService() *CommentService {
 	return &CommentService{}
 }
 
-func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateCommentReq) (uint, error) {
+func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateCommentReq) (uint, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
-		return 0, errs.ErrUnauthorized
+		return 0, errs.NewUnauthorized("login_required")
 	}
 
 	if ok, err := cs.checkTargetExists(req.TargetID, req.TargetType); !ok {
 		if err != nil {
-			return 0, errs.New(errs.ErrBadRequest.Code, "target not found", err)
+			logrus.Errorf("CreateComment: checkTargetExists error: %s", err.Error())
+			return 0, err
 		}
-		return 0, errs.ErrBadRequest
+		return 0, errs.NewNotFound("operation_target_not_found")
 	}
 
 	// 内容校验：去首尾空白，非空且字符数不超过 200
 	content := strings.TrimSpace(req.Content)
 	if content == "" {
-		return 0, errs.New(errs.ErrBadRequest.Code, "comment content is empty", nil)
+		return 0, errs.NewBadRequest("content_cannot_be_empty")
 	}
 	if len([]rune(content)) > 200 {
-		return 0, errs.New(errs.ErrBadRequest.Code, "comment content exceeds 200 characters", nil)
+		return 0, errs.NewBadRequest("content_too_long")
 	}
 
 	comment := &model.Comment{
@@ -55,40 +56,34 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		UserAgent:      req.UserAgent,
 		ShowClientInfo: req.ShowClientInfo,
 	}
-
 	commentID, err := repo.Comment.CreateComment(comment)
 
 	if err != nil {
-		return 0, err
+		logrus.Errorf("CreateComment: CreateComment error: %s", err.Error())
+		return 0, errs.NewInternalServer("failed_to_create_target")
 	}
 
 	return commentID, nil
 }
 
-func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateCommentReq) error {
-	currentUser, ok := ctxutils.GetCurrentUser(ctx)
-	if !ok {
-		return errs.ErrUnauthorized
-	}
-	logrus.Infof("UpdateComment: currentUser ID %d, req.CommentID %d", currentUser.ID, req.ID)
-
+func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateCommentReq) *errs.ServiceError {
 	comment, err := repo.Comment.GetComment(req.ID)
 	if err != nil {
-		return err
+		return errs.NewNotFound("operation_target_not_found")
 	}
 
 	// 仅管理员或评论主人可以修改评论
 	if !ctxutils.IsAdmin(ctx) && !ctxutils.IsOwnerOfTarget(ctx, comment.UserID) {
-		return errs.ErrForbidden
+		return errs.NewForbidden("forbidden")
 	}
 
 	// 内容校验：去首尾空白，非空且字符数不超过 200
 	content := strings.TrimSpace(req.Content)
 	if content == "" {
-		return errs.New(errs.ErrBadRequest.Code, "comment content is empty", nil)
+		return errs.NewBadRequest("content_cannot_be_empty")
 	}
 	if len([]rune(content)) > 200 {
-		return errs.New(errs.ErrBadRequest.Code, "comment content exceeds 200 characters", nil)
+		return errs.NewBadRequest("content_too_long")
 	}
 
 	comment.Content = content
@@ -96,23 +91,24 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	comment.ShowClientInfo = req.ShowClientInfo
 	err = repo.Comment.UpdateComment(comment)
 	if err != nil {
-		return err
+		logrus.Errorf("UpdateComment error: %s", err.Error())
+		return errs.NewInternalServer("failed_to_update_target")
 	}
 	return nil
 }
 
-func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) error {
+func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *errs.ServiceError {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
-		return errs.ErrUnauthorized
+		return errs.NewUnauthorized("login_required")
 	}
 	if commentID == 0 {
-		return errs.ErrBadRequest
+		return errs.NewBadRequest("operation_target_not_found")
 	}
 
 	comment, err := repo.Comment.GetComment(commentID)
 	if err != nil {
-		return errs.New(errs.ErrNotFound.Code, "comment not found", err)
+		return errs.NewNotFound("operation_target_not_found")
 	}
 
 	var targetOwnerId uint
@@ -125,19 +121,20 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) err
 
 	// 仅管理员，目标对象主人，评论主人可以删评
 	if !ctxutils.IsAdmin(ctx) && !ctxutils.IsOwnerOfTarget(ctx, targetOwnerId) && !ctxutils.IsOwnerOfTarget(ctx, comment.UserID) {
-		return errs.ErrForbidden
+		return errs.NewForbidden("permission_denied")
 	}
 
 	if err := repo.Comment.DeleteComment(commentID); err != nil {
-		return err
+		logrus.Errorf("DeleteComment error: %s", err.Error())
+		return errs.NewInternalServer("failed_to_delete_target")
 	}
 	return nil
 }
 
-func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.CommentDto, error) {
+func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.CommentDto, *errs.ServiceError) {
 	comment, err := repo.Comment.GetComment(commentID)
 	if err != nil {
-		return nil, errs.New(errs.ErrNotFound.Code, "comment not found", err)
+		return nil, errs.NewNotFound("operation_target_not_found")
 	}
 	currentUserID := uint(0)
 	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
@@ -152,27 +149,29 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.
 		} else if comment.TargetType == constant.TargetTypePost {
 			post, err := repo.Post.GetPostBySlugOrID(strconv.Itoa(int(comment.TargetID)))
 			if err != nil {
-				return nil, errs.ErrForbidden
+				logrus.Errorf("GetComment: GetPostBySlugOrID error: %s", err.Error())
+				return nil, errs.NewInternalServer("failed_to_get_target")
 			}
 			if post.UserID != currentUserID {
-				return nil, errs.ErrForbidden
+				return nil, errs.NewForbidden("permission_denied")
 			}
 		} else {
-			return nil, errs.ErrForbidden
+			return nil, errs.NewForbidden("permission_denied")
 		}
 	}
 	commentDto := cs.toGetCommentDto(comment, currentUserID)
-	return &commentDto, err
+	return &commentDto, nil
 }
 
-func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommentListReq) ([]dto.CommentDto, error) {
+func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommentListReq) ([]dto.CommentDto, *errs.ServiceError) {
 	currentUserID := uint(0)
 	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
 		currentUserID = currentUser.ID
 	}
 	comments, err := repo.Comment.ListComments(currentUserID, req.TargetID, req.CommentID, req.TargetType, req.Page, req.Size, req.OrderBy, req.Desc, req.Depth)
 	if err != nil {
-		return nil, errs.New(errs.ErrInternalServer.Code, "failed to list comments", err)
+		logrus.Errorf("GetCommentList: ListComments error: %s", err.Error())
+		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	commentDtos := make([]dto.CommentDto, 0)
 	for _, comment := range comments {
@@ -223,14 +222,14 @@ func (cs *CommentService) toGetCommentDto(comment *model.Comment, currentUserID 
 		ShowClientInfo: comment.ShowClientInfo,
 	}
 }
-func (cs *CommentService) checkTargetExists(targetID uint, targetType string) (bool, error) {
+func (cs *CommentService) checkTargetExists(targetID uint, targetType string) (bool, *errs.ServiceError) {
 	switch targetType {
 	case constant.TargetTypePost:
 		if _, err := repo.Post.GetPostBySlugOrID(strconv.Itoa(int(targetID))); err != nil {
-			return false, errs.New(errs.ErrNotFound.Code, "post not found", err)
+			return false, errs.NewNotFound("operation_target_not_found")
 		}
 	default:
-		return false, errs.New(errs.ErrBadRequest.Code, "invalid target type", nil)
+		return false, errs.NewBadRequest("invalid_target_type")
 	}
 	return true, nil
 }

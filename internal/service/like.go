@@ -15,18 +15,22 @@ func NewLikeService() *LikeService {
 	return &LikeService{}
 }
 
-func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType string) (bool, error) {
+func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType string) (bool, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
-		return false, errs.ErrUnauthorized
+		return false, errs.NewUnauthorized("login_required")
 	}
-	return repo.Like.ToggleLike(currentUser.ID, targetID, targetType)
+	state, err := repo.Like.ToggleLike(currentUser.ID, targetID, targetType)
+	if err != nil {
+		return state, errs.NewInternalServer("failed_to_toggle_like")
+	}
+	return state, nil
 }
 
-func (ls *LikeService) GetLikedUsers(ctx context.Context, targetID uint, targetType string, limit int) ([]dto.UserDto, error) {
+func (ls *LikeService) GetLikedUsers(ctx context.Context, targetID uint, targetType string, limit int) ([]dto.UserDto, *errs.ServiceError) {
 	users, err := repo.Like.GetLikedUsers(targetID, targetType, limit)
 	if err != nil {
-		return nil, err
+		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	var userDtos []dto.UserDto
 	for _, user := range users {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/utils"
+	"gorm.io/gorm"
 )
 
 type PostService struct{}
@@ -20,10 +22,10 @@ func NewPostService() *PostService {
 	return &PostService{}
 }
 
-func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (uint, error) {
+func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (uint, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
-		return 0, errs.ErrUnauthorized
+		return 0, errs.NewUnauthorized("login_required")
 	}
 	post := &model.Post{
 		UserID: currentUser.ID,
@@ -45,47 +47,48 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			}(),
 			Slug:  req.Slug,
 			Title: req.Title,
+			Top:   req.Top,
 			Type:  req.Type,
 		},
 	}
 	if err := repo.Post.CreatePost(post); err != nil {
-		return 0, err
+		return 0, errs.NewInternalServer("failed_to_create_target")
 	}
 	return post.ID, nil
 }
 
-func (p *PostService) DeletePost(ctx context.Context, id uint) error {
-	currentUser, ok := ctxutils.GetCurrentUser(ctx)
-	if !ok {
-		return errs.ErrUnauthorized
+func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.ServiceError {
+	if postId == 0 {
+		return errs.NewBadRequest("invalid_request_parameters")
 	}
-	if id == 0 {
-		return errs.ErrBadRequest
-	}
-	post, err := repo.Post.GetPostBySlugOrID(strconv.FormatUint(uint64(id), 10))
+	post, err := repo.Post.GetPostBySlugOrID(strconv.FormatUint(uint64(postId), 10))
 	if err != nil {
-		return errs.New(errs.ErrNotFound.Code, "post not found", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errs.NewNotFound("target_not_found")
+		}
+		return errs.NewInternalServer("failed_to_get_target")
 	}
-	if (post.UserID != currentUser.ID) && (currentUser.Role != constant.RoleAdmin) {
-		return errs.ErrForbidden
+	if !ctxutils.IsOwnerOfTarget(ctx, post.UserID) && !ctxutils.IsAdmin(ctx) {
+		return errs.NewForbidden("permission_denied")
 	}
-	if err := repo.Post.DeletePost(id); err != nil {
-		return errs.ErrInternalServer
+	if err := repo.Post.DeletePost(postId); err != nil {
+		return errs.NewInternalServer("failed_to_delete_target")
 	}
 	return nil
 }
 
-func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dto.PostDto, error) {
+func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dto.PostDto, *errs.ServiceError) {
 	if slugOrId == "" {
-		return nil, errs.ErrBadRequest
+		return nil, errs.NewBadRequest("missing_request_parameters")
 	}
 	post, err := repo.Post.GetPostBySlugOrID(slugOrId)
 	if err != nil {
-		return nil, errs.New(errs.ErrNotFound.Code, "post not found", err)
+		return nil, errs.NewNotFound("target_not_found")
 	}
 	currentUser, userOk := ctxutils.GetCurrentUser(ctx)
-	if post.IsPrivate && (!userOk || post.UserID != currentUser.ID) {
-		return nil, errs.ErrForbidden
+	// 私密文章只有自己和管理员能看
+	if post.IsPrivate && (ctxutils.IsOwnerOfTarget(ctx, post.UserID) || !ctxutils.IsAdmin(ctx)) {
+		return nil, errs.NewForbidden("permission_denied")
 	}
 	// 检测用户是否点赞
 	postDto := post.ToDto()
@@ -98,16 +101,16 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 	return postDto, nil
 }
 
-func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (uint, error) {
+func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (uint, *errs.ServiceError) {
 	post, err := repo.Post.GetPostBySlugOrID(strconv.FormatUint(uint64(req.ID), 10))
 	if err != nil {
-		return 0, errs.New(errs.ErrNotFound.Code, "post not found", err)
+		return 0, errs.NewNotFound("target_not_found")
 	}
 
-	if !ctxutils.IsAdmin(ctx) && !ctxutils.IsEditor(ctx) && !ctxutils.IsOwnerOfTarget(ctx, post.UserID) {
-		return 0, errs.ErrForbidden
+	if !ctxutils.IsAdmin(ctx) && !ctxutils.IsOwnerOfTarget(ctx, post.UserID) {
+		return 0, errs.NewForbidden("permission_denied")
 	}
-
+	post.Top = req.Top // TOP可以为0
 	utils.UpdateNonEmpty(&post.Title, req.Title)
 	utils.UpdateNonEmpty(&post.Type, req.Type)
 	utils.UpdateNonEmpty(&post.Content, req.Content)
@@ -117,6 +120,7 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	utils.UpdatePtrNonZero(&post.Slug, req.Slug)
 	utils.UpdatePtrUint(&post.CategoryID, req.CategoryID)
 	utils.UpdateBool(&post.IsPrivate, req.IsPrivate)
+
 	post.Labels = func() []model.Label {
 		labelModels := make([]model.Label, len(req.LabelIds))
 		for i, labelID := range req.LabelIds {
@@ -129,13 +133,13 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		}
 		return labelModels
 	}()
-	if err := repo.Post.UpdatePost(post); err != nil {
-		return 0, errs.ErrInternalServer
+	if err := repo.Post.SavePost(post); err != nil {
+		return 0, errs.NewInternalServer("failed_to_update_target")
 	}
 	return post.ID, nil
 }
 
-func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, error) {
+func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, *errs.ServiceError) {
 	postDtos := make([]*dto.PostDto, 0)
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
 	keywordsArray := make([]string, 0)
@@ -146,36 +150,10 @@ func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*d
 	}
 	posts, total, err := repo.Post.ListPosts(currentUserID, keywordsArray, req.Label, req.Page, req.Size, req.OrderBy, req.Desc, req.UserID)
 	if err != nil {
-		return nil, total, errs.New(errs.ErrInternalServer.Code, "failed to list posts", err)
+		return nil, total, errs.NewInternalServer("failed_to_get_target")
 	}
 	for _, post := range posts {
 		postDtos = append(postDtos, post.ToDtoWithShortContent(200))
 	}
 	return postDtos, total, nil
-}
-
-func (p *PostService) ToggleLikePost(ctx context.Context, id string) (bool, error) {
-	currentUser, ok := ctxutils.GetCurrentUser(ctx)
-	if !ok {
-		return false, errs.ErrUnauthorized
-	}
-	if id == "" {
-		return false, errs.ErrBadRequest
-	}
-	post, err := repo.Post.GetPostBySlugOrID(id)
-	if err != nil {
-		return false, errs.New(errs.ErrNotFound.Code, "post not found", err)
-	}
-	if post.UserID == currentUser.ID {
-		return false, errs.ErrForbidden
-	}
-	idInt, err := strconv.ParseUint(id, 10, 64)
-	if err != nil {
-		return false, errs.New(errs.ErrBadRequest.Code, "invalid post ID", err)
-	}
-	liked, err := repo.Post.ToggleLikePost(uint(idInt), currentUser.ID)
-	if err != nil {
-		return false, errs.ErrInternalServer
-	}
-	return liked, nil
 }

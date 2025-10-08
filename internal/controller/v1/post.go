@@ -42,10 +42,9 @@ func (p *PostController) Create(ctx context.Context, c *app.RequestContext) {
 			return
 		}
 	}
-	postID, err := p.service.CreatePost(ctx, &req)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	postID, svcerr := p.service.CreatePost(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"id": postID})
@@ -53,9 +52,8 @@ func (p *PostController) Create(ctx context.Context, c *app.RequestContext) {
 
 func (p *PostController) Delete(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
-	if err := p.service.DeletePost(ctx, id); err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	if svcerr := p.service.DeletePost(ctx, id); svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -69,10 +67,9 @@ func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	// 支持slug
-	post, err := p.service.GetPostSlugOrId(ctx, slugOrId)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	post, svcerr := p.service.GetPostSlugOrId(ctx, slugOrId)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	if post == nil {
@@ -96,8 +93,7 @@ func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 func (p *PostController) GetRandom(ctx context.Context, c *app.RequestContext) {
 	var post model.Post
 	if err := repo.GetDB().Where("is_private = ?", false).Order("RANDOM()").Limit(1).Find(&post).Error; err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		resps.InternalServerError(c, err.Error())
 		return
 	}
 	resps.Ok(c, resps.Success, post.ToDto())
@@ -113,14 +109,13 @@ func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
 	if req.Cover != "" {
 		pass := utils2.Url.IsValidUrl(req.Cover)
 		if !pass {
-			resps.BadRequest(c, "Cover URL is invalid")
+			resps.BadRequest(c, "bad_request", "invalid_url")
 			return
 		}
 	}
-	postID, err := p.service.UpdatePost(ctx, &req)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	postID, svcerr := p.service.UpdatePost(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"id": postID})
@@ -136,10 +131,9 @@ func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, "无效的排序字段")
 		return
 	}
-	posts, total, err := p.service.ListPosts(ctx, req)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	posts, total, svcerr := p.service.ListPosts(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"posts": posts, "total": total})
@@ -149,8 +143,7 @@ func (p *PostController) GetCategories(ctx context.Context, c *app.RequestContex
 	var categories []model.Category
 	err := repo.GetDB().Order("id DESC").Find(&categories).Error
 	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+		resps.Error(c, errs.NewInternalServer("failed_to_get_target"))
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"categories": func() []dto.CategoryDto {
@@ -174,8 +167,7 @@ func (p *PostController) CreateCategory(ctx context.Context, c *app.RequestConte
 		Slug:        req.Slug,
 	}
 	if err := repo.GetDB().Create(categoryModel).Error; err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		resps.Error(c, errs.NewInternalServer("failed_to_create_target"))
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"id": categoryModel.ID})
@@ -194,8 +186,7 @@ func (p *PostController) UpdateCategory(ctx context.Context, c *app.RequestConte
 		Slug:        req.Slug,
 	}
 	if err := repo.GetDB().Updates(categoryModel).Error; err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+		resps.Error(c, errs.NewInternalServer("failed_to_update_target"))
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"id": categoryModel.ID})
@@ -204,8 +195,7 @@ func (p *PostController) UpdateCategory(ctx context.Context, c *app.RequestConte
 func (p *PostController) DeleteCategory(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
 	if err := repo.GetDB().Delete(&model.Category{}, id).Error; err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+		resps.Error(c, errs.NewInternalServer("failed_to_delete_target"))
 		return
 	}
 	resps.Ok(c, resps.Success, nil)

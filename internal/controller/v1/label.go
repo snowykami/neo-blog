@@ -8,7 +8,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
-	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
@@ -28,10 +27,9 @@ func (l *LabelController) Create(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	labelID, err := l.service.CreateLabel(req)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	labelID, svcerr := l.service.CreateLabel(req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"id": labelID})
@@ -39,10 +37,9 @@ func (l *LabelController) Create(ctx context.Context, c *app.RequestContext) {
 
 func (l *LabelController) Delete(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
-	err := l.service.DeleteLabel(id)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, err.Error(), nil)
+	svcerr := l.service.DeleteLabel(id)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -50,10 +47,9 @@ func (l *LabelController) Delete(ctx context.Context, c *app.RequestContext) {
 
 func (l *LabelController) Get(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
-	label, err := l.service.GetLabelByID(id)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	label, svcerr := l.service.GetLabelByID(id)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	if label == nil {
@@ -69,20 +65,18 @@ func (l *LabelController) Update(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	labelID, err := l.service.UpdateLabel(req)
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Message, nil)
+	labelID, svcerr := l.service.UpdateLabel(req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"id": labelID})
 }
 
 func (l *LabelController) List(ctx context.Context, c *app.RequestContext) {
-	labels, err := l.service.ListLabels()
-	if err != nil {
-		serviceErr := errs.AsServiceError(err)
-		resps.Custom(c, serviceErr.Code, serviceErr.Error(), nil)
+	labels, svcerr := l.service.ListLabels()
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"labels": labels})

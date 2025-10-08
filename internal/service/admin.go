@@ -4,6 +4,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/pkg/errs"
 	"gorm.io/gorm"
 )
 
@@ -13,7 +14,7 @@ func NewAdminService() *AdminService {
 	return &AdminService{}
 }
 
-func (c *AdminService) GetDashboard() (map[string]any, error) {
+func (c *AdminService) GetDashboard() (map[string]any, *errs.ServiceError) {
 	var (
 		postCount, commentCount, userCount, viewCount int64
 		err                                           error
@@ -36,7 +37,7 @@ func (c *AdminService) GetDashboard() (map[string]any, error) {
 	mustScan(db.Model(&model.Post{}).Select("SUM(view_count)"), &viewCount)
 
 	if err != nil {
-		return nil, err
+		return nil, errs.NewInternalServer("failed_to_get_dashboard_data")
 	}
 	return map[string]any{
 		"total_comments": commentCount,
@@ -46,7 +47,7 @@ func (c *AdminService) GetDashboard() (map[string]any, error) {
 	}, nil
 }
 
-func (c *AdminService) CreateOidcConfig(req *dto.CreateOidcConfigDto) error {
+func (c *AdminService) CreateOidcConfig(req *dto.CreateOidcConfigDto) *errs.ServiceError {
 	oidcConfig := &model.OidcConfig{
 		Name:                  req.Name,
 		DisplayName:           req.DisplayName,
@@ -62,25 +63,31 @@ func (c *AdminService) CreateOidcConfig(req *dto.CreateOidcConfigDto) error {
 		Enabled:               req.Enabled,
 		Type:                  req.Type,
 	}
-	return repo.Oidc.CreateOidcConfig(oidcConfig)
+	if err := repo.Oidc.CreateOidcConfig(oidcConfig); err != nil {
+		return errs.NewInternalServer("failed_to_create_target")
+	}
+	return nil
 }
 
-func (c *AdminService) DeleteOidcConfig(id uint) error {
-	return repo.Oidc.DeleteOidcConfig(id)
+func (c *AdminService) DeleteOidcConfig(id uint) *errs.ServiceError {
+	if err := repo.Oidc.DeleteOidcConfig(id); err != nil {
+		return errs.NewInternalServer("failed_to_delete_target")
+	}
+	return nil
 }
 
-func (c *AdminService) GetOidcConfigByID(id uint) (*dto.AdminOidcConfigDto, error) {
+func (c *AdminService) GetOidcConfigByID(id uint) (*dto.AdminOidcConfigDto, *errs.ServiceError) {
 	config, err := repo.Oidc.GetOidcConfigByID(id)
 	if err != nil {
-		return nil, err
+		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	return config.ToAdminDto(), nil
 }
 
-func (c *AdminService) ListOidcConfigs(onlyEnabled bool) ([]*dto.AdminOidcConfigDto, error) {
+func (c *AdminService) ListOidcConfigs(onlyEnabled bool) ([]*dto.AdminOidcConfigDto, *errs.ServiceError) {
 	configs, err := repo.Oidc.ListOidcConfigs(onlyEnabled)
 	if err != nil {
-		return nil, err
+		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	var dtos []*dto.AdminOidcConfigDto
 	for _, config := range configs {
@@ -89,7 +96,7 @@ func (c *AdminService) ListOidcConfigs(onlyEnabled bool) ([]*dto.AdminOidcConfig
 	return dtos, nil
 }
 
-func (c *AdminService) UpdateOidcConfig(req *dto.UpdateOidcConfigDto) error {
+func (c *AdminService) UpdateOidcConfig(req *dto.UpdateOidcConfigDto) *errs.ServiceError {
 	oidcConfig := &model.OidcConfig{
 		Model:                 gorm.Model{ID: req.ID},
 		Name:                  req.Name,
@@ -106,5 +113,8 @@ func (c *AdminService) UpdateOidcConfig(req *dto.UpdateOidcConfigDto) error {
 		Enabled:               req.Enabled,
 		Type:                  req.Type,
 	}
-	return repo.Oidc.UpdateOidcConfig(oidcConfig)
+	if err := repo.Oidc.UpdateOidcConfig(oidcConfig); err != nil {
+		return errs.NewInternalServer("failed_to_update_target")
+	}
+	return nil
 }

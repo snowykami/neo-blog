@@ -2,7 +2,6 @@ package repo
 
 import (
 	"errors"
-	"net/http"
 	"slices"
 	"strconv"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type postRepo struct{}
@@ -31,7 +31,7 @@ func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 	var post model.Post
 
 	// 先按 slug 查找（优先）
-	if err := GetDB().Where("slug = ?", slugOrId).Preload("User").Preload("Labels").Preload("Category").First(&post).Error; err != nil {
+	if err := GetDB().Where("slug = ?", slugOrId).Preload(clause.Associations).First(&post).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
@@ -41,7 +41,7 @@ func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 			// 既不是存在的 slug，也不是合法 id
 			return nil, err
 		}
-		if err := GetDB().Preload("User").Preload("Labels").Preload("Category").First(&post, uint(id)).Error; err != nil {
+		if err := GetDB().Preload(clause.Associations).First(&post, uint(id)).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -67,9 +67,9 @@ func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 	return &post, nil
 }
 
-func (p *postRepo) UpdatePost(post *model.Post) error {
+func (p *postRepo) SavePost(post *model.Post) error {
 	if post.ID == 0 {
-		return errs.New(http.StatusBadRequest, "invalid post ID", nil)
+		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
 	if err := GetDB().Save(post).Error; err != nil {
 		return err
@@ -79,10 +79,10 @@ func (p *postRepo) UpdatePost(post *model.Post) error {
 
 func (p *postRepo) ListPosts(currentUserID uint, keywords []string, label string, page, size uint64, orderBy string, desc bool, userId uint) ([]model.Post, int64, error) {
 	if !slices.Contains(constant.OrderByEnumPost, orderBy) {
-		return nil, 0, errs.New(http.StatusBadRequest, "invalid order_by parameter", nil)
+		return nil, 0, errs.NewBadRequest("invalid_request_parameters")
 	}
 
-	query := GetDB().Model(&model.Post{}).Preload("User").Preload("Category").Preload("Labels")
+	query := GetDB().Model(&model.Post{}).Preload(clause.Associations)
 	if userId > 0 {
 		query = query.Where("user_id = ?", userId)
 	}
@@ -127,9 +127,17 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, label string
 	return items, total, nil
 }
 
+func (p *postRepo) ListTopPosts(limit int) ([]model.Post, error) {
+	var posts []model.Post
+	if err := GetDB().Where("is_private = ?", false).Order("top DESC").Limit(limit).Preload(clause.Associations).Find(&posts).Error; err != nil {
+		return nil, err
+	}
+	return posts, nil
+}
+
 func (p *postRepo) ToggleLikePost(postID uint, userID uint) (bool, error) {
 	if postID == 0 || userID == 0 {
-		return false, errs.New(http.StatusBadRequest, "invalid post ID or user ID", nil)
+		return false, errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
 	liked, err := Like.ToggleLike(userID, postID, constant.TargetTypePost)
 	if err != nil {

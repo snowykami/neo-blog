@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -28,38 +27,37 @@ func NewUserService() *UserService {
 }
 
 // UserLogin 用户登录
-func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, error) {
+func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, *errs.ServiceError) {
 	// 按照用户名或邮箱查找用户
 	user, err := repo.User.GetUserByUsernameOrEmail(req.Username)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errs.ErrNotFound
+			return nil, errs.NewNotFound("user_not_found")
 		}
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	if user == nil {
-		return nil, errs.ErrNotFound
+		return nil, errs.NewNotFound("user_not_found")
 	}
 	// 验证密码
 	if !utils.Password.VerifyPassword(req.Password, user.Password) {
-		return nil, errs.New(http.StatusUnauthorized, "Invalid username or password", nil)
+		return nil, errs.NewBadRequest("invalid_credentials")
 	}
 	// 签发双token并持久化会话状态
 	sessionId := utils.Strings.GenerateRandomString(32)
-
 	err = repo.Session.CreateSession(&model.Session{
 		UserID:    user.ID,
 		SessionID: sessionId,
 		UserIP:    utils.NewIPRecord(req.UserIP),
 	})
 	if err != nil {
-		return nil, errs.New(http.StatusInternalServerError, "Failed to create session", err)
+		return nil, errs.NewInternalServer("failed_to_create_target")
 	}
 	token, refreshToken, err := utils.Jwt.New2Tokens(user.ID, sessionId, req.RememberMe)
 
 	if err != nil {
 		logrus.Errorln("Failed to generate tokens:", err)
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewInternalServer("failed_to_create_target")
 	}
 	resp := &dto.UserLoginResp{
 		Token:        token,
@@ -70,26 +68,29 @@ func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, erro
 }
 
 // UserRegister 注册新用户
-func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterResp, error) {
+func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterResp, *errs.ServiceError) {
 	if !tools.GetAllowRegister() {
-		return nil, errs.New(http.StatusForbidden, "Registration is disabled", nil)
+		return nil, errs.NewForbidden("registration_disabled")
+	}
+	if !isValidPassword(req.Password) {
+		return nil, errs.NewBadRequest("invalid_password_format")
 	}
 	// 检查用户名或邮箱是否已存在
 	usernameExist, err := repo.User.CheckUsernameExists(req.Username)
 	if err != nil {
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewBadRequest("failed_to_check_target")
 	}
 	emailExist, err := repo.User.CheckEmailExists(req.Email)
 	if err != nil {
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewBadRequest("failed_to_check_target")
 	}
 	if usernameExist || emailExist {
-		return nil, errs.New(http.StatusConflict, "Username or email already exists", nil)
+		return nil, errs.NewConflict("username_or_email_already_exists")
 	}
 	// 创建新用户
 	hashedPassword, err := utils.Password.HashPassword(req.Password)
 	if err != nil {
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewInternalServer("failed_to_create_target")
 	}
 	newUser := &model.User{
 		Username: req.Username,
@@ -101,7 +102,7 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 	}
 	err = repo.User.CreateUser(newUser)
 	if err != nil {
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewInternalServer("failed_to_create_target")
 	}
 	// 创建默认管理员账户
 	if newUser.ID == 1 {
@@ -109,7 +110,7 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 		err = repo.User.UpdateUser(newUser)
 		if err != nil {
 			logrus.Errorln("Failed to update user role to admin:", err)
-			return nil, errs.ErrInternalServer
+			return nil, errs.NewInternalServer("failed_to_update_target")
 		}
 	}
 	// 生成访问令牌和刷新令牌并保存session
@@ -120,13 +121,12 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 		UserIP:    utils.NewIPRecord(req.UserIP),
 	})
 	if err != nil {
-		return nil, errs.New(http.StatusInternalServerError, "Failed to create session", nil)
+		return nil, errs.NewInternalServer("failed_to_create_target")
 	}
 	token, refreshToken, err := utils.Jwt.New2Tokens(newUser.ID, sessionId, false)
 
 	if err != nil {
-		logrus.Errorln("Failed to generate tokens:", err)
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewInternalServer("failed_to_create_target")
 	}
 	resp := &dto.UserRegisterResp{
 		Token:        token,
@@ -136,7 +136,7 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 	return resp, nil
 }
 
-func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEmailResp, error) {
+func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEmailResp, *errs.ServiceError) {
 	verifyCode := utils.RequestEmailVerify(req.Email)
 	template, err := static.RenderTemplate("email/verification-code.tmpl", map[string]interface{}{
 		"Title":      "NEO-BLOG",
@@ -146,22 +146,22 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 		"Details":    "你正在验证电子邮件所有权",
 	})
 	if err != nil {
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewInternalServer("failed_to_render_email")
 	}
 	if utils.IsDevMode {
-		logrus.Infof("%s's verification code is %s", req.Email, verifyCode)
+		logrus.Debugf("%s's verification code is %s", req.Email, verifyCode)
 	}
 	err = utils.Email.SendEmail(utils.Email.GetEmailConfigFromEnv(), req.Email, "验证你的电子邮件 / Verify your email", template, true)
 	if err != nil {
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewInternalServer("failed_to_send_email")
 	}
 	return &dto.VerifyEmailResp{Success: true}, nil
 }
 
-func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, error) {
+func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, *errs.ServiceError) {
 	enabledOidcConfigs, err := repo.Oidc.ListOidcConfigs(true)
 	if err != nil {
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	var oidcConfigsDtos []dto.UserOidcConfigDto
 
@@ -212,17 +212,17 @@ func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, error) {
 }
 
 // OidcLogin 此函数用于oidc provider响应给前端的重定向
-func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dto.OidcLoginResp, error) {
+func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dto.OidcLoginResp, *errs.ServiceError) {
 	// 验证state
 	kvStore := utils.KV.GetInstance()
 	storedName, ok := kvStore.Get("oidc_state:" + req.State) // state: oidc_name
 	if !ok || storedName != req.Name {
-		return nil, errs.New(http.StatusForbidden, "invalid oidc state", nil)
+		return nil, errs.NewBadRequest("invalid_oidc_state")
 	}
 	// 获取OIDC配置
 	oidcConfig, err := repo.Oidc.GetOidcConfigByName(req.Name)
 	if err != nil || oidcConfig == nil {
-		return nil, errs.New(http.StatusNotFound, "OIDC configuration not found or error", nil)
+		return nil, errs.NewBadRequest("invalid_oidc_name")
 	}
 	// 请求访问令牌
 	tokenResp, err := utils.Oidc.RequestToken(
@@ -233,12 +233,12 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		tools.GetBaseUrl()+constant.ApiPrefix+constant.OidcUri+"/"+oidcConfig.Name,
 	)
 	if err != nil {
-		return nil, errs.New(http.StatusInternalServerError, "Failed to request OIDC AccessToken", nil)
+		return nil, errs.NewInternalServer("failed_to_request_oidc_token")
 	}
 	// 请求用户信息
 	userInfo, err := utils.Oidc.RequestUserinfo(oidcConfig.UserinfoEndpoint, tokenResp.AccessToken)
 	if err != nil {
-		return nil, errs.New(http.StatusInternalServerError, "Failed to request OIDC Userinfo", nil)
+		return nil, errs.NewInternalServer("failed_to_request_oidc_userinfo")
 	}
 
 	// GitHub 特例处理 PreferredUsername、Sub、Name、Picture和Email
@@ -252,14 +252,14 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		}
 		emails, err := utils.Oidc.RequestGitHubUserVerifiedEmails(tokenResp.AccessToken)
 		if err != nil {
-			return nil, errs.New(http.StatusInternalServerError, "Failed to request GitHub user emails", err)
+			return nil, errs.NewInternalServer("failed_to_request_oidc_userinfo")
 		} else if len(emails) > 0 {
 			// 遍历邮箱，在数据库中找已存在的邮箱，找到直接赋值，找不到则使用第一个
 			emailFound := false
 			for _, email := range emails {
 				exists, err := repo.User.CheckEmailExists(email)
 				if err != nil {
-					return nil, errs.New(http.StatusInternalServerError, "Error to check email existence", err)
+					return nil, errs.NewInternalServer("failed_to_check_target")
 				}
 				if exists {
 					userInfo.Email = email
@@ -279,30 +279,30 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 
 	// 完成fallback赋值后最终检查必要字段
 	if userInfo.Sub == "" {
-		return nil, errs.New(http.StatusInternalServerError, "Missing required fields \"sub\"", nil)
+		return nil, errs.NewInternalServer("missing_required_oidc_field_sub")
 	}
 	if userInfo.Email == "" {
-		return nil, errs.New(http.StatusInternalServerError, "Missing required fields \"email\"", nil)
+		return nil, errs.NewInternalServer("missing_required_oidc_field_email")
 	}
 	if userInfo.PreferredUsername == "" {
-		return nil, errs.New(http.StatusInternalServerError, "Missing required fields \"preferred_username\"", nil)
+		return nil, errs.NewInternalServer("missing_required_oidc_field_preferred_username")
 	}
 
 	if req.IsBind {
 		currentUser, userOk := ctxutils.GetCurrentUser(ctx)
 		if currentUser == nil || !userOk {
-			return nil, errs.ErrUnauthorized
+			return nil, errs.NewUnauthorized("login_required")
 		}
 		// 检查该第三方账号是否已被绑定
 		existingUserOpenID, err := repo.User.GetUserOpenIDByIssuerAndSub(oidcConfig.Issuer, userInfo.Sub)
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			// 非找不到记录的其他错误
 			logrus.Errorln("Failed to get user OpenID:", err)
-			return nil, errs.ErrInternalServer
+			return nil, errs.NewInternalServer("failed_to_get_user_openid")
 		}
 		if existingUserOpenID != nil {
 			// 已被绑定
-			return nil, errs.New(http.StatusConflict, "This third-party account is already linked to another user", nil)
+			return nil, errs.NewConflict("oidc_account_already_linked")
 		}
 		// 绑定当前登录用户和第三方账号
 		userOpenID := &model.UserOpenID{
@@ -312,7 +312,7 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		}
 
 		if err = repo.User.CreateOrUpdateUserOpenID(userOpenID); err != nil {
-			return nil, errs.New(http.StatusInternalServerError, "Failed to link third-party account", err)
+			return nil, errs.NewConflict("failed_to_link_oidc_account")
 		}
 		// 绑定模式不生成新的token
 		return &dto.OidcLoginResp{
@@ -327,25 +327,25 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 	userOpenID, err := repo.User.GetUserOpenIDByIssuerAndSub(oidcConfig.Issuer, userInfo.Sub)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		// 非找不到记录的其他错误
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewInternalServer("failed_to_get_user_openid")
 	}
 
 	// 1. 曾经绑定过登录
 	if userOpenID != nil {
 		user, err := repo.User.GetUserByID(userOpenID.UserID)
 		if err != nil {
-			return nil, errs.ErrInternalServer
+			return nil, errs.NewInternalServer("failed_to_get_user")
 		}
 		if err = repo.Session.CreateSession(&model.Session{
 			UserID:    user.ID,
 			SessionID: sessionId,
 			UserIP:    utils.NewIPRecord(req.UserIP),
 		}); err != nil {
-			return nil, errs.New(http.StatusInternalServerError, "Failed to create session", nil)
+			return nil, errs.NewInternalServer("failed_to_create_target")
 		}
 		token, refreshToken, err := utils.Jwt.New2Tokens(user.ID, sessionId, false)
 		if err != nil {
-			return nil, errs.New(http.StatusInternalServerError, "Failed to generate tokens", err)
+			return nil, errs.NewInternalServer("failed_to_create_target")
 		}
 		resp := &dto.OidcLoginResp{
 			Token:        token,
@@ -358,7 +358,7 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 	// 2. 曾经未绑定过登录，使用第三方提供的邮箱查询本地是否存在，存在继续绑定登录，不存在创建新用户
 	localUser, err := repo.User.GetUserByEmail(userInfo.Email)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errs.New(http.StatusInternalServerError, "Error to get user by email", err)
+		return nil, errs.NewInternalServer("failed_to_get_user")
 	}
 	if localUser != nil {
 		// 存在则绑定并签发token
@@ -368,18 +368,18 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 			Sub:    userInfo.Sub,
 		}
 		if err = repo.User.CreateOrUpdateUserOpenID(userOpenID); err != nil {
-			return nil, errs.New(http.StatusInternalServerError, "Failed to link third-party account", err)
+			return nil, errs.NewConflict("failed_to_link_oidc_account")
 		}
 		if err = repo.Session.CreateSession(&model.Session{
 			UserID:    localUser.ID,
 			SessionID: sessionId,
 			UserIP:    utils.NewIPRecord(req.UserIP),
 		}); err != nil {
-			return nil, errs.New(http.StatusInternalServerError, "Failed to create session", nil)
+			return nil, errs.NewInternalServer("failed_to_create_target")
 		}
 		token, refreshToken, err := utils.Jwt.New2Tokens(localUser.ID, sessionId, false)
 		if err != nil {
-			return nil, errs.New(http.StatusInternalServerError, "Failed to generate tokens", err)
+			return nil, errs.NewInternalServer("failed_to_generate_tokens")
 		}
 		resp := &dto.OidcLoginResp{
 			Token:        token,
@@ -390,12 +390,12 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 	}
 	// 3. 第一次登录，创建新用户并登录
 	if !tools.GetAllowRegisterFromOidc() {
-		return nil, errs.New(http.StatusForbidden, "Registration is disabled", nil)
+		return nil, errs.NewForbidden("register_from_oidc_disabled")
 	}
 	// 检测用户名是否重复
 	usernameExists, err := repo.User.CheckUsernameExists(userInfo.PreferredUsername)
 	if err != nil {
-		return nil, errs.New(http.StatusInternalServerError, "Failed to check username existence", err)
+		return nil, errs.NewInternalServer("failed_to_check_target")
 	}
 	// 如果用户名已存在，尝试添加随机后缀
 	if usernameExists {
@@ -404,7 +404,7 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 			newUsername := userInfo.PreferredUsername + "_" + randomSuffix
 			exists, err := repo.User.CheckUsernameExists(newUsername)
 			if err != nil {
-				return nil, errs.New(http.StatusInternalServerError, "Failed to check username existence", err)
+				return nil, errs.NewInternalServer("failed_to_check_target")
 			}
 			if !exists {
 				userInfo.PreferredUsername = newUsername
@@ -423,14 +423,14 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 	}
 
 	if err = repo.User.CreateUser(newUser); err != nil {
-		return nil, errs.New(http.StatusInternalServerError, "Failed to create user", err)
+		return nil, errs.NewInternalServer("failed_to_create_user")
 	}
 	// 创建管理员
 	if newUser.ID == 1 {
 		newUser.Role = constant.RoleAdmin
 		if err = repo.User.UpdateUser(newUser); err != nil {
 			logrus.Errorln("Failed to update user role to admin:", err)
-			return nil, errs.ErrInternalServer
+			return nil, errs.NewInternalServer("failed_to_update_target")
 		}
 	}
 	userOpenID = &model.UserOpenID{
@@ -439,18 +439,18 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		Sub:    userInfo.Sub,
 	}
 	if err = repo.User.CreateOrUpdateUserOpenID(userOpenID); err != nil {
-		return nil, errs.New(http.StatusInternalServerError, "Failed to link third-party account", err)
+		return nil, errs.NewConflict("failed_to_link_oidc_account")
 	}
 	if err = repo.Session.CreateSession(&model.Session{
 		UserID:    newUser.ID,
 		SessionID: sessionId,
 		UserIP:    utils.NewIPRecord(req.UserIP),
 	}); err != nil {
-		return nil, errs.New(http.StatusInternalServerError, "Failed to create session", nil)
+		return nil, errs.NewInternalServer("failed_to_create_target")
 	}
 	token, refreshToken, err := utils.Jwt.New2Tokens(newUser.ID, sessionId, false)
 	if err != nil {
-		return nil, errs.New(http.StatusInternalServerError, "Failed to generate tokens", err)
+		return nil, errs.NewInternalServer("failed_to_generate_tokens")
 	}
 	resp := &dto.OidcLoginResp{
 		Token:        token,
@@ -460,47 +460,47 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 	return resp, nil
 }
 
-func (s *UserService) GetUser(req *dto.GetUserReq) (*dto.GetUserResp, error) {
+func (s *UserService) GetUser(req *dto.GetUserReq) (*dto.GetUserResp, *errs.ServiceError) {
 	if req.UserID == 0 {
-		return nil, errs.New(http.StatusBadRequest, "user_id is required", nil)
+		return nil, errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
 	user, err := repo.User.GetUserByID(req.UserID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errs.ErrNotFound
+			return nil, errs.NewNotFound("target_not_found")
 		}
 		logrus.Errorln("Failed to get user by ID:", err)
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	if user == nil {
-		return nil, errs.ErrNotFound
+		return nil, errs.NewNotFound("target_not_found")
 	}
 	return &dto.GetUserResp{
 		User: user.ToDto(),
 	}, nil
 }
 
-func (s *UserService) GetUserByUsername(req *dto.GetUserByUsernameReq) (*dto.GetUserResp, error) {
+func (s *UserService) GetUserByUsername(req *dto.GetUserByUsernameReq) (*dto.GetUserResp, *errs.ServiceError) {
 	if req.Username == "" {
-		return nil, errs.New(http.StatusBadRequest, "username is required", nil)
+		return nil, errs.NewBadRequest("username_cannot_be_empty")
 	}
 	user, err := repo.User.GetUserByUsername(req.Username)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errs.ErrNotFound
+			return nil, errs.NewNotFound("target_not_found")
 		}
 		logrus.Errorln("Failed to get user by username:", err)
-		return nil, errs.ErrInternalServer
+		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	if user == nil {
-		return nil, errs.ErrNotFound
+		return nil, errs.NewNotFound("target_not_found")
 	}
 	return &dto.GetUserResp{
 		User: user.ToDto(),
 	}, nil
 }
 
-func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, error) {
+func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, *errs.ServiceError) {
 	user := &model.User{
 		Model: gorm.Model{
 			ID: req.ID,
@@ -516,21 +516,25 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, e
 	err := repo.User.UpdateUser(user)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errs.ErrNotFound
+			return nil, errs.NewNotFound("target_not_found")
 		}
 		logrus.Errorln("Failed to update user:", err)
-		return nil, err
+		return nil, errs.NewInternalServer("failed_to_update_target")
 	}
 	return &dto.UpdateUserResp{}, nil
 }
 
-func (s *UserService) UpdatePassword(ctx context.Context, req *dto.UpdatePasswordReq) (bool, error) {
+func (s *UserService) UpdatePassword(ctx context.Context, req *dto.UpdatePasswordReq) (bool, *errs.ServiceError) {
+	if !isValidPassword(req.NewPassword) {
+		return false, errs.NewBadRequest("invalid_password_format")
+	}
+
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok || currentUser == nil {
-		return false, errs.ErrUnauthorized
+		return false, errs.NewUnauthorized("login_required")
 	}
 	if !utils.Password.VerifyPassword(req.OldPassword, currentUser.Password) {
-		return false, errs.New(http.StatusForbidden, "Old password is incorrect", nil)
+		return false, errs.NewBadRequest("old_password_incorrect")
 	}
 	hashedPassword, err := utils.Password.HashPassword(req.NewPassword)
 	if err != nil {
@@ -539,37 +543,48 @@ func (s *UserService) UpdatePassword(ctx context.Context, req *dto.UpdatePasswor
 	currentUser.Password = hashedPassword
 	err = repo.GetDB().Save(currentUser).Error
 	if err != nil {
-		return false, errs.ErrInternalServer
+		return false, errs.NewInternalServer("failed_to_update_target")
 	}
 	return true, nil
 }
 
-func (s *UserService) ResetPassword(req *dto.ResetPasswordReq) (bool, error) {
+func (s *UserService) ResetPassword(req *dto.ResetPasswordReq) (bool, *errs.ServiceError) {
+	if !isValidPassword(req.NewPassword) {
+		return false, errs.NewBadRequest("invalid_password_format")
+	}
+	// 查找用户
 	user, err := repo.User.GetUserByEmail(req.Email)
 	if err != nil {
-		return false, errs.ErrInternalServer
+		return false, errs.NewNotFound("user_not_found")
 	}
 	hashedPassword, err := utils.Password.HashPassword(req.NewPassword)
 	if err != nil {
-		return false, errs.ErrInternalServer
+		return false, errs.NewInternalServer("failed_to_create_target")
 	}
 	user.Password = hashedPassword
 	err = repo.User.UpdateUser(user)
 	if err != nil {
-		return false, errs.ErrInternalServer
+		return false, errs.NewInternalServer("failed_to_update_target")
 	}
 	return true, nil
 }
 
-func (s *UserService) UpdateEmail(ctx context.Context, email string) (bool, error) {
+func (s *UserService) UpdateEmail(ctx context.Context, email string) (bool, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok || currentUser == nil {
-		return false, errs.ErrUnauthorized
+		return false, errs.NewUnauthorized("login_required")
 	}
 	currentUser.Email = email
 	err := repo.GetDB().Save(currentUser).Error
 	if err != nil {
-		return false, errs.ErrInternalServer
+		return false, errs.NewInternalServer("failed_to_update_target")
 	}
 	return true, nil
+}
+
+func isValidPassword(password string) bool {
+	if len(password) < 8 || len(password) > 32 {
+		return false
+	}
+	return true
 }

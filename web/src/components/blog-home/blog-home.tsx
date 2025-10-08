@@ -31,7 +31,7 @@ export default function BlogHome() {
   const t = useTranslations("BlogHome");
   const { siteInfo } = useSiteInfo();
   const [keywords, setKeywords] = useState<string[]>([]);
-  const [labelString, setLabelString] = useQueryState("label");
+  const [labelSlug, setLabelString] = useQueryState("label");
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1).withOptions({ history: "replace", clearOnDefault: true }));
   const [posts, setPosts] = useState<Post[]>([]);
   const [totalPosts, setTotalPosts] = useState(0);
@@ -55,7 +55,7 @@ export default function BlogHome() {
     }
     // 用户主动触发分页时滚动
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [page]);
+  }, [page, labelSlug]);
 
   useEffect(() => {
     if (!isSortByLoaded) return;
@@ -67,7 +67,7 @@ export default function BlogHome() {
         orderBy: sortBy === SortBy.Latest ? OrderBy.CreatedAt : OrderBy.Heat,
         desc: true,
         keywords: keywords.join(",") || undefined,
-        label: labelString || undefined,
+        label: labelSlug || undefined,
       }
     ).then(res => {
       setPosts(res.data.posts);
@@ -77,7 +77,7 @@ export default function BlogHome() {
       console.error(err);
       setLoading(false);
     });
-  }, [keywords, labelString, page, sortBy, isSortByLoaded, siteInfo.postsPerPage]);
+  }, [keywords, labelSlug, page, sortBy, isSortByLoaded, siteInfo.postsPerPage]);
 
   const handleSortChange = (type: SortBy) => {
     if (sortBy !== type) {
@@ -103,7 +103,7 @@ export default function BlogHome() {
               className="lg:col-span-3 self-start transition-none"
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              key={`${page}-${labelString ?? "none"}`}
+              key={`${page}-${labelSlug ?? "none"}`}
               transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
               {/* 文章列表标题 */}
               <div className="flex items-center justify-between mb-8">
@@ -164,7 +164,7 @@ export default function BlogHome() {
                 cards={[
                   <SidebarAbout key="about" />,
                   posts.length > 0 ? <SidebarHotPosts key="hot" posts={posts} sortType={sortBy} /> : null,
-                  <SidebarLabels key="tags" label={labelString} setLabel={setLabelString} />,
+                  <SidebarLabels key="tags" label={labelSlug} setLabel={setLabelString} />,
                   <SidebarMisskeyIframe key="misskey" />,
                 ].filter(Boolean)}
               />

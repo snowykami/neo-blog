@@ -1,8 +1,6 @@
 package repo
 
 import (
-	"net/http"
-
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/errs"
 )
@@ -58,7 +56,7 @@ func (o *oidcRepo) GetOidcConfigByID(id uint) (*model.OidcConfig, error) {
 
 func (o *oidcRepo) UpdateOidcConfig(oidcConfig *model.OidcConfig) error {
 	if oidcConfig.ID == 0 {
-		return errs.New(http.StatusBadRequest, "invalid OIDC config ID", nil)
+		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
 	if err := GetDB().Select("Name", "ClientID", "ClientSecret",
 		"DisplayName", "Icon", "OidcDiscoveryUrl",
