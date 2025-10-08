@@ -1,8 +1,9 @@
 "use client";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useCallback, useEffect, useRef } from "react";
 
-export default function ScrollbarOverlay() {
+export function DesktopScrollbarOverlay() {
   const thumbRef = useRef<HTMLDivElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -182,4 +183,10 @@ export default function ScrollbarOverlay() {
       />
     </div>
   );
+}
+
+export function ScrollbarOverlay() {
+  const isMobile = useIsMobile();
+  if (isMobile) return null;
+  return <DesktopScrollbarOverlay />;
 }

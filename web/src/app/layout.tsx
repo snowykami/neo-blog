@@ -11,7 +11,7 @@ import "./globals.css";
 import { SiteInfoProvider } from "@/contexts/site-info-context";
 import { getSiteInfo } from "@/api/misc";
 import { getLoginUserServer } from "@/api/user.server";
-import ScrollbarOverlay from "@/components/common/scrollbar-overlay";
+import { ScrollbarOverlay } from "@/components/common/scrollbar-overlay";
 import { fallbackSiteInfo } from "@/utils/common/siteinfo";
 
 
