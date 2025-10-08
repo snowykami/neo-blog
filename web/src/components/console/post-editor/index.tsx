@@ -172,6 +172,7 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
     return () => window.removeEventListener('keydown', handler);
   }, [post, editor, saveDraft]);
 
+  // 发布
   const publishPost = () => {
     const htmlToPublish = editor.getHTML();
     saveDraft(false);
@@ -182,6 +183,7 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
     });
   }
 
+  // 预览点击
   const onPreview = () => {
     saveDraft(true);
   }
