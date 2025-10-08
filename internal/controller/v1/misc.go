@@ -33,8 +33,9 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 			"icon":        "https://cdn.liteyuki.org/snowykami/avatar_alpha.png",
 			"description": "A neo blog system",
 		}),
-		"color_schemes": repo.KV.GetKVWithoutErr("color_schemes", []string{"blue", "green", "orange", "red", "rose", "pink", "violet", "yellow"}),
-		"default_cover": repo.KV.GetKVWithoutErr("default_cover", "https://cdn.liteyuki.org/blog/background.png"),
+		"color_schemes":        repo.KV.GetKVWithoutErr("color_schemes", []string{"blue", "green", "orange", "red", "rose", "pink", "violet", "yellow"}),
+		"default_color_scheme": repo.KV.GetKVWithoutErr("default_color_scheme", "blue"),
+		"default_cover":        repo.KV.GetKVWithoutErr("default_cover", "https://cdn.liteyuki.org/blog/background.png"),
 		"owner": repo.KV.GetKVWithoutErr("owner", utils.H{
 			"name":        "SnowyKami",
 			"description": "A full-stack developer.",
