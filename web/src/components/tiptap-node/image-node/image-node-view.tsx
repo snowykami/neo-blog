@@ -187,14 +187,14 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
 
   useEffect(() => {
     // pointer events cover mouse + touch + pen
-    window.addEventListener("pointermove", windowPointerMoveHandler as any, {
+    window.addEventListener("pointermove", windowPointerMoveHandler, {
       passive: false,
     })
-    window.addEventListener("pointerup", windowPointerUpHandler as any)
+    window.addEventListener("pointerup", windowPointerUpHandler)
 
     return () => {
-      window.removeEventListener("pointermove", windowPointerMoveHandler as any)
-      window.removeEventListener("pointerup", windowPointerUpHandler as any)
+      window.removeEventListener("pointermove", windowPointerMoveHandler)
+      window.removeEventListener("pointerup", windowPointerUpHandler)
     }
   }, [windowPointerMoveHandler, windowPointerUpHandler])
 
