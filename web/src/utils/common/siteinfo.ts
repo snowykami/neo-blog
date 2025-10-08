@@ -7,7 +7,7 @@ export type SiteInfo = {
     icon: string;
     description: string;
   };
-  defaultCover: string;
+  defaultCover: string | string[];
   owner: {
     name: string;
     description?: string;
@@ -61,3 +61,12 @@ export const fallbackSiteInfo: SiteInfo = {
     ],
   },
 };
+
+export function getDefaultCoverRandomly(siteInfo: SiteInfo): string {
+  if (Array.isArray(siteInfo.defaultCover)) {
+    if (siteInfo.defaultCover.length === 0) return "";
+    const idx = Math.floor(Math.random() * siteInfo.defaultCover.length);
+    return siteInfo.defaultCover[idx];
+  }
+  return siteInfo.defaultCover;
+}

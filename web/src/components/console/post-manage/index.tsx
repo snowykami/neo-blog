@@ -31,6 +31,7 @@ import { useSiteInfo } from "@/contexts/site-info-context";
 import { useAuth } from "@/contexts/auth-context";
 import { BaseResponseError } from "@/models/resp";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getDefaultCoverRandomly } from "@/utils/common/siteinfo";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
@@ -134,7 +135,7 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
           {/* avatar */}
           <div className="flex-shrink-0 w-16 h-9 rounded-md overflow-hidden">
             <Image
-              src={post.cover || siteInfo.defaultCover || "/default-post-cover.png"}
+              src={post.cover || getDefaultCoverRandomly(siteInfo)}
               alt={post.title}
               width={64}   // 和 w-16 (4rem=64px) 保持一致
               height={36}  // 和 h-9 (2.25rem=36px) 保持一致

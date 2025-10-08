@@ -14,6 +14,7 @@ import { deceleration } from '@/motion/curve'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { getPostUrl } from '@/utils/common/route'
 import { htmlToText } from '@/utils/common/string'
+import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 
 
 export function BlogCard({ post, className }: {
@@ -50,7 +51,7 @@ export function BlogCard({ post, className }: {
           className="absolute inset-0 w-full h-full"
         >
           <Image
-            src={post.cover || siteInfo.defaultCover || "https://cdn.liteyuki.org/blog/background.png"}
+            src={post.cover || getDefaultCoverRandomly(siteInfo)}
             alt={post.title}
             fill
             className="object-cover w-full h-full group-hover:scale-105 !duration-300 !transition-transform"

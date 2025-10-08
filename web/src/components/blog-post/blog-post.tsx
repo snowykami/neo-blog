@@ -11,7 +11,7 @@ import { SidebarAbout, SidebarLabels, SidebarMisskeyIframe } from "../blog-sideb
 import CopyrightCard from "./blog-copyright.client";
 import { navStickyTopPx, contentAreaPaddingClass } from "@/utils/common/layout-size";
 import { BlogLikeButton } from "./blog-like-button.client";
-import { fallbackSiteInfo } from "@/utils/common/siteinfo";
+import { fallbackSiteInfo, getDefaultCoverRandomly } from "@/utils/common/siteinfo";
 import { getTranslations } from "next-intl/server";
 import { Separator } from "../ui/separator";
 import Typewriter from "../common/typewriter";
@@ -21,9 +21,8 @@ import "./blog-post-align.scss";
 import HtmlEnhancer from "./blog-content-enhanced";
 
 async function PostHeader({ post }: { post: Post }) {
-  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
   return (
-    <PostHeaderClient post={post} siteInfo={{ defaultCover: siteInfo.defaultCover }}>
+    <PostHeaderClient post={post}>
       <PostMetaWhite post={post} />
     </PostHeaderClient>
   );

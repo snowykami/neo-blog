@@ -28,26 +28,32 @@ func NewMiscController() *MiscController {
 
 func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext) {
 	value, err := repo.KV.GetKV(KeySiteInfo, utils.H{
-		"metadata": repo.KV.GetKVWithoutErr("metadata", utils.H{
-			"name":        "Snowykami's Blog",
-			"icon":        "https://cdn.liteyuki.org/snowykami/avatar_alpha.png",
-			"description": "A neo blog system",
-		}),
+		"metadata": utils.H{
+			"name":        repo.KV.GetKVWithoutErr("site_name", "Snowykami's Blog"),
+			"icon":        repo.KV.GetKVWithoutErr("site_icon", "https://cdn.liteyuki.org/snowykami/avatar_alpha.png"),
+			"description": repo.KV.GetKVWithoutErr("site_description", "A neo blog system"),
+		},
 		"color_schemes":        repo.KV.GetKVWithoutErr("color_schemes", []string{"blue", "green", "orange", "red", "rose", "pink", "violet", "yellow"}),
 		"default_color_scheme": repo.KV.GetKVWithoutErr("default_color_scheme", "blue"),
-		"default_cover":        repo.KV.GetKVWithoutErr("default_cover", "https://cdn.liteyuki.org/blog/background.png"),
-		"owner": repo.KV.GetKVWithoutErr("owner", utils.H{
-			"name":        "SnowyKami",
-			"description": "A full-stack developer.",
-			"avatar":      "https://cdn.liteyuki.org/snowykami/avatar.jpg",
+		"default_cover": repo.KV.GetKVWithoutErr("default_cover", []string{
+			"https://cdn.liteyuki.org/snowykami/image/1759709826590.webp",
+			"https://cdn.liteyuki.org/snowykami/image/1759710439228.webp",
+			"https://cdn.liteyuki.org/snowykami/image/1759710339517.webp",
+			"https://cdn.liteyuki.org/snowykami/image/furina.png",
+			"https://cdn.liteyuki.org/snowykami/image/1759710500693.webp",
 		}),
+		"owner": utils.H{
+			"name":        repo.KV.GetKVWithoutErr("owner_name", "SnowyKami"),
+			"description": repo.KV.GetKVWithoutErr("owner_description", "A full-stack developer."),
+			"avatar":      repo.KV.GetKVWithoutErr("owner_avatar", "https://cdn.liteyuki.org/snowykami/avatar.jpg"),
+		},
 		"posts_per_page":            repo.KV.GetKVWithoutErr("posts_per_page", 10),
 		"comments_per_page":         repo.KV.GetKVWithoutErr("comments_per_page", 10),
 		"verify_code_cool_down":     repo.KV.GetKVWithoutErr("verify_code_cool_down", 60), // 单位秒
 		"animation_duration_second": repo.KV.GetKVWithoutErr("animation_duration_second", 0.618),
 		"footer": repo.KV.GetKVWithoutErr("footer", utils.H{
-			"text":  "Liteyuki ICP 114514",
-			"links": []string{"https://www.liteyuki.com/"},
+			"text": repo.KV.GetKVWithoutErr("footer_text", "Liteyuki ICP 114514"),
+			"link": repo.KV.GetKVWithoutErr("footer_link", "https://sfkm.me"),
 		}),
 		"base_url": tools.GetBaseUrl(),
 	})

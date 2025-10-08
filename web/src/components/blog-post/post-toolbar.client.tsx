@@ -8,7 +8,7 @@ import { Post } from "@/models/post";
 import { useRouter } from "next/navigation";
 import { getPostEditUrl } from "@/utils/common/route";
 
-export function PostToolbar({ post, onPreviewChange, onQuickEdit }: { post: Post; onPreviewChange: (v: boolean) => void; onQuickEdit?: () => void }) {
+export function PostToolbar({ post, onPreviewChange }: { post: Post; onPreviewChange: (v: boolean) => void }) {
   const { user } = useAuth();
   const router = useRouter();
   const { setSolidNav, setNavStyle, navClassName } = useNav();
@@ -23,7 +23,6 @@ export function PostToolbar({ post, onPreviewChange, onQuickEdit }: { post: Post
     setNavStyle(prevNavClassName);
     onPreviewChange(false);
   };
-  console.log("USER", user?.id, post.user.id)
 
   return (
     <div className="absolute inset-x-0 flex items-center justify-between px-4 md:px-10" style={{ top: '-2.5rem' }}>

@@ -4,6 +4,7 @@ import { getRandomPost } from "@/api/post"
 import { useSiteInfo } from "@/contexts/site-info-context"
 import { Post } from "@/models/post"
 import { getPostUrl } from "@/utils/common/route"
+import { getDefaultCoverRandomly } from "@/utils/common/siteinfo"
 import { useTranslations } from "next-intl"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -91,7 +92,7 @@ function RandomPostPreview({ post }: { post: Post }) {
       <div className="space-y-4">
         <div className="w-full aspect-[16/8] rounded-lg overflow-hidden">
           <Image
-            src={post.cover || siteInfo.defaultCover}
+            src={post.cover || getDefaultCoverRandomly(siteInfo)}
             alt={post.title}
             width={800}
             height={600}

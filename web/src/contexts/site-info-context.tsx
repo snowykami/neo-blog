@@ -3,8 +3,6 @@
 import { fallbackSiteInfo, SiteInfo } from "@/utils/common/siteinfo";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-
-
 type SiteInfoContextValue = {
   siteInfo: SiteInfo;
   setSiteInfo: (info: SiteInfo) => void;
