@@ -26,6 +26,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { TextStyleKit } from '@tiptap/extension-text-style'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from "../common/post-meta-dialog-form";
 import { common, createLowlight } from 'lowlight'
+import { PostPreviewDialogWithButton } from './post-preview'
 
 const lowlight = createLowlight(common)
 
@@ -135,6 +136,7 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [settingDialogOpen, setSettingDialogOpen] = useState(false);
 
+  // 保存草稿函数
   const saveDraft = useCallback((showToast: boolean) => {
     const htmlToSave = editor.getHTML();
     setSavingDraft(true);
@@ -158,6 +160,7 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
     return () => clearInterval(iv);
   }, [post, editor, saveDraft]);
 
+  // 快捷键保存
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -171,11 +174,16 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
 
   const publishPost = () => {
     const htmlToPublish = editor.getHTML();
+    saveDraft(false);
     updatePost({ post: { id: post.id, draftContent: htmlToPublish, content: htmlToPublish, type: "html" } }).then(() => {
       toast.success(operationT("publish_success"));
     }).catch(() => {
       toast.error(operationT("publish_failed"));
     });
+  }
+
+  const onPreview = () => {
+    saveDraft(true);
   }
 
   return (
@@ -189,9 +197,10 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
       <div className="flex flex-wrap items-center justify-end gap-2">
         <CreateOrUpdatePostMetaDialogWithoutButton open={settingDialogOpen} onOpenChange={setSettingDialogOpen} post={post} onPostChange={onPostUpdate} />
         {/* source mode removed */}
-        <Button onClick={() => setSettingDialogOpen(true)} variant="outline">{t("setting")}</Button>
-        <Button onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft}>{savingDraft ? t("saving_draft") : t("save_draft")}</Button>
-        <Button onClick={publishPost}>{operationT("publish")}</Button>
+        <PostPreviewDialogWithButton post={post} onPreview={onPreview} />
+        <Button size="sm" onClick={() => setSettingDialogOpen(true)} variant="outline">{t("setting")}</Button>
+        <Button size="sm" onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft}>{savingDraft ? t("saving_draft") : t("save_draft")}</Button>
+        <Button size="sm" onClick={publishPost}>{operationT("publish")}</Button>
       </div>
     </div>
   )

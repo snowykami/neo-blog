@@ -34,7 +34,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const lastMod = new Date(post.updatedAt || post.createdAt)
     const { changefreq, priority } = getChangeFreqAndPriority(lastMod)
     items.push({
-      url: sitemapData.baseUrl + getPostUrl(post),
+      url: sitemapData.baseUrl + getPostUrl({post}),
       lastModified: lastMod,
       changeFrequency: changefreq,
       priority,

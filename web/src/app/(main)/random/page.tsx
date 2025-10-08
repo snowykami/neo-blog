@@ -21,7 +21,7 @@ export default function RandomPostPage() {
       setPost(res.data)
       // 等待 300 ms 再跳转，避免闪烁
       setTimeout(() => {
-        router.push(getPostUrl(res.data))
+        router.push(getPostUrl({post: res.data}))
       }, 300)
     }).catch(err => {
       toast.error(err.message || 'Failed to get random post')

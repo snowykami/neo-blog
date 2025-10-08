@@ -69,7 +69,7 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
       </CardHeader>
       <CardContent className="space-y-4">
         {posts.slice(0, 3).map((post, index) => (
-          <Link href={getPostUrl(post)} key={post.id} className="block hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-1 transition-colors">
+          <Link href={getPostUrl({post})} key={post.id} className="block hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-1 transition-colors">
             <div className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold">
                 {index + 1}

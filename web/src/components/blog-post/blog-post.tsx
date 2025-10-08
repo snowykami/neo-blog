@@ -78,7 +78,7 @@ async function PostMetaWhite({ post }: { post: Post }) {
   );
 }
 
-async function PostContent({ post }: { post: Post }) {
+async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean }) {
   const t = await getTranslations("Common")
   return (
     <div className="bg-transparent md:bg-background md:border-1 pt-4 px-2 md:px-8 md:pt-8 md:p-8 rounded-none md:rounded-xl">
@@ -91,15 +91,13 @@ async function PostContent({ post }: { post: Post }) {
         <Typewriter text={post.description} />
       </div>}
 
-      {post.content && post.type === "html" && (
-        <>
-          <article id="blog-content" className="prose prose-lg max-w-none dark:prose-invert 
+      {/* 文章内容 */}
+      <article id="blog-content" className="prose prose-lg max-w-none dark:prose-invert 
           rounded-xl bg-background
           text-sm md:text-lg
-          " dangerouslySetInnerHTML={{ __html: post.content }} />
-          <HtmlEnhancer containerId="blog-content" />
-        </>
-      )}
+          " dangerouslySetInnerHTML={{ __html: (isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>' }} />
+      <HtmlEnhancer containerId="blog-content" />
+
       {/* 版权卡片 */}
       <div className="mt-4 md:mt-8">
         <CopyrightCard post={post} />
@@ -109,14 +107,17 @@ async function PostContent({ post }: { post: Post }) {
       <div className="mt-4 md:mt-8">
         <BlogLikeButton post={post} />
       </div>
-      
+
     </div>
   );
 }
 
 
-export async function BlogPost({ post }: { post: Post }) {
+export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?: boolean }) {
   const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
+  if (!post.cover) {
+    post.cover = getDefaultCoverRandomly(siteInfo);
+  }
   return (
     <div className="h-full">
       {/* <ScrollToTop /> */}
@@ -135,7 +136,7 @@ export async function BlogPost({ post }: { post: Post }) {
           animate={{ opacity: 1, y: 0 }}
           className="lg:col-span-3 transition-none "
           transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
-          <PostContent post={post} />
+          <PostContent post={post} isDraft={isDraft} />
           <div className={`bg-background mt-4 rounded-xl border border-border ${contentAreaPaddingClass} py-4 md:py-8`}>
             <CommentSection targetType={TargetType.Post} ownerId={post.user.id} targetId={post.id} totalCount={post.commentCount} />
           </div>

@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 // 这个是approuter固定的传入格式，无法更改
 interface Props {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ type: 'draft' | undefined }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -19,16 +20,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function PostPage({ params }: Props) {
+export default async function PostPage({ params, searchParams }: Props) {
   const { id } = await params;
-  const post = await getPostByIdServer({ id }).then(res => res.data).catch(() => null);
+  const { type } = await searchParams;
+  const post = await getPostByIdServer({ id, type }).then(res => res.data).catch(() => null);
+  console.log(post)
   if (!post) return notFound();
+  // 如果当前访问的 id 不是 post 的 slug，则重定向到正确的 URL
   if (post.slug && post.slug !== id) {
-    redirect(getPostUrl(post));
+    redirect(getPostUrl({post, type}));
   }
   return (
     <div className="flex flex-col h-100vh">
-      <BlogPost post={post} />
+      <BlogPost post={post} isDraft={type === 'draft'} />
     </div>
   )
 }

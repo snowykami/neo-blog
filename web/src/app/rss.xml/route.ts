@@ -25,7 +25,7 @@ export async function GET() {
     rss.item({
       title: post.title,
       description: post.content,
-      url: rssData.siteUrl + getPostUrl(post),
+      url: rssData.siteUrl + getPostUrl({post}),
       guid: post.slug || post.id.toString(),
       date: post.updatedAt,
       enclosure: post.cover ? { url: post.cover } : { url: rssData.postDefaultCover },

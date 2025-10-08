@@ -20,7 +20,7 @@ function CopyrightCard({ post }:
   const copyrightT = useTranslations("Copyright");
   const operationT = useTranslations("Operation");
   const { user } = useAuth();
-  const postUrl = siteInfo.baseUrl + getPostUrl(post);
+  const postUrl = siteInfo.baseUrl + getPostUrl({post});
 
   return (
     <div className="bg-primary/10 rounded-lg 

@@ -35,7 +35,7 @@ export function useToUserProfile() {
 export function useToPost(){
   const router = useRouter();
   return ({post}:{post: Post}) => {
-    router.push(getPostUrl(post));
+    router.push(getPostUrl({post}));
   };
 }
 

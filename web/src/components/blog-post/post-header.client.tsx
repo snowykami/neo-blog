@@ -18,8 +18,6 @@ export function PostHeaderClient({
   children: React.ReactNode
 }) {
   const [isPreviewing, setIsPreviewing] = useState(false);
-  const { siteInfo } = useSiteInfo();
-  const fallbackCover = useMemo(() => getDefaultCoverRandomly(siteInfo), [siteInfo]);
 
   return (
     // 允许子元素超出（眼睛按钮不会被裁切）
@@ -29,7 +27,7 @@ export function PostHeaderClient({
         className="absolute inset-0"
         style={{
           zIndex: -3,
-          backgroundImage: `url(${post.cover || fallbackCover})`,
+          backgroundImage: `url(${post.cover || ''})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}

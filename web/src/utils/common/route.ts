@@ -30,13 +30,13 @@ export const mainPath = {
  * @returns 
  */
 export function getPostUrl<T extends { slug?: string | null; id?: string | number | null }>(
-  post: T
+  {post, type}: {post: T, type?: 'draft'}
 ): string {
   const key = post.slug || post.id;
   if (key == null) {
     throw new Error('toPostUrl: object must contain slug or id')
   }
-  return `/p/${String(key)}`
+  return `/p/${String(key)}${type ? `?type=${type}` : ''}`;
 }
 
 export function getPostEditUrl<T extends { slug?: string | null; id?: string | number | null }>(
