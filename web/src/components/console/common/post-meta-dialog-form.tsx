@@ -149,7 +149,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
                 <FormItem>
                   <FormLabel>{t("post_title")}</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input autoFocus={false} {...field} />
                   </FormControl>
                 </FormItem>
               )}
@@ -162,7 +162,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
                 <FormItem>
                   <FormLabel>{t("post_slug")}</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input autoFocus={false} {...field} />
                   </FormControl>
                 </FormItem>
               )}
@@ -175,7 +175,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
                 <FormItem>
                   <FormLabel>{t("post_cover")}</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input autoFocus={false} {...field} />
                   </FormControl>
                 </FormItem>
               )}
@@ -188,7 +188,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
                 <FormItem>
                   <FormLabel>{t("post_description")}</FormLabel>
                   <FormControl>
-                    <Textarea {...field} className="max-h-4 md:max-h-none" />
+                    <Textarea autoFocus={false} {...field} className="max-h-4 md:max-h-none" />
                   </FormControl>
                 </FormItem>
               )}
@@ -275,6 +275,7 @@ function PostCategorySelector(
               <PopoverContent className="w-[240px] p-0">
                 <Command>
                   <CommandInput
+                    autoFocus={false}
                     placeholder={operationT("search")}
                     className="h-9"
                   />
@@ -403,6 +404,7 @@ function PostLabelSelector(
               <PopoverContent className="w-auto p-0">
                 <Command>
                   <CommandInput
+                    autoFocus={false}
                     placeholder={operationT("search")}
                     className="h-9"
                   />
