@@ -58,8 +58,9 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   const rightResizeHandleRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
 
-  const windowMouseMoveHandler = React.useCallback(
-    (event: MouseEvent): void => {
+  // 使用 PointerEvent 支持触摸与鼠标
+  const windowPointerMoveHandler = React.useCallback(
+    (event: PointerEvent): void => {
       if (!resizeParams || !editor) {
         return
       }
@@ -107,8 +108,8 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
     [editor, align, maxWidth, minWidth, resizeParams]
   )
 
-  const windowMouseUpHandler = React.useCallback(
-    (event: MouseEvent): void => {
+  const windowPointerUpHandler = React.useCallback(
+    (event: PointerEvent): void => {
       if (!editor) {
         return
       }
@@ -135,8 +136,8 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
     [editor, showHandles, resizeParams, onImageResize, width]
   )
 
-  const leftResizeHandleMouseDownHandler = (
-    event: React.MouseEvent<HTMLDivElement>
+  const leftResizeHandlePointerDownHandler = (
+    event: React.PointerEvent<HTMLDivElement>
   ): void => {
     event.preventDefault()
 
@@ -147,8 +148,8 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
     })
   }
 
-  const rightResizeHandleMouseDownHandler = (
-    event: React.MouseEvent<HTMLDivElement>
+  const rightResizeHandlePointerDownHandler = (
+    event: React.PointerEvent<HTMLDivElement>
   ): void => {
     event.preventDefault()
 
@@ -159,14 +160,14 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
     })
   }
 
-  const wrapperMouseEnterHandler = (): void => {
+  const wrapperPointerEnterHandler = (): void => {
     if (editor && editor.isEditable) {
       setShowHandles(true)
     }
   }
 
-  const wrapperMouseLeaveHandler = (
-    event: React.MouseEvent<HTMLDivElement>
+  const wrapperPointerLeaveHandler = (
+    event: React.PointerEvent<HTMLDivElement>
   ): void => {
     if (
       event.relatedTarget === leftResizeHandleRef.current ||
@@ -185,19 +186,26 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   }
 
   useEffect(() => {
-    window.addEventListener("mousemove", windowMouseMoveHandler)
-    window.addEventListener("mouseup", windowMouseUpHandler)
+    // pointer events cover mouse + touch + pen
+    window.addEventListener("pointermove", windowPointerMoveHandler as any, {
+      passive: false,
+    })
+    window.addEventListener("pointerup", windowPointerUpHandler as any)
 
     return () => {
-      window.removeEventListener("mousemove", windowMouseMoveHandler)
-      window.removeEventListener("mouseup", windowMouseUpHandler)
+      window.removeEventListener("pointermove", windowPointerMoveHandler as any)
+      window.removeEventListener("pointerup", windowPointerUpHandler as any)
     }
-  }, [windowMouseMoveHandler, windowMouseUpHandler])
+  }, [windowPointerMoveHandler, windowPointerUpHandler])
 
   return (
     <NodeViewWrapper
-      onMouseEnter={wrapperMouseEnterHandler}
-      onMouseLeave={wrapperMouseLeaveHandler}
+      onPointerEnter={wrapperPointerEnterHandler}
+      onPointerLeave={wrapperPointerLeaveHandler}
+      onClick={() => {
+        // 点击也显示句柄，方便触摸设备操作
+        if (editor && editor.isEditable) setShowHandles(true)
+      }}
       data-align={align}
       data-width={width}
       className="tiptap-image"
@@ -225,12 +233,12 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
               <div
                 ref={leftResizeHandleRef}
                 className="tiptap-image-handle tiptap-image-handle-left"
-                onMouseDown={leftResizeHandleMouseDownHandler}
+                onPointerDown={leftResizeHandlePointerDownHandler}
               />
               <div
                 ref={rightResizeHandleRef}
                 className="tiptap-image-handle tiptap-image-handle-right"
-                onMouseDown={rightResizeHandleMouseDownHandler}
+                onPointerDown={rightResizeHandlePointerDownHandler}
               />
             </>
           )}
