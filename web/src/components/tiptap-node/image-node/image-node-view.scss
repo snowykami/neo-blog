@@ -66,5 +66,16 @@
     &.tiptap-image-handle-right {
       right: 4px;
     }
+
+    &.tiptap-image-handle-corner {
+      top: auto;
+      bottom: 4px;
+      right: 4px;
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      cursor: nwse-resize;
+      transform: none;
+    }
   }
 }

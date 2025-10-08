@@ -2,12 +2,14 @@ import type { Editor, NodeViewProps } from "@tiptap/react"
 import { NodeViewWrapper } from "@tiptap/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import * as React from "react"
+import { useIsMobile } from "@/hooks/use-mobile"
 import "./image-node-view.scss"
 
 export interface ResizeParams {
-  handleUsed: "left" | "right"
+  handleUsed: "left" | "right" | "corner"
   initialWidth: number
   initialClientX: number
+  initialClientY: number
 }
 
 export interface ResizableImageProps
@@ -79,6 +81,7 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   initialWidth,
   onImageResize,
 }) => {
+  const isMobile = useIsMobile()
   const [resizeParams, setResizeParams] = useState<ResizeParams | undefined>(
     undefined
   )
@@ -88,6 +91,7 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null)
   const leftResizeHandleRef = useRef<HTMLDivElement>(null)
   const rightResizeHandleRef = useRef<HTMLDivElement>(null)
+  const cornerResizeHandleRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const activePointerIdRef = useRef<number | null>(null)
   const activeOverlayCleanupRef = useRef<(() => void) | null>(null)
@@ -101,7 +105,19 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
 
       let newWidth: number
 
-      if (align === "center") {
+      if (resizeParams.handleUsed === "corner") {
+        // Mobile corner resize: diagonal drag
+        const deltaX = event.clientX - resizeParams.initialClientX
+        const deltaY = event.clientY - resizeParams.initialClientY
+        // Use the larger of the two deltas for more intuitive resize
+        const delta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY
+        
+        if (align === "center") {
+          newWidth = resizeParams.initialWidth + delta * 2
+        } else {
+          newWidth = resizeParams.initialWidth + delta
+        }
+      } else if (align === "center") {
         if (resizeParams.handleUsed === "left") {
           newWidth =
             resizeParams.initialWidth +
@@ -148,6 +164,7 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
         try {
           leftResizeHandleRef.current?.releasePointerCapture?.(activePointerIdRef.current)
           rightResizeHandleRef.current?.releasePointerCapture?.(activePointerIdRef.current)
+          cornerResizeHandleRef.current?.releasePointerCapture?.(activePointerIdRef.current)
         } catch {}
         activePointerIdRef.current = null
       }
@@ -220,6 +237,7 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
       handleUsed: "left",
       initialWidth: wrapperRef.current?.clientWidth || Number.MAX_VALUE,
       initialClientX: event.clientX,
+      initialClientY: event.clientY,
     })
   }
 
@@ -242,6 +260,30 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
       handleUsed: "right",
       initialWidth: wrapperRef.current?.clientWidth || Number.MAX_VALUE,
       initialClientX: event.clientX,
+      initialClientY: event.clientY,
+    })
+  }
+
+  const cornerResizeHandlePointerDownHandler = (
+    event: React.PointerEvent<HTMLDivElement>
+  ): void => {
+    event.preventDefault()
+    try {
+      (event.target as Element).setPointerCapture?.(event.pointerId)
+    } catch {}
+    if (typeof window !== "undefined") {
+      activeOverlayCleanupRef.current?.()
+      activeOverlayCleanupRef.current = createPointerCaptureOverlay(
+        onPointerMoveGlobal,
+        onPointerUpGlobal
+      )
+    }
+
+    setResizeParams({
+      handleUsed: "corner",
+      initialWidth: wrapperRef.current?.clientWidth || Number.MAX_VALUE,
+      initialClientX: event.clientX,
+      initialClientY: event.clientY,
     })
   }
 
@@ -323,16 +365,28 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
 
           {showHandles && editor && editor.isEditable && (
             <>
-              <div
-                ref={leftResizeHandleRef}
-                className="tiptap-image-handle tiptap-image-handle-left"
-                onPointerDown={leftResizeHandlePointerDownHandler}
-              />
-              <div
-                ref={rightResizeHandleRef}
-                className="tiptap-image-handle tiptap-image-handle-right"
-                onPointerDown={rightResizeHandlePointerDownHandler}
-              />
+              {!isMobile ? (
+                // PC mode: left and right handles
+                <>
+                  <div
+                    ref={leftResizeHandleRef}
+                    className="tiptap-image-handle tiptap-image-handle-left"
+                    onPointerDown={leftResizeHandlePointerDownHandler}
+                  />
+                  <div
+                    ref={rightResizeHandleRef}
+                    className="tiptap-image-handle tiptap-image-handle-right"
+                    onPointerDown={rightResizeHandlePointerDownHandler}
+                  />
+                </>
+              ) : (
+                // Mobile mode: corner handle
+                <div
+                  ref={cornerResizeHandleRef}
+                  className="tiptap-image-handle tiptap-image-handle-corner"
+                  onPointerDown={cornerResizeHandlePointerDownHandler}
+                />
+              )}
             </>
           )}
         </div>
