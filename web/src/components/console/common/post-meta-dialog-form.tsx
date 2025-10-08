@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { Category } from "@/models/category"
 import { Post } from "@/models/post"
 import { DialogClose, DialogDescription } from "@radix-ui/react-dialog"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, XIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useEffect, useState } from "react"
 import { SubmitHandler, useForm } from "react-hook-form"
@@ -359,19 +359,24 @@ function PostLabelSelector(
             <Popover open={open} onOpenChange={setOpen}>
               <div className="">
                 {/* 标签列表 */}
-                <div className="flex flex-wrap gap-2 max-w-full border-1 rounded-lg p-2">
-                  {safeLabels.length === 0 ? t("select_labels") : safeLabels.map(l => (
-                    <span
-                      key={l.id}
-                      className="inline-flex items-center gap-2 px-2 py-0.5 rounded-lg bg-muted text-sm"
-                      onClick={(e) => remove(l, e)}
-                    >
-                      <span>{l.name}</span>
-                      <svg className="w-3 h-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </span>
-                  ))}
+                <div className="max-h-18 p-2 rounded-lg border overflow-y-auto overflow-x-hidden">
+                  <div className="flex flex-wrap gap-2">
+                    {safeLabels.length === 0 ? (
+                      <div className="text-muted-foreground">{t("select_labels")}</div>
+                    ) : (
+                      safeLabels.map((l) => (
+                        <button
+                          key={l.id}
+                          type="button"
+                          className="inline-flex items-center gap-2 px-2 py-0.5 rounded-lg bg-muted text-sm hover:opacity-90"
+                          title={l.name}
+                        >
+                          <span>{l.name}</span>
+                          <XIcon onClick={(e) => remove(l, e)} className="w-3 h-3 text-muted-foreground" />
+                        </button>
+                      ))
+                    )}
+                  </div>
                 </div>
                 {/* 标签选择器和创建行 */}
                 <div className="flex items-center justify-between mt-2">
