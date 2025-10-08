@@ -132,14 +132,14 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           <DialogTitle>
             {post ? operationT("update") : operationT("create")} {t("post_meta")}
           </DialogTitle>
-          {post && <>
+          {post && <div className="flex justify-between items-center gap-2">
             <div className="font-mono text-sm">
               {commonT("created_at")}: {new Date(post.createdAt).toLocaleString()}
             </div>
             <div className="font-mono text-sm">
               {commonT("updated_at")}: {new Date(post.updatedAt).toLocaleString()}
             </div>
-          </>}
+          </div>}
         </DialogHeader>
         <Form {...form}>
           <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
