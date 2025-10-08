@@ -189,7 +189,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
                 <FormItem>
                   <FormLabel>{t("post_description")}</FormLabel>
                   <FormControl>
-                    <Textarea {...field} />
+                    <Textarea {...field} className="max-h-4 md:max-h-none" />
                   </FormControl>
                 </FormItem>
               )}
@@ -199,7 +199,6 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
               category={form.watch("category")}
               onCategoryChange={(category) => form.setValue("category", category)}
             />
-
 
             <PostLabelSelector
               labels={form.watch("labels")}
@@ -323,7 +322,6 @@ function PostLabelSelector(
   const [items, setItems] = useState<Label[]>([]);
   const [open, setOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
 
   useEffect(() => {
     console.log("refreshing labels...");
@@ -359,40 +357,43 @@ function PostLabelSelector(
           <FormLabel>{t("post_labels")}</FormLabel>
           <FormControl>
             <Popover open={open} onOpenChange={setOpen}>
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
+              <div className="">
+                {/* 标签列表 */}
+                <div className="flex flex-wrap gap-2 max-w-full border-1 rounded-lg p-2">
+                  {safeLabels.length === 0 ? t("select_labels") : safeLabels.map(l => (
+                    <span
+                      key={l.id}
+                      className="inline-flex items-center gap-2 px-2 py-0.5 rounded-lg bg-muted text-sm"
+                      onClick={(e) => remove(l, e)}
+                    >
+                      <span>{l.name}</span>
+                      <svg className="w-3 h-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </span>
+                  ))}
+                </div>
+                {/* 标签选择器和创建行 */}
+                <div className="flex items-center justify-between mt-2">
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       size="sm"
                       role="combobox"
                       aria-expanded={open}
-                      className={cn("w-full h-auto py-2 justify-between text-left", safeLabels.length === 0 && "text-muted-foreground")}
+                      className={cn("w-auto h-auto py-2 justify-between text-left", safeLabels.length === 0 && "text-muted-foreground")}
                     >
-                      <div className="flex flex-wrap gap-2 max-w-full">
-                        {safeLabels.length === 0 ? t("select_labels") : safeLabels.map(l => (
-                          <span
-                            key={l.id}
-                            className="inline-flex items-center gap-2 px-2 py-0.5 rounded-lg bg-muted text-sm"
-                            onClick={(e) => remove(l, e)}
-                          >
-                            <span>{l.name}</span>
-                            <svg className="w-3 h-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </span>
-                        ))}
-                      </div>
+                      {t("select_labels")}
                       <ChevronsUpDown className="ml-2 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                </div>
-                <div className="flex-shrink-0">
-                  <CreateOrUpdateLabelDialogWithButton
-                    buttonSize={"default"}
-                    label={null}
-                    onLabelCreated={() => setRefreshKey((key) => key + 1)}
-                  />
+                  <div>
+                    <CreateOrUpdateLabelDialogWithButton
+                      buttonSize={"default"}
+                      label={null}
+                      onLabelCreated={() => setRefreshKey((key) => key + 1)}
+                    />
+                  </div>
                 </div>
               </div>
               <PopoverContent className="w-auto p-0">

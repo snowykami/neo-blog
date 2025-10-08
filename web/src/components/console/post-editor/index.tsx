@@ -191,7 +191,14 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
   return (
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
       <div className="flex items-center gap-2">
-        <span className="text-lg font-semibold break-words">{post.title || t("untitled")}</span>
+        <div className="min-w-0">
+          <span
+            className="text-lg font-semibold truncate block"
+            title={post.title || t("untitled")}
+          >
+            {post.title || t("untitled")}
+          </span>
+        </div>
         {lastSavedAt &&
           <span className="text-sm text-muted-foreground w-full md:w-auto">{t("last_saved_at", { time: lastSavedAt.toLocaleTimeString() })}</span>
         }
