@@ -27,6 +27,7 @@ import { TextStyleKit } from '@tiptap/extension-text-style'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from "../common/post-meta-dialog-form";
 import { common, createLowlight } from 'lowlight'
 import { PostPreviewDialogWithButton } from './post-preview'
+import { FullscreenIcon, MinimizeIcon } from 'lucide-react'
 
 const lowlight = createLowlight(common)
 
@@ -90,8 +91,6 @@ export function PostEditor() {
     ],
   })
 
-  // source mode removed; always use rich text editor
-
   useEffect(() => {
     getPostById({ id, type: "draft" }).then(res => {
       console.log()
@@ -135,6 +134,7 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
   const [savingDraft, setSavingDraft] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [settingDialogOpen, setSettingDialogOpen] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   // 保存草稿函数
   const saveDraft = useCallback((showToast: boolean) => {
@@ -183,6 +183,19 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
     });
   }
 
+  // 切换全屏
+  const handleToggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch((err) => {
+        toast.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+      });
+      setIsFullScreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullScreen(false);
+    }
+  }
+
   // 预览点击
   const onPreview = () => {
     saveDraft(true);
@@ -206,6 +219,9 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
       <div className="flex flex-wrap items-center justify-end gap-2">
         <CreateOrUpdatePostMetaDialogWithoutButton open={settingDialogOpen} onOpenChange={setSettingDialogOpen} post={post} onPostChange={onPostUpdate} />
         {/* source mode removed */}
+        <Button size="sm" onClick={handleToggleFullScreen} variant="outline">
+          {isFullScreen ? <MinimizeIcon className="size-4" /> : <FullscreenIcon className="size-4" />}
+        </Button>
         <PostPreviewDialogWithButton post={post} onPreview={onPreview} />
         <Button size="sm" onClick={() => setSettingDialogOpen(true)} variant="outline">{t("setting")}</Button>
         <Button size="sm" onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft}>{savingDraft ? t("saving_draft") : t("save_draft")}</Button>
