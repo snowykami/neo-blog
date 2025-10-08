@@ -1,6 +1,6 @@
 import type { Editor, NodeViewProps } from "@tiptap/react"
 import { NodeViewWrapper } from "@tiptap/react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import * as React from "react"
 import "./image-node-view.scss"
 
@@ -37,6 +37,38 @@ export function ImageNodeView(props: NodeViewProps) {
   )
 }
 
+function createPointerCaptureOverlay(
+  onMove: (ev: PointerEvent) => void,
+  onUp: (ev: PointerEvent) => void
+) {
+  const overlay = document.createElement("div")
+  overlay.style.position = "fixed"
+  overlay.style.inset = "0"
+  overlay.style.zIndex = "999999"
+  overlay.style.background = "transparent"
+  overlay.style.touchAction = "none" // 非常重要：阻止浏览器手势拦截
+  document.body.appendChild(overlay)
+
+  const moveHandler = (e: PointerEvent) => {
+    e.preventDefault()
+    onMove(e)
+  }
+  const upHandler = (e: PointerEvent) => {
+    onUp(e)
+  }
+
+  overlay.addEventListener("pointermove", moveHandler, { passive: false })
+  overlay.addEventListener("pointerup", upHandler)
+  overlay.addEventListener("pointercancel", upHandler)
+
+  return () => {
+    overlay.removeEventListener("pointermove", moveHandler)
+    overlay.removeEventListener("pointerup", upHandler)
+    overlay.removeEventListener("pointercancel", upHandler)
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay)
+  }
+}
+
 export const ResizableImage: React.FC<ResizableImageProps> = ({
   src,
   alt = "",
@@ -57,6 +89,8 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   const leftResizeHandleRef = useRef<HTMLDivElement>(null)
   const rightResizeHandleRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
+  const activePointerIdRef = useRef<number | null>(null)
+  const activeOverlayCleanupRef = useRef<(() => void) | null>(null)
 
   // 使用 PointerEvent 支持触摸与鼠标
   const windowPointerMoveHandler = React.useCallback(
@@ -110,6 +144,13 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
 
   const windowPointerUpHandler = React.useCallback(
     (event: PointerEvent): void => {
+      if (activePointerIdRef.current != null) {
+        try {
+          leftResizeHandleRef.current?.releasePointerCapture?.(activePointerIdRef.current)
+          rightResizeHandleRef.current?.releasePointerCapture?.(activePointerIdRef.current)
+        } catch {}
+        activePointerIdRef.current = null
+      }
       if (!editor) {
         return
       }
@@ -136,10 +177,44 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
     [editor, showHandles, resizeParams, onImageResize, width]
   )
 
+  const onPointerMoveGlobal = useCallback(
+    (e: PointerEvent) => {
+      // 复用现有计算逻辑：把 PointerEvent 转给原来的 windowPointerMoveHandler 实现
+      // 假设你已有一个函数 windowPointerMoveHandler 接受 PointerEvent
+      windowPointerMoveHandler(e)
+    },
+    [windowPointerMoveHandler]
+  )
+
+  const onPointerUpGlobal = useCallback(
+    (e: PointerEvent) => {
+      // 结束拖拽：释放捕获、清 overlay、调用原本的 up handler
+      if (activeOverlayCleanupRef.current) {
+        activeOverlayCleanupRef.current()
+        activeOverlayCleanupRef.current = null
+      }
+      windowPointerUpHandler(e)
+    },
+    [windowPointerUpHandler]
+  )
+
   const leftResizeHandlePointerDownHandler = (
     event: React.PointerEvent<HTMLDivElement>
   ): void => {
     event.preventDefault()
+    // 尝试在目标上 setPointerCapture（兼容桌面）
+    try {
+      (event.target as Element).setPointerCapture?.(event.pointerId)
+    } catch {}
+    // 创建全屏 overlay 捕获后续 pointermove/pointerup（确保移动端不会被系统抢夺）
+    if (typeof window !== "undefined") {
+      // cleanup 上一个 overlay（防御性）
+      activeOverlayCleanupRef.current?.()
+      activeOverlayCleanupRef.current = createPointerCaptureOverlay(
+        onPointerMoveGlobal,
+        onPointerUpGlobal
+      )
+    }
 
     setResizeParams({
       handleUsed: "left",
@@ -152,6 +227,16 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
     event: React.PointerEvent<HTMLDivElement>
   ): void => {
     event.preventDefault()
+    try {
+      (event.target as Element).setPointerCapture?.(event.pointerId)
+    } catch {}
+    if (typeof window !== "undefined") {
+      activeOverlayCleanupRef.current?.()
+      activeOverlayCleanupRef.current = createPointerCaptureOverlay(
+        onPointerMoveGlobal,
+        onPointerUpGlobal
+      )
+    }
 
     setResizeParams({
       handleUsed: "right",
@@ -184,6 +269,14 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
       setShowHandles(false)
     }
   }
+
+  // 在组件卸载或 pointerup 全局清理 overlay
+  useEffect(() => {
+    return () => {
+      activeOverlayCleanupRef.current?.()
+      activeOverlayCleanupRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     // pointer events cover mouse + touch + pen
