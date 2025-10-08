@@ -25,7 +25,7 @@ import Color from "@tiptap/extension-color"
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { TextStyleKit } from '@tiptap/extension-text-style'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from "../common/post-meta-dialog-form";
-import {common, createLowlight} from 'lowlight'
+import { common, createLowlight } from 'lowlight'
 
 const lowlight = createLowlight(common)
 
@@ -115,9 +115,13 @@ export function PostEditor() {
   if (!post || !editor) return <div>Loading...</div>;
 
   return (
-    <div className='w-auto'>
+    // 这里设置一个确定高度（示例使用 80vh），保证内部 SimpleEditor 可在自身内滚动
+    <div className='w-auto editor-container
+    h-[calc(100vh-var(--header-height)-var(--console-content-padding)-6.5rem)]
+    md:h-[calc(100vh-var(--header-height)-var(--console-content-padding)-5.5rem)]
+    '>
       <EditorNavbar editor={editor} post={post} onPostUpdate={onPostUpdate} />
-      <div className="relative mt-4">
+      <div className="relative mt-4 h-full" >
         <SimpleEditor editor={editor} />
       </div>
     </div>
@@ -175,12 +179,14 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
   }
 
   return (
-    <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-1 gap-2">
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
       <div className="flex items-center gap-2">
         <span className="text-lg font-semibold break-words">{post.title || t("untitled")}</span>
+        {lastSavedAt &&
+          <span className="text-sm text-muted-foreground w-full md:w-auto">{t("last_saved_at", { time: lastSavedAt.toLocaleTimeString() })}</span>
+        }
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {lastSavedAt && <span className="text-sm text-muted-foreground w-full md:w-auto">{t("last_saved_at", { time: lastSavedAt.toLocaleTimeString() })}</span>}
         <CreateOrUpdatePostMetaDialogWithoutButton open={settingDialogOpen} onOpenChange={setSettingDialogOpen} post={post} onPostChange={onPostUpdate} />
         {/* source mode removed */}
         <Button onClick={() => setSettingDialogOpen(true)} variant="outline">{t("setting")}</Button>

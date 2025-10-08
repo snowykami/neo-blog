@@ -41,7 +41,7 @@ export function PostManage() {
   const commonT = useTranslations("Common");
   const metricsT = useTranslations("Metrics");
   const { isMobile } = useDevice();
-  const {user} = useAuth();
+  const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [total, setTotal] = useState(0);
   const [orderBy, setOrderBy] = useQueryState("order_by", parseAsStringEnum<OrderBy>(Object.values(OrderBy)).withDefault(OrderBy.CreatedAt).withOptions({ history: "replace", clearOnDefault: true }));
@@ -120,7 +120,7 @@ export function PostManage() {
 
 function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void, onPostDelete: ({ postId }: { postId: number }) => void }) {
   const commonT = useTranslations("Common");
-  const isMobile  = useIsMobile();
+  const isMobile = useIsMobile();
   const labelCount = isMobile ? 1 : 3;
   const postT = useTranslations("Console.post_edit");
   const stateT = useTranslations("State");
@@ -134,13 +134,19 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
         <div className="flex justify-start items-center gap-4">
           {/* avatar */}
           <div className="flex-shrink-0 w-16 h-9 rounded-md overflow-hidden">
-            <Image
-              src={post.cover || getDefaultCoverRandomly(siteInfo)}
+            {post.cover && <Image
+              src={post.cover}
               alt={post.title}
               width={64}   // 和 w-16 (4rem=64px) 保持一致
               height={36}  // 和 h-9 (2.25rem=36px) 保持一致
               className="w-full h-full object-cover"
-            />
+            />}
+            {/* 没有图片显示No Cover */}
+            {!post.cover &&
+              <div className="w-full h-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-xs text-gray-500">
+                No Cover
+              </div>
+            }
           </div>
           <div className="min-w-0">
             <div className="text-sm font-medium">
@@ -158,12 +164,12 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
                 const items: { value: string; className: string }[] = [
                   { value: `${commonT("id")}: ${post.id}`, className: "bg-indigo-100 text-indigo-800" },
                   { value: stateT(post.isPrivate ? "private" : "public"), className: post.isPrivate ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800" },
-                  { 
-                    value: post.category ? `${postT("category")}: ${post.category?.name}` : postT("uncategorized"), 
+                  {
+                    value: post.category ? `${postT("category")}: ${post.category?.name}` : postT("uncategorized"),
                     className: post.category ? "bg-pink-100 text-pink-800" : "bg-gray-100 text-gray-800"
                   },
-                  { 
-                    value: labelsValue, 
+                  {
+                    value: labelsValue,
                     className: post.labels && post.labels.length > 0 ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"
                   },
                 ];

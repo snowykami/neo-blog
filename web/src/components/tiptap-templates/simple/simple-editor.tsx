@@ -30,9 +30,6 @@ import { ListDropdownMenu } from "@/components/tiptap-ui/list-dropdown-menu"
 import { BlockquoteButton } from "@/components/tiptap-ui/blockquote-button"
 import { CodeBlockButton } from "@/components/tiptap-ui/code-block-button"
 import {
-  ColorHighlightPopover,
-} from "@/components/tiptap-ui/color-highlight-popover"
-import {
   LinkPopover,
 } from "@/components/tiptap-ui/link-popover"
 import { MarkButton } from "@/components/tiptap-ui/mark-button"
@@ -58,7 +55,6 @@ import '@/styles/_keyframe-animations.scss';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import { ColorTextPopover } from "@/components/tiptap-ui/color-text-popover"
-import { ColorTextButton } from "@/components/tiptap-ui/color-text-button"
 
 
 const MainToolbarContent = ({
@@ -155,16 +151,19 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
   }, [])
 
   return (
-    <div className="w-full h-[85vh] box-border border-2 border-primary rounded-lg overflow-hidden">
+    // h-full 使其填充上层已确定的高度；内部 container 使用 min-h-0 + overflow-auto
+    <div className="py-0 flex min-h-0 h-full w-full box-border border-2 border-primary rounded-lg overflow-hidden">
       <EditorContext.Provider value={{ editor }}>
-        <div className="max-w-[900px] w-full mx-auto h-full flex flex-col flex-1 box-border overflow-auto">
+        <div className="max-w-[60rem] w-full mx-auto h-full flex flex-col flex-1 box-border overflow-hidden min-h-0">
+
           <Toolbar
             ref={toolbarRef}
-            className="editor-toolbar sticky top-0 z-10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm flex items-center gap-3 px-4 py-3 w-full"
+            className="editor-toolbar sticky top-0 z-10 !bg-primary/5
+            backdrop-blur-sm flex items-center gap-3 px-4 py-3 w-full
+            p-0 rounded-lg border-1"
             style={{
               WebkitOverflowScrolling: "touch",
               touchAction: "auto",
-              paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`,
             }}
           >
             <MainToolbarContent
@@ -173,11 +172,10 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
               editor={editor}
             />
           </Toolbar>
-
           <EditorContent
             editor={editor}
             role="presentation"
-            className="tiptap ProseMirror simple-editor flex-1 px-6 py-6 lg:px-10 pb-[30vh] sm:px-6"
+            className="tiptap ProseMirror simple-editor flex-1 overflow-auto px-6 py-6 lg:px-10 pb-[30vh] sm:px-6"
           />
         </div>
       </EditorContext.Provider>

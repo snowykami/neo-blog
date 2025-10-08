@@ -8,9 +8,9 @@ import {
 } from "@/components/ui/sidebar"
 
 import { useToLogin } from "@/hooks/use-route"
-import { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { sidebarData} from "@/components/console/data"
+import { sidebarData } from "@/components/console/data"
 import { usePathname } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { consolePath } from "@/utils/common/route"
@@ -35,7 +35,7 @@ export default function ConsoleLayout({
       return pathname === item.url || (item.url !== consolePath.dashboard && pathname.startsWith(item.url + "/"))
     })
     if (match?.id) {
-      setActiveId(match.id) 
+      setActiveId(match.id)
       setTitle(t(match.title))
     }
   }, [pathname, t])
@@ -59,7 +59,12 @@ export default function ConsoleLayout({
       <AppSidebar variant="inset" activeId={activeId} setActiveId={setActiveId} />
       <SidebarInset>
         <SiteHeader title={title} />
-        <div className="p-4 md:p-4">
+        <div
+          style={{
+            "--console-content-padding": "calc(var(--spacing) * 4)",
+            padding: "var(--console-content-padding)",
+          } as React.CSSProperties}
+        >
           {children}
         </div>
       </SidebarInset>
