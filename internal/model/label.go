@@ -24,3 +24,12 @@ func (l *Label) ToDto() dto.LabelDto {
 		PostCount: int64(len(l.Posts)),
 	}
 }
+
+// ToLabelDtos converts a slice of Label models to a slice of LabelDto orderby postCount desc
+func ToLabelDtos(labels []Label) []dto.LabelDto {
+	labelDtos := make([]dto.LabelDto, len(labels))
+	for i, label := range labels {
+		labelDtos[i] = label.ToDto()
+	}
+	return labelDtos
+}

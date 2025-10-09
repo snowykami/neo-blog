@@ -3,6 +3,7 @@ package repo
 import (
 	"errors"
 	"slices"
+	"sort"
 	"strconv"
 
 	"github.com/snowykami/neo-blog/internal/model"
@@ -27,6 +28,63 @@ func (p *postRepo) DeletePost(id uint) error {
 	return nil
 }
 
+// helper: 批量查询 labels 对应的 post 数量（返回 map[labelID]count）
+func fetchLabelPostCounts(db *gorm.DB, labelIDs []uint) (map[uint]int64, error) {
+	counts := make([]struct {
+		LabelID uint  `gorm:"column:label_id"`
+		Cnt     int64 `gorm:"column:cnt"`
+	}, 0)
+
+	if len(labelIDs) == 0 {
+		return map[uint]int64{}, nil
+	}
+
+	if err := db.Table("post_labels").
+		Select("label_id, COUNT(post_id) as cnt").
+		Where("label_id IN ?", labelIDs).
+		Group("label_id").
+		Find(&counts).Error; err != nil {
+		return nil, err
+	}
+
+	m := make(map[uint]int64, len(counts))
+	for _, r := range counts {
+		m[r.LabelID] = r.Cnt
+	}
+	// ensure zeros for missing ids
+	for _, id := range labelIDs {
+		if _, ok := m[id]; !ok {
+			m[id] = 0
+		}
+	}
+	return m, nil
+}
+
+// 把 labels 按照 global post count 排序（降序）
+func sortLabelsByPostCount(db *gorm.DB, labels []model.Label) error {
+	if len(labels) == 0 {
+		return nil
+	}
+	ids := make([]uint, 0, len(labels))
+	for _, l := range labels {
+		ids = append(ids, l.ID)
+	}
+	countMap, err := fetchLabelPostCounts(db, ids)
+	if err != nil {
+		return err
+	}
+	sort.Slice(labels, func(i, j int) bool {
+		ci := countMap[labels[i].ID]
+		cj := countMap[labels[j].ID]
+		if ci == cj {
+			// 保持稳定顺序：按 ID 升序作为二次排序（可改）
+			return labels[i].ID < labels[j].ID
+		}
+		return ci > cj
+	})
+	return nil
+}
+
 func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 	var post model.Post
 
@@ -46,25 +104,68 @@ func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 		}
 	}
 
+	// 如果有 labels，按全局 post 数量排序
+	if len(post.Labels) > 0 {
+		if err := sortLabelsByPostCount(GetDB(), post.Labels); err != nil {
+			// 不致命，记录或返回错误视业务而定；这里选择返回错误以便上层感知
+			return nil, err
+		}
+	}
+
 	// 原子地增加 view_count
 	if err := GetDB().Model(&model.Post{}).Where("id = ?", post.ID).
 		UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error; err != nil {
 		return nil, err
 	}
 
-	// 重新加载（包含 User），以获取更新后的 view_count 用于计算 heat
-	if err := GetDB().Preload("User").First(&post, post.ID).Error; err != nil {
+	// 重新加载（包含关联），以获取更新后的 view_count 用于计算 heat
+	if err := GetDB().Preload(clause.Associations).First(&post, post.ID).Error; err != nil {
 		return nil, err
 	}
 
-	// 更新 heat 列
-	if err := GetDB().Model(&model.Post{}).Where("id = ?", post.ID).
-		UpdateColumn("heat", post.CalculateHeat()).Error; err != nil {
-		return nil, err
-	}
-
-	// TODO: 对用户进行追踪，实现更真实的访问次数计算，目前粗略地每次访问都+1
 	return &post, nil
+}
+
+// 示例：ListTopPosts 在加载 posts 后，对每个 post 的 labels 进行排序
+func (p *postRepo) ListTopPosts(limit int) ([]model.Post, error) {
+	var posts []model.Post
+
+	// 这里假设已有查询逻辑填充 posts，并 preload 了 labels
+	if err := GetDB().Order("view_count desc").Limit(limit).Preload("Labels").Find(&posts).Error; err != nil {
+		return nil, err
+	}
+
+	// 收集所有 label ids，批量查询 counts 一次性完成
+	allLabelIDsSet := make(map[uint]struct{})
+	for _, post := range posts {
+		for _, l := range post.Labels {
+			allLabelIDsSet[l.ID] = struct{}{}
+		}
+	}
+	allLabelIDs := make([]uint, 0, len(allLabelIDsSet))
+	for id := range allLabelIDsSet {
+		allLabelIDs = append(allLabelIDs, id)
+	}
+
+	// 获取全局 counts
+	countMap, err := fetchLabelPostCounts(GetDB(), allLabelIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// 按 count 为每个 post 的 labels 排序（使用相同逻辑）
+	for pi := range posts {
+		sort.Slice(posts[pi].Labels, func(i, j int) bool {
+			ci := countMap[posts[pi].Labels[i].ID]
+			cj := countMap[posts[pi].Labels[j].ID]
+			if ci == cj {
+				return posts[pi].Labels[i].ID < posts[pi].Labels[j].ID
+			}
+			return ci > cj
+		})
+	}
+
+	return posts, nil
 }
 
 func (p *postRepo) SavePost(post *model.Post) error {
@@ -125,14 +226,6 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, label string
 		return nil, 0, err
 	}
 	return items, total, nil
-}
-
-func (p *postRepo) ListTopPosts(limit int) ([]model.Post, error) {
-	var posts []model.Post
-	if err := GetDB().Where("is_private = ?", false).Order("top DESC").Limit(limit).Preload(clause.Associations).Find(&posts).Error; err != nil {
-		return nil, err
-	}
-	return posts, nil
 }
 
 func (p *postRepo) ToggleLikePost(postID uint, userID uint) (bool, error) {
