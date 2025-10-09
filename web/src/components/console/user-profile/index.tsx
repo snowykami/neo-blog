@@ -18,7 +18,13 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useAuth } from '@/contexts/auth-context'
 
 import { localesData } from '@/locales'
@@ -114,7 +120,11 @@ export function UserProfilePage() {
       allowedTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
       maxSize: 5 * 1024 * 1024,
     }
-    if (!file.type || !file.type.startsWith('image/') || !constraints.allowedTypes.includes(file.type)) {
+    if (
+      !file.type
+      || !file.type.startsWith('image/')
+      || !constraints.allowedTypes.includes(file.type)
+    ) {
       setAvatarFile(null)
       toast.error(t('only_allow_picture'))
       return
@@ -137,7 +147,11 @@ export function UserProfilePage() {
       allowedTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
       maxSize: 5 * 1024 * 1024,
     }
-    if (!file.type || !file.type.startsWith('image/') || !constraints.allowedTypes.includes(file.type)) {
+    if (
+      !file.type
+      || !file.type.startsWith('image/')
+      || !constraints.allowedTypes.includes(file.type)
+    ) {
       setBackgroundFile(null)
       toast.error(t('only_allow_picture'))
       return
@@ -164,10 +178,7 @@ export function UserProfilePage() {
       toast.error(t('nickname_and_username_cannot_be_empty'))
       return
     }
-    if (
-      (values.username.length < 1 || values.username.length > 20)
-      || (values.nickname.length > 20)
-    ) {
+    if (values.username.length < 1 || values.username.length > 20 || values.nickname.length > 20) {
       toast.error(t('nickname_and_username_must_be_between', { min: 1, max: 20 }))
       return
     }
@@ -182,11 +193,17 @@ export function UserProfilePage() {
 
     try {
       if (avatarFile) {
-        const resp = await uploadFile({ file: avatarFile, name: avatarFile.name })
+        const resp = await uploadFile({
+          file: avatarFile,
+          name: avatarFile.name,
+        })
         avatarUrl = getFileUri(resp.data.id)
       }
       if (backgroundFile) {
-        const resp = await uploadFile({ file: backgroundFile, name: backgroundFile.name })
+        const resp = await uploadFile({
+          file: backgroundFile,
+          name: backgroundFile.name,
+        })
         backgroundUrl = getFileUri(resp.data.id)
       }
 
@@ -216,9 +233,23 @@ export function UserProfilePage() {
             <Label htmlFor="picture">{t('picture')}</Label>
             <Avatar className="h-40 w-40 rounded-xl border-2">
               {avatarFileUrl
-                ? <AvatarImage src={avatarFileUrl} alt={form.getValues('nickname') || form.getValues('username')} />
-                : <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={form.getValues('nickname') || form.getValues('username')} />}
-              <AvatarFallback>{getFallbackAvatarFromUsername(form.getValues('nickname') || form.getValues('username'))}</AvatarFallback>
+                ? (
+                    <AvatarImage
+                      src={avatarFileUrl}
+                      alt={form.getValues('nickname') || form.getValues('username')}
+                    />
+                  )
+                : (
+                    <AvatarImage
+                      src={getAvatarOrGravatarUrlFromUser({ user })}
+                      alt={form.getValues('nickname') || form.getValues('username')}
+                    />
+                  )}
+              <AvatarFallback>
+                {getFallbackAvatarFromUsername(
+                  form.getValues('nickname') || form.getValues('username'),
+                )}
+              </AvatarFallback>
             </Avatar>
             <div className="flex gap-2">
               <Input
@@ -227,7 +258,12 @@ export function UserProfilePage() {
                 accept="image/png,image/jpeg,image/webp,image/gif,image/*"
                 onChange={handlePictureSelected}
               />
-              <ImageCropper image={avatarFile} onCropped={handleCropped} initialAspect={1} lockAspect={true} />
+              <ImageCropper
+                image={avatarFile}
+                onCropped={handleCropped}
+                initialAspect={1}
+                lockAspect={true}
+              />
             </div>
           </div>
 
@@ -235,8 +271,20 @@ export function UserProfilePage() {
             <Label htmlFor="background">{t('background')}</Label>
             <Avatar className="h-40 w-80 rounded-sm border-2">
               {backgroundFileUrl
-                ? <AvatarImage className="object-cover rounded-none" src={backgroundFileUrl} alt={form.getValues('nickname') || form.getValues('username')} />
-                : <AvatarImage className="object-cover rounded-none" src={user.backgroundUrl} alt={form.getValues('nickname') || form.getValues('username')} />}
+                ? (
+                    <AvatarImage
+                      className="object-cover rounded-none"
+                      src={backgroundFileUrl}
+                      alt={form.getValues('nickname') || form.getValues('username')}
+                    />
+                  )
+                : (
+                    <AvatarImage
+                      className="object-cover rounded-none"
+                      src={user.backgroundUrl}
+                      alt={form.getValues('nickname') || form.getValues('username')}
+                    />
+                  )}
               <AvatarFallback className="rounded-none">{t('background')}</AvatarFallback>
             </Avatar>
             <div className="flex gap-2">
@@ -249,7 +297,9 @@ export function UserProfilePage() {
               <ImageCropper
                 image={backgroundFile}
                 onCropped={(blob) => {
-                  const file = new File([blob], 'background.png', { type: blob.type })
+                  const file = new File([blob], 'background.png', {
+                    type: blob.type,
+                  })
                   setBackgroundFile(file)
                 }}
                 initialAspect={3}
@@ -313,11 +363,12 @@ export function UserProfilePage() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {localesData && Object.keys(localesData).map(locale => (
-                      <SelectItem key={locale} value={locale}>
-                        {localesData[locale].name}
-                      </SelectItem>
-                    ))}
+                    {localesData
+                      && Object.keys(localesData).map(locale => (
+                        <SelectItem key={locale} value={locale}>
+                          {localesData[locale].name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />

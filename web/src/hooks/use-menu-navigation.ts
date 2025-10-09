@@ -61,9 +61,7 @@ export function useMenuNavigation<T>({
   orientation = 'vertical',
   autoSelectFirstItem = true,
 }: MenuNavigationOptions<T>) {
-  const [selectedIndex, setSelectedIndex] = React.useState<number>(
-    autoSelectFirstItem ? 0 : -1,
-  )
+  const [selectedIndex, setSelectedIndex] = React.useState<number>(autoSelectFirstItem ? 0 : -1)
 
   React.useEffect(() => {
     const handleKeyboardNavigation = (event: KeyboardEvent) => {
@@ -174,24 +172,12 @@ export function useMenuNavigation<T>({
       targetElement.addEventListener('keydown', handleKeyboardNavigation, true)
 
       return () => {
-        targetElement?.removeEventListener(
-          'keydown',
-          handleKeyboardNavigation,
-          true,
-        )
+        targetElement?.removeEventListener('keydown', handleKeyboardNavigation, true)
       }
     }
 
     return undefined
-  }, [
-    editor,
-    containerRef,
-    items,
-    selectedIndex,
-    onSelect,
-    onClose,
-    orientation,
-  ])
+  }, [editor, containerRef, items, selectedIndex, onSelect, onClose, orientation])
 
   React.useEffect(() => {
     if (query) {

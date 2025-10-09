@@ -9,13 +9,11 @@ import { deleteLabel, getLabels } from '@/api/label'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useAuth } from '@/contexts/auth-context'
 import { useOperationT } from '@/hooks/translations'
 import { CreateOrUpdateLabelDialogWithButton } from '../common/create-label-and-category'
 
 export function LabelManage() {
   const t = useTranslations('Console.labels')
-  const { user } = useAuth()
   const operationT = useOperationT()
 
   const [labels, setLabels] = useState<Label[]>([])
@@ -43,7 +41,7 @@ export function LabelManage() {
     setLabels((prev) => {
       const exist = prev.find(l => l.id === label.id)
       if (exist) {
-        return prev.map(l => l.id === label.id ? label : l)
+        return prev.map(l => (l.id === label.id ? label : l))
       }
       else {
         return [label, ...prev]
@@ -51,26 +49,43 @@ export function LabelManage() {
     })
   }
 
-  const filtered = labels.filter(l => l.name.toLowerCase().includes(query.toLowerCase()) || l.slug.toLowerCase().includes(query.toLowerCase()))
+  const filtered = labels.filter(
+    l =>
+      l.name.toLowerCase().includes(query.toLowerCase())
+      || l.slug.toLowerCase().includes(query.toLowerCase()),
+  )
 
   return (
     <div>
       <div className="flex items-center gap-3 mb-4">
-        <Input placeholder={t('search_labels')} value={query} onChange={e => setQuery(e.target.value)} className="flex-1" />
+        <Input
+          placeholder={t('search_labels')}
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          className="flex-1"
+        />
         <CreateOrUpdateLabelDialogWithButton label={null} onLabelCreated={onLabelCreated} />
       </div>
 
       <div className="max-h-[60vh] overflow-auto grid gap-2">
         {loading && <div className="text-sm text-muted-foreground">Loading...</div>}
-        {!loading && filtered.length === 0 && <div className="text-sm text-muted-foreground">{t('no_labels')}</div>}
+        {!loading && filtered.length === 0 && (
+          <div className="text-sm text-muted-foreground">{t('no_labels')}</div>
+        )}
         {filtered.map(l => (
-          <div key={l.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-white dark:bg-gray-900">
+          <div
+            key={l.id}
+            className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-white dark:bg-gray-900"
+          >
             <div className="flex items-center gap-3 min-w-0">
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${l.tailwindClassName ?? 'bg-muted'}`}>{l.name}</span>
+              <span
+                className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${l.tailwindClassName ?? 'bg-muted'}`}
+              >
+                {l.name}
+              </span>
               <div className="text-sm text-muted-foreground truncate">
                 {l.id}
                 .
-                {' '}
                 {l.slug}
               </div>
             </div>
@@ -78,7 +93,9 @@ export function LabelManage() {
               <CreateOrUpdateLabelDialogWithButton
                 label={l}
                 onLabelCreated={(updatedLabel) => {
-                  setLabels(prev => prev.map(pl => pl.id === updatedLabel.id ? updatedLabel : pl))
+                  setLabels(prev =>
+                    prev.map(pl => (pl.id === updatedLabel.id ? updatedLabel : pl)),
+                  )
                 }}
               />
               <ConfirmDialog

@@ -9,11 +9,25 @@ import md5 from 'md5'
 //  256 用户资料页
 //  512 最大支持尺寸（上传原图也限于此）
 
-export function getGravatarUrl({ email, size, proxy = 'cn.gravatar.com' }: { email: string, size?: number, proxy?: string }): string {
+export function getGravatarUrl({
+  email,
+  size,
+  proxy = 'cn.gravatar.com',
+}: {
+  email: string
+  size?: number
+  proxy?: string
+}): string {
   const hash = md5(email.trim().toLowerCase())
   return `https://${proxy || 'www.gravatar.com'}/avatar/${hash}?s=${size}&d=identicon`
 }
 
-export function getAvatarOrGravatarUrlFromUser({ user, size = 120 }: { user: User, size?: number }): string {
+export function getAvatarOrGravatarUrlFromUser({
+  user,
+  size = 120,
+}: {
+  user: User
+  size?: number
+}): string {
   return user.avatarUrl || getGravatarUrl({ email: user.email, size })
 }

@@ -43,10 +43,7 @@ export interface HeadingDropdownMenuProps
  *
  * For custom dropdown implementations, use the `useHeadingDropdownMenu` hook instead.
  */
-export const HeadingDropdownMenu = React.forwardRef<
-  HTMLButtonElement,
-  HeadingDropdownMenuProps
->(
+export const HeadingDropdownMenu = React.forwardRef<HTMLButtonElement, HeadingDropdownMenuProps>(
   (
     {
       editor: providedEditor,

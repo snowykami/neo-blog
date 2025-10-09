@@ -16,15 +16,17 @@ export default function RandomPostPage() {
   const router = useRouter()
   const [post, setPost] = useState<Post | null>(null)
   useEffect(() => {
-    getRandomPost().then((res) => {
-      setPost(res.data)
-      // 等待 300 ms 再跳转，避免闪烁
-      setTimeout(() => {
-        router.push(getPostUrl({ post: res.data }))
-      }, 300)
-    }).catch((err) => {
-      toast.error(err.message || 'Failed to get random post')
-    })
+    getRandomPost()
+      .then((res) => {
+        setPost(res.data)
+        // 等待 300 ms 再跳转，避免闪烁
+        setTimeout(() => {
+          router.push(getPostUrl({ post: res.data }))
+        }, 300)
+      })
+      .catch((err) => {
+        toast.error(err.message || 'Failed to get random post')
+      })
   }, [])
 
   return (
@@ -63,9 +65,7 @@ export default function RandomPostPage() {
               <p className="text-lg font-medium text-gray-900 dark:text-white">
                 {t('jumping_to_post')}
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                {t('selecting_post')}
-              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('selecting_post')}</p>
             </div>
           )}
 
@@ -106,9 +106,7 @@ function RandomPostPreview({ post }: { post: Post }) {
             {new Date(post.createdAt).toLocaleDateString()}
           </p>
           {post.description && (
-            <p className="text-gray-700 dark:text-gray-300">
-              {post.description}
-            </p>
+            <p className="text-gray-700 dark:text-gray-300">{post.description}</p>
           )}
         </div>
       </div>

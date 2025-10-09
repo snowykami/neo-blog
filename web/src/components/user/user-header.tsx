@@ -21,7 +21,9 @@ export function UserHeader({ user }: { user: User }) {
 
       {/* 右侧 70%（信息区） */}
       <div className="md:basis-[70%] p-4 flex flex-col justify-center space-y-2">
-        <h2 className="text-2xl font-bold mt-0">{user.nickname || user.username || '未填写昵称'}</h2>
+        <h2 className="text-2xl font-bold mt-0">
+          {user.nickname || user.username || '未填写昵称'}
+        </h2>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
           @
           {user.username}

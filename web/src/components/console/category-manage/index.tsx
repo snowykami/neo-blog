@@ -10,7 +10,8 @@ import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import Forbidden from '@/components/common/forbidden'
 import { Button } from '@/components/ui/button'
 
-import { Input } from '@/components/ui/input'; import { useAuth } from '@/contexts/auth-context'
+import { Input } from '@/components/ui/input'
+import { useAuth } from '@/contexts/auth-context'
 import { useOperationT } from '@/hooks/translations'
 import { isAdmin, isEditor } from '@/utils/common/permission'
 /* External Dialog components used above - import here to keep file self-contained */
@@ -37,7 +38,7 @@ export function CategoryManage() {
     setCategories((prev) => {
       const exist = prev.find(c => c.id === cat.id)
       if (exist)
-        return prev.map(c => c.id === cat.id ? cat : c)
+        return prev.map(c => (c.id === cat.id ? cat : c))
       return [cat, ...prev]
     })
   }
@@ -53,12 +54,13 @@ export function CategoryManage() {
     }
   }
 
-  const filtered = categories.filter(c =>
-    c.name.toLowerCase().includes(query.toLowerCase())
-    || c.slug.toLowerCase().includes(query.toLowerCase()),
+  const filtered = categories.filter(
+    c =>
+      c.name.toLowerCase().includes(query.toLowerCase())
+      || c.slug.toLowerCase().includes(query.toLowerCase()),
   )
 
-  if (!user || !isAdmin({ user }) && !isEditor({ user }))
+  if (!user || (!isAdmin({ user }) && !isEditor({ user })))
     return <Forbidden />
 
   return (
@@ -78,9 +80,14 @@ export function CategoryManage() {
 
       <div className="max-h-[60vh] overflow-auto grid gap-2">
         {loading && <div className="text-sm text-muted-foreground">Loading...</div>}
-        {!loading && filtered.length === 0 && <div className="text-sm text-muted-foreground">{t('no_categories')}</div>}
+        {!loading && filtered.length === 0 && (
+          <div className="text-sm text-muted-foreground">{t('no_categories')}</div>
+        )}
         {filtered.map(c => (
-          <div key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-white dark:bg-gray-900">
+          <div
+            key={c.id}
+            className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-white dark:bg-gray-900"
+          >
             <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
               <div className="flex items-center gap-3 min-w-0">
                 <span className="text-sm font-medium flex-shrink-0">{c.name}</span>
@@ -88,11 +95,12 @@ export function CategoryManage() {
                   {c.id}
                   {' '}
                   -
-                  {' '}
                   {c.slug}
                 </div>
               </div>
-              {c.description && <div className="text-sm text-muted-foreground truncate mt-1">{c.description}</div>}
+              {c.description && (
+                <div className="text-sm text-muted-foreground truncate mt-1">{c.description}</div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <CreateOrUpdateCategoryDialogWithButton

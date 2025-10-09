@@ -4,26 +4,18 @@
 import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
 // --- Tiptap UI ---
-import type {
-  Level,
-  UseHeadingConfig,
-} from '@/components/tiptap-ui/heading-button'
+import type { Level, UseHeadingConfig } from '@/components/tiptap-ui/heading-button'
 
 import * as React from 'react'
 import { Badge } from '@/components/tiptap-ui-primitive/badge'
 
 import { Button } from '@/components/tiptap-ui-primitive/button'
-import {
-  HEADING_SHORTCUT_KEYS,
-  useHeading,
-} from '@/components/tiptap-ui/heading-button'
+import { HEADING_SHORTCUT_KEYS, useHeading } from '@/components/tiptap-ui/heading-button'
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 // --- Lib ---
 import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
-export interface HeadingButtonProps
-  extends Omit<ButtonProps, 'type'>,
-  UseHeadingConfig {
+export interface HeadingButtonProps extends Omit<ButtonProps, 'type'>, UseHeadingConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -50,10 +42,7 @@ export function HeadingShortcutBadge({
  *
  * For custom button implementations, use the `useHeading` hook instead.
  */
-export const HeadingButton = React.forwardRef<
-  HTMLButtonElement,
-  HeadingButtonProps
->(
+export const HeadingButton = React.forwardRef<HTMLButtonElement, HeadingButtonProps>(
   (
     {
       editor: providedEditor,
@@ -69,15 +58,7 @@ export const HeadingButton = React.forwardRef<
     ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
-    const {
-      isVisible,
-      canToggle,
-      isActive,
-      handleToggle,
-      label,
-      Icon,
-      shortcutKeys,
-    } = useHeading({
+    const { isVisible, canToggle, isActive, handleToggle, label, Icon, shortcutKeys } = useHeading({
       editor,
       level,
       hideWhenUnavailable,
@@ -118,9 +99,7 @@ export const HeadingButton = React.forwardRef<
           <>
             <Icon className="tiptap-button-icon" />
             {text && <span className="tiptap-button-text">{text}</span>}
-            {showShortcut && (
-              <HeadingShortcutBadge level={level} shortcutKeys={shortcutKeys} />
-            )}
+            {showShortcut && <HeadingShortcutBadge level={level} shortcutKeys={shortcutKeys} />}
           </>
         )}
       </Button>

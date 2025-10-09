@@ -35,14 +35,14 @@ export function CurrentLogged() {
           <div className="flex gap-2 justify-center items-center  ">
             <Avatar className="h-10 w-10 rounded-full">
               <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.username} />
-              <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
+              <AvatarFallback className="rounded-full">
+                {getFallbackAvatarFromUsername(user.nickname || user.username)}
+              </AvatarFallback>
             </Avatar>
           </div>
           <div className="grid place-items-center text-sm leading-tight text-center">
             <span className="text-primary font-medium">{formatDisplayName(user)}</span>
-            <span className="text-muted-foreground truncate text-xs">
-              {user.email}
-            </span>
+            <span className="text-muted-foreground truncate text-xs">{user.email}</span>
           </div>
         </div>
         <div>

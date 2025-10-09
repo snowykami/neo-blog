@@ -1,6 +1,20 @@
 import type { User } from '@/models/user'
 import type { IconType } from '@/types/icon'
-import { ChartBarStackedIcon, Database, Folder, Gauge, IdCard, MessageCircle, Newspaper, Palette, Settings, ShieldCheck, TagsIcon, UserPen, Users } from 'lucide-react'
+import {
+  ChartBarStackedIcon,
+  Database,
+  Folder,
+  Gauge,
+  IdCard,
+  MessageCircle,
+  Newspaper,
+  Palette,
+  Settings,
+  ShieldCheck,
+  TagsIcon,
+  UserPen,
+  Users,
+} from 'lucide-react'
 import { isAdmin, isEditor } from '@/utils/common/permission'
 import { consolePath } from '@/utils/common/route'
 
@@ -12,7 +26,12 @@ export interface SidebarItem {
   permission: ({ user }: { user: User }) => boolean
 }
 
-export const sidebarData: { navContent: SidebarItem[], navPersonal: SidebarItem[], navSystem: SidebarItem[], navUser: SidebarItem[] } = {
+export const sidebarData: {
+  navContent: SidebarItem[]
+  navPersonal: SidebarItem[]
+  navSystem: SidebarItem[]
+  navUser: SidebarItem[]
+} = {
   navContent: [
     {
       id: 'dashboard',

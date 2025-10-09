@@ -13,23 +13,29 @@ import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { getFirstCharFromUser } from '@/utils/common/username'
 import { Button } from '../ui/button'
 
-export function CommentInput(
-  {
-    onCommentSubmitted,
-    initContent = '',
-    initIsPrivate = false,
-    placeholder = '',
-    isUpdate = false,
-    initShowClientInfo = true,
+export function CommentInput({
+  onCommentSubmitted,
+  initContent = '',
+  initIsPrivate = false,
+  placeholder = '',
+  isUpdate = false,
+  initShowClientInfo = true,
+}: {
+  onCommentSubmitted: ({
+    commentContent,
+    isPrivate,
+    showClientInfo,
   }: {
-    onCommentSubmitted: ({ commentContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => void
-    initContent?: string
-    initIsPrivate?: boolean
-    placeholder?: string
-    isUpdate?: boolean
-    initShowClientInfo?: boolean
-  },
-) {
+    commentContent: string
+    isPrivate: boolean
+    showClientInfo: boolean
+  }) => void
+  initContent?: string
+  initIsPrivate?: boolean
+  placeholder?: string
+  isUpdate?: boolean
+  initShowClientInfo?: boolean
+}) {
   const { user } = useAuth()
   const t = useTranslations('Comment')
   const commonT = useCommonT()
@@ -56,7 +62,11 @@ export function CommentInput(
       toast.error(t('content_required'))
       return
     }
-    if (initContent === commentContent.trim() && initIsPrivate === isPrivate && initShowClientInfo === showClientInfo) {
+    if (
+      initContent === commentContent.trim()
+      && initIsPrivate === isPrivate
+      && initShowClientInfo === showClientInfo
+    ) {
       toast.warning(t('comment_unchanged'))
       return
     }
@@ -67,10 +77,16 @@ export function CommentInput(
   return (
     <div className="fade-in-up">
       <div className="flex py-4 fade-in">
-        <div onClick={user ? () => clickToUserProfile(user.username) : clickToLogin} className="cursor-pointer flex-shrink-0 w-10 h-10 fade-in">
+        <div
+          onClick={user ? () => clickToUserProfile(user.username) : clickToLogin}
+          className="cursor-pointer flex-shrink-0 w-10 h-10 fade-in"
+        >
           {user && (
             <Avatar className="h-full w-full rounded-full">
-              <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user, size: 120 })} alt={user.nickname} />
+              <AvatarImage
+                src={getAvatarOrGravatarUrlFromUser({ user, size: 120 })}
+                alt={user.nickname}
+              />
               <AvatarFallback className="rounded-full">{getFirstCharFromUser(user)}</AvatarFallback>
             </Avatar>
           )}
@@ -78,7 +94,14 @@ export function CommentInput(
         </div>
         <div className="flex-1 pl-2 fade-in-up">
           <Textarea
-            placeholder={placeholder || (user ? (isPrivate ? t('private_placeholder') : t('placeholder')) : commonT('login_required', { loginButton: '登录' }))}
+            placeholder={
+              placeholder
+              || (user
+                ? isPrivate
+                  ? t('private_placeholder')
+                  : t('placeholder')
+                : commonT('login_required', { loginButton: '登录' }))
+            }
             className="w-full p-2 border border-gray-300 rounded-md fade-in-up"
             value={commentContent}
             onChange={e => setCommentContent(e.target.value)}
@@ -100,10 +123,7 @@ export function CommentInput(
           />
           <Label onClick={() => setIsPrivate(prev => !prev)}>{t('private')}</Label>
         </div>
-        <Button
-          size="sm"
-          onClick={handleCommentSubmit}
-        >
+        <Button size="sm" onClick={handleCommentSubmit}>
           {isUpdate ? operationT('update') : operationT('submit')}
         </Button>
       </div>

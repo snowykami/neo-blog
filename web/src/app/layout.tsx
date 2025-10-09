@@ -25,15 +25,15 @@ const geistMono = Source_Code_Pro({
 })
 
 export async function generateMetadata(): Promise<Metadata> {
-  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo)
+  const siteInfo = await getSiteInfo()
+    .then(res => res.data)
+    .catch(() => fallbackSiteInfo)
   return {
     title: {
       default: siteInfo.metadata.name,
       template: `%s - ${siteInfo.metadata.name}`,
     },
-    icons: [
-      { rel: 'icon', url: siteInfo.metadata.icon },
-    ],
+    icons: [{ rel: 'icon', url: siteInfo.metadata.icon }],
   }
 }
 
@@ -42,18 +42,22 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const user = await getLoginUserServer().then(res => res.data).catch(() => null)
-  const siteInfo = await getSiteInfo().then(res => res.data).catch(
-    () => {
+  const user = await getLoginUserServer()
+    .then(res => res.data)
+    .catch(() => null)
+  const siteInfo = await getSiteInfo()
+    .then(res => res.data)
+    .catch(() => {
       console.error('Failed to fetch site info from backend server, using fallback.')
       return fallbackSiteInfo
-    },
-  )
+    })
   return (
-    <html lang={await getFirstLocale() || 'en'} className="h-full" data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || 'blue'}>
-      <body
-        className={`${geistMono.className} ${geistSans.className} antialiased`}
-      >
+    <html
+      lang={(await getFirstLocale()) || 'en'}
+      className="h-full"
+      data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || 'blue'}
+    >
+      <body className={`${geistMono.className} ${geistSans.className} antialiased`}>
         <Toaster richColors position="top-center" offset={80} />
         <NuqsAdapter>
           <DeviceProvider>

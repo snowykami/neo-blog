@@ -50,10 +50,7 @@ export function ColorHighlightShortcutBadge({
  *
  * For custom button implementations, use the `useColorHighlight` hook instead.
  */
-export const ColorHighlightButton = React.forwardRef<
-  HTMLButtonElement,
-  ColorHighlightButtonProps
->(
+export const ColorHighlightButton = React.forwardRef<HTMLButtonElement, ColorHighlightButtonProps>(
   (
     {
       editor: providedEditor,
@@ -70,20 +67,14 @@ export const ColorHighlightButton = React.forwardRef<
     ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
-    const {
-      isVisible,
-      canColorHighlight,
-      isActive,
-      handleColorHighlight,
-      label,
-      shortcutKeys,
-    } = useColorHighlight({
-      editor,
-      highlightColor,
-      label: text || `Toggle highlight (${highlightColor})`,
-      hideWhenUnavailable,
-      onApplied,
-    })
+    const { isVisible, canColorHighlight, isActive, handleColorHighlight, label, shortcutKeys }
+      = useColorHighlight({
+        editor,
+        highlightColor,
+        label: text || `Toggle highlight (${highlightColor})`,
+        hideWhenUnavailable,
+        onApplied,
+      })
 
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -129,14 +120,10 @@ export const ColorHighlightButton = React.forwardRef<
           <>
             <span
               className="tiptap-button-highlight"
-              style={
-                { '--highlight-color': highlightColor } as React.CSSProperties
-              }
+              style={{ '--highlight-color': highlightColor } as React.CSSProperties}
             />
             {text && <span className="tiptap-button-text">{text}</span>}
-            {showShortcut && (
-              <ColorHighlightShortcutBadge shortcutKeys={shortcutKeys} />
-            )}
+            {showShortcut && <ColorHighlightShortcutBadge shortcutKeys={shortcutKeys} />}
           </>
         )}
       </Button>

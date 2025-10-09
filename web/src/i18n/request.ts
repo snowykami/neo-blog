@@ -27,7 +27,7 @@ export async function getUserLocales(): Promise<string[]> {
     locales.push(user?.language || '')
     locales.push((user?.language || '').split('-')[0])
   }
-  catch { }
+  catch {}
 
   const headersList = await headers()
   const acceptLanguage = headersList.get('accept-language')

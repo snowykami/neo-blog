@@ -3,9 +3,15 @@ import { getUserByUsername } from '@/api/user'
 import { UserPage } from '@/components/user'
 import { formatDisplayName } from '@/utils/common/username'
 
-export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string }>
+}): Promise<Metadata> {
   const { username } = await params
-  const user = await getUserByUsername(username).then(r => r.data).catch(() => null)
+  const user = await getUserByUsername(username)
+    .then(r => r.data)
+    .catch(() => null)
   return { title: user ? `${formatDisplayName(user)}` : 'error' }
 }
 

@@ -27,7 +27,7 @@ export async function getPublicConfig<T extends Record<string, unknown>>(
   if (res.data.data) {
     for (const key in res.data.data) {
       if (res.data.data[key] !== undefined) {
-        (result)[key] = res.data.data[key]
+        result[key] = res.data.data[key]
       }
     }
   }
@@ -130,9 +130,9 @@ export type MetricsData = Record<string, number> & {
   memoryStackSys: number // 从操作系统获取的栈内存总量
   memoryMSpanInuse: number // MSpan结构占用的内存
   memoryMSpanSys: number // 从操作系统获取的MSpan结构内存总量
-  memoryMCacheInuse: number// MCache结构占用的内存
+  memoryMCacheInuse: number // MCache结构占用的内存
   memoryMCacheSys: number // 从操作系统获取的MCache结构内存总量
-  memoryBuckHashSys: number// 哈希表占用的内存
+  memoryBuckHashSys: number // 哈希表占用的内存
   memoryGcSys: number // 垃圾回收器占用内存
   memoryOtherSys: number // 其他内存占用
 

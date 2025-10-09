@@ -5,9 +5,7 @@ import * as React from 'react'
 import { cn } from '@/lib/tiptap-utils'
 import '@/components/tiptap-ui-primitive/dropdown-menu/dropdown-menu.scss'
 
-function DropdownMenu({
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
   return <DropdownMenuPrimitive.Root modal={false} {...props} />
 }
 
@@ -57,8 +55,7 @@ const DropdownMenuSubContent = React.forwardRef<
         content
       )
 })
-DropdownMenuSubContent.displayName
-  = DropdownMenuPrimitive.SubContent.displayName
+DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName
 
 const DropdownMenuContent = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Content>,

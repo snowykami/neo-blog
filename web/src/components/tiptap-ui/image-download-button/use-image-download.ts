@@ -13,11 +13,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 
 // --- Lib ---
-import {
-  isExtensionAvailable,
-  isNodeTypeSelected,
-  sanitizeUrl,
-} from '@/lib/tiptap-utils'
+import { isExtensionAvailable, isNodeTypeSelected, sanitizeUrl } from '@/lib/tiptap-utils'
 
 export const IMAGE_DOWNLOAD_SHORTCUT_KEY = 'mod+shift+d'
 
@@ -118,10 +114,7 @@ export function getSelectedImageData(editor: Editor | null): {
 /**
  * Attempts to download image via fetch (handles CORS)
  */
-async function tryFetchDownload(
-  url: string,
-  filename: string,
-): Promise<boolean> {
+async function tryFetchDownload(url: string, filename: string): Promise<boolean> {
   try {
     const response = await fetch(url)
     if (!response.ok)
@@ -133,8 +126,7 @@ async function tryFetchDownload(
     const hasExtension = /\.[a-z0-9]+$/i.test(filename)
     const finalFilename = hasExtension
       ? filename
-      : filename
-        + getFileExtension(url, response.headers.get('content-type') || undefined)
+      : filename + getFileExtension(url, response.headers.get('content-type') || undefined)
 
     const link = document.createElement('a')
     link.href = blobUrl
@@ -159,9 +151,7 @@ async function tryFetchDownload(
 function tryDirectDownload(url: string, filename: string): boolean {
   try {
     const hasExtension = /\.[a-z0-9]+$/i.test(filename)
-    const finalFilename = hasExtension
-      ? filename
-      : filename + getFileExtension(url)
+    const finalFilename = hasExtension ? filename : filename + getFileExtension(url)
 
     const link = document.createElement('a')
     link.href = url
@@ -224,41 +214,28 @@ export async function downloadSelectedImage(
       return false
     }
 
-    const generatedFilename
-      = filename || imageData.alt || imageData.title || `image-${Date.now()}`
+    const generatedFilename = filename || imageData.alt || imageData.title || `image-${Date.now()}`
 
     switch (downloadMethod) {
       case 'open':
         return openInNewTab(sanitizedUrl)
 
       case 'download':
-        if (
-          sanitizedUrl.startsWith(window.location.origin)
-          || sanitizedUrl.startsWith('data:')
-        ) {
+        if (sanitizedUrl.startsWith(window.location.origin) || sanitizedUrl.startsWith('data:')) {
           return tryDirectDownload(sanitizedUrl, generatedFilename)
         }
         else {
-          const success = await tryFetchDownload(
-            sanitizedUrl,
-            generatedFilename,
-          )
+          const success = await tryFetchDownload(sanitizedUrl, generatedFilename)
           return success || openInNewTab(sanitizedUrl)
         }
 
       case 'auto':
       default:
-        if (
-          sanitizedUrl.startsWith('data:')
-          || sanitizedUrl.startsWith(window.location.origin)
-        ) {
+        if (sanitizedUrl.startsWith('data:') || sanitizedUrl.startsWith(window.location.origin)) {
           return tryDirectDownload(sanitizedUrl, generatedFilename)
         }
         else {
-          const fetchSuccess = await tryFetchDownload(
-            sanitizedUrl,
-            generatedFilename,
-          )
+          const fetchSuccess = await tryFetchDownload(sanitizedUrl, generatedFilename)
           if (fetchSuccess)
             return true
 
@@ -346,12 +323,7 @@ export function useImageDownload(config?: UseImageDownloadConfig) {
     const imageData = getSelectedImageData(editor)
     const filename = imageData?.alt || imageData?.title
 
-    const success = await downloadSelectedImage(
-      editor,
-      filename,
-      resolveFileUrl,
-      downloadMethod,
-    )
+    const success = await downloadSelectedImage(editor, filename, resolveFileUrl, downloadMethod)
     if (success) {
       onDownloaded?.(filename)
     }

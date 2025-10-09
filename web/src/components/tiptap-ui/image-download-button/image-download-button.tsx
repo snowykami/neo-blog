@@ -48,10 +48,7 @@ export function ImageDownloadShortcutBadge({
  *
  * For custom button implementations, use the `useImageDownload` hook instead.
  */
-export const ImageDownloadButton = React.forwardRef<
-  HTMLButtonElement,
-  ImageDownloadButtonProps
->(
+export const ImageDownloadButton = React.forwardRef<HTMLButtonElement, ImageDownloadButtonProps>(
   (
     {
       editor: providedEditor,
@@ -67,14 +64,7 @@ export const ImageDownloadButton = React.forwardRef<
     ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
-    const {
-      isVisible,
-      canDownload,
-      handleDownload,
-      label,
-      shortcutKeys,
-      Icon,
-    } = useImageDownload({
+    const { isVisible, canDownload, handleDownload, label, shortcutKeys, Icon } = useImageDownload({
       editor,
       hideWhenUnavailable,
       onDownloaded,
@@ -114,9 +104,7 @@ export const ImageDownloadButton = React.forwardRef<
           <>
             <Icon className="tiptap-button-icon" />
             {text && <span className="tiptap-button-text">{text}</span>}
-            {showShortcut && (
-              <ImageDownloadShortcutBadge shortcutKeys={shortcutKeys} />
-            )}
+            {showShortcut && <ImageDownloadShortcutBadge shortcutKeys={shortcutKeys} />}
           </>
         )}
       </Button>

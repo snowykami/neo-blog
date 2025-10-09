@@ -108,7 +108,9 @@ export function DesktopScrollbarOverlay() {
       // position within track (clamp)
       const rel = Math.max(0, Math.min(y - navOffset, trackHeight))
       const thumbEl = thumbRef.current
-      const thumbH = thumbEl ? thumbEl.getBoundingClientRect().height : Math.max(Math.round(winH * (winH / scrollH)), 32)
+      const thumbH = thumbEl
+        ? thumbEl.getBoundingClientRect().height
+        : Math.max(Math.round(winH * (winH / scrollH)), 32)
       const maxTop = Math.max(trackHeight - thumbH, 0)
       const ratio = Math.max(0, Math.min(rel, maxTop)) / Math.max(1, maxTop)
 

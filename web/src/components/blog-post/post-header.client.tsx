@@ -8,18 +8,19 @@ import { getLabelUrl } from '@/utils/common/route'
 import PostToolbar from './post-toolbar.client'
 import { WaveEffects } from './wave-effect'
 
-export function PostHeaderClient({
-  post,
-  children,
-}: {
-  post: Post
-  children: React.ReactNode
-}) {
+export function PostHeaderClient({ post, children }: { post: Post, children: React.ReactNode }) {
   const [isPreviewing, setIsPreviewing] = useState(false)
 
   return (
     // 允许子元素超出（眼睛按钮不会被裁切）
-    <div className="relative pt-30 pb-36 md:pt-36 md:pb-48 overflow-visible transition-none" style={{ width: '100vw', marginLeft: '50%', transform: 'translateX(-50%)' }}>
+    <div
+      className="relative pt-30 pb-36 md:pt-36 md:pb-48 overflow-visible transition-none"
+      style={{
+        width: '100vw',
+        marginLeft: '50%',
+        transform: 'translateX(-50%)',
+      }}
+    >
       {/* 背景图片层 */}
       <div
         className="absolute inset-0"
@@ -46,13 +47,10 @@ export function PostHeaderClient({
       {/* 内容层 - with transition for opacity */}
       <div
         className={`container px-4 md:px-0 mx-auto ${contentAreaPaddingClass} ${contentAreaMaxWidthClass} relative z-10 transition-opacity duration-500 ease-in-out`}
-
       >
         <PostToolbar post={post} onPreviewChange={setIsPreviewing} />
         <div style={{ opacity: isPreviewing ? 0 : 1 }}>
-          <h1
-            className="text-3xl md:text-5xl font-bold mb-4 text-white drop-shadow-lg leading-tight"
-          >
+          <h1 className="text-3xl md:text-5xl font-bold mb-4 text-white drop-shadow-lg leading-tight">
             {post.title}
           </h1>
           {/* 标签 */}
@@ -60,9 +58,7 @@ export function PostHeaderClient({
             <div className="flex flex-wrap gap-2 mb-4">
               {post.labels.map(label => (
                 <Link href={getLabelUrl(label)} key={label.id}>
-                  <span
-                    className="bg-white/20 backdrop-blur-sm text-white border border-white/30 text-xs px-3 py-1 rounded-full font-medium shadow-sm"
-                  >
+                  <span className="bg-white/20 backdrop-blur-sm text-white border border-white/30 text-xs px-3 py-1 rounded-full font-medium shadow-sm">
                     {label.name}
                   </span>
                 </Link>
@@ -74,7 +70,6 @@ export function PostHeaderClient({
             {children}
           </div>
         </div>
-
       </div>
 
       {/* 波浪层 */}

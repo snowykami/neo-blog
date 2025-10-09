@@ -10,7 +10,16 @@ import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useOperationT } from '@/hooks/translations'
 import { formatDataSize } from '@/utils/common/datasize'
@@ -46,7 +55,9 @@ export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: (
           return { success: true, file }
         })
         .catch((err: BaseResponseError) => {
-          toast.error(`${t('upload_file_failed', { name: file.name })}: ${err?.response?.data?.message || err.message}`)
+          toast.error(
+            `${t('upload_file_failed', { name: file.name })}: ${err?.response?.data?.message || err.message}`,
+          )
           return { success: false, file, error: err }
         }),
     )
@@ -54,8 +65,8 @@ export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: (
     // 等待所有上传完成
     const results = await Promise.allSettled(uploadPromises)
     // 统计结果
-    const successCount = results.filter(result =>
-      result.status === 'fulfilled' && result.value.success,
+    const successCount = results.filter(
+      result => result.status === 'fulfilled' && result.value.success,
     ).length
     const failedCount = results.length - successCount
     // 显示总体结果
@@ -72,16 +83,12 @@ export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: (
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm">
-          {operationT('upload')}
-        </Button>
+        <Button size="sm">{operationT('upload')}</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('upload_file')}</DialogTitle>
-          <DialogDescription>
-            {t('select_file')}
-          </DialogDescription>
+          <DialogDescription>{t('select_file')}</DialogDescription>
         </DialogHeader>
         <div>
           <Input multiple id="files" type="file" onChange={handleFilesSelected} />
@@ -98,9 +105,7 @@ export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: (
         <DialogFooter>
           <DialogClose>
             <div className="flex gap-2">
-              <Button variant="outline">
-                {operationT('cancel')}
-              </Button>
+              <Button variant="outline">{operationT('cancel')}</Button>
               <Button disabled={files.length === 0} onClick={handleSubmit}>
                 {operationT('upload')}
               </Button>
@@ -112,30 +117,49 @@ export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: (
   )
 }
 
-function FileUploadPreviewItem({ file, onFileCancel }: { file: File, onFileCancel: (file: File) => void }) {
+function FileUploadPreviewItem({
+  file,
+  onFileCancel,
+}: {
+  file: File
+  onFileCancel: (file: File) => void
+}) {
   return (
     <div className="flex items-center gap-3 p-2 border border-border rounded w-full overflow-hidden">
       <div className="flex-shrink-0 w-10 h-10 bg-muted rounded overflow-hidden flex items-center justify-center">
         <Avatar className="h-full w-full rounded-sm">
-          <AvatarImage className="object-contain w-full h-full" src={URL.createObjectURL(file)} alt={file.name} />
+          <AvatarImage
+            className="object-contain w-full h-full"
+            src={URL.createObjectURL(file)}
+            alt={file.name}
+          />
           <AvatarFallback>
             {(() => {
               const mimeType = file.type.split('/')[0] || mime.lookup(file.name) || ''
               const IconComponent = mimeTypeIcons?.[mimeType as keyof typeof mimeTypeIcons]
-              return IconComponent ? <IconComponent className="w-8 h-8" /> : <FileIcon className="w-8 h-8" />
+              return IconComponent
+                ? (
+                    <IconComponent className="w-8 h-8" />
+                  )
+                : (
+                    <FileIcon className="w-8 h-8" />
+                  )
             })()}
           </AvatarFallback>
         </Avatar>
       </div>
 
       <div className="w-0 flex-1">
-        <div className="font-medium leading-none truncate max-w-full">
-          {file.name}
-        </div>
+        <div className="font-medium leading-none truncate max-w-full">{file.name}</div>
         <div className="text-xs text-muted-foreground">{formatDataSize({ size: file.size })}</div>
       </div>
 
-      <Button className="flex-shrink-0" variant="ghost" size="icon" onClick={() => onFileCancel(file)}>
+      <Button
+        className="flex-shrink-0"
+        variant="ghost"
+        size="icon"
+        onClick={() => onFileCancel(file)}
+      >
         <CircleXIcon className="w-5 h-5" />
       </Button>
     </div>

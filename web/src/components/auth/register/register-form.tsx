@@ -13,12 +13,7 @@ import Captcha from '@/components/common/captcha'
 import { InputOTPControlled } from '@/components/common/input-otp'
 import { SectionDivider } from '@/components/common/section-divider'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/auth-context'
@@ -26,10 +21,7 @@ import { useCommonT, useOperationT, useResponseErrorDetailsT } from '@/hooks/tra
 import { loginPath } from '@/hooks/use-route'
 import { cn } from '@/lib/utils'
 
-export function RegisterForm({
-  className,
-  ...props
-}: React.ComponentProps<'div'>) {
+export function RegisterForm({ className, ...props }: React.ComponentProps<'div'>) {
   const { setUser } = useAuth()
   const t = useTranslations('Register')
   const ResponseErrorDetailsT = useResponseErrorDetailsT()
@@ -68,7 +60,9 @@ export function RegisterForm({
         setCaptchaProps(res.data)
       })
       .catch((error) => {
-        toast.error(t('fetch_captcha_config_failed') + (error?.message ? `: ${error.message}` : ''))
+        toast.error(
+          t('fetch_captcha_config_failed') + (error?.message ? `: ${error.message}` : ''),
+        )
         setCaptchaProps(null)
       })
   }, [refreshCaptchaKey, t])
@@ -89,7 +83,9 @@ export function RegisterForm({
         toast.success(t('send_verify_code_success'))
       })
       .catch((error: BaseResponseError) => {
-        toast.error(`${t('send_verify_code_failed')}: ${ResponseErrorDetailsT(error.response.data.message)}`)
+        toast.error(
+          `${t('send_verify_code_failed')}: ${ResponseErrorDetailsT(error.response.data.message)}`,
+        )
       })
       .finally(() => {
         setSendingVerifyCode(false)
@@ -108,12 +104,16 @@ export function RegisterForm({
     setRegistering(true)
     userRegister({ username, password, email, verifyCode, captchaToken })
       .then((res) => {
-        toast.success(`${t('register_success')} ${res.data.user.nickname || res.data.user.username}`)
+        toast.success(
+          `${t('register_success')} ${res.data.user.nickname || res.data.user.username}`,
+        )
         setUser(res.data.user)
         router.push(redirectBack)
       })
       .catch((error: BaseResponseError) => {
-        toast.error(`${t('register_failed')}: ${ResponseErrorDetailsT(error.response.data.message)}`)
+        toast.error(
+          `${t('register_failed')}: ${ResponseErrorDetailsT(error.response.data.message)}`,
+        )
         setRefreshCaptchaKey(k => k + 1)
         setCaptchaToken(null)
       })
@@ -135,7 +135,6 @@ export function RegisterForm({
               <SectionDivider className="mt-0">{t('register_a_new_account')}</SectionDivider>
 
               <div className="grid gap-4">
-
                 {/* 用户名 */}
                 <div className="grid gap-2">
                   <div className="flex items-center">
@@ -174,33 +173,47 @@ export function RegisterForm({
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                     />
-
                   </div>
                 </div>
                 {/* 邮箱验证码 */}
                 <div className="grid gap-2">
                   <Label htmlFor="email">{commonT('verify_code')}</Label>
                   <div className="flex justify-between">
-                    <InputOTPControlled
-                      onChange={value => setVerifyCode(value)}
-                    />
-                    <Button onClick={handleSendVerifyCode} disabled={!email || coolDown > 0 || sendingVerifyCode} variant="outline" className="border-2" type="button">
+                    <InputOTPControlled onChange={value => setVerifyCode(value)} />
+                    <Button
+                      onClick={handleSendVerifyCode}
+                      disabled={!email || coolDown > 0 || sendingVerifyCode}
+                      variant="outline"
+                      className="border-2"
+                      type="button"
+                    >
                       {commonT('obtain')}
                       {coolDown > 0 ? `(${coolDown})` : ''}
                     </Button>
                   </div>
                 </div>
-                {captchaProps
-                  && (
-                    <div className="flex justify-center items-center w-full">
-                      <Captcha {...captchaProps} onSuccess={setCaptchaToken} onError={handleCaptchaError} key={refreshCaptchaKey} />
-                    </div>
-                  )}
+                {captchaProps && (
+                  <div className="flex justify-center items-center w-full">
+                    <Captcha
+                      {...captchaProps}
+                      onSuccess={setCaptchaToken}
+                      onError={handleCaptchaError}
+                      key={refreshCaptchaKey}
+                    />
+                  </div>
+                )}
                 <Button
                   type="button"
                   className="w-full"
                   onClick={handleRegister}
-                  disabled={!captchaToken || registering || !username || !password || !email || !(verifyCode.length === 6)}
+                  disabled={
+                    !captchaToken
+                    || registering
+                    || !username
+                    || !password
+                    || !email
+                    || !(verifyCode.length === 6)
+                  }
                 >
                   {registering ? t('registering') : operationT('register')}
                 </Button>
@@ -208,7 +221,10 @@ export function RegisterForm({
                 <div className="text-center text-sm">
                   {t('already_have_account')}
                   {' '}
-                  <Link href={`${loginPath}?redirect_back=${encodeURIComponent(redirectBack)}`} className="underline underline-offset-4">
+                  <Link
+                    href={`${loginPath}?redirect_back=${encodeURIComponent(redirectBack)}`}
+                    className="underline underline-offset-4"
+                  >
                     {operationT('login')}
                   </Link>
                 </div>

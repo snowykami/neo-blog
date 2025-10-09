@@ -25,15 +25,21 @@ export function useStoredState<T>(key: string, defaultValue: T) {
   }, [key])
 
   // 使用 useCallback 确保 setter 函数引用稳定
-  const setStoredValue = useCallback((newValue: T) => {
-    setValue(newValue)
-    try {
-      localStorage.setItem(key, typeof newValue === 'string' ? newValue : JSON.stringify(newValue))
-    }
-    catch (error) {
-      console.error('Error writing to localStorage:', error)
-    }
-  }, [key])
+  const setStoredValue = useCallback(
+    (newValue: T) => {
+      setValue(newValue)
+      try {
+        localStorage.setItem(
+          key,
+          typeof newValue === 'string' ? newValue : JSON.stringify(newValue),
+        )
+      }
+      catch (error) {
+        console.error('Error writing to localStorage:', error)
+      }
+    },
+    [key],
+  )
 
   return [value, setStoredValue, isLoaded] as const
 }

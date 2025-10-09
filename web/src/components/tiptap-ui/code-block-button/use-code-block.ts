@@ -42,16 +42,10 @@ export interface UseCodeBlockConfig {
 /**
  * Checks if code block can be toggled in the current editor state
  */
-export function canToggle(
-  editor: Editor | null,
-  turnInto: boolean = true,
-): boolean {
+export function canToggle(editor: Editor | null, turnInto: boolean = true): boolean {
   if (!editor || !editor.isEditable)
     return false
-  if (
-    !isNodeInSchema('codeBlock', editor)
-    || isNodeTypeSelected(editor, ['image'])
-  ) {
+  if (!isNodeInSchema('codeBlock', editor) || isNodeTypeSelected(editor, ['image'])) {
     return false
   }
 
@@ -117,13 +111,9 @@ export function toggleCodeBlock(editor: Editor | null): boolean {
       const firstChild = selection.node.firstChild?.firstChild
       const lastChild = selection.node.lastChild?.lastChild
 
-      const from = firstChild
-        ? selection.from + firstChild.nodeSize
-        : selection.from + 1
+      const from = firstChild ? selection.from + firstChild.nodeSize : selection.from + 1
 
-      const to = lastChild
-        ? selection.to - lastChild.nodeSize
-        : selection.to - 1
+      const to = lastChild ? selection.to - lastChild.nodeSize : selection.to - 1
 
       chain = chain.setTextSelection({ from, to }).clearNodes()
     }
@@ -208,11 +198,7 @@ export function shouldShowButton(props: {
  * ```
  */
 export function useCodeBlock(config?: UseCodeBlockConfig) {
-  const {
-    editor: providedEditor,
-    hideWhenUnavailable = false,
-    onToggled,
-  } = config || {}
+  const { editor: providedEditor, hideWhenUnavailable = false, onToggled } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
   const [isVisible, setIsVisible] = React.useState<boolean>(true)

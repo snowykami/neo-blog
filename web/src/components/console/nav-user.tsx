@@ -1,18 +1,10 @@
 'use client'
 
-import {
-  IconDotsVertical,
-  IconLogout,
-  IconUserCircle,
-} from '@tabler/icons-react'
+import { IconDotsVertical, IconLogout, IconUserCircle } from '@tabler/icons-react'
 
 import { ArrowLeftRightIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
 import {
   DropdownMenu,
@@ -61,13 +53,13 @@ export function NavUser() {
             >
               <Avatar className="h-8 w-8 rounded-full">
                 <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.username} />
-                <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
+                <AvatarFallback className="rounded-full">
+                  {getFallbackAvatarFromUsername(user.nickname || user.username)}
+                </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{formatDisplayName(user)}</span>
-                <span className="text-muted-foreground truncate text-xs">
-                  {user.email}
-                </span>
+                <span className="text-muted-foreground truncate text-xs">{user.email}</span>
               </div>
               <IconDotsVertical className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -82,19 +74,23 @@ export function NavUser() {
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-full">
                   <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.username} />
-                  <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
+                  <AvatarFallback className="rounded-full">
+                    {getFallbackAvatarFromUsername(user.nickname || user.username)}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{formatDisplayName(user)}</span>
-                  <span className="text-muted-foreground truncate text-xs">
-                    {user.email}
-                  </span>
+                  <span className="text-muted-foreground truncate text-xs">{user.email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => { clickToProfile(user.username) }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  clickToProfile(user.username)
+                }}
+              >
                 <IconUserCircle />
                 {routeT('profile')}
               </DropdownMenuItem>

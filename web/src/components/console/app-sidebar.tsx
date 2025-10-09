@@ -1,8 +1,6 @@
 'use client'
 
-import {
-  IconInnerShadowTop,
-} from '@tabler/icons-react'
+import { IconInnerShadowTop } from '@tabler/icons-react'
 
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
@@ -21,7 +19,14 @@ import { useSiteInfo } from '@/contexts/site-info-context'
 import { ThemeModeToggle } from '../common/theme-toggle'
 import { sidebarData } from './data'
 
-export function AppSidebar({ activeId, setActiveId, ...props }: React.ComponentProps<typeof Sidebar> & { activeId: string | null, setActiveId: (id: string) => void }) {
+export function AppSidebar({
+  activeId,
+  setActiveId,
+  ...props
+}: React.ComponentProps<typeof Sidebar> & {
+  activeId: string | null
+  setActiveId: (id: string) => void
+}) {
   const { siteInfo } = useSiteInfo()
   const consoleT = useTranslations('Console')
 
@@ -30,10 +35,7 @@ export function AppSidebar({ activeId, setActiveId, ...props }: React.ComponentP
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
-            >
+            <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-1.5">
               <Link href="/">
                 <IconInnerShadowTop className="!size-5" />
                 <span className="text-base font-semibold">{siteInfo?.metadata?.name}</span>
@@ -47,25 +49,37 @@ export function AppSidebar({ activeId, setActiveId, ...props }: React.ComponentP
           title={consoleT('about_content')}
           activeId={activeId}
           setActiveId={setActiveId}
-          items={sidebarData.navContent.map(item => ({ ...item, title: consoleT(item.title) }))}
+          items={sidebarData.navContent.map(item => ({
+            ...item,
+            title: consoleT(item.title),
+          }))}
         />
         <NavGroup
           title={consoleT('about_system')}
           activeId={activeId}
           setActiveId={setActiveId}
-          items={sidebarData.navSystem.map(item => ({ ...item, title: consoleT(item.title) }))}
+          items={sidebarData.navSystem.map(item => ({
+            ...item,
+            title: consoleT(item.title),
+          }))}
         />
         <NavGroup
           title={consoleT('about_user')}
           activeId={activeId}
           setActiveId={setActiveId}
-          items={sidebarData.navUser.map(item => ({ ...item, title: consoleT(item.title) }))}
+          items={sidebarData.navUser.map(item => ({
+            ...item,
+            title: consoleT(item.title),
+          }))}
         />
         <NavGroup
           title={consoleT('personal')}
           activeId={activeId}
           setActiveId={setActiveId}
-          items={sidebarData.navPersonal.map(item => ({ ...item, title: consoleT(item.title) }))}
+          items={sidebarData.navPersonal.map(item => ({
+            ...item,
+            title: consoleT(item.title),
+          }))}
         />
       </SidebarContent>
       <SidebarFooter>

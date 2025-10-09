@@ -18,9 +18,13 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const post = await getPostByIdServer({ id }).then(res => res.data).catch(() => null)
-  const locale = await getLocale() || 'en'
-  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo)
+  const post = await getPostByIdServer({ id })
+    .then(res => res.data)
+    .catch(() => null)
+  const locale = (await getLocale()) || 'en'
+  const siteInfo = await getSiteInfo()
+    .then(res => res.data)
+    .catch(() => fallbackSiteInfo)
   if (!post) {
     return {
       title: 'Post Not Found',
@@ -37,7 +41,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     keywords: post.labels?.map(label => label.name) || undefined,
     openGraph: {
       title: post.title || 'No Title',
-      description: post?.description || post.content.slice(0, 160) || post.title || 'No Description',
+      description:
+        post?.description || post.content.slice(0, 160) || post.title || 'No Description',
       url: getPostUrl({ post }),
       siteName: siteInfo?.metadata.name || 'Site Name',
       images: [
@@ -74,8 +79,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PostPage({ params, searchParams }: Props) {
   const { id } = await params
   const { type } = await searchParams
-  const post = await getPostByIdServer({ id, type }).then(res => res.data).catch(() => null)
-  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo)
+  const post = await getPostByIdServer({ id, type })
+    .then(res => res.data)
+    .catch(() => null)
+  const siteInfo = await getSiteInfo()
+    .then(res => res.data)
+    .catch(() => fallbackSiteInfo)
   if (!post)
     return notFound()
   // 如果当前访问的 id 不是 post 的 slug，则重定向到正确的 URL
@@ -117,7 +126,9 @@ export default async function PostPage({ params, searchParams }: Props) {
         id="json-ld"
         type="application/ld+json"
         strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
+        }}
       />
     </div>
   )

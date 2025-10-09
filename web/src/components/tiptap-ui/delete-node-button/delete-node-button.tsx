@@ -11,18 +11,13 @@ import * as React from 'react'
 import { Badge } from '@/components/tiptap-ui-primitive/badge'
 import { Button } from '@/components/tiptap-ui-primitive/button'
 
-import {
-  DELETE_NODE_SHORTCUT_KEY,
-  useDeleteNode,
-} from '@/components/tiptap-ui/delete-node-button'
+import { DELETE_NODE_SHORTCUT_KEY, useDeleteNode } from '@/components/tiptap-ui/delete-node-button'
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 // --- Lib ---
 import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
-export interface DeleteNodeButtonProps
-  extends Omit<ButtonProps, 'type'>,
-  UseDeleteNodeConfig {
+export interface DeleteNodeButtonProps extends Omit<ButtonProps, 'type'>, UseDeleteNodeConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -47,10 +42,7 @@ export function DeleteNodeShortcutBadge({
  *
  * For custom button implementations, use the `useDeleteNode` hook instead.
  */
-export const DeleteNodeButton = React.forwardRef<
-  HTMLButtonElement,
-  DeleteNodeButtonProps
->(
+export const DeleteNodeButton = React.forwardRef<HTMLButtonElement, DeleteNodeButtonProps>(
   (
     {
       editor: providedEditor,
@@ -65,12 +57,11 @@ export const DeleteNodeButton = React.forwardRef<
     ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
-    const { isVisible, handleDeleteNode, label, shortcutKeys, Icon }
-      = useDeleteNode({
-        editor,
-        hideWhenUnavailable,
-        onDeleted,
-      })
+    const { isVisible, handleDeleteNode, label, shortcutKeys, Icon } = useDeleteNode({
+      editor,
+      hideWhenUnavailable,
+      onDeleted,
+    })
 
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -102,9 +93,7 @@ export const DeleteNodeButton = React.forwardRef<
           <>
             <Icon className="tiptap-button-icon" />
             {text && <span className="tiptap-button-text">{text}</span>}
-            {showShortcut && (
-              <DeleteNodeShortcutBadge shortcutKeys={shortcutKeys} />
-            )}
+            {showShortcut && <DeleteNodeShortcutBadge shortcutKeys={shortcutKeys} />}
           </>
         )}
       </Button>

@@ -30,10 +30,7 @@ export function useThrottledCallback<T extends (...args: any[]) => any>(
   cancel: () => void
   flush: () => void
 } {
-  const handler = React.useMemo(
-    () => throttle<T>(fn, wait, options),
-    dependencies,
-  )
+  const handler = React.useMemo(() => throttle<T>(fn, wait, options), dependencies)
 
   useUnmount(() => {
     handler.cancel()

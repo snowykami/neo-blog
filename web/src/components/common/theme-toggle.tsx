@@ -7,7 +7,13 @@ import { cn } from '@/lib/utils'
 type ThemeMode = 'light' | 'dark' | 'system'
 
 // PC端：三状态轮换按钮
-export function ThemeModeCycleButton({ mode, setMode }: { mode: ThemeMode, setMode: (m: ThemeMode) => void }) {
+export function ThemeModeCycleButton({
+  mode,
+  setMode,
+}: {
+  mode: ThemeMode
+  setMode: (m: ThemeMode) => void
+}) {
   const nextMode = (mode: ThemeMode): ThemeMode => {
     if (mode === 'light')
       return 'dark'
@@ -15,7 +21,18 @@ export function ThemeModeCycleButton({ mode, setMode }: { mode: ThemeMode, setMo
       return 'system'
     return 'light'
   }
-  const icon = mode === 'light' ? <Sun className="w-6 h-6" /> : mode === 'dark' ? <Moon className="w-6 h-6" /> : <EclipseIcon className="w-6 h-6" />
+  const icon
+    = mode === 'light'
+      ? (
+          <Sun className="w-6 h-6" />
+        )
+      : mode === 'dark'
+        ? (
+            <Moon className="w-6 h-6" />
+          )
+        : (
+            <EclipseIcon className="w-6 h-6" />
+          )
   return (
     <div
       className="flex items-center justify-center"
@@ -35,11 +52,20 @@ export function ThemeModeCycleButton({ mode, setMode }: { mode: ThemeMode, setMo
 }
 
 // 移动端：横向按钮组
-export function ThemeModeSegmented(props: React.HTMLAttributes<HTMLDivElement> & { mode: ThemeMode, setMode: (m: ThemeMode) => void }) {
+export function ThemeModeSegmented(
+  props: React.HTMLAttributes<HTMLDivElement> & {
+    mode: ThemeMode
+    setMode: (m: ThemeMode) => void
+  },
+) {
   const { mode, setMode, className, style, ...rest } = props
   const modes: { value: ThemeMode, icon: React.ReactNode, label: string }[] = [
     { value: 'light', icon: <Sun className="w-4 h-4" />, label: 'Light' },
-    { value: 'system', icon: <EclipseIcon className="w-4 h-4" />, label: 'System' },
+    {
+      value: 'system',
+      icon: <EclipseIcon className="w-4 h-4" />,
+      label: 'System',
+    },
     { value: 'dark', icon: <Moon className="w-4 h-4" />, label: 'Dark' },
   ]
   const activeIndex = modes.findIndex(m => m.value === mode)
@@ -76,7 +102,9 @@ export function ThemeModeSegmented(props: React.HTMLAttributes<HTMLDivElement> &
 }
 
 // 总组件：根据设备类型渲染
-export function ThemeModeToggle(props: React.HTMLAttributes<HTMLElement> & { showSegmented?: boolean }) {
+export function ThemeModeToggle(
+  props: React.HTMLAttributes<HTMLElement> & { showSegmented?: boolean },
+) {
   const { mode, setMode } = useDevice()
   const Comp: React.ElementType = props.showSegmented ? ThemeModeSegmented : ThemeModeCycleButton
   const { className, style } = props

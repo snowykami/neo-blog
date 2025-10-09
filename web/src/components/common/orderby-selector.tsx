@@ -9,12 +9,27 @@ interface Order {
   desc: boolean
 }
 
-export function OrderSelector({ initialOrder, onOrderChange, orderBys }: { initialOrder: Order, orderBys?: OrderBy[], onOrderChange: (order: Order) => void }) {
+export function OrderSelector({
+  initialOrder,
+  onOrderChange,
+  orderBys,
+}: {
+  initialOrder: Order
+  orderBys?: OrderBy[]
+  onOrderChange: (order: Order) => void
+}) {
   const orderT = useTranslations('Order')
   const [open, setOpen] = useState(false)
   const [order, setOrder] = useState<Order>(initialOrder)
 
-  orderBys = orderBys || [OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.Heat, OrderBy.CommentCount, OrderBy.LikeCount, OrderBy.ViewCount]
+  orderBys = orderBys || [
+    OrderBy.CreatedAt,
+    OrderBy.UpdatedAt,
+    OrderBy.Heat,
+    OrderBy.CommentCount,
+    OrderBy.LikeCount,
+    OrderBy.ViewCount,
+  ]
 
   return (
     <Popover onOpenChange={setOpen} open={open}>
@@ -29,7 +44,7 @@ export function OrderSelector({ initialOrder, onOrderChange, orderBys }: { initi
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="end" side="bottom" sideOffset={8}>
         <div className="flex flex-col">
-          {orderBys.map(ob => (
+          {orderBys.map(ob =>
             [true, false].map(desc => (
               <Button
                 key={`${ob}-${desc}`}
@@ -46,8 +61,8 @@ export function OrderSelector({ initialOrder, onOrderChange, orderBys }: { initi
                 {' '}
                 {desc ? '↓' : '↑'}
               </Button>
-            ))
-          ))}
+            )),
+          )}
         </div>
       </PopoverContent>
     </Popover>

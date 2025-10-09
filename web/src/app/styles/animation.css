@@ -2,7 +2,11 @@
   /* 全局仅颜色相关过渡（避免布局/transform/opacity 被动画化） */
 
   /* 常见交互元素补充（保留透明度变化等可选项） */
-  a, button, input, textarea, select {
+  a,
+  button,
+  input,
+  textarea,
+  select {
     transition-property: color, background-color, border-color, box-shadow, opacity;
     transition-duration: 0.3s;
     transition-timing-function: ease-in-out;

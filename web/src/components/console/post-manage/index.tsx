@@ -19,12 +19,17 @@ import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/contexts/auth-context'
 import { useDevice } from '@/contexts/device-context'
-import { useSiteInfo } from '@/contexts/site-info-context'
 import { useCommonT, useOperationT } from '@/hooks/translations'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useDoubleConfirm } from '@/hooks/use-double-confirm'
@@ -44,61 +49,101 @@ export function PostManage() {
   const { user } = useAuth()
   const [posts, setPosts] = useState<Post[]>([])
   const [total, setTotal] = useState(0)
-  const [orderBy, setOrderBy] = useQueryState('order_by', parseAsStringEnum<OrderBy>(Object.values(OrderBy)).withDefault(OrderBy.CreatedAt).withOptions({ history: 'replace', clearOnDefault: true }))
-  const [desc, setDesc] = useQueryState('desc', parseAsBoolean.withDefault(true).withOptions({ history: 'replace', clearOnDefault: true }))
-  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }))
-  const [size, setSize] = useQueryState('size', parseAsInteger.withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE).withOptions({ history: 'replace', clearOnDefault: true }))
-  const [keywords, setKeywords] = useQueryState('keywords', parseAsString.withDefault('').withOptions({ history: 'replace', clearOnDefault: true }))
-  const [keywordsInput, setKeywordsInput, debouncedKeywordsInput] = useDebouncedState(keywords, 200)
+  const [orderBy, setOrderBy] = useQueryState(
+    'order_by',
+    parseAsStringEnum<OrderBy>(Object.values(OrderBy))
+      .withDefault(OrderBy.CreatedAt)
+      .withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [desc, setDesc] = useQueryState(
+    'desc',
+    parseAsBoolean.withDefault(true).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [page, setPage] = useQueryState(
+    'page',
+    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [size, setSize] = useQueryState(
+    'size',
+    parseAsInteger
+      .withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE)
+      .withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [keywords, setKeywords] = useQueryState(
+    'keywords',
+    parseAsString.withDefault('').withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [keywordsInput, setKeywordsInput, debouncedKeywordsInput] = useDebouncedState(
+    keywords,
+    200,
+  )
   const [createPostDialogOpen, setCreatePostDialogOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0) // 用于强制刷新列表
 
   useEffect(() => {
     if (!user)
       return
-    listPosts({ page, size, orderBy, desc, keywords, userId: user.id })
-      .then((res) => {
-        setPosts(res.data.posts)
-        setTotal(res.data.total)
-      })
+    listPosts({ page, size, orderBy, desc, keywords, userId: user.id }).then((res) => {
+      setPosts(res.data.posts)
+      setTotal(res.data.total)
+    })
   }, [page, orderBy, desc, size, keywords, refreshKey])
 
   useEffect(() => {
     setKeywords(debouncedKeywordsInput)
   }, [debouncedKeywordsInput, setKeywords, keywords])
 
-  const onPostCreate = useCallback(({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
+  const onPostCreate = useCallback(() => {
     setRefreshKey(k => k + 1)
   }, [])
 
-  const onPostUpdate = useCallback(({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
-    setPosts(prev => prev.map(p => (p.id === post.id ? { ...p, ...post } : p)))
-  }, [setPosts])
+  const onPostUpdate = useCallback(
+    ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
+      setPosts(prev => prev.map(p => (p.id === post.id ? { ...p, ...post } : p)))
+    },
+    [setPosts],
+  )
 
-  const onPostDelete = useCallback(({ postId }: { postId: number }) => {
-    setPosts(prev => prev.filter(p => p.id !== postId))
-  }, [setPosts])
+  const onPostDelete = useCallback(
+    ({ postId }: { postId: number }) => {
+      setPosts(prev => prev.filter(p => p.id !== postId))
+    },
+    [setPosts],
+  )
 
-  const onOrderChange = useCallback(({ orderBy, desc }: { orderBy: OrderBy, desc: boolean }) => {
-    setOrderBy(orderBy)
-    setDesc(desc)
-    setPage(1)
-  }, [setOrderBy, setDesc, setPage])
+  const onOrderChange = useCallback(
+    ({ orderBy, desc }: { orderBy: OrderBy, desc: boolean }) => {
+      setOrderBy(orderBy)
+      setDesc(desc)
+      setPage(1)
+    },
+    [setOrderBy, setDesc, setPage],
+  )
 
-  const onPageChange = useCallback((p: number) => {
-    setPage(p)
-  }, [setPage])
+  const onPageChange = useCallback(
+    (p: number) => {
+      setPage(p)
+    },
+    [setPage],
+  )
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-y-4">
         <div>
-          <Input type="search" placeholder={commonT('search')} value={keywordsInput} onChange={e => setKeywordsInput(e.target.value)} />
+          <Input
+            type="search"
+            placeholder={commonT('search')}
+            value={keywordsInput}
+            onChange={e => setKeywordsInput(e.target.value)}
+          />
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <OrderSelector initialOrder={{ orderBy, desc }} onOrderChange={onOrderChange} />
-            <Button size="sm" onClick={() => setCreatePostDialogOpen(true)}>{t('create_post')}</Button>
+            <Button size="sm" onClick={() => setCreatePostDialogOpen(true)}>
+              {t('create_post')}
+            </Button>
             <CreateOrUpdatePostMetaDialogWithoutButton
               open={createPostDialogOpen}
               onOpenChange={setCreatePostDialogOpen}
@@ -116,8 +161,21 @@ export function PostManage() {
         </div>
       ))}
       <div className="flex justify-center items-center py-4">
-        {total > 0 && <PaginationController initialPage={page} onPageChange={onPageChange} total={total} pageSize={size} />}
-        <PageSizeSelector initialSize={size} onSizeChange={(s) => { setSize(s); setPage(1) }} />
+        {total > 0 && (
+          <PaginationController
+            initialPage={page}
+            onPageChange={onPageChange}
+            total={total}
+            pageSize={size}
+          />
+        )}
+        <PageSizeSelector
+          initialSize={size}
+          onSizeChange={(s) => {
+            setSize(s)
+            setPage(1)
+          }}
+        />
         {' '}
         {metricsT('per_page')}
       </div>
@@ -125,13 +183,20 @@ export function PostManage() {
   )
 }
 
-function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void, onPostDelete: ({ postId }: { postId: number }) => void }) {
+function PostItem({
+  post,
+  onPostUpdate,
+  onPostDelete,
+}: {
+  post: Post
+  onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
+  onPostDelete: ({ postId }: { postId: number }) => void
+}) {
   const commonT = useTranslations('Common')
   const isMobile = useIsMobile()
   const labelCount = isMobile ? 1 : 3
   const postT = useTranslations('Console.post_edit')
   const stateT = useTranslations('State')
-  const { siteInfo } = useSiteInfo()
   const clickToPost = useToPost()
   const [metaDialogOpen, setMetaDialogOpen] = useState(false)
   return (
@@ -151,36 +216,52 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
               />
             )}
             {/* 没有图片显示No Cover */}
-            {!post.cover
-              && (
-                <div className="w-full h-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-xs text-gray-500">
-                  No Cover
-                </div>
-              )}
+            {!post.cover && (
+              <div className="w-full h-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-xs text-gray-500">
+                No Cover
+              </div>
+            )}
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-medium">
-              {post.title}
-            </div>
+            <div className="text-sm font-medium">{post.title}</div>
             <div className="mt-1 flex flex-wrap items-center gap-3">
               {(() => {
                 const labels = post.labels || []
-                const labelsValue = labels.length === 0
-                  ? postT('no_label')
-                  : labels.length <= 3
-                    ? `${postT('labels')}: ${labels.map(l => l.name).join(' | ')}`
-                    : `${postT('labels')}: ${labels.slice(0, labelCount).map(l => l.name).join(' | ')} ... (+${labels.length - labelCount})`
+                const labelsValue
+                  = labels.length === 0
+                    ? postT('no_label')
+                    : labels.length <= 3
+                      ? `${postT('labels')}: ${labels.map(l => l.name).join(' | ')}`
+                      : `${postT('labels')}: ${labels
+                        .slice(0, labelCount)
+                        .map(l => l.name)
+                        .join(' | ')} ... (+${labels.length - labelCount})`
 
                 const items: { value: string, className: string }[] = [
-                  { value: `${commonT('id')}: ${post.id}`, className: 'bg-indigo-100 text-indigo-800' },
-                  { value: stateT(post.isPrivate ? 'private' : 'public'), className: post.isPrivate ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800' },
                   {
-                    value: post.category ? `${postT('category')}: ${post.category?.name}` : postT('uncategorized'),
-                    className: post.category ? 'bg-pink-100 text-pink-800' : 'bg-gray-100 text-gray-800',
+                    value: `${commonT('id')}: ${post.id}`,
+                    className: 'bg-indigo-100 text-indigo-800',
+                  },
+                  {
+                    value: stateT(post.isPrivate ? 'private' : 'public'),
+                    className: post.isPrivate
+                      ? 'bg-orange-100 text-orange-800'
+                      : 'bg-green-100 text-green-800',
+                  },
+                  {
+                    value: post.category
+                      ? `${postT('category')}: ${post.category?.name}`
+                      : postT('uncategorized'),
+                    className: post.category
+                      ? 'bg-pink-100 text-pink-800'
+                      : 'bg-gray-100 text-gray-800',
                   },
                   {
                     value: labelsValue,
-                    className: post.labels && post.labels.length > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800',
+                    className:
+                      post.labels && post.labels.length > 0
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-gray-100 text-gray-800',
                   },
                 ]
                 return items.map((item, idx) => (
@@ -191,7 +272,6 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
               })()}
             </div>
           </div>
-
         </div>
         {/* right */}
         <div className="flex items-center ml-auto">
@@ -202,7 +282,6 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
             post={post}
             onPostUpdate={onPostUpdate}
             onPostDelete={onPostDelete}
-            metaDialogOpen={metaDialogOpen}
             setMetaDialogOpen={setMetaDialogOpen}
           />
           <CreateOrUpdatePostMetaDialogWithoutButton
@@ -217,25 +296,25 @@ function PostItem({ post, onPostUpdate, onPostDelete }: { post: Post, onPostUpda
   )
 }
 
-function PostDropdownMenu(
-  {
-    post,
-    onPostUpdate,
-    onPostDelete,
-    metaDialogOpen,
-    setMetaDialogOpen,
-  }: {
-    post: Post
-    onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
-    onPostDelete: ({ postId }: { postId: number }) => void
-    metaDialogOpen: boolean
-    setMetaDialogOpen: (open: boolean) => void
-  },
-) {
+function PostDropdownMenu({
+  post,
+  onPostUpdate,
+  onPostDelete,
+  setMetaDialogOpen,
+}: {
+  post: Post
+  onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
+  onPostDelete: ({ postId }: { postId: number }) => void
+  setMetaDialogOpen: (open: boolean) => void
+}) {
   const operationT = useOperationT()
   const clickToPostEdit = useToEditPost()
   const clickToPost = useToPost()
-  const { confirming: confirmingDelete, onClick: onDeleteClick, onBlur: onDeleteBlur } = useDoubleConfirm()
+  const {
+    confirming: confirmingDelete,
+    onClick: onDeleteClick,
+    onBlur: onDeleteBlur,
+  } = useDoubleConfirm()
   const [open, setOpen] = useState(false)
   const handleTogglePrivate = () => {
     updatePost({ post: { ...post, isPrivate: !post.isPrivate } })
@@ -244,7 +323,9 @@ function PostDropdownMenu(
         onPostUpdate({ post: { id: post.id, isPrivate: !post.isPrivate } })
       })
       .catch((error: BaseResponseError) => {
-        toast.error(`${operationT('update_failed')}: ${error?.response?.data?.message || error.message}`)
+        toast.error(
+          `${operationT('update_failed')}: ${error?.response?.data?.message || error.message}`,
+        )
       })
   }
 
@@ -255,7 +336,9 @@ function PostDropdownMenu(
         onPostDelete({ postId: post.id })
       })
       .catch((error: BaseResponseError) => {
-        toast.error(`${operationT('delete_failed')}: ${error?.response?.data?.message || error.message}`)
+        toast.error(
+          `${operationT('delete_failed')}: ${error?.response?.data?.message || error.message}`,
+        )
       })
   }
 
@@ -287,7 +370,10 @@ function PostDropdownMenu(
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={handleTogglePrivate} className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer">
+          <DropdownMenuItem
+            onClick={handleTogglePrivate}
+            className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer"
+          >
             {operationT(post.isPrivate ? 'set_public' : 'set_private')}
           </DropdownMenuItem>
           <DropdownMenuItem

@@ -14,23 +14,24 @@ import { CommentInput } from './comment-input'
 import { CommentItem } from './comment-item'
 import './style.css'
 
-export function CommentSection(
-  {
-    targetType,
-    targetId,
-    totalCount = 0,
-    ownerId,
-  }: {
-    targetType: TargetType
-    targetId: number
-    totalCount?: number
-    ownerId?: number
-  },
-) {
+export function CommentSection({
+  targetType,
+  targetId,
+  totalCount = 0,
+  ownerId,
+}: {
+  targetType: TargetType
+  targetId: number
+  totalCount?: number
+  ownerId?: number
+}) {
   const { siteInfo } = useSiteInfo()
   const t = useTranslations('Comment')
   const [comments, setComments] = useState<Comment[]>([])
-  const [activeInput, setActiveInput] = useState<{ id: number, type: 'reply' | 'edit' } | null>(null)
+  const [activeInput, setActiveInput] = useState<{
+    id: number
+    type: 'reply' | 'edit'
+  } | null>(null)
   const [page, setPage] = useState(1) // 当前页码
   const [totalCommentCount, setTotalCommentCount] = useState(totalCount) // 评论总数
   const [needLoadMore, setNeedLoadMore] = useState(true) // 是否需要加载更多，当最后一次获取的评论数小于分页大小时设为false
@@ -60,7 +61,15 @@ export function CommentSection(
     })
   }, [targetId, targetType, siteInfo.commentsPerPage, orderBy, desc])
 
-  const onCommentSubmitted = ({ commentContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => {
+  const onCommentSubmitted = ({
+    commentContent,
+    isPrivate,
+    showClientInfo,
+  }: {
+    commentContent: string
+    isPrivate: boolean
+    showClientInfo: boolean
+  }) => {
     createComment({
       targetType,
       targetId,
@@ -83,13 +92,15 @@ export function CommentSection(
   }
 
   const onCommentDelete = ({ commentId }: { commentId: number }) => {
-    deleteComment({ id: commentId }).then(() => {
-      toast.success(t('delete_success'))
-      setComments(prevComments => prevComments.filter(comment => comment.id !== commentId))
-      setTotalCommentCount(c => c - 1)
-    }).catch((error) => {
-      toast.error(`${t('delete_failed')}: ${error.message}`)
-    })
+    deleteComment({ id: commentId })
+      .then(() => {
+        toast.success(t('delete_success'))
+        setComments(prevComments => prevComments.filter(comment => comment.id !== commentId))
+        setTotalCommentCount(c => c - 1)
+      })
+      .catch((error) => {
+        toast.error(`${t('delete_failed')}: ${error.message}`)
+      })
   }
 
   const handleLoadMore = () => {
@@ -129,13 +140,16 @@ export function CommentSection(
               setOrderBy(o.orderBy)
               setDesc(o.desc)
             }}
-            orderBys={[OrderBy.CreatedAt, OrderBy.LikeCount, OrderBy.CommentCount, OrderBy.UpdatedAt]}
+            orderBys={[
+              OrderBy.CreatedAt,
+              OrderBy.LikeCount,
+              OrderBy.CommentCount,
+              OrderBy.UpdatedAt,
+            ]}
           />
         </div>
       </div>
-      <CommentInput
-        onCommentSubmitted={onCommentSubmitted}
-      />
+      <CommentInput onCommentSubmitted={onCommentSubmitted} />
       <div className="mt-4">
         <Suspense fallback={<CommentLoading />}>
           {comments.map((comment, idx) => (
@@ -155,14 +169,15 @@ export function CommentSection(
         </Suspense>
         {needLoadMore
           ? (
-              <p onClick={handleLoadMore} className="text-center text-sm text-gray-500 my-4 cursor-pointer hover:underline">
+              <p
+                onClick={handleLoadMore}
+                className="text-center text-sm text-gray-500 my-4 cursor-pointer hover:underline"
+              >
                 {t('load_more')}
               </p>
             )
           : (
-              <p className="text-center text-sm text-gray-500 my-4">
-                {t('no_more')}
-              </p>
+              <p className="text-center text-sm text-gray-500 my-4">{t('no_more')}</p>
             )}
       </div>
     </div>

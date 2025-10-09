@@ -49,18 +49,15 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       : 'light'
 
   // 应用主题到 document
-  const applyTheme = useCallback(
-    (theme: Mode) => {
-      const isDarkMode = theme === 'dark' || (theme === 'system' && getSystemTheme() === 'dark')
-      setIsDark(isDarkMode)
-      let effectiveTheme = theme
-      if (theme === 'system') {
-        effectiveTheme = getSystemTheme()
-      }
-      document.documentElement.classList.toggle('dark', effectiveTheme === 'dark')
-    },
-    [],
-  )
+  const applyTheme = useCallback((theme: Mode) => {
+    const isDarkMode = theme === 'dark' || (theme === 'system' && getSystemTheme() === 'dark')
+    setIsDark(isDarkMode)
+    let effectiveTheme = theme
+    if (theme === 'system') {
+      effectiveTheme = getSystemTheme()
+    }
+    document.documentElement.classList.toggle('dark', effectiveTheme === 'dark')
+  }, [])
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768)
@@ -103,16 +100,19 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [applyTheme])
 
-  const setMode = useCallback((newMode: Mode) => {
-    setModeState(newMode)
-    applyTheme(newMode)
-    if (newMode === 'system') {
-      localStorage.removeItem('theme')
-    }
-    else {
-      localStorage.setItem('theme', newMode)
-    }
-  }, [applyTheme])
+  const setMode = useCallback(
+    (newMode: Mode) => {
+      setModeState(newMode)
+      applyTheme(newMode)
+      if (newMode === 'system') {
+        localStorage.removeItem('theme')
+      }
+      else {
+        localStorage.setItem('theme', newMode)
+      }
+    },
+    [applyTheme],
+  )
 
   // 支持三种状态的切换：light -> dark -> system -> light ...
   const toggleMode = useCallback(() => {
@@ -136,7 +136,16 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <DeviceContext.Provider
-      value={{ isMobile, isDark, mode, setMode, toggleMode, viewport, navbarAdditionalClassName, setNavbarAdditionalClassName }}
+      value={{
+        isMobile,
+        isDark,
+        mode,
+        setMode,
+        toggleMode,
+        viewport,
+        navbarAdditionalClassName,
+        setNavbarAdditionalClassName,
+      }}
     >
       {children}
     </DeviceContext.Provider>

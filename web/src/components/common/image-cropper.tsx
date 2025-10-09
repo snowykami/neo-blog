@@ -208,7 +208,6 @@ export function ImageCropper({
                     <ReactCrop
                       crop={crop as Crop}
                       onChange={c => setCrop(c)}
-                      // 根据 lockAspect 决定是否锁定宽高比
                       aspect={lockAspect ? normalizeAspect(initialAspect) : undefined}
                     >
                       {/* 必须用原生 img 元素 */}
@@ -218,7 +217,11 @@ export function ImageCropper({
                         onLoad={onImageLoad}
                         width={640}
                         height={640}
-                        style={{ maxWidth: '100%', maxHeight: '60vh', display: 'block' }}
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '60vh',
+                          display: 'block',
+                        }}
                       />
                     </ReactCrop>
                   )
@@ -238,7 +241,9 @@ export function ImageCropper({
             </div>
 
             <DialogFooter className="mt-4">
-              <Button variant="outline" type="button" onClick={handleClose}>{operationT('cancel')}</Button>
+              <Button variant="outline" type="button" onClick={handleClose}>
+                {operationT('cancel')}
+              </Button>
               <Button
                 type="button"
                 onClick={async () => {
@@ -301,7 +306,8 @@ function PreviewCanvas({
     // Start with keeping height constant (availH). Compute desired width from aspect.
     // If no aspect provided or invalid, use source region aspect (sw/sh).
     const srcAspect = sw > 0 && sh > 0 ? sw / sh : 1
-    const asp = typeof aspect === 'number' && isFinite(aspect) && aspect > 0 ? aspect : srcAspect
+    const asp
+      = typeof aspect === 'number' && Number.isFinite(aspect) && aspect > 0 ? aspect : srcAspect
 
     let outH = Math.max(1, availH)
     let outW = Math.max(1, Math.round(asp * outH))

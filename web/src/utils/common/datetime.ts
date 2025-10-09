@@ -1,4 +1,12 @@
-function getAgoString(diff: number, unitI18n: { secondsAgo: string, minutesAgo: string, hoursAgo: string, daysAgo: string }): string {
+function getAgoString(
+  diff: number,
+  unitI18n: {
+    secondsAgo: string
+    minutesAgo: string
+    hoursAgo: string
+    daysAgo: string
+  },
+): string {
   let value: number, unit: string
   if (diff < 60 * 1000) {
     value = Math.floor(diff / 1000)
@@ -27,13 +35,23 @@ export function formatDateTime({
   locale,
   convertShortAgo,
   convertShortAgoDuration = 3 * 24 * 60 * 60 * 1000,
-  unitI18n = { secondsAgo: 's ago', minutesAgo: 'm ago', hoursAgo: 'h ago', daysAgo: 'd ago' },
+  unitI18n = {
+    secondsAgo: 's ago',
+    minutesAgo: 'm ago',
+    hoursAgo: 'h ago',
+    daysAgo: 'd ago',
+  },
 }: {
   dateTimeString: string
   locale: string
   convertShortAgo?: boolean
   convertShortAgoDuration?: number
-  unitI18n?: { secondsAgo: string, minutesAgo: string, hoursAgo: string, daysAgo: string }
+  unitI18n?: {
+    secondsAgo: string
+    minutesAgo: string
+    hoursAgo: string
+    daysAgo: string
+  }
 }): string {
   const date = new Date(dateTimeString)
   const now = new Date()

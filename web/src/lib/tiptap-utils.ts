@@ -20,9 +20,7 @@ export const MAC_SYMBOLS: Record<string, string> = {
   capslock: '⇪',
 } as const
 
-export function cn(
-  ...classes: (string | boolean | undefined | null)[]
-): string {
+export function cn(...classes: (string | boolean | undefined | null)[]): string {
   return classes.filter(Boolean).join(' ')
 }
 
@@ -31,10 +29,7 @@ export function cn(
  * @returns boolean indicating if the current platform is Mac
  */
 export function isMac(): boolean {
-  return (
-    typeof navigator !== 'undefined'
-    && navigator.platform.toLowerCase().includes('mac')
-  )
+  return typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac')
 }
 
 /**
@@ -154,9 +149,7 @@ export function isExtensionAvailable(
   if (!editor)
     return false
 
-  const names = Array.isArray(extensionNames)
-    ? extensionNames
-    : [extensionNames]
+  const names = Array.isArray(extensionNames) ? extensionNames : [extensionNames]
 
   const found = names.some(name =>
     editor.extensionManager.extensions.some(ext => ext.name === name),
@@ -256,10 +249,7 @@ export function findNodePosition(props: {
  * @param types An array of node type names to check against
  * @returns boolean indicating if the selected node matches any of the specified types
  */
-export function isNodeTypeSelected(
-  editor: Editor | null,
-  types: string[] = [],
-): boolean {
+export function isNodeTypeSelected(editor: Editor | null, types: string[] = []): boolean {
   if (!editor || !editor.state.selection)
     return false
 
@@ -284,16 +274,18 @@ export function isNodeTypeSelected(
  * @param abortSignal Optional AbortSignal for cancelling the upload
  * @returns Promise resolving to the URL of the uploaded image
  */
-export async function handleImageUpload(file: File, onProgress?: (event: { progress: number }) => void, abortSignal?: AbortSignal): Promise<string> {
+export async function handleImageUpload(
+  file: File,
+  onProgress?: (event: { progress: number }) => void,
+  abortSignal?: AbortSignal,
+): Promise<string> {
   // Validate file
   if (!file) {
     throw new Error('No file provided')
   }
 
   if (file.size > MAX_FILE_SIZE) {
-    throw new Error(
-      `File size exceeds maximum allowed (${MAX_FILE_SIZE / (1024 * 1024)}MB)`,
-    )
+    throw new Error(`File size exceeds maximum allowed (${MAX_FILE_SIZE / (1024 * 1024)}MB)`)
   }
 
   // For demo/testing: Simulate upload progress. In production, replace the following code
@@ -332,10 +324,7 @@ const ATTR_WHITESPACE
   // eslint-disable-next-line no-control-regex
   = /[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g
 
-export function isAllowedUri(
-  uri: string | undefined,
-  protocols?: ProtocolConfig,
-) {
+export function isAllowedUri(uri: string | undefined, protocols?: ProtocolConfig) {
   const allowedProtocols: string[] = [
     'http',
     'https',
@@ -351,8 +340,7 @@ export function isAllowedUri(
 
   if (protocols) {
     protocols.forEach((protocol) => {
-      const nextProtocol
-        = typeof protocol === 'string' ? protocol : protocol.scheme
+      const nextProtocol = typeof protocol === 'string' ? protocol : protocol.scheme
 
       if (nextProtocol) {
         allowedProtocols.push(nextProtocol)
@@ -362,21 +350,18 @@ export function isAllowedUri(
 
   return (
     !uri
-    || uri.replace(ATTR_WHITESPACE, '').match(
-      new RegExp(
-
-        `^(?:(?:${allowedProtocols.join('|')}):|[^a-z]|[a-z0-9+.\-]+(?:[^a-z+.\-:]|$))`,
-        'i',
-      ),
-    )
+    || uri
+      .replace(ATTR_WHITESPACE, '')
+      .match(
+        new RegExp(
+          `^(?:(?:${allowedProtocols.join('|')}):|[^a-z]|[a-z0-9+.\-]+(?:[^a-z+.\-:]|$))`,
+          'i',
+        ),
+      )
   )
 }
 
-export function sanitizeUrl(
-  inputUrl: string,
-  baseUrl: string,
-  protocols?: ProtocolConfig,
-): string {
+export function sanitizeUrl(inputUrl: string, baseUrl: string, protocols?: ProtocolConfig): string {
   try {
     const url = new URL(inputUrl, baseUrl)
 

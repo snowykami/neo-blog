@@ -26,21 +26,25 @@ export function AuthProvider({
 
   useEffect(() => {
     if (!user) {
-      getLoginUser().then((res) => {
-        setUser(res.data)
-      }).catch(() => {
-        setUser(null)
-      })
+      getLoginUser()
+        .then((res) => {
+          setUser(res.data)
+        })
+        .catch(() => {
+          setUser(null)
+        })
     }
   }, [user])
 
   const logout = useCallback(() => {
-    userLogout().then(() => {
-      toast.success(commonT('logout_success'))
-      setUser(null)
-    }).catch(() => {
-      toast.error(commonT('logout_failed'))
-    })
+    userLogout()
+      .then(() => {
+        toast.success(commonT('logout_success'))
+        setUser(null)
+      })
+      .catch(() => {
+        toast.error(commonT('logout_failed'))
+      })
   }, [commonT])
   const value = useMemo(() => ({ user, setUser, logout }), [user, logout])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

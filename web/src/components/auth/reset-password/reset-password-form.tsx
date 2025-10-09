@@ -9,22 +9,14 @@ import { toast } from 'sonner'
 import { requestEmailVerifyCode, resetPassword } from '@/api/user'
 import { InputOTPControlled } from '@/components/common/input-otp'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useCommonT, useOperationT } from '@/hooks/translations'
 import { loginPath, registerPath } from '@/hooks/use-route'
 import { cn } from '@/lib/utils'
 
-export function ResetPasswordForm({
-  className,
-  ...props
-}: React.ComponentProps<'div'>) {
+export function ResetPasswordForm({ className, ...props }: React.ComponentProps<'div'>) {
   const t = useTranslations('ResetPassword')
   const commonT = useCommonT()
   const operationT = useOperationT()
@@ -62,12 +54,14 @@ export function ResetPasswordForm({
   }
 
   const handleResetPassword = () => {
-    resetPassword({ email, newPassword, verifyCode }).then(() => {
-      toast.success(t('reset_password_success'))
-      router.push(loginPath)
-    }).catch((error: BaseResponseError) => {
-      toast.error(`${t('reset_password_failed')}: ${error.response.data.message}`)
-    })
+    resetPassword({ email, newPassword, verifyCode })
+      .then(() => {
+        toast.success(t('reset_password_success'))
+        router.push(loginPath)
+      })
+      .catch((error: BaseResponseError) => {
+        toast.error(`${t('reset_password_failed')}: ${error.response.data.message}`)
+      })
   }
 
   return (
@@ -82,13 +76,22 @@ export function ResetPasswordForm({
               <div className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="password">{t('new_password')}</Label>
-                  <Input id="password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
+                  <Input
+                    id="password"
+                    type="password"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="email">{commonT('email')}</Label>
                   <div className="flex gap-2">
-                    <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="grid gap-2">
@@ -106,7 +109,6 @@ export function ResetPasswordForm({
                       {coolDown > 0 ? `(${coolDown})` : ''}
                     </Button>
                   </div>
-
                 </div>
                 <Button
                   type="button"

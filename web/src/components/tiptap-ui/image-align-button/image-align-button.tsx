@@ -4,10 +4,7 @@
 import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
 // --- Tiptap UI ---
-import type {
-  ImageAlign,
-  UseImageAlignConfig,
-} from '@/components/tiptap-ui/image-align-button'
+import type { ImageAlign, UseImageAlignConfig } from '@/components/tiptap-ui/image-align-button'
 
 import * as React from 'react'
 
@@ -23,9 +20,7 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 // --- Lib ---
 import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
-export interface ImageAlignButtonProps
-  extends Omit<ButtonProps, 'type'>,
-  UseImageAlignConfig {
+export interface ImageAlignButtonProps extends Omit<ButtonProps, 'type'>, UseImageAlignConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -52,10 +47,7 @@ export function ImageAlignShortcutBadge({
  *
  * For custom button implementations, use the `useImageAlign` hook instead.
  */
-export const ImageAlignButton = React.forwardRef<
-  HTMLButtonElement,
-  ImageAlignButtonProps
->(
+export const ImageAlignButton = React.forwardRef<HTMLButtonElement, ImageAlignButtonProps>(
   (
     {
       editor: providedEditor,
@@ -73,22 +65,15 @@ export const ImageAlignButton = React.forwardRef<
     ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
-    const {
-      isVisible,
-      handleImageAlign,
-      label,
-      canAlign,
-      isActive,
-      Icon,
-      shortcutKeys,
-    } = useImageAlign({
-      editor,
-      align,
-      extensionName,
-      attributeName,
-      hideWhenUnavailable,
-      onAligned,
-    })
+    const { isVisible, handleImageAlign, label, canAlign, isActive, Icon, shortcutKeys }
+      = useImageAlign({
+        editor,
+        align,
+        extensionName,
+        attributeName,
+        hideWhenUnavailable,
+        onAligned,
+      })
 
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -126,10 +111,7 @@ export const ImageAlignButton = React.forwardRef<
             {text ? <span>{text}</span> : null}
             {showShortcut
               ? (
-                  <ImageAlignShortcutBadge
-                    align={align}
-                    shortcutKeys={shortcutKeys}
-                  />
+                  <ImageAlignShortcutBadge align={align} shortcutKeys={shortcutKeys} />
                 )
               : null}
           </>

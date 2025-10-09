@@ -5,7 +5,11 @@ import Navbar from '@/components/layout/nav/navbar-or-side'
 import { BackgroundProvider } from '@/contexts/background-context'
 import { useNav } from '@/contexts/nav-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
-import { contentAreaMaxWidthClass, contentAreaPaddingClass, navHeight } from '@/utils/common/layout-size'
+import {
+  contentAreaMaxWidthClass,
+  contentAreaPaddingClass,
+  navHeight,
+} from '@/utils/common/layout-size'
 import { FloatingWidgets } from './main-floating-widgets'
 
 export default function RootLayout({
@@ -26,7 +30,10 @@ export default function RootLayout({
         className="w-full fixed inset-x-0 z-5"
         initial={{ y: -64 }}
         animate={{ y: 0 }}
-        transition={{ duration: siteInfo.animationDurationSecond, ease: 'easeOut' }}
+        transition={{
+          duration: siteInfo.animationDurationSecond,
+          ease: 'easeOut',
+        }}
       >
         <div className={`top-0 left-0 h-${navHeight} w-full flex justify-center`}>
           <div className={`${contentAreaMaxWidthClass} flex items-center w-full`}>
@@ -34,7 +41,9 @@ export default function RootLayout({
           </div>
         </div>
       </motion.nav>
-      <BackgroundProvider defaultBackground={<div className="absolute inset-0 -z-10 bg-primary/20" />}>
+      <BackgroundProvider
+        defaultBackground={<div className="absolute inset-0 -z-10 bg-primary/20" />}
+      >
         <main
           style={{ minHeight: minMainHeight }}
           className={`mx-auto ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${hasNavPadding ? 'pt-16' : ''} min-h-0`}

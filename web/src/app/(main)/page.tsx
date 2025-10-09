@@ -7,16 +7,16 @@ import BlogHome from '@/components/blog-home/blog-home'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
 export async function generateMetadata(): Promise<Metadata> {
-  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo)
+  const siteInfo = await getSiteInfo()
+    .then(res => res.data)
+    .catch(() => fallbackSiteInfo)
   const routeT = await getTranslations('Route')
-  const locale = await getLocale() || 'zh-CN'
+  const locale = (await getLocale()) || 'zh-CN'
   return {
     title: routeT('homepage'),
     description: siteInfo.metadata.description,
     metadataBase: new URL(siteInfo.baseUrl || ''),
-    icons: [
-      { rel: 'icon', url: siteInfo.metadata.icon },
-    ],
+    icons: [{ rel: 'icon', url: siteInfo.metadata.icon }],
     keywords: siteInfo.keywords,
     openGraph: {
       title: `${routeT('homepage')} - ${siteInfo.metadata.name}`,
@@ -47,7 +47,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Page() {
-  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo)
+  const siteInfo = await getSiteInfo()
+    .then(res => res.data)
+    .catch(() => fallbackSiteInfo)
   const jsonLd: WithContext<WebSite> = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
@@ -75,7 +77,9 @@ export default async function Page() {
         id="json-ld"
         type="application/ld+json"
         strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
+        }}
       />
     </>
   )

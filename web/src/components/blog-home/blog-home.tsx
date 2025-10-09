@@ -16,7 +16,12 @@ import { useStoredState } from '@/hooks/use-storage-state'
 import { OrderBy } from '@/models/common'
 import { navStickyTopPx } from '@/utils/common/layout-size'
 import Sidebar from '../blog-sidebar'
-import { SidebarAbout, SidebarHotPosts, SidebarLabels, SidebarMisskeyIframe } from '../blog-sidebar/blog-sidebar-card'
+import {
+  SidebarAbout,
+  SidebarHotPosts,
+  SidebarLabels,
+  SidebarMisskeyIframe,
+} from '../blog-sidebar/blog-sidebar-card'
 
 // 定义排序类型
 enum SortBy {
@@ -32,11 +37,17 @@ export default function BlogHome() {
   const { siteInfo } = useSiteInfo()
   const [keywords] = useState<string[]>([])
   const [labelSlug, setLabelString] = useQueryState('label')
-  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }))
+  const [page, setPage] = useQueryState(
+    'page',
+    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
   const [posts, setPosts] = useState<Post[]>([])
   const [totalPosts, setTotalPosts] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [sortBy, setSortBy, isSortByLoaded] = useStoredState<SortBy>(QueryKey.SortBy, DEFAULT_SORTBY)
+  const [sortBy, setSortBy, isSortByLoaded] = useStoredState<SortBy>(
+    QueryKey.SortBy,
+    DEFAULT_SORTBY,
+  )
 
   // 区分浏览器 history popstate（回退/前进）与用户主动触发的分页
   const popStateRef = useRef(false)
@@ -63,23 +74,23 @@ export default function BlogHome() {
     if (!isSortByLoaded)
       return
     setLoading(true)
-    listPosts(
-      {
-        page,
-        size: siteInfo.postsPerPage || 9,
-        orderBy: sortBy === SortBy.Latest ? OrderBy.CreatedAt : OrderBy.Heat,
-        desc: true,
-        keywords: keywords.join(',') || undefined,
-        label: labelSlug || undefined,
-      },
-    ).then((res) => {
-      setPosts(res.data.posts)
-      setTotalPosts(res.data.total)
-      setLoading(false)
-    }).catch((err) => {
-      console.error(err)
-      setLoading(false)
+    listPosts({
+      page,
+      size: siteInfo.postsPerPage || 9,
+      orderBy: sortBy === SortBy.Latest ? OrderBy.CreatedAt : OrderBy.Heat,
+      desc: true,
+      keywords: keywords.join(',') || undefined,
+      label: labelSlug || undefined,
     })
+      .then((res) => {
+        setPosts(res.data.posts)
+        setTotalPosts(res.data.total)
+        setLoading(false)
+      })
+      .catch((err) => {
+        console.error(err)
+        setLoading(false)
+      })
   }, [keywords, labelSlug, page, sortBy, isSortByLoaded, siteInfo.postsPerPage])
 
   const handleSortChange = (type: SortBy) => {
@@ -107,7 +118,10 @@ export default function BlogHome() {
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               key={`${page}-${labelSlug ?? 'none'}`}
-              transition={{ duration: siteInfo.animationDurationSecond, ease: 'easeOut' }}
+              transition={{
+                duration: siteInfo.animationDurationSecond,
+                ease: 'easeOut',
+              }}
             >
               {/* 文章列表标题 */}
               <div className="flex items-center justify-between mb-8">
@@ -168,12 +182,19 @@ export default function BlogHome() {
               initial={{ x: 80, opacity: 0 }}
               animate={{ x: 0, y: 0, opacity: 1 }}
               style={{ top: navStickyTopPx }}
-              transition={{ duration: siteInfo.animationDurationSecond, ease: 'easeOut' }}
+              transition={{
+                duration: siteInfo.animationDurationSecond,
+                ease: 'easeOut',
+              }}
             >
               <Sidebar
                 cards={[
                   <SidebarAbout key="about" />,
-                  posts.length > 0 ? <SidebarHotPosts key="hot" posts={posts} sortType={sortBy} /> : null,
+                  posts.length > 0
+                    ? (
+                        <SidebarHotPosts key="hot" posts={posts} sortType={sortBy} />
+                      )
+                    : null,
                   <SidebarLabels key="tags" label={labelSlug} setLabel={setLabelString} />,
                   <SidebarMisskeyIframe key="misskey" />,
                 ].filter(Boolean)}

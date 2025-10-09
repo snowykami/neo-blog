@@ -4,7 +4,9 @@ import { getRssData } from '@/api/misc'
 import { getPostUrl } from '@/utils/common/route'
 
 export async function GET() {
-  const rssData = await getRssData().then(res => res.data).catch(() => null)
+  const rssData = await getRssData()
+    .then(res => res.data)
+    .catch(() => null)
 
   if (!rssData) {
     return NextResponse.json({ error: 'Failed to fetch RSS data' }, { status: 500 })

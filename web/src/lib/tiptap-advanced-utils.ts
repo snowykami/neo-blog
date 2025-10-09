@@ -43,10 +43,7 @@ export function hasContentAbove(editor: Editor | null): {
  * @param markName - The name of the mark to look for (e.g., "highlight", "link").
  * @returns The attributes of the active mark, or `null` if the mark is not active.
  */
-export function getActiveMarkAttrs(
-  editor: Editor | null,
-  markName: string,
-): Attrs | null {
+export function getActiveMarkAttrs(editor: Editor | null, markName: string): Attrs | null {
   if (!editor)
     return null
 
@@ -221,16 +218,11 @@ export function selectionHasText(editor: Editor | null): boolean {
  * @param extensionName - The name of the extension to retrieve
  * @returns The extension instance if found, otherwise null
  */
-export function getEditorExtension(
-  editor: Editor | null,
-  extensionName: string,
-) {
+export function getEditorExtension(editor: Editor | null, extensionName: string) {
   if (!editor)
     return null
 
-  const extension = editor.extensionManager.extensions.find(
-    ext => ext.name === extensionName,
-  )
+  const extension = editor.extensionManager.extensions.find(ext => ext.name === extensionName)
 
   if (!extension) {
     console.warn(

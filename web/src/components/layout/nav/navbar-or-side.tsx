@@ -1,7 +1,19 @@
 'use client'
 
 import { IconInnerShadowTop } from '@tabler/icons-react'
-import { ArchiveIcon, ContactIcon, HouseIcon, InfoIcon, Link2Icon, NewspaperIcon, PanelRight, PanelsTopLeftIcon, RssIcon, ShuffleIcon, TagsIcon } from 'lucide-react'
+import {
+  ArchiveIcon,
+  ContactIcon,
+  HouseIcon,
+  InfoIcon,
+  Link2Icon,
+  NewspaperIcon,
+  PanelRight,
+  PanelsTopLeftIcon,
+  RssIcon,
+  ShuffleIcon,
+  TagsIcon,
+} from 'lucide-react'
 
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
@@ -98,9 +110,12 @@ export default function Navbar() {
           <AvatarWithDropdownMenu key="a8d92h1" />,
           ...(isMobile
             ? []
-            : [<ThemeModeToggle key="a8d92h2" />, <Link href="/rss.xml" className="flex items-center justify-center" key="a8d92h3">
-                <RssIcon className="w-6 h-6 text-primary" />
-                                                  </Link>]),
+            : [
+                <ThemeModeToggle key="a8d92h2" />,
+                <Link href="/rss.xml" className="flex items-center justify-center" key="a8d92h3">
+                  <RssIcon className="w-6 h-6 text-primary" />
+                </Link>,
+              ]),
         ].map((Comp, index) => (
           <div
             key={index}
@@ -123,48 +138,63 @@ function NavMenuCenter() {
       <NavigationMenuList className="flex space-x-1" key="navbar-menu">
         {navbarMenuComponents.map(item => (
           <NavigationMenuItem key={item.title} id={item.title}>
-            {item.href ? (
-              // 修复：只在 Link 上应用样式，移除 NavigationMenuLink 上的重复样式
-              <NavigationMenuLink onClick={() => router.push(item.href)} className={cn(navigationMenuTriggerStyle(), 'font-extrabold text-lg bg-transparent')}>
-                <div className="flex items-center gap-2">
-                  <item.icon className="!w-6 !h-6 text-inherit" />
-                  <span>{routeT(item.title)}</span>
-                </div>
-              </NavigationMenuLink>
-            ) : item.children ? (
-              <>
-                {/* Trigger 保持不变 */}
-                <NavigationMenuTrigger className={cn(navigationMenuTriggerStyle(), 'font-extrabold text-lg bg-transparent')}>
-                  <div className="flex items-center gap-2">
-                    <item.icon className="w-6 h-6" />
-                    <span>{routeT(item.title)}</span>
-                  </div>
-                </NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <ul className="grid gap-2 p-0 min-w-auto max-w-[600px] grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
-                    {item.children.map(child => (
-                      <li key={child.title}>
-                        <NavigationMenuLink asChild>
-                          <Link
-                            href={child.href}
-                            className={cn(
-                              navigationMenuTriggerStyle(),
-                              'font-extrabold bg-transparent',
-                              'flex flex-col items-center text-center w-full',
-                            )}
-                          >
-                            <div className="flex items-center gap-2">
-                              <child.icon className="w-6 h-6" />
-                              {routeT(child.title)}
-                            </div>
-                          </Link>
-                        </NavigationMenuLink>
-                      </li>
-                    ))}
-                  </ul>
-                </NavigationMenuContent>
-              </>
-            ) : null}
+            {item.href
+              ? (
+                // 修复：只在 Link 上应用样式，移除 NavigationMenuLink 上的重复样式
+                  <NavigationMenuLink
+                    onClick={() => router.push(item.href)}
+                    className={cn(
+                      navigationMenuTriggerStyle(),
+                      'font-extrabold text-lg bg-transparent',
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <item.icon className="!w-6 !h-6 text-inherit" />
+                      <span>{routeT(item.title)}</span>
+                    </div>
+                  </NavigationMenuLink>
+                )
+              : item.children
+                ? (
+                    <>
+                      {/* Trigger 保持不变 */}
+                      <NavigationMenuTrigger
+                        className={cn(
+                          navigationMenuTriggerStyle(),
+                          'font-extrabold text-lg bg-transparent',
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <item.icon className="w-6 h-6" />
+                          <span>{routeT(item.title)}</span>
+                        </div>
+                      </NavigationMenuTrigger>
+                      <NavigationMenuContent>
+                        <ul className="grid gap-2 p-0 min-w-auto max-w-[600px] grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
+                          {item.children.map(child => (
+                            <li key={child.title}>
+                              <NavigationMenuLink asChild>
+                                <Link
+                                  href={child.href}
+                                  className={cn(
+                                    navigationMenuTriggerStyle(),
+                                    'font-extrabold bg-transparent',
+                                    'flex flex-col items-center text-center w-full',
+                                  )}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <child.icon className="w-6 h-6" />
+                                    {routeT(child.title)}
+                                  </div>
+                                </Link>
+                              </NavigationMenuLink>
+                            </li>
+                          ))}
+                        </ul>
+                      </NavigationMenuContent>
+                    </>
+                  )
+                : null}
           </NavigationMenuItem>
         ))}
       </NavigationMenuList>
@@ -179,9 +209,7 @@ function SidebarMenu() {
     <div className="flex md:hidden">
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
-          <button
-            className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-accent/50 transition-all duration-200 text-primary cursor-pointer"
-          >
+          <button className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-accent/50 transition-all duration-200 text-primary cursor-pointer">
             <PanelRight className="w-6 h-6 text-primary" />
           </button>
         </SheetTrigger>
@@ -222,7 +250,10 @@ function SidebarMenu() {
             )}
             {/* 小物件区 */}
             <div className="flex gap-2 mt-2 justify-center">
-              <Link href="/rss.xml" className="flex items-center gap-2 py-2 px-3 rounded-xl hover:bg-accent transition-colors">
+              <Link
+                href="/rss.xml"
+                className="flex items-center gap-2 py-2 px-3 rounded-xl hover:bg-accent transition-colors"
+              >
                 <RssIcon className="w-5 h-5 text-primary" />
               </Link>
             </div>
@@ -231,7 +262,6 @@ function SidebarMenu() {
           <div className="flex items-center justify-center p-4 border-t border-border">
             <ThemeModeToggle showSegmented={true} />
           </div>
-
         </SheetContent>
       </Sheet>
     </div>

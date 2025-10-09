@@ -22,9 +22,7 @@ export function SidebarAbout() {
   if (!siteInfo)
     return null
   return (
-    <Card
-      className="relative overflow-hidden text-white"
-    >
+    <Card className="relative overflow-hidden text-white">
       <div
         className="absolute inset-0 bg-cover bg-center blur-sm"
         style={{
@@ -45,12 +43,22 @@ export function SidebarAbout() {
           <div className="text-center mb-4">
             <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
               <Avatar className="h-full w-full rounded-full border-2">
-                <AvatarImage src={getGravatarUrl({ email: siteInfo?.owner?.gravatarEmail || 'snowykami@outlook.com', size: 256 })} alt={siteInfo?.owner?.name} />
-                <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(siteInfo?.owner?.name || 'Failed')}</AvatarFallback>
+                <AvatarImage
+                  src={getGravatarUrl({
+                    email: siteInfo?.owner?.gravatarEmail || 'snowykami@outlook.com',
+                    size: 256,
+                  })}
+                  alt={siteInfo?.owner?.name}
+                />
+                <AvatarFallback className="rounded-full">
+                  {getFallbackAvatarFromUsername(siteInfo?.owner?.name || 'Failed')}
+                </AvatarFallback>
               </Avatar>
             </div>
             <h3 className="font-semibold text-lg py-4">{siteInfo?.owner?.name || 'Failed H3'}</h3>
-            <p className="text-sm text-white-600">{siteInfo?.owner?.description || 'Failed Motto'}</p>
+            <p className="text-sm text-white-600">
+              {siteInfo?.owner?.description || 'Failed Motto'}
+            </p>
           </div>
         </CardContent>
       </div>
@@ -70,15 +78,17 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
       </CardHeader>
       <CardContent className="space-y-4">
         {posts.slice(0, 3).map((post, index) => (
-          <Link href={getPostUrl({ post })} key={post.id} className="block hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-1 transition-colors">
+          <Link
+            href={getPostUrl({ post })}
+            key={post.id}
+            className="block hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-1 transition-colors"
+          >
             <div className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold">
                 {index + 1}
               </span>
               <div className="flex-1 min-w-0">
-                <h4 className="font-medium text-sm line-clamp-2 mb-1">
-                  {post.title}
-                </h4>
+                <h4 className="font-medium text-sm line-clamp-2 mb-1">{post.title}</h4>
                 <div className="flex items-center gap-2 text-xs text-slate-500">
                   <span className="flex items-center gap-1">
                     <Eye className="w-3 h-3" />
@@ -92,7 +102,6 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
               </div>
             </div>
           </Link>
-
         ))}
       </CardContent>
     </Card>
@@ -100,7 +109,13 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
 }
 
 // 标签云卡片
-export function SidebarLabels({ label = null, setLabel }: { label?: string | null, setLabel?: (label: string | null) => void }) {
+export function SidebarLabels({
+  label = null,
+  setLabel,
+}: {
+  label?: string | null
+  setLabel?: (label: string | null) => void
+}) {
   const t = useTranslations()
   const [labels, setLabels] = useState<Label[]>([])
   const router = useRouter()
@@ -126,33 +141,37 @@ export function SidebarLabels({ label = null, setLabel }: { label?: string | nul
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-2">
-          {labels.map(l => !!l.postCount && l.postCount > 0 && (
-            <div key={l.id} className="relative">
-              <Badge
-                variant="outline"
-                onClick={() => onClickLabel(l)}
-                className={`text-xs hover:bg-blue-50 cursor-pointer ${label === l.slug ? ' bg-blue-100 text-blue-700 hover:bg-blue-200' : ''}`}
-              >
-                {l.name}
-              </Badge>
-              <span className="absolute -top-1.5 -right-1.5 bg-primary/70 text-[10px] rounded-full w-4.5 h-4.5 flex items-center justify-center pointer-events-none">
-                {l.postCount > 0 ? (l.postCount > 99 ? '99+' : l.postCount) : 0}
-              </span>
-            </div>
-          ))}
+          {labels.map(
+            l =>
+              !!l.postCount
+              && l.postCount > 0 && (
+                <div key={l.id} className="relative">
+                  <Badge
+                    variant="outline"
+                    onClick={() => onClickLabel(l)}
+                    className={`text-xs hover:bg-blue-50 cursor-pointer ${label === l.slug ? ' bg-blue-100 text-blue-700 hover:bg-blue-200' : ''}`}
+                  >
+                    {l.name}
+                  </Badge>
+                  <span className="absolute -top-1.5 -right-1.5 bg-primary/70 text-[10px] rounded-full w-4.5 h-4.5 flex items-center justify-center pointer-events-none">
+                    {l.postCount > 0 ? (l.postCount > 99 ? '99+' : l.postCount) : 0}
+                  </span>
+                </div>
+              ),
+          )}
         </div>
       </CardContent>
     </Card>
   )
 }
 
-export function SidebarIframe(props?: { src?: string, scriptSrc?: string, title?: string, height?: string }) {
-  const {
-    src = '',
-    scriptSrc = '',
-    title = 'External Content',
-    height = '400px',
-  } = props || {}
+export function SidebarIframe(props?: {
+  src?: string
+  scriptSrc?: string
+  title?: string
+  height?: string
+}) {
+  const { src = '', scriptSrc = '', title = 'External Content', height = '400px' } = props || {}
   const t = useTranslations('HomePage')
   return (
     <Card>
@@ -167,15 +186,7 @@ export function SidebarIframe(props?: { src?: string, scriptSrc?: string, title?
           height={height}
           title={title}
         />
-        {scriptSrc && (
-          <script
-            src={scriptSrc}
-            async
-            defer
-            className="w-full"
-          >
-          </script>
-        )}
+        {scriptSrc && <script src={scriptSrc} async defer className="w-full"></script>}
       </CardContent>
     </Card>
   )

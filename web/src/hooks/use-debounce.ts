@@ -25,7 +25,10 @@ export function useDebouncedValue<T>(value: T, delay = 400) {
 }
 
 /** 防抖回调：返回一个稳定函数，调用时会在 delay 后真正触发 cb（后触发覆盖先触发）。 */
-export function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(cb: T, delay = 400) {
+export function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(
+  cb: T,
+  delay = 400,
+) {
   const cbRef = useRef(cb)
   const timerRef = useRef<number | null>(null)
   cbRef.current = cb
@@ -79,33 +82,39 @@ export function useDebouncedState<T>(
     }
   }, [])
 
-  const set = useCallback((val: T | ((prev: T) => T)) => {
-    setState((prev) => {
-      const next = typeof val === 'function' ? (val as (p: T) => T)(prev) : val
-      pendingRef.current = next
-      if (timerRef.current)
-        window.clearTimeout(timerRef.current)
-      if (immediate && debounced !== next && timerRef.current === null) {
-        setDebounced(next)
-      }
-      else {
-        timerRef.current = window.setTimeout(() => {
-          timerRef.current = null
-          setDebounced(pendingRef.current)
-        }, delay)
-      }
-      return next
-    })
-  }, [delay, immediate, debounced])
+  const set = useCallback(
+    (val: T | ((prev: T) => T)) => {
+      setState((prev) => {
+        const next = typeof val === 'function' ? (val as (p: T) => T)(prev) : val
+        pendingRef.current = next
+        if (timerRef.current)
+          window.clearTimeout(timerRef.current)
+        if (immediate && debounced !== next && timerRef.current === null) {
+          setDebounced(next)
+        }
+        else {
+          timerRef.current = window.setTimeout(() => {
+            timerRef.current = null
+            setDebounced(pendingRef.current)
+          }, delay)
+        }
+        return next
+      })
+    },
+    [delay, immediate, debounced],
+  )
 
-  useEffect(() => () => {
-    if (flushOnUnmount && timerRef.current) {
-      flush()
-    }
-    else if (timerRef.current) {
-      window.clearTimeout(timerRef.current)
-    }
-  }, [flushOnUnmount, flush])
+  useEffect(
+    () => () => {
+      if (flushOnUnmount && timerRef.current) {
+        flush()
+      }
+      else if (timerRef.current) {
+        window.clearTimeout(timerRef.current)
+      }
+    },
+    [flushOnUnmount, flush],
+  )
 
   return [state, set, debounced, { flush, cancel }] as const
 }

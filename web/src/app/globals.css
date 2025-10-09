@@ -1,14 +1,14 @@
-@import "./styles/blue.css";
-@import "./styles/green.css";
-@import "./styles/orange.css";
-@import "./styles/red.css";
-@import "./styles/rose.css";
-@import "./styles/violet.css";
-@import "./styles/pink.css";
-@import "./styles/yellow.css";
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "./styles/animation.css";
+@import './styles/blue.css';
+@import './styles/green.css';
+@import './styles/orange.css';
+@import './styles/red.css';
+@import './styles/rose.css';
+@import './styles/violet.css';
+@import './styles/pink.css';
+@import './styles/yellow.css';
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import './styles/animation.css';
 
 @plugin "@tailwindcss/typography";
 
@@ -134,7 +134,7 @@
 }
 
 .scrollbar-overlay__thumb {
-  background: rgba(0, 0, 0, 0.40);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 /* hover / active */

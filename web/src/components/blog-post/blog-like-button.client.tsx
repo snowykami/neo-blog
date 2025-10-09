@@ -15,9 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 
 const MAX_LIKED_USERS = 5
 
-export function BlogLikeButton({
-  post,
-}: { post: Post }) {
+export function BlogLikeButton({ post }: { post: Post }) {
   const commonT = useCommonT()
   const operationT = useOperationT()
   const clickToUserProfile = useToUserProfile()
@@ -29,11 +27,13 @@ export function BlogLikeButton({
   const [canClickLike, setCanClickLike] = useState(true)
 
   useEffect(() => {
-    getLikedUsers({ targetType: TargetType.Post, targetId: post.id, number: 5 }).then((res) => {
-      setLikedUsers(res.data.users?.slice(0, MAX_LIKED_USERS) || [])
-    }).catch(() => {
-      setLikedUsers([])
-    })
+    getLikedUsers({ targetType: TargetType.Post, targetId: post.id, number: 5 })
+      .then((res) => {
+        setLikedUsers(res.data.users?.slice(0, MAX_LIKED_USERS) || [])
+      })
+      .catch(() => {
+        setLikedUsers([])
+      })
   }, [liked, setLikedUsers, likeCount, post.id])
 
   const handleToggleLike = () => {
@@ -51,17 +51,18 @@ export function BlogLikeButton({
       return
     }
     // 提前转换状态，让用户觉得响应很快
-    toggleLike(
-      { targetType: TargetType.Post, targetId: post.id },
-    ).then((res) => {
-      toast.success(res.data.status ? operationT('like_success') : operationT('unlike_success'))
-      setLiked(res.data.status)
-      setLikeCount(likeCount + (res.data.status ? 1 : -1))
-    }).catch((error) => {
-      toast.error(`${operationT('like_failed')}: ${error.message}`)
-    }).finally(() => {
-      setCanClickLike(true)
-    })
+    toggleLike({ targetType: TargetType.Post, targetId: post.id })
+      .then((res) => {
+        toast.success(res.data.status ? operationT('like_success') : operationT('unlike_success'))
+        setLiked(res.data.status)
+        setLikeCount(likeCount + (res.data.status ? 1 : -1))
+      })
+      .catch((error) => {
+        toast.error(`${operationT('like_failed')}: ${error.message}`)
+      })
+      .finally(() => {
+        setCanClickLike(true)
+      })
   }
 
   return (
@@ -71,15 +72,27 @@ export function BlogLikeButton({
           onClick={handleToggleLike}
           className={`rounded-full border-2 ${liked ? 'bg-red-500' : 'border-gray-300'} w-16 h-16 flex items-center justify-center cursor-pointer select-none`}
         >
-          <HeartIcon className={`w-8 h-8 inline-block ${liked ? 'text-red-500 fill-white' : 'text-gray-400'}`} />
+          <HeartIcon
+            className={`w-8 h-8 inline-block ${liked ? 'text-red-500 fill-white' : 'text-gray-400'}`}
+          />
         </div>
       </div>
-      <div className="text-lg py-4 text-gray-500 flex justify-center">{operationT('n_users_liked', { n: likeCount })}</div>
+      <div className="text-lg py-4 text-gray-500 flex justify-center">
+        {operationT('n_users_liked', { n: likeCount })}
+      </div>
       {likedUsers.length > 0 && (
         <div className="flex justify-center gap-2 h-8 w-full">
           {likedUsers.map(u => (
-            <Avatar onClick={() => clickToUserProfile(u.username)} className="h-8 w-8 rounded-full border-2" key={u.id}>
-              <AvatarImage className="rounded-full" src={getAvatarOrGravatarUrlFromUser({ user: u })} alt={u.nickname} />
+            <Avatar
+              onClick={() => clickToUserProfile(u.username)}
+              className="h-8 w-8 rounded-full border-2"
+              key={u.id}
+            >
+              <AvatarImage
+                className="rounded-full"
+                src={getAvatarOrGravatarUrlFromUser({ user: u })}
+                alt={u.nickname}
+              />
               <AvatarFallback className="rounded-full">{getFirstCharFromUser(u)}</AvatarFallback>
             </Avatar>
           ))}

@@ -166,25 +166,16 @@ export function toggleList(editor: Editor | null, type: ListType): boolean {
       const firstChild = selection.node.firstChild?.firstChild
       const lastChild = selection.node.lastChild?.lastChild
 
-      const from = firstChild
-        ? selection.from + firstChild.nodeSize
-        : selection.from + 1
+      const from = firstChild ? selection.from + firstChild.nodeSize : selection.from + 1
 
-      const to = lastChild
-        ? selection.to - lastChild.nodeSize
-        : selection.to - 1
+      const to = lastChild ? selection.to - lastChild.nodeSize : selection.to - 1
 
       chain = chain.setTextSelection({ from, to }).clearNodes()
     }
 
     if (editor.isActive(type)) {
       // Unwrap list
-      chain
-        .liftListItem('listItem')
-        .lift('bulletList')
-        .lift('orderedList')
-        .lift('taskList')
-        .run()
+      chain.liftListItem('listItem').lift('bulletList').lift('orderedList').lift('taskList').run()
     }
     else {
       // Wrap in specific list type
@@ -270,12 +261,7 @@ export function shouldShowButton(props: {
  * ```
  */
 export function useList(config: UseListConfig) {
-  const {
-    editor: providedEditor,
-    type,
-    hideWhenUnavailable = false,
-    onToggled,
-  } = config
+  const { editor: providedEditor, type, hideWhenUnavailable = false, onToggled } = config
 
   const { editor } = useTiptapEditor(providedEditor)
   const [isVisible, setIsVisible] = React.useState<boolean>(true)

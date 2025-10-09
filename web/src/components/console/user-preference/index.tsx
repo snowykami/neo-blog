@@ -19,14 +19,15 @@ export function UserPreferencePage() {
     if (typeof window !== 'undefined') {
       document.documentElement.setAttribute('data-user-color', color)
     }
-    updateUser({ id: user?.id, preferredColor: color })
-      .catch((error) => {
-        if (typeof window !== 'undefined') {
-          document.documentElement.setAttribute('data-user-color', previousColor || 'blue')
-        }
-        setColor(previousColor || null)
-        toast.error('Failed to update color scheme', { description: error.message })
+    updateUser({ id: user?.id, preferredColor: color }).catch((error) => {
+      if (typeof window !== 'undefined') {
+        document.documentElement.setAttribute('data-user-color', previousColor || 'blue')
+      }
+      setColor(previousColor || null)
+      toast.error('Failed to update color scheme', {
+        description: error.message,
       })
+    })
   }, [color, user?.id, user?.preferredColor])
 
   const onColorChange = useCallback((color: string) => {
@@ -36,9 +37,7 @@ export function UserPreferencePage() {
   return (
     <div>
       <div className="grid w-full items-center gap-4">
-        <h1 className="text-2xl font-bold">
-          {t('title')}
-        </h1>
+        <h1 className="text-2xl font-bold">{t('title')}</h1>
         <div className="grid gap-2">
           <h2 className="text">{t('color_scheme')}</h2>
           {user && <ColorSchemeSelector color={color} onColorChange={onColorChange} />}

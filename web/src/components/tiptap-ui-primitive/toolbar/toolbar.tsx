@@ -105,21 +105,14 @@ Toolbar.displayName = 'Toolbar'
 
 export const ToolbarGroup = React.forwardRef<HTMLDivElement, BaseProps>(
   ({ children, className, ...props }, ref) => (
-    <div
-      ref={ref}
-      role="group"
-      className={cn('tiptap-toolbar-group', className)}
-      {...props}
-    >
+    <div ref={ref} role="group" className={cn('tiptap-toolbar-group', className)} {...props}>
       {children}
     </div>
   ),
 )
 ToolbarGroup.displayName = 'ToolbarGroup'
 
-export const ToolbarSeparator = React.forwardRef<HTMLDivElement, BaseProps>(
-  ({ ...props }, ref) => (
-    <Separator ref={ref} orientation="vertical" decorative {...props} />
-  ),
-)
+export const ToolbarSeparator = React.forwardRef<HTMLDivElement, BaseProps>(({ ...props }, ref) => (
+  <Separator ref={ref} orientation="vertical" decorative {...props} />
+))
 ToolbarSeparator.displayName = 'ToolbarSeparator'

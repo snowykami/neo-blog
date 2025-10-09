@@ -10,12 +10,7 @@ import { ListIcon } from '@/components/tiptap-icons/list-icon'
 import { ListOrderedIcon } from '@/components/tiptap-icons/list-ordered-icon'
 import { ListTodoIcon } from '@/components/tiptap-icons/list-todo-icon'
 // --- Tiptap UI ---
-import {
-  canToggleList,
-  isListActive,
-  listIcons,
-
-} from '@/components/tiptap-ui/list-button'
+import { canToggleList, isListActive, listIcons } from '@/components/tiptap-ui/list-button'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
@@ -67,30 +62,20 @@ export const listOptions: ListOption[] = [
   },
 ]
 
-export function canToggleAnyList(
-  editor: Editor | null,
-  listTypes: ListType[],
-): boolean {
+export function canToggleAnyList(editor: Editor | null, listTypes: ListType[]): boolean {
   if (!editor || !editor.isEditable)
     return false
   return listTypes.some(type => canToggleList(editor, type))
 }
 
-export function isAnyListActive(
-  editor: Editor | null,
-  listTypes: ListType[],
-): boolean {
+export function isAnyListActive(editor: Editor | null, listTypes: ListType[]): boolean {
   if (!editor || !editor.isEditable)
     return false
   return listTypes.some(type => isListActive(editor, type))
 }
 
-export function getFilteredListOptions(
-  availableTypes: ListType[],
-): typeof listOptions {
-  return listOptions.filter(
-    option => !option.type || availableTypes.includes(option.type),
-  )
+export function getFilteredListOptions(availableTypes: ListType[]): typeof listOptions {
+  return listOptions.filter(option => !option.type || availableTypes.includes(option.type))
 }
 
 export function shouldShowListDropdown(params: {
@@ -176,10 +161,7 @@ export function useListDropdownMenu(config?: UseListDropdownMenuConfig) {
 
   const listInSchema = types.some(type => isNodeInSchema(type, editor))
 
-  const filteredLists = React.useMemo(
-    () => getFilteredListOptions(types),
-    [types],
-  )
+  const filteredLists = React.useMemo(() => getFilteredListOptions(types), [types])
 
   const canToggleAny = canToggleAnyList(editor, types)
   const isAnyActive = isAnyListActive(editor, types)

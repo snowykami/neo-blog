@@ -1,26 +1,25 @@
 import type { Comment } from '@/models/comment'
-import type { OrderBy, PaginationParams } from '@/models/common'
+import type { PaginationParams } from '@/models/common'
 import type { BaseResponse } from '@/models/resp'
 import type { TargetType } from '@/models/types'
+import { OrderBy } from '@/models/common'
 import axiosClient from './client'
 
-export async function createComment(
-  {
-    targetType,
-    targetId,
-    content,
-    replyId = null,
-    isPrivate = false,
-    showClientInfo = true,
-  }: {
-    targetType: TargetType
-    targetId: number
-    content: string
-    replyId: number | null
-    isPrivate: boolean
-    showClientInfo: boolean
-  },
-): Promise<BaseResponse<{ id: number }>> {
+export async function createComment({
+  targetType,
+  targetId,
+  content,
+  replyId = null,
+  isPrivate = false,
+  showClientInfo = true,
+}: {
+  targetType: TargetType
+  targetId: number
+  content: string
+  replyId: number | null
+  isPrivate: boolean
+  showClientInfo: boolean
+}): Promise<BaseResponse<{ id: number }>> {
   const res = await axiosClient.post<BaseResponse<{ id: number }>>('/comment/c', {
     targetType,
     targetId,
@@ -32,19 +31,17 @@ export async function createComment(
   return res.data
 }
 
-export async function updateComment(
-  {
-    id,
-    content,
-    isPrivate = false,
-    showClientInfo = true,
-  }: {
-    id: number
-    content: string
-    isPrivate?: boolean // 可选字段，默认为 false
-    showClientInfo?: boolean
-  },
-): Promise<BaseResponse<Comment>> {
+export async function updateComment({
+  id,
+  content,
+  isPrivate = false,
+  showClientInfo = true,
+}: {
+  id: number
+  content: string
+  isPrivate?: boolean // 可选字段，默认为 false
+  showClientInfo?: boolean
+}): Promise<BaseResponse<Comment>> {
   const res = await axiosClient.put<BaseResponse<Comment>>(`/comment/c/${id}`, {
     content,
     isPrivate,

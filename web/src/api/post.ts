@@ -5,9 +5,13 @@ import type { BaseResponse } from '@/models/resp'
 import { OrderBy } from '@/models/common'
 import axiosClient from './client'
 
-export async function getPostById(
-  { id, type = 'normal' }: { id: string, type?: 'draft' | 'normal' },
-): Promise<BaseResponse<Post | null>> {
+export async function getPostById({
+  id,
+  type = 'normal',
+}: {
+  id: string
+  type?: 'draft' | 'normal'
+}): Promise<BaseResponse<Post | null>> {
   const res = await axiosClient.get<BaseResponse<Post | null>>(`/post/p/${id}`, {
     params: { type },
   })
@@ -46,15 +50,20 @@ export async function listPosts({
   return res.data
 }
 
-export async function createPost(
-  { post }:
-  { post: Partial<Omit<Post, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'isLiked' | 'draftContent'>> },
-): Promise<BaseResponse<Post>> {
+export async function createPost({
+  post,
+}: {
+  post: Partial<Omit<Post, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'isLiked' | 'draftContent'>>
+}): Promise<BaseResponse<Post>> {
   const res = await axiosClient.post<BaseResponse<Post>>('/post/p', post)
   return res.data
 }
 
-export async function updatePost({ post }: { post: Partial<Post> & Pick<Post, 'id'> }): Promise<BaseResponse<Post>> {
+export async function updatePost({
+  post,
+}: {
+  post: Partial<Post> & Pick<Post, 'id'>
+}): Promise<BaseResponse<Post>> {
   const res = await axiosClient.put<BaseResponse<Post>>(`/post/p/${post.id}`, post)
   return res.data
 }
@@ -69,12 +78,20 @@ export async function getCategories(): Promise<BaseResponse<{ categories: Catego
   return res.data
 }
 
-export async function createCategory({ category }: { category: Omit<Category, 'id'> }): Promise<BaseResponse<Category>> {
+export async function createCategory({
+  category,
+}: {
+  category: Omit<Category, 'id'>
+}): Promise<BaseResponse<Category>> {
   const res = await axiosClient.post<BaseResponse<Category>>('/post/c', category)
   return res.data
 }
 
-export async function updateCategory({ category }: { category: Category }): Promise<BaseResponse<Category>> {
+export async function updateCategory({
+  category,
+}: {
+  category: Category
+}): Promise<BaseResponse<Category>> {
   const res = await axiosClient.put<BaseResponse<Category>>(`/post/c/${category.id}`, category)
   return res.data
 }

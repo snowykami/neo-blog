@@ -12,7 +12,6 @@ import {
   canToggle,
   headingIcons,
   isHeadingActive,
-
   shouldShowButton,
 } from '@/components/tiptap-ui/heading-button'
 
@@ -109,9 +108,7 @@ export function useHeadingDropdownMenu(config?: UseHeadingDropdownMenuConfig) {
       return
 
     const handleSelectionUpdate = () => {
-      setIsVisible(
-        shouldShowButton({ editor, hideWhenUnavailable, level: levels }),
-      )
+      setIsVisible(shouldShowButton({ editor, hideWhenUnavailable, level: levels }))
     }
 
     handleSelectionUpdate()

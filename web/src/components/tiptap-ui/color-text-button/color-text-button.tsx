@@ -11,10 +11,7 @@ import * as React from 'react'
 import { Badge } from '@/components/tiptap-ui-primitive/badge'
 import { Button } from '@/components/tiptap-ui-primitive/button'
 
-import {
-  COLOR_TEXT_SHORTCUT_KEY,
-  useColorText,
-} from '@/components/tiptap-ui/color-text-button'
+import { COLOR_TEXT_SHORTCUT_KEY, useColorText } from '@/components/tiptap-ui/color-text-button'
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 // --- Lib ---
@@ -23,9 +20,7 @@ import { parseShortcutKeys } from '@/lib/tiptap-utils'
 // --- Styles ---
 import '@/components/tiptap-ui/color-text-button/color-text-button.scss'
 
-export interface ColorTextButtonProps
-  extends Omit<ButtonProps, 'type'>,
-  UseColorTextConfig {
+export interface ColorTextButtonProps extends Omit<ButtonProps, 'type'>, UseColorTextConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -50,10 +45,7 @@ export function ColorTextShortcutBadge({
  *
  * For custom button implementations, use the `useColorText` hook instead.
  */
-export const ColorTextButton = React.forwardRef<
-  HTMLButtonElement,
-  ColorTextButtonProps
->(
+export const ColorTextButton = React.forwardRef<HTMLButtonElement, ColorTextButtonProps>(
   (
     {
       editor: providedEditor,
@@ -70,21 +62,14 @@ export const ColorTextButton = React.forwardRef<
     ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
-    const {
-      isVisible,
-      canColorText,
-      isActive,
-      handleColorText,
-      label,
-      shortcutKeys,
-      Icon,
-    } = useColorText({
-      editor,
-      textColor,
-      label: text || `Color text to ${textColor}`,
-      hideWhenUnavailable,
-      onApplied,
-    })
+    const { isVisible, canColorText, isActive, handleColorText, label, shortcutKeys, Icon }
+      = useColorText({
+        editor,
+        textColor,
+        label: text || `Color text to ${textColor}`,
+        hideWhenUnavailable,
+        onApplied,
+      })
 
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -128,19 +113,11 @@ export const ColorTextButton = React.forwardRef<
       >
         {children ?? (
           <>
-            <span
-              className="tiptap-button-color-text"
-              style={{ color: textColor }}
-            >
-              <Icon
-                className="tiptap-button-icon"
-                style={{ color: textColor, flexGrow: 1 }}
-              />
+            <span className="tiptap-button-color-text" style={{ color: textColor }}>
+              <Icon className="tiptap-button-icon" style={{ color: textColor, flexGrow: 1 }} />
             </span>
             {text && <span className="tiptap-button-text">{text}</span>}
-            {showShortcut && (
-              <ColorTextShortcutBadge shortcutKeys={shortcutKeys} />
-            )}
+            {showShortcut && <ColorTextShortcutBadge shortcutKeys={shortcutKeys} />}
           </>
         )}
       </Button>

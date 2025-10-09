@@ -36,7 +36,15 @@ export default function Typewriter({
   }, [])
 
   return (
-    <div style={{ whiteSpace: 'pre-wrap', position: 'relative', fontSize: '0.875rem', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+    <div
+      style={{
+        whiteSpace: 'pre-wrap',
+        position: 'relative',
+        fontSize: '0.875rem',
+        overflowWrap: 'anywhere',
+        wordWrap: 'break-word',
+      }}
+    >
       {/* 预先撑开高度的隐藏文本 */}
       {reserveHeight && (
         <div aria-hidden="true" style={{ visibility: 'hidden', height: 'auto' }}>
@@ -46,7 +54,14 @@ export default function Typewriter({
       {/* 实际显示的打字机文本 */}
       <div style={reserveHeight ? { position: 'absolute', top: 0, left: 0, right: 0 } : {}}>
         {text.slice(0, index)}
-        <span style={{ display: 'inline-block', width: 10, textAlign: 'left', visibility: caretVisible ? 'visible' : 'hidden' }}>
+        <span
+          style={{
+            display: 'inline-block',
+            width: 10,
+            textAlign: 'left',
+            visibility: caretVisible ? 'visible' : 'hidden',
+          }}
+        >
           |
         </span>
       </div>

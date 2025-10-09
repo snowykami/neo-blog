@@ -13,12 +13,7 @@ import Captcha from '@/components/common/captcha'
 import { SectionDivider } from '@/components/common/section-divider'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,10 +22,7 @@ import { useOperationT } from '@/hooks/translations'
 import { registerPath, resetPasswordPath } from '@/hooks/use-route'
 import { cn } from '@/lib/utils'
 
-export function LoginForm({
-  className,
-  ...props
-}: React.ComponentProps<'div'>) {
+export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) {
   const t = useTranslations('Login')
   const operationT = useOperationT()
   const { user, setUser } = useAuth()
@@ -43,7 +35,10 @@ export function LoginForm({
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [isLogging, setIsLogging] = useState(false)
   const [refreshCaptchaKey, setRefreshCaptchaKey] = useState(0)
-  const [{ username, password }, setCredentials] = useState({ username: '', password: '' })
+  const [{ username, password }, setCredentials] = useState({
+    username: '',
+    password: '',
+  })
   const [rememberMe, setRememberMe] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -66,7 +61,9 @@ export function LoginForm({
         setCaptchaProps(res.data)
       })
       .catch((error) => {
-        toast.error(t('fetch_captcha_config_failed') + (error?.message ? `: ${error.message}` : ''))
+        toast.error(
+          t('fetch_captcha_config_failed') + (error?.message ? `: ${error.message}` : ''),
+        )
         setCaptchaProps(null)
       })
   }, [refreshCaptchaKey, t])
@@ -82,7 +79,10 @@ export function LoginForm({
       })
       .catch((error) => {
         console.error(error)
-        toast.error(t('login_failed') + (error?.response?.data?.message ? `: ${error.response.data.message}` : ''))
+        toast.error(
+          t('login_failed')
+          + (error?.response?.data?.message ? `: ${error.response.data.message}` : ''),
+        )
         setRefreshCaptchaKey(k => k + 1)
         setCaptchaToken(null)
       })
@@ -117,17 +117,23 @@ export function LoginForm({
               {oidcConfigs.length > 0 && (
                 <div className="flex flex-col gap-4">
                   {oidcConfigs.map((config, index) => {
-                    const uniqueKey = config.id
-                      || config.loginUrl
-                      || `${config.displayName}-${index}`
-                      || `oidc-${index}`
+                    const uniqueKey
+                      = config.id
+                        || config.loginUrl
+                        || `${config.displayName}-${index}`
+                        || `oidc-${index}`
                     return (
                       <LoginWithOidc
                         key={uniqueKey}
                         // 这个REDIRECT_BACK需要前端自己拼接，传给后端服务器，后端服务器拿来响应给前端另一个页面获取，然后改变路由
                         // 因为这个是我暑假那会写的，后面因为其他事情太忙了，好久没看了，忘了为什么当时要这么设计了，在弄清楚之前先保持这样
                         // 貌似是因为oidc认证时是后端响应重定向的，所以前端只能把redirect_back传给后端，由后端再传回来；普通登录时，这个参数可以被前端直接拿到进行路由跳转
-                        loginUrl={config.loginUrl.replace('REDIRECT_BACK', encodeURIComponent(`?redirect_back=${redirectBack}&is_bind=${user ? 'true' : 'false'}`))}
+                        loginUrl={config.loginUrl.replace(
+                          'REDIRECT_BACK',
+                          encodeURIComponent(
+                            `?redirect_back=${redirectBack}&is_bind=${user ? 'true' : 'false'}`,
+                          ),
+                        )}
                         displayName={config.displayName}
                         icon={config.icon}
                       />
@@ -159,7 +165,11 @@ export function LoginForm({
                     placeholder="example@liteyuki.org"
                     required
                     value={username}
-                    onChange={e => setCredentials(c => ({ ...c, username: e.target.value }))}
+                    onChange={e =>
+                      setCredentials(c => ({
+                        ...c,
+                        username: e.target.value,
+                      }))}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -177,20 +187,24 @@ export function LoginForm({
                     type="password"
                     required
                     value={password}
-                    onChange={e => setCredentials(c => ({ ...c, password: e.target.value }))}
+                    onChange={e =>
+                      setCredentials(c => ({
+                        ...c,
+                        password: e.target.value,
+                      }))}
                   />
                 </div>
-                {captchaProps
-                  && (
-                    <div className="flex justify-center items-center w-full">
-                      <Captcha {...captchaProps} onSuccess={setCaptchaToken} onError={handleCaptchaError} key={refreshCaptchaKey} />
-                    </div>
-                  )}
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={!captchaToken || isLogging}
-                >
+                {captchaProps && (
+                  <div className="flex justify-center items-center w-full">
+                    <Captcha
+                      {...captchaProps}
+                      onSuccess={setCaptchaToken}
+                      onError={handleCaptchaError}
+                      key={refreshCaptchaKey}
+                    />
+                  </div>
+                )}
+                <Button type="submit" className="w-full" disabled={!captchaToken || isLogging}>
                   {isLogging ? t('logging') : operationT('login')}
                 </Button>
               </div>
@@ -199,7 +213,10 @@ export function LoginForm({
               <div className="text-center text-sm">
                 {t('no_account')}
                 {' '}
-                <Link href={`${registerPath}?redirect_back=${encodeURIComponent(redirectBack)}`} className="underline underline-offset-4">
+                <Link
+                  href={`${registerPath}?redirect_back=${encodeURIComponent(redirectBack)}`}
+                  className="underline underline-offset-4"
+                >
                   {t('register')}
                 </Link>
               </div>
@@ -228,12 +245,7 @@ function LoginWithOidc({
   }
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      className="w-full"
-      onClick={handleOidcLogin}
-    >
+    <Button type="button" variant="outline" className="w-full" onClick={handleOidcLogin}>
       <Avatar className="h-6 w-6 rounded-full">
         <AvatarImage src={icon} alt={displayName} />
         <AvatarFallback className="rounded-full"></AvatarFallback>

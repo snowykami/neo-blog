@@ -95,7 +95,6 @@ export function PostEditor() {
 
   useEffect(() => {
     getPostById({ id, type: 'draft' }).then((res) => {
-      console.log()
       setPost(res.data)
     })
   }, [id])
@@ -113,7 +112,7 @@ export function PostEditor() {
   }, [post, editor])
 
   const onPostUpdate = ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
-    setPost(prev => prev ? { ...prev, ...post } : prev)
+    setPost(prev => (prev ? { ...prev, ...post } : prev))
   }
 
   if (!post || !editor)
@@ -121,7 +120,8 @@ export function PostEditor() {
 
   return (
     // 这里设置一个确定高度（示例使用 80vh），保证内部 SimpleEditor 可在自身内滚动
-    <div className="w-auto editor-container
+    <div
+      className="w-auto editor-container
     h-[calc(100vh-var(--header-height)-var(--console-content-padding)-6.5rem)]
     md:h-[calc(100vh-var(--header-height)-var(--console-content-padding)-5.5rem)]
     "
@@ -134,7 +134,15 @@ export function PostEditor() {
   )
 }
 
-function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void, editor: Editor }) {
+function EditorNavbar({
+  editor,
+  post,
+  onPostUpdate,
+}: {
+  post: Post
+  onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
+  editor: Editor
+}) {
   const t = useTranslations('Console.post_edit')
   const operationT = useOperationT()
   const [savingDraft, setSavingDraft] = useState(false)
@@ -143,19 +151,25 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
   const [isFullScreen, setIsFullScreen] = useState(false)
 
   // 保存草稿函数
-  const saveDraft = useCallback((showToast: boolean) => {
-    const htmlToSave = editor.getHTML()
-    setSavingDraft(true)
-    updatePost({ post: { id: post.id, draftContent: htmlToSave } }).then(() => {
-      if (showToast)
-        toast.success(operationT('save_success'))
-      setLastSavedAt(new Date())
-    }).catch(() => {
-      toast.error(operationT('save_failed'))
-    }).finally(() => {
-      setSavingDraft(false)
-    })
-  }, [post, editor, operationT])
+  const saveDraft = useCallback(
+    (showToast: boolean) => {
+      const htmlToSave = editor.getHTML()
+      setSavingDraft(true)
+      updatePost({ post: { id: post.id, draftContent: htmlToSave } })
+        .then(() => {
+          if (showToast)
+            toast.success(operationT('save_success'))
+          setLastSavedAt(new Date())
+        })
+        .catch(() => {
+          toast.error(operationT('save_failed'))
+        })
+        .finally(() => {
+          setSavingDraft(false)
+        })
+    },
+    [post, editor, operationT],
+  )
 
   // 定时保存
   useEffect(() => {
@@ -184,11 +198,20 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
   const publishPost = () => {
     const htmlToPublish = editor.getHTML()
     saveDraft(false)
-    updatePost({ post: { id: post.id, draftContent: htmlToPublish, content: htmlToPublish, type: 'html' } }).then(() => {
-      toast.success(operationT('publish_success'))
-    }).catch(() => {
-      toast.error(operationT('publish_failed'))
+    updatePost({
+      post: {
+        id: post.id,
+        draftContent: htmlToPublish,
+        content: htmlToPublish,
+        type: 'html',
+      },
     })
+      .then(() => {
+        toast.success(operationT('publish_success'))
+      })
+      .catch(() => {
+        toast.error(operationT('publish_failed'))
+      })
   }
 
   // 切换全屏
@@ -221,19 +244,39 @@ function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate
             {post.title || t('untitled')}
           </span>
         </div>
-        {lastSavedAt
-          && <span className="text-sm text-muted-foreground w-full md:w-auto">{t('last_saved_at', { time: lastSavedAt.toLocaleTimeString() })}</span>}
+        {lastSavedAt && (
+          <span className="text-sm text-muted-foreground w-full md:w-auto">
+            {t('last_saved_at', { time: lastSavedAt.toLocaleTimeString() })}
+          </span>
+        )}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <CreateOrUpdatePostMetaDialogWithoutButton open={settingDialogOpen} onOpenChange={setSettingDialogOpen} post={post} onPostChange={onPostUpdate} />
+        <CreateOrUpdatePostMetaDialogWithoutButton
+          open={settingDialogOpen}
+          onOpenChange={setSettingDialogOpen}
+          post={post}
+          onPostChange={onPostUpdate}
+        />
         {/* source mode removed */}
         <Button size="sm" onClick={handleToggleFullScreen} variant="outline">
-          {isFullScreen ? <MinimizeIcon className="size-4" /> : <FullscreenIcon className="size-4" />}
+          {isFullScreen
+            ? (
+                <MinimizeIcon className="size-4" />
+              )
+            : (
+                <FullscreenIcon className="size-4" />
+              )}
         </Button>
         <PostPreviewDialogWithButton post={post} onPreview={onPreview} />
-        <Button size="sm" onClick={() => setSettingDialogOpen(true)} variant="outline">{t('setting')}</Button>
-        <Button size="sm" onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft}>{savingDraft ? t('saving_draft') : t('save_draft')}</Button>
-        <Button size="sm" onClick={publishPost}>{operationT('publish')}</Button>
+        <Button size="sm" onClick={() => setSettingDialogOpen(true)} variant="outline">
+          {t('setting')}
+        </Button>
+        <Button size="sm" onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft}>
+          {savingDraft ? t('saving_draft') : t('save_draft')}
+        </Button>
+        <Button size="sm" onClick={publishPost}>
+          {operationT('publish')}
+        </Button>
       </div>
     </div>
   )

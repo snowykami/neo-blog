@@ -3,11 +3,7 @@
 import * as React from 'react'
 
 // basically Exclude<React.ClassAttributes<T>["ref"], string>
-type UserRef<T>
-  = | ((instance: T | null) => void)
-    | React.RefObject<T | null>
-    | null
-    | undefined
+type UserRef<T> = ((instance: T | null) => void) | React.RefObject<T | null> | null | undefined
 
 function updateRef<T>(ref: NonNullable<UserRef<T>>, value: T | null) {
   if (typeof ref === 'function') {
@@ -15,17 +11,20 @@ function updateRef<T>(ref: NonNullable<UserRef<T>>, value: T | null) {
   }
   else if (ref && typeof ref === 'object' && 'current' in ref) {
     // Safe assignment without MutableRefObject
-    ;(ref as { current: T | null }).current = value
+    (ref as { current: T | null }).current = value
   }
 }
 
-export function useComposedRef<T extends HTMLElement>(libRef: React.RefObject<T | null>, userRef: UserRef<T>) {
+export function useComposedRef<T extends HTMLElement>(
+  libRef: React.RefObject<T | null>,
+  userRef: UserRef<T>,
+) {
   const prevUserRef = React.useRef<UserRef<T>>(null)
 
   return React.useCallback(
     (instance: T | null) => {
       if (libRef && 'current' in libRef) {
-        ;(libRef as { current: T | null }).current = instance
+        (libRef as { current: T | null }).current = instance
       }
 
       if (prevUserRef.current) {

@@ -54,10 +54,7 @@ export function LinkPreviewPopup({ url, children }: LinkPreviewPopupProps) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <span
-          onMouseEnter={() => setOpen(true)}
-          onMouseLeave={() => setOpen(false)}
-        >
+        <span onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
           {children}
         </span>
       </PopoverTrigger>
@@ -128,7 +125,9 @@ export function LinkPreviewPopup({ url, children }: LinkPreviewPopupProps) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <ExternalLinkIcon className="w-3 h-3" />
-                      <span className="truncate">{preview.siteName || new URL(preview.url).hostname}</span>
+                      <span className="truncate">
+                        {preview.siteName || new URL(preview.url).hostname}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-2">

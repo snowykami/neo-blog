@@ -1,5 +1,15 @@
 import type { Post } from '@/models/post'
-import { ArchiveIcon, Calendar, Clock, FileText, Flame, Heart, Info, MessageCircle, PenLine } from 'lucide-react'
+import {
+  ArchiveIcon,
+  Calendar,
+  Clock,
+  FileText,
+  Flame,
+  Heart,
+  Info,
+  MessageCircle,
+  PenLine,
+} from 'lucide-react'
 import * as motion from 'motion/react-client'
 import { getTranslations } from 'next-intl/server'
 import { getSiteInfo } from '@/api/misc'
@@ -9,7 +19,11 @@ import { contentAreaPaddingClass, navStickyTopPx } from '@/utils/common/layout-s
 import { calculateReadingTime } from '@/utils/common/post'
 import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 import Sidebar from '../blog-sidebar'
-import { SidebarAbout, SidebarLabels, SidebarMisskeyIframe } from '../blog-sidebar/blog-sidebar-card'
+import {
+  SidebarAbout,
+  SidebarLabels,
+  SidebarMisskeyIframe,
+} from '../blog-sidebar/blog-sidebar-card'
 import Typewriter from '../common/typewriter'
 import { Separator } from '../ui/separator'
 import HtmlEnhancer from './blog-content-enhanced'
@@ -99,7 +113,9 @@ async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean })
           rounded-xl bg-background
           text-sm md:text-lg
           "
-        dangerouslySetInnerHTML={{ __html: (isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>' }}
+        dangerouslySetInnerHTML={{
+          __html: (isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>',
+        }}
       />
       <HtmlEnhancer containerId="blog-content" />
 
@@ -112,13 +128,14 @@ async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean })
       <div className="mt-4 md:mt-8">
         <BlogLikeButton post={post} />
       </div>
-
     </div>
   )
 }
 
 export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?: boolean }) {
-  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo)
+  const siteInfo = await getSiteInfo()
+    .then(res => res.data)
+    .catch(() => fallbackSiteInfo)
   if (!post.cover) {
     post.cover = getDefaultCoverRandomly(siteInfo)
   }
@@ -129,7 +146,10 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
         className="transition-none"
-        transition={{ duration: siteInfo.animationDurationSecond, ease: 'easeOut' }}
+        transition={{
+          duration: siteInfo.animationDurationSecond,
+          ease: 'easeOut',
+        }}
       >
         <PostHeader post={post} />
       </motion.div>
@@ -140,11 +160,21 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           className="lg:col-span-3 transition-none "
-          transition={{ duration: siteInfo.animationDurationSecond, ease: 'easeOut' }}
+          transition={{
+            duration: siteInfo.animationDurationSecond,
+            ease: 'easeOut',
+          }}
         >
           <PostContent post={post} isDraft={isDraft} />
-          <div className={`bg-background mt-4 rounded-xl border border-border ${contentAreaPaddingClass} py-4 md:py-8`}>
-            <CommentSection targetType={TargetType.Post} ownerId={post.user.id} targetId={post.id} totalCount={post.commentCount} />
+          <div
+            className={`bg-background mt-4 rounded-xl border border-border ${contentAreaPaddingClass} py-4 md:py-8`}
+          >
+            <CommentSection
+              targetType={TargetType.Post}
+              ownerId={post.user.id}
+              targetId={post.id}
+              totalCount={post.commentCount}
+            />
           </div>
         </motion.div>
 
@@ -154,7 +184,10 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
           initial={{ x: 80, opacity: 0 }}
           animate={{ x: 0, y: 0, opacity: 1 }}
           style={{ top: navStickyTopPx }}
-          transition={{ duration: siteInfo.animationDurationSecond, ease: 'easeOut' }}
+          transition={{
+            duration: siteInfo.animationDurationSecond,
+            ease: 'easeOut',
+          }}
         >
           <Sidebar
             cards={[

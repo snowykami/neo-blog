@@ -8,10 +8,10 @@ interface BackgroundContextType {
 
 const BackgroundContext = createContext<BackgroundContextType | undefined>(undefined)
 
-export const BackgroundProvider: React.FC<{ children: React.ReactNode, defaultBackground?: React.ReactNode }> = ({
-  children,
-  defaultBackground = null,
-}) => {
+export const BackgroundProvider: React.FC<{
+  children: React.ReactNode
+  defaultBackground?: React.ReactNode
+}> = ({ children, defaultBackground = null }) => {
   const [background, setBackgroundState] = useState<React.ReactNode>(defaultBackground)
 
   const setBackground = useCallback((bg: React.ReactNode) => {

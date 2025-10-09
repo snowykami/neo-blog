@@ -5,7 +5,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { listStorageProviders } from '@/api/file'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { useCommonT, useOperationT } from '@/hooks/translations'
 
@@ -24,8 +32,7 @@ export function StorageProviderManage() {
       })
   }, [t])
 
-  const onStorageProviderCreate = useCallback(() => {
-  }, [])
+  const onStorageProviderCreate = useCallback(() => {}, [])
 
   return (
     <div>
@@ -38,8 +45,7 @@ export function StorageProviderManage() {
         </div>
         {/* right header */}
         <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
-          <div className="flex items-center gap-2">
-          </div>
+          <div className="flex items-center gap-2"></div>
         </div>
       </div>
       <Separator className="my-1" />
@@ -67,28 +73,23 @@ function StorageProviderItem({ storage }: { storage: StorageProviderConfig }) {
         {/* left */}
         <div className="flex items-center gap-3">
           <div>
-            <div className="text-sm font-medium">
-              {storage.name}
-            </div>
+            <div className="text-sm font-medium">{storage.name}</div>
             <div className="mt-1 flex flex-wrap items-center gap-3">
               <span className="text-xs text-muted-foreground">
                 {commonT('id')}
                 :
-                {' '}
                 {storage.id}
               </span>
               <span className="text-xs text-muted-foreground">
                 {t('storage_type')}
                 :
-                {' '}
                 {storage.type}
               </span>
             </div>
           </div>
         </div>
         {/* right */}
-        <div className="flex items-center ml-auto">
-        </div>
+        <div className="flex items-center ml-auto"></div>
       </div>
     </div>
   )
@@ -100,21 +101,24 @@ function CreateStorageProviderDialogWithButton({ onCreate }: { onCreate: () => v
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm">
-          {operationT('create')}
-        </Button>
+        <Button size="sm">{operationT('create')}</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {t('create_storage')}
-          </DialogTitle>
+          <DialogTitle>{t('create_storage')}</DialogTitle>
         </DialogHeader>
         <DialogFooter>
           <DialogClose>
             <div className="flex">
               <Button variant="outline">{operationT('cancel')}</Button>
-              <Button onClick={() => { onCreate() }} className="ml-2">{operationT('create')}</Button>
+              <Button
+                onClick={() => {
+                  onCreate()
+                }}
+                className="ml-2"
+              >
+                {operationT('create')}
+              </Button>
             </div>
           </DialogClose>
         </DialogFooter>

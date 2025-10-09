@@ -21,7 +21,12 @@ export function Dashboard() {
 }
 
 function DataOverview() {
-  const data: { key: keyof DashboardResp, label: string, icon: IconType, url: string }[] = [
+  const data: {
+    key: keyof DashboardResp
+    label: string
+    icon: IconType
+    url: string
+  }[] = [
     {
       key: 'totalPosts',
       label: 'Total Posts',
@@ -51,11 +56,13 @@ function DataOverview() {
   const [fetchData, setFetchData] = useState<DashboardResp | null>(null)
 
   useEffect(() => {
-    getDashboard().then((res) => {
-      setFetchData(res.data)
-    }).catch((err) => {
-      toast.error(err.message || 'Failed to fetch dashboard data')
-    })
+    getDashboard()
+      .then((res) => {
+        setFetchData(res.data)
+      })
+      .catch((err) => {
+        toast.error(err.message || 'Failed to fetch dashboard data')
+      })
   }, [])
 
   if (!fetchData)
@@ -83,11 +90,13 @@ function DataOverview() {
 function MetricsOverview() {
   const [metricsData, setMetricsData] = useState<MetricsData | null>(null)
   useEffect(() => {
-    getMetrics().then((res) => {
-      setMetricsData(res.data)
-    }).catch((err) => {
-      toast.error(err.message || 'Failed to fetch metrics data')
-    })
+    getMetrics()
+      .then((res) => {
+        setMetricsData(res.data)
+      })
+      .catch((err) => {
+        toast.error(err.message || 'Failed to fetch metrics data')
+      })
   }, [])
   return (
     <div className="mt-8">
@@ -97,13 +106,19 @@ function MetricsOverview() {
         </CardHeader>
         <div className="mt-4 space-y-2">
           {metricsData
-            ? Object.entries(metricsData).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between">
-                  <span className="font-medium">{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
-                  <span className="tabular-nums">{metricsHandler?.[key]?.(value)}</span>
-                </div>
-              ))
-            : <div>Loading...</div>}
+            ? (
+                Object.entries(metricsData).map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="font-medium">
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                    </span>
+                    <span className="tabular-nums">{metricsHandler?.[key]?.(value)}</span>
+                  </div>
+                ))
+              )
+            : (
+                <div>Loading...</div>
+              )}
         </div>
       </Card>
     </div>

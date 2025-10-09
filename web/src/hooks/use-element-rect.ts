@@ -149,9 +149,7 @@ export function useElementRect({
 /**
  * Convenience hook for tracking document.body rect
  */
-export function useBodyRect(
-  options: Omit<ElementRectOptions, 'element'> = {},
-): RectState {
+export function useBodyRect(options: Omit<ElementRectOptions, 'element'> = {}): RectState {
   return useElementRect({
     ...options,
     element: isClientSide() ? document.body : null,

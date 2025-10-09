@@ -29,9 +29,13 @@ export const mainPath = {
  * @param post 对象必须包含 slug 或 id 字段
  * @returns
  */
-export function getPostUrl<T extends { slug?: string | null, id?: string | number | null }>(
-  { post, type }: { post: T, type?: 'draft' },
-): string {
+export function getPostUrl<T extends { slug?: string | null, id?: string | number | null }>({
+  post,
+  type,
+}: {
+  post: T
+  type?: 'draft'
+}): string {
   const key = post.slug || post.id
   if (key == null) {
     throw new Error('toPostUrl: object must contain slug or id')

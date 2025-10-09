@@ -14,11 +14,7 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 // --- Lib ---
 import { isNodeTypeSelected } from '@/lib/tiptap-utils'
 
-export function ImageNodeFloating({
-  editor: providedEditor,
-}: {
-  editor?: Editor | null
-}) {
+export function ImageNodeFloating({ editor: providedEditor }: { editor?: Editor | null }) {
   const { editor } = useTiptapEditor(providedEditor)
   const visible = isNodeTypeSelected(editor, ['image'])
 

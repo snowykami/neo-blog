@@ -83,9 +83,7 @@ export function canSetImageAlign(
   if (!isExtensionAvailable(editor, [extensionName]))
     return false
 
-  return editor
-    .can()
-    .updateAttributes(extensionName, { [attributeName]: align })
+  return editor.can().updateAttributes(extensionName, { [attributeName]: align })
 }
 
 /**
@@ -217,12 +215,7 @@ export function useImageAlign(config: UseImageAlignConfig) {
   const isMobile = useIsMobile()
   const [isVisible, setIsVisible] = React.useState<boolean>(true)
   const canAlign = canSetImageAlign(editor, align, extensionName, attributeName)
-  const isActive = isImageAlignActive(
-    editor,
-    align,
-    extensionName,
-    attributeName,
-  )
+  const isActive = isImageAlignActive(editor, align, extensionName, attributeName)
 
   React.useEffect(() => {
     if (!editor)

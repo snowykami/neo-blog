@@ -60,10 +60,7 @@ export interface UseColorTextPopoverConfig {
 /**
  * Get a color object by its value
  */
-export function getColorByValue(
-  value: string,
-  colorArray: ColorItem[],
-): ColorItem {
+export function getColorByValue(value: string, colorArray: ColorItem[]): ColorItem {
   return (
     colorArray.find(color => color.value === value) ?? {
       value,
@@ -115,29 +112,13 @@ export function useRecentColors(maxColors: number = 3) {
   }, [maxColors])
 
   const addRecentColor = React.useCallback(
-    ({
-      type,
-      label,
-      value,
-    }: {
-      type: ColorType
-      label: string
-      value: string
-    }) => {
+    ({ type, label, value }: { type: ColorType, label: string, value: string }) => {
       setRecentColors((prevColors) => {
-        const filtered = prevColors.filter(
-          c => !(c.type === type && c.value === value),
-        )
-        const updated = [{ type, label, value }, ...filtered].slice(
-          0,
-          maxColors,
-        )
+        const filtered = prevColors.filter(c => !(c.type === type && c.value === value))
+        const updated = [{ type, label, value }, ...filtered].slice(0, maxColors)
 
         try {
-          localStorage.setItem(
-            'tiptapRecentlyUsedColors',
-            JSON.stringify(updated),
-          )
+          localStorage.setItem('tiptapRecentlyUsedColors', JSON.stringify(updated))
         }
         catch (e) {
           console.error('Failed to store colors:', e)
@@ -211,11 +192,7 @@ export function useRecentColors(maxColors: number = 3) {
  * ```
  */
 export function useColorTextPopover(config?: UseColorTextPopoverConfig) {
-  const {
-    editor: providedEditor,
-    hideWhenUnavailable = false,
-    onColorChanged,
-  } = config || {}
+  const { editor: providedEditor, hideWhenUnavailable = false, onColorChanged } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
   const [isVisible, setIsVisible] = React.useState(true)
@@ -251,15 +228,7 @@ export function useColorTextPopover(config?: UseColorTextPopoverConfig) {
   }, [editor, hideWhenUnavailable, highlightInSchema, textStyleInSchema])
 
   const handleColorChanged = React.useCallback(
-    ({
-      type,
-      label,
-      value,
-    }: {
-      type: ColorType
-      label: string
-      value: string
-    }) => {
+    ({ type, label, value }: { type: ColorType, label: string, value: string }) => {
       onColorChanged?.({ type, label, value })
     },
     [onColorChanged],

@@ -3,4 +3,4 @@ export enum QueryKey {
   Page = 'page',
   Label = 'label',
   Keywords = 'keywords',
-};
+}

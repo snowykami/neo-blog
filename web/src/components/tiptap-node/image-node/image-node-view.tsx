@@ -12,8 +12,7 @@ export interface ResizeParams {
   initialClientY: number
 }
 
-export interface ResizableImageProps
-  extends React.HTMLAttributes<HTMLDivElement> {
+export interface ResizableImageProps extends React.HTMLAttributes<HTMLDivElement> {
   src: string
   alt?: string
   editor?: Editor
@@ -22,54 +21,6 @@ export interface ResizableImageProps
   align?: 'left' | 'center' | 'right'
   initialWidth?: number
   onImageResize?: (width?: number) => void
-}
-
-export function ImageNodeView(props: NodeViewProps) {
-  const { editor, node, updateAttributes } = props
-
-  return (
-    <ResizableImage
-      src={node.attrs.src}
-      alt={node.attrs.alt || ''}
-      editor={editor}
-      align={node.attrs['data-align']}
-      initialWidth={node.attrs.width}
-      onImageResize={width => updateAttributes({ width })}
-    />
-  )
-}
-
-function createPointerCaptureOverlay(
-  onMove: (ev: PointerEvent) => void,
-  onUp: (ev: PointerEvent) => void,
-) {
-  const overlay = document.createElement('div')
-  overlay.style.position = 'fixed'
-  overlay.style.inset = '0'
-  overlay.style.zIndex = '999999'
-  overlay.style.background = 'transparent'
-  overlay.style.touchAction = 'none' // 非常重要：阻止浏览器手势拦截
-  document.body.appendChild(overlay)
-
-  const moveHandler = (e: PointerEvent) => {
-    e.preventDefault()
-    onMove(e)
-  }
-  const upHandler = (e: PointerEvent) => {
-    onUp(e)
-  }
-
-  overlay.addEventListener('pointermove', moveHandler, { passive: false })
-  overlay.addEventListener('pointerup', upHandler)
-  overlay.addEventListener('pointercancel', upHandler)
-
-  return () => {
-    overlay.removeEventListener('pointermove', moveHandler)
-    overlay.removeEventListener('pointerup', upHandler)
-    overlay.removeEventListener('pointercancel', upHandler)
-    if (overlay.parentNode)
-      overlay.parentNode.removeChild(overlay)
-  }
 }
 
 export const ResizableImage: React.FC<ResizableImageProps> = ({
@@ -83,9 +34,7 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   onImageResize,
 }) => {
   const isMobile = useIsMobile()
-  const [resizeParams, setResizeParams] = useState<ResizeParams | undefined>(
-    undefined,
-  )
+  const [resizeParams, setResizeParams] = useState<ResizeParams | undefined>(undefined)
   const [width, setWidth] = useState<number | undefined>(initialWidth)
   const [showHandles, setShowHandles] = useState<boolean>(false)
 
@@ -122,39 +71,25 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
       }
       else if (align === 'center') {
         if (resizeParams.handleUsed === 'left') {
-          newWidth
-            = resizeParams.initialWidth
-              + (resizeParams.initialClientX - event.clientX) * 2
+          newWidth = resizeParams.initialWidth + (resizeParams.initialClientX - event.clientX) * 2
         }
         else {
-          newWidth
-            = resizeParams.initialWidth
-              + (event.clientX - resizeParams.initialClientX) * 2
+          newWidth = resizeParams.initialWidth + (event.clientX - resizeParams.initialClientX) * 2
         }
       }
       else {
         if (resizeParams.handleUsed === 'left') {
-          newWidth
-            = resizeParams.initialWidth
-              + resizeParams.initialClientX
-              - event.clientX
+          newWidth = resizeParams.initialWidth + resizeParams.initialClientX - event.clientX
         }
         else {
-          newWidth
-            = resizeParams.initialWidth
-              + event.clientX
-              - resizeParams.initialClientX
+          newWidth = resizeParams.initialWidth + event.clientX - resizeParams.initialClientX
         }
       }
 
       const effectiveMinWidth = minWidth
-      const effectiveMaxWidth
-        = editor.view.dom?.firstElementChild?.clientWidth || maxWidth
+      const effectiveMaxWidth = editor.view.dom?.firstElementChild?.clientWidth || maxWidth
 
-      const newCalculatedWidth = Math.min(
-        Math.max(newWidth, effectiveMinWidth),
-        effectiveMaxWidth,
-      )
+      const newCalculatedWidth = Math.min(Math.max(newWidth, effectiveMinWidth), effectiveMaxWidth)
 
       setWidth(newCalculatedWidth)
       if (wrapperRef.current) {
@@ -172,7 +107,7 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
           rightResizeHandleRef.current?.releasePointerCapture?.(activePointerIdRef.current)
           cornerResizeHandleRef.current?.releasePointerCapture?.(activePointerIdRef.current)
         }
-        catch {}
+        catch { }
         activePointerIdRef.current = null
       }
       if (!editor) {
@@ -222,15 +157,13 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
     [windowPointerUpHandler],
   )
 
-  const leftResizeHandlePointerDownHandler = (
-    event: React.PointerEvent<HTMLDivElement>,
-  ): void => {
+  const leftResizeHandlePointerDownHandler = (event: React.PointerEvent<HTMLDivElement>): void => {
     event.preventDefault()
     // 尝试在目标上 setPointerCapture（兼容桌面）
     try {
       (event.target as Element).setPointerCapture?.(event.pointerId)
     }
-    catch {}
+    catch { }
     // 创建全屏 overlay 捕获后续 pointermove/pointerup（确保移动端不会被系统抢夺）
     if (typeof window !== 'undefined') {
       // cleanup 上一个 overlay（防御性）
@@ -249,14 +182,12 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
     })
   }
 
-  const rightResizeHandlePointerDownHandler = (
-    event: React.PointerEvent<HTMLDivElement>,
-  ): void => {
+  const rightResizeHandlePointerDownHandler = (event: React.PointerEvent<HTMLDivElement>): void => {
     event.preventDefault()
     try {
       (event.target as Element).setPointerCapture?.(event.pointerId)
     }
-    catch {}
+    catch { }
     if (typeof window !== 'undefined') {
       activeOverlayCleanupRef.current?.()
       activeOverlayCleanupRef.current = createPointerCaptureOverlay(
@@ -280,7 +211,7 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
     try {
       (event.target as Element).setPointerCapture?.(event.pointerId)
     }
-    catch {}
+    catch { }
     if (typeof window !== 'undefined') {
       activeOverlayCleanupRef.current?.()
       activeOverlayCleanupRef.current = createPointerCaptureOverlay(
@@ -303,9 +234,7 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
     }
   }
 
-  const wrapperPointerLeaveHandler = (
-    event: React.PointerEvent<HTMLDivElement>,
-  ): void => {
+  const wrapperPointerLeaveHandler = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (
       event.relatedTarget === leftResizeHandleRef.current
       || event.relatedTarget === rightResizeHandleRef.current
@@ -376,32 +305,81 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
 
           {showHandles && editor && editor.isEditable && (
             <>
-              {!isMobile ? (
-                // PC mode: left and right handles
-                <>
-                  <div
-                    ref={leftResizeHandleRef}
-                    className="tiptap-image-handle tiptap-image-handle-left"
-                    onPointerDown={leftResizeHandlePointerDownHandler}
-                  />
-                  <div
-                    ref={rightResizeHandleRef}
-                    className="tiptap-image-handle tiptap-image-handle-right"
-                    onPointerDown={rightResizeHandlePointerDownHandler}
-                  />
-                </>
-              ) : (
-                // Mobile mode: corner handle
-                <div
-                  ref={cornerResizeHandleRef}
-                  className="tiptap-image-handle tiptap-image-handle-corner"
-                  onPointerDown={cornerResizeHandlePointerDownHandler}
-                />
-              )}
+              {!isMobile
+                ? (
+                  // PC mode: left and right handles
+                    <>
+                      <div
+                        ref={leftResizeHandleRef}
+                        className="tiptap-image-handle tiptap-image-handle-left"
+                        onPointerDown={leftResizeHandlePointerDownHandler}
+                      />
+                      <div
+                        ref={rightResizeHandleRef}
+                        className="tiptap-image-handle tiptap-image-handle-right"
+                        onPointerDown={rightResizeHandlePointerDownHandler}
+                      />
+                    </>
+                  )
+                : (
+                  // Mobile mode: corner handle
+                    <div
+                      ref={cornerResizeHandleRef}
+                      className="tiptap-image-handle tiptap-image-handle-corner"
+                      onPointerDown={cornerResizeHandlePointerDownHandler}
+                    />
+                  )}
             </>
           )}
         </div>
       </div>
     </NodeViewWrapper>
   )
+}
+
+export function ImageNodeView(props: NodeViewProps) {
+  const { editor, node, updateAttributes } = props
+  return (
+    <ResizableImage
+      src={node.attrs.src}
+      alt={node.attrs.alt || ''}
+      editor={editor}
+      align={node.attrs['data-align']}
+      initialWidth={node.attrs.width}
+      onImageResize={width => updateAttributes({ width })}
+    />
+  )
+}
+
+function createPointerCaptureOverlay(
+  onMove: (ev: PointerEvent) => void,
+  onUp: (ev: PointerEvent) => void,
+) {
+  const overlay = document.createElement('div')
+  overlay.style.position = 'fixed'
+  overlay.style.inset = '0'
+  overlay.style.zIndex = '999999'
+  overlay.style.background = 'transparent'
+  overlay.style.touchAction = 'none' // 非常重要：阻止浏览器手势拦截
+  document.body.appendChild(overlay)
+
+  const moveHandler = (e: PointerEvent) => {
+    e.preventDefault()
+    onMove(e)
+  }
+  const upHandler = (e: PointerEvent) => {
+    onUp(e)
+  }
+
+  overlay.addEventListener('pointermove', moveHandler, { passive: false })
+  overlay.addEventListener('pointerup', upHandler)
+  overlay.addEventListener('pointercancel', upHandler)
+
+  return () => {
+    overlay.removeEventListener('pointermove', moveHandler)
+    overlay.removeEventListener('pointerup', upHandler)
+    overlay.removeEventListener('pointercancel', upHandler)
+    if (overlay.parentNode)
+      overlay.parentNode.removeChild(overlay)
+  }
 }

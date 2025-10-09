@@ -43,7 +43,9 @@ export function NavPaddingProvider({
   initialNavClassName?: string
 }) {
   const [hasNavPadding, setHasNavPadding] = useState<boolean>(initialHasNavPadding)
-  const [navClassName, setNavClassName] = useState<string>(cn(DEFAULT_NAV_CLASSNAME, initialNavClassName))
+  const [navClassName, setNavClassName] = useState<string>(
+    cn(DEFAULT_NAV_CLASSNAME, initialNavClassName),
+  )
   const [navTitle, setNavTitle] = useState<string>('')
 
   const toggleNavPadding = useCallback(() => {
@@ -74,42 +76,41 @@ export function NavPaddingProvider({
     setNavClassName(cn(DEFAULT_NAV_CLASSNAME, 'bg-background border-b'))
   }, [])
 
-  const value = useMemo(() => ({
-    hasNavPadding,
-    setHasNavPadding,
-    toggleNavPadding,
+  const value = useMemo(
+    () => ({
+      hasNavPadding,
+      setHasNavPadding,
+      toggleNavPadding,
 
-    navClassName,
-    resetNavStyle,
-    setNavStyle,
+      navClassName,
+      resetNavStyle,
+      setNavStyle,
 
-    disableNavPadding,
-    enableNavPadding,
+      disableNavPadding,
+      enableNavPadding,
 
-    setTransparentNav,
-    setSolidNav,
+      setTransparentNav,
+      setSolidNav,
 
-    navTitle,
-    setNavTitle,
-  }), [
-    hasNavPadding,
-    navClassName,
-    navTitle,
-    toggleNavPadding,
-    resetNavStyle,
-    setNavStyle,
-    disableNavPadding,
-    enableNavPadding,
-    setTransparentNav,
-    setSolidNav,
-    setNavTitle,
-  ])
-
-  return (
-    <NavContext.Provider value={value}>
-      {children}
-    </NavContext.Provider>
+      navTitle,
+      setNavTitle,
+    }),
+    [
+      hasNavPadding,
+      navClassName,
+      navTitle,
+      toggleNavPadding,
+      resetNavStyle,
+      setNavStyle,
+      disableNavPadding,
+      enableNavPadding,
+      setTransparentNav,
+      setSolidNav,
+      setNavTitle,
+    ],
   )
+
+  return <NavContext.Provider value={value}>{children}</NavContext.Provider>
 }
 
 export function useNav() {

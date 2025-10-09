@@ -8,7 +8,13 @@ import { useAuth } from '@/contexts/auth-context'
 import { useNav } from '@/contexts/nav-context'
 import { getPostEditUrl } from '@/utils/common/route'
 
-export function PostToolbar({ post, onPreviewChange }: { post: Post, onPreviewChange: (v: boolean) => void }) {
+export function PostToolbar({
+  post,
+  onPreviewChange,
+}: {
+  post: Post
+  onPreviewChange: (v: boolean) => void
+}) {
   const { user } = useAuth()
   const router = useRouter()
   const { setSolidNav, setNavStyle, navClassName } = useNav()
@@ -25,7 +31,10 @@ export function PostToolbar({ post, onPreviewChange }: { post: Post, onPreviewCh
   }
 
   return (
-    <div className="absolute inset-x-0 flex items-center justify-between px-4 md:px-10" style={{ top: '-2.5rem' }}>
+    <div
+      className="absolute inset-x-0 flex items-center justify-between px-4 md:px-10"
+      style={{ top: '-2.5rem' }}
+    >
       <div className="flex items-center">
         {user && user.id === post.user.id && (
           <button

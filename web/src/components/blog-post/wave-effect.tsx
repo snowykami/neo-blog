@@ -17,84 +17,48 @@ export function WaveEffects() {
           />
         </defs>
         <g className="parallax">
-          <use
-            href="#gentle-wave"
-            x="48"
-            y="0"
-            className="fill-background/20 animate-wave-1"
-          />
-          <use
-            href="#gentle-wave"
-            x="48"
-            y="0"
-            className="fill-primary/10 animate-wave-1"
-          />
+          <use href="#gentle-wave" x="48" y="0" className="fill-background/20 animate-wave-1" />
+          <use href="#gentle-wave" x="48" y="0" className="fill-primary/10 animate-wave-1" />
 
-          <use
-            href="#gentle-wave"
-            x="48"
-            y="3"
-            className="fill-background/50 animate-wave-2"
-          />
-          <use
-            href="#gentle-wave"
-            x="48"
-            y="3"
-            className="fill-primary/10 animate-wave-2"
-          />
+          <use href="#gentle-wave" x="48" y="3" className="fill-background/50 animate-wave-2" />
+          <use href="#gentle-wave" x="48" y="3" className="fill-primary/10 animate-wave-2" />
 
-          <use
-            href="#gentle-wave"
-            x="48"
-            y="5"
-            className="fill-background/70 animate-wave-3"
-          />
-          <use
-            href="#gentle-wave"
-            x="48"
-            y="5"
-            className="fill-primary/10 animate-wave-3"
-          />
+          <use href="#gentle-wave" x="48" y="5" className="fill-background/70 animate-wave-3" />
+          <use href="#gentle-wave" x="48" y="5" className="fill-primary/10 animate-wave-3" />
 
-          <use
-            href="#gentle-wave"
-            x="48"
-            y="7"
-            className="fill-background animate-wave-3"
-          />
-          <use
-            href="#gentle-wave"
-            x="48"
-            y="7"
-            className="fill-primary/10 animate-wave-3"
-          />
+          <use href="#gentle-wave" x="48" y="7" className="fill-background animate-wave-3" />
+          <use href="#gentle-wave" x="48" y="7" className="fill-primary/10 animate-wave-3" />
         </g>
       </svg>
 
       <style jsx>
         {`
-        .animate-wave-1 {
-          animation: wave-move 7s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
-          animation-delay: -2s;
-        }
-        .animate-wave-2 {
-          animation: wave-move 10s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
-          animation-delay: -3s;
-        }
-        .animate-wave-3 {
-          animation: wave-move 13s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
-          animation-delay: -4s;
-        }
-        .animate-wave-4 {
-          animation: wave-move 20s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
-          animation-delay: -5s;
-        }
-        
-        @keyframes wave-move {
-          0% { transform: translate3d(-90px, 0, 0); }
-          100% { transform: translate3d(85px, 0, 0); }
-        }
-      `}
+          .animate-wave-1 {
+            animation: wave-move 7s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
+            animation-delay: -2s;
+          }
+          .animate-wave-2 {
+            animation: wave-move 10s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
+            animation-delay: -3s;
+          }
+          .animate-wave-3 {
+            animation: wave-move 13s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
+            animation-delay: -4s;
+          }
+          .animate-wave-4 {
+            animation: wave-move 20s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
+            animation-delay: -5s;
+          }
+
+          @keyframes wave-move {
+            0% {
+              transform: translate3d(-90px, 0, 0);
+            }
+            100% {
+              transform: translate3d(85px, 0, 0);
+            }
+          }
+        `}
       </style>
     </section>
   )

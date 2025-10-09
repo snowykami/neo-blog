@@ -66,11 +66,7 @@ export function canDeleteNode(editor: Editor | null): boolean {
 /**
  * Helper function to delete a node with fallback strategy
  */
-export function deleteNodeAtPosition(
-  editor: Editor,
-  pos: number,
-  nodeSize: number,
-): boolean {
+export function deleteNodeAtPosition(editor: Editor, pos: number, nodeSize: number): boolean {
   const chain = editor.chain().focus()
   const success = chain.deleteRange({ from: pos, to: pos + nodeSize }).run()
 
@@ -175,11 +171,7 @@ export function shouldShowButton(props: {
  * ```
  */
 export function useDeleteNode(config?: UseDeleteNodeConfig) {
-  const {
-    editor: providedEditor,
-    hideWhenUnavailable = false,
-    onDeleted,
-  } = config || {}
+  const { editor: providedEditor, hideWhenUnavailable = false, onDeleted } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
   const isMobile = useIsMobile()

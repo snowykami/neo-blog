@@ -15,10 +15,7 @@ export default function RootLayout({
   const [scrollY, setScrollY] = useState(typeof window !== 'undefined' ? window.scrollY : 0)
 
   useEffect(() => {
-    setBackground(
-      <div className="absolute inset-0 -z-10 bg-primary/10">
-      </div>,
-    )
+    setBackground(<div className="absolute inset-0 -z-10 bg-primary/10"></div>)
     return () => resetBackground()
   }, [setBackground, resetBackground])
 
@@ -43,16 +40,14 @@ export default function RootLayout({
   useEffect(() => {
     const maxGradientScroll = blogPostWithTransparentNavScrollMaxHeight
     if (scrollY <= maxGradientScroll) {
-      setNavStyle(`bg-transparent backdrop-blur-none border-none shadow-none !text-white [&_.text-primary]:text-white`)
+      setNavStyle(
+        `bg-transparent backdrop-blur-none border-none shadow-none !text-white [&_.text-primary]:text-white`,
+      )
     }
     else {
       resetNavStyle()
     }
   }, [scrollY, setNavStyle, resetNavStyle])
 
-  return (
-    <div>
-      {children}
-    </div>
-  )
+  return <div>{children}</div>
 }

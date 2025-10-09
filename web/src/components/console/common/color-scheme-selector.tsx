@@ -7,12 +7,22 @@ import { useDevice } from '@/contexts/device-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
-export function ColorScheme(
-  { className, color, selectedColor, setSelectedColor }:
-  { className?: string, color: string, selectedColor: string, setSelectedColor: (color: string) => void },
-) {
+export function ColorScheme({
+  className,
+  color,
+  selectedColor,
+  setSelectedColor,
+}: {
+  className?: string
+  color: string
+  selectedColor: string
+  setSelectedColor: (color: string) => void
+}) {
   return (
-    <div className={`w-full rounded-lg border p-3 shadow-sm box-border ${className ?? ''} ${selectedColor === color ? 'border-primary bg-primary/10' : 'border-border'} cursor-pointer hover:border-primary transition-colors`} onClick={() => setSelectedColor(color)}>
+    <div
+      className={`w-full rounded-lg border p-3 shadow-sm box-border ${className ?? ''} ${selectedColor === color ? 'border-primary bg-primary/10' : 'border-border'} cursor-pointer hover:border-primary transition-colors`}
+      onClick={() => setSelectedColor(color)}
+    >
       <div className="flex items-center gap-3">
         <Checkbox
           checked={selectedColor === color}
@@ -56,16 +66,26 @@ export function ColorScheme(
   )
 }
 
-export function ColorSchemeSelector({ color, onColorChange }: { color: string | null, onColorChange?: (color: string) => void }) {
+export function ColorSchemeSelector({
+  color,
+  onColorChange,
+}: {
+  color: string | null
+  onColorChange?: (color: string) => void
+}) {
   const { siteInfo } = useSiteInfo()
-  const colorSchemes = siteInfo?.colorSchemes ? siteInfo.colorSchemes : fallbackSiteInfo.colorSchemes
-  const [selectedColor, setSelectedColor] = useState<string | null>(colorSchemes.includes(color || '') ? color : colorSchemes[0])
+  const colorSchemes = siteInfo?.colorSchemes
+    ? siteInfo.colorSchemes
+    : fallbackSiteInfo.colorSchemes
+  const [selectedColor, setSelectedColor] = useState<string | null>(
+    colorSchemes.includes(color || '') ? color : colorSchemes[0],
+  )
   const { isDark } = useDevice()
 
   useEffect(() => {
-    onColorChange?.(selectedColor!)
     if (!selectedColor)
       return
+    onColorChange?.(selectedColor!)
   }, [selectedColor, onColorChange])
 
   if (!selectedColor)
@@ -74,8 +94,16 @@ export function ColorSchemeSelector({ color, onColorChange }: { color: string | 
     <div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {colorSchemes.map(color => (
-          <div key={color} data-user-color={color} className={`${isDark ? 'dark' : ''} p-2 min-w-0`}>
-            <ColorScheme color={color} selectedColor={selectedColor} setSelectedColor={setSelectedColor} />
+          <div
+            key={color}
+            data-user-color={color}
+            className={`${isDark ? 'dark' : ''} p-2 min-w-0`}
+          >
+            <ColorScheme
+              color={color}
+              selectedColor={selectedColor}
+              setSelectedColor={setSelectedColor}
+            />
           </div>
         ))}
       </div>

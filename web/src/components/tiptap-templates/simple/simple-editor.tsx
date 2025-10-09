@@ -13,11 +13,7 @@ import { ImageNodeFloating } from '@/components/tiptap-node/image-node/image-nod
 import { ThemeToggle } from '@/components/tiptap-templates/simple/theme-toggle'
 // --- UI Primitives ---
 import { Spacer } from '@/components/tiptap-ui-primitive/spacer'
-import {
-  Toolbar,
-  ToolbarGroup,
-  ToolbarSeparator,
-} from '@/components/tiptap-ui-primitive/toolbar'
+import { Toolbar, ToolbarGroup, ToolbarSeparator } from '@/components/tiptap-ui-primitive/toolbar'
 import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button'
 import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button'
 import { ColorTextPopover } from '@/components/tiptap-ui/color-text-popover'
@@ -25,9 +21,7 @@ import { ColorTextPopover } from '@/components/tiptap-ui/color-text-popover'
 import { HeadingDropdownMenu } from '@/components/tiptap-ui/heading-dropdown-menu'
 
 import { ImageUploadButton } from '@/components/tiptap-ui/image-upload-button'
-import {
-  LinkPopover,
-} from '@/components/tiptap-ui/link-popover'
+import { LinkPopover } from '@/components/tiptap-ui/link-popover'
 
 import { ListDropdownMenu } from '@/components/tiptap-ui/list-dropdown-menu'
 import { MarkButton } from '@/components/tiptap-ui/mark-button'
@@ -58,12 +52,8 @@ import '@/styles/_keyframe-animations.scss'
 import 'highlight.js/styles/github-dark.css'
 
 function MainToolbarContent({
-  onHighlighterClick,
-  onLinkClick,
   editor,
 }: {
-  onHighlighterClick: () => void
-  onLinkClick: () => void
   editor: Editor
 }) {
   return (
@@ -80,10 +70,7 @@ function MainToolbarContent({
       <ToolbarGroup>
         {/* 使用 portal 渲染，避免下拉影响工具条布局 */}
         <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={true} />
-        <ListDropdownMenu
-          types={['bulletList', 'orderedList', 'taskList']}
-          portal={true}
-        />
+        <ListDropdownMenu types={['bulletList', 'orderedList', 'taskList']} portal={true} />
         <BlockquoteButton />
         <CodeBlockButton />
       </ToolbarGroup>
@@ -100,8 +87,6 @@ function MainToolbarContent({
         <ColorTextPopover
           editor={editor}
           hideWhenUnavailable={true}
-          onColorChanged={({ type, label, value }) =>
-            console.log(`Applied ${type} color: ${label} (${value})`)}
         />
 
         <LinkPopover />
@@ -154,7 +139,6 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
     <div className="py-0 flex min-h-0 h-full w-full box-border border-2 border-primary rounded-lg overflow-hidden">
       <EditorContext.Provider value={{ editor }}>
         <div className="max-w-[60rem] w-full mx-auto h-full flex flex-col flex-1 box-border overflow-hidden min-h-0">
-
           <Toolbar
             ref={toolbarRef}
             className="editor-toolbar sticky top-0 z-10 !bg-primary/5
@@ -166,8 +150,6 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
             }}
           >
             <MainToolbarContent
-              onHighlighterClick={() => { }}
-              onLinkClick={() => { }}
               editor={editor}
             />
           </Toolbar>

@@ -13,15 +13,39 @@ import { toast } from 'sonner'
 import { getLabels } from '@/api/label'
 import { createPost, getCategories, updatePost } from '@/api/post'
 import { Button } from '@/components/ui/button'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useCommonT, useOperationT } from '@/hooks/translations'
 import { cn } from '@/lib/utils'
-import { CreateOrUpdateCategoryDialogWithButton, CreateOrUpdateLabelDialogWithButton } from '../common/create-label-and-category'
+import {
+  CreateOrUpdateCategoryDialogWithButton,
+  CreateOrUpdateLabelDialogWithButton,
+} from '../common/create-label-and-category'
 
 interface PostMetaForm {
   title: string
@@ -83,25 +107,29 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           labelIds: data.labels.map(l => l.id),
           isPrivate: data.isPrivate,
         },
-      }).then(() => {
-        toast.success(operationT('update_success'))
-        onMetaChange({
-          post: {
-            id: post.id,
-            title: data.title,
-            slug: data.slug,
-            cover: data.cover,
-            category: data.category,
-            description: data.description,
-            labels: data.labels,
-            isPrivate: data.isPrivate,
-            type: 'html',
-          },
-        })
-        onOpenChange(false)
-      }).catch((error: BaseResponseError) => {
-        toast.error(`${operationT('update_failed')}: ${error?.response?.data?.message || error.message}`)
       })
+        .then(() => {
+          toast.success(operationT('update_success'))
+          onMetaChange({
+            post: {
+              id: post.id,
+              title: data.title,
+              slug: data.slug,
+              cover: data.cover,
+              category: data.category,
+              description: data.description,
+              labels: data.labels,
+              isPrivate: data.isPrivate,
+              type: 'html',
+            },
+          })
+          onOpenChange(false)
+        })
+        .catch((error: BaseResponseError) => {
+          toast.error(
+            `${operationT('update_failed')}: ${error?.response?.data?.message || error.message}`,
+          )
+        })
     }
     else {
       // 创建新文章时，同时创建文章内容
@@ -117,14 +145,18 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           content: `<h1>${data.title}</h1>`,
           type: 'html',
         },
-      }).then((res) => {
-        toast.success(operationT('create_success'))
-        onMetaChange({ post: res.data })
-        form.reset()
-        onOpenChange(false)
-      }).catch((error: BaseResponseError) => {
-        toast.error(`${operationT('create_failed')}: ${error?.response?.data?.message || error.message}`)
       })
+        .then((res) => {
+          toast.success(operationT('create_success'))
+          onMetaChange({ post: res.data })
+          form.reset()
+          onOpenChange(false)
+        })
+        .catch((error: BaseResponseError) => {
+          toast.error(
+            `${operationT('create_failed')}: ${error?.response?.data?.message || error.message}`,
+          )
+        })
     }
   }
 
@@ -223,8 +255,12 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
             <DialogFooter>
               <DialogClose asChild>
                 <div className="flex gap-2">
-                  <Button onClick={handleCancel} type="button" variant="outline">{operationT('cancel')}</Button>
-                  <Button onClick={() => form.handleSubmit(onSubmit)}>{post ? operationT('update') : operationT('create')}</Button>
+                  <Button onClick={handleCancel} type="button" variant="outline">
+                    {operationT('cancel')}
+                  </Button>
+                  <Button onClick={() => form.handleSubmit(onSubmit)}>
+                    {post ? operationT('update') : operationT('create')}
+                  </Button>
                 </div>
               </DialogClose>
             </DialogFooter>
@@ -235,16 +271,13 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
   )
 }
 
-function PostCategorySelector(
-  {
-    category,
-    onCategoryChange,
-  }:
-  {
-    category: Category | null
-    onCategoryChange: (category: Category | null) => void
-  },
-) {
+function PostCategorySelector({
+  category,
+  onCategoryChange,
+}: {
+  category: Category | null
+  onCategoryChange: (category: Category | null) => void
+}) {
   const t = useTranslations('Console.post_edit')
   const operationT = useOperationT()
   const [items, setItems] = useState<Category[]>([])
@@ -252,10 +285,11 @@ function PostCategorySelector(
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
-    getCategories().then((res) => {
-      setItems(res.data.categories)
-    }).catch(() => {
-    })
+    getCategories()
+      .then((res) => {
+        setItems(res.data.categories)
+      })
+      .catch(() => { })
   }, [refreshKey])
 
   return (
@@ -274,7 +308,10 @@ function PostCategorySelector(
                       size="sm"
                       role="combobox"
                       aria-expanded={open}
-                      className={cn('w-full h-auto py-2 justify-between text-left', !category && 'text-muted-foreground')}
+                      className={cn(
+                        'w-full h-auto py-2 justify-between text-left',
+                        !category && 'text-muted-foreground',
+                      )}
                     >
                       {category ? `${category.name} (${category.slug})` : t('select_category')}
                       <ChevronsUpDown className="ml-2 opacity-50" />
@@ -299,7 +336,15 @@ function PostCategorySelector(
                   <CommandList>
                     <CommandEmpty>{t('no_category')}</CommandEmpty>
                     <CommandGroup>
-                      {[{ id: 0, name: t('uncategorized'), slug: '-', description: '' }, ...items].map(c => (
+                      {[
+                        {
+                          id: 0,
+                          name: t('uncategorized'),
+                          slug: '-',
+                          description: '',
+                        },
+                        ...items,
+                      ].map(c => (
                         <CommandItem
                           key={c.id}
                           value={c.name + c.slug}
@@ -313,7 +358,12 @@ function PostCategorySelector(
                           (
                           {c.slug}
                           )
-                          <Check className={cn('ml-auto', category?.id === c.id ? 'opacity-100' : 'opacity-0')} />
+                          <Check
+                            className={cn(
+                              'ml-auto',
+                              category?.id === c.id ? 'opacity-100' : 'opacity-0',
+                            )}
+                          />
                         </CommandItem>
                       ))}
                     </CommandGroup>
@@ -329,15 +379,13 @@ function PostCategorySelector(
   )
 }
 
-function PostLabelSelector(
-  {
-    labels,
-    onSelectedLabelsChange,
-  }: {
-    labels: Label[]
-    onSelectedLabelsChange: (labels: Label[]) => void
-  },
-) {
+function PostLabelSelector({
+  labels,
+  onSelectedLabelsChange,
+}: {
+  labels: Label[]
+  onSelectedLabelsChange: (labels: Label[]) => void
+}) {
   const t = useTranslations('Console.post_edit')
   const operationT = useOperationT()
   const [items, setItems] = useState<Label[]>([])
@@ -345,11 +393,11 @@ function PostLabelSelector(
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
-    console.log('refreshing labels...')
-    getLabels().then((res) => {
-      setItems(res?.data?.labels ?? [])
-    }).catch(() => {
-    })
+    getLabels()
+      .then((res) => {
+        setItems(res?.data?.labels ?? [])
+      })
+      .catch(() => { })
   }, [refreshKey])
 
   const toggle = (label: Label) => {
@@ -396,7 +444,10 @@ function PostLabelSelector(
                               title={l.name}
                             >
                               <span>{l.name}</span>
-                              <XIcon onClick={e => remove(l, e)} className="w-3 h-3 text-muted-foreground" />
+                              <XIcon
+                                onClick={e => remove(l, e)}
+                                className="w-3 h-3 text-muted-foreground"
+                              />
                             </button>
                           ))
                         )}
@@ -410,7 +461,10 @@ function PostLabelSelector(
                       size="sm"
                       role="combobox"
                       aria-expanded={open}
-                      className={cn('w-auto h-auto py-2 justify-between text-left', safeLabels.length === 0 && 'text-muted-foreground')}
+                      className={cn(
+                        'w-auto h-auto py-2 justify-between text-left',
+                        safeLabels.length === 0 && 'text-muted-foreground',
+                      )}
                     >
                       {t('select_labels')}
                       <ChevronsUpDown className="ml-2 opacity-50" />
@@ -449,7 +503,14 @@ function PostLabelSelector(
                             (
                             {l.slug}
                             )
-                            <Check className={cn('ml-auto', safeLabels.find(label => label.id === l.id) ? 'opacity-100' : 'opacity-0')} />
+                            <Check
+                              className={cn(
+                                'ml-auto',
+                                safeLabels.find(label => label.id === l.id)
+                                  ? 'opacity-100'
+                                  : 'opacity-0',
+                              )}
+                            />
                           </CommandItem>
                         )
                       })}

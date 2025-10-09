@@ -27,11 +27,7 @@ export default function ScrollToTopButton({
     const update = () => {
       const doc = document.documentElement
       const scrollTop = window.scrollY || doc.scrollTop || 0
-      const height = Math.max(
-        doc.scrollHeight,
-        document.body.scrollHeight,
-        window.innerHeight,
-      )
+      const height = Math.max(doc.scrollHeight, document.body.scrollHeight, window.innerHeight)
       const maxScroll = height - window.innerHeight
       const p = maxScroll <= 0 ? 0 : Math.min(1, scrollTop / maxScroll)
       setProgress(p)
@@ -87,35 +83,42 @@ export default function ScrollToTopButton({
           pointerEvents: visible ? 'auto' : 'none',
         }}
       >
-        {showProgress ? (
-          // 保留进度环的背景圆圈，图标使用 lucide，图标颜色使用 Tailwind 的 text-primary
-          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden className="rounded-full">
-            <g transform={`translate(${size / 2}, ${size / 2})`}>
-              <circle
-                r={r}
-                stroke="rgba(0,0,0,0.06)"
-                strokeWidth={stroke}
-                fill="transparent"
-                strokeLinecap="round"
-              />
-              <circle
-                r={r}
-                stroke="currentColor"
-                strokeWidth={stroke}
-                fill="transparent"
-                strokeLinecap="round"
-                // 使用 total circumference 作为 dasharray，并用 dashoffset 控制进度
-                strokeDasharray={String(c)}
-                strokeDashoffset={String(Math.max(0, c - dash))}
-                style={{
-                  transform: 'rotate(-90deg)',
-                  transformOrigin: 'center',
-                  transition: 'stroke-dashoffset 200ms linear',
-                }}
-              />
-            </g>
-          </svg>
-        ) : null}
+        {showProgress
+          ? (
+              <svg
+                width={size}
+                height={size}
+                viewBox={`0 0 ${size} ${size}`}
+                aria-hidden
+                className="rounded-full"
+              >
+                <g transform={`translate(${size / 2}, ${size / 2})`}>
+                  <circle
+                    r={r}
+                    stroke="rgba(0,0,0,0.06)"
+                    strokeWidth={stroke}
+                    fill="transparent"
+                    strokeLinecap="round"
+                  />
+                  <circle
+                    r={r}
+                    stroke="currentColor"
+                    strokeWidth={stroke}
+                    fill="transparent"
+                    strokeLinecap="round"
+                    // 使用 total circumference 作为 dasharray，并用 dashoffset 控制进度
+                    strokeDasharray={String(c)}
+                    strokeDashoffset={String(Math.max(0, c - dash))}
+                    style={{
+                      transform: 'rotate(-90deg)',
+                      transformOrigin: 'center',
+                      transition: 'stroke-dashoffset 200ms linear',
+                    }}
+                  />
+                </g>
+              </svg>
+            )
+          : null}
         {/* lucide icon，使用 currentColor 以便用 Tailwind 控制颜色 */}
         <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <ArrowUp className="w-5 h-5 text-primary" />

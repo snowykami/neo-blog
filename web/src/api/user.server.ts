@@ -5,6 +5,8 @@ import axiosClient from './client'
 
 export async function getLoginUserServer(): Promise<BaseResponse<User>> {
   const authHeaders = await getAuthHeaders()
-  const res = await axiosClient.get<BaseResponse<User>>('/user/me', { headers: authHeaders })
+  const res = await axiosClient.get<BaseResponse<User>>('/user/me', {
+    headers: authHeaders,
+  })
   return res.data
 }

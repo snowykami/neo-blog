@@ -102,10 +102,7 @@ export interface UseColorTextConfig {
 export function canColorText(editor: Editor | null): boolean {
   if (!editor || !editor.isEditable)
     return false
-  if (
-    !isMarkInSchema('textStyle', editor)
-    || isNodeTypeSelected(editor, ['image'])
-  ) {
+  if (!isMarkInSchema('textStyle', editor) || isNodeTypeSelected(editor, ['image'])) {
     return false
   }
 
@@ -120,10 +117,7 @@ export function canColorText(editor: Editor | null): boolean {
 /**
  * Checks if text color is active in the current selection
  */
-export function isColorTextActive(
-  editor: Editor | null,
-  textColor: string,
-): boolean {
+export function isColorTextActive(editor: Editor | null, textColor: string): boolean {
   if (!editor || !editor.isEditable)
     return false
   return editor.isActive('textStyle', { color: textColor })
@@ -237,18 +231,12 @@ export function useColorText(config: UseColorTextConfig) {
     if (editor.state.storedMarks) {
       const textStyleMarkType = editor.schema.marks.textStyle
       if (textStyleMarkType) {
-        editor.view.dispatch(
-          editor.state.tr.removeStoredMark(textStyleMarkType),
-        )
+        editor.view.dispatch(editor.state.tr.removeStoredMark(textStyleMarkType))
       }
     }
 
     setTimeout(() => {
-      const success = editor
-        .chain()
-        .focus()
-        .toggleMark('textStyle', { color: textColor })
-        .run()
+      const success = editor.chain().focus().toggleMark('textStyle', { color: textColor }).run()
       if (success) {
         onApplied?.({ color: textColor, label })
       }

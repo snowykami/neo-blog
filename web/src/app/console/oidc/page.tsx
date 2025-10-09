@@ -8,5 +8,9 @@ export async function generateMetadata() {
 }
 
 export default function Page() {
-  return (<div><h1>认证管理</h1></div>)
+  return (
+    <div>
+      <h1>认证管理</h1>
+    </div>
+  )
 }

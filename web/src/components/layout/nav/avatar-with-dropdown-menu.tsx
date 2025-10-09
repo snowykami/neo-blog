@@ -34,57 +34,61 @@ export function AvatarWithDropdownMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <div className="">
-          {
-            user
-              ? (
-                  <Avatar className="h-7 w-7 rounded-full border-1">
-                    <AvatarImage className="rounded-full h-7 w-7" src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.username} />
-                    <AvatarFallback className="rounded-full h-7 w-7">{getFallbackAvatarFromUsername(user.nickname || user.username)}</AvatarFallback>
-                  </Avatar>
-                )
-              : <User className="h-7 w-7" />
-          }
+          {user
+            ? (
+                <Avatar className="h-7 w-7 rounded-full border-1">
+                  <AvatarImage
+                    className="rounded-full h-7 w-7"
+                    src={getAvatarOrGravatarUrlFromUser({ user })}
+                    alt={user.username}
+                  />
+                  <AvatarFallback className="rounded-full h-7 w-7">
+                    {getFallbackAvatarFromUsername(user.nickname || user.username)}
+                  </AvatarFallback>
+                </Avatar>
+              )
+            : (
+                <User className="h-7 w-7" />
+              )}
         </div>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent className="w-auto no-animate" align="start">
-        {user
-          && (
-            <>
-              <DropdownMenuLabel>
-                <div className="flex items-center gap-2 p-0 text-left text-sm">
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">{formatDisplayName(user)}</span>
-                    <span className="text-muted-foreground truncate text-xs">
-                      {user.email}
-                    </span>
-                  </div>
+        {user && (
+          <>
+            <DropdownMenuLabel>
+              <div className="flex items-center gap-2 p-0 text-left text-sm">
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">{formatDisplayName(user)}</span>
+                  <span className="text-muted-foreground truncate text-xs">{user.email}</span>
                 </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-            </>
-          )}
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+          </>
+        )}
 
-        {user
-          && (
-            <>
-              <DropdownMenuGroup className="p-0">
-                <DropdownMenuItem asChild>
-                  <Link href={`/u/${user?.username}`}>
-                    <User />
-                    {routeT('profile')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href={user.role === Role.ADMIN ? consolePath.dashboard : consolePath.userProfile}>
-                    <PanelLeft />
-                    {routeT('console')}
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-            </>
-          )}
+        {user && (
+          <>
+            <DropdownMenuGroup className="p-0">
+              <DropdownMenuItem asChild>
+                <Link href={`/u/${user?.username}`}>
+                  <User />
+                  {routeT('profile')}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link
+                  href={user.role === Role.ADMIN ? consolePath.dashboard : consolePath.userProfile}
+                >
+                  <PanelLeft />
+                  {routeT('console')}
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuGroup className="p-0">
           {user && (
             <DropdownMenuItem onClick={toLogin}>

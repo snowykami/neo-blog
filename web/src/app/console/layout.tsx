@@ -34,7 +34,10 @@ export default function ConsoleLayout({
     const match = all.find((item) => {
       if (!item.url)
         return false
-      return pathname === item.url || (item.url !== consolePath.dashboard && pathname.startsWith(`${item.url}/`))
+      return (
+        pathname === item.url
+        || (item.url !== consolePath.dashboard && pathname.startsWith(`${item.url}/`))
+      )
     })
     if (match?.id) {
       setActiveId(match.id)
@@ -62,10 +65,12 @@ export default function ConsoleLayout({
       <SidebarInset>
         <SiteHeader title={title} />
         <div
-          style={{
-            '--console-content-padding': 'calc(var(--spacing) * 4)',
-            'padding': 'var(--console-content-padding)',
-          } as React.CSSProperties}
+          style={
+            {
+              '--console-content-padding': 'calc(var(--spacing) * 4)',
+              'padding': 'var(--console-content-padding)',
+            } as React.CSSProperties
+          }
         >
           {children}
         </div>

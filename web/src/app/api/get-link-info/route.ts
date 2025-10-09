@@ -42,32 +42,37 @@ export async function GET(request: NextRequest) {
 
     // 提取 meta 信息
     const getMetaContent = (property: string) => {
-      return $(`meta[property="${property}"]`).attr('content')
+      return (
+        $(`meta[property="${property}"]`).attr('content')
         || $(`meta[name="${property}"]`).attr('content')
         || $(`meta[property="twitter:${property.replace('og:', '')}"]`).attr('content')
+      )
     }
 
-    const title = getMetaContent('og:title')
-      || $('title').text()
-      || getMetaContent('twitter:title')
-      || 'No title'
+    const title
+      = getMetaContent('og:title')
+        || $('title').text()
+        || getMetaContent('twitter:title')
+        || 'No title'
 
-    const description = getMetaContent('og:description')
-      || $('meta[name="description"]').attr('content')
-      || getMetaContent('twitter:description')
-      || ''
+    const description
+      = getMetaContent('og:description')
+        || $('meta[name="description"]').attr('content')
+        || getMetaContent('twitter:description')
+        || ''
 
-    const image = getMetaContent('og:image')
-      || getMetaContent('twitter:image')
-      || $('link[rel="image_src"]').attr('href')
+    const image
+      = getMetaContent('og:image')
+        || getMetaContent('twitter:image')
+        || $('link[rel="image_src"]').attr('href')
 
-    const siteName = getMetaContent('og:site_name')
-      || urlObj.hostname
+    const siteName = getMetaContent('og:site_name') || urlObj.hostname
 
     // 获取 favicon
-    let favicon = $('link[rel="icon"]').attr('href')
-      || $('link[rel="shortcut icon"]').attr('href')
-      || $('link[rel="apple-touch-icon"]').attr('href')
+    let favicon
+      = $('link[rel="icon"]').attr('href')
+        || $('link[rel="shortcut icon"]').attr('href')
+        || $('link[rel="apple-touch-icon"]').attr('href')
 
     if (favicon && !favicon.startsWith('http')) {
       favicon = new URL(favicon, url).href
@@ -86,9 +91,6 @@ export async function GET(request: NextRequest) {
   }
   catch (error) {
     console.error('Link preview error:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch link preview' },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: 'Failed to fetch link preview' }, { status: 500 })
   }
 }

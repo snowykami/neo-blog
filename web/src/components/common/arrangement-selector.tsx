@@ -24,7 +24,11 @@ export function ArrangementSelector({
   const [open, setOpen] = useState(false)
   const [arrangement, setArrangement] = useState<ArrangementMode>(initialArrangement)
 
-  arrangementModes = arrangementModes || [ArrangementMode.Grid, ArrangementMode.List, ArrangementMode.Card]
+  arrangementModes = arrangementModes || [
+    ArrangementMode.Grid,
+    ArrangementMode.List,
+    ArrangementMode.Card,
+  ]
 
   const handleArrangementChange = (newArrangement: ArrangementMode) => {
     onArrangementChange(newArrangement)
@@ -55,9 +59,7 @@ export function ArrangementSelector({
                 key={am}
                 variant="ghost"
                 size="sm"
-                className={`justify-start ${
-                  arrangement === am ? 'bg-accent' : ''
-                }`}
+                className={`justify-start ${arrangement === am ? 'bg-accent' : ''}`}
                 onClick={() => handleArrangementChange(am)}
               >
                 {IconComponent && <IconComponent className="w-4 h-4 mr-2" />}

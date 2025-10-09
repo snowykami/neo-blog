@@ -1,12 +1,28 @@
 'use client'
 
 import type { Post } from '@/models/post'
-import { Calendar, ChartBarStackedIcon, Eye, FlameIcon, Heart, Lock, MessageCircle, UserIcon } from 'lucide-react'
+import {
+  Calendar,
+  ChartBarStackedIcon,
+  Eye,
+  FlameIcon,
+  Heart,
+  Lock,
+  MessageCircle,
+  UserIcon,
+} from 'lucide-react'
 import { motion } from 'motion/react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { useSiteInfo } from '@/contexts/site-info-context'
@@ -16,10 +32,7 @@ import { getPostUrl } from '@/utils/common/route'
 import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 import { htmlToText } from '@/utils/common/string'
 
-export function BlogCard({ post, className }: {
-  post: Post
-  className?: string
-}) {
+export function BlogCard({ post, className }: { post: Post, className?: string }) {
   const { siteInfo } = useSiteInfo()
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -30,15 +43,14 @@ export function BlogCard({ post, className }: {
     })
   }
   return (
-    <Card className={cn(
-      'group overflow-hidden hover:shadow-xl h-full flex flex-col cursor-pointer gap-2 pt-0',
-      className,
-    )}
+    <Card
+      className={cn(
+        'group overflow-hidden hover:shadow-xl h-full flex flex-col cursor-pointer gap-2 pt-0',
+        className,
+      )}
     >
       {/* 封面图片区域 */}
-      <div
-        className="relative aspect-[16/8] overflow-hidden"
-      >
+      <div className="relative aspect-[16/8] overflow-hidden">
         {/* 自定义封面图片 */}
         <motion.div
           initial={{ scale: 1.2, opacity: 0 }}
@@ -74,20 +86,19 @@ export function BlogCard({ post, className }: {
         )}
 
         {/* 右上角 分类 */}
-        {
-          post.category && (
-            <div className="absolute top-2 right-2">
-              <Badge className="bg-primary/70 text-white border-0 text-sm rounded-full">
-                <ChartBarStackedIcon />
-                {post.category.name}
-              </Badge>
-            </div>
-          )
-        }
+        {post.category && (
+          <div className="absolute top-2 right-2">
+            <Badge className="bg-primary/70 text-white border-0 text-sm rounded-full">
+              <ChartBarStackedIcon />
+              {post.category.name}
+            </Badge>
+          </div>
+        )}
 
         {/* 左下角 统计信息 */}
         <div className="absolute bottom-2 left-2">
-          <Badge className="bg-gradient-to-r from-blue-200 to-purple-300 dark:bg-gradient-to-r
+          <Badge
+            className="bg-gradient-to-r from-blue-200 to-purple-300 dark:bg-gradient-to-r
            dark:from-blue-700 dark:to-purple-700 text-muted-foreground dark:text-foreground text-sm rounded-full"
           >
             {/* 统计信息 */}
@@ -165,11 +176,7 @@ export function BlogCard({ post, className }: {
 // 博客卡片骨架屏
 export function BlogCardSkeleton({ className }: { className?: string }) {
   return (
-    <Card className={cn(
-      'overflow-hidden h-full flex flex-col gap-2 pt-0',
-      className,
-    )}
-    >
+    <Card className={cn('overflow-hidden h-full flex flex-col gap-2 pt-0', className)}>
       {/* 封面图片骨架 */}
       <Skeleton className="relative aspect-[16/8]" />
 
