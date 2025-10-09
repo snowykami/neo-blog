@@ -7,11 +7,13 @@ import { toast } from "sonner"
 import Link from "next/link"
 import { IconType } from "@/types/icon"
 import { consolePath } from "@/utils/common/route";
+import { getMetrics, metricsHandler, type MetricsData } from "@/api/misc"
 
 export function Dashboard() {
   return (
     <div className="">
       <DataOverview />
+      <MetricsOverview />
     </div>
   )
 }
@@ -43,6 +45,7 @@ function DataOverview() {
       url: consolePath.file
     },
   ]
+
   const [fetchData, setFetchData] = useState<DashboardResp | null>(null);
 
   useEffect(() => {
@@ -69,5 +72,31 @@ function DataOverview() {
         </Card>
       </Link>
     ))}
+  </div>
+}
+
+function MetricsOverview() {
+  const [metricsData, setMetricsData] = useState<MetricsData | null>(null);
+  useEffect(() => {
+    getMetrics().then(res => {
+      setMetricsData(res.data);
+    }).catch(err => {
+      toast.error(err.message || "Failed to fetch metrics data");
+    });
+  }, [])
+  return <div className="mt-8">
+    <Card className="p-4">
+      <CardHeader className="pb-2">
+        <CardDescription>Metrics Overview</CardDescription>
+      </CardHeader>
+      <div className="mt-4 space-y-2">
+        {metricsData ? Object.entries(metricsData).map(([key, value]) => (
+          <div key={key} className="flex items-center justify-between">
+            <span className="font-medium">{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
+            <span className="tabular-nums">{metricsHandler?.[key]?.(value)}</span>
+          </div>
+        )) : <div>Loading...</div>}
+      </div>
+    </Card>
   </div>
 }

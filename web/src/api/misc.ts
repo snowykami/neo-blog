@@ -3,6 +3,7 @@ import axiosClient from "./client";
 import { User } from "@/models/user";
 import { Category } from "@/models/category";
 import { SiteInfo } from "@/utils/common/siteinfo";
+import { formatDataSize } from "@/utils/common/datasize";
 
 
 export async function getSiteInfo(): Promise<BaseResponse<SiteInfo>> {
@@ -106,5 +107,80 @@ type RssData = {
 
 export async function getRssData(): Promise<BaseResponse<RssData>> {
   const res = await axiosClient.get<BaseResponse<RssData>>('/misc/rss-data');
+  return res.data;
+}
+
+export type MetricsData = Record<string, number> & {
+  uptime: number;
+  goroutines: number;
+
+  memoryTotalAlloc: number; // 所有被分配过的内存
+  memorySys: number;        // 从操作系统获取的内存总量
+  memoryLookups: number;    // 指针查找次数
+  memoryMallocs: number;    // 分配的内存次数
+  memoryFrees: number;      // 释放的内存次数
+
+  memoryHeapAlloc: number;    // 堆上分配的内存
+  memoryHeapSys: number;      // 从操作系统获取的堆内存总量
+  memoryHeapIdle: number;     // 堆上空闲的内存
+  memoryHeapInuse: number;    // 堆上正在使用的内存
+  memoryHeapReleased: number; // 返回给操作系统的内存
+  memoryHeapObjects: number;  // 堆上分配的对象数
+
+  memoryStackInuse: number; // 栈上正在使用的内存
+  memoryStackSys: number;   // 从操作系统获取的栈内存总量
+  memoryMSpanInuse: number; // MSpan结构占用的内存
+  memoryMSpanSys: number;   // 从操作系统获取的MSpan结构内存总量
+  memoryMCacheInuse: number;// MCache结构占用的内存
+  memoryMCacheSys: number;  // 从操作系统获取的MCache结构内存总量
+  memoryBuckHashSys: number;// 哈希表占用的内存
+  memoryGcSys: number;      // 垃圾回收器占用内存
+  memoryOtherSys: number;   // 其他内存占用
+
+  gcNext: number;           // 下一次垃圾回收的内存目标
+  gcLast: number;           // 上一次垃圾回收的时间
+  gcPauseTotalNs: number;   // 垃圾回收总暂停时间
+  gcNum: number;            // 垃圾回收次数
+  gcCpuFraction: number;    // GC CPU占用比例
+  gcLastPauseNs: number;    // 最近一次GC暂停时间，单位纳秒
+}
+
+export const metricsHandler: Record<keyof MetricsData, (value: number) => string> = {
+  uptime: (value) => value.toString(),
+  goroutines: (value) => value.toString(),
+  
+  memoryTotalAlloc: (value) => formatDataSize({size: value}),
+  memorySys: (value) => formatDataSize({size: value}),
+  memoryLookups: (value) => value.toString(),
+  memoryMallocs: (value) => value.toString(),
+  memoryFrees: (value) => value.toString(),
+
+  memoryHeapAlloc: (value) => formatDataSize({size: value}),
+  memoryHeapSys: (value) => formatDataSize({size: value}),
+  memoryHeapIdle: (value) => formatDataSize({size: value}),
+  memoryHeapInuse: (value) => formatDataSize({size: value}),
+  memoryHeapReleased: (value) => formatDataSize({size: value}),
+  memoryHeapObjects: (value) => value.toString(),
+
+  memoryStackInuse: (value) => formatDataSize({size: value}),
+  memoryStackSys: (value) => formatDataSize({size: value}),
+  memoryMSpanInuse: (value) => formatDataSize({size: value}),
+  memoryMSpanSys: (value) => formatDataSize({size: value}),
+  memoryMCacheInuse: (value) => formatDataSize({size: value}),
+  memoryMCacheSys: (value) => formatDataSize({size: value}),
+  memoryBuckHashSys: (value) => formatDataSize({size: value}),
+  memoryGcSys: (value) => formatDataSize({size: value}),
+  memoryOtherSys: (value) => formatDataSize({size: value}),
+
+  gcNext: (value) => formatDataSize({size: value}),
+  gcLast: (value) => new Date(value).toLocaleString(),
+  gcPauseTotalNs: (value) => (value / 1e6).toFixed(2) + ' ms',
+  gcNum: (value) => value.toString(),
+  gcCpuFraction: (value) => (value * 100).toFixed(2) + ' %',
+  gcLastPauseNs: (value) => (value / 1e6).toFixed(2) + ' ms',
+}
+
+export async function getMetrics<T extends MetricsData>(): Promise<BaseResponse<T>> {
+  const res = await axiosClient.get<BaseResponse<T>>('/misc/metrics');
   return res.data;
 }

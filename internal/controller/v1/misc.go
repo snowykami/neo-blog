@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	"github.com/snowykami/neo-blog/pkg/resps"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
 )
+
+var startTime = time.Now()
 
 const (
 	KeySiteInfo = "site_info"
@@ -199,5 +202,55 @@ func (mc *MiscController) GetRssData(ctx context.Context, c *app.RequestContext)
 				})
 			}
 			return m
-		}()})
+		}(),
+	})
+}
+
+// GetMetrics 获取应用的运行时指标，仅管理员可见
+func (mc *MiscController) GetMetrics(ctx context.Context, c *app.RequestContext) {
+	m := &runtime.MemStats{}
+	runtime.ReadMemStats(m)
+	resps.Ok(c, "", utils.H{
+		"uptime":     time.Since(startTime),
+		"goroutines": runtime.NumGoroutine(),
+
+		"memory_total_alloc": m.TotalAlloc, // 所有被分配过的内存
+		"memory_sys":         m.Sys,        // 系统内存占用量
+		"memory_mallocs":     m.Mallocs,    // 内存分配次数
+		"memory_frees":       m.Frees,      // 内存释放次数
+		"memory_lookups":     m.Lookups,    // 指针查找次数
+
+		"memory_heap_alloc":    m.HeapAlloc,    // 堆内存分配
+		"memory_heap_sys":      m.HeapSys,      // 堆内存占用
+		"memory_heap_inuse":    m.HeapInuse,    // 正在使用的堆内存
+		"memory_heap_idle":     m.HeapIdle,     // 空闲的堆内存
+		"memory_heap_released": m.HeapReleased, // 释放给操作系统的堆内存
+		"memory_heap_objects":  m.HeapObjects,  // 堆内存对象数
+
+		"memory_stack_sys":     m.StackSys,    // 栈内存占用
+		"memory_stack_inuse":   m.StackInuse,  // 正在使用的栈内存
+		"memory_m_span_sys":    m.MSpanSys,    // MSpan结构体占用内存
+		"memory_m_span_inuse":  m.MSpanInuse,  // 正在使用的MSpan内存
+		"memory_m_cache_sys":   m.MCacheSys,   // MCache结构体占用内存
+		"memory_m_cache_inuse": m.MCacheInuse, // 正在使用的MCache内存
+		"memory_buck_hash_sys": m.BuckHashSys, // 哈希表占用内存
+		"memory_gc_sys":        m.GCSys,       // 垃圾回收器占用内存
+		"memory_other_sys":     m.OtherSys,    // 其他内存占用
+
+		"gc_next":           m.NextGC,        // 下一次垃圾回收的内存目标
+		"gc_last":           m.LastGC,        // 上一次垃圾回收的时间
+		"gc_pause_total_ns": m.PauseTotalNs,  // 垃圾回收总暂停时间
+		"gc_num":            m.NumGC,         // 垃圾回收次数
+		"gc_cpu_fraction":   m.GCCPUFraction, // GC CPU占用比例
+		"gc_last_pause_ns": func() uint64 {
+			if m.NumGC == 0 {
+				return 0
+			}
+			idx := (int(m.NumGC) - 1) % len(m.PauseNs)
+			if idx < 0 {
+				idx += len(m.PauseNs)
+			}
+			return m.PauseNs[idx] // 单位：纳秒
+		}(),
+	})
 }

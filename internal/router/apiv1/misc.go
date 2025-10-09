@@ -9,13 +9,15 @@ import (
 
 func registerMiscRoutes(group *route.RouterGroup) {
 	miscController := v1.NewMiscController()
-	miscGroupAdmin := group.Group("/misc").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleAdmin))
-	miscGroupWithoutAuth := group.Group("/misc").Use(middleware.UseAuth(false))
+	miscGroupWithAdmin := group.Group("/misc").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleAdmin))
+	miscGroup := group.Group("/misc").Use(middleware.UseAuth(false))
 	{
-		miscGroupWithoutAuth.GET("/site-info", miscController.GetSiteInfo)
-		miscGroupWithoutAuth.GET("/public-config", miscController.GetPublicConfig)
-		miscGroupWithoutAuth.GET("/sitemap-data", miscController.GetSitemapData) // 用于sitemap
-		miscGroupWithoutAuth.GET("/rss-data", miscController.GetRssData)         // 用于rss
-		miscGroupAdmin.PUT("/public-config", miscController.SetPublicConfig)
+		miscGroup.GET("/site-info", miscController.GetSiteInfo)         // 用于前端展示站点信息
+		miscGroup.GET("/public-config", miscController.GetPublicConfig) // 用于公开的键值对
+		miscGroup.GET("/sitemap-data", miscController.GetSitemapData)   // 用于sitemap
+		miscGroup.GET("/rss-data", miscController.GetRssData)           // 用于rss
+
+		miscGroupWithAdmin.PUT("/public-config", miscController.SetPublicConfig)
+		miscGroupWithAdmin.GET("/metrics", miscController.GetMetrics) // 仅管理员可见
 	}
 }
