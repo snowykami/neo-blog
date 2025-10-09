@@ -7,6 +7,7 @@ export type SiteInfo = {
     icon: string;
     description: string;
   };
+  keywords?: string[];
   defaultCover: string | string[];
   owner: {
     name: string;
@@ -39,6 +40,7 @@ export const fallbackSiteInfo: SiteInfo = {
     icon: "https://cdn.liteyuki.org/snowykami/avatar_alpha.png",
     description: "Failed to fetch site info from server.",
   },
+  keywords: ["blog", "neo-blog", "snowykami", "博客", "个人博客", "远野千束"],
   defaultCover: "https://cdn.liteyuki.org/blog/background.png",
   owner: {
     name: "Fail to fetch owner",

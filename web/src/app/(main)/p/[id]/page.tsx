@@ -84,7 +84,7 @@ export default async function PostPage({ params, searchParams }: Props) {
     redirect(getPostUrl({ post, type }));
   }
 
-  const jsonld: WithContext<Article> = {
+  const jsonLd: WithContext<Article> = {
     "@context": "https://schema.org",
     "@type": "Article",
     headline: post.title,
@@ -117,7 +117,7 @@ export default async function PostPage({ params, searchParams }: Props) {
         id="json-ld"
         type="application/ld+json"
         strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld).replace(/</g, '\\u003c') }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
       />
     </div>
   )
