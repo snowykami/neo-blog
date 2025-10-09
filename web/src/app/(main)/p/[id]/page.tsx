@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { BlogPost } from '@/components/blog-post/blog-post'
 import { Metadata } from 'next'
 import { getPostByIdServer } from '@/api/post.server'
-import { getPostUrl } from '@/utils/common/route'
+import { getPostUrl, getUserUrl } from '@/utils/common/route'
 import { notFound } from "next/navigation";
 import { getSiteInfo } from '@/api/misc'
 import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
@@ -90,7 +90,8 @@ export default async function PostPage({ params, searchParams }: Props) {
     headline: post.title,
     author: {
       "@type": "Person",
-      name: formatFullName(post.user)
+      name: formatFullName(post.user),
+      url: siteInfo.baseUrl + "/"  + getUserUrl({ username: post.user.username }),
     },
     image: post.cover || '',
     datePublished: post.createdAt,
