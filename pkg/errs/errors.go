@@ -3,16 +3,13 @@ package errs
 import (
 	"errors"
 	"net/http"
-
-	"github.com/cloudwego/hertz/pkg/common/utils"
 )
 
 // ServiceError 业务错误结构
 type ServiceError struct {
-	Code    int      // 错误代码
-	Message string   // 错误消息
-	Data    *utils.H // 额外数据
-	Err     error    // 原始错误
+	Code    int    // 错误代码
+	Message string // 错误消息
+	Err     error  // 原始错误
 }
 
 func (e *ServiceError) Error() string {
@@ -34,68 +31,60 @@ func (e *ServiceError) Error() string {
 // )
 
 // New 创建自定义错误
-func New(code int, message string, err error, data *utils.H) *ServiceError {
+func New(code int, message string, err error) *ServiceError {
 	return &ServiceError{
 		Code:    code,
 		Message: message,
 		Err:     err,
-		Data:    data,
 	}
 }
 
 func NewUnauthorized(error string) *ServiceError {
 	return &ServiceError{
 		Code:    http.StatusUnauthorized,
-		Message: "unauthorized",
-		Data:    &utils.H{"error": error},
+		Message: error,
 	}
 }
 
 func NewForbidden(error string) *ServiceError {
 	return &ServiceError{
 		Code:    http.StatusForbidden,
-		Message: "forbidden",
-		Data:    &utils.H{"error": error},
+		Message: error,
 	}
 }
 
 func NewNotFound(error string) *ServiceError {
 	return &ServiceError{
 		Code:    http.StatusNotFound,
-		Message: "not_found",
-		Data:    &utils.H{"error": error},
+		Message: error,
 	}
 }
 
 func NewBadRequest(error string) *ServiceError {
 	return &ServiceError{
 		Code:    http.StatusBadRequest,
-		Message: "bad_request",
-		Data:    &utils.H{"error": error},
+		Message: error,
 	}
 }
 
 func NewConflict(error string) *ServiceError {
 	return &ServiceError{
 		Code:    http.StatusConflict,
-		Message: "conflict",
-		Data:    &utils.H{"error": error},
+		Message: error,
 	}
 }
 
 func NewIAmATeapot(error string) *ServiceError {
 	return &ServiceError{
 		Code:    http.StatusTeapot,
-		Message: "i_am_a_teapot",
-		Data:    &utils.H{"error": error},
+		Message: error,
 	}
 }
 
 func NewInternalServer(error string) *ServiceError {
 	return &ServiceError{
 		Code:    http.StatusInternalServerError,
-		Message: "internal_server_error",
-		Data:    &utils.H{"error": error},
+		Message: error,
 	}
 }
 

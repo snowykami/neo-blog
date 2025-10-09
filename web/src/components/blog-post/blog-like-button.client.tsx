@@ -13,13 +13,14 @@ import { useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
+import { getCommonT } from "@/utils/client/translations";
 
 const MAX_LIKED_USERS = 5;
 
 export function BlogLikeButton({
   post
 }: { post: Post }) {
-  const commonT = useTranslations("Common");
+  const commonT = getCommonT();
   const operationT = useTranslations("Operation");
   const clickToUserProfile = useToUserProfile();
   const { user } = useAuth();

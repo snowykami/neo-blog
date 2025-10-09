@@ -36,16 +36,17 @@ import { useSiteInfo } from "@/contexts/site-info-context";
 import { FileModel } from "@/models/file";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useAuth } from "@/contexts/auth-context";
+import { getCommonT } from "@/utils/client/translations";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
 
 export function FileManage() {
   const t = useTranslations("Console.files");
-  const commonT = useTranslations("Common");
+  const commonT = getCommonT();
   const metricsT = useTranslations("Metrics");
   const operationT = useTranslations("Operation");
-  const {user} = useAuth();
+  const { user } = useAuth();
   const { isMobile } = useDevice();
   const [files, setFiles] = useState<FileModel[]>([]);
   const [total, setTotal] = useState(0);

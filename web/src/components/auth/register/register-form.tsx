@@ -24,6 +24,7 @@ import { BaseResponseError } from "@/models/resp"
 import { useAuth } from "@/contexts/auth-context"
 import Link from "next/link"
 import { loginPath } from "@/hooks/use-route"
+import { getCommonT, getOperationT, getResponseErrorDetailsT } from "@/utils/client/translations"
 
 export function RegisterForm({
   className,
@@ -31,8 +32,9 @@ export function RegisterForm({
 }: React.ComponentProps<"div">) {
   const { setUser } = useAuth();
   const t = useTranslations('Register')
-  const commonT = useTranslations('Common')
-  const operationT = useTranslations("Operation")
+  const ResponseErrorDetailsT = getResponseErrorDetailsT();
+  const commonT = getCommonT();
+  const operationT = getOperationT();
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectBack = searchParams.get("redirect_back") || "/"
@@ -85,7 +87,7 @@ export function RegisterForm({
         toast.success(t("send_verify_code_success"))
       })
       .catch((error: BaseResponseError) => {
-        toast.error(`${t("send_verify_code_failed")}: ${error.response.data.message}`)
+        toast.error(`${t("send_verify_code_failed")}: ${ResponseErrorDetailsT(error.response.data.message)}`)
       })
       .finally(() => {
         setSendingVerifyCode(false);
@@ -109,7 +111,7 @@ export function RegisterForm({
         router.push(redirectBack)
       })
       .catch((error: BaseResponseError) => {
-        toast.error(t("register_failed") + (error?.response?.data?.message ? `: ${error.response.data.message}` : ""))
+        toast.error(t("register_failed") + ": " + ResponseErrorDetailsT(error.response.data.message))
         setRefreshCaptchaKey(k => k + 1)
         setCaptchaToken(null)
       })

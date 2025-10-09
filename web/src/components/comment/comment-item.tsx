@@ -21,6 +21,7 @@ import { useSiteInfo } from "@/contexts/site-info-context";
 import { Badge } from "@/components/ui/badge";
 import { formatLocation } from "@/utils/common/location";
 import { isAdmin } from "@/utils/common/permission";
+import { getCommonT } from "@/utils/client/translations";
 
 
 export function CommentItem(
@@ -47,7 +48,7 @@ export function CommentItem(
   const locale = useLocale();
   const t = useTranslations("Comment");
   const roleT = useTranslations("Role");
-  const commonT = useTranslations("Common");
+  const commonT = getCommonT();
   const operationT = useTranslations("Operation");
   const clickToUserProfile = useToUserProfile();
   const clickToLogin = useToLogin();

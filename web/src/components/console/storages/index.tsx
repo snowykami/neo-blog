@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { StorageProviderConfig } from "@/models/file";
+import { getCommonT } from "@/utils/client/translations";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -59,7 +60,7 @@ export function StorageProviderManage() {
 
 function StorageProviderItem({ storage }: { storage: StorageProviderConfig }) {
   const t = useTranslations("Console.storages");
-  const commonT = useTranslations("Common");
+  const commonT = getCommonT();
   return (
     <div>
       <div className="flex w-full items-center gap-3 py-2">

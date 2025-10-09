@@ -32,13 +32,14 @@ import { useAuth } from "@/contexts/auth-context";
 import { BaseResponseError } from "@/models/resp";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getDefaultCoverRandomly } from "@/utils/common/siteinfo";
+import { getCommonT } from "@/utils/client/translations";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
 
 export function PostManage() {
   const t = useTranslations("Console.post_edit");
-  const commonT = useTranslations("Common");
+  const commonT = getCommonT();
   const metricsT = useTranslations("Metrics");
   const { isMobile } = useDevice();
   const { user } = useAuth();

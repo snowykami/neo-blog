@@ -70,7 +70,7 @@ func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, *err
 // UserRegister 注册新用户
 func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterResp, *errs.ServiceError) {
 	if !tools.GetAllowRegister() {
-		return nil, errs.NewForbidden("registration_disabled")
+		return nil, errs.NewForbidden("register_disabled")
 	}
 	if !isValidPassword(req.Password) {
 		return nil, errs.NewBadRequest("invalid_password_format")

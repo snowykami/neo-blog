@@ -20,6 +20,7 @@ import { toast } from "sonner"
 import { CreateOrUpdateCategoryDialogWithButton, CreateOrUpdateLabelDialogWithButton } from "../common/create-label-and-category"
 import { Textarea } from "@/components/ui/textarea"
 import { BaseResponseError } from "@/models/resp"
+import { getCommonT } from "@/utils/client/translations"
 
 interface PostMetaForm {
   title: string
@@ -40,7 +41,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
   open: boolean, onOpenChange: (open: boolean) => void,
 }) {
   const operationT = useTranslations("Operation")
-  const commonT = useTranslations("Common")
+  const commonT = getCommonT();
   const t = useTranslations("Console.post_edit")
   const form = useForm<PostMetaForm>({
     defaultValues: post ? {

@@ -109,7 +109,7 @@ func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
 	if req.Cover != "" {
 		pass := utils2.Url.IsValidUrl(req.Cover)
 		if !pass {
-			resps.BadRequest(c, "bad_request", "invalid_url")
+			resps.BadRequest(c, "invalid_url")
 			return
 		}
 	}
