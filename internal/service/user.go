@@ -325,14 +325,14 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 		}
 		if existingUserOpenID != nil {
 			// 已被绑定则直接登录新用户
-			token, refreshToken, err := utils.Jwt.New2Tokens(currentUser.ID, "", false)
+			token, refreshToken, err := utils.Jwt.New2Tokens(existingUserOpenID.UserID, "", false)
 			if err != nil {
 				return nil, errs.NewInternalServer("failed_to_create_target")
 			}
 			return &dto.OidcLoginResp{
 				Token:        token,
 				RefreshToken: refreshToken,
-				User:         currentUser.ToDto(),
+				User:         existingUserOpenID.User.ToDto(),
 			}, nil
 		}
 		// 绑定当前登录用户和第三方账号
