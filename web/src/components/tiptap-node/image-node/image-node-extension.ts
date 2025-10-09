@@ -1,13 +1,13 @@
-import { ReactNodeViewRenderer } from "@tiptap/react"
-import type { ImageOptions } from "@tiptap/extension-image"
-import { Image as TiptapImage } from "@tiptap/extension-image"
-import { ImageNodeView } from "./image-node-view"
+import type { ImageOptions } from '@tiptap/extension-image'
+import { Image as TiptapImage } from '@tiptap/extension-image'
+import { ReactNodeViewRenderer } from '@tiptap/react'
+import { ImageNodeView } from './image-node-view'
 
 export const Image = TiptapImage.extend<ImageOptions>({
   addAttributes() {
     return {
       ...this.parent?.(),
-      "data-align": {
+      'data-align': {
         default: null,
       },
     }

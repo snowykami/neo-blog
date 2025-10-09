@@ -1,15 +1,17 @@
+import type { MetadataRoute } from 'next'
 import { getSitemapData } from '@/api/misc'
 import { getCategoryUrl, getLabelUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
-import { MetadataRoute } from 'next'
 
 export const revalidate = 0
 
-
 function getChangeFreqAndPriority(lastModified: Date) {
   const ageDays = (Date.now() - lastModified.getTime()) / (1000 * 60 * 60 * 24)
-  if (ageDays < 1) return { changefreq: 'daily' as const, priority: 0.9 }
-  if (ageDays < 30) return { changefreq: 'weekly' as const, priority: 0.8 }
-  if (ageDays < 365) return { changefreq: 'monthly' as const, priority: 0.7 }
+  if (ageDays < 1)
+    return { changefreq: 'daily' as const, priority: 0.9 }
+  if (ageDays < 30)
+    return { changefreq: 'weekly' as const, priority: 0.8 }
+  if (ageDays < 365)
+    return { changefreq: 'monthly' as const, priority: 0.7 }
   return { changefreq: 'yearly' as const, priority: 0.5 }
 }
 
@@ -30,11 +32,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   })
 
   // posts
-  sitemapData?.posts?.forEach(post => {
+  sitemapData?.posts?.forEach((post) => {
     const lastMod = new Date(post.updatedAt || post.createdAt)
     const { changefreq, priority } = getChangeFreqAndPriority(lastMod)
     items.push({
-      url: sitemapData.baseUrl + getPostUrl({post}),
+      url: sitemapData.baseUrl + getPostUrl({ post }),
       lastModified: lastMod,
       changeFrequency: changefreq,
       priority,
@@ -42,7 +44,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   })
 
   // editors
-  sitemapData?.editors?.forEach(editor => {
+  sitemapData?.editors?.forEach((editor) => {
     const lastMod = new Date(editor.updatedAt)
     const { changefreq, priority } = getChangeFreqAndPriority(lastMod)
     items.push({
@@ -54,7 +56,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   })
 
   // categories
-  sitemapData?.categories?.forEach(category => {
+  sitemapData?.categories?.forEach((category) => {
     const lastMod = new Date(category.updatedAt)
     const { changefreq, priority } = getChangeFreqAndPriority(lastMod)
     items.push({
@@ -66,7 +68,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   })
 
   // labels
-  sitemapData?.labels?.forEach(label => {
+  sitemapData?.labels?.forEach((label) => {
     const lastMod = new Date(label.updatedAt)
     const { changefreq, priority } = getChangeFreqAndPriority(lastMod)
     items.push({

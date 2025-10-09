@@ -1,28 +1,28 @@
-"use client"
+'use client'
 
-import * as React from "react"
-
-// --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
+// --- UI Primitives ---
+import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
 // --- Tiptap UI ---
-import type { UseDeleteNodeConfig } from "@/components/tiptap-ui/delete-node-button"
+import type { UseDeleteNodeConfig } from '@/components/tiptap-ui/delete-node-button'
+
+import * as React from 'react'
+
+import { Badge } from '@/components/tiptap-ui-primitive/badge'
+import { Button } from '@/components/tiptap-ui-primitive/button'
+
 import {
   DELETE_NODE_SHORTCUT_KEY,
   useDeleteNode,
-} from "@/components/tiptap-ui/delete-node-button"
-
-// --- UI Primitives ---
-import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button } from "@/components/tiptap-ui-primitive/button"
-import { Badge } from "@/components/tiptap-ui-primitive/badge"
+} from '@/components/tiptap-ui/delete-node-button'
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
+// --- Lib ---
+import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
 export interface DeleteNodeButtonProps
-  extends Omit<ButtonProps, "type">,
-    UseDeleteNodeConfig {
+  extends Omit<ButtonProps, 'type'>,
+  UseDeleteNodeConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -62,11 +62,11 @@ export const DeleteNodeButton = React.forwardRef<
       children,
       ...buttonProps
     },
-    ref
+    ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
-    const { isVisible, handleDeleteNode, label, shortcutKeys, Icon } =
-      useDeleteNode({
+    const { isVisible, handleDeleteNode, label, shortcutKeys, Icon }
+      = useDeleteNode({
         editor,
         hideWhenUnavailable,
         onDeleted,
@@ -75,10 +75,11 @@ export const DeleteNodeButton = React.forwardRef<
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
         onClick?.(event)
-        if (event.defaultPrevented) return
+        if (event.defaultPrevented)
+          return
         handleDeleteNode()
       },
-      [handleDeleteNode, onClick]
+      [handleDeleteNode, onClick],
     )
 
     if (!isVisible) {
@@ -108,7 +109,7 @@ export const DeleteNodeButton = React.forwardRef<
         )}
       </Button>
     )
-  }
+  },
 )
 
-DeleteNodeButton.displayName = "DeleteNodeButton"
+DeleteNodeButton.displayName = 'DeleteNodeButton'

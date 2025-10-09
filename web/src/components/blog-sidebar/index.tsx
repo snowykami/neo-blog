@@ -5,5 +5,5 @@ export default function Sidebar({ cards }: { cards: React.ReactNode[] }) {
         <div key={idx}>{card}</div>
       ))}
     </div>
-  );
+  )
 }

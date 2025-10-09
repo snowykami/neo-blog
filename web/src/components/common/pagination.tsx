@@ -1,3 +1,5 @@
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import {
   Pagination,
   PaginationContent,
@@ -6,10 +8,8 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from "@/components/ui/pagination"
-import { useCallback, useEffect, useMemo, useState, forwardRef, useImperativeHandle, useRef } from "react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Button } from "@/components/ui/button"
+} from '@/components/ui/pagination'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 interface PaginationControllerProps extends React.HTMLAttributes<HTMLDivElement> {
   /** 总条目数（数据项个数，不是页数） */
@@ -37,7 +37,7 @@ export interface PaginationControllerHandle {
   getPage: () => number
 }
 
-export const PaginationController = forwardRef<PaginationControllerHandle, PaginationControllerProps>(function PaginationController({
+export const PaginationController = forwardRef<PaginationControllerHandle, PaginationControllerProps>(({
   total,
   pageSize = 10,
   initialPage = 1,
@@ -48,7 +48,7 @@ export const PaginationController = forwardRef<PaginationControllerHandle, Pagin
   reportAutoAdjust = true,
   className,
   ...rest
-}, ref) {
+}, ref) => {
   // 规范化 maxButtons: 至少5 且为奇数 (便于居中)
   const maxBtns = useMemo(() => {
     const m = Math.max(5, maxButtons || 7)
@@ -64,7 +64,7 @@ export const PaginationController = forwardRef<PaginationControllerHandle, Pagin
   }), [currentPage, totalPages])
   // 越界校正（不直接通知父组件）
   useEffect(() => {
-    setCurrentPage(prev => {
+    setCurrentPage((prev) => {
       const clamped = clampPage(prev, totalPages)
       return clamped === prev ? prev : clamped
     })
@@ -73,23 +73,27 @@ export const PaginationController = forwardRef<PaginationControllerHandle, Pagin
   // 统一向父组件报告变化，避免在 setState 的 updater 中直接调用父级 setState 引发警告
   const lastReportedRef = useRef<number | null>(null)
   useEffect(() => {
-    if (!onPageChange) return
-    if (lastReportedRef.current === currentPage) return
+    if (!onPageChange)
+      return
+    if (lastReportedRef.current === currentPage)
+      return
     // 如果是自动校正且不希望报告，则跳过
-    if (!reportAutoAdjust && lastReportedRef.current !== null && currentPage > totalPages) return
+    if (!reportAutoAdjust && lastReportedRef.current !== null && currentPage > totalPages)
+      return
     lastReportedRef.current = currentPage
     onPageChange(currentPage)
   }, [currentPage, onPageChange, reportAutoAdjust, totalPages])
 
   const handleSetPage = useCallback((p: number) => {
-    if (disabled) return
+    if (disabled)
+      return
     setCurrentPage(() => clampPage(p, totalPages))
   }, [disabled, totalPages])
 
   // 计算要显示的页码集合
   const pages = useMemo(() => {
     if (totalPages <= maxBtns) {
-      return { type: "all" as const, list: range(1, totalPages) }
+      return { type: 'all' as const, list: range(1, totalPages) }
     }
     const windowSize = maxBtns - 4 // 去掉首尾及两个潜在省略号
     let start = currentPage - Math.floor(windowSize / 2)
@@ -102,7 +106,7 @@ export const PaginationController = forwardRef<PaginationControllerHandle, Pagin
       end = totalPages - 2
       start = end - windowSize + 1
     }
-    return { type: "window" as const, list: range(start, end), start, end, windowSize }
+    return { type: 'window' as const, list: range(start, end), start, end, windowSize }
   }, [currentPage, maxBtns, totalPages])
 
   // total=0 的场景: 显示单个不可切换页
@@ -128,9 +132,12 @@ export const PaginationController = forwardRef<PaginationControllerHandle, Pagin
     <PaginationItem key={p}>
       <PaginationLink
         isActive={p === currentPage}
-        aria-current={p === currentPage ? "page" : undefined}
+        aria-current={p === currentPage ? 'page' : undefined}
         aria-label={`Go to page ${p}`}
-        onClick={(e) => { e.preventDefault(); handleSetPage(p) }}
+        onClick={(e) => {
+          e.preventDefault()
+          handleSetPage(p)
+        }}
         tabIndex={disabled ? -1 : 0}
       >
         {p}
@@ -150,32 +157,41 @@ export const PaginationController = forwardRef<PaginationControllerHandle, Pagin
               aria-disabled={prevDisabled}
               aria-label="Previous page"
               tabIndex={prevDisabled ? -1 : 0}
-              onClick={(e) => { if (prevDisabled) return; e.preventDefault(); handleSetPage(currentPage - 1) }}
+              onClick={(e) => {
+                if (prevDisabled)
+                  return
+                e.preventDefault()
+                handleSetPage(currentPage - 1)
+              }}
             />
           </PaginationItem>
 
-          {pages.type === "all" && (
+          {pages.type === 'all' && (
             pages.list.map(renderPage)
           )}
 
-          {pages.type === "window" && (
+          {pages.type === 'window' && (
             <>
               {renderPage(1)}
               {/* 前省略号 */}
-              {pages.start! > 3 ? (
-                <PaginationItem>
-                  <PaginationEllipsis aria-hidden aria-label="Truncated" />
-                </PaginationItem>
-              ) : renderPage(2)}
+              {pages.start! > 3
+                ? (
+                    <PaginationItem>
+                      <PaginationEllipsis aria-hidden aria-label="Truncated" />
+                    </PaginationItem>
+                  )
+                : renderPage(2)}
 
               {pages.list.map(renderPage)}
 
               {/* 后省略号 */}
-              {pages.end! < totalPages - 2 ? (
-                <PaginationItem>
-                  <PaginationEllipsis aria-hidden aria-label="Truncated" />
-                </PaginationItem>
-              ) : renderPage(totalPages - 1)}
+              {pages.end! < totalPages - 2
+                ? (
+                    <PaginationItem>
+                      <PaginationEllipsis aria-hidden aria-label="Truncated" />
+                    </PaginationItem>
+                  )
+                : renderPage(totalPages - 1)}
               {renderPage(totalPages)}
             </>
           )}
@@ -185,7 +201,12 @@ export const PaginationController = forwardRef<PaginationControllerHandle, Pagin
               aria-disabled={nextDisabled}
               aria-label="Next page"
               tabIndex={nextDisabled ? -1 : 0}
-              onClick={(e) => { if (nextDisabled) return; e.preventDefault(); handleSetPage(currentPage + 1) }}
+              onClick={(e) => {
+                if (nextDisabled)
+                  return
+                e.preventDefault()
+                handleSetPage(currentPage + 1)
+              }}
             />
           </PaginationItem>
         </PaginationContent>
@@ -196,7 +217,8 @@ export const PaginationController = forwardRef<PaginationControllerHandle, Pagin
 
 // -------- helpers --------
 function clampPage(p: number, totalPages: number) {
-  if (Number.isNaN(p)) return 1
+  if (Number.isNaN(p))
+    return 1
   return Math.min(Math.max(1, Math.floor(p)), Math.max(1, totalPages))
 }
 
@@ -219,7 +241,7 @@ export function PageSizeSelector({ initialSize, onSizeChange }: { initialSize?: 
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
         <div className="flex flex-col">
-          {sizeList.map((item) => (
+          {sizeList.map(item => (
             <Button
               key={item}
               variant="ghost"

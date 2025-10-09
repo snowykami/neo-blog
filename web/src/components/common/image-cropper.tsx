@@ -1,18 +1,19 @@
-"use client"
-import { Button } from "@/components/ui/button"
+'use client'
+import type { Crop } from 'react-image-crop'
+import { useTranslations } from 'next-intl'
+import Image from 'next/image'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import ReactCrop from 'react-image-crop'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { useOperationT } from "@/hooks/translations"
-import { useTranslations } from "next-intl"
-import Image from "next/image"
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import ReactCrop, { Crop } from 'react-image-crop';
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { useOperationT } from '@/hooks/translations'
 import 'react-image-crop/dist/ReactCrop.css'
 
 export function ImageCropper({
@@ -22,35 +23,35 @@ export function ImageCropper({
   initialAspect = 1.0,
   lockAspect = false,
 }: {
-  image: File | Blob | null;
-  onCropped: (blob: Blob) => void;
-  onCancel?: () => void;
-  initialAspect?: number;
-  lockAspect?: boolean;
+  image: File | Blob | null
+  onCropped: (blob: Blob) => void
+  onCancel?: () => void
+  initialAspect?: number
+  lockAspect?: boolean
 }) {
-  const operationT = useOperationT();
-  const t = useTranslations("Components.image_cropper")
+  const operationT = useOperationT()
+  const t = useTranslations('Components.image_cropper')
   const normalizeAspect = (a: number | undefined) => {
-    const v = typeof a === "number" && isFinite(a) && a > 0 ? a : 1.0;
-    return v;
-  };
+    const v = typeof a === 'number' && Number.isFinite(a) && a > 0 ? a : 1.0
+    return v
+  }
 
   const computeInitialCrop = (aspect: number): Partial<Crop> => {
     // use percent units for initial crop and center it
-    let w = 50;
-    let h = w / aspect;
+    let w = 50
+    let h = w / aspect
 
     if (h > 100) {
-      h = 100;
-      w = Math.min(100, 100 * aspect);
+      h = 100
+      w = Math.min(100, 100 * aspect)
     }
     if (w > 100) {
-      w = 100;
-      h = Math.min(100, w / aspect);
+      w = 100
+      h = Math.min(100, w / aspect)
     }
 
-    const x = Math.max(0, (100 - w) / 2);
-    const y = Math.max(0, (100 - h) / 2);
+    const x = Math.max(0, (100 - w) / 2)
+    const y = Math.max(0, (100 - h) / 2)
 
     return {
       unit: '%',
@@ -58,14 +59,14 @@ export function ImageCropper({
       y,
       width: w,
       height: h,
-    };
-  };
+    }
+  }
 
   const [crop, setCrop] = useState<Partial<Crop>>(() =>
-    computeInitialCrop(normalizeAspect(initialAspect))
-  );
+    computeInitialCrop(normalizeAspect(initialAspect)),
+  )
 
-  const [imageSrc, setImageSrc] = useState<string>("")
+  const [imageSrc, setImageSrc] = useState<string>('')
   const [open, setOpen] = useState<boolean>(false)
   const imgRef = useRef<HTMLImageElement | null>(null)
   const objectUrlRef = useRef<string | null>(null)
@@ -78,11 +79,11 @@ export function ImageCropper({
     }
 
     if (!image) {
-      setImageSrc("")
+      setImageSrc('')
       return
     }
 
-    if (typeof image === "string") {
+    if (typeof image === 'string') {
       setImageSrc(image)
       return
     }
@@ -91,9 +92,10 @@ export function ImageCropper({
       const url = URL.createObjectURL(image as Blob)
       objectUrlRef.current = url
       setImageSrc(url)
-    } catch (err) {
-      console.error("createObjectURL failed", err)
-      setImageSrc("")
+    }
+    catch (err) {
+      console.error('createObjectURL failed', err)
+      setImageSrc('')
     }
 
     return () => {
@@ -125,7 +127,8 @@ export function ImageCropper({
         const y = Math.max(0, (100 - height) / 2)
         return { ...(c ?? {}), unit: '%', width: w, height, x, y }
       })
-    } else {
+    }
+    else {
       // when unlocking, keep current crop as-is; no change required
     }
     // only respond to changes of initialAspect or lockAspect
@@ -137,7 +140,8 @@ export function ImageCropper({
 
   const getCroppedBlob = useCallback(async (): Promise<Blob | null> => {
     const img = imgRef.current
-    if (!img || !crop) return null
+    if (!img || !crop)
+      return null
 
     // 计算渲染像素上的裁剪区域（支持 '%' 或 'px'）
     const unitIsPercent = (crop.unit ?? '%') === '%'
@@ -161,12 +165,13 @@ export function ImageCropper({
     canvas.width = sw
     canvas.height = sh
     const ctx = canvas.getContext('2d')
-    if (!ctx) return null
+    if (!ctx)
+      return null
     ctx.clearRect(0, 0, sw, sh)
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh)
 
     return await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((b) => resolve(b), 'image/png', 0.95)
+      canvas.toBlob(b => resolve(b), 'image/png', 0.95)
     })
   }, [crop])
 
@@ -175,50 +180,56 @@ export function ImageCropper({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => {
-      setOpen(isOpen)
-      if (!isOpen && onCancel) onCancel()
-    }}>
-      <div onSubmit={(e) => e.preventDefault()}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen)
+        if (!isOpen && onCancel)
+          onCancel()
+      }}
+    >
+      <div onSubmit={e => e.preventDefault()}>
         <DialogTrigger asChild>
           <Button
             variant="outline"
             disabled={!image}
-            className={!image ? "opacity-50 cursor-not-allowed" : ""}
+            className={!image ? 'opacity-50 cursor-not-allowed' : ''}
           >
-            {operationT("edit")}
+            {operationT('edit')}
           </Button>
         </DialogTrigger>
 
         {image && (
           <DialogContent className="sm:max-w-[425px]">
-            <DialogTitle className="text-lg font-medium mb-2">{t("crop_image")}</DialogTitle>
+            <DialogTitle className="text-lg font-medium mb-2">{t('crop_image')}</DialogTitle>
             <div className="w-full h-[360px] bg-gray-100 flex items-center justify-center overflow-auto">
-              {imageSrc ? (
-                <ReactCrop
-                  crop={crop as Crop}
-                  onChange={(c) => setCrop(c)}
-                  // 根据 lockAspect 决定是否锁定宽高比
-                  aspect={lockAspect ? normalizeAspect(initialAspect) : undefined}
-                >
-                  {/* 必须用原生 img 元素 */}
-                  <Image
-                    src={imageSrc}
-                    alt="source"
-                    onLoad={onImageLoad}
-                    width={640}
-                    height={640}
-                    style={{ maxWidth: '100%', maxHeight: '60vh', display: 'block' }}
-                  />
-                </ReactCrop>
-              ) : (
-                <div className="text-sm text-muted-foreground">{t("no_image_to_crop")}</div>
-              )}
+              {imageSrc
+                ? (
+                    <ReactCrop
+                      crop={crop as Crop}
+                      onChange={c => setCrop(c)}
+                      // 根据 lockAspect 决定是否锁定宽高比
+                      aspect={lockAspect ? normalizeAspect(initialAspect) : undefined}
+                    >
+                      {/* 必须用原生 img 元素 */}
+                      <Image
+                        src={imageSrc}
+                        alt="source"
+                        onLoad={onImageLoad}
+                        width={640}
+                        height={640}
+                        style={{ maxWidth: '100%', maxHeight: '60vh', display: 'block' }}
+                      />
+                    </ReactCrop>
+                  )
+                : (
+                    <div className="text-sm text-muted-foreground">{t('no_image_to_crop')}</div>
+                  )}
             </div>
 
             <div className="flex items-center gap-4 mt-4">
               <div className="flex-1">
-                <Label>{operationT("preview")}</Label>
+                <Label>{operationT('preview')}</Label>
                 <div className="w-32 h-32 border bg-white overflow-hidden">
                   {/* 临时预览：把裁剪结果画到 canvas 并显示 */}
                   <PreviewCanvas crop={crop} imgRef={imgRef} />
@@ -227,7 +238,7 @@ export function ImageCropper({
             </div>
 
             <DialogFooter className="mt-4">
-              <Button variant="outline" type="button" onClick={handleClose}>{operationT("cancel")}</Button>
+              <Button variant="outline" type="button" onClick={handleClose}>{operationT('cancel')}</Button>
               <Button
                 type="button"
                 onClick={async () => {
@@ -263,7 +274,8 @@ function PreviewCanvas({
   useEffect(() => {
     const img = imgRef.current
     const canvas = canvasRef.current
-    if (!img || !canvas || !crop) return
+    if (!img || !canvas || !crop)
+      return
 
     const unitIsPercent = (crop.unit ?? '%') === '%'
     const renderWidth = img.width
@@ -313,7 +325,8 @@ function PreviewCanvas({
     canvas.style.height = `${outH}px`
 
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx)
+      return
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0) // scale drawing operations
     ctx.clearRect(0, 0, outW, outH)
     // draw the selected natural-pixel region into the output size

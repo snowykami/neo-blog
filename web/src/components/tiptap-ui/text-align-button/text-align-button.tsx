@@ -1,34 +1,34 @@
-"use client"
+'use client'
 
-import * as React from "react"
-
-// --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
+// --- UI Primitives ---
+import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
 // --- Tiptap UI ---
 import type {
   TextAlign,
   UseTextAlignConfig,
-} from "@/components/tiptap-ui/text-align-button"
+} from '@/components/tiptap-ui/text-align-button'
+
+import * as React from 'react'
+
+import { Badge } from '@/components/tiptap-ui-primitive/badge'
+import { Button } from '@/components/tiptap-ui-primitive/button'
+
 import {
   TEXT_ALIGN_SHORTCUT_KEYS,
   useTextAlign,
-} from "@/components/tiptap-ui/text-align-button"
-
-// --- UI Primitives ---
-import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button } from "@/components/tiptap-ui-primitive/button"
-import { Badge } from "@/components/tiptap-ui-primitive/badge"
+} from '@/components/tiptap-ui/text-align-button'
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
+// --- Lib ---
+import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
 type IconProps = React.SVGProps<SVGSVGElement>
 type IconComponent = ({ className, ...props }: IconProps) => React.ReactElement
 
 export interface TextAlignButtonProps
-  extends Omit<ButtonProps, "type">,
-    UseTextAlignConfig {
+  extends Omit<ButtonProps, 'type'>,
+  UseTextAlignConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -76,7 +76,7 @@ export const TextAlignButton = React.forwardRef<
       children,
       ...buttonProps
     },
-    ref
+    ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
     const {
@@ -97,10 +97,11 @@ export const TextAlignButton = React.forwardRef<
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
         onClick?.(event)
-        if (event.defaultPrevented) return
+        if (event.defaultPrevented)
+          return
         handleTextAlign()
       },
-      [handleTextAlign, onClick]
+      [handleTextAlign, onClick],
     )
 
     if (!isVisible) {
@@ -114,7 +115,7 @@ export const TextAlignButton = React.forwardRef<
         type="button"
         disabled={!canAlign}
         data-style="ghost"
-        data-active-state={isActive ? "on" : "off"}
+        data-active-state={isActive ? 'on' : 'off'}
         data-disabled={!canAlign}
         role="button"
         tabIndex={-1}
@@ -139,7 +140,7 @@ export const TextAlignButton = React.forwardRef<
         )}
       </Button>
     )
-  }
+  },
 )
 
-TextAlignButton.displayName = "TextAlignButton"
+TextAlignButton.displayName = 'TextAlignButton'

@@ -1,25 +1,26 @@
-"use client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Heart, TrendingUp, Eye } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import type { Label } from "@/models/label";
-import type { Post } from "@/models/post";
-import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
-import Link from "next/link";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getGravatarUrl } from "@/utils/common/gravatar";
-import { getFallbackAvatarFromUsername } from "@/utils/common/username";
-import { useSiteInfo } from "@/contexts/site-info-context";
-import { getLabelUrl, getPostUrl } from "@/utils/common/route";
-import { getLabels } from "@/api/label";
-import { useRouter } from "next/navigation";
+'use client'
+import type { Label } from '@/models/label'
+import type { Post } from '@/models/post'
+import { Eye, Heart, TrendingUp } from 'lucide-react'
+import { useTranslations } from 'next-intl'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { getLabels } from '@/api/label'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useSiteInfo } from '@/contexts/site-info-context'
+import { getGravatarUrl } from '@/utils/common/gravatar'
+import { getLabelUrl, getPostUrl } from '@/utils/common/route'
+import { getFallbackAvatarFromUsername } from '@/utils/common/username'
 
 // 侧边栏父组件，接收卡片组件列表
 // 关于我卡片
 export function SidebarAbout() {
-  const { siteInfo } = useSiteInfo();
-  if (!siteInfo) return null;
+  const { siteInfo } = useSiteInfo()
+  if (!siteInfo)
+    return null
   return (
     <Card
       className="relative overflow-hidden text-white"
@@ -27,9 +28,9 @@ export function SidebarAbout() {
       <div
         className="absolute inset-0 bg-cover bg-center blur-sm"
         style={{
-          backgroundImage: "url(https://cdn.liteyuki.org/snowykami/dark_2.png)",
-          filter: "blur(4px)",
-          transform: "scale(1.1)" // 避免模糊边缘
+          backgroundImage: 'url(https://cdn.liteyuki.org/snowykami/dark_2.png)',
+          filter: 'blur(4px)',
+          transform: 'scale(1.1)', // 避免模糊边缘
         }}
       />
       <div className="absolute inset-0 bg-white/0 dark:bg-gray-900/20" />
@@ -44,17 +45,17 @@ export function SidebarAbout() {
           <div className="text-center mb-4">
             <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
               <Avatar className="h-full w-full rounded-full border-2">
-                <AvatarImage src={getGravatarUrl({ email: siteInfo?.owner?.gravatarEmail || "snowykami@outlook.com", size: 256 })} alt={siteInfo?.owner?.name} />
-                <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(siteInfo?.owner?.name || "Failed")}</AvatarFallback>
+                <AvatarImage src={getGravatarUrl({ email: siteInfo?.owner?.gravatarEmail || 'snowykami@outlook.com', size: 256 })} alt={siteInfo?.owner?.name} />
+                <AvatarFallback className="rounded-full">{getFallbackAvatarFromUsername(siteInfo?.owner?.name || 'Failed')}</AvatarFallback>
               </Avatar>
             </div>
-            <h3 className="font-semibold text-lg py-4">{siteInfo?.owner?.name || "Failed H3"}</h3>
-            <p className="text-sm text-white-600">{siteInfo?.owner?.description || "Failed Motto"}</p>
+            <h3 className="font-semibold text-lg py-4">{siteInfo?.owner?.name || 'Failed H3'}</h3>
+            <p className="text-sm text-white-600">{siteInfo?.owner?.description || 'Failed Motto'}</p>
           </div>
         </CardContent>
       </div>
     </Card>
-  );
+  )
 }
 
 // 热门文章卡片
@@ -69,7 +70,7 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
       </CardHeader>
       <CardContent className="space-y-4">
         {posts.slice(0, 3).map((post, index) => (
-          <Link href={getPostUrl({post})} key={post.id} className="block hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-1 transition-colors">
+          <Link href={getPostUrl({ post })} key={post.id} className="block hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg p-1 transition-colors">
             <div className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold">
                 {index + 1}
@@ -95,32 +96,33 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
         ))}
       </CardContent>
     </Card>
-  );
+  )
 }
 
 // 标签云卡片
 export function SidebarLabels({ label = null, setLabel }: { label?: string | null, setLabel?: (label: string | null) => void }) {
-  const t = useTranslations();
-  const [labels, setLabels] = useState<Label[]>([]);
-  const router = useRouter();
+  const t = useTranslations()
+  const [labels, setLabels] = useState<Label[]>([])
+  const router = useRouter()
   useEffect(() => {
-    getLabels().then(res => {
-      setLabels(res.data.labels || []);
+    getLabels().then((res) => {
+      setLabels(res.data.labels || [])
     })
-  }, []);
+  }, [])
 
   const onClickLabel = (l: Label) => {
     if (setLabel) {
-      setLabel(label === l.slug ? null : l.slug);
-    } else {
-      router.push(getLabelUrl(l));
+      setLabel(label === l.slug ? null : l.slug)
     }
-  };
+    else {
+      router.push(getLabelUrl(l))
+    }
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("Common.labels_cloud")}</CardTitle>
+        <CardTitle>{t('Common.labels_cloud')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-2">
@@ -129,34 +131,33 @@ export function SidebarLabels({ label = null, setLabel }: { label?: string | nul
               <Badge
                 variant="outline"
                 onClick={() => onClickLabel(l)}
-                className={`text-xs hover:bg-blue-50 cursor-pointer ${label === l.slug ? " bg-blue-100 text-blue-700 hover:bg-blue-200" : ""}`}
+                className={`text-xs hover:bg-blue-50 cursor-pointer ${label === l.slug ? ' bg-blue-100 text-blue-700 hover:bg-blue-200' : ''}`}
               >
                 {l.name}
               </Badge>
               <span className="absolute -top-1.5 -right-1.5 bg-primary/70 text-[10px] rounded-full w-4.5 h-4.5 flex items-center justify-center pointer-events-none">
-                {l.postCount > 0 ? (l.postCount > 99 ? "99+" : l.postCount) : 0}
+                {l.postCount > 0 ? (l.postCount > 99 ? '99+' : l.postCount) : 0}
               </span>
             </div>
           ))}
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
 
-
-export function SidebarIframe(props?: { src?: string; scriptSrc?: string; title?: string; height?: string }) {
+export function SidebarIframe(props?: { src?: string, scriptSrc?: string, title?: string, height?: string }) {
   const {
-    src = "",
-    scriptSrc = "",
-    title = "External Content",
-    height = "400px",
-  } = props || {};
-  const t = useTranslations('HomePage');
+    src = '',
+    scriptSrc = '',
+    title = 'External Content',
+    height = '400px',
+  } = props || {}
+  const t = useTranslations('HomePage')
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("title")}</CardTitle>
+        <CardTitle>{t('title')}</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <iframe
@@ -172,19 +173,20 @@ export function SidebarIframe(props?: { src?: string; scriptSrc?: string; title?
             async
             defer
             className="w-full"
-          ></script>
+          >
+          </script>
         )}
       </CardContent>
     </Card>
-  );
+  )
 }
 
 // 只在客户端渲染 iframe，避免 hydration 报错
 export function SidebarMisskeyIframe() {
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(false)
   useEffect(() => {
-    setShow(true);
-  }, []);
+    setShow(true)
+  }, [])
   return (
     <Card>
       <CardHeader>
@@ -199,17 +201,18 @@ export function SidebarMisskeyIframe() {
               loading="lazy"
               referrerPolicy="strict-origin-when-cross-origin"
               style={{
-                border: "none",
-                width: "100%",
-                maxWidth: "500px",
-                height: "300px",
-                colorScheme: "light dark"
+                border: 'none',
+                width: '100%',
+                maxWidth: '500px',
+                height: '300px',
+                colorScheme: 'light dark',
               }}
-            ></iframe>
+            >
+            </iframe>
             <script defer src="https://lab.liteyuki.org/embed.js"></script>
           </>
         )}
       </CardContent>
     </Card>
-  );
+  )
 }

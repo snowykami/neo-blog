@@ -1,33 +1,31 @@
-"use client"
+'use client'
 
-import { getRandomPost } from "@/api/post"
-import { useSiteInfo } from "@/contexts/site-info-context"
-import { Post } from "@/models/post"
-import { getPostUrl } from "@/utils/common/route"
-import { getDefaultCoverRandomly } from "@/utils/common/siteinfo"
-import { useTranslations } from "next-intl"
-import Image from "next/image"
-import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
-import { toast } from "sonner"
+import type { Post } from '@/models/post'
+import { useTranslations } from 'next-intl'
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { getRandomPost } from '@/api/post'
+import { useSiteInfo } from '@/contexts/site-info-context'
+import { getPostUrl } from '@/utils/common/route'
+import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 
 export default function RandomPostPage() {
-
   const t = useTranslations('Random')
   const router = useRouter()
   const [post, setPost] = useState<Post | null>(null)
   useEffect(() => {
-    getRandomPost().then(res => {
+    getRandomPost().then((res) => {
       setPost(res.data)
       // 等待 300 ms 再跳转，避免闪烁
       setTimeout(() => {
-        router.push(getPostUrl({post: res.data}))
+        router.push(getPostUrl({ post: res.data }))
       }, 300)
-    }).catch(err => {
+    }).catch((err) => {
       toast.error(err.message || 'Failed to get random post')
     })
   }, [])
-
 
   return (
     <div
@@ -60,20 +58,24 @@ export default function RandomPostPage() {
           </svg>
 
           {/* Text */}
-          {!post && <div className="text-center">
-            <p className="text-lg font-medium text-gray-900 dark:text-white">
-              {t("jumping_to_post")}
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {t("selecting_post")}
-            </p>
-          </div>}
+          {!post && (
+            <div className="text-center">
+              <p className="text-lg font-medium text-gray-900 dark:text-white">
+                {t('jumping_to_post')}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {t('selecting_post')}
+              </p>
+            </div>
+          )}
 
-          {post && <div className="text-center">
-            <p className="text-lg font-medium text-gray-900 dark:text-white">
-              {t("coming_soon")}
-            </p>
-          </div>}
+          {post && (
+            <div className="text-center">
+              <p className="text-lg font-medium text-gray-900 dark:text-white">
+                {t('coming_soon')}
+              </p>
+            </div>
+          )}
 
           {/* Skeleton preview */}
           {!post && <RandomPostPreviewSkeleton />}
@@ -83,7 +85,6 @@ export default function RandomPostPage() {
     </div>
   )
 }
-
 
 function RandomPostPreview({ post }: { post: Post }) {
   const { siteInfo } = useSiteInfo()

@@ -1,15 +1,15 @@
-import { getSiteInfo } from "@/api/misc";
-import BlogHome from "@/components/blog-home/blog-home";
-import { fallbackSiteInfo } from "@/utils/common/siteinfo";
-import { Metadata } from "next";
-import { getLocale, getTranslations } from 'next-intl/server';
-import Script from "next/script";
-import { WebSite, WithContext } from 'schema-dts';
+import type { Metadata } from 'next'
+import type { WebSite, WithContext } from 'schema-dts'
+import { getLocale, getTranslations } from 'next-intl/server'
+import Script from 'next/script'
+import { getSiteInfo } from '@/api/misc'
+import BlogHome from '@/components/blog-home/blog-home'
+import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
 export async function generateMetadata(): Promise<Metadata> {
-  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
-  const routeT = await getTranslations('Route');
-  const locale = await getLocale() || 'zh-CN';
+  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo)
+  const routeT = await getTranslations('Route')
+  const locale = await getLocale() || 'zh-CN'
   return {
     title: routeT('homepage'),
     description: siteInfo.metadata.description,
@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
     ],
     keywords: siteInfo.keywords,
     openGraph: {
-      title: routeT('homepage') + " - " + siteInfo.metadata.name,
+      title: `${routeT('homepage')} - ${siteInfo.metadata.name}`,
       description: siteInfo.metadata.description,
       url: siteInfo?.baseUrl || '',
       siteName: siteInfo?.metadata.name || 'Site Name',
@@ -29,14 +29,14 @@ export async function generateMetadata(): Promise<Metadata> {
           width: 800,
           height: 600,
           alt: siteInfo?.metadata.name || 'Site Name',
-        }
+        },
       ],
-      locale: locale,
+      locale,
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
-      title: routeT('homepage') + " - " + siteInfo.metadata.name,
+      title: `${routeT('homepage')} - ${siteInfo.metadata.name}`,
       description: siteInfo.metadata.description,
       images: [siteInfo.metadata.icon || ''],
     },
@@ -47,26 +47,26 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Page() {
-  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo);
+  const siteInfo = await getSiteInfo().then(res => res.data).catch(() => fallbackSiteInfo)
   const jsonLd: WithContext<WebSite> = {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: siteInfo.metadata.name,
-    url: siteInfo.baseUrl,
-    description: siteInfo.metadata.description,
-    publisher: {
-      "@type": "Organization",
-      name: siteInfo.metadata.name,
-      logo: {
-        "@type": "ImageObject",
-        url: siteInfo.metadata.icon
-      }
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    'name': siteInfo.metadata.name,
+    'url': siteInfo.baseUrl,
+    'description': siteInfo.metadata.description,
+    'publisher': {
+      '@type': 'Organization',
+      'name': siteInfo.metadata.name,
+      'logo': {
+        '@type': 'ImageObject',
+        'url': siteInfo.metadata.icon,
+      },
     },
-    potentialAction: {
-      "@type": "SearchAction",
-      target: `${siteInfo.baseUrl}/?keywords={search_term_string}`,
-      query: "required name=search_term_string"
-    }
+    'potentialAction': {
+      '@type': 'SearchAction',
+      'target': `${siteInfo.baseUrl}/?keywords={search_term_string}`,
+      'query': 'required name=search_term_string',
+    },
   }
   return (
     <>
@@ -78,5 +78,5 @@ export default async function Page() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
       />
     </>
-  );
+  )
 }

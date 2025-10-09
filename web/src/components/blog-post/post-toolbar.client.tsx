@@ -1,28 +1,28 @@
-"use client"
+'use client'
 
-import React from "react";
-import { Edit, Eye } from "lucide-react";
-import { useAuth } from "@/contexts/auth-context";
-import { useNav } from "@/contexts/nav-context";
-import { Post } from "@/models/post";
-import { useRouter } from "next/navigation";
-import { getPostEditUrl } from "@/utils/common/route";
+import type { Post } from '@/models/post'
+import { Edit, Eye } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import React from 'react'
+import { useAuth } from '@/contexts/auth-context'
+import { useNav } from '@/contexts/nav-context'
+import { getPostEditUrl } from '@/utils/common/route'
 
-export function PostToolbar({ post, onPreviewChange }: { post: Post; onPreviewChange: (v: boolean) => void }) {
-  const { user } = useAuth();
-  const router = useRouter();
-  const { setSolidNav, setNavStyle, navClassName } = useNav();
-  const [prevNavClassName, setPrevNavClassName] = React.useState<string>("");
+export function PostToolbar({ post, onPreviewChange }: { post: Post, onPreviewChange: (v: boolean) => void }) {
+  const { user } = useAuth()
+  const router = useRouter()
+  const { setSolidNav, setNavStyle, navClassName } = useNav()
+  const [prevNavClassName, setPrevNavClassName] = React.useState<string>('')
 
   const handlePreviewDown = () => {
-    setPrevNavClassName(navClassName);
-    setSolidNav();
-    onPreviewChange(true);
-  };
+    setPrevNavClassName(navClassName)
+    setSolidNav()
+    onPreviewChange(true)
+  }
   const handlePreviewUp = () => {
-    setNavStyle(prevNavClassName);
-    onPreviewChange(false);
-  };
+    setNavStyle(prevNavClassName)
+    onPreviewChange(false)
+  }
 
   return (
     <div className="absolute inset-x-0 flex items-center justify-between px-4 md:px-10" style={{ top: '-2.5rem' }}>
@@ -52,7 +52,7 @@ export function PostToolbar({ post, onPreviewChange }: { post: Post; onPreviewCh
         </button>
       </div>
     </div>
-  );
+  )
 }
 
-export default PostToolbar;
+export default PostToolbar

@@ -1,25 +1,25 @@
-"use client"
-
-import * as React from "react"
-
-// --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
+'use client'
 
 // --- UI Primitives ---
-import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button } from "@/components/tiptap-ui-primitive/button"
-import { Badge } from "@/components/tiptap-ui-primitive/badge"
+import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
 // --- Tiptap UI ---
-import type { ListType, UseListConfig } from "@/components/tiptap-ui/list-button"
-import { LIST_SHORTCUT_KEYS, useList } from "@/components/tiptap-ui/list-button"
+import type { ListType, UseListConfig } from '@/components/tiptap-ui/list-button'
+
+import * as React from 'react'
+
+import { Badge } from '@/components/tiptap-ui-primitive/badge'
+import { Button } from '@/components/tiptap-ui-primitive/button'
+import { LIST_SHORTCUT_KEYS, useList } from '@/components/tiptap-ui/list-button'
+
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
+// --- Lib ---
+import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
 export interface ListButtonProps
-  extends Omit<ButtonProps, "type">,
-    UseListConfig {
+  extends Omit<ButtonProps, 'type'>,
+  UseListConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -59,7 +59,7 @@ export const ListButton = React.forwardRef<HTMLButtonElement, ListButtonProps>(
       children,
       ...buttonProps
     },
-    ref
+    ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
     const {
@@ -80,10 +80,11 @@ export const ListButton = React.forwardRef<HTMLButtonElement, ListButtonProps>(
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
         onClick?.(event)
-        if (event.defaultPrevented) return
+        if (event.defaultPrevented)
+          return
         handleToggle()
       },
-      [handleToggle, onClick]
+      [handleToggle, onClick],
     )
 
     if (!isVisible) {
@@ -94,7 +95,7 @@ export const ListButton = React.forwardRef<HTMLButtonElement, ListButtonProps>(
       <Button
         type="button"
         data-style="ghost"
-        data-active-state={isActive ? "on" : "off"}
+        data-active-state={isActive ? 'on' : 'off'}
         role="button"
         tabIndex={-1}
         disabled={!canToggle}
@@ -117,7 +118,7 @@ export const ListButton = React.forwardRef<HTMLButtonElement, ListButtonProps>(
         )}
       </Button>
     )
-  }
+  },
 )
 
-ListButton.displayName = "ListButton"
+ListButton.displayName = 'ListButton'

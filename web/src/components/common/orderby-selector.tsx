@@ -1,8 +1,8 @@
-import { OrderBy } from "@/models/common"
-import { useState } from "react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Button } from "@/components/ui/button"
-import { useTranslations } from "next-intl"
+import { useTranslations } from 'next-intl'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { OrderBy } from '@/models/common'
 
 interface Order {
   orderBy: OrderBy
@@ -10,7 +10,7 @@ interface Order {
 }
 
 export function OrderSelector({ initialOrder, onOrderChange, orderBys }: { initialOrder: Order, orderBys?: OrderBy[], onOrderChange: (order: Order) => void }) {
-  const orderT = useTranslations("Order")
+  const orderT = useTranslations('Order')
   const [open, setOpen] = useState(false)
   const [order, setOrder] = useState<Order>(initialOrder)
 
@@ -20,25 +20,31 @@ export function OrderSelector({ initialOrder, onOrderChange, orderBys }: { initi
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
-          <div className="text-sm font-bold hidden md:block">{orderT("order")}</div> {orderT(order.orderBy)} {order.desc ? "↓" : "↑"}
+          <div className="text-sm font-bold hidden md:block">{orderT('order')}</div>
+          {' '}
+          {orderT(order.orderBy)}
+          {' '}
+          {order.desc ? '↓' : '↑'}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="end" side="bottom" sideOffset={8}>
         <div className="flex flex-col">
-          {orderBys.map((ob) => (
-            [true, false].map((desc) => (
+          {orderBys.map(ob => (
+            [true, false].map(desc => (
               <Button
                 key={`${ob}-${desc}`}
                 variant="ghost"
                 size="sm"
-                className={`justify-start ${order.orderBy === ob && order.desc === desc ? "bg-accent" : ""}`}
+                className={`justify-start ${order.orderBy === ob && order.desc === desc ? 'bg-accent' : ''}`}
                 onClick={() => {
                   onOrderChange({ orderBy: ob, desc })
                   setOrder({ orderBy: ob, desc })
                   setOpen(false)
                 }}
               >
-                {orderT(ob)} {desc ? "↓" : "↑"}
+                {orderT(ob)}
+                {' '}
+                {desc ? '↓' : '↑'}
               </Button>
             ))
           ))}

@@ -1,27 +1,25 @@
-"use client"
+'use client'
 
-import { useMemo, useState } from "react";
-import type { Post } from "@/models/post";
-import Link from "next/link";
-import { getLabelUrl } from "@/utils/common/route";
-import { contentAreaMaxWidthClass, contentAreaPaddingClass } from "@/utils/common/layout-size";
-import PostToolbar from "./post-toolbar.client";
-import { WaveEffects } from "./wave-effect";
-import { useSiteInfo } from "@/contexts/site-info-context";
-import { getDefaultCoverRandomly } from "@/utils/common/siteinfo";
+import type { Post } from '@/models/post'
+import Link from 'next/link'
+import { useState } from 'react'
+import { contentAreaMaxWidthClass, contentAreaPaddingClass } from '@/utils/common/layout-size'
+import { getLabelUrl } from '@/utils/common/route'
+import PostToolbar from './post-toolbar.client'
+import { WaveEffects } from './wave-effect'
 
 export function PostHeaderClient({
   post,
-  children
+  children,
 }: {
-  post: Post,
+  post: Post
   children: React.ReactNode
 }) {
-  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false)
 
   return (
     // 允许子元素超出（眼睛按钮不会被裁切）
-    <div className={`relative pt-30 pb-36 md:pt-36 md:pb-48 overflow-visible transition-none`} style={{ width: '100vw', marginLeft: '50%', transform: 'translateX(-50%)' }}>
+    <div className="relative pt-30 pb-36 md:pt-36 md:pb-48 overflow-visible transition-none" style={{ width: '100vw', marginLeft: '50%', transform: 'translateX(-50%)' }}>
       {/* 背景图片层 */}
       <div
         className="absolute inset-0"
@@ -82,5 +80,5 @@ export function PostHeaderClient({
       {/* 波浪层 */}
       <WaveEffects />
     </div>
-  );
+  )
 }

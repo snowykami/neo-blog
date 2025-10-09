@@ -1,9 +1,9 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import type { Editor } from "@tiptap/react"
-import { useWindowSize } from "@/hooks/use-window-size"
-import { useBodyRect } from "./use-element-rect"
+import type { Editor } from '@tiptap/react'
+import * as React from 'react'
+import { useWindowSize } from '@/hooks/use-window-size'
+import { useBodyRect } from './use-element-rect'
 
 export interface CursorVisibilityOptions {
   /**
@@ -37,10 +37,12 @@ export function useCursorVisibility({
 
   React.useEffect(() => {
     const ensureCursorVisibility = () => {
-      if (!editor) return
+      if (!editor)
+        return
 
       const { state, view } = editor
-      if (!view.hasFocus()) return
+      if (!view.hasFocus())
+        return
 
       // Get current cursor position coordinates
       const { from } = state.selection
@@ -58,7 +60,7 @@ export function useCursorVisibility({
 
           window.scrollTo({
             top: Math.max(0, newScrollY),
-            behavior: "smooth",
+            behavior: 'smooth',
           })
         }
       }

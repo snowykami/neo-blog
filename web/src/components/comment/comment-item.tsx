@@ -1,28 +1,27 @@
-import { useToLogin, useToUserProfile } from "@/hooks/use-route";
-import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
-import { toast } from "sonner";
-import { Reply, Heart, Lock, Ellipsis } from "lucide-react";
-import { Comment } from "@/models/comment";
-import { TargetType } from "@/models/types";
-import { toggleLike } from "@/api/like";
-import { useDoubleConfirm } from "@/hooks/use-double-confirm";
-import { CommentInput } from "./comment-input";
-import { createComment, deleteComment, getComment, listComments, updateComment } from "@/api/comment";
-import { OrderBy } from "@/models/common";
-import { formatDateTime } from "@/utils/common/datetime";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
-import { getFirstCharFromUser } from "@/utils/common/username";
-import { useAuth } from "@/contexts/auth-context";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { useSiteInfo } from "@/contexts/site-info-context";
-import { Badge } from "@/components/ui/badge";
-import { formatLocation } from "@/utils/common/location";
-import { isAdmin } from "@/utils/common/permission";
-import { useCommonT, useOperationT } from "@/hooks/translations";
-
+import type { Comment } from '@/models/comment'
+import { Ellipsis, Heart, Lock, Reply } from 'lucide-react'
+import { useLocale, useTranslations } from 'next-intl'
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { createComment, deleteComment, getComment, listComments, updateComment } from '@/api/comment'
+import { toggleLike } from '@/api/like'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useAuth } from '@/contexts/auth-context'
+import { useSiteInfo } from '@/contexts/site-info-context'
+import { useCommonT, useOperationT } from '@/hooks/translations'
+import { useDoubleConfirm } from '@/hooks/use-double-confirm'
+import { useToLogin, useToUserProfile } from '@/hooks/use-route'
+import { OrderBy } from '@/models/common'
+import { TargetType } from '@/models/types'
+import { formatDateTime } from '@/utils/common/datetime'
+import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
+import { formatLocation } from '@/utils/common/location'
+import { isAdmin } from '@/utils/common/permission'
+import { getFirstCharFromUser } from '@/utils/common/username'
+import { CommentInput } from './comment-input'
 
 export function CommentItem(
   {
@@ -32,67 +31,67 @@ export function CommentItem(
     onCommentDelete,
     activeInput,
     setActiveInputId,
-    onReplySubmitted  // 评论区计数更新用
+    onReplySubmitted, // 评论区计数更新用
   }: {
-    comment: Comment,
-    ownerId?: number, // 不是评论的作者ID，而是文章的作者ID
-    parentComment: Comment | null,
-    onCommentDelete: ({ commentId }: { commentId: number }) => void,
-    activeInput: { id: number; type: 'reply' | 'edit' } | null,
-    setActiveInputId: (input: { id: number; type: 'reply' | 'edit' } | null) => void,
-    onReplySubmitted: ({ commentContent, isPrivate }: { commentContent: string, isPrivate: boolean }) => void,
-  }
+    comment: Comment
+    ownerId?: number // 不是评论的作者ID，而是文章的作者ID
+    parentComment: Comment | null
+    onCommentDelete: ({ commentId }: { commentId: number }) => void
+    activeInput: { id: number, type: 'reply' | 'edit' } | null
+    setActiveInputId: (input: { id: number, type: 'reply' | 'edit' } | null) => void
+    onReplySubmitted: ({ commentContent, isPrivate }: { commentContent: string, isPrivate: boolean }) => void
+  },
 ) {
-  const { siteInfo } = useSiteInfo();
-  const { user } = useAuth();
-  const locale = useLocale();
-  const t = useTranslations("Comment");
-  const roleT = useTranslations("Role");
-  const commonT = useCommonT();
-  const operationT = useOperationT();
-  const clickToUserProfile = useToUserProfile();
-  const clickToLogin = useToLogin();
+  const { siteInfo } = useSiteInfo()
+  const { user } = useAuth()
+  const locale = useLocale()
+  const t = useTranslations('Comment')
+  const roleT = useTranslations('Role')
+  const commonT = useCommonT()
+  const operationT = useOperationT()
+  const clickToUserProfile = useToUserProfile()
+  const clickToLogin = useToLogin()
 
-  const [commentState, setCommentState] = useState<Comment>(comment); // 用于更新评论内容
-  const [likeCount, setLikeCount] = useState(commentState.likeCount);
-  const [liked, setLiked] = useState(commentState.isLiked);
-  const [canClickLike, setCanClickLike] = useState(true);
-  const [replyCount, setReplyCount] = useState(commentState.replyCount);
-  const [showReplies, setShowReplies] = useState(false);
-  const [replies, setReplies] = useState<Comment[]>([]);
-  const [repliesLoaded, setRepliesLoaded] = useState(false);
+  const [commentState, setCommentState] = useState<Comment>(comment) // 用于更新评论内容
+  const [likeCount, setLikeCount] = useState(commentState.likeCount)
+  const [liked, setLiked] = useState(commentState.isLiked)
+  const [canClickLike, setCanClickLike] = useState(true)
+  const [replyCount, setReplyCount] = useState(commentState.replyCount)
+  const [showReplies, setShowReplies] = useState(false)
+  const [replies, setReplies] = useState<Comment[]>([])
+  const [repliesLoaded, setRepliesLoaded] = useState(false)
 
   const handleToggleLike = () => {
     if (!canClickLike) {
-      return;
+      return
     }
-    setCanClickLike(false);
+    setCanClickLike(false)
     if (!user) {
-      toast.error(commonT("login_required"), {
+      toast.error(commonT('login_required'), {
         action: {
-          label: operationT("login"),
+          label: operationT('login'),
           onClick: clickToLogin,
         },
       })
-      return;
+      return
     }
     // 提前转换状态，让用户觉得响应很快
-    const likedPrev = liked;
-    const likeCountPrev = likeCount;
-    setLiked(prev => !prev);
-    setLikeCount(prev => prev + (likedPrev ? -1 : 1));
+    const likedPrev = liked
+    const likeCountPrev = likeCount
+    setLiked(prev => !prev)
+    setLikeCount(prev => prev + (likedPrev ? -1 : 1))
     toggleLike(
-      { targetType: TargetType.Comment, targetId: commentState.id }
-    ).then(res => {
-      toast.success(res.data.status ? operationT("like_success") : operationT("unlike_success"));
-      setCanClickLike(true);
-    }).catch(error => {
-      toast.error(operationT("like_failed") + ": " + error.message);
+      { targetType: TargetType.Comment, targetId: commentState.id },
+    ).then((res) => {
+      toast.success(res.data.status ? operationT('like_success') : operationT('unlike_success'))
+      setCanClickLike(true)
+    }).catch((error) => {
+      toast.error(`${operationT('like_failed')}: ${error.message}`)
       // 失败回滚
-      setLiked(likedPrev);
-      setLikeCount(likeCountPrev);
-      setCanClickLike(true);
-    });
+      setLiked(likedPrev)
+      setLikeCount(likeCountPrev)
+      setCanClickLike(true)
+    })
   }
 
   const reloadReplies = () => {
@@ -105,32 +104,31 @@ export function CommentItem(
         desc: false,
         page: 1,
         size: 999999,
-        commentId: commentState.id
-      }
-    ).then(response => {
-      setReplies(response.data.comments);
-      setRepliesLoaded(true);
-    });
+        commentId: commentState.id,
+      },
+    ).then((response) => {
+      setReplies(response.data.comments)
+      setRepliesLoaded(true)
+    })
   }
 
   const toggleReplies = () => {
     if (!showReplies && !repliesLoaded) {
-      reloadReplies();
+      reloadReplies()
     }
-    setShowReplies(!showReplies);
+    setShowReplies(!showReplies)
   }
 
   const onCommentEdit = ({ commentContent: newContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => {
     updateComment({ id: commentState.id, content: newContent, isPrivate, showClientInfo }).then(() => {
-      toast.success(t("edit_success"));
-      getComment({ id: commentState.id }).then(response => {
-        setCommentState(response.data);
-        console.log(response.data);
-      });
-      setActiveInputId(null);
-    }).catch(error => {
-      toast.error(t("edit_failed") + ": " + error.message);
-    });
+      toast.success(t('edit_success'))
+      getComment({ id: commentState.id }).then((response) => {
+        setCommentState(response.data)
+      })
+      setActiveInputId(null)
+    }).catch((error) => {
+      toast.error(`${t('edit_failed')}: ${error.message}`)
+    })
   }
 
   const onReply = ({ commentContent, isPrivate, showClientInfo }: { commentContent: string, isPrivate: boolean, showClientInfo: boolean }) => {
@@ -140,33 +138,32 @@ export function CommentItem(
       content: commentContent,
       replyId: commentState.id,
       isPrivate,
-      showClientInfo
+      showClientInfo,
     }).then(() => {
-      toast.success(t("comment_success"));
-      reloadReplies();
-      setShowReplies(true);
-      setActiveInputId(null);
-      setReplyCount(replyCount + 1);
-      onReplySubmitted({ commentContent, isPrivate });
-    }).catch(error => {
-      toast.error(t("comment_failed") + ": " +
-        error?.response?.data?.message || error?.message
-      );
-    });
+      toast.success(t('comment_success'))
+      reloadReplies()
+      setShowReplies(true)
+      setActiveInputId(null)
+      setReplyCount(replyCount + 1)
+      onReplySubmitted({ commentContent, isPrivate })
+    }).catch((error) => {
+      toast.error(`${t('comment_failed')}: ${error?.response?.data?.message}` || error?.message,
+      )
+    })
   }
 
   const onReplyDelete = ({ commentId: replyId }: { commentId: number }) => {
     deleteComment({ id: replyId }).then(() => {
-      toast.success(t("delete_success"));
-      setReplyCount(replyCount - 1);
-      setReplies(replies.filter(r => r.id !== replyId));
-    }).catch(error => {
-      toast.error(t("delete_failed") + ": " + error.message);
-    });
+      toast.success(t('delete_success'))
+      setReplyCount(replyCount - 1)
+      setReplies(replies.filter(r => r.id !== replyId))
+    }).catch((error) => {
+      toast.error(`${t('delete_failed')}: ${error.message}`)
+    })
   }
 
   return (
-    <div className={`${commentState.replyCount > 0 && showReplies ? "border-l-2" : ""}`}>
+    <div className={`${commentState.replyCount > 0 && showReplies ? 'border-l-2' : ''}`}>
       <div className="flex gap-2">
         <div onClick={() => clickToUserProfile(commentState.user.username)} className="cursor-pointer fade-in w-10 h-10">
           <Avatar className="h-full w-full rounded-full border-2">
@@ -179,112 +176,135 @@ export function CommentItem(
             {/* 用户名 */}
             <div
               onClick={() => clickToUserProfile(commentState.user.username)}
-              data-user-color={commentState.user.preferredColor || siteInfo.colorSchemes?.[0] || "blue"}
-              className="text-primary font-bold text-lg border-b-4 border-primary/40 hover:border-primary/70 cursor-pointer transition-colors duration-200">
+              data-user-color={commentState.user.preferredColor || siteInfo.colorSchemes?.[0] || 'blue'}
+              className="text-primary font-bold text-lg border-b-4 border-primary/40 hover:border-primary/70 cursor-pointer transition-colors duration-200"
+            >
               {commentState.user.nickname || commentState.user.username}
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
               {/* 吧唧 */}
-              {commentState.user.id === ownerId && <Badge className="bg-pink-500 text-white"> {roleT("author")} </Badge>}
+              {commentState.user.id === ownerId && (
+                <Badge className="bg-pink-500 text-white">
+                  {' '}
+                  {roleT('author')}
+                  {' '}
+                </Badge>
+              )}
               {/* 创建时间 */}
-              <span className="text-xs">{formatDateTime({
-                dateTimeString: commentState.createdAt,
-                locale,
-                convertShortAgo: true,
-                unitI18n: { secondsAgo: commonT("secondsAgo"), minutesAgo: commonT("minutesAgo"), hoursAgo: commonT("hoursAgo"), daysAgo: commonT("daysAgo") }
-              })}</span>
-              {commentState.createdAt !== commentState.updatedAt &&
-                (new Date(commentState.updatedAt).getTime() - new Date(commentState.createdAt).getTime()) > 10000 &&
-                <span className="text-xs hidden md:flex">{t("edit_at", {
-                  time: formatDateTime({
-                    dateTimeString: commentState.updatedAt,
-                    locale,
-                    convertShortAgo: true,
-                    unitI18n: { secondsAgo: commonT("secondsAgo"), minutesAgo: commonT("minutesAgo"), hoursAgo: commonT("hoursAgo"), daysAgo: commonT("daysAgo") }
-                  })
+              <span className="text-xs">
+                {formatDateTime({
+                  dateTimeString: commentState.createdAt,
+                  locale,
+                  convertShortAgo: true,
+                  unitI18n: { secondsAgo: commonT('secondsAgo'), minutesAgo: commonT('minutesAgo'), hoursAgo: commonT('hoursAgo'), daysAgo: commonT('daysAgo') },
                 })}
-                </span>
-              }
+              </span>
+              {commentState.createdAt !== commentState.updatedAt
+                && (new Date(commentState.updatedAt).getTime() - new Date(commentState.createdAt).getTime()) > 10000
+                && (
+                  <span className="text-xs hidden md:flex">
+                    {t('edit_at', {
+                      time: formatDateTime({
+                        dateTimeString: commentState.updatedAt,
+                        locale,
+                        convertShortAgo: true,
+                        unitI18n: { secondsAgo: commonT('secondsAgo'), minutesAgo: commonT('minutesAgo'), hoursAgo: commonT('hoursAgo'), daysAgo: commonT('daysAgo') },
+                      }),
+                    })}
+                  </span>
+                )}
             </div>
 
           </div>
           <p className="text-lg text-slate-600 dark:text-slate-400 fade-in bg-accent rounded-xl px-4 py-2 my-2">
             {commentState.isPrivate && <Lock className="inline w-4 h-4 mr-1 mb-1 text-slate-500 dark:text-slate-400" />}
             {/* 回复提示 */}
-            {parentComment &&
-              <span>
-                {t("reply")}
-                <span onClick={() => clickToUserProfile(parentComment.user.username)}
-                  className="text-primary font-semibold border-b-4 border-primary/40 cursor-pointer hover:border-primary/70 transition-colors mx-1">
-                  {parentComment.user.nickname || parentComment.user.username}
-                </span>:{" "}
-              </span>
-            }
+            {parentComment
+              && (
+                <span>
+                  {t('reply')}
+                  <span
+                    onClick={() => clickToUserProfile(parentComment.user.username)}
+                    className="text-primary font-semibold border-b-4 border-primary/40 cursor-pointer hover:border-primary/70 transition-colors mx-1"
+                  >
+                    {parentComment.user.nickname || parentComment.user.username}
+                  </span>
+                  :
+                  {' '}
+                </span>
+              )}
             {commentState.content}
           </p>
           <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 justify-start flex-wrap">
               {/* 用户地理，浏览器，系统信息 */}
-              {commentState.location && <span >{formatLocation({location: commentState.location, short: true})}</span>}
+              {commentState.location && <span>{formatLocation({ location: commentState.location, short: true })}</span>}
               {commentState.browser && <span className="hidden md:flex">{commentState.browser}</span>}
               {commentState.os && <span className="hidden md:flex">{commentState.os}</span>}
             </div>
             <div className="flex items-center gap-2 md:w-auto justify-end">
               {replyCount > 0 && (
                 <button onClick={toggleReplies} className="fade-in-up">
-                  {!showReplies ? t("expand_replies", { count: replyCount }) : t("collapse_replies")}
+                  {!showReplies ? t('expand_replies', { count: replyCount }) : t('collapse_replies')}
                 </button>
               )}
               {/* 更多 */}
-              {user && (user.id === comment.user.id || isAdmin({user})) && <CommentDropdownMenu comment={commentState} setActiveInputId={setActiveInputId} onCommentDelete={onCommentDelete} />}
+              {user && (user.id === comment.user.id || isAdmin({ user })) && <CommentDropdownMenu comment={commentState} setActiveInputId={setActiveInputId} onCommentDelete={onCommentDelete} />}
 
               {/* 回复按钮 */}
               <button
-                title={t("reply")}
+                title={t('reply')}
                 onClick={() => {
                   if (activeInput?.type === 'reply' && activeInput.id === commentState.id) {
-                    setActiveInputId(null);
-                  } else {
-                    setActiveInputId({ id: commentState.id, type: 'reply' });
+                    setActiveInputId(null)
+                  }
+                  else {
+                    setActiveInputId({ id: commentState.id, type: 'reply' })
                   }
                 }}
                 className={`flex items-center justify-center px-2 py-1 h-5 
               text-primary-foreground dark:text-white text-xs 
-              rounded ${activeInput?.type === 'reply' && activeInput.id === commentState.id ? "bg-slate-600" : "bg-slate-400"} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}
+              rounded ${activeInput?.type === 'reply' && activeInput.id === commentState.id ? 'bg-slate-600' : 'bg-slate-400'} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}
               >
                 <Reply className="w-3 h-3" />
               </button>
               {/* 点赞按钮 */}
               <button
-                title={liked ? "unlike" : "like"}
+                title={liked ? 'unlike' : 'like'}
                 onClick={handleToggleLike}
                 className={`flex items-center justify-center px-2 py-1 h-5 gap-1 text-xs rounded 
                 ${liked ? 'bg-primary' : 'bg-slate-400 hover:bg-slate-600'}
                  text-primary-foreground dark:text-white dark:hover:bg-slate-500 fade-in`}
               >
-                <Heart className="w-3 h-3" /> <div>{likeCount}</div>
+                <Heart className="w-3 h-3" />
+                {' '}
+                <div>{likeCount}</div>
               </button>
             </div>
           </div>
         </div>
         {/* 这俩输入框一次只能显示一个 */}
-      </div >
-      {activeInput && activeInput.type === 'reply' && activeInput.id === commentState.id && <CommentInput
-        onCommentSubmitted={onReply}
-        initIsPrivate={commentState.isPrivate}
-        placeholder={`${t("reply")} ${commentState.user.nickname || commentState.user.username} :`}
-      />}
-      {activeInput && activeInput.type === 'edit' && activeInput.id === commentState.id && <CommentInput
-        initContent={commentState.content}
-        initIsPrivate={commentState.isPrivate}
-        onCommentSubmitted={onCommentEdit}
-        isUpdate={true}
-        initShowClientInfo={commentState.showClientInfo}
-      />}
+      </div>
+      {activeInput && activeInput.type === 'reply' && activeInput.id === commentState.id && (
+        <CommentInput
+          onCommentSubmitted={onReply}
+          initIsPrivate={commentState.isPrivate}
+          placeholder={`${t('reply')} ${commentState.user.nickname || commentState.user.username} :`}
+        />
+      )}
+      {activeInput && activeInput.type === 'edit' && activeInput.id === commentState.id && (
+        <CommentInput
+          initContent={commentState.content}
+          initIsPrivate={commentState.isPrivate}
+          onCommentSubmitted={onCommentEdit}
+          isUpdate={true}
+          initShowClientInfo={commentState.showClientInfo}
+        />
+      )}
       {showReplies && replies.length > 0 && (
         <div className="mt-4 pl-4 md:pl-8 space-y-4">
-          {replies.map((reply) => (
+          {replies.map(reply => (
             <CommentItem
               key={reply.id}
               comment={reply}
@@ -297,7 +317,8 @@ export function CommentItem(
             />
           ))}
         </div>
-      )}</div>
+      )}
+    </div>
   )
 }
 
@@ -305,16 +326,16 @@ function CommentDropdownMenu(
   {
     comment,
     setActiveInputId,
-    onCommentDelete
+    onCommentDelete,
   }: {
-    comment: Comment,
-    setActiveInputId: (input: { id: number; type: 'reply' | 'edit' } | null) => void,
+    comment: Comment
+    setActiveInputId: (input: { id: number, type: 'reply' | 'edit' } | null) => void
     onCommentDelete: ({ commentId }: { commentId: number }) => void
-  }
+  },
 ) {
-  const { confirming: confirmingDelete, onClick: onDeleteClick } = useDoubleConfirm();
-  const operationT = useOperationT();
-  const [open, setOpen] = useState(false);
+  const { confirming: confirmingDelete, onClick: onDeleteClick } = useDoubleConfirm()
+  const operationT = useOperationT()
+  const [open, setOpen] = useState(false)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -333,11 +354,11 @@ function CommentDropdownMenu(
             size="sm"
             className="justify-start cursor-pointer"
             onClick={() => {
-              setActiveInputId({ id: comment.id, type: 'edit' });
-              setOpen(false);
+              setActiveInputId({ id: comment.id, type: 'edit' })
+              setOpen(false)
             }}
           >
-            {operationT("edit")}
+            {operationT('edit')}
           </Button>
           <div className="h-px bg-border my-1" />
           <Button
@@ -347,15 +368,16 @@ function CommentDropdownMenu(
             onClick={(e) => {
               // double confirm hook 控制是否需要二次确认
               if (!confirmingDelete) {
-                e.preventDefault();
-                onDeleteClick(() => onCommentDelete({ commentId: comment.id }));
-              } else {
-                onDeleteClick(() => onCommentDelete({ commentId: comment.id }));
-                setOpen(false);
+                e.preventDefault()
+                onDeleteClick(() => onCommentDelete({ commentId: comment.id }))
+              }
+              else {
+                onDeleteClick(() => onCommentDelete({ commentId: comment.id }))
+                setOpen(false)
               }
             }}
           >
-            {confirmingDelete ? operationT("confirm_delete") : operationT("delete")}
+            {confirmingDelete ? operationT('confirm_delete') : operationT('delete')}
           </Button>
         </div>
       </PopoverContent>

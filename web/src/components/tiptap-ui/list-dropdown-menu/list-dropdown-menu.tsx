@@ -1,31 +1,32 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import { type Editor } from "@tiptap/react"
+import type { Editor } from '@tiptap/react'
+// --- UI Primitives ---
+import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
+import type { ListType } from '@/components/tiptap-ui/list-button'
+
+import * as React from 'react'
 
 // --- Icons ---
-import { ChevronDownIcon } from "@/components/tiptap-icons/chevron-down-icon"
+import { ChevronDownIcon } from '@/components/tiptap-icons/chevron-down-icon'
 
-// --- Tiptap UI ---
-import { ListButton, type ListType } from "@/components/tiptap-ui/list-button"
+import { Button, ButtonGroup } from '@/components/tiptap-ui-primitive/button'
 
-import { useListDropdownMenu } from "./use-list-dropdown-menu"
-
-// --- UI Primitives ---
-import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button, ButtonGroup } from "@/components/tiptap-ui-primitive/button"
+import { Card, CardBody } from '@/components/tiptap-ui-primitive/card'
 import {
   DropdownMenu,
-  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-} from "@/components/tiptap-ui-primitive/dropdown-menu"
-import { Card, CardBody } from "@/components/tiptap-ui-primitive/card"
+  DropdownMenuTrigger,
+} from '@/components/tiptap-ui-primitive/dropdown-menu'
+// --- Tiptap UI ---
+import { ListButton } from '@/components/tiptap-ui/list-button'
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
+import { useListDropdownMenu } from './use-list-dropdown-menu'
 
-export interface ListDropdownMenuProps extends Omit<ButtonProps, "type"> {
+export interface ListDropdownMenuProps extends Omit<ButtonProps, 'type'> {
   /**
    * The Tiptap editor instance.
    */
@@ -52,7 +53,7 @@ export interface ListDropdownMenuProps extends Omit<ButtonProps, "type"> {
 
 export function ListDropdownMenu({
   editor: providedEditor,
-  types = ["bulletList", "orderedList", "taskList"],
+  types = ['bulletList', 'orderedList', 'taskList'],
   hideWhenUnavailable = false,
   onOpenChange,
   portal = false,
@@ -61,8 +62,8 @@ export function ListDropdownMenu({
   const { editor } = useTiptapEditor(providedEditor)
   const [isOpen, setIsOpen] = React.useState(false)
 
-  const { filteredLists, canToggle, isActive, isVisible, Icon } =
-    useListDropdownMenu({
+  const { filteredLists, canToggle, isActive, isVisible, Icon }
+    = useListDropdownMenu({
       editor,
       types,
       hideWhenUnavailable,
@@ -73,7 +74,7 @@ export function ListDropdownMenu({
       setIsOpen(open)
       onOpenChange?.(open)
     },
-    [onOpenChange]
+    [onOpenChange],
   )
 
   if (!isVisible || !editor || !editor.isEditable) {
@@ -86,7 +87,7 @@ export function ListDropdownMenu({
         <Button
           type="button"
           data-style="ghost"
-          data-active-state={isActive ? "on" : "off"}
+          data-active-state={isActive ? 'on' : 'off'}
           role="button"
           tabIndex={-1}
           disabled={!canToggle}
@@ -104,7 +105,7 @@ export function ListDropdownMenu({
         <Card>
           <CardBody>
             <ButtonGroup>
-              {filteredLists.map((option) => (
+              {filteredLists.map(option => (
                 <DropdownMenuItem key={option.type} asChild>
                   <ListButton
                     editor={editor}

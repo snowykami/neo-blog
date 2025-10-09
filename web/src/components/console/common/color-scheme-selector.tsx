@@ -1,19 +1,27 @@
-"use client"
+'use client'
 
-import { Skeleton } from "@/components/ui/skeleton"
-import { Checkbox } from "@/components/ui/checkbox";
-import { useEffect, useState } from "react";
-import { useDevice } from "@/contexts/device-context";
-import { useSiteInfo } from "@/contexts/site-info-context";
-import { fallbackSiteInfo } from "@/utils/common/siteinfo";
+import { useEffect, useState } from 'react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useDevice } from '@/contexts/device-context'
+import { useSiteInfo } from '@/contexts/site-info-context'
+import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
 export function ColorScheme(
   { className, color, selectedColor, setSelectedColor }:
-    { className?: string, color: string, selectedColor: string, setSelectedColor: (color: string) => void }) {
+  { className?: string, color: string, selectedColor: string, setSelectedColor: (color: string) => void },
+) {
   return (
-    <div className={`w-full rounded-lg border p-3 shadow-sm box-border ${className ?? ""} ${selectedColor === color ? "border-primary bg-primary/10" : "border-border"} cursor-pointer hover:border-primary transition-colors`} onClick={() => setSelectedColor(color)}>
+    <div className={`w-full rounded-lg border p-3 shadow-sm box-border ${className ?? ''} ${selectedColor === color ? 'border-primary bg-primary/10' : 'border-border'} cursor-pointer hover:border-primary transition-colors`} onClick={() => setSelectedColor(color)}>
       <div className="flex items-center gap-3">
-        <Checkbox checked={selectedColor === color} onCheckedChange={(checked) => { if (checked) setSelectedColor(color); }} className="pointer-events-none" />
+        <Checkbox
+          checked={selectedColor === color}
+          onCheckedChange={(checked) => {
+            if (checked)
+              setSelectedColor(color)
+          }}
+          className="pointer-events-none"
+        />
         <div className="font-bold text-primary">{color.toUpperCase()}</div>
       </div>
 
@@ -49,17 +57,19 @@ export function ColorScheme(
 }
 
 export function ColorSchemeSelector({ color, onColorChange }: { color: string | null, onColorChange?: (color: string) => void }) {
-  const { siteInfo } = useSiteInfo();
-  const colorSchemes = siteInfo?.colorSchemes ? siteInfo.colorSchemes : fallbackSiteInfo.colorSchemes;
-  const [selectedColor, setSelectedColor] = useState<string | null>(colorSchemes.includes(color || "") ? color : colorSchemes[0]);
-  const { isDark } = useDevice();
+  const { siteInfo } = useSiteInfo()
+  const colorSchemes = siteInfo?.colorSchemes ? siteInfo.colorSchemes : fallbackSiteInfo.colorSchemes
+  const [selectedColor, setSelectedColor] = useState<string | null>(colorSchemes.includes(color || '') ? color : colorSchemes[0])
+  const { isDark } = useDevice()
 
   useEffect(() => {
-    onColorChange?.(selectedColor!);
-    if (!selectedColor) return;
-  }, [selectedColor, onColorChange]);
+    onColorChange?.(selectedColor!)
+    if (!selectedColor)
+      return
+  }, [selectedColor, onColorChange])
 
-  if (!selectedColor) return null;
+  if (!selectedColor)
+    return null
   return (
     <div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -70,5 +80,5 @@ export function ColorSchemeSelector({ color, onColorChange }: { color: string | 
         ))}
       </div>
     </div>
-  );
+  )
 }

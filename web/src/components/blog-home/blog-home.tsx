@@ -1,22 +1,22 @@
-"use client"
+'use client'
 
-import { BlogCardGrid } from "@/components/blog-home/blog-home-card";
-import { Button } from "@/components/ui/button";
-import { TrendingUp, Clock, } from "lucide-react";
-import { SidebarAbout, SidebarHotPosts, SidebarMisskeyIframe, SidebarLabels } from "../blog-sidebar/blog-sidebar-card";
-import type { Post } from "@/models/post";
-import { listPosts } from "@/api/post";
-import { useEffect, useState, useRef } from "react";
-import { motion } from "motion/react";
-import { useTranslations } from "next-intl";
-import { OrderBy } from "@/models/common";
-import { PaginationController } from "@/components/common/pagination";
-import { QueryKey } from "@/constant";
-import { useStoredState } from "@/hooks/use-storage-state";
-import { parseAsInteger, useQueryState } from "nuqs";
-import { useSiteInfo } from "@/contexts/site-info-context";
-import Sidebar from "../blog-sidebar";
-import { navStickyTopPx } from "@/utils/common/layout-size";
+import type { Post } from '@/models/post'
+import { Clock, TrendingUp } from 'lucide-react'
+import { motion } from 'motion/react'
+import { useTranslations } from 'next-intl'
+import { parseAsInteger, useQueryState } from 'nuqs'
+import { useEffect, useRef, useState } from 'react'
+import { listPosts } from '@/api/post'
+import { BlogCardGrid } from '@/components/blog-home/blog-home-card'
+import { PaginationController } from '@/components/common/pagination'
+import { Button } from '@/components/ui/button'
+import { QueryKey } from '@/constant'
+import { useSiteInfo } from '@/contexts/site-info-context'
+import { useStoredState } from '@/hooks/use-storage-state'
+import { OrderBy } from '@/models/common'
+import { navStickyTopPx } from '@/utils/common/layout-size'
+import Sidebar from '../blog-sidebar'
+import { SidebarAbout, SidebarHotPosts, SidebarLabels, SidebarMisskeyIframe } from '../blog-sidebar/blog-sidebar-card'
 
 // 定义排序类型
 enum SortBy {
@@ -24,71 +24,74 @@ enum SortBy {
   Hottest = 'hottest',
 }
 
-const DEFAULT_SORTBY: SortBy = SortBy.Latest;
+const DEFAULT_SORTBY: SortBy = SortBy.Latest
 
 export default function BlogHome() {
   // 从路由查询参数中获取页码和标签们
-  const t = useTranslations("BlogHome");
-  const { siteInfo } = useSiteInfo();
-  const [keywords, setKeywords] = useState<string[]>([]);
-  const [labelSlug, setLabelString] = useQueryState("label");
-  const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1).withOptions({ history: "replace", clearOnDefault: true }));
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [totalPosts, setTotalPosts] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [sortBy, setSortBy, isSortByLoaded] = useStoredState<SortBy>(QueryKey.SortBy, DEFAULT_SORTBY);
+  const t = useTranslations('BlogHome')
+  const { siteInfo } = useSiteInfo()
+  const [keywords] = useState<string[]>([])
+  const [labelSlug, setLabelString] = useQueryState('label')
+  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }))
+  const [posts, setPosts] = useState<Post[]>([])
+  const [totalPosts, setTotalPosts] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [sortBy, setSortBy, isSortByLoaded] = useStoredState<SortBy>(QueryKey.SortBy, DEFAULT_SORTBY)
 
   // 区分浏览器 history popstate（回退/前进）与用户主动触发的分页
-  const popStateRef = useRef(false);
+  const popStateRef = useRef(false)
   useEffect(() => {
-    const onPop = () => { popStateRef.current = true; };
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
+    const onPop = () => {
+      popStateRef.current = true
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   // 监听 page 变化，只有在非 popstate 情况下滚动到顶部
   useEffect(() => {
     if (popStateRef.current) {
       // 清除标记，不执行滚动（这是浏览器回退/前进恢复）
-      popStateRef.current = false;
-      return;
+      popStateRef.current = false
+      return
     }
     // 用户主动触发分页时滚动
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [page, labelSlug]);
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [page, labelSlug])
 
   useEffect(() => {
-    if (!isSortByLoaded) return;
-    setLoading(true);
+    if (!isSortByLoaded)
+      return
+    setLoading(true)
     listPosts(
       {
         page,
         size: siteInfo.postsPerPage || 9,
         orderBy: sortBy === SortBy.Latest ? OrderBy.CreatedAt : OrderBy.Heat,
         desc: true,
-        keywords: keywords.join(",") || undefined,
+        keywords: keywords.join(',') || undefined,
         label: labelSlug || undefined,
-      }
-    ).then(res => {
-      setPosts(res.data.posts);
-      setTotalPosts(res.data.total);
-      setLoading(false);
-    }).catch(err => {
-      console.error(err);
-      setLoading(false);
-    });
-  }, [keywords, labelSlug, page, sortBy, isSortByLoaded, siteInfo.postsPerPage]);
+      },
+    ).then((res) => {
+      setPosts(res.data.posts)
+      setTotalPosts(res.data.total)
+      setLoading(false)
+    }).catch((err) => {
+      console.error(err)
+      setLoading(false)
+    })
+  }, [keywords, labelSlug, page, sortBy, isSortByLoaded, siteInfo.postsPerPage])
 
   const handleSortChange = (type: SortBy) => {
     if (sortBy !== type) {
-      setSortBy(type);
-      setPage(1);
+      setSortBy(type)
+      setPage(1)
     }
-  };
+  }
 
   const handlePageChange = (page: number) => {
     // 仅设置 page，滚动逻辑由上面的 effect 处理（会避开 popstate）
-    setPage(page);
+    setPage(page)
   }
 
   return (
@@ -103,62 +106,69 @@ export default function BlogHome() {
               className="lg:col-span-3 self-start transition-none"
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              key={`${page}-${labelSlug ?? "none"}`}
-              transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
+              key={`${page}-${labelSlug ?? 'none'}`}
+              transition={{ duration: siteInfo.animationDurationSecond, ease: 'easeOut' }}
+            >
               {/* 文章列表标题 */}
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                  {sortBy === 'latest' ? t("latest_posts") : t("hottest_posts")}
+                  {sortBy === 'latest' ? t('latest_posts') : t('hottest_posts')}
                   {posts.length > 0 && (
                     <span className="text-xl font-normal text-slate-500 ml-2">
-                      ({posts.length})
+                      (
+                      {posts.length}
+                      )
                     </span>
                   )}
                 </h2>
                 {/* 排序按钮组 */}
-                {isSortByLoaded && <div className="flex items-center gap-2">
-                  <Button
-                    variant={sortBy === SortBy.Latest ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => handleSortChange(SortBy.Latest)}
-                    disabled={loading}
-                    className="transition-all duration-200"
-                  >
-                    <Clock className="w-4 h-4 mr-2" />
-                    {t("latest")}
-                  </Button>
-                  <Button
-                    variant={sortBy === 'hottest' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => handleSortChange(SortBy.Hottest)}
-                    disabled={loading}
-                    className="transition-all duration-200"
-                  >
-                    <TrendingUp className="w-4 h-4 mr-2" />
-                    {t("hottest")}
-                  </Button>
-                </div>}
+                {isSortByLoaded && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant={sortBy === SortBy.Latest ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => handleSortChange(SortBy.Latest)}
+                      disabled={loading}
+                      className="transition-all duration-200"
+                    >
+                      <Clock className="w-4 h-4 mr-2" />
+                      {t('latest')}
+                    </Button>
+                    <Button
+                      variant={sortBy === 'hottest' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => handleSortChange(SortBy.Hottest)}
+                      disabled={loading}
+                      className="transition-all duration-200"
+                    >
+                      <TrendingUp className="w-4 h-4 mr-2" />
+                      {t('hottest')}
+                    </Button>
+                  </div>
+                )}
               </div>
               {/* 博客卡片网格 */}
               <BlogCardGrid posts={posts} showPrivate={true} isLoading={loading} />
               {/* 分页控制器 */}
               <div className="mt-8">
-                {totalPosts > 0 && <PaginationController
-                  className="pt-4 flex justify-center"
-                  pageSize={siteInfo.postsPerPage}
-                  initialPage={page}
-                  total={totalPosts}
-                  onPageChange={handlePageChange}
-                />}
+                {totalPosts > 0 && (
+                  <PaginationController
+                    className="pt-4 flex justify-center"
+                    pageSize={siteInfo.postsPerPage}
+                    initialPage={page}
+                    total={totalPosts}
+                    onPageChange={handlePageChange}
+                  />
+                )}
               </div>
             </motion.div>
             {/* 侧边栏 */}
             <motion.div
-              className={`sticky self-start`}
+              className="sticky self-start"
               initial={{ x: 80, opacity: 0 }}
               animate={{ x: 0, y: 0, opacity: 1 }}
               style={{ top: navStickyTopPx }}
-              transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}
+              transition={{ duration: siteInfo.animationDurationSecond, ease: 'easeOut' }}
             >
               <Sidebar
                 cards={[
@@ -171,7 +181,7 @@ export default function BlogHome() {
             </motion.div>
           </div>
         </div>
-      </section >
+      </section>
     </>
-  );
+  )
 }

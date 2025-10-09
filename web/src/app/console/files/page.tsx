@@ -1,11 +1,11 @@
-import { FileManage } from "@/components/console/file-manage";
-import { getTranslations } from "next-intl/server";
+import { getTranslations } from 'next-intl/server'
+import { FileManage } from '@/components/console/file-manage'
 
 export async function generateMetadata() {
-  const consoleT = await getTranslations('Console');
+  const consoleT = await getTranslations('Console')
   return {
     title: consoleT('files.title'),
-  };
+  }
 }
 
 export default function Page() {

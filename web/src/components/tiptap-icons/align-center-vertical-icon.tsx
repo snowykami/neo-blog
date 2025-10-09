@@ -1,4 +1,4 @@
-import * as React from "react"
+import * as React from 'react'
 
 export const AlignCenterVerticalIcon = React.memo(
   ({ className, ...props }: React.SVGProps<SVGSVGElement>) => {
@@ -26,7 +26,7 @@ export const AlignCenterVerticalIcon = React.memo(
         />
       </svg>
     )
-  }
+  },
 )
 
-AlignCenterVerticalIcon.displayName = "AlignCenterVerticalIcon"
+AlignCenterVerticalIcon.displayName = 'AlignCenterVerticalIcon'

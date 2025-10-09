@@ -1,12 +1,12 @@
+import type { Category } from '@/models/category'
+import type { PaginationParams } from '@/models/common'
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
+import { OrderBy } from '@/models/common'
 import axiosClient from './client'
-import { OrderBy, PaginationParams } from '@/models/common'
-import { Category } from '@/models/category';
-
 
 export async function getPostById(
-  { id, type = 'normal' }: { id: string; type?: 'draft' | 'normal' }
+  { id, type = 'normal' }: { id: string, type?: 'draft' | 'normal' },
 ): Promise<BaseResponse<Post | null>> {
   const res = await axiosClient.get<BaseResponse<Post | null>>(`/post/p/${id}`, {
     params: { type },
@@ -28,11 +28,11 @@ export async function listPosts({
   label = '',
   userId = 0,
 }: {
-  keywords?: string, // 关键词，逗号分割
-  label?: string, // 标签，逗号分割
-  userId?: number, // 用户ID，管理员可查看指定用户的文章
-} & PaginationParams): Promise<BaseResponse<{ "posts": Post[], "total": number }>> {
-  const res = await axiosClient.get<BaseResponse<{ "posts": Post[], "total": number }>>('/post/list', {
+  keywords?: string // 关键词，逗号分割
+  label?: string // 标签，逗号分割
+  userId?: number // 用户ID，管理员可查看指定用户的文章
+} & PaginationParams): Promise<BaseResponse<{ posts: Post[], total: number }>> {
+  const res = await axiosClient.get<BaseResponse<{ posts: Post[], total: number }>>('/post/list', {
     params: {
       page,
       size,
@@ -48,7 +48,7 @@ export async function listPosts({
 
 export async function createPost(
   { post }:
-    { post: Partial<Omit<Post, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'isLiked' | 'draftContent'>> }
+  { post: Partial<Omit<Post, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'isLiked' | 'draftContent'>> },
 ): Promise<BaseResponse<Post>> {
   const res = await axiosClient.post<BaseResponse<Post>>('/post/p', post)
   return res.data

@@ -1,5 +1,5 @@
-import { TargetType } from "./types"
-import type { User } from "./user"
+import type { TargetType } from './types'
+import type { User } from './user'
 
 export interface Comment {
   id: number

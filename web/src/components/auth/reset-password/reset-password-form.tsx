@@ -1,42 +1,43 @@
-"use client"
+'use client'
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import type { BaseResponseError } from '@/models/resp'
+import { useTranslations } from 'next-intl'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { requestEmailVerifyCode, resetPassword } from '@/api/user'
+import { InputOTPControlled } from '@/components/common/input-otp'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useEffect, useState } from "react"
-import { requestEmailVerifyCode, resetPassword } from "@/api/user"
-import { useTranslations } from "next-intl"
-import { toast } from "sonner"
-import { InputOTPControlled } from "@/components/common/input-otp"
-import { BaseResponseError } from "@/models/resp"
-import { loginPath, registerPath } from "@/hooks/use-route"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { useCommonT, useOperationT } from "@/hooks/translations"
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { useCommonT, useOperationT } from '@/hooks/translations'
+import { loginPath, registerPath } from '@/hooks/use-route'
+import { cn } from '@/lib/utils'
 
 export function ResetPasswordForm({
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<'div'>) {
   const t = useTranslations('ResetPassword')
-  const commonT = useCommonT();
-  const operationT = useOperationT();
+  const commonT = useCommonT()
+  const operationT = useOperationT()
   const router = useRouter()
-  const [email, setEmail] = useState("")
-  const [verifyCode, setVerifyCode] = useState("")
-  const [newPassword, setNewPassword] = useState("")
+  const [email, setEmail] = useState('')
+  const [verifyCode, setVerifyCode] = useState('')
+  const [newPassword, setNewPassword] = useState('')
   const [coolDown, setCoolDown] = useState(0)
   const [sendingVerifyCode, setSendingVerifyCode] = useState(false)
 
   useEffect(() => {
-    if (coolDown <= 0) return
+    if (coolDown <= 0)
+      return
     const id = setInterval(() => {
       setCoolDown(c => (c > 1 ? c - 1 : 0))
     }, 1000)
@@ -44,14 +45,15 @@ export function ResetPasswordForm({
   }, [coolDown])
 
   const handleSendVerifyCode = () => {
-    if (coolDown > 0 || !email || sendingVerifyCode) return
+    if (coolDown > 0 || !email || sendingVerifyCode)
+      return
     setSendingVerifyCode(true)
     requestEmailVerifyCode({ email })
       .then(() => {
-        toast.success(t("send_verify_code_success"))
+        toast.success(t('send_verify_code_success'))
       })
       .catch((error: BaseResponseError) => {
-        toast.error(`${t("send_verify_code_failed")}: ${error.response.data.message}`)
+        toast.error(`${t('send_verify_code_failed')}: ${error.response.data.message}`)
       })
       .finally(() => {
         setSendingVerifyCode(false)
@@ -61,36 +63,36 @@ export function ResetPasswordForm({
 
   const handleResetPassword = () => {
     resetPassword({ email, newPassword, verifyCode }).then(() => {
-      toast.success(t("reset_password_success"))
-      router.push(loginPath);
+      toast.success(t('reset_password_success'))
+      router.push(loginPath)
     }).catch((error: BaseResponseError) => {
-      toast.error(`${t("reset_password_failed")}: ${error.response.data.message}`)
+      toast.error(`${t('reset_password_failed')}: ${error.response.data.message}`)
     })
   }
 
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
+    <div className={cn('flex flex-col gap-6', className)} {...props}>
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">{t("title")}</CardTitle>
+          <CardTitle className="text-xl">{t('title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <form>
             <div className="grid gap-6">
               <div className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="password">{t("new_password")}</Label>
-                  <Input id="password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                  <Label htmlFor="password">{t('new_password')}</Label>
+                  <Input id="password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="email">{commonT("email")}</Label>
+                  <Label htmlFor="email">{commonT('email')}</Label>
                   <div className="flex gap-2">
-                    <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                    <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
 
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="verify_code">{t("verify_code")}</Label>
+                  <Label htmlFor="verify_code">{t('verify_code')}</Label>
                   <div className="flex gap-2 justify-between">
                     <InputOTPControlled onChange={value => setVerifyCode(value)} />
                     <Button
@@ -98,8 +100,10 @@ export function ResetPasswordForm({
                       variant="outline"
                       className="border-2"
                       type="button"
-                      onClick={handleSendVerifyCode}>
-                      {commonT("obtain")}{coolDown > 0 ? `(${coolDown})` : ""}
+                      onClick={handleSendVerifyCode}
+                    >
+                      {commonT('obtain')}
+                      {coolDown > 0 ? `(${coolDown})` : ''}
                     </Button>
                   </div>
 
@@ -110,15 +114,15 @@ export function ResetPasswordForm({
                   disabled={!email || !newPassword || !verifyCode}
                   onClick={handleResetPassword}
                 >
-                  {t("title")}
+                  {t('title')}
                 </Button>
                 <div className="text-center text-sm">
                   <Link href={loginPath} className="underline underline-offset-4">
-                    {operationT("login")}
+                    {operationT('login')}
                   </Link>
-                  {"  "}
+                  {'  '}
                   <Link href={registerPath} className="underline underline-offset-4">
-                    {operationT("register")}
+                    {operationT('register')}
                   </Link>
                 </div>
               </div>

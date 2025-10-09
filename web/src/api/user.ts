@@ -1,22 +1,22 @@
 import type { OidcConfig } from '@/models/oidc-config'
 import type { BaseResponse } from '@/models/resp'
 import type { User } from '@/models/user'
-import { CaptchaProvider } from '@/types/captcha'
+import type { CaptchaProvider } from '@/types/captcha'
 import axiosClient from './client'
-
 
 export async function userLogin(
   {
     username,
     password,
     rememberMe = false,
-    captcha
+    captcha,
   }: {
-    username: string,
-    password: string,
-    rememberMe?: boolean,
-    captcha?: string,
-  }): Promise<BaseResponse<{ token: string, user: User }>> {
+    username: string
+    password: string
+    rememberMe?: boolean
+    captcha?: string
+  },
+): Promise<BaseResponse<{ token: string, user: User }>> {
   const res = await axiosClient.post<BaseResponse<{ token: string, user: User }>>(
     '/user/login',
     { username, password, rememberMe },
@@ -41,7 +41,7 @@ export async function userRegister(
 ): Promise<BaseResponse<{ token: string, user: User }>> {
   const res = await axiosClient.post<BaseResponse<{ token: string, user: User }>>(
     '/user/register',
-    { username, password, },
+    { username, password },
     { headers: { 'X-Email': email, 'X-VerifyCode': verifyCode || '', 'X-Captcha-Token': captchaToken || '' } },
   )
   return res.data

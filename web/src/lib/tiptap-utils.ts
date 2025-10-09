@@ -1,29 +1,29 @@
-import type { Node as TiptapNode } from "@tiptap/pm/model"
-import { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state"
-import type { Editor } from "@tiptap/react"
+import type { Node as TiptapNode } from '@tiptap/pm/model'
+import type { Editor } from '@tiptap/react'
+import { NodeSelection, Selection, TextSelection } from '@tiptap/pm/state'
 
 export const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
 export const MAC_SYMBOLS: Record<string, string> = {
-  mod: "⌘",
-  command: "⌘",
-  meta: "⌘",
-  ctrl: "⌃",
-  control: "⌃",
-  alt: "⌥",
-  option: "⌥",
-  shift: "⇧",
-  backspace: "Del",
-  delete: "⌦",
-  enter: "⏎",
-  escape: "⎋",
-  capslock: "⇪",
+  mod: '⌘',
+  command: '⌘',
+  meta: '⌘',
+  ctrl: '⌃',
+  control: '⌃',
+  alt: '⌥',
+  option: '⌥',
+  shift: '⇧',
+  backspace: 'Del',
+  delete: '⌦',
+  enter: '⏎',
+  escape: '⎋',
+  capslock: '⇪',
 } as const
 
 export function cn(
   ...classes: (string | boolean | undefined | null)[]
 ): string {
-  return classes.filter(Boolean).join(" ")
+  return classes.filter(Boolean).join(' ')
 }
 
 /**
@@ -32,8 +32,8 @@ export function cn(
  */
 export function isMac(): boolean {
   return (
-    typeof navigator !== "undefined" &&
-    navigator.platform.toLowerCase().includes("mac")
+    typeof navigator !== 'undefined'
+    && navigator.platform.toLowerCase().includes('mac')
   )
 }
 
@@ -44,11 +44,7 @@ export function isMac(): boolean {
  * @param capitalize - Whether to capitalize the key (default: true)
  * @returns Formatted shortcut key symbol
  */
-export const formatShortcutKey = (
-  key: string,
-  isMac: boolean,
-  capitalize: boolean = true
-) => {
+export function formatShortcutKey(key: string, isMac: boolean, capitalize: boolean = true) {
   if (isMac) {
     const lowerKey = key.toLowerCase()
     return MAC_SYMBOLS[lowerKey] || (capitalize ? key.toUpperCase() : key)
@@ -64,19 +60,20 @@ export const formatShortcutKey = (
  * @param capitalize - Whether to capitalize the keys (default: true)
  * @returns Array of formatted shortcut key symbols
  */
-export const parseShortcutKeys = (props: {
+export function parseShortcutKeys(props: {
   shortcutKeys: string | undefined
   delimiter?: string
   capitalize?: boolean
-}) => {
-  const { shortcutKeys, delimiter = "+", capitalize = true } = props
+}) {
+  const { shortcutKeys, delimiter = '+', capitalize = true } = props
 
-  if (!shortcutKeys) return []
+  if (!shortcutKeys)
+    return []
 
   return shortcutKeys
     .split(delimiter)
-    .map((key) => key.trim())
-    .map((key) => formatShortcutKey(key, isMac(), capitalize))
+    .map(key => key.trim())
+    .map(key => formatShortcutKey(key, isMac(), capitalize))
 }
 
 /**
@@ -85,11 +82,9 @@ export const parseShortcutKeys = (props: {
  * @param editor - The editor instance
  * @returns boolean indicating if the mark exists in the schema
  */
-export const isMarkInSchema = (
-  markName: string,
-  editor: Editor | null
-): boolean => {
-  if (!editor?.schema) return false
+export function isMarkInSchema(markName: string, editor: Editor | null): boolean {
+  if (!editor?.schema)
+    return false
   return editor.schema.spec.marks.get(markName) !== undefined
 }
 
@@ -99,11 +94,9 @@ export const isMarkInSchema = (
  * @param editor - The editor instance
  * @returns boolean indicating if the node exists in the schema
  */
-export const isNodeInSchema = (
-  nodeName: string,
-  editor: Editor | null
-): boolean => {
-  if (!editor?.schema) return false
+export function isNodeInSchema(nodeName: string, editor: Editor | null): boolean {
+  if (!editor?.schema)
+    return false
   return editor.schema.spec.nodes.get(nodeName) !== undefined
 }
 
@@ -124,7 +117,7 @@ export function focusNextNode(editor: Editor) {
 
   const paragraphType = state.schema.nodes.paragraph
   if (!paragraphType) {
-    console.warn("No paragraph node type found in schema.")
+    console.warn('No paragraph node type found in schema.')
     return false
   }
 
@@ -145,7 +138,7 @@ export function focusNextNode(editor: Editor) {
  * @returns boolean indicating if the value is a valid number
  */
 export function isValidPosition(pos: number | null | undefined): pos is number {
-  return typeof pos === "number" && pos >= 0
+  return typeof pos === 'number' && pos >= 0
 }
 
 /**
@@ -156,21 +149,22 @@ export function isValidPosition(pos: number | null | undefined): pos is number {
  */
 export function isExtensionAvailable(
   editor: Editor | null,
-  extensionNames: string | string[]
+  extensionNames: string | string[],
 ): boolean {
-  if (!editor) return false
+  if (!editor)
+    return false
 
   const names = Array.isArray(extensionNames)
     ? extensionNames
     : [extensionNames]
 
-  const found = names.some((name) =>
-    editor.extensionManager.extensions.some((ext) => ext.name === name)
+  const found = names.some(name =>
+    editor.extensionManager.extensions.some(ext => ext.name === name),
   )
 
   if (!found) {
     console.warn(
-      `None of the extensions [${names.join(", ")}] were found in the editor schema. Ensure they are included in the editor configuration.`
+      `None of the extensions [${names.join(', ')}] were found in the editor schema. Ensure they are included in the editor configuration.`,
     )
   }
 
@@ -191,7 +185,8 @@ export function findNodeAtPosition(editor: Editor, position: number) {
       return null
     }
     return node
-  } catch (error) {
+  }
+  catch (error) {
     console.error(`Error getting node at position ${position}:`, error)
     return null
   }
@@ -209,10 +204,11 @@ export function findNodePosition(props: {
   editor: Editor | null
   node?: TiptapNode | null
   nodePos?: number | null
-}): { pos: number; node: TiptapNode } | null {
+}): { pos: number, node: TiptapNode } | null {
   const { editor, node, nodePos } = props
 
-  if (!editor || !editor.state?.doc) return null
+  if (!editor || !editor.state?.doc)
+    return null
 
   // Zero is valid position
   const hasValidNode = node !== undefined && node !== null
@@ -262,14 +258,16 @@ export function findNodePosition(props: {
  */
 export function isNodeTypeSelected(
   editor: Editor | null,
-  types: string[] = []
+  types: string[] = [],
 ): boolean {
-  if (!editor || !editor.state.selection) return false
+  if (!editor || !editor.state.selection)
+    return false
 
   const { state } = editor
   const { selection } = state
 
-  if (selection.empty) return false
+  if (selection.empty)
+    return false
 
   if (selection instanceof NodeSelection) {
     const node = selection.node
@@ -286,19 +284,15 @@ export function isNodeTypeSelected(
  * @param abortSignal Optional AbortSignal for cancelling the upload
  * @returns Promise resolving to the URL of the uploaded image
  */
-export const handleImageUpload = async (
-  file: File,
-  onProgress?: (event: { progress: number }) => void,
-  abortSignal?: AbortSignal
-): Promise<string> => {
+export async function handleImageUpload(file: File, onProgress?: (event: { progress: number }) => void, abortSignal?: AbortSignal): Promise<string> {
   // Validate file
   if (!file) {
-    throw new Error("No file provided")
+    throw new Error('No file provided')
   }
 
   if (file.size > MAX_FILE_SIZE) {
     throw new Error(
-      `File size exceeds maximum allowed (${MAX_FILE_SIZE / (1024 * 1024)}MB)`
+      `File size exceeds maximum allowed (${MAX_FILE_SIZE / (1024 * 1024)}MB)`,
     )
   }
 
@@ -306,16 +300,16 @@ export const handleImageUpload = async (
   // with your own upload implementation.
   for (let progress = 0; progress <= 100; progress += 10) {
     if (abortSignal?.aborted) {
-      throw new Error("Upload cancelled")
+      throw new Error('Upload cancelled')
     }
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    await new Promise(resolve => setTimeout(resolve, 500))
     onProgress?.({ progress })
   }
 
-  return "/images/tiptap-ui-placeholder-image.jpg"
+  return '/images/tiptap-ui-placeholder-image.jpg'
 }
 
-type ProtocolOptions = {
+interface ProtocolOptions {
   /**
    * The protocol scheme to be registered.
    * @default '''
@@ -334,31 +328,31 @@ type ProtocolOptions = {
 
 type ProtocolConfig = Array<ProtocolOptions | string>
 
-const ATTR_WHITESPACE =
+const ATTR_WHITESPACE
   // eslint-disable-next-line no-control-regex
-  /[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g
+  = /[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g
 
 export function isAllowedUri(
   uri: string | undefined,
-  protocols?: ProtocolConfig
+  protocols?: ProtocolConfig,
 ) {
   const allowedProtocols: string[] = [
-    "http",
-    "https",
-    "ftp",
-    "ftps",
-    "mailto",
-    "tel",
-    "callto",
-    "sms",
-    "cid",
-    "xmpp",
+    'http',
+    'https',
+    'ftp',
+    'ftps',
+    'mailto',
+    'tel',
+    'callto',
+    'sms',
+    'cid',
+    'xmpp',
   ]
 
   if (protocols) {
     protocols.forEach((protocol) => {
-      const nextProtocol =
-        typeof protocol === "string" ? protocol : protocol.scheme
+      const nextProtocol
+        = typeof protocol === 'string' ? protocol : protocol.scheme
 
       if (nextProtocol) {
         allowedProtocols.push(nextProtocol)
@@ -367,13 +361,13 @@ export function isAllowedUri(
   }
 
   return (
-    !uri ||
-    uri.replace(ATTR_WHITESPACE, "").match(
+    !uri
+    || uri.replace(ATTR_WHITESPACE, '').match(
       new RegExp(
-        // eslint-disable-next-line no-useless-escape
-        `^(?:(?:${allowedProtocols.join("|")}):|[^a-z]|[a-z0-9+.\-]+(?:[^a-z+.\-:]|$))`,
-        "i"
-      )
+
+        `^(?:(?:${allowedProtocols.join('|')}):|[^a-z]|[a-z0-9+.\-]+(?:[^a-z+.\-:]|$))`,
+        'i',
+      ),
     )
   )
 }
@@ -381,7 +375,7 @@ export function isAllowedUri(
 export function sanitizeUrl(
   inputUrl: string,
   baseUrl: string,
-  protocols?: ProtocolConfig
+  protocols?: ProtocolConfig,
 ): string {
   try {
     const url = new URL(inputUrl, baseUrl)
@@ -389,8 +383,9 @@ export function sanitizeUrl(
     if (isAllowedUri(url.href, protocols)) {
       return url.href
     }
-  } catch {
+  }
+  catch {
     // If URL creation fails, it's considered invalid
   }
-  return "#"
+  return '#'
 }

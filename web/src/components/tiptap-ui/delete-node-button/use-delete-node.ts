@@ -1,18 +1,18 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import { useHotkeys } from "react-hotkeys-hook"
-import { type Editor } from "@tiptap/react"
-import { NodeSelection } from "@tiptap/pm/state"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
-import { useIsMobile } from "@/hooks/use-mobile"
+import type { Editor } from '@tiptap/react'
+import { NodeSelection } from '@tiptap/pm/state'
+import * as React from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
 
 // --- Icons ---
-import { TrashIcon } from "@/components/tiptap-icons/trash-icon"
+import { TrashIcon } from '@/components/tiptap-icons/trash-icon'
+import { useIsMobile } from '@/hooks/use-mobile'
 
-export const DELETE_NODE_SHORTCUT_KEY = "backspace"
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
+
+export const DELETE_NODE_SHORTCUT_KEY = 'backspace'
 
 /**
  * Configuration for the delete node functionality
@@ -37,7 +37,8 @@ export interface UseDeleteNodeConfig {
  * Checks if a node can be deleted based on the current selection
  */
 export function canDeleteNode(editor: Editor | null): boolean {
-  if (!editor || !editor.isEditable) return false
+  if (!editor || !editor.isEditable)
+    return false
 
   const { state } = editor
   const { selection } = state
@@ -68,12 +69,13 @@ export function canDeleteNode(editor: Editor | null): boolean {
 export function deleteNodeAtPosition(
   editor: Editor,
   pos: number,
-  nodeSize: number
+  nodeSize: number,
 ): boolean {
   const chain = editor.chain().focus()
   const success = chain.deleteRange({ from: pos, to: pos + nodeSize }).run()
 
-  if (success) return true
+  if (success)
+    return true
 
   // Fallback
   return chain.setNodeSelection(pos).deleteSelection().run()
@@ -83,7 +85,8 @@ export function deleteNodeAtPosition(
  * Deletes the selected node in the editor using current selection
  */
 export function deleteNode(editor: Editor | null): boolean {
-  if (!editor || !editor.isEditable) return false
+  if (!editor || !editor.isEditable)
+    return false
 
   try {
     const { state } = editor
@@ -93,7 +96,8 @@ export function deleteNode(editor: Editor | null): boolean {
       const pos = selection.from
       const selectedNode = selection.node
 
-      if (!selectedNode) return false
+      if (!selectedNode)
+        return false
 
       return deleteNodeAtPosition(editor, pos, selectedNode.nodeSize)
     }
@@ -110,7 +114,8 @@ export function deleteNode(editor: Editor | null): boolean {
     }
 
     return false
-  } catch {
+  }
+  catch {
     return false
   }
 }
@@ -124,9 +129,10 @@ export function shouldShowButton(props: {
 }): boolean {
   const { editor, hideWhenUnavailable } = props
 
-  if (!editor || !editor.isEditable) return false
+  if (!editor || !editor.isEditable)
+    return false
 
-  if (hideWhenUnavailable && !editor.isActive("code")) {
+  if (hideWhenUnavailable && !editor.isActive('code')) {
     return canDeleteNode(editor)
   }
 
@@ -181,7 +187,8 @@ export function useDeleteNode(config?: UseDeleteNodeConfig) {
   const canDeleteNodeState = canDeleteNode(editor)
 
   React.useEffect(() => {
-    if (!editor) return
+    if (!editor)
+      return
 
     const handleSelectionUpdate = () => {
       setIsVisible(shouldShowButton({ editor, hideWhenUnavailable }))
@@ -189,15 +196,16 @@ export function useDeleteNode(config?: UseDeleteNodeConfig) {
 
     handleSelectionUpdate()
 
-    editor.on("selectionUpdate", handleSelectionUpdate)
+    editor.on('selectionUpdate', handleSelectionUpdate)
 
     return () => {
-      editor.off("selectionUpdate", handleSelectionUpdate)
+      editor.off('selectionUpdate', handleSelectionUpdate)
     }
   }, [editor, hideWhenUnavailable])
 
   const handleDeleteNode = React.useCallback(() => {
-    if (!editor) return false
+    if (!editor)
+      return false
 
     const success = deleteNode(editor)
     if (success) {
@@ -216,14 +224,14 @@ export function useDeleteNode(config?: UseDeleteNodeConfig) {
       enabled: isVisible && canDeleteNodeState,
       enableOnContentEditable: !isMobile,
       enableOnFormTags: true,
-    }
+    },
   )
 
   return {
     isVisible,
     handleDeleteNode,
     canDeleteNode: canDeleteNodeState,
-    label: "Delete",
+    label: 'Delete',
     shortcutKeys: DELETE_NODE_SHORTCUT_KEY,
     Icon: TrashIcon,
   }

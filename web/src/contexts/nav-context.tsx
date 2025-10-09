@@ -1,78 +1,78 @@
 // ...existing code...
-"use client";
+'use client'
 
-import { cn } from "@/lib/utils";
-import { contentAreaPaddingClass, navHeight } from "@/utils/common/layout-size";
-import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { cn } from '@/lib/utils'
+import { contentAreaPaddingClass, navHeight } from '@/utils/common/layout-size'
 
-type NavContextValue = {
-  hasNavPadding: boolean;
-  setHasNavPadding: (hasPadding: boolean) => void;
-  toggleNavPadding: () => void;
+interface NavContextValue {
+  hasNavPadding: boolean
+  setHasNavPadding: (hasPadding: boolean) => void
+  toggleNavPadding: () => void
 
-  navClassName: string;
-  setNavStyle: (className: string) => void;
+  navClassName: string
+  setNavStyle: (className: string) => void
 
   // useNavControl 中的重置（还原到 DEFAULT_NAV_CLASSNAME）
-  resetNavStyle: () => void;
+  resetNavStyle: () => void
 
   // 便捷控制
-  disableNavPadding: () => void;
-  enableNavPadding: () => void;
+  disableNavPadding: () => void
+  enableNavPadding: () => void
 
   // 预设样式
-  setTransparentNav: () => void;
-  setSolidNav: () => void;
+  setTransparentNav: () => void
+  setSolidNav: () => void
 
   // navTitle: string;
-  navTitle: string;
-  setNavTitle: (title: string) => void;
-};
+  navTitle: string
+  setNavTitle: (title: string) => void
+}
 
-export const DEFAULT_NAV_CLASSNAME = `bg-background/90 backdrop-blur md:rounded-b-2xl shadow-md border-b border-border/50 h-${navHeight} ${contentAreaPaddingClass}`;
+export const DEFAULT_NAV_CLASSNAME = `bg-background/90 backdrop-blur md:rounded-b-2xl shadow-md border-b border-border/50 h-${navHeight} ${contentAreaPaddingClass}`
 
-const NavContext = createContext<NavContextValue | undefined>(undefined);
+const NavContext = createContext<NavContextValue | undefined>(undefined)
 
 export function NavPaddingProvider({
   children,
   initialHasNavPadding = true,
-  initialNavClassName = "",
+  initialNavClassName = '',
 }: {
-  children: React.ReactNode;
-  initialHasNavPadding?: boolean;
-  initialNavClassName?: string;
+  children: React.ReactNode
+  initialHasNavPadding?: boolean
+  initialNavClassName?: string
 }) {
-  const [hasNavPadding, setHasNavPadding] = useState<boolean>(initialHasNavPadding);
-  const [navClassName, setNavClassName] = useState<string>(cn(DEFAULT_NAV_CLASSNAME, initialNavClassName));
-  const [navTitle, setNavTitle] = useState<string>("");
+  const [hasNavPadding, setHasNavPadding] = useState<boolean>(initialHasNavPadding)
+  const [navClassName, setNavClassName] = useState<string>(cn(DEFAULT_NAV_CLASSNAME, initialNavClassName))
+  const [navTitle, setNavTitle] = useState<string>('')
 
   const toggleNavPadding = useCallback(() => {
-    setHasNavPadding(prev => !prev);
-  }, []);
+    setHasNavPadding(prev => !prev)
+  }, [])
 
   const resetNavStyle = useCallback(() => {
-    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, initialNavClassName));
-  }, [initialNavClassName]);
+    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, initialNavClassName))
+  }, [initialNavClassName])
 
   const setNavStyle = useCallback((className: string) => {
-    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, className));
-  }, []);
+    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, className))
+  }, [])
 
   const disableNavPadding = useCallback(() => {
-    setHasNavPadding(false);
-  }, []);
+    setHasNavPadding(false)
+  }, [])
 
   const enableNavPadding = useCallback(() => {
-    setHasNavPadding(true);
-  }, []);
+    setHasNavPadding(true)
+  }, [])
 
   const setTransparentNav = useCallback(() => {
-    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, "bg-transparent backdrop-blur-md"));
-  }, []);
+    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, 'bg-transparent backdrop-blur-md'))
+  }, [])
 
   const setSolidNav = useCallback(() => {
-    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, "bg-background border-b"));
-  }, []);
+    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, 'bg-background border-b'))
+  }, [])
 
   const value = useMemo(() => ({
     hasNavPadding,
@@ -102,21 +102,20 @@ export function NavPaddingProvider({
     enableNavPadding,
     setTransparentNav,
     setSolidNav,
-    setNavTitle
-  ]);
-
+    setNavTitle,
+  ])
 
   return (
     <NavContext.Provider value={value}>
       {children}
     </NavContext.Provider>
-  );
+  )
 }
 
 export function useNav() {
-  const ctx = useContext(NavContext);
+  const ctx = useContext(NavContext)
   if (!ctx) {
-    throw new Error("useNav must be used within a NavPaddingProvider");
+    throw new Error('useNav must be used within a NavPaddingProvider')
   }
-  return ctx;
+  return ctx
 }

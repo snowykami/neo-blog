@@ -1,8 +1,7 @@
-import axiosClient from './client'
 import type { BaseResponse } from '@/models/resp'
-import { TargetType } from '@/models/types'
-import { User } from '@/models/user'
-
+import type { TargetType } from '@/models/types'
+import type { User } from '@/models/user'
+import axiosClient from './client'
 
 export async function toggleLike(
   { targetType, targetId }: { targetType: TargetType, targetId: number },

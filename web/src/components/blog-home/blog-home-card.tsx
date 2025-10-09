@@ -1,27 +1,26 @@
-"use client"
+'use client'
 
 import type { Post } from '@/models/post'
 import { Calendar, ChartBarStackedIcon, Eye, FlameIcon, Heart, Lock, MessageCircle, UserIcon } from 'lucide-react'
+import { motion } from 'motion/react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 
-import { motion } from 'motion/react'
-import { deceleration } from '@/motion/curve'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { cn } from '@/lib/utils'
+import { deceleration } from '@/motion/curve'
 import { getPostUrl } from '@/utils/common/route'
-import { htmlToText } from '@/utils/common/string'
 import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
-
+import { htmlToText } from '@/utils/common/string'
 
 export function BlogCard({ post, className }: {
   post: Post
   className?: string
 }) {
-  const { siteInfo } = useSiteInfo();
+  const { siteInfo } = useSiteInfo()
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('zh-CN', {
@@ -59,7 +58,6 @@ export function BlogCard({ post, className }: {
             priority={false}
           />
         </motion.div>
-
 
         {/* 覆盖层 */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
@@ -119,7 +117,7 @@ export function BlogCard({ post, className }: {
         {post.heat > 50 && (
           <div className="absolute bottom-2 right-2">
             <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-sm rounded-full">
-              <FlameIcon className='w-5 h-5'/>
+              <FlameIcon className="w-5 h-5" />
               {post.heat}
             </Badge>
           </div>
@@ -170,7 +168,8 @@ export function BlogCardSkeleton({ className }: { className?: string }) {
     <Card className={cn(
       'overflow-hidden h-full flex flex-col gap-2 pt-0',
       className,
-    )}>
+    )}
+    >
       {/* 封面图片骨架 */}
       <Skeleton className="relative aspect-[16/8]" />
 
@@ -234,7 +233,7 @@ export function BlogCardGrid({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-6">
       {filteredPosts.map(post => (
-        <Link key={post.id} href={getPostUrl({post})} className="block h-full">
+        <Link key={post.id} href={getPostUrl({ post })} className="block h-full">
           <BlogCard post={post} />
         </Link>
       ))}

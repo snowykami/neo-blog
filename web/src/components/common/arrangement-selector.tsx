@@ -1,9 +1,9 @@
-import { ArrangementMode } from "@/models/common"
-import { useState } from "react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Button } from "@/components/ui/button"
-import { useTranslations } from "next-intl"
-import { Grid3X3, List, LayoutGrid} from "lucide-react"
+import { Grid3X3, LayoutGrid, List } from 'lucide-react'
+import { useTranslations } from 'next-intl'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ArrangementMode } from '@/models/common'
 
 const ARRANGEMENT_MODE_ICONS = {
   [ArrangementMode.Grid]: Grid3X3,
@@ -11,16 +11,16 @@ const ARRANGEMENT_MODE_ICONS = {
   [ArrangementMode.Card]: LayoutGrid,
 }
 
-export function ArrangementSelector({ 
-  initialArrangement, 
-  onArrangementChange, 
-  arrangementModes
-}: { 
+export function ArrangementSelector({
+  initialArrangement,
+  onArrangementChange,
+  arrangementModes,
+}: {
   initialArrangement: ArrangementMode
   arrangementModes?: ArrangementMode[]
-  onArrangementChange: (arrangement: ArrangementMode) => void 
+  onArrangementChange: (arrangement: ArrangementMode) => void
 }) {
-  const arrangementT = useTranslations("Arrangement")
+  const arrangementT = useTranslations('Arrangement')
   const [open, setOpen] = useState(false)
   const [arrangement, setArrangement] = useState<ArrangementMode>(initialArrangement)
 
@@ -49,14 +49,14 @@ export function ArrangementSelector({
         <div className="flex flex-col">
           {arrangementModes.map((am) => {
             const IconComponent = ARRANGEMENT_MODE_ICONS[am]
-            
+
             return (
               <Button
                 key={am}
                 variant="ghost"
                 size="sm"
                 className={`justify-start ${
-                  arrangement === am ? "bg-accent" : ""
+                  arrangement === am ? 'bg-accent' : ''
                 }`}
                 onClick={() => handleArrangementChange(am)}
               >

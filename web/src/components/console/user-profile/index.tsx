@@ -1,59 +1,59 @@
-"use client"
-import { uploadFile } from "@/api/file";
-import { updateUser } from "@/api/user";
-import { ImageCropper } from "@/components/common/image-cropper";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useAuth } from "@/contexts/auth-context";
-import { getFileUri } from "@/utils/client/file";
-import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
-import { getFallbackAvatarFromUsername } from "@/utils/common/username";
-import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
-
-import { useForm } from "react-hook-form";
+'use client'
+import { useTranslations } from 'next-intl'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
+import { uploadFile } from '@/api/file'
+import { updateUser } from '@/api/user'
+import { ImageCropper } from '@/components/common/image-cropper'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import {
   Form,
+  FormControl,
   FormField,
   FormItem,
   FormLabel,
-  FormControl,
   FormMessage,
-} from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { localesData } from "@/locales";
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useAuth } from '@/contexts/auth-context'
+
+import { localesData } from '@/locales'
+import { getFileUri } from '@/utils/client/file'
+import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
+import { getFallbackAvatarFromUsername } from '@/utils/common/username'
 
 interface UploadConstraints {
-  allowedTypes: string[];
-  maxSize: number;
+  allowedTypes: string[]
+  maxSize: number
 }
 
 interface PictureInputChangeEvent {
-  target: HTMLInputElement & { files?: FileList | null };
+  target: HTMLInputElement & { files?: FileList | null }
 }
 
-type FormValues = {
-  nickname: string;
-  username: string;
-  gender: string;
-  language: string;
-};
+interface FormValues {
+  nickname: string
+  username: string
+  gender: string
+  language: string
+}
 
 export function UserProfilePage() {
-  const t = useTranslations("Console.user_profile")
-  const { user } = useAuth();
+  const t = useTranslations('Console.user_profile')
+  const { user } = useAuth()
 
   const form = useForm<FormValues>({
     defaultValues: {
-      nickname: user?.nickname ?? "",
-      username: user?.username ?? "",
-      gender: user?.gender ?? "",
-      language: user?.language ?? "en",
+      nickname: user?.nickname ?? '',
+      username: user?.username ?? '',
+      gender: user?.gender ?? '',
+      language: user?.language ?? 'en',
     },
-  });
+  })
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarFileUrl, setAvatarFileUrl] = useState<string | null>(null)
@@ -61,129 +61,133 @@ export function UserProfilePage() {
   const [backgroundFileUrl, setBackgroundFileUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!user) return;
+    if (!user)
+      return
     if (!avatarFile) {
-      setAvatarFileUrl(getAvatarOrGravatarUrlFromUser({ user }));
-      return;
+      setAvatarFileUrl(getAvatarOrGravatarUrlFromUser({ user }))
+      return
     }
-    const url = URL.createObjectURL(avatarFile);
-    setAvatarFileUrl(url);
+    const url = URL.createObjectURL(avatarFile)
+    setAvatarFileUrl(url)
     return () => {
-      URL.revokeObjectURL(url);
-      setAvatarFileUrl(getAvatarOrGravatarUrlFromUser({ user }));
-    };
-  }, [avatarFile, user]);
+      URL.revokeObjectURL(url)
+      setAvatarFileUrl(getAvatarOrGravatarUrlFromUser({ user }))
+    }
+  }, [avatarFile, user])
 
   useEffect(() => {
-    if (!user) return;
+    if (!user)
+      return
     if (!backgroundFile) {
-      setBackgroundFileUrl(null);
-      return;
+      setBackgroundFileUrl(null)
+      return
     }
-    const url = URL.createObjectURL(backgroundFile);
-    setBackgroundFileUrl(url);
+    const url = URL.createObjectURL(backgroundFile)
+    setBackgroundFileUrl(url)
     return () => {
-      URL.revokeObjectURL(url);
-      setBackgroundFileUrl(null);
-    };
-  }, [backgroundFile, user]);
+      URL.revokeObjectURL(url)
+      setBackgroundFileUrl(null)
+    }
+  }, [backgroundFile, user])
 
   const isProfileChanged = (): boolean => {
-    if (!user) return false;
-    const values = form.getValues();
+    if (!user)
+      return false
+    const values = form.getValues()
     return (
-      values.nickname.trim() !== (user.nickname ?? "") ||
-      values.username.trim() !== (user.username ?? "") ||
-      values.gender !== (user.gender ?? "") ||
-      values.language !== (user.language ?? "") ||
-      avatarFile !== null ||
-      backgroundFile !== null
-    );
+      values.nickname.trim() !== (user.nickname ?? '')
+      || values.username.trim() !== (user.username ?? '')
+      || values.gender !== (user.gender ?? '')
+      || values.language !== (user.language ?? '')
+      || avatarFile !== null
+      || backgroundFile !== null
+    )
   }
 
   const handlePictureSelected = (e: PictureInputChangeEvent): void => {
-    const file: File | null = e.target.files?.[0] ?? null;
+    const file: File | null = e.target.files?.[0] ?? null
     if (!file) {
-      setAvatarFile(null);
-      return;
+      setAvatarFile(null)
+      return
     }
     const constraints: UploadConstraints = {
       allowedTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
       maxSize: 5 * 1024 * 1024,
-    };
+    }
     if (!file.type || !file.type.startsWith('image/') || !constraints.allowedTypes.includes(file.type)) {
-      setAvatarFile(null);
-      toast.error(t("only_allow_picture"));
-      return;
+      setAvatarFile(null)
+      toast.error(t('only_allow_picture'))
+      return
     }
     if (file.size > constraints.maxSize) {
-      setAvatarFile(null);
-      toast.error(t("picture_size_cannot_exceed", { "size": "5MiB" }));
-      return;
+      setAvatarFile(null)
+      toast.error(t('picture_size_cannot_exceed', { size: '5MiB' }))
+      return
     }
-    setAvatarFile(file);
+    setAvatarFile(file)
   }
 
   const handleBackgroundSelected = (e: PictureInputChangeEvent): void => {
-    const file: File | null = e.target.files?.[0] ?? null;
+    const file: File | null = e.target.files?.[0] ?? null
     if (!file) {
-      setBackgroundFile(null);
-      return;
+      setBackgroundFile(null)
+      return
     }
     const constraints: UploadConstraints = {
       allowedTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
       maxSize: 5 * 1024 * 1024,
-    };
+    }
     if (!file.type || !file.type.startsWith('image/') || !constraints.allowedTypes.includes(file.type)) {
-      setBackgroundFile(null);
-      toast.error(t("only_allow_picture"));
-      return;
+      setBackgroundFile(null)
+      toast.error(t('only_allow_picture'))
+      return
     }
     if (file.size > constraints.maxSize) {
-      setBackgroundFile(null);
-      toast.error(t("picture_size_cannot_exceed", { "size": "5MiB" }));
-      return;
+      setBackgroundFile(null)
+      toast.error(t('picture_size_cannot_exceed', { size: '5MiB' }))
+      return
     }
-    setBackgroundFile(file);
+    setBackgroundFile(file)
   }
 
   const handleCropped = (blob: Blob) => {
-    const file = new File([blob], 'avatar.png', { type: blob.type });
-    setAvatarFile(file);
+    const file = new File([blob], 'avatar.png', { type: blob.type })
+    setAvatarFile(file)
   }
 
-  if (!user) return null
+  if (!user)
+    return null
 
   const onSubmit = form.handleSubmit(async (values) => {
     // check values nickname可为空
     if (values.username.trim() === '') {
-      toast.error(t("nickname_and_username_cannot_be_empty"))
-      return;
+      toast.error(t('nickname_and_username_cannot_be_empty'))
+      return
     }
     if (
-      (values.username.length < 1 || values.username.length > 20) ||
-      (values.nickname.length > 20)
+      (values.username.length < 1 || values.username.length > 20)
+      || (values.nickname.length > 20)
     ) {
-      toast.error(t("nickname_and_username_must_be_between", { "min": 1, "max": 20 }))
-      return;
+      toast.error(t('nickname_and_username_must_be_between', { min: 1, max: 20 }))
+      return
     }
 
     if (!isProfileChanged()) {
-      toast.warning(t("no_changes_made"))
-      return;
+      toast.warning(t('no_changes_made'))
+      return
     }
 
-    let avatarUrl = user.avatarUrl;
-    let backgroundUrl = user.backgroundUrl;
+    let avatarUrl = user.avatarUrl
+    let backgroundUrl = user.backgroundUrl
 
     try {
       if (avatarFile) {
-        const resp = await uploadFile({ file: avatarFile, name: avatarFile.name });
-        avatarUrl = getFileUri(resp.data.id);
+        const resp = await uploadFile({ file: avatarFile, name: avatarFile.name })
+        avatarUrl = getFileUri(resp.data.id)
       }
       if (backgroundFile) {
-        const resp = await uploadFile({ file: backgroundFile, name: backgroundFile.name });
-        backgroundUrl = getFileUri(resp.data.id);
+        const resp = await uploadFile({ file: backgroundFile, name: backgroundFile.name })
+        backgroundUrl = getFileUri(resp.data.id)
       }
 
       await updateUser({
@@ -194,26 +198,27 @@ export function UserProfilePage() {
         language: values.language,
         avatarUrl,
         backgroundUrl,
-      });
-      window.location.reload();
-    } catch (error: unknown) {
-      toast.error(`${t("failed_to_update_profile")}: ${String(error)}`);
+      })
+      window.location.reload()
     }
-  });
+    catch (error: unknown) {
+      toast.error(`${t('failed_to_update_profile')}: ${String(error)}`)
+    }
+  })
 
   return (
     <Form {...form}>
       <form onSubmit={onSubmit} className="grid w-full max-w-sm items-center gap-4">
-        <h1 className="text-2xl font-bold">{t("public_profile")}</h1>
+        <h1 className="text-2xl font-bold">{t('public_profile')}</h1>
 
         <div className="grid w-full items-center gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="picture">{t("picture")}</Label>
+            <Label htmlFor="picture">{t('picture')}</Label>
             <Avatar className="h-40 w-40 rounded-xl border-2">
-              {avatarFileUrl ?
-                <AvatarImage src={avatarFileUrl} alt={form.getValues("nickname") || form.getValues("username")} /> :
-                <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={form.getValues("nickname") || form.getValues("username")} />}
-              <AvatarFallback>{getFallbackAvatarFromUsername(form.getValues("nickname") || form.getValues("username"))}</AvatarFallback>
+              {avatarFileUrl
+                ? <AvatarImage src={avatarFileUrl} alt={form.getValues('nickname') || form.getValues('username')} />
+                : <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={form.getValues('nickname') || form.getValues('username')} />}
+              <AvatarFallback>{getFallbackAvatarFromUsername(form.getValues('nickname') || form.getValues('username'))}</AvatarFallback>
             </Avatar>
             <div className="flex gap-2">
               <Input
@@ -227,13 +232,12 @@ export function UserProfilePage() {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="background">{t("background")}</Label>
+            <Label htmlFor="background">{t('background')}</Label>
             <Avatar className="h-40 w-80 rounded-sm border-2">
-              {backgroundFileUrl ?
-                <AvatarImage className="object-cover rounded-none" src={backgroundFileUrl} alt={form.getValues("nickname") || form.getValues("username")} /> :
-                <AvatarImage className="object-cover rounded-none" src={user.backgroundUrl} alt={form.getValues("nickname") || form.getValues("username")} />
-              }
-              <AvatarFallback className="rounded-none">{t("background")}</AvatarFallback>
+              {backgroundFileUrl
+                ? <AvatarImage className="object-cover rounded-none" src={backgroundFileUrl} alt={form.getValues('nickname') || form.getValues('username')} />
+                : <AvatarImage className="object-cover rounded-none" src={user.backgroundUrl} alt={form.getValues('nickname') || form.getValues('username')} />}
+              <AvatarFallback className="rounded-none">{t('background')}</AvatarFallback>
             </Avatar>
             <div className="flex gap-2">
               <Input
@@ -242,10 +246,15 @@ export function UserProfilePage() {
                 accept="image/png,image/jpeg,image/webp,image/gif,image/*"
                 onChange={handleBackgroundSelected}
               />
-              <ImageCropper image={backgroundFile} onCropped={(blob) => {
-                const file = new File([blob], 'background.png', { type: blob.type });
-                setBackgroundFile(file);
-              }} initialAspect={3} lockAspect={false} />
+              <ImageCropper
+                image={backgroundFile}
+                onCropped={(blob) => {
+                  const file = new File([blob], 'background.png', { type: blob.type })
+                  setBackgroundFile(file)
+                }}
+                initialAspect={3}
+                lockAspect={false}
+              />
             </div>
           </div>
 
@@ -254,7 +263,7 @@ export function UserProfilePage() {
             name="nickname"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("nickname")}</FormLabel>
+                <FormLabel>{t('nickname')}</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -268,7 +277,7 @@ export function UserProfilePage() {
             name="username"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("username")}</FormLabel>
+                <FormLabel>{t('username')}</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -282,7 +291,7 @@ export function UserProfilePage() {
             name="gender"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("gender")}</FormLabel>
+                <FormLabel>{t('gender')}</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -296,7 +305,7 @@ export function UserProfilePage() {
             name="language"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("language")}</FormLabel>
+                <FormLabel>{t('language')}</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
@@ -304,7 +313,7 @@ export function UserProfilePage() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {localesData && Object.keys(localesData).map((locale) => (
+                    {localesData && Object.keys(localesData).map(locale => (
                       <SelectItem key={locale} value={locale}>
                         {localesData[locale].name}
                       </SelectItem>
@@ -317,7 +326,7 @@ export function UserProfilePage() {
           />
 
           <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
-            {t("update_profile")}
+            {t('update_profile')}
             {form.formState.isSubmitting && '...'}
           </Button>
         </div>

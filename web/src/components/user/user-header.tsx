@@ -1,9 +1,9 @@
-"use client"
-import { User } from "@/models/user";
-import { Mail, User as UserIcon, Shield } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
-import { getFirstCharFromUser } from "@/utils/common/username";
+'use client'
+import type { User } from '@/models/user'
+import { Mail, Shield, User as UserIcon } from 'lucide-react'
+import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
+import { getFirstCharFromUser } from '@/utils/common/username'
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 
 export function UserHeader({ user }: { user: User }) {
   return (
@@ -13,16 +13,19 @@ export function UserHeader({ user }: { user: User }) {
         {/* wrapper 控制显示大小，父组件给具体 w/h */}
         <div className="w-40 h-40 md:w-48 md:h-48 relative">
           <Avatar className="h-full w-full rounded-full">
-            <AvatarImage src={getAvatarOrGravatarUrlFromUser({user})} alt={user.nickname} />
-              <AvatarFallback className="rounded-full">{getFirstCharFromUser(user)}</AvatarFallback>
-            </Avatar>
+            <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.nickname} />
+            <AvatarFallback className="rounded-full">{getFirstCharFromUser(user)}</AvatarFallback>
+          </Avatar>
         </div>
       </div>
 
       {/* 右侧 70%（信息区） */}
       <div className="md:basis-[70%] p-4 flex flex-col justify-center space-y-2">
         <h2 className="text-2xl font-bold mt-0">{user.nickname || user.username || '未填写昵称'}</h2>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">@{user.username}</p>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
+          @
+          {user.username}
+        </p>
 
         <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
           <UserIcon className="w-4 h-4 mr-2" />
@@ -41,5 +44,5 @@ export function UserHeader({ user }: { user: User }) {
         {/* 其他简介、按钮等放这里 */}
       </div>
     </div>
-  );
+  )
 }

@@ -1,15 +1,14 @@
-import type { Attrs, Node } from "@tiptap/pm/model"
-import { findNodePosition, isValidPosition } from "./tiptap-utils"
-import type { Editor } from "@tiptap/react"
-import { NodeSelection, TextSelection } from "@tiptap/pm/state"
+import type { Attrs, Node } from '@tiptap/pm/model'
+import type { Editor } from '@tiptap/react'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import { findNodePosition, isValidPosition } from './tiptap-utils'
 
 /**
  * Splits an array into chunks of specified size
  */
 export function chunkArray<T>(array: Array<T>, size: number): Array<Array<T>> {
   return Array.from({ length: Math.ceil(array.length / size) }, (_, index) =>
-    array.slice(index * size, index * size + size)
-  )
+    array.slice(index * size, index * size + size))
 }
 
 /**
@@ -19,7 +18,8 @@ export function hasContentAbove(editor: Editor | null): {
   hasContent: boolean
   content: string
 } {
-  if (!editor) return { hasContent: false, content: "" }
+  if (!editor)
+    return { hasContent: false, content: '' }
 
   const { state } = editor
   const { $from } = state.selection
@@ -33,7 +33,7 @@ export function hasContentAbove(editor: Editor | null): {
     }
   }
 
-  return { hasContent: false, content: "" }
+  return { hasContent: false, content: '' }
 }
 
 /**
@@ -45,15 +45,16 @@ export function hasContentAbove(editor: Editor | null): {
  */
 export function getActiveMarkAttrs(
   editor: Editor | null,
-  markName: string
+  markName: string,
 ): Attrs | null {
-  if (!editor) return null
+  if (!editor)
+    return null
 
   const { state } = editor
   const { from, to, empty, $from } = state.selection
 
   if (empty) {
-    const mark = $from.marks().find((m) => m.type.name === markName)
+    const mark = $from.marks().find(m => m.type.name === markName)
     return mark?.attrs ?? null
   }
 
@@ -61,7 +62,8 @@ export function getActiveMarkAttrs(
   let foundAttrs: Attrs | null = null
 
   state.doc.nodesBetween(from, to, (node) => {
-    if (!node.isText) return
+    if (!node.isText)
+      return
 
     for (const mark of node.marks) {
       if (mark.type.name === markName && !seen.has(mark.type.name)) {
@@ -86,15 +88,18 @@ export function findSelectionPosition(params: {
 }): number | null {
   const { editor, node, nodePos } = params
 
-  if (isValidPosition(nodePos)) return nodePos
+  if (isValidPosition(nodePos))
+    return nodePos
 
   if (node) {
     const found = findNodePosition({ editor, node })
-    if (found) return found.pos
+    if (found)
+      return found.pos
   }
 
   const { selection } = editor.state
-  if (!selection.empty) return null
+  if (!selection.empty)
+    return null
 
   const resolvedPos = selection.$anchor
   const nodeDepth = 1
@@ -137,7 +142,8 @@ export function getSelectedDOMElement(editor: Editor): HTMLElement | null {
  * @returns An object containing the closest block node, its position, and depth, or null if not found
  */
 export function getClosestBlockNode(editor: Editor | null) {
-  if (!editor) return null
+  if (!editor)
+    return null
   const { selection } = editor.state
   const { $from } = selection
 
@@ -161,9 +167,10 @@ export function getClosestBlockNode(editor: Editor | null) {
  */
 export function getAnchorNodeAndPos(
   editor: Editor | null,
-  allowEmptySelection: boolean = true
-): { node: Node; pos: number } | null {
-  if (!editor) return null
+  allowEmptySelection: boolean = true,
+): { node: Node, pos: number } | null {
+  if (!editor)
+    return null
 
   const { state } = editor
   const { selection } = state
@@ -177,7 +184,8 @@ export function getAnchorNodeAndPos(
     }
   }
 
-  if (selection.empty && !allowEmptySelection) return null
+  if (selection.empty && !allowEmptySelection)
+    return null
 
   const $anchor = selection.$anchor
   const depth = 1 // explicitly use depth 1
@@ -194,14 +202,16 @@ export function getAnchorNodeAndPos(
  * @returns `true` if the selection contains text, `false` otherwise.
  */
 export function selectionHasText(editor: Editor | null): boolean {
-  if (!editor) return false
+  if (!editor)
+    return false
 
   const { state } = editor
   const { selection, doc } = state
 
-  if (selection.empty) return false
+  if (selection.empty)
+    return false
 
-  const text = doc.textBetween(selection.from, selection.to, "\n", "\0")
+  const text = doc.textBetween(selection.from, selection.to, '\n', '\0')
   return text.trim().length > 0
 }
 
@@ -213,17 +223,18 @@ export function selectionHasText(editor: Editor | null): boolean {
  */
 export function getEditorExtension(
   editor: Editor | null,
-  extensionName: string
+  extensionName: string,
 ) {
-  if (!editor) return null
+  if (!editor)
+    return null
 
   const extension = editor.extensionManager.extensions.find(
-    (ext) => ext.name === extensionName
+    ext => ext.name === extensionName,
   )
 
   if (!extension) {
     console.warn(
-      `Extension "${extensionName}" not found in the editor schema. Ensure it is included in the editor configuration.`
+      `Extension "${extensionName}" not found in the editor schema. Ensure it is included in the editor configuration.`,
     )
     return null
   }

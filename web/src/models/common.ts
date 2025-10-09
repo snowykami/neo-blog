@@ -6,7 +6,7 @@ export interface PaginationParams {
 }
 
 export enum OrderBy {
-  Name = 'name',  // 文章不能用 name 排序
+  Name = 'name', // 文章不能用 name 排序
   CreatedAt = 'created_at',
   UpdatedAt = 'updated_at',
   Heat = 'heat',
@@ -17,7 +17,7 @@ export enum OrderBy {
 }
 
 export enum ArrangementMode {
-  Grid = "grid",
-  List = "list", 
-  Card = "card",
+  Grid = 'grid',
+  List = 'list',
+  Card = 'card',
 }

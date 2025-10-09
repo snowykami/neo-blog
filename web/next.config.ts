@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**', port: '', pathname: '/**' },
-      { protocol: 'http', hostname: '**', port: '', pathname: '/**' }
+      { protocol: 'http', hostname: '**', port: '', pathname: '/**' },
     ],
   },
   async rewrites() {
@@ -23,20 +23,20 @@ const nextConfig: NextConfig = {
       {
         source: '/feed',
         destination: '/rss.xml',
-        permanent: true
+        permanent: true,
       },
       {
         source: '/rss',
         destination: '/rss.xml',
-        permanent: true
+        permanent: true,
       },
       {
         source: '/feed.xml',
         destination: '/rss.xml',
-        permanent: true
+        permanent: true,
       },
     ]
-  }
+  },
 }
 const withNextIntl = createNextIntlPlugin()
 export default withNextIntl(nextConfig)

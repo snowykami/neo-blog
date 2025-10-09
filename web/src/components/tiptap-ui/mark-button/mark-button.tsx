@@ -1,25 +1,25 @@
-"use client"
-
-import * as React from "react"
-
-// --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
-
-// --- Tiptap UI ---
-import type { Mark, UseMarkConfig } from "@/components/tiptap-ui/mark-button"
-import { MARK_SHORTCUT_KEYS, useMark } from "@/components/tiptap-ui/mark-button"
+'use client'
 
 // --- UI Primitives ---
-import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button } from "@/components/tiptap-ui-primitive/button"
-import { Badge } from "@/components/tiptap-ui-primitive/badge"
+import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
+
+// --- Tiptap UI ---
+import type { Mark, UseMarkConfig } from '@/components/tiptap-ui/mark-button'
+
+import * as React from 'react'
+
+import { Badge } from '@/components/tiptap-ui-primitive/badge'
+import { Button } from '@/components/tiptap-ui-primitive/button'
+
+import { MARK_SHORTCUT_KEYS, useMark } from '@/components/tiptap-ui/mark-button'
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
+// --- Lib ---
+import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
 export interface MarkButtonProps
-  extends Omit<ButtonProps, "type">,
-    UseMarkConfig {
+  extends Omit<ButtonProps, 'type'>,
+  UseMarkConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -59,7 +59,7 @@ export const MarkButton = React.forwardRef<HTMLButtonElement, MarkButtonProps>(
       children,
       ...buttonProps
     },
-    ref
+    ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
     const {
@@ -80,10 +80,11 @@ export const MarkButton = React.forwardRef<HTMLButtonElement, MarkButtonProps>(
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
         onClick?.(event)
-        if (event.defaultPrevented) return
+        if (event.defaultPrevented)
+          return
         handleMark()
       },
-      [handleMark, onClick]
+      [handleMark, onClick],
     )
 
     if (!isVisible) {
@@ -95,7 +96,7 @@ export const MarkButton = React.forwardRef<HTMLButtonElement, MarkButtonProps>(
         type="button"
         disabled={!canToggle}
         data-style="ghost"
-        data-active-state={isActive ? "on" : "off"}
+        data-active-state={isActive ? 'on' : 'off'}
         data-disabled={!canToggle}
         role="button"
         tabIndex={-1}
@@ -117,7 +118,7 @@ export const MarkButton = React.forwardRef<HTMLButtonElement, MarkButtonProps>(
         )}
       </Button>
     )
-  }
+  },
 )
 
-MarkButton.displayName = "MarkButton"
+MarkButton.displayName = 'MarkButton'

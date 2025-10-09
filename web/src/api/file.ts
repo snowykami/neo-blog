@@ -1,6 +1,6 @@
-import { BaseResponse } from '@/models/resp'
+import type { FileModel, StorageProviderConfig } from '@/models/file'
+import type { BaseResponse } from '@/models/resp'
 import axiosClient from './client'
-import { FileModel, StorageProviderConfig } from '@/models/file'
 
 export async function uploadFile(
   {
@@ -9,18 +9,18 @@ export async function uploadFile(
     providerId,
     group,
   }: {
-    file: File,
-    name?: string,  // 不传则使用 file.name
-    providerId?: string,
+    file: File
+    name?: string // 不传则使用 file.name
+    providerId?: string
     group?: string
-  }
+  },
 ): Promise<BaseResponse<{
-  hash: string,
-  id: number,
+  hash: string
+  id: number
   url: string
 }>> {
   if (typeof window === 'undefined') {
-    throw new Error('uploadFile can only be used in the browser')
+    throw new TypeError('uploadFile can only be used in the browser')
   }
   if (!file) {
     throw new Error('No file provided')
@@ -31,8 +31,8 @@ export async function uploadFile(
   formData.append('group', group || '')
   formData.append('provider_id', providerId || '')
   const res = await axiosClient.post<BaseResponse<{
-    hash: string,
-    id: number,
+    hash: string
+    id: number
     url: string
   }>>('/file/f', formData, {
   })
@@ -40,16 +40,16 @@ export async function uploadFile(
 }
 
 export async function deleteFile({ id }: { id: number }): Promise<BaseResponse<null>> {
-  const res = await axiosClient.delete(`/file/f/${id}`,)
+  const res = await axiosClient.delete(`/file/f/${id}`)
   return res.data
 }
 
 export async function batchDeleteFiles({ ids }: { ids: number[] }): Promise<BaseResponse<{
-  deleted_count: number,
+  deleted_count: number
   failed_ids: number[]
 }>> {
   const res = await axiosClient.delete<BaseResponse<{
-    deleted_count: number,
+    deleted_count: number
     failed_ids: number[]
   }>>('/file/batch', {
     params: { ids: ids.join(',') },
@@ -58,11 +58,11 @@ export async function batchDeleteFiles({ ids }: { ids: number[] }): Promise<Base
 }
 
 export async function listFiles({ page, size, keywords, orderBy, desc }: { page: number, size: number, keywords?: string, orderBy?: string, desc?: boolean }): Promise<BaseResponse<{
-  total: number,
+  total: number
   files: Array<FileModel>
 }>> {
   const res = await axiosClient.get<BaseResponse<{
-    total: number,
+    total: number
     files: Array<FileModel>
   }>>('/file/file-list', {
     params: {
@@ -88,28 +88,28 @@ export async function listStorageProviders(): Promise<BaseResponse<{
   return res.data
 }
 
-export async function createStorageProvider({provider}:{provider: StorageProviderConfig}): Promise<BaseResponse<null>> {
+export async function createStorageProvider({ provider }: { provider: StorageProviderConfig }): Promise<BaseResponse<null>> {
   const res = await axiosClient.post<BaseResponse<null>>('/file/provider', provider, {
     withCredentials: true,
   })
   return res.data
 }
 
-export async function updateStorageProvider({provider}:{provider: StorageProviderConfig}): Promise<BaseResponse<null>> {
+export async function updateStorageProvider({ provider }: { provider: StorageProviderConfig }): Promise<BaseResponse<null>> {
   const res = await axiosClient.put<BaseResponse<null>>(`/file/provider/${provider.id}`, provider, {
     withCredentials: true,
   })
   return res.data
 }
 
-export async function deleteStorageProvider({id}:{id: number}): Promise<BaseResponse<null>> {
+export async function deleteStorageProvider({ id }: { id: number }): Promise<BaseResponse<null>> {
   const res = await axiosClient.delete<BaseResponse<null>>(`/file/provider/${id}`, {
     withCredentials: true,
   })
   return res.data
 }
 
-export async function setDefaultStorageProvider({id}:{id: number}): Promise<BaseResponse<null>> {
+export async function setDefaultStorageProvider({ id }: { id: number }): Promise<BaseResponse<null>> {
   const res = await axiosClient.put<BaseResponse<null>>(`/file/provider/${id}/set-default`, {}, {
     withCredentials: true,
   })

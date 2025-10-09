@@ -1,28 +1,28 @@
-"use client"
+'use client'
 
-import * as React from "react"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
-
-// --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
+// --- UI Primitives ---
+import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
 // --- Tiptap UI ---
-import type { UseCodeBlockConfig } from "@/components/tiptap-ui/code-block-button"
+import type { UseCodeBlockConfig } from '@/components/tiptap-ui/code-block-button'
+
+import * as React from 'react'
+
+import { Badge } from '@/components/tiptap-ui-primitive/badge'
+import { Button } from '@/components/tiptap-ui-primitive/button'
+
 import {
   CODE_BLOCK_SHORTCUT_KEY,
   useCodeBlock,
-} from "@/components/tiptap-ui/code-block-button"
-
-// --- UI Primitives ---
-import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button } from "@/components/tiptap-ui-primitive/button"
-import { Badge } from "@/components/tiptap-ui-primitive/badge"
+} from '@/components/tiptap-ui/code-block-button'
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
+// --- Lib ---
+import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
 export interface CodeBlockButtonProps
-  extends Omit<ButtonProps, "type">,
-    UseCodeBlockConfig {
+  extends Omit<ButtonProps, 'type'>,
+  UseCodeBlockConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -62,7 +62,7 @@ export const CodeBlockButton = React.forwardRef<
       children,
       ...buttonProps
     },
-    ref
+    ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
     const {
@@ -82,10 +82,11 @@ export const CodeBlockButton = React.forwardRef<
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
         onClick?.(event)
-        if (event.defaultPrevented) return
+        if (event.defaultPrevented)
+          return
         handleToggle()
       },
-      [handleToggle, onClick]
+      [handleToggle, onClick],
     )
 
     if (!isVisible) {
@@ -96,7 +97,7 @@ export const CodeBlockButton = React.forwardRef<
       <Button
         type="button"
         data-style="ghost"
-        data-active-state={isActive ? "on" : "off"}
+        data-active-state={isActive ? 'on' : 'off'}
         role="button"
         disabled={!canToggle}
         data-disabled={!canToggle}
@@ -119,7 +120,7 @@ export const CodeBlockButton = React.forwardRef<
         )}
       </Button>
     )
-  }
+  },
 )
 
-CodeBlockButton.displayName = "CodeBlockButton"
+CodeBlockButton.displayName = 'CodeBlockButton'

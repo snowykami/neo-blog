@@ -1,5 +1,5 @@
-import { getSitemapData } from '@/api/misc'
 import type { MetadataRoute } from 'next'
+import { getSitemapData } from '@/api/misc'
 
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const sitemapData = await getSitemapData().then(res => res.data).catch(() => null)
@@ -11,6 +11,6 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
         disallow: ['/console/'],
       },
     ],
-    sitemap: sitemapData?.baseUrl ? sitemapData.baseUrl + "/sitemap.xml" : undefined,
+    sitemap: sitemapData?.baseUrl ? `${sitemapData.baseUrl}/sitemap.xml` : undefined,
   }
 }

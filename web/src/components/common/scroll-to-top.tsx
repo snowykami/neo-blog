@@ -1,75 +1,75 @@
-"use client";
+'use client'
 
-import React, { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { ArrowUp } from "lucide-react";
-
+import { ArrowUp } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export default function ScrollToTopButton({
   threshold = 0.1, // 显示阈值（滚动进度），默认 10%
-  positionClass = "right-4 bottom-4", // 通过 Tailwind 类控制位置（字符串）
-  className = "",
+  positionClass = 'right-4 bottom-4', // 通过 Tailwind 类控制位置（字符串）
+  className = '',
   showProgress = true,
   size = 44,
 }: {
-  threshold?: number;
-  positionClass?: string;
-  className?: string;
-  showProgress?: boolean;
-  size?: number;
+  threshold?: number
+  positionClass?: string
+  className?: string
+  showProgress?: boolean
+  size?: number
 }) {
-  const [visible, setVisible] = useState(false);
-  const [progress, setProgress] = useState(0); // 0..1
-  const rafRef = useRef<number | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false)
+  const [progress, setProgress] = useState(0) // 0..1
+  const rafRef = useRef<number | null>(null)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(true)
     const update = () => {
-      const doc = document.documentElement;
-      const scrollTop = window.scrollY || doc.scrollTop || 0;
+      const doc = document.documentElement
+      const scrollTop = window.scrollY || doc.scrollTop || 0
       const height = Math.max(
         doc.scrollHeight,
         document.body.scrollHeight,
-        window.innerHeight
-      );
-      const maxScroll = height - window.innerHeight;
-      const p = maxScroll <= 0 ? 0 : Math.min(1, scrollTop / maxScroll);
-      setProgress(p);
-      setVisible(p > threshold);
-      rafRef.current = null;
-    };
+        window.innerHeight,
+      )
+      const maxScroll = height - window.innerHeight
+      const p = maxScroll <= 0 ? 0 : Math.min(1, scrollTop / maxScroll)
+      setProgress(p)
+      setVisible(p > threshold)
+      rafRef.current = null
+    }
 
     const handler = () => {
       if (rafRef.current == null) {
-        rafRef.current = requestAnimationFrame(update);
+        rafRef.current = requestAnimationFrame(update)
       }
-    };
+    }
 
-    window.addEventListener("scroll", handler, { passive: true });
-    window.addEventListener("resize", handler);
+    window.addEventListener('scroll', handler, { passive: true })
+    window.addEventListener('resize', handler)
     // initial
-    handler();
+    handler()
 
     return () => {
-      window.removeEventListener("scroll", handler);
-      window.removeEventListener("resize", handler);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [threshold]);
+      window.removeEventListener('scroll', handler)
+      window.removeEventListener('resize', handler)
+      if (rafRef.current)
+        cancelAnimationFrame(rafRef.current)
+    }
+  }, [threshold])
 
   const handleClick = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   // 通过 className 控制位置，wrapper 仍然固定定位以相对于视口
-  const wrapperClass = `fixed z-60 ${positionClass} ${className}`.trim();
+  const wrapperClass = `fixed z-60 ${positionClass} ${className}`.trim()
 
   // 简单进度圆环用 SVG
-  const stroke = 3;
-  const r = (size - stroke * 2) / 2;
-  const c = 2 * Math.PI * r;
-  const dash = Math.max(0, Math.min(1, progress)) * c;
+  const stroke = 3
+  const r = (size - stroke * 2) / 2
+  const c = 2 * Math.PI * r
+  const dash = Math.max(0, Math.min(1, progress)) * c
 
   const node = (
     <div className={wrapperClass} aria-hidden={!visible}>
@@ -84,7 +84,7 @@ export default function ScrollToTopButton({
           width: size,
           height: size,
           opacity: visible ? 1 : 0,
-          pointerEvents: visible ? "auto" : "none",
+          pointerEvents: visible ? 'auto' : 'none',
         }}
       >
         {showProgress ? (
@@ -108,9 +108,9 @@ export default function ScrollToTopButton({
                 strokeDasharray={String(c)}
                 strokeDashoffset={String(Math.max(0, c - dash))}
                 style={{
-                  transform: "rotate(-90deg)",
-                  transformOrigin: "center",
-                  transition: "stroke-dashoffset 200ms linear",
+                  transform: 'rotate(-90deg)',
+                  transformOrigin: 'center',
+                  transition: 'stroke-dashoffset 200ms linear',
                 }}
               />
             </g>
@@ -122,9 +122,10 @@ export default function ScrollToTopButton({
         </span>
       </button>
     </div>
-  );
+  )
 
   // 用 portal 渲染到 body，避免被父级 transform/overflow 影响
-  if (!mounted || typeof document === "undefined") return null;
-  return createPortal(node, document.body);
+  if (!mounted || typeof document === 'undefined')
+    return null
+  return createPortal(node, document.body)
 }

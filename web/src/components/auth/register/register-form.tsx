@@ -1,43 +1,43 @@
-"use client"
+'use client'
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import type { BaseResponseError } from '@/models/resp'
+import type { CaptchaProvider } from '@/types/captcha'
+import { useTranslations } from 'next-intl'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { getCaptchaConfig, requestEmailVerifyCode, userRegister } from '@/api/user'
+import { CurrentLogged } from '@/components/auth/common/current-logged'
+import Captcha from '@/components/common/captcha'
+import { InputOTPControlled } from '@/components/common/input-otp'
+import { SectionDivider } from '@/components/common/section-divider'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useEffect, useState } from "react"
-import { getCaptchaConfig, requestEmailVerifyCode, userRegister } from "@/api/user"
-import { useRouter, useSearchParams } from "next/navigation"
-import { useTranslations } from "next-intl"
-import Captcha from "@/components/common/captcha"
-import { CaptchaProvider } from "@/types/captcha"
-import { toast } from "sonner"
-import { CurrentLogged } from "@/components/auth/common/current-logged"
-import { SectionDivider } from "@/components/common/section-divider"
-import { InputOTPControlled } from "@/components/common/input-otp"
-import { BaseResponseError } from "@/models/resp"
-import { useAuth } from "@/contexts/auth-context"
-import Link from "next/link"
-import { loginPath } from "@/hooks/use-route"
-import { useCommonT, useOperationT, useResponseErrorDetailsT } from "@/hooks/translations"
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { useAuth } from '@/contexts/auth-context'
+import { useCommonT, useOperationT, useResponseErrorDetailsT } from '@/hooks/translations'
+import { loginPath } from '@/hooks/use-route'
+import { cn } from '@/lib/utils'
 
 export function RegisterForm({
   className,
   ...props
-}: React.ComponentProps<"div">) {
-  const { setUser } = useAuth();
+}: React.ComponentProps<'div'>) {
+  const { setUser } = useAuth()
   const t = useTranslations('Register')
-  const ResponseErrorDetailsT = useResponseErrorDetailsT();
-  const commonT = useCommonT();
-  const operationT = useOperationT();
+  const ResponseErrorDetailsT = useResponseErrorDetailsT()
+  const commonT = useCommonT()
+  const operationT = useOperationT()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectBack = searchParams.get("redirect_back") || "/"
+  const redirectBack = searchParams.get('redirect_back') || '/'
   const [captchaProps, setCaptchaProps] = useState<{
     provider: CaptchaProvider
     siteKey: string
@@ -54,7 +54,8 @@ export function RegisterForm({
   const [coolDown, setCoolDown] = useState(0)
 
   useEffect(() => {
-    if (coolDown <= 0) return
+    if (coolDown <= 0)
+      return
     const id = setInterval(() => {
       setCoolDown(c => (c > 1 ? c - 1 : 0))
     }, 1000)
@@ -67,51 +68,52 @@ export function RegisterForm({
         setCaptchaProps(res.data)
       })
       .catch((error) => {
-        toast.error(t("fetch_captcha_config_failed") + (error?.message ? `: ${error.message}` : ""))
+        toast.error(t('fetch_captcha_config_failed') + (error?.message ? `: ${error.message}` : ''))
         setCaptchaProps(null)
       })
   }, [refreshCaptchaKey, t])
 
   const handleCaptchaError = (error: string) => {
-    toast.error(t("captcha_error") + (error ? `: ${error}` : ""));
+    toast.error(t('captcha_error') + (error ? `: ${error}` : ''))
     setTimeout(() => {
-      setRefreshCaptchaKey(k => k + 1);
-    }, 1500);
+      setRefreshCaptchaKey(k => k + 1)
+    }, 1500)
   }
 
   const handleSendVerifyCode = () => {
-    if (!email || coolDown > 0 || sendingVerifyCode) return;
-    setSendingVerifyCode(true);
+    if (!email || coolDown > 0 || sendingVerifyCode)
+      return
+    setSendingVerifyCode(true)
     requestEmailVerifyCode({ email, captchaToken: captchaToken || '' })
       .then(() => {
-        toast.success(t("send_verify_code_success"))
+        toast.success(t('send_verify_code_success'))
       })
       .catch((error: BaseResponseError) => {
-        toast.error(`${t("send_verify_code_failed")}: ${ResponseErrorDetailsT(error.response.data.message)}`)
+        toast.error(`${t('send_verify_code_failed')}: ${ResponseErrorDetailsT(error.response.data.message)}`)
       })
       .finally(() => {
-        setSendingVerifyCode(false);
-        setCoolDown(60);
+        setSendingVerifyCode(false)
+        setCoolDown(60)
       })
   }
 
   const handleRegister = () => {
     if (!username || !password || !email) {
-      toast.error(t("please_fill_in_all_required_fields"));
-      return;
+      toast.error(t('please_fill_in_all_required_fields'))
+      return
     }
     if (!captchaToken) {
-      return;
+      return
     }
     setRegistering(true)
     userRegister({ username, password, email, verifyCode, captchaToken })
-      .then(res => {
-        toast.success(t("register_success") + ` ${res.data.user.nickname || res.data.user.username}`);
-        setUser(res.data.user);
+      .then((res) => {
+        toast.success(`${t('register_success')} ${res.data.user.nickname || res.data.user.username}`)
+        setUser(res.data.user)
         router.push(redirectBack)
       })
       .catch((error: BaseResponseError) => {
-        toast.error(t("register_failed") + ": " + ResponseErrorDetailsT(error.response.data.message))
+        toast.error(`${t('register_failed')}: ${ResponseErrorDetailsT(error.response.data.message)}`)
         setRefreshCaptchaKey(k => k + 1)
         setCaptchaToken(null)
       })
@@ -121,23 +123,23 @@ export function RegisterForm({
   }
 
   return (
-    <div className={cn("", className)} {...props}>
+    <div className={cn('', className)} {...props}>
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">{t("title")}</CardTitle>
+          <CardTitle className="text-xl">{t('title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <CurrentLogged />
           <form>
             <div className="grid gap-4">
-              <SectionDivider className="mt-0">{t("register_a_new_account")}</SectionDivider>
+              <SectionDivider className="mt-0">{t('register_a_new_account')}</SectionDivider>
 
               <div className="grid gap-4">
 
                 {/* 用户名 */}
                 <div className="grid gap-2">
                   <div className="flex items-center">
-                    <Label htmlFor="username">{commonT("username")}</Label>
+                    <Label htmlFor="username">{commonT('username')}</Label>
                   </div>
                   <Input
                     id="username"
@@ -150,7 +152,7 @@ export function RegisterForm({
                 {/* 密码 */}
                 <div className="grid gap-2">
                   <div className="flex items-center">
-                    <Label htmlFor="password">{commonT("password")}</Label>
+                    <Label htmlFor="password">{commonT('password')}</Label>
                   </div>
                   <Input
                     id="password"
@@ -162,7 +164,7 @@ export function RegisterForm({
                 </div>
                 {/* 邮箱 */}
                 <div className="grid gap-2">
-                  <Label htmlFor="email">{commonT("email")}</Label>
+                  <Label htmlFor="email">{commonT('email')}</Label>
                   <div className="flex gap-3">
                     <Input
                       id="email"
@@ -177,34 +179,37 @@ export function RegisterForm({
                 </div>
                 {/* 邮箱验证码 */}
                 <div className="grid gap-2">
-                  <Label htmlFor="email">{commonT("verify_code")}</Label>
+                  <Label htmlFor="email">{commonT('verify_code')}</Label>
                   <div className="flex justify-between">
                     <InputOTPControlled
                       onChange={value => setVerifyCode(value)}
                     />
                     <Button onClick={handleSendVerifyCode} disabled={!email || coolDown > 0 || sendingVerifyCode} variant="outline" className="border-2" type="button">
-                      {commonT("obtain")}{coolDown > 0 ? `(${coolDown})` : ""}
+                      {commonT('obtain')}
+                      {coolDown > 0 ? `(${coolDown})` : ''}
                     </Button>
                   </div>
                 </div>
-                {captchaProps &&
-                  <div className="flex justify-center items-center w-full">
-                    <Captcha {...captchaProps} onSuccess={setCaptchaToken} onError={handleCaptchaError} key={refreshCaptchaKey} />
-                  </div>
-                }
+                {captchaProps
+                  && (
+                    <div className="flex justify-center items-center w-full">
+                      <Captcha {...captchaProps} onSuccess={setCaptchaToken} onError={handleCaptchaError} key={refreshCaptchaKey} />
+                    </div>
+                  )}
                 <Button
                   type="button"
                   className="w-full"
                   onClick={handleRegister}
-                  disabled={!captchaToken || registering || !username || !password || !email || !(verifyCode.length == 6)}
+                  disabled={!captchaToken || registering || !username || !password || !email || !(verifyCode.length === 6)}
                 >
-                  {registering ? t("registering") : operationT("register")}
+                  {registering ? t('registering') : operationT('register')}
                 </Button>
                 {/* 注册链接 */}
                 <div className="text-center text-sm">
-                  {t("already_have_account")}{" "}
-                  <Link href={loginPath + "?redirect_back=" + encodeURIComponent(redirectBack)} className="underline underline-offset-4">
-                    {operationT("login")}
+                  {t('already_have_account')}
+                  {' '}
+                  <Link href={`${loginPath}?redirect_back=${encodeURIComponent(redirectBack)}`} className="underline underline-offset-4">
+                    {operationT('login')}
                   </Link>
                 </div>
               </div>

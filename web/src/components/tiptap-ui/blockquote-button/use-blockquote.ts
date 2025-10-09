@@ -1,14 +1,14 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import type { Editor } from "@tiptap/react"
-import { NodeSelection, TextSelection } from "@tiptap/pm/state"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
+import type { Editor } from '@tiptap/react'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import * as React from 'react'
 
 // --- Icons ---
-import { BlockquoteIcon } from "@/components/tiptap-icons/blockquote-icon"
+import { BlockquoteIcon } from '@/components/tiptap-icons/blockquote-icon'
+
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 
 // --- UI Utils ---
 import {
@@ -16,9 +16,9 @@ import {
   isNodeInSchema,
   isNodeTypeSelected,
   isValidPosition,
-} from "@/lib/tiptap-utils"
+} from '@/lib/tiptap-utils'
 
-export const BLOCKQUOTE_SHORTCUT_KEY = "mod+shift+b"
+export const BLOCKQUOTE_SHORTCUT_KEY = 'mod+shift+b'
 
 /**
  * Configuration for the blockquote functionality
@@ -44,17 +44,19 @@ export interface UseBlockquoteConfig {
  */
 export function canToggleBlockquote(
   editor: Editor | null,
-  turnInto: boolean = true
+  turnInto: boolean = true,
 ): boolean {
-  if (!editor || !editor.isEditable) return false
-  if (
-    !isNodeInSchema("blockquote", editor) ||
-    isNodeTypeSelected(editor, ["image"])
-  )
+  if (!editor || !editor.isEditable)
     return false
+  if (
+    !isNodeInSchema('blockquote', editor)
+    || isNodeTypeSelected(editor, ['image'])
+  ) {
+    return false
+  }
 
   if (!turnInto) {
-    return editor.can().toggleWrap("blockquote")
+    return editor.can().toggleWrap('blockquote')
   }
 
   try {
@@ -67,11 +69,13 @@ export function canToggleBlockquote(
         editor,
         node: state.selection.$anchor.node(1),
       })?.pos
-      if (!isValidPosition(pos)) return false
+      if (!isValidPosition(pos))
+        return false
     }
 
     return true
-  } catch {
+  }
+  catch {
     return false
   }
 }
@@ -80,8 +84,10 @@ export function canToggleBlockquote(
  * Toggles blockquote formatting for a specific node or the current selection
  */
 export function toggleBlockquote(editor: Editor | null): boolean {
-  if (!editor || !editor.isEditable) return false
-  if (!canToggleBlockquote(editor)) return false
+  if (!editor || !editor.isEditable)
+    return false
+  if (!canToggleBlockquote(editor))
+    return false
 
   try {
     const view = editor.view
@@ -94,7 +100,8 @@ export function toggleBlockquote(editor: Editor | null): boolean {
         editor,
         node: state.selection.$anchor.node(1),
       })?.pos
-      if (!isValidPosition(pos)) return false
+      if (!isValidPosition(pos))
+        return false
 
       tr = tr.setSelection(NodeSelection.create(state.doc, pos))
       view.dispatch(tr)
@@ -121,16 +128,17 @@ export function toggleBlockquote(editor: Editor | null): boolean {
       chain = chain.setTextSelection({ from, to }).clearNodes()
     }
 
-    const toggle = editor.isActive("blockquote")
-      ? chain.lift("blockquote")
-      : chain.wrapIn("blockquote")
+    const toggle = editor.isActive('blockquote')
+      ? chain.lift('blockquote')
+      : chain.wrapIn('blockquote')
 
     toggle.run()
 
     editor.chain().focus().selectTextblockEnd().run()
 
     return true
-  } catch {
+  }
+  catch {
     return false
   }
 }
@@ -144,10 +152,12 @@ export function shouldShowButton(props: {
 }): boolean {
   const { editor, hideWhenUnavailable } = props
 
-  if (!editor || !editor.isEditable) return false
-  if (!isNodeInSchema("blockquote", editor)) return false
+  if (!editor || !editor.isEditable)
+    return false
+  if (!isNodeInSchema('blockquote', editor))
+    return false
 
-  if (hideWhenUnavailable && !editor.isActive("code")) {
+  if (hideWhenUnavailable && !editor.isActive('code')) {
     return canToggleBlockquote(editor)
   }
 
@@ -200,10 +210,11 @@ export function useBlockquote(config?: UseBlockquoteConfig) {
   const { editor } = useTiptapEditor(providedEditor)
   const [isVisible, setIsVisible] = React.useState<boolean>(true)
   const canToggle = canToggleBlockquote(editor)
-  const isActive = editor?.isActive("blockquote") || false
+  const isActive = editor?.isActive('blockquote') || false
 
   React.useEffect(() => {
-    if (!editor) return
+    if (!editor)
+      return
 
     const handleSelectionUpdate = () => {
       setIsVisible(shouldShowButton({ editor, hideWhenUnavailable }))
@@ -211,15 +222,16 @@ export function useBlockquote(config?: UseBlockquoteConfig) {
 
     handleSelectionUpdate()
 
-    editor.on("selectionUpdate", handleSelectionUpdate)
+    editor.on('selectionUpdate', handleSelectionUpdate)
 
     return () => {
-      editor.off("selectionUpdate", handleSelectionUpdate)
+      editor.off('selectionUpdate', handleSelectionUpdate)
     }
   }, [editor, hideWhenUnavailable])
 
   const handleToggle = React.useCallback(() => {
-    if (!editor) return false
+    if (!editor)
+      return false
 
     const success = toggleBlockquote(editor)
     if (success) {
@@ -233,7 +245,7 @@ export function useBlockquote(config?: UseBlockquoteConfig) {
     isActive,
     handleToggle,
     canToggle,
-    label: "Blockquote",
+    label: 'Blockquote',
     shortcutKeys: BLOCKQUOTE_SHORTCUT_KEY,
     Icon: BlockquoteIcon,
   }

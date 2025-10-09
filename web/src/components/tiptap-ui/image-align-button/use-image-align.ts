@@ -1,22 +1,22 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import { useHotkeys } from "react-hotkeys-hook"
-import { type Editor } from "@tiptap/react"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
-import { useIsMobile } from "@/hooks/use-mobile"
-
-// --- Lib ---
-import { isExtensionAvailable } from "@/lib/tiptap-utils"
+import type { Editor } from '@tiptap/react'
+import * as React from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
 
 // --- Icons ---
-import { AlignCenterVerticalIcon } from "@/components/tiptap-icons/align-center-vertical-icon"
-import { AlignEndVerticalIcon } from "@/components/tiptap-icons/align-end-vertical-icon"
-import { AlignStartVerticalIcon } from "@/components/tiptap-icons/align-start-vertical-icon"
+import { AlignCenterVerticalIcon } from '@/components/tiptap-icons/align-center-vertical-icon'
+import { AlignEndVerticalIcon } from '@/components/tiptap-icons/align-end-vertical-icon'
 
-export type ImageAlign = "left" | "center" | "right"
+import { AlignStartVerticalIcon } from '@/components/tiptap-icons/align-start-vertical-icon'
+
+import { useIsMobile } from '@/hooks/use-mobile'
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
+// --- Lib ---
+import { isExtensionAvailable } from '@/lib/tiptap-utils'
+
+export type ImageAlign = 'left' | 'center' | 'right'
 
 /**
  * Configuration for the image align functionality
@@ -52,9 +52,9 @@ export interface UseImageAlignConfig {
 }
 
 export const IMAGE_ALIGN_SHORTCUT_KEYS: Record<ImageAlign, string> = {
-  left: "alt+shift+l",
-  center: "alt+shift+e",
-  right: "alt+shift+r",
+  left: 'alt+shift+l',
+  center: 'alt+shift+e',
+  right: 'alt+shift+r',
 }
 
 export const imageAlignIcons = {
@@ -64,9 +64,9 @@ export const imageAlignIcons = {
 }
 
 export const imageAlignLabels: Record<ImageAlign, string> = {
-  left: "Image align left",
-  center: "Image align center",
-  right: "Image align right",
+  left: 'Image align left',
+  center: 'Image align center',
+  right: 'Image align right',
 }
 
 /**
@@ -75,11 +75,13 @@ export const imageAlignLabels: Record<ImageAlign, string> = {
 export function canSetImageAlign(
   editor: Editor | null,
   align: ImageAlign,
-  extensionName: string = "image",
-  attributeName: string = "data-align"
+  extensionName: string = 'image',
+  attributeName: string = 'data-align',
 ): boolean {
-  if (!editor || !editor.isEditable) return false
-  if (!isExtensionAvailable(editor, [extensionName])) return false
+  if (!editor || !editor.isEditable)
+    return false
+  if (!isExtensionAvailable(editor, [extensionName]))
+    return false
 
   return editor
     .can()
@@ -92,14 +94,16 @@ export function canSetImageAlign(
 export function isImageAlignActive(
   editor: Editor | null,
   align: ImageAlign,
-  extensionName: string = "image",
-  attributeName: string = "data-align"
+  extensionName: string = 'image',
+  attributeName: string = 'data-align',
 ): boolean {
-  if (!editor || !editor.isEditable) return false
-  if (!isExtensionAvailable(editor, [extensionName])) return false
+  if (!editor || !editor.isEditable)
+    return false
+  if (!isExtensionAvailable(editor, [extensionName]))
+    return false
 
   const attributes = editor.getAttributes(extensionName)
-  const currentAlign = attributes[attributeName] || "left"
+  const currentAlign = attributes[attributeName] || 'left'
   return currentAlign === align
 }
 
@@ -109,11 +113,13 @@ export function isImageAlignActive(
 export function setImageAlign(
   editor: Editor | null,
   align: ImageAlign,
-  extensionName: string = "image",
-  attributeName: string = "data-align"
+  extensionName: string = 'image',
+  attributeName: string = 'data-align',
 ): boolean {
-  if (!editor || !editor.isEditable) return false
-  if (!isExtensionAvailable(editor, [extensionName])) return false
+  if (!editor || !editor.isEditable)
+    return false
+  if (!isExtensionAvailable(editor, [extensionName]))
+    return false
   if (!canSetImageAlign(editor, align, extensionName, attributeName))
     return false
 
@@ -123,7 +129,8 @@ export function setImageAlign(
       .focus()
       .updateAttributes(extensionName, { [attributeName]: align })
       .run()
-  } catch {
+  }
+  catch {
     return false
   }
 }
@@ -142,12 +149,14 @@ export function shouldShowButton(props: {
     editor,
     hideWhenUnavailable,
     align,
-    extensionName = "image",
-    attributeName = "data-align",
+    extensionName = 'image',
+    attributeName = 'data-align',
   } = props
 
-  if (!editor || !editor.isEditable) return false
-  if (!isExtensionAvailable(editor, [extensionName])) return false
+  if (!editor || !editor.isEditable)
+    return false
+  if (!isExtensionAvailable(editor, [extensionName]))
+    return false
 
   if (hideWhenUnavailable) {
     return canSetImageAlign(editor, align, extensionName, attributeName)
@@ -198,8 +207,8 @@ export function useImageAlign(config: UseImageAlignConfig) {
   const {
     editor: providedEditor,
     align,
-    extensionName = "image",
-    attributeName = "data-align",
+    extensionName = 'image',
+    attributeName = 'data-align',
     hideWhenUnavailable = false,
     onAligned,
   } = config
@@ -212,11 +221,12 @@ export function useImageAlign(config: UseImageAlignConfig) {
     editor,
     align,
     extensionName,
-    attributeName
+    attributeName,
   )
 
   React.useEffect(() => {
-    if (!editor) return
+    if (!editor)
+      return
 
     const handleSelectionUpdate = () => {
       setIsVisible(
@@ -226,20 +236,21 @@ export function useImageAlign(config: UseImageAlignConfig) {
           hideWhenUnavailable,
           extensionName,
           attributeName,
-        })
+        }),
       )
     }
 
     handleSelectionUpdate()
 
-    editor.on("selectionUpdate", handleSelectionUpdate)
+    editor.on('selectionUpdate', handleSelectionUpdate)
     return () => {
-      editor.off("selectionUpdate", handleSelectionUpdate)
+      editor.off('selectionUpdate', handleSelectionUpdate)
     }
   }, [editor, hideWhenUnavailable, align, extensionName, attributeName])
 
   const handleImageAlign = React.useCallback(() => {
-    if (!editor) return false
+    if (!editor)
+      return false
 
     const success = setImageAlign(editor, align, extensionName, attributeName)
     if (success) {
@@ -258,7 +269,7 @@ export function useImageAlign(config: UseImageAlignConfig) {
       enabled: isVisible && canAlign,
       enableOnContentEditable: !isMobile,
       enableOnFormTags: true,
-    }
+    },
   )
 
   return {

@@ -1,48 +1,47 @@
-"use client"
+'use client'
 
-import { Eye } from "lucide-react";
-import { useState } from "react";
-import { navStickyTopPx } from "@/utils/common/layout-size";
-import { useNav } from "@/contexts/nav-context";
+import { Eye } from 'lucide-react'
+import { useState } from 'react'
+import { useNav } from '@/contexts/nav-context'
 
 export function CoverPreviewButton({
-  onPreviewChange
+  onPreviewChange,
 }: {
   onPreviewChange: (isPreviewing: boolean) => void
 }) {
-  const { setSolidNav, setNavStyle, navClassName } = useNav();
-  const [prevNavClassName, setPrevNavClassName] = useState<string>("");
-  const [isPreviewing, setIsPreviewing] = useState(false);
+  const { setSolidNav, setNavStyle, navClassName } = useNav()
+  const [prevNavClassName, setPrevNavClassName] = useState<string>('')
+  const [isPreviewing, setIsPreviewing] = useState(false)
 
   const handleMouseDown = () => {
-    setIsPreviewing(true);
-    onPreviewChange(true);
-    setPrevNavClassName(navClassName);
-    setSolidNav();
-  };
+    setIsPreviewing(true)
+    onPreviewChange(true)
+    setPrevNavClassName(navClassName)
+    setSolidNav()
+  }
 
   const handleMouseUp = () => {
-    setIsPreviewing(false);
-    onPreviewChange(false);
-    setNavStyle(prevNavClassName);
-  };
+    setIsPreviewing(false)
+    onPreviewChange(false)
+    setNavStyle(prevNavClassName)
+  }
 
   const handleMouseLeave = () => {
     if (isPreviewing) {
-      setIsPreviewing(false);
-      onPreviewChange(false);
+      setIsPreviewing(false)
+      onPreviewChange(false)
     }
-  };
+  }
 
   const handleTouchStart = () => {
-    setIsPreviewing(true);
-    onPreviewChange(true);
-  };
+    setIsPreviewing(true)
+    onPreviewChange(true)
+  }
 
   const handleTouchEnd = () => {
-    setIsPreviewing(false);
-    onPreviewChange(false);
-  };
+    setIsPreviewing(false)
+    onPreviewChange(false)
+  }
 
   return (
     <button
@@ -58,5 +57,5 @@ export function CoverPreviewButton({
     >
       <Eye className="w-5 h-5" />
     </button>
-  );
+  )
 }

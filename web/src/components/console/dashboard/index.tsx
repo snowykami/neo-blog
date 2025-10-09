@@ -1,13 +1,15 @@
-"use client"
-import { getDashboard, DashboardResp } from "@/api/admin"
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Eye, MessageCircle, Newspaper, Users } from "lucide-react"
-import { useEffect, useState } from "react"
-import { toast } from "sonner"
-import Link from "next/link"
-import { IconType } from "@/types/icon"
-import { consolePath } from "@/utils/common/route";
-import { getMetrics, metricsHandler, type MetricsData } from "@/api/misc"
+'use client'
+import type { DashboardResp } from '@/api/admin'
+import type { MetricsData } from '@/api/misc'
+import type { IconType } from '@/types/icon'
+import { Eye, MessageCircle, Newspaper, Users } from 'lucide-react'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { getDashboard } from '@/api/admin'
+import { getMetrics, metricsHandler } from '@/api/misc'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { consolePath } from '@/utils/common/route'
 
 export function Dashboard() {
   return (
@@ -19,84 +21,91 @@ export function Dashboard() {
 }
 
 function DataOverview() {
-  const data: { key: keyof DashboardResp; label: string; icon: IconType; url: string }[] = [
+  const data: { key: keyof DashboardResp, label: string, icon: IconType, url: string }[] = [
     {
-      key: "totalPosts",
-      label: "Total Posts",
+      key: 'totalPosts',
+      label: 'Total Posts',
       icon: Newspaper,
-      url: consolePath.post
+      url: consolePath.post,
     },
     {
-      key: "totalUsers",
-      label: "Total Users",
+      key: 'totalUsers',
+      label: 'Total Users',
       icon: Users,
-      url: consolePath.user
+      url: consolePath.user,
     },
     {
-      key: "totalComments",
-      label: "Total Comments",
+      key: 'totalComments',
+      label: 'Total Comments',
       icon: MessageCircle,
-      url: consolePath.comment
+      url: consolePath.comment,
     },
     {
-      key: "totalViews",
-      label: "Total Views",
+      key: 'totalViews',
+      label: 'Total Views',
       icon: Eye,
-      url: consolePath.file
+      url: consolePath.file,
     },
   ]
 
-  const [fetchData, setFetchData] = useState<DashboardResp | null>(null);
+  const [fetchData, setFetchData] = useState<DashboardResp | null>(null)
 
   useEffect(() => {
-    getDashboard().then(res => {
-      setFetchData(res.data);
-    }).catch(err => {
-      toast.error(err.message || "Failed to fetch dashboard data");
-    });
+    getDashboard().then((res) => {
+      setFetchData(res.data)
+    }).catch((err) => {
+      toast.error(err.message || 'Failed to fetch dashboard data')
+    })
   }, [])
 
-  if (!fetchData) return <div>Loading...</div>;
+  if (!fetchData)
+    return <div>Loading...</div>
 
-  return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-    {data.map(item => (
-      <Link key={item.key} href={item.url}>
-        <Card key={item.key} className="p-4">
-          <CardHeader className="pb-2 text-lg font-medium">
-            <CardDescription>{item.label}</CardDescription>
-            <CardTitle className="flex items-center text-2xl font-semibold tabular-nums @[250px]/card:text-3xl text-primary">
-              <item.icon className="inline mr-2" />
-              {fetchData[item.key]}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-      </Link>
-    ))}
-  </div>
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {data.map(item => (
+        <Link key={item.key} href={item.url}>
+          <Card key={item.key} className="p-4">
+            <CardHeader className="pb-2 text-lg font-medium">
+              <CardDescription>{item.label}</CardDescription>
+              <CardTitle className="flex items-center text-2xl font-semibold tabular-nums @[250px]/card:text-3xl text-primary">
+                <item.icon className="inline mr-2" />
+                {fetchData[item.key]}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+        </Link>
+      ))}
+    </div>
+  )
 }
 
 function MetricsOverview() {
-  const [metricsData, setMetricsData] = useState<MetricsData | null>(null);
+  const [metricsData, setMetricsData] = useState<MetricsData | null>(null)
   useEffect(() => {
-    getMetrics().then(res => {
-      setMetricsData(res.data);
-    }).catch(err => {
-      toast.error(err.message || "Failed to fetch metrics data");
-    });
+    getMetrics().then((res) => {
+      setMetricsData(res.data)
+    }).catch((err) => {
+      toast.error(err.message || 'Failed to fetch metrics data')
+    })
   }, [])
-  return <div className="mt-8">
-    <Card className="p-4">
-      <CardHeader className="pb-2">
-        <CardDescription>Metrics Overview</CardDescription>
-      </CardHeader>
-      <div className="mt-4 space-y-2">
-        {metricsData ? Object.entries(metricsData).map(([key, value]) => (
-          <div key={key} className="flex items-center justify-between">
-            <span className="font-medium">{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
-            <span className="tabular-nums">{metricsHandler?.[key]?.(value)}</span>
-          </div>
-        )) : <div>Loading...</div>}
-      </div>
-    </Card>
-  </div>
+  return (
+    <div className="mt-8">
+      <Card className="p-4">
+        <CardHeader className="pb-2">
+          <CardDescription>Metrics Overview</CardDescription>
+        </CardHeader>
+        <div className="mt-4 space-y-2">
+          {metricsData
+            ? Object.entries(metricsData).map(([key, value]) => (
+                <div key={key} className="flex items-center justify-between">
+                  <span className="font-medium">{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
+                  <span className="tabular-nums">{metricsHandler?.[key]?.(value)}</span>
+                </div>
+              ))
+            : <div>Loading...</div>}
+        </div>
+      </Card>
+    </div>
+  )
 }

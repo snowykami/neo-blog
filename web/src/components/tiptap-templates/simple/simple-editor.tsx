@@ -1,63 +1,63 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import { Editor, EditorContent, EditorContext } from "@tiptap/react"
+import type { Editor } from '@tiptap/react'
+import { EditorContent, EditorContext } from '@tiptap/react'
+import hljs from 'highlight.js'
 
 // --- Tiptap Core Extensions ---
 
+import * as React from 'react'
+import { ImageNodeFloating } from '@/components/tiptap-node/image-node/image-node-floating'
+
+// --- Components ---
+import { ThemeToggle } from '@/components/tiptap-templates/simple/theme-toggle'
 // --- UI Primitives ---
-import { Spacer } from "@/components/tiptap-ui-primitive/spacer"
+import { Spacer } from '@/components/tiptap-ui-primitive/spacer'
 import {
   Toolbar,
   ToolbarGroup,
   ToolbarSeparator,
-} from "@/components/tiptap-ui-primitive/toolbar"
-
-// --- Tiptap Node ---
-import "@/components/tiptap-node/blockquote-node/blockquote-node.scss"
-import "@/components/tiptap-node/code-block-node/code-block-node.scss"
-import "@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node.scss"
-import "@/components/tiptap-node/list-node/list-node.scss"
-import "@/components/tiptap-node/image-node/image-node.scss"
-import "@/components/tiptap-node/heading-node/heading-node.scss"
-import "@/components/tiptap-node/paragraph-node/paragraph-node.scss"
-
+} from '@/components/tiptap-ui-primitive/toolbar'
+import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button'
+import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button'
+import { ColorTextPopover } from '@/components/tiptap-ui/color-text-popover'
 // --- Tiptap UI ---
-import { HeadingDropdownMenu } from "@/components/tiptap-ui/heading-dropdown-menu"
-import { ImageUploadButton } from "@/components/tiptap-ui/image-upload-button"
+import { HeadingDropdownMenu } from '@/components/tiptap-ui/heading-dropdown-menu'
 
-import { ListDropdownMenu } from "@/components/tiptap-ui/list-dropdown-menu"
-import { BlockquoteButton } from "@/components/tiptap-ui/blockquote-button"
-import { CodeBlockButton } from "@/components/tiptap-ui/code-block-button"
+import { ImageUploadButton } from '@/components/tiptap-ui/image-upload-button'
 import {
   LinkPopover,
-} from "@/components/tiptap-ui/link-popover"
-import { MarkButton } from "@/components/tiptap-ui/mark-button"
-import { TextAlignButton } from "@/components/tiptap-ui/text-align-button"
-import { UndoRedoButton } from "@/components/tiptap-ui/undo-redo-button"
+} from '@/components/tiptap-ui/link-popover'
+
+import { ListDropdownMenu } from '@/components/tiptap-ui/list-dropdown-menu'
+import { MarkButton } from '@/components/tiptap-ui/mark-button'
+import { TextAlignButton } from '@/components/tiptap-ui/text-align-button'
+import { UndoRedoButton } from '@/components/tiptap-ui/undo-redo-button'
+// --- Tiptap Node ---
+import '@/components/tiptap-node/blockquote-node/blockquote-node.scss'
+import '@/components/tiptap-node/code-block-node/code-block-node.scss'
+import '@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node.scss'
 
 // --- Icons ---
 
 // --- Hooks ---
 
-// --- Components ---
-import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle"
+import '@/components/tiptap-node/list-node/list-node.scss'
 
 // --- Lib ---
 
 // --- Styles ---
 
-import { ImageNodeFloating } from "@/components/tiptap-node/image-node/image-node-floating"
+import '@/components/tiptap-node/image-node/image-node.scss'
 
-import '@/styles/_variables.scss';
-import '@/styles/_keyframe-animations.scss';
+import '@/components/tiptap-node/heading-node/heading-node.scss'
+import '@/components/tiptap-node/paragraph-node/paragraph-node.scss'
 
-import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.css';
-import { ColorTextPopover } from "@/components/tiptap-ui/color-text-popover"
+import '@/styles/_variables.scss'
+import '@/styles/_keyframe-animations.scss'
+import 'highlight.js/styles/github-dark.css'
 
-
-const MainToolbarContent = ({
+function MainToolbarContent({
   onHighlighterClick,
   onLinkClick,
   editor,
@@ -65,7 +65,7 @@ const MainToolbarContent = ({
   onHighlighterClick: () => void
   onLinkClick: () => void
   editor: Editor
-}) => {
+}) {
   return (
     <>
       <Spacer />
@@ -81,7 +81,7 @@ const MainToolbarContent = ({
         {/* 使用 portal 渲染，避免下拉影响工具条布局 */}
         <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={true} />
         <ListDropdownMenu
-          types={["bulletList", "orderedList", "taskList"]}
+          types={['bulletList', 'orderedList', 'taskList']}
           portal={true}
         />
         <BlockquoteButton />
@@ -101,8 +101,7 @@ const MainToolbarContent = ({
           editor={editor}
           hideWhenUnavailable={true}
           onColorChanged={({ type, label, value }) =>
-            console.log(`Applied ${type} color: ${label} (${value})`)
-          }
+            console.log(`Applied ${type} color: ${label} (${value})`)}
         />
 
         <LinkPopover />
@@ -162,8 +161,8 @@ export function SimpleEditor({ editor }: { editor: Editor }) {
             backdrop-blur-sm flex items-center gap-3 px-4 py-3 w-full
             p-0 rounded-lg border-1"
             style={{
-              WebkitOverflowScrolling: "touch",
-              touchAction: "auto",
+              WebkitOverflowScrolling: 'touch',
+              touchAction: 'auto',
             }}
           >
             <MainToolbarContent

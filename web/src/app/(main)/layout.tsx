@@ -1,32 +1,33 @@
-"use client"
-import { motion } from 'motion/react';
-import { BackgroundProvider } from '@/contexts/background-context'
-import { useNav } from "@/contexts/nav-context";
+'use client'
+import { motion } from 'motion/react'
 import Footer from '@/components/layout/footer'
 import Navbar from '@/components/layout/nav/navbar-or-side'
+import { BackgroundProvider } from '@/contexts/background-context'
+import { useNav } from '@/contexts/nav-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
-import { contentAreaMaxWidthClass, contentAreaPaddingClass, navHeight } from '@/utils/common/layout-size';
-import { FloatingWidgets } from './main-floating-widgets';
+import { contentAreaMaxWidthClass, contentAreaPaddingClass, navHeight } from '@/utils/common/layout-size'
+import { FloatingWidgets } from './main-floating-widgets'
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const { siteInfo } = useSiteInfo();
-  const { hasNavPadding } = useNav();
+  const { siteInfo } = useSiteInfo()
+  const { hasNavPadding } = useNav()
 
-  const FOOTER_HEIGHT = 80;
-  const minMainHeight = `calc(100vh - ${FOOTER_HEIGHT}px)`;
+  const FOOTER_HEIGHT = 80
+  const minMainHeight = `calc(100vh - ${FOOTER_HEIGHT}px)`
 
   return (
-    <div className='flex flex-col min-h-screen'>
+    <div className="flex flex-col min-h-screen">
       <FloatingWidgets />
       <motion.nav
-        className='w-full fixed inset-x-0 z-5'
+        className="w-full fixed inset-x-0 z-5"
         initial={{ y: -64 }}
         animate={{ y: 0 }}
-        transition={{ duration: siteInfo.animationDurationSecond, ease: "easeOut" }}>
+        transition={{ duration: siteInfo.animationDurationSecond, ease: 'easeOut' }}
+      >
         <div className={`top-0 left-0 h-${navHeight} w-full flex justify-center`}>
           <div className={`${contentAreaMaxWidthClass} flex items-center w-full`}>
             <Navbar />

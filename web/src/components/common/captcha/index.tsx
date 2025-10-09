@@ -1,28 +1,25 @@
-
-"use client"
-import { useEffect } from "react";
-import { GoogleReCaptcha, GoogleReCaptchaProvider } from "react-google-recaptcha-v3";
-import HCaptcha from "@hcaptcha/react-hcaptcha";
-import "./captcha.css";
-import { TurnstileWidget } from "./turnstile";
-import { CaptchaProps, CaptchaProvider } from "@/types/captcha";
-
-
-
+'use client'
+import type { CaptchaProps } from '@/types/captcha'
+import HCaptcha from '@hcaptcha/react-hcaptcha'
+import { useEffect } from 'react'
+import { GoogleReCaptcha, GoogleReCaptchaProvider } from 'react-google-recaptcha-v3'
+import { CaptchaProvider } from '@/types/captcha'
+import { TurnstileWidget } from './turnstile'
+import './captcha.css'
 
 export function ReCaptchaWidget(props: CaptchaProps) {
   return (
     <GoogleReCaptchaProvider reCaptchaKey={props.siteKey} useEnterprise={false}>
       <GoogleReCaptcha action="submit" onVerify={props.onSuccess} />
     </GoogleReCaptchaProvider>
-  );
+  )
 }
 
 export function NoCaptchaWidget(props: CaptchaProps) {
   useEffect(() => {
-    props.onSuccess("no-captcha");
-  }, [props, props.onSuccess]);
-  return null;
+    props.onSuccess('no-captcha')
+  }, [props, props.onSuccess])
+  return null
 }
 
 export function HCaptchaWidget(props: CaptchaProps) {
@@ -31,24 +28,22 @@ export function HCaptchaWidget(props: CaptchaProps) {
       sitekey={props.siteKey}
       onVerify={props.onSuccess}
       onError={props.onError}
-      onExpire={() => props.onError?.("Captcha expired")}
+      onExpire={() => props.onError?.('Captcha expired')}
     />
-  );
+  )
 }
-
-
 
 export default function AIOCaptchaWidget(props: CaptchaProps) {
   switch (props.provider) {
     case CaptchaProvider.HCAPTCHA:
-      return <HCaptchaWidget {...props} />;
+      return <HCaptchaWidget {...props} />
     case CaptchaProvider.RECAPTCHA:
-      return <ReCaptchaWidget {...props} />;
+      return <ReCaptchaWidget {...props} />
     case CaptchaProvider.TURNSTILE:
-      return <TurnstileWidget {...props} />;
+      return <TurnstileWidget {...props} />
     case CaptchaProvider.DISABLE:
-      return <NoCaptchaWidget {...props} />;
+      return <NoCaptchaWidget {...props} />
     default:
-      throw new Error(`Unsupported captcha provider: ${props.provider}`);
+      throw new Error(`Unsupported captcha provider: ${props.provider}`)
   }
 }

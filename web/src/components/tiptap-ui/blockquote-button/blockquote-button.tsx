@@ -1,28 +1,28 @@
-"use client"
+'use client'
 
-import * as React from "react"
+// --- UI Primitives ---
+import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
 // --- Tiptap UI ---
-import type { UseBlockquoteConfig } from "@/components/tiptap-ui/blockquote-button"
+import type { UseBlockquoteConfig } from '@/components/tiptap-ui/blockquote-button'
+import * as React from 'react'
+
+import { Badge } from '@/components/tiptap-ui-primitive/badge'
+
+import { Button } from '@/components/tiptap-ui-primitive/button'
+
 import {
   BLOCKQUOTE_SHORTCUT_KEY,
   useBlockquote,
-} from "@/components/tiptap-ui/blockquote-button"
-
+} from '@/components/tiptap-ui/blockquote-button'
 // --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
-
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 // --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
-
-// --- UI Primitives ---
-import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button } from "@/components/tiptap-ui-primitive/button"
-import { Badge } from "@/components/tiptap-ui-primitive/badge"
+import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
 export interface BlockquoteButtonProps
-  extends Omit<ButtonProps, "type">,
-    UseBlockquoteConfig {
+  extends Omit<ButtonProps, 'type'>,
+  UseBlockquoteConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -62,7 +62,7 @@ export const BlockquoteButton = React.forwardRef<
       children,
       ...buttonProps
     },
-    ref
+    ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
     const {
@@ -82,10 +82,11 @@ export const BlockquoteButton = React.forwardRef<
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
         onClick?.(event)
-        if (event.defaultPrevented) return
+        if (event.defaultPrevented)
+          return
         handleToggle()
       },
-      [handleToggle, onClick]
+      [handleToggle, onClick],
     )
 
     if (!isVisible) {
@@ -96,7 +97,7 @@ export const BlockquoteButton = React.forwardRef<
       <Button
         type="button"
         data-style="ghost"
-        data-active-state={isActive ? "on" : "off"}
+        data-active-state={isActive ? 'on' : 'off'}
         role="button"
         tabIndex={-1}
         disabled={!canToggle}
@@ -119,7 +120,7 @@ export const BlockquoteButton = React.forwardRef<
         )}
       </Button>
     )
-  }
+  },
 )
 
-BlockquoteButton.displayName = "BlockquoteButton"
+BlockquoteButton.displayName = 'BlockquoteButton'

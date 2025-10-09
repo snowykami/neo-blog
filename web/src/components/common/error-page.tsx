@@ -1,8 +1,8 @@
-"use client"
+'use client'
 
-import { Button } from "@/components/ui/button"
-import { useTranslations } from "next-intl"
-import Link from "next/link"
+import { useTranslations } from 'next-intl'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 
 export default function ErrorPage({ status, message }: { status: number, message: string }) {
   const t = useTranslations()
@@ -12,7 +12,7 @@ export default function ErrorPage({ status, message }: { status: number, message
         <h1 className="text-4xl font-bold mb-4">{status}</h1>
         <p className="text-muted-foreground mb-6">{message}</p>
         <Button>
-          <Link href="/">{t("Operation.back_to_home")}</Link>
+          <Link href="/">{t('Operation.back_to_home')}</Link>
         </Button>
       </div>
     </div>

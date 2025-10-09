@@ -1,10 +1,8 @@
-import axiosClient from './client'
-import { Comment } from '@/models/comment'
-import { PaginationParams } from '@/models/common'
-import { OrderBy } from '@/models/common'
+import type { Comment } from '@/models/comment'
+import type { OrderBy, PaginationParams } from '@/models/common'
 import type { BaseResponse } from '@/models/resp'
-import { TargetType } from '@/models/types'
-
+import type { TargetType } from '@/models/types'
+import axiosClient from './client'
 
 export async function createComment(
   {
@@ -21,7 +19,7 @@ export async function createComment(
     replyId: number | null
     isPrivate: boolean
     showClientInfo: boolean
-  }
+  },
 ): Promise<BaseResponse<{ id: number }>> {
   const res = await axiosClient.post<BaseResponse<{ id: number }>>('/comment/c', {
     targetType,
@@ -36,16 +34,16 @@ export async function createComment(
 
 export async function updateComment(
   {
-    id, 
+    id,
     content,
     isPrivate = false,
-    showClientInfo = true
+    showClientInfo = true,
   }: {
     id: number
     content: string
     isPrivate?: boolean // 可选字段，默认为 false
     showClientInfo?: boolean
-  }
+  },
 ): Promise<BaseResponse<Comment>> {
   const res = await axiosClient.put<BaseResponse<Comment>>(`/comment/c/${id}`, {
     content,
@@ -73,9 +71,8 @@ export async function listComments({
   targetId: number
   depth: number
   commentId: number
-} & PaginationParams
-) {
-  const res = await axiosClient.get<BaseResponse<{ "comments": Comment[] }>>(`/comment/list`, {
+} & PaginationParams) {
+  const res = await axiosClient.get<BaseResponse<{ comments: Comment[] }>>(`/comment/list`, {
     params: {
       targetType,
       targetId,
@@ -85,7 +82,7 @@ export async function listComments({
       page,
       size,
       commentId,
-    }
+    },
   })
   return res.data
 }

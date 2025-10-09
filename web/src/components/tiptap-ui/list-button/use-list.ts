@@ -1,16 +1,16 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import { type Editor } from "@tiptap/react"
-import { NodeSelection, TextSelection } from "@tiptap/pm/state"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
+import type { Editor } from '@tiptap/react'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import * as React from 'react'
 
 // --- Icons ---
-import { ListIcon } from "@/components/tiptap-icons/list-icon"
-import { ListOrderedIcon } from "@/components/tiptap-icons/list-ordered-icon"
-import { ListTodoIcon } from "@/components/tiptap-icons/list-todo-icon"
+import { ListIcon } from '@/components/tiptap-icons/list-icon'
+
+import { ListOrderedIcon } from '@/components/tiptap-icons/list-ordered-icon'
+import { ListTodoIcon } from '@/components/tiptap-icons/list-todo-icon'
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 
 // --- Lib ---
 import {
@@ -18,9 +18,9 @@ import {
   isNodeInSchema,
   isNodeTypeSelected,
   isValidPosition,
-} from "@/lib/tiptap-utils"
+} from '@/lib/tiptap-utils'
 
-export type ListType = "bulletList" | "orderedList" | "taskList"
+export type ListType = 'bulletList' | 'orderedList' | 'taskList'
 
 /**
  * Configuration for the list functionality
@@ -52,15 +52,15 @@ export const listIcons = {
 }
 
 export const listLabels: Record<ListType, string> = {
-  bulletList: "Bullet List",
-  orderedList: "Ordered List",
-  taskList: "Task List",
+  bulletList: 'Bullet List',
+  orderedList: 'Ordered List',
+  taskList: 'Task List',
 }
 
 export const LIST_SHORTCUT_KEYS: Record<ListType, string> = {
-  bulletList: "mod+shift+8",
-  orderedList: "mod+shift+7",
-  taskList: "mod+shift+9",
+  bulletList: 'mod+shift+8',
+  orderedList: 'mod+shift+7',
+  taskList: 'mod+shift+9',
 }
 
 /**
@@ -69,20 +69,21 @@ export const LIST_SHORTCUT_KEYS: Record<ListType, string> = {
 export function canToggleList(
   editor: Editor | null,
   type: ListType,
-  turnInto: boolean = true
+  turnInto: boolean = true,
 ): boolean {
-  if (!editor || !editor.isEditable) return false
-  if (!isNodeInSchema(type, editor) || isNodeTypeSelected(editor, ["image"]))
+  if (!editor || !editor.isEditable)
+    return false
+  if (!isNodeInSchema(type, editor) || isNodeTypeSelected(editor, ['image']))
     return false
 
   if (!turnInto) {
     switch (type) {
-      case "bulletList":
+      case 'bulletList':
         return editor.can().toggleBulletList()
-      case "orderedList":
+      case 'orderedList':
         return editor.can().toggleOrderedList()
-      case "taskList":
-        return editor.can().toggleList("taskList", "taskItem")
+      case 'taskList':
+        return editor.can().toggleList('taskList', 'taskItem')
       default:
         return false
     }
@@ -98,11 +99,13 @@ export function canToggleList(
         editor,
         node: state.selection.$anchor.node(1),
       })?.pos
-      if (!isValidPosition(pos)) return false
+      if (!isValidPosition(pos))
+        return false
     }
 
     return true
-  } catch {
+  }
+  catch {
     return false
   }
 }
@@ -111,15 +114,16 @@ export function canToggleList(
  * Checks if list is currently active
  */
 export function isListActive(editor: Editor | null, type: ListType): boolean {
-  if (!editor || !editor.isEditable) return false
+  if (!editor || !editor.isEditable)
+    return false
 
   switch (type) {
-    case "bulletList":
-      return editor.isActive("bulletList")
-    case "orderedList":
-      return editor.isActive("orderedList")
-    case "taskList":
-      return editor.isActive("taskList")
+    case 'bulletList':
+      return editor.isActive('bulletList')
+    case 'orderedList':
+      return editor.isActive('orderedList')
+    case 'taskList':
+      return editor.isActive('taskList')
     default:
       return false
   }
@@ -129,8 +133,10 @@ export function isListActive(editor: Editor | null, type: ListType): boolean {
  * Toggles list in the editor
  */
 export function toggleList(editor: Editor | null, type: ListType): boolean {
-  if (!editor || !editor.isEditable) return false
-  if (!canToggleList(editor, type)) return false
+  if (!editor || !editor.isEditable)
+    return false
+  if (!canToggleList(editor, type))
+    return false
 
   try {
     const view = editor.view
@@ -143,7 +149,8 @@ export function toggleList(editor: Editor | null, type: ListType): boolean {
         editor,
         node: state.selection.$anchor.node(1),
       })?.pos
-      if (!isValidPosition(pos)) return false
+      if (!isValidPosition(pos))
+        return false
 
       tr = tr.setSelection(NodeSelection.create(state.doc, pos))
       view.dispatch(tr)
@@ -173,21 +180,23 @@ export function toggleList(editor: Editor | null, type: ListType): boolean {
     if (editor.isActive(type)) {
       // Unwrap list
       chain
-        .liftListItem("listItem")
-        .lift("bulletList")
-        .lift("orderedList")
-        .lift("taskList")
+        .liftListItem('listItem')
+        .lift('bulletList')
+        .lift('orderedList')
+        .lift('taskList')
         .run()
-    } else {
+    }
+    else {
       // Wrap in specific list type
       const toggleMap: Record<ListType, () => typeof chain> = {
         bulletList: () => chain.toggleBulletList(),
         orderedList: () => chain.toggleOrderedList(),
-        taskList: () => chain.toggleList("taskList", "taskItem"),
+        taskList: () => chain.toggleList('taskList', 'taskItem'),
       }
 
       const toggle = toggleMap[type]
-      if (!toggle) return false
+      if (!toggle)
+        return false
 
       toggle().run()
     }
@@ -195,7 +204,8 @@ export function toggleList(editor: Editor | null, type: ListType): boolean {
     editor.chain().focus().selectTextblockEnd().run()
 
     return true
-  } catch {
+  }
+  catch {
     return false
   }
 }
@@ -210,10 +220,12 @@ export function shouldShowButton(props: {
 }): boolean {
   const { editor, type, hideWhenUnavailable } = props
 
-  if (!editor || !editor.isEditable) return false
-  if (!isNodeInSchema(type, editor)) return false
+  if (!editor || !editor.isEditable)
+    return false
+  if (!isNodeInSchema(type, editor))
+    return false
 
-  if (hideWhenUnavailable && !editor.isActive("code")) {
+  if (hideWhenUnavailable && !editor.isActive('code')) {
     return canToggleList(editor, type)
   }
 
@@ -271,7 +283,8 @@ export function useList(config: UseListConfig) {
   const isActive = isListActive(editor, type)
 
   React.useEffect(() => {
-    if (!editor) return
+    if (!editor)
+      return
 
     const handleSelectionUpdate = () => {
       setIsVisible(shouldShowButton({ editor, type, hideWhenUnavailable }))
@@ -279,15 +292,16 @@ export function useList(config: UseListConfig) {
 
     handleSelectionUpdate()
 
-    editor.on("selectionUpdate", handleSelectionUpdate)
+    editor.on('selectionUpdate', handleSelectionUpdate)
 
     return () => {
-      editor.off("selectionUpdate", handleSelectionUpdate)
+      editor.off('selectionUpdate', handleSelectionUpdate)
     }
   }, [editor, type, hideWhenUnavailable])
 
   const handleToggle = React.useCallback(() => {
-    if (!editor) return false
+    if (!editor)
+      return false
 
     const success = toggleList(editor, type)
     if (success) {

@@ -1,4 +1,4 @@
-import * as React from "react"
+import * as React from 'react'
 
 export const CornerDownLeftIcon = React.memo(
   ({ className, ...props }: React.SVGProps<SVGSVGElement>) => {
@@ -20,7 +20,7 @@ export const CornerDownLeftIcon = React.memo(
         />
       </svg>
     )
-  }
+  },
 )
 
-CornerDownLeftIcon.displayName = "CornerDownLeftIcon"
+CornerDownLeftIcon.displayName = 'CornerDownLeftIcon'

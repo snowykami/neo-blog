@@ -1,28 +1,28 @@
-"use client"
+'use client'
 
-import * as React from "react"
-
-// --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
+// --- UI Primitives ---
+import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
 // --- Tiptap UI ---
-import type { UseImageDownloadConfig } from "@/components/tiptap-ui/image-download-button"
+import type { UseImageDownloadConfig } from '@/components/tiptap-ui/image-download-button'
+
+import * as React from 'react'
+
+import { Badge } from '@/components/tiptap-ui-primitive/badge'
+import { Button } from '@/components/tiptap-ui-primitive/button'
+
 import {
   IMAGE_DOWNLOAD_SHORTCUT_KEY,
   useImageDownload,
-} from "@/components/tiptap-ui/image-download-button"
-
-// --- UI Primitives ---
-import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button } from "@/components/tiptap-ui-primitive/button"
-import { Badge } from "@/components/tiptap-ui-primitive/badge"
+} from '@/components/tiptap-ui/image-download-button'
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
+// --- Lib ---
+import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
 export interface ImageDownloadButtonProps
-  extends Omit<ButtonProps, "type">,
-    UseImageDownloadConfig {
+  extends Omit<ButtonProps, 'type'>,
+  UseImageDownloadConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -64,7 +64,7 @@ export const ImageDownloadButton = React.forwardRef<
       children,
       ...buttonProps
     },
-    ref
+    ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
     const {
@@ -84,10 +84,11 @@ export const ImageDownloadButton = React.forwardRef<
     const handleClick = React.useCallback(
       async (event: React.MouseEvent<HTMLButtonElement>) => {
         onClick?.(event)
-        if (event.defaultPrevented) return
+        if (event.defaultPrevented)
+          return
         await handleDownload()
       },
-      [handleDownload, onClick]
+      [handleDownload, onClick],
     )
 
     if (!isVisible) {
@@ -120,7 +121,7 @@ export const ImageDownloadButton = React.forwardRef<
         )}
       </Button>
     )
-  }
+  },
 )
 
-ImageDownloadButton.displayName = "ImageDownloadButton"
+ImageDownloadButton.displayName = 'ImageDownloadButton'

@@ -1,4 +1,4 @@
-import { User } from "@/models/user";
+import type { User } from '@/models/user'
 
 /**
  * Returns a single-character fallback avatar derived from a username.
@@ -18,13 +18,13 @@ import { User } from "@/models/user";
  */
 export function getFallbackAvatarFromUsername(username: string): string {
   if (!username) {
-    return "N";
+    return 'N'
   }
-  const firstChar = username.charAt(0);
-  if (/[a-zA-Z]/.test(firstChar)) {
-    return firstChar.toUpperCase();
+  const firstChar = username.charAt(0)
+  if (/[a-z]/i.test(firstChar)) {
+    return firstChar.toUpperCase()
   }
-  return firstChar;
+  return firstChar
 }
 
 /**
@@ -47,12 +47,12 @@ export function getFallbackAvatarFromUsername(username: string): string {
  */
 export function getFirstCharFromUser(user: User): string {
   if (user.nickname) {
-    return getFallbackAvatarFromUsername(user.nickname);
+    return getFallbackAvatarFromUsername(user.nickname)
   }
   if (user.username) {
-    return getFallbackAvatarFromUsername(user.username);
+    return getFallbackAvatarFromUsername(user.username)
   }
-  return "N";
+  return 'N'
 }
 
 /**
@@ -68,6 +68,6 @@ export function getFirstCharFromUser(user: User): string {
  * formatDisplayName({ nickname: "Sam", username: "sam42" }); // "Sam(sam42)"
  * formatDisplayName({ username: "sam42" }); // "sam42"
  */
-export function formatDisplayName(user: User) :string {
-  return user?.nickname ? `${user.nickname}(${user.username})` : user.username;
+export function formatDisplayName(user: User): string {
+  return user?.nickname ? `${user.nickname}(${user.username})` : user.username
 }

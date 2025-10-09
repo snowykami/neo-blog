@@ -1,4 +1,4 @@
-"use client";
+'use client'
 
 export function WaveEffects() {
   return (
@@ -71,7 +71,8 @@ export function WaveEffects() {
         </g>
       </svg>
 
-      <style jsx>{`
+      <style jsx>
+        {`
         .animate-wave-1 {
           animation: wave-move 7s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
           animation-delay: -2s;
@@ -93,7 +94,8 @@ export function WaveEffects() {
           0% { transform: translate3d(-90px, 0, 0); }
           100% { transform: translate3d(85px, 0, 0); }
         }
-      `}</style>
+      `}
+      </style>
     </section>
-  );
+  )
 }

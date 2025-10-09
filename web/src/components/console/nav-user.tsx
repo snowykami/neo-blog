@@ -1,16 +1,19 @@
-"use client"
+'use client'
 
 import {
   IconDotsVertical,
   IconLogout,
   IconUserCircle,
-} from "@tabler/icons-react"
+} from '@tabler/icons-react'
 
+import { ArrowLeftRightIcon } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-} from "@/components/ui/avatar"
+} from '@/components/ui/avatar'
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,36 +22,34 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '@/components/ui/dropdown-menu'
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar"
-
-import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar"
-import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common/username"
-import { useAuth } from "@/contexts/auth-context"
-import { useTranslations } from "next-intl"
-import { useToLogin, useToUserProfile } from "@/hooks/use-route"
-import { ArrowLeftRightIcon } from "lucide-react"
-import { useOperationT } from "@/hooks/translations"
+} from '@/components/ui/sidebar'
+import { useAuth } from '@/contexts/auth-context'
+import { useOperationT } from '@/hooks/translations'
+import { useToLogin, useToUserProfile } from '@/hooks/use-route'
+import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
+import { formatDisplayName, getFallbackAvatarFromUsername } from '@/utils/common/username'
 
 export function NavUser() {
-  const operationT = useOperationT();
-  const routeT = useTranslations("Route");
-  const clickToProfile = useToUserProfile();
+  const operationT = useOperationT()
+  const routeT = useTranslations('Route')
+  const clickToProfile = useToUserProfile()
   const { isMobile } = useSidebar()
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuth()
 
-  const clickToLogin = useToLogin();
+  const clickToLogin = useToLogin()
 
   const handleLogout = () => {
     logout()
   }
 
-  if (!user) return null
+  if (!user)
+    return null
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -73,7 +74,7 @@ export function NavUser() {
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
+            side={isMobile ? 'bottom' : 'right'}
             align="end"
             sideOffset={4}
           >
@@ -95,18 +96,18 @@ export function NavUser() {
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={() => { clickToProfile(user.username) }}>
                 <IconUserCircle />
-                {routeT("profile")}
+                {routeT('profile')}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={clickToLogin}>
                 <ArrowLeftRightIcon />
-                {operationT("switch_account")}
+                {operationT('switch_account')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleLogout}>
                 <IconLogout />
-                {operationT("logout")}
+                {operationT('logout')}
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>

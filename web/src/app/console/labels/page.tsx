@@ -1,13 +1,13 @@
-import { LabelManage } from "@/components/console/label-manage";
-import { getTranslations } from "next-intl/server";
+import { getTranslations } from 'next-intl/server'
+import { LabelManage } from '@/components/console/label-manage'
 
 export async function generateMetadata() {
-  const consoleT = await getTranslations('Console');
+  const consoleT = await getTranslations('Console')
   return {
-    title: consoleT('labels.title')
-  };
+    title: consoleT('labels.title'),
+  }
 }
 
 export default function Page() {
-  return <LabelManage />;
+  return <LabelManage />
 }

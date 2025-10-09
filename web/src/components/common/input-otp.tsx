@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react"
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
+import { useEffect, useState } from 'react'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 
 export function InputOTPControlled({ onChange }: { onChange: (value: string) => void }) {
-  const [value, setValue] = useState("")
+  const [value, setValue] = useState('')
   useEffect(() => {
     onChange(value)
   }, [value, onChange])
@@ -11,7 +11,7 @@ export function InputOTPControlled({ onChange }: { onChange: (value: string) => 
       <InputOTP
         maxLength={6}
         value={value}
-        onChange={(value) => setValue(value)}
+        onChange={value => setValue(value)}
       >
         <InputOTPGroup>
           <InputOTPSlot index={0} />

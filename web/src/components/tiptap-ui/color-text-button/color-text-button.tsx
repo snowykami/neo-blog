@@ -1,31 +1,31 @@
-"use client"
+'use client'
 
-import * as React from "react"
-
-// --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
+// --- UI Primitives ---
+import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
 // --- Tiptap UI ---
-import type { UseColorTextConfig } from "@/components/tiptap-ui/color-text-button"
+import type { UseColorTextConfig } from '@/components/tiptap-ui/color-text-button'
+
+import * as React from 'react'
+
+import { Badge } from '@/components/tiptap-ui-primitive/badge'
+import { Button } from '@/components/tiptap-ui-primitive/button'
+
 import {
   COLOR_TEXT_SHORTCUT_KEY,
   useColorText,
-} from "@/components/tiptap-ui/color-text-button"
-
-// --- UI Primitives ---
-import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button } from "@/components/tiptap-ui-primitive/button"
-import { Badge } from "@/components/tiptap-ui-primitive/badge"
+} from '@/components/tiptap-ui/color-text-button'
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
+// --- Lib ---
+import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
 // --- Styles ---
-import "@/components/tiptap-ui/color-text-button/color-text-button.scss"
+import '@/components/tiptap-ui/color-text-button/color-text-button.scss'
 
 export interface ColorTextButtonProps
-  extends Omit<ButtonProps, "type">,
-    UseColorTextConfig {
+  extends Omit<ButtonProps, 'type'>,
+  UseColorTextConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -67,7 +67,7 @@ export const ColorTextButton = React.forwardRef<
       style,
       ...buttonProps
     },
-    ref
+    ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
     const {
@@ -89,19 +89,20 @@ export const ColorTextButton = React.forwardRef<
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
         onClick?.(event)
-        if (event.defaultPrevented) return
+        if (event.defaultPrevented)
+          return
         handleColorText()
       },
-      [handleColorText, onClick]
+      [handleColorText, onClick],
     )
 
     const buttonStyle = React.useMemo(
       () =>
         ({
           ...style,
-          "--color-text-button-color": textColor,
+          '--color-text-button-color': textColor,
         }) as React.CSSProperties,
-      [textColor, style]
+      [textColor, style],
     )
 
     if (!isVisible) {
@@ -112,7 +113,7 @@ export const ColorTextButton = React.forwardRef<
       <Button
         type="button"
         data-style="ghost"
-        data-active-state={isActive ? "on" : "off"}
+        data-active-state={isActive ? 'on' : 'off'}
         role="button"
         tabIndex={-1}
         disabled={!canColorText}
@@ -144,7 +145,7 @@ export const ColorTextButton = React.forwardRef<
         )}
       </Button>
     )
-  }
+  },
 )
 
-ColorTextButton.displayName = "ColorTextButton"
+ColorTextButton.displayName = 'ColorTextButton'

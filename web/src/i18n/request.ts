@@ -1,66 +1,73 @@
-import { getRequestConfig } from 'next-intl/server';
-import { headers } from 'next/headers';
-import deepmerge from 'deepmerge';
-import { getLoginUserServer } from '@/api/user.server';
-import { localesData } from '@/locales';
+import deepmerge from 'deepmerge'
+import { getRequestConfig } from 'next-intl/server'
+import { headers } from 'next/headers'
+import { getLoginUserServer } from '@/api/user.server'
+import { localesData } from '@/locales'
 
 export default getRequestConfig(async () => {
-  const locales = await getUserLocales();
+  const locales = await getUserLocales()
   const messages = await Promise.all(
     locales.reverse().map(async (locale) => {
-      return localesData[locale]?.data || {};
-    })
-  ).then((msgs) => msgs.reduce((acc, msg) => deepmerge(acc, msg), {}));
+      return localesData[locale]?.data || {}
+    }),
+  ).then(msgs => msgs.reduce((acc, msg) => deepmerge(acc, msg), {}))
   return {
     locale: locales[0],
-    messages
-  };
-});
+    messages,
+  }
+})
 
 // 用户语言偏好获取逻辑
 // 优先级：用户设置 > 浏览器语言，优先级从高到低排列
 export async function getUserLocales(): Promise<string[]> {
-  const locales: string[] = [];
+  const locales: string[] = []
 
   try {
-    const user = (await getLoginUserServer()).data;
-    locales.push(user?.language || '');
-    locales.push((user?.language || '').split('-')[0]);
-  } catch { }
+    const user = (await getLoginUserServer()).data
+    locales.push(user?.language || '')
+    locales.push((user?.language || '').split('-')[0])
+  }
+  catch { }
 
-  const headersList = await headers();
-  const acceptLanguage = headersList.get('accept-language');
+  const headersList = await headers()
+  const acceptLanguage = headersList.get('accept-language')
   if (acceptLanguage) {
-    acceptLanguage.split(',').forEach(lang => {
-      const locale = lang.split(';')[0].trim();
+    acceptLanguage.split(',').forEach((lang) => {
+      const locale = lang.split(';')[0].trim()
       if (locale) {
-        if (!locales.includes(locale) && localesData[locale]) { locales.push(locale); }
-        const localeWithoutRegion = locale.split('-')[0];
+        if (!locales.includes(locale) && localesData[locale]) {
+          locales.push(locale)
+        }
+        const localeWithoutRegion = locale.split('-')[0]
         if (localeWithoutRegion) {
-          if (!locales.includes(localeWithoutRegion) && localesData[localeWithoutRegion]) { locales.push(localeWithoutRegion); }
+          if (!locales.includes(localeWithoutRegion) && localesData[localeWithoutRegion]) {
+            locales.push(localeWithoutRegion)
+          }
         }
       }
-    });
+    })
   }
 
   // 有序去重、去空并归一化（小写）
-  const seen = new Set<string>();
-  const unique: string[] = [];
+  const seen = new Set<string>()
+  const unique: string[] = []
   for (const raw of locales) {
-    const v = (raw || '').trim().toLowerCase();
-    if (!v) continue;
+    const v = (raw || '').trim().toLowerCase()
+    if (!v)
+      continue
     if (!seen.has(v)) {
-      seen.add(v);
-      unique.push(v);
+      seen.add(v)
+      unique.push(v)
     }
   }
 
   // 保证至少返回一个默认语言
-  if (unique.length === 0) unique.push('en');
-  return unique;
+  if (unique.length === 0)
+    unique.push('en')
+  return unique
 }
 
 export async function getFirstLocale(): Promise<string> {
-  const locales = await getUserLocales();
-  return locales[0];
+  const locales = await getUserLocales()
+  return locales[0]
 }

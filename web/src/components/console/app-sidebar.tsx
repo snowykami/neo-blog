@@ -1,11 +1,13 @@
-"use client"
+'use client'
 
 import {
   IconInnerShadowTop,
-} from "@tabler/icons-react"
+} from '@tabler/icons-react'
 
-import { NavGroup } from "@/components/console/nav-group"
-import { NavUser } from "@/components/console/nav-user"
+import { useTranslations } from 'next-intl'
+import Link from 'next/link'
+import { NavGroup } from '@/components/console/nav-group'
+import { NavUser } from '@/components/console/nav-user'
 import {
   Sidebar,
   SidebarContent,
@@ -14,16 +16,14 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
-import Link from "next/link"
-import { sidebarData } from "./data"
-import { ThemeModeToggle } from "../common/theme-toggle"
-import { useTranslations } from "next-intl"
-import { useSiteInfo } from "@/contexts/site-info-context"
+} from '@/components/ui/sidebar'
+import { useSiteInfo } from '@/contexts/site-info-context'
+import { ThemeModeToggle } from '../common/theme-toggle'
+import { sidebarData } from './data'
 
 export function AppSidebar({ activeId, setActiveId, ...props }: React.ComponentProps<typeof Sidebar> & { activeId: string | null, setActiveId: (id: string) => void }) {
-  const { siteInfo } = useSiteInfo();
-  const consoleT = useTranslations("Console");
+  const { siteInfo } = useSiteInfo()
+  const consoleT = useTranslations('Console')
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -44,28 +44,28 @@ export function AppSidebar({ activeId, setActiveId, ...props }: React.ComponentP
       </SidebarHeader>
       <SidebarContent>
         <NavGroup
-          title={consoleT("about_content")}
+          title={consoleT('about_content')}
           activeId={activeId}
           setActiveId={setActiveId}
-          items={sidebarData.navContent.map((item) => ({ ...item, title: consoleT(item.title) }))}
+          items={sidebarData.navContent.map(item => ({ ...item, title: consoleT(item.title) }))}
         />
         <NavGroup
-          title={consoleT("about_system")}
+          title={consoleT('about_system')}
           activeId={activeId}
           setActiveId={setActiveId}
-          items={sidebarData.navSystem.map((item) => ({ ...item, title: consoleT(item.title) }))}
+          items={sidebarData.navSystem.map(item => ({ ...item, title: consoleT(item.title) }))}
         />
         <NavGroup
-          title={consoleT("about_user")}
+          title={consoleT('about_user')}
           activeId={activeId}
           setActiveId={setActiveId}
-          items={sidebarData.navUser.map((item) => ({ ...item, title: consoleT(item.title) }))}
+          items={sidebarData.navUser.map(item => ({ ...item, title: consoleT(item.title) }))}
         />
         <NavGroup
-          title={consoleT("personal")}
+          title={consoleT('personal')}
           activeId={activeId}
           setActiveId={setActiveId}
-          items={sidebarData.navPersonal.map((item) => ({ ...item, title: consoleT(item.title) }))}
+          items={sidebarData.navPersonal.map(item => ({ ...item, title: consoleT(item.title) }))}
         />
       </SidebarContent>
       <SidebarFooter>

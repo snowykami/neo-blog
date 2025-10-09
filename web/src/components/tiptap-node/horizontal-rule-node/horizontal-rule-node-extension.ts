@@ -1,12 +1,12 @@
-import { mergeAttributes } from "@tiptap/react"
-import TiptapHorizontalRule from "@tiptap/extension-horizontal-rule"
+import TiptapHorizontalRule from '@tiptap/extension-horizontal-rule'
+import { mergeAttributes } from '@tiptap/react'
 
 export const HorizontalRule = TiptapHorizontalRule.extend({
   renderHTML() {
     return [
-      "div",
-      mergeAttributes(this.options.HTMLAttributes, { "data-type": this.name }),
-      ["hr"],
+      'div',
+      mergeAttributes(this.options.HTMLAttributes, { 'data-type': this.name }),
+      ['hr'],
     ]
   },
 })

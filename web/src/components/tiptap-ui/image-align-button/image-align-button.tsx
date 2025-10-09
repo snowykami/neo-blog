@@ -1,31 +1,31 @@
-"use client"
+'use client'
 
-import * as React from "react"
-
-// --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
+// --- UI Primitives ---
+import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
 // --- Tiptap UI ---
 import type {
   ImageAlign,
   UseImageAlignConfig,
-} from "@/components/tiptap-ui/image-align-button"
+} from '@/components/tiptap-ui/image-align-button'
+
+import * as React from 'react'
+
+import { Badge } from '@/components/tiptap-ui-primitive/badge'
+import { Button } from '@/components/tiptap-ui-primitive/button'
+
 import {
   IMAGE_ALIGN_SHORTCUT_KEYS,
   useImageAlign,
-} from "@/components/tiptap-ui/image-align-button"
-
-// --- UI Primitives ---
-import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button } from "@/components/tiptap-ui-primitive/button"
-import { Badge } from "@/components/tiptap-ui-primitive/badge"
+} from '@/components/tiptap-ui/image-align-button'
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
+// --- Lib ---
+import { parseShortcutKeys } from '@/lib/tiptap-utils'
 
 export interface ImageAlignButtonProps
-  extends Omit<ButtonProps, "type">,
-    UseImageAlignConfig {
+  extends Omit<ButtonProps, 'type'>,
+  UseImageAlignConfig {
   /**
    * Optional text to display alongside the icon.
    */
@@ -62,7 +62,7 @@ export const ImageAlignButton = React.forwardRef<
       align,
       text,
       extensionName,
-      attributeName = "data-align",
+      attributeName = 'data-align',
       hideWhenUnavailable = false,
       onAligned,
       showShortcut = false,
@@ -70,7 +70,7 @@ export const ImageAlignButton = React.forwardRef<
       children,
       ...buttonProps
     },
-    ref
+    ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
     const {
@@ -93,10 +93,11 @@ export const ImageAlignButton = React.forwardRef<
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
         onClick?.(event)
-        if (event.defaultPrevented) return
+        if (event.defaultPrevented)
+          return
         handleImageAlign()
       },
-      [handleImageAlign, onClick]
+      [handleImageAlign, onClick],
     )
 
     if (!isVisible) {
@@ -108,7 +109,7 @@ export const ImageAlignButton = React.forwardRef<
         type="button"
         disabled={!canAlign}
         data-style="ghost"
-        data-active-state={isActive ? "on" : "off"}
+        data-active-state={isActive ? 'on' : 'off'}
         data-disabled={!canAlign}
         role="button"
         tabIndex={-1}
@@ -123,17 +124,19 @@ export const ImageAlignButton = React.forwardRef<
           <>
             <Icon className="tiptap-button-icon" />
             {text ? <span>{text}</span> : null}
-            {showShortcut ? (
-              <ImageAlignShortcutBadge
-                align={align}
-                shortcutKeys={shortcutKeys}
-              />
-            ) : null}
+            {showShortcut
+              ? (
+                  <ImageAlignShortcutBadge
+                    align={align}
+                    shortcutKeys={shortcutKeys}
+                  />
+                )
+              : null}
           </>
         )}
       </Button>
     )
-  }
+  },
 )
 
-ImageAlignButton.displayName = "ImageAlignButton"
+ImageAlignButton.displayName = 'ImageAlignButton'

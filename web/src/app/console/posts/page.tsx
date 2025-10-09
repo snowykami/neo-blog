@@ -1,13 +1,13 @@
-import { PostManage } from "@/components/console/post-manage";
-import { getTranslations } from "next-intl/server";
+import { getTranslations } from 'next-intl/server'
+import { PostManage } from '@/components/console/post-manage'
 
 export async function generateMetadata() {
-  const consoleT = await getTranslations('Console');
+  const consoleT = await getTranslations('Console')
   return {
     title: consoleT('posts.title'),
-  };
+  }
 }
 
 export default function Page() {
-  return <PostManage />;
+  return <PostManage />
 }

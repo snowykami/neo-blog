@@ -1,63 +1,66 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
   DialogTrigger,
-  DialogClose,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog'
 
-type ConfirmDialogProps = {
-  children: React.ReactNode; // 触发器，作为 DialogTrigger 的子元素
-  title: React.ReactNode;
-  description?: React.ReactNode;
-  content?: React.ReactNode; // 自定义中间内容（例如表单或额外说明）
-  confirmLabel?: string;
-  cancelLabel?: string;
-  confirmVariant?: "default" | "destructive" | "outline" | "ghost" | string;
-  disabled?: boolean;
-  closeOnConfirm?: boolean; // 默认确认成功后关闭
-  onConfirm: () => Promise<void> | void;
-  onOpenChange?: (open: boolean) => void;
-};
+interface ConfirmDialogProps {
+  children: React.ReactNode // 触发器，作为 DialogTrigger 的子元素
+  title: React.ReactNode
+  description?: React.ReactNode
+  content?: React.ReactNode // 自定义中间内容（例如表单或额外说明）
+  confirmLabel?: string
+  cancelLabel?: string
+  confirmVariant?: 'default' | 'destructive' | 'outline' | 'ghost' | string
+  disabled?: boolean
+  closeOnConfirm?: boolean // 默认确认成功后关闭
+  onConfirm: () => Promise<void> | void
+  onOpenChange?: (open: boolean) => void
+}
 
 export function ConfirmDialog({
   children,
   title,
   description,
   content,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
-  confirmVariant = "destructive",
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  confirmVariant = 'destructive',
   disabled = false,
   closeOnConfirm = true,
   onConfirm,
   onOpenChange,
 }: ConfirmDialogProps) {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   const handleOpenChange = (v: boolean) => {
-    setOpen(v);
-    onOpenChange?.(v);
-  };
+    setOpen(v)
+    onOpenChange?.(v)
+  }
 
   const handleConfirm = async () => {
-    if (disabled) return;
+    if (disabled)
+      return
     try {
-      setLoading(true);
-      await onConfirm();
-      if (closeOnConfirm) handleOpenChange(false);
-    } finally {
-      setLoading(false);
+      setLoading(true)
+      await onConfirm()
+      if (closeOnConfirm)
+        handleOpenChange(false)
     }
-  };
+    finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -77,7 +80,7 @@ export function ConfirmDialog({
           </DialogClose>
           <Button
             onClick={handleConfirm}
-            variant={confirmVariant as unknown as "default"}
+            variant={confirmVariant as unknown as 'default'}
             disabled={disabled || loading}
             type="button"
           >
@@ -86,5 +89,5 @@ export function ConfirmDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

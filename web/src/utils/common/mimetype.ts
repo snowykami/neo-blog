@@ -1,7 +1,7 @@
-import { FilePlayIcon, ImageIcon, MusicIcon } from "lucide-react";
+import { FilePlayIcon, ImageIcon, MusicIcon } from 'lucide-react'
 
 export const mimeTypeIcons = {
-  "image": ImageIcon,
-  "audio": MusicIcon,
-  "video": FilePlayIcon,
+  image: ImageIcon,
+  audio: MusicIcon,
+  video: FilePlayIcon,
 }

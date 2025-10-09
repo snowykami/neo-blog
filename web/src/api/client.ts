@@ -1,9 +1,8 @@
+import process from 'node:process'
 import axios from 'axios'
 import { camelToSnakeObj, snakeToCamelObj } from 'field-conv'
 
-export const BACKEND_URL = process.env.BACKEND_URL || (process.env.NODE_ENV == "production" ? 'http://neo-blog-backend:8888' : 'http://localhost:8888')
-
-console.info(`Using ${process.env.NODE_ENV} backend URL: ${BACKEND_URL}`)
+export const BACKEND_URL = process.env.BACKEND_URL || (process.env.NODE_ENV === 'production' ? 'http://neo-blog-backend:8888' : 'http://localhost:8888')
 
 const isServer = typeof window === 'undefined'
 
@@ -18,11 +17,11 @@ function isBrowserFormData(v: unknown): v is FormData {
   return typeof FormData !== 'undefined' && v instanceof FormData
 }
 // node form-data (form-data package) heuristic
-function isNodeFormData(v: unknown): v is { getHeaders: (...args: unknown[]) => Record<string, string>; pipe: (...args: unknown[]) => unknown } {
+function isNodeFormData(v: unknown): v is { getHeaders: (...args: unknown[]) => Record<string, string>, pipe: (...args: unknown[]) => unknown } {
   return Boolean(
-    v &&
-    typeof (v as { getHeaders?: unknown }).getHeaders === 'function' &&
-    typeof (v as { pipe?: unknown }).pipe === 'function'
+    v
+    && typeof (v as { getHeaders?: unknown }).getHeaders === 'function'
+    && typeof (v as { pipe?: unknown }).pipe === 'function',
   )
 }
 
@@ -30,7 +29,8 @@ axiosClient.interceptors.request.use((config) => {
   // 如果是 FormData（浏览器）或 node form-data，跳过对象转换
   if (config.data && typeof config.data === 'object' && !isBrowserFormData(config.data) && !isNodeFormData(config.data)) {
     config.data = camelToSnakeObj(config.data)
-  } else if (isBrowserFormData(config.data)) {
+  }
+  else if (isBrowserFormData(config.data)) {
     // 只处理键
     const formData = config.data as FormData
     const newFormData = new FormData()

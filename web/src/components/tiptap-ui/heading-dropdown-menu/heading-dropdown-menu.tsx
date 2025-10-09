@@ -1,32 +1,32 @@
-"use client"
-
-import * as React from "react"
-
-// --- Icons ---
-import { ChevronDownIcon } from "@/components/tiptap-icons/chevron-down-icon"
-
-// --- Hooks ---
-import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
-
-// --- Tiptap UI ---
-import { HeadingButton } from "@/components/tiptap-ui/heading-button"
-import type { UseHeadingDropdownMenuConfig } from "@/components/tiptap-ui/heading-dropdown-menu"
-import { useHeadingDropdownMenu } from "@/components/tiptap-ui/heading-dropdown-menu"
+'use client'
 
 // --- UI Primitives ---
-import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button, ButtonGroup } from "@/components/tiptap-ui-primitive/button"
+import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
+
+import type { UseHeadingDropdownMenuConfig } from '@/components/tiptap-ui/heading-dropdown-menu'
+
+import * as React from 'react'
+
+// --- Icons ---
+import { ChevronDownIcon } from '@/components/tiptap-icons/chevron-down-icon'
+import { Button, ButtonGroup } from '@/components/tiptap-ui-primitive/button'
+import { Card, CardBody } from '@/components/tiptap-ui-primitive/card'
+
 import {
   DropdownMenu,
-  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-} from "@/components/tiptap-ui-primitive/dropdown-menu"
-import { Card, CardBody } from "@/components/tiptap-ui-primitive/card"
+  DropdownMenuTrigger,
+} from '@/components/tiptap-ui-primitive/dropdown-menu'
+// --- Tiptap UI ---
+import { HeadingButton } from '@/components/tiptap-ui/heading-button'
+import { useHeadingDropdownMenu } from '@/components/tiptap-ui/heading-dropdown-menu'
+// --- Hooks ---
+import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 
 export interface HeadingDropdownMenuProps
-  extends Omit<ButtonProps, "type">,
-    UseHeadingDropdownMenuConfig {
+  extends Omit<ButtonProps, 'type'>,
+  UseHeadingDropdownMenuConfig {
   /**
    * Whether to render the dropdown menu in a portal
    * @default false
@@ -56,7 +56,7 @@ export const HeadingDropdownMenu = React.forwardRef<
       onOpenChange,
       ...buttonProps
     },
-    ref
+    ref,
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
     const [isOpen, setIsOpen] = React.useState(false)
@@ -68,11 +68,12 @@ export const HeadingDropdownMenu = React.forwardRef<
 
     const handleOpenChange = React.useCallback(
       (open: boolean) => {
-        if (!editor || !canToggle) return
+        if (!editor || !canToggle)
+          return
         setIsOpen(open)
         onOpenChange?.(open)
       },
-      [canToggle, editor, onOpenChange]
+      [canToggle, editor, onOpenChange],
     )
 
     if (!isVisible) {
@@ -85,7 +86,7 @@ export const HeadingDropdownMenu = React.forwardRef<
           <Button
             type="button"
             data-style="ghost"
-            data-active-state={isActive ? "on" : "off"}
+            data-active-state={isActive ? 'on' : 'off'}
             role="button"
             tabIndex={-1}
             disabled={!canToggle}
@@ -105,7 +106,7 @@ export const HeadingDropdownMenu = React.forwardRef<
           <Card>
             <CardBody>
               <ButtonGroup>
-                {levels.map((level) => (
+                {levels.map(level => (
                   <DropdownMenuItem key={`heading-${level}`} asChild>
                     <HeadingButton
                       editor={editor}
@@ -121,9 +122,9 @@ export const HeadingDropdownMenu = React.forwardRef<
         </DropdownMenuContent>
       </DropdownMenu>
     )
-  }
+  },
 )
 
-HeadingDropdownMenu.displayName = "HeadingDropdownMenu"
+HeadingDropdownMenu.displayName = 'HeadingDropdownMenu'
 
 export default HeadingDropdownMenu
