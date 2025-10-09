@@ -44,7 +44,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-
   const user = await getLoginUserServer().then(res => res.data).catch(() => null);
   const siteInfo = await getSiteInfo().then(res => res.data).catch(
     () => {
