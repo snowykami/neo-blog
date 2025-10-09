@@ -95,7 +95,7 @@ func (user *userRepo) GetUserOpenIDByIssuerAndSub(issuer, sub string) (*model.Us
 		return nil, errs.NewBadRequest("invalid_credentials")
 	}
 	var userOpenID model.UserOpenID
-	if err := GetDB().Where("issuer = ? AND sub = ?", issuer, sub).First(&userOpenID).Error; err != nil {
+	if err := GetDB().Preload("User").Where("issuer = ? AND sub = ?", issuer, sub).First(&userOpenID).Error; err != nil {
 		return nil, err
 	}
 	return &userOpenID, nil
