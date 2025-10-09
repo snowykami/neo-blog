@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import Image from 'next/image';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useOperationT } from '@/hooks/translations';
 
 interface LinkPreviewPopupProps {
   url: string;
@@ -15,7 +16,7 @@ interface LinkPreviewPopupProps {
 }
 
 export function LinkPreviewPopup({ url, children }: LinkPreviewPopupProps) {
-  const operationT = useTranslations('Operation');
+  const operationT = useOperationT();
   const [preview, setPreview] = useState<LinkPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);

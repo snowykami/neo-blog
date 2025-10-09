@@ -32,14 +32,14 @@ import { useAuth } from "@/contexts/auth-context";
 import { BaseResponseError } from "@/models/resp";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getDefaultCoverRandomly } from "@/utils/common/siteinfo";
-import { getCommonT } from "@/utils/client/translations";
+import { useCommonT, useOperationT } from "@/hooks/translations";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
 
 export function PostManage() {
   const t = useTranslations("Console.post_edit");
-  const commonT = getCommonT();
+  const commonT = useCommonT();
   const metricsT = useTranslations("Metrics");
   const { isMobile } = useDevice();
   const { user } = useAuth();
@@ -223,7 +223,7 @@ function PostDropdownMenu(
     setMetaDialogOpen: (open: boolean) => void
   }
 ) {
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   const clickToPostEdit = useToEditPost();
   const clickToPost = useToPost();
   const { confirming: confirmingDelete, onClick: onDeleteClick, onBlur: onDeleteBlur } = useDoubleConfirm();

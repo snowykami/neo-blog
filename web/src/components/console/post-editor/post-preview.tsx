@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Post } from "@/models/post";
+import { useOperationT } from "@/hooks/translations";
 import { getPostUrl } from "@/utils/common/route";
 import { useTranslations } from "next-intl";
 // iframe 草稿预览器
 export function PostPreviewDialogWithButton({ post, onPreview }: { post: Post, onPreview: () => void }) {
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   return (
     <Dialog>
       <DialogTrigger asChild>

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Category } from "@/models/category";
 import { Label } from "@/models/label";
+import { useOperationT } from "@/hooks/translations";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -23,7 +24,7 @@ export function CreateOrUpdateLabelDialogWithButton({
     buttonSize?: "sm" | "lg" | "icon" | "icon-sm" | "icon-lg" | "default" | null | undefined
    }) {
   const t = useTranslations("Console.labels");
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   const [open, setOpen] = useState(false);
 
   const form = useForm<{ name: string; slug: string; tailwindClassName: string }>({
@@ -161,7 +162,7 @@ export function CreateOrUpdateCategoryDialogWithButton(
   }
 ) {
   const t = useTranslations("Console.categories");
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   const [open, setOpen] = useState(false);
 
   const form = useForm<{ name: string; slug: string; description: string }>({

@@ -10,9 +10,15 @@ import { getCategories, deleteCategory } from "@/api/post";
 import type { Category } from "@/models/category";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 
+/* External Dialog components used above - import here to keep file self-contained */
+import { CreateOrUpdateCategoryDialogWithButton } from "../common/create-label-and-category"; import { useAuth } from "@/contexts/auth-context";
+import { isAdmin, isEditor } from "@/utils/common/permission";
+import Forbidden from "@/components/common/forbidden";
+import { useOperationT } from "@/hooks/translations";
+
 export function CategoryManage() {
   const t = useTranslations("Console.categories");
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   const { user } = useAuth();
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -50,7 +56,7 @@ export function CategoryManage() {
     c.slug.toLowerCase().includes(query.toLowerCase())
   );
 
-    if (!user || !isAdmin({ user }) && !isEditor({ user })) return <Forbidden />;
+  if (!user || !isAdmin({ user }) && !isEditor({ user })) return <Forbidden />;
 
   return (
     <div>
@@ -104,8 +110,5 @@ export function CategoryManage() {
   );
 }
 
-/* External Dialog components used above - import here to keep file self-contained */
-import { CreateOrUpdateCategoryDialogWithButton } from "../common/create-label-and-category";import { useAuth } from "@/contexts/auth-context";
-import { isAdmin, isEditor } from "@/utils/common/permission";
-import Forbidden from "@/components/common/forbidden";
+
 

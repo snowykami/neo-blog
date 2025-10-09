@@ -28,6 +28,7 @@ import { CreateOrUpdatePostMetaDialogWithoutButton } from "../common/post-meta-d
 import { common, createLowlight } from 'lowlight'
 import { PostPreviewDialogWithButton } from './post-preview'
 import { FullscreenIcon, MinimizeIcon } from 'lucide-react'
+import { useOperationT } from '@/hooks/translations'
 
 const lowlight = createLowlight(common)
 
@@ -130,7 +131,7 @@ export function PostEditor() {
 
 function EditorNavbar({ editor, post, onPostUpdate }: { post: Post, onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void, editor: Editor }) {
   const t = useTranslations("Console.post_edit")
-  const operationT = useTranslations("Operation")
+  const operationT = useOperationT();
   const [savingDraft, setSavingDraft] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [settingDialogOpen, setSettingDialogOpen] = useState(false);

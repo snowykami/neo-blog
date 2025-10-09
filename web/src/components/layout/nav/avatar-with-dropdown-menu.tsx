@@ -18,9 +18,10 @@ import { formatDisplayName, getFallbackAvatarFromUsername } from "@/utils/common
 import { useAuth } from "@/contexts/auth-context";
 import { useTranslations } from "next-intl";
 import { Role } from "@/models/user";
+import { useOperationT } from "@/hooks/translations";
 
 export function AvatarWithDropdownMenu() {
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   const routeT = useTranslations("Route");
   const { user, logout } = useAuth();
   const toLogin = useToLogin();

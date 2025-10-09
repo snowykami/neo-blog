@@ -25,13 +25,14 @@ import { CurrentLogged } from "@/components/auth/common/current-logged"
 import { SectionDivider } from "@/components/common/section-divider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useOperationT } from "@/hooks/translations"
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const t = useTranslations('Login')
-  const operationT = useTranslations("Operation")
+  const operationT = useOperationT();
   const { user, setUser } = useAuth();
   const [oidcConfigs, setOidcConfigs] = useState<OidcConfig[]>([])
   const [captchaProps, setCaptchaProps] = useState<{

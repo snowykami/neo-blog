@@ -19,15 +19,15 @@ import { BaseResponseError } from "@/models/resp"
 import { loginPath, registerPath } from "@/hooks/use-route"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { getCommonT } from "@/utils/client/translations"
+import { useCommonT, useOperationT } from "@/hooks/translations"
 
 export function ResetPasswordForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const t = useTranslations('ResetPassword')
-  const commonT = getCommonT();
-  const operationT = useTranslations("Operation")
+  const commonT = useCommonT();
+  const operationT = useOperationT();
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [verifyCode, setVerifyCode] = useState("")

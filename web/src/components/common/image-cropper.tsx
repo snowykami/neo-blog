@@ -8,6 +8,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { useOperationT } from "@/hooks/translations"
 import { useTranslations } from "next-intl"
 import Image from "next/image"
 import React, { useEffect, useRef, useState, useCallback } from "react";
@@ -27,7 +28,7 @@ export function ImageCropper({
   initialAspect?: number;
   lockAspect?: boolean;
 }) {
-  const operationT = useTranslations("Operation")
+  const operationT = useOperationT();
   const t = useTranslations("Components.image_cropper")
   const normalizeAspect = (a: number | undefined) => {
     const v = typeof a === "number" && isFinite(a) && a > 0 ? a : 1.0;

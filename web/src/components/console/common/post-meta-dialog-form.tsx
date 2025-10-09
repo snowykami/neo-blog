@@ -20,7 +20,7 @@ import { toast } from "sonner"
 import { CreateOrUpdateCategoryDialogWithButton, CreateOrUpdateLabelDialogWithButton } from "../common/create-label-and-category"
 import { Textarea } from "@/components/ui/textarea"
 import { BaseResponseError } from "@/models/resp"
-import { getCommonT } from "@/utils/client/translations"
+import { useCommonT, useOperationT } from "@/hooks/translations"
 
 interface PostMetaForm {
   title: string
@@ -40,8 +40,8 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
   post: Post | null, onPostChange: ({ post }: { post: Partial<Post> & Pick<Post, "id"> }) => void,
   open: boolean, onOpenChange: (open: boolean) => void,
 }) {
-  const operationT = useTranslations("Operation")
-  const commonT = getCommonT();
+  const operationT = useOperationT();
+  const commonT = useCommonT();
   const t = useTranslations("Console.post_edit")
   const form = useForm<PostMetaForm>({
     defaultValues: post ? {
@@ -230,7 +230,7 @@ function PostCategorySelector(
       onCategoryChange: (category: Category | null) => void,
     }) {
   const t = useTranslations("Console.post_edit")
-  const operationT = useTranslations("Operation")
+  const operationT = useOperationT();
   const [items, setItems] = useState<Category[]>([])
   const [open, setOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -319,7 +319,7 @@ function PostLabelSelector(
   }
 ) {
   const t = useTranslations("Console.post_edit");
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   const [items, setItems] = useState<Label[]>([]);
   const [open, setOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);

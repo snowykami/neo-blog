@@ -1,9 +1,9 @@
 "use client";
 import ErrorPage from "@/components/common/error-page";
-import { getCommonT } from "@/utils/client/translations";
+import { useCommonT } from "@/hooks/translations";
 import { useTranslations } from "next-intl";
 
 export default function NotFound() {
-  const commonT = getCommonT();;
+  const commonT = useCommonT();;
   return <ErrorPage status={404} message={commonT("not_found")} />
 }

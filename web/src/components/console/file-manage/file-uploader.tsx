@@ -13,12 +13,13 @@ import { uploadFile } from "@/api/file";
 import { toast } from "sonner";
 import { BaseResponseError } from '../../../models/resp';
 import { formatDataSize } from "@/utils/common/datasize";
+import { useOperationT } from "@/hooks/translations";
 
 const MAX_FILE_NUM_PER_UPLOAD = 20;
 
 export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: () => void }) {
   const t = useTranslations("Console.files");
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   const [files, setFiles] = useState<File[]>([]);
 
   const handleFilesSelected = (e: ChangeEvent<HTMLInputElement>) => {

@@ -5,7 +5,7 @@ import type { User } from "@/models/user";
 import { getLoginUser, userLogout } from "@/api/user";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { getCommonT } from "@/utils/client/translations";
+import { useCommonT } from "@/utils/client/translations";
 
 type AuthContextValue = {
   user: User | null;
@@ -23,7 +23,7 @@ export function AuthProvider({
   initialUser?: User | null;
 }) {
   const [user, setUser] = useState<User | null>(initialUser);
-  const commonT = getCommonT();
+  const commonT = useCommonT();
 
   useEffect(() => {
     if (!user){

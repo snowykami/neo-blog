@@ -11,11 +11,12 @@ import type { Label } from "@/models/label"
 import { CreateOrUpdateLabelDialogWithButton } from "../common/create-label-and-category"
 import { ConfirmDialog } from "@/components/common/confirm-dialog"
 import { useAuth } from "@/contexts/auth-context"
+import { useOperationT } from "@/hooks/translations"
 
 export function LabelManage() {
   const t = useTranslations("Console.labels")
   const {user} = useAuth();
-  const operationT = useTranslations("Operation")
+  const operationT = useOperationT();
 
   const [labels, setLabels] = useState<Label[]>([])
   const [loading, setLoading] = useState(false)

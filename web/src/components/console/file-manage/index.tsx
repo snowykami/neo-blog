@@ -36,16 +36,16 @@ import { useSiteInfo } from "@/contexts/site-info-context";
 import { FileModel } from "@/models/file";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useAuth } from "@/contexts/auth-context";
-import { getCommonT } from "@/utils/client/translations";
+import { useCommonT, useOperationT } from "@/hooks/translations";
 
 const PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
 
 export function FileManage() {
   const t = useTranslations("Console.files");
-  const commonT = getCommonT();
+  const commonT = useCommonT();
   const metricsT = useTranslations("Metrics");
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   const { user } = useAuth();
   const { isMobile } = useDevice();
   const [files, setFiles] = useState<FileModel[]>([]);
@@ -308,7 +308,7 @@ function FileDropdownMenu(
     onFileDelete: ({ fileId }: { fileId: number }) => void
   }
 ) {
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   const { confirming: confirmingDelete, onClick: onDeleteClick, onBlur: onDeleteBlur } = useDoubleConfirm();
   const [open, setOpen] = useState(false);
   const { siteInfo } = useSiteInfo();

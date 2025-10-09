@@ -11,7 +11,7 @@ import { getAvatarOrGravatarUrlFromUser } from "@/utils/common/gravatar";
 import { getFirstCharFromUser } from "@/utils/common/username";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "../ui/button";
-import { getCommonT } from "@/utils/client/translations";
+import { useCommonT, useOperationT } from "@/hooks/translations";
 
 
 export function CommentInput(
@@ -33,8 +33,8 @@ export function CommentInput(
 ) {
   const { user } = useAuth();
   const t = useTranslations('Comment')
-  const commonT = getCommonT();
-  const operationT = useTranslations('Operation')
+  const commonT = useCommonT();
+  const operationT = useOperationT();
   const clickToLogin = useToLogin()
   const clickToUserProfile = useToUserProfile();
 

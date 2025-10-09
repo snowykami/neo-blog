@@ -21,7 +21,7 @@ import { useSiteInfo } from "@/contexts/site-info-context";
 import { Badge } from "@/components/ui/badge";
 import { formatLocation } from "@/utils/common/location";
 import { isAdmin } from "@/utils/common/permission";
-import { getCommonT } from "@/utils/client/translations";
+import { useCommonT, useOperationT } from "@/hooks/translations";
 
 
 export function CommentItem(
@@ -48,8 +48,8 @@ export function CommentItem(
   const locale = useLocale();
   const t = useTranslations("Comment");
   const roleT = useTranslations("Role");
-  const commonT = getCommonT();
-  const operationT = useTranslations("Operation");
+  const commonT = useCommonT();
+  const operationT = useOperationT();
   const clickToUserProfile = useToUserProfile();
   const clickToLogin = useToLogin();
 
@@ -313,7 +313,7 @@ function CommentDropdownMenu(
   }
 ) {
   const { confirming: confirmingDelete, onClick: onDeleteClick } = useDoubleConfirm();
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   const [open, setOpen] = useState(false);
 
   return (

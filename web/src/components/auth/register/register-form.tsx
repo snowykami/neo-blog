@@ -24,7 +24,7 @@ import { BaseResponseError } from "@/models/resp"
 import { useAuth } from "@/contexts/auth-context"
 import Link from "next/link"
 import { loginPath } from "@/hooks/use-route"
-import { getCommonT, getOperationT, getResponseErrorDetailsT } from "@/utils/client/translations"
+import { useCommonT, useOperationT, useResponseErrorDetailsT } from "@/hooks/translations"
 
 export function RegisterForm({
   className,
@@ -32,9 +32,9 @@ export function RegisterForm({
 }: React.ComponentProps<"div">) {
   const { setUser } = useAuth();
   const t = useTranslations('Register')
-  const ResponseErrorDetailsT = getResponseErrorDetailsT();
-  const commonT = getCommonT();
-  const operationT = getOperationT();
+  const ResponseErrorDetailsT = useResponseErrorDetailsT();
+  const commonT = useCommonT();
+  const operationT = useOperationT();
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectBack = searchParams.get("redirect_back") || "/"

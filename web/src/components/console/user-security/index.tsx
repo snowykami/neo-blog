@@ -12,12 +12,12 @@ import { useAuth } from "@/contexts/auth-context";
 import { resetPasswordPath } from "@/hooks/use-route";
 import { InputOTPControlled } from "@/components/common/input-otp";
 import Link from "next/link";
-import { getCommonT } from "@/utils/client/translations";
+import { useCommonT } from "@/utils/client/translations";
 // const VERIFY_CODE_COOL_DOWN = 60; // seconds
 
 export function UserSecurityPage() {
   const t = useTranslations("Console.user_security")
-  const commonT = getCommonT();
+  const commonT = useCommonT();
   const { user, setUser } = useAuth();
   const [email, setEmail] = useState(user?.email || "")
   const [verifyCode, setVerifyCode] = useState("")

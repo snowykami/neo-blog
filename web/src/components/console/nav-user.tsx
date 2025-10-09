@@ -33,9 +33,10 @@ import { useAuth } from "@/contexts/auth-context"
 import { useTranslations } from "next-intl"
 import { useToLogin, useToUserProfile } from "@/hooks/use-route"
 import { ArrowLeftRightIcon } from "lucide-react"
+import { useOperationT } from "@/hooks/translations"
 
 export function NavUser() {
-  const operationT = useTranslations("Operation");
+  const operationT = useOperationT();
   const routeT = useTranslations("Route");
   const clickToProfile = useToUserProfile();
   const { isMobile } = useSidebar()

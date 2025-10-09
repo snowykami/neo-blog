@@ -11,6 +11,7 @@ import Link from "next/link";
 import { Button } from "../ui/button";
 import copyToClipboard from "@/lib/clipboard";
 import { toast } from "sonner";
+import { useOperationT } from "@/hooks/translations";
 
 
 function CopyrightCard({ post }:
@@ -18,7 +19,7 @@ function CopyrightCard({ post }:
 ) {
   const { siteInfo } = useSiteInfo();
   const copyrightT = useTranslations("Copyright");
-  const operationT = useTranslations("Operation");
+  const operationT =useOperationT();
   const { user } = useAuth();
   const postUrl = siteInfo.baseUrl + getPostUrl({post});
 
