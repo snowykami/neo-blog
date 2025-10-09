@@ -126,7 +126,9 @@ func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	// 设置Cookie
-	ctxutils.Set2Tokens(c, resp.Token, resp.RefreshToken)
+	if !req.IsBind {
+		ctxutils.Set2Tokens(c, resp.Token, resp.RefreshToken)
+	}
 	// 重定向回前端传来的页面
 	resps.Redirect(c, req.RedirectBack)
 }
