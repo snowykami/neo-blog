@@ -242,7 +242,7 @@
     "post_at": "发布于"
   },
   "Login": {
-    "bind_oidc": "继续绑定第三方账号",
+    "continue_bind_oidc": "继续将绑定第三方账号，或退出",
     "captcha_error": "验证错误，请重试。",
     "continue": "继续",
     "currently_logged_in": "当前已登录为",

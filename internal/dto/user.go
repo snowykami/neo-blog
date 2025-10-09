@@ -60,6 +60,7 @@ type OidcLoginReq struct {
 	State        string `query:"state" validate:"required"`
 	RedirectBack string `query:"redirect_back" default:"/"` // 非标，前端获取到的登录链接里面有后端拼接REDIRECT_BACK占位符，
 	IsBind       bool   `query:"is_bind" default:"false"`   // 非标，是否是绑定操作
+	Session      string `query:"session"`                   // Misskey，绑定操作时的session
 	UserIP       string
 }
 

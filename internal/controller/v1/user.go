@@ -114,6 +114,7 @@ func (u *UserController) OidcList(ctx context.Context, c *app.RequestContext) {
 func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 	req := &dto.OidcLoginReq{
 		UserIP: c.ClientIP(),
+		// IsBind: c.Query("is_bind") == "true",
 	}
 	if err := c.Bind(req); err != nil {
 		resps.BadRequest(c, err.Error())

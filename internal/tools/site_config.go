@@ -1,14 +1,28 @@
 package tools
 
 import (
+	"strings"
+
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
 )
 
+func GetSiteName() string {
+	return repo.KV.GetKVWithoutErr("site_name", "Snowykami's Blog").(string)
+}
+
+func GetSiteIcon() string {
+	return repo.KV.GetKVWithoutErr("site_icon", "https://cdn.liteyuki.org/snowykami/avatar_alpha.png").(string)
+}
+
+func GetSiteDescription() string {
+	return repo.KV.GetKVWithoutErr("site_description", "A neo blog system").(string)
+}
+
 func GetBaseUrl() string {
-	return repo.KV.GetKVWithoutErr("base_url", utils2.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl)).(string)
+	return strings.TrimSuffix(repo.KV.GetKVWithoutErr("base_url", utils2.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl)).(string), "/")
 }
 
 func GetAllowRegister() bool {

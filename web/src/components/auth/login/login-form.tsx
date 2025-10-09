@@ -105,7 +105,9 @@ export function LoginForm({
         </CardHeader>
         <CardContent>
           {user && <CurrentLogged />}
-          {oidcConfigs.length > 0 && <SectionDivider className="mb-6">{t("with_oidc")}</SectionDivider>}
+          {oidcConfigs.length > 0 && <SectionDivider className="mb-6">
+            {user ? t("continue_bind_oidc") : t("with_oidc")}
+          </SectionDivider>}
           <form onSubmit={handleLogin}>
             <div className="grid gap-4">
               {/* OIDC 登录选项 */}
@@ -122,7 +124,7 @@ export function LoginForm({
                         // 这个REDIRECT_BACK需要前端自己拼接，传给后端服务器，后端服务器拿来响应给前端另一个页面获取，然后改变路由   
                         // 因为这个是我暑假那会写的，后面因为其他事情太忙了，好久没看了，忘了为什么当时要这么设计了，在弄清楚之前先保持这样   
                         // 貌似是因为oidc认证时是后端响应重定向的，所以前端只能把redirect_back传给后端，由后端再传回来；普通登录时，这个参数可以被前端直接拿到进行路由跳转
-                        loginUrl={config.loginUrl.replace("REDIRECT_BACK", encodeURIComponent(`?redirect_back=${redirectBack}`))}
+                        loginUrl={config.loginUrl.replace("REDIRECT_BACK", encodeURIComponent(`?redirect_back=${redirectBack}&is_bind=${user ? "true" : "false"}`))}
                         displayName={config.displayName}
                         icon={config.icon}
                       />
@@ -212,13 +214,8 @@ function LoginWithOidc({
   displayName = "Login with OIDC",
   icon = "/oidc-icon.svg",
 }: LoginWithOidcProps) {
-  const { user, logout } = useAuth();
   const router = useRouter();
   const handleOidcLogin = async () => {
-    // 使用第三方登录时，如果当前已经有登录用户了，则先登出当前用户，避免后端直接使用登录态进行绑定（接口是这样设计的）
-    if (user) {
-      logout()
-    }
     router.push(loginUrl);
   }
 

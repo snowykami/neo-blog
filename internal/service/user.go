@@ -174,24 +174,23 @@ func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, *errs.ServiceE
 		// 兼容misskey特殊的oidc实现
 		if oidcConfig.Type == "misskey" {
 			// Misskey OIDC 特殊处理，草你妈日本人写的软件真的是猎奇
-			loginUrl = utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint, map[string]string{
-				"client_id": oidcConfig.ClientID,
-				"redirect_uri": fmt.Sprintf("%s%s%s/%sREDIRECT_BACK", // 这个大占位符给前端替换用的，替换时也要uri编码因为是层层包的
-					strings.TrimSuffix(utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl), "/"),
+			loginUrl = utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint+"/"+state, map[string]string{
+				"name": tools.GetSiteName(),
+				"icon": tools.GetSiteIcon(),
+				"callback": fmt.Sprintf("%s%s%s/%sREDIRECT_BACK", // 这个大占位符给前端替换用的，替换时也要uri编码因为是层层包的
+					tools.GetBaseUrl(),
 					constant.ApiPrefix,
 					constant.OidcUri,
 					oidcConfig.Name,
 				),
-				"response_type": "code",
-				"scope":         "read:account",
-				"state":         state,
+				"permission": "read:account",
 			})
 		} else {
 			// 常规 OAuth2/OIDC 处理
 			loginUrl = utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint, map[string]string{
 				"client_id": oidcConfig.ClientID,
-				"redirect_uri": fmt.Sprintf("%s%s%s/%sREDIRECT_BACK",
-					strings.TrimSuffix(utils.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl), "/"),
+				"redirect_uri": fmt.Sprintf("%s%s%s/%sREDIRECT_BACK", // 这个大占位符给前端替换用的，替换时也要uri编码因为是层层包的
+					tools.GetBaseUrl(),
 					constant.ApiPrefix,
 					constant.OidcUri,
 					oidcConfig.Name,
@@ -217,61 +216,85 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 	kvStore := utils.KV.GetInstance()
 	storedName, ok := kvStore.Get("oidc_state:" + req.State) // state: oidc_name
 	if !ok || storedName != req.Name {
-		return nil, errs.NewBadRequest("invalid_oidc_state")
+		// 尝试使用session作为state验证（Misskey特例）
+		if req.Session != "" {
+			// Misskey的state是session，直接用session作为state验证
+			storedName, ok = kvStore.Get("oidc_state:" + req.Session)
+			if !ok || storedName != req.Name {
+				return nil, errs.NewBadRequest("invalid_oidc_state")
+			}
+		}
 	}
 	// 获取OIDC配置
 	oidcConfig, err := repo.Oidc.GetOidcConfigByName(req.Name)
 	if err != nil || oidcConfig == nil {
 		return nil, errs.NewBadRequest("invalid_oidc_name")
 	}
-	// 请求访问令牌
-	tokenResp, err := utils.Oidc.RequestToken(
-		oidcConfig.TokenEndpoint,
-		oidcConfig.ClientID,
-		oidcConfig.ClientSecret,
-		req.Code,
-		tools.GetBaseUrl()+constant.ApiPrefix+constant.OidcUri+"/"+oidcConfig.Name,
-	)
-	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_request_oidc_token")
-	}
-	// 请求用户信息
-	userInfo, err := utils.Oidc.RequestUserinfo(oidcConfig.UserinfoEndpoint, tokenResp.AccessToken)
-	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_request_oidc_userinfo")
-	}
-
-	// GitHub 特例处理 PreferredUsername、Sub、Name、Picture和Email
-	if strings.Contains(oidcConfig.TokenEndpoint, "https://github.com") {
-		// 没有 sub 时用不可变 id 做 sub（加 provider 前缀），并尝试获取优先邮箱
-		// 用 provider 前缀 + immutable id 作为 sub，避免后续冲突
-		userInfo.Picture = userInfo.AvatarUrl
-		userInfo.PreferredUsername = userInfo.Login
-		if userInfo.Sub == "" && userInfo.ID != 0 {
-			userInfo.Sub = fmt.Sprintf("github:%d", userInfo.ID)
+	// 预制变量userinfo
+	userInfo := &utils.Userinfo{}
+	// 请求访问令牌和用户信息
+	if oidcConfig.Type == "misskey" {
+		// 处理 Misskey 特例
+		misskeyTokenResp, err := utils.Oidc.RequestMisskeyToken(oidcConfig.TokenEndpoint, req.Session)
+		if err != nil {
+			return nil, errs.NewInternalServer("failed_to_request_oidc_token")
 		}
-		emails, err := utils.Oidc.RequestGitHubUserVerifiedEmails(tokenResp.AccessToken)
+		userInfo.Sub = misskeyTokenResp.User.ID
+		userInfo.Name = misskeyTokenResp.User.Name
+		userInfo.PreferredUsername = misskeyTokenResp.User.Username
+		userInfo.Email = misskeyTokenResp.User.Email
+		userInfo.Picture = misskeyTokenResp.User.AvatarUrl
+	} else {
+		// 处理标准 OIDC/OAuth2和GitHub特例
+		// 请求访问令牌
+		tokenResp, err := utils.Oidc.RequestToken(
+			oidcConfig.TokenEndpoint,
+			oidcConfig.ClientID,
+			oidcConfig.ClientSecret,
+			req.Code,
+			tools.GetBaseUrl()+constant.ApiPrefix+constant.OidcUri+"/"+oidcConfig.Name,
+		)
+		if err != nil {
+			return nil, errs.NewInternalServer("failed_to_request_oidc_token")
+		}
+		// 请求用户信息
+		userInfo, err = utils.Oidc.RequestUserinfo(oidcConfig.UserinfoEndpoint, tokenResp.AccessToken)
 		if err != nil {
 			return nil, errs.NewInternalServer("failed_to_request_oidc_userinfo")
-		} else if len(emails) > 0 {
-			// 遍历邮箱，在数据库中找已存在的邮箱，找到直接赋值，找不到则使用第一个
-			emailFound := false
-			for _, email := range emails {
-				exists, err := repo.User.CheckEmailExists(email)
-				if err != nil {
-					return nil, errs.NewInternalServer("failed_to_check_target")
-				}
-				if exists {
-					userInfo.Email = email
-					emailFound = true
-					break
-				}
+		}
+		// GitHub 特例处理 PreferredUsername、Sub、Name、Picture和Email
+		if strings.Contains(oidcConfig.TokenEndpoint, "https://github.com") {
+			// 没有 sub 时用不可变 id 做 sub（加 provider 前缀），并尝试获取优先邮箱
+			// 用 provider 前缀 + immutable id 作为 sub，避免后续冲突
+			userInfo.Picture = userInfo.AvatarUrl
+			userInfo.PreferredUsername = userInfo.Login
+			if userInfo.Sub == "" && userInfo.ID != 0 {
+				userInfo.Sub = fmt.Sprintf("github:%d", userInfo.ID)
 			}
-			if !emailFound && len(emails) > 0 {
-				userInfo.Email = emails[0]
+			emails, err := utils.Oidc.RequestGitHubUserVerifiedEmails(tokenResp.AccessToken)
+			if err != nil {
+				return nil, errs.NewInternalServer("failed_to_request_oidc_userinfo")
+			} else if len(emails) > 0 {
+				// 遍历邮箱，在数据库中找已存在的邮箱，找到直接赋值，找不到则使用第一个
+				emailFound := false
+				for _, email := range emails {
+					exists, err := repo.User.CheckEmailExists(email)
+					if err != nil {
+						return nil, errs.NewInternalServer("failed_to_check_target")
+					}
+					if exists {
+						userInfo.Email = email
+						emailFound = true
+						break
+					}
+				}
+				if !emailFound && len(emails) > 0 {
+					userInfo.Email = emails[0]
+				}
 			}
 		}
 	}
+
 	// 这里不能用username来拼接兜底邮箱，不然可能有用户在第三方注册了和本站邮箱相同的用户名，导致邮箱冲突或者伪造，生成随机邮箱
 	if userInfo.Email == "" {
 		userInfo.Email = fmt.Sprintf("%s@replace-to-your-email", utils.Strings.GenerateRandomString(10))

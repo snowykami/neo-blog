@@ -32,9 +32,9 @@ func NewMiscController() *MiscController {
 func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext) {
 	value, err := repo.KV.GetKV(KeySiteInfo, utils.H{
 		"metadata": utils.H{
-			"name":        repo.KV.GetKVWithoutErr("site_name", "Snowykami's Blog"),
-			"icon":        repo.KV.GetKVWithoutErr("site_icon", "https://cdn.liteyuki.org/snowykami/avatar_alpha.png"),
-			"description": repo.KV.GetKVWithoutErr("site_description", "A neo blog system"),
+			"name":        tools.GetSiteName(),
+			"icon":        tools.GetSiteIcon(),
+			"description": tools.GetSiteDescription(),
 		},
 		"color_schemes":        repo.KV.GetKVWithoutErr("color_schemes", []string{"blue", "green", "orange", "red", "rose", "pink", "violet", "yellow"}),
 		"default_color_scheme": repo.KV.GetKVWithoutErr("default_color_scheme", "blue"),

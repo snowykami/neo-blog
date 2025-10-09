@@ -82,6 +82,22 @@ func (u *oidcUtils) RequestGitHubUserVerifiedEmails(accessToken string) ([]strin
 	return emailList, nil
 }
 
+// RequestMisskeyToken 请求 Misskey 访问令牌
+func (u *oidcUtils) RequestMisskeyToken(tokenEndpoint, session string) (*TokenResponse, error) {
+	tokenResp := TokenResponse{}
+	resp, err := client.R().
+		SetHeader("Accept", "application/json").
+		SetResult(&tokenResp).
+		Post(tokenEndpoint + "/" + session + "/" + "check")
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode() != 200 {
+		return nil, fmt.Errorf("状态码: %d，响应: %s", resp.StatusCode(), resp.String())
+	}
+	return &tokenResp, nil
+}
+
 type TokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	TokenType    string `json:"token_type"`
@@ -89,6 +105,9 @@ type TokenResponse struct {
 	IDToken      string `json:"id_token,omitempty"`
 	RefreshToken string `json:"refresh_token,omitempty"`
 	Error        string `json:"error,omitempty"`
+	// Misskey 特例
+	Token string          `json:"token,omitempty"`
+	User  MisskeyUserInfo `json:"user,omitempty"`
 }
 
 // Userinfo 定义用户信息结构
@@ -102,4 +121,13 @@ type Userinfo struct {
 	ID                int64    `json:"id"`               // GitHub兜底字段，OIDC标准没有定义ID字段
 	Login             string   `json:"login"`            // GitHub兜底字段，OIDC标准没有定义Login字段
 	AvatarUrl         string   `json:"avatar_url"`       // GitHub兜底字段，OIDC标准没有定义AvatarUrl字段
+}
+
+type MisskeyUserInfo struct {
+	AvatarUrl   string `json:"avatarUrl"`   // 头像URL
+	Username    string `json:"username"`    // 用户名
+	ID          string `json:"id"`          // 用户ID
+	Name        string `json:"name"`        // 昵称
+	Email       string `json:"email"`       // 邮箱
+	IsSuspended bool   `json:"isSuspended"` // 是否被封禁
 }
