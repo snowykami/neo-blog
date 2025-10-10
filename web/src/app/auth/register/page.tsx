@@ -18,8 +18,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/auth-context'
-import { useCommonT, useOperationT, useResponseErrorDetailsT } from '@/hooks/translations'
 import { loginPath } from '@/hooks/use-route'
+import { useCommonT, useOperationT, useResponseErrorDetailsT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 
 export default function Page() {

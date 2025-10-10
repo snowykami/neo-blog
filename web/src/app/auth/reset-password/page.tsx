@@ -13,8 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useCommonT, useOperationT } from '@/hooks/translations'
 import { loginPath, registerPath } from '@/hooks/use-route'
+import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 
 export default function Page() {

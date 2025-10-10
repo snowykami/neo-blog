@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { useOperationT } from '@/hooks/translations'
+import { useOperationT } from '@/hooks/use-translations'
 
 export function CreateOrUpdateLabelDialogWithButton({
   label,

@@ -1,5 +1,5 @@
 import { Trash } from 'lucide-react'
-import { useOperationT } from '@/hooks/translations'
+import { useOperationT } from '@/hooks/use-translations'
 import { Button } from '../ui/button'
 import { ConfirmDialog } from './confirm-dialog'
 

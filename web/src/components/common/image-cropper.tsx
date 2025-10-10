@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { useOperationT } from '@/hooks/translations'
+import { useOperationT } from '@/hooks/use-translations'
 import 'react-image-crop/dist/ReactCrop.css'
 
 export function ImageCropper({

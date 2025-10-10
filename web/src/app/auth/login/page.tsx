@@ -18,8 +18,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/auth-context'
-import { useOperationT } from '@/hooks/translations'
 import { registerPath, resetPasswordPath } from '@/hooks/use-route'
+import { useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 
 export default function LoginPage() {

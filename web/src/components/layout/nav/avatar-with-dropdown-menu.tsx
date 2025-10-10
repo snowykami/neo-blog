@@ -13,8 +13,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/auth-context'
-import { useOperationT } from '@/hooks/translations'
 import { useToLogin } from '@/hooks/use-route'
+import { useOperationT } from '@/hooks/use-translations'
 import { Role } from '@/models/user'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { consolePath } from '@/utils/common/route'

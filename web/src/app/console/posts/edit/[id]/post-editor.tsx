@@ -27,7 +27,7 @@ import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
 import { SimpleEditor } from '@/components/tiptap-templates/simple/simple-editor'
 import { Button } from '@/components/ui/button'
-import { useOperationT } from '@/hooks/translations'
+import { useOperationT } from '@/hooks/use-translations'
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
 import { PostPreviewDialogWithButton } from './post-preview'
 

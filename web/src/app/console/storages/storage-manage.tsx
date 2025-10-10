@@ -7,7 +7,7 @@ import { deleteStorageProvider, listStorageProviders } from '@/api/file'
 import { DeleteButtonWithConfirmDialog } from '@/components/common/delete-button-with-confirm-dialog'
 import { CreateOrUpdateStorageDialog } from '@/components/console/create-storage-dialog'
 import { Separator } from '@/components/ui/separator'
-import { useCommonT, useOperationT } from '@/hooks/translations'
+import { useCommonT, useOperationT } from '@/hooks/use-translations'
 
 export function StorageProviderManage() {
   const t = useTranslations('Console.storages')

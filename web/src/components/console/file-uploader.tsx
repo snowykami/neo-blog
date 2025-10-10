@@ -21,7 +21,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { useOperationT } from '@/hooks/translations'
+import { useOperationT } from '@/hooks/use-translations'
 import { formatDataSize } from '@/utils/common/datasize'
 import { mimeTypeIcons } from '@/utils/common/mimetype'
 

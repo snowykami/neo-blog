@@ -11,8 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/contexts/auth-context'
-import { useCommonT } from '@/hooks/translations'
 import { resetPasswordPath } from '@/hooks/use-route'
+import { useCommonT } from '@/hooks/use-translations'
 // const VERIFY_CODE_COOL_DOWN = 60; // seconds
 
 export function UserSecurityPage() {

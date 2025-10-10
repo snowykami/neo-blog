@@ -14,7 +14,7 @@ import { CreateOrUpdateCategoryDialogWithButton } from '@/components/console/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/auth-context'
-import { useOperationT } from '@/hooks/translations'
+import { useOperationT } from '@/hooks/use-translations'
 import { isAdmin, isEditor } from '@/utils/common/permission'
 
 export function CategoryManage() {

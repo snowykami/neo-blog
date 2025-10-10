@@ -4,7 +4,7 @@ import type { User } from '@/models/user'
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { getLoginUser, userLogout } from '@/api/user'
-import { useCommonT } from '@/hooks/translations'
+import { useCommonT } from '@/hooks/use-translations'
 
 interface AuthContextValue {
   user: User | null

@@ -9,7 +9,7 @@ import { deleteLabel, getLabels } from '@/api/label'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useOperationT } from '@/hooks/translations'
+import { useOperationT } from '@/hooks/use-translations'
 import { CreateOrUpdateLabelDialogWithButton } from '../../../components/console/common/create-label-and-category'
 
 export function LabelManage() {

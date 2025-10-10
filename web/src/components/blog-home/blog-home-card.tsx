@@ -27,7 +27,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { cn } from '@/lib/utils'
-import { deceleration } from '@/motion/curve'
 import { getPostUrl } from '@/utils/common/route'
 import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 import { htmlToText } from '@/utils/common/string'
@@ -57,7 +56,7 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
           animate={{ scale: 1, opacity: 1 }}
           transition={{
             duration: siteInfo.animationDurationSecond,
-            ease: deceleration,
+            ease: 'easeOut',
           }}
           className="absolute inset-0 w-full h-full"
         >

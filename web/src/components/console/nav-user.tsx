@@ -22,8 +22,8 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/contexts/auth-context'
-import { useOperationT } from '@/hooks/translations'
 import { useToLogin, useToUserProfile } from '@/hooks/use-route'
+import { useOperationT } from '@/hooks/use-translations'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { formatDisplayName, getFallbackAvatarFromUsername } from '@/utils/common/username'
 

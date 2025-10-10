@@ -40,7 +40,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
-import { useCommonT, useOperationT } from '@/hooks/translations'
+import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import {
   CreateOrUpdateCategoryDialogWithButton,

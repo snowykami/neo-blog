@@ -1,7 +1,7 @@
 import type { Post } from '@/models/post'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { useOperationT } from '@/hooks/translations'
+import { useOperationT } from '@/hooks/use-translations'
 import { getPostUrl } from '@/utils/common/route'
 // iframe 草稿预览器
 export function PostPreviewDialogWithButton({
