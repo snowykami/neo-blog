@@ -103,7 +103,7 @@ export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: (
           </div>
         </div>
         <DialogFooter>
-          <DialogClose>
+          <DialogClose asChild>
             <div className="flex gap-2">
               <Button variant="outline">{operationT('cancel')}</Button>
               <Button disabled={files.length === 0} onClick={handleSubmit}>

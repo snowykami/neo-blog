@@ -112,6 +112,23 @@ func (f *FileRepo) UpdateStorageProvider(id uint, provider *model.StorageProvide
 }
 
 func (f *FileRepo) DeleteStorageProvider(id uint) *errs.ServiceError {
+	// 先检查是不是默认存储提供者
+	var provider model.StorageProviderModelAndDto
+	if err := GetDB().Where("id = ?", id).First(&provider).Error; err != nil {
+		return errs.NewNotFound("failed_to_get_target")
+	}
+	if provider.IsDefault {
+		return errs.NewBadRequest("cannot_delete_default_provider")
+	}
+	// 检查是否有文件在使用该存储提供者
+	var count int64
+	if err := GetDB().Model(&model.File{}).Where("provider_id = ?", id).Count(&count).Error; err != nil {
+		return errs.NewInternalServer("failed_to_check_files")
+	}
+	if count > 0 {
+		return errs.NewBadRequest("cannot_delete_provider_in_use")
+	}
+	// 删除存储提供者
 	if err := GetDB().Where("id = ?", id).Delete(&model.StorageProviderModelAndDto{}).Error; err != nil {
 		return errs.NewInternalServer("failed_to_delete_target")
 	}

@@ -1,5 +1,6 @@
 'use client'
 import type { StorageProviderConfig } from '@/models/file'
+import { Badge } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -89,6 +90,7 @@ function StorageProviderItem({
                 {commonT('id')}
                 :
                 {storage.id}
+                {storage.isDefault && <Badge>{t('default')}</Badge>}
               </span>
               <span className="text-xs text-muted-foreground">
                 {t('storage_type')}

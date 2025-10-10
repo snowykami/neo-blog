@@ -23,7 +23,7 @@ interface ConfirmDialogProps {
   confirmVariant?: 'default' | 'destructive' | 'outline' | 'ghost' | string
   disabled?: boolean
   closeOnConfirm?: boolean // 默认确认成功后关闭
-  onConfirm: () => Promise<void> | void
+  onConfirm: () => void
   onOpenChange?: (open: boolean) => void
 }
 

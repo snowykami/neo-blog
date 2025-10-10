@@ -309,11 +309,6 @@ func (f *FileController) DeleteStorageProvider(ctx context.Context, c *app.Reque
 		return
 	}
 
-	if svcerr := repo.File.UnsetDefaultStorageProvider(id); svcerr != nil {
-		resps.Error(c, svcerr)
-		return
-	}
-
 	if svcerr := repo.File.DeleteStorageProvider(id); svcerr != nil {
 		resps.Error(c, svcerr)
 		return
