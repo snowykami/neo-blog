@@ -130,16 +130,18 @@ function BackendMetricsOverview() {
         <CardDescription className="mb-0">{dashboardT('backend_metrics')}</CardDescription>
         <div className="mt-4 space-y-2">
           {metricsData
-            ? Object.entries(metricsData).slice().reverse().map(([key, value]) => (
-                <div key={key} className="flex items-center leading-relaxed justify-between">
-                  <span className={`text-muted-foreground ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
-                    {dashboardT(key)}
-                  </span>
-                  <span className={`tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
-                    {backendMetricsHandler?.[key]?.(value) || value}
-                  </span>
-                </div>
-              ))
+            ? Object.entries(metricsData).slice().reverse().map(
+                ([key, value]) => (
+                  <div key={key} className="flex items-center leading-relaxed justify-between">
+                    <span className={`text-muted-foreground ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
+                      {dashboardT(key)}
+                    </span>
+                    <span className={`tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
+                      {backendMetricsHandler?.[key]?.(value) || value}
+                    </span>
+                  </div>
+                ),
+              )
             : <div>Loading...</div>}
         </div>
       </Card>
