@@ -75,3 +75,13 @@ export function formatDateTime({
     day: 'numeric',
   })
 }
+
+// => dd:hh:mm:ss
+export function formatDuration(seconds: number): string {
+  const days = Math.floor(seconds / (24 * 60 * 60))
+  const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60))
+  const minutes = Math.floor((seconds % (60 * 60)) / 60)
+  const secs = seconds % 60
+
+  return `${String(days).padStart(2, '0')}:${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}

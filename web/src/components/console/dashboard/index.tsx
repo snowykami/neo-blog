@@ -1,19 +1,20 @@
 'use client'
 import type { DashboardResp } from '@/api/admin'
-import type { MetricsData } from '@/api/misc'
+import type { BackendMetricsData, FrontendMetricsData } from '@/models/misc'
 import type { IconType } from '@/types/icon'
 import { Eye, MessageCircle, Newspaper, Users } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getDashboard } from '@/api/admin'
-import { getMetrics, metricsHandler } from '@/api/misc'
+import { backendMetricsHandler, frontendMetricsHandler, getBackendMetrics, getFrontendMetrics } from '@/api/misc'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { consolePath } from '@/utils/common/route'
 
 export function Dashboard() {
   return (
-    <div className="">
+    <div>
       <DataOverview />
       <MetricsOverview />
     </div>
@@ -21,37 +22,38 @@ export function Dashboard() {
 }
 
 function DataOverview() {
+  const dashboardT = useTranslations('Console.dashboard')
   const data: {
     key: keyof DashboardResp
     label: string
     icon: IconType
     url: string
   }[] = [
-    {
-      key: 'totalPosts',
-      label: 'Total Posts',
-      icon: Newspaper,
-      url: consolePath.post,
-    },
-    {
-      key: 'totalUsers',
-      label: 'Total Users',
-      icon: Users,
-      url: consolePath.user,
-    },
-    {
-      key: 'totalComments',
-      label: 'Total Comments',
-      icon: MessageCircle,
-      url: consolePath.comment,
-    },
-    {
-      key: 'totalViews',
-      label: 'Total Views',
-      icon: Eye,
-      url: consolePath.file,
-    },
-  ]
+      {
+        key: 'totalPosts',
+        label: 'total_posts',
+        icon: Newspaper,
+        url: consolePath.post,
+      },
+      {
+        key: 'totalUsers',
+        label: 'total_users',
+        icon: Users,
+        url: consolePath.user,
+      },
+      {
+        key: 'totalComments',
+        label: 'total_comments',
+        icon: MessageCircle,
+        url: consolePath.comment,
+      },
+      {
+        key: 'totalViews',
+        label: 'total_views',
+        icon: Eye,
+        url: consolePath.file,
+      },
+    ]
 
   const [fetchData, setFetchData] = useState<DashboardResp | null>(null)
 
@@ -72,9 +74,9 @@ function DataOverview() {
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       {data.map(item => (
         <Link key={item.key} href={item.url}>
-          <Card key={item.key} className="p-4">
+          <Card key={item.key} className="pt-4 pb-2">
             <CardHeader className="pb-2 text-lg font-medium">
-              <CardDescription>{item.label}</CardDescription>
+              <CardDescription>{dashboardT(item.label)}</CardDescription>
               <CardTitle className="flex items-center text-2xl font-semibold tabular-nums @[250px]/card:text-3xl text-primary">
                 <item.icon className="inline mr-2" />
                 {fetchData[item.key]}
@@ -88,37 +90,113 @@ function DataOverview() {
 }
 
 function MetricsOverview() {
-  const [metricsData, setMetricsData] = useState<MetricsData | null>(null)
-  useEffect(() => {
-    getMetrics()
-      .then((res) => {
-        setMetricsData(res.data)
-      })
-      .catch((err) => {
-        toast.error(err.message || 'Failed to fetch metrics data')
-      })
-  }, [])
   return (
-    <div className="mt-8">
-      <Card className="p-4">
-        <CardHeader className="pb-2">
-          <CardDescription>Metrics Overview</CardDescription>
-        </CardHeader>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mt-4">
+      <BackendMetricsOverview />
+      <FrontendMetricsOverview />
+    </div>
+  )
+}
+
+function BackendMetricsOverview() {
+  const dashboardT = useTranslations('Console.dashboard')
+  const [metricsData, setMetricsData] = useState<BackendMetricsData | null>(null)
+  const boldProps = ['memorySys']
+
+  useEffect(() => {
+    const fetchMetrics = () => {
+      getBackendMetrics()
+        .then((res) => {
+          setMetricsData(res.data)
+        })
+        .catch((err) => {
+          toast.error(err.message || 'Failed to fetch metrics data')
+        })
+    }
+
+    // fetch immediately, then every second
+    fetchMetrics()
+    const timer = window.setInterval(fetchMetrics, 1000)
+
+    return () => {
+      clearInterval(timer)
+    }
+  }, [])
+
+  return (
+    <div className="">
+      <Card className="px-4 gap-3">
+        <CardDescription className="mb-0">{dashboardT('backend_metrics')}</CardDescription>
         <div className="mt-4 space-y-2">
           {metricsData
             ? (
-                Object.entries(metricsData).map(([key, value]) => (
-                  <div key={key} className="flex items-center justify-between">
-                    <span className="font-medium">
-                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                    </span>
-                    <span className="tabular-nums">{metricsHandler?.[key]?.(value)}</span>
-                  </div>
-                ))
-              )
+              // 反序遍历：先把 entries 转成数组并 reverse
+              Object.entries(metricsData).slice().reverse().map(([key, value]) => (
+                <div key={key} className="flex items-center leading-relaxed justify-between">
+                  <span className={`text-muted-foreground ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
+                    {dashboardT(key)}
+                  </span>
+                  <span className={`tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
+                    {backendMetricsHandler?.[key]?.(value) || value}
+                  </span>
+                </div>
+              ))
+            )
             : (
-                <div>Loading...</div>
-              )}
+              <div>Loading...</div>
+            )}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function FrontendMetricsOverview() {
+  const dashboardT = useTranslations('Console.dashboard')
+  const [metricsData, setMetricsData] = useState<FrontendMetricsData | null>(null)
+  const boldProps = ['memoryRss']
+
+  useEffect(() => {
+    const fetchMetrics = () => {
+      getFrontendMetrics()
+        .then((res) => {
+          setMetricsData(res)
+        })
+        .catch((err) => {
+          toast.error(err.message || 'Failed to fetch metrics data')
+        })
+    }
+
+    fetchMetrics()
+    const timer = window.setInterval(fetchMetrics, 1000)
+
+    return () => {
+      clearInterval(timer)
+    }
+  }, [])
+
+  return (
+    <div className="">
+      <Card className="px-4 gap-3">
+        <CardDescription className="mb-0">{dashboardT('frontend_metrics')}</CardDescription>
+        <div className="mt-4 space-y-2">
+          {metricsData
+            ? (
+              // 反序遍历：先把 entries 转成数组并 reverse
+              Object.entries(metricsData).map(([key, value]) => (
+                <div key={key} className="flex items-center leading-relaxed justify-between">
+                  <span className={`text-muted-foreground ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
+                    {dashboardT(key)}
+                  </span>
+                  <span className={`tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
+                    {frontendMetricsHandler?.[key]?.(value) || value}
+                  </span>
+                </div>
+              ))
+            )
+            : (
+              <div>Loading...</div>
+            )}
         </div>
       </Card>
     </div>

@@ -123,7 +123,8 @@ export function PostEditor() {
     <div
       className="w-auto editor-container
     h-[calc(100vh-var(--header-height)-var(--console-content-padding)-6.5rem)]
-    md:h-[calc(100vh-var(--header-height)-var(--console-content-padding)-5.5rem)]
+    md:h-[calc(100vh-var(--header-height)-var(--console-content-padding)-6rem)]
+    lg:h-[calc(100vh-var(--header-height)-var(--console-content-padding)-5.5rem)]
     "
     >
       <EditorNavbar editor={editor} post={post} onPostUpdate={onPostUpdate} />
@@ -261,11 +262,11 @@ function EditorNavbar({
         <Button size="sm" onClick={handleToggleFullScreen} variant="outline">
           {isFullScreen
             ? (
-                <MinimizeIcon className="size-4" />
-              )
+              <MinimizeIcon className="size-4" />
+            )
             : (
-                <FullscreenIcon className="size-4" />
-              )}
+              <FullscreenIcon className="size-4" />
+            )}
         </Button>
         <PostPreviewDialogWithButton post={post} onPreview={onPreview} />
         <Button size="sm" onClick={() => setSettingDialogOpen(true)} variant="outline">
