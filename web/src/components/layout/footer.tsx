@@ -9,7 +9,7 @@ export default function Footer({ height }: { height: number }) {
   return (
     <footer
       style={{ height }}
-      className="w-full py-6 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700"
+      className="w-full py-6 px-10 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700"
     >
       ©
       {' '}

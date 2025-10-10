@@ -7,17 +7,19 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getLabels } from '@/api/label'
+import { listPosts } from '@/api/post'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { OrderBy } from '@/models/common'
 import { getGravatarUrl } from '@/utils/common/gravatar'
 import { getLabelUrl, getPostUrl } from '@/utils/common/route'
 import { getFallbackAvatarFromUsername } from '@/utils/common/username'
 
 // 侧边栏父组件，接收卡片组件列表
 // 关于我卡片
-export function SidebarAbout() {
+export function BlogSidebarAbout() {
   const { siteInfo } = useSiteInfo()
   if (!siteInfo)
     return null
@@ -67,13 +69,26 @@ export function SidebarAbout() {
 }
 
 // 热门文章卡片
-export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: string }) {
+export function BlogSidebarHotPosts({ posts, orderType }: { posts?: Post[], orderType?: OrderBy }) {
+  if (!posts || posts.length === 0) {
+    posts = []
+  }
+  const blogHomeT = useTranslations('BlogHome')
+  useEffect(() => {
+    // 若果 posts 为空，则从服务器获取热门文章
+
+    listPosts({ orderBy: orderType === OrderBy.CreatedAt ? OrderBy.Heat : OrderBy.CreatedAt, page: 1, size: 3 }).then((res) => {
+      if (res.data.posts) {
+        posts = res.data.posts
+      }
+    })
+  }, [])
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-orange-500" />
-          {sortType === 'latest' ? '最新文章' : '热门文章'}
+          {orderType === OrderBy.CreatedAt ? blogHomeT('latest_posts') : blogHomeT('hottest_posts')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -109,7 +124,7 @@ export function SidebarHotPosts({ posts, sortType }: { posts: Post[], sortType: 
 }
 
 // 标签云卡片
-export function SidebarLabels({
+export function BlogSidebarLabels({
   label = null,
   setLabel,
 }: {

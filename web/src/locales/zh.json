@@ -58,6 +58,7 @@
   "Common": {
     "char": "字",
     "created_at": "创建于",
+    "default": "默认",
     "digest": "摘要",
     "email": "邮箱",
     "forbidden": "抱歉，您无权访问该内容",
@@ -238,6 +239,7 @@
       "title": "存储供应商",
       "create_storage": "创建存储供应商",
       "fetch_storages_failed": "获取存储供应商失败",
+      "is_default": "默认",
       "no_storages": "还没有存储供应商，创建一个吧！",
       "name": "名称",
       "base_dir": "基础目录",

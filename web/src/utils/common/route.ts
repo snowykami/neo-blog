@@ -18,9 +18,9 @@ export const mainPath = {
   home: '/',
   feed: '/rss.xml',
   sitemap: '/sitemap.xml',
-  archive: '/archive',
-  label: '/labels',
-  category: '/categories',
+  archive: '/a',
+  label: '/l',
+  category: '/c',
   random: '/random',
 }
 

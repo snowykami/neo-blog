@@ -17,10 +17,10 @@ import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import CopyrightCard from '@/components/blog-post/blog-copyright.client'
 import { BlogLikeButton } from '@/components/blog-post/blog-like-button.client'
 import { PostHeaderClient } from '@/components/blog-post/post-header.client'
-import Sidebar from '@/components/blog-sidebar'
+import BlogSidebar from '@/components/blog-sidebar'
 import {
-  SidebarAbout,
-  SidebarLabels,
+  BlogSidebarAbout,
+  BlogSidebarLabels,
   SidebarMisskeyIframe,
 } from '@/components/blog-sidebar/blog-sidebar-card'
 import { CommentSection } from '@/components/comment'
@@ -189,10 +189,10 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
             ease: 'easeOut',
           }}
         >
-          <Sidebar
+          <BlogSidebar
             cards={[
-              <SidebarAbout key="about" />,
-              <SidebarLabels key="labels" />,
+              <BlogSidebarAbout key="about" />,
+              <BlogSidebarLabels key="labels" />,
               <SidebarMisskeyIframe key="misskey" />,
             ].filter(Boolean)}
           />

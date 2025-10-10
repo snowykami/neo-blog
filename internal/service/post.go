@@ -148,7 +148,7 @@ func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*d
 			keywordsArray = append(keywordsArray, strings.TrimSpace(kw))
 		}
 	}
-	posts, total, err := repo.Post.ListPosts(currentUserID, keywordsArray, req.Label, req.Page, req.Size, req.OrderBy, req.Desc, req.UserID)
+	posts, total, err := repo.Post.ListPosts(currentUserID, keywordsArray, req)
 	if err != nil {
 		return nil, total, errs.NewInternalServer("failed_to_get_target")
 	}

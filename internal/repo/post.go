@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -178,14 +179,14 @@ func (p *postRepo) SavePost(post *model.Post) error {
 	return nil
 }
 
-func (p *postRepo) ListPosts(currentUserID uint, keywords []string, label string, page, size uint64, orderBy string, desc bool, userId uint) ([]model.Post, int64, error) {
-	if !slices.Contains(constant.OrderByEnumPost, orderBy) {
+func (p *postRepo) ListPosts(currentUserID uint, keywords []string, req *dto.ListPostReq) ([]model.Post, int64, error) {
+	if !slices.Contains(constant.OrderByEnumPost, req.OrderBy) {
 		return nil, 0, errs.NewBadRequest("invalid_request_parameters")
 	}
 
 	query := GetDB().Model(&model.Post{}).Preload(clause.Associations)
-	if userId > 0 {
-		query = query.Where("user_id = ?", userId)
+	if req.UserID > 0 {
+		query = query.Where("user_id = ?", req.UserID)
 	}
 
 	if currentUserID > 0 {
@@ -194,9 +195,9 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, label string
 		query = query.Where("is_private = ?", false)
 	}
 
-	if label != "" {
+	if req.Label != "" {
 		var labelModel model.Label
-		if err := GetDB().Where("name = ? OR slug = ?", label, label).First(&labelModel).Error; err != nil {
+		if err := GetDB().Where("name = ? OR slug = ?", req.Label, req.Label).First(&labelModel).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// 标签不存在，直接返回空结果
 				return []model.Post{}, 0, nil
@@ -216,12 +217,16 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, label string
 		}
 	}
 
+	if req.NoContent {
+		query = query.Omit("content", "draft_content")
+	}
+
 	var total int64
 	if err := query.Count(&total).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, 0, err
 	}
 
-	items, _, err := PaginateQuery[model.Post](query, page, size, orderBy, desc)
+	items, _, err := PaginateQuery[model.Post](query, req.Page, req.Size, req.OrderBy, req.Desc)
 	if err != nil {
 		return nil, 0, err
 	}

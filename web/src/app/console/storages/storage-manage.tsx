@@ -1,12 +1,12 @@
 'use client'
 import type { StorageProviderConfig } from '@/models/file'
-import { Badge } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteStorageProvider, listStorageProviders } from '@/api/file'
 import { DeleteButtonWithConfirmDialog } from '@/components/common/delete-button-with-confirm-dialog'
 import { CreateOrUpdateStorageDialog } from '@/components/console/create-storage-dialog'
+import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 
@@ -90,13 +90,14 @@ function StorageProviderItem({
                 {commonT('id')}
                 :
                 {storage.id}
-                {storage.isDefault && <Badge>{t('default')}</Badge>}
+
               </span>
               <span className="text-xs text-muted-foreground">
                 {t('storage_type')}
                 :
                 {storage.type}
               </span>
+              {storage.isDefault && <Badge className="text-xs">{commonT('default')}</Badge>}
             </div>
           </div>
         </div>

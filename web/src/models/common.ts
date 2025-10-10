@@ -1,8 +1,8 @@
 export interface PaginationParams {
-  orderBy: OrderBy
-  desc: boolean // 是否降序
-  page: number
-  size: number
+  orderBy?: OrderBy
+  desc?: boolean // 是否降序
+  page?: number
+  size?: number
 }
 
 export enum OrderBy {

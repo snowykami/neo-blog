@@ -59,7 +59,7 @@ export function AvatarWithDropdownMenu() {
             <DropdownMenuLabel>
               <div className="flex items-center gap-2 p-0 text-left text-sm">
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{formatDisplayName(user)}</span>
+                  <span className="truncate font-medium max-w-[16ch]">{formatDisplayName(user)}</span>
                   <span className="text-muted-foreground truncate text-xs">{user.email}</span>
                 </div>
               </div>

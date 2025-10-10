@@ -51,7 +51,8 @@ type CreateOrUpdateDraftReq struct {
 }
 
 type ListPostReq struct {
-	Keywords string `query:"keywords"` // 关键词列表
+	Keywords  string `query:"keywords"`                   // 关键词列表
+	NoContent bool   `query:"no_content" default:"false"` // 是否不返回内容，用于只需要列表时
 	PaginationParams
 	Label  string `query:"label"`
 	UserID uint   `query:"user_id"` // 用户ID，管理员可查看指定用户的文章

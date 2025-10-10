@@ -27,14 +27,16 @@ export async function listPosts({
   page = 1,
   size = 10,
   orderBy = OrderBy.CreatedAt,
-  desc = false,
+  desc = true,
   keywords = '',
+  noContent = false,
   label = '',
   userId = 0,
 }: {
   keywords?: string // 关键词，逗号分割
   label?: string // 标签，逗号分割
   userId?: number // 用户ID，管理员可查看指定用户的文章
+  noContent?: boolean // 是否不返回内容，用于只需要列表时
 } & PaginationParams): Promise<BaseResponse<{ posts: Post[], total: number }>> {
   const res = await axiosClient.get<BaseResponse<{ posts: Post[], total: number }>>('/post/list', {
     params: {
@@ -44,6 +46,7 @@ export async function listPosts({
       desc,
       keywords,
       label,
+      noContent,
       userId,
     },
   })

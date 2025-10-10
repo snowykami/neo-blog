@@ -8,35 +8,21 @@ import { parseAsInteger, useQueryState } from 'nuqs'
 import { useEffect, useRef, useState } from 'react'
 import { listPosts } from '@/api/post'
 import { BlogCardGrid } from '@/components/blog-home/blog-home-card'
-import Sidebar from '@/components/blog-sidebar'
-import {
-  SidebarAbout,
-  SidebarHotPosts,
-  SidebarLabels,
-  SidebarMisskeyIframe,
-} from '@/components/blog-sidebar/blog-sidebar-card'
+import BlogSidebar from '@/components/blog-sidebar'
+import { BlogSidebarAbout, BlogSidebarHotPosts, BlogSidebarLabels, SidebarMisskeyIframe } from '@/components/blog-sidebar/blog-sidebar-card'
 import { PaginationController } from '@/components/common/pagination'
 import { Button } from '@/components/ui/button'
-import { QueryKey } from '@/constant'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useStoredState } from '@/hooks/use-storage-state'
 import { OrderBy } from '@/models/common'
 import { navStickyTopPx } from '@/utils/common/layout-size'
-
-// 定义排序类型
-enum SortBy {
-  Latest = 'latest',
-  Hottest = 'hottest',
-}
-
-const DEFAULT_SORTBY: SortBy = SortBy.Latest
 
 export default function BlogHome() {
   // 从路由查询参数中获取页码和标签们
   const t = useTranslations('BlogHome')
   const { siteInfo } = useSiteInfo()
   const [keywords] = useState<string[]>([])
-  const [labelSlug, setLabelString] = useQueryState('label')
+  const [labelSlug, setLabelSlug] = useQueryState('label')
   const [page, setPage] = useQueryState(
     'page',
     parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
@@ -44,9 +30,9 @@ export default function BlogHome() {
   const [posts, setPosts] = useState<Post[]>([])
   const [totalPosts, setTotalPosts] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [sortBy, setSortBy, isSortByLoaded] = useStoredState<SortBy>(
-    QueryKey.SortBy,
-    DEFAULT_SORTBY,
+  const [orderByState, setOrderByState, isOrderByStateLoaded] = useStoredState<OrderBy>(
+    'order_by',
+    OrderBy.CreatedAt,
   )
 
   // 区分浏览器 history popstate（回退/前进）与用户主动触发的分页
@@ -71,13 +57,13 @@ export default function BlogHome() {
   }, [page, labelSlug])
 
   useEffect(() => {
-    if (!isSortByLoaded)
+    if (!isOrderByStateLoaded)
       return
     setLoading(true)
     listPosts({
       page,
       size: siteInfo.postsPerPage || 9,
-      orderBy: sortBy === SortBy.Latest ? OrderBy.CreatedAt : OrderBy.Heat,
+      orderBy: orderByState === OrderBy.CreatedAt ? OrderBy.CreatedAt : OrderBy.Heat,
       desc: true,
       keywords: keywords.join(',') || undefined,
       label: labelSlug || undefined,
@@ -91,11 +77,11 @@ export default function BlogHome() {
         console.error(err)
         setLoading(false)
       })
-  }, [keywords, labelSlug, page, sortBy, isSortByLoaded, siteInfo.postsPerPage])
+  }, [keywords, labelSlug, page, orderByState, isOrderByStateLoaded, siteInfo.postsPerPage])
 
-  const handleSortChange = (type: SortBy) => {
-    if (sortBy !== type) {
-      setSortBy(type)
+  const handleSortChange = (type: OrderBy) => {
+    if (orderByState !== type) {
+      setOrderByState(type)
       setPage(1)
     }
   }
@@ -126,7 +112,7 @@ export default function BlogHome() {
               {/* 文章列表标题 */}
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                  {sortBy === 'latest' ? t('latest_posts') : t('hottest_posts')}
+                  {orderByState === OrderBy.CreatedAt ? t('latest_posts') : t('hottest_posts')}
                   {posts.length > 0 && (
                     <span className="text-xl font-normal text-slate-500 ml-2">
                       (
@@ -136,12 +122,12 @@ export default function BlogHome() {
                   )}
                 </h2>
                 {/* 排序按钮组 */}
-                {isSortByLoaded && (
+                {isOrderByStateLoaded && (
                   <div className="flex items-center gap-2">
                     <Button
-                      variant={sortBy === SortBy.Latest ? 'default' : 'outline'}
+                      variant={orderByState === OrderBy.CreatedAt ? 'default' : 'outline'}
                       size="sm"
-                      onClick={() => handleSortChange(SortBy.Latest)}
+                      onClick={() => handleSortChange(OrderBy.CreatedAt)}
                       disabled={loading}
                       className="transition-all duration-200"
                     >
@@ -149,9 +135,9 @@ export default function BlogHome() {
                       {t('latest')}
                     </Button>
                     <Button
-                      variant={sortBy === 'hottest' ? 'default' : 'outline'}
+                      variant={orderByState === OrderBy.Heat ? 'default' : 'outline'}
                       size="sm"
-                      onClick={() => handleSortChange(SortBy.Hottest)}
+                      onClick={() => handleSortChange(OrderBy.Heat)}
                       disabled={loading}
                       className="transition-all duration-200"
                     >
@@ -176,7 +162,6 @@ export default function BlogHome() {
                 )}
               </div>
             </motion.div>
-            {/* 侧边栏 */}
             <motion.div
               className="sticky self-start"
               initial={{ x: 80, opacity: 0 }}
@@ -187,15 +172,11 @@ export default function BlogHome() {
                 ease: 'easeOut',
               }}
             >
-              <Sidebar
+              <BlogSidebar
                 cards={[
-                  <SidebarAbout key="about" />,
-                  posts.length > 0
-                    ? (
-                        <SidebarHotPosts key="hot" posts={posts} sortType={sortBy} />
-                      )
-                    : null,
-                  <SidebarLabels key="tags" label={labelSlug} setLabel={setLabelString} />,
+                  <BlogSidebarAbout key="about" />,
+                  <BlogSidebarLabels key="tags" label={labelSlug} setLabel={setLabelSlug} />,
+                  <BlogSidebarHotPosts key="awd12" orderType={orderByState} />,
                   <SidebarMisskeyIframe key="misskey" />,
                 ].filter(Boolean)}
               />

@@ -7,6 +7,7 @@ import { FormProvider, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { createStorageProvider, updateStorageProvider } from '@/api/file'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -83,6 +84,25 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
         <FormProvider {...form}>
           <form className="grid gap-4" onSubmit={handleSubmit(onSubmit)}>
             <StorageTypeSelector value={selectedType as StorageType} onChange={v => form.setValue('type', v)} />
+            <FormField
+              control={control}
+              name="isDefault"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('is_default')}</FormLabel>
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value as boolean}
+                      onCheckedChange={checked => field.onChange(checked)}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={control}
               name="name"
