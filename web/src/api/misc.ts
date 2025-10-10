@@ -100,7 +100,7 @@ export const backendMetricsHandler: Record<keyof BackendMetricsData, (value: num
 }
 
 export const frontendMetricsHandler: Record<keyof FrontendMetricsData, (value: number) => string> = {
-  uptime: value => formatDuration(Math.round(value / 1e6 / 1000)),
+  uptime: value => formatDuration(Math.round(value)),
   nodeVersion: value => value.toString(),
   platform: value => value.toString(),
   arch: value => value.toString(),

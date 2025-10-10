@@ -50,9 +50,10 @@ export function formatShortcutKey(key: string, isMac: boolean, capitalize: boole
 
 /**
  * Parses a shortcut key string into an array of formatted key symbols
- * @param shortcutKeys - The string of shortcut keys (e.g., "ctrl-alt-shift")
- * @param delimiter - The delimiter used to split the keys (default: "-")
- * @param capitalize - Whether to capitalize the keys (default: true)
+ * @param props - Object containing shortcutKeys, delimiter, and capitalize
+ * @param props.shortcutKeys - The string of shortcut keys (e.g., "ctrl-alt-shift")
+ * @param props.delimiter - The delimiter used to split the keys (default: "-")
+ * @param props.capitalize - Whether to capitalize the keys (default: true)
  * @returns Array of formatted shortcut key symbols
  */
 export function parseShortcutKeys(props: {
@@ -129,7 +130,7 @@ export function focusNextNode(editor: Editor) {
 
 /**
  * Checks if a value is a valid number (not null, undefined, or NaN)
- * @param value - The value to check
+ * @param pos - The value to check
  * @returns boolean indicating if the value is a valid number
  */
 export function isValidPosition(pos: number | null | undefined): pos is number {

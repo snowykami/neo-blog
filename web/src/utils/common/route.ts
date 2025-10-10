@@ -26,8 +26,10 @@ export const mainPath = {
 
 /**
  * 获取文章的 URL优先使用 slug，没有则使用 id
- * @param post 对象必须包含 slug 或 id 字段
- * @returns
+ * @param options Object containing post and optional type
+ * @param options.post 文章对象，必须包含 slug 或 id 属性
+ * @param options.type 可选的文章类型，如 'draft'
+ * @returns string
  */
 export function getPostUrl<T extends { slug?: string | null, id?: string | number | null }>({
   post,

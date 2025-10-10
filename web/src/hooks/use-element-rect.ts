@@ -46,8 +46,11 @@ const isClientSide = (): boolean => !isSSR
 
 /**
  * Custom hook that tracks an element's bounding rectangle and updates on resize, scroll, etc.
- *
- * @param options Configuration options for element rect tracking
+ * @param options Configuration options
+ * @param options.element The element to track
+ * @param options.enabled Whether to enable tracking
+ * @param options.throttleMs Throttle delay in milliseconds
+ * @param options.useResizeObserver Whether to use ResizeObserver
  * @returns The current bounding rectangle of the element
  */
 export function useElementRect({

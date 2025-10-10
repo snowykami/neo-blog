@@ -2,7 +2,6 @@
 
 import { ArrowUp } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 
 export default function ScrollToTopButton({
   threshold = 0.1, // 显示阈值（滚动进度），默认 10%
@@ -130,5 +129,6 @@ export default function ScrollToTopButton({
   // 用 portal 渲染到 body，避免被父级 transform/overflow 影响
   if (!mounted || typeof document === 'undefined')
     return null
-  return createPortal(node, document.body)
+  // 直接返回元素（不使用 react-dom）
+  return node
 }

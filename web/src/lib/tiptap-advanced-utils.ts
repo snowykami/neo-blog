@@ -76,6 +76,9 @@ export function getActiveMarkAttrs(editor: Editor | null, markName: string): Att
 /**
  * Finds the position of a node in the editor selection
  * @param params Object containing editor, node (optional), and nodePos (optional)
+ * @param params.editor The Tiptap editor instance
+ * @param params.node The node to find (optional)
+ * @param params.nodePos The position of the node (optional)
  * @returns The position of the node in the selection or null if not found
  */
 export function findSelectionPosition(params: {

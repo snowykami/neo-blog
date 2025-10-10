@@ -49,6 +49,14 @@ interface MenuNavigationOptions<T> {
  * Works with both Tiptap editors and regular DOM elements.
  *
  * @param options - Configuration options for the menu navigation
+ * @param options.editor The Tiptap editor instance, if using with a Tiptap editor.
+ * @param options.containerRef Reference to the container element for handling keyboard events.
+ * @param options.query Search query that affects the selected item.
+ * @param options.items Array of items to navigate through.
+ * @param options.onSelect Callback fired when an item is selected.
+ * @param options.onClose Callback fired when the menu should close.
+ * @param options.orientation The navigation orientation of the menu. Default is "vertical".
+ * @param options.autoSelectFirstItem Whether to automatically select the first item when the menu opens. Default is true.
  * @returns Object containing the selected index and a setter function
  */
 export function useMenuNavigation<T>({

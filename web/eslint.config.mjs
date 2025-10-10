@@ -6,5 +6,6 @@ export default antfu({
     'next',
     'next/core-web-vitals',
     'next/typescript',
+    'plugin:@next/next/recommended',
   ],
 })

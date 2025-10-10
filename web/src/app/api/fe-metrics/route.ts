@@ -22,9 +22,7 @@ export async function GET() {
     arch: process.arch,
     cpus: os.cpus().length,
 
-    loadavg1m5mAnd15m: `${(load[0] / os.cpus().length * 100).toFixed(2)}% 
-    ${(load[1] / os.cpus().length * 100).toFixed(2)}% 
-    ${(load[2] / os.cpus().length * 100).toFixed(2)}%`,
+    loadavg1m5mAnd15m: `${(load[0] / os.cpus().length * 100).toFixed(1)}/${(load[1] / os.cpus().length * 100).toFixed(1)}/${(load[2] / os.cpus().length * 100).toFixed(1)}%`,
     memoryRss: mem.rss,
     memoryHeapTotal: mem.heapTotal,
     memoryHeapUsed: mem.heapUsed,
