@@ -34,6 +34,12 @@ func (f *FileRepo) DeleteByID(id uint) error {
 	return GetDB().Where("id = ?", id).Delete(&model.File{}).Error
 }
 
+func (f *FileRepo) CountFilesByProviderID(providerID uint) (int64, error) {
+	var count int64
+	err := GetDB().Model(&model.File{}).Where("provider_id = ?", providerID).Count(&count).Error
+	return count, err
+}
+
 func (f *FileRepo) ListFiles(userID uint, paginationParams *dto.PaginationParams, keywords []string) ([]model.File, int64, error) {
 	var files []model.File
 	var total int64

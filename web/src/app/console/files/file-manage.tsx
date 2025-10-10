@@ -19,6 +19,7 @@ import { ArrangementSelector } from '@/components/common/arrangement-selector'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
+import { FileUploadDialogWithButton } from '@/components/console/file-uploader'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -41,7 +42,6 @@ import { ArrangementMode, OrderBy } from '@/models/common'
 import { getFileUri } from '@/utils/client/file'
 import { formatDataSize } from '@/utils/common/datasize'
 import { mimeTypeIcons } from '@/utils/common/mimetype'
-import { FileUploadDialogWithButton } from './file-uploader'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10

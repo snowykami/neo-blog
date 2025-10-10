@@ -45,7 +45,7 @@ import { cn } from '@/lib/utils'
 import {
   CreateOrUpdateCategoryDialogWithButton,
   CreateOrUpdateLabelDialogWithButton,
-} from '../common/create-label-and-category'
+} from './create-label-and-category'
 
 interface PostMetaForm {
   title: string

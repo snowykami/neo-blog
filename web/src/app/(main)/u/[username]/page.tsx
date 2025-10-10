@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { getUserByUsername } from '@/api/user'
-import { UserPage } from '@/components/user'
 import { formatDisplayName } from '@/utils/common/username'
+import { UserPage } from './user'
 
 export async function generateMetadata({
   params,

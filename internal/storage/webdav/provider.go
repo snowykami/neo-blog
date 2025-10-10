@@ -18,7 +18,7 @@ import (
 type WebDAVStorageProvider struct {
 	config        model.StorageProviderModelAndDto
 	client        *gowebdav.Client
-	baseURL       string // 保存基础URL
+	endpoint      string // 保存基础URL
 	baseDir       string
 	baseAccessURL string // 用于生成访问URL
 }
@@ -26,17 +26,17 @@ type WebDAVStorageProvider struct {
 // NewWebDAVStorageProvider 创建WebDAV存储提供者
 func NewWebDAVStorageProvider(providerConfig model.StorageProviderModelAndDto) (storageprovider.StorageProvider, error) {
 
-	if providerConfig.WebDAVBaseURL == "" {
+	if providerConfig.WebDAVEndpoint == "" {
 		return nil, fmt.Errorf("base_url is required for WebDAV provider")
 	}
 
-	client := gowebdav.NewClient(providerConfig.WebDAVBaseURL, providerConfig.WebDAVUsername, providerConfig.WebDAVPassword)
+	client := gowebdav.NewClient(providerConfig.WebDAVEndpoint, providerConfig.WebDAVUsername, providerConfig.WebDAVPassword)
 
 	return &WebDAVStorageProvider{
-		config:  providerConfig,
-		client:  client,
-		baseURL: providerConfig.WebDAVBaseURL,
-		baseDir: providerConfig.BaseDir,
+		config:   providerConfig,
+		client:   client,
+		endpoint: providerConfig.WebDAVEndpoint,
+		baseDir:  providerConfig.BaseDir,
 	}, nil
 }
 
@@ -252,7 +252,7 @@ func (p *WebDAVStorageProvider) GetURL(ctx context.Context, filePath string, exp
 
 	// 否则返回WebDAV URL（可能需要认证）
 	// 注意：这种情况下客户端可能需要提供认证信息
-	baseURL := strings.TrimSuffix(p.baseURL, "/")
+	baseURL := strings.TrimSuffix(p.endpoint, "/")
 	fullPath := p.fullPath(filePath)
 	if !strings.HasPrefix(fullPath, "/") {
 		fullPath = "/" + fullPath

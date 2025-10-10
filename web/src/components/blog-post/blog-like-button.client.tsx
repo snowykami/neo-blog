@@ -5,13 +5,13 @@ import { HeartIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getLikedUsers, toggleLike } from '@/api/like'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/contexts/auth-context'
 import { useCommonT, useOperationT } from '@/hooks/translations'
 import { useToLogin, useToUserProfile } from '@/hooks/use-route'
 import { TargetType } from '@/models/types'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { getFirstCharFromUser } from '@/utils/common/username'
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 
 const MAX_LIKED_USERS = 5
 

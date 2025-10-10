@@ -4,7 +4,7 @@ import type { User } from '@/models/user'
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getUserByUsername } from '@/api/user'
-import { UserHeader } from './user-header'
+import { UserHeader } from '@/components/user/user-header'
 
 export function UserPage() {
   const { username } = useParams() as { username: string }

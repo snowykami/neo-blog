@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server'
-import { Dashboard } from '@/components/console/dashboard'
+import { Dashboard } from './dashboard'
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console')

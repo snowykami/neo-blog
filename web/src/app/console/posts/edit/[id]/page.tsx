@@ -1,6 +1,6 @@
 import { getTranslations } from 'next-intl/server'
 import { getPostByIdServer } from '@/api/post.server'
-import { PostEditor } from '@/components/console/post-editor'
+import { PostEditor } from './post-editor'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const consoleT = await getTranslations('Console')

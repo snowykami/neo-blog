@@ -29,7 +29,7 @@ export interface StorageProviderConfig {
   s3BaseUrl?: string // for s3 storage provider
 
   // for webdav
-  webdavBaseUrl?: string
+  webdavEndpoint?: string
   webdavUsername?: string
   webdavPassword?: string
 }

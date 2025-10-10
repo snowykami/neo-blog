@@ -8,6 +8,13 @@ import { parseAsInteger, useQueryState } from 'nuqs'
 import { useEffect, useRef, useState } from 'react'
 import { listPosts } from '@/api/post'
 import { BlogCardGrid } from '@/components/blog-home/blog-home-card'
+import Sidebar from '@/components/blog-sidebar'
+import {
+  SidebarAbout,
+  SidebarHotPosts,
+  SidebarLabels,
+  SidebarMisskeyIframe,
+} from '@/components/blog-sidebar/blog-sidebar-card'
 import { PaginationController } from '@/components/common/pagination'
 import { Button } from '@/components/ui/button'
 import { QueryKey } from '@/constant'
@@ -15,13 +22,6 @@ import { useSiteInfo } from '@/contexts/site-info-context'
 import { useStoredState } from '@/hooks/use-storage-state'
 import { OrderBy } from '@/models/common'
 import { navStickyTopPx } from '@/utils/common/layout-size'
-import Sidebar from '../blog-sidebar'
-import {
-  SidebarAbout,
-  SidebarHotPosts,
-  SidebarLabels,
-  SidebarMisskeyIframe,
-} from '../blog-sidebar/blog-sidebar-card'
 
 // 定义排序类型
 enum SortBy {

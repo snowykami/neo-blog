@@ -10,7 +10,7 @@ import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useOperationT } from '@/hooks/translations'
-import { CreateOrUpdateLabelDialogWithButton } from '../common/create-label-and-category'
+import { CreateOrUpdateLabelDialogWithButton } from '../../../components/console/common/create-label-and-category'
 
 export function LabelManage() {
   const t = useTranslations('Console.labels')

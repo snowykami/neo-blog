@@ -1,7 +1,7 @@
 'use client'
 
 import type { ChangeEvent } from 'react'
-import type { BaseResponseError } from '../../../models/resp'
+import type { BaseResponseError } from '@/models/resp'
 import { CircleXIcon, FileIcon } from 'lucide-react'
 import mime from 'mime-types'
 import { useTranslations } from 'next-intl'

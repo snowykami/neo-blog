@@ -4,8 +4,6 @@ import { IconInnerShadowTop } from '@tabler/icons-react'
 
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { NavGroup } from '@/components/console/nav-group'
-import { NavUser } from '@/components/console/nav-user'
 import {
   Sidebar,
   SidebarContent,
@@ -18,6 +16,8 @@ import {
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { ThemeModeToggle } from '../common/theme-toggle'
 import { sidebarData } from './data'
+import { NavGroup } from './nav-group'
+import { NavUser } from './nav-user'
 
 export function AppSidebar({
   activeId,

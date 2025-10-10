@@ -3,8 +3,8 @@ import type { WebSite, WithContext } from 'schema-dts'
 import { getLocale, getTranslations } from 'next-intl/server'
 import Script from 'next/script'
 import { getSiteInfo } from '@/api/misc'
-import BlogHome from '@/components/blog-home/blog-home'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
+import BlogHome from './blog-home'
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteInfo = await getSiteInfo()

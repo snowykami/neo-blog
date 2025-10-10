@@ -112,9 +112,9 @@
       "title": "评论管理"
     },
     "dashboard": {
-      "title": "大石坝",
-      "backend_metrics": "去(后端)指标",
-      "frontend_metrics": "下一个服务器(前端)指标",
+      "title": "大石板",
+      "backend_metrics": "Go runtime 指标",
+      "frontend_metrics": "Next Server 指标",
       "goroutines": "Go协程数",
       "memoryTotalAlloc": "总分配过内存",
       "memorySys": "内存",
@@ -136,7 +136,7 @@
       "memoryBuckHashSys": "哈希表内存",
       "memoryGcSys": "GC器内存",
       "memoryOtherSys": "其他内存",
-      "gcNext": "下次GC内存",
+      "gcNext": "下次GC将回收",
       "gcLast": "上次GC时间",
       "gcPauseTotalNs": "GC总耗时",
       "gcNum": "GC次数",
@@ -239,7 +239,22 @@
       "create_storage": "创建存储供应商",
       "fetch_storages_failed": "获取存储供应商失败",
       "no_storages": "还没有存储供应商，创建一个吧！",
-      "storage_type": "存储类型"
+      "name": "名称",
+      "base_dir": "基础目录",
+      "storage_type": "存储类型",
+      "s3_access_key_id": "Access Key ID",
+      "s3_bucket": "Bucket",
+      "s3_endpoint": "Endpoint",
+      "s3_prefix": "Prefix",
+      "s3_region": "Region",
+      "s3_secret_access_key": "Secret Access Key",
+      "s3_session_token": "Session Token",
+      "s3_path_style": "Use Path Style",
+      "s3_base_url": "Base URL",
+      "webdav_endpoint": "WebDAV Endpoint",
+      "webdav_username": "WebDAV 用户名",
+      "webdav_password": "WebDAV 密码",
+      "use_as_default": "设为默认存储"
     },
     "users": {
       "title": "用户管理"
@@ -333,6 +348,7 @@
     "create_failed": "创建失败",
     "create_success": "创建成功",
     "delete": "删除",
+    "delete_description": "删除后不可恢复，请谨慎操作！",
     "delete_failed": "删除失败",
     "delete_success": "删除成功",
     "edit": "编辑",

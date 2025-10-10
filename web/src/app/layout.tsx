@@ -48,7 +48,6 @@ export default async function RootLayout({
   const siteInfo = await getSiteInfo()
     .then(res => res.data)
     .catch(() => {
-      console.error('Failed to fetch site info from backend server, using fallback.')
       return fallbackSiteInfo
     })
   return (

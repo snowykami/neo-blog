@@ -8,14 +8,14 @@ import { toast } from 'sonner'
 import { deleteCategory, getCategories } from '@/api/post'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import Forbidden from '@/components/common/forbidden'
-import { Button } from '@/components/ui/button'
+/* External Dialog components used above - import here to keep file self-contained */
+import { CreateOrUpdateCategoryDialogWithButton } from '@/components/console/common/create-label-and-category'
 
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/auth-context'
 import { useOperationT } from '@/hooks/translations'
 import { isAdmin, isEditor } from '@/utils/common/permission'
-/* External Dialog components used above - import here to keep file self-contained */
-import { CreateOrUpdateCategoryDialogWithButton } from '../common/create-label-and-category'
 
 export function CategoryManage() {
   const t = useTranslations('Console.categories')

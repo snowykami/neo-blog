@@ -5,10 +5,10 @@ import { notFound, redirect } from 'next/navigation'
 import Script from 'next/script'
 import { getSiteInfo } from '@/api/misc'
 import { getPostByIdServer } from '@/api/post.server'
-import { BlogPost } from '@/components/blog-post/blog-post'
 import { getPostUrl, getUserUrl } from '@/utils/common/route'
 import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 import { formatDisplayName as formatFullName } from '@/utils/common/username'
+import { BlogPost } from './blog-post'
 
 // 这个是app router固定的传入格式，无法更改
 interface Props {

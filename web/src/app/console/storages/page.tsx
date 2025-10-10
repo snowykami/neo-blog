@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server'
-import { StorageProviderManage } from '@/components/console/storages'
+import { StorageProviderManage } from './storage-manage'
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console')

@@ -1,9 +1,9 @@
 'use client'
 import type { User } from '@/models/user'
 import { Mail, Shield, User as UserIcon } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { getFirstCharFromUser } from '@/utils/common/username'
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 
 export function UserHeader({ user }: { user: User }) {
   return (

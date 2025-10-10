@@ -3,23 +3,16 @@ import type { StorageProviderConfig } from '@/models/file'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { listStorageProviders } from '@/api/file'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
+import { deleteStorageProvider, listStorageProviders } from '@/api/file'
+import { DeleteButtonWithConfirmDialog } from '@/components/common/delete-button-with-confirm-dialog'
+import { CreateOrUpdateStorageDialog } from '@/components/console/create-storage-dialog'
 import { Separator } from '@/components/ui/separator'
 import { useCommonT, useOperationT } from '@/hooks/translations'
 
 export function StorageProviderManage() {
   const t = useTranslations('Console.storages')
   const [storages, setStorages] = useState<StorageProviderConfig[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     listStorageProviders()
@@ -30,9 +23,11 @@ export function StorageProviderManage() {
         toast.error(t('fetch_storages_failed') + (error?.message ? `: ${error.message}` : ''))
         setStorages([])
       })
-  }, [t])
+  }, [t, refreshKey])
 
-  const onStorageProviderCreate = useCallback(() => {}, [])
+  const onStorageProviderAnyChange = useCallback(() => {
+    setRefreshKey(k => k + 1)
+  }, [])
 
   return (
     <div>
@@ -40,7 +35,7 @@ export function StorageProviderManage() {
         {/* left header */}
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className="flex items-center gap-2">
-            <CreateStorageProviderDialogWithButton onCreate={onStorageProviderCreate} />
+            <CreateOrUpdateStorageDialog onCreate={onStorageProviderAnyChange} />
           </div>
         </div>
         {/* right header */}
@@ -52,7 +47,7 @@ export function StorageProviderManage() {
       <div>
         {storages.map(storage => (
           <div id={`storage-${storage.id}`} key={storage.id}>
-            <StorageProviderItem key={storage.id} storage={storage} />
+            <StorageProviderItem key={storage.id} storage={storage} onChange={onStorageProviderAnyChange} />
             <Separator className="my-1" />
           </div>
         ))}
@@ -64,9 +59,24 @@ export function StorageProviderManage() {
   )
 }
 
-function StorageProviderItem({ storage }: { storage: StorageProviderConfig }) {
+function StorageProviderItem({
+  storage,
+  onChange,
+}: {
+  storage: StorageProviderConfig
+  onChange: () => void
+}) {
   const t = useTranslations('Console.storages')
+  const operationT = useOperationT()
   const commonT = useCommonT()
+  const onDelete = useCallback(() => {
+    deleteStorageProvider({ id: storage.id })
+      .then(() => {
+        toast.success(operationT('delete_success'))
+        onChange()
+      })
+      .catch(err => toast.error(operationT('delete_failed') + (err?.message ? `: ${err.message}` : '')))
+  }, [storage, onChange])
   return (
     <div>
       <div className="flex w-full items-center gap-3 py-2">
@@ -89,40 +99,11 @@ function StorageProviderItem({ storage }: { storage: StorageProviderConfig }) {
           </div>
         </div>
         {/* right */}
-        <div className="flex items-center ml-auto"></div>
+        <div className="flex items-center ml-auto justify-end gap-2">
+          <CreateOrUpdateStorageDialog initStorageProvider={storage} onCreate={onChange} />
+          <DeleteButtonWithConfirmDialog onDelete={onDelete} />
+        </div>
       </div>
     </div>
-  )
-}
-
-function CreateStorageProviderDialogWithButton({ onCreate }: { onCreate: () => void }) {
-  const t = useTranslations('Console.storages')
-  const operationT = useOperationT()
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button size="sm">{operationT('create')}</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('create_storage')}</DialogTitle>
-        </DialogHeader>
-        <DialogFooter>
-          <DialogClose>
-            <div className="flex">
-              <Button variant="outline">{operationT('cancel')}</Button>
-              <Button
-                onClick={() => {
-                  onCreate()
-                }}
-                className="ml-2"
-              >
-                {operationT('create')}
-              </Button>
-            </div>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }

@@ -1,5 +1,6 @@
 'use client'
 import { motion } from 'motion/react'
+import { FloatingWidgets } from '@/components/common/main-floating-widgets'
 import Footer from '@/components/layout/footer'
 import Navbar from '@/components/layout/nav/navbar-or-side'
 import { BackgroundProvider } from '@/contexts/background-context'
@@ -10,7 +11,6 @@ import {
   contentAreaPaddingClass,
   navHeight,
 } from '@/utils/common/layout-size'
-import { FloatingWidgets } from './main-floating-widgets'
 
 export default function RootLayout({
   children,

@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server'
-import { FileManage } from '@/components/console/file-manage'
+import { FileManage } from './file-manage'
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console')

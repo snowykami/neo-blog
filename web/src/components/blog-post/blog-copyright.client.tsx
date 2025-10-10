@@ -5,13 +5,13 @@ import { CopyIcon, CopyrightIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useOperationT } from '@/hooks/translations'
 import copyToClipboard from '@/lib/clipboard'
 import { getPostUrl, getUserUrl } from '@/utils/common/route'
 import { formatDisplayName } from '@/utils/common/username'
-import { Button } from '../ui/button'
 
 function CopyrightCard({ post }: { post: Post }) {
   const { siteInfo } = useSiteInfo()

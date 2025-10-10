@@ -8,3 +8,9 @@ export enum TargetType {
   Image = 'image',
   Other = 'other',
 }
+
+export enum StorageType {
+  Local = 'local',
+  Webdav = 'webdav',
+  S3 = 's3',
+}

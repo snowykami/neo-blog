@@ -26,7 +26,7 @@ type S3Config struct {
 	AccessKeyID     string `json:"access_key_id"`     // AWS访问密钥ID
 	SecretAccessKey string `json:"secret_access_key"` // AWS访问密钥
 	Endpoint        string `json:"endpoint"`          // 自定义端点（用于兼容S3的存储服务）
-	UsePathStyle    bool   `json:"use_path_style"`    // 是否使用路径风格URL
+	PathStyle       bool   `json:"path_style"`        // 是否使用路径风格URL
 	BaseURL         string `json:"base_url"`          // 用于生成公开访问URL的基础URL
 	Prefix          string `json:"prefix"`            // 对象键前缀
 }
@@ -50,7 +50,7 @@ func NewS3StorageProvider(providerConfig model.StorageProviderModelAndDto) (stor
 		AccessKeyID:     providerConfig.S3AccessKeyID,
 		SecretAccessKey: providerConfig.S3SecretAccessKey,
 		Endpoint:        providerConfig.S3Endpoint,
-		UsePathStyle:    providerConfig.S3UsePathStyle,
+		PathStyle:       providerConfig.S3PathStyle,
 		BaseURL:         providerConfig.S3BaseURL,
 		Prefix:          providerConfig.S3Prefix,
 	}
@@ -92,7 +92,7 @@ func NewS3StorageProvider(providerConfig model.StorageProviderModelAndDto) (stor
 	if cfg.Endpoint != "" {
 		clientOptions = append(clientOptions, func(o *s3.Options) {
 			o.BaseEndpoint = aws.String(cfg.Endpoint)
-			o.UsePathStyle = cfg.UsePathStyle
+			o.UsePathStyle = cfg.PathStyle
 		})
 	}
 

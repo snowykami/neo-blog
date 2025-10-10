@@ -36,7 +36,7 @@ import { useDoubleConfirm } from '@/hooks/use-double-confirm'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useToEditPost, useToPost } from '@/hooks/use-route'
 import { OrderBy } from '@/models/common'
-import { CreateOrUpdatePostMetaDialogWithoutButton } from '../common/post-meta-dialog-form'
+import { CreateOrUpdatePostMetaDialogWithoutButton } from '../../../components/console/common/post-meta-dialog-form'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10

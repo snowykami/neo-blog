@@ -297,6 +297,17 @@ func (f *FileController) UpdateStorageProvider(ctx context.Context, c *app.Reque
 
 func (f *FileController) DeleteStorageProvider(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
+	// 先检查是否有文件在使用该存储提供者
+	count, err := repo.File.CountFilesByProviderID(id)
+	if err != nil {
+		logrus.Error("检查存储提供者使用情况失败: ", err)
+		resps.InternalServerError(c, "检查存储提供者使用情况失败")
+		return
+	}
+	if count > 0 {
+		resps.BadRequest(c, "无法删除存储提供者，有文件正在使用该提供者")
+		return
+	}
 
 	if svcerr := repo.File.UnsetDefaultStorageProvider(id); svcerr != nil {
 		resps.Error(c, svcerr)

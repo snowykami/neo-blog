@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server'
-import { CategoryManage } from '@/components/console/category-manage'
+import { CategoryManage } from './category-manage'
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console')

@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server'
-import { UserSecurityPage } from '@/components/console/user-security'
+import { UserSecurityPage } from './user-security'
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console')

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { updateUser } from '@/api/user'
 import { useAuth } from '@/contexts/auth-context'
-import { ColorSchemeSelector } from '../common/color-scheme-selector'
+import { ColorSchemeSelector } from '../../../components/console/common/color-scheme-selector'
 
 export function UserPreferencePage() {
   const t = useTranslations('Console.user_preference')

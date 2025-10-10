@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server'
-import GlobalPage from '@/components/console/global'
+import GlobalPage from './global'
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console')

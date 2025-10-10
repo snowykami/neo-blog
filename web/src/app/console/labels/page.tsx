@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server'
-import { LabelManage } from '@/components/console/label-manage'
+import { LabelManage } from './label-manage'
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console')

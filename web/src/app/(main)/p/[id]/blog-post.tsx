@@ -13,23 +13,23 @@ import {
 import * as motion from 'motion/react-client'
 import { getTranslations } from 'next-intl/server'
 import { getSiteInfo } from '@/api/misc'
-import { CommentSection } from '@/components/comment'
-import { TargetType } from '@/models/types'
-import { contentAreaPaddingClass, navStickyTopPx } from '@/utils/common/layout-size'
-import { calculateReadingTime } from '@/utils/common/post'
-import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
-import Sidebar from '../blog-sidebar'
+import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
+import CopyrightCard from '@/components/blog-post/blog-copyright.client'
+import { BlogLikeButton } from '@/components/blog-post/blog-like-button.client'
+import { PostHeaderClient } from '@/components/blog-post/post-header.client'
+import Sidebar from '@/components/blog-sidebar'
 import {
   SidebarAbout,
   SidebarLabels,
   SidebarMisskeyIframe,
-} from '../blog-sidebar/blog-sidebar-card'
-import Typewriter from '../common/typewriter'
-import { Separator } from '../ui/separator'
-import HtmlEnhancer from './blog-content-enhanced'
-import CopyrightCard from './blog-copyright.client'
-import { BlogLikeButton } from './blog-like-button.client'
-import { PostHeaderClient } from './post-header.client'
+} from '@/components/blog-sidebar/blog-sidebar-card'
+import { CommentSection } from '@/components/comment'
+import Typewriter from '@/components/common/typewriter'
+import { Separator } from '@/components/ui/separator'
+import { TargetType } from '@/models/types'
+import { contentAreaPaddingClass, navStickyTopPx } from '@/utils/common/layout-size'
+import { calculateReadingTime } from '@/utils/common/post'
+import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 
 import './blog-post-align.scss'
 

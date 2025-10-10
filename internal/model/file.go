@@ -50,10 +50,10 @@ type StorageProviderConfig struct {
 	S3AccessKeyID     string `json:"s3_access_key_id"`     // AWS访问密钥ID AWS Access Key ID
 	S3SecretAccessKey string `json:"s3_secret_access_key"` // AWS访问密钥 AWS Secret Access Key
 	S3Endpoint        string `json:"s3_endpoint"`          // 自定义端点 Custom endpoint (for S3-compatible services)
-	S3UsePathStyle    bool   `json:"s3_use_path_style"`    // 是否使用路径风格URL Whether to use path-style URLs
+	S3PathStyle       bool   `json:"s3_path_style"`        // 是否使用路径风格URL Whether to use path-style URLs
 	S3BaseURL         string `json:"s3_base_url"`          // 用于生成公开访问URL的基础URL Base URL for generating public access URLs
 	// for webdav only
-	WebDAVBaseURL  string `json:"webdav_base_url"` // WebDAV服务器基础URL WebDAV server base URL
+	WebDAVEndpoint string `json:"webdav_endpoint"` // WebDAV服务器基础URL WebDAV server base URL
 	WebDAVUsername string `json:"webdav_username"` // WebDAV用户名 WebDAV username
 	WebDAVPassword string `json:"webdav_password"` // WebDAV密码 WebDAV password
 	// for sftp only
