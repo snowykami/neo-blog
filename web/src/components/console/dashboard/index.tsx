@@ -28,7 +28,8 @@ function DataOverview() {
     label: string
     icon: IconType
     url: string
-  }[] = [
+  }[]
+    = [
       {
         key: 'totalPosts',
         label: 'total_posts',
@@ -129,9 +130,7 @@ function BackendMetricsOverview() {
         <CardDescription className="mb-0">{dashboardT('backend_metrics')}</CardDescription>
         <div className="mt-4 space-y-2">
           {metricsData
-            ? (
-              // 反序遍历：先把 entries 转成数组并 reverse
-              Object.entries(metricsData).slice().reverse().map(([key, value]) => (
+            ? Object.entries(metricsData).slice().reverse().map(([key, value]) => (
                 <div key={key} className="flex items-center leading-relaxed justify-between">
                   <span className={`text-muted-foreground ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
                     {dashboardT(key)}
@@ -141,10 +140,7 @@ function BackendMetricsOverview() {
                   </span>
                 </div>
               ))
-            )
-            : (
-              <div>Loading...</div>
-            )}
+            : <div>Loading...</div>}
         </div>
       </Card>
     </div>
@@ -183,20 +179,20 @@ function FrontendMetricsOverview() {
           {metricsData
             ? (
               // 反序遍历：先把 entries 转成数组并 reverse
-              Object.entries(metricsData).map(([key, value]) => (
-                <div key={key} className="flex items-center leading-relaxed justify-between">
-                  <span className={`text-muted-foreground ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
-                    {dashboardT(key)}
-                  </span>
-                  <span className={`tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
-                    {frontendMetricsHandler?.[key]?.(value) || value}
-                  </span>
-                </div>
-              ))
-            )
+                Object.entries(metricsData).map(([key, value]) => (
+                  <div key={key} className="flex items-center leading-relaxed justify-between">
+                    <span className={`text-muted-foreground ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
+                      {dashboardT(key)}
+                    </span>
+                    <span className={`tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
+                      {frontendMetricsHandler?.[key]?.(value) || value}
+                    </span>
+                  </div>
+                ))
+              )
             : (
-              <div>Loading...</div>
-            )}
+                <div>Loading...</div>
+              )}
         </div>
       </Card>
     </div>

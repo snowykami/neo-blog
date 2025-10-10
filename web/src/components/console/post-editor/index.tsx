@@ -262,11 +262,11 @@ function EditorNavbar({
         <Button size="sm" onClick={handleToggleFullScreen} variant="outline">
           {isFullScreen
             ? (
-              <MinimizeIcon className="size-4" />
-            )
+                <MinimizeIcon className="size-4" />
+              )
             : (
-              <FullscreenIcon className="size-4" />
-            )}
+                <FullscreenIcon className="size-4" />
+              )}
         </Button>
         <PostPreviewDialogWithButton post={post} onPreview={onPreview} />
         <Button size="sm" onClick={() => setSettingDialogOpen(true)} variant="outline">

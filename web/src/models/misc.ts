@@ -121,4 +121,3 @@ export type FrontendMetricsData = Record<string, number> & {
   cpuUserUsec: number
   cpuSystemUsec: number
 }
-
