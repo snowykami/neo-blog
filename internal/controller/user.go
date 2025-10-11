@@ -267,6 +267,11 @@ func (u *UserController) GetUserLastIPLocation(ctx context.Context, c *app.Reque
 		resps.InternalServerError(c, "Failed to get user session")
 		return
 	}
+	user, err := repo.User.GetUserByID(userID)
+	if *user.ShowIPLocation == false {
+		resps.Forbidden(c, "User has disabled IP location display")
+		return
+	}
 	ipInfo, err := utils2.GetIPInfo(session.LatestIP())
 	if err != nil {
 		resps.InternalServerError(c, "Failed to get IP location")

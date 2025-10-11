@@ -7,10 +7,10 @@ import hljs from 'highlight.js'
 // --- Tiptap Core Extensions ---
 
 import * as React from 'react'
-import { ImageNodeFloating } from '@/components/tiptap-node/image-node/image-node-floating'
-
 // --- Components ---
-import { ThemeToggle } from '@/components/tiptap-templates/simple/theme-toggle'
+import { ThemeToggle } from '@/components/tiptap-editor/theme-toggle'
+
+import { ImageNodeFloating } from '@/components/tiptap-node/image-node/image-node-floating'
 // --- UI Primitives ---
 import { Spacer } from '@/components/tiptap-ui-primitive/spacer'
 import { Toolbar, ToolbarGroup, ToolbarSeparator } from '@/components/tiptap-ui-primitive/toolbar'

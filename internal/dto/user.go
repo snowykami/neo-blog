@@ -10,7 +10,8 @@ type UserDto struct {
 	Email          string `json:"email"`           // 邮箱
 	Gender         string `json:"gender"`
 	Role           string `json:"role"`
-	Language       string `json:"language"` // 语言
+	Language       string `json:"language"`         // 语言
+	ShowIPLocation *bool  `json:"show_ip_location"` // 是否显示IP归属地
 }
 
 type UserOidcConfigDto struct {
@@ -95,6 +96,7 @@ type UpdateUserReq struct {
 	PreferredColor string `json:"preferred_color"`
 	Gender         string `json:"gender"`
 	Language       string `json:"language"`
+	ShowIPLocation *bool  `json:"show_ip_location"`
 }
 
 type UpdateUserResp struct {

@@ -261,6 +261,7 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, *
 		BackgroundUrl:  req.BackgroundUrl,
 		PreferredColor: req.PreferredColor,
 		Language:       req.Language,
+		ShowIPLocation: req.ShowIPLocation,
 	}
 	err := repo.User.UpdateUser(user)
 	if err != nil {

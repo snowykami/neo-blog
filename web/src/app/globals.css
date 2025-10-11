@@ -9,6 +9,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import './styles/animation.css';
+@import './styles/font.scss';
 
 @plugin "@tailwindcss/typography";
 

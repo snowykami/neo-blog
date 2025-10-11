@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { NextIntlClientProvider } from 'next-intl'
-import { Josefin_Sans, Source_Code_Pro } from 'next/font/google'
+import { Inter, Source_Code_Pro } from 'next/font/google'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { getSiteInfo } from '@/api/misc'
 import { getLoginUserServer } from '@/api/user.server'
@@ -14,14 +14,15 @@ import { getFirstLocale } from '@/i18n/request'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import './globals.css'
 
-const geistSans = Josefin_Sans({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-})
-
 const geistMono = Source_Code_Pro({
   variable: '--font-geist-mono',
   subsets: ['latin'],
+})
+
+const inter = Inter({
+  variable: '--font-inter',
+  subsets: ['latin'],
+  display: 'swap',
 })
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -56,13 +57,13 @@ export default async function RootLayout({
       className="h-full"
       data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || 'blue'}
     >
-      <body className={`${geistMono.className} ${geistSans.className} antialiased`}>
+      <body className={`${geistMono.className} ${inter.className}`}>
         <Toaster richColors position="top-center" offset={80} />
         <NuqsAdapter>
           <DeviceProvider>
             <NextIntlClientProvider>
               <AuthProvider initialUser={user}>
-                <SiteInfoProvider initialData={siteInfo!}>
+                <SiteInfoProvider initialData={siteInfo}>
                   <NavPaddingProvider>
                     {children}
                     <ScrollbarOverlay />

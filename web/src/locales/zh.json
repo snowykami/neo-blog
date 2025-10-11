@@ -278,6 +278,7 @@
       "picture": "头像",
       "picture_size_cannot_exceed": "图片大小不能超过{size}",
       "public_profile": "公开资料",
+      "show_ip_location": "显示IP归属地",
       "username": "用户名",
       "update_profile": "更新资料"
     },
@@ -295,6 +296,7 @@
       "send_verify_code": "发送验证码",
       "send_verify_code_failed": "发送验证码失败",
       "send_verify_code_success": "验证码已发送",
+
       "unbind": "解绑",
       "unbind_failed": "解绑失败",
       "unbind_success": "解绑成功",

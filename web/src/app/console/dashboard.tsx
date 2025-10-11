@@ -4,13 +4,21 @@ import type { BackendMetricsData, FrontendMetricsData } from '@/models/misc'
 import type { IconType } from '@/types/icon'
 import { Eye, MessageCircle, Newspaper, Users } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { JetBrains_Mono } from 'next/font/google'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getDashboard } from '@/api/admin'
 import { backendMetricsHandler, frontendMetricsHandler, getBackendMetrics, getFrontendMetrics } from '@/api/misc'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+
 import { consolePath } from '@/utils/common/route'
+
+const jetBrainsMono = JetBrains_Mono({
+  variable: '--font-jet-mono',
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+})
 
 export function Dashboard() {
   return (
@@ -136,7 +144,7 @@ function BackendMetricsOverview() {
                     <span className={`text-muted-foreground ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
                       {dashboardT(key)}
                     </span>
-                    <span className={`tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
+                    <span className={`${jetBrainsMono.className} tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
                       {backendMetricsHandler?.[key]?.(value) || value}
                     </span>
                   </div>
@@ -186,7 +194,7 @@ function FrontendMetricsOverview() {
                     <span className={`text-muted-foreground ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
                       {dashboardT(key)}
                     </span>
-                    <span className={`tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
+                    <span className={`${jetBrainsMono.className} tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
                       {frontendMetricsHandler?.[key]?.(value) || value}
                     </span>
                   </div>

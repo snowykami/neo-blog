@@ -9,6 +9,7 @@ export interface User {
   gender?: string
   role: Role
   language?: string
+  showIpLocation: boolean
 }
 
 export enum Role {

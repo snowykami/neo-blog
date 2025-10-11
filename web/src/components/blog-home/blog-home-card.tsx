@@ -98,8 +98,7 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
         {/* 左下角 统计信息 */}
         <div className="absolute bottom-2 left-2">
           <Badge
-            className="bg-gradient-to-r from-blue-200 to-purple-300 dark:bg-gradient-to-r
-           dark:from-blue-700 dark:to-purple-700 text-muted-foreground dark:text-foreground text-sm rounded-full"
+            className="inline-flex items-center gap-3 px-3 py-1 bg-gradient-to-r from-blue-200 to-purple-300 dark:from-blue-700 dark:to-purple-700 text-white text-sm rounded-full border-0 overflow-hidden bg-clip-padding"
           >
             {/* 统计信息 */}
             <div className="grid grid-cols-1 gap-4">
@@ -127,7 +126,7 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
         {/* 热度指示器 */}
         {post.heat > 50 && (
           <div className="absolute bottom-2 right-2">
-            <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-sm rounded-full">
+            <Badge className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-sm rounded-full overflow-hidden bg-clip-padding">
               <FlameIcon className="w-5 h-5" />
               {post.heat}
             </Badge>

@@ -18,6 +18,7 @@ type User struct {
 	Role           string `gorm:"default:'user'"` // user editor admin
 	Language       string `gorm:"default:'zh'"`
 	Password       string // 密码，存储加密后的值
+	ShowIPLocation *bool  `gorm:"default:true"` // 是否显示IP归属地
 }
 
 func (user *User) ToDto() dto.UserDto {
@@ -32,6 +33,7 @@ func (user *User) ToDto() dto.UserDto {
 		Gender:         user.Gender,
 		Role:           user.Role,
 		Language:       user.Language,
+		ShowIPLocation: user.ShowIPLocation,
 	}
 }
 

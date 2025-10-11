@@ -64,7 +64,6 @@ func updateOidcConfigFromUrl(url string, typ string) (*oidcDiscoveryResp, error)
 		discovery.UserinfoEndpoint = discovery.Issuer + "/api/users/me" // Misskey的用户信息端点
 		discovery.JwksUri = discovery.Issuer + "/api/jwks"
 	}
-	fmt.Println(discovery)
 	if discovery.Issuer == "" ||
 		discovery.AuthorizationEndpoint == "" ||
 		discovery.TokenEndpoint == "" ||

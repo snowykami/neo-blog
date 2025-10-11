@@ -8,6 +8,7 @@ import { updateUser } from '@/api/user'
 import { ImageCropper } from '@/components/common/image-cropper'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
@@ -25,8 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useAuth } from '@/contexts/auth-context'
 
+import { useAuth } from '@/contexts/auth-context'
 import { localesData } from '@/locales'
 import { getFileUri } from '@/utils/client/file'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
@@ -46,6 +47,7 @@ interface FormValues {
   username: string
   gender: string
   language: string
+  showIpLocation: boolean
 }
 
 export function UserProfilePage() {
@@ -58,6 +60,7 @@ export function UserProfilePage() {
       username: user?.username ?? '',
       gender: user?.gender ?? '',
       language: user?.language ?? 'en',
+      showIpLocation: user?.showIpLocation ?? true,
     },
   })
 
@@ -107,6 +110,7 @@ export function UserProfilePage() {
       || values.language !== (user.language ?? '')
       || avatarFile !== null
       || backgroundFile !== null
+      || values.showIpLocation !== user.showIpLocation
     )
   }
 
@@ -215,6 +219,7 @@ export function UserProfilePage() {
         language: values.language,
         avatarUrl,
         backgroundUrl,
+        showIpLocation: values.showIpLocation,
       })
       window.location.reload()
     }
@@ -344,6 +349,20 @@ export function UserProfilePage() {
                 <FormLabel>{t('gender')}</FormLabel>
                 <FormControl>
                   <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="showIpLocation"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('show_ip_location')}</FormLabel>
+                <FormControl>
+                  <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
