@@ -16,3 +16,14 @@ export enum Role {
   USER = 'user',
   EDITOR = 'editor',
 }
+
+export interface OpenIdDto {
+  id: number
+  userId: number
+  issuer: string
+  sub: string
+  name: string
+  email: string
+  picture: string
+  preferredUsername: string
+}

@@ -1,6 +1,6 @@
 import type { OidcConfig } from '@/models/oidc-config'
 import type { BaseResponse } from '@/models/resp'
-import type { User } from '@/models/user'
+import type { OpenIdDto, User } from '@/models/user'
 import type { CaptchaProvider } from '@/types/captcha'
 import axiosClient from './client'
 
@@ -153,5 +153,15 @@ export async function updateEmail({
   const res = await axiosClient.put<BaseResponse<null>>('/user/email/edit', null, {
     headers: { 'X-Email': newEmail, 'X-VerifyCode': verifyCode },
   })
+  return res.data
+}
+
+export async function getUserOpenIdList(): Promise<BaseResponse<{ openids: OpenIdDto[] }>> {
+  const res = await axiosClient.get<BaseResponse<{ openids: OpenIdDto[] }>>('/user/openids')
+  return res.data
+}
+
+export async function unbindUserOpenId(id: number): Promise<BaseResponse<null>> {
+  const res = await axiosClient.delete<BaseResponse<null>>(`/user/openid/${id}`)
   return res.data
 }

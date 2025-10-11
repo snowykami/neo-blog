@@ -14,12 +14,12 @@ type sessionRepo struct{}
 var Session = sessionRepo{}
 
 func (s *sessionRepo) CreateSession(session *model.Session) error {
-	return db.Create(session).Error
+	return GetDB().Create(session).Error
 }
 
 func (s *sessionRepo) IsSessionValid(sessionID string) (bool, error) {
 	var count int64
-	err := db.Model(&model.Session{}).Where("session_id = ?", sessionID).Count(&count).Error
+	err := GetDB().Model(&model.Session{}).Where("session_id = ?", sessionID).Count(&count).Error
 	if err != nil {
 		return false, err
 	}
@@ -28,7 +28,7 @@ func (s *sessionRepo) IsSessionValid(sessionID string) (bool, error) {
 
 func (s *sessionRepo) RevokeSession(sessionID string) error {
 	// 硬删除，误删大不了重新登录
-	return db.Unscoped().Where("session_id = ?", sessionID).Delete(&model.Session{}).Error
+	return GetDB().Unscoped().Where("session_id = ?", sessionID).Delete(&model.Session{}).Error
 }
 
 // 在UserIP字段添加一条新的IP记录，记录格式为 "ip,timestamp;"
@@ -39,7 +39,7 @@ func (s *sessionRepo) AddSessionIPRecord(sessionID string, ip string) error {
 	}
 	entry := utils.NewIPRecord(ip) // 格式：timestamp,ip;
 
-	return db.Transaction(func(tx *gorm.DB) error {
+	return GetDB().Transaction(func(tx *gorm.DB) error {
 		var sess model.Session
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("session_id = ?", sessionID).
@@ -54,7 +54,7 @@ func (s *sessionRepo) AddSessionIPRecord(sessionID string, ip string) error {
 
 func (s *sessionRepo) GetSessionLastIP(sessionID string) (string, error) {
 	var session model.Session
-	if err := db.Select("user_ip").Where("session_id = ?", sessionID).First(&session).Error; err != nil {
+	if err := GetDB().Select("user_ip").Where("session_id = ?", sessionID).First(&session).Error; err != nil {
 		return "", err
 	}
 

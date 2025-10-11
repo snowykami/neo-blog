@@ -79,10 +79,11 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 			logrus.Errorln("Failed to get user OpenID:", err)
 			return nil, errs.NewInternalServer("failed_to_get_user_openid")
 		}
-		if err = s.updateUserOpenIdInfo(existingUserOpenID, userInfo); err != nil {
-			logrus.Warnln("Failed to update user OpenID info:", err)
-		}
 		if existingUserOpenID != nil {
+			// 已经绑定过的账号，不绑定直接登录，同时更新信息
+			if err = s.updateUserOpenIdInfo(existingUserOpenID, userInfo); err != nil {
+				return nil, errs.NewInternalServer("failed_to_update_target")
+			}
 			token, refreshToken, err := utils.Jwt.New2Tokens(existingUserOpenID.UserID, "", false)
 			if err != nil {
 				return nil, errs.NewInternalServer("failed_to_create_target")
@@ -93,6 +94,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 				User:         existingUserOpenID.User.ToDto(),
 			}, nil
 		}
+		// 绑定到当前登录用户并更新信息
 		userOpenID := &model.UserOpenID{
 			UserID: currentUser.ID,
 			Issuer: oidcConfig.Issuer,
@@ -100,6 +102,9 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		}
 		if err = repo.User.CreateOrUpdateUserOpenID(userOpenID); err != nil {
 			return nil, errs.NewConflict("failed_to_link_oidc_account")
+		}
+		if err = s.updateUserOpenIdInfo(userOpenID, userInfo); err != nil {
+			return nil, errs.NewInternalServer("failed_to_update_target")
 		}
 		return &dto.OidcLoginResp{
 			Token:        "",
@@ -124,7 +129,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		}
 		// 更新openid信息，不致命错误不阻断登录
 		if err = s.updateUserOpenIdInfo(userOpenID, userInfo); err != nil {
-			logrus.Warnln("Failed to update user OpenID info:", err)
+			return nil, errs.NewInternalServer("failed_to_update_target")
 		}
 		if err = repo.Session.CreateSession(&model.Session{
 			UserID:    user.ID,
@@ -160,7 +165,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		}
 		// 更新openid信息，上一步保存后模型就有主键ID，不致命错误不阻断登录
 		if err = s.updateUserOpenIdInfo(userOpenID, userInfo); err != nil {
-			logrus.Warnln("Failed to update user OpenID info:", err)
+			return nil, errs.NewInternalServer("failed_to_update_target")
 		}
 		if err = repo.Session.CreateSession(&model.Session{
 			UserID:    localUser.ID,
@@ -234,7 +239,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 	}
 	// 更新openid信息，不致命错误不阻断登录
 	if err = s.updateUserOpenIdInfo(userOpenID, userInfo); err != nil {
-		logrus.Warnln("Failed to update user OpenID info:", err)
+		return nil, errs.NewInternalServer("failed_to_update_target")
 	}
 	if err = repo.Session.CreateSession(&model.Session{
 		UserID:    newUser.ID,
@@ -330,7 +335,9 @@ func (s *UserService) exchangeAndFetchUserinfo(oidcConfig *model.OidcConfig, req
 
 // updateUserOpenIdInfo 更新用户OpenID信息
 func (s *UserService) updateUserOpenIdInfo(userOpenId *model.UserOpenID, userInfo *utils.Userinfo) error {
-
+	if userOpenId == nil {
+		return errors.New("userOpenId is nil")
+	}
 	userOpenId.Name = userInfo.Name
 	userOpenId.Email = userInfo.Email
 	userOpenId.Picture = userInfo.Picture

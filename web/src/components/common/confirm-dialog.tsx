@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { useOperationT } from '@/hooks/use-translations'
 
 interface ConfirmDialogProps {
   children: React.ReactNode // 触发器，作为 DialogTrigger 的子元素
@@ -32,14 +33,15 @@ export function ConfirmDialog({
   title,
   description,
   content,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel = '',
+  cancelLabel = '',
   confirmVariant = 'destructive',
   disabled = false,
   closeOnConfirm = true,
   onConfirm,
   onOpenChange,
 }: ConfirmDialogProps) {
+  const operationT = useOperationT()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -76,7 +78,7 @@ export function ConfirmDialog({
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline">{cancelLabel}</Button>
+            <Button variant="outline">{cancelLabel || operationT('cancel')}</Button>
           </DialogClose>
           <Button
             onClick={handleConfirm}
@@ -84,7 +86,7 @@ export function ConfirmDialog({
             disabled={disabled || loading}
             type="button"
           >
-            {confirmLabel}
+            {confirmLabel || operationT('confirm')}
           </Button>
         </DialogFooter>
       </DialogContent>

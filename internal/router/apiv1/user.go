@@ -29,7 +29,8 @@ func registerUserRoutes(group *route.RouterGroup) {
 		userGroupWithAuth.GET("/me", userController.GetLoginUser)
 		userGroupWithAuth.PUT("/u/:id", userController.UpdateUser)
 		userGroupWithAuth.PUT("/password/edit", userController.ChangePassword)
-		userGroupWithAuth.GET("/openids", userController.GetUserOpenIDList) // 获取登录用户的OIDC列表
+		userGroupWithAuth.GET("/openids", userController.GetUserOpenIDList)      // 获取登录用户的OIDC列表
+		userGroupWithAuth.DELETE("/openid/:id", userController.DeleteUserOpenID) // 删除、解绑登录用户的某个OIDC绑定
 		// 需要邮箱验证但是不需要登录
 		group.Group(userRoute).Use(middleware.UseEmailVerify()).PUT("/password/reset", userController.ResetPassword) // 不需要登录
 		// 需要邮箱验证和登录

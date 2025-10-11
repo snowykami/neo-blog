@@ -1,11 +1,16 @@
 'use client'
 import type { BaseResponseError } from '@/models/resp'
+import type { OpenIdDto } from '@/models/user'
+import { UnlinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { requestEmailVerifyCode, updateEmail, updatePassword } from '@/api/user'
+import { getUserOpenIdList, requestEmailVerifyCode, unbindUserOpenId, updateEmail, updatePassword } from '@/api/user'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { DeleteButtonWithConfirmDialog } from '@/components/common/delete-button-with-confirm-dialog'
 import { InputOTPControlled } from '@/components/common/input-otp'
+import { Avatar, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,6 +28,18 @@ export function UserSecurityPage() {
   const [verifyCode, setVerifyCode] = useState('')
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [openIds, setOpenIds] = useState<OpenIdDto[]>([])
+
+  useEffect(() => {
+    getUserOpenIdList()
+      .then((res) => {
+        setOpenIds(res.data.openids)
+      })
+      .catch((error: BaseResponseError) => {
+        console.error('error', error)
+        toast.error(`${error.response.data.message}`)
+      })
+  }, [setOpenIds])
 
   const handleSubmitPassword = () => {
     updatePassword({ oldPassword, newPassword })
@@ -126,10 +143,60 @@ export function UserSecurityPage() {
           {t('update_email')}
         </Button>
       </div>
+      <Separator className="my-4" />
+      <div className="grid w-full max-w-sm items-center gap-4 py-4">
+        <h1 className="text-2xl font-bold">{t('openid_accounts')}</h1>
+        {openIds.length === 0 && <p className="text-sm text-muted-foreground">{t('no_openid_accounts')}</p>}
+        <div className="grid gap-4">
+          {openIds.map(openId => (
+            <UserOpenIdItem key={openId.id} openId={openId} />
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
 
-// function UserThirdPartyAccountItem({}) {
-//   return <div></div>
-// }
+function UserOpenIdItem({ openId }: { openId: OpenIdDto }) {
+  const t = useTranslations('Console.user_security')
+  const handleDelete = useCallback(() => {
+    unbindUserOpenId(openId.id)
+      .then(() => {
+        toast.success(t('unbind_success'))
+        window.location.reload()
+      })
+      .catch((error: BaseResponseError) => {
+        toast.error(`${t('unbind_failed')}: ${error.response.data.message}`)
+      })
+  }, [openId.id])
+  return (
+    <div className="flex items-center justify-between w-full max-w-sm border p-2 rounded-md gap-2">
+      {/* 左头像 */}
+      <div className="flex items-center gap-2">
+        <Avatar>
+          <AvatarImage src={openId.picture} alt={openId.name} />
+        </Avatar>
+      </div>
+      {/* 右信息 */}
+      <div className="grid flex-1 gap-1">
+        <span className="font-medium">
+          {openId.name}
+          (
+          {openId.preferredUsername}
+          )
+        </span>
+        <span className="text-sm text-muted-foreground">{openId.email}</span>
+      </div>
+      <ConfirmDialog
+        title={t('confirm_unbind')}
+        description={t('confirm_unbind_description')}
+        onConfirm={handleDelete}
+        confirmLabel={t('unbind')}
+      >
+        <Button variant="outline" size="icon" className="text-red-500 hover:text-red-600">
+          <UnlinkIcon size={16} />
+        </Button>
+      </ConfirmDialog>
+    </div>
+  )
+}
