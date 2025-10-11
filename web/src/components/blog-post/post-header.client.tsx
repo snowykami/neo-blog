@@ -14,7 +14,7 @@ export function PostHeaderClient({ post, children }: { post: Post, children: Rea
   return (
     // 允许子元素超出（眼睛按钮不会被裁切）
     <div
-      className="relative pt-30 pb-36 md:pt-36 md:pb-48 overflow-visible transition-none"
+      className="relative pt-30 pb-36 lg:pt-36 lg:pb-48 overflow-visible transition-none"
       style={{
         width: '100vw',
         marginLeft: '50%',
