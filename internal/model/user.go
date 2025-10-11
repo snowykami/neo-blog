@@ -57,6 +57,10 @@ type UserOpenID struct {
 	Email             string // 邮箱
 	Picture           string // 头像
 	PreferredUsername string // 用户名
+	// 不储存字段，每次获取时赋值
+	OidcName        string `gorm:"-"` // 关联的OIDC配置名称
+	OidcDisplayName string `gorm:"-"` // 关联的OIDC配置显示名称
+	OidcIcon        string `gorm:"-"` // 关联的OIDC配置图标
 }
 
 func (uo *UserOpenID) ToDto() dto.UserOpenIDDto {
@@ -69,6 +73,9 @@ func (uo *UserOpenID) ToDto() dto.UserOpenIDDto {
 		Email:             uo.Email,
 		Picture:           uo.Picture,
 		PreferredUsername: uo.PreferredUsername,
+		OidcName:          uo.OidcName,
+		OidcIcon:          uo.OidcIcon,
+		OidcDisplayName:   uo.OidcDisplayName,
 	}
 }
 

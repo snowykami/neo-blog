@@ -46,6 +46,14 @@ func (o *oidcRepo) GetOidcConfigByName(name string) (*model.OidcConfig, error) {
 	return &config, nil
 }
 
+func (o *oidcRepo) GetOidcConfigByIssuer(issuer string) (*model.OidcConfig, error) {
+	var config model.OidcConfig
+	if err := GetDB().Where("issuer = ?", issuer).First(&config).Error; err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
 func (o *oidcRepo) GetOidcConfigByID(id uint) (*model.OidcConfig, error) {
 	var config model.OidcConfig
 	if err := GetDB().Where("id = ?", id).First(&config).Error; err != nil {

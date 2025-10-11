@@ -56,5 +56,14 @@ func (user *userRepo) ListUserOpenIDsByUserID(userID uint) ([]model.UserOpenID, 
 	if err := GetDB().Where("user_id = ?", userID).Find(&userOpenIDs).Error; err != nil {
 		return nil, err
 	}
+	for i := range userOpenIDs {
+		// 找到OpenID对应的OIDC配置
+		oidcConfig, err := Oidc.GetOidcConfigByIssuer(userOpenIDs[i].Issuer)
+		if err == nil && oidcConfig != nil {
+			userOpenIDs[i].OidcName = oidcConfig.Name
+			userOpenIDs[i].OidcIcon = oidcConfig.Icon
+			userOpenIDs[i].OidcDisplayName = oidcConfig.DisplayName
+		}
+	}
 	return userOpenIDs, nil
 }

@@ -26,4 +26,7 @@ export interface OpenIdDto {
   email: string
   picture: string
   preferredUsername: string
+  oidcName: string
+  oidcIcon: string
+  oidcDisplayName: string
 }

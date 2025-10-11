@@ -8,7 +8,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getUserOpenIdList, requestEmailVerifyCode, unbindUserOpenId, updateEmail, updatePassword } from '@/api/user'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
-import { DeleteButtonWithConfirmDialog } from '@/components/common/delete-button-with-confirm-dialog'
 import { InputOTPControlled } from '@/components/common/input-otp'
 import { Avatar, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -174,18 +173,22 @@ function UserOpenIdItem({ openId }: { openId: OpenIdDto }) {
       {/* 左头像 */}
       <div className="flex items-center gap-2">
         <Avatar>
-          <AvatarImage src={openId.picture} alt={openId.name} />
+          <AvatarImage src={openId.oidcIcon} alt={openId.oidcName} />
         </Avatar>
+        <div className="grid">
+          <span className="text-sm text-muted-foreground">{openId.oidcDisplayName || openId.oidcName}</span>
+          <span className="font-medium truncate">
+            {openId.name || openId.preferredUsername}
+            {' '}
+            (
+            {openId.email}
+            )
+          </span>
+        </div>
       </div>
       {/* 右信息 */}
-      <div className="grid flex-1 gap-1">
-        <span className="font-medium">
-          {openId.name}
-          (
-          {openId.preferredUsername}
-          )
-        </span>
-        <span className="text-sm text-muted-foreground">{openId.email}</span>
+      <div className="flex items-center gap-2 justify-start">
+
       </div>
       <ConfirmDialog
         title={t('confirm_unbind')}
@@ -193,7 +196,7 @@ function UserOpenIdItem({ openId }: { openId: OpenIdDto }) {
         onConfirm={handleDelete}
         confirmLabel={t('unbind')}
       >
-        <Button variant="outline" size="icon" className="text-red-500 hover:text-red-600">
+        <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600">
           <UnlinkIcon size={16} />
         </Button>
       </ConfirmDialog>
