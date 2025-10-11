@@ -54,6 +54,14 @@ func (o *oidcRepo) GetOidcConfigByID(id uint) (*model.OidcConfig, error) {
 	return &config, nil
 }
 
+func (o *oidcRepo) GetUserOidcListByUserID(userID uint) ([]model.UserOpenID, error) {
+	var userOidcList []model.UserOpenID
+	if err := GetDB().Where("user_id = ?", userID).Find(&userOidcList).Error; err != nil {
+		return nil, err
+	}
+	return userOidcList, nil
+}
+
 func (o *oidcRepo) UpdateOidcConfig(oidcConfig *model.OidcConfig) error {
 	if oidcConfig.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")

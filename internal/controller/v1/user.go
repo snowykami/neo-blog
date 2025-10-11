@@ -8,9 +8,11 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -102,13 +104,30 @@ func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, nil)
 }
 
-func (u *UserController) OidcList(ctx context.Context, c *app.RequestContext) {
+func (u *UserController) GetOidcConfigList(ctx context.Context, c *app.RequestContext) {
 	oidcConfigs, svcerr := u.service.ListOidcConfigs()
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, oidcConfigs)
+}
+
+func (u *UserController) GetUserOpenIDList(ctx context.Context, c *app.RequestContext) {
+	userID, ok := ctxutils.GetCurrentUserID(ctx)
+	if !ok {
+		resps.Unauthorized(c, resps.ErrUnauthorized)
+		return
+	}
+	userOpenIdModels, err := repo.User.ListUserOpenIDsByUserID(userID)
+	if err != nil {
+		resps.Error(c, errs.NewInternalServer(err.Error()))
+		return
+	}
+	userOpenIdDtos := model.ToOpenIdDtos(userOpenIdModels)
+	resps.Ok(c, resps.Success, utils.H{
+		"openids": userOpenIdDtos,
+	})
 }
 
 func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {

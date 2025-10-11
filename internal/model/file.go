@@ -39,6 +39,10 @@ type StorageProviderModelAndDto struct {
 	StorageProviderConfig
 }
 
+func (sp *StorageProviderModelAndDto) TableName() string {
+	return "storage_providers"
+}
+
 // 这部分dto和model共用
 type StorageProviderConfig struct {
 	// for local & webdav storage provider

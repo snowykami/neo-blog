@@ -26,6 +26,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { useCommonT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { getPostUrl } from '@/utils/common/route'
 import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
@@ -80,7 +81,7 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
             className="absolute top-2 left-2 bg-blue-300/90 text-white hover:bg-blue-400 text-xs"
           >
             <Lock className="w-3 h-3 mr-1" />
-            私有
+            {useCommonT()('private')}
           </Badge>
         )}
 
@@ -162,9 +163,10 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
         </div>
         {/* 右侧 */}
         <div className="flex items-center gap-1">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 overflow-hidden">
             <UserIcon className="w-4 h-4" />
-            {post.user.nickname || post.user.username}
+            <span className="text-ellipsis block max-w-[15ch] truncate">{post.user.nickname || post.user.username}</span>
+
           </div>
         </div>
       </CardFooter>

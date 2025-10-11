@@ -129,3 +129,7 @@ export function UserSecurityPage() {
     </div>
   )
 }
+
+function UserThirdPartyAccountItem({}) {
+  return <div></div>
+}
