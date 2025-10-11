@@ -1,6 +1,6 @@
 import type { OidcConfig } from '@/models/oidc-config'
 import type { BaseResponse } from '@/models/resp'
-import type { OpenIdDto, User } from '@/models/user'
+import type { IpData, OpenIdDto, User } from '@/models/user'
 import type { CaptchaProvider } from '@/types/captcha'
 import axiosClient from './client'
 
@@ -163,5 +163,10 @@ export async function getUserOpenIdList(): Promise<BaseResponse<{ openids: OpenI
 
 export async function unbindUserOpenId(id: number): Promise<BaseResponse<null>> {
   const res = await axiosClient.delete<BaseResponse<null>>(`/user/openid/${id}`)
+  return res.data
+}
+
+export async function getUserIpLocation(id: number): Promise<BaseResponse<IpData>> {
+  const res = await axiosClient.get<BaseResponse<IpData>>(`/user/ip-location/${id}`)
   return res.data
 }

@@ -1,11 +1,21 @@
 'use client'
-import type { User } from '@/models/user'
-import { Mail, Shield, User as UserIcon } from 'lucide-react'
+import type { IpData, User } from '@/models/user'
+import { Mail, MapPin, Shield, User as UserIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { getUserIpLocation } from '@/api/user'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { getFirstCharFromUser } from '@/utils/common/username'
 
 export function UserHeader({ user }: { user: User }) {
+  const [ipData, setIpDate] = useState<IpData | null>(null)
+
+  useEffect(() => {
+    getUserIpLocation(user.id).then((res) => {
+      setIpDate(res.data)
+    })
+  }, [])
+
   return (
     <div className="flex flex-col md:flex-row items-center md:items-center h-auto md:h-60">
       {/* 左侧 30%（头像容器） */}
@@ -43,6 +53,13 @@ export function UserHeader({ user }: { user: User }) {
           <Shield className="w-4 h-4 mr-2" />
           <span>{user.role || '访客'}</span>
         </div>
+
+        {ipData && (
+          <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
+            <MapPin className="w-4 h-4 mr-2" />
+            <span>{`${ipData.country} ${ipData.province} ${ipData.city} ${ipData.districts}` || '未知'}</span>
+          </div>
+        )}
         {/* 其他简介、按钮等放这里 */}
       </div>
     </div>

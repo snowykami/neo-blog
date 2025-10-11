@@ -30,3 +30,11 @@ export interface OpenIdDto {
   oidcIcon: string
   oidcDisplayName: string
 }
+
+export interface IpData {
+  country: string
+  province: string
+  city: string
+  districts: string
+  isp: string
+}
