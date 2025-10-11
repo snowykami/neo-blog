@@ -2,13 +2,13 @@ package apiv1
 
 import (
 	"github.com/cloudwego/hertz/pkg/route"
-	v1 "github.com/snowykami/neo-blog/internal/controller/v1"
+	controller "github.com/snowykami/neo-blog/internal/controller"
 	"github.com/snowykami/neo-blog/internal/middleware"
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
 func registerFileRoutes(group *route.RouterGroup) {
-	fileController := v1.NewFileController()
+	fileController := controller.NewFileController()
 	fileGroup := group.Group("/file").Use(middleware.UseAuth(true))
 	fileGroupWithoutAuth := group.Group("/file").Use(middleware.UseAuth(false))
 	fileGroupWithAdmin := group.Group("/file").Use(middleware.UseAuth(true), middleware.UseRole(constant.RoleAdmin))

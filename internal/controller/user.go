@@ -258,3 +258,23 @@ func (u *UserController) GetCaptchaConfig(ctx context.Context, c *app.RequestCon
 		"url":      utils2.Env.Get(constant.EnvKeyCaptchaUrl),
 	})
 }
+
+func (u *UserController) GetUserLastIPLocation(ctx context.Context, c *app.RequestContext) {
+	userID := ctxutils.GetIDParam(c).Uint
+	// 获取用户最新的session
+	session, err := repo.Session.GetLatestSessionByUserID(userID)
+	if err != nil {
+		resps.InternalServerError(c, "Failed to get user session")
+		return
+	}
+	ipInfo, err := utils2.GetIPInfo(session.LatestIP())
+	if err != nil {
+		resps.InternalServerError(c, "Failed to get IP location")
+		return
+	}
+	// 脱敏
+	if ipInfo != nil {
+		utils2.DesensitizeIpData(ipInfo)
+	}
+	resps.Ok(c, resps.Success, ipInfo)
+}

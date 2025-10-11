@@ -134,3 +134,16 @@ func IsReservedIP(ip string) bool {
 	}
 	return false
 }
+
+// DesensitizeIpData removes sensitive fields from the IPData struct.
+func DesensitizeIpData(data *IPData) {
+	data.IP = ""
+	data.Dec = ""
+	data.Net = ""
+	data.Zipcode = ""
+	data.Areacode = ""
+	data.Protocol = ""
+	data.MyIP = ""
+	data.Time = ""
+	data.Location = ""
+}

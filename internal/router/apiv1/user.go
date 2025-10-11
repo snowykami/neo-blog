@@ -2,13 +2,13 @@ package apiv1
 
 import (
 	"github.com/cloudwego/hertz/pkg/route"
-	v1 "github.com/snowykami/neo-blog/internal/controller/v1"
+	controller "github.com/snowykami/neo-blog/internal/controller"
 	"github.com/snowykami/neo-blog/internal/middleware"
 )
 
 func registerUserRoutes(group *route.RouterGroup) {
 	const userRoute = "/user"
-	userController := v1.NewUserController()
+	userController := controller.NewUserController()
 
 	userGroupWithAuth := group.Group(userRoute).Use(middleware.UseAuth(true))
 	userGroupNoAuth := group.Group(userRoute).Use(middleware.UseAuth(false))
@@ -24,6 +24,7 @@ func registerUserRoutes(group *route.RouterGroup) {
 		userGroupNoAuth.GET("/oidc/login/:name", userController.OidcLogin)
 		userGroupNoAuth.GET("/u/:id", userController.GetUser)
 		userGroupNoAuth.GET("/username/:username", userController.GetUserByUsername)
+		userGroupNoAuth.GET("/ip-location/:id", userController.GetUserLastIPLocation) // 获取用户最后登录IP的地理位置
 		// 需要鉴权
 		userGroupWithAuth.POST("/logout", userController.Logout)
 		userGroupWithAuth.GET("/me", userController.GetLoginUser)

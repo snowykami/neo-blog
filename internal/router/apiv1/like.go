@@ -2,12 +2,12 @@ package apiv1
 
 import (
 	"github.com/cloudwego/hertz/pkg/route"
-	v1 "github.com/snowykami/neo-blog/internal/controller/v1"
+	controller "github.com/snowykami/neo-blog/internal/controller"
 	"github.com/snowykami/neo-blog/internal/middleware"
 )
 
 func registerLikeRoutes(group *route.RouterGroup) {
-	likeController := v1.NewLikeController()
+	likeController := controller.NewLikeController()
 	likeGroup := group.Group("/like").Use(middleware.UseAuth(true))
 	likeGroupWithoutAuth := group.Group("/like", middleware.UseAuth(false))
 	{

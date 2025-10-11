@@ -85,3 +85,12 @@ func (s *sessionRepo) GetSessionLastIP(sessionID string) (string, error) {
 	}
 	return ipRaw, nil
 }
+
+func (s *sessionRepo) GetLatestSessionByUserID(userID uint) (*model.Session, error) {
+	var session model.Session
+	err := GetDB().Where("user_id = ?", userID).Order("created_at DESC").First(&session).Error
+	if err != nil {
+		return nil, err
+	}
+	return &session, nil
+}

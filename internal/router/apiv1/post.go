@@ -2,7 +2,7 @@ package apiv1
 
 import (
 	"github.com/cloudwego/hertz/pkg/route"
-	v1 "github.com/snowykami/neo-blog/internal/controller/v1"
+	controller "github.com/snowykami/neo-blog/internal/controller"
 	"github.com/snowykami/neo-blog/internal/middleware"
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
@@ -10,7 +10,7 @@ import (
 // post 文章API路由
 
 func registerPostRoutes(group *route.RouterGroup) {
-	postController := v1.NewPostController()
+	postController := controller.NewPostController()
 	postGroupWithAuth := group.Group("/post").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleEditor))
 	postGroupPublic := group.Group("/post").Use(middleware.UseAuth(false))
 	{
