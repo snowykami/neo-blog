@@ -7,6 +7,8 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
+var defaultJwtKey = Strings.GenerateRandomString(32)
+
 type jwtUtils struct {
 	TokenDuration                      time.Duration
 	RefreshTokenDuration               time.Duration
@@ -28,7 +30,7 @@ type Claims struct {
 // ToString 将Claims转换为JWT字符串
 func (c *Claims) ToString() (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, c)
-	return token.SignedString([]byte(Env.Get(constant.EnvKeyJwtSecrete, "default_jwt_secret")))
+	return token.SignedString([]byte(Env.Get(constant.EnvKeyJwtSecrete, defaultJwtKey)))
 }
 
 // NewClaims 创建一个新的Claims实例

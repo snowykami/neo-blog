@@ -1,5 +1,7 @@
 package constant
 
+import "github.com/snowykami/neo-blog/pkg/utils"
+
 const (
 	CaptchaTypeDisable         = "disable"   // 禁用验证码
 	CaptchaTypeHCaptcha        = "hcaptcha"  // HCaptcha验证码
