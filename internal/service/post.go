@@ -68,7 +68,7 @@ func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.Service
 		}
 		return errs.NewInternalServer("failed_to_get_target")
 	}
-	if !ctxutils.IsOwnerOfTarget(ctx, post.UserID) && !ctxutils.IsAdmin(ctx) {
+	if !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx)) {
 		return errs.NewForbidden("permission_denied")
 	}
 	if err := repo.Post.DeletePost(postId); err != nil {
@@ -87,7 +87,7 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 	}
 	currentUser, userOk := ctxutils.GetCurrentUser(ctx)
 	// 私密文章只有自己和管理员能看
-	if post.IsPrivate && (ctxutils.IsOwnerOfTarget(ctx, post.UserID) || !ctxutils.IsAdmin(ctx)) {
+	if post.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx)) {
 		return nil, errs.NewForbidden("permission_denied")
 	}
 	// 检测用户是否点赞
@@ -107,7 +107,7 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		return 0, errs.NewNotFound("target_not_found")
 	}
 
-	if !ctxutils.IsAdmin(ctx) && !ctxutils.IsOwnerOfTarget(ctx, post.UserID) {
+	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, post.UserID)) {
 		return 0, errs.NewForbidden("permission_denied")
 	}
 	post.Top = req.Top // TOP可以为0

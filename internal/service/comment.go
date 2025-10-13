@@ -73,7 +73,7 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	}
 
 	// 仅管理员或评论主人可以修改评论
-	if !ctxutils.IsAdmin(ctx) && !ctxutils.IsOwnerOfTarget(ctx, comment.UserID) {
+	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, comment.UserID)) {
 		return errs.NewForbidden("forbidden")
 	}
 
@@ -120,7 +120,7 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 	}
 
 	// 仅管理员，目标对象主人，评论主人可以删评
-	if !ctxutils.IsAdmin(ctx) && !ctxutils.IsOwnerOfTarget(ctx, targetOwnerId) && !ctxutils.IsOwnerOfTarget(ctx, comment.UserID) {
+	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, targetOwnerId) || ctxutils.IsOwnerOfTarget(ctx, comment.UserID)) {
 		return errs.NewForbidden("permission_denied")
 	}
 

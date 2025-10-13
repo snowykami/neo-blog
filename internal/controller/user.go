@@ -161,7 +161,7 @@ func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) 
 			return
 		}
 	}
-	if !ctxutils.IsOwnerOfTarget(ctx, updateUserReq.ID) && !ctxutils.IsAdmin(ctx) {
+	if !(ctxutils.IsOwnerOfTarget(ctx, updateUserReq.ID) || ctxutils.IsAdmin(ctx)) {
 		resps.Forbidden(c, resps.ErrForbidden)
 		return
 	}

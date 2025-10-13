@@ -79,7 +79,7 @@ func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 
 	if isDraft {
 		// 草稿请求仅允许作者本人或者管理员查看
-		if !ctxutils.IsOwnerOfTarget(ctx, post.UserID) && !ctxutils.IsAdmin(ctx) {
+		if !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx)) {
 			resps.Forbidden(c, resps.ErrForbidden)
 			return
 		}
