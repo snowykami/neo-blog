@@ -116,7 +116,6 @@ export function useRecentColors(maxColors: number = 3) {
       setRecentColors((prevColors) => {
         const filtered = prevColors.filter(c => !(c.type === type && c.value === value))
         const updated = [{ type, label, value }, ...filtered].slice(0, maxColors)
-
         try {
           localStorage.setItem('tiptapRecentlyUsedColors', JSON.stringify(updated))
         }

@@ -16,7 +16,6 @@ import { Spacer } from '@/components/tiptap-ui-primitive/spacer'
 import { Toolbar, ToolbarGroup, ToolbarSeparator } from '@/components/tiptap-ui-primitive/toolbar'
 import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button'
 import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button'
-import { ColorTextPopover } from '@/components/tiptap-ui/color-text-popover'
 // --- Tiptap UI ---
 import { HeadingDropdownMenu } from '@/components/tiptap-ui/heading-dropdown-menu'
 
@@ -27,26 +26,27 @@ import { ListDropdownMenu } from '@/components/tiptap-ui/list-dropdown-menu'
 import { MarkButton } from '@/components/tiptap-ui/mark-button'
 import { TextAlignButton } from '@/components/tiptap-ui/text-align-button'
 import { UndoRedoButton } from '@/components/tiptap-ui/undo-redo-button'
+import { ColorSelector } from '../tiptap-custom/color-selector'
 // --- Tiptap Node ---
 import '@/components/tiptap-node/blockquote-node/blockquote-node.scss'
-import '@/components/tiptap-node/code-block-node/code-block-node.scss'
-import '@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node.scss'
 
 // --- Icons ---
 
 // --- Hooks ---
 
-import '@/components/tiptap-node/list-node/list-node.scss'
+import '@/components/tiptap-node/code-block-node/code-block-node.scss'
 
 // --- Lib ---
 
 // --- Styles ---
 
+import '@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node.scss'
+
+import '@/components/tiptap-node/list-node/list-node.scss'
 import '@/components/tiptap-node/image-node/image-node.scss'
 
 import '@/components/tiptap-node/heading-node/heading-node.scss'
 import '@/components/tiptap-node/paragraph-node/paragraph-node.scss'
-
 import '@/styles/_variables.scss'
 import '@/styles/_keyframe-animations.scss'
 import 'highlight.js/styles/github-dark.css'
@@ -83,12 +83,7 @@ function MainToolbarContent({
         <MarkButton type="strike" />
         <MarkButton type="code" />
         <MarkButton type="underline" />
-
-        <ColorTextPopover
-          editor={editor}
-          hideWhenUnavailable={true}
-        />
-
+        <ColorSelector editor={editor} />
         <LinkPopover />
       </ToolbarGroup>
 
