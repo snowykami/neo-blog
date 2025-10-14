@@ -4,19 +4,17 @@ import type { Editor } from '@tiptap/react'
 import { EditorContent, EditorContext } from '@tiptap/react'
 import hljs from 'highlight.js'
 
-// --- Tiptap Core Extensions ---
-
 import * as React from 'react'
-// --- Components ---
+
 import { ThemeToggle } from '@/components/tiptap-editor/theme-toggle'
 
 import { ImageNodeFloating } from '@/components/tiptap-node/image-node/image-node-floating'
-// --- UI Primitives ---
+
 import { Spacer } from '@/components/tiptap-ui-primitive/spacer'
 import { Toolbar, ToolbarGroup, ToolbarSeparator } from '@/components/tiptap-ui-primitive/toolbar'
 import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button'
 import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button'
-// --- Tiptap UI ---
+
 import { HeadingDropdownMenu } from '@/components/tiptap-ui/heading-dropdown-menu'
 
 import { ImageUploadButton } from '@/components/tiptap-ui/image-upload-button'
@@ -26,19 +24,11 @@ import { ListDropdownMenu } from '@/components/tiptap-ui/list-dropdown-menu'
 import { MarkButton } from '@/components/tiptap-ui/mark-button'
 import { TextAlignButton } from '@/components/tiptap-ui/text-align-button'
 import { UndoRedoButton } from '@/components/tiptap-ui/undo-redo-button'
-import { ColorSelector } from '../tiptap-custom/color-selector'
-// --- Tiptap Node ---
+import { ColorSelector } from '../tiptap-custom/color-selector-popover'
+
 import '@/components/tiptap-node/blockquote-node/blockquote-node.scss'
 
-// --- Icons ---
-
-// --- Hooks ---
-
 import '@/components/tiptap-node/code-block-node/code-block-node.scss'
-
-// --- Lib ---
-
-// --- Styles ---
 
 import '@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node.scss'
 

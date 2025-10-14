@@ -75,7 +75,7 @@ func (j *jwtUtils) New2Tokens(userID uint, sessionID string, rememberMe bool) (t
 func (j *jwtUtils) ParseJsonWebTokenWithoutState(tokenString string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
-		return []byte(Env.Get(constant.EnvKeyJwtSecrete, "default_jwt_secret")), nil
+		return []byte(Env.Get(constant.EnvKeyJwtSecrete, defaultJwtKey)), nil
 	})
 	if err != nil {
 		return nil, err
