@@ -17,7 +17,7 @@ import { useToLogin } from '@/hooks/use-route'
 import { useOperationT } from '@/hooks/use-translations'
 import { Role } from '@/models/user'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
-import { consolePath } from '@/utils/common/route'
+import { consolePath, getUserUrl } from '@/utils/common/route'
 import { formatDisplayName, getFallbackAvatarFromUsername } from '@/utils/common/username'
 
 export function AvatarWithDropdownMenu() {
@@ -72,7 +72,7 @@ export function AvatarWithDropdownMenu() {
           <>
             <DropdownMenuGroup className="p-0">
               <DropdownMenuItem asChild>
-                <Link href={`/u/${user?.username}`}>
+                <Link href={getUserUrl(user)}>
                   <User />
                   {routeT('profile')}
                 </Link>

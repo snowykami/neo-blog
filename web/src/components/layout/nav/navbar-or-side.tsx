@@ -71,17 +71,17 @@ const navbarMenuComponents = [
     children: [
       {
         title: 'about',
-        href: 'https://sfkm.me/#profile',
+        href: new URL('https://sfkm.me/#profile'),
         icon: InfoIcon,
       },
       {
         title: 'contact',
-        href: 'https://sfkm.me/#contact',
+        href: new URL('https://sfkm.me/#contact'),
         icon: ContactIcon,
       },
       {
         title: 'friends',
-        href: 'https://sfkm.me/#friends',
+        href: new URL('https://sfkm.me/#friends'),
         icon: Link2Icon,
       },
     ],

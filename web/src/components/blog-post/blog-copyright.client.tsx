@@ -81,7 +81,7 @@ function CopyrightCard({ post }: { post: Post }) {
           <div className="text-gray-500 dark:text-gray-400 mb-1">{copyrightT('license')}</div>
           <div>
             <Link
-              href={siteInfo.copyrightLink || 'https://creativecommons.org/licenses/by/4.0/'}
+              href={new URL(siteInfo.copyrightLink || 'https://creativecommons.org/licenses/by/4.0/')}
               target="_blank"
               rel="noopener noreferrer"
               className="text-lg font-semibold text-primary/80 hover:text-primary"

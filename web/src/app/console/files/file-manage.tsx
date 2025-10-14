@@ -2,7 +2,7 @@
 import type { FileModel } from '@/models/file'
 import type { BaseResponseError } from '@/models/resp'
 import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
-import { Ellipsis, FileIcon, Link } from 'lucide-react'
+import { Ellipsis, FileIcon, LinkIcon } from 'lucide-react'
 import mime from 'mime-types'
 import { useTranslations } from 'next-intl'
 import {
@@ -315,7 +315,7 @@ function FileItem({
                 className="h-8 w-8 p-0"
                 onClick={() => window.open(`${getFileUri(file.id)}/${file.name}`, '_blank')}
               >
-                <Link className="w-3 h-3" />
+                <LinkIcon className="w-3 h-3" />
               </Button>
               <FileDropdownMenu file={file} onFileDelete={onFileDelete} />
             </div>
@@ -440,7 +440,7 @@ function FileItem({
             size="sm"
             onClick={() => window.open(`${getFileUri(file.id)}/${file.name}`, '_blank')}
           >
-            <Link className="inline size-4 mr-1" />
+            <LinkIcon className="inline size-4 mr-1" />
           </Button>
           <FileDropdownMenu file={file} onFileDelete={onFileDelete} />
         </div>

@@ -14,7 +14,7 @@ export function SiteHeader({ title }: { title?: string }) {
         <div className="ml-auto flex items-center gap-2">
           <Button variant="ghost" className=" h-8 w-8" asChild>
             <Link
-              href="https://github.com/snowykami/neo-blog"
+              href={new URL('https://github.com/snowykami/neo-blog')}
               rel="noopener noreferrer"
               target="_blank"
               className="dark:text-foreground"

@@ -54,6 +54,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "compressorjs": "^1.2.1",
     "deepmerge": "^4.3.1",
     "field-conv": "^1.0.9",
     "highlight.js": "^11.11.1",
