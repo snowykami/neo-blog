@@ -31,7 +31,7 @@ import { contentAreaPaddingClass, navStickyTopPx } from '@/utils/common/layout-s
 import { calculateReadingTime } from '@/utils/common/post'
 import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 
-import './blog-post-align.scss'
+import './blog-post-article.scss'
 
 async function PostHeader({ post }: { post: Post }) {
   return (
@@ -63,7 +63,7 @@ async function PostMetaWhite({ post }: { post: Post }) {
     },
     {
       icon: Flame,
-      text: post.viewCount || 0,
+      text: post.heat || 0,
     },
     {
       icon: Heart,
