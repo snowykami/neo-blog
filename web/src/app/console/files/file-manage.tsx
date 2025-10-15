@@ -2,8 +2,7 @@
 import type { FileModel } from '@/models/file'
 import type { BaseResponseError } from '@/models/resp'
 import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
-import { Ellipsis, FileIcon, LinkIcon } from 'lucide-react'
-import mime from 'mime-types'
+import { Ellipsis, LinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import {
   parseAsBoolean,
@@ -17,10 +16,10 @@ import { toast } from 'sonner'
 import { batchDeleteFiles, deleteFile, listFiles } from '@/api/file'
 import { ArrangementSelector } from '@/components/common/arrangement-selector'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { FileMimeIcon } from '@/components/common/file-icon'
+import { FileUploadDialogWithButton } from '@/components/common/file-uploader'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
-import { FileUploadDialogWithButton } from '@/components/console/file-uploader'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -41,7 +40,6 @@ import copyToClipboard from '@/lib/clipboard'
 import { ArrangementMode, OrderBy } from '@/models/common'
 import { getFileUri } from '@/utils/client/file'
 import { formatDataSize } from '@/utils/common/datasize'
-import { mimeTypeIcons } from '@/utils/common/mimetype'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
@@ -323,27 +321,7 @@ function FileItem({
 
           {/* 文件预览/图标 */}
           <div>
-            <Avatar className="h-40 w-40 rounded-sm p-1">
-              <AvatarImage
-                className="object-contain rounded-sm"
-                src={getFileUri(file.id)}
-                alt={file.name}
-              />
-              <AvatarFallback className="rounded-sm">
-                {(() => {
-                  const mimeType = file.mimeType || mime.lookup(file.name) || ''
-                  const IconComponent
-                    = mimeTypeIcons[mimeType.split('/')[0] as keyof typeof mimeTypeIcons]
-                  return IconComponent
-                    ? (
-                        <IconComponent className="w-8 h-8" />
-                      )
-                    : (
-                        <FileIcon className="w-8 h-8" />
-                      )
-                })()}
-              </AvatarFallback>
-            </Avatar>
+            <FileMimeIcon file={file} showImage className="w-20 h-20 rounded object-cover mb-2" />
           </div>
 
           {/* 文件信息 */}
@@ -379,29 +357,7 @@ function FileItem({
           <div className="flex-shrink-0">
             <Checkbox checked={selected} onCheckedChange={onSelect} />
           </div>
-          <Avatar className="h-10 w-10 rounded-none flex-shrink-0">
-            <AvatarImage
-              className="object-contain rounded-sm"
-              src={getFileUri(file.id)}
-              alt={file.name}
-              width={40}
-              height={40}
-            />
-            <AvatarFallback className="rounded-sm">
-              {(() => {
-                const mimeType = file.mimeType || mime.lookup(file.name) || ''
-                const IconComponent
-                  = mimeTypeIcons[mimeType.split('/')[0] as keyof typeof mimeTypeIcons]
-                return IconComponent
-                  ? (
-                      <IconComponent className="w-4 h-4" />
-                    )
-                  : (
-                      <FileIcon className="w-4 h-4" />
-                    )
-              })()}
-            </AvatarFallback>
-          </Avatar>
+          <FileMimeIcon file={file} showImage className="w-10 h-10 rounded object-cover" />
           <div className="w-0 flex-1 min-w-0">
             <div
               className="text-sm font-medium overflow-hidden whitespace-nowrap truncate"

@@ -12,6 +12,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { getLabels } from '@/api/label'
 import { createPost, getCategories, updatePost } from '@/api/post'
+import { FileSelector } from '@/components/common/file-selector'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -42,6 +43,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Textarea } from '@/components/ui/textarea'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
+import { getFileUri } from '@/utils/client/file'
 import {
   CreateOrUpdateCategoryDialogWithButton,
   CreateOrUpdateLabelDialogWithButton,
@@ -223,7 +225,17 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
                 <FormItem>
                   <FormLabel>{t('post_cover')}</FormLabel>
                   <FormControl>
-                    <Input autoFocus={false} {...field} />
+                    <div className="flex items-center gap-2">
+                      <Input autoFocus={false} {...field} />
+                      <FileSelector
+                        limitNumber={1}
+                        onFilesSelected={(files) => {
+                          if (files.length > 0) {
+                            form.setValue('cover', getFileUri(files[0].id))
+                          }
+                        }}
+                      />
+                    </div>
                   </FormControl>
                 </FormItem>
               )}

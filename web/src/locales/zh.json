@@ -175,6 +175,8 @@
     "files": {
       "title": "文件管理",
       "can_only_upload_n_files_at_a_time": "一次只能上传 {n} 个文件",
+      "compress_image": "压缩图片",
+      "compress_level": "压缩等级",
       "select_file": "选择文件",
       "upload_file": "上传文件",
       "upload_file_failed": "文件 {name} 上传失败",
@@ -323,6 +325,13 @@
     "no_reuse": "禁止转载",
     "original_link": "原文链接",
     "post_at": "发布于"
+  },
+  "FileSelector": {
+    "select_file": "选择文件",
+    "select_n_files": "选择 {n} 个文件",
+    "select_files": "选择文件",
+    "upload_file": "上传文件",
+    "uploading": "上传中..."
   },
   "Login": {
     "continue_bind_oidc": "继续将绑定第三方账号，或退出",

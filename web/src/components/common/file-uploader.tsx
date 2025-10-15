@@ -22,22 +22,35 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useOperationT } from '@/hooks/use-translations'
+import { mimeTypeIcons } from '@/utils/client/file'
 import { formatDataSize } from '@/utils/common/datasize'
-import { mimeTypeIcons } from '@/utils/common/mimetype'
+import { Label } from '../ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 
 const MAX_FILE_NUM_PER_UPLOAD = 20
 
-export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: () => void }) {
+export function FileUploadDialogWithButton({
+  children,
+  onFilesUpload,
+  limit = MAX_FILE_NUM_PER_UPLOAD,
+  className,
+}: {
+  children?: React.ReactNode
+  onFilesUpload: (files?: File[]) => void
+  limit?: number
+  className?: string
+}) {
   const t = useTranslations('Console.files')
   const operationT = useOperationT()
   const [files, setFiles] = useState<File[]>([])
+  const [compressLevel, setCompressLevel] = useState(0)
 
   const handleFilesSelected = (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files
     if (!selectedFiles)
       return
-    if (selectedFiles.length + files.length > MAX_FILE_NUM_PER_UPLOAD) {
-      toast.error(t('can_only_upload_n_files_at_a_time', { n: MAX_FILE_NUM_PER_UPLOAD }))
+    if (selectedFiles.length + files.length > limit) {
+      toast.error(t('can_only_upload_n_files_at_a_time', { n: limit }))
       return
     }
     setFiles([...files, ...Array.from(selectedFiles)])
@@ -49,7 +62,7 @@ export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: (
       return
 
     const uploadPromises = files.map(file =>
-      uploadFile({ file })
+      uploadFile({ file, compressLevel }) // 默认压缩等级为 5
         .then(() => {
           toast.success(t('upload_file_success', { name: file.name }))
           return { success: true, file }
@@ -83,12 +96,38 @@ export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: (
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm">{operationT('upload')}</Button>
+        {children || <Button size="sm" className={className}>{operationT('upload')}</Button>}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('upload_file')}</DialogTitle>
           <DialogDescription>{t('select_file')}</DialogDescription>
+          <div className="flex items-center gap-2 mt-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Label className="cursor-pointer">
+                  {t('compress_level')}
+                  {': '}
+                  {compressLevel}
+                </Label>
+              </PopoverTrigger>
+              <PopoverContent className="w-40 p-4">
+                <div className="flex flex-wrap gap-2">
+                  {Array.from({ length: 11 }, (_, i) => i).map(level => (
+                    <Button
+                      key={level}
+                      size="sm"
+                      variant={compressLevel === level ? 'default' : 'outline'}
+                      className="w-8 h-8 p-0"
+                      onClick={() => setCompressLevel(level)}
+                    >
+                      {level}
+                    </Button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </DialogHeader>
         <div>
           <Input multiple id="files" type="file" onChange={handleFilesSelected} />
@@ -103,6 +142,7 @@ export function FileUploadDialogWithButton({ onFilesUpload }: { onFilesUpload: (
           </div>
         </div>
         <DialogFooter>
+
           <DialogClose asChild>
             <div className="flex gap-2">
               <Button variant="outline">{operationT('cancel')}</Button>
