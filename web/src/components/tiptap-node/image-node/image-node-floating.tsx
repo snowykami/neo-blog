@@ -6,7 +6,6 @@ import { Separator } from '@/components/tiptap-ui-primitive/separator'
 // --- Tiptap UI ---
 import { DeleteNodeButton } from '@/components/tiptap-ui/delete-node-button'
 
-import { ImageAlignButton } from '@/components/tiptap-ui/image-align-button'
 import { ImageDownloadButton } from '@/components/tiptap-ui/image-download-button'
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
@@ -24,9 +23,6 @@ export function ImageNodeFloating({ editor: providedEditor }: { editor?: Editor 
 
   return (
     <>
-      <ImageAlignButton align="left" />
-      <ImageAlignButton align="center" />
-      <ImageAlignButton align="right" />
       <Separator />
       <ImageDownloadButton />
       <Separator />
