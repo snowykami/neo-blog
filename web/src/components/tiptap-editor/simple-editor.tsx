@@ -8,8 +8,6 @@ import * as React from 'react'
 
 import { ThemeToggle } from '@/components/tiptap-editor/theme-toggle'
 
-import { ImageNodeFloating } from '@/components/tiptap-node/image-node/image-node-floating'
-
 import { Spacer } from '@/components/tiptap-ui-primitive/spacer'
 import { Toolbar, ToolbarGroup, ToolbarSeparator } from '@/components/tiptap-ui-primitive/toolbar'
 import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button'
@@ -26,15 +24,16 @@ import { TextAlignButton } from '@/components/tiptap-ui/text-align-button'
 import { UndoRedoButton } from '@/components/tiptap-ui/undo-redo-button'
 import { ColorSelector } from '../tiptap-custom/color-selector-popover'
 
+import { ImageAlignButton } from '../tiptap-custom/image-align-button'
+
 import '@/components/tiptap-node/blockquote-node/blockquote-node.scss'
 
 import '@/components/tiptap-node/code-block-node/code-block-node.scss'
 
 import '@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node.scss'
-
 import '@/components/tiptap-node/list-node/list-node.scss'
-import '@/components/tiptap-node/image-node/image-node.scss'
 
+import '@/components/tiptap-node/image-node/image-node.scss'
 import '@/components/tiptap-node/heading-node/heading-node.scss'
 import '@/components/tiptap-node/paragraph-node/paragraph-node.scss'
 import '@/styles/_variables.scss'
@@ -97,7 +96,8 @@ function MainToolbarContent({
 
       <ToolbarGroup>
         <ImageUploadButton text="Add" />
-        <ImageNodeFloating />
+        {/* <ImageNodeFloating /> */}
+        <ImageAlignButton editor={editor} />
       </ToolbarGroup>
 
       <Spacer />
