@@ -2,7 +2,7 @@
 
 import type { PlayMode } from '@/contexts/music-context'
 import { useMeasure } from '@uidotdev/usehooks'
-import { CircleArrowLeftIcon, CircleArrowRightIcon, ListMusicIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, Shuffle } from 'lucide-react'
+import { CircleArrowLeftIcon, CircleArrowRightIcon, ListMusicIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle } from 'lucide-react'
 import Image from 'next/image'
 import React, { useEffect, useRef, useState } from 'react'
 import Marquee from 'react-fast-marquee'
@@ -372,6 +372,7 @@ function Playlist() {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = React.useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
 
   const handleChangeTrack = (index: number) => () => {
     playTrack(index)
@@ -399,8 +400,12 @@ function Playlist() {
 
   // 打开时滚动到当前项：延迟重试以确保内容已渲染（适配 portal / 图片加载等延迟）
   useEffect(() => {
-    if (!open)
+    if (!open) {
+      // 关闭时重置搜索状态
+      setShowSearch(false)
+      setSearchKeyword('')
       return
+    }
     let cancelled = false
 
     const tryScroll = (attempt = 0) => {
@@ -436,14 +441,42 @@ function Playlist() {
       </PopoverTrigger>
 
       <PopoverContent className="fixed -right-16 bottom-4 z-1001 p-1">
-        <Input
-          type="text"
-          placeholder="Search..."
-          className="border-b border-gray-200 dark:border-slate-700"
-          value={searchKeyword}
-          onChange={e => setSearchKeyword((e.target as HTMLInputElement).value)}
-          autoFocus={false}
-        />
+        {showSearch
+          ? (
+              <div className="flex gap-1 border-b border-gray-200 dark:border-slate-700 pb-1">
+                <Input
+                  type="text"
+                  placeholder="Search..."
+                  className="flex-1"
+                  value={searchKeyword}
+                  onChange={e => setSearchKeyword((e.target as HTMLInputElement).value)}
+                  autoFocus={true}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSearch(false)
+                    setSearchKeyword('')
+                  }}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                  aria-label="Close search"
+                >
+                  ✕
+                </button>
+              </div>
+            )
+          : (
+              <div className="flex justify-end pb-1">
+                <button
+                  type="button"
+                  onClick={() => setShowSearch(true)}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                  aria-label="Open search"
+                >
+                  <SearchIcon className="w-4 h-4" />
+                </button>
+              </div>
+            )}
         <div ref={containerRef} className="max-h-80 overflow-y-auto">
           {playlist.length > 0
             ? (
