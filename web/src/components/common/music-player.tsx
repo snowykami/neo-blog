@@ -442,6 +442,7 @@ function Playlist() {
           className="border-b border-gray-200 dark:border-slate-700"
           value={searchKeyword}
           onChange={e => setSearchKeyword((e.target as HTMLInputElement).value)}
+          autoFocus={false}
         />
         <div ref={containerRef} className="max-h-80 overflow-y-auto">
           {playlist.length > 0
