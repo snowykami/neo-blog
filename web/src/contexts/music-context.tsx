@@ -111,6 +111,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return
 
     if (currentTrack) {
+      // 清空旧歌词，避免切换歌曲时显示上一首的歌词
+      if (prevTrackIdRef.current !== currentTrack.id) {
+        setLyrics(null)
+        setCurrentLyric(null)
+        setCurrentLyricIndex(null)
+      }
       fetchNcmLyric(currentTrack.id).then((lyrics) => {
         setLyrics(lyrics)
       }).catch(() => {
