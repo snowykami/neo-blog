@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/errs"
 )
@@ -81,4 +82,37 @@ func (user *userRepo) CheckEmailExists(email string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (user *userRepo) ListUsers(pagination *dto.PaginationParams) ([]model.User, uint64, error) {
+	if pagination == nil {
+		pagination = &dto.PaginationParams{}
+	}
+
+	var users []model.User
+	var total int64
+
+	db := GetDB().Model(&model.User{})
+
+	if ord := pagination.Order(); ord != "" {
+		db = db.Order(ord)
+	}
+
+	// Get total count before applying Limit/Offset
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Limit & Offset
+	limit := int(pagination.Size)
+	if limit <= 0 {
+		limit = 10
+	}
+	offset := int(pagination.Offset())
+
+	if err := db.Limit(limit).Offset(offset).Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return users, uint64(total), nil
 }

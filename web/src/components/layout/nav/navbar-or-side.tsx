@@ -93,19 +93,42 @@ export default function Navbar() {
   const isMobile = useIsMobile()
   const { navClassName, navTitle } = useNav()
   return (
-    <div className={cn(`flex items-center justify-between w-full max-w-screen`, navClassName)}>
-      <div className="flex items-center justify-start">
-        <span className="font-bold text-lg truncate">
+    <div className={cn('flex items-center w-full max-w-screen px-4', navClassName)}>
+      {/* 左侧：等分 1/3，min-w-0 保证在 flex 收缩时文本能 truncate */}
+      <div className="flex-1 min-w-0 flex items-center ">
+        <span className="font-bold text-lg">
           <Link href="/" className="flex items-center text-primary gap-1">
             <IconInnerShadowTop className="!size-6" />
-            {navTitle || siteInfo.metadata.name}
+            <span
+              key={String(navTitle || siteInfo.metadata.name)}
+              className="inline-block truncate max-w-[20ch] md:max-w-[28ch] lg:max-w-[36ch]"
+              style={{ animation: 'navFade 500ms ease' }}
+            >
+              {navTitle || siteInfo.metadata.name}
+            </span>
           </Link>
         </span>
+
+        {/* 局部 keyframes：每次 key 变化都会触发新的元素挂载，从而执行动画（仅透明度过渡） */}
+        <style>
+          {`
+          @keyframes navFade {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+          }
+          `}
+        </style>
       </div>
-      <div className="items-center justify-center hidden md:flex">
-        <NavMenuCenter />
+
+      {/* 中间：等分 1/3，内容居中；在小屏隐藏（内部再用 hidden md:flex） */}
+      <div className="flex-1 flex items-center justify-center">
+        <div className="hidden md:flex items-center">
+          <NavMenuCenter />
+        </div>
       </div>
-      <div className="flex items-center justify-end-safe gap-2 md:gap-4">
+
+      {/* 右侧：等分 1/3，min-w-0，内容靠右 */}
+      <div className="flex-1 min-w-0 flex items-center justify-end gap-2 md:gap-4">
         {[
           <AvatarWithDropdownMenu key="a8d92h1" />,
           ...(isMobile

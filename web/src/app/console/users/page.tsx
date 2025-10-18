@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server'
+import { UserManagePage } from './users-page'
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console')
@@ -8,5 +9,7 @@ export async function generateMetadata() {
 }
 
 export default function Page() {
-  return <div>用户管理</div>
+  return (
+    <UserManagePage />
+  )
 }

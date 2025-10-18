@@ -19,5 +19,7 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.PUT("/oidc/o/:id", adminController.UpdateOidc)
 
 		consoleGroup.GET("/dashboard", adminController.GetDashboard)
+		// 用户区
+		consoleGroup.GET("/users", adminController.ListUsers)
 	}
 }

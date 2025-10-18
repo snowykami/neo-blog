@@ -85,3 +85,11 @@ export function formatDuration(seconds: number): string {
 
   return `${String(days).padStart(2, '0')}:${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
+
+// => mm:ss
+export function formatDurationMMSS(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const secs = seconds % 60
+
+  return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}

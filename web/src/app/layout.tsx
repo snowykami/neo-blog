@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { NextIntlClientProvider } from 'next-intl'
-import { Inter, Source_Code_Pro } from 'next/font/google'
+import { Inter, Source_Code_Pro, Space_Mono } from 'next/font/google'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { getSiteInfo } from '@/api/misc'
 import { getLoginUserServer } from '@/api/user.server'
@@ -8,6 +8,7 @@ import { ScrollbarOverlay } from '@/components/common/scrollbar-overlay'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/auth-context'
 import { DeviceProvider } from '@/contexts/device-context'
+import { MusicProvider } from '@/contexts/music-context'
 import { NavPaddingProvider } from '@/contexts/nav-context'
 import { SiteInfoProvider } from '@/contexts/site-info-context'
 import { getFirstLocale } from '@/i18n/request'
@@ -17,6 +18,14 @@ import './globals.css'
 const geistMono = Source_Code_Pro({
   variable: '--font-geist-mono',
   subsets: ['latin'],
+  display: 'swap',
+})
+
+const spaceMono = Space_Mono({
+  variable: '--font-space-mono',
+  subsets: ['latin'],
+  display: 'swap',
+  weight: '700',
 })
 
 const inter = Inter({
@@ -57,17 +66,19 @@ export default async function RootLayout({
       className="h-full"
       data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || 'blue'}
     >
-      <body className={`${geistMono.className} ${inter.className}`}>
+      <body className={`${geistMono.className} ${spaceMono.className} ${inter.className}`}>
         <Toaster richColors position="top-center" offset={80} />
         <NuqsAdapter>
           <DeviceProvider>
             <NextIntlClientProvider>
               <AuthProvider initialUser={user}>
                 <SiteInfoProvider initialData={siteInfo}>
-                  <NavPaddingProvider>
-                    {children}
-                    <ScrollbarOverlay />
-                  </NavPaddingProvider>
+                  <MusicProvider>
+                    <NavPaddingProvider>
+                      {children}
+                      <ScrollbarOverlay />
+                    </NavPaddingProvider>
+                  </MusicProvider>
                 </SiteInfoProvider>
               </AuthProvider>
             </NextIntlClientProvider>

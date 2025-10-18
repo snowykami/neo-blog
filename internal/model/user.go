@@ -81,6 +81,14 @@ func (uo *UserOpenID) ToDto() dto.UserOpenIDDto {
 	}
 }
 
+func ToUserDtos(users []User) []dto.UserDto {
+	dtos := make([]dto.UserDto, len(users))
+	for i, u := range users {
+		dtos[i] = u.ToDto()
+	}
+	return dtos
+}
+
 func ToOpenIdDtos(oidcs []UserOpenID) []dto.UserOpenIDDto {
 	dtos := make([]dto.UserOpenIDDto, len(oidcs))
 	for i, o := range oidcs {
