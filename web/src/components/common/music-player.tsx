@@ -1,6 +1,7 @@
 'use client'
 
 import type { PlayMode } from '@/contexts/music-context'
+import type { MusicTrack } from '@/models/music'
 import { useMeasure } from '@uidotdev/usehooks'
 import { CircleArrowLeftIcon, CircleArrowRightIcon, ListMusicIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle } from 'lucide-react'
 import Image from 'next/image'
@@ -260,124 +261,57 @@ function TrackInfo() {
   )
 }
 
-function PlayerControls() {
-  const { currentTrack, currentTime, duration, isPlaying, play, pause, next, prev, seek } = useMusic()
-  const [dragPercent, setDragPercent] = useState<number | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-
-  const valuePercent = dragPercent != null
-    ? dragPercent
-    : (duration ? (currentTime || 0) / duration * 100 : 0)
-
-  const handleChange = (v: number) => {
-    setDragPercent(v)
-  }
-
-  const handleChangeEnd = (v: number) => {
-    setDragPercent(null)
-    if (duration && Number.isFinite(duration)) {
-      const seconds = v / 100 * duration
-      seek(seconds)
-    }
-  }
-
-  if (!currentTrack) {
-    return null
-  }
-
+// Memoized individual playlist item component
+const PlaylistItem = React.memo(({ track, origIndex, currentIndex, onClick }: {
+  track: MusicTrack
+  origIndex: number
+  currentIndex: number | null
+  onClick: () => void
+}) => {
   return (
-    <div className="">
-      <div className="flex justify-between">
-        <div className="text-xs text-gray-500 dark:text-gray-400 py-1">
-          {currentTime
-            ? (isDragging ? formatDurationMMSS(Math.floor((dragPercent || 0) / 100 * (duration || 1))) : formatDurationMMSS(Math.floor(currentTime)))
-            : '00:00'}
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400">
-          {duration ? formatDurationMMSS(Math.floor(duration)) : '00:00'}
-        </div>
-      </div>
-      <ProgressControl
-        value={valuePercent}
-        onChange={handleChange}
-        onChangeEnd={handleChangeEnd}
-        onIsDraggingChange={setIsDragging}
+    <div
+      data-index={origIndex}
+      onClick={onClick}
+      className={cn(
+        'p-2 border-b last:border-b-0 flex items-center gap-2 cursor-pointer',
+        origIndex === currentIndex ? 'bg-slate-100 dark:bg-slate-700' : '',
+      )}
+    >
+      <Image
+        src={track.albumPic}
+        alt={track.album}
+        width={40}
+        height={40}
+        className="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700 h-10 w-10"
+        loading="lazy"
       />
-      <div className="flex items-center justify-center mt-2 gap-4 text-slate-500 ">
-        <PlayModeButton />
-        <CircleArrowLeftIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} onClick={prev} />
-        {isPlaying
-          ? (
-              <PauseIcon
-                className={cn('w-8 h-8 cursor-pointer', BUTTON_ANIMATION_CLASSNAME)}
-                onClick={pause}
-              />
-            )
-          : (
-              <PlayIcon
-                className={cn('w-8 h-8 cursor-pointer', BUTTON_ANIMATION_CLASSNAME)}
-                onClick={play}
-              />
-            )}
-        <CircleArrowRightIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} onClick={next} />
-        <Playlist />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate overflow-hidden whitespace-nowrap">
+          {track.name}
+        </div>
+        <div className="text-xs text-gray-600 dark:text-gray-400 truncate overflow-hidden whitespace-nowrap">
+          {track.artists.join('/')}
+          {' '}
+          -
+          {track.album}
+        </div>
       </div>
     </div>
   )
-}
+})
+PlaylistItem.displayName = 'PlaylistItem'
 
-function PlayModeButton() {
-  const [storedPlayMode, setStoredPlayMode, isStoredPlayModeLoaded] = useStoredState<PlayMode>('music-play-mode', 'repeat-all')
-  const { playMode, setPlayMode } = useMusic()
-
-  // 确保在存储加载完成并且值存在时同步到 context
-  useEffect(() => {
-    if (!isStoredPlayModeLoaded)
-      return
-    if (storedPlayMode == null)
-      return
-    setPlayMode(storedPlayMode)
-  }, [isStoredPlayModeLoaded, storedPlayMode, setPlayMode])
-
-  const icons: Record<PlayMode, React.ReactNode> = {
-    'repeat-all': <RepeatIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />,
-    'repeat-one': <Repeat1Icon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />,
-    'shuffle': <Shuffle className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />,
-  }
-
-  const handleClick = () => {
-    const nextMode: PlayMode = playMode === 'repeat-all'
-      ? 'repeat-one'
-      : playMode === 'repeat-one'
-        ? 'shuffle'
-        : 'repeat-all'
-    setPlayMode(nextMode)
-    setStoredPlayMode(nextMode)
-  }
-
-  return (
-    <button
-      type="button"
-      aria-label="切换播放模式"
-      onClick={handleClick}
-      className="p-1"
-    >
-      {icons[playMode ?? 'repeat-all']}
-    </button>
-  )
-}
-
-function Playlist() {
+const Playlist = React.memo(() => {
   const { playlist, playTrack, currentIndex } = useMusic()
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = React.useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [showSearch, setShowSearch] = useState(false)
 
-  const handleChangeTrack = (index: number) => () => {
+  const handleChangeTrack = React.useCallback((index: number) => () => {
     playTrack(index)
     setOpen(false)
-  }
+  }, [playTrack])
 
   // filteredPlaylist 保留原始索引
   const filteredPlaylist = React.useMemo(() => {
@@ -482,34 +416,13 @@ function Playlist() {
             ? (
                 filteredPlaylist.length > 0
                   ? filteredPlaylist.map(({ track, origIndex }) => (
-                      <div
+                      <PlaylistItem
                         key={track.id}
-                        data-index={origIndex} // 使用原始索引
+                        track={track}
+                        origIndex={origIndex}
+                        currentIndex={currentIndex}
                         onClick={handleChangeTrack(origIndex)}
-                        className={cn(
-                          'p-2 border-b last:border-b-0 flex items-center gap-2 cursor-pointer',
-                          origIndex === currentIndex ? 'bg-slate-100 dark:bg-slate-700' : '',
-                        )}
-                      >
-                        <Image
-                          src={track.albumPic}
-                          alt={track.album}
-                          width={40}
-                          height={40}
-                          className="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700 h-10 w-10"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate overflow-hidden whitespace-nowrap">
-                            {track.name}
-                          </div>
-                          <div className="text-xs text-gray-600 dark:text-gray-400 truncate overflow-hidden whitespace-nowrap">
-                            {track.artists.join('/')}
-                            {' '}
-                            -
-                            {track.album}
-                          </div>
-                        </div>
-                      </div>
+                      />
                     ))
                   : <div className="p-2 text-sm text-gray-500">No matching tracks</div>
               )
@@ -517,5 +430,113 @@ function Playlist() {
         </div>
       </PopoverContent>
     </Popover>
+  )
+})
+Playlist.displayName = 'Playlist'
+
+function PlayerControls() {
+  const { currentTrack, currentTime, duration, isPlaying, play, pause, next, prev, seek } = useMusic()
+  const [dragPercent, setDragPercent] = useState<number | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const valuePercent = dragPercent != null
+    ? dragPercent
+    : (duration ? (currentTime || 0) / duration * 100 : 0)
+
+  const handleChange = (v: number) => {
+    setDragPercent(v)
+  }
+
+  const handleChangeEnd = (v: number) => {
+    setDragPercent(null)
+    if (duration && Number.isFinite(duration)) {
+      const seconds = v / 100 * duration
+      seek(seconds)
+    }
+  }
+
+  if (!currentTrack) {
+    return null
+  }
+
+  return (
+    <div className="">
+      <div className="flex justify-between">
+        <div className="text-xs text-gray-500 dark:text-gray-400 py-1">
+          {currentTime
+            ? (isDragging ? formatDurationMMSS(Math.floor((dragPercent || 0) / 100 * (duration || 1))) : formatDurationMMSS(Math.floor(currentTime)))
+            : '00:00'}
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {duration ? formatDurationMMSS(Math.floor(duration)) : '00:00'}
+        </div>
+      </div>
+      <ProgressControl
+        value={valuePercent}
+        onChange={handleChange}
+        onChangeEnd={handleChangeEnd}
+        onIsDraggingChange={setIsDragging}
+      />
+      <div className="flex items-center justify-center mt-2 gap-4 text-slate-500 ">
+        <PlayModeButton />
+        <CircleArrowLeftIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} onClick={prev} />
+        {isPlaying
+          ? (
+              <PauseIcon
+                className={cn('w-8 h-8 cursor-pointer', BUTTON_ANIMATION_CLASSNAME)}
+                onClick={pause}
+              />
+            )
+          : (
+              <PlayIcon
+                className={cn('w-8 h-8 cursor-pointer', BUTTON_ANIMATION_CLASSNAME)}
+                onClick={play}
+              />
+            )}
+        <CircleArrowRightIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} onClick={next} />
+        <Playlist />
+      </div>
+    </div>
+  )
+}
+
+function PlayModeButton() {
+  const [storedPlayMode, setStoredPlayMode, isStoredPlayModeLoaded] = useStoredState<PlayMode>('music-play-mode', 'repeat-all')
+  const { playMode, setPlayMode } = useMusic()
+
+  // 确保在存储加载完成并且值存在时同步到 context
+  useEffect(() => {
+    if (!isStoredPlayModeLoaded)
+      return
+    if (storedPlayMode == null)
+      return
+    setPlayMode(storedPlayMode)
+  }, [isStoredPlayModeLoaded, storedPlayMode, setPlayMode])
+
+  const icons: Record<PlayMode, React.ReactNode> = {
+    'repeat-all': <RepeatIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />,
+    'repeat-one': <Repeat1Icon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />,
+    'shuffle': <Shuffle className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />,
+  }
+
+  const handleClick = () => {
+    const nextMode: PlayMode = playMode === 'repeat-all'
+      ? 'repeat-one'
+      : playMode === 'repeat-one'
+        ? 'shuffle'
+        : 'repeat-all'
+    setPlayMode(nextMode)
+    setStoredPlayMode(nextMode)
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label="切换播放模式"
+      onClick={handleClick}
+      className="p-1"
+    >
+      {icons[playMode ?? 'repeat-all']}
+    </button>
   )
 }

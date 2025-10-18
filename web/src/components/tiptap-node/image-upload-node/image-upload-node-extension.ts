@@ -5,7 +5,7 @@ import { ImageUploadNode as ImageUploadNodeComponent } from '@/components/tiptap
 export type UploadFunction = (
   file: File,
   onProgress?: (event: { progress: number }) => void,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
 ) => Promise<string>
 
 export interface ImageUploadNodeOptions {

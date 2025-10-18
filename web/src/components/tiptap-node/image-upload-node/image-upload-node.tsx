@@ -63,7 +63,7 @@ export interface UploadOptions {
   upload: (
     file: File,
     onProgress: (event: { progress: number }) => void,
-    signal: AbortSignal
+    signal: AbortSignal,
   ) => Promise<string>
   /**
    * Callback triggered when a file is uploaded successfully
