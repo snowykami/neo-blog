@@ -216,9 +216,6 @@ function TrackInfo() {
               key={currentIndex}
               speed={30}
               pauseOnHover={true}
-              gradient={isNameMarqueePlaying}
-              gradientWidth={10}
-              gradientColor={mode === 'dark' ? '' : 'white'}
               play={isNameMarqueePlaying}
             >
               {currentTrack.name}
@@ -232,9 +229,6 @@ function TrackInfo() {
               key={currentIndex}
               speed={30}
               pauseOnHover={true}
-              gradient={isArtistMarqueePlaying}
-              gradientWidth={10}
-              gradientColor={mode === 'dark' ? '' : 'white'}
               play={isArtistMarqueePlaying}
             >
               {currentTrack.artists.join('/')}
