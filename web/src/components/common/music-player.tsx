@@ -473,17 +473,6 @@ function Playlist() {
         <ListMusicIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />
       </PopoverTrigger>
       <PopoverContent className="fixed -right-16 bottom-4 z-1001 p-1">
-        {
-          !showSearch && (
-            <div className="px-2 pb-1 text-sm text-gray-500 dark:text-gray-400">
-              {t('playlist')}
-              {' '}
-              (
-              {playlist.length}
-              )
-            </div>
-          )
-        }
         {showSearch
           ? (
               <div className="flex gap-1 border-b border-gray-200 dark:border-slate-700 pb-1">
@@ -509,7 +498,14 @@ function Playlist() {
               </div>
             )
           : (
-              <div className="flex justify-end pb-1">
+              <div className="flex pb-1 justify-between items-center">
+                <div className="px-2 pb-1 text-sm text-gray-500 dark:text-gray-400">
+                  {t('playlist')}
+                  {' '}
+                  (
+                  {playlist.length}
+                  )
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowSearch(true)}
