@@ -1,6 +1,7 @@
 'use client'
 
 import type { PlayMode } from '@/contexts/music-context'
+import type { MusicTrack } from '@/models/music'
 import { useMeasure } from '@uidotdev/usehooks'
 import { CircleArrowLeftIcon, CircleArrowRightIcon, ListMusicIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle } from 'lucide-react'
 import Image from 'next/image'
@@ -148,6 +149,7 @@ export function MusicPlayer() {
             alt={currentTrack.album}
             width={60}
             height={60}
+            priority
             style={{ transform: `rotate(${rotateDeg}deg)` }}
             className="object-cover rounded-full border-4 border-gray-200 dark:border-slate-700 h-12 w-12 lg:h-16 lg:w-16"
           />
@@ -203,6 +205,7 @@ function TrackInfo() {
         alt={currentTrack.album}
         width={60}
         height={60}
+        priority
         style={{ transform: `rotate(${rotateDeg}deg)` }}
         className="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700 w-15 h-15"
       />
@@ -367,6 +370,50 @@ function PlayModeButton() {
   )
 }
 
+// Memoized playlist item component to prevent unnecessary re-renders
+const PlaylistItem = React.memo(({ track, origIndex, currentIndex, onClick }: {
+  track: MusicTrack
+  origIndex: number
+  currentIndex: number | null
+  onClick: () => void
+}) => {
+  const isActive = origIndex === currentIndex
+
+  return (
+    <div
+      key={track.id}
+      data-index={origIndex}
+      onClick={onClick}
+      className={cn(
+        'p-2 border-b last:border-b-0 flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors',
+        isActive ? 'bg-slate-100 dark:bg-slate-700' : '',
+      )}
+    >
+      <Image
+        src={track.albumPic}
+        alt={track.album}
+        width={40}
+        height={40}
+        loading="lazy"
+        className="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700 h-10 w-10"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate overflow-hidden whitespace-nowrap">
+          {track.name}
+        </div>
+        <div className="text-xs text-gray-600 dark:text-gray-400 truncate overflow-hidden whitespace-nowrap">
+          {track.artists.join('/')}
+          {' '}
+          -
+          {track.album}
+        </div>
+      </div>
+    </div>
+  )
+})
+
+PlaylistItem.displayName = 'PlaylistItem'
+
 function Playlist() {
   const { playlist, playTrack, currentIndex } = useMusic()
   const containerRef = React.useRef<HTMLDivElement | null>(null)
@@ -374,10 +421,10 @@ function Playlist() {
   const [searchKeyword, setSearchKeyword] = useState('')
   const [showSearch, setShowSearch] = useState(false)
 
-  const handleChangeTrack = (index: number) => () => {
+  const handleChangeTrack = React.useCallback((index: number) => () => {
     playTrack(index)
     setOpen(false)
-  }
+  }, [playTrack])
 
   // filteredPlaylist 保留原始索引
   const filteredPlaylist = React.useMemo(() => {
@@ -482,34 +529,13 @@ function Playlist() {
             ? (
                 filteredPlaylist.length > 0
                   ? filteredPlaylist.map(({ track, origIndex }) => (
-                      <div
+                      <PlaylistItem
                         key={track.id}
-                        data-index={origIndex} // 使用原始索引
+                        track={track}
+                        origIndex={origIndex}
+                        currentIndex={currentIndex}
                         onClick={handleChangeTrack(origIndex)}
-                        className={cn(
-                          'p-2 border-b last:border-b-0 flex items-center gap-2 cursor-pointer',
-                          origIndex === currentIndex ? 'bg-slate-100 dark:bg-slate-700' : '',
-                        )}
-                      >
-                        <Image
-                          src={track.albumPic}
-                          alt={track.album}
-                          width={40}
-                          height={40}
-                          className="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700 h-10 w-10"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate overflow-hidden whitespace-nowrap">
-                            {track.name}
-                          </div>
-                          <div className="text-xs text-gray-600 dark:text-gray-400 truncate overflow-hidden whitespace-nowrap">
-                            {track.artists.join('/')}
-                            {' '}
-                            -
-                            {track.album}
-                          </div>
-                        </div>
-                      </div>
+                      />
                     ))
                   : <div className="p-2 text-sm text-gray-500">No matching tracks</div>
               )
