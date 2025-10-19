@@ -45,7 +45,7 @@ export function MusicPlayer() {
   const lastSavedTimeRef = useRef(0)
 
   useEffect(() => {
-    setNavTitle(isPlaying ? `${currentLyric}` : '')
+    setNavTitle(isPlaying ? `${currentLyric || ''}` : '')
   }, [currentLyric, setNavTitle, isPlaying])
 
   useEffect(() => {
