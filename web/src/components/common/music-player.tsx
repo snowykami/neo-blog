@@ -3,7 +3,7 @@
 import type { PlayMode } from '@/contexts/music-context'
 import type { MusicTrack } from '@/models/music'
 import { useMeasure } from '@uidotdev/usehooks'
-import { CircleArrowLeftIcon, CircleArrowRightIcon, ListMusicIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle } from 'lucide-react'
+import { CircleArrowLeftIcon, CircleArrowRightIcon, CirclePauseIcon, CirclePlayIcon, ListMusicIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import React, { useEffect, useRef, useState } from 'react'
@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
 import { Input } from '../ui/input'
 
-const BUTTON_ANIMATION_CLASSNAME = 'hover:scale-115 transition-transform duration-400'
+const BUTTON_ANIMATION_CLASSNAME = 'hover:scale-115 transition-all duration-400 hover:text-primary'
 
 export function MusicPlayer() {
   const {
@@ -235,6 +235,7 @@ function TrackInfo() {
               -
               {' '}
               {currentTrack.album}
+              {'          '}
             </Marquee>
           </div>
         </div>
@@ -304,14 +305,14 @@ function PlayerControls() {
         <CircleArrowLeftIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} onClick={prev} />
         {isPlaying
           ? (
-              <PauseIcon
-                className={cn('w-8 h-8 cursor-pointer', BUTTON_ANIMATION_CLASSNAME)}
+              <CirclePauseIcon
+                className={cn('w-8 h-8 cursor-pointer text-primary', BUTTON_ANIMATION_CLASSNAME)}
                 onClick={pause}
               />
             )
           : (
-              <PlayIcon
-                className={cn('w-8 h-8 cursor-pointer', BUTTON_ANIMATION_CLASSNAME)}
+              <CirclePlayIcon
+                className={cn('w-8 h-8 cursor-pointer text-primary', BUTTON_ANIMATION_CLASSNAME)}
                 onClick={play}
               />
             )}
@@ -325,6 +326,7 @@ function PlayerControls() {
 function PlayModeButton() {
   const [storedPlayMode, setStoredPlayMode, isStoredPlayModeLoaded] = useStoredState<PlayMode>('music-play-mode', 'repeat-all')
   const { playMode, setPlayMode } = useMusic()
+  const playModeSize = 'w-5 h-5'
 
   // 确保在存储加载完成并且值存在时同步到 context
   useEffect(() => {
@@ -336,9 +338,9 @@ function PlayModeButton() {
   }, [isStoredPlayModeLoaded, storedPlayMode, setPlayMode])
 
   const icons: Record<PlayMode, React.ReactNode> = {
-    'repeat-all': <RepeatIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />,
-    'repeat-one': <Repeat1Icon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />,
-    'shuffle': <Shuffle className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />,
+    'repeat-all': <RepeatIcon className={cn(playModeSize, BUTTON_ANIMATION_CLASSNAME)} />,
+    'repeat-one': <Repeat1Icon className={cn(playModeSize, BUTTON_ANIMATION_CLASSNAME)} />,
+    'shuffle': <Shuffle className={cn(playModeSize, BUTTON_ANIMATION_CLASSNAME)} />,
   }
 
   const handleClick = () => {
@@ -379,17 +381,26 @@ const PlaylistItem = React.memo(({ track, origIndex, currentIndex, onClick }: {
       onClick={onClick}
       className={cn(
         'p-2 border-b last:border-b-0 flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors',
-        isActive ? 'bg-slate-100 dark:bg-slate-700' : '',
+        isActive ? 'bg-primary/25 dark:bg-slate-700' : '',
       )}
     >
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate overflow-hidden whitespace-nowrap">
+        <div className={cn(
+          'text-sm font-medium text-gray-900 dark:text-gray-100 truncate overflow-hidden whitespace-nowrap',
+          isActive ? 'text-primary' : '',
+        )}
+        >
           {track.name}
         </div>
-        <div className="text-xs text-gray-600 dark:text-gray-400 truncate overflow-hidden whitespace-nowrap">
+        <div className={cn(
+          'text-xs text-gray-600 dark:text-gray-400 truncate overflow-hidden whitespace-nowrap',
+          isActive ? 'text-primary/80' : '',
+        )}
+        >
           {track.artists.join('/')}
           {' '}
           -
+          {' '}
           {track.album}
         </div>
       </div>
@@ -470,7 +481,7 @@ function Playlist() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <ListMusicIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />
+        <ListMusicIcon className={cn('w-5 h-5', BUTTON_ANIMATION_CLASSNAME)} />
       </PopoverTrigger>
       <PopoverContent className="fixed -right-16 bottom-4 z-1001 p-1">
         {showSearch
