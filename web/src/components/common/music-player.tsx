@@ -4,13 +4,13 @@ import type { PlayMode } from '@/contexts/music-context'
 import type { MusicTrack } from '@/models/music'
 import { useMeasure } from '@uidotdev/usehooks'
 import { CircleArrowLeftIcon, CircleArrowRightIcon, ListMusicIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import React, { useEffect, useRef, useState } from 'react'
 import Marquee from 'react-fast-marquee'
 import { fetchPlaylist } from '@/api/music'
 import { ProgressControl } from '@/components/common/controlled-progress'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useDevice } from '@/contexts/device-context'
 import { useMusic } from '@/contexts/music-context'
 import { useNav } from '@/contexts/nav-context'
 import { useStoredState } from '@/hooks/use-storage-state'
@@ -177,7 +177,6 @@ export function MusicPlayer() {
 
 function TrackInfo() {
   const { currentTrack, rotateDeg, isPlaying, currentIndex } = useMusic()
-  const { mode } = useDevice()
   if (!currentTrack) {
     return null
   }
@@ -383,14 +382,6 @@ const PlaylistItem = React.memo(({ track, origIndex, currentIndex, onClick }: {
         isActive ? 'bg-slate-100 dark:bg-slate-700' : '',
       )}
     >
-      <Image
-        src={track.albumPic}
-        alt={track.album}
-        width={40}
-        height={40}
-        loading="lazy"
-        className="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700 h-10 w-10"
-      />
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate overflow-hidden whitespace-nowrap">
           {track.name}
@@ -409,6 +400,7 @@ const PlaylistItem = React.memo(({ track, origIndex, currentIndex, onClick }: {
 PlaylistItem.displayName = 'PlaylistItem'
 
 function Playlist() {
+  const t = useTranslations('MusicPlayer')
   const { playlist, playTrack, currentIndex } = useMusic()
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = React.useState(false)
@@ -480,8 +472,18 @@ function Playlist() {
       <PopoverTrigger asChild>
         <ListMusicIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />
       </PopoverTrigger>
-
       <PopoverContent className="fixed -right-16 bottom-4 z-1001 p-1">
+        {
+          !showSearch && (
+            <div className="px-2 pb-1 text-sm text-gray-500 dark:text-gray-400">
+              {t('playlist')}
+              {' '}
+              (
+              {playlist.length}
+              )
+            </div>
+          )
+        }
         {showSearch
           ? (
               <div className="flex gap-1 border-b border-gray-200 dark:border-slate-700 pb-1">

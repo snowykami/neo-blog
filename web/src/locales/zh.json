@@ -357,6 +357,9 @@
     "and": "和",
     "privacy_policy": "隐私政策"
   },
+  "MusicPlayer": {
+    "playlist": "播放列表"
+  },
   "Operation": {
     "back_to_home": "返回首页",
     "batch_delete": "批量删除",
