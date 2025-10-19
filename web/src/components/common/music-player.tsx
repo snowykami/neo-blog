@@ -204,7 +204,7 @@ function TrackInfo() {
         width={60}
         height={60}
         style={{ transform: `rotate(${rotateDeg}deg)` }}
-        className="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700"
+        className="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700 w-15 h-15"
       />
       <div className="flex flex-col justify-center px-4 gap-2 font-mono min-w-0">
         <div ref={nameContainerRef as any} className="text-lg font-medium text-gray-900 dark:text-gray-100 overflow-hidden min-w-0">
