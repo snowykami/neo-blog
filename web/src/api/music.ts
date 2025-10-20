@@ -2,7 +2,7 @@ import type { MusicTrack } from '@/models/music'
 import { snakeToCamelObj } from 'field-conv'
 
 export async function fetchPlaylist(): Promise<MusicTrack[]> {
-  const response = await fetch('https://cdn.liteyuki.org/snowykami/playlist.json')
+  const response = await fetch('https://cdn.liteyuki.org/snowykami/music/playlists/favorite.json')
   if (!response.ok) {
     throw new Error('Network response was not ok')
   }
