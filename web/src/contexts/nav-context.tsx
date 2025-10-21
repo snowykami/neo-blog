@@ -1,6 +1,7 @@
 // ...existing code...
 'use client'
 
+import { IconInnerShadowTop } from '@tabler/icons-react'
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { contentAreaPaddingClass, navHeight } from '@/utils/common/layout-size'
@@ -26,7 +27,10 @@ interface NavContextValue {
 
   // navTitle: string;
   navTitle: string
+  navIcon: React.ReactNode
   setNavTitle: (title: string) => void
+  setNavIcon: (icon: React.ReactNode) => void
+  resetNavIcon: () => void
 }
 
 export const DEFAULT_NAV_CLASSNAME = `bg-background/90 backdrop-blur md:rounded-b-2xl shadow-md border-b border-border/50 h-${navHeight} ${contentAreaPaddingClass}`
@@ -42,11 +46,16 @@ export function NavPaddingProvider({
   initialHasNavPadding?: boolean
   initialNavClassName?: string
 }) {
+  const [navIcon, setNavIcon] = useState<React.ReactNode>(<IconInnerShadowTop className="!size-6" />)
   const [hasNavPadding, setHasNavPadding] = useState<boolean>(initialHasNavPadding)
   const [navClassName, setNavClassName] = useState<string>(
     cn(DEFAULT_NAV_CLASSNAME, initialNavClassName),
   )
   const [navTitle, setNavTitle] = useState<string>('')
+
+  const resetNavIcon = useCallback(() => {
+    setNavIcon(<IconInnerShadowTop className="!size-6" />)
+  }, [])
 
   const toggleNavPadding = useCallback(() => {
     setHasNavPadding(prev => !prev)
@@ -94,6 +103,9 @@ export function NavPaddingProvider({
 
       navTitle,
       setNavTitle,
+      setNavIcon,
+      navIcon,
+      resetNavIcon,
     }),
     [
       hasNavPadding,
@@ -107,6 +119,9 @@ export function NavPaddingProvider({
       setTransparentNav,
       setSolidNav,
       setNavTitle,
+      setNavIcon,
+      navIcon,
+      resetNavIcon,
     ],
   )
 

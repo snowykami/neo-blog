@@ -91,19 +91,25 @@ const navbarMenuComponents = [
 export default function Navbar() {
   const { siteInfo } = useSiteInfo()
   const isMobile = useIsMobile()
-  const { navClassName, navTitle } = useNav()
+  const { navClassName, navTitle, navIcon } = useNav()
   return (
     <div className={cn('flex items-center w-full max-w-screen px-4', navClassName)}>
       {/* 左侧：等分 1/3，min-w-0 保证在 flex 收缩时文本能 truncate */}
       <div className="flex-1 min-w-0 flex items-center ">
         <span className="font-bold text-lg">
           <Link href="/" className="flex items-center text-primary gap-1">
-            <IconInnerShadowTop className="!size-6" />
+            <span
+              className="flex items-center justify-center"
+              style={{ animation: 'navFade 500ms ease' }}
+            >
+              {navIcon}
+            </span>
             <span
               key={String(navTitle || siteInfo.metadata.name)}
               className="inline-block truncate max-w-[20ch] md:max-w-[28ch] lg:max-w-[36ch]"
               style={{ animation: 'navFade 500ms ease' }}
             >
+
               {navTitle || siteInfo.metadata.name}
             </span>
           </Link>

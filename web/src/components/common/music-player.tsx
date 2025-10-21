@@ -3,7 +3,7 @@
 import type { PlayMode } from '@/contexts/music-context'
 import type { MusicTrack } from '@/models/music'
 import { useMeasure } from '@uidotdev/usehooks'
-import { CircleArrowLeftIcon, CircleArrowRightIcon, CirclePauseIcon, CirclePlayIcon, ListMusicIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle } from 'lucide-react'
+import { CircleArrowLeftIcon, CircleArrowRightIcon, CirclePauseIcon, CirclePlayIcon, ListMusicIcon, MusicIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import React, { useEffect, useRef, useState } from 'react'
@@ -36,7 +36,7 @@ export function MusicPlayer() {
     currentLyric,
     isPlaying,
   } = useMusic()
-  const { setNavTitle } = useNav()
+  const { setNavTitle, setNavIcon, resetNavIcon } = useNav()
   const [storedIndex, setStoredIndex, isStoredIndexLoaded] = useStoredState<number | null>('music-current-index', null)
   const [storedTime, setStoredTime, isStoredTimeLoaded] = useStoredState<number | null>('music-current-time', null)
 
@@ -47,6 +47,16 @@ export function MusicPlayer() {
 
   useEffect(() => {
     setNavTitle(isPlaying ? `${currentLyric || ''}` : '')
+    if (isPlaying) {
+      setNavIcon(
+        <MusicIcon
+          className="size-6!"
+        />,
+      )
+    }
+    else {
+      resetNavIcon()
+    }
   }, [currentLyric, setNavTitle, isPlaying])
 
   useEffect(() => {
