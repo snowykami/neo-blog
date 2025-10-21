@@ -1,6 +1,5 @@
 'use client'
 
-import { IconInnerShadowTop } from '@tabler/icons-react'
 import {
   ArchiveIcon,
   ContactIcon,
