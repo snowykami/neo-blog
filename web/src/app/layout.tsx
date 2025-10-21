@@ -25,7 +25,7 @@ const spaceMono = Space_Mono({
   variable: '--font-space-mono',
   subsets: ['latin'],
   display: 'swap',
-  weight: '700',
+  weight: '400',
 })
 
 const inter = Inter({
