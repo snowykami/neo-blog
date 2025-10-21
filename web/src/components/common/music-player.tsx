@@ -17,6 +17,7 @@ import { useStoredState } from '@/hooks/use-storage-state'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
 import { Input } from '../ui/input'
+import LyricScroll from './music-lyric-scroll'
 
 const BUTTON_ANIMATION_CLASSNAME = 'hover:scale-115 transition-all duration-400 hover:text-primary'
 
@@ -167,7 +168,7 @@ export function MusicPlayer() {
           className="flex flex-col gap-2"
         >
           <TrackInfo />
-          {/* <LyricScroll /> */}
+          <LyricScroll />
           <PlayerControls />
         </div>
       </PopoverContent>
@@ -406,8 +407,6 @@ const PlaylistItem = React.memo(({ track, origIndex, currentIndex, onClick }: {
     </div>
   )
 })
-
-PlaylistItem.displayName = 'PlaylistItem'
 
 function Playlist() {
   const t = useTranslations('MusicPlayer')
