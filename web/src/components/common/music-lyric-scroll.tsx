@@ -52,7 +52,7 @@ export default function LyricScroll() {
     <div
       ref={containerRef}
       className={`
-        h-30 overflow-y-auto
+        h-36 overflow-y-auto
         px-0 py-2
         text-base
         leading-8
