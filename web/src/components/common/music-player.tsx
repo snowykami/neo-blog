@@ -218,6 +218,7 @@ function TrackInfo() {
               play={isNameMarqueePlaying}
             >
               {currentTrack.name}
+              <span className="mr-20"></span>
             </Marquee>
           </div>
         </div>
@@ -231,11 +232,9 @@ function TrackInfo() {
               play={isArtistMarqueePlaying}
             >
               {currentTrack.artists.join('/')}
-              {' '}
-              -
-              {' '}
+              <span className="mx-1">-</span>
               {currentTrack.album}
-              {'          '}
+              <span className="mr-10"></span>
             </Marquee>
           </div>
         </div>
