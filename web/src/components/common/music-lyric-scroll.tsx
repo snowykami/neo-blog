@@ -107,10 +107,9 @@ export default function LyricScroll() {
                     select-none px-2 py-0 rounded text-center m-0
                     transition-all duration-600 ease-[cubic-bezier(.4,2,.6,1)]
                     w-full font-bold
-                    ${isCurrent ? 'text-primary' : 'text-slate-600 dark:text-slate-400'}
+                    ${isCurrent ? 'text-primary bg-primary/15' : 'text-slate-600 dark:text-slate-400'}
                   `}
                   style={{
-                    background: 'transparent',
                     filter: isCurrent ? 'drop-shadow(0 2px 8px #60a5fa44)' : undefined,
                     fontSize: isCurrent ? '1.0rem' : '0.9rem',
                     opacity,
