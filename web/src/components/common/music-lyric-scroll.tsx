@@ -4,7 +4,7 @@ import { useMusic } from '@/contexts/music-context'
 
 export default function LyricScroll() {
   const t = useTranslations('MusicPlayer')
-  const { lyricLines, currentLyricIndex } = useMusic()
+  const { lyricLines, currentLyricIndex, seek } = useMusic()
   const containerRef = useRef<HTMLDivElement>(null)
   const lineRefs = useRef<(HTMLDivElement | null)[]>([])
 
@@ -118,6 +118,7 @@ export default function LyricScroll() {
                     transform: `scale(${scale}) translateY(${translateY}px)`,
                     zIndex: z,
                   }}
+                  onClick={() => { seek(line.time) }}
                 >
                   {line.text || '\u00A0'}
                 </div>
