@@ -4,7 +4,6 @@ import { Inter, Source_Code_Pro, Space_Mono } from 'next/font/google'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { getSiteInfo } from '@/api/misc'
 import { getLoginUserServer } from '@/api/user.server'
-import { ScrollbarOverlay } from '@/components/common/scrollbar-overlay'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/auth-context'
 import { DeviceProvider } from '@/contexts/device-context'
@@ -66,7 +65,7 @@ export default async function RootLayout({
       className="h-full"
       data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || 'blue'}
     >
-      <body className={`${geistMono.className} ${spaceMono.className} ${inter.className}`}>
+      <body className={`${geistMono.className} ${spaceMono.className} ${inter.className} hide-scrollbar`}>
         <Toaster richColors position="top-center" offset={80} />
         <NuqsAdapter>
           <DeviceProvider>
@@ -76,7 +75,6 @@ export default async function RootLayout({
                   <MusicProvider>
                     <NavPaddingProvider>
                       {children}
-                      <ScrollbarOverlay />
                     </NavPaddingProvider>
                   </MusicProvider>
                 </SiteInfoProvider>

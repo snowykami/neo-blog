@@ -248,7 +248,7 @@ export function PostLabelSelector({
                   />
                   {/* 把滚动限制放在 CommandList 上（真实渲染的容器） */}
                   <CommandList
-                    className="max-h-60 overflow-y-auto"
+                    className="max-h-60 overflow-y-auto "
                     style={{ WebkitOverflowScrolling: 'touch' }}
                   >
                     <CommandEmpty>{t('no_label')}</CommandEmpty>
