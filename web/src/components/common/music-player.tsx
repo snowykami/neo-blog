@@ -404,6 +404,9 @@ const PlaylistItem = React.memo(({ track, origIndex, currentIndex, onClick }: {
         )}
         >
           {track.name}
+          <span className="text-muted-foreground mr-1">
+            {track.aliases.length > 0 && ` (${track.aliases.join(', ')})`}
+          </span>
         </div>
         <div className={cn(
           'text-xs text-gray-600 dark:text-gray-400 truncate overflow-hidden whitespace-nowrap',
