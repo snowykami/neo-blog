@@ -109,7 +109,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const audio = audioRef.current
     if (!audio)
       return
-
     if (currentTrack) {
       // 清空旧歌词，避免切换歌曲时显示上一首的歌词
       if (prevTrackIdRef.current !== currentTrack.id) {
@@ -139,7 +138,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       audio.src = ''
       prevTrackIdRef.current = null
     }
-  }, [currentTrack])
+  }, [currentTrack, currentIndex])
 
   // 统一通过 audio 事件驱动上下文状态（isPlaying / time / duration / buffered）
   useEffect(() => {

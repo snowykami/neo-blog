@@ -358,7 +358,9 @@
     "privacy_policy": "隐私政策"
   },
   "MusicPlayer": {
-    "playlist": "播放列表"
+    "playlist": "播放列表",
+    "no_lyric": "暂无歌词",
+    "pure_music_without_lyric": "纯音乐，无歌词"
   },
   "Operation": {
     "back_to_home": "返回首页",

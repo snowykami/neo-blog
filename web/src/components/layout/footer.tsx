@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import React from 'react'
 import { useSiteInfo } from '@/contexts/site-info-context'
 
@@ -19,7 +20,7 @@ export default function Footer({ height }: { height: number }) {
       {' '}
       · Powered by
       {' '}
-      {siteInfo?.owner?.name}
+      <Link href="https://github.com/snowykami/neo-blog" target="_blank" className="underline hover:text-gray-700 dark:hover:text-gray-300 mx-1">Neo Blog</Link>
       {' '}
       ·
       {' '}

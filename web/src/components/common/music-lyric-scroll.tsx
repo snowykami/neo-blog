@@ -1,7 +1,9 @@
+import { useTranslations } from 'next-intl'
 import { useEffect, useRef } from 'react'
 import { useMusic } from '@/contexts/music-context'
 
 export default function LyricScroll() {
+  const t = useTranslations('MusicPlayer')
   const { lyricLines, currentLyricIndex } = useMusic()
   const containerRef = useRef<HTMLDivElement>(null)
   const lineRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -17,7 +19,7 @@ export default function LyricScroll() {
       const containerHeight = container.clientHeight
       const targetOffset
         = (target?.offsetTop ?? 0)
-          - containerHeight * 0.35
+          - containerHeight * 0.4 // 当前播放行偏上一些
           + (target?.clientHeight ?? 0) / 2
 
       const start = container.scrollTop
@@ -52,7 +54,7 @@ export default function LyricScroll() {
     <div
       ref={containerRef}
       className={`
-        h-36 overflow-y-auto
+        max-h-40 overflow-y-auto
         px-0 py-2
         text-base
         leading-8
@@ -61,10 +63,10 @@ export default function LyricScroll() {
         max-w-full
       `}
     >
-      {lyricLines.length === 0
+      {lyricLines.length === 1
         ? (
             <div className="text-center text-slate-600 dark:text-slate-500">
-              No lyrics available
+              {t(lyricLines[currentLyricIndex]?.text)}
             </div>
           )
         : (

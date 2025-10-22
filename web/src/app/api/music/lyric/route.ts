@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   let lyrics = ''
   try {
     const lyricsJson = JSON.parse(lyricsJsonText)
-    lyrics = lyricsJson?.lyric ?? (lyricsJson?.nolyric ? 'pure_music' : 'no_lyric')
+    lyrics = lyricsJson?.lyric ?? (lyricsJson?.nolyric ? '[00:00.00]pure_music_without_lyric' : '[00:00.00]no_lyric')
   }
   catch (error) {
     console.error('Failed to parse lyrics JSON:', error)
