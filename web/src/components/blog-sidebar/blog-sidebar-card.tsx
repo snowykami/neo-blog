@@ -1,8 +1,9 @@
 'use client'
 import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
-import { Eye, Heart, TrendingUp } from 'lucide-react'
+import { Eye, Heart, HeartIcon, TrendingUp } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -202,6 +203,57 @@ export function SidebarIframe(props?: {
           title={title}
         />
         {scriptSrc && <script src={scriptSrc} async defer className="w-full"></script>}
+      </CardContent>
+    </Card>
+  )
+}
+
+// 情侣空间卡片
+export function BlogSidebarCoupleSpace() {
+  const t = useTranslations('HomePage')
+  return (
+    <Card className="bg-pink-200 border-pink-300">
+      <CardContent className="p-0 flex flex-col items-center justify-center">
+        <div className="flex items-center justify-center gap-4 mb-2">
+          <div className="flex flex-col items-center w-12 overflow-visible">
+            <Image
+              className="rounded-full w-12 h-12 border-2 border-blue-400"
+              src="https://cdn.liteyuki.org/snowykami/avatar.jpg"
+              alt="A"
+              width={48}
+              height={48}
+            />
+            <div className="text-center text-sm font-medium text-blue-600 mt-2">
+              Snowykami
+            </div>
+          </div>
+
+          <HeartIcon className="w-6 h-6 text-pink-400" aria-hidden />
+
+          <div className="flex flex-col items-center w-12">
+            <Image
+              className="rounded-full w-12 h-12 border-2 border-pink-400"
+              src="https://avatars.githubusercontent.com/u/182211573?v=4"
+              alt="B"
+              width={48}
+              height={48}
+            />
+            <div className="text-center text-sm font-medium text-pink-600 mt-2">
+              balancetheworld
+            </div>
+          </div>
+        </div>
+        <div className="p-2 text-center text-sm text-pink-800 font-medium">
+          {t('already_in_love_n_day', {
+            n: (() => {
+              const now = new Date()
+              const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+              const startUtc = Date.UTC(2025, 9, 19) // month is 0-based: 9 -> October
+              const days = Math.floor((todayUtc - startUtc) / 86400000) + 1 // inclusive count
+              return Math.max(0, days)
+            })(),
+          })}
+        </div>
       </CardContent>
     </Card>
   )

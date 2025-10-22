@@ -127,7 +127,6 @@ export function ProgressControl({
     const v = Math.round(pct * 10000) / 100
     setLocal(v)
     // 不直接调用 onChange，等待真正的拖动或 pointerup 调用
-
     // 监听全局 move/up，实际是否进入 dragging 由 move 判定
     window.addEventListener('pointermove', onWindowPointerMove)
     window.addEventListener('pointerup', onWindowPointerUp)

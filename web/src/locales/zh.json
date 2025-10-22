@@ -6,7 +6,8 @@
     "card": "大卡片"
   },
   "HomePage": {
-    "title": "Hello world!"
+    "title": "Hello world!",
+    "already_in_love_n_day": "已相恋 {n} 天"
   },
   "BlogHome": {
     "hottest": "热门",
