@@ -108,7 +108,7 @@ export default function LyricScroll() {
                   className={`
                     select-none px-2 py-0 rounded text-center m-0
                     transition-all duration-600 ease-[cubic-bezier(.4,2,.6,1)]
-                    w-full font-bold
+                    w-full font-bold cursor-pointer
                     ${isCurrent ? 'text-primary bg-primary/15' : 'text-slate-600 dark:text-slate-400'}
                   `}
                   style={{
