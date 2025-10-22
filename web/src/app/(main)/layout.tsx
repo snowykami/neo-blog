@@ -46,7 +46,7 @@ export default function RootLayout({
       >
         <main
           style={{ minHeight: minMainHeight }}
-          className={`mx-auto ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${hasNavPadding ? 'pt-16' : ''} min-h-0`}
+          className={`mx-auto ${contentAreaMaxWidthClass} ${contentAreaPaddingClass} ${hasNavPadding ? 'pt-16' : ''} min-h-0 `}
         >
           {children}
         </main>

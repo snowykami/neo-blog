@@ -31,7 +31,7 @@ export function AvatarWithDropdownMenu() {
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <div className="">
           {user
