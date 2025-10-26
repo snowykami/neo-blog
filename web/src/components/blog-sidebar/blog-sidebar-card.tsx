@@ -214,7 +214,7 @@ export function BlogSidebarCoupleSpace() {
   return (
     <Card className="bg-pink-200 border-pink-300">
       <CardContent className="p-0 flex flex-col items-center justify-center">
-        <div className="flex items-center justify-center gap-4 mb-2">
+        <div className="flex items-center justify-center gap-10 md:gap-8 lg:gap-6 mb-2">
           <Link href="https://github.com/snowykami" className="flex flex-col items-center w-12 cursor-pointer">
             <Image
               className="rounded-full w-12 h-12 border-2 border-blue-400"

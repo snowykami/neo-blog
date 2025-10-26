@@ -1,6 +1,5 @@
 'use client'
 import { motion } from 'motion/react'
-import { FloatingWidgets } from '@/components/common/main-floating-widgets'
 import Footer from '@/components/layout/footer'
 import Navbar from '@/components/layout/nav/navbar-or-side'
 import { BackgroundProvider } from '@/contexts/background-context'
@@ -25,7 +24,7 @@ export default function RootLayout({
 
   return (
     <div className="flex flex-col min-h-screen">
-      <FloatingWidgets />
+
       <motion.nav
         className="w-full fixed inset-x-0 z-5"
         initial={{ y: -64 }}

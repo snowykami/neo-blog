@@ -4,6 +4,7 @@ import { Inter, Source_Code_Pro, Space_Mono } from 'next/font/google'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { getSiteInfo } from '@/api/misc'
 import { getLoginUserServer } from '@/api/user.server'
+import { FloatingWidgets } from '@/components/common/main-floating-widgets'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/auth-context'
 import { DeviceProvider } from '@/contexts/device-context'
@@ -74,6 +75,7 @@ export default async function RootLayout({
                 <SiteInfoProvider initialData={siteInfo}>
                   <MusicProvider>
                     <NavPaddingProvider>
+                      <FloatingWidgets />
                       {children}
                     </NavPaddingProvider>
                   </MusicProvider>
