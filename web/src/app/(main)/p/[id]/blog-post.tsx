@@ -20,6 +20,7 @@ import { PostHeaderClient } from '@/components/blog-post/post-header.client'
 import BlogSidebar from '@/components/blog-sidebar'
 import {
   BlogSidebarAbout,
+  BlogSidebarCoupleSpace,
   BlogSidebarLabels,
   SidebarMisskeyIframe,
 } from '@/components/blog-sidebar/blog-sidebar-card'
@@ -193,6 +194,7 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
             cards={[
               <BlogSidebarAbout key="about" />,
               <BlogSidebarLabels key="labels" />,
+              <BlogSidebarCoupleSpace key="couple-space" />,
               <SidebarMisskeyIframe key="misskey" />,
             ].filter(Boolean)}
           />
