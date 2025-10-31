@@ -1,6 +1,8 @@
 # neo-blog
 新的博客，前端由next驱动，后端由hertz驱动
 
+阅读：[DeepWiki Document / 文档](https://deepwiki.com/snowykami/neo-blog)
+
 ![](./image/image.png)
 
 ## 功能列表
