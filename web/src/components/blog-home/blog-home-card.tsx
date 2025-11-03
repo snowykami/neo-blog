@@ -176,14 +176,16 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
 // 博客卡片骨架屏
 export function BlogCardSkeleton({ className }: { className?: string }) {
   return (
-    <Card className={cn('overflow-hidden h-full flex flex-col gap-2 pt-0', className)}>
-      {/* 封面图片骨架 */}
-      <Skeleton className="relative aspect-[16/8]" />
+    <Card className={cn('group overflow-hidden h-full flex flex-col gap-2 pt-0', className)}>
+      {/* 封面图片骨架 - 与真实 Card 的封面尺寸一致 */}
+      <div className="relative aspect-[16/8] overflow-hidden">
+        <Skeleton className="absolute inset-0 w-full h-full" />
+      </div>
 
-      {/* Card Header - 标题骨架 */}
+      {/* Card Header - 标题骨架，使用与真实 Card 相同的间距 */}
       <CardHeader className="mt-2 lg:mt-4">
-        <Skeleton className="h-7 w-4/5" />
-        <Skeleton className="h-7 w-3/5 mt-2" />
+        <Skeleton className="h-6 w-4/5" />
+        <Skeleton className="h-6 w-3/5 mt-2" />
       </CardHeader>
 
       {/* Card Content - 内容骨架 */}
@@ -193,7 +195,7 @@ export function BlogCardSkeleton({ className }: { className?: string }) {
         <Skeleton className="h-4 w-3/4 mt-2" />
       </CardContent>
 
-      {/* Card Footer - 底部骨架 */}
+      {/* Card Footer - 底部骨架，尺寸与真实 Card Footer 对齐 */}
       <CardFooter className="!pt-4 border-t border-border/50">
         <Skeleton className="h-4 w-24" />
       </CardFooter>
