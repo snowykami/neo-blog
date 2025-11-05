@@ -1,0 +1,74 @@
+# 打包容器镜像，推送到私有云镜像站，并在目标主机上部署
+# 需要的密钥变量
+# DOCKER_HOST
+# DOCKER_TLS_CA
+# DOCKER_TLS_CERT
+# DOCKER_TLS_KEY
+# HARBOR_REGISTRY: e.g. dockerhub.com
+# HARBOR_USERNAME: e.g. christina
+# HARBOR_PASSWORD: e.g. 123456
+# Author: s@liteyuki.org
+# 如果要使用工作流把应用部署到Kubernetes集群，请参考git.liteyuki.org/kubernetes/deploy/README.md (私有)
+
+name: Build and Push Container Image, Deploy to Host
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docker-build
+  cancel-in-progress: false
+
+env:
+  CONTAINER_TAG: reg.liteyuki.org/snowykami/neo-blog:latest
+  CONTAINER_NAME: neo-blog-test
+  CONTAINER_OPTIONS: --network liteyuki-network --network liteyuki6-network --restart=always -v /etc/dockers/neo-blog-test/data:/app/data
+
+jobs:
+  build-and-push-and-deploy:
+    runs-on: liteyukios-latest
+    steps:
+      - name: Checkout code
+        uses: https://git.liteyuki.org/actions/checkout@v4
+
+      - name: Set up Docker TLS
+        run: |
+          mkdir -p /certs
+          echo "${{ secrets.DOCKER_TLS_CA }}" > /certs/ca.pem
+          echo "${{ secrets.DOCKER_TLS_CERT }}" > /certs/cert.pem  
+          echo "${{ secrets.DOCKER_TLS_KEY }}" > /certs/key.pem
+          chmod 600 /certs/key.pem
+          echo "Docker TLS setup complete."
+          
+
+      - name: Log in to Liteyuki Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.HARBOR_REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.CONTAINER_TAG }}
+
+
+      - name: Update container image on host
+        run: |
+          docker pull ${{ env.CONTAINER_TAG }}
+          docker stop ${{ env.CONTAINER_NAME }} || true
+          docker rm ${{ env.CONTAINER_NAME }} || true
+          docker run -d --name ${{ env.CONTAINER_NAME }} ${{ env.CONTAINER_OPTIONS }} ${{ env.CONTAINER_TAG }}
