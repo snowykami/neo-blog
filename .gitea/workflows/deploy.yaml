@@ -25,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CONTAINER_TAG: reg.liteyuki.org/snowykami/neo-blog:latest
+  CONTAINER_TAG: reg.liteyuki.org/snowykami/neo-blog-backend:latest
   CONTAINER_NAME: neo-blog-test
   CONTAINER_OPTIONS: --network liteyuki-network --network liteyuki6-network --restart=always -v /etc/dockers/neo-blog-test/data:/app/data
 
