@@ -253,7 +253,7 @@ func (u *UserController) ChangeEmail(ctx context.Context, c *app.RequestContext)
 
 func (u *UserController) GetCaptchaConfig(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, "ok", utils.H{
-		"provider": utils2.Env.Get(constant.EnvKeyCaptchaProvider),
+		"provider": utils2.Env.Get(constant.EnvKeyCaptchaProvider, "disable"),
 		"site_key": utils2.Env.Get(constant.EnvKeyCaptchaSiteKey),
 		"url":      utils2.Env.Get(constant.EnvKeyCaptchaUrl),
 	})
