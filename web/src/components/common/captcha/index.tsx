@@ -44,6 +44,6 @@ export default function AIOCaptchaWidget(props: CaptchaProps) {
     case CaptchaProvider.DISABLE:
       return <NoCaptchaWidget {...props} />
     default:
-      return null
+      return <NoCaptchaWidget {...props} />
   }
 }
