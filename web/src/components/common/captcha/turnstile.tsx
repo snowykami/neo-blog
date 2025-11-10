@@ -140,7 +140,7 @@ export function TurnstileWidget(props: CaptchaProps) {
   }, [status, props])
 
   return (
-    <div className="flex items-center justify-evenly w-full border border-gray-300 rounded-md px-4 py-2 relative">
+    <div className="flex items-center justify-evenly w-full border border-gray-200 rounded-md px-4 py-2 relative">
       {status === 'loading' && <Spinner />}
       {status === 'success' && <CheckMark />}
       {status === 'error' && <ErrorMark />}
