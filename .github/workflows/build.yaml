@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-push-frontend:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-frontend:latest
 
   build-and-push-backend:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
