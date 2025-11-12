@@ -1,5 +1,13 @@
 package constant
 
+type Role string
+
+const (
+	RoleUser   Role = "user"   // 普通用户 仅有阅读和评论权限
+	RoleEditor Role = "editor" // 能够发布和管理自己内容的用户
+	RoleAdmin  Role = "admin"
+)
+
 const (
 	CaptchaTypeDisable         = "disable"   // 禁用验证码
 	CaptchaTypeHCaptcha        = "hcaptcha"  // HCaptcha验证码
@@ -7,9 +15,6 @@ const (
 	CaptchaTypeReCaptcha       = "recaptcha" // ReCaptcha验证码
 	ModeDev                    = "dev"
 	ModeProd                   = "prod"
-	RoleUser                   = "user"   // 普通用户 仅有阅读和评论权限
-	RoleEditor                 = "editor" // 能够发布和管理自己内容的用户
-	RoleAdmin                  = "admin"
 	KVKeyEmailVerificationCode = "email_verification_code:" // KV存储：邮箱验证码
 	ApiPrefix                  = "/api/v1"                  // API版本前缀
 	OidcUri                    = "/user/oidc/login"         // OIDC登录URI

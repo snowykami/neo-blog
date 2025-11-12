@@ -1,17 +1,19 @@
 package dto
 
+import "github.com/snowykami/neo-blog/pkg/constant"
+
 type UserDto struct {
-	ID             uint   `json:"id"`       // 用户ID
-	Username       string `json:"username"` // 用户名
-	Nickname       string `json:"nickname"`
-	AvatarUrl      string `json:"avatar_url"` // 头像URL
-	BackgroundUrl  string `json:"background_url"`
-	PreferredColor string `json:"preferred_color"` // 主题色
-	Email          string `json:"email"`           // 邮箱
-	Gender         string `json:"gender"`
-	Role           string `json:"role"`
-	Language       string `json:"language"`         // 语言
-	ShowIPLocation *bool  `json:"show_ip_location"` // 是否显示IP归属地
+	ID             uint          `json:"id"`       // 用户ID
+	Username       string        `json:"username"` // 用户名
+	Nickname       string        `json:"nickname"`
+	AvatarUrl      string        `json:"avatar_url"` // 头像URL
+	BackgroundUrl  string        `json:"background_url"`
+	PreferredColor string        `json:"preferred_color"` // 主题色
+	Email          string        `json:"email"`           // 邮箱
+	Gender         string        `json:"gender"`
+	Role           constant.Role `json:"role"`
+	Language       string        `json:"language"`         // 语言
+	ShowIPLocation *bool         `json:"show_ip_location"` // 是否显示IP归属地
 }
 
 type UserOidcConfigDto struct {

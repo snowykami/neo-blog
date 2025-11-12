@@ -34,6 +34,5 @@ func UseCaptcha() app.HandlerFunc {
 			return
 		}
 		c.Next(ctx) // 如果验证码验证成功，则继续下一个处理程序
-		return
 	}
 }

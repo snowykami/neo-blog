@@ -12,13 +12,13 @@ type User struct {
 	Nickname       string `gorm:"default:''"`           // 昵称
 	AvatarUrl      string
 	BackgroundUrl  string
-	PreferredColor string `gorm:"default:''"` // 主题色
-	Email          string `gorm:"uniqueIndex"`
-	Gender         string `gorm:"default:''"`
-	Role           string `gorm:"default:'user'"` // user editor admin
-	Language       string `gorm:"default:'zh'"`
-	Password       string // 密码，存储加密后的值
-	ShowIPLocation *bool  `gorm:"default:true"` // 是否显示IP归属地
+	PreferredColor string        `gorm:"default:''"` // 主题色
+	Email          string        `gorm:"uniqueIndex"`
+	Gender         string        `gorm:"default:''"`
+	Role           constant.Role `gorm:"default:'user'"` // user editor admin
+	Language       string        `gorm:"default:'zh'"`
+	Password       string        // 密码，存储加密后的值
+	ShowIPLocation *bool         `gorm:"default:true"` // 是否显示IP归属地
 }
 
 func (user *User) ToDto() dto.UserDto {

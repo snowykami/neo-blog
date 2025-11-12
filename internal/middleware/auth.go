@@ -18,6 +18,7 @@ import (
 var ipCacheDuration = 30 * time.Minute
 var ipSingleflight singleflight.Group
 
+// UseAuth 认证中间件，验证用户身份, block参数决定认证失败时是否阻断请求, 否则起一个用户记录作用
 func UseAuth(block bool) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		token := string(c.Cookie("token"))
@@ -90,7 +91,7 @@ func UseAuth(block bool) app.HandlerFunc {
 // UseRole 检查用户角色是否符合要求，必须在 UseAuth 之后使用
 // requiredRole 可以是 "admin", "editor", "user" 等
 // admin包含editor， editor包含user
-func UseRole(requiredRole string) app.HandlerFunc {
+func UseRole(requiredRole constant.Role) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		currentUser, ok := ctxutils.GetCurrentUser(ctx)
 		if !ok || currentUser == nil {

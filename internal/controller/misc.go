@@ -115,7 +115,7 @@ func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestCont
 	var editors []model.User
 	repo.GetDB().Model(&model.User{}).
 		Select("id, username, updated_at").
-		Where("role IN ?", []string{constant.RoleEditor, constant.RoleAdmin}).
+		Where("role IN ?", []constant.Role{constant.RoleEditor, constant.RoleAdmin}).
 		Order("updated_at DESC").
 		Limit(utils2.Env.GetAsInt(constant.EnvKeySitemapLimit, constant.DefaultSitemapLimit)).
 		Find(&editors)
