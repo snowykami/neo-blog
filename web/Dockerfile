@@ -16,15 +16,15 @@ RUN pnpm install --frozen-lockfile
 
 # copy source and build
 COPY . .
-RUN pnpm run build
+RUN pnpm run lint:fix && pnpm run build
 
 # production image
 FROM node:24-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \
-    PORT=3000 \
-    HOSTNAME="0.0.0.0"
+  PORT=3000 \
+  HOSTNAME="0.0.0.0"
 
 # enable corepack for pnpm in runner
 RUN corepack enable && corepack prepare pnpm@latest --activate
