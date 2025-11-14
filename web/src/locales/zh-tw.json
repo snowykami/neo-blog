@@ -6,7 +6,8 @@
     "card": "卡片"
   },
   "HomePage": {
-    "title": "Hello world!"
+    "title": "Hello world!",
+    "already_in_love_n_day": "已相戀 {n} 天"
   },
   "BlogHome": {
     "hottest": "熱門",
@@ -82,7 +83,9 @@
     "unknown_author": "未知作者",
     "updated_at": "更新於",
     "username": "使用者名稱",
-    "verify_code": "驗證碼"
+    "verify_code": "驗證碼",
+    "default": "預設",
+    "private": "私密"
   },
   "Components": {
     "image_cropper": {
@@ -112,7 +115,63 @@
       "title": "評論管理"
     },
     "dashboard": {
-      "title": "儀表板"
+      "title": "儀表板",
+      "backend_metrics": "Go Runtime 指標",
+      "frontend_metrics": "Next Server 指標",
+      "goroutines": "Go 協程數",
+      "memoryTotalAlloc": "總分配內存",
+      "memorySys": "系統內存",
+      "memoryLookups": "指標查找次數",
+      "memoryMallocs": "內存分配次數",
+      "memoryFrees": "內存釋放次數",
+      "memoryHeapAlloc": "已分配堆內存",
+      "memoryHeapSys": "堆內存系統",
+      "memoryHeapIdle": "空閒堆內存",
+      "memoryHeapInuse": "使用中堆內存",
+      "memoryHeapReleased": "已釋放堆內存",
+      "memoryHeapObjects": "堆物件數",
+      "memoryStackInuse": "使用中棧內存",
+      "memoryStackSys": "棧內存系統",
+      "memoryMSpanInuse": "使用中 MSpan 內存",
+      "memoryMSpanSys": "MSpan 系統內存",
+      "memoryMCacheInuse": "使用中 MCache 內存",
+      "memoryMCacheSys": "MCache 系統內存",
+      "memoryBuckHashSys": "雜湊表系統內存",
+      "memoryGcSys": "GC 系統內存",
+      "memoryOtherSys": "其他系統內存",
+      "gcNext": "下次 GC 將回收",
+      "gcLast": "上次 GC 時間",
+      "gcPauseTotalNs": "GC 總暫停時間",
+      "gcNum": "GC 執行次數",
+      "gcCpuFraction": "GC CPU 使用率",
+      "gcLastPauseNs": "上次 GC 暫停時間",
+      "total_comments": "總評論數",
+      "total_files": "總檔案數",
+      "total_posts": "總文章數",
+      "total_users": "總用戶數",
+      "total_views": "總瀏覽數",
+      "uptime": "運行時間",
+      "nodeVersion": "Node 版本",
+      "platform": "平台",
+      "arch": "架構",
+      "cpus": "CPU 核心數",
+      "loadavg1m5mAnd15m": "負載平均值 (1/5/15分鐘)",
+      "memoryRss": "駐留集大小",
+      "memoryHeapTotal": "堆內存總量",
+      "memoryHeapUsed": "堆內存使用量",
+      "memoryExternal": "外部內存",
+      "memoryArrayBuffers": "陣列緩衝區",
+      "v8TotalHeapSize": "V8 堆內存總量",
+      "v8TotalHeapSizeExecutable": "V8 可執行堆內存",
+      "v8TotalPhysicalSize": "V8 物理內存總量",
+      "v8TotalAvailableSize": "V8 可用堆內存",
+      "v8UsedHeapSize": "V8 堆內存使用量",
+      "v8HeapSizeLimit": "V8 堆內存限制",
+      "v8MallocedMemory": "V8 分配內存",
+      "v8PeakMallocedMemory": "V8 峰值分配內存",
+      "v8DoesZapGarbage": "V8 是否啟用垃圾回收",
+      "cpuUserUsec": "用戶態 CPU 時間",
+      "cpuSystemUsec": "內核態 CPU 時間"
     },
     "files": {
       "title": "檔案管理",
@@ -121,7 +180,9 @@
       "upload_file": "上傳檔案",
       "upload_file_failed": "檔案 {name} 上傳失敗",
       "upload_file_success": "檔案 {name} 上傳成功",
-      "will_delete_n_files": "將刪除 {n} 個檔案"
+      "will_delete_n_files": "將刪除 {n} 個檔案",
+      "compress_image": "壓縮圖片",
+      "compress_level": "壓縮等級"
     },
     "general": "一般",
     "global": {
@@ -183,7 +244,23 @@
       "create_storage": "建立儲存供應商",
       "fetch_storages_failed": "取得儲存供應商失敗",
       "no_storages": "尚未有儲存供應商，建立一個吧！",
-      "storage_type": "儲存類型"
+      "storage_type": "儲存類型",
+      "name": "名稱",
+      "base_dir": "基礎目錄",
+      "is_default": "預設",
+      "s3_access_key_id": "Access Key ID",
+      "s3_secret_access_key": "Secret Access Key",
+      "s3_bucket": "Bucket",
+      "s3_endpoint": "Endpoint",
+      "s3_prefix": "Prefix",
+      "s3_region": "Region",
+      "s3_session_token": "Session Token",
+      "s3_path_style": "Use Path Style",
+      "s3_base_url": "Base URL",
+      "webdav_endpoint": "WebDAV Endpoint",
+      "webdav_username": "WebDAV 用戶名",
+      "webdav_password": "WebDAV 密碼",
+      "use_as_default": "設為預設儲存"
     },
     "users": {
       "title": "使用者管理"
@@ -205,7 +282,8 @@
       "picture_size_cannot_exceed": "圖片大小不得超過 {size}",
       "public_profile": "公開資料",
       "username": "使用者名稱",
-      "update_profile": "更新資料"
+      "update_profile": "更新資料",
+      "show_ip_location": "顯示 IP 歸屬地"
     },
     "user_security": {
       "title": "安全設定",
@@ -223,7 +301,14 @@
       "update_password": "更新密碼",
       "update_password_failed": "更新密碼失敗",
       "update_password_success": "密碼已更新",
-      "verify_code": "驗證碼"
+      "verify_code": "驗證碼",
+      "confirm_unbind": "確認解綁？",
+      "confirm_unbind_description": "解綁後將無法使用該第三方帳號登入，但可以重新綁定",
+      "no_openid_accounts": "您還沒有綁定任何第三方帳號。",
+      "openid_accounts": "OpenID 帳號",
+      "unbind": "解綁",
+      "unbind_failed": "解綁失敗",
+      "unbind_success": "解綁成功"
     },
     "user_preference": {
       "title": "個人化",
@@ -242,7 +327,6 @@
     "post_at": "發布於"
   },
   "Login": {
-    "bind_oidc": "繫結第三方帳號",
     "captcha_error": "驗證碼錯誤，請重試。",
     "continue": "繼續",
     "currently_logged_in": "目前登入為",
@@ -262,7 +346,9 @@
     "by_logging_in_you_agree_to_our": "登入即表示您同意",
     "terms_of_service": "服務條款",
     "and": "及",
-    "privacy_policy": "隱私權政策"
+    "privacy_policy": "隱私權政策",
+    "continue_bind_oidc": "繼續綁定第三方帳號，或退出",
+    "remember_me": "記住我"
   },
   "Operation": {
     "back_to_home": "回到首頁",
@@ -317,7 +403,8 @@
     "upload": "上傳",
     "upload_failed": "上傳失敗",
     "upload_success": "上傳成功",
-    "view": "檢視"
+    "view": "檢視",
+    "delete_description": "刪除後無法復原，請謹慎操作！"
   },
   "Metrics": {
     "comment_count": "評論數",
@@ -390,5 +477,73 @@
   "State": {
     "private": "私密",
     "public": "公開"
+  },
+  "FileSelector": {
+    "select_file": "選擇檔案",
+    "select_n_files": "選擇 {n} 個檔案",
+    "select_files": "選擇檔案",
+    "upload_file": "上傳檔案",
+    "uploading": "上傳中..."
+  },
+  "MusicPlayer": {
+    "loading_lyric": "載入歌詞中...",
+    "playlist": "播放清單",
+    "no_lyric": "暫無歌詞",
+    "pure_music_without_lyric": "純音樂，無歌詞"
+  },
+  "Response": {
+    "error": {
+      "bad_request": "錯誤的請求 {error}",
+      "forbidden": "禁止訪問 {error}",
+      "i_am_a_teapot": "我是一隻茶壺 {error}",
+      "internal_server_error": "伺服器內部錯誤 {error}",
+      "not_found": "未找到目標 {error}",
+      "resource_conflict": "資源衝突 {error}",
+      "unauthorized_access": "未授權 {error}"
+    },
+    "error_details": {
+      "comment_not_found": "評論未找到",
+      "content_cannot_be_empty": "內容不能為空",
+      "content_to_long": "內容過長",
+      "email_cannot_be_empty": "電子郵件不能為空",
+      "exceeded_maximum_reply_depth": "超過最大回覆層級",
+      "failed_to_check_target": "檢查目標失敗",
+      "failed_to_create_target": "建立目標失敗",
+      "failed_to_delete_target": "刪除目標失敗",
+      "failed_to_get_dashboard_data": "取得儀表板資料失敗",
+      "failed_to_get_target": "取得目標失敗",
+      "failed_to_get_user_openid": "取得用戶 OpenID 失敗",
+      "failed_to_link_oidc_account": "綁定第三方帳號失敗",
+      "failed_to_open_file": "開啟檔案失敗",
+      "failed_to_render_email": "渲染郵件失敗",
+      "failed_to_request_oidc_token": "請求 OIDC 訪問令牌失敗",
+      "failed_to_request_oidc_userinfo": "請求 OIDC 用戶資訊失敗",
+      "failed_to_send_email": "發送郵件失敗",
+      "failed_to_toggle_like": "切換點讚失敗",
+      "failed_to_update_target": "更新目標失敗",
+      "id_cannot_be_empty_or_zero": "ID 不能為空或為零",
+      "invalid_target_type": "無效的目標類型",
+      "invalid_credentials": "無效的憑證",
+      "invalid_oidc_name": "無效的 OIDC 名稱",
+      "invalid_oidc_state": "無效的 OIDC 狀態",
+      "invalid_password_format": "密碼格式無效",
+      "invalid_request_parameters": "請求參數無效",
+      "invalid_url": "無效的 URL",
+      "login_required": "需要登入",
+      "missing_request_parameters": "請求參數缺失",
+      "old_password_incorrect": "舊密碼不正確",
+      "operation_target_not_found": "操作目標未找到",
+      "password_too_short": "密碼太短",
+      "permission_denied": "權限不足",
+      "post_not_found": "文章未找到",
+      "register_disabled": "註冊已關閉，請使用第三方帳號註冊",
+      "register_from_oidc_disabled": "不允許透過第三方帳號註冊",
+      "storage_provider_not_found": "儲存提供者未找到",
+      "target_not_found": "目標未找到",
+      "oidc_account_already_linked": "該第三方帳號已被綁定",
+      "user_not_found": "用戶未找到",
+      "username_cannot_be_empty": "用戶名不能為空",
+      "username_or_email_already_exists": "用戶名或電子郵件已存在"
+    }
   }
 }

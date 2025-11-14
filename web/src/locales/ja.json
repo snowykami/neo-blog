@@ -6,7 +6,8 @@
     "card": "カード"
   },
   "HomePage": {
-    "title": "Hello world!"
+    "title": "Hello world!",
+    "already_in_love_n_day": "交際 {n} 日目"
   },
   "BlogHome": {
     "hottest": "人気",
@@ -82,7 +83,9 @@
     "unknown_author": "不明な著者",
     "updated_at": "更新日時",
     "username": "ユーザー名",
-    "verify_code": "認証コード"
+    "verify_code": "認証コード",
+    "default": "デフォルト",
+    "private": "非公開"
   },
   "Components": {
     "image_cropper": {
@@ -112,7 +115,63 @@
       "title": "コメント管理"
     },
     "dashboard": {
-      "title": "ダッシュボード"
+      "title": "ダッシュボード",
+      "backend_metrics": "Go ランタイムメトリクス",
+      "frontend_metrics": "Next サーバーメトリクス",
+      "goroutines": "Goroutine 数",
+      "memoryTotalAlloc": "総割り当てメモリ",
+      "memorySys": "システムメモリ",
+      "memoryLookups": "ポインタ検索数",
+      "memoryMallocs": "メモリ割り当て回数",
+      "memoryFrees": "メモリ解放回数",
+      "memoryHeapAlloc": "割り当てヒープメモリ",
+      "memoryHeapSys": "ヒープシステム",
+      "memoryHeapIdle": "アイドルヒープ",
+      "memoryHeapInuse": "使用中ヒープ",
+      "memoryHeapReleased": "解放済みヒープ",
+      "memoryHeapObjects": "ヒープオブジェクト数",
+      "memoryStackInuse": "使用中スタック",
+      "memoryStackSys": "スタックシステム",
+      "memoryMSpanInuse": "使用中 MSpan",
+      "memoryMSpanSys": "MSpan システム",
+      "memoryMCacheInuse": "使用中 MCache",
+      "memoryMCacheSys": "MCache システム",
+      "memoryBuckHashSys": "ハッシュテーブルシステム",
+      "memoryGcSys": "GC システム",
+      "memoryOtherSys": "その他システム",
+      "gcNext": "次回 GC",
+      "gcLast": "前回 GC 時刻",
+      "gcPauseTotalNs": "GC 総停止時間",
+      "gcNum": "GC 実行回数",
+      "gcCpuFraction": "GC CPU 使用率",
+      "gcLastPauseNs": "前回 GC 停止時間",
+      "total_comments": "総コメント数",
+      "total_files": "総ファイル数",
+      "total_posts": "総投稿数",
+      "total_users": "総ユーザー数",
+      "total_views": "総閲覧数",
+      "uptime": "稼働時間",
+      "nodeVersion": "Node バージョン",
+      "platform": "プラットフォーム",
+      "arch": "アーキテクチャ",
+      "cpus": "CPU コア数",
+      "loadavg1m5mAnd15m": "負荷平均 (1/5/15分)",
+      "memoryRss": "常駐セットサイズ",
+      "memoryHeapTotal": "総ヒープ",
+      "memoryHeapUsed": "使用済みヒープ",
+      "memoryExternal": "外部メモリ",
+      "memoryArrayBuffers": "配列バッファ",
+      "v8TotalHeapSize": "V8 総ヒープサイズ",
+      "v8TotalHeapSizeExecutable": "V8 実行可能ヒープ",
+      "v8TotalPhysicalSize": "V8 物理サイズ",
+      "v8TotalAvailableSize": "V8 利用可能サイズ",
+      "v8UsedHeapSize": "V8 使用済みヒープサイズ",
+      "v8HeapSizeLimit": "V8 ヒープ上限",
+      "v8MallocedMemory": "V8 割り当てメモリ",
+      "v8PeakMallocedMemory": "V8 最大割り当てメモリ",
+      "v8DoesZapGarbage": "V8 ガベージクリア",
+      "cpuUserUsec": "ユーザー CPU 時間",
+      "cpuSystemUsec": "システム CPU 時間"
     },
     "files": {
       "title": "ファイル管理",
@@ -121,7 +180,9 @@
       "upload_file": "ファイルをアップロード",
       "upload_file_failed": "ファイル {name} のアップロードに失敗しました",
       "upload_file_success": "ファイル {name} をアップロードしました",
-      "will_delete_n_files": "{n} 個のファイルを削除します"
+      "will_delete_n_files": "{n} 個のファイルを削除します",
+      "compress_image": "画像を圧縮",
+      "compress_level": "圧縮レベル"
     },
     "general": "一般",
     "global": {
@@ -183,7 +244,23 @@
       "create_storage": "ストレージを作成",
       "fetch_storages_failed": "ストレージの取得に失敗しました",
       "no_storages": "ストレージがありません。作成してください！",
-      "storage_type": "ストレージタイプ"
+      "storage_type": "ストレージタイプ",
+      "name": "名前",
+      "base_dir": "ベースディレクトリ",
+      "is_default": "デフォルト",
+      "s3_access_key_id": "アクセスキー ID",
+      "s3_secret_access_key": "シークレットアクセスキー",
+      "s3_bucket": "バケット",
+      "s3_endpoint": "エンドポイント",
+      "s3_prefix": "プレフィックス",
+      "s3_region": "リージョン",
+      "s3_session_token": "セッショントークン",
+      "s3_path_style": "パススタイルを使用",
+      "s3_base_url": "ベース URL",
+      "webdav_endpoint": "WebDAV エンドポイント",
+      "webdav_username": "WebDAV ユーザー名",
+      "webdav_password": "WebDAV パスワード",
+      "use_as_default": "デフォルトストレージに設定"
     },
     "users": {
       "title": "ユーザー"
@@ -205,7 +282,8 @@
       "picture_size_cannot_exceed": "画像サイズは {size} 以下である必要があります",
       "public_profile": "公開プロフィール",
       "username": "ユーザー名",
-      "update_profile": "プロフィールを更新"
+      "update_profile": "プロフィールを更新",
+      "show_ip_location": "IP 位置を表示"
     },
     "user_security": {
       "title": "セキュリティ設定",
@@ -223,7 +301,14 @@
       "update_password": "パスワードを更新",
       "update_password_failed": "パスワード更新に失敗しました",
       "update_password_success": "パスワードを更新しました",
-      "verify_code": "認証コード"
+      "verify_code": "認証コード",
+      "confirm_unbind": "連携解除を確認しますか？",
+      "confirm_unbind_description": "連携解除後、このサードパーティアカウントでログインできなくなりますが、再連携できます",
+      "no_openid_accounts": "まだサードパーティアカウントを連携していません。",
+      "openid_accounts": "OpenID アカウント",
+      "unbind": "連携解除",
+      "unbind_failed": "連携解除に失敗",
+      "unbind_success": "連携解除しました"
     },
     "user_preference": {
       "title": "カスタマイズ",
@@ -242,7 +327,6 @@
     "post_at": "投稿日"
   },
   "Login": {
-    "bind_oidc": "サードパーティアカウントを連携",
     "captcha_error": "キャプチャエラー、再試行してください。",
     "continue": "続行",
     "currently_logged_in": "現在ログイン中:",
@@ -262,7 +346,9 @@
     "by_logging_in_you_agree_to_our": "ログインすることで同意したことになります",
     "terms_of_service": "利用規約",
     "and": "および",
-    "privacy_policy": "プライバシーポリシー"
+    "privacy_policy": "プライバシーポリシー",
+    "continue_bind_oidc": "サードパーティアカウントの連携を続行、または終了",
+    "remember_me": "ログイン状態を保持"
   },
   "Operation": {
     "back_to_home": "ホームへ戻る",
@@ -317,7 +403,8 @@
     "upload": "アップロード",
     "upload_failed": "アップロードに失敗しました",
     "upload_success": "アップロードしました",
-    "view": "表示"
+    "view": "表示",
+    "delete_description": "削除は取り消せません。慎重に操作してください！"
   },
   "Metrics": {
     "comment_count": "コメント数",
@@ -390,5 +477,73 @@
   "State": {
     "private": "非公開",
     "public": "公開"
+  },
+  "FileSelector": {
+    "select_file": "ファイルを選択",
+    "select_n_files": "{n} 個のファイルを選択",
+    "select_files": "ファイルを選択",
+    "upload_file": "ファイルをアップロード",
+    "uploading": "アップロード中..."
+  },
+  "MusicPlayer": {
+    "loading_lyric": "歌詞読み込み中...",
+    "playlist": "プレイリスト",
+    "no_lyric": "歌詞なし",
+    "pure_music_without_lyric": "インストゥルメンタル、歌詞なし"
+  },
+  "Response": {
+    "error": {
+      "bad_request": "不正なリクエスト {error}",
+      "forbidden": "アクセス禁止 {error}",
+      "i_am_a_teapot": "私はティーポット {error}",
+      "internal_server_error": "サーバー内部エラー {error}",
+      "not_found": "見つかりません {error}",
+      "resource_conflict": "リソース競合 {error}",
+      "unauthorized_access": "未認証 {error}"
+    },
+    "error_details": {
+      "comment_not_found": "コメントが見つかりません",
+      "content_cannot_be_empty": "内容を空にできません",
+      "content_to_long": "内容が長すぎます",
+      "email_cannot_be_empty": "メールアドレスを空にできません",
+      "exceeded_maximum_reply_depth": "最大返信深度を超えました",
+      "failed_to_check_target": "ターゲット確認に失敗",
+      "failed_to_create_target": "ターゲット作成に失敗",
+      "failed_to_delete_target": "ターゲット削除に失敗",
+      "failed_to_get_dashboard_data": "ダッシュボードデータの取得に失敗",
+      "failed_to_get_target": "ターゲット取得に失敗",
+      "failed_to_get_user_openid": "ユーザー OpenID の取得に失敗",
+      "failed_to_link_oidc_account": "OIDC アカウント連携に失敗",
+      "failed_to_open_file": "ファイルを開けませんでした",
+      "failed_to_render_email": "メール生成に失敗",
+      "failed_to_request_oidc_token": "OIDC トークンリクエストに失敗",
+      "failed_to_request_oidc_userinfo": "OIDC ユーザー情報リクエストに失敗",
+      "failed_to_send_email": "メール送信に失敗",
+      "failed_to_toggle_like": "いいね切り替えに失敗",
+      "failed_to_update_target": "ターゲット更新に失敗",
+      "id_cannot_be_empty_or_zero": "ID を空または 0 にできません",
+      "invalid_target_type": "無効なターゲットタイプ",
+      "invalid_credentials": "無効な認証情報",
+      "invalid_oidc_name": "無効な OIDC 名",
+      "invalid_oidc_state": "無効な OIDC ステート",
+      "invalid_password_format": "無効なパスワード形式",
+      "invalid_request_parameters": "無効なリクエストパラメータ",
+      "invalid_url": "無効な URL",
+      "login_required": "ログインが必要です",
+      "missing_request_parameters": "リクエストパラメータが不足",
+      "old_password_incorrect": "現在のパスワードが正しくありません",
+      "operation_target_not_found": "操作対象が見つかりません",
+      "password_too_short": "パスワードが短すぎます",
+      "permission_denied": "権限がありません",
+      "post_not_found": "投稿が見つかりません",
+      "register_disabled": "登録が無効です。サードパーティアカウントをご利用ください",
+      "register_from_oidc_disabled": "サードパーティアカウントからの登録は無効です",
+      "storage_provider_not_found": "ストレージプロバイダが見つかりません",
+      "target_not_found": "ターゲットが見つかりません",
+      "oidc_account_already_linked": "このサードパーティアカウントは既に連携されています",
+      "user_not_found": "ユーザーが見つかりません",
+      "username_cannot_be_empty": "ユーザー名を空にできません",
+      "username_or_email_already_exists": "ユーザー名またはメールアドレスは既に存在します"
+    }
   }
 }
