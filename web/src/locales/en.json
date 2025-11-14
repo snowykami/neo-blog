@@ -6,7 +6,8 @@
     "card": "Card"
   },
   "HomePage": {
-    "title": "Hello world!"
+    "title": "Hello world!",
+    "already_in_love_n_day": "In love for {n} days"
   },
   "BlogHome": {
     "hottest": "Hottest",
@@ -82,7 +83,9 @@
     "unknown_author": "Unknown author",
     "updated_at": "Updated at",
     "username": "Username",
-    "verify_code": "Verification code"
+    "verify_code": "Verification code",
+    "default": "Default",
+    "private": "Private"
   },
   "Components": {
     "image_cropper": {
@@ -112,7 +115,63 @@
       "title": "Comments"
     },
     "dashboard": {
-      "title": "Dashboard"
+      "title": "Dashboard",
+      "backend_metrics": "Go Runtime Metrics",
+      "frontend_metrics": "Next Server Metrics",
+      "goroutines": "Goroutines",
+      "memoryTotalAlloc": "Total Memory Allocated",
+      "memorySys": "Memory System",
+      "memoryLookups": "Pointer Lookups",
+      "memoryMallocs": "Memory Allocations",
+      "memoryFrees": "Memory Frees",
+      "memoryHeapAlloc": "Heap Allocated",
+      "memoryHeapSys": "Heap System",
+      "memoryHeapIdle": "Heap Idle",
+      "memoryHeapInuse": "Heap In Use",
+      "memoryHeapReleased": "Heap Released",
+      "memoryHeapObjects": "Heap Objects",
+      "memoryStackInuse": "Stack In Use",
+      "memoryStackSys": "Stack System",
+      "memoryMSpanInuse": "MSpan In Use",
+      "memoryMSpanSys": "MSpan System",
+      "memoryMCacheInuse": "MCache In Use",
+      "memoryMCacheSys": "MCache System",
+      "memoryBuckHashSys": "Bucket Hash System",
+      "memoryGcSys": "GC System",
+      "memoryOtherSys": "Other System",
+      "gcNext": "Next GC",
+      "gcLast": "Last GC Time",
+      "gcPauseTotalNs": "GC Total Pause Time",
+      "gcNum": "GC Runs",
+      "gcCpuFraction": "GC CPU Fraction",
+      "gcLastPauseNs": "Last GC Pause",
+      "total_comments": "Total Comments",
+      "total_files": "Total Files",
+      "total_posts": "Total Posts",
+      "total_users": "Total Users",
+      "total_views": "Total Views",
+      "uptime": "Uptime",
+      "nodeVersion": "Node Version",
+      "platform": "Platform",
+      "arch": "Architecture",
+      "cpus": "CPU Cores",
+      "loadavg1m5mAnd15m": "Load Average (1/5/15min)",
+      "memoryRss": "Resident Set Size",
+      "memoryHeapTotal": "Heap Total",
+      "memoryHeapUsed": "Heap Used",
+      "memoryExternal": "External Memory",
+      "memoryArrayBuffers": "Array Buffers",
+      "v8TotalHeapSize": "V8 Total Heap Size",
+      "v8TotalHeapSizeExecutable": "V8 Executable Heap",
+      "v8TotalPhysicalSize": "V8 Physical Size",
+      "v8TotalAvailableSize": "V8 Available Size",
+      "v8UsedHeapSize": "V8 Used Heap Size",
+      "v8HeapSizeLimit": "V8 Heap Limit",
+      "v8MallocedMemory": "V8 Malloced Memory",
+      "v8PeakMallocedMemory": "V8 Peak Malloced Memory",
+      "v8DoesZapGarbage": "V8 Zap Garbage",
+      "cpuUserUsec": "User CPU Time",
+      "cpuSystemUsec": "System CPU Time"
     },
     "files": {
       "title": "Files",
@@ -121,7 +180,9 @@
       "upload_file": "Upload file",
       "upload_file_failed": "Upload failed: {name}",
       "upload_file_success": "Uploaded: {name}",
-      "will_delete_n_files": "Will delete {n} files"
+      "will_delete_n_files": "Will delete {n} files",
+      "compress_image": "Compress Image",
+      "compress_level": "Compression Level"
     },
     "general": "General",
     "global": {
@@ -183,7 +244,23 @@
       "create_storage": "Create storage provider",
       "fetch_storages_failed": "Failed to fetch storages",
       "no_storages": "No storage providers yet, create one!",
-      "storage_type": "Storage type"
+      "storage_type": "Storage type",
+      "name": "Name",
+      "base_dir": "Base Directory",
+      "is_default": "Default",
+      "s3_access_key_id": "Access Key ID",
+      "s3_secret_access_key": "Secret Access Key",
+      "s3_bucket": "Bucket",
+      "s3_endpoint": "Endpoint",
+      "s3_prefix": "Prefix",
+      "s3_region": "Region",
+      "s3_session_token": "Session Token",
+      "s3_path_style": "Use Path Style",
+      "s3_base_url": "Base URL",
+      "webdav_endpoint": "WebDAV Endpoint",
+      "webdav_username": "WebDAV Username",
+      "webdav_password": "WebDAV Password",
+      "use_as_default": "Set as Default Storage"
     },
     "users": {
       "title": "Users"
@@ -205,7 +282,8 @@
       "picture_size_cannot_exceed": "Image size must be <= {size}",
       "public_profile": "Public profile",
       "username": "Username",
-      "update_profile": "Update profile"
+      "update_profile": "Update profile",
+      "show_ip_location": "Show IP Location"
     },
     "user_security": {
       "title": "Security",
@@ -223,7 +301,14 @@
       "update_password": "Update password",
       "update_password_failed": "Update failed",
       "update_password_success": "Password updated",
-      "verify_code": "Verification code"
+      "verify_code": "Verification code",
+      "confirm_unbind": "Confirm Unbind?",
+      "confirm_unbind_description": "After unbinding, you won't be able to login with this third-party account, but you can rebind it later",
+      "no_openid_accounts": "You haven't bound any third-party accounts yet.",
+      "openid_accounts": "OpenID Accounts",
+      "unbind": "Unbind",
+      "unbind_failed": "Unbind Failed",
+      "unbind_success": "Unbind Successfully"
     },
     "user_preference": {
       "title": "Preferences",
@@ -242,7 +327,6 @@
     "post_at": "Posted at"
   },
   "Login": {
-    "bind_oidc": "Bind third-party account",
     "captcha_error": "Captcha error, try again.",
     "continue": "Continue",
     "currently_logged_in": "Currently logged in as",
@@ -262,7 +346,9 @@
     "by_logging_in_you_agree_to_our": "By logging in you agree to our",
     "terms_of_service": "Terms of Service",
     "and": "and",
-    "privacy_policy": "Privacy Policy"
+    "privacy_policy": "Privacy Policy",
+    "continue_bind_oidc": "Continue to bind third-party account, or exit",
+    "remember_me": "Remember Me"
   },
   "Operation": {
     "back_to_home": "Back to home",
@@ -317,7 +403,8 @@
     "upload": "Upload",
     "upload_failed": "Upload failed",
     "upload_success": "Uploaded",
-    "view": "View"
+    "view": "View",
+    "delete_description": "Deletion cannot be undone, please proceed with caution!"
   },
   "Metrics": {
     "comment_count": "Comments",
@@ -390,5 +477,73 @@
   "State": {
     "private": "Private",
     "public": "Public"
+  },
+  "FileSelector": {
+    "select_file": "Select File",
+    "select_n_files": "Select {n} Files",
+    "select_files": "Select Files",
+    "upload_file": "Upload File",
+    "uploading": "Uploading..."
+  },
+  "MusicPlayer": {
+    "loading_lyric": "Loading Lyrics...",
+    "playlist": "Playlist",
+    "no_lyric": "No Lyrics",
+    "pure_music_without_lyric": "Instrumental, No Lyrics"
+  },
+  "Response": {
+    "error": {
+      "bad_request": "Bad Request {error}",
+      "forbidden": "Forbidden {error}",
+      "i_am_a_teapot": "I'm a Teapot {error}",
+      "internal_server_error": "Internal Server Error {error}",
+      "not_found": "Not Found {error}",
+      "resource_conflict": "Resource Conflict {error}",
+      "unauthorized_access": "Unauthorized {error}"
+    },
+    "error_details": {
+      "comment_not_found": "Comment Not Found",
+      "content_cannot_be_empty": "Content Cannot Be Empty",
+      "content_to_long": "Content Too Long",
+      "email_cannot_be_empty": "Email Cannot Be Empty",
+      "exceeded_maximum_reply_depth": "Exceeded Maximum Reply Depth",
+      "failed_to_check_target": "Failed to Check Target",
+      "failed_to_create_target": "Failed to Create Target",
+      "failed_to_delete_target": "Failed to Delete Target",
+      "failed_to_get_dashboard_data": "Failed to Get Dashboard Data",
+      "failed_to_get_target": "Failed to Get Target",
+      "failed_to_get_user_openid": "Failed to Get User OpenID",
+      "failed_to_link_oidc_account": "Failed to Link OIDC Account",
+      "failed_to_open_file": "Failed to Open File",
+      "failed_to_render_email": "Failed to Render Email",
+      "failed_to_request_oidc_token": "Failed to Request OIDC Token",
+      "failed_to_request_oidc_userinfo": "Failed to Request OIDC User Info",
+      "failed_to_send_email": "Failed to Send Email",
+      "failed_to_toggle_like": "Failed to Toggle Like",
+      "failed_to_update_target": "Failed to Update Target",
+      "id_cannot_be_empty_or_zero": "ID Cannot Be Empty or Zero",
+      "invalid_target_type": "Invalid Target Type",
+      "invalid_credentials": "Invalid Credentials",
+      "invalid_oidc_name": "Invalid OIDC Name",
+      "invalid_oidc_state": "Invalid OIDC State",
+      "invalid_password_format": "Invalid Password Format",
+      "invalid_request_parameters": "Invalid Request Parameters",
+      "invalid_url": "Invalid URL",
+      "login_required": "Login Required",
+      "missing_request_parameters": "Missing Request Parameters",
+      "old_password_incorrect": "Old Password Incorrect",
+      "operation_target_not_found": "Operation Target Not Found",
+      "password_too_short": "Password Too Short",
+      "permission_denied": "Permission Denied",
+      "post_not_found": "Post Not Found",
+      "register_disabled": "Registration Disabled, Please Use Third-Party Account",
+      "register_from_oidc_disabled": "Registration from Third-Party Account Disabled",
+      "storage_provider_not_found": "Storage Provider Not Found",
+      "target_not_found": "Target Not Found",
+      "oidc_account_already_linked": "This Third-Party Account is Already Linked",
+      "user_not_found": "User Not Found",
+      "username_cannot_be_empty": "Username Cannot Be Empty",
+      "username_or_email_already_exists": "Username or Email Already Exists"
+    }
   }
 }
