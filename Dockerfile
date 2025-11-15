@@ -22,10 +22,19 @@ ENV TZ=Asia/Chongqing
 
 WORKDIR /app
 
+RUN apk --no-cache add tzdata \
+  && addgroup -S neo-blog \
+  && adduser -S -G neo-blog neo-blog \
+  && mkdir -p /app \
+  && chown -R neo-blog:neo-blog /app
+
 COPY --from=builder /app/server /app/server
 
-EXPOSE 8888
+RUN chmod +x /app/server \
+  && chown neo-blog:neo-blog /app/server
 
-RUN chmod +x ./server
+USER neo-blog
+
+EXPOSE 8888
 
 ENTRYPOINT ["./server"]
