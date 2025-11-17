@@ -19,6 +19,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/storage"
 	"github.com/snowykami/neo-blog/internal/tasks"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/cache"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
@@ -147,6 +148,28 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
+	if fileName != "" {
+		fileModel.Name = fileName // 使用请求中的文件名，避免浏览器下载时文件名为id
+	}
+
+	// 尝试从缓存中获取文件内容
+	fileCache := cache.GetFileCache()
+	if cachedData, found := fileCache.Get(fileId); found {
+		logrus.Debugf("文件从缓存中获取, fileId: %d", fileId)
+		// 设置响应头
+		c.Header("Content-Type", f.getContentType(fileModel.Name))
+		c.Header("Content-Length", fmt.Sprintf("%d", len(cachedData)))
+		c.Header("Content-Disposition", f.buildContentDisposition(fileModel.Name))
+		c.Header("Accept-Ranges", "bytes")
+		c.Header("Cache-Control", "public, max-age=3600")
+		c.Header("ETag", fmt.Sprintf("\"%s\"", fileModel.Hash))
+		c.Header("X-Cache-Status", "HIT")
+
+		// 直接返回缓存的字节数据
+		c.Data(200, f.getContentType(fileModel.Name), cachedData)
+		return
+	}
+
 	provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
 	if !ok {
 		resps.Error(c, errs.NewBadRequest("storage_provider_not_found"))
@@ -160,10 +183,6 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	if fileName != "" {
-		fileModel.Name = fileName // 使用请求中的文件名，避免浏览器下载时文件名为id
-	}
-
 	// 设置响应头
 	c.Header("Content-Type", f.getContentType(fileModel.Name))
 	c.Header("Content-Length", fmt.Sprintf("%d", readableFile.Size()))
@@ -171,16 +190,22 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	c.Header("Accept-Ranges", "bytes")
 	c.Header("Cache-Control", "public, max-age=3600")
 	c.Header("ETag", fmt.Sprintf("\"%s\"", fileModel.Hash))
+	c.Header("X-Cache-Status", "MISS")
 
-	// 设置流式响应体
-	c.SetBodyStream(readableFile, int(readableFile.Size()))
+	// 读取文件内容到内存，用于缓存
+	fileData, err := io.ReadAll(readableFile)
+	readableFile.Close()
+	if err != nil {
+		resps.Error(c, errs.NewInternalServer("failed_to_read_file"))
+		return
+	}
 
-	// 只监听请求完成，让 Hertz 框架自己管理流的生命周期
-	go func() {
-		<-c.Finished()
-		readableFile.Close()
-		logrus.Debug("文件请求处理结束, fileId:", fileId)
-	}()
+	// 将文件内容放入缓存
+	fileCache.Put(fileId, fileData)
+	logrus.Debugf("文件已缓存, fileId: %d, size: %d bytes", fileId, len(fileData))
+
+	// 返回文件内容
+	c.Data(200, f.getContentType(fileModel.Name), fileData)
 }
 
 func (f *FileController) ListFiles(ctx context.Context, c *app.RequestContext) {
@@ -244,6 +269,10 @@ func (f *FileController) DeleteFile(ctx context.Context, c *app.RequestContext) 
 		resps.InternalServerError(c, "删除文件失败")
 		return
 	}
+	// 从缓存中删除文件
+	cache.GetFileCache().Remove(fileId)
+	logrus.Debugf("文件已从缓存中删除, fileId: %d", fileId)
+	
 	resps.Ok(c, "文件删除成功", nil)
 }
 
@@ -375,6 +404,9 @@ func (f *FileController) BatchDeleteFiles(ctx context.Context, c *app.RequestCon
 			logrus.Error("删除文件失败: ", err)
 			continue
 		}
+		// 从缓存中删除文件
+		cache.GetFileCache().Remove(id)
+		logrus.Debugf("文件已从缓存中删除, fileId: %d", id)
 	}
 
 	resps.Ok(c, "文件批量删除成功", nil)
