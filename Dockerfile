@@ -22,9 +22,13 @@ ENV TZ=Asia/Chongqing
 
 WORKDIR /app
 
+# 允许在 build 时通过 --build-arg 指定 UID/GID（默认 1000:1000）
+ARG NEO_UID=1000
+ARG NEO_GID=1000
+
 RUN apk --no-cache add tzdata \
-  && addgroup -S neo-blog \
-  && adduser -S -G neo-blog neo-blog \
+  && addgroup -S -g ${NEO_GID} neo-blog \
+  && adduser -S -u ${NEO_UID} -G neo-blog -s /sbin/nologin neo-blog \
   && mkdir -p /app \
   && chown -R neo-blog:neo-blog /app
 
