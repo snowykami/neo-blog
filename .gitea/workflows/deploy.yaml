@@ -27,7 +27,7 @@ concurrency:
 env:
   CONTAINER_TAG: reg.liteyuki.org/snowykami/neo-blog-backend:latest
   CONTAINER_NAME: neo-blog-test
-  CONTAINER_OPTIONS: --network liteyuki-network --network liteyuki6-network --restart=always -v /etc/dockers/neo-blog-test/data:/app/data ${{ secrets.NEO_BLOG_ADDITIONAL_OPTIONS }}
+  CONTAINER_OPTIONS: --network liteyuki-network --network liteyuki6-network --restart=always -v /opt/dockers/neo-blog-test/data:/app/data ${{ secrets.NEO_BLOG_ADDITIONAL_OPTIONS }}
 
 jobs:
   build-and-push-and-deploy:
@@ -44,7 +44,6 @@ jobs:
           echo "${{ secrets.DOCKER_TLS_KEY }}" > /certs/key.pem
           chmod 600 /certs/key.pem
           echo "Docker TLS setup complete."
-          
 
       - name: Log in to Liteyuki Container Registry
         uses: docker/login-action@v3
@@ -53,10 +52,8 @@ jobs:
           username: ${{ secrets.HARBOR_USERNAME }}
           password: ${{ secrets.HARBOR_PASSWORD }}
 
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-
 
       - name: Build and push container image
         uses: docker/build-push-action@v6
@@ -64,7 +61,6 @@ jobs:
           context: .
           push: true
           tags: ${{ env.CONTAINER_TAG }}
-
 
       - name: Update container image on host
         run: |
