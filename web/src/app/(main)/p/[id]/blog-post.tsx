@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import * as motion from 'motion/react-client'
 import { getTranslations } from 'next-intl/server'
+import Link from 'next/link'
 import { getSiteInfo } from '@/api/misc'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import CopyrightCard from '@/components/blog-post/blog-copyright.client'
@@ -30,8 +31,9 @@ import { Separator } from '@/components/ui/separator'
 import { TargetType } from '@/models/types'
 import { contentAreaPaddingClass, navStickyTopPx } from '@/utils/common/layout-size'
 import { calculateReadingTime } from '@/utils/common/post'
-import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
+import { getUserUrl } from '@/utils/common/route'
 
+import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 import './blog-post-article.scss'
 
 async function PostHeader({ post }: { post: Post }) {
@@ -49,6 +51,7 @@ async function PostMetaWhite({ post }: { post: Post }) {
     {
       icon: PenLine,
       text: post.user.nickname || post.user.username || t('Common.unknown_author'),
+      href: getUserUrl(post.user),
     },
     {
       icon: ArchiveIcon,
@@ -83,10 +86,19 @@ async function PostMetaWhite({ post }: { post: Post }) {
   return (
     <div className="flex flex-wrap items-center gap-3 text-white/90">
       {metaItems.map((item, index) => (
-        <span key={index} className="flex items-center gap-1.5 text-sm">
-          <item.icon className="w-4 h-4 text-white/70" />
-          <span className="font-medium">{item.text}</span>
-        </span>
+        item?.href
+          ? (
+              <Link key={index} href={item.href} className="flex items-center gap-1.5 text-sm hover:underline">
+                <item.icon className="w-4 h-4 text-white/70" />
+                <span className="font-medium">{item.text}</span>
+              </Link>
+            )
+          : (
+              <span key={index} className="flex items-center gap-1.5 text-sm">
+                <item.icon className="w-4 h-4 text-white/70" />
+                <span className="font-medium">{item.text}</span>
+              </span>
+            )
       ))}
     </div>
   )
