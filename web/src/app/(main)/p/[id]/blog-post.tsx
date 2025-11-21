@@ -16,7 +16,6 @@ import Link from 'next/link'
 import { getSiteInfo } from '@/api/misc'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import CopyrightCard from '@/components/blog-post/blog-copyright.client'
-import PostToc from '@/components/blog-post/blog-index'
 import { BlogLikeButton } from '@/components/blog-post/blog-like-button.client'
 import { PostHeaderClient } from '@/components/blog-post/post-header.client'
 import BlogSidebar from '@/components/blog-sidebar'
@@ -206,7 +205,7 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
           <BlogSidebar
             cards={[
               <BlogSidebarAbout key="about" />,
-              <PostToc key="toc" html={post.content || ''} />,
+              // <PostToc key="toc" html={post.content || ''} />,
               <BlogSidebarLabels key="labels" />,
               <BlogSidebarCoupleSpace key="couple-space" />,
               <SidebarMisskeyIframe key="misskey" />,
