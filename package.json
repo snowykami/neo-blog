@@ -1,0 +1,16 @@
+{
+  "name": "neo-blog",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:fe": "pnpm --filter neo-blog-fe run dev",
+    "build:fe": "pnpm --filter neo-blog-fe run build",
+    "start:fe": "pnpm --filter neo-blog-fe run start",
+    "format:fe": "pnpm --filter neo-blog-fe run format",
+    "lint:fe": "pnpm --filter neo-blog-fe run lint",
+    "lint:fe:fix": "pnpm --filter neo-blog-fe run lint:fix",
+    "dev:be": "go run ./cmd/server",
+    "build:be": "go build -o bin/server ./cmd/server",
+    "start:be": "./bin/server"
+  }
+}
