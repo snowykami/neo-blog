@@ -248,7 +248,7 @@ export function BlogSidebarCoupleSpace() {
             n: (() => {
               const now = new Date()
               const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
-              const startUtc = Date.UTC(2025, 9, 19) // month is 0-based: 9 -> October
+              const startUtc = Date.UTC(2025, 9, 20) // month is 0-based: 9 -> October
               const days = Math.floor((todayUtc - startUtc) / 86400000) + 1 // inclusive count
               return Math.max(0, days)
             })(),

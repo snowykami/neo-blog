@@ -21,3 +21,10 @@ export enum ArrangementMode {
   List = 'list',
   Card = 'card',
 }
+
+export enum SearchMode {
+  All = 'all',
+  Title = 'title',
+  Content = 'content',
+  Tag = 'tag',
+}

@@ -283,8 +283,21 @@ export function CommentItem({
               <span>
                 {t('reply')}
                 <span
+                  data-user-color={parentComment.user.preferredColor || siteInfo.colorSchemes?.[0] || 'blue'}
+                  style={{
+                    color: parentComment.user.preferredColor || siteInfo.colorSchemes?.[0] || 'blue',
+                    borderBottomColor: `${parentComment.user.preferredColor || siteInfo.colorSchemes?.[0] || 'blue'}40`,
+                  }}
                   onClick={() => clickToUserProfile(parentComment.user.username)}
-                  className="text-primary font-semibold border-b-4 border-primary/40 cursor-pointer hover:border-primary/70 transition-colors mx-1"
+                  className="font-semibold border-b-4 cursor-pointer hover:border-primary/70 transition-colors mx-1"
+                  onMouseEnter={(e) => {
+                    const color = parentComment.user.preferredColor || siteInfo.colorSchemes?.[0] || 'blue'
+                    e.currentTarget.style.borderBottomColor = `${color}70`
+                  }}
+                  onMouseLeave={(e) => {
+                    const color = parentComment.user.preferredColor || siteInfo.colorSchemes?.[0] || 'blue'
+                    e.currentTarget.style.borderBottomColor = `${color}40`
+                  }}
                 >
                   {parentComment.user.nickname || parentComment.user.username}
                 </span>
