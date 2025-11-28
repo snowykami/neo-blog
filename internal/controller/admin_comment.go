@@ -1,18 +1,8 @@
 package v1
 
-// import (
-// 	"context"
-
-// 	"github.com/cloudwego/hertz/pkg/app"
-// 	"github.com/cloudwego/hertz/pkg/common/utils"
-// 	"github.com/snowykami/neo-blog/internal/ctxutils"
-// 	"github.com/snowykami/neo-blog/internal/repo"
-// 	"github.com/snowykami/neo-blog/pkg/resps"
-// )
-
 // func (cc *AdminController) ListComments(ctx context.Context, c *app.RequestContext) {
 // 	paginationParams := ctxutils.GetPaginationParams(c)
-// 	comments, total, err := repo.Comment.ListComments(paginationParams)
+// 	comments, total, err := repo.Comment.ListCommentsAdmin(paginationParams.Page, paginationParams.Size, paginationParams.OrderBy, paginationParams.Desc)
 // 	if err != nil {
 // 		resps.InternalServerError(c, err.Error())
 // 		return
@@ -21,7 +11,7 @@ package v1
 // 		c,
 // 		resps.Success,
 // 		utils.H{
-// 			"comments": models.ToCommentDtos(comments),
+// 			"comments": model.Comment,
 // 			"total":    total,
 // 		},
 // 	)

@@ -21,3 +21,11 @@ export async function listUsers(params: PaginationParams) {
   )
   return res.data
 }
+
+export async function listCommentsAdmin(params: PaginationParams): Promise<BaseResponse<{ comments: Comment[], total: number }>> {
+  const res = await axiosClient.get<BaseResponse<{ comments: Comment[], total: number }>>(
+    '/admin/comments',
+    { params },
+  )
+  return res.data
+}
