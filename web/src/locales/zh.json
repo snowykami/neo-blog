@@ -1,4 +1,12 @@
 {
+    "searchModes": {
+    "all": "全部",
+    "title": "标题",
+    "content": "内容",
+    "tag": "标签",
+    "searchModes": "搜索模式",
+    "mode": "模式"
+  },
   "Arrangement": {
     "arrangement": "排列",
     "grid": "网格",
