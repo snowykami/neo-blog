@@ -13,6 +13,7 @@ import type {
   DependencyList,
   ProviderProps,
 } from 'react';
+import { memoizedStore } from './typeSafe';
 
 type ConfigurableContextHook<T, P = {}> = {
   Context: React.Context<T | undefined>;
@@ -78,7 +79,7 @@ const createConfigurableContextHook: ConfigurableContextHookFnType = <T, P = {}>
 
   const useHook = () => {
     const context = useContext(Context);
-    console.log(context)
+    // console.log(context)
     if (context === undefined) {
       throw new Error(`${displayName} must be used within a ${displayName}Provider`);
     }
@@ -99,6 +100,17 @@ const createConfigurableContextHook: ConfigurableContextHookFnType = <T, P = {}>
           : never;
       }>({});
 
+      // const setMemoizedFunction = <K extends keyof T>(
+      //   store: typeof memoizedFunctions.current,
+      //   key: K,
+      //   value: {
+      //     fn: T[K];
+      //     deps: DependencyList;
+      //   }
+      // ) => {
+      //   (store as unknown as Record<K, typeof value>)[key] = value;
+      // };
+
       const getMemoizedFunction = useCallback(<K extends keyof T>(
         key: K,
         fn: T[K],
@@ -113,10 +125,10 @@ const createConfigurableContextHook: ConfigurableContextHookFnType = <T, P = {}>
             },
             deps
           ) as T[K];
-          (memoizedFunctions.current as any)[key] = {
+          memoizedStore.set(memoizedFunctions.current, key, {
             fn: memoizedFn,
             deps: [...deps],
-          };
+          });
           return memoizedFn;
         }
         
@@ -183,4 +195,7 @@ export {
   type NonFunctionPropertyNames,
   type MemoizedFunction,
   createConfigurableContextHook,
+  isObject,
+  isFunction,
+  shallowEqual
 };
