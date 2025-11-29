@@ -100,6 +100,30 @@ const createConfigurableContextHook: ConfigurableContextHookFnType = <T, P = {}>
           : never;
       }>({});
 
+      // 收集非函数属性作为依赖
+      const dependencies: DependencyList & Array<unknown> = [];
+      if (isObject(rawValue)) {
+        const nonFunctionKeys = Object.keys(rawValue) as Array<keyof T>;
+        nonFunctionKeys.forEach(key => {
+          if (!isFunction(rawValue[key])) {
+            dependencies.push(rawValue[key]);
+          }
+        });
+      }
+
+      // useMemo 进行包裹计算结果，实现对于计算结果的缓存吧
+      const functionCache = useMemo(() => {
+        const cache: Record<string, any> = {};
+        if (isObject(rawValue)) {
+          Object.entries(rawValue).forEach(([key, value]) => {
+            if (isFunction(value)) {
+              cache[key] = (...args: any[]) => (value as Function)(...args);
+            }
+          });
+        }
+        return cache;
+      }, [rawValue, ...dependencies]);
+
       // const setMemoizedFunction = <K extends keyof T>(
       //   store: typeof memoizedFunctions.current,
       //   key: K,
@@ -117,41 +141,25 @@ const createConfigurableContextHook: ConfigurableContextHookFnType = <T, P = {}>
         deps: DependencyList
       ): T[K] => {
         const current = memoizedFunctions.current[key];
-        
         if (!current || !shallowEqual(current.deps, deps)) {
-          const memoizedFn = useCallback(
-            (...args: Parameters<Extract<T[K], (...args: readonly unknown[]) => unknown>>) => {
-              return (fn as Function)(...args);
-            },
-            deps
-          ) as T[K];
-          memoizedStore.set(memoizedFunctions.current, key, {
-            fn: memoizedFn,
-            deps: [...deps],
-          });
-          return memoizedFn;
-        }
-        
-        return current.fn as T[K];
-      }, []);
-
-      // 收集非函数属性作为依赖
-      const dependencies: DependencyList & Array<unknown> = [];
-      if (isObject(rawValue)) {
-        const nonFunctionKeys = Object.keys(rawValue) as Array<keyof T>;
-        nonFunctionKeys.forEach(key => {
-          if (!isFunction(rawValue[key])) {
-            dependencies.push(rawValue[key]);
+          const memoizedFn = functionCache[key as string] as T[K];
+          if (memoizedFn) {
+            memoizedStore.set(memoizedFunctions.current, key, {
+              fn: memoizedFn,
+              deps: [...deps],
+            });
+            return memoizedFn;
           }
-        });
-      }
+          return fn;
+        }
+        return current.fn as T[K];
+      }, [functionCache]);
 
       // 缓存最终 value
       const memoizedValue = useMemo(() => {
         if (!isObject(rawValue)) {
           return rawValue;
         }
-        
         const result = {} as T;
         Object.entries(rawValue).forEach(([key, value]) => {
           const typedKey = key as keyof T;
@@ -162,7 +170,7 @@ const createConfigurableContextHook: ConfigurableContextHookFnType = <T, P = {}>
           }
         });
         return result;
-      }, [rawValue, ...dependencies]);
+      }, [rawValue, getMemoizedFunction, ...dependencies]);
 
       return React.createElement(
         Context.Provider,
