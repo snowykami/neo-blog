@@ -122,7 +122,7 @@ const createConfigurableContextHook: ConfigurableContextHookFnType = <T, P = {}>
           });
         }
         return cache;
-      }, [rawValue, ...dependencies]);
+      }, [...dependencies]);
 
       // const setMemoizedFunction = <K extends keyof T>(
       //   store: typeof memoizedFunctions.current,
@@ -170,7 +170,7 @@ const createConfigurableContextHook: ConfigurableContextHookFnType = <T, P = {}>
           }
         });
         return result;
-      }, [rawValue, getMemoizedFunction, ...dependencies]);
+      }, [getMemoizedFunction, ...dependencies]);
 
       return React.createElement(
         Context.Provider,

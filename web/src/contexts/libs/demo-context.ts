@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { createConfigurableContextHook } from '@/contexts/libs/use-enhance-context'
 
 interface DemoContextPropsType {
-  theme: string
+  theme: string;
+  changeTheme: (theme: string) => void;
 }
 
 export const {
@@ -15,7 +16,7 @@ export const {
   'demo',
   () => {
     const [theme, setTheme] = useState('light')
-    // changeTheme 的引用稳定性由 createConfigurableContextHook 内部的 memo 化逻辑保证，而不是 useCallback
+    // changeTheme 的引用稳定性由 createConfigurableContextHook 内部的 memo 化逻辑保证
     const changeTheme = (theme: string) => {
       setTheme(theme)
     }
