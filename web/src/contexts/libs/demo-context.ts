@@ -15,7 +15,7 @@ export const {
   'demo',
   () => {
     const [theme, setTheme] = useState('light')
-    // 这里会被 useCallback 自动缓存
+    // changeTheme 的引用稳定性由 createConfigurableContextHook 内部的 memo 化逻辑保证，而不是 useCallback
     const changeTheme = (theme: string) => {
       setTheme(theme)
     }
