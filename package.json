@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "add:fe": "pnpm --filter neo-blog-fe add",
+    "remove:fe": "pnpm --filter neo-blog-fe remove",
+    "update:fe": "pnpm --filter neo-blog-fe update",
     "dev:fe": "pnpm --filter neo-blog-fe run dev",
     "build:fe": "pnpm --filter neo-blog-fe run build",
     "start:fe": "pnpm --filter neo-blog-fe run start",

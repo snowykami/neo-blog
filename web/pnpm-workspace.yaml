@@ -1,2 +1,3 @@
 ignoredBuiltDependencies:
+  - '@swc/core'
   - sharp
