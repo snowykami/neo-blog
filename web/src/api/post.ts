@@ -12,14 +12,14 @@ export async function getPostById({
   id: string
   type?: 'draft' | 'normal'
 }): Promise<BaseResponse<Post | null>> {
-  const res = await axiosClient.get<BaseResponse<Post | null>>(`/post/p/${id}`, {
+  const res = await axiosClient.get(`/post/p/${id}`, {
     params: { type },
   })
   return res.data
 }
 
 export async function getRandomPost(): Promise<BaseResponse<Post>> {
-  const res = await axiosClient.get<BaseResponse<Post>>('/post/random')
+  const res = await axiosClient.get('/post/random')
   return res.data
 }
 
@@ -38,7 +38,7 @@ export async function listPosts({
   userId?: number // 用户ID，管理员可查看指定用户的文章
   noContent?: boolean // 是否不返回内容，用于只需要列表时
 } & PaginationParams): Promise<BaseResponse<{ posts: Post[], total: number }>> {
-  const res = await axiosClient.get<BaseResponse<{ posts: Post[], total: number }>>('/post/list', {
+  const res = await axiosClient.get('/post/list', {
     params: {
       page,
       size,
@@ -58,7 +58,7 @@ export async function createPost({
 }: {
   post: Partial<Omit<Post, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'isLiked' | 'draftContent'>>
 }): Promise<BaseResponse<Post>> {
-  const res = await axiosClient.post<BaseResponse<Post>>('/post/p', post)
+  const res = await axiosClient.post('/post/p', post)
   return res.data
 }
 
@@ -67,7 +67,7 @@ export async function updatePost({
 }: {
   post: Partial<Post> & Pick<Post, 'id'>
 }): Promise<BaseResponse<Post>> {
-  const res = await axiosClient.put<BaseResponse<Post>>(`/post/p/${post.id}`, post)
+  const res = await axiosClient.put(`/post/p/${post.id}`, post)
   return res.data
 }
 
@@ -77,7 +77,7 @@ export async function deletePost({ id }: { id: number }): Promise<null> {
 }
 
 export async function getCategories(): Promise<BaseResponse<{ categories: Category[] }>> {
-  const res = await axiosClient.get<BaseResponse<{ categories: Category[] }>>('/post/categories')
+  const res = await axiosClient.get('/post/categories')
   return res.data
 }
 
@@ -86,7 +86,7 @@ export async function createCategory({
 }: {
   category: Omit<Category, 'id'>
 }): Promise<BaseResponse<Category>> {
-  const res = await axiosClient.post<BaseResponse<Category>>('/post/c', category)
+  const res = await axiosClient.post('/post/c', category)
   return res.data
 }
 
@@ -95,7 +95,7 @@ export async function updateCategory({
 }: {
   category: Category
 }): Promise<BaseResponse<Category>> {
-  const res = await axiosClient.put<BaseResponse<Category>>(`/post/c/${category.id}`, category)
+  const res = await axiosClient.put(`/post/c/${category.id}`, category)
   return res.data
 }
 

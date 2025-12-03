@@ -12,7 +12,7 @@ export async function createLabel({
 }: {
   label: Omit<Label, 'id'>
 }): Promise<BaseResponse<{ id: number }>> {
-  const res = await axiosClient.post<BaseResponse<{ id: number }>>('/label/l', {
+  const res = await axiosClient.post('/label/l', {
     ...label,
   })
   return res.data
@@ -23,13 +23,13 @@ export async function updateLabel({
 }: {
   label: Label & Pick<Label, 'id'>
 }): Promise<BaseResponse<null>> {
-  const res = await axiosClient.put<BaseResponse<null>>(`/label/l/${label.id}`, {
+  const res = await axiosClient.put(`/label/l/${label.id}`, {
     ...label,
   })
   return res.data
 }
 
 export async function deleteLabel({ id }: { id: number }): Promise<BaseResponse<null>> {
-  const res = await axiosClient.delete<BaseResponse<null>>(`/label/l/${id}`, {})
+  const res = await axiosClient.delete(`/label/l/${id}`, {})
   return res.data
 }

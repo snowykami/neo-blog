@@ -11,7 +11,7 @@ export async function getPostByIdServer({
   type?: 'draft' | 'normal'
 }): Promise<BaseResponse<Post | null>> {
   const authHeaders = await getAuthHeaders()
-  const res = await axiosClient.get<BaseResponse<Post | null>>(`/post/p/${id}`, {
+  const res = await axiosClient.get(`/post/p/${id}`, {
     params: { type },
     headers: authHeaders,
   })

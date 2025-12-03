@@ -1,5 +1,6 @@
 import type { PaginationParams } from '../models/common'
 import type { BaseResponse } from '@/models/resp'
+import type { User } from '@/models/user'
 import axiosClient from './client'
 
 export interface DashboardResp {
@@ -10,12 +11,12 @@ export interface DashboardResp {
 }
 
 export async function getDashboard(): Promise<BaseResponse<DashboardResp>> {
-  const res = await axiosClient.get<BaseResponse<DashboardResp>>('/admin/dashboard')
+  const res = await axiosClient.get('/admin/dashboard')
   return res.data
 }
 
-export async function listUsers(params: PaginationParams) {
-  const res = await axiosClient.get<BaseResponse<{ users: any[], total: number }>>(
+export async function listUsers(params: PaginationParams): Promise<BaseResponse<{ users: User[], total: number }>> {
+  const res = await axiosClient.get(
     '/admin/users',
     { params },
   )
@@ -23,7 +24,7 @@ export async function listUsers(params: PaginationParams) {
 }
 
 export async function listCommentsAdmin(pagination: PaginationParams, query: string): Promise<BaseResponse<{ comments: Comment[], total: number }>> {
-  const res = await axiosClient.get<BaseResponse<{ comments: Comment[], total: number }>>(
+  const res = await axiosClient.get(
     '/admin/comments',
     { params: { ...pagination, query } },
   )

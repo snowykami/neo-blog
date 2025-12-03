@@ -20,7 +20,7 @@ export async function createComment({
   isPrivate: boolean
   showClientInfo: boolean
 }): Promise<BaseResponse<{ id: number }>> {
-  const res = await axiosClient.post<BaseResponse<{ id: number }>>('/comment/c', {
+  const res = await axiosClient.post('/comment/c', {
     targetType,
     targetId,
     content,
@@ -42,7 +42,7 @@ export async function updateComment({
   isPrivate?: boolean // 可选字段，默认为 false
   showClientInfo?: boolean
 }): Promise<BaseResponse<Comment>> {
-  const res = await axiosClient.put<BaseResponse<Comment>>(`/comment/c/${id}`, {
+  const res = await axiosClient.put(`/comment/c/${id}`, {
     content,
     isPrivate,
     showClientInfo,
@@ -69,7 +69,7 @@ export async function listComments({
   depth: number
   commentId: number
 } & PaginationParams) {
-  const res = await axiosClient.get<BaseResponse<{ comments: Comment[] }>>(`/comment/list`, {
+  const res = await axiosClient.get(`/comment/list`, {
     params: {
       targetType,
       targetId,
@@ -85,6 +85,6 @@ export async function listComments({
 }
 
 export async function getComment({ id }: { id: number }): Promise<BaseResponse<Comment>> {
-  const res = await axiosClient.get<BaseResponse<Comment>>(`/comment/c/${id}`)
+  const res = await axiosClient.get(`/comment/c/${id}`)
   return res.data
 }

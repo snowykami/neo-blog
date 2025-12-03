@@ -10,7 +10,7 @@ export async function toggleLike({
   targetType: TargetType
   targetId: number
 }): Promise<BaseResponse<{ status: boolean }>> {
-  const res = await axiosClient.put<BaseResponse<{ status: boolean }>>('/like/toggle', {
+  const res = await axiosClient.put('/like/toggle', {
     targetType,
     targetId,
   })
@@ -26,7 +26,7 @@ export async function getLikedUsers({
   targetId: number
   number: number
 }): Promise<BaseResponse<{ users: User[] }>> {
-  const res = await axiosClient.get<BaseResponse<{ users: User[] }>>('/like/liked_users', {
+  const res = await axiosClient.get('/like/liked_users', {
     params: { targetType, targetId, number },
   })
   return res.data

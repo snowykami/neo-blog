@@ -6,12 +6,12 @@ import { formatDuration } from '@/utils/common/datetime'
 import axiosClient from './client'
 
 export async function getSiteInfo(): Promise<BaseResponse<SiteInfo>> {
-  const res = await axiosClient.get<BaseResponse<SiteInfo>>('/misc/site-info')
+  const res = await axiosClient.get('/misc/site-info')
   return res.data
 }
 
 export async function setSiteInfo(info: SiteInfo): Promise<BaseResponse<null>> {
-  const res = await axiosClient.post<BaseResponse<null>>('/misc/site-info', info)
+  const res = await axiosClient.post('/misc/site-info', info)
   return res.data
 }
 

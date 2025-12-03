@@ -193,10 +193,10 @@ function TrackInfo() {
   }
 
   // 使用 useMeasure 测量容器与纯文本内容宽度
-  const [nameContainerRef, { width: nameContainerWidth }] = useMeasure()
-  const [nameContentRef, { width: nameContentWidth }] = useMeasure()
-  const [artistContainerRef, { width: artistContainerWidth }] = useMeasure()
-  const [artistContentRef, { width: artistContentWidth }] = useMeasure()
+  const [nameContainerRef, { width: nameContainerWidth }] = useMeasure<HTMLDivElement>()
+  const [nameContentRef, { width: nameContentWidth }] = useMeasure<HTMLDivElement>()
+  const [artistContainerRef, { width: artistContainerWidth }] = useMeasure<HTMLDivElement>()
+  const [artistContentRef, { width: artistContentWidth }] = useMeasure<HTMLDivElement>()
 
   const [isNameMarqueePlaying, setIsNameMarqueePlaying] = useState(false)
   const [isArtistMarqueePlaying, setIsArtistMarqueePlaying] = useState(false)
@@ -220,7 +220,7 @@ function TrackInfo() {
         className="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700 w-15 h-15"
       />
       <div className="flex flex-col justify-center px-4 gap-2 font-mono min-w-0">
-        <div ref={nameContainerRef} className="text-lg font-medium text-gray-900 dark:text-gray-100 overflow-hidden min-w-0">
+        <div ref={nameContainerRef as any} className="text-lg font-medium text-gray-900 dark:text-gray-100 overflow-hidden min-w-0">
           <div style={{ display: 'block', width: '100%' }}>
             <Marquee
               key={currentIndex}
@@ -237,7 +237,7 @@ function TrackInfo() {
           </div>
         </div>
 
-        <div ref={artistContainerRef} className="text-xs text-gray-600 dark:text-gray-400 overflow-hidden min-w-0">
+        <div ref={artistContainerRef as any} className="text-xs text-gray-600 dark:text-gray-400 overflow-hidden min-w-0">
           <div style={{ display: 'block', width: '100%' }}>
             <Marquee
               key={currentIndex}
@@ -255,10 +255,10 @@ function TrackInfo() {
 
         {/* 隐藏测量元素：只包含纯文本，用于精确测量文本宽度（与展示样式保持相同字体/字号） */}
         <div aria-hidden style={{ position: 'absolute', visibility: 'hidden', whiteSpace: 'nowrap', pointerEvents: 'none', height: 0, overflow: 'visible' }}>
-          <span ref={nameContentRef} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
+          <span ref={nameContentRef as any} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
             {currentTrack.name}
           </span>
-          <span ref={artistContentRef} style={{ display: 'inline-block', whiteSpace: 'nowrap', marginLeft: 8 }}>
+          <span ref={artistContentRef as any} style={{ display: 'inline-block', whiteSpace: 'nowrap', marginLeft: 8 }}>
             {currentTrack.artists.join('/')}
             {' '}
             -
