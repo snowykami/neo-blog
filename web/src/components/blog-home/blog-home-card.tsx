@@ -28,9 +28,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useCommonT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
+import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { getPostUrl } from '@/utils/common/route'
 import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 import { htmlToText } from '@/utils/common/string'
+import { getFirstCharFromUser } from '@/utils/common/username'
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 
 export function BlogCard({ post, className }: { post: Post, className?: string }) {
   const { siteInfo } = useSiteInfo()
@@ -163,9 +166,19 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
         {/* 右侧 */}
         <div className="flex items-center gap-1">
           <div className="flex items-center gap-1 overflow-hidden">
-            <UserIcon className="w-4 h-4" />
+            <Avatar className="h-5 w-5 rounded-full border">
+              <AvatarImage
+                src={getAvatarOrGravatarUrlFromUser({
+                  user: post.user,
+                  size: 120,
+                })}
+                alt={post.user.nickname}
+              />
+              <AvatarFallback className="rounded-full">
+                {getFirstCharFromUser(post.user)}
+              </AvatarFallback>
+            </Avatar>
             <span className="text-ellipsis block max-w-[15ch] truncate">{post.user.nickname || post.user.username}</span>
-
           </div>
         </div>
       </CardFooter>
