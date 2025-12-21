@@ -2,6 +2,7 @@
 import type { Post } from '@/models/post'
 import type { BaseResponseError } from '@/models/resp'
 import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
+import { useAsyncTask } from '@snowykami/use-async-task'
 import { Ellipsis, Eye } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
@@ -69,33 +70,58 @@ export function PostManage() {
       .withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE)
       .withOptions({ history: 'replace', clearOnDefault: true }),
   )
-  const [keywords, setKeywords] = useQueryState(
-    'keywords',
-    parseAsString.withDefault('').withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-  const [keywordsInput, setKeywordsInput, debouncedKeywordsInput] = useDebouncedState(
-    keywords,
+  // 搜索词用本地状态管理，不通过 URL
+  const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState(
+    '',
     200,
   )
   const [createPostDialogOpen, setCreatePostDialogOpen] = useState(false)
-  const [refreshKey, setRefreshKey] = useState(0) // 用于强制刷新列表
 
-  useEffect(() => {
-    if (!user)
-      return
-    listPosts({ page, size, orderBy, desc, keywords, userId: user.id }).then((res) => {
-      setPosts(res.data.posts)
-      setTotal(res.data.total)
-    })
-  }, [page, orderBy, desc, size, keywords, refreshKey])
+  // 使用 useAsyncTask 进行搜索并缓存结果
+  const listPostsTask = useAsyncTask(
+    async (p: number, sz: number, ob: OrderBy, d: boolean, q: string) => {
+      if (!user)
+        return { posts: [], total: 0 }
+      const res = await listPosts({
+        page: p,
+        size: sz,
+        orderBy: ob,
+        desc: d,
+        query: q,
+        userId: user.id,
+      })
+      return { posts: res.data.posts, total: res.data.total }
+    },
+    {
+      // 当搜索参数变化时自动执行
+      immediate: true,
+      dependencies: [page, size, orderBy, desc, debouncedQueryInput, user],
+      getArgs: () => [page, size, orderBy, desc, debouncedQueryInput] as const,
+      // 相同搜索条件在 10 秒内使用缓存，避免重复请求
+      cacheTime: 10_000,
+      // 根据搜索条件生成唯一的 cache key
+      taskKey: (p, sz, ob, d, q) => `listPosts-${user?.id}-${p}-${sz}-${ob}-${d}-${q}`,
+      maxRetries: 1,
+    },
+  )
 
+  // 更新本地状态
   useEffect(() => {
-    setKeywords(debouncedKeywordsInput)
-  }, [debouncedKeywordsInput, setKeywords, keywords])
+    if (listPostsTask.data) {
+      setPosts(listPostsTask.data.posts)
+      setTotal(listPostsTask.data.total)
+    }
+  }, [listPostsTask.data])
+
+  // 防抖后的搜索词变化时，重置分页
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedQueryInput, setPage])
 
   const onPostCreate = useCallback(() => {
-    setRefreshKey(k => k + 1)
-  }, [])
+    // 创建新文章后清除缓存，让下次搜索重新获取最新数据
+    listPostsTask.reset()
+  }, [listPostsTask])
 
   const onPostUpdate = useCallback(
     ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
@@ -134,8 +160,8 @@ export function PostManage() {
           <Input
             type="search"
             placeholder={commonT('search')}
-            value={keywordsInput}
-            onChange={e => setKeywordsInput(e.target.value)}
+            value={queryInput}
+            onChange={e => setQueryInput(e.target.value)}
           />
         </div>
         <div className="flex items-center gap-4">

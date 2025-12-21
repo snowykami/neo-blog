@@ -142,13 +142,13 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, *errs.ServiceError) {
 	postDtos := make([]*dto.PostDto, 0)
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
-	keywordsArray := make([]string, 0)
-	if req.Keywords != "" {
-		for _, kw := range strings.Split(req.Keywords, ",") {
-			keywordsArray = append(keywordsArray, strings.TrimSpace(kw))
+	queryArray := make([]string, 0)
+	if req.Query != "" {
+		for _, q := range strings.Split(req.Query, ",") {
+			queryArray = append(queryArray, strings.TrimSpace(q))
 		}
 	}
-	posts, total, err := repo.Post.ListPosts(currentUserID, keywordsArray, req)
+	posts, total, err := repo.Post.ListPosts(currentUserID, queryArray, req)
 	if err != nil {
 		return nil, total, errs.NewInternalServer("failed_to_get_target")
 	}

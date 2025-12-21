@@ -65,7 +65,7 @@ export default function BlogHome() {
       size: siteInfo.postsPerPage || 9,
       orderBy: orderByState === OrderBy.CreatedAt ? OrderBy.CreatedAt : OrderBy.Heat,
       desc: true,
-      keywords: keywords.join(',') || undefined,
+      query: keywords.join(',') || undefined,
       label: labelSlug || undefined,
     })
       .then((res) => {

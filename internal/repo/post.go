@@ -179,20 +179,20 @@ func (p *postRepo) SavePost(post *model.Post) error {
 	return nil
 }
 
-func (p *postRepo) ListPosts(currentUserID uint, keywords []string, req *dto.ListPostReq) ([]model.Post, int64, error) {
+func (p *postRepo) ListPosts(currentUserID uint, query []string, req *dto.ListPostReq) ([]model.Post, int64, error) {
 	if !slices.Contains(constant.OrderByEnumPost, req.OrderBy) {
 		return nil, 0, errs.NewBadRequest("invalid_request_parameters")
 	}
 
-	query := GetDB().Model(&model.Post{}).Preload(clause.Associations)
+	q := GetDB().Model(&model.Post{}).Preload(clause.Associations)
 	if req.UserID > 0 {
-		query = query.Where("user_id = ?", req.UserID)
+		q = q.Where("user_id = ?", req.UserID)
 	}
 
 	if currentUserID > 0 {
-		query = query.Where("is_private = ? OR (is_private = ? AND user_id = ?)", false, true, currentUserID)
+		q = q.Where("is_private = ? OR (is_private = ? AND user_id = ?)", false, true, currentUserID)
 	} else {
-		query = query.Where("is_private = ?", false)
+		q = q.Where("is_private = ?", false)
 	}
 
 	if req.Label != "" {
@@ -204,29 +204,29 @@ func (p *postRepo) ListPosts(currentUserID uint, keywords []string, req *dto.Lis
 			}
 			return nil, 0, err
 		}
-		query = query.Joins("JOIN post_labels ON post_labels.post_id = posts.id").
+		q = q.Joins("JOIN post_labels ON post_labels.post_id = posts.id").
 			Where("post_labels.label_id = ?", labelModel.ID)
 	}
 
-	if len(keywords) > 0 {
-		for _, keyword := range keywords {
-			if keyword != "" {
-				query = query.Where("title LIKE ? OR content LIKE ?",
-					"%"+keyword+"%", "%"+keyword+"%")
+	if len(query) > 0 {
+		for _, q_item := range query {
+			if q_item != "" {
+				q = q.Where("title LIKE ? OR content LIKE ?",
+					"%"+q_item+"%", "%"+q_item+"%")
 			}
 		}
 	}
 
 	if req.NoContent {
-		query = query.Omit("content", "draft_content")
+		q = q.Omit("content", "draft_content")
 	}
 
 	var total int64
-	if err := query.Count(&total).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := q.Count(&total).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, 0, err
 	}
 
-	items, _, err := PaginateQuery[model.Post](query, req.Page, req.Size, req.OrderBy, req.Desc)
+	items, _, err := PaginateQuery[model.Post](q, req.Page, req.Size, req.OrderBy, req.Desc)
 	if err != nil {
 		return nil, 0, err
 	}

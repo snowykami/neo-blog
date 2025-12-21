@@ -9,7 +9,6 @@ import {
   Heart,
   Lock,
   MessageCircle,
-  UserIcon,
 } from 'lucide-react'
 import { motion } from 'motion/react'
 import Image from 'next/image'
@@ -68,14 +67,14 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
             src={post.cover || getDefaultCoverRandomly(siteInfo)}
             alt={post.title}
             fill
-            className="object-cover w-full h-full group-hover:scale-105 !duration-300 !transition-transform"
+            className="object-cover w-full h-full group-hover:scale-105 duration-300! transition-transform!"
             sizes="(max-width: 768px) 100vw, 33vw"
             priority={false}
           />
         </motion.div>
 
         {/* 覆盖层 */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent" />
 
         {/* 私有文章标识 */}
         {post.isPrivate && (

@@ -28,12 +28,12 @@ export async function listPosts({
   size = 10,
   orderBy = OrderBy.CreatedAt,
   desc = true,
-  keywords = '',
+  query = '',
   noContent = false,
   label = '',
   userId = 0,
 }: {
-  keywords?: string // 关键词，逗号分割
+  query?: string // 搜索查询，逗号分割
   label?: string // 标签，逗号分割
   userId?: number // 用户ID，管理员可查看指定用户的文章
   noContent?: boolean // 是否不返回内容，用于只需要列表时
@@ -44,7 +44,7 @@ export async function listPosts({
       size,
       orderBy,
       desc,
-      keywords,
+      query,
       label,
       noContent,
       userId,

@@ -93,13 +93,13 @@ export async function batchDeleteFiles({ ids }: { ids: number[] }): Promise<
 export async function listFiles({
   page,
   size,
-  keywords,
+  query,
   orderBy,
   desc,
 }: {
   page: number
   size: number
-  keywords?: string
+  query?: string
   orderBy?: string
   desc?: boolean
 }): Promise<
@@ -112,7 +112,7 @@ export async function listFiles({
     params: {
       page,
       size,
-      keywords,
+      query,
       orderBy,
       desc,
     },

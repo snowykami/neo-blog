@@ -12,6 +12,7 @@ import {
   useQueryState,
 } from 'nuqs'
 import { useCallback, useEffect, useState } from 'react'
+import { useAsyncTask } from '@snowykami/use-async-task'
 import { toast } from 'sonner'
 import { batchDeleteFiles, deleteFile, listFiles } from '@/api/file'
 import { ArrangementSelector } from '@/components/common/arrangement-selector'
@@ -78,27 +79,44 @@ export function FileManage() {
       .withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE)
       .withOptions({ history: 'replace', clearOnDefault: true }),
   )
-  const [keywords, setKeywords] = useQueryState(
-    'keywords',
-    parseAsString.withDefault('').withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-  const [keywordsInput, setKeywordsInput, debouncedKeywordsInput] = useDebouncedState(
-    keywords,
+  // 搜索词用本地状态管理，不通过 URL
+  const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState(
+    '',
     200,
   )
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(new Set())
-  const [fileListRefreshIndex, setFileListRefreshIndex] = useState(0) // 用于强制刷新文件列表
 
-  useEffect(() => {
-    listFiles({ page, size, orderBy, desc, keywords }).then((res) => {
-      setFiles(res.data.files)
-      setTotal(res.data.total)
-    })
-  }, [page, orderBy, desc, size, keywords, fileListRefreshIndex])
+  // 使用 useAsyncTask 进行文件列表搜索并缓存结果
+  const listFilesTask = useAsyncTask(
+    async (p: number, sz: number, ob: OrderBy, d: boolean, q: string) => {
+      const res = await listFiles({ page: p, size: sz, orderBy: ob, desc: d, query: q })
+      return { files: res.data.files, total: res.data.total }
+    },
+    {
+      // 当搜索参数变化时自动执行
+      immediate: true,
+      dependencies: [page, size, orderBy, desc, debouncedQueryInput],
+      getArgs: () => [page, size, orderBy, desc, debouncedQueryInput] as const,
+      // 相同搜索条件在 10 秒内使用缓存，避免重复请求
+      cacheTime: 10_000,
+      // 根据搜索条件生成唯一的 cache key
+      taskKey: (p, sz, ob, d, q) => `listFiles-${p}-${sz}-${ob}-${d}-${q}`,
+      maxRetries: 1,
+    }
+  )
 
+  // 更新本地状态
   useEffect(() => {
-    setKeywords(debouncedKeywordsInput)
-  }, [debouncedKeywordsInput, setKeywords, keywords])
+    if (listFilesTask.data) {
+      setFiles(listFilesTask.data.files)
+      setTotal(listFilesTask.data.total)
+    }
+  }, [listFilesTask.data])
+
+  // 防抖后的搜索词变化时，重置分页
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedQueryInput, setPage])
 
   const onFileDelete = useCallback(
     ({ fileId }: { fileId: number }) => {
@@ -166,8 +184,9 @@ export function FileManage() {
     setPage(1)
     setOrderBy(OrderBy.CreatedAt)
     setDesc(true)
-    setFileListRefreshIndex(idx => idx + 1)
-  }, [setPage, setOrderBy, setDesc])
+    // 上传文件后清除缓存，让下次搜索重新获取最新数据
+    listFilesTask.reset()
+  }, [setPage, setOrderBy, setDesc, listFilesTask])
 
   const handleBatchDelete = () => {
     batchDeleteFiles({ ids: Array.from(selectedFileIds) })
@@ -209,8 +228,8 @@ export function FileManage() {
           <Input
             type="search"
             placeholder={commonT('search')}
-            value={keywordsInput}
-            onChange={e => setKeywordsInput(e.target.value)}
+            value={queryInput}
+            onChange={e => setQueryInput(e.target.value)}
             className="flex-1 min-w-0"
           />
         </div>

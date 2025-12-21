@@ -1,8 +1,6 @@
 package repo
 
 import (
-	"strings"
-
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -40,31 +38,35 @@ func (f *FileRepo) CountFilesByProviderID(providerID uint) (int64, error) {
 	return count, err
 }
 
-func (f *FileRepo) ListFiles(userID uint, paginationParams *dto.PaginationParams, keywords []string) ([]model.File, int64, error) {
+func (f *FileRepo) ListFiles(userID uint, paginationParams *dto.PaginationParams, query []string) ([]model.File, int64, error) {
 	var files []model.File
 	var total int64
 	// 构建基础查询
-	query := GetDB().Model(&model.File{})
+	q := GetDB().Model(&model.File{})
 	// 应用筛选条件
 	if userID != 0 {
-		query = query.Where("user_id = ?", userID)
+		q = q.Where("user_id = ?", userID)
 	}
-	if len(keywords) > 0 {
-		query = query.Where("name LIKE ?", "%"+strings.Join(keywords, "%")+"%")
+	if len(query) > 0 {
+		for _, q_item := range query {
+			if q_item != "" {
+				q = q.Where("name LIKE ?", "%"+q_item+"%")
+			}
+		}
 	}
 	// 先获取总数
-	countQuery := query.Session(&gorm.Session{}) // 创建新的会话，避免影响原查询
+	countQuery := q.Session(&gorm.Session{}) // 创建新的会话，避免影响原查询
 	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	// 应用分页和排序
 	if paginationParams != nil {
-		query = query.Offset(int(paginationParams.Offset())).
+		q = q.Offset(int(paginationParams.Offset())).
 			Limit(int(paginationParams.Size)).
 			Order(paginationParams.Order())
 	}
 	// 查询数据
-	if err := query.Find(&files).Error; err != nil {
+	if err := q.Find(&files).Error; err != nil {
 		return nil, 0, err
 	}
 	return files, total, nil

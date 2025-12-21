@@ -216,13 +216,17 @@ func (f *FileController) ListFiles(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	keywords := strings.Split(c.Query("keywords"), ",")
+	queryStr := []string{}
+	query := c.Query("query")
+	if query != "" {
+		queryStr = strings.Split(query, ",")
+	}
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		resps.InternalServerError(c, "获取当前用户失败")
 		return
 	}
-	files, total, err := repo.File.ListFiles(currentUser.ID, &paginationParams, keywords)
+	files, total, err := repo.File.ListFiles(currentUser.ID, &paginationParams, queryStr)
 	if err != nil {
 		logrus.Error("获取文件列表失败: ", err)
 		resps.InternalServerError(c, "获取文件列表失败")

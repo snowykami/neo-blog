@@ -14,6 +14,7 @@ import {
 } from 'nuqs'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useAsyncTask } from '@snowykami/use-async-task'
 import { listComments } from '@/api/comment'
 import { listPosts } from '@/api/post'
 import { OrderSelector } from '@/components/common/orderby-selector'
@@ -43,7 +44,6 @@ export default function CommentsManage() {
   const [postCommentsMap, setPostCommentsMap] = useState<Record<number, Comment[]>>({}) // 文章ID -> 评论列表
   const [postCommentPage, setPostCommentPage] = useState<Record<number, number>>({}) // 文章ID -> 当前评论页
   const [totalPosts, setTotalPosts] = useState(0)
-  const [loading, setLoading] = useState(true)
 
   // 排序字段
   const [orderBy, setOrderBy] = useQueryState(
@@ -78,32 +78,53 @@ export default function CommentsManage() {
       .withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE)
       .withOptions({ history: 'replace', clearOnDefault: true }),
   )
-  const [keywords, setKeywords] = useQueryState(
-    'keywords',
-    parseAsString.withDefault('').withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-  const [keywordsInput, setKeywordsInput, debounceKeywordsInput] = useDebouncedState(
-    keywords,
+  // 搜索词用本地状态管理，不通过 URL
+  const [queryInput, setQueryInput, debounceQueryInput] = useDebouncedState(
+    '',
     200,
   )
 
+  // 使用 useAsyncTask 进行文章列表搜索并缓存结果
+  const listPostsTask = useAsyncTask(
+    async (pp: number, ps: number, ob: OrderBy, d: boolean, q: string) => {
+      if (!user)
+        return { posts: [], total: 0 }
+      const res = await listPosts({
+        page: pp,
+        size: ps,
+        orderBy: ob,
+        desc: d,
+        query: q,
+        userId: user.id,
+      })
+      return { posts: res.data.posts, total: res.data.total }
+    },
+    {
+      // 当搜索参数变化时自动执行
+      immediate: true,
+      dependencies: [postPage, postSize, orderBy, desc, debounceQueryInput, user],
+      getArgs: () => [postPage, postSize, orderBy, desc, debounceQueryInput] as const,
+      // 相同搜索条件在 10 秒内使用缓存，避免重复请求
+      cacheTime: 10_000,
+      // 根据搜索条件生成唯一的 cache key
+      taskKey: (pp, ps, ob, d, q) => `listPosts-${user?.id}-${pp}-${ps}-${ob}-${d}-${q}`,
+      maxRetries: 1,
+    }
+  )
+
+  // 更新本地状态
   useEffect(() => {
-    if (!user)
-      return
-    setLoading(true)
-    listPosts({ page: postPage, size: postSize, orderBy, desc, keywords, userId: user.id }).then((res) => {
-      setPosts(res.data.posts)
-      setTotalPosts(res.data.total)
+    if (listPostsTask.data) {
+      setPosts(listPostsTask.data.posts)
+      setTotalPosts(listPostsTask.data.total)
 
       const initialPage: Record<number, number> = {}
-      res.data.posts.forEach((post) => {
-        initialPage[post.id] = 1 // 每篇文章默认从第1页评论开始
+      listPostsTask.data.posts.forEach((post) => {
+        initialPage[post.id] = 1
       })
       setPostCommentPage(initialPage)
-
-      setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [user, postPage, postSize, orderBy, desc, keywords])
+    }
+  }, [listPostsTask.data])
 
   // 单篇文章的评论
   const fetchPostComments = useCallback(async (postId: number, page = 1) => {
@@ -137,14 +158,10 @@ export default function CommentsManage() {
     })
   }, [posts, fetchPostComments])
 
-  // 搜索关键词同步
+  // 防抖后的搜索词变化时，重置分页
   useEffect(() => {
-    setKeywords(debounceKeywordsInput)
-  }, [debounceKeywordsInput, setKeywords])
-
-  useEffect(() => {
-    setKeywords(debounceKeywordsInput)
-  }, [debounceKeywordsInput, setKeywords, keywords])
+    setPostPage(1)
+  }, [debounceQueryInput, setPostPage])
 
   const onOrderChange = useCallback(
     ({ orderBy, desc }: { orderBy: OrderBy, desc: boolean }) => {
@@ -177,8 +194,8 @@ export default function CommentsManage() {
           <Input
             type="search"
             placeholder={commonT('search')}
-            value={keywordsInput}
-            onChange={e => setKeywordsInput(e.target.value)}
+            value={queryInput}
+            onChange={e => setQueryInput(e.target.value)}
           />
           <div className="ml-1.5">
             <SearchModeSelector initialMode={searchMode} onSearchModeChange={setSearchMode} />
@@ -194,7 +211,7 @@ export default function CommentsManage() {
         </div>
       </div>
 
-      {loading
+      {listPostsTask.loading
         ? (
             <div className="text-center py-8">加载中...</div>
           )
