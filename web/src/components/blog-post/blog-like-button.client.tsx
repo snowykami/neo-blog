@@ -25,8 +25,32 @@ export function BlogLikeButton({ post }: { post: Post }) {
   const [likeCount, setLikeCount] = useState(post.likeCount || 0)
   const [likedUsers, setLikedUsers] = useState<User[]>([])
   const [canClickLike, setCanClickLike] = useState(true)
+  const [shouldFetchLikedUsers, setShouldFetchLikedUsers] = useState(false)
+
+  // Lazy load liked users only when in viewport
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setShouldFetchLikedUsers(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.1 },
+    )
+
+    const element = document.getElementById('like-button-section')
+    if (element) {
+      observer.observe(element)
+    }
+
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
+    if (!shouldFetchLikedUsers)
+      return
+
     getLikedUsers({ targetType: TargetType.Post, targetId: post.id, number: 5 })
       .then((res) => {
         setLikedUsers(res.data.users?.slice(0, MAX_LIKED_USERS) || [])
@@ -34,7 +58,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
       .catch(() => {
         setLikedUsers([])
       })
-  }, [liked, setLikedUsers, likeCount, post.id])
+  }, [shouldFetchLikedUsers, liked, likeCount, post.id])
 
   const handleToggleLike = () => {
     if (!canClickLike) {
@@ -48,6 +72,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
           onClick: clickToLogin,
         },
       })
+      setCanClickLike(true)
       return
     }
     // 提前转换状态，让用户觉得响应很快
@@ -66,7 +91,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
   }
 
   return (
-    <div>
+    <div id="like-button-section">
       <div className="flex justify-center pt-0">
         <div
           onClick={handleToggleLike}

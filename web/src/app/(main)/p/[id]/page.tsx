@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { Article, WithContext } from 'schema-dts'
+import { cache } from 'react'
 import { getLocale } from 'next-intl/server'
 import { notFound, redirect } from 'next/navigation'
 import Script from 'next/script'
@@ -10,21 +11,34 @@ import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/sitein
 import { formatDisplayName as formatFullName } from '@/utils/common/username'
 import { BlogPost } from './blog-post'
 
+// Cache the post fetch to avoid duplicate requests during SSR
+const getCachedPost = cache(async (id: string, type?: 'draft' | undefined) => {
+  return getPostByIdServer({ id, type })
+    .then(res => res.data)
+    .catch(() => null)
+})
+
+// Cache site info to avoid duplicate fetches
+const getCachedSiteInfo = cache(async () => {
+  return getSiteInfo()
+    .then(res => res.data)
+    .catch(() => fallbackSiteInfo)
+})
+
 // 这个是app router固定的传入格式，无法更改
 interface Props {
   params: Promise<{ id: string }>
   searchParams: Promise<{ type: 'draft' | undefined }>
 }
 
+// Enable ISR with 60 seconds revalidation for better performance
+export const revalidate = 60
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const post = await getPostByIdServer({ id })
-    .then(res => res.data)
-    .catch(() => null)
+  const post = await getCachedPost(id)
   const locale = (await getLocale()) || 'en'
-  const siteInfo = await getSiteInfo()
-    .then(res => res.data)
-    .catch(() => fallbackSiteInfo)
+  const siteInfo = await getCachedSiteInfo()
   if (!post) {
     return {
       title: 'Post Not Found',
@@ -79,12 +93,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PostPage({ params, searchParams }: Props) {
   const { id } = await params
   const { type } = await searchParams
-  const post = await getPostByIdServer({ id, type })
-    .then(res => res.data)
-    .catch(() => null)
-  const siteInfo = await getSiteInfo()
-    .then(res => res.data)
-    .catch(() => fallbackSiteInfo)
+  const post = await getCachedPost(id, type)
+  const siteInfo = await getCachedSiteInfo()
   if (!post)
     return notFound()
   // 如果当前访问的 id 不是 post 的 slug，则重定向到正确的 URL

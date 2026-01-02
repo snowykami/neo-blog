@@ -13,6 +13,7 @@ import {
 import * as motion from 'motion/react-client'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { getSiteInfo } from '@/api/misc'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import CopyrightCard from '@/components/blog-post/blog-copyright.client'
@@ -28,6 +29,7 @@ import {
 import { CommentSection } from '@/components/comment'
 import Typewriter from '@/components/common/typewriter'
 import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { TargetType } from '@/models/types'
 import { contentAreaPaddingClass, navStickyTopPx } from '@/utils/common/layout-size'
 import { calculateReadingTime } from '@/utils/common/post'
@@ -119,7 +121,7 @@ async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean })
         </div>
       )}
 
-      {/* 文章内容 */}
+      {/* 文章内容 - Core content rendered immediately */}
       <article
         id="blog-content"
         className="prose prose-lg max-w-none dark:prose-invert
@@ -137,10 +139,44 @@ async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean })
         <CopyrightCard post={post} />
       </div>
 
-      {/* 点赞按钮 */}
+      {/* 点赞按钮 - Wrapped in Suspense for better performance */}
       <div className="mt-4 md:mt-8">
-        <BlogLikeButton post={post} />
+        <Suspense fallback={<LikeButtonSkeleton />}>
+          <BlogLikeButton post={post} />
+        </Suspense>
       </div>
+    </div>
+  )
+}
+
+// Skeleton for like button
+function LikeButtonSkeleton() {
+  return (
+    <div>
+      <div className="flex justify-center pt-0">
+        <Skeleton className="rounded-full w-16 h-16" />
+      </div>
+      <div className="text-lg py-4 flex justify-center">
+        <Skeleton className="h-6 w-32" />
+      </div>
+    </div>
+  )
+}
+
+// Skeleton for comments section
+function CommentsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-8 w-48 mb-6" />
+      {[...Array(2)].map((_, i) => (
+        <div key={i} className="flex gap-3">
+          <Skeleton className="w-10 h-10 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-1/4" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -179,15 +215,18 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
           }}
         >
           <PostContent post={post} isDraft={isDraft} />
+          {/* Comments section wrapped in Suspense for better performance */}
           <div
             className={`bg-background mt-4 rounded-xl border border-border ${contentAreaPaddingClass} py-4 md:py-8`}
           >
-            <CommentSection
-              targetType={TargetType.Post}
-              ownerId={post.user.id}
-              targetId={post.id}
-              totalCount={post.commentCount}
-            />
+            <Suspense fallback={<CommentsSkeleton />}>
+              <CommentSection
+                targetType={TargetType.Post}
+                ownerId={post.user.id}
+                targetId={post.id}
+                totalCount={post.commentCount}
+              />
+            </Suspense>
           </div>
         </motion.div>
 
