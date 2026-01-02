@@ -2,7 +2,7 @@
 import type { Post } from '@/models/post'
 import type { User } from '@/models/user'
 import { HeartIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { getLikedUsers, toggleLike } from '@/api/like'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -26,9 +26,14 @@ export function BlogLikeButton({ post }: { post: Post }) {
   const [likedUsers, setLikedUsers] = useState<User[]>([])
   const [canClickLike, setCanClickLike] = useState(true)
   const [shouldFetchLikedUsers, setShouldFetchLikedUsers] = useState(false)
+  const likeButtonRef = useRef<HTMLDivElement>(null)
 
   // Lazy load liked users only when in viewport
   useEffect(() => {
+    const element = likeButtonRef.current
+    if (!element)
+      return
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
@@ -39,11 +44,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
       { threshold: 0.1 },
     )
 
-    const element = document.getElementById('like-button-section')
-    if (element) {
-      observer.observe(element)
-    }
-
+    observer.observe(element)
     return () => observer.disconnect()
   }, [])
 
@@ -91,7 +92,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
   }
 
   return (
-    <div id="like-button-section">
+    <div ref={likeButtonRef}>
       <div className="flex justify-center pt-0">
         <div
           onClick={handleToggleLike}
