@@ -168,7 +168,7 @@ function CommentsSkeleton() {
   return (
     <div className="space-y-6">
       <Skeleton className="h-8 w-48 mb-6" />
-      {[...Array(2)].map((_, i) => (
+      {[...Array.from({ length: 2 })].map((_, i) => (
         <div key={i} className="flex gap-3">
           <Skeleton className="w-10 h-10 rounded-full" />
           <div className="flex-1 space-y-2">
