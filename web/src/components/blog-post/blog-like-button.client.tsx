@@ -70,10 +70,15 @@ export function BlogLikeButton({ post }: { post: Post }) {
       toast.error(commonT('login_required'), {
         action: {
           label: operationT('login'),
-          onClick: clickToLogin,
+          onClick: () => {
+            setCanClickLike(true)
+            clickToLogin()
+          },
+        },
+        onDismiss: () => {
+          setCanClickLike(true)
         },
       })
-      setCanClickLike(true)
       return
     }
     // 提前转换状态，让用户觉得响应很快

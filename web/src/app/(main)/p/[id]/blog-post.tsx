@@ -164,11 +164,12 @@ function LikeButtonSkeleton() {
 }
 
 // Skeleton for comments section
+const COMMENT_SKELETON_ITEMS = Array.from({ length: 2 })
 function CommentsSkeleton() {
   return (
     <div className="space-y-6">
       <Skeleton className="h-8 w-48 mb-6" />
-      {Array.from({ length: 2 }).map((_, i) => (
+      {COMMENT_SKELETON_ITEMS.map((_, i) => (
         <div key={i} className="flex gap-3">
           <Skeleton className="w-10 h-10 rounded-full" />
           <div className="flex-1 space-y-2">
