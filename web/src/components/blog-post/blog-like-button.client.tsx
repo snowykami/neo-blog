@@ -2,7 +2,7 @@
 import type { Post } from '@/models/post'
 import type { User } from '@/models/user'
 import { HeartIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { getLikedUsers, toggleLike } from '@/api/like'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -25,8 +25,33 @@ export function BlogLikeButton({ post }: { post: Post }) {
   const [likeCount, setLikeCount] = useState(post.likeCount || 0)
   const [likedUsers, setLikedUsers] = useState<User[]>([])
   const [canClickLike, setCanClickLike] = useState(true)
+  const [shouldFetchLikedUsers, setShouldFetchLikedUsers] = useState(false)
+  const likeButtonRef = useRef<HTMLDivElement>(null)
+
+  // Lazy load liked users only when in viewport
+  useEffect(() => {
+    const element = likeButtonRef.current
+    if (!element)
+      return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setShouldFetchLikedUsers(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.1 },
+    )
+
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
+    if (!shouldFetchLikedUsers)
+      return
+
     getLikedUsers({ targetType: TargetType.Post, targetId: post.id, number: 5 })
       .then((res) => {
         setLikedUsers(res.data.users?.slice(0, MAX_LIKED_USERS) || [])
@@ -34,7 +59,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
       .catch(() => {
         setLikedUsers([])
       })
-  }, [liked, setLikedUsers, likeCount, post.id])
+  }, [shouldFetchLikedUsers, liked, likeCount, post.id])
 
   const handleToggleLike = () => {
     if (!canClickLike) {
@@ -45,7 +70,13 @@ export function BlogLikeButton({ post }: { post: Post }) {
       toast.error(commonT('login_required'), {
         action: {
           label: operationT('login'),
-          onClick: clickToLogin,
+          onClick: () => {
+            setCanClickLike(true)
+            clickToLogin()
+          },
+        },
+        onDismiss: () => {
+          setCanClickLike(true)
         },
       })
       return
@@ -66,7 +97,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
   }
 
   return (
-    <div>
+    <div ref={likeButtonRef}>
       <div className="flex justify-center pt-0">
         <div
           onClick={handleToggleLike}

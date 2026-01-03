@@ -2,17 +2,16 @@
 import type { FileModel } from '@/models/file'
 import type { BaseResponseError } from '@/models/resp'
 import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
+import { useAsyncTask } from '@snowykami/use-async-task'
 import { Ellipsis, LinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import {
   parseAsBoolean,
   parseAsInteger,
-  parseAsString,
   parseAsStringEnum,
   useQueryState,
 } from 'nuqs'
 import { useCallback, useEffect, useState } from 'react'
-import { useAsyncTask } from '@snowykami/use-async-task'
 import { toast } from 'sonner'
 import { batchDeleteFiles, deleteFile, listFiles } from '@/api/file'
 import { ArrangementSelector } from '@/components/common/arrangement-selector'
@@ -102,7 +101,7 @@ export function FileManage() {
       // 根据搜索条件生成唯一的 cache key
       taskKey: (p, sz, ob, d, q) => `listFiles-${p}-${sz}-${ob}-${d}-${q}`,
       maxRetries: 1,
-    }
+    },
   )
 
   // 更新本地状态

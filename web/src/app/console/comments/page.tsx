@@ -3,18 +3,17 @@ import type { Comment } from '@/models/comment'
 import type { Post } from '@/models/post'
 // import type { User } from '@/models/user'
 import { Separator } from '@radix-ui/react-dropdown-menu'
+import { useAsyncTask } from '@snowykami/use-async-task'
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
+
 import {
   parseAsBoolean,
   parseAsInteger,
-  parseAsString,
   parseAsStringEnum,
   useQueryState,
 } from 'nuqs'
-
 import { useCallback, useEffect, useState } from 'react'
-import { useAsyncTask } from '@snowykami/use-async-task'
 import { listComments } from '@/api/comment'
 import { listPosts } from '@/api/post'
 import { OrderSelector } from '@/components/common/orderby-selector'
@@ -109,7 +108,7 @@ export default function CommentsManage() {
       // 根据搜索条件生成唯一的 cache key
       taskKey: (pp, ps, ob, d, q) => `listPosts-${user?.id}-${pp}-${ps}-${ob}-${d}-${q}`,
       maxRetries: 1,
-    }
+    },
   )
 
   // 更新本地状态
