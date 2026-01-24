@@ -11,8 +11,10 @@ var KV kvStoreUtils
 
 // KVStore 是一个简单的内存键值存储系统
 type KVStore struct {
-	data  map[string]storeItem
-	mutex sync.RWMutex
+	data     map[string]storeItem
+	mutex    sync.RWMutex
+	stopChan chan struct{} // 用于停止清理协程
+	stopped  bool          // 标记是否已停止
 }
 
 // storeItem 代表存储的单个数据项
@@ -31,7 +33,9 @@ var (
 func (kv *kvStoreUtils) GetInstance() *KVStore {
 	kvStoreOnce.Do(func() {
 		kvStore = &KVStore{
-			data: make(map[string]storeItem),
+			data:     make(map[string]storeItem),
+			stopChan: make(chan struct{}),
+			stopped:  false,
 		}
 		// 启动清理过期项的协程
 		go kvStore.startCleanupTimer()
@@ -112,8 +116,24 @@ func (s *KVStore) startCleanupTimer() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		s.cleanup()
+	for {
+		select {
+		case <-ticker.C:
+			s.cleanup()
+		case <-s.stopChan:
+			return
+		}
+	}
+}
+
+// Stop 停止清理协程，释放资源
+func (s *KVStore) Stop() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if !s.stopped {
+		close(s.stopChan)
+		s.stopped = true
 	}
 }
 
