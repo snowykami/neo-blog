@@ -3,6 +3,8 @@ package cache
 import (
 	"container/list"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 // LRUCache 是一个线程安全的 LRU (Least Recently Used) 缓存实现
@@ -75,6 +77,7 @@ func (c *LRUCache) Put(key uint, value []byte) {
 
 	// 如果单个文件超过最大缓存大小，不缓存
 	if c.maxBytes > 0 && valueSize > c.maxBytes {
+		logrus.Warnf("Cache item size %d bytes exceeds max cache size %d bytes, skipping cache for key %d", valueSize, c.maxBytes, key)
 		return
 	}
 

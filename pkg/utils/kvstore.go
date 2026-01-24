@@ -154,10 +154,11 @@ func (s *KVStore) Stop() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if !s.stopped {
-		close(s.stopChan)
-		s.stopped = true
+	if s.stopped {
+		return
 	}
+	close(s.stopChan)
+	s.stopped = true
 }
 
 // cleanup 清理过期的数据项
