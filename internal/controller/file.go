@@ -182,6 +182,7 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 		resps.Error(c, errs.NewInternalServer("failed_to_open_file"))
 		return
 	}
+	defer readableFile.Close() // 确保文件关闭，避免资源泄漏
 
 	// 设置响应头
 	c.Header("Content-Type", f.getContentType(fileModel.Name))
@@ -194,7 +195,6 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 
 	// 读取文件内容到内存，用于缓存
 	fileData, err := io.ReadAll(readableFile)
-	readableFile.Close()
 	if err != nil {
 		resps.Error(c, errs.NewInternalServer("failed_to_read_file"))
 		return
