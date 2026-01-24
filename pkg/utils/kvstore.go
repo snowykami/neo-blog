@@ -15,6 +15,7 @@ type KVStore struct {
 	mutex    sync.RWMutex
 	stopChan chan struct{} // 用于停止清理协程
 	stopped  bool          // 标记是否已停止
+	maxSize  int           // 最大存储条目数，0表示不限制
 }
 
 // storeItem 代表存储的单个数据项
@@ -36,6 +37,7 @@ func (kv *kvStoreUtils) GetInstance() *KVStore {
 			data:     make(map[string]storeItem),
 			stopChan: make(chan struct{}),
 			stopped:  false,
+			maxSize:  10000, // 默认最大10000条，防止无限增长
 		}
 		// 启动清理过期项的协程
 		go kvStore.startCleanupTimer()
@@ -51,6 +53,27 @@ func (s *KVStore) Set(key string, value interface{}, ttl time.Duration) {
 	var expiration int64
 	if ttl > 0 {
 		expiration = time.Now().Add(ttl).Unix()
+	}
+
+	// 如果已存在，直接更新
+	if _, exists := s.data[key]; exists {
+		s.data[key] = storeItem{
+			value:      value,
+			expiration: expiration,
+		}
+		return
+	}
+
+	// 如果达到最大容量且不存在该键，先清理过期项
+	if s.maxSize > 0 && len(s.data) >= s.maxSize {
+		s.cleanupUnlocked()
+		// 如果清理后仍然满，删除一个随机项（最简单的驱逐策略）
+		if len(s.data) >= s.maxSize {
+			for k := range s.data {
+				delete(s.data, k)
+				break
+			}
+		}
 	}
 
 	s.data[key] = storeItem{
@@ -142,6 +165,11 @@ func (s *KVStore) cleanup() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	s.cleanupUnlocked()
+}
+
+// cleanupUnlocked 清理过期的数据项（调用者必须持有锁）
+func (s *KVStore) cleanupUnlocked() {
 	now := time.Now().Unix()
 	for key, item := range s.data {
 		if item.expiration > 0 && now > item.expiration {
