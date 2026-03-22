@@ -9,7 +9,6 @@ import Image from 'next/image'
 import {
   parseAsBoolean,
   parseAsInteger,
-  parseAsString,
   parseAsStringEnum,
   useQueryState,
 } from 'nuqs'

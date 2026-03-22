@@ -159,3 +159,7 @@ flex布局横向使用`flex gap-3`作为容器
 ### 权限
 
 优先使用¬(A ∪ B) 而不是 ¬A ∩ ¬B，尽管两者等价，但前者更符合人类在正向判断的思维习惯
+
+### AI Coding
+
+请阅读[AI Coding 规范](./AGENTS.md)以了解如何使用 AI Coding 功能进行开发。
