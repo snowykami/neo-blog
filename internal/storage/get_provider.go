@@ -10,6 +10,11 @@ import (
 
 var providers = make(map[uint]storageprovider.StorageProvider)
 
+// RemoveStorageProvider 移除指定的存储提供者，释放资源
+func RemoveStorageProvider(id uint) {
+	delete(providers, id)
+}
+
 func GetStorageProvider(id uint) (storageprovider.StorageProvider, bool) {
 	provider, ok := providers[id]
 	return provider, ok

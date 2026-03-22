@@ -165,3 +165,97 @@ func TestLRUCache_Concurrent(t *testing.T) {
 		t.Errorf("Cache exceeded capacity")
 	}
 }
+
+func TestLRUCache_SizeBasedEviction(t *testing.T) {
+	// Create cache with 10 items capacity and 100 bytes max size
+	cache := NewLRUCacheWithSize(10, 100)
+
+	// Add items that fit within size limit
+	cache.Put(1, make([]byte, 30)) // 30 bytes
+	cache.Put(2, make([]byte, 30)) // 60 bytes total
+	cache.Put(3, make([]byte, 30)) // 90 bytes total
+
+	if cache.Len() != 3 {
+		t.Errorf("Expected 3 items, got %d", cache.Len())
+	}
+
+	// Add another item that exceeds size limit, should evict oldest
+	cache.Put(4, make([]byte, 30)) // Would be 120 bytes, should evict item 1
+
+	if cache.Len() != 3 {
+		t.Errorf("Expected 3 items after eviction, got %d", cache.Len())
+	}
+
+	// Item 1 should be evicted
+	if _, ok := cache.Get(1); ok {
+		t.Error("Expected item 1 to be evicted due to size limit")
+	}
+
+	// Items 2, 3, 4 should be present
+	if _, ok := cache.Get(2); !ok {
+		t.Error("Expected item 2 to be present")
+	}
+	if _, ok := cache.Get(3); !ok {
+		t.Error("Expected item 3 to be present")
+	}
+	if _, ok := cache.Get(4); !ok {
+		t.Error("Expected item 4 to be present")
+	}
+}
+
+func TestLRUCache_OversizedItem(t *testing.T) {
+	// Create cache with 100 bytes max size
+	cache := NewLRUCacheWithSize(10, 100)
+
+	// Add normal item
+	cache.Put(1, make([]byte, 50))
+
+	if cache.Len() != 1 {
+		t.Errorf("Expected 1 item, got %d", cache.Len())
+	}
+
+	// Try to add an item that exceeds max size - should be rejected
+	cache.Put(2, make([]byte, 150))
+
+	if cache.Len() != 1 {
+		t.Errorf("Expected 1 item (oversized item should be rejected), got %d", cache.Len())
+	}
+
+	// Item 1 should still be present
+	if _, ok := cache.Get(1); !ok {
+		t.Error("Expected item 1 to still be present")
+	}
+
+	// Item 2 should not be cached
+	if _, ok := cache.Get(2); ok {
+		t.Error("Expected oversized item 2 to not be cached")
+	}
+}
+
+func TestLRUCache_CurrentSize(t *testing.T) {
+	cache := NewLRUCacheWithSize(10, 1000)
+
+	cache.Put(1, make([]byte, 100))
+	cache.Put(2, make([]byte, 200))
+	cache.Put(3, make([]byte, 300))
+
+	expectedSize := int64(600)
+	if cache.CurrentSize() != expectedSize {
+		t.Errorf("Expected current size %d, got %d", expectedSize, cache.CurrentSize())
+	}
+
+	// Remove an item
+	cache.Remove(2)
+
+	expectedSize = int64(400)
+	if cache.CurrentSize() != expectedSize {
+		t.Errorf("Expected current size %d after removal, got %d", expectedSize, cache.CurrentSize())
+	}
+
+	// Clear cache
+	cache.Clear()
+
+	if cache.CurrentSize() != 0 {
+		t.Errorf("Expected current size 0 after clear, got %d", cache.CurrentSize())
+	}
+}

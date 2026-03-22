@@ -2,14 +2,23 @@ import type { Metadata } from 'next'
 import type { WebSite, WithContext } from 'schema-dts'
 import { getLocale, getTranslations } from 'next-intl/server'
 import Script from 'next/script'
+import { cache } from 'react'
 import { getSiteInfo } from '@/api/misc'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import BlogHome from './blog-home'
 
-export async function generateMetadata(): Promise<Metadata> {
-  const siteInfo = await getSiteInfo()
+// Cache site info to avoid duplicate fetches
+const getCachedSiteInfo = cache(async () => {
+  return getSiteInfo()
     .then(res => res.data)
     .catch(() => fallbackSiteInfo)
+})
+
+// Enable ISR with 60 seconds revalidation for home page
+export const revalidate = 60
+
+export async function generateMetadata(): Promise<Metadata> {
+  const siteInfo = await getCachedSiteInfo()
   const routeT = await getTranslations('Route')
   const locale = (await getLocale()) || 'zh-CN'
   return {
@@ -47,9 +56,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Page() {
-  const siteInfo = await getSiteInfo()
-    .then(res => res.data)
-    .catch(() => fallbackSiteInfo)
+  const siteInfo = await getCachedSiteInfo()
   const jsonLd: WithContext<WebSite> = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
