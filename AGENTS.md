@@ -91,6 +91,77 @@
 - TypeScript 处于 `strict` 模式，新增代码要补齐类型
 - 组件默认优先服务端组件；只有在确实需要浏览器能力时才添加 `'use client'`
 - 尽量复用已有 UI 组件、hooks、工具函数，不重复造轮子
+- 涉及基础 UI、表单、反馈、弹层、导航、数据展示等场景时，**优先复用 shadcn/ui 组件或通过 shadcn CLI 添加组件**，不要先手写基础轮子
+- 组件选型优先级统一为：
+  1. 先复用仓库中已有的 `web/src/components/ui/` 与相关封装组件
+  2. 若仓库中缺失，则优先在 `web/` 目录执行以下命令添加 shadcn 组件
+
+```bash
+pnpm dlx shadcn@latest add <comp>
+```
+
+  3. 只有在 shadcn 现有组件明显不适配需求、且无法通过组合/封装解决时，才允许新增自定义基础组件
+- 新增 shadcn 组件时，优先使用 CLI 对应组件名（通常为 kebab-case），例如：`alert-dialog`、`dropdown-menu`、`radio-group`
+- AI 在实现新页面或新交互时，应优先从以下 shadcn 组件中选型，而不是自行从零实现基础 UI：
+  - Accordion
+  - Alert
+  - Alert Dialog
+  - Aspect Ratio
+  - Avatar
+  - Badge
+  - Breadcrumb
+  - Button
+  - Button Group
+  - Calendar
+  - Card
+  - Carousel
+  - Chart
+  - Checkbox
+  - Collapsible
+  - Combobox
+  - Command
+  - Context Menu
+  - Data Table
+  - Date Picker
+  - Dialog
+  - Direction
+  - Drawer
+  - Dropdown Menu
+  - Empty
+  - Field
+  - Hover Card
+  - Input
+  - Input Group
+  - Input OTP
+  - Item
+  - Kbd
+  - Label
+  - Menubar
+  - Native Select
+  - Navigation Menu
+  - Pagination
+  - Popover
+  - Progress
+  - Radio Group
+  - Resizable
+  - Scroll Area
+  - Select
+  - Separator
+  - Sheet
+  - Sidebar
+  - Skeleton
+  - Slider
+  - Sonner
+  - Spinner
+  - Switch
+  - Table
+  - Tabs
+  - Textarea
+  - Toast
+  - Toggle
+  - Toggle Group
+  - Tooltip
+  - Typography
 - 用户可见文本优先接入 `next-intl`，不要新增散落的硬编码文案
 - 新增或修改文案时，同步检查 `web/src/locales/` 下相关语言文件
 - 前端请求统一走 `web/src/api/client.ts` 的 `axiosClient`
