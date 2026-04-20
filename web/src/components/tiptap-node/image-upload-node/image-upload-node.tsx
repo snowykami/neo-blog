@@ -3,9 +3,11 @@
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
 import * as React from 'react'
+import { FileSelector } from '@/components/common/file-selector'
 import { CloseIcon } from '@/components/tiptap-icons/close-icon'
 import { Button } from '@/components/tiptap-ui-primitive/button'
 import { focusNextNode, isValidPosition } from '@/lib/tiptap-utils'
+import { getFileUri } from '@/utils/client/file'
 import '@/components/tiptap-node/image-upload-node/image-upload-node.scss'
 
 export interface FileItem {
@@ -438,36 +440,54 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
 
   const { fileItems, uploadFiles, removeFileItem, clearAllFiles } = useFileUpload(uploadOptions)
 
+  const insertImages = (images: Array<{ url: string, name?: string }>) => {
+    if (images.length === 0)
+      return
+    const pos = props.getPos()
+
+    if (isValidPosition(pos)) {
+      const imageNodes = images.map((image) => {
+        const filename = image.name?.replace(/\.[^/.]+$/, '') || 'unknown'
+        return {
+          type: extension.options.type,
+          attrs: {
+            ...extension.options,
+            src: image.url,
+            alt: filename,
+            title: filename,
+          },
+        }
+      })
+
+      props.editor
+        .chain()
+        .focus()
+        .deleteRange({ from: pos, to: pos + props.node.nodeSize })
+        .insertContentAt(pos, imageNodes)
+        .run()
+
+      focusNextNode(props.editor)
+    }
+  }
+
   const handleUpload = async (files: File[]) => {
     const urls = await uploadFiles(files)
 
-    if (urls.length > 0) {
-      const pos = props.getPos()
+    if (urls.length > 0)
+      insertImages(urls.map((url, index) => ({ url, name: files[index]?.name })))
+  }
 
-      if (isValidPosition(pos)) {
-        const imageNodes = urls.map((url, index) => {
-          const filename = files[index]?.name.replace(/\.[^/.]+$/, '') || 'unknown'
-          return {
-            type: extension.options.type,
-            attrs: {
-              ...extension.options,
-              src: url,
-              alt: filename,
-              title: filename,
-            },
-          }
-        })
+  const handleGallerySelect = (selectedFiles: Array<{ id: number, name: string, mimeType: string }>) => {
+    const images = selectedFiles
+      .filter(file => file.mimeType.startsWith('image/'))
+      .map(file => ({ url: getFileUri(file.id), name: file.name }))
 
-        props.editor
-          .chain()
-          .focus()
-          .deleteRange({ from: pos, to: pos + props.node.nodeSize })
-          .insertContentAt(pos, imageNodes)
-          .run()
-
-        focusNextNode(props.editor)
-      }
+    if (images.length === 0) {
+      extension.options.onError?.(new Error('No image selected'))
+      return
     }
+
+    insertImages(images)
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -493,6 +513,12 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
       {!hasFiles && (
         <ImageUploadDragArea onFile={handleUpload}>
           <DropZoneContent maxSize={maxSize} limit={limit} />
+          <div className="mt-3" onClick={e => e.stopPropagation()}>
+            <FileSelector
+              limitNumber={limit}
+              onFilesSelected={handleGallerySelect}
+            />
+          </div>
         </ImageUploadDragArea>
       )}
 
