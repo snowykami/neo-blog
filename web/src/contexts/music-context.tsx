@@ -1,6 +1,7 @@
 'use client'
+import type { MusicLyrics } from '@/api/music'
 import type { MusicTrack } from '@/models/music'
-import Lyric from 'lrc-file-parser'
+import type { MusicLyricItem, MusicLyricLine } from '@/utils/music-lyric'
 import React, {
   createContext,
   useCallback,
@@ -10,6 +11,7 @@ import React, {
   useState,
 } from 'react'
 import { fetchNcmLyric } from '@/api/music'
+import { getCurrentLyricIndex, getCurrentWordIndex, parseMusicLyrics } from '@/utils/music-lyric'
 
 export type PlayMode = 'repeat-all' | 'repeat-one' | 'shuffle'
 
@@ -26,7 +28,12 @@ interface MusicContextValue {
   rotateDeg: number // 专辑封面旋转角度（用于动画）
   currentLyric: string | null
   currentLyricIndex: number | null
+  currentLyricWords: MusicLyricItem[]
+  currentWordIndex: number | null
   lyricLines: { time: number, text: string }[]
+  parsedLyricLines: MusicLyricLine[]
+  lyricSourceType: 'yrc' | 'lrc' | 'none'
+  getAudio: () => HTMLAudioElement | null
 
   // 播放列表 操作
   replacePlaylist: (tracks: MusicTrack[], startIndex?: number) => void
@@ -70,12 +77,15 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [duration, setDuration] = useState<number | null>(null)
   const [bufferedPercent, setBufferedPercent] = useState<number>(0)
   const [rotateDeg, setRotateDeg] = useState(0)
-  const [lyrics, setLyrics] = useState<string | null>(null) // 原始歌词文本
-  const lyricRef = useRef<Lyric | null>(null) // 解析后的歌词对象
+  const [lyrics, setLyrics] = useState<MusicLyrics | null>(null) // 原始歌词响应
   const [currentLyric, setCurrentLyric] = useState<string | null>(null) // 当前歌词行文本
   const [currentLyricIndex, setCurrentLyricIndex] = useState<number | null>(null) // 当前歌词行索引
+  const [currentWordIndex, setCurrentWordIndex] = useState<number | null>(null) // 当前歌词字索引
   const [lyricLines, setLyricLines] = useState<{ time: number, text: string }[]>([]) // 解析后的歌词行列表
+  const [parsedLyricLines, setParsedLyricLines] = useState<MusicLyricLine[]>([]) // 解析后的逐字歌词行
+  const [lyricSourceType, setLyricSourceType] = useState<'yrc' | 'lrc' | 'none'>('none')
   const currentTrack = currentIndex != null ? playlist[currentIndex] ?? null : null
+  const getAudio = useCallback(() => audioRef.current, [])
   // 旋转动画
   useEffect(() => {
     let rafId: number | null = null
@@ -115,6 +125,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setLyrics(null)
         setCurrentLyric(null)
         setCurrentLyricIndex(null)
+        setCurrentWordIndex(null)
       }
       fetchNcmLyric(currentTrack.id).then((lyrics) => {
         setLyrics(lyrics)
@@ -151,18 +162,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const onPlay = () => {
       setIsPlaying(true)
-      // 同步 lyric parser：在播放开始时以当前时间启动 parser
-      try {
-        lyricRef.current?.play?.(audio.currentTime * 1000)
-      }
-      catch {}
     }
     const onPause = () => {
       setIsPlaying(false)
-      try {
-        lyricRef.current?.pause?.()
-      }
-      catch {}
     }
 
     const onLoaded = () => {
@@ -182,17 +184,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       catch {
         setBufferedPercent(0)
       }
-
-      // 音频元数据就绪后，让 lyric parser 用当前时间同步一次（若存在）
-      try {
-        if (lyricRef.current) {
-          // play 会根据传入时间刷新当前行回调；如果当前处于暂停则立即 pause
-          lyricRef.current.play?.(audio.currentTime * 1000)
-          if (audio.paused)
-            lyricRef.current.pause?.()
-        }
-      }
-      catch {}
     }
     const onTimeUpdate = () => {
       // RAF 节流，避免每帧都 setState
@@ -275,63 +266,52 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 仅依赖 playlist.length 和 mode（onEnded 使用）
   }, [playMode, playlist.length])
 
-  // 歌词文本变化时解析歌词
+  // 歌词文本变化时解析为 skos-player 同风格的数据结构；YRC 可提供逐字时间，LRC 自动退化为逐行。
   useEffect(() => {
-    // 清理旧 parser
-    try {
-      lyricRef.current?.pause?.()
-    }
-    catch {}
-    lyricRef.current = null
-
     if (!lyrics) {
       setLyricLines([])
+      setParsedLyricLines([])
+      setLyricSourceType('none')
       setCurrentLyric(null)
       setCurrentLyricIndex(null)
+      setCurrentWordIndex(null)
       return
     }
 
-    // 创建新的 Lyric parser 并绑定回调
-    const parser = new Lyric({
-      lyric: lyrics,
-      onPlay: (line: number, text: string) => {
-        // Lyric.onPlay 以行号和文本回调
-        setCurrentLyricIndex(line)
-        setCurrentLyric(text)
-      },
-      onSetLyric: (lines: any[]) => {
-        // 将解析后的行转换为我们期望的格式
-        try {
-          const mapped = (lines || []).map((ln: any) => ({ time: Number(ln.time ?? 0) / 1000, text: String(ln.text ?? '') }))
-          setLyricLines(mapped)
-        }
-        catch {
-          setLyricLines([])
-        }
-      },
-    })
-
-    lyricRef.current = parser
-
-    // 将 parser 与当前 audio 时间同步：触发一次解析器更新（但保持播放/暂停状态）
-    const audio = audioRef.current
-    if (audio) {
-      try {
-        parser.play?.(audio.currentTime * 1000)
-        if (audio.paused)
-          parser.pause?.()
-      }
-      catch {}
+    try {
+      const parsed = parseMusicLyrics(lyrics)
+      const mapped = parsed.lines.map(line => ({
+        time: line.startTime / 1000,
+        text: line.originalText,
+      }))
+      setParsedLyricLines(parsed.lines)
+      setLyricSourceType(parsed.sourceType)
+      setLyricLines(mapped)
     }
-
-    // cleanup
-    return () => {
-      try {
-        parser.pause?.()
-      }
-      catch {}
+    catch (error) {
+      console.error('Failed to parse lyrics:', error)
+      setParsedLyricLines([])
+      setLyricSourceType('none')
+      setLyricLines([])
     }
   }, [lyrics])
+
+  useEffect(() => {
+    if (parsedLyricLines.length === 0 || currentTime == null) {
+      setCurrentLyric(null)
+      setCurrentLyricIndex(null)
+      setCurrentWordIndex(null)
+      return
+    }
+
+    const currentTimeMs = currentTime * 1000
+    const nextIndex = getCurrentLyricIndex(parsedLyricLines, currentTimeMs, currentLyricIndex)
+    const line = nextIndex == null ? undefined : parsedLyricLines[nextIndex]
+
+    setCurrentLyricIndex(nextIndex)
+    setCurrentWordIndex(getCurrentWordIndex(line, currentTimeMs))
+    setCurrentLyric(line?.originalText ?? null)
+  }, [currentLyricIndex, parsedLyricLines, currentTime])
 
   // 操作函数 —— 不直接 set isPlaying/currentTime（由事件回路同步）
   const replacePlaylist = useCallback((tracks: MusicTrack[], startIndex = 0) => {
@@ -419,14 +399,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentTime(Math.max(0, Math.min(seconds, audio.duration || seconds)))
     try {
       audio.currentTime = Math.max(0, Math.min(seconds, audio.duration || seconds))
-      // 同步歌词解析器到新时间点（用户触发的跳转）
-      try {
-        // Lyric 接受 ms 单位
-        lyricRef.current?.play?.((Math.max(0, Math.min(seconds, audio.duration || seconds))) * 1000)
-        if (audio.paused)
-          lyricRef.current?.pause?.()
-      }
-      catch {}
     }
     catch {
     }
@@ -567,7 +539,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     rotateDeg,
     currentLyric,
     currentLyricIndex,
+    currentLyricWords: currentLyricIndex == null ? [] : parsedLyricLines[currentLyricIndex]?.items ?? [],
+    currentWordIndex,
     lyricLines,
+    parsedLyricLines,
+    lyricSourceType,
+    getAudio,
     replacePlaylist,
     playTrack,
     play,

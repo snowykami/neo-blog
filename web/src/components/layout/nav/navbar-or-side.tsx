@@ -91,6 +91,7 @@ export default function Navbar() {
   const { siteInfo } = useSiteInfo()
   const isMobile = useIsMobile()
   const { navClassName, navTitle, navIcon } = useNav()
+  const navTitleKey = typeof navTitle === 'string' ? navTitle || siteInfo.metadata.name : 'custom-nav-title'
   return (
     <div className={cn('flex items-center w-full max-w-screen px-4', navClassName)}>
       {/* 左侧：等分 1/3，min-w-0 保证在 flex 收缩时文本能 truncate */}
@@ -104,7 +105,7 @@ export default function Navbar() {
               {navIcon}
             </span>
             <span
-              key={String(navTitle || siteInfo.metadata.name)}
+              key={navTitleKey}
               className="inline-block truncate max-w-[20ch] md:max-w-[28ch] lg:max-w-[36ch]"
               style={{ animation: 'navFade 500ms ease' }}
             >
