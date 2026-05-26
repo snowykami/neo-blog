@@ -16,6 +16,7 @@ import { useNav } from '@/contexts/nav-context'
 import { useStoredState } from '@/hooks/use-storage-state'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
+import { getCurrentLyricIndex, getWordProgress } from '@/utils/music-lyric'
 import { Input } from '../ui/input'
 import LyricScroll from './music-lyric-scroll'
 
@@ -33,7 +34,6 @@ export function MusicPlayer() {
     seek,
     playlist,
     duration,
-    currentLyric,
     isPlaying,
   } = useMusic()
   const { setNavTitle, setNavIcon, resetNavIcon } = useNav()
@@ -46,7 +46,9 @@ export function MusicPlayer() {
   const lastSavedTimeRef = useRef(0)
 
   useEffect(() => {
-    setNavTitle(isPlaying ? `${currentLyric || ''}` : '')
+    setNavTitle(isPlaying
+      ? <NavLyricTitle />
+      : '')
     if (isPlaying) {
       setNavIcon(
         <MusicIcon
@@ -57,7 +59,7 @@ export function MusicPlayer() {
     else {
       resetNavIcon()
     }
-  }, [currentLyric, setNavTitle, isPlaying])
+  }, [isPlaying, resetNavIcon, setNavIcon, setNavTitle])
 
   useEffect(() => {
     fetchPlaylist().then((playlist) => {
@@ -183,6 +185,95 @@ export function MusicPlayer() {
         </div>
       </PopoverContent>
     </Popover>
+  )
+}
+
+function NavLyricTitle() {
+  const t = useTranslations('MusicPlayer')
+  const { parsedLyricLines, lyricLines, currentLyricIndex, currentTime, getAudio } = useMusic()
+  const [smoothTime, setSmoothTime] = useState(0)
+
+  useEffect(() => {
+    let rafId = 0
+    let lastRenderedMs = -1
+
+    const tick = () => {
+      const audio = getAudio()
+      const nextTime = audio ? audio.currentTime * 1000 : (currentTime ?? 0) * 1000
+      if (nextTime !== lastRenderedMs) {
+        lastRenderedMs = nextTime
+        setSmoothTime(nextTime)
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [currentTime, getAudio])
+
+  const currentTimeMs = smoothTime || (currentTime ?? 0) * 1000
+  const activeLyricIndex = getCurrentLyricIndex(parsedLyricLines, currentTimeMs, currentLyricIndex)
+  const line = activeLyricIndex == null ? undefined : parsedLyricLines[activeLyricIndex]
+  const text = activeLyricIndex == null ? '' : lyricLines[activeLyricIndex]?.text
+
+  if (!line)
+    return ''
+
+  if (lyricLines.length === 1 && (text === 'pure_music_without_lyric' || text === 'no_lyric')) {
+    return t(text)
+  }
+
+  return (
+    <span className="inline-flex max-w-full min-w-0 items-baseline overflow-hidden whitespace-nowrap">
+      {line.items.map((word, index) => {
+        const wordEndTime = word.startTime + word.duration
+        const isPassed = currentTimeMs >= wordEndTime
+        const isActive = currentTimeMs >= word.startTime && currentTimeMs < wordEndTime
+        const isLineLyric = line.items.every(item => item.duration <= 0)
+        const progress = isLineLyric
+          ? 1
+          : isPassed
+            ? 1
+            : isActive
+              ? getWordProgress(word, currentTimeMs)
+              : 0
+
+        if (!isLineLyric) {
+          return (
+            <span
+              key={`${word.startTime}-${word.duration}-${word.text}-${index}`}
+              className="inline-block relative align-baseline"
+            >
+              <span className="select-none text-primary/45">{word.text}</span>
+              {progress > 0 && (
+                <span
+                  className="absolute inset-0 select-none text-primary"
+                  style={{
+                    clipPath: `inset(0 ${(1 - progress) * 100}% 0 0)`,
+                    willChange: 'clip-path',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {word.text}
+                </span>
+              )}
+            </span>
+          )
+        }
+
+        return (
+          <span
+            key={`${word.startTime}-${word.duration}-${word.text}-${index}`}
+            className={cn(
+              'transition-colors duration-200',
+              'text-primary',
+            )}
+          >
+            {word.text}
+          </span>
+        )
+      })}
+    </span>
   )
 }
 
