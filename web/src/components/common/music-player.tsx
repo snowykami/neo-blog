@@ -2,8 +2,9 @@
 
 import type { PlayMode } from '@/contexts/music-context'
 import type { MusicTrack } from '@/models/music'
+import type { MusicLyricMode } from '@/utils/music-lyric'
 import { useMeasure } from '@uidotdev/usehooks'
-import { CircleArrowLeftIcon, CircleArrowRightIcon, CirclePauseIcon, CirclePlayIcon, ListMusicIcon, MusicIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle } from 'lucide-react'
+import { CaseSensitiveIcon, CircleArrowLeftIcon, CircleArrowRightIcon, CirclePauseIcon, CirclePlayIcon, LanguagesIcon, ListMusicIcon, MessageSquareOffIcon, MusicIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle, Volume2Icon, VolumeXIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import React, { useEffect, useRef, useState } from 'react'
@@ -92,6 +93,11 @@ export function MusicPlayer() {
 
   // 当存储的播放时间加载完成时，seek 到该时间（只执行一次）
   useEffect(() => {
+    if (isStoredTimeLoaded && storedTime == null && !appliedStoredTimeRef.current) {
+      appliedStoredTimeRef.current = true
+      return
+    }
+
     // guard conditions
     if (
       !isStoredTimeLoaded
@@ -405,6 +411,7 @@ function PlayerControls() {
         onIsDraggingChange={setIsDragging}
       />
       <div className="flex items-center justify-center mt-2 gap-4 text-slate-500 ">
+        <MuteButton />
         <PlayModeButton />
         <CircleArrowLeftIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} onClick={prev} />
         {isPlaying
@@ -422,8 +429,71 @@ function PlayerControls() {
             )}
         <CircleArrowRightIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} onClick={next} />
         <Playlist />
+        <LyricModeButton />
       </div>
     </div>
+  )
+}
+
+function MuteButton() {
+  const { isMuted, toggleMuted } = useMusic()
+  const iconClassName = cn('w-5 h-5', BUTTON_ANIMATION_CLASSNAME)
+
+  return (
+    <button
+      type="button"
+      aria-label={isMuted ? '取消静音' : '静音'}
+      title={isMuted ? '取消静音' : '静音'}
+      onClick={toggleMuted}
+      className={cn('p-1', isMuted ? 'text-primary' : '')}
+    >
+      {isMuted
+        ? <VolumeXIcon className={iconClassName} />
+        : <Volume2Icon className={iconClassName} />}
+    </button>
+  )
+}
+
+function LyricModeButton() {
+  const {
+    lyricMode,
+    setLyricMode,
+    hasRomajiLyric,
+    hasTranslationLyric,
+  } = useMusic()
+  const hasExtraLyric = hasRomajiLyric || hasTranslationLyric
+  const iconClassName = cn('w-5 h-5', hasExtraLyric ? BUTTON_ANIMATION_CLASSNAME : '')
+
+  const getNextMode = (mode: MusicLyricMode): MusicLyricMode => {
+    if (mode === 'none')
+      return 'romaji'
+    if (mode === 'romaji')
+      return 'translation'
+    return 'none'
+  }
+
+  const iconMap: Record<MusicLyricMode, React.ReactNode> = {
+    none: <MessageSquareOffIcon className={iconClassName} />,
+    romaji: <CaseSensitiveIcon className={iconClassName} />,
+    translation: <LanguagesIcon className={iconClassName} />,
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label="切换歌词附加显示"
+      aria-disabled={!hasExtraLyric}
+      title={!hasExtraLyric ? '暂无翻译或罗马音' : lyricMode === 'none' ? '无附加歌词' : lyricMode === 'romaji' ? '罗马音' : '翻译'}
+      onClick={() => setLyricMode(getNextMode(lyricMode))}
+      disabled={!hasExtraLyric}
+      className={cn(
+        'p-1',
+        !hasExtraLyric ? 'cursor-not-allowed text-slate-300 dark:text-slate-600 hover:scale-100 hover:text-slate-300 dark:hover:text-slate-600' : '',
+        hasExtraLyric && lyricMode !== 'none' ? 'text-primary' : '',
+      )}
+    >
+      {iconMap[lyricMode]}
+    </button>
   )
 }
 
