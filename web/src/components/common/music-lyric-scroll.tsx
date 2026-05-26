@@ -2,14 +2,17 @@ import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState } from 'react'
 import { useMusic } from '@/contexts/music-context'
 import { cn } from '@/lib/utils'
-import { getCurrentLyricIndex, getWordProgress } from '@/utils/music-lyric'
+import { getCurrentLyricIndex, getExtraLyricLine, getWordProgress } from '@/utils/music-lyric'
 
 export default function LyricScroll() {
   const t = useTranslations('MusicPlayer')
   const {
     lyricLines,
     parsedLyricLines,
+    translationLyricLines,
+    romajiLyricLines,
     lyricSourceType,
+    lyricMode,
     currentLyricIndex,
     currentTime,
     getAudio,
@@ -74,6 +77,15 @@ export default function LyricScroll() {
         const offset = idx - activeLyricIndex
         const isCurrent = idx === activeLyricIndex
         const isWordLyric = lyricSourceType === 'yrc' && line.items.some(item => item.duration > 0)
+        const extraLyricLines = lyricMode === 'translation'
+          ? translationLyricLines
+          : lyricMode === 'romaji'
+            ? romajiLyricLines
+            : []
+        const extraLine = extraLyricLines.length > 0
+          ? getExtraLyricLine(extraLyricLines, line.startTime)
+          : null
+        const isTimedExtraLine = Boolean(extraLine?.items.some(item => item.duration > 0))
 
         return (
           <div
@@ -128,6 +140,48 @@ export default function LyricScroll() {
                 </span>
               )
             })}
+            {extraLine && (
+              <div
+                className={cn(
+                  'mt-0.5 text-sm leading-5 font-medium transition-colors',
+                  isCurrent ? 'text-primary/80' : 'text-slate-500 dark:text-slate-500',
+                )}
+              >
+                {extraLine.items.map((item, itemIdx) => {
+                  const itemText = item.text.replace(/\s+$/g, match => '\u00A0'.repeat(match.length))
+                  if (!isTimedExtraLine || !isCurrent) {
+                    return (
+                      <span key={itemIdx}>
+                        {itemText}
+                      </span>
+                    )
+                  }
+
+                  const itemEndTime = item.startTime + item.duration
+                  const isPast = currentTimeMs >= itemEndTime
+                  const isActive = currentTimeMs >= item.startTime && currentTimeMs < itemEndTime
+                  const progress = isPast ? 1 : isActive ? getWordProgress(item, currentTimeMs) : 0
+
+                  return (
+                    <span key={itemIdx} className="inline-block relative align-baseline">
+                      <span className="select-none text-primary/40">{itemText}</span>
+                      {progress > 0 && (
+                        <span
+                          className="absolute inset-0 select-none text-primary/80"
+                          style={{
+                            clipPath: `inset(0 ${(1 - progress) * 100}% 0 0)`,
+                            willChange: 'clip-path',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          {itemText}
+                        </span>
+                      )}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )
       })}
