@@ -222,6 +222,42 @@ function splitRomajiTokenParts(tokens: string[]): string[] {
   })
 }
 
+function getUnitOffsetTime(unit: TimedRomajiUnit, offset: number): number {
+  const readingLength = Math.max(1, unit.reading.length)
+  const boundedOffset = Math.max(0, Math.min(readingLength, offset))
+  return Math.round(unit.startTime + unit.duration * boundedOffset / readingLength)
+}
+
+function buildProportionalItemsInRange(tokens: string[], startTime: number, duration: number): MusicLyricItem[] {
+  const tokenReadings = tokens.map(token => normalizeRomajiText(token))
+  const totalReadingLength = tokenReadings.reduce((total, reading) => total + Math.max(1, reading.length), 0)
+  let readingOffset = 0
+
+  return tokens.map((token, index) => {
+    const tokenReadingLength = Math.max(1, tokenReadings[index].length)
+    const startRatio = readingOffset / totalReadingLength
+    readingOffset += tokenReadingLength
+    const endRatio = readingOffset / totalReadingLength
+    const itemStartTime = Math.round(startTime + duration * startRatio)
+    const itemEndTime = Math.round(startTime + duration * endRatio)
+
+    return {
+      text: token,
+      startTime: itemStartTime,
+      duration: Math.max(0, itemEndTime - itemStartTime),
+    }
+  })
+}
+
+function getUnitsEndTime(units: TimedRomajiUnit[]): number {
+  return units.reduce((endTime, unit) => Math.max(endTime, unit.startTime + unit.duration), 0)
+}
+
+function canTokenStartReading(token: string, reading: string): boolean {
+  const normalizedToken = normalizeRomajiText(token)
+  return Boolean(normalizedToken) && (reading.startsWith(normalizedToken) || normalizedToken.startsWith(reading))
+}
+
 function buildUnitBasedRomajiItems(baseLine: MusicLyricLine, tokens: string[]): MusicLyricItem[] | null {
   const units = createTimedRomajiUnits(baseLine)
   if (units.length === 0)
@@ -233,66 +269,148 @@ function buildUnitBasedRomajiItems(baseLine: MusicLyricLine, tokens: string[]): 
 
   const items: MusicLyricItem[] = []
   let unitIndex = 0
-  let tokenIndex = 0
+  let unitOffset = 0
 
-  while (unitIndex < units.length && tokenIndex < tokenParts.length) {
-    const unit = units[unitIndex]
+  for (let tokenIndex = 0; tokenIndex < tokenParts.length; tokenIndex += 1) {
     const token = tokenParts[tokenIndex]
     const normalizedToken = normalizeRomajiText(token)
 
-    if (!normalizedToken) {
-      tokenIndex += 1
+    if (!normalizedToken)
       continue
-    }
 
-    if (unit.reading && normalizedToken === unit.reading) {
-      items.push({ text: token, startTime: unit.startTime, duration: unit.duration })
-      unitIndex += 1
-      tokenIndex += 1
-      continue
-    }
+    let remainingToken = normalizedToken
+    let tokenStartTime: number | null = null
+    let tokenEndTime: number | null = null
+    let handledUnknownUnit = false
 
-    if (unit.reading && normalizedToken.startsWith(unit.reading)) {
-      items.push({ text: token, startTime: unit.startTime, duration: unit.duration })
-      unitIndex += 1
-      tokenIndex += 1
-      continue
-    }
+    while (remainingToken) {
+      const unit = units[unitIndex]
+      if (!unit)
+        return null
 
-    if (unit.reading && unit.reading.startsWith(normalizedToken)) {
-      const groupStart = unitIndex
-      let groupedReading = ''
-      while (unitIndex < units.length && groupedReading.length < normalizedToken.length) {
-        groupedReading += units[unitIndex].reading
-        unitIndex += 1
+      if (!unit.reading) {
+        let nextReadableUnitIndex = unitIndex + 1
+        while (nextReadableUnitIndex < units.length && !units[nextReadableUnitIndex].reading)
+          nextReadableUnitIndex += 1
+
+        if (nextReadableUnitIndex >= units.length) {
+          const remainingTokens = tokenParts.slice(tokenIndex).filter(part => normalizeRomajiText(part))
+          const remainingUnits = units.slice(unitIndex)
+          const startTime = unit.startTime
+          const endTime = getUnitsEndTime(remainingUnits)
+          return items.concat(buildProportionalItemsInRange(remainingTokens, startTime, Math.max(0, endTime - startTime)))
+        }
+
+        const nextReadableUnit = units[nextReadableUnitIndex]
+        const nextTokenIndex = tokenParts.findIndex((part, index) =>
+          index > tokenIndex && canTokenStartReading(part, nextReadableUnit.reading),
+        )
+        if (nextTokenIndex < 0)
+          return null
+
+        const unknownTokens = tokenParts.slice(tokenIndex, nextTokenIndex).filter(part => normalizeRomajiText(part))
+        const startTime = unit.startTime
+        const endTime = nextReadableUnit.startTime
+        items.push(...buildProportionalItemsInRange(unknownTokens, startTime, Math.max(0, endTime - startTime)))
+        unitIndex = nextReadableUnitIndex
+        unitOffset = 0
+        tokenIndex = nextTokenIndex - 1
+        handledUnknownUnit = true
+        remainingToken = ''
+        break
       }
-      const groupUnits = units.slice(groupStart, unitIndex)
-      const startTime = groupUnits[0].startTime
-      const endTime = groupUnits.reduce((end, currentUnit) => Math.max(end, currentUnit.startTime + currentUnit.duration), startTime)
-      items.push({ text: token, startTime, duration: Math.max(0, endTime - startTime) })
-      tokenIndex += 1
-      continue
+
+      const availableReading = unit.reading.slice(unitOffset)
+      if (!availableReading) {
+        unitIndex += 1
+        unitOffset = 0
+        continue
+      }
+
+      if (availableReading.startsWith(remainingToken)) {
+        const startOffset = unitOffset
+        const endOffset = unitOffset + remainingToken.length
+        tokenStartTime ??= getUnitOffsetTime(unit, startOffset)
+        tokenEndTime = getUnitOffsetTime(unit, endOffset)
+        unitOffset = endOffset
+
+        if (unitOffset >= unit.reading.length) {
+          unitIndex += 1
+          unitOffset = 0
+        }
+        remainingToken = ''
+        break
+      }
+
+      if (remainingToken.startsWith(availableReading)) {
+        tokenStartTime ??= getUnitOffsetTime(unit, unitOffset)
+        tokenEndTime = getUnitOffsetTime(unit, unit.reading.length)
+        remainingToken = remainingToken.slice(availableReading.length)
+        unitIndex += 1
+        unitOffset = 0
+        continue
+      }
+
+      return null
     }
 
-    return null
-  }
+    if (handledUnknownUnit)
+      continue
 
-  if (tokenIndex !== tokenParts.length)
-    return null
+    if (tokenStartTime == null || tokenEndTime == null)
+      return null
+
+    items.push({
+      text: token,
+      startTime: tokenStartTime,
+      duration: Math.max(0, tokenEndTime - tokenStartTime),
+    })
+  }
 
   return items
 }
 
-function buildEvenRomajiItems(baseLine: MusicLyricLine, tokens: string[], timedBaseItems: MusicLyricItem[]): MusicLyricItem[] {
+function buildProportionalRomajiItems(baseLine: MusicLyricLine, tokens: string[], timedBaseItems: MusicLyricItem[]): MusicLyricItem[] {
+  const lineStartTime = baseLine.startTime
   const lineDuration = baseLine.duration > 0
     ? baseLine.duration
-    : timedBaseItems[timedBaseItems.length - 1].startTime + timedBaseItems[timedBaseItems.length - 1].duration - baseLine.startTime
-  const tokenDuration = lineDuration / tokens.length
-  return tokens.map((token, index) => ({
-    text: token,
-    startTime: Math.round(baseLine.startTime + tokenDuration * index),
-    duration: Math.max(0, Math.round(tokenDuration)),
-  }))
+    : timedBaseItems[timedBaseItems.length - 1].startTime + timedBaseItems[timedBaseItems.length - 1].duration - lineStartTime
+
+  const tokenReadings = tokens.map(token => normalizeRomajiText(token))
+  const totalReadingLength = tokenReadings.reduce((total, reading) => total + Math.max(1, reading.length), 0)
+  let readingOffset = 0
+
+  return tokens.map((token, index) => {
+    const tokenReadingLength = Math.max(1, tokenReadings[index].length)
+    const startRatio = readingOffset / totalReadingLength
+    readingOffset += tokenReadingLength
+    const endRatio = readingOffset / totalReadingLength
+    const startTime = Math.round(lineStartTime + lineDuration * startRatio)
+    const endTime = Math.round(lineStartTime + lineDuration * endRatio)
+
+    return {
+      text: token,
+      startTime,
+      duration: Math.max(0, endTime - startTime),
+    }
+  })
+}
+
+function buildIndexedRomajiItems(tokens: string[], timedBaseItems: MusicLyricItem[]): MusicLyricItem[] {
+  return tokens.map((token, index) => {
+    const startIndex = Math.floor(index * timedBaseItems.length / tokens.length)
+    const endIndex = Math.max(startIndex, Math.floor((index + 1) * timedBaseItems.length / tokens.length) - 1)
+    const startItem = timedBaseItems[startIndex]
+    const endItem = timedBaseItems[endIndex]
+    const startTime = startItem.startTime
+    const endTime = endItem.startTime + endItem.duration
+
+    return {
+      text: token,
+      startTime,
+      duration: Math.max(0, endTime - startTime),
+    }
+  })
 }
 
 function inferTimedExtraLine(baseLine: MusicLyricLine, extraLine: MusicLyricLine): MusicLyricLine {
@@ -317,30 +435,15 @@ function inferTimedExtraLine(baseLine: MusicLyricLine, extraLine: MusicLyricLine
 
   if (tokens.length > timedBaseItems.length) {
     return {
-      items: buildEvenRomajiItems(baseLine, tokens, timedBaseItems),
+      items: buildProportionalRomajiItems(baseLine, tokens, timedBaseItems),
       startTime: baseLine.startTime,
       duration: baseLine.duration,
       originalText: extraLine.originalText,
     }
   }
 
-  const inferredItems = tokens.map((token, index) => {
-    const startIndex = Math.floor(index * timedBaseItems.length / tokens.length)
-    const endIndex = Math.max(startIndex, Math.floor((index + 1) * timedBaseItems.length / tokens.length) - 1)
-    const startItem = timedBaseItems[startIndex]
-    const endItem = timedBaseItems[endIndex]
-    const startTime = startItem.startTime
-    const endTime = endItem.startTime + endItem.duration
-
-    return {
-      text: token,
-      startTime,
-      duration: Math.max(0, endTime - startTime),
-    }
-  })
-
   return {
-    items: inferredItems,
+    items: buildIndexedRomajiItems(tokens, timedBaseItems),
     startTime: baseLine.startTime,
     duration: baseLine.duration,
     originalText: extraLine.originalText,
