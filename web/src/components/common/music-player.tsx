@@ -22,6 +22,247 @@ import { Input } from '../ui/input'
 import LyricScroll from './music-lyric-scroll'
 
 const BUTTON_ANIMATION_CLASSNAME = 'hover:scale-115 transition-all duration-400 hover:text-primary'
+const DEFAULT_MUSIC_THEME_RGB = '59 130 246'
+const ALBUM_TRANSITION_DURATION_MS = 500
+
+function normalizeThemeColor(r: number, g: number, b: number) {
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const contrast = max - min
+  const lift = max < 80 ? 48 : 0
+  const saturationBoost = contrast < 35 ? 1.35 : 1
+
+  const normalizeChannel = (channel: number) => {
+    const centered = channel - min
+    return Math.round(Math.max(42, Math.min(232, channel + lift + centered * (saturationBoost - 1))))
+  }
+
+  return `${normalizeChannel(r)} ${normalizeChannel(g)} ${normalizeChannel(b)}`
+}
+
+function getThemeSampleImageSrc(src: string) {
+  try {
+    const url = new URL(src, window.location.href)
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return `/_next/image?url=${encodeURIComponent(url.href)}&w=64&q=75`
+    }
+  }
+  catch { }
+
+  return src
+}
+
+function useAlbumThemeColor(src?: string) {
+  const [themeColor, setThemeColor] = useState(DEFAULT_MUSIC_THEME_RGB)
+
+  useEffect(() => {
+    if (!src) {
+      setThemeColor(DEFAULT_MUSIC_THEME_RGB)
+      return
+    }
+
+    let cancelled = false
+    const image = new window.Image()
+    image.crossOrigin = 'anonymous'
+    image.decoding = 'async'
+
+    image.onload = () => {
+      if (cancelled)
+        return
+
+      try {
+        const canvas = document.createElement('canvas')
+        const size = 24
+        canvas.width = size
+        canvas.height = size
+        const context = canvas.getContext('2d', { willReadFrequently: true })
+        if (!context)
+          return
+
+        context.drawImage(image, 0, 0, size, size)
+        const data = context.getImageData(0, 0, size, size).data
+        let r = 0
+        let g = 0
+        let b = 0
+        let weightSum = 0
+
+        for (let i = 0; i < data.length; i += 4) {
+          const alpha = data[i + 3] / 255
+          if (alpha < 0.4)
+            continue
+
+          const red = data[i]
+          const green = data[i + 1]
+          const blue = data[i + 2]
+          const max = Math.max(red, green, blue)
+          const min = Math.min(red, green, blue)
+          const saturation = max === 0 ? 0 : (max - min) / max
+          const brightness = (red + green + blue) / 3
+          const weight = alpha * (0.65 + saturation) * (brightness > 245 || brightness < 18 ? 0.25 : 1)
+
+          r += red * weight
+          g += green * weight
+          b += blue * weight
+          weightSum += weight
+        }
+
+        if (weightSum > 0) {
+          setThemeColor(normalizeThemeColor(r / weightSum, g / weightSum, b / weightSum))
+        }
+      }
+      catch {
+        setThemeColor(DEFAULT_MUSIC_THEME_RGB)
+      }
+    }
+
+    image.onerror = () => {
+      if (!cancelled)
+        setThemeColor(DEFAULT_MUSIC_THEME_RGB)
+    }
+    image.src = getThemeSampleImageSrc(src)
+
+    return () => {
+      cancelled = true
+    }
+  }, [src])
+
+  return themeColor
+}
+
+function parseThemeColor(themeColor: string) {
+  const [r, g, b] = themeColor.split(/\s+/).map(value => Number.parseFloat(value))
+  if ([r, g, b].every(value => Number.isFinite(value))) {
+    return [r, g, b] as const
+  }
+
+  return [59, 130, 246] as const
+}
+
+function useAnimatedThemeColor(targetThemeColor: string) {
+  const [animatedThemeColor, setAnimatedThemeColor] = useState(targetThemeColor)
+  const currentColorRef = useRef(parseThemeColor(targetThemeColor))
+
+  useEffect(() => {
+    const from = currentColorRef.current
+    const to = parseThemeColor(targetThemeColor)
+
+    if (from.every((channel, index) => channel === to[index])) {
+      setAnimatedThemeColor(targetThemeColor)
+      return
+    }
+
+    let rafId = 0
+    let startTime = 0
+
+    const tick = (time: number) => {
+      if (!startTime)
+        startTime = time
+
+      const progress = Math.min(1, (time - startTime) / ALBUM_TRANSITION_DURATION_MS)
+      const easedProgress = 1 - (1 - progress) ** 3
+      const nextColor = from.map((channel, index) =>
+        Math.round(channel + (to[index] - channel) * easedProgress),
+      ) as [number, number, number]
+
+      currentColorRef.current = nextColor
+      setAnimatedThemeColor(nextColor.join(' '))
+
+      if (progress < 1) {
+        rafId = requestAnimationFrame(tick)
+      }
+      else {
+        currentColorRef.current = to
+        setAnimatedThemeColor(targetThemeColor)
+      }
+    }
+
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [targetThemeColor])
+
+  return animatedThemeColor
+}
+
+function CrossfadeAlbumImage({
+  alt,
+  className,
+  imageClassName,
+  priority,
+  sizes,
+  src,
+  style,
+}: {
+  alt: string
+  className?: string
+  imageClassName?: string
+  priority?: boolean
+  sizes?: string
+  src: string
+  style?: React.CSSProperties
+}) {
+  const [visibleSrc, setVisibleSrc] = useState(src)
+  const [previousSrc, setPreviousSrc] = useState<string | null>(null)
+  const [isIncomingVisible, setIsIncomingVisible] = useState(true)
+  const [isPreviousHidden, setIsPreviousHidden] = useState(false)
+  const visibleSrcRef = useRef(src)
+
+  useEffect(() => {
+    if (src === visibleSrcRef.current)
+      return
+
+    setPreviousSrc(visibleSrcRef.current)
+    visibleSrcRef.current = src
+    setVisibleSrc(src)
+    setIsIncomingVisible(false)
+    setIsPreviousHidden(false)
+
+    const rafId = requestAnimationFrame(() => {
+      setIsIncomingVisible(true)
+      setIsPreviousHidden(true)
+    })
+    const timeoutId = window.setTimeout(() => {
+      setPreviousSrc(null)
+      setIsPreviousHidden(false)
+    }, ALBUM_TRANSITION_DURATION_MS)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      window.clearTimeout(timeoutId)
+    }
+  }, [src])
+
+  return (
+    <div className={cn('relative overflow-hidden', className)} style={style}>
+      {previousSrc && (
+        <Image
+          key={previousSrc}
+          src={previousSrc}
+          alt=""
+          fill
+          sizes={sizes}
+          className={cn(
+            imageClassName,
+            'transition-opacity duration-500 ease-out',
+            isPreviousHidden ? 'opacity-0' : 'opacity-100',
+          )}
+        />
+      )}
+      <Image
+        key={visibleSrc}
+        src={visibleSrc}
+        alt={alt}
+        fill
+        priority={priority}
+        sizes={sizes}
+        className={cn(
+          imageClassName,
+          'transition-opacity duration-500 ease-out',
+          isIncomingVisible ? 'opacity-100' : 'opacity-0',
+        )}
+      />
+    </div>
+  )
+}
 
 export function MusicPlayer() {
   const {
@@ -38,8 +279,11 @@ export function MusicPlayer() {
     isPlaying,
   } = useMusic()
   const { setNavTitle, setNavIcon, resetNavIcon } = useNav()
+  const themeColor = useAlbumThemeColor(currentTrack?.albumPic)
+  const animatedThemeColor = useAnimatedThemeColor(themeColor)
   const [storedIndex, setStoredIndex, isStoredIndexLoaded] = useStoredState<number | null>('music-current-index', null)
   const [storedTime, setStoredTime, isStoredTimeLoaded] = useStoredState<number | null>('music-current-time', null)
+  const themeStyle = { '--music-theme': animatedThemeColor } as React.CSSProperties
 
   // 确保只把存储的时间 seek 一次（避免被 audio 的 timeupdate 干扰多次）
   const appliedStoredTimeRef = useRef(false)
@@ -163,27 +407,33 @@ export function MusicPlayer() {
         flex items-center justify-center cursor-pointer
         hover:scale-105 transition-all duration-800"
         >
-          <Image
+          <CrossfadeAlbumImage
             src={currentTrack.albumPic}
             alt={currentTrack.album}
-            width={60}
-            height={60}
             priority
+            sizes="(min-width: 1024px) 64px, 48px"
             style={{ transform: `rotate(${rotateDeg}deg)` }}
-            className="object-cover rounded-full border-4 border-gray-200 dark:border-slate-700 h-12 w-12 lg:h-16 lg:w-16"
+            className="rounded-full h-12 w-12 lg:h-16 lg:w-16"
+            imageClassName="object-cover rounded-full border-4 border-gray-200 dark:border-slate-700"
           />
         </div>
       </PopoverTrigger>
       <PopoverContent
         className="fixed -right-8 bottom-0 w-80 p-3 z-1000 rounded-xl shadow-lg
        bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border
-        border-gray-200 dark:border-slate-700 overflow-hidden "
-        style={{ pointerEvents: 'auto' }}
+        border-gray-200 dark:border-slate-700 overflow-hidden"
+        style={{ ...themeStyle, pointerEvents: 'auto' }}
       >
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: 'linear-gradient(135deg, rgb(var(--music-theme) / 0.24), rgb(var(--music-theme) / 0.08) 52%, transparent)',
+          }}
+        />
         <div
           aria-label="Floating music player"
           role="region"
-          className="flex flex-col gap-2"
+          className="relative flex flex-col gap-2"
         >
           <TrackInfo />
           <LyricScroll />
@@ -307,14 +557,14 @@ function TrackInfo() {
 
   return (
     <div className="flex relative">
-      <Image
+      <CrossfadeAlbumImage
         src={currentTrack.albumPic}
         alt={currentTrack.album}
-        width={60}
-        height={60}
         priority
+        sizes="60px"
         style={{ transform: `rotate(${rotateDeg}deg)` }}
-        className="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700 w-15 h-15"
+        className="rounded-full w-15 h-15 shrink-0"
+        imageClassName="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700"
       />
       <div className="flex flex-col justify-center px-4 gap-2 font-mono min-w-0">
         <div ref={nameContainerRef as any} className="text-lg font-medium text-gray-900 dark:text-gray-100 overflow-hidden min-w-0">

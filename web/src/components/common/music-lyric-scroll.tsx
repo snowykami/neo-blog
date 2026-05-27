@@ -43,6 +43,11 @@ export default function LyricScroll() {
 
   const currentTimeMs = smoothTime || (currentTime ?? 0) * 1000
   const activeLyricIndex = getCurrentLyricIndex(parsedLyricLines, currentTimeMs, currentLyricIndex)
+  const lyricScrollClassName = 'h-40 overflow-y-auto overflow-x-hidden px-0 py-0 text-base leading-8 relative transition-colors max-w-full'
+  const lyricScrollStyle = {
+    maskImage: 'linear-gradient(to bottom, transparent, black 14%, black 86%, transparent)',
+    WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 14%, black 86%, transparent)',
+  }
 
   useEffect(() => {
     if (!containerRef.current || activeLyricIndex == null || !lineRefs.current[activeLyricIndex])
@@ -50,19 +55,24 @@ export default function LyricScroll() {
 
     const container = containerRef.current
     const target = lineRefs.current[activeLyricIndex]
-    const targetOffset = (target?.offsetTop ?? 0) - container.clientHeight * 0.4 + (target?.clientHeight ?? 0) / 2
+    const targetOffset = (target?.offsetTop ?? 0) - container.clientHeight / 2 + (target?.clientHeight ?? 0) / 2
 
     container.scrollTo({ top: targetOffset, behavior: 'smooth' })
   }, [activeLyricIndex, parsedLyricLines.length])
 
   if (activeLyricIndex === null) {
-    return null
+    return (
+      <div
+        className={lyricScrollClassName}
+        style={lyricScrollStyle}
+      />
+    )
   }
 
   const text = lyricLines[activeLyricIndex]?.text
   if (lyricLines.length === 1 && (text === 'pure_music_without_lyric' || text === 'no_lyric')) {
     return (
-      <div className="py-4 text-center text-base text-slate-600 dark:text-slate-500">
+      <div className="h-40 flex items-center justify-center text-center text-base text-slate-600 dark:text-slate-500">
         {t(text)}
       </div>
     )
@@ -71,8 +81,10 @@ export default function LyricScroll() {
   return (
     <div
       ref={containerRef}
-      className="max-h-40 overflow-y-auto overflow-x-hidden px-0 py-2 text-base leading-8 relative transition-colors max-w-full"
+      className={lyricScrollClassName}
+      style={lyricScrollStyle}
     >
+      <div aria-hidden className="h-20" />
       {parsedLyricLines.map((line, idx) => {
         const offset = idx - activeLyricIndex
         const isCurrent = idx === activeLyricIndex
@@ -185,6 +197,7 @@ export default function LyricScroll() {
           </div>
         )
       })}
+      <div aria-hidden className="h-20" />
     </div>
   )
 }
