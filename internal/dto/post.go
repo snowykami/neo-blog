@@ -51,11 +51,12 @@ type CreateOrUpdateDraftReq struct {
 }
 
 type ListPostReq struct {
-	Query     string `query:"query"`                       // 搜索查询
+	Query     string `query:"query"`                      // 搜索查询
 	NoContent bool   `query:"no_content" default:"false"` // 是否不返回内容，用于只需要列表时
 	PaginationParams
-	Label  string `query:"label"`
-	UserID uint   `query:"user_id"` // 用户ID，管理员可查看指定用户的文章
+	Label    string `query:"label"`
+	Category string `query:"category"`
+	UserID   uint   `query:"user_id"` // 用户ID，管理员可查看指定用户的文章
 }
 
 type ListPostResp struct {

@@ -1,12 +1,9 @@
 'use client'
+
 import type { Comment } from '@/models/comment'
-import type { Post } from '@/models/post'
-// import type { User } from '@/models/user'
-import { Separator } from '@radix-ui/react-dropdown-menu'
-import { useAsyncTask } from '@snowykami/use-async-task'
+import type { BaseResponseError } from '@/models/resp'
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
-
 import {
   parseAsBoolean,
   parseAsInteger,
@@ -14,366 +11,260 @@ import {
   useQueryState,
 } from 'nuqs'
 import { useCallback, useEffect, useState } from 'react'
-import { listComments } from '@/api/comment'
-import { listPosts } from '@/api/post'
+import { toast } from 'sonner'
+import { listCommentsAdmin } from '@/api/admin'
+import { deleteComment } from '@/api/comment'
 import { OrderSelector } from '@/components/common/orderby-selector'
-
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
-import { SearchModeSelector } from '@/components/common/search-mode-selector'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useAuth } from '@/contexts/auth-context'
+import { Separator } from '@/components/ui/separator'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useDevice } from '@/contexts/device-context'
 import { useDebouncedState } from '@/hooks/use-debounce'
-import { useCommonT } from '@/hooks/use-translations'
-import { OrderBy, SearchMode } from '@/models/common'
-import { TargetType } from '@/models/types'
+import { useCommonT, useOperationT } from '@/hooks/use-translations'
+import { OrderBy } from '@/models/common'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
-const COMMENTS_PER_POST = 10
 
 export default function CommentsManage() {
-  const commonT = useCommonT() // 在组件内部调用钩子，确保在上下文范围内
-  const metricsT = useTranslations('Metrics') // 指标相关文本（如"每页"）
-  const { user } = useAuth()
+  const commonT = useCommonT()
+  const operationT = useOperationT()
+  const metricsT = useTranslations('Metrics')
   const { isMobile } = useDevice()
-
-  // 状态管理
-  const [posts, setPosts] = useState<Post[]>([])
-  const [postCommentsMap, setPostCommentsMap] = useState<Record<number, Comment[]>>({}) // 文章ID -> 评论列表
-  const [postCommentPage, setPostCommentPage] = useState<Record<number, number>>({}) // 文章ID -> 当前评论页
-  const [totalPosts, setTotalPosts] = useState(0)
-
-  // 排序字段
+  const [comments, setComments] = useState<Comment[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
   const [orderBy, setOrderBy] = useQueryState(
     'order_by',
-    parseAsStringEnum<OrderBy>(Object.values(OrderBy)) // 解析为OrderBy枚举类型
-      .withDefault(OrderBy.CreatedAt) // 默认按创建时间排序
+    parseAsStringEnum<OrderBy>(Object.values(OrderBy))
+      .withDefault(OrderBy.CreatedAt)
       .withOptions({ history: 'replace', clearOnDefault: true }),
   )
-  // 搜索选择字段
-  const [searchMode, setSearchMode] = useQueryState(
-    'search_mode',
-    parseAsStringEnum<SearchMode>(Object.values(SearchMode))
-      .withDefault(SearchMode.All) // 默认为包含模式
-      .withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-
-  // 是否降序
   const [desc, setDesc] = useQueryState(
-    'desc', // URL参数名：?desc=true
+    'desc',
     parseAsBoolean.withDefault(true)
       .withOptions({ history: 'replace', clearOnDefault: true }),
   )
-
-  const [postPage, setPostPage] = useQueryState( // 文章分页（区别于评论分页）
-    'post_page',
+  const [page, setPage] = useQueryState(
+    'page',
     parseAsInteger.withDefault(1)
       .withOptions({ history: 'replace', clearOnDefault: true }),
   )
-  const [postSize, setPostSize] = useQueryState(
-    'post_size',
+  const [size, setSize] = useQueryState(
+    'size',
     parseAsInteger
       .withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE)
       .withOptions({ history: 'replace', clearOnDefault: true }),
   )
-  // 搜索词用本地状态管理，不通过 URL
-  const [queryInput, setQueryInput, debounceQueryInput] = useDebouncedState(
-    '',
-    200,
-  )
+  const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState('', 200)
 
-  // 使用 useAsyncTask 进行文章列表搜索并缓存结果
-  const listPostsTask = useAsyncTask(
-    async (pp: number, ps: number, ob: OrderBy, d: boolean, q: string) => {
-      if (!user)
-        return { posts: [], total: 0 }
-      const res = await listPosts({
-        page: pp,
-        size: ps,
-        orderBy: ob,
-        desc: d,
-        query: q,
-        userId: user.id,
-      })
-      return { posts: res.data.posts, total: res.data.total }
-    },
-    {
-      // 当搜索参数变化时自动执行
-      immediate: true,
-      dependencies: [postPage, postSize, orderBy, desc, debounceQueryInput, user],
-      getArgs: () => [postPage, postSize, orderBy, desc, debounceQueryInput] as const,
-      // 相同搜索条件在 10 秒内使用缓存，避免重复请求
-      cacheTime: 10_000,
-      // 根据搜索条件生成唯一的 cache key
-      taskKey: (pp, ps, ob, d, q) => `listPosts-${user?.id}-${pp}-${ps}-${ob}-${d}-${q}`,
-      maxRetries: 1,
-    },
-  )
-
-  // 更新本地状态
-  useEffect(() => {
-    if (listPostsTask.data) {
-      setPosts(listPostsTask.data.posts)
-      setTotalPosts(listPostsTask.data.total)
-
-      const initialPage: Record<number, number> = {}
-      listPostsTask.data.posts.forEach((post) => {
-        initialPage[post.id] = 1
-      })
-      setPostCommentPage(initialPage)
+  const fetchComments = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await listCommentsAdmin({
+        page,
+        size,
+        orderBy,
+        desc,
+      }, debouncedQueryInput)
+      setComments(res.data.comments)
+      setTotal(res.data.total)
     }
-  }, [listPostsTask.data])
-
-  // 单篇文章的评论
-  const fetchPostComments = useCallback(async (postId: number, page = 1) => {
-    if (!user)
-      return
-    const res = await listComments({
-      page,
-      size: COMMENTS_PER_POST,
-      orderBy,
-      desc,
-      targetType: TargetType.Post,
-      targetId: postId,
-      depth: 0,
-      commentId: 0,
-    })
-
-    // 更新评论映射：合并已有评论（如果是加载更多）
-    setPostCommentsMap(prev => ({
-      ...prev,
-      [postId]: page === 1
-        ? res.data.comments
-        : [...(prev[postId] || []), ...res.data.comments],
-    }))
-  }, [user, orderBy, desc])
+    catch (error) {
+      const err = error as BaseResponseError
+      toast.error(`${operationT('fetch_failed')}: ${err?.response?.data?.message || err.message}`)
+    }
+    finally {
+      setLoading(false)
+    }
+  }, [debouncedQueryInput, desc, operationT, orderBy, page, size])
 
   useEffect(() => {
-    if (posts.length === 0)
-      return
-    posts.forEach((post) => {
-      fetchPostComments(post.id, 1)
-    })
-  }, [posts, fetchPostComments])
+    fetchComments()
+  }, [fetchComments])
 
-  // 防抖后的搜索词变化时，重置分页
   useEffect(() => {
-    setPostPage(1)
-  }, [debounceQueryInput, setPostPage])
+    setPage(1)
+  }, [debouncedQueryInput, setPage])
 
   const onOrderChange = useCallback(
     ({ orderBy, desc }: { orderBy: OrderBy, desc: boolean }) => {
       setOrderBy(orderBy)
       setDesc(desc)
-      setPostPage(1)
+      setPage(1)
     },
-    [setOrderBy, setDesc, setPostPage],
-  )
-  const onPostPageChange = useCallback(
-    (p: number) => {
-      setPostPage(p)
-    },
-    [setPostPage],
+    [setOrderBy, setDesc, setPage],
   )
 
-  // 处理评论分页（加载更多评论）
-  const loadMoreComments = useCallback((postId: number) => {
-    setPostCommentPage((prev) => {
-      const nextPage = (prev[postId] || 1) + 1
-      fetchPostComments(postId, nextPage)
-      return { ...prev, [postId]: nextPage }
-    })
-  }, [fetchPostComments])
+  const handleDelete = async (comment: Comment) => {
+    try {
+      await deleteComment({ id: comment.id })
+      toast.success(operationT('delete_success'))
+      setComments(prev => prev.filter(item => item.id !== comment.id))
+      setTotal(prev => Math.max(0, prev - 1))
+    }
+    catch (error) {
+      const err = error as BaseResponseError
+      toast.error(`${operationT('delete_failed')}: ${err?.response?.data?.message || err.message}`)
+    }
+  }
 
   return (
-    <>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-y-4">
-        <div className="flex items-center gap-0">
-          <Input
-            type="search"
-            placeholder={commonT('search')}
-            value={queryInput}
-            onChange={e => setQueryInput(e.target.value)}
-          />
-          <div className="ml-1.5">
-            <SearchModeSelector initialMode={searchMode} onSearchModeChange={setSearchMode} />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <OrderSelector
-            initialOrder={{ orderBy, desc }}
-            onOrderChange={onOrderChange}
-            orderBys={[OrderBy.CreatedAt, OrderBy.Heat, OrderBy.LikeCount]}
-          />
-        </div>
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <Input
+          className="w-full sm:w-72"
+          type="search"
+          placeholder={commonT('search')}
+          value={queryInput}
+          onChange={e => setQueryInput(e.target.value)}
+        />
+        <OrderSelector
+          initialOrder={{ orderBy, desc }}
+          onOrderChange={onOrderChange}
+          orderBys={[OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.LikeCount]}
+        />
       </div>
-
-      {listPostsTask.loading
-        ? (
-            <div className="text-center py-8">加载中...</div>
-          )
-        : (
-            <>
-              {/* 文章和评论列表 */}
-              {posts.length === 0
-                ? (
-                    <div className="text-center py-8">没有找到文章</div>
-                  )
-                : (
-                    posts.map(post => (
-                      <div key={post.id} className="mb-8 border rounded-lg p-4">
-                        {/* 文章信息 */}
-                        <PostItem post={post} />
-                        <Separator className="my-3" />
-
-                        {/* 评论列表 */}
-                        <div className="mt-4">
-                          {/* <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            评论 (
-                            {post.commentCount || 0}
-                            )
-                          </h4> */}
-
-                          {postCommentsMap[post.id]?.length === 0
-                            ? (
-                                <div className="text-sm text-gray-500 py-2">暂无评论</div>
-                              )
-                            : (
-                                <>
-                                  {postCommentsMap[post.id]?.map(comment => (
-                                    <Comments key={comment.id} comment={comment} />
-                                  ))}
-
-                                  {/* 加载更多评论按钮 */}
-                                  {postCommentsMap[post.id]?.length >= (postCommentPage[post.id] || 1) * COMMENTS_PER_POST && (
-                                    <button
-                                      onClick={() => loadMoreComments(post.id)}
-                                      className="text-sm text-blue-600 dark:text-blue-400 mt-2 hover:underline"
-                                    >
-                                      加载更多评论
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-
-              {/* 文章分页控制 */}
-              <div className="flex justify-center items-center py-4">
-                {totalPosts > 0 && (
-                  <PaginationController
-                    initialPage={postPage}
-                    onPageChange={onPostPageChange}
-                    total={totalPosts}
-                    pageSize={postSize}
-                  />
-                )}
-
-                <PageSizeSelector
-                  initialSize={postSize}
-                  onSizeChange={(s) => {
-                    setPostSize(s)
-                    setPostPage(1)
-                  }}
-                />
-                {' '}
-                {metricsT('per_page')}
-              </div>
-            </>
+      <Separator />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>评论</TableHead>
+            <TableHead>目标</TableHead>
+            <TableHead>用户</TableHead>
+            <TableHead>状态</TableHead>
+            <TableHead>时间</TableHead>
+            <TableHead className="text-right">操作</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading && (
+            <TableRow>
+              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">加载中...</TableCell>
+            </TableRow>
           )}
-    </>
-  )
-}
-
-function PostItem({ post }: { post: Post }) {
-  return (
-    <>
-      <div className="flex w-full items-center gap-3 py-3">
-        <div className="flex justify-start items-center gap-4">
-          <div className="flex-shrink-0 w-16 h-9 rounded-md overflow-hidden">
-            {post.cover && (
-              <Image
-                src={post.cover}
-                alt={post.title}
-                width={64}
-                height={36}
-                className="w-full h-full object-cover"
-              />
-            )}
-            {!post.cover && (
-              <div className="w-full h-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-gray-500 text-xs">
-                No Cover
-              </div>
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 truncate">
-              {post.title}
-            </h3>
-            <p className="text-xs text-gray-500 mt-1">
-              发布于
-              {' '}
-              {new Date(post.createdAt).toLocaleDateString()}
-            </p>
-          </div>
-        </div>
+          {!loading && comments.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">暂无评论</TableCell>
+            </TableRow>
+          )}
+          {!loading && comments.map(comment => (
+            <CommentRow key={comment.id} comment={comment} onDelete={handleDelete} />
+          ))}
+        </TableBody>
+      </Table>
+      <div className="flex items-center justify-center py-4">
+        {total > 0 && (
+          <PaginationController
+            initialPage={page}
+            onPageChange={setPage}
+            total={total}
+            pageSize={size}
+          />
+        )}
+        <PageSizeSelector
+          initialSize={size}
+          onSizeChange={(nextSize) => {
+            setSize(nextSize)
+            setPage(1)
+          }}
+        />
+        {' '}
+        {metricsT('per_page')}
       </div>
-    </>
+    </div>
   )
 }
 
-function Comments({ comment }: { comment: Comment }) {
-  const { user, content, createdAt, depth } = comment
-  const indentStyle = { marginLeft: `${depth * 16}px` }
+function CommentRow({
+  comment,
+  onDelete,
+}: {
+  comment: Comment
+  onDelete: (comment: Comment) => void
+}) {
+  const operationT = useOperationT()
   return (
-    <>
-      <div style={indentStyle} className="flex w-full items-start gap-3 py-2">
-        {/* 头像区域 */}
-        <div className="flex-shrink-0 w-10 h-10 rounded-md overflow-hidden">
-          {user?.avatarUrl
+    <TableRow>
+      <TableCell className="max-w-[28rem] whitespace-normal">
+        <div className="line-clamp-3 break-words">{comment.content || '无评论内容'}</div>
+        {comment.depth > 0 && (
+          <div className="mt-1 text-xs text-muted-foreground">
+            回复层级:
+            {' '}
+            {comment.depth + 1}
+          </div>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="font-mono text-xs">{comment.targetType}</div>
+        <div className="text-xs text-muted-foreground">
+          #
+          {comment.targetId}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          {comment.user?.avatarUrl
             ? (
                 <Image
-                  src={user.avatarUrl}
-                  alt={user.username || '用户头像'}
-                  width={40}
-                  height={40}
-                  className="w-full h-full object-cover"
+                  src={comment.user.avatarUrl}
+                  alt={comment.user.username || 'avatar'}
+                  width={32}
+                  height={32}
+                  className="size-8 rounded-md object-cover"
                 />
               )
             : (
-                <div className="w-full h-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-gray-500 rounded-md">
-                  {user?.username?.[0] || 'U'}
+                <div className="flex size-8 items-center justify-center rounded-md bg-muted text-xs">
+                  {comment.user?.username?.[0] || '?'}
                 </div>
               )}
-        </div>
-
-        {/* 用户名 + 评论内容 + 时间 区域 */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap -mt-2">
-            <span className="font-normal text-gray-900 dark:text-gray-100">
-              {user?.username || '未知用户'}
-            </span>
-            <span className="text-xs text-gray-500">
-              {new Date(createdAt).toLocaleString()}
-            </span>
-            {depth > 0 && (
-              <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-600 dark:text-gray-400 rounded">
-                {depth + 1}
-                级评论
-              </span>
-            )}
-          </div>
-
-          {/* 评论内容 */}
-          <div className="mt-1 text-gray-800 dark:text-gray-200 break-words">
-            {content || '无评论内容'}
+          <div className="min-w-0">
+            <div className="truncate text-sm">{comment.user?.nickname || comment.user?.username || '未知用户'}</div>
+            <div className="truncate text-xs text-muted-foreground">{comment.user?.email}</div>
           </div>
         </div>
-      </div>
-    </>
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-wrap gap-1">
+          {comment.isPrivate && <Badge variant="secondary">私密</Badge>}
+          {comment.replyCount > 0 && (
+            <Badge variant="outline">
+              {comment.replyCount}
+              {' '}
+              回复
+            </Badge>
+          )}
+          {comment.likeCount > 0 && (
+            <Badge variant="outline">
+              {comment.likeCount}
+              {' '}
+              赞
+            </Badge>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>{new Date(comment.createdAt).toLocaleString()}</TableCell>
+      <TableCell className="text-right">
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={() => onDelete(comment)}
+        >
+          {operationT('delete')}
+        </Button>
+      </TableCell>
+    </TableRow>
   )
 }

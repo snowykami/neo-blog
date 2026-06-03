@@ -118,6 +118,12 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 			targetOwnerId = post.UserID
 		}
 	}
+	if comment.TargetType == constant.TargetTypePage {
+		page, err := repo.Page.GetPageBySlugOrID(strconv.Itoa(int(comment.TargetID)))
+		if err == nil && page.UserID == currentUser.ID {
+			targetOwnerId = page.UserID
+		}
+	}
 
 	// 仅管理员，目标对象主人，评论主人可以删评
 	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, targetOwnerId) || ctxutils.IsOwnerOfTarget(ctx, comment.UserID)) {
@@ -155,6 +161,15 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.
 			if post.UserID != currentUserID {
 				return nil, errs.NewForbidden("permission_denied")
 			}
+		} else if comment.TargetType == constant.TargetTypePage {
+			page, err := repo.Page.GetPageBySlugOrID(strconv.Itoa(int(comment.TargetID)))
+			if err != nil {
+				logrus.Errorf("GetComment: GetPageBySlugOrID error: %s", err.Error())
+				return nil, errs.NewInternalServer("failed_to_get_target")
+			}
+			if page.UserID != currentUserID {
+				return nil, errs.NewForbidden("permission_denied")
+			}
 		} else {
 			return nil, errs.NewForbidden("permission_denied")
 		}
@@ -179,6 +194,21 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 		commentDtos = append(commentDtos, commentDto)
 	}
 	return commentDtos, nil
+}
+
+func (cs *CommentService) ListCommentsAdmin(ctx context.Context, pagination *dto.PaginationParams, query string) ([]dto.CommentDto, int64, *errs.ServiceError) {
+	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
+	comments, total, err := repo.Comment.ListCommentsAdmin(pagination.Page, pagination.Size, pagination.OrderBy, pagination.Desc, strings.TrimSpace(query))
+	if err != nil {
+		logrus.Errorf("ListCommentsAdmin: ListCommentsAdmin error: %s", err.Error())
+		return nil, 0, errs.NewInternalServer("failed_to_get_target")
+	}
+	commentDtos := make([]dto.CommentDto, 0, len(comments))
+	for _, comment := range comments {
+		commentDto := cs.toGetCommentDto(&comment, currentUserID)
+		commentDtos = append(commentDtos, commentDto)
+	}
+	return commentDtos, total, nil
 }
 
 func (cs *CommentService) toGetCommentDto(comment *model.Comment, currentUserID uint) dto.CommentDto {
@@ -226,6 +256,10 @@ func (cs *CommentService) checkTargetExists(targetID uint, targetType string) (b
 	switch targetType {
 	case constant.TargetTypePost:
 		if _, err := repo.Post.GetPostBySlugOrID(strconv.Itoa(int(targetID))); err != nil {
+			return false, errs.NewNotFound("operation_target_not_found")
+		}
+	case constant.TargetTypePage:
+		if _, err := repo.Page.GetPageBySlugOrID(strconv.Itoa(int(targetID))); err != nil {
 			return false, errs.NewNotFound("operation_target_not_found")
 		}
 	default:

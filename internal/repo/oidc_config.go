@@ -76,6 +76,7 @@ func (o *oidcRepo) UpdateOidcConfig(oidcConfig *model.OidcConfig) error {
 	}
 	if err := GetDB().Select("Name", "ClientID", "ClientSecret",
 		"DisplayName", "Icon", "OidcDiscoveryUrl",
+		"Issuer", "AuthorizationEndpoint", "TokenEndpoint", "UserinfoEndpoint", "JwksUri",
 		"Enabled", "Type").Updates(oidcConfig).Error; err != nil {
 		return err
 	}

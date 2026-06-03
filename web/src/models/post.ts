@@ -20,6 +20,7 @@ export interface Post {
   user: User
   isLiked: boolean // 当前用户是否点赞
   isPrivate: boolean
+  top: number
   likeCount: number
   commentCount: number
   viewCount: number

@@ -25,6 +25,7 @@ const (
 	DefaultRssLimit            = 30
 	DefaultSitemapLimit        = 5000
 	TargetTypePost             = "post"
+	TargetTypePage             = "page"
 	TargetTypeComment          = "comment"
 	OrderByCreatedAt           = "created_at"    // 按创建时间排序
 	OrderByUpdatedAt           = "updated_at"    // 按更新时间排序
@@ -40,6 +41,6 @@ const (
 )
 
 var (
-	OrderByEnumPost    = []string{OrderByCreatedAt, OrderByUpdatedAt, OrderByLikeCount, OrderByCommentCount, OrderByViewCount, OrderByHeat} // 帖子可用的排序方式
-	OrderByEnumComment = []string{OrderByCreatedAt, OrderByUpdatedAt, OrderByCommentCount, OrderByLikeCount}                                // 评论可用的排序方式
+	OrderByEnumPost    = []string{OrderByCreatedAt, OrderByUpdatedAt, OrderByLikeCount, OrderByCommentCount, OrderByViewCount, OrderByHeat, "top"} // 帖子可用的排序方式
+	OrderByEnumComment = []string{OrderByCreatedAt, OrderByUpdatedAt, OrderByCommentCount, OrderByLikeCount}                                       // 评论可用的排序方式
 )

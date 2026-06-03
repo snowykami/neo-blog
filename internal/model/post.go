@@ -69,6 +69,7 @@ func (p *Post) ToDto() *dto.PostDto {
 			Description:  p.Description,
 			DraftContent: p.DraftContent,
 			IsPrivate:    p.IsPrivate,
+			Top:          p.Top,
 			Labels: func() []dto.LabelDto {
 				labelDtos := make([]dto.LabelDto, len(p.Labels))
 				for i, label := range p.Labels {

@@ -165,7 +165,19 @@ export function PostManage() {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <OrderSelector initialOrder={{ orderBy, desc }} onOrderChange={onOrderChange} />
+            <OrderSelector
+              initialOrder={{ orderBy, desc }}
+              onOrderChange={onOrderChange}
+              orderBys={[
+                OrderBy.Top,
+                OrderBy.CreatedAt,
+                OrderBy.UpdatedAt,
+                OrderBy.Heat,
+                OrderBy.CommentCount,
+                OrderBy.LikeCount,
+                OrderBy.ViewCount,
+              ]}
+            />
             <Button size="sm" onClick={() => setCreatePostDialogOpen(true)}>
               {t('create_post')}
             </Button>
@@ -267,6 +279,12 @@ function PostItem({
                     value: `${commonT('id')}: ${post.id}`,
                     className: 'bg-indigo-100 text-indigo-800',
                   },
+                  ...(post.top > 0
+                    ? [{
+                        value: `${postT('post_top')}: ${post.top}`,
+                        className: 'bg-amber-100 text-amber-800',
+                      }]
+                    : []),
                   {
                     value: stateT(post.isPrivate ? 'private' : 'public'),
                     className: post.isPrivate

@@ -283,8 +283,13 @@ func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, tar
 }
 
 // ListCommentsAdmin 列出所有评论，包含用户信息，用于后台管理
-func (cr *CommentRepo) ListCommentsAdmin(page, size uint64, orderBy string, desc bool) ([]model.Comment, int64, error) {
-	query := GetDB().Model(&model.Comment{}).Preload("User").Preload("TargetType").Preload("TargetID")
+func (cr *CommentRepo) ListCommentsAdmin(page, size uint64, orderBy string, desc bool, queryText string) ([]model.Comment, int64, error) {
+	query := GetDB().Model(&model.Comment{}).Preload("User")
+	if queryText != "" {
+		like := "%" + queryText + "%"
+		query = query.Joins("LEFT JOIN users ON users.id = comments.user_id").
+			Where("comments.content LIKE ? OR users.username LIKE ? OR users.nickname LIKE ? OR users.email LIKE ?", like, like, like, like)
+	}
 	items, total, err := PaginateQuery[model.Comment](query, page, size, orderBy, desc)
 	return items, total, err
 }

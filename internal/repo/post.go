@@ -208,6 +208,17 @@ func (p *postRepo) ListPosts(currentUserID uint, query []string, req *dto.ListPo
 			Where("post_labels.label_id = ?", labelModel.ID)
 	}
 
+	if req.Category != "" {
+		var categoryModel model.Category
+		if err := GetDB().Where("name = ? OR slug = ?", req.Category, req.Category).First(&categoryModel).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return []model.Post{}, 0, nil
+			}
+			return nil, 0, err
+		}
+		q = q.Where("category_id = ?", categoryModel.ID)
+	}
+
 	if len(query) > 0 {
 		for _, q_item := range query {
 			if q_item != "" {
@@ -226,7 +237,7 @@ func (p *postRepo) ListPosts(currentUserID uint, query []string, req *dto.ListPo
 		return nil, 0, err
 	}
 
-	items, _, err := PaginateQuery[model.Post](q, req.Page, req.Size, req.OrderBy, req.Desc)
+	items, _, err := PaginateQuery[model.Post](q.Order("top DESC"), req.Page, req.Size, req.OrderBy, req.Desc)
 	if err != nil {
 		return nil, 0, err
 	}
