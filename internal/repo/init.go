@@ -136,6 +136,7 @@ func migrate() error {
 		&model.StorageProviderModelAndDto{},
 		&model.KV{},
 		&model.OidcConfig{},
+		&model.Page{},
 		&model.Post{},
 		&model.Session{},
 		&model.User{},

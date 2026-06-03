@@ -32,6 +32,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: 'daily',
     priority: 1,
   })
+  items.push({
+    url: `${sitemapData.baseUrl}/a`,
+    lastModified: new Date(),
+    changeFrequency: 'weekly',
+    priority: 0.7,
+  })
 
   // posts
   sitemapData?.posts?.forEach((post) => {
@@ -78,6 +84,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: lastMod,
       changeFrequency: changefreq,
       priority,
+    })
+  })
+
+  sitemapData?.archives?.forEach((archive) => {
+    items.push({
+      url: `${sitemapData.baseUrl}/a#${archive}`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.5,
     })
   })
 

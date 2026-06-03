@@ -8,5 +8,11 @@ export interface OidcConfig {
   oidcDiscoveryUrl?: string
   clientId?: string
   clientSecret?: string
+  issuer?: string
+  authorizationEndpoint?: string
+  tokenEndpoint?: string
+  userinfoEndpoint?: string
+  jwksUri?: string
+  type?: string
   enabled?: boolean
 }

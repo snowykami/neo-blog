@@ -8,6 +8,7 @@ import {
   IdCard,
   MessageCircle,
   Newspaper,
+  NotebookText,
   Palette,
   Settings,
   ShieldCheck,
@@ -48,6 +49,13 @@ export const sidebarData: {
       permission: isEditor,
     },
     {
+      id: 'pages',
+      title: 'pages.title',
+      url: consolePath.page,
+      icon: NotebookText,
+      permission: isEditor,
+    },
+    {
       id: 'categories',
       title: 'categories.title',
       url: consolePath.category,
@@ -66,7 +74,7 @@ export const sidebarData: {
       title: 'comments.title',
       url: consolePath.comment,
       icon: MessageCircle,
-      permission: isEditor,
+      permission: isAdmin,
     },
     {
       id: 'files',

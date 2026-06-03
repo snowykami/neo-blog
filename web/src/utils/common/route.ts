@@ -3,6 +3,7 @@ export const consolePath = {
   dashboard: '/console',
   label: '/console/labels',
   post: '/console/posts',
+  page: '/console/pages',
   comment: '/console/comments',
   file: '/console/files',
   global: '/console/global',
@@ -65,4 +66,20 @@ export function getCategoryUrl<T extends { slug: string }>(category: T): string 
 
 export function getLabelUrl<T extends { slug: string, name: string }>(label: T): string {
   return `/?label=${label.slug || label.name}`
+}
+
+export function getPageUrl<T extends { slug?: string | null, id?: string | number | null }>(page: T): string {
+  const key = page.slug || page.id
+  if (key == null) {
+    throw new Error('getPageUrl: object must contain slug or id')
+  }
+  return `/page/${String(key)}`
+}
+
+export function getPageEditUrl<T extends { slug?: string | null, id?: string | number | null }>(page: T): string {
+  const key = page.slug || page.id
+  if (key == null) {
+    throw new Error('getPageEditUrl: object must contain slug or id')
+  }
+  return `/console/pages/edit/${String(key)}`
 }

@@ -120,13 +120,57 @@ func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestCont
 		Limit(utils2.Env.GetAsInt(constant.EnvKeySitemapLimit, constant.DefaultSitemapLimit)).
 		Find(&editors)
 
-		// TODO: 未来可以考虑加入 categories, labels, archives
+	var categories []model.Category
+	repo.GetDB().Model(&model.Category{}).
+		Select("id, slug, updated_at").
+		Order("updated_at DESC").
+		Limit(utils2.Env.GetAsInt(constant.EnvKeySitemapLimit, constant.DefaultSitemapLimit)).
+		Find(&categories)
+
+	var labels []model.Label
+	repo.GetDB().Model(&model.Label{}).
+		Select("id, name, slug, updated_at").
+		Order("updated_at DESC").
+		Limit(utils2.Env.GetAsInt(constant.EnvKeySitemapLimit, constant.DefaultSitemapLimit)).
+		Find(&labels)
+
+	archiveSet := make(map[string]struct{})
+	archives := make([]string, 0)
+	for _, post := range posts {
+		archive := post.CreatedAt.Format("2006-01")
+		if _, ok := archiveSet[archive]; ok {
+			continue
+		}
+		archiveSet[archive] = struct{}{}
+		archives = append(archives, archive)
+	}
 
 	resps.Ok(c, "", utils.H{
-		"base_url":   tools.GetBaseUrl(),
-		"archives":   []string{},
-		"labels":     []string{},
-		"categories": []string{},
+		"base_url": tools.GetBaseUrl(),
+		"archives": archives,
+		"labels": func() []map[string]any {
+			m := make([]map[string]any, 0)
+			for _, label := range labels {
+				m = append(m, map[string]any{
+					"id":         label.ID,
+					"name":       label.Name,
+					"slug":       label.Slug,
+					"updated_at": label.UpdatedAt,
+				})
+			}
+			return m
+		}(),
+		"categories": func() []map[string]any {
+			m := make([]map[string]any, 0)
+			for _, category := range categories {
+				m = append(m, map[string]any{
+					"id":         category.ID,
+					"slug":       category.Slug,
+					"updated_at": category.UpdatedAt,
+				})
+			}
+			return m
+		}(),
 		"posts": func() []map[string]any {
 			m := make([]map[string]any, 0)
 			for _, post := range posts {

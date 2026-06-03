@@ -85,7 +85,8 @@
     "unknown_author": "未知作者",
     "updated_at": "更新於",
     "username": "用戶名",
-    "verify_code": "驗證碼"
+    "verify_code": "驗證碼",
+    "pinned": "置頂"
   },
   "Components": {
     "image_cropper": {
@@ -237,7 +238,8 @@
       "setting": "設置",
       "source_mode": "源碼模式",
       "uncategorized": "未分類",
-      "view_count": "瀏覽數"
+      "view_count": "瀏覽數",
+      "post_top": "置頂權重"
     },
     "storages": {
       "title": "存儲供應商",
@@ -313,6 +315,9 @@
     "user_preference": {
       "title": "個性化",
       "color_scheme": "色彩風格"
+    },
+    "pages": {
+      "title": "頁面管理"
     }
   },
   "Copyright": {
@@ -417,7 +422,8 @@
     "upload": "上傳",
     "upload_failed": "上傳失敗",
     "upload_success": "上傳成功",
-    "view": "查看"
+    "view": "查看",
+    "fetch_failed": "獲取失敗"
   },
   "Metrics": {
     "comment_count": "評論數",
@@ -434,7 +440,8 @@
     "name": "名稱",
     "size": "大小",
     "updated_at": "更新時間",
-    "view_count": "瀏覽數"
+    "view_count": "瀏覽數",
+    "top": "置頂"
   },
   "Random": {
     "title": "隨機文章",

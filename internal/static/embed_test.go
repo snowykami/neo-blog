@@ -10,7 +10,7 @@ func TestRenderTemplate(t *testing.T) {
 		"Email":   "xxx@.comcom",
 		"Details": "nihao",
 	})
-	t.Logf(template)
+	t.Logf("%s", template)
 	if err != nil {
 		t.Errorf("渲染模板失败: %v", err)
 		return

@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server'
+import OidcManage from './oidc-manage'
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console')
@@ -8,9 +9,5 @@ export async function generateMetadata() {
 }
 
 export default function Page() {
-  return (
-    <div>
-      <h1>认证管理</h1>
-    </div>
-  )
+  return <OidcManage />
 }

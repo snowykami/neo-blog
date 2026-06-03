@@ -52,6 +52,18 @@ func (k *kvRepo) SetKV(key string, value any) error {
 	return GetDB().Save(kv).Error
 }
 
+func (k *kvRepo) ListKV(query string) ([]model.KV, error) {
+	var kvs []model.KV
+	q := GetDB().Model(&model.KV{})
+	if query != "" {
+		q = q.Where("key LIKE ?", "%"+query+"%")
+	}
+	if err := q.Order("key ASC").Find(&kvs).Error; err != nil {
+		return nil, err
+	}
+	return kvs, nil
+}
+
 func (k *kvRepo) DeleteKV(key string) error {
 	return GetDB().Delete(&model.KV{}, "key = ?", key).Error
 }

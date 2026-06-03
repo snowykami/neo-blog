@@ -46,6 +46,12 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   const activePointerIdRef = useRef<number | null>(null)
   const activeOverlayCleanupRef = useRef<(() => void) | null>(null)
 
+  useEffect(() => {
+    setWidth(initialWidth)
+    if (wrapperRef.current)
+      wrapperRef.current.style.width = initialWidth ? `${initialWidth}px` : 'fit-content'
+  }, [initialWidth])
+
   // 使用 PointerEvent 支持触摸与鼠标
   const windowPointerMoveHandler = React.useCallback(
     (event: PointerEvent): void => {

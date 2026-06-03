@@ -85,7 +85,8 @@
     "username": "ユーザー名",
     "verify_code": "認証コード",
     "default": "デフォルト",
-    "private": "非公開"
+    "private": "非公開",
+    "pinned": "固定表示"
   },
   "Components": {
     "image_cropper": {
@@ -237,7 +238,8 @@
       "setting": "設定",
       "source_mode": "ソースモード",
       "uncategorized": "未分類",
-      "view_count": "閲覧数"
+      "view_count": "閲覧数",
+      "post_top": "固定表示の重み"
     },
     "storages": {
       "title": "ストレージプロバイダ",
@@ -313,6 +315,9 @@
     "user_preference": {
       "title": "カスタマイズ",
       "color_scheme": "カラースキーム"
+    },
+    "pages": {
+      "title": "ページ管理"
     }
   },
   "Copyright": {
@@ -404,7 +409,8 @@
     "upload_failed": "アップロードに失敗しました",
     "upload_success": "アップロードしました",
     "view": "表示",
-    "delete_description": "削除は取り消せません。慎重に操作してください！"
+    "delete_description": "削除は取り消せません。慎重に操作してください！",
+    "fetch_failed": "取得に失敗しました"
   },
   "Metrics": {
     "comment_count": "コメント数",
@@ -421,7 +427,8 @@
     "name": "名前",
     "size": "サイズ",
     "updated_at": "更新日時",
-    "view_count": "閲覧数"
+    "view_count": "閲覧数",
+    "top": "固定表示"
   },
   "Random": {
     "title": "ランダム記事",

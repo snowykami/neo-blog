@@ -93,7 +93,8 @@
     "unknown_author": "未知作者",
     "updated_at": "更新于",
     "username": "用户名",
-    "verify_code": "验证码"
+    "verify_code": "验证码",
+    "pinned": "置顶"
   },
   "Components": {
     "image_cropper": {
@@ -245,7 +246,8 @@
       "setting": "设置",
       "source_mode": "源码模式",
       "uncategorized": "未分类",
-      "view_count": "浏览数"
+      "view_count": "浏览数",
+      "post_top": "置顶权重"
     },
     "storages": {
       "title": "存储供应商",
@@ -307,7 +309,6 @@
       "send_verify_code": "发送验证码",
       "send_verify_code_failed": "发送验证码失败",
       "send_verify_code_success": "验证码已发送",
-
       "unbind": "解绑",
       "unbind_failed": "解绑失败",
       "unbind_success": "解绑成功",
@@ -322,6 +323,9 @@
     "user_preference": {
       "title": "个性化",
       "color_scheme": "颜色风格"
+    },
+    "pages": {
+      "title": "页面管理"
     }
   },
   "Copyright": {
@@ -426,7 +430,8 @@
     "upload": "上传",
     "upload_failed": "上传失败",
     "upload_success": "上传成功",
-    "view": "查看"
+    "view": "查看",
+    "fetch_failed": "获取失败"
   },
   "Metrics": {
     "comment_count": "评论数",
@@ -443,7 +448,8 @@
     "name": "名称",
     "size": "大小",
     "updated_at": "更新时间",
-    "view_count": "浏览数"
+    "view_count": "浏览数",
+    "top": "置顶"
   },
   "Random": {
     "title": "随机文章",

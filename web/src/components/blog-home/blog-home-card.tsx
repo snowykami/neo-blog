@@ -9,6 +9,7 @@ import {
   Heart,
   Lock,
   MessageCircle,
+  Pin,
 } from 'lucide-react'
 import { motion } from 'motion/react'
 import Image from 'next/image'
@@ -36,6 +37,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 
 export function BlogCard({ post, className }: { post: Post, className?: string }) {
   const { siteInfo } = useSiteInfo()
+  const commonT = useCommonT()
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('zh-CN', {
@@ -83,7 +85,14 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
             className="absolute top-2 left-2 bg-blue-300/90 text-white hover:bg-blue-400 text-xs"
           >
             <Lock className="w-3 h-3 mr-1" />
-            {useCommonT()('private')}
+            {commonT('private')}
+          </Badge>
+        )}
+
+        {post.top > 0 && (
+          <Badge className="absolute left-2 top-10 border-0 bg-amber-500/90 text-xs text-white hover:bg-amber-500">
+            <Pin className="mr-1 size-3" />
+            {commonT('pinned')}
           </Badge>
         )}
 

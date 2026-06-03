@@ -85,7 +85,8 @@
     "username": "사용자 이름",
     "verify_code": "인증 코드",
     "default": "기본값",
-    "private": "비공개"
+    "private": "비공개",
+    "pinned": "Pinned"
   },
   "Components": {
     "image_cropper": {
@@ -237,7 +238,8 @@
       "setting": "Settings",
       "source_mode": "Source mode",
       "uncategorized": "Uncategorized",
-      "view_count": "Views"
+      "view_count": "Views",
+      "post_top": "Pin weight"
     },
     "storages": {
       "title": "저장소 공급자",
@@ -313,6 +315,9 @@
     "user_preference": {
       "title": "Preferences",
       "color_scheme": "Color scheme"
+    },
+    "pages": {
+      "title": "Pages"
     }
   },
   "Copyright": {
@@ -404,7 +409,8 @@
     "upload_failed": "업로드 실패",
     "upload_success": "업로드됨",
     "view": "보기",
-    "delete_description": "삭제는 취소할 수 없으니 신중하게 진행하세요!"
+    "delete_description": "삭제는 취소할 수 없으니 신중하게 진행하세요!",
+    "fetch_failed": "Fetch failed"
   },
   "Metrics": {
     "comment_count": "댓글",
@@ -421,7 +427,8 @@
     "name": "이름",
     "size": "크기",
     "updated_at": "수정일",
-    "view_count": "조회수"
+    "view_count": "조회수",
+    "top": "Pinned"
   },
   "Random": {
     "title": "무작위 게시물",
