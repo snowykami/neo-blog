@@ -111,10 +111,12 @@ func (o *OidcConfig) ToAdminDto() *dto.AdminOidcConfigDto {
 		DisplayName:           o.DisplayName,
 		Icon:                  o.Icon,
 		OidcDiscoveryUrl:      o.OidcDiscoveryUrl,
+		Issuer:                o.Issuer,
 		AuthorizationEndpoint: o.AuthorizationEndpoint,
 		TokenEndpoint:         o.TokenEndpoint,
 		UserinfoEndpoint:      o.UserinfoEndpoint,
 		JwksUri:               o.JwksUri,
+		Type:                  o.Type,
 		Enabled:               o.Enabled,
 	}
 }

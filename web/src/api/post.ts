@@ -31,10 +31,12 @@ export async function listPosts({
   query = '',
   noContent = false,
   label = '',
+  category = '',
   userId = 0,
 }: {
   query?: string // 搜索查询，逗号分割
   label?: string // 标签，逗号分割
+  category?: string
   userId?: number // 用户ID，管理员可查看指定用户的文章
   noContent?: boolean // 是否不返回内容，用于只需要列表时
 } & PaginationParams): Promise<BaseResponse<{ posts: Post[], total: number }>> {
@@ -46,6 +48,7 @@ export async function listPosts({
       desc,
       query,
       label,
+      category,
       noContent,
       userId,
     },

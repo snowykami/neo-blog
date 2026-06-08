@@ -85,7 +85,8 @@
     "username": "使用者名稱",
     "verify_code": "驗證碼",
     "default": "預設",
-    "private": "私密"
+    "private": "私密",
+    "pinned": "置頂"
   },
   "Components": {
     "image_cropper": {
@@ -237,7 +238,8 @@
       "setting": "設定",
       "source_mode": "原始碼模式",
       "uncategorized": "未分類",
-      "view_count": "瀏覽數"
+      "view_count": "瀏覽數",
+      "post_top": "置頂權重"
     },
     "storages": {
       "title": "儲存供應商",
@@ -313,6 +315,9 @@
     "user_preference": {
       "title": "個人化",
       "color_scheme": "顏色主題"
+    },
+    "pages": {
+      "title": "頁面管理"
     }
   },
   "Copyright": {
@@ -404,7 +409,8 @@
     "upload_failed": "上傳失敗",
     "upload_success": "上傳成功",
     "view": "檢視",
-    "delete_description": "刪除後無法復原，請謹慎操作！"
+    "delete_description": "刪除後無法復原，請謹慎操作！",
+    "fetch_failed": "取得失敗"
   },
   "Metrics": {
     "comment_count": "評論數",
@@ -421,7 +427,8 @@
     "name": "名稱",
     "size": "大小",
     "updated_at": "更新時間",
-    "view_count": "瀏覽數"
+    "view_count": "瀏覽數",
+    "top": "置頂"
   },
   "Random": {
     "title": "隨機文章",

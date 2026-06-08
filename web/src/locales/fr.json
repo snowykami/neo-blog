@@ -85,7 +85,8 @@
     "username": "Nom d'utilisateur",
     "verify_code": "Code de vérification",
     "default": "Par défaut",
-    "private": "Privé"
+    "private": "Privé",
+    "pinned": "Épinglé"
   },
   "Components": {
     "image_cropper": {
@@ -237,7 +238,8 @@
       "setting": "Paramètres",
       "source_mode": "Mode source",
       "uncategorized": "Non catégorisé",
-      "view_count": "Vues"
+      "view_count": "Vues",
+      "post_top": "Poids d'épinglage"
     },
     "storages": {
       "title": "Fournisseurs de stockage",
@@ -313,6 +315,9 @@
     "user_preference": {
       "title": "Préférences",
       "color_scheme": "Schéma de couleurs"
+    },
+    "pages": {
+      "title": "Pages"
     }
   },
   "Copyright": {
@@ -404,7 +409,8 @@
     "upload_failed": "Échec du téléchargement",
     "upload_success": "Téléchargé",
     "view": "Voir",
-    "delete_description": "La suppression ne peut pas être annulée, procédez avec précaution!"
+    "delete_description": "La suppression ne peut pas être annulée, procédez avec précaution!",
+    "fetch_failed": "Échec de la récupération"
   },
   "Metrics": {
     "comment_count": "Commentaires",
@@ -421,7 +427,8 @@
     "name": "Nom",
     "size": "Taille",
     "updated_at": "Mis à jour",
-    "view_count": "Vues"
+    "view_count": "Vues",
+    "top": "Épinglé"
   },
   "Random": {
     "title": "Article aléatoire",

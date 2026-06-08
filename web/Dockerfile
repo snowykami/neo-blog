@@ -6,9 +6,10 @@
 # Use official Node image and pnpm
 FROM node:24-alpine AS builder
 WORKDIR /app
+ARG PNPM_VERSION=10.23.0
 
 # enable corepack and activate pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
 # copy lock & package then install (dev deps needed for build)
 COPY package.json pnpm-lock.yaml ./
@@ -21,13 +22,14 @@ RUN pnpm run lint:fix && pnpm run build
 # production image
 FROM node:24-alpine AS runner
 WORKDIR /app
+ARG PNPM_VERSION=10.23.0
 
 ENV NODE_ENV=production \
   PORT=3000 \
   HOSTNAME="0.0.0.0"
 
 # enable corepack for pnpm in runner
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
 # create non-root user
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs

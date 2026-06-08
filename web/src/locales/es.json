@@ -85,7 +85,8 @@
     "username": "Nombre de usuario",
     "verify_code": "Código de verificación",
     "default": "Predeterminado",
-    "private": "Privado"
+    "private": "Privado",
+    "pinned": "Fijado"
   },
   "Components": {
     "image_cropper": {
@@ -237,7 +238,8 @@
       "setting": "Configuración",
       "source_mode": "Modo fuente",
       "uncategorized": "Sin categoría",
-      "view_count": "Vistas"
+      "view_count": "Vistas",
+      "post_top": "Peso fijado"
     },
     "storages": {
       "title": "Proveedores de almacenamiento",
@@ -313,6 +315,9 @@
     "user_preference": {
       "title": "Preferencias",
       "color_scheme": "Esquema de color"
+    },
+    "pages": {
+      "title": "Páginas"
     }
   },
   "Copyright": {
@@ -404,7 +409,8 @@
     "upload_failed": "Error al subir",
     "upload_success": "Subido",
     "view": "Ver",
-    "delete_description": "La eliminación no se puede deshacer, ¡procede con precaución!"
+    "delete_description": "La eliminación no se puede deshacer, ¡procede con precaución!",
+    "fetch_failed": "Error al obtener"
   },
   "Metrics": {
     "comment_count": "Comentarios",
@@ -421,7 +427,8 @@
     "name": "Nombre",
     "size": "Tamaño",
     "updated_at": "Actualizado",
-    "view_count": "Vistas"
+    "view_count": "Vistas",
+    "top": "Fijado"
   },
   "Random": {
     "title": "Publicación aleatoria",

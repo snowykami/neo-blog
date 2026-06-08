@@ -13,11 +13,11 @@ func registerPageRoutes(group *route.RouterGroup) {
 	postGroup := group.Group("/page").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleEditor))
 	postGroupWithoutAuth := group.Group("/page").Use(middleware.UseAuth(false))
 	{
-		postGroupWithoutAuth.GET("/p/:id", controller.Page.Get)
+		postGroupWithoutAuth.GET("/p/:slug_or_id", controller.Page.Get)
 		postGroupWithoutAuth.GET("/list", controller.Page.List)
 
 		postGroup.POST("/p", controller.Page.Create)
-		postGroup.PUT("/p", controller.Page.Update)
-		postGroup.DELETE("/p", controller.Page.Delete)
+		postGroup.PUT("/p/:id", controller.Page.Update)
+		postGroup.DELETE("/p/:id", controller.Page.Delete)
 	}
 }

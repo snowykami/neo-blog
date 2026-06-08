@@ -85,7 +85,8 @@
     "username": "Benutzername",
     "verify_code": "Verifizierungscode",
     "default": "Standard",
-    "private": "Privat"
+    "private": "Privat",
+    "pinned": "Angeheftet"
   },
   "Components": {
     "image_cropper": {
@@ -237,7 +238,8 @@
       "setting": "Einstellungen",
       "source_mode": "Quellmodus",
       "uncategorized": "Unkategorisiert",
-      "view_count": "Ansichten"
+      "view_count": "Ansichten",
+      "post_top": "Pin-Gewicht"
     },
     "storages": {
       "title": "Speicheranbieter",
@@ -313,6 +315,9 @@
     "user_preference": {
       "title": "Einstellungen",
       "color_scheme": "Farbschema"
+    },
+    "pages": {
+      "title": "Seiten"
     }
   },
   "Copyright": {
@@ -404,7 +409,8 @@
     "upload_failed": "Hochladen fehlgeschlagen",
     "upload_success": "Hochgeladen",
     "view": "Ansehen",
-    "delete_description": "Löschung kann nicht rückgängig gemacht werden, bitte mit Vorsicht fortfahren!"
+    "delete_description": "Löschung kann nicht rückgängig gemacht werden, bitte mit Vorsicht fortfahren!",
+    "fetch_failed": "Abrufen fehlgeschlagen"
   },
   "Metrics": {
     "comment_count": "Kommentare",
@@ -421,7 +427,8 @@
     "name": "Name",
     "size": "Größe",
     "updated_at": "Aktualisiert",
-    "view_count": "Ansichten"
+    "view_count": "Ansichten",
+    "top": "Angeheftet"
   },
   "Random": {
     "title": "Zufälliger Beitrag",

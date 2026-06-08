@@ -25,6 +25,7 @@ export interface SitemapData {
     updatedAt: string
     name: string
   }[]
+  archives: string[]
 }
 
 export interface RssPostItem {

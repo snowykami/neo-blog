@@ -39,6 +39,7 @@ interface PostMetaForm {
   category: Category | null
   labels: Label[]
   isPrivate: boolean
+  top: number
   description: string
 }
 
@@ -65,6 +66,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           category: post.category,
           labels: post.labels || [],
           isPrivate: post.isPrivate,
+          top: post.top || 0,
           description: post.description || '',
         }
       : {
@@ -74,6 +76,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           category: null,
           labels: [],
           isPrivate: false,
+          top: 0,
           description: '',
         },
   })
@@ -91,6 +94,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           description: data.description,
           labelIds: data.labels.map(l => l.id),
           isPrivate: data.isPrivate,
+          top: Number(data.top) || 0,
         },
       })
         .then(() => {
@@ -105,6 +109,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
               description: data.description,
               labels: data.labels,
               isPrivate: data.isPrivate,
+              top: Number(data.top) || 0,
               type: 'html',
             },
           })
@@ -127,6 +132,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           description: data.description,
           labelIds: data.labels.map(l => l.id),
           isPrivate: data.isPrivate,
+          top: Number(data.top) || 0,
           content: `<h1>${data.title}</h1>`,
           type: 'html',
         },
@@ -232,6 +238,25 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
                   <FormLabel>{t('post_description')}</FormLabel>
                   <FormControl>
                     <Textarea autoFocus={false} {...field} className="max-h-4 md:max-h-none" />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="top"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('post_top')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      autoFocus={false}
+                      min={0}
+                      type="number"
+                      {...field}
+                      onChange={e => field.onChange(Number(e.target.value) || 0)}
+                    />
                   </FormControl>
                 </FormItem>
               )}

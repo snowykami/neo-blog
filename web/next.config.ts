@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '**', port: '', pathname: '/**' },
       { protocol: 'http', hostname: '**', port: '', pathname: '/**' },
     ],
+    dangerouslyAllowLocalIP: true,
   },
   async rewrites() {
     return [

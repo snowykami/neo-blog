@@ -26,9 +26,9 @@ interface NavContextValue {
   setSolidNav: () => void
 
   // navTitle: string;
-  navTitle: string
+  navTitle: React.ReactNode
   navIcon: React.ReactNode
-  setNavTitle: (title: string) => void
+  setNavTitle: (title: React.ReactNode) => void
   setNavIcon: (icon: React.ReactNode) => void
   resetNavIcon: () => void
 }
@@ -51,7 +51,7 @@ export function NavPaddingProvider({
   const [navClassName, setNavClassName] = useState<string>(
     cn(DEFAULT_NAV_CLASSNAME, initialNavClassName),
   )
-  const [navTitle, setNavTitle] = useState<string>('')
+  const [navTitle, setNavTitle] = useState<React.ReactNode>('')
 
   const resetNavIcon = useCallback(() => {
     setNavIcon(<IconInnerShadowTop className="!size-6" />)

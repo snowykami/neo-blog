@@ -1,6 +1,7 @@
 'use client'
+import type { MusicLyrics } from '@/api/music'
 import type { MusicTrack } from '@/models/music'
-import Lyric from 'lrc-file-parser'
+import type { MusicLyricItem, MusicLyricLine, MusicLyricMode } from '@/utils/music-lyric'
 import React, {
   createContext,
   useCallback,
@@ -10,6 +11,7 @@ import React, {
   useState,
 } from 'react'
 import { fetchNcmLyric } from '@/api/music'
+import { getCurrentLyricIndex, getCurrentWordIndex, parseMusicLyrics } from '@/utils/music-lyric'
 
 export type PlayMode = 'repeat-all' | 'repeat-one' | 'shuffle'
 
@@ -24,9 +26,22 @@ interface MusicContextValue {
   duration: number | null
   bufferedPercent: number
   rotateDeg: number // 专辑封面旋转角度（用于动画）
+  volume: number
+  isMuted: boolean
   currentLyric: string | null
   currentLyricIndex: number | null
+  currentLyricWords: MusicLyricItem[]
+  currentWordIndex: number | null
   lyricLines: { time: number, text: string }[]
+  parsedLyricLines: MusicLyricLine[]
+  translationLyricLines: MusicLyricLine[]
+  romajiLyricLines: MusicLyricLine[]
+  lyricSourceType: 'yrc' | 'lrc' | 'none'
+  lyricMode: MusicLyricMode
+  setLyricMode: (mode: MusicLyricMode) => void
+  hasTranslationLyric: boolean
+  hasRomajiLyric: boolean
+  getAudio: () => HTMLAudioElement | null
 
   // 播放列表 操作
   replacePlaylist: (tracks: MusicTrack[], startIndex?: number) => void
@@ -44,6 +59,7 @@ interface MusicContextValue {
   // 可选：音量/进度控制
   seek: (seconds: number) => void // 跳转到指定秒数
   setVolume: (v: number) => void // 设置音量 0~1
+  toggleMuted: () => void // 切换静音
 
   // sample track 样品曲目，用于在未获取到时fallback
   sampleTrack: MusicTrack
@@ -70,12 +86,55 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [duration, setDuration] = useState<number | null>(null)
   const [bufferedPercent, setBufferedPercent] = useState<number>(0)
   const [rotateDeg, setRotateDeg] = useState(0)
-  const [lyrics, setLyrics] = useState<string | null>(null) // 原始歌词文本
-  const lyricRef = useRef<Lyric | null>(null) // 解析后的歌词对象
+  const [volume, setVolumeState] = useState(1)
+  const [isMuted, setIsMuted] = useState(false)
+  const [lyrics, setLyrics] = useState<MusicLyrics | null>(null) // 原始歌词响应
   const [currentLyric, setCurrentLyric] = useState<string | null>(null) // 当前歌词行文本
   const [currentLyricIndex, setCurrentLyricIndex] = useState<number | null>(null) // 当前歌词行索引
+  const [currentWordIndex, setCurrentWordIndex] = useState<number | null>(null) // 当前歌词字索引
   const [lyricLines, setLyricLines] = useState<{ time: number, text: string }[]>([]) // 解析后的歌词行列表
+  const [parsedLyricLines, setParsedLyricLines] = useState<MusicLyricLine[]>([]) // 解析后的逐字歌词行
+  const [translationLyricLines, setTranslationLyricLines] = useState<MusicLyricLine[]>([])
+  const [romajiLyricLines, setRomajiLyricLines] = useState<MusicLyricLine[]>([])
+  const [lyricMode, setLyricModeState] = useState<MusicLyricMode>('translation')
+  const [lyricSourceType, setLyricSourceType] = useState<'yrc' | 'lrc' | 'none'>('none')
   const currentTrack = currentIndex != null ? playlist[currentIndex] ?? null : null
+  const getAudio = useCallback(() => audioRef.current, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined')
+      return
+
+    try {
+      const storedVolume = localStorage.getItem('music-volume')
+      if (storedVolume != null) {
+        const nextVolume = Math.max(0, Math.min(1, Number(JSON.parse(storedVolume))))
+        if (Number.isFinite(nextVolume)) {
+          setVolumeState(nextVolume)
+          if (audioRef.current)
+            audioRef.current.volume = nextVolume
+        }
+      }
+
+      const storedMuted = localStorage.getItem('music-muted')
+      if (storedMuted != null) {
+        const nextMuted = Boolean(JSON.parse(storedMuted))
+        setIsMuted(nextMuted)
+        if (audioRef.current)
+          audioRef.current.muted = nextMuted
+      }
+
+      const storedLyricMode = localStorage.getItem('music-lyric-mode')
+      if (storedLyricMode != null) {
+        const nextLyricMode = JSON.parse(storedLyricMode)
+        if (nextLyricMode === 'none' || nextLyricMode === 'romaji' || nextLyricMode === 'translation')
+          setLyricModeState(nextLyricMode)
+      }
+    }
+    catch (error) {
+      console.error('Failed to restore music preferences:', error)
+    }
+  }, [])
   // 旋转动画
   useEffect(() => {
     let rafId: number | null = null
@@ -100,9 +159,18 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!audioRef.current) {
       const audio = new Audio()
       audio.preload = 'metadata'
+      audio.volume = volume
+      audio.muted = isMuted
       audioRef.current = audio
     }
-  }, [])
+  }, [isMuted, volume])
+
+  useEffect(() => {
+    if (!audioRef.current)
+      return
+    audioRef.current.volume = volume
+    audioRef.current.muted = isMuted
+  }, [isMuted, volume])
 
   // 当 currentTrack 变化时更新 audio.src和歌词（仅在 track id 变化时），并在 pendingPlay 时尝试播放
   useEffect(() => {
@@ -115,6 +183,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setLyrics(null)
         setCurrentLyric(null)
         setCurrentLyricIndex(null)
+        setCurrentWordIndex(null)
       }
       fetchNcmLyric(currentTrack.id).then((lyrics) => {
         setLyrics(lyrics)
@@ -151,18 +220,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const onPlay = () => {
       setIsPlaying(true)
-      // 同步 lyric parser：在播放开始时以当前时间启动 parser
-      try {
-        lyricRef.current?.play?.(audio.currentTime * 1000)
-      }
-      catch {}
     }
     const onPause = () => {
       setIsPlaying(false)
-      try {
-        lyricRef.current?.pause?.()
-      }
-      catch {}
     }
 
     const onLoaded = () => {
@@ -182,17 +242,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       catch {
         setBufferedPercent(0)
       }
-
-      // 音频元数据就绪后，让 lyric parser 用当前时间同步一次（若存在）
-      try {
-        if (lyricRef.current) {
-          // play 会根据传入时间刷新当前行回调；如果当前处于暂停则立即 pause
-          lyricRef.current.play?.(audio.currentTime * 1000)
-          if (audio.paused)
-            lyricRef.current.pause?.()
-        }
-      }
-      catch {}
     }
     const onTimeUpdate = () => {
       // RAF 节流，避免每帧都 setState
@@ -275,63 +324,58 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 仅依赖 playlist.length 和 mode（onEnded 使用）
   }, [playMode, playlist.length])
 
-  // 歌词文本变化时解析歌词
+  // 歌词文本变化时解析为 skos-player 同风格的数据结构；YRC 可提供逐字时间，LRC 自动退化为逐行。
   useEffect(() => {
-    // 清理旧 parser
-    try {
-      lyricRef.current?.pause?.()
-    }
-    catch {}
-    lyricRef.current = null
-
     if (!lyrics) {
       setLyricLines([])
+      setParsedLyricLines([])
+      setTranslationLyricLines([])
+      setRomajiLyricLines([])
+      setLyricSourceType('none')
       setCurrentLyric(null)
       setCurrentLyricIndex(null)
+      setCurrentWordIndex(null)
       return
     }
 
-    // 创建新的 Lyric parser 并绑定回调
-    const parser = new Lyric({
-      lyric: lyrics,
-      onPlay: (line: number, text: string) => {
-        // Lyric.onPlay 以行号和文本回调
-        setCurrentLyricIndex(line)
-        setCurrentLyric(text)
-      },
-      onSetLyric: (lines: any[]) => {
-        // 将解析后的行转换为我们期望的格式
-        try {
-          const mapped = (lines || []).map((ln: any) => ({ time: Number(ln.time ?? 0) / 1000, text: String(ln.text ?? '') }))
-          setLyricLines(mapped)
-        }
-        catch {
-          setLyricLines([])
-        }
-      },
-    })
-
-    lyricRef.current = parser
-
-    // 将 parser 与当前 audio 时间同步：触发一次解析器更新（但保持播放/暂停状态）
-    const audio = audioRef.current
-    if (audio) {
-      try {
-        parser.play?.(audio.currentTime * 1000)
-        if (audio.paused)
-          parser.pause?.()
-      }
-      catch {}
+    try {
+      const parsed = parseMusicLyrics(lyrics)
+      const mapped = parsed.lines.map(line => ({
+        time: line.startTime / 1000,
+        text: line.originalText,
+      }))
+      setParsedLyricLines(parsed.lines)
+      setTranslationLyricLines(parsed.translationLines)
+      setRomajiLyricLines(parsed.romajiLines)
+      setLyricSourceType(parsed.sourceType)
+      setLyricLines(mapped)
     }
-
-    // cleanup
-    return () => {
-      try {
-        parser.pause?.()
-      }
-      catch {}
+    catch (error) {
+      console.error('Failed to parse lyrics:', error)
+      setParsedLyricLines([])
+      setTranslationLyricLines([])
+      setRomajiLyricLines([])
+      setLyricSourceType('none')
+      setLyricLines([])
     }
   }, [lyrics])
+
+  useEffect(() => {
+    if (parsedLyricLines.length === 0 || currentTime == null) {
+      setCurrentLyric(null)
+      setCurrentLyricIndex(null)
+      setCurrentWordIndex(null)
+      return
+    }
+
+    const currentTimeMs = currentTime * 1000
+    const nextIndex = getCurrentLyricIndex(parsedLyricLines, currentTimeMs, currentLyricIndex)
+    const line = nextIndex == null ? undefined : parsedLyricLines[nextIndex]
+
+    setCurrentLyricIndex(nextIndex)
+    setCurrentWordIndex(getCurrentWordIndex(line, currentTimeMs))
+    setCurrentLyric(line?.originalText ?? null)
+  }, [currentLyricIndex, parsedLyricLines, currentTime])
 
   // 操作函数 —— 不直接 set isPlaying/currentTime（由事件回路同步）
   const replacePlaylist = useCallback((tracks: MusicTrack[], startIndex = 0) => {
@@ -419,14 +463,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentTime(Math.max(0, Math.min(seconds, audio.duration || seconds)))
     try {
       audio.currentTime = Math.max(0, Math.min(seconds, audio.duration || seconds))
-      // 同步歌词解析器到新时间点（用户触发的跳转）
-      try {
-        // Lyric 接受 ms 单位
-        lyricRef.current?.play?.((Math.max(0, Math.min(seconds, audio.duration || seconds))) * 1000)
-        if (audio.paused)
-          lyricRef.current?.pause?.()
-      }
-      catch {}
     }
     catch {
     }
@@ -434,9 +470,35 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const setVolume = useCallback((v: number) => {
     const audio = audioRef.current
-    if (!audio)
-      return
-    audio.volume = Math.max(0, Math.min(1, v))
+    const nextVolume = Math.max(0, Math.min(1, v))
+    setVolumeState(nextVolume)
+    if (audio)
+      audio.volume = nextVolume
+    try {
+      localStorage.setItem('music-volume', JSON.stringify(nextVolume))
+    }
+    catch { }
+  }, [])
+
+  const toggleMuted = useCallback(() => {
+    setIsMuted((prev) => {
+      const nextMuted = !prev
+      if (audioRef.current)
+        audioRef.current.muted = nextMuted
+      try {
+        localStorage.setItem('music-muted', JSON.stringify(nextMuted))
+      }
+      catch { }
+      return nextMuted
+    })
+  }, [])
+
+  const setLyricMode = useCallback((mode: MusicLyricMode) => {
+    setLyricModeState(mode)
+    try {
+      localStorage.setItem('music-lyric-mode', JSON.stringify(mode))
+    }
+    catch { }
   }, [])
 
   const sampleTrack: MusicTrack = {
@@ -565,9 +627,22 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     duration,
     bufferedPercent,
     rotateDeg,
+    volume,
+    isMuted,
     currentLyric,
     currentLyricIndex,
+    currentLyricWords: currentLyricIndex == null ? [] : parsedLyricLines[currentLyricIndex]?.items ?? [],
+    currentWordIndex,
     lyricLines,
+    parsedLyricLines,
+    translationLyricLines,
+    romajiLyricLines,
+    lyricSourceType,
+    lyricMode,
+    setLyricMode,
+    hasTranslationLyric: translationLyricLines.length > 0,
+    hasRomajiLyric: romajiLyricLines.length > 0,
+    getAudio,
     replacePlaylist,
     playTrack,
     play,
@@ -579,6 +654,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentIndex,
     seek,
     setVolume,
+    toggleMuted,
     sampleTrack,
   }
 

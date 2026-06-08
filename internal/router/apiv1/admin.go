@@ -19,8 +19,12 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.PUT("/oidc/o/:id", adminController.UpdateOidc)
 
 		consoleGroup.GET("/dashboard", adminController.GetDashboard)
+		consoleGroup.GET("/kv/list", adminController.ListKV)
+		consoleGroup.POST("/kv", adminController.SetKV)
+		consoleGroup.PUT("/kv/:key", adminController.SetKV)
+		consoleGroup.DELETE("/kv/:key", adminController.DeleteKV)
 		// 用户区
 		consoleGroup.GET("/users", adminController.ListUsers)
-		consoleGroup.GET("/comments")
+		consoleGroup.GET("/comments", adminController.ListComments)
 	}
 }

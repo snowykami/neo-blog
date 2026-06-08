@@ -2,10 +2,13 @@
 
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
+import { useTranslations } from 'next-intl'
 import * as React from 'react'
+import { FileSelector } from '@/components/common/file-selector'
 import { CloseIcon } from '@/components/tiptap-icons/close-icon'
 import { Button } from '@/components/tiptap-ui-primitive/button'
 import { focusNextNode, isValidPosition } from '@/lib/tiptap-utils'
+import { getFileUri } from '@/utils/client/file'
 import '@/components/tiptap-node/image-upload-node/image-upload-node.scss'
 
 export interface FileItem {
@@ -38,6 +41,8 @@ export interface FileItem {
    */
   abortController?: AbortController
 }
+
+const DEFAULT_IMAGE_NAME = 'unknown'
 
 export interface UploadOptions {
   /**
@@ -424,6 +429,7 @@ const DropZoneContent: React.FC<{ maxSize: number, limit: number }> = ({ maxSize
 
 export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
   const { accept, limit, maxSize } = props.node.attrs
+  const t = useTranslations('FileSelector')
   const inputRef = React.useRef<HTMLInputElement>(null)
   const extension = props.extension
 
@@ -438,36 +444,55 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
 
   const { fileItems, uploadFiles, removeFileItem, clearAllFiles } = useFileUpload(uploadOptions)
 
+  const insertImages = (images: Array<{ url: string, name?: string }>) => {
+    if (images.length === 0) {
+      return
+    }
+    const pos = props.getPos()
+
+    if (isValidPosition(pos)) {
+      const imageNodes = images.map((image) => {
+        const filename = image.name?.replace(/\.[^/.]+$/, '') || DEFAULT_IMAGE_NAME
+        return {
+          type: extension.options.type,
+          attrs: {
+            ...extension.options,
+            src: image.url,
+            alt: filename,
+            title: filename,
+          },
+        }
+      })
+
+      props.editor
+        .chain()
+        .focus()
+        .deleteRange({ from: pos, to: pos + props.node.nodeSize })
+        .insertContentAt(pos, imageNodes)
+        .run()
+
+      focusNextNode(props.editor)
+    }
+  }
+
   const handleUpload = async (files: File[]) => {
     const urls = await uploadFiles(files)
 
     if (urls.length > 0) {
-      const pos = props.getPos()
-
-      if (isValidPosition(pos)) {
-        const imageNodes = urls.map((url, index) => {
-          const filename = files[index]?.name.replace(/\.[^/.]+$/, '') || 'unknown'
-          return {
-            type: extension.options.type,
-            attrs: {
-              ...extension.options,
-              src: url,
-              alt: filename,
-              title: filename,
-            },
-          }
-        })
-
-        props.editor
-          .chain()
-          .focus()
-          .deleteRange({ from: pos, to: pos + props.node.nodeSize })
-          .insertContentAt(pos, imageNodes)
-          .run()
-
-        focusNextNode(props.editor)
-      }
+      insertImages(urls.map((url, index) => ({ url, name: files[index]?.name })))
     }
+  }
+
+  const handleGallerySelect = (selectedFiles: Array<{ id: number, name: string, mimeType: string }>) => {
+    const images = selectedFiles
+      .filter(file => file.mimeType.startsWith('image/'))
+      .map(file => ({ url: getFileUri(file.id), name: file.name }))
+
+    if (images.length === 0) {
+      return
+    }
+
+    insertImages(images)
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -493,6 +518,16 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
       {!hasFiles && (
         <ImageUploadDragArea onFile={handleUpload}>
           <DropZoneContent maxSize={maxSize} limit={limit} />
+          <div className="mt-3">
+            <FileSelector
+              limitNumber={limit}
+              onFilesSelected={handleGallerySelect}
+            >
+              <Button type="button" data-style="ghost" onClick={e => e.stopPropagation()}>
+                {t('select_file')}
+              </Button>
+            </FileSelector>
+          </div>
         </ImageUploadDragArea>
       )}
 
