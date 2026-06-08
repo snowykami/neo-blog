@@ -21,3 +21,8 @@
 - [ ] 完成后台评论管理接口与页面
 - [ ] 完成后台全局设置页面，并接入站点配置持久化
 - [ ] 完成后台 OIDC 管理页面，并接入现有管理 API
+- [ ] 为后台 OIDC 管理补齐创建/编辑表单，优先使用 `react-hook-form`
+- [ ] 确保后台 OIDC 管理表单覆盖后端管理员 DTO 字段：`name`、`client_id`、`client_secret`、`display_name`、`icon`、`oidc_discovery_url`、`issuer`、`authorization_endpoint`、`token_endpoint`、`userinfo_endpoint`、`jwks_uri`、`type`、`enabled`
+- [ ] 明确 OIDC 管理页面的字段策略：自动发现字段支持查看与手动编辑，避免存在后端有字段但前端无入口的情况
+
+测试构建提交

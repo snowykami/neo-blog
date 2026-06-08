@@ -91,6 +91,9 @@
 - TypeScript 处于 `strict` 模式，新增代码要补齐类型
 - 组件默认优先服务端组件；只有在确实需要浏览器能力时才添加 `'use client'`
 - 尽量复用已有 UI 组件、hooks、工具函数，不重复造轮子
+- 编写表单时，默认优先使用 `react-hook-form`，不要随手改成分散的 `useState` + 手动校验方案；仅在极简单、一次性的小输入场景下才允许不使用
+- 表单实现优先沿用仓库现有模式：`useForm` / `FormProvider` / `FormField` / `FormItem` / `FormLabel` / `FormControl` / `FormMessage`
+- 新增后台管理表单时，要优先保证“后端 DTO/接口字段在前端有明确映射”，避免出现后端可配字段没有表单入口的问题
 - 涉及基础 UI、表单、反馈、弹层、导航、数据展示等场景时，**优先复用 shadcn/ui 组件或通过 shadcn CLI 添加组件**，不要先手写基础轮子
 - 组件选型优先级统一为：
   1. 先复用仓库中已有的 `web/src/components/ui/` 与相关封装组件
@@ -175,6 +178,7 @@ pnpm dlx shadcn@latest add <comp>
 - 表单整体容器：`grid gap-4`
 - 单个表单项容器：`grid gap-2`
 - 横向 flex 间距：`flex gap-3`
+- 若表单较复杂，优先拆分为字段分组或子表单组件，但仍通过 `react-hook-form` 统一管理状态与校验
 
 风格相近的页面和组件，尽量复用相同或相似的 Tailwind 类名组合。
 
