@@ -51,15 +51,15 @@ backend:
     EMAIL_SSL: true
 
     # App settings 应用程序配置
-    LOG_LEVEL: debug
+    LOG_LEVEL: info
     BASE_URL: https://blog.shenyu.moe
     MAX_REQUEST_BODY_SIZE: "1000000"
     MODE: prod
 
     # 后端端口，无需替换
     PORT: "80"
-    PASSWORD_SALT: "1234567890"
-    JWT_SECRET: "1234567890"
+    PASSWORD_SALT: ""
+    JWT_SECRET: ""
     TOKEN_DURATION: "3600"
     REFRESH_TOKEN_DURATION: "604800"
 
