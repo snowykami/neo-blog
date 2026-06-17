@@ -29,7 +29,7 @@ func UseAuth(block bool) app.HandlerFunc {
 		// 解析 无状态token
 		if token != "" {
 			tokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(token)
-			if err == nil && tokenClaims != nil {
+			if err == nil && tokenClaims != nil && tokenClaims.TokenType == utils.JwtTokenTypeAccess {
 				ctx = context.WithValue(ctx, "user_id", tokenClaims.UserID)
 				ctx = context.WithValue(ctx, "session_id", tokenClaims.SessionID)
 				err := recordUserIP(tokenClaims.SessionID, c.ClientIP())
@@ -46,7 +46,7 @@ func UseAuth(block bool) app.HandlerFunc {
 		refreshToken := string(c.Cookie("refresh_token"))
 		if refreshToken != "" {
 			refreshTokenClaims, err := utils.Jwt.ParseJsonWebTokenWithoutState(refreshToken)
-			if err == nil || refreshTokenClaims != nil {
+			if err == nil && refreshTokenClaims != nil && refreshTokenClaims.TokenType == utils.JwtTokenTypeRefresh {
 				valid, err := isStatefulJwtValid(refreshTokenClaims)
 				if err == nil && valid {
 					// 刷新双token
@@ -124,7 +124,10 @@ func UseRole(requiredRole constant.Role) app.HandlerFunc {
 }
 
 func isStatefulJwtValid(claims *utils.Claims) (bool, error) {
-	return repo.Session.IsSessionValid(claims.SessionID)
+	if claims == nil {
+		return false, nil
+	}
+	return repo.Session.IsSessionValidForUser(claims.SessionID, claims.UserID)
 }
 
 // 这块缓存到kv中，当kv中没有时再查库，然后更新到数据库，ip缓存时间为30分钟，防止内存中存储过多ip

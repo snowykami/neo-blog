@@ -9,6 +9,11 @@ import (
 
 var defaultJwtKey = Strings.GenerateRandomString(32)
 
+const (
+	JwtTokenTypeAccess  = "access"
+	JwtTokenTypeRefresh = "refresh"
+)
+
 type jwtUtils struct {
 	TokenDuration                      time.Duration
 	RefreshTokenDuration               time.Duration
@@ -25,6 +30,7 @@ type Claims struct {
 	jwt.RegisteredClaims
 	UserID    uint   `json:"user_id"`
 	SessionID string `json:"session_id"` // 会话ID，仅在有状态Token中使用
+	TokenType string `json:"token_type"` // token用途：access 或 refresh
 }
 
 // ToString 将Claims转换为JWT字符串
@@ -34,10 +40,11 @@ func (c *Claims) ToString() (string, error) {
 }
 
 // NewClaims 创建一个新的Claims实例
-func (j *jwtUtils) NewClaims(userID uint, sessionID string, duration time.Duration) *Claims {
+func (j *jwtUtils) NewClaims(userID uint, sessionID string, duration time.Duration, tokenType string) *Claims {
 	return &Claims{
 		UserID:    userID,
 		SessionID: sessionID,
+		TokenType: tokenType,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),
@@ -46,14 +53,14 @@ func (j *jwtUtils) NewClaims(userID uint, sessionID string, duration time.Durati
 }
 
 func (j *jwtUtils) NewTokenClaims(userID uint, sessionID string) *Claims {
-	return j.NewClaims(userID, sessionID, j.TokenDuration)
+	return j.NewClaims(userID, sessionID, j.TokenDuration, JwtTokenTypeAccess)
 }
 
 func (j *jwtUtils) NewRefreshClaims(userID uint, sessionID string, rememberMe bool) *Claims {
 	if rememberMe {
-		return j.NewClaims(userID, sessionID, j.RefreshTokenDurationWithRememberMe)
+		return j.NewClaims(userID, sessionID, j.RefreshTokenDurationWithRememberMe, JwtTokenTypeRefresh)
 	}
-	return j.NewClaims(userID, sessionID, j.RefreshTokenDuration)
+	return j.NewClaims(userID, sessionID, j.RefreshTokenDuration, JwtTokenTypeRefresh)
 }
 
 // New2Tokens 同时生成访问Token和刷新Token，自行处理持久化

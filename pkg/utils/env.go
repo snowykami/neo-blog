@@ -1,9 +1,9 @@
 package utils
 
 import (
-	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
@@ -25,15 +25,11 @@ func init() {
 	IsDevMode = Env.Get(constant.EnvKeyMode, constant.ModeProd) == constant.ModeDev
 	// Set log level
 	logrus.SetLevel(getLogLevel(Env.Get(constant.EnvKeyLogLevel, "info")))
+	if !IsDevMode && !isTestBinary() {
+		validateProductionSecrets()
+	}
 	if logrus.GetLevel() == logrus.DebugLevel {
-		logrus.Debug("Debug mode is enabled, printing environment variables:")
-		for _, e := range os.Environ() {
-			if len(e) > 0 && e[0] == '_' {
-				// Skip environment variables that start with '_'
-				continue
-			}
-			fmt.Printf("%s ", e)
-		}
+		logrus.Debug("Debug mode is enabled; environment values are hidden to avoid leaking secrets")
 	}
 }
 
@@ -94,4 +90,34 @@ func getLogLevel(levelString string) logrus.Level {
 		logrus.Warnf("Unknown log level: %s, defaulting to InfoLevel", levelString)
 		return logrus.InfoLevel
 	}
+}
+
+func validateProductionSecrets() {
+	if isWeakSecret(Env.Get(constant.EnvKeyJwtSecrete), 32, "1234567890") {
+		logrus.Fatalf("%s must be set to a non-default value with at least 32 characters in production", constant.EnvKeyJwtSecrete)
+	}
+	if isWeakSecret(Env.Get(constant.EnvKeyPasswordSalt), 16, "1234567890", constant.DefaultPasswordSalt) {
+		logrus.Fatalf("%s must be set to a non-default value with at least 16 characters in production", constant.EnvKeyPasswordSalt)
+	}
+}
+
+func isWeakSecret(value string, minLength int, knownWeakValues ...string) bool {
+	trimmed := strings.TrimSpace(value)
+	if len(trimmed) < minLength {
+		return true
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.Contains(lower, "change-me") || strings.Contains(lower, "change_me") {
+		return true
+	}
+	for _, weak := range knownWeakValues {
+		if trimmed == weak {
+			return true
+		}
+	}
+	return false
+}
+
+func isTestBinary() bool {
+	return strings.HasSuffix(os.Args[0], ".test")
 }
