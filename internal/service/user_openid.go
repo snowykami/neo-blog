@@ -21,18 +21,12 @@ import (
 // OidcLogin 此函数用于oidc provider响应给前端的重定向
 func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dto.OidcLoginResp, *errs.ServiceError) {
 	// 验证 state（包括 misskey session 回退）
-	kvStore := utils.KV.GetInstance()
-	storedName, ok := kvStore.Get("oidc_state:" + req.State)
-	if !ok || storedName != req.Name {
-		if req.Session != "" {
-			storedName, ok = kvStore.Get("oidc_state:" + req.Session)
-			if !ok || storedName != req.Name {
-				return nil, errs.NewBadRequest("invalid_oidc_state")
-			}
-		} else {
-			return nil, errs.NewBadRequest("invalid_oidc_state")
-		}
+	loginState, serr := s.getOidcLoginState(req)
+	if serr != nil {
+		return nil, serr
 	}
+	req.RedirectBack = loginState.RedirectBack
+	req.IsBind = loginState.IsBind
 
 	// 获取 OIDC 配置
 	oidcConfig, serr := s.getOidcConfig(req.Name)
@@ -64,6 +58,49 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 
 	// 处理登录/绑定/注册流程（包含 session 创建与 token 签发）
 	return s.finalizeUserFromUserinfo(ctx, req, oidcConfig, userInfo)
+}
+
+func (s *UserService) getOidcLoginState(req *dto.OidcLoginReq) (*oidcLoginState, *errs.ServiceError) {
+	kvStore := utils.KV.GetInstance()
+	stateValue, stateKey, ok := getOidcStateValue(kvStore, req.State)
+	if !ok && req.Session != "" {
+		stateValue, stateKey, ok = getOidcStateValue(kvStore, req.Session)
+	}
+	if !ok {
+		return nil, errs.NewBadRequest("invalid_oidc_state")
+	}
+	kvStore.Delete(stateKey)
+
+	var loginState oidcLoginState
+	switch value := stateValue.(type) {
+	case oidcLoginState:
+		loginState = value
+	case *oidcLoginState:
+		if value == nil {
+			return nil, errs.NewBadRequest("invalid_oidc_state")
+		}
+		loginState = *value
+	case string:
+		// 兼容旧版只存储OIDC名称的state。
+		loginState = oidcLoginState{Name: value, RedirectBack: "/"}
+	default:
+		return nil, errs.NewBadRequest("invalid_oidc_state")
+	}
+
+	if loginState.Name != req.Name {
+		return nil, errs.NewBadRequest("invalid_oidc_state")
+	}
+	loginState.RedirectBack = normalizeOidcRedirectBack(loginState.RedirectBack)
+	return &loginState, nil
+}
+
+func getOidcStateValue(kvStore *utils.KVStore, state string) (interface{}, string, bool) {
+	if state == "" {
+		return nil, "", false
+	}
+	stateKey := "oidc_state:" + state
+	value, ok := kvStore.Get(stateKey)
+	return value, stateKey, ok
 }
 
 // helper: 根据 userinfo 完成绑定 / 登录 / 创建 用户并返回 token response

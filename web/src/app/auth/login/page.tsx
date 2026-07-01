@@ -52,9 +52,13 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectBack = searchParams.get('redirect_back') || '/'
+  const isBindOidc = !!user
 
   useEffect(() => {
-    listOidcConfigs()
+    listOidcConfigs({
+      redirectBack,
+      isBind: isBindOidc,
+    })
       .then((res) => {
         setOidcConfigs(res.data || [])
       })
@@ -62,7 +66,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
         toast.error(t('fetch_oidc_configs_failed') + (error?.message ? `: ${error.message}` : ''))
         setOidcConfigs([])
       })
-  }, [t])
+  }, [isBindOidc, redirectBack, t])
 
   useEffect(() => {
     getCaptchaConfig()
@@ -134,15 +138,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
                     return (
                       <LoginWithOidc
                         key={uniqueKey}
-                        // 这个REDIRECT_BACK需要前端自己拼接，传给后端服务器，后端服务器拿来响应给前端另一个页面获取，然后改变路由
-                        // 因为这个是我暑假那会写的，后面因为其他事情太忙了，好久没看了，忘了为什么当时要这么设计了，在弄清楚之前先保持这样
-                        // 貌似是因为oidc认证时是后端响应重定向的，所以前端只能把redirect_back传给后端，由后端再传回来；普通登录时，这个参数可以被前端直接拿到进行路由跳转
-                        loginUrl={config.loginUrl.replace(
-                          'REDIRECT_BACK',
-                          encodeURIComponent(
-                            `?redirect_back=${redirectBack}&is_bind=${user ? 'true' : 'false'}`,
-                          ),
-                        )}
+                        loginUrl={config.loginUrl}
                         displayName={config.displayName}
                         icon={config.icon}
                       />

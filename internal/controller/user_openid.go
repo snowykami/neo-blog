@@ -16,7 +16,14 @@ import (
 )
 
 func (u *UserController) GetOidcConfigList(ctx context.Context, c *app.RequestContext) {
-	oidcConfigs, svcerr := u.service.ListOidcConfigs()
+	req := &dto.ListOidcConfigReq{
+		RedirectBack: "/",
+	}
+	if err := c.Bind(req); err != nil {
+		resps.BadRequest(c, err.Error())
+		return
+	}
+	oidcConfigs, svcerr := u.service.ListOidcConfigs(req)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -23,6 +24,12 @@ type UserService struct{}
 
 func NewUserService() *UserService {
 	return &UserService{}
+}
+
+type oidcLoginState struct {
+	Name         string
+	RedirectBack string
+	IsBind       bool
 }
 
 // UserLogin 用户登录
@@ -157,43 +164,44 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 	return &dto.VerifyEmailResp{Success: true}, nil
 }
 
-func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, *errs.ServiceError) {
+func (s *UserService) ListOidcConfigs(req *dto.ListOidcConfigReq) ([]dto.UserOidcConfigDto, *errs.ServiceError) {
 	enabledOidcConfigs, err := repo.Oidc.ListOidcConfigs(true)
 	if err != nil {
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	var oidcConfigsDtos []dto.UserOidcConfigDto
+	req.RedirectBack = normalizeOidcRedirectBack(req.RedirectBack)
 
 	for _, oidcConfig := range enabledOidcConfigs {
 		// 生成和储存state到kv
 		state := utils.Strings.GenerateRandomString(32)
 		kvStore := utils.KV.GetInstance()
-		kvStore.Set("oidc_state:"+state, oidcConfig.Name, 5*time.Minute)
+		kvStore.Set("oidc_state:"+state, oidcLoginState{
+			Name:         oidcConfig.Name,
+			RedirectBack: req.RedirectBack,
+			IsBind:       req.IsBind,
+		}, 5*time.Minute)
 		var loginUrl string
+		callbackUrl := fmt.Sprintf("%s%s%s/%s",
+			tools.GetBaseUrl(),
+			constant.ApiPrefix,
+			constant.OidcUri,
+			oidcConfig.Name,
+		)
 		// 兼容misskey特殊的oidc实现
 		if oidcConfig.Type == "misskey" {
-			// Misskey OIDC 特殊处理，草你妈日本人写的软件真的是猎奇
+			// Misskey OIDC 特殊处理
 			loginUrl = utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint+"/"+state, map[string]string{
-				"name": tools.GetSiteName(),
-				"icon": tools.GetSiteIcon(),
-				"callback": fmt.Sprintf("%s%s%s/%sREDIRECT_BACK", // 这个大占位符给前端替换用的，替换时也要uri编码因为是层层包的
-					tools.GetBaseUrl(),
-					constant.ApiPrefix,
-					constant.OidcUri,
-					oidcConfig.Name,
-				),
+				"name":       tools.GetSiteName(),
+				"icon":       tools.GetSiteIcon(),
+				"callback":   callbackUrl,
 				"permission": "read:account",
 			})
 		} else {
 			// 常规 OAuth2/OIDC 处理
 			loginUrl = utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint, map[string]string{
-				"client_id": oidcConfig.ClientID,
-				"redirect_uri": fmt.Sprintf("%s%s%s/%sREDIRECT_BACK", // 这个大占位符给前端替换用的，替换时也要uri编码因为是层层包的
-					tools.GetBaseUrl(),
-					constant.ApiPrefix,
-					constant.OidcUri,
-					oidcConfig.Name,
-				),
+				"client_id":     oidcConfig.ClientID,
+				"redirect_uri":  callbackUrl,
 				"response_type": "code",
 				"scope":         "openid email profile",
 				"state":         state,
@@ -207,6 +215,16 @@ func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, *errs.ServiceE
 		})
 	}
 	return oidcConfigsDtos, nil
+}
+
+func normalizeOidcRedirectBack(redirectBack string) string {
+	if redirectBack == "" ||
+		!strings.HasPrefix(redirectBack, "/") ||
+		strings.HasPrefix(redirectBack, "//") ||
+		strings.ContainsAny(redirectBack, "\r\n") {
+		return "/"
+	}
+	return redirectBack
 }
 
 func (s *UserService) GetUser(req *dto.GetUserReq) (*dto.GetUserResp, *errs.ServiceError) {

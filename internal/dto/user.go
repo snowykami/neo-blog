@@ -61,9 +61,9 @@ type OidcLoginReq struct {
 	Name         string `path:"name" validate:"required"`
 	Code         string `query:"code" validate:"required"`
 	State        string `query:"state" validate:"required"`
-	RedirectBack string `query:"redirect_back" default:"/"` // 非标，前端获取到的登录链接里面有后端拼接REDIRECT_BACK占位符，
-	IsBind       bool   `query:"is_bind" default:"false"`   // 非标，是否是绑定操作
-	Session      string `query:"session"`                   // Misskey，绑定操作时的session
+	RedirectBack string // 从state恢复的前端回跳地址
+	IsBind       bool   // 从state恢复的绑定操作标记
+	Session      string `query:"session"` // Misskey，绑定操作时的session
 	UserIP       string
 }
 
@@ -71,6 +71,11 @@ type OidcLoginResp struct {
 	Token        string  `json:"token"`
 	RefreshToken string  `json:"refresh_token"`
 	User         UserDto `json:"user"`
+}
+
+type ListOidcConfigReq struct {
+	RedirectBack string `query:"redirect_back" default:"/"` // OIDC完成后回跳到前端的地址
+	IsBind       bool   `query:"is_bind" default:"false"`   // 是否是绑定操作
 }
 
 type ListOidcConfigResp struct {

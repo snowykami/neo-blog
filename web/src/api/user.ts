@@ -55,8 +55,16 @@ export async function userRegister({
   return res.data
 }
 
-export async function listOidcConfigs(): Promise<BaseResponse<OidcConfig[]>> {
-  const res = await axiosClient.get('/user/oidc/list')
+export async function listOidcConfigs({
+  redirectBack = '/',
+  isBind = false,
+}: {
+  redirectBack?: string
+  isBind?: boolean
+} = {}): Promise<BaseResponse<OidcConfig[]>> {
+  const res = await axiosClient.get('/user/oidc/list', {
+    params: { redirectBack, isBind },
+  })
   return res.data
 }
 
