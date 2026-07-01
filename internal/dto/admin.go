@@ -5,6 +5,7 @@ type AdminOidcConfigDto struct {
 	Name                  string `json:"name"`
 	ClientID              string `json:"client_id"`
 	ClientSecret          string `json:"client_secret"`
+	TokenAuthMethod       string `json:"token_auth_method"`
 	DisplayName           string `json:"display_name"`
 	Icon                  string `json:"icon"`
 	OidcDiscoveryUrl      string `json:"oidc_discovery_url"` // 自动发现url

@@ -1,33 +1,54 @@
 package utils
 
 import (
+	"encoding/base64"
 	"fmt"
+	"net/url"
+	"strings"
 )
 
 type oidcUtils struct{}
 
 var Oidc = oidcUtils{}
 
+const (
+	OidcTokenAuthMethodClientSecretPost  = "client_secret_post"
+	OidcTokenAuthMethodClientSecretBasic = "client_secret_basic"
+)
+
 // RequestToken 请求访问令牌
-func (u *oidcUtils) RequestToken(tokenEndpoint, clientID, clientSecret, code, redirectUri string) (*TokenResponse, error) {
+func (u *oidcUtils) RequestToken(tokenEndpoint, clientID, clientSecret, code, redirectUri, authMethod string) (*TokenResponse, error) {
 	tokenResp := TokenResponse{}
-	resp, err := client.R().
-		SetFormData(map[string]string{
-			"grant_type":    "authorization_code",
-			"client_id":     clientID,
-			"client_secret": clientSecret,
-			"code":          code,
-			"redirect_uri":  redirectUri,
-		}).
+	formData := map[string]string{
+		"grant_type":   "authorization_code",
+		"code":         code,
+		"redirect_uri": redirectUri,
+	}
+	req := client.R().
 		SetHeader("Accept", "application/json").
-		SetResult(&tokenResp).
-		Post(tokenEndpoint)
+		SetResult(&tokenResp)
+
+	if authMethod == "" {
+		authMethod = OidcTokenAuthMethodClientSecretPost
+	}
+	switch authMethod {
+	case OidcTokenAuthMethodClientSecretBasic:
+		credentials := url.QueryEscape(clientID) + ":" + url.QueryEscape(clientSecret)
+		req.SetHeader("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(credentials)))
+	case OidcTokenAuthMethodClientSecretPost:
+		formData["client_id"] = clientID
+		formData["client_secret"] = clientSecret
+	default:
+		return nil, fmt.Errorf("unsupported token endpoint auth method: %s", authMethod)
+	}
+
+	resp, err := req.SetFormData(formData).Post(tokenEndpoint)
 
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode() != 200 {
-		return nil, fmt.Errorf("状态码: %d，响应: %s", resp.StatusCode(), resp.String())
+		return nil, fmt.Errorf("状态码: %d，响应: %s", resp.StatusCode(), strings.TrimSpace(resp.String()))
 	}
 	return &tokenResp, nil
 }

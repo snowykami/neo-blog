@@ -21,6 +21,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -34,6 +41,7 @@ import {
 import { useOperationT } from '@/hooks/use-translations'
 
 type OidcForm = Omit<OidcConfig, 'id' | 'loginUrl'> & { id?: number }
+type TokenAuthMethod = NonNullable<OidcConfig['tokenAuthMethod']>
 
 const EMPTY_FORM: OidcForm = {
   name: '',
@@ -41,6 +49,7 @@ const EMPTY_FORM: OidcForm = {
   icon: '',
   clientId: '',
   clientSecret: '',
+  tokenAuthMethod: 'client_secret_post',
   oidcDiscoveryUrl: '',
   issuer: '',
   authorizationEndpoint: '',
@@ -90,6 +99,7 @@ export default function OidcManage() {
       icon: config.icon || '',
       clientId: config.clientId || '',
       clientSecret: config.clientSecret || '',
+      tokenAuthMethod: config.tokenAuthMethod || 'client_secret_post',
       oidcDiscoveryUrl: config.oidcDiscoveryUrl || '',
       issuer: config.issuer || '',
       authorizationEndpoint: config.authorizationEndpoint || '',
@@ -203,6 +213,10 @@ export default function OidcManage() {
               <FormInput label="显示名称" value={form.displayName} onChange={displayName => setForm(prev => ({ ...prev, displayName }))} />
               <FormInput label="Client ID" value={form.clientId || ''} onChange={clientId => setForm(prev => ({ ...prev, clientId }))} />
               <FormInput label="Client Secret" value={form.clientSecret || ''} onChange={clientSecret => setForm(prev => ({ ...prev, clientSecret }))} />
+              <TokenAuthMethodSelect
+                value={form.tokenAuthMethod || 'client_secret_post'}
+                onChange={tokenAuthMethod => setForm(prev => ({ ...prev, tokenAuthMethod }))}
+              />
               <FormInput label="图标 URL" value={form.icon} onChange={icon => setForm(prev => ({ ...prev, icon }))} />
               <FormInput label="类型" value={form.type || 'oauth2'} onChange={type => setForm(prev => ({ ...prev, type }))} />
             </div>
@@ -228,6 +242,35 @@ export default function OidcManage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function TokenAuthMethodSelect({
+  onChange,
+  value,
+}: {
+  onChange: (value: TokenAuthMethod) => void
+  value: TokenAuthMethod
+}) {
+  const handleValueChange = (nextValue: string) => {
+    if (nextValue === 'client_secret_post' || nextValue === 'client_secret_basic') {
+      onChange(nextValue)
+    }
+  }
+
+  return (
+    <div className="grid gap-2">
+      <Label>Token 认证方式</Label>
+      <Select value={value} onValueChange={handleValueChange}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="client_secret_post">client_secret_post</SelectItem>
+          <SelectItem value="client_secret_basic">client_secret_basic</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   )
 }

@@ -311,6 +311,7 @@ func (s *UserService) exchangeAndFetchUserinfo(oidcConfig *model.OidcConfig, req
 	if oidcConfig.Type == "misskey" {
 		misskeyTokenResp, err := utils.Oidc.RequestMisskeyToken(oidcConfig.TokenEndpoint, req.Session)
 		if err != nil {
+			logrus.WithError(err).Error("failed to request misskey oidc token")
 			return nil, errs.NewInternalServer("failed_to_request_oidc_token")
 		}
 		userInfo.Sub = misskeyTokenResp.User.ID
@@ -328,8 +329,10 @@ func (s *UserService) exchangeAndFetchUserinfo(oidcConfig *model.OidcConfig, req
 		oidcConfig.ClientSecret,
 		req.Code,
 		tools.GetBaseUrl()+constant.ApiPrefix+constant.OidcUri+"/"+oidcConfig.Name,
+		oidcConfig.TokenAuthMethod,
 	)
 	if err != nil {
+		logrus.WithError(err).Error("failed to request oidc token")
 		return nil, errs.NewInternalServer("failed_to_request_oidc_token")
 	}
 	userInfo, err = utils.Oidc.RequestUserinfo(oidcConfig.UserinfoEndpoint, tokenResp.AccessToken)

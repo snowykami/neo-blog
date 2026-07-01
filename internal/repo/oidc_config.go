@@ -74,7 +74,7 @@ func (o *oidcRepo) UpdateOidcConfig(oidcConfig *model.OidcConfig) error {
 	if oidcConfig.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
-	if err := GetDB().Select("Name", "ClientID", "ClientSecret",
+	if err := GetDB().Select("Name", "ClientID", "ClientSecret", "TokenAuthMethod",
 		"DisplayName", "Icon", "OidcDiscoveryUrl",
 		"Issuer", "AuthorizationEndpoint", "TokenEndpoint", "UserinfoEndpoint", "JwksUri",
 		"Enabled", "Type").Updates(oidcConfig).Error; err != nil {

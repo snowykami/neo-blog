@@ -15,6 +15,7 @@ type OidcConfig struct {
 	Name             string `gorm:"uniqueIndex"` // OIDC配置名称，唯一
 	ClientID         string // 客户端ID
 	ClientSecret     string // 客户端密钥
+	TokenAuthMethod  string `gorm:"default:client_secret_post"` // Token端点客户端认证方式
 	DisplayName      string // 显示名称，例如：轻雪通行证
 	Icon             string // 图标url，为空则使用内置默认图标
 	OidcDiscoveryUrl string // OpenID自动发现URL，例如 ：https://pass.liteyuki.org/.well-known/openid-configuration
@@ -108,6 +109,7 @@ func (o *OidcConfig) ToAdminDto() *dto.AdminOidcConfigDto {
 		Name:                  o.Name,
 		ClientID:              o.ClientID,
 		ClientSecret:          o.ClientSecret,
+		TokenAuthMethod:       o.TokenAuthMethod,
 		DisplayName:           o.DisplayName,
 		Icon:                  o.Icon,
 		OidcDiscoveryUrl:      o.OidcDiscoveryUrl,
