@@ -59,8 +59,10 @@ type VerifyEmailResp struct {
 
 type OidcLoginReq struct {
 	Name         string `path:"name" validate:"required"`
-	Code         string `query:"code" validate:"required"`
+	Code         string `query:"code"`
 	State        string `query:"state" validate:"required"`
+	Error        string `query:"error"`
+	ErrorDesc    string `query:"error_description"`
 	RedirectBack string // 从state恢复的前端回跳地址
 	IsBind       bool   // 从state恢复的绑定操作标记
 	Session      string `query:"session"` // Misskey，绑定操作时的session

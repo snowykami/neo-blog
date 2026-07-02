@@ -33,6 +33,18 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 	if serr != nil {
 		return nil, serr
 	}
+	if req.Error != "" {
+		logrus.WithFields(logrus.Fields{
+			"error":             req.Error,
+			"error_description": req.ErrorDesc,
+			"oidc_name":         req.Name,
+		}).Error("oidc authorization failed")
+		return nil, errs.NewBadRequest("oidc_authorization_failed")
+	}
+	if oidcConfig.Type != "misskey" && req.Code == "" {
+		logrus.WithField("oidc_name", req.Name).Error("oidc authorization callback missing code")
+		return nil, errs.NewBadRequest("missing_required_oidc_code")
+	}
 
 	// 交换 token 并获取 userinfo（含 GitHub 特例）
 	userInfo, serr := s.exchangeAndFetchUserinfo(oidcConfig, req)
