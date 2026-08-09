@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { listPosts } from '@/api/post'
 import { BlogCardGrid } from '@/components/blog-home/blog-home-card'
 import BlogSidebar from '@/components/blog-sidebar'
-import { BlogSidebarAbout, BlogSidebarCoupleSpace, BlogSidebarLabels, SidebarMisskeyIframe } from '@/components/blog-sidebar/blog-sidebar-card'
+import { BlogSidebarAbout, BlogSidebarLabels, SidebarMisskeyIframe } from '@/components/blog-sidebar/blog-sidebar-card'
 import { PaginationController } from '@/components/common/pagination'
 import { Button } from '@/components/ui/button'
 import { useSiteInfo } from '@/contexts/site-info-context'
@@ -176,7 +176,6 @@ export default function BlogHome() {
                 cards={[
                   <BlogSidebarAbout key="about" />,
                   <BlogSidebarLabels key="tags" label={labelSlug} setLabel={setLabelSlug} />,
-                  <BlogSidebarCoupleSpace />,
                   <SidebarMisskeyIframe key="misskey" />,
                 ].filter(Boolean)}
               />
