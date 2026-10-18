@@ -182,7 +182,8 @@ func (p *postRepo) SavePost(post *model.Post) error {
 	})
 }
 
-func (p *postRepo) ListPosts(currentUserID uint, query []string, req *dto.ListPostReq) ([]model.Post, int64, error) {
+// ListPosts 列出文章，includeAllPrivate 为 true 时不过滤他人的私密文章（仅供后台管理使用）
+func (p *postRepo) ListPosts(currentUserID uint, includeAllPrivate bool, query []string, req *dto.ListPostReq) ([]model.Post, int64, error) {
 	if !slices.Contains(constant.OrderByEnumPost, req.OrderBy) {
 		return nil, 0, errs.NewBadRequest("invalid_request_parameters")
 	}
@@ -192,9 +193,12 @@ func (p *postRepo) ListPosts(currentUserID uint, query []string, req *dto.ListPo
 		q = q.Where("user_id = ?", req.UserID)
 	}
 
-	if currentUserID > 0 {
+	// 后台管理视图（includeAllPrivate）不做私密过滤
+	switch {
+	case includeAllPrivate:
+	case currentUserID > 0:
 		q = q.Where("is_private = ? OR (is_private = ? AND user_id = ?)", false, true, currentUserID)
-	} else {
+	default:
 		q = q.Where("is_private = ?", false)
 	}
 

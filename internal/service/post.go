@@ -139,6 +139,18 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 }
 
 func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, *errs.ServiceError) {
+	return p.listPosts(ctx, req, false)
+}
+
+// ListPostsAdmin 后台管理列出所有文章（包含所有用户的私密文章），仅管理员可用
+func (p *PostService) ListPostsAdmin(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, *errs.ServiceError) {
+	if !ctxutils.IsAdmin(ctx) {
+		return nil, 0, errs.NewForbidden("permission_denied")
+	}
+	return p.listPosts(ctx, req, true)
+}
+
+func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, includeAllPrivate bool) ([]*dto.PostDto, int64, *errs.ServiceError) {
 	postDtos := make([]*dto.PostDto, 0)
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
 	queryArray := make([]string, 0)
@@ -147,7 +159,7 @@ func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*d
 			queryArray = append(queryArray, strings.TrimSpace(q))
 		}
 	}
-	posts, total, err := repo.Post.ListPosts(currentUserID, queryArray, req)
+	posts, total, err := repo.Post.ListPosts(currentUserID, includeAllPrivate, queryArray, req)
 	if err != nil {
 		return nil, total, errs.NewInternalServer("failed_to_get_target")
 	}

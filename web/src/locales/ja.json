@@ -239,7 +239,9 @@
       "source_mode": "ソースモード",
       "uncategorized": "未分類",
       "view_count": "閲覧数",
-      "post_top": "固定表示の重み"
+      "post_top": "固定表示の重み",
+      "author": "作成者",
+      "only_mine": "自分のみ"
     },
     "storages": {
       "title": "ストレージプロバイダ",

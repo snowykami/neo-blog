@@ -239,7 +239,9 @@
       "source_mode": "Source mode",
       "uncategorized": "Uncategorized",
       "view_count": "Views",
-      "post_top": "Pin weight"
+      "post_top": "Pin weight",
+      "author": "Author",
+      "only_mine": "Only mine"
     },
     "storages": {
       "title": "Storage providers",

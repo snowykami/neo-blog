@@ -239,7 +239,9 @@
       "source_mode": "Mode source",
       "uncategorized": "Non catégorisé",
       "view_count": "Vues",
-      "post_top": "Poids d'épinglage"
+      "post_top": "Poids d'épinglage",
+      "author": "Auteur",
+      "only_mine": "Uniquement les miens"
     },
     "storages": {
       "title": "Fournisseurs de stockage",

@@ -239,7 +239,9 @@
       "source_mode": "源碼模式",
       "uncategorized": "未分類",
       "view_count": "瀏覽數",
-      "post_top": "置頂權重"
+      "post_top": "置頂權重",
+      "author": "撰者",
+      "only_mine": "唯观己作"
     },
     "storages": {
       "title": "存儲供應商",
