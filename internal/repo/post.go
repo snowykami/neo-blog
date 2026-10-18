@@ -173,10 +173,13 @@ func (p *postRepo) SavePost(post *model.Post) error {
 	if post.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
-	if err := GetDB().Save(post).Error; err != nil {
-		return err
-	}
-	return nil
+	// Save 只会追加多对多关联，不会删除已移除的标签，需要显式 Replace
+	return GetDB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Omit("Labels").Save(post).Error; err != nil {
+			return err
+		}
+		return tx.Model(post).Association("Labels").Replace(post.Labels)
+	})
 }
 
 func (p *postRepo) ListPosts(currentUserID uint, query []string, req *dto.ListPostReq) ([]model.Post, int64, error) {

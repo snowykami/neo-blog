@@ -122,13 +122,12 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	utils.UpdateBool(&post.IsPrivate, req.IsPrivate)
 
 	post.Labels = func() []model.Label {
-		labelModels := make([]model.Label, len(req.LabelIds))
-		for i, labelID := range req.LabelIds {
+		// 跳过不存在的标签，不能在遍历中按下标删除，否则会产生零值标签或漏掉后续标签
+		labelModels := make([]model.Label, 0, len(req.LabelIds))
+		for _, labelID := range req.LabelIds {
 			labelModel, err := repo.Label.GetLabelByID(labelID)
 			if err == nil {
-				labelModels[i] = *labelModel
-			} else {
-				labelModels = append(labelModels[:i], labelModels[i+1:]...)
+				labelModels = append(labelModels, *labelModel)
 			}
 		}
 		return labelModels
