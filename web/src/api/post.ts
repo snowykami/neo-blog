@@ -60,7 +60,7 @@ export async function createPost({
   post,
 }: {
   post: Partial<Omit<Post, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'isLiked' | 'draftContent'>>
-}): Promise<BaseResponse<Post>> {
+}): Promise<BaseResponse<{ id: number }>> {
   const res = await axiosClient.post('/post/p', post)
   return res.data
 }

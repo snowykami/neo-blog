@@ -51,6 +51,9 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
       updateStorageProvider({ provider: data })
         .then(() => {
           toast.success(operationT('update_success'))
+          // 以新值作为表单基准，再次打开时显示最新配置
+          form.reset(data)
+          setOpen(false)
           onCreate()
         })
         .catch(err => toast.error(operationT('update_failed') + (err?.message ? `: ${err.message}` : '')))
@@ -59,6 +62,8 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
       createStorageProvider({ provider: data })
         .then(() => {
           toast.success(operationT('create_success'))
+          form.reset()
+          setOpen(false)
           onCreate()
         })
         .catch(err => toast.error(operationT('create_failed') + (err?.message ? `: ${err.message}` : '')))

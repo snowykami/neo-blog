@@ -9,17 +9,21 @@ import { ColorSchemeSelector } from '../../../components/console/common/color-sc
 
 export function UserPreferencePage() {
   const t = useTranslations('Console.user_preference')
-  const { user } = useAuth()
+  const { user, setUser } = useAuth()
   const [color, setColor] = useState<string | null>(user?.preferredColor || null)
 
   useEffect(() => {
-    if (!color)
+    // 与当前用户配置一致时无需请求（包括挂载时以及同步到 context 之后）
+    if (!color || !user || color === user.preferredColor)
       return
-    const previousColor = user?.preferredColor
+    const previousColor = user.preferredColor
     if (typeof window !== 'undefined') {
       document.documentElement.setAttribute('data-user-color', color)
     }
-    updateUser({ id: user?.id, preferredColor: color }).catch((error) => {
+    updateUser({ id: user.id, preferredColor: color }).then(() => {
+      // 同步到全局用户状态，其他使用 user.preferredColor 的地方无需刷新页面
+      setUser({ ...user, preferredColor: color })
+    }).catch((error) => {
       if (typeof window !== 'undefined') {
         document.documentElement.setAttribute('data-user-color', previousColor || 'blue')
       }
@@ -28,7 +32,7 @@ export function UserPreferencePage() {
         description: error.message,
       })
     })
-  }, [color, user?.id, user?.preferredColor])
+  }, [color, user, setUser])
 
   const onColorChange = useCallback((color: string) => {
     setColor(color)

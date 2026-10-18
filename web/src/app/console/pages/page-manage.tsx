@@ -60,18 +60,18 @@ export function PageManage() {
     loadPages()
   }, [loadPages])
 
+  // 已有页面就地更新；新建页面需要后端的排序与分页结果，重新拉取列表
   const onPageChange = useCallback(({ page }: { page: Partial<PageModel> & Pick<PageModel, 'id'> }) => {
-    setPages((prev) => {
-      const exist = prev.some(item => item.id === page.id)
-      if (exist)
-        return prev.map(item => (item.id === page.id ? { ...item, ...page } : item))
+    if (!pages.some(item => item.id === page.id)) {
       loadPages()
-      return prev
-    })
-  }, [loadPages])
+      return
+    }
+    setPages(prev => prev.map(item => (item.id === page.id ? { ...item, ...page } : item)))
+  }, [pages, loadPages])
 
   const onPageDelete = useCallback(({ pageId }: { pageId: number }) => {
     setPages(prev => prev.filter(item => item.id !== pageId))
+    setTotal(prev => Math.max(0, prev - 1))
   }, [])
 
   return (

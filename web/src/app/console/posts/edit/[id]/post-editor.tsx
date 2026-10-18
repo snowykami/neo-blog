@@ -18,7 +18,7 @@ import { FullscreenIcon, MinimizeIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 // InitializedMDXEditor.tsx
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
 import { getPostById, updatePost } from '@/api/post'
@@ -99,14 +99,18 @@ export function PostEditor() {
     })
   }, [id])
 
+  // 仅在首次加载文章时写入编辑器内容；之后修改元信息也会更新 post，
+  // 若每次都 setContent 会用旧草稿覆盖用户尚未保存的编辑
+  const loadedPostIdRef = useRef<number | null>(null)
   useEffect(() => {
     if (!editor)
       return
-    if (!post)
+    if (!post || loadedPostIdRef.current === post.id)
       return
     const content = post.draftContent || post.content || '<p>Empty</p>'
     const t = window.setTimeout(() => {
       editor.commands.setContent(content)
+      loadedPostIdRef.current = post.id
     }, 0)
     return () => window.clearTimeout(t)
   }, [post, editor])
@@ -156,7 +160,7 @@ function EditorNavbar({
     (showToast: boolean) => {
       const htmlToSave = editor.getHTML()
       setSavingDraft(true)
-      updatePost({ post: { id: post.id, draftContent: htmlToSave } })
+      return updatePost({ post: { id: post.id, draftContent: htmlToSave } })
         .then(() => {
           if (showToast)
             toast.success(operationT('save_success'))
@@ -230,9 +234,7 @@ function EditorNavbar({
   }
 
   // 预览点击
-  const onPreview = () => {
-    saveDraft(true)
-  }
+  const onPreview = () => saveDraft(true)
 
   return (
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">

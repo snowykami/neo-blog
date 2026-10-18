@@ -148,7 +148,11 @@ export function UserSecurityPage() {
         {openIds.length === 0 && <p className="text-sm text-muted-foreground">{t('no_openid_accounts')}</p>}
         <div className="grid gap-4">
           {openIds.map(openId => (
-            <UserOpenIdItem key={openId.id} openId={openId} />
+            <UserOpenIdItem
+              key={openId.id}
+              openId={openId}
+              onUnbind={id => setOpenIds(prev => prev.filter(item => item.id !== id))}
+            />
           ))}
         </div>
       </div>
@@ -156,18 +160,18 @@ export function UserSecurityPage() {
   )
 }
 
-function UserOpenIdItem({ openId }: { openId: OpenIdDto }) {
+function UserOpenIdItem({ openId, onUnbind }: { openId: OpenIdDto, onUnbind: (id: number) => void }) {
   const t = useTranslations('Console.user_security')
   const handleDelete = useCallback(() => {
     unbindUserOpenId(openId.id)
       .then(() => {
         toast.success(t('unbind_success'))
-        window.location.reload()
+        onUnbind(openId.id)
       })
       .catch((error: BaseResponseError) => {
         toast.error(`${t('unbind_failed')}: ${error.response.data.message}`)
       })
-  }, [openId.id])
+  }, [openId.id, onUnbind, t])
   return (
     <div className="flex items-center justify-between w-full max-w-sm border p-2 rounded-md gap-2">
       {/* 左头像 */}

@@ -75,7 +75,6 @@ export function CommentItem({
     if (!canClickLike) {
       return
     }
-    setCanClickLike(false)
     if (!user) {
       toast.error(commonT('login_required'), {
         action: {
@@ -85,6 +84,7 @@ export function CommentItem({
       })
       return
     }
+    setCanClickLike(false)
     // 提前转换状态，让用户觉得响应很快
     const likedPrev = liked
     const likeCountPrev = likeCount
@@ -176,11 +176,11 @@ export function CommentItem({
         reloadReplies()
         setShowReplies(true)
         setActiveInputId(null)
-        setReplyCount(replyCount + 1)
+        setReplyCount(c => c + 1)
         onReplySubmitted({ commentContent, isPrivate })
       })
       .catch((error) => {
-        toast.error(`${t('comment_failed')}: ${error?.response?.data?.message}` || error?.message)
+        toast.error(`${t('comment_failed')}: ${error?.response?.data?.message || error?.message}`)
       })
   }
 
@@ -188,8 +188,8 @@ export function CommentItem({
     deleteComment({ id: replyId })
       .then(() => {
         toast.success(t('delete_success'))
-        setReplyCount(replyCount - 1)
-        setReplies(replies.filter(r => r.id !== replyId))
+        setReplyCount(c => Math.max(0, c - 1))
+        setReplies(prev => prev.filter(r => r.id !== replyId))
       })
       .catch((error) => {
         toast.error(`${t('delete_failed')}: ${error.message}`)
@@ -197,7 +197,7 @@ export function CommentItem({
   }
 
   return (
-    <div className={`${commentState.replyCount > 0 && showReplies ? 'border-l-2' : ''}`}>
+    <div className={`${replyCount > 0 && showReplies ? 'border-l-2' : ''}`}>
       <div className="flex gap-2">
         <div
           onClick={() => clickToUserProfile(commentState.user.username)}

@@ -26,6 +26,8 @@ export function BlogLikeButton({ post }: { post: Post }) {
   const [likedUsers, setLikedUsers] = useState<User[]>([])
   const [canClickLike, setCanClickLike] = useState(true)
   const [shouldFetchLikedUsers, setShouldFetchLikedUsers] = useState(false)
+  // 点赞结果被服务端确认后自增，触发点赞用户列表刷新（不能依赖乐观状态，否则会在服务端更新前拉取）
+  const [likedUsersVersion, setLikedUsersVersion] = useState(0)
   const likeButtonRef = useRef<HTMLDivElement>(null)
 
   // Lazy load liked users only when in viewport
@@ -59,7 +61,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
       .catch(() => {
         setLikedUsers([])
       })
-  }, [shouldFetchLikedUsers, liked, likeCount, post.id])
+  }, [shouldFetchLikedUsers, likedUsersVersion, post.id])
 
   const handleToggleLike = () => {
     if (!canClickLike) {
@@ -81,15 +83,23 @@ export function BlogLikeButton({ post }: { post: Post }) {
       })
       return
     }
-    // 提前转换状态，让用户觉得响应很快
+    // 提前转换状态，让用户觉得响应很快，失败时回滚
+    const likedPrev = liked
+    const likeCountPrev = likeCount
+    setLiked(!likedPrev)
+    setLikeCount(likeCountPrev + (likedPrev ? -1 : 1))
     toggleLike({ targetType: TargetType.Post, targetId: post.id })
       .then((res) => {
         toast.success(res.data.status ? operationT('like_success') : operationT('unlike_success'))
+        // 以服务端结果为准，校正乐观状态
         setLiked(res.data.status)
-        setLikeCount(likeCount + (res.data.status ? 1 : -1))
+        setLikeCount(likeCountPrev + (res.data.status === likedPrev ? 0 : res.data.status ? 1 : -1))
+        setLikedUsersVersion(v => v + 1)
       })
       .catch((error) => {
         toast.error(`${operationT('like_failed')}: ${error.message}`)
+        setLiked(likedPrev)
+        setLikeCount(likeCountPrev)
       })
       .finally(() => {
         setCanClickLike(true)

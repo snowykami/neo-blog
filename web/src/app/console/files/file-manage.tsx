@@ -84,6 +84,8 @@ export function FileManage() {
     200,
   )
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(new Set())
+  // 写操作后自增，作为缓存 key 的一部分强制重新拉取列表（reset 只清空状态，不会重新请求）
+  const [refreshKey, setRefreshKey] = useState(0)
 
   // 使用 useAsyncTask 进行文件列表搜索并缓存结果
   const listFilesTask = useAsyncTask(
@@ -94,12 +96,12 @@ export function FileManage() {
     {
       // 当搜索参数变化时自动执行
       immediate: true,
-      dependencies: [page, size, orderBy, desc, debouncedQueryInput],
+      dependencies: [page, size, orderBy, desc, debouncedQueryInput, refreshKey],
       getArgs: () => [page, size, orderBy, desc, debouncedQueryInput] as const,
       // 相同搜索条件在 10 秒内使用缓存，避免重复请求
       cacheTime: 10_000,
       // 根据搜索条件生成唯一的 cache key
-      taskKey: (p, sz, ob, d, q) => `listFiles-${p}-${sz}-${ob}-${d}-${q}`,
+      taskKey: (p, sz, ob, d, q) => `listFiles-${p}-${sz}-${ob}-${d}-${q}-${refreshKey}`,
       maxRetries: 1,
     },
   )
@@ -120,6 +122,7 @@ export function FileManage() {
   const onFileDelete = useCallback(
     ({ fileId }: { fileId: number }) => {
       setFiles(prev => prev.filter(f => f.id !== fileId))
+      setTotal(prev => Math.max(0, prev - 1))
       setSelectedFileIds((prev) => {
         const newSet = new Set(prev)
         newSet.delete(fileId)
@@ -183,9 +186,9 @@ export function FileManage() {
     setPage(1)
     setOrderBy(OrderBy.CreatedAt)
     setDesc(true)
-    // 上传文件后清除缓存，让下次搜索重新获取最新数据
-    listFilesTask.reset()
-  }, [setPage, setOrderBy, setDesc, listFilesTask])
+    // 上传文件后重新拉取列表
+    setRefreshKey(k => k + 1)
+  }, [setPage, setOrderBy, setDesc])
 
   const handleBatchDelete = () => {
     batchDeleteFiles({ ids: Array.from(selectedFileIds) })

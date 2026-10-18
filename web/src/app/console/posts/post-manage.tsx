@@ -85,6 +85,8 @@ export function PostManage() {
     parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
   )
   const [createPostDialogOpen, setCreatePostDialogOpen] = useState(false)
+  // 写操作后自增，作为缓存 key 的一部分强制重新拉取列表（reset 只清空状态，不会重新请求）
+  const [refreshKey, setRefreshKey] = useState(0)
 
   // 使用 useAsyncTask 进行搜索并缓存结果
   const listPostsTask = useAsyncTask(
@@ -100,12 +102,12 @@ export function PostManage() {
     {
       // 当搜索参数变化时自动执行
       immediate: true,
-      dependencies: [page, size, orderBy, desc, debouncedQueryInput, onlyMine, user],
+      dependencies: [page, size, orderBy, desc, debouncedQueryInput, onlyMine, user, refreshKey],
       getArgs: () => [page, size, orderBy, desc, debouncedQueryInput, onlyMine] as const,
       // 相同搜索条件在 10 秒内使用缓存，避免重复请求
       cacheTime: 10_000,
       // 根据搜索条件生成唯一的 cache key
-      taskKey: (p, sz, ob, d, q, mine) => `listPosts-${user?.id}-${isAdminUser}-${p}-${sz}-${ob}-${d}-${q}-${mine}`,
+      taskKey: (p, sz, ob, d, q, mine) => `listPosts-${user?.id}-${isAdminUser}-${p}-${sz}-${ob}-${d}-${q}-${mine}-${refreshKey}`,
       maxRetries: 1,
     },
   )
@@ -124,9 +126,9 @@ export function PostManage() {
   }, [debouncedQueryInput, setPage])
 
   const onPostCreate = useCallback(() => {
-    // 创建新文章后清除缓存，让下次搜索重新获取最新数据
-    listPostsTask.reset()
-  }, [listPostsTask])
+    // 创建新文章后重新拉取列表，新文章需要后端分配的 ID 与排序位置
+    setRefreshKey(k => k + 1)
+  }, [])
 
   const onPostUpdate = useCallback(
     ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
@@ -138,6 +140,7 @@ export function PostManage() {
   const onPostDelete = useCallback(
     ({ postId }: { postId: number }) => {
       setPosts(prev => prev.filter(p => p.id !== postId))
+      setTotal(prev => Math.max(0, prev - 1))
     },
     [setPosts],
   )

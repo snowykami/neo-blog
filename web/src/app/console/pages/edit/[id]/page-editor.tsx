@@ -17,7 +17,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { common, createLowlight } from 'lowlight'
 import { FullscreenIcon, MinimizeIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
 import { getPageById, updatePage } from '@/api/page'
@@ -92,11 +92,17 @@ export function PageEditor() {
     getPageById({ id, type: 'draft' }).then(res => setPage(res.data))
   }, [id])
 
+  // 仅在首次加载页面时写入编辑器内容；之后修改元信息也会更新 page，
+  // 若每次都 setContent 会用旧草稿覆盖用户尚未保存的编辑
+  const loadedPageIdRef = useRef<number | null>(null)
   useEffect(() => {
-    if (!editor || !page)
+    if (!editor || !page || loadedPageIdRef.current === page.id)
       return
     const content = page.draftContent || page.content || '<p>Empty</p>'
-    const timer = window.setTimeout(() => editor.commands.setContent(content), 0)
+    const timer = window.setTimeout(() => {
+      editor.commands.setContent(content)
+      loadedPageIdRef.current = page.id
+    }, 0)
     return () => window.clearTimeout(timer)
   }, [editor, page])
 

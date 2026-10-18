@@ -84,6 +84,8 @@ export function CommentSection({
         setComments(prevComments => [response.data, ...prevComments])
       })
       setActiveInput(null)
+    }).catch((error) => {
+      toast.error(`${t('comment_failed')}: ${error?.response?.data?.message || error?.message}`)
     })
   }
 

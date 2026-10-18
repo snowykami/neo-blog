@@ -86,7 +86,8 @@ export function CreateOrUpdateLabelDialogWithButton({
             tailwindClassName: data.tailwindClassName,
           })
           setOpen(false)
-          form.reset()
+          // 以新值作为表单基准，否则再次打开会回退到挂载时的旧值
+          form.reset(data)
         })
         .catch((error) => {
           toast.error(
@@ -255,14 +256,15 @@ export function CreateOrUpdateCategoryDialogWithButton({
       })
         .then(() => {
           toast.success(operationT('update_success'))
-          onSaved?.({
-            id: category.id,
+          const saved = {
             name: data.name.trim(),
             slug: data.slug.trim(),
             description: data.description.trim(),
-          })
+          }
+          onSaved?.({ id: category.id, ...saved })
           setOpen(false)
-          form.reset()
+          // 以新值作为表单基准，否则再次打开会回退到挂载时的旧值
+          form.reset(saved)
         })
         .catch((error) => {
           toast.error(
