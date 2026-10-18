@@ -1,6 +1,7 @@
 import type { PaginationParams } from '../models/common'
 import type { Comment } from '@/models/comment'
 import type { OidcConfig } from '@/models/oidc-config'
+import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
 import type { User } from '@/models/user'
 import axiosClient from './client'
@@ -29,6 +30,21 @@ export async function listCommentsAdmin(pagination: PaginationParams, query: str
   const res = await axiosClient.get(
     '/admin/comments',
     { params: { ...pagination, query } },
+  )
+  return res.data
+}
+
+export async function listPostsAdmin({
+  query = '',
+  userId = 0,
+  ...pagination
+}: {
+  query?: string // 搜索查询，逗号分割
+  userId?: number // 指定用户ID，为 0 时列出所有用户的文章
+} & PaginationParams): Promise<BaseResponse<{ posts: Post[], total: number }>> {
+  const res = await axiosClient.get(
+    '/admin/posts',
+    { params: { ...pagination, query, userId } },
   )
   return res.data
 }

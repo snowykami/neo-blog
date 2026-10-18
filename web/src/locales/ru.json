@@ -239,7 +239,9 @@
       "source_mode": "Source mode",
       "uncategorized": "Uncategorized",
       "view_count": "Views",
-      "post_top": "Pin weight"
+      "post_top": "Pin weight",
+      "author": "Автор",
+      "only_mine": "Только мои"
     },
     "storages": {
       "title": "Провайдеры хранилища",

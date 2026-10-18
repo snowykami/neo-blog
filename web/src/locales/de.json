@@ -239,7 +239,9 @@
       "source_mode": "Quellmodus",
       "uncategorized": "Unkategorisiert",
       "view_count": "Ansichten",
-      "post_top": "Pin-Gewicht"
+      "post_top": "Pin-Gewicht",
+      "author": "Autor",
+      "only_mine": "Nur meine"
     },
     "storages": {
       "title": "Speicheranbieter",

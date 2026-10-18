@@ -239,7 +239,9 @@
       "source_mode": "Source mode",
       "uncategorized": "Uncategorized",
       "view_count": "Views",
-      "post_top": "Pin weight"
+      "post_top": "Pin weight",
+      "author": "작성자",
+      "only_mine": "내 글만"
     },
     "storages": {
       "title": "저장소 공급자",

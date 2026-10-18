@@ -14,6 +14,7 @@ import {
 } from 'nuqs'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { listPostsAdmin } from '@/api/admin'
 import { deletePost, listPosts, updatePost } from '@/api/post'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
@@ -27,7 +28,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/auth-context'
 import { useDevice } from '@/contexts/device-context'
 import { useDebouncedState } from '@/hooks/use-debounce'
@@ -36,6 +39,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { useToEditPost, useToPost } from '@/hooks/use-route'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
+import { isAdmin } from '@/utils/common/permission'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '../../../components/console/common/post-meta-dialog-form'
 
 const PAGE_SIZE = 15
@@ -47,6 +51,8 @@ export function PostManage() {
   const metricsT = useTranslations('Metrics')
   const { isMobile } = useDevice()
   const { user } = useAuth()
+  // 管理员可管理所有文章，编辑者只能管理自己的文章
+  const isAdminUser = !!user && isAdmin({ user })
   const [posts, setPosts] = useState<Post[]>([])
   const [total, setTotal] = useState(0)
   const [orderBy, setOrderBy] = useQueryState(
@@ -74,32 +80,32 @@ export function PostManage() {
     '',
     200,
   )
+  const [onlyMine, setOnlyMine] = useQueryState(
+    'only_mine',
+    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
   const [createPostDialogOpen, setCreatePostDialogOpen] = useState(false)
 
   // 使用 useAsyncTask 进行搜索并缓存结果
   const listPostsTask = useAsyncTask(
-    async (p: number, sz: number, ob: OrderBy, d: boolean, q: string) => {
+    async (p: number, sz: number, ob: OrderBy, d: boolean, q: string, mine: boolean) => {
       if (!user)
         return { posts: [], total: 0 }
-      const res = await listPosts({
-        page: p,
-        size: sz,
-        orderBy: ob,
-        desc: d,
-        query: q,
-        userId: user.id,
-      })
+      const params = { page: p, size: sz, orderBy: ob, desc: d, query: q }
+      const res = isAdminUser
+        ? await listPostsAdmin({ ...params, userId: mine ? user.id : 0 })
+        : await listPosts({ ...params, userId: user.id })
       return { posts: res.data.posts, total: res.data.total }
     },
     {
       // 当搜索参数变化时自动执行
       immediate: true,
-      dependencies: [page, size, orderBy, desc, debouncedQueryInput, user],
-      getArgs: () => [page, size, orderBy, desc, debouncedQueryInput] as const,
+      dependencies: [page, size, orderBy, desc, debouncedQueryInput, onlyMine, user],
+      getArgs: () => [page, size, orderBy, desc, debouncedQueryInput, onlyMine] as const,
       // 相同搜索条件在 10 秒内使用缓存，避免重复请求
       cacheTime: 10_000,
       // 根据搜索条件生成唯一的 cache key
-      taskKey: (p, sz, ob, d, q) => `listPosts-${user?.id}-${p}-${sz}-${ob}-${d}-${q}`,
+      taskKey: (p, sz, ob, d, q, mine) => `listPosts-${user?.id}-${isAdminUser}-${p}-${sz}-${ob}-${d}-${q}-${mine}`,
       maxRetries: 1,
     },
   )
@@ -155,13 +161,26 @@ export function PostManage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-y-4">
-        <div>
+        <div className="flex items-center gap-3">
           <Input
             type="search"
             placeholder={commonT('search')}
             value={queryInput}
             onChange={e => setQueryInput(e.target.value)}
           />
+          {isAdminUser && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Switch
+                id="post-manage-only-mine"
+                checked={onlyMine}
+                onCheckedChange={(checked) => {
+                  setOnlyMine(checked)
+                  setPage(1)
+                }}
+              />
+              <Label htmlFor="post-manage-only-mine">{t('only_mine')}</Label>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -193,7 +212,12 @@ export function PostManage() {
       <Separator className="flex-1" />
       {posts.map(post => (
         <div key={post.id}>
-          <PostItem post={post} onPostUpdate={onPostUpdate} onPostDelete={onPostDelete} />
+          <PostItem
+            post={post}
+            showAuthor={isAdminUser}
+            onPostUpdate={onPostUpdate}
+            onPostDelete={onPostDelete}
+          />
           <Separator className="flex-1" />
         </div>
       ))}
@@ -222,10 +246,12 @@ export function PostManage() {
 
 function PostItem({
   post,
+  showAuthor,
   onPostUpdate,
   onPostDelete,
 }: {
   post: Post
+  showAuthor: boolean
   onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
   onPostDelete: ({ postId }: { postId: number }) => void
 }) {
@@ -279,6 +305,12 @@ function PostItem({
                     value: `${commonT('id')}: ${post.id}`,
                     className: 'bg-indigo-100 text-indigo-800',
                   },
+                  ...(showAuthor && post.user
+                    ? [{
+                        value: `${postT('author')}: ${post.user.nickname || post.user.username}`,
+                        className: 'bg-teal-100 text-teal-800',
+                      }]
+                    : []),
                   ...(post.top > 0
                     ? [{
                         value: `${postT('post_top')}: ${post.top}`,

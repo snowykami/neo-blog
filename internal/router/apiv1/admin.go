@@ -26,5 +26,6 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		// 用户区
 		consoleGroup.GET("/users", adminController.ListUsers)
 		consoleGroup.GET("/comments", adminController.ListComments)
+		consoleGroup.GET("/posts", adminController.ListPosts)
 	}
 }
