@@ -241,7 +241,8 @@
       "view_count": "Ansichten",
       "post_top": "Pin-Gewicht",
       "author": "Autor",
-      "only_mine": "Nur meine"
+      "only_mine": "Nur meine",
+      "image_caption_placeholder": "Bildunterschrift hinzufügen (optional)"
     },
     "storages": {
       "title": "Speicheranbieter",

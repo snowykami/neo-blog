@@ -1,0 +1,40 @@
+/* 前台渲染带注释的图片：<figure class="image-figure"><img/><figcaption/></figure>
+ * figure 收缩到图片宽度并按 data-align 定位，注释按同一方向对齐到图片左右外框 */
+.prose figure.image-figure {
+  width: fit-content;
+  max-width: 100%;
+  margin: 1rem auto;
+
+  &[data-align="left"] {
+    margin-left: 0;
+    margin-right: auto;
+  }
+
+  &[data-align="right"] {
+    margin-left: auto;
+    margin-right: 0;
+  }
+
+  > img {
+    margin: 0;
+  }
+
+  /* 宽度为 0 + min-width: 100%，不撑宽 figure，长注释在图片宽度内换行 */
+  > figcaption {
+    width: 0;
+    min-width: 100%;
+    margin-top: 0.5rem;
+    font-size: 0.875em;
+    line-height: 1.5;
+    color: var(--muted-foreground);
+    text-align: center;
+  }
+
+  &[data-align="left"] > figcaption {
+    text-align: left;
+  }
+
+  &[data-align="right"] > figcaption {
+    text-align: right;
+  }
+}

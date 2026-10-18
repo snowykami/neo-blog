@@ -241,7 +241,8 @@
       "view_count": "閲覧数",
       "post_top": "固定表示の重み",
       "author": "作成者",
-      "only_mine": "自分のみ"
+      "only_mine": "自分のみ",
+      "image_caption_placeholder": "キャプションを追加（任意）"
     },
     "storages": {
       "title": "ストレージプロバイダ",

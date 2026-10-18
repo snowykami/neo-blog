@@ -43,6 +43,31 @@
     position: relative;
   }
 
+  // 注释宽度为 0 + min-width: 100%，不参与容器宽度计算，始终与图片左右外框对齐
+  .tiptap-image-caption {
+    width: 0;
+    min-width: 100%;
+    margin-top: 0.5rem;
+    padding: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--muted-foreground);
+    text-align: left;
+    user-select: text;
+    cursor: text;
+  }
+
+  .tiptap-image[data-align="center"] .tiptap-image-caption {
+    text-align: center;
+  }
+
+  .tiptap-image[data-align="right"] .tiptap-image-caption {
+    text-align: right;
+  }
+
   .tiptap-image-img {
     width: 100%;
     border-radius: var(--tt-radius-xs, 0.25rem);

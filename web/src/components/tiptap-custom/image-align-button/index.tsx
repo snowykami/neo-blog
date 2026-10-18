@@ -25,7 +25,7 @@ export function ImageAlignButton(
     }
     const nextVisible = isNodeTypeSelected(editor, ['image'])
     setVisible(nextVisible)
-    setActiveAlign(nextVisible ? editor.getAttributes(EXTENSION_NAME)['data-align'] || Align.Left : null)
+    setActiveAlign(nextVisible ? editor.getAttributes(EXTENSION_NAME)['data-align'] || Align.Center : null)
   }, [editor])
 
   useEffect(() => {

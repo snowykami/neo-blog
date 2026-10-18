@@ -35,6 +35,7 @@ import { calculateReadingTime } from '@/utils/common/post'
 
 import { getUserUrl } from '@/utils/common/route'
 import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
+import '@/components/tiptap-node/image-node/image-figure.scss'
 import './blog-post-article.scss'
 
 async function PostHeader({ post }: { post: Post }) {

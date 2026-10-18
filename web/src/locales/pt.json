@@ -241,7 +241,8 @@
       "view_count": "Views",
       "post_top": "Pin weight",
       "author": "Autor",
-      "only_mine": "Apenas os meus"
+      "only_mine": "Apenas os meus",
+      "image_caption_placeholder": "Adicionar legenda (opcional)"
     },
     "storages": {
       "title": "Provedores de armazenamento",

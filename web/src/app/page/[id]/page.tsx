@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getPageById } from '@/api/page'
+import '@/components/tiptap-node/image-node/image-figure.scss'
 
 export async function generateMetadata({
   params,

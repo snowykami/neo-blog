@@ -241,7 +241,8 @@
       "view_count": "Vues",
       "post_top": "Poids d'épinglage",
       "author": "Auteur",
-      "only_mine": "Uniquement les miens"
+      "only_mine": "Uniquement les miens",
+      "image_caption_placeholder": "Ajouter une légende (facultatif)"
     },
     "storages": {
       "title": "Fournisseurs de stockage",

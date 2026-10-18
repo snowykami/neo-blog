@@ -241,7 +241,8 @@
       "view_count": "瀏覽數",
       "post_top": "置頂權重",
       "author": "作者",
-      "only_mine": "只看我的"
+      "only_mine": "只看我的",
+      "image_caption_placeholder": "新增圖片註解（選填）"
     },
     "storages": {
       "title": "儲存供應商",

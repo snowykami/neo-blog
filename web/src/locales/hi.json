@@ -241,7 +241,8 @@
       "view_count": "Views",
       "post_top": "Pin weight",
       "author": "लेखक",
-      "only_mine": "केवल मेरे"
+      "only_mine": "केवल मेरे",
+      "image_caption_placeholder": "कैप्शन जोड़ें (वैकल्पिक)"
     },
     "storages": {
       "title": "स्टोरेज प्रदाता",

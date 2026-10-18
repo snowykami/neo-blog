@@ -1,8 +1,10 @@
 import type { Editor, NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
+import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as React from 'react'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { IMAGE_CAPTION_ATTR } from './image-node-constants'
 import './image-node-view.scss'
 
 export interface ResizeParams {
@@ -21,6 +23,9 @@ export interface ResizableImageProps extends React.HTMLAttributes<HTMLDivElement
   align?: 'left' | 'center' | 'right'
   initialWidth?: number
   onImageResize?: (width?: number) => void
+  caption?: string | null
+  selected?: boolean
+  onCaptionChange?: (caption: string | null) => void
 }
 
 export const ResizableImage: React.FC<ResizableImageProps> = ({
@@ -29,11 +34,16 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   editor,
   minWidth = 96,
   maxWidth = 800,
-  align = 'left',
+  align = 'center',
   initialWidth,
   onImageResize,
+  caption,
+  selected,
+  onCaptionChange,
 }) => {
+  const t = useTranslations('Console.post_edit')
   const isMobile = useIsMobile()
+  const [captionFocused, setCaptionFocused] = useState(false)
   const [resizeParams, setResizeParams] = useState<ResizeParams | undefined>(undefined)
   const [width, setWidth] = useState<number | undefined>(initialWidth)
   const [showHandles, setShowHandles] = useState<boolean>(false)
@@ -338,21 +348,39 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
             </>
           )}
         </div>
+        {/* 注释：宽度跟随图片，对齐方式跟随图片对齐 */}
+        {editor?.isEditable
+          ? (caption || showHandles || selected || captionFocused) && (
+              <input
+                {...{ [IMAGE_CAPTION_ATTR]: '' }}
+                className="tiptap-image-caption"
+                value={caption ?? ''}
+                placeholder={t('image_caption_placeholder')}
+                onChange={e => onCaptionChange?.(e.target.value || null)}
+                onFocus={() => setCaptionFocused(true)}
+                onBlur={() => setCaptionFocused(false)}
+              />
+            )
+          : caption && <div className="tiptap-image-caption">{caption}</div>}
       </div>
     </NodeViewWrapper>
   )
 }
 
 export function ImageNodeView(props: NodeViewProps) {
-  const { editor, node, updateAttributes } = props
+  const { editor, node, selected, updateAttributes } = props
   return (
     <ResizableImage
       src={node.attrs.src}
       alt={node.attrs.alt || ''}
       editor={editor}
-      align={node.attrs['data-align']}
+      // 未设置对齐时与前台渲染保持一致，默认居中
+      align={node.attrs['data-align'] || 'center'}
       initialWidth={node.attrs.width}
       onImageResize={width => updateAttributes({ width })}
+      caption={node.attrs.caption}
+      selected={selected}
+      onCaptionChange={caption => updateAttributes({ caption })}
     />
   )
 }

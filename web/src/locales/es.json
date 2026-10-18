@@ -241,7 +241,8 @@
       "view_count": "Vistas",
       "post_top": "Peso fijado",
       "author": "Autor",
-      "only_mine": "Solo los míos"
+      "only_mine": "Solo los míos",
+      "image_caption_placeholder": "Añadir pie de foto (opcional)"
     },
     "storages": {
       "title": "Proveedores de almacenamiento",

@@ -241,7 +241,8 @@
       "view_count": "瀏覽數",
       "post_top": "置頂權重",
       "author": "撰者",
-      "only_mine": "唯观己作"
+      "only_mine": "唯观己作",
+      "image_caption_placeholder": "添图之注（可略）"
     },
     "storages": {
       "title": "存儲供應商",
