@@ -123,7 +123,7 @@ async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean })
       {/* 文章内容 - Core content rendered immediately */}
       <article
         id="blog-content"
-        className="prose prose-lg max-w-none dark:prose-invert
+        className="prose prose-lg max-w-none dark:prose-invert pangu-autospace
           rounded-xl bg-background
           text-sm md:text-lg
           "

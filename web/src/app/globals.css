@@ -91,3 +91,14 @@
 *:hover::-webkit-scrollbar-thumb:hover {
   background-color: rgba(100,100,100,0.75);
 }
+
+/* 盘古之白：在中文与英文/数字之间自动加入间距，仅影响渲染，不修改文本（复制内容不变）
+ * 已有空格时不会重复添加；Chrome 初始值为 no-autospace，需要显式开启
+ * text-autospace 可继承，代码中保持原样，避免影响等宽对齐 */
+.pangu-autospace {
+  text-autospace: normal;
+}
+
+.pangu-autospace :is(pre, code, kbd, samp) {
+  text-autospace: no-autospace;
+}

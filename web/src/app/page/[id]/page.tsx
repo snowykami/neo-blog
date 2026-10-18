@@ -29,7 +29,7 @@ export default async function Page({
 
   return (
     <article className="py-10">
-      <div className="prose dark:prose-invert max-w-3xl mx-auto">
+      <div className="prose dark:prose-invert pangu-autospace max-w-3xl mx-auto">
         <h1>{page.title}</h1>
         {page.description && <p className="lead">{page.description}</p>}
         <div dangerouslySetInnerHTML={{ __html: page.content }} />
