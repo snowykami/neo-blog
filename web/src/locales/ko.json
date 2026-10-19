@@ -1,4 +1,12 @@
 {
+  "ImageViewer": {
+    "title": "이미지 미리보기",
+    "previous": "이전 이미지",
+    "next": "다음 이미지",
+    "zoom_in": "확대",
+    "zoom_out": "축소",
+    "close": "닫기"
+  },
   "ContentCard": {
     "loading": "불러오는 중…",
     "load_failed": "링크 미리보기를 불러올 수 없습니다"

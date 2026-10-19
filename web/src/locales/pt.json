@@ -1,4 +1,12 @@
 {
+  "ImageViewer": {
+    "title": "Visualização de imagem",
+    "previous": "Imagem anterior",
+    "next": "Próxima imagem",
+    "zoom_in": "Ampliar",
+    "zoom_out": "Reduzir",
+    "close": "Fechar"
+  },
   "ContentCard": {
     "loading": "Carregando…",
     "load_failed": "Não foi possível carregar a pré-visualização do link"

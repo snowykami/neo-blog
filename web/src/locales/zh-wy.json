@@ -1,4 +1,12 @@
 {
+  "ImageViewer": {
+    "title": "观图",
+    "previous": "前图",
+    "next": "后图",
+    "zoom_in": "放之",
+    "zoom_out": "缩之",
+    "close": "阖"
+  },
   "ContentCard": {
     "loading": "载入中…",
     "load_failed": "链接之预览不可得"

@@ -1,4 +1,12 @@
 {
+  "ImageViewer": {
+    "title": "छवि पूर्वावलोकन",
+    "previous": "पिछली छवि",
+    "next": "अगली छवि",
+    "zoom_in": "ज़ूम इन",
+    "zoom_out": "ज़ूम आउट",
+    "close": "बंद करें"
+  },
   "ContentCard": {
     "loading": "लोड हो रहा है…",
     "load_failed": "लिंक पूर्वावलोकन लोड नहीं हो सका"

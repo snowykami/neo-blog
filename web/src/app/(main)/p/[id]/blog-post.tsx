@@ -20,6 +20,7 @@ import CopyrightCard from '@/components/blog-post/blog-copyright.client'
 import { BlogLikeButton } from '@/components/blog-post/blog-like-button.client'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
+import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
 import { PostHeaderClient } from '@/components/blog-post/post-header.client'
 import BlogSidebar from '@/components/blog-sidebar'
 import {
@@ -138,6 +139,7 @@ async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean })
       <HtmlEnhancer containerId="blog-content" />
       <ContentHoverCard containerId="blog-content" />
       <ContentImageFallback containerId="blog-content" />
+      <ContentImageViewer containerId="blog-content" />
 
       {/* 版权卡片 */}
       <div className="mt-4 md:mt-8">

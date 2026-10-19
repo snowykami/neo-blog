@@ -1,4 +1,12 @@
 {
+  "ImageViewer": {
+    "title": "Image preview",
+    "previous": "Previous image",
+    "next": "Next image",
+    "zoom_in": "Zoom in",
+    "zoom_out": "Zoom out",
+    "close": "Close"
+  },
   "ContentCard": {
     "loading": "Loading…",
     "load_failed": "Unable to load link preview"

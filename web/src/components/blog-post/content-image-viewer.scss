@@ -1,0 +1,9 @@
+/* 正文图片可点击放大预览（链接内的图片保持跳转） */
+.prose img:not(a img) {
+  cursor: zoom-in;
+}
+
+/* 预览中的图片保留系统长按菜单，便于移动端长按保存 */
+.content-image-viewer-img {
+  -webkit-touch-callout: default;
+}

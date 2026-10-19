@@ -1,4 +1,12 @@
 {
+  "ImageViewer": {
+    "title": "Aperçu de l'image",
+    "previous": "Image précédente",
+    "next": "Image suivante",
+    "zoom_in": "Zoom avant",
+    "zoom_out": "Zoom arrière",
+    "close": "Fermer"
+  },
   "ContentCard": {
     "loading": "Chargement…",
     "load_failed": "Impossible de charger l’aperçu du lien"

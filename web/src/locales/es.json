@@ -1,4 +1,12 @@
 {
+  "ImageViewer": {
+    "title": "Vista previa de imagen",
+    "previous": "Imagen anterior",
+    "next": "Imagen siguiente",
+    "zoom_in": "Acercar",
+    "zoom_out": "Alejar",
+    "close": "Cerrar"
+  },
   "ContentCard": {
     "loading": "Cargando…",
     "load_failed": "No se pudo cargar la vista previa del enlace"

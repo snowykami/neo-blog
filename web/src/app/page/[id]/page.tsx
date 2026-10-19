@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { getPageById } from '@/api/page'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
+import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
 import { applyContentAutoMatch } from '@/utils/server/content-auto-match'
 import '@/components/tiptap-node/image-node/image-figure.scss'
 
@@ -39,6 +40,7 @@ export default async function Page({
         <div id="page-content" dangerouslySetInnerHTML={{ __html: applyContentAutoMatch(page.content) }} />
         <ContentHoverCard containerId="page-content" />
         <ContentImageFallback containerId="page-content" />
+        <ContentImageViewer containerId="page-content" />
       </div>
     </article>
   )

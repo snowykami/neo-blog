@@ -1,4 +1,12 @@
 {
+  "ImageViewer": {
+    "title": "圖片預覽",
+    "previous": "上一張",
+    "next": "下一張",
+    "zoom_in": "放大",
+    "zoom_out": "縮小",
+    "close": "關閉"
+  },
   "ContentCard": {
     "loading": "載入中…",
     "load_failed": "無法載入連結預覽"

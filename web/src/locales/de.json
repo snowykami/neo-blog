@@ -1,4 +1,12 @@
 {
+  "ImageViewer": {
+    "title": "Bildvorschau",
+    "previous": "Vorheriges Bild",
+    "next": "Nächstes Bild",
+    "zoom_in": "Vergrößern",
+    "zoom_out": "Verkleinern",
+    "close": "Schließen"
+  },
   "ContentCard": {
     "loading": "Wird geladen…",
     "load_failed": "Linkvorschau konnte nicht geladen werden"
