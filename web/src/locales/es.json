@@ -218,6 +218,8 @@
       "create_post": "Crear publicación",
       "labels": "Etiquetas",
       "last_saved_at": "Guardado por última vez el {time}",
+      "last_saved_seconds_ago": "Guardado hace {count, plural, one {# segundo} other {# segundos}}",
+      "last_saved_minutes_ago": "Guardado hace {count, plural, one {# minuto} other {# minutos}}",
       "like_count": "Me gusta",
       "no_category": "Sin categoría",
       "no_label": "Sin etiquetas",

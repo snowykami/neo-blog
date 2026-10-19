@@ -218,6 +218,8 @@
       "create_post": "記事を作成",
       "labels": "タグ",
       "last_saved_at": "最終保存 {time}",
+      "last_saved_seconds_ago": "{count} 秒前に保存",
+      "last_saved_minutes_ago": "{count} 分前に保存",
       "like_count": "いいね数",
       "no_category": "カテゴリなし",
       "no_label": "タグなし",

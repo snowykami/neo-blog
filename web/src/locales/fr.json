@@ -218,6 +218,8 @@
       "create_post": "Créer un article",
       "labels": "Étiquettes",
       "last_saved_at": "Dernière sauvegarde le {time}",
+      "last_saved_seconds_ago": "Enregistré il y a {count, plural, one {# seconde} other {# secondes}}",
+      "last_saved_minutes_ago": "Enregistré il y a {count, plural, one {# minute} other {# minutes}}",
       "like_count": "J'aime",
       "no_category": "Aucune catégorie",
       "no_label": "Aucune étiquette",

@@ -218,6 +218,8 @@
       "create_post": "Beitrag erstellen",
       "labels": "Schlagwörter",
       "last_saved_at": "Zuletzt gespeichert am {time}",
+      "last_saved_seconds_ago": "Vor {count, plural, one {# Sekunde} other {# Sekunden}} gespeichert",
+      "last_saved_minutes_ago": "Vor {count, plural, one {# Minute} other {# Minuten}} gespeichert",
       "like_count": "Gefällt mir",
       "no_category": "Keine Kategorie",
       "no_label": "Keine Schlagwörter",

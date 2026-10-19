@@ -218,6 +218,8 @@
       "create_post": "建立文章",
       "labels": "標籤",
       "last_saved_at": "最後儲存於 {time}",
+      "last_saved_seconds_ago": "{count} 秒前儲存",
+      "last_saved_minutes_ago": "{count} 分鐘前儲存",
       "like_count": "按讚數",
       "no_category": "無分類",
       "no_label": "無標籤",

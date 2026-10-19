@@ -226,6 +226,8 @@
       "create_post": "创建文章",
       "labels": "标签",
       "last_saved_at": "最后保存于 {time}",
+      "last_saved_seconds_ago": "{count} 秒前保存",
+      "last_saved_minutes_ago": "{count} 分钟前保存",
       "like_count": "点赞数",
       "no_category": "没有分类",
       "no_label": "没有标签",

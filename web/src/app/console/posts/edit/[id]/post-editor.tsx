@@ -22,6 +22,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
 import { getPostById, updatePost } from '@/api/post'
+import { LastSavedAt } from '@/components/console/common/last-saved-at'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '@/components/console/common/post-meta-dialog-form'
 import { SimpleEditor } from '@/components/tiptap-editor/simple-editor'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
@@ -251,9 +252,7 @@ function EditorNavbar({
           </span>
         </div>
         {lastSavedAt && (
-          <span className="text-sm text-muted-foreground w-full md:w-auto">
-            {t('last_saved_at', { time: lastSavedAt.toLocaleTimeString() })}
-          </span>
+          <LastSavedAt time={lastSavedAt} className="text-sm text-muted-foreground w-full md:w-auto" />
         )}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">

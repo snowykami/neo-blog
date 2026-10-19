@@ -218,6 +218,8 @@
       "create_post": "Create post",
       "labels": "Tags",
       "last_saved_at": "Last saved at {time}",
+      "last_saved_seconds_ago": "{count}초 전에 저장됨",
+      "last_saved_minutes_ago": "{count}분 전에 저장됨",
       "like_count": "Likes",
       "no_category": "No category",
       "no_label": "No tags",

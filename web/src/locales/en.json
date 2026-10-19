@@ -218,6 +218,8 @@
       "create_post": "Create post",
       "labels": "Tags",
       "last_saved_at": "Last saved at {time}",
+      "last_saved_seconds_ago": "Saved {count, plural, one {# second} other {# seconds}} ago",
+      "last_saved_minutes_ago": "Saved {count, plural, one {# minute} other {# minutes}} ago",
       "like_count": "Likes",
       "no_category": "No category",
       "no_label": "No tags",

@@ -218,6 +218,8 @@
       "create_post": "Create post",
       "labels": "Tags",
       "last_saved_at": "Last saved at {time}",
+      "last_saved_seconds_ago": "Сохранено {count, plural, one {# секунду} few {# секунды} many {# секунд} other {# секунды}} назад",
+      "last_saved_minutes_ago": "Сохранено {count, plural, one {# минуту} few {# минуты} many {# минут} other {# минуты}} назад",
       "like_count": "Likes",
       "no_category": "No category",
       "no_label": "No tags",

@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
 import { getPageById, updatePage } from '@/api/page'
+import { LastSavedAt } from '@/components/console/common/last-saved-at'
 import { SimpleEditor } from '@/components/tiptap-editor/simple-editor'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-extension'
@@ -197,7 +198,7 @@ function PageEditorNavbar({
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-lg font-semibold truncate block" title={page.title}>{page.title}</span>
         {lastSavedAt && (
-          <span className="text-sm text-muted-foreground">{lastSavedAt.toLocaleTimeString()}</span>
+          <LastSavedAt time={lastSavedAt} className="text-sm text-muted-foreground" />
         )}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
