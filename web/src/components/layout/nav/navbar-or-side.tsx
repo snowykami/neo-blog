@@ -16,7 +16,6 @@ import {
 
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import * as React from 'react'
 import { useState } from 'react'
 import { ThemeModeToggle } from '@/components/common/theme-toggle'
@@ -160,38 +159,46 @@ export default function Navbar() {
 }
 
 function NavMenuCenter() {
-  const router = useRouter()
   const routeT = useTranslations('Route')
+  // 受控的当前展开菜单：悬停打开后再点击触发器不应把子菜单关掉（Radix 默认点击会切换开关）
+  const [openMenu, setOpenMenu] = useState('')
   return (
-    <NavigationMenu viewport={false}>
+    <NavigationMenu viewport={false} value={openMenu} onValueChange={setOpenMenu}>
       <NavigationMenuList className="flex space-x-1" key="navbar-menu">
         {navbarMenuComponents.map(item => (
-          <NavigationMenuItem key={item.title} id={item.title}>
+          <NavigationMenuItem key={item.title} id={item.title} value={item.title}>
             {item.href
               ? (
-                // 修复：只在 Link 上应用样式，移除 NavigationMenuLink 上的重复样式
-                  <NavigationMenuLink
-                    onClick={() => router.push(item.href)}
-                    className={cn(
-                      navigationMenuTriggerStyle(),
-                      'font-extrabold text-lg bg-transparent',
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <item.icon className="!w-6 !h-6 text-inherit" />
-                      <span>{routeT(item.title)}</span>
-                    </div>
+                // 使用带 href 的真实链接：可点击光标、支持中键/新标签页打开与预取
+                  <NavigationMenuLink asChild>
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        navigationMenuTriggerStyle(),
+                        'font-extrabold text-lg bg-transparent',
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <item.icon className="!w-6 !h-6 text-inherit" />
+                        <span>{routeT(item.title)}</span>
+                      </div>
+                    </Link>
                   </NavigationMenuLink>
                 )
               : item.children
                 ? (
                     <>
-                      {/* Trigger 保持不变 */}
+                      {/* Trigger 是 button，Tailwind v4 默认不再给 button 设置可点击光标 */}
                       <NavigationMenuTrigger
                         className={cn(
                           navigationMenuTriggerStyle(),
-                          'font-extrabold text-lg bg-transparent',
+                          'font-extrabold text-lg bg-transparent cursor-pointer',
                         )}
+                        onClick={(e) => {
+                          // 鼠标点击已展开的菜单时保持展开；键盘触发（detail 为 0）仍可切换
+                          if (e.detail > 0 && openMenu === item.title)
+                            e.preventDefault()
+                        }}
                       >
                         <div className="flex items-center gap-2">
                           <item.icon className="w-6 h-6" />
