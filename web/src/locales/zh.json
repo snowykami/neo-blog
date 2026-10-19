@@ -69,6 +69,7 @@
     "unlike_success": "已取消点赞"
   },
   "Common": {
+    "image_load_failed": "图片加载失败",
     "char": "字",
     "created_at": "创建于",
     "default": "默认",

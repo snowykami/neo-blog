@@ -1,8 +1,8 @@
 import type { CaptchaProps } from '@/types/captcha'
 import { Turnstile } from '@marsidev/react-turnstile'
 import { useTranslations } from 'next-intl'
-import Image from 'next/image'
 import { useEffect, useState } from 'react'
+import { SafeImage } from '@/components/common/safe-image'
 
 const TURNSTILE_TIMEOUT = 15
 // 简单的转圈圈动画
@@ -149,7 +149,7 @@ export function TurnstileWidget(props: CaptchaProps) {
         {' '}
         {error && t(error)}
       </div>
-      <Image src="https://cdn.liteyuki.org/logos/cloudflare.png" alt="turnstile" width={48} height={48} />
+      <SafeImage src="https://cdn.liteyuki.org/logos/cloudflare.png" alt="turnstile" width={48} height={48} />
       <div className="absolute inset-0 opacity-0 pointer-events-none">
         <OfficialTurnstileWidget {...props} onSuccess={handleSuccess} onError={handleError} />
       </div>

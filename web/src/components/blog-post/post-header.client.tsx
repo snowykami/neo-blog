@@ -2,14 +2,20 @@
 
 import type { Post } from '@/models/post'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { SafeImage } from '@/components/common/safe-image'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { contentAreaMaxWidthClass, contentAreaPaddingClass } from '@/utils/common/layout-size'
 import { getLabelUrl } from '@/utils/common/route'
+import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 import PostToolbar from './post-toolbar.client'
 import { WaveEffects } from './wave-effect'
 
 export function PostHeaderClient({ post, children }: { post: Post, children: React.ReactNode }) {
   const [isPreviewing, setIsPreviewing] = useState(false)
+  const { siteInfo } = useSiteInfo()
+  // 封面失效时回退的默认封面，只取一次
+  const defaultCover = useMemo(() => getDefaultCoverRandomly(siteInfo), [siteInfo])
 
   return (
     // 允许子元素超出（眼睛按钮不会被裁切）
@@ -21,17 +27,18 @@ export function PostHeaderClient({ post, children }: { post: Post, children: Rea
         transform: 'translateX(-50%)',
       }}
     >
-      {/* 背景图片层 */}
-      <div
-        className="absolute inset-0"
-        style={{
-          zIndex: -3,
-          backgroundImage: `url(${post.cover || ''})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-        aria-hidden="true"
-      />
+      {/* 背景图片层：封面失效时依次回退到站点默认封面、占位块 */}
+      <div className="absolute inset-0 overflow-hidden" style={{ zIndex: -3 }} aria-hidden="true">
+        <SafeImage
+          src={post.cover || defaultCover}
+          fallbackSrc={defaultCover}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+      </div>
 
       {/* 模糊遮罩层 - with transition */}
       <div

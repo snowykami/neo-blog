@@ -61,6 +61,7 @@
     "unlike_success": "Curtida removida"
   },
   "Common": {
+    "image_load_failed": "Não foi possível carregar a imagem",
     "char": "caracteres",
     "created_at": "Criado em",
     "digest": "Resumo",

@@ -61,6 +61,7 @@
     "unlike_success": "Unliked"
   },
   "Common": {
+    "image_load_failed": "Image failed to load",
     "char": "chars",
     "created_at": "Created at",
     "digest": "Summary",

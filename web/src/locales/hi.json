@@ -61,6 +61,7 @@
     "unlike_success": "पसंद हटाई गई"
   },
   "Common": {
+    "image_load_failed": "छवि लोड नहीं हो सकी",
     "char": "वर्ण",
     "created_at": "बनाया गया",
     "digest": "सारांश",

@@ -38,3 +38,27 @@
     text-align: right;
   }
 }
+
+/* 正文失效图片的占位块（见 ContentImageFallback），保留原图尺寸与对齐 */
+.prose .image-fallback {
+  width: 20rem;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 1rem auto;
+  border-radius: 0.5rem;
+  overflow: hidden;
+
+  &[data-align="left"] {
+    margin-left: 0;
+    margin-right: auto;
+  }
+
+  &[data-align="right"] {
+    margin-left: auto;
+    margin-right: 0;
+  }
+}
+
+.prose figure.image-figure > .image-fallback {
+  margin: 0;
+}

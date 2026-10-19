@@ -61,6 +61,7 @@
     "unlike_success": "Gefällt mir entfernt"
   },
   "Common": {
+    "image_load_failed": "Bild konnte nicht geladen werden",
     "char": "Zeichen",
     "created_at": "Erstellt am",
     "digest": "Zusammenfassung",

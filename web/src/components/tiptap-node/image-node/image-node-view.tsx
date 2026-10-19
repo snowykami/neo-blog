@@ -3,6 +3,7 @@ import { NodeViewWrapper } from '@tiptap/react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as React from 'react'
+import { ImagePlaceholder } from '@/components/common/safe-image'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { IMAGE_CAPTION_ATTR } from './image-node-constants'
 import './image-node-view.scss'
@@ -44,6 +45,8 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   const t = useTranslations('Console.post_edit')
   const isMobile = useIsMobile()
   const [captionFocused, setCaptionFocused] = useState(false)
+  // 记录加载失败的地址，替换图片后自动恢复显示
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const [resizeParams, setResizeParams] = useState<ResizeParams | undefined>(undefined)
   const [width, setWidth] = useState<number | undefined>(initialWidth)
   const [showHandles, setShowHandles] = useState<boolean>(false)
@@ -310,14 +313,27 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
         }}
       >
         <div className="tiptap-image-content">
-          <img
-            ref={imageRef}
-            src={src}
-            alt={alt}
-            className="tiptap-image-img"
-            contentEditable={false}
-            draggable={false}
-          />
+          {failedSrc === src
+            ? (
+                <ImagePlaceholder
+                  className="tiptap-image-img aspect-video"
+                  style={{ width: width ? '100%' : '20rem' }}
+                >
+                  {/* 显示失效地址，方便作者排查替换 */}
+                  <span className="max-w-full truncate px-3 text-xs" title={src}>{src}</span>
+                </ImagePlaceholder>
+              )
+            : (
+                <img
+                  ref={imageRef}
+                  src={src}
+                  alt={alt}
+                  className="tiptap-image-img"
+                  contentEditable={false}
+                  draggable={false}
+                  onError={() => setFailedSrc(src)}
+                />
+              )}
 
           {showHandles && editor && editor.isEditable && (
             <>

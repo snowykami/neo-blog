@@ -2,11 +2,11 @@
 
 import type { Post } from '@/models/post'
 import { useTranslations } from 'next-intl'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { getRandomPost } from '@/api/post'
+import { SafeImage } from '@/components/common/safe-image'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { getPostUrl } from '@/utils/common/route'
 import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
@@ -88,12 +88,16 @@ export default function RandomPostPage() {
 
 function RandomPostPreview({ post }: { post: Post }) {
   const { siteInfo } = useSiteInfo()
+  // 随机默认封面只取一次，避免每次渲染变化导致图片反复重载
+  const defaultCover = useMemo(() => getDefaultCoverRandomly(siteInfo), [siteInfo])
   return (
     <div className="w-full max-w-3xl px-4 md:px-0">
       <div className="space-y-4">
         <div className="w-full aspect-[16/8] rounded-lg overflow-hidden">
-          <Image
-            src={post.cover || getDefaultCoverRandomly(siteInfo)}
+          {/* 封面失效时依次回退到站点默认封面、占位块 */}
+          <SafeImage
+            src={post.cover || defaultCover}
+            fallbackSrc={defaultCover}
             alt={post.title}
             width={800}
             height={600}

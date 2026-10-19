@@ -61,6 +61,7 @@
     "unlike_success": "已取消讚"
   },
   "Common": {
+    "image_load_failed": "圖片載入失敗",
     "char": "字元",
     "created_at": "建立於",
     "digest": "摘要",

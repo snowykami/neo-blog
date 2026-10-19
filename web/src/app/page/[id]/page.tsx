@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getPageById } from '@/api/page'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
+import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { applyContentAutoMatch } from '@/utils/server/content-auto-match'
 import '@/components/tiptap-node/image-node/image-figure.scss'
 
@@ -37,6 +38,7 @@ export default async function Page({
         {page.description && <p className="lead">{page.description}</p>}
         <div id="page-content" dangerouslySetInnerHTML={{ __html: applyContentAutoMatch(page.content) }} />
         <ContentHoverCard containerId="page-content" />
+        <ContentImageFallback containerId="page-content" />
       </div>
     </article>
   )

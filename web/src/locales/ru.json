@@ -61,6 +61,7 @@
     "unlike_success": "Лайк убран"
   },
   "Common": {
+    "image_load_failed": "Не удалось загрузить изображение",
     "char": "символов",
     "created_at": "Создано",
     "digest": "Резюме",

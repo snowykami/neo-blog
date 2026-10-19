@@ -61,6 +61,7 @@
     "unlike_success": "Me gusta eliminado"
   },
   "Common": {
+    "image_load_failed": "No se pudo cargar la imagen",
     "char": "caracteres",
     "created_at": "Creado el",
     "digest": "Resumen",

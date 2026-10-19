@@ -61,6 +61,7 @@
     "unlike_success": "已取消點讚"
   },
   "Common": {
+    "image_load_failed": "图不得见",
     "char": "字",
     "created_at": "創建於",
     "default": "默認",

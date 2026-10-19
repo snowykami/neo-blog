@@ -6,11 +6,11 @@ import type { MusicLyricMode } from '@/utils/music-lyric'
 import { useMeasure } from '@uidotdev/usehooks'
 import { CaseSensitiveIcon, CircleArrowLeftIcon, CircleArrowRightIcon, CirclePauseIcon, CirclePlayIcon, LanguagesIcon, ListMusicIcon, MessageSquareOffIcon, MusicIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle, Volume2Icon, VolumeXIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import Image from 'next/image'
 import React, { useEffect, useRef, useState } from 'react'
 import Marquee from 'react-fast-marquee'
 import { fetchPlaylist } from '@/api/music'
 import { ProgressControl } from '@/components/common/controlled-progress'
+import { SafeImage } from '@/components/common/safe-image'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useMusic } from '@/contexts/music-context'
 import { useNav } from '@/contexts/nav-context'
@@ -234,11 +234,13 @@ function CrossfadeAlbumImage({
   return (
     <div className={cn('relative overflow-hidden', className)} style={style}>
       {previousSrc && (
-        <Image
+        <SafeImage
           key={previousSrc}
           src={previousSrc}
           alt=""
           fill
+          // 淡出中的旧封面失效时直接不显示
+          fallback={null}
           sizes={sizes}
           className={cn(
             imageClassName,
@@ -247,7 +249,7 @@ function CrossfadeAlbumImage({
           )}
         />
       )}
-      <Image
+      <SafeImage
         key={visibleSrc}
         src={visibleSrc}
         alt={alt}

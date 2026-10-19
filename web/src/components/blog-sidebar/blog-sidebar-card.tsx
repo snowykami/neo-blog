@@ -3,12 +3,12 @@ import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
 import { Eye, Heart, HeartIcon, TrendingUp } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getLabels } from '@/api/label'
 import { listPosts } from '@/api/post'
+import { SafeImage } from '@/components/common/safe-image'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -216,7 +216,7 @@ export function BlogSidebarCoupleSpace() {
       <CardContent className="p-0 flex flex-col items-center justify-center">
         <div className="flex items-center justify-center gap-10 md:gap-8 lg:gap-6 mb-2">
           <Link href="https://github.com/snowykami" className="flex flex-col items-center w-12 cursor-pointer">
-            <Image
+            <SafeImage
               className="rounded-full w-12 h-12 border-2 border-blue-400"
               src="https://cdn.liteyuki.org/snowykami/avatar.jpg"
               alt="A"
@@ -231,7 +231,7 @@ export function BlogSidebarCoupleSpace() {
           <HeartIcon className="w-6 h-6 text-pink-400" aria-hidden />
 
           <Link href="https://github.com/balancetheworld" className="flex flex-col items-center w-12 cursor-pointer">
-            <Image
+            <SafeImage
               className="rounded-full w-12 h-12 border-2 border-pink-400"
               src="https://avatars.githubusercontent.com/u/182211573?v=4"
               alt="B"

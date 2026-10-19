@@ -3,9 +3,9 @@
 import type { LinkPreview } from '@/app/api/get-link-info/route'
 import { ExternalLinkIcon, Globe } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { SafeImage } from '@/components/common/safe-image'
 import { useOperationT } from '@/hooks/use-translations'
 import copyToClipboard from '@/lib/clipboard'
 
@@ -66,15 +66,12 @@ export function LinkPreviewCard({ url, onOpen }: { url: string, onOpen?: () => v
     <div className="overflow-hidden cursor-default">
       {preview.image && (
         <div className="relative h-32 bg-muted rounded-t-md overflow-hidden">
-          <Image
+          <SafeImage
             src={preview.image}
             alt={preview.title}
             width={320}
             height={128}
             className="w-full h-full object-cover"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
           />
         </div>
       )}
@@ -82,15 +79,14 @@ export function LinkPreviewCard({ url, onOpen }: { url: string, onOpen?: () => v
       <div className="p-4">
         <div className="flex items-start gap-3">
           {preview.favicon && (
-            <Image
+            <SafeImage
               src={preview.favicon}
               alt=""
               width={16}
               height={16}
               className="w-4 h-4 mt-0.5 flex-shrink-0"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none'
-              }}
+              // 图标失效时直接不显示
+              fallback={null}
             />
           )}
 

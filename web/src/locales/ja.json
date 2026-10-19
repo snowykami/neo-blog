@@ -61,6 +61,7 @@
     "unlike_success": "いいねを取り消しました"
   },
   "Common": {
+    "image_load_failed": "画像を読み込めませんでした",
     "char": "文字",
     "created_at": "作成日時",
     "digest": "概要",

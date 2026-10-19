@@ -61,6 +61,7 @@
     "unlike_success": "좋아요 취소됨"
   },
   "Common": {
+    "image_load_failed": "이미지를 불러오지 못했습니다",
     "char": "자",
     "created_at": "생성일",
     "digest": "요약",

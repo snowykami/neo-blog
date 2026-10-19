@@ -12,8 +12,9 @@ import {
   Pin,
 } from 'lucide-react'
 import { motion } from 'motion/react'
-import Image from 'next/image'
 import Link from 'next/link'
+import { useMemo } from 'react'
+import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -37,6 +38,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 
 export function BlogCard({ post, className }: { post: Post, className?: string }) {
   const { siteInfo } = useSiteInfo()
+  // 随机默认封面只取一次，避免每次渲染变化导致图片反复重载
+  const defaultCover = useMemo(() => getDefaultCoverRandomly(siteInfo), [siteInfo])
   const commonT = useCommonT()
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -65,8 +68,10 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
           }}
           className="absolute inset-0 w-full h-full"
         >
-          <Image
-            src={post.cover || getDefaultCoverRandomly(siteInfo)}
+          {/* 封面失效时依次回退到站点默认封面、占位块 */}
+          <SafeImage
+            src={post.cover || defaultCover}
+            fallbackSrc={defaultCover}
             alt={post.title}
             fill
             className="object-cover w-full h-full group-hover:scale-105 duration-300! transition-transform!"

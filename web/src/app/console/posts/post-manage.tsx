@@ -5,7 +5,6 @@ import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
 import { useAsyncTask } from '@snowykami/use-async-task'
 import { Ellipsis, Eye } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import Image from 'next/image'
 import {
   parseAsBoolean,
   parseAsInteger,
@@ -18,6 +17,7 @@ import { listPostsAdmin } from '@/api/admin'
 import { deletePost, listPosts, updatePost } from '@/api/post'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
+import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -272,21 +272,14 @@ function PostItem({
         <div className="flex justify-start items-center gap-4">
           {/* avatar */}
           <div className="flex-shrink-0 w-16 h-9 rounded-md overflow-hidden">
-            {post.cover && (
-              <Image
-                src={post.cover}
-                alt={post.title}
-                width={64} // 和 w-16 (4rem=64px) 保持一致
-                height={36} // 和 h-9 (2.25rem=36px) 保持一致
-                className="w-full h-full object-cover"
-              />
-            )}
-            {/* 没有图片显示No Cover */}
-            {!post.cover && (
-              <div className="w-full h-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-xs text-gray-500">
-                No Cover
-              </div>
-            )}
+            {/* 没有封面或封面失效时显示占位 */}
+            <SafeImage
+              src={post.cover}
+              alt={post.title}
+              width={64} // 和 w-16 (4rem=64px) 保持一致
+              height={36} // 和 h-9 (2.25rem=36px) 保持一致
+              className="w-full h-full object-cover"
+            />
           </div>
           <div className="min-w-0">
             <div className="text-sm font-medium">{post.title}</div>
