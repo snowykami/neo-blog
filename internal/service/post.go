@@ -34,7 +34,7 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			Cover:       req.Cover,
 			Content:     req.Content,
 			Description: req.Description,
-			IsPrivate:   req.IsPrivate,
+			IsPrivate:   utils.Deref(req.IsPrivate),
 			Labels: func() []model.Label {
 				labelModels := make([]model.Label, 0)
 				for _, labelID := range req.LabelIds {
@@ -47,7 +47,7 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			}(),
 			Slug:  req.Slug,
 			Title: req.Title,
-			Top:   req.Top,
+			Top:   utils.Deref(req.Top),
 			Type:  req.Type,
 		},
 	}
@@ -110,7 +110,10 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, post.UserID)) {
 		return 0, errs.NewForbidden("permission_denied")
 	}
-	post.Top = req.Top // TOP可以为0
+	// 未传的字段保持原值，TOP 可以为 0
+	if req.Top != nil {
+		post.Top = *req.Top
+	}
 	utils.UpdateNonEmpty(&post.Title, req.Title)
 	utils.UpdateNonEmpty(&post.Type, req.Type)
 	utils.UpdateNonEmpty(&post.Content, req.Content)
@@ -119,19 +122,24 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	utils.UpdatePtrNonZero(&post.DraftContent, req.DraftContent)
 	utils.UpdatePtrNonZero(&post.Slug, req.Slug)
 	utils.UpdatePtrUint(&post.CategoryID, req.CategoryID)
-	utils.UpdateBool(&post.IsPrivate, req.IsPrivate)
+	if req.IsPrivate != nil {
+		post.IsPrivate = *req.IsPrivate
+	}
 
-	post.Labels = func() []model.Label {
-		// 跳过不存在的标签，不能在遍历中按下标删除，否则会产生零值标签或漏掉后续标签
-		labelModels := make([]model.Label, 0, len(req.LabelIds))
-		for _, labelID := range req.LabelIds {
-			labelModel, err := repo.Label.GetLabelByID(labelID)
-			if err == nil {
-				labelModels = append(labelModels, *labelModel)
+	// 只有传了 label_ids 才更新标签（传空数组表示清空），只保存草稿时保持原标签
+	if req.LabelIds != nil {
+		post.Labels = func() []model.Label {
+			// 跳过不存在的标签，不能在遍历中按下标删除，否则会产生零值标签或漏掉后续标签
+			labelModels := make([]model.Label, 0, len(req.LabelIds))
+			for _, labelID := range req.LabelIds {
+				labelModel, err := repo.Label.GetLabelByID(labelID)
+				if err == nil {
+					labelModels = append(labelModels, *labelModel)
+				}
 			}
-		}
-		return labelModels
-	}()
+			return labelModels
+		}()
+	}
 	if err := repo.Post.SavePost(post); err != nil {
 		return 0, errs.NewInternalServer("failed_to_update_target")
 	}

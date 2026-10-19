@@ -43,9 +43,9 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 			Content:      req.Content,
 			DraftContent: req.DraftContent,
 			Type:         pageType,
-			IsPrivate:    req.IsPrivate,
-			ShowInNav:    req.ShowInNav,
-			NavOrder:     req.NavOrder,
+			IsPrivate:    utils.Deref(req.IsPrivate),
+			ShowInNav:    utils.Deref(req.ShowInNav),
+			NavOrder:     utils.Deref(req.NavOrder),
 		},
 	}
 	if err := repo.Page.CreatePage(page); err != nil {
@@ -103,9 +103,16 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	utils.UpdateNonEmpty(&page.Cover, req.Cover)
 	utils.UpdateNonEmpty(&page.Description, req.Description)
 	utils.UpdatePtrNonZero(&page.DraftContent, req.DraftContent)
-	utils.UpdateBool(&page.IsPrivate, req.IsPrivate)
-	utils.UpdateBool(&page.ShowInNav, req.ShowInNav)
-	page.NavOrder = req.NavOrder
+	// 未传的字段保持原值，只保存草稿时不会重置私密与导航设置
+	if req.IsPrivate != nil {
+		page.IsPrivate = *req.IsPrivate
+	}
+	if req.ShowInNav != nil {
+		page.ShowInNav = *req.ShowInNav
+	}
+	if req.NavOrder != nil {
+		page.NavOrder = *req.NavOrder
+	}
 
 	if err := repo.Page.SavePage(page); err != nil {
 		return 0, errs.NewInternalServer("failed_to_update_target")

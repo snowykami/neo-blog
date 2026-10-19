@@ -27,6 +27,10 @@ type PageDto struct {
 type CreateOrUpdatePageReq struct {
 	ID uint `path:"id" json:"id"`
 	PageBaseDto
+	// 以下字段覆盖 PageBaseDto 同名字段，用指针区分“未传”与“零值”，避免只保存草稿时把私密、导航设置重置
+	IsPrivate *bool `json:"is_private"`
+	ShowInNav *bool `json:"show_in_nav"`
+	NavOrder  *int  `json:"nav_order"`
 }
 
 type ListPageReq struct {

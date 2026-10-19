@@ -388,7 +388,8 @@ function PostDropdownMenu({
   } = useDoubleConfirm()
   const [open, setOpen] = useState(false)
   const handleTogglePrivate = () => {
-    updatePost({ post: { ...post, isPrivate: !post.isPrivate } })
+    // 只提交需要修改的字段：列表里的正文是截断后的摘要，整篇提交会覆盖原文
+    updatePost({ post: { id: post.id, isPrivate: !post.isPrivate } })
       .then(() => {
         toast.success(operationT('update_success'))
         onPostUpdate({ post: { id: post.id, isPrivate: !post.isPrivate } })
