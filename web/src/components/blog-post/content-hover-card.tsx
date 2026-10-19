@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { HOVER_CLOSE_DELAY, HOVER_OPEN_DELAY, TOUCH_AUTO_CLOSE } from '@/components/common/hover-popover'
 import { LinkPreviewCard } from '@/components/common/link-preview-card'
 import { ANNOTATION_ATTR } from '@/components/tiptap-extension/annotation-constants'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
@@ -10,10 +11,9 @@ type HoverTarget
   = | { el: HTMLElement, kind: 'link', url: string }
     | { el: HTMLElement, kind: 'annotation', term: string, note: string }
 
-const OPEN_DELAY = 250
-const CLOSE_DELAY = 200
-// 触摸点开的卡片无操作时自动关闭
-const TOUCH_AUTO_CLOSE = 10_000
+// 交互时序与 HoverPopover 保持一致
+const OPEN_DELAY = HOVER_OPEN_DELAY
+const CLOSE_DELAY = HOVER_CLOSE_DELAY
 
 /**
  * 正文悬停卡片：整篇内容共用一个卡片，通过事件委托在外链与注释词语上显示

@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { listPostsAdmin } from '@/api/admin'
 import { deletePost, listPosts, updatePost } from '@/api/post'
+import { HoverPopover } from '@/components/common/hover-popover'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { SafeImage } from '@/components/common/safe-image'
@@ -286,17 +287,19 @@ function PostItem({
             <div className="mt-1 flex flex-wrap items-center gap-3">
               {(() => {
                 const labels = post.labels || []
+                // 标签超过可展示数量时折叠为 +n，悬停/点击查看全部
+                const labelsTruncated = labels.length > labelCount
                 const labelsValue
                   = labels.length === 0
                     ? postT('no_label')
-                    : labels.length <= 3
-                      ? `${postT('labels')}: ${labels.map(l => l.name).join(' | ')}`
-                      : `${postT('labels')}: ${labels
-                        .slice(0, labelCount)
-                        .map(l => l.name)
-                        .join(' | ')} ... (+${labels.length - labelCount})`
+                    : !labelsTruncated
+                        ? `${postT('labels')}: ${labels.map(l => l.name).join(' | ')}`
+                        : `${postT('labels')}: ${labels
+                          .slice(0, labelCount)
+                          .map(l => l.name)
+                          .join(' | ')} ... (+${labels.length - labelCount})`
 
-                const items: { value: string, className: string }[] = [
+                const items: { value: string, className: string, popover?: React.ReactNode }[] = [
                   {
                     value: `${commonT('id')}: ${post.id}`,
                     className: 'bg-indigo-100 text-indigo-800',
@@ -333,13 +336,36 @@ function PostItem({
                       post.labels && post.labels.length > 0
                         ? 'bg-blue-100 text-blue-800'
                         : 'bg-gray-100 text-gray-800',
+                    popover: labelsTruncated
+                      ? (
+                          <div className="grid gap-2">
+                            <div className="text-xs text-muted-foreground">{`${postT('labels')} (${labels.length})`}</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {labels.map(label => (
+                                <Badge key={label.id} className="text-xs bg-blue-100 text-blue-800" variant="secondary">
+                                  {label.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      : undefined,
                   },
                 ]
-                return items.map((item, idx) => (
-                  <Badge key={idx} className={`text-xs ${item.className}`} variant="secondary">
-                    {item.value}
-                  </Badge>
-                ))
+                return items.map((item, idx) => {
+                  const badge = (
+                    <Badge key={idx} className={`text-xs ${item.className}`} variant="secondary">
+                      {item.value}
+                    </Badge>
+                  )
+                  return item.popover
+                    ? (
+                        <HoverPopover key={idx} content={item.popover} contentClassName="w-auto max-w-72 p-3">
+                          {badge}
+                        </HoverPopover>
+                      )
+                    : badge
+                })
               })()}
             </div>
           </div>
