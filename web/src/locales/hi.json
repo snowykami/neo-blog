@@ -254,7 +254,12 @@
       "annotation_placeholder": "टिप्पणी लिखें, लागू करने के लिए Ctrl/⌘ + Enter",
       "annotation_apply": "टिप्पणी लागू करें",
       "annotation_remove": "टिप्पणी हटाएँ",
-      "auto_match": "लेख में समान शब्द पर स्वतः लागू करें"
+      "auto_match": "लेख में समान शब्द पर स्वतः लागू करें",
+      "edit_session_taken_over": "यह सामग्री किसी अन्य डिवाइस या विंडो में संपादित की जा रही है। इस पेज पर सहेजना रोक दिया गया है।",
+      "edit_session_taken_over_by": "{name} ने {time} पर {device} पर संपादन शुरू किया। इस पेज पर सहेजना रोक दिया गया है।",
+      "edit_session_take_over_hint": "संभालने पर उनकी अंतिम सहेजी गई सामग्री लोड होगी; इस पेज के बिना सहेजे बदलाव हट जाएंगे।",
+      "edit_session_take_over": "यहीं संपादन जारी रखें",
+      "edit_session_unknown_device": "अज्ञात डिवाइस"
     },
     "storages": {
       "title": "स्टोरेज प्रदाता",

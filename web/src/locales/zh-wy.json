@@ -254,7 +254,12 @@
       "annotation_placeholder": "书注于此，Ctrl/⌘ + Enter 以施",
       "annotation_apply": "施注",
       "annotation_remove": "去注",
-      "auto_match": "文中同词皆注之"
+      "auto_match": "文中同词皆注之",
+      "edit_session_taken_over": "此文已于他处启编，本页不复存稿",
+      "edit_session_taken_over_by": "{name} 于 {time} 在 {device} 启编，本页不复存稿",
+      "edit_session_take_over_hint": "接之则载彼方新存之稿，本页未存之改将弃",
+      "edit_session_take_over": "于此续编",
+      "edit_session_unknown_device": "未详之器"
     },
     "storages": {
       "title": "存儲供應商",

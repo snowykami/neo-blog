@@ -19,9 +19,12 @@ func registerPostRoutes(group *route.RouterGroup) {
 		postGroupPublic.GET("/categories", postController.GetCategories) // 获取文章分类列表
 		postGroupPublic.GET("/random", postController.GetRandom)         // 获取随机文章ID
 		// 需要鉴权且有编辑权限
-		postGroupWithAuth.POST("/p", postController.Create)               // 创建文章
-		postGroupWithAuth.PUT("/p/:id", postController.Update)            // 更新文章
-		postGroupWithAuth.DELETE("/p/:id", postController.Delete)         // 删除文章
+		postGroupWithAuth.POST("/p", postController.Create)       // 创建文章
+		postGroupWithAuth.PUT("/p/:id", postController.Update)    // 更新文章
+		postGroupWithAuth.DELETE("/p/:id", postController.Delete) // 删除文章
+		// 编辑会话：同时只允许最新打开编辑页的会话保存正文
+		postGroupWithAuth.POST("/p/:id/edit-session", controller.EditSession.Acquire(constant.TargetTypePost))
+		postGroupWithAuth.GET("/p/:id/edit-session", controller.EditSession.Current(constant.TargetTypePost))
 		postGroupWithAuth.POST("/c", postController.CreateCategory)       // 创建文章分类
 		postGroupWithAuth.PUT("/c/:id", postController.UpdateCategory)    // 更新文章分类
 		postGroupWithAuth.DELETE("/c/:id", postController.DeleteCategory) // 删除文章分类

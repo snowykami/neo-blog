@@ -254,7 +254,12 @@
       "annotation_placeholder": "Anmerkung eingeben, Strg/⌘ + Enter zum Übernehmen",
       "annotation_apply": "Anmerkung übernehmen",
       "annotation_remove": "Anmerkung entfernen",
-      "auto_match": "Gleiche Begriffe im Artikel automatisch verknüpfen"
+      "auto_match": "Gleiche Begriffe im Artikel automatisch verknüpfen",
+      "edit_session_taken_over": "Dieser Inhalt wird auf einem anderen Gerät oder Fenster bearbeitet. Speichern auf dieser Seite wurde gestoppt.",
+      "edit_session_taken_over_by": "{name} bearbeitet seit {time} auf {device}. Speichern auf dieser Seite wurde gestoppt.",
+      "edit_session_take_over_hint": "Beim Übernehmen wird der zuletzt gespeicherte Inhalt geladen; ungespeicherte Änderungen hier gehen verloren.",
+      "edit_session_take_over": "Hier weiter bearbeiten",
+      "edit_session_unknown_device": "Unbekanntes Gerät"
     },
     "storages": {
       "title": "Speicheranbieter",

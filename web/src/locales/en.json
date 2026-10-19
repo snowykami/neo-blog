@@ -254,7 +254,12 @@
       "annotation_placeholder": "Enter annotation, Ctrl/⌘ + Enter to apply",
       "annotation_apply": "Apply annotation",
       "annotation_remove": "Remove annotation",
-      "auto_match": "Auto-match the same term in the article"
+      "auto_match": "Auto-match the same term in the article",
+      "edit_session_taken_over": "This content is being edited on another device or window. Saving has stopped on this page.",
+      "edit_session_taken_over_by": "{name} started editing on {device} at {time}. Saving has stopped on this page.",
+      "edit_session_take_over_hint": "Taking over loads their latest saved content; unsaved changes on this page will be discarded.",
+      "edit_session_take_over": "Continue editing here",
+      "edit_session_unknown_device": "Unknown device"
     },
     "storages": {
       "title": "Storage providers",

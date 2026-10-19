@@ -254,7 +254,12 @@
       "annotation_placeholder": "注釈を入力、Ctrl/⌘ + Enter で適用",
       "annotation_apply": "注釈を適用",
       "annotation_remove": "注釈を削除",
-      "auto_match": "記事内の同じ語句に自動適用"
+      "auto_match": "記事内の同じ語句に自動適用",
+      "edit_session_taken_over": "このコンテンツは別のデバイスまたはウィンドウで編集中です。このページでの保存は停止しました。",
+      "edit_session_taken_over_by": "{name} が {time} に {device} で編集を開始しました。このページでの保存は停止しました。",
+      "edit_session_take_over_hint": "引き継ぐと相手が最後に保存した内容を読み込みます。このページの未保存の変更は破棄されます。",
+      "edit_session_take_over": "ここで編集を続ける",
+      "edit_session_unknown_device": "不明なデバイス"
     },
     "storages": {
       "title": "ストレージプロバイダ",

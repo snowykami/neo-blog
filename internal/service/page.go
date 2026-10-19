@@ -10,6 +10,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
@@ -95,6 +96,12 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	}
 	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, page.UserID)) {
 		return 0, errs.NewForbidden("permission_denied")
+	}
+	// 保存正文时校验编辑会话，被其他编辑会话顶掉后不能再覆盖正文
+	if req.Content != "" || req.DraftContent != nil {
+		if svcerr := NewEditSessionService().CheckContentWrite(constant.TargetTypePage, page.ID, req.EditSessionID); svcerr != nil {
+			return 0, svcerr
+		}
 	}
 	utils.UpdateNonEmpty(&page.Title, req.Title)
 	utils.UpdateNonEmpty(&page.Slug, req.Slug)

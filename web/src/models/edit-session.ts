@@ -1,0 +1,13 @@
+import type { User } from './user'
+
+// 编辑会话目标：与后端 constant.TargetTypePost / TargetTypePage 对应
+export type EditSessionTarget = 'post' | 'page'
+
+export interface EditSession {
+  sessionId?: string // 仅申请会话时返回
+  user: User // 当前持有编辑会话的用户
+  os: string
+  browser: string
+  startedAt: string
+  isCurrent: boolean // 请求方携带的会话是否仍是当前会话
+}

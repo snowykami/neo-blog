@@ -3,6 +3,7 @@ import type { PageModel } from '@/models/page'
 import type { BaseResponse } from '@/models/resp'
 import { OrderBy } from '@/models/common'
 import axiosClient from './client'
+import { editSessionHeaders } from './edit-session'
 
 export async function getPageById({
   id,
@@ -58,10 +59,12 @@ export async function createPage({
 
 export async function updatePage({
   page,
+  editSessionId,
 }: {
   page: Partial<PageModel> & Pick<PageModel, 'id'>
+  editSessionId?: string | null // 保存正文时携带，见 api/edit-session.ts
 }): Promise<BaseResponse<{ id: number }>> {
-  const res = await axiosClient.put(`/page/p/${page.id}`, page)
+  const res = await axiosClient.put(`/page/p/${page.id}`, page, { headers: editSessionHeaders(editSessionId) })
   return res.data
 }
 

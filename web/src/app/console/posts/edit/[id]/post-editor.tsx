@@ -20,8 +20,10 @@ import { useParams } from 'next/navigation'
 // InitializedMDXEditor.tsx
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { isEditSessionConflict } from '@/api/edit-session'
 import { uploadFile } from '@/api/file'
 import { getPostById, updatePost } from '@/api/post'
+import { EditSessionBanner } from '@/components/console/common/edit-session-banner'
 import { LastSavedAt } from '@/components/console/common/last-saved-at'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '@/components/console/common/post-meta-dialog-form'
 import { SimpleEditor } from '@/components/tiptap-editor/simple-editor'
@@ -30,6 +32,7 @@ import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-extension'
 import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
 import { Button } from '@/components/ui/button'
+import { useEditSession } from '@/hooks/use-edit-session'
 import { useOperationT } from '@/hooks/use-translations'
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
 import { PostPreviewDialogWithButton } from './post-preview'
@@ -39,6 +42,10 @@ const lowlight = createLowlight(common)
 export function PostEditor() {
   const { id } = useParams() as { id: string }
   const [post, setPost] = useState<Post | null>(null)
+  // 同一文章同时只允许最新打开的编辑页保存，被顶掉后只读
+  const editSession = useEditSession('post', Number(id))
+  // 最近一次成功保存（或加载）的内容，自动保存只在内容变化时提交
+  const savedHtmlRef = useRef<string | null>(null)
 
   const handleImageUpload = useCallback(async (file: File) => {
     try {
@@ -117,10 +124,29 @@ export function PostEditor() {
     const content = post.draftContent || post.content || '<p>Empty</p>'
     const t = window.setTimeout(() => {
       editor.commands.setContent(content)
+      savedHtmlRef.current = editor.getHTML()
       loadedPostIdRef.current = post.id
     }, 0)
     return () => window.clearTimeout(t)
   }, [post, editor])
+
+  // 被其他编辑会话顶掉后只读
+  const isTakenOver = editSession.status === 'taken_over'
+  useEffect(() => {
+    editor?.setEditable(!isTakenOver)
+  }, [editor, isTakenOver])
+
+  // 接管编辑：重新申请会话并加载服务端最新内容（本地未保存的内容以服务端为准）
+  const handleTakeOver = useCallback(async () => {
+    if (!editor || !(await editSession.takeOver()))
+      return
+    const latest = (await getPostById({ id, type: 'draft' })).data
+    if (!latest)
+      return
+    editor.commands.setContent(latest.draftContent || latest.content || '<p>Empty</p>')
+    savedHtmlRef.current = editor.getHTML()
+    setPost(latest)
+  }, [editor, editSession, id])
 
   const onPostUpdate = ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
     setPost(prev => (prev ? { ...prev, ...post } : prev))
@@ -138,7 +164,14 @@ export function PostEditor() {
     lg:h-[calc(100vh-var(--header-height)-var(--console-content-padding)-5.5rem)]
     "
     >
-      <EditorNavbar editor={editor} post={post} onPostUpdate={onPostUpdate} />
+      <EditorNavbar
+        editor={editor}
+        post={post}
+        onPostUpdate={onPostUpdate}
+        editSession={editSession}
+        savedHtmlRef={savedHtmlRef}
+      />
+      {isTakenOver && <EditSessionBanner holder={editSession.holder} onTakeOver={handleTakeOver} />}
       <div className="relative mt-4 h-full">
         <SimpleEditor editor={editor} />
       </div>
@@ -150,10 +183,14 @@ function EditorNavbar({
   editor,
   post,
   onPostUpdate,
+  editSession,
+  savedHtmlRef,
 }: {
   post: Post
   onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
   editor: Editor
+  editSession: ReturnType<typeof useEditSession>
+  savedHtmlRef: React.RefObject<string | null>
 }) {
   const t = useTranslations('Console.post_edit')
   const operationT = useOperationT()
@@ -162,37 +199,50 @@ function EditorNavbar({
   const [settingDialogOpen, setSettingDialogOpen] = useState(false)
   const [isFullScreen, setIsFullScreen] = useState(false)
 
+  const { sessionId, status: sessionStatus, markTakenOver, check: checkEditSession } = editSession
+  // 被顶掉或会话申请中不保存；申请失败时（如后端未更新）退化为不带会话保存
+  const canSave = sessionStatus === 'active' || sessionStatus === 'error'
+
   // 保存草稿函数
   const saveDraft = useCallback(
     (showToast: boolean) => {
+      if (!canSave)
+        return Promise.resolve()
       const htmlToSave = editor.getHTML()
       setSavingDraft(true)
-      return updatePost({ post: { id: post.id, draftContent: htmlToSave } })
+      return updatePost({ post: { id: post.id, draftContent: htmlToSave }, editSessionId: sessionId })
         .then(() => {
+          savedHtmlRef.current = htmlToSave
           if (showToast)
             toast.success(operationT('save_success'))
           setLastSavedAt(new Date())
         })
-        .catch(() => {
+        .catch((error) => {
+          // 已被其他编辑会话接管，切换为只读并提示
+          if (isEditSessionConflict(error)) {
+            markTakenOver()
+            return
+          }
           toast.error(operationT('save_failed'))
         })
         .finally(() => {
           setSavingDraft(false)
         })
     },
-    [post, editor, operationT],
+    [canSave, post.id, editor, sessionId, savedHtmlRef, operationT, markTakenOver],
   )
 
-  // 定时保存
+  // 定时保存：内容有变化才保存，没有变化时只检查编辑会话是否仍有效
   useEffect(() => {
     const AUTOSAVE_MS = 10_000
     const iv = setInterval(() => {
-      if (!post)
-        return
-      saveDraft(false)
+      if (editor.getHTML() === savedHtmlRef.current)
+        checkEditSession()
+      else
+        saveDraft(false)
     }, AUTOSAVE_MS)
     return () => clearInterval(iv)
-  }, [post, editor, saveDraft])
+  }, [editor, saveDraft, savedHtmlRef, checkEditSession])
 
   // 快捷键保存
   useEffect(() => {
@@ -206,10 +256,11 @@ function EditorNavbar({
     return () => window.removeEventListener('keydown', handler)
   }, [post, editor, saveDraft])
 
-  // 发布
+  // 发布：草稿与正文一起提交
   const publishPost = () => {
+    if (!canSave)
+      return
     const htmlToPublish = editor.getHTML()
-    saveDraft(false)
     updatePost({
       post: {
         id: post.id,
@@ -217,11 +268,18 @@ function EditorNavbar({
         content: htmlToPublish,
         type: 'html',
       },
+      editSessionId: sessionId,
     })
       .then(() => {
+        savedHtmlRef.current = htmlToPublish
+        setLastSavedAt(new Date())
         toast.success(operationT('publish_success'))
       })
-      .catch(() => {
+      .catch((error) => {
+        if (isEditSessionConflict(error)) {
+          markTakenOver()
+          return
+        }
         toast.error(operationT('publish_failed'))
       })
   }
@@ -279,10 +337,10 @@ function EditorNavbar({
         <Button size="sm" onClick={() => setSettingDialogOpen(true)} variant="outline">
           {t('setting')}
         </Button>
-        <Button size="sm" onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft}>
+        <Button size="sm" onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft || !canSave}>
           {savingDraft ? t('saving_draft') : t('save_draft')}
         </Button>
-        <Button size="sm" onClick={publishPost}>
+        <Button size="sm" onClick={publishPost} disabled={!canSave}>
           {operationT('publish')}
         </Button>
       </div>

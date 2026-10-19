@@ -45,6 +45,8 @@ type CreateOrUpdatePostReq struct {
 	// 以下字段覆盖 PostBaseDto 同名字段，用指针区分“未传”与“零值”，避免只保存草稿时把私密、置顶重置
 	IsPrivate *bool `json:"is_private"`
 	Top       *uint `json:"top"`
+	// 编辑会话ID，保存正文时校验，见 EditSessionService
+	EditSessionID string `header:"X-Edit-Session" json:"-"`
 }
 
 type CreateOrUpdateDraftReq struct {

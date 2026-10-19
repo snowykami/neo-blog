@@ -31,6 +31,8 @@ type CreateOrUpdatePageReq struct {
 	IsPrivate *bool `json:"is_private"`
 	ShowInNav *bool `json:"show_in_nav"`
 	NavOrder  *int  `json:"nav_order"`
+	// 编辑会话ID，保存正文时校验，见 EditSessionService
+	EditSessionID string `header:"X-Edit-Session" json:"-"`
 }
 
 type ListPageReq struct {

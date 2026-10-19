@@ -262,7 +262,12 @@
       "annotation_placeholder": "输入注释内容，Ctrl/⌘ + Enter 应用",
       "annotation_apply": "应用注释",
       "annotation_remove": "移除注释",
-      "auto_match": "自动匹配文中相同词语"
+      "auto_match": "自动匹配文中相同词语",
+      "edit_session_taken_over": "该内容已在其他设备或窗口打开编辑，当前页面已停止保存",
+      "edit_session_taken_over_by": "{name} 于 {time} 在 {device} 上打开了编辑，当前页面已停止保存",
+      "edit_session_take_over_hint": "接管后将加载对方最新保存的内容，本页尚未保存的修改会被丢弃",
+      "edit_session_take_over": "在此处继续编辑",
+      "edit_session_unknown_device": "未知设备"
     },
     "storages": {
       "title": "存储供应商",

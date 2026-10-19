@@ -254,7 +254,12 @@
       "annotation_placeholder": "Saisissez l'annotation, Ctrl/⌘ + Entrée pour appliquer",
       "annotation_apply": "Appliquer l'annotation",
       "annotation_remove": "Supprimer l'annotation",
-      "auto_match": "Appliquer automatiquement au même terme dans l'article"
+      "auto_match": "Appliquer automatiquement au même terme dans l'article",
+      "edit_session_taken_over": "Ce contenu est en cours de modification sur un autre appareil ou une autre fenêtre. La sauvegarde est arrêtée sur cette page.",
+      "edit_session_taken_over_by": "{name} a commencé à modifier sur {device} à {time}. La sauvegarde est arrêtée sur cette page.",
+      "edit_session_take_over_hint": "Reprendre la main chargera le dernier contenu enregistré ; les modifications non enregistrées ici seront perdues.",
+      "edit_session_take_over": "Continuer à modifier ici",
+      "edit_session_unknown_device": "Appareil inconnu"
     },
     "storages": {
       "title": "Fournisseurs de stockage",

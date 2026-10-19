@@ -254,7 +254,12 @@
       "annotation_placeholder": "輸入註解內容，Ctrl/⌘ + Enter 套用",
       "annotation_apply": "套用註解",
       "annotation_remove": "移除註解",
-      "auto_match": "自動匹配文中相同詞語"
+      "auto_match": "自動匹配文中相同詞語",
+      "edit_session_taken_over": "此內容已在其他裝置或視窗開啟編輯，目前頁面已停止儲存",
+      "edit_session_taken_over_by": "{name} 於 {time} 在 {device} 上開啟了編輯，目前頁面已停止儲存",
+      "edit_session_take_over_hint": "接手後將載入對方最新儲存的內容，本頁尚未儲存的修改會被捨棄",
+      "edit_session_take_over": "在此繼續編輯",
+      "edit_session_unknown_device": "未知裝置"
     },
     "storages": {
       "title": "儲存供應商",

@@ -254,7 +254,12 @@
       "annotation_placeholder": "Escribe la anotación, Ctrl/⌘ + Enter para aplicar",
       "annotation_apply": "Aplicar anotación",
       "annotation_remove": "Quitar anotación",
-      "auto_match": "Aplicar automáticamente al mismo término en el artículo"
+      "auto_match": "Aplicar automáticamente al mismo término en el artículo",
+      "edit_session_taken_over": "Este contenido se está editando en otro dispositivo o ventana. Se ha dejado de guardar en esta página.",
+      "edit_session_taken_over_by": "{name} empezó a editar en {device} a las {time}. Se ha dejado de guardar en esta página.",
+      "edit_session_take_over_hint": "Al retomar se cargará el último contenido guardado; los cambios sin guardar de esta página se descartarán.",
+      "edit_session_take_over": "Seguir editando aquí",
+      "edit_session_unknown_device": "Dispositivo desconocido"
     },
     "storages": {
       "title": "Proveedores de almacenamiento",

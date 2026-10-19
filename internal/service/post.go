@@ -110,6 +110,12 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, post.UserID)) {
 		return 0, errs.NewForbidden("permission_denied")
 	}
+	// 保存正文时校验编辑会话，被其他编辑会话顶掉后不能再覆盖正文
+	if req.Content != "" || req.DraftContent != nil {
+		if svcerr := NewEditSessionService().CheckContentWrite(constant.TargetTypePost, post.ID, req.EditSessionID); svcerr != nil {
+			return 0, svcerr
+		}
+	}
 	// 未传的字段保持原值，TOP 可以为 0
 	if req.Top != nil {
 		post.Top = *req.Top

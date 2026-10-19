@@ -1,0 +1,47 @@
+package repo
+
+import (
+	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/errs"
+	"gorm.io/gorm/clause"
+)
+
+type editSessionRepo struct{}
+
+var EditSession = &editSessionRepo{}
+
+// Upsert 写入编辑会话，同一目标已有会话时直接覆盖（顶掉旧会话）
+func (e *editSessionRepo) Upsert(session *model.EditSession) error {
+	return GetDB().Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "target_type"}, {Name: "target_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"session_id", "user_id", "user_agent", "updated_at"}),
+	}).Create(session).Error
+}
+
+// Get 获取目标当前的编辑会话（包含用户信息）
+func (e *editSessionRepo) Get(targetType string, targetID uint) (*model.EditSession, error) {
+	var session model.EditSession
+	if err := GetDB().Preload("User").Where("target_type = ? AND target_id = ?", targetType, targetID).First(&session).Error; err != nil {
+		return nil, err
+	}
+	return &session, nil
+}
+
+// GetTargetOwnerID 获取文章/页面的作者ID，仅查询作者字段，不影响浏览量等统计
+func (e *editSessionRepo) GetTargetOwnerID(targetType string, targetID uint) (uint, error) {
+	var ownerID uint
+	var target any
+	switch targetType {
+	case constant.TargetTypePost:
+		target = &model.Post{}
+	case constant.TargetTypePage:
+		target = &model.Page{}
+	default:
+		return 0, errs.NewBadRequest("invalid_request_parameters")
+	}
+	if err := GetDB().Model(target).Where("id = ?", targetID).Select("user_id").Scan(&ownerID).Error; err != nil {
+		return 0, err
+	}
+	return ownerID, nil
+}

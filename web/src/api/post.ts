@@ -4,6 +4,7 @@ import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
 import { OrderBy } from '@/models/common'
 import axiosClient from './client'
+import { editSessionHeaders } from './edit-session'
 
 export async function getPostById({
   id,
@@ -67,10 +68,12 @@ export async function createPost({
 
 export async function updatePost({
   post,
+  editSessionId,
 }: {
   post: Partial<Post> & Pick<Post, 'id'>
+  editSessionId?: string | null // 保存正文时携带，见 api/edit-session.ts
 }): Promise<BaseResponse<Post>> {
-  const res = await axiosClient.put(`/post/p/${post.id}`, post)
+  const res = await axiosClient.put(`/post/p/${post.id}`, post, { headers: editSessionHeaders(editSessionId) })
   return res.data
 }
 
