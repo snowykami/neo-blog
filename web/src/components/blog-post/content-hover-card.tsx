@@ -12,18 +12,28 @@ type HoverTarget
 
 const OPEN_DELAY = 250
 const CLOSE_DELAY = 200
+// 触摸点开的卡片无操作时自动关闭
+const TOUCH_AUTO_CLOSE = 10_000
 
 /**
  * 正文悬停卡片：整篇内容共用一个卡片，通过事件委托在外链与注释词语上显示
  * - 外链：显示链接预览
  * - 注释：大字显示词语本身，小字显示注释
- * 触摸设备没有悬停，点击注释词语时显示
+ * 触摸设备没有悬停：点一下外链或注释显示卡片（外链通过卡片中的按钮打开），
+ * 再点一次、点击其他地方或 10 秒无操作后关闭
  */
 export function ContentHoverCard({ containerId }: { containerId: string }) {
   const [target, setTarget] = useState<HoverTarget | null>(null)
   const targetRef = useRef<HoverTarget | null>(null)
   const openTimer = useRef<number | undefined>(undefined)
   const closeTimer = useRef<number | undefined>(undefined)
+  const autoCloseTimer = useRef<number | undefined>(undefined)
+
+  // 触摸打开的卡片在无操作一段时间后关闭，触摸卡片会重新计时
+  const scheduleAutoClose = () => {
+    window.clearTimeout(autoCloseTimer.current)
+    autoCloseTimer.current = window.setTimeout(() => setTarget(null), TOUCH_AUTO_CLOSE)
+  }
 
   useEffect(() => {
     targetRef.current = target
@@ -82,27 +92,49 @@ export function ContentHoverCard({ containerId }: { containerId: string }) {
       closeTimer.current = window.setTimeout(() => setTarget(null), CLOSE_DELAY)
     }
 
+    // 部分移动浏览器（如 iOS Safari）的 click 事件不带 pointerType，在 pointerdown 时记录输入方式
+    let lastPointerType = ''
+    const onPointerDown = (event: PointerEvent) => {
+      lastPointerType = event.pointerType
+    }
+
     const onClick = (event: MouseEvent) => {
-      // 鼠标由悬停处理，这里只处理触摸/笔点击注释
-      if ((event as PointerEvent).pointerType === 'mouse')
+      // 鼠标由悬停处理；键盘触发的 click（detail 为 0）保持原有行为
+      if (event.detail === 0 || !['touch', 'pen'].includes(lastPointerType))
         return
       const next = resolve(event.target)
-      if (next?.kind !== 'annotation')
+      if (!next)
         return
-      setTarget(prev => (prev?.el === next.el ? null : next))
+      // 外链点一下先展示卡片，不直接跳转
+      event.preventDefault()
+      if (targetRef.current?.el === next.el) {
+        setTarget(null)
+        return
+      }
+      setTarget(next)
+      scheduleAutoClose()
     }
 
     container.addEventListener('pointerover', onPointerOver)
     container.addEventListener('pointerout', onPointerOut)
+    container.addEventListener('pointerdown', onPointerDown)
     container.addEventListener('click', onClick)
     return () => {
       container.removeEventListener('pointerover', onPointerOver)
       container.removeEventListener('pointerout', onPointerOut)
+      container.removeEventListener('pointerdown', onPointerDown)
       container.removeEventListener('click', onClick)
       window.clearTimeout(openTimer.current)
       window.clearTimeout(closeTimer.current)
+      window.clearTimeout(autoCloseTimer.current)
     }
   }, [containerId])
+
+  // 卡片关闭后不再需要自动关闭计时
+  useEffect(() => {
+    if (!target)
+      window.clearTimeout(autoCloseTimer.current)
+  }, [target])
 
   // 以悬停的正文元素作为卡片定位锚点
   const virtualRef = useMemo(() => (target ? { current: target.el } : null), [target])
@@ -117,14 +149,23 @@ export function ContentHoverCard({ containerId }: { containerId: string }) {
           sideOffset={8}
           onOpenAutoFocus={e => e.preventDefault()}
           onCloseAutoFocus={e => e.preventDefault()}
-          // 再次点击同一个注释词语时交给 onClick 切换关闭
+          // 再次点击同一个外链/注释时交给 onClick 切换关闭，点击其他地方则关闭
           onInteractOutside={(e) => {
             if (target.el.contains(e.target as Node))
               e.preventDefault()
           }}
-          onPointerEnter={() => window.clearTimeout(closeTimer.current)}
-          onPointerLeave={() => {
-            closeTimer.current = window.setTimeout(() => setTarget(null), CLOSE_DELAY)
+          onPointerEnter={(e) => {
+            if (e.pointerType === 'mouse')
+              window.clearTimeout(closeTimer.current)
+          }}
+          onPointerLeave={(e) => {
+            if (e.pointerType === 'mouse')
+              closeTimer.current = window.setTimeout(() => setTarget(null), CLOSE_DELAY)
+          }}
+          // 触摸卡片时重新计时，阅读期间不会自动关闭
+          onPointerDown={(e) => {
+            if (e.pointerType !== 'mouse')
+              scheduleAutoClose()
           }}
         >
           {target.kind === 'link'

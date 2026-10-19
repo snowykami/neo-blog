@@ -102,3 +102,8 @@
 .pangu-autospace :is(pre, code, kbd, samp) {
   text-autospace: no-autospace;
 }
+
+/* 链接与注释自带左右内间距，再加盘古之白会显得过宽；在元素上关闭后，其内部和前后边界都不再插入间距 */
+.pangu-autospace :is(a, [data-annotation]) {
+  text-autospace: no-autospace;
+}

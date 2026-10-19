@@ -16,3 +16,10 @@ article.prose [data-annotation] {
   padding-left: 0.25rem;
   padding-right: 0.25rem;
 }
+
+/* 触摸设备：注释需可点击（iOS 只对可点击元素派发 click） */
+@media (hover: none) {
+  .prose [data-annotation] {
+    cursor: pointer;
+  }
+}
