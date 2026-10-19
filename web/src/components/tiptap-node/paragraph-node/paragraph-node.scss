@@ -146,6 +146,13 @@
     color: var(--link-text-color);
     text-decoration: underline;
   }
+
+  // 注释：与链接同色，用虚线下划线区分
+  [data-annotation] {
+    color: var(--link-text-color);
+    text-decoration: underline dashed;
+    text-underline-offset: 0.2em;
+  }
 }
 
 /* =====================

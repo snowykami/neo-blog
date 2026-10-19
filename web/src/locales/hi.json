@@ -1,4 +1,8 @@
 {
+  "ContentCard": {
+    "loading": "लोड हो रहा है…",
+    "load_failed": "लिंक पूर्वावलोकन लोड नहीं हो सका"
+  },
   "Arrangement": {
     "arrangement": "व्यवस्था",
     "grid": "ग्रिड",
@@ -244,7 +248,12 @@
       "post_top": "Pin weight",
       "author": "लेखक",
       "only_mine": "केवल मेरे",
-      "image_caption_placeholder": "कैप्शन जोड़ें (वैकल्पिक)"
+      "image_caption_placeholder": "कैप्शन जोड़ें (वैकल्पिक)",
+      "annotation": "टिप्पणी",
+      "annotation_placeholder": "टिप्पणी लिखें, लागू करने के लिए Ctrl/⌘ + Enter",
+      "annotation_apply": "टिप्पणी लागू करें",
+      "annotation_remove": "टिप्पणी हटाएँ",
+      "auto_match": "लेख में समान शब्द पर स्वतः लागू करें"
     },
     "storages": {
       "title": "स्टोरेज प्रदाता",

@@ -1,4 +1,8 @@
 {
+  "ContentCard": {
+    "loading": "Loading…",
+    "load_failed": "Unable to load link preview"
+  },
   "Arrangement": {
     "arrangement": "Arrangement",
     "grid": "Grid",
@@ -244,7 +248,12 @@
       "post_top": "Pin weight",
       "author": "Author",
       "only_mine": "Only mine",
-      "image_caption_placeholder": "Add a caption (optional)"
+      "image_caption_placeholder": "Add a caption (optional)",
+      "annotation": "Annotation",
+      "annotation_placeholder": "Enter annotation, Ctrl/⌘ + Enter to apply",
+      "annotation_apply": "Apply annotation",
+      "annotation_remove": "Remove annotation",
+      "auto_match": "Auto-match the same term in the article"
     },
     "storages": {
       "title": "Storage providers",

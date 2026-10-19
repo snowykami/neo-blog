@@ -1,0 +1,18 @@
+/* 注释词语：与正文链接字体样式一致（不带链接图标），悬停显示注释卡片 */
+.prose [data-annotation] {
+  color: var(--tw-prose-links);
+  font-weight: 500;
+  cursor: help;
+
+  &:hover {
+    text-decoration: underline dashed;
+    text-underline-offset: 0.2em;
+  }
+}
+
+/* 文章页的链接使用主色与左右内间距（见 blog-post-article.scss），注释保持一致 */
+article.prose [data-annotation] {
+  color: var(--primary, #3b82f6);
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}

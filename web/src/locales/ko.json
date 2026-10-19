@@ -1,4 +1,8 @@
 {
+  "ContentCard": {
+    "loading": "불러오는 중…",
+    "load_failed": "링크 미리보기를 불러올 수 없습니다"
+  },
   "Arrangement": {
     "arrangement": "배열",
     "grid": "격자",
@@ -244,7 +248,12 @@
       "post_top": "Pin weight",
       "author": "작성자",
       "only_mine": "내 글만",
-      "image_caption_placeholder": "캡션 추가 (선택)"
+      "image_caption_placeholder": "캡션 추가 (선택)",
+      "annotation": "주석",
+      "annotation_placeholder": "주석 입력, Ctrl/⌘ + Enter로 적용",
+      "annotation_apply": "주석 적용",
+      "annotation_remove": "주석 삭제",
+      "auto_match": "글 안의 같은 단어에 자동 적용"
     },
     "storages": {
       "title": "저장소 공급자",

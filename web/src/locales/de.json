@@ -1,4 +1,8 @@
 {
+  "ContentCard": {
+    "loading": "Wird geladen…",
+    "load_failed": "Linkvorschau konnte nicht geladen werden"
+  },
   "Arrangement": {
     "arrangement": "Anordnung",
     "grid": "Raster",
@@ -244,7 +248,12 @@
       "post_top": "Pin-Gewicht",
       "author": "Autor",
       "only_mine": "Nur meine",
-      "image_caption_placeholder": "Bildunterschrift hinzufügen (optional)"
+      "image_caption_placeholder": "Bildunterschrift hinzufügen (optional)",
+      "annotation": "Anmerkung",
+      "annotation_placeholder": "Anmerkung eingeben, Strg/⌘ + Enter zum Übernehmen",
+      "annotation_apply": "Anmerkung übernehmen",
+      "annotation_remove": "Anmerkung entfernen",
+      "auto_match": "Gleiche Begriffe im Artikel automatisch verknüpfen"
     },
     "storages": {
       "title": "Speicheranbieter",

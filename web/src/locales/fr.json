@@ -1,4 +1,8 @@
 {
+  "ContentCard": {
+    "loading": "Chargement…",
+    "load_failed": "Impossible de charger l’aperçu du lien"
+  },
   "Arrangement": {
     "arrangement": "Disposition",
     "grid": "Grille",
@@ -244,7 +248,12 @@
       "post_top": "Poids d'épinglage",
       "author": "Auteur",
       "only_mine": "Uniquement les miens",
-      "image_caption_placeholder": "Ajouter une légende (facultatif)"
+      "image_caption_placeholder": "Ajouter une légende (facultatif)",
+      "annotation": "Annotation",
+      "annotation_placeholder": "Saisissez l'annotation, Ctrl/⌘ + Entrée pour appliquer",
+      "annotation_apply": "Appliquer l'annotation",
+      "annotation_remove": "Supprimer l'annotation",
+      "auto_match": "Appliquer automatiquement au même terme dans l'article"
     },
     "storages": {
       "title": "Fournisseurs de stockage",

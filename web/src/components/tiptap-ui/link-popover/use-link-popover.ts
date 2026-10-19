@@ -119,7 +119,7 @@ export function useLinkHandler(props: LinkHandlerProps) {
     }
   }, [editor])
 
-  const setLink = React.useCallback(() => {
+  const setLink = React.useCallback((options?: { autoMatch?: boolean }) => {
     if (!url || !editor)
       return
 
@@ -129,6 +129,9 @@ export function useLinkHandler(props: LinkHandlerProps) {
     let chain = editor.chain().focus()
 
     chain = chain.extendMarkRange('link').setLink({ href: url })
+    // 自动匹配全文相同词语（渲染时生效）
+    if (!isEmpty)
+      chain = chain.updateAttributes('link', { autoMatch: !!options?.autoMatch })
 
     if (isEmpty) {
       chain = chain.insertContent({ type: 'text', text: url })

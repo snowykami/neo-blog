@@ -10,11 +10,12 @@ import { ThemeToggle } from '@/components/tiptap-editor/theme-toggle'
 
 import { Spacer } from '@/components/tiptap-ui-primitive/spacer'
 import { Toolbar, ToolbarGroup, ToolbarSeparator } from '@/components/tiptap-ui-primitive/toolbar'
+import { AnnotationPopover } from '@/components/tiptap-ui/annotation-popover'
 import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button'
+
 import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button'
 
 import { HeadingDropdownMenu } from '@/components/tiptap-ui/heading-dropdown-menu'
-
 import { ImageUploadButton } from '@/components/tiptap-ui/image-upload-button'
 import { LinkPopover } from '@/components/tiptap-ui/link-popover'
 
@@ -74,6 +75,7 @@ function MainToolbarContent({
         <MarkButton type="underline" />
         <ColorSelector editor={editor} />
         <LinkPopover />
+        <AnnotationPopover />
       </ToolbarGroup>
 
       <ToolbarSeparator />

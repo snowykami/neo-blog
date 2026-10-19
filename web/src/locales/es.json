@@ -1,4 +1,8 @@
 {
+  "ContentCard": {
+    "loading": "Cargando…",
+    "load_failed": "No se pudo cargar la vista previa del enlace"
+  },
   "Arrangement": {
     "arrangement": "Disposición",
     "grid": "Cuadrícula",
@@ -244,7 +248,12 @@
       "post_top": "Peso fijado",
       "author": "Autor",
       "only_mine": "Solo los míos",
-      "image_caption_placeholder": "Añadir pie de foto (opcional)"
+      "image_caption_placeholder": "Añadir pie de foto (opcional)",
+      "annotation": "Anotación",
+      "annotation_placeholder": "Escribe la anotación, Ctrl/⌘ + Enter para aplicar",
+      "annotation_apply": "Aplicar anotación",
+      "annotation_remove": "Quitar anotación",
+      "auto_match": "Aplicar automáticamente al mismo término en el artículo"
     },
     "storages": {
       "title": "Proveedores de almacenamiento",

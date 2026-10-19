@@ -1,4 +1,8 @@
 {
+  "ContentCard": {
+    "loading": "Carregando…",
+    "load_failed": "Não foi possível carregar a pré-visualização do link"
+  },
   "Arrangement": {
     "arrangement": "Disposição",
     "grid": "Grade",
@@ -244,7 +248,12 @@
       "post_top": "Pin weight",
       "author": "Autor",
       "only_mine": "Apenas os meus",
-      "image_caption_placeholder": "Adicionar legenda (opcional)"
+      "image_caption_placeholder": "Adicionar legenda (opcional)",
+      "annotation": "Anotação",
+      "annotation_placeholder": "Digite a anotação, Ctrl/⌘ + Enter para aplicar",
+      "annotation_apply": "Aplicar anotação",
+      "annotation_remove": "Remover anotação",
+      "auto_match": "Aplicar automaticamente ao mesmo termo no artigo"
     },
     "storages": {
       "title": "Provedores de armazenamento",

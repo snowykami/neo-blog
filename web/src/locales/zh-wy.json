@@ -1,4 +1,8 @@
 {
+  "ContentCard": {
+    "loading": "载入中…",
+    "load_failed": "链接之预览不可得"
+  },
   "Arrangement": {
     "arrangement": "排列",
     "grid": "網格",
@@ -244,7 +248,12 @@
       "post_top": "置頂權重",
       "author": "撰者",
       "only_mine": "唯观己作",
-      "image_caption_placeholder": "添图之注（可略）"
+      "image_caption_placeholder": "添图之注（可略）",
+      "annotation": "注",
+      "annotation_placeholder": "书注于此，Ctrl/⌘ + Enter 以施",
+      "annotation_apply": "施注",
+      "annotation_remove": "去注",
+      "auto_match": "文中同词皆注之"
     },
     "storages": {
       "title": "存儲供應商",

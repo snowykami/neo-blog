@@ -18,6 +18,7 @@ import { getSiteInfo } from '@/api/misc'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import CopyrightCard from '@/components/blog-post/blog-copyright.client'
 import { BlogLikeButton } from '@/components/blog-post/blog-like-button.client'
+import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { PostHeaderClient } from '@/components/blog-post/post-header.client'
 import BlogSidebar from '@/components/blog-sidebar'
 import {
@@ -35,6 +36,7 @@ import { calculateReadingTime } from '@/utils/common/post'
 
 import { getUserUrl } from '@/utils/common/route'
 import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
+import { applyContentAutoMatch } from '@/utils/server/content-auto-match'
 import '@/components/tiptap-node/image-node/image-figure.scss'
 import './blog-post-article.scss'
 
@@ -129,10 +131,11 @@ async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean })
           text-sm md:text-lg
           "
         dangerouslySetInnerHTML={{
-          __html: (isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>',
+          __html: applyContentAutoMatch((isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>'),
         }}
       />
       <HtmlEnhancer containerId="blog-content" />
+      <ContentHoverCard containerId="blog-content" />
 
       {/* 版权卡片 */}
       <div className="mt-4 md:mt-8">

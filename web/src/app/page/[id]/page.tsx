@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getPageById } from '@/api/page'
+import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
+import { applyContentAutoMatch } from '@/utils/server/content-auto-match'
 import '@/components/tiptap-node/image-node/image-figure.scss'
 
 export async function generateMetadata({
@@ -33,7 +35,8 @@ export default async function Page({
       <div className="prose dark:prose-invert pangu-autospace max-w-3xl mx-auto">
         <h1>{page.title}</h1>
         {page.description && <p className="lead">{page.description}</p>}
-        <div dangerouslySetInnerHTML={{ __html: page.content }} />
+        <div id="page-content" dangerouslySetInnerHTML={{ __html: applyContentAutoMatch(page.content) }} />
+        <ContentHoverCard containerId="page-content" />
       </div>
     </article>
   )

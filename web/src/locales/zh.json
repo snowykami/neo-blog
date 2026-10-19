@@ -1,4 +1,8 @@
 {
+  "ContentCard": {
+    "loading": "加载中…",
+    "load_failed": "无法加载链接预览"
+  },
   "searchModes": {
     "all": "全部",
     "title": "标题",
@@ -252,7 +256,12 @@
       "post_top": "置顶权重",
       "author": "作者",
       "only_mine": "只看我的",
-      "image_caption_placeholder": "添加图片注释（可选）"
+      "image_caption_placeholder": "添加图片注释（可选）",
+      "annotation": "注释",
+      "annotation_placeholder": "输入注释内容，Ctrl/⌘ + Enter 应用",
+      "annotation_apply": "应用注释",
+      "annotation_remove": "移除注释",
+      "auto_match": "自动匹配文中相同词语"
     },
     "storages": {
       "title": "存储供应商",

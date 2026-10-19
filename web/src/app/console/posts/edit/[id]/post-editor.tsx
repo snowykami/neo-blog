@@ -25,6 +25,7 @@ import { getPostById, updatePost } from '@/api/post'
 import { LastSavedAt } from '@/components/console/common/last-saved-at'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '@/components/console/common/post-meta-dialog-form'
 import { SimpleEditor } from '@/components/tiptap-editor/simple-editor'
+import { Annotation, LinkAutoMatch } from '@/components/tiptap-extension/annotation-extension'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-extension'
 import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
@@ -79,6 +80,8 @@ export function PostEditor() {
       TaskItem.configure({ nested: true }),
       Highlight.configure({ multicolor: true }),
       Image,
+      Annotation,
+      LinkAutoMatch,
       // 粘贴图片时按默认压缩等级上传并插入到光标处
       ImagePaste.configure({ upload: handleImageUpload }),
       Typography,

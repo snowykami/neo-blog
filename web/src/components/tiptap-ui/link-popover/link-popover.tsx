@@ -6,6 +6,7 @@ import type { ButtonProps } from '@/components/tiptap-ui-primitive/button'
 
 // --- Tiptap UI ---
 import type { UseLinkPopoverConfig } from '@/components/tiptap-ui/link-popover'
+import { useTranslations } from 'next-intl'
 import * as React from 'react'
 
 // --- Icons ---
@@ -21,6 +22,8 @@ import { Input, InputGroup } from '@/components/tiptap-ui-primitive/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/tiptap-ui-primitive/popover'
 import { Separator } from '@/components/tiptap-ui-primitive/separator'
 import { useLinkPopover } from '@/components/tiptap-ui/link-popover'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 // --- Hooks ---
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
@@ -50,6 +53,11 @@ export interface LinkMainProps {
    * Whether the link is currently active in the editor.
    */
   isActive: boolean
+  /**
+   * 是否自动匹配全文相同词语，不传 onAutoMatchChange 时不显示勾选框
+   */
+  autoMatch?: boolean
+  onAutoMatchChange?: (autoMatch: boolean) => void
 }
 
 export interface LinkPopoverProps extends Omit<ButtonProps, 'type'>, UseLinkPopoverConfig {
@@ -99,8 +107,11 @@ const LinkMain: React.FC<LinkMainProps> = ({
   removeLink,
   openLink,
   isActive,
+  autoMatch,
+  onAutoMatchChange,
 }) => {
   const isMobile = useIsMobile()
+  const t = useTranslations('Console.post_edit')
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
@@ -171,6 +182,16 @@ const LinkMain: React.FC<LinkMainProps> = ({
             </Button>
           </ButtonGroup>
         </CardItemGroup>
+        {onAutoMatchChange && (
+          <div className="flex items-center gap-2 pt-2">
+            <Checkbox
+              id="link-auto-match"
+              checked={!!autoMatch}
+              onCheckedChange={checked => onAutoMatchChange(checked === true)}
+            />
+            <Label htmlFor="link-auto-match" className="text-xs font-normal">{t('auto_match')}</Label>
+          </div>
+        )}
       </CardBody>
     </Card>
   )
@@ -210,6 +231,7 @@ export const LinkPopover = React.forwardRef<HTMLButtonElement, LinkPopoverProps>
   ) => {
     const { editor } = useTiptapEditor(providedEditor)
     const [isOpen, setIsOpen] = React.useState(false)
+    const [autoMatch, setAutoMatch] = React.useState(false)
 
     const { isVisible, canSet, isActive, url, setUrl, setLink, removeLink, openLink, label, Icon }
       = useLinkPopover({
@@ -220,16 +242,26 @@ export const LinkPopover = React.forwardRef<HTMLButtonElement, LinkPopoverProps>
 
     const handleOnOpenChange = React.useCallback(
       (nextIsOpen: boolean) => {
+        // 打开时回填当前链接的自动匹配状态
+        if (nextIsOpen && editor)
+          setAutoMatch(!!editor.getAttributes('link').autoMatch)
         setIsOpen(nextIsOpen)
         onOpenChange?.(nextIsOpen)
       },
-      [onOpenChange],
+      [onOpenChange, editor],
     )
 
     const handleSetLink = React.useCallback(() => {
-      setLink()
+      setLink({ autoMatch })
       setIsOpen(false)
-    }, [setLink])
+    }, [setLink, autoMatch])
+
+    const handleAutoMatchChange = React.useCallback((checked: boolean) => {
+      setAutoMatch(checked)
+      // 已有链接时勾选立即生效，无需再点应用
+      if (editor && isActive)
+        editor.chain().extendMarkRange('link').updateAttributes('link', { autoMatch: checked }).run()
+    }, [editor, isActive])
 
     const handleClick = React.useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -243,9 +275,10 @@ export const LinkPopover = React.forwardRef<HTMLButtonElement, LinkPopoverProps>
 
     React.useEffect(() => {
       if (autoOpenOnLinkActive && isActive) {
+        setAutoMatch(!!editor?.getAttributes('link').autoMatch)
         setIsOpen(true)
       }
-    }, [autoOpenOnLinkActive, isActive])
+    }, [autoOpenOnLinkActive, isActive, editor])
 
     if (!isVisible) {
       return null
@@ -276,6 +309,8 @@ export const LinkPopover = React.forwardRef<HTMLButtonElement, LinkPopoverProps>
             removeLink={removeLink}
             openLink={openLink}
             isActive={isActive}
+            autoMatch={autoMatch}
+            onAutoMatchChange={handleAutoMatchChange}
           />
         </PopoverContent>
       </Popover>

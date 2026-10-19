@@ -1,4 +1,8 @@
 {
+  "ContentCard": {
+    "loading": "載入中…",
+    "load_failed": "無法載入連結預覽"
+  },
   "Arrangement": {
     "arrangement": "配置",
     "grid": "網格",
@@ -244,7 +248,12 @@
       "post_top": "置頂權重",
       "author": "作者",
       "only_mine": "只看我的",
-      "image_caption_placeholder": "新增圖片註解（選填）"
+      "image_caption_placeholder": "新增圖片註解（選填）",
+      "annotation": "註解",
+      "annotation_placeholder": "輸入註解內容，Ctrl/⌘ + Enter 套用",
+      "annotation_apply": "套用註解",
+      "annotation_remove": "移除註解",
+      "auto_match": "自動匹配文中相同詞語"
     },
     "storages": {
       "title": "儲存供應商",

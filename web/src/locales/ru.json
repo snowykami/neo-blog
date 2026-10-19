@@ -1,4 +1,8 @@
 {
+  "ContentCard": {
+    "loading": "Загрузка…",
+    "load_failed": "Не удалось загрузить предпросмотр ссылки"
+  },
   "Arrangement": {
     "arrangement": "Расположение",
     "grid": "Сетка",
@@ -244,7 +248,12 @@
       "post_top": "Pin weight",
       "author": "Автор",
       "only_mine": "Только мои",
-      "image_caption_placeholder": "Добавить подпись (необязательно)"
+      "image_caption_placeholder": "Добавить подпись (необязательно)",
+      "annotation": "Примечание",
+      "annotation_placeholder": "Введите примечание, Ctrl/⌘ + Enter — применить",
+      "annotation_apply": "Применить примечание",
+      "annotation_remove": "Удалить примечание",
+      "auto_match": "Автоматически применять к тому же слову в статье"
     },
     "storages": {
       "title": "Провайдеры хранилища",
