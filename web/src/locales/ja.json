@@ -1,4 +1,11 @@
 {
+  "Archive": {
+    "posts_count": "{count} 件の記事",
+    "empty": "まだ記事がありません",
+    "filter_label": "タグ：{name}",
+    "filter_category": "カテゴリ：{name}",
+    "clear_filter": "すべて表示"
+  },
   "ImageViewer": {
     "title": "画像プレビュー",
     "previous": "前の画像",

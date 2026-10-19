@@ -1,4 +1,11 @@
 {
+  "Archive": {
+    "posts_count": "文 {count} 篇",
+    "empty": "尚无文",
+    "filter_label": "签：{name}",
+    "filter_category": "类：{name}",
+    "clear_filter": "观其全"
+  },
   "ImageViewer": {
     "title": "观图",
     "previous": "前图",

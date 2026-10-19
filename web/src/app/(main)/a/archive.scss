@@ -1,0 +1,8 @@
+/* 归档时间轴的虚线，参考 Fuwari 的 .dash-line（MIT License, saicaca/fuwari） */
+.archive-dash-line::before {
+  content: "";
+  position: absolute;
+  height: 100%;
+  left: calc(50% - 1px);
+  border-left: 2px dashed color-mix(in oklab, var(--foreground) 10%, transparent);
+}

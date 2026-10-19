@@ -1,4 +1,11 @@
 {
+  "Archive": {
+    "posts_count": "{count, plural, one {# entrada} other {# entradas}}",
+    "empty": "Aún no hay entradas",
+    "filter_label": "Etiqueta: {name}",
+    "filter_category": "Categoría: {name}",
+    "clear_filter": "Ver todo"
+  },
   "ImageViewer": {
     "title": "Vista previa de imagen",
     "previous": "Imagen anterior",

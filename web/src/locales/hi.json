@@ -1,4 +1,11 @@
 {
+  "Archive": {
+    "posts_count": "{count} पोस्ट",
+    "empty": "अभी कोई पोस्ट नहीं",
+    "filter_label": "लेबल: {name}",
+    "filter_category": "श्रेणी: {name}",
+    "clear_filter": "सभी देखें"
+  },
   "ImageViewer": {
     "title": "छवि पूर्वावलोकन",
     "previous": "पिछली छवि",

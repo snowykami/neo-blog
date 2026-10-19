@@ -1,4 +1,11 @@
 {
+  "Archive": {
+    "posts_count": "{count} 篇文章",
+    "empty": "暫無文章",
+    "filter_label": "標籤：{name}",
+    "filter_category": "分類：{name}",
+    "clear_filter": "查看全部"
+  },
   "ImageViewer": {
     "title": "圖片預覽",
     "previous": "上一張",

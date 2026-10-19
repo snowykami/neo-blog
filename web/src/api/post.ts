@@ -40,8 +40,9 @@ export async function listPosts({
   category?: string
   userId?: number // 用户ID，管理员可查看指定用户的文章
   noContent?: boolean // 是否不返回内容，用于只需要列表时
-} & PaginationParams): Promise<BaseResponse<{ posts: Post[], total: number }>> {
+} & PaginationParams, options?: { headers?: Record<string, string> }): Promise<BaseResponse<{ posts: Post[], total: number }>> {
   const res = await axiosClient.get('/post/list', {
+    headers: options?.headers,
     params: {
       page,
       size,

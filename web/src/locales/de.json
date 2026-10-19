@@ -1,4 +1,11 @@
 {
+  "Archive": {
+    "posts_count": "{count, plural, one {# Beitrag} other {# Beiträge}}",
+    "empty": "Noch keine Beiträge",
+    "filter_label": "Label: {name}",
+    "filter_category": "Kategorie: {name}",
+    "clear_filter": "Alle anzeigen"
+  },
   "ImageViewer": {
     "title": "Bildvorschau",
     "previous": "Vorheriges Bild",

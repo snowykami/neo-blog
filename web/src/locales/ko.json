@@ -1,4 +1,11 @@
 {
+  "Archive": {
+    "posts_count": "글 {count}개",
+    "empty": "아직 글이 없습니다",
+    "filter_label": "태그: {name}",
+    "filter_category": "카테고리: {name}",
+    "clear_filter": "전체 보기"
+  },
   "ImageViewer": {
     "title": "이미지 미리보기",
     "previous": "이전 이미지",

@@ -1,4 +1,11 @@
 {
+  "Archive": {
+    "posts_count": "{count} 篇文章",
+    "empty": "暂无文章",
+    "filter_label": "标签：{name}",
+    "filter_category": "分类：{name}",
+    "clear_filter": "查看全部"
+  },
   "ImageViewer": {
     "title": "图片预览",
     "previous": "上一张",

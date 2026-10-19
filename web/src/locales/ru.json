@@ -1,4 +1,11 @@
 {
+  "Archive": {
+    "posts_count": "{count, plural, one {# запись} few {# записи} many {# записей} other {# записи}}",
+    "empty": "Пока нет записей",
+    "filter_label": "Метка: {name}",
+    "filter_category": "Категория: {name}",
+    "clear_filter": "Показать все"
+  },
   "ImageViewer": {
     "title": "Просмотр изображения",
     "previous": "Предыдущее изображение",
