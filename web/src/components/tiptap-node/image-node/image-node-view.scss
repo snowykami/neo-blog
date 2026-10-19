@@ -104,3 +104,20 @@
     }
   }
 }
+
+// 粘贴图片上传中的占位
+.tiptap.ProseMirror .tiptap-image-paste-placeholder {
+  display: inline-block;
+  width: 10rem;
+  height: 6rem;
+  vertical-align: middle;
+  border-radius: var(--tt-radius-xs, 0.25rem);
+  background-color: var(--muted);
+  animation: tiptap-image-paste-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes tiptap-image-paste-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}

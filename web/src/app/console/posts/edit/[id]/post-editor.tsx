@@ -25,6 +25,7 @@ import { getPostById, updatePost } from '@/api/post'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '@/components/console/common/post-meta-dialog-form'
 import { SimpleEditor } from '@/components/tiptap-editor/simple-editor'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
+import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-extension'
 import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
 import { Button } from '@/components/ui/button'
 import { useOperationT } from '@/hooks/use-translations'
@@ -77,6 +78,8 @@ export function PostEditor() {
       TaskItem.configure({ nested: true }),
       Highlight.configure({ multicolor: true }),
       Image,
+      // 粘贴图片时按默认压缩等级上传并插入到光标处
+      ImagePaste.configure({ upload: handleImageUpload }),
       Typography,
       Superscript,
       Subscript,
