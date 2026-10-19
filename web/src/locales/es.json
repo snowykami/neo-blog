@@ -35,7 +35,11 @@
     "latest_posts": "Últimas publicaciones",
     "loading": "Cargando...",
     "load_more": "Cargar más",
-    "no_more": "No hay más"
+    "no_more": "No hay más",
+    "filtered_by_label": "Entradas {order, select, latest {recientes} other {populares}} con la etiqueta <highlight>{name}</highlight>",
+    "filtered_by_category": "Entradas {order, select, latest {recientes} other {populares}} en <highlight>{name}</highlight>",
+    "filtered_by_query": "Entradas {order, select, latest {recientes} other {populares}} sobre <highlight>{name}</highlight>",
+    "clear_filter": "Quitar filtro"
   },
   "Captcha": {
     "doing": "Verificando si eres humano...",

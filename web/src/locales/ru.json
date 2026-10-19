@@ -35,7 +35,11 @@
     "latest_posts": "Последние посты",
     "loading": "Загрузка...",
     "load_more": "Загрузить ещё",
-    "no_more": "Больше нет"
+    "no_more": "Больше нет",
+    "filtered_by_label": "{order, select, latest {Новые} other {Популярные}} записи с меткой <highlight>{name}</highlight>",
+    "filtered_by_category": "{order, select, latest {Новые} other {Популярные}} записи в категории <highlight>{name}</highlight>",
+    "filtered_by_query": "{order, select, latest {Новые} other {Популярные}} записи по запросу <highlight>{name}</highlight>",
+    "clear_filter": "Сбросить фильтр"
   },
   "Captcha": {
     "doing": "Проверяем, что вы человек...",

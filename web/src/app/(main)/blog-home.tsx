@@ -1,7 +1,7 @@
 'use client'
 
 import type { Post } from '@/models/post'
-import { Clock, TrendingUp } from 'lucide-react'
+import { Clock, TrendingUp, XIcon } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { parseAsInteger, useQueryState } from 'nuqs'
@@ -21,8 +21,10 @@ export default function BlogHome() {
   // 从路由查询参数中获取页码和标签们
   const t = useTranslations('BlogHome')
   const { siteInfo } = useSiteInfo()
-  const [keywords] = useState<string[]>([])
+  // 筛选条件来自 URL：?label=标签 &category=分类 &query=搜索词，与后端列表接口参数一致
   const [labelSlug, setLabelSlug] = useQueryState('label')
+  const [categorySlug, setCategorySlug] = useQueryState('category')
+  const [query, setQuery] = useQueryState('query')
   const [page, setPage] = useQueryState(
     'page',
     parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
@@ -54,7 +56,7 @@ export default function BlogHome() {
     }
     // 用户主动触发分页时滚动
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [page, labelSlug])
+  }, [page, labelSlug, categorySlug, query])
 
   useEffect(() => {
     if (!isOrderByStateLoaded)
@@ -65,8 +67,9 @@ export default function BlogHome() {
       size: siteInfo.postsPerPage || 9,
       orderBy: orderByState === OrderBy.CreatedAt ? OrderBy.CreatedAt : OrderBy.Heat,
       desc: true,
-      query: keywords.join(',') || undefined,
+      query: query || undefined,
       label: labelSlug || undefined,
+      category: categorySlug || undefined,
     })
       .then((res) => {
         setPosts(res.data.posts)
@@ -77,7 +80,25 @@ export default function BlogHome() {
         console.error(err)
         setLoading(false)
       })
-  }, [keywords, labelSlug, page, orderByState, isOrderByStateLoaded, siteInfo.postsPerPage])
+  }, [query, labelSlug, categorySlug, page, orderByState, isOrderByStateLoaded, siteInfo.postsPerPage])
+
+  // 标题随筛选条件变化：标签/分类优先显示名称（从返回的文章中取，取不到则用 slug），其次搜索词
+  const order = orderByState === OrderBy.CreatedAt ? 'latest' : 'hottest'
+  const findName = (items: { slug: string, name: string }[], slug: string) =>
+    items.find(item => item.slug === slug || item.name === slug)?.name ?? slug
+  const filter = labelSlug
+    ? { key: 'filtered_by_label', name: findName(posts.flatMap(post => post.labels ?? []), labelSlug) }
+    : categorySlug
+      ? { key: 'filtered_by_category', name: findName(posts.flatMap(post => (post.category ? [post.category] : [])), categorySlug) }
+      : query
+        ? { key: 'filtered_by_query', name: query }
+        : null
+  const clearFilter = () => {
+    setLabelSlug(null)
+    setCategorySlug(null)
+    setQuery(null)
+    setPage(1)
+  }
 
   const handleSortChange = (type: OrderBy) => {
     if (orderByState !== type) {
@@ -103,7 +124,7 @@ export default function BlogHome() {
               className="lg:col-span-3 self-start transition-none"
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              key={`${page}-${labelSlug ?? 'none'}`}
+              key={`${page}-${labelSlug ?? 'none'}-${categorySlug ?? 'none'}-${query ?? 'none'}`}
               transition={{
                 duration: siteInfo.animationDurationSecond,
                 ease: 'easeOut',
@@ -112,13 +133,24 @@ export default function BlogHome() {
               {/* 文章列表标题 */}
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                  {orderByState === OrderBy.CreatedAt ? t('latest_posts') : t('hottest_posts')}
-                  {posts.length > 0 && (
+                  {filter
+                    ? t.rich(filter.key as 'filtered_by_label', {
+                        order,
+                        name: filter.name,
+                        highlight: chunks => <span className="text-primary">{chunks}</span>,
+                      })
+                    : t(order === 'latest' ? 'latest_posts' : 'hottest_posts')}
+                  {totalPosts > 0 && (
                     <span className="text-xl font-normal text-slate-500 ml-2">
                       (
-                      {posts.length}
+                      {totalPosts}
                       )
                     </span>
+                  )}
+                  {filter && (
+                    <Button variant="ghost" size="icon-sm" className="ml-1 align-middle text-slate-500" aria-label={t('clear_filter')} title={t('clear_filter')} onClick={clearFilter}>
+                      <XIcon />
+                    </Button>
                   )}
                 </h2>
                 {/* 排序按钮组 */}

@@ -35,7 +35,11 @@
     "latest_posts": "Derniers articles",
     "loading": "Chargement...",
     "load_more": "Charger plus",
-    "no_more": "Plus d'articles"
+    "no_more": "Plus d'articles",
+    "filtered_by_label": "Articles {order, select, latest {récents} other {populaires}} avec l’étiquette <highlight>{name}</highlight>",
+    "filtered_by_category": "Articles {order, select, latest {récents} other {populaires}} dans <highlight>{name}</highlight>",
+    "filtered_by_query": "Articles {order, select, latest {récents} other {populaires}} pour <highlight>{name}</highlight>",
+    "clear_filter": "Effacer le filtre"
   },
   "Captcha": {
     "doing": "Vérification que vous êtes humain...",

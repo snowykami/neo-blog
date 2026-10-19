@@ -35,7 +35,11 @@
     "latest_posts": "最新の記事",
     "loading": "読み込み中...",
     "load_more": "もっと読み込む",
-    "no_more": "これ以上ありません"
+    "no_more": "これ以上ありません",
+    "filtered_by_label": "タグ <highlight>{name}</highlight> の{order, select, latest {最新} other {人気}}記事",
+    "filtered_by_category": "カテゴリ <highlight>{name}</highlight> の{order, select, latest {最新} other {人気}}記事",
+    "filtered_by_query": "<highlight>{name}</highlight> の検索結果（{order, select, latest {最新} other {人気}}）",
+    "clear_filter": "フィルターを解除"
   },
   "Captcha": {
     "doing": "本人確認をチェックしています...",

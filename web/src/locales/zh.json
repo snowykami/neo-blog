@@ -43,7 +43,11 @@
     "latest_posts": "最新文章",
     "loading": "加载中...",
     "load_more": "加载更多",
-    "no_more": "没有更多了！"
+    "no_more": "没有更多了！",
+    "filtered_by_label": "标签 <highlight>{name}</highlight> 的{order, select, latest {最新} other {热门}}文章",
+    "filtered_by_category": "分类 <highlight>{name}</highlight> 的{order, select, latest {最新} other {热门}}文章",
+    "filtered_by_query": "搜索 <highlight>{name}</highlight> 的{order, select, latest {最新} other {热门}}文章",
+    "clear_filter": "清除筛选"
   },
   "Captcha": {
     "doing": "正在检查你是不是个人...",

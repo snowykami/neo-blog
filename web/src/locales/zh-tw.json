@@ -35,7 +35,11 @@
     "latest_posts": "最新文章",
     "loading": "載入中...",
     "load_more": "載入更多",
-    "no_more": "沒有更多了"
+    "no_more": "沒有更多了",
+    "filtered_by_label": "標籤 <highlight>{name}</highlight> 的{order, select, latest {最新} other {熱門}}文章",
+    "filtered_by_category": "分類 <highlight>{name}</highlight> 的{order, select, latest {最新} other {熱門}}文章",
+    "filtered_by_query": "搜尋 <highlight>{name}</highlight> 的{order, select, latest {最新} other {熱門}}文章",
+    "clear_filter": "清除篩選"
   },
   "Captcha": {
     "doing": "正在檢查您是否為真人...",

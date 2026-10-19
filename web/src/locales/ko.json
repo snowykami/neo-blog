@@ -35,7 +35,11 @@
     "latest_posts": "최신 게시물",
     "loading": "로딩 중...",
     "load_more": "더 보기",
-    "no_more": "더 이상 없음"
+    "no_more": "더 이상 없음",
+    "filtered_by_label": "태그 <highlight>{name}</highlight>의 {order, select, latest {최신} other {인기}} 글",
+    "filtered_by_category": "카테고리 <highlight>{name}</highlight>의 {order, select, latest {최신} other {인기}} 글",
+    "filtered_by_query": "<highlight>{name}</highlight> 검색 결과 ({order, select, latest {최신} other {인기}})",
+    "clear_filter": "필터 해제"
   },
   "Captcha": {
     "doing": "사람인지 확인 중...",

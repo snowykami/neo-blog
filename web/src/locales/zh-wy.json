@@ -35,7 +35,11 @@
     "latest_posts": "最新文章",
     "loading": "載入中...",
     "load_more": "載入更多",
-    "no_more": "無更多矣！"
+    "no_more": "無更多矣！",
+    "filtered_by_label": "签 <highlight>{name}</highlight> 之{order, select, latest {新} other {盛}}文",
+    "filtered_by_category": "类 <highlight>{name}</highlight> 之{order, select, latest {新} other {盛}}文",
+    "filtered_by_query": "索 <highlight>{name}</highlight> 之{order, select, latest {新} other {盛}}文",
+    "clear_filter": "去其筛"
   },
   "Captcha": {
     "doing": "正驗汝是否為人...",

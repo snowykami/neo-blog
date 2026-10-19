@@ -35,7 +35,11 @@
     "latest_posts": "Latest Posts",
     "loading": "Loading...",
     "load_more": "Load more",
-    "no_more": "No more"
+    "no_more": "No more",
+    "filtered_by_label": "{order, select, latest {Latest} other {Hottest}} posts tagged <highlight>{name}</highlight>",
+    "filtered_by_category": "{order, select, latest {Latest} other {Hottest}} posts in <highlight>{name}</highlight>",
+    "filtered_by_query": "{order, select, latest {Latest} other {Hottest}} posts matching <highlight>{name}</highlight>",
+    "clear_filter": "Clear filter"
   },
   "Captcha": {
     "doing": "Checking if you're human...",

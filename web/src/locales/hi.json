@@ -35,7 +35,11 @@
     "latest_posts": "नवीनतम पोस्ट",
     "loading": "लोड हो रहा है...",
     "load_more": "और लोड करें",
-    "no_more": "और नहीं"
+    "no_more": "और नहीं",
+    "filtered_by_label": "लेबल <highlight>{name}</highlight> की {order, select, latest {नवीनतम} other {लोकप्रिय}} पोस्ट",
+    "filtered_by_category": "श्रेणी <highlight>{name}</highlight> की {order, select, latest {नवीनतम} other {लोकप्रिय}} पोस्ट",
+    "filtered_by_query": "<highlight>{name}</highlight> की {order, select, latest {नवीनतम} other {लोकप्रिय}} पोस्ट",
+    "clear_filter": "फ़िल्टर हटाएँ"
   },
   "Captcha": {
     "doing": "जांच रहे हैं कि आप इंसान हैं...",

@@ -35,7 +35,11 @@
     "latest_posts": "Neueste Beiträge",
     "loading": "Lädt...",
     "load_more": "Mehr laden",
-    "no_more": "Keine weiteren"
+    "no_more": "Keine weiteren",
+    "filtered_by_label": "{order, select, latest {Neueste} other {Beliebteste}} Beiträge mit Label <highlight>{name}</highlight>",
+    "filtered_by_category": "{order, select, latest {Neueste} other {Beliebteste}} Beiträge in <highlight>{name}</highlight>",
+    "filtered_by_query": "{order, select, latest {Neueste} other {Beliebteste}} Beiträge zu <highlight>{name}</highlight>",
+    "clear_filter": "Filter entfernen"
   },
   "Captcha": {
     "doing": "Überprüfen, ob Sie ein Mensch sind...",
