@@ -113,7 +113,7 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 
 	var targetOwnerId uint
 	if comment.TargetType == constant.TargetTypePost {
-		post, err := repo.Post.GetPostBySlugOrID(strconv.Itoa(int(comment.TargetID)))
+		post, err := repo.Post.GetPostByID(comment.TargetID)
 		if err == nil && post.UserID == currentUser.ID {
 			targetOwnerId = post.UserID
 		}
@@ -153,9 +153,9 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.
 		} else if currentUserID == comment.UserID {
 			// 评论作者可见
 		} else if comment.TargetType == constant.TargetTypePost {
-			post, err := repo.Post.GetPostBySlugOrID(strconv.Itoa(int(comment.TargetID)))
+			post, err := repo.Post.GetPostByID(comment.TargetID)
 			if err != nil {
-				logrus.Errorf("GetComment: GetPostBySlugOrID error: %s", err.Error())
+				logrus.Errorf("GetComment: GetPostByID error: %s", err.Error())
 				return nil, errs.NewInternalServer("failed_to_get_target")
 			}
 			if post.UserID != currentUserID {
@@ -255,7 +255,7 @@ func (cs *CommentService) toGetCommentDto(comment *model.Comment, currentUserID 
 func (cs *CommentService) checkTargetExists(targetID uint, targetType string) (bool, *errs.ServiceError) {
 	switch targetType {
 	case constant.TargetTypePost:
-		if _, err := repo.Post.GetPostBySlugOrID(strconv.Itoa(int(targetID))); err != nil {
+		if _, err := repo.Post.GetPostByID(targetID); err != nil {
 			return false, errs.NewNotFound("operation_target_not_found")
 		}
 	case constant.TargetTypePage:

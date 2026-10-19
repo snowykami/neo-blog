@@ -86,6 +86,19 @@ func sortLabelsByPostCount(db *gorm.DB, labels []model.Label) error {
 	return nil
 }
 
+// GetPostByID 按 id 加载文章（含关联），不增加浏览量，供编辑、删除、评论等内部流程使用
+func (p *postRepo) GetPostByID(id uint) (*model.Post, error) {
+	var post model.Post
+	if err := GetDB().Preload(clause.Associations).First(&post, id).Error; err != nil {
+		return nil, err
+	}
+	// 与 GetPostBySlugOrID 保持一致：labels 按全局 post 数量排序
+	if err := sortLabelsByPostCount(GetDB(), post.Labels); err != nil {
+		return nil, err
+	}
+	return &post, nil
+}
+
 func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 	var post model.Post
 

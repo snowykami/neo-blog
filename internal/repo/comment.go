@@ -3,7 +3,6 @@ package repo
 import (
 	"errors"
 	"slices"
-	"strconv"
 
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
@@ -243,7 +242,7 @@ func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, tar
 	var masterID uint
 
 	if targetType == constant.TargetTypePost {
-		post, err := Post.GetPostBySlugOrID(strconv.Itoa(int(targetID)))
+		post, err := Post.GetPostByID(targetID)
 		if err != nil {
 			return nil, err
 		}

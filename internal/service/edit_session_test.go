@@ -157,3 +157,22 @@ func TestEditSessionTakeOver(t *testing.T) {
 		t.Fatalf("author save after take over: %v", svcerr)
 	}
 }
+
+// 编辑、自动保存等写操作不能增加浏览量
+func TestUpdatePostKeepsViewCount(t *testing.T) {
+	author, _, _, post, _ := setupEditTest(t)
+	if err := repo.GetDB().Model(&model.Post{}).Where("id = ?", post.ID).UpdateColumn("view_count", 7).Error; err != nil {
+		t.Fatalf("set view_count: %v", err)
+	}
+	for _, content := range []string{"<p>d1</p>", "<p>d2</p>"} {
+		if svcerr := saveDraft(author, post.ID, content, ""); svcerr != nil {
+			t.Fatalf("save draft: %v", svcerr)
+		}
+	}
+	if _, svcerr := NewPostService().UpdatePost(author, &dto.CreateOrUpdatePostReq{ID: post.ID, PostBaseDto: dto.PostBaseDto{Title: "new"}}); svcerr != nil {
+		t.Fatalf("update title: %v", svcerr)
+	}
+	if got := reloadPost(t, post.ID); got.ViewCount != 7 {
+		t.Fatalf("update changed view_count: got %d, want 7", got.ViewCount)
+	}
+}

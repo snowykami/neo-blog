@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"strconv"
 	"strings"
 
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -61,7 +60,7 @@ func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.Service
 	if postId == 0 {
 		return errs.NewBadRequest("invalid_request_parameters")
 	}
-	post, err := repo.Post.GetPostBySlugOrID(strconv.FormatUint(uint64(postId), 10))
+	post, err := repo.Post.GetPostByID(postId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errs.NewNotFound("target_not_found")
@@ -102,7 +101,7 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 }
 
 func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (uint, *errs.ServiceError) {
-	post, err := repo.Post.GetPostBySlugOrID(strconv.FormatUint(uint64(req.ID), 10))
+	post, err := repo.Post.GetPostByID(req.ID)
 	if err != nil {
 		return 0, errs.NewNotFound("target_not_found")
 	}
