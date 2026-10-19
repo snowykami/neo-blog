@@ -27,6 +27,7 @@ import { EditSessionBanner } from '@/components/console/common/edit-session-bann
 import { LastSavedAt } from '@/components/console/common/last-saved-at'
 import { SimpleEditor } from '@/components/tiptap-editor/simple-editor'
 import { Annotation, LinkAutoMatch } from '@/components/tiptap-extension/annotation-extension'
+import { SelectionHighlight } from '@/components/tiptap-extension/selection-highlight-extension'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-extension'
 import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
@@ -87,6 +88,8 @@ export function PageEditor() {
       Image,
       Annotation,
       LinkAutoMatch,
+      // 打开注释、链接等弹窗时保留选区高亮
+      SelectionHighlight,
       // 粘贴图片时按默认压缩等级上传并插入到光标处
       ImagePaste.configure({ upload: handleImageUpload }),
       Typography,
