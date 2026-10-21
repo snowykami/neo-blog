@@ -4,6 +4,7 @@ import {
   ChartBarStackedIcon,
   Database,
   Folder,
+  Footprints,
   Gauge,
   IdCard,
   MessageCircle,
@@ -74,6 +75,13 @@ export const sidebarData: {
       title: 'comments.title',
       url: consolePath.comment,
       icon: MessageCircle,
+      permission: isAdmin,
+    },
+    {
+      id: 'visits',
+      title: 'visits.title',
+      url: consolePath.visit,
+      icon: Footprints,
       permission: isAdmin,
     },
     {

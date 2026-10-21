@@ -141,5 +141,7 @@ func migrate() error {
 		&model.Post{},
 		&model.Session{},
 		&model.User{},
-		&model.UserOpenID{})
+		&model.UserOpenID{},
+		&model.Visitor{},
+		&model.VisitLog{})
 }

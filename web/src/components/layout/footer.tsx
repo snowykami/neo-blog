@@ -1,10 +1,13 @@
 'use client'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import React from 'react'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { mainPath } from '@/utils/common/route'
 
 export default function Footer({ height }: { height: number }) {
   const { siteInfo } = useSiteInfo()
+  const routeT = useTranslations('Route')
   if (!siteInfo)
     return null
   return (
@@ -27,6 +30,8 @@ export default function Footer({ height }: { height: number }) {
       </span>
       <span className="hidden md:inline mx-1">·</span>
       <span>{siteInfo?.footer?.text}</span>
+      <span className="hidden md:inline mx-1">·</span>
+      <Link href={mainPath.privacy} className="underline hover:text-gray-700 dark:hover:text-gray-300">{routeT('privacy_policy')}</Link>
     </footer>
   )
 }

@@ -21,6 +21,9 @@ func main() {
 	// 初始化文件缓存
 	cache.InitFileCache()
 
+	// 定期清理超过保留期的访问记录
+	tasks.StartVisitLogCleanup()
+
 	err = router.Run()
 	if err != nil {
 		panic(err)

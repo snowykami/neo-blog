@@ -41,4 +41,5 @@ const (
 	EnvKeyMaxReplyDepth                    = "MAX_REPLY_DEPTH"                      // 环境变量：最大回复深度
 	EnvKeyRefreshTokenDuration             = "REFRESH_TOKEN_DURATION"               // 环境变量：刷新令牌有效期
 	EnvKeyRefreshTokenDurationWithRemember = "REFRESH_TOKEN_DURATION_WITH_REMEMBER" // 环境变量：记住我刷新令牌有效期
+	EnvKeyIP2RegionV6Path                  = "IP2REGION_V6_PATH"                    // 环境变量：ip2region IPv6 数据文件路径（可选，未设置时 IPv6 回退在线查询）
 )

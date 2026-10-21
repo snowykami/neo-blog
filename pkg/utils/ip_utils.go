@@ -147,3 +147,31 @@ func DesensitizeIpData(data *IPData) {
 	data.Time = ""
 	data.Location = ""
 }
+
+// MaskIP 对 IP 脱敏展示：IPv4 保留前两段（1.2.*.*），IPv6 保留前两组（2408:8000:*）
+func MaskIP(ip string) string {
+	parsed := net.ParseIP(strings.TrimSpace(ip))
+	if parsed == nil {
+		return ""
+	}
+	if v4 := parsed.To4(); v4 != nil {
+		return fmt.Sprintf("%d.%d.*.*", v4[0], v4[1])
+	}
+	groups := strings.Split(parsed.String(), ":")
+	if len(groups) >= 2 {
+		return groups[0] + ":" + groups[1] + ":*"
+	}
+	return "*"
+}
+
+// IPPrefix 返回 IP 所在网段，用于粗略判断是否同一网络：IPv4 取 /24，IPv6 取 /48
+func IPPrefix(ip string) string {
+	parsed := net.ParseIP(strings.TrimSpace(ip))
+	if parsed == nil {
+		return ""
+	}
+	if v4 := parsed.To4(); v4 != nil {
+		return v4.Mask(net.CIDRMask(24, 32)).String()
+	}
+	return parsed.Mask(net.CIDRMask(48, 128)).String()
+}

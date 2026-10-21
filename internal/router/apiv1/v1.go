@@ -14,5 +14,6 @@ func RegisterRoutes(h *server.Hertz) {
     registerPageRoutes(apiV1Group)
     registerPostRoutes(apiV1Group)
     registerUserRoutes(apiV1Group)
+    registerVisitRoutes(apiV1Group)
   }
 }

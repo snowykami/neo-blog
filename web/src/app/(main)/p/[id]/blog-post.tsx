@@ -30,6 +30,7 @@ import {
 } from '@/components/blog-sidebar/blog-sidebar-card'
 import { CommentSection } from '@/components/comment'
 import Typewriter from '@/components/common/typewriter'
+import { VisitReporter } from '@/components/common/visit-reporter'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TargetType } from '@/models/types'
@@ -137,6 +138,8 @@ async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean })
         }}
       />
       <HtmlEnhancer containerId="blog-content" />
+      {/* 草稿预览不计入访客记录 */}
+      {!isDraft && <VisitReporter targetType="post" targetId={post.id} />}
       <ContentHoverCard containerId="blog-content" />
       <ContentImageFallback containerId="blog-content" />
       <ContentImageViewer containerId="blog-content" />

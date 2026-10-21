@@ -1,5 +1,6 @@
 'use client'
 import { motion } from 'motion/react'
+import { VisitReporter } from '@/components/common/visit-reporter'
 import Footer from '@/components/layout/footer'
 import Navbar from '@/components/layout/nav/navbar-or-side'
 import { BackgroundProvider } from '@/contexts/background-context'
@@ -24,6 +25,8 @@ export default function RootLayout({
 
   return (
     <div className="flex flex-col min-h-screen">
+      {/* 访问上报；文章详情页带文章ID自行上报 */}
+      <VisitReporter skipPrefixes={['/p/']} />
 
       <motion.nav
         className="w-full fixed inset-x-0 z-5"

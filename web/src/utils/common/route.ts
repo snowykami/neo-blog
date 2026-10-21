@@ -5,6 +5,7 @@ export const consolePath = {
   post: '/console/posts',
   page: '/console/pages',
   comment: '/console/comments',
+  visit: '/console/visits',
   file: '/console/files',
   global: '/console/global',
   storage: '/console/storages',
@@ -23,6 +24,7 @@ export const mainPath = {
   label: '/l',
   category: '/c',
   random: '/random',
+  privacy: '/privacy',
 }
 
 /**

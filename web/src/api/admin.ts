@@ -4,6 +4,7 @@ import type { OidcConfig } from '@/models/oidc-config'
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
 import type { User } from '@/models/user'
+import type { VisitLog, Visitor, VisitStats } from '@/models/visit'
 import axiosClient from './client'
 
 export interface DashboardResp {
@@ -93,5 +94,31 @@ export async function updateOidcAdmin(config: Partial<OidcConfig> & Pick<OidcCon
 
 export async function deleteOidcAdmin(id: number): Promise<BaseResponse<null>> {
   const res = await axiosClient.delete(`/admin/oidc/o/${id}`)
+  return res.data
+}
+
+export async function listVisitsAdmin({
+  kind = 'all',
+  visitorId,
+  targetType,
+  targetId,
+  ...pagination
+}: {
+  kind?: 'all' | 'user' | 'anonymous'
+  visitorId?: number
+  targetType?: string
+  targetId?: number
+} & PaginationParams): Promise<BaseResponse<{ visits: VisitLog[], total: number }>> {
+  const res = await axiosClient.get('/admin/visits', { params: { ...pagination, kind, visitorId, targetType, targetId } })
+  return res.data
+}
+
+export async function getVisitStatsAdmin(): Promise<BaseResponse<VisitStats>> {
+  const res = await axiosClient.get('/admin/visits/stats')
+  return res.data
+}
+
+export async function getVisitorAdmin(id: number): Promise<BaseResponse<Visitor>> {
+  const res = await axiosClient.get(`/admin/visitors/${id}`)
   return res.data
 }
