@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server'
-import GlobalPage from './global'
+import { AdvancedKvEditor } from './advanced-kv'
+import { SettingsForm } from './settings-form'
 
 export async function generateMetadata() {
   const consoleT = await getTranslations('Console')
@@ -9,5 +10,10 @@ export async function generateMetadata() {
 }
 
 export default function Page() {
-  return <GlobalPage />
+  return (
+    <div className="grid gap-6">
+      <SettingsForm />
+      <AdvancedKvEditor />
+    </div>
+  )
 }

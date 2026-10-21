@@ -29,14 +29,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useOperationT } from '@/hooks/use-translations'
 
+// 后端实际读取的配置键（site_info 为前台站点信息整体配置）
 const PRESET_KEYS = [
+  'site_info',
   'site_name',
   'site_description',
-  'site_logo',
-  'theme_color',
-  'allow_register',
+  'site_icon',
+  'base_url',
+  'enable_register',
   'enable_register_from_oidc',
-  'comments_per_page',
+  'max_reply_depth',
+  'visit_log_retention_days',
 ]
 
 export default function GlobalPage() {
