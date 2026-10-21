@@ -15,15 +15,8 @@ const (
 
 // visitLogRetentionDays 读取保留天数，配置缺失或非法时使用默认值
 func visitLogRetentionDays() int {
-	switch v := repo.KV.GetKVWithoutErr(visitLogRetentionKey, visitLogRetentionDefault).(type) {
-	case int:
-		if v > 0 {
-			return v
-		}
-	case float64:
-		if v > 0 {
-			return int(v)
-		}
+	if days := repo.KV.GetIntWithoutErr(visitLogRetentionKey, visitLogRetentionDefault); days > 0 {
+		return days
 	}
 	return visitLogRetentionDefault
 }

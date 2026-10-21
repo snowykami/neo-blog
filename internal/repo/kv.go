@@ -76,10 +76,31 @@ func (k *kvRepo) GetKVWithoutErr(key string, defaultValue ...any) any {
 	return value
 }
 
-func (k *kvRepo) GetStringWithoutErr(key string, defaultValue ...any) string {
-	value, err := k.GetKV(key, defaultValue...)
-	if err != nil {
-		return defaultValue[0].(string)
+// GetStringWithoutErr 读取字符串配置，不存在或类型不符时返回默认值
+func (k *kvRepo) GetStringWithoutErr(key string, defaultValue string) string {
+	if value, ok := k.GetKVWithoutErr(key, defaultValue).(string); ok {
+		return value
 	}
-	return value.(string)
+	return defaultValue
+}
+
+// GetIntWithoutErr 读取整数配置：JSON 中的数字会被解析为 float64，这里统一转换；不存在或类型不符时返回默认值
+func (k *kvRepo) GetIntWithoutErr(key string, defaultValue int) int {
+	switch value := k.GetKVWithoutErr(key, defaultValue).(type) {
+	case int:
+		return value
+	case int64:
+		return int(value)
+	case float64:
+		return int(value)
+	}
+	return defaultValue
+}
+
+// GetBoolWithoutErr 读取布尔配置，不存在或类型不符时返回默认值
+func (k *kvRepo) GetBoolWithoutErr(key string, defaultValue bool) bool {
+	if value, ok := k.GetKVWithoutErr(key, defaultValue).(bool); ok {
+		return value
+	}
+	return defaultValue
 }
