@@ -9,7 +9,7 @@ export interface Post {
   slug: string | null
   content: string
   description: string // 描述
-  draftContent: string | null // 草稿内容，仅在请求草稿时返回
+  draftContent?: string | null // 草稿内容，仅单篇草稿模式（作者/管理员）返回，列表与随机接口不包含
   cover: string | null // 封面可以为空
   category: Category | null // 分类可以为空
   categoryId: number | null // 分类 ID，可以为空

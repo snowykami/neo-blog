@@ -14,11 +14,11 @@ export function getGravatarUrl({
   size,
   proxy = 'cn.gravatar.com',
 }: {
-  email: string
+  email?: string
   size?: number
   proxy?: string
 }): string {
-  const hash = md5(email.trim().toLowerCase())
+  const hash = md5((email || '').trim().toLowerCase())
   return `https://${proxy || 'www.gravatar.com'}/avatar/${hash}?s=${size}&d=identicon`
 }
 
@@ -29,5 +29,7 @@ export function getAvatarOrGravatarUrlFromUser({
   user: User
   size?: number
 }): string {
-  return user.avatarUrl || getGravatarUrl({ email: user.email, size })
+  return user.avatarUrl
+    // 公开接口不再返回邮箱，缺省时以用户名生成稳定的默认头像
+    || getGravatarUrl({ email: user.email || user.username, size })
 }

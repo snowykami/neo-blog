@@ -55,7 +55,10 @@
     "filtered_by_label": "लेबल <highlight>{name}</highlight> की {order, select, latest {नवीनतम} other {लोकप्रिय}} पोस्ट",
     "filtered_by_category": "श्रेणी <highlight>{name}</highlight> की {order, select, latest {नवीनतम} other {लोकप्रिय}} पोस्ट",
     "filtered_by_query": "<highlight>{name}</highlight> की {order, select, latest {नवीनतम} other {लोकप्रिय}} पोस्ट",
-    "clear_filter": "फ़िल्टर हटाएँ"
+    "clear_filter": "फ़िल्टर हटाएँ",
+    "no_posts": "अभी कोई लेख नहीं",
+    "no_posts_found": "कोई लेख नहीं मिला",
+    "no_public_posts_found": "कोई सार्वजनिक लेख नहीं मिला"
   },
   "Captcha": {
     "doing": "जांच रहे हैं कि आप इंसान हैं...",
@@ -93,7 +96,12 @@
     "reply": "जवाब दें",
     "show_client_info": "क्लाइंट जानकारी दिखाएं",
     "unlike": "पसंद हटाएं",
-    "unlike_success": "पसंद हटाई गई"
+    "unlike_success": "पसंद हटाई गई",
+    "loading": "लोड हो रहा है…",
+    "load_failed": "टिप्पणियाँ लोड करने में विफल",
+    "more_actions": "और विकल्प",
+    "view_user_profile": "{name} की प्रोफ़ाइल देखें",
+    "login_required": "कृपया पहले लॉगिन करें"
   },
   "Common": {
     "image_load_failed": "छवि लोड नहीं हो सकी",
@@ -131,7 +139,13 @@
   "Components": {
     "image_cropper": {
       "crop_image": "छवि क्रॉप करें",
-      "no_image_to_crop": "क्रॉप करने के लिए कोई छवि नहीं"
+      "no_image_to_crop": "क्रॉप करने के लिए कोई छवि नहीं",
+      "confirm": "पुष्टि करें"
+    },
+    "pagination": {
+      "go_to_page": "पृष्ठ {page} पर जाएँ",
+      "previous_page": "पिछला पृष्ठ",
+      "next_page": "अगला पृष्ठ"
     }
   },
   "Console": {
@@ -184,7 +198,22 @@
       "search_categories": "Search categories..."
     },
     "comments": {
-      "title": "टिप्पणियाँ"
+      "title": "टिप्पणियाँ",
+      "comment": "टिप्पणी",
+      "target": "लक्ष्य",
+      "user": "उपयोगकर्ता",
+      "status": "स्थिति",
+      "time": "समय",
+      "actions": "कार्रवाई",
+      "loading": "लोड हो रहा है…",
+      "empty": "अभी कोई टिप्पणी नहीं",
+      "no_content": "कोई सामग्री नहीं",
+      "reply_depth": "उत्तर स्तर: {depth}",
+      "unknown_user": "अज्ञात उपयोगकर्ता",
+      "private": "निजी",
+      "reply_count": "{count} उत्तर",
+      "like_count": "{count} पसंद",
+      "delete_description": "इसे पूर्ववत नहीं किया जा सकता। इस टिप्पणी के उत्तर भी हटाए जा सकते हैं।"
     },
     "dashboard": {
       "title": "डैशबोर्ड",
@@ -254,7 +283,9 @@
       "upload_file_success": "Uploaded: {name}",
       "will_delete_n_files": "Will delete {n} files",
       "compress_image": "Compress Image",
-      "compress_level": "Compression Level"
+      "compress_level": "Compression Level",
+      "upload_n_files_success": "{n} फ़ाइल(ें) सफलतापूर्वक अपलोड हुईं",
+      "upload_n_files_failed": "{n} फ़ाइल(ें) अपलोड नहीं हो सकीं"
     },
     "general": "सामान्य",
     "global": {
@@ -355,7 +386,27 @@
     },
     "login_required": "कृपया व्यवस्थापक तक पहुंचने के लिए लॉगिन करें",
     "oidc": {
-      "title": "प्रमाणीकरण प्रदाता"
+      "title": "प्रमाणीकरण प्रदाता",
+      "description": "OAuth2 / Misskey लॉगिन प्रदाताओं को प्रबंधित करें।",
+      "create": "नया प्रदाता",
+      "edit": "प्रदाता संपादित करें",
+      "name": "नाम",
+      "display_name": "प्रदर्शित नाम",
+      "type": "प्रकार",
+      "status": "स्थिति",
+      "actions": "कार्रवाइयाँ",
+      "loading": "लोड हो रहा है...",
+      "empty": "अभी कोई प्रदाता नहीं",
+      "enabled": "सक्षम",
+      "disabled": "अक्षम",
+      "delete_description": "उपयोगकर्ता इस प्रदाता से लॉगिन नहीं कर पाएंगे। इसे पूर्ववत नहीं किया जा सकता।",
+      "token_auth_method": "टोकन प्रमाणीकरण विधि",
+      "icon_url": "आइकन URL",
+      "required": "{field} आवश्यक है",
+      "types": {
+        "oauth2": "OAuth2 / OIDC",
+        "misskey": "Misskey"
+      }
     },
     "personal": "व्यक्तिगत",
     "posts": {
@@ -404,7 +455,18 @@
       "edit_session_taken_over_by": "{name} ने {time} पर {device} पर संपादन शुरू किया। इस पेज पर सहेजना रोक दिया गया है।",
       "edit_session_take_over_hint": "संभालने पर उनकी अंतिम सहेजी गई सामग्री लोड होगी; इस पेज के बिना सहेजे बदलाव हट जाएंगे।",
       "edit_session_take_over": "यहीं संपादन जारी रखें",
-      "edit_session_unknown_device": "अज्ञात डिवाइस"
+      "edit_session_unknown_device": "अज्ञात डिवाइस",
+      "image_upload_failed": "छवि अपलोड विफल",
+      "editor_aria_label": "मुख्य सामग्री क्षेत्र, लिखना शुरू करें",
+      "page_editor_aria_label": "पृष्ठ सामग्री क्षेत्र",
+      "loading": "लोड हो रहा है...",
+      "load_failed": "लोड करने में विफल, कृपया बाद में पुनः प्रयास करें",
+      "retry": "पुनः प्रयास करें",
+      "fullscreen_enter": "पूर्ण स्क्रीन",
+      "fullscreen_exit": "पूर्ण स्क्रीन से बाहर निकलें",
+      "fullscreen_failed": "पूर्ण स्क्रीन बदलने में विफल",
+      "publishing": "प्रकाशित हो रहा है...",
+      "untitled": "शीर्षकहीन"
     },
     "storages": {
       "title": "स्टोरेज प्रदाता",
@@ -427,7 +489,10 @@
       "webdav_endpoint": "WebDAV Endpoint",
       "webdav_username": "WebDAV Username",
       "webdav_password": "WebDAV Password",
-      "use_as_default": "Set as Default Storage"
+      "use_as_default": "Set as Default Storage",
+      "select_storage_type": "स्टोरेज प्रकार चुनें...",
+      "search_storage_type": "स्टोरेज प्रकार खोजें...",
+      "no_storage_type_found": "कोई स्टोरेज प्रकार नहीं मिला।"
     },
     "users": {
       "title": "उपयोगकर्ता"
@@ -450,7 +515,8 @@
       "public_profile": "Public profile",
       "username": "Username",
       "update_profile": "Update profile",
-      "show_ip_location": "Show IP Location"
+      "show_ip_location": "Show IP Location",
+      "select_language": "भाषा चुनें"
     },
     "user_security": {
       "title": "Security",
@@ -475,14 +541,33 @@
       "openid_accounts": "OpenID Accounts",
       "unbind": "Unbind",
       "unbind_failed": "Unbind Failed",
-      "unbind_success": "Unbind Successfully"
+      "unbind_success": "Unbind Successfully",
+      "password_required": "कृपया पासवर्ड दर्ज करें",
+      "password_length": "पासवर्ड {min}–{max} अक्षरों का होना चाहिए",
+      "password_mismatch": "पासवर्ड मेल नहीं खाते",
+      "confirm_new_password": "नए पासवर्ड की पुष्टि करें"
     },
     "user_preference": {
       "title": "Preferences",
       "color_scheme": "Color scheme"
     },
     "pages": {
-      "title": "Pages"
+      "title": "Pages",
+      "meta": {
+        "edit_page": "पेज संपादित करें",
+        "create_page": "पेज बनाएँ",
+        "title": "शीर्षक",
+        "slug": "Slug",
+        "cover": "कवर",
+        "description": "विवरण",
+        "private": "निजी",
+        "show_in_nav": "नेविगेशन में दिखाएँ",
+        "nav_order": "नेविगेशन क्रम",
+        "title_and_slug_required": "शीर्षक और slug खाली नहीं हो सकते"
+      },
+      "search_pages": "पृष्ठ खोजें",
+      "create_page": "पृष्ठ बनाएँ",
+      "nav_order": "नेविगेशन #{order}"
     }
   },
   "Copyright": {
@@ -575,7 +660,8 @@
     "upload_success": "अपलोड किया गया",
     "view": "देखें",
     "delete_description": "हटाना पूर्ववत नहीं किया जा सकता, सावधानी से आगे बढ़ें!",
-    "fetch_failed": "Fetch failed"
+    "fetch_failed": "Fetch failed",
+    "confirm": "पुष्टि करें"
   },
   "Metrics": {
     "comment_count": "टिप्पणियाँ",
@@ -611,7 +697,9 @@
     "register_success": "पंजीकृत",
     "send_verify_code": "कोड भेजें",
     "send_verify_code_failed": "भेजना विफल",
-    "send_verify_code_success": "कोड भेजा गया"
+    "send_verify_code_success": "कोड भेजा गया",
+    "captcha_error": "कैप्चा त्रुटि, पुनः प्रयास करें।",
+    "fetch_captcha_config_failed": "कैप्चा कॉन्फ़िगरेशन प्राप्त करने में विफल"
   },
   "ResetPassword": {
     "title": "पासवर्ड रीसेट करें",
@@ -661,7 +749,21 @@
     "loading_lyric": "गीत लोड हो रहे हैं...",
     "playlist": "प्लेलिस्ट",
     "no_lyric": "कोई गीत नहीं",
-    "pure_music_without_lyric": "वाद्य, गीत नहीं"
+    "pure_music_without_lyric": "वाद्य, गीत नहीं",
+    "floating_player": "फ़्लोटिंग म्यूज़िक प्लेयर",
+    "mute": "म्यूट करें",
+    "unmute": "अनम्यूट करें",
+    "toggle_lyric_mode": "अतिरिक्त गीत टॉगल करें",
+    "no_extra_lyric": "कोई अनुवाद या रोमाजी उपलब्ध नहीं",
+    "lyric_mode_none": "कोई अतिरिक्त गीत नहीं",
+    "lyric_mode_romaji": "रोमाजी",
+    "lyric_mode_translation": "अनुवाद",
+    "toggle_play_mode": "प्ले मोड बदलें",
+    "play_mode_repeat-all": "सभी दोहराएँ",
+    "play_mode_repeat-one": "एक दोहराएँ",
+    "play_mode_shuffle": "शफ़ल",
+    "close_search": "खोज बंद करें",
+    "open_search": "खोज खोलें"
   },
   "Response": {
     "error": {
@@ -695,7 +797,7 @@
       "failed_to_update_target": "Failed to Update Target",
       "id_cannot_be_empty_or_zero": "ID Cannot Be Empty or Zero",
       "invalid_target_type": "Invalid Target Type",
-      "invalid_credentials": "Invalid Credentials",
+      "invalid_credentials": "उपयोगकर्ता नाम या पासवर्ड गलत है",
       "invalid_oidc_name": "Invalid OIDC Name",
       "invalid_oidc_state": "Invalid OIDC State",
       "invalid_password_format": "Invalid Password Format",
@@ -715,7 +817,32 @@
       "oidc_account_already_linked": "This Third-Party Account is Already Linked",
       "user_not_found": "User Not Found",
       "username_cannot_be_empty": "Username Cannot Be Empty",
-      "username_or_email_already_exists": "Username or Email Already Exists"
+      "username_or_email_already_exists": "Username or Email Already Exists",
+      "too_many_requests": "बहुत अधिक अनुरोध, कृपया बाद में पुनः प्रयास करें",
+      "invalid_verify_code": "सत्यापन कोड गलत है या समाप्त हो गया है",
+      "slug_cannot_be_numeric": "स्लग केवल अंकों का नहीं हो सकता",
+      "unsupported_file_type": "असमर्थित फ़ाइल प्रकार",
+      "file_too_large": "फ़ाइल बहुत बड़ी है"
     }
+  },
+  "ErrorPage": {
+    "title": "कुछ गलत हो गया",
+    "description": "इस पेज को लोड करने में समस्या हुई। कृपया बाद में पुनः प्रयास करें।",
+    "digest": "त्रुटि ID: {digest}",
+    "retry": "पुनः प्रयास करें"
+  },
+  "UserPage": {
+    "no_nickname": "कोई उपनाम नहीं",
+    "not_filled": "उपलब्ध नहीं",
+    "guest": "अतिथि",
+    "unknown_location": "अज्ञात"
+  },
+  "ThemeMode": {
+    "light_mode": "लाइट मोड",
+    "dark_mode": "डार्क मोड",
+    "system_mode": "सिस्टम मोड"
+  },
+  "Public": {
+    "categories": "श्रेणियाँ"
   }
 }

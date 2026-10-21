@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import RSS from 'rss'
 import { getRssData } from '@/api/misc'
 import { getPostUrl } from '@/utils/common/route'
+import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
 
 export async function GET() {
   const rssData = await getRssData()
@@ -26,7 +27,8 @@ export async function GET() {
   rssData.posts.forEach((post) => {
     rss.item({
       title: post.title,
-      description: post.content,
+      // 订阅源同样输出净化后的正文
+      description: sanitizeContentHtml(post.content),
       url: rssData.siteUrl + getPostUrl({ post }),
       guid: post.slug || post.id.toString(),
       date: post.updatedAt,

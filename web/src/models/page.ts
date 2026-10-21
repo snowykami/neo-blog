@@ -9,7 +9,7 @@ export interface PageModel {
   description: string
   cover: string
   content: string
-  draftContent: string | null
+  draftContent?: string | null // 仅单篇草稿模式返回，列表接口不包含
   type: 'markdown' | 'html'
   isPrivate: boolean
   showInNav: boolean

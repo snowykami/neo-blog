@@ -6,8 +6,9 @@ import Script from 'next/script'
 import { cache } from 'react'
 import { getSiteInfo } from '@/api/misc'
 import { getPostByIdServer } from '@/api/post.server'
+import { isNotFoundLikeError } from '@/utils/common/error'
 import { getPostUrl, getUserUrl } from '@/utils/common/route'
-import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
+import { fallbackSiteInfo, getDefaultCoverRandomly, safeMetadataBase } from '@/utils/common/siteinfo'
 import { formatDisplayName as formatFullName } from '@/utils/common/username'
 import { BlogPost } from './blog-post'
 
@@ -15,7 +16,12 @@ import { BlogPost } from './blog-post'
 const getCachedPost = cache(async (id: string, type?: 'draft' | undefined) => {
   return getPostByIdServer({ id, type })
     .then(res => res.data)
-    .catch(() => null)
+    .catch((error) => {
+      // 仅在后端明确表示不存在 / 无权查看 / 参数非法时视为 404，其余错误交给错误边界，避免把 500、超时显示成 404
+      if (isNotFoundLikeError(error))
+        return null
+      throw error
+    })
 })
 
 // Cache site info to avoid duplicate fetches
@@ -48,7 +54,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: post.title || 'No Title',
     description: post.description || post.content.slice(0, 160) || post.title || 'No Description',
-    metadataBase: new URL(siteInfo?.baseUrl || ''),
+    metadataBase: safeMetadataBase(siteInfo?.baseUrl),
     alternates: { canonical: post ? getPostUrl({ post }) : undefined },
     authors: post.user ? [{ name: formatFullName(post.user) }] : undefined,
     creator: post.user ? formatFullName(post.user) : undefined,

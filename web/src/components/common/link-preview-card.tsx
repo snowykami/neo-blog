@@ -12,11 +12,28 @@ import copyToClipboard from '@/lib/clipboard'
 // 同一链接的预览只请求一次，失败记为 null
 const previewCache = new Map<string, Promise<LinkPreview | null>>()
 
+function getBasicPreview(url: string): LinkPreview | null {
+  try {
+    const { hostname } = new URL(url)
+    return { title: hostname, description: '', url, siteName: hostname }
+  }
+  catch {
+    return null
+  }
+}
+
 function fetchLinkPreview(url: string) {
   let task = previewCache.get(url)
   if (!task) {
     task = fetch(`/api/get-link-info?url=${encodeURIComponent(url)}`)
-      .then(response => (response.ok ? response.json() as Promise<LinkPreview> : null))
+      .then((response) => {
+        if (response.ok)
+          return response.json() as Promise<LinkPreview>
+        // 预览接口仅登录用户可用，访客降级为只展示链接本身
+        if (response.status === 401)
+          return getBasicPreview(url)
+        return null
+      })
       .catch(() => null)
     previewCache.set(url, task)
   }

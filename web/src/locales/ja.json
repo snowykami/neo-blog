@@ -55,7 +55,10 @@
     "filtered_by_label": "タグ <highlight>{name}</highlight> の{order, select, latest {最新} other {人気}}記事",
     "filtered_by_category": "カテゴリ <highlight>{name}</highlight> の{order, select, latest {最新} other {人気}}記事",
     "filtered_by_query": "<highlight>{name}</highlight> の検索結果（{order, select, latest {最新} other {人気}}）",
-    "clear_filter": "フィルターを解除"
+    "clear_filter": "フィルターを解除",
+    "no_posts": "記事はまだありません",
+    "no_posts_found": "記事が見つかりません",
+    "no_public_posts_found": "公開記事が見つかりません"
   },
   "Captcha": {
     "doing": "本人確認をチェックしています...",
@@ -93,7 +96,12 @@
     "reply": "返信",
     "show_client_info": "クライアント情報を表示",
     "unlike": "いいねを取り消す",
-    "unlike_success": "いいねを取り消しました"
+    "unlike_success": "いいねを取り消しました",
+    "loading": "読み込み中…",
+    "load_failed": "コメントの読み込みに失敗しました",
+    "more_actions": "その他の操作",
+    "view_user_profile": "{name} のプロフィールを見る",
+    "login_required": "操作するにはログインしてください"
   },
   "Common": {
     "image_load_failed": "画像を読み込めませんでした",
@@ -131,7 +139,13 @@
   "Components": {
     "image_cropper": {
       "crop_image": "画像を切り取る",
-      "no_image_to_crop": "切り取る画像がありません"
+      "no_image_to_crop": "切り取る画像がありません",
+      "confirm": "確定"
+    },
+    "pagination": {
+      "go_to_page": "{page} ページへ移動",
+      "previous_page": "前のページ",
+      "next_page": "次のページ"
     }
   },
   "Console": {
@@ -184,7 +198,22 @@
       "search_categories": "カテゴリを検索..."
     },
     "comments": {
-      "title": "コメント管理"
+      "title": "コメント管理",
+      "comment": "コメント",
+      "target": "対象",
+      "user": "ユーザー",
+      "status": "状態",
+      "time": "日時",
+      "actions": "操作",
+      "loading": "読み込み中…",
+      "empty": "コメントはまだありません",
+      "no_content": "内容なし",
+      "reply_depth": "返信階層：{depth}",
+      "unknown_user": "不明なユーザー",
+      "private": "非公開",
+      "reply_count": "返信 {count} 件",
+      "like_count": "いいね {count}",
+      "delete_description": "削除すると元に戻せません。このコメントへの返信も削除される場合があります。"
     },
     "dashboard": {
       "title": "ダッシュボード",
@@ -254,7 +283,9 @@
       "upload_file_success": "ファイル {name} をアップロードしました",
       "will_delete_n_files": "{n} 個のファイルを削除します",
       "compress_image": "画像を圧縮",
-      "compress_level": "圧縮レベル"
+      "compress_level": "圧縮レベル",
+      "upload_n_files_success": "{n} 件のファイルをアップロードしました",
+      "upload_n_files_failed": "{n} 件のファイルのアップロードに失敗しました"
     },
     "general": "一般",
     "global": {
@@ -355,7 +386,27 @@
     },
     "login_required": "管理画面に入るにはログインしてください",
     "oidc": {
-      "title": "認証プロバイダ"
+      "title": "認証プロバイダ",
+      "description": "OAuth2 / Misskey のログイン設定を管理します。",
+      "create": "認証プロバイダーを追加",
+      "edit": "認証プロバイダーを編集",
+      "name": "名前",
+      "display_name": "表示名",
+      "type": "種類",
+      "status": "状態",
+      "actions": "操作",
+      "loading": "読み込み中...",
+      "empty": "認証プロバイダーはまだありません",
+      "enabled": "有効",
+      "disabled": "無効",
+      "delete_description": "削除すると、このプロバイダーでログインできなくなります。元に戻せません。",
+      "token_auth_method": "トークン認証方式",
+      "icon_url": "アイコン URL",
+      "required": "{field}は必須です",
+      "types": {
+        "oauth2": "OAuth2 / OIDC",
+        "misskey": "Misskey"
+      }
     },
     "personal": "個人",
     "posts": {
@@ -404,7 +455,18 @@
       "edit_session_taken_over_by": "{name} が {time} に {device} で編集を開始しました。このページでの保存は停止しました。",
       "edit_session_take_over_hint": "引き継ぐと相手が最後に保存した内容を読み込みます。このページの未保存の変更は破棄されます。",
       "edit_session_take_over": "ここで編集を続ける",
-      "edit_session_unknown_device": "不明なデバイス"
+      "edit_session_unknown_device": "不明なデバイス",
+      "image_upload_failed": "画像のアップロードに失敗しました",
+      "editor_aria_label": "本文編集エリア、入力を開始してください",
+      "page_editor_aria_label": "ページ本文編集エリア",
+      "loading": "読み込み中...",
+      "load_failed": "読み込みに失敗しました。しばらくしてから再試行してください",
+      "retry": "再試行",
+      "fullscreen_enter": "全画面表示",
+      "fullscreen_exit": "全画面表示を終了",
+      "fullscreen_failed": "全画面表示の切り替えに失敗しました",
+      "publishing": "公開中...",
+      "untitled": "無題"
     },
     "storages": {
       "title": "ストレージプロバイダ",
@@ -427,7 +489,10 @@
       "webdav_endpoint": "WebDAV エンドポイント",
       "webdav_username": "WebDAV ユーザー名",
       "webdav_password": "WebDAV パスワード",
-      "use_as_default": "デフォルトストレージに設定"
+      "use_as_default": "デフォルトストレージに設定",
+      "select_storage_type": "ストレージの種類を選択...",
+      "search_storage_type": "ストレージの種類を検索...",
+      "no_storage_type_found": "ストレージの種類が見つかりません。"
     },
     "users": {
       "title": "ユーザー"
@@ -450,7 +515,8 @@
       "public_profile": "公開プロフィール",
       "username": "ユーザー名",
       "update_profile": "プロフィールを更新",
-      "show_ip_location": "IP 位置を表示"
+      "show_ip_location": "IP 位置を表示",
+      "select_language": "言語を選択"
     },
     "user_security": {
       "title": "セキュリティ設定",
@@ -475,14 +541,33 @@
       "openid_accounts": "OpenID アカウント",
       "unbind": "連携解除",
       "unbind_failed": "連携解除に失敗",
-      "unbind_success": "連携解除しました"
+      "unbind_success": "連携解除しました",
+      "password_required": "パスワードを入力してください",
+      "password_length": "パスワードは {min}〜{max} 文字で入力してください",
+      "password_mismatch": "パスワードが一致しません",
+      "confirm_new_password": "新しいパスワード（確認）"
     },
     "user_preference": {
       "title": "カスタマイズ",
       "color_scheme": "カラースキーム"
     },
     "pages": {
-      "title": "ページ管理"
+      "title": "ページ管理",
+      "meta": {
+        "edit_page": "ページを編集",
+        "create_page": "ページを作成",
+        "title": "タイトル",
+        "slug": "スラッグ",
+        "cover": "カバー",
+        "description": "説明",
+        "private": "非公開",
+        "show_in_nav": "ナビゲーションに表示",
+        "nav_order": "ナビゲーション順序",
+        "title_and_slug_required": "タイトルとスラッグは空にできません"
+      },
+      "search_pages": "ページを検索",
+      "create_page": "ページを作成",
+      "nav_order": "ナビ #{order}"
     }
   },
   "Copyright": {
@@ -575,7 +660,8 @@
     "upload_success": "アップロードしました",
     "view": "表示",
     "delete_description": "削除は取り消せません。慎重に操作してください！",
-    "fetch_failed": "取得に失敗しました"
+    "fetch_failed": "取得に失敗しました",
+    "confirm": "確認"
   },
   "Metrics": {
     "comment_count": "コメント数",
@@ -611,7 +697,9 @@
     "register_success": "登録しました",
     "send_verify_code": "コードを送信",
     "send_verify_code_failed": "送信に失敗しました",
-    "send_verify_code_success": "コードを送信しました"
+    "send_verify_code_success": "コードを送信しました",
+    "captcha_error": "キャプチャエラー、再試行してください。",
+    "fetch_captcha_config_failed": "キャプチャ設定の取得に失敗しました"
   },
   "ResetPassword": {
     "title": "パスワードをリセット",
@@ -661,7 +749,21 @@
     "loading_lyric": "歌詞読み込み中...",
     "playlist": "プレイリスト",
     "no_lyric": "歌詞なし",
-    "pure_music_without_lyric": "インストゥルメンタル、歌詞なし"
+    "pure_music_without_lyric": "インストゥルメンタル、歌詞なし",
+    "floating_player": "フローティング音楽プレーヤー",
+    "mute": "ミュート",
+    "unmute": "ミュート解除",
+    "toggle_lyric_mode": "追加歌詞の表示を切り替え",
+    "no_extra_lyric": "翻訳・ローマ字はありません",
+    "lyric_mode_none": "追加歌詞なし",
+    "lyric_mode_romaji": "ローマ字",
+    "lyric_mode_translation": "翻訳",
+    "toggle_play_mode": "再生モードを切り替え",
+    "play_mode_repeat-all": "全曲リピート",
+    "play_mode_repeat-one": "1曲リピート",
+    "play_mode_shuffle": "シャッフル",
+    "close_search": "検索を閉じる",
+    "open_search": "検索を開く"
   },
   "Response": {
     "error": {
@@ -695,7 +797,7 @@
       "failed_to_update_target": "ターゲット更新に失敗",
       "id_cannot_be_empty_or_zero": "ID を空または 0 にできません",
       "invalid_target_type": "無効なターゲットタイプ",
-      "invalid_credentials": "無効な認証情報",
+      "invalid_credentials": "ユーザー名またはパスワードが正しくありません",
       "invalid_oidc_name": "無効な OIDC 名",
       "invalid_oidc_state": "無効な OIDC ステート",
       "invalid_password_format": "無効なパスワード形式",
@@ -715,7 +817,32 @@
       "oidc_account_already_linked": "このサードパーティアカウントは既に連携されています",
       "user_not_found": "ユーザーが見つかりません",
       "username_cannot_be_empty": "ユーザー名を空にできません",
-      "username_or_email_already_exists": "ユーザー名またはメールアドレスは既に存在します"
+      "username_or_email_already_exists": "ユーザー名またはメールアドレスは既に存在します",
+      "too_many_requests": "リクエストが多すぎます。しばらくしてから再度お試しください",
+      "invalid_verify_code": "認証コードが正しくないか、有効期限が切れています",
+      "slug_cannot_be_numeric": "スラッグを数字のみにすることはできません",
+      "unsupported_file_type": "サポートされていないファイル形式です",
+      "file_too_large": "ファイルサイズが大きすぎます"
     }
+  },
+  "ErrorPage": {
+    "title": "エラーが発生しました",
+    "description": "ページの読み込み中に問題が発生しました。しばらくしてから再度お試しください。",
+    "digest": "エラー ID：{digest}",
+    "retry": "再試行"
+  },
+  "UserPage": {
+    "no_nickname": "ニックネーム未設定",
+    "not_filled": "未設定",
+    "guest": "ゲスト",
+    "unknown_location": "不明"
+  },
+  "ThemeMode": {
+    "light_mode": "ライトモード",
+    "dark_mode": "ダークモード",
+    "system_mode": "システム設定に従う"
+  },
+  "Public": {
+    "categories": "カテゴリー"
   }
 }

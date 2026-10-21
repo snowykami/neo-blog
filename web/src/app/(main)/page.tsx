@@ -4,7 +4,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import Script from 'next/script'
 import { cache } from 'react'
 import { getSiteInfo } from '@/api/misc'
-import { fallbackSiteInfo } from '@/utils/common/siteinfo'
+import { fallbackSiteInfo, safeMetadataBase } from '@/utils/common/siteinfo'
 import BlogHome from './blog-home'
 
 // Cache site info to avoid duplicate fetches
@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: routeT('homepage'),
     description: siteInfo.metadata.description,
-    metadataBase: new URL(siteInfo.baseUrl || ''),
+    metadataBase: safeMetadataBase(siteInfo?.baseUrl),
     icons: [{ rel: 'icon', url: siteInfo.metadata.icon }],
     keywords: siteInfo.keywords,
     openGraph: {

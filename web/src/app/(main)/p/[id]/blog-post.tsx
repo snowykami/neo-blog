@@ -40,6 +40,7 @@ import { calculateReadingTime } from '@/utils/common/post'
 import { getUserUrl } from '@/utils/common/route'
 import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 import { applyContentAutoMatch } from '@/utils/server/content-auto-match'
+import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
 import '@/components/tiptap-node/image-node/image-figure.scss'
 import './blog-post-article.scss'
 
@@ -134,7 +135,8 @@ async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean })
           text-sm md:text-lg
           "
         dangerouslySetInnerHTML={{
-          __html: applyContentAutoMatch((isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>'),
+          // 先自动匹配再净化，防止正文中的脚本 / 事件处理器造成存储型 XSS
+          __html: sanitizeContentHtml(applyContentAutoMatch((isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>')),
         }}
       />
       <HtmlEnhancer containerId="blog-content" />

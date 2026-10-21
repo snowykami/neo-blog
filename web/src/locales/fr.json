@@ -55,7 +55,10 @@
     "filtered_by_label": "Articles {order, select, latest {récents} other {populaires}} avec l’étiquette <highlight>{name}</highlight>",
     "filtered_by_category": "Articles {order, select, latest {récents} other {populaires}} dans <highlight>{name}</highlight>",
     "filtered_by_query": "Articles {order, select, latest {récents} other {populaires}} pour <highlight>{name}</highlight>",
-    "clear_filter": "Effacer le filtre"
+    "clear_filter": "Effacer le filtre",
+    "no_posts": "Aucun article pour le moment",
+    "no_posts_found": "Aucun article trouvé",
+    "no_public_posts_found": "Aucun article public trouvé"
   },
   "Captcha": {
     "doing": "Vérification que vous êtes humain...",
@@ -93,7 +96,12 @@
     "reply": "Répondre",
     "show_client_info": "Afficher les infos du client",
     "unlike": "Ne plus aimer",
-    "unlike_success": "J'aime supprimé"
+    "unlike_success": "J'aime supprimé",
+    "loading": "Chargement…",
+    "load_failed": "Échec du chargement des commentaires",
+    "more_actions": "Plus d'actions",
+    "view_user_profile": "Voir le profil de {name}",
+    "login_required": "Veuillez vous connecter d'abord"
   },
   "Common": {
     "image_load_failed": "Impossible de charger l'image",
@@ -131,7 +139,13 @@
   "Components": {
     "image_cropper": {
       "crop_image": "Recadrer l'image",
-      "no_image_to_crop": "Aucune image à recadrer"
+      "no_image_to_crop": "Aucune image à recadrer",
+      "confirm": "Confirmer"
+    },
+    "pagination": {
+      "go_to_page": "Aller à la page {page}",
+      "previous_page": "Page précédente",
+      "next_page": "Page suivante"
     }
   },
   "Console": {
@@ -184,7 +198,22 @@
       "search_categories": "Rechercher des catégories..."
     },
     "comments": {
-      "title": "Commentaires"
+      "title": "Commentaires",
+      "comment": "Commentaire",
+      "target": "Cible",
+      "user": "Utilisateur",
+      "status": "Statut",
+      "time": "Date",
+      "actions": "Actions",
+      "loading": "Chargement…",
+      "empty": "Aucun commentaire",
+      "no_content": "Aucun contenu",
+      "reply_depth": "Niveau de réponse : {depth}",
+      "unknown_user": "Utilisateur inconnu",
+      "private": "Privé",
+      "reply_count": "{count} réponses",
+      "like_count": "{count} j’aime",
+      "delete_description": "Cette action est irréversible. Les réponses à ce commentaire peuvent aussi être supprimées."
     },
     "dashboard": {
       "title": "Tableau de bord",
@@ -254,7 +283,9 @@
       "upload_file_success": "Téléchargé: {name}",
       "will_delete_n_files": "Supprimera {n} fichiers",
       "compress_image": "Compresser l'image",
-      "compress_level": "Niveau de compression"
+      "compress_level": "Niveau de compression",
+      "upload_n_files_success": "{n} fichier(s) téléversé(s) avec succès",
+      "upload_n_files_failed": "Échec du téléversement de {n} fichier(s)"
     },
     "general": "Général",
     "global": {
@@ -355,7 +386,27 @@
     },
     "login_required": "Veuillez vous connecter pour accéder à l'admin",
     "oidc": {
-      "title": "Fournisseurs d'authentification"
+      "title": "Fournisseurs d'authentification",
+      "description": "Gérer les fournisseurs de connexion OAuth2 / Misskey.",
+      "create": "Nouveau fournisseur",
+      "edit": "Modifier le fournisseur",
+      "name": "Nom",
+      "display_name": "Nom affiché",
+      "type": "Type",
+      "status": "Statut",
+      "actions": "Actions",
+      "loading": "Chargement...",
+      "empty": "Aucun fournisseur pour le moment",
+      "enabled": "Activé",
+      "disabled": "Désactivé",
+      "delete_description": "Les utilisateurs ne pourront plus se connecter avec ce fournisseur. Cette action est irréversible.",
+      "token_auth_method": "Méthode d’authentification du jeton",
+      "icon_url": "URL de l’icône",
+      "required": "{field} est obligatoire",
+      "types": {
+        "oauth2": "OAuth2 / OIDC",
+        "misskey": "Misskey"
+      }
     },
     "personal": "Personnel",
     "posts": {
@@ -404,7 +455,18 @@
       "edit_session_taken_over_by": "{name} a commencé à modifier sur {device} à {time}. La sauvegarde est arrêtée sur cette page.",
       "edit_session_take_over_hint": "Reprendre la main chargera le dernier contenu enregistré ; les modifications non enregistrées ici seront perdues.",
       "edit_session_take_over": "Continuer à modifier ici",
-      "edit_session_unknown_device": "Appareil inconnu"
+      "edit_session_unknown_device": "Appareil inconnu",
+      "image_upload_failed": "Échec du téléversement de l'image",
+      "editor_aria_label": "Zone de contenu principal, commencez à écrire",
+      "page_editor_aria_label": "Zone de contenu de la page",
+      "loading": "Chargement...",
+      "load_failed": "Échec du chargement, veuillez réessayer plus tard",
+      "retry": "Réessayer",
+      "fullscreen_enter": "Plein écran",
+      "fullscreen_exit": "Quitter le plein écran",
+      "fullscreen_failed": "Impossible de basculer en plein écran",
+      "publishing": "Publication...",
+      "untitled": "Sans titre"
     },
     "storages": {
       "title": "Fournisseurs de stockage",
@@ -427,7 +489,10 @@
       "webdav_endpoint": "Point de terminaison WebDAV",
       "webdav_username": "Nom d'utilisateur WebDAV",
       "webdav_password": "Mot de passe WebDAV",
-      "use_as_default": "Définir comme stockage par défaut"
+      "use_as_default": "Définir comme stockage par défaut",
+      "select_storage_type": "Sélectionner le type de stockage...",
+      "search_storage_type": "Rechercher un type de stockage...",
+      "no_storage_type_found": "Aucun type de stockage trouvé."
     },
     "users": {
       "title": "Utilisateurs"
@@ -450,7 +515,8 @@
       "public_profile": "Profil public",
       "username": "Nom d'utilisateur",
       "update_profile": "Mettre à jour le profil",
-      "show_ip_location": "Afficher l'emplacement IP"
+      "show_ip_location": "Afficher l'emplacement IP",
+      "select_language": "Choisir une langue"
     },
     "user_security": {
       "title": "Sécurité",
@@ -475,14 +541,33 @@
       "openid_accounts": "Comptes OpenID",
       "unbind": "Dissocier",
       "unbind_failed": "Échec de la dissociation",
-      "unbind_success": "Dissocié avec succès"
+      "unbind_success": "Dissocié avec succès",
+      "password_required": "Veuillez saisir un mot de passe",
+      "password_length": "Le mot de passe doit contenir entre {min} et {max} caractères",
+      "password_mismatch": "Les mots de passe ne correspondent pas",
+      "confirm_new_password": "Confirmer le nouveau mot de passe"
     },
     "user_preference": {
       "title": "Préférences",
       "color_scheme": "Schéma de couleurs"
     },
     "pages": {
-      "title": "Pages"
+      "title": "Pages",
+      "meta": {
+        "edit_page": "Modifier la page",
+        "create_page": "Créer une page",
+        "title": "Titre",
+        "slug": "Slug",
+        "cover": "Couverture",
+        "description": "Description",
+        "private": "Privée",
+        "show_in_nav": "Afficher dans la navigation",
+        "nav_order": "Ordre de navigation",
+        "title_and_slug_required": "Le titre et le slug ne peuvent pas être vides"
+      },
+      "search_pages": "Rechercher des pages",
+      "create_page": "Créer une page",
+      "nav_order": "Navigation #{order}"
     }
   },
   "Copyright": {
@@ -575,7 +660,8 @@
     "upload_success": "Téléchargé",
     "view": "Voir",
     "delete_description": "La suppression ne peut pas être annulée, procédez avec précaution!",
-    "fetch_failed": "Échec de la récupération"
+    "fetch_failed": "Échec de la récupération",
+    "confirm": "Confirmer"
   },
   "Metrics": {
     "comment_count": "Commentaires",
@@ -611,7 +697,9 @@
     "register_success": "Inscrit",
     "send_verify_code": "Envoyer le code",
     "send_verify_code_failed": "Échec de l'envoi",
-    "send_verify_code_success": "Code envoyé"
+    "send_verify_code_success": "Code envoyé",
+    "captcha_error": "Erreur de captcha, réessayez.",
+    "fetch_captcha_config_failed": "Échec de la récupération de la configuration du captcha"
   },
   "ResetPassword": {
     "title": "Réinitialiser le mot de passe",
@@ -661,7 +749,21 @@
     "loading_lyric": "Chargement des paroles...",
     "playlist": "Liste de lecture",
     "no_lyric": "Pas de paroles",
-    "pure_music_without_lyric": "Instrumental, pas de paroles"
+    "pure_music_without_lyric": "Instrumental, pas de paroles",
+    "floating_player": "Lecteur de musique flottant",
+    "mute": "Couper le son",
+    "unmute": "Réactiver le son",
+    "toggle_lyric_mode": "Basculer les paroles supplémentaires",
+    "no_extra_lyric": "Aucune traduction ni romaji",
+    "lyric_mode_none": "Pas de paroles supplémentaires",
+    "lyric_mode_romaji": "Romaji",
+    "lyric_mode_translation": "Traduction",
+    "toggle_play_mode": "Changer le mode de lecture",
+    "play_mode_repeat-all": "Tout répéter",
+    "play_mode_repeat-one": "Répéter un titre",
+    "play_mode_shuffle": "Aléatoire",
+    "close_search": "Fermer la recherche",
+    "open_search": "Ouvrir la recherche"
   },
   "Response": {
     "error": {
@@ -695,7 +797,7 @@
       "failed_to_update_target": "Échec de la mise à jour de la cible",
       "id_cannot_be_empty_or_zero": "L'ID ne peut pas être vide ou zéro",
       "invalid_target_type": "Type de cible invalide",
-      "invalid_credentials": "Identifiants invalides",
+      "invalid_credentials": "Nom d'utilisateur ou mot de passe incorrect",
       "invalid_oidc_name": "Nom OIDC invalide",
       "invalid_oidc_state": "État OIDC invalide",
       "invalid_password_format": "Format de mot de passe invalide",
@@ -715,7 +817,32 @@
       "oidc_account_already_linked": "Ce compte tiers est déjà associé",
       "user_not_found": "Utilisateur non trouvé",
       "username_cannot_be_empty": "Le nom d'utilisateur ne peut pas être vide",
-      "username_or_email_already_exists": "Le nom d'utilisateur ou l'e-mail existe déjà"
+      "username_or_email_already_exists": "Le nom d'utilisateur ou l'e-mail existe déjà",
+      "too_many_requests": "Trop de requêtes, veuillez réessayer plus tard",
+      "invalid_verify_code": "Le code de vérification est incorrect ou a expiré",
+      "slug_cannot_be_numeric": "Le slug ne peut pas être uniquement numérique",
+      "unsupported_file_type": "Type de fichier non pris en charge",
+      "file_too_large": "Le fichier est trop volumineux"
     }
+  },
+  "ErrorPage": {
+    "title": "Une erreur est survenue",
+    "description": "Un problème est survenu lors du chargement de cette page. Veuillez réessayer plus tard.",
+    "digest": "ID d'erreur : {digest}",
+    "retry": "Réessayer"
+  },
+  "UserPage": {
+    "no_nickname": "Aucun pseudo",
+    "not_filled": "Non renseigné",
+    "guest": "Visiteur",
+    "unknown_location": "Inconnu"
+  },
+  "ThemeMode": {
+    "light_mode": "Mode clair",
+    "dark_mode": "Mode sombre",
+    "system_mode": "Mode système"
+  },
+  "Public": {
+    "categories": "Catégories"
   }
 }

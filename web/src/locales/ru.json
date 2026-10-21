@@ -55,7 +55,10 @@
     "filtered_by_label": "{order, select, latest {Новые} other {Популярные}} записи с меткой <highlight>{name}</highlight>",
     "filtered_by_category": "{order, select, latest {Новые} other {Популярные}} записи в категории <highlight>{name}</highlight>",
     "filtered_by_query": "{order, select, latest {Новые} other {Популярные}} записи по запросу <highlight>{name}</highlight>",
-    "clear_filter": "Сбросить фильтр"
+    "clear_filter": "Сбросить фильтр",
+    "no_posts": "Пока нет статей",
+    "no_posts_found": "Статьи не найдены",
+    "no_public_posts_found": "Публичные статьи не найдены"
   },
   "Captcha": {
     "doing": "Проверяем, что вы человек...",
@@ -93,7 +96,12 @@
     "reply": "Ответить",
     "show_client_info": "Показать информацию о клиенте",
     "unlike": "Убрать лайк",
-    "unlike_success": "Лайк убран"
+    "unlike_success": "Лайк убран",
+    "loading": "Загрузка…",
+    "load_failed": "Не удалось загрузить комментарии",
+    "more_actions": "Другие действия",
+    "view_user_profile": "Открыть профиль {name}",
+    "login_required": "Пожалуйста, войдите сначала"
   },
   "Common": {
     "image_load_failed": "Не удалось загрузить изображение",
@@ -131,7 +139,13 @@
   "Components": {
     "image_cropper": {
       "crop_image": "Обрезать изображение",
-      "no_image_to_crop": "Нет изображения для обрезки"
+      "no_image_to_crop": "Нет изображения для обрезки",
+      "confirm": "Подтвердить"
+    },
+    "pagination": {
+      "go_to_page": "Перейти на страницу {page}",
+      "previous_page": "Предыдущая страница",
+      "next_page": "Следующая страница"
     }
   },
   "Console": {
@@ -184,7 +198,22 @@
       "search_categories": "Search categories..."
     },
     "comments": {
-      "title": "Комментарии"
+      "title": "Комментарии",
+      "comment": "Комментарий",
+      "target": "Объект",
+      "user": "Пользователь",
+      "status": "Статус",
+      "time": "Время",
+      "actions": "Действия",
+      "loading": "Загрузка…",
+      "empty": "Комментариев пока нет",
+      "no_content": "Нет содержимого",
+      "reply_depth": "Уровень ответа: {depth}",
+      "unknown_user": "Неизвестный пользователь",
+      "private": "Личное",
+      "reply_count": "Ответов: {count}",
+      "like_count": "Лайков: {count}",
+      "delete_description": "Это действие нельзя отменить. Ответы на этот комментарий также могут быть удалены."
     },
     "dashboard": {
       "title": "Панель управления",
@@ -254,7 +283,9 @@
       "upload_file_success": "Uploaded: {name}",
       "will_delete_n_files": "Will delete {n} files",
       "compress_image": "Compress Image",
-      "compress_level": "Compression Level"
+      "compress_level": "Compression Level",
+      "upload_n_files_success": "Успешно загружено файлов: {n}",
+      "upload_n_files_failed": "Не удалось загрузить файлов: {n}"
     },
     "general": "Общее",
     "global": {
@@ -355,7 +386,27 @@
     },
     "login_required": "Пожалуйста, войдите для доступа к админ-панели",
     "oidc": {
-      "title": "Провайдеры аутентификации"
+      "title": "Провайдеры аутентификации",
+      "description": "Управление провайдерами входа OAuth2 / Misskey.",
+      "create": "Новый провайдер",
+      "edit": "Редактировать провайдера",
+      "name": "Название",
+      "display_name": "Отображаемое имя",
+      "type": "Тип",
+      "status": "Статус",
+      "actions": "Действия",
+      "loading": "Загрузка...",
+      "empty": "Провайдеров пока нет",
+      "enabled": "Включён",
+      "disabled": "Отключён",
+      "delete_description": "Пользователи больше не смогут входить через этого провайдера. Действие необратимо.",
+      "token_auth_method": "Способ аутентификации токена",
+      "icon_url": "URL значка",
+      "required": "Поле «{field}» обязательно",
+      "types": {
+        "oauth2": "OAuth2 / OIDC",
+        "misskey": "Misskey"
+      }
     },
     "personal": "Личное",
     "posts": {
@@ -404,7 +455,18 @@
       "edit_session_taken_over_by": "{name} начал(а) редактирование на {device} в {time}. Сохранение на этой странице остановлено.",
       "edit_session_take_over_hint": "При перехвате будет загружено последнее сохранённое содержимое; несохранённые изменения на этой странице будут потеряны.",
       "edit_session_take_over": "Продолжить редактирование здесь",
-      "edit_session_unknown_device": "Неизвестное устройство"
+      "edit_session_unknown_device": "Неизвестное устройство",
+      "image_upload_failed": "Не удалось загрузить изображение",
+      "editor_aria_label": "Основная область содержимого, начните ввод",
+      "page_editor_aria_label": "Область содержимого страницы",
+      "loading": "Загрузка...",
+      "load_failed": "Не удалось загрузить, попробуйте позже",
+      "retry": "Повторить",
+      "fullscreen_enter": "Во весь экран",
+      "fullscreen_exit": "Выйти из полноэкранного режима",
+      "fullscreen_failed": "Не удалось переключить полноэкранный режим",
+      "publishing": "Публикация...",
+      "untitled": "Без названия"
     },
     "storages": {
       "title": "Провайдеры хранилища",
@@ -427,7 +489,10 @@
       "webdav_endpoint": "WebDAV Endpoint",
       "webdav_username": "WebDAV Username",
       "webdav_password": "WebDAV Password",
-      "use_as_default": "Set as Default Storage"
+      "use_as_default": "Set as Default Storage",
+      "select_storage_type": "Выберите тип хранилища...",
+      "search_storage_type": "Поиск типа хранилища...",
+      "no_storage_type_found": "Тип хранилища не найден."
     },
     "users": {
       "title": "Пользователи"
@@ -450,7 +515,8 @@
       "public_profile": "Public profile",
       "username": "Username",
       "update_profile": "Update profile",
-      "show_ip_location": "Show IP Location"
+      "show_ip_location": "Show IP Location",
+      "select_language": "Выберите язык"
     },
     "user_security": {
       "title": "Security",
@@ -475,14 +541,33 @@
       "openid_accounts": "OpenID Accounts",
       "unbind": "Unbind",
       "unbind_failed": "Unbind Failed",
-      "unbind_success": "Unbind Successfully"
+      "unbind_success": "Unbind Successfully",
+      "password_required": "Введите пароль",
+      "password_length": "Пароль должен содержать от {min} до {max} символов",
+      "password_mismatch": "Пароли не совпадают",
+      "confirm_new_password": "Подтвердите новый пароль"
     },
     "user_preference": {
       "title": "Preferences",
       "color_scheme": "Color scheme"
     },
     "pages": {
-      "title": "Pages"
+      "title": "Pages",
+      "meta": {
+        "edit_page": "Редактировать страницу",
+        "create_page": "Создать страницу",
+        "title": "Заголовок",
+        "slug": "Slug",
+        "cover": "Обложка",
+        "description": "Описание",
+        "private": "Приватная",
+        "show_in_nav": "Показывать в навигации",
+        "nav_order": "Порядок в навигации",
+        "title_and_slug_required": "Заголовок и slug не могут быть пустыми"
+      },
+      "search_pages": "Поиск страниц",
+      "create_page": "Создать страницу",
+      "nav_order": "Навигация #{order}"
     }
   },
   "Copyright": {
@@ -575,7 +660,8 @@
     "upload_success": "Загружено",
     "view": "Просмотр",
     "delete_description": "Удаление нельзя отменить, действуйте осторожно!",
-    "fetch_failed": "Fetch failed"
+    "fetch_failed": "Fetch failed",
+    "confirm": "Подтвердить"
   },
   "Metrics": {
     "comment_count": "Комментарии",
@@ -611,7 +697,9 @@
     "register_success": "Зарегистрировано",
     "send_verify_code": "Отправить код",
     "send_verify_code_failed": "Не удалось отправить",
-    "send_verify_code_success": "Код отправлен"
+    "send_verify_code_success": "Код отправлен",
+    "captcha_error": "Ошибка капчи, попробуйте снова.",
+    "fetch_captcha_config_failed": "Не удалось получить конфигурацию капчи"
   },
   "ResetPassword": {
     "title": "Сброс пароля",
@@ -661,7 +749,21 @@
     "loading_lyric": "Загрузка текста...",
     "playlist": "Плейлист",
     "no_lyric": "Нет текста",
-    "pure_music_without_lyric": "Инструментальная, без текста"
+    "pure_music_without_lyric": "Инструментальная, без текста",
+    "floating_player": "Плавающий музыкальный плеер",
+    "mute": "Выключить звук",
+    "unmute": "Включить звук",
+    "toggle_lyric_mode": "Переключить доп. текст песни",
+    "no_extra_lyric": "Нет перевода или ромадзи",
+    "lyric_mode_none": "Без доп. текста",
+    "lyric_mode_romaji": "Ромадзи",
+    "lyric_mode_translation": "Перевод",
+    "toggle_play_mode": "Сменить режим воспроизведения",
+    "play_mode_repeat-all": "Повтор всех",
+    "play_mode_repeat-one": "Повтор одной",
+    "play_mode_shuffle": "Перемешать",
+    "close_search": "Закрыть поиск",
+    "open_search": "Открыть поиск"
   },
   "Response": {
     "error": {
@@ -695,7 +797,7 @@
       "failed_to_update_target": "Failed to Update Target",
       "id_cannot_be_empty_or_zero": "ID Cannot Be Empty or Zero",
       "invalid_target_type": "Invalid Target Type",
-      "invalid_credentials": "Invalid Credentials",
+      "invalid_credentials": "Неверное имя пользователя или пароль",
       "invalid_oidc_name": "Invalid OIDC Name",
       "invalid_oidc_state": "Invalid OIDC State",
       "invalid_password_format": "Invalid Password Format",
@@ -715,7 +817,32 @@
       "oidc_account_already_linked": "This Third-Party Account is Already Linked",
       "user_not_found": "User Not Found",
       "username_cannot_be_empty": "Username Cannot Be Empty",
-      "username_or_email_already_exists": "Username or Email Already Exists"
+      "username_or_email_already_exists": "Username or Email Already Exists",
+      "too_many_requests": "Слишком много запросов, повторите попытку позже",
+      "invalid_verify_code": "Код подтверждения неверен или истёк",
+      "slug_cannot_be_numeric": "Слаг не может состоять только из цифр",
+      "unsupported_file_type": "Неподдерживаемый тип файла",
+      "file_too_large": "Файл слишком большой"
     }
+  },
+  "ErrorPage": {
+    "title": "Что-то пошло не так",
+    "description": "При загрузке страницы возникла проблема. Пожалуйста, повторите попытку позже.",
+    "digest": "ID ошибки: {digest}",
+    "retry": "Повторить"
+  },
+  "UserPage": {
+    "no_nickname": "Без никнейма",
+    "not_filled": "Не указано",
+    "guest": "Гость",
+    "unknown_location": "Неизвестно"
+  },
+  "ThemeMode": {
+    "light_mode": "Светлая тема",
+    "dark_mode": "Тёмная тема",
+    "system_mode": "Как в системе"
+  },
+  "Public": {
+    "categories": "Категории"
   }
 }

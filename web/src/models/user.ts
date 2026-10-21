@@ -5,7 +5,7 @@ export interface User {
   avatarUrl?: string
   backgroundUrl?: string
   preferredColor?: string
-  email: string
+  email?: string // 仅 /user/me 与管理员接口返回，公开接口不包含
   gender?: string
   role: Role
   language?: string

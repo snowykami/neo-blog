@@ -55,7 +55,10 @@
     "filtered_by_label": "Posts {order, select, latest {recentes} other {populares}} com a etiqueta <highlight>{name}</highlight>",
     "filtered_by_category": "Posts {order, select, latest {recentes} other {populares}} em <highlight>{name}</highlight>",
     "filtered_by_query": "Posts {order, select, latest {recentes} other {populares}} sobre <highlight>{name}</highlight>",
-    "clear_filter": "Limpar filtro"
+    "clear_filter": "Limpar filtro",
+    "no_posts": "Ainda não há artigos",
+    "no_posts_found": "Nenhum artigo encontrado",
+    "no_public_posts_found": "Nenhum artigo público encontrado"
   },
   "Captcha": {
     "doing": "Verificando se você é humano...",
@@ -93,7 +96,12 @@
     "reply": "Responder",
     "show_client_info": "Mostrar informações do cliente",
     "unlike": "Remover curtida",
-    "unlike_success": "Curtida removida"
+    "unlike_success": "Curtida removida",
+    "loading": "Carregando…",
+    "load_failed": "Falha ao carregar os comentários",
+    "more_actions": "Mais ações",
+    "view_user_profile": "Ver o perfil de {name}",
+    "login_required": "Por favor, faça login primeiro"
   },
   "Common": {
     "image_load_failed": "Não foi possível carregar a imagem",
@@ -131,7 +139,13 @@
   "Components": {
     "image_cropper": {
       "crop_image": "Crop image",
-      "no_image_to_crop": "No image to crop"
+      "no_image_to_crop": "No image to crop",
+      "confirm": "Confirmar"
+    },
+    "pagination": {
+      "go_to_page": "Ir para a página {page}",
+      "previous_page": "Página anterior",
+      "next_page": "Próxima página"
     }
   },
   "Console": {
@@ -184,7 +198,22 @@
       "search_categories": "Pesquisar categorias..."
     },
     "comments": {
-      "title": "Comentários"
+      "title": "Comentários",
+      "comment": "Comentário",
+      "target": "Destino",
+      "user": "Usuário",
+      "status": "Status",
+      "time": "Data",
+      "actions": "Ações",
+      "loading": "Carregando…",
+      "empty": "Ainda não há comentários",
+      "no_content": "Sem conteúdo",
+      "reply_depth": "Nível de resposta: {depth}",
+      "unknown_user": "Usuário desconhecido",
+      "private": "Privado",
+      "reply_count": "{count} respostas",
+      "like_count": "{count} curtidas",
+      "delete_description": "Esta ação não pode ser desfeita. As respostas a este comentário também podem ser excluídas."
     },
     "dashboard": {
       "title": "Painel",
@@ -254,7 +283,9 @@
       "upload_file_success": "Uploaded: {name}",
       "will_delete_n_files": "Will delete {n} files",
       "compress_image": "Compress Image",
-      "compress_level": "Compression Level"
+      "compress_level": "Compression Level",
+      "upload_n_files_success": "{n} arquivo(s) enviado(s) com sucesso",
+      "upload_n_files_failed": "Falha ao enviar {n} arquivo(s)"
     },
     "general": "Geral",
     "global": {
@@ -355,7 +386,27 @@
     },
     "login_required": "Por favor, faça login para acessar o admin",
     "oidc": {
-      "title": "Provedores de autenticação"
+      "title": "Provedores de autenticação",
+      "description": "Gerencie os provedores de login OAuth2 / Misskey.",
+      "create": "Novo provedor",
+      "edit": "Editar provedor",
+      "name": "Nome",
+      "display_name": "Nome de exibição",
+      "type": "Tipo",
+      "status": "Status",
+      "actions": "Ações",
+      "loading": "Carregando...",
+      "empty": "Nenhum provedor ainda",
+      "enabled": "Ativado",
+      "disabled": "Desativado",
+      "delete_description": "Os usuários não poderão mais entrar com este provedor. Esta ação não pode ser desfeita.",
+      "token_auth_method": "Método de autenticação do token",
+      "icon_url": "URL do ícone",
+      "required": "{field} é obrigatório",
+      "types": {
+        "oauth2": "OAuth2 / OIDC",
+        "misskey": "Misskey"
+      }
     },
     "personal": "Pessoal",
     "posts": {
@@ -404,7 +455,18 @@
       "edit_session_taken_over_by": "{name} começou a editar em {device} às {time}. O salvamento foi interrompido nesta página.",
       "edit_session_take_over_hint": "Ao assumir, o último conteúdo salvo será carregado; alterações não salvas nesta página serão descartadas.",
       "edit_session_take_over": "Continuar editando aqui",
-      "edit_session_unknown_device": "Dispositivo desconhecido"
+      "edit_session_unknown_device": "Dispositivo desconhecido",
+      "image_upload_failed": "Falha ao enviar a imagem",
+      "editor_aria_label": "Área de conteúdo principal, comece a digitar",
+      "page_editor_aria_label": "Área de conteúdo da página",
+      "loading": "Carregando...",
+      "load_failed": "Falha ao carregar, tente novamente mais tarde",
+      "retry": "Tentar novamente",
+      "fullscreen_enter": "Tela cheia",
+      "fullscreen_exit": "Sair da tela cheia",
+      "fullscreen_failed": "Falha ao alternar a tela cheia",
+      "publishing": "Publicando...",
+      "untitled": "Sem título"
     },
     "storages": {
       "title": "Provedores de armazenamento",
@@ -427,7 +489,10 @@
       "webdav_endpoint": "WebDAV Endpoint",
       "webdav_username": "WebDAV Username",
       "webdav_password": "WebDAV Password",
-      "use_as_default": "Set as Default Storage"
+      "use_as_default": "Set as Default Storage",
+      "select_storage_type": "Selecione o tipo de armazenamento...",
+      "search_storage_type": "Pesquisar tipo de armazenamento...",
+      "no_storage_type_found": "Nenhum tipo de armazenamento encontrado."
     },
     "users": {
       "title": "Usuários"
@@ -450,7 +515,8 @@
       "public_profile": "Public profile",
       "username": "Username",
       "update_profile": "Update profile",
-      "show_ip_location": "Show IP Location"
+      "show_ip_location": "Show IP Location",
+      "select_language": "Selecione um idioma"
     },
     "user_security": {
       "title": "Security",
@@ -475,14 +541,33 @@
       "openid_accounts": "OpenID Accounts",
       "unbind": "Unbind",
       "unbind_failed": "Unbind Failed",
-      "unbind_success": "Unbind Successfully"
+      "unbind_success": "Unbind Successfully",
+      "password_required": "Digite uma senha",
+      "password_length": "A senha deve ter entre {min} e {max} caracteres",
+      "password_mismatch": "As senhas não coincidem",
+      "confirm_new_password": "Confirmar nova senha"
     },
     "user_preference": {
       "title": "Preferences",
       "color_scheme": "Color scheme"
     },
     "pages": {
-      "title": "Pages"
+      "title": "Pages",
+      "meta": {
+        "edit_page": "Editar página",
+        "create_page": "Criar página",
+        "title": "Título",
+        "slug": "Slug",
+        "cover": "Capa",
+        "description": "Descrição",
+        "private": "Privada",
+        "show_in_nav": "Mostrar na navegação",
+        "nav_order": "Ordem na navegação",
+        "title_and_slug_required": "O título e o slug não podem estar vazios"
+      },
+      "search_pages": "Pesquisar páginas",
+      "create_page": "Criar página",
+      "nav_order": "Navegação #{order}"
     }
   },
   "Copyright": {
@@ -575,7 +660,8 @@
     "upload_success": "Enviado",
     "view": "Ver",
     "delete_description": "A exclusão não pode ser desfeita, prossiga com cuidado!",
-    "fetch_failed": "Fetch failed"
+    "fetch_failed": "Fetch failed",
+    "confirm": "Confirmar"
   },
   "Metrics": {
     "comment_count": "Comentários",
@@ -611,7 +697,9 @@
     "register_success": "Registrado",
     "send_verify_code": "Enviar código",
     "send_verify_code_failed": "Falha no envio",
-    "send_verify_code_success": "Código enviado"
+    "send_verify_code_success": "Código enviado",
+    "captcha_error": "Erro de captcha, tente novamente.",
+    "fetch_captcha_config_failed": "Falha ao obter configuração do captcha"
   },
   "ResetPassword": {
     "title": "Redefinir senha",
@@ -661,7 +749,21 @@
     "loading_lyric": "Carregando letra...",
     "playlist": "Lista de reprodução",
     "no_lyric": "Sem letra",
-    "pure_music_without_lyric": "Instrumental, sem letra"
+    "pure_music_without_lyric": "Instrumental, sem letra",
+    "floating_player": "Player de música flutuante",
+    "mute": "Silenciar",
+    "unmute": "Ativar som",
+    "toggle_lyric_mode": "Alternar letra adicional",
+    "no_extra_lyric": "Sem tradução ou romaji",
+    "lyric_mode_none": "Sem letra adicional",
+    "lyric_mode_romaji": "Romaji",
+    "lyric_mode_translation": "Tradução",
+    "toggle_play_mode": "Alternar modo de reprodução",
+    "play_mode_repeat-all": "Repetir tudo",
+    "play_mode_repeat-one": "Repetir uma",
+    "play_mode_shuffle": "Aleatório",
+    "close_search": "Fechar pesquisa",
+    "open_search": "Abrir pesquisa"
   },
   "Response": {
     "error": {
@@ -695,7 +797,7 @@
       "failed_to_update_target": "Failed to Update Target",
       "id_cannot_be_empty_or_zero": "ID Cannot Be Empty or Zero",
       "invalid_target_type": "Invalid Target Type",
-      "invalid_credentials": "Invalid Credentials",
+      "invalid_credentials": "Nome de usuário ou senha incorretos",
       "invalid_oidc_name": "Invalid OIDC Name",
       "invalid_oidc_state": "Invalid OIDC State",
       "invalid_password_format": "Invalid Password Format",
@@ -715,7 +817,32 @@
       "oidc_account_already_linked": "This Third-Party Account is Already Linked",
       "user_not_found": "User Not Found",
       "username_cannot_be_empty": "Username Cannot Be Empty",
-      "username_or_email_already_exists": "Username or Email Already Exists"
+      "username_or_email_already_exists": "Username or Email Already Exists",
+      "too_many_requests": "Muitas solicitações, tente novamente mais tarde",
+      "invalid_verify_code": "O código de verificação está incorreto ou expirou",
+      "slug_cannot_be_numeric": "O slug não pode ser apenas numérico",
+      "unsupported_file_type": "Tipo de arquivo não suportado",
+      "file_too_large": "O arquivo é muito grande"
     }
+  },
+  "ErrorPage": {
+    "title": "Algo deu errado",
+    "description": "Ocorreu um problema ao carregar esta página. Tente novamente mais tarde.",
+    "digest": "ID do erro: {digest}",
+    "retry": "Tentar novamente"
+  },
+  "UserPage": {
+    "no_nickname": "Sem apelido",
+    "not_filled": "Não informado",
+    "guest": "Visitante",
+    "unknown_location": "Desconhecido"
+  },
+  "ThemeMode": {
+    "light_mode": "Modo claro",
+    "dark_mode": "Modo escuro",
+    "system_mode": "Modo do sistema"
+  },
+  "Public": {
+    "categories": "Categorias"
   }
 }

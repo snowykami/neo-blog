@@ -55,7 +55,10 @@
     "filtered_by_label": "Entradas {order, select, latest {recientes} other {populares}} con la etiqueta <highlight>{name}</highlight>",
     "filtered_by_category": "Entradas {order, select, latest {recientes} other {populares}} en <highlight>{name}</highlight>",
     "filtered_by_query": "Entradas {order, select, latest {recientes} other {populares}} sobre <highlight>{name}</highlight>",
-    "clear_filter": "Quitar filtro"
+    "clear_filter": "Quitar filtro",
+    "no_posts": "Aún no hay artículos",
+    "no_posts_found": "No se encontraron artículos",
+    "no_public_posts_found": "No se encontraron artículos públicos"
   },
   "Captcha": {
     "doing": "Verificando si eres humano...",
@@ -93,7 +96,12 @@
     "reply": "Responder",
     "show_client_info": "Mostrar información del cliente",
     "unlike": "Quitar me gusta",
-    "unlike_success": "Me gusta eliminado"
+    "unlike_success": "Me gusta eliminado",
+    "loading": "Cargando…",
+    "load_failed": "No se pudieron cargar los comentarios",
+    "more_actions": "Más acciones",
+    "view_user_profile": "Ver el perfil de {name}",
+    "login_required": "Por favor inicia sesión primero"
   },
   "Common": {
     "image_load_failed": "No se pudo cargar la imagen",
@@ -131,7 +139,13 @@
   "Components": {
     "image_cropper": {
       "crop_image": "Recortar imagen",
-      "no_image_to_crop": "No hay imagen para recortar"
+      "no_image_to_crop": "No hay imagen para recortar",
+      "confirm": "Confirmar"
+    },
+    "pagination": {
+      "go_to_page": "Ir a la página {page}",
+      "previous_page": "Página anterior",
+      "next_page": "Página siguiente"
     }
   },
   "Console": {
@@ -184,7 +198,22 @@
       "search_categories": "Buscar categorías..."
     },
     "comments": {
-      "title": "Comentarios"
+      "title": "Comentarios",
+      "comment": "Comentario",
+      "target": "Destino",
+      "user": "Usuario",
+      "status": "Estado",
+      "time": "Fecha",
+      "actions": "Acciones",
+      "loading": "Cargando…",
+      "empty": "Aún no hay comentarios",
+      "no_content": "Sin contenido",
+      "reply_depth": "Nivel de respuesta: {depth}",
+      "unknown_user": "Usuario desconocido",
+      "private": "Privado",
+      "reply_count": "{count} respuestas",
+      "like_count": "{count} me gusta",
+      "delete_description": "Esta acción no se puede deshacer. Las respuestas a este comentario también podrían eliminarse."
     },
     "dashboard": {
       "title": "Panel de control",
@@ -254,7 +283,9 @@
       "upload_file_success": "Subido: {name}",
       "will_delete_n_files": "Se eliminarán {n} archivos",
       "compress_image": "Comprimir imagen",
-      "compress_level": "Nivel de compresión"
+      "compress_level": "Nivel de compresión",
+      "upload_n_files_success": "Se subieron {n} archivo(s) correctamente",
+      "upload_n_files_failed": "{n} archivo(s) no se pudieron subir"
     },
     "general": "General",
     "global": {
@@ -355,7 +386,27 @@
     },
     "login_required": "Por favor inicia sesión para acceder al administrador",
     "oidc": {
-      "title": "Proveedores de autenticación"
+      "title": "Proveedores de autenticación",
+      "description": "Gestiona los proveedores de inicio de sesión OAuth2 / Misskey.",
+      "create": "Nuevo proveedor",
+      "edit": "Editar proveedor",
+      "name": "Nombre",
+      "display_name": "Nombre visible",
+      "type": "Tipo",
+      "status": "Estado",
+      "actions": "Acciones",
+      "loading": "Cargando...",
+      "empty": "Aún no hay proveedores",
+      "enabled": "Activado",
+      "disabled": "Desactivado",
+      "delete_description": "Los usuarios ya no podrán iniciar sesión con este proveedor. Esta acción no se puede deshacer.",
+      "token_auth_method": "Método de autenticación del token",
+      "icon_url": "URL del icono",
+      "required": "{field} es obligatorio",
+      "types": {
+        "oauth2": "OAuth2 / OIDC",
+        "misskey": "Misskey"
+      }
     },
     "personal": "Personal",
     "posts": {
@@ -404,7 +455,18 @@
       "edit_session_taken_over_by": "{name} empezó a editar en {device} a las {time}. Se ha dejado de guardar en esta página.",
       "edit_session_take_over_hint": "Al retomar se cargará el último contenido guardado; los cambios sin guardar de esta página se descartarán.",
       "edit_session_take_over": "Seguir editando aquí",
-      "edit_session_unknown_device": "Dispositivo desconocido"
+      "edit_session_unknown_device": "Dispositivo desconocido",
+      "image_upload_failed": "Error al subir la imagen",
+      "editor_aria_label": "Área de contenido principal, empieza a escribir",
+      "page_editor_aria_label": "Área de contenido de la página",
+      "loading": "Cargando...",
+      "load_failed": "Error al cargar, inténtalo de nuevo más tarde",
+      "retry": "Reintentar",
+      "fullscreen_enter": "Pantalla completa",
+      "fullscreen_exit": "Salir de pantalla completa",
+      "fullscreen_failed": "No se pudo cambiar a pantalla completa",
+      "publishing": "Publicando...",
+      "untitled": "Sin título"
     },
     "storages": {
       "title": "Proveedores de almacenamiento",
@@ -427,7 +489,10 @@
       "webdav_endpoint": "Endpoint WebDAV",
       "webdav_username": "Usuario WebDAV",
       "webdav_password": "Contraseña WebDAV",
-      "use_as_default": "Establecer como almacenamiento predeterminado"
+      "use_as_default": "Establecer como almacenamiento predeterminado",
+      "select_storage_type": "Selecciona el tipo de almacenamiento...",
+      "search_storage_type": "Buscar tipo de almacenamiento...",
+      "no_storage_type_found": "No se encontró ningún tipo de almacenamiento."
     },
     "users": {
       "title": "Usuarios"
@@ -450,7 +515,8 @@
       "public_profile": "Perfil público",
       "username": "Nombre de usuario",
       "update_profile": "Actualizar perfil",
-      "show_ip_location": "Mostrar ubicación IP"
+      "show_ip_location": "Mostrar ubicación IP",
+      "select_language": "Selecciona un idioma"
     },
     "user_security": {
       "title": "Seguridad",
@@ -475,14 +541,33 @@
       "openid_accounts": "Cuentas OpenID",
       "unbind": "Desvincular",
       "unbind_failed": "Error al desvincular",
-      "unbind_success": "Desvinculado exitosamente"
+      "unbind_success": "Desvinculado exitosamente",
+      "password_required": "Introduce una contraseña",
+      "password_length": "La contraseña debe tener entre {min} y {max} caracteres",
+      "password_mismatch": "Las contraseñas no coinciden",
+      "confirm_new_password": "Confirmar nueva contraseña"
     },
     "user_preference": {
       "title": "Preferencias",
       "color_scheme": "Esquema de color"
     },
     "pages": {
-      "title": "Páginas"
+      "title": "Páginas",
+      "meta": {
+        "edit_page": "Editar página",
+        "create_page": "Crear página",
+        "title": "Título",
+        "slug": "Slug",
+        "cover": "Portada",
+        "description": "Descripción",
+        "private": "Privada",
+        "show_in_nav": "Mostrar en la navegación",
+        "nav_order": "Orden en la navegación",
+        "title_and_slug_required": "El título y el slug no pueden estar vacíos"
+      },
+      "search_pages": "Buscar páginas",
+      "create_page": "Crear página",
+      "nav_order": "Navegación #{order}"
     }
   },
   "Copyright": {
@@ -575,7 +660,8 @@
     "upload_success": "Subido",
     "view": "Ver",
     "delete_description": "La eliminación no se puede deshacer, ¡procede con precaución!",
-    "fetch_failed": "Error al obtener"
+    "fetch_failed": "Error al obtener",
+    "confirm": "Confirmar"
   },
   "Metrics": {
     "comment_count": "Comentarios",
@@ -611,7 +697,9 @@
     "register_success": "Registrado",
     "send_verify_code": "Enviar código",
     "send_verify_code_failed": "Error al enviar",
-    "send_verify_code_success": "Código enviado"
+    "send_verify_code_success": "Código enviado",
+    "captcha_error": "Error de captcha, intenta de nuevo.",
+    "fetch_captcha_config_failed": "Error al obtener configuración de captcha"
   },
   "ResetPassword": {
     "title": "Restablecer contraseña",
@@ -661,7 +749,21 @@
     "loading_lyric": "Cargando letra...",
     "playlist": "Lista de reproducción",
     "no_lyric": "Sin letra",
-    "pure_music_without_lyric": "Instrumental, sin letra"
+    "pure_music_without_lyric": "Instrumental, sin letra",
+    "floating_player": "Reproductor de música flotante",
+    "mute": "Silenciar",
+    "unmute": "Activar sonido",
+    "toggle_lyric_mode": "Alternar letra adicional",
+    "no_extra_lyric": "No hay traducción ni romaji",
+    "lyric_mode_none": "Sin letra adicional",
+    "lyric_mode_romaji": "Romaji",
+    "lyric_mode_translation": "Traducción",
+    "toggle_play_mode": "Cambiar modo de reproducción",
+    "play_mode_repeat-all": "Repetir todo",
+    "play_mode_repeat-one": "Repetir una",
+    "play_mode_shuffle": "Aleatorio",
+    "close_search": "Cerrar búsqueda",
+    "open_search": "Abrir búsqueda"
   },
   "Response": {
     "error": {
@@ -695,7 +797,7 @@
       "failed_to_update_target": "Error al actualizar objetivo",
       "id_cannot_be_empty_or_zero": "El ID no puede estar vacío o ser cero",
       "invalid_target_type": "Tipo de objetivo inválido",
-      "invalid_credentials": "Credenciales inválidas",
+      "invalid_credentials": "Nombre de usuario o contraseña incorrectos",
       "invalid_oidc_name": "Nombre OIDC inválido",
       "invalid_oidc_state": "Estado OIDC inválido",
       "invalid_password_format": "Formato de contraseña inválido",
@@ -715,7 +817,32 @@
       "oidc_account_already_linked": "Esta cuenta de terceros ya está vinculada",
       "user_not_found": "Usuario no encontrado",
       "username_cannot_be_empty": "El nombre de usuario no puede estar vacío",
-      "username_or_email_already_exists": "El nombre de usuario o correo ya existe"
+      "username_or_email_already_exists": "El nombre de usuario o correo ya existe",
+      "too_many_requests": "Demasiadas solicitudes, inténtalo de nuevo más tarde",
+      "invalid_verify_code": "El código de verificación es incorrecto o ha caducado",
+      "slug_cannot_be_numeric": "El slug no puede ser solo numérico",
+      "unsupported_file_type": "Tipo de archivo no compatible",
+      "file_too_large": "El archivo es demasiado grande"
     }
+  },
+  "ErrorPage": {
+    "title": "Algo salió mal",
+    "description": "Hubo un problema al cargar esta página. Inténtalo de nuevo más tarde.",
+    "digest": "ID de error: {digest}",
+    "retry": "Reintentar"
+  },
+  "UserPage": {
+    "no_nickname": "Sin apodo",
+    "not_filled": "No especificado",
+    "guest": "Invitado",
+    "unknown_location": "Desconocido"
+  },
+  "ThemeMode": {
+    "light_mode": "Modo claro",
+    "dark_mode": "Modo oscuro",
+    "system_mode": "Modo del sistema"
+  },
+  "Public": {
+    "categories": "Categorías"
   }
 }

@@ -72,3 +72,17 @@ export function getDefaultCoverRandomly(siteInfo: SiteInfo): string {
   }
   return siteInfo.defaultCover
 }
+
+/**
+ * 安全地构造 metadataBase：baseUrl 为空或非法时返回 undefined，避免 new URL('') 抛异常导致页面 500
+ */
+export function safeMetadataBase(baseUrl?: string): URL | undefined {
+  if (!baseUrl)
+    return undefined
+  try {
+    return new URL(baseUrl)
+  }
+  catch {
+    return undefined
+  }
+}

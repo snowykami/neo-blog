@@ -59,6 +59,7 @@
     "field-conv": "^1.0.9",
     "highlight.js": "^11.11.1",
     "input-otp": "^1.4.2",
+    "isomorphic-dompurify": "^4.6.0",
     "lowlight": "^3.3.0",
     "lrc-file-parser": "^2.4.1",
     "lucide-react": "^0.544.0",
