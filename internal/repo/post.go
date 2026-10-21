@@ -22,11 +22,31 @@ func (p *postRepo) CreatePost(post *model.Post) error {
 	return GetDB().Create(post).Error
 }
 
+// DeletePost 软删除文章，同时清理评论、点赞和标签关联，并释放 slug 以便新文章复用
 func (p *postRepo) DeletePost(id uint) error {
-	if err := GetDB().Where("id = ?", id).Delete(&model.Post{}).Error; err != nil {
-		return err
-	}
-	return nil
+	return GetDB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Post{}).Where("id = ?", id).UpdateColumn("slug", nil).Error; err != nil {
+			return err
+		}
+		if err := deleteTargetComments(tx, constant.TargetTypePost, id); err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("target_type = ? AND target_id = ?", constant.TargetTypePost, id).Delete(&model.Like{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Table("post_labels").Where("post_id = ?", id).Delete(nil).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ?", id).Delete(&model.Post{}).Error
+	})
+}
+
+// refreshPostHeat 按当前计数重算文章热度，计数变化后调用
+func refreshPostHeat(tx *gorm.DB, postID uint) error {
+	return tx.Model(&model.Post{}).Where("id = ?", postID).UpdateColumn("heat", gorm.Expr(
+		"view_count * ? + like_count * ? + comment_count * ?",
+		constant.HeatFactorViewWeight, constant.HeatFactorLikeWeight, constant.HeatFactorCommentWeight,
+	)).Error
 }
 
 // helper: 批量查询 labels 对应的 post 数量（返回 map[labelID]count）
@@ -40,10 +60,12 @@ func fetchLabelPostCounts(db *gorm.DB, labelIDs []uint) (map[uint]int64, error) 
 		return map[uint]int64{}, nil
 	}
 
+	// 只统计未删除的公开文章
 	if err := db.Table("post_labels").
-		Select("label_id, COUNT(post_id) as cnt").
-		Where("label_id IN ?", labelIDs).
-		Group("label_id").
+		Select("post_labels.label_id, COUNT(post_labels.post_id) as cnt").
+		Joins("JOIN posts ON posts.id = post_labels.post_id AND posts.deleted_at IS NULL AND posts.is_private = ?", false).
+		Where("post_labels.label_id IN ?", labelIDs).
+		Group("post_labels.label_id").
 		Find(&counts).Error; err != nil {
 		return nil, err
 	}
@@ -126,16 +148,17 @@ func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 		}
 	}
 
-	// 原子地增加 view_count
+	// 原子地增加 view_count，并同步热度
 	if err := GetDB().Model(&model.Post{}).Where("id = ?", post.ID).
 		UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error; err != nil {
 		return nil, err
 	}
-
-	// 重新加载（包含关联），以获取更新后的 view_count 用于计算 heat
-	if err := GetDB().Preload(clause.Associations).First(&post, post.ID).Error; err != nil {
+	if err := refreshPostHeat(GetDB(), post.ID); err != nil {
 		return nil, err
 	}
+
+	// 不再整体重新加载，否则会覆盖上面排好序的标签
+	post.ViewCount++
 
 	return &post, nil
 }
@@ -188,7 +211,8 @@ func (p *postRepo) SavePost(post *model.Post) error {
 	}
 	// Save 只会追加多对多关联，不会删除已移除的标签，需要显式 Replace
 	return GetDB().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Omit("Labels").Save(post).Error; err != nil {
+		// 关联字段不随 Save 写入，否则已加载的 Category 会把清空的 category_id 写回去
+		if err := tx.Omit(clause.Associations).Save(post).Error; err != nil {
 			return err
 		}
 		return tx.Model(post).Association("Labels").Replace(post.Labels)

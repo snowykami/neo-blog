@@ -1,7 +1,6 @@
 package model
 
 import (
-	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
 
@@ -31,21 +30,4 @@ type CommentLocation struct {
 	Districts string
 	ISP       string
 	IDC       string
-}
-
-func (c *Comment) AfterCreate(tx *gorm.DB) (err error) {
-	// 更新评论IP
-	locationData := CommentLocation{}
-	ipData, err := utils.GetIPInfo(c.RemoteAddr)
-	if err != nil || ipData == nil {
-		return nil // 忽略错误
-	}
-	locationData.Country = ipData.Country
-	locationData.Province = ipData.Province
-	locationData.City = ipData.City
-	locationData.Districts = ipData.Districts
-	locationData.ISP = ipData.ISP
-	locationData.IDC = ipData.IDC
-	// 更新评论的Location字段
-	return tx.Model(c).Updates(locationData).Error
 }

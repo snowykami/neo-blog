@@ -26,34 +26,65 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	if !ok {
 		return 0, errs.NewUnauthorized("login_required")
 	}
+	slug, svcerr := normalizePostSlug(req.Slug)
+	if svcerr != nil {
+		return 0, svcerr
+	}
+	labels, err := repo.Label.GetLabelsByIDs(req.LabelIds)
+	if err != nil {
+		return 0, errs.NewInternalServer("failed_to_get_target")
+	}
 	post := &model.Post{
 		UserID: currentUser.ID,
 		PostBase: model.PostBase{
-			CategoryID:  req.CategoryID,
+			CategoryID:  normalizeCategoryID(req.CategoryID),
 			Cover:       req.Cover,
 			Content:     req.Content,
 			Description: req.Description,
 			IsPrivate:   utils.Deref(req.IsPrivate),
-			Labels: func() []model.Label {
-				labelModels := make([]model.Label, 0)
-				for _, labelID := range req.LabelIds {
-					labelModel, err := repo.Label.GetLabelByID(labelID)
-					if err == nil {
-						labelModels = append(labelModels, *labelModel)
-					}
-				}
-				return labelModels
-			}(),
-			Slug:  req.Slug,
-			Title: req.Title,
-			Top:   utils.Deref(req.Top),
-			Type:  req.Type,
+			Labels:      labels,
+			Slug:        slug,
+			Title:       req.Title,
+			Top:         utils.Deref(req.Top),
+			Type:        req.Type,
 		},
 	}
 	if err := repo.Post.CreatePost(post); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return 0, errs.NewConflict("slug_already_exists")
+		}
 		return 0, errs.NewInternalServer("failed_to_create_target")
 	}
 	return post.ID, nil
+}
+
+// normalizeSlug 去除首尾空白；纯数字 slug 会与 id 访问冲突，不允许使用
+func normalizeSlug(slug string) (string, *errs.ServiceError) {
+	slug = strings.TrimSpace(slug)
+	if slug != "" && strings.Trim(slug, "0123456789") == "" {
+		return "", errs.NewBadRequest("slug_cannot_be_numeric")
+	}
+	return slug, nil
+}
+
+// normalizePostSlug 文章 slug 可选，空字符串存为 NULL，避免多篇无 slug 的文章触发唯一约束
+func normalizePostSlug(slug *string) (*string, *errs.ServiceError) {
+	if slug == nil {
+		return nil, nil
+	}
+	normalized, svcerr := normalizeSlug(*slug)
+	if svcerr != nil || normalized == "" {
+		return nil, svcerr
+	}
+	return &normalized, nil
+}
+
+// normalizeCategoryID 前端用 0 表示未分类
+func normalizeCategoryID(categoryID *uint) *uint {
+	if categoryID == nil || *categoryID == 0 {
+		return nil
+	}
+	return categoryID
 }
 
 func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.ServiceError {
@@ -125,27 +156,36 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	utils.UpdateNonEmpty(&post.Cover, req.Cover)
 	utils.UpdateNonEmpty(&post.Description, req.Description)
 	utils.UpdatePtrNonZero(&post.DraftContent, req.DraftContent)
-	utils.UpdatePtrNonZero(&post.Slug, req.Slug)
-	utils.UpdatePtrUint(&post.CategoryID, req.CategoryID)
+	// 传了 slug 才更新，空字符串表示清除 slug
+	if req.Slug != nil {
+		slug, svcerr := normalizePostSlug(req.Slug)
+		if svcerr != nil {
+			return 0, svcerr
+		}
+		post.Slug = slug
+	}
+	// 传了 category_id 才更新，0 表示取消分类
+	if req.CategoryID != nil {
+		post.CategoryID = normalizeCategoryID(req.CategoryID)
+		post.Category = nil
+	}
 	if req.IsPrivate != nil {
 		post.IsPrivate = *req.IsPrivate
 	}
 
 	// 只有传了 label_ids 才更新标签（传空数组表示清空），只保存草稿时保持原标签
 	if req.LabelIds != nil {
-		post.Labels = func() []model.Label {
-			// 跳过不存在的标签，不能在遍历中按下标删除，否则会产生零值标签或漏掉后续标签
-			labelModels := make([]model.Label, 0, len(req.LabelIds))
-			for _, labelID := range req.LabelIds {
-				labelModel, err := repo.Label.GetLabelByID(labelID)
-				if err == nil {
-					labelModels = append(labelModels, *labelModel)
-				}
-			}
-			return labelModels
-		}()
+		// 跳过不存在的标签
+		labels, err := repo.Label.GetLabelsByIDs(req.LabelIds)
+		if err != nil {
+			return 0, errs.NewInternalServer("failed_to_get_target")
+		}
+		post.Labels = labels
 	}
 	if err := repo.Post.SavePost(post); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return 0, errs.NewConflict("slug_already_exists")
+		}
 		return 0, errs.NewInternalServer("failed_to_update_target")
 	}
 	return post.ID, nil

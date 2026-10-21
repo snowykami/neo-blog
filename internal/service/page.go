@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"strconv"
 	"strings"
 
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -27,7 +26,11 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	if !ok {
 		return 0, errs.NewUnauthorized("login_required")
 	}
-	if strings.TrimSpace(req.Title) == "" || strings.TrimSpace(req.Slug) == "" {
+	slug, svcerr := normalizeSlug(req.Slug)
+	if svcerr != nil {
+		return 0, svcerr
+	}
+	if strings.TrimSpace(req.Title) == "" || slug == "" {
 		return 0, errs.NewBadRequest("invalid_request_parameters")
 	}
 	pageType := req.Type
@@ -38,7 +41,7 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 		UserID: currentUser.ID,
 		PageBase: model.PageBase{
 			Title:        req.Title,
-			Slug:         req.Slug,
+			Slug:         slug,
 			Description:  req.Description,
 			Cover:        req.Cover,
 			Content:      req.Content,
@@ -50,6 +53,9 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 		},
 	}
 	if err := repo.Page.CreatePage(page); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return 0, errs.NewConflict("slug_already_exists")
+		}
 		return 0, errs.NewInternalServer("failed_to_create_target")
 	}
 	return page.ID, nil
@@ -59,7 +65,7 @@ func (p *PageService) DeletePage(ctx context.Context, pageID uint) *errs.Service
 	if pageID == 0 {
 		return errs.NewBadRequest("invalid_request_parameters")
 	}
-	page, err := repo.Page.GetPageBySlugOrID(strconv.FormatUint(uint64(pageID), 10))
+	page, err := repo.Page.GetPageByID(pageID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errs.NewNotFound("target_not_found")
@@ -90,7 +96,7 @@ func (p *PageService) GetPageSlugOrID(ctx context.Context, slugOrID string) (*dt
 }
 
 func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePageReq) (uint, *errs.ServiceError) {
-	page, err := repo.Page.GetPageBySlugOrID(strconv.FormatUint(uint64(req.ID), 10))
+	page, err := repo.Page.GetPageByID(req.ID)
 	if err != nil {
 		return 0, errs.NewNotFound("target_not_found")
 	}
@@ -104,7 +110,11 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 		}
 	}
 	utils.UpdateNonEmpty(&page.Title, req.Title)
-	utils.UpdateNonEmpty(&page.Slug, req.Slug)
+	slug, svcerr := normalizeSlug(req.Slug)
+	if svcerr != nil {
+		return 0, svcerr
+	}
+	utils.UpdateNonEmpty(&page.Slug, slug)
 	utils.UpdateNonEmpty(&page.Type, req.Type)
 	utils.UpdateNonEmpty(&page.Content, req.Content)
 	utils.UpdateNonEmpty(&page.Cover, req.Cover)
@@ -122,6 +132,9 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	}
 
 	if err := repo.Page.SavePage(page); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return 0, errs.NewConflict("slug_already_exists")
+		}
 		return 0, errs.NewInternalServer("failed_to_update_target")
 	}
 	return page.ID, nil

@@ -196,7 +196,13 @@ func (p *PostController) UpdateCategory(ctx context.Context, c *app.RequestConte
 
 func (p *PostController) DeleteCategory(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
-	if err := repo.GetDB().Delete(&model.Category{}, id).Error; err != nil {
+	// 分类硬删除并清空文章的分类引用，避免软删除记录占用唯一的名称与 slug
+	if err := repo.GetDB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Post{}).Where("category_id = ?", id).UpdateColumn("category_id", nil).Error; err != nil {
+			return err
+		}
+		return tx.Unscoped().Delete(&model.Category{}, id).Error
+	}); err != nil {
 		resps.Error(c, errs.NewInternalServer("failed_to_delete_target"))
 		return
 	}

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -20,8 +21,27 @@ func (p *pageRepo) CreatePage(page *model.Page) error {
 	return GetDB().Create(page).Error
 }
 
+// DeletePage 软删除页面，同时清理评论与点赞，并释放 slug 以便新页面复用
 func (p *pageRepo) DeletePage(id uint) error {
-	return GetDB().Where("id = ?", id).Delete(&model.Page{}).Error
+	return GetDB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Page{}).Where("id = ?", id).
+			UpdateColumn("slug", gorm.Expr("? || slug", fmt.Sprintf("deleted-%d-", id))).Error; err != nil {
+			return err
+		}
+		if err := deleteTargetComments(tx, constant.TargetTypePage, id); err != nil {
+			return err
+		}
+		return tx.Where("id = ?", id).Delete(&model.Page{}).Error
+	})
+}
+
+// GetPageByID 按 id 查询页面，内部流程使用，避免纯数字 slug 遮蔽同数字 id 的页面
+func (p *pageRepo) GetPageByID(id uint) (*model.Page, error) {
+	var page model.Page
+	if err := GetDB().Preload(clause.Associations).First(&page, id).Error; err != nil {
+		return nil, err
+	}
+	return &page, nil
 }
 
 func (p *pageRepo) GetPageBySlugOrID(slugOrID string) (*model.Page, error) {

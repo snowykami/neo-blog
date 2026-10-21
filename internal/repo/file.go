@@ -97,25 +97,31 @@ func (f *FileRepo) UnsetDefaultStorageProvider(id uint) *errs.ServiceError {
 }
 
 func (f *FileRepo) CreateStorageProvider(provider *model.StorageProviderModelAndDto) *errs.ServiceError {
-	if provider.IsDefault {
-		// 创建默认存储提供者时，先将其他提供者的默认状态取消
-		if err := GetDB().Model(&model.StorageProviderModelAndDto{}).Where("is_default = ?", true).Update("is_default", false).Error; err != nil {
-			return errs.NewInternalServer("failed_to_create_target")
+	// 取消其他默认提供者与创建放在同一事务，避免中途失败后没有默认存储
+	if err := GetDB().Transaction(func(tx *gorm.DB) error {
+		if provider.IsDefault {
+			if err := tx.Model(&model.StorageProviderModelAndDto{}).Where("is_default = ?", true).Update("is_default", false).Error; err != nil {
+				return err
+			}
 		}
-	}
-	if err := GetDB().Create(provider).Error; err != nil {
+		return tx.Create(provider).Error
+	}); err != nil {
 		return errs.NewInternalServer("failed_to_create_target")
 	}
 	return nil
 }
 
 func (f *FileRepo) UpdateStorageProvider(id uint, provider *model.StorageProviderModelAndDto) *errs.ServiceError {
-	if provider.IsDefault {
-		if err := GetDB().Model(&model.StorageProviderModelAndDto{}).Where("is_default = ?", true).Update("is_default", false).Error; err != nil {
-			return errs.NewInternalServer("failed_to_update_target")
+	if err := GetDB().Transaction(func(tx *gorm.DB) error {
+		if provider.IsDefault {
+			if err := tx.Model(&model.StorageProviderModelAndDto{}).Where("is_default = ? AND id <> ?", true, id).Update("is_default", false).Error; err != nil {
+				return err
+			}
 		}
-	}
-	if err := GetDB().Model(&model.StorageProviderModelAndDto{}).Where("id = ?", id).Updates(provider).Error; err != nil {
+		// Select("*") 让 false、空字符串等零值也能写入（如取消默认、关闭 path style）
+		return tx.Model(&model.StorageProviderModelAndDto{}).Where("id = ?", id).
+			Select("*").Omit("ID", "CreatedAt", "DeletedAt").Updates(provider).Error
+	}); err != nil {
 		return errs.NewInternalServer("failed_to_update_target")
 	}
 	return nil

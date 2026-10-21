@@ -53,7 +53,8 @@ func InitDatabase() error {
 	dbConfig := loadDBConfig()
 	// 创建通用的 GORM 配置
 	gormConfig := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger:         logger.Default.LogMode(logger.Info),
+		TranslateError: true, // 统一数据库错误，便于识别唯一约束冲突（gorm.ErrDuplicatedKey）
 	}
 
 	var err error
@@ -128,6 +129,9 @@ func initSQLite(path string, gormConfig *gorm.Config) (*gorm.DB, error) {
 }
 
 func migrate() error {
+	if err := prepareLikeUniqueIndex(); err != nil {
+		return err
+	}
 	return GetDB().AutoMigrate(
 		&model.Comment{},
 		&model.EditSession{},
@@ -144,4 +148,24 @@ func migrate() error {
 		&model.UserOpenID{},
 		&model.Visitor{},
 		&model.VisitLog{})
+}
+
+// prepareLikeUniqueIndex 点赞表加唯一索引前，清理软删除记录和并发产生的重复点赞，并按实际记录修正计数
+func prepareLikeUniqueIndex() error {
+	db := GetDB()
+	if !db.Migrator().HasTable(&model.Like{}) || db.Migrator().HasIndex(&model.Like{}, "idx_like_target_user") {
+		return nil
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("DELETE FROM likes WHERE deleted_at IS NOT NULL").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM likes WHERE id NOT IN (SELECT MIN(id) FROM likes GROUP BY target_type, target_id, user_id)").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("UPDATE posts SET like_count = (SELECT COUNT(*) FROM likes WHERE likes.target_type = ? AND likes.target_id = posts.id)", "post").Error; err != nil {
+			return err
+		}
+		return tx.Exec("UPDATE comments SET like_count = (SELECT COUNT(*) FROM likes WHERE likes.target_type = ? AND likes.target_id = comments.id)", "comment").Error
+	})
 }

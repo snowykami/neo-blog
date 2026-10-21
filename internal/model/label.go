@@ -11,6 +11,7 @@ type Label struct {
 	Slug              string `gorm:"type:text;uniqueIndex"`                                                // 标签别名，URL友好
 	TailwindClassName string `gorm:"type:text"`                                                            // Tailwind CSS 的类名，用于前端样式
 	Posts             []Post `gorm:"many2many:post_labels;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"` // 关联的帖子
+	PostCount         int64  `gorm:"-"`                                                                    // 公开文章数，由查询时统计填充
 }
 
 func (l *Label) ToDto() dto.LabelDto {
@@ -21,7 +22,7 @@ func (l *Label) ToDto() dto.LabelDto {
 			TailwindClassName: l.TailwindClassName,
 			Slug:              l.Slug,
 		},
-		PostCount: int64(len(l.Posts)),
+		PostCount: l.PostCount,
 	}
 }
 

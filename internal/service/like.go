@@ -6,6 +6,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 )
 
@@ -19,6 +20,20 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return false, errs.NewUnauthorized("login_required")
+	}
+	// 只能给存在且自己看得到的目标点赞，避免产生孤儿点赞
+	switch targetType {
+	case constant.TargetTypePost:
+		post, err := repo.Post.GetPostByID(targetID)
+		if err != nil || (post.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx))) {
+			return false, errs.NewNotFound("operation_target_not_found")
+		}
+	case constant.TargetTypeComment:
+		if _, svcerr := NewCommentService().GetComment(ctx, targetID); svcerr != nil {
+			return false, svcerr
+		}
+	default:
+		return false, errs.NewBadRequest("invalid_target_type")
 	}
 	state, err := repo.Like.ToggleLike(currentUser.ID, targetID, targetType)
 	if err != nil {

@@ -34,7 +34,7 @@ func (c *AdminService) GetDashboard() (map[string]any, *errs.ServiceError) {
 	mustCount(db.Model(&model.Comment{}), &commentCount)
 	mustCount(db.Model(&model.Post{}), &postCount)
 	mustCount(db.Model(&model.User{}), &userCount)
-	mustScan(db.Model(&model.Post{}).Select("SUM(view_count)"), &viewCount)
+	mustScan(db.Model(&model.Post{}).Select("COALESCE(SUM(view_count), 0)"), &viewCount)
 
 	if err != nil {
 		return nil, errs.NewInternalServer("failed_to_get_dashboard_data")
