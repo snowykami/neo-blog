@@ -160,7 +160,11 @@
       "linked_user": "{name} と関連付け済み",
       "empty": "訪問記録はまだありません",
       "loading": "読み込み中…",
-      "clear": "解除"
+      "clear": "解除",
+      "today_sources": "今日の流入元",
+      "source_direct": "直接アクセス",
+      "source_internal": "サイト内遷移",
+      "source_external": "その他のサイト"
     },
     "about_content": "コンテンツ",
     "about_system": "システム",

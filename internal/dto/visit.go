@@ -17,6 +17,8 @@ type ListVisitLogReq struct {
 	VisitorID  uint   `query:"visitor_id"`
 	TargetType string `query:"target_type"`
 	TargetID   uint   `query:"target_id"`
+	Source     string `query:"source"`      // 按来源筛选
+	SourceHost string `query:"source_host"` // 来源为其他网站时按域名筛选
 }
 
 type VisitorDto struct {
@@ -43,7 +45,9 @@ type VisitLogDto struct {
 	TargetSlug  string    `json:"target_slug"`
 	Path        string    `json:"path"`
 	Referrer    string    `json:"referrer"`
-	IP          string    `json:"ip"` // 已脱敏
+	Source      string    `json:"source"`      // 来源分类，见 utils.ClassifyReferrer
+	SourceHost  string    `json:"source_host"` // 来源域名，直接访问时为空
+	IP          string    `json:"ip"`          // 已脱敏
 	Location    string    `json:"location"`
 	OS          string    `json:"os"`
 	Browser     string    `json:"browser"`
@@ -56,4 +60,12 @@ type VisitStatsDto struct {
 	TodayUV         int64 `json:"today_uv"`
 	TodayUserVisits int64 `json:"today_user_visits"`
 	TotalVisitors   int64 `json:"total_visitors"`
+	// 今日访问来源排行（不含站内跳转）
+	TodaySources []VisitSourceCount `json:"today_sources"`
+}
+
+type VisitSourceCount struct {
+	Source string `json:"source"`
+	Host   string `json:"host"` // 仅其他网站（external）按域名区分
+	Count  int64  `json:"count"`
 }

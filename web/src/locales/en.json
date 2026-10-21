@@ -160,7 +160,11 @@
       "linked_user": "Linked to {name}",
       "empty": "No visits yet",
       "loading": "Loading…",
-      "clear": "Clear"
+      "clear": "Clear",
+      "today_sources": "Sources today",
+      "source_direct": "Direct",
+      "source_internal": "Internal",
+      "source_external": "Other sites"
     },
     "about_content": "Content",
     "about_system": "System",

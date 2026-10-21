@@ -160,7 +160,11 @@
       "linked_user": "已關聯帳號 {name}",
       "empty": "暫無訪客紀錄",
       "loading": "載入中…",
-      "clear": "清除"
+      "clear": "清除",
+      "today_sources": "今日來源",
+      "source_direct": "直接造訪",
+      "source_internal": "站內跳轉",
+      "source_external": "其他網站"
     },
     "about_content": "內容",
     "about_system": "系統",

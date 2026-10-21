@@ -1,6 +1,6 @@
 'use client'
 
-import type { VisitLog, Visitor, VisitStats } from '@/models/visit'
+import type { VisitLog, Visitor, VisitSourceCount, VisitStats } from '@/models/visit'
 import { XIcon } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import Link from 'next/link'
@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react'
 import { getVisitorAdmin, getVisitStatsAdmin, listVisitsAdmin } from '@/api/admin'
 import Forbidden from '@/components/common/forbidden'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
-import { BrowserIcon, OsIcon } from '@/components/console/visit-icons'
+import { BrowserIcon, OsIcon, SOURCE_NAMES, SourceIcon } from '@/components/console/visit-icons'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -30,6 +30,9 @@ export default function VisitsPage() {
   const { user } = useAuth()
   const [kind, setKind] = useQueryState('kind', parseAsStringEnum<Kind>([...KINDS]).withDefault('all').withOptions({ history: 'replace', clearOnDefault: true }))
   const [visitorId, setVisitorId] = useQueryState('visitor', parseAsInteger.withOptions({ history: 'replace' }))
+  // 按来源筛选：其他网站（external）再按域名区分
+  const [source, setSource] = useQueryState('source', { history: 'replace' })
+  const [sourceHost, setSourceHost] = useQueryState('source_host', { history: 'replace' })
   const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }))
   const [size, setSize] = useState(20)
   const [visits, setVisits] = useState<VisitLog[]>([])
@@ -48,14 +51,14 @@ export default function VisitsPage() {
     if (!canView)
       return
     setLoading(true)
-    listVisitsAdmin({ page, size, kind, visitorId: visitorId ?? undefined })
+    listVisitsAdmin({ page, size, kind, visitorId: visitorId ?? undefined, source: source ?? undefined, sourceHost: sourceHost ?? undefined })
       .then((res) => {
         setVisits(res.data.visits)
         setTotal(res.data.total)
       })
       .catch(() => setVisits([]))
       .finally(() => setLoading(false))
-  }, [canView, page, size, kind, visitorId])
+  }, [canView, page, size, kind, visitorId, source, sourceHost])
 
   useEffect(() => {
     if (!canView || !visitorId) {
@@ -75,6 +78,13 @@ export default function VisitsPage() {
   // 选择或清除单个访客，切换后回到第一页
   const selectVisitor = (id: number | null) => {
     setVisitorId(id)
+    setPage(1)
+  }
+  // 选择或清除来源筛选，再次点击当前来源则取消
+  const selectSource = (item: Pick<VisitSourceCount, 'source' | 'host'> | null) => {
+    const same = item && item.source === source && (item.host || null) === sourceHost
+    setSource(item && !same ? item.source : null)
+    setSourceHost(item && !same ? item.host || null : null)
     setPage(1)
   }
   const changeSize = (nextSize: number) => {
@@ -103,20 +113,52 @@ export default function VisitsPage() {
         ))}
       </div>
 
+      {/* 今日来源排行，点击按来源筛选 */}
+      {stats && stats.todaySources.length > 0 && (
+        <Card className="gap-2 px-4 py-3">
+          <div className="text-xs text-muted-foreground">{t('today_sources')}</div>
+          <div className="flex flex-wrap gap-2">
+            {stats.todaySources.map(item => (
+              <button
+                key={`${item.source}-${item.host}`}
+                type="button"
+                onClick={() => selectSource(item)}
+                className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-sm transition-colors hover:bg-accent ${item.source === source && (item.host || null) === sourceHost ? 'border-primary text-primary' : ''}`}
+              >
+                <SourceIcon source={item.source} className="size-3.5" />
+                <SourceName source={item.source} host={item.host} />
+                <span className="tabular-nums text-muted-foreground">{item.count}</span>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={kind} onValueChange={changeKind}>
           <TabsList>
             {KINDS.map(item => <TabsTrigger key={item} value={item}>{t(`kind_${item}`)}</TabsTrigger>)}
           </TabsList>
         </Tabs>
-        {visitorId && (
-          <Badge variant="secondary" className="gap-1">
-            {t('viewing_visitor', { id: visitorId })}
-            <button type="button" aria-label={t('clear')} className="cursor-pointer" onClick={() => selectVisitor(null)}>
-              <XIcon className="size-3" />
-            </button>
-          </Badge>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {source && (
+            <Badge variant="secondary" className="gap-1">
+              <SourceIcon source={source} className="size-3" />
+              <SourceName source={source} host={sourceHost ?? ''} />
+              <button type="button" aria-label={t('clear')} className="cursor-pointer" onClick={() => selectSource(null)}>
+                <XIcon className="size-3" />
+              </button>
+            </Badge>
+          )}
+          {visitorId && (
+            <Badge variant="secondary" className="gap-1">
+              {t('viewing_visitor', { id: visitorId })}
+              <button type="button" aria-label={t('clear')} className="cursor-pointer" onClick={() => selectVisitor(null)}>
+                <XIcon className="size-3" />
+              </button>
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* 单个访客详情 */}
@@ -142,6 +184,18 @@ export default function VisitsPage() {
       </div>
     </div>
   )
+}
+
+// 来源名称：常见平台显示品牌名，其他网站显示域名
+function SourceName({ source, host }: { source: string, host: string }) {
+  const t = useTranslations('Console.visits')
+  if (source === 'direct')
+    return <>{t('source_direct')}</>
+  if (source === 'internal')
+    return <>{t('source_internal')}</>
+  if (source === 'external')
+    return <>{host || t('source_external')}</>
+  return <>{SOURCE_NAMES[source] ?? source}</>
 }
 
 // 访问者展示：登录用户显示头像昵称，匿名访客显示系统图标、归属地与浏览器
@@ -178,17 +232,18 @@ function VisitRow({ visit, onSelectVisitor }: { visit: VisitLog, onSelectVisitor
     : visit.targetType === 'page'
       ? { href: getPageUrl({ id: visit.targetId, slug: visit.targetSlug || null }), text: visit.targetTitle, key: 'visited_page' }
       : { href: visit.path, text: visit.path, key: 'visited_path' }
-  const source = (() => {
-    if (!visit.referrer)
-      return ''
+  // 站内跳转显示来源路径；没有来源分类的旧记录回退为显示来源域名
+  const referrerUrl = (() => {
     try {
-      const url = new URL(visit.referrer)
-      return url.origin === window.location.origin ? url.pathname : url.host
+      return visit.referrer ? new URL(visit.referrer) : null
     }
     catch {
-      return ''
+      return null
     }
   })()
+  const legacySource = !visit.source && referrerUrl
+    ? (referrerUrl.origin === window.location.origin ? referrerUrl.pathname : referrerUrl.host)
+    : ''
 
   return (
     <div className="flex flex-col gap-1 py-3 text-sm">
@@ -216,7 +271,14 @@ function VisitRow({ visit, onSelectVisitor }: { visit: VisitLog, onSelectVisitor
         <time dateTime={visit.createdAt} title={format.dateTime(new Date(visit.createdAt), { dateStyle: 'medium', timeStyle: 'medium' })}>
           {format.relativeTime(new Date(visit.createdAt))}
         </time>
-        {source && <span>{t('from', { source })}</span>}
+        {visit.source && (
+          <span className="flex items-center gap-1" title={visit.referrer || undefined}>
+            <SourceIcon source={visit.source} className="size-3" />
+            <SourceName source={visit.source} host={visit.sourceHost} />
+            {visit.source === 'internal' && referrerUrl && <span className="font-mono">{referrerUrl.pathname}</span>}
+          </span>
+        )}
+        {legacySource && <span>{t('from', { source: legacySource })}</span>}
         {visit.ip && <span className="font-mono">{visit.ip}</span>}
         {visit.visitorId && <span>{t('visit_count', { count: visit.visitCount })}</span>}
       </div>

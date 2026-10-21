@@ -25,7 +25,9 @@ func (v *visitType) Report(ctx context.Context, c *app.RequestContext) {
 	}
 	// 浏览器开启“请勿追踪”（DNT）或全局隐私控制（GPC）时只做匿名计数
 	doNotTrack := string(c.GetHeader("DNT")) == "1" || string(c.GetHeader("Sec-GPC")) == "1"
-	visitorKey, svcerr := v.service.Report(ctx, &req, string(c.Cookie(service.VisitorCookieName)), c.ClientIP(), string(c.UserAgent()), doNotTrack)
+	// 经 Next 代理转发时原始域名在 X-Forwarded-Host 中，用于识别站内跳转
+	requestHosts := []string{string(c.GetHeader("X-Forwarded-Host")), string(c.Host())}
+	visitorKey, svcerr := v.service.Report(ctx, &req, string(c.Cookie(service.VisitorCookieName)), c.ClientIP(), string(c.UserAgent()), doNotTrack, requestHosts...)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return

@@ -168,7 +168,11 @@
       "linked_user": "已关联账号 {name}",
       "empty": "暂无访客记录",
       "loading": "加载中…",
-      "clear": "清除"
+      "clear": "清除",
+      "today_sources": "今日来源",
+      "source_direct": "直接访问",
+      "source_internal": "站内跳转",
+      "source_external": "其他网站"
     },
     "about_content": "内容相关",
     "about_system": "系统相关",

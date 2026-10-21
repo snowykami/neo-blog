@@ -26,22 +26,25 @@ type Visitor struct {
 
 // VisitLog 访问记录：一次访问一条，保存当次的设备与位置快照
 type VisitLog struct {
-	ID         uint      `gorm:"primaryKey"`
-	VisitorID  *uint     `gorm:"index"` // 开启“请勿追踪”时为空
-	Visitor    *Visitor  `gorm:"constraint:OnDelete:SET NULL"`
-	UserID     *uint     `gorm:"index"`
-	User       *User     `gorm:"constraint:OnDelete:SET NULL"`
-	TargetType string    `gorm:"type:varchar(16);index:idx_visit_logs_target"` // post / page / other
-	TargetID   uint      `gorm:"index:idx_visit_logs_target"`
-	Path       string    `gorm:"type:varchar(512)"`
-	Referrer   string    `gorm:"type:varchar(512)"`
-	IP         string    `gorm:"type:varchar(64)"`
-	Location   string    `gorm:"type:varchar(128)"`
-	UserAgent  string    `gorm:"type:text"`
-	OS         string    `gorm:"type:varchar(32)"`
-	Browser    string    `gorm:"type:varchar(32)"`
-	DeviceType string    `gorm:"type:varchar(16)"`
-	CreatedAt  time.Time `gorm:"index"`
+	ID         uint     `gorm:"primaryKey"`
+	VisitorID  *uint    `gorm:"index"` // 开启“请勿追踪”时为空
+	Visitor    *Visitor `gorm:"constraint:OnDelete:SET NULL"`
+	UserID     *uint    `gorm:"index"`
+	User       *User    `gorm:"constraint:OnDelete:SET NULL"`
+	TargetType string   `gorm:"type:varchar(16);index:idx_visit_logs_target"` // post / page / other
+	TargetID   uint     `gorm:"index:idx_visit_logs_target"`
+	Path       string   `gorm:"type:varchar(512)"`
+	Referrer   string   `gorm:"type:varchar(512)"`
+	// 来源分类：direct / internal / external / google、github 等常见来源，见 utils.ClassifyReferrer
+	Source       string    `gorm:"type:varchar(32);index"`
+	ReferrerHost string    `gorm:"type:varchar(255)"`
+	IP           string    `gorm:"type:varchar(64)"`
+	Location     string    `gorm:"type:varchar(128)"`
+	UserAgent    string    `gorm:"type:text"`
+	OS           string    `gorm:"type:varchar(32)"`
+	Browser      string    `gorm:"type:varchar(32)"`
+	DeviceType   string    `gorm:"type:varchar(16)"`
+	CreatedAt    time.Time `gorm:"index"`
 }
 
 func (v *Visitor) ToDto() *dto.VisitorDto {
@@ -71,6 +74,8 @@ func (l *VisitLog) ToDto() *dto.VisitLogDto {
 		TargetID:   l.TargetID,
 		Path:       l.Path,
 		Referrer:   l.Referrer,
+		Source:     l.Source,
+		SourceHost: l.ReferrerHost,
 		IP:         utils.MaskIP(l.IP),
 		Location:   l.Location,
 		OS:         l.OS,

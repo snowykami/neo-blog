@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/ipregion"
@@ -65,20 +67,23 @@ func allowVisitReport(ip string) bool {
 	return entry.count <= visitRateLimit
 }
 
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
+// siteHosts 本站域名：请求方传入的域名（如 X-Forwarded-Host）加上配置的站点地址，用于识别站内跳转
+func siteHosts(requestHosts []string) []string {
+	hosts := append([]string{}, requestHosts...)
+	if u, err := url.Parse(tools.GetBaseUrl()); err == nil && u.Host != "" {
+		hosts = append(hosts, u.Host)
 	}
-	return s[:n]
+	return hosts
 }
 
 // Report 记录一次访问，返回应写入 Cookie 的访客ID（为空表示不写入）
 // doNotTrack 为 true 时（浏览器开启 DNT / GPC）只做匿名计数：不识别访客、不保存 IP 与 UA
-func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visitorKey, ip, userAgent string, doNotTrack bool) (string, *errs.ServiceError) {
+// requestHosts 为本次请求的站点域名，用于区分站内跳转与外部来源
+func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visitorKey, ip, userAgent string, doNotTrack bool, requestHosts ...string) (string, *errs.ServiceError) {
 	if !allowVisitReport(ip) {
 		return "", errs.New(http.StatusTooManyRequests, "too_many_requests", nil)
 	}
-	path := truncate(strings.TrimSpace(req.Path), maxVisitTextLength)
+	path := utils.Truncate(strings.TrimSpace(req.Path), maxVisitTextLength)
 	if !strings.HasPrefix(path, "/") {
 		return "", errs.NewBadRequest("invalid_request_parameters")
 	}
@@ -103,17 +108,21 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 	}
 	now := time.Now()
 	location := ipregion.Lookup(ip).String()
+	referrer := utils.Truncate(strings.TrimSpace(req.Referrer), maxVisitTextLength)
+	source, sourceHost := utils.ClassifyReferrer(referrer, path, siteHosts(requestHosts)...)
 	log := &model.VisitLog{
-		UserID:     userID,
-		TargetType: targetType,
-		TargetID:   targetID,
-		Path:       path,
-		Referrer:   truncate(req.Referrer, maxVisitTextLength),
-		Location:   location,
-		OS:         ua.OS,
-		Browser:    ua.Browser,
-		DeviceType: ua.DeviceType,
-		CreatedAt:  now,
+		UserID:       userID,
+		TargetType:   targetType,
+		TargetID:     targetID,
+		Path:         path,
+		Referrer:     referrer,
+		Source:       source,
+		ReferrerHost: utils.Truncate(sourceHost, 255),
+		Location:     location,
+		OS:           ua.OS,
+		Browser:      ua.Browser,
+		DeviceType:   ua.DeviceType,
+		CreatedAt:    now,
 	}
 
 	if doNotTrack {

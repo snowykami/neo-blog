@@ -160,7 +160,11 @@
       "linked_user": "{name} से जुड़ा",
       "empty": "अभी कोई विज़िट नहीं",
       "loading": "लोड हो रहा है…",
-      "clear": "हटाएँ"
+      "clear": "हटाएँ",
+      "today_sources": "आज के स्रोत",
+      "source_direct": "सीधे",
+      "source_internal": "साइट के भीतर",
+      "source_external": "अन्य साइटें"
     },
     "about_content": "सामग्री",
     "about_system": "सिस्टम",

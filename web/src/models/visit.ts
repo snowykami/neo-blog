@@ -27,6 +27,8 @@ export interface VisitLog {
   targetSlug: string
   path: string
   referrer: string
+  source: string // 来源分类：direct / internal / external / google、github 等，见后端 utils.ClassifyReferrer
+  sourceHost: string // 来源域名，直接访问时为空
   ip: string // 已脱敏
   location: string
   os: string
@@ -40,4 +42,11 @@ export interface VisitStats {
   todayUv: number
   todayUserVisits: number
   totalVisitors: number
+  todaySources: VisitSourceCount[] // 今日来源排行（不含站内跳转）
+}
+
+export interface VisitSourceCount {
+  source: string
+  host: string // 仅其他网站（external）按域名区分
+  count: number
 }

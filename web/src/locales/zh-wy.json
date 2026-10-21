@@ -160,7 +160,11 @@
       "linked_user": "已系于 {name}",
       "empty": "尚无访客",
       "loading": "载入中…",
-      "clear": "去"
+      "clear": "去",
+      "today_sources": "今日之所来",
+      "source_direct": "径至",
+      "source_internal": "站内相移",
+      "source_external": "他站"
     },
     "about_content": "關於內容",
     "about_system": "關於系統",

@@ -102,14 +102,18 @@ export async function listVisitsAdmin({
   visitorId,
   targetType,
   targetId,
+  source,
+  sourceHost,
   ...pagination
 }: {
   kind?: 'all' | 'user' | 'anonymous'
   visitorId?: number
   targetType?: string
   targetId?: number
+  source?: string // 按来源筛选
+  sourceHost?: string // 来源为其他网站时按域名筛选
 } & PaginationParams): Promise<BaseResponse<{ visits: VisitLog[], total: number }>> {
-  const res = await axiosClient.get('/admin/visits', { params: { ...pagination, kind, visitorId, targetType, targetId } })
+  const res = await axiosClient.get('/admin/visits', { params: { ...pagination, kind, visitorId, targetType, targetId, source, sourceHost } })
   return res.data
 }
 

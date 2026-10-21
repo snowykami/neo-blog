@@ -64,6 +64,12 @@ func (v *visitRepo) ListVisitLogs(req *dto.ListVisitLogReq) ([]model.VisitLog, i
 	if req.VisitorID > 0 {
 		q = q.Where("visitor_id = ?", req.VisitorID)
 	}
+	if req.Source != "" {
+		q = q.Where("source = ?", req.Source)
+		if req.SourceHost != "" {
+			q = q.Where("referrer_host = ?", req.SourceHost)
+		}
+	}
 	if req.TargetType != "" {
 		q = q.Where("target_type = ?", req.TargetType)
 		if req.TargetID > 0 {
@@ -103,6 +109,15 @@ func (v *visitRepo) CountVisitStats(since time.Time) (*dto.VisitStatsDto, error)
 		return nil, err
 	}
 	if err := db.Model(&model.Visitor{}).Count(&stats.TotalVisitors).Error; err != nil {
+		return nil, err
+	}
+	// 来源排行：常见来源按分类汇总，其他网站按域名区分；不统计站内跳转
+	stats.TodaySources = []dto.VisitSourceCount{}
+	if err := db.Model(&model.VisitLog{}).
+		Select("source, CASE WHEN source = ? THEN referrer_host ELSE '' END AS host, COUNT(*) AS count", "external").
+		Where("created_at >= ? AND source <> '' AND source <> ?", since, "internal").
+		Group("source, host").Order("count DESC").Limit(10).
+		Scan(&stats.TodaySources).Error; err != nil {
 		return nil, err
 	}
 	return stats, nil

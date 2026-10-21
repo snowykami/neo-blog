@@ -160,7 +160,11 @@
       "linked_user": "{name} 계정과 연결됨",
       "empty": "아직 방문 기록이 없습니다",
       "loading": "불러오는 중…",
-      "clear": "지우기"
+      "clear": "지우기",
+      "today_sources": "오늘의 유입 경로",
+      "source_direct": "직접 방문",
+      "source_internal": "사이트 내 이동",
+      "source_external": "기타 사이트"
     },
     "about_content": "콘텐츠",
     "about_system": "시스템",

@@ -160,7 +160,11 @@
       "linked_user": "Связан с {name}",
       "empty": "Визитов пока нет",
       "loading": "Загрузка…",
-      "clear": "Сбросить"
+      "clear": "Сбросить",
+      "today_sources": "Источники сегодня",
+      "source_direct": "Прямой заход",
+      "source_internal": "Внутренний переход",
+      "source_external": "Другие сайты"
     },
     "about_content": "Контент",
     "about_system": "Система",
