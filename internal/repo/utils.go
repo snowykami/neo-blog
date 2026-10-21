@@ -1,9 +1,32 @@
 package repo
 
 import (
+	"regexp"
+	"slices"
+
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+// 排序字段只允许形如 column 或 table.column 的标识符
+var orderColumnPattern = regexp.MustCompile(`^[a-z_]+(\.[a-z_]+)?$`)
+
+// AllowedOrderBy 排序字段不在允许列表内时回退到 fallback，防止任意字符串进入 ORDER BY
+func AllowedOrderBy(orderBy string, allowed []string, fallback string) string {
+	if slices.Contains(allowed, orderBy) {
+		return orderBy
+	}
+	return fallback
+}
+
+// orderColumn 构造带引号的排序子句；非法字段回退到 id
+func orderColumn(orderBy string, desc bool) clause.OrderByColumn {
+	if !orderColumnPattern.MatchString(orderBy) {
+		orderBy = "id"
+	}
+	return clause.OrderByColumn{Column: clause.Column{Name: orderBy}, Desc: desc}
+}
 
 func PaginateQuery[T any](db *gorm.DB, page, limit uint64, orderBy string, desc bool, conditions ...any) (items []T, total int64, err error) {
 	countDB := db
@@ -25,15 +48,6 @@ func PaginateQuery[T any](db *gorm.DB, page, limit uint64, orderBy string, desc 
 		offset := (page - 1) * limit
 		queryDB = queryDB.Offset(int(offset))
 	}
-	orderStr := orderBy
-	if orderStr == "" {
-		orderStr = "id"
-	}
-	if desc {
-		orderStr += " DESC"
-	} else {
-		orderStr += " ASC"
-	}
-	err = queryDB.Limit(int(limit)).Order(orderStr).Find(&items).Error
+	err = queryDB.Limit(int(limit)).Order(orderColumn(orderBy, desc)).Find(&items).Error
 	return
 }

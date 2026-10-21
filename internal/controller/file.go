@@ -23,7 +23,13 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
+	"github.com/snowykami/neo-blog/pkg/storageprovider"
 	"github.com/snowykami/neo-blog/pkg/utils"
+)
+
+const (
+	userMaxUploadSize = 10 << 20 // 普通用户单个文件上传上限
+	maxCachedFileSize = 8 << 20  // 超过该大小的文件不进入内存缓存，直接流式输出
 )
 
 type FileController struct{}
@@ -39,6 +45,11 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
+	// 只有管理员可以指定存储提供者，其他用户统一使用默认存储
+	if !(req.ProviderID == 0 || ctxutils.IsAdmin(ctx)) {
+		resps.Forbidden(c, resps.ErrForbidden)
+		return
+	}
 	if req.ProviderID == 0 {
 		req.ProviderID = storage.GetDefaultStorageProviderID()
 	}
@@ -48,21 +59,23 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		resps.BadRequest(c, err.Error())
 		return
 	}
+	mimeType := f.getContentType(file.Filename)
+	// 普通用户只能上传有限大小的图片（头像、评论配图等），编辑和管理员不受限
+	if !(ctxutils.IsEditor(ctx) || ctxutils.IsAdmin(ctx)) {
+		if !strings.HasPrefix(mimeType, "image/") || mimeType == "image/svg+xml" {
+			resps.BadRequest(c, "unsupported_file_type")
+			return
+		}
+		if file.Size > userMaxUploadSize {
+			resps.BadRequest(c, "file_too_large")
+			return
+		}
+	}
 	// 初始化文件驱动
 	provider, ok := storage.GetStorageProvider(req.ProviderID)
 	if !ok {
 		resps.InternalServerError(c, "没有可用的存储提供者")
 		return
-	}
-
-	// 校验文件哈希
-	if hashForm := string(c.FormValue("hash")); hashForm != "" {
-		dir, fileName := utils.FilePath(hashForm)
-		storagePath := filepath.Join(dir, fileName)
-		if _, err := provider.Stat(ctx, storagePath); err == nil {
-			resps.Ok(c, "文件已存在", map[string]any{"hash": hashForm})
-			return
-		}
 	}
 
 	// 打开文件
@@ -85,16 +98,18 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 	// 根据哈希值生成存储路径
 	dir, fileNameHash := utils.FilePath(hash)
 	storagePath := filepath.Join(dir, fileNameHash)
-	// 保存文件
-	if _, err := src.Seek(0, io.SeekStart); err != nil {
-		logrus.Error("无法重置文件流位置: ", err)
-		resps.BadRequest(c, err.Error())
-		return
-	}
-	if err := provider.Save(ctx, storagePath, src); err != nil {
-		logrus.Error("保存文件失败: ", err)
-		resps.InternalServerError(c, err.Error())
-		return
+	// 保存文件：相同内容已存在时直接复用（哈希由服务端计算，不信任客户端传入）
+	if _, err := provider.Stat(ctx, storagePath); err != nil {
+		if _, err := src.Seek(0, io.SeekStart); err != nil {
+			logrus.Error("无法重置文件流位置: ", err)
+			resps.BadRequest(c, err.Error())
+			return
+		}
+		if err := provider.Save(ctx, storagePath, src); err != nil {
+			logrus.Error("保存文件失败: ", err)
+			resps.InternalServerError(c, err.Error())
+			return
+		}
 	}
 	// 数据库索引建立
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
@@ -109,7 +124,7 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		Name:       req.Name,
 		ProviderID: req.ProviderID,
 		Size:       file.Size,
-		MimeType:   f.getContentType(file.Filename),
+		MimeType:   mimeType,
 	}
 
 	if err := repo.File.Create(fileModel); err != nil {
@@ -148,25 +163,37 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
+	// 响应类型只取上传时记录的类型，不受请求中的文件名影响，避免把上传内容当作 HTML 渲染
+	contentType := fileModel.MimeType
+	if contentType == "" {
+		contentType = f.getContentType(fileModel.Name)
+	}
 	if fileName != "" {
 		fileModel.Name = fileName // 使用请求中的文件名，避免浏览器下载时文件名为id
+	}
+	inline := isInlineContentType(contentType)
+	if !inline {
+		contentType = "application/octet-stream"
+	}
+	setHeaders := func(size int64, cacheStatus string) {
+		c.Header("Content-Length", fmt.Sprintf("%d", size))
+		c.Header("Content-Disposition", f.buildContentDisposition(fileModel.Name, inline))
+		c.Header("Cache-Control", "public, max-age=3600")
+		c.Header("ETag", fmt.Sprintf("\"%s\"", fileModel.Hash))
+		c.Header("X-Cache-Status", cacheStatus)
+		c.Header("X-Content-Type-Options", "nosniff")
+		// 直接打开文件时禁止执行脚本（如 SVG 内嵌脚本）；PDF 预览在沙箱中无法加载，单独放行
+		if contentType != "application/pdf" {
+			c.Header("Content-Security-Policy", "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox")
+		}
 	}
 
 	// 尝试从缓存中获取文件内容
 	fileCache := cache.GetFileCache()
 	if cachedData, found := fileCache.Get(fileId); found {
 		logrus.Debugf("文件从缓存中获取, fileId: %d", fileId)
-		// 设置响应头
-		c.Header("Content-Type", f.getContentType(fileModel.Name))
-		c.Header("Content-Length", fmt.Sprintf("%d", len(cachedData)))
-		c.Header("Content-Disposition", f.buildContentDisposition(fileModel.Name))
-		c.Header("Accept-Ranges", "bytes")
-		c.Header("Cache-Control", "public, max-age=3600")
-		c.Header("ETag", fmt.Sprintf("\"%s\"", fileModel.Hash))
-		c.Header("X-Cache-Status", "HIT")
-
-		// 直接返回缓存的字节数据
-		c.Data(200, f.getContentType(fileModel.Name), cachedData)
+		setHeaders(int64(len(cachedData)), "HIT")
+		c.Data(200, contentType, cachedData)
 		return
 	}
 
@@ -182,18 +209,18 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 		resps.Error(c, errs.NewInternalServer("failed_to_open_file"))
 		return
 	}
+	size := readableFile.Size()
+	setHeaders(size, "MISS")
+
+	// 大文件直接流式输出，不读入内存；流读取完毕后由框架关闭文件
+	if size > maxCachedFileSize {
+		c.SetContentType(contentType)
+		c.SetBodyStream(readableFile, int(size))
+		return
+	}
 	defer readableFile.Close() // 确保文件关闭，避免资源泄漏
 
-	// 设置响应头
-	c.Header("Content-Type", f.getContentType(fileModel.Name))
-	c.Header("Content-Length", fmt.Sprintf("%d", readableFile.Size()))
-	c.Header("Content-Disposition", f.buildContentDisposition(fileModel.Name))
-	c.Header("Accept-Ranges", "bytes")
-	c.Header("Cache-Control", "public, max-age=3600")
-	c.Header("ETag", fmt.Sprintf("\"%s\"", fileModel.Hash))
-	c.Header("X-Cache-Status", "MISS")
-
-	// 读取文件内容到内存，用于缓存
+	// 小文件读取到内存，用于缓存
 	fileData, err := io.ReadAll(readableFile)
 	if err != nil {
 		resps.Error(c, errs.NewInternalServer("failed_to_read_file"))
@@ -205,7 +232,7 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	logrus.Debugf("文件已缓存, fileId: %d, size: %d bytes", fileId, len(fileData))
 
 	// 返回文件内容
-	c.Data(200, f.getContentType(fileModel.Name), fileData)
+	c.Data(200, contentType, fileData)
 }
 
 func (f *FileController) ListFiles(ctx context.Context, c *app.RequestContext) {
@@ -262,13 +289,12 @@ func (f *FileController) DeleteFile(ctx context.Context, c *app.RequestContext) 
 		resps.BadRequest(c, "文件存储提供者不存在")
 		return
 	}
-	if svcerr := repo.File.DeleteByID(fileId); err != nil {
+	if svcerr := repo.File.DeleteByID(fileId); svcerr != nil {
 		logrus.Error("删除文件记录失败: ", svcerr)
 		resps.InternalServerError(c, "删除文件记录失败")
 		return
 	}
-	filePath := filepath.Join(utils.FilePath(fileModel.Hash))
-	if err := provider.Delete(ctx, filePath); err != nil {
+	if err := f.deleteObjectIfUnused(ctx, provider, &fileModel); err != nil {
 		logrus.Error("删除文件失败: ", err)
 		resps.InternalServerError(c, "删除文件失败")
 		return
@@ -276,7 +302,7 @@ func (f *FileController) DeleteFile(ctx context.Context, c *app.RequestContext) 
 	// 从缓存中删除文件
 	cache.GetFileCache().Remove(fileId)
 	logrus.Debugf("文件已从缓存中删除, fileId: %d", fileId)
-	
+
 	resps.Ok(c, "文件删除成功", nil)
 }
 
@@ -403,8 +429,7 @@ func (f *FileController) BatchDeleteFiles(ctx context.Context, c *app.RequestCon
 			resps.BadRequest(c, "文件存储提供者不存在")
 			return
 		}
-		filePath := filepath.Join(utils.FilePath(fileModel.Hash))
-		if err := provider.Delete(ctx, filePath); err != nil {
+		if err := f.deleteObjectIfUnused(ctx, provider, &fileModel); err != nil {
 			logrus.Error("删除文件失败: ", err)
 			continue
 		}
@@ -423,6 +448,29 @@ func (f *FileController) ListStorageProviders(ctx context.Context, c *app.Reques
 		return
 	}
 	resps.Ok(c, "存储提供者列表", map[string]any{"providers": providers})
+}
+
+// deleteObjectIfUnused 相同内容的文件共用一个存储对象，没有其他文件记录引用时才删除对象
+func (f *FileController) deleteObjectIfUnused(ctx context.Context, provider storageprovider.StorageProvider, fileModel *model.File) error {
+	count, err := repo.File.CountFilesByHash(fileModel.Hash, fileModel.ProviderID)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	return provider.Delete(ctx, filepath.Join(utils.FilePath(fileModel.Hash)))
+}
+
+// isInlineContentType 只有图片、音视频、PDF 和纯文本允许在浏览器内直接打开，其余一律作为附件下载
+// SVG 虽然按图片内联展示，但响应带有 CSP sandbox，内嵌脚本不会执行
+func isInlineContentType(contentType string) bool {
+	for _, prefix := range []string{"image/", "video/", "audio/", "application/pdf", "text/plain"} {
+		if strings.HasPrefix(contentType, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *FileController) getContentType(filename string) string {
@@ -459,15 +507,19 @@ func (f *FileController) getContentType(filename string) string {
 	return "application/octet-stream"
 }
 
-func (f *FileController) buildContentDisposition(fileName string) string {
-	// 如果文件名只包含ASCII字符
-	if utf8.ValidString(fileName) && isASCII(fileName) {
-		return fmt.Sprintf("inline; filename=\"%s\"", fileName)
+func (f *FileController) buildContentDisposition(fileName string, inline bool) string {
+	disposition := "attachment"
+	if inline {
+		disposition = "inline"
+	}
+	// 如果文件名只包含ASCII字符（排除引号和控制字符，避免响应头注入）
+	if utf8.ValidString(fileName) && isASCII(fileName) && !strings.ContainsAny(fileName, "\"\\\r\n") {
+		return fmt.Sprintf("%s; filename=\"%s\"", disposition, fileName)
 	}
 
 	// 如果包含非ASCII字符，使用RFC5987编码
-	encodedName := url.QueryEscape(fileName)
-	return fmt.Sprintf("inline; filename*=UTF-8''%s", encodedName)
+	encodedName := url.PathEscape(fileName)
+	return fmt.Sprintf("%s; filename*=UTF-8''%s", disposition, encodedName)
 }
 
 func isASCII(s string) bool {

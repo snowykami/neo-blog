@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/model"
@@ -28,12 +27,8 @@ func NewLocalStorageProvider(providerConfig model.StorageProviderModelAndDto) (s
 
 func (p *LocalStorageProvider) getFullPath(path string) string {
 	// 清理路径，防止目录遍历攻击
-	cleanPath := filepath.Clean(path)
-	if strings.HasPrefix(cleanPath, "..") {
-		cleanPath = strings.TrimPrefix(cleanPath, "..")
-		cleanPath = strings.TrimPrefix(cleanPath, "/")
-	}
-	return filepath.Join(p.baseDir, cleanPath)
+	// 先以根目录为基准清理，所有 .. 都无法越过根目录，再拼接到存储目录下
+	return filepath.Join(p.baseDir, filepath.Clean(string(filepath.Separator)+path))
 }
 
 // Save 保存文件

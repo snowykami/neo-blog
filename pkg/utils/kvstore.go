@@ -100,6 +100,27 @@ func (s *KVStore) Get(key string) (interface{}, bool) {
 	return item.value, true
 }
 
+// Incr 计数加一并返回当前值；键不存在或已过期时从 1 开始，并按 ttl 重新计时
+func (s *KVStore) Incr(key string, ttl time.Duration) int {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	now := time.Now()
+	if item, exists := s.data[key]; exists && (item.expiration == 0 || now.Unix() <= item.expiration) {
+		if count, ok := item.value.(int); ok {
+			item.value = count + 1
+			s.data[key] = item
+			return count + 1
+		}
+	}
+	var expiration int64
+	if ttl > 0 {
+		expiration = now.Add(ttl).Unix()
+	}
+	s.data[key] = storeItem{value: 1, expiration: expiration}
+	return 1
+}
+
 // Delete 删除键值对
 func (s *KVStore) Delete(key string) {
 	s.mutex.Lock()

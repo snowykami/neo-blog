@@ -71,8 +71,6 @@ func (p *pageRepo) ListPages(currentUserID uint, req *dto.ListPageReq, query []s
 		q = q.Omit("content", "draft_content")
 	}
 
-	if req.OrderBy == "" {
-		req.OrderBy = constant.OrderByCreatedAt
-	}
+	req.OrderBy = AllowedOrderBy(req.OrderBy, constant.OrderByEnumPage, constant.OrderByCreatedAt)
 	return PaginateQuery[model.Page](q, req.Page, req.Size, req.OrderBy, req.Desc)
 }

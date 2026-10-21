@@ -92,6 +92,7 @@ func (p *Post) ToDto() *dto.PostDto {
 // ToDtoWithShortContent 返回一个简化的 DTO，内容可以根据需要截断
 func (p *Post) ToDtoWithShortContent(contentLength int) *dto.PostDto {
 	dtoPost := p.ToDto()
+	dtoPost.DraftContent = nil // 列表等公开场景不返回草稿内容
 	if contentLength <= 0 {
 		dtoPost.Content = ""
 		return dtoPost

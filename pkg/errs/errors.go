@@ -81,6 +81,13 @@ func NewIAmATeapot(error string) *ServiceError {
 	}
 }
 
+func NewTooManyRequests(error string) *ServiceError {
+	return &ServiceError{
+		Code:    http.StatusTooManyRequests,
+		Message: error,
+	}
+}
+
 func NewInternalServer(error string) *ServiceError {
 	return &ServiceError{
 		Code:    http.StatusInternalServerError,

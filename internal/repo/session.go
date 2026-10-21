@@ -2,12 +2,15 @@ package repo
 
 import (
 	"strings"
+	"time"
 
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+const maxSessionIPRecords = 20
 
 type sessionRepo struct{}
 
@@ -48,6 +51,26 @@ func (s *sessionRepo) RevokeSession(sessionID string) error {
 	return GetDB().Unscoped().Where("session_id = ?", sessionID).Delete(&model.Session{}).Error
 }
 
+// RevokeUserSessions 吊销用户的所有会话，exceptSessionID 非空时保留该会话（如改密时保留当前登录）
+func (s *sessionRepo) RevokeUserSessions(userID uint, exceptSessionID string) error {
+	q := GetDB().Unscoped().Where("user_id = ?", userID)
+	if exceptSessionID != "" {
+		q = q.Where("session_id <> ?", exceptSessionID)
+	}
+	return q.Delete(&model.Session{}).Error
+}
+
+// TouchSession 刷新会话的最近活跃时间，用于清理长期不活跃的会话
+func (s *sessionRepo) TouchSession(sessionID string) error {
+	return GetDB().Model(&model.Session{}).Where("session_id = ?", sessionID).Update("updated_at", time.Now()).Error
+}
+
+// DeleteSessionsInactiveBefore 删除在指定时间之前就不再活跃的会话
+func (s *sessionRepo) DeleteSessionsInactiveBefore(before time.Time) (int64, error) {
+	result := GetDB().Unscoped().Where("updated_at < ?", before).Delete(&model.Session{})
+	return result.RowsAffected, result.Error
+}
+
 // 在UserIP字段添加一条新的IP记录，记录格式为 "ip,timestamp;"
 func (s *sessionRepo) AddSessionIPRecord(sessionID string, ip string) error {
 	// 使用行级锁（SELECT ... FOR UPDATE）在事务内更新，避免并发拼接丢失
@@ -63,9 +86,12 @@ func (s *sessionRepo) AddSessionIPRecord(sessionID string, ip string) error {
 			First(&sess).Error; err != nil {
 			return err
 		}
-		// 在锁保护下安全拼接并写回
-		return tx.Model(&sess).
-			UpdateColumn("user_ip", gorm.Expr("COALESCE(user_ip, '') || ?", entry)).Error
+		// 在锁保护下安全拼接并写回，只保留最近若干条，避免 IP 频繁切换时字段无限增长
+		records := strings.Split(strings.TrimRight(sess.UserIP+entry, ";"), ";")
+		if len(records) > maxSessionIPRecords {
+			records = records[len(records)-maxSessionIPRecords:]
+		}
+		return tx.Model(&sess).UpdateColumn("user_ip", strings.Join(records, ";")+";").Error
 	})
 }
 

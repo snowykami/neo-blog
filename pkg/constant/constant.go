@@ -43,4 +43,7 @@ const (
 var (
 	OrderByEnumPost    = []string{OrderByCreatedAt, OrderByUpdatedAt, OrderByLikeCount, OrderByCommentCount, OrderByViewCount, OrderByHeat, "top"} // 帖子可用的排序方式
 	OrderByEnumComment = []string{OrderByCreatedAt, OrderByUpdatedAt, OrderByCommentCount, OrderByLikeCount}                                       // 评论可用的排序方式
+	OrderByEnumPage    = []string{OrderByCreatedAt, OrderByUpdatedAt, "nav_order", "title"}                                                        // 页面可用的排序方式
+	OrderByEnumFile    = []string{OrderByCreatedAt, OrderByUpdatedAt, "name", "size"}                                                              // 文件可用的排序方式
+	OrderByEnumUser    = []string{OrderByCreatedAt, OrderByUpdatedAt, "id", "username"}                                                            // 用户可用的排序方式
 )

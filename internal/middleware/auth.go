@@ -62,6 +62,9 @@ func UseAuth(block bool) app.HandlerFunc {
 					}
 
 					ctxutils.Set2Tokens(c, newToken, newRefreshToken)
+					if err := repo.Session.TouchSession(refreshTokenClaims.SessionID); err != nil {
+						logrus.Warnf("touch session error: %v", err)
+					}
 					ctx = context.WithValue(ctx, "user_id", refreshTokenClaims.UserID)
 					ctx = context.WithValue(ctx, "session_id", refreshTokenClaims.SessionID)
 					err = recordUserIP(refreshTokenClaims.SessionID, c.ClientIP())

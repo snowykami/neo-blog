@@ -21,6 +21,7 @@ type User struct {
 	ShowIPLocation *bool         `gorm:"default:true"` // 是否显示IP归属地
 }
 
+// ToDto 公开的用户信息，不包含邮箱等隐私字段
 func (user *User) ToDto() dto.UserDto {
 	return dto.UserDto{
 		ID:             user.ID,
@@ -29,12 +30,18 @@ func (user *User) ToDto() dto.UserDto {
 		AvatarUrl:      user.AvatarUrl,
 		BackgroundUrl:  user.BackgroundUrl,
 		PreferredColor: user.PreferredColor,
-		Email:          user.Email,
 		Gender:         user.Gender,
 		Role:           user.Role,
 		Language:       user.Language,
 		ShowIPLocation: user.ShowIPLocation,
 	}
+}
+
+// ToPrivateDto 包含邮箱的完整用户信息，只返回给本人和管理员
+func (user *User) ToPrivateDto() dto.UserDto {
+	userDto := user.ToDto()
+	userDto.Email = user.Email
+	return userDto
 }
 
 func (user *User) IsAdmin() bool {
@@ -81,10 +88,11 @@ func (uo *UserOpenID) ToDto() dto.UserOpenIDDto {
 	}
 }
 
+// ToUserDtos 管理后台使用，包含邮箱
 func ToUserDtos(users []User) []dto.UserDto {
 	dtos := make([]dto.UserDto, len(users))
 	for i, u := range users {
-		dtos[i] = u.ToDto()
+		dtos[i] = u.ToPrivateDto()
 	}
 	return dtos
 }

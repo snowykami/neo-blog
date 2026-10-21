@@ -7,13 +7,6 @@ type PaginationParams struct {
 	Desc    bool   `query:"desc" default:"true"` // 默认是从大值到小值
 }
 
-func (p *PaginationParams) Order() string {
-	if p.Desc {
-		return p.OrderBy + " DESC"
-	}
-	return p.OrderBy + " ASC"
-}
-
 func (p *PaginationParams) Offset() uint64 {
 	if p.Page == 0 {
 		p.Page = 1

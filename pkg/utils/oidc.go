@@ -139,9 +139,25 @@ type Userinfo struct {
 	Picture           string   `json:"picture,omitempty"`
 	PreferredUsername string   `json:"preferred_username"`
 	Groups            []string `json:"groups,omitempty"` // 可选字段，OIDC提供的用户组信息
+	EmailVerified     any      `json:"email_verified"`   // 部分提供商返回字符串 "true"
+	VerifiedByServer  bool     `json:"-"`                // 邮箱由服务端额外确认过（如 GitHub 已验证邮箱接口）
 	ID                int64    `json:"id"`               // GitHub兜底字段，OIDC标准没有定义ID字段
 	Login             string   `json:"login"`            // GitHub兜底字段，OIDC标准没有定义Login字段
 	AvatarUrl         string   `json:"avatar_url"`       // GitHub兜底字段，OIDC标准没有定义AvatarUrl字段
+}
+
+// IsEmailVerified 邮箱是否经过身份提供商验证；未验证的邮箱不能用来关联本地账户
+func (u *Userinfo) IsEmailVerified() bool {
+	if u.VerifiedByServer {
+		return true
+	}
+	switch v := u.EmailVerified.(type) {
+	case bool:
+		return v
+	case string:
+		return v == "true"
+	}
+	return false
 }
 
 type MisskeyUserInfo struct {

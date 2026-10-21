@@ -3,6 +3,7 @@ package repo
 import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 )
 
@@ -94,9 +95,7 @@ func (user *userRepo) ListUsers(pagination *dto.PaginationParams) ([]model.User,
 
 	db := GetDB().Model(&model.User{})
 
-	if ord := pagination.Order(); ord != "" {
-		db = db.Order(ord)
-	}
+	db = db.Order(orderColumn(AllowedOrderBy(pagination.OrderBy, constant.OrderByEnumUser, constant.OrderByCreatedAt), pagination.Desc))
 
 	// Get total count before applying Limit/Offset
 	if err := db.Count(&total).Error; err != nil {

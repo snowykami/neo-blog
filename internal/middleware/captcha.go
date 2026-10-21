@@ -28,7 +28,7 @@ func UseCaptcha() app.HandlerFunc {
 			return
 		}
 		if !ok {
-			logrus.Warn("Captcha verification failed for token:", CaptchaToken)
+			logrus.Warn("Captcha verification failed")
 			resps.Forbidden(c, "Captcha verification failed")
 			c.Abort()
 			return

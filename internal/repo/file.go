@@ -3,6 +3,7 @@ package repo
 import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"gorm.io/gorm"
 )
@@ -38,6 +39,13 @@ func (f *FileRepo) CountFilesByProviderID(providerID uint) (int64, error) {
 	return count, err
 }
 
+// CountFilesByHash 统计引用同一存储对象的文件记录数
+func (f *FileRepo) CountFilesByHash(hash string, providerID uint) (int64, error) {
+	var count int64
+	err := GetDB().Model(&model.File{}).Where("hash = ? AND provider_id = ?", hash, providerID).Count(&count).Error
+	return count, err
+}
+
 func (f *FileRepo) ListFiles(userID uint, paginationParams *dto.PaginationParams, query []string) ([]model.File, int64, error) {
 	var files []model.File
 	var total int64
@@ -63,7 +71,7 @@ func (f *FileRepo) ListFiles(userID uint, paginationParams *dto.PaginationParams
 	if paginationParams != nil {
 		q = q.Offset(int(paginationParams.Offset())).
 			Limit(int(paginationParams.Size)).
-			Order(paginationParams.Order())
+			Order(orderColumn(AllowedOrderBy(paginationParams.OrderBy, constant.OrderByEnumFile, constant.OrderByCreatedAt), paginationParams.Desc))
 	}
 	// 查询数据
 	if err := q.Find(&files).Error; err != nil {

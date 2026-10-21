@@ -30,25 +30,41 @@ type oidcLoginState struct {
 	Name         string
 	RedirectBack string
 	IsBind       bool
+	Nonce        string // 与浏览器 Cookie 中的 nonce 对应，防止登录/绑定 CSRF
+	UserID       uint   // 绑定操作的发起用户，回调时必须是同一用户
+}
+
+const (
+	loginLimitWindow      = 15 * time.Minute
+	loginIPLimit          = 30 // 同一 IP 在窗口内最多登录请求数
+	loginAccountFailLimit = 10 // 同一账号在窗口内最多失败次数
+	verifyEmailIPLimit    = 10 // 同一 IP 每小时最多发送验证码次数
+)
+
+func emailVerifyEnabled() bool {
+	return utils.Env.GetAsBool(constant.EnvKeyEnableEmailVerify, true)
 }
 
 // UserLogin 用户登录
 func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, *errs.ServiceError) {
-	// 按照用户名或邮箱查找用户
+	// 防爆破：同一 IP 的登录请求和同一账号的失败次数都有上限
+	if !utils.AllowRequest("login_ip:"+req.UserIP, loginIPLimit, loginLimitWindow) {
+		return nil, errs.NewTooManyRequests("too_many_requests")
+	}
+	accountKey := "login_fail:" + strings.ToLower(req.Username)
+	if utils.TooManyFailures(accountKey, loginAccountFailLimit) {
+		return nil, errs.NewTooManyRequests("too_many_requests")
+	}
+	// 按照用户名或邮箱查找用户；用户不存在与密码错误返回相同错误，避免枚举用户
 	user, err := repo.User.GetUserByUsernameOrEmail(req.Username)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errs.NewNotFound("user_not_found")
-		}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
-	if user == nil {
-		return nil, errs.NewNotFound("user_not_found")
-	}
-	// 验证密码
-	if !utils.Password.VerifyPassword(req.Password, user.Password) {
+	if user == nil || err != nil || !utils.Password.VerifyPassword(req.Password, user.Password) {
+		utils.RecordFailure(accountKey, loginLimitWindow)
 		return nil, errs.NewBadRequest("invalid_credentials")
 	}
+	utils.ResetFailures(accountKey)
 	// 签发双token并持久化会话状态
 	sessionId := utils.Strings.GenerateRandomString(32)
 	err = repo.Session.CreateSession(&model.Session{
@@ -68,7 +84,7 @@ func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, *err
 	resp := &dto.UserLoginResp{
 		Token:        token,
 		RefreshToken: refreshToken,
-		User:         user.ToDto(),
+		User:         user.ToPrivateDto(),
 	}
 	return resp, nil
 }
@@ -80,6 +96,10 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 	}
 	if !isValidPassword(req.Password) {
 		return nil, errs.NewBadRequest("invalid_password_format")
+	}
+	// 开启邮箱验证时，注册必须验证邮箱所有权，防止抢注他人邮箱
+	if emailVerifyEnabled() && !utils.VerifyEmailCode(req.Email, req.VerifyCode) {
+		return nil, errs.NewUnauthorized("invalid_verify_code")
 	}
 	// 检查用户名或邮箱是否已存在
 	usernameExist, err := repo.User.CheckUsernameExists(req.Username)
@@ -137,12 +157,23 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 	resp := &dto.UserRegisterResp{
 		Token:        token,
 		RefreshToken: refreshToken,
-		User:         newUser.ToDto(),
+		User:         newUser.ToPrivateDto(),
 	}
 	return resp, nil
 }
 
 func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEmailResp, *errs.ServiceError) {
+	if !emailVerifyEnabled() {
+		return nil, errs.NewForbidden("email_verify_disabled")
+	}
+	// 同一邮箱按冷却时间限制发送频率，同一 IP 每小时最多发送若干次，防止邮件轰炸
+	coolDown := time.Duration(repo.KV.GetIntWithoutErr("verify_code_cool_down", 60)) * time.Second
+	if !utils.AllowRequest("verify_email:"+strings.ToLower(req.Email), 1, coolDown) {
+		return nil, errs.NewTooManyRequests("too_many_requests")
+	}
+	if !utils.AllowRequest("verify_email_ip:"+req.UserIP, verifyEmailIPLimit, time.Hour) {
+		return nil, errs.NewTooManyRequests("too_many_requests")
+	}
 	verifyCode := utils.RequestEmailVerify(req.Email)
 	template, err := static.RenderTemplate("email/verification-code.tmpl", map[string]interface{}{
 		"Title":      "NEO-BLOG",
@@ -180,6 +211,8 @@ func (s *UserService) ListOidcConfigs(req *dto.ListOidcConfigReq) ([]dto.UserOid
 			Name:         oidcConfig.Name,
 			RedirectBack: req.RedirectBack,
 			IsBind:       req.IsBind,
+			Nonce:        req.BrowserNonce,
+			UserID:       req.UserID,
 		}, 5*time.Minute)
 		var loginUrl string
 		callbackUrl := fmt.Sprintf("%s%s%s/%s",
@@ -227,7 +260,15 @@ func normalizeOidcRedirectBack(redirectBack string) string {
 	return redirectBack
 }
 
-func (s *UserService) GetUser(req *dto.GetUserReq) (*dto.GetUserResp, *errs.ServiceError) {
+// viewUserDto 本人或管理员查看时包含邮箱，其他人只能看到公开信息
+func viewUserDto(ctx context.Context, user *model.User) dto.UserDto {
+	if ctxutils.IsOwnerOfTarget(ctx, user.ID) || ctxutils.IsAdmin(ctx) {
+		return user.ToPrivateDto()
+	}
+	return user.ToDto()
+}
+
+func (s *UserService) GetUser(ctx context.Context, req *dto.GetUserReq) (*dto.GetUserResp, *errs.ServiceError) {
 	if req.UserID == 0 {
 		return nil, errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
@@ -243,11 +284,11 @@ func (s *UserService) GetUser(req *dto.GetUserReq) (*dto.GetUserResp, *errs.Serv
 		return nil, errs.NewNotFound("target_not_found")
 	}
 	return &dto.GetUserResp{
-		User: user.ToDto(),
+		User: viewUserDto(ctx, user),
 	}, nil
 }
 
-func (s *UserService) GetUserByUsername(req *dto.GetUserByUsernameReq) (*dto.GetUserResp, *errs.ServiceError) {
+func (s *UserService) GetUserByUsername(ctx context.Context, req *dto.GetUserByUsernameReq) (*dto.GetUserResp, *errs.ServiceError) {
 	if req.Username == "" {
 		return nil, errs.NewBadRequest("username_cannot_be_empty")
 	}
@@ -263,7 +304,7 @@ func (s *UserService) GetUserByUsername(req *dto.GetUserByUsernameReq) (*dto.Get
 		return nil, errs.NewNotFound("target_not_found")
 	}
 	return &dto.GetUserResp{
-		User: user.ToDto(),
+		User: viewUserDto(ctx, user),
 	}, nil
 }
 
@@ -307,11 +348,17 @@ func (s *UserService) UpdatePassword(ctx context.Context, req *dto.UpdatePasswor
 	hashedPassword, err := utils.Password.HashPassword(req.NewPassword)
 	if err != nil {
 		logrus.Errorln("Failed to update password:", err)
+		return false, errs.NewInternalServer("failed_to_update_target")
 	}
 	currentUser.Password = hashedPassword
 	err = repo.GetDB().Save(currentUser).Error
 	if err != nil {
 		return false, errs.NewInternalServer("failed_to_update_target")
+	}
+	// 改密后其他设备上的登录全部失效，只保留当前会话
+	currentSessionID, _ := ctx.Value("session_id").(string)
+	if err := repo.Session.RevokeUserSessions(currentUser.ID, currentSessionID); err != nil {
+		logrus.Errorln("Failed to revoke sessions:", err)
 	}
 	return true, nil
 }
@@ -333,6 +380,10 @@ func (s *UserService) ResetPassword(req *dto.ResetPasswordReq) (bool, *errs.Serv
 	err = repo.User.UpdateUser(user)
 	if err != nil {
 		return false, errs.NewInternalServer("failed_to_update_target")
+	}
+	// 重置密码后吊销该用户的全部会话
+	if err := repo.Session.RevokeUserSessions(user.ID, ""); err != nil {
+		logrus.Errorln("Failed to revoke sessions:", err)
 	}
 	return true, nil
 }

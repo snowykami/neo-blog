@@ -49,6 +49,7 @@ func (p *Page) ToDto() *dto.PageDto {
 
 func (p *Page) ToDtoWithShortContent(contentLength int) *dto.PageDto {
 	pageDto := p.ToDto()
+	pageDto.DraftContent = nil // 列表等公开场景不返回草稿内容
 	if contentLength <= 0 {
 		pageDto.Content = ""
 		return pageDto

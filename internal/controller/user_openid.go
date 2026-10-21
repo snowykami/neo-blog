@@ -23,6 +23,16 @@ func (u *UserController) GetOidcConfigList(ctx context.Context, c *app.RequestCo
 		resps.BadRequest(c, err.Error())
 		return
 	}
+	// 绑定操作只能由已登录用户发起，并记录发起人
+	if req.IsBind {
+		userID, ok := ctxutils.GetCurrentUserID(ctx)
+		if !ok {
+			resps.Unauthorized(c, resps.ErrUnauthorized)
+			return
+		}
+		req.UserID = userID
+	}
+	req.BrowserNonce = ctxutils.EnsureOidcNonce(c)
 	oidcConfigs, svcerr := u.service.ListOidcConfigs(req)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
@@ -50,7 +60,8 @@ func (u *UserController) GetUserOpenIDList(ctx context.Context, c *app.RequestCo
 
 func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 	req := &dto.OidcLoginReq{
-		UserIP: c.ClientIP(),
+		UserIP:       c.ClientIP(),
+		BrowserNonce: string(c.Cookie(ctxutils.OidcNonceCookie)),
 	}
 	if err := c.Bind(req); err != nil {
 		resps.BadRequest(c, err.Error())

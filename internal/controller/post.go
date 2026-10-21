@@ -96,7 +96,9 @@ func (p *PostController) GetRandom(ctx context.Context, c *app.RequestContext) {
 		resps.InternalServerError(c, err.Error())
 		return
 	}
-	resps.Ok(c, resps.Success, post.ToDto())
+	postDto := post.ToDto()
+	postDto.DraftContent = nil // 不返回草稿内容
+	resps.Ok(c, resps.Success, postDto)
 }
 
 func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {

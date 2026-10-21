@@ -9,7 +9,7 @@ type UserDto struct {
 	AvatarUrl      string        `json:"avatar_url"` // 头像URL
 	BackgroundUrl  string        `json:"background_url"`
 	PreferredColor string        `json:"preferred_color"` // 主题色
-	Email          string        `json:"email"`           // 邮箱
+	Email          string        `json:"email,omitempty"` // 邮箱，仅本人和管理员可见
 	Gender         string        `json:"gender"`
 	Role           constant.Role `json:"role"`
 	Language       string        `json:"language"`         // 语言
@@ -36,11 +36,12 @@ type UserLoginResp struct {
 }
 
 type UserRegisterReq struct {
-	Username string `json:"username"` // 用户名
-	Nickname string `json:"nickname"` // 昵称
-	Password string `json:"password"` // 密码
-	Email    string `header:"X-Email" json:"-" binding:"-"`
-	UserIP   string
+	Username   string `json:"username"` // 用户名
+	Nickname   string `json:"nickname"` // 昵称
+	Password   string `json:"password"` // 密码
+	Email      string `header:"X-Email" json:"-" binding:"-"`
+	VerifyCode string `header:"X-VerifyCode" json:"-" binding:"-"`
+	UserIP     string
 }
 
 type UserRegisterResp struct {
@@ -50,7 +51,8 @@ type UserRegisterResp struct {
 }
 
 type VerifyEmailReq struct {
-	Email string `json:"email"` // 邮箱地址
+	Email  string `json:"email"` // 邮箱地址
+	UserIP string `json:"-"`
 }
 
 type VerifyEmailResp struct {
@@ -67,6 +69,8 @@ type OidcLoginReq struct {
 	IsBind       bool   // 从state恢复的绑定操作标记
 	Session      string `query:"session"` // Misskey，绑定操作时的session
 	UserIP       string
+	BrowserNonce string // 浏览器 Cookie 中的 OIDC nonce，用于确认回调来自发起登录的同一浏览器
+	BindUserID   uint   // 从state恢复的发起绑定的用户ID
 }
 
 type OidcLoginResp struct {
@@ -78,6 +82,8 @@ type OidcLoginResp struct {
 type ListOidcConfigReq struct {
 	RedirectBack string `query:"redirect_back" default:"/"` // OIDC完成后回跳到前端的地址
 	IsBind       bool   `query:"is_bind" default:"false"`   // 是否是绑定操作
+	BrowserNonce string // 写入浏览器 Cookie 的 nonce
+	UserID       uint   // 绑定操作的发起用户
 }
 
 type ListOidcConfigResp struct {

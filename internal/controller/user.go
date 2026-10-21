@@ -104,7 +104,7 @@ func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 
 func (u *UserController) GetUser(ctx context.Context, c *app.RequestContext) {
 	userID := ctxutils.GetIDParam(c).Uint
-	resp, svcerr := u.service.GetUser(&dto.GetUserReq{UserID: userID})
+	resp, svcerr := u.service.GetUser(ctx, &dto.GetUserReq{UserID: userID})
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -118,7 +118,7 @@ func (u *UserController) GetLoginUser(ctx context.Context, c *app.RequestContext
 		resps.Unauthorized(c, resps.ErrUnauthorized)
 		return
 	}
-	resp, svcerr := u.service.GetUser(&dto.GetUserReq{UserID: userID})
+	resp, svcerr := u.service.GetUser(ctx, &dto.GetUserReq{UserID: userID})
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -132,7 +132,7 @@ func (u *UserController) GetUserByUsername(ctx context.Context, c *app.RequestCo
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	resp, svcerr := u.service.GetUserByUsername(&dto.GetUserByUsernameReq{Username: username})
+	resp, svcerr := u.service.GetUserByUsername(ctx, &dto.GetUserByUsernameReq{Username: username})
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -174,7 +174,7 @@ func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) 
 }
 
 func (u *UserController) VerifyEmail(ctx context.Context, c *app.RequestContext) {
-	var verifyEmailReq dto.VerifyEmailReq
+	verifyEmailReq := dto.VerifyEmailReq{UserIP: c.ClientIP()}
 	if err := c.BindAndValidate(&verifyEmailReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"strings"
@@ -27,6 +28,7 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 	}
 	req.RedirectBack = loginState.RedirectBack
 	req.IsBind = loginState.IsBind
+	req.BindUserID = loginState.UserID
 
 	// 获取 OIDC 配置
 	oidcConfig, serr := s.getOidcConfig(req.Name)
@@ -83,23 +85,16 @@ func (s *UserService) getOidcLoginState(req *dto.OidcLoginReq) (*oidcLoginState,
 	}
 	kvStore.Delete(stateKey)
 
-	var loginState oidcLoginState
-	switch value := stateValue.(type) {
-	case oidcLoginState:
-		loginState = value
-	case *oidcLoginState:
-		if value == nil {
-			return nil, errs.NewBadRequest("invalid_oidc_state")
-		}
-		loginState = *value
-	case string:
-		// 兼容旧版只存储OIDC名称的state。
-		loginState = oidcLoginState{Name: value, RedirectBack: "/"}
-	default:
+	loginState, ok := stateValue.(oidcLoginState)
+	if !ok {
 		return nil, errs.NewBadRequest("invalid_oidc_state")
 	}
 
 	if loginState.Name != req.Name {
+		return nil, errs.NewBadRequest("invalid_oidc_state")
+	}
+	// state 必须由当前浏览器发起，防止把他人截获的回调链接诱导给受害者打开
+	if loginState.Nonce == "" || subtle.ConstantTimeCompare([]byte(loginState.Nonce), []byte(req.BrowserNonce)) != 1 {
 		return nil, errs.NewBadRequest("invalid_oidc_state")
 	}
 	loginState.RedirectBack = normalizeOidcRedirectBack(loginState.RedirectBack)
@@ -123,6 +118,10 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		if currentUser == nil || !userOk {
 			return nil, errs.NewUnauthorized("login_required")
 		}
+		// 只能绑定到发起绑定的用户
+		if currentUser.ID != req.BindUserID {
+			return nil, errs.NewForbidden("invalid_oidc_state")
+		}
 		existingUserOpenID, err := repo.User.GetUserOpenIDByIssuerAndSub(oidcConfig.Issuer, userInfo.Sub)
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			logrus.Errorln("Failed to get user OpenID:", err)
@@ -140,7 +139,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 			return &dto.OidcLoginResp{
 				Token:        token,
 				RefreshToken: refreshToken,
-				User:         existingUserOpenID.User.ToDto(),
+				User:         existingUserOpenID.User.ToPrivateDto(),
 			}, nil
 		}
 		// 绑定到当前登录用户并更新信息
@@ -158,7 +157,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		return &dto.OidcLoginResp{
 			Token:        "",
 			RefreshToken: "",
-			User:         currentUser.ToDto(),
+			User:         currentUser.ToPrivateDto(),
 		}, nil
 	}
 
@@ -194,14 +193,21 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		return &dto.OidcLoginResp{
 			Token:        token,
 			RefreshToken: refreshToken,
-			User:         user.ToDto(),
+			User:         user.ToPrivateDto(),
 		}, nil
 	}
 
 	// 2) 尝试邮箱匹配的本地账户 -> 绑定并登录
+	// 仅当身份提供商确认过邮箱时才按邮箱关联，否则任何人都能在自建 IdP 上填写他人邮箱接管账户；
+	// 关闭邮箱验证时本地账户的邮箱本身未经验证，同样不做关联，防止先用他人邮箱注册再等待关联
 	localUser, err := repo.User.GetUserByEmail(userInfo.Email)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errs.NewInternalServer("failed_to_get_user")
+	}
+	if localUser != nil && !(userInfo.IsEmailVerified() && emailVerifyEnabled()) {
+		// 邮箱已被本地账户占用但无法确认归属：不关联，新建账户时也不使用该邮箱
+		localUser = nil
+		userInfo.Email = fmt.Sprintf("%s@replace-to-your-email", utils.Strings.GenerateRandomString(10))
 	}
 	if localUser != nil {
 		userOpenID = &model.UserOpenID{
@@ -231,7 +237,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		return &dto.OidcLoginResp{
 			Token:        token,
 			RefreshToken: refreshToken,
-			User:         localUser.ToDto(),
+			User:         localUser.ToPrivateDto(),
 		}, nil
 	}
 
@@ -304,7 +310,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 	return &dto.OidcLoginResp{
 		Token:        token,
 		RefreshToken: refreshToken,
-		User:         newUser.ToDto(),
+		User:         newUser.ToPrivateDto(),
 	}, nil
 }
 
@@ -379,6 +385,7 @@ func (s *UserService) exchangeAndFetchUserinfo(oidcConfig *model.OidcConfig, req
 			if !emailFound && len(emails) > 0 {
 				userInfo.Email = emails[0]
 			}
+			userInfo.VerifiedByServer = true // 来自 GitHub 已验证邮箱列表
 		}
 	}
 
