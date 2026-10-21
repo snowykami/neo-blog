@@ -1,6 +1,7 @@
 import type React from 'react'
 import { EclipseIcon, Moon, Sun } from 'lucide-react'
 import { motion } from 'motion/react'
+import { useTranslations } from 'next-intl'
 import { useDevice } from '@/contexts/device-context'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +15,7 @@ export function ThemeModeCycleButton({
   mode: ThemeMode
   setMode: (m: ThemeMode) => void
 }) {
+  const t = useTranslations('ThemeMode')
   const nextMode = (mode: ThemeMode): ThemeMode => {
     if (mode === 'light')
       return 'dark'
@@ -37,11 +39,14 @@ export function ThemeModeCycleButton({
     <div
       className="flex items-center justify-center"
       onClick={() => setMode(nextMode(mode))}
-      title={mode === 'light' ? 'Light Mode' : mode === 'dark' ? 'Dark Mode' : 'System Mode'}
+      title={t(`${mode}_mode`)}
+      aria-label={t(`${mode}_mode`)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
+          // 阻止空格键默认的页面滚动
+          e.preventDefault()
           setMode(nextMode(mode))
         }
       }}
@@ -59,14 +64,15 @@ export function ThemeModeSegmented(
   },
 ) {
   const { mode, setMode, className, style, ...rest } = props
+  const t = useTranslations('ThemeMode')
   const modes: { value: ThemeMode, icon: React.ReactNode, label: string }[] = [
-    { value: 'light', icon: <Sun className="w-4 h-4" />, label: 'Light' },
+    { value: 'light', icon: <Sun className="w-4 h-4" />, label: t('light_mode') },
     {
       value: 'system',
       icon: <EclipseIcon className="w-4 h-4" />,
-      label: 'System',
+      label: t('system_mode'),
     },
-    { value: 'dark', icon: <Moon className="w-4 h-4" />, label: 'Dark' },
+    { value: 'dark', icon: <Moon className="w-4 h-4" />, label: t('dark_mode') },
   ]
   const activeIndex = modes.findIndex(m => m.value === mode)
   const baseCls = 'relative inline-flex bg-muted rounded-full p-1 gap-1 overflow-hidden'
@@ -92,6 +98,9 @@ export function ThemeModeSegmented(
             )}
             onClick={() => setMode(m.value)}
             type="button"
+            aria-label={m.label}
+            aria-pressed={mode === m.value}
+            title={m.label}
           >
             {m.icon}
           </button>

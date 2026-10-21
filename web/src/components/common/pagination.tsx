@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl'
 import {
   forwardRef,
   useCallback,
@@ -26,6 +27,8 @@ interface PaginationControllerProps extends React.HTMLAttributes<HTMLDivElement>
   pageSize?: number
   /** 初始页（仅首次生效，之后内部自管理） */
   initialPage?: number
+  /** 受控当前页；传入后父组件改变页码（如搜索后重置为 1）时控件会同步 */
+  page?: number
   /** 最多显示的按钮数（会强制为 >=5 的奇数） */
   maxButtons?: number
   /** 页码变化回调（用户点击或自动校正时触发） */
@@ -54,6 +57,7 @@ export const PaginationController = forwardRef<
       total,
       pageSize = 10,
       initialPage = 1,
+      page,
       maxButtons = 7,
       onPageChange,
       disabled = false,
@@ -64,6 +68,7 @@ export const PaginationController = forwardRef<
     },
     ref,
   ) => {
+    const t = useTranslations('Components.pagination')
     // 规范化 maxButtons: 至少5 且为奇数 (便于居中)
     const maxBtns = useMemo(() => {
       const m = Math.max(5, maxButtons || 7)
@@ -73,7 +78,14 @@ export const PaginationController = forwardRef<
       () => Math.max(1, Math.ceil(total / Math.max(1, pageSize))),
       [total, pageSize],
     )
-    const [currentPage, setCurrentPage] = useState(() => clampPage(initialPage, totalPages))
+    const [currentPage, setCurrentPage] = useState(() => clampPage(page ?? initialPage, totalPages))
+
+    // 受控模式：父组件页码变化时同步到内部状态
+    useEffect(() => {
+      if (page === undefined)
+        return
+      setCurrentPage(prev => (prev === page ? prev : clampPage(page, totalPages)))
+    }, [page, totalPages])
 
     // 暴露方法给父组件
     useImperativeHandle(
@@ -97,6 +109,9 @@ export const PaginationController = forwardRef<
     useEffect(() => {
       if (!onPageChange)
         return
+      // 数据尚未加载（total 为 0）时页码会被临时校正为 1，此时不上报，避免把 URL 中的页码重置
+      if (total === 0)
+        return
       if (lastReportedRef.current === currentPage)
         return
       // 如果是自动校正且不希望报告，则跳过
@@ -104,7 +119,7 @@ export const PaginationController = forwardRef<
         return
       lastReportedRef.current = currentPage
       onPageChange(currentPage)
-    }, [currentPage, onPageChange, reportAutoAdjust, totalPages])
+    }, [currentPage, onPageChange, reportAutoAdjust, total, totalPages])
 
     const handleSetPage = useCallback(
       (p: number) => {
@@ -166,7 +181,7 @@ export const PaginationController = forwardRef<
         <PaginationLink
           isActive={p === currentPage}
           aria-current={p === currentPage ? 'page' : undefined}
-          aria-label={`Go to page ${p}`}
+          aria-label={t('go_to_page', { page: p })}
           onClick={(e) => {
             e.preventDefault()
             handleSetPage(p)
@@ -188,7 +203,7 @@ export const PaginationController = forwardRef<
             <PaginationItem>
               <PaginationPrevious
                 aria-disabled={prevDisabled}
-                aria-label="Previous page"
+                aria-label={t('previous_page')}
                 tabIndex={prevDisabled ? -1 : 0}
                 onClick={(e) => {
                   if (prevDisabled)
@@ -208,7 +223,7 @@ export const PaginationController = forwardRef<
                 {pages.start! > 3
                   ? (
                       <PaginationItem>
-                        <PaginationEllipsis aria-hidden aria-label="Truncated" />
+                        <PaginationEllipsis aria-hidden />
                       </PaginationItem>
                     )
                   : (
@@ -221,7 +236,7 @@ export const PaginationController = forwardRef<
                 {pages.end! < totalPages - 2
                   ? (
                       <PaginationItem>
-                        <PaginationEllipsis aria-hidden aria-label="Truncated" />
+                        <PaginationEllipsis aria-hidden />
                       </PaginationItem>
                     )
                   : (
@@ -234,7 +249,7 @@ export const PaginationController = forwardRef<
             <PaginationItem>
               <PaginationNext
                 aria-disabled={nextDisabled}
-                aria-label="Next page"
+                aria-label={t('next_page')}
                 tabIndex={nextDisabled ? -1 : 0}
                 onClick={(e) => {
                   if (nextDisabled)

@@ -11,7 +11,7 @@ import {
   parseAsStringEnum,
   useQueryState,
 } from 'nuqs'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { listPostsAdmin } from '@/api/admin'
 import { deletePost, listPosts, updatePost } from '@/api/post'
@@ -40,6 +40,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { useToEditPost, useToPost } from '@/hooks/use-route'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
+import { getErrorMessage } from '@/utils/common/error'
 import { isAdmin } from '@/utils/common/permission'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '../../../components/console/common/post-meta-dialog-form'
 
@@ -121,8 +122,12 @@ export function PostManage() {
     }
   }, [listPostsTask.data])
 
-  // 防抖后的搜索词变化时，重置分页
+  // 防抖后的搜索词真正变化时才重置分页，避免挂载时把 URL 中的页码重置为 1
+  const prevQueryRef = useRef(debouncedQueryInput)
   useEffect(() => {
+    if (prevQueryRef.current === debouncedQueryInput)
+      return
+    prevQueryRef.current = debouncedQueryInput
     setPage(1)
   }, [debouncedQueryInput, setPage])
 
@@ -228,7 +233,7 @@ export function PostManage() {
       <div className="flex justify-center items-center py-4">
         {total > 0 && (
           <PaginationController
-            initialPage={page}
+            page={page}
             onPageChange={onPageChange}
             total={total}
             pageSize={size}
@@ -422,7 +427,7 @@ function PostDropdownMenu({
       })
       .catch((error: BaseResponseError) => {
         toast.error(
-          `${operationT('update_failed')}: ${error?.response?.data?.message || error.message}`,
+          `${operationT('update_failed')}: ${getErrorMessage(error)}`,
         )
       })
   }
@@ -435,7 +440,7 @@ function PostDropdownMenu({
       })
       .catch((error: BaseResponseError) => {
         toast.error(
-          `${operationT('delete_failed')}: ${error?.response?.data?.message || error.message}`,
+          `${operationT('delete_failed')}: ${getErrorMessage(error)}`,
         )
       })
   }

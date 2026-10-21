@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/auth-context'
 import { registerPath, resetPasswordPath } from '@/hooks/use-route'
-import { useOperationT } from '@/hooks/use-translations'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 
 export default function LoginPage() {
@@ -34,6 +34,8 @@ export default function LoginPage() {
 export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) {
   const t = useTranslations('Login')
   const operationT = useOperationT()
+  // 后端错误码（如 invalid_credentials、too_many_requests）转为本地化文案
+  const errorMessageT = useErrorMessageT()
   const { user, setUser } = useAuth()
   const [oidcConfigs, setOidcConfigs] = useState<OidcConfig[]>([])
   const [captchaProps, setCaptchaProps] = useState<{
@@ -94,7 +96,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
         console.error(error)
         toast.error(
           t('login_failed')
-          + (error?.response?.data?.message ? `: ${error.response.data.message}` : ''),
+          + (errorMessageT(error) ? `: ${errorMessageT(error)}` : ''),
         )
         setRefreshCaptchaKey(k => k + 1)
         setCaptchaToken(null)

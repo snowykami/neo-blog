@@ -2,7 +2,8 @@
 
 import type { SubmitHandler } from 'react-hook-form'
 import type { PageModel } from '@/models/page'
-import type { BaseResponseError } from '@/models/resp'
+import { useTranslations } from 'next-intl'
+import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { createPage, updatePage } from '@/api/page'
@@ -11,7 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -23,10 +23,11 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { useOperationT } from '@/hooks/use-translations'
+import { useErrorMessageT, useOperationT, useResponseErrorDetailsT } from '@/hooks/use-translations'
 import { getFileUri } from '@/utils/client/file'
 
 interface PageMetaForm {
@@ -51,36 +52,30 @@ export function PageMetaDialog({
   page: PageModel | null
 }) {
   const operationT = useOperationT()
+  const errorMessageT = useErrorMessageT()
+  const errorDetailsT = useResponseErrorDetailsT()
+  const t = useTranslations('Console.pages.meta')
   const form = useForm<PageMetaForm>({
-    defaultValues: page
-      ? {
-          title: page.title,
-          slug: page.slug,
-          cover: page.cover || '',
-          description: page.description || '',
-          isPrivate: page.isPrivate,
-          showInNav: page.showInNav,
-          navOrder: page.navOrder || 0,
-        }
-      : {
-          title: '',
-          slug: '',
-          cover: '',
-          description: '',
-          isPrivate: false,
-          showInNav: false,
-          navOrder: 0,
-        },
+    defaultValues: toFormValues(page),
   })
 
-  const onSubmit: SubmitHandler<PageMetaForm> = (data) => {
+  // 每次打开对话框时用最新的 page 重置表单，避免列表中切换可见性后表单仍是旧值
+  // 仅在由关闭变为打开时重置，打开期间 page 变化不覆盖用户正在编辑的内容
+  const latestRef = useRef(page)
+  latestRef.current = page
+  useEffect(() => {
+    if (open)
+      form.reset(toFormValues(latestRef.current))
+  }, [open, form])
+
+  const onSubmit: SubmitHandler<PageMetaForm> = async (data) => {
     if (!data.title.trim() || !data.slug.trim()) {
-      toast.error('标题和 slug 不能为空')
+      toast.error(t('title_and_slug_required'))
       return
     }
 
     if (page) {
-      updatePage({
+      await updatePage({
         page: {
           id: page.id,
           ...data,
@@ -92,13 +87,13 @@ export function PageMetaDialog({
           onPageChange({ page: { id: page.id, ...data, navOrder: Number(data.navOrder) || 0 } })
           onOpenChange(false)
         })
-        .catch((error: BaseResponseError) => {
-          toast.error(`${operationT('update_failed')}: ${error?.response?.data?.message || error.message}`)
+        .catch((error) => {
+          toast.error(`${operationT('update_failed')}: ${errorMessageT(error)}`)
         })
       return
     }
 
-    createPage({
+    await createPage({
       page: {
         ...data,
         navOrder: Number(data.navOrder) || 0,
@@ -120,8 +115,8 @@ export function PageMetaDialog({
         form.reset()
         onOpenChange(false)
       })
-      .catch((error: BaseResponseError) => {
-        toast.error(`${operationT('create_failed')}: ${error?.response?.data?.message || error.message}`)
+      .catch((error) => {
+        toast.error(`${operationT('create_failed')}: ${errorMessageT(error)}`)
       })
   }
 
@@ -129,7 +124,7 @@ export function PageMetaDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{page ? '编辑页面' : '创建页面'}</DialogTitle>
+          <DialogTitle>{page ? t('edit_page') : t('create_page')}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
@@ -138,7 +133,7 @@ export function PageMetaDialog({
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>标题</FormLabel>
+                  <FormLabel>{t('title')}</FormLabel>
                   <FormControl><Input {...field} /></FormControl>
                 </FormItem>
               )}
@@ -146,10 +141,12 @@ export function PageMetaDialog({
             <FormField
               control={form.control}
               name="slug"
+              rules={{ validate: value => !isNumericSlug(value) || errorDetailsT('slug_cannot_be_numeric') }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Slug</FormLabel>
+                  <FormLabel>{t('slug')}</FormLabel>
                   <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -158,7 +155,7 @@ export function PageMetaDialog({
               name="cover"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>封面</FormLabel>
+                  <FormLabel>{t('cover')}</FormLabel>
                   <FormControl>
                     <div className="flex gap-2">
                       <Input {...field} />
@@ -179,7 +176,7 @@ export function PageMetaDialog({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>描述</FormLabel>
+                  <FormLabel>{t('description')}</FormLabel>
                   <FormControl><Textarea {...field} /></FormControl>
                 </FormItem>
               )}
@@ -191,7 +188,7 @@ export function PageMetaDialog({
                 render={({ field }) => (
                   <FormItem className="flex items-center gap-2">
                     <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                    <FormLabel>私有</FormLabel>
+                    <FormLabel>{t('private')}</FormLabel>
                   </FormItem>
                 )}
               />
@@ -201,7 +198,7 @@ export function PageMetaDialog({
                 render={({ field }) => (
                   <FormItem className="flex items-center gap-2">
                     <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                    <FormLabel>导航展示</FormLabel>
+                    <FormLabel>{t('show_in_nav')}</FormLabel>
                   </FormItem>
                 )}
               />
@@ -210,23 +207,58 @@ export function PageMetaDialog({
                 name="navOrder"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>导航排序</FormLabel>
+                    <FormLabel>{t('nav_order')}</FormLabel>
                     <FormControl><Input type="number" {...field} /></FormControl>
                   </FormItem>
                 )}
               />
             </div>
             <DialogFooter>
-              <DialogClose asChild>
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={() => form.reset()}>{operationT('cancel')}</Button>
-                  <Button type="button" onClick={form.handleSubmit(onSubmit)}>{page ? operationT('update') : operationT('create')}</Button>
-                </div>
-              </DialogClose>
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    form.reset(toFormValues(page))
+                    onOpenChange(false)
+                  }}
+                >
+                  {operationT('cancel')}
+                </Button>
+                {/* 通过表单 submit 提交，成功后再关闭对话框 */}
+                <Button type="submit" disabled={form.formState.isSubmitting}>{page ? operationT('update') : operationT('create')}</Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
   )
+}
+
+function toFormValues(page: PageModel | null): PageMetaForm {
+  return page
+    ? {
+        title: page.title,
+        slug: page.slug,
+        cover: page.cover || '',
+        description: page.description || '',
+        isPrivate: page.isPrivate,
+        showInNav: page.showInNav,
+        navOrder: page.navOrder || 0,
+      }
+    : {
+        title: '',
+        slug: '',
+        cover: '',
+        description: '',
+        isPrivate: false,
+        showInNav: false,
+        navOrder: 0,
+      }
+}
+
+// 后端不允许纯数字 slug（会与 id 访问冲突）
+function isNumericSlug(value: string) {
+  return /^\d+$/.test(value.trim())
 }

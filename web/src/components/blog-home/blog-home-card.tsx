@@ -12,6 +12,7 @@ import {
   Pin,
 } from 'lucide-react'
 import { motion } from 'motion/react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useMemo } from 'react'
 import { SafeImage } from '@/components/common/safe-image'
@@ -239,6 +240,7 @@ export function BlogCardGrid({
   showPrivate?: boolean
   isLoading?: boolean
 }) {
+  const t = useTranslations('BlogHome')
   const filteredPosts = showPrivate ? posts : posts.filter(post => !post.isPrivate)
 
   // 显示骨架屏
@@ -256,9 +258,9 @@ export function BlogCardGrid({
     return (
       <Card className="p-12 text-center">
         <CardContent>
-          <p className="text-muted-foreground text-lg">暂无文章</p>
+          <p className="text-muted-foreground text-lg">{t('no_posts')}</p>
           <p className="text-sm text-muted-foreground mt-2">
-            {showPrivate ? '没有找到任何文章' : '没有找到公开的文章'}
+            {showPrivate ? t('no_posts_found') : t('no_public_posts_found')}
           </p>
         </CardContent>
       </Card>

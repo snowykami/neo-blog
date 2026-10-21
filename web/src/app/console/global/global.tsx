@@ -1,11 +1,12 @@
 'use client'
 
 import type { KVItem } from '@/api/admin'
-import type { BaseResponseError } from '@/models/resp'
 import { Search } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { createKV, deleteKV, listKV, setKV } from '@/api/admin'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -28,6 +29,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useOperationT } from '@/hooks/use-translations'
+import { getErrorMessage } from '@/utils/common/error'
 
 // 后端实际读取的配置键（site_info 为前台站点信息整体配置）
 const PRESET_KEYS = [
@@ -44,6 +46,7 @@ const PRESET_KEYS = [
 
 export default function GlobalPage() {
   const operationT = useOperationT()
+  const t = useTranslations('Console.global.kv')
   const [items, setItems] = useState<KVItem[]>([])
   const [selectedKey, setSelectedKey] = useState('')
   const [keyInput, setKeyInput] = useState('')
@@ -66,8 +69,7 @@ export default function GlobalPage() {
         setSelectedKey('')
     }
     catch (error) {
-      const err = error as BaseResponseError
-      toast.error(`${operationT('fetch_failed')}: ${err?.response?.data?.message || err.message}`)
+      toast.error(`${operationT('fetch_failed')}: ${getErrorMessage(error)}`)
     }
     finally {
       setLoading(false)
@@ -94,7 +96,7 @@ export default function GlobalPage() {
   const handleSave = async () => {
     const key = keyInput.trim()
     if (!key) {
-      toast.error('Key 不能为空')
+      toast.error(t('key_required'))
       return
     }
 
@@ -103,7 +105,7 @@ export default function GlobalPage() {
       value = JSON.parse(valueInput)
     }
     catch {
-      toast.error('Value 必须是合法 JSON')
+      toast.error(t('value_invalid_json'))
       return
     }
 
@@ -121,8 +123,7 @@ export default function GlobalPage() {
       await fetchItems()
     }
     catch (error) {
-      const err = error as BaseResponseError
-      toast.error(`${operationT('save_failed')}: ${err?.response?.data?.message || err.message}`)
+      toast.error(`${operationT('save_failed')}: ${getErrorMessage(error)}`)
     }
     finally {
       setSaving(false)
@@ -138,8 +139,7 @@ export default function GlobalPage() {
       await fetchItems()
     }
     catch (error) {
-      const err = error as BaseResponseError
-      toast.error(`${operationT('delete_failed')}: ${err?.response?.data?.message || err.message}`)
+      toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`)
     }
   }
 
@@ -152,31 +152,31 @@ export default function GlobalPage() {
             <Input
               className="pl-8"
               type="search"
-              placeholder="搜索 key"
+              placeholder={t('search_key')}
               value={queryInput}
               onChange={e => setQueryInput(e.target.value)}
             />
           </div>
-          <Button size="sm" onClick={() => handleNew()}>新建配置</Button>
+          <Button size="sm" onClick={() => handleNew()}>{t('new_item')}</Button>
         </div>
         <Separator />
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Key</TableHead>
-              <TableHead>Value</TableHead>
-              <TableHead className="text-right">操作</TableHead>
+              <TableHead>{t('key')}</TableHead>
+              <TableHead>{t('value')}</TableHead>
+              <TableHead className="text-right">{t('actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading && (
               <TableRow>
-                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">加载中...</TableCell>
+                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">{t('loading')}</TableCell>
               </TableRow>
             )}
             {!loading && items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">暂无配置</TableCell>
+                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">{t('empty')}</TableCell>
               </TableRow>
             )}
             {!loading && items.map(item => (
@@ -187,8 +187,17 @@ export default function GlobalPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setSelectedKey(item.key)}>编辑</Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleDelete(item.key)}>删除</Button>
+                    <Button size="sm" variant="outline" onClick={() => setSelectedKey(item.key)}>{operationT('edit')}</Button>
+                    {/* 删除配置前需二次确认 */}
+                    <ConfirmDialog
+                      title={operationT('confirm_delete')}
+                      description={t('delete_description', { key: item.key })}
+                      confirmLabel={operationT('delete')}
+                      confirmVariant="destructive"
+                      onConfirm={() => handleDelete(item.key)}
+                    >
+                      <Button size="sm" variant="destructive">{operationT('delete')}</Button>
+                    </ConfirmDialog>
                   </div>
                 </TableCell>
               </TableRow>
@@ -200,12 +209,12 @@ export default function GlobalPage() {
       <div className="grid gap-4">
         <Card className="rounded-lg">
           <CardHeader>
-            <CardTitle>{selectedKey ? '编辑配置' : '新建配置'}</CardTitle>
-            <CardDescription>Value 会以 JSON 保存，字符串需要带双引号。</CardDescription>
+            <CardTitle>{selectedKey ? t('edit_item') : t('new_item')}</CardTitle>
+            <CardDescription>{t('value_hint')}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="kv-key">Key</Label>
+              <Label htmlFor="kv-key">{t('key')}</Label>
               <Input
                 id="kv-key"
                 value={keyInput}
@@ -214,7 +223,7 @@ export default function GlobalPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="kv-value">Value</Label>
+              <Label htmlFor="kv-value">{t('value')}</Label>
               <Textarea
                 id="kv-value"
                 className="min-h-60 font-mono text-xs"
@@ -223,14 +232,14 @@ export default function GlobalPage() {
               />
             </div>
             <div className="flex gap-2">
-              <Button onClick={handleSave} disabled={saving}>{saving ? '保存中...' : '保存'}</Button>
-              <Button type="button" variant="outline" onClick={() => handleNew()}>清空</Button>
+              <Button onClick={handleSave} disabled={saving}>{saving ? t('saving') : operationT('save')}</Button>
+              <Button type="button" variant="outline" onClick={() => handleNew()}>{t('clear')}</Button>
             </div>
           </CardContent>
         </Card>
         <Card className="rounded-lg">
           <CardHeader>
-            <CardTitle>常用 Key</CardTitle>
+            <CardTitle>{t('preset_keys')}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {PRESET_KEYS.map(key => (

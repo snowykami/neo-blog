@@ -68,7 +68,9 @@ export async function uploadFile({
   formData.append('file', file)
   formData.append('name', name || file.name)
   formData.append('group', group || '')
-  formData.append('provider_id', providerId || '')
+  // 仅管理员可指定存储源，未指定时不传该字段
+  if (providerId)
+    formData.append('provider_id', providerId)
   const res = await axiosClient.post('/file/f', formData, {})
   return res.data
 }

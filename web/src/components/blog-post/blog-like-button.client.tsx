@@ -2,23 +2,24 @@
 import type { Post } from '@/models/post'
 import type { User } from '@/models/user'
 import { HeartIcon } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { getLikedUsers, toggleLike } from '@/api/like'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/contexts/auth-context'
-import { useToLogin, useToUserProfile } from '@/hooks/use-route'
+import { useToLogin } from '@/hooks/use-route'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { TargetType } from '@/models/types'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
-import { getFirstCharFromUser } from '@/utils/common/username'
+import { getUserUrl } from '@/utils/common/route'
+import { formatDisplayName, getFirstCharFromUser } from '@/utils/common/username'
 
 const MAX_LIKED_USERS = 5
 
 export function BlogLikeButton({ post }: { post: Post }) {
   const commonT = useCommonT()
   const operationT = useOperationT()
-  const clickToUserProfile = useToUserProfile()
   const { user } = useAuth()
   const clickToLogin = useToLogin()
   const [liked, setLiked] = useState(post.isLiked)
@@ -109,14 +110,19 @@ export function BlogLikeButton({ post }: { post: Post }) {
   return (
     <div ref={likeButtonRef}>
       <div className="flex justify-center pt-0">
-        <div
+        <button
+          type="button"
           onClick={handleToggleLike}
-          className={`rounded-full border-2 ${liked ? 'bg-red-500' : 'border-gray-300'} w-16 h-16 flex items-center justify-center cursor-pointer select-none`}
+          aria-label={liked ? operationT('unlike') : operationT('like')}
+          aria-pressed={liked}
+          title={liked ? operationT('unlike') : operationT('like')}
+          className={`rounded-full border-2 ${liked ? 'bg-red-500' : 'border-gray-300'} w-16 h-16 flex items-center justify-center cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
         >
           <HeartIcon
+            aria-hidden
             className={`w-8 h-8 inline-block ${liked ? 'text-red-500 fill-white' : 'text-gray-400'}`}
           />
-        </div>
+        </button>
       </div>
       <div className="text-lg py-4 text-gray-500 flex justify-center">
         {operationT('n_users_liked', { n: likeCount })}
@@ -124,18 +130,22 @@ export function BlogLikeButton({ post }: { post: Post }) {
       {likedUsers.length > 0 && (
         <div className="flex justify-center gap-2 h-8 w-full">
           {likedUsers.map(u => (
-            <Avatar
-              onClick={() => clickToUserProfile(u.username)}
-              className="h-8 w-8 rounded-full border-2"
+            <Link
               key={u.id}
+              href={getUserUrl(u)}
+              aria-label={formatDisplayName(u)}
+              title={formatDisplayName(u)}
+              className="rounded-full"
             >
-              <AvatarImage
-                className="rounded-full"
-                src={getAvatarOrGravatarUrlFromUser({ user: u })}
-                alt={u.nickname}
-              />
-              <AvatarFallback className="rounded-full">{getFirstCharFromUser(u)}</AvatarFallback>
-            </Avatar>
+              <Avatar className="h-8 w-8 rounded-full border-2">
+                <AvatarImage
+                  className="rounded-full"
+                  src={getAvatarOrGravatarUrlFromUser({ user: u })}
+                  alt={u.nickname}
+                />
+                <AvatarFallback className="rounded-full">{getFirstCharFromUser(u)}</AvatarFallback>
+              </Avatar>
+            </Link>
           ))}
         </div>
       )}

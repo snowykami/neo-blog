@@ -1,7 +1,6 @@
 'use client'
 
 import type { Comment } from '@/models/comment'
-import type { BaseResponseError } from '@/models/resp'
 import { useTranslations } from 'next-intl'
 import {
   parseAsBoolean,
@@ -9,10 +8,11 @@ import {
   parseAsStringEnum,
   useQueryState,
 } from 'nuqs'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { listCommentsAdmin } from '@/api/admin'
 import { deleteComment } from '@/api/comment'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { SafeImage } from '@/components/common/safe-image'
@@ -32,6 +32,7 @@ import { useDevice } from '@/contexts/device-context'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
+import { getErrorMessage } from '@/utils/common/error'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
@@ -40,6 +41,7 @@ export default function CommentsManage() {
   const commonT = useCommonT()
   const operationT = useOperationT()
   const metricsT = useTranslations('Metrics')
+  const t = useTranslations('Console.comments')
   const { isMobile } = useDevice()
   const [comments, setComments] = useState<Comment[]>([])
   const [total, setTotal] = useState(0)
@@ -81,8 +83,7 @@ export default function CommentsManage() {
       setTotal(res.data.total)
     }
     catch (error) {
-      const err = error as BaseResponseError
-      toast.error(`${operationT('fetch_failed')}: ${err?.response?.data?.message || err.message}`)
+      toast.error(`${operationT('fetch_failed')}: ${getErrorMessage(error)}`)
     }
     finally {
       setLoading(false)
@@ -93,7 +94,12 @@ export default function CommentsManage() {
     fetchComments()
   }, [fetchComments])
 
+  // 仅在搜索词真正变化时重置页码，避免挂载时把 URL 中的页码重置为 1
+  const prevQueryRef = useRef(debouncedQueryInput)
   useEffect(() => {
+    if (prevQueryRef.current === debouncedQueryInput)
+      return
+    prevQueryRef.current = debouncedQueryInput
     setPage(1)
   }, [debouncedQueryInput, setPage])
 
@@ -110,12 +116,14 @@ export default function CommentsManage() {
     try {
       await deleteComment({ id: comment.id })
       toast.success(operationT('delete_success'))
-      setComments(prev => prev.filter(item => item.id !== comment.id))
-      setTotal(prev => Math.max(0, prev - 1))
+      // 删除可能连带回复，重新拉取；删光当前页时回退到上一页
+      if (comments.length <= 1 && page > 1)
+        await setPage(page - 1)
+      else
+        await fetchComments()
     }
     catch (error) {
-      const err = error as BaseResponseError
-      toast.error(`${operationT('delete_failed')}: ${err?.response?.data?.message || err.message}`)
+      toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`)
     }
   }
 
@@ -139,23 +147,23 @@ export default function CommentsManage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>评论</TableHead>
-            <TableHead>目标</TableHead>
-            <TableHead>用户</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>时间</TableHead>
-            <TableHead className="text-right">操作</TableHead>
+            <TableHead>{t('comment')}</TableHead>
+            <TableHead>{t('target')}</TableHead>
+            <TableHead>{t('user')}</TableHead>
+            <TableHead>{t('status')}</TableHead>
+            <TableHead>{t('time')}</TableHead>
+            <TableHead className="text-right">{t('actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading && (
             <TableRow>
-              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">加载中...</TableCell>
+              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">{t('loading')}</TableCell>
             </TableRow>
           )}
           {!loading && comments.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">暂无评论</TableCell>
+              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">{t('empty')}</TableCell>
             </TableRow>
           )}
           {!loading && comments.map(comment => (
@@ -166,7 +174,7 @@ export default function CommentsManage() {
       <div className="flex items-center justify-center py-4">
         {total > 0 && (
           <PaginationController
-            initialPage={page}
+            page={page}
             onPageChange={setPage}
             total={total}
             pageSize={size}
@@ -191,18 +199,17 @@ function CommentRow({
   onDelete,
 }: {
   comment: Comment
-  onDelete: (comment: Comment) => void
+  onDelete: (comment: Comment) => Promise<void>
 }) {
   const operationT = useOperationT()
+  const t = useTranslations('Console.comments')
   return (
     <TableRow>
       <TableCell className="max-w-[28rem] whitespace-normal">
-        <div className="line-clamp-3 break-words">{comment.content || '无评论内容'}</div>
+        <div className="line-clamp-3 break-words">{comment.content || t('no_content')}</div>
         {comment.depth > 0 && (
           <div className="mt-1 text-xs text-muted-foreground">
-            回复层级:
-            {' '}
-            {comment.depth + 1}
+            {t('reply_depth', { depth: comment.depth + 1 })}
           </div>
         )}
       </TableCell>
@@ -229,39 +236,37 @@ function CommentRow({
             )}
           />
           <div className="min-w-0">
-            <div className="truncate text-sm">{comment.user?.nickname || comment.user?.username || '未知用户'}</div>
-            <div className="truncate text-xs text-muted-foreground">{comment.user?.email}</div>
+            <div className="truncate text-sm">{comment.user?.nickname || comment.user?.username || t('unknown_user')}</div>
+            {/* 邮箱仅在后端返回时展示 */}
+            {comment.user?.email && <div className="truncate text-xs text-muted-foreground">{comment.user.email}</div>}
           </div>
         </div>
       </TableCell>
       <TableCell>
         <div className="flex flex-wrap gap-1">
-          {comment.isPrivate && <Badge variant="secondary">私密</Badge>}
+          {comment.isPrivate && <Badge variant="secondary">{t('private')}</Badge>}
           {comment.replyCount > 0 && (
-            <Badge variant="outline">
-              {comment.replyCount}
-              {' '}
-              回复
-            </Badge>
+            <Badge variant="outline">{t('reply_count', { count: comment.replyCount })}</Badge>
           )}
           {comment.likeCount > 0 && (
-            <Badge variant="outline">
-              {comment.likeCount}
-              {' '}
-              赞
-            </Badge>
+            <Badge variant="outline">{t('like_count', { count: comment.likeCount })}</Badge>
           )}
         </div>
       </TableCell>
       <TableCell>{new Date(comment.createdAt).toLocaleString()}</TableCell>
       <TableCell className="text-right">
-        <Button
-          size="sm"
-          variant="destructive"
-          onClick={() => onDelete(comment)}
+        {/* 删除评论可能连带其回复，需二次确认 */}
+        <ConfirmDialog
+          title={operationT('confirm_delete')}
+          description={t('delete_description')}
+          confirmLabel={operationT('delete')}
+          confirmVariant="destructive"
+          onConfirm={() => onDelete(comment)}
         >
-          {operationT('delete')}
-        </Button>
+          <Button size="sm" variant="destructive">
+            {operationT('delete')}
+          </Button>
+        </ConfirmDialog>
       </TableCell>
     </TableRow>
   )

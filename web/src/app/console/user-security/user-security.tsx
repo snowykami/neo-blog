@@ -1,147 +1,251 @@
 'use client'
-import type { BaseResponseError } from '@/models/resp'
 import type { OpenIdDto } from '@/models/user'
-import { UnlinkIcon } from 'lucide-react'
+import { Loader2, UnlinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { getUserOpenIdList, requestEmailVerifyCode, unbindUserOpenId, updateEmail, updatePassword } from '@/api/user'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { InputOTPControlled } from '@/components/common/input-otp'
 import { Avatar, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/contexts/auth-context'
 import { resetPasswordPath } from '@/hooks/use-route'
-import { useCommonT } from '@/hooks/use-translations'
-// const VERIFY_CODE_COOL_DOWN = 60; // seconds
+import { useCommonT, useErrorMessageT } from '@/hooks/use-translations'
+
+const VERIFY_CODE_COOL_DOWN = 60 // 秒
+const PASSWORD_MIN_LENGTH = 8
+const PASSWORD_MAX_LENGTH = 32
+
+interface PasswordFormValues {
+  oldPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+interface EmailFormValues {
+  email: string
+  verifyCode: string
+}
 
 export function UserSecurityPage() {
   const t = useTranslations('Console.user_security')
+  const errorMessageT = useErrorMessageT()
   const commonT = useCommonT()
   const { user, setUser } = useAuth()
-  const [email, setEmail] = useState(user?.email || '')
-  const [verifyCode, setVerifyCode] = useState('')
-  const [oldPassword, setOldPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
   const [openIds, setOpenIds] = useState<OpenIdDto[]>([])
+  const [coolDown, setCoolDown] = useState(0)
+  const [sendingVerifyCode, setSendingVerifyCode] = useState(false)
+
+  const passwordForm = useForm<PasswordFormValues>({
+    defaultValues: { oldPassword: '', newPassword: '', confirmPassword: '' },
+    mode: 'onChange',
+  })
+  const emailForm = useForm<EmailFormValues>({
+    defaultValues: { email: user?.email || '', verifyCode: '' },
+    mode: 'onChange',
+  })
+  const watchedEmail = emailForm.watch('email')
+  const watchedVerifyCode = emailForm.watch('verifyCode')
 
   useEffect(() => {
     getUserOpenIdList()
       .then((res) => {
         setOpenIds(res.data.openids)
       })
-      .catch((error: BaseResponseError) => {
+      .catch((error: unknown) => {
         console.error('error', error)
-        toast.error(`${error.response.data.message}`)
+        toast.error(errorMessageT(error))
       })
   }, [setOpenIds])
 
-  const handleSubmitPassword = () => {
-    updatePassword({ oldPassword, newPassword })
-      .then(() => {
-        toast.success(t('update_password_success'))
-        setOldPassword('')
-        setNewPassword('')
-      })
-      .catch((error: BaseResponseError) => {
-        toast.error(`${t('update_password_failed')}: ${error.response.data.message}`)
-      })
+  // 验证码冷却倒计时
+  useEffect(() => {
+    if (coolDown <= 0)
+      return
+    const id = setInterval(() => {
+      setCoolDown(c => (c > 1 ? c - 1 : 0))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [coolDown])
+
+  const handleSubmitPassword = async ({ oldPassword, newPassword }: PasswordFormValues) => {
+    try {
+      await updatePassword({ oldPassword, newPassword })
+      toast.success(t('update_password_success'))
+      passwordForm.reset()
+    }
+    catch (error) {
+      toast.error(`${t('update_password_failed')}: ${errorMessageT(error)}`)
+    }
   }
 
   const handleSendVerifyCode = () => {
+    const email = emailForm.getValues('email')
+    if (!email || coolDown > 0 || sendingVerifyCode)
+      return
+    setSendingVerifyCode(true)
     requestEmailVerifyCode({ email })
       .then(() => {
         toast.success(t('send_verify_code_success'))
+        setCoolDown(VERIFY_CODE_COOL_DOWN)
       })
-      .catch((error: BaseResponseError) => {
+      .catch((error: unknown) => {
         console.error('error', error)
-        toast.error(`${t('send_verify_code_failed')}: ${error.response.data.message}`)
+        toast.error(`${t('send_verify_code_failed')}: ${errorMessageT(error)}`)
+      })
+      .finally(() => {
+        setSendingVerifyCode(false)
       })
   }
 
-  const handleSubmitEmail = () => {
-    updateEmail({ newEmail: email, verifyCode })
-      .then(() => {
-        toast.success(t('update_email_success'))
-        if (user) {
-          setUser({
-            ...user,
-            email,
-          })
-        }
-        setVerifyCode('')
-      })
-      .catch((error: BaseResponseError) => {
-        toast.error(`${t('update_email_failed')}: ${error.response.data.message}`)
-      })
+  const handleSubmitEmail = async ({ email, verifyCode }: EmailFormValues) => {
+    try {
+      await updateEmail({ newEmail: email, verifyCode })
+      toast.success(t('update_email_success'))
+      if (user) {
+        setUser({
+          ...user,
+          email,
+        })
+      }
+      // 清空验证码输入框（受控）
+      emailForm.reset({ email, verifyCode: '' })
+    }
+    catch (error) {
+      toast.error(`${t('update_email_failed')}: ${errorMessageT(error)}`)
+    }
   }
   if (!user)
     return null
   return (
     <div>
-      <div className="grid w-full max-w-sm items-center gap-4">
-        <h1 className="text-2xl font-bold">{t('password_setting')}</h1>
-        <div className="grid gap-2">
-          <Label htmlFor="password">{t('old_password')}</Label>
-          <Input
-            id="password"
-            type="password"
-            value={oldPassword}
-            onChange={e => setOldPassword(e.target.value)}
+      <Form {...passwordForm}>
+        <form className="grid w-full max-w-sm items-center gap-4" onSubmit={passwordForm.handleSubmit(handleSubmitPassword)}>
+          <h1 className="text-2xl font-bold">{t('password_setting')}</h1>
+          <FormField
+            control={passwordForm.control}
+            name="oldPassword"
+            rules={{ required: t('password_required') }}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('old_password')}</FormLabel>
+                <FormControl>
+                  <Input type="password" autoComplete="current-password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
           />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="password">{t('new_password')}</Label>
-          <Input
-            id="password"
-            type="password"
-            value={newPassword}
-            onChange={e => setNewPassword(e.target.value)}
+          <FormField
+            control={passwordForm.control}
+            name="newPassword"
+            rules={{
+              required: t('password_required'),
+              minLength: { value: PASSWORD_MIN_LENGTH, message: t('password_length', { min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH }) },
+              maxLength: { value: PASSWORD_MAX_LENGTH, message: t('password_length', { min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH }) },
+            }}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('new_password')}</FormLabel>
+                <FormControl>
+                  <Input type="password" autoComplete="new-password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
           />
-        </div>
+          <FormField
+            control={passwordForm.control}
+            name="confirmPassword"
+            rules={{
+              required: t('password_required'),
+              validate: value => value === passwordForm.getValues('newPassword') || t('password_mismatch'),
+            }}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('confirm_new_password')}</FormLabel>
+                <FormControl>
+                  <Input type="password" autoComplete="new-password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <div className="flex w-full items-center justify-between">
-          <Button
-            disabled={!oldPassword || !newPassword}
-            className="max-w-1/3 border-2"
-            onClick={handleSubmitPassword}
-          >
-            {t('update_password')}
-          </Button>
-          <Link href={resetPasswordPath}>{t('forgot_password_or_no_password')}</Link>
-        </div>
-      </div>
-      <Separator className="my-4" />
-      <div className="grid w-full max-w-sm items-center gap-4 py-4">
-        <h1 className="text-2xl font-bold">{t('email_setting')}</h1>
-
-        <div className="grid gap-2">
-          <Label htmlFor="email">{commonT('email')}</Label>
-          <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-        </div>
-
-        <div className="grid gap-2">
-          <Label htmlFor="verify-code">{t('verify_code')}</Label>
-          <div className="flex gap-2 justify-between">
-            <InputOTPControlled onChange={value => setVerifyCode(value)} />
+          <div className="flex w-full items-center justify-between">
             <Button
-              disabled={!email || email === user.email}
-              variant="outline"
-              className="border-2"
-              onClick={handleSendVerifyCode}
+              type="submit"
+              disabled={passwordForm.formState.isSubmitting}
+              className="max-w-1/3 border-2"
             >
-              {t('send_verify_code')}
+              {passwordForm.formState.isSubmitting && <Loader2 className="size-4 animate-spin" />}
+              {t('update_password')}
             </Button>
+            <Link href={resetPasswordPath}>{t('forgot_password_or_no_password')}</Link>
           </div>
-        </div>
-        <Button disabled={verifyCode.length < 6} className="border-2" onClick={handleSubmitEmail}>
-          {t('update_email')}
-        </Button>
-      </div>
+        </form>
+      </Form>
+      <Separator className="my-4" />
+      <Form {...emailForm}>
+        <form className="grid w-full max-w-sm items-center gap-4 py-4" onSubmit={emailForm.handleSubmit(handleSubmitEmail)}>
+          <h1 className="text-2xl font-bold">{t('email_setting')}</h1>
+          <FormField
+            control={emailForm.control}
+            name="email"
+            rules={{ required: true }}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{commonT('email')}</FormLabel>
+                <FormControl>
+                  <Input type="email" autoComplete="email" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={emailForm.control}
+            name="verifyCode"
+            rules={{ required: true, minLength: 6 }}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('verify_code')}</FormLabel>
+                <div className="flex gap-2 justify-between">
+                  <FormControl>
+                    <InputOTPControlled value={field.value} onChange={field.onChange} />
+                  </FormControl>
+                  <Button
+                    type="button"
+                    disabled={!watchedEmail || watchedEmail === user.email || coolDown > 0 || sendingVerifyCode}
+                    variant="outline"
+                    className="border-2"
+                    onClick={handleSendVerifyCode}
+                  >
+                    {sendingVerifyCode && <Loader2 className="size-4 animate-spin" />}
+                    {t('send_verify_code')}
+                    {coolDown > 0 ? `(${coolDown})` : ''}
+                  </Button>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button
+            type="submit"
+            disabled={watchedVerifyCode.length < 6 || emailForm.formState.isSubmitting}
+            className="border-2"
+          >
+            {emailForm.formState.isSubmitting && <Loader2 className="size-4 animate-spin" />}
+            {t('update_email')}
+          </Button>
+        </form>
+      </Form>
       <Separator className="my-4" />
       <div className="grid w-full max-w-sm items-center gap-4 py-4">
         <h1 className="text-2xl font-bold">{t('openid_accounts')}</h1>
@@ -162,14 +266,15 @@ export function UserSecurityPage() {
 
 function UserOpenIdItem({ openId, onUnbind }: { openId: OpenIdDto, onUnbind: (id: number) => void }) {
   const t = useTranslations('Console.user_security')
+  const errorMessageT = useErrorMessageT()
   const handleDelete = useCallback(() => {
     unbindUserOpenId(openId.id)
       .then(() => {
         toast.success(t('unbind_success'))
         onUnbind(openId.id)
       })
-      .catch((error: BaseResponseError) => {
-        toast.error(`${t('unbind_failed')}: ${error.response.data.message}`)
+      .catch((error: unknown) => {
+        toast.error(`${t('unbind_failed')}: ${errorMessageT(error)}`)
       })
   }, [openId.id, onUnbind, t])
   return (
@@ -200,7 +305,13 @@ function UserOpenIdItem({ openId, onUnbind }: { openId: OpenIdDto, onUnbind: (id
         onConfirm={handleDelete}
         confirmLabel={t('unbind')}
       >
-        <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-red-500 hover:text-red-600"
+          aria-label={t('unbind')}
+          title={t('unbind')}
+        >
           <UnlinkIcon size={16} />
         </Button>
       </ConfirmDialog>

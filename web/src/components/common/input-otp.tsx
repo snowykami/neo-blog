@@ -1,14 +1,31 @@
 import { useEffect, useState } from 'react'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 
-export function InputOTPControlled({ onChange }: { onChange: (value: string) => void }) {
-  const [value, setValue] = useState('')
+/**
+ * 验证码输入框
+ * 传入 value 时为受控模式（父组件可清空），否则内部自管理
+ */
+export function InputOTPControlled({ value: controlledValue, onChange, id }: { value?: string, onChange: (value: string) => void, id?: string }) {
+  const [innerValue, setInnerValue] = useState('')
+  const isControlled = controlledValue !== undefined
+  const value = isControlled ? controlledValue : innerValue
   useEffect(() => {
-    onChange(value)
-  }, [value, onChange])
+    if (!isControlled)
+      onChange(innerValue)
+  }, [innerValue, onChange, isControlled])
   return (
     <div className="space-y-2">
-      <InputOTP maxLength={6} value={value} onChange={value => setValue(value)}>
+      <InputOTP
+        id={id}
+        maxLength={6}
+        value={value}
+        onChange={(v) => {
+          if (isControlled)
+            onChange(v)
+          else
+            setInnerValue(v)
+        }}
+      >
         <InputOTPGroup>
           <InputOTPSlot index={0} />
           <InputOTPSlot index={1} />

@@ -34,6 +34,7 @@ import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-exte
 import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
 import { Button } from '@/components/ui/button'
 import { useEditSession } from '@/hooks/use-edit-session'
+import { useFullscreen, useUnsavedChangesWarning } from '@/hooks/use-editor-helpers'
 import { useOperationT } from '@/hooks/use-translations'
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
 import { PostPreviewDialogWithButton } from './post-preview'
@@ -41,8 +42,10 @@ import { PostPreviewDialogWithButton } from './post-preview'
 const lowlight = createLowlight(common)
 
 export function PostEditor() {
+  const t = useTranslations('Console.post_edit')
   const { id } = useParams() as { id: string }
   const [post, setPost] = useState<Post | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
   // 同一文章同时只允许最新打开的编辑页保存，被顶掉后只读
   const editSession = useEditSession('post', Number(id))
   // 最近一次成功保存（或加载）的内容，自动保存只在内容变化时提交
@@ -54,10 +57,10 @@ export function PostEditor() {
       return res.data.url
     }
     catch {
-      toast.error('Image upload failed')
+      toast.error(t('image_upload_failed'))
       return ''
     }
-  }, [])
+  }, [t])
 
   // Tiptap editor
   const editor = useEditor({
@@ -68,7 +71,7 @@ export function PostEditor() {
         'autocomplete': 'off',
         'autocorrect': 'off',
         'autocapitalize': 'off',
-        'aria-label': 'Main content area, start typing to enter text.',
+        'aria-label': t('editor_aria_label'),
         'class': 'simple-editor',
       },
     },
@@ -110,11 +113,26 @@ export function PostEditor() {
     ],
   })
 
-  useEffect(() => {
-    getPostById({ id, type: 'draft' }).then((res) => {
-      setPost(res.data)
-    })
+  // 加载草稿（单篇接口，草稿模式会返回 draftContent）；失败时显示错误状态而不是一直加载
+  const loadPost = useCallback(() => {
+    setLoadFailed(false)
+    getPostById({ id, type: 'draft' })
+      .then((res) => {
+        setPost(res.data)
+      })
+      .catch(() => setLoadFailed(true))
   }, [id])
+
+  useEffect(() => {
+    loadPost()
+  }, [loadPost])
+
+  // 有未保存修改时关闭标签页前提示
+  const hasUnsavedChanges = useCallback(
+    () => Boolean(editor && savedHtmlRef.current !== null && editor.getHTML() !== savedHtmlRef.current),
+    [editor],
+  )
+  useUnsavedChangesWarning(hasUnsavedChanges)
 
   // 仅在首次加载文章时写入编辑器内容；之后修改元信息也会更新 post，
   // 若每次都 setContent 会用旧草稿覆盖用户尚未保存的编辑
@@ -124,7 +142,7 @@ export function PostEditor() {
       return
     if (!post || loadedPostIdRef.current === post.id)
       return
-    const content = post.draftContent || post.content || '<p>Empty</p>'
+    const content = post.draftContent || post.content || ''
     const t = window.setTimeout(() => {
       editor.commands.setContent(content)
       savedHtmlRef.current = editor.getHTML()
@@ -143,20 +161,33 @@ export function PostEditor() {
   const handleTakeOver = useCallback(async () => {
     if (!editor || !(await editSession.takeOver()))
       return
-    const latest = (await getPostById({ id, type: 'draft' })).data
-    if (!latest)
+    const latest = await getPostById({ id, type: 'draft' })
+      .then(res => res.data)
+      .catch(() => null)
+    if (!latest) {
+      toast.error(t('load_failed'))
       return
-    editor.commands.setContent(latest.draftContent || latest.content || '<p>Empty</p>')
+    }
+    editor.commands.setContent(latest.draftContent || latest.content || '')
     savedHtmlRef.current = editor.getHTML()
     setPost(latest)
-  }, [editor, editSession, id])
+  }, [editor, editSession, id, t])
 
   const onPostUpdate = ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
     setPost(prev => (prev ? { ...prev, ...post } : prev))
   }
 
+  if (loadFailed) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
+        <span>{t('load_failed')}</span>
+        <Button size="sm" variant="outline" onClick={loadPost}>{t('retry')}</Button>
+      </div>
+    )
+  }
+
   if (!post || !editor)
-    return <div>Loading...</div>
+    return <div className="py-20 text-center text-muted-foreground">{t('loading')}</div>
 
   return (
     // 这里设置一个确定高度（示例使用 80vh），保证内部 SimpleEditor 可在自身内滚动
@@ -200,7 +231,9 @@ function EditorNavbar({
   const [savingDraft, setSavingDraft] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [settingDialogOpen, setSettingDialogOpen] = useState(false)
-  const [isFullScreen, setIsFullScreen] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const onFullscreenError = useCallback(() => toast.error(t('fullscreen_failed')), [t])
+  const { isFullScreen, toggleFullScreen } = useFullscreen(onFullscreenError)
 
   const { sessionId, status: sessionStatus, markTakenOver, check: checkEditSession } = editSession
   // 被顶掉或会话申请中不保存；申请失败时（如后端未更新）退化为不带会话保存
@@ -261,9 +294,10 @@ function EditorNavbar({
 
   // 发布：草稿与正文一起提交
   const publishPost = () => {
-    if (!canSave)
+    if (!canSave || publishing)
       return
     const htmlToPublish = editor.getHTML()
+    setPublishing(true)
     updatePost({
       post: {
         id: post.id,
@@ -285,20 +319,7 @@ function EditorNavbar({
         }
         toast.error(operationT('publish_failed'))
       })
-  }
-
-  // 切换全屏
-  const handleToggleFullScreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch((err) => {
-        toast.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`)
-      })
-      setIsFullScreen(true)
-    }
-    else {
-      document.exitFullscreen()
-      setIsFullScreen(false)
-    }
+      .finally(() => setPublishing(false))
   }
 
   // 预览点击
@@ -327,7 +348,13 @@ function EditorNavbar({
           onPostChange={onPostUpdate}
         />
         {/* source mode removed */}
-        <Button size="sm" onClick={handleToggleFullScreen} variant="outline">
+        <Button
+          size="sm"
+          onClick={toggleFullScreen}
+          variant="outline"
+          aria-label={isFullScreen ? t('fullscreen_exit') : t('fullscreen_enter')}
+          title={isFullScreen ? t('fullscreen_exit') : t('fullscreen_enter')}
+        >
           {isFullScreen
             ? (
                 <MinimizeIcon className="size-4" />
@@ -343,8 +370,8 @@ function EditorNavbar({
         <Button size="sm" onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft || !canSave}>
           {savingDraft ? t('saving_draft') : t('save_draft')}
         </Button>
-        <Button size="sm" onClick={publishPost} disabled={!canSave}>
-          {operationT('publish')}
+        <Button size="sm" onClick={publishPost} disabled={!canSave || publishing}>
+          {publishing ? t('publishing') : operationT('publish')}
         </Button>
       </div>
     </div>

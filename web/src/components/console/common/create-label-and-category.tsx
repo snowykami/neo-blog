@@ -12,7 +12,6 @@ import { createCategory, updateCategory } from '@/api/post'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -30,6 +29,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useOperationT } from '@/hooks/use-translations'
+import { getErrorMessage } from '@/utils/common/error'
 
 export function CreateOrUpdateLabelDialogWithButton({
   label,
@@ -63,13 +63,13 @@ export function CreateOrUpdateLabelDialogWithButton({
     name: string
     slug: string
     tailwindClassName: string
-  }> = (data) => {
+  }> = async (data) => {
     if (data.name.trim() === '' || data.slug.trim() === '') {
       toast.error(t('label_name_and_slug_cannot_be_empty'))
       return
     }
     if (label) {
-      updateLabel({
+      await updateLabel({
         label: {
           id: label.id,
           name: data.name,
@@ -90,14 +90,12 @@ export function CreateOrUpdateLabelDialogWithButton({
           form.reset(data)
         })
         .catch((error) => {
-          toast.error(
-            operationT('update_failed')
-            + (error.response?.data?.message ? `: ${error.response.data.message}` : ''),
-          )
+          const message = getErrorMessage(error)
+          toast.error(operationT('update_failed') + (message ? `: ${message}` : ''))
         })
     }
     else {
-      createLabel({
+      await createLabel({
         label: {
           name: data.name,
           slug: data.slug,
@@ -116,19 +114,28 @@ export function CreateOrUpdateLabelDialogWithButton({
           form.reset()
         })
         .catch((error) => {
-          toast.error(
-            operationT('create_failed')
-            + (error.response?.data?.message ? `: ${error.response.data.message}` : ''),
-          )
+          const message = getErrorMessage(error)
+          toast.error(operationT('create_failed') + (message ? `: ${message}` : ''))
         })
     }
   }
   const handleCancel = () => {
     form.reset()
+    setOpen(false)
+  }
+
+  // 打开时用最新的 label 重置表单，避免显示挂载时的旧值
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      form.reset(label
+        ? { name: label.name, slug: label.slug, tailwindClassName: label.tailwindClassName }
+        : { name: '', slug: '', tailwindClassName: '' })
+    }
+    setOpen(nextOpen)
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size={buttonSize}>
           {label ? t('edit_label') : t('create_label')}
@@ -189,20 +196,15 @@ export function CreateOrUpdateLabelDialogWithButton({
               )}
             />
             <DialogFooter>
-              <DialogClose asChild>
-                <div className="flex gap-2">
-                  <Button onClick={handleCancel} variant="outline" type="button">
-                    {operationT('cancel')}
-                  </Button>
-                  <Button
-                    disabled={!form.formState.isValid}
-                    type="button"
-                    onClick={form.handleSubmit(onSubmit)}
-                  >
-                    {label ? operationT('update') : operationT('create')}
-                  </Button>
-                </div>
-              </DialogClose>
+              <div className="flex gap-3">
+                <Button onClick={handleCancel} variant="outline" type="button">
+                  {operationT('cancel')}
+                </Button>
+                {/* 只通过表单 submit 触发一次提交，成功后再关闭对话框 */}
+                <Button disabled={!form.formState.isValid || form.formState.isSubmitting} type="submit">
+                  {label ? operationT('update') : operationT('create')}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>
@@ -239,14 +241,14 @@ export function CreateOrUpdateCategoryDialogWithButton({
     name: string
     slug: string
     description: string
-  }> = (data) => {
+  }> = async (data) => {
     // 防止只有空格提交（双重保险）
     if (data.name.trim() === '' || data.slug.trim() === '') {
       toast.error(t('category_name_and_slug_cannot_be_empty'))
       return
     }
     if (category) {
-      updateCategory({
+      await updateCategory({
         category: {
           id: category.id,
           name: data.name.trim(),
@@ -267,14 +269,12 @@ export function CreateOrUpdateCategoryDialogWithButton({
           form.reset(saved)
         })
         .catch((error) => {
-          toast.error(
-            operationT('update_failed')
-            + (error?.response?.data?.message ? `: ${error.response.data.message}` : ''),
-          )
+          const message = getErrorMessage(error)
+          toast.error(operationT('update_failed') + (message ? `: ${message}` : ''))
         })
     }
     else {
-      createCategory({
+      await createCategory({
         category: {
           name: data.name.trim(),
           slug: data.slug.trim(),
@@ -293,10 +293,8 @@ export function CreateOrUpdateCategoryDialogWithButton({
           form.reset()
         })
         .catch((error) => {
-          toast.error(
-            operationT('create_failed')
-            + (error?.response?.data?.message ? `: ${error.response.data.message}` : ''),
-          )
+          const message = getErrorMessage(error)
+          toast.error(operationT('create_failed') + (message ? `: ${message}` : ''))
         })
     }
   }
@@ -306,8 +304,18 @@ export function CreateOrUpdateCategoryDialogWithButton({
     setOpen(false)
   }
 
+  // 打开时用最新的 category 重置表单，避免显示挂载时的旧值
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      form.reset(category
+        ? { name: category.name, slug: category.slug, description: category.description }
+        : { name: '', slug: '', description: '' })
+    }
+    setOpen(nextOpen)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size={buttonSize}>
           {category ? t('edit_category') : t('create_category')}
@@ -372,16 +380,15 @@ export function CreateOrUpdateCategoryDialogWithButton({
               )}
             />
             <DialogFooter>
-              <DialogClose asChild>
-                <div className="flex gap-2">
-                  <Button onClick={handleCancel} variant="outline" type="button">
-                    {operationT('cancel')}
-                  </Button>
-                  <Button disabled={!form.formState.isValid} onClick={form.handleSubmit(onSubmit)}>
-                    {category ? operationT('update') : operationT('create')}
-                  </Button>
-                </div>
-              </DialogClose>
+              <div className="flex gap-3">
+                <Button onClick={handleCancel} variant="outline" type="button">
+                  {operationT('cancel')}
+                </Button>
+                {/* 只通过表单 submit 触发一次提交，成功后再关闭对话框 */}
+                <Button disabled={!form.formState.isValid || form.formState.isSubmitting} type="submit">
+                  {category ? operationT('update') : operationT('create')}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>

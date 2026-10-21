@@ -11,7 +11,7 @@ import {
   parseAsStringEnum,
   useQueryState,
 } from 'nuqs'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { batchDeleteFiles, deleteFile, listFiles } from '@/api/file'
 import { ArrangementSelector } from '@/components/common/arrangement-selector'
@@ -40,6 +40,7 @@ import copyToClipboard from '@/lib/clipboard'
 import { ArrangementMode, OrderBy } from '@/models/common'
 import { getFileUri } from '@/utils/client/file'
 import { formatDataSize } from '@/utils/common/datasize'
+import { getErrorMessage } from '@/utils/common/error'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
@@ -114,8 +115,12 @@ export function FileManage() {
     }
   }, [listFilesTask.data])
 
-  // 防抖后的搜索词变化时，重置分页
+  // 防抖后的搜索词真正变化时才重置分页，避免挂载时把 URL 中的页码重置为 1
+  const prevQueryRef = useRef(debouncedQueryInput)
   useEffect(() => {
+    if (prevQueryRef.current === debouncedQueryInput)
+      return
+    prevQueryRef.current = debouncedQueryInput
     setPage(1)
   }, [debouncedQueryInput, setPage])
 
@@ -197,7 +202,7 @@ export function FileManage() {
         Array.from(selectedFileIds).forEach(id => onFileDelete({ fileId: id }))
       })
       .catch((error: BaseResponseError) => {
-        toast.error(`${operationT('delete_failed')}: ${error.message}`)
+        toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`)
       })
   }
 
@@ -284,7 +289,7 @@ export function FileManage() {
       <div className="flex justify-center items-center py-4">
         {total > 0 && (
           <PaginationController
-            initialPage={page}
+            page={page}
             onPageChange={onPageChange}
             total={total}
             pageSize={size}
@@ -449,7 +454,7 @@ function FileDropdownMenu({
         onFileDelete({ fileId: file.id })
       })
       .catch((error: BaseResponseError) => {
-        toast.error(`${operationT('delete_failed')}: ${error.message}`)
+        toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`)
       })
   }
 

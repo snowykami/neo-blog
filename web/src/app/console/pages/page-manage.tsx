@@ -3,7 +3,8 @@
 import type { PageModel } from '@/models/page'
 import type { BaseResponseError } from '@/models/resp'
 import { Ellipsis, Eye } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { deletePage, listPages, updatePage } from '@/api/page'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
@@ -23,6 +24,7 @@ import { useDebouncedState } from '@/hooks/use-debounce'
 import { useDoubleConfirm } from '@/hooks/use-double-confirm'
 import { useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
+import { getErrorMessage } from '@/utils/common/error'
 import { getPageEditUrl, getPageUrl } from '@/utils/common/route'
 import { PageMetaDialog } from './page-meta-dialog'
 
@@ -30,6 +32,8 @@ const PAGE_SIZE = 15
 
 export function PageManage() {
   const { user } = useAuth()
+  const t = useTranslations('Console.pages')
+  const operationT = useOperationT()
   const [pages, setPages] = useState<PageModel[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -52,13 +56,22 @@ export function PageManage() {
       setPages(res.data.pages)
       setTotal(res.data.total)
     }).catch((error: BaseResponseError) => {
-      toast.error(error?.response?.data?.message || error.message)
+      toast.error(`${operationT('fetch_failed')}: ${getErrorMessage(error)}`)
     })
-  }, [debouncedQueryInput, page, size, user])
+  }, [debouncedQueryInput, operationT, page, size, user])
 
   useEffect(() => {
     loadPages()
   }, [loadPages])
+
+  // 搜索词变化时回到第一页
+  const prevQueryRef = useRef(debouncedQueryInput)
+  useEffect(() => {
+    if (prevQueryRef.current === debouncedQueryInput)
+      return
+    prevQueryRef.current = debouncedQueryInput
+    setPage(1)
+  }, [debouncedQueryInput])
 
   // 已有页面就地更新；新建页面需要后端的排序与分页结果，重新拉取列表
   const onPageChange = useCallback(({ page }: { page: Partial<PageModel> & Pick<PageModel, 'id'> }) => {
@@ -79,12 +92,12 @@ export function PageManage() {
       <div className="flex items-center justify-between mb-4 gap-3">
         <Input
           type="search"
-          placeholder="搜索页面"
+          placeholder={t('search_pages')}
           value={queryInput}
           onChange={event => setQueryInput(event.target.value)}
           className="max-w-sm"
         />
-        <Button size="sm" onClick={() => setCreateDialogOpen(true)}>创建页面</Button>
+        <Button size="sm" onClick={() => setCreateDialogOpen(true)}>{t('create_page')}</Button>
         <PageMetaDialog
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
@@ -101,7 +114,7 @@ export function PageManage() {
       ))}
       <div className="flex justify-center items-center py-4">
         {total > 0 && (
-          <PaginationController initialPage={page} onPageChange={setPage} total={total} pageSize={size} />
+          <PaginationController page={page} onPageChange={setPage} total={total} pageSize={size} />
         )}
         <PageSizeSelector
           initialSize={size}
@@ -125,6 +138,8 @@ function PageItem({
   page: PageModel
 }) {
   const [metaDialogOpen, setMetaDialogOpen] = useState(false)
+  const t = useTranslations('Console.pages')
+  const stateT = useTranslations('State')
   return (
     <div className="flex w-full items-center gap-3 py-3">
       <div className="min-w-0">
@@ -136,12 +151,11 @@ function PageItem({
           </Badge>
           <Badge variant="secondary">{page.slug}</Badge>
           <Badge className={page.isPrivate ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}>
-            {page.isPrivate ? '私有' : '公开'}
+            {page.isPrivate ? stateT('private') : stateT('public')}
           </Badge>
           {page.showInNav && (
             <Badge className="bg-blue-100 text-blue-800">
-              导航 #
-              {page.navOrder}
+              {t('nav_order', { order: page.navOrder })}
             </Badge>
           )}
         </div>
@@ -182,7 +196,7 @@ function PageDropdownMenu({
         toast.success(operationT('update_success'))
         onPageChange({ page: { id: page.id, isPrivate: !page.isPrivate } })
       })
-      .catch((error: BaseResponseError) => toast.error(error?.response?.data?.message || error.message))
+      .catch((error: BaseResponseError) => toast.error(`${operationT('update_failed')}: ${getErrorMessage(error)}`))
   }
 
   const handleDelete = () => {
@@ -191,7 +205,7 @@ function PageDropdownMenu({
         toast.success(operationT('delete_success'))
         onPageDelete({ pageId: page.id })
       })
-      .catch((error: BaseResponseError) => toast.error(error?.response?.data?.message || error.message))
+      .catch((error: BaseResponseError) => toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`))
   }
 
   return (

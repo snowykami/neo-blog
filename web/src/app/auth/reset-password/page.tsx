@@ -1,6 +1,5 @@
 'use client'
 
-import type { BaseResponseError } from '@/models/resp'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -14,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { loginPath, registerPath } from '@/hooks/use-route'
-import { useCommonT, useOperationT } from '@/hooks/use-translations'
+import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 
 export default function Page() {
@@ -28,6 +27,7 @@ export default function Page() {
 
 export function ResetPasswordForm({ className, ...props }: React.ComponentProps<'div'>) {
   const t = useTranslations('ResetPassword')
+  const errorMessageT = useErrorMessageT()
   const commonT = useCommonT()
   const operationT = useOperationT()
   const router = useRouter()
@@ -54,8 +54,8 @@ export function ResetPasswordForm({ className, ...props }: React.ComponentProps<
       .then(() => {
         toast.success(t('send_verify_code_success'))
       })
-      .catch((error: BaseResponseError) => {
-        toast.error(`${t('send_verify_code_failed')}: ${error.response.data.message}`)
+      .catch((error: unknown) => {
+        toast.error(`${t('send_verify_code_failed')}: ${errorMessageT(error)}`)
       })
       .finally(() => {
         setSendingVerifyCode(false)
@@ -69,8 +69,8 @@ export function ResetPasswordForm({ className, ...props }: React.ComponentProps<
         toast.success(t('reset_password_success'))
         router.push(loginPath)
       })
-      .catch((error: BaseResponseError) => {
-        toast.error(`${t('reset_password_failed')}: ${error.response.data.message}`)
+      .catch((error: unknown) => {
+        toast.error(`${t('reset_password_failed')}: ${errorMessageT(error)}`)
       })
   }
 

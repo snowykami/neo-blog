@@ -177,7 +177,7 @@ export default function VisitsPage() {
       </div>
 
       <div className="flex items-center justify-center py-2">
-        {total > 0 && <PaginationController initialPage={page} onPageChange={setPage} total={total} pageSize={size} />}
+        {total > 0 && <PaginationController page={page} onPageChange={setPage} total={total} pageSize={size} />}
         <PageSizeSelector initialSize={size} onSizeChange={changeSize} />
         {' '}
         {metricsT('per_page')}

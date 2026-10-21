@@ -108,7 +108,7 @@ export function FileListViewer({
           )
         })}
       </div>
-      <PaginationController initialPage={page} onPageChange={setPage} total={total} />
+      <PaginationController page={page} onPageChange={setPage} total={total} />
     </div>
   )
 }

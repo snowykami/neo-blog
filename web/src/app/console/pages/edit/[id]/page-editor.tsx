@@ -33,6 +33,7 @@ import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-exte
 import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
 import { Button } from '@/components/ui/button'
 import { useEditSession } from '@/hooks/use-edit-session'
+import { useFullscreen, useUnsavedChangesWarning } from '@/hooks/use-editor-helpers'
 import { useOperationT } from '@/hooks/use-translations'
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
 import { PageMetaDialog } from '../../page-meta-dialog'
@@ -40,8 +41,10 @@ import { PageMetaDialog } from '../../page-meta-dialog'
 const lowlight = createLowlight(common)
 
 export function PageEditor() {
+  const t = useTranslations('Console.post_edit')
   const { id } = useParams() as { id: string }
   const [page, setPage] = useState<PageModel | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
   // 同一页面同时只允许最新打开的编辑页保存，被顶掉后只读
   const editSession = useEditSession('page', Number(id))
   // 最近一次成功保存（或加载）的内容，自动保存只在内容变化时提交
@@ -53,10 +56,10 @@ export function PageEditor() {
       return res.data.url
     }
     catch {
-      toast.error('Image upload failed')
+      toast.error(t('image_upload_failed'))
       return ''
     }
-  }, [])
+  }, [t])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -66,7 +69,7 @@ export function PageEditor() {
         'autocomplete': 'off',
         'autocorrect': 'off',
         'autocapitalize': 'off',
-        'aria-label': 'Page content area',
+        'aria-label': t('page_editor_aria_label'),
         'class': 'simple-editor',
       },
     },
@@ -106,9 +109,24 @@ export function PageEditor() {
     ],
   })
 
-  useEffect(() => {
-    getPageById({ id, type: 'draft' }).then(res => setPage(res.data))
+  // 加载草稿（单篇接口，草稿模式会返回 draftContent）；失败时显示错误状态而不是一直加载
+  const loadPage = useCallback(() => {
+    setLoadFailed(false)
+    getPageById({ id, type: 'draft' })
+      .then(res => setPage(res.data))
+      .catch(() => setLoadFailed(true))
   }, [id])
+
+  useEffect(() => {
+    loadPage()
+  }, [loadPage])
+
+  // 有未保存修改时关闭标签页前提示
+  const hasUnsavedChanges = useCallback(
+    () => Boolean(editor && savedHtmlRef.current !== null && editor.getHTML() !== savedHtmlRef.current),
+    [editor],
+  )
+  useUnsavedChangesWarning(hasUnsavedChanges)
 
   // 仅在首次加载页面时写入编辑器内容；之后修改元信息也会更新 page，
   // 若每次都 setContent 会用旧草稿覆盖用户尚未保存的编辑
@@ -116,7 +134,7 @@ export function PageEditor() {
   useEffect(() => {
     if (!editor || !page || loadedPageIdRef.current === page.id)
       return
-    const content = page.draftContent || page.content || '<p>Empty</p>'
+    const content = page.draftContent || page.content || ''
     const timer = window.setTimeout(() => {
       editor.commands.setContent(content)
       savedHtmlRef.current = editor.getHTML()
@@ -135,20 +153,33 @@ export function PageEditor() {
   const handleTakeOver = useCallback(async () => {
     if (!editor || !(await editSession.takeOver()))
       return
-    const latest = (await getPageById({ id, type: 'draft' })).data
-    if (!latest)
+    const latest = await getPageById({ id, type: 'draft' })
+      .then(res => res.data)
+      .catch(() => null)
+    if (!latest) {
+      toast.error(t('load_failed'))
       return
-    editor.commands.setContent(latest.draftContent || latest.content || '<p>Empty</p>')
+    }
+    editor.commands.setContent(latest.draftContent || latest.content || '')
     savedHtmlRef.current = editor.getHTML()
     setPage(latest)
-  }, [editor, editSession, id])
+  }, [editor, editSession, id, t])
 
   const onPageUpdate = ({ page: nextPage }: { page: Partial<PageModel> & Pick<PageModel, 'id'> }) => {
     setPage(prev => (prev ? { ...prev, ...nextPage } : prev))
   }
 
+  if (loadFailed) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
+        <span>{t('load_failed')}</span>
+        <Button size="sm" variant="outline" onClick={loadPage}>{t('retry')}</Button>
+      </div>
+    )
+  }
+
   if (!page || !editor)
-    return <div>Loading...</div>
+    return <div className="py-20 text-center text-muted-foreground">{t('loading')}</div>
 
   return (
     <div
@@ -191,7 +222,9 @@ function PageEditorNavbar({
   const [savingDraft, setSavingDraft] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [settingDialogOpen, setSettingDialogOpen] = useState(false)
-  const [isFullScreen, setIsFullScreen] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const onFullscreenError = useCallback(() => toast.error(t('fullscreen_failed')), [t])
+  const { isFullScreen, toggleFullScreen } = useFullscreen(onFullscreenError)
 
   const { sessionId, status: sessionStatus, markTakenOver, check: checkEditSession } = editSession
   // 被顶掉或会话申请中不保存；申请失败时（如后端未更新）退化为不带会话保存
@@ -243,9 +276,10 @@ function PageEditorNavbar({
   }, [saveDraft])
 
   const publishPage = () => {
-    if (!canSave)
+    if (!canSave || publishing)
       return
     const html = editor.getHTML()
+    setPublishing(true)
     updatePage({ page: { id: page.id, draftContent: html, content: html, type: 'html' }, editSessionId: sessionId })
       .then(() => {
         savedHtmlRef.current = html
@@ -259,16 +293,7 @@ function PageEditorNavbar({
         }
         toast.error(operationT('publish_failed'))
       })
-  }
-
-  const handleToggleFullScreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(error => toast.error(error.message))
-      setIsFullScreen(true)
-      return
-    }
-    document.exitFullscreen()
-    setIsFullScreen(false)
+      .finally(() => setPublishing(false))
   }
 
   return (
@@ -281,14 +306,22 @@ function PageEditorNavbar({
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         <PageMetaDialog open={settingDialogOpen} onOpenChange={setSettingDialogOpen} page={page} onPageChange={onPageUpdate} />
-        <Button size="sm" onClick={handleToggleFullScreen} variant="outline">
+        <Button
+          size="sm"
+          onClick={toggleFullScreen}
+          variant="outline"
+          aria-label={isFullScreen ? t('fullscreen_exit') : t('fullscreen_enter')}
+          title={isFullScreen ? t('fullscreen_exit') : t('fullscreen_enter')}
+        >
           {isFullScreen ? <MinimizeIcon className="size-4" /> : <FullscreenIcon className="size-4" />}
         </Button>
         <Button size="sm" onClick={() => setSettingDialogOpen(true)} variant="outline">{operationT('setting')}</Button>
         <Button size="sm" onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft || !canSave}>
           {savingDraft ? t('saving_draft') : t('save_draft')}
         </Button>
-        <Button size="sm" onClick={publishPage} disabled={!canSave}>{operationT('publish')}</Button>
+        <Button size="sm" onClick={publishPage} disabled={!canSave || publishing}>
+          {publishing ? t('publishing') : operationT('publish')}
+        </Button>
       </div>
     </div>
   )

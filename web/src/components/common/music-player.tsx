@@ -267,6 +267,7 @@ function CrossfadeAlbumImage({
 }
 
 export function MusicPlayer() {
+  const t = useTranslations('MusicPlayer')
   const {
     currentTrack,
     replacePlaylist,
@@ -433,7 +434,7 @@ export function MusicPlayer() {
           }}
         />
         <div
-          aria-label="Floating music player"
+          aria-label={t('floating_player')}
           role="region"
           className="relative flex flex-col gap-2"
         >
@@ -688,14 +689,16 @@ function PlayerControls() {
 }
 
 function MuteButton() {
+  const t = useTranslations('MusicPlayer')
   const { isMuted, toggleMuted } = useMusic()
   const iconClassName = cn('w-5 h-5', BUTTON_ANIMATION_CLASSNAME)
 
   return (
     <button
       type="button"
-      aria-label={isMuted ? '取消静音' : '静音'}
-      title={isMuted ? '取消静音' : '静音'}
+      aria-label={isMuted ? t('unmute') : t('mute')}
+      title={isMuted ? t('unmute') : t('mute')}
+      aria-pressed={isMuted}
       onClick={toggleMuted}
       className={cn('p-1', isMuted ? 'text-primary' : '')}
     >
@@ -713,6 +716,7 @@ function LyricModeButton() {
     hasRomajiLyric,
     hasTranslationLyric,
   } = useMusic()
+  const t = useTranslations('MusicPlayer')
   const hasExtraLyric = hasRomajiLyric || hasTranslationLyric
   const iconClassName = cn('w-5 h-5', hasExtraLyric ? BUTTON_ANIMATION_CLASSNAME : '')
 
@@ -733,9 +737,9 @@ function LyricModeButton() {
   return (
     <button
       type="button"
-      aria-label="切换歌词附加显示"
+      aria-label={t('toggle_lyric_mode')}
       aria-disabled={!hasExtraLyric}
-      title={!hasExtraLyric ? '暂无翻译或罗马音' : lyricMode === 'none' ? '无附加歌词' : lyricMode === 'romaji' ? '罗马音' : '翻译'}
+      title={!hasExtraLyric ? t('no_extra_lyric') : lyricMode === 'none' ? t('lyric_mode_none') : lyricMode === 'romaji' ? t('lyric_mode_romaji') : t('lyric_mode_translation')}
       onClick={() => setLyricMode(getNextMode(lyricMode))}
       disabled={!hasExtraLyric}
       className={cn(
@@ -751,6 +755,7 @@ function LyricModeButton() {
 
 function PlayModeButton() {
   const [storedPlayMode, setStoredPlayMode, isStoredPlayModeLoaded] = useStoredState<PlayMode>('music-play-mode', 'repeat-all')
+  const t = useTranslations('MusicPlayer')
   const { playMode, setPlayMode } = useMusic()
   const playModeSize = 'w-5 h-5'
 
@@ -782,7 +787,8 @@ function PlayModeButton() {
   return (
     <button
       type="button"
-      aria-label="切换播放模式"
+      aria-label={t('toggle_play_mode')}
+      title={t(`play_mode_${playMode ?? 'repeat-all'}`)}
       onClick={handleClick}
       className="p-1"
     >
@@ -929,7 +935,7 @@ function Playlist() {
                     setSearchKeyword('')
                   }}
                   className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-                  aria-label="Close search"
+                  aria-label={t('close_search')}
                 >
                   ✕
                 </button>
@@ -948,7 +954,7 @@ function Playlist() {
                   type="button"
                   onClick={() => setShowSearch(true)}
                   className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-                  aria-label="Open search"
+                  aria-label={t('open_search')}
                 >
                   <SearchIcon className="w-4 h-4" />
                 </button>

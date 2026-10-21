@@ -1,7 +1,6 @@
 'use client'
 
 import type { ChangeEvent } from 'react'
-import type { BaseResponseError } from '@/models/resp'
 import { CircleXIcon, FileIcon } from 'lucide-react'
 import mime from 'mime-types'
 import { useTranslations } from 'next-intl'
@@ -21,7 +20,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { useOperationT } from '@/hooks/use-translations'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { mimeTypeIcons } from '@/utils/client/file'
 import { formatDataSize } from '@/utils/common/datasize'
 import { Label } from '../ui/label'
@@ -41,6 +40,7 @@ export function FileUploadDialogWithButton({
   className?: string
 }) {
   const t = useTranslations('Console.files')
+  const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const [files, setFiles] = useState<File[]>([])
   const [compressLevel, setCompressLevel] = useState(0)
@@ -67,9 +67,9 @@ export function FileUploadDialogWithButton({
           toast.success(t('upload_file_success', { name: file.name }))
           return { success: true, file }
         })
-        .catch((err: BaseResponseError) => {
+        .catch((err: unknown) => {
           toast.error(
-            `${t('upload_file_failed', { name: file.name })}: ${err?.response?.data?.message || err.message}`,
+            `${t('upload_file_failed', { name: file.name })}: ${errorMessageT(err)}`,
           )
           return { success: false, file, error: err }
         }),
@@ -84,10 +84,10 @@ export function FileUploadDialogWithButton({
     const failedCount = results.length - successCount
     // 显示总体结果
     if (successCount > 0) {
-      toast.success(`成功上传 ${successCount} 个文件`)
+      toast.success(t('upload_n_files_success', { n: successCount }))
     }
     if (failedCount > 0) {
-      toast.error(`${failedCount} 个文件上传失败`)
+      toast.error(t('upload_n_files_failed', { n: failedCount }))
     }
     setFiles([])
     onFilesUpload()

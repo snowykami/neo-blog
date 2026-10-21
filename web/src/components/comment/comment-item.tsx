@@ -1,6 +1,7 @@
 import type { Comment } from '@/models/comment'
 import { Ellipsis, Heart, Lock, Reply } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
+import Link from 'next/link'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -18,14 +19,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useDoubleConfirm } from '@/hooks/use-double-confirm'
-import { useToLogin, useToUserProfile } from '@/hooks/use-route'
+import { useToLogin } from '@/hooks/use-route'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
 import { TargetType } from '@/models/types'
 import { formatDateTime } from '@/utils/common/datetime'
+import { getErrorMessage } from '@/utils/common/error'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { formatLocation } from '@/utils/common/location'
 import { isAdmin } from '@/utils/common/permission'
+import { getUserUrl } from '@/utils/common/route'
 import { getFirstCharFromUser } from '@/utils/common/username'
 import { CommentInput } from './comment-input'
 
@@ -59,7 +62,6 @@ export function CommentItem({
   const roleT = useTranslations('Role')
   const commonT = useCommonT()
   const operationT = useOperationT()
-  const clickToUserProfile = useToUserProfile()
   const clickToLogin = useToLogin()
 
   const [commentState, setCommentState] = useState<Comment>(comment) // 用于更新评论内容
@@ -96,7 +98,7 @@ export function CommentItem({
         setCanClickLike(true)
       })
       .catch((error) => {
-        toast.error(`${operationT('like_failed')}: ${error.message}`)
+        toast.error(`${operationT('like_failed')}: ${getErrorMessage(error)}`)
         // 失败回滚
         setLiked(likedPrev)
         setLikeCount(likeCountPrev)
@@ -117,6 +119,8 @@ export function CommentItem({
     }).then((response) => {
       setReplies(response.data.comments)
       setRepliesLoaded(true)
+    }).catch((error) => {
+      toast.error(`${t('load_failed')}: ${getErrorMessage(error)}`)
     })
   }
 
@@ -127,7 +131,7 @@ export function CommentItem({
     setShowReplies(!showReplies)
   }
 
-  const onCommentEdit = ({
+  const onCommentEdit = async ({
     commentContent: newContent,
     isPrivate,
     showClientInfo,
@@ -136,25 +140,27 @@ export function CommentItem({
     isPrivate: boolean
     showClientInfo: boolean
   }) => {
-    updateComment({
-      id: commentState.id,
-      content: newContent,
-      isPrivate,
-      showClientInfo,
-    })
-      .then(() => {
-        toast.success(t('edit_success'))
-        getComment({ id: commentState.id }).then((response) => {
-          setCommentState(response.data)
-        })
-        setActiveInputId(null)
+    try {
+      await updateComment({
+        id: commentState.id,
+        content: newContent,
+        isPrivate,
+        showClientInfo,
       })
-      .catch((error) => {
-        toast.error(`${t('edit_failed')}: ${error.message}`)
-      })
+      toast.success(t('edit_success'))
+      getComment({ id: commentState.id }).then((response) => {
+        setCommentState(response.data)
+      }).catch(() => {})
+      setActiveInputId(null)
+    }
+    catch (error) {
+      toast.error(`${t('edit_failed')}: ${getErrorMessage(error)}`)
+      // 抛出以通知输入框保留内容
+      throw error
+    }
   }
 
-  const onReply = ({
+  const onReply = async ({
     commentContent,
     isPrivate,
     showClientInfo,
@@ -163,25 +169,27 @@ export function CommentItem({
     isPrivate: boolean
     showClientInfo: boolean
   }) => {
-    createComment({
-      targetType: commentState.targetType,
-      targetId: commentState.targetId,
-      content: commentContent,
-      replyId: commentState.id,
-      isPrivate,
-      showClientInfo,
-    })
-      .then(() => {
-        toast.success(t('comment_success'))
-        reloadReplies()
-        setShowReplies(true)
-        setActiveInputId(null)
-        setReplyCount(c => c + 1)
-        onReplySubmitted({ commentContent, isPrivate })
+    try {
+      await createComment({
+        targetType: commentState.targetType,
+        targetId: commentState.targetId,
+        content: commentContent,
+        replyId: commentState.id,
+        isPrivate,
+        showClientInfo,
       })
-      .catch((error) => {
-        toast.error(`${t('comment_failed')}: ${error?.response?.data?.message || error?.message}`)
-      })
+    }
+    catch (error) {
+      toast.error(`${t('comment_failed')}: ${getErrorMessage(error)}`)
+      // 抛出以通知输入框保留内容
+      throw error
+    }
+    toast.success(t('comment_success'))
+    reloadReplies()
+    setShowReplies(true)
+    setActiveInputId(null)
+    setReplyCount(c => c + 1)
+    onReplySubmitted({ commentContent, isPrivate })
   }
 
   const onReplyDelete = ({ commentId: replyId }: { commentId: number }) => {
@@ -192,16 +200,17 @@ export function CommentItem({
         setReplies(prev => prev.filter(r => r.id !== replyId))
       })
       .catch((error) => {
-        toast.error(`${t('delete_failed')}: ${error.message}`)
+        toast.error(`${t('delete_failed')}: ${getErrorMessage(error)}`)
       })
   }
 
   return (
     <div className={`${replyCount > 0 && showReplies ? 'border-l-2' : ''}`}>
       <div className="flex gap-2">
-        <div
-          onClick={() => clickToUserProfile(commentState.user.username)}
-          className="cursor-pointer fade-in w-10 h-10"
+        <Link
+          href={getUserUrl(commentState.user)}
+          aria-label={t('view_user_profile', { name: commentState.user.nickname || commentState.user.username })}
+          className="cursor-pointer fade-in w-10 h-10 shrink-0"
         >
           <Avatar className="h-full w-full rounded-full border-2">
             <AvatarImage
@@ -215,19 +224,19 @@ export function CommentItem({
               {getFirstCharFromUser(commentState.user)}
             </AvatarFallback>
           </Avatar>
-        </div>
+        </Link>
         <div className="flex-1 fade-in-up">
           <div className="flex gap-2 md:gap-4 items-center flex-wrap">
             {/* 用户名 */}
-            <div
-              onClick={() => clickToUserProfile(commentState.user.username)}
+            <Link
+              href={getUserUrl(commentState.user)}
               data-user-color={
                 commentState.user.preferredColor || siteInfo.colorSchemes?.[0] || 'blue'
               }
               className="text-primary font-bold text-lg border-b-4 border-primary/40 hover:border-primary/70 cursor-pointer transition-colors duration-200"
             >
               {commentState.user.nickname || commentState.user.username}
-            </div>
+            </Link>
 
             <div className="flex items-center gap-2 flex-wrap">
               {/* 吧唧 */}
@@ -282,13 +291,13 @@ export function CommentItem({
             {parentComment && (
               <span>
                 {t('reply')}
-                <span
+                <Link
+                  href={getUserUrl(parentComment.user)}
                   data-user-color={parentComment.user.preferredColor || siteInfo.colorSchemes?.[0] || 'blue'}
-                  onClick={() => clickToUserProfile(parentComment.user.username)}
                   className="mx-1 text-primary font-bold text-lg border-b-4 border-primary/40 hover:border-primary/70 cursor-pointer transition-colors duration-200"
                 >
                   {parentComment.user.nickname || parentComment.user.username}
-                </span>
+                </Link>
                 :
                 {' '}
               </span>
@@ -313,7 +322,7 @@ export function CommentItem({
             </div>
             <div className="flex items-center gap-2 md:w-auto justify-end">
               {replyCount > 0 && (
-                <button onClick={toggleReplies} className="fade-in-up">
+                <button type="button" onClick={toggleReplies} className="fade-in-up">
                   {!showReplies
                     ? t('expand_replies', { count: replyCount })
                     : t('collapse_replies')}
@@ -330,7 +339,9 @@ export function CommentItem({
 
               {/* 回复按钮 */}
               <button
+                type="button"
                 title={t('reply')}
+                aria-label={t('reply')}
                 onClick={() => {
                   if (activeInput?.type === 'reply' && activeInput.id === commentState.id) {
                     setActiveInputId(null)
@@ -347,7 +358,10 @@ export function CommentItem({
               </button>
               {/* 点赞按钮 */}
               <button
-                title={liked ? 'unlike' : 'like'}
+                type="button"
+                title={liked ? operationT('unlike') : operationT('like')}
+                aria-label={liked ? operationT('unlike') : operationT('like')}
+                aria-pressed={liked}
                 onClick={handleToggleLike}
                 className={`flex items-center justify-center px-2 py-1 h-5 gap-1 text-xs rounded 
                 ${liked ? 'bg-primary' : 'bg-slate-400 hover:bg-slate-600'}
@@ -409,12 +423,13 @@ function CommentDropdownMenu({
 }) {
   const { confirming: confirmingDelete, onClick: onDeleteClick } = useDoubleConfirm()
   const operationT = useOperationT()
+  const t = useTranslations('Comment')
   const [open, setOpen] = useState(false)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm">
+        <Button variant="ghost" size="sm" aria-label={t('more_actions')}>
           <Ellipsis className="w-4 h-4" />
         </Button>
       </PopoverTrigger>

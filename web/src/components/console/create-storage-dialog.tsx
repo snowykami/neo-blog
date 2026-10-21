@@ -9,13 +9,14 @@ import { createStorageProvider, updateStorageProvider } from '@/api/file'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { StorageType } from '@/models/types'
+import { getErrorMessage } from '@/utils/common/error'
 import { providerFormMap } from './storage-forms'
 
 export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: { initStorageProvider?: StorageProviderConfig, onCreate: () => void }) {
@@ -46,27 +47,33 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
   const { watch, handleSubmit, formState, control } = form
   const selectedType = watch('type')
 
-  const onSubmit: SubmitHandler<StorageProviderConfig> = (data: StorageProviderConfig) => {
+  const onSubmit: SubmitHandler<StorageProviderConfig> = async (data: StorageProviderConfig) => {
     if (initStorageProvider) {
-      updateStorageProvider({ provider: data })
-        .then(() => {
-          toast.success(operationT('update_success'))
-          // 以新值作为表单基准，再次打开时显示最新配置
-          form.reset(data)
-          setOpen(false)
-          onCreate()
-        })
-        .catch(err => toast.error(operationT('update_failed') + (err?.message ? `: ${err.message}` : '')))
+      try {
+        await updateStorageProvider({ provider: data })
+        toast.success(operationT('update_success'))
+        // 以新值作为表单基准，再次打开时显示最新配置
+        form.reset(data)
+        setOpen(false)
+        onCreate()
+      }
+      catch (err) {
+        const message = getErrorMessage(err)
+        toast.error(operationT('update_failed') + (message ? `: ${message}` : ''))
+      }
     }
     else {
-      createStorageProvider({ provider: data })
-        .then(() => {
-          toast.success(operationT('create_success'))
-          form.reset()
-          setOpen(false)
-          onCreate()
-        })
-        .catch(err => toast.error(operationT('create_failed') + (err?.message ? `: ${err.message}` : '')))
+      try {
+        await createStorageProvider({ provider: data })
+        toast.success(operationT('create_success'))
+        form.reset()
+        setOpen(false)
+        onCreate()
+      }
+      catch (err) {
+        const message = getErrorMessage(err)
+        toast.error(operationT('create_failed') + (message ? `: ${message}` : ''))
+      }
     }
   }
 
@@ -136,16 +143,15 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
             />
             {StorageForm && <StorageForm />}
             <DialogFooter>
-              <DialogClose asChild>
-                <div className="flex gap-2">
-                  <Button onClick={handleCancel} variant="outline" type="button">
-                    {operationT('cancel')}
-                  </Button>
-                  <Button onClick={form.handleSubmit(onSubmit)} disabled={!formState.isValid} type="submit">
-                    {operationT('submit')}
-                  </Button>
-                </div>
-              </DialogClose>
+              <div className="flex gap-3">
+                <Button onClick={handleCancel} variant="outline" type="button">
+                  {operationT('cancel')}
+                </Button>
+                {/* 只通过表单 submit 触发一次提交，成功后再关闭对话框 */}
+                <Button disabled={!formState.isValid || formState.isSubmitting} type="submit">
+                  {operationT('submit')}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </FormProvider>
@@ -155,6 +161,7 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
 }
 
 export function StorageTypeSelector({ value, onChange }: { value: StorageType, onChange: (value: StorageType) => void }) {
+  const t = useTranslations('Console.storages')
   const [open, setOpen] = useState(false)
   const storageTypes = Object.values(StorageType)
   return (
@@ -168,15 +175,15 @@ export function StorageTypeSelector({ value, onChange }: { value: StorageType, o
         >
           {value
             ? storageTypes.find(storageType => storageType.includes(value))
-            : 'Select storage type...'}
+            : t('select_storage_type')}
           <ChevronsUpDown className="opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0">
         <Command>
-          <CommandInput placeholder="Search framework..." className="h-9" />
+          <CommandInput placeholder={t('search_storage_type')} className="h-9" />
           <CommandList>
-            <CommandEmpty>No storage provider found.</CommandEmpty>
+            <CommandEmpty>{t('no_storage_type_found')}</CommandEmpty>
             <CommandGroup>
               {storageTypes.map(storageType => (
                 <CommandItem

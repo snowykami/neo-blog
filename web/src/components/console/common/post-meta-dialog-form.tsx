@@ -4,8 +4,8 @@ import type { SubmitHandler } from 'react-hook-form'
 import type { Category } from '@/models/category'
 import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
-import type { BaseResponseError } from '@/models/resp'
 import { useTranslations } from 'next-intl'
+import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { createPost, updatePost } from '@/api/post'
@@ -13,7 +13,6 @@ import { FileSelector } from '@/components/common/file-selector'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -25,10 +24,11 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { useCommonT, useOperationT } from '@/hooks/use-translations'
+import { useCommonT, useErrorMessageT, useOperationT, useResponseErrorDetailsT } from '@/hooks/use-translations'
 import { getFileUri } from '@/utils/client/file'
 import { PostCategorySelector, PostLabelSelector } from './post-meta-category-and-label-selector'
 
@@ -38,7 +38,6 @@ interface PostMetaForm {
   cover: string
   category: Category | null
   labels: Label[]
-  isPrivate: boolean
   top: number
   description: string
 }
@@ -55,45 +54,36 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
   onOpenChange: (open: boolean) => void
 }) {
   const operationT = useOperationT()
+  const errorMessageT = useErrorMessageT()
+  const errorDetailsT = useResponseErrorDetailsT()
   const commonT = useCommonT()
   const t = useTranslations('Console.post_edit')
   const form = useForm<PostMetaForm>({
-    defaultValues: post
-      ? {
-          title: post.title,
-          slug: post.slug || '',
-          cover: post.cover || '',
-          category: post.category,
-          labels: post.labels || [],
-          isPrivate: post.isPrivate,
-          top: post.top || 0,
-          description: post.description || '',
-        }
-      : {
-          title: '',
-          slug: '',
-          cover: '',
-          category: null,
-          labels: [],
-          isPrivate: false,
-          top: 0,
-          description: '',
-        },
+    defaultValues: toFormValues(post),
   })
 
-  const onSubmit: SubmitHandler<PostMetaForm> = (data) => {
+  // 每次打开对话框时用最新的 post 重置表单，避免列表中其他操作后表单仍停留在挂载时的旧值
+  // 仅在由关闭变为打开时重置，打开期间 post 变化不覆盖用户正在编辑的内容
+  const latestRef = useRef(post)
+  latestRef.current = post
+  useEffect(() => {
+    if (open)
+      form.reset(toFormValues(latestRef.current))
+  }, [open, form])
+
+  const onSubmit: SubmitHandler<PostMetaForm> = async (data) => {
     if (post) {
-      // 更新文章元信息
-      updatePost({
+      // 更新文章元信息（不提交表单未暴露的 isPrivate，避免覆盖其他地方的修改）
+      await updatePost({
         post: {
           id: post.id,
           title: data.title,
           slug: data.slug,
           cover: data.cover,
-          categoryId: data.category?.id,
+          // 后端约定 categoryId 为 0 表示清空分类，未传表示不修改
+          categoryId: data.category?.id ?? 0,
           description: data.description,
           labelIds: data.labels.map(l => l.id),
-          isPrivate: data.isPrivate,
           top: Number(data.top) || 0,
         },
       })
@@ -108,22 +98,19 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
               category: data.category,
               description: data.description,
               labels: data.labels,
-              isPrivate: data.isPrivate,
               top: Number(data.top) || 0,
               type: 'html',
             },
           })
           onOpenChange(false)
         })
-        .catch((error: BaseResponseError) => {
-          toast.error(
-            `${operationT('update_failed')}: ${error?.response?.data?.message || error.message}`,
-          )
+        .catch((error) => {
+          toast.error(`${operationT('update_failed')}: ${errorMessageT(error)}`)
         })
     }
     else {
       // 创建新文章时，同时创建文章内容
-      createPost({
+      await createPost({
         post: {
           title: data.title,
           slug: data.slug,
@@ -131,7 +118,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           categoryId: data.category?.id || null,
           description: data.description,
           labelIds: data.labels.map(l => l.id),
-          isPrivate: data.isPrivate,
+          isPrivate: false,
           top: Number(data.top) || 0,
           content: `<h1>${data.title}</h1>`,
           type: 'html',
@@ -143,16 +130,15 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           form.reset()
           onOpenChange(false)
         })
-        .catch((error: BaseResponseError) => {
-          toast.error(
-            `${operationT('create_failed')}: ${error?.response?.data?.message || error.message}`,
-          )
+        .catch((error) => {
+          toast.error(`${operationT('create_failed')}: ${errorMessageT(error)}`)
         })
     }
   }
 
   const handleCancel = () => {
-    form.reset()
+    form.reset(toFormValues(post))
+    onOpenChange(false)
   }
 
   return (
@@ -197,12 +183,14 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
             <FormField
               control={form.control}
               name="slug"
+              rules={{ validate: value => !isNumericSlug(value) || errorDetailsT('slug_cannot_be_numeric') }}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('post_slug')}</FormLabel>
                   <FormControl>
                     <Input autoFocus={false} {...field} />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -273,20 +261,46 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
             />
 
             <DialogFooter>
-              <DialogClose asChild>
-                <div className="flex gap-2">
-                  <Button onClick={handleCancel} type="button" variant="outline">
-                    {operationT('cancel')}
-                  </Button>
-                  <Button onClick={() => form.handleSubmit(onSubmit)}>
-                    {post ? operationT('update') : operationT('create')}
-                  </Button>
-                </div>
-              </DialogClose>
+              <div className="flex gap-3">
+                <Button onClick={handleCancel} type="button" variant="outline">
+                  {operationT('cancel')}
+                </Button>
+                {/* 通过表单 submit 提交，成功后再关闭对话框 */}
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                  {post ? operationT('update') : operationT('create')}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
   )
+}
+
+function toFormValues(post: Post | null): PostMetaForm {
+  return post
+    ? {
+        title: post.title,
+        slug: post.slug || '',
+        cover: post.cover || '',
+        category: post.category,
+        labels: post.labels || [],
+        top: post.top || 0,
+        description: post.description || '',
+      }
+    : {
+        title: '',
+        slug: '',
+        cover: '',
+        category: null,
+        labels: [],
+        top: 0,
+        description: '',
+      }
+}
+
+// 后端不允许纯数字 slug（会与 id 访问冲突）
+function isNumericSlug(value: string) {
+  return /^\d+$/.test(value.trim())
 }

@@ -1,6 +1,5 @@
 'use client'
 
-import type { BaseResponseError } from '@/models/resp'
 import type { CaptchaProvider } from '@/types/captcha'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
@@ -19,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/auth-context'
 import { loginPath } from '@/hooks/use-route'
-import { useCommonT, useOperationT, useResponseErrorDetailsT } from '@/hooks/use-translations'
+import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 
 export default function Page() {
@@ -34,7 +33,8 @@ export default function Page() {
 export function RegisterForm({ className, ...props }: React.ComponentProps<'div'>) {
   const { setUser } = useAuth()
   const t = useTranslations('Register')
-  const ResponseErrorDetailsT = useResponseErrorDetailsT()
+  // 后端 message 若有对应翻译则显示翻译，否则原样显示（网络错误等）
+  const translateErrorDetails = useErrorMessageT()
   const commonT = useCommonT()
   const operationT = useOperationT()
   const router = useRouter()
@@ -92,9 +92,9 @@ export function RegisterForm({ className, ...props }: React.ComponentProps<'div'
       .then(() => {
         toast.success(t('send_verify_code_success'))
       })
-      .catch((error: BaseResponseError) => {
+      .catch((error: unknown) => {
         toast.error(
-          `${t('send_verify_code_failed')}: ${ResponseErrorDetailsT(error.response.data.message)}`,
+          `${t('send_verify_code_failed')}: ${translateErrorDetails(error)}`,
         )
       })
       .finally(() => {
@@ -120,9 +120,9 @@ export function RegisterForm({ className, ...props }: React.ComponentProps<'div'
         setUser(res.data.user)
         router.push(redirectBack)
       })
-      .catch((error: BaseResponseError) => {
+      .catch((error: unknown) => {
         toast.error(
-          `${t('register_failed')}: ${ResponseErrorDetailsT(error.response.data.message)}`,
+          `${t('register_failed')}: ${translateErrorDetails(error)}`,
         )
         setRefreshCaptchaKey(k => k + 1)
         setCaptchaToken(null)

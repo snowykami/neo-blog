@@ -22,6 +22,7 @@ import { getFallbackAvatarFromUsername } from '@/utils/common/username'
 // 关于我卡片
 export function BlogSidebarAbout() {
   const { siteInfo } = useSiteInfo()
+  const routeT = useTranslations('Route')
   if (!siteInfo)
     return null
   return (
@@ -39,7 +40,7 @@ export function BlogSidebarAbout() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 ">
             <Heart className="w-5 h-5 text-red-500" />
-            关于我
+            {routeT('about')}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -163,13 +164,19 @@ export function BlogSidebarLabels({
               && l.postCount > 0 && (
                 <div key={l.id} className="relative">
                   <Badge
+                    asChild
                     variant="outline"
-                    onClick={() => onClickLabel(l)}
                     className={`text-xs hover:bg-blue-50 cursor-pointer ${label === l.slug ? ' bg-blue-100 text-blue-700 hover:bg-blue-200' : ''}`}
                   >
-                    {l.name}
+                    <button
+                      type="button"
+                      aria-pressed={setLabel ? label === l.slug : undefined}
+                      onClick={() => onClickLabel(l)}
+                    >
+                      {l.name}
+                    </button>
                   </Badge>
-                  <span className="absolute -top-1.5 -right-1.5 bg-primary/70 text-[10px] rounded-full w-4.5 h-4.5 flex items-center justify-center pointer-events-none">
+                  <span aria-hidden className="absolute -top-1.5 -right-1.5 bg-primary/70 text-[10px] rounded-full w-4.5 h-4.5 flex items-center justify-center pointer-events-none">
                     {l.postCount > 0 ? (l.postCount > 99 ? '99+' : l.postCount) : 0}
                   </span>
                 </div>

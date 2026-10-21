@@ -1,9 +1,10 @@
 'use client'
 
 import type { OidcConfig } from '@/models/oidc-config'
-import type { BaseResponseError } from '@/models/resp'
-import { Plus } from 'lucide-react'
+import { Loader2, Plus } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import {
   createOidcAdmin,
@@ -11,6 +12,7 @@ import {
   listOidcAdmin,
   updateOidcAdmin,
 } from '@/api/admin'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -19,8 +21,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -39,9 +41,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useOperationT } from '@/hooks/use-translations'
+import { getErrorMessage } from '@/utils/common/error'
 
 type OidcForm = Omit<OidcConfig, 'id' | 'loginUrl'> & { id?: number }
-type TokenAuthMethod = NonNullable<OidcConfig['tokenAuthMethod']>
+
+// 后端支持的认证源类型（见 internal/model/oidc_config.go）
+const OIDC_TYPES = ['oauth2', 'misskey'] as const
+const TOKEN_AUTH_METHODS = ['client_secret_post', 'client_secret_basic'] as const
 
 const EMPTY_FORM: OidcForm = {
   name: '',
@@ -60,12 +66,33 @@ const EMPTY_FORM: OidcForm = {
   enabled: true,
 }
 
+function toForm(config: OidcConfig): OidcForm {
+  return {
+    id: config.id,
+    name: config.name,
+    displayName: config.displayName || '',
+    icon: config.icon || '',
+    clientId: config.clientId || '',
+    clientSecret: config.clientSecret || '',
+    tokenAuthMethod: config.tokenAuthMethod || 'client_secret_post',
+    oidcDiscoveryUrl: config.oidcDiscoveryUrl || '',
+    issuer: config.issuer || '',
+    authorizationEndpoint: config.authorizationEndpoint || '',
+    tokenEndpoint: config.tokenEndpoint || '',
+    userinfoEndpoint: config.userinfoEndpoint || '',
+    jwksUri: config.jwksUri || '',
+    type: config.type || 'oauth2',
+    enabled: config.enabled ?? true,
+  }
+}
+
 export default function OidcManage() {
+  const t = useTranslations('Console.oidc')
   const operationT = useOperationT()
   const [configs, setConfigs] = useState<OidcConfig[]>([])
   const [loading, setLoading] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [form, setForm] = useState<OidcForm>(EMPTY_FORM)
+  const [editing, setEditing] = useState<OidcForm>(EMPTY_FORM)
 
   const fetchConfigs = useCallback(async () => {
     setLoading(true)
@@ -74,8 +101,7 @@ export default function OidcManage() {
       setConfigs(res.data)
     }
     catch (error) {
-      const err = error as BaseResponseError
-      toast.error(`${operationT('fetch_failed')}: ${err?.response?.data?.message || err.message}`)
+      toast.error(`${operationT('fetch_failed')}: ${getErrorMessage(error)}`)
     }
     finally {
       setLoading(false)
@@ -87,53 +113,13 @@ export default function OidcManage() {
   }, [fetchConfigs])
 
   const openCreateDialog = () => {
-    setForm(EMPTY_FORM)
+    setEditing(EMPTY_FORM)
     setDialogOpen(true)
   }
 
   const openEditDialog = (config: OidcConfig) => {
-    setForm({
-      id: config.id,
-      name: config.name,
-      displayName: config.displayName || '',
-      icon: config.icon || '',
-      clientId: config.clientId || '',
-      clientSecret: config.clientSecret || '',
-      tokenAuthMethod: config.tokenAuthMethod || 'client_secret_post',
-      oidcDiscoveryUrl: config.oidcDiscoveryUrl || '',
-      issuer: config.issuer || '',
-      authorizationEndpoint: config.authorizationEndpoint || '',
-      tokenEndpoint: config.tokenEndpoint || '',
-      userinfoEndpoint: config.userinfoEndpoint || '',
-      jwksUri: config.jwksUri || '',
-      type: config.type || 'oauth2',
-      enabled: config.enabled ?? true,
-    })
+    setEditing(toForm(config))
     setDialogOpen(true)
-  }
-
-  const handleSave = async () => {
-    if (!form.name.trim() || !form.clientId?.trim()) {
-      toast.error('名称和 Client ID 不能为空')
-      return
-    }
-
-    try {
-      if (form.id) {
-        await updateOidcAdmin({ ...form, id: form.id })
-        toast.success(operationT('update_success'))
-      }
-      else {
-        await createOidcAdmin(form)
-        toast.success(operationT('create_success'))
-      }
-      setDialogOpen(false)
-      await fetchConfigs()
-    }
-    catch (error) {
-      const err = error as BaseResponseError
-      toast.error(`${operationT('save_failed')}: ${err?.response?.data?.message || err.message}`)
-    }
   }
 
   const handleDelete = async (id: number) => {
@@ -143,8 +129,7 @@ export default function OidcManage() {
       await fetchConfigs()
     }
     catch (error) {
-      const err = error as BaseResponseError
-      toast.error(`${operationT('delete_failed')}: ${err?.response?.data?.message || err.message}`)
+      toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`)
     }
   }
 
@@ -152,34 +137,34 @@ export default function OidcManage() {
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">认证源</h1>
-          <p className="text-sm text-muted-foreground">管理 OAuth2 / Misskey OIDC 登录配置。</p>
+          <h1 className="text-xl font-semibold">{t('title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('description')}</p>
         </div>
         <Button size="sm" onClick={openCreateDialog}>
           <Plus className="size-4" />
-          新建认证源
+          {t('create')}
         </Button>
       </div>
       <Separator />
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>名称</TableHead>
-            <TableHead>类型</TableHead>
+            <TableHead>{t('name')}</TableHead>
+            <TableHead>{t('type')}</TableHead>
             <TableHead>Issuer</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead className="text-right">操作</TableHead>
+            <TableHead>{t('status')}</TableHead>
+            <TableHead className="text-right">{t('actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading && (
             <TableRow>
-              <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">加载中...</TableCell>
+              <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">{t('loading')}</TableCell>
             </TableRow>
           )}
           {!loading && configs.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">暂无认证源</TableCell>
+              <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">{t('empty')}</TableCell>
             </TableRow>
           )}
           {!loading && configs.map(config => (
@@ -190,11 +175,20 @@ export default function OidcManage() {
               </TableCell>
               <TableCell>{config.type || 'oauth2'}</TableCell>
               <TableCell className="max-w-80 truncate">{config.issuer || config.oidcDiscoveryUrl || '-'}</TableCell>
-              <TableCell>{config.enabled ? '启用' : '停用'}</TableCell>
+              <TableCell>{config.enabled ? t('enabled') : t('disabled')}</TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
-                  <Button size="sm" variant="outline" onClick={() => openEditDialog(config)}>编辑</Button>
-                  <Button size="sm" variant="destructive" onClick={() => handleDelete(config.id)}>删除</Button>
+                  <Button size="sm" variant="outline" onClick={() => openEditDialog(config)}>{operationT('edit')}</Button>
+                  <ConfirmDialog
+                    title={operationT('confirm_delete')}
+                    description={t('delete_description')}
+                    confirmLabel={operationT('delete')}
+                    cancelLabel={operationT('cancel')}
+                    confirmVariant="destructive"
+                    onConfirm={() => handleDelete(config.id)}
+                  >
+                    <Button size="sm" variant="destructive">{operationT('delete')}</Button>
+                  </ConfirmDialog>
                 </div>
               </TableCell>
             </TableRow>
@@ -205,89 +199,173 @@ export default function OidcManage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{form.id ? '编辑认证源' : '新建认证源'}</DialogTitle>
+            <DialogTitle>{editing.id ? t('edit') : t('create')}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <FormInput label="名称" value={form.name} onChange={name => setForm(prev => ({ ...prev, name }))} />
-              <FormInput label="显示名称" value={form.displayName} onChange={displayName => setForm(prev => ({ ...prev, displayName }))} />
-              <FormInput label="Client ID" value={form.clientId || ''} onChange={clientId => setForm(prev => ({ ...prev, clientId }))} />
-              <FormInput label="Client Secret" value={form.clientSecret || ''} onChange={clientSecret => setForm(prev => ({ ...prev, clientSecret }))} />
-              <TokenAuthMethodSelect
-                value={form.tokenAuthMethod || 'client_secret_post'}
-                onChange={tokenAuthMethod => setForm(prev => ({ ...prev, tokenAuthMethod }))}
-              />
-              <FormInput label="图标 URL" value={form.icon} onChange={icon => setForm(prev => ({ ...prev, icon }))} />
-              <FormInput label="类型" value={form.type || 'oauth2'} onChange={type => setForm(prev => ({ ...prev, type }))} />
-            </div>
-            <FormInput label="Discovery URL" value={form.oidcDiscoveryUrl || ''} onChange={oidcDiscoveryUrl => setForm(prev => ({ ...prev, oidcDiscoveryUrl }))} />
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <FormInput label="Issuer" value={form.issuer || ''} onChange={issuer => setForm(prev => ({ ...prev, issuer }))} />
-              <FormInput label="Authorization Endpoint" value={form.authorizationEndpoint || ''} onChange={authorizationEndpoint => setForm(prev => ({ ...prev, authorizationEndpoint }))} />
-              <FormInput label="Token Endpoint" value={form.tokenEndpoint || ''} onChange={tokenEndpoint => setForm(prev => ({ ...prev, tokenEndpoint }))} />
-              <FormInput label="Userinfo Endpoint" value={form.userinfoEndpoint || ''} onChange={userinfoEndpoint => setForm(prev => ({ ...prev, userinfoEndpoint }))} />
-              <FormInput label="JWKS URI" value={form.jwksUri || ''} onChange={jwksUri => setForm(prev => ({ ...prev, jwksUri }))} />
-              <div className="grid gap-2">
-                <Label>启用</Label>
-                <Switch
-                  checked={form.enabled ?? true}
-                  onCheckedChange={enabled => setForm(prev => ({ ...prev, enabled }))}
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>{operationT('cancel')}</Button>
-            <Button onClick={handleSave}>{operationT('save')}</Button>
-          </DialogFooter>
+          {dialogOpen && (
+            <OidcConfigForm
+              initialValues={editing}
+              onCancel={() => setDialogOpen(false)}
+              onSaved={async () => {
+                setDialogOpen(false)
+                await fetchConfigs()
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
   )
 }
 
-function TokenAuthMethodSelect({
-  onChange,
-  value,
+function OidcConfigForm({
+  initialValues,
+  onCancel,
+  onSaved,
 }: {
-  onChange: (value: TokenAuthMethod) => void
-  value: TokenAuthMethod
+  initialValues: OidcForm
+  onCancel: () => void
+  onSaved: () => Promise<void>
 }) {
-  const handleValueChange = (nextValue: string) => {
-    if (nextValue === 'client_secret_post' || nextValue === 'client_secret_basic') {
-      onChange(nextValue)
+  const t = useTranslations('Console.oidc')
+  const operationT = useOperationT()
+  const form = useForm<OidcForm>({
+    defaultValues: initialValues,
+    mode: 'onChange',
+  })
+  const { control, formState } = form
+
+  const onSubmit = async (data: OidcForm) => {
+    const payload: OidcForm = {
+      ...data,
+      name: data.name.trim(),
+      clientId: data.clientId?.trim(),
+    }
+    try {
+      if (payload.id) {
+        await updateOidcAdmin({ ...payload, id: payload.id })
+        toast.success(operationT('update_success'))
+      }
+      else {
+        await createOidcAdmin(payload)
+        toast.success(operationT('create_success'))
+      }
+      await onSaved()
+    }
+    catch (error) {
+      toast.error(`${operationT('save_failed')}: ${getErrorMessage(error)}`)
     }
   }
 
-  return (
-    <div className="grid gap-2">
-      <Label>Token 认证方式</Label>
-      <Select value={value} onValueChange={handleValueChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="client_secret_post">client_secret_post</SelectItem>
-          <SelectItem value="client_secret_basic">client_secret_basic</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
+  // 普通文本字段
+  const textField = (
+    name: 'name' | 'displayName' | 'clientId' | 'clientSecret' | 'icon' | 'oidcDiscoveryUrl' | 'issuer' | 'authorizationEndpoint' | 'tokenEndpoint' | 'userinfoEndpoint' | 'jwksUri',
+    label: string,
+    options: { required?: boolean, type?: string } = {},
+  ) => (
+    <FormField
+      control={control}
+      name={name}
+      rules={options.required ? { validate: v => !!String(v ?? '').trim() || t('required', { field: label }) } : undefined}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{label}</FormLabel>
+          <FormControl>
+            <Input
+              {...field}
+              value={field.value ?? ''}
+              type={options.type}
+              autoComplete={options.type === 'password' ? 'new-password' : undefined}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   )
-}
 
-function FormInput({
-  label,
-  onChange,
-  value,
-}: {
-  label: string
-  onChange: (value: string) => void
-  value: string
-}) {
   return (
-    <div className="grid gap-2">
-      <Label>{label}</Label>
-      <Input value={value} onChange={e => onChange(e.target.value)} />
-    </div>
+    <Form {...form}>
+      <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {textField('name', t('name'), { required: true })}
+          {textField('displayName', t('display_name'))}
+          {textField('clientId', 'Client ID', { required: true })}
+          {textField('clientSecret', 'Client Secret', { type: 'password' })}
+          <FormField
+            control={control}
+            name="tokenAuthMethod"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('token_auth_method')}</FormLabel>
+                <Select value={field.value || 'client_secret_post'} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {TOKEN_AUTH_METHODS.map(method => (
+                      <SelectItem key={method} value={method}>{method}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          {textField('icon', t('icon_url'))}
+          <FormField
+            control={control}
+            name="type"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('type')}</FormLabel>
+                <Select value={field.value || 'oauth2'} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {OIDC_TYPES.map(type => (
+                      <SelectItem key={type} value={type}>{t(`types.${type}`)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        {textField('oidcDiscoveryUrl', 'Discovery URL')}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {textField('issuer', 'Issuer')}
+          {textField('authorizationEndpoint', 'Authorization Endpoint')}
+          {textField('tokenEndpoint', 'Token Endpoint')}
+          {textField('userinfoEndpoint', 'Userinfo Endpoint')}
+          {textField('jwksUri', 'JWKS URI')}
+          <FormField
+            control={control}
+            name="enabled"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('enabled')}</FormLabel>
+                <FormControl>
+                  <Switch checked={field.value ?? true} onCheckedChange={field.onChange} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel}>{operationT('cancel')}</Button>
+          <Button type="submit" disabled={formState.isSubmitting}>
+            {formState.isSubmitting && <Loader2 className="size-4 animate-spin" />}
+            {operationT('save')}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
   )
 }

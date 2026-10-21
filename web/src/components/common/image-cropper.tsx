@@ -254,7 +254,7 @@ export function ImageCropper({
                   }
                 }}
               >
-                确认
+                {t('confirm')}
               </Button>
             </DialogFooter>
           </DialogContent>

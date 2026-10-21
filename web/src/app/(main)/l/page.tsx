@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { getLabels } from '@/api/label'
 import { Badge } from '@/components/ui/badge'
@@ -6,13 +7,14 @@ import { getLabelUrl } from '@/utils/common/route'
 
 export default async function LabelPage() {
   const labels = await getLabels().then(res => res.data.labels).catch(() => [])
+  const t = await getTranslations()
 
   return (
     <div className="py-10">
-      <h1 className="text-3xl font-bold mb-6">标签</h1>
+      <h1 className="text-3xl font-bold mb-6">{t('Route.label')}</h1>
       <Card>
         <CardHeader>
-          <CardTitle>标签云</CardTitle>
+          <CardTitle>{t('Common.labels_cloud')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">

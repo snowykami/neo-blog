@@ -245,8 +245,12 @@ function SidebarMenu() {
     <div className="flex md:hidden">
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
-          <button className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-accent/50 transition-all duration-200 text-primary cursor-pointer">
-            <PanelRight className="w-6 h-6 text-primary" />
+          <button
+            type="button"
+            aria-label={routeT('menu')}
+            className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-accent/50 transition-all duration-200 text-primary cursor-pointer"
+          >
+            <PanelRight aria-hidden className="w-6 h-6 text-primary" />
           </button>
         </SheetTrigger>
         <SheetContent side="right" className="pt-6 w-64 z-999999">

@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select'
 
 import { useAuth } from '@/contexts/auth-context'
+import { useErrorMessageT } from '@/hooks/use-translations'
 import { localesData } from '@/locales'
 import { getFileUri } from '@/utils/client/file'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
@@ -52,6 +53,7 @@ interface FormValues {
 
 export function UserProfilePage() {
   const t = useTranslations('Console.user_profile')
+  const errorMessageT = useErrorMessageT()
   const { user } = useAuth()
 
   const form = useForm<FormValues>({
@@ -224,7 +226,7 @@ export function UserProfilePage() {
       window.location.reload()
     }
     catch (error: unknown) {
-      toast.error(`${t('failed_to_update_profile')}: ${String(error)}`)
+      toast.error(`${t('failed_to_update_profile')}: ${errorMessageT(error)}`)
     }
   })
 
@@ -378,7 +380,7 @@ export function UserProfilePage() {
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a language" />
+                      <SelectValue placeholder={t('select_language')} />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
