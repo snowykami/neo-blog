@@ -21,6 +21,8 @@ export interface AIWriteRequest {
   instruction: string
   // 编辑器当前正文 HTML，插入点 / 选区以标记文本表示
   document: string
+  // 润色：选区的格式化表示（块结构为 Markdown、行内格式为 HTML 标签，图片等节点为 [[KEEP_n]] 占位符）
+  selection?: string
   title: string
   description: string
   category: string

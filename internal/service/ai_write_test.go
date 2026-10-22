@@ -427,3 +427,43 @@ func TestAILimiterPriority(t *testing.T) {
 		t.Fatal("normal acquire should not be blocked by cancelled priority waiter")
 	}
 }
+
+// 润色：前端给出带格式的选区时原样交给模型并附上格式规则；未提供时退回纯文本；代码块内不使用；过长时拒绝
+func TestAIWritePrepareStructuredSelection(t *testing.T) {
+	author, _, _, post, _ := setupEditTest(t)
+	s := NewAIWriteService()
+	configureAI(t, "https://example.com/v1")
+	doc := "<p>前文" + aiWriteSelectionStart + "<strong>重点</strong>与<a href=\"https://a.dev\">链接</a>" + aiWriteSelectionEnd + "后文</p>"
+	markup := "<strong>重点</strong>与<a href=\"https://a.dev\">链接</a>\n\n[[KEEP_1]]"
+
+	req := &dto.AIWriteReq{Mode: aiWriteModeRewrite, Scope: aiWriteScopeBlock, Document: doc, Selection: markup}
+	job, svcerr := s.Prepare(author, constant.TargetTypePost, post.ID, req)
+	if svcerr != nil {
+		t.Fatalf("prepare: %v", svcerr)
+	}
+	if !strings.Contains(job.user, "# 选中内容\n<<<\n"+markup+"\n>>>") {
+		t.Fatalf("structured selection should be passed verbatim:\n%s", job.user)
+	}
+	if !strings.Contains(job.user, "[[KEEP_1]] 这类占位符") || !strings.Contains(job.user, "保留格式") {
+		t.Fatalf("format guide missing:\n%s", job.user)
+	}
+	// 前后文仍是纯文本
+	if !strings.Contains(job.user, "前文"+aiWriteSelectionMarker+"后文") {
+		t.Fatalf("context should stay plain text:\n%s", job.user)
+	}
+
+	// 未提供格式化选区：沿用纯文本，不附格式规则
+	req.Selection = ""
+	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, req); strings.Contains(job.user, "<strong>") || strings.Contains(job.user, "保留占位符") {
+		t.Fatalf("plain selection should not contain markup or format guide:\n%s", job.user)
+	}
+
+	// 代码块内的选区忽略格式化表示
+	req.Scope, req.Selection = aiWriteScopeCode, markup
+	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, req); strings.Contains(job.user, "[[KEEP_1]]") {
+		t.Fatalf("code scope should ignore markup:\n%s", job.user)
+	}
+
+	req.Scope, req.Selection = aiWriteScopeBlock, strings.Repeat("字", aiWriteMaxMarkupRune+1)
+	expectMessage(t, prepareErr(s, author, constant.TargetTypePost, post.ID, req), http.StatusBadRequest, "ai_input_too_long")
+}

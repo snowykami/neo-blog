@@ -25,6 +25,7 @@ const (
 	aiWriteMaxDocumentBytes   = 2 << 20          // 提交的正文 HTML 上限
 	aiWriteMaxInstructionRune = 1000             // 用户要求的长度上限
 	aiWriteMaxSelectionRune   = 8000             // 润色选区的长度上限（需完整改写，超出直接拒绝）
+	aiWriteMaxMarkupRune      = 24000            // 润色选区格式化表示的长度上限（含格式标签，约为纯文本的数倍）
 	aiWriteMaxContextRune     = 12000            // 插入点前后正文的总长上限，超出部分从远端截断
 )
 
@@ -101,6 +102,7 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 	if !ok {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
+	structured := false
 	if req.Mode == aiWriteModeRewrite {
 		selection = strings.TrimSpace(selection)
 		if selection == "" {
@@ -108,6 +110,14 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 		}
 		if utf8.RuneCountInString(selection) > aiWriteMaxSelectionRune {
 			return nil, errs.NewBadRequest("ai_input_too_long")
+		}
+		// 前端提供了带格式的选区时原样使用，模型才能看到并保留粗体、链接、颜色等格式；代码块内仍用纯文本
+		if markup := strings.TrimSpace(req.Selection); markup != "" && scope != aiWriteScopeCode {
+			if utf8.RuneCountInString(markup) > aiWriteMaxMarkupRune {
+				return nil, errs.NewBadRequest("ai_input_too_long")
+			}
+			selection = markup
+			structured = true
 		}
 	}
 	before, after = truncateAIWriteContext(before, after, aiWriteMaxContextRune)
@@ -125,6 +135,7 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 		before:      before,
 		after:       after,
 		selection:   selection,
+		structured:  structured,
 	}
 	return &AIWriteJob{userID: userID, cfg: cfg, user: prompt.build()}, nil
 }

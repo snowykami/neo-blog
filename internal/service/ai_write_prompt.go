@@ -63,7 +63,7 @@ const aiWriteSystemPrompt = "# 角色\n" +
 	"1. 忠实上下文：内容要紧扣标题和前后文，与插入点前后自然衔接，不重复前后文已经写过的内容；不编造原文没有依据的事实、数据、版本号、链接或引用，拿不准的信息宁可不写。\n" +
 	"2. 风格一致：沿用原文的语言（中文 / 英文，简体 / 繁体）、人称、语气、用词和术语；中英文混排、标点全半角、是否加空格等排版习惯也与原文保持一致。\n" +
 	"3. 只输出要插入或替换的内容：不要解释、寒暄或复述要求，不要加“以下是……”“好的”之类的引导语和总结语，不要输出任何位置标记，不要用代码块包裹整个回答。\n" +
-	"4. 格式用 Markdown 表达：可以使用标题、列表、引用、代码块、表格、粗体、行内代码和链接。标题层级与上下文衔接，不要输出一级标题（#）。代码块注明语言。\n" +
+	"4. 格式用 Markdown 表达：可以使用标题、列表、引用、代码块、表格、粗体、行内代码和链接。标题层级与上下文衔接，不要输出一级标题（#）。代码块注明语言。润色时沿用选中内容的写法（见写作位置说明）。\n" +
 	"5. 篇幅适中：作者没有指定长度时，帮写通常一到三段，润色与原文长度相近。\n" +
 	"6. 作者的要求优先：要求与以上规则冲突时按作者的要求写，但仍然只输出正文内容。\n"
 
@@ -81,6 +81,7 @@ type aiWritePrompt struct {
 	before      string // 插入点 / 选区之前的正文（纯文本，已截断）
 	after       string // 插入点 / 选区之后的正文（纯文本，已截断）
 	selection   string // 润色：选中的内容
+	structured  bool   // 选中内容为保留格式的标记文本（Markdown + 行内 HTML 标签 + 占位符）
 }
 
 // splitAIWriteDocument 把带标记的正文纯文本拆成前文、选区与后文
@@ -188,9 +189,9 @@ func (p *aiWritePrompt) positionGuide() string {
 	case p.mode == aiWriteModeRewrite && p.scope == aiWriteScopeCode:
 		return "选中内容位于代码块中。只输出改写后的代码本身，不要用 ``` 包裹，不要添加解释；除非作者要求，否则保持原有的缩进风格。"
 	case p.mode == aiWriteModeRewrite && p.scope == aiWriteScopeInline:
-		return "选中内容是一段话中的一部分，改写结果会原位替换选区，并与选区前后的文字直接连成一句话。只输出替换后的文字，不要换行，不要使用标题、列表等块级格式。"
+		return "选中内容是一段话中的一部分，改写结果会原位替换选区，并与选区前后的文字直接连成一句话。只输出替换后的文字，不要换行，不要使用标题、列表等块级格式。" + p.formatGuide()
 	case p.mode == aiWriteModeRewrite:
-		return "改写结果会整体替换选中内容。输出替换后的完整内容；除非作者要求，否则保留原有的段落划分与 Markdown 结构（标题、列表、代码块等）。"
+		return "改写结果会整体替换选中内容。输出替换后的完整内容；除非作者要求，否则保留原有的段落划分与 Markdown 结构（标题、列表、引用等）。" + p.formatGuide()
 	case p.scope == aiWriteScopeCode:
 		return "插入点位于代码块中。只输出要插入的代码本身，不要用 ``` 包裹，不要添加解释，缩进风格与上下文一致。"
 	case p.scope == aiWriteScopeInline:
@@ -198,4 +199,17 @@ func (p *aiWritePrompt) positionGuide() string {
 	default:
 		return "输出会作为独立的段落插入到插入点处，可以是一段或多段，并与前后段落自然衔接。"
 	}
+}
+
+// formatGuide 润色带格式的选区时，说明格式写法与保留规则
+func (p *aiWritePrompt) formatGuide() string {
+	if !p.structured {
+		return ""
+	}
+	return "\n\n选中内容的格式写法：块结构用 Markdown；行内格式用 HTML 标签表示，如 <strong>、<em>、<s>、<code>、<a href=\"…\">、<u>、<mark>、<sub>、<sup>、<span style=\"color: …\">、带属性的 <span> 等；" +
+		"带对齐方式的段落整段写成 HTML（如 <p style=\"text-align: center\">…</p>）；文字中的反斜杠是 Markdown 转义，&lt; 等是 HTML 实体。" +
+		"输出时沿用同样的写法：\n" +
+		"1. 保留格式：每个标签连同属性原样保留，继续包住改写后对应的文字（可随措辞调整包住的范围）；不要删除、合并或新增格式，除非作者要求。\n" +
+		"2. 保留占位符：[[KEEP_1]] 这类占位符代表图片、代码块、表格等不能改动的内容，必须原样输出在对应的位置，不要修改、删除、复制或用代码块包裹。\n" +
+		"3. 保留结构：段落、标题、列表项、引用与原文一一对应，带 HTML 的段落仍写成 HTML，不要改成 Markdown。"
 }

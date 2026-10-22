@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { streamAIWrite } from '@/api/ai-write'
 import { AI_PREVIEW_META, aiWritePluginKey } from '@/components/tiptap-extension/ai-write-extension'
 import { useErrorMessageT } from '@/hooks/use-translations'
+import { restoreRewriteKeeps, serializeRewriteSelection } from './ai-rewrite-markup'
 import { buildMarkedDocument, buildPreview, markdownToSlice, resolveAITarget, syncDocTransaction } from './ai-write-utils'
 
 /**
@@ -49,6 +50,9 @@ interface AIWriterSession {
   baseSelection: Selection
   // 生成前的正文（带标记），每次生成复用
   document: string
+  // 润色：选区的格式化表示（扩展 Markdown）与被占位符保护的节点
+  selection?: string
+  keeps: PMNode[]
   preview: AIPreview | null
 }
 
@@ -103,7 +107,8 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
     const session = sessionRef.current
     if (!session)
       return
-    const slice = markdownToSlice(editor.schema, markdown, session.target.scope)
+    // 占位符还原为原节点；生成结束时补回模型遗漏的节点，生成中不补，避免末尾闪现
+    const slice = restoreRewriteKeeps(markdownToSlice(editor.schema, markdown, session.target.scope), session.keeps, editor.schema, !streaming)
     const preview = buildPreview(session.baseDoc, session.target, slice)
     session.preview = preview
     dispatchPreview(preview.doc, { from: preview.from, to: preview.to, kind: streaming ? 'generating' : 'generated' })
@@ -171,6 +176,7 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
           preset,
           instruction,
           document: session.document,
+          selection: session.selection,
           ...getCtx(),
         },
         onEvent: (event) => {
@@ -235,11 +241,17 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
       toast.warning(t('need_selection'))
       return
     }
+    // 润色时把选区序列化为保留格式的标记文本（代码块内的选区仍按纯文本处理）
+    const rewrite = mode === 'rewrite' && target.scope !== 'code'
+      ? serializeRewriteSelection(editor.state.doc, editor.schema, target.from, target.to, target.scope)
+      : null
     sessionRef.current = {
       target,
       baseDoc: editor.state.doc,
       baseSelection: editor.state.selection,
       document: buildMarkedDocument(editor.state.doc, editor.schema, target),
+      selection: rewrite?.markup,
+      keeps: rewrite?.keeps ?? [],
       preview: null,
     }
     latestRef.current.onBusyChange(true)
