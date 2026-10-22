@@ -33,7 +33,7 @@ export function SiteShell({
           className={cn(
             'enter-fade-up enter-delay-100 min-w-0',
             stickySidebar
-            && 'lg:sticky lg:top-[calc(var(--nav-h)+1rem)] lg:max-h-[calc(100dvh-var(--nav-h)-2rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain [scrollbar-width:thin]',
+            && 'lg:sticky lg:top-[calc(var(--nav-h)+1rem)] lg:max-h-[calc(100dvh-var(--nav-h)-2rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain hide-scrollbar',
           )}
         >
           {sidebar}
