@@ -65,6 +65,7 @@ interface SettingsValues {
   aiApiBaseUrl: string
   aiApiKey: string
   aiModel: string
+  aiSummaryConcurrency: number
 }
 
 type FieldName = keyof SettingsValues
@@ -120,6 +121,7 @@ const STANDALONE_KEYS: Partial<Record<FieldName, { key: string, toValue?: (value
   aiApiBaseUrl: { key: 'ai_api_base_url', toValue: values => values.aiApiBaseUrl.trim() },
   aiApiKey: { key: 'ai_api_key', toValue: values => values.aiApiKey.trim() },
   aiModel: { key: 'ai_model', toValue: values => values.aiModel.trim() },
+  aiSummaryConcurrency: { key: 'ai_summary_concurrency' },
 }
 
 function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
@@ -167,6 +169,7 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     aiApiBaseUrl: str('aiApiBaseUrl', ''),
     aiApiKey: str('aiApiKey', ''),
     aiModel: str('aiModel', ''),
+    aiSummaryConcurrency: num('aiSummaryConcurrency', 3),
   }
 }
 
@@ -323,6 +326,7 @@ export function SettingsForm() {
           <UrlField name="aiApiBaseUrl" label={t('ai_api_base_url')} description={t('ai_api_base_url_desc')} placeholder="https://api.openai.com/v1" />
           <TextField name="aiModel" label={t('ai_model')} description={t('ai_model_desc')} placeholder="gpt-4o-mini / deepseek-chat" />
           <PasswordField name="aiApiKey" label={t('ai_api_key')} description={t('ai_api_key_desc')} wide />
+          <NumberField name="aiSummaryConcurrency" label={t('ai_summary_concurrency')} description={t('ai_summary_concurrency_desc')} min={1} max={20} />
         </Section>
 
         <Section title={t('section_rss')} description={t('section_rss_desc')}>

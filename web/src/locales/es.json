@@ -426,7 +426,9 @@
       "ai_model": "Modelo",
       "ai_model_desc": "Nombre de un modelo admitido por la API",
       "show_secret": "Mostrar",
-      "hide_secret": "Ocultar"
+      "hide_secret": "Ocultar",
+      "ai_summary_concurrency": "Concurrencia de resúmenes con IA",
+      "ai_summary_concurrency_desc": "Número máximo de resúmenes generados a la vez (1–20); las tareas en cola se ejecutan en orden"
     },
     "labels": {
       "title": "Etiquetas",
@@ -698,7 +700,18 @@
       "click_to_retry": "Haz clic para reintentar",
       "stale": "Contenido actualizado, se recomienda regenerar el resumen",
       "ai_marker": "IA",
-      "ai_marker_title": "Esta descripción fue generada por IA"
+      "ai_marker_title": "Esta descripción fue generada por IA",
+      "queued": "En cola",
+      "batch_button": "Resumir todas las entradas",
+      "batch_title": "¿Generar resúmenes con IA para todas las entradas?",
+      "batch_description": "Se pondrán en cola resúmenes con IA para todas las entradas; las que ya tienen un resumen actualizado se omiten. Las tareas se ejecutan en segundo plano con la concurrencia de la configuración global y consumen cuota de la API de IA.",
+      "batch_overwrite_manual": "Sobrescribir también las descripciones escritas a mano",
+      "batch_overwrite_manual_desc": "Por defecto se omiten las entradas con descripción escrita a mano. Si se marca, esas descripciones se reemplazarán por resúmenes con IA.",
+      "batch_confirm": "Iniciar",
+      "batch_failed": "No se pudieron resumir todas las entradas",
+      "batch_queued": "{count, plural, one {# entrada en cola} other {# entradas en cola}} para resumen con IA",
+      "batch_nothing": "Ninguna entrada necesita resumen",
+      "batch_skipped": "Omitidas: {upToDate} actualizadas, {manual} escritas a mano, {empty} vacías, {running} en curso"
     },
     "editor": {
       "back_to_posts": "Volver a las entradas",

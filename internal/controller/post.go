@@ -227,6 +227,21 @@ func (p *PostController) TriggerAISummary(ctx context.Context, c *app.RequestCon
 	resps.Ok(c, resps.Success, nil)
 }
 
+// BatchAISummary 为全站文章批量创建 AI 摘要任务，跳过已是最新的摘要
+func (p *PostController) BatchAISummary(ctx context.Context, c *app.RequestContext) {
+	var req dto.BatchAISummaryReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := service.NewAISummaryService().TriggerAll(ctx, req.OverwriteManual)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
 // GetAISummaryStatus 查询 AI 摘要生成状态
 func (p *PostController) GetAISummaryStatus(ctx context.Context, c *app.RequestContext) {
 	postID := ctxutils.GetIDParam(c).Uint

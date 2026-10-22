@@ -28,6 +28,7 @@ import (
 
 const (
 	aiSummaryStatusIdle      = "idle"
+	aiSummaryStatusQueued    = "queued" // 等待并发名额
 	aiSummaryStatusRunning   = "running"
 	aiSummaryStatusSucceeded = "succeeded"
 	aiSummaryStatusFailed    = "failed"
@@ -44,15 +45,61 @@ type aiSummaryJob struct {
 	err    string
 }
 
-// AISummaryService 文章 AI 摘要：后台任务生成，同一文章同时只允许一个任务
-type AISummaryService struct {
-	mu   sync.Mutex
-	jobs map[uint]*aiSummaryJob
-	// complete 调用大模型，测试时可替换
-	complete func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
+// active 排队或生成中
+func (j *aiSummaryJob) active() bool {
+	return j.status == aiSummaryStatusQueued || j.status == aiSummaryStatusRunning
 }
 
-var aiSummaryService = &AISummaryService{jobs: make(map[uint]*aiSummaryJob), complete: chatCompletion}
+// aiSummaryLimiter 限制同时调用模型的任务数；上限每次获取时读取，修改配置后立即生效
+type aiSummaryLimiter struct {
+	mu      sync.Mutex
+	running int
+	wake    chan struct{} // 有名额释放时关闭，唤醒所有等待者重新竞争
+}
+
+func (l *aiSummaryLimiter) acquire(limit func() int) {
+	for {
+		l.mu.Lock()
+		if l.running < limit() {
+			l.running++
+			l.mu.Unlock()
+			return
+		}
+		if l.wake == nil {
+			l.wake = make(chan struct{})
+		}
+		wake := l.wake
+		l.mu.Unlock()
+		<-wake
+	}
+}
+
+func (l *aiSummaryLimiter) release() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.running--
+	if l.wake != nil {
+		close(l.wake)
+		l.wake = nil
+	}
+}
+
+// AISummaryService 文章 AI 摘要：后台任务生成，同一文章同时只允许一个任务，全局按配置限制并发
+type AISummaryService struct {
+	mu      sync.Mutex
+	jobs    map[uint]*aiSummaryJob
+	limiter aiSummaryLimiter
+	// complete 调用大模型，测试时可替换
+	complete func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
+	// concurrency 读取并发上限，测试时可替换
+	concurrency func() int
+}
+
+var aiSummaryService = &AISummaryService{
+	jobs:        make(map[uint]*aiSummaryJob),
+	complete:    chatCompletion,
+	concurrency: tools.GetAISummaryConcurrency,
+}
 
 func NewAISummaryService() *AISummaryService {
 	return aiSummaryService
@@ -105,7 +152,7 @@ func (s *AISummaryService) FillListStatus(posts []*dto.PostDto) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, post := range posts {
-		if job, ok := s.jobs[post.ID]; ok && (job.status == aiSummaryStatusRunning || job.status == aiSummaryStatusFailed) {
+		if job, ok := s.jobs[post.ID]; ok && (job.active() || job.status == aiSummaryStatusFailed) {
 			post.AISummaryStatus = job.status
 			post.AISummaryError = job.err
 		}
@@ -126,18 +173,58 @@ func (s *AISummaryService) Trigger(ctx context.Context, postID uint) *errs.Servi
 		return errs.NewBadRequest("ai_summary_empty_content")
 	}
 
-	s.mu.Lock()
-	if job, ok := s.jobs[postID]; ok && job.status == aiSummaryStatusRunning {
-		s.mu.Unlock()
+	if !s.enqueue(post, cfg) {
 		return errs.NewConflict("ai_summary_running")
 	}
-	s.jobs[postID] = &aiSummaryJob{status: aiSummaryStatusRunning}
+	return nil
+}
+
+// TriggerAll 为全站文章创建摘要任务（仅管理员）：跳过正文为空、已在进行、摘要已是最新的文章，
+// 默认也跳过手动填写的描述，避免覆盖作者自己写的内容
+func (s *AISummaryService) TriggerAll(ctx context.Context, overwriteManual bool) (*dto.BatchAISummaryResultDto, *errs.ServiceError) {
+	if !ctxutils.IsAdmin(ctx) {
+		return nil, errs.NewForbidden("permission_denied")
+	}
+	cfg := tools.GetAIConfig()
+	if !cfg.Configured() {
+		return nil, errs.NewBadRequest("ai_not_configured")
+	}
+	posts, err := repo.Post.ListPostsForAISummary()
+	if err != nil {
+		return nil, errs.NewInternalServer("failed_to_get_target")
+	}
+	result := &dto.BatchAISummaryResultDto{}
+	for i := range posts {
+		post := &posts[i]
+		switch {
+		case strings.TrimSpace(htmlToPlainText(post.Content)) == "":
+			result.SkippedEmpty++
+		case post.AISummary != "" && post.AISummarySourceHash == model.HashContent(post.Content):
+			result.SkippedUpToDate++
+		case !overwriteManual && post.Description != "" && post.Description != post.AISummary:
+			result.SkippedManual++
+		case !s.enqueue(post, cfg):
+			result.SkippedRunning++
+		default:
+			result.Queued++
+		}
+	}
+	return result, nil
+}
+
+// enqueue 登记任务并在后台执行；该文章已有任务在排队或生成中时返回 false
+func (s *AISummaryService) enqueue(post *model.Post, cfg tools.AIConfig) bool {
+	s.mu.Lock()
+	if job, ok := s.jobs[post.ID]; ok && job.active() {
+		s.mu.Unlock()
+		return false
+	}
+	s.jobs[post.ID] = &aiSummaryJob{status: aiSummaryStatusQueued}
 	s.mu.Unlock()
 
 	// 以触发时的正文为准，生成期间正文再被修改会在完成后显示为「需要重新生成」
-	title, content, sourceHash := post.Title, post.Content, model.HashContent(post.Content)
-	go s.run(postID, cfg, title, content, sourceHash)
-	return nil
+	go s.run(post.ID, cfg, post.Title, post.Content, model.HashContent(post.Content))
+	return true
 }
 
 func (s *AISummaryService) finish(postID uint, status, errMsg string) {
@@ -147,6 +234,11 @@ func (s *AISummaryService) finish(postID uint, status, errMsg string) {
 }
 
 func (s *AISummaryService) run(postID uint, cfg tools.AIConfig, title, content, sourceHash string) {
+	// 排队等待并发名额，拿到后才开始计算超时
+	s.limiter.acquire(s.concurrency)
+	defer s.limiter.release()
+	s.finish(postID, aiSummaryStatusRunning, "")
+
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("ai summary panic for post %d: %v", postID, r)

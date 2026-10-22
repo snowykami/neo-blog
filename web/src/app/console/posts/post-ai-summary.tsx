@@ -1,6 +1,6 @@
 'use client'
 import type { Post } from '@/models/post'
-import { AlertCircleIcon, Loader2Icon, RefreshCwIcon, SparklesIcon } from 'lucide-react'
+import { AlertCircleIcon, ClockIcon, Loader2Icon, RefreshCwIcon, SparklesIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef } from 'react'
@@ -27,7 +27,13 @@ export function useAISummary({ post, onPostUpdate, canConfigure }: { post: Post,
   const t = useTranslations('Console.post_manage_ai')
   const errorMessageT = useErrorMessageT()
   const router = useRouter()
-  const running = post.aiSummaryStatus === 'running'
+  // 排队与生成中都视为任务进行中：继续轮询，且不能重复触发
+  const running = post.aiSummaryStatus === 'running' || post.aiSummaryStatus === 'queued'
+  // 轮询回调里读取最新状态，只在状态变化时更新列表，避免每次轮询都替换行数据
+  const statusRef = useRef(post.aiSummaryStatus)
+  useEffect(() => {
+    statusRef.current = post.aiSummaryStatus
+  }, [post.aiSummaryStatus])
   const postId = post.id
   // 文案函数放进 ref，避免其引用变化导致轮询重启
   const tRef = useRef(t)
@@ -50,7 +56,10 @@ export function useAISummary({ post, onPostUpdate, canConfigure }: { post: Post,
           return
         errors = 0
         const status = res.data
-        if (status.status === 'running') {
+        if (status.status === 'running' || status.status === 'queued') {
+          // 同步排队 → 生成中的变化，徽章随之更新
+          if (statusRef.current !== status.status)
+            onPostUpdate({ post: { id: postId, aiSummaryStatus: status.status } })
           timer = setTimeout(poll, POLL_INTERVAL)
           return
         }
@@ -138,6 +147,14 @@ export function useAISummaryMenuLabel(post: Post) {
 // 行内状态徽章：生成中 / 失败（可点击重试）/ 正文已更新提示
 export function AISummaryBadges({ post, onRetry }: { post: Post, onRetry: () => void }) {
   const t = useTranslations('Console.post_manage_ai')
+  if (post.aiSummaryStatus === 'queued') {
+    return (
+      <Badge variant="secondary" className="text-xs" role="status">
+        <ClockIcon aria-hidden />
+        {t('queued')}
+      </Badge>
+    )
+  }
   if (post.aiSummaryStatus === 'running') {
     return (
       <Badge variant="secondary" className="text-xs" role="status">

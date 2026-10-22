@@ -426,7 +426,9 @@
       "ai_model": "Modèle",
       "ai_model_desc": "Nom d'un modèle pris en charge par l'API",
       "show_secret": "Afficher",
-      "hide_secret": "Masquer"
+      "hide_secret": "Masquer",
+      "ai_summary_concurrency": "Simultanéité des résumés IA",
+      "ai_summary_concurrency_desc": "Nombre maximal de résumés générés en même temps (1–20) ; les tâches en attente s'exécutent dans l'ordre"
     },
     "labels": {
       "title": "Étiquettes",
@@ -698,7 +700,18 @@
       "click_to_retry": "Cliquer pour réessayer",
       "stale": "Contenu modifié, régénération du résumé conseillée",
       "ai_marker": "IA",
-      "ai_marker_title": "Cette description a été générée par l'IA"
+      "ai_marker_title": "Cette description a été générée par l'IA",
+      "queued": "En file d'attente",
+      "batch_button": "Résumer tous les articles",
+      "batch_title": "Générer des résumés IA pour tous les articles ?",
+      "batch_description": "Des résumés IA seront mis en file d'attente pour tous les articles ; ceux dont le résumé est déjà à jour sont ignorés. Les tâches s'exécutent en arrière-plan selon la simultanéité définie dans les paramètres globaux et consomment du quota d'API IA.",
+      "batch_overwrite_manual": "Écraser aussi les descriptions rédigées à la main",
+      "batch_overwrite_manual_desc": "Les articles avec une description rédigée à la main sont ignorés par défaut. Si cette case est cochée, ces descriptions sont remplacées par des résumés IA.",
+      "batch_confirm": "Démarrer",
+      "batch_failed": "Échec du résumé de tous les articles",
+      "batch_queued": "{count, plural, one {# article mis} other {# articles mis}} en file d'attente pour le résumé IA",
+      "batch_nothing": "Aucun article n'a besoin de résumé",
+      "batch_skipped": "Ignorés : {upToDate} à jour, {manual} rédigés à la main, {empty} vides, {running} en cours"
     },
     "editor": {
       "back_to_posts": "Retour aux articles",

@@ -41,12 +41,26 @@ type PostDto struct {
 
 // AISummaryStatusDto AI 摘要生成任务状态
 type AISummaryStatusDto struct {
-	Status      string     `json:"status"` // idle / running / succeeded / failed
+	Status      string     `json:"status"` // idle / queued / running / succeeded / failed
 	Error       string     `json:"error,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Stale       bool       `json:"stale"`
 	GeneratedAt *time.Time `json:"generated_at,omitempty"`
 	Configured  bool       `json:"configured"` // 是否已在全局配置中配置 AI
+}
+
+// BatchAISummaryReq 全站 AI 摘要
+type BatchAISummaryReq struct {
+	OverwriteManual bool `json:"overwrite_manual"` // 是否覆盖手动填写的描述，默认跳过
+}
+
+// BatchAISummaryResultDto 全站 AI 摘要的入队结果
+type BatchAISummaryResultDto struct {
+	Queued          int `json:"queued"`             // 本次加入队列的文章数
+	SkippedUpToDate int `json:"skipped_up_to_date"` // 摘要已是最新
+	SkippedManual   int `json:"skipped_manual"`     // 描述为手动填写
+	SkippedEmpty    int `json:"skipped_empty"`      // 正文为空
+	SkippedRunning  int `json:"skipped_running"`    // 已有任务在排队或生成中
 }
 
 type CreateOrUpdatePostReq struct {

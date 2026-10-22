@@ -28,8 +28,9 @@ func registerPostRoutes(group *route.RouterGroup) {
 		// AI 摘要：后台生成任务，同一文章同时只能有一个任务
 		postGroupWithAuth.POST("/p/:id/ai-summary", postController.TriggerAISummary)
 		postGroupWithAuth.GET("/p/:id/ai-summary", postController.GetAISummaryStatus)
-		postGroupWithAuth.POST("/c", postController.CreateCategory)       // 创建文章分类
-		postGroupWithAuth.PUT("/c/:id", postController.UpdateCategory)    // 更新文章分类
-		postGroupWithAuth.DELETE("/c/:id", postController.DeleteCategory) // 删除文章分类
+		postGroupWithAuth.POST("/ai-summary/batch", postController.BatchAISummary) // 全站 AI 摘要，仅管理员
+		postGroupWithAuth.POST("/c", postController.CreateCategory)                // 创建文章分类
+		postGroupWithAuth.PUT("/c/:id", postController.UpdateCategory)             // 更新文章分类
+		postGroupWithAuth.DELETE("/c/:id", postController.DeleteCategory)          // 删除文章分类
 	}
 }

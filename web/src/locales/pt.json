@@ -426,7 +426,9 @@
       "ai_model": "Modelo",
       "ai_model_desc": "Nome de um modelo suportado pela API",
       "show_secret": "Mostrar",
-      "hide_secret": "Ocultar"
+      "hide_secret": "Ocultar",
+      "ai_summary_concurrency": "Concorrência de resumos com IA",
+      "ai_summary_concurrency_desc": "Número máximo de resumos gerados ao mesmo tempo (1–20); tarefas na fila rodam em ordem"
     },
     "labels": {
       "title": "Tags",
@@ -698,7 +700,18 @@
       "click_to_retry": "Clique para tentar novamente",
       "stale": "Conteúdo atualizado, recomenda-se gerar o resumo novamente",
       "ai_marker": "IA",
-      "ai_marker_title": "Esta descrição foi gerada por IA"
+      "ai_marker_title": "Esta descrição foi gerada por IA",
+      "queued": "Na fila",
+      "batch_button": "Resumir todos os posts",
+      "batch_title": "Gerar resumos com IA para todos os posts?",
+      "batch_description": "Resumos com IA serão enfileirados para todos os posts; os que já têm resumo atualizado são ignorados. As tarefas rodam em segundo plano com a concorrência definida nas configurações globais e consomem cota da API de IA.",
+      "batch_overwrite_manual": "Também substituir descrições escritas à mão",
+      "batch_overwrite_manual_desc": "Por padrão, posts com descrição escrita à mão são ignorados. Se marcado, essas descrições serão substituídas por resumos com IA.",
+      "batch_confirm": "Iniciar",
+      "batch_failed": "Falha ao resumir todos os posts",
+      "batch_queued": "{count, plural, one {# post enfileirado} other {# posts enfileirados}} para resumo com IA",
+      "batch_nothing": "Nenhum post precisa de resumo",
+      "batch_skipped": "Ignorados: {upToDate} atualizados, {manual} escritos à mão, {empty} vazios, {running} em andamento"
     },
     "editor": {
       "back_to_posts": "Voltar aos artigos",

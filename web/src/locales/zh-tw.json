@@ -426,7 +426,9 @@
       "ai_model": "模型",
       "ai_model_desc": "介面支援的模型名稱",
       "show_secret": "顯示",
-      "hide_secret": "隱藏"
+      "hide_secret": "隱藏",
+      "ai_summary_concurrency": "AI 摘要並行數",
+      "ai_summary_concurrency_desc": "同時產生摘要的任務數上限（1～20），排隊中的任務會依序執行"
     },
     "labels": {
       "title": "標籤管理",
@@ -698,7 +700,18 @@
       "click_to_retry": "點擊重試",
       "stale": "內文已更新，建議重新產生摘要",
       "ai_marker": "AI",
-      "ai_marker_title": "此描述由 AI 產生"
+      "ai_marker_title": "此描述由 AI 產生",
+      "queued": "排隊中",
+      "batch_button": "全站 AI 摘要",
+      "batch_title": "為全站文章產生 AI 摘要？",
+      "batch_description": "將為所有文章排隊產生 AI 摘要，摘要已是最新的文章會略過。任務依全域設定的並行數在背景執行，並會消耗 AI 介面額度。",
+      "batch_overwrite_manual": "同時覆寫手動填寫的描述",
+      "batch_overwrite_manual_desc": "預設略過手動填寫過描述的文章，勾選後這些描述會被 AI 摘要取代。",
+      "batch_confirm": "開始產生",
+      "batch_failed": "全站 AI 摘要失敗",
+      "batch_queued": "已將 {count} 篇文章加入產生佇列",
+      "batch_nothing": "沒有需要產生摘要的文章",
+      "batch_skipped": "略過：已是最新 {upToDate} 篇、手動描述 {manual} 篇、內文為空 {empty} 篇、進行中 {running} 篇"
     },
     "editor": {
       "back_to_posts": "返回文章列表",

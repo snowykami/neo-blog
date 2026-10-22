@@ -46,10 +46,17 @@ func GetVerifyCodeCoolDown() int {
 
 // AIConfig OpenAI 兼容接口配置（仅后端使用，不对外公开）
 type AIConfig struct {
-	BaseURL string
-	APIKey  string
-	Model   string
+	BaseURL     string
+	APIKey      string
+	Model       string
+	Concurrency int // 同时进行的摘要生成任务数上限
 }
+
+// AI 摘要并发数：默认值与允许范围
+const (
+	AISummaryConcurrencyDefault = 3
+	AISummaryConcurrencyMax     = 20
+)
 
 // Configured 三项均已填写
 func (c AIConfig) Configured() bool {
@@ -58,10 +65,17 @@ func (c AIConfig) Configured() bool {
 
 func GetAIConfig() AIConfig {
 	return AIConfig{
-		BaseURL: strings.TrimRight(strings.TrimSpace(repo.KV.GetStringWithoutErr("ai_api_base_url", "")), "/"),
-		APIKey:  strings.TrimSpace(repo.KV.GetStringWithoutErr("ai_api_key", "")),
-		Model:   strings.TrimSpace(repo.KV.GetStringWithoutErr("ai_model", "")),
+		BaseURL:     strings.TrimRight(strings.TrimSpace(repo.KV.GetStringWithoutErr("ai_api_base_url", "")), "/"),
+		APIKey:      strings.TrimSpace(repo.KV.GetStringWithoutErr("ai_api_key", "")),
+		Model:       strings.TrimSpace(repo.KV.GetStringWithoutErr("ai_model", "")),
+		Concurrency: GetAISummaryConcurrency(),
 	}
+}
+
+// GetAISummaryConcurrency 读取 AI 摘要并发数，超出范围时取边界值
+func GetAISummaryConcurrency() int {
+	n := repo.KV.GetIntWithoutErr("ai_summary_concurrency", AISummaryConcurrencyDefault)
+	return min(max(n, 1), AISummaryConcurrencyMax)
 }
 
 func GetMaximumReplyDepth() int {

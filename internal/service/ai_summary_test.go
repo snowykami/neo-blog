@@ -20,7 +20,7 @@ func waitAISummary(t *testing.T, s *AISummaryService, ctx context.Context, postI
 		if svcerr != nil {
 			t.Fatalf("status: %v", svcerr)
 		}
-		if st.Status != aiSummaryStatusRunning {
+		if st.Status != aiSummaryStatusRunning && st.Status != aiSummaryStatusQueued {
 			return st
 		}
 		time.Sleep(10 * time.Millisecond)

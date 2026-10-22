@@ -426,7 +426,9 @@
       "ai_model": "Modell",
       "ai_model_desc": "Name eines von der API unterstützten Modells",
       "show_secret": "Anzeigen",
-      "hide_secret": "Verbergen"
+      "hide_secret": "Verbergen",
+      "ai_summary_concurrency": "Parallelität der KI-Zusammenfassung",
+      "ai_summary_concurrency_desc": "Maximale Anzahl gleichzeitig erstellter Zusammenfassungen (1–20); wartende Aufträge laufen der Reihe nach"
     },
     "labels": {
       "title": "Schlagwörter",
@@ -698,7 +700,18 @@
       "click_to_retry": "Zum Wiederholen klicken",
       "stale": "Inhalt geändert, Zusammenfassung neu erstellen empfohlen",
       "ai_marker": "KI",
-      "ai_marker_title": "Diese Beschreibung wurde von KI erstellt"
+      "ai_marker_title": "Diese Beschreibung wurde von KI erstellt",
+      "queued": "In Warteschlange",
+      "batch_button": "Alle Beiträge zusammenfassen",
+      "batch_title": "KI-Zusammenfassungen für alle Beiträge erstellen?",
+      "batch_description": "Für alle Beiträge werden KI-Zusammenfassungen eingereiht; Beiträge mit aktueller Zusammenfassung werden übersprungen. Die Aufträge laufen im Hintergrund mit der in den globalen Einstellungen festgelegten Parallelität und verbrauchen KI-API-Kontingent.",
+      "batch_overwrite_manual": "Auch manuell geschriebene Beschreibungen überschreiben",
+      "batch_overwrite_manual_desc": "Beiträge mit manuell geschriebener Beschreibung werden standardmäßig übersprungen. Wenn aktiviert, werden diese Beschreibungen durch KI-Zusammenfassungen ersetzt.",
+      "batch_confirm": "Starten",
+      "batch_failed": "Zusammenfassen aller Beiträge fehlgeschlagen",
+      "batch_queued": "{count, plural, one {# Beitrag} other {# Beiträge}} zur KI-Zusammenfassung eingereiht",
+      "batch_nothing": "Keine Beiträge benötigen eine Zusammenfassung",
+      "batch_skipped": "Übersprungen: {upToDate} aktuell, {manual} manuell, {empty} leer, {running} in Bearbeitung"
     },
     "editor": {
       "back_to_posts": "Zurück zu den Beiträgen",

@@ -44,6 +44,7 @@ import { getErrorMessage } from '@/utils/common/error'
 import { isAdmin } from '@/utils/common/permission'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '../../../components/console/common/post-meta-dialog-form'
 import { AISummaryBadges, PostDescriptionLine, useAISummary, useAISummaryMenuLabel } from './post-ai-summary'
+import { PostAISummaryBatchButton } from './post-ai-summary-batch'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
@@ -207,6 +208,7 @@ export function PostManage() {
                 OrderBy.ViewCount,
               ]}
             />
+            {isAdminUser && <PostAISummaryBatchButton onQueued={() => setRefreshKey(k => k + 1)} />}
             <Button size="sm" onClick={() => setCreatePostDialogOpen(true)}>
               {t('create_post')}
             </Button>

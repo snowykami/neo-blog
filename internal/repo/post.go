@@ -125,6 +125,16 @@ func (p *postRepo) GetPostMeta(id uint) (*PostMeta, error) {
 }
 
 // GetPostByID 按 id 加载文章（含关联），不增加浏览量，供编辑、删除、评论等内部流程使用
+// ListPostsForAISummary 全站 AI 摘要所需的字段（不含已删除文章）
+func (p *postRepo) ListPostsForAISummary() ([]model.Post, error) {
+	var posts []model.Post
+	err := GetDB().Model(&model.Post{}).
+		Select("id", "title", "content", "description", "content_hash", "ai_summary", "ai_summary_source_hash").
+		Order("id ASC").
+		Find(&posts).Error
+	return posts, err
+}
+
 func (p *postRepo) GetPostByID(id uint) (*model.Post, error) {
 	var post model.Post
 	if err := GetDB().Preload(clause.Associations).First(&post, id).Error; err != nil {

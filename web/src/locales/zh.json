@@ -426,7 +426,9 @@
       "ai_model": "模型",
       "ai_model_desc": "接口支持的模型名称",
       "show_secret": "显示",
-      "hide_secret": "隐藏"
+      "hide_secret": "隐藏",
+      "ai_summary_concurrency": "AI 摘要并发数",
+      "ai_summary_concurrency_desc": "同时生成摘要的任务数上限（1～20），排队中的任务会依次执行"
     },
     "labels": {
       "title": "标签管理",
@@ -698,7 +700,18 @@
       "click_to_retry": "点击重试",
       "stale": "正文已更新，建议重新生成摘要",
       "ai_marker": "AI",
-      "ai_marker_title": "该描述由 AI 生成"
+      "ai_marker_title": "该描述由 AI 生成",
+      "queued": "排队中",
+      "batch_button": "全站 AI 摘要",
+      "batch_title": "为全站文章生成 AI 摘要？",
+      "batch_description": "将为所有文章排队生成 AI 摘要，摘要已是最新的文章会跳过。任务按全局配置的并发数在后台执行，并会消耗 AI 接口额度。",
+      "batch_overwrite_manual": "同时覆盖手动填写的描述",
+      "batch_overwrite_manual_desc": "默认跳过手动填写过描述的文章，勾选后这些描述会被 AI 摘要替换。",
+      "batch_confirm": "开始生成",
+      "batch_failed": "全站 AI 摘要失败",
+      "batch_queued": "已将 {count} 篇文章加入生成队列",
+      "batch_nothing": "没有需要生成摘要的文章",
+      "batch_skipped": "跳过：已是最新 {upToDate} 篇、手动描述 {manual} 篇、正文为空 {empty} 篇、进行中 {running} 篇"
     },
     "editor": {
       "back_to_posts": "返回文章列表",

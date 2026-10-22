@@ -426,7 +426,9 @@
       "ai_model": "モデル",
       "ai_model_desc": "API が対応しているモデル名",
       "show_secret": "表示",
-      "hide_secret": "非表示"
+      "hide_secret": "非表示",
+      "ai_summary_concurrency": "AI 要約の同時実行数",
+      "ai_summary_concurrency_desc": "同時に要約を生成するタスク数の上限（1～20）。待機中のタスクは順番に実行されます"
     },
     "labels": {
       "title": "タグ管理",
@@ -698,7 +700,18 @@
       "click_to_retry": "クリックして再試行",
       "stale": "本文が更新されました。要約の再生成をおすすめします",
       "ai_marker": "AI",
-      "ai_marker_title": "この説明は AI によって生成されました"
+      "ai_marker_title": "この説明は AI によって生成されました",
+      "queued": "待機中",
+      "batch_button": "全記事の AI 要約",
+      "batch_title": "すべての記事の AI 要約を生成しますか？",
+      "batch_description": "すべての記事の AI 要約生成をキューに追加します。要約が最新の記事はスキップされます。タスクはグローバル設定の同時実行数に従ってバックグラウンドで実行され、AI API の利用枠を消費します。",
+      "batch_overwrite_manual": "手書きの説明も上書きする",
+      "batch_overwrite_manual_desc": "既定では手書きの説明がある記事はスキップします。チェックするとそれらの説明は AI 要約に置き換えられます。",
+      "batch_confirm": "生成を開始",
+      "batch_failed": "全記事の AI 要約に失敗しました",
+      "batch_queued": "{count} 件の記事を生成キューに追加しました",
+      "batch_nothing": "要約が必要な記事はありません",
+      "batch_skipped": "スキップ：最新 {upToDate} 件、手書き {manual} 件、本文なし {empty} 件、処理中 {running} 件"
     },
     "editor": {
       "back_to_posts": "記事一覧に戻る",

@@ -426,7 +426,9 @@
       "ai_model": "模型",
       "ai_model_desc": "介面所支之模型名",
       "show_secret": "顯之",
-      "hide_secret": "隱之"
+      "hide_secret": "隱之",
+      "ai_summary_concurrency": "AI 撮要並行之數",
+      "ai_summary_concurrency_desc": "同時作撮要之任上限（一至二十），待次者依序行之"
     },
     "labels": {
       "title": "標籤管理",
@@ -698,7 +700,18 @@
       "click_to_retry": "點而復試",
       "stale": "正文已易，宜復生撮要",
       "ai_marker": "AI",
-      "ai_marker_title": "此述乃 AI 所生"
+      "ai_marker_title": "此述乃 AI 所生",
+      "queued": "待次",
+      "batch_button": "全站 AI 撮要",
+      "batch_title": "為全站諸文作 AI 撮要乎？",
+      "batch_description": "將為諸文依次作 AI 撮要，撮要已新者略之。任依全局所設並行之數行於後，且耗 AI 介面之額。",
+      "batch_overwrite_manual": "並覆手書之述",
+      "batch_overwrite_manual_desc": "手書其述之文，默略之；勾之則以 AI 撮要易之。",
+      "batch_confirm": "始作",
+      "batch_failed": "全站 AI 撮要未成",
+      "batch_queued": "已納 {count} 篇入作列",
+      "batch_nothing": "無文須作撮要",
+      "batch_skipped": "所略：已新者 {upToDate} 篇，手書者 {manual} 篇，無文者 {empty} 篇，方作者 {running} 篇"
     },
     "editor": {
       "back_to_posts": "返文目",
