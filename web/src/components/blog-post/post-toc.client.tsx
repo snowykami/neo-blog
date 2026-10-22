@@ -2,7 +2,7 @@
 
 import type { TocHeading } from '@/models/toc'
 import { useTranslations } from 'next-intl'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { SidebarCard } from '@/components/blog-sidebar/sidebar-card'
 import { cn } from '@/lib/utils'
 
@@ -21,6 +21,9 @@ function getScrollOffset() {
 export function PostToc({ headings, className }: { headings: TocHeading[], className?: string }) {
   const t = useTranslations('Common')
   const [activeId, setActiveId] = useState<string | null>(headings[0]?.id ?? null)
+  // 点击目录后锁定高亮，直到平滑滚动停止，避免途经的标题依次闪烁
+  const lockedRef = useRef(false)
+  const unlockTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     if (headings.length < 2)
@@ -33,6 +36,14 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
 
     // 取最后一个已滚过视口顶部（含偏移）的标题作为当前项
     const update = () => {
+      if (lockedRef.current) {
+        // 滚动仍在进行，顺延解锁；停止滚动 150ms 后才恢复跟随
+        clearTimeout(unlockTimerRef.current)
+        unlockTimerRef.current = setTimeout(() => {
+          lockedRef.current = false
+        }, 150)
+        return
+      }
       const offset = getScrollOffset()
       let current = elements[0].id
       for (const el of elements) {
@@ -43,12 +54,21 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
       }
       setActiveId(current)
     }
+    // 用户手动滚动时立即解除锁定，恢复跟随阅读位置
+    const unlock = () => {
+      lockedRef.current = false
+    }
     update()
     window.addEventListener('scroll', update, { passive: true })
     window.addEventListener('resize', update)
+    window.addEventListener('wheel', unlock, { passive: true })
+    window.addEventListener('touchstart', unlock, { passive: true })
     return () => {
       window.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
+      window.removeEventListener('wheel', unlock)
+      window.removeEventListener('touchstart', unlock)
+      clearTimeout(unlockTimerRef.current)
     }
   }, [headings])
 
@@ -63,9 +83,15 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
     if (!el)
       return
     event.preventDefault()
+    setActiveId(id)
+    lockedRef.current = true
+    // 目标已在当前位置时不会触发滚动事件，兜底解锁
+    clearTimeout(unlockTimerRef.current)
+    unlockTimerRef.current = setTimeout(() => {
+      lockedRef.current = false
+    }, 300)
     window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - getScrollOffset(), behavior: 'smooth' })
     window.history.replaceState(null, '', `#${encodeURIComponent(id)}`)
-    setActiveId(id)
   }
 
   // 顶层标题编号，便于在长目录中定位
@@ -104,7 +130,7 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
                         </span>
                       )
                     : <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', active ? 'bg-primary' : 'bg-foreground/20')} />}
-                  <span className="truncate">{heading.text}</span>
+                  <span className="min-w-0 truncate">{heading.text}</span>
                 </a>
               </li>
             )
