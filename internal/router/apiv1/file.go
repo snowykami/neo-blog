@@ -14,8 +14,10 @@ func registerFileRoutes(group *route.RouterGroup) {
 	fileGroupWithAdmin := group.Group("/file").Use(middleware.UseAuth(true), middleware.UseRole(constant.RoleAdmin))
 	{
 		// 公共接口
-		fileGroupWithoutAuth.GET("/f/:id", fileController.GetFile)           // HEAD method for file existence check
+		fileGroupWithoutAuth.GET("/f/:id", fileController.GetFile)
 		fileGroupWithoutAuth.GET("/f/:id/*filename", fileController.GetFile) // 下载文件 Download file
+		fileGroupWithoutAuth.HEAD("/f/:id", fileController.GetFile)
+		fileGroupWithoutAuth.HEAD("/f/:id/*filename", fileController.GetFile)
 
 		fileGroup.POST("/f", fileController.UploadFileStream)       // 上传文件 Upload file
 		fileGroup.DELETE("/f/:id", fileController.DeleteFile)       // 删除文件 Delete file

@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/middleware"
 	"github.com/snowykami/neo-blog/internal/router/apiv1"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -29,7 +30,9 @@ func Run() error {
 func init() {
 	h = server.New(
 		server.WithHostPorts(":"+utils.Env.Get("PORT", "8888")),
-		server.WithMaxRequestBodySize(utils.Env.GetAsInt("MAX_REQUEST_BODY_SIZE", 1048576000)), // 1000MiB
+		server.WithMaxRequestBodySize(utils.Env.GetAsInt(constant.EnvKeyMaxRequestBodySize, constant.DefaultMaxRequestBodySize)),
+		// 流式读取请求体：上传大文件时由 multipart 解析落盘，不再整体缓存在内存中
+		server.WithStreamBody(true),
 	)
 	h.Use(recovery.Recovery(), middleware.UseTrack())
 	apiv1.RegisterRoutes(h)

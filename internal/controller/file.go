@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -43,6 +44,15 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 	req := &dto.FileUploadReq{}
 	if err := c.BindAndValidate(req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	// 请求体为流式读取，解析表单前先按 Content-Length 拒绝超限上传，避免大文件落盘
+	maxBody := utils.Env.GetAsInt(constant.EnvKeyMaxRequestBodySize, constant.DefaultMaxRequestBodySize)
+	if !(ctxutils.IsEditor(ctx) || ctxutils.IsAdmin(ctx)) {
+		maxBody = userMaxUploadSize + 1<<20 // 预留表单字段的开销
+	}
+	if c.Request.Header.ContentLength() > maxBody {
+		resps.Error(c, errs.New(413, "file_too_large", nil))
 		return
 	}
 	// 只有管理员可以指定存储提供者，其他用户统一使用默认存储
@@ -175,11 +185,18 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	if !inline {
 		contentType = "application/octet-stream"
 	}
+	etag := fmt.Sprintf("\"%s\"", fileModel.Hash)
+	// 文件 id 对应的内容不会变化（按内容哈希存储），可长期缓存
+	c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	c.Header("ETag", etag)
+	c.Header("Accept-Ranges", "bytes")
+	if match := string(c.GetHeader("If-None-Match")); match != "" && (match == etag || match == "*") {
+		c.SetStatusCode(304)
+		return
+	}
 	setHeaders := func(size int64, cacheStatus string) {
 		c.Header("Content-Length", fmt.Sprintf("%d", size))
 		c.Header("Content-Disposition", f.buildContentDisposition(fileModel.Name, inline))
-		c.Header("Cache-Control", "public, max-age=3600")
-		c.Header("ETag", fmt.Sprintf("\"%s\"", fileModel.Hash))
 		c.Header("X-Cache-Status", cacheStatus)
 		c.Header("X-Content-Type-Options", "nosniff")
 		// 直接打开文件时禁止执行脚本（如 SVG 内嵌脚本）；PDF 预览在沙箱中无法加载，单独放行
@@ -188,9 +205,11 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 		}
 	}
 
-	// 尝试从缓存中获取文件内容
+	rangeHeader := string(c.GetHeader("Range"))
+
+	// 尝试从缓存中获取文件内容（Range 请求直接走存储，按需读取）
 	fileCache := cache.GetFileCache()
-	if cachedData, found := fileCache.Get(fileId); found {
+	if cachedData, found := fileCache.Get(fileId); found && rangeHeader == "" {
 		logrus.Debugf("文件从缓存中获取, fileId: %d", fileId)
 		setHeaders(int64(len(cachedData)), "HIT")
 		c.Data(200, contentType, cachedData)
@@ -210,6 +229,29 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	size := readableFile.Size()
+
+	// 单段 Range 请求：音视频拖动进度、断点续传
+	if rangeHeader != "" {
+		start, end, ok := parseByteRange(rangeHeader, size)
+		if !ok {
+			readableFile.Close()
+			c.Header("Content-Range", fmt.Sprintf("bytes */%d", size))
+			c.SetStatusCode(416)
+			return
+		}
+		if _, err := readableFile.Seek(start, io.SeekStart); err != nil {
+			readableFile.Close()
+			resps.Error(c, errs.NewInternalServer("failed_to_read_file"))
+			return
+		}
+		length := end - start + 1
+		setHeaders(length, "MISS")
+		c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, size))
+		c.SetStatusCode(206)
+		c.SetContentType(contentType)
+		c.SetBodyStream(&limitedReadCloser{Reader: io.LimitReader(readableFile, length), Closer: readableFile}, int(length))
+		return
+	}
 	setHeaders(size, "MISS")
 
 	// 大文件直接流式输出，不读入内存；流读取完毕后由框架关闭文件
@@ -312,8 +354,8 @@ func (f *FileController) CreateStorageProvider(ctx context.Context, c *app.Reque
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	if req.Type == "" || req.Name == "" {
-		resps.BadRequest(c, "存储提供者名称和类型不能为空")
+	if req.Name == "" || !slices.Contains(storage.SupportedProviderTypes, req.Type) {
+		resps.BadRequest(c, "存储提供者名称不能为空且类型必须受支持")
 		return
 	}
 	svcerr := repo.File.CreateStorageProvider(&req)
@@ -336,8 +378,8 @@ func (f *FileController) UpdateStorageProvider(ctx context.Context, c *app.Reque
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	if req.Type == "" || req.Name == "" {
-		resps.BadRequest(c, "存储提供者名称和类型不能为空")
+	if req.Name == "" || !slices.Contains(storage.SupportedProviderTypes, req.Type) {
+		resps.BadRequest(c, "存储提供者名称不能为空且类型必须受支持")
 		return
 	}
 
@@ -448,6 +490,49 @@ func (f *FileController) ListStorageProviders(ctx context.Context, c *app.Reques
 		return
 	}
 	resps.Ok(c, "存储提供者列表", map[string]any{"providers": providers})
+}
+
+// limitedReadCloser 限制读取长度，读取完毕后由框架关闭底层文件
+type limitedReadCloser struct {
+	io.Reader
+	io.Closer
+}
+
+// parseByteRange 解析单段 Range 头（bytes=start-end、bytes=start-、bytes=-suffix），多段或越界返回 false
+func parseByteRange(header string, size int64) (start, end int64, ok bool) {
+	spec, found := strings.CutPrefix(header, "bytes=")
+	if !found || strings.Contains(spec, ",") || size <= 0 {
+		return 0, 0, false
+	}
+	startStr, endStr, found := strings.Cut(strings.TrimSpace(spec), "-")
+	if !found {
+		return 0, 0, false
+	}
+	if startStr == "" {
+		// 后缀范围：最后 N 个字节
+		suffix, err := strconv.ParseInt(endStr, 10, 64)
+		if err != nil || suffix <= 0 {
+			return 0, 0, false
+		}
+		if suffix > size {
+			suffix = size
+		}
+		return size - suffix, size - 1, true
+	}
+	start, err := strconv.ParseInt(startStr, 10, 64)
+	if err != nil || start < 0 || start >= size {
+		return 0, 0, false
+	}
+	end = size - 1
+	if endStr != "" {
+		if end, err = strconv.ParseInt(endStr, 10, 64); err != nil || end < start {
+			return 0, 0, false
+		}
+		if end > size-1 {
+			end = size - 1
+		}
+	}
+	return start, end, true
 }
 
 // deleteObjectIfUnused 相同内容的文件共用一个存储对象，没有其他文件记录引用时才删除对象
