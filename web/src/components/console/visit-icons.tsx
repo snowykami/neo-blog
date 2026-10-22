@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons'
-import { CornerDownRight, Globe, Monitor, MousePointerClick, Search, Smartphone, Tablet } from 'lucide-react'
+import { CornerDownRight, Globe, Monitor, MousePointerClick, Search, Shuffle, Smartphone, Tablet } from 'lucide-react'
 import { FaAndroid, FaApple, FaChrome, FaEdge, FaFacebook, FaFirefoxBrowser, FaGithub, FaGoogle, FaLinkedin, FaLinux, FaMicrosoft, FaOpera, FaQq, FaReddit, FaSafari, FaTelegram, FaWeibo, FaWeixin, FaWindows, FaXTwitter, FaYahoo, FaYandex } from 'react-icons/fa6'
 import { RiOpenaiFill } from 'react-icons/ri'
 import { SiBaidu, SiBilibili, SiClaude, SiCsdn, SiDuckduckgo, SiHarmonyos, SiJuejin, SiPerplexity, SiSamsung, SiSogou, SiZhihu } from 'react-icons/si'
@@ -95,10 +95,18 @@ const sourceIcons: Record<string, IconType> = {
   claude: SiClaude,
 }
 
+// 没有品牌图标的来源分类
+const fallbackSourceIcons: Record<string, typeof Globe> = {
+  direct: MousePointerClick,
+  internal: CornerDownRight,
+  random: Shuffle,
+  so360: Search,
+}
+
 export function SourceIcon({ source, className }: { source: string, className?: string }) {
   const Icon = sourceIcons[source]
   if (Icon)
     return <Icon className={className} aria-hidden="true" />
-  const Fallback = source === 'direct' ? MousePointerClick : source === 'internal' ? CornerDownRight : source === 'so360' ? Search : Globe
+  const Fallback = fallbackSourceIcons[source] ?? Globe
   return <Fallback className={cn('size-4', className)} aria-hidden="true" />
 }

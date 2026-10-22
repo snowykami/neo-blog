@@ -11,6 +11,7 @@ const (
 	SourceDirect   = "direct"   // 直接访问：无来源（输入网址、书签，或来源网站/应用未传递来源）
 	SourceInternal = "internal" // 站内跳转
 	SourceExternal = "external" // 其他网站，具体域名见 host
+	SourceRandom   = "random"   // 站内随机文章：从 /random 中转页跳转而来
 )
 
 // 常见来源：按域名识别，key 与前端的来源图标、名称对应

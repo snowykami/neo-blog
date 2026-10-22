@@ -38,6 +38,8 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 	if !target.canAccess(ctx) {
 		return 0, errs.NewNotFound("operation_target_not_found")
 	}
+	// 被评论内容的作者，用于记录互动：回复时为被回复评论的作者，否则为文章/页面作者
+	ownerID := target.ownerID
 	// 只能回复自己看得到的评论，防止通过回复加入私密评论树
 	if req.ReplyID != 0 {
 		parent, err := repo.Comment.GetComment(req.ReplyID)
@@ -51,6 +53,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		if !visible {
 			return 0, errs.NewNotFound("operation_target_not_found")
 		}
+		ownerID = parent.UserID
 	}
 
 	// 内容校验：去首尾空白，非空且字符数不超过 200
@@ -93,6 +96,12 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		return 0, errs.NewInternalServer("failed_to_create_target")
 	}
 
+	// 评论记入访客记录时间线：回复记在被回复的评论上，否则记在文章/页面上
+	if req.ReplyID != 0 {
+		NewVisitService().RecordInteraction(currentUser.ID, ownerID, constant.VisitActionComment, constant.TargetTypeComment, req.ReplyID, commentID)
+	} else {
+		NewVisitService().RecordInteraction(currentUser.ID, ownerID, constant.VisitActionComment, req.TargetType, req.TargetID, commentID)
+	}
 	return commentID, nil
 }
 

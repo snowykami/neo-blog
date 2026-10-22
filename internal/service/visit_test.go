@@ -123,8 +123,8 @@ func TestVisitReport(t *testing.T) {
 		t.Fatalf("list: total=%d err=%v", total, svcerr)
 	}
 	last := items[len(items)-1]
-	if last.TargetTitle != post.Title || last.IP != "222.178.*.*" {
-		t.Fatalf("first log dto: title=%q ip=%q", last.TargetTitle, last.IP)
+	if last.Subject == nil || last.Subject.Title != post.Title || last.IP != "222.178.*.*" {
+		t.Fatalf("first log dto: subject=%+v ip=%q", last.Subject, last.IP)
 	}
 	userItems, userTotal, _ := svc.ListVisitLogs(admin, &dto.ListVisitLogReq{Kind: "user", PaginationParams: dto.PaginationParams{Page: 1, Size: 10}})
 	if userTotal != 1 || userItems[0].User == nil || userItems[0].User.Username != "author" {

@@ -25,16 +25,24 @@ type Visitor struct {
 }
 
 // VisitLog 访问记录：一次访问一条，保存当次的设备与位置快照
+// 点赞、评论等站内互动也记在这里（Action 区分），与访问共用一条时间线
 type VisitLog struct {
-	ID         uint     `gorm:"primaryKey"`
-	VisitorID  *uint    `gorm:"index"` // 开启“请勿追踪”时为空
-	Visitor    *Visitor `gorm:"constraint:OnDelete:SET NULL"`
-	UserID     *uint    `gorm:"index"`
-	User       *User    `gorm:"constraint:OnDelete:SET NULL"`
-	TargetType string   `gorm:"type:varchar(16);index:idx_visit_logs_target"` // post / page / other
-	TargetID   uint     `gorm:"index:idx_visit_logs_target"`
-	Path       string   `gorm:"type:varchar(512)"`
-	Referrer   string   `gorm:"type:varchar(512)"`
+	ID        uint     `gorm:"primaryKey"`
+	VisitorID *uint    `gorm:"index"` // 开启“请勿追踪”时为空；互动记录不关联访客
+	Visitor   *Visitor `gorm:"constraint:OnDelete:SET NULL"`
+	UserID    *uint    `gorm:"index"` // 访问者；互动记录中为执行互动的用户
+	User      *User    `gorm:"constraint:OnDelete:SET NULL"`
+	// 行为类型：visit / like / comment，见 constant.VisitAction*；升级前的旧记录由默认值补为 visit
+	Action string `gorm:"type:varchar(16);default:visit;index"`
+	// 访问：post / page / other；互动：post / page / comment（点赞或回复的评论）
+	TargetType string `gorm:"type:varchar(16);index:idx_visit_logs_target"`
+	TargetID   uint   `gorm:"index:idx_visit_logs_target"`
+	CommentID  uint   `gorm:"index"` // 评论/回复时新发表的评论ID
+	// 被互动内容（文章、页面、评论）的作者，便于展示与按作者筛选
+	TargetUserID *uint  `gorm:"index"`
+	TargetUser   *User  `gorm:"constraint:OnDelete:SET NULL"`
+	Path         string `gorm:"type:varchar(512)"`
+	Referrer     string `gorm:"type:varchar(512)"`
 	// 来源分类：direct / internal / external / google、github 等常见来源，见 utils.ClassifyReferrer
 	Source       string    `gorm:"type:varchar(32);index"`
 	ReferrerHost string    `gorm:"type:varchar(255)"`
@@ -70,6 +78,7 @@ func (l *VisitLog) ToDto() *dto.VisitLogDto {
 	result := &dto.VisitLogDto{
 		ID:         l.ID,
 		VisitorID:  l.VisitorID,
+		Action:     l.Action,
 		TargetType: l.TargetType,
 		TargetID:   l.TargetID,
 		Path:       l.Path,
@@ -86,6 +95,10 @@ func (l *VisitLog) ToDto() *dto.VisitLogDto {
 	if l.User != nil {
 		user := l.User.ToDto()
 		result.User = &user
+	}
+	if l.TargetUser != nil {
+		user := l.TargetUser.ToDto()
+		result.TargetUser = &user
 	}
 	if l.Visitor != nil {
 		result.VisitCount = l.Visitor.VisitCount

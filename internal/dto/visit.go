@@ -13,7 +13,8 @@ type ReportVisitReq struct {
 
 type ListVisitLogReq struct {
 	PaginationParams
-	Kind       string `query:"kind"` // all / user / anonymous
+	Kind       string `query:"kind"`   // all / user / anonymous
+	Action     string `query:"action"` // 空为全部；visit 仅访问；interaction 仅互动
 	VisitorID  uint   `query:"visitor_id"`
 	TargetType string `query:"target_type"`
 	TargetID   uint   `query:"target_id"`
@@ -35,24 +36,39 @@ type VisitorDto struct {
 }
 
 type VisitLogDto struct {
-	ID          uint      `json:"id"`
-	VisitorID   *uint     `json:"visitor_id"`
-	VisitCount  int64     `json:"visit_count"` // 该访客的累计访问次数
-	User        *UserDto  `json:"user"`
-	TargetType  string    `json:"target_type"`
-	TargetID    uint      `json:"target_id"`
-	TargetTitle string    `json:"target_title"` // 文章/页面当前标题，已删除时为空
-	TargetSlug  string    `json:"target_slug"`
-	Path        string    `json:"path"`
-	Referrer    string    `json:"referrer"`
-	Source      string    `json:"source"`      // 来源分类，见 utils.ClassifyReferrer
-	SourceHost  string    `json:"source_host"` // 来源域名，直接访问时为空
-	IP          string    `json:"ip"`          // 已脱敏
-	Location    string    `json:"location"`
-	OS          string    `json:"os"`
-	Browser     string    `json:"browser"`
-	DeviceType  string    `json:"device_type"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID         uint     `json:"id"`
+	VisitorID  *uint    `json:"visitor_id"`
+	VisitCount int64    `json:"visit_count"` // 该访客的累计访问次数
+	User       *UserDto `json:"user"`        // 访问者或执行互动的用户
+	Action     string   `json:"action"`      // visit / like / comment
+	TargetType string   `json:"target_type"` // 访问：post / page / other；互动：post / page / comment
+	TargetID   uint     `json:"target_id"`
+	TargetUser *UserDto `json:"target_user"` // 被互动内容的作者
+	// 所在的文章或页面（目标为评论时为评论所在的文章/页面），已删除时为空
+	Subject *CommentTargetDto `json:"subject"`
+	// 被点赞或被回复的评论，已删除时为空
+	TargetComment *VisitCommentDto `json:"target_comment"`
+	// 评论/回复时新发表的评论，已删除时为空
+	Comment *VisitCommentDto `json:"comment"`
+	// 其他页面的路由类型与名称（如标签名、分类名、用户昵称），见 service.describeVisitPath
+	PathKind   string    `json:"path_kind"`
+	PathName   string    `json:"path_name"`
+	Path       string    `json:"path"`
+	Referrer   string    `json:"referrer"`
+	Source     string    `json:"source"`      // 来源分类，见 utils.ClassifyReferrer
+	SourceHost string    `json:"source_host"` // 来源域名，直接访问时为空
+	IP         string    `json:"ip"`          // 已脱敏
+	Location   string    `json:"location"`
+	OS         string    `json:"os"`
+	Browser    string    `json:"browser"`
+	DeviceType string    `json:"device_type"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// VisitCommentDto 互动记录中涉及的评论摘要
+type VisitCommentDto struct {
+	ID      uint   `json:"id"`
+	Content string `json:"content"` // 截断后的评论内容
 }
 
 type VisitStatsDto struct {

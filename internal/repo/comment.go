@@ -73,12 +73,16 @@ func (cr *CommentRepo) deleteChildren(tx *gorm.DB, parentID uint) ([]uint, error
 	return deletedIDs, nil
 }
 
-// deleteCommentLikes 清理被删除评论上的点赞
+// deleteCommentLikes 清理被删除评论上的点赞，以及访客记录中与这些评论相关的互动（点赞、发表、被回复）
 func deleteCommentLikes(tx *gorm.DB, commentIDs []uint) error {
 	if len(commentIDs) == 0 {
 		return nil
 	}
-	return tx.Unscoped().Where("target_type = ? AND target_id IN ?", constant.TargetTypeComment, commentIDs).Delete(&model.Like{}).Error
+	if err := tx.Unscoped().Where("target_type = ? AND target_id IN ?", constant.TargetTypeComment, commentIDs).Delete(&model.Like{}).Error; err != nil {
+		return err
+	}
+	return tx.Where("action <> ? AND ((target_type = ? AND target_id IN ?) OR comment_id IN ?)",
+		constant.VisitActionVisit, constant.TargetTypeComment, commentIDs, commentIDs).Delete(&model.VisitLog{}).Error
 }
 
 // deleteTargetComments 删除文章或页面时一并删除其下全部评论及评论点赞

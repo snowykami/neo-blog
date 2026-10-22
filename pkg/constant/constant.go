@@ -49,6 +49,13 @@ var (
 	OrderByEnumUser    = []string{OrderByCreatedAt, OrderByUpdatedAt, "id", "username"}                                                            // 用户可用的排序方式
 )
 
+// 访客记录中的行为类型：访问之外的站内互动也记入同一条时间线
+const (
+	VisitActionVisit   = "visit"   // 访问页面
+	VisitActionLike    = "like"    // 点赞文章或评论
+	VisitActionComment = "comment" // 评论文章/页面，目标为评论时即回复
+)
+
 // 资产库列表范围与类型筛选
 const (
 	FileScopeMine = "mine"

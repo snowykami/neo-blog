@@ -167,6 +167,7 @@ export async function deleteOidcAdmin(id: number): Promise<BaseResponse<null>> {
 
 export async function listVisitsAdmin({
   kind = 'all',
+  action,
   visitorId,
   targetType,
   targetId,
@@ -175,13 +176,14 @@ export async function listVisitsAdmin({
   ...pagination
 }: {
   kind?: 'all' | 'user' | 'anonymous'
+  action?: 'visit' | 'interaction' // 为空时访问与互动都返回
   visitorId?: number
   targetType?: string
   targetId?: number
   source?: string // 按来源筛选
   sourceHost?: string // 来源为其他网站时按域名筛选
 } & PaginationParams): Promise<BaseResponse<{ visits: VisitLog[], total: number }>> {
-  const res = await axiosClient.get('/admin/visits', { params: { ...pagination, kind, visitorId, targetType, targetId, source, sourceHost } })
+  const res = await axiosClient.get('/admin/visits', { params: { ...pagination, kind, action, visitorId, targetType, targetId, source, sourceHost } })
   return res.data
 }
 

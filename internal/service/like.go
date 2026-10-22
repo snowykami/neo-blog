@@ -22,22 +22,32 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 		return false, errs.NewUnauthorized("login_required")
 	}
 	// 只能给存在且自己看得到的目标点赞，避免产生孤儿点赞
+	var ownerID uint // 被点赞内容的作者，用于记录互动
 	switch targetType {
 	case constant.TargetTypePost:
 		post, err := repo.Post.GetPostMeta(targetID)
 		if err != nil || (post.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx))) {
 			return false, errs.NewNotFound("operation_target_not_found")
 		}
+		ownerID = post.UserID
 	case constant.TargetTypeComment:
-		if _, svcerr := NewCommentService().GetComment(ctx, targetID); svcerr != nil {
+		comment, svcerr := NewCommentService().GetComment(ctx, targetID)
+		if svcerr != nil {
 			return false, svcerr
 		}
+		ownerID = comment.User.ID
 	default:
 		return false, errs.NewBadRequest("invalid_target_type")
 	}
 	state, err := repo.Like.ToggleLike(currentUser.ID, targetID, targetType)
 	if err != nil {
 		return state, errs.NewInternalServer("failed_to_toggle_like")
+	}
+	// 点赞记入访客记录时间线，取消点赞时一并撤销
+	if state {
+		NewVisitService().RecordInteraction(currentUser.ID, ownerID, constant.VisitActionLike, targetType, targetID, 0)
+	} else {
+		NewVisitService().RemoveInteraction(currentUser.ID, constant.VisitActionLike, targetType, targetID)
 	}
 	return state, nil
 }
