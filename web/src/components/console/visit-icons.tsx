@@ -1,7 +1,8 @@
 import type { IconType } from 'react-icons'
 import { CornerDownRight, Globe, Monitor, MousePointerClick, Search, Smartphone, Tablet } from 'lucide-react'
 import { FaAndroid, FaApple, FaChrome, FaEdge, FaFacebook, FaFirefoxBrowser, FaGithub, FaGoogle, FaLinkedin, FaLinux, FaMicrosoft, FaOpera, FaQq, FaReddit, FaSafari, FaTelegram, FaWeibo, FaWeixin, FaWindows, FaXTwitter, FaYahoo, FaYandex } from 'react-icons/fa6'
-import { SiBaidu, SiBilibili, SiClaude, SiCsdn, SiDuckduckgo, SiHarmonyos, SiJuejin, SiOpenai, SiPerplexity, SiSamsung, SiSogou, SiZhihu } from 'react-icons/si'
+import { RiOpenaiFill } from 'react-icons/ri'
+import { SiBaidu, SiBilibili, SiClaude, SiCsdn, SiDuckduckgo, SiHarmonyos, SiJuejin, SiPerplexity, SiSamsung, SiSogou, SiZhihu } from 'react-icons/si'
 import { cn } from '@/lib/utils'
 
 // 系统名与后端 utils.ParseUA 的返回值对应
@@ -89,7 +90,7 @@ const sourceIcons: Record<string, IconType> = {
   linkedin: FaLinkedin,
   juejin: SiJuejin,
   csdn: SiCsdn,
-  chatgpt: SiOpenai,
+  chatgpt: RiOpenaiFill,
   perplexity: SiPerplexity,
   claude: SiClaude,
 }
