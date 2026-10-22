@@ -3,6 +3,7 @@
 import type { Editor } from '@tiptap/react'
 import type { InlineMarkId } from './editor-commands'
 import type { EditorMenuEntry } from './editor-menus'
+import type { AIWriterOpenOptions } from './use-ai-writer'
 import type { EditorToolbarState } from './use-editor-toolbar-state'
 import { BaselineIcon, EllipsisIcon, LinkIcon, MessageSquareTextIcon, Redo2Icon, RemoveFormattingIcon, Undo2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -14,10 +15,12 @@ import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu
 import { cn } from '@/lib/utils'
 import { INLINE_MARKS, PRIMARY_MARKS } from './editor-commands'
 import {
+  AIMenu,
   AlignMenu,
   BlockTypeMenu,
   EditorMenuContent,
   EditorMenuEntries,
+  getAIEntries,
   getAlignEntries,
   getInsertEntries,
   InsertMenu,
@@ -30,6 +33,7 @@ type Translate = ReturnType<typeof useTranslations>
 export interface EditorToolbarActions {
   openLink: () => void
   openAnnotation: () => void
+  openAI: (options?: AIWriterOpenOptions) => void
 }
 
 /** 标记按钮组（粗体、斜体……），工具栏与气泡菜单共用 */
@@ -132,6 +136,12 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
   // 从溢出菜单打开颜色面板时，锚定到 ⋯ 按钮
   const [colorFromOverflow, setColorFromOverflow] = React.useState(false)
   const moreRef = React.useRef<HTMLButtonElement>(null)
+  // 从溢出菜单打开 AI 面板时，关闭菜单后不把焦点抢回编辑器
+  const aiOpenedRef = React.useRef(false)
+  const openAIFromMenu = (options: AIWriterOpenOptions) => {
+    aiOpenedRef.current = true
+    actions.openAI(options)
+  }
 
   const markEntries = (): EditorMenuEntry[] => PRIMARY_MARKS.map(id => markEntry(editor, t, state, id))
 
@@ -169,6 +179,12 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
     },
     { id: 'align', label: t('align'), content: <AlignMenu editor={editor} state={state} />, overflow: () => getAlignEntries(editor, t, state) },
     { id: 'insert', label: t('insert'), content: <InsertMenu editor={editor} state={state} />, overflow: () => getInsertEntries(editor, t, state) },
+    {
+      id: 'ai',
+      label: t('ai.open'),
+      content: <AIMenu editor={editor} state={state} openAI={actions.openAI} />,
+      overflow: () => getAIEntries(t, state.textSelection ? 'rewrite' : 'write', openAIFromMenu, !state.editable),
+    },
   ]
 
   const updateFade = React.useCallback(() => {
@@ -275,7 +291,15 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
             </EditorToolbarButton>
           </DropdownMenuTrigger>
         </EditorTooltip>
-        <EditorMenuContent editor={editor} align="end">
+        <EditorMenuContent
+          editor={editor}
+          align="end"
+          shouldRestoreFocus={() => {
+            const restore = !aiOpenedRef.current
+            aiOpenedRef.current = false
+            return restore
+          }}
+        >
           <EditorMenuEntries entries={overflowEntries} />
         </EditorMenuContent>
       </DropdownMenu>
@@ -294,7 +318,7 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
   )
 }
 
-function markEntry(editor: Editor, t: Translate, state: EditorToolbarState, id: InlineMarkId): EditorMenuEntry {
+export function markEntry(editor: Editor, t: Translate, state: EditorToolbarState, id: InlineMarkId): EditorMenuEntry {
   return {
     key: `mark-${id}`,
     icon: INLINE_MARKS[id].icon,

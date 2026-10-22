@@ -14,11 +14,14 @@ import { Kbd } from '@/components/ui/kbd'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFullscreen } from '@/hooks/use-editor-helpers'
 import { cn } from '@/lib/utils'
+import { EditorAIPanel } from './editor-ai-panel'
 import { EditorAppBar } from './editor-app-bar'
 import { EditorBubbleMenu } from './editor-bubble-menu'
 import { EditorCanvas } from './editor-canvas'
+import { EditorContextMenu } from './editor-context-menu'
 import { EditorStatusBar } from './editor-status-bar'
 import { EditorToolbar } from './editor-toolbar'
+import { useAIWriter } from './use-ai-writer'
 import { useEditorStats } from './use-editor-stats'
 import 'highlight.js/styles/github-dark.css'
 import './editor-content.scss'
@@ -107,7 +110,28 @@ function LoadedShell({
   const onFullscreenError = React.useCallback(() => toast.error(postEditT('fullscreen_failed')), [postEditT])
   const { isFullScreen, toggleFullScreen } = useFullscreen(onFullscreenError)
 
-  // 链接 / 注释弹层：工具栏、气泡菜单与快捷键共用，定位到当前选区
+  // AI 写作：文章信息取编辑器中的最新值；会话期间锁定编辑器并暂停自动保存
+  const metaRef = React.useRef(meta)
+  metaRef.current = meta
+  const getAIContext = React.useCallback(() => {
+    const current = metaRef.current
+    return {
+      title: current.title,
+      description: current.description,
+      category: current.category?.name ?? '',
+      labels: current.labels.map(label => label.name),
+    }
+  }, [])
+  const aiWriter = useAIWriter({
+    editor,
+    target: controller.kind,
+    docId: controller.doc?.id,
+    getContext: getAIContext,
+    onBusyChange: controller.setAiBusy,
+  })
+  const openAI = aiWriter.open
+
+  // 链接 / 注释弹层、AI 面板：工具栏、气泡菜单、右键菜单与快捷键共用，定位到当前选区
   const actions = React.useMemo(() => ({
     openLink: () => {
       if (!editor.isEditable || editor.isActive('codeBlock'))
@@ -123,7 +147,8 @@ function LoadedShell({
       setLinkOpen(false)
       setAnnotationOpen(true)
     },
-  }), [editor])
+    openAI,
+  }), [editor, openAI])
   React.useEffect(() => {
     controller.uiActionsRef.current = actions
   }, [controller.uiActionsRef, actions])
@@ -238,25 +263,28 @@ function LoadedShell({
       )}
 
       <main className={cn('flex-1 px-2 pt-1 pb-12 md:px-4 md:pb-16', focusMode && 'pt-12')}>
-        <EditorCanvas
-          editor={editor}
-          className={cn(focusMode && 'bg-transparent')}
-          title={meta.title}
-          description={meta.description}
-          onTitleChange={title => updateMeta({ title })}
-          onDescriptionChange={description => updateMeta({ description })}
-          titlePlaceholder={untitled}
-          descriptionPlaceholder={t('description_placeholder')}
-          titleLabel={titleLabel}
-          descriptionLabel={descriptionLabel}
-          readOnly={readOnly}
-          metaLine={metaLine}
-        />
+        <EditorContextMenu editor={editor} actions={actions}>
+          <EditorCanvas
+            editor={editor}
+            className={cn(focusMode && 'bg-transparent')}
+            title={meta.title}
+            description={meta.description}
+            onTitleChange={title => updateMeta({ title })}
+            onDescriptionChange={description => updateMeta({ description })}
+            titlePlaceholder={untitled}
+            descriptionPlaceholder={t('description_placeholder')}
+            titleLabel={titleLabel}
+            descriptionLabel={descriptionLabel}
+            readOnly={readOnly || controller.aiBusy}
+            metaLine={metaLine}
+          />
+        </EditorContextMenu>
       </main>
 
       <EditorStatusBar editor={editor} sessionStatus={editSession.status} className={chromeClass} />
 
       {!readOnly && <EditorBubbleMenu editor={editor} actions={actions} />}
+      <EditorAIPanel editor={editor} writer={aiWriter} />
       <LinkPopover editor={editor} open={linkOpen} onOpenChange={setLinkOpen} />
       <AnnotationPopover editor={editor} open={annotationOpen} onOpenChange={setAnnotationOpen} />
 

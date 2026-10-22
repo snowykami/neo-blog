@@ -50,34 +50,69 @@ func (j *aiSummaryJob) active() bool {
 	return j.status == aiSummaryStatusQueued || j.status == aiSummaryStatusRunning
 }
 
-// aiSummaryLimiter 限制同时调用模型的任务数；上限每次获取时读取，修改配置后立即生效
-type aiSummaryLimiter struct {
-	mu      sync.Mutex
-	running int
-	wake    chan struct{} // 有名额释放时关闭，唤醒所有等待者重新竞争
+// aiLimiter 限制同时调用模型的请求数（AI 摘要与 AI 写作共用），上限每次获取时读取，修改配置后立即生效
+// 交互式的 AI 写作以优先级获取名额：有优先请求在等待时，后台摘要任务让出空闲名额，避免写作排在整批摘要之后
+type aiLimiter struct {
+	mu              sync.Mutex
+	running         int
+	priorityWaiting int           // 正在等待的优先请求数
+	wake            chan struct{} // 有名额释放时关闭，唤醒所有等待者重新竞争
 }
 
-func (l *aiSummaryLimiter) acquire(limit func() int) {
+// aiCallLimiter 全局共用的模型调用限制器
+var aiCallLimiter = &aiLimiter{}
+
+// acquire 获取名额；首次需要等待时调用 onWait（可为 nil），ctx 取消时放弃等待并返回错误
+func (l *aiLimiter) acquire(ctx context.Context, limit func() int, priority bool, onWait func()) error {
+	waiting := false
 	for {
 		l.mu.Lock()
-		if l.running < limit() {
+		if l.running < limit() && (priority || l.priorityWaiting == 0) {
 			l.running++
+			if waiting && priority {
+				l.priorityWaiting--
+				l.broadcastLocked()
+			}
 			l.mu.Unlock()
-			return
+			return nil
+		}
+		if !waiting {
+			waiting = true
+			if priority {
+				l.priorityWaiting++
+			}
+			if onWait != nil {
+				onWait()
+			}
 		}
 		if l.wake == nil {
 			l.wake = make(chan struct{})
 		}
 		wake := l.wake
 		l.mu.Unlock()
-		<-wake
+		select {
+		case <-wake:
+		case <-ctx.Done():
+			if priority {
+				l.mu.Lock()
+				l.priorityWaiting--
+				l.broadcastLocked()
+				l.mu.Unlock()
+			}
+			return ctx.Err()
+		}
 	}
 }
 
-func (l *aiSummaryLimiter) release() {
+func (l *aiLimiter) release() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.running--
+	l.broadcastLocked()
+}
+
+// broadcastLocked 唤醒所有等待者，调用方需持有锁
+func (l *aiLimiter) broadcastLocked() {
 	if l.wake != nil {
 		close(l.wake)
 		l.wake = nil
@@ -88,7 +123,7 @@ func (l *aiSummaryLimiter) release() {
 type AISummaryService struct {
 	mu      sync.Mutex
 	jobs    map[uint]*aiSummaryJob
-	limiter aiSummaryLimiter
+	limiter *aiLimiter
 	// complete 调用大模型，测试时可替换
 	complete func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
 	// concurrency 读取并发上限，测试时可替换
@@ -97,6 +132,7 @@ type AISummaryService struct {
 
 var aiSummaryService = &AISummaryService{
 	jobs:        make(map[uint]*aiSummaryJob),
+	limiter:     aiCallLimiter,
 	complete:    chatCompletion,
 	concurrency: tools.GetAISummaryConcurrency,
 }
@@ -235,7 +271,7 @@ func (s *AISummaryService) finish(postID uint, status, errMsg string) {
 
 func (s *AISummaryService) run(postID uint, cfg tools.AIConfig, title, content, sourceHash string) {
 	// 排队等待并发名额，拿到后才开始计算超时
-	s.limiter.acquire(s.concurrency)
+	_ = s.limiter.acquire(context.Background(), s.concurrency, false, nil)
 	defer s.limiter.release()
 	s.finish(postID, aiSummaryStatusRunning, "")
 
@@ -292,7 +328,8 @@ func buildAISummaryUserPrompt(title, content string) string {
 var (
 	reHeading    = regexp.MustCompile(`(?is)<h([1-6])[^>]*>(.*?)</h[1-6]>`)
 	rePre        = regexp.MustCompile(`(?is)<pre[^>]*>(.*?)</pre>`)
-	reBlockBreak = regexp.MustCompile(`(?i)<(br|/p|/li|/blockquote|/h[1-6]|/figcaption)[^>]*>`)
+	reBlockBreak = regexp.MustCompile(`(?i)<(br|/p|/li|/blockquote|/h[1-6]|/figcaption|/tr)[^>]*>`)
+	reTableCell  = regexp.MustCompile(`(?i)</t[dh]>`)
 	reListItem   = regexp.MustCompile(`(?i)<li[^>]*>`)
 	reTag        = regexp.MustCompile(`(?s)<[^>]+>`)
 	reBlankLines = regexp.MustCompile(`\n{3,}`)
@@ -308,6 +345,7 @@ func htmlToPlainText(content string) string {
 	text = rePre.ReplaceAllStringFunc(text, func(m string) string {
 		return "\n```\n" + reTag.ReplaceAllString(rePre.FindStringSubmatch(m)[1], "") + "\n```\n"
 	})
+	text = reTableCell.ReplaceAllString(text, " | ")
 	text = reBlockBreak.ReplaceAllString(text, "\n")
 	text = reListItem.ReplaceAllString(text, "- ")
 	text = reTag.ReplaceAllString(text, "")
@@ -375,42 +413,62 @@ func isMostlyLatin(text string) bool {
 
 // chatCompletion 调用 OpenAI 兼容的 /chat/completions 接口
 func chatCompletion(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
-	body, _ := json.Marshal(map[string]any{
-		"model": cfg.Model,
-		"messages": []map[string]string{
-			{"role": "system", "content": system},
-			{"role": "user", "content": user},
-		},
+	resp, err := postChatCompletions(ctx, cfg, map[string]any{
+		"model":       cfg.Model,
+		"messages":    chatMessages(system, user),
 		"temperature": 0.3,
 		"stream":      false,
 	})
-	endpoint := cfg.BaseURL
-	if !strings.HasSuffix(endpoint, "/chat/completions") {
-		endpoint += "/chat/completions"
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return "", err
 	}
+	return parseChatCompletion(data)
+}
+
+func chatMessages(system, user string) []map[string]string {
+	return []map[string]string{
+		{"role": "system", "content": system},
+		{"role": "user", "content": user},
+	}
+}
+
+// postChatCompletions 发送请求，非 200 时读取少量响应内容作为错误返回；成功时由调用方关闭响应体
+func postChatCompletions(ctx context.Context, cfg tools.AIConfig, payload map[string]any) (*http.Response, error) {
+	body, _ := json.Marshal(payload)
+	endpoint := cfg.BaseURL
+	if !strings.HasSuffix(endpoint, "/chat/completions") {
+		endpoint += "/chat/completions"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 		// 只截取少量响应内容，避免把整段错误页写进状态
 		msg := strings.TrimSpace(string(data))
 		if r := []rune(msg); len(r) > 200 {
 			msg = string(r[:200])
 		}
-		return "", fmt.Errorf("status %d: %s", resp.StatusCode, msg)
+		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, msg)
 	}
+	return resp, nil
+}
+
+// parseChatCompletion 解析非流式响应，取第一个候选的内容
+func parseChatCompletion(data []byte) (string, error) {
 	var result struct {
 		Choices []struct {
 			Message struct {

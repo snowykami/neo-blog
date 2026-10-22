@@ -1,21 +1,22 @@
 import type { BlockTypeId } from '@/components/tiptap-editor/editor-commands'
 import type { SlashCommandItem } from '@/components/tiptap-extension/slash-command-extension'
-import { CalendarIcon, ImageIcon, MinusIcon } from 'lucide-react'
+import { CalendarIcon, ImageIcon, MinusIcon, SparklesIcon, TableIcon } from 'lucide-react'
 import { getBlockTypeDef, setBlockType } from '@/components/tiptap-editor/editor-commands'
 
 type Translate = (key: string, values?: Record<string, string | number>) => string
 
 // 分组：定义顺序即菜单展示顺序
-type SlashGroup = 'basic' | 'list' | 'media' | 'other'
+type SlashGroup = 'ai' | 'basic' | 'list' | 'media' | 'other'
 
 interface SlashItemDef {
-  id: BlockTypeId | 'image' | 'hr' | 'date'
+  id: BlockTypeId | 'ai' | 'image' | 'table' | 'hr' | 'date'
   group: SlashGroup
   // 中文 / 拼音 / 英文别名
   keywords: string[]
 }
 
 const SLASH_ITEM_DEFS: SlashItemDef[] = [
+  { group: 'ai', id: 'ai', keywords: ['ai', 'write', 'continue', 'bangxie', 'bx', 'xuxie', 'xiezuo', '帮写', '续写', '写作', '生成'] },
   { group: 'basic', id: 'paragraph', keywords: ['text', 'p', 'paragraph', 'zhengwen', 'zw', 'duanluo', '正文', '段落', 'wenben'] },
   { group: 'basic', id: 'h1', keywords: ['h1', 'heading', 'title', 'biaoti', 'bt', 'biaoti1', 'yiji', '标题', '一级', '大标题'] },
   { group: 'basic', id: 'h2', keywords: ['h2', 'heading', 'title', 'biaoti', 'bt', 'biaoti2', 'erji', '标题', '二级'] },
@@ -27,6 +28,7 @@ const SLASH_ITEM_DEFS: SlashItemDef[] = [
   { group: 'list', id: 'orderedList', keywords: ['ol', 'ordered', 'number', 'list', 'youxu', 'yx', 'bianhao', 'liebiao', '列表', '有序', '编号'] },
   { group: 'list', id: 'taskList', keywords: ['todo', 'task', 'check', 'renwu', 'rw', 'daiban', 'db', '待办', '任务', '清单', 'liebiao', '列表'] },
   { group: 'media', id: 'image', keywords: ['img', 'image', 'picture', 'photo', 'tupian', 'tp', 'zhaopian', '图片', '照片', '上传'] },
+  { group: 'media', id: 'table', keywords: ['table', 'grid', 'biaoge', 'bg', '表格'] },
   { group: 'other', id: 'hr', keywords: ['hr', 'divider', 'line', 'separator', 'fengexian', 'fgx', 'fenge', '分割线', '---'] },
   { group: 'other', id: 'date', keywords: ['date', 'today', 'riqi', 'rq', 'jintian', '日期', '今天'] },
 ]
@@ -35,8 +37,9 @@ const SLASH_ITEM_DEFS: SlashItemDef[] = [
  * 生成本地化后的斜杠命令项
  * @param t Console.editor 命名空间的翻译函数
  * @param formatDate 插入“今天的日期”时的格式化函数
+ * @param openAI 打开 AI 帮写面板
  */
-export function buildSlashItems(t: Translate, formatDate: (date: Date) => string): SlashCommandItem[] {
+export function buildSlashItems(t: Translate, formatDate: (date: Date) => string, openAI: () => void): SlashCommandItem[] {
   return SLASH_ITEM_DEFS.map((def) => {
     const base = {
       id: def.id,
@@ -45,6 +48,26 @@ export function buildSlashItems(t: Translate, formatDate: (date: Date) => string
       keywords: def.keywords,
     }
     switch (def.id) {
+      case 'ai':
+        return {
+          ...base,
+          title: t('ai.write'),
+          icon: SparklesIcon,
+          // 删除 “/query” 后在当前位置打开 AI 帮写
+          run: (editor, range) => {
+            editor.chain().focus().deleteRange(range).run()
+            openAI()
+          },
+        }
+      case 'table':
+        return {
+          ...base,
+          title: t('insert_table'),
+          icon: TableIcon,
+          run: (editor, range) => {
+            editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+          },
+        }
       case 'image':
         return {
           ...base,

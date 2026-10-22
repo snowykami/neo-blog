@@ -495,8 +495,8 @@
       "ai_model_desc": "API が対応しているモデル名",
       "show_secret": "表示",
       "hide_secret": "非表示",
-      "ai_summary_concurrency": "AI 要約の同時実行数",
-      "ai_summary_concurrency_desc": "同時に要約を生成するタスク数の上限（1～20）。待機中のタスクは順番に実行されます"
+      "ai_summary_concurrency": "AI の同時実行数",
+      "ai_summary_concurrency_desc": "モデルへの同時リクエスト数の上限（1～20）。AI 要約とエディターの AI ライティングで共有し、超えた分は順番に待機します（AI ライティングを優先）"
     },
     "labels": {
       "title": "タグ管理",
@@ -939,7 +939,10 @@
         "hint_taskList": "チェックできる ToDo",
         "hint_image": "画像をアップロード",
         "hint_hr": "セクションを区切る",
-        "hint_date": "今日の日付を挿入"
+        "hint_date": "今日の日付を挿入",
+        "group_ai": "AI",
+        "hint_ai": "AI にここから続きを書いてもらう",
+        "hint_table": "3×3 の表を挿入"
       },
       "block_add": "クリックでブロックを挿入",
       "block_drag": "ドラッグで移動 · クリックでメニュー",
@@ -955,7 +958,8 @@
         "image": "画像",
         "imageUpload": "画像アップロード",
         "horizontalRule": "区切り線",
-        "block": "ブロック"
+        "block": "ブロック",
+        "table": "表"
       },
       "image_toolbar": "画像ツール",
       "image_align_left": "左寄せ",
@@ -998,7 +1002,86 @@
       "private_hint": "オンにすると自分と管理者のみ閲覧できます",
       "top_hint": "0 は固定なし。値が大きいほど上に表示",
       "show_in_nav_hint": "サイトのナビゲーションにこのページを表示",
-      "nav_order_hint": "ナビゲーションでの並び順"
+      "nav_order_hint": "ナビゲーションでの並び順",
+      "insert_table": "表",
+      "table": {
+        "add_row_before": "上に行を挿入",
+        "add_row_after": "下に行を挿入",
+        "add_col_before": "左に列を挿入",
+        "add_col_after": "右に列を挿入",
+        "toggle_header": "見出し行の切り替え",
+        "delete_row": "行を削除",
+        "delete_col": "列を削除",
+        "delete_table": "表を削除"
+      },
+      "ai": {
+        "short": "AI",
+        "open": "AI ライティング",
+        "open_hint": "AI で執筆、または選択した文章を推敲",
+        "write": "AI で執筆",
+        "rewrite": "AI で推敲",
+        "custom": "カスタム指示…",
+        "instruction": "AI への指示",
+        "write_placeholder": "書いてほしい内容を入力（例：インストール手順を追加）",
+        "rewrite_placeholder": "修正方法を入力（例：もっと簡潔に）",
+        "generate": "生成",
+        "cancel": "キャンセル",
+        "stop": "停止",
+        "accept": "採用",
+        "discard": "破棄",
+        "retry": "再生成",
+        "retry_error": "再試行",
+        "edit": "指示を編集",
+        "close": "閉じる",
+        "status_connecting": "接続中…",
+        "status_queued": "待機中（ほかの AI タスクの完了待ち）…",
+        "status_thinking": "思考中…",
+        "status_streaming": "生成中…",
+        "status_done": "生成完了。採用すると本文に反映されます",
+        "status_stopped": "停止しました。生成済みの内容は残っています",
+        "hint_prompt": "Enter で生成 · Shift+Enter で改行 · Esc でキャンセル",
+        "hint_done": "採用後は {shortcut} で元に戻せます",
+        "failed": "AI の生成に失敗しました",
+        "need_selection": "推敲する文章を先に選択してください",
+        "default_write": "文脈に沿って続きを書く",
+        "default_rewrite": "選択範囲を推敲",
+        "preset": {
+          "continue": "続きを書く",
+          "summarize": "前文を要約",
+          "outline": "要点を整理",
+          "example": "例を追加",
+          "polish": "推敲",
+          "shorten": "簡潔に",
+          "expand": "詳しく",
+          "formal": "フォーマルに",
+          "casual": "カジュアルに",
+          "translate_en": "英語に翻訳",
+          "translate_zh": "中国語に翻訳"
+        }
+      },
+      "context": {
+        "aria": "エディターのコンテキストメニュー",
+        "cut": "切り取り",
+        "copy": "コピー",
+        "paste": "貼り付け",
+        "paste_failed": "クリップボードを読み取れません。{shortcut} で貼り付けてください",
+        "copy_failed": "コピーに失敗しました。ブラウザの権限を確認してください",
+        "copied": "クリップボードにコピーしました",
+        "format": "書式",
+        "turn_into": "変換",
+        "table": "表",
+        "ai_write": "AI で執筆…",
+        "ai_presets": "AI クイック操作",
+        "image_replace": "画像を置き換え…",
+        "image_copy_url": "画像のアドレスをコピー",
+        "image_open": "新しいタブで開く",
+        "code_copy": "コードをコピー",
+        "code_language": "言語",
+        "code_language_plain": "プレーンテキスト",
+        "code_to_paragraph": "本文に変換",
+        "code_delete": "コードブロックを削除",
+        "native_hint": "Shift + 右クリックでブラウザのメニュー"
+      }
     }
   },
   "Copyright": {
@@ -1278,7 +1361,12 @@
       "invalid_role": "無効なロールです",
       "invalid_username": "無効なユーザー名です",
       "invalid_nickname": "無効なニックネームです",
-      "invalid_email": "無効なメールアドレスです"
+      "invalid_email": "無効なメールアドレスです",
+      "ai_input_too_long": "入力が長すぎます。選択範囲や指示を短くして再試行してください",
+      "ai_write_empty_selection": "選択範囲が空です",
+      "ai_timeout": "AI の応答がタイムアウトしました",
+      "ai_empty_response": "AI から内容が返されませんでした",
+      "ai_interrupted": "接続が切れ、生成が完了しませんでした"
     }
   },
   "ErrorPage": {

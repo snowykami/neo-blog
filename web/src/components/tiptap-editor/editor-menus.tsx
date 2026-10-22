@@ -2,8 +2,27 @@
 
 import type { Editor } from '@tiptap/react'
 import type { LucideIcon } from 'lucide-react'
+import type { AIWriterOpenOptions } from './use-ai-writer'
 import type { EditorToolbarState } from './use-editor-toolbar-state'
-import { CheckIcon, ChevronDownIcon, ImageIcon, MinusIcon, PlusIcon, SquareCodeIcon } from 'lucide-react'
+import {
+  BetweenHorizontalEndIcon,
+  BetweenHorizontalStartIcon,
+  BetweenVerticalEndIcon,
+  BetweenVerticalStartIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  Columns3Icon,
+  ImageIcon,
+  MinusIcon,
+  PanelTopIcon,
+  PencilLineIcon,
+  PlusIcon,
+  Rows3Icon,
+  SparklesIcon,
+  SquareCodeIcon,
+  TableIcon,
+  Trash2Icon,
+} from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { insertImage } from '@/components/tiptap-ui/image-upload-button/use-image-upload'
@@ -19,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { AI_REWRITE_PRESETS, AI_WRITE_PRESETS } from '@/models/ai-write'
 import { BLOCK_TYPES, formatShortcut, getBlockTypeDef, setBlockType, TEXT_ALIGNS } from './editor-commands'
 import { EditorToolbarButton, EditorTooltip } from './editor-toolbar-button'
 
@@ -71,11 +91,14 @@ export function EditorMenuContent({
   editor,
   align = 'start',
   className,
+  shouldRestoreFocus,
   children,
 }: {
   editor: Editor | null
   align?: 'start' | 'center' | 'end'
   className?: string
+  // 菜单项打开了其他浮层（如 AI 面板）时返回 false，不把焦点抢回编辑器
+  shouldRestoreFocus?: () => boolean
   children: React.ReactNode
 }) {
   return (
@@ -86,7 +109,8 @@ export function EditorMenuContent({
       className={cn('min-w-52 rounded-xl p-1', className)}
       onCloseAutoFocus={(event) => {
         event.preventDefault()
-        editor?.commands.focus()
+        if (shouldRestoreFocus?.() ?? true)
+          editor?.commands.focus()
       }}
     >
       {children}
@@ -121,17 +145,24 @@ export function getAlignEntries(editor: Editor, t: Translate, state: EditorToolb
   }))
 }
 
-export function getInsertEntries(editor: Editor, t: Translate, state: EditorToolbarState): EditorMenuEntry[] {
+// 插入表格的默认尺寸：3×3，首行为标题行
+const TABLE_DEFAULT = { rows: 3, cols: 3, withHeaderRow: true }
+
+/**
+ * 插入类菜单项：图片、分割线、代码块、表格
+ * onPickImage 传入时图片改为从资产库选择后直接插入（右键菜单），否则插入图片上传块
+ */
+export function getInsertEntries(editor: Editor, t: Translate, state: EditorToolbarState, onPickImage?: () => void): EditorMenuEntry[] {
   return [
     {
       key: 'insert-image',
       icon: ImageIcon,
       label: t('insert_image'),
-      hint: t('insert_image_hint'),
-      shortcut: 'mod+shift+i',
+      hint: onPickImage ? undefined : t('insert_image_hint'),
+      shortcut: onPickImage ? undefined : 'mod+shift+i',
       disabled: !state.editable,
       // 沿用现有上传流程：插入图片上传块（本地上传 / 文件库选择）
-      onSelect: () => insertImage(editor),
+      onSelect: () => (onPickImage ? onPickImage() : insertImage(editor)),
     },
     {
       key: 'insert-hr',
@@ -147,6 +178,61 @@ export function getInsertEntries(editor: Editor, t: Translate, state: EditorTool
       shortcut: 'mod+alt+c',
       disabled: !state.editable,
       onSelect: () => setBlockType(editor, 'codeBlock'),
+    },
+    {
+      key: 'insert-table',
+      icon: TableIcon,
+      label: t('insert_table'),
+      disabled: !state.editable || state.inTable || !editor.can().insertTable(TABLE_DEFAULT),
+      onSelect: () => editor.chain().focus().insertTable(TABLE_DEFAULT).run(),
+    },
+  ]
+}
+
+/** 光标位于表格内时的行列操作 */
+export function getTableEntries(editor: Editor, t: Translate): EditorMenuEntry[] {
+  const can = editor.can()
+  const item = (key: string, icon: LucideIcon, enabled: boolean, run: () => void, destructive = false): EditorMenuEntry => ({
+    key: `table-${key}`,
+    icon,
+    label: t(`table.${key}`),
+    disabled: !enabled,
+    destructive,
+    onSelect: run,
+  })
+  const chain = () => editor.chain().focus()
+  return [
+    item('add_row_before', BetweenHorizontalStartIcon, can.addRowBefore(), () => chain().addRowBefore().run()),
+    item('add_row_after', BetweenHorizontalEndIcon, can.addRowAfter(), () => chain().addRowAfter().run()),
+    item('add_col_before', BetweenVerticalStartIcon, can.addColumnBefore(), () => chain().addColumnBefore().run()),
+    item('add_col_after', BetweenVerticalEndIcon, can.addColumnAfter(), () => chain().addColumnAfter().run()),
+    { type: 'separator', key: 'table-sep-1' },
+    item('toggle_header', PanelTopIcon, can.toggleHeaderRow(), () => chain().toggleHeaderRow().run()),
+    item('delete_row', Rows3Icon, can.deleteRow(), () => chain().deleteRow().run(), true),
+    item('delete_col', Columns3Icon, can.deleteColumn(), () => chain().deleteColumn().run(), true),
+    item('delete_table', Trash2Icon, can.deleteTable(), () => chain().deleteTable().run(), true),
+  ]
+}
+
+/** AI 快捷指令：帮写（光标处）或润色（选区），自定义指令打开输入面板 */
+export function getAIEntries(t: Translate, mode: 'write' | 'rewrite', openAI: (options: AIWriterOpenOptions) => void, disabled = false): EditorMenuEntry[] {
+  const presets = mode === 'rewrite' ? AI_REWRITE_PRESETS : AI_WRITE_PRESETS
+  return [
+    ...presets.map(preset => ({
+      key: `ai-${preset}`,
+      icon: SparklesIcon,
+      label: t(`ai.preset.${preset}`),
+      disabled,
+      onSelect: () => openAI({ mode, preset, run: true }),
+    })),
+    { type: 'separator', key: 'ai-sep' },
+    {
+      key: 'ai-custom',
+      icon: PencilLineIcon,
+      label: t('ai.custom'),
+      shortcut: 'mod+j',
+      disabled,
+      onSelect: () => openAI({ mode }),
     },
   ]
 }
@@ -223,6 +309,48 @@ export function InsertMenu({ editor, state }: { editor: Editor | null, state: Ed
       </EditorTooltip>
       <EditorMenuContent editor={editor}>
         <EditorMenuEntries entries={getInsertEntries(editor, t, state)} />
+      </EditorMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** AI 下拉：有文字选区时为润色的快捷指令，否则为帮写；自定义指令打开输入面板 */
+export function AIMenu({ editor, state, openAI, compact }: {
+  editor: Editor | null
+  state: EditorToolbarState
+  openAI: (options: AIWriterOpenOptions) => void
+  compact?: boolean
+}) {
+  const t = useTranslations('Console.editor')
+  const openedRef = React.useRef(false)
+  if (!editor)
+    return null
+  const mode = state.textSelection ? 'rewrite' : 'write'
+  const open = (options: AIWriterOpenOptions) => {
+    openedRef.current = true
+    openAI(options)
+  }
+  return (
+    <DropdownMenu modal={false}>
+      <EditorTooltip label={t('ai.open_hint')}>
+        <DropdownMenuTrigger asChild>
+          <EditorToolbarButton label={t('ai.open')} noTooltip disabled={!state.editable} className="gap-1 px-2 text-primary hover:text-primary">
+            <SparklesIcon className="size-[17px]" />
+            {!compact && <span>{t('ai.short')}</span>}
+            <ChevronDownIcon className="-mr-0.5 size-3.5 opacity-50" />
+          </EditorToolbarButton>
+        </DropdownMenuTrigger>
+      </EditorTooltip>
+      <EditorMenuContent
+        editor={editor}
+        shouldRestoreFocus={() => {
+          const restore = !openedRef.current
+          openedRef.current = false
+          return restore
+        }}
+      >
+        <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">{t(mode === 'rewrite' ? 'ai.rewrite' : 'ai.write')}</DropdownMenuLabel>
+        <EditorMenuEntries entries={getAIEntries(t, mode, open)} />
       </EditorMenuContent>
     </DropdownMenu>
   )

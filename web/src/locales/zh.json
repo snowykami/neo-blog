@@ -495,8 +495,8 @@
       "ai_model_desc": "接口支持的模型名称",
       "show_secret": "显示",
       "hide_secret": "隐藏",
-      "ai_summary_concurrency": "AI 摘要并发数",
-      "ai_summary_concurrency_desc": "同时生成摘要的任务数上限（1～20），排队中的任务会依次执行"
+      "ai_summary_concurrency": "AI 并发数",
+      "ai_summary_concurrency_desc": "同时调用模型的请求数上限（1～20），AI 摘要与编辑器 AI 写作共用；超出时排队依次执行，AI 写作优先"
     },
     "labels": {
       "title": "标签管理",
@@ -939,7 +939,10 @@
         "hint_taskList": "可勾选的待办事项",
         "hint_image": "上传本地图片",
         "hint_hr": "分隔不同章节",
-        "hint_date": "插入当前日期"
+        "hint_date": "插入当前日期",
+        "group_ai": "AI",
+        "hint_ai": "让 AI 在此处续写或按要求生成",
+        "hint_table": "插入 3×3 表格"
       },
       "block_add": "点击插入块",
       "block_drag": "拖动移动 · 点击打开菜单",
@@ -955,7 +958,8 @@
         "image": "图片",
         "imageUpload": "图片上传",
         "horizontalRule": "分割线",
-        "block": "块"
+        "block": "块",
+        "table": "表格"
       },
       "image_toolbar": "图片工具",
       "image_align_left": "居左",
@@ -998,7 +1002,86 @@
       "private_hint": "开启后仅自己与管理员可见",
       "top_hint": "0 表示不置顶；数值越大越靠前",
       "show_in_nav_hint": "在站点导航栏中显示该页面",
-      "nav_order_hint": "导航中的排序值"
+      "nav_order_hint": "导航中的排序值",
+      "insert_table": "表格",
+      "table": {
+        "add_row_before": "在上方插入行",
+        "add_row_after": "在下方插入行",
+        "add_col_before": "在左侧插入列",
+        "add_col_after": "在右侧插入列",
+        "toggle_header": "切换标题行",
+        "delete_row": "删除行",
+        "delete_col": "删除列",
+        "delete_table": "删除表格"
+      },
+      "ai": {
+        "short": "AI",
+        "open": "AI 写作",
+        "open_hint": "AI 帮写，或润色选中的文字",
+        "write": "AI 帮写",
+        "rewrite": "AI 润色",
+        "custom": "自定义指令…",
+        "instruction": "对 AI 的要求",
+        "write_placeholder": "告诉 AI 要写什么，例如：补充一段安装步骤",
+        "rewrite_placeholder": "告诉 AI 如何修改，例如：改成更简洁的说法",
+        "generate": "生成",
+        "cancel": "取消",
+        "stop": "停止",
+        "accept": "接受",
+        "discard": "放弃",
+        "retry": "重新生成",
+        "retry_error": "重试",
+        "edit": "修改要求",
+        "close": "关闭",
+        "status_connecting": "正在连接…",
+        "status_queued": "排队中，等待其他 AI 任务完成…",
+        "status_thinking": "模型思考中…",
+        "status_streaming": "正在生成…",
+        "status_done": "生成完成，确认后写入正文",
+        "status_stopped": "已停止，保留已生成的内容",
+        "hint_prompt": "Enter 生成 · Shift+Enter 换行 · Esc 取消",
+        "hint_done": "接受后可用 {shortcut} 撤销",
+        "failed": "AI 生成失败",
+        "need_selection": "请先选中要润色的文字",
+        "default_write": "根据上下文续写",
+        "default_rewrite": "润色选中内容",
+        "preset": {
+          "continue": "续写",
+          "summarize": "总结上文",
+          "outline": "整理要点",
+          "example": "补充示例",
+          "polish": "润色",
+          "shorten": "精简",
+          "expand": "扩写",
+          "formal": "更正式",
+          "casual": "更口语",
+          "translate_en": "翻译为英文",
+          "translate_zh": "翻译为中文"
+        }
+      },
+      "context": {
+        "aria": "编辑器右键菜单",
+        "cut": "剪切",
+        "copy": "复制",
+        "paste": "粘贴",
+        "paste_failed": "无法读取剪贴板，请使用 {shortcut} 粘贴",
+        "copy_failed": "复制失败，请检查浏览器权限",
+        "copied": "已复制到剪贴板",
+        "format": "格式",
+        "turn_into": "转换为",
+        "table": "表格",
+        "ai_write": "AI 帮写…",
+        "ai_presets": "AI 快捷指令",
+        "image_replace": "替换图片…",
+        "image_copy_url": "复制图片地址",
+        "image_open": "在新标签页打开",
+        "code_copy": "复制代码",
+        "code_language": "代码语言",
+        "code_language_plain": "纯文本",
+        "code_to_paragraph": "转换为正文",
+        "code_delete": "删除代码块",
+        "native_hint": "按住 Shift 右键可打开浏览器菜单"
+      }
     }
   },
   "Copyright": {
@@ -1250,7 +1333,12 @@
       "invalid_role": "无效的角色",
       "invalid_username": "用户名格式无效",
       "invalid_nickname": "昵称格式无效",
-      "invalid_email": "邮箱格式无效"
+      "invalid_email": "邮箱格式无效",
+      "ai_input_too_long": "内容过长，请缩短选区或要求后重试",
+      "ai_write_empty_selection": "选中的内容为空",
+      "ai_timeout": "AI 响应超时",
+      "ai_empty_response": "AI 没有返回内容",
+      "ai_interrupted": "连接中断，生成未完成"
     }
   },
   "Role": {

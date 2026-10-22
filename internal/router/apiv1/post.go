@@ -32,5 +32,7 @@ func registerPostRoutes(group *route.RouterGroup) {
 		postGroupWithAuth.POST("/c", postController.CreateCategory)                // 创建文章分类
 		postGroupWithAuth.PUT("/c/:id", postController.UpdateCategory)             // 更新文章分类
 		postGroupWithAuth.DELETE("/c/:id", postController.DeleteCategory)          // 删除文章分类
+		// AI 写作：编辑器内帮写 / 润色，以 SSE 流式返回
+		postGroupWithAuth.POST("/p/:id/ai-write", controller.AIWrite.Stream(constant.TargetTypePost))
 	}
 }

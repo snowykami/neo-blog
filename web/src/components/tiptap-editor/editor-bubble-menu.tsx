@@ -8,7 +8,7 @@ import { BubbleMenu } from '@tiptap/react/menus'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { EDITOR_FLOATING_ATTR } from '@/components/tiptap-ui/link-popover/link-popover'
-import { BlockTypeMenu } from './editor-menus'
+import { AIMenu, BlockTypeMenu } from './editor-menus'
 import { ColorButton, LinkAnnotationButtons, MarkButtons } from './editor-toolbar'
 import { EditorToolbarSeparator } from './editor-toolbar-button'
 import { useEditorToolbarState } from './use-editor-toolbar-state'
@@ -22,7 +22,7 @@ function isFocusInFloating() {
 }
 
 /**
- * 选中文字时出现的气泡菜单：块类型 | 标记 | 链接、注释 | 颜色
+ * 选中文字时出现的气泡菜单：AI 润色 | 块类型 | 标记 | 链接、注释 | 颜色
  * 挂载到 body，打开其中的下拉 / 弹层时焦点移入浮层，菜单保持显示
  */
 export function EditorBubbleMenu({ editor, actions }: { editor: Editor, actions: EditorToolbarActions }) {
@@ -77,6 +77,8 @@ export function EditorBubbleMenu({ editor, actions }: { editor: Editor, actions:
       aria-label={t('bubble_aria')}
       className="z-40 flex max-w-[calc(100vw-1rem)] items-center gap-0.5 overflow-x-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg hide-scrollbar"
     >
+      <AIMenu editor={editor} state={state} openAI={actions.openAI} />
+      <EditorToolbarSeparator className="mx-1" />
       <BlockTypeMenu editor={editor} state={state} compact />
       <EditorToolbarSeparator className="mx-1" />
       <MarkButtons editor={editor} state={state} tooltipSide="top" />

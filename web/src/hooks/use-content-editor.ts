@@ -1,6 +1,7 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
+import type { AIWriterOpenOptions } from '@/components/tiptap-editor/use-ai-writer'
 import type { Category } from '@/models/category'
 import type { Label } from '@/models/label'
 import type { PageModel } from '@/models/page'
@@ -13,6 +14,7 @@ import { isEditSessionConflict } from '@/api/edit-session'
 import { uploadFile } from '@/api/file'
 import { getPageById, updatePage } from '@/api/page'
 import { getPostById, updatePost } from '@/api/post'
+import { AI_PREVIEW_META } from '@/components/tiptap-extension/ai-write-extension'
 import { buildSlashItems, filterSlashItems } from '@/components/tiptap-ui/slash-menu/slash-items'
 import { useEditSession } from '@/hooks/use-edit-session'
 import { useUnsavedChangesWarning } from '@/hooks/use-editor-helpers'
@@ -193,6 +195,7 @@ function diffMeta(next: ContentMeta, saved: ContentMeta): Partial<ContentMeta> |
 export interface EditorUiActions {
   openLink?: () => void
   openAnnotation?: () => void
+  openAI?: (options?: AIWriterOpenOptions) => void
 }
 
 /**
@@ -202,6 +205,7 @@ export interface EditorUiActions {
  * - 保存状态机 idle | dirty | saving | saved | error：停止输入约 2 秒后自动保存，10 秒定时兜底，⌘S 立即保存
  * - 标题、摘要与设置面板中的元信息与正文走同一保存路径，只提交有变化的字段
  * - 发布：草稿与正文一起提交
+ * - AI 写作期间锁定编辑器并暂停保存，生成中的预览内容不算作修改，接受后再进入正常的保存流程
  */
 export function useContentEditor(kind: ContentKind, routeId: string) {
   const adapter = ADAPTERS[kind]
@@ -250,7 +254,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const latestRef = useRef({ t, format, uploadImage })
   latestRef.current = { t, format, uploadImage }
   const slashItems = useMemo(
-    () => buildSlashItems(t, date => format.dateTime(date, { dateStyle: 'long' })),
+    () => buildSlashItems(t, date => format.dateTime(date, { dateStyle: 'long' }), () => uiActionsRef.current.openAI?.({ mode: 'write' })),
     [t, format],
   )
   const slashItemsRef = useRef(slashItems)
@@ -264,6 +268,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     getSlashItems: query => filterSlashItems(slashItemsRef.current, query),
     onOpenLink: () => uiActionsRef.current.openLink?.(),
     onOpenAnnotation: () => uiActionsRef.current.openAnnotation?.(),
+    onOpenAI: () => uiActionsRef.current.openAI?.(),
   }), [])
 
   const editor = useEditor({
@@ -329,10 +334,14 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
 
   // 被其他编辑会话顶掉后只读
   const readOnly = !doc || isTakenOver
+  // AI 写作进行中（输入要求、生成、等待确认）：锁定编辑器，避免生成位置失效或保存半成品
+  const [aiBusy, setAiBusyState] = useState(false)
+  const aiBusyRef = useRef(false)
   useEffect(() => {
+    // 不触发 update 事件，避免切换锁定时被误判为正文修改
     if (editor && !editor.isDestroyed)
-      editor.setEditable(!readOnly)
-  }, [editor, readOnly])
+      editor.setEditable(!readOnly && !aiBusy, false)
+  }, [editor, readOnly, aiBusy])
 
   // ---------- 保存 ----------
   const metaRef = useRef(meta)
@@ -355,7 +364,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   isDirtyRef.current = isDirty
 
   const save = useCallback(async ({ manual = false }: { manual?: boolean } = {}): Promise<boolean> => {
-    if (!editor || !doc || !canSave)
+    if (!editor || !doc || !canSave || aiBusyRef.current)
       return false
     if (savingRef.current) {
       pendingSaveRef.current = true
@@ -449,7 +458,10 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   useEffect(() => {
     if (!editor)
       return
-    const onUpdate = () => {
+    const onUpdate = ({ transaction }: { transaction: { getMeta: (key: string) => unknown } }) => {
+      // AI 生成中的预览内容不算作修改
+      if (transaction.getMeta(AI_PREVIEW_META))
+        return
       setContentDirty(true)
       scheduleAutosave()
     }
@@ -458,6 +470,17 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       editor.off('update', onUpdate)
     }
   }, [editor, scheduleAutosave])
+
+  const setAiBusy = useCallback((busy: boolean) => {
+    aiBusyRef.current = busy
+    setAiBusyState(busy)
+    // 立即锁定，随后的高亮事务即可让气泡菜单等按只读状态隐藏
+    if (editor && !editor.isDestroyed)
+      editor.setEditable(!readOnly && !busy, false)
+    // 会话期间跳过的自动保存在结束后补上
+    if (!busy && isDirtyRef.current)
+      scheduleAutosave()
+  }, [editor, readOnly, scheduleAutosave])
 
   const updateMeta = useCallback((patch: Partial<ContentMeta>) => {
     if (readOnly)
@@ -495,7 +518,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
 
   // ---------- 发布 ----------
   const publish = useCallback(async (): Promise<boolean> => {
-    if (!editor || !doc || !canSave || publishing)
+    if (!editor || !doc || !canSave || publishing || aiBusyRef.current)
       return false
     const currentMeta = metaRef.current
     if (!currentMeta.title.trim()) {
@@ -583,6 +606,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     readOnly,
     takeOver,
     uiActionsRef,
+    aiBusy,
+    setAiBusy,
   }
 }
 

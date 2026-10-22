@@ -495,8 +495,8 @@
       "ai_model_desc": "Name eines von der API unterstützten Modells",
       "show_secret": "Anzeigen",
       "hide_secret": "Verbergen",
-      "ai_summary_concurrency": "Parallelität der KI-Zusammenfassung",
-      "ai_summary_concurrency_desc": "Maximale Anzahl gleichzeitig erstellter Zusammenfassungen (1–20); wartende Aufträge laufen der Reihe nach"
+      "ai_summary_concurrency": "KI-Parallelität",
+      "ai_summary_concurrency_desc": "Maximale Anzahl gleichzeitiger Modellanfragen (1–20), gemeinsam für KI-Zusammenfassungen und KI-Schreiben im Editor; weitere Anfragen warten der Reihe nach, KI-Schreiben hat Vorrang"
     },
     "labels": {
       "title": "Schlagwörter",
@@ -939,7 +939,10 @@
         "hint_taskList": "Abhakbare Aufgaben",
         "hint_image": "Ein Bild hochladen",
         "hint_hr": "Abschnitte trennen",
-        "hint_date": "Aktuelles Datum einfügen"
+        "hint_date": "Aktuelles Datum einfügen",
+        "group_ai": "KI",
+        "hint_ai": "Die KI weiterschreiben oder nach Vorgabe schreiben lassen",
+        "hint_table": "3×3-Tabelle einfügen"
       },
       "block_add": "Klicken, um einen Block einzufügen",
       "block_drag": "Ziehen zum Verschieben · Klicken für Menü",
@@ -955,7 +958,8 @@
         "image": "Bild",
         "imageUpload": "Bild-Upload",
         "horizontalRule": "Trennlinie",
-        "block": "Block"
+        "block": "Block",
+        "table": "Tabelle"
       },
       "image_toolbar": "Bildwerkzeuge",
       "image_align_left": "Links",
@@ -998,7 +1002,86 @@
       "private_hint": "Nur du und Admins können es sehen",
       "top_hint": "0 bedeutet nicht angeheftet; größere Werte stehen weiter oben",
       "show_in_nav_hint": "Diese Seite in der Website-Navigation anzeigen",
-      "nav_order_hint": "Sortierwert in der Navigation"
+      "nav_order_hint": "Sortierwert in der Navigation",
+      "insert_table": "Tabelle",
+      "table": {
+        "add_row_before": "Zeile oberhalb einfügen",
+        "add_row_after": "Zeile unterhalb einfügen",
+        "add_col_before": "Spalte links einfügen",
+        "add_col_after": "Spalte rechts einfügen",
+        "toggle_header": "Kopfzeile umschalten",
+        "delete_row": "Zeile löschen",
+        "delete_col": "Spalte löschen",
+        "delete_table": "Tabelle löschen"
+      },
+      "ai": {
+        "short": "KI",
+        "open": "KI-Schreiben",
+        "open_hint": "Mit KI schreiben oder markierten Text überarbeiten",
+        "write": "Mit KI schreiben",
+        "rewrite": "Mit KI überarbeiten",
+        "custom": "Eigene Anweisung…",
+        "instruction": "Anweisung an die KI",
+        "write_placeholder": "Was soll die KI schreiben? z. B. einen Absatz zur Installation",
+        "rewrite_placeholder": "Wie soll die KI es ändern? z. B. knapper formulieren",
+        "generate": "Erzeugen",
+        "cancel": "Abbrechen",
+        "stop": "Stoppen",
+        "accept": "Übernehmen",
+        "discard": "Verwerfen",
+        "retry": "Neu erzeugen",
+        "retry_error": "Erneut versuchen",
+        "edit": "Anweisung bearbeiten",
+        "close": "Schließen",
+        "status_connecting": "Verbinde…",
+        "status_queued": "In der Warteschlange, andere KI-Aufgaben laufen…",
+        "status_thinking": "Denkt nach…",
+        "status_streaming": "Erzeuge…",
+        "status_done": "Fertig. Übernehmen fügt es in den Text ein",
+        "status_stopped": "Gestoppt. Bisher erzeugter Text bleibt erhalten",
+        "hint_prompt": "Enter erzeugen · Shift+Enter neue Zeile · Esc abbrechen",
+        "hint_done": "Nach dem Übernehmen mit {shortcut} rückgängig machen",
+        "failed": "KI-Erzeugung fehlgeschlagen",
+        "need_selection": "Markiere zuerst den Text, der überarbeitet werden soll",
+        "default_write": "Aus dem Kontext weiterschreiben",
+        "default_rewrite": "Markierung überarbeiten",
+        "preset": {
+          "continue": "Weiterschreiben",
+          "summarize": "Obiges zusammenfassen",
+          "outline": "Kernpunkte",
+          "example": "Beispiel ergänzen",
+          "polish": "Verbessern",
+          "shorten": "Kürzen",
+          "expand": "Ausbauen",
+          "formal": "Förmlicher",
+          "casual": "Lockerer",
+          "translate_en": "Ins Englische übersetzen",
+          "translate_zh": "Ins Chinesische übersetzen"
+        }
+      },
+      "context": {
+        "aria": "Kontextmenü des Editors",
+        "cut": "Ausschneiden",
+        "copy": "Kopieren",
+        "paste": "Einfügen",
+        "paste_failed": "Zwischenablage nicht lesbar. Mit {shortcut} einfügen",
+        "copy_failed": "Kopieren fehlgeschlagen. Browserberechtigungen prüfen",
+        "copied": "In die Zwischenablage kopiert",
+        "format": "Format",
+        "turn_into": "Umwandeln in",
+        "table": "Tabelle",
+        "ai_write": "Mit KI schreiben…",
+        "ai_presets": "KI-Schnellaktionen",
+        "image_replace": "Bild ersetzen…",
+        "image_copy_url": "Bildadresse kopieren",
+        "image_open": "In neuem Tab öffnen",
+        "code_copy": "Code kopieren",
+        "code_language": "Sprache",
+        "code_language_plain": "Nur Text",
+        "code_to_paragraph": "In Text umwandeln",
+        "code_delete": "Codeblock löschen",
+        "native_hint": "Shift + Rechtsklick für das Browsermenü"
+      }
     }
   },
   "Copyright": {
@@ -1278,7 +1361,12 @@
       "invalid_role": "Ungültige Rolle",
       "invalid_username": "Ungültiger Benutzername",
       "invalid_nickname": "Ungültiger Spitzname",
-      "invalid_email": "Ungültige E-Mail"
+      "invalid_email": "Ungültige E-Mail",
+      "ai_input_too_long": "Eingabe zu lang. Markierung oder Anweisung kürzen und erneut versuchen",
+      "ai_write_empty_selection": "Die Markierung ist leer",
+      "ai_timeout": "Zeitüberschreitung bei der KI-Antwort",
+      "ai_empty_response": "Die KI hat keinen Inhalt geliefert",
+      "ai_interrupted": "Verbindung unterbrochen, Erzeugung unvollständig"
     }
   },
   "ErrorPage": {

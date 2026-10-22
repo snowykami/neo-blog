@@ -495,8 +495,8 @@
       "ai_model_desc": "Name of a model supported by the API",
       "show_secret": "Show",
       "hide_secret": "Hide",
-      "ai_summary_concurrency": "AI summary concurrency",
-      "ai_summary_concurrency_desc": "Maximum number of summaries generated at the same time (1–20); queued jobs run in order"
+      "ai_summary_concurrency": "AI concurrency",
+      "ai_summary_concurrency_desc": "Maximum number of simultaneous model requests (1–20), shared by AI summaries and AI writing in the editor; extra requests queue in order, with AI writing served first"
     },
     "labels": {
       "title": "Tags",
@@ -939,7 +939,10 @@
         "hint_taskList": "Checkable to-do items",
         "hint_image": "Upload an image",
         "hint_hr": "Separate sections",
-        "hint_date": "Insert the current date"
+        "hint_date": "Insert the current date",
+        "group_ai": "AI",
+        "hint_ai": "Let AI continue writing or follow your prompt",
+        "hint_table": "Insert a 3×3 table"
       },
       "block_add": "Click to insert a block",
       "block_drag": "Drag to move · click for menu",
@@ -955,7 +958,8 @@
         "image": "Image",
         "imageUpload": "Image upload",
         "horizontalRule": "Divider",
-        "block": "Block"
+        "block": "Block",
+        "table": "Table"
       },
       "image_toolbar": "Image tools",
       "image_align_left": "Align left",
@@ -998,7 +1002,86 @@
       "private_hint": "Only you and admins can see it",
       "top_hint": "0 means not pinned; larger values rank higher",
       "show_in_nav_hint": "Show this page in the site navigation",
-      "nav_order_hint": "Sort value in the navigation"
+      "nav_order_hint": "Sort value in the navigation",
+      "insert_table": "Table",
+      "table": {
+        "add_row_before": "Insert row above",
+        "add_row_after": "Insert row below",
+        "add_col_before": "Insert column left",
+        "add_col_after": "Insert column right",
+        "toggle_header": "Toggle header row",
+        "delete_row": "Delete row",
+        "delete_col": "Delete column",
+        "delete_table": "Delete table"
+      },
+      "ai": {
+        "short": "AI",
+        "open": "AI writing",
+        "open_hint": "Write with AI, or rewrite the selected text",
+        "write": "Write with AI",
+        "rewrite": "Rewrite with AI",
+        "custom": "Custom prompt…",
+        "instruction": "Prompt for AI",
+        "write_placeholder": "Tell AI what to write, e.g. add a paragraph on installation",
+        "rewrite_placeholder": "Tell AI how to change it, e.g. make it more concise",
+        "generate": "Generate",
+        "cancel": "Cancel",
+        "stop": "Stop",
+        "accept": "Accept",
+        "discard": "Discard",
+        "retry": "Regenerate",
+        "retry_error": "Retry",
+        "edit": "Edit prompt",
+        "close": "Close",
+        "status_connecting": "Connecting…",
+        "status_queued": "Queued, waiting for other AI tasks…",
+        "status_thinking": "Thinking…",
+        "status_streaming": "Generating…",
+        "status_done": "Done. Accept to keep it in the document",
+        "status_stopped": "Stopped. The generated part is kept",
+        "hint_prompt": "Enter to generate · Shift+Enter for new line · Esc to cancel",
+        "hint_done": "You can undo with {shortcut} after accepting",
+        "failed": "AI generation failed",
+        "need_selection": "Select the text to rewrite first",
+        "default_write": "Continue from context",
+        "default_rewrite": "Polish the selection",
+        "preset": {
+          "continue": "Continue",
+          "summarize": "Summarize above",
+          "outline": "Key points",
+          "example": "Add an example",
+          "polish": "Polish",
+          "shorten": "Shorten",
+          "expand": "Expand",
+          "formal": "More formal",
+          "casual": "More casual",
+          "translate_en": "Translate to English",
+          "translate_zh": "Translate to Chinese"
+        }
+      },
+      "context": {
+        "aria": "Editor context menu",
+        "cut": "Cut",
+        "copy": "Copy",
+        "paste": "Paste",
+        "paste_failed": "Cannot read the clipboard. Use {shortcut} to paste",
+        "copy_failed": "Copy failed. Check browser permissions",
+        "copied": "Copied to clipboard",
+        "format": "Format",
+        "turn_into": "Turn into",
+        "table": "Table",
+        "ai_write": "Write with AI…",
+        "ai_presets": "AI quick actions",
+        "image_replace": "Replace image…",
+        "image_copy_url": "Copy image address",
+        "image_open": "Open in new tab",
+        "code_copy": "Copy code",
+        "code_language": "Language",
+        "code_language_plain": "Plain text",
+        "code_to_paragraph": "Turn into text",
+        "code_delete": "Delete code block",
+        "native_hint": "Shift + right-click for the browser menu"
+      }
     }
   },
   "Copyright": {
@@ -1278,7 +1361,12 @@
       "invalid_role": "Invalid role",
       "invalid_username": "Invalid username",
       "invalid_nickname": "Invalid nickname",
-      "invalid_email": "Invalid email"
+      "invalid_email": "Invalid email",
+      "ai_input_too_long": "Input is too long. Shorten the selection or prompt and try again",
+      "ai_write_empty_selection": "The selection is empty",
+      "ai_timeout": "AI response timed out",
+      "ai_empty_response": "AI returned no content",
+      "ai_interrupted": "Connection lost before generation finished"
     }
   },
   "ErrorPage": {

@@ -21,6 +21,8 @@ export interface EditorToolbarState {
   blockType: BlockTypeId
   // 选中图片、分割线等节点时的节点名
   selectedNode: string | null
+  // 有非空的文字选区
+  textSelection: boolean
   marks: Record<InlineMarkId, { active: boolean, can: boolean }>
   align: TextAlign
   canAlign: boolean
@@ -42,6 +44,7 @@ const EMPTY_STATE: EditorToolbarState = {
   canRedo: false,
   blockType: 'paragraph',
   selectedNode: null,
+  textSelection: false,
   marks: Object.fromEntries(Object.keys(INLINE_MARKS).map(id => [id, { active: false, can: false }])) as EditorToolbarState['marks'],
   align: 'left',
   canAlign: false,
@@ -78,6 +81,7 @@ export function useEditorToolbarState(editor: Editor | null): EditorToolbarState
         canRedo: canExecuteUndoRedoAction(ed, 'redo'),
         blockType: getActiveBlockType(ed),
         selectedNode: selection instanceof NodeSelection ? selection.node.type.name : null,
+        textSelection: !selection.empty && !(selection instanceof NodeSelection),
         marks,
         align: getActiveTextAlign(ed),
         canAlign: editable && !(selection instanceof NodeSelection) && ed.can().setTextAlign('left'),

@@ -307,6 +307,92 @@
   }
 }
 
+/* ---------- 表格 ---------- */
+.neo-editor-root .tiptap.ProseMirror {
+  .tableWrapper {
+    margin: 1.25em 0;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    table-layout: fixed;
+    overflow: hidden;
+  }
+
+  th,
+  td {
+    position: relative;
+    min-width: 4em;
+    border: 1px solid var(--border);
+    padding: 0.4em 0.75em;
+    vertical-align: top;
+
+    > p {
+      margin: 0;
+    }
+  }
+
+  th {
+    background: var(--muted);
+    font-weight: 600;
+    text-align: left;
+  }
+
+  /* 选中的单元格 */
+  .selectedCell::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    pointer-events: none;
+  }
+}
+
+/* ---------- AI 写作：目标位置与生成内容 ---------- */
+.neo-editor-root .tiptap.ProseMirror {
+  /* 待润色的选区 */
+  .neo-ai-target {
+    background: color-mix(in oklab, var(--primary) 16%, transparent);
+    border-radius: 2px;
+  }
+
+  /* 生成中 / 待确认的内容 */
+  .neo-ai-generated {
+    background: color-mix(in oklab, var(--primary) 9%, transparent);
+    text-decoration: underline dashed color-mix(in oklab, var(--primary) 55%, transparent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+
+  .neo-ai-target-node,
+  .neo-ai-generated-node {
+    outline: 2px dashed color-mix(in oklab, var(--primary) 45%, transparent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* 插入点 / 生成中的光标 */
+  .neo-ai-caret {
+    display: inline-block;
+    width: 2px;
+    height: 1.15em;
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    border-radius: 1px;
+    background: var(--primary);
+    animation: neo-ai-caret-blink 1s steps(2, start) infinite;
+  }
+}
+
+@keyframes neo-ai-caret-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
 /* ---------- 专注模式：淡化非当前块 ---------- */
 .neo-focus-mode .neo-editor-root .tiptap.ProseMirror {
   > * {

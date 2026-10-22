@@ -59,7 +59,9 @@ axiosClient.interceptors.request.use((config) => {
 
 axiosClient.interceptors.response.use(
   (response) => {
-    if (response.data && typeof response.data === 'object') {
+    // 流式响应（responseType: 'stream'）保持原样，由调用方自行解析
+    const isStream = typeof ReadableStream !== 'undefined' && response.data instanceof ReadableStream
+    if (response.data && typeof response.data === 'object' && !isStream) {
       response.data = snakeToCamelObj(response.data)
     }
     return response

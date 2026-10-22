@@ -495,8 +495,8 @@
       "ai_model_desc": "介面所支之模型名",
       "show_secret": "顯之",
       "hide_secret": "隱之",
-      "ai_summary_concurrency": "AI 撮要並行之數",
-      "ai_summary_concurrency_desc": "同時作撮要之任上限（一至二十），待次者依序行之"
+      "ai_summary_concurrency": "AI 並行之數",
+      "ai_summary_concurrency_desc": "同時召模型之請上限（一至二十），撮要與編者 AI 撰文共之；逾則依序待之，撰文先行"
     },
     "labels": {
       "title": "標籤管理",
@@ -939,7 +939,10 @@
         "hint_taskList": "可勾之待辦",
         "hint_image": "上傳本地之圖",
         "hint_hr": "分其章節",
-        "hint_date": "書今日之期"
+        "hint_date": "書今日之期",
+        "group_ai": "AI",
+        "hint_ai": "使 AI 於此續書，或依所囑而作",
+        "hint_table": "插三行三列之表"
       },
       "block_add": "點以插塊",
       "block_drag": "曳以移 · 點以開單",
@@ -955,7 +958,8 @@
         "image": "圖",
         "imageUpload": "傳圖",
         "horizontalRule": "界線",
-        "block": "塊"
+        "block": "塊",
+        "table": "表"
       },
       "image_toolbar": "圖之具",
       "image_align_left": "居左",
@@ -998,7 +1002,86 @@
       "private_hint": "啟之則唯己與司者可見",
       "top_hint": "零為不置頂；數愈大愈前",
       "show_in_nav_hint": "列此頁於本站導覽",
-      "nav_order_hint": "導覽之序值"
+      "nav_order_hint": "導覽之序值",
+      "insert_table": "表",
+      "table": {
+        "add_row_before": "上增一行",
+        "add_row_after": "下增一行",
+        "add_col_before": "左增一列",
+        "add_col_after": "右增一列",
+        "toggle_header": "易題行",
+        "delete_row": "刪此行",
+        "delete_col": "刪此列",
+        "delete_table": "刪此表"
+      },
+      "ai": {
+        "short": "AI",
+        "open": "AI 撰文",
+        "open_hint": "AI 代筆，或潤所選之文",
+        "write": "AI 代筆",
+        "rewrite": "AI 潤色",
+        "custom": "自擬其令…",
+        "instruction": "所囑於 AI 者",
+        "write_placeholder": "告 AI 所欲書者，如：補述安裝之法",
+        "rewrite_placeholder": "告 AI 所欲改者，如：易之以簡言",
+        "generate": "作",
+        "cancel": "罷",
+        "stop": "止",
+        "accept": "納",
+        "discard": "棄",
+        "retry": "再作",
+        "retry_error": "復試",
+        "edit": "改其所囑",
+        "close": "閉",
+        "status_connecting": "方相連…",
+        "status_queued": "方候，待他 AI 事畢…",
+        "status_thinking": "模型方思…",
+        "status_streaming": "方作…",
+        "status_done": "作畢，納之乃入正文",
+        "status_stopped": "已止，所作者存焉",
+        "hint_prompt": "Enter 作 · Shift+Enter 易行 · Esc 罷",
+        "hint_done": "納後可以 {shortcut} 復之",
+        "failed": "AI 作而未成",
+        "need_selection": "請先擇欲潤之文",
+        "default_write": "循上下文續之",
+        "default_rewrite": "潤所選之文",
+        "preset": {
+          "continue": "續書",
+          "summarize": "總前文",
+          "outline": "列其要",
+          "example": "補一例",
+          "polish": "潤色",
+          "shorten": "刪繁",
+          "expand": "敷衍",
+          "formal": "使之莊",
+          "casual": "使之俗",
+          "translate_en": "譯為英文",
+          "translate_zh": "譯為中文"
+        }
+      },
+      "context": {
+        "aria": "編者右擊之單",
+        "cut": "剪",
+        "copy": "錄",
+        "paste": "貼",
+        "paste_failed": "剪貼簿不可讀，請以 {shortcut} 貼之",
+        "copy_failed": "錄而未成，請察瀏覽器之權",
+        "copied": "已錄於剪貼簿",
+        "format": "格式",
+        "turn_into": "易為",
+        "table": "表",
+        "ai_write": "AI 代筆…",
+        "ai_presets": "AI 捷令",
+        "image_replace": "易圖…",
+        "image_copy_url": "錄圖之址",
+        "image_open": "於新頁啟之",
+        "code_copy": "錄其碼",
+        "code_language": "碼之語",
+        "code_language_plain": "素文",
+        "code_to_paragraph": "易為正文",
+        "code_delete": "刪碼塊",
+        "native_hint": "按 Shift 右擊，可啟瀏覽器之單"
+      }
     }
   },
   "Copyright": {
@@ -1250,7 +1333,12 @@
       "invalid_role": "職無效",
       "invalid_username": "名式無效",
       "invalid_nickname": "號式無效",
-      "invalid_email": "郵式無效"
+      "invalid_email": "郵式無效",
+      "ai_input_too_long": "文過長，請減所選或所囑而復試",
+      "ai_write_empty_selection": "所選者空",
+      "ai_timeout": "AI 久而不應",
+      "ai_empty_response": "AI 無所答",
+      "ai_interrupted": "連綴中絕，作而未竟"
     }
   },
   "Role": {

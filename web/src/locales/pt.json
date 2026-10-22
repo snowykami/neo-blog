@@ -495,8 +495,8 @@
       "ai_model_desc": "Nome de um modelo suportado pela API",
       "show_secret": "Mostrar",
       "hide_secret": "Ocultar",
-      "ai_summary_concurrency": "Concorrência de resumos com IA",
-      "ai_summary_concurrency_desc": "Número máximo de resumos gerados ao mesmo tempo (1–20); tarefas na fila rodam em ordem"
+      "ai_summary_concurrency": "Concorrência de IA",
+      "ai_summary_concurrency_desc": "Número máximo de solicitações simultâneas ao modelo (1–20), compartilhado por resumos com IA e pela escrita com IA no editor; as demais aguardam na fila, com prioridade para a escrita com IA"
     },
     "labels": {
       "title": "Tags",
@@ -939,7 +939,10 @@
         "hint_taskList": "Tarefas marcáveis",
         "hint_image": "Enviar uma imagem",
         "hint_hr": "Separar seções",
-        "hint_date": "Inserir a data atual"
+        "hint_date": "Inserir a data atual",
+        "group_ai": "IA",
+        "hint_ai": "Deixe a IA continuar ou escrever conforme sua instrução",
+        "hint_table": "Inserir uma tabela 3×3"
       },
       "block_add": "Clique para inserir um bloco",
       "block_drag": "Arraste para mover · clique para o menu",
@@ -955,7 +958,8 @@
         "image": "Imagem",
         "imageUpload": "Envio de imagem",
         "horizontalRule": "Divisor",
-        "block": "Bloco"
+        "block": "Bloco",
+        "table": "Tabela"
       },
       "image_toolbar": "Ferramentas de imagem",
       "image_align_left": "À esquerda",
@@ -998,7 +1002,86 @@
       "private_hint": "Apenas você e administradores podem ver",
       "top_hint": "0 = não fixado; valores maiores aparecem primeiro",
       "show_in_nav_hint": "Mostrar esta página na navegação do site",
-      "nav_order_hint": "Valor de ordenação na navegação"
+      "nav_order_hint": "Valor de ordenação na navegação",
+      "insert_table": "Tabela",
+      "table": {
+        "add_row_before": "Inserir linha acima",
+        "add_row_after": "Inserir linha abaixo",
+        "add_col_before": "Inserir coluna à esquerda",
+        "add_col_after": "Inserir coluna à direita",
+        "toggle_header": "Alternar linha de cabeçalho",
+        "delete_row": "Excluir linha",
+        "delete_col": "Excluir coluna",
+        "delete_table": "Excluir tabela"
+      },
+      "ai": {
+        "short": "IA",
+        "open": "Escrita com IA",
+        "open_hint": "Escreva com IA ou reescreva o texto selecionado",
+        "write": "Escrever com IA",
+        "rewrite": "Reescrever com IA",
+        "custom": "Instrução personalizada…",
+        "instruction": "Instrução para a IA",
+        "write_placeholder": "Diga à IA o que escrever, ex.: um parágrafo sobre a instalação",
+        "rewrite_placeholder": "Diga à IA como alterar, ex.: mais conciso",
+        "generate": "Gerar",
+        "cancel": "Cancelar",
+        "stop": "Parar",
+        "accept": "Aceitar",
+        "discard": "Descartar",
+        "retry": "Gerar novamente",
+        "retry_error": "Tentar novamente",
+        "edit": "Editar instrução",
+        "close": "Fechar",
+        "status_connecting": "Conectando…",
+        "status_queued": "Na fila, aguardando outras tarefas de IA…",
+        "status_thinking": "Pensando…",
+        "status_streaming": "Gerando…",
+        "status_done": "Concluído. Aceite para manter no documento",
+        "status_stopped": "Parado. O conteúdo gerado foi mantido",
+        "hint_prompt": "Enter para gerar · Shift+Enter nova linha · Esc cancelar",
+        "hint_done": "Depois de aceitar, desfaça com {shortcut}",
+        "failed": "Falha na geração com IA",
+        "need_selection": "Selecione primeiro o texto a reescrever",
+        "default_write": "Continuar a partir do contexto",
+        "default_rewrite": "Aprimorar a seleção",
+        "preset": {
+          "continue": "Continuar",
+          "summarize": "Resumir o acima",
+          "outline": "Pontos-chave",
+          "example": "Adicionar exemplo",
+          "polish": "Aprimorar",
+          "shorten": "Encurtar",
+          "expand": "Expandir",
+          "formal": "Mais formal",
+          "casual": "Mais descontraído",
+          "translate_en": "Traduzir para inglês",
+          "translate_zh": "Traduzir para chinês"
+        }
+      },
+      "context": {
+        "aria": "Menu de contexto do editor",
+        "cut": "Recortar",
+        "copy": "Copiar",
+        "paste": "Colar",
+        "paste_failed": "Não foi possível ler a área de transferência. Use {shortcut} para colar",
+        "copy_failed": "Falha ao copiar. Verifique as permissões do navegador",
+        "copied": "Copiado para a área de transferência",
+        "format": "Formatação",
+        "turn_into": "Transformar em",
+        "table": "Tabela",
+        "ai_write": "Escrever com IA…",
+        "ai_presets": "Ações rápidas de IA",
+        "image_replace": "Substituir imagem…",
+        "image_copy_url": "Copiar endereço da imagem",
+        "image_open": "Abrir em nova aba",
+        "code_copy": "Copiar código",
+        "code_language": "Linguagem",
+        "code_language_plain": "Texto simples",
+        "code_to_paragraph": "Transformar em texto",
+        "code_delete": "Excluir bloco de código",
+        "native_hint": "Shift + clique direito para o menu do navegador"
+      }
     }
   },
   "Copyright": {
@@ -1278,7 +1361,12 @@
       "invalid_role": "Função inválida",
       "invalid_username": "Nome de usuário inválido",
       "invalid_nickname": "Apelido inválido",
-      "invalid_email": "E-mail inválido"
+      "invalid_email": "E-mail inválido",
+      "ai_input_too_long": "Entrada muito longa. Reduza a seleção ou a instrução e tente novamente",
+      "ai_write_empty_selection": "A seleção está vazia",
+      "ai_timeout": "Tempo de resposta da IA esgotado",
+      "ai_empty_response": "A IA não retornou conteúdo",
+      "ai_interrupted": "Conexão perdida antes de concluir a geração"
     }
   },
   "ErrorPage": {

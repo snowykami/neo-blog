@@ -495,8 +495,8 @@
       "ai_model_desc": "API द्वारा समर्थित मॉडल का नाम",
       "show_secret": "दिखाएँ",
       "hide_secret": "छिपाएँ",
-      "ai_summary_concurrency": "AI सारांश समवर्तीता",
-      "ai_summary_concurrency_desc": "एक साथ बनने वाले सारांशों की अधिकतम संख्या (1–20); कतार के कार्य क्रम से चलते हैं"
+      "ai_summary_concurrency": "AI समवर्तीता",
+      "ai_summary_concurrency_desc": "मॉडल को एक साथ भेजे जाने वाले अनुरोधों की अधिकतम संख्या (1–20), AI सारांश और संपादक के AI लेखन में साझा; अतिरिक्त अनुरोध क्रम से कतार में रहते हैं, AI लेखन को प्राथमिकता"
     },
     "labels": {
       "title": "टैग",
@@ -939,7 +939,10 @@
         "hint_taskList": "चेक करने योग्य कार्य",
         "hint_image": "चित्र अपलोड करें",
         "hint_hr": "अनुभाग अलग करें",
-        "hint_date": "आज की तारीख डालें"
+        "hint_date": "आज की तारीख डालें",
+        "group_ai": "AI",
+        "hint_ai": "AI को यहाँ से आगे लिखने या आपके निर्देश पर लिखने दें",
+        "hint_table": "3×3 तालिका डालें"
       },
       "block_add": "ब्लॉक डालने के लिए क्लिक करें",
       "block_drag": "खिसकाने के लिए खींचें · मेनू के लिए क्लिक करें",
@@ -955,7 +958,8 @@
         "image": "चित्र",
         "imageUpload": "चित्र अपलोड",
         "horizontalRule": "विभाजक",
-        "block": "ब्लॉक"
+        "block": "ब्लॉक",
+        "table": "तालिका"
       },
       "image_toolbar": "चित्र उपकरण",
       "image_align_left": "बाएँ",
@@ -998,7 +1002,86 @@
       "private_hint": "केवल आप और एडमिन देख सकते हैं",
       "top_hint": "0 का अर्थ पिन नहीं; बड़ा मान ऊपर दिखता है",
       "show_in_nav_hint": "इस पेज को साइट नेविगेशन में दिखाएँ",
-      "nav_order_hint": "नेविगेशन में क्रम मान"
+      "nav_order_hint": "नेविगेशन में क्रम मान",
+      "insert_table": "तालिका",
+      "table": {
+        "add_row_before": "ऊपर पंक्ति डालें",
+        "add_row_after": "नीचे पंक्ति डालें",
+        "add_col_before": "बाईं ओर कॉलम डालें",
+        "add_col_after": "दाईं ओर कॉलम डालें",
+        "toggle_header": "शीर्ष पंक्ति टॉगल करें",
+        "delete_row": "पंक्ति हटाएँ",
+        "delete_col": "कॉलम हटाएँ",
+        "delete_table": "तालिका हटाएँ"
+      },
+      "ai": {
+        "short": "AI",
+        "open": "AI लेखन",
+        "open_hint": "AI से लिखें या चुना हुआ पाठ फिर से लिखें",
+        "write": "AI से लिखें",
+        "rewrite": "AI से सुधारें",
+        "custom": "अपना निर्देश…",
+        "instruction": "AI के लिए निर्देश",
+        "write_placeholder": "AI को बताएँ क्या लिखना है, जैसे: इंस्टॉलेशन पर एक अनुच्छेद",
+        "rewrite_placeholder": "AI को बताएँ कैसे बदलना है, जैसे: और संक्षिप्त करें",
+        "generate": "बनाएँ",
+        "cancel": "रद्द करें",
+        "stop": "रोकें",
+        "accept": "स्वीकारें",
+        "discard": "छोड़ें",
+        "retry": "फिर से बनाएँ",
+        "retry_error": "पुनः प्रयास",
+        "edit": "निर्देश बदलें",
+        "close": "बंद करें",
+        "status_connecting": "कनेक्ट हो रहा है…",
+        "status_queued": "कतार में, अन्य AI कार्यों की प्रतीक्षा…",
+        "status_thinking": "सोच रहा है…",
+        "status_streaming": "बना रहा है…",
+        "status_done": "पूरा हुआ। स्वीकारने पर पाठ में जुड़ जाएगा",
+        "status_stopped": "रोका गया। बना हुआ पाठ रखा गया है",
+        "hint_prompt": "Enter बनाएँ · Shift+Enter नई पंक्ति · Esc रद्द करें",
+        "hint_done": "स्वीकारने के बाद {shortcut} से पूर्ववत करें",
+        "failed": "AI से बनाना विफल रहा",
+        "need_selection": "पहले सुधारने के लिए पाठ चुनें",
+        "default_write": "संदर्भ से आगे लिखें",
+        "default_rewrite": "चयन को सुधारें",
+        "preset": {
+          "continue": "आगे लिखें",
+          "summarize": "ऊपर का सारांश",
+          "outline": "मुख्य बिंदु",
+          "example": "उदाहरण जोड़ें",
+          "polish": "सुधारें",
+          "shorten": "छोटा करें",
+          "expand": "विस्तार करें",
+          "formal": "अधिक औपचारिक",
+          "casual": "अधिक सहज",
+          "translate_en": "अंग्रेज़ी में अनुवाद",
+          "translate_zh": "चीनी में अनुवाद"
+        }
+      },
+      "context": {
+        "aria": "संपादक संदर्भ मेनू",
+        "cut": "काटें",
+        "copy": "कॉपी करें",
+        "paste": "चिपकाएँ",
+        "paste_failed": "क्लिपबोर्ड पढ़ा नहीं जा सका। {shortcut} से चिपकाएँ",
+        "copy_failed": "कॉपी विफल। ब्राउज़र अनुमतियाँ जाँचें",
+        "copied": "क्लिपबोर्ड पर कॉपी किया गया",
+        "format": "प्रारूप",
+        "turn_into": "में बदलें",
+        "table": "तालिका",
+        "ai_write": "AI से लिखें…",
+        "ai_presets": "AI त्वरित क्रियाएँ",
+        "image_replace": "छवि बदलें…",
+        "image_copy_url": "छवि का पता कॉपी करें",
+        "image_open": "नए टैब में खोलें",
+        "code_copy": "कोड कॉपी करें",
+        "code_language": "भाषा",
+        "code_language_plain": "सादा पाठ",
+        "code_to_paragraph": "पाठ में बदलें",
+        "code_delete": "कोड ब्लॉक हटाएँ",
+        "native_hint": "ब्राउज़र मेनू के लिए Shift + राइट-क्लिक"
+      }
     }
   },
   "Copyright": {
@@ -1278,7 +1361,12 @@
       "invalid_role": "अमान्य भूमिका",
       "invalid_username": "अमान्य उपयोगकर्ता नाम",
       "invalid_nickname": "अमान्य उपनाम",
-      "invalid_email": "अमान्य ईमेल"
+      "invalid_email": "अमान्य ईमेल",
+      "ai_input_too_long": "इनपुट बहुत लंबा है। चयन या निर्देश छोटा करके फिर कोशिश करें",
+      "ai_write_empty_selection": "चयन खाली है",
+      "ai_timeout": "AI प्रतिक्रिया का समय समाप्त",
+      "ai_empty_response": "AI ने कोई सामग्री नहीं लौटाई",
+      "ai_interrupted": "कनेक्शन टूट गया, निर्माण अधूरा रहा"
     }
   },
   "ErrorPage": {

@@ -495,8 +495,8 @@
       "ai_model_desc": "API에서 지원하는 모델 이름",
       "show_secret": "표시",
       "hide_secret": "숨기기",
-      "ai_summary_concurrency": "AI 요약 동시 실행 수",
-      "ai_summary_concurrency_desc": "동시에 요약을 생성하는 작업 수 상한(1~20). 대기 중인 작업은 순서대로 실행됩니다"
+      "ai_summary_concurrency": "AI 동시 실행 수",
+      "ai_summary_concurrency_desc": "모델 동시 요청 수 상한(1~20). AI 요약과 편집기 AI 글쓰기가 함께 사용하며, 초과 요청은 순서대로 대기합니다(AI 글쓰기 우선)"
     },
     "labels": {
       "title": "태그",
@@ -939,7 +939,10 @@
         "hint_taskList": "체크할 수 있는 할 일",
         "hint_image": "이미지 업로드",
         "hint_hr": "섹션 구분",
-        "hint_date": "오늘 날짜 삽입"
+        "hint_date": "오늘 날짜 삽입",
+        "group_ai": "AI",
+        "hint_ai": "AI가 이어서 쓰거나 요청대로 작성",
+        "hint_table": "3×3 표 삽입"
       },
       "block_add": "클릭하여 블록 삽입",
       "block_drag": "드래그하여 이동 · 클릭하여 메뉴",
@@ -955,7 +958,8 @@
         "image": "이미지",
         "imageUpload": "이미지 업로드",
         "horizontalRule": "구분선",
-        "block": "블록"
+        "block": "블록",
+        "table": "표"
       },
       "image_toolbar": "이미지 도구",
       "image_align_left": "왼쪽",
@@ -998,7 +1002,86 @@
       "private_hint": "켜면 나와 관리자만 볼 수 있습니다",
       "top_hint": "0은 고정 안 함, 값이 클수록 위에 표시",
       "show_in_nav_hint": "사이트 내비게이션에 이 페이지 표시",
-      "nav_order_hint": "내비게이션 정렬 값"
+      "nav_order_hint": "내비게이션 정렬 값",
+      "insert_table": "표",
+      "table": {
+        "add_row_before": "위에 행 삽입",
+        "add_row_after": "아래에 행 삽입",
+        "add_col_before": "왼쪽에 열 삽입",
+        "add_col_after": "오른쪽에 열 삽입",
+        "toggle_header": "머리글 행 전환",
+        "delete_row": "행 삭제",
+        "delete_col": "열 삭제",
+        "delete_table": "표 삭제"
+      },
+      "ai": {
+        "short": "AI",
+        "open": "AI 글쓰기",
+        "open_hint": "AI로 작성하거나 선택한 글 다듬기",
+        "write": "AI로 작성",
+        "rewrite": "AI로 다듬기",
+        "custom": "직접 지시…",
+        "instruction": "AI에 대한 요청",
+        "write_placeholder": "무엇을 쓸지 알려 주세요. 예: 설치 방법 단락 추가",
+        "rewrite_placeholder": "어떻게 고칠지 알려 주세요. 예: 더 간결하게",
+        "generate": "생성",
+        "cancel": "취소",
+        "stop": "중지",
+        "accept": "적용",
+        "discard": "버리기",
+        "retry": "다시 생성",
+        "retry_error": "다시 시도",
+        "edit": "요청 수정",
+        "close": "닫기",
+        "status_connecting": "연결 중…",
+        "status_queued": "대기 중, 다른 AI 작업을 기다리는 중…",
+        "status_thinking": "생각하는 중…",
+        "status_streaming": "생성 중…",
+        "status_done": "생성 완료. 적용하면 본문에 반영됩니다",
+        "status_stopped": "중지됨. 생성된 내용은 유지됩니다",
+        "hint_prompt": "Enter 생성 · Shift+Enter 줄바꿈 · Esc 취소",
+        "hint_done": "적용 후 {shortcut}로 되돌릴 수 있습니다",
+        "failed": "AI 생성 실패",
+        "need_selection": "다듬을 텍스트를 먼저 선택하세요",
+        "default_write": "문맥에 맞게 이어 쓰기",
+        "default_rewrite": "선택 내용 다듬기",
+        "preset": {
+          "continue": "이어 쓰기",
+          "summarize": "앞 내용 요약",
+          "outline": "요점 정리",
+          "example": "예시 추가",
+          "polish": "다듬기",
+          "shorten": "줄이기",
+          "expand": "늘리기",
+          "formal": "더 격식 있게",
+          "casual": "더 편하게",
+          "translate_en": "영어로 번역",
+          "translate_zh": "중국어로 번역"
+        }
+      },
+      "context": {
+        "aria": "편집기 컨텍스트 메뉴",
+        "cut": "잘라내기",
+        "copy": "복사",
+        "paste": "붙여넣기",
+        "paste_failed": "클립보드를 읽을 수 없습니다. {shortcut}(으)로 붙여넣으세요",
+        "copy_failed": "복사 실패. 브라우저 권한을 확인하세요",
+        "copied": "클립보드에 복사했습니다",
+        "format": "서식",
+        "turn_into": "변환",
+        "table": "표",
+        "ai_write": "AI로 작성…",
+        "ai_presets": "AI 빠른 작업",
+        "image_replace": "이미지 바꾸기…",
+        "image_copy_url": "이미지 주소 복사",
+        "image_open": "새 탭에서 열기",
+        "code_copy": "코드 복사",
+        "code_language": "언어",
+        "code_language_plain": "일반 텍스트",
+        "code_to_paragraph": "본문으로 변환",
+        "code_delete": "코드 블록 삭제",
+        "native_hint": "Shift + 우클릭으로 브라우저 메뉴 열기"
+      }
     }
   },
   "Copyright": {
@@ -1278,7 +1361,12 @@
       "invalid_role": "잘못된 역할입니다",
       "invalid_username": "잘못된 사용자 이름입니다",
       "invalid_nickname": "잘못된 닉네임입니다",
-      "invalid_email": "잘못된 이메일입니다"
+      "invalid_email": "잘못된 이메일입니다",
+      "ai_input_too_long": "입력이 너무 깁니다. 선택 범위나 요청을 줄여 다시 시도하세요",
+      "ai_write_empty_selection": "선택한 내용이 비어 있습니다",
+      "ai_timeout": "AI 응답 시간이 초과되었습니다",
+      "ai_empty_response": "AI가 내용을 반환하지 않았습니다",
+      "ai_interrupted": "연결이 끊겨 생성이 완료되지 않았습니다"
     }
   },
   "ErrorPage": {
