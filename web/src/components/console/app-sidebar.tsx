@@ -1,9 +1,8 @@
 'use client'
 
-import { IconInnerShadowTop } from '@tabler/icons-react'
-
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
+import { SiteLogo } from '@/components/common/site-logo'
 import {
   Sidebar,
   SidebarContent,
@@ -37,7 +36,7 @@ export function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-1.5">
               <Link href="/">
-                <IconInnerShadowTop className="!size-5" />
+                <SiteLogo className="!size-5" />
                 <span className="text-base font-semibold">{siteInfo?.metadata?.name}</span>
               </Link>
             </SidebarMenuButton>

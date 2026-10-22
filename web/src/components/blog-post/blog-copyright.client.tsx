@@ -1,10 +1,10 @@
 'use client'
 
 import type { Post } from '@/models/post'
-import { IconCreativeCommons } from '@tabler/icons-react'
 import { CopyIcon } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import Link from 'next/link'
+import { FaCreativeCommons } from 'react-icons/fa6'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { useSiteInfo } from '@/contexts/site-info-context'
@@ -32,7 +32,7 @@ function CopyrightCard({ post, className }: { post: Post, className?: string }) 
       aria-label={copyrightT('copyright_notice')}
       className={cn('relative overflow-hidden rounded-xl bg-foreground/[.03] p-5', className)}
     >
-      <IconCreativeCommons
+      <FaCreativeCommons
         aria-hidden
         className="pointer-events-none absolute top-1/2 right-6 size-60 -translate-y-1/2 text-foreground/5"
       />

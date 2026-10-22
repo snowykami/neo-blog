@@ -1,4 +1,4 @@
-import { Trash } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { useOperationT } from '@/hooks/use-translations'
 import { Button } from '../ui/button'
 import { ConfirmDialog } from './confirm-dialog'
@@ -15,7 +15,7 @@ export function DeleteButtonWithConfirmDialog({ onDelete }: { onDelete: () => vo
       onConfirm={onDelete}
     >
       <Button variant="outline" size="icon" className="text-red-500 hover:text-red-600" aria-label={operationT('delete')}>
-        <Trash size={16} />
+        <Trash2 className="size-4" />
       </Button>
     </ConfirmDialog>
   )
