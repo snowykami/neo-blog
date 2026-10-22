@@ -91,10 +91,18 @@ func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 }
 
 func (p *PostController) GetRandom(ctx context.Context, c *app.RequestContext) {
-	var post model.Post
-	if err := repo.GetDB().Where("is_private = ?", false).Order("RANDOM()").Limit(1).Find(&post).Error; err != nil {
+	// 先只随机取 id，避免对整表正文排序
+	var ids []uint
+	if err := repo.GetDB().Model(&model.Post{}).Where("is_private = ?", false).Order("RANDOM()").Limit(1).Pluck("id", &ids).Error; err != nil {
 		resps.InternalServerError(c, err.Error())
 		return
+	}
+	var post model.Post
+	if len(ids) > 0 {
+		if err := repo.GetDB().Omit("draft_content").First(&post, ids[0]).Error; err != nil {
+			resps.InternalServerError(c, err.Error())
+			return
+		}
 	}
 	postDto := post.ToDto()
 	postDto.DraftContent = nil // 不返回草稿内容

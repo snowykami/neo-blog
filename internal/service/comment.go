@@ -14,6 +14,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"gorm.io/gorm"
 )
@@ -80,7 +81,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		UserAgent:      req.UserAgent,
 		ShowClientInfo: req.ShowClientInfo,
 	}
-	commentID, err := repo.Comment.CreateComment(comment)
+	commentID, err := repo.Comment.CreateComment(comment, tools.GetMaximumReplyDepth())
 
 	if err != nil {
 		// 回复深度超限、目标不一致等校验错误原样返回
@@ -292,19 +293,13 @@ func (t *commentTarget) canViewAllComments(ctx context.Context) bool {
 }
 
 func (cs *CommentService) getTarget(targetID uint, targetType string) (*commentTarget, *errs.ServiceError) {
-	var target *commentTarget
+	var meta *repo.PostMeta
 	var err error
 	switch targetType {
 	case constant.TargetTypePost:
-		var post *model.Post
-		if post, err = repo.Post.GetPostByID(targetID); err == nil {
-			target = &commentTarget{ownerID: post.UserID, isPrivate: post.IsPrivate}
-		}
+		meta, err = repo.Post.GetPostMeta(targetID)
 	case constant.TargetTypePage:
-		var page *model.Page
-		if page, err = repo.Page.GetPageByID(targetID); err == nil {
-			target = &commentTarget{ownerID: page.UserID, isPrivate: page.IsPrivate}
-		}
+		meta, err = repo.Page.GetPageMeta(targetID)
 	default:
 		return nil, errs.NewBadRequest("invalid_target_type")
 	}
@@ -315,7 +310,7 @@ func (cs *CommentService) getTarget(targetID uint, targetType string) (*commentT
 		logrus.Errorf("getTarget error: %s", err.Error())
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
-	return target, nil
+	return &commentTarget{ownerID: meta.UserID, isPrivate: meta.IsPrivate}, nil
 }
 
 // canViewComment 公开评论所有人可见；私密评论对管理员、目标作者、评论作者和参与过该评论树的用户可见

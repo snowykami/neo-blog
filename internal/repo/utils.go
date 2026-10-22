@@ -44,10 +44,18 @@ func PaginateQuery[T any](db *gorm.DB, page, limit uint64, orderBy string, desc 
 	if len(conditions) > 0 {
 		queryDB = queryDB.Where(conditions[0], conditions[1:]...)
 	}
-	if page > 0 {
-		offset := (page - 1) * limit
-		queryDB = queryDB.Offset(int(offset))
+	items, err = paginate[T](queryDB, page, limit, orderBy, desc)
+	return
+}
+
+// paginate 只做分页查询不统计总数，供已自行统计总数的查询使用
+func paginate[T any](db *gorm.DB, page, limit uint64, orderBy string, desc bool) (items []T, err error) {
+	if limit <= 0 {
+		limit = constant.PageLimitDefault
 	}
-	err = queryDB.Limit(int(limit)).Order(orderColumn(orderBy, desc)).Find(&items).Error
+	if page > 0 {
+		db = db.Offset(int((page - 1) * limit))
+	}
+	err = db.Limit(int(limit)).Order(orderColumn(orderBy, desc)).Find(&items).Error
 	return
 }

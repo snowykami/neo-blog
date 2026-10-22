@@ -7,7 +7,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
-	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
 
@@ -112,7 +111,8 @@ func syncTargetCommentCount(tx *gorm.DB, targetType string, targetID uint) error
 	return refreshPostHeat(tx, targetID)
 }
 
-func (cr *CommentRepo) CreateComment(comment *model.Comment) (uint, error) {
+// CreateComment 创建评论，maxDepth 为允许的最大回复层级
+func (cr *CommentRepo) CreateComment(comment *model.Comment, maxDepth int) (uint, error) {
 	var commentID uint
 	err := GetDB().Transaction(func(tx *gorm.DB) error {
 		depth := 0
@@ -150,7 +150,7 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment) (uint, error) {
 			// 根评论：暂时把 RootID 设为 0，创建后再更新为自身 ID（回写）
 			comment.RootID = 0
 		}
-		if depth > utils.Env.GetAsInt(constant.EnvKeyMaxReplyDepth, constant.MaxReplyDepthDefault) {
+		if depth > maxDepth {
 			return errs.NewBadRequest("exceeded_maximum_reply_depth")
 		}
 		comment.Depth = depth

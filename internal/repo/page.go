@@ -35,6 +35,15 @@ func (p *pageRepo) DeletePage(id uint) error {
 	})
 }
 
+// GetPageMeta 只读取权限判断需要的字段
+func (p *pageRepo) GetPageMeta(id uint) (*PostMeta, error) {
+	var meta PostMeta
+	if err := GetDB().Model(&model.Page{}).Select("id, user_id, is_private").Where("id = ?", id).Take(&meta).Error; err != nil {
+		return nil, err
+	}
+	return &meta, nil
+}
+
 // GetPageByID 按 id 查询页面，内部流程使用，避免纯数字 slug 遮蔽同数字 id 的页面
 func (p *pageRepo) GetPageByID(id uint) (*model.Page, error) {
 	var page model.Page

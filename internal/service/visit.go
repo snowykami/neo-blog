@@ -145,8 +145,7 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 	if visitor.ID != 0 {
 		recent, err := repo.Visit.HasRecentVisit(visitor.ID, path, now.Add(-visitDedupWindow))
 		if err == nil && recent {
-			visitor.LastSeenAt = now
-			_ = repo.Visit.SaveVisitor(visitor)
+			_ = repo.Visit.TouchVisitor(visitor.ID, now)
 			return visitor.VisitorKey, nil
 		}
 	}

@@ -34,10 +34,14 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	if err != nil {
 		return 0, errs.NewInternalServer("failed_to_get_target")
 	}
+	categoryID, svcerr := normalizeCategoryID(req.CategoryID)
+	if svcerr != nil {
+		return 0, svcerr
+	}
 	post := &model.Post{
 		UserID: currentUser.ID,
 		PostBase: model.PostBase{
-			CategoryID:  normalizeCategoryID(req.CategoryID),
+			CategoryID:  categoryID,
 			Cover:       req.Cover,
 			Content:     req.Content,
 			Description: req.Description,
@@ -79,12 +83,19 @@ func normalizePostSlug(slug *string) (*string, *errs.ServiceError) {
 	return &normalized, nil
 }
 
-// normalizeCategoryID 前端用 0 表示未分类
-func normalizeCategoryID(categoryID *uint) *uint {
+// normalizeCategoryID 前端用 0 表示未分类；分类不存在时返回错误
+func normalizeCategoryID(categoryID *uint) (*uint, *errs.ServiceError) {
 	if categoryID == nil || *categoryID == 0 {
-		return nil
+		return nil, nil
 	}
-	return categoryID
+	var count int64
+	if err := repo.GetDB().Model(&model.Category{}).Where("id = ?", *categoryID).Count(&count).Error; err != nil {
+		return nil, errs.NewInternalServer("failed_to_get_target")
+	}
+	if count == 0 {
+		return nil, errs.NewBadRequest("category_not_found")
+	}
+	return categoryID, nil
 }
 
 func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.ServiceError {
@@ -166,7 +177,11 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	}
 	// 传了 category_id 才更新，0 表示取消分类
 	if req.CategoryID != nil {
-		post.CategoryID = normalizeCategoryID(req.CategoryID)
+		categoryID, svcerr := normalizeCategoryID(req.CategoryID)
+		if svcerr != nil {
+			return 0, svcerr
+		}
+		post.CategoryID = categoryID
 		post.Category = nil
 	}
 	if req.IsPrivate != nil {

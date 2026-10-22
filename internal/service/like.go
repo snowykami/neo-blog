@@ -24,7 +24,7 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 	// 只能给存在且自己看得到的目标点赞，避免产生孤儿点赞
 	switch targetType {
 	case constant.TargetTypePost:
-		post, err := repo.Post.GetPostByID(targetID)
+		post, err := repo.Post.GetPostMeta(targetID)
 		if err != nil || (post.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx))) {
 			return false, errs.NewNotFound("operation_target_not_found")
 		}

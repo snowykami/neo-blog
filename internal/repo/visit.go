@@ -36,6 +36,11 @@ func (v *visitRepo) ListVisitorsByFingerprint(fingerprint string, since time.Tim
 	return visitors, err
 }
 
+// TouchVisitor 只更新最近活跃时间，去重命中时避免整行写入
+func (v *visitRepo) TouchVisitor(visitorID uint, at time.Time) error {
+	return GetDB().Model(&model.Visitor{}).Where("id = ?", visitorID).UpdateColumn("last_seen_at", at).Error
+}
+
 func (v *visitRepo) SaveVisitor(visitor *model.Visitor) error {
 	return GetDB().Omit("User").Save(visitor).Error
 }

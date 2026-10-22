@@ -33,11 +33,12 @@ const (
 	OrderByCommentCount        = "comment_count" // 按评论数排序
 	OrderByViewCount           = "view_count"    // 按浏览量排序
 	OrderByHeat                = "heat"
-	MaxReplyDepthDefault       = 3  // 默认最大回复深度
-	HeatFactorViewWeight       = 1  // 热度因子：浏览量权重
-	HeatFactorLikeWeight       = 5  // 热度因子：点赞权重
-	HeatFactorCommentWeight    = 10 // 热度因子：评论权重
-	PageLimitDefault           = 20 // 默认分页大小
+	MaxReplyDepthDefault       = 3          // 默认最大回复深度
+	HeatFactorViewWeight       = 1          // 热度因子：浏览量权重
+	HeatFactorLikeWeight       = 5          // 热度因子：点赞权重
+	HeatFactorCommentWeight    = 10         // 热度因子：评论权重
+	PageLimitDefault           = 20         // 默认分页大小
+	DefaultMaxRequestBodySize  = 1000 << 20 // 默认请求体上限 1000MiB
 )
 
 var (

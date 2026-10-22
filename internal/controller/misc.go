@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,6 +31,11 @@ func NewMiscController() *MiscController {
 }
 
 func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext) {
+	// 已保存整体站点信息时直接返回，避免为默认值逐项查询配置
+	if value, err := repo.KV.GetKV(KeySiteInfo); err == nil {
+		resps.Ok(c, "", value)
+		return
+	}
 	value, err := repo.KV.GetKV(KeySiteInfo, utils.H{
 		"metadata": utils.H{
 			"name":        tools.GetSiteName(),
@@ -67,6 +73,12 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 	resps.Ok(c, "", value)
 }
 
+// publicConfigKeys 允许匿名读取的配置键
+var publicConfigKeys = []string{
+	KeySiteInfo, "site_name", "site_description", "site_icon", "base_url",
+	"posts_per_page", "comments_per_page", "max_reply_depth", "enable_register", "enable_register_from_oidc",
+}
+
 func (mc *MiscController) GetPublicConfig(ctx context.Context, c *app.RequestContext) {
 	keysParam := c.Query("keys")
 	if keysParam == "" {
@@ -76,6 +88,10 @@ func (mc *MiscController) GetPublicConfig(ctx context.Context, c *app.RequestCon
 	keys := strings.Split(keysParam, ",")
 	result := make(map[string]interface{})
 	for _, key := range keys {
+		// 只允许读取明确公开的配置，避免后台存储的其他键值被匿名读取
+		if !slices.Contains(publicConfigKeys, key) {
+			continue
+		}
 		value, err := repo.KV.GetKV(key)
 		if err != nil {
 			continue
@@ -203,7 +219,9 @@ func (mc *MiscController) GetRssData(ctx context.Context, c *app.RequestContext)
 		Where("is_private = ?", false).
 		Order("created_at DESC").
 		Limit(utils2.Env.GetAsInt(constant.EnvKeyRssLimit, constant.DefaultRssLimit)).
+		Omit("draft_content").
 		Preload("User").
+		Preload("Category").
 		Find(&posts).Error; err != nil {
 		resps.InternalServerError(c, err.Error())
 		return

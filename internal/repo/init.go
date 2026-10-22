@@ -3,8 +3,10 @@ package repo
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/glebarez/sqlite"
 	"github.com/sirupsen/logrus"
@@ -53,7 +55,7 @@ func InitDatabase() error {
 	dbConfig := loadDBConfig()
 	// 创建通用的 GORM 配置
 	gormConfig := &gorm.Config{
-		Logger:         logger.Default.LogMode(logger.Info),
+		Logger:         newDBLogger(),
 		TranslateError: true, // 统一数据库错误，便于识别唯一约束冲突（gorm.ErrDuplicatedKey）
 	}
 
@@ -73,6 +75,9 @@ func InitDatabase() error {
 	default:
 		return errors.New("unsupported database driver, only sqlite and postgres are supported")
 	}
+
+	configureConnPool(dbConfig.Driver)
+	KV.resetCache() // 切换数据库（如测试中重新初始化）时清空配置缓存
 
 	// 迁移模型
 	if err = migrate(); err != nil {
@@ -124,15 +129,45 @@ func initSQLite(path string, gormConfig *gorm.Config) (*gorm.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return nil, fmt.Errorf("failed to create directory for SQLite database: %w", err)
 	}
-	db, err := gorm.Open(sqlite.Open(path), gormConfig)
+	// WAL 让读写互不阻塞，busy_timeout 避免并发写入时直接报 database is locked
+	dsn := path + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)"
+	db, err := gorm.Open(sqlite.Open(dsn), gormConfig)
 	return db, err
+}
+
+// newDBLogger 开发模式输出全部 SQL；生产只记录慢查询和错误，且忽略记录不存在
+func newDBLogger() logger.Interface {
+	level := logger.Warn
+	if utils.IsDevMode {
+		level = logger.Info
+	}
+	return logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
+		SlowThreshold:             200 * time.Millisecond,
+		LogLevel:                  level,
+		IgnoreRecordNotFoundError: true,
+		Colorful:                  utils.IsDevMode,
+	})
+}
+
+// configureConnPool 配置连接池；SQLite 写入本身串行，主要为 Postgres 设置
+func configureConnPool(driver string) {
+	sqlDB, err := db.DB()
+	if err != nil {
+		logrus.Warn("failed to get sql.DB: ", err)
+		return
+	}
+	if driver == "postgres" {
+		sqlDB.SetMaxOpenConns(20)
+		sqlDB.SetMaxIdleConns(10)
+	}
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 }
 
 func migrate() error {
 	if err := prepareLikeUniqueIndex(); err != nil {
 		return err
 	}
-	return GetDB().AutoMigrate(
+	if err := GetDB().AutoMigrate(
 		&model.Comment{},
 		&model.EditSession{},
 		&model.Label{},
@@ -147,7 +182,33 @@ func migrate() error {
 		&model.User{},
 		&model.UserOpenID{},
 		&model.Visitor{},
-		&model.VisitLog{})
+		&model.VisitLog{}); err != nil {
+		return err
+	}
+	return createQueryIndexes()
+}
+
+// createQueryIndexes 为常用查询补充组合索引（gorm.Model 内的字段无法通过标签声明组合索引）
+func createQueryIndexes() error {
+	indexes := []string{
+		// 文章列表：按可见性过滤，置顶优先后按时间或热度排序
+		"CREATE INDEX IF NOT EXISTS idx_posts_list_created ON posts (is_private, top, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_posts_list_heat ON posts (is_private, top, heat)",
+		// 评论列表：按目标与层级查询并按时间排序
+		"CREATE INDEX IF NOT EXISTS idx_comments_target ON comments (target_type, target_id, depth, created_at)",
+		// 文件按哈希查找与引用计数
+		"CREATE INDEX IF NOT EXISTS idx_files_hash ON files (hash, provider_id)",
+		// 按用户吊销、查询会话
+		"CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)",
+		// 访问去重：同一访客短时间内访问同一路径
+		"CREATE INDEX IF NOT EXISTS idx_visit_logs_dedup ON visit_logs (visitor_id, path, created_at)",
+	}
+	for _, sql := range indexes {
+		if err := GetDB().Exec(sql).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // prepareLikeUniqueIndex 点赞表加唯一索引前，清理软删除记录和并发产生的重复点赞，并按实际记录修正计数

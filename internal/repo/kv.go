@@ -2,18 +2,62 @@ package repo
 
 import (
 	"errors"
+	"sync"
+	"time"
 
 	"github.com/snowykami/neo-blog/internal/model"
 	"gorm.io/gorm"
 )
 
-type kvRepo struct{}
+type kvRepo struct {
+	mu    sync.RWMutex
+	cache map[string]kvCacheEntry
+}
 
-var KV = &kvRepo{}
+// kvCacheEntry 配置读取缓存；配置读多写少，每个页面会读取数十个键
+type kvCacheEntry struct {
+	kv        model.KV
+	err       error
+	expiresAt time.Time
+}
+
+// kvCacheTTL 本进程写入会立即失效缓存；多实例部署时其他实例最多延迟该时长生效
+const kvCacheTTL = 30 * time.Second
+
+var KV = &kvRepo{cache: make(map[string]kvCacheEntry)}
+
+// loadKV 读取配置记录（带缓存），记录不存在也会缓存
+func (k *kvRepo) loadKV(key string) (*model.KV, error) {
+	k.mu.RLock()
+	entry, ok := k.cache[key]
+	k.mu.RUnlock()
+	if ok && time.Now().Before(entry.expiresAt) {
+		return &entry.kv, entry.err
+	}
+	var kv model.KV
+	err := GetDB().First(&kv, "key = ?", key).Error
+	if err == nil || errors.Is(err, gorm.ErrRecordNotFound) {
+		k.mu.Lock()
+		k.cache[key] = kvCacheEntry{kv: kv, err: err, expiresAt: time.Now().Add(kvCacheTTL)}
+		k.mu.Unlock()
+	}
+	return &kv, err
+}
+
+func (k *kvRepo) invalidate(key string) {
+	k.mu.Lock()
+	delete(k.cache, key)
+	k.mu.Unlock()
+}
+
+func (k *kvRepo) resetCache() {
+	k.mu.Lock()
+	k.cache = make(map[string]kvCacheEntry)
+	k.mu.Unlock()
+}
 
 func (k *kvRepo) GetKV(key string, defaultValue ...any) (any, error) {
-	var kv = &model.KV{}
-	err := GetDB().First(kv, "key = ?", key).Error
+	kv, err := k.loadKV(key)
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -49,6 +93,7 @@ func (k *kvRepo) SetKV(key string, value any) error {
 		Key:   key,
 		Value: map[string]any{"value": value},
 	}
+	defer k.invalidate(key)
 	return GetDB().Save(kv).Error
 }
 
@@ -65,6 +110,7 @@ func (k *kvRepo) ListKV(query string) ([]model.KV, error) {
 }
 
 func (k *kvRepo) DeleteKV(key string) error {
+	defer k.invalidate(key)
 	return GetDB().Delete(&model.KV{}, "key = ?", key).Error
 }
 

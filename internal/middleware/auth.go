@@ -32,6 +32,7 @@ func UseAuth(block bool) app.HandlerFunc {
 			if err == nil && tokenClaims != nil && tokenClaims.TokenType == utils.JwtTokenTypeAccess {
 				ctx = context.WithValue(ctx, "user_id", tokenClaims.UserID)
 				ctx = context.WithValue(ctx, "session_id", tokenClaims.SessionID)
+				ctx = ctxutils.WithUserCache(ctx)
 				err := recordUserIP(tokenClaims.SessionID, c.ClientIP())
 				if err != nil {
 					logrus.Warnf("recordUserIP error: %v", err)
@@ -62,11 +63,10 @@ func UseAuth(block bool) app.HandlerFunc {
 					}
 
 					ctxutils.Set2Tokens(c, newToken, newRefreshToken)
-					if err := repo.Session.TouchSession(refreshTokenClaims.SessionID); err != nil {
-						logrus.Warnf("touch session error: %v", err)
-					}
+					touchSessionThrottled(refreshTokenClaims.SessionID)
 					ctx = context.WithValue(ctx, "user_id", refreshTokenClaims.UserID)
 					ctx = context.WithValue(ctx, "session_id", refreshTokenClaims.SessionID)
+					ctx = ctxutils.WithUserCache(ctx)
 					err = recordUserIP(refreshTokenClaims.SessionID, c.ClientIP())
 					if err != nil {
 						logrus.Warnf("recordUserIP error: %v", err)
@@ -124,6 +124,20 @@ func UseRole(requiredRole constant.Role) app.HandlerFunc {
 		}
 		c.Next(ctx)
 	}
+}
+
+// touchSessionThrottled 刷新会话活跃时间，同一会话 10 分钟内只写一次库
+func touchSessionThrottled(sessionID string) {
+	kv := utils.KV.GetInstance()
+	key := "session_touch_" + sessionID
+	if kv.Lookup(key) {
+		return
+	}
+	if err := repo.Session.TouchSession(sessionID); err != nil {
+		logrus.Warnf("touch session error: %v", err)
+		return
+	}
+	kv.Set(key, true, 10*time.Minute)
 }
 
 func isStatefulJwtValid(claims *utils.Claims) (bool, error) {

@@ -108,6 +108,22 @@ func sortLabelsByPostCount(db *gorm.DB, labels []model.Label) error {
 	return nil
 }
 
+// PostMeta 文章的权限相关字段
+type PostMeta struct {
+	ID        uint
+	UserID    uint
+	IsPrivate bool
+}
+
+// GetPostMeta 只读取权限判断需要的字段，供评论、点赞等流程使用，避免加载正文与关联
+func (p *postRepo) GetPostMeta(id uint) (*PostMeta, error) {
+	var meta PostMeta
+	if err := GetDB().Model(&model.Post{}).Select("id, user_id, is_private").Where("id = ?", id).Take(&meta).Error; err != nil {
+		return nil, err
+	}
+	return &meta, nil
+}
+
 // GetPostByID 按 id 加载文章（含关联），不增加浏览量，供编辑、删除、评论等内部流程使用
 func (p *postRepo) GetPostByID(id uint) (*model.Post, error) {
 	var post model.Post
@@ -148,12 +164,12 @@ func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 		}
 	}
 
-	// 原子地增加 view_count，并同步热度
-	if err := GetDB().Model(&model.Post{}).Where("id = ?", post.ID).
-		UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error; err != nil {
-		return nil, err
-	}
-	if err := refreshPostHeat(GetDB(), post.ID); err != nil {
+	// 一条语句原子地增加 view_count 并同步热度（SET 右侧使用更新前的值）
+	if err := GetDB().Model(&model.Post{}).Where("id = ?", post.ID).UpdateColumns(map[string]any{
+		"view_count": gorm.Expr("view_count + 1"),
+		"heat": gorm.Expr("(view_count + 1) * ? + like_count * ? + comment_count * ?",
+			constant.HeatFactorViewWeight, constant.HeatFactorLikeWeight, constant.HeatFactorCommentWeight),
+	}).Error; err != nil {
 		return nil, err
 	}
 
@@ -225,9 +241,10 @@ func (p *postRepo) ListPosts(currentUserID uint, includeAllPrivate bool, query [
 		return nil, 0, errs.NewBadRequest("invalid_request_parameters")
 	}
 
-	q := GetDB().Model(&model.Post{}).Preload(clause.Associations)
+	// 列表只需要作者、分类和标签，不加载协作者
+	q := GetDB().Model(&model.Post{}).Preload("User").Preload("Category").Preload("Labels")
 	if req.UserID > 0 {
-		q = q.Where("user_id = ?", req.UserID)
+		q = q.Where("posts.user_id = ?", req.UserID)
 	}
 
 	// 后台管理视图（includeAllPrivate）不做私密过滤
@@ -272,16 +289,19 @@ func (p *postRepo) ListPosts(currentUserID uint, includeAllPrivate bool, query [
 		}
 	}
 
-	if req.NoContent {
-		q = q.Omit("content", "draft_content")
-	}
-
 	var total int64
 	if err := q.Count(&total).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, 0, err
 	}
 
-	items, _, err := PaginateQuery[model.Post](q.Order("top DESC"), req.Page, req.Size, req.OrderBy, req.Desc)
+	// 列表不读取草稿和完整正文，只截取摘要所需的前 201 个字符（摘要截断为 200 字）
+	columns := []string{"posts.id", "posts.created_at", "posts.updated_at", "posts.deleted_at", "posts.user_id",
+		"posts.category_id", "posts.cover", "posts.description", "posts.is_private", "posts.slug", "posts.title",
+		"posts.type", "posts.top", "posts.like_count", "posts.comment_count", "posts.view_count", "posts.heat"}
+	if !req.NoContent {
+		columns = append(columns, "substr(posts.content, 1, 201) AS content")
+	}
+	items, err := paginate[model.Post](q.Select(columns).Order("posts.top DESC"), req.Page, req.Size, "posts."+req.OrderBy, req.Desc)
 	if err != nil {
 		return nil, 0, err
 	}

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -230,5 +231,56 @@ func TestChangePasswordRevokesOtherSessions(t *testing.T) {
 		if valid, _ := repo.Session.IsSessionValidForUser(sid, authorID); valid != want {
 			t.Fatalf("session %s valid = %v, want %v", sid, valid, want)
 		}
+	}
+}
+
+func TestListPostsLightweightColumns(t *testing.T) {
+	author, _, other, _, label := setupEditTest(t)
+	long := strings.Repeat("长", 300)
+	isPrivate := false
+	id, svcerr := NewPostService().CreatePost(author, &dto.CreateOrUpdatePostReq{
+		PostBaseDto: dto.PostBaseDto{Title: "searchable", Content: long, LabelIds: []uint{label.ID}},
+		IsPrivate:   &isPrivate,
+	})
+	if svcerr != nil {
+		t.Fatalf("create post: %v", svcerr)
+	}
+	draft := "<p>secret</p>"
+	if _, svcerr := NewPostService().UpdatePost(author, &dto.CreateOrUpdatePostReq{ID: id, PostBaseDto: dto.PostBaseDto{DraftContent: &draft}}); svcerr != nil {
+		t.Fatalf("save draft: %v", svcerr)
+	}
+	// 标签筛选 + 搜索 + 按热度排序，同时 JOIN post_labels，列名需带表名
+	posts, total, svcerr := NewPostService().ListPosts(other, &dto.ListPostReq{
+		Query: "searchable", Label: label.Slug,
+		PaginationParams: dto.PaginationParams{Page: 1, Size: 10, OrderBy: constant.OrderByHeat, Desc: true},
+	})
+	if svcerr != nil || total != 1 || len(posts) != 1 {
+		t.Fatalf("list posts = %d/%d (%v)", len(posts), total, svcerr)
+	}
+	got := posts[0]
+	if got.DraftContent != nil || len(got.Labels) != 1 || got.User.Username != "author" {
+		t.Fatalf("unexpected list item: draft=%v labels=%d user=%q", got.DraftContent, len(got.Labels), got.User.Username)
+	}
+	if got.Content != strings.Repeat("长", 200)+"..." {
+		t.Fatalf("summary should be first 200 runes with ellipsis, got %d runes", len([]rune(got.Content)))
+	}
+}
+
+func TestKVCacheInvalidation(t *testing.T) {
+	setupEditTest(t)
+	if repo.KV.GetIntWithoutErr("posts_per_page", 10) != 10 {
+		t.Fatalf("default should be returned when key missing")
+	}
+	if err := repo.KV.SetKV("posts_per_page", 20); err != nil {
+		t.Fatalf("set kv: %v", err)
+	}
+	if got := repo.KV.GetIntWithoutErr("posts_per_page", 10); got != 20 {
+		t.Fatalf("cached miss should be invalidated after set, got %d", got)
+	}
+	if err := repo.KV.DeleteKV("posts_per_page"); err != nil {
+		t.Fatalf("delete kv: %v", err)
+	}
+	if got := repo.KV.GetIntWithoutErr("posts_per_page", 10); got != 10 {
+		t.Fatalf("cache should be invalidated after delete, got %d", got)
 	}
 }
