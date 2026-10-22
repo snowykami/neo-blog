@@ -1,5 +1,6 @@
 'use client'
 
+import type { BlogHomeInitialData } from './blog-home-query'
 import type { Post } from '@/models/post'
 import { Clock, TrendingUp, XIcon } from 'lucide-react'
 import { motion } from 'motion/react'
@@ -16,8 +17,9 @@ import { useSiteInfo } from '@/contexts/site-info-context'
 import { useStoredState } from '@/hooks/use-storage-state'
 import { OrderBy } from '@/models/common'
 import { navStickyTopPx } from '@/utils/common/layout-size'
+import { blogHomeQueryKey } from './blog-home-query'
 
-export default function BlogHome() {
+export default function BlogHome({ initialData }: { initialData?: BlogHomeInitialData }) {
   // 从路由查询参数中获取页码和标签们
   const t = useTranslations('BlogHome')
   const { siteInfo } = useSiteInfo()
@@ -29,8 +31,9 @@ export default function BlogHome() {
     'page',
     parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
   )
-  const [posts, setPosts] = useState<Post[]>([])
-  const [totalPosts, setTotalPosts] = useState(0)
+  const [posts, setPosts] = useState<Post[]>(initialData?.posts ?? [])
+  const [totalPosts, setTotalPosts] = useState(initialData?.total ?? 0)
+  const initialKeyRef = useRef(initialData?.key)
   const [loading, setLoading] = useState(false)
   const [orderByState, setOrderByState, isOrderByStateLoaded] = useStoredState<OrderBy>(
     'order_by',
@@ -61,11 +64,18 @@ export default function BlogHome() {
   useEffect(() => {
     if (!isOrderByStateLoaded)
       return
+    const orderBy = orderByState === OrderBy.CreatedAt ? OrderBy.CreatedAt : OrderBy.Heat
+    // 首次查询与服务端预取参数一致时复用预取结果
+    const key = blogHomeQueryKey({ page, label: labelSlug, category: categorySlug, query, orderBy })
+    // 参数变化后预取结果即失效（不在命中时清除，开发模式下 effect 会执行两次）
+    if (initialKeyRef.current === key)
+      return
+    initialKeyRef.current = undefined
     setLoading(true)
     listPosts({
       page,
       size: siteInfo.postsPerPage || 9,
-      orderBy: orderByState === OrderBy.CreatedAt ? OrderBy.CreatedAt : OrderBy.Heat,
+      orderBy,
       desc: true,
       query: query || undefined,
       label: labelSlug || undefined,
@@ -187,7 +197,7 @@ export default function BlogHome() {
                   <PaginationController
                     className="pt-4 flex justify-center"
                     pageSize={siteInfo.postsPerPage}
-                    initialPage={page}
+                    page={page}
                     total={totalPosts}
                     onPageChange={handlePageChange}
                   />

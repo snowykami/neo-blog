@@ -1,18 +1,14 @@
 import type { Metadata } from 'next'
 import type { WebSite, WithContext } from 'schema-dts'
+import type { BlogHomeInitialData } from './blog-home-query'
 import { getLocale, getTranslations } from 'next-intl/server'
 import Script from 'next/script'
-import { cache } from 'react'
-import { getSiteInfo } from '@/api/misc'
-import { fallbackSiteInfo, safeMetadataBase } from '@/utils/common/siteinfo'
+import { getCachedSiteInfo } from '@/api/misc.server'
+import { listPostsServer } from '@/api/post.server'
+import { OrderBy } from '@/models/common'
+import { safeMetadataBase } from '@/utils/common/siteinfo'
 import BlogHome from './blog-home'
-
-// Cache site info to avoid duplicate fetches
-const getCachedSiteInfo = cache(async () => {
-  return getSiteInfo()
-    .then(res => res.data)
-    .catch(() => fallbackSiteInfo)
-})
+import { blogHomeQueryKey } from './blog-home-query'
 
 // Enable ISR with 60 seconds revalidation for home page
 export const revalidate = 60
@@ -55,8 +51,23 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function Page() {
+// 服务端预取首屏文章（默认按最新排序），客户端参数一致时直接复用
+async function getInitialPosts(searchParams: Record<string, string | string[] | undefined>, pageSize: number): Promise<BlogHomeInitialData | undefined> {
+  const pick = (key: string) => (typeof searchParams[key] === 'string' ? searchParams[key] as string : undefined)
+  const page = Math.max(1, Number.parseInt(pick('page') || '1', 10) || 1)
+  const params = { page, label: pick('label'), category: pick('category'), query: pick('query'), orderBy: OrderBy.CreatedAt }
+  try {
+    const res = await listPostsServer({ ...params, size: pageSize || 9, desc: true })
+    return { key: blogHomeQueryKey(params), posts: res.data.posts, total: res.data.total }
+  }
+  catch {
+    return undefined // 预取失败时交给客户端加载
+  }
+}
+
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const siteInfo = await getCachedSiteInfo()
+  const initialData = await getInitialPosts(await searchParams, siteInfo.postsPerPage)
   const jsonLd: WithContext<WebSite> = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
@@ -73,13 +84,13 @@ export default async function Page() {
     },
     'potentialAction': {
       '@type': 'SearchAction',
-      'target': `${siteInfo.baseUrl}/?keywords={search_term_string}`,
+      'target': `${siteInfo.baseUrl}/?query={search_term_string}`,
       'query': 'required name=search_term_string',
     },
   }
   return (
     <>
-      <BlogHome />
+      <BlogHome initialData={initialData} />
       <Script
         id="json-ld"
         type="application/ld+json"

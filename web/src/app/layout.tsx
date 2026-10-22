@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import { NextIntlClientProvider } from 'next-intl'
 import { Inter, Source_Code_Pro, Space_Mono } from 'next/font/google'
+import { cookies } from 'next/headers'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
-import { getSiteInfo } from '@/api/misc'
+import { getCachedSiteInfo } from '@/api/misc.server'
 import { getLoginUserServer } from '@/api/user.server'
 import { FloatingWidgets } from '@/components/common/main-floating-widgets'
 import { Toaster } from '@/components/ui/sonner'
@@ -12,7 +13,6 @@ import { MusicProvider } from '@/contexts/music-context'
 import { NavPaddingProvider } from '@/contexts/nav-context'
 import { SiteInfoProvider } from '@/contexts/site-info-context'
 import { getFirstLocale } from '@/i18n/request'
-import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import './globals.css'
 
 const geistMono = Source_Code_Pro({
@@ -35,9 +35,7 @@ const inter = Inter({
 })
 
 export async function generateMetadata(): Promise<Metadata> {
-  const siteInfo = await getSiteInfo()
-    .then(res => res.data)
-    .catch(() => fallbackSiteInfo)
+  const siteInfo = await getCachedSiteInfo()
   return {
     title: {
       default: siteInfo.metadata.name,
@@ -52,14 +50,15 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const user = await getLoginUserServer()
-    .then(res => res.data)
-    .catch(() => null)
-  const siteInfo = await getSiteInfo()
-    .then(res => res.data)
-    .catch(() => {
-      return fallbackSiteInfo
-    })
+  // 没有任何登录凭据时可确定为访客，客户端无需再请求 /user/me（避免每次访问都产生 401）
+  const cookieStore = await cookies()
+  const hasAuthCookie = cookieStore.has('token') || cookieStore.has('refresh_token')
+  const user = hasAuthCookie
+    ? await getLoginUserServer()
+        .then(res => res.data)
+        .catch(() => null)
+    : null
+  const siteInfo = await getCachedSiteInfo()
   return (
     <html
       lang={(await getFirstLocale()) || 'en'}
@@ -71,7 +70,7 @@ export default async function RootLayout({
         <NuqsAdapter>
           <DeviceProvider>
             <NextIntlClientProvider>
-              <AuthProvider initialUser={user}>
+              <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
                 <SiteInfoProvider initialData={siteInfo}>
                   <MusicProvider>
                     <NavPaddingProvider>

@@ -2,7 +2,8 @@ import type { MetadataRoute } from 'next'
 import { getSitemapData } from '@/api/misc'
 import { getCategoryUrl, getLabelUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 
-export const revalidate = 0
+// 站点地图每小时重新生成一次
+export const revalidate = 3600
 
 function getChangeFreqAndPriority(lastModified: Date) {
   const ageDays = (Date.now() - lastModified.getTime()) / (1000 * 60 * 60 * 24)

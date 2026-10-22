@@ -1,10 +1,10 @@
 'use client'
 
-import hljs from 'highlight.js'
 import { useTranslations } from 'next-intl'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import copyToClipboard from '@/lib/clipboard'
+import hljs from '@/lib/highlight'
 import { languageMap } from '@/utils/common/post-render'
 import 'highlight.js/styles/github-dark.css'
 
