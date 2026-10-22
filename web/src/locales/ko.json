@@ -1161,7 +1161,10 @@
           "casual": "더 편하게",
           "translate_en": "영어로 번역",
           "translate_zh": "중국어로 번역"
-        }
+        },
+        "include_context": "전체 맥락 포함",
+        "include_context_hint_rewrite": "켜면 글 전체를 AI에 함께 보내 앞뒤가 일관되지만 사용량이 늘어납니다. 끄면 선택한 내용만 보냅니다.",
+        "include_context_hint_write": "켜면 글 전체를 AI에 함께 보내 맥락에 맞는 글이 되지만 사용량이 늘어납니다. 끄면 커서 주변 내용만 보냅니다."
       },
       "context": {
         "aria": "편집기 컨텍스트 메뉴",

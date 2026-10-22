@@ -436,7 +436,7 @@ func TestAIWritePrepareStructuredSelection(t *testing.T) {
 	doc := "<p>前文" + aiWriteSelectionStart + "<strong>重点</strong>与<a href=\"https://a.dev\">链接</a>" + aiWriteSelectionEnd + "后文</p>"
 	markup := "<strong>重点</strong>与<a href=\"https://a.dev\">链接</a>\n\n[[KEEP_1]]"
 
-	req := &dto.AIWriteReq{Mode: aiWriteModeRewrite, Scope: aiWriteScopeBlock, Document: doc, Selection: markup}
+	req := &dto.AIWriteReq{Mode: aiWriteModeRewrite, Scope: aiWriteScopeBlock, Document: doc, Selection: markup, IncludeContext: true}
 	job, svcerr := s.Prepare(author, constant.TargetTypePost, post.ID, req)
 	if svcerr != nil {
 		t.Fatalf("prepare: %v", svcerr)
@@ -466,4 +466,41 @@ func TestAIWritePrepareStructuredSelection(t *testing.T) {
 
 	req.Scope, req.Selection = aiWriteScopeBlock, strings.Repeat("字", aiWriteMaxMarkupRune+1)
 	expectMessage(t, prepareErr(s, author, constant.TargetTypePost, post.ID, req), http.StatusBadRequest, "ai_input_too_long")
+}
+
+// 不附带全文上下文：润色只给选中内容，帮写只给插入点附近的片段
+func TestAIWritePrepareWithoutContext(t *testing.T) {
+	author, _, _, post, _ := setupEditTest(t)
+	s := NewAIWriteService()
+	configureAI(t, "https://example.com/v1")
+
+	rewrite := &dto.AIWriteReq{Mode: aiWriteModeRewrite, Document: "<p>很长的前文" + aiWriteSelectionStart + "选中内容" + aiWriteSelectionEnd + "很长的后文</p>"}
+	job, svcerr := s.Prepare(author, constant.TargetTypePost, post.ID, rewrite)
+	if svcerr != nil {
+		t.Fatalf("prepare rewrite: %v", svcerr)
+	}
+	if strings.Contains(job.user, "很长的前文") || strings.Contains(job.user, "很长的后文") || strings.Contains(job.user, "# 当前正文") {
+		t.Fatalf("rewrite without context should only include the selection:\n%s", job.user)
+	}
+	if !strings.Contains(job.user, "# 选中内容\n<<<\n选中内容\n>>>") {
+		t.Fatalf("selection missing:\n%s", job.user)
+	}
+
+	far, near := strings.Repeat("远", 3000), strings.Repeat("近", 100)
+	write := writeReq("<p>" + far + near + aiWriteInsertMarker + near + far + "</p>")
+	if job, svcerr = s.Prepare(author, constant.TargetTypePost, post.ID, write); svcerr != nil {
+		t.Fatalf("prepare write: %v", svcerr)
+	}
+	if !strings.Contains(job.user, "# 插入点附近的正文") || !strings.Contains(job.user, near+aiWriteInsertMarker+near) {
+		t.Fatalf("write without context should keep the nearby text:\n%s", job.user)
+	}
+	if strings.Count(job.user, "远") > aiWriteLocalContextRune {
+		t.Fatalf("nearby text should be truncated to %d runes", aiWriteLocalContextRune)
+	}
+
+	// 附带全文时保留更长的上下文
+	write.IncludeContext = true
+	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, write); strings.Count(job.user, "远") < 5000 || !strings.Contains(job.user, "# 当前正文") {
+		t.Fatalf("write with context should include the full text")
+	}
 }

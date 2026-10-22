@@ -12,6 +12,7 @@ import * as React from 'react'
 import { toast } from 'sonner'
 import { streamAIWrite } from '@/api/ai-write'
 import { AI_PREVIEW_META, aiWritePluginKey } from '@/components/tiptap-extension/ai-write-extension'
+import { useStoredState } from '@/hooks/use-storage-state'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { repairTagQuotes, restoreMarkTokens, restoreRewriteKeeps, serializeRewriteSelection } from './ai-rewrite-markup'
 import { buildMarkedDocument, buildPreview, markdownToSlice, resolveAITarget, syncDocTransaction } from './ai-write-utils'
@@ -88,6 +89,10 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
   const stateRef = React.useRef(state)
   stateRef.current = state
   const sessionRef = React.useRef<AIWriterSession | null>(null)
+  // 是否附带全文上下文：默认不附带，选择记在浏览器中
+  const [includeContext, setIncludeContext] = useStoredState('neo-editor-ai-include-context', false)
+  const includeContextRef = React.useRef(includeContext)
+  includeContextRef.current = includeContext
   const abortRef = React.useRef<AbortController | null>(null)
   const latestRef = React.useRef({ getContext, onBusyChange, docId, contentTarget })
   latestRef.current = { getContext, onBusyChange, docId, contentTarget }
@@ -181,6 +186,7 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
           instruction,
           document: session.document,
           selection: session.selection,
+          includeContext: includeContextRef.current,
           ...getCtx(),
         },
         onEvent: (event) => {
@@ -324,6 +330,8 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
 
   return {
     state,
+    includeContext,
+    setIncludeContext,
     open,
     run,
     stop,

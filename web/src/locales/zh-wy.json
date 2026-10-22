@@ -1161,7 +1161,10 @@
           "casual": "使之俗",
           "translate_en": "譯為英文",
           "translate_zh": "譯為中文"
-        }
+        },
+        "include_context": "附全文",
+        "include_context_hint_rewrite": "啟之則全文並付 AI，前後相應，然耗額稍多；閉之則唯付所擇之文。",
+        "include_context_hint_write": "啟之則全文並付 AI，所書更合上下，然耗額稍多；閉之則唯付插處左右之文。"
       },
       "context": {
         "aria": "編者右擊之單",

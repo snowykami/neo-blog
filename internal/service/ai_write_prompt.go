@@ -57,7 +57,7 @@ const aiWriteSystemPrompt = "# 角色\n" +
 	"你是个人博客编辑器里的写作助手，帮作者在文章中补写、续写或改写内容。作者会直接把你的输出放进正文，所以你的输出就是正文本身。\n" +
 	"\n" +
 	"# 输入\n" +
-	"用户消息依次给出：文章信息（类型、标题、描述、分类、标签）、当前正文（用标记指出插入点或选区）、写作位置说明、作者的要求。\n" +
+	"用户消息依次给出：文章信息（类型、标题、描述、分类、标签）、当前正文（用标记指出插入点或选区；作者可能选择不提供全文，此时只有选中内容或插入点附近的片段）、写作位置说明、作者的要求。\n" +
 	"\n" +
 	"# 写作要求\n" +
 	"1. 忠实上下文：内容要紧扣标题和前后文，与插入点前后自然衔接，不重复前后文已经写过的内容；不编造原文没有依据的事实、数据、版本号、链接或引用，拿不准的信息宁可不写。\n" +
@@ -82,6 +82,7 @@ type aiWritePrompt struct {
 	after       string // 插入点 / 选区之后的正文（纯文本，已截断）
 	selection   string // 润色：选中的内容
 	structured  bool   // 选中内容为保留格式的标记文本（Markdown + 行内 HTML 标签 + 占位符）
+	noContext   bool   // 作者选择不附带全文：润色不给正文，帮写只给插入点附近的片段
 }
 
 // splitAIWriteDocument 把带标记的正文纯文本拆成前文、选区与后文
@@ -148,13 +149,22 @@ func (p *aiWritePrompt) build() string {
 	if p.mode == aiWriteModeRewrite {
 		marker = aiWriteSelectionMarker
 	}
-	sb.WriteString("\n# 当前正文\n")
-	if p.mode == aiWriteModeRewrite {
-		fmt.Fprintf(&sb, "正文中的 %s 是作者选中、需要改写的内容所在位置，选中内容在下一节单独给出。\n", marker)
-	} else {
-		fmt.Fprintf(&sb, "正文中的 %s 是光标所在的插入点。\n", marker)
+	switch {
+	case p.noContext && p.mode == aiWriteModeRewrite:
+		// 不附带全文：只给出选中内容，省略正文
+	case p.noContext:
+		sb.WriteString("\n# 插入点附近的正文\n")
+		fmt.Fprintf(&sb, "作者没有提供全文，以下只是插入点附近的片段，%s 是光标所在的插入点。\n", marker)
+		sb.WriteString("<<<\n" + p.before + marker + p.after + "\n>>>\n")
+	default:
+		sb.WriteString("\n# 当前正文\n")
+		if p.mode == aiWriteModeRewrite {
+			fmt.Fprintf(&sb, "正文中的 %s 是作者选中、需要改写的内容所在位置，选中内容在下一节单独给出。\n", marker)
+		} else {
+			fmt.Fprintf(&sb, "正文中的 %s 是光标所在的插入点。\n", marker)
+		}
+		sb.WriteString("<<<\n" + p.before + marker + p.after + "\n>>>\n")
 	}
-	sb.WriteString("<<<\n" + p.before + marker + p.after + "\n>>>\n")
 
 	if p.mode == aiWriteModeRewrite {
 		sb.WriteString("\n# 选中内容\n<<<\n" + p.selection + "\n>>>\n")

@@ -1161,7 +1161,10 @@
           "casual": "Lockerer",
           "translate_en": "Ins Englische übersetzen",
           "translate_zh": "Ins Chinesische übersetzen"
-        }
+        },
+        "include_context": "Gesamten Kontext einbeziehen",
+        "include_context_hint_rewrite": "Sendet den ganzen Beitrag an die KI, damit das Ergebnis stimmig bleibt, verbraucht aber mehr Tokens. Ausgeschaltet wird nur die Auswahl gesendet.",
+        "include_context_hint_write": "Sendet den ganzen Beitrag an die KI, damit der Text zum Kontext passt, verbraucht aber mehr Tokens. Ausgeschaltet wird nur der Text um den Cursor gesendet."
       },
       "context": {
         "aria": "Kontextmenü des Editors",

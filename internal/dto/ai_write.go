@@ -10,9 +10,11 @@ type AIWriteReq struct {
 	Document    string `json:"document"`    // 正文 HTML，含插入点或选区标记
 	// Selection 润色选区的格式化表示：块结构为 Markdown，行内格式为 HTML 标签，图片等不可改写的节点为 [[KEEP_n]] 占位符
 	// 提供时原样交给模型（不再从正文中提取纯文本），以便保留格式；代码块内的选区不使用
-	Selection   string   `json:"selection"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Category    string   `json:"category"`
-	Labels      []string `json:"labels"`
+	Selection string `json:"selection"`
+	// IncludeContext 是否附带全文作为上下文；不附带时润色只给出选中内容，帮写只给出插入点附近的片段，提示词更精简
+	IncludeContext bool     `json:"include_context"`
+	Title          string   `json:"title"`
+	Description    string   `json:"description"`
+	Category       string   `json:"category"`
+	Labels         []string `json:"labels"`
 }

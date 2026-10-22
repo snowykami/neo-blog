@@ -1161,7 +1161,10 @@
           "casual": "Más informal",
           "translate_en": "Traducir al inglés",
           "translate_zh": "Traducir al chino"
-        }
+        },
+        "include_context": "Incluir todo el contexto",
+        "include_context_hint_rewrite": "Envía toda la entrada a la IA para mantener la coherencia, a costa de más tokens. Si está desactivado, solo se envía la selección.",
+        "include_context_hint_write": "Envía toda la entrada a la IA para que el texto encaje con el contexto, a costa de más tokens. Si está desactivado, solo se envía el texto alrededor del cursor."
       },
       "context": {
         "aria": "Menú contextual del editor",

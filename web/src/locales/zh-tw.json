@@ -1161,7 +1161,10 @@
           "casual": "更口語",
           "translate_en": "翻譯為英文",
           "translate_zh": "翻譯為中文"
-        }
+        },
+        "include_context": "包含全文上下文",
+        "include_context_hint_rewrite": "開啟後會把全文一起傳給 AI，幫助維持前後一致，但消耗更多額度；關閉時只傳送選取的內容。",
+        "include_context_hint_write": "開啟後會把全文一起傳給 AI，內容更貼合上下文，但消耗更多額度；關閉時只傳送插入點附近的片段。"
       },
       "context": {
         "aria": "編輯器右鍵選單",

@@ -27,6 +27,7 @@ const (
 	aiWriteMaxSelectionRune   = 8000             // 润色选区的长度上限（需完整改写，超出直接拒绝）
 	aiWriteMaxMarkupRune      = 24000            // 润色选区格式化表示的长度上限（含格式标签，约为纯文本的数倍）
 	aiWriteMaxContextRune     = 12000            // 插入点前后正文的总长上限，超出部分从远端截断
+	aiWriteLocalContextRune   = 800              // 不附带全文时，帮写保留插入点附近的正文长度
 )
 
 // SSE 事件
@@ -120,7 +121,16 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 			structured = true
 		}
 	}
-	before, after = truncateAIWriteContext(before, after, aiWriteMaxContextRune)
+	switch {
+	case req.IncludeContext:
+		before, after = truncateAIWriteContext(before, after, aiWriteMaxContextRune)
+	case req.Mode == aiWriteModeRewrite:
+		// 不附带全文：润色只看选中内容
+		before, after = "", ""
+	default:
+		// 不附带全文：帮写仍需知道插入点位置，只保留附近的片段
+		before, after = truncateAIWriteContext(before, after, aiWriteLocalContextRune)
+	}
 	userID, _ := ctxutils.GetCurrentUserID(ctx)
 	prompt := &aiWritePrompt{
 		targetType:  targetType,
@@ -136,6 +146,7 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 		after:       after,
 		selection:   selection,
 		structured:  structured,
+		noContext:   !req.IncludeContext,
 	}
 	return &AIWriteJob{userID: userID, cfg: cfg, user: prompt.build()}, nil
 }

@@ -1161,7 +1161,10 @@
           "casual": "カジュアルに",
           "translate_en": "英語に翻訳",
           "translate_zh": "中国語に翻訳"
-        }
+        },
+        "include_context": "全文をコンテキストに含める",
+        "include_context_hint_rewrite": "オンにすると全文も AI に送り、前後の一貫性を保ちますが、利用量が増えます。オフのときは選択した内容だけを送ります。",
+        "include_context_hint_write": "オンにすると全文も AI に送り、文脈に合った内容になりますが、利用量が増えます。オフのときはカーソル付近の文章だけを送ります。"
       },
       "context": {
         "aria": "エディターのコンテキストメニュー",

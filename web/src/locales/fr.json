@@ -1161,7 +1161,10 @@
           "casual": "Plus détendu",
           "translate_en": "Traduire en anglais",
           "translate_zh": "Traduire en chinois"
-        }
+        },
+        "include_context": "Inclure tout le contexte",
+        "include_context_hint_rewrite": "Envoie tout l'article à l'IA pour garder la cohérence, au prix de plus de jetons. Désactivé, seule la sélection est envoyée.",
+        "include_context_hint_write": "Envoie tout l'article à l'IA pour que le texte s'accorde au contexte, au prix de plus de jetons. Désactivé, seul le texte autour du curseur est envoyé."
       },
       "context": {
         "aria": "Menu contextuel de l’éditeur",

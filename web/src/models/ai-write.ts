@@ -23,6 +23,8 @@ export interface AIWriteRequest {
   document: string
   // 润色：选区的格式化表示（块结构为 Markdown、行内格式为 HTML 标签，图片等节点为 [[KEEP_n]] 占位符）
   selection?: string
+  // 是否附带全文作为上下文；不附带时润色只发送选中内容，帮写只发送插入点附近的片段
+  includeContext: boolean
   title: string
   description: string
   category: string

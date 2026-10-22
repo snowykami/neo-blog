@@ -1161,7 +1161,10 @@
           "casual": "More casual",
           "translate_en": "Translate to English",
           "translate_zh": "Translate to Chinese"
-        }
+        },
+        "include_context": "Include full context",
+        "include_context_hint_rewrite": "Sends the whole post to the AI so the result stays consistent, at the cost of more tokens. When off, only the selection is sent.",
+        "include_context_hint_write": "Sends the whole post to the AI so the text fits its context, at the cost of more tokens. When off, only the text around the cursor is sent."
       },
       "context": {
         "aria": "Editor context menu",

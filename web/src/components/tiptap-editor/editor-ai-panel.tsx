@@ -7,11 +7,14 @@ import { posToDOMRect } from '@tiptap/react'
 import { CheckIcon, PencilLineIcon, RotateCcwIcon, SparklesIcon, SquareIcon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
+import { InfoTooltip } from '@/components/common/info-tooltip'
 import { EDITOR_FLOATING_ATTR } from '@/components/tiptap-ui/link-popover/link-popover'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
+import { Label } from '@/components/ui/label'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { Spinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { AI_REWRITE_PRESETS, AI_WRITE_PRESETS } from '@/models/ai-write'
@@ -32,6 +35,7 @@ export function EditorAIPanel({ editor, writer }: { editor: Editor, writer: AIWr
   const busy = AI_WRITER_BUSY_STATUSES.includes(state.status)
   const [draft, setDraft] = React.useState('')
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+  const contextSwitchId = React.useId()
   const acceptRef = React.useRef<HTMLButtonElement>(null)
   const stopRef = React.useRef<HTMLButtonElement>(null)
 
@@ -56,11 +60,16 @@ export function EditorAIPanel({ editor, writer }: { editor: Editor, writer: AIWr
   React.useEffect(() => {
     if (status === 'prompting') {
       setDraft(instruction)
-      window.setTimeout(() => {
+      // 从下拉菜单 / 右键菜单打开时，菜单关闭会再移动一次焦点：先聚焦一次，菜单关闭后再补一次
+      const focusInput = () => {
         const el = textareaRef.current
-        el?.focus()
-        el?.setSelectionRange(el.value.length, el.value.length)
-      }, 0)
+        if (!el || document.activeElement === el)
+          return
+        el.focus()
+        el.setSelectionRange(el.value.length, el.value.length)
+      }
+      const timers = [0, 120].map(delay => window.setTimeout(focusInput, delay))
+      return () => timers.forEach(timer => window.clearTimeout(timer))
     }
     else if (status === 'done') {
       acceptRef.current?.focus()
@@ -112,9 +121,11 @@ export function EditorAIPanel({ editor, writer }: { editor: Editor, writer: AIWr
           event.preventDefault()
           handleEscape()
         }}
-        onInteractOutside={(event) => {
+        // 焦点移出（如菜单关闭后焦点回到编辑器）不关闭面板，否则从菜单打开时会一闪而过
+        onFocusOutside={event => event.preventDefault()}
+        onInteractOutside={event => event.preventDefault()}
+        onPointerDownOutside={() => {
           // 只有输入要求时点击外部视为取消，生成中与等待确认时保留面板，避免误操作丢失结果
-          event.preventDefault()
           if (state.status === 'prompting' && !writer.hasPreview())
             writer.discard()
         }}
@@ -160,9 +171,13 @@ export function EditorAIPanel({ editor, writer }: { editor: Editor, writer: AIWr
                 }
               }}
             />
+            <p className="-mt-1 hidden text-xs text-muted-foreground sm:block">{t('hint_prompt')}</p>
             <div className="flex items-center gap-2">
-              <span className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground sm:block">{t('hint_prompt')}</span>
-              <span className="flex-1 sm:hidden" />
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <Switch id={contextSwitchId} checked={writer.includeContext} onCheckedChange={writer.setIncludeContext} />
+                <Label htmlFor={contextSwitchId} className="truncate text-xs font-normal text-muted-foreground">{t('include_context')}</Label>
+                <InfoTooltip content={t(isRewrite ? 'include_context_hint_rewrite' : 'include_context_hint_write')} />
+              </div>
               <Button type="button" size="sm" variant="outline" onClick={writer.discard}>{t('cancel')}</Button>
               <Button type="button" size="sm" onClick={() => submit()}>
                 <SparklesIcon />
