@@ -1,5 +1,6 @@
 import type { PaginationParams } from '../models/common'
 import type { Comment } from '@/models/comment'
+import type { Dashboard, DashboardDays } from '@/models/dashboard'
 import type { OidcConfig } from '@/models/oidc-config'
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
@@ -7,15 +8,8 @@ import type { Role, User } from '@/models/user'
 import type { VisitLog, Visitor, VisitStats } from '@/models/visit'
 import axiosClient from './client'
 
-export interface DashboardResp {
-  totalUsers: number
-  totalPosts: number
-  totalComments: number
-  totalViews: number
-}
-
-export async function getDashboard(): Promise<BaseResponse<DashboardResp>> {
-  const res = await axiosClient.get('/admin/dashboard')
+export async function getDashboard(days: DashboardDays): Promise<BaseResponse<Dashboard>> {
+  const res = await axiosClient.get('/admin/dashboard', { params: { days } })
   return res.data
 }
 

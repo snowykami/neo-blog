@@ -1,5 +1,6 @@
 import type { IconType } from 'react-icons'
 import { CornerDownRight, Globe, Monitor, MousePointerClick, Search, Shuffle, Smartphone, Tablet } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { FaAndroid, FaApple, FaChrome, FaEdge, FaFacebook, FaFirefoxBrowser, FaGithub, FaGoogle, FaLinkedin, FaLinux, FaMicrosoft, FaOpera, FaQq, FaReddit, FaSafari, FaTelegram, FaWeibo, FaWeixin, FaWindows, FaXTwitter, FaYahoo, FaYandex } from 'react-icons/fa6'
 import { RiOpenaiFill } from 'react-icons/ri'
 import { SiBaidu, SiBilibili, SiClaude, SiCsdn, SiDuckduckgo, SiHarmonyos, SiJuejin, SiPerplexity, SiSamsung, SiSogou, SiZhihu } from 'react-icons/si'
@@ -109,4 +110,18 @@ export function SourceIcon({ source, className }: { source: string, className?: 
     return <Icon className={className} aria-hidden="true" />
   const Fallback = fallbackSourceIcons[source] ?? Globe
   return <Fallback className={cn('size-4', className)} aria-hidden="true" />
+}
+
+// 来源名称：常见平台显示品牌名，其他网站显示域名
+export function SourceName({ source, host }: { source: string, host: string }) {
+  const t = useTranslations('Console.visits')
+  if (source === 'direct')
+    return <>{t('source_direct')}</>
+  if (source === 'internal')
+    return <>{t('source_internal')}</>
+  if (source === 'random')
+    return <>{t('source_random')}</>
+  if (source === 'external')
+    return <>{host || t('source_external')}</>
+  return <>{SOURCE_NAMES[source] ?? source}</>
 }

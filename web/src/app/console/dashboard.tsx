@@ -1,263 +1,164 @@
 'use client'
-import type { DashboardResp } from '@/api/admin'
-import type { BackendMetricsData, FrontendMetricsData } from '@/models/misc'
-import type { IconType } from '@/types/icon'
-import { Eye, MessageCircle, Newspaper, Users } from 'lucide-react'
+import type { Dashboard as DashboardData, DashboardDays } from '@/models/dashboard'
 import { useTranslations } from 'next-intl'
-import { JetBrains_Mono } from 'next/font/google'
-import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { parseAsNumberLiteral, useQueryState } from 'nuqs'
+import { useCallback, useEffect, useState } from 'react'
 import { getDashboard } from '@/api/admin'
-import { backendMetricsHandler, frontendMetricsHandler, getBackendMetrics, getFrontendMetrics } from '@/api/misc'
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { PostListCard } from '@/components/console/dashboard/post-list-card'
+import { RecentCommentsCard } from '@/components/console/dashboard/recent-comments-card'
+import { RuntimeCard } from '@/components/console/dashboard/runtime-card'
+import { SourcesCard } from '@/components/console/dashboard/sources-card'
+import { StatCards } from '@/components/console/dashboard/stat-cards'
+import { TodoCard } from '@/components/console/dashboard/todo-card'
+import { TotalsCard } from '@/components/console/dashboard/totals-card'
+import { TrendChart } from '@/components/console/dashboard/trend-chart'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useErrorMessageT } from '@/hooks/use-translations'
-import { consolePath } from '@/utils/common/route'
-
-// 指标轮询间隔
-const METRICS_POLL_INTERVAL = 5000
+import { cn } from '@/lib/utils'
+import { DASHBOARD_DAYS } from '@/models/dashboard'
 
 /**
- * 轮询拉取数据：页面不可见时暂停，重新可见时立即拉取一次
- * 失败时仅记录错误供卡片内展示，不弹 toast，避免轮询刷屏
+ * 后台首页，按博主关心的顺序自上而下排列：
+ * 1. 最近来了多少人、留下多少互动（核心指标 + 环比）
+ * 2. 走势如何，以及有哪些事情等我处理
+ * 3. 什么内容受欢迎、读者在说什么
+ * 4. 读者从哪里来、最近写了什么
+ * 5. 站点累计与系统运行（背景信息，运行指标默认折叠）
+ * 权限由控制台布局统一校验（仅管理员可进入），后端接口同样只对管理员开放
  */
-function usePolling<T>(fetcher: () => Promise<T>, interval?: number) {
-  const [data, setData] = useState<T | null>(null)
+export function Dashboard() {
+  const t = useTranslations('Console.dashboard')
+  const [days, setDays] = useQueryState(
+    'days',
+    parseAsNumberLiteral(DASHBOARD_DAYS).withDefault(7).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const { data, error, loading, reload } = useDashboard(days)
+
+  return (
+    <div className="grid gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">{t('range_description', { days })}</p>
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          value={String(days)}
+          onValueChange={value => value && setDays(Number(value) as DashboardDays)}
+          aria-label={t('range_label')}
+        >
+          {DASHBOARD_DAYS.map(item => (
+            <ToggleGroupItem key={item} value={String(item)} className="px-3">
+              {t('range_days', { days: item })}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+
+      {!!error && <LoadError error={error} onRetry={reload} />}
+      {data
+        ? (
+            // 切换区间时保留旧数据并降低不透明度，避免整页闪烁
+            <div className={cn('grid gap-4 transition-opacity', loading && 'opacity-60')} aria-busy={loading}>
+              <StatCards summary={data.summary} />
+              <div className="grid gap-4 lg:grid-cols-3">
+                <TrendChart trend={data.trend} className="lg:col-span-2" />
+                <TodoCard content={data.content} pendingComments={data.summary.pendingComments} days={data.days} />
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <PostListCard
+                  title={t('hot_posts_title')}
+                  tabs={[
+                    { value: 'top', posts: data.posts.top, metric: 'periodViews' },
+                    { value: 'hot', posts: data.posts.hot, metric: 'heat' },
+                  ]}
+                />
+                <RecentCommentsCard comments={data.recentComments} pendingComments={data.summary.pendingComments} days={data.days} />
+              </div>
+              <div className="grid gap-4 lg:grid-cols-3">
+                <PostListCard
+                  title={t('recent_posts_title')}
+                  className="lg:col-span-2"
+                  tabs={[
+                    { value: 'recent', posts: data.posts.recent, metric: 'createdAt' },
+                    { value: 'updated', posts: data.posts.updated, metric: 'updatedAt' },
+                  ]}
+                />
+                <SourcesCard sources={data.sources} />
+              </div>
+              <TotalsCard data={data} />
+            </div>
+          )
+        : !error && <DashboardSkeleton />}
+      <RuntimeCard />
+    </div>
+  )
+}
+
+function useDashboard(days: DashboardDays) {
+  const [data, setData] = useState<DashboardData | null>(null)
   const [error, setError] = useState<unknown>(null)
-  const fetcherRef = useRef(fetcher)
-  fetcherRef.current = fetcher
+  const [loading, setLoading] = useState(true)
+  const [version, setVersion] = useState(0)
+  const reload = useCallback(() => setVersion(v => v + 1), [])
 
   useEffect(() => {
     let cancelled = false
-    let timer: number | undefined
-
-    const run = () => {
-      fetcherRef.current()
-        .then((res) => {
-          if (cancelled)
-            return
-          setData(res)
-          setError(null)
-        })
-        .catch((err: unknown) => {
-          if (!cancelled)
-            setError(err ?? new Error('unknown'))
-        })
-    }
-    const start = () => {
-      if (!interval || timer !== undefined)
-        return
-      timer = window.setInterval(run, interval)
-    }
-    const stop = () => {
-      if (timer !== undefined) {
-        window.clearInterval(timer)
-        timer = undefined
-      }
-    }
-    const onVisibilityChange = () => {
-      if (document.hidden) {
-        stop()
-      }
-      else {
-        run()
-        start()
-      }
-    }
-
-    run()
-    if (!document.hidden)
-      start()
-    if (interval)
-      document.addEventListener('visibilitychange', onVisibilityChange)
+    setLoading(true)
+    getDashboard(days)
+      .then((res) => {
+        if (cancelled)
+          return
+        setData(res.data)
+        setError(null)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled)
+          setError(err ?? new Error('unknown'))
+      })
+      .finally(() => {
+        if (!cancelled)
+          setLoading(false)
+      })
     return () => {
       cancelled = true
-      stop()
-      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [interval])
+  }, [days, version])
 
-  return { data, error }
+  return { data, error, loading, reload }
 }
 
-const jetBrainsMono = JetBrains_Mono({
-  variable: '--font-jet-mono',
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-})
-
-export function Dashboard() {
-  return (
-    <div>
-      <DataOverview />
-      <MetricsOverview />
-    </div>
-  )
-}
-
-function DataOverview() {
-  const dashboardT = useTranslations('Console.dashboard')
-  const data: {
-    key: keyof DashboardResp
-    label: string
-    icon: IconType
-    url: string
-  }[]
-    = [
-      {
-        key: 'totalPosts',
-        label: 'total_posts',
-        icon: Newspaper,
-        url: consolePath.post,
-      },
-      {
-        key: 'totalUsers',
-        label: 'total_users',
-        icon: Users,
-        url: consolePath.user,
-      },
-      {
-        key: 'totalComments',
-        label: 'total_comments',
-        icon: MessageCircle,
-        url: consolePath.comment,
-      },
-      {
-        key: 'totalViews',
-        label: 'total_views',
-        icon: Eye,
-        url: consolePath.visit,
-      },
-    ]
-
-  // 概览数据只拉取一次，不轮询
-  const { data: fetchData, error } = usePolling(() => getDashboard().then(res => res.data))
-
-  if (!fetchData) {
-    return (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4" aria-busy={!error}>
-        {error
-          ? <ErrorText className="col-span-full" error={error} />
-          : data.map(item => <Skeleton key={item.key} className="h-[5.5rem] rounded-xl" />)}
-      </div>
-    )
-  }
-
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {data.map(item => (
-        <Link key={item.key} href={item.url}>
-          <Card key={item.key} className="pt-4 pb-2">
-            <CardHeader className="pb-2 text-lg font-medium">
-              <CardDescription>{dashboardT(item.label)}</CardDescription>
-              <CardTitle className="flex items-center text-2xl font-semibold tabular-nums @[250px]/card:text-3xl text-primary">
-                <item.icon className="inline mr-2" />
-                {fetchData[item.key]}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        </Link>
-      ))}
-    </div>
-  )
-}
-
-function MetricsOverview() {
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mt-4">
-      <BackendMetricsOverview />
-      <FrontendMetricsOverview />
-    </div>
-  )
-}
-
-function BackendMetricsOverview() {
-  const dashboardT = useTranslations('Console.dashboard')
-  const { data: metricsData, error } = usePolling<BackendMetricsData>(
-    () => getBackendMetrics().then(res => res.data),
-    METRICS_POLL_INTERVAL,
-  )
-  const boldProps = ['memorySys']
-
-  return (
-    <div className="">
-      <Card className="px-4 gap-3">
-        <CardDescription className="mb-0">{dashboardT('backend_metrics')}</CardDescription>
-        {/* 已有数据时轮询失败仍保留旧数据，同时在卡片内提示 */}
-        {!!error && <ErrorText error={error} />}
-        <div className="mt-4 space-y-2">
-          {metricsData
-            ? Object.entries(metricsData).slice().reverse().map(
-                ([key, value]) => (
-                  <div key={key} className="flex items-center leading-relaxed justify-between">
-                    <span className={`text-muted-foreground ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
-                      {dashboardT(key)}
-                    </span>
-                    <span className={`${jetBrainsMono.className} tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
-                      {backendMetricsHandler?.[key]?.(value) || value}
-                    </span>
-                  </div>
-                ),
-              )
-            : !error && <MetricsSkeleton />}
-        </div>
-      </Card>
-    </div>
-  )
-}
-
-function FrontendMetricsOverview() {
-  const dashboardT = useTranslations('Console.dashboard')
-  const { data: metricsData, error } = usePolling<FrontendMetricsData>(
-    getFrontendMetrics,
-    METRICS_POLL_INTERVAL,
-  )
-  const boldProps = ['memoryRss']
-
-  return (
-    <div className="">
-      <Card className="px-4 gap-3">
-        <CardDescription className="mb-0">{dashboardT('frontend_metrics')}</CardDescription>
-        {!!error && <ErrorText error={error} />}
-        <div className="mt-4 space-y-2">
-          {metricsData
-            ? (
-              // 反序遍历：先把 entries 转成数组并 reverse
-                Object.entries(metricsData).map(([key, value]) => (
-                  <div key={key} className="flex items-center leading-relaxed justify-between">
-                    <span className={`text-muted-foreground ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
-                      {dashboardT(key)}
-                    </span>
-                    <span className={`${jetBrainsMono.className} tabular-nums ${boldProps.includes(key) ? 'text-primary font-extrabold' : 'font-medium'}`}>
-                      {frontendMetricsHandler?.[key]?.(value) || value}
-                    </span>
-                  </div>
-                ))
-              )
-            : !error && <MetricsSkeleton />}
-        </div>
-      </Card>
-    </div>
-  )
-}
-
-function MetricsSkeleton() {
-  return (
-    <div className="grid gap-2 pb-4" aria-busy="true">
-      {Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-5 w-full" />)}
-    </div>
-  )
-}
-
-// 错误在卡片内展示并经过翻译，不弹 toast，避免轮询刷屏
-function ErrorText({ error, className = '' }: { error: unknown, className?: string }) {
-  const dashboardT = useTranslations('Console.dashboard')
+// 加载失败常驻提示并提供重试，已有数据时继续展示旧数据
+function LoadError({ error, onRetry }: { error: unknown, onRetry: () => void }) {
+  const t = useTranslations('Console.dashboard')
   const errorMessageT = useErrorMessageT()
-  const message = errorMessageT(error)
   return (
-    <p role="alert" className={`text-sm text-destructive ${className}`}>
-      {dashboardT('load_failed')}
-      {message && `: ${message}`}
-    </p>
+    <Alert variant="destructive">
+      <AlertTitle>{t('load_failed')}</AlertTitle>
+      <AlertDescription className="flex flex-wrap items-center gap-3">
+        <span>{errorMessageT(error)}</span>
+        <Button variant="outline" size="sm" onClick={onRetry}>{t('retry')}</Button>
+      </AlertDescription>
+    </Alert>
+  )
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="grid gap-4" aria-busy="true">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Skeleton className="h-80 rounded-xl lg:col-span-2" />
+        <Skeleton className="h-80 rounded-xl" />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-72 rounded-xl" />
+        <Skeleton className="h-72 rounded-xl" />
+      </div>
+    </div>
   )
 }

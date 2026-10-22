@@ -21,7 +21,12 @@ func NewAdminController() *AdminController {
 }
 
 func (cc *AdminController) GetDashboard(ctx context.Context, c *app.RequestContext) {
-	dashboardData, svcerr := cc.service.GetDashboard()
+	req := &dto.DashboardReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	dashboardData, svcerr := cc.service.GetDashboard(ctx, req)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return

@@ -14,39 +14,6 @@ func NewAdminService() *AdminService {
 	return &AdminService{}
 }
 
-func (c *AdminService) GetDashboard() (map[string]any, *errs.ServiceError) {
-	var (
-		postCount, commentCount, userCount, viewCount int64
-		err                                           error
-		mustCount                                     = func(q *gorm.DB, dest *int64) {
-			if err == nil {
-				err = q.Count(dest).Error
-			}
-		}
-		mustScan = func(q *gorm.DB, dest *int64) {
-			if err == nil {
-				err = q.Scan(dest).Error
-			}
-		}
-	)
-	db := repo.GetDB()
-
-	mustCount(db.Model(&model.Comment{}), &commentCount)
-	mustCount(db.Model(&model.Post{}), &postCount)
-	mustCount(db.Model(&model.User{}), &userCount)
-	mustScan(db.Model(&model.Post{}).Select("COALESCE(SUM(view_count), 0)"), &viewCount)
-
-	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_dashboard_data")
-	}
-	return map[string]any{
-		"total_comments": commentCount,
-		"total_posts":    postCount,
-		"total_users":    userCount,
-		"total_views":    viewCount,
-	}, nil
-}
-
 func (c *AdminService) CreateOidcConfig(req *dto.CreateOidcConfigDto) *errs.ServiceError {
 	oidcConfig := &model.OidcConfig{
 		Name:                  req.Name,

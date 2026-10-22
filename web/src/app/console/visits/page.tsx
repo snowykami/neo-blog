@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react'
 import { getVisitorAdmin, getVisitStatsAdmin, listVisitsAdmin } from '@/api/admin'
 import { UserAvatar } from '@/components/common/avatar'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
-import { BrowserIcon, OsIcon, SOURCE_NAMES, SourceIcon } from '@/components/console/visit-icons'
+import { BrowserIcon, OsIcon, SourceIcon, SourceName } from '@/components/console/visit-icons'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -189,20 +189,6 @@ export default function VisitsPage() {
       </div>
     </div>
   )
-}
-
-// 来源名称：常见平台显示品牌名，其他网站显示域名
-function SourceName({ source, host }: { source: string, host: string }) {
-  const t = useTranslations('Console.visits')
-  if (source === 'direct')
-    return <>{t('source_direct')}</>
-  if (source === 'internal')
-    return <>{t('source_internal')}</>
-  if (source === 'random')
-    return <>{t('source_random')}</>
-  if (source === 'external')
-    return <>{host || t('source_external')}</>
-  return <>{SOURCE_NAMES[source] ?? source}</>
 }
 
 // 访问者展示：登录用户显示头像昵称，匿名访客显示系统图标、归属地与浏览器
