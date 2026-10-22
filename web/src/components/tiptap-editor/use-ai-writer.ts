@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { streamAIWrite } from '@/api/ai-write'
 import { AI_PREVIEW_META, aiWritePluginKey } from '@/components/tiptap-extension/ai-write-extension'
 import { useErrorMessageT } from '@/hooks/use-translations'
-import { restoreRewriteKeeps, serializeRewriteSelection } from './ai-rewrite-markup'
+import { repairTagQuotes, restoreMarkTokens, restoreRewriteKeeps, serializeRewriteSelection } from './ai-rewrite-markup'
 import { buildMarkedDocument, buildPreview, markdownToSlice, resolveAITarget, syncDocTransaction } from './ai-write-utils'
 
 /**
@@ -53,6 +53,7 @@ interface AIWriterSession {
   // 润色：选区的格式化表示（扩展 Markdown）与被占位符保护的节点
   selection?: string
   keeps: PMNode[]
+  marks: string[]
   preview: AIPreview | null
 }
 
@@ -108,7 +109,10 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
     if (!session)
       return
     // 占位符还原为原节点；生成结束时补回模型遗漏的节点，生成中不补，避免末尾闪现
-    const slice = restoreRewriteKeeps(markdownToSlice(editor.schema, markdown, session.target.scope), session.keeps, editor.schema, !streaming)
+    const structured = session.selection !== undefined
+    const source = structured ? repairTagQuotes(markdown) : markdown
+    const parsed = markdownToSlice(editor.schema, source, session.target.scope, structured ? body => restoreMarkTokens(body, session.marks) : undefined)
+    const slice = restoreRewriteKeeps(parsed, session.keeps, editor.schema, !streaming)
     const preview = buildPreview(session.baseDoc, session.target, slice)
     session.preview = preview
     dispatchPreview(preview.doc, { from: preview.from, to: preview.to, kind: streaming ? 'generating' : 'generated' })
@@ -243,7 +247,7 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
     }
     // 润色时把选区序列化为保留格式的标记文本（代码块内的选区仍按纯文本处理）
     const rewrite = mode === 'rewrite' && target.scope !== 'code'
-      ? serializeRewriteSelection(editor.state.doc, editor.schema, target.from, target.to, target.scope)
+      ? serializeRewriteSelection(editor.state.doc, editor.schema, target.from, target.to)
       : null
     sessionRef.current = {
       target,
@@ -252,6 +256,7 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
       document: buildMarkedDocument(editor.state.doc, editor.schema, target),
       selection: rewrite?.markup,
       keeps: rewrite?.keeps ?? [],
+      marks: rewrite?.marks ?? [],
       preview: null,
     }
     latestRef.current.onBusyChange(true)

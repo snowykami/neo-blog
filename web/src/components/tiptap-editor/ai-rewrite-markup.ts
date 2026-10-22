@@ -8,6 +8,8 @@ import { DOMSerializer, Fragment, Slice } from '@tiptap/pm/model'
  *   能覆盖 Markdown 无法表达的格式，且避免 ** 在中文标点旁无法解析的问题；输出按粘贴的方式解析，格式原样还原
  * - 有对齐方式等属性的段落 / 标题整块输出为 HTML
  * - 图片、代码块、表格等不应被改写的节点替换为 [[KEEP_n]] 占位符，生成后还原为原节点
+ * - 带属性的行内格式（注释、链接、颜色、高亮等）替换为 <m1>…</m1> 这类编号标签：
+ *   模型润色时会把属性值的英文引号改成中文引号、甚至改写注释内容，属性一坏格式就丢；生成后再按编号换回原标签
  */
 
 export const AI_KEEP_PATTERN = /\[\[KEEP_(\d+)\]\]/g
@@ -26,7 +28,11 @@ const LIST_ITEM_TYPES = new Set(['listItem', 'taskItem'])
 export interface RewriteSelection {
   markup: string
   keeps: PMNode[]
+  // 编号标签对应的原始开始标签（不含内容），下标 n - 1 对应 <mn>
+  marks: string[]
 }
+
+const MARK_TOKEN_TAG = /^M(\d+)$/
 
 /** 行内文字中的 Markdown 特殊字符加反斜杠转义（< 与 & 已由 HTML 序列化转为实体） */
 function escapeMarkdownText(text: string) {
@@ -42,6 +48,7 @@ function escapeLineStart(line: string) {
 
 class RewriteSerializer {
   keeps: PMNode[] = []
+  marks: string[] = []
   private dom: DOMSerializer
 
   constructor(private schema: Schema) {
@@ -51,6 +58,21 @@ class RewriteSerializer {
   private keep(node: PMNode) {
     this.keeps.push(node)
     return `${SENTINEL_OPEN}${this.keeps.length}${SENTINEL_CLOSE}`
+  }
+
+  /** 带属性的元素换成编号标签 <mn>，相同的标签与属性复用同一编号 */
+  private tokenizeAttributes(elements: Iterable<Element>) {
+    for (const el of elements) {
+      if (el.attributes.length === 0 || el.tagName === 'BR')
+        continue
+      const shell = (el.cloneNode(false) as Element).outerHTML
+      let index = this.marks.indexOf(shell)
+      if (index < 0)
+        index = this.marks.push(shell) - 1
+      const token = document.createElement(`m${index + 1}`)
+      token.append(...el.childNodes)
+      el.replaceWith(token)
+    }
   }
 
   /** 行内内容转为 HTML；markdown 为 true 时文字中的 Markdown 特殊字符会被转义 */
@@ -65,6 +87,7 @@ class RewriteSerializer {
     })
     const container = document.createElement('div')
     container.appendChild(this.dom.serializeFragment(Fragment.fromArray(nodes), { document }))
+    this.tokenizeAttributes([...container.querySelectorAll('*')])
     if (markdown) {
       const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT)
       for (let text = walker.nextNode(); text; text = walker.nextNode())
@@ -83,6 +106,8 @@ class RewriteSerializer {
   private htmlBlock(node: PMNode) {
     const container = document.createElement('div')
     container.appendChild(this.dom.serializeNode(node, { document }))
+    // 块本身的属性（对齐方式）保留在标签上，内部带属性的行内格式换成编号标签
+    this.tokenizeAttributes([...(container.firstElementChild?.querySelectorAll('*') ?? [])])
     return container.innerHTML.replace(/\n/g, '<br>')
   }
 
@@ -146,23 +171,61 @@ class RewriteSerializer {
 
 /**
  * 把润色选区序列化为模型可读、可原样还原的标记文本
- * inline：选区在同一段落中，只输出行内内容；block：输出选区覆盖的完整块
+ * doc.slice 以选区两端的最深公共父节点为根：选中整段时内容是该段的行内节点，跨多个列表项时内容是列表项，
+ * 因此按切片内容的实际类型序列化，而不是只看 scope
  */
-export function serializeRewriteSelection(doc: PMNode, schema: Schema, from: number, to: number, scope: 'inline' | 'block'): RewriteSelection {
+export function serializeRewriteSelection(doc: PMNode, schema: Schema, from: number, to: number): RewriteSelection {
   const serializer = new RewriteSerializer(schema)
   const slice = doc.slice(from, to)
+  const content = slice.content
+  const first = content.firstChild
   let markup: string
-  if (scope === 'inline') {
-    // 同一段落内的选区：切片为部分段落，取其行内内容
-    let inlineContent = slice.content
-    while (inlineContent.childCount === 1 && !inlineContent.firstChild!.isInline)
-      inlineContent = inlineContent.firstChild!.content
-    markup = serializer.inline(inlineContent, true)
+  if (!first) {
+    markup = ''
+  }
+  else if (first.isInline) {
+    // 同一文本块内的选区（部分或整段）：只输出行内内容
+    markup = serializer.inline(content, true)
+  }
+  else if (LIST_ITEM_TYPES.has(first.type.name)) {
+    // 跨多个列表项：按所在列表的类型包回列表，序号从选区第一项开始
+    const $from = doc.resolve(from)
+    const depth = $from.sharedDepth(to)
+    const list = $from.node(depth)
+    const attrs = list.type.name === 'orderedList'
+      ? { ...list.attrs, start: Number(list.attrs.start ?? 1) + $from.index(depth) }
+      : list.attrs
+    markup = serializer.block(list.type.create(attrs, content))
   }
   else {
-    markup = serializer.blocks(slice.content)
+    markup = serializer.blocks(content)
   }
-  return { markup: serializer.finish(markup), keeps: serializer.keeps }
+  return { markup: serializer.finish(markup), keeps: serializer.keeps, marks: serializer.marks }
+}
+
+/** 把模型输出里的编号标签 <mn> 换回原始标签（带原属性）；未知编号只保留内容 */
+export function restoreMarkTokens(body: HTMLElement, marks: string[]) {
+  for (const el of [...body.querySelectorAll('*')]) {
+    const match = MARK_TOKEN_TAG.exec(el.tagName)
+    if (!match)
+      continue
+    const shell = marks[Number(match[1]) - 1]
+    const template = document.createElement('template')
+    template.innerHTML = shell ?? ''
+    const original = template.content.firstElementChild
+    if (original) {
+      original.append(...el.childNodes)
+      el.replaceWith(original)
+    }
+    else {
+      el.replaceWith(...el.childNodes)
+    }
+  }
+}
+
+/** 模型偶尔把 HTML 标签里的英文引号改成中文 / 全角引号，解析前在标签内部改回，避免属性被截断 */
+export function repairTagQuotes(markup: string) {
+  return markup.replace(/<\/?[A-Z][^<>]*>/gi, tag => tag.replace(/[“”„＂]/g, '"').replace(/[‘’]/g, '\''))
 }
 
 interface RestoreState {

@@ -1,11 +1,11 @@
 import type { Node as PMNode, Schema } from '@tiptap/pm/model'
-import type { AITarget } from './ai-write-utils'
 import { DOMParser as PMDOMParser } from '@tiptap/pm/model'
+import { EditorState, TextSelection } from '@tiptap/pm/state'
 import { getSchema } from '@tiptap/react'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createContentExtensions } from '@/lib/tiptap-extensions'
-import { restoreRewriteKeeps, serializeRewriteSelection } from './ai-rewrite-markup'
-import { buildPreview, markdownToSlice } from './ai-write-utils'
+import { repairTagQuotes, restoreMarkTokens, restoreRewriteKeeps, serializeRewriteSelection } from './ai-rewrite-markup'
+import { buildPreview, markdownToSlice, resolveAITarget } from './ai-write-utils'
 
 let schema: Schema
 
@@ -18,19 +18,41 @@ function parse(html: string): PMNode {
   return PMDOMParser.fromSchema(schema).parse(body)
 }
 
-/** 模拟一次润色：序列化选区 → 模型输出（默认原样返回）→ 解析、还原占位符 → 写回生成前的文档 */
-function rewrite(doc: PMNode, from: number, to: number, scope: 'inline' | 'block', model: (markup: string) => string = m => m, final = true) {
-  const { markup, keeps } = serializeRewriteSelection(doc, schema, from, to, scope)
-  const target: AITarget = { mode: 'rewrite', scope, from, to }
-  const slice = restoreRewriteKeeps(markdownToSlice(schema, model(markup), scope), keeps, schema, final)
-  return { markup, keeps, doc: buildPreview(doc, target, slice).doc }
+/** 模拟一次润色：按编辑器的真实逻辑由选区得到目标 → 序列化 → 模型输出（默认原样返回）→ 解析、还原占位符 → 写回生成前的文档 */
+function rewrite(doc: PMNode, from: number, to: number, model: (markup: string) => string = m => m, final = true) {
+  const state = EditorState.create({ doc, selection: TextSelection.create(doc, from, to) })
+  const target = resolveAITarget(state, 'rewrite')!
+  const { markup, keeps, marks } = serializeRewriteSelection(doc, schema, target.from, target.to)
+  const parsed = markdownToSlice(schema, repairTagQuotes(model(markup)), target.scope, body => restoreMarkTokens(body, marks))
+  const slice = restoreRewriteKeeps(parsed, keeps, schema, final)
+  return { markup, keeps, marks, target, doc: buildPreview(doc, target, slice).doc }
 }
 
 /** 原样往返：模型不做任何修改时，文档必须与生成前完全一致 */
-function expectRoundTrip(doc: PMNode, from = 0, to = doc.content.size, scope: 'inline' | 'block' = 'block') {
-  const result = rewrite(doc, from, to, scope)
+function expectRoundTrip(doc: PMNode, from = 1, to = doc.content.size - 1) {
+  const result = rewrite(doc, from, to)
   expect(result.doc.toJSON()).toEqual(doc.toJSON())
   return result
+}
+
+/** 文本在文档中的位置（取第一次出现） */
+function posOf(doc: PMNode, text: string, offset = 0) {
+  let found = -1
+  doc.descendants((node, pos) => {
+    if (found < 0 && node.isText && node.text!.includes(text))
+      found = pos + node.text!.indexOf(text) + offset
+  })
+  return found
+}
+
+/** 某个文本块内容的起止位置 */
+function blockRange(doc: PMNode, startsWith: string) {
+  let range = [-1, -1]
+  doc.descendants((node, pos) => {
+    if (range[0] < 0 && node.isTextblock && node.textContent.startsWith(startsWith))
+      range = [pos + 1, pos + 1 + node.content.size]
+  })
+  return range as [number, number]
 }
 
 describe('润色选区的原样往返', () => {
@@ -46,7 +68,9 @@ describe('润色选区的原样往返', () => {
     const { markup } = expectRoundTrip(doc)
     // 行内格式以 HTML 标签交给模型，避免 ** 在中文标点旁失效
     expect(markup).toContain('<strong>粗体“引号”</strong>')
-    expect(markup).toContain('data-annotation="一段注释"')
+    // 带属性的格式以编号标签交给模型，属性不暴露给模型
+    expect(markup).not.toContain('data-annotation')
+    expect(markup).toMatch(/<m\d+>注释词<\/m\d+>/)
     expect(markup).not.toContain('**')
   })
 
@@ -81,7 +105,8 @@ describe('润色选区的原样往返', () => {
     const text = doc.textContent
     const from = 1 + text.indexOf('体文字')
     const to = 1 + text.indexOf('链接') + 1
-    const { markup } = expectRoundTrip(doc, from, to, 'inline')
+    const { markup, target } = expectRoundTrip(doc, from, to)
+    expect(target.scope).toBe('inline')
     expect(markup.startsWith('<strong>体文字</strong>')).toBe(true)
   })
 })
@@ -89,25 +114,85 @@ describe('润色选区的原样往返', () => {
 describe('润色输出的处理', () => {
   it('改写文字时格式随标签保留', () => {
     const doc = parse('<p>这是<strong>重要</strong>的<a href="https://a.dev">文档</a></p>')
-    const result = rewrite(doc, 0, doc.content.size, 'block', m => m.replace('这是', '这里是').replace('重要', '非常重要').replace('文档', '说明文档'))
+    const result = rewrite(doc, 1, doc.content.size - 1, m => m.replace('这是', '这里是').replace('重要', '非常重要').replace('文档', '说明文档'))
     expect(result.doc.toJSON()).toEqual(parse('<p>这里是<strong>非常重要</strong>的<a href="https://a.dev">说明文档</a></p>').toJSON())
   })
 
   it('模型遗漏或重复占位符时：结束后补回遗漏的节点，重复的只还原一次；生成中不补', () => {
     const doc = parse('<p>前文</p><img src="https://cdn.example.com/a.png"><p>后文</p>')
-    const dropped = rewrite(doc, 0, doc.content.size, 'block', m => m.replace('[[KEEP_1]]', ''))
+    const dropped = rewrite(doc, 1, doc.content.size - 1, m => m.replace('[[KEEP_1]]', ''))
     expect(dropped.doc.toJSON()).toEqual(parse('<p>前文</p><p>后文</p><img src="https://cdn.example.com/a.png">').toJSON())
 
-    const streaming = rewrite(doc, 0, doc.content.size, 'block', m => m.replace('[[KEEP_1]]', ''), false)
+    const streaming = rewrite(doc, 1, doc.content.size - 1, m => m.replace('[[KEEP_1]]', ''), false)
     expect(streaming.doc.toJSON()).toEqual(parse('<p>前文</p><p>后文</p>').toJSON())
 
-    const duplicated = rewrite(doc, 0, doc.content.size, 'block', m => `${m}\n\n[[KEEP_1]]\n\n[[KEEP_9]]`)
+    const duplicated = rewrite(doc, 1, doc.content.size - 1, m => `${m}\n\n[[KEEP_1]]\n\n[[KEEP_9]]`)
     expect(duplicated.doc.toJSON()).toEqual(doc.toJSON())
   })
 
   it('占位符混在文字中时，块节点放到所在段落之后', () => {
     const doc = parse('<p>前文</p><img src="https://cdn.example.com/a.png"><p>后文</p>')
-    const merged = rewrite(doc, 0, doc.content.size, 'block', () => '前文[[KEEP_1]]\n\n后文')
+    const merged = rewrite(doc, 1, doc.content.size - 1, () => '前文[[KEEP_1]]\n\n后文')
     expect(merged.doc.toJSON()).toEqual(doc.toJSON())
+  })
+})
+
+describe('按真实选区润色', () => {
+  const annotated = '<p>最开始我其实是不怎么抱有能转正的期望的，毕竟<span data-annotation="指在公司内部通过特殊流程进行转岗">活水</span>过来之前HR就跟我说过一句话 “我们这边暑期转正可能没有这么多<span data-annotation="HC 指的就是 Head Count">HC</span>，转正很激烈”。我去的新组有快将近30个<span data-annotation="以留用为目的的实习">暑期实习</span>生。</p><p>第二段。</p>'
+
+  it('选中整段带注释的段落：作为行内内容序列化，不拆段', () => {
+    const doc = parse(annotated)
+    const [from, to] = blockRange(doc, '最开始')
+    const { markup, keeps, target } = expectRoundTrip(doc, from, to)
+    expect(target.scope).toBe('block')
+    expect(keeps).toHaveLength(0)
+    expect(markup).toContain('<m1>活水</m1>')
+    expect(markup).not.toContain('\n')
+  })
+
+  it('选中整段后模型改写措辞：注释保留，仍是同一段', () => {
+    const doc = parse(annotated)
+    const [from, to] = blockRange(doc, '最开始')
+    const result = rewrite(doc, from, to, m => m.replace('最开始我其实是不怎么抱有', '起初我并不怎么抱有'))
+    expect(result.doc.childCount).toBe(2)
+    expect(result.doc.firstChild!.textContent.startsWith('起初我并不怎么抱有')).toBe(true)
+    let annotations = 0
+    result.doc.firstChild!.descendants((node) => {
+      if (node.marks.some(mark => mark.type.name === 'annotation'))
+        annotations++
+    })
+    expect(annotations).toBe(3)
+  })
+
+  it('跨两段的部分选区', () => {
+    const doc = parse(annotated)
+    expectRoundTrip(doc, posOf(doc, '我去的新组'), posOf(doc, '第二段', 2))
+  })
+
+  it('跨多个列表项、有序列表从中间开始、列表项内整段、引用内整段', () => {
+    const doc = parse('<ul><li><p>第一<strong>项</strong></p></li><li><p>第二项</p></li><li><p>第三项</p></li></ul>'
+      + '<ol start="3"><li><p>三</p></li><li><p>四</p></li><li><p>五</p></li></ol>'
+      + '<blockquote><p>引用<em>内容</em></p></blockquote><p>结尾</p>')
+    expectRoundTrip(doc, posOf(doc, '一'), posOf(doc, '第三', 1))
+    const { markup } = expectRoundTrip(doc, posOf(doc, '四'), posOf(doc, '五', 1))
+    expect(markup.startsWith('4. ')).toBe(true)
+    expectRoundTrip(doc, ...blockRange(doc, '第二项'))
+    expectRoundTrip(doc, ...blockRange(doc, '引用'))
+  })
+})
+
+describe('模型输出的容错', () => {
+  it('编号标签的引号与属性不受模型改写影响，标签里的中文引号会被修复', () => {
+    const doc = parse('<p>毕竟<span data-annotation="HC 指的就是 Head Count，俗称人头数">HC</span>很少，见<a href="https://a.dev">文档</a>。</p><p style="text-align: center">居中<span style="color: #ef4444">红字</span></p>')
+    // 模拟模型把所有英文引号“润色”成中文引号
+    const result = rewrite(doc, 1, doc.content.size - 1, m => m.replace(/"([^"]*)"/g, '“$1”'))
+    expect(result.doc.toJSON()).toEqual(doc.toJSON())
+  })
+
+  it('未知编号的标签只保留文字', () => {
+    const doc = parse('<p>前文<span data-annotation="注释">术语</span>后文</p>')
+    const [from, to] = blockRange(doc, '前文')
+    const result = rewrite(doc, from, to, () => '前文<m9>术语</m9>后文')
+    expect(result.doc.toJSON()).toEqual(parse('<p>前文术语后文</p>').toJSON())
   })
 })

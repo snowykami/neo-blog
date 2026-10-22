@@ -128,8 +128,8 @@ function normalizeTaskLists(root: HTMLElement) {
   })
 }
 
-/** 把模型输出的 Markdown 转为可写入编辑器的内容片段（与粘贴时的解析方式相同） */
-export function markdownToSlice(schema: Schema, markdown: string, scope: AIWriteScope): Slice {
+/** 把模型输出的 Markdown 转为可写入编辑器的内容片段（与粘贴时的解析方式相同）；transformBody 可在解析前调整 HTML */
+export function markdownToSlice(schema: Schema, markdown: string, scope: AIWriteScope, transformBody?: (body: HTMLElement) => void): Slice {
   if (scope === 'code') {
     const code = stripCodeFence(markdown)
     return code ? new Slice(Fragment.from(schema.text(code)), 0, 0) : Slice.empty
@@ -142,6 +142,8 @@ export function markdownToSlice(schema: Schema, markdown: string, scope: AIWrite
   // DOMParser 解析出的文档是惰性的，不会执行脚本或加载资源；最终只保留编辑器 schema 认识的节点与属性
   const body = new window.DOMParser().parseFromString(html, 'text/html').body
   normalizeTaskLists(body)
+  // 润色时把编号标签换回原始格式等
+  transformBody?.(body)
   return PMDOMParser.fromSchema(schema).parseSlice(body)
 }
 
