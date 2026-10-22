@@ -5,11 +5,11 @@ import { BACKEND_URL } from '@/api/client'
 const nextConfig: NextConfig = {
   output: 'standalone',
   images: {
+    // 仅允许服务端优化 https 外链图片，且保持 Next 默认的私网地址拦截，避免 /_next/image 被用作 SSRF 跳板
+    // 站内文件使用相对路径（/api/v1/...），经 rewrites 内部转发，不受此限制；http 外链由 SafeImage 交给浏览器直接加载
     remotePatterns: [
       { protocol: 'https', hostname: '**', port: '', pathname: '/**' },
-      { protocol: 'http', hostname: '**', port: '', pathname: '/**' },
     ],
-    dangerouslyAllowLocalIP: true,
   },
   async rewrites() {
     return [
