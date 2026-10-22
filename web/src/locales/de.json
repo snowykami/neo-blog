@@ -1,19 +1,122 @@
 {
   "Privacy": {
-    "updated": "Zuletzt aktualisiert am {date}",
-    "intro": "Uns ist deine Privatsphäre wichtig. Hier erklären wir, welche Informationen diese Website beim Besuch erfasst, wie sie verwendet und wie sie geschützt werden.",
-    "collect_title": "Was wir erfassen",
-    "collect_body": "Wenn du einen Beitrag oder eine Seite liest, erfasst diese Website die besuchte Seite und Uhrzeit, die verweisende Seite, deine IP-Adresse (zur ungefähren Bestimmung von Region und Provider; im Admin-Bereich teilweise maskiert), den User-Agent deines Browsers (zur Erkennung von Betriebssystem und Browser) sowie einen Browser-Fingerabdruck-Hash aus grundlegenden Angaben wie Bildschirmauflösung, Sprache und Zeitzone. Invasive Techniken wie Canvas- oder WebGL-Fingerprinting verwenden wir nicht. Wenn du angemeldet bist, werden Besuche mit deinem Konto verknüpft.",
-    "cookie_title": "Cookies",
-    "cookie_body": "Diese Website speichert ein Cookie namens nb_vid für ein Jahr in deinem Browser, ausschließlich um wiederholte Besuche desselben Browsers zu erkennen. Anmelde-Cookies dienen nur dazu, dich angemeldet zu halten. Du kannst diese Cookies jederzeit in deinen Browsereinstellungen löschen.",
-    "purpose_title": "Wie wir die Daten verwenden",
-    "purpose_body": "Die Informationen dienen nur dem Betreiber, um die Nutzung des Blogs zu verstehen, etwa Beliebtheit von Beiträgen, Herkunft und regionale Verteilung der Besucher. Sie werden weder verkauft noch an Dritte weitergegeben und nicht für Werbung genutzt. IP-Standorte werden mit einer Offline-Datenbank auf dem Server dieser Website ermittelt; IPv6-Adressen können an einen externen Standortdienst gesendet werden, wenn keine Offline-Datenbank eingerichtet ist.",
-    "retention_title": "Speicherdauer",
-    "retention_body": "Besuchsdaten werden standardmäßig 90 Tage aufbewahrt und danach automatisch gelöscht.",
-    "dnt_title": "Do Not Track",
-    "dnt_body": "Sendet dein Browser „Do Not Track“ oder „Global Privacy Control“ (GPC), erfasst diese Website nur einen anonymen Besuch (Seite, Uhrzeit, ungefähre Region und Browsertyp). IP-Adresse und User-Agent werden nicht gespeichert, das Besucher-Cookie wird nicht gesetzt und kein Fingerabdruck berechnet.",
-    "contact_title": "Kontakt",
-    "contact_body": "Bei Fragen zu dieser Erklärung oder wenn du die Löschung deiner Besuchsdaten wünschst, wende dich bitte über die auf dieser Website angegebenen Kontaktmöglichkeiten an den Betreiber."
+    "updated": "Zuletzt aktualisiert und gültig ab {date}",
+    "intro": "Willkommen bei {site}. Diese Datenschutzerklärung erklärt dir in einfachen Worten, was diese Website speichert, wenn du sie besuchst, dich registrierst oder kommentierst, wofür das genutzt wird, wie lange es aufbewahrt wird und wie du deine Daten verwalten kannst. Diese Website wird von {owner} betrieben; „wir“ und „der Seitenbetreiber“ meinen im Folgenden den Betreiber dieser Website.",
+    "summary": {
+      "title": "Auf einen Blick",
+      "items": {
+        "no_sale": "Wir <b>verkaufen deine Daten nie</b> und nutzen sie nicht für Werbung.",
+        "stats": "Wenn du die Website besuchst, werden Besuchsstatistiken erfasst (welche Seiten du angesehen hast, deine ungefähre Region, dein Gerätetyp usw.), um zu verstehen, wie der Blog gelesen wird.",
+        "dnt": "Wenn dein Browser „Do Not Track“ sendet, speichert die Website nur das Nötigste: Es wird keine IP-Adresse gespeichert und kein Besucher-Cookie gesetzt.",
+        "comment": "Zum Kommentieren und Liken brauchst du ein Konto; deine IP-Adresse wird nie öffentlich angezeigt.",
+        "rights": "Du kannst dein Profil jederzeit bearbeiten oder den Seitenbetreiber kontaktieren, um Daten über dich einzusehen oder löschen zu lassen."
+      }
+    },
+    "browse": {
+      "title": "Beim Surfen",
+      "body": "Um zu verstehen, welche Beiträge gelesen werden und woher die Leser kommen, erfasst die Website beim Aufruf einer Seite Folgendes:",
+      "items": {
+        "page": "<b>Was du besucht hast</b>: die Seite, die Uhrzeit und die Seite, von der du gekommen bist (zum Beispiel eine Suchmaschine oder eine andere Website).",
+        "network": "<b>Netzwerkinformationen</b>: deine IP-Adresse sowie die daraus geschätzte ungefähre Region (Bundesland/Provinz, Stadt) und dein Netzanbieter. Das ergibt nur ein grobes Gebiet und kann nicht genau bestimmen, wo du dich befindest.",
+        "device": "<b>Geräteinformationen</b>: die Basisbeschreibung, die dein Browser an jede Website sendet und aus der dein Gerätetyp, dein Betriebssystem und dein Browser hervorgehen.",
+        "feature": "<b>Browser-Merkmalszusammenfassung</b>: ein nicht umkehrbarer Code, der aus Grundeinstellungen wie Sprache, Zeitzone und Bildschirmgröße berechnet wird. Er dient nur dazu, denselben Browser wiederzuerkennen, falls das Besucher-Cookie gelöscht wurde. Wir verwenden keine invasiveren Techniken wie „Device Fingerprinting“.",
+        "account": "<b>Kontoverknüpfung</b>: Wenn du angemeldet bist, werden deine Besuche mit deinem Konto verknüpft."
+      },
+      "note": "Besuche von Suchmaschinen-Crawlern und anderen automatisierten Programmen sowie die eigenen Besuche des Seitenbetreibers werden nicht erfasst. Nur der Seitenbetreiber kann die Besuchsdaten in der Verwaltungskonsole einsehen, wobei die zweite Hälfte jeder IP-Adresse ausgeblendet ist."
+    },
+    "account": {
+      "title": "Registrierung und Anmeldung",
+      "body": "Ein Konto ist freiwillig – alle öffentlichen Inhalte kannst du auch ohne lesen. Wenn du dich registrierst oder anmeldest:",
+      "items": {
+        "profile": "<b>Registrierungsdaten</b>: Benutzername, Spitzname, E-Mail-Adresse und Passwort. Deine E-Mail-Adresse wird für Bestätigungscodes und die Passwortwiederherstellung verwendet; dein Passwort wird nicht umkehrbar verschlüsselt gespeichert, sodass niemand es sehen kann. Optional kannst du außerdem einen Avatar, einen Profilhintergrund, dein Geschlecht, deine bevorzugte Sprache und eine Designfarbe angeben.",
+        "oidc": "<b>Anmeldung mit einem anderen Konto</b>: Wenn du dich mit einem Drittanbieterkonto anmeldest, erhalten wir von dieser Plattform deine Konto-ID, deinen Namen, Benutzernamen, deine E-Mail-Adresse und deinen Avatar, um hier ein Konto zu erstellen oder zu verknüpfen, und aktualisieren diese Daten bei jeder Anmeldung. Du kannst die Verknüpfung in deinen Kontoeinstellungen aufheben.",
+        "login": "<b>Anmeldeprotokolle</b>: Damit du angemeldet bleibst und dein Konto geschützt ist, speichert jede Anmeldesitzung die IP-Adressen, von denen aus sie genutzt wurde. Sitzungen, die lange inaktiv sind, werden automatisch gelöscht.",
+        "ip_location": "<b>IP-Region in deinem Profil</b>: Standardmäßig zeigt deine Profilseite Besuchern die ungefähre Region der IP-Adresse, mit der du dich zuletzt angemeldet hast (nicht die IP selbst). Du kannst „IP-Standort anzeigen“ in deinen Kontoeinstellungen deaktivieren."
+      }
+    },
+    "interact": {
+      "title": "Kommentare und Likes",
+      "body": "Zum Kommentieren oder Liken musst du angemeldet sein.",
+      "items": {
+        "comment": "<b>Kommentare</b>: Neben Kommentartext und Zeitpunkt speichert die Website die IP-Adresse, die ungefähre Region und die Geräteinformationen vom Zeitpunkt des Absendens, um Spam und Missbrauch zu bekämpfen. Deine IP-Adresse wird nie öffentlich angezeigt.",
+        "client_info": "<b>Öffentliche Client-Infos</b>: Wenn du beim Kommentieren „Client-Info anzeigen“ ankreuzt, können andere Leser deine ungefähre Region, dein Betriebssystem und deinen Browser sehen; andernfalls wird nichts davon angezeigt.",
+        "like": "<b>Likes und Interaktionen</b>: Die Website speichert, was du geliked hast. Deine Likes und Kommentare erscheinen außerdem im Interaktionsprotokoll des Seitenbetreibers, damit er die Rückmeldungen der Leser verfolgen kann; wenn du ein Like zurücknimmst, wird auch der zugehörige Eintrag gelöscht."
+      }
+    },
+    "dnt": {
+      "title": "Do Not Track",
+      "body": "Wenn in deinem Browser „Do Not Track“ oder „Global Privacy Control“ (GPC) aktiviert ist, respektiert die Website deine Wahl: Sie erfasst nur die Seite, die Uhrzeit, die verweisende Seite, die ungefähre Region und den Gerätetyp. Sie speichert weder deine IP-Adresse noch vollständige Browserinformationen, setzt kein Besucher-Cookie und berechnet keine Browser-Merkmalszusammenfassung (deine IP-Adresse wird kurz verwendet, um deine Region zu schätzen, aber nicht gespeichert). Wenn du gleichzeitig angemeldet bist, wird der Besuch trotzdem mit deinem Konto verknüpft."
+    },
+    "cookie": {
+      "title": "Cookies und lokaler Speicher",
+      "body": "Cookies sind kleine Datenstücke, die eine Website in deinem Browser speichert. Diese Website setzt selbst nur die folgenden Cookies, und keines davon wird für Werbung oder websiteübergreifendes Tracking verwendet:",
+      "items": {
+        "visitor": "<b>Besucher-ID (nb_vid)</b>: eine Zufallszahl, mit der wiederholte Besuche aus demselben Browser erkannt werden; sie wird ein Jahr lang gespeichert. Bei aktiviertem „Do Not Track“ wird sie nicht gesetzt.",
+        "login": "<b>Anmeldestatus (token, refresh_token)</b>: werden erst nach deiner Anmeldung gesetzt, damit du angemeldet bleibst. Sie verfallen, wenn du dich abmeldest oder wenn sie ablaufen.",
+        "oidc": "<b>Prüfung bei Drittanbieter-Anmeldung (oidc_nonce)</b>: wird kurzzeitig gesetzt, wenn du dich mit einem Drittanbieterkonto anmeldest, um zu bestätigen, dass die Anfrage aus deinem eigenen Browser kommt. Es verfällt nach 10 Minuten.",
+        "local": "<b>Lokale Einstellungen</b>: Oberflächeneinstellungen wie helles/dunkles Design sowie Lautstärke und Fortschritt des Musikplayers werden nur in deinem Browser gespeichert und nie an den Server übertragen."
+      },
+      "note": "Du kannst diese Daten jederzeit in deinen Browsereinstellungen ansehen oder löschen. Danach musst du dich erneut anmelden, und dein nächster Besuch wird als neuer Besucher gezählt. Auf den Seiten genutzte Drittanbieterdienste können eigene Cookies setzen; siehe nächster Abschnitt."
+    },
+    "third_party": {
+      "title": "Drittanbieterdienste",
+      "body": "Einige Funktionen sind auf Drittanbieterdienste angewiesen. Wenn du sie nutzt, kommuniziert dein Browser oder der Server dieser Website mit dem jeweiligen Dienst, der dadurch grundlegende Informationen wie deine IP-Adresse erhalten kann und diese nach seiner eigenen Datenschutzerklärung verarbeitet. Welche Dienste aktiviert sind, hängt von der Konfiguration des Seitenbetreibers ab:",
+      "items": {
+        "ip_lookup": "<b>IP-Regionsabfrage</b>: IPv4-Adressen werden offline auf dem Server dieser Website aufgelöst und an niemanden gesendet. Bei IPv6-Adressen (wenn der Seitenbetreiber keine Offline-Daten eingerichtet hat) und für die „IP-Region“ auf Profilseiten wird die IP-Adresse zur Abfrage an einen Drittanbieterdienst (mir6.com) gesendet.",
+        "captcha": "<b>Menschliche Verifizierung</b>: Bei Anmeldung und Registrierung können Cloudflare Turnstile, hCaptcha oder Google reCAPTCHA geladen werden, um Fake-Registrierungen und das Erraten von Passwörtern zu verhindern.",
+        "oidc": "<b>Drittanbieter-Anmeldung</b>: Wenn du dich mit einem Drittanbieterkonto anmeldest, wirst du zur Autorisierung an diese Plattform weitergeleitet.",
+        "gravatar": "<b>Gravatar-Avatare</b>: Nutzern ohne eigenen Avatar wird ihr Gravatar-Bild angezeigt. Dein Browser fordert das Bild bei Gravatar mit einem verschlüsselten Hashwert deiner E-Mail-Adresse an, nicht mit der Adresse selbst.",
+        "email": "<b>E-Mail-Versand</b>: E-Mails wie Bestätigungscodes werden über den vom Seitenbetreiber konfigurierten Maildienst versendet.",
+        "resources": "<b>Statische Ressourcen und Musik</b>: Bilder, Skripte, Musik und andere Dateien können auf einem CDN oder anderen Plattformen gehostet werden, und Seiten können ein kleines CDN-Status-Widget laden; Beiträge können externe Bilder enthalten. Wenn der Musikplayer aktiviert ist, werden Playlist und Audio von ihren jeweiligen Adressen geladen.",
+        "embed": "<b>Eingebettete Inhalte</b>: In der Seitenleiste und anderen Bereichen können Seiten anderer Websites eingebettet sein (etwa eine Social-Media-Timeline); das funktioniert genauso, als würdest du diese Website direkt besuchen."
+      },
+      "note": "Einige Drittanbieterdienste können Server außerhalb deines Landes oder deiner Region haben. Abgesehen von den oben genannten Fällen und gesetzlichen Pflichten geben wir deine personenbezogenen Daten an keine Dritten weiter."
+    },
+    "use": {
+      "title": "Wie wir diese Daten nutzen",
+      "items": {
+        "stats": "<b>Leserschaft verstehen</b>: Beliebtheit von Beiträgen, Herkunft der Besucher und regionale Verteilung messen, damit der Seitenbetreiber die Inhalte verbessern kann.",
+        "service": "<b>Funktionen bereitstellen</b>: dir Anmeldung, Kommentare, Likes und eine Profilseite ermöglichen.",
+        "security": "<b>Die Website schützen</b>: Spam, Fake-Registrierungen und ungewöhnlichen Datenverkehr erkennen und blockieren."
+      },
+      "note": "Wir verkaufen deine personenbezogenen Daten nicht und nutzen sie nicht für Werbe- oder Marketingprofile. Besuchsstatistiken beruhen auf dem berechtigten Interesse des Seitenbetreibers, zu verstehen, wie die Website genutzt wird; Kontodaten sind notwendig, um die von dir gewünschten Funktionen bereitzustellen; optionale öffentliche Anzeigen wie deine Region oder Client-Infos beruhen auf deiner Wahl und können jederzeit deaktiviert werden."
+    },
+    "retention": {
+      "title": "Wie lange wir Daten aufbewahren",
+      "items": {
+        "visit": "<b>Besuchs- und Interaktionsdaten</b>: werden {days} Tage lang aufbewahrt und danach automatisch gelöscht.",
+        "visitor": "<b>Besucherzusammenfassungen</b>: Für jeden Browser gibt es eine Zusammenfassung (letzte IP-Adresse, ungefähre Region, Gerätetyp und Anzahl der Besuche). Sie wird derzeit nicht zusammen mit den Besuchsdaten gelöscht; du kannst den Seitenbetreiber bitten, sie zu löschen.",
+        "account": "<b>Konto und Kommentare</b>: werden so lange aufbewahrt, wie du dein Konto nutzt. Sobald du einen Kommentar löschst, wird er nicht mehr angezeigt; wenn du Kommentardaten vollständig löschen lassen oder dein Konto schließen möchtest, wende dich bitte an den Seitenbetreiber.",
+        "session": "<b>Anmeldeprotokolle</b>: werden automatisch gelöscht, sobald eine Sitzung lange inaktiv war."
+      }
+    },
+    "rights": {
+      "title": "Deine Rechte",
+      "body": "Du hast das Recht, über deine personenbezogenen Daten informiert zu werden, auf sie zuzugreifen, eine Kopie davon zu erhalten, sie berichtigen und löschen zu lassen, deine Einwilligung zu widerrufen und dein Konto zu schließen. So geht’s:",
+      "items": {
+        "self": "<b>Selbst erledigen</b>: Nach der Anmeldung kannst du in deinen Kontoeinstellungen Spitzname, Avatar, E-Mail-Adresse, Passwort und andere Angaben ändern, „IP-Standort anzeigen“ deaktivieren oder die Verknüpfung mit Drittanbieterkonten aufheben.",
+        "content": "<b>Deine Inhalte verwalten</b>: Lösche Kommentare, die du geschrieben hast, oder nimm deine Likes zurück.",
+        "limit": "<b>Tracking reduzieren</b>: Aktiviere „Do Not Track“ oder „Global Privacy Control“ in deinem Browser oder lösche die Cookies dieser Website.",
+        "request": "<b>Den Seitenbetreiber kontaktieren</b>: Wenn du Daten über dich einsehen oder eine Kopie davon erhalten, Besuchsdaten löschen, Kommentare vollständig entfernen oder dein Konto schließen möchtest, wende dich bitte an den Seitenbetreiber. Zum Schutz deiner Daten müssen wir eventuell zuerst deine Identität überprüfen."
+      },
+      "note": "Wir antworten so schnell wie möglich und bearbeiten deine Anfrage. Wenn du der Meinung bist, dass unser Umgang mit personenbezogenen Daten deine Rechte verletzt, kannst du dich auch bei deiner örtlichen Datenschutzaufsichtsbehörde beschweren."
+    },
+    "security": {
+      "title": "Sicherheit",
+      "body": "Wir ergreifen angemessene Maßnahmen, um deine Daten zu schützen: Passwörter werden verschlüsselt gespeichert; Anmelde-Cookies können nicht von Seitenskripten gelesen werden; Besuchsdaten kann nur der Seitenbetreiber in der Verwaltungskonsole einsehen, wobei IP-Adressen teilweise ausgeblendet sind. Allerdings ist kein System im Internet vollkommen sicher. Sollte es jemals zu einer Datenpanne kommen, informieren wir dich umgehend auf dieser Website und tun unser Bestes, die Auswirkungen zu begrenzen."
+    },
+    "children": {
+      "title": "Kinder",
+      "body": "Diese Website richtet sich an ein allgemeines Publikum und nicht an Kinder. Wenn du jünger als 14 bist (oder als das an deinem Wohnort gesetzlich vorgeschriebene Mindestalter), hol dir bitte die Zustimmung eines Elternteils oder Erziehungsberechtigten, bevor du dich registrierst oder kommentierst. Wenn ein Elternteil oder Erziehungsberechtigter feststellt, dass ein Kind uns ohne Zustimmung personenbezogene Daten übermittelt hat, wende dich bitte an den Seitenbetreiber, um sie löschen zu lassen."
+    },
+    "changes": {
+      "title": "Änderungen dieser Erklärung",
+      "body": "Wir können diese Erklärung aktualisieren, wenn sich die Funktionen der Website ändern. Die aktualisierte Fassung wird auf dieser Seite veröffentlicht, mit dem Datum oben auf der Seite; bei wesentlichen Änderungen weisen wir außerdem deutlich auf dieser Website darauf hin."
+    },
+    "contact": {
+      "title": "Kontakt",
+      "body": "Wenn du Fragen zu dieser Erklärung hast oder die oben genannten Rechte ausüben möchtest, wende dich bitte über die auf dieser Website veröffentlichten Kontaktmöglichkeiten (zum Beispiel die Links in der Fußzeile oder im Profil des Betreibers) an den Seitenbetreiber {owner}."
+    }
   },
   "Archive": {
     "posts_count": "{count, plural, one {# Beitrag} other {# Beiträge}}",

@@ -77,6 +77,7 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 var publicConfigKeys = []string{
 	KeySiteInfo, "site_name", "site_description", "site_icon", "base_url",
 	"posts_per_page", "comments_per_page", "max_reply_depth", "enable_register", "enable_register_from_oidc",
+	"visit_log_retention_days", // 隐私政策页展示访问记录保留天数
 }
 
 func (mc *MiscController) GetPublicConfig(ctx context.Context, c *app.RequestContext) {

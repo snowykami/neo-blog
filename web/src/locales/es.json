@@ -1,19 +1,122 @@
 {
   "Privacy": {
-    "updated": "Última actualización: {date}",
-    "intro": "Nos importa tu privacidad. Aquí explicamos qué información recoge este sitio cuando lo visitas, cómo se usa y cómo se protege.",
-    "collect_title": "Qué recogemos",
-    "collect_body": "Cuando lees una entrada o página, este sitio registra la página y la hora de la visita, la página de origen, tu dirección IP (para estimar tu región y proveedor; se oculta parcialmente en el panel de administración), el User-Agent de tu navegador (para identificar el sistema operativo y el navegador) y un hash de huella del navegador calculado con datos básicos como la resolución de pantalla, el idioma y la zona horaria. No usamos técnicas invasivas como las huellas de Canvas o WebGL. Si has iniciado sesión, las visitas se asocian a tu cuenta.",
-    "cookie_title": "Cookies",
-    "cookie_body": "Este sitio guarda en tu navegador una cookie llamada nb_vid durante un año, solo para reconocer visitas repetidas del mismo navegador. Las cookies de inicio de sesión solo sirven para mantener tu sesión. Puedes borrarlas en cualquier momento desde la configuración del navegador.",
-    "purpose_title": "Cómo lo usamos",
-    "purpose_body": "Esta información solo la usa el propietario del sitio para entender cómo se visita el blog, por ejemplo la popularidad de las entradas, el origen del tráfico y su distribución regional. No se vende ni se comparte con terceros y no se usa para publicidad. La ubicación de la IP se resuelve en el servidor de este sitio con una base de datos sin conexión; las direcciones IPv6 pueden enviarse a un servicio externo de geolocalización si no hay una base de datos configurada.",
-    "retention_title": "Conservación",
-    "retention_body": "Los registros de visitas se conservan 90 días por defecto y después se eliminan automáticamente.",
-    "dnt_title": "No rastrear",
-    "dnt_body": "Si tu navegador envía Do Not Track o Global Privacy Control (GPC), este sitio solo registra una visita anónima (la página, la hora, la región aproximada y el tipo de navegador). No guarda tu IP ni tu User-Agent, no establece la cookie de visitante y no calcula ninguna huella.",
-    "contact_title": "Contacto",
-    "contact_body": "Si tienes dudas sobre esta política o quieres que se eliminen tus registros de visita, contacta con el propietario del sitio mediante los datos de contacto publicados en este sitio."
+    "updated": "Última actualización y vigente desde el {date}",
+    "intro": "Te damos la bienvenida a {site}. Esta política de privacidad explica, con palabras sencillas, qué registra este sitio cuando navegas, te registras o comentas, para qué se usa, cuánto tiempo se guarda y cómo puedes gestionar tu información. Este sitio lo gestiona {owner}; «nosotros» y «el propietario del sitio» se refieren a continuación al operador de este sitio.",
+    "summary": {
+      "title": "De un vistazo",
+      "items": {
+        "no_sale": "<b>Nunca vendemos</b> tu información ni la usamos para publicidad.",
+        "stats": "Cuando navegas, el sitio registra estadísticas de visitas (qué páginas viste, tu región aproximada, tipo de dispositivo, etc.) para entender cómo se lee el blog.",
+        "dnt": "Si tu navegador envía «Do Not Track», el sitio solo registra lo mínimo imprescindible: no se guarda ninguna dirección IP ni se establece ninguna cookie de visitante.",
+        "comment": "Para comentar y dar «me gusta» necesitas una cuenta; tu dirección IP nunca se muestra públicamente.",
+        "rights": "Puedes editar tu perfil en cualquier momento o contactar con el propietario del sitio para consultar o eliminar la información sobre ti."
+      }
+    },
+    "browse": {
+      "title": "Cuando navegas",
+      "body": "Para saber qué entradas se leen y de dónde vienen los lectores, el sitio registra lo siguiente cuando abres una página:",
+      "items": {
+        "page": "<b>Qué visitaste</b>: la página, la hora y la página desde la que llegaste (por ejemplo, un buscador u otro sitio web).",
+        "network": "<b>Información de red</b>: tu dirección IP y la región aproximada (provincia/estado, ciudad) y el proveedor de red estimados a partir de ella. Solo indica una zona aproximada y no puede determinar con precisión dónde estás.",
+        "device": "<b>Información del dispositivo</b>: la descripción básica que tu navegador envía a todos los sitios web, que muestra tu tipo de dispositivo, sistema operativo y navegador.",
+        "feature": "<b>Resumen de características del navegador</b>: un código irreversible calculado a partir de ajustes básicos como el idioma, la zona horaria y el tamaño de pantalla. Solo se usa para reconocer el mismo navegador si se ha borrado la cookie de visitante. No usamos técnicas más invasivas de «huella digital del dispositivo».",
+        "account": "<b>Vinculación con la cuenta</b>: si has iniciado sesión, tus visitas se vinculan a tu cuenta."
+      },
+      "note": "No se registran las visitas de rastreadores de buscadores ni de otros programas automatizados, ni las del propio propietario del sitio. Solo el propietario del sitio puede ver los registros de visitas en el panel de administración, donde la segunda mitad de cada dirección IP aparece oculta."
+    },
+    "account": {
+      "title": "Registro e inicio de sesión",
+      "body": "Tener una cuenta es opcional: puedes leer todo el contenido público sin ella. Si decides registrarte o iniciar sesión:",
+      "items": {
+        "profile": "<b>Datos de registro</b>: nombre de usuario, apodo, correo electrónico y contraseña. Tu correo se usa para códigos de verificación y para recuperar la contraseña; tu contraseña se guarda con cifrado irreversible, así que nadie puede verla. También puedes añadir, si quieres, un avatar, un fondo de perfil, tu género, tu idioma preferido y un color de tema.",
+        "oidc": "<b>Inicio de sesión con otra cuenta</b>: si inicias sesión con una cuenta de terceros, recibimos de esa plataforma tu ID de cuenta, nombre, nombre de usuario, correo electrónico y avatar para crear o vincular tu cuenta aquí, y los actualizamos cada vez que inicias sesión. Puedes desvincularla en los ajustes de tu cuenta.",
+        "login": "<b>Registros de inicio de sesión</b>: para mantener tu sesión iniciada y proteger tu cuenta, cada sesión registra las direcciones IP desde las que se ha usado. Las sesiones que permanecen inactivas durante mucho tiempo se eliminan automáticamente.",
+        "ip_location": "<b>Región IP en tu perfil</b>: de forma predeterminada, tu página de perfil muestra a los visitantes la región aproximada de la dirección IP desde la que iniciaste sesión por última vez (no la IP en sí). Puedes desactivar «Mostrar ubicación IP» en los ajustes de tu cuenta."
+      }
+    },
+    "interact": {
+      "title": "Comentarios y «me gusta»",
+      "body": "Necesitas iniciar sesión para comentar o dar «me gusta».",
+      "items": {
+        "comment": "<b>Comentarios</b>: además del texto y la hora del comentario, el sitio guarda la dirección IP, la región aproximada y la información del dispositivo del momento en que lo publicaste, para combatir el spam y los abusos. Tu dirección IP nunca se muestra públicamente.",
+        "client_info": "<b>Información del cliente pública</b>: si marcas «Mostrar información del cliente» al comentar, otros lectores pueden ver tu región aproximada, sistema operativo y navegador; de lo contrario, no se muestra nada.",
+        "like": "<b>«Me gusta» e interacciones</b>: el sitio registra lo que te ha gustado. Tus «me gusta» y comentarios también aparecen en el registro de interacciones del propietario del sitio para que pueda seguir los comentarios de los lectores; cuando quitas un «me gusta», su registro también se elimina."
+      }
+    },
+    "dnt": {
+      "title": "Do Not Track",
+      "body": "Si tu navegador tiene activado «Do Not Track» o «Global Privacy Control» (GPC), el sitio respeta tu elección: solo registra la página, la hora, la página de procedencia, la región aproximada y el tipo de dispositivo. No guarda tu dirección IP ni la información completa del navegador, no establece la cookie de visitante y no calcula el resumen de características del navegador (tu dirección IP se usa brevemente para estimar tu región, pero no se guarda). Si al mismo tiempo has iniciado sesión, la visita sigue vinculada a tu cuenta."
+    },
+    "cookie": {
+      "title": "Cookies y almacenamiento local",
+      "body": "Las cookies son pequeños datos que un sitio web guarda en tu navegador. Este sitio solo establece por sí mismo las siguientes cookies, y ninguna se usa para publicidad ni para seguimiento entre sitios:",
+      "items": {
+        "visitor": "<b>ID de visitante (nb_vid)</b>: un número aleatorio que sirve para reconocer visitas repetidas desde el mismo navegador; se conserva un año. No se establece cuando «Do Not Track» está activado.",
+        "login": "<b>Estado de sesión (token, refresh_token)</b>: se establecen solo después de iniciar sesión, para mantenerla iniciada. Caducan cuando cierras sesión o cuando vencen.",
+        "oidc": "<b>Comprobación de inicio de sesión con terceros (oidc_nonce)</b>: se establece brevemente cuando inicias sesión con una cuenta de terceros, para confirmar que la solicitud procede de tu propio navegador. Caduca a los 10 minutos.",
+        "local": "<b>Preferencias locales</b>: los ajustes de la interfaz, como el tema claro/oscuro y el volumen y el progreso del reproductor de música, se guardan solo en tu navegador y nunca se suben al servidor."
+      },
+      "note": "Puedes ver o borrar estos datos en cualquier momento desde los ajustes de tu navegador. Después de borrarlos tendrás que volver a iniciar sesión, y tu próxima visita contará como la de un visitante nuevo. Los servicios de terceros usados en las páginas pueden establecer sus propias cookies; consulta la siguiente sección."
+    },
+    "third_party": {
+      "title": "Servicios de terceros",
+      "body": "Algunas funciones dependen de servicios de terceros. Cuando las usas, tu navegador o el servidor de este sitio se comunica con ese servicio, que por tanto puede recibir información básica como tu dirección IP y tratarla según su propia política de privacidad. Los servicios activados dependen de la configuración del propietario del sitio:",
+      "items": {
+        "ip_lookup": "<b>Consulta de región IP</b>: las direcciones IPv4 se resuelven sin conexión en el servidor de este sitio y no se envían a nadie. Para las direcciones IPv6 (cuando el propietario del sitio no ha configurado datos sin conexión) y para la «región IP» que se muestra en las páginas de perfil, la dirección IP se envía a un servicio de consulta de terceros (mir6.com).",
+        "captcha": "<b>Verificación humana</b>: el inicio de sesión y el registro pueden cargar Cloudflare Turnstile, hCaptcha o Google reCAPTCHA para bloquear registros falsos e intentos de adivinar contraseñas.",
+        "oidc": "<b>Inicio de sesión con terceros</b>: cuando inicias sesión con una cuenta de terceros, se te redirige a esa plataforma para autorizarlo.",
+        "gravatar": "<b>Avatares de Gravatar</b>: a los usuarios sin avatar se les muestra su imagen de Gravatar. Tu navegador solicita la imagen a Gravatar usando un resumen cifrado de la dirección de correo, no la dirección en sí.",
+        "email": "<b>Envío de correos</b>: los correos, como los códigos de verificación, se envían a través del servicio de correo configurado por el propietario del sitio.",
+        "resources": "<b>Recursos estáticos y música</b>: las imágenes, scripts, música y otros archivos pueden estar alojados en una CDN u otras plataformas, y las páginas pueden cargar un pequeño widget de estado de la CDN; las entradas pueden incluir imágenes externas. Cuando el reproductor de música está activado, la lista de reproducción y el audio se cargan desde sus propias direcciones.",
+        "embed": "<b>Contenido incrustado</b>: la barra lateral y otras zonas pueden incrustar páginas de otros sitios web (como una cronología de redes sociales), lo que funciona igual que visitar ese sitio directamente."
+      },
+      "note": "Algunos servicios de terceros pueden tener servidores fuera de tu país o región. Salvo en los casos anteriores y cuando lo exija la ley, no compartimos tu información personal con ningún tercero."
+    },
+    "use": {
+      "title": "Cómo usamos esta información",
+      "items": {
+        "stats": "<b>Entender a los lectores</b>: medir la popularidad de las entradas, las fuentes de tráfico y la distribución regional para que el propietario del sitio pueda mejorar el contenido.",
+        "service": "<b>Ofrecer funciones</b>: permitirte iniciar sesión, comentar, dar «me gusta» y tener una página de perfil.",
+        "security": "<b>Mantener el sitio seguro</b>: detectar y bloquear el spam, los registros falsos y el tráfico anómalo."
+      },
+      "note": "No vendemos tu información personal ni la usamos para perfiles publicitarios o de marketing. Las estadísticas de visitas se basan en el interés legítimo del propietario del sitio en entender cómo se usa el sitio; la información de la cuenta es necesaria para ofrecer las funciones que solicitas; las visualizaciones públicas opcionales, como tu región o la información del cliente, se basan en tu elección y pueden desactivarse en cualquier momento."
+    },
+    "retention": {
+      "title": "Cuánto tiempo lo guardamos",
+      "items": {
+        "visit": "<b>Registros de visitas e interacciones</b>: se guardan durante {days} días y después se eliminan automáticamente.",
+        "visitor": "<b>Resúmenes de visitante</b>: cada navegador tiene un resumen (última dirección IP, región aproximada, tipo de dispositivo y número de visitas). Actualmente no se elimina junto con los registros de visitas; puedes pedir al propietario del sitio que lo elimine.",
+        "account": "<b>Cuenta y comentarios</b>: se guardan mientras uses tu cuenta. Cuando eliminas un comentario, deja de mostrarse; para que los datos del comentario se borren por completo o para cerrar tu cuenta, contacta con el propietario del sitio.",
+        "session": "<b>Registros de inicio de sesión</b>: se eliminan automáticamente cuando una sesión ha estado inactiva durante mucho tiempo."
+      }
+    },
+    "rights": {
+      "title": "Tus derechos",
+      "body": "Tienes derecho a ser informado sobre tu información personal, acceder a ella, obtener una copia, corregirla y eliminarla, a retirar tu consentimiento y a cerrar tu cuenta. Así puedes hacerlo:",
+      "items": {
+        "self": "<b>Hazlo tú mismo</b>: tras iniciar sesión, edita tu apodo, avatar, correo electrónico, contraseña y otros datos en los ajustes de tu cuenta, desactiva «Mostrar ubicación IP» o desvincula cuentas de terceros.",
+        "content": "<b>Gestiona tu contenido</b>: elimina los comentarios que hayas publicado o quita tus «me gusta».",
+        "limit": "<b>Reduce el seguimiento</b>: activa «Do Not Track» o «Global Privacy Control» en tu navegador, o borra las cookies de este sitio.",
+        "request": "<b>Contacta con el propietario del sitio</b>: para consultar u obtener una copia de la información sobre ti, eliminar registros de visitas, borrar comentarios por completo o cerrar tu cuenta, contacta con el propietario del sitio. Para proteger tu información, es posible que primero necesitemos verificar tu identidad."
+      },
+      "note": "Responderemos y atenderemos tu solicitud lo antes posible. Si consideras que nuestra forma de tratar la información personal vulnera tus derechos, también puedes presentar una reclamación ante la autoridad de protección de datos de tu lugar de residencia."
+    },
+    "security": {
+      "title": "Seguridad",
+      "body": "Tomamos medidas razonables para proteger tu información: las contraseñas se guardan cifradas; las cookies de sesión no pueden ser leídas por los scripts de la página; los registros de visitas solo puede verlos el propietario del sitio en el panel de administración, con las direcciones IP parcialmente ocultas. Aun así, ningún sistema en internet es perfectamente seguro. Si alguna vez se produce una filtración de datos, te lo comunicaremos rápidamente en este sitio y haremos todo lo posible por limitar su impacto."
+    },
+    "children": {
+      "title": "Menores",
+      "body": "Este sitio está pensado para el público general y no está dirigido a niños. Si tienes menos de 14 años (o de la edad mínima que exija la ley donde vives), pide el consentimiento de tu padre, madre o tutor antes de registrarte o comentar. Si un padre, madre o tutor descubre que un menor nos ha proporcionado información personal sin consentimiento, contacta con el propietario del sitio para que la elimine."
+    },
+    "changes": {
+      "title": "Cambios en esta política",
+      "body": "Podemos actualizar esta política a medida que cambien las funciones del sitio. La versión actualizada se publicará en esta página con la fecha indicada en la parte superior; si los cambios son importantes, también lo anunciaremos de forma clara en este sitio."
+    },
+    "contact": {
+      "title": "Contacto",
+      "body": "Si tienes alguna pregunta sobre esta política o quieres ejercer los derechos anteriores, contacta con el propietario del sitio, {owner}, a través de los datos de contacto publicados en este sitio (por ejemplo, los enlaces del pie de página o del perfil del propietario)."
+    }
   },
   "Archive": {
     "posts_count": "{count, plural, one {# entrada} other {# entradas}}",

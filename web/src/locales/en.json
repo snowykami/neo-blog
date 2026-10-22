@@ -1,19 +1,122 @@
 {
   "Privacy": {
-    "updated": "Last updated {date}",
-    "intro": "We care about your privacy. This page explains what information this site collects when you browse it, how it is used, and how it is protected.",
-    "collect_title": "What we collect",
-    "collect_body": "When you read a post or page, this site records the page and time of the visit, the referring page, your IP address (used to estimate your province/city and ISP; it is partially masked in the admin console), your browser User-Agent (used to identify your operating system and browser), and a browser fingerprint hash computed from basic information such as screen resolution, language and time zone. We do not use invasive techniques such as Canvas or WebGL fingerprinting. If you are signed in, visits are linked to your account.",
-    "cookie_title": "Cookies",
-    "cookie_body": "This site stores a cookie named nb_vid in your browser for one year, used only to recognize repeat visits from the same browser. Sign-in cookies are used only to keep you signed in. You can clear these cookies in your browser settings at any time.",
-    "purpose_title": "How we use it",
-    "purpose_body": "This information is used only by the site owner to understand how the blog is visited, such as post popularity, traffic sources and regional distribution. It is never sold or shared with third parties and is not used for advertising. IP locations are resolved on this site’s server with an offline database; for IPv6 addresses, the address may be sent to a third-party IP location service when no offline database is configured.",
-    "retention_title": "Retention",
-    "retention_body": "Visit records are kept for 90 days by default and are deleted automatically afterwards.",
-    "dnt_title": "Do Not Track",
-    "dnt_body": "If your browser sends Do Not Track or Global Privacy Control (GPC), this site only records an anonymous visit (the page, time, approximate region and browser type). It does not store your IP address or User-Agent, does not set the visitor cookie, and does not compute a browser fingerprint.",
-    "contact_title": "Contact",
-    "contact_body": "If you have questions about this policy or would like visit records related to you deleted, please contact the site owner using the contact details published on this site."
+    "updated": "Last updated and effective {date}",
+    "intro": "Welcome to {site}. This privacy policy explains, in plain words, what this site records when you browse, sign up or comment, what it is used for, how long it is kept, and how you can manage your information. This site is run by {owner}; “we” and “the site owner” below refer to the operator of this site.",
+    "summary": {
+      "title": "At a glance",
+      "items": {
+        "no_sale": "We <b>never sell</b> your information or use it for advertising.",
+        "stats": "When you browse, the site records visit statistics (which pages you viewed, your approximate region, device type and so on) to understand how the blog is read.",
+        "dnt": "If your browser sends “Do Not Track”, the site only records the bare minimum: no IP address is stored and no visitor cookie is set.",
+        "comment": "Commenting and liking require an account; your IP address is never shown publicly.",
+        "rights": "You can edit your profile at any time, or contact the site owner to view or delete information about you."
+      }
+    },
+    "browse": {
+      "title": "When you browse",
+      "body": "To understand which posts are read and where readers come from, the site records the following when you open a page:",
+      "items": {
+        "page": "<b>What you visited</b>: the page, the time, and the page that sent you here (for example a search engine or another website).",
+        "network": "<b>Network information</b>: your IP address and the approximate region (province/state, city) and network provider estimated from it. This only gives a rough area and cannot pinpoint where you are.",
+        "device": "<b>Device information</b>: the basic description your browser sends to every website, which shows your device type, operating system and browser.",
+        "feature": "<b>Browser feature summary</b>: an irreversible code calculated from basic settings such as language, time zone and screen size. It is only used to recognize the same browser again if the visitor cookie has been cleared. We do not use more invasive “device fingerprinting” techniques.",
+        "account": "<b>Account link</b>: if you are signed in, your visits are linked to your account."
+      },
+      "note": "Visits from search engine crawlers and other automated programs, as well as the site owner’s own visits, are not recorded. Only the site owner can view visit records in the admin console, where the second half of each IP address is hidden."
+    },
+    "account": {
+      "title": "Signing up and signing in",
+      "body": "An account is optional — you can read all public content without one. If you choose to sign up or sign in:",
+      "items": {
+        "profile": "<b>Registration details</b>: username, nickname, email and password. Your email is used for verification codes and password recovery; your password is stored with irreversible encryption, so nobody can see it. You may also choose to add an avatar, profile background, gender, preferred language and theme color.",
+        "oidc": "<b>Signing in with another account</b>: if you sign in with a third-party account, we receive your account ID, name, username, email and avatar from that platform to create or link your account here, and update them each time you sign in. You can unlink it in your account settings.",
+        "login": "<b>Sign-in records</b>: to keep you signed in and protect your account, each sign-in session records the IP addresses it was used from. Sessions that stay inactive for a long time are deleted automatically.",
+        "ip_location": "<b>IP region on your profile</b>: by default, your profile page shows visitors the approximate region of the IP address you last signed in from (not the IP itself). You can turn off “Show IP Location” in your account settings."
+      }
+    },
+    "interact": {
+      "title": "Comments and likes",
+      "body": "You need to sign in to comment or like.",
+      "items": {
+        "comment": "<b>Comments</b>: besides the comment text and time, the site stores the IP address, approximate region and device information from when you posted it, to fight spam and abuse. Your IP address is never shown publicly.",
+        "client_info": "<b>Public client info</b>: if you tick “Show client info” when commenting, other readers can see your approximate region, operating system and browser; otherwise nothing is shown.",
+        "like": "<b>Likes and interactions</b>: the site records what you have liked. Your likes and comments also appear in the site owner’s interaction log so they can follow reader feedback; when you remove a like, its record is deleted too."
+      }
+    },
+    "dnt": {
+      "title": "Do Not Track",
+      "body": "If your browser has “Do Not Track” or “Global Privacy Control” (GPC) turned on, the site respects your choice: it only records the page, time, referring page, approximate region and device type. It does not store your IP address or full browser information, does not set the visitor cookie, and does not compute the browser feature summary (your IP address is used briefly to estimate your region but is not stored). If you are signed in at the same time, the visit is still linked to your account."
+    },
+    "cookie": {
+      "title": "Cookies and local storage",
+      "body": "Cookies are small pieces of data a website stores in your browser. This site only sets the following cookies itself, and none of them are used for advertising or cross-site tracking:",
+      "items": {
+        "visitor": "<b>Visitor ID (nb_vid)</b>: a random number used to recognize repeat visits from the same browser, kept for one year. It is not set when “Do Not Track” is on.",
+        "login": "<b>Sign-in state (token, refresh_token)</b>: set only after you sign in, to keep you signed in. They expire when you sign out or when they time out.",
+        "oidc": "<b>Third-party sign-in check (oidc_nonce)</b>: set briefly when you sign in with a third-party account, to confirm the request came from your own browser. It expires after 10 minutes.",
+        "local": "<b>Local preferences</b>: interface settings such as light/dark theme and the music player’s volume and progress are stored only in your browser and never uploaded to the server."
+      },
+      "note": "You can view or clear this data in your browser settings at any time. After clearing it you will need to sign in again, and your next visit will be counted as a new visitor. Third-party services used on the pages may set their own cookies; see the next section."
+    },
+    "third_party": {
+      "title": "Third-party services",
+      "body": "Some features rely on third-party services. When you use them, your browser or this site’s server communicates with that service, which may therefore receive basic information such as your IP address and handle it under its own privacy policy. Which services are enabled depends on the site owner’s configuration:",
+      "items": {
+        "ip_lookup": "<b>IP region lookup</b>: IPv4 addresses are resolved offline on this site’s server and are not sent to anyone. IPv6 addresses (when the site owner has not set up offline data) and the “IP region” shown on profile pages are looked up by sending the IP address to a third-party lookup service (mir6.com).",
+        "captcha": "<b>Human verification</b>: sign-in and sign-up may load Cloudflare Turnstile, hCaptcha or Google reCAPTCHA to block fake sign-ups and password guessing.",
+        "oidc": "<b>Third-party sign-in</b>: when you sign in with a third-party account, you are sent to that platform to authorize it.",
+        "gravatar": "<b>Gravatar avatars</b>: users without an avatar are shown their Gravatar picture. Your browser requests the image from Gravatar using a scrambled digest of the email address, not the address itself.",
+        "email": "<b>Email delivery</b>: emails such as verification codes are sent through the mail service configured by the site owner.",
+        "resources": "<b>Static resources and music</b>: images, scripts, music and other files may be hosted on a CDN or other platforms, and pages may load a small CDN status widget; posts may include external images. When the music player is enabled, the playlist and audio are loaded from their own addresses.",
+        "embed": "<b>Embedded content</b>: the sidebar and other areas may embed pages from other websites (such as a social media timeline), which works the same as visiting that website directly."
+      },
+      "note": "Some third-party services may have servers outside your country or region. Apart from the cases above and where required by law, we do not share your personal information with any third party."
+    },
+    "use": {
+      "title": "How we use this information",
+      "items": {
+        "stats": "<b>Understanding readership</b>: measuring post popularity, traffic sources and regional distribution so the site owner can improve the content.",
+        "service": "<b>Providing features</b>: letting you sign in, comment, like and have a profile page.",
+        "security": "<b>Keeping the site safe</b>: detecting and blocking spam, fake sign-ups and abnormal traffic."
+      },
+      "note": "We do not sell your personal information or use it for advertising or marketing profiles. Visit statistics are based on the site owner’s legitimate interest in understanding how the site is used; account information is necessary to provide the features you ask for; optional public displays such as your region or client info are based on your choice and can be turned off at any time."
+    },
+    "retention": {
+      "title": "How long we keep it",
+      "items": {
+        "visit": "<b>Visit and interaction records</b>: kept for {days} days, then deleted automatically.",
+        "visitor": "<b>Visitor summaries</b>: each browser has one summary (last IP address, approximate region, device type and visit count). It is currently not deleted together with visit records; you can ask the site owner to delete it.",
+        "account": "<b>Account and comments</b>: kept for as long as you use your account. Once you delete a comment it is no longer shown; to have comment data erased completely or to close your account, please contact the site owner.",
+        "session": "<b>Sign-in records</b>: deleted automatically once a session has been inactive for a long time."
+      }
+    },
+    "rights": {
+      "title": "Your rights",
+      "body": "You have the right to be informed about, access, obtain a copy of, correct and delete your personal information, to withdraw consent, and to close your account. Here is how:",
+      "items": {
+        "self": "<b>Do it yourself</b>: after signing in, edit your nickname, avatar, email, password and other details in your account settings, turn off “Show IP Location”, or unlink third-party accounts.",
+        "content": "<b>Manage your content</b>: delete comments you have posted, or remove your likes.",
+        "limit": "<b>Reduce tracking</b>: turn on “Do Not Track” or “Global Privacy Control” in your browser, or clear this site’s cookies.",
+        "request": "<b>Contact the site owner</b>: to view or get a copy of information about you, delete visit records, erase comments completely or close your account, please contact the site owner. To protect your information, we may need to verify your identity first."
+      },
+      "note": "We will reply and handle your request as soon as possible. If you believe the way we handle personal information violates your rights, you may also lodge a complaint with your local data protection authority."
+    },
+    "security": {
+      "title": "Security",
+      "body": "We take reasonable measures to protect your information: passwords are stored encrypted; sign-in cookies cannot be read by page scripts; visit records can only be viewed by the site owner in the admin console, with IP addresses partially hidden. No system on the internet is perfectly secure, though. If a data breach ever happens, we will let you know on this site promptly and do our best to limit the impact."
+    },
+    "children": {
+      "title": "Children",
+      "body": "This site is meant for a general audience and is not directed at children. If you are under 14 (or the minimum age required by law where you live), please get a parent or guardian’s consent before signing up or commenting. If a parent or guardian finds that a child has given us personal information without consent, please contact the site owner to have it deleted."
+    },
+    "changes": {
+      "title": "Changes to this policy",
+      "body": "We may update this policy as the site’s features change. The updated version will be published on this page with the date shown at the top; for significant changes we will also make a clear announcement on this site."
+    },
+    "contact": {
+      "title": "Contact us",
+      "body": "If you have any questions about this policy or want to exercise the rights above, please contact the site owner, {owner}, through the contact details published on this site (for example the links in the footer or on the owner’s profile)."
+    }
   },
   "Archive": {
     "posts_count": "{count, plural, one {# post} other {# posts}}",

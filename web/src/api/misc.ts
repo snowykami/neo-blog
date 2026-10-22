@@ -1,6 +1,7 @@
 import type { BackendMetricsData, FrontendMetricsData, RssData, SitemapData } from '@/models/misc'
 import type { BaseResponse } from '@/models/resp'
 import type { SiteInfo } from '@/utils/common/siteinfo'
+import { camelToSnakeStr } from 'field-conv'
 import { formatDataSize } from '@/utils/common/datasize'
 import { formatDuration } from '@/utils/common/datetime'
 import axiosClient from './client'
@@ -13,7 +14,8 @@ export async function getSiteInfo(): Promise<BaseResponse<SiteInfo>> {
 export async function getPublicConfig<T extends Record<string, unknown>>(
   defaults: T,
 ): Promise<BaseResponse<T>> {
-  const keys = Object.keys(defaults)
+  // defaults 使用 camelCase 键（与响应转换后的键一致），请求时转换为后端的 snake_case 配置键
+  const keys = Object.keys(defaults).map(camelToSnakeStr)
   const res = await axiosClient.get<BaseResponse<Partial<T>>>('/misc/public-config', {
     params: { keys: keys.join(',') },
   })

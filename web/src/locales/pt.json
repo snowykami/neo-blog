@@ -1,19 +1,122 @@
 {
   "Privacy": {
-    "updated": "Atualizado em {date}",
-    "intro": "Sua privacidade é importante para nós. Esta página explica quais informações este site coleta quando você o visita, como são usadas e como são protegidas.",
-    "collect_title": "O que coletamos",
-    "collect_body": "Quando você lê um post ou página, este site registra a página e o horário da visita, a página de origem, seu endereço IP (para estimar sua região e provedor; ele aparece parcialmente oculto no painel), o User-Agent do navegador (para identificar o sistema e o navegador) e um hash de impressão digital do navegador calculado a partir de dados básicos como resolução da tela, idioma e fuso horário. Não usamos técnicas invasivas como impressão digital por Canvas ou WebGL. Se você estiver conectado, as visitas são vinculadas à sua conta.",
-    "cookie_title": "Cookies",
-    "cookie_body": "Este site guarda no seu navegador um cookie chamado nb_vid por um ano, usado apenas para reconhecer visitas repetidas do mesmo navegador. Os cookies de login servem apenas para manter você conectado. Você pode apagá-los a qualquer momento nas configurações do navegador.",
-    "purpose_title": "Como usamos",
-    "purpose_body": "Essas informações são usadas apenas pelo dono do site para entender como o blog é visitado, como a popularidade dos posts, a origem do tráfego e a distribuição regional. Elas não são vendidas nem compartilhadas com terceiros e não são usadas para publicidade. A localização do IP é calculada no servidor deste site com um banco de dados offline; endereços IPv6 podem ser enviados a um serviço externo de localização quando não houver um banco offline configurado.",
-    "retention_title": "Retenção",
-    "retention_body": "Os registros de visita são mantidos por 90 dias por padrão e depois excluídos automaticamente.",
-    "dnt_title": "Não rastrear",
-    "dnt_body": "Se o seu navegador enviar Do Not Track ou Global Privacy Control (GPC), este site registra apenas uma visita anônima (página, horário, região aproximada e tipo de navegador). Não armazena seu IP nem o User-Agent, não define o cookie de visitante e não calcula impressão digital.",
-    "contact_title": "Contato",
-    "contact_body": "Em caso de dúvidas sobre esta política ou para pedir a exclusão dos seus registros de visita, entre em contato com o dono do site pelos meios publicados neste site."
+    "updated": "Última atualização e vigência a partir de {date}",
+    "intro": "Boas-vindas ao {site}. Esta política de privacidade explica, em palavras simples, o que este site registra quando você navega, se cadastra ou comenta, para que isso é usado, por quanto tempo é guardado e como você pode gerenciar suas informações. Este site é mantido por {owner}; “nós” e “o dono do site” abaixo se referem ao responsável por este site.",
+    "summary": {
+      "title": "Resumo rápido",
+      "items": {
+        "no_sale": "Nós <b>nunca vendemos</b> suas informações nem as usamos para publicidade.",
+        "stats": "Quando você navega, o site registra estatísticas de visitas (quais páginas você viu, sua região aproximada, tipo de dispositivo etc.) para entender como o blog é lido.",
+        "dnt": "Se o seu navegador enviar “Do Not Track”, o site registra apenas o mínimo necessário: nenhum endereço IP é armazenado e nenhum cookie de visitante é definido.",
+        "comment": "Para comentar e curtir é preciso ter uma conta; seu endereço IP nunca é exibido publicamente.",
+        "rights": "Você pode editar seu perfil a qualquer momento ou entrar em contato com o dono do site para ver ou excluir informações sobre você."
+      }
+    },
+    "browse": {
+      "title": "Quando você navega",
+      "body": "Para entender quais posts são lidos e de onde vêm os leitores, o site registra o seguinte quando você abre uma página:",
+      "items": {
+        "page": "<b>O que você visitou</b>: a página, o horário e a página que trouxe você até aqui (por exemplo, um buscador ou outro site).",
+        "network": "<b>Informações de rede</b>: seu endereço IP e a região aproximada (estado/província, cidade) e o provedor de internet estimados a partir dele. Isso indica apenas uma área aproximada e não consegue identificar exatamente onde você está.",
+        "device": "<b>Informações do dispositivo</b>: a descrição básica que seu navegador envia para todos os sites, que mostra o tipo de dispositivo, o sistema operacional e o navegador que você usa.",
+        "feature": "<b>Resumo de características do navegador</b>: um código irreversível calculado a partir de configurações básicas como idioma, fuso horário e tamanho da tela. Ele é usado apenas para reconhecer o mesmo navegador caso o cookie de visitante tenha sido apagado. Não usamos técnicas mais invasivas de “impressão digital do dispositivo” (fingerprinting).",
+        "account": "<b>Vínculo com a conta</b>: se você estiver logado, suas visitas ficam vinculadas à sua conta."
+      },
+      "note": "Visitas de robôs de buscadores e de outros programas automatizados, assim como as visitas do próprio dono do site, não são registradas. Somente o dono do site pode ver os registros de visitas no painel de administração, onde a segunda metade de cada endereço IP fica oculta."
+    },
+    "account": {
+      "title": "Cadastro e login",
+      "body": "Ter uma conta é opcional: você pode ler todo o conteúdo público sem ela. Se você decidir se cadastrar ou fazer login:",
+      "items": {
+        "profile": "<b>Dados de cadastro</b>: nome de usuário, apelido, e-mail e senha. Seu e-mail é usado para códigos de verificação e recuperação de senha; sua senha é armazenada com criptografia irreversível, então ninguém consegue vê-la. Você também pode, se quiser, adicionar um avatar, um fundo de perfil, gênero, idioma preferido e cor do tema.",
+        "oidc": "<b>Login com outra conta</b>: se você fizer login com uma conta de terceiros, recebemos dessa plataforma o ID da sua conta, nome, nome de usuário, e-mail e avatar para criar ou vincular sua conta aqui, e os atualizamos a cada login. Você pode desvincular a conta nas configurações da sua conta.",
+        "login": "<b>Registros de login</b>: para manter você conectado e proteger sua conta, cada sessão de login registra os endereços IP de onde foi usada. Sessões que ficam inativas por muito tempo são excluídas automaticamente.",
+        "ip_location": "<b>Região do IP no seu perfil</b>: por padrão, sua página de perfil mostra aos visitantes a região aproximada do endereço IP do seu último login (não o IP em si). Você pode desativar “Show IP Location” nas configurações da sua conta."
+      }
+    },
+    "interact": {
+      "title": "Comentários e curtidas",
+      "body": "Você precisa fazer login para comentar ou curtir.",
+      "items": {
+        "comment": "<b>Comentários</b>: além do texto e do horário do comentário, o site guarda o endereço IP, a região aproximada e as informações do dispositivo do momento em que você o publicou, para combater spam e abusos. Seu endereço IP nunca é exibido publicamente.",
+        "client_info": "<b>Informações do cliente públicas</b>: se você marcar “Mostrar informações do cliente” ao comentar, outros leitores poderão ver sua região aproximada, sistema operacional e navegador; caso contrário, nada é exibido.",
+        "like": "<b>Curtidas e interações</b>: o site registra o que você curtiu. Suas curtidas e comentários também aparecem no registro de interações do dono do site, para que ele possa acompanhar o retorno dos leitores; quando você remove uma curtida, o registro correspondente também é excluído."
+      }
+    },
+    "dnt": {
+      "title": "Do Not Track",
+      "body": "Se o seu navegador estiver com “Do Not Track” ou “Global Privacy Control” (GPC) ativado, o site respeita sua escolha: registra apenas a página, o horário, a página de origem, a região aproximada e o tipo de dispositivo. Ele não armazena seu endereço IP nem as informações completas do navegador, não define o cookie de visitante e não calcula o resumo de características do navegador (seu endereço IP é usado brevemente para estimar sua região, mas não é armazenado). Se você estiver logado ao mesmo tempo, a visita ainda fica vinculada à sua conta."
+    },
+    "cookie": {
+      "title": "Cookies e armazenamento local",
+      "body": "Cookies são pequenos dados que um site guarda no seu navegador. Este site define por conta própria apenas os cookies abaixo, e nenhum deles é usado para publicidade ou rastreamento entre sites:",
+      "items": {
+        "visitor": "<b>ID de visitante (nb_vid)</b>: um número aleatório usado para reconhecer visitas repetidas do mesmo navegador, guardado por um ano. Ele não é definido quando o “Do Not Track” está ativado.",
+        "login": "<b>Estado de login (token, refresh_token)</b>: definidos somente depois que você faz login, para manter você conectado. Eles expiram quando você sai da conta ou quando vencem.",
+        "oidc": "<b>Verificação de login de terceiros (oidc_nonce)</b>: definido brevemente quando você faz login com uma conta de terceiros, para confirmar que a solicitação veio do seu próprio navegador. Expira após 10 minutos.",
+        "local": "<b>Preferências locais</b>: configurações da interface, como tema claro/escuro e o volume e o progresso do player de música, ficam armazenadas apenas no seu navegador e nunca são enviadas ao servidor."
+      },
+      "note": "Você pode ver ou apagar esses dados a qualquer momento nas configurações do navegador. Depois de apagá-los, você precisará fazer login novamente, e sua próxima visita será contada como a de um novo visitante. Serviços de terceiros usados nas páginas podem definir os próprios cookies; veja a próxima seção."
+    },
+    "third_party": {
+      "title": "Serviços de terceiros",
+      "body": "Alguns recursos dependem de serviços de terceiros. Quando você os usa, seu navegador ou o servidor deste site se comunica com esse serviço, que pode, portanto, receber informações básicas como seu endereço IP e tratá-las de acordo com a própria política de privacidade. Quais serviços estão ativados depende da configuração do dono do site:",
+      "items": {
+        "ip_lookup": "<b>Consulta de região do IP</b>: endereços IPv4 são resolvidos offline no servidor deste site e não são enviados a ninguém. Para endereços IPv6 (quando o dono do site não configurou dados offline) e para a “região do IP” exibida nas páginas de perfil, o endereço IP é enviado a um serviço de consulta de terceiros (mir6.com).",
+        "captcha": "<b>Verificação humana</b>: o login e o cadastro podem carregar Cloudflare Turnstile, hCaptcha ou Google reCAPTCHA para bloquear cadastros falsos e tentativas de adivinhar senhas.",
+        "oidc": "<b>Login de terceiros</b>: quando você faz login com uma conta de terceiros, é redirecionado para essa plataforma para autorizar o acesso.",
+        "gravatar": "<b>Avatares do Gravatar</b>: usuários sem avatar veem sua imagem do Gravatar. Seu navegador solicita a imagem ao Gravatar usando um resumo embaralhado do endereço de e-mail, e não o endereço em si.",
+        "email": "<b>Envio de e-mails</b>: e-mails como códigos de verificação são enviados pelo serviço de e-mail configurado pelo dono do site.",
+        "resources": "<b>Recursos estáticos e música</b>: imagens, scripts, músicas e outros arquivos podem estar hospedados em uma CDN ou em outras plataformas, e as páginas podem carregar um pequeno widget de status da CDN; os posts podem incluir imagens externas. Quando o player de música está ativado, a playlist e o áudio são carregados dos próprios endereços.",
+        "embed": "<b>Conteúdo incorporado</b>: a barra lateral e outras áreas podem incorporar páginas de outros sites (como uma timeline de rede social), o que funciona da mesma forma que visitar esse site diretamente."
+      },
+      "note": "Alguns serviços de terceiros podem ter servidores fora do seu país ou região. Exceto nos casos acima e quando exigido por lei, não compartilhamos suas informações pessoais com nenhum terceiro."
+    },
+    "use": {
+      "title": "Como usamos essas informações",
+      "items": {
+        "stats": "<b>Entender os leitores</b>: medir a popularidade dos posts, as origens do tráfego e a distribuição regional para que o dono do site possa melhorar o conteúdo.",
+        "service": "<b>Oferecer recursos</b>: permitir que você faça login, comente, curta e tenha uma página de perfil.",
+        "security": "<b>Manter o site seguro</b>: detectar e bloquear spam, cadastros falsos e tráfego anormal."
+      },
+      "note": "Não vendemos suas informações pessoais nem as usamos para publicidade ou perfis de marketing. As estatísticas de visitas se baseiam no interesse legítimo do dono do site em entender como o site é usado; as informações da conta são necessárias para oferecer os recursos que você solicita; exibições públicas opcionais, como sua região ou as informações do cliente, dependem da sua escolha e podem ser desativadas a qualquer momento."
+    },
+    "retention": {
+      "title": "Por quanto tempo guardamos",
+      "items": {
+        "visit": "<b>Registros de visitas e interações</b>: guardados por {days} dias e depois excluídos automaticamente.",
+        "visitor": "<b>Resumos de visitante</b>: cada navegador tem um resumo (último endereço IP, região aproximada, tipo de dispositivo e número de visitas). Atualmente ele não é excluído junto com os registros de visitas; você pode pedir ao dono do site que o exclua.",
+        "account": "<b>Conta e comentários</b>: guardados enquanto você usar sua conta. Depois que você exclui um comentário, ele deixa de ser exibido; para apagar completamente os dados de um comentário ou encerrar sua conta, entre em contato com o dono do site.",
+        "session": "<b>Registros de login</b>: excluídos automaticamente quando uma sessão fica inativa por muito tempo."
+      }
+    },
+    "rights": {
+      "title": "Seus direitos",
+      "body": "Você tem o direito de ser informado sobre suas informações pessoais, acessá-las, obter uma cópia, corrigi-las e excluí-las, revogar seu consentimento e encerrar sua conta. Veja como:",
+      "items": {
+        "self": "<b>Faça você mesmo</b>: depois de fazer login, edite seu apelido, avatar, e-mail, senha e outros dados nas configurações da sua conta, desative “Show IP Location” ou desvincule contas de terceiros.",
+        "content": "<b>Gerencie seu conteúdo</b>: exclua comentários que você publicou ou remova suas curtidas.",
+        "limit": "<b>Reduza o rastreamento</b>: ative “Do Not Track” ou “Global Privacy Control” no seu navegador ou apague os cookies deste site.",
+        "request": "<b>Fale com o dono do site</b>: para ver ou obter uma cópia das informações sobre você, excluir registros de visitas, apagar comentários completamente ou encerrar sua conta, entre em contato com o dono do site. Para proteger suas informações, talvez seja necessário verificar sua identidade primeiro."
+      },
+      "note": "Responderemos e atenderemos sua solicitação o mais rápido possível. Se você achar que a forma como tratamos as informações pessoais viola seus direitos, também pode apresentar uma reclamação à autoridade de proteção de dados da sua região."
+    },
+    "security": {
+      "title": "Segurança",
+      "body": "Adotamos medidas razoáveis para proteger suas informações: as senhas são armazenadas com criptografia; os cookies de login não podem ser lidos por scripts da página; os registros de visitas só podem ser vistos pelo dono do site no painel de administração, com os endereços IP parcialmente ocultos. Mesmo assim, nenhum sistema na internet é totalmente seguro. Se algum dia ocorrer um vazamento de dados, avisaremos você prontamente neste site e faremos o possível para limitar o impacto."
+    },
+    "children": {
+      "title": "Crianças",
+      "body": "Este site é voltado para o público em geral e não é direcionado a crianças. Se você tem menos de 14 anos (ou da idade mínima exigida por lei onde você mora), peça o consentimento de um dos pais ou responsável antes de se cadastrar ou comentar. Se um dos pais ou responsável descobrir que uma criança nos forneceu informações pessoais sem consentimento, entre em contato com o dono do site para que elas sejam excluídas."
+    },
+    "changes": {
+      "title": "Alterações nesta política",
+      "body": "Podemos atualizar esta política conforme os recursos do site mudarem. A versão atualizada será publicada nesta página, com a data indicada no topo; em caso de mudanças significativas, também faremos um aviso claro neste site."
+    },
+    "contact": {
+      "title": "Fale conosco",
+      "body": "Se você tiver dúvidas sobre esta política ou quiser exercer os direitos acima, entre em contato com o dono do site, {owner}, pelos meios de contato publicados neste site (por exemplo, os links no rodapé ou no perfil do dono)."
+    }
   },
   "Archive": {
     "posts_count": "{count, plural, one {# post} other {# posts}}",
