@@ -146,7 +146,8 @@
     "pagination": {
       "go_to_page": "पृष्ठ {page} पर जाएँ",
       "previous_page": "पिछला पृष्ठ",
-      "next_page": "अगला पृष्ठ"
+      "next_page": "अगला पृष्ठ",
+      "page_size": "प्रति पृष्ठ आइटम"
     }
   },
   "Console": {
@@ -273,7 +274,8 @@
       "v8PeakMallocedMemory": "V8 Peak Malloced Memory",
       "v8DoesZapGarbage": "V8 Zap Garbage",
       "cpuUserUsec": "User CPU Time",
-      "cpuSystemUsec": "System CPU Time"
+      "cpuSystemUsec": "System CPU Time",
+      "load_failed": "लोड करने में विफल"
     },
     "files": {
       "title": "फ़ाइलें",
@@ -480,7 +482,8 @@
       "publishing": "प्रकाशित हो रहा है...",
       "untitled": "शीर्षकहीन",
       "horizontal_rule": "क्षैतिज रेखा",
-      "add_image": "जोड़ें"
+      "add_image": "जोड़ें",
+      "title_required": "शीर्षक आवश्यक है"
     },
     "storages": {
       "title": "स्टोरेज प्रदाता",
@@ -509,7 +512,13 @@
       "no_storage_type_found": "कोई स्टोरेज प्रकार नहीं मिला।"
     },
     "users": {
-      "title": "उपयोगकर्ता"
+      "title": "उपयोगकर्ता",
+      "nickname": "उपनाम",
+      "role": "भूमिका",
+      "empty": "अभी कोई उपयोगकर्ता नहीं",
+      "load_failed": "उपयोगकर्ता लोड करने में विफल",
+      "retry": "पुनः प्रयास करें",
+      "total": "कुल {total} उपयोगकर्ता"
     },
     "user_profile": {
       "title": "Profile settings",
@@ -677,7 +686,9 @@
     "view": "देखें",
     "delete_description": "हटाना पूर्ववत नहीं किया जा सकता, सावधानी से आगे बढ़ें!",
     "fetch_failed": "Fetch failed",
-    "confirm": "पुष्टि करें"
+    "confirm": "पुष्टि करें",
+    "more": "अधिक क्रियाएँ",
+    "operation_failed": "कार्रवाई विफल रही"
   },
   "Metrics": {
     "comment_count": "टिप्पणियाँ",

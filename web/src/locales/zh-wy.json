@@ -146,7 +146,8 @@
     "pagination": {
       "go_to_page": "往第 {page} 頁",
       "previous_page": "前頁",
-      "next_page": "後頁"
+      "next_page": "後頁",
+      "page_size": "每頁之數"
     }
   },
   "Console": {
@@ -273,7 +274,8 @@
       "v8PeakMallocedMemory": "V8 峰值分配記憶",
       "v8DoesZapGarbage": "V8 是否啟用垃圾回收",
       "cpuUserUsec": "用戶態 CPU 時間",
-      "cpuSystemUsec": "內核態 CPU 時間"
+      "cpuSystemUsec": "內核態 CPU 時間",
+      "load_failed": "載之未成"
     },
     "files": {
       "title": "檔案管理",
@@ -480,7 +482,8 @@
       "publishing": "發布中...",
       "untitled": "無題",
       "horizontal_rule": "界線",
-      "add_image": "增"
+      "add_image": "增",
+      "title_required": "題不可闕"
     },
     "storages": {
       "title": "存儲供應商",
@@ -509,7 +512,13 @@
       "no_storage_type_found": "未得藏法"
     },
     "users": {
-      "title": "用戶管理"
+      "title": "用戶管理",
+      "nickname": "號",
+      "role": "職",
+      "empty": "尚無人",
+      "load_failed": "人錄載之未成",
+      "retry": "復試",
+      "total": "凡 {total} 人"
     },
     "user_profile": {
       "title": "資料設置",
@@ -704,7 +713,9 @@
     "upload_success": "上傳成功",
     "view": "查看",
     "fetch_failed": "獲取失敗",
-    "confirm": "確"
+    "confirm": "確",
+    "more": "餘事",
+    "operation_failed": "事未成"
   },
   "Metrics": {
     "comment_count": "評論數",

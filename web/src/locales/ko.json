@@ -146,7 +146,8 @@
     "pagination": {
       "go_to_page": "{page}페이지로 이동",
       "previous_page": "이전 페이지",
-      "next_page": "다음 페이지"
+      "next_page": "다음 페이지",
+      "page_size": "페이지당 항목 수"
     }
   },
   "Console": {
@@ -273,7 +274,8 @@
       "v8PeakMallocedMemory": "V8 Peak Malloced Memory",
       "v8DoesZapGarbage": "V8 Zap Garbage",
       "cpuUserUsec": "User CPU Time",
-      "cpuSystemUsec": "System CPU Time"
+      "cpuSystemUsec": "System CPU Time",
+      "load_failed": "불러오지 못했습니다"
     },
     "files": {
       "title": "파일",
@@ -480,7 +482,8 @@
       "publishing": "게시 중...",
       "untitled": "제목 없음",
       "horizontal_rule": "구분선",
-      "add_image": "추가"
+      "add_image": "추가",
+      "title_required": "제목은 필수입니다"
     },
     "storages": {
       "title": "저장소 공급자",
@@ -509,7 +512,13 @@
       "no_storage_type_found": "스토리지 유형을 찾을 수 없습니다."
     },
     "users": {
-      "title": "사용자"
+      "title": "사용자",
+      "nickname": "닉네임",
+      "role": "역할",
+      "empty": "아직 사용자가 없습니다",
+      "load_failed": "사용자 목록을 불러오지 못했습니다",
+      "retry": "다시 시도",
+      "total": "총 {total}명의 사용자"
     },
     "user_profile": {
       "title": "Profile settings",
@@ -677,7 +686,9 @@
     "view": "보기",
     "delete_description": "삭제는 취소할 수 없으니 신중하게 진행하세요!",
     "fetch_failed": "Fetch failed",
-    "confirm": "확인"
+    "confirm": "확인",
+    "more": "더 많은 작업",
+    "operation_failed": "작업에 실패했습니다"
   },
   "Metrics": {
     "comment_count": "댓글",

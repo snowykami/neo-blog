@@ -253,5 +253,3 @@ export default function GlobalPage() {
     </div>
   )
 }
-
-export function ColorPick() {}

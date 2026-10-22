@@ -37,17 +37,19 @@ export function NavGroup({
               {items.map(
                 item =>
                   item.permission({ user }) && (
-                    <SidebarMenuItem key={item.title}>
-                      <Link href={item.url} onClick={() => setActiveId && setActiveId(item.id)}>
-                        <SidebarMenuButton
-                          id={`nav-item-${item.id}`}
-                          tooltip={item.title}
-                          isActive={activeId === item.id}
-                        >
+                    // 使用稳定的 id 作为 key，避免切换语言时整组重新挂载
+                    <SidebarMenuItem key={item.id}>
+                      <SidebarMenuButton
+                        asChild
+                        id={`nav-item-${item.id}`}
+                        tooltip={item.title}
+                        isActive={activeId === item.id}
+                      >
+                        <Link href={item.url} onClick={() => setActiveId && setActiveId(item.id)}>
                           {item.icon && <item.icon />}
                           <span>{item.title}</span>
-                        </SidebarMenuButton>
-                      </Link>
+                        </Link>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
                   ),
               )}

@@ -146,7 +146,8 @@
     "pagination": {
       "go_to_page": "Zu Seite {page}",
       "previous_page": "Vorherige Seite",
-      "next_page": "Nächste Seite"
+      "next_page": "Nächste Seite",
+      "page_size": "Einträge pro Seite"
     }
   },
   "Console": {
@@ -273,7 +274,8 @@
       "v8PeakMallocedMemory": "V8 Spitzen-malloced-Speicher",
       "v8DoesZapGarbage": "V8 zap garbage",
       "cpuUserUsec": "Benutzer-CPU-Zeit",
-      "cpuSystemUsec": "System-CPU-Zeit"
+      "cpuSystemUsec": "System-CPU-Zeit",
+      "load_failed": "Laden fehlgeschlagen"
     },
     "files": {
       "title": "Dateien",
@@ -480,7 +482,8 @@
       "publishing": "Wird veröffentlicht...",
       "untitled": "Ohne Titel",
       "horizontal_rule": "Trennlinie",
-      "add_image": "Hinzufügen"
+      "add_image": "Hinzufügen",
+      "title_required": "Titel ist erforderlich"
     },
     "storages": {
       "title": "Speicheranbieter",
@@ -509,7 +512,13 @@
       "no_storage_type_found": "Kein Speichertyp gefunden."
     },
     "users": {
-      "title": "Benutzer"
+      "title": "Benutzer",
+      "nickname": "Spitzname",
+      "role": "Rolle",
+      "empty": "Noch keine Benutzer",
+      "load_failed": "Benutzer konnten nicht geladen werden",
+      "retry": "Erneut versuchen",
+      "total": "Insgesamt {total} Benutzer"
     },
     "user_profile": {
       "title": "Profileinstellungen",
@@ -677,7 +686,9 @@
     "view": "Ansehen",
     "delete_description": "Löschung kann nicht rückgängig gemacht werden, bitte mit Vorsicht fortfahren!",
     "fetch_failed": "Abrufen fehlgeschlagen",
-    "confirm": "Bestätigen"
+    "confirm": "Bestätigen",
+    "more": "Weitere Aktionen",
+    "operation_failed": "Vorgang fehlgeschlagen"
   },
   "Metrics": {
     "comment_count": "Kommentare",

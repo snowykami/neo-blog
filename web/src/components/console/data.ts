@@ -148,3 +148,27 @@ export const sidebarData: {
     },
   ],
 }
+
+// 按侧栏顺序排列的全部控制台菜单项
+export const allSidebarItems: SidebarItem[] = [
+  ...sidebarData.navContent,
+  ...sidebarData.navSystem,
+  ...sidebarData.navUser,
+  ...sidebarData.navPersonal,
+]
+
+/**
+ * 根据路径匹配控制台菜单项；子路由（如 /console/posts/edit/1）归属于其父菜单
+ * 仪表盘路径为 /console，只做精确匹配，避免吞掉所有子路由
+ */
+export function matchSidebarItem(pathname: string): SidebarItem | undefined {
+  return allSidebarItems.find(item =>
+    pathname === item.url
+    || (item.url !== consolePath.dashboard && pathname.startsWith(`${item.url}/`)),
+  )
+}
+
+// 当前用户有权限访问的第一个菜单项，用于无权访问仪表盘时的跳转
+export function getFirstPermittedSidebarItem(user: User): SidebarItem | undefined {
+  return allSidebarItems.find(item => item.permission({ user }))
+}

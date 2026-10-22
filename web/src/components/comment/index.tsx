@@ -191,7 +191,7 @@ export function CommentSection({
         </div>
         <div className="flex">
           <OrderSelector
-            initialOrder={{ orderBy, desc }}
+            value={{ orderBy, desc }}
             onOrderChange={(o) => {
               setOrderBy(o.orderBy)
               setDesc(o.desc)

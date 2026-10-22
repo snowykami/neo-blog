@@ -146,7 +146,8 @@
     "pagination": {
       "go_to_page": "Ir para a página {page}",
       "previous_page": "Página anterior",
-      "next_page": "Próxima página"
+      "next_page": "Próxima página",
+      "page_size": "Itens por página"
     }
   },
   "Console": {
@@ -273,7 +274,8 @@
       "v8PeakMallocedMemory": "V8 Peak Malloced Memory",
       "v8DoesZapGarbage": "V8 Zap Garbage",
       "cpuUserUsec": "User CPU Time",
-      "cpuSystemUsec": "System CPU Time"
+      "cpuSystemUsec": "System CPU Time",
+      "load_failed": "Falha ao carregar"
     },
     "files": {
       "title": "Arquivos",
@@ -480,7 +482,8 @@
       "publishing": "Publicando...",
       "untitled": "Sem título",
       "horizontal_rule": "Linha horizontal",
-      "add_image": "Adicionar"
+      "add_image": "Adicionar",
+      "title_required": "O título é obrigatório"
     },
     "storages": {
       "title": "Provedores de armazenamento",
@@ -509,7 +512,13 @@
       "no_storage_type_found": "Nenhum tipo de armazenamento encontrado."
     },
     "users": {
-      "title": "Usuários"
+      "title": "Usuários",
+      "nickname": "Apelido",
+      "role": "Função",
+      "empty": "Ainda não há usuários",
+      "load_failed": "Falha ao carregar usuários",
+      "retry": "Tentar novamente",
+      "total": "{total} usuários no total"
     },
     "user_profile": {
       "title": "Profile settings",
@@ -677,7 +686,9 @@
     "view": "Ver",
     "delete_description": "A exclusão não pode ser desfeita, prossiga com cuidado!",
     "fetch_failed": "Fetch failed",
-    "confirm": "Confirmar"
+    "confirm": "Confirmar",
+    "more": "Mais ações",
+    "operation_failed": "A operação falhou"
   },
   "Metrics": {
     "comment_count": "Comentários",

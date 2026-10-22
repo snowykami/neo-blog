@@ -146,7 +146,8 @@
     "pagination": {
       "go_to_page": "前往第 {page} 頁",
       "previous_page": "上一頁",
-      "next_page": "下一頁"
+      "next_page": "下一頁",
+      "page_size": "每頁筆數"
     }
   },
   "Console": {
@@ -273,7 +274,8 @@
       "v8PeakMallocedMemory": "V8 峰值分配內存",
       "v8DoesZapGarbage": "V8 是否啟用垃圾回收",
       "cpuUserUsec": "用戶態 CPU 時間",
-      "cpuSystemUsec": "內核態 CPU 時間"
+      "cpuSystemUsec": "內核態 CPU 時間",
+      "load_failed": "載入失敗"
     },
     "files": {
       "title": "檔案管理",
@@ -480,7 +482,8 @@
       "publishing": "發布中...",
       "untitled": "無標題",
       "horizontal_rule": "分隔線",
-      "add_image": "新增"
+      "add_image": "新增",
+      "title_required": "標題不能為空"
     },
     "storages": {
       "title": "儲存供應商",
@@ -509,7 +512,13 @@
       "no_storage_type_found": "找不到儲存類型"
     },
     "users": {
-      "title": "使用者管理"
+      "title": "使用者管理",
+      "nickname": "暱稱",
+      "role": "角色",
+      "empty": "暫無使用者",
+      "load_failed": "使用者列表載入失敗",
+      "retry": "重試",
+      "total": "共 {total} 位使用者"
     },
     "user_profile": {
       "title": "個人設定",
@@ -677,7 +686,9 @@
     "view": "檢視",
     "delete_description": "刪除後無法復原，請謹慎操作！",
     "fetch_failed": "取得失敗",
-    "confirm": "確認"
+    "confirm": "確認",
+    "more": "更多操作",
+    "operation_failed": "操作失敗"
   },
   "Metrics": {
     "comment_count": "評論數",

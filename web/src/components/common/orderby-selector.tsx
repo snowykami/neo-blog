@@ -10,17 +10,24 @@ interface Order {
 }
 
 export function OrderSelector({
+  value,
   initialOrder,
   onOrderChange,
   orderBys,
 }: {
-  initialOrder: Order
+  /** 受控排序值（推荐），通常来自 URL 状态 */
+  value?: Order
+  /** @deprecated 仅在未传入 value 时作为非受控初始值，保留以兼容旧调用 */
+  initialOrder?: Order
   orderBys?: OrderBy[]
   onOrderChange: (order: Order) => void
 }) {
   const orderT = useTranslations('Order')
   const [open, setOpen] = useState(false)
-  const [order, setOrder] = useState<Order>(initialOrder)
+  const [innerOrder, setInnerOrder] = useState<Order>(
+    initialOrder ?? { orderBy: OrderBy.CreatedAt, desc: true },
+  )
+  const order = value ?? innerOrder
 
   orderBys = orderBys || [
     OrderBy.CreatedAt,
@@ -34,7 +41,7 @@ export function OrderSelector({
   return (
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
+        <Button variant="outline" size="sm">
           <div className="text-sm font-bold hidden md:block">{orderT('order')}</div>
           {' '}
           {orderT(order.orderBy)}
@@ -52,8 +59,9 @@ export function OrderSelector({
                 size="sm"
                 className={`justify-start ${order.orderBy === ob && order.desc === desc ? 'bg-accent' : ''}`}
                 onClick={() => {
+                  if (value === undefined)
+                    setInnerOrder({ orderBy: ob, desc })
                   onOrderChange({ orderBy: ob, desc })
-                  setOrder({ orderBy: ob, desc })
                   setOpen(false)
                 }}
               >

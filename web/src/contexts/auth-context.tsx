@@ -8,6 +8,8 @@ import { useCommonT } from '@/hooks/use-translations'
 
 interface AuthContextValue {
   user: User | null
+  // 客户端仍在确认登录状态（服务端未能确定时补拉 /user/me 期间）
+  loading: boolean
   setUser: (u: User | null) => void
   logout: () => void
 }
@@ -25,6 +27,7 @@ export function AuthProvider({
   isAnonymous?: boolean
 }) {
   const [user, setUser] = useState<User | null>(initialUser)
+  const [loading, setLoading] = useState(!initialUser && !isAnonymous)
   const commonT = useCommonT()
 
   // 仅在首次挂载且服务端未能确定登录状态时（有凭据但服务端获取失败）在客户端补拉一次
@@ -42,6 +45,10 @@ export function AuthProvider({
         if (!cancelled)
           setUser(null)
       })
+      .finally(() => {
+        if (!cancelled)
+          setLoading(false)
+      })
     return () => {
       cancelled = true
     }
@@ -57,7 +64,7 @@ export function AuthProvider({
         toast.error(commonT('logout_failed'))
       })
   }, [commonT])
-  const value = useMemo(() => ({ user, setUser, logout }), [user, logout])
+  const value = useMemo(() => ({ user, loading, setUser, logout }), [user, loading, logout])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

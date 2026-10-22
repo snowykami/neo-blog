@@ -146,7 +146,8 @@
     "pagination": {
       "go_to_page": "Go to page {page}",
       "previous_page": "Previous page",
-      "next_page": "Next page"
+      "next_page": "Next page",
+      "page_size": "Items per page"
     }
   },
   "Console": {
@@ -273,7 +274,8 @@
       "v8PeakMallocedMemory": "V8 Peak Malloced Memory",
       "v8DoesZapGarbage": "V8 Zap Garbage",
       "cpuUserUsec": "User CPU Time",
-      "cpuSystemUsec": "System CPU Time"
+      "cpuSystemUsec": "System CPU Time",
+      "load_failed": "Failed to load"
     },
     "files": {
       "title": "Files",
@@ -480,7 +482,8 @@
       "publishing": "Publishing...",
       "untitled": "Untitled",
       "horizontal_rule": "Horizontal rule",
-      "add_image": "Add"
+      "add_image": "Add",
+      "title_required": "Title is required"
     },
     "storages": {
       "title": "Storage providers",
@@ -509,7 +512,13 @@
       "no_storage_type_found": "No storage type found."
     },
     "users": {
-      "title": "Users"
+      "title": "Users",
+      "nickname": "Nickname",
+      "role": "Role",
+      "empty": "No users yet",
+      "load_failed": "Failed to load users",
+      "retry": "Retry",
+      "total": "{total} users in total"
     },
     "user_profile": {
       "title": "Profile settings",
@@ -677,7 +686,9 @@
     "view": "View",
     "delete_description": "Deletion cannot be undone, please proceed with caution!",
     "fetch_failed": "Fetch failed",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "more": "More actions",
+    "operation_failed": "Operation failed"
   },
   "Metrics": {
     "comment_count": "Comments",

@@ -6,18 +6,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteCategory, getCategories } from '@/api/post'
 import { DeleteButtonWithConfirmDialog } from '@/components/common/delete-button-with-confirm-dialog'
-import Forbidden from '@/components/common/forbidden'
 
 import { CreateOrUpdateCategoryDialogWithButton } from '@/components/console/common/create-label-and-category'
 import { Input } from '@/components/ui/input'
-import { useAuth } from '@/contexts/auth-context'
 import { useOperationT } from '@/hooks/use-translations'
-import { isAdmin, isEditor } from '@/utils/common/permission'
 
 export function CategoryManage() {
   const t = useTranslations('Console.categories')
   const operationT = useOperationT()
-  const { user } = useAuth()
 
   const [categories, setCategories] = useState<Category[]>([])
   const [query, setQuery] = useState('')
@@ -47,9 +43,6 @@ export function CategoryManage() {
       c.name.toLowerCase().includes(query.toLowerCase())
       || c.slug.toLowerCase().includes(query.toLowerCase()),
   )
-
-  if (!user || (!isAdmin({ user }) && !isEditor({ user })))
-    return <Forbidden />
 
   return (
     <div>

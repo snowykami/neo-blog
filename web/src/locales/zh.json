@@ -146,7 +146,8 @@
     "pagination": {
       "go_to_page": "前往第 {page} 页",
       "previous_page": "上一页",
-      "next_page": "下一页"
+      "next_page": "下一页",
+      "page_size": "每页条数"
     }
   },
   "Console": {
@@ -273,7 +274,8 @@
       "v8PeakMallocedMemory": "V8峰值分配内存",
       "v8DoesZapGarbage": "V8是否启用垃圾回收",
       "cpuUserUsec": "用户态CPU时间",
-      "cpuSystemUsec": "内核态CPU时间"
+      "cpuSystemUsec": "内核态CPU时间",
+      "load_failed": "加载失败"
     },
     "files": {
       "title": "文件管理",
@@ -480,7 +482,8 @@
       "publishing": "发布中...",
       "untitled": "无标题",
       "horizontal_rule": "分割线",
-      "add_image": "添加"
+      "add_image": "添加",
+      "title_required": "标题不能为空"
     },
     "storages": {
       "title": "存储供应商",
@@ -509,7 +512,13 @@
       "no_storage_type_found": "没有找到存储类型"
     },
     "users": {
-      "title": "用户管理"
+      "title": "用户管理",
+      "nickname": "昵称",
+      "role": "角色",
+      "empty": "暂无用户",
+      "load_failed": "用户列表加载失败",
+      "retry": "重试",
+      "total": "共 {total} 位用户"
     },
     "user_profile": {
       "title": "资料设置",
@@ -704,7 +713,9 @@
     "upload_success": "上传成功",
     "view": "查看",
     "fetch_failed": "获取失败",
-    "confirm": "确认"
+    "confirm": "确认",
+    "more": "更多操作",
+    "operation_failed": "操作失败"
   },
   "Metrics": {
     "comment_count": "评论数",

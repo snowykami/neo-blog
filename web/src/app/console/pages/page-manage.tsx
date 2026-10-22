@@ -117,7 +117,7 @@ export function PageManage() {
           <PaginationController page={page} onPageChange={setPage} total={total} pageSize={size} />
         )}
         <PageSizeSelector
-          initialSize={size}
+          size={size}
           onSizeChange={(nextSize) => {
             setSize(nextSize)
             setPage(1)
@@ -140,6 +140,7 @@ function PageItem({
   const [metaDialogOpen, setMetaDialogOpen] = useState(false)
   const t = useTranslations('Console.pages')
   const stateT = useTranslations('State')
+  const operationT = useOperationT()
   return (
     <div className="flex w-full items-center gap-3 py-3">
       <div className="min-w-0">
@@ -161,8 +162,10 @@ function PageItem({
         </div>
       </div>
       <div className="ml-auto flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <a href={getPageUrl(page)} target="_blank" rel="noreferrer"><Eye className="size-4" /></a>
+        <Button variant="ghost" size="icon-sm" asChild>
+          <a href={getPageUrl(page)} target="_blank" rel="noreferrer" aria-label={operationT('view')} title={operationT('view')}>
+            <Eye className="size-4" />
+          </a>
         </Button>
         <PageDropdownMenu page={page} onPageChange={onPageChange} onPageDelete={onPageDelete} setMetaDialogOpen={setMetaDialogOpen} />
         <PageMetaDialog
@@ -211,14 +214,16 @@ function PageDropdownMenu({
   return (
     <DropdownMenu onOpenChange={open => !open && onBlur()}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost"><Ellipsis className="size-4" /></Button>
+        <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
+          <Ellipsis className="size-4" />
+        </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
+      <DropdownMenuContent className="min-w-36" align="end">
         <DropdownMenuItem asChild><a href={getPageEditUrl(page)}>{operationT('edit')}</a></DropdownMenuItem>
         <DropdownMenuItem onClick={() => setMetaDialogOpen(true)}>{operationT('setting')}</DropdownMenuItem>
         <DropdownMenuItem asChild><a href={getPageUrl(page)} target="_blank" rel="noreferrer">{operationT('view')}</a></DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={togglePrivate} className="text-destructive">{operationT(page.isPrivate ? 'set_public' : 'set_private')}</DropdownMenuItem>
+        <DropdownMenuItem onClick={togglePrivate}>{operationT(page.isPrivate ? 'set_public' : 'set_private')}</DropdownMenuItem>
         <DropdownMenuItem
           onSelect={(event) => {
             if (!confirming)

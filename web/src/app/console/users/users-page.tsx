@@ -1,34 +1,21 @@
 'use client'
 
-import type {
-  ColumnDef,
-  ColumnFiltersState,
-  SortingState,
-  VisibilityState,
-} from '@tanstack/react-table'
 import type { User } from '@/models/user'
+import { useFormatter, useTranslations } from 'next-intl'
 import {
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
-import { MoreHorizontal } from 'lucide-react'
-
-import * as React from 'react'
+  parseAsBoolean,
+  parseAsInteger,
+  parseAsStringEnum,
+  useQueryState,
+} from 'nuqs'
+import { useCallback, useEffect, useState } from 'react'
+import { listUsers } from '@/api/admin'
+import { OrderSelector } from '@/components/common/orderby-selector'
+import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -37,191 +24,195 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useDevice } from '@/contexts/device-context'
+import { useCommonT, useErrorMessageT } from '@/hooks/use-translations'
+import { OrderBy } from '@/models/common'
+import { Role } from '@/models/user'
+import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
+import { getFirstCharFromUser } from '@/utils/common/username'
 
-export const columns: ColumnDef<User>[] = [
-  {
-    id: 'select',
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected()
-          || (table.getIsSomePageRowsSelected() && 'indeterminate')
-        }
-        onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={value => row.toggleSelected(!!value)}
-        aria-label="Select row"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'id',
-    header: 'Status',
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue('id')}</div>
-    ),
-  },
-  {
-    id: 'actions',
-    enableHiding: false,
-    cell: ({ row }) => {
-      const user = row.original
+const PAGE_SIZE = 15
+const MOBILE_PAGE_SIZE = 10
+const COLUMN_COUNT = 6
+// 后端用户列表支持的排序字段（另有 id / username，前端 OrderBy 暂未定义）
+const USER_ORDER_BYS = [OrderBy.CreatedAt, OrderBy.UpdatedAt]
 
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(user.id.toString())}
-            >
-              Copy payment ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>View customer</DropdownMenuItem>
-            <DropdownMenuItem>View payment details</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
-  },
-]
+const ROLE_BADGE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
+  [Role.ADMIN]: 'default',
+  [Role.EDITOR]: 'secondary',
+  [Role.USER]: 'outline',
+}
 
+// 管理员用户列表（权限由控制台布局统一校验，仅管理员可进入）
 export function UserManagePage() {
-  const [users, setUsers] = React.useState<User[]>([])
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    [],
+  const t = useTranslations('Console.users')
+  const format = useFormatter()
+  const commonT = useCommonT()
+  const roleT = useTranslations('Role')
+  const metricsT = useTranslations('Metrics')
+  const errorMessageT = useErrorMessageT()
+  const { isMobile } = useDevice()
+  const [users, setUsers] = useState<User[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [orderBy, setOrderBy] = useQueryState(
+    'order_by',
+    parseAsStringEnum<OrderBy>(USER_ORDER_BYS)
+      .withDefault(OrderBy.CreatedAt)
+      .withOptions({ history: 'replace', clearOnDefault: true }),
   )
-  const [columnVisibility, setColumnVisibility]
-    = React.useState<VisibilityState>({})
-  const [rowSelection, setRowSelection] = React.useState({})
+  const [desc, setDesc] = useQueryState(
+    'desc',
+    parseAsBoolean.withDefault(true).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [page, setPage] = useQueryState(
+    'page',
+    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [size, setSize] = useQueryState(
+    'size',
+    parseAsInteger
+      .withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE)
+      .withOptions({ history: 'replace', clearOnDefault: true }),
+  )
 
-  const table = useReactTable({
-    data: users,
-    columns,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: setRowSelection,
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
-      rowSelection,
+  const fetchUsers = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await listUsers({ page, size, orderBy, desc })
+      setUsers(res.data.users || [])
+      setTotal(res.data.total)
+    }
+    catch (err) {
+      setError(errorMessageT(err))
+    }
+    finally {
+      setLoading(false)
+    }
+  }, [desc, errorMessageT, orderBy, page, size])
+
+  useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
+
+  const onOrderChange = useCallback(
+    ({ orderBy, desc }: { orderBy: OrderBy, desc: boolean }) => {
+      setOrderBy(orderBy)
+      setDesc(desc)
+      setPage(1)
     },
-  })
-
-  React.useEffect(() => {
-    setUsers([])
-  }, [])
+    [setOrderBy, setDesc, setPage],
+  )
 
   return (
-    <div className="w-full">
-      <div className="flex items-center py-4">
-        <Input
-          placeholder="Filter emails..."
-          value={(table.getColumn('email')?.getFilterValue() as string) ?? ''}
-          onChange={event =>
-            table.getColumn('email')?.setFilterValue(event.target.value)}
-          className="max-w-sm"
+    <div className="grid gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-muted-foreground tabular-nums">
+          {t('total', { total })}
+        </div>
+        <OrderSelector
+          value={{ orderBy, desc }}
+          onOrderChange={onOrderChange}
+          orderBys={USER_ORDER_BYS}
         />
       </div>
       <div className="overflow-hidden rounded-md border">
         <Table>
           <TableHeader>
-            {table.getHeaderGroups().map(headerGroup => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  )
-                })}
-              </TableRow>
-            ))}
+            <TableRow>
+              <TableHead>{commonT('username')}</TableHead>
+              <TableHead>{t('nickname')}</TableHead>
+              <TableHead>{commonT('email')}</TableHead>
+              <TableHead>{t('role')}</TableHead>
+              <TableHead>{commonT('created_at')}</TableHead>
+              <TableHead className="text-right">{commonT('id')}</TableHead>
+            </TableRow>
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length
-              ? (
-                  table.getRowModel().rows.map(row => (
-                    <TableRow
-                      key={row.id}
-                      data-state={row.getIsSelected() && 'selected'}
-                    >
-                      {row.getVisibleCells().map(cell => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                )
-              : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={columns.length}
-                      className="h-24 text-center"
-                    >
-                      No results.
-                    </TableCell>
-                  </TableRow>
-                )}
+            {loading && Array.from({ length: 5 }, (_, i) => (
+              <TableRow key={`skeleton-${i}`}>
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-8 rounded-full" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </TableCell>
+                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-36" /></TableCell>
+                <TableCell><Skeleton className="h-5 w-14" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                <TableCell><Skeleton className="ml-auto h-4 w-8" /></TableCell>
+              </TableRow>
+            ))}
+            {!loading && error && (
+              <TableRow>
+                <TableCell colSpan={COLUMN_COUNT} className="py-8 text-center">
+                  <div className="grid justify-items-center gap-3">
+                    <p role="alert" className="text-sm text-destructive">
+                      {t('load_failed')}
+                      {error && `: ${error}`}
+                    </p>
+                    <Button size="sm" variant="outline" onClick={fetchUsers}>{t('retry')}</Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
+            {!loading && !error && users.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={COLUMN_COUNT} className="py-8 text-center text-muted-foreground">
+                  {t('empty')}
+                </TableCell>
+              </TableRow>
+            )}
+            {!loading && !error && users.map(user => (
+              <TableRow key={user.id}>
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="size-8">
+                      <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user, size: 64 })} alt={user.nickname || user.username} />
+                      <AvatarFallback className="text-xs">{getFirstCharFromUser(user)}</AvatarFallback>
+                    </Avatar>
+                    <span className="truncate font-medium">{user.username}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="max-w-48 truncate">{user.nickname || '-'}</TableCell>
+                <TableCell className="max-w-64 truncate text-muted-foreground">{user.email || '-'}</TableCell>
+                <TableCell>
+                  <Badge variant={ROLE_BADGE_VARIANT[user.role] ?? 'outline'}>
+                    {Object.values(Role).includes(user.role) ? roleT(user.role) : user.role}
+                  </Badge>
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">
+                  {user.createdAt ? format.dateTime(new Date(user.createdAt), { dateStyle: 'medium' }) : '-'}
+                </TableCell>
+                <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                  {user.id}
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="text-muted-foreground flex-1 text-sm">
-          {table.getFilteredSelectedRowModel().rows.length}
-          {' '}
-          of
-          {' '}
-          {table.getFilteredRowModel().rows.length}
-          {' '}
-          row(s) selected.
-        </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
+      <div className="flex items-center justify-center gap-3">
+        {total > 0 && (
+          <PaginationController
+            page={page}
+            onPageChange={setPage}
+            total={total}
+            pageSize={size}
+          />
+        )}
+        <div className="flex items-center gap-1 text-sm">
+          <PageSizeSelector
+            size={size}
+            onSizeChange={(nextSize) => {
+              setSize(nextSize)
+              setPage(1)
+            }}
+          />
+          {metricsT('per_page')}
         </div>
       </div>
     </div>

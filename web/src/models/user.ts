@@ -10,6 +10,7 @@ export interface User {
   role: Role
   language?: string
   showIpLocation: boolean
+  createdAt?: string // 注册时间，仅 /user/me 与管理员接口返回
 }
 
 export enum Role {

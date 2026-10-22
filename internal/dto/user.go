@@ -1,6 +1,10 @@
 package dto
 
-import "github.com/snowykami/neo-blog/pkg/constant"
+import (
+	"time"
+
+	"github.com/snowykami/neo-blog/pkg/constant"
+)
 
 type UserDto struct {
 	ID             uint          `json:"id"`       // 用户ID
@@ -12,8 +16,9 @@ type UserDto struct {
 	Email          string        `json:"email,omitempty"` // 邮箱，仅本人和管理员可见
 	Gender         string        `json:"gender"`
 	Role           constant.Role `json:"role"`
-	Language       string        `json:"language"`         // 语言
-	ShowIPLocation *bool         `json:"show_ip_location"` // 是否显示IP归属地
+	Language       string        `json:"language"`             // 语言
+	ShowIPLocation *bool         `json:"show_ip_location"`     // 是否显示IP归属地
+	CreatedAt      *time.Time    `json:"created_at,omitempty"` // 注册时间，仅本人和管理员可见
 }
 
 type UserOidcConfigDto struct {

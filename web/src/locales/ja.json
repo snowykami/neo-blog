@@ -146,7 +146,8 @@
     "pagination": {
       "go_to_page": "{page} ページへ移動",
       "previous_page": "前のページ",
-      "next_page": "次のページ"
+      "next_page": "次のページ",
+      "page_size": "1ページあたりの件数"
     }
   },
   "Console": {
@@ -273,7 +274,8 @@
       "v8PeakMallocedMemory": "V8 最大割り当てメモリ",
       "v8DoesZapGarbage": "V8 ガベージクリア",
       "cpuUserUsec": "ユーザー CPU 時間",
-      "cpuSystemUsec": "システム CPU 時間"
+      "cpuSystemUsec": "システム CPU 時間",
+      "load_failed": "読み込みに失敗しました"
     },
     "files": {
       "title": "ファイル管理",
@@ -480,7 +482,8 @@
       "publishing": "公開中...",
       "untitled": "無題",
       "horizontal_rule": "区切り線",
-      "add_image": "追加"
+      "add_image": "追加",
+      "title_required": "タイトルは必須です"
     },
     "storages": {
       "title": "ストレージプロバイダ",
@@ -509,7 +512,13 @@
       "no_storage_type_found": "ストレージの種類が見つかりません。"
     },
     "users": {
-      "title": "ユーザー"
+      "title": "ユーザー",
+      "nickname": "ニックネーム",
+      "role": "ロール",
+      "empty": "ユーザーはまだいません",
+      "load_failed": "ユーザー一覧の読み込みに失敗しました",
+      "retry": "再試行",
+      "total": "全 {total} 人のユーザー"
     },
     "user_profile": {
       "title": "プロフィール設定",
@@ -677,7 +686,9 @@
     "view": "表示",
     "delete_description": "削除は取り消せません。慎重に操作してください！",
     "fetch_failed": "取得に失敗しました",
-    "confirm": "確認"
+    "confirm": "確認",
+    "more": "その他の操作",
+    "operation_failed": "操作に失敗しました"
   },
   "Metrics": {
     "comment_count": "コメント数",

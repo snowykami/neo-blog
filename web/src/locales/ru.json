@@ -146,7 +146,8 @@
     "pagination": {
       "go_to_page": "Перейти на страницу {page}",
       "previous_page": "Предыдущая страница",
-      "next_page": "Следующая страница"
+      "next_page": "Следующая страница",
+      "page_size": "Элементов на странице"
     }
   },
   "Console": {
@@ -273,7 +274,8 @@
       "v8PeakMallocedMemory": "V8 Peak Malloced Memory",
       "v8DoesZapGarbage": "V8 Zap Garbage",
       "cpuUserUsec": "User CPU Time",
-      "cpuSystemUsec": "System CPU Time"
+      "cpuSystemUsec": "System CPU Time",
+      "load_failed": "Не удалось загрузить"
     },
     "files": {
       "title": "Файлы",
@@ -480,7 +482,8 @@
       "publishing": "Публикация...",
       "untitled": "Без названия",
       "horizontal_rule": "Горизонтальная линия",
-      "add_image": "Добавить"
+      "add_image": "Добавить",
+      "title_required": "Укажите заголовок"
     },
     "storages": {
       "title": "Провайдеры хранилища",
@@ -509,7 +512,13 @@
       "no_storage_type_found": "Тип хранилища не найден."
     },
     "users": {
-      "title": "Пользователи"
+      "title": "Пользователи",
+      "nickname": "Псевдоним",
+      "role": "Роль",
+      "empty": "Пользователей пока нет",
+      "load_failed": "Не удалось загрузить пользователей",
+      "retry": "Повторить",
+      "total": "Всего пользователей: {total}"
     },
     "user_profile": {
       "title": "Profile settings",
@@ -677,7 +686,9 @@
     "view": "Просмотр",
     "delete_description": "Удаление нельзя отменить, действуйте осторожно!",
     "fetch_failed": "Fetch failed",
-    "confirm": "Подтвердить"
+    "confirm": "Подтвердить",
+    "more": "Другие действия",
+    "operation_failed": "Не удалось выполнить операцию"
   },
   "Metrics": {
     "comment_count": "Комментарии",

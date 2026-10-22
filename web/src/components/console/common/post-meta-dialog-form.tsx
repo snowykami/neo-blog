@@ -5,6 +5,7 @@ import type { Category } from '@/models/category'
 import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
 import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -30,6 +31,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useCommonT, useErrorMessageT, useOperationT, useResponseErrorDetailsT } from '@/hooks/use-translations'
 import { getFileUri } from '@/utils/client/file'
+import { getPostEditUrl } from '@/utils/common/route'
 import { PostCategorySelector, PostLabelSelector } from './post-meta-category-and-label-selector'
 
 interface PostMetaForm {
@@ -58,6 +60,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
   const errorDetailsT = useResponseErrorDetailsT()
   const commonT = useCommonT()
   const t = useTranslations('Console.post_edit')
+  const router = useRouter()
   const form = useForm<PostMetaForm>({
     defaultValues: toFormValues(post),
   })
@@ -129,6 +132,8 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           onMetaChange({ post: res.data })
           form.reset()
           onOpenChange(false)
+          // 创建后直接进入编辑器继续撰写正文
+          router.push(getPostEditUrl({ id: res.data.id }))
         })
         .catch((error) => {
           toast.error(`${operationT('create_failed')}: ${errorMessageT(error)}`)
@@ -143,7 +148,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {post ? operationT('update') : operationT('create')}
@@ -170,12 +175,14 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
             <FormField
               control={form.control}
               name="title"
+              rules={{ validate: value => !!value.trim() || t('title_required') }}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('post_title')}</FormLabel>
                   <FormControl>
                     <Input autoFocus={false} {...field} />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -225,7 +232,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
                 <FormItem>
                   <FormLabel>{t('post_description')}</FormLabel>
                   <FormControl>
-                    <Textarea autoFocus={false} {...field} className="max-h-4 md:max-h-none" />
+                    <Textarea autoFocus={false} {...field} />
                   </FormControl>
                 </FormItem>
               )}

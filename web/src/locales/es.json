@@ -146,7 +146,8 @@
     "pagination": {
       "go_to_page": "Ir a la página {page}",
       "previous_page": "Página anterior",
-      "next_page": "Página siguiente"
+      "next_page": "Página siguiente",
+      "page_size": "Elementos por página"
     }
   },
   "Console": {
@@ -273,7 +274,8 @@
       "v8PeakMallocedMemory": "Pico memoria malloc V8",
       "v8DoesZapGarbage": "V8 zap garbage",
       "cpuUserUsec": "Tiempo CPU usuario",
-      "cpuSystemUsec": "Tiempo CPU sistema"
+      "cpuSystemUsec": "Tiempo CPU sistema",
+      "load_failed": "Error al cargar"
     },
     "files": {
       "title": "Archivos",
@@ -480,7 +482,8 @@
       "publishing": "Publicando...",
       "untitled": "Sin título",
       "horizontal_rule": "Línea horizontal",
-      "add_image": "Añadir"
+      "add_image": "Añadir",
+      "title_required": "El título es obligatorio"
     },
     "storages": {
       "title": "Proveedores de almacenamiento",
@@ -509,7 +512,13 @@
       "no_storage_type_found": "No se encontró ningún tipo de almacenamiento."
     },
     "users": {
-      "title": "Usuarios"
+      "title": "Usuarios",
+      "nickname": "Apodo",
+      "role": "Rol",
+      "empty": "Aún no hay usuarios",
+      "load_failed": "No se pudieron cargar los usuarios",
+      "retry": "Reintentar",
+      "total": "{total} usuarios en total"
     },
     "user_profile": {
       "title": "Configuración de perfil",
@@ -677,7 +686,9 @@
     "view": "Ver",
     "delete_description": "La eliminación no se puede deshacer, ¡procede con precaución!",
     "fetch_failed": "Error al obtener",
-    "confirm": "Confirmar"
+    "confirm": "Confirmar",
+    "more": "Más acciones",
+    "operation_failed": "La operación falló"
   },
   "Metrics": {
     "comment_count": "Comentarios",

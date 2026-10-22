@@ -138,7 +138,7 @@ export default function CommentsManage() {
           onChange={e => setQueryInput(e.target.value)}
         />
         <OrderSelector
-          initialOrder={{ orderBy, desc }}
+          value={{ orderBy, desc }}
           onOrderChange={onOrderChange}
           orderBys={[OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.LikeCount]}
         />
@@ -181,7 +181,7 @@ export default function CommentsManage() {
           />
         )}
         <PageSizeSelector
-          initialSize={size}
+          size={size}
           onSizeChange={(nextSize) => {
             setSize(nextSize)
             setPage(1)

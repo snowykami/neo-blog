@@ -194,7 +194,7 @@ export function PostManage() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <OrderSelector
-              initialOrder={{ orderBy, desc }}
+              value={{ orderBy, desc }}
               onOrderChange={onOrderChange}
               orderBys={[
                 OrderBy.Top,
@@ -240,7 +240,7 @@ export function PostManage() {
           />
         )}
         <PageSizeSelector
-          initialSize={size}
+          size={size}
           onSizeChange={(s) => {
             setSize(s)
             setPage(1)
@@ -269,6 +269,7 @@ function PostItem({
   const labelCount = isMobile ? 1 : 3
   const postT = useTranslations('Console.post_edit')
   const stateT = useTranslations('State')
+  const operationT = useOperationT()
   const clickToPost = useToPost()
   const [metaDialogOpen, setMetaDialogOpen] = useState(false)
   return (
@@ -377,8 +378,14 @@ function PostItem({
         </div>
         {/* right */}
         <div className="flex items-center ml-auto">
-          <Button variant="ghost" size="sm" onClick={() => clickToPost({ post })}>
-            <Eye className="inline size-4 mr-1" />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => clickToPost({ post })}
+            aria-label={operationT('view')}
+            title={operationT('view')}
+          >
+            <Eye className="size-4" />
           </Button>
           <PostDropdownMenu
             post={post}
@@ -455,11 +462,11 @@ function PostDropdownMenu({
       }}
     >
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost">
-          <Ellipsis className="w-4" />
+        <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
+          <Ellipsis className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-4" align="start">
+      <DropdownMenuContent className="min-w-36" align="end">
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={() => clickToPostEdit({ post })} className="cursor-pointer">
             {operationT('edit')}
@@ -473,10 +480,7 @@ function PostDropdownMenu({
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem
-            onClick={handleTogglePrivate}
-            className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer"
-          >
+          <DropdownMenuItem onClick={handleTogglePrivate} className="cursor-pointer">
             {operationT(post.isPrivate ? 'set_public' : 'set_private')}
           </DropdownMenuItem>
           <DropdownMenuItem

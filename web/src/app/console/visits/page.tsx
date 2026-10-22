@@ -7,7 +7,6 @@ import Link from 'next/link'
 import { parseAsInteger, parseAsStringEnum, useQueryState } from 'nuqs'
 import { useEffect, useState } from 'react'
 import { getVisitorAdmin, getVisitStatsAdmin, listVisitsAdmin } from '@/api/admin'
-import Forbidden from '@/components/common/forbidden'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { BrowserIcon, OsIcon, SOURCE_NAMES, SourceIcon } from '@/components/console/visit-icons'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -15,9 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useAuth } from '@/contexts/auth-context'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
-import { isAdmin } from '@/utils/common/permission'
 import { getPageUrl, getPostUrl } from '@/utils/common/route'
 import { getFirstCharFromUser } from '@/utils/common/username'
 
@@ -27,7 +24,6 @@ type Kind = (typeof KINDS)[number]
 export default function VisitsPage() {
   const t = useTranslations('Console.visits')
   const metricsT = useTranslations('Metrics')
-  const { user } = useAuth()
   const [kind, setKind] = useQueryState('kind', parseAsStringEnum<Kind>([...KINDS]).withDefault('all').withOptions({ history: 'replace', clearOnDefault: true }))
   const [visitorId, setVisitorId] = useQueryState('visitor', parseAsInteger.withOptions({ history: 'replace' }))
   // 按来源筛选：其他网站（external）再按域名区分
@@ -40,16 +36,13 @@ export default function VisitsPage() {
   const [loading, setLoading] = useState(false)
   const [stats, setStats] = useState<VisitStats | null>(null)
   const [visitor, setVisitor] = useState<Visitor | null>(null)
-  const canView = !!user && isAdmin({ user })
+  // 权限由控制台布局统一校验（仅管理员可进入）
 
   useEffect(() => {
-    if (canView)
-      getVisitStatsAdmin().then(res => setStats(res.data)).catch(() => setStats(null))
-  }, [canView])
+    getVisitStatsAdmin().then(res => setStats(res.data)).catch(() => setStats(null))
+  }, [])
 
   useEffect(() => {
-    if (!canView)
-      return
     setLoading(true)
     listVisitsAdmin({ page, size, kind, visitorId: visitorId ?? undefined, source: source ?? undefined, sourceHost: sourceHost ?? undefined })
       .then((res) => {
@@ -58,18 +51,15 @@ export default function VisitsPage() {
       })
       .catch(() => setVisits([]))
       .finally(() => setLoading(false))
-  }, [canView, page, size, kind, visitorId, source, sourceHost])
+  }, [page, size, kind, visitorId, source, sourceHost])
 
   useEffect(() => {
-    if (!canView || !visitorId) {
+    if (!visitorId) {
       setVisitor(null)
       return
     }
     getVisitorAdmin(visitorId).then(res => setVisitor(res.data)).catch(() => setVisitor(null))
-  }, [canView, visitorId])
-
-  if (!canView)
-    return <Forbidden />
+  }, [visitorId])
 
   const changeKind = (value: string) => {
     setKind(value as Kind)
@@ -178,7 +168,7 @@ export default function VisitsPage() {
 
       <div className="flex items-center justify-center py-2">
         {total > 0 && <PaginationController page={page} onPageChange={setPage} total={total} pageSize={size} />}
-        <PageSizeSelector initialSize={size} onSizeChange={changeSize} />
+        <PageSizeSelector size={size} onSizeChange={changeSize} />
         {' '}
         {metricsT('per_page')}
       </div>

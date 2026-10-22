@@ -41,6 +41,7 @@ func (user *User) ToDto() dto.UserDto {
 func (user *User) ToPrivateDto() dto.UserDto {
 	userDto := user.ToDto()
 	userDto.Email = user.Email
+	userDto.CreatedAt = &user.CreatedAt
 	return userDto
 }
 

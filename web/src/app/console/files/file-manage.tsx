@@ -213,6 +213,8 @@ export function FileManage() {
           <Checkbox
             checked={files.length !== 0 && selectedFileIds.size === files.length}
             onCheckedChange={onAllFileSelect}
+            aria-label={operationT('select_all')}
+            title={operationT('select_all')}
           />
           <ConfirmDialog
             description={t('will_delete_n_files', { n: selectedFileIds.size })}
@@ -247,7 +249,7 @@ export function FileManage() {
               onArrangementChange={setArrangement}
             />
             <OrderSelector
-              initialOrder={{ orderBy, desc }}
+              value={{ orderBy, desc }}
               onOrderChange={onOrderChange}
               orderBys={[OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.Name, OrderBy.Size]}
             />
@@ -296,7 +298,7 @@ export function FileManage() {
           />
         )}
         <PageSizeSelector
-          initialSize={size}
+          size={size}
           onSizeChange={(s) => {
             setSize(s)
             setPage(1)
@@ -323,6 +325,7 @@ function FileItem({
   onSelect: (selected: boolean) => void
 }) {
   const commonT = useTranslations('Common')
+  const operationT = useOperationT()
   if (layout === ArrangementMode.Grid) {
     return (
       <div className="group">
@@ -330,7 +333,7 @@ function FileItem({
           {/* 顶部操作行：选择框 + 链接按钮 与 更多 按钮 在同一行 */}
           <div className="flex items-center justify-between w-full mb-0">
             <div className="flex items-center gap-2">
-              <Checkbox checked={selected} onCheckedChange={onSelect} />
+              <Checkbox checked={selected} onCheckedChange={onSelect} aria-label={`${operationT('select')} ${file.name}`} />
             </div>
             <div className="flex items-center">
               <Button
@@ -338,6 +341,8 @@ function FileItem({
                 size="sm"
                 className="h-8 w-8 p-0"
                 onClick={() => window.open(`${getFileUri(file.id)}/${file.name}`, '_blank')}
+                aria-label={operationT('open')}
+                title={operationT('open')}
               >
                 <LinkIcon className="w-3 h-3" />
               </Button>
@@ -381,7 +386,7 @@ function FileItem({
         {/* left */}
         <div className="flex items-center gap-3 w-0 flex-1 min-w-0">
           <div className="flex-shrink-0">
-            <Checkbox checked={selected} onCheckedChange={onSelect} />
+            <Checkbox checked={selected} onCheckedChange={onSelect} aria-label={`${operationT('select')} ${file.name}`} />
           </div>
           <FileMimeIcon file={file} showImage className="w-10 h-10 rounded object-cover" />
           <div className="w-0 flex-1 min-w-0">
@@ -419,10 +424,12 @@ function FileItem({
         <div className="flex items-center ml-auto">
           <Button
             variant="ghost"
-            size="sm"
+            size="icon-sm"
             onClick={() => window.open(`${getFileUri(file.id)}/${file.name}`, '_blank')}
+            aria-label={operationT('open')}
+            title={operationT('open')}
           >
-            <LinkIcon className="inline size-4 mr-1" />
+            <LinkIcon className="size-4" />
           </Button>
           <FileDropdownMenu file={file} onFileDelete={onFileDelete} />
         </div>
@@ -481,11 +488,11 @@ function FileDropdownMenu({
       }}
     >
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost">
-          <Ellipsis className="w-4" />
+        <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
+          <Ellipsis className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-4" align="start">
+      <DropdownMenuContent className="min-w-36" align="end">
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={handleCopyLink} className="cursor-pointer">
             {operationT('copy_link')}

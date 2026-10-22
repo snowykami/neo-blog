@@ -3,6 +3,7 @@
 import type { SubmitHandler } from 'react-hook-form'
 import type { PageModel } from '@/models/page'
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
 import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -29,6 +30,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useErrorMessageT, useOperationT, useResponseErrorDetailsT } from '@/hooks/use-translations'
 import { getFileUri } from '@/utils/client/file'
+import { getPageEditUrl } from '@/utils/common/route'
 
 interface PageMetaForm {
   title: string
@@ -55,6 +57,7 @@ export function PageMetaDialog({
   const errorMessageT = useErrorMessageT()
   const errorDetailsT = useResponseErrorDetailsT()
   const t = useTranslations('Console.pages.meta')
+  const router = useRouter()
   const form = useForm<PageMetaForm>({
     defaultValues: toFormValues(page),
   })
@@ -69,11 +72,6 @@ export function PageMetaDialog({
   }, [open, form])
 
   const onSubmit: SubmitHandler<PageMetaForm> = async (data) => {
-    if (!data.title.trim() || !data.slug.trim()) {
-      toast.error(t('title_and_slug_required'))
-      return
-    }
-
     if (page) {
       await updatePage({
         page: {
@@ -114,6 +112,8 @@ export function PageMetaDialog({
         })
         form.reset()
         onOpenChange(false)
+        // 创建后直接进入编辑器继续撰写正文
+        router.push(getPageEditUrl({ id: res.data.id }))
       })
       .catch((error) => {
         toast.error(`${operationT('create_failed')}: ${errorMessageT(error)}`)
@@ -122,7 +122,7 @@ export function PageMetaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{page ? t('edit_page') : t('create_page')}</DialogTitle>
         </DialogHeader>
@@ -131,17 +131,25 @@ export function PageMetaDialog({
             <FormField
               control={form.control}
               name="title"
+              rules={{ validate: value => !!value.trim() || t('title_and_slug_required') }}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('title')}</FormLabel>
                   <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
             <FormField
               control={form.control}
               name="slug"
-              rules={{ validate: value => !isNumericSlug(value) || errorDetailsT('slug_cannot_be_numeric') }}
+              rules={{
+                validate: (value) => {
+                  if (!value.trim())
+                    return t('title_and_slug_required')
+                  return !isNumericSlug(value) || errorDetailsT('slug_cannot_be_numeric')
+                },
+              }}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('slug')}</FormLabel>
