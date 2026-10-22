@@ -1,11 +1,13 @@
 import type { Editor, NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
+import { Loader2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as React from 'react'
 import { ImagePlaceholder } from '@/components/common/safe-image'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { IMAGE_CAPTION_ATTR } from './image-node-constants'
+import { ImageNodeToolbar } from './image-node-toolbar'
 import './image-node-view.scss'
 
 export interface ResizeParams {
@@ -27,6 +29,9 @@ export interface ResizableImageProps extends React.HTMLAttributes<HTMLDivElement
   caption?: string | null
   selected?: boolean
   onCaptionChange?: (caption: string | null) => void
+  // 选中图片时附着在图片上的浮动工具栏
+  toolbar?: React.ReactNode
+  uploading?: boolean
 }
 
 export const ResizableImage: React.FC<ResizableImageProps> = ({
@@ -41,8 +46,11 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   caption,
   selected,
   onCaptionChange,
+  toolbar,
+  uploading,
 }) => {
   const t = useTranslations('Console.post_edit')
+  const editorT = useTranslations('Console.editor')
   const isMobile = useIsMobile()
   const [captionFocused, setCaptionFocused] = useState(false)
   // 记录加载失败的地址，替换图片后自动恢复显示
@@ -335,6 +343,15 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
                 />
               )}
 
+          {uploading && (
+            <div className="tiptap-image-uploading">
+              <Loader2Icon className="size-5 animate-spin" />
+              <span>{editorT('image_uploading')}</span>
+            </div>
+          )}
+
+          {selected && editor?.isEditable && toolbar}
+
           {showHandles && editor && editor.isEditable && (
             <>
               {!isMobile
@@ -384,9 +401,21 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
 }
 
 export function ImageNodeView(props: NodeViewProps) {
-  const { editor, node, selected, updateAttributes } = props
+  const { editor, node, selected, updateAttributes, deleteNode } = props
+  const [uploading, setUploading] = useState(false)
   return (
     <ResizableImage
+      toolbar={(
+        <ImageNodeToolbar
+          editor={editor}
+          align={node.attrs['data-align'] || 'center'}
+          onAlignChange={align => updateAttributes({ 'data-align': align })}
+          onReplace={(src, name) => updateAttributes({ src, alt: name, title: name })}
+          onDelete={deleteNode}
+          onUploadingChange={setUploading}
+        />
+      )}
+      uploading={uploading}
       src={node.attrs.src}
       alt={node.attrs.alt || ''}
       editor={editor}

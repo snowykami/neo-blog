@@ -1,16 +1,8 @@
-:root {
-  --tiptap-image-handle-bg: var(--tt-brand-color-600);
-}
-
-.dark {
-  --tiptap-image-handle-bg: var(--tt-brand-color-400);
-}
-
 .tiptap.ProseMirror {
   .ProseMirror-selectednode .tiptap-image .tiptap-image-container {
     outline: 0.125rem solid transparent;
-    outline-color: var(--tt-brand-color-500);
-    border-radius: var(--tt-radius-xs, 0.25rem);
+    outline-color: var(--primary);
+    border-radius: 0.75rem;
   }
 
   .tiptap-image {
@@ -70,7 +62,7 @@
 
   .tiptap-image-img {
     width: 100%;
-    border-radius: var(--tt-radius-xs, 0.25rem);
+    border-radius: 0.75rem;
   }
 
   .tiptap-image-handle {
@@ -78,7 +70,7 @@
     top: 50%;
     width: 0.375rem;
     height: 3rem;
-    background-color: var(--tiptap-image-handle-bg);
+    background-color: var(--primary);
     border-radius: 1.875rem;
     cursor: ew-resize;
     transform: translateY(-50%);
@@ -111,7 +103,7 @@
   width: 10rem;
   height: 6rem;
   vertical-align: middle;
-  border-radius: var(--tt-radius-xs, 0.25rem);
+  border-radius: 0.75rem;
   background-color: var(--muted);
   animation: tiptap-image-paste-pulse 1.2s ease-in-out infinite;
 }

@@ -1,15 +1,10 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import * as React from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
 
 // --- Icons ---
-import { ImagePlusIcon } from '@/components/tiptap-icons/image-plus-icon'
-import { useIsMobile } from '@/hooks/use-mobile'
 
 // --- Hooks ---
-import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 
 // --- Lib ---
 import { isExtensionAvailable, isNodeTypeSelected } from '@/lib/tiptap-utils'
@@ -99,101 +94,4 @@ export function shouldShowButton(props: {
   }
 
   return true
-}
-
-/**
- * Custom hook that provides image functionality for Tiptap editor
- *
- * @example
- * ```tsx
- * // Simple usage - no params needed
- * function MySimpleImageButton() {
- *   const { isVisible, handleImage } = useImage()
- *
- *   if (!isVisible) return null
- *
- *   return <button onClick={handleImage}>Add Image</button>
- * }
- *
- * // Advanced usage with configuration
- * function MyAdvancedImageButton() {
- *   const { isVisible, handleImage, label, isActive } = useImage({
- *     editor: myEditor,
- *     hideWhenUnavailable: true,
- *     onInserted: () => console.log('Image inserted!')
- *   })
- *
- *   if (!isVisible) return null
- *
- *   return (
- *     <MyButton
- *       onClick={handleImage}
- *       aria-pressed={isActive}
- *       aria-label={label}
- *     >
- *       Add Image
- *     </MyButton>
- *   )
- * }
- * ```
- */
-export function useImageUpload(config?: UseImageUploadConfig) {
-  const { editor: providedEditor, hideWhenUnavailable = false, onInserted } = config || {}
-
-  const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsMobile()
-  const [isVisible, setIsVisible] = React.useState<boolean>(true)
-  const canInsert = canInsertImage(editor)
-  const isActive = isImageActive(editor)
-
-  React.useEffect(() => {
-    if (!editor)
-      return
-
-    const handleSelectionUpdate = () => {
-      setIsVisible(shouldShowButton({ editor, hideWhenUnavailable }))
-    }
-
-    handleSelectionUpdate()
-
-    editor.on('selectionUpdate', handleSelectionUpdate)
-
-    return () => {
-      editor.off('selectionUpdate', handleSelectionUpdate)
-    }
-  }, [editor, hideWhenUnavailable])
-
-  const handleImage = React.useCallback(() => {
-    if (!editor)
-      return false
-
-    const success = insertImage(editor)
-    if (success) {
-      onInserted?.()
-    }
-    return success
-  }, [editor, onInserted])
-
-  useHotkeys(
-    IMAGE_UPLOAD_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
-      handleImage()
-    },
-    {
-      enabled: isVisible && canInsert,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true,
-    },
-  )
-
-  return {
-    isVisible,
-    isActive,
-    handleImage,
-    canInsert,
-    label: 'Add image',
-    shortcutKeys: IMAGE_UPLOAD_SHORTCUT_KEY,
-    Icon: ImagePlusIcon,
-  }
 }

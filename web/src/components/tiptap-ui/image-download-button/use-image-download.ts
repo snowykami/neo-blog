@@ -2,15 +2,10 @@
 
 import type { Editor } from '@tiptap/react'
 import { NodeSelection } from '@tiptap/pm/state'
-import * as React from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
 
 // --- Icons ---
-import { ArrowDownToLineIcon } from '@/components/tiptap-icons/arrow-down-to-line-icon'
-import { useIsMobile } from '@/hooks/use-mobile'
 
 // --- Hooks ---
-import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 
 // --- Lib ---
 import { isExtensionAvailable, isNodeTypeSelected, sanitizeUrl } from '@/lib/tiptap-utils'
@@ -280,75 +275,4 @@ export function shouldShowDownloadButton(props: {
   }
 
   return true
-}
-
-/**
- * Custom hook that provides image download functionality for Tiptap editor
- */
-export function useImageDownload(config?: UseImageDownloadConfig) {
-  const {
-    editor: providedEditor,
-    hideWhenUnavailable = false,
-    onDownloaded,
-    resolveFileUrl,
-    downloadMethod = 'auto',
-  } = config || {}
-
-  const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsMobile()
-  const [isVisible, setIsVisible] = React.useState<boolean>(true)
-  const canDownload = canDownloadImage(editor)
-
-  React.useEffect(() => {
-    if (!editor)
-      return
-
-    const handleSelectionUpdate = () => {
-      setIsVisible(shouldShowDownloadButton({ editor, hideWhenUnavailable }))
-    }
-
-    handleSelectionUpdate()
-
-    editor.on('selectionUpdate', handleSelectionUpdate)
-
-    return () => {
-      editor.off('selectionUpdate', handleSelectionUpdate)
-    }
-  }, [editor, hideWhenUnavailable])
-
-  const handleDownload = React.useCallback(async () => {
-    if (!editor)
-      return false
-
-    const imageData = getSelectedImageData(editor)
-    const filename = imageData?.alt || imageData?.title
-
-    const success = await downloadSelectedImage(editor, filename, resolveFileUrl, downloadMethod)
-    if (success) {
-      onDownloaded?.(filename)
-    }
-    return success
-  }, [editor, onDownloaded, resolveFileUrl, downloadMethod])
-
-  useHotkeys(
-    IMAGE_DOWNLOAD_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
-      handleDownload()
-    },
-    {
-      enabled: isVisible && canDownload,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true,
-    },
-  )
-
-  return {
-    isVisible,
-    canDownload,
-    handleDownload,
-    label: 'Download image',
-    shortcutKeys: IMAGE_DOWNLOAD_SHORTCUT_KEY,
-    Icon: ArrowDownToLineIcon,
-  }
 }

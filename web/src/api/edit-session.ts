@@ -22,6 +22,11 @@ export async function getEditSession({ target, id, sessionId }: { target: EditSe
 }
 
 // 保存被拒绝：编辑会话已被其他设备/窗口接管
+// 409 也可能是 slug 冲突等其他冲突，后端返回了 message 时按 message 区分
 export function isEditSessionConflict(error: unknown) {
-  return (error as { response?: { status?: number } })?.response?.status === 409
+  const response = (error as { response?: { status?: number, data?: { message?: unknown } } })?.response
+  if (response?.status !== 409)
+    return false
+  const message = response.data?.message
+  return typeof message !== 'string' || !message || message === 'edit_session_taken_over'
 }

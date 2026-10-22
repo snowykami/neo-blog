@@ -1,17 +1,10 @@
 'use client'
 
 import type { ChainedCommands, Editor } from '@tiptap/react'
-import * as React from 'react'
 
 // --- Icons ---
-import { AlignCenterIcon } from '@/components/tiptap-icons/align-center-icon'
 
-import { AlignJustifyIcon } from '@/components/tiptap-icons/align-justify-icon'
-
-import { AlignLeftIcon } from '@/components/tiptap-icons/align-left-icon'
-import { AlignRightIcon } from '@/components/tiptap-icons/align-right-icon'
 // --- Hooks ---
-import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 // --- Lib ---
 import { isExtensionAvailable, isNodeTypeSelected } from '@/lib/tiptap-utils'
 
@@ -45,13 +38,6 @@ export const TEXT_ALIGN_SHORTCUT_KEYS: Record<TextAlign, string> = {
   center: 'mod+shift+e',
   right: 'mod+shift+r',
   justify: 'mod+shift+j',
-}
-
-export const textAlignIcons = {
-  left: AlignLeftIcon,
-  center: AlignCenterIcon,
-  right: AlignRightIcon,
-  justify: AlignJustifyIcon,
 }
 
 export const textAlignLabels: Record<TextAlign, string> = {
@@ -129,88 +115,4 @@ export function shouldShowButton(props: {
   }
 
   return true
-}
-
-/**
- * Custom hook that provides text align functionality for Tiptap editor
- *
- * @example
- * ```tsx
- * // Simple usage
- * function MySimpleAlignButton() {
- *   const { isVisible, handleTextAlign } = useTextAlign({ align: "center" })
- *
- *   if (!isVisible) return null
- *
- *   return <button onClick={handleTextAlign}>Align Center</button>
- * }
- *
- * // Advanced usage with configuration
- * function MyAdvancedAlignButton() {
- *   const { isVisible, handleTextAlign, label, isActive } = useTextAlign({
- *     editor: myEditor,
- *     align: "right",
- *     hideWhenUnavailable: true,
- *     onAligned: () => console.log('Text aligned!')
- *   })
- *
- *   if (!isVisible) return null
- *
- *   return (
- *     <MyButton
- *       onClick={handleTextAlign}
- *       aria-pressed={isActive}
- *       aria-label={label}
- *     >
- *       Align Right
- *     </MyButton>
- *   )
- * }
- * ```
- */
-export function useTextAlign(config: UseTextAlignConfig) {
-  const { editor: providedEditor, align, hideWhenUnavailable = false, onAligned } = config
-
-  const { editor } = useTiptapEditor(providedEditor)
-  const [isVisible, setIsVisible] = React.useState<boolean>(true)
-  const canAlign = canSetTextAlign(editor, align)
-  const isActive = isTextAlignActive(editor, align)
-
-  React.useEffect(() => {
-    if (!editor)
-      return
-
-    const handleSelectionUpdate = () => {
-      setIsVisible(shouldShowButton({ editor, align, hideWhenUnavailable }))
-    }
-
-    handleSelectionUpdate()
-
-    editor.on('selectionUpdate', handleSelectionUpdate)
-
-    return () => {
-      editor.off('selectionUpdate', handleSelectionUpdate)
-    }
-  }, [editor, hideWhenUnavailable, align])
-
-  const handleTextAlign = React.useCallback(() => {
-    if (!editor)
-      return false
-
-    const success = setTextAlign(editor, align)
-    if (success) {
-      onAligned?.()
-    }
-    return success
-  }, [editor, align, onAligned])
-
-  return {
-    isVisible,
-    isActive,
-    handleTextAlign,
-    canAlign,
-    label: textAlignLabels[align],
-    shortcutKeys: TEXT_ALIGN_SHORTCUT_KEYS[align],
-    Icon: textAlignIcons[align],
-  }
 }

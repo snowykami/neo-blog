@@ -1,0 +1,330 @@
+/* =========================================================================
+ * 编辑器正文样式
+ * 正文本身使用与前台文章页相同的 `prose dark:prose-invert pangu-autospace`，
+ * 这里补齐与前台 article.prose#blog-content 一致的细节，以及编辑态专用样式
+ * （占位、选区、任务列表、图片节点、代码块、拖拽手柄、专注模式等）
+ * ========================================================================= */
+
+.neo-editor-root .tiptap.ProseMirror {
+  min-height: 40vh;
+  outline: none;
+  white-space: pre-wrap;
+  caret-color: var(--primary);
+  overflow-wrap: anywhere;
+  /* 与前台正文一致的字号与行高 */
+  font-size: 1.0625rem;
+  line-height: 1.85;
+
+  > * {
+    position: relative;
+  }
+
+  > :first-child {
+    margin-top: 0;
+  }
+
+  /* ---------- 链接：主色 + 虚线下划线（同前台） ---------- */
+  a {
+    color: var(--primary);
+    font-weight: 500;
+    text-decoration-line: underline;
+    text-decoration-style: dashed;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+    text-decoration-color: color-mix(in oklab, var(--primary) 60%, transparent);
+    cursor: text;
+
+    &:hover {
+      text-decoration-style: solid;
+      text-decoration-color: var(--primary);
+    }
+  }
+
+  [data-annotation] {
+    color: var(--primary);
+    text-decoration: underline dotted;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 0.25em;
+    border-radius: 2px;
+    cursor: text;
+  }
+
+  /* ---------- 引用：左侧主色圆角竖条（同前台） ---------- */
+  blockquote {
+    position: relative;
+    border-left: none;
+    padding: 0.25rem 0 0.25rem 1.25rem;
+    font-style: normal;
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset-block: 0;
+      left: 0;
+      width: 4px;
+      border-radius: 999px;
+      background: var(--primary);
+    }
+
+    p:first-of-type::before,
+    p:last-of-type::after {
+      content: none;
+    }
+  }
+
+  /* ---------- 代码块：与前台一致的深色容器（代码高亮固定为 github-dark） ---------- */
+  pre {
+    margin: 1.5rem 0;
+    padding: 1rem 1.25rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(255 255 255 / 0.1);
+    background: var(--code-bg);
+    color: #e6edf3;
+    font-size: 0.875rem;
+    line-height: 1.7;
+    white-space: pre;
+    overflow-x: auto;
+    overflow-wrap: normal;
+
+    code {
+      background: none;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+      white-space: inherit;
+
+      &::before,
+      &::after {
+        content: none;
+      }
+    }
+  }
+
+  /* ---------- 分割线 ---------- */
+  > hr {
+    margin: 2.25rem 0;
+    border: none;
+    height: 1px;
+    background: color-mix(in oklab, var(--foreground) 12%, transparent);
+    cursor: pointer;
+
+    &.ProseMirror-selectednode {
+      background: var(--primary);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent);
+    }
+  }
+
+  /* 旧内容中带包裹的分割线 */
+  [data-type="horizontalRule"] {
+    margin: 2rem 0;
+    padding: 0.75rem 0;
+    cursor: pointer;
+
+    hr {
+      margin: 0;
+      border: none;
+      height: 1px;
+      background: color-mix(in oklab, var(--foreground) 12%, transparent);
+    }
+
+    &.ProseMirror-selectednode hr {
+      background: var(--primary);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent);
+    }
+  }
+
+  /* ---------- 任务列表 ---------- */
+  ul[data-type="taskList"] {
+    list-style: none;
+    padding-left: 0.2em;
+
+    li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6em;
+      padding-left: 0;
+
+      &::marker {
+        content: none;
+      }
+
+      > label {
+        flex: none;
+        display: flex;
+        margin-top: 0.5em;
+        user-select: none;
+
+        input[type="checkbox"] {
+          width: 1rem;
+          height: 1rem;
+          margin: 0;
+          accent-color: var(--primary);
+          cursor: pointer;
+        }
+
+        span {
+          display: none;
+        }
+      }
+
+      > div {
+        flex: 1;
+        min-width: 0;
+
+        > p {
+          margin: 0;
+        }
+      }
+
+      &[data-checked="true"] > div {
+        color: var(--muted-foreground);
+        text-decoration: line-through;
+        text-decoration-color: color-mix(in oklab, var(--foreground) 30%, transparent);
+      }
+    }
+  }
+
+  li > p {
+    margin: 0.2em 0;
+  }
+
+  /* ---------- 占位文案 ---------- */
+  p.is-empty::before,
+  :is(h1, h2, h3, h4, h5, h6).is-empty::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+    color: color-mix(in oklab, var(--foreground) 30%, transparent);
+  }
+
+  /* 斜杠命令输入中的高亮 */
+  .suggestion {
+    border-radius: 4px;
+    padding: 0 2px;
+    background: color-mix(in oklab, var(--primary) 10%, transparent);
+    color: var(--primary);
+  }
+
+  /* ---------- 选区 ---------- */
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 28%, transparent);
+  }
+
+  /* 失焦时保留的选区高亮（SelectionHighlight 扩展） */
+  .selection {
+    display: inline;
+    background: color-mix(in oklab, var(--primary) 18%, transparent);
+  }
+
+  .ProseMirror-selectednode:not(img):not(pre):not(hr):not(.react-renderer):not([data-type="horizontalRule"]) {
+    outline: 2px solid color-mix(in oklab, var(--primary) 32%, transparent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  .ProseMirror-gapcursor::after {
+    border-top-color: var(--foreground);
+  }
+
+  /* 拖动中的源块 */
+  .is-dragging-source,
+  [data-dragging="true"] {
+    opacity: 0.4;
+  }
+
+  /* ---------- 图片节点 ---------- */
+  .tiptap-image {
+    margin: 1.75rem 0;
+  }
+
+  .tiptap-image-img {
+    margin: 0;
+    border-radius: 0.75rem;
+    background: var(--muted);
+  }
+
+  .ProseMirror-selectednode .tiptap-image .tiptap-image-container,
+  .ProseMirror-selectednode.tiptap-image .tiptap-image-container {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+    border-radius: 0.75rem;
+  }
+
+  .tiptap-image-caption {
+    margin-top: 0.6em;
+    padding: 2px 4px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    transition: background-color var(--dur-fast, 150ms);
+
+    &:hover,
+    &:focus {
+      background: var(--muted);
+    }
+
+    &::placeholder {
+      color: color-mix(in oklab, var(--foreground) 30%, transparent);
+    }
+  }
+
+  .tiptap-image-uploading {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    background: color-mix(in oklab, var(--card) 65%, transparent);
+    backdrop-filter: blur(2px);
+    color: var(--foreground);
+    font-size: 0.8125rem;
+  }
+
+  .tiptap-image-handle {
+    background-color: var(--primary);
+  }
+}
+
+/* 拖放落点指示 */
+.neo-editor-dropcursor {
+  background: var(--primary) !important;
+  border-radius: 999px;
+}
+
+/* ---------- 块手柄 ---------- */
+.neo-drag-handle {
+  z-index: 5;
+  transition: opacity var(--dur-fast, 150ms);
+}
+
+/* 移动端与触屏设备不显示块手柄 */
+@media (max-width: 767px), (hover: none) {
+  .neo-drag-handle {
+    display: none !important;
+  }
+}
+
+/* ---------- 专注模式：淡化非当前块 ---------- */
+.neo-focus-mode .neo-editor-root .tiptap.ProseMirror {
+  > * {
+    transition: opacity 200ms;
+  }
+
+  &.ProseMirror-focused > :not(.has-focus) {
+    opacity: 0.42;
+  }
+}
+
+/* 尊重减少动态效果偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .neo-editor-shell,
+  .neo-editor-shell *,
+  .neo-drag-handle {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

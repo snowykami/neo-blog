@@ -1,17 +1,18 @@
-import type { Attrs } from '@tiptap/pm/model'
+'use client'
+
 import type { Editor } from '@tiptap/react'
-import { ChevronDownIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { canColorHighlight } from '@/components/tiptap-ui/color-highlight-button'
-import { canColorText } from '@/components/tiptap-ui/color-text-button'
+import { useTranslations } from 'next-intl'
+import * as React from 'react'
+import { EDITOR_FLOATING_ATTR } from '@/components/tiptap-ui/link-popover/link-popover'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useStoredState } from '@/hooks/use-storage-state'
-import { getActiveMarkAttrs } from '@/lib/tiptap-advanced-utils'
+import { cn } from '@/lib/utils'
 
 const HISTORY_LIMIT = 8
 
+// 颜色以 Tailwind 色板变量存储（前台同样可用），与旧版保持一致以兼容已有内容
 function labelToTextColor(color: string): string {
   return `var(--color-${color}-500)`
 }
@@ -20,14 +21,13 @@ function labelToHighlightColor(color: string): string {
   return `var(--color-${color}-200)`
 }
 
-interface Color {
+interface ColorOption {
   label: string
   type: 'text' | 'background'
   color: string | null
 }
 
-const colorNames: (string | null)[] = [
-  null,
+const COLOR_NAMES = [
   'red',
   'orange',
   'amber',
@@ -45,221 +45,139 @@ const colorNames: (string | null)[] = [
   'fuchsia',
   'pink',
   'rose',
-]
+] as const
 
-const ColorPresets: Color[] = colorNames.flatMap((name): Color[] =>
-  name === null
-    ? [
-        { label: 'Default', type: 'text', color: null },
-        { label: 'Default', type: 'background', color: null },
-      ]
-    : [
-        { label: name, type: 'text', color: labelToTextColor(name) },
-        { label: name, type: 'background', color: labelToHighlightColor(name) },
-      ],
-)
+function toOption(name: string | null, type: ColorOption['type']): ColorOption {
+  if (!name)
+    return { label: 'default', type, color: null }
+  return { label: name, type, color: type === 'text' ? labelToTextColor(name) : labelToHighlightColor(name) }
+}
 
-export function ColorSelector({ editor }: { editor: Editor }) {
-  const [currentColor, setCurrentColor] = useState<Attrs | null>(null)
-  const [currentHighlight, setCurrentHighlight] = useState<Attrs | null>(null)
-  const [canSetColor, setCanSetColor] = useState(() => canColorText(editor) || canColorHighlight(editor))
-  const [keepOpen, setKeepOpen] = useState(false)
-  const [open, setOpen] = useState(false)
-  const [history, setHistory] = useStoredState<Color[]>('editor-color-selector-history', [])
+const TEXT_OPTIONS = [null, ...COLOR_NAMES].map(name => toOption(name, 'text'))
+const HIGHLIGHT_OPTIONS = [null, ...COLOR_NAMES].map(name => toOption(name, 'background'))
 
-  useEffect(() => {
-    if (!editor)
-      return
+export interface ColorPopoverProps {
+  editor: Editor | null
+  // 当前文字颜色 / 高亮颜色，用于标记选中项
+  textColor: string | null
+  highlightColor: string | null
+  // 触发按钮（asChild）；不传时需提供 anchorRef，由外部控制打开
+  children?: React.ReactElement
+  anchorRef?: React.RefObject<HTMLElement | null>
+  defaultOpen?: boolean
+  onClosed?: () => void
+  align?: 'start' | 'center' | 'end'
+}
 
-    const updateActiveMarks = () => {
-      setCanSetColor(canColorText(editor) || canColorHighlight(editor))
-      if (!canSetColor) {
-        return
-      }
-      setCurrentColor(getActiveMarkAttrs(editor, 'textStyle'))
-      setCurrentHighlight(getActiveMarkAttrs(editor, 'highlight'))
+/**
+ * 文字颜色与背景高亮面板：最近使用、可选“保持打开”以连续调整
+ */
+export function ColorPopover({ editor, textColor, highlightColor, children, anchorRef, defaultOpen = false, onClosed, align = 'start' }: ColorPopoverProps) {
+  const t = useTranslations('Console.editor')
+  const [open, setOpenState] = React.useState(defaultOpen)
+  const setOpen = (next: boolean) => {
+    setOpenState(next)
+    if (!next)
+      onClosed?.()
+  }
+  const [keepOpen, setKeepOpen] = useStoredState('editor-color-keep-open', false)
+  const [history, setHistory] = useStoredState<ColorOption[]>('editor-color-selector-history', [])
+
+  if (!editor)
+    return children ?? null
+
+  const colorName = (option: ColorOption) => option.color ? t(`colors.${option.label}`) : t('color_default')
+
+  const apply = (option: ColorOption) => {
+    // 记录历史：去重并提到最前
+    if (option.color !== null) {
+      const next = [option, ...history.filter(c => c.label !== option.label || c.type !== option.type)].slice(0, HISTORY_LIMIT)
+      setHistory(next)
     }
-
-    // 初始同步
-    updateActiveMarks()
-
-    // 监听选区变化与文档更新
-    editor.on('selectionUpdate', updateActiveMarks)
-    editor.on('update', updateActiveMarks)
-
-    // 清理
-    return () => {
-      editor.off('selectionUpdate', updateActiveMarks)
-      editor.off('update', updateActiveMarks)
-    }
-  }, [])
-
-  const onColorUpdate = (color: Color) => {
-    // 记录历史，排除第一个重复，若里面已经有了，不是第一个就提到最前面
-    if (color.color !== null) {
-      const filtered = history.filter(c => c.label !== color.label || c.type !== color.type)
-      const newHistory = [color, ...filtered]
-      if (newHistory.length > HISTORY_LIMIT)
-        newHistory.length = HISTORY_LIMIT
-      setHistory(newHistory)
-    }
-
-    if (keepOpen) {
-      // 不 focus 编辑器，避免 popover 因失去焦点而关闭
-      if (color.type === 'text') {
-        if (color.color)
-          editor.chain().setColor(color.color).run()
-        else editor.chain().unsetColor().run()
-      }
-      else {
-        if (color.color)
-          editor.chain().setHighlight({ color: color.color }).run()
-        else editor.chain().unsetHighlight().run()
-      }
-      // 保持打开并同步 UI 状态
-      setOpen(true)
-      setCurrentColor(getActiveMarkAttrs(editor, 'textStyle'))
-      setCurrentHighlight(getActiveMarkAttrs(editor, 'highlight'))
+    // 保持打开时不聚焦编辑器，避免弹层因失焦关闭
+    const chain = keepOpen ? editor.chain() : editor.chain().focus()
+    if (option.type === 'text') {
+      if (option.color)
+        chain.setColor(option.color).run()
+      else
+        chain.unsetColor().run()
     }
     else {
-      // 原先行为：focus 编辑器（常用于立即生效与键盘交互），并在应用后关闭 popover
-      if (color.type === 'text') {
-        if (!(canColorText(editor)))
-          return
-        if (color.color)
-          editor.chain().focus().setColor(color.color).run()
-        else editor.chain().focus().unsetColor().run()
-      }
-      else {
-        if (!(canColorHighlight(editor)))
-          return
-        if (color.color)
-          editor.chain().focus().setHighlight({ color: color.color }).run()
-        else editor.chain().focus().unsetHighlight().run()
-      }
-      setOpen(false)
+      if (option.color)
+        chain.setHighlight({ color: option.color }).run()
+      else
+        chain.unsetHighlight().run()
     }
+    if (!keepOpen)
+      setOpen(false)
+  }
+
+  const isActive = (option: ColorOption) => option.type === 'text'
+    ? (option.color ?? null) === (textColor ?? null)
+    : (option.color ?? null) === (highlightColor ?? null)
+
+  const renderSwatch = (option: ColorOption, key: string) => {
+    const name = colorName(option)
+    const label = option.type === 'text' ? t('text_color_named', { name }) : t('highlight_color_named', { name })
+    return (
+      <button
+        key={key}
+        type="button"
+        title={name}
+        aria-label={label}
+        aria-pressed={isActive(option)}
+        onClick={() => apply(option)}
+        className={cn(
+          'relative grid size-6 place-items-center rounded-md border text-[13px] font-semibold transition-shadow',
+          'hover:ring-2 hover:ring-primary/30 aria-pressed:ring-2 aria-pressed:ring-primary',
+          !option.color && 'text-muted-foreground bg-[repeating-linear-gradient(-45deg,transparent_0_4px,var(--border)_4px_5px)]',
+        )}
+        style={option.color ? (option.type === 'text' ? { color: option.color } : { backgroundColor: option.color }) : undefined}
+      >
+        {option.type === 'text' && 'A'}
+      </button>
+    )
   }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center justify-center text-sm"
-          disabled={!canSetColor}
-          aria-disabled={!canSetColor}
-        >
-          <span
-            className="w-5 h-5 inline-flex items-center justify-center rounded-full border-1 p-1"
-            style={
-              canSetColor
-                ? { color: currentColor?.color || undefined, backgroundColor: currentHighlight?.color || undefined }
-                : { color: 'var(--color-slate-400)', backgroundColor: 'var(--color-slate-100)' }
-            }
-          >
-            A
-          </span>
-          <ChevronDownIcon className="w-3 h-3 ml-1" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="rounded-2xl max-w-[210px] lg:max-w-[360px]">
-        <div className="font-bold flex items-center justify-between mb-2">
-          <div>Color</div>
-          <div className="flex items-center gap-2 justify-end">
-            <Label className="px-2 pt-1 text-sm">Keep open</Label>
-            <Checkbox checked={keepOpen} onCheckedChange={checked => setKeepOpen(checked === true)} />
-          </div>
-        </div>
-        {/* 历史 */}
+      {children ? <PopoverTrigger asChild>{children}</PopoverTrigger> : anchorRef && <PopoverAnchor virtualRef={anchorRef as React.RefObject<HTMLElement>} />}
+      <PopoverContent
+        {...{ [EDITOR_FLOATING_ATTR]: '' }}
+        align={align}
+        sideOffset={6}
+        className="grid w-auto max-w-[calc(100vw-1rem)] gap-3 rounded-xl p-3"
+        onOpenAutoFocus={event => event.preventDefault()}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          editor.commands.focus()
+        }}
+      >
         {history.length > 0 && (
-          <div>
-            <div className="font-medium text-sm">History</div>
-            <div className="grid grid-cols-5 lg:grid-cols-8 gap-2 py-2">
-              {history.map((color, index) => (
-                <div
-                  key={color.label + color.type + index}
-                  className="w-6 h-6 rounded-full flex justify-center items-center cursor-pointer border-1 hover:ring-2 hover:ring-offset-1 hover:ring-primary"
-                  style={color.type === 'text'
-                    ? { color: labelToTextColor(color.label), borderColor: labelToTextColor(color.label) || 'blue' }
-                    : { backgroundColor: labelToHighlightColor(color.label) || '', borderColor: '#00000022' }}
-                  title={`${color.label} ${color.type === 'text' ? 'text' : 'background'}`}
-                  onClick={() => {
-                    onColorUpdate(color)
-                  }}
-                >
-                  {color.type === 'text' && 'A'}
-                </div>
-              ))}
+          <section className="grid gap-2">
+            <h4 className="text-xs font-medium text-muted-foreground">{t('color_history')}</h4>
+            <div className="grid grid-cols-9 gap-1.5">
+              {history.map((option, index) => renderSwatch(option, `history-${option.type}-${option.label}-${index}`))}
             </div>
-            <hr className="my-2" />
-          </div>
+          </section>
         )}
-        {/* 颜色选择 */}
-        <ColorSelectorPopover onColorSelect={onColorUpdate} />
+        <section className="grid gap-2">
+          <h4 className="text-xs font-medium text-muted-foreground">{t('text_color')}</h4>
+          <div className="grid grid-cols-9 gap-1.5">
+            {TEXT_OPTIONS.map(option => renderSwatch(option, `text-${option.label}`))}
+          </div>
+        </section>
+        <section className="grid gap-2">
+          <h4 className="text-xs font-medium text-muted-foreground">{t('highlight_color')}</h4>
+          <div className="grid grid-cols-9 gap-1.5">
+            {HIGHLIGHT_OPTIONS.map(option => renderSwatch(option, `bg-${option.label}`))}
+          </div>
+        </section>
+        <div className="flex items-center gap-2 border-t pt-2.5">
+          <Checkbox id="editor-color-keep-open" checked={keepOpen} onCheckedChange={checked => setKeepOpen(checked === true)} />
+          <Label htmlFor="editor-color-keep-open" className="text-xs font-normal text-muted-foreground">{t('color_keep_open')}</Label>
+        </div>
       </PopoverContent>
     </Popover>
-  )
-}
-
-function ColorSelectorPopover({
-  onColorSelect,
-}: {
-  onColorSelect: (color: Color) => void
-}) {
-  return (
-    <div>
-      {/* 文本色 */}
-      <div className="font-medium text-sm">Text</div>
-      <div className="grid grid-cols-5 lg:grid-cols-8 gap-2 py-2">
-        {ColorPresets.filter(c => c.type === 'text').map(color => (
-          <div
-            key={color.label + color.type}
-            className="relative w-6 h-6 rounded-full flex justify-center items-center cursor-pointer border-1 hover:ring-2 hover:ring-offset-1 hover:ring-primary"
-            style={
-              color.color
-                ? { color: labelToTextColor(color.label), borderColor: labelToTextColor(color.label) || 'blue' }
-                : { color: 'var(--color-slate-400)', borderColor: 'var(--color-slate-300)' }
-            }
-            title={`${color.label} text`}
-            onClick={() => {
-              onColorSelect(color)
-            }}
-          >
-            A
-            {color.color === null && (
-              <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="w-[2px] h-3 bg-current rotate-45" />
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-      {/* 背景色 */}
-      <div className="font-medium text-sm">Highlight</div>
-      <div className="grid grid-cols-5 lg:grid-cols-8 gap-2 py-2">
-        {ColorPresets.filter(c => c.type === 'background').map(color => (
-          <div
-            key={color.label + color.type}
-            className="relative w-6 h-6 rounded-full cursor-pointer border-1 hover:ring-2 hover:ring-offset-1 hover:ring-primary"
-            style={
-              color.color
-                ? { backgroundColor: labelToHighlightColor(color.label) || '', borderColor: '#00000022' }
-                : { backgroundColor: 'transparent', borderColor: '#00000022', color: 'var(--color-slate-600)' }
-            }
-            title={`${color.label} background`}
-            onClick={() => {
-              onColorSelect(color)
-            }}
-          >
-            {color.color === null && (
-              <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="w-[2px] h-3 bg-current rotate-45" />
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
   )
 }

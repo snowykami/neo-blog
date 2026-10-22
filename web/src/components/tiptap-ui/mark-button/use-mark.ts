@@ -1,20 +1,10 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import * as React from 'react'
 
 // --- Icons ---
-import { BoldIcon } from '@/components/tiptap-icons/bold-icon'
 
-import { Code2Icon } from '@/components/tiptap-icons/code2-icon'
-
-import { ItalicIcon } from '@/components/tiptap-icons/italic-icon'
-import { StrikeIcon } from '@/components/tiptap-icons/strike-icon'
-import { SubscriptIcon } from '@/components/tiptap-icons/subscript-icon'
-import { SuperscriptIcon } from '@/components/tiptap-icons/superscript-icon'
-import { UnderlineIcon } from '@/components/tiptap-icons/underline-icon'
 // --- Hooks ---
-import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 // --- Lib ---
 import { isMarkInSchema, isNodeTypeSelected } from '@/lib/tiptap-utils'
 
@@ -48,16 +38,6 @@ export interface UseMarkConfig {
    * Callback function called after a successful mark toggle.
    */
   onToggled?: () => void
-}
-
-export const markIcons = {
-  bold: BoldIcon,
-  italic: ItalicIcon,
-  underline: UnderlineIcon,
-  strike: StrikeIcon,
-  code: Code2Icon,
-  superscript: SuperscriptIcon,
-  subscript: SubscriptIcon,
 }
 
 export const MARK_SHORTCUT_KEYS: Record<Mark, string> = {
@@ -130,88 +110,4 @@ export function shouldShowButton(props: {
  */
 export function getFormattedMarkName(type: Mark): string {
   return type.charAt(0).toUpperCase() + type.slice(1)
-}
-
-/**
- * Custom hook that provides mark functionality for Tiptap editor
- *
- * @example
- * ```tsx
- * // Simple usage
- * function MySimpleBoldButton() {
- *   const { isVisible, handleMark } = useMark({ type: "bold" })
- *
- *   if (!isVisible) return null
- *
- *   return <button onClick={handleMark}>Bold</button>
- * }
- *
- * // Advanced usage with configuration
- * function MyAdvancedItalicButton() {
- *   const { isVisible, handleMark, label, isActive } = useMark({
- *     editor: myEditor,
- *     type: "italic",
- *     hideWhenUnavailable: true,
- *     onToggled: () => console.log('Mark toggled!')
- *   })
- *
- *   if (!isVisible) return null
- *
- *   return (
- *     <MyButton
- *       onClick={handleMark}
- *       aria-pressed={isActive}
- *       aria-label={label}
- *     >
- *       Italic
- *     </MyButton>
- *   )
- * }
- * ```
- */
-export function useMark(config: UseMarkConfig) {
-  const { editor: providedEditor, type, hideWhenUnavailable = false, onToggled } = config
-
-  const { editor } = useTiptapEditor(providedEditor)
-  const [isVisible, setIsVisible] = React.useState<boolean>(true)
-  const canToggle = canToggleMark(editor, type)
-  const isActive = isMarkActive(editor, type)
-
-  React.useEffect(() => {
-    if (!editor)
-      return
-
-    const handleSelectionUpdate = () => {
-      setIsVisible(shouldShowButton({ editor, type, hideWhenUnavailable }))
-    }
-
-    handleSelectionUpdate()
-
-    editor.on('selectionUpdate', handleSelectionUpdate)
-
-    return () => {
-      editor.off('selectionUpdate', handleSelectionUpdate)
-    }
-  }, [editor, type, hideWhenUnavailable])
-
-  const handleMark = React.useCallback(() => {
-    if (!editor)
-      return false
-
-    const success = toggleMark(editor, type)
-    if (success) {
-      onToggled?.()
-    }
-    return success
-  }, [editor, type, onToggled])
-
-  return {
-    isVisible,
-    isActive,
-    handleMark,
-    canToggle,
-    label: getFormattedMarkName(type),
-    shortcutKeys: MARK_SHORTCUT_KEYS[type],
-    Icon: markIcons[type],
-  }
 }

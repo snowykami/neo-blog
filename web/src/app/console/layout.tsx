@@ -74,9 +74,12 @@ export default function ConsoleLayout({
     >
       <SidebarAutoCloseOnRouteChange />
       <AppSidebar variant="inset" activeId={activeId} setActiveId={setActiveId} />
-      <SidebarInset>
+      {/* min-w-0：避免内容（如编辑器工具栏）的固有宽度撑破布局 */}
+      <SidebarInset className="min-w-0">
         <SiteHeader title={title} />
+        {/* flex 列：编辑器等需要填满内容区高度的页面使用 flex-1 */}
         <div
+          className="flex min-w-0 flex-1 flex-col"
           style={
             {
               '--console-content-padding': 'calc(var(--spacing) * 4)',

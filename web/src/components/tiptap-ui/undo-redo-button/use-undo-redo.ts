@@ -1,15 +1,10 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import * as React from 'react'
 
 // --- Icons ---
-import { Redo2Icon } from '@/components/tiptap-icons/redo2-icon'
-
-import { Undo2Icon } from '@/components/tiptap-icons/undo2-icon'
 
 // --- Hooks ---
-import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 // --- Lib ---
 import { isNodeTypeSelected } from '@/lib/tiptap-utils'
 
@@ -46,11 +41,6 @@ export const UNDO_REDO_SHORTCUT_KEYS: Record<UndoRedoAction, string> = {
 export const historyActionLabels: Record<UndoRedoAction, string> = {
   undo: 'Undo',
   redo: 'Redo',
-}
-
-export const historyIcons = {
-  undo: Undo2Icon,
-  redo: Redo2Icon,
 }
 
 /**
@@ -96,85 +86,4 @@ export function shouldShowButton(props: {
   }
 
   return true
-}
-
-/**
- * Custom hook that provides history functionality for Tiptap editor
- *
- * @example
- * ```tsx
- * // Simple usage
- * function MySimpleUndoButton() {
- *   const { isVisible, handleAction } = useHistory({ action: "undo" })
- *
- *   if (!isVisible) return null
- *
- *   return <button onClick={handleAction}>Undo</button>
- * }
- *
- * // Advanced usage with configuration
- * function MyAdvancedRedoButton() {
- *   const { isVisible, handleAction, label } = useHistory({
- *     editor: myEditor,
- *     action: "redo",
- *     hideWhenUnavailable: true,
- *     onExecuted: () => console.log('Action executed!')
- *   })
- *
- *   if (!isVisible) return null
- *
- *   return (
- *     <MyButton
- *       onClick={handleAction}
- *       aria-label={label}
- *     >
- *       Redo
- *     </MyButton>
- *   )
- * }
- * ```
- */
-export function useUndoRedo(config: UseUndoRedoConfig) {
-  const { editor: providedEditor, action, hideWhenUnavailable = false, onExecuted } = config
-
-  const { editor } = useTiptapEditor(providedEditor)
-  const [isVisible, setIsVisible] = React.useState<boolean>(true)
-  const canExecute = canExecuteUndoRedoAction(editor, action)
-
-  React.useEffect(() => {
-    if (!editor)
-      return
-
-    const handleUpdate = () => {
-      setIsVisible(shouldShowButton({ editor, hideWhenUnavailable, action }))
-    }
-
-    handleUpdate()
-
-    editor.on('transaction', handleUpdate)
-
-    return () => {
-      editor.off('transaction', handleUpdate)
-    }
-  }, [editor, hideWhenUnavailable, action])
-
-  const handleAction = React.useCallback(() => {
-    if (!editor)
-      return false
-
-    const success = executeUndoRedoAction(editor, action)
-    if (success) {
-      onExecuted?.()
-    }
-    return success
-  }, [editor, action, onExecuted])
-
-  return {
-    isVisible,
-    handleAction,
-    canExecute,
-    label: historyActionLabels[action],
-    shortcutKeys: UNDO_REDO_SHORTCUT_KEYS[action],
-    Icon: historyIcons[action],
-  }
 }

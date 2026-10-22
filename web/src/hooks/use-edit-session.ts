@@ -11,6 +11,7 @@ export type EditSessionStatus = 'acquiring' | 'active' | 'taken_over' | 'error'
  * - 进入编辑页时申请会话，会顶掉其他设备/窗口的旧会话
  * - 保存被拒绝（409）或检查发现已被顶掉时进入 taken_over，由页面切换为只读
  * - takeOver 重新申请会话以接管编辑，调用方负责随后加载服务端最新内容
+ * - id 为 0 时视为尚未就绪，不申请会话，就绪后自动申请
  */
 export function useEditSession(target: EditSessionTarget, id: number) {
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -19,6 +20,9 @@ export function useEditSession(target: EditSessionTarget, id: number) {
   const [holder, setHolder] = useState<EditSession | null>(null)
 
   const acquire = useCallback(async () => {
+    // id 未就绪（如编辑页尚未加载出内容）时不申请
+    if (!id)
+      return false
     setStatus('acquiring')
     try {
       const res = await acquireEditSession({ target, id })

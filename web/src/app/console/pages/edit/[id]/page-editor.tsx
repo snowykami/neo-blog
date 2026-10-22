@@ -1,328 +1,56 @@
 'use client'
 
-import type { Editor } from '@tiptap/react'
 import type { PageModel } from '@/models/page'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import Color from '@tiptap/extension-color'
-import { Highlight } from '@tiptap/extension-highlight'
-import { HorizontalRule } from '@tiptap/extension-horizontal-rule'
-import { TaskItem, TaskList } from '@tiptap/extension-list'
-import Subscript from '@tiptap/extension-subscript'
-import Superscript from '@tiptap/extension-superscript'
-import TextAlign from '@tiptap/extension-text-align'
-import { TextStyleKit } from '@tiptap/extension-text-style'
-import Typography from '@tiptap/extension-typography'
-import { useEditor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import { common, createLowlight } from 'lowlight'
-import { FullscreenIcon, MinimizeIcon } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useFormatter, useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from 'sonner'
-import { isEditSessionConflict } from '@/api/edit-session'
-import { uploadFile } from '@/api/file'
-import { getPageById, updatePage } from '@/api/page'
-import { EditSessionBanner } from '@/components/console/common/edit-session-banner'
-import { LastSavedAt } from '@/components/console/common/last-saved-at'
-import { SimpleEditor } from '@/components/tiptap-editor/simple-editor'
-import { Annotation, LinkAutoMatch } from '@/components/tiptap-extension/annotation-extension'
-import { SelectionHighlight } from '@/components/tiptap-extension/selection-highlight-extension'
-import Image from '@/components/tiptap-node/image-node/image-node-extension'
-import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-extension'
-import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
-import { Button } from '@/components/ui/button'
-import { useEditSession } from '@/hooks/use-edit-session'
-import { useFullscreen, useUnsavedChangesWarning } from '@/hooks/use-editor-helpers'
-import { useOperationT } from '@/hooks/use-translations'
-import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
-import { PageMetaDialog } from '../../page-meta-dialog'
-
-const lowlight = createLowlight(common)
+import { useCallback } from 'react'
+import { ContentEditorShell } from '@/components/tiptap-editor/content-editor-shell'
+import { useContentEditor } from '@/hooks/use-content-editor'
+import { consolePath, getPageUrl } from '@/utils/common/route'
+import { PagePreviewDialog } from './page-preview'
+import { PageSettingsSheet } from './page-settings-sheet'
 
 export function PageEditor() {
-  const t = useTranslations('Console.post_edit')
+  const t = useTranslations('Console.editor')
+  const pageT = useTranslations('Console.pages.meta')
+  const format = useFormatter()
   const { id } = useParams() as { id: string }
-  const [page, setPage] = useState<PageModel | null>(null)
-  const [loadFailed, setLoadFailed] = useState(false)
-  // 同一页面同时只允许最新打开的编辑页保存，被顶掉后只读
-  const editSession = useEditSession('page', Number(id))
-  // 最近一次成功保存（或加载）的内容，自动保存只在内容变化时提交
-  const savedHtmlRef = useRef<string | null>(null)
+  const controller = useContentEditor('page', id)
+  const page = controller.doc as PageModel | null
+  const { meta, editor } = controller
+  const getHtml = useCallback(() => editor?.getHTML() ?? '', [editor])
 
-  const handleImageUpload = useCallback(async (file: File) => {
-    try {
-      const res = await uploadFile({ file })
-      return res.data.url
-    }
-    catch {
-      toast.error(t('image_upload_failed'))
-      return ''
-    }
-  }, [t])
-
-  const editor = useEditor({
-    immediatelyRender: false,
-    shouldRerenderOnTransaction: false,
-    editorProps: {
-      attributes: {
-        'autocomplete': 'off',
-        'autocorrect': 'off',
-        'autocapitalize': 'off',
-        'aria-label': t('page_editor_aria_label'),
-        'class': 'simple-editor',
-      },
-    },
-    extensions: [
-      StarterKit.configure({
-        horizontalRule: false,
-        link: {
-          openOnClick: false,
-          enableClickSelection: true,
-        },
-      }),
-      Color.configure({ types: ['textStyle'] }),
-      HorizontalRule,
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      TextStyleKit,
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Highlight.configure({ multicolor: true }),
-      Image,
-      Annotation,
-      LinkAutoMatch,
-      // 打开注释、链接等弹窗时保留选区高亮
-      SelectionHighlight,
-      // 粘贴图片时按默认压缩等级上传并插入到光标处
-      ImagePaste.configure({ upload: handleImageUpload }),
-      Typography,
-      Superscript,
-      Subscript,
-      CodeBlockLowlight.configure({ lowlight }),
-      ImageUploadNode.configure({
-        accept: 'image/*',
-        maxSize: MAX_FILE_SIZE,
-        limit: 3,
-        upload: handleImageUpload,
-        onError: error => console.error('Upload failed:', error),
-      }),
-    ],
-  })
-
-  // 加载草稿（单篇接口，草稿模式会返回 draftContent）；失败时显示错误状态而不是一直加载
-  const loadPage = useCallback(() => {
-    setLoadFailed(false)
-    getPageById({ id, type: 'draft' })
-      .then(res => setPage(res.data))
-      .catch(() => setLoadFailed(true))
-  }, [id])
-
-  useEffect(() => {
-    loadPage()
-  }, [loadPage])
-
-  // 有未保存修改时关闭标签页前提示
-  const hasUnsavedChanges = useCallback(
-    () => Boolean(editor && savedHtmlRef.current !== null && editor.getHTML() !== savedHtmlRef.current),
-    [editor],
-  )
-  useUnsavedChangesWarning(hasUnsavedChanges)
-
-  // 仅在首次加载页面时写入编辑器内容；之后修改元信息也会更新 page，
-  // 若每次都 setContent 会用旧草稿覆盖用户尚未保存的编辑
-  const loadedPageIdRef = useRef<number | null>(null)
-  useEffect(() => {
-    if (!editor || !page || loadedPageIdRef.current === page.id)
-      return
-    const content = page.draftContent || page.content || ''
-    const timer = window.setTimeout(() => {
-      editor.commands.setContent(content)
-      savedHtmlRef.current = editor.getHTML()
-      loadedPageIdRef.current = page.id
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [editor, page])
-
-  // 被其他编辑会话顶掉后只读
-  const isTakenOver = editSession.status === 'taken_over'
-  useEffect(() => {
-    editor?.setEditable(!isTakenOver)
-  }, [editor, isTakenOver])
-
-  // 接管编辑：重新申请会话并加载服务端最新内容（本地未保存的内容以服务端为准）
-  const handleTakeOver = useCallback(async () => {
-    if (!editor || !(await editSession.takeOver()))
-      return
-    const latest = await getPageById({ id, type: 'draft' })
-      .then(res => res.data)
-      .catch(() => null)
-    if (!latest) {
-      toast.error(t('load_failed'))
-      return
-    }
-    editor.commands.setContent(latest.draftContent || latest.content || '')
-    savedHtmlRef.current = editor.getHTML()
-    setPage(latest)
-  }, [editor, editSession, id, t])
-
-  const onPageUpdate = ({ page: nextPage }: { page: Partial<PageModel> & Pick<PageModel, 'id'> }) => {
-    setPage(prev => (prev ? { ...prev, ...nextPage } : prev))
-  }
-
-  if (loadFailed) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
-        <span>{t('load_failed')}</span>
-        <Button size="sm" variant="outline" onClick={loadPage}>{t('retry')}</Button>
-      </div>
-    )
-  }
-
-  if (!page || !editor)
-    return <div className="py-20 text-center text-muted-foreground">{t('loading')}</div>
+  const publishSummary = [
+    { label: t('publish_visibility'), value: meta.isPrivate ? t('visibility_private') : t('visibility_public') },
+    { label: t('publish_path'), value: page ? getPageUrl({ id: page.id, slug: meta.slug.trim() || page.slug }) : '-' },
+    { label: t('publish_nav'), value: meta.showInNav ? t('nav_shown', { order: meta.navOrder }) : t('nav_hidden') },
+  ]
 
   return (
-    <div
-      className="w-auto editor-container
-    h-[calc(100vh-var(--header-height)-var(--console-content-padding)-6.5rem)]
-    md:h-[calc(100vh-var(--header-height)-var(--console-content-padding)-6rem)]
-    lg:h-[calc(100vh-var(--header-height)-var(--console-content-padding)-5.5rem)]
-    "
-    >
-      <PageEditorNavbar
-        editor={editor}
-        page={page}
-        onPageUpdate={onPageUpdate}
-        editSession={editSession}
-        savedHtmlRef={savedHtmlRef}
-      />
-      {isTakenOver && <EditSessionBanner holder={editSession.holder} onTakeOver={handleTakeOver} />}
-      <div className="relative mt-4 h-full">
-        <SimpleEditor editor={editor} />
-      </div>
-    </div>
-  )
-}
-
-function PageEditorNavbar({
-  editor,
-  onPageUpdate,
-  page,
-  editSession,
-  savedHtmlRef,
-}: {
-  editor: Editor
-  onPageUpdate: ({ page }: { page: Partial<PageModel> & Pick<PageModel, 'id'> }) => void
-  page: PageModel
-  editSession: ReturnType<typeof useEditSession>
-  savedHtmlRef: React.RefObject<string | null>
-}) {
-  const t = useTranslations('Console.post_edit')
-  const operationT = useOperationT()
-  const [savingDraft, setSavingDraft] = useState(false)
-  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
-  const [settingDialogOpen, setSettingDialogOpen] = useState(false)
-  const [publishing, setPublishing] = useState(false)
-  const onFullscreenError = useCallback(() => toast.error(t('fullscreen_failed')), [t])
-  const { isFullScreen, toggleFullScreen } = useFullscreen(onFullscreenError)
-
-  const { sessionId, status: sessionStatus, markTakenOver, check: checkEditSession } = editSession
-  // 被顶掉或会话申请中不保存；申请失败时（如后端未更新）退化为不带会话保存
-  const canSave = sessionStatus === 'active' || sessionStatus === 'error'
-
-  const saveDraft = useCallback((showToast: boolean) => {
-    if (!canSave)
-      return
-    const html = editor.getHTML()
-    setSavingDraft(true)
-    updatePage({ page: { id: page.id, draftContent: html }, editSessionId: sessionId })
-      .then(() => {
-        savedHtmlRef.current = html
-        if (showToast)
-          toast.success(operationT('save_success'))
-        setLastSavedAt(new Date())
-      })
-      .catch((error) => {
-        // 已被其他编辑会话接管，切换为只读并提示
-        if (isEditSessionConflict(error)) {
-          markTakenOver()
-          return
-        }
-        toast.error(operationT('save_failed'))
-      })
-      .finally(() => setSavingDraft(false))
-  }, [canSave, editor, operationT, page.id, sessionId, savedHtmlRef, markTakenOver])
-
-  // 定时保存：内容有变化才保存，没有变化时只检查编辑会话是否仍有效
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (editor.getHTML() === savedHtmlRef.current)
-        checkEditSession()
-      else
-        saveDraft(false)
-    }, 10_000)
-    return () => window.clearInterval(timer)
-  }, [editor, saveDraft, savedHtmlRef, checkEditSession])
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-        event.preventDefault()
-        saveDraft(true)
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [saveDraft])
-
-  const publishPage = () => {
-    if (!canSave || publishing)
-      return
-    const html = editor.getHTML()
-    setPublishing(true)
-    updatePage({ page: { id: page.id, draftContent: html, content: html, type: 'html' }, editSessionId: sessionId })
-      .then(() => {
-        savedHtmlRef.current = html
-        setLastSavedAt(new Date())
-        toast.success(operationT('publish_success'))
-      })
-      .catch((error) => {
-        if (isEditSessionConflict(error)) {
-          markTakenOver()
-          return
-        }
-        toast.error(operationT('publish_failed'))
-      })
-      .finally(() => setPublishing(false))
-  }
-
-  return (
-    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-lg font-semibold truncate block" title={page.title}>{page.title}</span>
-        {lastSavedAt && (
-          <LastSavedAt time={lastSavedAt} className="text-sm text-muted-foreground" />
-        )}
-      </div>
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <PageMetaDialog open={settingDialogOpen} onOpenChange={setSettingDialogOpen} page={page} onPageChange={onPageUpdate} />
-        <Button
-          size="sm"
-          onClick={toggleFullScreen}
-          variant="outline"
-          aria-label={isFullScreen ? t('fullscreen_exit') : t('fullscreen_enter')}
-          title={isFullScreen ? t('fullscreen_exit') : t('fullscreen_enter')}
-        >
-          {isFullScreen ? <MinimizeIcon className="size-4" /> : <FullscreenIcon className="size-4" />}
-        </Button>
-        <Button size="sm" onClick={() => setSettingDialogOpen(true)} variant="outline">{operationT('setting')}</Button>
-        <Button size="sm" onClick={() => saveDraft(true)} variant="outline" disabled={savingDraft || !canSave}>
-          {savingDraft ? t('saving_draft') : t('save_draft')}
-        </Button>
-        <Button size="sm" onClick={publishPage} disabled={!canSave || publishing}>
-          {publishing ? t('publishing') : operationT('publish')}
-        </Button>
-      </div>
-    </div>
+    <ContentEditorShell
+      controller={controller}
+      backHref={consolePath.page}
+      backLabel={t('back_to_pages')}
+      crumbRoot={t('crumb_page')}
+      untitled={t('untitled_page')}
+      titleLabel={pageT('title')}
+      descriptionLabel={pageT('description')}
+      settingsLabel={t('settings_page')}
+      publishTitle={t('publish_title_page')}
+      publishSummary={publishSummary}
+      metaLine={page && (
+        <>
+          <span>{t('crumb_page')}</span>
+          <span className="text-foreground/30">·</span>
+          <span>{format.dateTime(new Date(page.createdAt), { dateStyle: 'long' })}</span>
+        </>
+      )}
+      renderSettings={panel => (
+        <PageSettingsSheet {...panel} meta={meta} onChange={controller.updateMeta} />
+      )}
+      renderPreview={panel => (
+        <PagePreviewDialog {...panel} meta={meta} getHtml={getHtml} />
+      )}
+    />
   )
 }

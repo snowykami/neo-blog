@@ -1,7 +1,7 @@
 import type { ImageOptions } from '@tiptap/extension-image'
 import { Image as TiptapImage } from '@tiptap/extension-image'
 import { mergeAttributes, ReactNodeViewRenderer } from '@tiptap/react'
-import { IMAGE_CAPTION_ATTR, IMAGE_FIGURE_CLASS } from './image-node-constants'
+import { IMAGE_CAPTION_ATTR, IMAGE_FIGURE_CLASS, IMAGE_TOOLBAR_ATTR } from './image-node-constants'
 import { ImageNodeView } from './image-node-view'
 
 export const Image = TiptapImage.extend<ImageOptions>({
@@ -63,7 +63,11 @@ export const Image = TiptapImage.extend<ImageOptions>({
     return ReactNodeViewRenderer(ImageNodeView, {
       stopEvent: (props) => {
         // 注释输入框内的所有事件交给输入框处理，避免被编辑器当作节点选择/删除
-        if ((props.event.target as Element | null)?.closest?.(`[${IMAGE_CAPTION_ATTR}]`))
+        const target = props.event.target as Element | null
+        if (target?.closest?.(`[${IMAGE_CAPTION_ATTR}]`))
+          return true
+        // 浮动工具栏中的点击交给按钮处理，不触发节点选择 / 拖动
+        if (target?.closest?.(`[${IMAGE_TOOLBAR_ATTR}]`))
           return true
         if (/dragstart|dragover|dragend|drop/.test(props.event.type))
           return false
