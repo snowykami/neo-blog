@@ -57,8 +57,9 @@ export default function ScrollToTopButton({
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // 通过 className 控制位置，wrapper 仍然固定定位以相对于视口
-  const wrapperClass = `fixed z-60 ${positionClass} ${className}`.trim()
+  // 通过 className 控制位置，wrapper 仍然固定定位以相对于视口；
+  // 层级低于 Popover / Dropdown / Dialog 等浮层（z-50），避免遮挡弹出内容
+  const wrapperClass = `fixed z-40 ${positionClass} ${className}`.trim()
 
   // 简单进度圆环用 SVG
   const stroke = 3

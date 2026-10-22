@@ -15,15 +15,6 @@ import {
   updateUserRoleAdmin,
 } from '@/api/admin'
 import { UserAvatar } from '@/components/common/avatar'
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -489,61 +480,6 @@ function ResetPasswordFormBody({ user, onDone }: { user: User, onDone: () => voi
         </DialogFooter>
       </form>
     </Form>
-  )
-}
-
-// 受控的二次确认弹窗：由下拉菜单触发，菜单关闭后弹窗仍需保留，因此不使用 ConfirmDialog 的触发器模式
-export function ActionConfirmDialog({ open, title, description, confirmLabel, destructive = true, onOpenChange, onConfirm }: {
-  open: boolean
-  title: React.ReactNode
-  description: React.ReactNode
-  confirmLabel: string
-  destructive?: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => Promise<void>
-}) {
-  const operationT = useOperationT()
-  const errorMessageT = useErrorMessageT()
-  const [loading, setLoading] = useState(false)
-
-  const handleConfirm = async () => {
-    setLoading(true)
-    try {
-      await onConfirm()
-      onOpenChange(false)
-    }
-    catch (error) {
-      toast.error(errorMessageT(error, operationT('operation_failed')))
-    }
-    finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <AlertDialog open={open} onOpenChange={v => !loading && onOpenChange(v)}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div className="grid gap-2 text-sm text-muted-foreground">{description}</div>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>{operationT('cancel')}</AlertDialogCancel>
-          <Button
-            type="button"
-            variant={destructive ? 'destructive' : 'default'}
-            disabled={loading}
-            aria-busy={loading}
-            onClick={handleConfirm}
-          >
-            {loading && <Loader2 className="animate-spin" />}
-            {confirmLabel}
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   )
 }
 

@@ -103,7 +103,9 @@
     "load_failed": "Failed to load comments",
     "more_actions": "More actions",
     "view_user_profile": "View {name}'s profile",
-    "login_required": "Please login first"
+    "login_required": "Please login first",
+    "delete_confirm_title": "Delete this comment?",
+    "delete_confirm_description": "This cannot be undone. Its replies will also be deleted."
   },
   "Common": {
     "image_load_failed": "Image failed to load",
@@ -246,7 +248,7 @@
       "private": "Private",
       "reply_count": "{count} replies",
       "like_count": "{count} likes",
-      "delete_description": "This cannot be undone. Replies to this comment may also be deleted."
+      "delete_with_replies_description": "{count, plural, one {# reply} other {# replies}} to this comment, along with their own replies, will also be deleted. This cannot be undone."
     },
     "dashboard": {
       "title": "Dashboard",
@@ -315,11 +317,12 @@
       "upload_file": "Upload file",
       "upload_file_failed": "Upload failed: {name}",
       "upload_file_success": "Uploaded: {name}",
-      "will_delete_n_files": "Will delete {n} files",
       "compress_image": "Compress Image",
       "compress_level": "Compression Level",
       "upload_n_files_success": "Uploaded {n} file(s) successfully",
-      "upload_n_files_failed": "{n} file(s) failed to upload"
+      "upload_n_files_failed": "{n} file(s) failed to upload",
+      "batch_delete_description": "{n, plural, one {# selected file} other {# selected files}} will be permanently deleted. Content that references them will no longer display correctly.",
+      "delete_file_description": "This cannot be undone. Content that references this file will no longer display correctly."
     },
     "general": "General",
     "global": {
@@ -1011,7 +1014,8 @@
     "fetch_failed": "Fetch failed",
     "confirm": "Confirm",
     "more": "More actions",
-    "operation_failed": "Operation failed"
+    "operation_failed": "Operation failed",
+    "delete_confirm_title": "Delete \"{name}\"?"
   },
   "Metrics": {
     "comment_count": "Comments",

@@ -103,7 +103,9 @@
     "load_failed": "No se pudieron cargar los comentarios",
     "more_actions": "Más acciones",
     "view_user_profile": "Ver el perfil de {name}",
-    "login_required": "Por favor inicia sesión primero"
+    "login_required": "Por favor inicia sesión primero",
+    "delete_confirm_title": "¿Eliminar este comentario?",
+    "delete_confirm_description": "Esta acción no se puede deshacer. Sus respuestas también se eliminarán."
   },
   "Common": {
     "image_load_failed": "No se pudo cargar la imagen",
@@ -246,7 +248,7 @@
       "private": "Privado",
       "reply_count": "{count} respuestas",
       "like_count": "{count} me gusta",
-      "delete_description": "Esta acción no se puede deshacer. Las respuestas a este comentario también podrían eliminarse."
+      "delete_with_replies_description": "También se eliminarán {count, plural, one {# respuesta} other {# respuestas}} a este comentario, junto con sus propias respuestas. Esta acción no se puede deshacer."
     },
     "dashboard": {
       "title": "Panel de control",
@@ -315,11 +317,12 @@
       "upload_file": "Subir archivo",
       "upload_file_failed": "Error al subir: {name}",
       "upload_file_success": "Subido: {name}",
-      "will_delete_n_files": "Se eliminarán {n} archivos",
       "compress_image": "Comprimir imagen",
       "compress_level": "Nivel de compresión",
       "upload_n_files_success": "Se subieron {n} archivo(s) correctamente",
-      "upload_n_files_failed": "{n} archivo(s) no se pudieron subir"
+      "upload_n_files_failed": "{n} archivo(s) no se pudieron subir",
+      "batch_delete_description": "Se eliminarán permanentemente {n, plural, one {# archivo seleccionado} other {# archivos seleccionados}}. El contenido que los referencia dejará de mostrarse correctamente.",
+      "delete_file_description": "Esta acción no se puede deshacer. El contenido que referencia este archivo dejará de mostrarse correctamente."
     },
     "general": "General",
     "global": {
@@ -1011,7 +1014,8 @@
     "fetch_failed": "Error al obtener",
     "confirm": "Confirmar",
     "more": "Más acciones",
-    "operation_failed": "La operación falló"
+    "operation_failed": "La operación falló",
+    "delete_confirm_title": "¿Eliminar «{name}»?"
   },
   "Metrics": {
     "comment_count": "Comentarios",

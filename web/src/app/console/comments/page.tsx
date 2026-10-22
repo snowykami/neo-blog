@@ -16,6 +16,7 @@ import { UserAvatar } from '@/components/common/avatar'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
+import { Popconfirm } from '@/components/common/popconfirm'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -112,19 +113,15 @@ export default function CommentsManage() {
     [setOrderBy, setDesc, setPage],
   )
 
+  // 删除失败时抛出，由确认组件统一提示并保持打开
   const handleDelete = async (comment: Comment) => {
-    try {
-      await deleteComment({ id: comment.id })
-      toast.success(operationT('delete_success'))
-      // 删除可能连带回复，重新拉取；删光当前页时回退到上一页
-      if (comments.length <= 1 && page > 1)
-        await setPage(page - 1)
-      else
-        await fetchComments()
-    }
-    catch (error) {
-      toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`)
-    }
+    await deleteComment({ id: comment.id })
+    toast.success(operationT('delete_success'))
+    // 删除可能连带回复，重新拉取；删光当前页时回退到上一页
+    if (comments.length <= 1 && page > 1)
+      await setPage(page - 1)
+    else
+      await fetchComments()
   }
 
   return (
@@ -243,18 +240,36 @@ function CommentRow({
       </TableCell>
       <TableCell>{new Date(comment.createdAt).toLocaleString()}</TableCell>
       <TableCell className="text-right">
-        {/* 删除评论可能连带其回复，需二次确认 */}
-        <ConfirmDialog
-          title={operationT('confirm_delete')}
-          description={t('delete_description')}
-          confirmLabel={operationT('delete')}
-          confirmVariant="destructive"
-          onConfirm={() => onDelete(comment)}
-        >
-          <Button size="sm" variant="destructive">
-            {operationT('delete')}
-          </Button>
-        </ConfirmDialog>
+        {/* 有回复时删除会连带整棵回复树，用 AlertDialog 说明后果；否则就地确认 */}
+        {comment.replyCount > 0
+          ? (
+              <ConfirmDialog
+                title={operationT('confirm_delete')}
+                description={t('delete_with_replies_description', { count: comment.replyCount })}
+                confirmLabel={operationT('delete')}
+                errorText={operationT('delete_failed')}
+                confirmVariant="destructive"
+                onConfirm={() => onDelete(comment)}
+              >
+                <Button size="sm" variant="destructive">
+                  {operationT('delete')}
+                </Button>
+              </ConfirmDialog>
+            )
+          : (
+              <Popconfirm
+                title={operationT('confirm_delete')}
+                description={operationT('delete_description')}
+                confirmText={operationT('delete')}
+                errorText={operationT('delete_failed')}
+                destructive
+                onConfirm={() => onDelete(comment)}
+              >
+                <Button size="sm" variant="destructive">
+                  {operationT('delete')}
+                </Button>
+              </Popconfirm>
+            )}
       </TableCell>
     </TableRow>
   )

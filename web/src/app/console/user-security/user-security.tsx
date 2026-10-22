@@ -8,8 +8,8 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { getUserOpenIdList, requestEmailVerifyCode, unbindUserOpenId, updateEmail, updatePassword } from '@/api/user'
 import { ImageAvatar } from '@/components/common/avatar'
-import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { InputOTPControlled } from '@/components/common/input-otp'
+import { Popconfirm } from '@/components/common/popconfirm'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -267,16 +267,11 @@ export function UserSecurityPage() {
 
 function UserOpenIdItem({ openId, onUnbind }: { openId: OpenIdDto, onUnbind: (id: number) => void }) {
   const t = useTranslations('Console.user_security')
-  const errorMessageT = useErrorMessageT()
-  const handleDelete = useCallback(() => {
-    unbindUserOpenId(openId.id)
-      .then(() => {
-        toast.success(t('unbind_success'))
-        onUnbind(openId.id)
-      })
-      .catch((error: unknown) => {
-        toast.error(`${t('unbind_failed')}: ${errorMessageT(error)}`)
-      })
+  // 失败时抛出，由 Popconfirm 统一提示并保持打开
+  const handleDelete = useCallback(async () => {
+    await unbindUserOpenId(openId.id)
+    toast.success(t('unbind_success'))
+    onUnbind(openId.id)
   }, [openId.id, onUnbind, t])
   return (
     <div className="flex items-center justify-between w-full max-w-sm border p-2 rounded-md gap-2">
@@ -298,11 +293,14 @@ function UserOpenIdItem({ openId, onUnbind }: { openId: OpenIdDto, onUnbind: (id
       <div className="flex items-center gap-2 justify-start">
 
       </div>
-      <ConfirmDialog
+      {/* 解绑可随时重新绑定，使用就地确认 */}
+      <Popconfirm
         title={t('confirm_unbind')}
         description={t('confirm_unbind_description')}
+        confirmText={t('unbind')}
+        errorText={t('unbind_failed')}
+        destructive
         onConfirm={handleDelete}
-        confirmLabel={t('unbind')}
       >
         <Button
           variant="ghost"
@@ -313,7 +311,7 @@ function UserOpenIdItem({ openId, onUnbind }: { openId: OpenIdDto, onUnbind: (id
         >
           <UnlinkIcon size={16} />
         </Button>
-      </ConfirmDialog>
+      </Popconfirm>
     </div>
   )
 }

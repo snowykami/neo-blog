@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteStorageProvider, listStorageProviders } from '@/api/file'
-import { DeleteButtonWithConfirmDialog } from '@/components/common/delete-button-with-confirm-dialog'
+import { DeleteButtonWithPopconfirm } from '@/components/common/delete-button-with-popconfirm'
 import { CreateOrUpdateStorageDialog } from '@/components/console/create-storage-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -70,13 +70,10 @@ function StorageProviderItem({
   const t = useTranslations('Console.storages')
   const operationT = useOperationT()
   const commonT = useCommonT()
-  const onDelete = useCallback(() => {
-    deleteStorageProvider({ id: storage.id })
-      .then(() => {
-        toast.success(operationT('delete_success'))
-        onChange()
-      })
-      .catch(err => toast.error(operationT('delete_failed') + (err?.message ? `: ${err.message}` : '')))
+  const onDelete = useCallback(async () => {
+    await deleteStorageProvider({ id: storage.id })
+    toast.success(operationT('delete_success'))
+    onChange()
   }, [storage, onChange])
   return (
     <div>
@@ -104,7 +101,7 @@ function StorageProviderItem({
         {/* right */}
         <div className="flex items-center ml-auto justify-end gap-2">
           <CreateOrUpdateStorageDialog initStorageProvider={storage} onCreate={onChange} />
-          <DeleteButtonWithConfirmDialog onDelete={onDelete} />
+          <DeleteButtonWithPopconfirm name={storage.name} onDelete={onDelete} />
         </div>
       </div>
     </div>

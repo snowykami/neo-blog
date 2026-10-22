@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteCategory, getCategories } from '@/api/post'
-import { DeleteButtonWithConfirmDialog } from '@/components/common/delete-button-with-confirm-dialog'
+import { DeleteButtonWithPopconfirm } from '@/components/common/delete-button-with-popconfirm'
 
 import { CreateOrUpdateCategoryDialogWithButton } from '@/components/console/common/create-label-and-category'
 import { Input } from '@/components/ui/input'
@@ -70,13 +70,10 @@ export function CategoryManage() {
 
 function CategoryItem({ category, onChange }: { category: Category, onChange: () => void }) {
   const operationT = useOperationT()
-  const handleDelete = () => {
-    deleteCategory({ id: category.id })
-      .then(() => {
-        toast.success(operationT('delete_success'))
-        onChange()
-      })
-      .catch(() => toast.error(operationT('delete_failed')))
+  const handleDelete = async () => {
+    await deleteCategory({ id: category.id })
+    toast.success(operationT('delete_success'))
+    onChange()
   }
   return (
     <div
@@ -101,7 +98,7 @@ function CategoryItem({ category, onChange }: { category: Category, onChange: ()
           category={category}
           onSaved={onChange}
         />
-        <DeleteButtonWithConfirmDialog onDelete={handleDelete} />
+        <DeleteButtonWithPopconfirm name={category.name} onDelete={handleDelete} />
       </div>
     </div>
   )

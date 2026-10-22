@@ -103,7 +103,9 @@
     "load_failed": "加载评论失败",
     "more_actions": "更多操作",
     "view_user_profile": "查看 {name} 的主页",
-    "login_required": "请先登录后再操作"
+    "login_required": "请先登录后再操作",
+    "delete_confirm_title": "删除这条评论？",
+    "delete_confirm_description": "删除后不可恢复，其下的回复也会一并删除。"
   },
   "Common": {
     "image_load_failed": "图片加载失败",
@@ -246,7 +248,7 @@
       "private": "私密",
       "reply_count": "{count} 回复",
       "like_count": "{count} 赞",
-      "delete_description": "删除后不可恢复，该评论下的回复可能会一并删除。"
+      "delete_with_replies_description": "该评论下的 {count} 条回复及其后续回复会一并删除，且不可恢复。"
     },
     "dashboard": {
       "title": "大石板",
@@ -317,9 +319,10 @@
       "upload_file": "上传文件",
       "upload_file_failed": "文件 {name} 上传失败",
       "upload_file_success": "文件 {name} 上传成功",
-      "will_delete_n_files": "将删除 {n} 个文件",
       "upload_n_files_success": "成功上传 {n} 个文件",
-      "upload_n_files_failed": "{n} 个文件上传失败"
+      "upload_n_files_failed": "{n} 个文件上传失败",
+      "batch_delete_description": "将永久删除选中的 {n} 个文件，引用这些文件的内容将无法正常显示。",
+      "delete_file_description": "删除后不可恢复，引用该文件的内容将无法正常显示。"
     },
     "general": "常规",
     "global": {
@@ -1044,7 +1047,8 @@
     "fetch_failed": "获取失败",
     "confirm": "确认",
     "more": "更多操作",
-    "operation_failed": "操作失败"
+    "operation_failed": "操作失败",
+    "delete_confirm_title": "删除「{name}」？"
   },
   "Metrics": {
     "comment_count": "评论数",

@@ -103,7 +103,9 @@
     "load_failed": "載入留言失敗",
     "more_actions": "更多操作",
     "view_user_profile": "查看 {name} 的主頁",
-    "login_required": "請先登入再操作"
+    "login_required": "請先登入再操作",
+    "delete_confirm_title": "刪除這則留言？",
+    "delete_confirm_description": "刪除後無法復原，其下的回覆也會一併刪除。"
   },
   "Common": {
     "image_load_failed": "圖片載入失敗",
@@ -246,7 +248,7 @@
       "private": "私密",
       "reply_count": "{count} 則回覆",
       "like_count": "{count} 讚",
-      "delete_description": "刪除後無法復原，該評論下的回覆可能會一併刪除。"
+      "delete_with_replies_description": "此留言下的 {count} 則回覆及其後續回覆會一併刪除，且無法復原。"
     },
     "dashboard": {
       "title": "儀表板",
@@ -315,11 +317,12 @@
       "upload_file": "上傳檔案",
       "upload_file_failed": "檔案 {name} 上傳失敗",
       "upload_file_success": "檔案 {name} 上傳成功",
-      "will_delete_n_files": "將刪除 {n} 個檔案",
       "compress_image": "壓縮圖片",
       "compress_level": "壓縮等級",
       "upload_n_files_success": "成功上傳 {n} 個檔案",
-      "upload_n_files_failed": "{n} 個檔案上傳失敗"
+      "upload_n_files_failed": "{n} 個檔案上傳失敗",
+      "batch_delete_description": "將永久刪除選取的 {n} 個檔案，引用這些檔案的內容將無法正常顯示。",
+      "delete_file_description": "刪除後無法復原，引用此檔案的內容將無法正常顯示。"
     },
     "general": "一般",
     "global": {
@@ -1011,7 +1014,8 @@
     "fetch_failed": "取得失敗",
     "confirm": "確認",
     "more": "更多操作",
-    "operation_failed": "操作失敗"
+    "operation_failed": "操作失敗",
+    "delete_confirm_title": "刪除「{name}」？"
   },
   "Metrics": {
     "comment_count": "評論數",

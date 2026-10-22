@@ -103,7 +103,9 @@
     "load_failed": "Falha ao carregar os comentários",
     "more_actions": "Mais ações",
     "view_user_profile": "Ver o perfil de {name}",
-    "login_required": "Por favor, faça login primeiro"
+    "login_required": "Por favor, faça login primeiro",
+    "delete_confirm_title": "Excluir este comentário?",
+    "delete_confirm_description": "Esta ação não pode ser desfeita. As respostas também serão excluídas."
   },
   "Common": {
     "image_load_failed": "Não foi possível carregar a imagem",
@@ -246,7 +248,7 @@
       "private": "Privado",
       "reply_count": "{count} respostas",
       "like_count": "{count} curtidas",
-      "delete_description": "Esta ação não pode ser desfeita. As respostas a este comentário também podem ser excluídas."
+      "delete_with_replies_description": "{count, plural, one {# resposta} other {# respostas}} a este comentário, junto com as respostas delas, também serão excluídas. Esta ação não pode ser desfeita."
     },
     "dashboard": {
       "title": "Painel",
@@ -315,11 +317,12 @@
       "upload_file": "Upload file",
       "upload_file_failed": "Upload failed: {name}",
       "upload_file_success": "Uploaded: {name}",
-      "will_delete_n_files": "Will delete {n} files",
       "compress_image": "Compress Image",
       "compress_level": "Compression Level",
       "upload_n_files_success": "{n} arquivo(s) enviado(s) com sucesso",
-      "upload_n_files_failed": "Falha ao enviar {n} arquivo(s)"
+      "upload_n_files_failed": "Falha ao enviar {n} arquivo(s)",
+      "batch_delete_description": "{n, plural, one {# arquivo selecionado será excluído} other {# arquivos selecionados serão excluídos}} permanentemente. O conteúdo que os referencia não será mais exibido corretamente.",
+      "delete_file_description": "Esta ação não pode ser desfeita. O conteúdo que referencia este arquivo não será mais exibido corretamente."
     },
     "general": "Geral",
     "global": {
@@ -1011,7 +1014,8 @@
     "fetch_failed": "Fetch failed",
     "confirm": "Confirmar",
     "more": "Mais ações",
-    "operation_failed": "A operação falhou"
+    "operation_failed": "A operação falhou",
+    "delete_confirm_title": "Excluir \"{name}\"?"
   },
   "Metrics": {
     "comment_count": "Comentários",

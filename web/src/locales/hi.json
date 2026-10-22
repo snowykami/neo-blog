@@ -103,7 +103,9 @@
     "load_failed": "टिप्पणियाँ लोड करने में विफल",
     "more_actions": "और विकल्प",
     "view_user_profile": "{name} की प्रोफ़ाइल देखें",
-    "login_required": "कृपया पहले लॉगिन करें"
+    "login_required": "कृपया पहले लॉगिन करें",
+    "delete_confirm_title": "यह टिप्पणी हटाएं?",
+    "delete_confirm_description": "इसे पूर्ववत नहीं किया जा सकता। इसके उत्तर भी हटा दिए जाएंगे।"
   },
   "Common": {
     "image_load_failed": "छवि लोड नहीं हो सकी",
@@ -246,7 +248,7 @@
       "private": "निजी",
       "reply_count": "{count} उत्तर",
       "like_count": "{count} पसंद",
-      "delete_description": "इसे पूर्ववत नहीं किया जा सकता। इस टिप्पणी के उत्तर भी हटाए जा सकते हैं।"
+      "delete_with_replies_description": "इस टिप्पणी के {count} उत्तर और उनके उत्तर भी हटा दिए जाएंगे। इसे पूर्ववत नहीं किया जा सकता।"
     },
     "dashboard": {
       "title": "डैशबोर्ड",
@@ -315,11 +317,12 @@
       "upload_file": "Upload file",
       "upload_file_failed": "Upload failed: {name}",
       "upload_file_success": "Uploaded: {name}",
-      "will_delete_n_files": "Will delete {n} files",
       "compress_image": "Compress Image",
       "compress_level": "Compression Level",
       "upload_n_files_success": "{n} फ़ाइल(ें) सफलतापूर्वक अपलोड हुईं",
-      "upload_n_files_failed": "{n} फ़ाइल(ें) अपलोड नहीं हो सकीं"
+      "upload_n_files_failed": "{n} फ़ाइल(ें) अपलोड नहीं हो सकीं",
+      "batch_delete_description": "चुनी गई {n} फ़ाइलें स्थायी रूप से हटा दी जाएंगी। इन्हें संदर्भित करने वाली सामग्री ठीक से नहीं दिखेगी।",
+      "delete_file_description": "इसे पूर्ववत नहीं किया जा सकता। इस फ़ाइल को संदर्भित करने वाली सामग्री ठीक से नहीं दिखेगी।"
     },
     "general": "सामान्य",
     "global": {
@@ -1011,7 +1014,8 @@
     "fetch_failed": "Fetch failed",
     "confirm": "पुष्टि करें",
     "more": "अधिक क्रियाएँ",
-    "operation_failed": "कार्रवाई विफल रही"
+    "operation_failed": "कार्रवाई विफल रही",
+    "delete_confirm_title": "\"{name}\" हटाएं?"
   },
   "Metrics": {
     "comment_count": "टिप्पणियाँ",

@@ -122,17 +122,13 @@ export function CommentSection({
     setTotalCommentCount(c => c + 1)
   }
 
-  const onCommentDelete = ({ commentId }: { commentId: number }) => {
-    deleteComment({ id: commentId })
-      .then(() => {
-        toast.success(t('delete_success'))
-        setComments(prevComments => prevComments.filter(comment => comment.id !== commentId))
-        setTotalCommentCount(c => Math.max(0, c - 1))
-        localDeletedRef.current += 1
-      })
-      .catch((error) => {
-        toast.error(`${t('delete_failed')}: ${getErrorMessage(error)}`)
-      })
+  // 失败时抛出，由删除确认气泡统一提示并保持打开
+  const onCommentDelete = async ({ commentId }: { commentId: number }) => {
+    await deleteComment({ id: commentId })
+    toast.success(t('delete_success'))
+    setComments(prevComments => prevComments.filter(comment => comment.id !== commentId))
+    setTotalCommentCount(c => Math.max(0, c - 1))
+    localDeletedRef.current += 1
   }
 
   const handleLoadMore = () => {

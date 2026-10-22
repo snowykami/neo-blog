@@ -123,15 +123,11 @@ export default function OidcManage() {
     setDialogOpen(true)
   }
 
+  // 删除失败时抛出，由 ConfirmDialog 统一提示并保持打开
   const handleDelete = async (id: number) => {
-    try {
-      await deleteOidcAdmin(id)
-      toast.success(operationT('delete_success'))
-      await fetchConfigs()
-    }
-    catch (error) {
-      toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`)
-    }
+    await deleteOidcAdmin(id)
+    toast.success(operationT('delete_success'))
+    await fetchConfigs()
   }
 
   return (
@@ -180,11 +176,12 @@ export default function OidcManage() {
               <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
                   <Button size="sm" variant="outline" onClick={() => openEditDialog(config)}>{operationT('edit')}</Button>
+                  {/* 删除认证源会让已绑定的用户无法再用它登录，使用 AlertDialog 确认 */}
                   <ConfirmDialog
                     title={operationT('confirm_delete')}
                     description={t('delete_description')}
                     confirmLabel={operationT('delete')}
-                    cancelLabel={operationT('cancel')}
+                    errorText={operationT('delete_failed')}
                     confirmVariant="destructive"
                     onConfirm={() => handleDelete(config.id)}
                   >

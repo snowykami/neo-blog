@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteUserAdmin, listUsers, updateUserStatusAdmin } from '@/api/admin'
 import { UserAvatar } from '@/components/common/avatar'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { Badge } from '@/components/ui/badge'
@@ -49,7 +50,6 @@ import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-transla
 import { OrderBy } from '@/models/common'
 import { Role } from '@/models/user'
 import {
-  ActionConfirmDialog,
   ChangeRoleDialog,
   CreateUserDialog,
   displayName,
@@ -416,14 +416,15 @@ export function UserManagePage() {
       <ChangeRoleDialog user={dialogUser('role')} onOpenChange={open => !open && closeDialog()} onSaved={() => refreshAfterChange()} />
       <ResetPasswordDialog user={dialogUser('password')} onOpenChange={open => !open && closeDialog()} />
       {dialog?.kind === 'status' && (
-        <ActionConfirmDialog
+        <ConfirmDialog
           open
           title={dialog.user.disabled
             ? t('enable_title', { name: displayName(dialog.user) })
             : t('disable_title', { name: displayName(dialog.user) })}
           description={dialog.user.disabled ? t('enable_description') : t('disable_description')}
           confirmLabel={dialog.user.disabled ? t('enable') : t('disable')}
-          destructive={!dialog.user.disabled}
+          confirmVariant={dialog.user.disabled ? 'default' : 'destructive'}
+          errorText={operationT('update_failed')}
           onOpenChange={open => !open && closeDialog()}
           onConfirm={() => handleToggleStatus(dialog.user)}
         />
@@ -446,9 +447,10 @@ function DeleteUserDialog({ user, onOpenChange, onConfirm }: {
   onConfirm: () => Promise<void>
 }) {
   const t = useTranslations('Console.users')
+  const operationT = useOperationT()
   const { detail, error } = useUserDetail(user.id)
   return (
-    <ActionConfirmDialog
+    <ConfirmDialog
       open
       title={t('delete_title', { name: displayName(user) })}
       description={(
@@ -467,6 +469,7 @@ function DeleteUserDialog({ user, onOpenChange, onConfirm }: {
         </>
       )}
       confirmLabel={t('delete')}
+      errorText={operationT('delete_failed')}
       onOpenChange={onOpenChange}
       onConfirm={onConfirm}
     />

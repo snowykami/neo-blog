@@ -103,7 +103,9 @@
     "load_failed": "Kommentare konnten nicht geladen werden",
     "more_actions": "Weitere Aktionen",
     "view_user_profile": "Profil von {name} ansehen",
-    "login_required": "Bitte melden Sie sich zuerst an"
+    "login_required": "Bitte melden Sie sich zuerst an",
+    "delete_confirm_title": "Diesen Kommentar löschen?",
+    "delete_confirm_description": "Dies kann nicht rückgängig gemacht werden. Die Antworten werden ebenfalls gelöscht."
   },
   "Common": {
     "image_load_failed": "Bild konnte nicht geladen werden",
@@ -246,7 +248,7 @@
       "private": "Privat",
       "reply_count": "{count} Antworten",
       "like_count": "{count} Likes",
-      "delete_description": "Dies kann nicht rückgängig gemacht werden. Antworten auf diesen Kommentar werden möglicherweise ebenfalls gelöscht."
+      "delete_with_replies_description": "{count, plural, one {# Antwort} other {# Antworten}} auf diesen Kommentar werden samt ihren Antworten ebenfalls gelöscht. Dies kann nicht rückgängig gemacht werden."
     },
     "dashboard": {
       "title": "Dashboard",
@@ -315,11 +317,12 @@
       "upload_file": "Datei hochladen",
       "upload_file_failed": "Hochladen fehlgeschlagen: {name}",
       "upload_file_success": "Hochgeladen: {name}",
-      "will_delete_n_files": "Wird {n} Dateien löschen",
       "compress_image": "Bild komprimieren",
       "compress_level": "Komprimierungsgrad",
       "upload_n_files_success": "{n} Datei(en) erfolgreich hochgeladen",
-      "upload_n_files_failed": "{n} Datei(en) konnten nicht hochgeladen werden"
+      "upload_n_files_failed": "{n} Datei(en) konnten nicht hochgeladen werden",
+      "batch_delete_description": "{n, plural, one {# ausgewählte Datei wird} other {# ausgewählte Dateien werden}} endgültig gelöscht. Inhalte, die darauf verweisen, werden nicht mehr korrekt angezeigt.",
+      "delete_file_description": "Dies kann nicht rückgängig gemacht werden. Inhalte, die auf diese Datei verweisen, werden nicht mehr korrekt angezeigt."
     },
     "general": "Allgemein",
     "global": {
@@ -1011,7 +1014,8 @@
     "fetch_failed": "Abrufen fehlgeschlagen",
     "confirm": "Bestätigen",
     "more": "Weitere Aktionen",
-    "operation_failed": "Vorgang fehlgeschlagen"
+    "operation_failed": "Vorgang fehlgeschlagen",
+    "delete_confirm_title": "„{name}“ löschen?"
   },
   "Metrics": {
     "comment_count": "Kommentare",

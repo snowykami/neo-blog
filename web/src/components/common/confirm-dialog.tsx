@@ -17,20 +17,28 @@ import { Button } from '@/components/ui/button'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 
 interface ConfirmDialogProps {
-  children: React.ReactNode // 触发器，作为 AlertDialogTrigger 的子元素
+  children?: React.ReactNode // 触发器，作为 AlertDialogTrigger 的子元素；受控模式下可省略
   title: React.ReactNode
   description?: React.ReactNode
   content?: React.ReactNode // 自定义中间内容（例如表单或额外说明）
   confirmLabel?: string
   cancelLabel?: string
   confirmVariant?: React.ComponentProps<typeof Button>['variant']
+  // 失败 Toast 的前缀，默认为「操作失败」
+  errorText?: string
   disabled?: boolean
   closeOnConfirm?: boolean // 默认确认成功后关闭
   // 返回 Promise 时等待其完成：成功后关闭，失败则保持打开并提示错误
   onConfirm: () => void | Promise<void>
+  // 受控模式：由下拉菜单等触发时，菜单关闭后弹窗仍需保留
+  open?: boolean
   onOpenChange?: (open: boolean) => void
 }
 
+/**
+ * 高风险、不可逆或有连带影响的操作确认（AlertDialog）；
+ * 单个对象、影响可控的就地确认请使用 Popconfirm
+ */
 export function ConfirmDialog({
   children,
   title,
@@ -39,22 +47,30 @@ export function ConfirmDialog({
   confirmLabel = '',
   cancelLabel = '',
   confirmVariant = 'destructive',
+  errorText,
   disabled = false,
   closeOnConfirm = true,
   onConfirm,
+  open: openProp,
   onOpenChange,
 }: ConfirmDialogProps) {
   const operationT = useOperationT()
   const errorMessageT = useErrorMessageT()
-  const [open, setOpen] = useState(false)
+  const [innerOpen, setInnerOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const open = openProp ?? innerOpen
+
+  const changeOpen = (v: boolean) => {
+    if (openProp === undefined)
+      setInnerOpen(v)
+    onOpenChange?.(v)
+  }
 
   const handleOpenChange = (v: boolean) => {
     // 执行中不允许关闭，避免用户误以为操作已取消
     if (loading && !v)
       return
-    setOpen(v)
-    onOpenChange?.(v)
+    changeOpen(v)
   }
 
   const handleConfirm = async () => {
@@ -65,25 +81,30 @@ export function ConfirmDialog({
       await onConfirm()
     }
     catch (error) {
-      toast.error(errorMessageT(error, operationT('operation_failed')))
+      const prefix = errorText || operationT('operation_failed')
+      const reason = errorMessageT(error)
+      toast.error(reason ? `${prefix}: ${reason}` : prefix)
       setLoading(false)
       return
     }
     setLoading(false)
-    if (closeOnConfirm) {
-      setOpen(false)
-      onOpenChange?.(false)
-    }
+    if (closeOnConfirm)
+      changeOpen(false)
   }
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
+      {children && <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>}
 
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          {description && <AlertDialogDescription>{description}</AlertDialogDescription>}
+          {description && (
+            // 描述可能包含多段内容，用 div 承载避免 p 嵌套
+            <AlertDialogDescription asChild>
+              <div className="grid gap-2 text-sm text-muted-foreground">{description}</div>
+            </AlertDialogDescription>
+          )}
         </AlertDialogHeader>
 
         {content}

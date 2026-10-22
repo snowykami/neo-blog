@@ -13,12 +13,12 @@ import {
 } from '@/api/comment'
 import { toggleLike } from '@/api/like'
 import { UserAvatar } from '@/components/common/avatar'
+import { Popconfirm } from '@/components/common/popconfirm'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
-import { useDoubleConfirm } from '@/hooks/use-double-confirm'
 import { useToLogin } from '@/hooks/use-route'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
@@ -42,7 +42,7 @@ export function CommentItem({
   comment: Comment
   ownerId?: number // 不是评论的作者ID，而是文章的作者ID
   parentComment: Comment | null
-  onCommentDelete: ({ commentId }: { commentId: number }) => void
+  onCommentDelete: ({ commentId }: { commentId: number }) => Promise<void>
   activeInput: { id: number, type: 'reply' | 'edit' } | null
   setActiveInputId: (input: { id: number, type: 'reply' | 'edit' } | null) => void
   onReplySubmitted: ({
@@ -190,16 +190,12 @@ export function CommentItem({
     onReplySubmitted({ commentContent, isPrivate })
   }
 
-  const onReplyDelete = ({ commentId: replyId }: { commentId: number }) => {
-    deleteComment({ id: replyId })
-      .then(() => {
-        toast.success(t('delete_success'))
-        setReplyCount(c => Math.max(0, c - 1))
-        setReplies(prev => prev.filter(r => r.id !== replyId))
-      })
-      .catch((error) => {
-        toast.error(`${t('delete_failed')}: ${getErrorMessage(error)}`)
-      })
+  // 失败时抛出，由删除确认气泡统一提示并保持打开
+  const onReplyDelete = async ({ commentId: replyId }: { commentId: number }) => {
+    await deleteComment({ id: replyId })
+    toast.success(t('delete_success'))
+    setReplyCount(c => Math.max(0, c - 1))
+    setReplies(prev => prev.filter(r => r.id !== replyId))
   }
 
   return (
@@ -400,54 +396,67 @@ function CommentDropdownMenu({
 }: {
   comment: Comment
   setActiveInputId: (input: { id: number, type: 'reply' | 'edit' } | null) => void
-  onCommentDelete: ({ commentId }: { commentId: number }) => void
+  onCommentDelete: ({ commentId }: { commentId: number }) => Promise<void>
 }) {
-  const { confirming: confirmingDelete, onClick: onDeleteClick } = useDoubleConfirm()
   const operationT = useOperationT()
   const t = useTranslations('Comment')
   const [open, setOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" aria-label={t('more_actions')}>
-          <Ellipsis className="w-4 h-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-1">
-        <div className="flex flex-col">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="justify-start cursor-pointer"
-            onClick={() => {
-              setActiveInputId({ id: comment.id, type: 'edit' })
-              setOpen(false)
-            }}
+    // 菜单关闭后，删除确认气泡以菜单按钮所在位置为锚点就地弹出；
+    // 锚点包在菜单 Popover 外层，避免菜单触发器取到确认气泡的 Popover 上下文
+    <Popconfirm
+      anchorOnly
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title={t('delete_confirm_title')}
+      description={t('delete_confirm_description')}
+      confirmText={operationT('delete')}
+      errorText={t('delete_failed')}
+      destructive
+      onConfirm={() => onCommentDelete({ commentId: comment.id })}
+    >
+      <span className="inline-flex">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="sm" aria-label={t('more_actions')}>
+              <Ellipsis className="w-4 h-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-auto p-1"
+            // 打开删除确认时不把焦点还给菜单按钮，焦点交给气泡
+            onCloseAutoFocus={e => confirmOpen && e.preventDefault()}
           >
-            {operationT('edit')}
-          </Button>
-          <div className="h-px bg-border my-1" />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="justify-start text-destructive"
-            onClick={(e) => {
-              // double confirm hook 控制是否需要二次确认
-              if (!confirmingDelete) {
-                e.preventDefault()
-                onDeleteClick(() => onCommentDelete({ commentId: comment.id }))
-              }
-              else {
-                onDeleteClick(() => onCommentDelete({ commentId: comment.id }))
-                setOpen(false)
-              }
-            }}
-          >
-            {confirmingDelete ? operationT('confirm_delete') : operationT('delete')}
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+            <div className="flex flex-col">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start cursor-pointer"
+                onClick={() => {
+                  setActiveInputId({ id: comment.id, type: 'edit' })
+                  setOpen(false)
+                }}
+              >
+                {operationT('edit')}
+              </Button>
+              <div className="h-px bg-border my-1" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start text-destructive"
+                onClick={() => {
+                  setOpen(false)
+                  setConfirmOpen(true)
+                }}
+              >
+                {operationT('delete')}
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </span>
+    </Popconfirm>
   )
 }

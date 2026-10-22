@@ -53,3 +53,5 @@ pnpm run dev
 - 项目使用eslint进行格式化，运行`pnpm lint`进行检查，运行`pnpm lint:fix`进行自动修复。
 
 - 在风格相似的页面或组件，可以使用相同的tailwindcss类名。
+
+- 弹窗与反馈（Toast / Alert / Dialog / AlertDialog / Popconfirm / Sheet / Drawer）的选型与文案约定见 [前端弹窗与反馈使用规范](../docs/frontend-feedback-guidelines.md)。

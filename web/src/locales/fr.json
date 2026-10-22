@@ -103,7 +103,9 @@
     "load_failed": "Échec du chargement des commentaires",
     "more_actions": "Plus d'actions",
     "view_user_profile": "Voir le profil de {name}",
-    "login_required": "Veuillez vous connecter d'abord"
+    "login_required": "Veuillez vous connecter d'abord",
+    "delete_confirm_title": "Supprimer ce commentaire ?",
+    "delete_confirm_description": "Cette action est irréversible. Ses réponses seront également supprimées."
   },
   "Common": {
     "image_load_failed": "Impossible de charger l'image",
@@ -246,7 +248,7 @@
       "private": "Privé",
       "reply_count": "{count} réponses",
       "like_count": "{count} j’aime",
-      "delete_description": "Cette action est irréversible. Les réponses à ce commentaire peuvent aussi être supprimées."
+      "delete_with_replies_description": "{count, plural, one {# réponse} other {# réponses}} à ce commentaire, ainsi que leurs propres réponses, seront également supprimées. Cette action est irréversible."
     },
     "dashboard": {
       "title": "Tableau de bord",
@@ -315,11 +317,12 @@
       "upload_file": "Télécharger un fichier",
       "upload_file_failed": "Échec du téléchargement: {name}",
       "upload_file_success": "Téléchargé: {name}",
-      "will_delete_n_files": "Supprimera {n} fichiers",
       "compress_image": "Compresser l'image",
       "compress_level": "Niveau de compression",
       "upload_n_files_success": "{n} fichier(s) téléversé(s) avec succès",
-      "upload_n_files_failed": "Échec du téléversement de {n} fichier(s)"
+      "upload_n_files_failed": "Échec du téléversement de {n} fichier(s)",
+      "batch_delete_description": "{n, plural, one {# fichier sélectionné sera supprimé} other {# fichiers sélectionnés seront supprimés}} définitivement. Les contenus qui y font référence ne s’afficheront plus correctement.",
+      "delete_file_description": "Cette action est irréversible. Les contenus qui font référence à ce fichier ne s’afficheront plus correctement."
     },
     "general": "Général",
     "global": {
@@ -1011,7 +1014,8 @@
     "fetch_failed": "Échec de la récupération",
     "confirm": "Confirmer",
     "more": "Plus d'actions",
-    "operation_failed": "L'opération a échoué"
+    "operation_failed": "L'opération a échoué",
+    "delete_confirm_title": "Supprimer « {name} » ?"
   },
   "Metrics": {
     "comment_count": "Commentaires",

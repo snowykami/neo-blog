@@ -130,17 +130,13 @@ export default function GlobalPage() {
     }
   }
 
+  // 删除失败时抛出，由 ConfirmDialog 统一提示并保持打开
   const handleDelete = async (key: string) => {
-    try {
-      await deleteKV(key)
-      toast.success(operationT('delete_success'))
-      if (selectedKey === key)
-        handleNew()
-      await fetchItems()
-    }
-    catch (error) {
-      toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`)
-    }
+    await deleteKV(key)
+    toast.success(operationT('delete_success'))
+    if (selectedKey === key)
+      handleNew()
+    await fetchItems()
   }
 
   return (
@@ -188,11 +184,12 @@ export default function GlobalPage() {
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="outline" onClick={() => setSelectedKey(item.key)}>{operationT('edit')}</Button>
-                    {/* 删除配置前需二次确认 */}
+                    {/* 全局配置影响全站运行，删除使用 AlertDialog 确认 */}
                     <ConfirmDialog
                       title={operationT('confirm_delete')}
                       description={t('delete_description', { key: item.key })}
                       confirmLabel={operationT('delete')}
+                      errorText={operationT('delete_failed')}
                       confirmVariant="destructive"
                       onConfirm={() => handleDelete(item.key)}
                     >

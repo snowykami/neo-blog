@@ -103,7 +103,9 @@
     "load_failed": "評論未能載入",
     "more_actions": "他事",
     "view_user_profile": "觀 {name} 之居",
-    "login_required": "請先登錄再操作"
+    "login_required": "請先登錄再操作",
+    "delete_confirm_title": "刪此言乎？",
+    "delete_confirm_description": "刪則不可復，其下諸答亦併去之。"
   },
   "Common": {
     "image_load_failed": "图不得见",
@@ -246,7 +248,7 @@
       "private": "私",
       "reply_count": "答 {count}",
       "like_count": "讚 {count}",
-      "delete_description": "既刪不可復，其下之答或併去之。"
+      "delete_with_replies_description": "此言之下答 {count} 則及其續答，將併刪之，不可復也。"
     },
     "dashboard": {
       "title": "儀表盤",
@@ -317,9 +319,10 @@
       "upload_file": "上傳檔案",
       "upload_file_failed": "檔案 {name} 上傳失敗",
       "upload_file_success": "檔案 {name} 上傳成功",
-      "will_delete_n_files": "將刪除 {n} 個檔案",
       "upload_n_files_success": "已上{n}卷",
-      "upload_n_files_failed": "{n}卷未能上"
+      "upload_n_files_failed": "{n}卷未能上",
+      "batch_delete_description": "將盡刪所選檔案 {n} 個，引之者將不得見。",
+      "delete_file_description": "刪則不可復，引此檔者將不得見。"
     },
     "general": "常規",
     "global": {
@@ -1044,7 +1047,8 @@
     "fetch_failed": "獲取失敗",
     "confirm": "確",
     "more": "餘事",
-    "operation_failed": "事未成"
+    "operation_failed": "事未成",
+    "delete_confirm_title": "刪「{name}」乎？"
   },
   "Metrics": {
     "comment_count": "評論數",

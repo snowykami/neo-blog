@@ -103,7 +103,9 @@
     "load_failed": "Не удалось загрузить комментарии",
     "more_actions": "Другие действия",
     "view_user_profile": "Открыть профиль {name}",
-    "login_required": "Пожалуйста, войдите сначала"
+    "login_required": "Пожалуйста, войдите сначала",
+    "delete_confirm_title": "Удалить этот комментарий?",
+    "delete_confirm_description": "Это действие нельзя отменить. Ответы на комментарий тоже будут удалены."
   },
   "Common": {
     "image_load_failed": "Не удалось загрузить изображение",
@@ -246,7 +248,7 @@
       "private": "Личное",
       "reply_count": "Ответов: {count}",
       "like_count": "Лайков: {count}",
-      "delete_description": "Это действие нельзя отменить. Ответы на этот комментарий также могут быть удалены."
+      "delete_with_replies_description": "Ответы на этот комментарий ({count}) вместе с их ответами тоже будут удалены. Это действие нельзя отменить."
     },
     "dashboard": {
       "title": "Панель управления",
@@ -315,11 +317,12 @@
       "upload_file": "Upload file",
       "upload_file_failed": "Upload failed: {name}",
       "upload_file_success": "Uploaded: {name}",
-      "will_delete_n_files": "Will delete {n} files",
       "compress_image": "Compress Image",
       "compress_level": "Compression Level",
       "upload_n_files_success": "Успешно загружено файлов: {n}",
-      "upload_n_files_failed": "Не удалось загрузить файлов: {n}"
+      "upload_n_files_failed": "Не удалось загрузить файлов: {n}",
+      "batch_delete_description": "Выбранные файлы ({n}) будут удалены безвозвратно. Контент, который на них ссылается, перестанет отображаться корректно.",
+      "delete_file_description": "Это действие нельзя отменить. Контент, который ссылается на этот файл, перестанет отображаться корректно."
     },
     "general": "Общее",
     "global": {
@@ -1011,7 +1014,8 @@
     "fetch_failed": "Fetch failed",
     "confirm": "Подтвердить",
     "more": "Другие действия",
-    "operation_failed": "Не удалось выполнить операцию"
+    "operation_failed": "Не удалось выполнить операцию",
+    "delete_confirm_title": "Удалить «{name}»?"
   },
   "Metrics": {
     "comment_count": "Комментарии",

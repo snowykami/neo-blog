@@ -18,6 +18,7 @@ import { deletePost, listPosts, updatePost } from '@/api/post'
 import { HoverPopover } from '@/components/common/hover-popover'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
+import { Popconfirm } from '@/components/common/popconfirm'
 import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,7 +36,6 @@ import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/auth-context'
 import { useDevice } from '@/contexts/device-context'
 import { useDebouncedState } from '@/hooks/use-debounce'
-import { useDoubleConfirm } from '@/hooks/use-double-confirm'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useToEditPost, useToPost } from '@/hooks/use-route'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
@@ -433,12 +433,7 @@ function PostDropdownMenu({
   const clickToPostEdit = useToEditPost()
   const clickToPost = useToPost()
   const aiSummaryLabel = useAISummaryMenuLabel(post)
-  const {
-    confirming: confirmingDelete,
-    onClick: onDeleteClick,
-    onBlur: onDeleteBlur,
-  } = useDoubleConfirm()
-  const [open, setOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const handleTogglePrivate = () => {
     // 只提交需要修改的字段：列表里的正文是截断后的摘要，整篇提交会覆盖原文
     updatePost({ post: { id: post.id, isPrivate: !post.isPrivate } })
@@ -453,34 +448,39 @@ function PostDropdownMenu({
       })
   }
 
-  const handleDelete = () => {
-    deletePost({ id: post.id })
-      .then(() => {
-        toast.success(operationT('delete_success'))
-        onPostDelete({ postId: post.id })
-      })
-      .catch((error: BaseResponseError) => {
-        toast.error(
-          `${operationT('delete_failed')}: ${getErrorMessage(error)}`,
-        )
-      })
+  // 失败时抛出，由 Popconfirm 统一提示并保持打开
+  const handleDelete = async () => {
+    await deletePost({ id: post.id })
+    toast.success(operationT('delete_success'))
+    onPostDelete({ postId: post.id })
   }
 
   return (
-    <DropdownMenu
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o)
-        if (!o)
-          onDeleteBlur()
-      }}
-    >
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
-          <Ellipsis className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-36" align="end">
+    <DropdownMenu>
+      {/* 菜单项关闭菜单后，删除确认气泡以菜单按钮为锚点就地弹出 */}
+      <Popconfirm
+        anchorOnly
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={post.title ? operationT('delete_confirm_title', { name: post.title }) : operationT('confirm_delete')}
+        description={operationT('delete_description')}
+        confirmText={operationT('delete')}
+        errorText={operationT('delete_failed')}
+        destructive
+        onConfirm={handleDelete}
+      >
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
+            <Ellipsis className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+      </Popconfirm>
+      <DropdownMenuContent
+        className="min-w-36"
+        align="end"
+        // 打开删除确认时不把焦点还给菜单按钮，焦点交给气泡
+        onCloseAutoFocus={e => confirmOpen && e.preventDefault()}
+      >
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={() => clickToPostEdit({ post })} className="cursor-pointer">
             {operationT('edit')}
@@ -502,18 +502,10 @@ function PostDropdownMenu({
             {operationT(post.isPrivate ? 'set_public' : 'set_private')}
           </DropdownMenuItem>
           <DropdownMenuItem
-            onSelect={(e) => {
-              if (!confirmingDelete) {
-                e.preventDefault()
-                onDeleteClick(() => handleDelete())
-              }
-              else {
-                onDeleteClick(() => handleDelete())
-              }
-            }}
+            onSelect={() => setConfirmOpen(true)}
             className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer"
           >
-            {confirmingDelete ? operationT('confirm_delete') : operationT('delete')}
+            {operationT('delete')}
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

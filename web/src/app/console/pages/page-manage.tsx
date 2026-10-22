@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { deletePage, listPages, updatePage } from '@/api/page'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
+import { Popconfirm } from '@/components/common/popconfirm'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,7 +22,6 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/contexts/auth-context'
 import { useDebouncedState } from '@/hooks/use-debounce'
-import { useDoubleConfirm } from '@/hooks/use-double-confirm'
 import { useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
 import { getErrorMessage } from '@/utils/common/error'
@@ -191,7 +191,7 @@ function PageDropdownMenu({
   setMetaDialogOpen: (open: boolean) => void
 }) {
   const operationT = useOperationT()
-  const { confirming, onBlur, onClick } = useDoubleConfirm()
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const togglePrivate = () => {
     updatePage({ page: { id: page.id, isPrivate: !page.isPrivate } })
@@ -202,37 +202,46 @@ function PageDropdownMenu({
       .catch((error: BaseResponseError) => toast.error(`${operationT('update_failed')}: ${getErrorMessage(error)}`))
   }
 
-  const handleDelete = () => {
-    deletePage({ id: page.id })
-      .then(() => {
-        toast.success(operationT('delete_success'))
-        onPageDelete({ pageId: page.id })
-      })
-      .catch((error: BaseResponseError) => toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`))
+  // 失败时抛出，由 Popconfirm 统一提示并保持打开
+  const handleDelete = async () => {
+    await deletePage({ id: page.id })
+    toast.success(operationT('delete_success'))
+    onPageDelete({ pageId: page.id })
   }
 
   return (
-    <DropdownMenu onOpenChange={open => !open && onBlur()}>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
-          <Ellipsis className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-36" align="end">
+    <DropdownMenu>
+      {/* 菜单项关闭菜单后，删除确认气泡以菜单按钮为锚点就地弹出 */}
+      <Popconfirm
+        anchorOnly
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={page.title ? operationT('delete_confirm_title', { name: page.title }) : operationT('confirm_delete')}
+        description={operationT('delete_description')}
+        confirmText={operationT('delete')}
+        errorText={operationT('delete_failed')}
+        destructive
+        onConfirm={handleDelete}
+      >
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
+            <Ellipsis className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+      </Popconfirm>
+      <DropdownMenuContent
+        className="min-w-36"
+        align="end"
+        // 打开删除确认时不把焦点还给菜单按钮，焦点交给气泡
+        onCloseAutoFocus={e => confirmOpen && e.preventDefault()}
+      >
         <DropdownMenuItem asChild><a href={getPageEditUrl(page)}>{operationT('edit')}</a></DropdownMenuItem>
         <DropdownMenuItem onClick={() => setMetaDialogOpen(true)}>{operationT('setting')}</DropdownMenuItem>
         <DropdownMenuItem asChild><a href={getPageUrl(page)} target="_blank" rel="noreferrer">{operationT('view')}</a></DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={togglePrivate}>{operationT(page.isPrivate ? 'set_public' : 'set_private')}</DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={(event) => {
-            if (!confirming)
-              event.preventDefault()
-            onClick(handleDelete)
-          }}
-          className="text-destructive"
-        >
-          {confirming ? operationT('confirm_delete') : operationT('delete')}
+        <DropdownMenuItem onSelect={() => setConfirmOpen(true)} className="text-destructive">
+          {operationT('delete')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

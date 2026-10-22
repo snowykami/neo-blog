@@ -1,6 +1,5 @@
 'use client'
 import type { FileModel } from '@/models/file'
-import type { BaseResponseError } from '@/models/resp'
 import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
 import { useAsyncTask } from '@snowykami/use-async-task'
 import { Ellipsis, LinkIcon } from 'lucide-react'
@@ -20,6 +19,7 @@ import { FileMimeIcon } from '@/components/common/file-icon'
 import { FileUploadDialogWithButton } from '@/components/common/file-uploader'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
+import { Popconfirm } from '@/components/common/popconfirm'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -34,13 +34,11 @@ import { Separator } from '@/components/ui/separator'
 import { useDevice } from '@/contexts/device-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useDebouncedState } from '@/hooks/use-debounce'
-import { useDoubleConfirm } from '@/hooks/use-double-confirm'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import copyToClipboard from '@/lib/clipboard'
 import { ArrangementMode, OrderBy } from '@/models/common'
 import { getFileUri } from '@/utils/client/file'
 import { formatDataSize } from '@/utils/common/datasize'
-import { getErrorMessage } from '@/utils/common/error'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
@@ -195,15 +193,11 @@ export function FileManage() {
     setRefreshKey(k => k + 1)
   }, [setPage, setOrderBy, setDesc])
 
-  const handleBatchDelete = () => {
-    batchDeleteFiles({ ids: Array.from(selectedFileIds) })
-      .then(() => {
-        toast.success(operationT('delete_success'))
-        Array.from(selectedFileIds).forEach(id => onFileDelete({ fileId: id }))
-      })
-      .catch((error: BaseResponseError) => {
-        toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`)
-      })
+  // 失败时抛出，由 ConfirmDialog 统一提示并保持打开
+  const handleBatchDelete = async () => {
+    await batchDeleteFiles({ ids: Array.from(selectedFileIds) })
+    toast.success(operationT('delete_success'))
+    Array.from(selectedFileIds).forEach(id => onFileDelete({ fileId: id }))
   }
 
   return (
@@ -216,15 +210,15 @@ export function FileManage() {
             aria-label={operationT('select_all')}
             title={operationT('select_all')}
           />
+          {/* 批量删除影响多个文件，使用 AlertDialog 并说明后果 */}
           <ConfirmDialog
-            description={t('will_delete_n_files', { n: selectedFileIds.size })}
             title={operationT('batch_delete')}
-            confirmLabel={operationT('confirm_delete')}
-            cancelLabel={operationT('cancel')}
+            description={t('batch_delete_description', { n: selectedFileIds.size })}
+            confirmLabel={operationT('delete')}
+            errorText={operationT('delete_failed')}
             confirmVariant="destructive"
             disabled={selectedFileIds.size === 0}
             onConfirm={handleBatchDelete}
-            closeOnConfirm={true}
           >
             <Button
               variant="destructive"
@@ -445,24 +439,17 @@ function FileDropdownMenu({
   file: FileModel
   onFileDelete: ({ fileId }: { fileId: number }) => void
 }) {
+  const t = useTranslations('Console.files')
   const operationT = useOperationT()
-  const {
-    confirming: confirmingDelete,
-    onClick: onDeleteClick,
-    onBlur: onDeleteBlur,
-  } = useDoubleConfirm()
   const [open, setOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const { siteInfo } = useSiteInfo()
 
-  const handleDelete = () => {
-    deleteFile({ id: file.id })
-      .then(() => {
-        toast.success(operationT('delete_success'))
-        onFileDelete({ fileId: file.id })
-      })
-      .catch((error: BaseResponseError) => {
-        toast.error(`${operationT('delete_failed')}: ${getErrorMessage(error)}`)
-      })
+  // 失败时抛出，由 Popconfirm 统一提示并保持打开
+  const handleDelete = async () => {
+    await deleteFile({ id: file.id })
+    toast.success(operationT('delete_success'))
+    onFileDelete({ fileId: file.id })
   }
 
   const handleCopyLink = () => {
@@ -479,20 +466,31 @@ function FileDropdownMenu({
   }
 
   return (
-    <DropdownMenu
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o)
-        if (!o)
-          onDeleteBlur()
-      }}
-    >
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
-          <Ellipsis className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-36" align="end">
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      {/* 菜单项关闭菜单后，删除确认气泡以菜单按钮为锚点就地弹出 */}
+      <Popconfirm
+        anchorOnly
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={operationT('delete_confirm_title', { name: file.name })}
+        description={t('delete_file_description')}
+        confirmText={operationT('delete')}
+        errorText={operationT('delete_failed')}
+        destructive
+        onConfirm={handleDelete}
+      >
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
+            <Ellipsis className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+      </Popconfirm>
+      <DropdownMenuContent
+        className="min-w-36"
+        align="end"
+        // 打开删除确认时不把焦点还给菜单按钮，焦点交给气泡
+        onCloseAutoFocus={e => confirmOpen && e.preventDefault()}
+      >
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={handleCopyLink} className="cursor-pointer">
             {operationT('copy_link')}
@@ -501,18 +499,10 @@ function FileDropdownMenu({
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem
-            onSelect={(e) => {
-              if (!confirmingDelete) {
-                e.preventDefault()
-                onDeleteClick(() => handleDelete())
-              }
-              else {
-                onDeleteClick(() => handleDelete())
-              }
-            }}
+            onSelect={() => setConfirmOpen(true)}
             className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer"
           >
-            {confirmingDelete ? operationT('confirm_delete') : operationT('delete')}
+            {operationT('delete')}
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

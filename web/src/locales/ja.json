@@ -103,7 +103,9 @@
     "load_failed": "コメントの読み込みに失敗しました",
     "more_actions": "その他の操作",
     "view_user_profile": "{name} のプロフィールを見る",
-    "login_required": "操作するにはログインしてください"
+    "login_required": "操作するにはログインしてください",
+    "delete_confirm_title": "このコメントを削除しますか？",
+    "delete_confirm_description": "削除すると元に戻せません。返信もあわせて削除されます。"
   },
   "Common": {
     "image_load_failed": "画像を読み込めませんでした",
@@ -246,7 +248,7 @@
       "private": "非公開",
       "reply_count": "返信 {count} 件",
       "like_count": "いいね {count}",
-      "delete_description": "削除すると元に戻せません。このコメントへの返信も削除される場合があります。"
+      "delete_with_replies_description": "このコメントへの {count} 件の返信とその返信もあわせて削除されます。この操作は元に戻せません。"
     },
     "dashboard": {
       "title": "ダッシュボード",
@@ -315,11 +317,12 @@
       "upload_file": "ファイルをアップロード",
       "upload_file_failed": "ファイル {name} のアップロードに失敗しました",
       "upload_file_success": "ファイル {name} をアップロードしました",
-      "will_delete_n_files": "{n} 個のファイルを削除します",
       "compress_image": "画像を圧縮",
       "compress_level": "圧縮レベル",
       "upload_n_files_success": "{n} 件のファイルをアップロードしました",
-      "upload_n_files_failed": "{n} 件のファイルのアップロードに失敗しました"
+      "upload_n_files_failed": "{n} 件のファイルのアップロードに失敗しました",
+      "batch_delete_description": "選択した {n} 件のファイルを完全に削除します。これらを参照しているコンテンツは正しく表示されなくなります。",
+      "delete_file_description": "削除すると元に戻せません。このファイルを参照しているコンテンツは正しく表示されなくなります。"
     },
     "general": "一般",
     "global": {
@@ -1011,7 +1014,8 @@
     "fetch_failed": "取得に失敗しました",
     "confirm": "確認",
     "more": "その他の操作",
-    "operation_failed": "操作に失敗しました"
+    "operation_failed": "操作に失敗しました",
+    "delete_confirm_title": "「{name}」を削除しますか？"
   },
   "Metrics": {
     "comment_count": "コメント数",

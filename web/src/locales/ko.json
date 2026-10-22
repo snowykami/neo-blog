@@ -103,7 +103,9 @@
     "load_failed": "댓글을 불러오지 못했습니다",
     "more_actions": "더 보기",
     "view_user_profile": "{name}님의 프로필 보기",
-    "login_required": "먼저 로그인하세요"
+    "login_required": "먼저 로그인하세요",
+    "delete_confirm_title": "이 댓글을 삭제할까요?",
+    "delete_confirm_description": "삭제하면 되돌릴 수 없으며, 달린 답글도 함께 삭제됩니다."
   },
   "Common": {
     "image_load_failed": "이미지를 불러오지 못했습니다",
@@ -246,7 +248,7 @@
       "private": "비공개",
       "reply_count": "답글 {count}개",
       "like_count": "좋아요 {count}",
-      "delete_description": "삭제하면 되돌릴 수 없으며, 이 댓글의 답글도 함께 삭제될 수 있습니다."
+      "delete_with_replies_description": "이 댓글의 답글 {count}개와 그 하위 답글도 함께 삭제되며, 되돌릴 수 없습니다."
     },
     "dashboard": {
       "title": "대시보드",
@@ -315,11 +317,12 @@
       "upload_file": "Upload file",
       "upload_file_failed": "Upload failed: {name}",
       "upload_file_success": "Uploaded: {name}",
-      "will_delete_n_files": "Will delete {n} files",
       "compress_image": "Compress Image",
       "compress_level": "Compression Level",
       "upload_n_files_success": "{n}개 파일 업로드 성공",
-      "upload_n_files_failed": "{n}개 파일 업로드 실패"
+      "upload_n_files_failed": "{n}개 파일 업로드 실패",
+      "batch_delete_description": "선택한 파일 {n}개가 영구 삭제됩니다. 이 파일을 참조하는 콘텐츠는 정상적으로 표시되지 않습니다.",
+      "delete_file_description": "삭제하면 되돌릴 수 없습니다. 이 파일을 참조하는 콘텐츠는 정상적으로 표시되지 않습니다."
     },
     "general": "일반",
     "global": {
@@ -1011,7 +1014,8 @@
     "fetch_failed": "Fetch failed",
     "confirm": "확인",
     "more": "더 많은 작업",
-    "operation_failed": "작업에 실패했습니다"
+    "operation_failed": "작업에 실패했습니다",
+    "delete_confirm_title": "\"{name}\"을(를) 삭제할까요?"
   },
   "Metrics": {
     "comment_count": "댓글",

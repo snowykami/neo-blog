@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteLabel, getLabels } from '@/api/label'
-import { DeleteButtonWithConfirmDialog } from '@/components/common/delete-button-with-confirm-dialog'
+import { DeleteButtonWithPopconfirm } from '@/components/common/delete-button-with-popconfirm'
 import { CreateOrUpdateLabelDialogWithButton } from '@/components/console/common/create-label-and-category'
 import { Input } from '@/components/ui/input'
 import { useOperationT } from '@/hooks/use-translations'
@@ -57,13 +57,10 @@ export function LabelManage() {
 
 function LabelItem({ label, onChange }: { label: Label, onChange: () => void }) {
   const operationT = useOperationT()
-  const handleDelete = () => {
-    deleteLabel({ id: label.id })
-      .then(() => {
-        toast.success(operationT('delete_success'))
-        onChange()
-      })
-      .catch(() => toast.error(operationT('delete_failed')))
+  const handleDelete = async () => {
+    await deleteLabel({ id: label.id })
+    toast.success(operationT('delete_success'))
+    onChange()
   }
   return (
     <div
@@ -83,7 +80,7 @@ function LabelItem({ label, onChange }: { label: Label, onChange: () => void }) 
           label={label}
           onLabelCreated={onChange}
         />
-        <DeleteButtonWithConfirmDialog onDelete={handleDelete} />
+        <DeleteButtonWithPopconfirm name={label.name} onDelete={handleDelete} />
       </div>
     </div>
   )
