@@ -5,8 +5,9 @@ import { useTranslations } from 'next-intl'
 import { parseAsInteger, useQueryState } from 'nuqs'
 import { useEffect, useState } from 'react'
 import { listPosts } from '@/api/post'
-import { BlogCardGrid } from '@/components/blog-home/blog-home-card'
+import { PostList } from '@/components/blog-home/post-list'
 import { PaginationController } from '@/components/common/pagination'
+import { SectionTitle } from '@/components/layout/site-shell'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { OrderBy } from '@/models/common'
 
@@ -24,10 +25,13 @@ export function UserPosts({ userId }: { userId: number }) {
   const [posts, setPosts] = useState<Post[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setLoadError(false)
     listPosts({ userId, page, size: pageSize, orderBy: OrderBy.CreatedAt, desc: true })
       .then((res) => {
         if (cancelled)
@@ -39,6 +43,7 @@ export function UserPosts({ userId }: { userId: number }) {
         if (!cancelled) {
           setPosts([])
           setTotal(0)
+          setLoadError(true)
         }
       })
       .finally(() => {
@@ -48,18 +53,25 @@ export function UserPosts({ userId }: { userId: number }) {
     return () => {
       cancelled = true
     }
-  }, [userId, page, pageSize])
+  }, [userId, page, pageSize, reloadKey])
 
   return (
-    <section className="grid gap-4 py-8">
-      <h2 className="text-2xl font-bold">
+    <section className="grid gap-4">
+      <SectionTitle className="mx-4 text-xl md:mx-2 md:text-2xl">
         {t('posts')}
-        {total > 0 && <span className="ml-2 text-lg font-normal text-muted-foreground">{`(${total})`}</span>}
-      </h2>
-      <BlogCardGrid posts={posts} showPrivate={true} isLoading={loading} />
+        {total > 0 && <span className="ml-2 text-base font-medium text-foreground/50 tabular-nums">{total}</span>}
+      </SectionTitle>
+      <PostList
+        posts={posts}
+        showPrivate={true}
+        isLoading={loading}
+        skeletonCount={pageSize}
+        error={loadError}
+        onRetry={() => setReloadKey(k => k + 1)}
+      />
       {total > 0 && (
         <PaginationController
-          className="pt-4 flex justify-center"
+          className="flex justify-center pt-2"
           pageSize={pageSize}
           initialPage={page}
           total={total}

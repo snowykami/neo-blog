@@ -11,9 +11,11 @@ type ThemeMode = 'light' | 'dark' | 'system'
 export function ThemeModeCycleButton({
   mode,
   setMode,
+  className,
 }: {
   mode: ThemeMode
   setMode: (m: ThemeMode) => void
+  className?: string
 }) {
   const t = useTranslations('ThemeMode')
   const nextMode = (mode: ThemeMode): ThemeMode => {
@@ -23,36 +25,17 @@ export function ThemeModeCycleButton({
       return 'system'
     return 'light'
   }
-  const icon
-    = mode === 'light'
-      ? (
-          <Sun className="w-6 h-6" />
-        )
-      : mode === 'dark'
-        ? (
-            <Moon className="w-6 h-6" />
-          )
-        : (
-            <EclipseIcon className="w-6 h-6" />
-          )
+  const Icon = mode === 'light' ? Sun : mode === 'dark' ? Moon : EclipseIcon
   return (
-    <div
-      className="flex items-center justify-center"
+    <button
+      type="button"
+      className={cn('inline-flex items-center justify-center', className)}
       onClick={() => setMode(nextMode(mode))}
       title={t(`${mode}_mode`)}
       aria-label={t(`${mode}_mode`)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          // 阻止空格键默认的页面滚动
-          e.preventDefault()
-          setMode(nextMode(mode))
-        }
-      }}
     >
-      {icon}
-    </div>
+      <Icon aria-hidden className="size-5" />
+    </button>
   )
 }
 
@@ -75,7 +58,7 @@ export function ThemeModeSegmented(
     { value: 'dark', icon: <Moon className="w-4 h-4" />, label: t('dark_mode') },
   ]
   const activeIndex = modes.findIndex(m => m.value === mode)
-  const baseCls = 'relative inline-flex bg-muted rounded-full p-1 gap-1 overflow-hidden'
+  const baseCls = 'relative inline-flex gap-1 overflow-hidden rounded-lg bg-muted p-1'
 
   return (
     <div className={cn('theme-mode-segmented-wrapper', className)} style={style} {...rest}>
@@ -84,7 +67,7 @@ export function ThemeModeSegmented(
         <motion.div
           layout
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          className="absolute w-12 h-8 rounded-full bg-white/70 shadow-sm z-1 top-1"
+          className="absolute top-1 z-1 h-8 w-12 rounded-md bg-card shadow-sm"
           style={{
             left: `calc(0.25rem + ${activeIndex} * (3rem + 0.25rem))`,
           }}
@@ -93,7 +76,7 @@ export function ThemeModeSegmented(
           <button
             key={m.value}
             className={cn(
-              'relative flex items-center justify-center w-12 h-8 rounded-full text-sm font-medium transition-all z-10',
+              'relative z-10 flex h-8 w-12 items-center justify-center rounded-md text-sm font-medium transition-colors',
               mode === m.value ? 'text-primary' : 'text-muted-foreground',
             )}
             onClick={() => setMode(m.value)}

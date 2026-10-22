@@ -58,7 +58,9 @@
     "clear_filter": "फ़िल्टर हटाएँ",
     "no_posts": "अभी कोई लेख नहीं",
     "no_posts_found": "कोई लेख नहीं मिला",
-    "no_public_posts_found": "कोई सार्वजनिक लेख नहीं मिला"
+    "no_public_posts_found": "कोई सार्वजनिक लेख नहीं मिला",
+    "load_failed": "पोस्ट लोड नहीं हो सकीं",
+    "retry": "पुनः प्रयास करें"
   },
   "Captcha": {
     "doing": "जांच रहे हैं कि आप इंसान हैं...",
@@ -135,7 +137,14 @@
     "default": "डिफ़ॉल्ट",
     "private": "निजी",
     "pinned": "Pinned",
-    "table_of_contents": "विषय सूची"
+    "table_of_contents": "विषय सूची",
+    "skip_to_content": "मुख्य सामग्री पर जाएँ",
+    "uncategorized": "अवर्गीकृत",
+    "word_count": "{count} वर्ण",
+    "reading_time": "{count} मिनट",
+    "show_more": "और दिखाएँ",
+    "show_less": "कम दिखाएँ",
+    "back_to_top": "ऊपर जाएँ"
   },
   "Components": {
     "image_cropper": {
@@ -761,7 +770,8 @@
     "privacy_policy": "गोपनीयता नीति",
     "profile": "प्रोफ़ाइल",
     "random": "यादृच्छिक",
-    "category": "श्रेणियाँ"
+    "category": "श्रेणियाँ",
+    "rss": "RSS फ़ीड"
   },
   "State": {
     "private": "निजी",
@@ -792,7 +802,9 @@
     "play_mode_repeat-one": "एक दोहराएँ",
     "play_mode_shuffle": "शफ़ल",
     "close_search": "खोज बंद करें",
-    "open_search": "खोज खोलें"
+    "open_search": "खोज खोलें",
+    "no_matching_tracks": "कोई मेल खाता ट्रैक नहीं",
+    "no_tracks": "कोई ट्रैक उपलब्ध नहीं"
   },
   "Response": {
     "error": {
@@ -871,7 +883,11 @@
     "gender_female": "महिला",
     "gender_other": "अन्य",
     "posts": "पोस्ट",
-    "user_not_found": "उपयोगकर्ता नहीं मिला"
+    "user_not_found": "उपयोगकर्ता नहीं मिला",
+    "gender": "लिंग",
+    "email": "ईमेल",
+    "role": "भूमिका",
+    "location": "स्थान"
   },
   "ThemeMode": {
     "light_mode": "लाइट मोड",

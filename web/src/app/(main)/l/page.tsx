@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { getLabels } from '@/api/label'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import BlogSidebar from '@/components/blog-sidebar'
+import { BlogSidebarAbout, BlogSidebarHotPosts } from '@/components/blog-sidebar/blog-sidebar-card'
+import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import { getLabelUrl, mainPath } from '@/utils/common/route'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,29 +17,33 @@ export default async function LabelPage() {
   const t = await getTranslations()
 
   return (
-    <div className="py-10">
-      <h1 className="text-3xl font-bold mb-6">{t('Route.label')}</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Common.labels_cloud')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            {labels.map(label => (
-              <Link key={label.id} href={getLabelUrl(label)}>
-                <Badge variant="outline" className="text-sm cursor-pointer hover:bg-primary/10">
-                  {label.name}
-                  {typeof label.postCount === 'number' && (
-                    <span className="ml-1 text-muted-foreground">
-                      {label.postCount}
-                    </span>
-                  )}
-                </Badge>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <SiteShell
+      sidebar={<BlogSidebar cards={[<BlogSidebarAbout key="about" />, <BlogSidebarHotPosts key="hot-posts" />]} />}
+    >
+      <SectionTitle as="h1" className="mx-4 text-xl md:mx-2 md:text-2xl">
+        {t('Route.label')}
+        {labels.length > 0 && <span className="ml-2 text-base font-medium text-foreground/50 tabular-nums">{labels.length}</span>}
+      </SectionTitle>
+      <div className="rounded-2xl bg-card p-4 md:p-6">
+        {labels.length === 0
+          ? <p className="py-10 text-center text-foreground/50">{t('Archive.empty')}</p>
+          : (
+              <div className="flex flex-wrap gap-2">
+                {labels.map(label => (
+                  <Link
+                    key={label.id}
+                    href={getLabelUrl(label)}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-secondary px-3 text-sm text-secondary-foreground transition-[color,background-color,transform] duration-150 hover:bg-primary/15 hover:text-primary active:scale-[.97]"
+                  >
+                    {label.name}
+                    {typeof label.postCount === 'number' && (
+                      <span className="text-xs tabular-nums opacity-60">{label.postCount}</span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            )}
+      </div>
+    </SiteShell>
   )
 }

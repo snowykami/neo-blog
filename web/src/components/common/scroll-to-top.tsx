@@ -1,6 +1,7 @@
 'use client'
 
 import { ArrowUp } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import React, { useEffect, useRef, useState } from 'react'
 
 export default function ScrollToTopButton({
@@ -20,6 +21,7 @@ export default function ScrollToTopButton({
   const [progress, setProgress] = useState(0) // 0..1
   const rafRef = useRef<number | null>(null)
   const [mounted, setMounted] = useState(false)
+  const t = useTranslations('Common')
 
   useEffect(() => {
     setMounted(true)
@@ -70,11 +72,12 @@ export default function ScrollToTopButton({
     <div className={wrapperClass} aria-hidden={!visible}>
       <button
         onClick={handleClick}
-        aria-label="Back to top"
-        // 白色背景 + 显眼的主色图标/圆环
-        className={`flex items-center justify-center rounded-full shadow-lg 
-          transition-opacity duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
-           bg-white text-primary border border-gray-200 dark:bg-gray-800 dark:border-gray-700 ${className}`}
+        type="button"
+        aria-label={t('back_to_top')}
+        title={t('back_to_top')}
+        tabIndex={visible ? 0 : -1}
+        // 卡片底色 + 主色图标 / 进度圆环
+        className={`relative flex items-center justify-center rounded-full border bg-card text-primary shadow-lg transition-[opacity,transform] duration-150 active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${className}`}
         style={{
           width: size,
           height: size,
@@ -94,7 +97,7 @@ export default function ScrollToTopButton({
                 <g transform={`translate(${size / 2}, ${size / 2})`}>
                   <circle
                     r={r}
-                    stroke="rgba(0,0,0,0.06)"
+                    stroke="color-mix(in oklab, currentColor 12%, transparent)"
                     strokeWidth={stroke}
                     fill="transparent"
                     strokeLinecap="round"

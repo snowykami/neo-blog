@@ -21,7 +21,7 @@ import { getCurrentLyricIndex, getWordProgress } from '@/utils/music-lyric'
 import { Input } from '../ui/input'
 import LyricScroll from './music-lyric-scroll'
 
-const BUTTON_ANIMATION_CLASSNAME = 'hover:scale-115 transition-all duration-400 hover:text-primary'
+const BUTTON_ANIMATION_CLASSNAME = 'hover:scale-115 transition-[color,transform] duration-150 hover:text-primary'
 const DEFAULT_MUSIC_THEME_RGB = '59 130 246'
 const ALBUM_TRANSITION_DURATION_MS = 500
 
@@ -405,10 +405,10 @@ export function MusicPlayer({ playlistUrl }: { playlistUrl: string }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <div
-          className="fixed right-4 bottom-4 z-50 rounded-full shadow-lg
-        flex items-center justify-center cursor-pointer
-        hover:scale-105 transition-all duration-800"
+        <button
+          type="button"
+          aria-label={t('floating_player')}
+          className="fixed right-4 bottom-4 z-50 flex cursor-pointer items-center justify-center rounded-full shadow-lg transition-transform duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <CrossfadeAlbumImage
             src={currentTrack.albumPic}
@@ -417,14 +417,12 @@ export function MusicPlayer({ playlistUrl }: { playlistUrl: string }) {
             sizes="(min-width: 1024px) 64px, 48px"
             style={{ transform: `rotate(${rotateDeg}deg)` }}
             className="rounded-full h-12 w-12 lg:h-16 lg:w-16"
-            imageClassName="object-cover rounded-full border-4 border-gray-200 dark:border-slate-700"
+            imageClassName="object-cover rounded-full border-4 border-card"
           />
-        </div>
+        </button>
       </PopoverTrigger>
       <PopoverContent
-        className="fixed -right-8 bottom-0 w-80 p-3 z-1000 rounded-xl shadow-lg
-       bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border
-        border-gray-200 dark:border-slate-700 overflow-hidden"
+        className="fixed -right-8 bottom-0 z-1000 w-80 overflow-hidden rounded-xl border bg-popover p-3 shadow-lg"
         style={{ ...themeStyle, pointerEvents: 'auto' }}
       >
         <div
@@ -567,10 +565,10 @@ function TrackInfo() {
         sizes="60px"
         style={{ transform: `rotate(${rotateDeg}deg)` }}
         className="rounded-full w-15 h-15 shrink-0"
-        imageClassName="object-cover rounded-full border-2 border-gray-200 dark:border-slate-700"
+        imageClassName="object-cover rounded-full border-2 border-border"
       />
-      <div className="flex flex-col justify-center px-4 gap-2 font-mono min-w-0">
-        <div ref={nameContainerRef as any} className="text-lg font-medium text-gray-900 dark:text-gray-100 overflow-hidden min-w-0">
+      <div className="flex flex-col justify-center px-4 gap-2 min-w-0">
+        <div ref={nameContainerRef as any} className="text-lg font-medium text-foreground/90 overflow-hidden min-w-0">
           <div style={{ display: 'block', width: '100%' }}>
             <Marquee
               key={currentIndex}
@@ -587,7 +585,7 @@ function TrackInfo() {
           </div>
         </div>
 
-        <div ref={artistContainerRef as any} className="text-xs text-gray-600 dark:text-gray-400 overflow-hidden min-w-0">
+        <div ref={artistContainerRef as any} className="text-xs text-foreground/50 overflow-hidden min-w-0">
           <div style={{ display: 'block', width: '100%' }}>
             <Marquee
               key={currentIndex}
@@ -648,12 +646,12 @@ function PlayerControls() {
   return (
     <div className="">
       <div className="flex justify-between">
-        <div className="text-xs text-gray-500 dark:text-gray-400 py-1">
+        <div className="text-xs text-foreground/50 py-1">
           {currentTime
             ? (isDragging ? formatDurationMMSS(Math.floor((dragPercent || 0) / 100 * (duration || 1))) : formatDurationMMSS(Math.floor(currentTime)))
             : '00:00'}
         </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400">
+        <div className="text-xs text-foreground/50">
           {duration ? formatDurationMMSS(Math.floor(duration)) : '00:00'}
         </div>
       </div>
@@ -663,7 +661,7 @@ function PlayerControls() {
         onChangeEnd={handleChangeEnd}
         onIsDraggingChange={setIsDragging}
       />
-      <div className="flex items-center justify-center mt-2 gap-4 text-slate-500 ">
+      <div className="mt-2 flex items-center justify-center gap-4 text-foreground/50">
         <MuteButton />
         <PlayModeButton />
         <CircleArrowLeftIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} onClick={prev} />
@@ -744,7 +742,7 @@ function LyricModeButton() {
       disabled={!hasExtraLyric}
       className={cn(
         'p-1',
-        !hasExtraLyric ? 'cursor-not-allowed text-slate-300 dark:text-slate-600 hover:scale-100 hover:text-slate-300 dark:hover:text-slate-600' : '',
+        !hasExtraLyric ? 'cursor-not-allowed text-foreground/20 hover:scale-100 hover:text-foreground/20' : '',
         hasExtraLyric && lyricMode !== 'none' ? 'text-primary' : '',
       )}
     >
@@ -812,13 +810,13 @@ const PlaylistItem = React.memo(({ track, origIndex, currentIndex, onClick }: {
       data-index={origIndex}
       onClick={onClick}
       className={cn(
-        'p-2 border-b last:border-b-0 flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors',
-        isActive ? 'bg-primary/25 dark:bg-slate-700' : '',
+        'p-2 border-b last:border-b-0 flex items-center gap-2 cursor-pointer hover:bg-accent transition-colors',
+        isActive ? 'bg-primary/15' : '',
       )}
     >
       <div className="flex-1 min-w-0">
         <div className={cn(
-          'text-sm font-medium text-gray-900 dark:text-gray-100 truncate overflow-hidden whitespace-nowrap',
+          'text-sm font-medium text-foreground/90 truncate overflow-hidden whitespace-nowrap',
           isActive ? 'text-primary' : '',
         )}
         >
@@ -828,7 +826,7 @@ const PlaylistItem = React.memo(({ track, origIndex, currentIndex, onClick }: {
           </span>
         </div>
         <div className={cn(
-          'text-xs text-gray-600 dark:text-gray-400 truncate overflow-hidden whitespace-nowrap',
+          'text-xs text-foreground/50 truncate overflow-hidden whitespace-nowrap',
           isActive ? 'text-primary/80' : '',
         )}
         >
@@ -919,7 +917,7 @@ function Playlist() {
       <PopoverContent className="fixed -right-16 bottom-4 z-1001 p-1">
         {showSearch
           ? (
-              <div className="flex gap-1 border-b border-gray-200 dark:border-slate-700 pb-1">
+              <div className="flex gap-1 border-b border-border pb-1">
                 <Input
                   type="text"
                   placeholder="Search..."
@@ -934,7 +932,7 @@ function Playlist() {
                     setShowSearch(false)
                     setSearchKeyword('')
                   }}
-                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                  className="p-2 rounded hover:bg-accent"
                   aria-label={t('close_search')}
                 >
                   ✕
@@ -943,7 +941,7 @@ function Playlist() {
             )
           : (
               <div className="flex pb-1 justify-between items-center">
-                <div className="px-2 pb-1 text-sm text-gray-500 dark:text-gray-400">
+                <div className="px-2 pb-1 text-sm text-foreground/50">
                   {t('playlist')}
                   {' '}
                   (
@@ -953,7 +951,7 @@ function Playlist() {
                 <button
                   type="button"
                   onClick={() => setShowSearch(true)}
-                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                  className="p-2 rounded hover:bg-accent"
                   aria-label={t('open_search')}
                 >
                   <SearchIcon className="w-4 h-4" />
@@ -973,9 +971,9 @@ function Playlist() {
                         onClick={handleChangeTrack(origIndex)}
                       />
                     ))
-                  : <div className="p-2 text-sm text-gray-500">No matching tracks</div>
+                  : <div className="p-2 text-sm text-foreground/50">{t('no_matching_tracks')}</div>
               )
-            : <div className="p-2">No tracks available</div>}
+            : <div className="p-2 text-sm text-foreground/50">{t('no_tracks')}</div>}
         </div>
       </PopoverContent>
     </Popover>

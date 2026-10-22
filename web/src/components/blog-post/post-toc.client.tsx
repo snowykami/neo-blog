@@ -1,21 +1,24 @@
 'use client'
 
 import type { TocHeading } from '@/models/toc'
-import { ListTreeIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SidebarCard } from '@/components/blog-sidebar/sidebar-card'
 import { cn } from '@/lib/utils'
-import { navHeightPx } from '@/utils/common/layout-size'
 
-// 滚动到标题时预留导航栏高度与一点间距
-const SCROLL_OFFSET = navHeightPx + 16
+// 滚动到标题时预留导航栏高度（CSS 变量 --nav-h）与 1rem 间距
+function getScrollOffset() {
+  const style = getComputedStyle(document.documentElement)
+  const rem = Number.parseFloat(style.fontSize) || 16
+  const navH = Number.parseFloat(style.getPropertyValue('--nav-h')) || 4.5
+  return (navH + 1) * rem
+}
 
 /**
  * 文章目录：标题 id 由服务端注入，这里负责高亮当前阅读位置与平滑滚动
  * 少于 2 个标题时不显示
  */
-export function PostToc({ headings }: { headings: TocHeading[] }) {
+export function PostToc({ headings, className }: { headings: TocHeading[], className?: string }) {
   const t = useTranslations('Common')
   const [activeId, setActiveId] = useState<string | null>(headings[0]?.id ?? null)
 
@@ -30,9 +33,10 @@ export function PostToc({ headings }: { headings: TocHeading[] }) {
 
     // 取最后一个已滚过视口顶部（含偏移）的标题作为当前项
     const update = () => {
+      const offset = getScrollOffset()
       let current = elements[0].id
       for (const el of elements) {
-        if (el.getBoundingClientRect().top - SCROLL_OFFSET - 1 <= 0)
+        if (el.getBoundingClientRect().top - offset - 1 <= 0)
           current = el.id
         else
           break
@@ -59,43 +63,54 @@ export function PostToc({ headings }: { headings: TocHeading[] }) {
     if (!el)
       return
     event.preventDefault()
-    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - SCROLL_OFFSET, behavior: 'smooth' })
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - getScrollOffset(), behavior: 'smooth' })
     window.history.replaceState(null, '', `#${encodeURIComponent(id)}`)
     setActiveId(id)
   }
 
+  // 顶层标题编号，便于在长目录中定位
+  let topIndex = 0
   return (
-    <Card className="hidden lg:flex">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ListTreeIcon className="w-5 h-5 text-primary" />
-          {t('table_of_contents')}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <nav aria-label={t('table_of_contents')} className="max-h-[50vh] overflow-y-auto hide-scrollbar">
-          <ul className="grid gap-1 text-sm">
-            {headings.map(heading => (
+    <SidebarCard title={t('table_of_contents')} className={className}>
+      <nav aria-label={t('table_of_contents')} className="-mx-1 max-h-[calc(100dvh-var(--nav-h)-8rem)] overflow-y-auto px-1 hide-scrollbar">
+        <ul className="grid gap-0.5 text-sm">
+          {headings.map((heading) => {
+            const isTop = heading.level === minLevel
+            if (isTop)
+              topIndex += 1
+            const active = activeId === heading.id
+            return (
               <li key={heading.id} style={{ paddingLeft: `${(heading.level - minLevel) * 0.75}rem` }}>
                 <a
                   href={`#${heading.id}`}
                   onClick={e => scrollTo(e, heading.id)}
-                  aria-current={activeId === heading.id ? 'location' : undefined}
+                  aria-current={active ? 'location' : undefined}
                   className={cn(
-                    'block truncate rounded-md border-l-2 px-2 py-1 transition-colors hover:bg-accent/50 hover:text-primary',
-                    activeId === heading.id
-                      ? 'border-primary text-primary font-medium'
-                      : 'border-transparent text-muted-foreground',
+                    'flex min-h-9 items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-primary/10 hover:text-primary',
+                    active ? 'bg-primary/10 font-medium text-primary' : 'text-foreground/75',
                   )}
                   title={heading.text}
                 >
-                  {heading.text}
+                  {isTop
+                    ? (
+                        <span
+                          aria-hidden
+                          className={cn(
+                            'flex size-5 shrink-0 items-center justify-center rounded-md text-xs font-bold tabular-nums',
+                            active ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground',
+                          )}
+                        >
+                          {topIndex}
+                        </span>
+                      )
+                    : <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', active ? 'bg-primary' : 'bg-foreground/20')} />}
+                  <span className="truncate">{heading.text}</span>
                 </a>
               </li>
-            ))}
-          </ul>
-        </nav>
-      </CardContent>
-    </Card>
+            )
+          })}
+        </ul>
+      </nav>
+    </SidebarCard>
   )
 }

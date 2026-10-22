@@ -8,6 +8,7 @@ import { ContentImageFallback } from '@/components/blog-post/content-image-fallb
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
 import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
+import { SiteShell } from '@/components/layout/site-shell'
 import { isNotFoundLikeError } from '@/utils/common/error'
 import { renderContentHtml } from '@/utils/server/render-content'
 import '@/components/tiptap-node/image-node/image-figure.scss'
@@ -51,25 +52,32 @@ export default async function Page({
     notFound()
 
   return (
-    <div className="py-10">
-      {/* 封面 */}
-      {page.cover && (
-        <div className="relative mb-8 aspect-[16/6] w-full overflow-hidden rounded-xl">
-          <SafeImage src={page.cover} alt={page.title} fill priority className="object-cover" sizes="(max-width: 1280px) 100vw, 1280px" />
-        </div>
-      )}
-      <article className="prose dark:prose-invert pangu-autospace max-w-3xl mx-auto">
-        <h1>{page.title}</h1>
-        {page.description && <p className="lead">{page.description}</p>}
+    <SiteShell className="max-w-[56rem]">
+      <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
+        {/* 封面 */}
+        {page.cover && (
+          <div className="relative mb-8 aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
+            <SafeImage src={page.cover} alt="" fill priority className="object-cover" sizes="(max-width: 896px) 100vw, 896px" />
+          </div>
+        )}
+        <h1 className="relative mb-3 text-3xl font-bold text-foreground/90 md:text-[2.25rem] md:leading-[2.75rem] md:before:absolute md:before:top-[0.875rem] md:before:-left-[1.125rem] md:before:h-4 md:before:w-1 md:before:rounded-md md:before:bg-primary">
+          {page.title}
+        </h1>
+        {page.description && <p className="mb-5 text-foreground/75">{page.description}</p>}
+        <div className="mb-6 border-b border-dashed border-foreground/10" />
         {/* 先自动匹配再净化，与文章正文保持一致 */}
-        <div id="page-content" dangerouslySetInnerHTML={{ __html: renderContentHtml(page.content).html }} />
-      </article>
+        <article
+          id="page-content"
+          className="prose max-w-none dark:prose-invert pangu-autospace"
+          dangerouslySetInnerHTML={{ __html: renderContentHtml(page.content).html }}
+        />
+      </div>
       {/* 代码块工具栏 / 高亮、链接卡片、图片失效兜底与预览，与文章正文复用同一套增强 */}
       <HtmlEnhancer containerId="page-content" />
       <ContentHoverCard containerId="page-content" />
       <ContentImageFallback containerId="page-content" />
       <ContentImageViewer containerId="page-content" />
       <VisitReporter targetType="page" targetId={page.id} />
-    </div>
+    </SiteShell>
   )
 }

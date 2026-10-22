@@ -58,7 +58,9 @@
     "clear_filter": "清除篩選",
     "no_posts": "暫無文章",
     "no_posts_found": "沒有找到任何文章",
-    "no_public_posts_found": "沒有找到公開的文章"
+    "no_public_posts_found": "沒有找到公開的文章",
+    "load_failed": "文章載入失敗",
+    "retry": "重試"
   },
   "Captcha": {
     "doing": "正在檢查您是否為真人...",
@@ -135,7 +137,14 @@
     "default": "預設",
     "private": "私密",
     "pinned": "置頂",
-    "table_of_contents": "目錄"
+    "table_of_contents": "目錄",
+    "skip_to_content": "跳至正文",
+    "uncategorized": "未分類",
+    "word_count": "{count} 字",
+    "reading_time": "{count} 分鐘",
+    "show_more": "更多",
+    "show_less": "收起",
+    "back_to_top": "回到頂部"
   },
   "Components": {
     "image_cropper": {
@@ -761,7 +770,8 @@
     "privacy_policy": "隱私權政策",
     "profile": "個人檔案",
     "random": "隨機",
-    "category": "分類"
+    "category": "分類",
+    "rss": "RSS 訂閱"
   },
   "State": {
     "private": "私密",
@@ -792,7 +802,9 @@
     "play_mode_repeat-one": "單曲循環",
     "play_mode_shuffle": "隨機播放",
     "close_search": "關閉搜尋",
-    "open_search": "開啟搜尋"
+    "open_search": "開啟搜尋",
+    "no_matching_tracks": "沒有符合的歌曲",
+    "no_tracks": "暫無歌曲"
   },
   "Response": {
     "error": {
@@ -871,7 +883,11 @@
     "gender_female": "女",
     "gender_other": "其他",
     "posts": "發佈的文章",
-    "user_not_found": "找不到使用者"
+    "user_not_found": "找不到使用者",
+    "gender": "性別",
+    "email": "電子郵件",
+    "role": "角色",
+    "location": "所在地"
   },
   "ThemeMode": {
     "light_mode": "淺色模式",

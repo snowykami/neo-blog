@@ -4,9 +4,11 @@ import { Mail, MapPin, Shield, User as UserIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { getUserIpLocation } from '@/api/user'
+import { PostMetaItem } from '@/components/blog-post/post-meta'
 import { SafeImage } from '@/components/common/safe-image'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/contexts/auth-context'
+import { cn } from '@/lib/utils'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { getFirstCharFromUser } from '@/utils/common/username'
 
@@ -54,66 +56,59 @@ export function UserHeader({ user }: { user: User }) {
   }, [user.id])
 
   const genderKey = user.gender ? GENDER_ALIASES[user.gender.trim().toLowerCase()] : undefined
-  const gender = genderKey ? t(genderKey) : user.gender
+  // 注册时默认写入 unknown，未填写时不展示性别
+  const gender = genderKey ? t(genderKey) : user.gender?.trim().toLowerCase() === 'unknown' ? '' : user.gender
 
   const location = ipData
     ? [ipData.country, ipData.province, ipData.city, ipData.districts].filter(Boolean).join(' ')
     : ''
 
   return (
-    <div>
+    <div className="overflow-hidden rounded-2xl bg-card">
       {/* 用户背景图 */}
       {user.backgroundUrl && (
-        <div className="relative mt-4 h-40 md:h-56 w-full overflow-hidden rounded-xl">
-          <SafeImage src={user.backgroundUrl} alt="" fill priority className="object-cover" sizes="(max-width: 1280px) 100vw, 1280px" />
+        <div className="relative h-40 w-full md:h-56">
+          <SafeImage src={user.backgroundUrl} alt="" fill priority className="object-cover" sizes="(max-width: 1200px) 100vw, 1200px" />
         </div>
       )}
-      <div className="flex flex-col md:flex-row items-center md:items-center h-auto md:h-60">
-        {/* 左侧 30%（头像容器） */}
-        <div className="md:basis-[20%] flex justify-center items-center p-4">
-          {/* wrapper 控制显示大小，父组件给具体 w/h */}
-          <div className="w-40 h-40 md:w-48 md:h-48 relative">
-            <Avatar className="h-full w-full rounded-full">
-              <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.nickname} />
-              <AvatarFallback className="rounded-full">{getFirstCharFromUser(user)}</AvatarFallback>
-            </Avatar>
-          </div>
-        </div>
+      <div className="flex flex-col items-center gap-5 p-6 md:flex-row md:items-end md:gap-6 md:p-8">
+        {/* 头像：有背景图时上移压在背景图边缘 */}
+        <Avatar className={cn('size-28 shrink-0 rounded-full ring-4 ring-card md:size-32', user.backgroundUrl && '-mt-20 md:-mt-24')}>
+          <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.nickname} />
+          <AvatarFallback className="rounded-full text-3xl">{getFirstCharFromUser(user)}</AvatarFallback>
+        </Avatar>
 
-        {/* 右侧 70%（信息区） */}
-        <div className="md:basis-[70%] p-4 flex flex-col justify-center space-y-2">
-          <h2 className="text-2xl font-bold mt-0">
-            {user.nickname || user.username || t('no_nickname')}
-          </h2>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            @
-            {user.username}
-          </p>
-
-          <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
-            <UserIcon className="w-4 h-4 mr-2" />
-            <span>{gender || t('not_filled')}</span>
+        <div className="grid min-w-0 gap-3 text-center md:text-left">
+          <div className="grid gap-1">
+            <h1 className="truncate text-2xl font-bold text-foreground/90 md:text-3xl">
+              {user.nickname || user.username || t('no_nickname')}
+            </h1>
+            <p className="text-foreground/50">
+              @
+              {user.username}
+            </p>
           </div>
 
-          {isSelf && (
-            <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
-              <Mail className="w-4 h-4 mr-2" />
-              <span>{email || t('not_filled')}</span>
-            </div>
-          )}
-
-          <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
-            <Shield className="w-4 h-4 mr-2" />
-            <span>{user.role ? roleT(user.role) : t('guest')}</span>
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 md:justify-start">
+            {gender && (
+              <PostMetaItem icon={UserIcon} label={t('gender')}>
+                {gender}
+              </PostMetaItem>
+            )}
+            {isSelf && (
+              <PostMetaItem icon={Mail} label={t('email')}>
+                <span className="block truncate">{email || t('not_filled')}</span>
+              </PostMetaItem>
+            )}
+            <PostMetaItem icon={Shield} label={t('role')}>
+              {user.role ? roleT(user.role) : t('guest')}
+            </PostMetaItem>
+            {ipData && (
+              <PostMetaItem icon={MapPin} label={t('location')}>
+                {location || t('unknown_location')}
+              </PostMetaItem>
+            )}
           </div>
-
-          {ipData && (
-            <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
-              <MapPin className="w-4 h-4 mr-2" />
-              <span>{location || t('unknown_location')}</span>
-            </div>
-          )}
-          {/* 其他简介、按钮等放这里 */}
         </div>
       </div>
     </div>

@@ -66,15 +66,142 @@
   }
 }
 
-/* 原生控件（滚动条、表单等）跟随明暗模式 */
-:root {
-  color-scheme: light;
-  /* 代码块背景：代码高亮固定为 github-dark，明暗模式下都使用深色，并带一点主题色倾向 */
-  --code-bg: color-mix(in oklab, oklch(0.2 0.01 260) 92%, var(--primary, oklch(0.6 0.15 260)));
+/* ---------------------------------------------------------------------------
+ * 设计 token：由单一 --hue 派生整套 oklch 配色（参考 Fuwari，MIT License, saicaca/fuwari）
+ * styles/*.css 中的配色方案只设置 --hue（必要时附带 --chroma / --primary-l）；
+ * data-user-color 也可能出现在局部元素上（如评论区用户名、后台配色预览），
+ * 因此派生 token 同时声明在 [data-user-color] 上，保证局部元素按自己的色相重新计算
+ * ------------------------------------------------------------------------- */
+
+/* 默认参数：零优先级，配色方案文件可直接覆盖；嵌套的配色元素也会重置为默认值，避免继承外层的彩度 */
+:where(:root, [data-user-color]) {
+  --hue: 250;
+  --chroma: 0.14;
+  /* 白底上作文字时对比度 ≥ 4.5:1 */
+  --primary-l: 0.55;
+  --primary-l-dark: 0.75;
 }
 
-.dark {
+:root,
+[data-user-color] {
+  /* 原生控件（滚动条、表单等）跟随明暗模式 */
+  color-scheme: light;
+  --radius: 0.625rem;
+
+  --background: oklch(0.96 0.01 var(--hue));
+  --foreground: oklch(0.22 0.02 var(--hue));
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(var(--primary-l) var(--chroma) var(--hue));
+  --primary-foreground: oklch(0.98 0.01 var(--hue));
+  --secondary: oklch(0.95 0.025 var(--hue));
+  --secondary-foreground: oklch(0.45 var(--chroma) var(--hue));
+  --muted: oklch(0.95 0.01 var(--hue));
+  --muted-foreground: oklch(0.5 0.02 var(--hue));
+  --accent: oklch(0.95 0.025 var(--hue));
+  --accent-foreground: oklch(0.25 0.03 var(--hue));
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.9 0.01 var(--hue));
+  --input: oklch(0.88 0.012 var(--hue));
+  --ring: var(--primary);
+
+  /* 图表：主色 + 以色相为基准等距旋转 */
+  --chart-1: var(--primary);
+  --chart-2: oklch(0.65 0.12 calc(var(--hue) + 60));
+  --chart-3: oklch(0.6 0.1 calc(var(--hue) + 140));
+  --chart-4: oklch(0.75 0.13 calc(var(--hue) + 200));
+  --chart-5: oklch(0.65 0.14 calc(var(--hue) - 60));
+
+  --sidebar: oklch(0.985 0.005 var(--hue));
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--secondary);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+
+  /* 代码块背景：代码高亮固定为 github-dark，明暗模式下都使用深色，带一点主题色倾向 */
+  --code-bg: oklch(0.2 0.015 var(--hue));
+
+  /* 布局尺寸 */
+  --page-w: 75rem;
+  --sidebar-w: 17.5rem;
+  --nav-h: 4.5rem;
+
+  /* 动效：只动画 transform / opacity；悬停 150ms，入场 300ms */
+  --dur-fast: 150ms;
+  --dur-enter: 300ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.dark,
+.dark [data-user-color] {
   color-scheme: dark;
+
+  --background: oklch(0.16 0.014 var(--hue));
+  --foreground: oklch(0.93 0.01 var(--hue));
+  --card: oklch(0.23 0.015 var(--hue));
+  --popover: oklch(0.23 0.015 var(--hue));
+  --primary: oklch(var(--primary-l-dark) var(--chroma) var(--hue));
+  --primary-foreground: oklch(0.2 0.03 var(--hue));
+  --secondary: oklch(0.33 0.035 var(--hue));
+  --secondary-foreground: oklch(0.85 0.08 var(--hue));
+  --muted: oklch(0.27 0.015 var(--hue));
+  --muted-foreground: oklch(0.7 0.015 var(--hue));
+  --accent: oklch(0.3 0.025 var(--hue));
+  --accent-foreground: oklch(0.93 0.01 var(--hue));
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+
+  --chart-2: oklch(0.7 0.12 calc(var(--hue) + 60));
+  --chart-3: oklch(0.68 0.1 calc(var(--hue) + 140));
+  --chart-4: oklch(0.78 0.13 calc(var(--hue) + 200));
+  --chart-5: oklch(0.7 0.14 calc(var(--hue) - 60));
+
+  --sidebar: oklch(0.2 0.015 var(--hue));
+}
+
+/* 正文配色接入设计 token：token 本身已随明暗切换，invert 变量写成相同的值（不能互相引用，否则形成循环） */
+.prose {
+  --tw-prose-body: color-mix(in oklab, var(--foreground) 85%, transparent);
+  --tw-prose-headings: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-lead: color-mix(in oklab, var(--foreground) 75%, transparent);
+  --tw-prose-links: var(--primary);
+  --tw-prose-bold: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-counters: var(--primary);
+  --tw-prose-bullets: var(--primary);
+  --tw-prose-hr: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --tw-prose-quotes: color-mix(in oklab, var(--foreground) 75%, transparent);
+  --tw-prose-quote-borders: var(--primary);
+  --tw-prose-captions: color-mix(in oklab, var(--foreground) 50%, transparent);
+  --tw-prose-kbd: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-code: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-th-borders: color-mix(in oklab, var(--foreground) 15%, transparent);
+  --tw-prose-td-borders: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --tw-prose-invert-body: color-mix(in oklab, var(--foreground) 85%, transparent);
+  --tw-prose-invert-headings: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-invert-lead: color-mix(in oklab, var(--foreground) 75%, transparent);
+  --tw-prose-invert-links: var(--primary);
+  --tw-prose-invert-bold: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-invert-counters: var(--primary);
+  --tw-prose-invert-bullets: var(--primary);
+  --tw-prose-invert-hr: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --tw-prose-invert-quotes: color-mix(in oklab, var(--foreground) 75%, transparent);
+  --tw-prose-invert-quote-borders: var(--primary);
+  --tw-prose-invert-captions: color-mix(in oklab, var(--foreground) 50%, transparent);
+  --tw-prose-invert-kbd: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-invert-code: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-invert-th-borders: color-mix(in oklab, var(--foreground) 15%, transparent);
+  --tw-prose-invert-td-borders: color-mix(in oklab, var(--foreground) 10%, transparent);
+}
+
+/* 选中文字使用主色浅底 */
+::selection {
+  background-color: color-mix(in oklab, var(--primary) 25%, transparent);
 }
 
 /* 隐藏滚动条但保留滚动能力（用于目录等局部滚动区域） */

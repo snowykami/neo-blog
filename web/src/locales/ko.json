@@ -58,7 +58,9 @@
     "clear_filter": "필터 해제",
     "no_posts": "아직 글이 없습니다",
     "no_posts_found": "글을 찾을 수 없습니다",
-    "no_public_posts_found": "공개된 글을 찾을 수 없습니다"
+    "no_public_posts_found": "공개된 글을 찾을 수 없습니다",
+    "load_failed": "게시물을 불러오지 못했습니다",
+    "retry": "다시 시도"
   },
   "Captcha": {
     "doing": "사람인지 확인 중...",
@@ -135,7 +137,14 @@
     "default": "기본값",
     "private": "비공개",
     "pinned": "Pinned",
-    "table_of_contents": "목차"
+    "table_of_contents": "목차",
+    "skip_to_content": "본문으로 건너뛰기",
+    "uncategorized": "미분류",
+    "word_count": "{count}자",
+    "reading_time": "{count}분",
+    "show_more": "더 보기",
+    "show_less": "접기",
+    "back_to_top": "맨 위로"
   },
   "Components": {
     "image_cropper": {
@@ -761,7 +770,8 @@
     "privacy_policy": "개인정보 보호정책",
     "profile": "프로필",
     "random": "무작위",
-    "category": "카테고리"
+    "category": "카테고리",
+    "rss": "RSS 피드"
   },
   "State": {
     "private": "비공개",
@@ -792,7 +802,9 @@
     "play_mode_repeat-one": "한 곡 반복",
     "play_mode_shuffle": "무작위 재생",
     "close_search": "검색 닫기",
-    "open_search": "검색 열기"
+    "open_search": "검색 열기",
+    "no_matching_tracks": "일치하는 곡이 없습니다",
+    "no_tracks": "곡이 없습니다"
   },
   "Response": {
     "error": {
@@ -871,7 +883,11 @@
     "gender_female": "여성",
     "gender_other": "기타",
     "posts": "작성한 글",
-    "user_not_found": "사용자를 찾을 수 없습니다"
+    "user_not_found": "사용자를 찾을 수 없습니다",
+    "gender": "성별",
+    "email": "이메일",
+    "role": "역할",
+    "location": "위치"
   },
   "ThemeMode": {
     "light_mode": "라이트 모드",

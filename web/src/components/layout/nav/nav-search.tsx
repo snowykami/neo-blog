@@ -40,10 +40,10 @@ export function NavSearch({ className, onNavigate }: { className?: string, onNav
         type="button"
         aria-label={t('search')}
         title={t('search')}
-        className={cn('flex items-center justify-center cursor-pointer', className)}
+        className={cn('inline-flex items-center justify-center', className)}
         onClick={() => setOpen(true)}
       >
-        <SearchIcon className="w-6 h-6 text-primary" />
+        <SearchIcon aria-hidden className="size-5" />
       </button>
       <CommandDialog open={open} onOpenChange={setOpen} title={t('search')} description={t('description')}>
         <CommandInput

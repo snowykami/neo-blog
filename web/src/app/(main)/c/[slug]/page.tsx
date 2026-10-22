@@ -3,7 +3,10 @@ import { getTranslations } from 'next-intl/server'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import { getCategories, listPosts } from '@/api/post'
-import { BlogCardGrid } from '@/components/blog-home/blog-home-card'
+import { PostList } from '@/components/blog-home/post-list'
+import BlogSidebar from '@/components/blog-sidebar'
+import { BlogSidebarAbout, BlogSidebarHotPosts, BlogSidebarLabels } from '@/components/blog-sidebar/blog-sidebar-card'
+import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import {
   Pagination,
   PaginationContent,
@@ -64,13 +67,27 @@ export default async function CategoryDetailPage({
   const pageUrl = (p: number) => (p <= 1 ? baseUrl : `${baseUrl}?page=${p}`)
 
   return (
-    <div className="py-10">
-      <h1 className="text-3xl font-bold mb-6">
-        {archiveT('filter_category', { name: category?.name || slug })}
-      </h1>
-      <BlogCardGrid posts={posts} />
+    <SiteShell
+      sidebar={(
+        <BlogSidebar
+          cards={[
+            <BlogSidebarAbout key="about" />,
+            <BlogSidebarLabels key="labels" />,
+            <BlogSidebarHotPosts key="hot-posts" />,
+          ]}
+        />
+      )}
+    >
+      <div className="grid gap-1 px-4 md:px-2">
+        <SectionTitle as="h1" className="text-xl md:text-2xl">
+          {archiveT('filter_category', { name: category?.name || slug })}
+          {total > 0 && <span className="ml-2 text-base font-medium text-foreground/50 tabular-nums">{total}</span>}
+        </SectionTitle>
+        {category?.description && <p className="pl-4 text-sm text-foreground/50">{category.description}</p>}
+      </div>
+      <PostList posts={posts} />
       {totalPages > 1 && (
-        <Pagination className="mt-8">
+        <Pagination className="pt-2">
           <PaginationContent>
             {page > 1 && (
               <PaginationItem>
@@ -78,7 +95,7 @@ export default async function CategoryDetailPage({
               </PaginationItem>
             )}
             <PaginationItem>
-              <span className="px-3 text-sm text-muted-foreground">
+              <span className="px-3 text-sm text-foreground/50 tabular-nums">
                 {page}
                 {' / '}
                 {totalPages}
@@ -92,6 +109,6 @@ export default async function CategoryDetailPage({
           </PaginationContent>
         </Pagination>
       )}
-    </div>
+    </SiteShell>
   )
 }

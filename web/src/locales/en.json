@@ -58,7 +58,9 @@
     "clear_filter": "Clear filter",
     "no_posts": "No posts yet",
     "no_posts_found": "No posts found",
-    "no_public_posts_found": "No public posts found"
+    "no_public_posts_found": "No public posts found",
+    "load_failed": "Failed to load posts",
+    "retry": "Retry"
   },
   "Captcha": {
     "doing": "Checking if you're human...",
@@ -135,7 +137,14 @@
     "default": "Default",
     "private": "Private",
     "pinned": "Pinned",
-    "table_of_contents": "Table of Contents"
+    "table_of_contents": "Table of Contents",
+    "skip_to_content": "Skip to content",
+    "uncategorized": "Uncategorized",
+    "word_count": "{count, plural, one {# char} other {# chars}}",
+    "reading_time": "{count, plural, one {# min} other {# mins}}",
+    "show_more": "Show more",
+    "show_less": "Show less",
+    "back_to_top": "Back to top"
   },
   "Components": {
     "image_cropper": {
@@ -761,7 +770,8 @@
     "privacy_policy": "Privacy Policy",
     "profile": "Profile",
     "random": "Random",
-    "category": "Categories"
+    "category": "Categories",
+    "rss": "RSS feed"
   },
   "State": {
     "private": "Private",
@@ -792,7 +802,9 @@
     "play_mode_repeat-one": "Repeat one",
     "play_mode_shuffle": "Shuffle",
     "close_search": "Close search",
-    "open_search": "Open search"
+    "open_search": "Open search",
+    "no_matching_tracks": "No matching tracks",
+    "no_tracks": "No tracks available"
   },
   "Response": {
     "error": {
@@ -871,7 +883,11 @@
     "gender_female": "Female",
     "gender_other": "Other",
     "posts": "Posts",
-    "user_not_found": "User not found"
+    "user_not_found": "User not found",
+    "gender": "Gender",
+    "email": "Email",
+    "role": "Role",
+    "location": "Location"
   },
   "ThemeMode": {
     "light_mode": "Light mode",

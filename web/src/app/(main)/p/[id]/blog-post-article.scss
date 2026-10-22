@@ -74,9 +74,7 @@ article img {
   margin-right: auto;           /* prose-img:mx-auto */
   margin-top: 1rem;             /* prose-img:my-4 */
   margin-bottom: 1rem;          /* prose-img:my-4 */
-  border-radius: 0.5rem;        /* rounded-lg */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08); /* shadow-md */
-  border: 1px solid var(--border, rgba(0,0,0,0.08)); /* border & border-border */
+  border-radius: 0.75rem;       /* rounded-xl：卡内区块圆角 */
 }
 
 /* 链接样式：主色 + 虚线下划线，悬停变实线；不加左右内间距 */
@@ -94,25 +92,38 @@ article.prose a:hover {
   text-decoration-color: var(--primary);
 }
 
-/* 标题锚点滚动偏移（scroll-mt-24 ~ 6rem） */
+/* 标题锚点滚动偏移：吸顶导航高度 + 1rem */
 article h1,
 article h2,
 article h3,
 article h4 {
-  scroll-margin-top: 6rem; /* prose-h*:scroll-mt-24 */
+  scroll-margin-top: calc(var(--nav-h, 4.5rem) + 1rem);
 }
 
-/* blockquote：左边框使用主题主色，背景为淡主色 */
+/* blockquote：左侧主色圆角竖条（伪元素），不再使用整条彩色边框 */
 article.prose blockquote {
-  border-left: 4px solid var(--primary);
-  background: color-mix(in oklab, var(--primary) 6%, transparent);
-  padding: 0.5rem 1rem;
+  position: relative;
+  border-left: none;
+  padding: 0.25rem 0 0.25rem 1.25rem;
+  font-style: normal;
+}
+article.prose blockquote::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+/* typography 插件默认给引用段落加引号，中文内容里显得多余 */
+article.prose blockquote p:first-of-type::before,
+article.prose blockquote p:last-of-type::after {
+  content: none;
 }
 
-/* 文章正文：统一基础字号与适合中文的行高，限制阅读宽度并居中 */
+/* 文章正文：统一基础字号与适合中文的行高；宽度由正文卡片决定 */
 article.prose#blog-content {
   font-size: 1.0625rem;
   line-height: 1.85;
-  max-width: 72ch;
-  margin-inline: auto;
 }

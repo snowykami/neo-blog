@@ -8,8 +8,8 @@
   textarea,
   select {
     transition-property: color, background-color, border-color, box-shadow, opacity;
-    transition-duration: 0.3s;
-    transition-timing-function: ease-in-out;
+    transition-duration: var(--dur-fast, 150ms);
+    transition-timing-function: ease-out;
   }
 
   /* 针对需要平移动画/变换的组件，请单独添加 transition（不要使用全局 all） */
@@ -53,11 +53,11 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .enter-fade-up {
-    animation: enter-fade-up 300ms ease-out both;
+    animation: enter-fade-up var(--dur-enter, 300ms) var(--ease-out, ease-out) both;
   }
 
   .enter-fade-down {
-    animation: enter-fade-down 300ms ease-out both;
+    animation: enter-fade-down var(--dur-enter, 300ms) var(--ease-out, ease-out) both;
   }
 
   .enter-delay-100 {

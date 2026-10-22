@@ -23,7 +23,7 @@ export function ErrorBoundaryPage({
   }, [error])
 
   return (
-    <div className="w-full flex-1 flex items-center justify-center pt-40">
+    <div className="flex w-full flex-1 items-center justify-center py-24">
       <div className="text-center max-w-xl w-full px-4">
         <h1 className="text-4xl font-bold mb-4">{t('title')}</h1>
         <p className="text-muted-foreground mb-2">{t('description')}</p>

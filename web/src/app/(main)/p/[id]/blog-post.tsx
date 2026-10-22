@@ -1,136 +1,91 @@
 import type { Post } from '@/models/post'
-import {
-  ArchiveIcon,
-  Calendar,
-  Clock,
-  FileText,
-  Flame,
-  Heart,
-  Info,
-  MessageCircle,
-  PenLine,
-} from 'lucide-react'
-import { getFormatter, getTranslations } from 'next-intl/server'
-import Link from 'next/link'
+import { LockIcon, PinIcon } from 'lucide-react'
+import { getTranslations } from 'next-intl/server'
 import { Suspense } from 'react'
-import { getCachedSiteInfo } from '@/api/misc.server'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import CopyrightCard from '@/components/blog-post/blog-copyright.client'
 import { BlogLikeButton } from '@/components/blog-post/blog-like-button.client'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
-import { PostHeaderClient } from '@/components/blog-post/post-header.client'
+import { PostEditButton } from '@/components/blog-post/post-edit-button.client'
+import { PostMeta, PostWordStats } from '@/components/blog-post/post-meta'
 import { PostToc } from '@/components/blog-post/post-toc.client'
-import BlogSidebar from '@/components/blog-sidebar'
-import {
-  BlogSidebarAbout,
-  BlogSidebarLabels,
-  SidebarMisskeyIframe,
-} from '@/components/blog-sidebar/blog-sidebar-card'
+import { BlogSidebarAbout } from '@/components/blog-sidebar/blog-sidebar-card'
 import { CommentSection } from '@/components/comment'
-import Typewriter from '@/components/common/typewriter'
+import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
-import { Separator } from '@/components/ui/separator'
+import { SiteShell } from '@/components/layout/site-shell'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TargetType } from '@/models/types'
-import { contentAreaPaddingClass, navStickyTopPx } from '@/utils/common/layout-size'
-import { calculateReadingTime } from '@/utils/common/post'
-import { getCategoryUrl, getUserUrl } from '@/utils/common/route'
-import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
+import { calculateReadingTime, countWords } from '@/utils/common/post'
 import { renderContentHtml } from '@/utils/server/render-content'
 import '@/components/tiptap-node/image-node/image-figure.scss'
 import './blog-post-article.scss'
 
-async function PostHeader({ post }: { post: Post }) {
-  return (
-    <PostHeaderClient post={post}>
-      <PostMetaWhite post={post} />
-    </PostHeaderClient>
-  )
-}
+/*
+ * 文章页（参考 Fuwari 的 PostPage，MIT License, saicaca/fuwari）：
+ * 正文卡片内依次为 字数/阅读时长 → 标题（左侧主色短色条）→ 元信息 → 封面 → 摘要 → 正文 → 版权 → 点赞；评论单独一张卡片
+ */
 
-// 适配白色背景的 PostMeta 组件
-async function PostMetaWhite({ post }: { post: Post }) {
-  const t = await getTranslations()
-  const format = await getFormatter()
-  const metaItems = [
-    {
-      icon: PenLine,
-      text: post.user.nickname || post.user.username || t('Common.unknown_author'),
-      href: getUserUrl(post.user),
-    },
-    {
-      icon: ArchiveIcon,
-      text: post.category ? post.category.name : t('Console.post_edit.uncategorized'),
-      href: post.category ? getCategoryUrl(post.category) : undefined,
-    },
-    {
-      icon: Calendar,
-      text: post.createdAt ? format.dateTime(new Date(post.createdAt), { year: 'numeric', month: '2-digit', day: '2-digit' }) : '',
-    },
-    {
-      icon: Clock,
-      text: `${calculateReadingTime(post.content)} ${t('Common.minutes')}`,
-    },
-    {
-      icon: Flame,
-      text: post.heat || 0,
-    },
-    {
-      icon: Heart,
-      text: post.likeCount || 0,
-    },
-    {
-      icon: MessageCircle,
-      text: post.commentCount || 0,
-    },
-    {
-      icon: FileText,
-      text: `${post.content.length || 0} ${t('Common.char')}`,
-    },
-  ]
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 text-white/90">
-      {metaItems.map((item, index) => (
-        item?.href
-          ? (
-              <Link key={index} href={item.href} className="flex items-center gap-1.5 text-sm hover:underline">
-                <item.icon className="w-4 h-4 text-white/70" />
-                <span className="font-medium">{item.text}</span>
-              </Link>
-            )
-          : (
-              <span key={index} className="flex items-center gap-1.5 text-sm">
-                <item.icon className="w-4 h-4 text-white/70" />
-                <span className="font-medium">{item.text}</span>
-              </span>
-            )
-      ))}
-    </div>
-  )
-}
-
-async function PostContent({ post, html, isDraft }: { post: Post, html: string, isDraft?: boolean }) {
+// 正文卡片：标题、元信息、封面、正文、版权与点赞
+async function PostArticle({ post, html, isDraft }: { post: Post, html: string, isDraft?: boolean }) {
   const t = await getTranslations('Common')
+  const content = (isDraft ? post.draftContent : post.content) || ''
   return (
-    <div className="bg-transparent md:bg-background md:border-1 pt-4 px-2 md:px-8 md:pt-8 md:p-8 rounded-none md:rounded-xl">
-      {post.description && (
-        <div className="md:mt-0 mb-4 md:mb-8 bg-primary/10 text-lg text-muted-foreground border-1 rounded-xl p-4 font-mono">
-          <div className="flex items-center mb-2 text-lg text-primary font-medium">
-            <Info className="w-5 h-5 mr-2" />
-            {t('digest')}
-          </div>
-          <Separator className="my-2" />
-          <Typewriter text={post.description} />
+    <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
+      <PostWordStats withIcons words={countWords(content)} minutes={calculateReadingTime(content)} className="mb-3" />
+
+      {(post.top > 0 || post.isPrivate) && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {post.top > 0 && (
+            <Badge variant="secondary" className="rounded-md">
+              <PinIcon aria-hidden />
+              {t('pinned')}
+            </Badge>
+          )}
+          {post.isPrivate && (
+            <Badge variant="secondary" className="rounded-md">
+              <LockIcon aria-hidden />
+              {t('private')}
+            </Badge>
+          )}
         </div>
+      )}
+
+      {/* 标题：桌面端左侧主色短色条位于卡片内边距中 */}
+      <h1 className="relative mb-3 text-3xl font-bold text-foreground/90 md:text-[2.25rem] md:leading-[2.75rem] md:before:absolute md:before:top-[0.875rem] md:before:-left-[1.125rem] md:before:h-4 md:before:w-1 md:before:rounded-md md:before:bg-primary">
+        {post.title}
+      </h1>
+
+      <div className="mb-5 flex items-start justify-between gap-3 border-b border-dashed border-foreground/10 pb-5">
+        <PostMeta post={post} showAuthor showUpdated showStats />
+        <PostEditButton post={post} />
+      </div>
+
+      {/* 封面：仅在设置了封面时显示，不使用随机默认封面占位 */}
+      {post.cover && (
+        <div className="relative mb-8 aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
+          <SafeImage
+            src={post.cover}
+            alt=""
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 860px"
+            className="object-cover"
+          />
+        </div>
+      )}
+
+      {post.description && (
+        <p className="mb-6 text-foreground/75">{post.description}</p>
       )}
 
       {/* 文章内容 - Core content rendered immediately */}
       <article
         id="blog-content"
-        className="prose dark:prose-invert pangu-autospace rounded-xl bg-background"
+        className="prose max-w-none dark:prose-invert pangu-autospace"
         dangerouslySetInnerHTML={{ __html: html }}
       />
       <HtmlEnhancer containerId="blog-content" />
@@ -140,13 +95,10 @@ async function PostContent({ post, html, isDraft }: { post: Post, html: string, 
       <ContentImageFallback containerId="blog-content" />
       <ContentImageViewer containerId="blog-content" />
 
-      {/* 版权卡片 */}
-      <div className="mt-4 md:mt-8">
-        <CopyrightCard post={post} />
-      </div>
+      <CopyrightCard post={post} className="mt-8" />
 
       {/* 点赞按钮 - Wrapped in Suspense for better performance */}
-      <div className="mt-4 md:mt-8">
+      <div className="mt-8">
         <Suspense fallback={<LikeButtonSkeleton />}>
           <BlogLikeButton post={post} />
         </Suspense>
@@ -158,13 +110,9 @@ async function PostContent({ post, html, isDraft }: { post: Post, html: string, 
 // Skeleton for like button
 function LikeButtonSkeleton() {
   return (
-    <div>
-      <div className="flex justify-center pt-0">
-        <Skeleton className="rounded-full w-16 h-16" />
-      </div>
-      <div className="text-lg py-4 flex justify-center">
-        <Skeleton className="h-6 w-32" />
-      </div>
+    <div className="flex flex-col items-center gap-3">
+      <Skeleton className="h-11 w-24 rounded-lg" />
+      <Skeleton className="h-5 w-32" />
     </div>
   )
 }
@@ -189,54 +137,33 @@ function CommentsSkeleton() {
 }
 
 export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?: boolean }) {
-  const siteInfo = await getCachedSiteInfo()
-  if (!post.cover) {
-    post.cover = getDefaultCoverRandomly(siteInfo)
-  }
   const { html, headings } = renderContentHtml((isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>')
   return (
-    <div className="h-full">
-      {/* <ScrollToTop /> */}
-      {/* 首屏入场动画为纯 CSS，服务端渲染内容不会因等待水合而隐藏 */}
-      <div className="enter-fade-up enter-delay-150">
-        <PostHeader post={post} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 py-4">
-        {/* 正文和评论区 */}
-        <div className="lg:col-span-3 enter-fade-up enter-delay-150">
-          <PostContent post={post} html={html} isDraft={isDraft} />
-          {/* Comments section wrapped in Suspense for better performance */}
-          <div
-            className={`bg-background mt-4 rounded-xl border border-border ${contentAreaPaddingClass} py-4 md:py-8`}
-          >
-            <Suspense fallback={<CommentsSkeleton />}>
-              <CommentSection
-                targetType={TargetType.Post}
-                ownerId={post.user.id}
-                targetId={post.id}
-                totalCount={post.commentCount}
-              />
-            </Suspense>
-          </div>
-        </div>
-
-        {/* 侧边栏：桌面端吸顶时限制在视口高度内（6rem = navStickyTopPx 80px + 底部 1rem）并可独立滚动，
-            避免内容比视口高时底部卡片无法触及 */}
-        <div
-          className="sticky self-start lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain [scrollbar-width:thin] enter-fade-up enter-delay-100"
-          style={{ top: navStickyTopPx }}
-        >
-          <BlogSidebar
-            cards={[
-              <BlogSidebarAbout key="about" />,
-              <PostToc key="toc" headings={headings} />,
-              <BlogSidebarLabels key="labels" />,
-              <SidebarMisskeyIframe key="misskey" />,
-            ].filter(Boolean)}
+    <SiteShell
+      stickySidebar={false}
+      sidebar={(
+        // 侧栏与正文等高，只让目录吸顶
+        <div className="flex h-full flex-col gap-4">
+          <BlogSidebarAbout />
+          <PostToc
+            headings={headings}
+            className="hidden lg:sticky lg:top-[calc(var(--nav-h)+1rem)] lg:block"
           />
         </div>
+      )}
+    >
+      <PostArticle post={post} html={html} isDraft={isDraft} />
+      {/* Comments section wrapped in Suspense for better performance */}
+      <div className="rounded-2xl bg-card px-6 py-6 md:px-9 md:py-8">
+        <Suspense fallback={<CommentsSkeleton />}>
+          <CommentSection
+            targetType={TargetType.Post}
+            ownerId={post.user.id}
+            targetId={post.id}
+            totalCount={post.commentCount}
+          />
+        </Suspense>
       </div>
-    </div>
+    </SiteShell>
   )
 }

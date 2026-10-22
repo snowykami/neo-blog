@@ -238,7 +238,7 @@ export function ContentImageViewer({ containerId }: { containerId: string }) {
     }
   }
 
-  const controlButton = 'flex size-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 disabled:pointer-events-none disabled:opacity-30'
+  const controlButton = 'flex size-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 disabled:pointer-events-none disabled:opacity-30'
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={next => !next && close()}>

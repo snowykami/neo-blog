@@ -10,7 +10,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/auth-context'
 import { DeviceProvider } from '@/contexts/device-context'
 import { MusicProvider } from '@/contexts/music-context'
-import { NavPaddingProvider } from '@/contexts/nav-context'
+import { NavProvider } from '@/contexts/nav-context'
 import { SiteInfoProvider } from '@/contexts/site-info-context'
 import { getFirstLocale } from '@/i18n/request'
 import './globals.css'
@@ -28,11 +28,11 @@ const inter = Inter({
   display: 'swap',
 })
 
-// 浏览器地址栏 / 状态栏颜色跟随系统明暗
+// 浏览器地址栏 / 状态栏颜色跟随系统明暗，与顶部导航卡片同色（暗色取默认色相下的 --card 近似值）
 export const viewport: Viewport = {
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#09090b' },
+    { media: '(prefers-color-scheme: dark)', color: '#181e24' },
   ],
 }
 
@@ -84,10 +84,10 @@ export default async function RootLayout({
               <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
                 <SiteInfoProvider initialData={siteInfo}>
                   <MusicProvider>
-                    <NavPaddingProvider>
+                    <NavProvider>
                       <FloatingWidgets />
                       {children}
-                    </NavPaddingProvider>
+                    </NavProvider>
                   </MusicProvider>
                 </SiteInfoProvider>
               </AuthProvider>

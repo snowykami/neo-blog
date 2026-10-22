@@ -58,7 +58,9 @@
     "clear_filter": "清除筛选",
     "no_posts": "暂无文章",
     "no_posts_found": "没有找到任何文章",
-    "no_public_posts_found": "没有找到公开的文章"
+    "no_public_posts_found": "没有找到公开的文章",
+    "load_failed": "文章加载失败",
+    "retry": "重试"
   },
   "Captcha": {
     "doing": "正在检查你是不是个人...",
@@ -135,7 +137,14 @@
     "username": "用户名",
     "verify_code": "验证码",
     "pinned": "置顶",
-    "table_of_contents": "目录"
+    "table_of_contents": "目录",
+    "skip_to_content": "跳到正文",
+    "uncategorized": "未分类",
+    "word_count": "{count} 字",
+    "reading_time": "{count} 分钟",
+    "show_more": "更多",
+    "show_less": "收起",
+    "back_to_top": "回到顶部"
   },
   "Components": {
     "image_cropper": {
@@ -655,7 +664,9 @@
     "play_mode_repeat-one": "单曲循环",
     "play_mode_shuffle": "随机播放",
     "close_search": "关闭搜索",
-    "open_search": "打开搜索"
+    "open_search": "打开搜索",
+    "no_matching_tracks": "没有匹配的歌曲",
+    "no_tracks": "暂无歌曲"
   },
   "Operation": {
     "back_to_home": "返回首页",
@@ -850,7 +861,8 @@
     "privacy_policy": "隐私政策",
     "profile": "个人资料",
     "random": "随机",
-    "category": "分类"
+    "category": "分类",
+    "rss": "RSS 订阅"
   },
   "State": {
     "private": "私密",
@@ -871,7 +883,11 @@
     "gender_female": "女",
     "gender_other": "其他",
     "posts": "发布的文章",
-    "user_not_found": "用户未找到"
+    "user_not_found": "用户未找到",
+    "gender": "性别",
+    "email": "邮箱",
+    "role": "角色",
+    "location": "所在地"
   },
   "ThemeMode": {
     "light_mode": "浅色模式",

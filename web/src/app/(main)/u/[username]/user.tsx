@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getUserByUsername } from '@/api/user'
 import ErrorPage from '@/components/common/error-page'
+import { SiteShell } from '@/components/layout/site-shell'
 import { Skeleton } from '@/components/ui/skeleton'
 import { UserHeader } from '@/components/user/user-header'
 import { UserPosts } from '@/components/user/user-posts'
@@ -51,20 +52,22 @@ export function UserPage() {
 
   if (!user) {
     return (
-      <div className="flex flex-col md:flex-row items-center gap-6 p-4 md:h-60">
-        <Skeleton className="w-40 h-40 md:w-48 md:h-48 rounded-full" />
-        <div className="grid gap-3 w-full max-w-sm">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-4 w-40" />
+      <SiteShell>
+        <div className="flex flex-col items-center gap-5 rounded-2xl bg-card p-6 md:flex-row md:gap-6 md:p-8" aria-busy="true">
+          <Skeleton className="size-28 shrink-0 rounded-full md:size-32" />
+          <div className="grid w-full max-w-sm gap-3">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-7 w-64" />
+          </div>
         </div>
-      </div>
+      </SiteShell>
     )
   }
   return (
-    <div>
+    <SiteShell>
       <UserHeader user={user} />
       <UserPosts userId={user.id} />
-    </div>
+    </SiteShell>
   )
 }

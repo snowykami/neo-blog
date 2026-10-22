@@ -7,15 +7,16 @@ import { useTranslations } from 'next-intl'
 import { parseAsInteger, useQueryState } from 'nuqs'
 import { useEffect, useRef, useState } from 'react'
 import { listPosts } from '@/api/post'
-import { BlogCardGrid } from '@/components/blog-home/blog-home-card'
+import { PostList } from '@/components/blog-home/post-list'
 import BlogSidebar from '@/components/blog-sidebar'
 import { BlogSidebarAbout, BlogSidebarLabels, SidebarMisskeyIframe } from '@/components/blog-sidebar/blog-sidebar-card'
 import { PaginationController } from '@/components/common/pagination'
+import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import { Button } from '@/components/ui/button'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useStoredState } from '@/hooks/use-storage-state'
 import { OrderBy } from '@/models/common'
-import { navStickyTopPx } from '@/utils/common/layout-size'
 import { blogHomeQueryKey } from './blog-home-query'
 
 export default function BlogHome({ initialData }: { initialData?: BlogHomeInitialData }) {
@@ -34,6 +35,9 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   const [totalPosts, setTotalPosts] = useState(initialData?.total ?? 0)
   const initialKeyRef = useRef(initialData?.key)
   const [loading, setLoading] = useState(false)
+  // 加载失败标记与重试计数：重试时自增以重新触发请求
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
   const [orderByState, setOrderByState, isOrderByStateLoaded] = useStoredState<OrderBy>(
     'order_by',
     OrderBy.CreatedAt,
@@ -67,10 +71,11 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
     // 首次查询与服务端预取参数一致时复用预取结果
     const key = blogHomeQueryKey({ page, label: labelSlug, category: categorySlug, query, orderBy })
     // 参数变化后预取结果即失效（不在命中时清除，开发模式下 effect 会执行两次）
-    if (initialKeyRef.current === key)
+    if (initialKeyRef.current === key && reloadKey === 0)
       return
     initialKeyRef.current = undefined
     setLoading(true)
+    setLoadError(false)
     listPosts({
       page,
       size: siteInfo.postsPerPage || 9,
@@ -87,9 +92,10 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
       })
       .catch((err) => {
         console.error(err)
+        setLoadError(true)
         setLoading(false)
       })
-  }, [query, labelSlug, categorySlug, page, orderByState, isOrderByStateLoaded, siteInfo.postsPerPage])
+  }, [query, labelSlug, categorySlug, page, orderByState, isOrderByStateLoaded, siteInfo.postsPerPage, reloadKey])
 
   // 标题随筛选条件变化：标签/分类优先显示名称（从返回的文章中取，取不到则用 slug），其次搜索词
   const order = orderByState === OrderBy.CreatedAt ? 'latest' : 'hottest'
@@ -122,91 +128,89 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   }
 
   return (
-    <>
-      {/* 主内容区域 */}
-      <section className="py-16">
-        {/* 容器 - 关键布局 */}
-        <div className="">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 ">
-            {/* 主要内容区域 */}
-            {/* 首屏一次性 CSS 入场动画；分页 / 筛选切换时不再重放 */}
-            <div className="lg:col-span-3 self-start enter-fade-up enter-delay-150">
-              {/* 文章列表标题 */}
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                  {filter
-                    ? t.rich(filter.key as 'filtered_by_label', {
-                        order,
-                        name: filter.name,
-                        highlight: chunks => <span className="text-primary">{chunks}</span>,
-                      })
-                    : t(order === 'latest' ? 'latest_posts' : 'hottest_posts')}
-                  {totalPosts > 0 && (
-                    <span className="text-xl font-normal text-slate-500 ml-2">
-                      (
-                      {totalPosts}
-                      )
-                    </span>
-                  )}
-                  {filter && (
-                    <Button variant="ghost" size="icon-sm" className="ml-1 align-middle text-slate-500" aria-label={t('clear_filter')} title={t('clear_filter')} onClick={clearFilter}>
-                      <XIcon />
-                    </Button>
-                  )}
-                </h2>
-                {/* 排序按钮组 */}
-                {isOrderByStateLoaded && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant={orderByState === OrderBy.CreatedAt ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => handleSortChange(OrderBy.CreatedAt)}
-                      disabled={loading}
-                      className="transition-all duration-200"
-                    >
-                      <Clock className="w-4 h-4 mr-2" />
-                      {t('latest')}
-                    </Button>
-                    <Button
-                      variant={orderByState === OrderBy.Heat ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => handleSortChange(OrderBy.Heat)}
-                      disabled={loading}
-                      className="transition-all duration-200"
-                    >
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                      {t('hottest')}
-                    </Button>
-                  </div>
-                )}
-              </div>
-              {/* 博客卡片网格 */}
-              <BlogCardGrid posts={posts} showPrivate={true} isLoading={loading} />
-              {/* 分页控制器 */}
-              <div className="mt-8">
-                {totalPosts > 0 && (
-                  <PaginationController
-                    className="pt-4 flex justify-center"
-                    pageSize={siteInfo.postsPerPage}
-                    page={page}
-                    total={totalPosts}
-                    onPageChange={handlePageChange}
-                  />
-                )}
-              </div>
-            </div>
-            <div className="sticky self-start enter-fade-up enter-delay-100" style={{ top: navStickyTopPx }}>
-              <BlogSidebar
-                cards={[
-                  <BlogSidebarAbout key="about" />,
-                  <BlogSidebarLabels key="tags" label={labelSlug} setLabel={setLabelSlug} />,
-                  <SidebarMisskeyIframe key="misskey" />,
-                ].filter(Boolean)}
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-    </>
+    <SiteShell
+      sidebar={(
+        <BlogSidebar
+          cards={[
+            <BlogSidebarAbout key="about" />,
+            <BlogSidebarLabels key="tags" label={labelSlug} setLabel={setLabelSlug} />,
+            <SidebarMisskeyIframe key="misskey" />,
+          ]}
+        />
+      )}
+    >
+      {/* 列表标题与排序 */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 md:px-2">
+        <SectionTitle as="h1" className="flex min-w-0 flex-wrap items-center gap-x-2 text-xl md:text-2xl">
+          <span className="min-w-0">
+            {filter
+              ? t.rich(filter.key as 'filtered_by_label', {
+                  order,
+                  name: filter.name,
+                  highlight: chunks => <span className="text-primary">{chunks}</span>,
+                })
+              : t(order === 'latest' ? 'latest_posts' : 'hottest_posts')}
+          </span>
+          {totalPosts > 0 && (
+            <span className="text-base font-medium text-foreground/50 tabular-nums">{totalPosts}</span>
+          )}
+          {filter && (
+            <Button variant="ghost" size="icon-sm" className="text-foreground/50" aria-label={t('clear_filter')} title={t('clear_filter')} onClick={clearFilter}>
+              <XIcon />
+            </Button>
+          )}
+        </SectionTitle>
+        {/* 排序切换 */}
+        {isOrderByStateLoaded && (
+          <ToggleGroup
+            type="single"
+            value={orderByState === OrderBy.CreatedAt ? OrderBy.CreatedAt : OrderBy.Heat}
+            onValueChange={(value) => {
+              if (value)
+                handleSortChange(value as OrderBy)
+            }}
+            disabled={loading}
+            className="gap-1 rounded-lg bg-card p-1"
+          >
+            <ToggleGroupItem
+              value={OrderBy.CreatedAt}
+              aria-label={t('latest')}
+              className="h-9 rounded-md px-3 first:rounded-md last:rounded-md data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+            >
+              <Clock aria-hidden />
+              {t('latest')}
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value={OrderBy.Heat}
+              aria-label={t('hottest')}
+              className="h-9 rounded-md px-3 first:rounded-md last:rounded-md data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+            >
+              <TrendingUp aria-hidden />
+              {t('hottest')}
+            </ToggleGroupItem>
+          </ToggleGroup>
+        )}
+      </div>
+
+      <PostList
+        posts={posts}
+        showPrivate={true}
+        isLoading={loading}
+        skeletonCount={siteInfo.postsPerPage || 9}
+        error={loadError}
+        onRetry={() => setReloadKey(k => k + 1)}
+        onClearFilter={filter ? clearFilter : undefined}
+      />
+
+      {totalPosts > 0 && !loadError && (
+        <PaginationController
+          className="flex justify-center pt-2"
+          pageSize={siteInfo.postsPerPage}
+          page={page}
+          total={totalPosts}
+          onPageChange={handlePageChange}
+        />
+      )}
+    </SiteShell>
   )
 }

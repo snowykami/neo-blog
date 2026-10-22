@@ -58,7 +58,9 @@
     "clear_filter": "フィルターを解除",
     "no_posts": "記事はまだありません",
     "no_posts_found": "記事が見つかりません",
-    "no_public_posts_found": "公開記事が見つかりません"
+    "no_public_posts_found": "公開記事が見つかりません",
+    "load_failed": "記事の読み込みに失敗しました",
+    "retry": "再試行"
   },
   "Captcha": {
     "doing": "本人確認をチェックしています...",
@@ -135,7 +137,14 @@
     "default": "デフォルト",
     "private": "非公開",
     "pinned": "固定表示",
-    "table_of_contents": "目次"
+    "table_of_contents": "目次",
+    "skip_to_content": "本文へスキップ",
+    "uncategorized": "未分類",
+    "word_count": "{count} 文字",
+    "reading_time": "{count} 分",
+    "show_more": "もっと見る",
+    "show_less": "閉じる",
+    "back_to_top": "トップへ戻る"
   },
   "Components": {
     "image_cropper": {
@@ -761,7 +770,8 @@
     "privacy_policy": "プライバシーポリシー",
     "profile": "プロフィール",
     "random": "ランダム",
-    "category": "カテゴリー"
+    "category": "カテゴリー",
+    "rss": "RSS フィード"
   },
   "State": {
     "private": "非公開",
@@ -792,7 +802,9 @@
     "play_mode_repeat-one": "1曲リピート",
     "play_mode_shuffle": "シャッフル",
     "close_search": "検索を閉じる",
-    "open_search": "検索を開く"
+    "open_search": "検索を開く",
+    "no_matching_tracks": "一致する曲がありません",
+    "no_tracks": "曲がありません"
   },
   "Response": {
     "error": {
@@ -871,7 +883,11 @@
     "gender_female": "女性",
     "gender_other": "その他",
     "posts": "投稿記事",
-    "user_not_found": "ユーザーが見つかりません"
+    "user_not_found": "ユーザーが見つかりません",
+    "gender": "性別",
+    "email": "メールアドレス",
+    "role": "ロール",
+    "location": "所在地"
   },
   "ThemeMode": {
     "light_mode": "ライトモード",

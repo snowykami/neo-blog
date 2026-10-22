@@ -72,7 +72,7 @@ export default function LyricScroll() {
   const text = lyricLines[activeLyricIndex]?.text
   if (lyricLines.length === 1 && (text === 'pure_music_without_lyric' || text === 'no_lyric')) {
     return (
-      <div className="h-40 flex items-center justify-center text-center text-base text-slate-600 dark:text-slate-500">
+      <div className="h-40 flex items-center justify-center text-center text-base text-foreground/50">
         {t(text)}
       </div>
     )
@@ -104,8 +104,8 @@ export default function LyricScroll() {
             key={line.startTime + line.originalText + idx}
             ref={(el) => { lineRefs.current[idx] = el }}
             className={cn(
-              'select-none px-2 py-0 rounded text-center m-0 transition-all duration-500 ease-[cubic-bezier(.4,2,.6,1)] w-full font-bold cursor-pointer',
-              isCurrent ? 'text-primary bg-primary/15' : 'text-slate-600 dark:text-slate-400',
+              'select-none px-2 py-0 rounded text-center m-0 transition-[color,background-color,transform,opacity] duration-500 ease-[cubic-bezier(.4,2,.6,1)] w-full font-bold cursor-pointer',
+              isCurrent ? 'text-primary bg-primary/15' : 'text-foreground/60',
             )}
             style={{
               filter: isCurrent ? 'drop-shadow(0 2px 8px #60a5fa44)' : undefined,
@@ -156,7 +156,7 @@ export default function LyricScroll() {
               <div
                 className={cn(
                   'mt-0.5 text-sm leading-5 font-medium transition-colors',
-                  isCurrent ? 'text-primary/80' : 'text-slate-500 dark:text-slate-500',
+                  isCurrent ? 'text-primary/80' : 'text-foreground/40',
                 )}
               >
                 {extraLine.items.map((item, itemIdx) => {

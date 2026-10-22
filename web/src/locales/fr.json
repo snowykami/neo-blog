@@ -58,7 +58,9 @@
     "clear_filter": "Effacer le filtre",
     "no_posts": "Aucun article pour le moment",
     "no_posts_found": "Aucun article trouvé",
-    "no_public_posts_found": "Aucun article public trouvé"
+    "no_public_posts_found": "Aucun article public trouvé",
+    "load_failed": "Impossible de charger les articles",
+    "retry": "Réessayer"
   },
   "Captcha": {
     "doing": "Vérification que vous êtes humain...",
@@ -135,7 +137,14 @@
     "default": "Par défaut",
     "private": "Privé",
     "pinned": "Épinglé",
-    "table_of_contents": "Sommaire"
+    "table_of_contents": "Sommaire",
+    "skip_to_content": "Aller au contenu",
+    "uncategorized": "Non catégorisé",
+    "word_count": "{count, plural, one {# caractère} other {# caractères}}",
+    "reading_time": "{count} min",
+    "show_more": "Afficher plus",
+    "show_less": "Afficher moins",
+    "back_to_top": "Retour en haut"
   },
   "Components": {
     "image_cropper": {
@@ -761,7 +770,8 @@
     "privacy_policy": "Politique de confidentialité",
     "profile": "Profil",
     "random": "Aléatoire",
-    "category": "Catégories"
+    "category": "Catégories",
+    "rss": "Flux RSS"
   },
   "State": {
     "private": "Privé",
@@ -792,7 +802,9 @@
     "play_mode_repeat-one": "Répéter un titre",
     "play_mode_shuffle": "Aléatoire",
     "close_search": "Fermer la recherche",
-    "open_search": "Ouvrir la recherche"
+    "open_search": "Ouvrir la recherche",
+    "no_matching_tracks": "Aucun titre correspondant",
+    "no_tracks": "Aucun titre disponible"
   },
   "Response": {
     "error": {
@@ -871,7 +883,11 @@
     "gender_female": "Femme",
     "gender_other": "Autre",
     "posts": "Articles",
-    "user_not_found": "Utilisateur introuvable"
+    "user_not_found": "Utilisateur introuvable",
+    "gender": "Genre",
+    "email": "E-mail",
+    "role": "Rôle",
+    "location": "Localisation"
   },
   "ThemeMode": {
     "light_mode": "Mode clair",

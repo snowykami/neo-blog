@@ -20,7 +20,7 @@ import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { consolePath, getUserUrl } from '@/utils/common/route'
 import { formatDisplayName, getFallbackAvatarFromUsername } from '@/utils/common/username'
 
-export function AvatarWithDropdownMenu() {
+export function AvatarWithDropdownMenu({ className }: { className?: string }) {
   const operationT = useOperationT()
   const routeT = useTranslations('Route')
   const { user, logout } = useAuth()
@@ -33,27 +33,32 @@ export function AvatarWithDropdownMenu() {
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <div className="">
+        <button
+          type="button"
+          className={className}
+          aria-label={user ? formatDisplayName(user) : operationT('login')}
+          title={user ? formatDisplayName(user) : operationT('login')}
+        >
           {user
             ? (
-                <Avatar className="h-7 w-7 rounded-full border-1">
+                <Avatar className="size-7 rounded-full">
                   <AvatarImage
-                    className="rounded-full h-7 w-7"
+                    className="size-7 rounded-full"
                     src={getAvatarOrGravatarUrlFromUser({ user })}
-                    alt={user.username}
+                    alt=""
                   />
-                  <AvatarFallback className="rounded-full h-7 w-7">
+                  <AvatarFallback className="size-7 rounded-full">
                     {getFallbackAvatarFromUsername(user.nickname || user.username)}
                   </AvatarFallback>
                 </Avatar>
               )
             : (
-                <User className="h-7 w-7" />
+                <User aria-hidden className="size-5" />
               )}
-        </div>
+        </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent className="w-auto no-animate" align="start">
+      <DropdownMenuContent className="w-auto no-animate" align="end">
         {user && (
           <>
             <DropdownMenuLabel>

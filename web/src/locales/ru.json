@@ -58,7 +58,9 @@
     "clear_filter": "Сбросить фильтр",
     "no_posts": "Пока нет статей",
     "no_posts_found": "Статьи не найдены",
-    "no_public_posts_found": "Публичные статьи не найдены"
+    "no_public_posts_found": "Публичные статьи не найдены",
+    "load_failed": "Не удалось загрузить записи",
+    "retry": "Повторить"
   },
   "Captcha": {
     "doing": "Проверяем, что вы человек...",
@@ -135,7 +137,14 @@
     "default": "По умолчанию",
     "private": "Приватный",
     "pinned": "Pinned",
-    "table_of_contents": "Содержание"
+    "table_of_contents": "Содержание",
+    "skip_to_content": "Перейти к содержимому",
+    "uncategorized": "Без категории",
+    "word_count": "{count, plural, one {# символ} few {# символа} many {# символов} other {# символа}}",
+    "reading_time": "{count} мин",
+    "show_more": "Показать ещё",
+    "show_less": "Свернуть",
+    "back_to_top": "Наверх"
   },
   "Components": {
     "image_cropper": {
@@ -761,7 +770,8 @@
     "privacy_policy": "Политика конфиденциальности",
     "profile": "Профиль",
     "random": "Случайное",
-    "category": "Категории"
+    "category": "Категории",
+    "rss": "RSS-лента"
   },
   "State": {
     "private": "Приватный",
@@ -792,7 +802,9 @@
     "play_mode_repeat-one": "Повтор одной",
     "play_mode_shuffle": "Перемешать",
     "close_search": "Закрыть поиск",
-    "open_search": "Открыть поиск"
+    "open_search": "Открыть поиск",
+    "no_matching_tracks": "Нет подходящих треков",
+    "no_tracks": "Нет треков"
   },
   "Response": {
     "error": {
@@ -871,7 +883,11 @@
     "gender_female": "Женский",
     "gender_other": "Другой",
     "posts": "Записи",
-    "user_not_found": "Пользователь не найден"
+    "user_not_found": "Пользователь не найден",
+    "gender": "Пол",
+    "email": "Эл. почта",
+    "role": "Роль",
+    "location": "Местоположение"
   },
   "ThemeMode": {
     "light_mode": "Светлая тема",

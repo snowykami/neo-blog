@@ -127,7 +127,7 @@ export function CommentInput({
                   : t('placeholder')
                 : commonT('login_required'))
             }
-            className="w-full p-2 border border-gray-300 rounded-md fade-in-up"
+            className="w-full fade-in-up"
             value={commentContent}
             onChange={e => setCommentContent(e.target.value)}
           />

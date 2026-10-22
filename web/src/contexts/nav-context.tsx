@@ -1,31 +1,13 @@
-// ...existing code...
 'use client'
 
 import { IconInnerShadowTop } from '@tabler/icons-react'
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
-import { cn } from '@/lib/utils'
-import { contentAreaPaddingClass, navHeight } from '@/utils/common/layout-size'
 
+/**
+ * 导航栏上下文：导航栏统一使用卡片式实心样式，这里只保留可被其他组件临时替换的标题与图标
+ * （如音乐播放器在播放时把导航标题换成歌曲名）
+ */
 interface NavContextValue {
-  hasNavPadding: boolean
-  setHasNavPadding: (hasPadding: boolean) => void
-  toggleNavPadding: () => void
-
-  navClassName: string
-  setNavStyle: (className: string) => void
-
-  // useNavControl 中的重置（还原到 DEFAULT_NAV_CLASSNAME）
-  resetNavStyle: () => void
-
-  // 便捷控制
-  disableNavPadding: () => void
-  enableNavPadding: () => void
-
-  // 预设样式
-  setTransparentNav: () => void
-  setSolidNav: () => void
-
-  // navTitle: string;
   navTitle: React.ReactNode
   navIcon: React.ReactNode
   setNavTitle: (title: React.ReactNode) => void
@@ -33,96 +15,23 @@ interface NavContextValue {
   resetNavIcon: () => void
 }
 
-export const DEFAULT_NAV_CLASSNAME = `bg-background/90 backdrop-blur md:rounded-b-2xl shadow-md border-b border-border/50 h-${navHeight} ${contentAreaPaddingClass}`
-
 const NavContext = createContext<NavContextValue | undefined>(undefined)
 
-export function NavPaddingProvider({
-  children,
-  initialHasNavPadding = true,
-  initialNavClassName = '',
-}: {
-  children: React.ReactNode
-  initialHasNavPadding?: boolean
-  initialNavClassName?: string
-}) {
-  const [navIcon, setNavIcon] = useState<React.ReactNode>(<IconInnerShadowTop className="!size-6" />)
-  const [hasNavPadding, setHasNavPadding] = useState<boolean>(initialHasNavPadding)
-  const [navClassName, setNavClassName] = useState<string>(
-    cn(DEFAULT_NAV_CLASSNAME, initialNavClassName),
-  )
+function DefaultNavIcon() {
+  return <IconInnerShadowTop aria-hidden className="size-6" />
+}
+
+export function NavProvider({ children }: { children: React.ReactNode }) {
+  const [navIcon, setNavIcon] = useState<React.ReactNode>(<DefaultNavIcon />)
   const [navTitle, setNavTitle] = useState<React.ReactNode>('')
 
   const resetNavIcon = useCallback(() => {
-    setNavIcon(<IconInnerShadowTop className="!size-6" />)
-  }, [])
-
-  const toggleNavPadding = useCallback(() => {
-    setHasNavPadding(prev => !prev)
-  }, [])
-
-  const resetNavStyle = useCallback(() => {
-    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, initialNavClassName))
-  }, [initialNavClassName])
-
-  const setNavStyle = useCallback((className: string) => {
-    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, className))
-  }, [])
-
-  const disableNavPadding = useCallback(() => {
-    setHasNavPadding(false)
-  }, [])
-
-  const enableNavPadding = useCallback(() => {
-    setHasNavPadding(true)
-  }, [])
-
-  const setTransparentNav = useCallback(() => {
-    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, 'bg-transparent backdrop-blur-md'))
-  }, [])
-
-  const setSolidNav = useCallback(() => {
-    setNavClassName(cn(DEFAULT_NAV_CLASSNAME, 'bg-background border-b'))
+    setNavIcon(<DefaultNavIcon />)
   }, [])
 
   const value = useMemo(
-    () => ({
-      hasNavPadding,
-      setHasNavPadding,
-      toggleNavPadding,
-
-      navClassName,
-      resetNavStyle,
-      setNavStyle,
-
-      disableNavPadding,
-      enableNavPadding,
-
-      setTransparentNav,
-      setSolidNav,
-
-      navTitle,
-      setNavTitle,
-      setNavIcon,
-      navIcon,
-      resetNavIcon,
-    }),
-    [
-      hasNavPadding,
-      navClassName,
-      navTitle,
-      toggleNavPadding,
-      resetNavStyle,
-      setNavStyle,
-      disableNavPadding,
-      enableNavPadding,
-      setTransparentNav,
-      setSolidNav,
-      setNavTitle,
-      setNavIcon,
-      navIcon,
-      resetNavIcon,
-    ],
+    () => ({ navTitle, setNavTitle, navIcon, setNavIcon, resetNavIcon }),
+    [navTitle, navIcon, resetNavIcon],
   )
 
   return <NavContext.Provider value={value}>{children}</NavContext.Provider>
@@ -131,7 +40,7 @@ export function NavPaddingProvider({
 export function useNav() {
   const ctx = useContext(NavContext)
   if (!ctx) {
-    throw new Error('useNav must be used within a NavPaddingProvider')
+    throw new Error('useNav must be used within a NavProvider')
   }
   return ctx
 }

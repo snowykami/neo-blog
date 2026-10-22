@@ -13,6 +13,7 @@ import { useSiteInfo } from '@/contexts/site-info-context'
 import { OrderBy } from '@/models/common'
 import { getErrorMessage } from '@/utils/common/error'
 import { OrderSelector } from '../common/orderby-selector'
+import { SectionTitle } from '../layout/site-shell'
 import { CommentInput } from './comment-input'
 import { CommentItem } from './comment-item'
 import './style.css'
@@ -181,14 +182,11 @@ export function CommentSection({
 
   return (
     <div>
-      <div className="flex justify-between">
-        <div className="font-bold text-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SectionTitle className="text-xl md:text-2xl">
           {t('comment')}
-          {' '}
-          (
-          {totalCommentCount}
-          )
-        </div>
+          <span className="ml-2 text-base font-medium text-foreground/50 tabular-nums">{totalCommentCount}</span>
+        </SectionTitle>
         <div className="flex">
           <OrderSelector
             value={{ orderBy, desc }}
@@ -211,7 +209,7 @@ export function CommentSection({
           ? <CommentLoading />
           : comments.map((comment, idx) => (
               <div key={comment.id} className="" style={{ animationDelay: `${idx * 60}ms` }}>
-                <Separator className="my-2" />
+                <Separator className="my-3 border-t border-dashed border-foreground/10 bg-transparent" />
                 <CommentItem
                   comment={comment}
                   parentComment={null}
@@ -229,7 +227,7 @@ export function CommentSection({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-gray-500"
+                  className="text-foreground/50"
                   disabled={loadingMore}
                   onClick={handleLoadMore}
                 >
@@ -239,7 +237,7 @@ export function CommentSection({
               </div>
             )
           : (
-              <p className="text-center text-sm text-gray-500 my-4">{t('no_more')}</p>
+              <p className="my-4 text-center text-sm text-foreground/30">{t('no_more')}</p>
             ))}
       </div>
     </div>

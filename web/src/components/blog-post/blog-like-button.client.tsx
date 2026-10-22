@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/contexts/auth-context'
 import { useToLogin } from '@/hooks/use-route'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
+import { cn } from '@/lib/utils'
 import { TargetType } from '@/models/types'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { getUserUrl } from '@/utils/common/route'
@@ -108,36 +109,37 @@ export function BlogLikeButton({ post }: { post: Post }) {
   }
 
   return (
-    <div ref={likeButtonRef}>
-      <div className="flex justify-center pt-0">
-        <button
-          type="button"
-          onClick={handleToggleLike}
-          aria-label={liked ? operationT('unlike') : operationT('like')}
-          aria-pressed={liked}
-          title={liked ? operationT('unlike') : operationT('like')}
-          className={`rounded-full border-2 ${liked ? 'bg-red-500' : 'border-gray-300'} w-16 h-16 flex items-center justify-center cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
-        >
-          <HeartIcon
-            aria-hidden
-            className={`w-8 h-8 inline-block ${liked ? 'text-red-500 fill-white' : 'text-gray-400'}`}
-          />
-        </button>
-      </div>
-      <div className="text-lg py-4 text-gray-500 flex justify-center">
+    <div ref={likeButtonRef} className="flex flex-col items-center gap-3">
+      <button
+        type="button"
+        onClick={handleToggleLike}
+        aria-label={liked ? operationT('unlike') : operationT('like')}
+        aria-pressed={liked}
+        title={liked ? operationT('unlike') : operationT('like')}
+        className={cn(
+          'inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg px-5 font-medium select-none transition-[color,background-color,transform] duration-150 active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+          liked
+            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+            : 'bg-secondary text-secondary-foreground hover:bg-primary/15',
+        )}
+      >
+        <HeartIcon aria-hidden className={cn('size-5', liked && 'fill-current')} />
+        <span className="tabular-nums">{likeCount}</span>
+      </button>
+      <div className="text-sm text-foreground/50">
         {operationT('n_users_liked', { n: likeCount })}
       </div>
       {likedUsers.length > 0 && (
-        <div className="flex justify-center gap-2 h-8 w-full">
+        <div className="flex justify-center gap-2">
           {likedUsers.map(u => (
             <Link
               key={u.id}
               href={getUserUrl(u)}
               aria-label={formatDisplayName(u)}
               title={formatDisplayName(u)}
-              className="rounded-full"
+              className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Avatar className="h-8 w-8 rounded-full border-2">
+              <Avatar className="size-8 rounded-full">
                 <AvatarImage
                   className="rounded-full"
                   src={getAvatarOrGravatarUrlFromUser({ user: u })}

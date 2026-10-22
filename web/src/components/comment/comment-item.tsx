@@ -205,14 +205,14 @@ export function CommentItem({
   }
 
   return (
-    <div className={`${replyCount > 0 && showReplies ? 'border-l-2' : ''}`}>
+    <div className={`${replyCount > 0 && showReplies ? 'border-l-2 border-dashed border-foreground/10 pl-3' : ''}`}>
       <div className="flex gap-2">
         <Link
           href={getUserUrl(commentState.user)}
           aria-label={t('view_user_profile', { name: commentState.user.nickname || commentState.user.username })}
           className="cursor-pointer fade-in w-10 h-10 shrink-0"
         >
-          <Avatar className="h-full w-full rounded-full border-2">
+          <Avatar className="h-full w-full rounded-full">
             <AvatarImage
               src={getAvatarOrGravatarUrlFromUser({
                 user: commentState.user,
@@ -233,7 +233,7 @@ export function CommentItem({
               data-user-color={
                 commentState.user.preferredColor || siteInfo.defaultColorScheme || 'blue'
               }
-              className="text-primary font-bold text-lg border-b-4 border-primary/40 hover:border-primary/70 cursor-pointer transition-colors duration-200"
+              className="cursor-pointer font-bold text-primary hover:underline hover:decoration-dashed hover:underline-offset-4"
             >
               {commentState.user.nickname || commentState.user.username}
             </Link>
@@ -241,14 +241,12 @@ export function CommentItem({
             <div className="flex items-center gap-2 flex-wrap">
               {/* 吧唧 */}
               {commentState.user.id === ownerId && (
-                <Badge className="bg-pink-500 text-white">
-                  {' '}
+                <Badge variant="secondary" className="rounded-md">
                   {roleT('author')}
-                  {' '}
                 </Badge>
               )}
               {/* 创建时间 */}
-              <span className="text-xs">
+              <span className="text-xs text-foreground/50 tabular-nums">
                 {formatDateTime({
                   dateTimeString: commentState.createdAt,
                   locale,
@@ -265,7 +263,7 @@ export function CommentItem({
                 && new Date(commentState.updatedAt).getTime()
                 - new Date(commentState.createdAt).getTime()
                 > 10000 && (
-                <span className="text-xs hidden md:flex">
+                <span className="hidden text-xs text-foreground/50 md:flex">
                   {t('edit_at', {
                     time: formatDateTime({
                       dateTimeString: commentState.updatedAt,
@@ -283,9 +281,9 @@ export function CommentItem({
               )}
             </div>
           </div>
-          <p className="text-lg text-slate-600 dark:text-slate-400 fade-in bg-accent rounded-xl px-4 py-2 my-2">
+          <p className="fade-in my-2 rounded-xl bg-foreground/[.03] px-4 py-2 text-foreground/75 break-words">
             {commentState.isPrivate && (
-              <Lock className="inline w-4 h-4 mr-1 mb-1 text-slate-500 dark:text-slate-400" />
+              <Lock aria-hidden className="mr-1 mb-1 inline size-4 text-foreground/50" />
             )}
             {/* 回复提示 */}
             {parentComment && (
@@ -294,7 +292,7 @@ export function CommentItem({
                 <Link
                   href={getUserUrl(parentComment.user)}
                   data-user-color={parentComment.user.preferredColor || siteInfo.defaultColorScheme || 'blue'}
-                  className="mx-1 text-primary font-bold text-lg border-b-4 border-primary/40 hover:border-primary/70 cursor-pointer transition-colors duration-200"
+                  className="mx-1 cursor-pointer font-bold text-primary hover:underline hover:decoration-dashed hover:underline-offset-4"
                 >
                   {parentComment.user.nickname || parentComment.user.username}
                 </Link>
@@ -304,7 +302,7 @@ export function CommentItem({
             )}
             {commentState.content}
           </p>
-          <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 text-xs text-foreground/50">
             <div className="flex items-center gap-2 justify-start flex-wrap">
               {/* 用户地理，浏览器，系统信息 */}
               {commentState.location && (
@@ -350,11 +348,9 @@ export function CommentItem({
                     setActiveInputId({ id: commentState.id, type: 'reply' })
                   }
                 }}
-                className={`flex items-center justify-center px-2 py-1 h-5 
-              text-primary-foreground dark:text-white text-xs 
-              rounded ${activeInput?.type === 'reply' && activeInput.id === commentState.id ? 'bg-slate-600' : 'bg-slate-400'} hover:bg-slate-600 dark:hover:bg-slate-500 fade-in-up`}
+                className={`fade-in-up flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-xs transition-colors hover:bg-primary/15 hover:text-primary ${activeInput?.type === 'reply' && activeInput.id === commentState.id ? 'bg-primary/15 text-primary' : 'bg-secondary text-secondary-foreground'}`}
               >
-                <Reply className="w-3 h-3" />
+                <Reply aria-hidden className="size-3.5" />
               </button>
               {/* 点赞按钮 */}
               <button
@@ -363,11 +359,9 @@ export function CommentItem({
                 aria-label={liked ? operationT('unlike') : operationT('like')}
                 aria-pressed={liked}
                 onClick={handleToggleLike}
-                className={`flex items-center justify-center px-2 py-1 h-5 gap-1 text-xs rounded 
-                ${liked ? 'bg-primary' : 'bg-slate-400 hover:bg-slate-600'}
-                 text-primary-foreground dark:text-white dark:hover:bg-slate-500 fade-in`}
+                className={`fade-in flex h-7 min-w-7 items-center justify-center gap-1 rounded-md px-2 text-xs tabular-nums transition-colors ${liked ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-secondary text-secondary-foreground hover:bg-primary/15 hover:text-primary'}`}
               >
-                <Heart className="w-3 h-3" />
+                <Heart aria-hidden className={`size-3.5 ${liked ? 'fill-current' : ''}`} />
                 {' '}
                 <div>{likeCount}</div>
               </button>
