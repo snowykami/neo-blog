@@ -27,11 +27,21 @@ func GetBaseUrl() string {
 }
 
 func GetAllowRegister() bool {
-	return repo.KV.GetBoolWithoutErr("enable_register", utils.Env.GetAsBool("ENABLE_REGISTER", false))
+	return repo.KV.GetBoolWithoutErr("enable_register", utils.Env.GetAsBool(constant.EnvKeyEnableRegister, false))
 }
 
 func GetAllowRegisterFromOidc() bool {
-	return repo.KV.GetBoolWithoutErr("enable_register_from_oidc", utils.Env.GetAsBool("ENABLE_REGISTER_FROM_OIDC", true))
+	return repo.KV.GetBoolWithoutErr("enable_register_from_oidc", utils.Env.GetAsBool(constant.EnvKeyEnableRegisterFromOidc, true))
+}
+
+// GetVerifyCodeCoolDown 验证码发送冷却秒数：后台表单保存在 site_info 中，兼容旧的独立配置键
+func GetVerifyCodeCoolDown() int {
+	if siteInfo, ok := repo.KV.GetKVWithoutErr("site_info", nil).(map[string]any); ok {
+		if value, ok := siteInfo["verify_code_cool_down"].(float64); ok && value > 0 {
+			return int(value)
+		}
+	}
+	return repo.KV.GetIntWithoutErr("verify_code_cool_down", 60)
 }
 
 func GetMaximumReplyDepth() int {

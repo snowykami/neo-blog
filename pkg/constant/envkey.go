@@ -23,13 +23,8 @@ const (
 	EnvKeyEmailPassword                    = "EMAIL_PASSWORD"
 	EnvKeyEmailSsl                         = "EMAIL_SSL"
 	EnvKeyEnableRegister                   = "ENABLE_REGISTER"
+	EnvKeyEnableRegisterFromOidc           = "ENABLE_REGISTER_FROM_OIDC"
 	EnvKeyEnableEmailVerify                = "ENABLE_EMAIL_VERIFY"
-	EnvKeyFileDriverType                   = "FILE_DRIVER_TYPE"
-	EnvKeyFileBasepath                     = "FILE_BASEPATH"
-	EnvKeyFileWebdavUrl                    = "FILE_WEBDAV_URL"
-	EnvKeyFileWebdavPassword               = "FILE_WEBDAV_PASSWORD"
-	EnvKeyFileWebdavPolicy                 = "FILE_WEBDAV_POLICY"
-	EnvKeyFileWebdavUser                   = "FILE_WEBDAV_USER"
 	EnvKeyLocationFormat                   = "LOCATION_FORMAT"                      // 环境变量：时区格式
 	EnvKeyLogLevel                         = "LOG_LEVEL"                            // 环境变量：日志级别
 	EnvKeyMode                             = "MODE"                                 // 环境变量：运行模式
@@ -41,5 +36,6 @@ const (
 	EnvKeyMaxReplyDepth                    = "MAX_REPLY_DEPTH"                      // 环境变量：最大回复深度
 	EnvKeyRefreshTokenDuration             = "REFRESH_TOKEN_DURATION"               // 环境变量：刷新令牌有效期
 	EnvKeyRefreshTokenDurationWithRemember = "REFRESH_TOKEN_DURATION_WITH_REMEMBER" // 环境变量：记住我刷新令牌有效期
+	EnvKeyMaxRequestBodySize               = "MAX_REQUEST_BODY_SIZE"                // 环境变量：请求体（上传文件）大小上限，单位字节
 	EnvKeyIP2RegionV6Path                  = "IP2REGION_V6_PATH"                    // 环境变量：ip2region IPv6 数据文件路径（可选，未设置时 IPv6 回退在线查询）
 )

@@ -167,7 +167,7 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 		return nil, errs.NewForbidden("email_verify_disabled")
 	}
 	// 同一邮箱按冷却时间限制发送频率，同一 IP 每小时最多发送若干次，防止邮件轰炸
-	coolDown := time.Duration(repo.KV.GetIntWithoutErr("verify_code_cool_down", 60)) * time.Second
+	coolDown := time.Duration(tools.GetVerifyCodeCoolDown()) * time.Second
 	if !utils.AllowRequest("verify_email:"+strings.ToLower(req.Email), 1, coolDown) {
 		return nil, errs.NewTooManyRequests("too_many_requests")
 	}

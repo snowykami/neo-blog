@@ -25,6 +25,7 @@ func init() {
 	IsDevMode = Env.Get(constant.EnvKeyMode, constant.ModeProd) == constant.ModeDev
 	// Set log level
 	logrus.SetLevel(getLogLevel(Env.Get(constant.EnvKeyLogLevel, "info")))
+	loadJwtDurations()
 	if !IsDevMode && !isTestBinary() {
 		validateProductionSecrets()
 	}

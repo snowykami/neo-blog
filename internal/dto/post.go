@@ -34,11 +34,6 @@ type PostDto struct {
 
 }
 
-type DraftDto struct {
-	PostID uint `json:"post_id"` // 关联的帖子ID，如果有的话
-	PostBaseDto
-}
-
 type CreateOrUpdatePostReq struct {
 	ID uint `path:"id" json:"id"` // 文章ID，更新时需要
 	PostBaseDto
@@ -47,12 +42,6 @@ type CreateOrUpdatePostReq struct {
 	Top       *uint `json:"top"`
 	// 编辑会话ID，保存正文时校验，见 EditSessionService
 	EditSessionID string `header:"X-Edit-Session" json:"-"`
-}
-
-type CreateOrUpdateDraftReq struct {
-	ID     uint  `path:"id" json:"id"` // Draft ID 更新需要
-	PostID *uint `json:"post_id"`      // 关联的帖子ID，如果有的话
-	PostBaseDto
 }
 
 type ListPostReq struct {

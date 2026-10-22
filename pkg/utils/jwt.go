@@ -26,6 +26,19 @@ var Jwt = jwtUtils{
 	RefreshTokenDurationWithRememberMe: time.Hour * 24 * 15, // 记住我情况下的Refresh Token有效期
 }
 
+// loadJwtDurations 用环境变量（单位：秒）覆盖默认有效期，需在 .env 加载后调用
+func loadJwtDurations() {
+	for key, target := range map[string]*time.Duration{
+		constant.EnvKeyTokenDuration:                    &Jwt.TokenDuration,
+		constant.EnvKeyRefreshTokenDuration:             &Jwt.RefreshTokenDuration,
+		constant.EnvKeyRefreshTokenDurationWithRemember: &Jwt.RefreshTokenDurationWithRememberMe,
+	} {
+		if seconds := Env.GetAsInt(key, 0); seconds > 0 {
+			*target = time.Duration(seconds) * time.Second
+		}
+	}
+}
+
 type Claims struct {
 	jwt.RegisteredClaims
 	UserID    uint   `json:"user_id"`

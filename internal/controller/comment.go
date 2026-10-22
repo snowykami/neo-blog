@@ -90,7 +90,3 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 	}
 	resps.Ok(c, resps.Success, utils.H{"comments": commentDtos})
 }
-
-func (cc *CommentController) ReactComment(ctx context.Context, c *app.RequestContext) {
-
-}

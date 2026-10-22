@@ -19,8 +19,8 @@ type OidcConfig struct {
 	DisplayName      string // 显示名称，例如：轻雪通行证
 	Icon             string // 图标url，为空则使用内置默认图标
 	OidcDiscoveryUrl string // OpenID自动发现URL，例如 ：https://pass.liteyuki.org/.well-known/openid-configuration
-	Enabled          bool   `gorm:"default:true"` // 是否启用
-	Type             string `gorm:"oauth2"`       // OIDC类型，默认为oauth2,也可以为misskey
+	Enabled          bool   `gorm:"default:true"`   // 是否启用
+	Type             string `gorm:"default:oauth2"` // OIDC类型，默认为oauth2,也可以为misskey
 	// 以下字段为自动获取字段（若提供了oidc发现端点，没有还需手动请求添加），每次更新配置时自动填充
 	Issuer                string
 	AuthorizationEndpoint string
