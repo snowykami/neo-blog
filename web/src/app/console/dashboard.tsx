@@ -43,7 +43,7 @@ export function Dashboard() {
         <p className="text-sm text-muted-foreground">{t('range_description', { days })}</p>
         <ToggleGroup
           type="single"
-          variant="outline"
+          variant="segmented"
           size="sm"
           value={String(days)}
           onValueChange={value => value && setDays(Number(value) as DashboardDays)}

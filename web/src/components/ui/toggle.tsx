@@ -15,6 +15,9 @@ const toggleVariants = cva(
         default: 'bg-transparent',
         outline:
           'border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground',
+        // 分段控件：与 Tabs 默认变体一致，选中项为白色卡片 + 阴影；需放在 ToggleGroup variant="segmented" 的轨道中
+        segmented:
+          'rounded-md text-foreground/60 hover:bg-transparent hover:text-foreground data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-sm data-[state=on]:ring-1 data-[state=on]:ring-foreground/[.06] dark:data-[state=on]:bg-foreground/15',
       },
       size: {
         default: 'h-9 px-2 min-w-9',

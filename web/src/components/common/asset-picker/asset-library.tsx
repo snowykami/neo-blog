@@ -138,7 +138,8 @@ export function AssetLibrary({
         {canViewAll && (
           <ToggleGroup
             type="single"
-            variant="outline"
+            variant="segmented"
+            size="sm"
             value={scope}
             onValueChange={value => value && setScope(value as AssetScope)}
             aria-label={t('scope')}
