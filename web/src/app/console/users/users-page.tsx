@@ -10,9 +10,9 @@ import {
 } from 'nuqs'
 import { useCallback, useEffect, useState } from 'react'
 import { listUsers } from '@/api/admin'
+import { UserAvatar } from '@/components/common/avatar'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -28,8 +28,6 @@ import { useDevice } from '@/contexts/device-context'
 import { useCommonT, useErrorMessageT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
 import { Role } from '@/models/user'
-import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
-import { getFirstCharFromUser } from '@/utils/common/username'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
@@ -170,10 +168,7 @@ export function UserManagePage() {
               <TableRow key={user.id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
-                    <Avatar className="size-8">
-                      <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user, size: 64 })} alt={user.nickname || user.username} />
-                      <AvatarFallback className="text-xs">{getFirstCharFromUser(user)}</AvatarFallback>
-                    </Avatar>
+                    <UserAvatar user={user} size={64} className="size-8" fallbackClassName="text-xs" />
                     <span className="truncate font-medium">{user.username}</span>
                   </div>
                 </TableCell>

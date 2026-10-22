@@ -45,7 +45,7 @@ export function getFallbackAvatarFromUsername(username: string): string {
  * getFirstCharFromUser({ username: "1user" }); // "1"
  * getFirstCharFromUser({}); // "N"
  */
-export function getFirstCharFromUser(user: User): string {
+export function getFirstCharFromUser(user: Pick<User, 'nickname' | 'username'>): string {
   if (user.nickname) {
     return getFallbackAvatarFromUsername(user.nickname)
   }

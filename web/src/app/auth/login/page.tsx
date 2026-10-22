@@ -9,9 +9,9 @@ import { toast } from 'sonner'
 import { getCaptchaConfig, listOidcConfigs, userLogin } from '@/api/user'
 import { AuthHeader } from '@/components/auth/common/auth-header'
 import { CurrentLogged } from '@/components/auth/common/current-logged'
+import { ImageAvatar } from '@/components/common/avatar'
 import Captcha from '@/components/common/captcha'
 import { SectionDivider } from '@/components/common/section-divider'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -263,10 +263,7 @@ function LoginWithOidc({
 
   return (
     <Button type="button" variant="outline" className="w-full" onClick={handleOidcLogin}>
-      <Avatar className="h-6 w-6 rounded-full">
-        <AvatarImage src={icon} alt={displayName} />
-        <AvatarFallback className="rounded-full"></AvatarFallback>
-      </Avatar>
+      <ImageAvatar src={icon} alt={displayName} fallback={displayName.slice(0, 1)} className="size-6" fallbackClassName="text-xs" />
       {displayName}
     </Button>
   )

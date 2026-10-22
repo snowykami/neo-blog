@@ -12,8 +12,9 @@ type UserDto struct {
 	Nickname       string        `json:"nickname"`
 	AvatarUrl      string        `json:"avatar_url"` // 头像URL
 	BackgroundUrl  string        `json:"background_url"`
-	PreferredColor string        `json:"preferred_color"` // 主题色
-	Email          string        `json:"email,omitempty"` // 邮箱，仅本人和管理员可见
+	PreferredColor string        `json:"preferred_color"`         // 主题色
+	Email          string        `json:"email,omitempty"`         // 邮箱，仅本人和管理员可见
+	GravatarHash   string        `json:"gravatar_hash,omitempty"` // 邮箱的 SHA-256 哈希，用于生成 Gravatar 头像，不暴露邮箱本身
 	Gender         string        `json:"gender"`
 	Role           constant.Role `json:"role"`
 	Language       string        `json:"language"`             // 语言

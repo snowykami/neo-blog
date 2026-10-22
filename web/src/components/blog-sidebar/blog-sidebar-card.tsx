@@ -8,8 +8,8 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getLabels } from '@/api/label'
 import { listPosts } from '@/api/post'
+import { ImageAvatar } from '@/components/common/avatar'
 import { SafeImage } from '@/components/common/safe-image'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { cn } from '@/lib/utils'
@@ -37,21 +37,23 @@ export function BlogSidebarAbout() {
               <div className="relative aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
                 <SafeImage src={aboutBackground} alt="" fill sizes="280px" className="object-cover" />
               </div>
-              <Avatar className="relative mx-auto -mt-10 size-20 rounded-full ring-4 ring-card">
-                {avatarSrc && <AvatarImage src={avatarSrc} alt={name} className="object-cover" />}
-                <AvatarFallback className="rounded-full bg-secondary text-2xl font-bold text-secondary-foreground">
-                  {getFallbackAvatarFromUsername(name)}
-                </AvatarFallback>
-              </Avatar>
+              <ImageAvatar
+                src={avatarSrc}
+                alt={name}
+                fallback={getFallbackAvatarFromUsername(name)}
+                className="relative mx-auto -mt-10 size-20 ring-4 ring-card"
+                fallbackClassName="bg-secondary text-2xl font-bold text-secondary-foreground"
+              />
             </div>
           )
         : (
-            <Avatar className="mx-auto mb-3 aspect-square size-auto w-full max-w-48 rounded-xl lg:max-w-none">
-              {avatarSrc && <AvatarImage src={avatarSrc} alt={name} className="object-cover" />}
-              <AvatarFallback className="rounded-xl bg-secondary text-5xl font-bold text-secondary-foreground">
-                {getFallbackAvatarFromUsername(name)}
-              </AvatarFallback>
-            </Avatar>
+            <ImageAvatar
+              src={avatarSrc}
+              alt={name}
+              fallback={getFallbackAvatarFromUsername(name)}
+              className="mx-auto mb-3 aspect-square size-auto w-full max-w-48 rounded-xl lg:max-w-none"
+              fallbackClassName="bg-secondary text-5xl font-bold text-secondary-foreground"
+            />
           )}
       <div className="px-2 pb-1 text-center">
         <div className="mb-1 text-xl font-bold text-foreground/90">{name}</div>

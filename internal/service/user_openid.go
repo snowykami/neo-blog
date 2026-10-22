@@ -401,5 +401,12 @@ func (s *UserService) updateUserOpenIdInfo(userOpenId *model.UserOpenID, userInf
 	userOpenId.Email = userInfo.Email
 	userOpenId.Picture = userInfo.Picture
 	userOpenId.PreferredUsername = userInfo.PreferredUsername
-	return repo.User.UpdateUserOpenID(userOpenId)
+	if err := repo.User.UpdateUserOpenID(userOpenId); err != nil {
+		return err
+	}
+	// 头像优先级：平台设置 > 第三方登录头像 > Gravatar；用户未设置头像时采用第三方登录的头像
+	if userInfo.Picture != "" {
+		return repo.User.FillAvatarIfEmpty(userOpenId.UserID, userInfo.Picture)
+	}
+	return nil
 }

@@ -210,6 +210,14 @@ func TestUserEmailVisibility(t *testing.T) {
 	if get(author) == "" || get(admin) == "" {
 		t.Fatalf("email should be visible to self and admin")
 	}
+	// 公开与本人视角的 Gravatar 哈希必须一致，保证默认头像处处相同
+	hash := func(ctx context.Context) string {
+		resp, _ := NewUserService().GetUser(ctx, &dto.GetUserReq{UserID: authorID})
+		return resp.User.GravatarHash
+	}
+	if h := hash(context.Background()); h == "" || h != hash(author) {
+		t.Fatalf("gravatar hash should be present and identical for public and self views")
+	}
 }
 
 func TestChangePasswordRevokesOtherSessions(t *testing.T) {

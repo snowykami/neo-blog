@@ -7,16 +7,14 @@ import Link from 'next/link'
 import { parseAsInteger, parseAsStringEnum, useQueryState } from 'nuqs'
 import { useEffect, useState } from 'react'
 import { getVisitorAdmin, getVisitStatsAdmin, listVisitsAdmin } from '@/api/admin'
+import { UserAvatar } from '@/components/common/avatar'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { BrowserIcon, OsIcon, SOURCE_NAMES, SourceIcon } from '@/components/console/visit-icons'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { getPageUrl, getPostUrl } from '@/utils/common/route'
-import { getFirstCharFromUser } from '@/utils/common/username'
 
 const KINDS = ['all', 'user', 'anonymous'] as const
 type Kind = (typeof KINDS)[number]
@@ -194,10 +192,7 @@ function VisitorIdentity({ user, os, browser, deviceType, location }: Pick<Visit
   if (user) {
     return (
       <span className="flex items-center gap-2 font-medium">
-        <Avatar className="size-6">
-          <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user, size: 48 })} alt={user.nickname || user.username} />
-          <AvatarFallback className="text-xs">{getFirstCharFromUser(user)}</AvatarFallback>
-        </Avatar>
+        <UserAvatar user={user} size={48} className="size-6" fallbackClassName="text-xs" />
         {user.nickname || user.username}
       </span>
     )

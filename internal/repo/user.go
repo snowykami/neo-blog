@@ -115,3 +115,10 @@ func (user *userRepo) ListUsers(pagination *dto.PaginationParams) ([]model.User,
 
 	return users, uint64(total), nil
 }
+
+// FillAvatarIfEmpty 仅在用户尚未设置头像时写入头像地址
+func (user *userRepo) FillAvatarIfEmpty(userID uint, avatarUrl string) error {
+	return GetDB().Model(&model.User{}).
+		Where("id = ? AND (avatar_url = '' OR avatar_url IS NULL)", userID).
+		UpdateColumn("avatar_url", avatarUrl).Error
+}

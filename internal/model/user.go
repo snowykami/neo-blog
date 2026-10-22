@@ -1,6 +1,10 @@
 package model
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"strings"
+
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"gorm.io/gorm"
@@ -34,7 +38,18 @@ func (user *User) ToDto() dto.UserDto {
 		Role:           user.Role,
 		Language:       user.Language,
 		ShowIPLocation: user.ShowIPLocation,
+		GravatarHash:   gravatarHash(user.Email),
 	}
+}
+
+// gravatarHash 按 Gravatar 规范对邮箱（去空白、转小写）做 SHA-256，所有场景的默认头像都以此为准，保证同一用户处处一致
+func gravatarHash(email string) string {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(email))
+	return hex.EncodeToString(sum[:])
 }
 
 // ToPrivateDto 包含邮箱的完整用户信息，只返回给本人和管理员

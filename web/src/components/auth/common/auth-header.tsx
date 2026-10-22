@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { ImageAvatar } from '@/components/common/avatar'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { getFallbackAvatarFromUsername } from '@/utils/common/username'
 
@@ -14,12 +14,12 @@ export function AuthHeader() {
     <div className="flex items-center gap-2 self-center font-bold text-2xl">
       <Link href="/" className="flex items-center gap-3">
         <div className="flex size-10 items-center justify-center rounded-full overflow-hidden border-2 border-gray-300 dark:border-gray-600">
-          <Avatar className="h-full w-full rounded-full">
-            <AvatarImage src={siteInfo.metadata?.icon || ''} alt={siteInfo?.owner?.name} />
-            <AvatarFallback className="rounded-full">
-              {getFallbackAvatarFromUsername(siteInfo?.owner?.name || 'Failed')}
-            </AvatarFallback>
-          </Avatar>
+          <ImageAvatar
+            src={siteInfo.metadata?.icon}
+            alt={siteInfo?.owner?.name}
+            fallback={getFallbackAvatarFromUsername(siteInfo?.owner?.name || siteInfo.metadata?.name || '')}
+            className="size-full"
+          />
         </div>
         <span className="font-bold text-2xl">{siteInfo.metadata?.name || ''}</span>
       </Link>

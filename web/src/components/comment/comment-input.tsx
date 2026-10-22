@@ -3,16 +3,14 @@ import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserAvatar } from '@/components/common/avatar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
 import { useToLogin } from '@/hooks/use-route'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
-import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { getUserUrl } from '@/utils/common/route'
-import { getFirstCharFromUser } from '@/utils/common/username'
 import { Button } from '../ui/button'
 
 export function CommentInput({
@@ -98,13 +96,7 @@ export function CommentInput({
                 aria-label={t('view_user_profile', { name: user.nickname || user.username })}
                 className="cursor-pointer flex-shrink-0 w-10 h-10 fade-in"
               >
-                <Avatar className="h-full w-full rounded-full">
-                  <AvatarImage
-                    src={getAvatarOrGravatarUrlFromUser({ user, size: 120 })}
-                    alt={user.nickname}
-                  />
-                  <AvatarFallback className="rounded-full">{getFirstCharFromUser(user)}</AvatarFallback>
-                </Avatar>
+                <UserAvatar user={user} className="size-full" />
               </Link>
             )
           : (

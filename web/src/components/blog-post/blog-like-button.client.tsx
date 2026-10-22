@@ -6,15 +6,14 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { getLikedUsers, toggleLike } from '@/api/like'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserAvatar } from '@/components/common/avatar'
 import { useAuth } from '@/contexts/auth-context'
 import { useToLogin } from '@/hooks/use-route'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { TargetType } from '@/models/types'
-import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { getUserUrl } from '@/utils/common/route'
-import { formatDisplayName, getFirstCharFromUser } from '@/utils/common/username'
+import { formatDisplayName } from '@/utils/common/username'
 
 const MAX_LIKED_USERS = 5
 
@@ -139,14 +138,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
               title={formatDisplayName(u)}
               className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Avatar className="size-8 rounded-full">
-                <AvatarImage
-                  className="rounded-full"
-                  src={getAvatarOrGravatarUrlFromUser({ user: u })}
-                  alt={u.nickname}
-                />
-                <AvatarFallback className="rounded-full">{getFirstCharFromUser(u)}</AvatarFallback>
-              </Avatar>
+              <UserAvatar user={u} size={64} className="size-8" />
             </Link>
           ))}
         </div>

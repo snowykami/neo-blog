@@ -1,10 +1,9 @@
 'use client'
 
-import { IconDotsVertical, IconLogout, IconUserCircle } from '@tabler/icons-react'
+import { ArrowLeftRightIcon, CircleUser, EllipsisVertical, LogOut } from 'lucide-react'
 
-import { ArrowLeftRightIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserAvatar } from '@/components/common/avatar'
 
 import {
   DropdownMenu,
@@ -24,8 +23,7 @@ import {
 import { useAuth } from '@/contexts/auth-context'
 import { useToLogin, useToUserProfile } from '@/hooks/use-route'
 import { useOperationT } from '@/hooks/use-translations'
-import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
-import { formatDisplayName, getFallbackAvatarFromUsername } from '@/utils/common/username'
+import { formatDisplayName } from '@/utils/common/username'
 
 export function NavUser() {
   const operationT = useOperationT()
@@ -51,17 +49,12 @@ export function NavUser() {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-full">
-                <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.username} />
-                <AvatarFallback className="rounded-full">
-                  {getFallbackAvatarFromUsername(user.nickname || user.username)}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar user={user} size={64} className="size-8" />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{formatDisplayName(user)}</span>
                 <span className="text-muted-foreground truncate text-xs">{user.email}</span>
               </div>
-              <IconDotsVertical className="ml-auto size-4" />
+              <EllipsisVertical className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -72,12 +65,7 @@ export function NavUser() {
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-full">
-                  <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.username} />
-                  <AvatarFallback className="rounded-full">
-                    {getFallbackAvatarFromUsername(user.nickname || user.username)}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar user={user} size={64} className="size-8" />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{formatDisplayName(user)}</span>
                   <span className="text-muted-foreground truncate text-xs">{user.email}</span>
@@ -91,7 +79,7 @@ export function NavUser() {
                   clickToProfile(user.username)
                 }}
               >
-                <IconUserCircle />
+                <CircleUser />
                 {routeT('profile')}
               </DropdownMenuItem>
             </DropdownMenuGroup>
@@ -102,7 +90,7 @@ export function NavUser() {
                 {operationT('switch_account')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleLogout}>
-                <IconLogout />
+                <LogOut />
                 {operationT('logout')}
               </DropdownMenuItem>
             </DropdownMenuGroup>

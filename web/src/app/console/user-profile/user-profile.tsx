@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
 import { updateUser } from '@/api/user'
+import { ImageAvatar } from '@/components/common/avatar'
 import { ImageCropper } from '@/components/common/image-cropper'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+
 import {
   Select,
   SelectContent,
@@ -26,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-
 import { useAuth } from '@/contexts/auth-context'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { localesData } from '@/locales'
@@ -238,26 +239,12 @@ export function UserProfilePage() {
         <div className="grid w-full items-center gap-4">
           <div className="grid gap-2">
             <Label htmlFor="picture">{t('picture')}</Label>
-            <Avatar className="h-40 w-40 rounded-xl border-2">
-              {avatarFileUrl
-                ? (
-                    <AvatarImage
-                      src={avatarFileUrl}
-                      alt={form.getValues('nickname') || form.getValues('username')}
-                    />
-                  )
-                : (
-                    <AvatarImage
-                      src={getAvatarOrGravatarUrlFromUser({ user })}
-                      alt={form.getValues('nickname') || form.getValues('username')}
-                    />
-                  )}
-              <AvatarFallback>
-                {getFallbackAvatarFromUsername(
-                  form.getValues('nickname') || form.getValues('username'),
-                )}
-              </AvatarFallback>
-            </Avatar>
+            <ImageAvatar
+              src={avatarFileUrl ?? getAvatarOrGravatarUrlFromUser({ user, size: 256 })}
+              alt={form.getValues('nickname') || form.getValues('username')}
+              fallback={getFallbackAvatarFromUsername(form.getValues('nickname') || form.getValues('username'))}
+              className="size-40 rounded-xl border-2"
+            />
             <div className="flex gap-2">
               <Input
                 id="picture"

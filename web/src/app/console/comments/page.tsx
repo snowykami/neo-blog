@@ -12,10 +12,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { listCommentsAdmin } from '@/api/admin'
 import { deleteComment } from '@/api/comment'
+import { UserAvatar } from '@/components/common/avatar'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
-import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -222,19 +222,7 @@ function CommentRow({
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
-          {/* 没有头像或头像失效时显示用户名首字母 */}
-          <SafeImage
-            src={comment.user?.avatarUrl}
-            alt={comment.user?.username || 'avatar'}
-            width={32}
-            height={32}
-            className="size-8 rounded-md object-cover"
-            fallback={(
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-xs">
-                {comment.user?.username?.[0] || '?'}
-              </div>
-            )}
-          />
+          {comment.user && <UserAvatar user={comment.user} size={64} className="size-8" fallbackClassName="text-xs" />}
           <div className="min-w-0">
             <div className="truncate text-sm">{comment.user?.nickname || comment.user?.username || t('unknown_user')}</div>
             {/* 邮箱仅在后端返回时展示 */}

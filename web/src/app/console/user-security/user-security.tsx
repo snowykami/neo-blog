@@ -7,9 +7,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { getUserOpenIdList, requestEmailVerifyCode, unbindUserOpenId, updateEmail, updatePassword } from '@/api/user'
+import { ImageAvatar } from '@/components/common/avatar'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { InputOTPControlled } from '@/components/common/input-otp'
-import { Avatar, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -282,9 +282,7 @@ function UserOpenIdItem({ openId, onUnbind }: { openId: OpenIdDto, onUnbind: (id
     <div className="flex items-center justify-between w-full max-w-sm border p-2 rounded-md gap-2">
       {/* 左头像 */}
       <div className="flex items-center gap-2">
-        <Avatar>
-          <AvatarImage src={openId.oidcIcon} alt={openId.oidcName} />
-        </Avatar>
+        <ImageAvatar src={openId.oidcIcon} alt={openId.oidcName} fallback={(openId.oidcDisplayName || openId.oidcName).slice(0, 1)} />
         <div className="grid">
           <span className="text-sm text-muted-foreground">{openId.oidcDisplayName || openId.oidcName}</span>
           <span className="font-medium truncate">

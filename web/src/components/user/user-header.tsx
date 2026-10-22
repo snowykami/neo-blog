@@ -5,12 +5,10 @@ import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { getUserIpLocation } from '@/api/user'
 import { PostMetaItem } from '@/components/blog-post/post-meta'
+import { UserAvatar } from '@/components/common/avatar'
 import { SafeImage } from '@/components/common/safe-image'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/contexts/auth-context'
 import { cn } from '@/lib/utils'
-import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
-import { getFirstCharFromUser } from '@/utils/common/username'
 
 // 常见的性别取值映射到翻译键，其余自定义内容原样显示
 const GENDER_ALIASES: Record<string, 'gender_male' | 'gender_female' | 'gender_other'> = {
@@ -73,10 +71,7 @@ export function UserHeader({ user }: { user: User }) {
       )}
       <div className="flex flex-col items-center gap-5 p-6 md:flex-row md:items-end md:gap-6 md:p-8">
         {/* 头像：有背景图时上移压在背景图边缘 */}
-        <Avatar className={cn('size-28 shrink-0 rounded-full ring-4 ring-card md:size-32', user.backgroundUrl && '-mt-20 md:-mt-24')}>
-          <AvatarImage src={getAvatarOrGravatarUrlFromUser({ user })} alt={user.nickname} />
-          <AvatarFallback className="rounded-full text-3xl">{getFirstCharFromUser(user)}</AvatarFallback>
-        </Avatar>
+        <UserAvatar user={user} size={256} className={cn('size-28 shrink-0 ring-4 ring-card md:size-32', user.backgroundUrl && '-mt-20 md:-mt-24')} fallbackClassName="text-3xl" />
 
         <div className="grid min-w-0 gap-3 text-center md:text-left">
           <div className="grid gap-1">

@@ -12,7 +12,7 @@ import {
   updateComment,
 } from '@/api/comment'
 import { toggleLike } from '@/api/like'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserAvatar } from '@/components/common/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -25,11 +25,9 @@ import { OrderBy } from '@/models/common'
 import { TargetType } from '@/models/types'
 import { formatDateTime } from '@/utils/common/datetime'
 import { getErrorMessage } from '@/utils/common/error'
-import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { formatLocation } from '@/utils/common/location'
 import { isAdmin } from '@/utils/common/permission'
 import { getUserUrl } from '@/utils/common/route'
-import { getFirstCharFromUser } from '@/utils/common/username'
 import { CommentInput } from './comment-input'
 
 export function CommentItem({
@@ -212,18 +210,7 @@ export function CommentItem({
           aria-label={t('view_user_profile', { name: commentState.user.nickname || commentState.user.username })}
           className="cursor-pointer fade-in w-10 h-10 shrink-0"
         >
-          <Avatar className="h-full w-full rounded-full">
-            <AvatarImage
-              src={getAvatarOrGravatarUrlFromUser({
-                user: commentState.user,
-                size: 120,
-              })}
-              alt={commentState.user.nickname}
-            />
-            <AvatarFallback className="rounded-full">
-              {getFirstCharFromUser(commentState.user)}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar user={commentState.user} className="size-full" />
         </Link>
         <div className="flex-1 fade-in-up">
           <div className="flex gap-2 md:gap-4 items-center flex-wrap">

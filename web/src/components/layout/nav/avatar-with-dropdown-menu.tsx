@@ -2,7 +2,7 @@
 import { ArrowLeftRightIcon, LogIn, LogOut, PanelLeft, User } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserAvatar } from '@/components/common/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,9 +16,8 @@ import { useAuth } from '@/contexts/auth-context'
 import { useToLogin } from '@/hooks/use-route'
 import { useOperationT } from '@/hooks/use-translations'
 import { Role } from '@/models/user'
-import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { consolePath, getUserUrl } from '@/utils/common/route'
-import { formatDisplayName, getFallbackAvatarFromUsername } from '@/utils/common/username'
+import { formatDisplayName } from '@/utils/common/username'
 
 export function AvatarWithDropdownMenu({ className }: { className?: string }) {
   const operationT = useOperationT()
@@ -41,16 +40,7 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
         >
           {user
             ? (
-                <Avatar className="size-7 rounded-full">
-                  <AvatarImage
-                    className="size-7 rounded-full"
-                    src={getAvatarOrGravatarUrlFromUser({ user })}
-                    alt=""
-                  />
-                  <AvatarFallback className="size-7 rounded-full">
-                    {getFallbackAvatarFromUsername(user.nickname || user.username)}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar user={user} size={64} alt="" className="size-7" />
               )
             : (
                 <User aria-hidden className="size-5" />

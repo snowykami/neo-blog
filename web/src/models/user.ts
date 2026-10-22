@@ -6,6 +6,7 @@ export interface User {
   backgroundUrl?: string
   preferredColor?: string
   email?: string // 仅 /user/me 与管理员接口返回，公开接口不包含
+  gravatarHash?: string // 邮箱的 SHA-256 哈希，用于生成 Gravatar 头像
   gender?: string
   role: Role
   language?: string
