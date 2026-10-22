@@ -15,7 +15,7 @@ async function compute(): Promise<string> {
     nav.userAgent,
     nav.language,
     (nav.languages || []).join(','),
-    Intl.DateTimeFormat().resolvedOptions().timeZone,
+    new Intl.DateTimeFormat().resolvedOptions().timeZone,
     `${screen.width}x${screen.height}x${screen.colorDepth}@${window.devicePixelRatio}`,
     nav.hardwareConcurrency ?? '',
     nav.deviceMemory ?? '',

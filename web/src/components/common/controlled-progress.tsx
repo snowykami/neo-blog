@@ -48,13 +48,11 @@ export function ProgressControl({
   }, [])
 
   const scheduleUpdate = useCallback((v: number) => {
-    if (rafIdRef.current == null) {
-      rafIdRef.current = requestAnimationFrame(() => {
-        setLocal(v)
-        onChange(v)
-        rafIdRef.current = null
-      })
-    }
+    rafIdRef.current ??= requestAnimationFrame(() => {
+      setLocal(v)
+      onChange(v)
+      rafIdRef.current = null
+    })
   }, [onChange])
 
   // 把这些改成函数声明，避免 eslint no-use-before-define
@@ -170,7 +168,7 @@ export function ProgressControl({
     onChangeEnd?.(next)
   }
 
-  const display = local != null ? local : value
+  const display = local ?? value
   const percent = Math.max(0, Math.min(100, Number(display) || 0))
 
   return (

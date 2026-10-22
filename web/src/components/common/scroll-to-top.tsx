@@ -37,9 +37,7 @@ export default function ScrollToTopButton({
     }
 
     const handler = () => {
-      if (rafRef.current == null) {
-        rafRef.current = requestAnimationFrame(update)
-      }
+      rafRef.current ??= requestAnimationFrame(update)
     }
 
     window.addEventListener('scroll', handler, { passive: true })

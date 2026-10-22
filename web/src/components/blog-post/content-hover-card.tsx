@@ -32,7 +32,7 @@ export function ContentHoverCard({ containerId }: { containerId: string }) {
   // 触摸打开的卡片在无操作一段时间后关闭，触摸卡片会重新计时
   const scheduleAutoClose = () => {
     window.clearTimeout(autoCloseTimer.current)
-    autoCloseTimer.current = window.setTimeout(() => setTarget(null), TOUCH_AUTO_CLOSE)
+    autoCloseTimer.current = window.setTimeout(setTarget, TOUCH_AUTO_CLOSE, null)
   }
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export function ContentHoverCard({ containerId }: { containerId: string }) {
       if (targetRef.current?.el === next.el)
         return
       window.clearTimeout(openTimer.current)
-      openTimer.current = window.setTimeout(() => setTarget(next), OPEN_DELAY)
+      openTimer.current = window.setTimeout(setTarget, OPEN_DELAY, next)
     }
 
     const onPointerOver = (event: PointerEvent) => {
@@ -89,7 +89,7 @@ export function ContentHoverCard({ containerId }: { containerId: string }) {
       if (!from || from.el.contains(event.relatedTarget as Node | null))
         return
       window.clearTimeout(openTimer.current)
-      closeTimer.current = window.setTimeout(() => setTarget(null), CLOSE_DELAY)
+      closeTimer.current = window.setTimeout(setTarget, CLOSE_DELAY, null)
     }
 
     // 部分移动浏览器（如 iOS Safari）的 click 事件不带 pointerType，在 pointerdown 时记录输入方式
@@ -160,7 +160,7 @@ export function ContentHoverCard({ containerId }: { containerId: string }) {
           }}
           onPointerLeave={(e) => {
             if (e.pointerType === 'mouse')
-              closeTimer.current = window.setTimeout(() => setTarget(null), CLOSE_DELAY)
+              closeTimer.current = window.setTimeout(setTarget, CLOSE_DELAY, null)
           }}
           // 触摸卡片时重新计时，阅读期间不会自动关闭
           onPointerDown={(e) => {

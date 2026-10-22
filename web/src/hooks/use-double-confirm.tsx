@@ -13,7 +13,7 @@ export function useDoubleConfirm(timeout = 2000) {
     }
     else {
       setConfirming(true)
-      timer.current = setTimeout(() => setConfirming(false), timeout)
+      timer.current = setTimeout(setConfirming, timeout, false)
     }
   }
 

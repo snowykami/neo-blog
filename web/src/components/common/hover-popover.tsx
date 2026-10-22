@@ -47,16 +47,16 @@ export function HoverPopover({
   const scheduleOpen = () => {
     window.clearTimeout(closeTimer.current)
     window.clearTimeout(openTimer.current)
-    openTimer.current = window.setTimeout(() => setOpen(true), HOVER_OPEN_DELAY)
+    openTimer.current = window.setTimeout(setOpen, HOVER_OPEN_DELAY, true)
   }
   const scheduleClose = () => {
     window.clearTimeout(openTimer.current)
     window.clearTimeout(closeTimer.current)
-    closeTimer.current = window.setTimeout(() => setOpen(false), HOVER_CLOSE_DELAY)
+    closeTimer.current = window.setTimeout(setOpen, HOVER_CLOSE_DELAY, false)
   }
   const scheduleAutoClose = () => {
     window.clearTimeout(autoCloseTimer.current)
-    autoCloseTimer.current = window.setTimeout(() => setOpen(false), TOUCH_AUTO_CLOSE)
+    autoCloseTimer.current = window.setTimeout(setOpen, TOUCH_AUTO_CLOSE, false)
   }
 
   return (

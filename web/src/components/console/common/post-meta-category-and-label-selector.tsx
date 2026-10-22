@@ -267,7 +267,7 @@ export function PostLabelSelector({
                           <Check
                             className={cn(
                               'ml-auto',
-                              safeLabels.find(label => label.id === l.id) ? 'opacity-100' : 'opacity-0',
+                              safeLabels.some(label => label.id === l.id) ? 'opacity-100' : 'opacity-0',
                             )}
                           />
                         </CommandItem>

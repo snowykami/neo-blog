@@ -247,13 +247,11 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // RAF 节流，避免每帧都 setState
       const now = performance.now()
       if (now - lastTimeTick < 120) {
-        if (rafId == null) {
-          rafId = requestAnimationFrame(() => {
-            setCurrentTime(audio.currentTime)
-            lastTimeTick = performance.now()
-            rafId = null
-          })
-        }
+        rafId ??= requestAnimationFrame(() => {
+          setCurrentTime(audio.currentTime)
+          lastTimeTick = performance.now()
+          rafId = null
+        })
         return
       }
       setCurrentTime(audio.currentTime)

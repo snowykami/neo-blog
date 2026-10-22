@@ -623,9 +623,7 @@ function PlayerControls() {
   const [dragPercent, setDragPercent] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
-  const valuePercent = dragPercent != null
-    ? dragPercent
-    : (duration ? (currentTime || 0) / duration * 100 : 0)
+  const valuePercent = dragPercent ?? (duration ? (currentTime || 0) / duration * 100 : 0)
 
   const handleChange = (v: number) => {
     setDragPercent(v)
