@@ -1,7 +1,7 @@
 'use client'
 
-import { IconInnerShadowTop } from '@tabler/icons-react'
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { SiteLogo } from '@/components/common/site-logo'
 
 /**
  * 导航栏上下文：导航栏统一使用卡片式实心样式，这里只保留可被其他组件临时替换的标题与图标
@@ -17,8 +17,9 @@ interface NavContextValue {
 
 const NavContext = createContext<NavContextValue | undefined>(undefined)
 
+// 默认导航图标：站点自身图标，未配置时回退为首页图标
 function DefaultNavIcon() {
-  return <IconInnerShadowTop aria-hidden className="size-6" />
+  return <SiteLogo />
 }
 
 export function NavProvider({ children }: { children: React.ReactNode }) {

@@ -4,6 +4,14 @@ import { useMusic } from '@/contexts/music-context'
 import { cn } from '@/lib/utils'
 import { getCurrentLyricIndex, getExtraLyricLine, getWordProgress } from '@/utils/music-lyric'
 
+/**
+ * 把首尾空白替换为不换行空格：逐字歌词每个字渲染为 inline-block，
+ * 其中首尾的普通空格会被折叠，导致英文等拉丁文字的单词粘连
+ */
+function preserveEdgeSpaces(text: string) {
+  return text.replace(/^\s+|\s+$/g, match => '\u00A0'.repeat(match.length))
+}
+
 export default function LyricScroll() {
   const t = useTranslations('MusicPlayer')
   const {
@@ -120,7 +128,7 @@ export default function LyricScroll() {
             }}
           >
             {line.items.map((item, wordIdx) => {
-              const wordText = item.text.replace(/\s+$/g, match => '\u00A0'.repeat(match.length))
+              const wordText = preserveEdgeSpaces(item.text)
               if (!isWordLyric || !isCurrent) {
                 return (
                   <span key={wordIdx}>
@@ -160,7 +168,7 @@ export default function LyricScroll() {
                 )}
               >
                 {extraLine.items.map((item, itemIdx) => {
-                  const itemText = item.text.replace(/\s+$/g, match => '\u00A0'.repeat(match.length))
+                  const itemText = preserveEdgeSpaces(item.text)
                   if (!isTimedExtraLine || !isCurrent) {
                     return (
                       <span key={itemIdx}>

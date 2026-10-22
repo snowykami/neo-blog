@@ -19,12 +19,13 @@ export async function fetchPlaylist(url: string): Promise<MusicTrack[]> {
   return snakeToCamelObj(await response.json())
 }
 
-export async function fetchNcmLyric(id: number): Promise<MusicLyrics> {
+export async function fetchNcmLyric(id: number, signal?: AbortSignal): Promise<MusicLyrics> {
   const url = `/api/music/lyric?song_id=${encodeURIComponent(String(id))}`
   const resp = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
     },
+    signal,
   })
   if (!resp.ok) {
     throw new Error('Network response was not ok')

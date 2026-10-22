@@ -2,11 +2,11 @@
 
 import type { PlayMode } from '@/contexts/music-context'
 import type { MusicTrack } from '@/models/music'
-import type { MusicLyricMode } from '@/utils/music-lyric'
+import type { LyricMarqueeWordBox, MusicLyricLine, MusicLyricMode } from '@/utils/music-lyric'
 import { useMeasure } from '@uidotdev/usehooks'
 import { CaseSensitiveIcon, CircleArrowLeftIcon, CircleArrowRightIcon, CirclePauseIcon, CirclePlayIcon, LanguagesIcon, ListMusicIcon, MessageSquareOffIcon, MusicIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle, Volume2Icon, VolumeXIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import Marquee from 'react-fast-marquee'
 import { fetchPlaylist } from '@/api/music'
 import { ProgressControl } from '@/components/common/controlled-progress'
@@ -17,7 +17,7 @@ import { useNav } from '@/contexts/nav-context'
 import { useStoredState } from '@/hooks/use-storage-state'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
-import { getCurrentLyricIndex, getWordProgress } from '@/utils/music-lyric'
+import { getCurrentLyricIndex, getLyricMarqueeOffset, getWordProgress, isWordTimedLyricLine } from '@/utils/music-lyric'
 import { Input } from '../ui/input'
 import LyricScroll from './music-lyric-scroll'
 
@@ -266,30 +266,94 @@ function CrossfadeAlbumImage({
   )
 }
 
+// 本地存储键：当前曲目索引、曲目 id 与播放进度（秒）
+const STORAGE_KEY_INDEX = 'music-current-index'
+const STORAGE_KEY_TRACK_ID = 'music-current-track-id'
+const STORAGE_KEY_TIME = 'music-current-time'
+const STORAGE_KEY_PLAY_MODE = 'music-play-mode'
+const PLAY_MODES: PlayMode[] = ['repeat-all', 'repeat-one', 'shuffle']
+// 专辑封面旋转一圈的时长，使用 CSS 动画代替逐帧 setState
+const ALBUM_ROTATE_CLASSNAME = 'animate-spin [animation-duration:30s]'
+
+function readStoredNumber(key: string): number | null {
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw == null)
+      return null
+    const value = Number(JSON.parse(raw))
+    return Number.isFinite(value) ? value : null
+  }
+  catch {
+    return null
+  }
+}
+
+function writeStoredNumber(key: string, value: number) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  }
+  catch { }
+}
+
+/**
+ * 根据本地存储计算刷新后应恢复的曲目索引与进度：
+ * 优先按曲目 id 定位（歌单顺序变化也不会错位）；存储的曲目已不在歌单中时从头开始且不恢复进度；
+ * 兼容只存了索引的旧数据
+ */
+function getRestoredPlayback(tracks: MusicTrack[]): { index: number, time?: number } {
+  if (tracks.length === 0)
+    return { index: 0 }
+  const storedTrackId = readStoredNumber(STORAGE_KEY_TRACK_ID)
+  const storedIndex = readStoredNumber(STORAGE_KEY_INDEX)
+  const storedTime = readStoredNumber(STORAGE_KEY_TIME) ?? undefined
+
+  if (storedTrackId != null) {
+    const index = tracks.findIndex(track => track.id === storedTrackId)
+    return index >= 0 ? { index, time: storedTime } : { index: 0 }
+  }
+  if (storedIndex != null)
+    return { index: Math.max(0, Math.min(Math.floor(storedIndex), tracks.length - 1)), time: storedTime }
+  return { index: 0 }
+}
+
+const reducedMotionQuery = '(prefers-reduced-motion: reduce)'
+
+function subscribeReducedMotion(callback: () => void) {
+  const media = window.matchMedia(reducedMotionQuery)
+  media.addEventListener('change', callback)
+  return () => media.removeEventListener('change', callback)
+}
+
+function usePrefersReducedMotion() {
+  return useSyncExternalStore(
+    subscribeReducedMotion,
+    () => window.matchMedia(reducedMotionQuery).matches,
+    () => false,
+  )
+}
+
 export function MusicPlayer({ playlistUrl }: { playlistUrl: string }) {
   const t = useTranslations('MusicPlayer')
   const {
     currentTrack,
     replacePlaylist,
     sampleTrack,
-    rotateDeg,
     currentIndex,
-    setCurrentIndex,
     currentTime: ctxCurrentTime,
-    seek,
-    playlist,
     duration,
     isPlaying,
+    setPlayMode,
   } = useMusic()
   const { setNavTitle, setNavIcon, resetNavIcon } = useNav()
   const themeColor = useAlbumThemeColor(currentTrack?.albumPic)
   const animatedThemeColor = useAnimatedThemeColor(themeColor)
-  const [storedIndex, setStoredIndex, isStoredIndexLoaded] = useStoredState<number | null>('music-current-index', null)
-  const [storedTime, setStoredTime, isStoredTimeLoaded] = useStoredState<number | null>('music-current-time', null)
+  const [storedPlayMode, , isStoredPlayModeLoaded] = useStoredState<PlayMode>(STORAGE_KEY_PLAY_MODE, 'repeat-all')
   const themeStyle = { '--music-theme': animatedThemeColor } as React.CSSProperties
 
-  // 确保只把存储的时间 seek 一次（避免被 audio 的 timeupdate 干扰多次）
-  const appliedStoredTimeRef = useRef(false)
+  // 歌单加载并完成进度恢复后才允许写回存储，避免初始化阶段覆盖已保存的值
+  const restoredRef = useRef(false)
+  // 刷新后恢复的曲目 id：首次切到该曲目时不清零已保存的进度
+  const restoredTrackIdRef = useRef<number | null>(null)
   // 节流写入存储，避免频繁 localStorage 写入
   const lastSavedTimeRef = useRef(0)
 
@@ -309,94 +373,66 @@ export function MusicPlayer({ playlistUrl }: { playlistUrl: string }) {
     }
   }, [isPlaying, resetNavIcon, setNavIcon, setNavTitle])
 
+  // 播放模式在播放器挂载时恢复（而不是等播放器弹层打开）
   useEffect(() => {
+    if (!isStoredPlayModeLoaded)
+      return
+    if (PLAY_MODES.includes(storedPlayMode))
+      setPlayMode(storedPlayMode)
+  }, [isStoredPlayModeLoaded, storedPlayMode, setPlayMode])
+
+  // 拉取歌单后一次性以“存储的曲目 + 进度”初始化，不再先切到第 0 首再切回，避免多余的歌词请求与竞态
+  useEffect(() => {
+    let cancelled = false
     fetchPlaylist(playlistUrl).then((playlist) => {
-      replacePlaylist(playlist)
+      if (cancelled)
+        return
+      const { index, time } = getRestoredPlayback(playlist)
+      restoredTrackIdRef.current = playlist[index]?.id ?? null
+      replacePlaylist(playlist, index, time)
+      restoredRef.current = true
     }).catch((error) => {
+      if (cancelled)
+        return
+      // 拉取失败时使用示例曲目兜底，但不开启存储写回，避免覆盖用户已保存的曲目与进度
       replacePlaylist([
         sampleTrack,
       ])
       console.error('Failed to fetch playlist:', error)
     })
-  }, [playlistUrl])
-
-  // 等待 playlist 加载并且本地索引就绪后再应用（只应用一次，避免被后续 replacePlaylist 覆盖）
-  const appliedStoredIndexRef = useRef(false)
-  useEffect(() => {
-    if (appliedStoredIndexRef.current)
-      return
-    if (!isStoredIndexLoaded)
-      return
-    if (storedIndex == null)
-      return
-    if (!playlist || playlist.length === 0)
-      return
-
-    // clamp 到合法范围再应用
-    const idx = Math.max(0, Math.min(storedIndex, playlist.length - 1))
-    setCurrentIndex(idx)
-    appliedStoredIndexRef.current = true
-  }, [isStoredIndexLoaded, storedIndex, playlist?.length, setCurrentIndex])
-
-  // 当存储的播放时间加载完成时，seek 到该时间（只执行一次）
-  useEffect(() => {
-    if (isStoredTimeLoaded && storedTime == null && !appliedStoredTimeRef.current) {
-      appliedStoredTimeRef.current = true
-      return
+    return () => {
+      cancelled = true
     }
+    // sampleTrack 每次渲染都会重新创建，不放入依赖，只在歌单地址变化时重新拉取
+  }, [playlistUrl, replacePlaylist])
 
-    // guard conditions
-    if (
-      !isStoredTimeLoaded
-      || storedTime == null
-      || appliedStoredTimeRef.current
-      || !playlist
-      || playlist.length === 0
-      || !currentTrack
-      || typeof duration !== 'number'
-      || !Number.isFinite(duration)
-      || duration <= 0
-    ) {
+  // 曲目变化时保存索引与曲目 id；切到新曲目时进度清零，保证进度始终属于已保存的曲目
+  const currentTrackId = currentTrack?.id ?? null
+  useEffect(() => {
+    if (!restoredRef.current || currentTrackId == null || currentIndex == null)
       return
-    }
+    writeStoredNumber(STORAGE_KEY_INDEX, currentIndex)
+    writeStoredNumber(STORAGE_KEY_TRACK_ID, currentTrackId)
+    if (restoredTrackIdRef.current === currentTrackId)
+      return
+    restoredTrackIdRef.current = null
+    writeStoredNumber(STORAGE_KEY_TIME, 0)
+    lastSavedTimeRef.current = 0
+  }, [currentIndex, currentTrackId])
 
-    if (typeof storedTime === 'number' && Number.isFinite(storedTime)) {
-      const t = Math.max(0, Math.min(storedTime, duration))
-      try {
-        seek(t)
-        appliedStoredTimeRef.current = true
-      }
-      catch (e) {
-        // 如果 seek 失败（浏览器限制），不要立即放弃：下次 duration/currentTrack 更新时再试
-        console.warn('seek failed when applying storedTime, will retry later', e)
-      }
-    }
-    // 重新尝试的依赖项包含 duration / playlist length / currentTrack，保证在元数据就绪后重试
-  }, [isStoredTimeLoaded, storedTime, playlist?.length, currentTrack?.id, duration, seek])
-
-  // 自动保存 currentIndex 到 storage
+  // 定期保存 currentTime 到 storage；元数据就绪前（duration 为空）进度尚未恢复，不写入
   useEffect(() => {
-    if (typeof currentIndex === 'number') {
-      setStoredIndex(currentIndex)
-    }
-  }, [currentIndex, setStoredIndex])
-
-  // 定期保存currentTime 到 storage
-  useEffect(() => {
-    // 不要在尚未把已保存时间应用（restore）之前覆盖本地值
-    if (!appliedStoredTimeRef.current)
+    if (!restoredRef.current || currentTrackId == null || duration == null)
       return
     if (ctxCurrentTime == null || !Number.isFinite(ctxCurrentTime))
       return
     const now = Date.now()
     if (now - lastSavedTimeRef.current < 1000)
       return
-    try {
-      setStoredTime(Math.floor(ctxCurrentTime))
-      lastSavedTimeRef.current = now
-    }
-    catch { }
-  }, [ctxCurrentTime, setStoredTime])
+    writeStoredNumber(STORAGE_KEY_TIME, Math.floor(ctxCurrentTime))
+    writeStoredNumber(STORAGE_KEY_TRACK_ID, currentTrackId)
+    lastSavedTimeRef.current = now
+  }, [ctxCurrentTime, currentTrackId, duration])
 
   if (!currentTrack) {
     return null
@@ -415,8 +451,8 @@ export function MusicPlayer({ playlistUrl }: { playlistUrl: string }) {
             alt={currentTrack.album}
             priority
             sizes="(min-width: 1024px) 64px, 48px"
-            style={{ transform: `rotate(${rotateDeg}deg)` }}
-            className="rounded-full h-12 w-12 lg:h-16 lg:w-16"
+            style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+            className={cn('rounded-full h-12 w-12 lg:h-16 lg:w-16', ALBUM_ROTATE_CLASSNAME)}
             imageClassName="object-cover rounded-full border-4 border-card"
           />
         </button>
@@ -445,33 +481,164 @@ export function MusicPlayer({ playlistUrl }: { playlistUrl: string }) {
   )
 }
 
+// 导航栏歌词两侧渐隐遮罩：仅在内容溢出时启用，滚动到头/尾时去掉对应一侧
+const NAV_LYRIC_FADE = '1.25em'
+function getNavLyricMask(fadeStart: boolean, fadeEnd: boolean) {
+  if (!fadeStart && !fadeEnd)
+    return ''
+  return `linear-gradient(to right, ${fadeStart ? 'transparent' : 'black'}, black ${NAV_LYRIC_FADE}, black calc(100% - ${NAV_LYRIC_FADE}), ${fadeEnd ? 'transparent' : 'black'})`
+}
+
+interface NavLyricLayout {
+  lineKey: string
+  containerWidth: number
+  contentWidth: number
+  wordBoxes: LyricMarqueeWordBox[]
+  fills: HTMLElement[]
+}
+
+/**
+ * 导航栏歌词：当前行超出容器宽度时水平滚动
+ * - 逐行歌词：先停留约 10%，再匀速滚动，在约 88% 行时长处露出结尾
+ * - 逐字歌词：跟随当前演唱位置滚动，使其保持在可视区域约 65% 处
+ * 偏移量、逐字高亮均在 requestAnimationFrame 中直接写 DOM，不触发逐帧 React 渲染
+ */
 function NavLyricTitle() {
   const t = useTranslations('MusicPlayer')
-  const { parsedLyricLines, lyricLines, currentLyricIndex, currentTime, getAudio } = useMusic()
-  const [smoothTime, setSmoothTime] = useState(0)
+  const { parsedLyricLines, lyricLines, currentLyricIndex, getAudio } = useMusic()
+  const prefersReducedMotion = usePrefersReducedMotion()
+  const containerRef = useRef<HTMLSpanElement>(null)
+  const contentRef = useRef<HTMLSpanElement>(null)
+  const layoutRef = useRef<NavLyricLayout | null>(null)
+  // rAF 中计算出的行索引，与所属歌词数组绑定，避免切歌后沿用旧索引
+  const [rafActive, setRafActive] = useState<{ lines: MusicLyricLine[], index: number | null } | null>(null)
+  const activeLyricIndex = rafActive?.lines === parsedLyricLines ? rafActive.index : currentLyricIndex
+  const line = activeLyricIndex == null ? undefined : parsedLyricLines[activeLyricIndex]
+  const text = activeLyricIndex == null ? '' : lyricLines[activeLyricIndex]?.text
+  const isWordLyric = Boolean(line && isWordTimedLyricLine(line))
+  const lineKey = line ? `${activeLyricIndex}-${line.startTime}` : ''
+
+  // 容器或内容尺寸变化（窗口缩放、字体加载）时使布局缓存失效，下一帧重新测量
+  useEffect(() => {
+    const container = containerRef.current
+    const content = contentRef.current
+    if (!container || !content || typeof ResizeObserver === 'undefined')
+      return
+    const observer = new ResizeObserver(() => {
+      layoutRef.current = null
+    })
+    observer.observe(container)
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [lineKey])
 
   useEffect(() => {
+    if (parsedLyricLines.length === 0)
+      return
     let rafId = 0
-    let lastRenderedMs = -1
+    let lastIndex: number | null | undefined
+    let lastTransform = ''
+    let lastMask: string | null = null
+    const fillProgress = new WeakMap<HTMLElement, number>()
+
+    const measure = (content: HTMLElement, container: HTMLElement, key: string): NavLyricLayout => {
+      const words = Array.from(content.querySelectorAll<HTMLElement>('[data-word-index]'))
+      return {
+        lineKey: key,
+        containerWidth: container.clientWidth,
+        contentWidth: content.scrollWidth,
+        // offsetLeft 不受 transform 影响，内容元素为 relative 定位，作为各字的 offsetParent
+        wordBoxes: words.map(word => ({ left: word.offsetLeft, width: word.offsetWidth })),
+        fills: words.map(word => word.querySelector<HTMLElement>('[data-word-fill]')).filter((fill): fill is HTMLElement => Boolean(fill)),
+      }
+    }
 
     const tick = () => {
-      const audio = getAudio()
-      const nextTime = audio ? audio.currentTime * 1000 : (currentTime ?? 0) * 1000
-      if (nextTime !== lastRenderedMs) {
-        lastRenderedMs = nextTime
-        setSmoothTime(nextTime)
-      }
       rafId = requestAnimationFrame(tick)
+      const audio = getAudio()
+      if (!audio)
+        return
+      const timeMs = audio.currentTime * 1000
+      const index = getCurrentLyricIndex(parsedLyricLines, timeMs, null)
+      if (index !== lastIndex) {
+        lastIndex = index
+        setRafActive({ lines: parsedLyricLines, index })
+      }
+
+      const container = containerRef.current
+      const content = contentRef.current
+      const current = index == null ? undefined : parsedLyricLines[index]
+      if (!container || !content || !current)
+        return
+      // React 尚未渲染出新行时跳过，避免把旧行的测量结果用于新行
+      const key = `${index}-${current.startTime}`
+      if (content.dataset.lineKey !== key)
+        return
+
+      let layout = layoutRef.current
+      if (!layout || layout.lineKey !== key) {
+        layout = measure(content, container, key)
+        layoutRef.current = layout
+        lastTransform = ''
+        lastMask = null
+      }
+
+      // 逐字高亮
+      if (isWordTimedLyricLine(current)) {
+        current.items.forEach((item, wordIndex) => {
+          const fill = layout.fills[wordIndex]
+          if (!fill)
+            return
+          const progress = getWordProgress(item, timeMs)
+          if (fillProgress.get(fill) === progress)
+            return
+          fillProgress.set(fill, progress)
+          fill.style.clipPath = `inset(0 ${(1 - progress) * 100}% 0 0)`
+        })
+      }
+
+      // 减少动态效果时不滚动，仅显示开头并以省略号截断
+      if (prefersReducedMotion)
+        return
+
+      const overflow = layout.contentWidth - layout.containerWidth
+      const offset = getLyricMarqueeOffset({
+        line: current,
+        nextLineStartTime: index == null ? undefined : parsedLyricLines[index + 1]?.startTime,
+        currentTimeMs: timeMs,
+        containerWidth: layout.containerWidth,
+        contentWidth: layout.contentWidth,
+        wordBoxes: isWordTimedLyricLine(current) ? layout.wordBoxes : undefined,
+      })
+      const transform = offset > 0 ? `translate3d(${-offset.toFixed(2)}px, 0, 0)` : ''
+      if (transform !== lastTransform) {
+        lastTransform = transform
+        content.style.transform = transform
+      }
+      const mask = overflow > 0 ? getNavLyricMask(offset > 0.5, offset < overflow - 0.5) : ''
+      if (mask !== lastMask) {
+        lastMask = mask
+        container.style.maskImage = mask
+        container.style.webkitMaskImage = mask
+      }
     }
 
     rafId = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafId)
-  }, [currentTime, getAudio])
+  }, [getAudio, parsedLyricLines, prefersReducedMotion])
 
-  const currentTimeMs = smoothTime || (currentTime ?? 0) * 1000
-  const activeLyricIndex = getCurrentLyricIndex(parsedLyricLines, currentTimeMs, currentLyricIndex)
-  const line = activeLyricIndex == null ? undefined : parsedLyricLines[activeLyricIndex]
-  const text = activeLyricIndex == null ? '' : lyricLines[activeLyricIndex]?.text
+  // 切换减少动态效果时清理已写入的位移与遮罩
+  useEffect(() => {
+    layoutRef.current = null
+    if (!prefersReducedMotion)
+      return
+    if (contentRef.current)
+      contentRef.current.style.transform = ''
+    if (containerRef.current) {
+      containerRef.current.style.maskImage = ''
+      containerRef.current.style.webkitMaskImage = ''
+    }
+  }, [prefersReducedMotion])
 
   if (!line)
     return ''
@@ -481,64 +648,43 @@ function NavLyricTitle() {
   }
 
   return (
-    <span className="inline-flex max-w-full min-w-0 items-baseline overflow-hidden whitespace-nowrap">
-      {line.items.map((word, index) => {
-        const wordEndTime = word.startTime + word.duration
-        const isPassed = currentTimeMs >= wordEndTime
-        const isActive = currentTimeMs >= word.startTime && currentTimeMs < wordEndTime
-        const isLineLyric = line.items.every(item => item.duration <= 0)
-        const progress = isLineLyric
-          ? 1
-          : isPassed
-            ? 1
-            : isActive
-              ? getWordProgress(word, currentTimeMs)
-              : 0
-
-        if (!isLineLyric) {
-          return (
-            <span
-              key={`${word.startTime}-${word.duration}-${word.text}-${index}`}
-              className="inline-block relative align-baseline"
-            >
-              <span className="select-none text-primary/45">{word.text}</span>
-              {progress > 0 && (
+    <span
+      ref={containerRef}
+      className={cn('block max-w-full overflow-hidden whitespace-pre', prefersReducedMotion && 'text-ellipsis')}
+    >
+      <span
+        // key 保证换行时重新挂载，旧行的位移与高亮不会残留到新行
+        key={lineKey}
+        ref={contentRef}
+        data-line-key={lineKey}
+        className={cn('relative text-primary', prefersReducedMotion ? 'inline' : 'inline-block')}
+      >
+        {isWordLyric
+          ? line.items.map((word, index) => (
+              <span
+                key={`${word.startTime}-${word.duration}-${index}`}
+                data-word-index={index}
+                className="relative inline-block align-baseline"
+              >
+                <span className="select-none text-primary/45">{word.text}</span>
                 <span
-                  className="absolute inset-0 select-none text-primary"
-                  style={{
-                    clipPath: `inset(0 ${(1 - progress) * 100}% 0 0)`,
-                    willChange: 'clip-path',
-                    pointerEvents: 'none',
-                  }}
+                  data-word-fill
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 select-none text-primary"
+                  style={{ clipPath: 'inset(0 100% 0 0)' }}
                 >
                   {word.text}
                 </span>
-              )}
-            </span>
-          )
-        }
-
-        return (
-          <span
-            key={`${word.startTime}-${word.duration}-${word.text}-${index}`}
-            className={cn(
-              'transition-colors duration-200',
-              'text-primary',
-            )}
-          >
-            {word.text}
-          </span>
-        )
-      })}
+              </span>
+            ))
+          : line.originalText}
+      </span>
     </span>
   )
 }
 
 function TrackInfo() {
-  const { currentTrack, rotateDeg, isPlaying, currentIndex } = useMusic()
-  if (!currentTrack) {
-    return null
-  }
+  const { currentTrack, isPlaying, currentIndex } = useMusic()
 
   // 使用 useMeasure 测量容器与纯文本内容宽度
   const [nameContainerRef, { width: nameContainerWidth }] = useMeasure<HTMLDivElement>()
@@ -556,6 +702,11 @@ function TrackInfo() {
     setIsArtistMarqueePlaying(Boolean(needArtist && isPlaying))
   }, [nameContentWidth, nameContainerWidth, artistContentWidth, artistContainerWidth, isPlaying, currentTrack?.name, currentTrack?.artists, currentTrack?.album])
 
+  // hooks 必须在提前返回之前调用，保证调用顺序稳定
+  if (!currentTrack) {
+    return null
+  }
+
   return (
     <div className="flex relative">
       <CrossfadeAlbumImage
@@ -563,8 +714,8 @@ function TrackInfo() {
         alt={currentTrack.album}
         priority
         sizes="60px"
-        style={{ transform: `rotate(${rotateDeg}deg)` }}
-        className="rounded-full w-15 h-15 shrink-0"
+        style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+        className={cn('rounded-full w-15 h-15 shrink-0', ALBUM_ROTATE_CLASSNAME)}
         imageClassName="object-cover rounded-full border-2 border-border"
       />
       <div className="flex flex-col justify-center px-4 gap-2 min-w-0">
@@ -619,11 +770,13 @@ function TrackInfo() {
 }
 
 function PlayerControls() {
+  const t = useTranslations('MusicPlayer')
   const { currentTrack, currentTime, duration, isPlaying, play, pause, next, prev, seek } = useMusic()
   const [dragPercent, setDragPercent] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
-  const valuePercent = dragPercent ?? (duration ? (currentTime || 0) / duration * 100 : 0)
+  // 限制在 0~100，避免时长未就绪或 currentTime 略超 duration 时进度条溢出
+  const valuePercent = Math.max(0, Math.min(100, dragPercent ?? (duration ? (currentTime || 0) / duration * 100 : 0)))
 
   const handleChange = (v: number) => {
     setDragPercent(v)
@@ -645,9 +798,11 @@ function PlayerControls() {
     <div className="">
       <div className="flex justify-between">
         <div className="text-xs text-foreground/50 py-1">
-          {currentTime
-            ? (isDragging ? formatDurationMMSS(Math.floor((dragPercent || 0) / 100 * (duration || 1))) : formatDurationMMSS(Math.floor(currentTime)))
-            : '00:00'}
+          {isDragging && dragPercent != null && duration
+            ? formatDurationMMSS(Math.floor(dragPercent / 100 * duration))
+            : currentTime
+              ? formatDurationMMSS(Math.floor(currentTime))
+              : '00:00'}
         </div>
         <div className="text-xs text-foreground/50">
           {duration ? formatDurationMMSS(Math.floor(duration)) : '00:00'}
@@ -662,21 +817,24 @@ function PlayerControls() {
       <div className="mt-2 flex items-center justify-center gap-4 text-foreground/50">
         <MuteButton />
         <PlayModeButton />
-        <CircleArrowLeftIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} onClick={prev} />
-        {isPlaying
-          ? (
-              <CirclePauseIcon
-                className={cn('w-8 h-8 cursor-pointer text-primary', BUTTON_ANIMATION_CLASSNAME)}
-                onClick={pause}
-              />
-            )
-          : (
-              <CirclePlayIcon
-                className={cn('w-8 h-8 cursor-pointer text-primary', BUTTON_ANIMATION_CLASSNAME)}
-                onClick={play}
-              />
-            )}
-        <CircleArrowRightIcon className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} onClick={next} />
+        {/* 图标放进带无障碍标签的按钮里，保证键盘可操作、读屏可识别 */}
+        <button type="button" aria-label={t('previous')} title={t('previous')} onClick={prev} className="rounded-full">
+          <CircleArrowLeftIcon aria-hidden className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />
+        </button>
+        <button
+          type="button"
+          aria-label={isPlaying ? t('pause') : t('play')}
+          title={isPlaying ? t('pause') : t('play')}
+          onClick={isPlaying ? pause : play}
+          className="rounded-full text-primary"
+        >
+          {isPlaying
+            ? <CirclePauseIcon aria-hidden className={cn('w-8 h-8', BUTTON_ANIMATION_CLASSNAME)} />
+            : <CirclePlayIcon aria-hidden className={cn('w-8 h-8', BUTTON_ANIMATION_CLASSNAME)} />}
+        </button>
+        <button type="button" aria-label={t('next')} title={t('next')} onClick={next} className="rounded-full">
+          <CircleArrowRightIcon aria-hidden className={cn('w-6 h-6', BUTTON_ANIMATION_CLASSNAME)} />
+        </button>
         <Playlist />
         <LyricModeButton />
       </div>
@@ -750,19 +908,11 @@ function LyricModeButton() {
 }
 
 function PlayModeButton() {
-  const [storedPlayMode, setStoredPlayMode, isStoredPlayModeLoaded] = useStoredState<PlayMode>('music-play-mode', 'repeat-all')
+  // 存储值的恢复在 MusicPlayer 挂载时完成，这里只负责写入
+  const [, setStoredPlayMode] = useStoredState<PlayMode>(STORAGE_KEY_PLAY_MODE, 'repeat-all')
   const t = useTranslations('MusicPlayer')
   const { playMode, setPlayMode } = useMusic()
   const playModeSize = 'w-5 h-5'
-
-  // 确保在存储加载完成并且值存在时同步到 context
-  useEffect(() => {
-    if (!isStoredPlayModeLoaded)
-      return
-    if (storedPlayMode == null)
-      return
-    setPlayMode(storedPlayMode)
-  }, [isStoredPlayModeLoaded, storedPlayMode, setPlayMode])
 
   const icons: Record<PlayMode, React.ReactNode> = {
     'repeat-all': <RepeatIcon className={cn(playModeSize, BUTTON_ANIMATION_CLASSNAME)} />,
@@ -910,7 +1060,9 @@ function Playlist() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <ListMusicIcon className={cn('w-5 h-5', BUTTON_ANIMATION_CLASSNAME)} />
+        <button type="button" aria-label={t('playlist')} title={t('playlist')} className="rounded-full">
+          <ListMusicIcon aria-hidden className={cn('w-5 h-5', BUTTON_ANIMATION_CLASSNAME)} />
+        </button>
       </PopoverTrigger>
       <PopoverContent className="fixed -right-16 bottom-4 z-1001 p-1">
         {showSearch

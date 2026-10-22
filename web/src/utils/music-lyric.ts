@@ -63,7 +63,10 @@ function parseLrc(lrcText: string): MusicLyricLine[] {
 function sanitizeExtraLyricLines(lines: MusicLyricLine[]): MusicLyricLine[] {
   return lines.map(line => ({
     ...line,
-    items: line.items.map(item => ({ ...item, text: item.text.replace(/〖|〗/g, '').trim() })),
+    // 逐字条目不能 trim：英文等拉丁文字的词间空格就保存在条目首尾，trim 会让单词粘连
+    items: line.items
+      .map(item => ({ ...item, text: item.text.replace(/〖|〗/g, '') }))
+      .filter(item => item.text !== ''),
     originalText: line.originalText.replace(/〖|〗/g, '').trim(),
   })).filter(line => line.originalText)
 }
@@ -513,7 +516,9 @@ export function getCurrentLyricIndex(lines: MusicLyricLine[], currentTimeMs: num
   if (currentTimeMs < lines[0].startTime)
     return 0
 
-  return lines.length - 1
+  // 处于两行之间的空隙（逐字歌词的行有自身时长）时，停留在最近一个已开始的行；
+  // 二分结束后 right 即为最后一个 startTime <= currentTimeMs 的行
+  return Math.max(0, Math.min(right, lines.length - 1))
 }
 
 export function getCurrentWordIndex(line: MusicLyricLine | undefined, currentTimeMs: number): number | null {
@@ -551,4 +556,95 @@ export function getExtraLyricLine(lines: MusicLyricLine[], lineStartTime: number
   )
 
   return closestLine
+}
+
+/** 逐行歌词（LRC）在无法得知下一行时间时使用的默认行时长 */
+export const LYRIC_MARQUEE_DEFAULT_LINE_DURATION_MS = 5000
+/** 逐行歌词：行开始后先静止的比例，保证开头可读 */
+export const LYRIC_MARQUEE_HOLD_RATIO = 0.1
+/** 逐行歌词：滚动到末尾时所处的行进度比例，保证在行结束前完整露出结尾 */
+export const LYRIC_MARQUEE_FINISH_RATIO = 0.88
+/** 逐字歌词：当前演唱位置在可视区域中的锚点比例 */
+export const LYRIC_MARQUEE_ANCHOR_RATIO = 0.65
+
+/** 逐字歌词中每个字（词）在内容中的水平位置，单位 px，相对内容左边缘 */
+export interface LyricMarqueeWordBox {
+  left: number
+  width: number
+}
+
+export interface LyricMarqueeOffsetParams {
+  line: MusicLyricLine
+  /** 下一行开始时间（ms），用于推算逐行歌词的行时长；最后一行传 undefined */
+  nextLineStartTime?: number
+  currentTimeMs: number
+  /** 可视容器宽度（px） */
+  containerWidth: number
+  /** 内容总宽度（px） */
+  contentWidth: number
+  /** 逐字歌词各字的位置，长度需与 line.items 一致；不传或长度不符时按逐行处理 */
+  wordBoxes?: LyricMarqueeWordBox[]
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
+
+/** 获取歌词行时长（ms）：优先使用行自身时长，其次为与下一行的间隔，最后回退默认值 */
+export function getLyricLineDuration(line: MusicLyricLine, nextLineStartTime?: number): number {
+  if (line.duration > 0)
+    return line.duration
+  if (nextLineStartTime != null && nextLineStartTime > line.startTime)
+    return nextLineStartTime - line.startTime
+  return LYRIC_MARQUEE_DEFAULT_LINE_DURATION_MS
+}
+
+/** 判断一行歌词是否带有逐字时间 */
+export function isWordTimedLyricLine(line: MusicLyricLine): boolean {
+  return line.items.some(item => item.duration > 0)
+}
+
+/**
+ * 计算导航栏歌词跑马灯的水平偏移量（px，正值表示内容向左移动的距离），结果限定在 [0, 溢出宽度]
+ * - 逐行歌词：先静止 HOLD_RATIO，再匀速滚动，在 FINISH_RATIO 时到达末尾
+ * - 逐字歌词：在当前字的时间区间内线性插值演唱位置，使其保持在可视区域约 ANCHOR_RATIO 处
+ */
+export function getLyricMarqueeOffset({
+  line,
+  nextLineStartTime,
+  currentTimeMs,
+  containerWidth,
+  contentWidth,
+  wordBoxes,
+}: LyricMarqueeOffsetParams): number {
+  const overflow = contentWidth - containerWidth
+  if (!(overflow > 0) || !Number.isFinite(overflow))
+    return 0
+
+  const items = line.items
+  const useWordTiming = isWordTimedLyricLine(line) && wordBoxes != null && wordBoxes.length === items.length && items.length > 0
+
+  if (!useWordTiming) {
+    const lineDuration = getLyricLineDuration(line, nextLineStartTime)
+    const progress = (currentTimeMs - line.startTime) / lineDuration
+    const ratio = clamp((progress - LYRIC_MARQUEE_HOLD_RATIO) / (LYRIC_MARQUEE_FINISH_RATIO - LYRIC_MARQUEE_HOLD_RATIO), 0, 1)
+    return ratio * overflow
+  }
+
+  // 找到当前游标所在区间：处于某个字的演唱区间内时线性插值，处于字间空隙时停在上一个字末尾
+  let position = wordBoxes[0].left
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    const box = wordBoxes[i]
+    if (currentTimeMs < item.startTime) {
+      position = i === 0 ? box.left : wordBoxes[i - 1].left + wordBoxes[i - 1].width
+      break
+    }
+    const progress = getWordProgress(item, currentTimeMs)
+    position = box.left + box.width * progress
+    if (progress < 1)
+      break
+  }
+
+  return clamp(position - containerWidth * LYRIC_MARQUEE_ANCHOR_RATIO, 0, overflow)
 }
