@@ -15,6 +15,7 @@ import {
 import { useFormatter, useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { Fragment } from 'react'
+import { UserAvatar } from '@/components/common/avatar'
 import { cn } from '@/lib/utils'
 import { getCategoryUrl, getLabelUrl, getUserUrl } from '@/utils/common/route'
 
@@ -52,9 +53,33 @@ export function PostMetaItem({
 
 const DATE_FORMAT = { year: 'numeric', month: '2-digit', day: '2-digit' } as const
 
+/** 头像 + 昵称的作者项（列表），整体链接到作者主页 */
+function PostAuthorAvatarItem({ user }: { user: Post['user'] }) {
+  const t = useTranslations()
+  const name = user?.nickname || user?.username || t('Common.unknown_author')
+  const content = (
+    <>
+      {/* 头像仅作装饰，读屏只读「作者 + 昵称」，避免首字母兜底被重复朗读 */}
+      {user && (
+        <span aria-hidden className="mr-2 shrink-0">
+          <UserAvatar user={user} size={56} alt="" className="size-7" />
+        </span>
+      )}
+      <span className="sr-only">{t('Copyright.author')}</span>
+      <span className="block max-w-[16ch] truncate">{name}</span>
+    </>
+  )
+  const itemClass = 'flex min-w-0 items-center text-sm font-medium text-foreground/50'
+
+  return user?.username
+    ? <Link href={getUserUrl(user)} className={cn(metaLinkClass, itemClass)}>{content}</Link>
+    : <div className={itemClass}>{content}</div>
+}
+
 export function PostMeta({
   post,
   showAuthor = false,
+  authorAvatar = false,
   showUpdated = false,
   showStats = false,
   className,
@@ -62,6 +87,8 @@ export function PostMeta({
   post: Post
   /** 显示作者（文章页） */
   showAuthor?: boolean
+  /** 作者以头像代替图标块展示（列表） */
+  authorAvatar?: boolean
   /** 更新时间与发布时间不在同一天时额外显示更新时间（文章页） */
   showUpdated?: boolean
   /** 显示浏览 / 点赞 / 评论数（文章页） */
@@ -78,7 +105,8 @@ export function PostMeta({
 
   return (
     <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-2', className)}>
-      {showAuthor && (
+      {showAuthor && authorAvatar && <PostAuthorAvatarItem user={post.user} />}
+      {showAuthor && !authorAvatar && (
         <PostMetaItem icon={PenLineIcon} label={t('Copyright.author')}>
           <Link href={getUserUrl(post.user)} className={cn(metaLinkClass, 'block max-w-[16ch] truncate')}>
             {post.user.nickname || post.user.username || t('Common.unknown_author')}
@@ -137,21 +165,18 @@ export function PostMeta({
 }
 
 /**
- * 字数与阅读时长：列表中为浅色纯文本，文章页（withIcons）带小图标块
+ * 字数与阅读时长：需传入完整正文计算（列表接口的正文已截断，因此只在文章页展示）；withIcons 时带小图标块
  */
 export function PostWordStats({
   words,
   minutes,
   withIcons = false,
   className,
-  children,
 }: {
   words: number
   minutes: number
   withIcons?: boolean
   className?: string
-  /** 追加在后面的其他统计（如列表中的点赞 / 评论 / 浏览） */
-  children?: React.ReactNode
 }) {
   const t = useTranslations('Common')
   const items = [
@@ -170,7 +195,6 @@ export function PostWordStats({
           {item.text}
         </div>
       ))}
-      {children}
     </div>
   )
 }

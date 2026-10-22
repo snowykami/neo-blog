@@ -1197,7 +1197,11 @@
     "size": "Tamanho",
     "updated_at": "Atualizado",
     "view_count": "Visualizações",
-    "top": "Pinned"
+    "top": "Pinned",
+    "sort_by": "Ordenar por",
+    "direction": "Ordem",
+    "desc": "Decrescente",
+    "asc": "Crescente"
   },
   "Random": {
     "title": "Postagem aleatória",

@@ -1230,7 +1230,11 @@
     "size": "大小",
     "updated_at": "更新時間",
     "view_count": "瀏覽數",
-    "top": "置頂"
+    "top": "置頂",
+    "sort_by": "所依",
+    "direction": "次第",
+    "desc": "自多而少",
+    "asc": "自少而多"
   },
   "Random": {
     "title": "隨機文章",

@@ -1197,7 +1197,11 @@
     "size": "Tamaño",
     "updated_at": "Actualizado",
     "view_count": "Vistas",
-    "top": "Fijado"
+    "top": "Fijado",
+    "sort_by": "Ordenar por",
+    "direction": "Orden",
+    "desc": "Descendente",
+    "asc": "Ascendente"
   },
   "Random": {
     "title": "Publicación aleatoria",

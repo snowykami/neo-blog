@@ -1197,7 +1197,11 @@
     "size": "サイズ",
     "updated_at": "更新日時",
     "view_count": "閲覧数",
-    "top": "固定表示"
+    "top": "固定表示",
+    "sort_by": "並べ替え基準",
+    "direction": "順序",
+    "desc": "降順",
+    "asc": "昇順"
   },
   "Random": {
     "title": "ランダム記事",

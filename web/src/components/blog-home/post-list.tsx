@@ -5,14 +5,13 @@ import { ChevronRightIcon, EyeIcon, FileSearchIcon, HeartIcon, LockIcon, Message
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { Fragment } from 'react'
-import { PostMeta, PostWordStats } from '@/components/blog-post/post-meta'
+import { PostMeta } from '@/components/blog-post/post-meta'
 import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
-import { calculateReadingTime, countWords } from '@/utils/common/post'
 import { getPostUrl } from '@/utils/common/route'
 import { htmlToText } from '@/utils/common/string'
 
@@ -26,12 +25,10 @@ function RowDivider() {
   return <div aria-hidden className="mx-6 border-t border-dashed border-foreground/10 md:mx-8" />
 }
 
-export function PostListItem({ post }: { post: Post }) {
+export function PostListItem({ post, showAuthor = true }: { post: Post, showAuthor?: boolean }) {
   const t = useTranslations()
   const url = getPostUrl({ post })
   const hasCover = !!post.cover
-  const words = countWords(post.content || '')
-  const minutes = calculateReadingTime(post.content || '')
   const summary = stripInlineMarkdown(post.description) || htmlToText(post.content || '').slice(0, 200)
 
   return (
@@ -69,13 +66,16 @@ export function PostListItem({ post }: { post: Post }) {
           </Link>
         </h2>
 
-        <PostMeta post={post} className="mb-4" />
+        <PostMeta post={post} showAuthor={showAuthor} authorAvatar className="mb-4" />
 
         {summary && (
-          <p className="mb-3.5 line-clamp-2 text-foreground/75">{summary}</p>
+          // 最多 4 行，超出显示省略号；max-h 兜底：浏览器忽略 line-clamp 时也只露出 4 行
+          // 关闭 text-autospace：Safari 默认开启而 Chrome 不开启，保持一致，也避免其影响截断
+          <p className="mb-3.5 line-clamp-4 max-h-[4lh] text-foreground/75 [text-autospace:no-autospace]">{summary}</p>
         )}
 
-        <PostWordStats words={words} minutes={minutes}>
+        {/* 列表正文已被接口截断，字数 / 阅读时长只在文章页按完整正文展示 */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-foreground/30 tabular-nums">
           <span className="flex items-center gap-1" title={t('Metrics.like_count')}>
             <HeartIcon aria-hidden className="size-3.5" />
             <span className="sr-only">{t('Metrics.like_count')}</span>
@@ -91,7 +91,7 @@ export function PostListItem({ post }: { post: Post }) {
             <span className="sr-only">{t('Metrics.view_count')}</span>
             {post.viewCount || 0}
           </span>
-        </PostWordStats>
+        </div>
       </div>
 
       {/* 封面：无封面时不显示；独立链接仅供鼠标点击，键盘焦点交给标题链接 */}
@@ -141,10 +141,12 @@ export function PostListItemSkeleton() {
  * - isLoading：显示与每页条数一致的骨架行
  * - error + onRetry：加载失败时显示错误态与重试
  * - onClearFilter：空列表时提供「清除筛选」操作
+ * - showAuthor：显示作者头像与昵称（用户主页中均为同一作者，可关闭）
  */
 export function PostList({
   posts,
   showPrivate = false,
+  showAuthor = true,
   isLoading = false,
   skeletonCount = 6,
   error = false,
@@ -154,6 +156,7 @@ export function PostList({
 }: {
   posts: Post[]
   showPrivate?: boolean
+  showAuthor?: boolean
   isLoading?: boolean
   skeletonCount?: number
   error?: boolean
@@ -217,7 +220,7 @@ export function PostList({
       {filteredPosts.map((post, index) => (
         <Fragment key={post.id}>
           {index > 0 && <RowDivider />}
-          <PostListItem post={post} />
+          <PostListItem post={post} showAuthor={showAuthor} />
         </Fragment>
       ))}
     </div>

@@ -1230,7 +1230,11 @@
     "size": "大小",
     "updated_at": "更新时间",
     "view_count": "浏览数",
-    "top": "置顶"
+    "top": "置顶",
+    "sort_by": "排序依据",
+    "direction": "顺序",
+    "desc": "降序",
+    "asc": "升序"
   },
   "Random": {
     "title": "随机文章",

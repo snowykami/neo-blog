@@ -1197,7 +1197,11 @@
     "size": "Größe",
     "updated_at": "Aktualisiert",
     "view_count": "Ansichten",
-    "top": "Angeheftet"
+    "top": "Angeheftet",
+    "sort_by": "Sortieren nach",
+    "direction": "Reihenfolge",
+    "desc": "Absteigend",
+    "asc": "Aufsteigend"
   },
   "Random": {
     "title": "Zufälliger Beitrag",

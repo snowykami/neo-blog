@@ -64,6 +64,7 @@ export function UserPosts({ userId }: { userId: number }) {
       <PostList
         posts={posts}
         showPrivate={true}
+        showAuthor={false}
         isLoading={loading}
         skeletonCount={pageSize}
         error={loadError}

@@ -1197,7 +1197,11 @@
     "size": "크기",
     "updated_at": "수정일",
     "view_count": "조회수",
-    "top": "Pinned"
+    "top": "Pinned",
+    "sort_by": "정렬 기준",
+    "direction": "순서",
+    "desc": "내림차순",
+    "asc": "오름차순"
   },
   "Random": {
     "title": "무작위 게시물",

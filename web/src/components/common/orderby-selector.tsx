@@ -1,7 +1,16 @@
+import { ArrowDownWideNarrowIcon, ArrowUpNarrowWideIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { OrderBy } from '@/models/common'
 
 interface Order {
@@ -23,7 +32,6 @@ export function OrderSelector({
   onOrderChange: (order: Order) => void
 }) {
   const orderT = useTranslations('Order')
-  const [open, setOpen] = useState(false)
   const [innerOrder, setInnerOrder] = useState<Order>(
     initialOrder ?? { orderBy: OrderBy.CreatedAt, desc: true },
   )
@@ -38,41 +46,58 @@ export function OrderSelector({
     OrderBy.ViewCount,
   ]
 
+  const changeOrder = (next: Order) => {
+    if (value === undefined)
+      setInnerOrder(next)
+    onOrderChange(next)
+  }
+
+  const DirectionIcon = order.desc ? ArrowDownWideNarrowIcon : ArrowUpNarrowWideIcon
+  const directionLabel = orderT(order.desc ? 'desc' : 'asc')
+
   return (
-    <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
-          <div className="text-sm font-bold hidden md:block">{orderT('order')}</div>
-          {' '}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={`${orderT('order')}: ${orderT(order.orderBy)}, ${directionLabel}`}
+          title={directionLabel}
+        >
+          <DirectionIcon className="text-muted-foreground" />
+          <span className="hidden text-muted-foreground md:inline">{orderT('order')}</span>
           {orderT(order.orderBy)}
-          {' '}
-          {order.desc ? '↓' : '↑'}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="end" side="bottom" sideOffset={8}>
-        <div className="flex flex-col">
-          {orderBys.map(ob =>
-            [true, false].map(desc => (
-              <Button
-                key={`${ob}-${desc}`}
-                variant="ghost"
-                size="sm"
-                className={`justify-start ${order.orderBy === ob && order.desc === desc ? 'bg-accent' : ''}`}
-                onClick={() => {
-                  if (value === undefined)
-                    setInnerOrder({ orderBy: ob, desc })
-                  onOrderChange({ orderBy: ob, desc })
-                  setOpen(false)
-                }}
-              >
-                {orderT(ob)}
-                {' '}
-                {desc ? '↓' : '↑'}
-              </Button>
-            )),
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuTrigger>
+      {/* 字段与方向分组单选；选择后保持展开，便于连续调整并直接看到列表变化 */}
+      <DropdownMenuContent className="min-w-40" align="end" sideOffset={8}>
+        <DropdownMenuLabel className="text-xs text-muted-foreground">{orderT('sort_by')}</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={order.orderBy}
+          onValueChange={v => changeOrder({ orderBy: v as OrderBy, desc: order.desc })}
+        >
+          {orderBys.map(ob => (
+            <DropdownMenuRadioItem key={ob} value={ob} onSelect={e => e.preventDefault()}>
+              {orderT(ob)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs text-muted-foreground">{orderT('direction')}</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={order.desc ? 'desc' : 'asc'}
+          onValueChange={v => changeOrder({ orderBy: order.orderBy, desc: v === 'desc' })}
+        >
+          <DropdownMenuRadioItem value="desc" onSelect={e => e.preventDefault()}>
+            <ArrowDownWideNarrowIcon className="text-muted-foreground" />
+            {orderT('desc')}
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="asc" onSelect={e => e.preventDefault()}>
+            <ArrowUpNarrowWideIcon className="text-muted-foreground" />
+            {orderT('asc')}
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

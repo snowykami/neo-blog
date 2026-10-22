@@ -1197,7 +1197,11 @@
     "size": "Size",
     "updated_at": "Updated",
     "view_count": "Views",
-    "top": "Pinned"
+    "top": "Pinned",
+    "sort_by": "Sort by",
+    "direction": "Direction",
+    "desc": "Descending",
+    "asc": "Ascending"
   },
   "Random": {
     "title": "Random post",
