@@ -8,8 +8,7 @@ import { FormProvider, useForm, useFormContext } from 'react-hook-form'
 import { toast } from 'sonner'
 import { listKV, setKV } from '@/api/admin'
 import { getSiteInfo } from '@/api/misc'
-import { FileSelector } from '@/components/common/file-selector'
-import { SafeImage } from '@/components/common/safe-image'
+import { AssetField } from '@/components/common/asset-picker'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -20,7 +19,6 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useOperationT } from '@/hooks/use-translations'
-import { getFileUri } from '@/utils/client/file'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
 // 站点内置的配色方案，对应 app/styles 下的主题文件
@@ -527,20 +525,9 @@ function SelectField({ name, label, description, options }: FieldProps & { optio
   )
 }
 
-// 图片：可直接填写地址，也可从文件库选择，并显示预览
-function ImageInput({ value, onChange }: { value: string, onChange: (value: string) => void }) {
-  const t = useTranslations('Console.global')
-  return (
-    <div className="flex items-center gap-2">
-      <div className="size-9 shrink-0 overflow-hidden rounded-md border">
-        <SafeImage src={value || null} alt="" width={36} height={36} className="size-full object-cover" fallback={<div className="size-full bg-muted" />} />
-      </div>
-      <Input type="url" placeholder="https://" value={value ?? ''} onChange={e => onChange(e.target.value)} />
-      <FileSelector limitNumber={1} limitType={['image/*']} onFilesSelected={files => files[0] && onChange(getFileUri(files[0].id))}>
-        <Button type="button" variant="outline">{t('choose_file')}</Button>
-      </FileSelector>
-    </div>
-  )
+// 图片：可直接填写地址，也可从资产库选择 / 本地上传，并显示预览
+function ImageInput({ value, onChange, clearable = false }: { value: string, onChange: (value: string) => void, clearable?: boolean }) {
+  return <AssetField value={value} onChange={onChange} clearable={clearable} placeholder="https://" />
 }
 
 function ImageField({ name, label, description }: FieldProps) {
@@ -553,7 +540,7 @@ function ImageField({ name, label, description }: FieldProps) {
         <FormItem className="md:col-span-2">
           <FormLabel>{label}</FormLabel>
           <FormControl>
-            <ImageInput value={field.value as string} onChange={field.onChange} />
+            <ImageInput value={field.value as string} onChange={field.onChange} clearable />
           </FormControl>
           {description && <FormDescription>{description}</FormDescription>}
         </FormItem>

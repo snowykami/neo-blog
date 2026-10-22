@@ -402,7 +402,6 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
 
 export function ImageNodeView(props: NodeViewProps) {
   const { editor, node, selected, updateAttributes, deleteNode } = props
-  const [uploading, setUploading] = useState(false)
   return (
     <ResizableImage
       toolbar={(
@@ -412,10 +411,8 @@ export function ImageNodeView(props: NodeViewProps) {
           onAlignChange={align => updateAttributes({ 'data-align': align })}
           onReplace={(src, name) => updateAttributes({ src, alt: name, title: name })}
           onDelete={deleteNode}
-          onUploadingChange={setUploading}
         />
       )}
-      uploading={uploading}
       src={node.attrs.src}
       alt={node.attrs.alt || ''}
       editor={editor}

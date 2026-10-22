@@ -1,10 +1,9 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import type { UploadFunction } from '@/components/tiptap-node/image-upload-node/image-upload-node-extension'
 import { DownloadIcon, ReplaceIcon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import * as React from 'react'
+import { AssetPicker } from '@/components/common/asset-picker'
 import { EditorToolbarButton, EditorToolbarSeparator } from '@/components/tiptap-editor/editor-toolbar-button'
 import { downloadSelectedImage } from '@/components/tiptap-ui/image-download-button/use-image-download'
 import { IMAGE_TOOLBAR_ATTR } from './image-node-constants'
@@ -23,32 +22,13 @@ export interface ImageNodeToolbarProps {
   onAlignChange: (align: ImageAlign) => void
   onReplace: (src: string, name: string) => void
   onDelete: () => void
-  onUploadingChange: (uploading: boolean) => void
 }
 
 /**
  * 图片浮动工具栏：附着在选中的图片上（对齐 / 替换 / 下载 / 删除），不占用主工具栏
  */
-export function ImageNodeToolbar({ editor, align, onAlignChange, onReplace, onDelete, onUploadingChange }: ImageNodeToolbarProps) {
+export function ImageNodeToolbar({ editor, align, onAlignChange, onReplace, onDelete }: ImageNodeToolbarProps) {
   const t = useTranslations('Console.editor')
-  const inputRef = React.useRef<HTMLInputElement>(null)
-
-  // 替换图片沿用图片上传块的上传函数
-  const upload = editor.extensionManager.extensions.find(ext => ext.name === 'imageUpload')?.options.upload as UploadFunction | undefined
-
-  const handleFile = async (file: File | undefined) => {
-    if (!file || !upload)
-      return
-    onUploadingChange(true)
-    try {
-      const url = await upload(file)
-      if (url)
-        onReplace(url, file.name.replace(/\.[^/.]+$/, ''))
-    }
-    finally {
-      onUploadingChange(false)
-    }
-  }
 
   return (
     <div
@@ -70,9 +50,14 @@ export function ImageNodeToolbar({ editor, align, onAlignChange, onReplace, onDe
         </EditorToolbarButton>
       ))}
       <EditorToolbarSeparator className="mx-1" />
-      <EditorToolbarButton label={t('image_replace')} className="h-[30px] min-w-[30px]" disabled={!upload} onClick={() => inputRef.current?.click()}>
-        <ReplaceIcon className="size-[17px]" />
-      </EditorToolbarButton>
+      {/* 替换图片：从资产库选择或本地上传；阻止弹层内事件沿 React 树冒泡到图片节点 */}
+      <span className="contents" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+        <AssetPicker accept="image/*" onSelect={([asset]) => asset && onReplace(asset.url, asset.name.replace(/\.[^/.]+$/, ''))}>
+          <EditorToolbarButton label={t('image_replace')} className="h-[30px] min-w-[30px]">
+            <ReplaceIcon className="size-[17px]" />
+          </EditorToolbarButton>
+        </AssetPicker>
+      </span>
       <EditorToolbarButton label={t('image_download')} shortcut="mod+shift+d" className="h-[30px] min-w-[30px]" onClick={() => void downloadSelectedImage(editor)}>
         <DownloadIcon className="size-[17px]" />
       </EditorToolbarButton>
@@ -84,16 +69,6 @@ export function ImageNodeToolbar({ editor, align, onAlignChange, onReplace, onDe
       >
         <Trash2Icon className="size-[17px]" />
       </EditorToolbarButton>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={(event) => {
-          void handleFile(event.target.files?.[0])
-          event.target.value = ''
-        }}
-      />
     </div>
   )
 }

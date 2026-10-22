@@ -46,7 +46,8 @@ func (f *FileRepo) CountFilesByHash(hash string, providerID uint) (int64, error)
 	return count, err
 }
 
-func (f *FileRepo) ListFiles(userID uint, paginationParams *dto.PaginationParams, query []string) ([]model.File, int64, error) {
+// ListFiles 列出文件；userID 为 0 时不限上传者，fileType 为空时不按类型筛选
+func (f *FileRepo) ListFiles(userID uint, paginationParams *dto.PaginationParams, query []string, fileType string) ([]model.File, int64, error) {
 	var files []model.File
 	var total int64
 	// 构建基础查询
@@ -61,6 +62,12 @@ func (f *FileRepo) ListFiles(userID uint, paginationParams *dto.PaginationParams
 				q = q.Where("name LIKE ?", "%"+q_item+"%")
 			}
 		}
+	}
+	switch fileType {
+	case constant.FileTypeImage, constant.FileTypeVideo, constant.FileTypeAudio:
+		q = q.Where("mime_type LIKE ?", fileType+"/%")
+	case constant.FileTypeOther:
+		q = q.Where("mime_type NOT LIKE ? AND mime_type NOT LIKE ? AND mime_type NOT LIKE ?", "image/%", "video/%", "audio/%")
 	}
 	// 先获取总数
 	countQuery := q.Session(&gorm.Session{}) // 创建新的会话，避免影响原查询

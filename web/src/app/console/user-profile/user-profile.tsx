@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
 import { updateUser } from '@/api/user'
+import { AssetField } from '@/components/common/asset-picker'
 import { ImageAvatar } from '@/components/common/avatar'
 import { ImageCropper } from '@/components/common/image-cropper'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -35,13 +36,26 @@ import { getFileUri } from '@/utils/client/file'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { getFallbackAvatarFromUsername } from '@/utils/common/username'
 
-interface UploadConstraints {
-  allowedTypes: string[]
-  maxSize: number
+const PICTURE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif'
+const PICTURE_MAX_SIZE = 5 * 1024 * 1024
+
+// 只有同源地址（站内文件）可以导出裁剪结果，外链图片不提供裁剪
+function croppableUrl(url: string) {
+  return url.startsWith('/') && !url.startsWith('//') ? url : null
 }
 
-interface PictureInputChangeEvent {
-  target: HTMLInputElement & { files?: FileList | null }
+function useObjectUrl(file: File | null) {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!file) {
+      setUrl(null)
+      return
+    }
+    const objectUrl = URL.createObjectURL(file)
+    setUrl(objectUrl)
+    return () => URL.revokeObjectURL(objectUrl)
+  }, [file])
+  return url
 }
 
 interface FormValues {
@@ -67,40 +81,13 @@ export function UserProfilePage() {
     },
   })
 
-  const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [avatarFileUrl, setAvatarFileUrl] = useState<string | null>(null)
-  const [backgroundFile, setBackgroundFile] = useState<File | null>(null)
-  const [backgroundFileUrl, setBackgroundFileUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!user)
-      return
-    if (!avatarFile) {
-      setAvatarFileUrl(getAvatarOrGravatarUrlFromUser({ user }))
-      return
-    }
-    const url = URL.createObjectURL(avatarFile)
-    setAvatarFileUrl(url)
-    return () => {
-      URL.revokeObjectURL(url)
-      setAvatarFileUrl(getAvatarOrGravatarUrlFromUser({ user }))
-    }
-  }, [avatarFile, user])
-
-  useEffect(() => {
-    if (!user)
-      return
-    if (!backgroundFile) {
-      setBackgroundFileUrl(null)
-      return
-    }
-    const url = URL.createObjectURL(backgroundFile)
-    setBackgroundFileUrl(url)
-    return () => {
-      URL.revokeObjectURL(url)
-      setBackgroundFileUrl(null)
-    }
-  }, [backgroundFile, user])
+  // 头像 / 背景图地址：从资产库选择、本地上传或手动填写；裁剪结果在提交时再上传
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '')
+  const [backgroundUrl, setBackgroundUrl] = useState(user?.backgroundUrl ?? '')
+  const [avatarCropped, setAvatarCropped] = useState<File | null>(null)
+  const [backgroundCropped, setBackgroundCropped] = useState<File | null>(null)
+  const avatarCroppedUrl = useObjectUrl(avatarCropped)
+  const backgroundCroppedUrl = useObjectUrl(backgroundCropped)
 
   const isProfileChanged = (): boolean => {
     if (!user)
@@ -111,69 +98,12 @@ export function UserProfilePage() {
       || values.username.trim() !== (user.username ?? '')
       || values.gender !== (user.gender ?? '')
       || values.language !== (user.language ?? '')
-      || avatarFile !== null
-      || backgroundFile !== null
+      || avatarUrl !== (user.avatarUrl ?? '')
+      || backgroundUrl !== (user.backgroundUrl ?? '')
+      || avatarCropped !== null
+      || backgroundCropped !== null
       || values.showIpLocation !== user.showIpLocation
     )
-  }
-
-  const handlePictureSelected = (e: PictureInputChangeEvent): void => {
-    const file: File | null = e.target.files?.[0] ?? null
-    if (!file) {
-      setAvatarFile(null)
-      return
-    }
-    const constraints: UploadConstraints = {
-      allowedTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
-      maxSize: 5 * 1024 * 1024,
-    }
-    if (
-      !file.type
-      || !file.type.startsWith('image/')
-      || !constraints.allowedTypes.includes(file.type)
-    ) {
-      setAvatarFile(null)
-      toast.error(t('only_allow_picture'))
-      return
-    }
-    if (file.size > constraints.maxSize) {
-      setAvatarFile(null)
-      toast.error(t('picture_size_cannot_exceed', { size: '5MiB' }))
-      return
-    }
-    setAvatarFile(file)
-  }
-
-  const handleBackgroundSelected = (e: PictureInputChangeEvent): void => {
-    const file: File | null = e.target.files?.[0] ?? null
-    if (!file) {
-      setBackgroundFile(null)
-      return
-    }
-    const constraints: UploadConstraints = {
-      allowedTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
-      maxSize: 5 * 1024 * 1024,
-    }
-    if (
-      !file.type
-      || !file.type.startsWith('image/')
-      || !constraints.allowedTypes.includes(file.type)
-    ) {
-      setBackgroundFile(null)
-      toast.error(t('only_allow_picture'))
-      return
-    }
-    if (file.size > constraints.maxSize) {
-      setBackgroundFile(null)
-      toast.error(t('picture_size_cannot_exceed', { size: '5MiB' }))
-      return
-    }
-    setBackgroundFile(file)
-  }
-
-  const handleCropped = (blob: Blob) => {
-    const file = new File([blob], 'avatar.png', { type: blob.type })
-    setAvatarFile(file)
   }
 
   if (!user)
@@ -195,23 +125,16 @@ export function UserProfilePage() {
       return
     }
 
-    let avatarUrl = user.avatarUrl
-    let backgroundUrl = user.backgroundUrl
-
     try {
-      if (avatarFile) {
-        const resp = await uploadFile({
-          file: avatarFile,
-          name: avatarFile.name,
-        })
-        avatarUrl = getFileUri(resp.data.id)
+      let nextAvatarUrl = avatarUrl
+      let nextBackgroundUrl = backgroundUrl
+      if (avatarCropped) {
+        const resp = await uploadFile({ file: avatarCropped, name: avatarCropped.name })
+        nextAvatarUrl = getFileUri(resp.data.id)
       }
-      if (backgroundFile) {
-        const resp = await uploadFile({
-          file: backgroundFile,
-          name: backgroundFile.name,
-        })
-        backgroundUrl = getFileUri(resp.data.id)
+      if (backgroundCropped) {
+        const resp = await uploadFile({ file: backgroundCropped, name: backgroundCropped.name })
+        nextBackgroundUrl = getFileUri(resp.data.id)
       }
 
       await updateUser({
@@ -220,8 +143,8 @@ export function UserProfilePage() {
         username: values.username,
         gender: values.gender,
         language: values.language,
-        avatarUrl,
-        backgroundUrl,
+        avatarUrl: nextAvatarUrl,
+        backgroundUrl: nextBackgroundUrl,
         showIpLocation: values.showIpLocation,
       })
       window.location.reload()
@@ -240,66 +163,61 @@ export function UserProfilePage() {
           <div className="grid gap-2">
             <Label htmlFor="picture">{t('picture')}</Label>
             <ImageAvatar
-              src={avatarFileUrl ?? getAvatarOrGravatarUrlFromUser({ user, size: 256 })}
+              src={avatarCroppedUrl ?? getAvatarOrGravatarUrlFromUser({ user: { ...user, avatarUrl }, size: 256 })}
               alt={form.getValues('nickname') || form.getValues('username')}
               fallback={getFallbackAvatarFromUsername(form.getValues('nickname') || form.getValues('username'))}
               className="size-40 rounded-xl border-2"
             />
-            <div className="flex gap-2">
-              <Input
-                id="picture"
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif,image/*"
-                onChange={handlePictureSelected}
-              />
-              <ImageCropper
-                image={avatarFile}
-                onCropped={handleCropped}
-                initialAspect={1}
-                lockAspect={true}
-              />
-            </div>
+            <AssetField
+              id="picture"
+              value={avatarUrl}
+              onChange={(url) => {
+                setAvatarUrl(url)
+                setAvatarCropped(null)
+              }}
+              accept={PICTURE_ACCEPT}
+              preview={false}
+              pickerProps={{ title: t('picture'), maxSize: PICTURE_MAX_SIZE }}
+              actions={(
+                <ImageCropper
+                  image={avatarCropped ?? croppableUrl(avatarUrl)}
+                  onCropped={blob => setAvatarCropped(new File([blob], 'avatar.png', { type: blob.type }))}
+                  initialAspect={1}
+                  lockAspect={true}
+                />
+              )}
+            />
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="background">{t('background')}</Label>
             <Avatar className="h-40 w-80 rounded-sm border-2">
-              {backgroundFileUrl
-                ? (
-                    <AvatarImage
-                      className="object-cover rounded-none"
-                      src={backgroundFileUrl}
-                      alt={form.getValues('nickname') || form.getValues('username')}
-                    />
-                  )
-                : (
-                    <AvatarImage
-                      className="object-cover rounded-none"
-                      src={user.backgroundUrl}
-                      alt={form.getValues('nickname') || form.getValues('username')}
-                    />
-                  )}
+              <AvatarImage
+                className="object-cover rounded-none"
+                src={backgroundCroppedUrl ?? backgroundUrl}
+                alt={form.getValues('nickname') || form.getValues('username')}
+              />
               <AvatarFallback className="rounded-none">{t('background')}</AvatarFallback>
             </Avatar>
-            <div className="flex gap-2">
-              <Input
-                id="background"
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif,image/*"
-                onChange={handleBackgroundSelected}
-              />
-              <ImageCropper
-                image={backgroundFile}
-                onCropped={(blob) => {
-                  const file = new File([blob], 'background.png', {
-                    type: blob.type,
-                  })
-                  setBackgroundFile(file)
-                }}
-                initialAspect={3}
-                lockAspect={false}
-              />
-            </div>
+            <AssetField
+              id="background"
+              value={backgroundUrl}
+              onChange={(url) => {
+                setBackgroundUrl(url)
+                setBackgroundCropped(null)
+              }}
+              accept={PICTURE_ACCEPT}
+              preview={false}
+              pickerProps={{ title: t('background'), maxSize: PICTURE_MAX_SIZE }}
+              actions={(
+                <ImageCropper
+                  image={backgroundCropped ?? croppableUrl(backgroundUrl)}
+                  onCropped={blob => setBackgroundCropped(new File([blob], 'background.png', { type: blob.type }))}
+                  initialAspect={3}
+                  lockAspect={false}
+                />
+              )}
+            />
           </div>
 
           <FormField

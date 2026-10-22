@@ -23,7 +23,7 @@ export function ImageCropper({
   initialAspect = 1.0,
   lockAspect = false,
 }: {
-  image: File | Blob | null
+  image: File | Blob | string | null // 字符串为图片地址，需同源才能导出裁剪结果
   onCropped: (blob: Blob) => void
   onCancel?: () => void
   initialAspect?: number

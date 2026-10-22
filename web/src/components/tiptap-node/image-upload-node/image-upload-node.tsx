@@ -1,14 +1,14 @@
 'use client'
 
 import type { NodeViewProps } from '@tiptap/react'
+import type { PickedAsset } from '@/components/common/asset-picker'
 import { NodeViewWrapper } from '@tiptap/react'
 import { CloudUploadIcon, FolderOpenIcon, ImageUpIcon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
-import { FileSelector } from '@/components/common/file-selector'
+import { AssetPicker } from '@/components/common/asset-picker'
 import { Button } from '@/components/ui/button'
 import { focusNextNode, isValidPosition } from '@/lib/tiptap-utils'
-import { getFileUri } from '@/utils/client/file'
 
 export interface FileItem {
   /**
@@ -322,7 +322,7 @@ const DropZoneContent: React.FC<{ maxSize: number, limit: number }> = ({ maxSize
 
 export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
   const { accept, limit, maxSize } = props.node.attrs
-  const t = useTranslations('FileSelector')
+  const t = useTranslations('AssetPicker')
   const editorT = useTranslations('Console.editor')
   const inputRef = React.useRef<HTMLInputElement>(null)
   const extension = props.extension
@@ -377,16 +377,8 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
     }
   }
 
-  const handleGallerySelect = (selectedFiles: Array<{ id: number, name: string, mimeType: string }>) => {
-    const images = selectedFiles
-      .filter(file => file.mimeType.startsWith('image/'))
-      .map(file => ({ url: getFileUri(file.id), name: file.name }))
-
-    if (images.length === 0) {
-      return
-    }
-
-    insertImages(images)
+  const handleAssetSelect = (assets: PickedAsset[]) => {
+    insertImages(assets.map(asset => ({ url: asset.url, name: asset.name })))
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -412,16 +404,14 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
       {!hasFiles && (
         <ImageUploadDragArea onFile={handleUpload}>
           <DropZoneContent maxSize={maxSize} limit={limit} />
-          <div className="mt-1">
-            <FileSelector
-              limitNumber={limit}
-              onFilesSelected={handleGallerySelect}
-            >
-              <Button type="button" variant="outline" size="sm" onClick={e => e.stopPropagation()}>
+          {/* 弹层内的点击会沿 React 树冒泡到节点，阻止其触发本地文件选择 */}
+          <div className="mt-1" onClick={e => e.stopPropagation()}>
+            <AssetPicker accept={accept} multiple={limit > 1} max={limit} maxSize={maxSize} onSelect={handleAssetSelect}>
+              <Button type="button" variant="outline" size="sm">
                 <FolderOpenIcon />
-                {t('select_file')}
+                {t('choose_from_library')}
               </Button>
-            </FileSelector>
+            </AssetPicker>
           </div>
         </ImageUploadDragArea>
       )}

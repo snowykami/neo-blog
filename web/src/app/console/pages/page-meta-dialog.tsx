@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { createPage, updatePage } from '@/api/page'
-import { FileSelector } from '@/components/common/file-selector'
+import { AssetField } from '@/components/common/asset-picker'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -29,7 +29,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useErrorMessageT, useOperationT, useResponseErrorDetailsT } from '@/hooks/use-translations'
-import { getFileUri } from '@/utils/client/file'
 import { getPageEditUrl } from '@/utils/common/route'
 
 interface PageMetaForm {
@@ -165,16 +164,7 @@ export function PageMetaDialog({
                 <FormItem>
                   <FormLabel>{t('cover')}</FormLabel>
                   <FormControl>
-                    <div className="flex gap-2">
-                      <Input {...field} />
-                      <FileSelector
-                        limitNumber={1}
-                        onFilesSelected={(files) => {
-                          if (files.length > 0)
-                            form.setValue('cover', getFileUri(files[0].id))
-                        }}
-                      />
-                    </div>
+                    <AssetField {...field} />
                   </FormControl>
                 </FormItem>
               )}

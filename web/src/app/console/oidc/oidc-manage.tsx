@@ -12,6 +12,7 @@ import {
   listOidcAdmin,
   updateOidcAdmin,
 } from '@/api/admin'
+import { AssetField } from '@/components/common/asset-picker'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import {
@@ -258,7 +259,7 @@ function OidcConfigForm({
 
   // 普通文本字段
   const textField = (
-    name: 'name' | 'displayName' | 'clientId' | 'clientSecret' | 'icon' | 'oidcDiscoveryUrl' | 'issuer' | 'authorizationEndpoint' | 'tokenEndpoint' | 'userinfoEndpoint' | 'jwksUri',
+    name: 'name' | 'displayName' | 'clientId' | 'clientSecret' | 'oidcDiscoveryUrl' | 'issuer' | 'authorizationEndpoint' | 'tokenEndpoint' | 'userinfoEndpoint' | 'jwksUri',
     label: string,
     options: { required?: boolean, type?: string } = {},
   ) => (
@@ -313,7 +314,19 @@ function OidcConfigForm({
               </FormItem>
             )}
           />
-          {textField('icon', t('icon_url'))}
+          <FormField
+            control={control}
+            name="icon"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('icon_url')}</FormLabel>
+                <FormControl>
+                  <AssetField {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           <FormField
             control={control}
             name="type"

@@ -17,6 +17,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/internal/storage"
 	"github.com/snowykami/neo-blog/internal/tasks"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -278,27 +279,15 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 }
 
 func (f *FileController) ListFiles(ctx context.Context, c *app.RequestContext) {
-	// 列出用户自己的文件
-	var paginationParams dto.PaginationParams
-	if err := c.BindAndValidate(&paginationParams); err != nil {
+	// 资产库列表：默认仅本人文件，管理员可通过 scope=all 查看全部
+	var req dto.FileListReq
+	if err := c.BindAndValidate(&req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-
-	queryStr := []string{}
-	query := c.Query("query")
-	if query != "" {
-		queryStr = strings.Split(query, ",")
-	}
-	currentUser, ok := ctxutils.GetCurrentUser(ctx)
-	if !ok {
-		resps.InternalServerError(c, "获取当前用户失败")
-		return
-	}
-	files, total, err := repo.File.ListFiles(currentUser.ID, &paginationParams, queryStr)
-	if err != nil {
-		logrus.Error("获取文件列表失败: ", err)
-		resps.InternalServerError(c, "获取文件列表失败")
+	files, total, svcerr := service.NewFileService().ListFiles(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, "获取文件列表成功", map[string]any{

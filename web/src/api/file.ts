@@ -8,12 +8,16 @@ export async function uploadFile({
   providerId,
   group,
   compressLevel = 5,
+  onProgress,
+  signal,
 }: {
   file: File
   name?: string // 不传则使用 file.name
   providerId?: string
   group?: string
   compressLevel?: number // 0-10，0 不压缩
+  onProgress?: (progress: number) => void // 上传进度 0-100
+  signal?: AbortSignal
 }): Promise<
   BaseResponse<{
     hash: string
@@ -71,7 +75,12 @@ export async function uploadFile({
   // 仅管理员可指定存储源，未指定时不传该字段
   if (providerId)
     formData.append('provider_id', providerId)
-  const res = await axiosClient.post('/file/f', formData, {})
+  const res = await axiosClient.post('/file/f', formData, {
+    signal,
+    onUploadProgress: onProgress
+      ? event => event.total && onProgress(Math.round((event.loaded / event.total) * 100))
+      : undefined,
+  })
   return res.data
 }
 
@@ -92,18 +101,24 @@ export async function batchDeleteFiles({ ids }: { ids: number[] }): Promise<
   return res.data
 }
 
+export type FileTypeFilter = 'image' | 'video' | 'audio' | 'other'
+
 export async function listFiles({
   page,
   size,
   query,
   orderBy,
   desc,
+  type,
+  scope,
 }: {
   page: number
   size: number
   query?: string
   orderBy?: string
   desc?: boolean
+  type?: FileTypeFilter // 按类型筛选，不传则不筛选
+  scope?: 'mine' | 'all' // 默认仅本人文件，all 仅管理员可用
 }): Promise<
   BaseResponse<{
     total: number
@@ -117,6 +132,8 @@ export async function listFiles({
       query,
       orderBy,
       desc,
+      type,
+      scope,
     },
     withCredentials: true,
   })

@@ -3,17 +3,14 @@
 import type { LucideIcon } from 'lucide-react'
 import type { FieldValues, Path, UseFormReturn } from 'react-hook-form'
 import type { ContentMeta } from '@/hooks/use-content-editor'
-import { ImageIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
-import { FileSelector } from '@/components/common/file-selector'
-import { SafeImage } from '@/components/common/safe-image'
+import { AssetField } from '@/components/common/asset-picker'
 import { Button } from '@/components/ui/button'
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { getFileUri } from '@/utils/client/file'
 
 /**
  * 编辑器设置抽屉的外框：标题、可滚动的表单区与“自动保存”提示
@@ -102,10 +99,9 @@ export function useSyncSettingsForm<T extends FieldValues>(
   }, [form])
 }
 
-/** 封面：预览 + 地址输入 + 从文件库选择 / 移除 */
+/** 封面：预览 + 地址输入 + 从资产库选择 / 本地上传 / 移除 */
 export function CoverField<T extends FieldValues>({ form, name, label }: { form: UseFormReturn<T>, name: Path<T>, label: string }) {
   const t = useTranslations('Console.editor')
-  const operationT = useTranslations('Operation')
   return (
     <FormField
       control={form.control}
@@ -113,40 +109,15 @@ export function CoverField<T extends FieldValues>({ form, name, label }: { form:
       render={({ field }) => (
         <FormItem>
           <FormLabel>{label}</FormLabel>
-          <div className="relative grid aspect-video place-items-center overflow-hidden rounded-xl border border-dashed bg-muted/50 text-[13px] text-foreground/30 data-[has-cover=true]:border-solid" data-has-cover={!!field.value}>
-            {field.value
-              ? <SafeImage src={field.value as string} alt="" fill className="object-cover" sizes="420px" />
-              : <span>{t('cover_empty')}</span>}
-          </div>
           <FormControl>
-            <Input {...field} value={(field.value as string) ?? ''} placeholder={t('cover_url_placeholder')} spellCheck={false} />
+            <AssetField
+              {...field}
+              value={field.value as string}
+              variant="cover"
+              emptyText={t('cover_empty')}
+              placeholder={t('cover_url_placeholder')}
+            />
           </FormControl>
-          <div className="flex flex-wrap gap-1.5">
-            <FileSelector
-              limitNumber={1}
-              onFilesSelected={(files) => {
-                if (files.length > 0)
-                  form.setValue(name, getFileUri(files[0].id) as T[Path<T>], { shouldDirty: true, shouldValidate: true })
-              }}
-            >
-              <Button type="button" size="sm" variant="secondary">
-                <ImageIcon />
-                {operationT('select_file')}
-              </Button>
-            </FileSelector>
-            {!!field.value && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                onClick={() => form.setValue(name, '' as T[Path<T>], { shouldDirty: true, shouldValidate: true })}
-              >
-                <Trash2Icon />
-                {t('cover_remove')}
-              </Button>
-            )}
-          </div>
           <FormDescription>{t('cover_hint')}</FormDescription>
         </FormItem>
       )}

@@ -48,3 +48,20 @@ var (
 	OrderByEnumFile    = []string{OrderByCreatedAt, OrderByUpdatedAt, "name", "size"}                                                              // 文件可用的排序方式
 	OrderByEnumUser    = []string{OrderByCreatedAt, OrderByUpdatedAt, "id", "username"}                                                            // 用户可用的排序方式
 )
+
+// 资产库列表范围与类型筛选
+const (
+	FileScopeMine = "mine"
+	FileScopeAll  = "all"
+
+	FileTypeImage = "image"
+	FileTypeVideo = "video"
+	FileTypeAudio = "audio"
+	FileTypeOther = "other"
+)
+
+// 管理员用户列表的状态筛选
+const (
+	UserStatusActive   = "active"
+	UserStatusDisabled = "disabled"
+)
