@@ -6,8 +6,9 @@ import type { ContentMeta } from '@/hooks/use-content-editor'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { AssetField } from '@/components/common/asset-picker'
+import { LabelWithInfo } from '@/components/common/info-tooltip'
 import { Button } from '@/components/ui/button'
-import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
@@ -108,7 +109,7 @@ export function CoverField<T extends FieldValues>({ form, name, label }: { form:
       name={name}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{label}</FormLabel>
+          <LabelWithInfo info={t('cover_hint')}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <FormControl>
             <AssetField
               {...field}
@@ -118,7 +119,6 @@ export function CoverField<T extends FieldValues>({ form, name, label }: { form:
               placeholder={t('cover_url_placeholder')}
             />
           </FormControl>
-          <FormDescription>{t('cover_hint')}</FormDescription>
         </FormItem>
       )}
     />
@@ -133,10 +133,7 @@ export function SwitchField<T extends FieldValues>({ form, name, label, descript
       name={name}
       render={({ field }) => (
         <FormItem className="flex items-center gap-3">
-          <div className="grid flex-1 gap-1">
-            <FormLabel>{label}</FormLabel>
-            {description && <FormDescription>{description}</FormDescription>}
-          </div>
+          <LabelWithInfo info={description} className="flex-1"><FormLabel>{label}</FormLabel></LabelWithInfo>
           <FormControl>
             <Switch checked={!!field.value} onCheckedChange={field.onChange} />
           </FormControl>
@@ -154,7 +151,7 @@ export function NumberField<T extends FieldValues>({ form, name, label, descript
       name={name}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{label}</FormLabel>
+          <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <FormControl>
             <Input
               type="number"
@@ -166,7 +163,6 @@ export function NumberField<T extends FieldValues>({ form, name, label, descript
               onChange={e => field.onChange(Number(e.target.value) || 0)}
             />
           </FormControl>
-          {description && <FormDescription>{description}</FormDescription>}
           <FormMessage />
         </FormItem>
       )}

@@ -15,6 +15,7 @@ import {
   updateUserRoleAdmin,
 } from '@/api/admin'
 import { UserAvatar } from '@/components/common/avatar'
+import { LabelWithInfo } from '@/components/common/info-tooltip'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -390,9 +391,8 @@ function ChangeRoleFormBody({ user, onCancel, onSaved }: { user: User, onCancel:
           name="role"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t('role')}</FormLabel>
+              <LabelWithInfo info={t('role_hint')}><FormLabel>{t('role')}</FormLabel></LabelWithInfo>
               <RoleSelect value={field.value} onChange={field.onChange} />
-              <FormDescription>{t('role_hint')}</FormDescription>
               <FormMessage />
             </FormItem>
           )}

@@ -250,7 +250,8 @@
     "show_more": "更多",
     "show_less": "收起",
     "back_to_top": "回到顶部",
-    "ai_summary": "AI 摘要"
+    "ai_summary": "AI 摘要",
+    "more_info": "更多说明"
   },
   "Components": {
     "image_cropper": {

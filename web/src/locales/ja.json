@@ -250,7 +250,8 @@
     "show_more": "もっと見る",
     "show_less": "閉じる",
     "back_to_top": "トップへ戻る",
-    "ai_summary": "AI 要約"
+    "ai_summary": "AI 要約",
+    "more_info": "詳細"
   },
   "Components": {
     "image_cropper": {

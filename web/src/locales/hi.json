@@ -250,7 +250,8 @@
     "show_more": "और दिखाएँ",
     "show_less": "कम दिखाएँ",
     "back_to_top": "ऊपर जाएँ",
-    "ai_summary": "AI सारांश"
+    "ai_summary": "AI सारांश",
+    "more_info": "अधिक जानकारी"
   },
   "Components": {
     "image_cropper": {

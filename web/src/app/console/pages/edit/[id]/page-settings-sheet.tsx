@@ -4,6 +4,7 @@ import type { ContentMeta } from '@/hooks/use-content-editor'
 import { CompassIcon, FileTextIcon, SendIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
+import { InfoTooltip, LabelWithInfo } from '@/components/common/info-tooltip'
 import {
   ContentSettingsSheet,
   CoverField,
@@ -12,7 +13,7 @@ import {
   SwitchField,
   useSyncSettingsForm,
 } from '@/components/console/editor/content-settings-sheet'
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useResponseErrorDetailsT } from '@/hooks/use-translations'
@@ -79,11 +80,10 @@ export function PageSettingsSheet({
               }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{pageT('slug')}</FormLabel>
+                  <LabelWithInfo info={t('slug_hint_page')}><FormLabel>{pageT('slug')}</FormLabel></LabelWithInfo>
                   <FormControl>
                     <Input {...field} autoComplete="off" spellCheck={false} className="font-mono text-[13.5px]" />
                   </FormControl>
-                  <FormDescription>{t('slug_hint_page')}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -93,14 +93,14 @@ export function PageSettingsSheet({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="flex w-full items-center">
-                    {pageT('description')}
+                  <div className="flex w-full items-center gap-1">
+                    <FormLabel>{pageT('description')}</FormLabel>
+                    <InfoTooltip content={t('description_sync_hint')} />
                     <span className="ml-auto font-normal text-muted-foreground/70 tabular-nums">{field.value.length}</span>
-                  </FormLabel>
+                  </div>
                   <FormControl>
                     <Textarea {...field} rows={3} placeholder={t('description_sheet_placeholder')} />
                   </FormControl>
-                  <FormDescription>{t('description_sync_hint')}</FormDescription>
                 </FormItem>
               )}
             />

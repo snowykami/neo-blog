@@ -250,7 +250,8 @@
     "show_more": "Показать ещё",
     "show_less": "Свернуть",
     "back_to_top": "Наверх",
-    "ai_summary": "ИИ-аннотация"
+    "ai_summary": "ИИ-аннотация",
+    "more_info": "Подробнее"
   },
   "Components": {
     "image_cropper": {

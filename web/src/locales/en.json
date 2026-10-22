@@ -250,7 +250,8 @@
     "show_more": "Show more",
     "show_less": "Show less",
     "back_to_top": "Back to top",
-    "ai_summary": "AI Summary"
+    "ai_summary": "AI Summary",
+    "more_info": "More info"
   },
   "Components": {
     "image_cropper": {

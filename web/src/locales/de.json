@@ -250,7 +250,8 @@
     "show_more": "Mehr anzeigen",
     "show_less": "Weniger anzeigen",
     "back_to_top": "Nach oben",
-    "ai_summary": "KI-Zusammenfassung"
+    "ai_summary": "KI-Zusammenfassung",
+    "more_info": "Weitere Infos"
   },
   "Components": {
     "image_cropper": {

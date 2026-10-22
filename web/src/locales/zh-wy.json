@@ -250,7 +250,8 @@
     "show_more": "更多",
     "show_less": "斂之",
     "back_to_top": "返於首",
-    "ai_summary": "AI 撮要"
+    "ai_summary": "AI 撮要",
+    "more_info": "詳釋"
   },
   "Components": {
     "image_cropper": {

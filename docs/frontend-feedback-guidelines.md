@@ -68,3 +68,10 @@
 - 标题用问句，描述用陈述句，按钮用动词；同一类操作在不同页面用同一套文案键（`Operation.*`）。
 - 不使用「请谨慎操作！」之类的感叹语气来代替具体后果；能说明后果就说明后果。
 - 所有用户可见文本接入 `next-intl`，并同步 `web/src/locales/` 下全部语言文件。
+
+## 8. 说明气泡（InfoTooltip）
+
+- 表单项、设置项的**补充说明**（用途、示例值、取值规则、隐私说明等）不再常驻在字段下方，统一放进标签右侧的 info 图标气泡：`<LabelWithInfo info={t('xxx_desc')}><FormLabel>…</FormLabel></LabelWithInfo>`；需要自定义布局时直接用 `<InfoTooltip content={…} />`，组件位于 `@/components/common/info-tooltip`。
+- 悬停或键盘聚焦显示，触屏设备点按显示、点击别处关闭；图标按钮带无障碍名称（`Common.more_info`）。
+- 仍需常驻显示的内容：卡片 / 分组顶部的整体介绍、校验错误（`FormMessage`）、会直接影响填写结果且必须先看到的警告，以及确认弹窗里的后果描述。
+- 气泡只放一两句纯文本，不放链接、按钮或表单；需要更多内容时改用 Popover 或文档链接。

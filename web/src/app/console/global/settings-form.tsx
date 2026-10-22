@@ -9,10 +9,11 @@ import { toast } from 'sonner'
 import { listKV, setKV } from '@/api/admin'
 import { getSiteInfo } from '@/api/misc'
 import { AssetField } from '@/components/common/asset-picker'
+import { LabelWithInfo } from '@/components/common/info-tooltip'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { FormControl, FormDescription, FormField, FormItem, FormLabel } from '@/components/ui/form'
+import { FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -380,11 +381,10 @@ function TextField({ name, label, description, placeholder, wide, type = 'text' 
       name={name}
       render={({ field }) => (
         <FormItem className={wide ? 'md:col-span-2' : undefined}>
-          <FormLabel>{label}</FormLabel>
+          <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <FormControl>
             <Input type={type} placeholder={placeholder} {...field} value={(field.value as string) ?? ''} />
           </FormControl>
-          {description && <FormDescription>{description}</FormDescription>}
         </FormItem>
       )}
     />
@@ -406,7 +406,7 @@ function PasswordField({ name, label, description, placeholder, wide }: FieldPro
       name={name}
       render={({ field }) => (
         <FormItem className={wide ? 'md:col-span-2' : undefined}>
-          <FormLabel>{label}</FormLabel>
+          <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <div className="relative">
             <FormControl>
               <Input
@@ -431,7 +431,6 @@ function PasswordField({ name, label, description, placeholder, wide }: FieldPro
               {visible ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
             </Button>
           </div>
-          {description && <FormDescription>{description}</FormDescription>}
         </FormItem>
       )}
     />
@@ -446,11 +445,10 @@ function TextAreaField({ name, label, description, wide }: FieldProps) {
       name={name}
       render={({ field }) => (
         <FormItem className={wide ? 'md:col-span-2' : undefined}>
-          <FormLabel>{label}</FormLabel>
+          <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <FormControl>
             <Textarea rows={3} {...field} value={(field.value as string) ?? ''} />
           </FormControl>
-          {description && <FormDescription>{description}</FormDescription>}
         </FormItem>
       )}
     />
@@ -465,7 +463,7 @@ function NumberField({ name, label, description, min, max, step = 1 }: FieldProp
       name={name}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{label}</FormLabel>
+          <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <FormControl>
             <Input
               type="number"
@@ -477,7 +475,6 @@ function NumberField({ name, label, description, min, max, step = 1 }: FieldProp
               onBlur={field.onBlur}
             />
           </FormControl>
-          {description && <FormDescription>{description}</FormDescription>}
         </FormItem>
       )}
     />
@@ -492,10 +489,7 @@ function SwitchField({ name, label, description }: FieldProps) {
       name={name}
       render={({ field }) => (
         <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3 md:col-span-2">
-          <div className="grid gap-1">
-            <FormLabel>{label}</FormLabel>
-            {description && <FormDescription>{description}</FormDescription>}
-          </div>
+          <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <FormControl>
             <Switch checked={!!field.value} onCheckedChange={field.onChange} />
           </FormControl>
@@ -513,7 +507,7 @@ function SelectField({ name, label, description, options }: FieldProps & { optio
       name={name}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{label}</FormLabel>
+          <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <Select value={field.value as string} onValueChange={field.onChange}>
             <FormControl>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
@@ -522,7 +516,6 @@ function SelectField({ name, label, description, options }: FieldProps & { optio
               {options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          {description && <FormDescription>{description}</FormDescription>}
         </FormItem>
       )}
     />
@@ -542,11 +535,10 @@ function ImageField({ name, label, description }: FieldProps) {
       name={name}
       render={({ field }) => (
         <FormItem className="md:col-span-2">
-          <FormLabel>{label}</FormLabel>
+          <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <FormControl>
             <ImageInput value={field.value as string} onChange={field.onChange} clearable />
           </FormControl>
-          {description && <FormDescription>{description}</FormDescription>}
         </FormItem>
       )}
     />
@@ -588,14 +580,13 @@ function StringListField({ name, label, description, placeholder }: FieldProps) 
       name={name}
       render={({ field }) => (
         <FormItem className="md:col-span-2">
-          <FormLabel>{label}</FormLabel>
+          <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <ListEditor<string>
             items={(field.value as string[]) ?? []}
             onChange={field.onChange}
             createItem={() => ''}
             renderItem={(item, update) => <Input placeholder={placeholder} value={item} onChange={e => update(e.target.value)} />}
           />
-          {description && <FormDescription>{description}</FormDescription>}
         </FormItem>
       )}
     />
@@ -610,21 +601,20 @@ function ImageListField({ name, label, description }: FieldProps) {
       name={name}
       render={({ field }) => (
         <FormItem className="md:col-span-2">
-          <FormLabel>{label}</FormLabel>
+          <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <ListEditor<string>
             items={(field.value as string[]) ?? []}
             onChange={field.onChange}
             createItem={() => ''}
             renderItem={(item, update) => <ImageInput value={item} onChange={update} />}
           />
-          {description && <FormDescription>{description}</FormDescription>}
         </FormItem>
       )}
     />
   )
 }
 
-function LinkListField({ name, label }: FieldProps) {
+function LinkListField({ name, label, description }: FieldProps) {
   const t = useTranslations('Console.global')
   const { control } = useFormContext<SettingsValues>()
   return (
@@ -633,7 +623,7 @@ function LinkListField({ name, label }: FieldProps) {
       name={name}
       render={({ field }) => (
         <FormItem className="md:col-span-2">
-          <FormLabel>{label}</FormLabel>
+          <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <ListEditor<{ text: string, href: string }>
             items={(field.value as { text: string, href: string }[]) ?? []}
             onChange={field.onChange}
@@ -664,7 +654,7 @@ function ColorSchemesField() {
         name="colorSchemes"
         render={({ field }) => (
           <FormItem className="md:col-span-2">
-            <FormLabel>{t('color_schemes')}</FormLabel>
+            <LabelWithInfo info={t('color_schemes_desc')}><FormLabel>{t('color_schemes')}</FormLabel></LabelWithInfo>
             <div className="flex flex-wrap gap-2">
               {ALL_COLOR_SCHEMES.map((scheme) => {
                 const checked = (field.value as string[]).includes(scheme)
@@ -682,7 +672,6 @@ function ColorSchemesField() {
                 )
               })}
             </div>
-            <FormDescription>{t('color_schemes_desc')}</FormDescription>
           </FormItem>
         )}
       />

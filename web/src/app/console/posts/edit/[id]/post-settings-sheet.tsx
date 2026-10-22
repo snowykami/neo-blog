@@ -6,6 +6,7 @@ import type { Label } from '@/models/label'
 import { FileTextIcon, FolderIcon, SendIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
+import { InfoTooltip, LabelWithInfo } from '@/components/common/info-tooltip'
 import { PostCategorySelector, PostLabelSelector } from '@/components/console/common/post-meta-category-and-label-selector'
 import {
   ContentSettingsSheet,
@@ -15,7 +16,7 @@ import {
   SwitchField,
   useSyncSettingsForm,
 } from '@/components/console/editor/content-settings-sheet'
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useResponseErrorDetailsT } from '@/hooks/use-translations'
@@ -79,11 +80,10 @@ export function PostSettingsSheet({
               rules={{ validate: value => !isNumericSlug(value) || errorDetailsT('slug_cannot_be_numeric') }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{postEditT('post_slug')}</FormLabel>
+                  <LabelWithInfo info={t('slug_hint_post')}><FormLabel>{postEditT('post_slug')}</FormLabel></LabelWithInfo>
                   <FormControl>
                     <Input {...field} autoComplete="off" spellCheck={false} className="font-mono text-[13.5px]" />
                   </FormControl>
-                  <FormDescription>{t('slug_hint_post')}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -93,14 +93,14 @@ export function PostSettingsSheet({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="flex w-full items-center">
-                    {postEditT('post_description')}
+                  <div className="flex w-full items-center gap-1">
+                    <FormLabel>{postEditT('post_description')}</FormLabel>
+                    <InfoTooltip content={t('description_sync_hint')} />
                     <span className="ml-auto font-normal text-muted-foreground/70 tabular-nums">{field.value.length}</span>
-                  </FormLabel>
+                  </div>
                   <FormControl>
                     <Textarea {...field} rows={3} placeholder={t('description_sheet_placeholder')} />
                   </FormControl>
-                  <FormDescription>{t('description_sync_hint')}</FormDescription>
                 </FormItem>
               )}
             />

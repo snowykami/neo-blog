@@ -250,7 +250,8 @@
     "show_more": "Ver más",
     "show_less": "Ver menos",
     "back_to_top": "Volver arriba",
-    "ai_summary": "Resumen con IA"
+    "ai_summary": "Resumen con IA",
+    "more_info": "Más información"
   },
   "Components": {
     "image_cropper": {
