@@ -28,6 +28,7 @@ func (c *captchaUtils) GetCaptchaConfigFromEnv() *CaptchaConfig {
 // VerifyCaptcha 根据提供的配置和令牌验证验证码
 func (c *captchaUtils) VerifyCaptcha(captchaConfig *CaptchaConfig, captchaToken string) (bool, error) {
 	restyClient := resty.New()
+	defer restyClient.Close() // resty v3 客户端用完需 Close，释放后台资源
 	switch captchaConfig.Type {
 	case constant.CaptchaTypeDisable:
 		return true, nil
@@ -41,7 +42,7 @@ func (c *captchaUtils) VerifyCaptcha(captchaConfig *CaptchaConfig, captchaToken 
 		if err != nil {
 			return false, err
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			return false, nil
 		}
 		fmt.Printf("%#v\n", result)
@@ -60,7 +61,7 @@ func (c *captchaUtils) VerifyCaptcha(captchaConfig *CaptchaConfig, captchaToken 
 		if err != nil {
 			return false, err
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			return false, nil
 		}
 		fmt.Printf("%#v\n", result)
@@ -79,7 +80,7 @@ func (c *captchaUtils) VerifyCaptcha(captchaConfig *CaptchaConfig, captchaToken 
 		if err != nil {
 			return false, err
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			return false, nil
 		}
 		fmt.Printf("%#v\n", result)

@@ -1,5 +1,5 @@
 # build
-FROM golang:1.24.2-alpine3.21 AS builder
+FROM golang:1.26.10-alpine3.24 AS builder
 
 ENV TZ=Asia/Chongqing
 

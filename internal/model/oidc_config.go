@@ -48,6 +48,7 @@ type oidcDiscoveryResp struct {
 
 func updateOidcConfigFromUrl(url string, typ string) (*oidcDiscoveryResp, error) {
 	client := resty.New()
+	defer client.Close()                // resty v3 客户端用完需 Close，释放后台资源
 	client.SetTimeout(10 * time.Second) // 设置超时时间
 	var discovery oidcDiscoveryResp
 	resp, err := client.R().

@@ -93,6 +93,10 @@ func NewS3StorageProvider(providerConfig model.StorageProviderModelAndDto) (stor
 		clientOptions = append(clientOptions, func(o *s3.Options) {
 			o.BaseEndpoint = aws.String(cfg.Endpoint)
 			o.UsePathStyle = cfg.PathStyle
+			// aws-sdk-go-v2 自 2025-01（s3 v1.73.0）起默认对所有支持的操作计算/校验 CRC32 校验和，
+			// 部分 S3 兼容服务（MinIO 旧版、R2、OSS 等）不支持，自定义端点时仅在必需时启用
+			o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+			o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 		})
 	}
 
