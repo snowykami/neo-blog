@@ -3,7 +3,7 @@ import type { Comment } from '@/models/comment'
 import type { OidcConfig } from '@/models/oidc-config'
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
-import type { User } from '@/models/user'
+import type { Role, User } from '@/models/user'
 import type { VisitLog, Visitor, VisitStats } from '@/models/visit'
 import axiosClient from './client'
 
@@ -19,11 +19,79 @@ export async function getDashboard(): Promise<BaseResponse<DashboardResp>> {
   return res.data
 }
 
-export async function listUsers(params: PaginationParams): Promise<BaseResponse<{ users: User[], total: number }>> {
+export type UserStatusFilter = 'active' | 'disabled'
+
+export interface ListUsersAdminParams extends PaginationParams {
+  keyword?: string // 按用户名、昵称、邮箱模糊搜索
+  role?: Role | '' // 为空表示全部角色
+  status?: UserStatusFilter | '' // 为空表示全部状态
+}
+
+export async function listUsers(params: ListUsersAdminParams): Promise<BaseResponse<{ users: User[], total: number }>> {
   const res = await axiosClient.get(
     '/admin/users',
     { params },
   )
+  return res.data
+}
+
+export interface AdminUserDetail {
+  user: User
+  postCount: number
+  pageCount: number
+  commentCount: number
+}
+
+export async function getUserAdmin(id: number): Promise<BaseResponse<AdminUserDetail>> {
+  const res = await axiosClient.get(`/admin/users/${id}`)
+  return res.data
+}
+
+export interface CreateUserAdminReq {
+  username: string
+  nickname: string
+  email: string
+  password: string
+  role: Role
+}
+
+export async function createUserAdmin(data: CreateUserAdminReq): Promise<BaseResponse<User>> {
+  const res = await axiosClient.post('/admin/users', data)
+  return res.data
+}
+
+export interface UpdateUserAdminReq {
+  id: number
+  username: string
+  nickname: string
+  email: string
+  avatarUrl: string
+  backgroundUrl: string
+  gender: string
+}
+
+export async function updateUserAdmin({ id, ...data }: UpdateUserAdminReq): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put(`/admin/users/${id}`, data)
+  return res.data
+}
+
+export async function updateUserRoleAdmin(id: number, role: Role): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put(`/admin/users/${id}/role`, { role })
+  return res.data
+}
+
+export async function updateUserStatusAdmin(id: number, disabled: boolean): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put(`/admin/users/${id}/status`, { disabled })
+  return res.data
+}
+
+export async function resetUserPasswordAdmin(id: number, newPassword: string): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put(`/admin/users/${id}/password`, { newPassword })
+  return res.data
+}
+
+export async function deleteUserAdmin(id: number): Promise<BaseResponse<null>> {
+  const res = await axiosClient.delete(`/admin/users/${id}`)
   return res.data
 }
 

@@ -65,6 +65,9 @@ func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, *err
 		return nil, errs.NewBadRequest("invalid_credentials")
 	}
 	utils.ResetFailures(accountKey)
+	if user.Disabled {
+		return nil, errs.NewForbidden("user_disabled")
+	}
 	// 签发双token并持久化会话状态
 	sessionId := utils.Strings.GenerateRandomString(32)
 	err = repo.Session.CreateSession(&model.Session{

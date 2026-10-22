@@ -175,6 +175,9 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		if err != nil {
 			return nil, errs.NewInternalServer("failed_to_get_user")
 		}
+		if user.Disabled {
+			return nil, errs.NewForbidden("user_disabled")
+		}
 		// 更新openid信息，不致命错误不阻断登录
 		if err = s.updateUserOpenIdInfo(userOpenID, userInfo); err != nil {
 			return nil, errs.NewInternalServer("failed_to_update_target")
@@ -210,6 +213,9 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		userInfo.Email = fmt.Sprintf("%s@replace-to-your-email", utils.Strings.GenerateRandomString(10))
 	}
 	if localUser != nil {
+		if localUser.Disabled {
+			return nil, errs.NewForbidden("user_disabled")
+		}
 		userOpenID = &model.UserOpenID{
 			UserID: localUser.ID,
 			Issuer: oidcConfig.Issuer,

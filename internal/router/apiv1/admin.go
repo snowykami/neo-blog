@@ -25,6 +25,13 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.DELETE("/kv/:key", adminController.DeleteKV)
 		// 用户区
 		consoleGroup.GET("/users", adminController.ListUsers)
+		consoleGroup.POST("/users", adminController.CreateUser)
+		consoleGroup.GET("/users/:id", adminController.GetUser)
+		consoleGroup.PUT("/users/:id", adminController.UpdateUser)
+		consoleGroup.PUT("/users/:id/role", adminController.UpdateUserRole)
+		consoleGroup.PUT("/users/:id/status", adminController.UpdateUserStatus)
+		consoleGroup.PUT("/users/:id/password", adminController.ResetUserPassword)
+		consoleGroup.DELETE("/users/:id", adminController.DeleteUser)
 		consoleGroup.GET("/comments", adminController.ListComments)
 		consoleGroup.GET("/posts", adminController.ListPosts)
 		// 访客记录

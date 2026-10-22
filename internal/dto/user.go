@@ -20,6 +20,7 @@ type UserDto struct {
 	Language       string        `json:"language"`             // 语言
 	ShowIPLocation *bool         `json:"show_ip_location"`     // 是否显示IP归属地
 	CreatedAt      *time.Time    `json:"created_at,omitempty"` // 注册时间，仅本人和管理员可见
+	Disabled       *bool         `json:"disabled,omitempty"`   // 是否被禁用，仅本人和管理员可见
 }
 
 type UserOidcConfigDto struct {
@@ -131,5 +132,55 @@ type UpdatePasswordReq struct {
 
 type ResetPasswordReq struct {
 	Email       string `json:"-" binding:"-"`
+	NewPassword string `json:"new_password"`
+}
+
+// AdminListUsersReq 管理员用户列表筛选参数
+type AdminListUsersReq struct {
+	PaginationParams
+	Keyword string `query:"keyword"` // 按用户名、昵称、邮箱模糊搜索
+	Role    string `query:"role"`    // 按角色筛选，为空表示全部
+	Status  string `query:"status"`  // active / disabled，为空表示全部
+}
+
+// AdminUserDetailResp 管理员查看的用户详情，附带内容统计，用于删除前提示影响范围
+type AdminUserDetailResp struct {
+	User         UserDto `json:"user"`
+	PostCount    int64   `json:"post_count"`
+	PageCount    int64   `json:"page_count"`
+	CommentCount int64   `json:"comment_count"`
+}
+
+type AdminCreateUserReq struct {
+	Username string        `json:"username"`
+	Nickname string        `json:"nickname"`
+	Email    string        `json:"email"`
+	Password string        `json:"password"`
+	Role     constant.Role `json:"role"`
+}
+
+// AdminUpdateUserReq 管理员编辑用户资料，所有字段整体覆盖，允许清空可选字段
+type AdminUpdateUserReq struct {
+	ID            uint   `path:"id" vd:"$>0"`
+	Username      string `json:"username"`
+	Nickname      string `json:"nickname"`
+	Email         string `json:"email"`
+	AvatarUrl     string `json:"avatar_url"`
+	BackgroundUrl string `json:"background_url"`
+	Gender        string `json:"gender"`
+}
+
+type AdminUpdateUserRoleReq struct {
+	ID   uint          `path:"id" vd:"$>0"`
+	Role constant.Role `json:"role"`
+}
+
+type AdminUpdateUserStatusReq struct {
+	ID       uint `path:"id" vd:"$>0"`
+	Disabled bool `json:"disabled"`
+}
+
+type AdminResetUserPasswordReq struct {
+	ID          uint   `path:"id" vd:"$>0"`
 	NewPassword string `json:"new_password"`
 }

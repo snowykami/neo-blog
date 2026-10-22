@@ -22,7 +22,8 @@ type User struct {
 	Role           constant.Role `gorm:"default:'user'"` // user editor admin
 	Language       string        `gorm:"default:'zh'"`
 	Password       string        // 密码，存储加密后的值
-	ShowIPLocation *bool         `gorm:"default:true"` // 是否显示IP归属地
+	ShowIPLocation *bool         `gorm:"default:true"`  // 是否显示IP归属地
+	Disabled       bool          `gorm:"default:false"` // 是否被管理员禁用，禁用后无法登录且已有会话失效
 }
 
 // ToDto 公开的用户信息，不包含邮箱等隐私字段
@@ -57,6 +58,7 @@ func (user *User) ToPrivateDto() dto.UserDto {
 	userDto := user.ToDto()
 	userDto.Email = user.Email
 	userDto.CreatedAt = &user.CreatedAt
+	userDto.Disabled = &user.Disabled
 	return userDto
 }
 

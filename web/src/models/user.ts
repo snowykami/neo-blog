@@ -12,6 +12,7 @@ export interface User {
   language?: string
   showIpLocation: boolean
   createdAt?: string // 注册时间，仅 /user/me 与管理员接口返回
+  disabled?: boolean // 是否被禁用，仅 /user/me 与管理员接口返回
 }
 
 export enum Role {

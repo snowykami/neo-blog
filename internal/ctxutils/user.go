@@ -24,7 +24,8 @@ func WithUserCache(ctx context.Context) context.Context {
 
 func loadUser(userID uint) (*model.User, bool) {
 	user, err := repo.User.GetUserByID(userID)
-	if err != nil {
+	// 被禁用的用户视同未登录，令牌未过期也立即失去所有权限
+	if err != nil || user.Disabled {
 		return nil, false
 	}
 	return user, true
