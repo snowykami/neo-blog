@@ -36,13 +36,24 @@ article div {
   word-wrap: break-word;
 }
 
-/* Specifically handle code blocks and pre elements */
-article pre,
-article code {
-  overflow-wrap: anywhere;
-  word-wrap: break-word;
-  white-space: pre-wrap;
+/* 代码块保持原样排版、横向滚动，不强制折行；行内代码仍可折行避免撑破布局 */
+article pre {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  overflow-x: auto;
   max-width: 100%;
+}
+
+article pre code {
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-break: inherit;
+}
+
+article :not(pre) > code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 /* Handle tables to prevent overflow */
@@ -68,16 +79,19 @@ article img {
   border: 1px solid var(--border, rgba(0,0,0,0.08)); /* border & border-border */
 }
 
-/* 链接样式：主色、无下划线、加粗、悬停下划线、左右内间距 */
-article a {
-  color: var(--primary, #3b82f6);    /* prose-a:text-primary */
-  text-decoration: none;             /* prose-a:no-underline */
-  font-weight: 500;                  /* prose-a:font-medium */
-  padding-left: 0.25rem;             /* prose-a:px-1 */
-  padding-right: 0.25rem;            /* prose-a:px-1 */
+/* 链接样式：主色 + 虚线下划线，悬停变实线；不加左右内间距 */
+article.prose a {
+  color: var(--primary);
+  font-weight: 500;
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  text-decoration-color: color-mix(in oklab, var(--primary) 60%, transparent);
 }
-article a:hover {
-  text-decoration: underline;        /* prose-a:hover:underline */
+article.prose a:hover {
+  text-decoration-style: solid;
+  text-decoration-color: var(--primary);
 }
 
 /* 标题锚点滚动偏移（scroll-mt-24 ~ 6rem） */
@@ -88,21 +102,17 @@ article h4 {
   scroll-margin-top: 6rem; /* prose-h*:scroll-mt-24 */
 }
 
-/* blockquote：左边框、背景、内间距；暗色模式下使用半透明主色作为边框 */
-article blockquote {
-  border-left: 4px solid rgba(59,130,246,0.7); /* prose-blockquote:border-l-4 + color */
-  background: rgba(0,0,0,0.03);               /* prose-blockquote:bg-muted/50 (approx) */
-  padding: 0.5rem 1rem;                       /* prose-blockquote:px-4 prose-blockquote:py-2 */
-}
-/* 若项目使用 .dark 类或 data-theme="dark"，在暗色模式下微调 blockquote */
-.dark article blockquote,
-[data-theme="dark"] article blockquote {
-  border-left-color: rgba(59,130,246,0.7); /* prose-blockquote:dark:border-primary/70 */
-  background: rgba(59,130,246,0.04);
+/* blockquote：左边框使用主题主色，背景为淡主色 */
+article.prose blockquote {
+  border-left: 4px solid var(--primary);
+  background: color-mix(in oklab, var(--primary) 6%, transparent);
+  padding: 0.5rem 1rem;
 }
 
-article p {
-  // 增大行距
-  font-size: 1rem;
-  line-height: 1.8;
+/* 文章正文：统一基础字号与适合中文的行高，限制阅读宽度并居中 */
+article.prose#blog-content {
+  font-size: 1.0625rem;
+  line-height: 1.85;
+  max-width: 72ch;
+  margin-inline: auto;
 }

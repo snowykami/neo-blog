@@ -50,6 +50,16 @@ export function WaveEffects() {
             animation-delay: -5s;
           }
 
+          /* 减少动态效果时停止无限循环的波浪动画 */
+          @media (prefers-reduced-motion: reduce) {
+            .animate-wave-1,
+            .animate-wave-2,
+            .animate-wave-3,
+            .animate-wave-4 {
+              animation: none;
+            }
+          }
+
           @keyframes wave-move {
             0% {
               transform: translate3d(-90px, 0, 0);

@@ -10,11 +10,9 @@
   }
 }
 
-/* 文章页的链接使用主色与左右内间距（见 blog-post-article.scss），注释保持一致 */
+/* 文章页的链接使用主色（见 blog-post-article.scss），注释保持一致 */
 article.prose [data-annotation] {
-  color: var(--primary, #3b82f6);
-  padding-left: 0.25rem;
-  padding-right: 0.25rem;
+  color: var(--primary);
 }
 
 /* 触摸设备：注释需可点击（iOS 只对可点击元素派发 click） */

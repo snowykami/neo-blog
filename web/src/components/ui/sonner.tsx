@@ -1,15 +1,16 @@
 'use client'
 
 import type { ToasterProps } from 'sonner'
-import { useTheme } from 'next-themes'
 import { Toaster as Sonner } from 'sonner'
+import { useDevice } from '@/contexts/device-context'
 
 function Toaster({ ...props }: ToasterProps) {
-  const { theme = 'system' } = useTheme()
+  // 项目未使用 next-themes，主题状态来自 DeviceProvider
+  const { mode } = useDevice()
 
   return (
     <Sonner
-      theme={theme as ToasterProps['theme']}
+      theme={mode}
       className="toaster group"
       style={
         {

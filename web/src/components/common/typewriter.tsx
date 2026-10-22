@@ -1,5 +1,6 @@
 'use client'
 
+import { useReducedMotion } from 'motion/react'
 import React, { useEffect, useState } from 'react'
 
 export default function Typewriter({
@@ -13,10 +14,12 @@ export default function Typewriter({
 }) {
   const [index, setIndex] = useState(0)
   const [caretVisible, setCaretVisible] = useState(true)
+  // 用户开启「减少动态效果」时直接显示全文，不逐字输出、不闪烁光标
+  const reduceMotion = useReducedMotion()
 
   useEffect(() => {
     setIndex(0)
-    if (!text)
+    if (!text || reduceMotion)
       return
     const t = setInterval(() => {
       setIndex((i) => {
@@ -28,12 +31,16 @@ export default function Typewriter({
       })
     }, speed)
     return () => clearInterval(t)
-  }, [text, speed])
+  }, [text, speed, reduceMotion])
 
   useEffect(() => {
+    if (reduceMotion)
+      return
     const c = setInterval(() => setCaretVisible(v => !v), 500)
     return () => clearInterval(c)
-  }, [])
+  }, [reduceMotion])
+
+  const visibleText = reduceMotion ? text : text.slice(0, index)
 
   return (
     <div
@@ -53,17 +60,19 @@ export default function Typewriter({
       )}
       {/* 实际显示的打字机文本 */}
       <div style={reserveHeight ? { position: 'absolute', top: 0, left: 0, right: 0 } : {}}>
-        {text.slice(0, index)}
-        <span
-          style={{
-            display: 'inline-block',
-            width: 10,
-            textAlign: 'left',
-            visibility: caretVisible ? 'visible' : 'hidden',
-          }}
-        >
-          |
-        </span>
+        {visibleText}
+        {!reduceMotion && (
+          <span
+            style={{
+              display: 'inline-block',
+              width: 10,
+              textAlign: 'left',
+              visibility: caretVisible ? 'visible' : 'hidden',
+            }}
+          >
+            |
+          </span>
+        )}
       </div>
     </div>
   )

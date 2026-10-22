@@ -57,6 +57,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       effectiveTheme = getSystemTheme()
     }
     document.documentElement.classList.toggle('dark', effectiveTheme === 'dark')
+    document.documentElement.style.colorScheme = effectiveTheme === 'dark' ? 'dark' : 'light'
   }, [])
 
   useEffect(() => {

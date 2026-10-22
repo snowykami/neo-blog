@@ -17,10 +17,55 @@
 
   /* 响应式动画 - 根据用户偏好禁用 */
   @media (prefers-reduced-motion: reduce) {
-    * {
+    *,
+    *::before,
+    *::after {
       transition-property: none !important;
       transition-duration: 0.01ms !important;
+      animation: none !important;
     }
+  }
+}
+
+/* 首屏一次性入场动画：纯 CSS，服务端渲染的内容无需等待水合即可播放，也不会被 JS 隐藏
+ * 仅在用户未要求减少动态效果时启用；分层延迟：导航 0 / 侧栏 100ms / 内容 150ms */
+@keyframes enter-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes enter-fade-down {
+  from {
+    opacity: 0;
+    transform: translateY(-1rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .enter-fade-up {
+    animation: enter-fade-up 300ms ease-out both;
+  }
+
+  .enter-fade-down {
+    animation: enter-fade-down 300ms ease-out both;
+  }
+
+  .enter-delay-100 {
+    animation-delay: 100ms;
+  }
+
+  .enter-delay-150 {
+    animation-delay: 150ms;
   }
 }
 

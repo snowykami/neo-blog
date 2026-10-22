@@ -66,10 +66,12 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
         setOidcConfigs(res.data || [])
       })
       .catch((error) => {
-        toast.error(t('fetch_oidc_configs_failed') + (error?.message ? `: ${error.message}` : ''))
+        // 使用本地化的后端错误文案，不直接展示 axios 原始错误信息
+        const message = errorMessageT(error)
+        toast.error(t('fetch_oidc_configs_failed') + (message ? `: ${message}` : ''))
         setOidcConfigs([])
       })
-  }, [isBindOidc, redirectBack, t])
+  }, [isBindOidc, redirectBack, t, errorMessageT])
 
   useEffect(() => {
     getCaptchaConfig()
@@ -77,12 +79,11 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
         setCaptchaProps(res.data)
       })
       .catch((error) => {
-        toast.error(
-          t('fetch_captcha_config_failed') + (error?.message ? `: ${error.message}` : ''),
-        )
+        const message = errorMessageT(error)
+        toast.error(t('fetch_captcha_config_failed') + (message ? `: ${message}` : ''))
         setCaptchaProps(null)
       })
-  }, [refreshCaptchaKey, t])
+  }, [refreshCaptchaKey, t, errorMessageT])
 
   const handleLogin = async (e: React.FormEvent) => {
     setIsLogging(true)

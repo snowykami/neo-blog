@@ -3,7 +3,6 @@
 import type { BlogHomeInitialData } from './blog-home-query'
 import type { Post } from '@/models/post'
 import { Clock, TrendingUp, XIcon } from 'lucide-react'
-import { motion } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { parseAsInteger, useQueryState } from 'nuqs'
 import { useEffect, useRef, useState } from 'react'
@@ -130,16 +129,8 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
         <div className="">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 ">
             {/* 主要内容区域 */}
-            <motion.div
-              className="lg:col-span-3 self-start transition-none"
-              initial={{ y: 40, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              key={`${page}-${labelSlug ?? 'none'}-${categorySlug ?? 'none'}-${query ?? 'none'}`}
-              transition={{
-                duration: siteInfo.animationDurationSecond,
-                ease: 'easeOut',
-              }}
-            >
+            {/* 首屏一次性 CSS 入场动画；分页 / 筛选切换时不再重放 */}
+            <div className="lg:col-span-3 self-start enter-fade-up enter-delay-150">
               {/* 文章列表标题 */}
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
@@ -203,17 +194,8 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
                   />
                 )}
               </div>
-            </motion.div>
-            <motion.div
-              className="sticky self-start"
-              initial={{ x: 80, opacity: 0 }}
-              animate={{ x: 0, y: 0, opacity: 1 }}
-              style={{ top: navStickyTopPx }}
-              transition={{
-                duration: siteInfo.animationDurationSecond,
-                ease: 'easeOut',
-              }}
-            >
+            </div>
+            <div className="sticky self-start enter-fade-up enter-delay-100" style={{ top: navStickyTopPx }}>
               <BlogSidebar
                 cards={[
                   <BlogSidebarAbout key="about" />,
@@ -221,7 +203,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
                   <SidebarMisskeyIframe key="misskey" />,
                 ].filter(Boolean)}
               />
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>

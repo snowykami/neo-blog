@@ -10,7 +10,6 @@ import {
   MessageCircle,
   PenLine,
 } from 'lucide-react'
-import * as motion from 'motion/react-client'
 import { getFormatter, getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -131,10 +130,7 @@ async function PostContent({ post, html, isDraft }: { post: Post, html: string, 
       {/* 文章内容 - Core content rendered immediately */}
       <article
         id="blog-content"
-        className="prose prose-lg max-w-none dark:prose-invert pangu-autospace
-          rounded-xl bg-background
-          text-sm md:text-lg
-          "
+        className="prose dark:prose-invert pangu-autospace rounded-xl bg-background"
         dangerouslySetInnerHTML={{ __html: html }}
       />
       <HtmlEnhancer containerId="blog-content" />
@@ -201,29 +197,14 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
   return (
     <div className="h-full">
       {/* <ScrollToTop /> */}
-      <motion.div
-        initial={{ opacity: 0, y: -30 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="transition-none"
-        transition={{
-          duration: siteInfo.animationDurationSecond,
-          ease: 'easeOut',
-        }}
-      >
+      {/* 首屏入场动画为纯 CSS，服务端渲染内容不会因等待水合而隐藏 */}
+      <div className="enter-fade-up enter-delay-150">
         <PostHeader post={post} />
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 py-4">
         {/* 正文和评论区 */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="lg:col-span-3 transition-none "
-          transition={{
-            duration: siteInfo.animationDurationSecond,
-            ease: 'easeOut',
-          }}
-        >
+        <div className="lg:col-span-3 enter-fade-up enter-delay-150">
           <PostContent post={post} html={html} isDraft={isDraft} />
           {/* Comments section wrapped in Suspense for better performance */}
           <div
@@ -238,18 +219,13 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
               />
             </Suspense>
           </div>
-        </motion.div>
+        </div>
 
-        {/* 侧边栏 */}
-        <motion.div
-          className="sticky self-start transition-none"
-          initial={{ x: 80, opacity: 0 }}
-          animate={{ x: 0, y: 0, opacity: 1 }}
+        {/* 侧边栏：桌面端吸顶时限制在视口高度内（6rem = navStickyTopPx 80px + 底部 1rem）并可独立滚动，
+            避免内容比视口高时底部卡片无法触及 */}
+        <div
+          className="sticky self-start lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain [scrollbar-width:thin] enter-fade-up enter-delay-100"
           style={{ top: navStickyTopPx }}
-          transition={{
-            duration: siteInfo.animationDurationSecond,
-            ease: 'easeOut',
-          }}
         >
           <BlogSidebar
             cards={[
@@ -259,7 +235,7 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
               <SidebarMisskeyIframe key="misskey" />,
             ].filter(Boolean)}
           />
-        </motion.div>
+        </div>
       </div>
     </div>
   )

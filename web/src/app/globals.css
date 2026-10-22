@@ -19,8 +19,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --font-mono: var(--font-source-code-pro), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -66,10 +66,26 @@
   }
 }
 
-.sonner-toast {
-  background-color: aqua;
+/* 原生控件（滚动条、表单等）跟随明暗模式 */
+:root {
+  color-scheme: light;
+  /* 代码块背景：代码高亮固定为 github-dark，明暗模式下都使用深色，并带一点主题色倾向 */
+  --code-bg: color-mix(in oklab, oklch(0.2 0.01 260) 92%, var(--primary, oklch(0.6 0.15 260)));
 }
 
+.dark {
+  color-scheme: dark;
+}
+
+/* 隐藏滚动条但保留滚动能力（用于目录等局部滚动区域） */
+@utility hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
 
 /* 减小滚动条宽度 */
 ::-webkit-scrollbar {

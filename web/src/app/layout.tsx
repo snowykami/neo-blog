@@ -1,6 +1,6 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { NextIntlClientProvider } from 'next-intl'
-import { Inter, Source_Code_Pro, Space_Mono } from 'next/font/google'
+import { Inter, Source_Code_Pro } from 'next/font/google'
 import { cookies } from 'next/headers'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { getCachedSiteInfo } from '@/api/misc.server'
@@ -15,17 +15,11 @@ import { SiteInfoProvider } from '@/contexts/site-info-context'
 import { getFirstLocale } from '@/i18n/request'
 import './globals.css'
 
-const geistMono = Source_Code_Pro({
-  variable: '--font-geist-mono',
+// 字体通过 CSS 变量注入，在 globals.css 的 @theme 中组合中文回退字体（font-sans / font-mono）
+const sourceCodePro = Source_Code_Pro({
+  variable: '--font-source-code-pro',
   subsets: ['latin'],
   display: 'swap',
-})
-
-const spaceMono = Space_Mono({
-  variable: '--font-space-mono',
-  subsets: ['latin'],
-  display: 'swap',
-  weight: '400',
 })
 
 const inter = Inter({
@@ -33,6 +27,17 @@ const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
 })
+
+// 浏览器地址栏 / 状态栏颜色跟随系统明暗
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#09090b' },
+  ],
+}
+
+// 首次绘制前根据本地保存的主题偏好（与 DeviceProvider 一致：localStorage.theme，缺省跟随系统）设置 .dark，避免暗色闪白
+const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light'}catch(_){}})()`
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteInfo = await getCachedSiteInfo()
@@ -60,15 +65,21 @@ export default async function RootLayout({
     : null
   const siteInfo = await getCachedSiteInfo()
   return (
+    // 主题脚本会在水合前修改 class / style，需忽略根节点的属性差异
     <html
+      suppressHydrationWarning
       lang={(await getFirstLocale()) || 'en'}
-      className="h-full"
+      className={`h-full ${inter.variable} ${sourceCodePro.variable}`}
       data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || 'blue'}
     >
-      <body className={`${geistMono.className} ${spaceMono.className} ${inter.className} hide-scrollbar`}>
-        <Toaster richColors position="top-center" offset={80} />
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body className="font-sans">
         <NuqsAdapter>
           <DeviceProvider>
+            {/* Toaster 读取 DeviceProvider 中的主题，需放在其内部 */}
+            <Toaster richColors position="top-center" offset={80} />
             <NextIntlClientProvider>
               <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
                 <SiteInfoProvider initialData={siteInfo}>

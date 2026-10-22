@@ -51,45 +51,27 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
       const langMatch = codeEl.className?.match?.(/language-([\w-]+)/)
       const lang = langMatch ? langMatch[1] : ''
 
-      // build wrapper similar to markdown-codeblock, minimal DOM ops
+      // 代码高亮固定使用 github-dark 主题，因此容器与工具栏在明暗模式下都保持深色（--code-bg）
+      // not-prose：避免 typography 插件的 pre 样式覆盖这里的内边距与字号
       const wrapper = document.createElement('div')
       wrapper.className
-        = 'relative my-0 !mx-0 rounded-xl overflow-hidden bg-[#f5f5f7] dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 shadow-sm group'
+        = 'not-prose relative my-6 rounded-xl overflow-hidden bg-(--code-bg) border border-white/10 group'
 
       const toolbar = document.createElement('div')
       toolbar.className
-        = 'flex items-center h-8 px-3 bg-[#e5e7eb] dark:bg-[#23272f] border-b border-gray-200 dark:border-gray-700 relative'
+        = 'flex items-center justify-between h-9 px-4 border-b border-white/10 bg-white/5'
 
-      const leftDots = document.createElement('div')
-      leftDots.className = 'flex items-center'
-      const dot = (color: string) => {
-        const d = document.createElement('span')
-        d.className = `w-3.5 h-3.5 rounded-full ${color} mr-2`
-        return d
-      }
-      leftDots.appendChild(dot('bg-red-400'))
-      leftDots.appendChild(dot('bg-yellow-400'))
-      leftDots.appendChild(dot('bg-green-400'))
-      toolbar.appendChild(leftDots)
+      const langSpan = document.createElement('span')
+      langSpan.className = 'text-xs text-white/60 font-mono'
+      langSpan.textContent = lang ? (languageMap[lang.toLowerCase()] || lang) : ''
+      toolbar.appendChild(langSpan)
 
-      if (lang) {
-        const langSpan = document.createElement('span')
-        langSpan.className
-          = 'absolute left-1/2 -translate-x-1/2 text-xs text-gray-500 dark:text-gray-400 font-mono'
-        langSpan.textContent = languageMap[lang.toLowerCase()] || lang
-        toolbar.appendChild(langSpan)
-      }
-
-      const rightBox = document.createElement('div')
-      rightBox.className
-        = 'absolute right-3 top-1/2 -translate-y-1/2 flex space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity'
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.className
-        = 'px-2 py-1 rounded text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600'
+        = 'px-2 py-1 rounded-md text-xs text-white/70 hover:text-white hover:bg-white/10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity'
       btn.textContent = t('copy')
-      rightBox.appendChild(btn)
-      toolbar.appendChild(rightBox)
+      toolbar.appendChild(btn)
 
       // move pre into wrapper
       const parent = pre.parentNode
@@ -99,19 +81,20 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
       wrapper.appendChild(toolbar)
       wrapper.appendChild(pre)
 
-      // style pre similar to markdown-codeblock
+      // 内边距放在 pre 上，code 上 hljs 自带的 padding / 背景去掉，保证横向滚动时内边距一致
       pre.classList.add(
         'overflow-x-auto',
         'bg-transparent',
-        'text-sm',
-        '!p-0',
-        'md:p-8',
+        'px-4',
+        'py-3',
         'm-0',
-        'rounded-t-none',
-        'text-gray-800',
-        'dark:text-gray-100',
+        'text-[0.875rem]',
+        'leading-6',
+        'text-gray-100',
+        'font-mono',
       )
       pre.style.margin = '0'
+      codeEl.classList.add('!p-0', '!bg-transparent')
 
       // copy handler
       const onClick = async () => {

@@ -1,12 +1,10 @@
 'use client'
-import { motion } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import BlogSidebar from '@/components/blog-sidebar'
 import { BlogSidebarAbout, BlogSidebarHotPosts, BlogSidebarLabels, SidebarMisskeyIframe } from '@/components/blog-sidebar/blog-sidebar-card'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
-import { useSiteInfo } from '@/contexts/site-info-context'
 import { OrderBy } from '@/models/common'
 import { navStickyTopPx } from '@/utils/common/layout-size'
 import { mainPath } from '@/utils/common/route'
@@ -29,7 +27,6 @@ export interface ArchiveGroup {
  */
 export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { label: string, category: string } }) {
   const t = useTranslations('Archive')
-  const { siteInfo } = useSiteInfo()
   const filterText = filter.label
     ? t('filter_label', { name: filter.label })
     : filter.category
@@ -39,15 +36,8 @@ export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 py-4">
       {/* 归档正文 */}
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="lg:col-span-3 transition-none"
-        transition={{
-          duration: siteInfo.animationDurationSecond,
-          ease: 'easeOut',
-        }}
-      >
+      {/* 首屏入场动画为纯 CSS，服务端渲染内容不会因等待水合而隐藏 */}
+      <div className="lg:col-span-3 enter-fade-up enter-delay-150">
         <Card className="gap-0 px-4 py-6 md:px-8">
           {filterText && (
             <div className="mb-2 flex items-center gap-3 px-2 text-sm">
@@ -105,18 +95,9 @@ export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { 
             <p className="py-10 text-center text-muted-foreground">{t('empty')}</p>
           )}
         </Card>
-      </motion.div>
+      </div>
       {/* 侧边栏 */}
-      <motion.div
-        className="sticky self-start"
-        initial={{ x: 80, opacity: 0 }}
-        animate={{ x: 0, y: 0, opacity: 1 }}
-        style={{ top: navStickyTopPx }}
-        transition={{
-          duration: siteInfo.animationDurationSecond,
-          ease: 'easeOut',
-        }}
-      >
+      <div className="sticky self-start enter-fade-up enter-delay-100" style={{ top: navStickyTopPx }}>
         <BlogSidebar
           cards={[
             <BlogSidebarAbout key="about" />,
@@ -125,7 +106,7 @@ export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { 
             <SidebarMisskeyIframe key="misskey" />,
           ].filter(Boolean)}
         />
-      </motion.div>
+      </div>
     </div>
   )
 }

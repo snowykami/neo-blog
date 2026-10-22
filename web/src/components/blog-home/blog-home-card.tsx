@@ -11,10 +11,8 @@ import {
   MessageCircle,
   Pin,
 } from 'lucide-react'
-import { motion } from 'motion/react'
 import { useFormatter, useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useMemo } from 'react'
 import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
@@ -43,7 +41,6 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
   // 随机默认封面只取一次，避免每次渲染变化导致图片反复重载
   const defaultCover = useMemo(() => getDefaultCoverRandomly(siteInfo), [siteInfo])
   const commonT = useCommonT()
-  const router = useRouter()
   const format = useFormatter()
   // 按当前界面语言格式化日期
   const formatDate = (dateString: string) => format.dateTime(new Date(dateString), {
@@ -54,22 +51,14 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
   return (
     <Card
       className={cn(
-        'group overflow-hidden hover:shadow-xl h-full flex flex-col cursor-pointer gap-2 pt-0',
+        'group relative overflow-hidden hover:shadow-xl h-full flex flex-col gap-2 pt-0',
         className,
       )}
     >
       {/* 封面图片区域 */}
       <div className="relative aspect-[16/8] overflow-hidden">
         {/* 自定义封面图片 */}
-        <motion.div
-          initial={{ scale: 1.2, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{
-            duration: siteInfo.animationDurationSecond,
-            ease: 'easeOut',
-          }}
-          className="absolute inset-0 w-full h-full"
-        >
+        <div className="absolute inset-0 w-full h-full">
           {/* 封面失效时依次回退到站点默认封面、占位块 */}
           <SafeImage
             src={post.cover || defaultCover}
@@ -80,7 +69,7 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
             sizes="(max-width: 768px) 100vw, 33vw"
             priority={false}
           />
-        </motion.div>
+        </div>
 
         {/* 覆盖层 */}
         <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent" />
@@ -105,21 +94,13 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
 
         {/* 右上角 分类 */}
         {post.category && (
-          <div className="absolute top-2 right-2">
-            {/* 卡片整体已是文章链接，分类不能再嵌套 <a>，用按钮跳转到分类页 */}
-            <Badge asChild className="bg-primary/70 text-white border-0 text-sm rounded-full hover:bg-primary/90 cursor-pointer">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  if (post.category)
-                    router.push(getCategoryUrl(post.category))
-                }}
-              >
+          <div className="absolute top-2 right-2 z-10">
+            {/* 文章链接通过标题的伪元素铺满整卡（stretched link），分类是独立链接，需层级高于伪元素 */}
+            <Badge asChild className="relative z-10 bg-primary/70 text-white border-0 text-sm rounded-full hover:bg-primary/90">
+              <Link href={getCategoryUrl(post.category)}>
                 <ChartBarStackedIcon />
                 {post.category.name}
-              </button>
+              </Link>
             </Badge>
           </div>
         )}
@@ -166,7 +147,13 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
       {/* Card Header - 标题区域 */}
       <CardHeader className="mt-2 lg:mt-4">
         <CardTitle className="line-clamp-2 group-hover:text-primary transition-colors text-xl leading-tight">
-          {post.title}
+          {/* stretched link：伪元素覆盖整张卡片，使整卡可点击且不嵌套交互元素 */}
+          <Link
+            href={getPostUrl({ post })}
+            className="outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-2 focus-visible:after:ring-ring"
+          >
+            {post.title}
+          </Link>
         </CardTitle>
       </CardHeader>
 
@@ -282,9 +269,7 @@ export function BlogCardGrid({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-6">
       {filteredPosts.map(post => (
-        <Link key={post.id} href={getPostUrl({ post })} className="block h-full">
-          <BlogCard post={post} />
-        </Link>
+        <BlogCard key={post.id} post={post} />
       ))}
     </div>
   )
