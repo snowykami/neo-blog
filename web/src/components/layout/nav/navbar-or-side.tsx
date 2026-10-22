@@ -174,12 +174,14 @@ export default function Navbar() {
       <div className="flex min-w-0 flex-1 items-center">
         <Link
           href="/"
-          className="flex h-11 min-w-0 items-center gap-2 rounded-lg px-3 text-lg font-bold text-primary transition-[background-color,transform] duration-150 hover:bg-primary/10 active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-11 min-w-0 items-center gap-2 rounded-lg px-2 text-lg font-bold max-[359px]:text-base sm:px-3 text-primary transition-[background-color,transform] duration-150 hover:bg-primary/10 active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className="nav-fade flex shrink-0 items-center justify-center">
+          {/* 窄屏省略图标，把空间留给站名 */}
+          <span className="nav-fade hidden shrink-0 items-center justify-center sm:flex">
             {navIcon}
           </span>
-          <span key={navTitleKey} className="nav-fade truncate max-w-[16ch] md:max-w-[28ch] lg:max-w-[36ch]">
+          {/* 移动端不限制宽度，尽量完整显示站名；空间仍不足时再省略 */}
+          <span key={navTitleKey} className="nav-fade truncate md:max-w-[28ch] lg:max-w-[36ch]">
             {navTitle || siteInfo.metadata.name}
           </span>
         </Link>
@@ -197,8 +199,9 @@ export default function Navbar() {
         <NavMenuCenter items={menuItems} />
       </div>
 
-      {/* 右侧：搜索、明暗切换、RSS、用户；明暗切换与 RSS 在移动端收进侧边菜单 */}
-      <div className="flex min-w-0 flex-1 items-center justify-end">
+      {/* 右侧：搜索、明暗切换、RSS、用户；明暗切换与 RSS 在移动端收进侧边菜单
+       * 移动端只占按钮所需宽度，把剩余空间让给站名；md 及以上与左侧等分，保证主菜单居中 */}
+      <div className="flex flex-none items-center justify-end md:min-w-0 md:flex-1">
         <NavSearch className={navIconButtonClass} />
         <ThemeModeToggle className={cn(navIconButtonClass, 'hidden md:inline-flex')} />
         <Link
