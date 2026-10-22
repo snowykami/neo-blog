@@ -60,6 +60,8 @@ func (s *EditSessionService) Acquire(ctx context.Context, targetType string, tar
 	}
 	result := saved.ToDto(true)
 	result.IsCurrent = true
+	// 记录编辑起点，“放弃本次修改”时恢复到这个版本
+	result.BaseRevisionID = NewRevisionService().RecordSessionStart(targetType, targetID, currentUserID, session.SessionID)
 	return result, nil
 }
 

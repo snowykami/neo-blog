@@ -6,6 +6,7 @@ import type { Category } from '@/models/category'
 import type { Label } from '@/models/label'
 import type { PageModel } from '@/models/page'
 import type { Post } from '@/models/post'
+import { EditorState } from '@tiptap/pm/state'
 import { useEditor } from '@tiptap/react'
 import { useFormatter, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -14,6 +15,7 @@ import { isEditSessionConflict } from '@/api/edit-session'
 import { uploadFile } from '@/api/file'
 import { getPageById, updatePage } from '@/api/page'
 import { getPostById, updatePost } from '@/api/post'
+import { discardDraft, restoreRevision } from '@/api/revision'
 import { AI_PREVIEW_META } from '@/components/tiptap-extension/ai-write-extension'
 import { buildSlashItems, filterSlashItems } from '@/components/tiptap-ui/slash-menu/slash-items'
 import { useEditSession } from '@/hooks/use-edit-session'
@@ -220,6 +222,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const [meta, setMetaState] = useState<ContentMeta>(EMPTY_META)
   const [savedMeta, setSavedMeta] = useState<ContentMeta>(EMPTY_META)
   const [contentDirty, setContentDirty] = useState(false)
+  // 本次打开编辑器后是否保存过修改（自动保存也算），决定能否“放弃本次修改”
+  const [changedSinceOpen, setChangedSinceOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
@@ -293,6 +297,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     const draft = next.draftContent || next.content || ''
     // 载入内容不进入撤销历史，避免撤销到空文档后被自动保存成空草稿
     ed.chain().setMeta('addToHistory', false).setContent(draft, { emitUpdate: false }).run()
+    // 清空撤销历史：恢复版本、放弃修改或接管后，撤销不能再回到载入前的内容
+    ed.view.updateState(EditorState.create({ doc: ed.state.doc, plugins: ed.state.plugins }))
     const html = ed.getHTML()
     setSavedHtml(html)
     // 草稿与正文一致时视为已发布；否则记录服务端正文用于比较
@@ -302,6 +308,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     setSavedMeta(nextMeta)
     setContentDirty(false)
     setSaveError(null)
+    setChangedSinceOpen(false)
     setDoc(next)
   }, [adapter])
 
@@ -406,6 +413,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       failedMetaRef.current = null
       setSaveError(null)
       setLastSavedAt(new Date())
+      setChangedSinceOpen(true)
       if (editor.getHTML() === html)
         setContentDirty(false)
       if (manual)
@@ -541,6 +549,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       failedMetaRef.current = null
       setSaveError(null)
       setLastSavedAt(new Date())
+      setChangedSinceOpen(true)
       if (editor.getHTML() === html)
         setContentDirty(false)
       toast.success(operationT('publish_success'))
@@ -573,6 +582,53 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     applyDoc(latest, editor)
   }, [editor, editSession, adapter, routeId, postEditT, applyDoc])
 
+  // ---------- 版本：放弃修改 / 恢复版本 ----------
+  // 先停掉待执行的自动保存并等进行中的保存结束，再在服务端恢复，最后重新载入（本地未保存的修改一并丢弃）
+  // 出错时抛出，由确认弹窗统一提示；编辑会话被接管时切换为只读
+  // changed：执行后内容是否可能与编辑起点不同（恢复版本、放弃未发布的修改后仍可“放弃本次修改”回到起点）
+  const runRevisionAction = useCallback(async (action: () => Promise<unknown>, changed: boolean) => {
+    if (!editor || !doc || aiBusyRef.current)
+      return
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+    pendingSaveRef.current = false
+    for (let i = 0; savingRef.current && i < 100; i++)
+      await new Promise(resolve => window.setTimeout(resolve, 50))
+    try {
+      await action()
+    }
+    catch (error) {
+      if (isEditSessionConflict(error))
+        markTakenOver()
+      throw error
+    }
+    const latest = await adapter.load(routeId)
+    if (!latest)
+      throw new Error(postEditT('load_failed'))
+    applyDoc(latest, editor)
+    setChangedSinceOpen(changed)
+    setLastSavedAt(new Date())
+  }, [editor, doc, adapter, routeId, applyDoc, markTakenOver, postEditT])
+
+  const baseRevisionId = editSession.baseRevisionId
+  /** 放弃本次修改：正文与元信息恢复到打开编辑器时的版本 */
+  const revertSession = useCallback(() => runRevisionAction(async () => {
+    if (doc && baseRevisionId)
+      await restoreRevision({ target: kind, id: doc.id, revisionId: baseRevisionId, sessionId })
+  }, false), [runRevisionAction, doc, baseRevisionId, kind, sessionId])
+  /** 放弃未发布的修改：正文草稿恢复为已发布的正文 */
+  const discardUnpublished = useCallback(() => runRevisionAction(async () => {
+    if (doc)
+      await discardDraft({ target: kind, id: doc.id, sessionId })
+  }, true), [runRevisionAction, doc, kind, sessionId])
+  /** 恢复为指定的历史版本（写入草稿，不直接发布） */
+  const restoreToRevision = useCallback((revisionId: number) => runRevisionAction(async () => {
+    if (doc)
+      await restoreRevision({ target: kind, id: doc.id, revisionId, sessionId })
+  }, true), [runRevisionAction, doc, kind, sessionId])
+
   // ---------- 派生状态 ----------
   let saveState: SaveState = 'idle'
   if (saving)
@@ -602,6 +658,12 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     publish,
     publishing,
     hasUnpublishedChanges,
+    // 版本
+    canRevertSession: Boolean(baseRevisionId) && (changedSinceOpen || isDirty) && !readOnly,
+    canDiscardUnpublished: hasUnpublishedChanges && Boolean(doc?.content) && !readOnly,
+    revertSession,
+    discardUnpublished,
+    restoreToRevision,
     editSession,
     readOnly,
     takeOver,

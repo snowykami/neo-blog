@@ -10,4 +10,5 @@ export interface EditSession {
   browser: string
   startedAt: string
   isCurrent: boolean // 请求方携带的会话是否仍是当前会话
+  baseRevisionId?: number // 打开编辑器时的版本（编辑起点），仅申请会话时返回
 }

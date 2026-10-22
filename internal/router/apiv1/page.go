@@ -22,6 +22,11 @@ func registerPageRoutes(group *route.RouterGroup) {
 		// 编辑会话：同时只允许最新打开编辑页的会话保存正文
 		postGroup.POST("/p/:id/edit-session", controller.EditSession.Acquire(constant.TargetTypePage))
 		postGroup.GET("/p/:id/edit-session", controller.EditSession.Current(constant.TargetTypePage))
+		// 版本历史：列表、详情、恢复为草稿、放弃未发布的修改
+		postGroup.GET("/p/:id/revisions", controller.Revision.List(constant.TargetTypePage))
+		postGroup.GET("/p/:id/revisions/:rid", controller.Revision.Get(constant.TargetTypePage))
+		postGroup.POST("/p/:id/revisions/:rid/restore", controller.Revision.Restore(constant.TargetTypePage))
+		postGroup.POST("/p/:id/discard-draft", controller.Revision.DiscardDraft(constant.TargetTypePage))
 		// AI 写作：编辑器内帮写 / 润色，以 SSE 流式返回
 		postGroup.POST("/p/:id/ai-write", controller.AIWrite.Stream(constant.TargetTypePage))
 	}

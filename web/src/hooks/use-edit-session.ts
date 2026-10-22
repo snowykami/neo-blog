@@ -15,6 +15,8 @@ export type EditSessionStatus = 'acquiring' | 'active' | 'taken_over' | 'error'
  */
 export function useEditSession(target: EditSessionTarget, id: number) {
   const [sessionId, setSessionId] = useState<string | null>(null)
+  // 申请会话时记录的编辑起点版本，“放弃本次修改”时恢复到这个版本
+  const [baseRevisionId, setBaseRevisionId] = useState<number | null>(null)
   const [status, setStatus] = useState<EditSessionStatus>('acquiring')
   // 被顶掉时，当前持有会话的一方
   const [holder, setHolder] = useState<EditSession | null>(null)
@@ -27,6 +29,7 @@ export function useEditSession(target: EditSessionTarget, id: number) {
     try {
       const res = await acquireEditSession({ target, id })
       setSessionId(res.data.sessionId ?? null)
+      setBaseRevisionId(res.data.baseRevisionId || null)
       setHolder(null)
       setStatus('active')
       return true
@@ -80,5 +83,5 @@ export function useEditSession(target: EditSessionTarget, id: number) {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
   }, [check])
 
-  return { sessionId, status, holder, isActive: status === 'active', takeOver: acquire, markTakenOver, check }
+  return { sessionId, baseRevisionId, status, holder, isActive: status === 'active', takeOver: acquire, markTakenOver, check }
 }

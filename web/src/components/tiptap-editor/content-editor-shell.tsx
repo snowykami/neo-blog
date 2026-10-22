@@ -6,6 +6,7 @@ import { XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EditSessionBanner } from '@/components/console/common/edit-session-banner'
 import { AnnotationPopover } from '@/components/tiptap-ui/annotation-popover'
 import { LinkPopover } from '@/components/tiptap-ui/link-popover'
@@ -19,6 +20,7 @@ import { EditorAppBar } from './editor-app-bar'
 import { EditorBubbleMenu } from './editor-bubble-menu'
 import { EditorCanvas } from './editor-canvas'
 import { EditorContextMenu } from './editor-context-menu'
+import { EditorRevisionSheet } from './editor-revision-sheet'
 import { EditorStatusBar } from './editor-status-bar'
 import { EditorToolbar } from './editor-toolbar'
 import { useAIWriter } from './use-ai-writer'
@@ -107,6 +109,9 @@ function LoadedShell({
   const [focusMode, setFocusMode] = React.useState(false)
   const [linkOpen, setLinkOpen] = React.useState(false)
   const [annotationOpen, setAnnotationOpen] = React.useState(false)
+  // 版本：确认放弃修改的弹窗与版本历史抽屉（由下拉菜单打开，使用受控模式）
+  const [revisionConfirm, setRevisionConfirm] = React.useState<'session' | 'unpublished' | null>(null)
+  const [historyOpen, setHistoryOpen] = React.useState(false)
   const onFullscreenError = React.useCallback(() => toast.error(postEditT('fullscreen_failed')), [postEditT])
   const { isFullScreen, toggleFullScreen } = useFullscreen(onFullscreenError)
 
@@ -235,7 +240,43 @@ function LoadedShell({
         onToggleFocusMode={() => toggleFocusMode()}
         onToggleFullScreen={toggleFullScreen}
         onCopyHtml={copyHtml}
+        canRevertSession={controller.canRevertSession}
+        canDiscardUnpublished={controller.canDiscardUnpublished}
+        onRevertSession={() => setRevisionConfirm('session')}
+        onDiscardUnpublished={() => setRevisionConfirm('unpublished')}
+        onOpenHistory={() => setHistoryOpen(true)}
       />
+
+      <ConfirmDialog
+        open={revisionConfirm !== null}
+        onOpenChange={open => !open && setRevisionConfirm(null)}
+        title={revisionConfirm === 'unpublished' ? t('revision.discard_unpublished_title') : t('revision.revert_session_title')}
+        description={revisionConfirm === 'unpublished' ? t('revision.discard_unpublished_description') : t('revision.revert_session_description')}
+        confirmLabel={revisionConfirm === 'unpublished' ? t('revision.discard_unpublished') : t('revision.revert_session')}
+        errorText={t('revision.revert_failed')}
+        onConfirm={async () => {
+          if (revisionConfirm === 'unpublished')
+            await controller.discardUnpublished()
+          else
+            await controller.revertSession()
+          toast.success(t('revision.reverted'))
+        }}
+      />
+      {controller.doc && (
+        <EditorRevisionSheet
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          target={controller.kind}
+          docId={controller.doc.id}
+          schema={editor.schema}
+          baseRevisionId={editSession.baseRevisionId}
+          readOnly={readOnly}
+          onRestore={async (revisionId) => {
+            await controller.restoreToRevision(revisionId)
+            toast.success(t('revision.restored'))
+          }}
+        />
+      )}
 
       {focusMode && (
         <Button

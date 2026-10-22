@@ -6,14 +6,17 @@ import {
   CopyIcon,
   EllipsisIcon,
   EyeIcon,
+  FileXIcon,
   FocusIcon,
   FullscreenIcon,
+  HistoryIcon,
   LockIcon,
   MinimizeIcon,
   MoonIcon,
   SendIcon,
   Settings2Icon,
   SunIcon,
+  Undo2Icon,
 } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import { useTheme } from 'next-themes'
@@ -66,6 +69,12 @@ export interface EditorAppBarProps {
   onToggleFocusMode: () => void
   onToggleFullScreen: () => void
   onCopyHtml: () => void
+  // 版本：放弃本次修改 / 放弃未发布的修改 / 版本历史
+  canRevertSession: boolean
+  canDiscardUnpublished: boolean
+  onRevertSession: () => void
+  onDiscardUnpublished: () => void
+  onOpenHistory: () => void
   settingsLabel: string
   className?: string
 }
@@ -96,6 +105,11 @@ export function EditorAppBar(props: EditorAppBarProps) {
     onToggleFocusMode,
     onToggleFullScreen,
     onCopyHtml,
+    canRevertSession,
+    canDiscardUnpublished,
+    onRevertSession,
+    onDiscardUnpublished,
+    onOpenHistory,
     settingsLabel,
     className,
   } = props
@@ -186,6 +200,19 @@ export function EditorAppBar(props: EditorAppBarProps) {
           <DropdownMenuItem onSelect={() => setTheme(isDark ? 'light' : 'dark')}>
             {isDark ? <SunIcon /> : <MoonIcon />}
             {isDark ? t('theme_light') : t('theme_dark')}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onOpenHistory}>
+            <HistoryIcon />
+            {t('revision.title')}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={!canRevertSession} onSelect={onRevertSession}>
+            <Undo2Icon />
+            {t('revision.revert_session')}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={!canDiscardUnpublished} onSelect={onDiscardUnpublished}>
+            <FileXIcon />
+            {t('revision.discard_unpublished')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={onCopyHtml}>

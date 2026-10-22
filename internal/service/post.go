@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
@@ -115,6 +116,9 @@ func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.Service
 	if err := repo.Post.DeletePost(postId); err != nil {
 		return errs.NewInternalServer("failed_to_delete_target")
 	}
+	if err := repo.Revision.DeleteByTarget(constant.TargetTypePost, postId); err != nil {
+		logrus.Warnf("delete revisions of post %d failed: %v", postId, err)
+	}
 	return nil
 }
 
@@ -206,6 +210,10 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			return 0, errs.NewConflict("slug_already_exists")
 		}
 		return 0, errs.NewInternalServer("failed_to_update_target")
+	}
+	// 发布或保存草稿后记录版本历史
+	if req.Content != "" || req.DraftContent != nil {
+		NewRevisionService().RecordAfterSave(ctx, constant.TargetTypePost, post.ID, req.Content != "", req.EditSessionID)
 	}
 	return post.ID, nil
 }

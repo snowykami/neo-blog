@@ -169,6 +169,7 @@ func migrate() error {
 	}
 	if err := GetDB().AutoMigrate(
 		&model.Comment{},
+		&model.ContentRevision{},
 		&model.EditSession{},
 		&model.Label{},
 		&model.Like{},

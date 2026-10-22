@@ -9,4 +9,6 @@ type EditSessionDto struct {
 	Browser   string    `json:"browser"`              // 持有会话的设备浏览器，基于User-Agent
 	StartedAt time.Time `json:"started_at"`           // 会话开启时间
 	IsCurrent bool      `json:"is_current"`           // 请求方携带的会话是否仍是当前会话
+	// 打开编辑器时的版本（编辑起点），仅申请会话时返回，用于“放弃本次修改”
+	BaseRevisionID uint `json:"base_revision_id,omitempty"`
 }
