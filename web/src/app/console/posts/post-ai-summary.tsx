@@ -199,15 +199,17 @@ export function PostDescriptionLine({ post }: { post: Post }) {
   const t = useTranslations('Console.post_manage_ai')
   if (!post.description)
     return null
+  const text = stripInlineMarkdown(post.description)
   return (
-    <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+    // 只显示一行，宽屏下最多占行宽一半，完整内容悬停查看
+    <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground md:max-w-1/2">
       {post.descriptionByAi && (
         <Badge variant="outline" className="px-1 py-0 text-[10px] text-primary" title={t('ai_marker_title')}>
           <SparklesIcon aria-hidden />
           {t('ai_marker')}
         </Badge>
       )}
-      <span className="line-clamp-1 break-all">{stripInlineMarkdown(post.description)}</span>
+      <span className="min-w-0 truncate" title={text}>{text}</span>
     </div>
   )
 }

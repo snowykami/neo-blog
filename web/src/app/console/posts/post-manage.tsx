@@ -282,8 +282,8 @@ function PostItem({
   return (
     <div>
       <div className="flex w-full items-center gap-3 py-3">
-        {/* left */}
-        <div className="flex justify-start items-center gap-4">
+        {/* left：占满剩余宽度且可收缩，长描述不会把右侧操作挤出 */}
+        <div className="flex min-w-0 flex-1 justify-start items-center gap-4">
           {/* avatar */}
           <div className="flex-shrink-0 w-16 h-9 rounded-md overflow-hidden">
             {/* 没有封面或封面失效时显示占位 */}
@@ -295,7 +295,7 @@ function PostItem({
               className="w-full h-full object-cover"
             />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="text-sm font-medium">{post.title}</div>
             <PostDescriptionLine post={post} />
             <div className="mt-1 flex flex-wrap items-center gap-3">
