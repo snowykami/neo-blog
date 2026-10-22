@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { registerPath, resetPasswordPath } from '@/hooks/use-route'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
+import { mainPath } from '@/utils/common/route'
 
 export default function LoginPage() {
   return (
@@ -231,6 +232,14 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
           </form>
         </CardContent>
       </Card>
+      {/* 隐私政策提示 */}
+      <div className="text-muted-foreground text-center text-xs text-balance">
+        {t('by_logging_in_you_agree_to_our')}
+        {' '}
+        <Link href={mainPath.privacy} className="underline underline-offset-4 hover:text-primary">
+          {t('privacy_policy')}
+        </Link>
+      </div>
     </div>
   )
 }

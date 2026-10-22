@@ -29,6 +29,12 @@ export interface SiteInfo {
       href: string
     }[]
   }
+  // 以下为前台个性化资源，留空即隐藏对应组件
+  aboutBackground?: string // 侧边栏「关于我」卡片背景图
+  sidebarIframeUrl?: string // 侧边栏嵌入页面（如 Misskey 时间线）地址
+  sidebarIframeTitle?: string // 侧边栏嵌入卡片标题
+  musicPlaylistUrl?: string // 悬浮音乐播放器歌单 JSON 地址
+  enableThirdPartyScript?: boolean // 是否在前台加载全局第三方脚本
 }
 
 export const fallbackSiteInfo: SiteInfo = {
@@ -56,11 +62,14 @@ export const fallbackSiteInfo: SiteInfo = {
   copyrightLink: 'https://creativecommons.org/licenses/by/4.0/',
   footer: {
     text: 'Default footer text',
-    links: [
-      { text: 'Home', href: '/' },
-      { text: 'About', href: '/about' },
-    ],
+    // 默认不展示额外链接，由后台「页脚链接」配置
+    links: [],
   },
+  aboutBackground: 'https://cdn.liteyuki.org/snowykami/dark_2.png',
+  sidebarIframeUrl: 'https://lab.liteyuki.org/embed/user-timeline/a2utaz241qx60001?maxHeight=700&border=false',
+  sidebarIframeTitle: 'Misskey',
+  musicPlaylistUrl: 'https://cdn.liteyuki.org/snowykami/music/playlists/favorite.json',
+  enableThirdPartyScript: true,
 }
 
 export function getDefaultCoverRandomly(siteInfo: SiteInfo): string {

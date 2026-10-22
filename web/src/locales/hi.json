@@ -134,7 +134,8 @@
     "verify_code": "सत्यापन कोड",
     "default": "डिफ़ॉल्ट",
     "private": "निजी",
-    "pinned": "Pinned"
+    "pinned": "Pinned",
+    "table_of_contents": "विषय सूची"
   },
   "Components": {
     "image_cropper": {
@@ -368,7 +369,18 @@
         "key_required": "कुंजी खाली नहीं हो सकती",
         "value_invalid_json": "मान मान्य JSON होना चाहिए",
         "delete_description": "कुंजी \"{key}\" हटा दी जाएगी। इसे पूर्ववत नहीं किया जा सकता और यह साइट के संचालन को प्रभावित कर सकता है।"
-      }
+      },
+      "section_personalize": "वैयक्तिकरण",
+      "section_personalize_desc": "सार्वजनिक साइट के साइडबार, म्यूज़िक प्लेयर और थर्ड-पार्टी स्क्रिप्ट के संसाधन। संबंधित घटक छिपाने के लिए खाली छोड़ें।",
+      "about_background": "\"मेरे बारे में\" कार्ड की पृष्ठभूमि छवि",
+      "empty_to_hide": "छिपाने के लिए खाली छोड़ें",
+      "sidebar_iframe_url": "साइडबार एम्बेड पेज URL",
+      "sidebar_iframe_url_desc": "उदाहरण के लिए Misskey उपयोगकर्ता टाइमलाइन का एम्बेड URL। कार्ड छिपाने के लिए खाली छोड़ें।",
+      "sidebar_iframe_title": "साइडबार एम्बेड कार्ड शीर्षक",
+      "music_playlist_url": "म्यूज़िक प्लेयर प्लेलिस्ट URL",
+      "music_playlist_url_desc": "प्लेलिस्ट JSON फ़ाइल का URL। फ़्लोटिंग म्यूज़िक प्लेयर छिपाने के लिए खाली छोड़ें।",
+      "enable_third_party_script": "वैश्विक थर्ड-पार्टी स्क्रिप्ट लोड करें",
+      "enable_third_party_script_desc": "ब्राउज़र निष्क्रिय होने पर सार्वजनिक पेजों पर CDN जानकारी स्क्रिप्ट लोड करता है; कंसोल में कभी नहीं।"
     },
     "labels": {
       "title": "टैग",
@@ -466,7 +478,9 @@
       "fullscreen_exit": "पूर्ण स्क्रीन से बाहर निकलें",
       "fullscreen_failed": "पूर्ण स्क्रीन बदलने में विफल",
       "publishing": "प्रकाशित हो रहा है...",
-      "untitled": "शीर्षकहीन"
+      "untitled": "शीर्षकहीन",
+      "horizontal_rule": "क्षैतिज रेखा",
+      "add_image": "जोड़ें"
     },
     "storages": {
       "title": "स्टोरेज प्रदाता",
@@ -549,7 +563,8 @@
     },
     "user_preference": {
       "title": "Preferences",
-      "color_scheme": "Color scheme"
+      "color_scheme": "Color scheme",
+      "update_color_scheme_failed": "रंग योजना अपडेट करने में विफल"
     },
     "pages": {
       "title": "Pages",
@@ -579,7 +594,8 @@
     "no_derivative_works": "कोई व्युत्पन्न कार्य नहीं",
     "no_reuse": "कोई पुन: उपयोग नहीं",
     "original_link": "मूल लिंक",
-    "post_at": "पोस्ट की गई"
+    "post_at": "पोस्ट की गई",
+    "unknown_date": "अज्ञात तिथि"
   },
   "Login": {
     "captcha_error": "कैप्चा त्रुटि, पुनः प्रयास करें।",
@@ -699,7 +715,8 @@
     "send_verify_code_failed": "भेजना विफल",
     "send_verify_code_success": "कोड भेजा गया",
     "captcha_error": "कैप्चा त्रुटि, पुनः प्रयास करें।",
-    "fetch_captcha_config_failed": "कैप्चा कॉन्फ़िगरेशन प्राप्त करने में विफल"
+    "fetch_captcha_config_failed": "कैप्चा कॉन्फ़िगरेशन प्राप्त करने में विफल",
+    "by_registering_you_agree_to_our": "पंजीकरण करके, आप हमारी इस नीति से सहमत होते हैं:"
   },
   "ResetPassword": {
     "title": "पासवर्ड रीसेट करें",
@@ -732,7 +749,8 @@
     "post": "पोस्ट",
     "privacy_policy": "गोपनीयता नीति",
     "profile": "प्रोफ़ाइल",
-    "random": "यादृच्छिक"
+    "random": "यादृच्छिक",
+    "category": "श्रेणियाँ"
   },
   "State": {
     "private": "निजी",
@@ -822,7 +840,9 @@
       "invalid_verify_code": "सत्यापन कोड गलत है या समाप्त हो गया है",
       "slug_cannot_be_numeric": "स्लग केवल अंकों का नहीं हो सकता",
       "unsupported_file_type": "असमर्थित फ़ाइल प्रकार",
-      "file_too_large": "फ़ाइल बहुत बड़ी है"
+      "file_too_large": "फ़ाइल बहुत बड़ी है",
+      "category_not_found": "श्रेणी नहीं मिली",
+      "slug_already_exists": "यह स्लग पहले से उपयोग में है"
     }
   },
   "ErrorPage": {
@@ -835,7 +855,12 @@
     "no_nickname": "कोई उपनाम नहीं",
     "not_filled": "उपलब्ध नहीं",
     "guest": "अतिथि",
-    "unknown_location": "अज्ञात"
+    "unknown_location": "अज्ञात",
+    "gender_male": "पुरुष",
+    "gender_female": "महिला",
+    "gender_other": "अन्य",
+    "posts": "पोस्ट",
+    "user_not_found": "उपयोगकर्ता नहीं मिला"
   },
   "ThemeMode": {
     "light_mode": "लाइट मोड",
@@ -844,5 +869,11 @@
   },
   "Public": {
     "categories": "श्रेणियाँ"
+  },
+  "Search": {
+    "search": "खोजें",
+    "description": "पोस्ट खोजने के लिए कीवर्ड दर्ज करें",
+    "placeholder": "पोस्ट खोजें…",
+    "search_posts_for": "\"{query}\" के लिए पोस्ट खोजें"
   }
 }

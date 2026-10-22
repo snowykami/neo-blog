@@ -59,6 +59,11 @@ interface SettingsValues {
   rssCopyright: string
   rssImage: string
   rssLanguage: string
+  aboutBackground: string
+  sidebarIframeUrl: string
+  sidebarIframeTitle: string
+  musicPlaylistUrl: string
+  enableThirdPartyScript: boolean
 }
 
 type FieldName = keyof SettingsValues
@@ -86,6 +91,11 @@ const SITE_INFO_FIELDS: FieldName[] = [
   'footerText',
   'footerLinks',
   'verifyCodeCoolDown',
+  'aboutBackground',
+  'sidebarIframeUrl',
+  'sidebarIframeTitle',
+  'musicPlaylistUrl',
+  'enableThirdPartyScript',
 ]
 
 // 同时写入后端独立配置键的字段（后端邮件、OIDC 回调、RSS、评论等直接读取这些键）
@@ -143,6 +153,12 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     rssCopyright: str('siteCopyright', ''),
     rssImage: str('siteImage', ''),
     rssLanguage: str('defaultLanguage', 'zh-cn'),
+    // 未保存过的个性化字段使用前台默认值，避免保存其他字段时被清空
+    aboutBackground: info.aboutBackground ?? fallbackSiteInfo.aboutBackground ?? '',
+    sidebarIframeUrl: info.sidebarIframeUrl ?? fallbackSiteInfo.sidebarIframeUrl ?? '',
+    sidebarIframeTitle: info.sidebarIframeTitle ?? fallbackSiteInfo.sidebarIframeTitle ?? '',
+    musicPlaylistUrl: info.musicPlaylistUrl ?? fallbackSiteInfo.musicPlaylistUrl ?? '',
+    enableThirdPartyScript: info.enableThirdPartyScript ?? fallbackSiteInfo.enableThirdPartyScript ?? false,
   }
 }
 
@@ -171,6 +187,11 @@ function toSiteInfo(base: SiteInfo, values: SettingsValues): SiteInfo {
     copyrightLink: values.copyrightLink,
     footer: { ...base.footer, text: values.footerText, links: values.footerLinks.filter(link => link.text || link.href) },
     verifyCodeCoolDown: Number(values.verifyCodeCoolDown),
+    aboutBackground: values.aboutBackground.trim(),
+    sidebarIframeUrl: values.sidebarIframeUrl.trim(),
+    sidebarIframeTitle: values.sidebarIframeTitle.trim(),
+    musicPlaylistUrl: values.musicPlaylistUrl.trim(),
+    enableThirdPartyScript: values.enableThirdPartyScript,
   }
 }
 
@@ -265,6 +286,14 @@ export function SettingsForm() {
           <NumberField name="maxReplyDepth" label={t('max_reply_depth')} description={t('max_reply_depth_desc')} min={1} max={10} />
           <TextField name="copyright" label={t('copyright')} placeholder="CC BY-NC-SA 4.0" />
           <UrlField name="copyrightLink" label={t('copyright_link')} />
+        </Section>
+
+        <Section title={t('section_personalize')} description={t('section_personalize_desc')}>
+          <ImageField name="aboutBackground" label={t('about_background')} description={t('empty_to_hide')} />
+          <UrlField name="sidebarIframeUrl" label={t('sidebar_iframe_url')} description={t('sidebar_iframe_url_desc')} />
+          <TextField name="sidebarIframeTitle" label={t('sidebar_iframe_title')} placeholder="Misskey" />
+          <UrlField name="musicPlaylistUrl" label={t('music_playlist_url')} description={t('music_playlist_url_desc')} />
+          <SwitchField name="enableThirdPartyScript" label={t('enable_third_party_script')} description={t('enable_third_party_script_desc')} />
         </Section>
 
         <Section title={t('section_footer')}>

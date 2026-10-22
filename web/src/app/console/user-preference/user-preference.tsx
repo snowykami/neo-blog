@@ -28,11 +28,11 @@ export function UserPreferencePage() {
         document.documentElement.setAttribute('data-user-color', previousColor || 'blue')
       }
       setColor(previousColor || null)
-      toast.error('Failed to update color scheme', {
+      toast.error(t('update_color_scheme_failed'), {
         description: error.message,
       })
     })
-  }, [color, user, setUser])
+  }, [color, user, setUser, t])
 
   const onColorChange = useCallback((color: string) => {
     setColor(color)

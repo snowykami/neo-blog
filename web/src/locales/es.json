@@ -134,7 +134,8 @@
     "verify_code": "Código de verificación",
     "default": "Predeterminado",
     "private": "Privado",
-    "pinned": "Fijado"
+    "pinned": "Fijado",
+    "table_of_contents": "Índice"
   },
   "Components": {
     "image_cropper": {
@@ -368,7 +369,18 @@
         "key_required": "La clave no puede estar vacía",
         "value_invalid_json": "El valor debe ser JSON válido",
         "delete_description": "Se eliminará la clave «{key}». Esta acción no se puede deshacer y puede afectar al funcionamiento del sitio."
-      }
+      },
+      "section_personalize": "Personalización",
+      "section_personalize_desc": "Recursos de la barra lateral, el reproductor de música y el script de terceros del sitio público. Déjalo vacío para ocultar el componente correspondiente.",
+      "about_background": "Imagen de fondo de la tarjeta «Sobre mí»",
+      "empty_to_hide": "Déjalo vacío para ocultar",
+      "sidebar_iframe_url": "URL de la página incrustada en la barra lateral",
+      "sidebar_iframe_url_desc": "Por ejemplo, la URL de inserción de la línea de tiempo de un usuario de Misskey. Déjalo vacío para ocultar la tarjeta.",
+      "sidebar_iframe_title": "Título de la tarjeta incrustada",
+      "music_playlist_url": "URL de la lista de reproducción del reproductor",
+      "music_playlist_url_desc": "URL del archivo JSON de la lista. Déjalo vacío para ocultar el reproductor flotante.",
+      "enable_third_party_script": "Cargar script global de terceros",
+      "enable_third_party_script_desc": "Carga el script de información de la CDN en las páginas públicas cuando el navegador está inactivo; nunca en la consola."
     },
     "labels": {
       "title": "Etiquetas",
@@ -466,7 +478,9 @@
       "fullscreen_exit": "Salir de pantalla completa",
       "fullscreen_failed": "No se pudo cambiar a pantalla completa",
       "publishing": "Publicando...",
-      "untitled": "Sin título"
+      "untitled": "Sin título",
+      "horizontal_rule": "Línea horizontal",
+      "add_image": "Añadir"
     },
     "storages": {
       "title": "Proveedores de almacenamiento",
@@ -549,7 +563,8 @@
     },
     "user_preference": {
       "title": "Preferencias",
-      "color_scheme": "Esquema de color"
+      "color_scheme": "Esquema de color",
+      "update_color_scheme_failed": "No se pudo actualizar el esquema de color"
     },
     "pages": {
       "title": "Páginas",
@@ -579,7 +594,8 @@
     "no_derivative_works": "Sin obras derivadas",
     "no_reuse": "Sin reutilización",
     "original_link": "Enlace original",
-    "post_at": "Publicado el"
+    "post_at": "Publicado el",
+    "unknown_date": "Fecha desconocida"
   },
   "Login": {
     "captcha_error": "Error de captcha, intenta de nuevo.",
@@ -699,7 +715,8 @@
     "send_verify_code_failed": "Error al enviar",
     "send_verify_code_success": "Código enviado",
     "captcha_error": "Error de captcha, intenta de nuevo.",
-    "fetch_captcha_config_failed": "Error al obtener configuración de captcha"
+    "fetch_captcha_config_failed": "Error al obtener configuración de captcha",
+    "by_registering_you_agree_to_our": "Al registrarte, aceptas nuestra"
   },
   "ResetPassword": {
     "title": "Restablecer contraseña",
@@ -732,7 +749,8 @@
     "post": "Publicación",
     "privacy_policy": "Política de privacidad",
     "profile": "Perfil",
-    "random": "Aleatorio"
+    "random": "Aleatorio",
+    "category": "Categorías"
   },
   "State": {
     "private": "Privado",
@@ -822,7 +840,9 @@
       "invalid_verify_code": "El código de verificación es incorrecto o ha caducado",
       "slug_cannot_be_numeric": "El slug no puede ser solo numérico",
       "unsupported_file_type": "Tipo de archivo no compatible",
-      "file_too_large": "El archivo es demasiado grande"
+      "file_too_large": "El archivo es demasiado grande",
+      "category_not_found": "Categoría no encontrada",
+      "slug_already_exists": "El slug ya está en uso"
     }
   },
   "ErrorPage": {
@@ -835,7 +855,12 @@
     "no_nickname": "Sin apodo",
     "not_filled": "No especificado",
     "guest": "Invitado",
-    "unknown_location": "Desconocido"
+    "unknown_location": "Desconocido",
+    "gender_male": "Hombre",
+    "gender_female": "Mujer",
+    "gender_other": "Otro",
+    "posts": "Publicaciones",
+    "user_not_found": "Usuario no encontrado"
   },
   "ThemeMode": {
     "light_mode": "Modo claro",
@@ -844,5 +869,11 @@
   },
   "Public": {
     "categories": "Categorías"
+  },
+  "Search": {
+    "search": "Buscar",
+    "description": "Introduce palabras clave para buscar publicaciones",
+    "placeholder": "Buscar publicaciones…",
+    "search_posts_for": "Buscar «{query}» en las publicaciones"
   }
 }

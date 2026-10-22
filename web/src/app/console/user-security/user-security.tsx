@@ -15,10 +15,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/contexts/auth-context'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { resetPasswordPath } from '@/hooks/use-route'
 import { useCommonT, useErrorMessageT } from '@/hooks/use-translations'
 
-const VERIFY_CODE_COOL_DOWN = 60 // 秒
 const PASSWORD_MIN_LENGTH = 8
 const PASSWORD_MAX_LENGTH = 32
 
@@ -38,6 +38,7 @@ export function UserSecurityPage() {
   const errorMessageT = useErrorMessageT()
   const commonT = useCommonT()
   const { user, setUser } = useAuth()
+  const { siteInfo } = useSiteInfo()
   const [openIds, setOpenIds] = useState<OpenIdDto[]>([])
   const [coolDown, setCoolDown] = useState(0)
   const [sendingVerifyCode, setSendingVerifyCode] = useState(false)
@@ -93,7 +94,7 @@ export function UserSecurityPage() {
     requestEmailVerifyCode({ email })
       .then(() => {
         toast.success(t('send_verify_code_success'))
-        setCoolDown(VERIFY_CODE_COOL_DOWN)
+        setCoolDown(siteInfo.verifyCodeCoolDown || 60)
       })
       .catch((error: unknown) => {
         console.error('error', error)

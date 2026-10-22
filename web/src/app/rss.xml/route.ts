@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server'
 import RSS from 'rss'
 import { getRssData } from '@/api/misc'
 import { getPostUrl } from '@/utils/common/route'
+import { formatDisplayName } from '@/utils/common/username'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
+
+// 订阅源 10 分钟重新生成一次
+export const revalidate = 600
 
 export async function GET() {
   const rssData = await getRssData()
@@ -21,6 +25,10 @@ export async function GET() {
     image_url: rssData.imageUrl,
     copyright: rssData.copyright,
     language: rssData.language,
+    // 后台「RSS 作者」配置
+    managingEditor: rssData.author || undefined,
+    webMaster: rssData.author || undefined,
+    pubDate: rssData.pubDate || undefined,
     generator: 'Next.js with rss',
   })
 
@@ -32,6 +40,8 @@ export async function GET() {
       url: rssData.siteUrl + getPostUrl({ post }),
       guid: post.slug || post.id.toString(),
       date: post.updatedAt,
+      author: post.user ? formatDisplayName(post.user) : rssData.author,
+      categories: post.category ? [post.category.name] : undefined,
       enclosure: post.cover ? { url: post.cover } : { url: rssData.postDefaultCover },
     })
   })
@@ -40,6 +50,7 @@ export async function GET() {
     status: 200,
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',
+      'Cache-Control': 'public, max-age=600',
     },
   })
 }

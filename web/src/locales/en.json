@@ -134,7 +134,8 @@
     "verify_code": "Verification code",
     "default": "Default",
     "private": "Private",
-    "pinned": "Pinned"
+    "pinned": "Pinned",
+    "table_of_contents": "Table of Contents"
   },
   "Components": {
     "image_cropper": {
@@ -368,7 +369,18 @@
         "key_required": "Key cannot be empty",
         "value_invalid_json": "Value must be valid JSON",
         "delete_description": "The key \"{key}\" will be deleted. This cannot be undone and may affect how the site works."
-      }
+      },
+      "section_personalize": "Personalization",
+      "section_personalize_desc": "Resources for the sidebar, music player and third-party script on the public site. Leave empty to hide the corresponding component.",
+      "about_background": "\"About me\" card background",
+      "empty_to_hide": "Leave empty to hide",
+      "sidebar_iframe_url": "Sidebar embed URL",
+      "sidebar_iframe_url_desc": "For example a Misskey user timeline embed URL. Leave empty to hide the card.",
+      "sidebar_iframe_title": "Sidebar embed card title",
+      "music_playlist_url": "Music player playlist URL",
+      "music_playlist_url_desc": "URL of the playlist JSON file. Leave empty to hide the floating music player.",
+      "enable_third_party_script": "Load global third-party script",
+      "enable_third_party_script_desc": "Loads the CDN info script on public pages when the browser is idle; never loaded in the console."
     },
     "labels": {
       "title": "Tags",
@@ -466,7 +478,9 @@
       "fullscreen_exit": "Exit full screen",
       "fullscreen_failed": "Failed to toggle full screen",
       "publishing": "Publishing...",
-      "untitled": "Untitled"
+      "untitled": "Untitled",
+      "horizontal_rule": "Horizontal rule",
+      "add_image": "Add"
     },
     "storages": {
       "title": "Storage providers",
@@ -549,7 +563,8 @@
     },
     "user_preference": {
       "title": "Preferences",
-      "color_scheme": "Color scheme"
+      "color_scheme": "Color scheme",
+      "update_color_scheme_failed": "Failed to update color scheme"
     },
     "pages": {
       "title": "Pages",
@@ -579,7 +594,8 @@
     "no_derivative_works": "No derivative works",
     "no_reuse": "No reuse",
     "original_link": "Original link",
-    "post_at": "Posted at"
+    "post_at": "Posted at",
+    "unknown_date": "Unknown date"
   },
   "Login": {
     "captcha_error": "Captcha error, try again.",
@@ -699,7 +715,8 @@
     "send_verify_code_failed": "Send failed",
     "send_verify_code_success": "Code sent",
     "captcha_error": "Captcha error, try again.",
-    "fetch_captcha_config_failed": "Failed to get captcha config"
+    "fetch_captcha_config_failed": "Failed to get captcha config",
+    "by_registering_you_agree_to_our": "By registering, you agree to our"
   },
   "ResetPassword": {
     "title": "Reset password",
@@ -732,7 +749,8 @@
     "post": "Post",
     "privacy_policy": "Privacy Policy",
     "profile": "Profile",
-    "random": "Random"
+    "random": "Random",
+    "category": "Categories"
   },
   "State": {
     "private": "Private",
@@ -822,7 +840,9 @@
       "invalid_verify_code": "Verification code is incorrect or expired",
       "slug_cannot_be_numeric": "Slug cannot be purely numeric",
       "unsupported_file_type": "Unsupported file type",
-      "file_too_large": "File is too large"
+      "file_too_large": "File is too large",
+      "category_not_found": "Category not found",
+      "slug_already_exists": "Slug is already in use"
     }
   },
   "ErrorPage": {
@@ -835,7 +855,12 @@
     "no_nickname": "No nickname",
     "not_filled": "Not provided",
     "guest": "Guest",
-    "unknown_location": "Unknown"
+    "unknown_location": "Unknown",
+    "gender_male": "Male",
+    "gender_female": "Female",
+    "gender_other": "Other",
+    "posts": "Posts",
+    "user_not_found": "User not found"
   },
   "ThemeMode": {
     "light_mode": "Light mode",
@@ -844,5 +869,11 @@
   },
   "Public": {
     "categories": "Categories"
+  },
+  "Search": {
+    "search": "Search",
+    "description": "Enter keywords to search posts",
+    "placeholder": "Search posts…",
+    "search_posts_for": "Search posts for \"{query}\""
   }
 }

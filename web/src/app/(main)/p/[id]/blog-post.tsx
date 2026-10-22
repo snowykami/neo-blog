@@ -11,10 +11,10 @@ import {
   PenLine,
 } from 'lucide-react'
 import * as motion from 'motion/react-client'
-import { getTranslations } from 'next-intl/server'
+import { getFormatter, getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { Suspense } from 'react'
-import { getSiteInfo } from '@/api/misc'
+import { getCachedSiteInfo } from '@/api/misc.server'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import CopyrightCard from '@/components/blog-post/blog-copyright.client'
 import { BlogLikeButton } from '@/components/blog-post/blog-like-button.client'
@@ -22,6 +22,7 @@ import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
 import { PostHeaderClient } from '@/components/blog-post/post-header.client'
+import { PostToc } from '@/components/blog-post/post-toc.client'
 import BlogSidebar from '@/components/blog-sidebar'
 import {
   BlogSidebarAbout,
@@ -36,11 +37,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { TargetType } from '@/models/types'
 import { contentAreaPaddingClass, navStickyTopPx } from '@/utils/common/layout-size'
 import { calculateReadingTime } from '@/utils/common/post'
-
-import { getUserUrl } from '@/utils/common/route'
-import { fallbackSiteInfo, getDefaultCoverRandomly } from '@/utils/common/siteinfo'
-import { applyContentAutoMatch } from '@/utils/server/content-auto-match'
-import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
+import { getCategoryUrl, getUserUrl } from '@/utils/common/route'
+import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
+import { renderContentHtml } from '@/utils/server/render-content'
 import '@/components/tiptap-node/image-node/image-figure.scss'
 import './blog-post-article.scss'
 
@@ -55,6 +54,7 @@ async function PostHeader({ post }: { post: Post }) {
 // 适配白色背景的 PostMeta 组件
 async function PostMetaWhite({ post }: { post: Post }) {
   const t = await getTranslations()
+  const format = await getFormatter()
   const metaItems = [
     {
       icon: PenLine,
@@ -64,10 +64,11 @@ async function PostMetaWhite({ post }: { post: Post }) {
     {
       icon: ArchiveIcon,
       text: post.category ? post.category.name : t('Console.post_edit.uncategorized'),
+      href: post.category ? getCategoryUrl(post.category) : undefined,
     },
     {
       icon: Calendar,
-      text: post.createdAt ? new Date(post.createdAt).toLocaleDateString('zh-CN') : '',
+      text: post.createdAt ? format.dateTime(new Date(post.createdAt), { year: 'numeric', month: '2-digit', day: '2-digit' }) : '',
     },
     {
       icon: Clock,
@@ -112,7 +113,7 @@ async function PostMetaWhite({ post }: { post: Post }) {
   )
 }
 
-async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean }) {
+async function PostContent({ post, html, isDraft }: { post: Post, html: string, isDraft?: boolean }) {
   const t = await getTranslations('Common')
   return (
     <div className="bg-transparent md:bg-background md:border-1 pt-4 px-2 md:px-8 md:pt-8 md:p-8 rounded-none md:rounded-xl">
@@ -134,10 +135,7 @@ async function PostContent({ post, isDraft }: { post: Post, isDraft?: boolean })
           rounded-xl bg-background
           text-sm md:text-lg
           "
-        dangerouslySetInnerHTML={{
-          // 先自动匹配再净化，防止正文中的脚本 / 事件处理器造成存储型 XSS
-          __html: sanitizeContentHtml(applyContentAutoMatch((isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>')),
-        }}
+        dangerouslySetInnerHTML={{ __html: html }}
       />
       <HtmlEnhancer containerId="blog-content" />
       {/* 草稿预览不计入访客记录 */}
@@ -195,12 +193,11 @@ function CommentsSkeleton() {
 }
 
 export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?: boolean }) {
-  const siteInfo = await getSiteInfo()
-    .then(res => res.data)
-    .catch(() => fallbackSiteInfo)
+  const siteInfo = await getCachedSiteInfo()
   if (!post.cover) {
     post.cover = getDefaultCoverRandomly(siteInfo)
   }
+  const { html, headings } = renderContentHtml((isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>')
   return (
     <div className="h-full">
       {/* <ScrollToTop /> */}
@@ -227,7 +224,7 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
             ease: 'easeOut',
           }}
         >
-          <PostContent post={post} isDraft={isDraft} />
+          <PostContent post={post} html={html} isDraft={isDraft} />
           {/* Comments section wrapped in Suspense for better performance */}
           <div
             className={`bg-background mt-4 rounded-xl border border-border ${contentAreaPaddingClass} py-4 md:py-8`}
@@ -257,7 +254,7 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
           <BlogSidebar
             cards={[
               <BlogSidebarAbout key="about" />,
-              // <PostToc key="toc" html={post.content || ''} />,
+              <PostToc key="toc" headings={headings} />,
               <BlogSidebarLabels key="labels" />,
               <SidebarMisskeyIframe key="misskey" />,
             ].filter(Boolean)}

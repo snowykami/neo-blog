@@ -1,9 +1,15 @@
+import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { getLabels } from '@/api/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getLabelUrl } from '@/utils/common/route'
+import { getLabelUrl, mainPath } from '@/utils/common/route'
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('Route')
+  return { title: t('label'), alternates: { canonical: mainPath.label } }
+}
 
 export default async function LabelPage() {
   const labels = await getLabels().then(res => res.data.labels).catch(() => [])

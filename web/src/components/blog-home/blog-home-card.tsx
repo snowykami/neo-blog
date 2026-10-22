@@ -12,8 +12,9 @@ import {
   Pin,
 } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useTranslations } from 'next-intl'
+import { useFormatter, useTranslations } from 'next-intl'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMemo } from 'react'
 import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
@@ -31,7 +32,7 @@ import { useSiteInfo } from '@/contexts/site-info-context'
 import { useCommonT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
-import { getPostUrl } from '@/utils/common/route'
+import { getCategoryUrl, getPostUrl } from '@/utils/common/route'
 import { getDefaultCoverRandomly } from '@/utils/common/siteinfo'
 import { htmlToText } from '@/utils/common/string'
 import { getFirstCharFromUser } from '@/utils/common/username'
@@ -42,14 +43,14 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
   // 随机默认封面只取一次，避免每次渲染变化导致图片反复重载
   const defaultCover = useMemo(() => getDefaultCoverRandomly(siteInfo), [siteInfo])
   const commonT = useCommonT()
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    })
-  }
+  const router = useRouter()
+  const format = useFormatter()
+  // 按当前界面语言格式化日期
+  const formatDate = (dateString: string) => format.dateTime(new Date(dateString), {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
   return (
     <Card
       className={cn(
@@ -105,9 +106,20 @@ export function BlogCard({ post, className }: { post: Post, className?: string }
         {/* 右上角 分类 */}
         {post.category && (
           <div className="absolute top-2 right-2">
-            <Badge className="bg-primary/70 text-white border-0 text-sm rounded-full">
-              <ChartBarStackedIcon />
-              {post.category.name}
+            {/* 卡片整体已是文章链接，分类不能再嵌套 <a>，用按钮跳转到分类页 */}
+            <Badge asChild className="bg-primary/70 text-white border-0 text-sm rounded-full hover:bg-primary/90 cursor-pointer">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (post.category)
+                    router.push(getCategoryUrl(post.category))
+                }}
+              >
+                <ChartBarStackedIcon />
+                {post.category.name}
+              </button>
             </Badge>
           </div>
         )}

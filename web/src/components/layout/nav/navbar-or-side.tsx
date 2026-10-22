@@ -1,11 +1,12 @@
 'use client'
 
+import type { LucideIcon } from 'lucide-react'
+import type { PageModel } from '@/models/page'
 import {
   ArchiveIcon,
-  ContactIcon,
+  FileTextIcon,
+  FolderIcon,
   HouseIcon,
-  InfoIcon,
-  Link2Icon,
   NewspaperIcon,
   PanelRight,
   PanelsTopLeftIcon,
@@ -17,9 +18,11 @@ import {
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import * as React from 'react'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { listPages } from '@/api/page'
 import { ThemeModeToggle } from '@/components/common/theme-toggle'
 import { AvatarWithDropdownMenu } from '@/components/layout/nav/avatar-with-dropdown-menu'
+import { NavSearch } from '@/components/layout/nav/nav-search'
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -34,9 +37,23 @@ import { useNav } from '@/contexts/nav-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { mainPath } from '@/utils/common/route'
+import { getPageUrl, mainPath } from '@/utils/common/route'
 
-const navbarMenuComponents = [
+// 菜单项：title 为 Route 命名空间下的翻译键；label 为已确定的显示文本（如自定义页面标题），优先于 title
+interface NavLinkItem {
+  title: string
+  label?: string
+  href: string
+  icon: LucideIcon
+}
+
+// 一级菜单：带 href 的直接跳转，带 children 的展开子菜单
+interface NavMenuItem extends Omit<NavLinkItem, 'href'> {
+  href?: string
+  children?: NavLinkItem[]
+}
+
+const staticMenuItems: NavMenuItem[] = [
   {
     title: 'homepage',
     href: '/',
@@ -52,44 +69,73 @@ const navbarMenuComponents = [
         icon: ArchiveIcon,
       },
       {
-        title: 'random',
-        href: mainPath.random,
-        icon: ShuffleIcon,
+        title: 'category',
+        href: mainPath.category,
+        icon: FolderIcon,
       },
       {
         title: 'label',
         href: mainPath.label,
         icon: TagsIcon,
       },
-    ],
-  },
-  {
-    title: 'page',
-    icon: PanelsTopLeftIcon,
-    children: [
       {
-        title: 'about',
-        href: new URL('https://sfkm.me/#profile'),
-        icon: InfoIcon,
-      },
-      {
-        title: 'contact',
-        href: new URL('https://sfkm.me/#contact'),
-        icon: ContactIcon,
-      },
-      {
-        title: 'friends',
-        href: new URL('https://sfkm.me/#friends'),
-        icon: Link2Icon,
+        title: 'random',
+        href: mainPath.random,
+        icon: ShuffleIcon,
       },
     ],
   },
 ]
 
+// 导航中展示的自定义页面：只取公开且勾选了「导航展示」的页面，按导航排序升序
+function useNavPages() {
+  const [pages, setPages] = useState<PageModel[]>([])
+  useEffect(() => {
+    let cancelled = false
+    listPages({ onlyNav: true, noContent: true, page: 1, size: 50 })
+      .then((res) => {
+        if (cancelled)
+          return
+        const navPages = (res.data.pages || [])
+          .filter(page => page.showInNav && !page.isPrivate)
+          .sort((a, b) => a.navOrder - b.navOrder || a.id - b.id)
+        setPages(navPages)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return pages
+}
+
+// 合并静态菜单与自定义页面菜单；没有页面时不显示「页面」菜单
+function useNavMenuItems(): NavMenuItem[] {
+  const pages = useNavPages()
+  return useMemo(() => {
+    if (pages.length === 0)
+      return staticMenuItems
+    return [
+      ...staticMenuItems,
+      {
+        title: 'page',
+        icon: PanelsTopLeftIcon,
+        children: pages.map(page => ({
+          title: `page-${page.id}`,
+          label: page.title,
+          href: getPageUrl(page),
+          icon: FileTextIcon,
+        })),
+      },
+    ]
+  }, [pages])
+}
+
 export default function Navbar() {
   const { siteInfo } = useSiteInfo()
   const isMobile = useIsMobile()
   const { navClassName, navTitle, navIcon } = useNav()
+  const menuItems = useNavMenuItems()
   const navTitleKey = typeof navTitle === 'string' ? navTitle || siteInfo.metadata.name : 'custom-nav-title'
   return (
     <div className={cn('flex items-center w-full max-w-screen px-4', navClassName)}>
@@ -128,7 +174,7 @@ export default function Navbar() {
       {/* 中间：等分 1/3，内容居中；在小屏隐藏（内部再用 hidden md:flex） */}
       <div className="flex-1 flex items-center justify-center">
         <div className="hidden md:flex items-center">
-          <NavMenuCenter />
+          <NavMenuCenter items={menuItems} />
         </div>
       </div>
 
@@ -136,6 +182,7 @@ export default function Navbar() {
       <div className="flex-1 min-w-0 flex items-center justify-end gap-2 md:gap-4">
         {[
           <AvatarWithDropdownMenu key="a8d92h1" />,
+          <NavSearch key="a8d92h0" />,
           ...(isMobile
             ? []
             : [
@@ -152,20 +199,20 @@ export default function Navbar() {
             {Comp}
           </div>
         ))}
-        <SidebarMenu />
+        <SidebarMenu items={menuItems} />
       </div>
     </div>
   )
 }
 
-function NavMenuCenter() {
+function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
   const routeT = useTranslations('Route')
   // 受控的当前展开菜单：悬停打开后再点击触发器不应把子菜单关掉（Radix 默认点击会切换开关）
   const [openMenu, setOpenMenu] = useState('')
   return (
     <NavigationMenu viewport={false} value={openMenu} onValueChange={setOpenMenu}>
       <NavigationMenuList className="flex space-x-1" key="navbar-menu">
-        {navbarMenuComponents.map(item => (
+        {items.map(item => (
           <NavigationMenuItem key={item.title} id={item.title} value={item.title}>
             {item.href
               ? (
@@ -180,7 +227,7 @@ function NavMenuCenter() {
                     >
                       <div className="flex items-center gap-2">
                         <item.icon className="!w-6 !h-6 text-inherit" />
-                        <span>{routeT(item.title)}</span>
+                        <span>{item.label ?? routeT(item.title)}</span>
                       </div>
                     </Link>
                   </NavigationMenuLink>
@@ -202,7 +249,7 @@ function NavMenuCenter() {
                       >
                         <div className="flex items-center gap-2">
                           <item.icon className="w-6 h-6" />
-                          <span>{routeT(item.title)}</span>
+                          <span>{item.label ?? routeT(item.title)}</span>
                         </div>
                       </NavigationMenuTrigger>
                       <NavigationMenuContent>
@@ -220,7 +267,7 @@ function NavMenuCenter() {
                                 >
                                   <div className="flex items-center gap-2">
                                     <child.icon className="w-6 h-6" />
-                                    {routeT(child.title)}
+                                    {child.label ?? routeT(child.title)}
                                   </div>
                                 </Link>
                               </NavigationMenuLink>
@@ -238,7 +285,7 @@ function NavMenuCenter() {
   )
 }
 
-function SidebarMenu() {
+function SidebarMenu({ items }: { items: NavMenuItem[] }) {
   const [open, setOpen] = useState(false)
   const routeT = useTranslations('Route')
   return (
@@ -256,7 +303,7 @@ function SidebarMenu() {
         <SheetContent side="right" className="pt-6 w-64 z-999999">
           <SheetTitle className="px-4 text-lg font-bold">{routeT('menu')}</SheetTitle>
           <nav className="flex flex-col gap-2 px-2">
-            {navbarMenuComponents.map(item =>
+            {items.map(item =>
               item.href
                 ? (
                     <Link
@@ -265,13 +312,13 @@ function SidebarMenu() {
                       className="py-2 px-3 rounded hover:bg-accent font-bold transition-colors"
                       onClick={() => setOpen(false)}
                     >
-                      {routeT(item.title)}
+                      {item.label ?? routeT(item.title)}
                     </Link>
                   )
                 : item.children
                   ? (
                       <div key={item.title} className="mb-2">
-                        <div className="font-bold px-3 py-2">{routeT(item.title)}</div>
+                        <div className="font-bold px-3 py-2">{item.label ?? routeT(item.title)}</div>
                         <div className="flex flex-col pl-4">
                           {item.children.map(child => (
                             <Link
@@ -280,7 +327,7 @@ function SidebarMenu() {
                               className="py-2 px-3 rounded hover:bg-accent transition-colors"
                               onClick={() => setOpen(false)}
                             >
-                              {routeT(child.title)}
+                              {child.label ?? routeT(child.title)}
                             </Link>
                           ))}
                         </div>

@@ -231,7 +231,7 @@ export function CommentItem({
             <Link
               href={getUserUrl(commentState.user)}
               data-user-color={
-                commentState.user.preferredColor || siteInfo.colorSchemes?.[0] || 'blue'
+                commentState.user.preferredColor || siteInfo.defaultColorScheme || 'blue'
               }
               className="text-primary font-bold text-lg border-b-4 border-primary/40 hover:border-primary/70 cursor-pointer transition-colors duration-200"
             >
@@ -293,7 +293,7 @@ export function CommentItem({
                 {t('reply')}
                 <Link
                   href={getUserUrl(parentComment.user)}
-                  data-user-color={parentComment.user.preferredColor || siteInfo.colorSchemes?.[0] || 'blue'}
+                  data-user-color={parentComment.user.preferredColor || siteInfo.defaultColorScheme || 'blue'}
                   className="mx-1 text-primary font-bold text-lg border-b-4 border-primary/40 hover:border-primary/70 cursor-pointer transition-colors duration-200"
                 >
                   {parentComment.user.nickname || parentComment.user.username}

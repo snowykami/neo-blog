@@ -134,7 +134,8 @@
     "verify_code": "Verifizierungscode",
     "default": "Standard",
     "private": "Privat",
-    "pinned": "Angeheftet"
+    "pinned": "Angeheftet",
+    "table_of_contents": "Inhaltsverzeichnis"
   },
   "Components": {
     "image_cropper": {
@@ -368,7 +369,18 @@
         "key_required": "Schlüssel darf nicht leer sein",
         "value_invalid_json": "Wert muss gültiges JSON sein",
         "delete_description": "Der Schlüssel „{key}“ wird gelöscht. Dies kann nicht rückgängig gemacht werden und kann den Betrieb der Website beeinträchtigen."
-      }
+      },
+      "section_personalize": "Personalisierung",
+      "section_personalize_desc": "Ressourcen für Seitenleiste, Musikplayer und Drittanbieter-Skript der öffentlichen Seite. Leer lassen, um die jeweilige Komponente auszublenden.",
+      "about_background": "Hintergrundbild der „Über mich“-Karte",
+      "empty_to_hide": "Leer lassen zum Ausblenden",
+      "sidebar_iframe_url": "URL der eingebetteten Seite in der Seitenleiste",
+      "sidebar_iframe_url_desc": "Zum Beispiel die Einbettungs-URL einer Misskey-Benutzer-Timeline. Leer lassen, um die Karte auszublenden.",
+      "sidebar_iframe_title": "Titel der eingebetteten Karte",
+      "music_playlist_url": "Playlist-URL des Musikplayers",
+      "music_playlist_url_desc": "URL der Playlist-JSON-Datei. Leer lassen, um den schwebenden Musikplayer auszublenden.",
+      "enable_third_party_script": "Globales Drittanbieter-Skript laden",
+      "enable_third_party_script_desc": "Lädt das CDN-Info-Skript auf öffentlichen Seiten, wenn der Browser im Leerlauf ist; in der Konsole nie."
     },
     "labels": {
       "title": "Schlagwörter",
@@ -466,7 +478,9 @@
       "fullscreen_exit": "Vollbild beenden",
       "fullscreen_failed": "Vollbild konnte nicht umgeschaltet werden",
       "publishing": "Wird veröffentlicht...",
-      "untitled": "Ohne Titel"
+      "untitled": "Ohne Titel",
+      "horizontal_rule": "Trennlinie",
+      "add_image": "Hinzufügen"
     },
     "storages": {
       "title": "Speicheranbieter",
@@ -549,7 +563,8 @@
     },
     "user_preference": {
       "title": "Einstellungen",
-      "color_scheme": "Farbschema"
+      "color_scheme": "Farbschema",
+      "update_color_scheme_failed": "Farbschema konnte nicht aktualisiert werden"
     },
     "pages": {
       "title": "Seiten",
@@ -579,7 +594,8 @@
     "no_derivative_works": "Keine abgeleiteten Werke",
     "no_reuse": "Keine Wiederverwendung",
     "original_link": "Original-Link",
-    "post_at": "Veröffentlicht am"
+    "post_at": "Veröffentlicht am",
+    "unknown_date": "Unbekanntes Datum"
   },
   "Login": {
     "captcha_error": "Captcha-Fehler, versuchen Sie es erneut.",
@@ -699,7 +715,8 @@
     "send_verify_code_failed": "Senden fehlgeschlagen",
     "send_verify_code_success": "Code gesendet",
     "captcha_error": "Captcha-Fehler, versuchen Sie es erneut.",
-    "fetch_captcha_config_failed": "Captcha-Konfiguration abrufen fehlgeschlagen"
+    "fetch_captcha_config_failed": "Captcha-Konfiguration abrufen fehlgeschlagen",
+    "by_registering_you_agree_to_our": "Mit der Registrierung stimmst du unserer folgenden Richtlinie zu:"
   },
   "ResetPassword": {
     "title": "Passwort zurücksetzen",
@@ -732,7 +749,8 @@
     "post": "Beitrag",
     "privacy_policy": "Datenschutzrichtlinie",
     "profile": "Profil",
-    "random": "Zufällig"
+    "random": "Zufällig",
+    "category": "Kategorien"
   },
   "State": {
     "private": "Privat",
@@ -822,7 +840,9 @@
       "invalid_verify_code": "Der Bestätigungscode ist falsch oder abgelaufen",
       "slug_cannot_be_numeric": "Der Slug darf nicht nur aus Ziffern bestehen",
       "unsupported_file_type": "Nicht unterstützter Dateityp",
-      "file_too_large": "Die Datei ist zu groß"
+      "file_too_large": "Die Datei ist zu groß",
+      "category_not_found": "Kategorie nicht gefunden",
+      "slug_already_exists": "Slug wird bereits verwendet"
     }
   },
   "ErrorPage": {
@@ -835,7 +855,12 @@
     "no_nickname": "Kein Spitzname",
     "not_filled": "Nicht angegeben",
     "guest": "Gast",
-    "unknown_location": "Unbekannt"
+    "unknown_location": "Unbekannt",
+    "gender_male": "Männlich",
+    "gender_female": "Weiblich",
+    "gender_other": "Divers",
+    "posts": "Beiträge",
+    "user_not_found": "Benutzer nicht gefunden"
   },
   "ThemeMode": {
     "light_mode": "Heller Modus",
@@ -844,5 +869,11 @@
   },
   "Public": {
     "categories": "Kategorien"
+  },
+  "Search": {
+    "search": "Suchen",
+    "description": "Stichwörter eingeben, um Beiträge zu suchen",
+    "placeholder": "Beiträge suchen…",
+    "search_posts_for": "Beiträge nach „{query}“ durchsuchen"
   }
 }

@@ -134,7 +134,8 @@
     "verify_code": "驗證碼",
     "default": "預設",
     "private": "私密",
-    "pinned": "置頂"
+    "pinned": "置頂",
+    "table_of_contents": "目錄"
   },
   "Components": {
     "image_cropper": {
@@ -368,7 +369,18 @@
         "key_required": "鍵名不能為空",
         "value_invalid_json": "值必須是合法的 JSON",
         "delete_description": "將刪除設定鍵「{key}」，刪除後無法復原，可能影響網站運作。"
-      }
+      },
+      "section_personalize": "個人化資源",
+      "section_personalize_desc": "前台側邊欄、音樂播放器與第三方腳本等資源，留空即隱藏對應元件",
+      "about_background": "「關於我」卡片背景圖",
+      "empty_to_hide": "留空則不顯示",
+      "sidebar_iframe_url": "側邊欄嵌入頁面網址",
+      "sidebar_iframe_url_desc": "例如 Misskey 使用者時間軸的嵌入網址，留空則不顯示該卡片",
+      "sidebar_iframe_title": "側邊欄嵌入卡片標題",
+      "music_playlist_url": "音樂播放器歌單網址",
+      "music_playlist_url_desc": "歌單 JSON 檔案網址，留空則不顯示懸浮音樂播放器",
+      "enable_third_party_script": "載入全域第三方腳本",
+      "enable_third_party_script_desc": "在前台頁面閒置時載入 CDN 資訊腳本，控制台頁面不載入"
     },
     "labels": {
       "title": "標籤管理",
@@ -466,7 +478,9 @@
       "fullscreen_exit": "退出全螢幕",
       "fullscreen_failed": "切換全螢幕失敗",
       "publishing": "發布中...",
-      "untitled": "無標題"
+      "untitled": "無標題",
+      "horizontal_rule": "分隔線",
+      "add_image": "新增"
     },
     "storages": {
       "title": "儲存供應商",
@@ -549,7 +563,8 @@
     },
     "user_preference": {
       "title": "個人化",
-      "color_scheme": "顏色主題"
+      "color_scheme": "顏色主題",
+      "update_color_scheme_failed": "更新顏色風格失敗"
     },
     "pages": {
       "title": "頁面管理",
@@ -579,7 +594,8 @@
     "no_derivative_works": "禁止二次創作",
     "no_reuse": "禁止重用",
     "original_link": "原文連結",
-    "post_at": "發布於"
+    "post_at": "發布於",
+    "unknown_date": "未知日期"
   },
   "Login": {
     "captcha_error": "驗證碼錯誤，請重試。",
@@ -699,7 +715,8 @@
     "send_verify_code_failed": "發送失敗",
     "send_verify_code_success": "驗證碼已發送",
     "captcha_error": "驗證碼錯誤，請重試。",
-    "fetch_captcha_config_failed": "取得驗證碼設定失敗"
+    "fetch_captcha_config_failed": "取得驗證碼設定失敗",
+    "by_registering_you_agree_to_our": "註冊即表示你同意我們的"
   },
   "ResetPassword": {
     "title": "重設密碼",
@@ -732,7 +749,8 @@
     "post": "文章",
     "privacy_policy": "隱私權政策",
     "profile": "個人檔案",
-    "random": "隨機"
+    "random": "隨機",
+    "category": "分類"
   },
   "State": {
     "private": "私密",
@@ -822,7 +840,9 @@
       "invalid_verify_code": "驗證碼錯誤或已過期",
       "slug_cannot_be_numeric": "Slug 不能為純數字",
       "unsupported_file_type": "不支援的檔案類型",
-      "file_too_large": "檔案過大"
+      "file_too_large": "檔案過大",
+      "category_not_found": "分類不存在",
+      "slug_already_exists": "Slug 已被佔用"
     }
   },
   "ErrorPage": {
@@ -835,7 +855,12 @@
     "no_nickname": "未填寫暱稱",
     "not_filled": "未填寫",
     "guest": "訪客",
-    "unknown_location": "未知"
+    "unknown_location": "未知",
+    "gender_male": "男",
+    "gender_female": "女",
+    "gender_other": "其他",
+    "posts": "發佈的文章",
+    "user_not_found": "找不到使用者"
   },
   "ThemeMode": {
     "light_mode": "淺色模式",
@@ -844,5 +869,11 @@
   },
   "Public": {
     "categories": "分類"
+  },
+  "Search": {
+    "search": "搜尋",
+    "description": "輸入關鍵字搜尋文章",
+    "placeholder": "搜尋文章…",
+    "search_posts_for": "搜尋包含「{query}」的文章"
   }
 }

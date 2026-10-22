@@ -2,11 +2,10 @@
 
 import type { Post } from '@/models/post'
 import { CopyIcon, CopyrightIcon } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useFormatter, useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useOperationT } from '@/hooks/use-translations'
 import copyToClipboard from '@/lib/clipboard'
@@ -16,8 +15,8 @@ import { formatDisplayName } from '@/utils/common/username'
 function CopyrightCard({ post }: { post: Post }) {
   const { siteInfo } = useSiteInfo()
   const copyrightT = useTranslations('Copyright')
+  const format = useFormatter()
   const operationT = useOperationT()
-  const { user } = useAuth()
   const postUrl = siteInfo.baseUrl + getPostUrl({ post })
 
   return (
@@ -72,8 +71,8 @@ function CopyrightCard({ post }: { post: Post }) {
           <div className="text-gray-500 dark:text-gray-400 mb-1">{copyrightT('post_at')}</div>
           <div className="text-lg text-gray-800 font-semibold dark:text-gray-200">
             {post.createdAt
-              ? new Date(post.createdAt).toLocaleDateString(user?.language)
-              : '未知日期'}
+              ? format.dateTime(new Date(post.createdAt), { year: 'numeric', month: '2-digit', day: '2-digit' })
+              : copyrightT('unknown_date')}
           </div>
         </div>
 

@@ -10,8 +10,9 @@ export interface MusicLyrics {
   yromalrc?: { lyric: string, version: number } | null
 }
 
-export async function fetchPlaylist(): Promise<MusicTrack[]> {
-  const response = await fetch('https://cdn.liteyuki.org/snowykami/music/playlists/favorite.json')
+// 歌单地址来自站点配置 siteInfo.musicPlaylistUrl
+export async function fetchPlaylist(url: string): Promise<MusicTrack[]> {
+  const response = await fetch(url)
   if (!response.ok) {
     throw new Error('Network response was not ok')
   }

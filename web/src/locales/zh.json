@@ -134,7 +134,8 @@
     "updated_at": "更新于",
     "username": "用户名",
     "verify_code": "验证码",
-    "pinned": "置顶"
+    "pinned": "置顶",
+    "table_of_contents": "目录"
   },
   "Components": {
     "image_cropper": {
@@ -368,7 +369,18 @@
         "key_required": "键名不能为空",
         "value_invalid_json": "值必须是合法的 JSON",
         "delete_description": "将删除配置键「{key}」，删除后不可恢复，可能影响站点运行。"
-      }
+      },
+      "section_personalize": "个性化资源",
+      "section_personalize_desc": "前台侧边栏、音乐播放器与第三方脚本等资源，留空即隐藏对应组件",
+      "about_background": "「关于我」卡片背景图",
+      "empty_to_hide": "留空则不显示",
+      "sidebar_iframe_url": "侧边栏嵌入页面地址",
+      "sidebar_iframe_url_desc": "例如 Misskey 用户时间线的嵌入地址，留空则不显示该卡片",
+      "sidebar_iframe_title": "侧边栏嵌入卡片标题",
+      "music_playlist_url": "音乐播放器歌单地址",
+      "music_playlist_url_desc": "歌单 JSON 文件地址，留空则不显示悬浮音乐播放器",
+      "enable_third_party_script": "加载全局第三方脚本",
+      "enable_third_party_script_desc": "在前台页面空闲时加载 CDN 信息脚本，控制台页面不加载"
     },
     "labels": {
       "title": "标签管理",
@@ -466,7 +478,9 @@
       "fullscreen_exit": "退出全屏",
       "fullscreen_failed": "切换全屏失败",
       "publishing": "发布中...",
-      "untitled": "无标题"
+      "untitled": "无标题",
+      "horizontal_rule": "分割线",
+      "add_image": "添加"
     },
     "storages": {
       "title": "存储供应商",
@@ -549,7 +563,8 @@
     },
     "user_preference": {
       "title": "个性化",
-      "color_scheme": "颜色风格"
+      "color_scheme": "颜色风格",
+      "update_color_scheme_failed": "更新颜色风格失败"
     },
     "pages": {
       "title": "页面管理",
@@ -579,7 +594,8 @@
     "no_derivative_works": "禁止演绎",
     "no_reuse": "禁止转载",
     "original_link": "原文链接",
-    "post_at": "发布于"
+    "post_at": "发布于",
+    "unknown_date": "未知日期"
   },
   "FileSelector": {
     "select_file": "选择文件",
@@ -726,7 +742,8 @@
     "send_verify_code_failed": "发送验证码失败",
     "send_verify_code_success": "注册验证码已发送",
     "captcha_error": "验证错误，请重试。",
-    "fetch_captcha_config_failed": "获取验证码失败，请稍后重试。"
+    "fetch_captcha_config_failed": "获取验证码失败，请稍后重试。",
+    "by_registering_you_agree_to_our": "注册即表示你同意我们的"
   },
   "ResetPassword": {
     "title": "重置密码",
@@ -796,7 +813,9 @@
       "invalid_verify_code": "验证码错误或已过期",
       "slug_cannot_be_numeric": "Slug 不能为纯数字",
       "unsupported_file_type": "不支持的文件类型",
-      "file_too_large": "文件过大"
+      "file_too_large": "文件过大",
+      "category_not_found": "分类不存在",
+      "slug_already_exists": "Slug 已被占用"
     }
   },
   "Role": {
@@ -819,7 +838,8 @@
     "post": "文章",
     "privacy_policy": "隐私政策",
     "profile": "个人资料",
-    "random": "随机"
+    "random": "随机",
+    "category": "分类"
   },
   "State": {
     "private": "私密",
@@ -835,7 +855,12 @@
     "no_nickname": "未填写昵称",
     "not_filled": "未填写",
     "guest": "访客",
-    "unknown_location": "未知"
+    "unknown_location": "未知",
+    "gender_male": "男",
+    "gender_female": "女",
+    "gender_other": "其他",
+    "posts": "发布的文章",
+    "user_not_found": "用户未找到"
   },
   "ThemeMode": {
     "light_mode": "浅色模式",
@@ -844,5 +869,11 @@
   },
   "Public": {
     "categories": "分类"
+  },
+  "Search": {
+    "search": "搜索",
+    "description": "输入关键词搜索文章",
+    "placeholder": "搜索文章…",
+    "search_posts_for": "搜索包含「{query}」的文章"
   }
 }

@@ -1,8 +1,14 @@
+import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { getCategories } from '@/api/post'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getCategoryUrl } from '@/utils/common/route'
+import { getCategoryUrl, mainPath } from '@/utils/common/route'
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('Public')
+  return { title: t('categories'), alternates: { canonical: mainPath.category } }
+}
 
 export default async function CategoryPage() {
   const categories = await getCategories().then(res => res.data.categories).catch(() => [])

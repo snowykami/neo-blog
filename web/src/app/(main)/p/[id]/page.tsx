@@ -4,11 +4,11 @@ import { getLocale } from 'next-intl/server'
 import { notFound, redirect } from 'next/navigation'
 import Script from 'next/script'
 import { cache } from 'react'
-import { getSiteInfo } from '@/api/misc'
+import { getCachedSiteInfo } from '@/api/misc.server'
 import { getPostByIdServer } from '@/api/post.server'
 import { isNotFoundLikeError } from '@/utils/common/error'
 import { getPostUrl, getUserUrl } from '@/utils/common/route'
-import { fallbackSiteInfo, getDefaultCoverRandomly, safeMetadataBase } from '@/utils/common/siteinfo'
+import { getDefaultCoverRandomly, safeMetadataBase } from '@/utils/common/siteinfo'
 import { formatDisplayName as formatFullName } from '@/utils/common/username'
 import { BlogPost } from './blog-post'
 
@@ -24,13 +24,6 @@ const getCachedPost = cache(async (id: string, type?: 'draft' | undefined) => {
     })
 })
 
-// Cache site info to avoid duplicate fetches
-const getCachedSiteInfo = cache(async () => {
-  return getSiteInfo()
-    .then(res => res.data)
-    .catch(() => fallbackSiteInfo)
-})
-
 // 这个是app router固定的传入格式，无法更改
 interface Props {
   params: Promise<{ id: string }>
@@ -40,9 +33,11 @@ interface Props {
 // Enable ISR with 60 seconds revalidation for better performance
 export const revalidate = 60
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { id } = await params
-  const post = await getCachedPost(id)
+  // 参数需与页面中的调用完全一致，才能命中 React cache，避免重复请求（后端会重复计数浏览量）
+  const { type } = await searchParams
+  const post = await getCachedPost(id, type)
   const locale = (await getLocale()) || 'en'
   const siteInfo = await getCachedSiteInfo()
   if (!post) {

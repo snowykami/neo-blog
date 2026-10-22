@@ -121,7 +121,7 @@ export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { 
           cards={[
             <BlogSidebarAbout key="about" />,
             <BlogSidebarLabels key="tags" />,
-            <BlogSidebarHotPosts key="awd12" orderType={OrderBy.CreatedAt} />,
+            <BlogSidebarHotPosts key="hot-posts" orderType={OrderBy.Heat} />,
             <SidebarMisskeyIframe key="misskey" />,
           ].filter(Boolean)}
         />

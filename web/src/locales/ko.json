@@ -134,7 +134,8 @@
     "verify_code": "인증 코드",
     "default": "기본값",
     "private": "비공개",
-    "pinned": "Pinned"
+    "pinned": "Pinned",
+    "table_of_contents": "목차"
   },
   "Components": {
     "image_cropper": {
@@ -368,7 +369,18 @@
         "key_required": "키를 입력해야 합니다",
         "value_invalid_json": "값은 올바른 JSON이어야 합니다",
         "delete_description": "키 \"{key}\"이(가) 삭제됩니다. 되돌릴 수 없으며 사이트 동작에 영향을 줄 수 있습니다."
-      }
+      },
+      "section_personalize": "개인화 리소스",
+      "section_personalize_desc": "사이드바, 음악 플레이어, 서드파티 스크립트 등 공개 사이트 리소스입니다. 비워 두면 해당 구성 요소가 숨겨집니다.",
+      "about_background": "'소개' 카드 배경 이미지",
+      "empty_to_hide": "비워 두면 표시하지 않습니다",
+      "sidebar_iframe_url": "사이드바 임베드 페이지 URL",
+      "sidebar_iframe_url_desc": "예: Misskey 사용자 타임라인 임베드 URL. 비워 두면 카드를 표시하지 않습니다.",
+      "sidebar_iframe_title": "사이드바 임베드 카드 제목",
+      "music_playlist_url": "음악 플레이어 재생목록 URL",
+      "music_playlist_url_desc": "재생목록 JSON 파일 URL입니다. 비워 두면 플로팅 음악 플레이어를 표시하지 않습니다.",
+      "enable_third_party_script": "전역 서드파티 스크립트 로드",
+      "enable_third_party_script_desc": "공개 페이지에서 브라우저가 유휴 상태일 때 CDN 정보 스크립트를 로드합니다. 콘솔에서는 로드하지 않습니다."
     },
     "labels": {
       "title": "태그",
@@ -466,7 +478,9 @@
       "fullscreen_exit": "전체 화면 종료",
       "fullscreen_failed": "전체 화면 전환 실패",
       "publishing": "게시 중...",
-      "untitled": "제목 없음"
+      "untitled": "제목 없음",
+      "horizontal_rule": "구분선",
+      "add_image": "추가"
     },
     "storages": {
       "title": "저장소 공급자",
@@ -549,7 +563,8 @@
     },
     "user_preference": {
       "title": "Preferences",
-      "color_scheme": "Color scheme"
+      "color_scheme": "Color scheme",
+      "update_color_scheme_failed": "색상 테마 업데이트에 실패했습니다"
     },
     "pages": {
       "title": "Pages",
@@ -579,7 +594,8 @@
     "no_derivative_works": "2차 저작물 금지",
     "no_reuse": "재사용 금지",
     "original_link": "원본 링크",
-    "post_at": "게시일"
+    "post_at": "게시일",
+    "unknown_date": "알 수 없는 날짜"
   },
   "Login": {
     "captcha_error": "캡차 오류, 다시 시도하세요.",
@@ -699,7 +715,8 @@
     "send_verify_code_failed": "전송 실패",
     "send_verify_code_success": "코드 전송됨",
     "captcha_error": "캡차 오류, 다시 시도하세요.",
-    "fetch_captcha_config_failed": "캡차 설정 가져오기 실패"
+    "fetch_captcha_config_failed": "캡차 설정 가져오기 실패",
+    "by_registering_you_agree_to_our": "회원가입 시 다음에 동의하는 것으로 간주됩니다:"
   },
   "ResetPassword": {
     "title": "비밀번호 재설정",
@@ -732,7 +749,8 @@
     "post": "게시물",
     "privacy_policy": "개인정보 보호정책",
     "profile": "프로필",
-    "random": "무작위"
+    "random": "무작위",
+    "category": "카테고리"
   },
   "State": {
     "private": "비공개",
@@ -822,7 +840,9 @@
       "invalid_verify_code": "인증 코드가 올바르지 않거나 만료되었습니다",
       "slug_cannot_be_numeric": "슬러그는 숫자로만 구성될 수 없습니다",
       "unsupported_file_type": "지원하지 않는 파일 형식입니다",
-      "file_too_large": "파일이 너무 큽니다"
+      "file_too_large": "파일이 너무 큽니다",
+      "category_not_found": "카테고리를 찾을 수 없습니다",
+      "slug_already_exists": "이미 사용 중인 슬러그입니다"
     }
   },
   "ErrorPage": {
@@ -835,7 +855,12 @@
     "no_nickname": "닉네임 없음",
     "not_filled": "미입력",
     "guest": "방문자",
-    "unknown_location": "알 수 없음"
+    "unknown_location": "알 수 없음",
+    "gender_male": "남성",
+    "gender_female": "여성",
+    "gender_other": "기타",
+    "posts": "작성한 글",
+    "user_not_found": "사용자를 찾을 수 없습니다"
   },
   "ThemeMode": {
     "light_mode": "라이트 모드",
@@ -844,5 +869,11 @@
   },
   "Public": {
     "categories": "카테고리"
+  },
+  "Search": {
+    "search": "검색",
+    "description": "키워드를 입력하여 글을 검색하세요",
+    "placeholder": "글 검색…",
+    "search_posts_for": "'{query}'(으)로 글 검색"
   }
 }

@@ -10,11 +10,6 @@ export async function getSiteInfo(): Promise<BaseResponse<SiteInfo>> {
   return res.data
 }
 
-export async function setSiteInfo(info: SiteInfo): Promise<BaseResponse<null>> {
-  const res = await axiosClient.post('/misc/site-info', info)
-  return res.data
-}
-
 export async function getPublicConfig<T extends Record<string, unknown>>(
   defaults: T,
 ): Promise<BaseResponse<T>> {
@@ -35,13 +30,6 @@ export async function getPublicConfig<T extends Record<string, unknown>>(
     ...res.data,
     data: result,
   } as BaseResponse<T>
-}
-
-export async function setPublicConfig<T extends Record<string, unknown>>(
-  config: T,
-): Promise<BaseResponse<null>> {
-  const res = await axiosClient.post<BaseResponse<null>>('/misc/public-config', config)
-  return res.data
 }
 
 export async function getSitemapData(): Promise<BaseResponse<SitemapData>> {

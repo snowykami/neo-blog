@@ -50,7 +50,7 @@ export interface RssData {
   copyright: string
   imageUrl: string
   language: string
-  pudDate: string
+  pubDate: string // 最新文章更新时间
   // 额外字段
   postDefaultCover: string
   // 增量数据

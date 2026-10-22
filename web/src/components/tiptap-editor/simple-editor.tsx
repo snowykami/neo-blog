@@ -2,11 +2,12 @@
 
 import type { Editor } from '@tiptap/react'
 import { EditorContent, EditorContext } from '@tiptap/react'
-import hljs from 'highlight.js'
+import { useTranslations } from 'next-intl'
 
 import * as React from 'react'
 
 import { ThemeToggle } from '@/components/tiptap-editor/theme-toggle'
+import { ImageNodeFloating } from '@/components/tiptap-node/image-node/image-node-floating'
 
 import { Spacer } from '@/components/tiptap-ui-primitive/spacer'
 import { Toolbar, ToolbarGroup, ToolbarSeparator } from '@/components/tiptap-ui-primitive/toolbar'
@@ -14,6 +15,7 @@ import { AnnotationPopover } from '@/components/tiptap-ui/annotation-popover'
 import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button'
 
 import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button'
+import { ColorHighlightPopover } from '@/components/tiptap-ui/color-highlight-popover'
 
 import { HeadingDropdownMenu } from '@/components/tiptap-ui/heading-dropdown-menu'
 import { ImageUploadButton } from '@/components/tiptap-ui/image-upload-button'
@@ -23,7 +25,9 @@ import { ListDropdownMenu } from '@/components/tiptap-ui/list-dropdown-menu'
 import { MarkButton } from '@/components/tiptap-ui/mark-button'
 import { TextAlignButton } from '@/components/tiptap-ui/text-align-button'
 import { UndoRedoButton } from '@/components/tiptap-ui/undo-redo-button'
+import hljs from '@/lib/highlight'
 import { ColorSelector } from '../tiptap-custom/color-selector-popover'
+import { HorizontalRuleButton } from '../tiptap-custom/horizontal-rule-button'
 
 import { ImageAlignButton } from '../tiptap-custom/image-align-button'
 
@@ -46,6 +50,7 @@ function MainToolbarContent({
 }: {
   editor: Editor
 }) {
+  const t = useTranslations('Console.post_edit')
   return (
     <>
       <Spacer />
@@ -63,6 +68,7 @@ function MainToolbarContent({
         <ListDropdownMenu types={['bulletList', 'orderedList', 'taskList']} portal={true} />
         <BlockquoteButton />
         <CodeBlockButton />
+        <HorizontalRuleButton />
       </ToolbarGroup>
 
       <ToolbarSeparator />
@@ -74,6 +80,7 @@ function MainToolbarContent({
         <MarkButton type="code" />
         <MarkButton type="underline" />
         <ColorSelector editor={editor} />
+        <ColorHighlightPopover />
         <LinkPopover />
         <AnnotationPopover />
       </ToolbarGroup>
@@ -97,8 +104,9 @@ function MainToolbarContent({
       <ToolbarSeparator />
 
       <ToolbarGroup>
-        <ImageUploadButton text="Add" />
-        {/* <ImageNodeFloating /> */}
+        <ImageUploadButton text={t('add_image')} />
+        {/* 选中图片时显示下载 / 删除按钮 */}
+        <ImageNodeFloating />
         <ImageAlignButton editor={editor} />
       </ToolbarGroup>
 

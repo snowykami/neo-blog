@@ -17,9 +17,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/auth-context'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { loginPath } from '@/hooks/use-route'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
+import { mainPath } from '@/utils/common/route'
 
 export default function Page() {
   return (
@@ -32,7 +34,9 @@ export default function Page() {
 
 export function RegisterForm({ className, ...props }: React.ComponentProps<'div'>) {
   const { setUser } = useAuth()
+  const { siteInfo } = useSiteInfo()
   const t = useTranslations('Register')
+  const routeT = useTranslations('Route')
   // 后端 message 若有对应翻译则显示翻译，否则原样显示（网络错误等）
   const translateErrorDetails = useErrorMessageT()
   const commonT = useCommonT()
@@ -99,7 +103,7 @@ export function RegisterForm({ className, ...props }: React.ComponentProps<'div'
       })
       .finally(() => {
         setSendingVerifyCode(false)
-        setCoolDown(60)
+        setCoolDown(siteInfo.verifyCodeCoolDown || 60)
       })
   }
 
@@ -243,6 +247,14 @@ export function RegisterForm({ className, ...props }: React.ComponentProps<'div'
           </form>
         </CardContent>
       </Card>
+      {/* 隐私政策提示 */}
+      <div className="text-muted-foreground text-center text-xs text-balance">
+        {t('by_registering_you_agree_to_our')}
+        {' '}
+        <Link href={mainPath.privacy} className="underline underline-offset-4 hover:text-primary">
+          {routeT('privacy_policy')}
+        </Link>
+      </div>
     </div>
   )
 }

@@ -1,18 +1,18 @@
 'use client'
 import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
-import { Eye, Heart, HeartIcon, TrendingUp } from 'lucide-react'
+import { Clock, Eye, Heart, TrendingUp } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getLabels } from '@/api/label'
 import { listPosts } from '@/api/post'
-import { SafeImage } from '@/components/common/safe-image'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { cn } from '@/lib/utils'
 import { OrderBy } from '@/models/common'
 import { getGravatarUrl } from '@/utils/common/gravatar'
 import { getLabelUrl, getPostUrl } from '@/utils/common/route'
@@ -25,17 +25,24 @@ export function BlogSidebarAbout() {
   const routeT = useTranslations('Route')
   if (!siteInfo)
     return null
+  const { owner, aboutBackground } = siteInfo
+  // 优先使用站长头像，其次 Gravatar 邮箱；都没有时显示名称首字
+  const avatarSrc = owner?.avatar || (owner?.gravatarEmail ? getGravatarUrl({ email: owner.gravatarEmail, size: 256 }) : undefined)
   return (
-    <Card className="relative overflow-hidden text-white">
-      <div
-        className="absolute inset-0 bg-cover bg-center blur-sm"
-        style={{
-          backgroundImage: 'url(https://cdn.liteyuki.org/snowykami/dark_2.png)',
-          filter: 'blur(4px)',
-          transform: 'scale(1.1)', // 避免模糊边缘
-        }}
-      />
-      <div className="absolute inset-0 bg-white/0 dark:bg-gray-900/20" />
+    <Card className={cn('relative overflow-hidden', aboutBackground && 'text-white')}>
+      {aboutBackground && (
+        <>
+          <div
+            className="absolute inset-0 bg-cover bg-center blur-sm"
+            style={{
+              backgroundImage: `url(${JSON.stringify(aboutBackground)})`,
+              filter: 'blur(4px)',
+              transform: 'scale(1.1)', // 避免模糊边缘
+            }}
+          />
+          <div className="absolute inset-0 bg-white/0 dark:bg-gray-900/20" />
+        </>
+      )}
       <div className="relative z-10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 ">
@@ -47,22 +54,15 @@ export function BlogSidebarAbout() {
           <div className="text-center mb-4">
             <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
               <Avatar className="h-full w-full rounded-full border-2">
-                <AvatarImage
-                  src={getGravatarUrl({
-                    email: siteInfo?.owner?.gravatarEmail || 'snowykami@outlook.com',
-                    size: 256,
-                  })}
-                  alt={siteInfo?.owner?.name}
-                />
+                {avatarSrc && <AvatarImage src={avatarSrc} alt={owner?.name} />}
                 <AvatarFallback className="rounded-full">
-                  {getFallbackAvatarFromUsername(siteInfo?.owner?.name || 'Failed')}
+                  {getFallbackAvatarFromUsername(owner?.name || siteInfo.metadata.name)}
                 </AvatarFallback>
               </Avatar>
             </div>
-            <h3 className="font-semibold text-lg py-4">{siteInfo?.owner?.name || 'Failed H3'}</h3>
-            <p className="text-sm text-white-600">
-              {siteInfo?.owner?.description || 'Failed Motto'}
-            </p>
+            {owner?.name && <h3 className="font-semibold text-lg py-4">{owner.name}</h3>}
+            {owner?.motto && <p className="text-sm italic mb-2">{owner.motto}</p>}
+            {owner?.description && <p className="text-sm">{owner.description}</p>}
           </div>
         </CardContent>
       </div>
@@ -70,27 +70,35 @@ export function BlogSidebarAbout() {
   )
 }
 
-// 热门文章卡片
-export function BlogSidebarHotPosts({ posts, orderType }: { posts?: Post[], orderType?: OrderBy }) {
-  if (!posts || posts.length === 0) {
-    posts = []
-  }
+// 热门 / 最新文章卡片：orderType 决定获取顺序与标题
+export function BlogSidebarHotPosts({ posts: initialPosts, orderType = OrderBy.Heat }: { posts?: Post[], orderType?: OrderBy.Heat | OrderBy.CreatedAt }) {
   const blogHomeT = useTranslations('BlogHome')
+  const [posts, setPosts] = useState<Post[]>(initialPosts ?? [])
+  const isLatest = orderType === OrderBy.CreatedAt
   useEffect(() => {
-    // 若果 posts 为空，则从服务器获取热门文章
-
-    listPosts({ orderBy: orderType === OrderBy.CreatedAt ? OrderBy.Heat : OrderBy.CreatedAt, page: 1, size: 3 }).then((res) => {
-      if (res.data.posts) {
-        posts = res.data.posts
-      }
-    })
-  }, [])
+    // 未传入文章时从服务器获取
+    if (initialPosts && initialPosts.length > 0)
+      return
+    let cancelled = false
+    listPosts({ orderBy: orderType, page: 1, size: 3, noContent: true })
+      .then((res) => {
+        if (!cancelled)
+          setPosts(res.data.posts || [])
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [initialPosts, orderType])
+  if (posts.length === 0)
+    return null
+  const TitleIcon = isLatest ? Clock : TrendingUp
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-orange-500" />
-          {orderType === OrderBy.CreatedAt ? blogHomeT('latest_posts') : blogHomeT('hottest_posts')}
+          <TitleIcon className="w-5 h-5 text-orange-500" />
+          {isLatest ? blogHomeT('latest_posts') : blogHomeT('hottest_posts')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -188,114 +196,45 @@ export function BlogSidebarLabels({
   )
 }
 
-export function SidebarIframe(props?: {
-  src?: string
-  scriptSrc?: string
-  title?: string
-  height?: string
-}) {
-  const { src = '', scriptSrc = '', title = 'External Content', height = '400px' } = props || {}
-  const t = useTranslations('HomePage')
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('title')}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <iframe
-          src={src}
-          className="w-full border-none"
-          style={{ height }}
-          height={height}
-          title={title}
-        />
-        {scriptSrc && <script src={scriptSrc} async defer className="w-full"></script>}
-      </CardContent>
-    </Card>
-  )
-}
-
-// 情侣空间卡片
-export function BlogSidebarCoupleSpace() {
-  const t = useTranslations('HomePage')
-  return (
-    <Card className="bg-pink-200 border-pink-300">
-      <CardContent className="p-0 flex flex-col items-center justify-center">
-        <div className="flex items-center justify-center gap-10 md:gap-8 lg:gap-6 mb-2">
-          <Link href="https://github.com/snowykami" className="flex flex-col items-center w-12 cursor-pointer">
-            <SafeImage
-              className="rounded-full w-12 h-12 border-2 border-blue-400"
-              src="https://cdn.liteyuki.org/snowykami/avatar.jpg"
-              alt="A"
-              width={48}
-              height={48}
-            />
-            <div className="text-center text-sm font-medium text-blue-600 mt-2">
-              Snowykami
-            </div>
-          </Link>
-
-          <HeartIcon className="w-6 h-6 text-pink-400" aria-hidden />
-
-          <Link href="https://github.com/balancetheworld" className="flex flex-col items-center w-12 cursor-pointer">
-            <SafeImage
-              className="rounded-full w-12 h-12 border-2 border-pink-400"
-              src="https://avatars.githubusercontent.com/u/182211573?v=4"
-              alt="B"
-              width={48}
-              height={48}
-            />
-            <div className="text-center text-sm font-medium text-pink-600 mt-2">
-              balancetheworld
-            </div>
-          </Link>
-        </div>
-        <div className="p-2 text-center text-sm text-pink-800 font-medium">
-          {t('already_in_love_n_day', {
-            n: (() => {
-              const now = new Date()
-              const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
-              const startUtc = Date.UTC(2025, 9, 20) // month is 0-based: 9 -> October
-              const days = Math.floor((todayUtc - startUtc) / 86400000) + 1 // inclusive count
-              return Math.max(0, days)
-            })(),
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
+// 侧边栏嵌入页面（默认为 Misskey 时间线），地址留空时不显示
 // 只在客户端渲染 iframe，避免 hydration 报错
 export function SidebarMisskeyIframe() {
+  const { siteInfo } = useSiteInfo()
   const [show, setShow] = useState(false)
   useEffect(() => {
     setShow(true)
   }, [])
+  const src = siteInfo.sidebarIframeUrl?.trim()
+  let hostname = ''
+  try {
+    hostname = src ? new URL(src).hostname : ''
+  }
+  catch {}
+  // 地址为空或不合法时不显示
+  if (!src || !hostname)
+    return null
+  const title = siteInfo.sidebarIframeTitle || hostname
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Misskey</CardTitle>
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         {show && (
-          <>
-            <iframe
-              src="https://lab.liteyuki.org/embed/user-timeline/a2utaz241qx60001?maxHeight=700&border=false"
-              data-misskey-embed-id="v1_aali1lvxt0"
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-              style={{
-                border: 'none',
-                width: '100%',
-                maxWidth: '500px',
-                height: '300px',
-                colorScheme: 'light dark',
-              }}
-            >
-            </iframe>
-            <script defer src="https://lab.liteyuki.org/embed.js"></script>
-          </>
+          <iframe
+            src={src}
+            title={title}
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            style={{
+              border: 'none',
+              width: '100%',
+              maxWidth: '500px',
+              height: '300px',
+              colorScheme: 'light dark',
+            }}
+          >
+          </iframe>
         )}
       </CardContent>
     </Card>

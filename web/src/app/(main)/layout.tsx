@@ -25,8 +25,8 @@ export default function RootLayout({
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* 访问上报；文章详情页带文章ID自行上报 */}
-      <VisitReporter skipPrefixes={['/p/']} />
+      {/* 访问上报；文章 / 自定义页面详情页带 ID 自行上报 */}
+      <VisitReporter skipPrefixes={['/p/', '/page/']} />
 
       <motion.nav
         className="w-full fixed inset-x-0 z-5"

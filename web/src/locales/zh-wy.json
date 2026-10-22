@@ -134,7 +134,8 @@
     "updated_at": "更新於",
     "username": "用戶名",
     "verify_code": "驗證碼",
-    "pinned": "置頂"
+    "pinned": "置頂",
+    "table_of_contents": "目次"
   },
   "Components": {
     "image_cropper": {
@@ -368,7 +369,18 @@
         "key_required": "鍵不可空",
         "value_invalid_json": "值須為合式之 JSON",
         "delete_description": "將刪鍵「{key}」，既刪不可復，或礙站之行。"
-      }
+      },
+      "section_personalize": "個性之資",
+      "section_personalize_desc": "前臺側欄、樂播器與外家腳本諸資，留空則隱其件",
+      "about_background": "「關於吾」卡之背景圖",
+      "empty_to_hide": "留空則不顯",
+      "sidebar_iframe_url": "側欄嵌頁之址",
+      "sidebar_iframe_url_desc": "如 Misskey 用戶時序之嵌址，留空則不顯此卡",
+      "sidebar_iframe_title": "側欄嵌卡之題",
+      "music_playlist_url": "樂播器曲目之址",
+      "music_playlist_url_desc": "曲目 JSON 之址，留空則不顯浮樂播器",
+      "enable_third_party_script": "載外家之通用腳本",
+      "enable_third_party_script_desc": "前臺閒時載 CDN 信息腳本，控制臺不載"
     },
     "labels": {
       "title": "標籤管理",
@@ -466,7 +478,9 @@
       "fullscreen_exit": "出全屏",
       "fullscreen_failed": "全屏未能切換",
       "publishing": "發布中...",
-      "untitled": "無題"
+      "untitled": "無題",
+      "horizontal_rule": "界線",
+      "add_image": "增"
     },
     "storages": {
       "title": "存儲供應商",
@@ -549,7 +563,8 @@
     },
     "user_preference": {
       "title": "個性化",
-      "color_scheme": "色彩風格"
+      "color_scheme": "色彩風格",
+      "update_color_scheme_failed": "易色調未成"
     },
     "pages": {
       "title": "頁面管理",
@@ -579,7 +594,8 @@
     "no_derivative_works": "禁止演繹",
     "no_reuse": "禁止轉載",
     "original_link": "原文鏈接",
-    "post_at": "發布於"
+    "post_at": "發布於",
+    "unknown_date": "日期未詳"
   },
   "FileSelector": {
     "select_file": "選擇檔案",
@@ -726,7 +742,8 @@
     "send_verify_code_failed": "發送驗證碼失敗",
     "send_verify_code_success": "註冊驗證碼已發送",
     "captcha_error": "驗證錯誤，請重試。",
-    "fetch_captcha_config_failed": "獲取驗證碼失敗，請稍候重試。"
+    "fetch_captcha_config_failed": "獲取驗證碼失敗，請稍候重試。",
+    "by_registering_you_agree_to_our": "註冊即表示汝同意吾等之"
   },
   "ResetPassword": {
     "title": "重置密碼",
@@ -796,7 +813,9 @@
       "invalid_verify_code": "驗證碼有誤或已逾期",
       "slug_cannot_be_numeric": "Slug 不可純為數字",
       "unsupported_file_type": "此檔類不受",
-      "file_too_large": "檔過鉅"
+      "file_too_large": "檔過鉅",
+      "category_not_found": "類目不存",
+      "slug_already_exists": "Slug 已為他所用"
     }
   },
   "Role": {
@@ -819,7 +838,8 @@
     "post": "文章",
     "privacy_policy": "隱私政策",
     "profile": "個人資料",
-    "random": "隨機"
+    "random": "隨機",
+    "category": "分類"
   },
   "State": {
     "private": "私密",
@@ -835,7 +855,12 @@
     "no_nickname": "未題雅號",
     "not_filled": "未書",
     "guest": "過客",
-    "unknown_location": "未詳"
+    "unknown_location": "未詳",
+    "gender_male": "男",
+    "gender_female": "女",
+    "gender_other": "他",
+    "posts": "所著文章",
+    "user_not_found": "未見其人"
   },
   "ThemeMode": {
     "light_mode": "晝色",
@@ -844,5 +869,11 @@
   },
   "Public": {
     "categories": "類"
+  },
+  "Search": {
+    "search": "搜尋",
+    "description": "書關鍵之詞以尋文章",
+    "placeholder": "尋文章…",
+    "search_posts_for": "尋含「{query}」之文章"
   }
 }

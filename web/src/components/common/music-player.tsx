@@ -266,7 +266,7 @@ function CrossfadeAlbumImage({
   )
 }
 
-export function MusicPlayer() {
+export function MusicPlayer({ playlistUrl }: { playlistUrl: string }) {
   const t = useTranslations('MusicPlayer')
   const {
     currentTrack,
@@ -310,7 +310,7 @@ export function MusicPlayer() {
   }, [isPlaying, resetNavIcon, setNavIcon, setNavTitle])
 
   useEffect(() => {
-    fetchPlaylist().then((playlist) => {
+    fetchPlaylist(playlistUrl).then((playlist) => {
       replacePlaylist(playlist)
     }).catch((error) => {
       replacePlaylist([
@@ -318,7 +318,7 @@ export function MusicPlayer() {
       ])
       console.error('Failed to fetch playlist:', error)
     })
-  }, [])
+  }, [playlistUrl])
 
   // 等待 playlist 加载并且本地索引就绪后再应用（只应用一次，避免被后续 replacePlaylist 覆盖）
   const appliedStoredIndexRef = useRef(false)

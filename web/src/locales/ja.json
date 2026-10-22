@@ -134,7 +134,8 @@
     "verify_code": "認証コード",
     "default": "デフォルト",
     "private": "非公開",
-    "pinned": "固定表示"
+    "pinned": "固定表示",
+    "table_of_contents": "目次"
   },
   "Components": {
     "image_cropper": {
@@ -368,7 +369,18 @@
         "key_required": "キーを入力してください",
         "value_invalid_json": "値は有効な JSON である必要があります",
         "delete_description": "キー「{key}」を削除します。元に戻せず、サイトの動作に影響する可能性があります。"
-      }
+      },
+      "section_personalize": "パーソナライズ",
+      "section_personalize_desc": "サイドバー、音楽プレーヤー、サードパーティスクリプトなどのリソース。空欄にすると該当コンポーネントを非表示にします。",
+      "about_background": "「自己紹介」カードの背景画像",
+      "empty_to_hide": "空欄にすると表示しません",
+      "sidebar_iframe_url": "サイドバー埋め込みページの URL",
+      "sidebar_iframe_url_desc": "例：Misskey ユーザータイムラインの埋め込み URL。空欄にするとカードを表示しません。",
+      "sidebar_iframe_title": "サイドバー埋め込みカードのタイトル",
+      "music_playlist_url": "音楽プレーヤーのプレイリスト URL",
+      "music_playlist_url_desc": "プレイリスト JSON ファイルの URL。空欄にするとフローティング音楽プレーヤーを表示しません。",
+      "enable_third_party_script": "グローバルなサードパーティスクリプトを読み込む",
+      "enable_third_party_script_desc": "公開ページでブラウザがアイドル状態のときに CDN 情報スクリプトを読み込みます。コンソールでは読み込みません。"
     },
     "labels": {
       "title": "タグ管理",
@@ -466,7 +478,9 @@
       "fullscreen_exit": "全画面表示を終了",
       "fullscreen_failed": "全画面表示の切り替えに失敗しました",
       "publishing": "公開中...",
-      "untitled": "無題"
+      "untitled": "無題",
+      "horizontal_rule": "区切り線",
+      "add_image": "追加"
     },
     "storages": {
       "title": "ストレージプロバイダ",
@@ -549,7 +563,8 @@
     },
     "user_preference": {
       "title": "カスタマイズ",
-      "color_scheme": "カラースキーム"
+      "color_scheme": "カラースキーム",
+      "update_color_scheme_failed": "カラースキームの更新に失敗しました"
     },
     "pages": {
       "title": "ページ管理",
@@ -579,7 +594,8 @@
     "no_derivative_works": "改変禁止",
     "no_reuse": "再利用禁止",
     "original_link": "原文リンク",
-    "post_at": "投稿日"
+    "post_at": "投稿日",
+    "unknown_date": "日付不明"
   },
   "Login": {
     "captcha_error": "キャプチャエラー、再試行してください。",
@@ -699,7 +715,8 @@
     "send_verify_code_failed": "送信に失敗しました",
     "send_verify_code_success": "コードを送信しました",
     "captcha_error": "キャプチャエラー、再試行してください。",
-    "fetch_captcha_config_failed": "キャプチャ設定の取得に失敗しました"
+    "fetch_captcha_config_failed": "キャプチャ設定の取得に失敗しました",
+    "by_registering_you_agree_to_our": "登録すると、以下に同意したものとみなされます："
   },
   "ResetPassword": {
     "title": "パスワードをリセット",
@@ -732,7 +749,8 @@
     "post": "投稿",
     "privacy_policy": "プライバシーポリシー",
     "profile": "プロフィール",
-    "random": "ランダム"
+    "random": "ランダム",
+    "category": "カテゴリー"
   },
   "State": {
     "private": "非公開",
@@ -822,7 +840,9 @@
       "invalid_verify_code": "認証コードが正しくないか、有効期限が切れています",
       "slug_cannot_be_numeric": "スラッグを数字のみにすることはできません",
       "unsupported_file_type": "サポートされていないファイル形式です",
-      "file_too_large": "ファイルサイズが大きすぎます"
+      "file_too_large": "ファイルサイズが大きすぎます",
+      "category_not_found": "カテゴリが見つかりません",
+      "slug_already_exists": "このスラッグは既に使用されています"
     }
   },
   "ErrorPage": {
@@ -835,7 +855,12 @@
     "no_nickname": "ニックネーム未設定",
     "not_filled": "未設定",
     "guest": "ゲスト",
-    "unknown_location": "不明"
+    "unknown_location": "不明",
+    "gender_male": "男性",
+    "gender_female": "女性",
+    "gender_other": "その他",
+    "posts": "投稿記事",
+    "user_not_found": "ユーザーが見つかりません"
   },
   "ThemeMode": {
     "light_mode": "ライトモード",
@@ -844,5 +869,11 @@
   },
   "Public": {
     "categories": "カテゴリー"
+  },
+  "Search": {
+    "search": "検索",
+    "description": "キーワードを入力して記事を検索",
+    "placeholder": "記事を検索…",
+    "search_posts_for": "「{query}」を含む記事を検索"
   }
 }

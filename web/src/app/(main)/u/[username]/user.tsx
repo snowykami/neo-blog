@@ -7,6 +7,7 @@ import { getUserByUsername } from '@/api/user'
 import ErrorPage from '@/components/common/error-page'
 import { Skeleton } from '@/components/ui/skeleton'
 import { UserHeader } from '@/components/user/user-header'
+import { UserPosts } from '@/components/user/user-posts'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { getErrorStatus } from '@/utils/common/error'
 
@@ -63,6 +64,7 @@ export function UserPage() {
   return (
     <div>
       <UserHeader user={user} />
+      <UserPosts userId={user.id} />
     </div>
   )
 }
