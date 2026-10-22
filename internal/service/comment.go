@@ -218,6 +218,48 @@ func (cs *CommentService) ListCommentsAdmin(ctx context.Context, pagination *dto
 	return cs.toGetCommentDtos(comments, currentUserID), total, nil
 }
 
+// ListUserComments 用户主页的评论列表：管理员可见全部，本人可见自己的私密评论，其他人只能看到公开目标下的公开评论
+func (cs *CommentService) ListUserComments(ctx context.Context, req *dto.ListUserCommentsReq) ([]dto.UserCommentDto, int64, *errs.ServiceError) {
+	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
+	comments, total, err := repo.Comment.ListCommentsByUser(req.UserID, ctxutils.IsAdmin(ctx), ctxutils.IsOwnerOfTarget(ctx, req.UserID),
+		req.Page, req.Size, req.OrderBy, req.Desc)
+	if err != nil {
+		logrus.Errorf("ListUserComments: ListCommentsByUser error: %s", err.Error())
+		return nil, 0, errs.NewInternalServer("failed_to_get_target")
+	}
+
+	// 按目标类型分组，批量查询标题与 slug
+	idsByType := map[string][]uint{}
+	for _, comment := range comments {
+		idsByType[comment.TargetType] = append(idsByType[comment.TargetType], comment.TargetID)
+	}
+	briefsByType := map[string]map[uint]repo.CommentTargetBrief{}
+	for targetType, ids := range idsByType {
+		briefs, err := repo.Comment.ListTargetBriefs(targetType, ids)
+		if err != nil {
+			logrus.Errorf("ListUserComments: ListTargetBriefs error: %s", err.Error())
+			return nil, 0, errs.NewInternalServer("failed_to_get_target")
+		}
+		briefsByType[targetType] = briefs
+	}
+
+	commentDtos := cs.toGetCommentDtos(comments, currentUserID)
+	result := make([]dto.UserCommentDto, 0, len(commentDtos))
+	for _, commentDto := range commentDtos {
+		brief := briefsByType[commentDto.TargetType][commentDto.TargetID]
+		result = append(result, dto.UserCommentDto{
+			CommentDto: commentDto,
+			Target: dto.CommentTargetDto{
+				ID:    commentDto.TargetID,
+				Type:  commentDto.TargetType,
+				Title: brief.Title,
+				Slug:  brief.Slug,
+			},
+		})
+	}
+	return result, total, nil
+}
+
 // toGetCommentDtos 批量转换评论，点赞状态一次查询完成，避免逐条查询
 func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUserID uint) []dto.CommentDto {
 	likedIDs := map[uint]bool{}

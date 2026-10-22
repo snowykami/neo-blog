@@ -29,3 +29,16 @@ export interface CommentLocation {
   isp: string
   idc: string
 }
+
+// 评论所属的文章或页面
+export interface CommentTarget {
+  id: number
+  type: TargetType
+  title: string
+  slug: string | null
+}
+
+// 用户主页的评论条目，附带所属目标信息
+export interface UserComment extends Comment {
+  target: CommentTarget
+}

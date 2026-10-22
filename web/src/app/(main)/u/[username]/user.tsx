@@ -7,8 +7,8 @@ import { getUserByUsername } from '@/api/user'
 import ErrorPage from '@/components/common/error-page'
 import { SiteShell } from '@/components/layout/site-shell'
 import { Skeleton } from '@/components/ui/skeleton'
+import { UserContentTabs } from '@/components/user/user-content-tabs'
 import { UserHeader } from '@/components/user/user-header'
-import { UserPosts } from '@/components/user/user-posts'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { getErrorStatus } from '@/utils/common/error'
 
@@ -67,7 +67,7 @@ export function UserPage() {
   return (
     <SiteShell>
       <UserHeader user={user} />
-      <UserPosts userId={user.id} />
+      <UserContentTabs userId={user.id} />
     </SiteShell>
   )
 }

@@ -54,3 +54,22 @@ type GetCommentListReq struct {
 	CommentID  uint   `query:"comment_id"`                  // 获取某条评论的所有子评论
 	Depth      *int   `query:"depth" default:"1" vd:"$>-1"` // 评论的层级深度
 }
+
+type ListUserCommentsReq struct {
+	PaginationParams
+	UserID uint `query:"user_id" binding:"required" vd:"$>0"` // 评论者的用户ID
+}
+
+// CommentTargetDto 评论所属的文章或页面，用于在用户主页展示标题与链接
+type CommentTargetDto struct {
+	ID    uint    `json:"id"`
+	Type  string  `json:"type"` // "post" 或 "page"
+	Title string  `json:"title"`
+	Slug  *string `json:"slug"`
+}
+
+// UserCommentDto 用户主页的评论条目，附带所属目标信息
+type UserCommentDto struct {
+	CommentDto
+	Target CommentTargetDto `json:"target"`
+}

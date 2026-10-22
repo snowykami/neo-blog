@@ -90,3 +90,21 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 	}
 	resps.Ok(c, resps.Success, utils.H{"comments": commentDtos})
 }
+
+func (cc *CommentController) ListUserComments(ctx context.Context, c *app.RequestContext) {
+	req := &dto.ListUserCommentsReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if !slices.Contains(constant.OrderByEnumComment, req.OrderBy) {
+		resps.BadRequest(c, "无效的排序字段")
+		return
+	}
+	commentDtos, total, svcerr := cc.service.ListUserComments(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"comments": commentDtos, "total": total})
+}

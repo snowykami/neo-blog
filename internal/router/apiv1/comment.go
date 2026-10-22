@@ -16,5 +16,6 @@ func registerCommentRoutes(group *route.RouterGroup) {
 		commentGroup.DELETE("/c/:id", commentController.DeleteComment)
 		commentGroupWithoutAuth.GET("/c/:id", commentController.GetComment)
 		commentGroupWithoutAuth.GET("/list", commentController.GetCommentList)
+		commentGroupWithoutAuth.GET("/user", commentController.ListUserComments)
 	}
 }

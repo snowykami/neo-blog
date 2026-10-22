@@ -1,4 +1,4 @@
-import type { Comment } from '@/models/comment'
+import type { Comment, UserComment } from '@/models/comment'
 import type { PaginationParams } from '@/models/common'
 import type { BaseResponse } from '@/models/resp'
 import type { TargetType } from '@/models/types'
@@ -86,5 +86,21 @@ export async function listComments({
 
 export async function getComment({ id }: { id: number }): Promise<BaseResponse<Comment>> {
   const res = await axiosClient.get(`/comment/c/${id}`)
+  return res.data
+}
+
+// 用户主页：列出某用户发表的评论，可见范围由后端按权限过滤
+export async function listUserComments({
+  userId,
+  orderBy = OrderBy.CreatedAt,
+  desc = true,
+  page = 1,
+  size = 10,
+}: {
+  userId: number
+} & PaginationParams): Promise<BaseResponse<{ comments: UserComment[], total: number }>> {
+  const res = await axiosClient.get('/comment/user', {
+    params: { userId, orderBy, desc, page, size },
+  })
   return res.data
 }

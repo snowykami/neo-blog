@@ -293,6 +293,68 @@ func (cr *CommentRepo) ListCommentsAdmin(page, size uint64, orderBy string, desc
 	return items, total, err
 }
 
+// ListCommentsByUser 列出某用户发表的评论（用户主页使用）
+//   - viewAll：管理员，可见全部评论
+//   - isSelf：本人，可见自己的私密评论，但所属目标仍需为公开或本人所有
+//   - 其他访客：只能看到公开文章 / 页面下的公开评论
+func (cr *CommentRepo) ListCommentsByUser(userID uint, viewAll, isSelf bool, page, size uint64, orderBy string, desc bool) ([]model.Comment, int64, error) {
+	// 已删除（软删除）的目标会被模型默认作用域排除，评论不会指向不存在的文章
+	visibleTargets := func(m any) *gorm.DB {
+		sub := GetDB().Model(m).Select("id")
+		switch {
+		case viewAll:
+		case isSelf:
+			sub = sub.Where("(is_private = ? OR user_id = ?)", false, userID)
+		default:
+			sub = sub.Where("is_private = ?", false)
+		}
+		return sub
+	}
+
+	query := GetDB().Model(&model.Comment{}).Preload("User").
+		Where("user_id = ?", userID).
+		Where("((target_type = ? AND target_id IN (?)) OR (target_type = ? AND target_id IN (?)))",
+			constant.TargetTypePost, visibleTargets(&model.Post{}),
+			constant.TargetTypePage, visibleTargets(&model.Page{}))
+	if !(viewAll || isSelf) {
+		query = query.Where("is_private = ?", false)
+	}
+	orderBy = AllowedOrderBy(orderBy, constant.OrderByEnumComment, constant.OrderByCreatedAt)
+	return PaginateQuery[model.Comment](query, page, size, orderBy, desc)
+}
+
+// CommentTargetBrief 评论目标的标题与链接信息
+type CommentTargetBrief struct {
+	ID    uint
+	Title string
+	Slug  *string
+}
+
+// ListTargetBriefs 批量读取文章或页面的标题与 slug，返回以 id 为键的映射
+func (cr *CommentRepo) ListTargetBriefs(targetType string, ids []uint) (map[uint]CommentTargetBrief, error) {
+	result := make(map[uint]CommentTargetBrief, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	var m any
+	switch targetType {
+	case constant.TargetTypePost:
+		m = &model.Post{}
+	case constant.TargetTypePage:
+		m = &model.Page{}
+	default:
+		return result, nil
+	}
+	var briefs []CommentTargetBrief
+	if err := GetDB().Model(m).Select("id, title, slug").Where("id IN ?", ids).Scan(&briefs).Error; err != nil {
+		return nil, err
+	}
+	for _, b := range briefs {
+		result[b.ID] = b
+	}
+	return result, nil
+}
+
 func (cr *CommentRepo) CountComments(targetType string, targetID uint) (int64, error) {
 	var count int64
 	err := GetDB().Model(&model.Comment{}).Where("target_id = ? AND target_type = ?", targetID, targetType).Count(&count).Error
