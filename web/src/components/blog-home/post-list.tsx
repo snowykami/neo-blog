@@ -17,13 +17,17 @@ import { htmlToText } from '@/utils/common/string'
 
 /*
  * 文章列表（首页、分类、用户主页共用），参考 Fuwari 的 PostCard（MIT License, saicaca/fuwari）
- * 整个列表放在一张卡片内，行之间用虚线分隔；桌面端封面在右，移动端封面在上
+ * 桌面端整个列表放在一张卡片内，行之间用虚线分隔；移动端每篇为独立卡片。桌面端封面在右，移动端封面在上
  */
 
-// 行与行之间的虚线，左右缩进与内容对齐
+// 行与行之间的虚线，左右缩进与内容对齐；移动端每篇是独立卡片，不需要分隔线
 function RowDivider() {
-  return <div aria-hidden className="mx-6 border-t border-dashed border-foreground/10 md:mx-8" />
+  return <div aria-hidden className="mx-8 hidden border-t border-dashed border-foreground/10 md:block" />
 }
+
+// 列表容器：桌面端整个列表是一张卡片；移动端拆成独立卡片，卡片之间露出页面底色，边界更清晰
+const LIST_CLASS = 'grid gap-3 md:block md:overflow-hidden md:rounded-2xl md:bg-card'
+const ITEM_CLASS = 'overflow-hidden rounded-2xl bg-card md:overflow-visible md:rounded-none md:bg-transparent'
 
 export function PostListItem({ post, showAuthor = true }: { post: Post, showAuthor?: boolean }) {
   const t = useTranslations()
@@ -170,11 +174,11 @@ export function PostList({
 
   if (isLoading) {
     return (
-      <div className={cardClass} aria-busy="true">
+      <div className={cn(LIST_CLASS, className)} aria-busy="true">
         {Array.from({ length: Math.max(1, skeletonCount) }).map((_, index) => (
           <Fragment key={index}>
             {index > 0 && <RowDivider />}
-            <PostListItemSkeleton />
+            <div className={ITEM_CLASS}><PostListItemSkeleton /></div>
           </Fragment>
         ))}
       </div>
@@ -216,11 +220,11 @@ export function PostList({
   }
 
   return (
-    <div className={cardClass}>
+    <div className={cn(LIST_CLASS, className)}>
       {filteredPosts.map((post, index) => (
         <Fragment key={post.id}>
           {index > 0 && <RowDivider />}
-          <PostListItem post={post} showAuthor={showAuthor} />
+          <div className={ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} /></div>
         </Fragment>
       ))}
     </div>
