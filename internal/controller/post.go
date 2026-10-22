@@ -35,8 +35,8 @@ func (p *PostController) Create(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	// 检测封面链接,可为空，不为空时才检查
-	if req.Cover != "" {
-		pass := utils2.Url.IsValidUrl(req.Cover)
+	if req.Cover != nil && *req.Cover != "" {
+		pass := utils2.Url.IsValidUrl(*req.Cover)
 		if !pass {
 			resps.BadRequest(c, "Cover URL is invalid")
 			return
@@ -116,8 +116,8 @@ func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	// 检测封面链接
-	if req.Cover != "" {
-		pass := utils2.Url.IsValidUrl(req.Cover)
+	if req.Cover != nil && *req.Cover != "" {
+		pass := utils2.Url.IsValidUrl(*req.Cover)
 		if !pass {
 			resps.BadRequest(c, "invalid_url")
 			return
@@ -215,4 +215,25 @@ func (p *PostController) DeleteCategory(ctx context.Context, c *app.RequestConte
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
+}
+
+// TriggerAISummary 手动触发 AI 摘要生成任务（后台执行）
+func (p *PostController) TriggerAISummary(ctx context.Context, c *app.RequestContext) {
+	postID := ctxutils.GetIDParam(c).Uint
+	if svcerr := service.NewAISummaryService().Trigger(ctx, postID); svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
+}
+
+// GetAISummaryStatus 查询 AI 摘要生成状态
+func (p *PostController) GetAISummaryStatus(ctx context.Context, c *app.RequestContext) {
+	postID := ctxutils.GetIDParam(c).Uint
+	status, svcerr := service.NewAISummaryService().Status(ctx, postID)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, status)
 }

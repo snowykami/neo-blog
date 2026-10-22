@@ -43,6 +43,7 @@ import { OrderBy } from '@/models/common'
 import { getErrorMessage } from '@/utils/common/error'
 import { isAdmin } from '@/utils/common/permission'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '../../../components/console/common/post-meta-dialog-form'
+import { AISummaryBadges, PostDescriptionLine, useAISummary, useAISummaryMenuLabel } from './post-ai-summary'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
@@ -224,6 +225,7 @@ export function PostManage() {
           <PostItem
             post={post}
             showAuthor={isAdminUser}
+            canConfigureAI={isAdminUser}
             onPostUpdate={onPostUpdate}
             onPostDelete={onPostDelete}
           />
@@ -256,11 +258,13 @@ export function PostManage() {
 function PostItem({
   post,
   showAuthor,
+  canConfigureAI,
   onPostUpdate,
   onPostDelete,
 }: {
   post: Post
   showAuthor: boolean
+  canConfigureAI: boolean // 只有管理员可以在全局配置中配置 AI
   onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
   onPostDelete: ({ postId }: { postId: number }) => void
 }) {
@@ -272,6 +276,7 @@ function PostItem({
   const operationT = useOperationT()
   const clickToPost = useToPost()
   const [metaDialogOpen, setMetaDialogOpen] = useState(false)
+  const aiSummary = useAISummary({ post, onPostUpdate, canConfigure: canConfigureAI })
   return (
     <div>
       <div className="flex w-full items-center gap-3 py-3">
@@ -290,6 +295,7 @@ function PostItem({
           </div>
           <div className="min-w-0">
             <div className="text-sm font-medium">{post.title}</div>
+            <PostDescriptionLine post={post} />
             <div className="mt-1 flex flex-wrap items-center gap-3">
               {(() => {
                 const labels = post.labels || []
@@ -373,6 +379,7 @@ function PostItem({
                     : badge
                 })
               })()}
+              <AISummaryBadges post={post} onRetry={aiSummary.trigger} />
             </div>
           </div>
         </div>
@@ -392,6 +399,8 @@ function PostItem({
             onPostUpdate={onPostUpdate}
             onPostDelete={onPostDelete}
             setMetaDialogOpen={setMetaDialogOpen}
+            aiSummaryRunning={aiSummary.running}
+            onTriggerAISummary={aiSummary.trigger}
           />
           <CreateOrUpdatePostMetaDialogWithoutButton
             post={post}
@@ -410,15 +419,20 @@ function PostDropdownMenu({
   onPostUpdate,
   onPostDelete,
   setMetaDialogOpen,
+  aiSummaryRunning,
+  onTriggerAISummary,
 }: {
   post: Post
   onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
   onPostDelete: ({ postId }: { postId: number }) => void
   setMetaDialogOpen: (open: boolean) => void
+  aiSummaryRunning: boolean
+  onTriggerAISummary: () => void
 }) {
   const operationT = useOperationT()
   const clickToPostEdit = useToEditPost()
   const clickToPost = useToPost()
+  const aiSummaryLabel = useAISummaryMenuLabel(post)
   const {
     confirming: confirmingDelete,
     onClick: onDeleteClick,
@@ -476,6 +490,10 @@ function PostDropdownMenu({
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => clickToPost({ post })} className="cursor-pointer">
             {operationT('view')}
+          </DropdownMenuItem>
+          {/* 生成中禁用，避免重复触发 */}
+          <DropdownMenuItem disabled={aiSummaryRunning} onClick={onTriggerAISummary} className="cursor-pointer">
+            {aiSummaryLabel}
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

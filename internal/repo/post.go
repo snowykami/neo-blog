@@ -297,7 +297,8 @@ func (p *postRepo) ListPosts(currentUserID uint, includeAllPrivate bool, query [
 	// 列表不读取草稿和完整正文，只截取摘要所需的前 201 个字符（摘要截断为 200 字）
 	columns := []string{"posts.id", "posts.created_at", "posts.updated_at", "posts.deleted_at", "posts.user_id",
 		"posts.category_id", "posts.cover", "posts.description", "posts.is_private", "posts.slug", "posts.title",
-		"posts.type", "posts.top", "posts.like_count", "posts.comment_count", "posts.view_count", "posts.heat"}
+		"posts.type", "posts.top", "posts.like_count", "posts.comment_count", "posts.view_count", "posts.heat",
+		"posts.content_hash", "posts.ai_summary", "posts.ai_summary_source_hash", "posts.ai_summary_at"}
 	if !req.NoContent {
 		columns = append(columns, "substr(posts.content, 1, 201) AS content")
 	}

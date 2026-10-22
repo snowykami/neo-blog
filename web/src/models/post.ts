@@ -27,6 +27,12 @@ export interface Post {
   heat: number
   createdAt: string
   updatedAt: string
+  // AI 摘要相关（只读）
+  descriptionByAi?: boolean // 当前描述为 AI 生成且未被修改
+  aiSummaryStale?: boolean // 摘要生成后正文有更新，建议重新生成
+  aiSummaryAt?: string | null // 摘要生成时间
+  aiSummaryStatus?: 'running' | 'failed' // 生成任务状态，仅列表中有进行中/失败的任务时返回
+  aiSummaryError?: string // 最近一次生成失败的原因
 }
 
 export interface ListPostsParams {
@@ -35,4 +41,16 @@ export interface ListPostsParams {
   orderBy?: string
   desc?: boolean
   keywords?: string
+}
+
+// AI 摘要生成任务状态
+export type AISummaryJobStatus = 'idle' | 'running' | 'succeeded' | 'failed'
+
+export interface AISummaryStatus {
+  status: AISummaryJobStatus
+  error?: string
+  description?: string
+  stale: boolean
+  generatedAt?: string | null
+  configured: boolean // 是否已在全局配置中配置 AI
 }

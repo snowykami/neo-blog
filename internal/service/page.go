@@ -42,8 +42,8 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 		PageBase: model.PageBase{
 			Title:        req.Title,
 			Slug:         slug,
-			Description:  req.Description,
-			Cover:        req.Cover,
+			Description:  utils.Deref(req.Description),
+			Cover:        utils.Deref(req.Cover),
 			Content:      req.Content,
 			DraftContent: req.DraftContent,
 			Type:         pageType,
@@ -117,8 +117,12 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	utils.UpdateNonEmpty(&page.Slug, slug)
 	utils.UpdateNonEmpty(&page.Type, req.Type)
 	utils.UpdateNonEmpty(&page.Content, req.Content)
-	utils.UpdateNonEmpty(&page.Cover, req.Cover)
-	utils.UpdateNonEmpty(&page.Description, req.Description)
+	if req.Cover != nil {
+		page.Cover = *req.Cover
+	}
+	if req.Description != nil {
+		page.Description = *req.Description
+	}
 	utils.UpdatePtrNonZero(&page.DraftContent, req.DraftContent)
 	// 未传的字段保持原值，只保存草稿时不会重置私密与导航设置
 	if req.IsPrivate != nil {

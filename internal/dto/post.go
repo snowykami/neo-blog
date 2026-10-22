@@ -31,7 +31,22 @@ type PostDto struct {
 	Heat         uint64    `json:"heat"`          // 热度
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"` // 更新时间
+	// AI 摘要相关
+	DescriptionByAI bool       `json:"description_by_ai"`           // 当前摘要由 AI 生成且未被修改
+	AISummaryStale  bool       `json:"ai_summary_stale"`            // 正文在生成摘要后有更新，建议重新生成
+	AISummaryAt     *time.Time `json:"ai_summary_at,omitempty"`     // 摘要生成时间
+	AISummaryStatus string     `json:"ai_summary_status,omitempty"` // 生成任务状态：running / failed
+	AISummaryError  string     `json:"ai_summary_error,omitempty"`  // 最近一次生成失败的原因
+}
 
+// AISummaryStatusDto AI 摘要生成任务状态
+type AISummaryStatusDto struct {
+	Status      string     `json:"status"` // idle / running / succeeded / failed
+	Error       string     `json:"error,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Stale       bool       `json:"stale"`
+	GeneratedAt *time.Time `json:"generated_at,omitempty"`
+	Configured  bool       `json:"configured"` // 是否已在全局配置中配置 AI
 }
 
 type CreateOrUpdatePostReq struct {
@@ -40,6 +55,9 @@ type CreateOrUpdatePostReq struct {
 	// 以下字段覆盖 PostBaseDto 同名字段，用指针区分“未传”与“零值”，避免只保存草稿时把私密、置顶重置
 	IsPrivate *bool `json:"is_private"`
 	Top       *uint `json:"top"`
+	// 摘要、封面传空字符串表示清空，未传则保持原值
+	Description *string `json:"description"`
+	Cover       *string `json:"cover"`
 	// 编辑会话ID，保存正文时校验，见 EditSessionService
 	EditSessionID string `header:"X-Edit-Session" json:"-"`
 }

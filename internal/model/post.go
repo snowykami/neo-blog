@@ -1,6 +1,10 @@
 package model
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"time"
+
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/utils"
@@ -32,6 +36,29 @@ type Post struct {
 	CommentCount uint64
 	ViewCount    uint64
 	Heat         uint64
+	// ContentHash 已发布正文的哈希，保存时自动计算，用于判断 AI 摘要是否过期
+	ContentHash string `gorm:"type:varchar(64)"`
+	// AI 摘要：最近一次生成的摘要文本、生成时依据的正文哈希与生成时间
+	AISummary           string     `gorm:"column:ai_summary;type:text"`
+	AISummarySourceHash string     `gorm:"column:ai_summary_source_hash;type:varchar(64)"`
+	AISummaryAt         *time.Time `gorm:"column:ai_summary_at"`
+}
+
+// HashContent 计算正文哈希
+func HashContent(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:])
+}
+
+// BeforeSave 保存时同步正文哈希
+func (p *Post) BeforeSave(tx *gorm.DB) error {
+	p.ContentHash = HashContent(p.Content)
+	return nil
+}
+
+// AISummaryStale 正文在生成摘要后又被修改过
+func (p *Post) AISummaryStale() bool {
+	return p.AISummarySourceHash != "" && p.ContentHash != "" && p.AISummarySourceHash != p.ContentHash
 }
 
 // CalculateHeat 热度计算
@@ -86,6 +113,10 @@ func (p *Post) ToDto() *dto.PostDto {
 		CreatedAt:    p.CreatedAt,
 		UpdatedAt:    p.UpdatedAt,
 		User:         p.User.ToDto(),
+		// 摘要仍是 AI 生成的原文（未被手动修改）时，前台以「AI 摘要」样式展示
+		DescriptionByAI: p.AISummary != "" && p.Description == p.AISummary,
+		AISummaryStale:  p.AISummaryStale(),
+		AISummaryAt:     p.AISummaryAt,
 	}
 }
 

@@ -42,9 +42,9 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		UserID: currentUser.ID,
 		PostBase: model.PostBase{
 			CategoryID:  categoryID,
-			Cover:       req.Cover,
+			Cover:       utils.Deref(req.Cover),
 			Content:     req.Content,
-			Description: req.Description,
+			Description: utils.Deref(req.Description),
 			IsPrivate:   utils.Deref(req.IsPrivate),
 			Labels:      labels,
 			Slug:        slug,
@@ -164,8 +164,12 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	utils.UpdateNonEmpty(&post.Title, req.Title)
 	utils.UpdateNonEmpty(&post.Type, req.Type)
 	utils.UpdateNonEmpty(&post.Content, req.Content)
-	utils.UpdateNonEmpty(&post.Cover, req.Cover)
-	utils.UpdateNonEmpty(&post.Description, req.Description)
+	if req.Cover != nil {
+		post.Cover = *req.Cover
+	}
+	if req.Description != nil {
+		post.Description = *req.Description
+	}
 	utils.UpdatePtrNonZero(&post.DraftContent, req.DraftContent)
 	// 传了 slug 才更新，空字符串表示清除 slug
 	if req.Slug != nil {
@@ -233,6 +237,10 @@ func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, inclu
 	}
 	for _, post := range posts {
 		postDtos = append(postDtos, post.ToDtoWithShortContent(200))
+	}
+	// 后台管理列表展示 AI 摘要任务的进行中 / 失败状态
+	if includeAllPrivate || currentUserID != 0 {
+		NewAISummaryService().FillListStatus(postDtos)
 	}
 	return postDtos, total, nil
 }

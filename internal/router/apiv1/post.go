@@ -25,6 +25,9 @@ func registerPostRoutes(group *route.RouterGroup) {
 		// 编辑会话：同时只允许最新打开编辑页的会话保存正文
 		postGroupWithAuth.POST("/p/:id/edit-session", controller.EditSession.Acquire(constant.TargetTypePost))
 		postGroupWithAuth.GET("/p/:id/edit-session", controller.EditSession.Current(constant.TargetTypePost))
+		// AI 摘要：后台生成任务，同一文章同时只能有一个任务
+		postGroupWithAuth.POST("/p/:id/ai-summary", postController.TriggerAISummary)
+		postGroupWithAuth.GET("/p/:id/ai-summary", postController.GetAISummaryStatus)
 		postGroupWithAuth.POST("/c", postController.CreateCategory)       // 创建文章分类
 		postGroupWithAuth.PUT("/c/:id", postController.UpdateCategory)    // 更新文章分类
 		postGroupWithAuth.DELETE("/c/:id", postController.DeleteCategory) // 删除文章分类

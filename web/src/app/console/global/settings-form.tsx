@@ -1,7 +1,7 @@
 'use client'
 
 import type { SiteInfo } from '@/utils/common/siteinfo'
-import { PlusIcon, Trash2Icon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { FormProvider, useForm, useFormContext } from 'react-hook-form'
@@ -64,6 +64,9 @@ interface SettingsValues {
   sidebarIframeTitle: string
   musicPlaylistUrl: string
   enableThirdPartyScript: boolean
+  aiApiBaseUrl: string
+  aiApiKey: string
+  aiModel: string
 }
 
 type FieldName = keyof SettingsValues
@@ -115,6 +118,10 @@ const STANDALONE_KEYS: Partial<Record<FieldName, { key: string, toValue?: (value
   rssCopyright: { key: 'site_copyright' },
   rssImage: { key: 'site_image' },
   rssLanguage: { key: 'default_language' },
+  // AI 配置仅后端使用，属于敏感信息，只写入独立配置键，不进入 site_info
+  aiApiBaseUrl: { key: 'ai_api_base_url', toValue: values => values.aiApiBaseUrl.trim() },
+  aiApiKey: { key: 'ai_api_key', toValue: values => values.aiApiKey.trim() },
+  aiModel: { key: 'ai_model', toValue: values => values.aiModel.trim() },
 }
 
 function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
@@ -159,6 +166,9 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     sidebarIframeTitle: info.sidebarIframeTitle ?? fallbackSiteInfo.sidebarIframeTitle ?? '',
     musicPlaylistUrl: info.musicPlaylistUrl ?? fallbackSiteInfo.musicPlaylistUrl ?? '',
     enableThirdPartyScript: info.enableThirdPartyScript ?? fallbackSiteInfo.enableThirdPartyScript ?? false,
+    aiApiBaseUrl: str('aiApiBaseUrl', ''),
+    aiApiKey: str('aiApiKey', ''),
+    aiModel: str('aiModel', ''),
   }
 }
 
@@ -311,6 +321,12 @@ export function SettingsForm() {
           <NumberField name="visitLogRetentionDays" label={t('visit_log_retention_days')} description={t('visit_log_retention_days_desc')} min={1} max={3650} />
         </Section>
 
+        <Section title={t('section_ai')} description={t('section_ai_desc')}>
+          <UrlField name="aiApiBaseUrl" label={t('ai_api_base_url')} description={t('ai_api_base_url_desc')} placeholder="https://api.openai.com/v1" />
+          <TextField name="aiModel" label={t('ai_model')} description={t('ai_model_desc')} placeholder="gpt-4o-mini / deepseek-chat" />
+          <PasswordField name="aiApiKey" label={t('ai_api_key')} description={t('ai_api_key_desc')} wide />
+        </Section>
+
         <Section title={t('section_rss')} description={t('section_rss_desc')}>
           <TextField name="rssTitle" label={t('rss_title')} />
           <TextField name="rssAuthor" label={t('rss_author')} />
@@ -375,6 +391,49 @@ function TextField({ name, label, description, placeholder, wide, type = 'text' 
 
 function UrlField(props: FieldProps) {
   return <TextField {...props} type="url" placeholder={props.placeholder ?? 'https://'} />
+}
+
+// 密钥类输入：默认以密码形式隐藏，可切换显示
+function PasswordField({ name, label, description, placeholder, wide }: FieldProps) {
+  const t = useTranslations('Console.global')
+  const { control } = useFormContext<SettingsValues>()
+  const [visible, setVisible] = useState(false)
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem className={wide ? 'md:col-span-2' : undefined}>
+          <FormLabel>{label}</FormLabel>
+          <div className="relative">
+            <FormControl>
+              <Input
+                type={visible ? 'text' : 'password'}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={placeholder}
+                className="pr-10"
+                {...field}
+                value={(field.value as string) ?? ''}
+              />
+            </FormControl>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
+              aria-label={visible ? t('hide_secret') : t('show_secret')}
+              title={visible ? t('hide_secret') : t('show_secret')}
+              onClick={() => setVisible(v => !v)}
+            >
+              {visible ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+            </Button>
+          </div>
+          {description && <FormDescription>{description}</FormDescription>}
+        </FormItem>
+      )}
+    />
+  )
 }
 
 function TextAreaField({ name, label, description, wide }: FieldProps) {

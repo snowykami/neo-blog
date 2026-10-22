@@ -2,6 +2,7 @@ import type { Post } from '@/models/post'
 import { LockIcon, PinIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import { Suspense } from 'react'
+import { AISummary } from '@/components/blog-post/ai-summary.client'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import CopyrightCard from '@/components/blog-post/blog-copyright.client'
 import { BlogLikeButton } from '@/components/blog-post/blog-like-button.client'
@@ -78,9 +79,10 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
         </div>
       )}
 
-      {post.description && (
-        <p className="mb-6 text-foreground/75">{post.description}</p>
-      )}
+      {/* 摘要：AI 生成的摘要以卡片 + 打字机效果展示，手写描述保持原样式 */}
+      {post.description && (post.descriptionByAi
+        ? <AISummary text={post.description} label={t('ai_summary')} className="mb-6" />
+        : <p className="mb-6 text-foreground/75">{post.description}</p>)}
 
       {/* 文章内容 - Core content rendered immediately */}
       <article

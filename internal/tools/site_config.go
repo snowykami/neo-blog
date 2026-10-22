@@ -44,6 +44,26 @@ func GetVerifyCodeCoolDown() int {
 	return repo.KV.GetIntWithoutErr("verify_code_cool_down", 60)
 }
 
+// AIConfig OpenAI 兼容接口配置（仅后端使用，不对外公开）
+type AIConfig struct {
+	BaseURL string
+	APIKey  string
+	Model   string
+}
+
+// Configured 三项均已填写
+func (c AIConfig) Configured() bool {
+	return c.BaseURL != "" && c.APIKey != "" && c.Model != ""
+}
+
+func GetAIConfig() AIConfig {
+	return AIConfig{
+		BaseURL: strings.TrimRight(strings.TrimSpace(repo.KV.GetStringWithoutErr("ai_api_base_url", "")), "/"),
+		APIKey:  strings.TrimSpace(repo.KV.GetStringWithoutErr("ai_api_key", "")),
+		Model:   strings.TrimSpace(repo.KV.GetStringWithoutErr("ai_model", "")),
+	}
+}
+
 func GetMaximumReplyDepth() int {
 	return repo.KV.GetIntWithoutErr("max_reply_depth", utils.Env.GetAsInt(constant.EnvKeyMaxReplyDepth, constant.MaxReplyDepthDefault))
 }

@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { calculateReadingTime, countWords } from '@/utils/common/post'
 import { getPostUrl } from '@/utils/common/route'
 import { htmlToText } from '@/utils/common/string'
@@ -31,7 +32,7 @@ export function PostListItem({ post }: { post: Post }) {
   const hasCover = !!post.cover
   const words = countWords(post.content || '')
   const minutes = calculateReadingTime(post.content || '')
-  const summary = post.description || htmlToText(post.content || '').slice(0, 200)
+  const summary = stripInlineMarkdown(post.description) || htmlToText(post.content || '').slice(0, 200)
 
   return (
     // 整行可点：标题链接的伪元素铺满整行（stretched link），分类 / 标签链接层级更高

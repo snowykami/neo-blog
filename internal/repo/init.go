@@ -185,7 +185,25 @@ func migrate() error {
 		&model.VisitLog{}); err != nil {
 		return err
 	}
-	return createQueryIndexes()
+	if err := createQueryIndexes(); err != nil {
+		return err
+	}
+	return backfillPostContentHash()
+}
+
+// backfillPostContentHash 为升级前已有的文章补全正文哈希（AI 摘要过期判断依赖它）
+func backfillPostContentHash() error {
+	var posts []model.Post
+	if err := GetDB().Unscoped().Select("id, content").Where("content_hash IS NULL OR content_hash = ''").Find(&posts).Error; err != nil {
+		return err
+	}
+	for _, post := range posts {
+		if err := GetDB().Unscoped().Model(&model.Post{}).Where("id = ?", post.ID).
+			UpdateColumn("content_hash", model.HashContent(post.Content)).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // createQueryIndexes 为常用查询补充组合索引（gorm.Model 内的字段无法通过标签声明组合索引）

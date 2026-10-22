@@ -31,6 +31,9 @@ type CreateOrUpdatePageReq struct {
 	IsPrivate *bool `json:"is_private"`
 	ShowInNav *bool `json:"show_in_nav"`
 	NavOrder  *int  `json:"nav_order"`
+	// 摘要、封面传空字符串表示清空，未传则保持原值
+	Description *string `json:"description"`
+	Cover       *string `json:"cover"`
 	// 编辑会话ID，保存正文时校验，见 EditSessionService
 	EditSessionID string `header:"X-Edit-Session" json:"-"`
 }

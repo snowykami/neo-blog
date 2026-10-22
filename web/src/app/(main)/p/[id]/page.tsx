@@ -7,6 +7,7 @@ import { cache } from 'react'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { getPostByIdServer } from '@/api/post.server'
 import { isNotFoundLikeError } from '@/utils/common/error'
+import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostUrl, getUserUrl } from '@/utils/common/route'
 import { getDefaultCoverRandomly, safeMetadataBase } from '@/utils/common/siteinfo'
 import { formatDisplayName as formatFullName } from '@/utils/common/username'
@@ -48,7 +49,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   }
   return {
     title: post.title || 'No Title',
-    description: post.description || post.content.slice(0, 160) || post.title || 'No Description',
+    description: stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
     metadataBase: safeMetadataBase(siteInfo?.baseUrl),
     alternates: { canonical: post ? getPostUrl({ post }) : undefined },
     authors: post.user ? [{ name: formatFullName(post.user) }] : undefined,
@@ -57,7 +58,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     openGraph: {
       title: post.title || 'No Title',
       description:
-        post?.description || post.content.slice(0, 160) || post.title || 'No Description',
+        stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
       url: getPostUrl({ post }),
       siteName: siteInfo?.metadata.name || 'Site Name',
       images: [
@@ -74,7 +75,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     twitter: {
       card: 'summary_large_image',
       title: post.title || 'No Title',
-      description: post.description || post.content.slice(0, 160) || post.title || 'No Description',
+      description: stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
       images: [post.cover || getDefaultCoverRandomly(siteInfo)],
     },
     robots: {
@@ -123,7 +124,7 @@ export default async function PostPage({ params, searchParams }: Props) {
         'url': siteInfo?.metadata.icon || 'favicon.ico',
       },
     },
-    'description': post.description || post.content.slice(0, 160) || post.title,
+    'description': stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title,
     'mainEntityOfPage': {
       '@type': 'WebPage',
       '@id': siteInfo?.baseUrl || '',
