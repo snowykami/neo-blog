@@ -108,11 +108,9 @@ func syncTargetCommentCount(tx *gorm.DB, targetType string, targetID uint) error
 		Count(&count).Error; err != nil {
 		return err
 	}
-	if err := tx.Model(&model.Post{}).Where("id = ?", targetID).
-		UpdateColumn("comment_count", count).Error; err != nil {
-		return err
-	}
-	return refreshPostHeat(tx, targetID)
+	// 文章热度由定时任务重算
+	return tx.Model(&model.Post{}).Where("id = ?", targetID).
+		UpdateColumn("comment_count", count).Error
 }
 
 // CreateComment 创建评论，maxDepth 为允许的最大回复层级

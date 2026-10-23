@@ -41,14 +41,6 @@ func (p *postRepo) DeletePost(id uint) error {
 	})
 }
 
-// refreshPostHeat 按当前计数重算文章热度，计数变化后调用
-func refreshPostHeat(tx *gorm.DB, postID uint) error {
-	return tx.Model(&model.Post{}).Where("id = ?", postID).UpdateColumn("heat", gorm.Expr(
-		"view_count * ? + like_count * ? + comment_count * ?",
-		constant.HeatFactorViewWeight, constant.HeatFactorLikeWeight, constant.HeatFactorCommentWeight,
-	)).Error
-}
-
 // helper: 批量查询 labels 对应的 post 数量（返回 map[labelID]count）
 func fetchLabelPostCounts(db *gorm.DB, labelIDs []uint) (map[uint]int64, error) {
 	counts := make([]struct {
@@ -174,18 +166,7 @@ func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 		}
 	}
 
-	// 一条语句原子地增加 view_count 并同步热度（SET 右侧使用更新前的值）
-	if err := GetDB().Model(&model.Post{}).Where("id = ?", post.ID).UpdateColumns(map[string]any{
-		"view_count": gorm.Expr("view_count + 1"),
-		"heat": gorm.Expr("(view_count + 1) * ? + like_count * ? + comment_count * ?",
-			constant.HeatFactorViewWeight, constant.HeatFactorLikeWeight, constant.HeatFactorCommentWeight),
-	}).Error; err != nil {
-		return nil, err
-	}
-
-	// 不再整体重新加载，否则会覆盖上面排好序的标签
-	post.ViewCount++
-
+	// 浏览量由访问上报去重后累加（见 IncreaseViewCount），读取文章不再写库
 	return &post, nil
 }
 
