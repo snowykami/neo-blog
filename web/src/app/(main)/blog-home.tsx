@@ -9,7 +9,6 @@ import { useEffect, useRef, useState } from 'react'
 import { listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
 import BlogSidebar from '@/components/blog-sidebar'
-import { BlogSidebarAbout, BlogSidebarLabels, SidebarMisskeyIframe } from '@/components/blog-sidebar/blog-sidebar-card'
 import { PaginationController } from '@/components/common/pagination'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import { Button } from '@/components/ui/button'
@@ -130,13 +129,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   return (
     <SiteShell
       sidebar={(
-        <BlogSidebar
-          cards={[
-            <BlogSidebarAbout key="about" />,
-            <BlogSidebarLabels key="tags" label={labelSlug} setLabel={setLabelSlug} />,
-            <SidebarMisskeyIframe key="misskey" />,
-          ]}
-        />
+        <BlogSidebar label={labelSlug} setLabel={setLabelSlug} />
       )}
     >
       {/* 列表标题与排序 */}

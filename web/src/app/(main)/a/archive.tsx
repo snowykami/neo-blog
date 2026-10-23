@@ -2,10 +2,8 @@
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import BlogSidebar from '@/components/blog-sidebar'
-import { BlogSidebarAbout, BlogSidebarHotPosts, BlogSidebarLabels, SidebarMisskeyIframe } from '@/components/blog-sidebar/blog-sidebar-card'
 import { SiteShell } from '@/components/layout/site-shell'
 import { Badge } from '@/components/ui/badge'
-import { OrderBy } from '@/models/common'
 import { mainPath } from '@/utils/common/route'
 import './archive.scss'
 
@@ -35,14 +33,7 @@ export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { 
   return (
     <SiteShell
       sidebar={(
-        <BlogSidebar
-          cards={[
-            <BlogSidebarAbout key="about" />,
-            <BlogSidebarLabels key="tags" />,
-            <BlogSidebarHotPosts key="hot-posts" orderType={OrderBy.Heat} />,
-            <SidebarMisskeyIframe key="misskey" />,
-          ]}
-        />
+        <BlogSidebar />
       )}
     >
       {/* 归档正文 */}

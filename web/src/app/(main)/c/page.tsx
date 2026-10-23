@@ -4,7 +4,6 @@ import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { getCategories } from '@/api/post'
 import BlogSidebar from '@/components/blog-sidebar'
-import { BlogSidebarAbout, BlogSidebarHotPosts } from '@/components/blog-sidebar/blog-sidebar-card'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import { getCategoryUrl, mainPath } from '@/utils/common/route'
 
@@ -19,7 +18,7 @@ export default async function CategoryPage() {
 
   return (
     <SiteShell
-      sidebar={<BlogSidebar cards={[<BlogSidebarAbout key="about" />, <BlogSidebarHotPosts key="hot-posts" />]} />}
+      sidebar={<BlogSidebar />}
     >
       <SectionTitle as="h1" className="mx-4 text-xl md:mx-2 md:text-2xl">
         {t('Public.categories')}

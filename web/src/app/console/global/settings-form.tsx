@@ -1,5 +1,6 @@
 'use client'
 
+import type { SidebarCardConfig } from '@/components/blog-sidebar/sidebar-cards'
 import type { MusicSourceType, NCMPlaylists, NCMSongLevel } from '@/models/music'
 import type { SiteInfo } from '@/utils/common/siteinfo'
 import { EyeIcon, EyeOffIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
@@ -11,6 +12,7 @@ import { toast } from 'sonner'
 import { listKV, setKV } from '@/api/admin'
 import { getSiteInfo } from '@/api/misc'
 import { listNCMPlaylists } from '@/api/music'
+import { defaultSidebarCards } from '@/components/blog-sidebar/sidebar-cards'
 import { AssetField } from '@/components/common/asset-picker'
 import { LabelWithInfo } from '@/components/common/info-tooltip'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -30,6 +32,7 @@ import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { NCM_SONG_LEVELS } from '@/models/music'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
+import { SidebarCardsField } from './sidebar-cards-field'
 
 // 站点内置的配色方案，对应 app/styles 下的主题文件
 const ALL_COLOR_SCHEMES = fallbackSiteInfo.colorSchemes
@@ -68,8 +71,7 @@ interface SettingsValues {
   rssImage: string
   rssLanguage: string
   aboutBackground: string
-  sidebarIframeUrl: string
-  sidebarIframeTitle: string
+  sidebarCards: SidebarCardConfig[]
   musicSource: MusicSourceType
   musicPlaylistUrl: string
   ncmApiBaseUrl: string
@@ -109,8 +111,7 @@ const SITE_INFO_FIELDS: FieldName[] = [
   'footerLinks',
   'verifyCodeCoolDown',
   'aboutBackground',
-  'sidebarIframeUrl',
-  'sidebarIframeTitle',
+  'sidebarCards',
   'musicSource',
   'musicPlaylistUrl',
   'enableThirdPartyScript',
@@ -183,8 +184,11 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     rssLanguage: str('defaultLanguage', 'zh-cn'),
     // 未保存过的个性化字段使用前台默认值，避免保存其他字段时被清空
     aboutBackground: info.aboutBackground ?? fallbackSiteInfo.aboutBackground ?? '',
-    sidebarIframeUrl: info.sidebarIframeUrl ?? fallbackSiteInfo.sidebarIframeUrl ?? '',
-    sidebarIframeTitle: info.sidebarIframeTitle ?? fallbackSiteInfo.sidebarIframeTitle ?? '',
+    // 未配置过侧边栏卡片时，按前台默认卡片（含旧的嵌入页面配置）展示
+    sidebarCards: info.sidebarCards ?? defaultSidebarCards({
+      sidebarIframeUrl: info.sidebarIframeUrl ?? fallbackSiteInfo.sidebarIframeUrl,
+      sidebarIframeTitle: info.sidebarIframeTitle ?? fallbackSiteInfo.sidebarIframeTitle,
+    }),
     musicSource: info.musicSource ?? 'static',
     musicPlaylistUrl: info.musicPlaylistUrl ?? fallbackSiteInfo.musicPlaylistUrl ?? '',
     ncmApiBaseUrl: str('ncmApiBaseUrl', ''),
@@ -225,8 +229,7 @@ function toSiteInfo(base: SiteInfo, values: SettingsValues): SiteInfo {
     footer: { ...base.footer, text: values.footerText, links: values.footerLinks.filter(link => link.text || link.href) },
     verifyCodeCoolDown: Number(values.verifyCodeCoolDown),
     aboutBackground: values.aboutBackground.trim(),
-    sidebarIframeUrl: values.sidebarIframeUrl.trim(),
-    sidebarIframeTitle: values.sidebarIframeTitle.trim(),
+    sidebarCards: values.sidebarCards,
     musicSource: values.musicSource,
     musicPlaylistUrl: values.musicPlaylistUrl.trim(),
     enableThirdPartyScript: values.enableThirdPartyScript,
@@ -242,7 +245,7 @@ type GlobalTab = typeof GLOBAL_TABS[number]
 const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
   site: ['siteName', 'baseUrl', 'siteDescription', 'siteIcon', 'keywords', 'defaultCovers', 'ownerName', 'ownerMotto', 'ownerDescription', 'ownerAvatar', 'ownerGravatarEmail'],
   content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
-  frontend: ['aboutBackground', 'sidebarIframeUrl', 'sidebarIframeTitle', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel'],
+  frontend: ['aboutBackground', 'sidebarCards', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel'],
   account: ['enableRegister', 'enableRegisterFromOidc', 'verifyCodeCoolDown', 'visitLogRetentionDays'],
   ai: ['aiApiBaseUrl', 'aiApiKey', 'aiModel', 'aiSummaryConcurrency'],
   rss: ['rssTitle', 'rssAuthor', 'rssCopyright', 'rssLanguage', 'rssImage'],
@@ -375,9 +378,11 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
           <TabsContent value="frontend" forceMount className="grid gap-4 data-[state=inactive]:hidden">
             <Section title={t('section_personalize')} description={t('section_personalize_desc')}>
               <ImageField name="aboutBackground" label={t('about_background')} description={t('empty_to_hide')} />
-              <UrlField name="sidebarIframeUrl" label={t('sidebar_iframe_url')} description={t('sidebar_iframe_url_desc')} />
-              <TextField name="sidebarIframeTitle" label={t('sidebar_iframe_title')} placeholder="Misskey" />
               <SwitchField name="enableThirdPartyScript" label={t('enable_third_party_script')} description={t('enable_third_party_script_desc')} />
+            </Section>
+
+            <Section title={t('section_sidebar')} description={t('section_sidebar_desc')}>
+              <SidebarCardsField />
             </Section>
 
             <MusicSection />

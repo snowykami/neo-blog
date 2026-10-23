@@ -5,7 +5,6 @@ import { cache } from 'react'
 import { getCategories, listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
 import BlogSidebar from '@/components/blog-sidebar'
-import { BlogSidebarAbout, BlogSidebarHotPosts, BlogSidebarLabels } from '@/components/blog-sidebar/blog-sidebar-card'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import {
   Pagination,
@@ -69,13 +68,7 @@ export default async function CategoryDetailPage({
   return (
     <SiteShell
       sidebar={(
-        <BlogSidebar
-          cards={[
-            <BlogSidebarAbout key="about" />,
-            <BlogSidebarLabels key="labels" />,
-            <BlogSidebarHotPosts key="hot-posts" />,
-          ]}
-        />
+        <BlogSidebar />
       )}
     >
       <div className="grid gap-1 px-4 md:px-2">
