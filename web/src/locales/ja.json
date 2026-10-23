@@ -1651,7 +1651,6 @@
     "choose_from_library": "ライブラリから選択"
   },
   "ContentComponents": {
-    "group": "コンポーネント",
     "edit": "プロパティを編集",
     "edit_title": "{name}を編集",
     "delete": "コンポーネントを削除",
@@ -1696,6 +1695,10 @@
           "warning": "警告",
           "tip": "ヒント"
         }
+      },
+      "example": {
+        "title": "ヒント",
+        "content": "/ を入力するとコンポーネントをすばやく挿入できます。"
       }
     },
     "codeTabs": {
@@ -1749,6 +1752,198 @@
       "open": "NetEase Music",
       "not_in_playlist": "この曲はブログのプレイリストにありません。NetEase Cloud Music でお聴きください",
       "load_failed": "楽曲情報の読み込みに失敗しました"
+    },
+    "library": {
+      "open": "コンポーネントライブラリ…",
+      "count": "{count} 個のコンポーネント",
+      "title": "コンポーネントライブラリ",
+      "description": "挿入できる {count} 個のコンポーネントをソースのフォルダ別に表示",
+      "search": "名前・フォルダ・キーワードで検索",
+      "tree": "コンポーネントのフォルダ",
+      "insert": "挿入",
+      "preview": "プレビュー",
+      "no_preview": "挿入後にプロパティを入力すると表示されます",
+      "empty": "一致するコンポーネントがありません",
+      "empty_hint": "別のキーワードをお試しください",
+      "hint": "クリックでプレビュー、ダブルクリックまたは Enter で挿入",
+      "slash_hint": "すべてのコンポーネントをフォルダ別に表示"
+    },
+    "alert": {
+      "name": "アラート",
+      "description": "タイトルと説明付きの通知。目立つスタイルも選べます",
+      "fields": {
+        "variant": "スタイル",
+        "title": "タイトル",
+        "description": "説明"
+      },
+      "options": {
+        "variant": {
+          "default": "標準",
+          "destructive": "強調（赤）"
+        }
+      },
+      "example": {
+        "title": "注意",
+        "description": "この API は次のバージョンで削除されます。"
+      }
+    },
+    "badges": {
+      "name": "バッジ",
+      "description": "タグ風の短いテキストのまとまり",
+      "fields": {
+        "items": "バッジ",
+        "text": "テキスト",
+        "variant": "スタイル"
+      },
+      "options": {
+        "variant": {
+          "default": "メイン",
+          "secondary": "淡色",
+          "outline": "枠線",
+          "destructive": "赤"
+        }
+      }
+    },
+    "linkButton": {
+      "name": "リンクボタン",
+      "description": "外部 URL やサイト内パスへの目立つボタン",
+      "fields": {
+        "text": "ボタンの文字",
+        "href": "リンク",
+        "variant": "スタイル",
+        "align": "配置",
+        "newTab": "新しいタブで開く"
+      },
+      "placeholders": {
+        "href": "https://… または /p/記事スラッグ"
+      },
+      "descriptions": {
+        "href": "http(s) の URL または / で始まるサイト内パス"
+      },
+      "options": {
+        "variant": {
+          "default": "メイン",
+          "secondary": "淡色",
+          "outline": "枠線"
+        },
+        "align": {
+          "left": "左寄せ",
+          "center": "中央"
+        }
+      },
+      "example": {
+        "text": "ソースを見る"
+      }
+    },
+    "card": {
+      "name": "カード",
+      "description": "タイトル・サブタイトル・本文のあるカード",
+      "fields": {
+        "title": "タイトル",
+        "description": "サブタイトル",
+        "content": "本文"
+      },
+      "example": {
+        "title": "neo-blog",
+        "description": "Go + Next.js のブログ",
+        "content": "コンポーネントブロック、AI 執筆、多言語に対応。"
+      }
+    },
+    "collapsible": {
+      "name": "折りたたみ",
+      "description": "タイトルをクリックして開閉。補足やネタバレに",
+      "fields": {
+        "title": "タイトル",
+        "content": "内容",
+        "defaultOpen": "最初から開く"
+      },
+      "example": {
+        "title": "クリックして答えを表示",
+        "content": "答えは 42 です。"
+      }
+    },
+    "shortcut": {
+      "name": "ショートカット",
+      "description": "キーの組み合わせと説明",
+      "fields": {
+        "keys": "キー",
+        "description": "説明"
+      },
+      "placeholders": {
+        "keys": "Ctrl+Shift+P"
+      },
+      "descriptions": {
+        "keys": "複数のキーは + でつなぎます"
+      },
+      "example": {
+        "description": "検索を開く"
+      }
+    },
+    "progress": {
+      "name": "プログレスバー",
+      "description": "パーセント付きの進捗の一覧",
+      "fields": {
+        "items": "項目",
+        "label": "名前",
+        "value": "進捗（%）"
+      },
+      "descriptions": {
+        "value": "0〜100 の整数"
+      },
+      "example": {
+        "design": "設計",
+        "develop": "開発",
+        "test": "テスト"
+      }
+    },
+    "textTabs": {
+      "name": "タブ",
+      "description": "複数のテキストをタブで切り替えて表示",
+      "fields": {
+        "tabs": "タブ",
+        "label": "タブ名",
+        "content": "内容"
+      },
+      "example": {
+        "tab1": "Windows",
+        "content1": "インストーラーをダウンロードしてダブルクリックします。",
+        "tab2": "macOS",
+        "content2": "Homebrew でインストールします。"
+      }
+    },
+    "chart": {
+      "name": "グラフ",
+      "description": "簡単な統計向けの棒グラフ・折れ線グラフ",
+      "fields": {
+        "title": "タイトル",
+        "type": "種類",
+        "unit": "単位",
+        "data": "データ",
+        "label": "ラベル",
+        "value": "値"
+      },
+      "placeholders": {
+        "unit": "%"
+      },
+      "options": {
+        "type": {
+          "bar": "棒グラフ",
+          "line": "折れ線グラフ"
+        }
+      },
+      "example": {
+        "title": "四半期ごとのアクセス数（万）"
+      }
+    },
+    "linkCard": {
+      "name": "リンクカード",
+      "description": "ページのタイトル・概要・画像を表示するカード",
+      "fields": {
+        "url": "URL"
+      },
+      "placeholders": {
+        "url": "https://"
+      }
     }
   },
   "AppUpdate": {

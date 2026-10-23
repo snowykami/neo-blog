@@ -1651,7 +1651,6 @@
     "choose_from_library": "लाइब्रेरी से चुनें"
   },
   "ContentComponents": {
-    "group": "कंपोनेंट",
     "edit": "गुण संपादित करें",
     "edit_title": "{name} संपादित करें",
     "delete": "कंपोनेंट हटाएँ",
@@ -1696,6 +1695,10 @@
           "warning": "चेतावनी",
           "tip": "सुझाव"
         }
+      },
+      "example": {
+        "title": "सुझाव",
+        "content": "कंपोनेंट जल्दी डालने के लिए / टाइप करें।"
       }
     },
     "codeTabs": {
@@ -1749,6 +1752,198 @@
       "open": "NetEase Music",
       "not_in_playlist": "यह गीत ब्लॉग प्लेलिस्ट में नहीं है; NetEase Cloud Music पर सुनें",
       "load_failed": "गीत लोड नहीं हो सका"
+    },
+    "library": {
+      "open": "कंपोनेंट लाइब्रेरी…",
+      "count": "{count} कंपोनेंट",
+      "title": "कंपोनेंट लाइब्रेरी",
+      "description": "डालने योग्य {count} कंपोनेंट स्रोत फ़ोल्डर के अनुसार देखें",
+      "search": "नाम, फ़ोल्डर या कीवर्ड से खोजें",
+      "tree": "कंपोनेंट फ़ोल्डर",
+      "insert": "डालें",
+      "preview": "पूर्वावलोकन",
+      "no_preview": "डालने के बाद गुण भरें, तब परिणाम दिखेगा",
+      "empty": "कोई मिलता-जुलता कंपोनेंट नहीं",
+      "empty_hint": "कोई दूसरा कीवर्ड आज़माएँ",
+      "hint": "पूर्वावलोकन के लिए क्लिक करें; डालने के लिए डबल-क्लिक करें या Enter दबाएँ",
+      "slash_hint": "सभी कंपोनेंट फ़ोल्डर के अनुसार देखें"
+    },
+    "alert": {
+      "name": "अलर्ट",
+      "description": "शीर्षक और विवरण वाली सूचना, चाहें तो उभरी हुई शैली",
+      "fields": {
+        "variant": "शैली",
+        "title": "शीर्षक",
+        "description": "विवरण"
+      },
+      "options": {
+        "variant": {
+          "default": "डिफ़ॉल्ट",
+          "destructive": "उभरी हुई (लाल)"
+        }
+      },
+      "example": {
+        "title": "ध्यान दें",
+        "description": "यह API अगले संस्करण में हटा दिया जाएगा।"
+      }
+    },
+    "badges": {
+      "name": "बैज",
+      "description": "टैग जैसी छोटी टेक्स्ट का समूह",
+      "fields": {
+        "items": "बैज",
+        "text": "टेक्स्ट",
+        "variant": "शैली"
+      },
+      "options": {
+        "variant": {
+          "default": "मुख्य",
+          "secondary": "हल्का",
+          "outline": "रूपरेखा",
+          "destructive": "लाल"
+        }
+      }
+    },
+    "linkButton": {
+      "name": "लिंक बटन",
+      "description": "किसी URL या साइट पथ पर जाने वाला प्रमुख बटन",
+      "fields": {
+        "text": "बटन टेक्स्ट",
+        "href": "लिंक",
+        "variant": "शैली",
+        "align": "संरेखण",
+        "newTab": "नए टैब में खोलें"
+      },
+      "placeholders": {
+        "href": "https://… या /p/post-slug"
+      },
+      "descriptions": {
+        "href": "http(s) URL या / से शुरू होने वाला साइट पथ"
+      },
+      "options": {
+        "variant": {
+          "default": "मुख्य",
+          "secondary": "हल्का",
+          "outline": "रूपरेखा"
+        },
+        "align": {
+          "left": "बाएँ",
+          "center": "बीच में"
+        }
+      },
+      "example": {
+        "text": "स्रोत कोड देखें"
+      }
+    },
+    "card": {
+      "name": "कार्ड",
+      "description": "शीर्षक, उपशीर्षक और मुख्य पाठ वाला कार्ड",
+      "fields": {
+        "title": "शीर्षक",
+        "description": "उपशीर्षक",
+        "content": "मुख्य पाठ"
+      },
+      "example": {
+        "title": "neo-blog",
+        "description": "Go + Next.js ब्लॉग",
+        "content": "कंपोनेंट ब्लॉक, AI लेखन और कई भाषाओं का समर्थन।"
+      }
+    },
+    "collapsible": {
+      "name": "संकुचित खंड",
+      "description": "शीर्षक पर क्लिक कर खोलें या बंद करें; टिप्पणियों और स्पॉइलर के लिए",
+      "fields": {
+        "title": "शीर्षक",
+        "content": "सामग्री",
+        "defaultOpen": "डिफ़ॉल्ट रूप से खुला"
+      },
+      "example": {
+        "title": "उत्तर देखने के लिए क्लिक करें",
+        "content": "उत्तर 42 है।"
+      }
+    },
+    "shortcut": {
+      "name": "कीबोर्ड शॉर्टकट",
+      "description": "कुंजियों का संयोजन और विवरण",
+      "fields": {
+        "keys": "कुंजियाँ",
+        "description": "विवरण"
+      },
+      "placeholders": {
+        "keys": "Ctrl+Shift+P"
+      },
+      "descriptions": {
+        "keys": "कई कुंजियों को + से जोड़ें"
+      },
+      "example": {
+        "description": "खोज खोलें"
+      }
+    },
+    "progress": {
+      "name": "प्रगति पट्टियाँ",
+      "description": "प्रतिशत सहित प्रगति की सूची",
+      "fields": {
+        "items": "आइटम",
+        "label": "नाम",
+        "value": "प्रगति (%)"
+      },
+      "descriptions": {
+        "value": "0 से 100 तक पूर्णांक"
+      },
+      "example": {
+        "design": "डिज़ाइन",
+        "develop": "विकास",
+        "test": "परीक्षण"
+      }
+    },
+    "textTabs": {
+      "name": "टैब",
+      "description": "कई टेक्स्ट टैब में दिखाएँ",
+      "fields": {
+        "tabs": "टैब",
+        "label": "टैब का नाम",
+        "content": "सामग्री"
+      },
+      "example": {
+        "tab1": "Windows",
+        "content1": "इंस्टॉलर डाउनलोड करके डबल-क्लिक करें।",
+        "tab2": "macOS",
+        "content2": "Homebrew से इंस्टॉल करें।"
+      }
+    },
+    "chart": {
+      "name": "चार्ट",
+      "description": "सरल आँकड़ों के लिए बार या लाइन चार्ट",
+      "fields": {
+        "title": "शीर्षक",
+        "type": "प्रकार",
+        "unit": "इकाई",
+        "data": "डेटा",
+        "label": "लेबल",
+        "value": "मान"
+      },
+      "placeholders": {
+        "unit": "%"
+      },
+      "options": {
+        "type": {
+          "bar": "बार चार्ट",
+          "line": "लाइन चार्ट"
+        }
+      },
+      "example": {
+        "title": "तिमाही विज़िट (दस हज़ार)"
+      }
+    },
+    "linkCard": {
+      "name": "लिंक कार्ड",
+      "description": "पेज का शीर्षक, सारांश और चित्र दिखाने वाला कार्ड",
+      "fields": {
+        "url": "URL"
+      },
+      "placeholders": {
+        "url": "https://"
+      }
     }
   },
   "AppUpdate": {

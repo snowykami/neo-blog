@@ -69,9 +69,11 @@ function SchemaField({ field, path, component, t }: FieldProps) {
                       <Input
                         {...input}
                         type="number"
-                        inputMode="numeric"
+                        inputMode="decimal"
+                        min={field.min}
+                        max={field.max}
                         placeholder={placeholder}
-                        value={Number.isFinite(input.value) && input.value !== 0 ? input.value : ''}
+                        value={Number.isFinite(input.value) && (field.allowZero || input.value !== 0) ? input.value : ''}
                         onChange={e => input.onChange(e.target.value === '' ? 0 : e.target.valueAsNumber)}
                       />
                     )

@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import { defineContentComponent } from '../define'
 import { neteaseSongSchema } from './schema'
 
-export const neteaseSongComponent = defineContentComponent({
+export default defineContentComponent({
   name: 'neteaseSong',
   version: 1,
   schema: neteaseSongSchema,
@@ -14,4 +14,5 @@ export const neteaseSongComponent = defineContentComponent({
   fallback: ({ id }: NeteaseSongProps) => [
     ['p', {}, ['a', { href: `https://music.163.com/#/song?id=${id}`, target: '_blank', rel: 'noopener noreferrer' }, `music.163.com/#/song?id=${id}`]],
   ],
+  example: () => ({ id: 1824020871 }),
 })

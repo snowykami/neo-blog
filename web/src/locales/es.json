@@ -1651,7 +1651,6 @@
     "choose_from_library": "Elegir de la biblioteca"
   },
   "ContentComponents": {
-    "group": "Componentes",
     "edit": "Editar propiedades",
     "edit_title": "Editar {name}",
     "delete": "Eliminar componente",
@@ -1696,6 +1695,10 @@
           "warning": "Advertencia",
           "tip": "Consejo"
         }
+      },
+      "example": {
+        "title": "Consejo",
+        "content": "Escribe / para insertar componentes rápidamente."
       }
     },
     "codeTabs": {
@@ -1749,6 +1752,198 @@
       "open": "NetEase Music",
       "not_in_playlist": "Esta canción no está en la lista del blog; escúchala en NetEase Cloud Music",
       "load_failed": "No se pudo cargar la canción"
+    },
+    "library": {
+      "open": "Biblioteca de componentes…",
+      "count": "{count} componentes",
+      "title": "Biblioteca de componentes",
+      "description": "Explora los {count} componentes insertables por carpeta de código",
+      "search": "Buscar por nombre, carpeta o palabra clave",
+      "tree": "Carpetas de componentes",
+      "insert": "Insertar",
+      "preview": "Vista previa",
+      "no_preview": "Completa las propiedades tras insertarlo para verlo",
+      "empty": "No hay componentes que coincidan",
+      "empty_hint": "Prueba con otra palabra clave",
+      "hint": "Haz clic para ver la vista previa; doble clic o Intro para insertar",
+      "slash_hint": "Explorar todos los componentes por carpeta"
+    },
+    "alert": {
+      "name": "Alerta",
+      "description": "Aviso con título y descripción, opcionalmente destacado",
+      "fields": {
+        "variant": "Estilo",
+        "title": "Título",
+        "description": "Descripción"
+      },
+      "options": {
+        "variant": {
+          "default": "Predeterminado",
+          "destructive": "Destacado (rojo)"
+        }
+      },
+      "example": {
+        "title": "Atención",
+        "description": "Esta API se eliminará en la próxima versión."
+      }
+    },
+    "badges": {
+      "name": "Insignias",
+      "description": "Un grupo de textos cortos con estilo de etiqueta",
+      "fields": {
+        "items": "Insignias",
+        "text": "Texto",
+        "variant": "Estilo"
+      },
+      "options": {
+        "variant": {
+          "default": "Principal",
+          "secondary": "Suave",
+          "outline": "Contorno",
+          "destructive": "Rojo"
+        }
+      }
+    },
+    "linkButton": {
+      "name": "Botón de enlace",
+      "description": "Botón destacado hacia una URL o ruta del sitio",
+      "fields": {
+        "text": "Texto del botón",
+        "href": "Enlace",
+        "variant": "Estilo",
+        "align": "Alineación",
+        "newTab": "Abrir en una pestaña nueva"
+      },
+      "placeholders": {
+        "href": "https://… o /p/slug-del-articulo"
+      },
+      "descriptions": {
+        "href": "Una URL http(s) o una ruta que empiece por /"
+      },
+      "options": {
+        "variant": {
+          "default": "Principal",
+          "secondary": "Suave",
+          "outline": "Contorno"
+        },
+        "align": {
+          "left": "Izquierda",
+          "center": "Centrado"
+        }
+      },
+      "example": {
+        "text": "Ver el código"
+      }
+    },
+    "card": {
+      "name": "Tarjeta",
+      "description": "Tarjeta con título, subtítulo y texto",
+      "fields": {
+        "title": "Título",
+        "description": "Subtítulo",
+        "content": "Texto"
+      },
+      "example": {
+        "title": "neo-blog",
+        "description": "Un blog con Go y Next.js",
+        "content": "Admite bloques de componentes, escritura con IA y varios idiomas."
+      }
+    },
+    "collapsible": {
+      "name": "Desplegable",
+      "description": "Haz clic en el título para desplegar o plegar; útil para notas y spoilers",
+      "fields": {
+        "title": "Título",
+        "content": "Contenido",
+        "defaultOpen": "Desplegado por defecto"
+      },
+      "example": {
+        "title": "Haz clic para ver la respuesta",
+        "content": "La respuesta es 42."
+      }
+    },
+    "shortcut": {
+      "name": "Atajo de teclado",
+      "description": "Combinación de teclas con descripción",
+      "fields": {
+        "keys": "Teclas",
+        "description": "Descripción"
+      },
+      "placeholders": {
+        "keys": "Ctrl+Shift+P"
+      },
+      "descriptions": {
+        "keys": "Une varias teclas con +"
+      },
+      "example": {
+        "description": "Abrir la búsqueda"
+      }
+    },
+    "progress": {
+      "name": "Barras de progreso",
+      "description": "Lista de avances con porcentaje",
+      "fields": {
+        "items": "Elementos",
+        "label": "Nombre",
+        "value": "Progreso (%)"
+      },
+      "descriptions": {
+        "value": "Entero de 0 a 100"
+      },
+      "example": {
+        "design": "Diseño",
+        "develop": "Desarrollo",
+        "test": "Pruebas"
+      }
+    },
+    "textTabs": {
+      "name": "Pestañas",
+      "description": "Varios textos mostrados en pestañas",
+      "fields": {
+        "tabs": "Pestañas",
+        "label": "Nombre de la pestaña",
+        "content": "Contenido"
+      },
+      "example": {
+        "tab1": "Windows",
+        "content1": "Descarga el instalador y haz doble clic.",
+        "tab2": "macOS",
+        "content2": "Instálalo con Homebrew."
+      }
+    },
+    "chart": {
+      "name": "Gráfico",
+      "description": "Gráfico de barras o de líneas para estadísticas sencillas",
+      "fields": {
+        "title": "Título",
+        "type": "Tipo",
+        "unit": "Unidad",
+        "data": "Datos",
+        "label": "Etiqueta",
+        "value": "Valor"
+      },
+      "placeholders": {
+        "unit": "%"
+      },
+      "options": {
+        "type": {
+          "bar": "Barras",
+          "line": "Líneas"
+        }
+      },
+      "example": {
+        "title": "Visitas trimestrales (10 mil)"
+      }
+    },
+    "linkCard": {
+      "name": "Tarjeta de enlace",
+      "description": "Tarjeta con el título, el resumen y la imagen de una página",
+      "fields": {
+        "url": "URL"
+      },
+      "placeholders": {
+        "url": "https://"
+      }
     }
   },
   "AppUpdate": {

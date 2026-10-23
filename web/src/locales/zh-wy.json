@@ -1651,7 +1651,6 @@
     "choose_from_library": "自資庫擇之"
   },
   "ContentComponents": {
-    "group": "器",
     "edit": "修其屬",
     "edit_title": "修{name}",
     "delete": "去此器",
@@ -1696,6 +1695,10 @@
           "warning": "警示",
           "tip": "妙法"
         }
+      },
+      "example": {
+        "title": "妙法",
+        "content": "按 / 可速入器。"
       }
     },
     "codeTabs": {
@@ -1749,6 +1752,198 @@
       "open": "網易雲音樂",
       "not_in_playlist": "此曲不在博客曲單，請往網易雲音樂聽之",
       "load_failed": "曲之訊未能載"
+    },
+    "library": {
+      "open": "器庫…",
+      "count": "凡 {count} 器",
+      "title": "器庫",
+      "description": "循源碼之目覽可入之 {count} 器",
+      "search": "尋器名、目錄或要辭",
+      "tree": "器之目錄",
+      "insert": "入",
+      "preview": "觀",
+      "no_preview": "入而後填其屬，乃見其效",
+      "empty": "無合之器",
+      "empty_hint": "易辭再尋",
+      "hint": "單擊以觀，雙擊或按回車以入",
+      "slash_hint": "循目覽諸器"
+    },
+    "alert": {
+      "name": "警示",
+      "description": "有題有說之示，可擇醒目之式",
+      "fields": {
+        "variant": "式",
+        "title": "題",
+        "description": "說"
+      },
+      "options": {
+        "variant": {
+          "default": "常",
+          "destructive": "醒目（赤）"
+        }
+      },
+      "example": {
+        "title": "慎之",
+        "description": "此口將於後版去之。"
+      }
+    },
+    "badges": {
+      "name": "章組",
+      "description": "一組籤式之短文",
+      "fields": {
+        "items": "章",
+        "text": "文",
+        "variant": "式"
+      },
+      "options": {
+        "variant": {
+          "default": "主色",
+          "secondary": "淺色",
+          "outline": "描邊",
+          "destructive": "赤"
+        }
+      }
+    },
+    "linkButton": {
+      "name": "連結之鈕",
+      "description": "醒目之躍鈕，可為外鏈或站內之徑",
+      "fields": {
+        "text": "鈕文",
+        "href": "連結",
+        "variant": "式",
+        "align": "齊",
+        "newTab": "於新窗啟之"
+      },
+      "placeholders": {
+        "href": "https://… 或 /p/文之別名"
+      },
+      "descriptions": {
+        "href": "可為 http(s) 址或以 / 始之站內徑"
+      },
+      "options": {
+        "variant": {
+          "default": "主色",
+          "secondary": "淺色",
+          "outline": "描邊"
+        },
+        "align": {
+          "left": "左齊",
+          "center": "居中"
+        }
+      },
+      "example": {
+        "text": "觀其源碼"
+      }
+    },
+    "card": {
+      "name": "卡",
+      "description": "有題、副題與正文之卡",
+      "fields": {
+        "title": "題",
+        "description": "副題",
+        "content": "正文"
+      },
+      "example": {
+        "title": "neo-blog",
+        "description": "Go 與 Next.js 所成之博客",
+        "content": "能用器塊、AI 撰文與諸國之言。"
+      }
+    },
+    "collapsible": {
+      "name": "摺塊",
+      "description": "擊題以展收其文，宜補述與隱答",
+      "fields": {
+        "title": "題",
+        "content": "文",
+        "defaultOpen": "初即展之"
+      },
+      "example": {
+        "title": "擊以見答",
+        "content": "答曰四十二。"
+      }
+    },
+    "shortcut": {
+      "name": "捷鍵",
+      "description": "鍵之組合與其說",
+      "fields": {
+        "keys": "鍵",
+        "description": "說"
+      },
+      "placeholders": {
+        "keys": "Ctrl+Shift+P"
+      },
+      "descriptions": {
+        "keys": "諸鍵以 + 連之"
+      },
+      "example": {
+        "description": "啟尋"
+      }
+    },
+    "progress": {
+      "name": "進度",
+      "description": "一組附百分之進度",
+      "fields": {
+        "items": "進度之項",
+        "label": "名",
+        "value": "進度（%）"
+      },
+      "descriptions": {
+        "value": "零至百之整數"
+      },
+      "example": {
+        "design": "設計",
+        "develop": "營造",
+        "test": "試驗"
+      }
+    },
+    "textTabs": {
+      "name": "籤頁",
+      "description": "數段之文以籤分示",
+      "fields": {
+        "tabs": "籤",
+        "label": "籤名",
+        "content": "文"
+      },
+      "example": {
+        "tab1": "Windows",
+        "content1": "自官網取其裝檔，雙擊而行之。",
+        "tab2": "macOS",
+        "content2": "以 Homebrew 裝之。"
+      }
+    },
+    "chart": {
+      "name": "圖",
+      "description": "柱圖或折線之圖，宜示簡數",
+      "fields": {
+        "title": "題",
+        "type": "類",
+        "unit": "單位",
+        "data": "數",
+        "label": "名",
+        "value": "值"
+      },
+      "placeholders": {
+        "unit": "%"
+      },
+      "options": {
+        "type": {
+          "bar": "柱圖",
+          "line": "折線圖"
+        }
+      },
+      "example": {
+        "title": "每季覽者（萬）"
+      }
+    },
+    "linkCard": {
+      "name": "連結之卡",
+      "description": "示網頁之題、略與封面之卡",
+      "fields": {
+        "url": "網址"
+      },
+      "placeholders": {
+        "url": "https://"
+      }
     }
   },
   "AppUpdate": {

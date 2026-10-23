@@ -15,6 +15,8 @@ export interface SlashCommandItem {
   icon: LucideIcon
   // 中文 / 拼音 / 英文别名，用于过滤
   keywords: string[]
+  // 仅在输入检索词后显示（如组件库中的各个组件，避免空命令面板过长）
+  searchOnly?: boolean
   run: (editor: Editor, range: Range) => void
 }
 

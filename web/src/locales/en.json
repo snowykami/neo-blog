@@ -1651,7 +1651,6 @@
     "choose_from_library": "Choose from library"
   },
   "ContentComponents": {
-    "group": "Components",
     "edit": "Edit properties",
     "edit_title": "Edit {name}",
     "delete": "Delete component",
@@ -1696,6 +1695,10 @@
           "warning": "Warning",
           "tip": "Tip"
         }
+      },
+      "example": {
+        "title": "Tip",
+        "content": "Type / to insert components quickly."
       }
     },
     "codeTabs": {
@@ -1749,6 +1752,198 @@
       "open": "NetEase Music",
       "not_in_playlist": "This song is not in the blog playlist; listen on NetEase Cloud Music",
       "load_failed": "Failed to load the song"
+    },
+    "library": {
+      "open": "Component library…",
+      "count": "{count} components",
+      "title": "Component library",
+      "description": "Browse the {count} insertable components by source folder",
+      "search": "Search by name, folder or keyword",
+      "tree": "Component folders",
+      "insert": "Insert",
+      "preview": "Preview",
+      "no_preview": "Fill in the properties after inserting to see it",
+      "empty": "No matching components",
+      "empty_hint": "Try another keyword",
+      "hint": "Click to preview; double-click or press Enter to insert",
+      "slash_hint": "Browse all components by folder"
+    },
+    "alert": {
+      "name": "Alert",
+      "description": "A notice with a title and description, optionally prominent",
+      "fields": {
+        "variant": "Style",
+        "title": "Title",
+        "description": "Description"
+      },
+      "options": {
+        "variant": {
+          "default": "Default",
+          "destructive": "Prominent (red)"
+        }
+      },
+      "example": {
+        "title": "Heads up",
+        "description": "This API will be removed in the next release."
+      }
+    },
+    "badges": {
+      "name": "Badges",
+      "description": "A group of short tag-style labels",
+      "fields": {
+        "items": "Badges",
+        "text": "Text",
+        "variant": "Style"
+      },
+      "options": {
+        "variant": {
+          "default": "Primary",
+          "secondary": "Subtle",
+          "outline": "Outline",
+          "destructive": "Red"
+        }
+      }
+    },
+    "linkButton": {
+      "name": "Link button",
+      "description": "A prominent button linking to a URL or site path",
+      "fields": {
+        "text": "Button text",
+        "href": "Link",
+        "variant": "Style",
+        "align": "Alignment",
+        "newTab": "Open in a new tab"
+      },
+      "placeholders": {
+        "href": "https://… or /p/post-slug"
+      },
+      "descriptions": {
+        "href": "An http(s) URL or a site path starting with /"
+      },
+      "options": {
+        "variant": {
+          "default": "Primary",
+          "secondary": "Subtle",
+          "outline": "Outline"
+        },
+        "align": {
+          "left": "Left",
+          "center": "Center"
+        }
+      },
+      "example": {
+        "text": "View source"
+      }
+    },
+    "card": {
+      "name": "Card",
+      "description": "A card with a title, subtitle and body",
+      "fields": {
+        "title": "Title",
+        "description": "Subtitle",
+        "content": "Body"
+      },
+      "example": {
+        "title": "neo-blog",
+        "description": "A Go + Next.js blog",
+        "content": "Supports component blocks, AI writing and multiple languages."
+      }
+    },
+    "collapsible": {
+      "name": "Collapsible",
+      "description": "Click the title to expand or collapse; good for notes and spoilers",
+      "fields": {
+        "title": "Title",
+        "content": "Content",
+        "defaultOpen": "Expanded by default"
+      },
+      "example": {
+        "title": "Click to reveal the answer",
+        "content": "The answer is 42."
+      }
+    },
+    "shortcut": {
+      "name": "Keyboard shortcut",
+      "description": "A key combination with a description",
+      "fields": {
+        "keys": "Keys",
+        "description": "Description"
+      },
+      "placeholders": {
+        "keys": "Ctrl+Shift+P"
+      },
+      "descriptions": {
+        "keys": "Join multiple keys with +"
+      },
+      "example": {
+        "description": "Open search"
+      }
+    },
+    "progress": {
+      "name": "Progress bars",
+      "description": "A list of progress values with percentages",
+      "fields": {
+        "items": "Items",
+        "label": "Name",
+        "value": "Progress (%)"
+      },
+      "descriptions": {
+        "value": "An integer from 0 to 100"
+      },
+      "example": {
+        "design": "Design",
+        "develop": "Development",
+        "test": "Testing"
+      }
+    },
+    "textTabs": {
+      "name": "Tabs",
+      "description": "Several text sections shown as tabs",
+      "fields": {
+        "tabs": "Tabs",
+        "label": "Tab label",
+        "content": "Content"
+      },
+      "example": {
+        "tab1": "Windows",
+        "content1": "Download the installer and double-click it.",
+        "tab2": "macOS",
+        "content2": "Install it with Homebrew."
+      }
+    },
+    "chart": {
+      "name": "Chart",
+      "description": "A bar or line chart for simple statistics",
+      "fields": {
+        "title": "Title",
+        "type": "Type",
+        "unit": "Unit",
+        "data": "Data",
+        "label": "Label",
+        "value": "Value"
+      },
+      "placeholders": {
+        "unit": "%"
+      },
+      "options": {
+        "type": {
+          "bar": "Bar chart",
+          "line": "Line chart"
+        }
+      },
+      "example": {
+        "title": "Quarterly visits (10k)"
+      }
+    },
+    "linkCard": {
+      "name": "Link card",
+      "description": "A card showing a page's title, summary and cover",
+      "fields": {
+        "url": "URL"
+      },
+      "placeholders": {
+        "url": "https://"
+      }
     }
   },
   "AppUpdate": {

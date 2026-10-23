@@ -1651,7 +1651,6 @@
     "choose_from_library": "從資產庫選擇"
   },
   "ContentComponents": {
-    "group": "元件",
     "edit": "編輯屬性",
     "edit_title": "編輯{name}",
     "delete": "刪除元件",
@@ -1696,6 +1695,10 @@
           "warning": "警告",
           "tip": "技巧"
         }
+      },
+      "example": {
+        "title": "小技巧",
+        "content": "按 / 可以快速插入元件。"
       }
     },
     "codeTabs": {
@@ -1749,6 +1752,198 @@
       "open": "網易雲音樂",
       "not_in_playlist": "此歌曲不在部落格歌單內，請在網易雲音樂收聽",
       "load_failed": "歌曲資訊載入失敗"
+    },
+    "library": {
+      "open": "元件庫…",
+      "count": "{count} 個元件",
+      "title": "元件庫",
+      "description": "依原始碼目錄瀏覽可插入的 {count} 個元件",
+      "search": "搜尋元件名稱、目錄或關鍵字",
+      "tree": "元件目錄",
+      "insert": "插入",
+      "preview": "預覽",
+      "no_preview": "插入後填寫屬性即可看到效果",
+      "empty": "沒有符合的元件",
+      "empty_hint": "換個關鍵字試試",
+      "hint": "點一下查看預覽，按兩下或按 Enter 插入",
+      "slash_hint": "依目錄瀏覽全部元件"
+    },
+    "alert": {
+      "name": "警示框",
+      "description": "附標題與說明的提示，可選醒目樣式",
+      "fields": {
+        "variant": "樣式",
+        "title": "標題",
+        "description": "說明"
+      },
+      "options": {
+        "variant": {
+          "default": "預設",
+          "destructive": "醒目（紅色）"
+        }
+      },
+      "example": {
+        "title": "注意",
+        "description": "此 API 將在下個版本移除。"
+      }
+    },
+    "badges": {
+      "name": "徽章組",
+      "description": "一組標籤樣式的短文字",
+      "fields": {
+        "items": "徽章",
+        "text": "文字",
+        "variant": "樣式"
+      },
+      "options": {
+        "variant": {
+          "default": "主色",
+          "secondary": "淺色",
+          "outline": "外框",
+          "destructive": "紅色"
+        }
+      }
+    },
+    "linkButton": {
+      "name": "連結按鈕",
+      "description": "醒目的跳轉按鈕，支援外部連結與站內路徑",
+      "fields": {
+        "text": "按鈕文字",
+        "href": "連結",
+        "variant": "樣式",
+        "align": "對齊",
+        "newTab": "在新視窗開啟"
+      },
+      "placeholders": {
+        "href": "https://… 或 /p/文章代稱"
+      },
+      "descriptions": {
+        "href": "支援 http(s) 網址或以 / 開頭的站內路徑"
+      },
+      "options": {
+        "variant": {
+          "default": "主色",
+          "secondary": "淺色",
+          "outline": "外框"
+        },
+        "align": {
+          "left": "靠左",
+          "center": "置中"
+        }
+      },
+      "example": {
+        "text": "查看原始碼"
+      }
+    },
+    "card": {
+      "name": "卡片",
+      "description": "附標題、副標題與內文的卡片",
+      "fields": {
+        "title": "標題",
+        "description": "副標題",
+        "content": "內文"
+      },
+      "example": {
+        "title": "neo-blog",
+        "description": "Go + Next.js 部落格系統",
+        "content": "支援元件區塊、AI 寫作與多語言。"
+      }
+    },
+    "collapsible": {
+      "name": "摺疊區塊",
+      "description": "點擊標題展開或收合內容，適合補充說明與劇透",
+      "fields": {
+        "title": "標題",
+        "content": "內容",
+        "defaultOpen": "預設展開"
+      },
+      "example": {
+        "title": "點擊展開答案",
+        "content": "答案是 42。"
+      }
+    },
+    "shortcut": {
+      "name": "快速鍵",
+      "description": "按鍵組合與說明",
+      "fields": {
+        "keys": "按鍵",
+        "description": "說明"
+      },
+      "placeholders": {
+        "keys": "Ctrl+Shift+P"
+      },
+      "descriptions": {
+        "keys": "多個按鍵以 + 連接"
+      },
+      "example": {
+        "description": "開啟搜尋"
+      }
+    },
+    "progress": {
+      "name": "進度條",
+      "description": "一組附百分比的進度",
+      "fields": {
+        "items": "進度項",
+        "label": "名稱",
+        "value": "進度（%）"
+      },
+      "descriptions": {
+        "value": "0 到 100 的整數"
+      },
+      "example": {
+        "design": "設計",
+        "develop": "開發",
+        "test": "測試"
+      }
+    },
+    "textTabs": {
+      "name": "分頁",
+      "description": "多段文字以分頁切換顯示",
+      "fields": {
+        "tabs": "分頁",
+        "label": "分頁名稱",
+        "content": "內容"
+      },
+      "example": {
+        "tab1": "Windows",
+        "content1": "從官網下載安裝檔後按兩下執行。",
+        "tab2": "macOS",
+        "content2": "使用 Homebrew 安裝。"
+      }
+    },
+    "chart": {
+      "name": "圖表",
+      "description": "長條圖或折線圖，適合呈現簡單統計資料",
+      "fields": {
+        "title": "標題",
+        "type": "類型",
+        "unit": "單位",
+        "data": "資料",
+        "label": "名稱",
+        "value": "數值"
+      },
+      "placeholders": {
+        "unit": "%"
+      },
+      "options": {
+        "type": {
+          "bar": "長條圖",
+          "line": "折線圖"
+        }
+      },
+      "example": {
+        "title": "每季瀏覽量（萬）"
+      }
+    },
+    "linkCard": {
+      "name": "連結卡片",
+      "description": "顯示網頁標題、摘要與封面的連結卡片",
+      "fields": {
+        "url": "網址"
+      },
+      "placeholders": {
+        "url": "https://"
+      }
     }
   },
   "AppUpdate": {

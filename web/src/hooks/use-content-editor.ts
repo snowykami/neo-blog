@@ -198,6 +198,7 @@ export interface EditorUiActions {
   openLink?: () => void
   openAnnotation?: () => void
   openAI?: (options?: AIWriterOpenOptions) => void
+  openComponentLibrary?: () => void
 }
 
 /**
@@ -259,7 +260,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const latestRef = useRef({ t, format, uploadImage })
   latestRef.current = { t, format, uploadImage }
   const slashItems = useMemo(
-    () => buildSlashItems(t, componentT, date => format.dateTime(date, { dateStyle: 'long' }), () => uiActionsRef.current.openAI?.({ mode: 'write' })),
+    () => buildSlashItems(t, componentT, date => format.dateTime(date, { dateStyle: 'long' }), () => uiActionsRef.current.openAI?.({ mode: 'write' }), () => uiActionsRef.current.openComponentLibrary?.()),
     [t, componentT, format],
   )
   const slashItemsRef = useRef(slashItems)

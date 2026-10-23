@@ -9,7 +9,8 @@ import { z } from 'zod'
 export type FieldDescriptor
   = | { kind: 'text' | 'textarea' | 'code', name: string }
     | { kind: 'select', name: string, options: string[] }
-    | { kind: 'number', name: string }
+    // allowZero：0 是否为合法值；不合法时 0 视为未填写，输入框显示为空
+    | { kind: 'number', name: string, allowZero: boolean, min?: number, max?: number }
     | { kind: 'switch', name: string }
     | { kind: 'list', name: string, fields: FieldDescriptor[], itemDefault: Record<string, unknown>, min: number, max: number }
 
@@ -46,8 +47,10 @@ function describeField(name: string, schema: z.ZodType): FieldDescriptor | null 
     return { kind: meta.widget ?? 'text', name }
   if (inner instanceof z.ZodEnum)
     return { kind: 'select', name, options: inner.options.map(String) }
-  if (inner instanceof z.ZodNumber)
-    return { kind: 'number', name }
+  if (inner instanceof z.ZodNumber) {
+    const finite = (value: number | null) => (value != null && Number.isFinite(value) ? value : undefined)
+    return { kind: 'number', name, allowZero: inner.safeParse(0).success, min: finite(inner.minValue), max: finite(inner.maxValue) }
+  }
   if (inner instanceof z.ZodBoolean)
     return { kind: 'switch', name }
   if (inner instanceof z.ZodArray && inner.element instanceof z.ZodObject) {

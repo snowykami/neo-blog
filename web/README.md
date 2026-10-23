@@ -55,3 +55,5 @@ pnpm run dev
 - 在风格相似的页面或组件，可以使用相同的tailwindcss类名。
 
 - 弹窗与反馈（Toast / Alert / Dialog / AlertDialog / Popconfirm / Sheet / Drawer）的选型与文案约定见 [前端弹窗与反馈使用规范](../docs/frontend-feedback-guidelines.md)。
+
+- 文章组件块（在文章 / 页面中插入内置 React 组件）的新增方式见 [文章组件块：新增组件指南](../docs/content-components.md)。

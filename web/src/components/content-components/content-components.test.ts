@@ -1,9 +1,14 @@
 import type { Schema } from '@tiptap/pm/model'
+import type { FieldDescriptor } from './schema-fields'
+import { readFileSync } from 'node:fs'
 import { DOMSerializer, DOMParser as PMDOMParser } from '@tiptap/pm/model'
 import { getSchema } from '@tiptap/react'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createContentExtensions } from '@/lib/tiptap-extensions'
+import { localesData } from '@/locales'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
+import { generate, outputFile } from '../../../scripts/gen-content-components.mjs'
+import { buildLibraryTree, filterLibraryTree, flattenLibraryTree } from './library-tree'
 import { getDefaultProps, parsePropsAttr, resolveComponent, resolveComponentElement, serializePropsAttr } from './props'
 import { CONTENT_COMPONENTS, getContentComponent } from './registry'
 import { describeFields } from './schema-fields'
@@ -49,13 +54,59 @@ describe('注册表', () => {
     expect(resolveComponent('githubRepo', { repo: '../../admin' })).toMatchObject({ ok: false, reason: 'invalid' })
     expect(resolveComponent('neteaseSong', { id: '1 or 1=1' })).toMatchObject({ ok: false, reason: 'invalid' })
     expect(resolveComponent('callout', { content: 'hi' })).toMatchObject({ ok: true, props: { type: 'info', title: '', content: 'hi' } })
+    // 链接只允许 http(s) 与站内路径
+    expect(resolveComponent('linkButton', { text: 'x', href: 'javascript:alert(1)' }).ok).toBe(false)
+    expect(resolveComponent('linkButton', { text: 'x', href: '//evil.example' }).ok).toBe(false)
+    expect(resolveComponent('linkButton', { text: 'x', href: '/p/hello' }).ok).toBe(true)
+    expect(resolveComponent('linkCard', { url: '/p/hello' }).ok).toBe(false)
+  })
+
+  it('自动生成的注册表是最新的，组件名唯一', () => {
+    expect(readFileSync(outputFile, 'utf8')).toBe(generate())
+    const names = CONTENT_COMPONENTS.map(def => def.name)
+    expect(new Set(names).size).toBe(names.length)
+    expect(CONTENT_COMPONENTS.map(def => def.path)).toEqual(expect.arrayContaining(['content-components/callout', 'ui/badge', 'common/link-preview-card']))
+  })
+
+  it('每种语言都有完整的组件文案，示例 props 可通过校验', () => {
+    // 表单字段（含列表项字段）与枚举选项需要的文案 key
+    const fieldKeys = (fields: FieldDescriptor[]): string[] => fields.flatMap(field => [
+      `fields.${field.name}`,
+      ...(field.kind === 'select' ? field.options.map(option => `options.${field.name}.${option}`) : []),
+      ...(field.kind === 'list' ? fieldKeys(field.fields) : []),
+    ])
+    for (const [locale, { data }] of Object.entries(localesData)) {
+      const messages = (data as { ContentComponents: Record<string, unknown> }).ContentComponents
+      const get = (path: string) => path.split('.').reduce<unknown>((node, key) => (node as Record<string, unknown> | undefined)?.[key], messages)
+      for (const def of CONTENT_COMPONENTS) {
+        const keys = ['name', 'description', ...fieldKeys(describeFields(def.schema))]
+        const used: string[] = []
+        const example = def.example?.((key) => {
+          used.push(`example.${key}`)
+          return String(get(`${def.name}.example.${key}`) ?? '')
+        })
+        for (const key of [...keys, ...used])
+          expect(typeof get(`${def.name}.${key}`), `${locale}: ContentComponents.${def.name}.${key}`).toBe('string')
+        if (example)
+          expect(resolveComponent(def.name, example).ok, `${locale}: ${def.name} example`).toBe(true)
+      }
+    }
+  })
+
+  it('组件库按源码目录组织', () => {
+    const tree = buildLibraryTree(CONTENT_COMPONENTS)
+    expect(tree.map(node => `${node.type}:${node.name}`)).toEqual(expect.arrayContaining(['folder:common', 'folder:content-components', 'folder:ui']))
+    expect(flattenLibraryTree(tree)).toHaveLength(CONTENT_COMPONENTS.length)
+    const filtered = filterLibraryTree(tree, def => def.name === 'badges')
+    expect(filtered).toEqual([expect.objectContaining({ type: 'folder', name: 'ui', children: [expect.objectContaining({ type: 'component', name: 'badge' })] })])
   })
 
   it('表单字段从 schema 推导', () => {
     expect(describeFields(getContentComponent('callout')!.schema).map(f => f.kind)).toEqual(['select', 'text', 'textarea'])
     const [tabs] = describeFields(getContentComponent('codeTabs')!.schema)
     expect(tabs).toMatchObject({ kind: 'list', min: 1, max: 8, itemDefault: { label: '', language: '', code: '' } })
-    expect(describeFields(getContentComponent('neteaseSong')!.schema)[0].kind).toBe('number')
+    expect(describeFields(getContentComponent('neteaseSong')!.schema)[0]).toMatchObject({ kind: 'number', allowZero: false })
+    expect(describeFields(getContentComponent('progress')!.schema)[0]).toMatchObject({ kind: 'list', fields: [{ kind: 'text' }, { kind: 'number', allowZero: true, min: 0, max: 100 }] })
   })
 })
 

@@ -19,7 +19,6 @@ import {
   LinkIcon,
   MessageSquareTextIcon,
   PilcrowIcon,
-  PuzzleIcon,
   RemoveFormattingIcon,
   Repeat2Icon,
   ReplaceIcon,
@@ -53,7 +52,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useAIPrompts } from './ai-prompts-context'
 import { formatShortcut, INLINE_MARKS, setBlockType } from './editor-commands'
-import { getAIEntries, getBlockTypeEntries, getComponentEntries, getInsertEntries, getTableEntries } from './editor-menus'
+import { getAIEntries, getBlockTypeEntries, getComponentLibraryEntry, getInsertEntries, getTableEntries } from './editor-menus'
 import { markEntry } from './editor-toolbar'
 import { useEditorToolbarState } from './use-editor-toolbar-state'
 
@@ -432,7 +431,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
         ...tableGroup(),
         { type: 'label', key: 'label-insert', label: t('insert') },
         ...getInsertEntries(editor, t, state, withFloating(() => setPicker({ mode: 'insert' }))),
-        { type: 'sub', key: 'insert-components', icon: PuzzleIcon, label: ct('group'), disabled: !state.editable, entries: getComponentEntries(editor, ct, state) },
+        getComponentLibraryEntry(ct, state, withFloating(actions.openComponentLibrary)),
         { type: 'separator', key: 'sep-insert' },
         turnInto(),
         ...clipboardEntries(false),

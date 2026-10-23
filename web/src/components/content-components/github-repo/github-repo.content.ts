@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import { defineContentComponent } from '../define'
 import { githubRepoSchema } from './schema'
 
-export const githubRepoComponent = defineContentComponent({
+export default defineContentComponent({
   name: 'githubRepo',
   version: 1,
   schema: githubRepoSchema,
@@ -14,4 +14,5 @@ export const githubRepoComponent = defineContentComponent({
   fallback: ({ repo }: GithubRepoProps) => [
     ['p', {}, ['a', { href: `https://github.com/${repo}`, target: '_blank', rel: 'noopener noreferrer' }, `github.com/${repo}`]],
   ],
+  example: () => ({ repo: 'snowykami/neo-blog' }),
 })

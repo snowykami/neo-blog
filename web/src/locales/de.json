@@ -1651,7 +1651,6 @@
     "choose_from_library": "Aus Mediathek wählen"
   },
   "ContentComponents": {
-    "group": "Komponenten",
     "edit": "Eigenschaften bearbeiten",
     "edit_title": "{name} bearbeiten",
     "delete": "Komponente löschen",
@@ -1696,6 +1695,10 @@
           "warning": "Warnung",
           "tip": "Tipp"
         }
+      },
+      "example": {
+        "title": "Tipp",
+        "content": "Mit / lassen sich Komponenten schnell einfügen."
       }
     },
     "codeTabs": {
@@ -1749,6 +1752,198 @@
       "open": "NetEase Music",
       "not_in_playlist": "Dieser Song ist nicht in der Blog-Playlist; bitte bei NetEase Cloud Music anhören",
       "load_failed": "Song konnte nicht geladen werden"
+    },
+    "library": {
+      "open": "Komponentenbibliothek…",
+      "count": "{count} Komponenten",
+      "title": "Komponentenbibliothek",
+      "description": "Die {count} einfügbaren Komponenten nach Quellordner durchsuchen",
+      "search": "Nach Name, Ordner oder Stichwort suchen",
+      "tree": "Komponentenordner",
+      "insert": "Einfügen",
+      "preview": "Vorschau",
+      "no_preview": "Nach dem Einfügen Eigenschaften ausfüllen, um die Vorschau zu sehen",
+      "empty": "Keine passenden Komponenten",
+      "empty_hint": "Versuchen Sie ein anderes Stichwort",
+      "hint": "Klicken für Vorschau; Doppelklick oder Enter zum Einfügen",
+      "slash_hint": "Alle Komponenten nach Ordner durchsuchen"
+    },
+    "alert": {
+      "name": "Hinweis",
+      "description": "Hinweis mit Titel und Beschreibung, optional auffällig",
+      "fields": {
+        "variant": "Stil",
+        "title": "Titel",
+        "description": "Beschreibung"
+      },
+      "options": {
+        "variant": {
+          "default": "Standard",
+          "destructive": "Auffällig (rot)"
+        }
+      },
+      "example": {
+        "title": "Achtung",
+        "description": "Diese API wird in der nächsten Version entfernt."
+      }
+    },
+    "badges": {
+      "name": "Badges",
+      "description": "Eine Gruppe kurzer Texte im Tag-Stil",
+      "fields": {
+        "items": "Badges",
+        "text": "Text",
+        "variant": "Stil"
+      },
+      "options": {
+        "variant": {
+          "default": "Primär",
+          "secondary": "Dezent",
+          "outline": "Umriss",
+          "destructive": "Rot"
+        }
+      }
+    },
+    "linkButton": {
+      "name": "Link-Button",
+      "description": "Auffälliger Button zu einer URL oder Seite",
+      "fields": {
+        "text": "Button-Text",
+        "href": "Link",
+        "variant": "Stil",
+        "align": "Ausrichtung",
+        "newTab": "In neuem Tab öffnen"
+      },
+      "placeholders": {
+        "href": "https://… oder /p/beitrag"
+      },
+      "descriptions": {
+        "href": "Eine http(s)-URL oder ein Pfad, der mit / beginnt"
+      },
+      "options": {
+        "variant": {
+          "default": "Primär",
+          "secondary": "Dezent",
+          "outline": "Umriss"
+        },
+        "align": {
+          "left": "Links",
+          "center": "Zentriert"
+        }
+      },
+      "example": {
+        "text": "Quellcode ansehen"
+      }
+    },
+    "card": {
+      "name": "Karte",
+      "description": "Karte mit Titel, Untertitel und Text",
+      "fields": {
+        "title": "Titel",
+        "description": "Untertitel",
+        "content": "Text"
+      },
+      "example": {
+        "title": "neo-blog",
+        "description": "Ein Blog mit Go und Next.js",
+        "content": "Unterstützt Komponentenblöcke, KI-Schreiben und mehrere Sprachen."
+      }
+    },
+    "collapsible": {
+      "name": "Aufklappbereich",
+      "description": "Titel anklicken zum Auf- und Zuklappen; für Ergänzungen und Spoiler",
+      "fields": {
+        "title": "Titel",
+        "content": "Inhalt",
+        "defaultOpen": "Standardmäßig geöffnet"
+      },
+      "example": {
+        "title": "Klicken für die Antwort",
+        "content": "Die Antwort ist 42."
+      }
+    },
+    "shortcut": {
+      "name": "Tastenkürzel",
+      "description": "Tastenkombination mit Beschreibung",
+      "fields": {
+        "keys": "Tasten",
+        "description": "Beschreibung"
+      },
+      "placeholders": {
+        "keys": "Ctrl+Shift+P"
+      },
+      "descriptions": {
+        "keys": "Mehrere Tasten mit + verbinden"
+      },
+      "example": {
+        "description": "Suche öffnen"
+      }
+    },
+    "progress": {
+      "name": "Fortschrittsbalken",
+      "description": "Liste von Fortschritten mit Prozentangabe",
+      "fields": {
+        "items": "Einträge",
+        "label": "Name",
+        "value": "Fortschritt (%)"
+      },
+      "descriptions": {
+        "value": "Ganze Zahl von 0 bis 100"
+      },
+      "example": {
+        "design": "Design",
+        "develop": "Entwicklung",
+        "test": "Test"
+      }
+    },
+    "textTabs": {
+      "name": "Tabs",
+      "description": "Mehrere Textabschnitte als Tabs",
+      "fields": {
+        "tabs": "Tabs",
+        "label": "Tab-Name",
+        "content": "Inhalt"
+      },
+      "example": {
+        "tab1": "Windows",
+        "content1": "Installationsprogramm herunterladen und doppelklicken.",
+        "tab2": "macOS",
+        "content2": "Mit Homebrew installieren."
+      }
+    },
+    "chart": {
+      "name": "Diagramm",
+      "description": "Balken- oder Liniendiagramm für einfache Statistiken",
+      "fields": {
+        "title": "Titel",
+        "type": "Typ",
+        "unit": "Einheit",
+        "data": "Daten",
+        "label": "Bezeichnung",
+        "value": "Wert"
+      },
+      "placeholders": {
+        "unit": "%"
+      },
+      "options": {
+        "type": {
+          "bar": "Balkendiagramm",
+          "line": "Liniendiagramm"
+        }
+      },
+      "example": {
+        "title": "Besuche pro Quartal (10 Tsd.)"
+      }
+    },
+    "linkCard": {
+      "name": "Link-Karte",
+      "description": "Karte mit Titel, Zusammenfassung und Bild einer Seite",
+      "fields": {
+        "url": "URL"
+      },
+      "placeholders": {
+        "url": "https://"
+      }
     }
   },
   "AppUpdate": {

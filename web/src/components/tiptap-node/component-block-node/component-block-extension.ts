@@ -1,4 +1,5 @@
 import type { DOMOutputSpec } from '@tiptap/pm/model'
+import { NodeSelection } from '@tiptap/pm/state'
 import { Node, ReactNodeViewRenderer } from '@tiptap/react'
 import DOMPurify from 'isomorphic-dompurify'
 import { getDefaultProps, parsePropsAttr, resolveComponent, serializePropsAttr } from '@/components/content-components/props'
@@ -85,14 +86,19 @@ export const ComponentBlock = Node.create({
 
   addCommands() {
     return {
-      insertComponentBlock: name => ({ commands, editor, dispatch }) => {
+      insertComponentBlock: name => ({ commands, editor, state, dispatch }) => {
         const def = getContentComponent(name)
         if (!def)
           return false
         // editor.can() 检查时不实际插入，不标记自动编辑
         if (dispatch)
           markPendingComponentEdit(editor)
-        const inserted = commands.insertContent({ type: this.name, attrs: { name, props: getDefaultProps(def), version: def.version } })
+        const content = { type: this.name, attrs: { name, props: getDefaultProps(def), version: def.version } }
+        // 选中整个节点（如另一个组件块、图片）时插入到其后，不替换选中的节点
+        const { selection } = state
+        const inserted = selection instanceof NodeSelection
+          ? commands.insertContentAt(selection.to, content)
+          : commands.insertContent(content)
         if (dispatch && !inserted)
           consumePendingComponentEdit(editor)
         return inserted

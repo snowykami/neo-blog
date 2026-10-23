@@ -1651,7 +1651,6 @@
     "choose_from_library": "Choisir dans la médiathèque"
   },
   "ContentComponents": {
-    "group": "Composants",
     "edit": "Modifier les propriétés",
     "edit_title": "Modifier : {name}",
     "delete": "Supprimer le composant",
@@ -1696,6 +1695,10 @@
           "warning": "Avertissement",
           "tip": "Astuce"
         }
+      },
+      "example": {
+        "title": "Astuce",
+        "content": "Tapez / pour insérer rapidement des composants."
       }
     },
     "codeTabs": {
@@ -1749,6 +1752,198 @@
       "open": "NetEase Music",
       "not_in_playlist": "Ce titre n’est pas dans la playlist du blog ; écoutez-le sur NetEase Cloud Music",
       "load_failed": "Impossible de charger le titre"
+    },
+    "library": {
+      "open": "Bibliothèque de composants…",
+      "count": "{count} composants",
+      "title": "Bibliothèque de composants",
+      "description": "Parcourir les {count} composants insérables par dossier source",
+      "search": "Rechercher par nom, dossier ou mot-clé",
+      "tree": "Dossiers de composants",
+      "insert": "Insérer",
+      "preview": "Aperçu",
+      "no_preview": "Renseignez les propriétés après l’insertion pour le voir",
+      "empty": "Aucun composant correspondant",
+      "empty_hint": "Essayez un autre mot-clé",
+      "hint": "Cliquez pour l’aperçu ; double-cliquez ou appuyez sur Entrée pour insérer",
+      "slash_hint": "Parcourir tous les composants par dossier"
+    },
+    "alert": {
+      "name": "Alerte",
+      "description": "Avis avec titre et description, éventuellement mis en évidence",
+      "fields": {
+        "variant": "Style",
+        "title": "Titre",
+        "description": "Description"
+      },
+      "options": {
+        "variant": {
+          "default": "Par défaut",
+          "destructive": "Mis en évidence (rouge)"
+        }
+      },
+      "example": {
+        "title": "Attention",
+        "description": "Cette API sera supprimée dans la prochaine version."
+      }
+    },
+    "badges": {
+      "name": "Badges",
+      "description": "Un groupe de courts textes façon étiquettes",
+      "fields": {
+        "items": "Badges",
+        "text": "Texte",
+        "variant": "Style"
+      },
+      "options": {
+        "variant": {
+          "default": "Principal",
+          "secondary": "Discret",
+          "outline": "Contour",
+          "destructive": "Rouge"
+        }
+      }
+    },
+    "linkButton": {
+      "name": "Bouton lien",
+      "description": "Bouton visible vers une URL ou une page du site",
+      "fields": {
+        "text": "Texte du bouton",
+        "href": "Lien",
+        "variant": "Style",
+        "align": "Alignement",
+        "newTab": "Ouvrir dans un nouvel onglet"
+      },
+      "placeholders": {
+        "href": "https://… ou /p/slug-article"
+      },
+      "descriptions": {
+        "href": "Une URL http(s) ou un chemin commençant par /"
+      },
+      "options": {
+        "variant": {
+          "default": "Principal",
+          "secondary": "Discret",
+          "outline": "Contour"
+        },
+        "align": {
+          "left": "À gauche",
+          "center": "Centré"
+        }
+      },
+      "example": {
+        "text": "Voir le code source"
+      }
+    },
+    "card": {
+      "name": "Carte",
+      "description": "Carte avec titre, sous-titre et texte",
+      "fields": {
+        "title": "Titre",
+        "description": "Sous-titre",
+        "content": "Texte"
+      },
+      "example": {
+        "title": "neo-blog",
+        "description": "Un blog en Go et Next.js",
+        "content": "Prend en charge les blocs de composants, l’écriture IA et plusieurs langues."
+      }
+    },
+    "collapsible": {
+      "name": "Section repliable",
+      "description": "Cliquez sur le titre pour déplier ou replier ; idéal pour les notes et spoilers",
+      "fields": {
+        "title": "Titre",
+        "content": "Contenu",
+        "defaultOpen": "Déplié par défaut"
+      },
+      "example": {
+        "title": "Cliquez pour voir la réponse",
+        "content": "La réponse est 42."
+      }
+    },
+    "shortcut": {
+      "name": "Raccourci clavier",
+      "description": "Combinaison de touches avec description",
+      "fields": {
+        "keys": "Touches",
+        "description": "Description"
+      },
+      "placeholders": {
+        "keys": "Ctrl+Shift+P"
+      },
+      "descriptions": {
+        "keys": "Reliez plusieurs touches avec +"
+      },
+      "example": {
+        "description": "Ouvrir la recherche"
+      }
+    },
+    "progress": {
+      "name": "Barres de progression",
+      "description": "Liste d’avancements en pourcentage",
+      "fields": {
+        "items": "Éléments",
+        "label": "Nom",
+        "value": "Progression (%)"
+      },
+      "descriptions": {
+        "value": "Entier de 0 à 100"
+      },
+      "example": {
+        "design": "Conception",
+        "develop": "Développement",
+        "test": "Tests"
+      }
+    },
+    "textTabs": {
+      "name": "Onglets",
+      "description": "Plusieurs textes présentés en onglets",
+      "fields": {
+        "tabs": "Onglets",
+        "label": "Nom de l’onglet",
+        "content": "Contenu"
+      },
+      "example": {
+        "tab1": "Windows",
+        "content1": "Téléchargez l’installateur puis double-cliquez dessus.",
+        "tab2": "macOS",
+        "content2": "Installez-le avec Homebrew."
+      }
+    },
+    "chart": {
+      "name": "Graphique",
+      "description": "Histogramme ou courbe pour des statistiques simples",
+      "fields": {
+        "title": "Titre",
+        "type": "Type",
+        "unit": "Unité",
+        "data": "Données",
+        "label": "Libellé",
+        "value": "Valeur"
+      },
+      "placeholders": {
+        "unit": "%"
+      },
+      "options": {
+        "type": {
+          "bar": "Histogramme",
+          "line": "Courbe"
+        }
+      },
+      "example": {
+        "title": "Visites trimestrielles (10 k)"
+      }
+    },
+    "linkCard": {
+      "name": "Carte de lien",
+      "description": "Carte affichant le titre, le résumé et l’image d’une page",
+      "fields": {
+        "url": "URL"
+      },
+      "placeholders": {
+        "url": "https://"
+      }
     }
   },
   "AppUpdate": {

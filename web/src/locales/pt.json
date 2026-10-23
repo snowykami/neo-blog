@@ -1651,7 +1651,6 @@
     "choose_from_library": "Escolher da biblioteca"
   },
   "ContentComponents": {
-    "group": "Componentes",
     "edit": "Editar propriedades",
     "edit_title": "Editar {name}",
     "delete": "Excluir componente",
@@ -1696,6 +1695,10 @@
           "warning": "Aviso",
           "tip": "Dica"
         }
+      },
+      "example": {
+        "title": "Dica",
+        "content": "Digite / para inserir componentes rapidamente."
       }
     },
     "codeTabs": {
@@ -1749,6 +1752,198 @@
       "open": "NetEase Music",
       "not_in_playlist": "Esta música não está na playlist do blog; ouça no NetEase Cloud Music",
       "load_failed": "Falha ao carregar a música"
+    },
+    "library": {
+      "open": "Biblioteca de componentes…",
+      "count": "{count} componentes",
+      "title": "Biblioteca de componentes",
+      "description": "Navegue pelos {count} componentes inseríveis por pasta do código",
+      "search": "Buscar por nome, pasta ou palavra-chave",
+      "tree": "Pastas de componentes",
+      "insert": "Inserir",
+      "preview": "Pré-visualização",
+      "no_preview": "Preencha as propriedades após inserir para ver",
+      "empty": "Nenhum componente encontrado",
+      "empty_hint": "Tente outra palavra-chave",
+      "hint": "Clique para pré-visualizar; clique duas vezes ou pressione Enter para inserir",
+      "slash_hint": "Navegar por todos os componentes por pasta"
+    },
+    "alert": {
+      "name": "Alerta",
+      "description": "Aviso com título e descrição, opcionalmente em destaque",
+      "fields": {
+        "variant": "Estilo",
+        "title": "Título",
+        "description": "Descrição"
+      },
+      "options": {
+        "variant": {
+          "default": "Padrão",
+          "destructive": "Destaque (vermelho)"
+        }
+      },
+      "example": {
+        "title": "Atenção",
+        "description": "Esta API será removida na próxima versão."
+      }
+    },
+    "badges": {
+      "name": "Selos",
+      "description": "Um grupo de textos curtos em estilo de etiqueta",
+      "fields": {
+        "items": "Selos",
+        "text": "Texto",
+        "variant": "Estilo"
+      },
+      "options": {
+        "variant": {
+          "default": "Principal",
+          "secondary": "Suave",
+          "outline": "Contorno",
+          "destructive": "Vermelho"
+        }
+      }
+    },
+    "linkButton": {
+      "name": "Botão de link",
+      "description": "Botão em destaque para uma URL ou caminho do site",
+      "fields": {
+        "text": "Texto do botão",
+        "href": "Link",
+        "variant": "Estilo",
+        "align": "Alinhamento",
+        "newTab": "Abrir em nova aba"
+      },
+      "placeholders": {
+        "href": "https://… ou /p/slug-do-artigo"
+      },
+      "descriptions": {
+        "href": "Uma URL http(s) ou um caminho começando com /"
+      },
+      "options": {
+        "variant": {
+          "default": "Principal",
+          "secondary": "Suave",
+          "outline": "Contorno"
+        },
+        "align": {
+          "left": "À esquerda",
+          "center": "Centralizado"
+        }
+      },
+      "example": {
+        "text": "Ver o código"
+      }
+    },
+    "card": {
+      "name": "Cartão",
+      "description": "Cartão com título, subtítulo e texto",
+      "fields": {
+        "title": "Título",
+        "description": "Subtítulo",
+        "content": "Texto"
+      },
+      "example": {
+        "title": "neo-blog",
+        "description": "Um blog em Go e Next.js",
+        "content": "Suporta blocos de componentes, escrita com IA e vários idiomas."
+      }
+    },
+    "collapsible": {
+      "name": "Recolhível",
+      "description": "Clique no título para expandir ou recolher; bom para notas e spoilers",
+      "fields": {
+        "title": "Título",
+        "content": "Conteúdo",
+        "defaultOpen": "Expandido por padrão"
+      },
+      "example": {
+        "title": "Clique para ver a resposta",
+        "content": "A resposta é 42."
+      }
+    },
+    "shortcut": {
+      "name": "Atalho de teclado",
+      "description": "Combinação de teclas com descrição",
+      "fields": {
+        "keys": "Teclas",
+        "description": "Descrição"
+      },
+      "placeholders": {
+        "keys": "Ctrl+Shift+P"
+      },
+      "descriptions": {
+        "keys": "Una várias teclas com +"
+      },
+      "example": {
+        "description": "Abrir a busca"
+      }
+    },
+    "progress": {
+      "name": "Barras de progresso",
+      "description": "Lista de progressos com porcentagem",
+      "fields": {
+        "items": "Itens",
+        "label": "Nome",
+        "value": "Progresso (%)"
+      },
+      "descriptions": {
+        "value": "Inteiro de 0 a 100"
+      },
+      "example": {
+        "design": "Design",
+        "develop": "Desenvolvimento",
+        "test": "Testes"
+      }
+    },
+    "textTabs": {
+      "name": "Abas",
+      "description": "Vários textos exibidos em abas",
+      "fields": {
+        "tabs": "Abas",
+        "label": "Nome da aba",
+        "content": "Conteúdo"
+      },
+      "example": {
+        "tab1": "Windows",
+        "content1": "Baixe o instalador e clique duas vezes nele.",
+        "tab2": "macOS",
+        "content2": "Instale com o Homebrew."
+      }
+    },
+    "chart": {
+      "name": "Gráfico",
+      "description": "Gráfico de barras ou de linhas para estatísticas simples",
+      "fields": {
+        "title": "Título",
+        "type": "Tipo",
+        "unit": "Unidade",
+        "data": "Dados",
+        "label": "Rótulo",
+        "value": "Valor"
+      },
+      "placeholders": {
+        "unit": "%"
+      },
+      "options": {
+        "type": {
+          "bar": "Barras",
+          "line": "Linhas"
+        }
+      },
+      "example": {
+        "title": "Visitas por trimestre (10 mil)"
+      }
+    },
+    "linkCard": {
+      "name": "Cartão de link",
+      "description": "Cartão com título, resumo e imagem de uma página",
+      "fields": {
+        "url": "URL"
+      },
+      "placeholders": {
+        "url": "https://"
+      }
     }
   },
   "AppUpdate": {

@@ -1,10 +1,11 @@
 import type { CalloutProps } from './schema'
 import { InfoIcon } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { textParagraphs } from '../content-helpers'
 import { defineContentComponent } from '../define'
 import { calloutSchema } from './schema'
 
-export const calloutComponent = defineContentComponent({
+export default defineContentComponent({
   name: 'callout',
   version: 1,
   schema: calloutSchema,
@@ -16,6 +17,7 @@ export const calloutComponent = defineContentComponent({
     'blockquote',
     {},
     ...(title ? [['p', {}, ['strong', {}, title]]] : []),
-    ...content.split(/\n+/).filter(Boolean).map(line => ['p', {}, line]),
+    ...textParagraphs(content),
   ]],
+  example: t => ({ type: 'tip' as const, title: t('title'), content: t('content') }),
 })

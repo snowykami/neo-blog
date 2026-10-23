@@ -35,6 +35,7 @@ export interface EditorToolbarActions {
   openLink: () => void
   openAnnotation: () => void
   openAI: (options?: AIWriterOpenOptions) => void
+  openComponentLibrary: () => void
 }
 
 /** 标记按钮组（粗体、斜体……），工具栏与气泡菜单共用 */
@@ -181,7 +182,7 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
       ],
     },
     { id: 'align', label: t('align'), content: <AlignMenu editor={editor} state={state} />, overflow: () => getAlignEntries(editor, t, state) },
-    { id: 'insert', label: t('insert'), content: <InsertMenu editor={editor} state={state} />, overflow: () => getInsertMenuEntries(editor, t, ct, state) },
+    { id: 'insert', label: t('insert'), content: <InsertMenu editor={editor} state={state} onOpenLibrary={actions.openComponentLibrary} />, overflow: () => getInsertMenuEntries(editor, t, ct, state, actions.openComponentLibrary) },
     {
       id: 'ai',
       label: t('ai.open'),

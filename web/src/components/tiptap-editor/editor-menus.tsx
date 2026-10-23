@@ -18,6 +18,7 @@ import {
   PanelTopIcon,
   PencilLineIcon,
   PlusIcon,
+  PuzzleIcon,
   Rows3Icon,
   Settings2Icon,
   SparklesIcon,
@@ -193,24 +194,24 @@ export function getInsertEntries(editor: Editor, t: Translate, state: EditorTool
   ]
 }
 
-/** 组件块：注册表中的内置组件，插入后自动打开属性编辑；ct 为 ContentComponents 命名空间的翻译函数 */
-export function getComponentEntries(editor: Editor, ct: Translate, state: EditorToolbarState): EditorMenuEntry[] {
-  return CONTENT_COMPONENTS.map(def => ({
-    key: `component-${def.name}`,
-    icon: def.icon,
-    label: ct(`${def.name}.name`),
-    disabled: !state.editable || !editor.can().insertComponentBlock(def.name),
-    onSelect: () => editor.chain().focus().insertComponentBlock(def.name).run(),
-  }))
+/** 组件库入口：打开按目录浏览的组件库，选择后插入组件块；ct 为 ContentComponents 命名空间的翻译函数 */
+export function getComponentLibraryEntry(ct: Translate, state: EditorToolbarState, openLibrary: () => void): EditorMenuEntry {
+  return {
+    key: 'insert-component-library',
+    icon: PuzzleIcon,
+    label: ct('library.open'),
+    hint: ct('library.count', { count: CONTENT_COMPONENTS.length }),
+    disabled: !state.editable,
+    onSelect: openLibrary,
+  }
 }
 
-/** 插入下拉的完整菜单：基础插入项 + 组件分组 */
-export function getInsertMenuEntries(editor: Editor, t: Translate, ct: Translate, state: EditorToolbarState): EditorMenuEntry[] {
+/** 插入下拉的完整菜单：基础插入项 + 组件库 */
+export function getInsertMenuEntries(editor: Editor, t: Translate, ct: Translate, state: EditorToolbarState, openLibrary: () => void): EditorMenuEntry[] {
   return [
     ...getInsertEntries(editor, t, state),
     { type: 'separator', key: 'insert-sep-components' },
-    { type: 'label', key: 'insert-label-components', label: ct('group') },
-    ...getComponentEntries(editor, ct, state),
+    getComponentLibraryEntry(ct, state, openLibrary),
   ]
 }
 
@@ -322,8 +323,8 @@ export function AlignMenu({ editor, state }: { editor: Editor | null, state: Edi
   )
 }
 
-/** 插入下拉：图片（上传）、分割线、代码块、表格与内置组件 */
-export function InsertMenu({ editor, state }: { editor: Editor | null, state: EditorToolbarState }) {
+/** 插入下拉：图片（上传）、分割线、代码块、表格与组件库 */
+export function InsertMenu({ editor, state, onOpenLibrary }: { editor: Editor | null, state: EditorToolbarState, onOpenLibrary: () => void }) {
   const t = useTranslations('Console.editor')
   const ct = useTranslations('ContentComponents')
   if (!editor)
@@ -340,7 +341,7 @@ export function InsertMenu({ editor, state }: { editor: Editor | null, state: Ed
         </DropdownMenuTrigger>
       </EditorTooltip>
       <EditorMenuContent editor={editor}>
-        <EditorMenuEntries entries={getInsertMenuEntries(editor, t, ct, state)} />
+        <EditorMenuEntries entries={getInsertMenuEntries(editor, t, ct, state, onOpenLibrary)} />
       </EditorMenuContent>
     </DropdownMenu>
   )

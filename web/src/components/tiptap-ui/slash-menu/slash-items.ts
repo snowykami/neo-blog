@@ -1,6 +1,6 @@
 import type { BlockTypeId } from '@/components/tiptap-editor/editor-commands'
 import type { SlashCommandItem } from '@/components/tiptap-extension/slash-command-extension'
-import { CalendarIcon, ImageIcon, MinusIcon, SparklesIcon, TableIcon } from 'lucide-react'
+import { CalendarIcon, ImageIcon, MinusIcon, PuzzleIcon, SparklesIcon, TableIcon } from 'lucide-react'
 import { CONTENT_COMPONENTS } from '@/components/content-components/registry'
 import { getBlockTypeDef, setBlockType } from '@/components/tiptap-editor/editor-commands'
 
@@ -34,19 +34,35 @@ const SLASH_ITEM_DEFS: SlashItemDef[] = [
   { group: 'other', id: 'date', keywords: ['date', 'today', 'riqi', 'rq', 'jintian', '日期', '今天'] },
 ]
 
-/** 内置组件（组件块），排在“其他”之前 */
-function buildComponentItems(t: Translate, ct: Translate): SlashCommandItem[] {
-  return CONTENT_COMPONENTS.map(def => ({
-    id: `component-${def.name}`,
-    group: t('slash.group_component'),
-    title: ct(`${def.name}.name`),
-    hint: ct(`${def.name}.description`),
-    icon: def.icon,
-    keywords: ['component', 'zujian', 'zj', '组件', ...def.keywords],
-    run: (editor, range) => {
-      editor.chain().focus().deleteRange(range).insertComponentBlock(def.name).run()
+/** 组件：组件库入口 + 各个组件（输入检索词后才显示），排在“其他”之前 */
+function buildComponentItems(t: Translate, ct: Translate, openLibrary: () => void): SlashCommandItem[] {
+  const group = t('slash.group_component')
+  return [
+    {
+      id: 'component-library',
+      group,
+      title: ct('library.open'),
+      hint: ct('library.slash_hint'),
+      icon: PuzzleIcon,
+      keywords: ['component', 'library', 'zujian', 'zj', 'zujianku', '组件', '组件库'],
+      run: (editor, range) => {
+        editor.chain().focus().deleteRange(range).run()
+        openLibrary()
+      },
     },
-  }))
+    ...CONTENT_COMPONENTS.map((def): SlashCommandItem => ({
+      id: `component-${def.name}`,
+      group,
+      title: ct(`${def.name}.name`),
+      hint: ct(`${def.name}.description`),
+      icon: def.icon,
+      keywords: ['component', 'zujian', 'zj', '组件', def.path, ...def.keywords],
+      searchOnly: true,
+      run: (editor, range) => {
+        editor.chain().focus().deleteRange(range).insertComponentBlock(def.name).run()
+      },
+    })),
+  ]
 }
 
 /**
@@ -55,8 +71,9 @@ function buildComponentItems(t: Translate, ct: Translate): SlashCommandItem[] {
  * @param ct ContentComponents 命名空间的翻译函数（组件名称与说明）
  * @param formatDate 插入“今天的日期”时的格式化函数
  * @param openAI 打开 AI 帮写面板
+ * @param openLibrary 打开组件库
  */
-export function buildSlashItems(t: Translate, ct: Translate, formatDate: (date: Date) => string, openAI: () => void): SlashCommandItem[] {
+export function buildSlashItems(t: Translate, ct: Translate, formatDate: (date: Date) => string, openAI: () => void, openLibrary: () => void): SlashCommandItem[] {
   const items = SLASH_ITEM_DEFS.map((def): SlashCommandItem => {
     const base = {
       id: def.id,
@@ -125,7 +142,7 @@ export function buildSlashItems(t: Translate, ct: Translate, formatDate: (date: 
     }
   })
   const otherIndex = items.findIndex(item => item.id === 'hr')
-  items.splice(otherIndex < 0 ? items.length : otherIndex, 0, ...buildComponentItems(t, ct))
+  items.splice(otherIndex < 0 ? items.length : otherIndex, 0, ...buildComponentItems(t, ct, openLibrary))
   return items
 }
 
@@ -133,7 +150,7 @@ export function buildSlashItems(t: Translate, ct: Translate, formatDate: (date: 
 export function filterSlashItems(items: SlashCommandItem[], query: string): SlashCommandItem[] {
   const q = query.trim().toLowerCase()
   if (!q)
-    return items
+    return items.filter(item => !item.searchOnly)
   const groupOrder = [...new Set(items.map(item => item.group))]
   return items
     .map((item, index) => {

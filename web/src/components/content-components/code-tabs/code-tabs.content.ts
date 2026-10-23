@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import { defineContentComponent } from '../define'
 import { codeTabsSchema } from './schema'
 
-export const codeTabsComponent = defineContentComponent({
+export default defineContentComponent({
   name: 'codeTabs',
   version: 1,
   schema: codeTabsSchema,
@@ -16,4 +16,10 @@ export const codeTabsComponent = defineContentComponent({
     ['p', {}, ['strong', {}, tab.label]],
     ['pre', {}, ['code', tab.language ? { class: `language-${tab.language}` } : {}, tab.code]],
   ]),
+  example: () => ({
+    tabs: [
+      { label: 'pnpm', language: 'bash', code: 'pnpm add zod' },
+      { label: 'npm', language: 'bash', code: 'npm install zod' },
+    ],
+  }),
 })

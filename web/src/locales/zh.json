@@ -1651,7 +1651,6 @@
     "choose_from_library": "从资产库选择"
   },
   "ContentComponents": {
-    "group": "组件",
     "edit": "编辑属性",
     "edit_title": "编辑{name}",
     "delete": "删除组件",
@@ -1696,6 +1695,10 @@
           "warning": "警告",
           "tip": "技巧"
         }
+      },
+      "example": {
+        "title": "小技巧",
+        "content": "按 / 可以快速插入组件。"
       }
     },
     "codeTabs": {
@@ -1749,6 +1752,198 @@
       "open": "网易云音乐",
       "not_in_playlist": "该歌曲不在博客歌单内，请在网易云音乐收听",
       "load_failed": "歌曲信息加载失败"
+    },
+    "library": {
+      "open": "组件库…",
+      "count": "{count} 个组件",
+      "title": "组件库",
+      "description": "按源码目录浏览可插入的 {count} 个组件",
+      "search": "搜索组件名称、目录或关键词",
+      "tree": "组件目录",
+      "insert": "插入",
+      "preview": "预览",
+      "no_preview": "插入后填写属性即可看到效果",
+      "empty": "没有匹配的组件",
+      "empty_hint": "换个关键词试试",
+      "hint": "单击查看预览，双击或按回车插入",
+      "slash_hint": "按目录浏览全部组件"
+    },
+    "alert": {
+      "name": "警示框",
+      "description": "带标题与说明的提示，可选醒目样式",
+      "fields": {
+        "variant": "样式",
+        "title": "标题",
+        "description": "说明"
+      },
+      "options": {
+        "variant": {
+          "default": "默认",
+          "destructive": "醒目（红色）"
+        }
+      },
+      "example": {
+        "title": "注意",
+        "description": "该接口将在下个版本移除。"
+      }
+    },
+    "badges": {
+      "name": "徽章组",
+      "description": "一组标签样式的短文本",
+      "fields": {
+        "items": "徽章",
+        "text": "文字",
+        "variant": "样式"
+      },
+      "options": {
+        "variant": {
+          "default": "主色",
+          "secondary": "浅色",
+          "outline": "描边",
+          "destructive": "红色"
+        }
+      }
+    },
+    "linkButton": {
+      "name": "链接按钮",
+      "description": "醒目的跳转按钮，支持外链与站内路径",
+      "fields": {
+        "text": "按钮文字",
+        "href": "链接",
+        "variant": "样式",
+        "align": "对齐",
+        "newTab": "在新窗口打开"
+      },
+      "placeholders": {
+        "href": "https://… 或 /p/文章别名"
+      },
+      "descriptions": {
+        "href": "支持 http(s) 地址或以 / 开头的站内路径"
+      },
+      "options": {
+        "variant": {
+          "default": "主色",
+          "secondary": "浅色",
+          "outline": "描边"
+        },
+        "align": {
+          "left": "左对齐",
+          "center": "居中"
+        }
+      },
+      "example": {
+        "text": "查看源码"
+      }
+    },
+    "card": {
+      "name": "卡片",
+      "description": "带标题、副标题与正文的卡片",
+      "fields": {
+        "title": "标题",
+        "description": "副标题",
+        "content": "正文"
+      },
+      "example": {
+        "title": "neo-blog",
+        "description": "Go + Next.js 博客系统",
+        "content": "支持组件块、AI 写作与多语言。"
+      }
+    },
+    "collapsible": {
+      "name": "折叠块",
+      "description": "点击标题展开或收起内容，适合补充说明与剧透",
+      "fields": {
+        "title": "标题",
+        "content": "内容",
+        "defaultOpen": "默认展开"
+      },
+      "example": {
+        "title": "点击展开答案",
+        "content": "答案是 42。"
+      }
+    },
+    "shortcut": {
+      "name": "快捷键",
+      "description": "按键组合与说明",
+      "fields": {
+        "keys": "按键",
+        "description": "说明"
+      },
+      "placeholders": {
+        "keys": "Ctrl+Shift+P"
+      },
+      "descriptions": {
+        "keys": "多个按键用 + 连接"
+      },
+      "example": {
+        "description": "打开搜索"
+      }
+    },
+    "progress": {
+      "name": "进度条",
+      "description": "一组带百分比的进度",
+      "fields": {
+        "items": "进度项",
+        "label": "名称",
+        "value": "进度（%）"
+      },
+      "descriptions": {
+        "value": "0 到 100 的整数"
+      },
+      "example": {
+        "design": "设计",
+        "develop": "开发",
+        "test": "测试"
+      }
+    },
+    "textTabs": {
+      "name": "标签页",
+      "description": "多段文字以标签页切换展示",
+      "fields": {
+        "tabs": "标签页",
+        "label": "标签名",
+        "content": "内容"
+      },
+      "example": {
+        "tab1": "Windows",
+        "content1": "从官网下载安装包后双击运行。",
+        "tab2": "macOS",
+        "content2": "使用 Homebrew 安装。"
+      }
+    },
+    "chart": {
+      "name": "图表",
+      "description": "柱状图或折线图，适合展示简单统计数据",
+      "fields": {
+        "title": "标题",
+        "type": "类型",
+        "unit": "单位",
+        "data": "数据",
+        "label": "名称",
+        "value": "数值"
+      },
+      "placeholders": {
+        "unit": "%"
+      },
+      "options": {
+        "type": {
+          "bar": "柱状图",
+          "line": "折线图"
+        }
+      },
+      "example": {
+        "title": "季度访问量（万）"
+      }
+    },
+    "linkCard": {
+      "name": "链接卡片",
+      "description": "展示网页标题、摘要与封面的链接卡片",
+      "fields": {
+        "url": "网址"
+      },
+      "placeholders": {
+        "url": "https://"
+      }
     }
   },
   "AppUpdate": {

@@ -8,6 +8,7 @@ import * as React from 'react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EditSessionBanner } from '@/components/console/common/edit-session-banner'
+import { ComponentLibraryDialog } from '@/components/content-components/component-library-dialog'
 import { AnnotationPopover } from '@/components/tiptap-ui/annotation-popover'
 import { LinkPopover } from '@/components/tiptap-ui/link-popover'
 import { Button } from '@/components/ui/button'
@@ -110,6 +111,7 @@ function LoadedShell({
   const [focusMode, setFocusMode] = React.useState(false)
   const [linkOpen, setLinkOpen] = React.useState(false)
   const [annotationOpen, setAnnotationOpen] = React.useState(false)
+  const [libraryOpen, setLibraryOpen] = React.useState(false)
   // 版本：确认放弃修改的弹窗与版本历史抽屉（由下拉菜单打开，使用受控模式）
   const [revisionConfirm, setRevisionConfirm] = React.useState<'session' | 'unpublished' | null>(null)
   const [historyOpen, setHistoryOpen] = React.useState(false)
@@ -137,7 +139,7 @@ function LoadedShell({
   })
   const openAI = aiWriter.open
 
-  // 链接 / 注释弹层、AI 面板：工具栏、气泡菜单、右键菜单与快捷键共用，定位到当前选区
+  // 链接 / 注释弹层、AI 面板与组件库：工具栏、气泡菜单、右键菜单与快捷键共用，定位到当前选区
   const actions = React.useMemo(() => ({
     openLink: () => {
       if (!editor.isEditable || editor.isActive('codeBlock'))
@@ -154,6 +156,10 @@ function LoadedShell({
       setAnnotationOpen(true)
     },
     openAI,
+    openComponentLibrary: () => {
+      if (editor.isEditable)
+        setLibraryOpen(true)
+    },
   }), [editor, openAI])
   React.useEffect(() => {
     controller.uiActionsRef.current = actions
@@ -331,6 +337,11 @@ function LoadedShell({
         <EditorAIPanel editor={editor} writer={aiWriter} />
         <LinkPopover editor={editor} open={linkOpen} onOpenChange={setLinkOpen} />
         <AnnotationPopover editor={editor} open={annotationOpen} onOpenChange={setAnnotationOpen} />
+        <ComponentLibraryDialog
+          open={libraryOpen}
+          onOpenChange={setLibraryOpen}
+          onInsert={name => editor.chain().focus().insertComponentBlock(name).run()}
+        />
 
         {renderSettings({ open: settingsOpen, onOpenChange: setSettingsOpen })}
         {renderPreview({ open: previewOpen, onOpenChange: setPreviewOpen })}
