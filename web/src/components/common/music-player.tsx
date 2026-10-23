@@ -20,6 +20,7 @@ import { formatDurationMMSS } from '@/utils/common/datetime'
 import { getCurrentLyricIndex, getLyricMarqueeOffset, getWordProgress, isWordTimedLyricLine } from '@/utils/music-lyric'
 import { Input } from '../ui/input'
 import LyricScroll from './music-lyric-scroll'
+import { useFloatingBall } from './use-floating-ball'
 
 const BUTTON_ANIMATION_CLASSNAME = 'hover:scale-115 transition-[color,transform] duration-150 hover:text-primary'
 const DEFAULT_MUSIC_THEME_RGB = '59 130 246'
@@ -349,6 +350,9 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
   const animatedThemeColor = useAnimatedThemeColor(themeColor)
   const [storedPlayMode, , isStoredPlayModeLoaded] = useStoredState<PlayMode>(STORAGE_KEY_PLAY_MODE, 'repeat-all')
   const themeStyle = { '--music-theme': animatedThemeColor } as React.CSSProperties
+  // 悬浮球可拖动；开始拖动时收起播放器
+  const [open, setOpen] = useState(false)
+  const ball = useFloatingBall({ onDragStart: () => setOpen(false) })
 
   // 歌单加载并完成进度恢复后才允许写回存储，避免初始化阶段覆盖已保存的值
   const restoredRef = useRef(false)
@@ -439,12 +443,19 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
   }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
           aria-label={t('floating_player')}
-          className="fixed right-4 bottom-4 z-50 flex cursor-pointer items-center justify-center rounded-full shadow-lg transition-transform duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          {...ball.handlers}
+          style={ball.style}
+          className={cn(
+            // touch-none：在悬浮球上拖动时不滚动页面；停靠时用过渡吸附到边缘，拖动时跟手
+            'fixed z-50 flex touch-none cursor-pointer items-center justify-center rounded-full shadow-lg select-none transition-transform duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            ball.dragging ? 'cursor-grabbing scale-105' : 'motion-safe:transition-[left,top,transform]',
+            !ball.ready && 'invisible',
+          )}
         >
           <CrossfadeAlbumImage
             src={currentTrack.albumPic}
@@ -458,7 +469,12 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="fixed -right-8 bottom-0 z-1000 w-80 overflow-hidden rounded-xl border bg-popover p-3 shadow-lg"
+        // 朝屏幕中较宽敞的方向展开，与悬浮球所在的一侧对齐
+        side={ball.upperHalf ? 'bottom' : 'top'}
+        align={ball.side === 'left' ? 'start' : 'end'}
+        sideOffset={12}
+        collisionPadding={8}
+        className="z-1000 w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border bg-popover p-3 shadow-lg"
         style={{ ...themeStyle, pointerEvents: 'auto' }}
       >
         <div
