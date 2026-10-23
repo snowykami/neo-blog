@@ -1,5 +1,9 @@
 package dto
 
+import "time"
+
+// CommentDto 评论；时间字段为 time.Time，按 RFC 3339 输出。不能用 time.Time.String()：
+// 其时区缩写（如 CST）会被浏览器误解析，刚创建的评论时间还带单调时钟读数，前端会得到 Invalid Date
 type CommentDto struct {
 	ID             uint               `json:"id"`
 	TargetID       uint               `json:"target_id"`
@@ -7,8 +11,8 @@ type CommentDto struct {
 	Content        string             `json:"content"`
 	ReplyID        uint               `json:"reply_id"` // 回复的评论ID
 	Depth          int                `json:"depth"`    // 评论的层级深度
-	CreatedAt      string             `json:"created_at"`
-	UpdatedAt      string             `json:"updated_at"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
 	User           UserDto            `json:"user"`        // 评论的
 	ReplyCount     uint64             `json:"reply_count"` // 回复数量
 	LikeCount      uint64             `json:"like_count"`  // 点赞数量
