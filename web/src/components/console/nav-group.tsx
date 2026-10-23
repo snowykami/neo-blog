@@ -48,6 +48,8 @@ export function NavGroup({
                 id={`nav-item-${menu.id}`}
                 tooltip={consoleT(menu.title)}
                 isActive={activeId === menu.id}
+                // 菜单合并后项数较少，加高菜单项便于点击，图标与间距同步放大
+                className="h-10 gap-3 px-3 [&>svg]:size-[18px]"
               >
                 <Link href={first.url} onClick={() => setActiveId?.(menu.id)}>
                   <menu.icon />
