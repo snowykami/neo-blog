@@ -2,7 +2,7 @@
 
 import type { Editor } from '@tiptap/react'
 import type { AIWriterController } from './use-ai-writer'
-import type { AIPreset } from '@/models/ai-write'
+import type { AIPrompt } from '@/models/ai-prompt'
 import { posToDOMRect } from '@tiptap/react'
 import { CheckIcon, PencilLineIcon, RotateCcwIcon, SparklesIcon, SquareIcon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -17,7 +17,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { AI_REWRITE_PRESETS, AI_WRITE_PRESETS } from '@/models/ai-write'
+import { AIPromptManageButton } from './ai-prompt-manager-dialog'
+import { useAIPrompts } from './ai-prompts-context'
 import { formatShortcut } from './editor-commands'
 import { AI_WRITER_BUSY_STATUSES } from './use-ai-writer'
 
@@ -79,8 +80,8 @@ export function EditorAIPanel({ editor, writer }: { editor: Editor, writer: AIWr
     }
   }, [status, instruction])
 
-  const submit = (preset?: AIPreset) => {
-    void writer.run({ preset, instruction: preset ? '' : draft.trim() })
+  const submit = (prompt?: AIPrompt) => {
+    void writer.run({ prompt: prompt && { id: prompt.id, label: prompt.label }, instruction: prompt ? '' : draft.trim() })
   }
 
   const handleEscape = () => {
@@ -91,9 +92,10 @@ export function EditorAIPanel({ editor, writer }: { editor: Editor, writer: AIWr
   }
 
   const isRewrite = state.mode === 'rewrite'
-  const presets: readonly AIPreset[] = isRewrite ? AI_REWRITE_PRESETS : AI_WRITE_PRESETS
+  const { prompts, openManager } = useAIPrompts(state.mode)
   const requestLabel = state.instruction.trim()
-    || (state.preset ? t(`preset.${state.preset}`) : t(isRewrite ? 'default_rewrite' : 'default_write'))
+    || state.prompt?.label
+    || t(isRewrite ? 'default_rewrite' : 'default_write')
   const statusText = state.status === 'done'
     ? (state.stopped ? t('status_stopped') : t('status_done'))
     : busy ? t(`status_${state.status}`) : null
@@ -124,7 +126,10 @@ export function EditorAIPanel({ editor, writer }: { editor: Editor, writer: AIWr
         // 焦点移出（如菜单关闭后焦点回到编辑器）不关闭面板，否则从菜单打开时会一闪而过
         onFocusOutside={event => event.preventDefault()}
         onInteractOutside={event => event.preventDefault()}
-        onPointerDownOutside={() => {
+        onPointerDownOutside={(event) => {
+          // 在其他弹窗（如指令管理）中的操作不算点击外部
+          if ((event.target as Element | null)?.closest?.('[data-slot^="dialog"], [data-slot^="alert-dialog"], [data-slot="popover-content"]'))
+            return
           // 只有输入要求时点击外部视为取消，生成中与等待确认时保留面板，避免误操作丢失结果
           if (state.status === 'prompting' && !writer.hasPreview())
             writer.discard()
@@ -149,12 +154,13 @@ export function EditorAIPanel({ editor, writer }: { editor: Editor, writer: AIWr
 
         {state.status === 'prompting' && (
           <>
-            <div className="flex flex-wrap gap-1.5">
-              {presets.map(preset => (
-                <Button key={preset} type="button" size="sm" variant="outline" className="h-7 rounded-full px-2.5 text-xs" onClick={() => submit(preset)}>
-                  {t(`preset.${preset}`)}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {prompts.map(prompt => (
+                <Button key={prompt.id} type="button" size="sm" variant="outline" className="h-7 rounded-full px-2.5 text-xs" title={prompt.instruction} onClick={() => submit(prompt)}>
+                  {prompt.label}
                 </Button>
               ))}
+              <AIPromptManageButton className="size-7 rounded-full text-muted-foreground" onClick={() => openManager(state.mode)} />
             </div>
             <Textarea
               ref={textareaRef}

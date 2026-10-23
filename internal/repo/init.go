@@ -168,6 +168,7 @@ func migrate() error {
 		return err
 	}
 	if err := GetDB().AutoMigrate(
+		&model.AIPrompt{},
 		&model.Comment{},
 		&model.ContentRevision{},
 		&model.EditSession{},
@@ -187,6 +188,9 @@ func migrate() error {
 		return err
 	}
 	if err := createQueryIndexes(); err != nil {
+		return err
+	}
+	if err := seedDefaultAIPrompts(); err != nil {
 		return err
 	}
 	return backfillPostContentHash()

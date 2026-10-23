@@ -50,6 +50,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import { cn } from '@/lib/utils'
+import { useAIPrompts } from './ai-prompts-context'
 import { formatShortcut, INLINE_MARKS, setBlockType } from './editor-commands'
 import { getAIEntries, getBlockTypeEntries, getInsertEntries, getTableEntries } from './editor-menus'
 import { markEntry } from './editor-toolbar'
@@ -319,6 +320,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
     entries: getBlockTypeEntries(editor, t, state.blockType),
   })
 
+  const aiPrompts = useAIPrompts()
   const openAI = (options: AIWriterOpenOptions) => {
     skipFocusRef.current = true
     actions.openAI(options)
@@ -331,7 +333,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
   switch (context.type) {
     case 'selection': {
       entries.push(
-        { type: 'sub', key: 'ai-rewrite', icon: SparklesIcon, label: t('ai.rewrite'), entries: getAIEntries(t, 'rewrite', openAI) },
+        { type: 'sub', key: 'ai-rewrite', icon: SparklesIcon, label: t('ai.rewrite'), entries: getAIEntries(t, 'rewrite', openAI, aiPrompts.prompts, { onManage: () => aiPrompts.openManager('rewrite') }) },
         { type: 'separator', key: 'sep-ai' },
         ...clipboardEntries(true),
         { type: 'separator', key: 'sep-clipboard' },
@@ -423,7 +425,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
     default: {
       entries.push(
         { key: 'ai-write', icon: SparklesIcon, label: t('context.ai_write'), shortcut: 'mod+j', disabled: !state.editable, onSelect: () => openAI({ mode: 'write' }) },
-        { type: 'sub', key: 'ai-presets', icon: SparklesIcon, label: t('context.ai_presets'), disabled: !state.editable, entries: getAIEntries(t, 'write', openAI).filter(entry => entry.key !== 'ai-custom' && entry.type !== 'separator') },
+        { type: 'sub', key: 'ai-presets', icon: SparklesIcon, label: t('context.ai_presets'), disabled: !state.editable, entries: getAIEntries(t, 'write', openAI, aiPrompts.prompts, { onManage: () => aiPrompts.openManager('write') }).filter(entry => entry.key !== 'ai-custom' && entry.type !== 'separator') },
         { type: 'separator', key: 'sep-ai' },
         ...tableGroup(),
         { type: 'label', key: 'label-insert', label: t('insert') },

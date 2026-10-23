@@ -8,16 +8,17 @@ export type AIWriteScope = 'block' | 'inline' | 'code'
 
 export type AIWriteTarget = EditSessionTarget
 
-// 快捷指令：与后端 aiWritePresets 的键一致
-export const AI_WRITE_PRESETS = ['continue', 'summarize', 'outline', 'example'] as const
-export const AI_REWRITE_PRESETS = ['polish', 'shorten', 'expand', 'formal', 'casual', 'translate_en', 'translate_zh'] as const
-export type AIPreset = (typeof AI_WRITE_PRESETS)[number] | (typeof AI_REWRITE_PRESETS)[number]
+// 使用的快捷指令（AI 指令）：id 发给后端，label 用于界面展示
+export interface AIPromptRef {
+  id: number
+  label: string
+}
 
 export interface AIWriteRequest {
   mode: AIWriteMode
   scope: AIWriteScope
-  // 快捷指令（对应后端 aiWritePresets），可与 instruction 同时提供
-  preset?: AIPreset
+  // 快捷指令（AI 指令）ID，可与 instruction 同时提供
+  promptId?: number
   instruction: string
   // 编辑器当前正文 HTML，插入点 / 选区以标记文本表示
   document: string

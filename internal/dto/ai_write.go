@@ -5,7 +5,7 @@ package dto
 type AIWriteReq struct {
 	Mode        string `json:"mode"`        // write 帮写 / rewrite 润色
 	Scope       string `json:"scope"`       // block 独立成块 / inline 段落中间 / code 代码块内
-	Preset      string `json:"preset"`      // 快捷指令，如 polish、translate_en，可与 Instruction 同时提供
+	PromptID    uint   `json:"prompt_id"`   // 快捷指令（AI 指令）ID，可与 Instruction 同时提供
 	Instruction string `json:"instruction"` // 用户的要求，可为空（帮写为续写，润色为润色）
 	Document    string `json:"document"`    // 正文 HTML，含插入点或选区标记
 	// Selection 润色选区的格式化表示：块结构为 Markdown，行内格式为 HTML 标签，图片等不可改写的节点为 [[KEEP_n]] 占位符

@@ -5,6 +5,7 @@ import "github.com/cloudwego/hertz/pkg/app/server"
 func RegisterRoutes(h *server.Hertz) {
   apiV1Group := h.Group("/api/v1")
   {
+    registerAIPromptRoutes(apiV1Group)
     registerCommentRoutes(apiV1Group)
     registerAdminRoutes(apiV1Group)
     registerFileRoutes(apiV1Group)

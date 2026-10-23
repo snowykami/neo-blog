@@ -13,6 +13,7 @@ import { toggleMark } from '@/components/tiptap-ui/mark-button/use-mark'
 import { executeUndoRedoAction } from '@/components/tiptap-ui/undo-redo-button/use-undo-redo'
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { useAIPrompts } from './ai-prompts-context'
 import { INLINE_MARKS, PRIMARY_MARKS } from './editor-commands'
 import {
   AIMenu,
@@ -138,6 +139,7 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
   const moreRef = React.useRef<HTMLButtonElement>(null)
   // 从溢出菜单打开 AI 面板时，关闭菜单后不把焦点抢回编辑器
   const aiOpenedRef = React.useRef(false)
+  const aiPrompts = useAIPrompts()
   const openAIFromMenu = (options: AIWriterOpenOptions) => {
     aiOpenedRef.current = true
     actions.openAI(options)
@@ -183,7 +185,10 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
       id: 'ai',
       label: t('ai.open'),
       content: <AIMenu editor={editor} state={state} openAI={actions.openAI} />,
-      overflow: () => getAIEntries(t, state.textSelection ? 'rewrite' : 'write', openAIFromMenu, !state.editable),
+      overflow: () => getAIEntries(t, state.textSelection ? 'rewrite' : 'write', openAIFromMenu, aiPrompts.prompts, {
+        disabled: !state.editable,
+        onManage: () => aiPrompts.openManager(state.textSelection ? 'rewrite' : 'write'),
+      }),
     },
   ]
 

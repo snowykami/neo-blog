@@ -5,7 +5,7 @@ import type { Selection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import type { AIPreview, AITarget } from './ai-write-utils'
 import type { AIHighlight } from '@/components/tiptap-extension/ai-write-extension'
-import type { AIPreset, AIWriteMode, AIWriteRequest, AIWriteScope, AIWriteTarget } from '@/models/ai-write'
+import type { AIPromptRef, AIWriteMode, AIWriteRequest, AIWriteScope, AIWriteTarget } from '@/models/ai-write'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
@@ -28,7 +28,7 @@ export type AIWriterStatus = 'idle' | 'prompting' | 'connecting' | 'queued' | 't
 export interface AIWriterOpenOptions {
   // 不传时按选区判断：有文字选区为润色，否则为帮写
   mode?: AIWriteMode
-  preset?: AIPreset
+  prompt?: AIPromptRef
   instruction?: string
   // 打开后立即生成（快捷指令）
   run?: boolean
@@ -38,7 +38,7 @@ export interface AIWriterState {
   status: AIWriterStatus
   mode: AIWriteMode
   scope: AIWriteScope
-  preset?: AIPreset
+  prompt?: AIPromptRef
   instruction: string
   error: string | null
   // 已停止生成（保留已输出的内容）
@@ -142,7 +142,7 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
       window.setTimeout(() => editor.commands.focus(), 0)
   }, [editor])
 
-  const run = React.useCallback(async ({ preset, instruction }: { preset?: AIPreset, instruction: string }) => {
+  const run = React.useCallback(async ({ prompt, instruction }: { prompt?: AIPromptRef, instruction: string }) => {
     const session = sessionRef.current
     const { docId: id, contentTarget: target, getContext: getCtx } = latestRef.current
     if (!session || !id)
@@ -151,7 +151,7 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
     const controller = new AbortController()
     abortRef.current = controller
     restoreBase()
-    setState(prev => ({ ...prev, status: 'connecting', preset, instruction, error: null, stopped: false }))
+    setState(prev => ({ ...prev, status: 'connecting', prompt, instruction, error: null, stopped: false }))
 
     let markdown = ''
     let finished = false
@@ -182,7 +182,7 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
         request: {
           mode: session.target.mode,
           scope: session.target.scope,
-          preset,
+          promptId: prompt?.id,
           instruction,
           document: session.document,
           selection: session.selection,
@@ -267,9 +267,9 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
     }
     latestRef.current.onBusyChange(true)
     dispatchPreview(null, { from: target.from, to: target.to, kind: 'target' })
-    setState({ ...IDLE_STATE, status: 'prompting', mode, scope: target.scope, preset: options.preset, instruction: options.instruction ?? '' })
+    setState({ ...IDLE_STATE, status: 'prompting', mode, scope: target.scope, prompt: options.prompt, instruction: options.instruction ?? '' })
     if (options.run)
-      void run({ preset: options.preset, instruction: options.instruction ?? '' })
+      void run({ prompt: options.prompt, instruction: options.instruction ?? '' })
   }, [editor, dispatchPreview, run, t])
 
   /** 停止生成，保留已输出的内容 */
@@ -314,8 +314,8 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
   }, [editor, dispatchPreview, finish])
 
   const retry = React.useCallback(() => {
-    const { preset, instruction } = stateRef.current
-    void run({ preset, instruction })
+    const { prompt, instruction } = stateRef.current
+    void run({ prompt, instruction })
   }, [run])
 
   /** 回到输入状态修改要求（已生成的内容保留到下次生成或放弃时） */

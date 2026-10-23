@@ -89,8 +89,17 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 	if !cfg.Configured() {
 		return nil, errs.NewBadRequest("ai_not_configured")
 	}
-	if !(req.Mode == aiWriteModeWrite || req.Mode == aiWriteModeRewrite) || !validAIWritePreset(req.Mode, req.Preset) {
+	if !(req.Mode == aiWriteModeWrite || req.Mode == aiWriteModeRewrite) {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
+	}
+	// 快捷指令：平台指令或自己的个人指令，且与写作模式一致
+	presetInstruction := ""
+	if req.PromptID != 0 {
+		prompt, svcerr := NewAIPromptService().resolve(ctx, req.PromptID, req.Mode)
+		if svcerr != nil {
+			return nil, svcerr
+		}
+		presetInstruction = prompt.Instruction
 	}
 	scope := req.Scope
 	if scope != aiWriteScopeInline && scope != aiWriteScopeCode {
@@ -136,7 +145,7 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 		targetType:  targetType,
 		mode:        req.Mode,
 		scope:       scope,
-		preset:      req.Preset,
+		preset:      presetInstruction,
 		instruction: req.Instruction,
 		title:       req.Title,
 		description: req.Description,

@@ -4,6 +4,7 @@ import type { Editor } from '@tiptap/react'
 import type { LucideIcon } from 'lucide-react'
 import type { AIWriterOpenOptions } from './use-ai-writer'
 import type { EditorToolbarState } from './use-editor-toolbar-state'
+import type { AIPrompt } from '@/models/ai-prompt'
 import {
   BetweenHorizontalEndIcon,
   BetweenHorizontalStartIcon,
@@ -18,6 +19,7 @@ import {
   PencilLineIcon,
   PlusIcon,
   Rows3Icon,
+  Settings2Icon,
   SparklesIcon,
   SquareCodeIcon,
   TableIcon,
@@ -38,7 +40,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
-import { AI_REWRITE_PRESETS, AI_WRITE_PRESETS } from '@/models/ai-write'
+import { AIPromptManageButton } from './ai-prompt-manager-dialog'
+import { useAIPrompts } from './ai-prompts-context'
 import { BLOCK_TYPES, formatShortcut, getBlockTypeDef, setBlockType, TEXT_ALIGNS } from './editor-commands'
 import { EditorToolbarButton, EditorTooltip } from './editor-toolbar-button'
 
@@ -214,27 +217,33 @@ export function getTableEntries(editor: Editor, t: Translate): EditorMenuEntry[]
   ]
 }
 
-/** AI 快捷指令：帮写（光标处）或润色（选区），自定义指令打开输入面板 */
-export function getAIEntries(t: Translate, mode: 'write' | 'rewrite', openAI: (options: AIWriterOpenOptions) => void, disabled = false): EditorMenuEntry[] {
-  const presets = mode === 'rewrite' ? AI_REWRITE_PRESETS : AI_WRITE_PRESETS
-  return [
-    ...presets.map(preset => ({
-      key: `ai-${preset}`,
+/**
+ * AI 快捷指令：帮写（光标处）或润色（选区），来自平台指令与个人指令；自定义指令打开输入面板
+ * onManage 存在时追加“管理指令”
+ */
+export function getAIEntries(t: Translate, mode: 'write' | 'rewrite', openAI: (options: AIWriterOpenOptions) => void, prompts: AIPrompt[], { disabled = false, onManage }: { disabled?: boolean, onManage?: () => void } = {}): EditorMenuEntry[] {
+  const entries: EditorMenuEntry[] = prompts
+    .filter(prompt => prompt.mode === mode)
+    .map(prompt => ({
+      key: `ai-prompt-${prompt.id}`,
       icon: SparklesIcon,
-      label: t(`ai.preset.${preset}`),
+      label: prompt.label,
       disabled,
-      onSelect: () => openAI({ mode, preset, run: true }),
-    })),
-    { type: 'separator', key: 'ai-sep' },
-    {
-      key: 'ai-custom',
-      icon: PencilLineIcon,
-      label: t('ai.custom'),
-      shortcut: 'mod+j',
-      disabled,
-      onSelect: () => openAI({ mode }),
-    },
-  ]
+      onSelect: () => openAI({ mode, prompt: { id: prompt.id, label: prompt.label }, run: true }),
+    }))
+  if (entries.length)
+    entries.push({ type: 'separator', key: 'ai-sep' })
+  entries.push({
+    key: 'ai-custom',
+    icon: PencilLineIcon,
+    label: t('ai.custom'),
+    shortcut: 'mod+j',
+    disabled,
+    onSelect: () => openAI({ mode }),
+  })
+  if (onManage)
+    entries.push({ key: 'ai-manage', icon: Settings2Icon, label: t('ai.manage.entry'), onSelect: onManage })
+  return entries
 }
 
 // ---------- 下拉菜单组件 ----------
@@ -323,6 +332,8 @@ export function AIMenu({ editor, state, openAI, compact }: {
 }) {
   const t = useTranslations('Console.editor')
   const openedRef = React.useRef(false)
+  const [menuOpen, setMenuOpen] = React.useState(false)
+  const { prompts, openManager } = useAIPrompts()
   if (!editor)
     return null
   const mode = state.textSelection ? 'rewrite' : 'write'
@@ -330,8 +341,13 @@ export function AIMenu({ editor, state, openAI, compact }: {
     openedRef.current = true
     openAI(options)
   }
+  const manage = () => {
+    openedRef.current = true
+    setMenuOpen(false)
+    openManager(mode)
+  }
   return (
-    <DropdownMenu modal={false}>
+    <DropdownMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
       <EditorTooltip label={t('ai.open_hint')}>
         <DropdownMenuTrigger asChild>
           <EditorToolbarButton label={t('ai.open')} noTooltip disabled={!state.editable} className="gap-1 px-2 text-primary hover:text-primary">
@@ -349,8 +365,12 @@ export function AIMenu({ editor, state, openAI, compact }: {
           return restore
         }}
       >
-        <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">{t(mode === 'rewrite' ? 'ai.rewrite' : 'ai.write')}</DropdownMenuLabel>
-        <EditorMenuEntries entries={getAIEntries(t, mode, open)} />
+        {/* 标题行右侧：管理 AI 指令 */}
+        <div className="flex items-center justify-between gap-2 pr-1">
+          <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">{t(mode === 'rewrite' ? 'ai.rewrite' : 'ai.write')}</DropdownMenuLabel>
+          <AIPromptManageButton className="size-7 text-muted-foreground" onClick={manage} />
+        </div>
+        <EditorMenuEntries entries={getAIEntries(t, mode, open, prompts)} />
       </EditorMenuContent>
     </DropdownMenu>
   )

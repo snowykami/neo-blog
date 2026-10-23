@@ -15,6 +15,7 @@ import { Kbd } from '@/components/ui/kbd'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFullscreen } from '@/hooks/use-editor-helpers'
 import { cn } from '@/lib/utils'
+import { AIPromptsProvider } from './ai-prompts-context'
 import { EditorAIPanel } from './editor-ai-panel'
 import { EditorAppBar } from './editor-app-bar'
 import { EditorBubbleMenu } from './editor-bubble-menu'
@@ -205,132 +206,135 @@ function LoadedShell({
   const chromeClass = cn('transition-opacity duration-200', focusMode && 'pointer-events-none opacity-0')
 
   return (
-    <div
-      className={cn(
-        'neo-editor-shell relative flex flex-1 flex-col',
-        // 抵消后台内容区内边距，让编辑器铺满内容区
-        '-m-(--console-content-padding)',
-        focusMode && 'neo-focus-mode fixed inset-0 z-50 m-0 overflow-y-auto bg-background',
-      )}
-    >
-      <EditorAppBar
-        className={chromeClass}
-        backHref={backHref}
-        backLabel={backLabel}
-        crumbRoot={crumbRoot}
-        title={meta.title.trim() || untitled}
-        isPrivate={meta.isPrivate}
-        hasUnpublishedChanges={controller.hasUnpublishedChanges}
-        words={words}
-        saveState={controller.saveState}
-        saveError={controller.saveError}
-        lastSavedAt={controller.lastSavedAt}
-        readOnly={readOnly}
-        canSave={controller.canSave}
-        publishing={controller.publishing}
-        publishTitle={publishTitle}
-        publishSummary={publishSummary}
-        isFullScreen={isFullScreen}
-        focusMode={focusMode}
-        settingsLabel={settingsLabel}
-        onSave={() => void controller.save({ manual: true })}
-        onPublish={controller.publish}
-        onPreview={() => setPreviewOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onToggleFocusMode={() => toggleFocusMode()}
-        onToggleFullScreen={toggleFullScreen}
-        onCopyHtml={copyHtml}
-        canRevertSession={controller.canRevertSession}
-        canDiscardUnpublished={controller.canDiscardUnpublished}
-        onRevertSession={() => setRevisionConfirm('session')}
-        onDiscardUnpublished={() => setRevisionConfirm('unpublished')}
-        onOpenHistory={() => setHistoryOpen(true)}
-      />
-
-      <ConfirmDialog
-        open={revisionConfirm !== null}
-        onOpenChange={open => !open && setRevisionConfirm(null)}
-        title={revisionConfirm === 'unpublished' ? t('revision.discard_unpublished_title') : t('revision.revert_session_title')}
-        description={revisionConfirm === 'unpublished' ? t('revision.discard_unpublished_description') : t('revision.revert_session_description')}
-        confirmLabel={revisionConfirm === 'unpublished' ? t('revision.discard_unpublished') : t('revision.revert_session')}
-        errorText={t('revision.revert_failed')}
-        onConfirm={async () => {
-          if (revisionConfirm === 'unpublished')
-            await controller.discardUnpublished()
-          else
-            await controller.revertSession()
-          toast.success(t('revision.reverted'))
-        }}
-      />
-      {controller.doc && (
-        <EditorRevisionSheet
-          open={historyOpen}
-          onOpenChange={setHistoryOpen}
-          target={controller.kind}
-          docId={controller.doc.id}
-          schema={editor.schema}
-          baseRevisionId={editSession.baseRevisionId}
+    // AI 指令列表与指令管理弹窗：工具栏、气泡菜单、右键菜单与 AI 面板共用
+    <AIPromptsProvider>
+      <div
+        className={cn(
+          'neo-editor-shell relative flex flex-1 flex-col',
+          // 抵消后台内容区内边距，让编辑器铺满内容区
+          '-m-(--console-content-padding)',
+          focusMode && 'neo-focus-mode fixed inset-0 z-50 m-0 overflow-y-auto bg-background',
+        )}
+      >
+        <EditorAppBar
+          className={chromeClass}
+          backHref={backHref}
+          backLabel={backLabel}
+          crumbRoot={crumbRoot}
+          title={meta.title.trim() || untitled}
+          isPrivate={meta.isPrivate}
+          hasUnpublishedChanges={controller.hasUnpublishedChanges}
+          words={words}
+          saveState={controller.saveState}
+          saveError={controller.saveError}
+          lastSavedAt={controller.lastSavedAt}
           readOnly={readOnly}
-          onRestore={async (revisionId) => {
-            await controller.restoreToRevision(revisionId)
-            toast.success(t('revision.restored'))
+          canSave={controller.canSave}
+          publishing={controller.publishing}
+          publishTitle={publishTitle}
+          publishSummary={publishSummary}
+          isFullScreen={isFullScreen}
+          focusMode={focusMode}
+          settingsLabel={settingsLabel}
+          onSave={() => void controller.save({ manual: true })}
+          onPublish={controller.publish}
+          onPreview={() => setPreviewOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onToggleFocusMode={() => toggleFocusMode()}
+          onToggleFullScreen={toggleFullScreen}
+          onCopyHtml={copyHtml}
+          canRevertSession={controller.canRevertSession}
+          canDiscardUnpublished={controller.canDiscardUnpublished}
+          onRevertSession={() => setRevisionConfirm('session')}
+          onDiscardUnpublished={() => setRevisionConfirm('unpublished')}
+          onOpenHistory={() => setHistoryOpen(true)}
+        />
+
+        <ConfirmDialog
+          open={revisionConfirm !== null}
+          onOpenChange={open => !open && setRevisionConfirm(null)}
+          title={revisionConfirm === 'unpublished' ? t('revision.discard_unpublished_title') : t('revision.revert_session_title')}
+          description={revisionConfirm === 'unpublished' ? t('revision.discard_unpublished_description') : t('revision.revert_session_description')}
+          confirmLabel={revisionConfirm === 'unpublished' ? t('revision.discard_unpublished') : t('revision.revert_session')}
+          errorText={t('revision.revert_failed')}
+          onConfirm={async () => {
+            if (revisionConfirm === 'unpublished')
+              await controller.discardUnpublished()
+            else
+              await controller.revertSession()
+            toast.success(t('revision.reverted'))
           }}
         />
-      )}
-
-      {focusMode && (
-        <Button
-          variant="secondary"
-          size="sm"
-          className="fixed top-3 right-4 z-[51] opacity-50 transition-opacity hover:opacity-100 focus-visible:opacity-100"
-          onClick={() => toggleFocusMode(false)}
-        >
-          <XIcon />
-          {t('focus_exit')}
-          <Kbd>Esc</Kbd>
-        </Button>
-      )}
-
-      {editSession.status === 'taken_over' && (
-        <div className="px-2 pb-2 md:px-4">
-          <EditSessionBanner className="mx-auto max-w-[54rem]" holder={editSession.holder} onTakeOver={controller.takeOver} />
-        </div>
-      )}
-
-      {!readOnly && (
-        <div className={cn('sticky top-13 z-20 bg-linear-to-b from-background from-70% to-transparent px-2 pb-1.5 md:top-14 md:px-4 md:pb-2', chromeClass)}>
-          <EditorToolbar editor={editor} actions={actions} />
-        </div>
-      )}
-
-      <main className={cn('flex-1 px-2 pt-1 pb-12 md:px-4 md:pb-16', focusMode && 'pt-12')}>
-        <EditorContextMenu editor={editor} actions={actions}>
-          <EditorCanvas
-            editor={editor}
-            className={cn(focusMode && 'bg-transparent')}
-            title={meta.title}
-            description={meta.description}
-            onTitleChange={title => updateMeta({ title })}
-            onDescriptionChange={description => updateMeta({ description })}
-            titlePlaceholder={untitled}
-            descriptionPlaceholder={t('description_placeholder')}
-            titleLabel={titleLabel}
-            descriptionLabel={descriptionLabel}
-            readOnly={readOnly || controller.aiBusy}
-            metaLine={metaLine}
+        {controller.doc && (
+          <EditorRevisionSheet
+            open={historyOpen}
+            onOpenChange={setHistoryOpen}
+            target={controller.kind}
+            docId={controller.doc.id}
+            schema={editor.schema}
+            baseRevisionId={editSession.baseRevisionId}
+            readOnly={readOnly}
+            onRestore={async (revisionId) => {
+              await controller.restoreToRevision(revisionId)
+              toast.success(t('revision.restored'))
+            }}
           />
-        </EditorContextMenu>
-      </main>
+        )}
 
-      <EditorStatusBar editor={editor} sessionStatus={editSession.status} className={chromeClass} />
+        {focusMode && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="fixed top-3 right-4 z-[51] opacity-50 transition-opacity hover:opacity-100 focus-visible:opacity-100"
+            onClick={() => toggleFocusMode(false)}
+          >
+            <XIcon />
+            {t('focus_exit')}
+            <Kbd>Esc</Kbd>
+          </Button>
+        )}
 
-      {!readOnly && <EditorBubbleMenu editor={editor} actions={actions} />}
-      <EditorAIPanel editor={editor} writer={aiWriter} />
-      <LinkPopover editor={editor} open={linkOpen} onOpenChange={setLinkOpen} />
-      <AnnotationPopover editor={editor} open={annotationOpen} onOpenChange={setAnnotationOpen} />
+        {editSession.status === 'taken_over' && (
+          <div className="px-2 pb-2 md:px-4">
+            <EditSessionBanner className="mx-auto max-w-[54rem]" holder={editSession.holder} onTakeOver={controller.takeOver} />
+          </div>
+        )}
 
-      {renderSettings({ open: settingsOpen, onOpenChange: setSettingsOpen })}
-      {renderPreview({ open: previewOpen, onOpenChange: setPreviewOpen })}
-    </div>
+        {!readOnly && (
+          <div className={cn('sticky top-13 z-20 bg-linear-to-b from-background from-70% to-transparent px-2 pb-1.5 md:top-14 md:px-4 md:pb-2', chromeClass)}>
+            <EditorToolbar editor={editor} actions={actions} />
+          </div>
+        )}
+
+        <main className={cn('flex-1 px-2 pt-1 pb-12 md:px-4 md:pb-16', focusMode && 'pt-12')}>
+          <EditorContextMenu editor={editor} actions={actions}>
+            <EditorCanvas
+              editor={editor}
+              className={cn(focusMode && 'bg-transparent')}
+              title={meta.title}
+              description={meta.description}
+              onTitleChange={title => updateMeta({ title })}
+              onDescriptionChange={description => updateMeta({ description })}
+              titlePlaceholder={untitled}
+              descriptionPlaceholder={t('description_placeholder')}
+              titleLabel={titleLabel}
+              descriptionLabel={descriptionLabel}
+              readOnly={readOnly || controller.aiBusy}
+              metaLine={metaLine}
+            />
+          </EditorContextMenu>
+        </main>
+
+        <EditorStatusBar editor={editor} sessionStatus={editSession.status} className={chromeClass} />
+
+        {!readOnly && <EditorBubbleMenu editor={editor} actions={actions} />}
+        <EditorAIPanel editor={editor} writer={aiWriter} />
+        <LinkPopover editor={editor} open={linkOpen} onOpenChange={setLinkOpen} />
+        <AnnotationPopover editor={editor} open={annotationOpen} onOpenChange={setAnnotationOpen} />
+
+        {renderSettings({ open: settingsOpen, onOpenChange: setSettingsOpen })}
+        {renderPreview({ open: previewOpen, onOpenChange: setPreviewOpen })}
+      </div>
+    </AIPromptsProvider>
   )
 }

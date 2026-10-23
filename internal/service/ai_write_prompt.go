@@ -24,34 +24,6 @@ const (
 	aiWriteScopeCode   = "code"
 )
 
-// aiWritePresets 快捷指令对应的要求，按模式区分
-var aiWritePresets = map[string]map[string]string{
-	aiWriteModeWrite: {
-		"continue":  "根据上下文，在插入点自然地续写。",
-		"summarize": "用一段话总结插入点之前的内容，点出要点，不要逐句复述。",
-		"outline":   "把插入点之前的内容整理成要点列表，每条一句话。",
-		"example":   "为插入点之前讲到的内容补充一个具体的示例；技术内容优先给出简短的代码示例。",
-	},
-	aiWriteModeRewrite: {
-		"polish":       "润色选中内容：修正错别字和语病，让表达更通顺、准确，不改变原意和信息量。",
-		"shorten":      "精简选中内容：删去重复和冗余的表达，保留全部关键信息，篇幅压缩到原来的一半左右。",
-		"expand":       "扩写选中内容：补充细节、解释或例子，让内容更充实，但不要编造事实，篇幅扩展到原来的 1.5～2 倍。",
-		"formal":       "把选中内容改得更正式、书面，适合技术文档或正式文章。",
-		"casual":       "把选中内容改得更轻松、口语化，像和朋友聊天一样，但保持信息准确。",
-		"translate_en": "把选中内容翻译成英文，保留原有格式，专有名词和代码保持原样。",
-		"translate_zh": "把选中内容翻译成简体中文，保留原有格式，专有名词和代码保持原样。",
-	},
-}
-
-// validAIWritePreset 快捷指令为空或属于该模式
-func validAIWritePreset(mode, preset string) bool {
-	if preset == "" {
-		return true
-	}
-	_, ok := aiWritePresets[mode][preset]
-	return ok
-}
-
 // aiWriteSystemPrompt AI 写作（帮写 / 润色）的系统提示词
 const aiWriteSystemPrompt = "# 角色\n" +
 	"你是个人博客编辑器里的写作助手，帮作者在文章中补写、续写或改写内容。作者会直接把你的输出放进正文，所以你的输出就是正文本身。\n" +
@@ -85,7 +57,7 @@ type aiWritePrompt struct {
 	targetType  string
 	mode        string
 	scope       string
-	preset      string
+	preset      string // 快捷指令的要求内容
 	instruction string
 	title       string
 	description string
@@ -188,7 +160,7 @@ func (p *aiWritePrompt) build() string {
 
 	sb.WriteString("\n\n# 作者的要求\n")
 	instruction := strings.TrimSpace(p.instruction)
-	if preset := aiWritePresets[p.mode][p.preset]; preset != "" {
+	if preset := strings.TrimSpace(p.preset); preset != "" {
 		if instruction != "" {
 			instruction = preset + "\n补充要求：" + instruction
 		} else {

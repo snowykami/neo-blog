@@ -76,7 +76,7 @@ func TestAIWritePrepare(t *testing.T) {
 	bad.Mode = "translate"
 	expectMessage(t, prepareErr(s, author, constant.TargetTypePost, post.ID, bad), http.StatusBadRequest, "invalid_request_parameters")
 	bad = writeReq(doc)
-	bad.Preset = "polish" // 润色的快捷指令不能用于帮写
+	bad.PromptID = promptIDByLabel(t, "润色") // 润色的快捷指令不能用于帮写
 	expectMessage(t, prepareErr(s, author, constant.TargetTypePost, post.ID, bad), http.StatusBadRequest, "invalid_request_parameters")
 	expectMessage(t, prepareErr(s, author, constant.TargetTypePost, post.ID, writeReq("<p>没有标记</p>")), http.StatusBadRequest, "invalid_request_parameters")
 	expectMessage(t, prepareErr(s, author, constant.TargetTypePost, post.ID, writeReq(doc+doc)), http.StatusBadRequest, "invalid_request_parameters")
@@ -124,7 +124,7 @@ func TestBuildAIWritePrompt(t *testing.T) {
 		t.Fatalf("selection should appear once:\n%s", got)
 	}
 
-	p.preset, p.instruction = "translate_en", "保留 emoji"
+	p.preset, p.instruction = "把选中内容翻译成英文，保留原有格式。", "保留 emoji"
 	if got = p.build(); !strings.Contains(got, "翻译成英文") || !strings.Contains(got, "补充要求：保留 emoji") {
 		t.Fatalf("preset with instruction:\n%s", got)
 	}
