@@ -83,7 +83,7 @@ func (s *RevisionService) snapshot(targetType string, targetID uint) (*revisionS
 			content: currentDraft(page.DraftContent, page.Content),
 			meta: dto.RevisionMeta{
 				Title: page.Title, Description: page.Description, Cover: page.Cover, Slug: &slug, IsPrivate: page.IsPrivate,
-				ShowInNav: page.ShowInNav, NavOrder: page.NavOrder,
+				ShowInNav: page.ShowInNav, NavOrder: page.NavOrder, Layout: model.NormalizePageLayout(page.Layout),
 			},
 		}, nil
 	}
@@ -274,7 +274,7 @@ func (s *RevisionService) Restore(ctx context.Context, targetType string, target
 		_, svcerr = NewPageService().UpdatePage(ctx, &dto.CreateOrUpdatePageReq{
 			ID:          targetID,
 			PageBaseDto: dto.PageBaseDto{Title: meta.Title, Slug: slug, DraftContent: &content},
-			IsPrivate:   &meta.IsPrivate, ShowInNav: &meta.ShowInNav, NavOrder: &meta.NavOrder,
+			IsPrivate:   &meta.IsPrivate, ShowInNav: &meta.ShowInNav, NavOrder: &meta.NavOrder, Layout: pageLayoutPtr(meta.Layout),
 			Description: &meta.Description, Cover: &meta.Cover,
 			EditSessionID: sessionID,
 		})
@@ -327,4 +327,12 @@ func (s *RevisionService) publishedContent(targetType string, targetID uint) (st
 		return "", err
 	}
 	return post.Content, nil
+}
+
+// pageLayoutPtr 旧版本快照中没有版式时不修改当前版式
+func pageLayoutPtr(layout string) *string {
+	if layout == "" {
+		return nil
+	}
+	return &layout
 }

@@ -1,5 +1,10 @@
 import type { User } from './user'
 
+// 前台版式：reading 阅读（正文 + 目录侧边栏，外框与顶栏对齐）/ wide 宽屏（正文占满整行）
+export const PAGE_LAYOUTS = ['reading', 'wide'] as const
+
+export type PageLayout = typeof PAGE_LAYOUTS[number]
+
 export interface PageModel {
   id: number
   userId: number
@@ -14,6 +19,7 @@ export interface PageModel {
   isPrivate: boolean
   showInNav: boolean
   navOrder: number
+  layout: PageLayout
   createdAt: string
   updatedAt: string
 }

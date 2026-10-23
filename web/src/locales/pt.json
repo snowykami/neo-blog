@@ -251,7 +251,8 @@
     "show_less": "Mostrar menos",
     "back_to_top": "Voltar ao topo",
     "ai_summary": "Resumo por IA",
-    "more_info": "Mais informações"
+    "more_info": "Mais informações",
+    "page_info": "Informações da página"
   },
   "Components": {
     "image_cropper": {
@@ -1297,7 +1298,12 @@
         "discard_unpublished_description": "O rascunho volta ao conteúdo publicado; configurações como o título não mudam. O estado atual é salvo no histórico.",
         "revert_failed": "Falha na operação",
         "reverted": "Alterações descartadas"
-      }
+      },
+      "settings_layout": "Layout",
+      "layout": "Layout da página",
+      "layout_hint": "Leitura: informações da página e sumário ao lado do texto, mesma largura dos posts; Largo: o conteúdo ocupa toda a largura, ideal para portfólios e páginas com muitas imagens",
+      "layout_reading": "Leitura (conteúdo + sumário)",
+      "layout_wide": "Largo (largura total)"
     },
     "menu": {
       "content": "Posts e páginas",

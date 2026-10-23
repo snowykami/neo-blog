@@ -51,6 +51,7 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 			IsPrivate:    utils.Deref(req.IsPrivate),
 			ShowInNav:    utils.Deref(req.ShowInNav),
 			NavOrder:     utils.Deref(req.NavOrder),
+			Layout:       model.NormalizePageLayout(utils.Deref(req.Layout)),
 		},
 	}
 	if err := repo.Page.CreatePage(page); err != nil {
@@ -137,6 +138,9 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	}
 	if req.NavOrder != nil {
 		page.NavOrder = *req.NavOrder
+	}
+	if req.Layout != nil {
+		page.Layout = model.NormalizePageLayout(*req.Layout)
 	}
 
 	if err := repo.Page.SavePage(page); err != nil {

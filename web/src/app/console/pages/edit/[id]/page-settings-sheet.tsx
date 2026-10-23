@@ -1,7 +1,8 @@
 'use client'
 
 import type { ContentMeta } from '@/hooks/use-content-editor'
-import { CompassIcon, FileTextIcon, SendIcon } from 'lucide-react'
+import type { PageLayout } from '@/models/page'
+import { CompassIcon, FileTextIcon, LayoutTemplateIcon, SendIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { InfoTooltip, LabelWithInfo } from '@/components/common/info-tooltip'
@@ -15,8 +16,10 @@ import {
 } from '@/components/console/editor/content-settings-sheet'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useResponseErrorDetailsT } from '@/hooks/use-translations'
+import { PAGE_LAYOUTS } from '@/models/page'
 
 interface PageSettingsValues {
   slug: string
@@ -25,6 +28,7 @@ interface PageSettingsValues {
   isPrivate: boolean
   showInNav: boolean
   navOrder: number
+  layout: PageLayout
 }
 
 function toValues(meta: ContentMeta): PageSettingsValues {
@@ -35,6 +39,7 @@ function toValues(meta: ContentMeta): PageSettingsValues {
     isPrivate: meta.isPrivate,
     showInNav: meta.showInNav,
     navOrder: meta.navOrder,
+    layout: meta.layout,
   }
 }
 
@@ -44,7 +49,7 @@ function isNumericSlug(value: string) {
 }
 
 /**
- * 页面设置抽屉：访问路径（必填）、摘要（与画布同步）、封面、私密、导航展示与排序
+ * 页面设置抽屉：访问路径（必填）、摘要（与画布同步）、封面、私密、导航展示与排序、前台版式
  */
 export function PageSettingsSheet({
   open,
@@ -110,6 +115,28 @@ export function PageSettingsSheet({
           <SettingsSection icon={CompassIcon} title={t('settings_nav')}>
             <SwitchField form={form} name="showInNav" label={pageT('show_in_nav')} description={t('show_in_nav_hint')} />
             <NumberField form={form} name="navOrder" label={pageT('nav_order')} description={t('nav_order_hint')} />
+          </SettingsSection>
+
+          <SettingsSection icon={LayoutTemplateIcon} title={t('settings_layout')}>
+            <FormField
+              control={form.control}
+              name="layout"
+              render={({ field }) => (
+                <FormItem>
+                  <LabelWithInfo info={t('layout_hint')}><FormLabel>{t('layout')}</FormLabel></LabelWithInfo>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {PAGE_LAYOUTS.map(layout => (
+                        <SelectItem key={layout} value={layout}>{t(`layout_${layout}`)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
           </SettingsSection>
 
           <SettingsSection icon={SendIcon} title={t('settings_publish')}>

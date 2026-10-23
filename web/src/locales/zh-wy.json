@@ -251,7 +251,8 @@
     "show_less": "斂之",
     "back_to_top": "返於首",
     "ai_summary": "AI 撮要",
-    "more_info": "詳釋"
+    "more_info": "詳釋",
+    "page_info": "頁之訊"
   },
   "Components": {
     "image_cropper": {
@@ -1297,7 +1298,12 @@
         "discard_unpublished_description": "草稿復為今所發之版，題諸設不改。棄前之文備於舊版。",
         "revert_failed": "未成",
         "reverted": "已棄所改"
-      }
+      },
+      "settings_layout": "版式",
+      "layout": "前臺版式",
+      "layout_hint": "閱讀：文旁示頁之訊與目，文寬同於文章；寬屏：文盈一行，宜作品集、多圖之頁",
+      "layout_reading": "閱讀（文 + 目）",
+      "layout_wide": "寬屏（文盈一行）"
     },
     "menu": {
       "content": "文與頁",

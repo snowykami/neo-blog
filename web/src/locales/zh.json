@@ -251,7 +251,8 @@
     "show_less": "收起",
     "back_to_top": "回到顶部",
     "ai_summary": "AI 摘要",
-    "more_info": "更多说明"
+    "more_info": "更多说明",
+    "page_info": "页面信息"
   },
   "Components": {
     "image_cropper": {
@@ -1297,7 +1298,12 @@
         "discard_unpublished_description": "正文草稿会恢复为当前已发布的版本，标题等设置不受影响。放弃前的内容会备份到版本历史。",
         "revert_failed": "操作失败",
         "reverted": "已放弃修改"
-      }
+      },
+      "settings_layout": "版式",
+      "layout": "前台版式",
+      "layout_hint": "阅读：正文旁显示页面信息与目录，正文宽度与文章一致；宽屏：正文占满整行，适合作品集、图片较多的页面",
+      "layout_reading": "阅读（正文 + 目录）",
+      "layout_wide": "宽屏（正文占满整行）"
     },
     "menu": {
       "content": "文章与页面",

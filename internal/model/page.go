@@ -5,6 +5,20 @@ import (
 	"gorm.io/gorm"
 )
 
+// 独立页面的前台版式
+const (
+	PageLayoutReading = "reading"
+	PageLayoutWide    = "wide"
+)
+
+// NormalizePageLayout 未设置或不认识的版式按阅读版式处理
+func NormalizePageLayout(layout string) string {
+	if layout == PageLayoutWide {
+		return PageLayoutWide
+	}
+	return PageLayoutReading
+}
+
 type Page struct {
 	gorm.Model
 	UserID uint `gorm:"index"`
@@ -23,6 +37,8 @@ type PageBase struct {
 	IsPrivate    bool    `gorm:"default:false"`
 	ShowInNav    bool    `gorm:"default:false;index"`
 	NavOrder     int     `gorm:"default:0;index"`
+	// 前台版式：reading 正文 + 目录侧边栏（默认），wide 正文占满整行
+	Layout string `gorm:"type:varchar(20);default:'reading'"`
 }
 
 func (p *Page) ToDto() *dto.PageDto {
@@ -41,6 +57,7 @@ func (p *Page) ToDto() *dto.PageDto {
 			IsPrivate:    p.IsPrivate,
 			ShowInNav:    p.ShowInNav,
 			NavOrder:     p.NavOrder,
+			Layout:       NormalizePageLayout(p.Layout),
 		},
 		CreatedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt,

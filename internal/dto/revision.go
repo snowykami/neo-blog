@@ -14,8 +14,9 @@ type RevisionMeta struct {
 	LabelIds   []uint `json:"label_ids,omitempty"`
 	Top        uint   `json:"top,omitempty"`
 	// 页面
-	ShowInNav bool `json:"show_in_nav,omitempty"`
-	NavOrder  int  `json:"nav_order,omitempty"`
+	ShowInNav bool   `json:"show_in_nav,omitempty"`
+	NavOrder  int    `json:"nav_order,omitempty"`
+	Layout    string `json:"layout,omitempty"`
 }
 
 // RevisionDto 版本列表项（不含正文）

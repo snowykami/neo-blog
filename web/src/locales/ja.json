@@ -251,7 +251,8 @@
     "show_less": "閉じる",
     "back_to_top": "トップへ戻る",
     "ai_summary": "AI 要約",
-    "more_info": "詳細"
+    "more_info": "詳細",
+    "page_info": "ページ情報"
   },
   "Components": {
     "image_cropper": {
@@ -1297,7 +1298,12 @@
         "discard_unpublished_description": "下書きが公開中の本文に戻ります。タイトルなどの設定は変わりません。現在の内容は版の履歴へバックアップされます。",
         "revert_failed": "操作に失敗しました",
         "reverted": "変更を破棄しました"
-      }
+      },
+      "settings_layout": "レイアウト",
+      "layout": "ページのレイアウト",
+      "layout_hint": "読書：本文の横にページ情報と目次を表示し、本文幅は記事と同じ。ワイド：本文を横幅いっぱいに表示し、ポートフォリオや画像の多いページ向け",
+      "layout_reading": "読書（本文 + 目次）",
+      "layout_wide": "ワイド（全幅）"
     },
     "menu": {
       "content": "記事とページ",

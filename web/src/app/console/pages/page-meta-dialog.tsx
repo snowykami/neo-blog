@@ -1,7 +1,7 @@
 'use client'
 
 import type { SubmitHandler } from 'react-hook-form'
-import type { PageModel } from '@/models/page'
+import type { PageLayout, PageModel } from '@/models/page'
 import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef } from 'react'
@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { createPage, updatePage } from '@/api/page'
 import { AssetField } from '@/components/common/asset-picker'
+import { LabelWithInfo } from '@/components/common/info-tooltip'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -27,8 +28,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useErrorMessageT, useOperationT, useResponseErrorDetailsT } from '@/hooks/use-translations'
+import { PAGE_LAYOUTS } from '@/models/page'
 import { getPageEditUrl } from '@/utils/common/route'
 
 interface PageMetaForm {
@@ -39,6 +42,7 @@ interface PageMetaForm {
   isPrivate: boolean
   showInNav: boolean
   navOrder: number
+  layout: PageLayout
 }
 
 export function PageMetaDialog({
@@ -56,6 +60,7 @@ export function PageMetaDialog({
   const errorMessageT = useErrorMessageT()
   const errorDetailsT = useResponseErrorDetailsT()
   const t = useTranslations('Console.pages.meta')
+  const editorT = useTranslations('Console.editor')
   const router = useRouter()
   const form = useForm<PageMetaForm>({
     defaultValues: toFormValues(page),
@@ -179,6 +184,25 @@ export function PageMetaDialog({
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="layout"
+              render={({ field }) => (
+                <FormItem>
+                  <LabelWithInfo info={editorT('layout_hint')}><FormLabel>{editorT('layout')}</FormLabel></LabelWithInfo>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {PAGE_LAYOUTS.map(layout => (
+                        <SelectItem key={layout} value={layout}>{editorT(`layout_${layout}`)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <FormField
                 control={form.control}
@@ -244,6 +268,7 @@ function toFormValues(page: PageModel | null): PageMetaForm {
         isPrivate: page.isPrivate,
         showInNav: page.showInNav,
         navOrder: page.navOrder || 0,
+        layout: page.layout === 'wide' ? 'wide' : 'reading',
       }
     : {
         title: '',
@@ -253,6 +278,7 @@ function toFormValues(page: PageModel | null): PageMetaForm {
         isPrivate: false,
         showInNav: false,
         navOrder: 0,
+        layout: 'reading',
       }
 }
 

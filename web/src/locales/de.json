@@ -251,7 +251,8 @@
     "show_less": "Weniger anzeigen",
     "back_to_top": "Nach oben",
     "ai_summary": "KI-Zusammenfassung",
-    "more_info": "Weitere Infos"
+    "more_info": "Weitere Infos",
+    "page_info": "Seiteninfo"
   },
   "Components": {
     "image_cropper": {
@@ -1297,7 +1298,12 @@
         "discard_unpublished_description": "Der Entwurf wird auf den veröffentlichten Inhalt zurückgesetzt; Einstellungen wie der Titel bleiben unverändert. Der aktuelle Stand wird im Versionsverlauf gesichert.",
         "revert_failed": "Vorgang fehlgeschlagen",
         "reverted": "Änderungen verworfen"
-      }
+      },
+      "settings_layout": "Layout",
+      "layout": "Seitenlayout",
+      "layout_hint": "Lesen: Seiteninfos und Inhaltsverzeichnis neben dem Text, gleiche Breite wie Beiträge; Breit: Inhalt über die volle Breite, ideal für Portfolios und bildreiche Seiten",
+      "layout_reading": "Lesen (Inhalt + Inhaltsverzeichnis)",
+      "layout_wide": "Breit (volle Breite)"
     },
     "menu": {
       "content": "Beiträge & Seiten",

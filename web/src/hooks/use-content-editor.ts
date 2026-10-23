@@ -4,7 +4,7 @@ import type { Editor } from '@tiptap/react'
 import type { AIWriterOpenOptions } from '@/components/tiptap-editor/use-ai-writer'
 import type { Category } from '@/models/category'
 import type { Label } from '@/models/label'
-import type { PageModel } from '@/models/page'
+import type { PageLayout, PageModel } from '@/models/page'
 import type { Post } from '@/models/post'
 import { EditorState } from '@tiptap/pm/state'
 import { useEditor } from '@tiptap/react'
@@ -41,6 +41,7 @@ export interface ContentMeta {
   // 仅页面
   showInNav: boolean
   navOrder: number
+  layout: PageLayout
 }
 
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
@@ -76,6 +77,7 @@ const EMPTY_META: ContentMeta = {
   top: 0,
   showInNav: false,
   navOrder: 0,
+  layout: 'reading',
 }
 
 const postAdapter: ContentAdapter = {
@@ -123,7 +125,7 @@ const postAdapter: ContentAdapter = {
     return updatePost({ post: patch, editSessionId: sessionId })
   },
   mergeMeta: (doc, meta) => {
-    const { showInNav: _showInNav, navOrder: _navOrder, ...rest } = meta
+    const { showInNav: _showInNav, navOrder: _navOrder, layout: _layout, ...rest } = meta
     return { ...(doc as Post), ...rest, slug: meta.slug !== undefined ? meta.slug || null : (doc as Post).slug }
   },
 }
@@ -141,6 +143,7 @@ const pageAdapter: ContentAdapter = {
       isPrivate: !!page.isPrivate,
       showInNav: !!page.showInNav,
       navOrder: page.navOrder || 0,
+      layout: page.layout === 'wide' ? 'wide' : 'reading',
     }
   },
   update: ({ id, draftContent, content, meta, sessionId }) => {
@@ -165,6 +168,8 @@ const pageAdapter: ContentAdapter = {
       patch.showInNav = meta.showInNav
     if (meta.navOrder !== undefined)
       patch.navOrder = Number(meta.navOrder) || 0
+    if (meta.layout !== undefined)
+      patch.layout = meta.layout
     return updatePage({ page: patch, editSessionId: sessionId })
   },
   mergeMeta: (doc, meta) => {

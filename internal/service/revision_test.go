@@ -180,3 +180,52 @@ func TestRevisionPage(t *testing.T) {
 		t.Fatalf("restore page failed: %+v", page)
 	}
 }
+
+// 页面版式：默认阅读版式，可改为宽屏，不认识的值按阅读处理；只保存草稿不改动版式；恢复版本时一并恢复
+func TestPageLayout(t *testing.T) {
+	author, _, _, _, _ := setupEditTest(t)
+	s := NewPageService()
+	pageID, svcerr := s.CreatePage(author, &dto.CreateOrUpdatePageReq{PageBaseDto: dto.PageBaseDto{Title: "关于", Slug: "about", Content: "<p>hi</p>"}})
+	if svcerr != nil {
+		t.Fatalf("create page: %v", svcerr)
+	}
+	layoutOf := func() string {
+		page, _ := repo.Page.GetPageByID(pageID)
+		return page.ToDto().Layout
+	}
+	if got := layoutOf(); got != model.PageLayoutReading {
+		t.Fatalf("default layout = %q", got)
+	}
+
+	session, _ := NewEditSessionService().Acquire(author, constant.TargetTypePage, pageID, "test")
+	update := func(layout *string) {
+		t.Helper()
+		draft := "<p>改了</p>"
+		if _, svcerr := s.UpdatePage(author, &dto.CreateOrUpdatePageReq{ID: pageID, PageBaseDto: dto.PageBaseDto{Title: "关于", Slug: "about", DraftContent: &draft}, Layout: layout, EditSessionID: session.SessionID}); svcerr != nil {
+			t.Fatalf("update page: %v", svcerr)
+		}
+	}
+	wide, unknown := model.PageLayoutWide, "fullscreen"
+	update(&wide)
+	if got := layoutOf(); got != model.PageLayoutWide {
+		t.Fatalf("layout after update = %q", got)
+	}
+	// 只保存草稿（未传版式）不改动
+	update(nil)
+	if got := layoutOf(); got != model.PageLayoutWide {
+		t.Fatalf("draft save should keep layout, got %q", got)
+	}
+	update(&unknown)
+	if got := layoutOf(); got != model.PageLayoutReading {
+		t.Fatalf("unknown layout should fall back to reading, got %q", got)
+	}
+
+	// 恢复到打开编辑时的版本：版式随之恢复
+	update(&wide)
+	if svcerr := NewRevisionService().Restore(author, constant.TargetTypePage, pageID, session.BaseRevisionID, session.SessionID); svcerr != nil {
+		t.Fatalf("restore page: %v", svcerr)
+	}
+	if got := layoutOf(); got != model.PageLayoutReading {
+		t.Fatalf("restore should bring back layout, got %q", got)
+	}
+}

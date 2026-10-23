@@ -251,7 +251,8 @@
     "show_less": "Ver menos",
     "back_to_top": "Volver arriba",
     "ai_summary": "Resumen con IA",
-    "more_info": "Más información"
+    "more_info": "Más información",
+    "page_info": "Información de la página"
   },
   "Components": {
     "image_cropper": {
@@ -1297,7 +1298,12 @@
         "discard_unpublished_description": "El borrador vuelve al contenido publicado; ajustes como el título no cambian. El estado actual se guarda en el historial.",
         "revert_failed": "La operación falló",
         "reverted": "Cambios descartados"
-      }
+      },
+      "settings_layout": "Diseño",
+      "layout": "Diseño de la página",
+      "layout_hint": "Lectura: información de la página e índice junto al texto, mismo ancho que las entradas; Ancho: el contenido ocupa todo el ancho, ideal para portafolios y páginas con muchas imágenes",
+      "layout_reading": "Lectura (contenido + índice)",
+      "layout_wide": "Ancho (contenido a todo el ancho)"
     },
     "menu": {
       "content": "Entradas y páginas",

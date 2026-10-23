@@ -251,7 +251,8 @@
     "show_less": "Afficher moins",
     "back_to_top": "Retour en haut",
     "ai_summary": "Résumé IA",
-    "more_info": "Plus d'informations"
+    "more_info": "Plus d'informations",
+    "page_info": "Infos de la page"
   },
   "Components": {
     "image_cropper": {
@@ -1297,7 +1298,12 @@
         "discard_unpublished_description": "Le brouillon revient au contenu publié ; les réglages comme le titre ne changent pas. L'état actuel est sauvegardé dans l'historique.",
         "revert_failed": "Échec de l'opération",
         "reverted": "Modifications annulées"
-      }
+      },
+      "settings_layout": "Mise en page",
+      "layout": "Mise en page",
+      "layout_hint": "Lecture : infos de la page et sommaire à côté du texte, même largeur que les articles ; Large : le contenu occupe toute la largeur, idéal pour les portfolios et les pages riches en images",
+      "layout_reading": "Lecture (contenu + sommaire)",
+      "layout_wide": "Large (pleine largeur)"
     },
     "menu": {
       "content": "Articles et pages",

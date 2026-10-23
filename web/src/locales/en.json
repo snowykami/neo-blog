@@ -251,7 +251,8 @@
     "show_less": "Show less",
     "back_to_top": "Back to top",
     "ai_summary": "AI Summary",
-    "more_info": "More info"
+    "more_info": "More info",
+    "page_info": "Page info"
   },
   "Components": {
     "image_cropper": {
@@ -1297,7 +1298,12 @@
         "discard_unpublished_description": "The draft goes back to the published content; settings such as the title are not changed. The current content is backed up to version history.",
         "revert_failed": "Operation failed",
         "reverted": "Changes discarded"
-      }
+      },
+      "settings_layout": "Layout",
+      "layout": "Page layout",
+      "layout_hint": "Reading: page info and table of contents beside the text, same width as posts; Wide: the content spans the full width, good for portfolios and image-heavy pages",
+      "layout_reading": "Reading (content + TOC)",
+      "layout_wide": "Wide (full-width content)"
     },
     "menu": {
       "content": "Posts & pages",

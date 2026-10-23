@@ -251,7 +251,8 @@
     "show_less": "접기",
     "back_to_top": "맨 위로",
     "ai_summary": "AI 요약",
-    "more_info": "자세한 설명"
+    "more_info": "자세한 설명",
+    "page_info": "페이지 정보"
   },
   "Components": {
     "image_cropper": {
@@ -1297,7 +1298,12 @@
         "discard_unpublished_description": "초안이 게시된 본문으로 돌아갑니다. 제목 등의 설정은 바뀌지 않습니다. 현재 내용은 버전 기록에 백업됩니다.",
         "revert_failed": "작업에 실패했습니다",
         "reverted": "수정을 버렸습니다"
-      }
+      },
+      "settings_layout": "레이아웃",
+      "layout": "페이지 레이아웃",
+      "layout_hint": "읽기: 본문 옆에 페이지 정보와 목차를 표시하며 본문 너비는 글과 같습니다. 와이드: 본문이 전체 너비를 차지하며 포트폴리오나 이미지가 많은 페이지에 적합합니다",
+      "layout_reading": "읽기 (본문 + 목차)",
+      "layout_wide": "와이드 (전체 너비)"
     },
     "menu": {
       "content": "글과 페이지",

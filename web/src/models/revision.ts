@@ -1,3 +1,4 @@
+import type { PageLayout } from './page'
 import type { User } from './user'
 
 // 版本类型：发布 / 打开编辑器时（编辑起点）/ 自动保存的检查点 / 恢复或放弃修改前的备份
@@ -14,6 +15,7 @@ export interface RevisionMeta {
   top?: number
   showInNav?: boolean
   navOrder?: number
+  layout?: PageLayout
 }
 
 export interface Revision {
