@@ -2109,5 +2109,24 @@
     "description": "Refresh the page to use the new version",
     "description_console": "Refresh the page to use the new version. Make sure your edits are saved first",
     "refresh": "Refresh"
+  },
+  "Share": {
+    "share": "Share",
+    "title": "Share this post",
+    "hint": "The share image is generated on the server; save it or send it in any chat app.",
+    "preview_alt": "Post share image preview",
+    "download": "Save share image",
+    "copy_link": "Copy link",
+    "copy_success": "Link copied, paste it anywhere to share",
+    "copy_failed": "Copy failed, please copy the address bar link manually",
+    "wechat_hint": "WeChat cannot share from the web directly: the link is copied, paste it in a chat",
+    "native": "System share",
+    "platforms": {
+      "x": "X",
+      "telegram": "Telegram",
+      "qq": "QQ",
+      "weibo": "Weibo",
+      "wechat": "WeChat"
+    }
   }
 }

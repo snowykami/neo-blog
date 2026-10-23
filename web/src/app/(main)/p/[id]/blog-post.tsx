@@ -6,6 +6,7 @@ import { AISummary } from '@/components/blog-post/ai-summary.client'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import CopyrightCard from '@/components/blog-post/blog-copyright.client'
 import { BlogLikeButton } from '@/components/blog-post/blog-like-button.client'
+import { BlogShare } from '@/components/blog-post/blog-share.client'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
@@ -102,11 +103,17 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
 
       <CopyrightCard post={post} className="mt-8" />
 
-      {/* 点赞按钮 - Wrapped in Suspense for better performance */}
+      {/* 点赞与分享 - Wrapped in Suspense for better performance */}
       <div className="mt-8">
         <Suspense fallback={<LikeButtonSkeleton />}>
           <BlogLikeButton post={post} />
         </Suspense>
+        {/* 草稿预览不对外分享 */}
+        {!isDraft && (
+          <div className="mt-6 flex justify-center">
+            <BlogShare post={post} />
+          </div>
+        )}
       </div>
     </div>
   )

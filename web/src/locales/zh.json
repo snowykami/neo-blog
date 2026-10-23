@@ -2109,5 +2109,24 @@
     "description": "刷新页面即可使用新版本",
     "description_console": "刷新页面即可使用新版本，刷新前请确认编辑中的内容已保存",
     "refresh": "刷新"
+  },
+  "Share": {
+    "share": "分享",
+    "title": "分享这篇文章",
+    "hint": "分享图由服务端生成，可直接保存或发送到聊天工具",
+    "preview_alt": "文章分享图预览",
+    "download": "保存分享图",
+    "copy_link": "复制链接",
+    "copy_success": "链接已复制，粘贴到任意位置即可分享",
+    "copy_failed": "复制失败，请手动复制地址栏链接",
+    "wechat_hint": "微信不支持网页直接分享：链接已复制，粘贴到聊天窗口即可",
+    "native": "系统分享",
+    "platforms": {
+      "x": "X",
+      "telegram": "Telegram",
+      "qq": "QQ",
+      "weibo": "微博",
+      "wechat": "微信"
+    }
   }
 }

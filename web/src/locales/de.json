@@ -2109,5 +2109,24 @@
     "description": "Lade die Seite neu, um die neue Version zu verwenden",
     "description_console": "Lade die Seite neu, um die neue Version zu verwenden. Stelle vorher sicher, dass deine Änderungen gespeichert sind",
     "refresh": "Neu laden"
+  },
+  "Share": {
+    "share": "Teilen",
+    "title": "Diesen Beitrag teilen",
+    "hint": "Das Teilen-Bild wird auf dem Server erzeugt; du kannst es speichern oder im Chat senden.",
+    "preview_alt": "Vorschau des Teilen-Bilds",
+    "download": "Teilen-Bild speichern",
+    "copy_link": "Link kopieren",
+    "copy_success": "Link kopiert, jetzt einfügen und teilen",
+    "copy_failed": "Kopieren fehlgeschlagen, bitte den Link aus der Adresszeile kopieren",
+    "wechat_hint": "WeChat kann nicht direkt aus dem Web teilen: Der Link ist kopiert, füge ihn im Chat ein",
+    "native": "System teilen",
+    "platforms": {
+      "x": "X",
+      "telegram": "Telegram",
+      "qq": "QQ",
+      "weibo": "Weibo",
+      "wechat": "WeChat"
+    }
   }
 }

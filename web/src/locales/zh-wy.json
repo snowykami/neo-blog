@@ -2109,5 +2109,24 @@
     "description": "重載此頁即得新版",
     "description_console": "重載此頁即得新版，重載之前請察所編之文已存",
     "refresh": "重載"
+  },
+  "Share": {
+    "share": "分享",
+    "title": "分享此文",
+    "hint": "分享之圖成於伺服，可存之或傳於談器",
+    "preview_alt": "分享圖之預覽",
+    "download": "存分享圖",
+    "copy_link": "複製連結",
+    "copy_success": "連結已複製，粘貼即可分享",
+    "copy_failed": "複製不成，請手動複製網址欄之連結",
+    "wechat_hint": "微信不容網頁直分享：連結已複製，粘於談窗即可",
+    "native": "系統分享",
+    "platforms": {
+      "x": "X",
+      "telegram": "Telegram",
+      "qq": "QQ",
+      "weibo": "微博",
+      "wechat": "微信"
+    }
   }
 }

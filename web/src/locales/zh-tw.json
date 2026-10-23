@@ -2109,5 +2109,24 @@
     "description": "重新整理頁面即可使用新版本",
     "description_console": "重新整理頁面即可使用新版本，重新整理前請確認編輯中的內容已儲存",
     "refresh": "重新整理"
+  },
+  "Share": {
+    "share": "分享",
+    "title": "分享這篇文章",
+    "hint": "分享圖由伺服器產生，可直接儲存或傳到聊天軟體",
+    "preview_alt": "文章分享圖預覽",
+    "download": "儲存分享圖",
+    "copy_link": "複製連結",
+    "copy_success": "連結已複製，貼上即可分享",
+    "copy_failed": "複製失敗，請手動複製網址列的連結",
+    "wechat_hint": "微信不支援網頁直接分享：連結已複製，貼到聊天視窗即可",
+    "native": "系統分享",
+    "platforms": {
+      "x": "X",
+      "telegram": "Telegram",
+      "qq": "QQ",
+      "weibo": "微博",
+      "wechat": "微信"
+    }
   }
 }

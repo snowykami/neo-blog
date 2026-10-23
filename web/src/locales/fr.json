@@ -2109,5 +2109,24 @@
     "description": "Actualisez la page pour utiliser la nouvelle version",
     "description_console": "Actualisez la page pour utiliser la nouvelle version. Vérifiez d'abord que vos modifications sont enregistrées",
     "refresh": "Actualiser"
+  },
+  "Share": {
+    "share": "Partager",
+    "title": "Partager cet article",
+    "hint": "L'image de partage est générée côté serveur : vous pouvez l'enregistrer ou l'envoyer dans une messagerie.",
+    "preview_alt": "Aperçu de l'image de partage",
+    "download": "Enregistrer l'image",
+    "copy_link": "Copier le lien",
+    "copy_success": "Lien copié, il ne reste qu'à le coller",
+    "copy_failed": "Échec de la copie, copiez le lien depuis la barre d'adresse",
+    "wechat_hint": "WeChat ne permet pas de partager depuis le web : le lien est copié, collez-le dans la conversation",
+    "native": "Partage système",
+    "platforms": {
+      "x": "X",
+      "telegram": "Telegram",
+      "qq": "QQ",
+      "weibo": "Weibo",
+      "wechat": "WeChat"
+    }
   }
 }
