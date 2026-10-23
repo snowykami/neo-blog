@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ImagePlaceholder } from '@/components/common/safe-image'
+import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
 
 interface FailedImage {
   id: number
@@ -28,7 +29,8 @@ export function ContentImageFallback({ containerId }: { containerId: string }) {
       return
 
     const replace = (img: HTMLImageElement) => {
-      if (!img.isConnected)
+      // 组件岛内的图片由组件自己处理加载失败（React 管理的 DOM 不能被替换）
+      if (!img.isConnected || img.closest(COMPONENT_ROOT_SELECTOR))
         return
       const holder = document.createElement('div')
       holder.className = 'image-fallback'

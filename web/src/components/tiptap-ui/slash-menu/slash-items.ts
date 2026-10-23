@@ -1,6 +1,7 @@
 import type { BlockTypeId } from '@/components/tiptap-editor/editor-commands'
 import type { SlashCommandItem } from '@/components/tiptap-extension/slash-command-extension'
 import { CalendarIcon, ImageIcon, MinusIcon, SparklesIcon, TableIcon } from 'lucide-react'
+import { CONTENT_COMPONENTS } from '@/components/content-components/registry'
 import { getBlockTypeDef, setBlockType } from '@/components/tiptap-editor/editor-commands'
 
 type Translate = (key: string, values?: Record<string, string | number>) => string
@@ -33,14 +34,30 @@ const SLASH_ITEM_DEFS: SlashItemDef[] = [
   { group: 'other', id: 'date', keywords: ['date', 'today', 'riqi', 'rq', 'jintian', '日期', '今天'] },
 ]
 
+/** 内置组件（组件块），排在“其他”之前 */
+function buildComponentItems(t: Translate, ct: Translate): SlashCommandItem[] {
+  return CONTENT_COMPONENTS.map(def => ({
+    id: `component-${def.name}`,
+    group: t('slash.group_component'),
+    title: ct(`${def.name}.name`),
+    hint: ct(`${def.name}.description`),
+    icon: def.icon,
+    keywords: ['component', 'zujian', 'zj', '组件', ...def.keywords],
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).insertComponentBlock(def.name).run()
+    },
+  }))
+}
+
 /**
  * 生成本地化后的斜杠命令项
  * @param t Console.editor 命名空间的翻译函数
+ * @param ct ContentComponents 命名空间的翻译函数（组件名称与说明）
  * @param formatDate 插入“今天的日期”时的格式化函数
  * @param openAI 打开 AI 帮写面板
  */
-export function buildSlashItems(t: Translate, formatDate: (date: Date) => string, openAI: () => void): SlashCommandItem[] {
-  return SLASH_ITEM_DEFS.map((def) => {
+export function buildSlashItems(t: Translate, ct: Translate, formatDate: (date: Date) => string, openAI: () => void): SlashCommandItem[] {
+  const items = SLASH_ITEM_DEFS.map((def): SlashCommandItem => {
     const base = {
       id: def.id,
       group: t(`slash.group_${def.group}`),
@@ -107,6 +124,9 @@ export function buildSlashItems(t: Translate, formatDate: (date: Date) => string
       }
     }
   })
+  const otherIndex = items.findIndex(item => item.id === 'hr')
+  items.splice(otherIndex < 0 ? items.length : otherIndex, 0, ...buildComponentItems(t, ct))
+  return items
 }
 
 /** 按输入过滤：完全匹配 > 前缀匹配 > 包含匹配，保持分组顺序 */

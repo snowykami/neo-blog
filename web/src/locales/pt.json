@@ -1072,7 +1072,8 @@
         "hint_date": "Inserir a data atual",
         "group_ai": "IA",
         "hint_ai": "Deixe a IA continuar ou escrever conforme sua instrução",
-        "hint_table": "Inserir uma tabela 3×3"
+        "hint_table": "Inserir uma tabela 3×3",
+        "group_component": "Componentes"
       },
       "block_add": "Clique para inserir um bloco",
       "block_drag": "Arraste para mover · clique para o menu",
@@ -1089,7 +1090,8 @@
         "imageUpload": "Envio de imagem",
         "horizontalRule": "Divisor",
         "block": "Bloco",
-        "table": "Tabela"
+        "table": "Tabela",
+        "componentBlock": "Componente"
       },
       "image_toolbar": "Ferramentas de imagem",
       "image_align_left": "À esquerda",
@@ -1647,6 +1649,107 @@
     "url_placeholder": "Cole uma URL ou escolha na biblioteca",
     "preview_empty": "Sem imagem",
     "choose_from_library": "Escolher da biblioteca"
+  },
+  "ContentComponents": {
+    "group": "Componentes",
+    "edit": "Editar propriedades",
+    "edit_title": "Editar {name}",
+    "delete": "Excluir componente",
+    "toolbar": "Barra de ferramentas: {name}",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "add_item": "Adicionar",
+    "remove_item": "Remover",
+    "move_up": "Mover para cima",
+    "move_down": "Mover para baixo",
+    "item_index": "Item {index}",
+    "unknown": "Componente desconhecido: {name}",
+    "unknown_name": "Componente sem nome",
+    "unknown_hint": "Esta versão não suporta este componente; os leitores verão o conteúdo alternativo",
+    "invalid": "Propriedades inválidas; edite e salve novamente",
+    "render_failed": "Falha ao exibir o componente",
+    "edit_hint": "Tente editar as propriedades novamente",
+    "validation": {
+      "required": "Obrigatório",
+      "too_short": "Pelo menos {minimum} caracteres",
+      "too_long": "No máximo {maximum} caracteres",
+      "too_few": "Pelo menos {minimum} itens",
+      "too_many": "No máximo {maximum} itens",
+      "out_of_range": "Valor fora do intervalo",
+      "invalid": "Formato inválido"
+    },
+    "callout": {
+      "name": "Destaque",
+      "description": "Caixa de informação, aviso ou dica",
+      "fields": {
+        "type": "Tipo",
+        "title": "Título",
+        "content": "Conteúdo"
+      },
+      "placeholders": {
+        "title": "Opcional; por padrão o nome do tipo",
+        "content": "Texto do destaque"
+      },
+      "options": {
+        "type": {
+          "info": "Informação",
+          "warning": "Aviso",
+          "tip": "Dica"
+        }
+      }
+    },
+    "codeTabs": {
+      "name": "Abas de código",
+      "description": "Vários trechos de código em abas",
+      "fields": {
+        "tabs": "Abas",
+        "label": "Nome da aba",
+        "language": "Linguagem",
+        "code": "Código"
+      },
+      "placeholders": {
+        "label": "TypeScript",
+        "language": "typescript"
+      },
+      "descriptions": {
+        "language": "Nome de linguagem do highlight.js; vazio para texto simples"
+      }
+    },
+    "githubRepo": {
+      "name": "Repositório do GitHub",
+      "description": "Mostra descrição, linguagem e estrelas de um repositório",
+      "fields": {
+        "repo": "Repositório"
+      },
+      "placeholders": {
+        "repo": "owner/repo"
+      },
+      "descriptions": {
+        "repo": "No formato owner/repo"
+      },
+      "stars": "Stars",
+      "forks": "Forks",
+      "archived": "Arquivado",
+      "load_failed": "Falha ao carregar o repositório"
+    },
+    "neteaseSong": {
+      "name": "Música do NetEase",
+      "description": "Cartão de música; as da playlist do blog podem ser tocadas aqui",
+      "fields": {
+        "id": "ID da música"
+      },
+      "placeholders": {
+        "id": "1824020871"
+      },
+      "descriptions": {
+        "id": "O número após id= no link; só músicas da playlist do blog podem ser tocadas neste site"
+      },
+      "play": "Tocar",
+      "pause": "Pausar",
+      "open": "NetEase Music",
+      "not_in_playlist": "Esta música não está na playlist do blog; ouça no NetEase Cloud Music",
+      "load_failed": "Falha ao carregar a música"
+    }
   },
   "AppUpdate": {
     "title": "O site foi atualizado",

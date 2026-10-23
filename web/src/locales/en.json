@@ -1072,7 +1072,8 @@
         "hint_date": "Insert the current date",
         "group_ai": "AI",
         "hint_ai": "Let AI continue writing or follow your prompt",
-        "hint_table": "Insert a 3×3 table"
+        "hint_table": "Insert a 3×3 table",
+        "group_component": "Components"
       },
       "block_add": "Click to insert a block",
       "block_drag": "Drag to move · click for menu",
@@ -1089,7 +1090,8 @@
         "imageUpload": "Image upload",
         "horizontalRule": "Divider",
         "block": "Block",
-        "table": "Table"
+        "table": "Table",
+        "componentBlock": "Component"
       },
       "image_toolbar": "Image tools",
       "image_align_left": "Align left",
@@ -1647,6 +1649,107 @@
     "url_placeholder": "Paste a URL, or choose from the library",
     "preview_empty": "No image",
     "choose_from_library": "Choose from library"
+  },
+  "ContentComponents": {
+    "group": "Components",
+    "edit": "Edit properties",
+    "edit_title": "Edit {name}",
+    "delete": "Delete component",
+    "toolbar": "{name} toolbar",
+    "save": "Save",
+    "cancel": "Cancel",
+    "add_item": "Add",
+    "remove_item": "Remove",
+    "move_up": "Move up",
+    "move_down": "Move down",
+    "item_index": "Item {index}",
+    "unknown": "Unknown component: {name}",
+    "unknown_name": "Unnamed component",
+    "unknown_hint": "This version does not support this component; readers will see its fallback content",
+    "invalid": "Invalid component properties; edit and save again",
+    "render_failed": "Component failed to render",
+    "edit_hint": "Try editing its properties again",
+    "validation": {
+      "required": "Required",
+      "too_short": "At least {minimum} characters",
+      "too_long": "At most {maximum} characters",
+      "too_few": "At least {minimum} items",
+      "too_many": "At most {maximum} items",
+      "out_of_range": "Value is out of range",
+      "invalid": "Invalid format"
+    },
+    "callout": {
+      "name": "Callout",
+      "description": "Info, warning or tip box",
+      "fields": {
+        "type": "Type",
+        "title": "Title",
+        "content": "Content"
+      },
+      "placeholders": {
+        "title": "Optional; defaults to the type name",
+        "content": "Callout text"
+      },
+      "options": {
+        "type": {
+          "info": "Info",
+          "warning": "Warning",
+          "tip": "Tip"
+        }
+      }
+    },
+    "codeTabs": {
+      "name": "Code tabs",
+      "description": "Show multiple code snippets as tabs",
+      "fields": {
+        "tabs": "Tabs",
+        "label": "Tab label",
+        "language": "Language",
+        "code": "Code"
+      },
+      "placeholders": {
+        "label": "TypeScript",
+        "language": "typescript"
+      },
+      "descriptions": {
+        "language": "highlight.js language name; leave empty for plain text"
+      }
+    },
+    "githubRepo": {
+      "name": "GitHub repository",
+      "description": "Show a repository's description, language and stars",
+      "fields": {
+        "repo": "Repository"
+      },
+      "placeholders": {
+        "repo": "owner/repo"
+      },
+      "descriptions": {
+        "repo": "In the form owner/repo"
+      },
+      "stars": "Stars",
+      "forks": "Forks",
+      "archived": "Archived",
+      "load_failed": "Failed to load the repository"
+    },
+    "neteaseSong": {
+      "name": "NetEase song",
+      "description": "Show a song card; songs in the blog playlist can be played here",
+      "fields": {
+        "id": "Song ID"
+      },
+      "placeholders": {
+        "id": "1824020871"
+      },
+      "descriptions": {
+        "id": "The number after id= in the song link; only songs in the blog playlist can be played on this site"
+      },
+      "play": "Play",
+      "pause": "Pause",
+      "open": "NetEase Music",
+      "not_in_playlist": "This song is not in the blog playlist; listen on NetEase Cloud Music",
+      "load_failed": "Failed to load the song"
+    }
   },
   "AppUpdate": {
     "title": "The site has been updated",

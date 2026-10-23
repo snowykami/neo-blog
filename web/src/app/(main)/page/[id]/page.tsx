@@ -8,6 +8,7 @@ import { ContentImageFallback } from '@/components/blog-post/content-image-fallb
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
 import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
+import { ComponentIslands } from '@/components/content-components/component-islands'
 import { SiteShell } from '@/components/layout/site-shell'
 import { isNotFoundLikeError } from '@/utils/common/error'
 import { renderContentHtml } from '@/utils/server/render-content'
@@ -74,6 +75,7 @@ export default async function Page({
       </div>
       {/* 代码块工具栏 / 高亮、链接卡片、图片失效兜底与预览，与文章正文复用同一套增强 */}
       <HtmlEnhancer containerId="page-content" />
+      <ComponentIslands containerId="page-content" />
       <ContentHoverCard containerId="page-content" />
       <ContentImageFallback containerId="page-content" />
       <ContentImageViewer containerId="page-content" />

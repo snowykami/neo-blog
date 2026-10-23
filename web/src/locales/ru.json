@@ -1072,7 +1072,8 @@
         "hint_date": "Вставить текущую дату",
         "group_ai": "ИИ",
         "hint_ai": "ИИ продолжит текст или напишет по вашему запросу",
-        "hint_table": "Вставить таблицу 3×3"
+        "hint_table": "Вставить таблицу 3×3",
+        "group_component": "Компоненты"
       },
       "block_add": "Нажмите, чтобы вставить блок",
       "block_drag": "Перетащите для перемещения · нажмите для меню",
@@ -1089,7 +1090,8 @@
         "imageUpload": "Загрузка изображения",
         "horizontalRule": "Разделитель",
         "block": "Блок",
-        "table": "Таблица"
+        "table": "Таблица",
+        "componentBlock": "Компонент"
       },
       "image_toolbar": "Инструменты изображения",
       "image_align_left": "Слева",
@@ -1647,6 +1649,107 @@
     "url_placeholder": "Вставьте URL или выберите из медиатеки",
     "preview_empty": "Нет изображения",
     "choose_from_library": "Выбрать из медиатеки"
+  },
+  "ContentComponents": {
+    "group": "Компоненты",
+    "edit": "Изменить свойства",
+    "edit_title": "Изменить: {name}",
+    "delete": "Удалить компонент",
+    "toolbar": "Панель: {name}",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "add_item": "Добавить",
+    "remove_item": "Удалить",
+    "move_up": "Вверх",
+    "move_down": "Вниз",
+    "item_index": "Элемент {index}",
+    "unknown": "Неизвестный компонент: {name}",
+    "unknown_name": "Компонент без имени",
+    "unknown_hint": "Эта версия не поддерживает компонент; читатели увидят резервное содержимое",
+    "invalid": "Недопустимые свойства; измените и сохраните снова",
+    "render_failed": "Не удалось отобразить компонент",
+    "edit_hint": "Попробуйте снова изменить свойства",
+    "validation": {
+      "required": "Обязательное поле",
+      "too_short": "Не менее {minimum} символов",
+      "too_long": "Не более {maximum} символов",
+      "too_few": "Не менее {minimum} элементов",
+      "too_many": "Не более {maximum} элементов",
+      "out_of_range": "Значение вне допустимого диапазона",
+      "invalid": "Неверный формат"
+    },
+    "callout": {
+      "name": "Выноска",
+      "description": "Блок информации, предупреждения или совета",
+      "fields": {
+        "type": "Тип",
+        "title": "Заголовок",
+        "content": "Содержимое"
+      },
+      "placeholders": {
+        "title": "Необязательно; по умолчанию название типа",
+        "content": "Текст выноски"
+      },
+      "options": {
+        "type": {
+          "info": "Информация",
+          "warning": "Предупреждение",
+          "tip": "Совет"
+        }
+      }
+    },
+    "codeTabs": {
+      "name": "Вкладки кода",
+      "description": "Несколько фрагментов кода во вкладках",
+      "fields": {
+        "tabs": "Вкладки",
+        "label": "Название вкладки",
+        "language": "Язык",
+        "code": "Код"
+      },
+      "placeholders": {
+        "label": "TypeScript",
+        "language": "typescript"
+      },
+      "descriptions": {
+        "language": "Имя языка highlight.js; пусто — обычный текст"
+      }
+    },
+    "githubRepo": {
+      "name": "Репозиторий GitHub",
+      "description": "Описание, язык и звёзды репозитория",
+      "fields": {
+        "repo": "Репозиторий"
+      },
+      "placeholders": {
+        "repo": "owner/repo"
+      },
+      "descriptions": {
+        "repo": "В формате owner/repo"
+      },
+      "stars": "Stars",
+      "forks": "Forks",
+      "archived": "В архиве",
+      "load_failed": "Не удалось загрузить репозиторий"
+    },
+    "neteaseSong": {
+      "name": "Трек NetEase",
+      "description": "Карточка трека; треки из плейлиста блога можно слушать здесь",
+      "fields": {
+        "id": "ID трека"
+      },
+      "placeholders": {
+        "id": "1824020871"
+      },
+      "descriptions": {
+        "id": "Число после id= в ссылке; на сайте воспроизводятся только треки из плейлиста блога"
+      },
+      "play": "Слушать",
+      "pause": "Пауза",
+      "open": "NetEase Music",
+      "not_in_playlist": "Этого трека нет в плейлисте блога; слушайте в NetEase Cloud Music",
+      "load_failed": "Не удалось загрузить трек"
+    }
   },
   "AppUpdate": {
     "title": "Сайт обновлён",

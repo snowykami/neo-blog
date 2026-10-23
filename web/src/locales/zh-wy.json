@@ -1072,7 +1072,8 @@
         "hint_date": "書今日之期",
         "group_ai": "AI",
         "hint_ai": "使 AI 於此續書，或依所囑而作",
-        "hint_table": "插三行三列之表"
+        "hint_table": "插三行三列之表",
+        "group_component": "器"
       },
       "block_add": "點以插塊",
       "block_drag": "曳以移 · 點以開單",
@@ -1089,7 +1090,8 @@
         "imageUpload": "傳圖",
         "horizontalRule": "界線",
         "block": "塊",
-        "table": "表"
+        "table": "表",
+        "componentBlock": "器"
       },
       "image_toolbar": "圖之具",
       "image_align_left": "居左",
@@ -1647,6 +1649,107 @@
     "url_placeholder": "貼其址，或自資庫擇之",
     "preview_empty": "尚無圖",
     "choose_from_library": "自資庫擇之"
+  },
+  "ContentComponents": {
+    "group": "器",
+    "edit": "修其屬",
+    "edit_title": "修{name}",
+    "delete": "去此器",
+    "toolbar": "{name}之具",
+    "save": "存",
+    "cancel": "罷",
+    "add_item": "增",
+    "remove_item": "去",
+    "move_up": "上移",
+    "move_down": "下移",
+    "item_index": "第 {index} 項",
+    "unknown": "未識之器：{name}",
+    "unknown_name": "無名之器",
+    "unknown_hint": "今版未能用此器，前臺將示其簡本",
+    "invalid": "器之屬有誤，請修而再存",
+    "render_failed": "器不能成",
+    "edit_hint": "可試再修其屬",
+    "validation": {
+      "required": "必填",
+      "too_short": "至少 {minimum} 字",
+      "too_long": "至多 {maximum} 字",
+      "too_few": "至少 {minimum} 項",
+      "too_many": "至多 {maximum} 項",
+      "out_of_range": "數逾其限",
+      "invalid": "式不合"
+    },
+    "callout": {
+      "name": "提示",
+      "description": "告知、警示或妙法之提示",
+      "fields": {
+        "type": "類",
+        "title": "題",
+        "content": "文"
+      },
+      "placeholders": {
+        "title": "可略，略則示其類名",
+        "content": "提示之文"
+      },
+      "options": {
+        "type": {
+          "info": "告知",
+          "warning": "警示",
+          "tip": "妙法"
+        }
+      }
+    },
+    "codeTabs": {
+      "name": "碼組",
+      "description": "數段之碼以籤分示",
+      "fields": {
+        "tabs": "籤",
+        "label": "籤名",
+        "language": "語",
+        "code": "碼"
+      },
+      "placeholders": {
+        "label": "TypeScript",
+        "language": "typescript"
+      },
+      "descriptions": {
+        "language": "highlight.js 語名，空則為素文"
+      }
+    },
+    "githubRepo": {
+      "name": "GitHub 庫卡",
+      "description": "示庫之略、語與 Star 數",
+      "fields": {
+        "repo": "庫"
+      },
+      "placeholders": {
+        "repo": "owner/repo"
+      },
+      "descriptions": {
+        "repo": "式為 owner/repo"
+      },
+      "stars": "Stars",
+      "forks": "Forks",
+      "archived": "已封存",
+      "load_failed": "庫之訊未能載"
+    },
+    "neteaseSong": {
+      "name": "網易雲單曲",
+      "description": "示單曲之訊，單中之曲可即奏",
+      "fields": {
+        "id": "曲 ID"
+      },
+      "placeholders": {
+        "id": "1824020871"
+      },
+      "descriptions": {
+        "id": "曲之連結中 id= 後之數；唯博客曲單中者可於本站奏之"
+      },
+      "play": "奏",
+      "pause": "止",
+      "open": "網易雲音樂",
+      "not_in_playlist": "此曲不在博客曲單，請往網易雲音樂聽之",
+      "load_failed": "曲之訊未能載"
+    }
   },
   "AppUpdate": {
     "title": "站已更新",

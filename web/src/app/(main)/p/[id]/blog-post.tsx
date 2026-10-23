@@ -16,6 +16,7 @@ import { BlogSidebarAbout } from '@/components/blog-sidebar/blog-sidebar-card'
 import { CommentSection } from '@/components/comment'
 import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
+import { ComponentIslands } from '@/components/content-components/component-islands'
 import { SiteShell } from '@/components/layout/site-shell'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -91,6 +92,8 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
         dangerouslySetInnerHTML={{ __html: html }}
       />
       <HtmlEnhancer containerId="blog-content" />
+      {/* 正文中的组件块：按注册表懒加载并挂载为交互组件 */}
+      <ComponentIslands containerId="blog-content" />
       {/* 草稿预览不计入访客记录 */}
       {!isDraft && <VisitReporter targetType="post" targetId={post.id} />}
       <ContentHoverCard containerId="blog-content" />

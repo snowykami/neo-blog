@@ -23,8 +23,8 @@
     margin-top: 0;
   }
 
-  /* ---------- 链接：主色 + 虚线下划线（同前台） ---------- */
-  a {
+  /* ---------- 链接：主色 + 虚线下划线（同前台）；组件块预览内的链接保持组件自身样式 ---------- */
+  a:not(.neo-component-block a) {
     color: var(--primary);
     font-weight: 500;
     text-decoration-line: underline;
@@ -72,8 +72,8 @@
     }
   }
 
-  /* ---------- 代码块：与前台一致的深色容器（代码高亮固定为 github-dark） ---------- */
-  pre {
+  /* ---------- 代码块：与前台一致的深色容器（代码高亮固定为 github-dark）；不作用于组件块预览 ---------- */
+  pre:not(.neo-component-block pre) {
     margin: 1.5rem 0;
     padding: 1rem 1.25rem;
     border-radius: 0.75rem;

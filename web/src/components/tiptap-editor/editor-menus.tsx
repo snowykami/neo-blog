@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
+import { CONTENT_COMPONENTS } from '@/components/content-components/registry'
 import { insertImage } from '@/components/tiptap-ui/image-upload-button/use-image-upload'
 import { EDITOR_FLOATING_ATTR } from '@/components/tiptap-ui/link-popover/link-popover'
 import { setTextAlign } from '@/components/tiptap-ui/text-align-button/use-text-align'
@@ -192,6 +193,27 @@ export function getInsertEntries(editor: Editor, t: Translate, state: EditorTool
   ]
 }
 
+/** 组件块：注册表中的内置组件，插入后自动打开属性编辑；ct 为 ContentComponents 命名空间的翻译函数 */
+export function getComponentEntries(editor: Editor, ct: Translate, state: EditorToolbarState): EditorMenuEntry[] {
+  return CONTENT_COMPONENTS.map(def => ({
+    key: `component-${def.name}`,
+    icon: def.icon,
+    label: ct(`${def.name}.name`),
+    disabled: !state.editable || !editor.can().insertComponentBlock(def.name),
+    onSelect: () => editor.chain().focus().insertComponentBlock(def.name).run(),
+  }))
+}
+
+/** 插入下拉的完整菜单：基础插入项 + 组件分组 */
+export function getInsertMenuEntries(editor: Editor, t: Translate, ct: Translate, state: EditorToolbarState): EditorMenuEntry[] {
+  return [
+    ...getInsertEntries(editor, t, state),
+    { type: 'separator', key: 'insert-sep-components' },
+    { type: 'label', key: 'insert-label-components', label: ct('group') },
+    ...getComponentEntries(editor, ct, state),
+  ]
+}
+
 /** 光标位于表格内时的行列操作 */
 export function getTableEntries(editor: Editor, t: Translate): EditorMenuEntry[] {
   const can = editor.can()
@@ -300,9 +322,10 @@ export function AlignMenu({ editor, state }: { editor: Editor | null, state: Edi
   )
 }
 
-/** 插入下拉：图片（上传）、分割线、代码块 */
+/** 插入下拉：图片（上传）、分割线、代码块、表格与内置组件 */
 export function InsertMenu({ editor, state }: { editor: Editor | null, state: EditorToolbarState }) {
   const t = useTranslations('Console.editor')
+  const ct = useTranslations('ContentComponents')
   if (!editor)
     return null
   return (
@@ -317,7 +340,7 @@ export function InsertMenu({ editor, state }: { editor: Editor | null, state: Ed
         </DropdownMenuTrigger>
       </EditorTooltip>
       <EditorMenuContent editor={editor}>
-        <EditorMenuEntries entries={getInsertEntries(editor, t, state)} />
+        <EditorMenuEntries entries={getInsertMenuEntries(editor, t, ct, state)} />
       </EditorMenuContent>
     </DropdownMenu>
   )

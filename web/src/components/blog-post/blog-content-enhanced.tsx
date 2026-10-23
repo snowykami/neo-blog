@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
+import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
 import copyToClipboard from '@/lib/clipboard'
 import hljs from '@/lib/highlight'
 import { languageMap } from '@/utils/common/post-render'
@@ -41,7 +42,8 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
       return
 
     const wrapCodeBlock = (pre: HTMLElement) => {
-      if (pre.__enhanced)
+      // 组件岛内的代码块由组件自己渲染（React 管理的 DOM 不能被改动）
+      if (pre.__enhanced || pre.closest(COMPONENT_ROOT_SELECTOR))
         return
       const codeEl = pre.querySelector('code')
       if (!codeEl)

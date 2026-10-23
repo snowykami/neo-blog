@@ -1072,7 +1072,8 @@
         "hint_date": "आज की तारीख डालें",
         "group_ai": "AI",
         "hint_ai": "AI को यहाँ से आगे लिखने या आपके निर्देश पर लिखने दें",
-        "hint_table": "3×3 तालिका डालें"
+        "hint_table": "3×3 तालिका डालें",
+        "group_component": "कंपोनेंट"
       },
       "block_add": "ब्लॉक डालने के लिए क्लिक करें",
       "block_drag": "खिसकाने के लिए खींचें · मेनू के लिए क्लिक करें",
@@ -1089,7 +1090,8 @@
         "imageUpload": "चित्र अपलोड",
         "horizontalRule": "विभाजक",
         "block": "ब्लॉक",
-        "table": "तालिका"
+        "table": "तालिका",
+        "componentBlock": "कंपोनेंट"
       },
       "image_toolbar": "चित्र उपकरण",
       "image_align_left": "बाएँ",
@@ -1647,6 +1649,107 @@
     "url_placeholder": "URL चिपकाएँ, या लाइब्रेरी से चुनें",
     "preview_empty": "कोई चित्र नहीं",
     "choose_from_library": "लाइब्रेरी से चुनें"
+  },
+  "ContentComponents": {
+    "group": "कंपोनेंट",
+    "edit": "गुण संपादित करें",
+    "edit_title": "{name} संपादित करें",
+    "delete": "कंपोनेंट हटाएँ",
+    "toolbar": "{name} टूलबार",
+    "save": "सहेजें",
+    "cancel": "रद्द करें",
+    "add_item": "जोड़ें",
+    "remove_item": "हटाएँ",
+    "move_up": "ऊपर ले जाएँ",
+    "move_down": "नीचे ले जाएँ",
+    "item_index": "आइटम {index}",
+    "unknown": "अज्ञात कंपोनेंट: {name}",
+    "unknown_name": "बेनाम कंपोनेंट",
+    "unknown_hint": "यह संस्करण इस कंपोनेंट का समर्थन नहीं करता; पाठकों को वैकल्पिक सामग्री दिखेगी",
+    "invalid": "कंपोनेंट के गुण अमान्य हैं; संपादित कर फिर से सहेजें",
+    "render_failed": "कंपोनेंट रेंडर नहीं हो सका",
+    "edit_hint": "गुणों को फिर से संपादित करके देखें",
+    "validation": {
+      "required": "आवश्यक",
+      "too_short": "कम से कम {minimum} अक्षर",
+      "too_long": "अधिकतम {maximum} अक्षर",
+      "too_few": "कम से कम {minimum} आइटम",
+      "too_many": "अधिकतम {maximum} आइटम",
+      "out_of_range": "मान अनुमत सीमा से बाहर है",
+      "invalid": "अमान्य प्रारूप"
+    },
+    "callout": {
+      "name": "कॉलआउट",
+      "description": "जानकारी, चेतावनी या सुझाव बॉक्स",
+      "fields": {
+        "type": "प्रकार",
+        "title": "शीर्षक",
+        "content": "सामग्री"
+      },
+      "placeholders": {
+        "title": "वैकल्पिक; डिफ़ॉल्ट रूप से प्रकार का नाम",
+        "content": "कॉलआउट पाठ"
+      },
+      "options": {
+        "type": {
+          "info": "जानकारी",
+          "warning": "चेतावनी",
+          "tip": "सुझाव"
+        }
+      }
+    },
+    "codeTabs": {
+      "name": "कोड टैब",
+      "description": "कई कोड अंश टैब में दिखाएँ",
+      "fields": {
+        "tabs": "टैब",
+        "label": "टैब का नाम",
+        "language": "भाषा",
+        "code": "कोड"
+      },
+      "placeholders": {
+        "label": "TypeScript",
+        "language": "typescript"
+      },
+      "descriptions": {
+        "language": "highlight.js भाषा का नाम; सादे पाठ के लिए खाली छोड़ें"
+      }
+    },
+    "githubRepo": {
+      "name": "GitHub रिपॉज़िटरी",
+      "description": "रिपॉज़िटरी का विवरण, भाषा और स्टार दिखाएँ",
+      "fields": {
+        "repo": "रिपॉज़िटरी"
+      },
+      "placeholders": {
+        "repo": "owner/repo"
+      },
+      "descriptions": {
+        "repo": "owner/repo प्रारूप में"
+      },
+      "stars": "Stars",
+      "forks": "Forks",
+      "archived": "संग्रहीत",
+      "load_failed": "रिपॉज़िटरी लोड नहीं हो सकी"
+    },
+    "neteaseSong": {
+      "name": "NetEase गीत",
+      "description": "गीत कार्ड; ब्लॉग प्लेलिस्ट के गीत यहीं चलाए जा सकते हैं",
+      "fields": {
+        "id": "गीत ID"
+      },
+      "placeholders": {
+        "id": "1824020871"
+      },
+      "descriptions": {
+        "id": "गीत लिंक में id= के बाद की संख्या; केवल ब्लॉग प्लेलिस्ट के गीत इस साइट पर चलते हैं"
+      },
+      "play": "चलाएँ",
+      "pause": "रोकें",
+      "open": "NetEase Music",
+      "not_in_playlist": "यह गीत ब्लॉग प्लेलिस्ट में नहीं है; NetEase Cloud Music पर सुनें",
+      "load_failed": "गीत लोड नहीं हो सका"
+    }
   },
   "AppUpdate": {
     "title": "साइट अपडेट हो गई है",

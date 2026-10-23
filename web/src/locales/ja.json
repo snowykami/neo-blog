@@ -1072,7 +1072,8 @@
         "hint_date": "今日の日付を挿入",
         "group_ai": "AI",
         "hint_ai": "AI にここから続きを書いてもらう",
-        "hint_table": "3×3 の表を挿入"
+        "hint_table": "3×3 の表を挿入",
+        "group_component": "コンポーネント"
       },
       "block_add": "クリックでブロックを挿入",
       "block_drag": "ドラッグで移動 · クリックでメニュー",
@@ -1089,7 +1090,8 @@
         "imageUpload": "画像アップロード",
         "horizontalRule": "区切り線",
         "block": "ブロック",
-        "table": "表"
+        "table": "表",
+        "componentBlock": "コンポーネント"
       },
       "image_toolbar": "画像ツール",
       "image_align_left": "左寄せ",
@@ -1647,6 +1649,107 @@
     "url_placeholder": "URL を貼り付けるか、ライブラリから選択",
     "preview_empty": "画像がありません",
     "choose_from_library": "ライブラリから選択"
+  },
+  "ContentComponents": {
+    "group": "コンポーネント",
+    "edit": "プロパティを編集",
+    "edit_title": "{name}を編集",
+    "delete": "コンポーネントを削除",
+    "toolbar": "{name}ツールバー",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "add_item": "追加",
+    "remove_item": "削除",
+    "move_up": "上へ移動",
+    "move_down": "下へ移動",
+    "item_index": "項目 {index}",
+    "unknown": "不明なコンポーネント：{name}",
+    "unknown_name": "名前のないコンポーネント",
+    "unknown_hint": "このバージョンでは未対応のため、閲覧者には代替コンテンツが表示されます",
+    "invalid": "プロパティが無効です。編集して保存し直してください",
+    "render_failed": "コンポーネントの表示に失敗しました",
+    "edit_hint": "プロパティを編集し直してください",
+    "validation": {
+      "required": "必須です",
+      "too_short": "{minimum} 文字以上で入力してください",
+      "too_long": "{maximum} 文字以内で入力してください",
+      "too_few": "{minimum} 件以上必要です",
+      "too_many": "{maximum} 件までです",
+      "out_of_range": "値が範囲外です",
+      "invalid": "形式が正しくありません"
+    },
+    "callout": {
+      "name": "コールアウト",
+      "description": "情報・警告・ヒントのボックス",
+      "fields": {
+        "type": "種類",
+        "title": "タイトル",
+        "content": "内容"
+      },
+      "placeholders": {
+        "title": "任意（空欄なら種類名を表示）",
+        "content": "表示するテキスト"
+      },
+      "options": {
+        "type": {
+          "info": "情報",
+          "warning": "警告",
+          "tip": "ヒント"
+        }
+      }
+    },
+    "codeTabs": {
+      "name": "コードタブ",
+      "description": "複数のコードをタブで切り替えて表示",
+      "fields": {
+        "tabs": "タブ",
+        "label": "タブ名",
+        "language": "言語",
+        "code": "コード"
+      },
+      "placeholders": {
+        "label": "TypeScript",
+        "language": "typescript"
+      },
+      "descriptions": {
+        "language": "highlight.js の言語名（空欄でプレーンテキスト）"
+      }
+    },
+    "githubRepo": {
+      "name": "GitHub リポジトリカード",
+      "description": "リポジトリの説明・言語・スター数を表示",
+      "fields": {
+        "repo": "リポジトリ"
+      },
+      "placeholders": {
+        "repo": "owner/repo"
+      },
+      "descriptions": {
+        "repo": "owner/repo の形式"
+      },
+      "stars": "Stars",
+      "forks": "Forks",
+      "archived": "アーカイブ済み",
+      "load_failed": "リポジトリ情報の読み込みに失敗しました"
+    },
+    "neteaseSong": {
+      "name": "NetEase 楽曲カード",
+      "description": "楽曲情報を表示。ブログのプレイリスト内の曲はそのまま再生可能",
+      "fields": {
+        "id": "楽曲 ID"
+      },
+      "placeholders": {
+        "id": "1824020871"
+      },
+      "descriptions": {
+        "id": "楽曲リンクの id= の後の数字。ブログのプレイリスト内の曲のみサイト内で再生できます"
+      },
+      "play": "再生",
+      "pause": "一時停止",
+      "open": "NetEase Music",
+      "not_in_playlist": "この曲はブログのプレイリストにありません。NetEase Cloud Music でお聴きください",
+      "load_failed": "楽曲情報の読み込みに失敗しました"
+    }
   },
   "AppUpdate": {
     "title": "サイトが更新されました",

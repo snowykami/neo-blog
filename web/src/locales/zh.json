@@ -1072,7 +1072,8 @@
         "hint_date": "插入当前日期",
         "group_ai": "AI",
         "hint_ai": "让 AI 在此处续写或按要求生成",
-        "hint_table": "插入 3×3 表格"
+        "hint_table": "插入 3×3 表格",
+        "group_component": "组件"
       },
       "block_add": "点击插入块",
       "block_drag": "拖动移动 · 点击打开菜单",
@@ -1089,7 +1090,8 @@
         "imageUpload": "图片上传",
         "horizontalRule": "分割线",
         "block": "块",
-        "table": "表格"
+        "table": "表格",
+        "componentBlock": "组件"
       },
       "image_toolbar": "图片工具",
       "image_align_left": "居左",
@@ -1647,6 +1649,107 @@
     "url_placeholder": "粘贴地址，或从资产库选择",
     "preview_empty": "暂无图片",
     "choose_from_library": "从资产库选择"
+  },
+  "ContentComponents": {
+    "group": "组件",
+    "edit": "编辑属性",
+    "edit_title": "编辑{name}",
+    "delete": "删除组件",
+    "toolbar": "{name}工具栏",
+    "save": "保存",
+    "cancel": "取消",
+    "add_item": "添加",
+    "remove_item": "删除",
+    "move_up": "上移",
+    "move_down": "下移",
+    "item_index": "第 {index} 项",
+    "unknown": "未知组件：{name}",
+    "unknown_name": "未命名组件",
+    "unknown_hint": "当前版本不支持该组件，前台将显示其降级内容",
+    "invalid": "组件属性无效，请编辑后重新保存",
+    "render_failed": "组件渲染失败",
+    "edit_hint": "可尝试重新编辑属性",
+    "validation": {
+      "required": "必填",
+      "too_short": "至少 {minimum} 个字符",
+      "too_long": "最多 {maximum} 个字符",
+      "too_few": "至少 {minimum} 项",
+      "too_many": "最多 {maximum} 项",
+      "out_of_range": "数值超出允许范围",
+      "invalid": "格式不正确"
+    },
+    "callout": {
+      "name": "提示框",
+      "description": "信息、警告或技巧提示",
+      "fields": {
+        "type": "类型",
+        "title": "标题",
+        "content": "内容"
+      },
+      "placeholders": {
+        "title": "可选，默认显示类型名称",
+        "content": "提示内容"
+      },
+      "options": {
+        "type": {
+          "info": "信息",
+          "warning": "警告",
+          "tip": "技巧"
+        }
+      }
+    },
+    "codeTabs": {
+      "name": "代码组",
+      "description": "多段代码以标签页切换展示",
+      "fields": {
+        "tabs": "标签页",
+        "label": "标签名",
+        "language": "语言",
+        "code": "代码"
+      },
+      "placeholders": {
+        "label": "TypeScript",
+        "language": "typescript"
+      },
+      "descriptions": {
+        "language": "highlight.js 语言名，留空为纯文本"
+      }
+    },
+    "githubRepo": {
+      "name": "GitHub 仓库卡",
+      "description": "展示仓库简介、语言与 Star 数",
+      "fields": {
+        "repo": "仓库"
+      },
+      "placeholders": {
+        "repo": "owner/repo"
+      },
+      "descriptions": {
+        "repo": "格式为 owner/repo"
+      },
+      "stars": "Stars",
+      "forks": "Forks",
+      "archived": "已归档",
+      "load_failed": "仓库信息加载失败"
+    },
+    "neteaseSong": {
+      "name": "网易云单曲",
+      "description": "展示单曲信息，歌单内歌曲可直接播放",
+      "fields": {
+        "id": "歌曲 ID"
+      },
+      "placeholders": {
+        "id": "1824020871"
+      },
+      "descriptions": {
+        "id": "歌曲链接中 id= 后面的数字；仅博客歌单内的歌曲可在站内播放"
+      },
+      "play": "播放",
+      "pause": "暂停",
+      "open": "网易云音乐",
+      "not_in_playlist": "该歌曲不在博客歌单内，请在网易云音乐收听",
+      "load_failed": "歌曲信息加载失败"
+    }
   },
   "AppUpdate": {
     "title": "网站已更新",

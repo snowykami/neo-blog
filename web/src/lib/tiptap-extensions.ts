@@ -19,6 +19,7 @@ import { Annotation, LinkAutoMatch } from '@/components/tiptap-extension/annotat
 import { EditorShortcuts } from '@/components/tiptap-extension/editor-shortcuts-extension'
 import { SelectionHighlight } from '@/components/tiptap-extension/selection-highlight-extension'
 import { SlashCommand } from '@/components/tiptap-extension/slash-command-extension'
+import { ComponentBlock } from '@/components/tiptap-node/component-block-node'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-extension'
 import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
@@ -77,6 +78,8 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
     CodeBlockLowlight.configure({ lowlight }),
     // 表格：不启用列宽拖拽，输出普通的 table 结构，与前台渲染一致
     TableKit.configure({ table: { resizable: false } }),
+    // 组件块：注册表中的内置 React 组件，正文只保存组件名与 JSON props
+    ComponentBlock,
     ImageUploadNode.configure({
       accept: 'image/*',
       maxSize: MAX_FILE_SIZE,

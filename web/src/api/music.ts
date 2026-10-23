@@ -1,4 +1,4 @@
-import type { MusicSource, MusicTrack, NCMPlaylists } from '@/models/music'
+import type { MusicSong, MusicSource, MusicTrack, NCMPlaylists } from '@/models/music'
 import type { BaseResponse } from '@/models/resp'
 import { snakeToCamelObj } from 'field-conv'
 import axiosClient from './client'
@@ -27,6 +27,12 @@ export async function fetchPlaylist(source: MusicSource): Promise<MusicTrack[]> 
 
 export async function fetchNcmLyric(id: number, signal?: AbortSignal): Promise<MusicLyrics> {
   const res = await axiosClient.get<BaseResponse<MusicLyrics>>(`/music/song/${id}/lyric`, { signal })
+  return res.data.data
+}
+
+// 单曲公开信息（任意歌曲），播放仍只限博客歌单内的歌曲
+export async function getMusicSong(id: number): Promise<MusicSong> {
+  const res = await axiosClient.get<BaseResponse<MusicSong>>(`/music/song/${id}`)
   return res.data.data
 }
 

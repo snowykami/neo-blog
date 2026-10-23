@@ -212,6 +212,7 @@ export interface EditorUiActions {
 export function useContentEditor(kind: ContentKind, routeId: string) {
   const adapter = ADAPTERS[kind]
   const t = useTranslations('Console.editor')
+  const componentT = useTranslations('ContentComponents')
   const postEditT = useTranslations('Console.post_edit')
   const operationT = useOperationT()
   const errorMessageT = useErrorMessageT()
@@ -258,8 +259,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const latestRef = useRef({ t, format, uploadImage })
   latestRef.current = { t, format, uploadImage }
   const slashItems = useMemo(
-    () => buildSlashItems(t, date => format.dateTime(date, { dateStyle: 'long' }), () => uiActionsRef.current.openAI?.({ mode: 'write' })),
-    [t, format],
+    () => buildSlashItems(t, componentT, date => format.dateTime(date, { dateStyle: 'long' }), () => uiActionsRef.current.openAI?.({ mode: 'write' })),
+    [t, componentT, format],
   )
   const slashItemsRef = useRef(slashItems)
   slashItemsRef.current = slashItems

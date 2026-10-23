@@ -10,6 +10,16 @@ export interface MusicTrack {
   aliases: string[]
 }
 
+// 单曲公开信息（文章内的单曲卡），不含播放地址
+export interface MusicSong {
+  id: number
+  name: string
+  artists: string[]
+  album: string
+  albumPic: string
+  link: string
+}
+
 // 悬浮播放器的歌单来源：静态 JSON 地址，或后台配置的网易云歌单
 export type MusicSourceType = 'static' | 'ncm'
 

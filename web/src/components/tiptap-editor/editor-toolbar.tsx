@@ -23,7 +23,7 @@ import {
   EditorMenuEntries,
   getAIEntries,
   getAlignEntries,
-  getInsertEntries,
+  getInsertMenuEntries,
   InsertMenu,
 } from './editor-menus'
 import { EditorToolbarButton, EditorToolbarSeparator, EditorTooltip } from './editor-toolbar-button'
@@ -127,6 +127,7 @@ function useMediaQuery(query: string) {
  */
 export function EditorToolbar({ editor, actions }: { editor: Editor, actions: EditorToolbarActions }) {
   const t = useTranslations('Console.editor')
+  const ct = useTranslations('ContentComponents')
   const state = useEditorToolbarState(editor)
   const rootRef = React.useRef<HTMLDivElement>(null)
   const trackRef = React.useRef<HTMLDivElement>(null)
@@ -180,7 +181,7 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
       ],
     },
     { id: 'align', label: t('align'), content: <AlignMenu editor={editor} state={state} />, overflow: () => getAlignEntries(editor, t, state) },
-    { id: 'insert', label: t('insert'), content: <InsertMenu editor={editor} state={state} />, overflow: () => getInsertEntries(editor, t, state) },
+    { id: 'insert', label: t('insert'), content: <InsertMenu editor={editor} state={state} />, overflow: () => getInsertMenuEntries(editor, t, ct, state) },
     {
       id: 'ai',
       label: t('ai.open'),

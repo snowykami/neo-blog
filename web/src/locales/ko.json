@@ -1072,7 +1072,8 @@
         "hint_date": "오늘 날짜 삽입",
         "group_ai": "AI",
         "hint_ai": "AI가 이어서 쓰거나 요청대로 작성",
-        "hint_table": "3×3 표 삽입"
+        "hint_table": "3×3 표 삽입",
+        "group_component": "컴포넌트"
       },
       "block_add": "클릭하여 블록 삽입",
       "block_drag": "드래그하여 이동 · 클릭하여 메뉴",
@@ -1089,7 +1090,8 @@
         "imageUpload": "이미지 업로드",
         "horizontalRule": "구분선",
         "block": "블록",
-        "table": "표"
+        "table": "표",
+        "componentBlock": "컴포넌트"
       },
       "image_toolbar": "이미지 도구",
       "image_align_left": "왼쪽",
@@ -1647,6 +1649,107 @@
     "url_placeholder": "URL을 붙여넣거나 라이브러리에서 선택하세요",
     "preview_empty": "이미지 없음",
     "choose_from_library": "라이브러리에서 선택"
+  },
+  "ContentComponents": {
+    "group": "컴포넌트",
+    "edit": "속성 편집",
+    "edit_title": "{name} 편집",
+    "delete": "컴포넌트 삭제",
+    "toolbar": "{name} 도구 모음",
+    "save": "저장",
+    "cancel": "취소",
+    "add_item": "추가",
+    "remove_item": "삭제",
+    "move_up": "위로 이동",
+    "move_down": "아래로 이동",
+    "item_index": "항목 {index}",
+    "unknown": "알 수 없는 컴포넌트: {name}",
+    "unknown_name": "이름 없는 컴포넌트",
+    "unknown_hint": "현재 버전에서 지원하지 않아 독자에게는 대체 콘텐츠가 표시됩니다",
+    "invalid": "컴포넌트 속성이 올바르지 않습니다. 편집 후 다시 저장하세요",
+    "render_failed": "컴포넌트를 렌더링하지 못했습니다",
+    "edit_hint": "속성을 다시 편집해 보세요",
+    "validation": {
+      "required": "필수 항목입니다",
+      "too_short": "{minimum}자 이상 입력하세요",
+      "too_long": "{maximum}자 이하로 입력하세요",
+      "too_few": "{minimum}개 이상 필요합니다",
+      "too_many": "최대 {maximum}개까지 가능합니다",
+      "out_of_range": "허용 범위를 벗어났습니다",
+      "invalid": "형식이 올바르지 않습니다"
+    },
+    "callout": {
+      "name": "콜아웃",
+      "description": "정보·경고·팁 상자",
+      "fields": {
+        "type": "유형",
+        "title": "제목",
+        "content": "내용"
+      },
+      "placeholders": {
+        "title": "선택 사항, 비우면 유형 이름 표시",
+        "content": "표시할 내용"
+      },
+      "options": {
+        "type": {
+          "info": "정보",
+          "warning": "경고",
+          "tip": "팁"
+        }
+      }
+    },
+    "codeTabs": {
+      "name": "코드 탭",
+      "description": "여러 코드를 탭으로 전환해 표시",
+      "fields": {
+        "tabs": "탭",
+        "label": "탭 이름",
+        "language": "언어",
+        "code": "코드"
+      },
+      "placeholders": {
+        "label": "TypeScript",
+        "language": "typescript"
+      },
+      "descriptions": {
+        "language": "highlight.js 언어 이름, 비우면 일반 텍스트"
+      }
+    },
+    "githubRepo": {
+      "name": "GitHub 저장소 카드",
+      "description": "저장소 설명, 언어, 스타 수 표시",
+      "fields": {
+        "repo": "저장소"
+      },
+      "placeholders": {
+        "repo": "owner/repo"
+      },
+      "descriptions": {
+        "repo": "owner/repo 형식"
+      },
+      "stars": "Stars",
+      "forks": "Forks",
+      "archived": "보관됨",
+      "load_failed": "저장소 정보를 불러오지 못했습니다"
+    },
+    "neteaseSong": {
+      "name": "NetEase 음악 카드",
+      "description": "곡 정보를 표시하며, 블로그 재생목록의 곡은 바로 재생 가능",
+      "fields": {
+        "id": "곡 ID"
+      },
+      "placeholders": {
+        "id": "1824020871"
+      },
+      "descriptions": {
+        "id": "곡 링크의 id= 뒤 숫자. 블로그 재생목록에 있는 곡만 사이트에서 재생할 수 있습니다"
+      },
+      "play": "재생",
+      "pause": "일시정지",
+      "open": "NetEase Music",
+      "not_in_playlist": "이 곡은 블로그 재생목록에 없습니다. NetEase Cloud Music에서 들어 주세요",
+      "load_failed": "곡 정보를 불러오지 못했습니다"
+    }
   },
   "AppUpdate": {
     "title": "사이트가 업데이트되었습니다",

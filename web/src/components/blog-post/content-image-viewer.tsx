@@ -4,6 +4,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { ChevronLeftIcon, ChevronRightIcon, XIcon, ZoomInIcon, ZoomOutIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
 import { cn } from '@/lib/utils'
 import './content-image-viewer.scss'
 
@@ -68,10 +69,10 @@ export function ContentImageViewer({ containerId }: { containerId: string }) {
       return
     const onClick = (event: MouseEvent) => {
       const img = (event.target as Element | null)?.closest?.('img')
-      if (!(img instanceof HTMLImageElement) || !container.contains(img) || img.closest('a'))
+      if (!(img instanceof HTMLImageElement) || !container.contains(img) || img.closest(`a, ${COMPONENT_ROOT_SELECTOR}`))
         return
-      // 懒加载尚未加载的图片 currentSrc 为空，回退到 src 属性
-      const list = Array.from(container.querySelectorAll('img')).filter(item => !item.closest('a') && (item.currentSrc || item.getAttribute('src')))
+      // 懒加载尚未加载的图片 currentSrc 为空，回退到 src 属性；组件岛内的图片（封面、头像）不参与预览
+      const list = Array.from(container.querySelectorAll('img')).filter(item => !item.closest(`a, ${COMPONENT_ROOT_SELECTOR}`) && (item.currentSrc || item.getAttribute('src')))
       const clicked = list.indexOf(img)
       if (clicked < 0)
         return

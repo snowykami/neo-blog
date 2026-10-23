@@ -77,8 +77,8 @@ article img {
   border-radius: 0.75rem;       /* rounded-xl：卡内区块圆角 */
 }
 
-/* 链接样式：主色 + 虚线下划线，悬停变实线；不加左右内间距 */
-article.prose a {
+/* 链接样式：主色 + 虚线下划线，悬停变实线；不加左右内间距；组件岛内的链接保持组件自身样式 */
+article.prose a:not([data-component-root] a) {
   color: var(--primary);
   font-weight: 500;
   text-decoration-line: underline;
@@ -87,7 +87,7 @@ article.prose a {
   text-underline-offset: 4px;
   text-decoration-color: color-mix(in oklab, var(--primary) 60%, transparent);
 }
-article.prose a:hover {
+article.prose a:not([data-component-root] a):hover {
   text-decoration-style: solid;
   text-decoration-color: var(--primary);
 }

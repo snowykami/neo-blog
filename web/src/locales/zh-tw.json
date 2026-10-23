@@ -1072,7 +1072,8 @@
         "hint_date": "插入目前日期",
         "group_ai": "AI",
         "hint_ai": "讓 AI 在此處續寫或依要求生成",
-        "hint_table": "插入 3×3 表格"
+        "hint_table": "插入 3×3 表格",
+        "group_component": "元件"
       },
       "block_add": "點擊插入區塊",
       "block_drag": "拖曳移動 · 點擊開啟選單",
@@ -1089,7 +1090,8 @@
         "imageUpload": "圖片上傳",
         "horizontalRule": "分隔線",
         "block": "區塊",
-        "table": "表格"
+        "table": "表格",
+        "componentBlock": "元件"
       },
       "image_toolbar": "圖片工具",
       "image_align_left": "靠左",
@@ -1647,6 +1649,107 @@
     "url_placeholder": "貼上網址，或從資產庫選擇",
     "preview_empty": "尚無圖片",
     "choose_from_library": "從資產庫選擇"
+  },
+  "ContentComponents": {
+    "group": "元件",
+    "edit": "編輯屬性",
+    "edit_title": "編輯{name}",
+    "delete": "刪除元件",
+    "toolbar": "{name}工具列",
+    "save": "儲存",
+    "cancel": "取消",
+    "add_item": "新增",
+    "remove_item": "刪除",
+    "move_up": "上移",
+    "move_down": "下移",
+    "item_index": "第 {index} 項",
+    "unknown": "未知元件：{name}",
+    "unknown_name": "未命名元件",
+    "unknown_hint": "目前版本不支援此元件，前台將顯示其降級內容",
+    "invalid": "元件屬性無效，請編輯後重新儲存",
+    "render_failed": "元件渲染失敗",
+    "edit_hint": "可嘗試重新編輯屬性",
+    "validation": {
+      "required": "必填",
+      "too_short": "至少 {minimum} 個字元",
+      "too_long": "最多 {maximum} 個字元",
+      "too_few": "至少 {minimum} 項",
+      "too_many": "最多 {maximum} 項",
+      "out_of_range": "數值超出允許範圍",
+      "invalid": "格式不正確"
+    },
+    "callout": {
+      "name": "提示框",
+      "description": "資訊、警告或技巧提示",
+      "fields": {
+        "type": "類型",
+        "title": "標題",
+        "content": "內容"
+      },
+      "placeholders": {
+        "title": "選填，預設顯示類型名稱",
+        "content": "提示內容"
+      },
+      "options": {
+        "type": {
+          "info": "資訊",
+          "warning": "警告",
+          "tip": "技巧"
+        }
+      }
+    },
+    "codeTabs": {
+      "name": "程式碼組",
+      "description": "多段程式碼以分頁切換顯示",
+      "fields": {
+        "tabs": "分頁",
+        "label": "分頁名稱",
+        "language": "語言",
+        "code": "程式碼"
+      },
+      "placeholders": {
+        "label": "TypeScript",
+        "language": "typescript"
+      },
+      "descriptions": {
+        "language": "highlight.js 語言名稱，留空為純文字"
+      }
+    },
+    "githubRepo": {
+      "name": "GitHub 儲存庫卡片",
+      "description": "顯示儲存庫簡介、語言與 Star 數",
+      "fields": {
+        "repo": "儲存庫"
+      },
+      "placeholders": {
+        "repo": "owner/repo"
+      },
+      "descriptions": {
+        "repo": "格式為 owner/repo"
+      },
+      "stars": "Stars",
+      "forks": "Forks",
+      "archived": "已封存",
+      "load_failed": "儲存庫資訊載入失敗"
+    },
+    "neteaseSong": {
+      "name": "網易雲單曲",
+      "description": "顯示單曲資訊，歌單內歌曲可直接播放",
+      "fields": {
+        "id": "歌曲 ID"
+      },
+      "placeholders": {
+        "id": "1824020871"
+      },
+      "descriptions": {
+        "id": "歌曲連結中 id= 後面的數字；僅部落格歌單內的歌曲可在站內播放"
+      },
+      "play": "播放",
+      "pause": "暫停",
+      "open": "網易雲音樂",
+      "not_in_playlist": "此歌曲不在部落格歌單內，請在網易雲音樂收聽",
+      "load_failed": "歌曲資訊載入失敗"
+    }
   },
   "AppUpdate": {
     "title": "網站已更新",

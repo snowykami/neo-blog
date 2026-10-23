@@ -1072,7 +1072,8 @@
         "hint_date": "Insertar la fecha actual",
         "group_ai": "IA",
         "hint_ai": "Deja que la IA continúe o escriba según tu indicación",
-        "hint_table": "Insertar una tabla de 3×3"
+        "hint_table": "Insertar una tabla de 3×3",
+        "group_component": "Componentes"
       },
       "block_add": "Haz clic para insertar un bloque",
       "block_drag": "Arrastra para mover · clic para el menú",
@@ -1089,7 +1090,8 @@
         "imageUpload": "Subida de imagen",
         "horizontalRule": "Separador",
         "block": "Bloque",
-        "table": "Tabla"
+        "table": "Tabla",
+        "componentBlock": "Componente"
       },
       "image_toolbar": "Herramientas de imagen",
       "image_align_left": "A la izquierda",
@@ -1647,6 +1649,107 @@
     "url_placeholder": "Pega una URL o elige de la biblioteca",
     "preview_empty": "Sin imagen",
     "choose_from_library": "Elegir de la biblioteca"
+  },
+  "ContentComponents": {
+    "group": "Componentes",
+    "edit": "Editar propiedades",
+    "edit_title": "Editar {name}",
+    "delete": "Eliminar componente",
+    "toolbar": "Barra de herramientas: {name}",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "add_item": "Añadir",
+    "remove_item": "Quitar",
+    "move_up": "Subir",
+    "move_down": "Bajar",
+    "item_index": "Elemento {index}",
+    "unknown": "Componente desconocido: {name}",
+    "unknown_name": "Componente sin nombre",
+    "unknown_hint": "Esta versión no admite este componente; los lectores verán su contenido alternativo",
+    "invalid": "Propiedades no válidas; edítalas y guarda de nuevo",
+    "render_failed": "No se pudo mostrar el componente",
+    "edit_hint": "Prueba a editar de nuevo sus propiedades",
+    "validation": {
+      "required": "Obligatorio",
+      "too_short": "Al menos {minimum} caracteres",
+      "too_long": "Como máximo {maximum} caracteres",
+      "too_few": "Al menos {minimum} elementos",
+      "too_many": "Como máximo {maximum} elementos",
+      "out_of_range": "Valor fuera de rango",
+      "invalid": "Formato no válido"
+    },
+    "callout": {
+      "name": "Aviso",
+      "description": "Cuadro de información, advertencia o consejo",
+      "fields": {
+        "type": "Tipo",
+        "title": "Título",
+        "content": "Contenido"
+      },
+      "placeholders": {
+        "title": "Opcional; por defecto el nombre del tipo",
+        "content": "Texto del aviso"
+      },
+      "options": {
+        "type": {
+          "info": "Información",
+          "warning": "Advertencia",
+          "tip": "Consejo"
+        }
+      }
+    },
+    "codeTabs": {
+      "name": "Pestañas de código",
+      "description": "Varios fragmentos de código en pestañas",
+      "fields": {
+        "tabs": "Pestañas",
+        "label": "Nombre de la pestaña",
+        "language": "Lenguaje",
+        "code": "Código"
+      },
+      "placeholders": {
+        "label": "TypeScript",
+        "language": "typescript"
+      },
+      "descriptions": {
+        "language": "Nombre de lenguaje de highlight.js; vacío para texto plano"
+      }
+    },
+    "githubRepo": {
+      "name": "Repositorio de GitHub",
+      "description": "Muestra la descripción, el lenguaje y las estrellas de un repositorio",
+      "fields": {
+        "repo": "Repositorio"
+      },
+      "placeholders": {
+        "repo": "owner/repo"
+      },
+      "descriptions": {
+        "repo": "Con el formato owner/repo"
+      },
+      "stars": "Stars",
+      "forks": "Forks",
+      "archived": "Archivado",
+      "load_failed": "No se pudo cargar el repositorio"
+    },
+    "neteaseSong": {
+      "name": "Canción de NetEase",
+      "description": "Tarjeta de canción; las de la lista del blog se pueden reproducir aquí",
+      "fields": {
+        "id": "ID de la canción"
+      },
+      "placeholders": {
+        "id": "1824020871"
+      },
+      "descriptions": {
+        "id": "El número tras id= en el enlace; solo las canciones de la lista del blog se pueden reproducir en este sitio"
+      },
+      "play": "Reproducir",
+      "pause": "Pausa",
+      "open": "NetEase Music",
+      "not_in_playlist": "Esta canción no está en la lista del blog; escúchala en NetEase Cloud Music",
+      "load_failed": "No se pudo cargar la canción"
+    }
   },
   "AppUpdate": {
     "title": "El sitio se ha actualizado",

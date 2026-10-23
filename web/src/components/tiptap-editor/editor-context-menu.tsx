@@ -19,6 +19,7 @@ import {
   LinkIcon,
   MessageSquareTextIcon,
   PilcrowIcon,
+  PuzzleIcon,
   RemoveFormattingIcon,
   Repeat2Icon,
   ReplaceIcon,
@@ -52,7 +53,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useAIPrompts } from './ai-prompts-context'
 import { formatShortcut, INLINE_MARKS, setBlockType } from './editor-commands'
-import { getAIEntries, getBlockTypeEntries, getInsertEntries, getTableEntries } from './editor-menus'
+import { getAIEntries, getBlockTypeEntries, getComponentEntries, getInsertEntries, getTableEntries } from './editor-menus'
 import { markEntry } from './editor-toolbar'
 import { useEditorToolbarState } from './use-editor-toolbar-state'
 
@@ -169,12 +170,13 @@ export interface EditorContextMenuProps {
 /**
  * 编辑器右键菜单：
  * - 有选区：AI 润色、剪切 / 复制 / 粘贴、格式、转换、链接与注释
- * - 无选区：AI 帮写、插入（图片从资产库选择、代码块、表格、分割线）、转换、粘贴；表格内附加行列操作
+ * - 无选区：AI 帮写、插入（图片从资产库选择、代码块、表格、分割线、内置组件）、转换、粘贴；表格内附加行列操作
  * - 图片 / 代码块：节点专属操作
  * 支持键盘（菜单键 / Shift+F10）；按住 Shift 右键或触屏设备保留浏览器原生菜单
  */
 export function EditorContextMenu({ editor, actions, children }: EditorContextMenuProps) {
   const t = useTranslations('Console.editor')
+  const ct = useTranslations('ContentComponents')
   const state = useEditorToolbarState(editor)
   const coarsePointer = useCoarsePointer()
   const [context, setContext] = React.useState<MenuContext>({ type: 'cursor' })
@@ -430,6 +432,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
         ...tableGroup(),
         { type: 'label', key: 'label-insert', label: t('insert') },
         ...getInsertEntries(editor, t, state, withFloating(() => setPicker({ mode: 'insert' }))),
+        { type: 'sub', key: 'insert-components', icon: PuzzleIcon, label: ct('group'), disabled: !state.editable, entries: getComponentEntries(editor, ct, state) },
         { type: 'separator', key: 'sep-insert' },
         turnInto(),
         ...clipboardEntries(false),

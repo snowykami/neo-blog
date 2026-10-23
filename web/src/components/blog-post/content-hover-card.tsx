@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { HOVER_CLOSE_DELAY, HOVER_OPEN_DELAY, TOUCH_AUTO_CLOSE } from '@/components/common/hover-popover'
 import { LinkPreviewCard } from '@/components/common/link-preview-card'
+import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
 import { ANNOTATION_ATTR } from '@/components/tiptap-extension/annotation-constants'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import './content-hover-card.scss'
@@ -46,7 +47,8 @@ export function ContentHoverCard({ containerId }: { containerId: string }) {
 
     const resolve = (node: EventTarget | null): HoverTarget | null => {
       const el = (node as Element | null)?.closest?.(`a[href], [${ANNOTATION_ATTR}]`) as HTMLElement | null
-      if (!el || !container.contains(el))
+      // 组件岛内的链接（仓库卡、单曲卡等）不显示预览
+      if (!el || !container.contains(el) || el.closest(COMPONENT_ROOT_SELECTOR))
         return null
       if (el.hasAttribute(ANNOTATION_ATTR)) {
         const note = el.getAttribute(ANNOTATION_ATTR)?.trim()

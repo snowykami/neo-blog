@@ -1072,7 +1072,8 @@
         "hint_date": "Aktuelles Datum einfügen",
         "group_ai": "KI",
         "hint_ai": "Die KI weiterschreiben oder nach Vorgabe schreiben lassen",
-        "hint_table": "3×3-Tabelle einfügen"
+        "hint_table": "3×3-Tabelle einfügen",
+        "group_component": "Komponenten"
       },
       "block_add": "Klicken, um einen Block einzufügen",
       "block_drag": "Ziehen zum Verschieben · Klicken für Menü",
@@ -1089,7 +1090,8 @@
         "imageUpload": "Bild-Upload",
         "horizontalRule": "Trennlinie",
         "block": "Block",
-        "table": "Tabelle"
+        "table": "Tabelle",
+        "componentBlock": "Komponente"
       },
       "image_toolbar": "Bildwerkzeuge",
       "image_align_left": "Links",
@@ -1647,6 +1649,107 @@
     "url_placeholder": "URL einfügen oder aus der Mediathek wählen",
     "preview_empty": "Kein Bild",
     "choose_from_library": "Aus Mediathek wählen"
+  },
+  "ContentComponents": {
+    "group": "Komponenten",
+    "edit": "Eigenschaften bearbeiten",
+    "edit_title": "{name} bearbeiten",
+    "delete": "Komponente löschen",
+    "toolbar": "Werkzeugleiste: {name}",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "add_item": "Hinzufügen",
+    "remove_item": "Entfernen",
+    "move_up": "Nach oben",
+    "move_down": "Nach unten",
+    "item_index": "Eintrag {index}",
+    "unknown": "Unbekannte Komponente: {name}",
+    "unknown_name": "Unbenannte Komponente",
+    "unknown_hint": "Diese Version unterstützt die Komponente nicht; Leser sehen den Ersatzinhalt",
+    "invalid": "Ungültige Eigenschaften; bitte bearbeiten und erneut speichern",
+    "render_failed": "Komponente konnte nicht dargestellt werden",
+    "edit_hint": "Versuchen Sie, die Eigenschaften erneut zu bearbeiten",
+    "validation": {
+      "required": "Pflichtfeld",
+      "too_short": "Mindestens {minimum} Zeichen",
+      "too_long": "Höchstens {maximum} Zeichen",
+      "too_few": "Mindestens {minimum} Einträge",
+      "too_many": "Höchstens {maximum} Einträge",
+      "out_of_range": "Wert außerhalb des zulässigen Bereichs",
+      "invalid": "Ungültiges Format"
+    },
+    "callout": {
+      "name": "Hinweisbox",
+      "description": "Info-, Warn- oder Tipp-Box",
+      "fields": {
+        "type": "Typ",
+        "title": "Titel",
+        "content": "Inhalt"
+      },
+      "placeholders": {
+        "title": "Optional; standardmäßig der Typname",
+        "content": "Hinweistext"
+      },
+      "options": {
+        "type": {
+          "info": "Info",
+          "warning": "Warnung",
+          "tip": "Tipp"
+        }
+      }
+    },
+    "codeTabs": {
+      "name": "Code-Tabs",
+      "description": "Mehrere Code-Ausschnitte als Tabs",
+      "fields": {
+        "tabs": "Tabs",
+        "label": "Tab-Name",
+        "language": "Sprache",
+        "code": "Code"
+      },
+      "placeholders": {
+        "label": "TypeScript",
+        "language": "typescript"
+      },
+      "descriptions": {
+        "language": "highlight.js-Sprachname; leer für reinen Text"
+      }
+    },
+    "githubRepo": {
+      "name": "GitHub-Repository",
+      "description": "Beschreibung, Sprache und Sterne eines Repositorys",
+      "fields": {
+        "repo": "Repository"
+      },
+      "placeholders": {
+        "repo": "owner/repo"
+      },
+      "descriptions": {
+        "repo": "Im Format owner/repo"
+      },
+      "stars": "Stars",
+      "forks": "Forks",
+      "archived": "Archiviert",
+      "load_failed": "Repository konnte nicht geladen werden"
+    },
+    "neteaseSong": {
+      "name": "NetEase-Song",
+      "description": "Song-Karte; Songs aus der Blog-Playlist sind direkt abspielbar",
+      "fields": {
+        "id": "Song-ID"
+      },
+      "placeholders": {
+        "id": "1824020871"
+      },
+      "descriptions": {
+        "id": "Die Zahl nach id= im Song-Link; nur Songs aus der Blog-Playlist sind hier abspielbar"
+      },
+      "play": "Abspielen",
+      "pause": "Pause",
+      "open": "NetEase Music",
+      "not_in_playlist": "Dieser Song ist nicht in der Blog-Playlist; bitte bei NetEase Cloud Music anhören",
+      "load_failed": "Song konnte nicht geladen werden"
+    }
   },
   "AppUpdate": {
     "title": "Die Seite wurde aktualisiert",

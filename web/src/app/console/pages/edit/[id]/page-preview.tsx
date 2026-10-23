@@ -8,6 +8,7 @@ import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { SafeImage } from '@/components/common/safe-image'
+import { ComponentIslands } from '@/components/content-components/component-islands'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useOperationT } from '@/hooks/use-translations'
 import '@/components/tiptap-node/image-node/image-figure.scss'
@@ -59,6 +60,7 @@ export function PagePreviewDialog({
           {open && (
             <>
               <HtmlEnhancer containerId={CONTAINER_ID} />
+              <ComponentIslands containerId={CONTAINER_ID} />
               <ContentHoverCard containerId={CONTAINER_ID} />
               <ContentImageFallback containerId={CONTAINER_ID} />
             </>
