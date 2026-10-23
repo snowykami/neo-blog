@@ -48,6 +48,12 @@ export function getPostUrl<T extends { slug?: string | null, id?: string | numbe
   return `/p/${String(key)}${type ? `?type=${type}` : ''}`
 }
 
+export function getPostShareImageUrl<T extends { slug?: string | null, id?: string | number | null }>(
+  post: T,
+): string {
+  return `${getPostUrl({ post })}/share-image`
+}
+
 export function getPostEditUrl<T extends { slug?: string | null, id?: string | number | null }>(
   post: T,
 ): string {

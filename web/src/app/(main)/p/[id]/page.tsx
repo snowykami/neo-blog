@@ -8,8 +8,8 @@ import { getCachedSiteInfo } from '@/api/misc.server'
 import { getPostByIdServer } from '@/api/post.server'
 import { isNotFoundLikeError } from '@/utils/common/error'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
-import { getPostUrl, getUserUrl } from '@/utils/common/route'
-import { getDefaultCoverRandomly, safeMetadataBase } from '@/utils/common/siteinfo'
+import { getPostShareImageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
+import { safeMetadataBase } from '@/utils/common/siteinfo'
 import { formatDisplayName as formatFullName } from '@/utils/common/username'
 import { BlogPost } from './blog-post'
 
@@ -47,6 +47,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       description: 'The post you are looking for does not exist.',
     }
   }
+  const shareImage = getPostShareImageUrl(post)
   return {
     title: post.title || 'No Title',
     description: stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
@@ -61,14 +62,8 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
         stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
       url: getPostUrl({ post }),
       siteName: siteInfo?.metadata.name || 'Site Name',
-      images: [
-        {
-          url: post.cover || getDefaultCoverRandomly(siteInfo),
-          width: 800,
-          height: 600,
-          alt: post?.title || 'No Title',
-        },
-      ],
+      // 分享图由 /p/{id}/share-image 生成，不直接用封面：社交平台上的卡片信息更完整
+      images: [{ url: shareImage, width: 1200, height: 630, alt: post.title || 'No Title' }],
       locale,
       type: 'article',
     },
@@ -76,7 +71,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       card: 'summary_large_image',
       title: post.title || 'No Title',
       description: stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
-      images: [post.cover || getDefaultCoverRandomly(siteInfo)],
+      images: [shareImage],
     },
     robots: {
       index: true,
