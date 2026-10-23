@@ -28,6 +28,16 @@ func (m *musicType) Playlist(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, tracks)
 }
 
+// Song 单曲公开信息（文章内的单曲卡）
+func (m *musicType) Song(ctx context.Context, c *app.RequestContext) {
+	song, svcerr := m.service.GetSong(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, song)
+}
+
 // SongAudio 跳转到歌曲的临时播放地址
 func (m *musicType) SongAudio(ctx context.Context, c *app.RequestContext) {
 	songURL, svcerr := m.service.GetSongURL(ctx, ctxutils.GetIDParam(c).Int64)

@@ -34,6 +34,9 @@ const (
 // musicLyricFallbackURL 未配置 API 或 API 请求失败时，直接请求网易云的歌词接口
 var musicLyricFallbackURL = "https://music.163.com/api/song/lyric"
 
+// musicSongFallbackURL 未配置 API 或 API 请求失败时，直接请求网易云的歌曲详情接口
+var musicSongFallbackURL = "https://music.163.com/api/song/detail/"
+
 type MusicService struct{}
 
 func NewMusicService() *MusicService {
@@ -61,6 +64,9 @@ var musicFetchMu sync.Mutex
 
 // 歌词缓存：按歌曲 ID 保存序列化后的歌词
 var musicLyricCache = cache.NewLRUCacheWithSize(500, 16<<20)
+
+// 单曲信息缓存：按歌曲 ID 保存序列化后的信息（歌曲名、歌手、封面基本不变）
+var musicSongCache = cache.NewLRUCacheWithSize(1000, 4<<20)
 
 // ListNCMPlaylists 获取 Cookie 对应账号的歌单，供后台选择博客歌单
 func (s *MusicService) ListNCMPlaylists(ctx context.Context, req *dto.NCMPlaylistsReq) (*dto.NCMPlaylistsDto, *errs.ServiceError) {
@@ -335,6 +341,78 @@ func (s *MusicService) GetLyric(ctx context.Context, id int64) (*dto.MusicLyricD
 		musicLyricCache.Put(uint(id), data)
 	}
 	return &lyric, nil
+}
+
+// GetSong 单曲公开信息：优先使用配置的 API，失败时直接请求网易云；不携带 Cookie
+func (s *MusicService) GetSong(ctx context.Context, id int64) (*dto.MusicSongDto, *errs.ServiceError) {
+	if id <= 0 {
+		return nil, errs.NewBadRequest("invalid_request_parameters")
+	}
+	if data, ok := musicSongCache.Get(uint(id)); ok {
+		var song dto.MusicSongDto
+		if json.Unmarshal(data, &song) == nil {
+			return &song, nil
+		}
+	}
+
+	// API 返回新版结构（ar / al），网易云旧接口返回 artists / album
+	type namedItem struct {
+		Name string `json:"name"`
+	}
+	type album struct {
+		Name   string `json:"name"`
+		PicURL string `json:"picUrl"`
+	}
+	var raw struct {
+		Songs []struct {
+			ID      int64       `json:"id"`
+			Name    string      `json:"name"`
+			Ar      []namedItem `json:"ar"`
+			Artists []namedItem `json:"artists"`
+			Al      *album      `json:"al"`
+			Album   *album      `json:"album"`
+		} `json:"songs"`
+	}
+	idStr := strconv.FormatInt(id, 10)
+	err := errors.New("ncm api not configured")
+	if cfg := tools.GetNCMConfig(); validMusicAPIBaseURL(cfg.BaseURL) {
+		err = ncmGet(ctx, tools.NCMConfig{BaseURL: cfg.BaseURL}, "/song/detail", url.Values{"ids": {idStr}}, &raw)
+	}
+	if err != nil {
+		params := url.Values{"id": {idStr}, "ids": {"[" + idStr + "]"}}
+		if err = musicGetJSON(ctx, musicSongFallbackURL+"?"+params.Encode(), "", &raw); err != nil {
+			return nil, ncmRequestError(err)
+		}
+	}
+	if len(raw.Songs) == 0 || raw.Songs[0].ID != id {
+		return nil, errs.NewNotFound("music_song_not_found")
+	}
+
+	item := raw.Songs[0]
+	artists := item.Ar
+	if len(artists) == 0 {
+		artists = item.Artists
+	}
+	al := item.Al
+	if al == nil {
+		al = item.Album
+	}
+	song := dto.MusicSongDto{
+		ID:      id,
+		Name:    item.Name,
+		Artists: make([]string, 0, len(artists)),
+		Link:    "https://music.163.com/#/song?id=" + idStr,
+	}
+	for _, ar := range artists {
+		song.Artists = append(song.Artists, ar.Name)
+	}
+	if al != nil {
+		song.Album, song.AlbumPic = al.Name, httpsURL(al.PicURL)
+	}
+	if data, err := json.Marshal(song); err == nil {
+		musicSongCache.Put(uint(id), data)
+	}
+	return &song, nil
 }
 
 func containsTrack(tracks []dto.MusicTrackDto, id int64) bool {

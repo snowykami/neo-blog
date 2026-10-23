@@ -18,7 +18,7 @@ import (
 func fakeNCMServer(t *testing.T) (*httptest.Server, map[string]*atomic.Int32) {
 	t.Helper()
 	calls := map[string]*atomic.Int32{}
-	for _, path := range []string{"/user/account", "/user/playlist", "/playlist/track/all", "/song/url/v1", "/lyric/new", "/fallback"} {
+	for _, path := range []string{"/user/account", "/user/playlist", "/playlist/track/all", "/song/url/v1", "/lyric/new", "/fallback", "/song/detail", "/fallback-song"} {
 		calls[path] = &atomic.Int32{}
 	}
 	write := func(w http.ResponseWriter, v any) {
@@ -76,6 +76,22 @@ func fakeNCMServer(t *testing.T) (*httptest.Server, map[string]*atomic.Int32) {
 			write(w, map[string]any{"code": 200, "lrc": map[string]any{"lyric": "[00:01.00]你好", "version": 3}, "tlyric": map[string]any{"lyric": "[00:01.00]hello", "version": 1}})
 		case "/fallback":
 			write(w, map[string]any{"code": 200, "lrc": map[string]any{"lyric": "[00:01.00]fallback", "version": 1}})
+		case "/song/detail":
+			if r.Header.Get("Cookie") != "" {
+				t.Errorf("song detail request should not carry cookie")
+			}
+			if r.URL.Query().Get("ids") != "1" {
+				write(w, map[string]any{"code": 200, "songs": []any{}})
+				return
+			}
+			write(w, map[string]any{"code": 200, "songs": []map[string]any{
+				{"id": 1, "name": "空中散歩", "ar": []map[string]any{{"name": "CIEL"}}, "al": map[string]any{"name": "空想少女", "picUrl": "http://p4.music.126.net/x.jpg"}},
+			}})
+		case "/fallback-song":
+			// 网易云旧接口：artists / album
+			write(w, map[string]any{"code": 200, "songs": []map[string]any{
+				{"id": 202, "name": "旧接口", "artists": []map[string]any{{"name": "A"}, {"name": "B"}}, "album": map[string]any{"name": "专辑", "picUrl": "http://p3.music.126.net/y.jpg"}},
+			}})
 		default:
 			http.NotFound(w, r)
 		}
@@ -245,4 +261,38 @@ func TestMusicLyric(t *testing.T) {
 	if lyric, svcerr = s.GetLyric(ctx, 102); svcerr != nil || lyric.Lrc.Lyric != "[00:01.00]fallback" || calls["/fallback"].Load() != 1 {
 		t.Fatalf("fallback lyric: %v %+v", svcerr, lyric)
 	}
+}
+
+func TestMusicSong(t *testing.T) {
+	setupEditTest(t)
+	srv, calls := fakeNCMServer(t)
+	s := NewMusicService()
+	ctx := context.Background()
+	setMusicKV(t, map[string]any{"ncm_api_base_url": srv.URL, "ncm_cookie": "abc"})
+	musicSongCache.Clear()
+
+	_, svcerr := s.GetSong(ctx, 0)
+	expectCode(t, svcerr, http.StatusBadRequest, "invalid id")
+
+	// 任意歌曲都可查询公开信息（不携带 Cookie），结果缓存
+	song, svcerr := s.GetSong(ctx, 1)
+	if svcerr != nil || song.Name != "空中散歩" || strings.Join(song.Artists, ",") != "CIEL" || song.Album != "空想少女" ||
+		song.AlbumPic != "https://p4.music.126.net/x.jpg" || song.Link != "https://music.163.com/#/song?id=1" {
+		t.Fatalf("song: %v %+v", svcerr, song)
+	}
+	if _, svcerr = s.GetSong(ctx, 1); svcerr != nil || calls["/song/detail"].Load() != 1 {
+		t.Fatalf("song should be cached: %v %d", svcerr, calls["/song/detail"].Load())
+	}
+
+	// 未配置 API 时直接请求网易云旧接口；返回的歌曲与请求不符时视为不存在
+	original := musicSongFallbackURL
+	musicSongFallbackURL = srv.URL + "/fallback-song"
+	t.Cleanup(func() { musicSongFallbackURL = original })
+	setMusicKV(t, map[string]any{"ncm_api_base_url": ""})
+	song, svcerr = s.GetSong(ctx, 202)
+	if svcerr != nil || song.Name != "旧接口" || strings.Join(song.Artists, ",") != "A,B" || song.AlbumPic != "https://p3.music.126.net/y.jpg" {
+		t.Fatalf("fallback song: %v %+v", svcerr, song)
+	}
+	_, svcerr = s.GetSong(ctx, 203)
+	expectCode(t, svcerr, http.StatusNotFound, "mismatched song")
 }

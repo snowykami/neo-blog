@@ -13,6 +13,16 @@ type MusicTrackDto struct {
 	Aliases  []string `json:"aliases"`
 }
 
+// MusicSongDto 单曲信息（文章内的网易云单曲卡）；只含公开的元信息，不含播放地址
+type MusicSongDto struct {
+	ID       int64    `json:"id"`
+	Name     string   `json:"name"`
+	Artists  []string `json:"artists"`
+	Album    string   `json:"album"`
+	AlbumPic string   `json:"album_pic"`
+	Link     string   `json:"link"`
+}
+
 // MusicLyricPart 一种歌词（原文 / 翻译 / 罗马音 / 逐字），与网易云接口的结构一致
 type MusicLyricPart struct {
 	Lyric   string `json:"lyric"`

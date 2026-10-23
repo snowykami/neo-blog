@@ -16,6 +16,8 @@ func registerMiscRoutes(group *route.RouterGroup) {
 		miscGroup.GET("/public-config", miscController.GetPublicConfig) // 用于公开的键值对
 		miscGroup.GET("/sitemap-data", miscController.GetSitemapData)   // 用于sitemap
 		miscGroup.GET("/rss-data", miscController.GetRssData)           // 用于rss
+		// 文章内 GitHub 仓库卡：只返回公开仓库信息，后端缓存
+		miscGroup.GET("/github/repos/:owner/:repo", controller.Github.Repo)
 
 		miscGroupWithAdmin.PUT("/public-config", miscController.SetPublicConfig)
 		miscGroupWithAdmin.GET("/metrics", miscController.GetMetrics) // 仅管理员可见
