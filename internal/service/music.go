@@ -28,7 +28,6 @@ const (
 	musicPlaylistTTL     = 10 * time.Minute // 歌单曲目缓存时间，过期后先返回旧数据并在后台刷新
 	musicSongURLMaxTTL   = 10 * time.Minute // 播放地址最长缓存时间（地址本身有有效期）
 	musicRequestTimeout  = 10 * time.Second
-	musicSongLevel       = "exhigh" // 极高音质（320k），兼顾音质与流量
 	musicPlaylistMaxSize = 1000
 )
 
@@ -43,6 +42,7 @@ func NewMusicService() *MusicService {
 
 type musicSongURL struct {
 	url       string
+	level     string // 请求时的音质，修改音质后重新获取
 	expiresAt time.Time
 }
 
@@ -257,10 +257,11 @@ func (s *MusicService) GetSongURL(ctx context.Context, id int64) (string, *errs.
 		return "", errs.NewNotFound("music_song_not_found")
 	}
 
+	cfg := tools.GetNCMConfig()
 	musicState.Lock()
 	cached, ok := musicState.songURLs[id]
 	musicState.Unlock()
-	if ok && time.Now().Before(cached.expiresAt) {
+	if ok && cached.level == cfg.Level && time.Now().Before(cached.expiresAt) {
 		return cached.url, nil
 	}
 
@@ -270,8 +271,9 @@ func (s *MusicService) GetSongURL(ctx context.Context, id int64) (string, *errs.
 			Expi int    `json:"expi"` // 有效期（秒）
 		} `json:"data"`
 	}
-	params := url.Values{"id": {strconv.FormatInt(id, 10)}, "level": {musicSongLevel}}
-	if err := ncmGet(ctx, tools.GetNCMConfig(), "/song/url/v1", params, &result); err != nil {
+	// 账号没有对应音质的权限时，接口会返回可用的较低音质
+	params := url.Values{"id": {strconv.FormatInt(id, 10)}, "level": {cfg.Level}}
+	if err := ncmGet(ctx, cfg, "/song/url/v1", params, &result); err != nil {
 		return "", ncmRequestError(err)
 	}
 	if len(result.Data) == 0 || result.Data[0].URL == "" {
@@ -283,7 +285,7 @@ func (s *MusicService) GetSongURL(ctx context.Context, id int64) (string, *errs.
 		if musicState.songURLs == nil {
 			musicState.songURLs = make(map[int64]musicSongURL)
 		}
-		musicState.songURLs[id] = musicSongURL{url: songURL, expiresAt: time.Now().Add(ttl)}
+		musicState.songURLs[id] = musicSongURL{url: songURL, level: cfg.Level, expiresAt: time.Now().Add(ttl)}
 		musicState.Unlock()
 	}
 	return songURL, nil

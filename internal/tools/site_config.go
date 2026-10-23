@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/snowykami/neo-blog/internal/repo"
@@ -82,8 +83,15 @@ func GetAISummaryConcurrency() int {
 type NCMConfig struct {
 	BaseURL    string
 	Cookie     string
-	PlaylistID int64 // 作为博客歌单的网易云歌单 ID
+	PlaylistID int64  // 作为博客歌单的网易云歌单 ID
+	Level      string // 播放音质，见 NCMSongLevels
 }
+
+// NCMSongLevels 可选的播放音质（song/url/v1 的 level），只提供浏览器可以直接播放的格式
+// standard 128k、higher 192k、exhigh 320k（默认）、lossless 无损 FLAC、hires Hi-Res FLAC
+var NCMSongLevels = []string{"standard", "higher", "exhigh", "lossless", "hires"}
+
+const NCMSongLevelDefault = "exhigh"
 
 // Configured 已填写 API 地址并选择了歌单
 func (c NCMConfig) Configured() bool {
@@ -95,7 +103,17 @@ func GetNCMConfig() NCMConfig {
 		BaseURL:    strings.TrimRight(strings.TrimSpace(repo.KV.GetStringWithoutErr("ncm_api_base_url", "")), "/"),
 		Cookie:     strings.TrimSpace(repo.KV.GetStringWithoutErr("ncm_cookie", "")),
 		PlaylistID: int64(repo.KV.GetIntWithoutErr("ncm_playlist_id", 0)),
+		Level:      getNCMSongLevel(),
 	}
+}
+
+// getNCMSongLevel 读取播放音质，未配置或不在可选范围内时使用默认音质
+func getNCMSongLevel() string {
+	level := strings.TrimSpace(repo.KV.GetStringWithoutErr("ncm_song_level", NCMSongLevelDefault))
+	if !slices.Contains(NCMSongLevels, level) {
+		return NCMSongLevelDefault
+	}
+	return level
 }
 
 func GetMaximumReplyDepth() int {

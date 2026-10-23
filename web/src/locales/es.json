@@ -619,7 +619,14 @@
       "ncm_subscribed": "Guardada",
       "ncm_load_playlists": "Cargar listas",
       "ncm_load_failed": "No se pudieron cargar las listas",
-      "ncm_account": "{name} · {count} listas"
+      "ncm_account": "{name} · {count} listas",
+      "ncm_song_level": "Calidad de audio",
+      "ncm_song_level_desc": "A mayor calidad, más datos consumen los visitantes; los niveles que superan los privilegios de la cuenta bajan automáticamente. Sin pérdida e Hi-Res son FLAC",
+      "ncm_song_level_standard": "Estándar (128 kbps)",
+      "ncm_song_level_higher": "Alta (192 kbps)",
+      "ncm_song_level_exhigh": "Muy alta (320 kbps)",
+      "ncm_song_level_lossless": "Sin pérdida (FLAC)",
+      "ncm_song_level_hires": "Hi-Res (FLAC)"
     },
     "labels": {
       "title": "Etiquetas",

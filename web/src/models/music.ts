@@ -15,6 +15,11 @@ export type MusicSourceType = 'static' | 'ncm'
 
 export type MusicSource = { type: 'ncm' } | { type: 'static', url: string }
 
+// 网易云播放音质（与后端 tools.NCMSongLevels 一致），只包含浏览器可以直接播放的格式
+export const NCM_SONG_LEVELS = ['standard', 'higher', 'exhigh', 'lossless', 'hires'] as const
+
+export type NCMSongLevel = typeof NCM_SONG_LEVELS[number]
+
 export interface NCMPlaylist {
   id: number
   name: string

@@ -63,7 +63,8 @@ func fakeNCMServer(t *testing.T) (*httptest.Server, map[string]*atomic.Int32) {
 			if !loggedIn {
 				t.Errorf("song url should carry cookie")
 			}
-			write(w, map[string]any{"code": 200, "data": []map[string]any{{"id": 1, "url": "http://m701.music.126.net/1.mp3", "expi": 1200}}})
+			// 地址中带上请求的音质，便于检查
+			write(w, map[string]any{"code": 200, "data": []map[string]any{{"id": 1, "url": "http://m701.music.126.net/1-" + r.URL.Query().Get("level") + ".mp3", "expi": 1200}}})
 		case "/lyric/new":
 			if r.Header.Get("Cookie") != "" {
 				t.Errorf("lyric request should not carry cookie")
@@ -137,7 +138,7 @@ func TestMusicPlaylistAndSongURL(t *testing.T) {
 	ctx := context.Background()
 
 	// 未选择歌单时不提供
-	setMusicKV(t, map[string]any{"ncm_api_base_url": srv.URL, "ncm_cookie": "abc", "ncm_playlist_id": 0})
+	setMusicKV(t, map[string]any{"ncm_api_base_url": srv.URL, "ncm_cookie": "abc", "ncm_playlist_id": 0, "ncm_song_level": ""})
 	_, svcerr := s.GetPlaylist(ctx)
 	expectCode(t, svcerr, http.StatusNotFound, "not configured")
 
@@ -169,12 +170,23 @@ func TestMusicPlaylistAndSongURL(t *testing.T) {
 	expectCode(t, svcerr, http.StatusNotFound, "song outside playlist")
 	_, svcerr = s.GetSongURL(ctx, 3)
 	expectCode(t, svcerr, http.StatusNotFound, "removed song")
+	// 未配置音质时使用默认的 exhigh
 	songURL, svcerr := s.GetSongURL(ctx, 1)
-	if svcerr != nil || songURL != "https://m701.music.126.net/1.mp3" {
+	if svcerr != nil || songURL != "https://m701.music.126.net/1-exhigh.mp3" {
 		t.Fatalf("song url: %v %q", svcerr, songURL)
 	}
 	if _, svcerr = s.GetSongURL(ctx, 1); svcerr != nil || calls["/song/url/v1"].Load() != 1 {
 		t.Fatalf("song url should be cached: %v %d", svcerr, calls["/song/url/v1"].Load())
+	}
+	// 修改音质后不使用旧音质的缓存
+	setMusicKV(t, map[string]any{"ncm_song_level": "lossless"})
+	if songURL, svcerr = s.GetSongURL(ctx, 1); svcerr != nil || songURL != "https://m701.music.126.net/1-lossless.mp3" || calls["/song/url/v1"].Load() != 2 {
+		t.Fatalf("lossless song url: %v %q %d", svcerr, songURL, calls["/song/url/v1"].Load())
+	}
+	// 不在可选范围内的音质按默认音质处理
+	setMusicKV(t, map[string]any{"ncm_song_level": "jymaster"})
+	if songURL, svcerr = s.GetSongURL(ctx, 1); svcerr != nil || songURL != "https://m701.music.126.net/1-exhigh.mp3" {
+		t.Fatalf("invalid level should fall back: %v %q", svcerr, songURL)
 	}
 
 	// 过期后先返回旧数据，并在后台刷新一次

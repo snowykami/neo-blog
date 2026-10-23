@@ -619,7 +619,14 @@
       "ncm_subscribed": "收藏",
       "ncm_load_playlists": "读取歌单",
       "ncm_load_failed": "读取歌单失败",
-      "ncm_account": "{name} · 共 {count} 个歌单"
+      "ncm_account": "{name} · 共 {count} 个歌单",
+      "ncm_song_level": "播放音质",
+      "ncm_song_level_desc": "音质越高，访客加载歌曲的流量越大；超出账号权限的音质会自动降级。无损与 Hi-Res 为 FLAC 格式",
+      "ncm_song_level_standard": "标准（128kbps）",
+      "ncm_song_level_higher": "较高（192kbps）",
+      "ncm_song_level_exhigh": "极高（320kbps）",
+      "ncm_song_level_lossless": "无损（FLAC）",
+      "ncm_song_level_hires": "Hi-Res（FLAC）"
     },
     "labels": {
       "title": "标签管理",

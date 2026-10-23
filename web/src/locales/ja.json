@@ -619,7 +619,14 @@
       "ncm_subscribed": "お気に入り",
       "ncm_load_playlists": "プレイリストを読み込む",
       "ncm_load_failed": "プレイリストの読み込みに失敗しました",
-      "ncm_account": "{name} · プレイリスト {count} 件"
+      "ncm_account": "{name} · プレイリスト {count} 件",
+      "ncm_song_level": "再生音質",
+      "ncm_song_level_desc": "音質が高いほど訪問者の通信量が増えます。アカウントの権限を超える音質は自動的に下がります。ロスレスと Hi-Res は FLAC 形式です",
+      "ncm_song_level_standard": "標準（128kbps）",
+      "ncm_song_level_higher": "高音質（192kbps）",
+      "ncm_song_level_exhigh": "極高音質（320kbps）",
+      "ncm_song_level_lossless": "ロスレス（FLAC）",
+      "ncm_song_level_hires": "Hi-Res（FLAC）"
     },
     "labels": {
       "title": "タグ管理",

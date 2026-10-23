@@ -619,7 +619,14 @@
       "ncm_subscribed": "Salva",
       "ncm_load_playlists": "Carregar playlists",
       "ncm_load_failed": "Falha ao carregar as playlists",
-      "ncm_account": "{name} · {count} playlists"
+      "ncm_account": "{name} · {count} playlists",
+      "ncm_song_level": "Qualidade de áudio",
+      "ncm_song_level_desc": "Quanto maior a qualidade, mais dados os visitantes consomem; níveis acima dos privilégios da conta são reduzidos automaticamente. Sem perdas e Hi-Res são FLAC",
+      "ncm_song_level_standard": "Padrão (128 kbps)",
+      "ncm_song_level_higher": "Alta (192 kbps)",
+      "ncm_song_level_exhigh": "Muito alta (320 kbps)",
+      "ncm_song_level_lossless": "Sem perdas (FLAC)",
+      "ncm_song_level_hires": "Hi-Res (FLAC)"
     },
     "labels": {
       "title": "Tags",

@@ -619,7 +619,14 @@
       "ncm_subscribed": "Enregistrée",
       "ncm_load_playlists": "Charger les playlists",
       "ncm_load_failed": "Échec du chargement des playlists",
-      "ncm_account": "{name} · {count} playlists"
+      "ncm_account": "{name} · {count} playlists",
+      "ncm_song_level": "Qualité audio",
+      "ncm_song_level_desc": "Une qualité plus élevée consomme plus de bande passante chez les visiteurs ; les niveaux au-delà des droits du compte sont abaissés automatiquement. Sans perte et Hi-Res sont en FLAC",
+      "ncm_song_level_standard": "Standard (128 kbit/s)",
+      "ncm_song_level_higher": "Élevée (192 kbit/s)",
+      "ncm_song_level_exhigh": "Très élevée (320 kbit/s)",
+      "ncm_song_level_lossless": "Sans perte (FLAC)",
+      "ncm_song_level_hires": "Hi-Res (FLAC)"
     },
     "labels": {
       "title": "Étiquettes",

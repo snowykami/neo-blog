@@ -619,7 +619,14 @@
       "ncm_subscribed": "저장됨",
       "ncm_load_playlists": "재생목록 불러오기",
       "ncm_load_failed": "재생목록을 불러오지 못했습니다",
-      "ncm_account": "{name} · 재생목록 {count}개"
+      "ncm_account": "{name} · 재생목록 {count}개",
+      "ncm_song_level": "재생 음질",
+      "ncm_song_level_desc": "음질이 높을수록 방문자의 데이터 사용량이 늘어나며, 계정 권한을 넘는 음질은 자동으로 낮아집니다. 무손실과 Hi-Res는 FLAC 형식입니다",
+      "ncm_song_level_standard": "표준 (128kbps)",
+      "ncm_song_level_higher": "높음 (192kbps)",
+      "ncm_song_level_exhigh": "매우 높음 (320kbps)",
+      "ncm_song_level_lossless": "무손실 (FLAC)",
+      "ncm_song_level_hires": "Hi-Res (FLAC)"
     },
     "labels": {
       "title": "태그",

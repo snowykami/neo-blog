@@ -619,7 +619,14 @@
       "ncm_subscribed": "Сохранён",
       "ncm_load_playlists": "Загрузить плейлисты",
       "ncm_load_failed": "Не удалось загрузить плейлисты",
-      "ncm_account": "{name} · плейлистов: {count}"
+      "ncm_account": "{name} · плейлистов: {count}",
+      "ncm_song_level": "Качество звука",
+      "ncm_song_level_desc": "Чем выше качество, тем больше трафика у посетителей; уровни выше прав аккаунта автоматически понижаются. Lossless и Hi-Res — это FLAC",
+      "ncm_song_level_standard": "Стандартное (128 кбит/с)",
+      "ncm_song_level_higher": "Повышенное (192 кбит/с)",
+      "ncm_song_level_exhigh": "Очень высокое (320 кбит/с)",
+      "ncm_song_level_lossless": "Без потерь (FLAC)",
+      "ncm_song_level_hires": "Hi-Res (FLAC)"
     },
     "labels": {
       "title": "Метки",

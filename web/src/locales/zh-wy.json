@@ -619,7 +619,14 @@
       "ncm_subscribed": "所藏",
       "ncm_load_playlists": "取曲目",
       "ncm_load_failed": "取曲目未成",
-      "ncm_account": "{name} · 凡 {count} 曲目"
+      "ncm_account": "{name} · 凡 {count} 曲目",
+      "ncm_song_level": "播之音質",
+      "ncm_song_level_desc": "音質愈高，訪客載曲之流量愈大；逾其號之權者自降之。無損與 Hi-Res 皆 FLAC 之式",
+      "ncm_song_level_standard": "常（128kbps）",
+      "ncm_song_level_higher": "稍高（192kbps）",
+      "ncm_song_level_exhigh": "極高（320kbps）",
+      "ncm_song_level_lossless": "無損（FLAC）",
+      "ncm_song_level_hires": "Hi-Res（FLAC）"
     },
     "labels": {
       "title": "標籤管理",

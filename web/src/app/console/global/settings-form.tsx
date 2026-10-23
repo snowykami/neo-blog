@@ -1,6 +1,6 @@
 'use client'
 
-import type { MusicSourceType, NCMPlaylists } from '@/models/music'
+import type { MusicSourceType, NCMPlaylists, NCMSongLevel } from '@/models/music'
 import type { SiteInfo } from '@/utils/common/siteinfo'
 import { EyeIcon, EyeOffIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -25,6 +25,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { NCM_SONG_LEVELS } from '@/models/music'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
 // 站点内置的配色方案，对应 app/styles 下的主题文件
@@ -71,6 +72,7 @@ interface SettingsValues {
   ncmApiBaseUrl: string
   ncmCookie: string
   ncmPlaylistId: number
+  ncmSongLevel: NCMSongLevel
   enableThirdPartyScript: boolean
   aiApiBaseUrl: string
   aiApiKey: string
@@ -137,6 +139,7 @@ const STANDALONE_KEYS: Partial<Record<FieldName, { key: string, toValue?: (value
   ncmApiBaseUrl: { key: 'ncm_api_base_url', toValue: values => values.ncmApiBaseUrl.trim() },
   ncmCookie: { key: 'ncm_cookie', toValue: values => values.ncmCookie.trim() },
   ncmPlaylistId: { key: 'ncm_playlist_id' },
+  ncmSongLevel: { key: 'ncm_song_level' },
 }
 
 function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
@@ -184,6 +187,7 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     ncmApiBaseUrl: str('ncmApiBaseUrl', ''),
     ncmCookie: str('ncmCookie', ''),
     ncmPlaylistId: num('ncmPlaylistId', 0),
+    ncmSongLevel: NCM_SONG_LEVELS.find(level => level === kv.ncmSongLevel) ?? 'exhigh',
     enableThirdPartyScript: info.enableThirdPartyScript ?? fallbackSiteInfo.enableThirdPartyScript ?? false,
     aiApiBaseUrl: str('aiApiBaseUrl', ''),
     aiApiKey: str('aiApiKey', ''),
@@ -681,6 +685,12 @@ function MusicSection() {
               <UrlField name="ncmApiBaseUrl" label={t('ncm_api_base_url')} description={t('ncm_api_base_url_desc')} placeholder="https://ncm-api.example.com" />
               <PasswordField name="ncmCookie" label={t('ncm_cookie')} description={t('ncm_cookie_desc')} placeholder="MUSIC_U=..." wide />
               <NCMPlaylistField />
+              <SelectField
+                name="ncmSongLevel"
+                label={t('ncm_song_level')}
+                description={t('ncm_song_level_desc')}
+                options={NCM_SONG_LEVELS.map(level => ({ value: level, label: t(`ncm_song_level_${level}`) }))}
+              />
             </>
           )
         : <UrlField name="musicPlaylistUrl" label={t('music_playlist_url')} description={t('music_playlist_url_desc')} />}

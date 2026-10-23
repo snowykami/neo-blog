@@ -619,7 +619,14 @@
       "ncm_subscribed": "सहेजी गई",
       "ncm_load_playlists": "प्लेलिस्ट लोड करें",
       "ncm_load_failed": "प्लेलिस्ट लोड नहीं हो सकीं",
-      "ncm_account": "{name} · {count} प्लेलिस्ट"
+      "ncm_account": "{name} · {count} प्लेलिस्ट",
+      "ncm_song_level": "ऑडियो गुणवत्ता",
+      "ncm_song_level_desc": "उच्च गुणवत्ता में आगंतुकों का डेटा अधिक खर्च होता है; खाते की अनुमति से ऊपर का स्तर अपने आप घट जाता है। लॉसलेस और Hi-Res FLAC हैं",
+      "ncm_song_level_standard": "स्टैंडर्ड (128 kbps)",
+      "ncm_song_level_higher": "उच्च (192 kbps)",
+      "ncm_song_level_exhigh": "बहुत उच्च (320 kbps)",
+      "ncm_song_level_lossless": "लॉसलेस (FLAC)",
+      "ncm_song_level_hires": "Hi-Res (FLAC)"
     },
     "labels": {
       "title": "टैग",
