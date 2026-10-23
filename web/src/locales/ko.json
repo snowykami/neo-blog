@@ -1958,6 +1958,74 @@
       "placeholders": {
         "url": "https://"
       }
+    },
+    "weatherCard": {
+      "name": "날씨 카드",
+      "description": "글을 쓸 때의 날씨를 기록하거나 지정한 도시의 실시간 날씨를 표시",
+      "fields": {
+        "mode": "모드",
+        "city": "도시",
+        "condition": "날씨",
+        "temperature": "기온(°C)",
+        "humidity": "습도(%)",
+        "wind": "풍력(등급)",
+        "recordedAt": "기록 시각",
+        "latitude": "위도",
+        "longitude": "경도"
+      },
+      "placeholders": {
+        "city": "예: 서울"
+      },
+      "descriptions": {
+        "mode": "스냅샷은 글에 저장되고, 실시간 모드는 독자가 열 때 현재 날씨를 가져옵니다",
+        "temperature": "섭씨",
+        "wind": "보퍼트 풍력 계급 0–12",
+        "recordedAt": "관측지 현지 시각, 비워 두면 표시하지 않음",
+        "latitude": "위에서 도시를 검색하면 자동으로 입력됩니다",
+        "longitude": "위에서 도시를 검색하면 자동으로 입력됩니다"
+      },
+      "options": {
+        "mode": {
+          "snapshot": "스냅샷(당시 날씨)",
+          "live": "실시간(현재 날씨)"
+        },
+        "condition": {
+          "clear": "맑음",
+          "partly_cloudy": "구름 조금",
+          "cloudy": "흐림",
+          "fog": "안개",
+          "drizzle": "이슬비",
+          "rain": "비",
+          "sleet": "진눈깨비",
+          "snow": "눈",
+          "thunderstorm": "뇌우"
+        }
+      },
+      "example": {
+        "city": "부산"
+      },
+      "humidity": "습도 {value}%",
+      "wind_level": "풍력 {level}등급",
+      "recorded_at": "{time}에 기록",
+      "live": "실시간 날씨",
+      "live_at": "실시간 · 현지 시각 {time}",
+      "load_failed": "날씨를 불러오지 못했습니다",
+      "action": {
+        "title_snapshot": "현재 날씨 가져오기",
+        "title_live": "도시 선택",
+        "hint_snapshot": "도시를 검색하거나 현재 위치로 날씨를 가져와 아래 양식에 채웁니다. 위치는 글에 저장되지 않습니다.",
+        "hint_live": "도시를 검색해 선택하세요. 독자가 글을 열면 해당 도시의 현재 날씨가 표시됩니다.",
+        "search_placeholder": "도시 이름 입력",
+        "search": "검색",
+        "locate": "현재 위치",
+        "fetching": "날씨를 가져오는 중…",
+        "no_results": "일치하는 도시가 없습니다",
+        "failed": "가져오지 못했습니다. 잠시 후 다시 시도하세요",
+        "locate_failed": "위치를 가져올 수 없습니다. 브라우저 위치 권한을 확인하거나 도시 검색을 이용하세요",
+        "filled": "현재 날씨를 채웠습니다",
+        "filled_need_city": "현재 날씨를 채웠습니다. 도시 이름을 입력하세요",
+        "place_selected": "도시를 선택했습니다"
+      }
     }
   },
   "AppUpdate": {

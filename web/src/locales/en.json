@@ -1958,6 +1958,74 @@
       "placeholders": {
         "url": "https://"
       }
+    },
+    "weatherCard": {
+      "name": "Weather card",
+      "description": "Record the weather while writing, or show live weather for a city",
+      "fields": {
+        "mode": "Mode",
+        "city": "City",
+        "condition": "Condition",
+        "temperature": "Temperature (°C)",
+        "humidity": "Humidity (%)",
+        "wind": "Wind (Beaufort)",
+        "recordedAt": "Recorded at",
+        "latitude": "Latitude",
+        "longitude": "Longitude"
+      },
+      "placeholders": {
+        "city": "e.g. London"
+      },
+      "descriptions": {
+        "mode": "Snapshots are saved in the post; live mode fetches the current weather when readers open it",
+        "temperature": "Degrees Celsius",
+        "wind": "Beaufort scale 0–12",
+        "recordedAt": "Local time at the location; leave empty to hide",
+        "latitude": "Filled in automatically when you search for a city above",
+        "longitude": "Filled in automatically when you search for a city above"
+      },
+      "options": {
+        "mode": {
+          "snapshot": "Snapshot (weather at the time)",
+          "live": "Live (current weather)"
+        },
+        "condition": {
+          "clear": "Clear",
+          "partly_cloudy": "Partly cloudy",
+          "cloudy": "Overcast",
+          "fog": "Fog",
+          "drizzle": "Drizzle",
+          "rain": "Rain",
+          "sleet": "Sleet",
+          "snow": "Snow",
+          "thunderstorm": "Thunderstorm"
+        }
+      },
+      "example": {
+        "city": "Hangzhou"
+      },
+      "humidity": "Humidity {value}%",
+      "wind_level": "Wind force {level}",
+      "recorded_at": "Recorded {time}",
+      "live": "Live weather",
+      "live_at": "Live · {time} local time",
+      "load_failed": "Failed to load weather",
+      "action": {
+        "title_snapshot": "Get current weather",
+        "title_live": "Choose a city",
+        "hint_snapshot": "Search for a city or use your current location to fill in the form below. Your location is not saved in the post.",
+        "hint_live": "Search for and choose a city. Readers will see its current weather when they open the post.",
+        "search_placeholder": "City name",
+        "search": "Search",
+        "locate": "My location",
+        "fetching": "Fetching weather…",
+        "no_results": "No matching cities found",
+        "failed": "Request failed, please try again later",
+        "locate_failed": "Couldn’t get your location. Check the browser’s location permission, or search for a city instead.",
+        "filled": "Current weather filled in",
+        "filled_need_city": "Current weather filled in, please add the city name",
+        "place_selected": "City selected"
+      }
     }
   },
   "AppUpdate": {

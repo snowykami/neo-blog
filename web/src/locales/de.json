@@ -1958,6 +1958,74 @@
       "placeholders": {
         "url": "https://"
       }
+    },
+    "weatherCard": {
+      "name": "Wetterkarte",
+      "description": "Das Wetter beim Schreiben festhalten oder das aktuelle Wetter einer Stadt anzeigen",
+      "fields": {
+        "mode": "Modus",
+        "city": "Stadt",
+        "condition": "Wetterlage",
+        "temperature": "Temperatur (°C)",
+        "humidity": "Luftfeuchtigkeit (%)",
+        "wind": "Wind (Beaufort)",
+        "recordedAt": "Aufgezeichnet am",
+        "latitude": "Breitengrad",
+        "longitude": "Längengrad"
+      },
+      "placeholders": {
+        "city": "z. B. Berlin"
+      },
+      "descriptions": {
+        "mode": "Momentaufnahmen werden im Beitrag gespeichert; im Live-Modus wird beim Öffnen das aktuelle Wetter abgerufen",
+        "temperature": "Grad Celsius",
+        "wind": "Beaufort-Skala 0–12",
+        "recordedAt": "Ortszeit am Standort; leer lassen zum Ausblenden",
+        "latitude": "Wird automatisch ausgefüllt, wenn du oben nach einer Stadt suchst",
+        "longitude": "Wird automatisch ausgefüllt, wenn du oben nach einer Stadt suchst"
+      },
+      "options": {
+        "mode": {
+          "snapshot": "Momentaufnahme (Wetter zu diesem Zeitpunkt)",
+          "live": "Live (aktuelles Wetter)"
+        },
+        "condition": {
+          "clear": "Klar",
+          "partly_cloudy": "Teilweise bewölkt",
+          "cloudy": "Bedeckt",
+          "fog": "Nebel",
+          "drizzle": "Nieselregen",
+          "rain": "Regen",
+          "sleet": "Schneeregen",
+          "snow": "Schnee",
+          "thunderstorm": "Gewitter"
+        }
+      },
+      "example": {
+        "city": "Hamburg"
+      },
+      "humidity": "Luftfeuchtigkeit {value} %",
+      "wind_level": "Windstärke {level}",
+      "recorded_at": "Aufgezeichnet {time}",
+      "live": "Live-Wetter",
+      "live_at": "Live · Ortszeit {time}",
+      "load_failed": "Wetter konnte nicht geladen werden",
+      "action": {
+        "title_snapshot": "Aktuelles Wetter abrufen",
+        "title_live": "Stadt auswählen",
+        "hint_snapshot": "Suche nach einer Stadt oder nutze deinen aktuellen Standort, um das Formular unten auszufüllen. Dein Standort wird nicht im Beitrag gespeichert.",
+        "hint_live": "Suche und wähle eine Stadt. Leser sehen beim Öffnen des Beitrags das aktuelle Wetter dort.",
+        "search_placeholder": "Stadtname eingeben",
+        "search": "Suchen",
+        "locate": "Mein Standort",
+        "fetching": "Wetter wird abgerufen…",
+        "no_results": "Keine passende Stadt gefunden",
+        "failed": "Abruf fehlgeschlagen, bitte später erneut versuchen",
+        "locate_failed": "Standort nicht verfügbar. Prüfe die Standortberechtigung des Browsers oder suche nach einer Stadt.",
+        "filled": "Aktuelles Wetter eingetragen",
+        "filled_need_city": "Aktuelles Wetter eingetragen, bitte Stadtnamen ergänzen",
+        "place_selected": "Stadt ausgewählt"
+      }
     }
   },
   "AppUpdate": {

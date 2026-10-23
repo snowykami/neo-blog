@@ -1958,6 +1958,74 @@
       "placeholders": {
         "url": "https://"
       }
+    },
+    "weatherCard": {
+      "name": "天候卡",
+      "description": "記屬文時之天候，或示某城今時之天候",
+      "fields": {
+        "mode": "式",
+        "city": "城",
+        "condition": "天候",
+        "temperature": "溫（°C）",
+        "humidity": "濕（%）",
+        "wind": "風（級）",
+        "recordedAt": "記時",
+        "latitude": "緯",
+        "longitude": "經"
+      },
+      "placeholders": {
+        "city": "如：金陵"
+      },
+      "descriptions": {
+        "mode": "快照存於文中；即時者，讀者開卷時取今之天候",
+        "temperature": "攝氏",
+        "wind": "蒲福風級，〇至十二",
+        "recordedAt": "觀測之地時，空則不示",
+        "latitude": "可由上之尋城自填",
+        "longitude": "可由上之尋城自填"
+      },
+      "options": {
+        "mode": {
+          "snapshot": "快照（記當時之天候）",
+          "live": "即時（示今之天候）"
+        },
+        "condition": {
+          "clear": "晴",
+          "partly_cloudy": "少雲",
+          "cloudy": "陰",
+          "fog": "霧",
+          "drizzle": "細雨",
+          "rain": "雨",
+          "sleet": "雨雪",
+          "snow": "雪",
+          "thunderstorm": "雷雨"
+        }
+      },
+      "example": {
+        "city": "臨安"
+      },
+      "humidity": "濕 {value}%",
+      "wind_level": "風 {level} 級",
+      "recorded_at": "記於 {time}",
+      "live": "今之天候",
+      "live_at": "即時 · 當地 {time}",
+      "load_failed": "天候未能載",
+      "action": {
+        "title_snapshot": "取今之天候",
+        "title_live": "擇城",
+        "hint_snapshot": "尋城或以汝所在取天候，填於下表；所在不存於文中",
+        "hint_live": "尋而擇城，讀者開卷時示其城今之天候",
+        "search_placeholder": "書城名",
+        "search": "尋",
+        "locate": "今所在",
+        "fetching": "取天候中…",
+        "no_results": "無相合之城",
+        "failed": "未能取，請稍後再試",
+        "locate_failed": "未能得所在，請察瀏覽器之定位權，或改以尋城",
+        "filled": "已填今之天候",
+        "filled_need_city": "已填今之天候，請補城名",
+        "place_selected": "已擇城"
+      }
     }
   },
   "AppUpdate": {

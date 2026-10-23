@@ -1958,6 +1958,74 @@
       "placeholders": {
         "url": "https://"
       }
+    },
+    "weatherCard": {
+      "name": "Tarjeta del tiempo",
+      "description": "Registra el tiempo al escribir o muestra el tiempo en directo de una ciudad",
+      "fields": {
+        "mode": "Modo",
+        "city": "Ciudad",
+        "condition": "Estado",
+        "temperature": "Temperatura (°C)",
+        "humidity": "Humedad (%)",
+        "wind": "Viento (Beaufort)",
+        "recordedAt": "Registrado el",
+        "latitude": "Latitud",
+        "longitude": "Longitud"
+      },
+      "placeholders": {
+        "city": "p. ej. Madrid"
+      },
+      "descriptions": {
+        "mode": "La instantánea se guarda en la entrada; el modo en directo obtiene el tiempo actual al abrirla",
+        "temperature": "Grados Celsius",
+        "wind": "Escala de Beaufort 0–12",
+        "recordedAt": "Hora local del lugar; déjalo vacío para ocultarlo",
+        "latitude": "Se rellena automáticamente al buscar una ciudad arriba",
+        "longitude": "Se rellena automáticamente al buscar una ciudad arriba"
+      },
+      "options": {
+        "mode": {
+          "snapshot": "Instantánea (tiempo de ese momento)",
+          "live": "En directo (tiempo actual)"
+        },
+        "condition": {
+          "clear": "Despejado",
+          "partly_cloudy": "Parcialmente nublado",
+          "cloudy": "Cubierto",
+          "fog": "Niebla",
+          "drizzle": "Llovizna",
+          "rain": "Lluvia",
+          "sleet": "Aguanieve",
+          "snow": "Nieve",
+          "thunderstorm": "Tormenta"
+        }
+      },
+      "example": {
+        "city": "Sevilla"
+      },
+      "humidity": "Humedad {value} %",
+      "wind_level": "Viento fuerza {level}",
+      "recorded_at": "Registrado el {time}",
+      "live": "Tiempo en directo",
+      "live_at": "En directo · {time} hora local",
+      "load_failed": "No se pudo cargar el tiempo",
+      "action": {
+        "title_snapshot": "Obtener el tiempo actual",
+        "title_live": "Elegir ciudad",
+        "hint_snapshot": "Busca una ciudad o usa tu ubicación actual para rellenar el formulario de abajo. Tu ubicación no se guarda en la entrada.",
+        "hint_live": "Busca y elige una ciudad. Los lectores verán su tiempo actual al abrir la entrada.",
+        "search_placeholder": "Nombre de la ciudad",
+        "search": "Buscar",
+        "locate": "Mi ubicación",
+        "fetching": "Obteniendo el tiempo…",
+        "no_results": "No se encontraron ciudades",
+        "failed": "Error en la solicitud, inténtalo más tarde",
+        "locate_failed": "No se pudo obtener tu ubicación. Revisa el permiso de ubicación del navegador o busca una ciudad.",
+        "filled": "Tiempo actual rellenado",
+        "filled_need_city": "Tiempo actual rellenado, añade el nombre de la ciudad",
+        "place_selected": "Ciudad seleccionada"
+      }
     }
   },
   "AppUpdate": {

@@ -107,6 +107,31 @@ describe('注册表', () => {
     expect(tabs).toMatchObject({ kind: 'list', min: 1, max: 8, itemDefault: { label: '', language: '', code: '' } })
     expect(describeFields(getContentComponent('neteaseSong')!.schema)[0]).toMatchObject({ kind: 'number', allowZero: false })
     expect(describeFields(getContentComponent('progress')!.schema)[0]).toMatchObject({ kind: 'list', fields: [{ kind: 'text' }, { kind: 'number', allowZero: true, min: 0, max: 100 }] })
+    const weatherFields = describeFields(getContentComponent('weatherCard')!.schema)
+    expect(weatherFields.find(f => f.name === 'temperature')).toMatchObject({ kind: 'number', allowZero: true, integer: false, min: -90, max: 60 })
+    expect(weatherFields.find(f => f.name === 'humidity')).toMatchObject({ kind: 'number', integer: true })
+    expect(weatherFields.find(f => f.name === 'recordedAt')).toMatchObject({ kind: 'datetime' })
+  })
+
+  it('天气卡：快照与实时模式的校验、字段显隐与降级内容', () => {
+    const def = getContentComponent('weatherCard')!
+    expect(getDefaultProps(def)).toMatchObject({ mode: 'snapshot', condition: 'clear' })
+    expect(resolveComponent('weatherCard', { condition: 'rain', temperature: 21.5, recordedAt: '2026-10-23T14:30' }).ok).toBe(true)
+    expect(resolveComponent('weatherCard', { condition: 'tornado' }).ok).toBe(false)
+    expect(resolveComponent('weatherCard', { recordedAt: '<script>' }).ok).toBe(false)
+    expect(resolveComponent('weatherCard', { humidity: 101 }).ok).toBe(false)
+    // 实时模式需要城市与坐标
+    expect(resolveComponent('weatherCard', { mode: 'live', city: '上海' }).ok).toBe(false)
+    expect(resolveComponent('weatherCard', { mode: 'live', latitude: 31.23, longitude: 121.47 }).ok).toBe(false)
+    expect(resolveComponent('weatherCard', { mode: 'live', city: '上海', latitude: 31.23, longitude: 121.47 }).ok).toBe(true)
+    expect(resolveComponent('weatherCard', { mode: 'live', city: '上海', latitude: 91, longitude: 0 }).ok).toBe(false)
+
+    const visible = (mode: string) => describeFields(def.schema).map(f => f.name).filter(name => def.editor!.isFieldVisible!(name, { mode }))
+    expect(visible('snapshot')).not.toContain('latitude')
+    expect(visible('live')).toEqual(['mode', 'city', 'latitude', 'longitude'])
+
+    const html = roundTrip(componentHtml('weatherCard', { city: '上海', condition: 'rain', temperature: 21.5, humidity: 63, wind: 3, recordedAt: '2026-10-23T14:30' }))
+    expect(firstComponent(html).textContent).toBe('🌧️ 上海 · 21.5°C · 💧 63% · 🍃 3 Bft · 2026-10-23 14:30')
   })
 })
 

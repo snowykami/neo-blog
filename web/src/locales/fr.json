@@ -1958,6 +1958,74 @@
       "placeholders": {
         "url": "https://"
       }
+    },
+    "weatherCard": {
+      "name": "Carte météo",
+      "description": "Enregistrer la météo au moment de l’écriture ou afficher la météo en direct d’une ville",
+      "fields": {
+        "mode": "Mode",
+        "city": "Ville",
+        "condition": "Conditions",
+        "temperature": "Température (°C)",
+        "humidity": "Humidité (%)",
+        "wind": "Vent (Beaufort)",
+        "recordedAt": "Enregistré le",
+        "latitude": "Latitude",
+        "longitude": "Longitude"
+      },
+      "placeholders": {
+        "city": "ex. Paris"
+      },
+      "descriptions": {
+        "mode": "L’instantané est enregistré dans l’article ; le mode direct récupère la météo actuelle à l’ouverture",
+        "temperature": "Degrés Celsius",
+        "wind": "Échelle de Beaufort 0–12",
+        "recordedAt": "Heure locale du lieu ; laisser vide pour masquer",
+        "latitude": "Rempli automatiquement en recherchant une ville ci-dessus",
+        "longitude": "Rempli automatiquement en recherchant une ville ci-dessus"
+      },
+      "options": {
+        "mode": {
+          "snapshot": "Instantané (météo du moment)",
+          "live": "Direct (météo actuelle)"
+        },
+        "condition": {
+          "clear": "Dégagé",
+          "partly_cloudy": "Partiellement nuageux",
+          "cloudy": "Couvert",
+          "fog": "Brouillard",
+          "drizzle": "Bruine",
+          "rain": "Pluie",
+          "sleet": "Neige fondue",
+          "snow": "Neige",
+          "thunderstorm": "Orage"
+        }
+      },
+      "example": {
+        "city": "Lyon"
+      },
+      "humidity": "Humidité {value} %",
+      "wind_level": "Vent force {level}",
+      "recorded_at": "Enregistré le {time}",
+      "live": "Météo en direct",
+      "live_at": "En direct · {time} heure locale",
+      "load_failed": "Impossible de charger la météo",
+      "action": {
+        "title_snapshot": "Obtenir la météo actuelle",
+        "title_live": "Choisir une ville",
+        "hint_snapshot": "Recherchez une ville ou utilisez votre position actuelle pour remplir le formulaire ci-dessous. Votre position n’est pas enregistrée dans l’article.",
+        "hint_live": "Recherchez et choisissez une ville. Les lecteurs verront sa météo actuelle en ouvrant l’article.",
+        "search_placeholder": "Nom de la ville",
+        "search": "Rechercher",
+        "locate": "Ma position",
+        "fetching": "Récupération de la météo…",
+        "no_results": "Aucune ville correspondante",
+        "failed": "Échec de la requête, veuillez réessayer plus tard",
+        "locate_failed": "Impossible d’obtenir votre position. Vérifiez l’autorisation de localisation du navigateur ou recherchez une ville.",
+        "filled": "Météo actuelle remplie",
+        "filled_need_city": "Météo actuelle remplie, veuillez ajouter le nom de la ville",
+        "place_selected": "Ville sélectionnée"
+      }
     }
   },
   "AppUpdate": {

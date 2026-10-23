@@ -1958,6 +1958,74 @@
       "placeholders": {
         "url": "https://"
       }
+    },
+    "weatherCard": {
+      "name": "天氣卡片",
+      "description": "記錄寫作時的天氣，或顯示指定城市的即時天氣",
+      "fields": {
+        "mode": "模式",
+        "city": "城市",
+        "condition": "天氣",
+        "temperature": "溫度（°C）",
+        "humidity": "濕度（%）",
+        "wind": "風力（級）",
+        "recordedAt": "記錄時間",
+        "latitude": "緯度",
+        "longitude": "經度"
+      },
+      "placeholders": {
+        "city": "例如：臺北"
+      },
+      "descriptions": {
+        "mode": "快照固定儲存在文章中；即時模式在讀者開啟時取得目前天氣",
+        "temperature": "攝氏度",
+        "wind": "蒲福風級 0–12",
+        "recordedAt": "觀測地當地時間，留空則不顯示",
+        "latitude": "可透過上方搜尋城市自動填寫",
+        "longitude": "可透過上方搜尋城市自動填寫"
+      },
+      "options": {
+        "mode": {
+          "snapshot": "快照（記錄當時天氣）",
+          "live": "即時（顯示目前天氣）"
+        },
+        "condition": {
+          "clear": "晴",
+          "partly_cloudy": "多雲",
+          "cloudy": "陰",
+          "fog": "霧",
+          "drizzle": "毛毛雨",
+          "rain": "雨",
+          "sleet": "雨夾雪",
+          "snow": "雪",
+          "thunderstorm": "雷陣雨"
+        }
+      },
+      "example": {
+        "city": "臺北"
+      },
+      "humidity": "濕度 {value}%",
+      "wind_level": "{level} 級風",
+      "recorded_at": "記錄於 {time}",
+      "live": "即時天氣",
+      "live_at": "即時 · 當地時間 {time}",
+      "load_failed": "天氣載入失敗",
+      "action": {
+        "title_snapshot": "取得目前天氣",
+        "title_live": "選擇城市",
+        "hint_snapshot": "搜尋城市或使用你目前的位置取得天氣並填入下方表單，位置不會儲存到文章中",
+        "hint_live": "搜尋並選擇城市，讀者開啟文章時將顯示該城市的目前天氣",
+        "search_placeholder": "輸入城市名稱",
+        "search": "搜尋",
+        "locate": "目前位置",
+        "fetching": "正在取得天氣…",
+        "no_results": "找不到符合的城市",
+        "failed": "取得失敗，請稍後再試",
+        "locate_failed": "無法取得位置，請檢查瀏覽器的定位權限，或改用城市搜尋",
+        "filled": "已填入目前天氣",
+        "filled_need_city": "已填入目前天氣，請補充城市名稱",
+        "place_selected": "已選擇城市"
+      }
     }
   },
   "AppUpdate": {
