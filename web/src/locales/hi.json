@@ -321,7 +321,6 @@
     },
     "about_content": "सामग्री",
     "about_system": "सिस्टम",
-    "about_user": "उपयोगकर्ता",
     "categories": {
       "title": "श्रेणी प्रबंधन",
       "category_manage": "Manage categories",
@@ -500,7 +499,6 @@
     "global": {
       "title": "वैश्विक सेटिंग्स",
       "add": "जोड़ें",
-      "advanced": "उन्नत: की-वैल्यू",
       "advanced_desc": "फ़ॉर्म में न दिखने वाली कॉन्फ़िग कुंजियाँ सीधे संपादित करें। मान वैध JSON होने चाहिए।",
       "animation_duration": "एनीमेशन अवधि (सेकंड)",
       "animation_duration_desc": "पेज बदलने और अन्य एनीमेशन की अवधि",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "उच्च (192 kbps)",
       "ncm_song_level_exhigh": "बहुत उच्च (320 kbps)",
       "ncm_song_level_lossless": "लॉसलेस (FLAC)",
-      "ncm_song_level_hires": "Hi-Res (FLAC)"
+      "ncm_song_level_hires": "Hi-Res (FLAC)",
+      "tab_site": "साइट",
+      "tab_content": "सामग्री और रूप",
+      "tab_frontend": "फ़्रंटएंड घटक",
+      "tab_account": "खाते और विज़िट",
+      "tab_ai": "AI",
+      "tab_rss": "RSS",
+      "tab_advanced": "उन्नत"
     },
     "labels": {
       "title": "टैग",
@@ -1269,6 +1274,14 @@
         "revert_failed": "ऑपरेशन विफल रहा",
         "reverted": "बदलाव छोड़े गए"
       }
+    },
+    "menu": {
+      "content": "पोस्ट और पेज",
+      "taxonomy": "श्रेणियाँ और लेबल",
+      "accounts": "उपयोगकर्ता और प्रमाणीकरण",
+      "personal_settings": "व्यक्तिगत सेटिंग्स",
+      "overview": "अवलोकन",
+      "files": "फ़ाइलें"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "चलाएँ",
       "pause": "रोकें",
+      "progress": "प्लेबैक प्रगति",
       "open": "NetEase Music",
       "not_in_playlist": "यह गीत ब्लॉग प्लेलिस्ट में नहीं है; NetEase Cloud Music पर सुनें",
       "load_failed": "गीत लोड नहीं हो सका"

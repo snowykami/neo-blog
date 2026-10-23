@@ -321,7 +321,6 @@
     },
     "about_content": "Content",
     "about_system": "System",
-    "about_user": "User",
     "categories": {
       "title": "Category management",
       "category_manage": "Manage categories",
@@ -500,7 +499,6 @@
     "global": {
       "title": "Global settings",
       "add": "Add",
-      "advanced": "Advanced: raw key-value",
       "advanced_desc": "Edit underlying config keys directly for settings not covered by the form. Values must be valid JSON.",
       "animation_duration": "Animation duration (seconds)",
       "animation_duration_desc": "Duration of page transitions, card entrances and other animations",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "Higher (192 kbps)",
       "ncm_song_level_exhigh": "Extremely high (320 kbps)",
       "ncm_song_level_lossless": "Lossless (FLAC)",
-      "ncm_song_level_hires": "Hi-Res (FLAC)"
+      "ncm_song_level_hires": "Hi-Res (FLAC)",
+      "tab_site": "Site",
+      "tab_content": "Content & appearance",
+      "tab_frontend": "Front-end widgets",
+      "tab_account": "Accounts & visits",
+      "tab_ai": "AI",
+      "tab_rss": "RSS",
+      "tab_advanced": "Advanced"
     },
     "labels": {
       "title": "Tags",
@@ -1269,6 +1274,14 @@
         "revert_failed": "Operation failed",
         "reverted": "Changes discarded"
       }
+    },
+    "menu": {
+      "content": "Posts & pages",
+      "taxonomy": "Categories & labels",
+      "accounts": "Users & auth",
+      "personal_settings": "Personal settings",
+      "overview": "Overview",
+      "files": "Files"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "Play",
       "pause": "Pause",
+      "progress": "Playback progress",
       "open": "NetEase Music",
       "not_in_playlist": "This song is not in the blog playlist; listen on NetEase Cloud Music",
       "load_failed": "Failed to load the song"

@@ -44,42 +44,9 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavGroup
-          title={consoleT('about_content')}
-          activeId={activeId}
-          setActiveId={setActiveId}
-          items={sidebarData.navContent.map(item => ({
-            ...item,
-            title: consoleT(item.title),
-          }))}
-        />
-        <NavGroup
-          title={consoleT('about_system')}
-          activeId={activeId}
-          setActiveId={setActiveId}
-          items={sidebarData.navSystem.map(item => ({
-            ...item,
-            title: consoleT(item.title),
-          }))}
-        />
-        <NavGroup
-          title={consoleT('about_user')}
-          activeId={activeId}
-          setActiveId={setActiveId}
-          items={sidebarData.navUser.map(item => ({
-            ...item,
-            title: consoleT(item.title),
-          }))}
-        />
-        <NavGroup
-          title={consoleT('personal')}
-          activeId={activeId}
-          setActiveId={setActiveId}
-          items={sidebarData.navPersonal.map(item => ({
-            ...item,
-            title: consoleT(item.title),
-          }))}
-        />
+        <NavGroup title={consoleT('about_content')} activeId={activeId} setActiveId={setActiveId} menus={sidebarData.navContent} />
+        <NavGroup title={consoleT('about_system')} activeId={activeId} setActiveId={setActiveId} menus={sidebarData.navSystem} />
+        <NavGroup title={consoleT('personal')} activeId={activeId} setActiveId={setActiveId} menus={sidebarData.navPersonal} />
       </SidebarContent>
       <SidebarFooter>
         <div className="mb-2 flex justify-center">

@@ -321,7 +321,6 @@
     },
     "about_content": "Conteúdo",
     "about_system": "Sistema",
-    "about_user": "Usuário",
     "categories": {
       "title": "Gerenciamento de categorias",
       "category_manage": "Gerenciar categorias",
@@ -500,7 +499,6 @@
     "global": {
       "title": "Configurações globais",
       "add": "Adicionar",
-      "advanced": "Avançado: chave-valor",
       "advanced_desc": "Edite diretamente as chaves de configuração não cobertas pelo formulário. Os valores devem ser JSON válido.",
       "animation_duration": "Duração da animação (segundos)",
       "animation_duration_desc": "Duração das transições de página e outras animações",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "Alta (192 kbps)",
       "ncm_song_level_exhigh": "Muito alta (320 kbps)",
       "ncm_song_level_lossless": "Sem perdas (FLAC)",
-      "ncm_song_level_hires": "Hi-Res (FLAC)"
+      "ncm_song_level_hires": "Hi-Res (FLAC)",
+      "tab_site": "Site",
+      "tab_content": "Conteúdo e aparência",
+      "tab_frontend": "Componentes públicos",
+      "tab_account": "Contas e visitas",
+      "tab_ai": "IA",
+      "tab_rss": "RSS",
+      "tab_advanced": "Avançado"
     },
     "labels": {
       "title": "Tags",
@@ -1269,6 +1274,14 @@
         "revert_failed": "Falha na operação",
         "reverted": "Alterações descartadas"
       }
+    },
+    "menu": {
+      "content": "Posts e páginas",
+      "taxonomy": "Categorias e marcadores",
+      "accounts": "Usuários e autenticação",
+      "personal_settings": "Configurações pessoais",
+      "overview": "Visão geral",
+      "files": "Arquivos"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "Tocar",
       "pause": "Pausar",
+      "progress": "Progresso da reprodução",
       "open": "NetEase Music",
       "not_in_playlist": "Esta música não está na playlist do blog; ouça no NetEase Cloud Music",
       "load_failed": "Falha ao carregar a música"

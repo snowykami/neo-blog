@@ -11,6 +11,8 @@ interface Props {
   step?: number // 键盘步进（百分比）
   className?: string
   onIsDraggingChange?: (isDragging: boolean) => void
+  ariaLabel?: string // 读屏朗读的名称，如「播放进度」
+  ariaValueText?: string // 读屏朗读的当前值，如「01:23 / 03:45」
 }
 
 export function ProgressControl({
@@ -21,6 +23,8 @@ export function ProgressControl({
   step = 1,
   className = '',
   onIsDraggingChange,
+  ariaLabel,
+  ariaValueText,
 }: Props) {
   const trackRef = useRef<HTMLDivElement | null>(null)
   const draggingRef = useRef(false)
@@ -180,6 +184,8 @@ export function ProgressControl({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(percent)}
+        aria-label={ariaLabel}
+        aria-valuetext={ariaValueText}
         onPointerDown={handlePointerDown}
         onKeyDown={handleKeyDown}
         className={`touch-none select-none ${disabled ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}`}

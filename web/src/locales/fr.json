@@ -321,7 +321,6 @@
     },
     "about_content": "Contenu",
     "about_system": "Système",
-    "about_user": "Utilisateur",
     "categories": {
       "title": "Gestion des catégories",
       "category_manage": "Gérer les catégories",
@@ -500,7 +499,6 @@
     "global": {
       "title": "Paramètres globaux",
       "add": "Ajouter",
-      "advanced": "Avancé : clé-valeur",
       "advanced_desc": "Modifiez directement les clés de configuration absentes du formulaire. Les valeurs doivent être du JSON valide.",
       "animation_duration": "Durée des animations (secondes)",
       "animation_duration_desc": "Durée des transitions de page et autres animations",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "Élevée (192 kbit/s)",
       "ncm_song_level_exhigh": "Très élevée (320 kbit/s)",
       "ncm_song_level_lossless": "Sans perte (FLAC)",
-      "ncm_song_level_hires": "Hi-Res (FLAC)"
+      "ncm_song_level_hires": "Hi-Res (FLAC)",
+      "tab_site": "Site",
+      "tab_content": "Contenu et apparence",
+      "tab_frontend": "Composants publics",
+      "tab_account": "Comptes et visites",
+      "tab_ai": "IA",
+      "tab_rss": "RSS",
+      "tab_advanced": "Avancé"
     },
     "labels": {
       "title": "Étiquettes",
@@ -1269,6 +1274,14 @@
         "revert_failed": "Échec de l'opération",
         "reverted": "Modifications annulées"
       }
+    },
+    "menu": {
+      "content": "Articles et pages",
+      "taxonomy": "Catégories et étiquettes",
+      "accounts": "Utilisateurs et authentification",
+      "personal_settings": "Paramètres personnels",
+      "overview": "Vue d'ensemble",
+      "files": "Fichiers"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "Lire",
       "pause": "Pause",
+      "progress": "Progression de la lecture",
       "open": "NetEase Music",
       "not_in_playlist": "Ce titre n’est pas dans la playlist du blog ; écoutez-le sur NetEase Cloud Music",
       "load_failed": "Impossible de charger le titre"

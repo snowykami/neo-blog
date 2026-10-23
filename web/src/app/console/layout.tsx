@@ -5,7 +5,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 import Forbidden from '@/components/common/forbidden'
 import { AppSidebar } from '@/components/console/app-sidebar'
-import { getFirstPermittedSidebarItem, matchSidebarItem } from '@/components/console/data'
+import { ConsoleTabs } from '@/components/console/console-tabs'
+import { getFirstPermittedSidebarItem, matchSidebarItem, permittedItems } from '@/components/console/data'
 import { SiteHeader } from '@/components/console/site-header'
 import {
   SidebarAutoCloseOnRouteChange,
@@ -27,20 +28,20 @@ export default function ConsoleLayout({
   const toLogin = useToLogin()
   const router = useRouter()
   const pathname = usePathname() ?? '/'
-  // 标题与当前菜单直接由路径推导，避免首帧闪现占位标题
+  // 标题与当前菜单直接由路径推导，避免首帧闪现占位标题；标题使用菜单名，同一菜单的页面以 Tab 区分
   const match = useMemo(() => matchSidebarItem(pathname), [pathname])
-  const title = match ? t(match.title) : ''
-  const [activeId, setActiveId] = useState<string | null>(match?.id ?? null)
+  const title = match ? t(match.menu.title) : ''
+  const [activeId, setActiveId] = useState<string | null>(match?.menu.id ?? null)
 
   useEffect(() => {
-    if (match?.id)
-      setActiveId(match.id)
+    if (match?.menu.id)
+      setActiveId(match.menu.id)
   }, [match])
 
   // 未匹配到菜单的路由不在此拦截（交由页面自身 / 404 处理）
-  const permitted = !user || !match || match.permission({ user })
+  const permitted = !user || !match || match.item.permission({ user })
   // 无权访问仪表盘（首页）时跳转到第一个有权限的菜单，而不是展示 403
-  const redirectTarget = user && !permitted && match?.url === consolePath.dashboard
+  const redirectTarget = user && !permitted && match?.item.url === consolePath.dashboard
     ? getFirstPermittedSidebarItem(user)?.url
     : undefined
 
@@ -58,10 +59,24 @@ export default function ConsoleLayout({
   }, [redirectTarget, router])
 
   let content: React.ReactNode = children
-  if (loading || !user || redirectTarget)
+  if (loading || !user || redirectTarget) {
     content = <ConsoleContentSkeleton />
-  else if (!permitted)
+  }
+  else if (!permitted) {
     content = <Forbidden />
+  }
+  else if (match && pathname === match.item.url) {
+    // 菜单下有多个可访问页面时显示 Tab；编辑页等子路由不显示
+    const tabs = permittedItems(match.menu, user)
+    if (tabs.length > 1) {
+      content = (
+        <>
+          <ConsoleTabs items={tabs} activeId={match.item.id} />
+          {children}
+        </>
+      )
+    }
+  }
 
   return (
     <SidebarProvider

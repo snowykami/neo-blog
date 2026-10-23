@@ -1,0 +1,180 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "editor-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "docs/prototypes/editor-redesign"
+      ],
+      "port": 8765
+    },
+    {
+      "name": "web-e2e-prod",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd web && export BACKEND_URL=http://127.0.0.1:18888 && pnpm start -p 3100"
+      ],
+      "port": 3100
+    },
+    {
+      "name": "backend-e2e",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-asset && MODE=dev PORT=18888 DB_PATH=/tmp/neo-asset/data.db exec /tmp/neo-asset/server"
+      ],
+      "port": 18888
+    },
+    {
+      "name": "web-asset",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-asset/web && export BACKEND_URL=http://127.0.0.1:18888 && exec pnpm start -p 3101"
+      ],
+      "port": 3101
+    },
+    {
+      "name": "web-visits",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd web && export BACKEND_URL=http://127.0.0.1:18890 && exec pnpm start -p 3102"
+      ],
+      "port": 3102
+    },
+    {
+      "name": "backend-feedback",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-feedback && MODE=dev PORT=18892 DB_PATH=/tmp/neo-feedback/data.db exec /tmp/neo-feedback/server"
+      ],
+      "port": 18892
+    },
+    {
+      "name": "web-feedback",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-feedback/web && export BACKEND_URL=http://127.0.0.1:18892 && exec pnpm start -p 3103"
+      ],
+      "port": 3103
+    },
+    {
+      "name": "web-e2e-batch",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd web && export BACKEND_URL=http://127.0.0.1:18889 && pnpm start -p 3101"
+      ],
+      "port": 3101
+    },
+    {
+      "name": "backend-dashboard",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-dashboard && MODE=dev PORT=18894 DB_PATH=/tmp/neo-dashboard/data.db exec /tmp/neo-dashboard/server"
+      ],
+      "port": 18894
+    },
+    {
+      "name": "web-dashboard",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-dashboard/web && export BACKEND_URL=http://127.0.0.1:18894 && exec pnpm start -p 3105"
+      ],
+      "port": 3105
+    },
+    {
+      "name": "backend-author",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-author && MODE=dev PORT=18896 DB_PATH=/tmp/neo-author/data.db exec /tmp/neo-author/server"
+      ],
+      "port": 18896
+    },
+    {
+      "name": "web-author",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-author/web && export BACKEND_URL=http://127.0.0.1:18896 && exec pnpm start -p 3107"
+      ],
+      "port": 3107
+    },
+    {
+      "name": "backend-privacy",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-privacy && MODE=dev PORT=18898 DB_PATH=/tmp/neo-privacy/data.db exec /tmp/neo-privacy/server"
+      ],
+      "port": 18898
+    },
+    {
+      "name": "web-privacy",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-privacy/web && export BACKEND_URL=http://127.0.0.1:18898 && exec pnpm start -p 3108"
+      ],
+      "port": 3108
+    },
+    {
+      "name": "mock-ai-aiwrite",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/tmp/neo-aiwrite/mock_ai.py"
+      ],
+      "port": 18901
+    },
+    {
+      "name": "backend-aiwrite",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-aiwrite && MODE=dev PORT=18900 DB_PATH=/tmp/neo-aiwrite/data.db exec /tmp/neo-aiwrite/server"
+      ],
+      "port": 18900
+    },
+    {
+      "name": "web-aiwrite",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-aiwrite/web && export BACKEND_URL=http://127.0.0.1:18900 && exec pnpm start -p 3110"
+      ],
+      "port": 3110
+    },
+    {
+      "name": "backend-linkpreview",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-e2e-batch && MODE=dev PORT=18889 DB_PATH=/tmp/neo-e2e-batch/data.db exec /tmp/neo-e2e-batch/server"
+      ],
+      "port": 18889
+    },
+    {
+      "name": "web-linkpreview",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-linkpreview/web && export BACKEND_URL=http://127.0.0.1:18889 && exec pnpm start -p 3111"
+      ],
+      "port": 3111
+    }
+  ]
+}

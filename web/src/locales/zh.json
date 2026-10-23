@@ -321,7 +321,6 @@
     },
     "about_content": "内容相关",
     "about_system": "系统相关",
-    "about_user": "用户相关",
     "categories": {
       "title": "分类管理",
       "category_manage": "分类管理",
@@ -500,7 +499,6 @@
     "global": {
       "title": "全局配置",
       "add": "添加",
-      "advanced": "高级：原始键值",
       "advanced_desc": "直接编辑底层配置键，适合表单未覆盖的配置；值需为合法 JSON。",
       "animation_duration": "动画时长（秒）",
       "animation_duration_desc": "页面切换、卡片出现等动画的时长",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "较高（192kbps）",
       "ncm_song_level_exhigh": "极高（320kbps）",
       "ncm_song_level_lossless": "无损（FLAC）",
-      "ncm_song_level_hires": "Hi-Res（FLAC）"
+      "ncm_song_level_hires": "Hi-Res（FLAC）",
+      "tab_site": "站点",
+      "tab_content": "内容与外观",
+      "tab_frontend": "前台组件",
+      "tab_account": "账号与访客",
+      "tab_ai": "AI",
+      "tab_rss": "RSS",
+      "tab_advanced": "高级"
     },
     "labels": {
       "title": "标签管理",
@@ -1269,6 +1274,14 @@
         "revert_failed": "操作失败",
         "reverted": "已放弃修改"
       }
+    },
+    "menu": {
+      "content": "文章与页面",
+      "taxonomy": "分类与标签",
+      "accounts": "用户与认证",
+      "personal_settings": "个人设置",
+      "overview": "概览",
+      "files": "文件"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "播放",
       "pause": "暂停",
+      "progress": "播放进度",
       "open": "网易云音乐",
       "not_in_playlist": "该歌曲不在博客歌单内，请在网易云音乐收听",
       "load_failed": "歌曲信息加载失败"

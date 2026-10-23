@@ -4,6 +4,7 @@ import type { MusicSourceType, NCMPlaylists, NCMSongLevel } from '@/models/music
 import type { SiteInfo } from '@/utils/common/siteinfo'
 import { EyeIcon, EyeOffIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { parseAsStringEnum, useQueryState } from 'nuqs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FormProvider, useForm, useFormContext, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -22,9 +23,11 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { cn } from '@/lib/utils'
 import { NCM_SONG_LEVELS } from '@/models/music'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
@@ -230,17 +233,34 @@ function toSiteInfo(base: SiteInfo, values: SettingsValues): SiteInfo {
   }
 }
 
+// 页内 Tab 及其包含的字段（用于标记有未保存修改的 Tab、校验失败时定位）；advanced 为原始键值编辑，不属于表单
+const SETTINGS_TABS = ['site', 'content', 'frontend', 'account', 'ai', 'rss'] as const
+const GLOBAL_TABS = [...SETTINGS_TABS, 'advanced'] as const
+type SettingsTab = typeof SETTINGS_TABS[number]
+type GlobalTab = typeof GLOBAL_TABS[number]
+
+const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
+  site: ['siteName', 'baseUrl', 'siteDescription', 'siteIcon', 'keywords', 'defaultCovers', 'ownerName', 'ownerMotto', 'ownerDescription', 'ownerAvatar', 'ownerGravatarEmail'],
+  content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
+  frontend: ['aboutBackground', 'sidebarIframeUrl', 'sidebarIframeTitle', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel'],
+  account: ['enableRegister', 'enableRegisterFromOidc', 'verifyCodeCoolDown', 'visitLogRetentionDays'],
+  ai: ['aiApiBaseUrl', 'aiApiKey', 'aiModel', 'aiSummaryConcurrency'],
+  rss: ['rssTitle', 'rssAuthor', 'rssCopyright', 'rssLanguage', 'rssImage'],
+}
+
 /**
  * 全局配置表单：按用途分组，开关、数字、选择、图片等字段使用对应控件
  * 只保存修改过的字段，未修改的独立配置键不会被写入，避免覆盖环境变量提供的默认值
  */
-export function SettingsForm() {
+export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
   const t = useTranslations('Console.global')
   const operationT = useOperationT()
   const { setSiteInfo } = useSiteInfo()
   const [baseSiteInfo, setBaseSiteInfo] = useState<SiteInfo | null>(null)
   const [saving, setSaving] = useState(false)
   const form = useForm<SettingsValues>()
+  // 当前 Tab 写入地址参数，便于直接打开某个分组
+  const [tab, setTab] = useQueryState('tab', parseAsStringEnum<GlobalTab>([...GLOBAL_TABS]).withDefault('site').withOptions({ history: 'replace', clearOnDefault: true }))
 
   useEffect(() => {
     Promise.all([getSiteInfo(), listKV('')])
@@ -286,93 +306,123 @@ export function SettingsForm() {
     }
   }
 
+  // 有校验错误时切到第一个出错字段所在的 Tab
+  const onInvalid = (errors: Partial<Record<FieldName, unknown>>) => {
+    const field = Object.keys(errors)[0] as FieldName | undefined
+    const target = SETTINGS_TABS.find(key => field && TAB_FIELDS[key].includes(field))
+    if (target)
+      void setTab(target)
+  }
+
   if (!baseSiteInfo)
     return <p className="py-8 text-center text-muted-foreground">{t('loading')}</p>
 
+  const dirtyFields = form.formState.dirtyFields as Partial<Record<FieldName, unknown>>
   return (
     <FormProvider {...form}>
-      {/* 关闭浏览器原生校验：type=url 会拒绝站内相对链接、小数 step 会拦截已有取值，导致点击保存无反应；输入类型仍保留以适配移动端键盘 */}
-      <form noValidate className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
-        <Section title={t('section_site')} description={t('section_site_desc')}>
-          <TextField name="siteName" label={t('site_name')} />
-          <UrlField name="baseUrl" label={t('base_url')} description={t('base_url_desc')} />
-          <TextAreaField name="siteDescription" label={t('site_description')} wide />
-          <ImageField name="siteIcon" label={t('site_icon')} />
-          <StringListField name="keywords" label={t('keywords')} placeholder={t('keyword_placeholder')} />
-          <ImageListField name="defaultCovers" label={t('default_covers')} description={t('default_covers_desc')} />
-        </Section>
+      <Tabs value={tab} onValueChange={value => void setTab(value as GlobalTab)} className="gap-4">
+        {/* 窄屏时横向滚动 */}
+        <TabsList variant="underline" className="w-full justify-start overflow-x-auto">
+          {GLOBAL_TABS.map(key => (
+            <TabsTrigger key={key} value={key} className="flex-none px-3">
+              {t(`tab_${key}`)}
+              {key !== 'advanced' && TAB_FIELDS[key].some(field => dirtyFields[field]) && (
+                <span role="img" aria-label={t('unsaved_changes')} className="size-1.5 rounded-full bg-primary" />
+              )}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {/* 关闭浏览器原生校验：type=url 会拒绝站内相对链接、小数 step 会拦截已有取值，导致点击保存无反应；输入类型仍保留以适配移动端键盘 */}
+        {/* 设置类 Tab 始终挂载、只做隐藏，共用一个表单与保存栏，切换 Tab 不会丢失未保存的修改；高级键值编辑在表单之外 */}
+        <form noValidate className={cn('grid gap-4', tab === 'advanced' && 'hidden')} onSubmit={form.handleSubmit(onSubmit, onInvalid)}>
+          <TabsContent value="site" forceMount className="grid gap-4 data-[state=inactive]:hidden">
+            <Section title={t('section_site')} description={t('section_site_desc')}>
+              <TextField name="siteName" label={t('site_name')} />
+              <UrlField name="baseUrl" label={t('base_url')} description={t('base_url_desc')} />
+              <TextAreaField name="siteDescription" label={t('site_description')} wide />
+              <ImageField name="siteIcon" label={t('site_icon')} />
+              <StringListField name="keywords" label={t('keywords')} placeholder={t('keyword_placeholder')} />
+              <ImageListField name="defaultCovers" label={t('default_covers')} description={t('default_covers_desc')} />
+            </Section>
 
-        <Section title={t('section_owner')}>
-          <TextField name="ownerName" label={t('owner_name')} />
-          <TextField name="ownerMotto" label={t('owner_motto')} />
-          <TextAreaField name="ownerDescription" label={t('owner_description')} wide />
-          <ImageField name="ownerAvatar" label={t('owner_avatar')} />
-          <TextField name="ownerGravatarEmail" label={t('owner_gravatar_email')} type="email" description={t('owner_gravatar_email_desc')} />
-        </Section>
+            <Section title={t('section_owner')}>
+              <TextField name="ownerName" label={t('owner_name')} />
+              <TextField name="ownerMotto" label={t('owner_motto')} />
+              <TextAreaField name="ownerDescription" label={t('owner_description')} wide />
+              <ImageField name="ownerAvatar" label={t('owner_avatar')} />
+              <TextField name="ownerGravatarEmail" label={t('owner_gravatar_email')} type="email" description={t('owner_gravatar_email_desc')} />
+            </Section>
+          </TabsContent>
+          <TabsContent value="content" forceMount className="grid gap-4 data-[state=inactive]:hidden">
+            <Section title={t('section_appearance')}>
+              <ColorSchemesField />
+              <NumberField name="animationDurationSecond" label={t('animation_duration')} description={t('animation_duration_desc')} min={0} max={3} step="any" />
+            </Section>
 
-        <Section title={t('section_appearance')}>
-          <ColorSchemesField />
-          <NumberField name="animationDurationSecond" label={t('animation_duration')} description={t('animation_duration_desc')} min={0} max={3} step="any" />
-        </Section>
+            <Section title={t('section_content')}>
+              <NumberField name="postsPerPage" label={t('posts_per_page')} min={1} max={100} />
+              <NumberField name="commentsPerPage" label={t('comments_per_page')} min={1} max={100} />
+              <NumberField name="maxReplyDepth" label={t('max_reply_depth')} description={t('max_reply_depth_desc')} min={1} max={10} />
+              <TextField name="copyright" label={t('copyright')} placeholder="CC BY-NC-SA 4.0" />
+              <UrlField name="copyrightLink" label={t('copyright_link')} />
+            </Section>
 
-        <Section title={t('section_content')}>
-          <NumberField name="postsPerPage" label={t('posts_per_page')} min={1} max={100} />
-          <NumberField name="commentsPerPage" label={t('comments_per_page')} min={1} max={100} />
-          <NumberField name="maxReplyDepth" label={t('max_reply_depth')} description={t('max_reply_depth_desc')} min={1} max={10} />
-          <TextField name="copyright" label={t('copyright')} placeholder="CC BY-NC-SA 4.0" />
-          <UrlField name="copyrightLink" label={t('copyright_link')} />
-        </Section>
+            <Section title={t('section_footer')}>
+              <TextField name="footerText" label={t('footer_text')} wide />
+              <LinkListField name="footerLinks" label={t('footer_links')} />
+            </Section>
+          </TabsContent>
+          <TabsContent value="frontend" forceMount className="grid gap-4 data-[state=inactive]:hidden">
+            <Section title={t('section_personalize')} description={t('section_personalize_desc')}>
+              <ImageField name="aboutBackground" label={t('about_background')} description={t('empty_to_hide')} />
+              <UrlField name="sidebarIframeUrl" label={t('sidebar_iframe_url')} description={t('sidebar_iframe_url_desc')} />
+              <TextField name="sidebarIframeTitle" label={t('sidebar_iframe_title')} placeholder="Misskey" />
+              <SwitchField name="enableThirdPartyScript" label={t('enable_third_party_script')} description={t('enable_third_party_script_desc')} />
+            </Section>
 
-        <Section title={t('section_personalize')} description={t('section_personalize_desc')}>
-          <ImageField name="aboutBackground" label={t('about_background')} description={t('empty_to_hide')} />
-          <UrlField name="sidebarIframeUrl" label={t('sidebar_iframe_url')} description={t('sidebar_iframe_url_desc')} />
-          <TextField name="sidebarIframeTitle" label={t('sidebar_iframe_title')} placeholder="Misskey" />
-          <SwitchField name="enableThirdPartyScript" label={t('enable_third_party_script')} description={t('enable_third_party_script_desc')} />
-        </Section>
+            <MusicSection />
+          </TabsContent>
+          <TabsContent value="account" forceMount className="grid gap-4 data-[state=inactive]:hidden">
+            <Section title={t('section_account')}>
+              <SwitchField name="enableRegister" label={t('enable_register')} description={t('enable_register_desc')} />
+              <SwitchField name="enableRegisterFromOidc" label={t('enable_register_from_oidc')} description={t('enable_register_from_oidc_desc')} />
+              <NumberField name="verifyCodeCoolDown" label={t('verify_code_cool_down')} description={t('seconds')} min={10} max={3600} />
+            </Section>
 
-        <MusicSection />
-
-        <Section title={t('section_footer')}>
-          <TextField name="footerText" label={t('footer_text')} wide />
-          <LinkListField name="footerLinks" label={t('footer_links')} />
-        </Section>
-
-        <Section title={t('section_account')}>
-          <SwitchField name="enableRegister" label={t('enable_register')} description={t('enable_register_desc')} />
-          <SwitchField name="enableRegisterFromOidc" label={t('enable_register_from_oidc')} description={t('enable_register_from_oidc_desc')} />
-          <NumberField name="verifyCodeCoolDown" label={t('verify_code_cool_down')} description={t('seconds')} min={10} max={3600} />
-        </Section>
-
-        <Section title={t('section_visit')}>
-          <NumberField name="visitLogRetentionDays" label={t('visit_log_retention_days')} description={t('visit_log_retention_days_desc')} min={1} max={3650} />
-        </Section>
-
-        <Section title={t('section_ai')} description={t('section_ai_desc')}>
-          <UrlField name="aiApiBaseUrl" label={t('ai_api_base_url')} description={t('ai_api_base_url_desc')} placeholder="https://api.openai.com/v1" />
-          <TextField name="aiModel" label={t('ai_model')} description={t('ai_model_desc')} placeholder="gpt-4o-mini / deepseek-chat" />
-          <PasswordField name="aiApiKey" label={t('ai_api_key')} description={t('ai_api_key_desc')} wide />
-          <NumberField name="aiSummaryConcurrency" label={t('ai_summary_concurrency')} description={t('ai_summary_concurrency_desc')} min={1} max={20} />
-        </Section>
-
-        <Section title={t('section_rss')} description={t('section_rss_desc')}>
-          <TextField name="rssTitle" label={t('rss_title')} />
-          <TextField name="rssAuthor" label={t('rss_author')} />
-          <TextField name="rssCopyright" label={t('rss_copyright')} />
-          <SelectField name="rssLanguage" label={t('rss_language')} options={RSS_LANGUAGES.map(code => ({ value: code, label: code }))} />
-          <ImageField name="rssImage" label={t('rss_image')} />
-        </Section>
-
-        {/* 保存栏：滚动时固定在底部 */}
-        <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 border-t bg-background/90 py-3 backdrop-blur">
-          {form.formState.isDirty && <span className="text-sm text-muted-foreground">{t('unsaved_changes')}</span>}
-          <Button type="button" variant="outline" disabled={!form.formState.isDirty || saving} onClick={() => form.reset()}>
-            {t('reset')}
-          </Button>
-          <Button type="submit" disabled={!form.formState.isDirty || saving}>
-            {saving ? t('saving') : operationT('save')}
-          </Button>
-        </div>
-      </form>
+            <Section title={t('section_visit')}>
+              <NumberField name="visitLogRetentionDays" label={t('visit_log_retention_days')} description={t('visit_log_retention_days_desc')} min={1} max={3650} />
+            </Section>
+          </TabsContent>
+          <TabsContent value="ai" forceMount className="grid gap-4 data-[state=inactive]:hidden">
+            <Section title={t('section_ai')} description={t('section_ai_desc')}>
+              <UrlField name="aiApiBaseUrl" label={t('ai_api_base_url')} description={t('ai_api_base_url_desc')} placeholder="https://api.openai.com/v1" />
+              <TextField name="aiModel" label={t('ai_model')} description={t('ai_model_desc')} placeholder="gpt-4o-mini / deepseek-chat" />
+              <PasswordField name="aiApiKey" label={t('ai_api_key')} description={t('ai_api_key_desc')} wide />
+              <NumberField name="aiSummaryConcurrency" label={t('ai_summary_concurrency')} description={t('ai_summary_concurrency_desc')} min={1} max={20} />
+            </Section>
+          </TabsContent>
+          <TabsContent value="rss" forceMount className="grid gap-4 data-[state=inactive]:hidden">
+            <Section title={t('section_rss')} description={t('section_rss_desc')}>
+              <TextField name="rssTitle" label={t('rss_title')} />
+              <TextField name="rssAuthor" label={t('rss_author')} />
+              <TextField name="rssCopyright" label={t('rss_copyright')} />
+              <SelectField name="rssLanguage" label={t('rss_language')} options={RSS_LANGUAGES.map(code => ({ value: code, label: code }))} />
+              <ImageField name="rssImage" label={t('rss_image')} />
+            </Section>
+          </TabsContent>
+          {/* 保存栏：滚动时固定在底部 */}
+          <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 border-t bg-background/90 py-3 backdrop-blur">
+            {form.formState.isDirty && <span className="text-sm text-muted-foreground">{t('unsaved_changes')}</span>}
+            <Button type="button" variant="outline" disabled={!form.formState.isDirty || saving} onClick={() => form.reset()}>
+              {t('reset')}
+            </Button>
+            <Button type="submit" disabled={!form.formState.isDirty || saving}>
+              {saving ? t('saving') : operationT('save')}
+            </Button>
+          </div>
+        </form>
+        <TabsContent value="advanced">{advanced}</TabsContent>
+      </Tabs>
     </FormProvider>
   )
 }

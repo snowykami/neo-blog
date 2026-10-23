@@ -321,7 +321,6 @@
     },
     "about_content": "콘텐츠",
     "about_system": "시스템",
-    "about_user": "사용자",
     "categories": {
       "title": "카테고리 관리",
       "category_manage": "Manage categories",
@@ -500,7 +499,6 @@
     "global": {
       "title": "전역 설정",
       "add": "추가",
-      "advanced": "고급: 키-값",
       "advanced_desc": "폼에 없는 설정 키를 직접 편집합니다. 값은 올바른 JSON이어야 합니다.",
       "animation_duration": "애니메이션 시간(초)",
       "animation_duration_desc": "페이지 전환, 카드 표시 등 애니메이션의 길이",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "높음 (192kbps)",
       "ncm_song_level_exhigh": "매우 높음 (320kbps)",
       "ncm_song_level_lossless": "무손실 (FLAC)",
-      "ncm_song_level_hires": "Hi-Res (FLAC)"
+      "ncm_song_level_hires": "Hi-Res (FLAC)",
+      "tab_site": "사이트",
+      "tab_content": "콘텐츠와 외관",
+      "tab_frontend": "프런트엔드 구성 요소",
+      "tab_account": "계정과 방문",
+      "tab_ai": "AI",
+      "tab_rss": "RSS",
+      "tab_advanced": "고급"
     },
     "labels": {
       "title": "태그",
@@ -1269,6 +1274,14 @@
         "revert_failed": "작업에 실패했습니다",
         "reverted": "수정을 버렸습니다"
       }
+    },
+    "menu": {
+      "content": "글과 페이지",
+      "taxonomy": "카테고리와 라벨",
+      "accounts": "사용자와 인증",
+      "personal_settings": "개인 설정",
+      "overview": "개요",
+      "files": "파일"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "재생",
       "pause": "일시정지",
+      "progress": "재생 위치",
       "open": "NetEase Music",
       "not_in_playlist": "이 곡은 블로그 재생목록에 없습니다. NetEase Cloud Music에서 들어 주세요",
       "load_failed": "곡 정보를 불러오지 못했습니다"

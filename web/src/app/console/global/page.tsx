@@ -10,10 +10,5 @@ export async function generateMetadata() {
 }
 
 export default function Page() {
-  return (
-    <div className="grid gap-6">
-      <SettingsForm />
-      <AdvancedKvEditor />
-    </div>
-  )
+  return <SettingsForm advanced={<AdvancedKvEditor />} />
 }

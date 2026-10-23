@@ -321,7 +321,6 @@
     },
     "about_content": "內容",
     "about_system": "系統",
-    "about_user": "使用者",
     "categories": {
       "title": "分類管理",
       "category_manage": "分類管理",
@@ -500,7 +499,6 @@
     "global": {
       "title": "全域設定",
       "add": "新增",
-      "advanced": "進階：原始鍵值",
       "advanced_desc": "直接編輯底層設定鍵，適合表單未涵蓋的設定；值需為合法 JSON。",
       "animation_duration": "動畫時長（秒）",
       "animation_duration_desc": "頁面切換、卡片出現等動畫的時長",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "較高（192kbps）",
       "ncm_song_level_exhigh": "極高（320kbps）",
       "ncm_song_level_lossless": "無損（FLAC）",
-      "ncm_song_level_hires": "Hi-Res（FLAC）"
+      "ncm_song_level_hires": "Hi-Res（FLAC）",
+      "tab_site": "網站",
+      "tab_content": "內容與外觀",
+      "tab_frontend": "前台元件",
+      "tab_account": "帳號與訪客",
+      "tab_ai": "AI",
+      "tab_rss": "RSS",
+      "tab_advanced": "進階"
     },
     "labels": {
       "title": "標籤管理",
@@ -1269,6 +1274,14 @@
         "revert_failed": "操作失敗",
         "reverted": "已放棄修改"
       }
+    },
+    "menu": {
+      "content": "文章與頁面",
+      "taxonomy": "分類與標籤",
+      "accounts": "使用者與認證",
+      "personal_settings": "個人設定",
+      "overview": "概覽",
+      "files": "檔案"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "播放",
       "pause": "暫停",
+      "progress": "播放進度",
       "open": "網易雲音樂",
       "not_in_playlist": "此歌曲不在部落格歌單內，請在網易雲音樂收聽",
       "load_failed": "歌曲資訊載入失敗"

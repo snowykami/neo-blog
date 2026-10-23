@@ -321,7 +321,6 @@
     },
     "about_content": "Contenido",
     "about_system": "Sistema",
-    "about_user": "Usuario",
     "categories": {
       "title": "Gestión de categorías",
       "category_manage": "Gestionar categorías",
@@ -500,7 +499,6 @@
     "global": {
       "title": "Configuración global",
       "add": "Añadir",
-      "advanced": "Avanzado: clave-valor",
       "advanced_desc": "Edita directamente las claves de configuración no cubiertas por el formulario. Los valores deben ser JSON válido.",
       "animation_duration": "Duración de animación (segundos)",
       "animation_duration_desc": "Duración de las transiciones de página y otras animaciones",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "Alta (192 kbps)",
       "ncm_song_level_exhigh": "Muy alta (320 kbps)",
       "ncm_song_level_lossless": "Sin pérdida (FLAC)",
-      "ncm_song_level_hires": "Hi-Res (FLAC)"
+      "ncm_song_level_hires": "Hi-Res (FLAC)",
+      "tab_site": "Sitio",
+      "tab_content": "Contenido y apariencia",
+      "tab_frontend": "Componentes públicos",
+      "tab_account": "Cuentas y visitas",
+      "tab_ai": "IA",
+      "tab_rss": "RSS",
+      "tab_advanced": "Avanzado"
     },
     "labels": {
       "title": "Etiquetas",
@@ -1269,6 +1274,14 @@
         "revert_failed": "La operación falló",
         "reverted": "Cambios descartados"
       }
+    },
+    "menu": {
+      "content": "Entradas y páginas",
+      "taxonomy": "Categorías y etiquetas",
+      "accounts": "Usuarios y autenticación",
+      "personal_settings": "Ajustes personales",
+      "overview": "Resumen",
+      "files": "Archivos"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "Reproducir",
       "pause": "Pausa",
+      "progress": "Progreso de reproducción",
       "open": "NetEase Music",
       "not_in_playlist": "Esta canción no está en la lista del blog; escúchala en NetEase Cloud Music",
       "load_failed": "No se pudo cargar la canción"

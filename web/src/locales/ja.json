@@ -321,7 +321,6 @@
     },
     "about_content": "コンテンツ",
     "about_system": "システム",
-    "about_user": "ユーザー",
     "categories": {
       "title": "カテゴリ管理",
       "category_manage": "カテゴリ管理",
@@ -500,7 +499,6 @@
     "global": {
       "title": "グローバル設定",
       "add": "追加",
-      "advanced": "詳細設定：キーと値",
       "advanced_desc": "フォームにない設定キーを直接編集します。値は有効な JSON である必要があります。",
       "animation_duration": "アニメーション時間（秒）",
       "animation_duration_desc": "ページ遷移やカード表示などのアニメーションの長さ",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "高音質（192kbps）",
       "ncm_song_level_exhigh": "極高音質（320kbps）",
       "ncm_song_level_lossless": "ロスレス（FLAC）",
-      "ncm_song_level_hires": "Hi-Res（FLAC）"
+      "ncm_song_level_hires": "Hi-Res（FLAC）",
+      "tab_site": "サイト",
+      "tab_content": "コンテンツと外観",
+      "tab_frontend": "フロントエンド部品",
+      "tab_account": "アカウントと訪問",
+      "tab_ai": "AI",
+      "tab_rss": "RSS",
+      "tab_advanced": "詳細"
     },
     "labels": {
       "title": "タグ管理",
@@ -1269,6 +1274,14 @@
         "revert_failed": "操作に失敗しました",
         "reverted": "変更を破棄しました"
       }
+    },
+    "menu": {
+      "content": "記事とページ",
+      "taxonomy": "カテゴリとラベル",
+      "accounts": "ユーザーと認証",
+      "personal_settings": "個人設定",
+      "overview": "概要",
+      "files": "ファイル"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "再生",
       "pause": "一時停止",
+      "progress": "再生位置",
       "open": "NetEase Music",
       "not_in_playlist": "この曲はブログのプレイリストにありません。NetEase Cloud Music でお聴きください",
       "load_failed": "楽曲情報の読み込みに失敗しました"

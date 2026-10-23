@@ -321,7 +321,6 @@
     },
     "about_content": "Inhalt",
     "about_system": "System",
-    "about_user": "Benutzer",
     "categories": {
       "title": "Kategorienverwaltung",
       "category_manage": "Kategorien verwalten",
@@ -500,7 +499,6 @@
     "global": {
       "title": "Globale Einstellungen",
       "add": "Hinzufügen",
-      "advanced": "Erweitert: Schlüssel-Wert-Paare",
       "advanced_desc": "Konfigurationsschlüssel direkt bearbeiten, für Einstellungen ohne Formularfeld. Werte müssen gültiges JSON sein.",
       "animation_duration": "Animationsdauer (Sekunden)",
       "animation_duration_desc": "Dauer von Seitenwechseln, Karteneinblendungen und anderen Animationen",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "Höher (192 kbit/s)",
       "ncm_song_level_exhigh": "Sehr hoch (320 kbit/s)",
       "ncm_song_level_lossless": "Verlustfrei (FLAC)",
-      "ncm_song_level_hires": "Hi-Res (FLAC)"
+      "ncm_song_level_hires": "Hi-Res (FLAC)",
+      "tab_site": "Website",
+      "tab_content": "Inhalt & Darstellung",
+      "tab_frontend": "Frontend-Komponenten",
+      "tab_account": "Konten & Besuche",
+      "tab_ai": "KI",
+      "tab_rss": "RSS",
+      "tab_advanced": "Erweitert"
     },
     "labels": {
       "title": "Schlagwörter",
@@ -1269,6 +1274,14 @@
         "revert_failed": "Vorgang fehlgeschlagen",
         "reverted": "Änderungen verworfen"
       }
+    },
+    "menu": {
+      "content": "Beiträge & Seiten",
+      "taxonomy": "Kategorien & Labels",
+      "accounts": "Benutzer & Anmeldung",
+      "personal_settings": "Persönliche Einstellungen",
+      "overview": "Übersicht",
+      "files": "Dateien"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "Abspielen",
       "pause": "Pause",
+      "progress": "Wiedergabefortschritt",
       "open": "NetEase Music",
       "not_in_playlist": "Dieser Song ist nicht in der Blog-Playlist; bitte bei NetEase Cloud Music anhören",
       "load_failed": "Song konnte nicht geladen werden"

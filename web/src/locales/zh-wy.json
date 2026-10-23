@@ -321,7 +321,6 @@
     },
     "about_content": "關於內容",
     "about_system": "關於系統",
-    "about_user": "關於用戶",
     "categories": {
       "title": "分類管理",
       "category_manage": "分類管理",
@@ -500,7 +499,6 @@
     "global": {
       "title": "全局配置",
       "add": "增",
-      "advanced": "精：原键值",
       "advanced_desc": "径修底层之键，宜表所未及者；值须为合法 JSON。",
       "animation_duration": "动之时（秒）",
       "animation_duration_desc": "页易、卡现诸动之时",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "稍高（192kbps）",
       "ncm_song_level_exhigh": "極高（320kbps）",
       "ncm_song_level_lossless": "無損（FLAC）",
-      "ncm_song_level_hires": "Hi-Res（FLAC）"
+      "ncm_song_level_hires": "Hi-Res（FLAC）",
+      "tab_site": "站",
+      "tab_content": "文與觀",
+      "tab_frontend": "前臺諸件",
+      "tab_account": "號與訪客",
+      "tab_ai": "AI",
+      "tab_rss": "RSS",
+      "tab_advanced": "精設"
     },
     "labels": {
       "title": "標籤管理",
@@ -1269,6 +1274,14 @@
         "revert_failed": "未成",
         "reverted": "已棄所改"
       }
+    },
+    "menu": {
+      "content": "文與頁",
+      "taxonomy": "類與籤",
+      "accounts": "用者與認證",
+      "personal_settings": "己之設",
+      "overview": "概覽",
+      "files": "文件"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "奏",
       "pause": "止",
+      "progress": "播之進度",
       "open": "網易雲音樂",
       "not_in_playlist": "此曲不在博客曲單，請往網易雲音樂聽之",
       "load_failed": "曲之訊未能載"

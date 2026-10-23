@@ -321,7 +321,6 @@
     },
     "about_content": "Контент",
     "about_system": "Система",
-    "about_user": "Пользователь",
     "categories": {
       "title": "Управление категориями",
       "category_manage": "Manage categories",
@@ -500,7 +499,6 @@
     "global": {
       "title": "Глобальные настройки",
       "add": "Добавить",
-      "advanced": "Расширенные: ключ-значение",
       "advanced_desc": "Прямое редактирование ключей конфигурации, которых нет в форме. Значения должны быть корректным JSON.",
       "animation_duration": "Длительность анимации (секунды)",
       "animation_duration_desc": "Длительность переходов между страницами и других анимаций",
@@ -626,7 +624,14 @@
       "ncm_song_level_higher": "Повышенное (192 кбит/с)",
       "ncm_song_level_exhigh": "Очень высокое (320 кбит/с)",
       "ncm_song_level_lossless": "Без потерь (FLAC)",
-      "ncm_song_level_hires": "Hi-Res (FLAC)"
+      "ncm_song_level_hires": "Hi-Res (FLAC)",
+      "tab_site": "Сайт",
+      "tab_content": "Контент и оформление",
+      "tab_frontend": "Виджеты сайта",
+      "tab_account": "Аккаунты и посещения",
+      "tab_ai": "ИИ",
+      "tab_rss": "RSS",
+      "tab_advanced": "Дополнительно"
     },
     "labels": {
       "title": "Метки",
@@ -1269,6 +1274,14 @@
         "revert_failed": "Не удалось выполнить",
         "reverted": "Изменения отменены"
       }
+    },
+    "menu": {
+      "content": "Записи и страницы",
+      "taxonomy": "Категории и метки",
+      "accounts": "Пользователи и вход",
+      "personal_settings": "Личные настройки",
+      "overview": "Обзор",
+      "files": "Файлы"
     }
   },
   "Copyright": {
@@ -1749,6 +1762,7 @@
       },
       "play": "Слушать",
       "pause": "Пауза",
+      "progress": "Ход воспроизведения",
       "open": "NetEase Music",
       "not_in_playlist": "Этого трека нет в плейлисте блога; слушайте в NetEase Cloud Music",
       "load_failed": "Не удалось загрузить трек"

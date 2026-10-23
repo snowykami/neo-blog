@@ -1,6 +1,7 @@
 'use client'
 
-import type { SidebarItem } from './data'
+import type { SidebarMenu as SidebarMenuData } from './data'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   SidebarGroup,
@@ -11,52 +12,52 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/contexts/auth-context'
+import { permittedItems } from './data'
 
 export function NavGroup({
-  items,
+  menus,
   title,
   activeId,
   setActiveId,
 }: {
-  items: SidebarItem[]
+  menus: SidebarMenuData[]
   title: string
   activeId: string | null
   setActiveId?: (id: string) => void
 }) {
+  const consoleT = useTranslations('Console')
   const { user } = useAuth()
   if (!user)
     return null
-  const hasAnyPermission = items.some(item => item.permission({ user }))
+  // 菜单链接到其中第一个有权限的页面；一个页面都没有权限时不显示
+  const visible = menus
+    .map(menu => ({ menu, first: permittedItems(menu, user)[0] }))
+    .filter(entry => entry.first)
+  if (visible.length === 0)
+    return null
   return (
-    <>
-      {hasAnyPermission && (
-        <SidebarGroup>
-          <SidebarGroupContent className="flex flex-col gap-2">
-            <SidebarGroupLabel>{title}</SidebarGroupLabel>
-            <SidebarMenu>
-              {items.map(
-                item =>
-                  item.permission({ user }) && (
-                    // 使用稳定的 id 作为 key，避免切换语言时整组重新挂载
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton
-                        asChild
-                        id={`nav-item-${item.id}`}
-                        tooltip={item.title}
-                        isActive={activeId === item.id}
-                      >
-                        <Link href={item.url} onClick={() => setActiveId && setActiveId(item.id)}>
-                          {item.icon && <item.icon />}
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ),
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      )}
-    </>
+    <SidebarGroup>
+      <SidebarGroupContent className="flex flex-col gap-2">
+        <SidebarGroupLabel>{title}</SidebarGroupLabel>
+        <SidebarMenu>
+          {visible.map(({ menu, first }) => (
+            // 使用稳定的 id 作为 key，避免切换语言时整组重新挂载
+            <SidebarMenuItem key={menu.id}>
+              <SidebarMenuButton
+                asChild
+                id={`nav-item-${menu.id}`}
+                tooltip={consoleT(menu.title)}
+                isActive={activeId === menu.id}
+              >
+                <Link href={first.url} onClick={() => setActiveId?.(menu.id)}>
+                  <menu.icon />
+                  <span>{consoleT(menu.title)}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   )
 }
