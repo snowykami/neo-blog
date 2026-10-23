@@ -2026,6 +2026,16 @@
         "filled_need_city": "Current weather filled in, please add the city name",
         "place_selected": "City selected"
       }
+    },
+    "layout": {
+      "width": "Width",
+      "width_33": "Small (33%)",
+      "width_50": "Medium (50%)",
+      "width_75": "Large (75%)",
+      "width_100": "Full width (100%)",
+      "align_left": "Align left",
+      "align_center": "Align center",
+      "align_right": "Align right"
     }
   },
   "AppUpdate": {

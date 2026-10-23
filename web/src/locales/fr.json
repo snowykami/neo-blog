@@ -2026,6 +2026,16 @@
         "filled_need_city": "Météo actuelle remplie, veuillez ajouter le nom de la ville",
         "place_selected": "Ville sélectionnée"
       }
+    },
+    "layout": {
+      "width": "Largeur",
+      "width_33": "Petite (33 %)",
+      "width_50": "Moyenne (50 %)",
+      "width_75": "Grande (75 %)",
+      "width_100": "Pleine largeur (100 %)",
+      "align_left": "Aligner à gauche",
+      "align_center": "Centrer",
+      "align_right": "Aligner à droite"
     }
   },
   "AppUpdate": {

@@ -28,6 +28,8 @@ function weatherSummary({ mode, city, condition, temperature, humidity, wind, re
 export default defineContentComponent({
   name: 'weatherCard',
   version: 1,
+  // 卡片内容紧凑，默认半宽
+  defaultWidth: 50,
   schema: weatherCardSchema,
   component: dynamic(() => import('./weather-card')),
   icon: CloudSunIcon,

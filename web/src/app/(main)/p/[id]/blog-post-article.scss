@@ -65,8 +65,8 @@ article table {
 }
 
 /* Tailwind-style prose utilities 映射到 CSS（优先用于 article/prose 内容） */
-/* 图像：block、水平居中、垂直间距、圆角、阴影、边框 */
-article img {
+/* 图像：block、水平居中、垂直间距、圆角、阴影、边框；组件岛内的图片（头像、封面等）保持组件自身样式 */
+article img:not([data-component-root] img) {
   max-width: 100%;
   height: auto;
   display: block;               /* prose-img:block */

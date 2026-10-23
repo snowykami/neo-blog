@@ -2026,6 +2026,16 @@
         "filled_need_city": "현재 날씨를 채웠습니다. 도시 이름을 입력하세요",
         "place_selected": "도시를 선택했습니다"
       }
+    },
+    "layout": {
+      "width": "너비",
+      "width_33": "작게 (33%)",
+      "width_50": "보통 (50%)",
+      "width_75": "크게 (75%)",
+      "width_100": "전체 너비 (100%)",
+      "align_left": "왼쪽 정렬",
+      "align_center": "가운데 정렬",
+      "align_right": "오른쪽 정렬"
     }
   },
   "AppUpdate": {

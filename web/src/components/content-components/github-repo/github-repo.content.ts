@@ -7,6 +7,8 @@ import { githubRepoSchema } from './schema'
 export default defineContentComponent({
   name: 'githubRepo',
   version: 1,
+  // 卡片内容紧凑，默认半宽
+  defaultWidth: 50,
   schema: githubRepoSchema,
   component: dynamic(() => import('./github-repo')),
   icon: FolderGit2Icon,

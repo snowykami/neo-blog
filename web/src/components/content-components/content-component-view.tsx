@@ -5,6 +5,7 @@ import type { AnyContentComponentDef } from './types'
 import { Component } from 'react'
 import { cn } from '@/lib/utils'
 import { COMPONENT_BLOCK_CLASS } from './constants'
+import './component-layout.css'
 
 interface BoundaryProps {
   fallback: ReactNode

@@ -7,6 +7,8 @@ import { neteaseSongSchema } from './schema'
 export default defineContentComponent({
   name: 'neteaseSong',
   version: 1,
+  // 卡片内容紧凑，默认半宽
+  defaultWidth: 50,
   schema: neteaseSongSchema,
   component: dynamic(() => import('./netease-song')),
   icon: Music2Icon,

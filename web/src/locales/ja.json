@@ -2026,6 +2026,16 @@
         "filled_need_city": "現在の天気を入力しました。都市名を入力してください",
         "place_selected": "都市を選択しました"
       }
+    },
+    "layout": {
+      "width": "幅",
+      "width_33": "小（33%）",
+      "width_50": "中（50%）",
+      "width_75": "大（75%）",
+      "width_100": "全幅（100%）",
+      "align_left": "左揃え",
+      "align_center": "中央揃え",
+      "align_right": "右揃え"
     }
   },
   "AppUpdate": {

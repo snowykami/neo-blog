@@ -2026,6 +2026,16 @@
         "filled_need_city": "已填今之天候，請補城名",
         "place_selected": "已擇城"
       }
+    },
+    "layout": {
+      "width": "廣",
+      "width_33": "小（三之一）",
+      "width_50": "中（半）",
+      "width_75": "大（四之三）",
+      "width_100": "滿（全）",
+      "align_left": "居左",
+      "align_center": "居中",
+      "align_right": "居右"
     }
   },
   "AppUpdate": {

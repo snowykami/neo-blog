@@ -1,0 +1,26 @@
+/* 组件块尺寸与对齐：前台占位 [data-component] 与编辑器节点视图 .neo-component-block 共用；窄屏下一律满宽 */
+@media (min-width: 640px) {
+  :is([data-component], .neo-component-block)[data-width] {
+    margin-inline: auto;
+  }
+
+  :is([data-component], .neo-component-block)[data-width="33"] {
+    width: 33.333%;
+  }
+
+  :is([data-component], .neo-component-block)[data-width="50"] {
+    width: 50%;
+  }
+
+  :is([data-component], .neo-component-block)[data-width="75"] {
+    width: 75%;
+  }
+
+  :is([data-component], .neo-component-block)[data-width][data-align="left"] {
+    margin-left: 0;
+  }
+
+  :is([data-component], .neo-component-block)[data-width][data-align="right"] {
+    margin-right: 0;
+  }
+}

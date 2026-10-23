@@ -1,14 +1,17 @@
 'use client'
 
 import type { NodeViewProps } from '@tiptap/react'
+import type { ComponentAlign, ComponentWidth } from '@/components/content-components/layout'
 import { NodeViewWrapper } from '@tiptap/react'
-import { PuzzleIcon, Settings2Icon, Trash2Icon } from 'lucide-react'
+import { MoveHorizontalIcon, PuzzleIcon, Settings2Icon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useMemo, useState } from 'react'
 import { ComponentPropsDialog } from '@/components/content-components/component-props-dialog'
 import { ContentComponentView } from '@/components/content-components/content-component-view'
+import { COMPONENT_WIDTHS, componentLayoutAttrs, parseComponentAlign, parseComponentWidth } from '@/components/content-components/layout'
 import { resolveComponent } from '@/components/content-components/props'
-import { EditorToolbarButton, EditorToolbarSeparator } from '@/components/tiptap-editor/editor-toolbar-button'
+import { EditorToolbarButton, EditorToolbarSeparator, EditorTooltip } from '@/components/tiptap-editor/editor-toolbar-button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { COMPONENT_BLOCK_TOOLBAR_ATTR } from './component-block-constants'
 import { consumePendingComponentEdit } from './pending-edit'
@@ -26,12 +29,20 @@ function BlockNotice({ title, hint }: { title: string, hint?: string }) {
   )
 }
 
+const ALIGNS: { id: ComponentAlign, icon: typeof TextAlignStartIcon }[] = [
+  { id: 'left', icon: TextAlignStartIcon },
+  { id: 'center', icon: TextAlignCenterIcon },
+  { id: 'right', icon: TextAlignEndIcon },
+]
+
 /**
- * 组件块节点视图：实时渲染与前台相同的组件作为预览；选中时显示浮动工具栏（编辑属性 / 删除），双击打开属性编辑
+ * 组件块节点视图：实时渲染与前台相同的组件作为预览；选中时显示浮动工具栏（宽度 / 对齐 / 编辑属性 / 删除），双击打开属性编辑
  */
 export function ComponentBlockView({ editor, node, selected, updateAttributes, deleteNode }: NodeViewProps) {
   const t = useTranslations('ContentComponents')
   const { name, props, version } = node.attrs as { name: string | null, props: Record<string, unknown>, version: number | null }
+  const width = parseComponentWidth(node.attrs.width) ?? 100
+  const align = width < 100 ? (parseComponentAlign(node.attrs.align) ?? 'center') : 'center'
   const resolved = useMemo(() => resolveComponent(name, props, version), [name, props, version])
   const def = resolved.def
   const editable = editor.isEditable
@@ -49,6 +60,7 @@ export function ComponentBlockView({ editor, node, selected, updateAttributes, d
   return (
     <NodeViewWrapper
       data-drag-handle=""
+      {...componentLayoutAttrs(node.attrs.width, node.attrs.align)}
       contentEditable={false}
       className={cn(
         'neo-component-block group/component relative my-6 rounded-xl outline-offset-4 transition-[outline-color]',
@@ -78,8 +90,10 @@ export function ComponentBlockView({ editor, node, selected, updateAttributes, d
           role="toolbar"
           aria-label={t('toolbar', { name: label })}
           className={cn(
-            // 位于组件上方，不遮挡组件自身的按钮
-            'absolute right-0 bottom-[calc(100%+6px)] z-10 flex items-center gap-0.5 rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg transition-opacity',
+            // 位于组件上方，不遮挡组件自身的按钮；靠左的窄组件从左侧展开，避免超出正文
+            'absolute bottom-[calc(100%+6px)] z-10 flex whitespace-nowrap',
+            align === 'left' ? 'left-0' : 'right-0',
+            'items-center gap-0.5 rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg transition-opacity',
             selected ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover/component:pointer-events-auto group-hover/component:opacity-100',
           )}
         >
@@ -87,6 +101,41 @@ export function ComponentBlockView({ editor, node, selected, updateAttributes, d
             <Icon className="size-3.5" />
             {label}
           </span>
+          <EditorToolbarSeparator className="mx-0.5" />
+          <DropdownMenu modal={false}>
+            <EditorTooltip label={t('layout.width')}>
+              <DropdownMenuTrigger asChild>
+                <EditorToolbarButton label={t('layout.width')} noTooltip className="h-[30px] min-w-[30px]">
+                  <MoveHorizontalIcon className="size-[17px]" />
+                  <span className="text-xs tabular-nums">{`${width}%`}</span>
+                </EditorToolbarButton>
+              </DropdownMenuTrigger>
+            </EditorTooltip>
+            <DropdownMenuContent align="end" onCloseAutoFocus={e => e.preventDefault()}>
+              <DropdownMenuRadioGroup
+                value={String(width)}
+                onValueChange={value => updateAttributes({ width: Number(value) === 100 ? null : Number(value) as ComponentWidth })}
+              >
+                {COMPONENT_WIDTHS.map(option => (
+                  <DropdownMenuRadioItem key={option} value={String(option)}>
+                    {t(`layout.width_${option}`)}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* 满宽时对齐无意义，不显示 */}
+          {width < 100 && ALIGNS.map(({ id, icon: AlignIcon }) => (
+            <EditorToolbarButton
+              key={id}
+              label={t(`layout.align_${id}`)}
+              active={align === id}
+              className="h-[30px] min-w-[30px]"
+              onClick={() => updateAttributes({ align: id === 'center' ? null : id })}
+            >
+              <AlignIcon className="size-[17px]" />
+            </EditorToolbarButton>
+          ))}
           <EditorToolbarSeparator className="mx-0.5" />
           {def && (
             <EditorToolbarButton label={t('edit')} className="h-[30px] min-w-[30px]" onClick={() => setEditing(true)}>
