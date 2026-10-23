@@ -1640,5 +1640,11 @@
     "url_placeholder": "Paste a URL, or choose from the library",
     "preview_empty": "No image",
     "choose_from_library": "Choose from library"
+  },
+  "AppUpdate": {
+    "title": "The site has been updated",
+    "description": "Refresh the page to use the new version",
+    "description_console": "Refresh the page to use the new version. Make sure your edits are saved first",
+    "refresh": "Refresh"
   }
 }

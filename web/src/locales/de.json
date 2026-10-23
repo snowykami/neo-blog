@@ -1640,5 +1640,11 @@
     "url_placeholder": "URL einfügen oder aus der Mediathek wählen",
     "preview_empty": "Kein Bild",
     "choose_from_library": "Aus Mediathek wählen"
+  },
+  "AppUpdate": {
+    "title": "Die Seite wurde aktualisiert",
+    "description": "Lade die Seite neu, um die neue Version zu verwenden",
+    "description_console": "Lade die Seite neu, um die neue Version zu verwenden. Stelle vorher sicher, dass deine Änderungen gespeichert sind",
+    "refresh": "Neu laden"
   }
 }

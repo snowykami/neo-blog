@@ -1640,5 +1640,11 @@
     "url_placeholder": "Cole uma URL ou escolha na biblioteca",
     "preview_empty": "Sem imagem",
     "choose_from_library": "Escolher da biblioteca"
+  },
+  "AppUpdate": {
+    "title": "O site foi atualizado",
+    "description": "Recarregue a página para usar a nova versão",
+    "description_console": "Recarregue a página para usar a nova versão. Antes, verifique se suas alterações foram salvas",
+    "refresh": "Recarregar"
   }
 }

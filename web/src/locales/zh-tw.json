@@ -1640,5 +1640,11 @@
     "url_placeholder": "貼上網址，或從資產庫選擇",
     "preview_empty": "尚無圖片",
     "choose_from_library": "從資產庫選擇"
+  },
+  "AppUpdate": {
+    "title": "網站已更新",
+    "description": "重新整理頁面即可使用新版本",
+    "description_console": "重新整理頁面即可使用新版本，重新整理前請確認編輯中的內容已儲存",
+    "refresh": "重新整理"
   }
 }

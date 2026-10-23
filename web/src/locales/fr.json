@@ -1640,5 +1640,11 @@
     "url_placeholder": "Collez une URL ou choisissez dans la médiathèque",
     "preview_empty": "Aucune image",
     "choose_from_library": "Choisir dans la médiathèque"
+  },
+  "AppUpdate": {
+    "title": "Le site a été mis à jour",
+    "description": "Actualisez la page pour utiliser la nouvelle version",
+    "description_console": "Actualisez la page pour utiliser la nouvelle version. Vérifiez d'abord que vos modifications sont enregistrées",
+    "refresh": "Actualiser"
   }
 }

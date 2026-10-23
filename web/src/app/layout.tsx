@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { getLoginUserServer } from '@/api/user.server'
+import { AppUpdateChecker } from '@/components/common/app-update-checker'
 import { FloatingWidgets } from '@/components/common/main-floating-widgets'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/auth-context'
@@ -81,6 +82,7 @@ export default async function RootLayout({
             {/* Toaster 读取 DeviceProvider 中的主题，需放在其内部 */}
             <Toaster richColors position="top-center" offset={80} />
             <NextIntlClientProvider>
+              <AppUpdateChecker />
               <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
                 <SiteInfoProvider initialData={siteInfo}>
                   <MusicProvider>

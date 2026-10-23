@@ -1640,5 +1640,11 @@
     "url_placeholder": "URL を貼り付けるか、ライブラリから選択",
     "preview_empty": "画像がありません",
     "choose_from_library": "ライブラリから選択"
+  },
+  "AppUpdate": {
+    "title": "サイトが更新されました",
+    "description": "ページを再読み込みすると新しいバージョンを利用できます",
+    "description_console": "ページを再読み込みすると新しいバージョンを利用できます。再読み込みの前に編集内容が保存されていることを確認してください",
+    "refresh": "再読み込み"
   }
 }

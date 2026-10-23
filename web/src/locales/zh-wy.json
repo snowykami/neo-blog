@@ -1640,5 +1640,11 @@
     "url_placeholder": "貼其址，或自資庫擇之",
     "preview_empty": "尚無圖",
     "choose_from_library": "自資庫擇之"
+  },
+  "AppUpdate": {
+    "title": "站已更新",
+    "description": "重載此頁即得新版",
+    "description_console": "重載此頁即得新版，重載之前請察所編之文已存",
+    "refresh": "重載"
   }
 }

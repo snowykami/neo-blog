@@ -1640,5 +1640,11 @@
     "url_placeholder": "粘贴地址，或从资产库选择",
     "preview_empty": "暂无图片",
     "choose_from_library": "从资产库选择"
+  },
+  "AppUpdate": {
+    "title": "网站已更新",
+    "description": "刷新页面即可使用新版本",
+    "description_console": "刷新页面即可使用新版本，刷新前请确认编辑中的内容已保存",
+    "refresh": "刷新"
   }
 }

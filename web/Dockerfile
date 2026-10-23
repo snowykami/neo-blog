@@ -17,6 +17,9 @@ RUN pnpm install --frozen-lockfile
 
 # copy source and build
 COPY . .
+# 构建版本（CI 传入 commit），写入前端代码，供已打开的页面检测新版本；未传入时不启用更新提醒
+ARG APP_VERSION=""
+ENV NEXT_PUBLIC_APP_VERSION=${APP_VERSION}
 RUN pnpm run lint:fix && pnpm run build
 
 # production image

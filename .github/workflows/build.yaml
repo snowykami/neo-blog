@@ -28,6 +28,8 @@ jobs:
           context: ./web
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-frontend:latest
+          build-args: |
+            APP_VERSION=${{ github.sha }}
 
   build-and-push-backend:
     runs-on: ubuntu-latest

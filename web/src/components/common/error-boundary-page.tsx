@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { isChunkLoadError, reloadForChunkError } from '@/utils/client/chunk-error'
 
 /**
  * 路由错误边界展示：提示出错并提供重试 / 返回首页
@@ -20,6 +21,9 @@ export function ErrorBoundaryPage({
 
   useEffect(() => {
     console.error(error)
+    // 新版本部署后旧页面加载代码块失败：刷新一次即可恢复
+    if (isChunkLoadError(error))
+      reloadForChunkError()
   }, [error])
 
   return (
