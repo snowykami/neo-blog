@@ -21,7 +21,8 @@ const tabsListVariants = cva('inline-flex w-fit items-center justify-center text
       default: 'h-9 rounded-lg bg-foreground/[.06] p-[3px] ring-1 ring-inset ring-foreground/[.04]',
       outline: 'h-9 rounded-lg border bg-transparent p-[3px]',
       solid: 'h-9 rounded-lg bg-foreground/[.06] p-[3px]',
-      underline: 'h-10 gap-1 border-b border-foreground/10',
+      // 只允许横向滚动（窄屏时标签较多）：选中项的下划线向下偏移 1px 盖住底边，若不留出 pb-px 会多出 1px 高度而可以上下滚动；隐藏滚动条
+      underline: 'h-10 gap-1 border-b border-foreground/10 overflow-x-auto overflow-y-hidden pb-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
     },
   },
   defaultVariants: { variant: 'default' },

@@ -325,7 +325,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
     <FormProvider {...form}>
       <Tabs value={tab} onValueChange={value => void setTab(value as GlobalTab)} className="gap-4">
         {/* 窄屏时横向滚动 */}
-        <TabsList variant="underline" className="w-full justify-start overflow-x-auto">
+        <TabsList variant="underline" className="w-full justify-start">
           {GLOBAL_TABS.map(key => (
             <TabsTrigger key={key} value={key} className="flex-none px-3">
               {t(`tab_${key}`)}

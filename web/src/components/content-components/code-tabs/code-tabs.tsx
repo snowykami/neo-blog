@@ -37,7 +37,7 @@ export default function CodeTabs({ tabs }: CodeTabsProps) {
   return (
     <Tabs value={active} onValueChange={setActive} className="gap-0 overflow-hidden rounded-xl border border-white/10 bg-(--code-bg)">
       <div className="flex items-center gap-2 border-b border-white/10 bg-white/5 pr-2">
-        <TabsList variant="underline" className="h-9 min-w-0 flex-1 justify-start overflow-x-auto border-0 px-2 text-white/55">
+        <TabsList variant="underline" className="h-9 min-w-0 flex-1 justify-start border-0 px-2 text-white/55">
           {tabs.map((tab, index) => (
             <TabsTrigger
               // 标签名可能重复，以下标作为值

@@ -13,7 +13,7 @@ export function ConsoleTabs({ items, activeId }: { items: SidebarItem[], activeI
   return (
     <Tabs value={activeId} className="mb-4">
       {/* 窄屏时横向滚动 */}
-      <TabsList variant="underline" className="w-full justify-start overflow-x-auto">
+      <TabsList variant="underline" className="w-full justify-start">
         {items.map(item => (
           <TabsTrigger key={item.id} value={item.id} className="flex-none px-3" asChild>
             <Link href={item.url}>
