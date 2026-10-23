@@ -579,7 +579,7 @@
         "delete_description": "Der Schlüssel „{key}“ wird gelöscht. Dies kann nicht rückgängig gemacht werden und kann den Betrieb der Website beeinträchtigen."
       },
       "section_personalize": "Personalisierung",
-      "section_personalize_desc": "Ressourcen für Seitenleiste, Musikplayer und Drittanbieter-Skript der öffentlichen Seite. Leer lassen, um die jeweilige Komponente auszublenden.",
+      "section_personalize_desc": "Ressourcen für Seitenleiste und Drittanbieter-Skript der öffentlichen Seite. Leer lassen, um die jeweilige Komponente auszublenden.",
       "about_background": "Hintergrundbild der „Über mich“-Karte",
       "empty_to_hide": "Leer lassen zum Ausblenden",
       "sidebar_iframe_url": "URL der eingebetteten Seite in der Seitenleiste",
@@ -600,7 +600,26 @@
       "show_secret": "Anzeigen",
       "hide_secret": "Verbergen",
       "ai_summary_concurrency": "KI-Parallelität",
-      "ai_summary_concurrency_desc": "Maximale Anzahl gleichzeitiger Modellanfragen (1–20), gemeinsam für KI-Zusammenfassungen und KI-Schreiben im Editor; weitere Anfragen warten der Reihe nach, KI-Schreiben hat Vorrang"
+      "ai_summary_concurrency_desc": "Maximale Anzahl gleichzeitiger Modellanfragen (1–20), gemeinsam für KI-Zusammenfassungen und KI-Schreiben im Editor; weitere Anfragen warten der Reihe nach, KI-Schreiben hat Vorrang",
+      "section_music": "Musikplayer",
+      "section_music_desc": "Woher der schwebende Musikplayer der öffentlichen Seite seine Playlist bezieht",
+      "music_source": "Playlist-Quelle",
+      "music_source_static": "Statisches Playlist-JSON",
+      "music_source_ncm": "NetEase-Cloud-Music-Playlist",
+      "ncm_api_base_url": "NetEase-API-URL",
+      "ncm_api_base_url_desc": "URL deines selbst gehosteten NeteaseCloudMusicApi-Enhanced-Dienstes zum Abrufen von Playlists, Audio-URLs und Songtexten",
+      "ncm_cookie": "NetEase-Cookie",
+      "ncm_cookie_desc": "Cookie eines angemeldeten NetEase-Kontos (muss MUSIC_U enthalten); es reicht auch nur der Wert von MUSIC_U. Wird nur auf dem Server gespeichert und nie für Besucher sichtbar. VIP-Titel erfordern ein VIP-Konto",
+      "ncm_playlist": "Blog-Playlist",
+      "ncm_playlist_desc": "Wähle aus den Playlists des Kontos hinter dem Cookie (inklusive gespeicherter Playlists). Besucher können nur Titel aus dieser Playlist abspielen",
+      "ncm_playlist_placeholder": "Lade zuerst die Playlists des Kontos",
+      "ncm_playlist_select": "Playlist auswählen",
+      "ncm_playlist_id": "Playlist-ID: {id}",
+      "ncm_track_count": "{count} Titel",
+      "ncm_subscribed": "Gespeichert",
+      "ncm_load_playlists": "Playlists laden",
+      "ncm_load_failed": "Playlists konnten nicht geladen werden",
+      "ncm_account": "{name} · {count} Playlists"
     },
     "labels": {
       "title": "Schlagwörter",
@@ -1529,7 +1548,12 @@
       "ai_write_empty_selection": "Die Markierung ist leer",
       "ai_timeout": "Zeitüberschreitung bei der KI-Antwort",
       "ai_empty_response": "Die KI hat keinen Inhalt geliefert",
-      "ai_interrupted": "Verbindung unterbrochen, Erzeugung unvollständig"
+      "ai_interrupted": "Verbindung unterbrochen, Erzeugung unvollständig",
+      "ncm_invalid_api_url": "Ungültige NetEase-API-URL; sie muss eine http(s)-URL sein",
+      "ncm_cookie_required": "Bitte gib das NetEase-Cookie ein",
+      "ncm_cookie_invalid": "Das NetEase-Cookie ist ungültig oder abgelaufen",
+      "ncm_request_failed": "Anfrage an die NetEase-API fehlgeschlagen; prüfe die Dienst-URL",
+      "ncm_not_configured": "NetEase-Playlist ist nicht konfiguriert"
     }
   },
   "ErrorPage": {

@@ -579,7 +579,7 @@
         "delete_description": "将删除配置键「{key}」，删除后不可恢复，可能影响站点运行。"
       },
       "section_personalize": "个性化资源",
-      "section_personalize_desc": "前台侧边栏、音乐播放器与第三方脚本等资源，留空即隐藏对应组件",
+      "section_personalize_desc": "前台侧边栏与第三方脚本等资源，留空即隐藏对应组件",
       "about_background": "「关于我」卡片背景图",
       "empty_to_hide": "留空则不显示",
       "sidebar_iframe_url": "侧边栏嵌入页面地址",
@@ -600,7 +600,26 @@
       "show_secret": "显示",
       "hide_secret": "隐藏",
       "ai_summary_concurrency": "AI 并发数",
-      "ai_summary_concurrency_desc": "同时调用模型的请求数上限（1～20），AI 摘要与编辑器 AI 写作共用；超出时排队依次执行，AI 写作优先"
+      "ai_summary_concurrency_desc": "同时调用模型的请求数上限（1～20），AI 摘要与编辑器 AI 写作共用；超出时排队依次执行，AI 写作优先",
+      "section_music": "音乐播放器",
+      "section_music_desc": "前台悬浮音乐播放器的歌单来源",
+      "music_source": "歌单来源",
+      "music_source_static": "静态歌单 JSON",
+      "music_source_ncm": "网易云音乐歌单",
+      "ncm_api_base_url": "网易云 API 地址",
+      "ncm_api_base_url_desc": "自行部署的 NeteaseCloudMusicApi Enhanced 服务地址，用于读取歌单、播放地址与歌词",
+      "ncm_cookie": "网易云 Cookie",
+      "ncm_cookie_desc": "登录网易云账号后的 Cookie（至少包含 MUSIC_U），也可只填 MUSIC_U 的值；仅保存在服务端，不会公开给访客。会员歌曲需使用会员账号",
+      "ncm_playlist": "博客歌单",
+      "ncm_playlist_desc": "从 Cookie 对应账号的歌单（含收藏的歌单）中选择；访客只能播放该歌单内的歌曲",
+      "ncm_playlist_placeholder": "先读取账号歌单",
+      "ncm_playlist_select": "选择歌单",
+      "ncm_playlist_id": "歌单 ID：{id}",
+      "ncm_track_count": "{count} 首",
+      "ncm_subscribed": "收藏",
+      "ncm_load_playlists": "读取歌单",
+      "ncm_load_failed": "读取歌单失败",
+      "ncm_account": "{name} · 共 {count} 个歌单"
     },
     "labels": {
       "title": "标签管理",
@@ -1501,7 +1520,12 @@
       "ai_write_empty_selection": "选中的内容为空",
       "ai_timeout": "AI 响应超时",
       "ai_empty_response": "AI 没有返回内容",
-      "ai_interrupted": "连接中断，生成未完成"
+      "ai_interrupted": "连接中断，生成未完成",
+      "ncm_invalid_api_url": "网易云 API 地址无效，需为 http(s) 地址",
+      "ncm_cookie_required": "请填写网易云 Cookie",
+      "ncm_cookie_invalid": "网易云 Cookie 无效或已过期",
+      "ncm_request_failed": "请求网易云 API 失败，请检查服务地址",
+      "ncm_not_configured": "尚未配置网易云歌单"
     }
   },
   "Role": {

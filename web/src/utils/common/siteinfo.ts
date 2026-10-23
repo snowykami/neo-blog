@@ -1,3 +1,5 @@
+import type { MusicSourceType } from '@/models/music'
+
 export interface SiteInfo {
   colorSchemes: string[]
   defaultColorScheme: string
@@ -33,7 +35,8 @@ export interface SiteInfo {
   aboutBackground?: string // 侧边栏「关于我」卡片背景图
   sidebarIframeUrl?: string // 侧边栏嵌入页面（如 Misskey 时间线）地址
   sidebarIframeTitle?: string // 侧边栏嵌入卡片标题
-  musicPlaylistUrl?: string // 悬浮音乐播放器歌单 JSON 地址
+  musicSource?: MusicSourceType // 悬浮音乐播放器的歌单来源，默认为静态 JSON
+  musicPlaylistUrl?: string // 悬浮音乐播放器歌单 JSON 地址（静态来源）
   enableThirdPartyScript?: boolean // 是否在前台加载全局第三方脚本
 }
 

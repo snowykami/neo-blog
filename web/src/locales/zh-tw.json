@@ -579,7 +579,7 @@
         "delete_description": "將刪除設定鍵「{key}」，刪除後無法復原，可能影響網站運作。"
       },
       "section_personalize": "個人化資源",
-      "section_personalize_desc": "前台側邊欄、音樂播放器與第三方腳本等資源，留空即隱藏對應元件",
+      "section_personalize_desc": "前台側邊欄與第三方腳本等資源，留空即隱藏對應元件",
       "about_background": "「關於我」卡片背景圖",
       "empty_to_hide": "留空則不顯示",
       "sidebar_iframe_url": "側邊欄嵌入頁面網址",
@@ -600,7 +600,26 @@
       "show_secret": "顯示",
       "hide_secret": "隱藏",
       "ai_summary_concurrency": "AI 並行數",
-      "ai_summary_concurrency_desc": "同時呼叫模型的請求數上限（1～20），AI 摘要與編輯器 AI 寫作共用；超出時排隊依序執行，AI 寫作優先"
+      "ai_summary_concurrency_desc": "同時呼叫模型的請求數上限（1～20），AI 摘要與編輯器 AI 寫作共用；超出時排隊依序執行，AI 寫作優先",
+      "section_music": "音樂播放器",
+      "section_music_desc": "前台懸浮音樂播放器的歌單來源",
+      "music_source": "歌單來源",
+      "music_source_static": "靜態歌單 JSON",
+      "music_source_ncm": "網易雲音樂歌單",
+      "ncm_api_base_url": "網易雲 API 網址",
+      "ncm_api_base_url_desc": "自行部署的 NeteaseCloudMusicApi Enhanced 服務網址，用於讀取歌單、播放網址與歌詞",
+      "ncm_cookie": "網易雲 Cookie",
+      "ncm_cookie_desc": "登入網易雲帳號後的 Cookie（至少包含 MUSIC_U），也可只填 MUSIC_U 的值；僅儲存於伺服器端，不會公開給訪客。會員歌曲需使用會員帳號",
+      "ncm_playlist": "部落格歌單",
+      "ncm_playlist_desc": "從 Cookie 對應帳號的歌單（含收藏的歌單）中選擇；訪客只能播放該歌單內的歌曲",
+      "ncm_playlist_placeholder": "請先讀取帳號歌單",
+      "ncm_playlist_select": "選擇歌單",
+      "ncm_playlist_id": "歌單 ID：{id}",
+      "ncm_track_count": "{count} 首",
+      "ncm_subscribed": "收藏",
+      "ncm_load_playlists": "讀取歌單",
+      "ncm_load_failed": "讀取歌單失敗",
+      "ncm_account": "{name} · 共 {count} 個歌單"
     },
     "labels": {
       "title": "標籤管理",
@@ -1529,7 +1548,12 @@
       "ai_write_empty_selection": "選取的內容為空",
       "ai_timeout": "AI 回應逾時",
       "ai_empty_response": "AI 沒有回傳內容",
-      "ai_interrupted": "連線中斷，生成未完成"
+      "ai_interrupted": "連線中斷，生成未完成",
+      "ncm_invalid_api_url": "網易雲 API 網址無效，需為 http(s) 網址",
+      "ncm_cookie_required": "請填寫網易雲 Cookie",
+      "ncm_cookie_invalid": "網易雲 Cookie 無效或已過期",
+      "ncm_request_failed": "請求網易雲 API 失敗，請檢查服務網址",
+      "ncm_not_configured": "尚未設定網易雲歌單"
     }
   },
   "ErrorPage": {

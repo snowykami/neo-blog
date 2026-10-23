@@ -78,6 +78,26 @@ func GetAISummaryConcurrency() int {
 	return min(max(n, 1), AISummaryConcurrencyMax)
 }
 
+// NCMConfig 网易云音乐 API（NeteaseCloudMusicApi Enhanced）配置（仅后端使用，Cookie 不对外公开）
+type NCMConfig struct {
+	BaseURL    string
+	Cookie     string
+	PlaylistID int64 // 作为博客歌单的网易云歌单 ID
+}
+
+// Configured 已填写 API 地址并选择了歌单
+func (c NCMConfig) Configured() bool {
+	return c.BaseURL != "" && c.PlaylistID > 0
+}
+
+func GetNCMConfig() NCMConfig {
+	return NCMConfig{
+		BaseURL:    strings.TrimRight(strings.TrimSpace(repo.KV.GetStringWithoutErr("ncm_api_base_url", "")), "/"),
+		Cookie:     strings.TrimSpace(repo.KV.GetStringWithoutErr("ncm_cookie", "")),
+		PlaylistID: int64(repo.KV.GetIntWithoutErr("ncm_playlist_id", 0)),
+	}
+}
+
 func GetMaximumReplyDepth() int {
 	return repo.KV.GetIntWithoutErr("max_reply_depth", utils.Env.GetAsInt(constant.EnvKeyMaxReplyDepth, constant.MaxReplyDepthDefault))
 }

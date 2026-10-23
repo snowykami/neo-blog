@@ -579,7 +579,7 @@
         "delete_description": "Ключ «{key}» будет удалён. Это нельзя отменить, и это может повлиять на работу сайта."
       },
       "section_personalize": "Персонализация",
-      "section_personalize_desc": "Ресурсы боковой панели, музыкального плеера и стороннего скрипта на сайте. Оставьте пустым, чтобы скрыть соответствующий компонент.",
+      "section_personalize_desc": "Ресурсы боковой панели и стороннего скрипта на сайте. Оставьте пустым, чтобы скрыть соответствующий компонент.",
       "about_background": "Фон карточки «Обо мне»",
       "empty_to_hide": "Оставьте пустым, чтобы скрыть",
       "sidebar_iframe_url": "URL встроенной страницы в боковой панели",
@@ -600,7 +600,26 @@
       "show_secret": "Показать",
       "hide_secret": "Скрыть",
       "ai_summary_concurrency": "Параллельность ИИ",
-      "ai_summary_concurrency_desc": "Максимум одновременных запросов к модели (1–20), общий для ИИ-резюме и письма с ИИ в редакторе; остальные ждут в очереди, письмо с ИИ обслуживается первым"
+      "ai_summary_concurrency_desc": "Максимум одновременных запросов к модели (1–20), общий для ИИ-резюме и письма с ИИ в редакторе; остальные ждут в очереди, письмо с ИИ обслуживается первым",
+      "section_music": "Музыкальный плеер",
+      "section_music_desc": "Откуда плавающий музыкальный плеер на сайте берёт плейлист",
+      "music_source": "Источник плейлиста",
+      "music_source_static": "Статический JSON плейлиста",
+      "music_source_ncm": "Плейлист NetEase Cloud Music",
+      "ncm_api_base_url": "URL API NetEase",
+      "ncm_api_base_url_desc": "URL вашего развёрнутого сервиса NeteaseCloudMusicApi Enhanced для получения плейлистов, ссылок на аудио и текстов песен",
+      "ncm_cookie": "Cookie NetEase",
+      "ncm_cookie_desc": "Cookie авторизованного аккаунта NetEase (должен содержать MUSIC_U); можно указать только значение MUSIC_U. Хранится только на сервере и не показывается посетителям. Для VIP-треков нужен VIP-аккаунт",
+      "ncm_playlist": "Плейлист блога",
+      "ncm_playlist_desc": "Выберите один из плейлистов аккаунта из cookie (включая сохранённые). Посетители смогут воспроизводить только треки из этого плейлиста",
+      "ncm_playlist_placeholder": "Сначала загрузите плейлисты аккаунта",
+      "ncm_playlist_select": "Выберите плейлист",
+      "ncm_playlist_id": "ID плейлиста: {id}",
+      "ncm_track_count": "Треков: {count}",
+      "ncm_subscribed": "Сохранён",
+      "ncm_load_playlists": "Загрузить плейлисты",
+      "ncm_load_failed": "Не удалось загрузить плейлисты",
+      "ncm_account": "{name} · плейлистов: {count}"
     },
     "labels": {
       "title": "Метки",
@@ -1529,7 +1548,12 @@
       "ai_write_empty_selection": "Выделение пустое",
       "ai_timeout": "Истекло время ожидания ответа ИИ",
       "ai_empty_response": "ИИ не вернул текст",
-      "ai_interrupted": "Соединение прервано, генерация не завершена"
+      "ai_interrupted": "Соединение прервано, генерация не завершена",
+      "ncm_invalid_api_url": "Неверный URL API NetEase: нужен адрес http(s)",
+      "ncm_cookie_required": "Укажите cookie NetEase",
+      "ncm_cookie_invalid": "Cookie NetEase недействителен или истёк",
+      "ncm_request_failed": "Не удалось обратиться к API NetEase, проверьте адрес сервиса",
+      "ncm_not_configured": "Плейлист NetEase не настроен"
     }
   },
   "ErrorPage": {

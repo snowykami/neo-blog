@@ -579,7 +579,7 @@
         "delete_description": "キー「{key}」を削除します。元に戻せず、サイトの動作に影響する可能性があります。"
       },
       "section_personalize": "パーソナライズ",
-      "section_personalize_desc": "サイドバー、音楽プレーヤー、サードパーティスクリプトなどのリソース。空欄にすると該当コンポーネントを非表示にします。",
+      "section_personalize_desc": "サイドバー、サードパーティスクリプトなどのリソース。空欄にすると該当コンポーネントを非表示にします。",
       "about_background": "「自己紹介」カードの背景画像",
       "empty_to_hide": "空欄にすると表示しません",
       "sidebar_iframe_url": "サイドバー埋め込みページの URL",
@@ -600,7 +600,26 @@
       "show_secret": "表示",
       "hide_secret": "非表示",
       "ai_summary_concurrency": "AI の同時実行数",
-      "ai_summary_concurrency_desc": "モデルへの同時リクエスト数の上限（1～20）。AI 要約とエディターの AI ライティングで共有し、超えた分は順番に待機します（AI ライティングを優先）"
+      "ai_summary_concurrency_desc": "モデルへの同時リクエスト数の上限（1～20）。AI 要約とエディターの AI ライティングで共有し、超えた分は順番に待機します（AI ライティングを優先）",
+      "section_music": "音楽プレーヤー",
+      "section_music_desc": "公開サイトのフローティング音楽プレーヤーのプレイリスト取得元",
+      "music_source": "プレイリストの取得元",
+      "music_source_static": "静的プレイリスト JSON",
+      "music_source_ncm": "NetEase Cloud Music のプレイリスト",
+      "ncm_api_base_url": "NetEase API の URL",
+      "ncm_api_base_url_desc": "自前でデプロイした NeteaseCloudMusicApi Enhanced サービスの URL。プレイリスト、再生 URL、歌詞の取得に使用します",
+      "ncm_cookie": "NetEase の Cookie",
+      "ncm_cookie_desc": "ログイン済み NetEase アカウントの Cookie（MUSIC_U を含む必要があります）。MUSIC_U の値だけでも構いません。サーバーにのみ保存され、訪問者には公開されません。VIP 楽曲には VIP アカウントが必要です",
+      "ncm_playlist": "ブログのプレイリスト",
+      "ncm_playlist_desc": "Cookie のアカウントのプレイリスト（お気に入り登録したものを含む）から選択します。訪問者はこのプレイリスト内の曲のみ再生できます",
+      "ncm_playlist_placeholder": "先にアカウントのプレイリストを読み込んでください",
+      "ncm_playlist_select": "プレイリストを選択",
+      "ncm_playlist_id": "プレイリスト ID：{id}",
+      "ncm_track_count": "{count} 曲",
+      "ncm_subscribed": "お気に入り",
+      "ncm_load_playlists": "プレイリストを読み込む",
+      "ncm_load_failed": "プレイリストの読み込みに失敗しました",
+      "ncm_account": "{name} · プレイリスト {count} 件"
     },
     "labels": {
       "title": "タグ管理",
@@ -1529,7 +1548,12 @@
       "ai_write_empty_selection": "選択範囲が空です",
       "ai_timeout": "AI の応答がタイムアウトしました",
       "ai_empty_response": "AI から内容が返されませんでした",
-      "ai_interrupted": "接続が切れ、生成が完了しませんでした"
+      "ai_interrupted": "接続が切れ、生成が完了しませんでした",
+      "ncm_invalid_api_url": "NetEase API の URL が無効です。http(s) の URL を指定してください",
+      "ncm_cookie_required": "NetEase の Cookie を入力してください",
+      "ncm_cookie_invalid": "NetEase の Cookie が無効か期限切れです",
+      "ncm_request_failed": "NetEase API へのリクエストに失敗しました。サービスの URL を確認してください",
+      "ncm_not_configured": "NetEase のプレイリストが設定されていません"
     }
   },
   "ErrorPage": {

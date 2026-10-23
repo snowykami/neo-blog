@@ -1,7 +1,7 @@
 'use client'
 
 import type { PlayMode } from '@/contexts/music-context'
-import type { MusicTrack } from '@/models/music'
+import type { MusicSource, MusicTrack } from '@/models/music'
 import type { LyricMarqueeWordBox, MusicLyricLine, MusicLyricMode } from '@/utils/music-lyric'
 import { useMeasure } from '@uidotdev/usehooks'
 import { CaseSensitiveIcon, CircleArrowLeftIcon, CircleArrowRightIcon, CirclePauseIcon, CirclePlayIcon, LanguagesIcon, ListMusicIcon, MessageSquareOffIcon, MusicIcon, Repeat1Icon, RepeatIcon, SearchIcon, Shuffle, Volume2Icon, VolumeXIcon } from 'lucide-react'
@@ -332,7 +332,7 @@ function usePrefersReducedMotion() {
   )
 }
 
-export function MusicPlayer({ playlistUrl }: { playlistUrl: string }) {
+export function MusicPlayer({ source }: { source: MusicSource }) {
   const t = useTranslations('MusicPlayer')
   const {
     currentTrack,
@@ -384,7 +384,7 @@ export function MusicPlayer({ playlistUrl }: { playlistUrl: string }) {
   // 拉取歌单后一次性以“存储的曲目 + 进度”初始化，不再先切到第 0 首再切回，避免多余的歌词请求与竞态
   useEffect(() => {
     let cancelled = false
-    fetchPlaylist(playlistUrl).then((playlist) => {
+    fetchPlaylist(source).then((playlist) => {
       if (cancelled)
         return
       const { index, time } = getRestoredPlayback(playlist)
@@ -403,8 +403,8 @@ export function MusicPlayer({ playlistUrl }: { playlistUrl: string }) {
     return () => {
       cancelled = true
     }
-    // sampleTrack 每次渲染都会重新创建，不放入依赖，只在歌单地址变化时重新拉取
-  }, [playlistUrl, replacePlaylist])
+    // sampleTrack 每次渲染都会重新创建，不放入依赖，只在歌单来源变化时重新拉取
+  }, [source, replacePlaylist])
 
   // 曲目变化时保存索引与曲目 id；切到新曲目时进度清零，保证进度始终属于已保存的曲目
   const currentTrackId = currentTrack?.id ?? null

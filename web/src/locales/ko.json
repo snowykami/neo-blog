@@ -579,7 +579,7 @@
         "delete_description": "키 \"{key}\"이(가) 삭제됩니다. 되돌릴 수 없으며 사이트 동작에 영향을 줄 수 있습니다."
       },
       "section_personalize": "개인화 리소스",
-      "section_personalize_desc": "사이드바, 음악 플레이어, 서드파티 스크립트 등 공개 사이트 리소스입니다. 비워 두면 해당 구성 요소가 숨겨집니다.",
+      "section_personalize_desc": "사이드바, 서드파티 스크립트 등 공개 사이트 리소스입니다. 비워 두면 해당 구성 요소가 숨겨집니다.",
       "about_background": "'소개' 카드 배경 이미지",
       "empty_to_hide": "비워 두면 표시하지 않습니다",
       "sidebar_iframe_url": "사이드바 임베드 페이지 URL",
@@ -600,7 +600,26 @@
       "show_secret": "표시",
       "hide_secret": "숨기기",
       "ai_summary_concurrency": "AI 동시 실행 수",
-      "ai_summary_concurrency_desc": "모델 동시 요청 수 상한(1~20). AI 요약과 편집기 AI 글쓰기가 함께 사용하며, 초과 요청은 순서대로 대기합니다(AI 글쓰기 우선)"
+      "ai_summary_concurrency_desc": "모델 동시 요청 수 상한(1~20). AI 요약과 편집기 AI 글쓰기가 함께 사용하며, 초과 요청은 순서대로 대기합니다(AI 글쓰기 우선)",
+      "section_music": "음악 플레이어",
+      "section_music_desc": "공개 사이트의 플로팅 음악 플레이어가 재생목록을 가져오는 곳",
+      "music_source": "재생목록 출처",
+      "music_source_static": "정적 재생목록 JSON",
+      "music_source_ncm": "NetEase Cloud Music 재생목록",
+      "ncm_api_base_url": "NetEase API URL",
+      "ncm_api_base_url_desc": "직접 배포한 NeteaseCloudMusicApi Enhanced 서비스 URL로, 재생목록·재생 URL·가사를 가져오는 데 사용됩니다",
+      "ncm_cookie": "NetEase 쿠키",
+      "ncm_cookie_desc": "로그인한 NetEase 계정의 쿠키(MUSIC_U 포함 필수)이며, MUSIC_U 값만 입력해도 됩니다. 서버에만 저장되며 방문자에게 공개되지 않습니다. VIP 곡은 VIP 계정이 필요합니다",
+      "ncm_playlist": "블로그 재생목록",
+      "ncm_playlist_desc": "쿠키 계정의 재생목록(저장한 재생목록 포함) 중에서 선택합니다. 방문자는 이 재생목록의 곡만 재생할 수 있습니다",
+      "ncm_playlist_placeholder": "먼저 계정 재생목록을 불러오세요",
+      "ncm_playlist_select": "재생목록 선택",
+      "ncm_playlist_id": "재생목록 ID: {id}",
+      "ncm_track_count": "{count}곡",
+      "ncm_subscribed": "저장됨",
+      "ncm_load_playlists": "재생목록 불러오기",
+      "ncm_load_failed": "재생목록을 불러오지 못했습니다",
+      "ncm_account": "{name} · 재생목록 {count}개"
     },
     "labels": {
       "title": "태그",
@@ -1529,7 +1548,12 @@
       "ai_write_empty_selection": "선택한 내용이 비어 있습니다",
       "ai_timeout": "AI 응답 시간이 초과되었습니다",
       "ai_empty_response": "AI가 내용을 반환하지 않았습니다",
-      "ai_interrupted": "연결이 끊겨 생성이 완료되지 않았습니다"
+      "ai_interrupted": "연결이 끊겨 생성이 완료되지 않았습니다",
+      "ncm_invalid_api_url": "NetEase API URL이 올바르지 않습니다. http(s) URL이어야 합니다",
+      "ncm_cookie_required": "NetEase 쿠키를 입력하세요",
+      "ncm_cookie_invalid": "NetEase 쿠키가 유효하지 않거나 만료되었습니다",
+      "ncm_request_failed": "NetEase API 요청에 실패했습니다. 서비스 URL을 확인하세요",
+      "ncm_not_configured": "NetEase 재생목록이 구성되지 않았습니다"
     }
   },
   "ErrorPage": {

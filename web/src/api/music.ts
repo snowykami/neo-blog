@@ -1,5 +1,7 @@
-import type { MusicTrack } from '@/models/music'
+import type { MusicSource, MusicTrack, NCMPlaylists } from '@/models/music'
+import type { BaseResponse } from '@/models/resp'
 import { snakeToCamelObj } from 'field-conv'
+import axiosClient from './client'
 
 export interface MusicLyrics {
   lrc?: { lyric: string, version: number } | null
@@ -10,9 +12,13 @@ export interface MusicLyrics {
   yromalrc?: { lyric: string, version: number } | null
 }
 
-// 歌单地址来自站点配置 siteInfo.musicPlaylistUrl
-export async function fetchPlaylist(url: string): Promise<MusicTrack[]> {
-  const response = await fetch(url)
+// 网易云歌单由后端提供；静态歌单直接读取 JSON 地址
+export async function fetchPlaylist(source: MusicSource): Promise<MusicTrack[]> {
+  if (source.type === 'ncm') {
+    const res = await axiosClient.get<BaseResponse<MusicTrack[]>>('/music/playlist')
+    return res.data.data
+  }
+  const response = await fetch(source.url)
   if (!response.ok) {
     throw new Error('Network response was not ok')
   }
@@ -20,15 +26,12 @@ export async function fetchPlaylist(url: string): Promise<MusicTrack[]> {
 }
 
 export async function fetchNcmLyric(id: number, signal?: AbortSignal): Promise<MusicLyrics> {
-  const url = `/api/music/lyric?song_id=${encodeURIComponent(String(id))}`
-  const resp = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    signal,
-  })
-  if (!resp.ok) {
-    throw new Error('Network response was not ok')
-  }
-  return await resp.json()
+  const res = await axiosClient.get<BaseResponse<MusicLyrics>>(`/music/song/${id}/lyric`, { signal })
+  return res.data.data
+}
+
+// 获取网易云账号的歌单（仅管理员）；参数为空时使用已保存的配置
+export async function listNCMPlaylists(params: { apiBaseUrl: string, cookie: string }): Promise<BaseResponse<NCMPlaylists>> {
+  const res = await axiosClient.post('/music/ncm/playlists', params)
+  return res.data
 }

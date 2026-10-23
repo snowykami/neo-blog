@@ -579,7 +579,7 @@
         "delete_description": "La clé « {key} » sera supprimée. Cette action est irréversible et peut affecter le fonctionnement du site."
       },
       "section_personalize": "Personnalisation",
-      "section_personalize_desc": "Ressources de la barre latérale, du lecteur de musique et du script tiers du site public. Laissez vide pour masquer le composant correspondant.",
+      "section_personalize_desc": "Ressources de la barre latérale et du script tiers du site public. Laissez vide pour masquer le composant correspondant.",
       "about_background": "Image de fond de la carte « À propos »",
       "empty_to_hide": "Laisser vide pour masquer",
       "sidebar_iframe_url": "URL de la page intégrée dans la barre latérale",
@@ -600,7 +600,26 @@
       "show_secret": "Afficher",
       "hide_secret": "Masquer",
       "ai_summary_concurrency": "Simultanéité IA",
-      "ai_summary_concurrency_desc": "Nombre maximal de requêtes simultanées au modèle (1–20), partagé entre les résumés IA et l’écriture IA de l’éditeur ; les autres attendent dans l’ordre, l’écriture IA est prioritaire"
+      "ai_summary_concurrency_desc": "Nombre maximal de requêtes simultanées au modèle (1–20), partagé entre les résumés IA et l’écriture IA de l’éditeur ; les autres attendent dans l’ordre, l’écriture IA est prioritaire",
+      "section_music": "Lecteur de musique",
+      "section_music_desc": "Provenance de la playlist du lecteur de musique flottant du site public",
+      "music_source": "Source de la playlist",
+      "music_source_static": "JSON de playlist statique",
+      "music_source_ncm": "Playlist NetEase Cloud Music",
+      "ncm_api_base_url": "URL de l'API NetEase",
+      "ncm_api_base_url_desc": "URL de votre service NeteaseCloudMusicApi Enhanced auto-hébergé, utilisé pour récupérer les playlists, les URL audio et les paroles",
+      "ncm_cookie": "Cookie NetEase",
+      "ncm_cookie_desc": "Cookie d'un compte NetEase connecté (doit contenir MUSIC_U) ; vous pouvez aussi saisir uniquement la valeur de MUSIC_U. Stocké uniquement sur le serveur, jamais exposé aux visiteurs. Les titres VIP nécessitent un compte VIP",
+      "ncm_playlist": "Playlist du blog",
+      "ncm_playlist_desc": "Choisissez parmi les playlists du compte associé au cookie (playlists enregistrées comprises). Les visiteurs ne peuvent écouter que les titres de cette playlist",
+      "ncm_playlist_placeholder": "Chargez d'abord les playlists du compte",
+      "ncm_playlist_select": "Choisir une playlist",
+      "ncm_playlist_id": "ID de playlist : {id}",
+      "ncm_track_count": "{count} titres",
+      "ncm_subscribed": "Enregistrée",
+      "ncm_load_playlists": "Charger les playlists",
+      "ncm_load_failed": "Échec du chargement des playlists",
+      "ncm_account": "{name} · {count} playlists"
     },
     "labels": {
       "title": "Étiquettes",
@@ -1529,7 +1548,12 @@
       "ai_write_empty_selection": "La sélection est vide",
       "ai_timeout": "Délai de réponse de l’IA dépassé",
       "ai_empty_response": "L’IA n’a renvoyé aucun contenu",
-      "ai_interrupted": "Connexion interrompue avant la fin de la génération"
+      "ai_interrupted": "Connexion interrompue avant la fin de la génération",
+      "ncm_invalid_api_url": "URL de l'API NetEase invalide ; elle doit être une URL http(s)",
+      "ncm_cookie_required": "Veuillez saisir le cookie NetEase",
+      "ncm_cookie_invalid": "Le cookie NetEase est invalide ou expiré",
+      "ncm_request_failed": "La requête vers l'API NetEase a échoué ; vérifiez l'URL du service",
+      "ncm_not_configured": "La playlist NetEase n'est pas configurée"
     }
   },
   "ErrorPage": {

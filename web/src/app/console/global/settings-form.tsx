@@ -1,25 +1,30 @@
 'use client'
 
+import type { MusicSourceType, NCMPlaylists } from '@/models/music'
 import type { SiteInfo } from '@/utils/common/siteinfo'
-import { EyeIcon, EyeOffIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useEffect, useState } from 'react'
-import { FormProvider, useForm, useFormContext } from 'react-hook-form'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { FormProvider, useForm, useFormContext, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { listKV, setKV } from '@/api/admin'
 import { getSiteInfo } from '@/api/misc'
+import { listNCMPlaylists } from '@/api/music'
 import { AssetField } from '@/components/common/asset-picker'
 import { LabelWithInfo } from '@/components/common/info-tooltip'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useSiteInfo } from '@/contexts/site-info-context'
-import { useOperationT } from '@/hooks/use-translations'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
 // 站点内置的配色方案，对应 app/styles 下的主题文件
@@ -61,7 +66,11 @@ interface SettingsValues {
   aboutBackground: string
   sidebarIframeUrl: string
   sidebarIframeTitle: string
+  musicSource: MusicSourceType
   musicPlaylistUrl: string
+  ncmApiBaseUrl: string
+  ncmCookie: string
+  ncmPlaylistId: number
   enableThirdPartyScript: boolean
   aiApiBaseUrl: string
   aiApiKey: string
@@ -97,6 +106,7 @@ const SITE_INFO_FIELDS: FieldName[] = [
   'aboutBackground',
   'sidebarIframeUrl',
   'sidebarIframeTitle',
+  'musicSource',
   'musicPlaylistUrl',
   'enableThirdPartyScript',
 ]
@@ -123,6 +133,10 @@ const STANDALONE_KEYS: Partial<Record<FieldName, { key: string, toValue?: (value
   aiApiKey: { key: 'ai_api_key', toValue: values => values.aiApiKey.trim() },
   aiModel: { key: 'ai_model', toValue: values => values.aiModel.trim() },
   aiSummaryConcurrency: { key: 'ai_summary_concurrency' },
+  // 网易云 API 与 Cookie 仅后端使用，同样只写入独立配置键
+  ncmApiBaseUrl: { key: 'ncm_api_base_url', toValue: values => values.ncmApiBaseUrl.trim() },
+  ncmCookie: { key: 'ncm_cookie', toValue: values => values.ncmCookie.trim() },
+  ncmPlaylistId: { key: 'ncm_playlist_id' },
 }
 
 function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
@@ -165,7 +179,11 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     aboutBackground: info.aboutBackground ?? fallbackSiteInfo.aboutBackground ?? '',
     sidebarIframeUrl: info.sidebarIframeUrl ?? fallbackSiteInfo.sidebarIframeUrl ?? '',
     sidebarIframeTitle: info.sidebarIframeTitle ?? fallbackSiteInfo.sidebarIframeTitle ?? '',
+    musicSource: info.musicSource ?? 'static',
     musicPlaylistUrl: info.musicPlaylistUrl ?? fallbackSiteInfo.musicPlaylistUrl ?? '',
+    ncmApiBaseUrl: str('ncmApiBaseUrl', ''),
+    ncmCookie: str('ncmCookie', ''),
+    ncmPlaylistId: num('ncmPlaylistId', 0),
     enableThirdPartyScript: info.enableThirdPartyScript ?? fallbackSiteInfo.enableThirdPartyScript ?? false,
     aiApiBaseUrl: str('aiApiBaseUrl', ''),
     aiApiKey: str('aiApiKey', ''),
@@ -202,6 +220,7 @@ function toSiteInfo(base: SiteInfo, values: SettingsValues): SiteInfo {
     aboutBackground: values.aboutBackground.trim(),
     sidebarIframeUrl: values.sidebarIframeUrl.trim(),
     sidebarIframeTitle: values.sidebarIframeTitle.trim(),
+    musicSource: values.musicSource,
     musicPlaylistUrl: values.musicPlaylistUrl.trim(),
     enableThirdPartyScript: values.enableThirdPartyScript,
   }
@@ -304,9 +323,10 @@ export function SettingsForm() {
           <ImageField name="aboutBackground" label={t('about_background')} description={t('empty_to_hide')} />
           <UrlField name="sidebarIframeUrl" label={t('sidebar_iframe_url')} description={t('sidebar_iframe_url_desc')} />
           <TextField name="sidebarIframeTitle" label={t('sidebar_iframe_title')} placeholder="Misskey" />
-          <UrlField name="musicPlaylistUrl" label={t('music_playlist_url')} description={t('music_playlist_url_desc')} />
           <SwitchField name="enableThirdPartyScript" label={t('enable_third_party_script')} description={t('enable_third_party_script_desc')} />
         </Section>
+
+        <MusicSection />
 
         <Section title={t('section_footer')}>
           <TextField name="footerText" label={t('footer_text')} wide />
@@ -637,6 +657,123 @@ function LinkListField({ name, label, description }: FieldProps) {
           />
         </FormItem>
       )}
+    />
+  )
+}
+
+// 音乐播放器：歌单来源为静态 JSON 地址，或从网易云账号的歌单中选择
+function MusicSection() {
+  const t = useTranslations('Console.global')
+  const source = useWatch<SettingsValues, 'musicSource'>({ name: 'musicSource' })
+  return (
+    <Section title={t('section_music')} description={t('section_music_desc')}>
+      <SelectField
+        name="musicSource"
+        label={t('music_source')}
+        options={[
+          { value: 'static', label: t('music_source_static') },
+          { value: 'ncm', label: t('music_source_ncm') },
+        ]}
+      />
+      {source === 'ncm'
+        ? (
+            <>
+              <UrlField name="ncmApiBaseUrl" label={t('ncm_api_base_url')} description={t('ncm_api_base_url_desc')} placeholder="https://ncm-api.example.com" />
+              <PasswordField name="ncmCookie" label={t('ncm_cookie')} description={t('ncm_cookie_desc')} placeholder="MUSIC_U=..." wide />
+              <NCMPlaylistField />
+            </>
+          )
+        : <UrlField name="musicPlaylistUrl" label={t('music_playlist_url')} description={t('music_playlist_url_desc')} />}
+    </Section>
+  )
+}
+
+// 网易云歌单：用当前填写的 API 地址与 Cookie 读取账号歌单（未保存也可以先读取），选择其一作为博客歌单
+function NCMPlaylistField() {
+  const t = useTranslations('Console.global')
+  const errorMessageT = useErrorMessageT()
+  const { control, getValues } = useFormContext<SettingsValues>()
+  const [result, setResult] = useState<NCMPlaylists | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await listNCMPlaylists({ apiBaseUrl: getValues('ncmApiBaseUrl').trim(), cookie: getValues('ncmCookie').trim() })
+      setResult(res.data)
+    }
+    catch (err) {
+      setResult(null)
+      setError(errorMessageT(err, t('ncm_load_failed')))
+    }
+    finally {
+      setLoading(false)
+    }
+  }, [getValues, errorMessageT, t])
+
+  // 已保存配置时自动读取一次，以显示当前所选歌单的名称
+  const autoLoaded = useRef(false)
+  useEffect(() => {
+    if (autoLoaded.current)
+      return
+    autoLoaded.current = true
+    if (getValues('ncmApiBaseUrl') && getValues('ncmCookie'))
+      void load()
+  }, [getValues, load])
+
+  return (
+    <FormField
+      control={control}
+      name="ncmPlaylistId"
+      render={({ field }) => {
+        const selectedId = Number(field.value) || 0
+        const known = result?.playlists.some(playlist => playlist.id === selectedId)
+        return (
+          <FormItem className="md:col-span-2">
+            <LabelWithInfo info={t('ncm_playlist_desc')}><FormLabel>{t('ncm_playlist')}</FormLabel></LabelWithInfo>
+            <div className="flex gap-3">
+              <Select value={selectedId ? String(selectedId) : ''} onValueChange={value => field.onChange(Number(value))} disabled={!result}>
+                <FormControl>
+                  <SelectTrigger className="min-w-0 flex-1">
+                    <SelectValue placeholder={selectedId && !known ? t('ncm_playlist_id', { id: selectedId }) : t(result ? 'ncm_playlist_select' : 'ncm_playlist_placeholder')} />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {result?.playlists.map(playlist => (
+                    <SelectItem key={playlist.id} value={String(playlist.id)}>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Avatar className="size-6 rounded-md">
+                          <AvatarImage src={playlist.cover} alt="" />
+                          <AvatarFallback className="rounded-md"><ListMusicIcon className="size-3.5" /></AvatarFallback>
+                        </Avatar>
+                        <span className="truncate">{playlist.name}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{t('ncm_track_count', { count: playlist.trackCount })}</span>
+                        {playlist.subscribed && <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[11px]">{t('ncm_subscribed')}</Badge>}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="outline" disabled={loading} onClick={() => void load()}>
+                {loading ? <Spinner /> : <RefreshCwIcon />}
+                {t('ncm_load_playlists')}
+              </Button>
+            </div>
+            {result && (
+              <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Avatar className="size-5">
+                  <AvatarImage src={result.account.avatar} alt="" />
+                  <AvatarFallback>{result.account.nickname.slice(0, 1)}</AvatarFallback>
+                </Avatar>
+                {t('ncm_account', { name: result.account.nickname, count: result.playlists.length })}
+              </p>
+            )}
+            {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+          </FormItem>
+        )
+      }}
     />
   )
 }

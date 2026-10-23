@@ -579,7 +579,7 @@
         "delete_description": "將刪鍵「{key}」，既刪不可復，或礙站之行。"
       },
       "section_personalize": "個性之資",
-      "section_personalize_desc": "前臺側欄、樂播器與外家腳本諸資，留空則隱其件",
+      "section_personalize_desc": "前臺側欄與外家腳本諸資，留空則隱其件",
       "about_background": "「關於吾」卡之背景圖",
       "empty_to_hide": "留空則不顯",
       "sidebar_iframe_url": "側欄嵌頁之址",
@@ -600,7 +600,26 @@
       "show_secret": "顯之",
       "hide_secret": "隱之",
       "ai_summary_concurrency": "AI 並行之數",
-      "ai_summary_concurrency_desc": "同時召模型之請上限（一至二十），撮要與編者 AI 撰文共之；逾則依序待之，撰文先行"
+      "ai_summary_concurrency_desc": "同時召模型之請上限（一至二十），撮要與編者 AI 撰文共之；逾則依序待之，撰文先行",
+      "section_music": "樂播器",
+      "section_music_desc": "前臺浮樂播器之曲目所出",
+      "music_source": "曲目所出",
+      "music_source_static": "靜態曲目 JSON",
+      "music_source_ncm": "網易雲樂之曲目",
+      "ncm_api_base_url": "網易雲 API 之址",
+      "ncm_api_base_url_desc": "自設之 NeteaseCloudMusicApi Enhanced 服務之址，以取曲目、播址與歌詞",
+      "ncm_cookie": "網易雲 Cookie",
+      "ncm_cookie_desc": "登網易雲之後所得 Cookie（須含 MUSIC_U），或僅填 MUSIC_U 之值；唯藏於服務端，不示於訪客。會員之曲須以會員之號",
+      "ncm_playlist": "博客曲目",
+      "ncm_playlist_desc": "擇 Cookie 所屬之號之曲目（兼所藏者）；訪客唯可播此曲目中之曲",
+      "ncm_playlist_placeholder": "請先取其號之曲目",
+      "ncm_playlist_select": "擇曲目",
+      "ncm_playlist_id": "曲目 ID：{id}",
+      "ncm_track_count": "{count} 曲",
+      "ncm_subscribed": "所藏",
+      "ncm_load_playlists": "取曲目",
+      "ncm_load_failed": "取曲目未成",
+      "ncm_account": "{name} · 凡 {count} 曲目"
     },
     "labels": {
       "title": "標籤管理",
@@ -1501,7 +1520,12 @@
       "ai_write_empty_selection": "所選者空",
       "ai_timeout": "AI 久而不應",
       "ai_empty_response": "AI 無所答",
-      "ai_interrupted": "連綴中絕，作而未竟"
+      "ai_interrupted": "連綴中絕，作而未竟",
+      "ncm_invalid_api_url": "網易雲 API 之址不合，須為 http(s) 之址",
+      "ncm_cookie_required": "請填網易雲 Cookie",
+      "ncm_cookie_invalid": "網易雲 Cookie 無效或已過期",
+      "ncm_request_failed": "求網易雲 API 未成，請察其址",
+      "ncm_not_configured": "網易雲曲目未設"
     }
   },
   "Role": {

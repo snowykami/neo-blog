@@ -579,7 +579,7 @@
         "delete_description": "कुंजी \"{key}\" हटा दी जाएगी। इसे पूर्ववत नहीं किया जा सकता और यह साइट के संचालन को प्रभावित कर सकता है।"
       },
       "section_personalize": "वैयक्तिकरण",
-      "section_personalize_desc": "सार्वजनिक साइट के साइडबार, म्यूज़िक प्लेयर और थर्ड-पार्टी स्क्रिप्ट के संसाधन। संबंधित घटक छिपाने के लिए खाली छोड़ें।",
+      "section_personalize_desc": "सार्वजनिक साइट के साइडबार और थर्ड-पार्टी स्क्रिप्ट के संसाधन। संबंधित घटक छिपाने के लिए खाली छोड़ें।",
       "about_background": "\"मेरे बारे में\" कार्ड की पृष्ठभूमि छवि",
       "empty_to_hide": "छिपाने के लिए खाली छोड़ें",
       "sidebar_iframe_url": "साइडबार एम्बेड पेज URL",
@@ -600,7 +600,26 @@
       "show_secret": "दिखाएँ",
       "hide_secret": "छिपाएँ",
       "ai_summary_concurrency": "AI समवर्तीता",
-      "ai_summary_concurrency_desc": "मॉडल को एक साथ भेजे जाने वाले अनुरोधों की अधिकतम संख्या (1–20), AI सारांश और संपादक के AI लेखन में साझा; अतिरिक्त अनुरोध क्रम से कतार में रहते हैं, AI लेखन को प्राथमिकता"
+      "ai_summary_concurrency_desc": "मॉडल को एक साथ भेजे जाने वाले अनुरोधों की अधिकतम संख्या (1–20), AI सारांश और संपादक के AI लेखन में साझा; अतिरिक्त अनुरोध क्रम से कतार में रहते हैं, AI लेखन को प्राथमिकता",
+      "section_music": "म्यूज़िक प्लेयर",
+      "section_music_desc": "सार्वजनिक साइट का फ़्लोटिंग म्यूज़िक प्लेयर प्लेलिस्ट कहाँ से लेता है",
+      "music_source": "प्लेलिस्ट स्रोत",
+      "music_source_static": "स्टैटिक प्लेलिस्ट JSON",
+      "music_source_ncm": "NetEase Cloud Music प्लेलिस्ट",
+      "ncm_api_base_url": "NetEase API URL",
+      "ncm_api_base_url_desc": "आपकी स्वयं होस्ट की गई NeteaseCloudMusicApi Enhanced सेवा का URL, जिससे प्लेलिस्ट, ऑडियो URL और गीत प्राप्त किए जाते हैं",
+      "ncm_cookie": "NetEase कुकी",
+      "ncm_cookie_desc": "लॉग इन किए गए NetEase खाते की कुकी (MUSIC_U शामिल होना चाहिए); केवल MUSIC_U का मान भी दर्ज कर सकते हैं। केवल सर्वर पर संग्रहीत, आगंतुकों को कभी नहीं दिखाई जाती। VIP गानों के लिए VIP खाता आवश्यक है",
+      "ncm_playlist": "ब्लॉग प्लेलिस्ट",
+      "ncm_playlist_desc": "कुकी वाले खाते की प्लेलिस्ट (सहेजी गई सहित) में से चुनें। आगंतुक केवल इसी प्लेलिस्ट के गाने चला सकते हैं",
+      "ncm_playlist_placeholder": "पहले खाते की प्लेलिस्ट लोड करें",
+      "ncm_playlist_select": "प्लेलिस्ट चुनें",
+      "ncm_playlist_id": "प्लेलिस्ट ID: {id}",
+      "ncm_track_count": "{count} गाने",
+      "ncm_subscribed": "सहेजी गई",
+      "ncm_load_playlists": "प्लेलिस्ट लोड करें",
+      "ncm_load_failed": "प्लेलिस्ट लोड नहीं हो सकीं",
+      "ncm_account": "{name} · {count} प्लेलिस्ट"
     },
     "labels": {
       "title": "टैग",
@@ -1529,7 +1548,12 @@
       "ai_write_empty_selection": "चयन खाली है",
       "ai_timeout": "AI प्रतिक्रिया का समय समाप्त",
       "ai_empty_response": "AI ने कोई सामग्री नहीं लौटाई",
-      "ai_interrupted": "कनेक्शन टूट गया, निर्माण अधूरा रहा"
+      "ai_interrupted": "कनेक्शन टूट गया, निर्माण अधूरा रहा",
+      "ncm_invalid_api_url": "अमान्य NetEase API URL; यह http(s) URL होना चाहिए",
+      "ncm_cookie_required": "कृपया NetEase कुकी दर्ज करें",
+      "ncm_cookie_invalid": "NetEase कुकी अमान्य है या समाप्त हो चुकी है",
+      "ncm_request_failed": "NetEase API अनुरोध विफल; सेवा URL जाँचें",
+      "ncm_not_configured": "NetEase प्लेलिस्ट कॉन्फ़िगर नहीं है"
     }
   },
   "ErrorPage": {
