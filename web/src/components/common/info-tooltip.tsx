@@ -26,8 +26,10 @@ export function InfoTooltip({ content, side = 'top', label, className }: InfoToo
         <button
           type="button"
           aria-label={label ?? t('more_info')}
+          // size-5 保留点击热区，-my-1 抵消纵向尺寸（占位 12px，不超过 text-sm leading-none 标签的 14px），
+          // 避免图标把标签行撑高，导致同一行带说明与不带说明字段的输入框上沿错位
           className={cn(
-            'inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/70 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'inline-flex size-5 -my-1 shrink-0 items-center justify-center rounded-full text-muted-foreground/70 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             className,
           )}
           // Radix Tooltip 不响应触摸悬停：按下会先触发关闭，这里在点击时重新打开，保证点按也能看到说明
