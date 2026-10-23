@@ -1783,7 +1783,18 @@
       "progress": "Progreso de reproducción",
       "open": "NetEase Music",
       "not_in_playlist": "Esta canción no está en la lista del blog; escúchala en NetEase Cloud Music",
-      "load_failed": "No se pudo cargar la canción"
+      "load_failed": "No se pudo cargar la canción",
+      "action": {
+        "title": "Buscar canciones",
+        "hint": "Busca por título o artista y haz clic en un resultado para rellenar el ID; las canciones marcadas como «En la lista» se pueden reproducir en este sitio",
+        "search_placeholder": "Título, artista…",
+        "search": "Buscar",
+        "results": "Resultados de búsqueda",
+        "no_results": "No se encontraron canciones",
+        "failed": "La búsqueda falló, inténtalo más tarde",
+        "in_playlist": "En la lista",
+        "selected": "Seleccionada"
+      }
     },
     "library": {
       "open": "Biblioteca de componentes…",

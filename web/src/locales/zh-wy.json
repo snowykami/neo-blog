@@ -1783,7 +1783,18 @@
       "progress": "播之進度",
       "open": "網易雲音樂",
       "not_in_playlist": "此曲不在博客曲單，請往網易雲音樂聽之",
-      "load_failed": "曲之訊未能載"
+      "load_failed": "曲之訊未能載",
+      "action": {
+        "title": "尋曲",
+        "hint": "以曲名或歌者尋之，點其果即填曲之 ID；標「在曲目」者可於站內播之",
+        "search_placeholder": "曲名、歌者…",
+        "search": "尋",
+        "results": "所尋之果",
+        "no_results": "未得其曲",
+        "failed": "尋之未成，請稍後再試",
+        "in_playlist": "在曲目",
+        "selected": "已擇"
+      }
     },
     "library": {
       "open": "器庫…",

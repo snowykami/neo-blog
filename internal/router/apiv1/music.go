@@ -12,11 +12,15 @@ import (
 func registerMusicRoutes(group *route.RouterGroup) {
 	musicGroup := group.Group("/music").Use(middleware.UseAuth(false))
 	musicGroupWithAdmin := group.Group("/music").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleAdmin))
+	musicGroupWithEditor := group.Group("/music").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleEditor))
 	{
 		musicGroup.GET("/playlist", controller.Music.Playlist)
 		musicGroup.GET("/song/:id", controller.Music.Song)
 		musicGroup.GET("/song/:id/audio", controller.Music.SongAudio)
 		musicGroup.GET("/song/:id/lyric", controller.Music.SongLyric)
+
+		// 搜索歌曲只在编辑器中使用，限编辑者及以上，避免被当作公开的搜索代理
+		musicGroupWithEditor.GET("/search", controller.Music.Search)
 
 		// 请求体中含 Cookie，使用 POST 避免出现在地址中
 		musicGroupWithAdmin.POST("/ncm/playlists", controller.Music.NCMPlaylists)

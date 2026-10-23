@@ -1783,7 +1783,18 @@
       "progress": "播放進度",
       "open": "網易雲音樂",
       "not_in_playlist": "此歌曲不在部落格歌單內，請在網易雲音樂收聽",
-      "load_failed": "歌曲資訊載入失敗"
+      "load_failed": "歌曲資訊載入失敗",
+      "action": {
+        "title": "搜尋歌曲",
+        "hint": "依歌名或歌手搜尋，點擊結果即可填入歌曲 ID；標有「歌單內」的歌曲可在站內播放",
+        "search_placeholder": "歌名、歌手…",
+        "search": "搜尋",
+        "results": "搜尋結果",
+        "no_results": "找不到相關歌曲",
+        "failed": "搜尋失敗，請稍後再試",
+        "in_playlist": "歌單內",
+        "selected": "已選擇"
+      }
     },
     "library": {
       "open": "元件庫…",

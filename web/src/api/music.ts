@@ -1,4 +1,4 @@
-import type { MusicSong, MusicSource, MusicTrack, NCMPlaylists } from '@/models/music'
+import type { MusicSearchSong, MusicSong, MusicSource, MusicTrack, NCMPlaylists } from '@/models/music'
 import type { BaseResponse } from '@/models/resp'
 import { snakeToCamelObj } from 'field-conv'
 import axiosClient from './client'
@@ -33,6 +33,12 @@ export async function fetchNcmLyric(id: number, signal?: AbortSignal): Promise<M
 // 单曲公开信息（任意歌曲），播放仍只限博客歌单内的歌曲
 export async function getMusicSong(id: number): Promise<MusicSong> {
   const res = await axiosClient.get<BaseResponse<MusicSong>>(`/music/song/${id}`)
+  return res.data.data
+}
+
+// 搜索网易云歌曲（编辑者及以上），用于在编辑器中为单曲卡选择歌曲
+export async function searchMusicSongs(keywords: string): Promise<MusicSearchSong[]> {
+  const res = await axiosClient.get<BaseResponse<MusicSearchSong[]>>('/music/search', { params: { keywords } })
   return res.data.data
 }
 

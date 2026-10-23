@@ -18,7 +18,7 @@ import (
 func fakeNCMServer(t *testing.T) (*httptest.Server, map[string]*atomic.Int32) {
 	t.Helper()
 	calls := map[string]*atomic.Int32{}
-	for _, path := range []string{"/user/account", "/user/playlist", "/playlist/track/all", "/song/url/v1", "/lyric/new", "/fallback", "/song/detail", "/fallback-song"} {
+	for _, path := range []string{"/user/account", "/user/playlist", "/playlist/track/all", "/song/url/v1", "/lyric/new", "/fallback", "/song/detail", "/fallback-song", "/cloudsearch", "/search-fallback"} {
 		calls[path] = &atomic.Int32{}
 	}
 	write := func(w http.ResponseWriter, v any) {
@@ -74,6 +74,21 @@ func fakeNCMServer(t *testing.T) (*httptest.Server, map[string]*atomic.Int32) {
 				return
 			}
 			write(w, map[string]any{"code": 200, "lrc": map[string]any{"lyric": "[00:01.00]你好", "version": 3}, "tlyric": map[string]any{"lyric": "[00:01.00]hello", "version": 1}})
+		case "/cloudsearch":
+			if r.Header.Get("Cookie") != "" {
+				t.Errorf("search should not carry cookie")
+			}
+			if r.URL.Query().Get("keywords") != "空中" || r.URL.Query().Get("type") != "1" {
+				t.Errorf("unexpected search query %q", r.URL.RawQuery)
+			}
+			write(w, map[string]any{"code": 200, "result": map[string]any{"songs": []map[string]any{
+				{"id": 1, "name": "空中散歩", "ar": []map[string]any{{"name": "CIEL"}}, "al": map[string]any{"name": "空想少女", "picUrl": "http://p4.music.126.net/x.jpg"}, "alia": []string{"空中散步", " "}, "tns": []string{"空中散步"}, "dt": 161000},
+				{"id": 404, "name": "别的歌", "ar": []map[string]any{{"name": "B"}}, "al": map[string]any{"name": "C"}, "dt": 200000},
+			}}})
+		case "/search-fallback":
+			write(w, map[string]any{"code": 200, "result": map[string]any{"songs": []map[string]any{
+				{"id": 2, "name": "旧接口", "artists": []map[string]any{{"name": "A"}}, "album": map[string]any{"name": "专辑"}, "duration": 120000},
+			}}})
 		case "/fallback":
 			write(w, map[string]any{"code": 200, "lrc": map[string]any{"lyric": "[00:01.00]fallback", "version": 1}})
 		case "/song/detail":
@@ -295,4 +310,41 @@ func TestMusicSong(t *testing.T) {
 	}
 	_, svcerr = s.GetSong(ctx, 203)
 	expectCode(t, svcerr, http.StatusNotFound, "mismatched song")
+}
+
+func TestMusicSearchSongs(t *testing.T) {
+	setupEditTest(t)
+	srv, calls := fakeNCMServer(t)
+	s := NewMusicService()
+	ctx := context.Background()
+	setMusicKV(t, map[string]any{"ncm_api_base_url": srv.URL, "ncm_cookie": "abc", "ncm_playlist_id": float64(7044354223)})
+
+	// 关键词为空或过长
+	_, svcerr := s.SearchSongs(ctx, "  ")
+	expectCode(t, svcerr, http.StatusBadRequest, "empty keywords")
+	_, svcerr = s.SearchSongs(ctx, strings.Repeat("歌", musicSearchMaxKeywordRunes+1))
+	expectCode(t, svcerr, http.StatusBadRequest, "keywords too long")
+
+	songs, svcerr := s.SearchSongs(ctx, " 空中 ")
+	if svcerr != nil || len(songs) != 2 {
+		t.Fatalf("search: %v %+v", svcerr, songs)
+	}
+	first := songs[0]
+	if first.ID != 1 || first.AlbumPic != "https://p4.music.126.net/x.jpg" || first.Duration != 161000 ||
+		strings.Join(first.Artists, ",") != "CIEL" || strings.Join(first.Aliases, ",") != "空中散步" || !first.InPlaylist {
+		t.Fatalf("unexpected first result: %+v", first)
+	}
+	if songs[1].InPlaylist {
+		t.Fatalf("song outside playlist should not be marked: %+v", songs[1])
+	}
+
+	// 未配置 API 时使用网易云公开搜索（旧接口结构）
+	original := musicSearchFallbackURL
+	musicSearchFallbackURL = srv.URL + "/search-fallback"
+	t.Cleanup(func() { musicSearchFallbackURL = original })
+	setMusicKV(t, map[string]any{"ncm_api_base_url": ""})
+	songs, svcerr = s.SearchSongs(ctx, "旧")
+	if svcerr != nil || len(songs) != 1 || songs[0].Album != "专辑" || songs[0].Duration != 120000 || strings.Join(songs[0].Artists, ",") != "A" || calls["/search-fallback"].Load() != 1 {
+		t.Fatalf("fallback search: %v %+v", svcerr, songs)
+	}
 }

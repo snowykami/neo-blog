@@ -23,6 +23,18 @@ type MusicSongDto struct {
 	Link     string   `json:"link"`
 }
 
+// MusicSearchSongDto 歌曲搜索结果（编辑器中为单曲卡选择歌曲）
+type MusicSearchSongDto struct {
+	ID         int64    `json:"id"`
+	Name       string   `json:"name"`
+	Artists    []string `json:"artists"`
+	Album      string   `json:"album"`
+	AlbumPic   string   `json:"album_pic"`
+	Aliases    []string `json:"aliases"`
+	Duration   int64    `json:"duration"`    // 时长（毫秒）
+	InPlaylist bool     `json:"in_playlist"` // 是否在博客歌单内（可在站内播放）
+}
+
 // MusicLyricPart 一种歌词（原文 / 翻译 / 罗马音 / 逐字），与网易云接口的结构一致
 type MusicLyricPart struct {
 	Lyric   string `json:"lyric"`

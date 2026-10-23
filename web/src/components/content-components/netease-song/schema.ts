@@ -6,3 +6,4 @@ export const neteaseSongSchema = z.object({
 })
 
 export type NeteaseSongProps = z.output<typeof neteaseSongSchema>
+export type NeteaseSongInput = z.input<typeof neteaseSongSchema>

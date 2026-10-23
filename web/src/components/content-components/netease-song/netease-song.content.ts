@@ -17,4 +17,8 @@ export default defineContentComponent({
     ['p', {}, ['a', { href: `https://music.163.com/#/song?id=${id}`, target: '_blank', rel: 'noopener noreferrer' }, `music.163.com/#/song?id=${id}`]],
   ],
   example: () => ({ id: 1824020871 }),
+  editor: {
+    // 「搜索歌曲」：按关键词搜索网易云歌曲，点击结果填入歌曲 ID
+    action: dynamic(() => import('./netease-song-action')),
+  },
 })

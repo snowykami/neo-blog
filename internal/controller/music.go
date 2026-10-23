@@ -38,6 +38,16 @@ func (m *musicType) Song(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, song)
 }
 
+// Search 搜索网易云歌曲（编辑器中为单曲卡选择歌曲）
+func (m *musicType) Search(ctx context.Context, c *app.RequestContext) {
+	songs, svcerr := m.service.SearchSongs(ctx, c.Query("keywords"))
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, songs)
+}
+
 // SongAudio 跳转到歌曲的临时播放地址
 func (m *musicType) SongAudio(ctx context.Context, c *app.RequestContext) {
 	songURL, svcerr := m.service.GetSongURL(ctx, ctxutils.GetIDParam(c).Int64)

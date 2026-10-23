@@ -46,3 +46,15 @@ export interface NCMPlaylists {
   }
   playlists: NCMPlaylist[]
 }
+
+// 网易云歌曲搜索结果（编辑器中为单曲卡选择歌曲）
+export interface MusicSearchSong {
+  id: number
+  name: string
+  artists: string[]
+  album: string
+  albumPic: string
+  aliases: string[]
+  duration: number // 时长（毫秒）
+  inPlaylist: boolean // 是否在博客歌单内（可在站内播放）
+}

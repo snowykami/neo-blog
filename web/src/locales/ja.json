@@ -1783,7 +1783,18 @@
       "progress": "再生位置",
       "open": "NetEase Music",
       "not_in_playlist": "この曲はブログのプレイリストにありません。NetEase Cloud Music でお聴きください",
-      "load_failed": "楽曲情報の読み込みに失敗しました"
+      "load_failed": "楽曲情報の読み込みに失敗しました",
+      "action": {
+        "title": "曲を検索",
+        "hint": "曲名やアーティストで検索し、結果をクリックすると曲 ID が入力されます。「プレイリスト内」の曲はサイト内で再生できます",
+        "search_placeholder": "曲名、アーティスト…",
+        "search": "検索",
+        "results": "検索結果",
+        "no_results": "該当する曲が見つかりません",
+        "failed": "検索に失敗しました。しばらくしてから再度お試しください",
+        "in_playlist": "プレイリスト内",
+        "selected": "選択済み"
+      }
     },
     "library": {
       "open": "コンポーネントライブラリ…",

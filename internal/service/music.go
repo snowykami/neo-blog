@@ -8,10 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -36,6 +38,14 @@ var musicLyricFallbackURL = "https://music.163.com/api/song/lyric"
 
 // musicSongFallbackURL 未配置 API 或 API 请求失败时，直接请求网易云的歌曲详情接口
 var musicSongFallbackURL = "https://music.163.com/api/song/detail/"
+
+// musicSearchFallbackURL 未配置 API 或 API 请求失败时使用的网易云公开搜索接口
+var musicSearchFallbackURL = "https://music.163.com/api/search/get"
+
+const (
+	musicSearchMaxKeywordRunes = 50
+	musicSearchLimit           = 20
+)
 
 type MusicService struct{}
 
@@ -247,7 +257,7 @@ func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackD
 			Audio:    constant.ApiPrefix + "/music/song/" + id + "/audio",
 			Lyric:    constant.ApiPrefix + "/music/song/" + id + "/lyric",
 			Link:     "https://music.163.com/#/song?id=" + id,
-			Aliases:  append(append([]string{}, song.Alia...), song.Tns...),
+			Aliases:  mergeAliases(song.Alia, song.Tns),
 		})
 	}
 	return tracks, nil
@@ -355,23 +365,8 @@ func (s *MusicService) GetSong(ctx context.Context, id int64) (*dto.MusicSongDto
 		}
 	}
 
-	// API 返回新版结构（ar / al），网易云旧接口返回 artists / album
-	type namedItem struct {
-		Name string `json:"name"`
-	}
-	type album struct {
-		Name   string `json:"name"`
-		PicURL string `json:"picUrl"`
-	}
 	var raw struct {
-		Songs []struct {
-			ID      int64       `json:"id"`
-			Name    string      `json:"name"`
-			Ar      []namedItem `json:"ar"`
-			Artists []namedItem `json:"artists"`
-			Al      *album      `json:"al"`
-			Album   *album      `json:"album"`
-		} `json:"songs"`
+		Songs []ncmSong `json:"songs"`
 	}
 	idStr := strconv.FormatInt(id, 10)
 	err := errors.New("ncm api not configured")
@@ -389,30 +384,128 @@ func (s *MusicService) GetSong(ctx context.Context, id int64) (*dto.MusicSongDto
 	}
 
 	item := raw.Songs[0]
-	artists := item.Ar
-	if len(artists) == 0 {
-		artists = item.Artists
-	}
-	al := item.Al
-	if al == nil {
-		al = item.Album
-	}
+	album, albumPic := item.album()
 	song := dto.MusicSongDto{
-		ID:      id,
-		Name:    item.Name,
-		Artists: make([]string, 0, len(artists)),
-		Link:    "https://music.163.com/#/song?id=" + idStr,
-	}
-	for _, ar := range artists {
-		song.Artists = append(song.Artists, ar.Name)
-	}
-	if al != nil {
-		song.Album, song.AlbumPic = al.Name, httpsURL(al.PicURL)
+		ID:       id,
+		Name:     item.Name,
+		Artists:  item.artistNames(),
+		Album:    album,
+		AlbumPic: albumPic,
+		Link:     "https://music.163.com/#/song?id=" + idStr,
 	}
 	if data, err := json.Marshal(song); err == nil {
 		musicSongCache.Put(uint(id), data)
 	}
 	return &song, nil
+}
+
+// SearchSongs 搜索网易云歌曲（编辑器中为单曲卡选择歌曲）：优先使用配置的 API，失败时使用网易云的公开搜索；不携带 Cookie
+func (s *MusicService) SearchSongs(ctx context.Context, keywords string) ([]dto.MusicSearchSongDto, *errs.ServiceError) {
+	keywords = strings.TrimSpace(keywords)
+	if keywords == "" || utf8.RuneCountInString(keywords) > musicSearchMaxKeywordRunes {
+		return nil, errs.NewBadRequest("invalid_request_parameters")
+	}
+
+	var raw struct {
+		Result struct {
+			Songs []ncmSong `json:"songs"`
+		} `json:"result"`
+	}
+	limit := strconv.Itoa(musicSearchLimit)
+	err := errors.New("ncm api not configured")
+	if cfg := tools.GetNCMConfig(); validMusicAPIBaseURL(cfg.BaseURL) {
+		err = ncmGet(ctx, tools.NCMConfig{BaseURL: cfg.BaseURL}, "/cloudsearch", url.Values{"keywords": {keywords}, "type": {"1"}, "limit": {limit}}, &raw)
+	}
+	if err != nil {
+		params := url.Values{"s": {keywords}, "type": {"1"}, "limit": {limit}}
+		if err = musicGetJSON(ctx, musicSearchFallbackURL+"?"+params.Encode(), "", &raw); err != nil {
+			return nil, ncmRequestError(err)
+		}
+	}
+
+	// 标出博客歌单内的歌曲（可在站内播放）；未配置或获取失败时不标记
+	var tracks []dto.MusicTrackDto
+	if tools.GetNCMConfig().Configured() {
+		tracks, _ = s.GetPlaylist(ctx)
+	}
+	songs := make([]dto.MusicSearchSongDto, 0, len(raw.Result.Songs))
+	for _, item := range raw.Result.Songs {
+		album, albumPic := item.album()
+		duration := item.Dt
+		if duration == 0 {
+			duration = item.Duration
+		}
+		songs = append(songs, dto.MusicSearchSongDto{
+			ID:         item.ID,
+			Name:       item.Name,
+			Artists:    item.artistNames(),
+			Album:      album,
+			AlbumPic:   albumPic,
+			Aliases:    mergeAliases(item.Alia, item.Tns),
+			Duration:   duration,
+			InPlaylist: containsTrack(tracks, item.ID),
+		})
+	}
+	return songs, nil
+}
+
+// ncmSong 网易云歌曲：API 与新版接口为 ar / al / dt，网易云旧接口为 artists / album / duration
+type ncmSong struct {
+	ID       int64          `json:"id"`
+	Name     string         `json:"name"`
+	Ar       []ncmNamedItem `json:"ar"`
+	Artists  []ncmNamedItem `json:"artists"`
+	Al       *ncmAlbum      `json:"al"`
+	Album    *ncmAlbum      `json:"album"`
+	Alia     []string       `json:"alia"`
+	Tns      []string       `json:"tns"`
+	Dt       int64          `json:"dt"`       // 时长（毫秒）
+	Duration int64          `json:"duration"` // 旧接口的时长（毫秒）
+}
+
+type ncmNamedItem struct {
+	Name string `json:"name"`
+}
+
+type ncmAlbum struct {
+	Name   string `json:"name"`
+	PicURL string `json:"picUrl"`
+}
+
+func (s ncmSong) artistNames() []string {
+	items := s.Ar
+	if len(items) == 0 {
+		items = s.Artists
+	}
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		names = append(names, item.Name)
+	}
+	return names
+}
+
+func (s ncmSong) album() (name, pic string) {
+	al := s.Al
+	if al == nil {
+		al = s.Album
+	}
+	if al == nil {
+		return "", ""
+	}
+	return al.Name, httpsURL(al.PicURL)
+}
+
+// mergeAliases 合并别名（alia）与译名（tns）：两者常有相同的值，按出现顺序去重并去掉空值
+func mergeAliases(lists ...[]string) []string {
+	aliases := []string{}
+	for _, list := range lists {
+		for _, alias := range list {
+			if alias = strings.TrimSpace(alias); alias != "" && !slices.Contains(aliases, alias) {
+				aliases = append(aliases, alias)
+			}
+		}
+	}
+	return aliases
 }
 
 func containsTrack(tracks []dto.MusicTrackDto, id int64) bool {
