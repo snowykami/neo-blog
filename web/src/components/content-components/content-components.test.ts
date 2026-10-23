@@ -105,12 +105,36 @@ describe('注册表', () => {
     expect(describeFields(getContentComponent('callout')!.schema).map(f => f.kind)).toEqual(['select', 'text', 'textarea'])
     const [tabs] = describeFields(getContentComponent('codeTabs')!.schema)
     expect(tabs).toMatchObject({ kind: 'list', min: 1, max: 8, itemDefault: { label: '', language: '', code: '' } })
-    expect(describeFields(getContentComponent('neteaseSong')!.schema)[0]).toMatchObject({ kind: 'number', allowZero: false })
+    const musicFields = describeFields(getContentComponent('neteaseSong')!.schema)
+    expect(musicFields.find(f => f.name === 'id')).toMatchObject({ kind: 'number', integer: true })
+    expect(musicFields.find(f => f.name === 'cover')).toMatchObject({ kind: 'image' })
+    expect(musicFields.find(f => f.name === 'src')).toMatchObject({ kind: 'audio' })
     expect(describeFields(getContentComponent('progress')!.schema)[0]).toMatchObject({ kind: 'list', fields: [{ kind: 'text' }, { kind: 'number', allowZero: true, min: 0, max: 100 }] })
     const weatherFields = describeFields(getContentComponent('weatherCard')!.schema)
     expect(weatherFields.find(f => f.name === 'temperature')).toMatchObject({ kind: 'number', allowZero: true, integer: false, min: -90, max: 60 })
     expect(weatherFields.find(f => f.name === 'humidity')).toMatchObject({ kind: 'number', integer: true })
     expect(weatherFields.find(f => f.name === 'recordedAt')).toMatchObject({ kind: 'datetime' })
+  })
+
+  it('音乐卡片：网易云与自定义音频的校验、字段显隐与兼容旧数据', () => {
+    const def = getContentComponent('neteaseSong')!
+    // 插入时的初始 props 不经过模式相关的必填校验
+    expect(getDefaultProps(def)).toMatchObject({ mode: 'netease', id: 0, title: '', src: '' })
+    // 旧数据只有 id，按网易云模式处理
+    expect(resolveComponent('neteaseSong', { id: 1487502645 })).toMatchObject({ ok: true, props: { mode: 'netease', id: 1487502645 } })
+    expect(resolveComponent('neteaseSong', { id: 0 }).ok).toBe(false)
+    // 自定义音频需要歌名与音频地址，地址只允许 http(s) 与站内路径
+    expect(resolveComponent('neteaseSong', { mode: 'custom', title: '晚风' }).ok).toBe(false)
+    expect(resolveComponent('neteaseSong', { mode: 'custom', src: '/api/v1/file/f/1' }).ok).toBe(false)
+    expect(resolveComponent('neteaseSong', { mode: 'custom', title: '晚风', src: '/api/v1/file/f/1', cover: 'https://img.example/c.jpg' }).ok).toBe(true)
+    expect(resolveComponent('neteaseSong', { mode: 'custom', title: '晚风', src: 'javascript:alert(1)' }).ok).toBe(false)
+    expect(resolveComponent('neteaseSong', { mode: 'custom', title: '晚风', src: '//evil.example/a.mp3' }).ok).toBe(false)
+    expect(resolveComponent('neteaseSong', { mode: 'custom', title: '晚风', src: '/a.mp3', cover: 'data:image/png;base64,xx' }).ok).toBe(false)
+    const visible = def.editor!.isFieldVisible!
+    expect(visible('id', { mode: 'netease' })).toBe(true)
+    expect(visible('src', { mode: 'netease' })).toBe(false)
+    expect(visible('src', { mode: 'custom' })).toBe(true)
+    expect(visible('id', { mode: 'custom' })).toBe(false)
   })
 
   it('天气卡：快照与实时模式的校验、字段显隐与降级内容', () => {

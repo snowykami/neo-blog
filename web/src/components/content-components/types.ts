@@ -11,7 +11,8 @@ import type { ComponentWidth } from './layout'
 
 // 表单控件提示：通过 zod 的 .meta() 标注，未标注时按字段类型选择控件
 export interface ContentFieldMeta {
-  widget?: 'textarea' | 'code' | 'datetime'
+  // image / audio：地址输入框 + 资产库选择（可上传）
+  widget?: 'textarea' | 'code' | 'datetime' | 'image' | 'audio'
 }
 
 // 属性弹窗中的自定义动作（例如按城市获取天气后填入表单）：读取当前表单值并写回

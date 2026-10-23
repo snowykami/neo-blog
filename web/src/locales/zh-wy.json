@@ -1767,16 +1767,29 @@
       "load_failed": "庫之訊未能載"
     },
     "neteaseSong": {
-      "name": "網易雲單曲",
-      "description": "示單曲之訊，單中之曲可即奏",
+      "name": "樂卡",
+      "description": "網易雲之曲或自備之音，可於文中播之",
       "fields": {
-        "id": "曲 ID"
+        "id": "曲 ID",
+        "mode": "式",
+        "title": "曲名",
+        "artist": "歌者",
+        "album": "輯",
+        "cover": "封面",
+        "src": "音之址",
+        "lyric": "歌詞（LRC）"
       },
       "placeholders": {
-        "id": "1824020871"
+        "id": "1824020871",
+        "title": "曲名",
+        "artist": "歌者"
       },
       "descriptions": {
-        "id": "曲之連結中 id= 後之數；唯博客曲單中者可於本站奏之"
+        "id": "曲之鏈中 id= 後之數；唯博客曲目所含者可於站內播",
+        "mode": "網易雲之式以曲之 ID 示之，博客曲目所含者可於站內播；自備之音可播任一音檔",
+        "src": "音檔之址，可擇於資庫或上傳",
+        "lyric": "可略，填 LRC 之詞則播時示其當句",
+        "cover": "可略，擇於資庫或填圖之址"
       },
       "play": "奏",
       "pause": "止",
@@ -1794,6 +1807,12 @@
         "failed": "尋之未成，請稍後再試",
         "in_playlist": "在曲目",
         "selected": "已擇"
+      },
+      "options": {
+        "mode": {
+          "netease": "網易雲樂",
+          "custom": "自備之音"
+        }
       }
     },
     "library": {

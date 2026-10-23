@@ -43,6 +43,10 @@ export default function NeteaseSongAction({ values, setValues }: ContentEditorAc
     }
   }
 
+  // 自定义音频不需要搜索
+  if (values.mode === 'custom')
+    return null
+
   return (
     <div className="grid gap-3 rounded-lg border bg-muted/40 p-3">
       <div className="grid gap-1">

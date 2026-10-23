@@ -7,7 +7,7 @@ import { z } from 'zod'
  */
 
 export type FieldDescriptor
-  = | { kind: 'text' | 'textarea' | 'code' | 'datetime', name: string }
+  = | { kind: 'text' | 'textarea' | 'code' | 'datetime' | 'image' | 'audio', name: string }
     | { kind: 'select', name: string, options: string[] }
     // allowZero：0 是否为合法值；不合法时 0 视为未填写，输入框显示为空；integer：是否只允许整数
     | { kind: 'number', name: string, allowZero: boolean, integer: boolean, min?: number, max?: number }
@@ -94,6 +94,9 @@ export function createIssueMessage(t: Translate) {
         return t('validation.too_many', { maximum })
       return t('validation.out_of_range')
     }
+    // 按条件必填的字段（如某种模式下才需要）通过 superRefine 报告 params.reason = 'required'
+    if (issue.code === 'custom' && (issue.params as { reason?: string } | undefined)?.reason === 'required')
+      return t('validation.required')
     return t('validation.invalid')
   }
 }

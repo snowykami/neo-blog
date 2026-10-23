@@ -1767,16 +1767,29 @@
       "load_failed": "Failed to load the repository"
     },
     "neteaseSong": {
-      "name": "NetEase song",
-      "description": "Show a song card; songs in the blog playlist can be played here",
+      "name": "Music card",
+      "description": "A NetEase song or your own audio, playable right in the post",
       "fields": {
-        "id": "Song ID"
+        "id": "Song ID",
+        "mode": "Mode",
+        "title": "Title",
+        "artist": "Artist",
+        "album": "Album",
+        "cover": "Cover",
+        "src": "Audio URL",
+        "lyric": "Lyrics (LRC)"
       },
       "placeholders": {
-        "id": "1824020871"
+        "id": "1824020871",
+        "title": "Title",
+        "artist": "Artist"
       },
       "descriptions": {
-        "id": "The number after id= in the song link; only songs in the blog playlist can be played on this site"
+        "id": "The number after id= in the song link; only songs in the blog playlist can be played on this site",
+        "mode": "NetEase mode shows a song by ID, and songs in the blog playlist can be played on this site; custom audio plays any audio file",
+        "src": "Audio file URL; pick or upload from the asset library",
+        "lyric": "Optional; with LRC lyrics the current line is shown while playing",
+        "cover": "Optional; pick from the asset library or enter an image URL"
       },
       "play": "Play",
       "pause": "Pause",
@@ -1794,6 +1807,12 @@
         "failed": "Search failed, please try again later",
         "in_playlist": "In playlist",
         "selected": "Selected"
+      },
+      "options": {
+        "mode": {
+          "netease": "NetEase Cloud Music",
+          "custom": "Custom audio"
+        }
       }
     },
     "library": {

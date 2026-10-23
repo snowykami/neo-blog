@@ -1767,16 +1767,29 @@
       "load_failed": "저장소 정보를 불러오지 못했습니다"
     },
     "neteaseSong": {
-      "name": "NetEase 음악 카드",
-      "description": "곡 정보를 표시하며, 블로그 재생목록의 곡은 바로 재생 가능",
+      "name": "음악 카드",
+      "description": "NetEase 곡 또는 직접 올린 오디오를 글 안에서 재생합니다",
       "fields": {
-        "id": "곡 ID"
+        "id": "곡 ID",
+        "mode": "모드",
+        "title": "곡명",
+        "artist": "아티스트",
+        "album": "앨범",
+        "cover": "커버",
+        "src": "오디오 URL",
+        "lyric": "가사 (LRC)"
       },
       "placeholders": {
-        "id": "1824020871"
+        "id": "1824020871",
+        "title": "곡명",
+        "artist": "아티스트"
       },
       "descriptions": {
-        "id": "곡 링크의 id= 뒤 숫자. 블로그 재생목록에 있는 곡만 사이트에서 재생할 수 있습니다"
+        "id": "곡 링크의 id= 뒤 숫자. 블로그 재생목록의 곡만 사이트에서 재생됩니다",
+        "mode": "NetEase 모드는 곡 ID로 표시하며 블로그 재생목록의 곡은 사이트에서 재생됩니다. 사용자 오디오는 모든 오디오 파일을 재생합니다",
+        "src": "오디오 파일 URL. 자산 라이브러리에서 선택하거나 업로드",
+        "lyric": "선택 사항. LRC 가사를 입력하면 재생 중 현재 줄을 표시합니다",
+        "cover": "선택 사항. 자산 라이브러리에서 선택하거나 이미지 URL 입력"
       },
       "play": "재생",
       "pause": "일시정지",
@@ -1794,6 +1807,12 @@
         "failed": "검색에 실패했습니다. 잠시 후 다시 시도하세요",
         "in_playlist": "재생목록 내",
         "selected": "선택됨"
+      },
+      "options": {
+        "mode": {
+          "netease": "NetEase Cloud Music",
+          "custom": "사용자 오디오"
+        }
       }
     },
     "library": {

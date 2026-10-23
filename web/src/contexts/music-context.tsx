@@ -215,7 +215,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // 歌词按曲目 id 获取：切歌时中止旧请求，并丢弃不属于当前曲目的响应
   useEffect(() => {
-    if (currentTrackId == null)
+    // 示例曲目（id 为 0，歌单获取失败时的兜底）没有歌词，不请求
+    if (currentTrackId == null || currentTrackId <= 0)
       return
     const controller = new AbortController()
     const trackId = currentTrackId

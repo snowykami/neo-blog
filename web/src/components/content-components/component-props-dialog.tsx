@@ -8,6 +8,7 @@ import { ArrowDownIcon, ArrowUpIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useFieldArray, useForm, useFormContext, useWatch } from 'react-hook-form'
+import { AssetField } from '@/components/common/asset-picker'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -16,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { getDefaultProps } from './props'
 import { createIssueMessage, describeFields } from './schema-fields'
 
 type Translate = ReturnType<typeof useTranslations<'ContentComponents'>>
@@ -79,17 +81,20 @@ function SchemaField({ field, path, component, t }: FieldProps) {
                         onChange={e => input.onChange(e.target.value === '' ? 0 : e.target.valueAsNumber)}
                       />
                     )
-                  : field.kind === 'text' || field.kind === 'datetime'
-                    ? <Input {...input} type={field.kind === 'datetime' ? 'datetime-local' : 'text'} value={input.value ?? ''} placeholder={placeholder} />
-                    : (
-                        <Textarea
-                          {...input}
-                          value={input.value ?? ''}
-                          placeholder={placeholder}
-                          spellCheck={field.kind !== 'code'}
-                          className={cn(field.kind === 'code' ? 'min-h-44 font-mono text-[13px] leading-5' : 'min-h-24')}
-                        />
-                      )}
+                  : field.kind === 'image' || field.kind === 'audio'
+                    // 资产库选择或直接填写地址；音频不显示预览
+                    ? <AssetField value={input.value ?? ''} onChange={input.onChange} accept={field.kind === 'image' ? 'image/*' : 'audio/*'} placeholder={placeholder} />
+                    : field.kind === 'text' || field.kind === 'datetime'
+                      ? <Input {...input} type={field.kind === 'datetime' ? 'datetime-local' : 'text'} value={input.value ?? ''} placeholder={placeholder} />
+                      : (
+                          <Textarea
+                            {...input}
+                            value={input.value ?? ''}
+                            placeholder={placeholder}
+                            spellCheck={field.kind !== 'code'}
+                            className={cn(field.kind === 'code' ? 'min-h-44 font-mono text-[13px] leading-5' : 'min-h-24')}
+                          />
+                        )}
           </FormControl>
           {description && <FormDescription>{description}</FormDescription>}
           <FormMessage />
@@ -184,13 +189,15 @@ export function ComponentPropsDialog({ def, open, onOpenChange, value, onSubmit 
     () => zodResolver(def.schema, { error: createIssueMessage(t) }) as unknown as Resolver<FieldValues>,
     [def, t],
   )
-  const form = useForm<FieldValues>({ resolver, defaultValues: value })
+  // 旧数据缺少后来新增的字段（如音乐卡片的 mode）时补上默认值，避免下拉框等控件显示为空
+  const initial = useMemo(() => ({ ...getDefaultProps(def), ...value }), [def, value])
+  const form = useForm<FieldValues>({ resolver, defaultValues: initial })
 
   // 每次打开时以当前 props 重置
   useEffect(() => {
     if (open)
-      form.reset(value)
-  }, [open, value, form])
+      form.reset(initial)
+  }, [open, initial, form])
 
   const name = t(`${def.name}.name`)
 

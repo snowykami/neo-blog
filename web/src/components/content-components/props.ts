@@ -1,3 +1,4 @@
+import type { z } from 'zod'
 import type { AnyContentComponentDef } from './types'
 import { getContentComponent } from './registry'
 
@@ -24,9 +25,12 @@ export function serializePropsAttr(props: unknown): string {
     .replace(/&/g, '\\u0026')
 }
 
-/** 插入组件时的初始 props（schema 中的默认值） */
+/**
+ * 插入组件时的初始 props（schema 中的默认值）：逐个字段取默认值，
+ * 对象级的条件校验（如某种模式下必填）不参与，插入后由作者在属性弹窗中补全
+ */
 export function getDefaultProps(def: AnyContentComponentDef): Record<string, unknown> {
-  return def.schema.parse({}) as Record<string, unknown>
+  return Object.fromEntries(Object.entries(def.schema.shape).map(([key, field]) => [key, (field as z.ZodType).parse(undefined)]))
 }
 
 export type ResolvedComponent

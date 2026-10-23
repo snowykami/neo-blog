@@ -1767,16 +1767,29 @@
       "load_failed": "No se pudo cargar el repositorio"
     },
     "neteaseSong": {
-      "name": "Canción de NetEase",
-      "description": "Tarjeta de canción; las de la lista del blog se pueden reproducir aquí",
+      "name": "Tarjeta de música",
+      "description": "Una canción de NetEase o tu propio audio, reproducible en la entrada",
       "fields": {
-        "id": "ID de la canción"
+        "id": "ID de la canción",
+        "mode": "Modo",
+        "title": "Título",
+        "artist": "Artista",
+        "album": "Álbum",
+        "cover": "Portada",
+        "src": "URL del audio",
+        "lyric": "Letra (LRC)"
       },
       "placeholders": {
-        "id": "1824020871"
+        "id": "1824020871",
+        "title": "Título",
+        "artist": "Artista"
       },
       "descriptions": {
-        "id": "El número tras id= en el enlace; solo las canciones de la lista del blog se pueden reproducir en este sitio"
+        "id": "El número tras id= en el enlace; solo las canciones de la lista del blog se reproducen aquí",
+        "mode": "El modo NetEase muestra una canción por ID y las de la lista del blog se reproducen aquí; el audio personalizado reproduce cualquier archivo",
+        "src": "URL del archivo de audio; elígelo o súbelo a la biblioteca",
+        "lyric": "Opcional; con letra LRC se muestra la línea actual al reproducir",
+        "cover": "Opcional; elige de la biblioteca o escribe la URL de una imagen"
       },
       "play": "Reproducir",
       "pause": "Pausa",
@@ -1794,6 +1807,12 @@
         "failed": "La búsqueda falló, inténtalo más tarde",
         "in_playlist": "En la lista",
         "selected": "Seleccionada"
+      },
+      "options": {
+        "mode": {
+          "netease": "NetEase Cloud Music",
+          "custom": "Audio personalizado"
+        }
       }
     },
     "library": {
