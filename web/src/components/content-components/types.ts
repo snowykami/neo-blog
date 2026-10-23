@@ -2,6 +2,7 @@ import type { DOMOutputSpec } from '@tiptap/pm/model'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { z } from 'zod'
+import type { ComponentWidth } from './layout'
 
 /**
  * 文章 / 页面组件块：正文中只保存组件名与 JSON props，渲染时按注册表查找组件
@@ -45,6 +46,8 @@ export interface ContentComponentDef<S extends z.ZodObject = z.ZodObject> {
   fallback: (props: NoInfer<z.output<S>>) => DOMOutputSpec[]
   // 组件库中的预览 props；t 读取 ContentComponents.<name>.example 下的文案。未提供或校验失败时不显示预览
   example?: (t: (key: string) => string) => NoInfer<z.input<S>>
+  // 插入时的默认宽度（预设百分比），未提供时满宽；作者可在工具栏中调整
+  defaultWidth?: ComponentWidth
   // 属性弹窗的扩展
   editor?: ContentComponentEditor<NoInfer<z.input<S>>>
 }

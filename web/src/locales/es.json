@@ -2026,6 +2026,16 @@
         "filled_need_city": "Tiempo actual rellenado, añade el nombre de la ciudad",
         "place_selected": "Ciudad seleccionada"
       }
+    },
+    "layout": {
+      "width": "Ancho",
+      "width_33": "Pequeño (33 %)",
+      "width_50": "Mediano (50 %)",
+      "width_75": "Grande (75 %)",
+      "width_100": "Ancho completo (100 %)",
+      "align_left": "Alinear a la izquierda",
+      "align_center": "Centrar",
+      "align_right": "Alinear a la derecha"
     }
   },
   "AppUpdate": {

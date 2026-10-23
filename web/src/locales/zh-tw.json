@@ -2026,6 +2026,16 @@
         "filled_need_city": "已填入目前天氣，請補充城市名稱",
         "place_selected": "已選擇城市"
       }
+    },
+    "layout": {
+      "width": "寬度",
+      "width_33": "小（33%）",
+      "width_50": "中（50%）",
+      "width_75": "大（75%）",
+      "width_100": "滿寬（100%）",
+      "align_left": "靠左",
+      "align_center": "置中",
+      "align_right": "靠右"
     }
   },
   "AppUpdate": {

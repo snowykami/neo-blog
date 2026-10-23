@@ -167,6 +167,24 @@ describe('编辑器节点', () => {
     expect(roundTrip(html)).toBe(html)
   })
 
+  it('布局属性：只保留预设宽度与合法对齐，满宽时不输出', () => {
+    const props = { repo: 'snowykami/neo-blog' }
+    const withLayout = (attrs: string) => componentHtml('githubRepo', props).replace('<div ', `<div ${attrs} `)
+    const cases: [string, string | null, string | null][] = [
+      ['data-width="50" data-align="left"', '50', 'left'],
+      // 居中为默认值，不输出
+      ['data-width="75" data-align="center"', '75', null],
+      // 非预设宽度、满宽时忽略对齐；非法对齐按居中处理
+      ['data-width="42" data-align="left"', null, null],
+      ['data-width="100" data-align="right"', null, null],
+      ['data-width="50" data-align="evil"', '50', null],
+    ]
+    for (const [attrs, width, align] of cases) {
+      const el = firstComponent(roundTrip(sanitizeContentHtml(withLayout(attrs))))
+      expect([el.getAttribute('data-width'), el.getAttribute('data-align')], attrs).toEqual([width, align])
+    }
+  })
+
   it('未知组件保留原降级内容（净化后）', () => {
     const html = roundTrip(componentHtml('futureWidget', { a: 1 }, '<p>保留我</p><img src="x" onerror="alert(1)">'))
     const el = firstComponent(html)

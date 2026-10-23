@@ -31,6 +31,13 @@
 3. 在 12 个语言文件的 `ContentComponents.<name>` 下补齐 `name`、`description`、`fields.*`、枚举的 `options.<字段>.*`，以及可选的 `placeholders` / `descriptions` / `example`。
 4. 运行 `pnpm test`：会检查注册表是否最新、组件名是否唯一、各语言文案是否完整、示例 props 是否通过校验。
 
+## 尺寸与对齐
+
+组件块选中后，浮动工具栏可设置宽度预设（33% / 50% / 75% / 100%）与对齐（居左 / 居中 / 居右，与图片一致，不做文字环绕）。高度随内容自适应。
+
+- 存储为占位元素上的 `data-width` / `data-align`（满宽、居中时不输出），与组件 props 无关；样式见 `component-layout.css`，窄屏（< 640px）一律满宽
+- 内容紧凑的卡片可在定义中声明 `defaultWidth: 50`，只影响新插入的组件
+
 ## 编辑器扩展（可选）
 
 属性弹窗默认只渲染 schema 推导的表单。需要辅助填写时，在定义中声明 `editor`（参考 `content-components/weather-card/`）：

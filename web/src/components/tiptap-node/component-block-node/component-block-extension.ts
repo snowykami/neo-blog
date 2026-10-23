@@ -2,6 +2,7 @@ import type { DOMOutputSpec } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
 import { Node, ReactNodeViewRenderer } from '@tiptap/react'
 import DOMPurify from 'isomorphic-dompurify'
+import { componentLayoutAttrs, parseComponentAlign, parseComponentWidth } from '@/components/content-components/layout'
 import { getDefaultProps, parsePropsAttr, resolveComponent, serializePropsAttr } from '@/components/content-components/props'
 import { getContentComponent } from '@/components/content-components/registry'
 import { COMPONENT_BLOCK_TOOLBAR_ATTR } from './component-block-constants'
@@ -21,6 +22,7 @@ declare module '@tiptap/react' {
  * 组件块：<div data-component="name" data-props='{...}' data-version="1">降级内容</div>
  * - 原子节点，内容只有组件名与 JSON props；降级内容按组件的 fallback 重新生成
  * - 未知组件或 props 无效时原样保留读入时的降级内容，避免保存后丢失
+ * - 布局（宽度预设 / 对齐）与组件 props 无关，存为 data-width / data-align，满宽时不输出
  */
 export const ComponentBlock = Node.create({
   name: 'componentBlock',
@@ -49,6 +51,16 @@ export const ComponentBlock = Node.create({
         },
         renderHTML: () => ({}),
       },
+      width: {
+        default: null,
+        parseHTML: element => parseComponentWidth(element.getAttribute('data-width')),
+        renderHTML: () => ({}),
+      },
+      align: {
+        default: null,
+        parseHTML: element => parseComponentAlign(element.getAttribute('data-align')),
+        renderHTML: () => ({}),
+      },
       fallback: {
         default: '',
         parseHTML: element => element.innerHTML,
@@ -62,11 +74,12 @@ export const ComponentBlock = Node.create({
   },
 
   renderHTML({ node }) {
-    const { name, props, version, fallback } = node.attrs
+    const { name, props, version, width, align, fallback } = node.attrs
     const resolved = resolveComponent(name, props, version)
     const attrs: Record<string, string> = {
       'data-component': name ?? '',
       'data-props': serializePropsAttr(props),
+      ...componentLayoutAttrs(width, align),
     }
     if (version != null)
       attrs['data-version'] = String(version)
@@ -93,7 +106,7 @@ export const ComponentBlock = Node.create({
         // editor.can() 检查时不实际插入，不标记自动编辑
         if (dispatch)
           markPendingComponentEdit(editor)
-        const content = { type: this.name, attrs: { name, props: getDefaultProps(def), version: def.version } }
+        const content = { type: this.name, attrs: { name, props: getDefaultProps(def), version: def.version, width: def.defaultWidth ?? null } }
         // 选中整个节点（如另一个组件块、图片）时插入到其后，不替换选中的节点
         const { selection } = state
         const inserted = selection instanceof NodeSelection
