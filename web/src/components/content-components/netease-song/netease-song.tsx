@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { getMusicSong } from '@/api/music'
 import { ProgressControl } from '@/components/common/controlled-progress'
+import { LyricLine } from '@/components/common/music-lyric-line'
 import { SafeImage } from '@/components/common/safe-image'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -38,11 +39,12 @@ export default function NeteaseSongCard({ id }: NeteaseSongProps) {
   const shownSeconds = hasDuration && dragPercent != null ? (dragPercent / 100) * duration : (isCurrent ? currentTime ?? 0 : 0)
   const shownTime = formatDurationMMSS(Math.floor(shownSeconds))
   const totalTime = hasDuration ? formatDurationMMSS(Math.floor(duration)) : '--:--'
-  // 播放中显示当前歌词，否则显示歌手与专辑
-  const lyric = playing && currentLyric && !LYRIC_PLACEHOLDERS.has(currentLyric.trim()) ? currentLyric : null
+  // 播放中显示当前歌词（与导航栏共用逐字高亮与超长滚动），否则显示歌手与专辑
+  const showLyric = playing && !!currentLyric && !LYRIC_PLACEHOLDERS.has(currentLyric.trim())
 
   return (
-    <div className="grid gap-2.5 rounded-xl border bg-card p-3 text-card-foreground">
+    // minmax(0,1fr)：网格项默认不小于内容宽度，过长的一行歌词会把卡片撑宽，导致无法触发横向滚动
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-2.5 rounded-xl border bg-card p-3 text-card-foreground">
       <div className="flex items-center gap-3.5">
         <div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-muted">
           {song?.albumPic
@@ -56,10 +58,13 @@ export default function NeteaseSongCard({ id }: NeteaseSongProps) {
                   <a href={link} target="_blank" rel="noopener noreferrer" className="block truncate font-semibold text-foreground no-underline hover:text-primary">
                     {song.name}
                   </a>
-                  {/* 歌词随播放变化，key 让切换时重新淡入 */}
-                  <p key={lyric ?? 'meta'} className={lyric ? 'truncate text-sm text-primary/90 animate-in fade-in-0 duration-300' : 'truncate text-sm text-muted-foreground'}>
-                    {lyric ?? [song.artists.join(' / '), song.album].filter(Boolean).join(' · ')}
-                  </p>
+                  {showLyric
+                    ? <div className="text-sm"><LyricLine /></div>
+                    : (
+                        <p className="truncate text-sm text-muted-foreground">
+                          {[song.artists.join(' / '), song.album].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
                 </>
               )
             : state.status === 'error'
