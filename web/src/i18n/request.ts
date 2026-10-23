@@ -6,8 +6,9 @@ import { localesData } from '@/locales'
 
 export default getRequestConfig(async () => {
   const locales = await getUserLocales()
+  // 低优先级先合并、高优先级覆盖；复制后再反转，避免改动 locales 导致 locale 取到最低优先级的语言
   const messages = await Promise.all(
-    locales.reverse().map(async (locale) => {
+    [...locales].reverse().map(async (locale) => {
       return localesData[locale]?.data || {}
     }),
   ).then(msgs => msgs.reduce((acc, msg) => deepmerge(acc, msg), {}))
