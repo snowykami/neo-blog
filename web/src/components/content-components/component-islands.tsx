@@ -1,10 +1,12 @@
 'use client'
 
+import type { ComponentHeight } from './layout'
 import type { AnyContentComponentDef } from './types'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { COMPONENT_FALLBACK_ATTR, COMPONENT_ROOT_ATTR } from './constants'
 import { ContentComponentView } from './content-component-view'
+import { parseComponentHeight } from './layout'
 import { resolveComponentElement } from './props'
 
 interface Island {
@@ -13,6 +15,7 @@ interface Island {
   fallback: HTMLElement
   def: AnyContentComponentDef
   props: Record<string, unknown>
+  height: ComponentHeight | null
 }
 
 let nextIslandId = 0
@@ -47,16 +50,19 @@ export function ComponentIslands({ containerId }: { containerId: string }) {
       const root = document.createElement('div')
       root.setAttribute(COMPONENT_ROOT_ATTR, '')
       el.append(fallback, root)
-      found.push({ id: nextIslandId++, root, fallback, def: resolved.def, props: resolved.props })
+      // 只采用组件支持的高度档位，其余按自动高度渲染
+      const height = parseComponentHeight(el.getAttribute('data-height'), resolved.def.heights ?? [])
+      found.push({ id: nextIslandId++, root, fallback, def: resolved.def, props: resolved.props, height })
     })
     if (found.length)
       setIslands(prev => [...prev, ...found])
   }, [containerId])
 
-  return islands.map(({ id, root, fallback, def, props }) => createPortal(
+  return islands.map(({ id, root, fallback, def, props, height }) => createPortal(
     <ContentComponentView
       def={def}
       props={props}
+      height={height}
       onError={() => {
         fallback.hidden = false
       }}

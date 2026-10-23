@@ -1825,7 +1825,9 @@
           "netease": "網易雲樂",
           "custom": "自備之音"
         }
-      }
+      },
+      "lyric_idle": "奏之則詞見於此",
+      "no_lyric": "無詞"
     },
     "library": {
       "open": "器庫…",
@@ -2095,7 +2097,11 @@
       "width_100": "滿（全）",
       "align_left": "居左",
       "align_center": "居中",
-      "align_right": "居右"
+      "align_right": "居右",
+      "height": "高",
+      "height_auto": "自適",
+      "height_unit": "{count} 格",
+      "height_option": "{count} 格（{px}px）"
     }
   },
   "AppUpdate": {

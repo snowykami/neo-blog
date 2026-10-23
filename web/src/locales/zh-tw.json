@@ -1825,7 +1825,9 @@
           "netease": "網易雲音樂",
           "custom": "自訂音訊"
         }
-      }
+      },
+      "lyric_idle": "播放後在這裡顯示歌詞",
+      "no_lyric": "暫無歌詞"
     },
     "library": {
       "open": "元件庫…",
@@ -2095,7 +2097,11 @@
       "width_100": "滿寬（100%）",
       "align_left": "靠左",
       "align_center": "置中",
-      "align_right": "靠右"
+      "align_right": "靠右",
+      "height": "高度",
+      "height_auto": "自動",
+      "height_unit": "{count} 單位",
+      "height_option": "{count} 單位（{px}px）"
     }
   },
   "AppUpdate": {

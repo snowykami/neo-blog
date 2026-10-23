@@ -5,11 +5,13 @@ import { ExternalLinkIcon, PauseIcon, PlayIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { getMusicSong } from '@/api/music'
 import { LyricLine } from '@/components/common/music-lyric-line'
+import LyricScroll from '@/components/common/music-lyric-scroll'
 import { Button } from '@/components/ui/button'
 import { useMusic } from '@/contexts/music-context'
 import { useCachedRequest } from '../use-cached-request'
+import { useComponentHeight } from '../use-component-height'
 import { CustomAudioCard } from './custom-audio-card'
-import { MusicCardView } from './music-card-view'
+import { isTallMusicCard, MusicCardLyricHint, MusicCardView } from './music-card-view'
 
 // 没有歌词时歌词接口返回的占位文本，不在卡片中展示
 const LYRIC_PLACEHOLDERS = new Set(['no_lyric', 'pure_music_without_lyric'])
@@ -34,8 +36,10 @@ function NeteaseSongCard({ id }: { id: number }) {
   const link = song?.link || `https://music.163.com/#/song?id=${id}`
   const isCurrent = track != null && currentTrack?.id === id
   const playing = isCurrent && isPlaying
+  // 3 单位及以上高度时歌词显示在歌词区（与播放器面板共用滚动歌词），副标题固定显示歌手与专辑
+  const tall = isTallMusicCard(useComponentHeight())
   // 播放中显示当前歌词（与导航栏共用逐字高亮与超长滚动），否则显示歌手与专辑
-  const showLyric = playing && !!currentLyric && !LYRIC_PLACEHOLDERS.has(currentLyric.trim())
+  const showLyric = !tall && playing && !!currentLyric && !LYRIC_PLACEHOLDERS.has(currentLyric.trim())
 
   const subtitle = !song
     ? state.status === 'error' && <p className="text-sm text-muted-foreground">{t('load_failed')}</p>
@@ -73,6 +77,9 @@ function NeteaseSongCard({ id }: { id: number }) {
       subtitle={subtitle}
       action={action}
       loading={!song && state.status === 'loading'}
+      lyrics={isCurrent
+        ? <LyricScroll className="h-full" />
+        : song && <MusicCardLyricHint>{t(track ? 'lyric_idle' : 'not_in_playlist')}</MusicCardLyricHint>}
       // 当前正在播放（或暂停在）这首歌时显示可拖动的进度
       progress={isCurrent ? { currentTime: currentTime ?? 0, duration, onSeek: seek } : null}
     />

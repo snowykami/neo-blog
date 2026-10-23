@@ -1825,7 +1825,9 @@
           "netease": "NetEase Cloud Music",
           "custom": "Custom audio"
         }
-      }
+      },
+      "lyric_idle": "Lyrics appear here while playing",
+      "no_lyric": "No lyrics"
     },
     "library": {
       "open": "Component library…",
@@ -2095,7 +2097,11 @@
       "width_100": "Full width (100%)",
       "align_left": "Align left",
       "align_center": "Align center",
-      "align_right": "Align right"
+      "align_right": "Align right",
+      "height": "Height",
+      "height_auto": "Auto",
+      "height_unit": "{count, plural, one {# unit} other {# units}}",
+      "height_option": "{count, plural, one {# unit} other {# units}} ({px}px)"
     }
   },
   "AppUpdate": {

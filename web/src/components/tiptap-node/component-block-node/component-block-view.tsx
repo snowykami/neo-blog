@@ -1,14 +1,14 @@
 'use client'
 
 import type { NodeViewProps } from '@tiptap/react'
-import type { ComponentAlign, ComponentWidth } from '@/components/content-components/layout'
+import type { ComponentAlign, ComponentHeight, ComponentWidth } from '@/components/content-components/layout'
 import { NodeViewWrapper } from '@tiptap/react'
-import { MoveHorizontalIcon, PuzzleIcon, Settings2Icon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon, Trash2Icon } from 'lucide-react'
+import { MoveHorizontalIcon, MoveVerticalIcon, PuzzleIcon, Settings2Icon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useMemo, useState } from 'react'
 import { ComponentPropsDialog } from '@/components/content-components/component-props-dialog'
 import { ContentComponentView } from '@/components/content-components/content-component-view'
-import { COMPONENT_WIDTHS, componentLayoutAttrs, parseComponentAlign, parseComponentWidth } from '@/components/content-components/layout'
+import { COMPONENT_WIDTHS, componentHeightRem, componentLayoutAttrs, parseComponentAlign, parseComponentHeight, parseComponentWidth } from '@/components/content-components/layout'
 import { resolveComponent } from '@/components/content-components/props'
 import { EditorToolbarButton, EditorToolbarSeparator, EditorTooltip } from '@/components/tiptap-editor/editor-toolbar-button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -36,7 +36,7 @@ const ALIGNS: { id: ComponentAlign, icon: typeof TextAlignStartIcon }[] = [
 ]
 
 /**
- * 组件块节点视图：实时渲染与前台相同的组件作为预览；选中时显示浮动工具栏（宽度 / 对齐 / 编辑属性 / 删除），双击打开属性编辑
+ * 组件块节点视图：实时渲染与前台相同的组件作为预览；选中时显示浮动工具栏（宽度 / 对齐 / 高度 / 编辑属性 / 删除），双击打开属性编辑
  */
 export function ComponentBlockView({ editor, node, selected, updateAttributes, deleteNode }: NodeViewProps) {
   const t = useTranslations('ContentComponents')
@@ -45,6 +45,9 @@ export function ComponentBlockView({ editor, node, selected, updateAttributes, d
   const align = width < 100 ? (parseComponentAlign(node.attrs.align) ?? 'center') : 'center'
   const resolved = useMemo(() => resolveComponent(name, props, version), [name, props, version])
   const def = resolved.def
+  // 高度档位只在组件声明支持时可选
+  const heights = def?.heights ?? []
+  const height = parseComponentHeight(node.attrs.height, heights)
   const editable = editor.isEditable
   const [editing, setEditing] = useState(false)
 
@@ -78,6 +81,7 @@ export function ComponentBlockView({ editor, node, selected, updateAttributes, d
             <ContentComponentView
               def={resolved.def}
               props={resolved.props}
+              height={height}
               className="my-0"
               errorFallback={<BlockNotice title={t('render_failed')} hint={t('edit_hint')} />}
             />
@@ -136,6 +140,31 @@ export function ComponentBlockView({ editor, node, selected, updateAttributes, d
               <AlignIcon className="size-[17px]" />
             </EditorToolbarButton>
           ))}
+          {heights.length > 0 && (
+            <DropdownMenu modal={false}>
+              <EditorTooltip label={t('layout.height')}>
+                <DropdownMenuTrigger asChild>
+                  <EditorToolbarButton label={t('layout.height')} noTooltip className="h-[30px] min-w-[30px]">
+                    <MoveVerticalIcon className="size-[17px]" />
+                    <span className="text-xs tabular-nums">{height ? t('layout.height_unit', { count: height }) : t('layout.height_auto')}</span>
+                  </EditorToolbarButton>
+                </DropdownMenuTrigger>
+              </EditorTooltip>
+              <DropdownMenuContent align="end" onCloseAutoFocus={e => e.preventDefault()}>
+                <DropdownMenuRadioGroup
+                  value={String(height ?? 'auto')}
+                  onValueChange={value => updateAttributes({ height: value === 'auto' ? null : Number(value) as ComponentHeight })}
+                >
+                  <DropdownMenuRadioItem value="auto">{t('layout.height_auto')}</DropdownMenuRadioItem>
+                  {heights.map(option => (
+                    <DropdownMenuRadioItem key={option} value={String(option)}>
+                      {t('layout.height_option', { count: option, px: componentHeightRem(option) * 16 })}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <EditorToolbarSeparator className="mx-0.5" />
           {def && (
             <EditorToolbarButton label={t('edit')} className="h-[30px] min-w-[30px]" onClick={() => setEditing(true)}>

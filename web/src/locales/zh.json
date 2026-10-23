@@ -1825,7 +1825,9 @@
           "netease": "网易云音乐",
           "custom": "自定义音频"
         }
-      }
+      },
+      "lyric_idle": "播放后在这里显示歌词",
+      "no_lyric": "暂无歌词"
     },
     "library": {
       "open": "组件库…",
@@ -2095,7 +2097,11 @@
       "width_100": "满宽（100%）",
       "align_left": "居左",
       "align_center": "居中",
-      "align_right": "居右"
+      "align_right": "居右",
+      "height": "高度",
+      "height_auto": "自动",
+      "height_unit": "{count} 单位",
+      "height_option": "{count} 单位（{px}px）"
     }
   },
   "AppUpdate": {

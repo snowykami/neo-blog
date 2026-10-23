@@ -8,6 +8,7 @@ import { createContentExtensions } from '@/lib/tiptap-extensions'
 import { localesData } from '@/locales'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
 import { generate, outputFile } from '../../../scripts/gen-content-components.mjs'
+import { COMPONENT_HEIGHTS, componentHeightRem } from './layout'
 import { buildLibraryTree, filterLibraryTree, flattenLibraryTree } from './library-tree'
 import { getDefaultProps, parsePropsAttr, resolveComponent, resolveComponentElement, serializePropsAttr } from './props'
 import { CONTENT_COMPONENTS, getContentComponent } from './registry'
@@ -207,6 +208,30 @@ describe('编辑器节点', () => {
       const el = firstComponent(roundTrip(sanitizeContentHtml(withLayout(attrs))))
       expect([el.getAttribute('data-width'), el.getAttribute('data-align')], attrs).toEqual([width, align])
     }
+  })
+
+  it('高度档位：只保留组件支持的档位，自动高度时不输出', () => {
+    const withHeight = (name: string, props: Record<string, unknown>, height: string) =>
+      componentHtml(name, props).replace('<div ', `<div data-height="${height}" `)
+    const repo = { repo: 'snowykami/neo-blog' }
+    const cases: [string, string | null][] = [
+      [withHeight('githubRepo', repo, '1'), '1'],
+      [withHeight('githubRepo', repo, '2'), '2'],
+      // GitHub 仓库只支持 1、2 单位；非法值按自动高度处理
+      [withHeight('githubRepo', repo, '3'), null],
+      [withHeight('githubRepo', repo, '1.5'), null],
+      [withHeight('githubRepo', repo, 'evil'), null],
+      [withHeight('neteaseSong', { id: 1 }, '4'), '4'],
+      // 提示框只支持自动高度
+      [withHeight('callout', { type: 'info', content: '注意' }, '2'), null],
+      // 未知组件原样保留合法档位
+      [withHeight('futureWidget', { a: 1 }, '3'), '3'],
+    ]
+    for (const [html, height] of cases) {
+      const el = firstComponent(roundTrip(sanitizeContentHtml(html)))
+      expect(el.getAttribute('data-height'), html).toBe(height)
+    }
+    expect(COMPONENT_HEIGHTS.map(componentHeightRem)).toEqual([6, 13, 20, 27])
   })
 
   it('未知组件保留原降级内容（净化后）', () => {

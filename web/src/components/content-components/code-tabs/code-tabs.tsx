@@ -16,7 +16,7 @@ function highlight(code: string, language: string): string | null {
   return hljs.highlight(code, { language, ignoreIllegals: true }).value
 }
 
-/** 代码组：多段代码以标签页切换，外观与正文代码块一致（深色容器 + 复制按钮） */
+/** 代码组：多段代码以标签页切换，外观与正文代码块一致（深色容器 + 复制按钮）；设置高度档位时代码区在卡片内滚动 */
 export default function CodeTabs({ tabs }: CodeTabsProps) {
   const t = useTranslations('CodeBlock')
   const [active, setActive] = useState('0')
@@ -35,7 +35,7 @@ export default function CodeTabs({ tabs }: CodeTabsProps) {
   }
 
   return (
-    <Tabs value={active} onValueChange={setActive} className="gap-0 overflow-hidden rounded-xl border border-white/10 bg-(--code-bg)">
+    <Tabs value={active} onValueChange={setActive} className="h-full gap-0 overflow-hidden rounded-xl border border-white/10 bg-(--code-bg)">
       <div className="flex items-center gap-2 border-b border-white/10 bg-white/5 pr-2">
         <TabsList variant="underline" className="h-9 min-w-0 flex-1 justify-start border-0 px-2 text-white/55">
           {tabs.map((tab, index) => (
@@ -59,8 +59,8 @@ export default function CodeTabs({ tabs }: CodeTabsProps) {
         </button>
       </div>
       {tabs.map((tab, index) => (
-        <TabsContent key={index} value={String(index)} className="m-0">
-          <pre className="m-0 overflow-x-auto bg-transparent px-4 py-3 font-mono text-[0.875rem] leading-6 text-gray-100">
+        <TabsContent key={index} value={String(index)} className="m-0 min-h-0">
+          <pre className="m-0 h-full overflow-auto bg-transparent px-4 py-3 font-mono text-[0.875rem] leading-6 text-gray-100">
             {highlighted[index] != null
               ? <code className={`hljs language-${tab.language} !bg-transparent !p-0`} dangerouslySetInnerHTML={{ __html: highlighted[index] }} />
               : <code className="!bg-transparent !p-0">{tab.code}</code>}

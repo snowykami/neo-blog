@@ -12,7 +12,8 @@ function preserveEdgeSpaces(text: string) {
   return text.replace(/^\s+|\s+$/g, match => '\u00A0'.repeat(match.length))
 }
 
-export default function LyricScroll() {
+/** 滚动歌词：自动滚动到当前行，点击某行跳转播放；className 可覆盖默认高度（h-40） */
+export default function LyricScroll({ className }: { className?: string }) {
   const t = useTranslations('MusicPlayer')
   const {
     lyricLines,
@@ -72,7 +73,7 @@ export default function LyricScroll() {
   if (activeLyricIndex === null) {
     return (
       <div
-        className={lyricScrollClassName}
+        className={cn(lyricScrollClassName, className)}
         style={lyricScrollStyle}
       />
     )
@@ -81,7 +82,7 @@ export default function LyricScroll() {
   const text = lyricLines[activeLyricIndex]?.text
   if (lyricLines.length === 1 && (text === 'pure_music_without_lyric' || text === 'no_lyric')) {
     return (
-      <div className="h-40 flex items-center justify-center text-center text-base text-foreground/50">
+      <div className={cn('h-40 flex items-center justify-center text-center text-base text-foreground/50', className)}>
         {t(text)}
       </div>
     )
@@ -90,7 +91,7 @@ export default function LyricScroll() {
   return (
     <div
       ref={containerRef}
-      className={lyricScrollClassName}
+      className={cn(lyricScrollClassName, className)}
       style={lyricScrollStyle}
     >
       <div aria-hidden className="h-20" />

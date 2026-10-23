@@ -1825,7 +1825,9 @@
           "netease": "NetEase Cloud Music",
           "custom": "カスタム音声"
         }
-      }
+      },
+      "lyric_idle": "再生するとここに歌詞が表示されます",
+      "no_lyric": "歌詞なし"
     },
     "library": {
       "open": "コンポーネントライブラリ…",
@@ -2095,7 +2097,11 @@
       "width_100": "全幅（100%）",
       "align_left": "左揃え",
       "align_center": "中央揃え",
-      "align_right": "右揃え"
+      "align_right": "右揃え",
+      "height": "高さ",
+      "height_auto": "自動",
+      "height_unit": "{count} ユニット",
+      "height_option": "{count} ユニット（{px}px）"
     }
   },
   "AppUpdate": {

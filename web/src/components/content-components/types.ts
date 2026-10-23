@@ -2,7 +2,7 @@ import type { DOMOutputSpec } from '@tiptap/pm/model'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { z } from 'zod'
-import type { ComponentWidth } from './layout'
+import type { ComponentHeight, ComponentWidth } from './layout'
 
 /**
  * 文章 / 页面组件块：正文中只保存组件名与 JSON props，渲染时按注册表查找组件
@@ -49,6 +49,9 @@ export interface ContentComponentDef<S extends z.ZodObject = z.ZodObject> {
   example?: (t: (key: string) => string) => NoInfer<z.input<S>>
   // 插入时的默认宽度（预设百分比），未提供时满宽；作者可在工具栏中调整
   defaultWidth?: ComponentWidth
+  // 支持的高度档位（单位见 layout.ts），作者可在工具栏中选择；未提供时只支持自动高度。
+  // 组件通过 useComponentHeight() 读取当前档位切换布局，根元素应为 h-full 以填满固定高度
+  heights?: readonly ComponentHeight[]
   // 属性弹窗的扩展
   editor?: ContentComponentEditor<NoInfer<z.input<S>>>
   // 允许 AI 帮写使用该组件：usage 说明适用场景，与 props 的 JSON Schema 一起写入提示词；

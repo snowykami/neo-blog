@@ -2,7 +2,7 @@ import type { DOMOutputSpec } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
 import { Node, ReactNodeViewRenderer } from '@tiptap/react'
 import DOMPurify from 'isomorphic-dompurify'
-import { componentLayoutAttrs, parseComponentAlign, parseComponentWidth } from '@/components/content-components/layout'
+import { componentLayoutAttrs, parseComponentAlign, parseComponentHeight, parseComponentWidth } from '@/components/content-components/layout'
 import { getDefaultProps, parsePropsAttr, resolveComponent, serializePropsAttr } from '@/components/content-components/props'
 import { getContentComponent } from '@/components/content-components/registry'
 import { COMPONENT_BLOCK_TOOLBAR_ATTR } from './component-block-constants'
@@ -22,7 +22,8 @@ declare module '@tiptap/react' {
  * 组件块：<div data-component="name" data-props='{...}' data-version="1">降级内容</div>
  * - 原子节点，内容只有组件名与 JSON props；降级内容按组件的 fallback 重新生成
  * - 未知组件或 props 无效时原样保留读入时的降级内容，避免保存后丢失
- * - 布局（宽度预设 / 对齐）与组件 props 无关，存为 data-width / data-align，满宽时不输出
+ * - 布局（宽度预设 / 对齐 / 高度档位）与组件 props 无关，存为 data-width / data-align / data-height，取默认值时不输出；
+ *   已知组件只保留其支持的高度档位，未知组件原样保留合法档位
  */
 export const ComponentBlock = Node.create({
   name: 'componentBlock',
@@ -61,6 +62,11 @@ export const ComponentBlock = Node.create({
         parseHTML: element => parseComponentAlign(element.getAttribute('data-align')),
         renderHTML: () => ({}),
       },
+      height: {
+        default: null,
+        parseHTML: element => parseComponentHeight(element.getAttribute('data-height')),
+        renderHTML: () => ({}),
+      },
       fallback: {
         default: '',
         parseHTML: element => element.innerHTML,
@@ -74,12 +80,12 @@ export const ComponentBlock = Node.create({
   },
 
   renderHTML({ node }) {
-    const { name, props, version, width, align, fallback } = node.attrs
+    const { name, props, version, width, align, height, fallback } = node.attrs
     const resolved = resolveComponent(name, props, version)
     const attrs: Record<string, string> = {
       'data-component': name ?? '',
       'data-props': serializePropsAttr(props),
-      ...componentLayoutAttrs(width, align),
+      ...componentLayoutAttrs(width, align, resolved.def ? parseComponentHeight(height, resolved.def.heights ?? []) : height),
     }
     if (version != null)
       attrs['data-version'] = String(version)

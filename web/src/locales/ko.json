@@ -1825,7 +1825,9 @@
           "netease": "NetEase Cloud Music",
           "custom": "사용자 오디오"
         }
-      }
+      },
+      "lyric_idle": "재생하면 여기에 가사가 표시됩니다",
+      "no_lyric": "가사 없음"
     },
     "library": {
       "open": "컴포넌트 라이브러리…",
@@ -2095,7 +2097,11 @@
       "width_100": "전체 너비 (100%)",
       "align_left": "왼쪽 정렬",
       "align_center": "가운데 정렬",
-      "align_right": "오른쪽 정렬"
+      "align_right": "오른쪽 정렬",
+      "height": "높이",
+      "height_auto": "자동",
+      "height_unit": "{count}단위",
+      "height_option": "{count}단위 ({px}px)"
     }
   },
   "AppUpdate": {

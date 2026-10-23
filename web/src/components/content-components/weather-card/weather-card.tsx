@@ -24,6 +24,7 @@ import { getWeather } from '@/api/weather'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useCachedRequest } from '../use-cached-request'
+import { useComponentHeight } from '../use-component-height'
 
 // 各天气状况的图标与渐变背景；晴天夜间单独处理
 const CONDITION_STYLES: Record<WeatherCondition, { icon: LucideIcon, gradient: string }> = {
@@ -55,13 +56,40 @@ interface WeatherCardBodyProps {
   footer?: ReactNode
 }
 
+/**
+ * 天气卡主体：高度 1 单位时横排显示图标、温度、天气与城市，收起湿度、风力与时间；
+ * 其余高度为完整布局（固定高度时底部信息贴底）；窄卡片收起次要信息
+ */
 function WeatherCardBody({ city, condition, temperature, humidity, wind, isDay = true, footer }: WeatherCardBodyProps) {
   const t = useTranslations('ContentComponents.weatherCard')
   const format = useFormatter()
+  const height = useComponentHeight()
   const { icon: Icon, gradient } = condition === 'clear' && !isDay ? CLEAR_NIGHT_STYLE : CONDITION_STYLES[condition]
+  const temperatureText = format.number(temperature, { maximumFractionDigits: 1 })
+
+  if (height === 1) {
+    return (
+      <div className={cn('flex h-full items-center gap-3 overflow-hidden rounded-xl bg-linear-to-br px-4 text-white shadow-sm', gradient)}>
+        <Icon className="size-12 shrink-0 drop-shadow-md @max-3xs:hidden" strokeWidth={1.5} aria-hidden />
+        <div className="shrink-0 text-4xl font-semibold tracking-tight tabular-nums">
+          {temperatureText}
+          <span className="ml-0.5 align-top text-lg font-medium">°C</span>
+        </div>
+        <div className="ml-auto grid min-w-0 justify-items-end gap-0.5 text-right">
+          <span className="font-medium">{t(`options.condition.${condition}`)}</span>
+          {city && (
+            <span className="flex max-w-full items-center gap-1 text-sm text-white/85">
+              <MapPinIcon className="size-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{city}</span>
+            </span>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className={cn('overflow-hidden rounded-xl bg-linear-to-br p-5 text-white shadow-sm', gradient)}>
+    <div className={cn('flex h-full flex-col justify-between overflow-hidden rounded-xl bg-linear-to-br p-5 text-white shadow-sm', gradient)}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           {city && (
@@ -71,12 +99,12 @@ function WeatherCardBody({ city, condition, temperature, humidity, wind, isDay =
             </div>
           )}
           <div className="mt-1.5 text-5xl font-semibold tracking-tight tabular-nums">
-            {format.number(temperature, { maximumFractionDigits: 1 })}
+            {temperatureText}
             <span className="ml-0.5 align-top text-2xl font-medium">°C</span>
           </div>
           <div className="mt-1 font-medium">{t(`options.condition.${condition}`)}</div>
         </div>
-        <Icon className="size-16 shrink-0 drop-shadow-md" strokeWidth={1.5} aria-hidden />
+        <Icon className="size-16 shrink-0 drop-shadow-md @max-3xs:hidden" strokeWidth={1.5} aria-hidden />
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/85">
         <span className="inline-flex items-center gap-1.5">
@@ -87,7 +115,7 @@ function WeatherCardBody({ city, condition, temperature, humidity, wind, isDay =
           <WindIcon className="size-4" aria-hidden />
           {t('wind_level', { level: wind })}
         </span>
-        {footer && <span className="ml-auto text-xs text-white/70">{footer}</span>}
+        {footer && <span className="ml-auto text-xs text-white/70 @max-2xs:hidden">{footer}</span>}
       </div>
     </div>
   )
@@ -97,20 +125,21 @@ function WeatherCardBody({ city, condition, temperature, humidity, wind, isDay =
 function LiveWeatherCard({ city, latitude, longitude }: WeatherCardProps) {
   const t = useTranslations('ContentComponents.weatherCard')
   const format = useFormatter()
+  const height = useComponentHeight()
   const state = useCachedRequest(`weather:${latitude.toFixed(2)},${longitude.toFixed(2)}`, () => getWeather(latitude, longitude))
 
   if (state.status === 'loading') {
     return (
-      <div className="grid gap-3 rounded-xl border bg-card p-5">
+      <div className="grid h-full content-center gap-3 overflow-hidden rounded-xl border bg-card px-5 py-3">
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-10 w-28" />
-        <Skeleton className="h-4 w-40" />
+        {height !== 1 && <Skeleton className="h-4 w-40" />}
       </div>
     )
   }
   if (state.status === 'error') {
     return (
-      <div className="flex items-center gap-2 rounded-xl border bg-card p-5 text-sm text-muted-foreground">
+      <div className="flex h-full items-center gap-2 rounded-xl border bg-card p-5 text-sm text-muted-foreground">
         <MapPinIcon className="size-4 shrink-0" aria-hidden />
         {city}
         <span className="ml-auto">{t('load_failed')}</span>
