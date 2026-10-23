@@ -649,7 +649,13 @@
       "sidebar_card_edit": "プロパティを編集",
       "sidebar_card_invalid": "カードの設定が無効です。確認してください",
       "sidebar_card_move_up": "上へ移動",
-      "sidebar_card_move_down": "下へ移動"
+      "sidebar_card_move_down": "下へ移動",
+      "section_weather": "天気",
+      "section_weather_desc": "記事内の天気カードのデータソース。QWeather の API Host と API Key を入力すると QWeather、未入力なら Open-Meteo を使用します",
+      "qweather_api_host": "QWeather API Host",
+      "qweather_api_host_desc": "QWeather コンソールの設定にある専用 API Host",
+      "qweather_api_key": "QWeather API Key",
+      "qweather_api_key_desc": "サーバーにのみ保存され、訪問者には公開されません"
     },
     "labels": {
       "title": "タグ管理",

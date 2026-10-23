@@ -649,7 +649,13 @@
       "sidebar_card_edit": "編輯屬性",
       "sidebar_card_invalid": "卡片設定無效，請檢查",
       "sidebar_card_move_up": "上移",
-      "sidebar_card_move_down": "下移"
+      "sidebar_card_move_down": "下移",
+      "section_weather": "天氣",
+      "section_weather_desc": "文章內天氣卡片的資料來源：填寫和風天氣的 API Host 與 API Key 後使用和風天氣，留空則使用 Open-Meteo",
+      "qweather_api_host": "和風天氣 API Host",
+      "qweather_api_host_desc": "和風天氣主控台「設定」中的專屬 API Host",
+      "qweather_api_key": "和風天氣 API Key",
+      "qweather_api_key_desc": "僅儲存於伺服器端，不會公開給訪客"
     },
     "labels": {
       "title": "標籤管理",

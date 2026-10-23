@@ -649,7 +649,13 @@
       "sidebar_card_edit": "Editar propiedades",
       "sidebar_card_invalid": "Configuración de tarjeta no válida, revísala",
       "sidebar_card_move_up": "Subir",
-      "sidebar_card_move_down": "Bajar"
+      "sidebar_card_move_down": "Bajar",
+      "section_weather": "Tiempo",
+      "section_weather_desc": "Fuente de datos de las tarjetas del tiempo: con el API Host y la API Key se usa QWeather; si no, Open-Meteo",
+      "qweather_api_host": "API Host de QWeather",
+      "qweather_api_host_desc": "Tu API Host dedicado en la configuración de la consola de QWeather",
+      "qweather_api_key": "API Key de QWeather",
+      "qweather_api_key_desc": "Solo se guarda en el servidor y nunca se muestra a los visitantes"
     },
     "labels": {
       "title": "Etiquetas",

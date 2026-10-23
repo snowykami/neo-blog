@@ -649,7 +649,13 @@
       "sidebar_card_edit": "改其屬",
       "sidebar_card_invalid": "卡設不合，請察之",
       "sidebar_card_move_up": "上移",
-      "sidebar_card_move_down": "下移"
+      "sidebar_card_move_down": "下移",
+      "section_weather": "天氣",
+      "section_weather_desc": "文中天氣卡之所本：填和風天氣之 API Host 與 API Key 則用和風天氣，留空則用 Open-Meteo",
+      "qweather_api_host": "和風天氣 API Host",
+      "qweather_api_host_desc": "和風天氣主台「設」中之專屬 API Host",
+      "qweather_api_key": "和風天氣 API Key",
+      "qweather_api_key_desc": "唯藏於服務端，不示於訪客"
     },
     "labels": {
       "title": "標籤管理",

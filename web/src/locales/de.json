@@ -649,7 +649,13 @@
       "sidebar_card_edit": "Eigenschaften bearbeiten",
       "sidebar_card_invalid": "Ungültige Karteneinstellungen, bitte prüfen",
       "sidebar_card_move_up": "Nach oben",
-      "sidebar_card_move_down": "Nach unten"
+      "sidebar_card_move_down": "Nach unten",
+      "section_weather": "Wetter",
+      "section_weather_desc": "Datenquelle für Wetterkarten in Beiträgen: Mit API-Host und API-Key wird QWeather verwendet, sonst Open-Meteo",
+      "qweather_api_host": "QWeather-API-Host",
+      "qweather_api_host_desc": "Dein persönlicher API-Host aus den Einstellungen der QWeather-Konsole",
+      "qweather_api_key": "QWeather-API-Key",
+      "qweather_api_key_desc": "Wird nur auf dem Server gespeichert und nie für Besucher sichtbar"
     },
     "labels": {
       "title": "Schlagwörter",

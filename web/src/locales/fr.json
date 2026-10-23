@@ -649,7 +649,13 @@
       "sidebar_card_edit": "Modifier les propriétés",
       "sidebar_card_invalid": "Paramètres de carte invalides, veuillez vérifier",
       "sidebar_card_move_up": "Monter",
-      "sidebar_card_move_down": "Descendre"
+      "sidebar_card_move_down": "Descendre",
+      "section_weather": "Météo",
+      "section_weather_desc": "Source des cartes météo : QWeather est utilisé une fois l'API Host et l'API Key renseignés, sinon Open-Meteo",
+      "qweather_api_host": "API Host QWeather",
+      "qweather_api_host_desc": "Votre API Host dédié dans les paramètres de la console QWeather",
+      "qweather_api_key": "API Key QWeather",
+      "qweather_api_key_desc": "Stockée uniquement sur le serveur, jamais exposée aux visiteurs"
     },
     "labels": {
       "title": "Étiquettes",

@@ -649,7 +649,13 @@
       "sidebar_card_edit": "Editar propriedades",
       "sidebar_card_invalid": "Configuração de cartão inválida, verifique",
       "sidebar_card_move_up": "Mover para cima",
-      "sidebar_card_move_down": "Mover para baixo"
+      "sidebar_card_move_down": "Mover para baixo",
+      "section_weather": "Clima",
+      "section_weather_desc": "Fonte dos cartões de clima: com o API Host e a API Key usa o QWeather; caso contrário, o Open-Meteo",
+      "qweather_api_host": "API Host do QWeather",
+      "qweather_api_host_desc": "Seu API Host dedicado nas configurações do console do QWeather",
+      "qweather_api_key": "API Key do QWeather",
+      "qweather_api_key_desc": "Armazenada apenas no servidor e nunca exposta aos visitantes"
     },
     "labels": {
       "title": "Tags",

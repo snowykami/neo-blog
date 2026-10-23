@@ -649,7 +649,13 @@
       "sidebar_card_edit": "Edit properties",
       "sidebar_card_invalid": "Invalid card settings, please check",
       "sidebar_card_move_up": "Move up",
-      "sidebar_card_move_down": "Move down"
+      "sidebar_card_move_down": "Move down",
+      "section_weather": "Weather",
+      "section_weather_desc": "Data source for weather cards in posts: QWeather is used once its API Host and API Key are set, otherwise Open-Meteo",
+      "qweather_api_host": "QWeather API Host",
+      "qweather_api_host_desc": "Your dedicated API Host from the QWeather console settings",
+      "qweather_api_key": "QWeather API Key",
+      "qweather_api_key_desc": "Stored on the server only and never exposed to visitors"
     },
     "labels": {
       "title": "Tags",

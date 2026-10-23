@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"net/url"
 	"slices"
 	"strings"
 
@@ -114,6 +115,40 @@ func getNCMSongLevel() string {
 		return NCMSongLevelDefault
 	}
 	return level
+}
+
+// QWeatherConfig 和风天气配置（仅后端使用，Key 不对外公开）；Host 为和风天气控制台中的专属 API Host
+type QWeatherConfig struct {
+	Host string // 规范化后的 scheme://host
+	Key  string
+}
+
+// Configured Host 与 Key 均已填写；未配置时天气使用 Open-Meteo
+func (c QWeatherConfig) Configured() bool {
+	return c.Host != "" && c.Key != ""
+}
+
+func GetQWeatherConfig() QWeatherConfig {
+	return QWeatherConfig{
+		Host: normalizeAPIHost(repo.KV.GetStringWithoutErr("qweather_api_host", "")),
+		Key:  strings.TrimSpace(repo.KV.GetStringWithoutErr("qweather_api_key", "")),
+	}
+}
+
+// normalizeAPIHost 只保留 scheme 与 host（未写 scheme 时按 https），不合法时返回空字符串
+func normalizeAPIHost(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
 }
 
 func GetMaximumReplyDepth() int {

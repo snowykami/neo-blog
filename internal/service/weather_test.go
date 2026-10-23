@@ -16,6 +16,8 @@ import (
 )
 
 func TestWeatherCurrent(t *testing.T) {
+	setupEditTest(t) // 天气数据源由配置决定，需要读取配置
+	setMusicKV(t, map[string]any{"qweather_api_host": "", "qweather_api_key": ""})
 	var calls atomic.Int32
 	failing := atomic.Bool{}
 	var lastQuery atomic.Value
@@ -84,6 +86,8 @@ func TestWeatherCurrent(t *testing.T) {
 }
 
 func TestWeatherGeo(t *testing.T) {
+	setupEditTest(t) // 天气数据源由配置决定，需要读取配置
+	setMusicKV(t, map[string]any{"qweather_api_host": "", "qweather_api_key": ""})
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
@@ -146,5 +150,86 @@ func TestWeatherMapping(t *testing.T) {
 		if got := WindLevel(speed); got != want {
 			t.Errorf("WindLevel(%v) = %d, want %d", speed, got, want)
 		}
+	}
+}
+
+// 配置了和风天气时使用和风天气：Key 通过请求头传递，坐标为“经度,纬度”，城市搜索无结果按空结果处理，Key 无效时报错
+func TestWeatherQWeather(t *testing.T) {
+	setupEditTest(t)
+	var nowCalls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-QW-Api-Key") != "qw-key" || r.URL.Query().Get("key") != "" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": "401"})
+			return
+		}
+		switch r.URL.Path {
+		case "/v7/weather/now":
+			nowCalls.Add(1)
+			if r.URL.Query().Get("location") != "121.47,31.23" {
+				t.Errorf("unexpected location %q", r.URL.Query().Get("location"))
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": "200", "now": map[string]any{
+				"obsTime": "2026-10-23T14:36+08:00", "temp": "24", "icon": "305", "windScale": "3-4", "windSpeed": "15", "humidity": "72",
+			}})
+		case "/geo/v2/city/lookup":
+			if r.URL.Query().Get("location") == "无此地" {
+				_ = json.NewEncoder(w).Encode(map[string]any{"code": "404"})
+				return
+			}
+			if r.URL.Query().Get("lang") != "zh" {
+				t.Errorf("unexpected lang %q", r.URL.Query().Get("lang"))
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": "200", "location": []map[string]any{
+				{"name": "杭州", "lat": "30.28746", "lon": "120.15358", "adm2": "杭州", "adm1": "浙江省", "country": "中国"},
+				{"name": "坏数据", "lat": "x", "lon": "1"},
+			}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	weatherCache.reset()
+	weatherGeoCache.reset()
+	setMusicKV(t, map[string]any{"qweather_api_host": srv.URL + "/ignored/path", "qweather_api_key": "qw-key"})
+
+	s := NewWeatherService()
+	lat, lon := 31.234, 121.466
+	weather, svcerr := s.GetCurrent(context.Background(), &dto.WeatherReq{Lat: &lat, Lon: &lon})
+	if svcerr != nil {
+		t.Fatalf("current: %v", svcerr)
+	}
+	if weather.Condition != "drizzle" || weather.Temperature != 24 || weather.Humidity != 72 || weather.WindLevel != 3 ||
+		weather.ObservedAt != "2026-10-23T14:36" || weather.Timezone != "+08:00" || !weather.IsDay {
+		t.Fatalf("unexpected weather: %+v", weather)
+	}
+	if _, svcerr = s.GetCurrent(context.Background(), &dto.WeatherReq{Lat: &lat, Lon: &lon}); svcerr != nil || nowCalls.Load() != 1 {
+		t.Fatalf("weather should be cached: %v %d", svcerr, nowCalls.Load())
+	}
+
+	places, svcerr := s.SearchPlaces(context.Background(), &dto.WeatherGeoReq{Query: "杭州", Lang: "zh"})
+	if svcerr != nil || len(places) != 1 || places[0].Name != "杭州" || places[0].Admin1 != "浙江省" || places[0].Latitude != 30.28746 {
+		t.Fatalf("places: %v %+v", svcerr, places)
+	}
+	if places, svcerr = s.SearchPlaces(context.Background(), &dto.WeatherGeoReq{Query: "无此地", Lang: "zh"}); svcerr != nil || len(places) != 0 {
+		t.Fatalf("no result should be empty: %v %+v", svcerr, places)
+	}
+
+	// Key 无效
+	setMusicKV(t, map[string]any{"qweather_api_key": "wrong"})
+	other := 30.0
+	_, svcerr = s.GetCurrent(context.Background(), &dto.WeatherReq{Lat: &other, Lon: &lon})
+	expectCode(t, svcerr, http.StatusBadGateway, "invalid key")
+}
+
+func TestQWeatherCondition(t *testing.T) {
+	cases := map[int]string{100: "clear", 150: "clear", 101: "partly_cloudy", 153: "partly_cloudy", 104: "cloudy", 302: "thunderstorm", 305: "drizzle",
+		306: "rain", 350: "rain", 313: "sleet", 404: "sleet", 400: "snow", 457: "snow", 501: "fog", 999: "cloudy"}
+	for icon, want := range cases {
+		if got := QWeatherCondition(icon); got != want {
+			t.Errorf("icon %d: got %s, want %s", icon, got, want)
+		}
+	}
+	if !qweatherIsNight(151) || qweatherIsNight(101) {
+		t.Fatal("night icon detection")
 	}
 }

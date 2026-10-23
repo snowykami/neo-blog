@@ -649,7 +649,13 @@
       "sidebar_card_edit": "गुण संपादित करें",
       "sidebar_card_invalid": "कार्ड सेटिंग अमान्य है, कृपया जाँचें",
       "sidebar_card_move_up": "ऊपर ले जाएँ",
-      "sidebar_card_move_down": "नीचे ले जाएँ"
+      "sidebar_card_move_down": "नीचे ले जाएँ",
+      "section_weather": "मौसम",
+      "section_weather_desc": "पोस्ट के मौसम कार्ड का डेटा स्रोत: API Host और API Key भरने पर QWeather, अन्यथा Open-Meteo इस्तेमाल होता है",
+      "qweather_api_host": "QWeather API Host",
+      "qweather_api_host_desc": "QWeather कंसोल की सेटिंग्स में आपका समर्पित API Host",
+      "qweather_api_key": "QWeather API Key",
+      "qweather_api_key_desc": "केवल सर्वर पर संग्रहीत, आगंतुकों को कभी नहीं दिखाई जाती"
     },
     "labels": {
       "title": "टैग",

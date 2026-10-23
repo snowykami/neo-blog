@@ -78,6 +78,8 @@ interface SettingsValues {
   ncmCookie: string
   ncmPlaylistId: number
   ncmSongLevel: NCMSongLevel
+  qweatherApiHost: string
+  qweatherApiKey: string
   enableThirdPartyScript: boolean
   aiApiBaseUrl: string
   aiApiKey: string
@@ -144,6 +146,9 @@ const STANDALONE_KEYS: Partial<Record<FieldName, { key: string, toValue?: (value
   ncmCookie: { key: 'ncm_cookie', toValue: values => values.ncmCookie.trim() },
   ncmPlaylistId: { key: 'ncm_playlist_id' },
   ncmSongLevel: { key: 'ncm_song_level' },
+  // 和风天气配置仅后端使用，Key 只写入独立配置键
+  qweatherApiHost: { key: 'qweather_api_host', toValue: values => values.qweatherApiHost.trim() },
+  qweatherApiKey: { key: 'qweather_api_key', toValue: values => values.qweatherApiKey.trim() },
 }
 
 function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
@@ -195,6 +200,8 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     ncmCookie: str('ncmCookie', ''),
     ncmPlaylistId: num('ncmPlaylistId', 0),
     ncmSongLevel: NCM_SONG_LEVELS.find(level => level === kv.ncmSongLevel) ?? 'exhigh',
+    qweatherApiHost: str('qweatherApiHost', ''),
+    qweatherApiKey: str('qweatherApiKey', ''),
     enableThirdPartyScript: info.enableThirdPartyScript ?? fallbackSiteInfo.enableThirdPartyScript ?? false,
     aiApiBaseUrl: str('aiApiBaseUrl', ''),
     aiApiKey: str('aiApiKey', ''),
@@ -245,7 +252,7 @@ type GlobalTab = typeof GLOBAL_TABS[number]
 const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
   site: ['siteName', 'baseUrl', 'siteDescription', 'siteIcon', 'keywords', 'defaultCovers', 'ownerName', 'ownerMotto', 'ownerDescription', 'ownerAvatar', 'ownerGravatarEmail'],
   content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
-  frontend: ['aboutBackground', 'sidebarCards', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel'],
+  frontend: ['aboutBackground', 'sidebarCards', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel', 'qweatherApiHost', 'qweatherApiKey'],
   account: ['enableRegister', 'enableRegisterFromOidc', 'verifyCodeCoolDown', 'visitLogRetentionDays'],
   ai: ['aiApiBaseUrl', 'aiApiKey', 'aiModel', 'aiSummaryConcurrency'],
   rss: ['rssTitle', 'rssAuthor', 'rssCopyright', 'rssLanguage', 'rssImage'],
@@ -386,6 +393,10 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
             </Section>
 
             <MusicSection />
+            <Section title={t('section_weather')} description={t('section_weather_desc')}>
+              <TextField name="qweatherApiHost" label={t('qweather_api_host')} description={t('qweather_api_host_desc')} placeholder="abc123xyz.re.qweatherapi.com" />
+              <PasswordField name="qweatherApiKey" label={t('qweather_api_key')} description={t('qweather_api_key_desc')} />
+            </Section>
           </TabsContent>
           <TabsContent value="account" forceMount className="grid gap-4 data-[state=inactive]:hidden">
             <Section title={t('section_account')}>

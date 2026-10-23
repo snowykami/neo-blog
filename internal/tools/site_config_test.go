@@ -35,3 +35,20 @@ func TestSiteConfigTypedValues(t *testing.T) {
 		t.Errorf("GetAllowRegisterFromOidc() default should be true")
 	}
 }
+
+// 和风天气 API Host：只保留 scheme 与 host，未写 scheme 时按 https，非 http(s) 时视为未配置
+func TestNormalizeAPIHost(t *testing.T) {
+	cases := map[string]string{
+		"":                                   "",
+		"abc123.re.qweatherapi.com":          "https://abc123.re.qweatherapi.com",
+		" https://abc.qweatherapi.com/v7/x ": "https://abc.qweatherapi.com",
+		"http://127.0.0.1:8080/path":         "http://127.0.0.1:8080",
+		"ftp://abc.com":                      "",
+		"javascript:alert(1)":                "",
+	}
+	for raw, want := range cases {
+		if got := normalizeAPIHost(raw); got != want {
+			t.Errorf("normalizeAPIHost(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}

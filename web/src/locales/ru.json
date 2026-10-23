@@ -649,7 +649,13 @@
       "sidebar_card_edit": "Изменить свойства",
       "sidebar_card_invalid": "Неверные настройки карточки, проверьте",
       "sidebar_card_move_up": "Вверх",
-      "sidebar_card_move_down": "Вниз"
+      "sidebar_card_move_down": "Вниз",
+      "section_weather": "Погода",
+      "section_weather_desc": "Источник данных для карточек погоды: при заданных API Host и API Key используется QWeather, иначе Open-Meteo",
+      "qweather_api_host": "API Host QWeather",
+      "qweather_api_host_desc": "Ваш персональный API Host из настроек консоли QWeather",
+      "qweather_api_key": "API Key QWeather",
+      "qweather_api_key_desc": "Хранится только на сервере и не показывается посетителям"
     },
     "labels": {
       "title": "Метки",

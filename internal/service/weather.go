@@ -17,6 +17,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"golang.org/x/sync/singleflight"
 )
@@ -60,10 +61,15 @@ func (s *WeatherService) GetCurrent(ctx context.Context, req *dto.WeatherReq) (*
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
 	lat, lon := roundCoordinate(*req.Lat), roundCoordinate(*req.Lon)
-	key := "weather:" + strconv.FormatFloat(lat, 'f', 2, 64) + "," + strconv.FormatFloat(lon, 'f', 2, 64)
-	weather, err := cachedFetch(ctx, weatherCache, key, func(ctx context.Context) (*dto.WeatherDto, error) {
-		return fetchCurrentWeather(ctx, lat, lon)
-	})
+	coord := strconv.FormatFloat(lat, 'f', 2, 64) + "," + strconv.FormatFloat(lon, 'f', 2, 64)
+	// 配置了和风天气时使用和风天气，否则使用 Open-Meteo；缓存 key 区分数据源
+	key := "weather:open-meteo:" + coord
+	fetch := func(ctx context.Context) (*dto.WeatherDto, error) { return fetchCurrentWeather(ctx, lat, lon) }
+	if qw := tools.GetQWeatherConfig(); qw.Configured() {
+		key = "weather:qweather:" + qw.Host + ":" + coord
+		fetch = func(ctx context.Context) (*dto.WeatherDto, error) { return fetchQWeatherNow(ctx, qw, lat, lon) }
+	}
+	weather, err := cachedFetch(ctx, weatherCache, key, fetch)
 	if err != nil {
 		return nil, errs.New(http.StatusBadGateway, "weather_request_failed", err)
 	}
@@ -80,10 +86,15 @@ func (s *WeatherService) SearchPlaces(ctx context.Context, req *dto.WeatherGeoRe
 	if !weatherLangPattern.MatchString(lang) {
 		lang = "en"
 	}
-	key := "geo:" + lang + ":" + strings.ToLower(query)
-	places, err := cachedFetch(ctx, weatherGeoCache, key, func(ctx context.Context) ([]dto.WeatherPlaceDto, error) {
-		return fetchPlaces(ctx, query, lang)
-	})
+	key := "geo:open-meteo:" + lang + ":" + strings.ToLower(query)
+	fetch := func(ctx context.Context) ([]dto.WeatherPlaceDto, error) { return fetchPlaces(ctx, query, lang) }
+	if qw := tools.GetQWeatherConfig(); qw.Configured() {
+		key = "geo:qweather:" + qw.Host + ":" + lang + ":" + strings.ToLower(query)
+		fetch = func(ctx context.Context) ([]dto.WeatherPlaceDto, error) {
+			return fetchQWeatherPlaces(ctx, qw, query, lang)
+		}
+	}
+	places, err := cachedFetch(ctx, weatherGeoCache, key, fetch)
 	if err != nil {
 		return nil, errs.New(http.StatusBadGateway, "weather_request_failed", err)
 	}

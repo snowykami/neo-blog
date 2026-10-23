@@ -649,7 +649,13 @@
       "sidebar_card_edit": "编辑属性",
       "sidebar_card_invalid": "卡片配置无效，请检查",
       "sidebar_card_move_up": "上移",
-      "sidebar_card_move_down": "下移"
+      "sidebar_card_move_down": "下移",
+      "section_weather": "天气",
+      "section_weather_desc": "文章内天气卡片的数据源：填写和风天气的 API Host 与 API Key 后使用和风天气，留空则使用 Open-Meteo",
+      "qweather_api_host": "和风天气 API Host",
+      "qweather_api_host_desc": "和风天气控制台「设置」中的专属 API Host",
+      "qweather_api_key": "和风天气 API Key",
+      "qweather_api_key_desc": "仅保存在服务端，不会公开给访客"
     },
     "labels": {
       "title": "标签管理",
