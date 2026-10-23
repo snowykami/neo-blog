@@ -119,7 +119,8 @@ export function CustomAudioCard({ title, artist, album, cover, src, lyric }: Net
           {playing ? <PauseIcon /> : <PlayIcon className="translate-x-px" />}
         </Button>
       )}
-      progress={{ currentTime, duration, onSeek: seek }}
+      // 卡片自带 audio：进度行常显示，时长未就绪时不可拖拽
+      progress={{ active: true, currentTime, duration, onSeek: seek }}
       lyrics={lines.length > 0
         ? <CardLyricList lines={lines} activeIndex={activeIndex} onSeek={seek} />
         : <MusicCardLyricHint>{t('no_lyric')}</MusicCardLyricHint>}

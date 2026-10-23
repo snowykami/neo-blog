@@ -80,8 +80,10 @@ function NeteaseSongCard({ id }: { id: number }) {
       lyrics={isCurrent
         ? <LyricScroll className="h-full" />
         : song && <MusicCardLyricHint>{t(track ? 'lyric_idle' : 'not_in_playlist')}</MusicCardLyricHint>}
-      // 当前正在播放（或暂停在）这首歌时显示可拖动的进度
-      progress={isCurrent ? { currentTime: currentTime ?? 0, duration, onSeek: seek } : null}
+      // 进度行常显示（不在本站播放时不可拖动），避免开始播放后才出现进度行把卡片撑开；不在歌单内的歌曲不能播放，不显示进度
+      progress={track
+        ? { active: isCurrent, currentTime: isCurrent ? currentTime ?? 0 : 0, duration: isCurrent ? duration : null, onSeek: seek }
+        : null}
     />
   )
 }
