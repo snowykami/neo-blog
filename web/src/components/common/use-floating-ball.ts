@@ -146,6 +146,13 @@ export function useFloatingBall({ onDragStart }: { onDragStart?: () => void } = 
     setDragPosition(null)
   }, [bounds, viewport, dragPosition, setStored])
 
+  // 悬浮球内的封面是 <img>，鼠标按住拖动时浏览器会启动原生图片拖放，随即触发 pointercancel，
+  // pointer 事件流被中断后桌面端就拖不动悬浮球（触摸拖动不会触发原生拖放，所以移动端正常）；
+  // 阻止原生拖放的默认行为，指针事件才能持续送到悬浮球
+  const preventNativeDrag = useCallback((event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault()
+  }, [])
+
   // 拖动后紧跟的 click 不打开播放器（Radix 的触发器会跳过已 preventDefault 的点击）
   const onClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
     if (suppressClickRef.current) {
@@ -162,6 +169,6 @@ export function useFloatingBall({ onDragStart }: { onDragStart?: () => void } = 
     // 弹层朝屏幕中较宽敞的方向展开
     side,
     upperHalf: position != null && viewport != null && position.y + viewport.size / 2 < viewport.height / 2,
-    handlers: { onPointerDown, onPointerMove, onPointerUp: finishDrag, onPointerCancel: finishDrag, onClick },
+    handlers: { onPointerDown, onPointerMove, onPointerUp: finishDrag, onPointerCancel: finishDrag, onClick, onDragStart: preventNativeDrag },
   }
 }
