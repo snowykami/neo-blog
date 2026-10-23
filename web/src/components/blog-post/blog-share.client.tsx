@@ -116,33 +116,61 @@ export function BlogShare({ post }: { post: Post }) {
             className="h-auto w-full"
           />
         </a>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {platforms.map(platform => (
-            <Button key={platform.key} variant="outline" className="justify-start" asChild>
-              <a href={platform.href} target="_blank" rel="noopener noreferrer">
-                {platform.icon}
-                {t(`platforms.${platform.key}`)}
-              </a>
-            </Button>
-          ))}
-          <Button variant="outline" className="justify-start" onClick={() => copyLink(t('wechat_hint'))}>
+        {/* 只放图标：按当前按钮高度排成一行，名称交给 title / aria-label */}
+        <div className="flex flex-wrap items-center gap-2">
+          {platforms.map((platform) => {
+            const label = t(`platforms.${platform.key}`)
+            return (
+              <Button key={platform.key} variant="outline" size="icon" asChild>
+                <a
+                  href={platform.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={label}
+                  aria-label={label}
+                >
+                  {platform.icon}
+                </a>
+              </Button>
+            )
+          })}
+          <Button
+            variant="outline"
+            size="icon"
+            title={t('platforms.wechat')}
+            aria-label={t('platforms.wechat')}
+            onClick={() => copyLink(t('wechat_hint'))}
+          >
             <FaWeixin aria-hidden />
-            {t('platforms.wechat')}
           </Button>
-          <Button variant="outline" className="justify-start" onClick={() => copyLink()}>
+          <Button
+            variant="outline"
+            size="icon"
+            title={t('copy_link')}
+            aria-label={t('copy_link')}
+            onClick={() => copyLink()}
+          >
             <LinkIcon aria-hidden />
-            {t('copy_link')}
           </Button>
-          <Button variant="outline" className="justify-start" asChild>
-            <a href={imageUrl} download={`${post.slug || post.id}.png`}>
+          <Button variant="outline" size="icon" asChild>
+            <a
+              href={imageUrl}
+              download={`${post.slug || post.id}.png`}
+              title={t('download')}
+              aria-label={t('download')}
+            >
               <DownloadIcon aria-hidden />
-              {t('download')}
             </a>
           </Button>
           {canNativeShare && (
-            <Button variant="outline" className="justify-start" onClick={nativeShare}>
+            <Button
+              variant="outline"
+              size="icon"
+              title={t('native')}
+              aria-label={t('native')}
+              onClick={nativeShare}
+            >
               <Share2Icon aria-hidden />
-              {t('native')}
             </Button>
           )}
         </div>
