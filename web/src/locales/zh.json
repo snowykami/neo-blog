@@ -1958,6 +1958,74 @@
       "placeholders": {
         "url": "https://"
       }
+    },
+    "weatherCard": {
+      "name": "天气卡片",
+      "description": "记录写作时的天气，或显示指定城市的实时天气",
+      "fields": {
+        "mode": "模式",
+        "city": "城市",
+        "condition": "天气",
+        "temperature": "温度（°C）",
+        "humidity": "湿度（%）",
+        "wind": "风力（级）",
+        "recordedAt": "记录时间",
+        "latitude": "纬度",
+        "longitude": "经度"
+      },
+      "placeholders": {
+        "city": "如：上海"
+      },
+      "descriptions": {
+        "mode": "快照固定保存在文章中；实时模式在读者打开时获取当前天气",
+        "temperature": "摄氏度",
+        "wind": "蒲福风级 0–12",
+        "recordedAt": "观测地当地时间，留空则不显示",
+        "latitude": "可通过上方搜索城市自动填写",
+        "longitude": "可通过上方搜索城市自动填写"
+      },
+      "options": {
+        "mode": {
+          "snapshot": "快照（记录当时天气）",
+          "live": "实时（显示当前天气）"
+        },
+        "condition": {
+          "clear": "晴",
+          "partly_cloudy": "多云",
+          "cloudy": "阴",
+          "fog": "雾",
+          "drizzle": "毛毛雨",
+          "rain": "雨",
+          "sleet": "雨夹雪",
+          "snow": "雪",
+          "thunderstorm": "雷阵雨"
+        }
+      },
+      "example": {
+        "city": "杭州"
+      },
+      "humidity": "湿度 {value}%",
+      "wind_level": "{level} 级风",
+      "recorded_at": "记录于 {time}",
+      "live": "实时天气",
+      "live_at": "实时 · 当地时间 {time}",
+      "load_failed": "天气加载失败",
+      "action": {
+        "title_snapshot": "获取当前天气",
+        "title_live": "选择城市",
+        "hint_snapshot": "搜索城市或使用你当前的位置获取天气并填入下方表单，位置不会保存到文章中",
+        "hint_live": "搜索并选择城市，读者打开文章时将显示该城市的当前天气",
+        "search_placeholder": "输入城市名",
+        "search": "搜索",
+        "locate": "当前位置",
+        "fetching": "正在获取天气…",
+        "no_results": "未找到匹配的城市",
+        "failed": "获取失败，请稍后重试",
+        "locate_failed": "无法获取位置，请检查浏览器的定位权限，或改用城市搜索",
+        "filled": "已填入当前天气",
+        "filled_need_city": "已填入当前天气，请补充城市名",
+        "place_selected": "已选择城市"
+      }
     }
   },
   "AppUpdate": {

@@ -6,8 +6,8 @@ import type { AnyContentComponentDef } from './types'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowDownIcon, ArrowUpIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useEffect, useMemo } from 'react'
-import { useFieldArray, useForm, useFormContext } from 'react-hook-form'
+import { useCallback, useEffect, useMemo } from 'react'
+import { useFieldArray, useForm, useFormContext, useWatch } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -72,13 +72,15 @@ function SchemaField({ field, path, component, t }: FieldProps) {
                         inputMode="decimal"
                         min={field.min}
                         max={field.max}
+                        // 非整数字段不限制步长，否则浏览器会拦截小数
+                        step={field.integer ? 1 : 'any'}
                         placeholder={placeholder}
                         value={Number.isFinite(input.value) && (field.allowZero || input.value !== 0) ? input.value : ''}
                         onChange={e => input.onChange(e.target.value === '' ? 0 : e.target.valueAsNumber)}
                       />
                     )
-                  : field.kind === 'text'
-                    ? <Input {...input} value={input.value ?? ''} placeholder={placeholder} />
+                  : field.kind === 'text' || field.kind === 'datetime'
+                    ? <Input {...input} type={field.kind === 'datetime' ? 'datetime-local' : 'text'} value={input.value ?? ''} placeholder={placeholder} />
                     : (
                         <Textarea
                           {...input}
@@ -145,6 +147,26 @@ function SchemaListField({ field, path, component, t }: FieldProps & { field: Ex
   )
 }
 
+/** 带编辑器扩展的字段列表：渲染自定义动作，并按当前表单值显示 / 隐藏字段 */
+function EditorExtensionFields({ def, fields, t }: { def: AnyContentComponentDef, fields: FieldDescriptor[], t: Translate }) {
+  const { control, setValue } = useFormContext()
+  const values = useWatch({ control }) as Record<string, unknown>
+  const { action: Action, isFieldVisible } = def.editor ?? {}
+  const setValues = useCallback((next: Record<string, unknown>) => {
+    for (const [name, value] of Object.entries(next))
+      setValue(name, value, { shouldDirty: true, shouldValidate: true })
+  }, [setValue])
+
+  return (
+    <>
+      {Action && <Action values={values} setValues={setValues} />}
+      {fields.filter(field => !isFieldVisible || isFieldVisible(field.name, values)).map(field => (
+        <SchemaField key={field.name} field={field} path={field.name} component={def.name} t={t} />
+      ))}
+    </>
+  )
+}
+
 export interface ComponentPropsDialogProps {
   def: AnyContentComponentDef
   open: boolean
@@ -191,9 +213,12 @@ export function ComponentPropsDialog({ def, open, onOpenChange, value, onSubmit 
               })(event)
             }}
           >
-            {fields.map(field => (
-              <SchemaField key={field.name} field={field} path={field.name} component={def.name} t={t} />
-            ))}
+            {/* 只有声明了编辑器扩展的组件才订阅表单值变化 */}
+            {def.editor
+              ? <EditorExtensionFields def={def} fields={fields} t={t} />
+              : fields.map(field => (
+                  <SchemaField key={field.name} field={field} path={field.name} component={def.name} t={t} />
+                ))}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('cancel')}</Button>
               <Button type="submit">{t('save')}</Button>

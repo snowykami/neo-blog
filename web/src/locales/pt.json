@@ -1958,6 +1958,74 @@
       "placeholders": {
         "url": "https://"
       }
+    },
+    "weatherCard": {
+      "name": "Cartão do tempo",
+      "description": "Registre o tempo ao escrever ou mostre o tempo ao vivo de uma cidade",
+      "fields": {
+        "mode": "Modo",
+        "city": "Cidade",
+        "condition": "Condição",
+        "temperature": "Temperatura (°C)",
+        "humidity": "Umidade (%)",
+        "wind": "Vento (Beaufort)",
+        "recordedAt": "Registrado em",
+        "latitude": "Latitude",
+        "longitude": "Longitude"
+      },
+      "placeholders": {
+        "city": "ex.: São Paulo"
+      },
+      "descriptions": {
+        "mode": "O instantâneo fica salvo no post; o modo ao vivo busca o tempo atual quando o leitor abre",
+        "temperature": "Graus Celsius",
+        "wind": "Escala de Beaufort 0–12",
+        "recordedAt": "Horário local do lugar; deixe vazio para ocultar",
+        "latitude": "Preenchido automaticamente ao buscar uma cidade acima",
+        "longitude": "Preenchido automaticamente ao buscar uma cidade acima"
+      },
+      "options": {
+        "mode": {
+          "snapshot": "Instantâneo (tempo naquele momento)",
+          "live": "Ao vivo (tempo atual)"
+        },
+        "condition": {
+          "clear": "Céu limpo",
+          "partly_cloudy": "Parcialmente nublado",
+          "cloudy": "Encoberto",
+          "fog": "Neblina",
+          "drizzle": "Garoa",
+          "rain": "Chuva",
+          "sleet": "Chuva com neve",
+          "snow": "Neve",
+          "thunderstorm": "Trovoada"
+        }
+      },
+      "example": {
+        "city": "Lisboa"
+      },
+      "humidity": "Umidade {value}%",
+      "wind_level": "Vento força {level}",
+      "recorded_at": "Registrado em {time}",
+      "live": "Tempo ao vivo",
+      "live_at": "Ao vivo · {time} horário local",
+      "load_failed": "Não foi possível carregar o tempo",
+      "action": {
+        "title_snapshot": "Obter tempo atual",
+        "title_live": "Escolher cidade",
+        "hint_snapshot": "Busque uma cidade ou use sua localização atual para preencher o formulário abaixo. Sua localização não é salva no post.",
+        "hint_live": "Busque e escolha uma cidade. Os leitores verão o tempo atual dela ao abrir o post.",
+        "search_placeholder": "Nome da cidade",
+        "search": "Buscar",
+        "locate": "Minha localização",
+        "fetching": "Obtendo o tempo…",
+        "no_results": "Nenhuma cidade encontrada",
+        "failed": "Falha na solicitação, tente novamente mais tarde",
+        "locate_failed": "Não foi possível obter sua localização. Verifique a permissão de localização do navegador ou busque uma cidade.",
+        "filled": "Tempo atual preenchido",
+        "filled_need_city": "Tempo atual preenchido, adicione o nome da cidade",
+        "place_selected": "Cidade selecionada"
+      }
     }
   },
   "AppUpdate": {

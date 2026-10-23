@@ -31,6 +31,23 @@
 3. 在 12 个语言文件的 `ContentComponents.<name>` 下补齐 `name`、`description`、`fields.*`、枚举的 `options.<字段>.*`，以及可选的 `placeholders` / `descriptions` / `example`。
 4. 运行 `pnpm test`：会检查注册表是否最新、组件名是否唯一、各语言文案是否完整、示例 props 是否通过校验。
 
+## 编辑器扩展（可选）
+
+属性弹窗默认只渲染 schema 推导的表单。需要辅助填写时，在定义中声明 `editor`（参考 `content-components/weather-card/`）：
+
+```ts
+editor: {
+  // 渲染在表单字段之前，props 为 { values, setValues }：读取当前表单值、批量写回字段并重新校验
+  action: dynamic(() => import('./weather-card-action')), // 务必懒加载，避免进入前台的包
+  // 按当前表单值显示 / 隐藏字段；隐藏的字段仍会提交并参与校验，因此其默认值应当合法
+  isFieldVisible: (name, values) => ...,
+},
+```
+
+- 动作中只能调用后端已有的接口（外部数据一律经后端代理并缓存），不要在正文中保存精确定位等隐私数据
+- 字段之间的联合校验可在 schema 上用 `.superRefine()`（仍是 `ZodObject`），用 `path` 指向出错的字段
+- 日期时间字段用 `.meta({ widget: 'datetime' })`，值为 `datetime-local` 格式的当地时间
+
 ## 不适合做成组件块的组件
 
 依赖登录态、回调或业务数据的组件（编辑器、后台、评论、认证、各类弹窗等）无法只靠 JSON props 工作，也不应在正文中开放，因此不提供定义文件。

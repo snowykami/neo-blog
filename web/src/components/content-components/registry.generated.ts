@@ -6,6 +6,7 @@ import contentComponentsCallout from '@/components/content-components/callout/ca
 import contentComponentsCodeTabs from '@/components/content-components/code-tabs/code-tabs.content'
 import contentComponentsGithubRepo from '@/components/content-components/github-repo/github-repo.content'
 import contentComponentsNeteaseSong from '@/components/content-components/netease-song/netease-song.content'
+import contentComponentsWeatherCard from '@/components/content-components/weather-card/weather-card.content'
 import uiAlert from '@/components/ui/alert.content'
 import uiBadge from '@/components/ui/badge.content'
 import uiButton from '@/components/ui/button.content'
@@ -22,6 +23,7 @@ export const GENERATED_CONTENT_COMPONENTS: ContentComponentEntry[] = [
   { path: 'content-components/code-tabs', def: contentComponentsCodeTabs },
   { path: 'content-components/github-repo', def: contentComponentsGithubRepo },
   { path: 'content-components/netease-song', def: contentComponentsNeteaseSong },
+  { path: 'content-components/weather-card', def: contentComponentsWeatherCard },
   { path: 'ui/alert', def: uiAlert },
   { path: 'ui/badge', def: uiBadge },
   { path: 'ui/button', def: uiButton },

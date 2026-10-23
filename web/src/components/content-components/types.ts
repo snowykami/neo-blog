@@ -10,7 +10,23 @@ import type { z } from 'zod'
 
 // 表单控件提示：通过 zod 的 .meta() 标注，未标注时按字段类型选择控件
 export interface ContentFieldMeta {
-  widget?: 'textarea' | 'code'
+  widget?: 'textarea' | 'code' | 'datetime'
+}
+
+// 属性弹窗中的自定义动作（例如按城市获取天气后填入表单）：读取当前表单值并写回
+export interface ContentEditorActionProps<P = Record<string, unknown>> {
+  // 当前表单值，未经校验
+  values: Partial<P>
+  // 批量写回字段，并重新校验这些字段
+  setValues: (values: Partial<P>) => void
+}
+
+// 编辑器扩展：只在属性弹窗中使用，不影响前台渲染
+export interface ContentComponentEditor<P = Record<string, unknown>> {
+  // 渲染在表单字段之前；应使用 next/dynamic 懒加载，避免进入前台的包
+  action?: ComponentType<ContentEditorActionProps<P>>
+  // 按当前表单值决定是否显示字段，未提供时全部显示；隐藏的字段仍会提交并参与校验
+  isFieldVisible?: (name: string, values: Partial<P>) => boolean
 }
 
 export interface ContentComponentDef<S extends z.ZodObject = z.ZodObject> {
@@ -29,6 +45,8 @@ export interface ContentComponentDef<S extends z.ZodObject = z.ZodObject> {
   fallback: (props: NoInfer<z.output<S>>) => DOMOutputSpec[]
   // 组件库中的预览 props；t 读取 ContentComponents.<name>.example 下的文案。未提供或校验失败时不显示预览
   example?: (t: (key: string) => string) => NoInfer<z.input<S>>
+  // 属性弹窗的扩展
+  editor?: ContentComponentEditor<NoInfer<z.input<S>>>
 }
 
 export type AnyContentComponentDef = ContentComponentDef<z.ZodObject>

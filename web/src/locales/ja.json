@@ -1958,6 +1958,74 @@
       "placeholders": {
         "url": "https://"
       }
+    },
+    "weatherCard": {
+      "name": "天気カード",
+      "description": "執筆時の天気を記録、または指定した都市の現在の天気を表示",
+      "fields": {
+        "mode": "モード",
+        "city": "都市",
+        "condition": "天気",
+        "temperature": "気温（°C）",
+        "humidity": "湿度（%）",
+        "wind": "風力（階級）",
+        "recordedAt": "記録日時",
+        "latitude": "緯度",
+        "longitude": "経度"
+      },
+      "placeholders": {
+        "city": "例：東京"
+      },
+      "descriptions": {
+        "mode": "スナップショットは記事に保存され、ライブは読者が開いたときに現在の天気を取得します",
+        "temperature": "摂氏",
+        "wind": "ビューフォート風力階級 0–12",
+        "recordedAt": "観測地の現地時刻。空欄の場合は表示しません",
+        "latitude": "上で都市を検索すると自動入力されます",
+        "longitude": "上で都市を検索すると自動入力されます"
+      },
+      "options": {
+        "mode": {
+          "snapshot": "スナップショット（当時の天気）",
+          "live": "ライブ（現在の天気）"
+        },
+        "condition": {
+          "clear": "晴れ",
+          "partly_cloudy": "晴れ時々曇り",
+          "cloudy": "曇り",
+          "fog": "霧",
+          "drizzle": "霧雨",
+          "rain": "雨",
+          "sleet": "みぞれ",
+          "snow": "雪",
+          "thunderstorm": "雷雨"
+        }
+      },
+      "example": {
+        "city": "京都"
+      },
+      "humidity": "湿度 {value}%",
+      "wind_level": "風力 {level}",
+      "recorded_at": "{time} に記録",
+      "live": "現在の天気",
+      "live_at": "ライブ · 現地時刻 {time}",
+      "load_failed": "天気を読み込めませんでした",
+      "action": {
+        "title_snapshot": "現在の天気を取得",
+        "title_live": "都市を選択",
+        "hint_snapshot": "都市を検索するか現在地を使って天気を取得し、下のフォームに入力します。位置情報は記事に保存されません。",
+        "hint_live": "都市を検索して選択します。読者が記事を開くと、その都市の現在の天気が表示されます。",
+        "search_placeholder": "都市名を入力",
+        "search": "検索",
+        "locate": "現在地",
+        "fetching": "天気を取得中…",
+        "no_results": "一致する都市が見つかりません",
+        "failed": "取得に失敗しました。しばらくしてから再試行してください",
+        "locate_failed": "位置情報を取得できません。ブラウザの位置情報の許可を確認するか、都市検索をご利用ください",
+        "filled": "現在の天気を入力しました",
+        "filled_need_city": "現在の天気を入力しました。都市名を入力してください",
+        "place_selected": "都市を選択しました"
+      }
     }
   },
   "AppUpdate": {

@@ -2,15 +2,15 @@ import type { ContentFieldMeta } from './types'
 import { z } from 'zod'
 
 /**
- * 从组件的 zod schema 推导表单字段：按字段类型选择控件，.meta({ widget }) 可指定多行文本 / 代码
+ * 从组件的 zod schema 推导表单字段：按字段类型选择控件，.meta({ widget }) 可指定多行文本 / 代码 / 日期时间
  * 只支持组件 props 用到的类型：字符串、枚举、数字、布尔、对象数组
  */
 
 export type FieldDescriptor
-  = | { kind: 'text' | 'textarea' | 'code', name: string }
+  = | { kind: 'text' | 'textarea' | 'code' | 'datetime', name: string }
     | { kind: 'select', name: string, options: string[] }
-    // allowZero：0 是否为合法值；不合法时 0 视为未填写，输入框显示为空
-    | { kind: 'number', name: string, allowZero: boolean, min?: number, max?: number }
+    // allowZero：0 是否为合法值；不合法时 0 视为未填写，输入框显示为空；integer：是否只允许整数
+    | { kind: 'number', name: string, allowZero: boolean, integer: boolean, min?: number, max?: number }
     | { kind: 'switch', name: string }
     | { kind: 'list', name: string, fields: FieldDescriptor[], itemDefault: Record<string, unknown>, min: number, max: number }
 
@@ -49,7 +49,7 @@ function describeField(name: string, schema: z.ZodType): FieldDescriptor | null 
     return { kind: 'select', name, options: inner.options.map(String) }
   if (inner instanceof z.ZodNumber) {
     const finite = (value: number | null) => (value != null && Number.isFinite(value) ? value : undefined)
-    return { kind: 'number', name, allowZero: inner.safeParse(0).success, min: finite(inner.minValue), max: finite(inner.maxValue) }
+    return { kind: 'number', name, allowZero: inner.safeParse(0).success, integer: !!inner.isInt, min: finite(inner.minValue), max: finite(inner.maxValue) }
   }
   if (inner instanceof z.ZodBoolean)
     return { kind: 'switch', name }
