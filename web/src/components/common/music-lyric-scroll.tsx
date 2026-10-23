@@ -51,7 +51,8 @@ export default function LyricScroll() {
 
   const currentTimeMs = smoothTime || (currentTime ?? 0) * 1000
   const activeLyricIndex = getCurrentLyricIndex(parsedLyricLines, currentTimeMs, currentLyricIndex)
-  const lyricScrollClassName = 'h-40 overflow-y-auto overflow-x-hidden px-0 py-0 text-base leading-8 relative transition-colors max-w-full'
+  // 歌词自动滚动到当前行，隐藏滚动条（滚轮、触摸仍可滚动），避免在面板右侧出现一条滚动轨道
+  const lyricScrollClassName = 'h-40 overflow-y-auto overflow-x-hidden px-0 py-0 text-base leading-8 relative transition-colors max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
   const lyricScrollStyle = {
     maskImage: 'linear-gradient(to bottom, transparent, black 14%, black 86%, transparent)',
     WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 14%, black 86%, transparent)',
@@ -112,11 +113,11 @@ export default function LyricScroll() {
             key={line.startTime + line.originalText + idx}
             ref={(el) => { lineRefs.current[idx] = el }}
             className={cn(
-              'select-none px-2 py-0 rounded text-center m-0 transition-[color,background-color,transform,opacity] duration-500 ease-[cubic-bezier(.4,2,.6,1)] w-full font-bold cursor-pointer',
+              // 高亮块左右留出间距：容器横向裁剪，贴边时圆角与阴影会被切成直角
+              'select-none mx-1 px-2 py-0 rounded-lg text-center transition-[color,background-color,transform,opacity] duration-500 ease-[cubic-bezier(.4,2,.6,1)] font-bold cursor-pointer',
               isCurrent ? 'text-primary bg-primary/15' : 'text-foreground/60',
             )}
             style={{
-              filter: isCurrent ? 'drop-shadow(0 2px 8px #60a5fa44)' : undefined,
               fontSize: isCurrent ? '1.0rem' : '0.9rem',
               opacity: offset === 0 ? 1 : Math.max(0.4, 0.85 - Math.abs(offset) * 0.12),
               transform: `scale(${offset === 0 ? 1 : 0.95}) translateY(${offset > 0 ? 1 : offset < 0 ? -1 : 0}px)`,
