@@ -17,7 +17,7 @@ let activeAudio: HTMLAudioElement | null = null
 
 /**
  * 自定义音频：使用卡片自己的 audio 播放，与全站播放器互斥（开始播放时暂停全站播放器，全站播放器开始播放时暂停卡片）；
- * 填写了 LRC 歌词时，播放中显示当前一行；3 单位及以上高度时在歌词区显示全部歌词
+ * 填写了 LRC 歌词时，播放中显示当前一行；5 单位及以上高度时在歌词区显示全部歌词
  */
 export function CustomAudioCard({ title, artist, album, cover, src, lyric }: NeteaseSongProps) {
   const t = useTranslations('ContentComponents.neteaseSong')

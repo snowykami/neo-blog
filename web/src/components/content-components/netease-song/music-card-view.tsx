@@ -17,25 +17,37 @@ export interface MusicCardProgress {
   onSeek: (seconds: number) => void
 }
 
-/** 高度 3 单位及以上时显示多行歌词区 */
+/** 高度 5 单位（304px）及以上时显示多行歌词区 */
 export function isTallMusicCard(height: ComponentHeight | null): boolean {
-  return height != null && height >= 3
+  return height != null && height >= 5
 }
 
-// 各高度档位的卡片布局与封面尺寸（key 0 为自动高度）
-const CARD_LAYOUTS: Record<ComponentHeight | 0, { card: string, cover: string }> = {
-  0: { card: 'gap-2.5 p-3', cover: 'size-16' },
-  // 1 单位：只有封面、标题与按钮，收起进度
-  1: { card: 'h-full overflow-hidden content-center p-3', cover: 'size-18 @max-3xs:hidden' },
-  2: { card: 'h-full overflow-hidden content-center gap-4 p-4', cover: 'size-24' },
-  // 3 / 4 单位：头部、歌词区、进度三行，歌词区占满剩余高度
-  3: { card: 'h-full overflow-hidden grid-rows-[auto_minmax(0,1fr)_auto] gap-3 p-4', cover: 'size-20' },
-  4: { card: 'h-full overflow-hidden grid-rows-[auto_minmax(0,1fr)_auto] gap-3 p-4', cover: 'size-24' },
+/** 2 单位（112px）的单行卡片：只有封面、标题与按钮，收起进度 */
+export function isCompactMusicCard(height: ComponentHeight | null): boolean {
+  return height === 2
+}
+
+// 各高度档位的卡片布局与封面尺寸（自动高度为 auto）
+const AUTO_CARD_LAYOUT = { card: 'gap-2.5 p-3', cover: 'size-16' }
+const COMPACT_CARD_LAYOUT = { card: 'h-full overflow-hidden content-center p-3', cover: 'size-18 @max-3xs:hidden' }
+const NORMAL_CARD_LAYOUT = { card: 'h-full overflow-hidden content-center gap-4 p-4', cover: 'size-24' }
+// 头部、歌词区、进度三行，歌词区占满剩余高度；最高档位封面略大
+const TALL_CARD_LAYOUT = { card: 'h-full overflow-hidden grid-rows-[auto_minmax(0,1fr)_auto] gap-3 p-4', cover: 'size-20' }
+const TALLEST_CARD_LAYOUT = { card: TALL_CARD_LAYOUT.card, cover: 'size-24' }
+
+function getCardLayout(height: ComponentHeight | null) {
+  if (height == null)
+    return AUTO_CARD_LAYOUT
+  if (isCompactMusicCard(height))
+    return COMPACT_CARD_LAYOUT
+  if (!isTallMusicCard(height))
+    return NORMAL_CARD_LAYOUT
+  return height >= 7 ? TALLEST_CARD_LAYOUT : TALL_CARD_LAYOUT
 }
 
 /**
  * 音乐卡片的展示部分（网易云与自定义音频共用）：封面、标题、副标题、操作按钮，以及可拖动的进度
- * loading 时显示骨架；progress 为空时不显示进度；lyrics 为 3 单位及以上高度时的歌词区
+ * loading 时显示骨架；progress 为空时不显示进度；lyrics 为 5 单位及以上高度时的歌词区
  */
 export function MusicCardView({ cover, title, href, subtitle, action, progress, loading, lyrics }: {
   cover?: string
@@ -48,7 +60,7 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
   lyrics?: React.ReactNode
 }) {
   const height = useComponentHeight()
-  const layout = CARD_LAYOUTS[height ?? 0]
+  const layout = getCardLayout(height)
   const tall = isTallMusicCard(height)
   return (
     // minmax(0,1fr)：网格项默认不小于内容宽度，过长的一行歌词会把卡片撑宽，导致无法触发横向滚动
@@ -81,7 +93,7 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
         {action}
       </div>
       {tall && <div className="min-h-0">{lyrics}</div>}
-      {progress && height !== 1 && <MusicCardProgressRow {...progress} />}
+      {progress && !isCompactMusicCard(height) && <MusicCardProgressRow {...progress} />}
     </div>
   )
 }

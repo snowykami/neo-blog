@@ -11,7 +11,7 @@ export default defineContentComponent({
   component: dynamic(() => import('./code-tabs')),
   icon: FileCode2Icon,
   // 任意高度档位：代码区在卡片内滚动
-  heights: [1, 2, 3, 4],
+  heights: [2, 3, 4, 5, 6, 7],
   keywords: ['code', 'tabs', 'group', 'daimazu', 'dmz', 'biaoqian', '代码组', '代码', '标签页', '多语言'],
   // 降级为依次排列的“标签名 + 代码块”
   fallback: ({ tabs }: CodeTabsProps) => tabs.flatMap(tab => [

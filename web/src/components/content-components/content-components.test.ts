@@ -215,13 +215,14 @@ describe('编辑器节点', () => {
       componentHtml(name, props).replace('<div ', `<div data-height="${height}" `)
     const repo = { repo: 'snowykami/neo-blog' }
     const cases: [string, string | null][] = [
-      [withHeight('githubRepo', repo, '1'), '1'],
       [withHeight('githubRepo', repo, '2'), '2'],
-      // GitHub 仓库只支持 1、2 单位；非法值按自动高度处理
-      [withHeight('githubRepo', repo, '3'), null],
-      [withHeight('githubRepo', repo, '1.5'), null],
+      [withHeight('githubRepo', repo, '4'), '4'],
+      // GitHub 仓库只支持 2、3、4 单位；非法值按自动高度处理
+      [withHeight('githubRepo', repo, '1'), null],
+      [withHeight('githubRepo', repo, '5'), null],
+      [withHeight('githubRepo', repo, '2.5'), null],
       [withHeight('githubRepo', repo, 'evil'), null],
-      [withHeight('neteaseSong', { id: 1 }, '4'), '4'],
+      [withHeight('neteaseSong', { id: 1 }, '7'), '7'],
       // 提示框只支持自动高度
       [withHeight('callout', { type: 'info', content: '注意' }, '2'), null],
       // 未知组件原样保留合法档位
@@ -231,7 +232,7 @@ describe('编辑器节点', () => {
       const el = firstComponent(roundTrip(sanitizeContentHtml(html)))
       expect(el.getAttribute('data-height'), html).toBe(height)
     }
-    expect(COMPONENT_HEIGHTS.map(componentHeightRem)).toEqual([6, 13, 20, 27])
+    expect(COMPONENT_HEIGHTS.map(componentHeightRem)).toEqual([3, 7, 11, 15, 19, 23, 27])
   })
 
   it('未知组件保留原降级内容（净化后）', () => {

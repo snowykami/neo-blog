@@ -57,7 +57,7 @@ interface WeatherCardBodyProps {
 }
 
 /**
- * 天气卡主体：高度 1 单位时横排显示图标、温度、天气与城市，收起湿度、风力与时间；
+ * 天气卡主体：高度 2 单位（112px）时横排显示图标、温度、天气与城市，收起湿度、风力与时间；
  * 其余高度为完整布局（固定高度时底部信息贴底）；窄卡片收起次要信息
  */
 function WeatherCardBody({ city, condition, temperature, humidity, wind, isDay = true, footer }: WeatherCardBodyProps) {
@@ -67,7 +67,7 @@ function WeatherCardBody({ city, condition, temperature, humidity, wind, isDay =
   const { icon: Icon, gradient } = condition === 'clear' && !isDay ? CLEAR_NIGHT_STYLE : CONDITION_STYLES[condition]
   const temperatureText = format.number(temperature, { maximumFractionDigits: 1 })
 
-  if (height === 1) {
+  if (height === 2) {
     return (
       <div className={cn('flex h-full items-center gap-3 overflow-hidden rounded-xl bg-linear-to-br px-4 text-white shadow-sm', gradient)}>
         <Icon className="size-12 shrink-0 drop-shadow-md @max-3xs:hidden" strokeWidth={1.5} aria-hidden />
@@ -133,7 +133,7 @@ function LiveWeatherCard({ city, latitude, longitude }: WeatherCardProps) {
       <div className="grid h-full content-center gap-3 overflow-hidden rounded-xl border bg-card px-5 py-3">
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-10 w-28" />
-        {height !== 1 && <Skeleton className="h-4 w-40" />}
+        {height !== 2 && <Skeleton className="h-4 w-40" />}
       </div>
     )
   }

@@ -9,8 +9,8 @@ export default defineContentComponent({
   version: 1,
   // 卡片内容紧凑，默认半宽
   defaultWidth: 50,
-  // 1 单位：仓库名与统计；2 单位：完整信息
-  heights: [1, 2],
+  // 2 单位（112px）：仓库名与统计；3、4 单位：完整信息
+  heights: [2, 3, 4],
   schema: githubRepoSchema,
   component: dynamic(() => import('./github-repo')),
   icon: FolderGit2Icon,

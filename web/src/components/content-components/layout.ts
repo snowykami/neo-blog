@@ -10,13 +10,13 @@ export const COMPONENT_ALIGNS = ['left', 'center', 'right'] as const
 export type ComponentAlign = typeof COMPONENT_ALIGNS[number]
 
 /**
- * 高度单位：1 单位 = 6rem（96px），相邻组件间距 1rem；n 单位高度 = n × 6rem + (n - 1) × 1rem（96 / 208 / 320 / 432px），
- * 两个 1 单位的组件加上间距正好等于一个 2 单位的组件。未设置时高度随内容自适应
+ * 高度单位：1 单位 = 3rem（48px），相邻组件间距 1rem；n 单位高度 = n × 3rem + (n - 1) × 1rem（48 / 112 / 176 / 240 …），
+ * 两个 1 单位的组件加上间距正好等于一个 2 单位的组件。单档仅 48px，作者可以按更细的力度调整；未设置时高度随内容自适应
  */
-export const COMPONENT_HEIGHTS = [1, 2, 3, 4] as const
+export const COMPONENT_HEIGHTS = [1, 2, 3, 4, 5, 6, 7] as const
 export type ComponentHeight = typeof COMPONENT_HEIGHTS[number]
 
-const HEIGHT_UNIT_REM = 6
+const HEIGHT_UNIT_REM = 3
 const HEIGHT_GAP_REM = 1
 
 /** n 单位对应的高度（rem） */

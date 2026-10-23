@@ -36,7 +36,7 @@ function NeteaseSongCard({ id }: { id: number }) {
   const link = song?.link || `https://music.163.com/#/song?id=${id}`
   const isCurrent = track != null && currentTrack?.id === id
   const playing = isCurrent && isPlaying
-  // 3 单位及以上高度时歌词显示在歌词区（与播放器面板共用滚动歌词），副标题固定显示歌手与专辑
+  // 5 单位及以上高度时歌词显示在歌词区（与播放器面板共用滚动歌词），副标题固定显示歌手与专辑
   const tall = isTallMusicCard(useComponentHeight())
   // 播放中显示当前歌词（与导航栏共用逐字高亮与超长滚动），否则显示歌手与专辑
   const showLyric = !tall && playing && !!currentLyric && !LYRIC_PLACEHOLDERS.has(currentLyric.trim())

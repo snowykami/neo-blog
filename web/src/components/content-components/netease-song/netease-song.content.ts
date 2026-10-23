@@ -10,8 +10,8 @@ export default defineContentComponent({
   version: 1,
   // 卡片内容紧凑，默认半宽
   defaultWidth: 50,
-  // 1 单位：封面、标题与按钮；2 单位：完整信息；3 / 4 单位：增加多行歌词区
-  heights: [1, 2, 3, 4],
+  // 2 单位（112px）单行卡片，向上逐档增高；5 单位及以上展示多行歌词区
+  heights: [2, 3, 4, 5, 6, 7],
   schema: neteaseSongSchema,
   component: dynamic(() => import('./netease-song')),
   icon: Music2Icon,

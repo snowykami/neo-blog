@@ -30,8 +30,8 @@ export default defineContentComponent({
   version: 1,
   // 卡片内容紧凑，默认半宽
   defaultWidth: 50,
-  // 1 单位：横排的温度与天气；2 单位：完整信息
-  heights: [1, 2],
+  // 2 单位（112px）：横排的温度与天气；3、4 单位：完整信息
+  heights: [2, 3, 4],
   schema: weatherCardSchema,
   component: dynamic(() => import('./weather-card')),
   icon: CloudSunIcon,
