@@ -104,16 +104,17 @@ export function BlogShare({ post }: { post: Post }) {
           href={imageUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="block overflow-hidden rounded-lg border bg-muted"
+          className="flex justify-center overflow-hidden rounded-lg border bg-muted"
           title={t('preview_alt')}
         >
           <Image
             src={imageUrl}
             alt={t('preview_alt')}
-            width={1200}
-            height={630}
+            width={1080}
+            height={1350}
             unoptimized
-            className="h-auto w-full"
+            // 竖版卡片（4:5）：按高度上限反推宽度，等比例缩放且加载前后不跳高度
+            className="h-auto w-full max-w-[min(100%,45vh)]"
           />
         </a>
         {/* 只放图标：按当前按钮高度排成一行，名称交给 title / aria-label */}

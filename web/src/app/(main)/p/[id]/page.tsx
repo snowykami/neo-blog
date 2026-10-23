@@ -63,12 +63,13 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       url: getPostUrl({ post }),
       siteName: siteInfo?.metadata.name || 'Site Name',
       // 分享图由 /p/{id}/share-image 生成，不直接用封面：社交平台上的卡片信息更完整
-      images: [{ url: shareImage, width: 1200, height: 630, alt: post.title || 'No Title' }],
+      images: [{ url: shareImage, width: 1080, height: 1350, alt: post.title || 'No Title' }],
       locale,
       type: 'article',
     },
     twitter: {
-      card: 'summary_large_image',
+      // 分享图是竖版卡片，用 summary 卡片避免被裁成横图
+      card: 'summary',
       title: post.title || 'No Title',
       description: stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
       images: [shareImage],
