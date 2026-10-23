@@ -10,6 +10,8 @@ import { getLabels } from '@/api/label'
 import { listPosts } from '@/api/post'
 import { ImageAvatar } from '@/components/common/avatar'
 import { SafeImage } from '@/components/common/safe-image'
+import { ContentComponentView } from '@/components/content-components/content-component-view'
+import { resolveComponent } from '@/components/content-components/props'
 import { Button } from '@/components/ui/button'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { cn } from '@/lib/utils'
@@ -204,37 +206,33 @@ export function BlogSidebarLabels({
   )
 }
 
-// 侧边栏嵌入页面（默认为 Misskey 时间线），地址留空时不显示
-// 只在客户端渲染 iframe，避免 hydration 报错
-export function SidebarMisskeyIframe() {
-  const { siteInfo } = useSiteInfo()
+// 侧边栏嵌入页面（如 Misskey 时间线）；只在客户端渲染 iframe，避免 hydration 报错
+export function SidebarIframeCard({ title, url, height }: { title: string, url: string, height: number }) {
   const [show, setShow] = useState(false)
   useEffect(() => {
     setShow(true)
   }, [])
-  const src = siteInfo.sidebarIframeUrl?.trim()
   let hostname = ''
   try {
-    hostname = src ? new URL(src).hostname : ''
+    hostname = new URL(url).hostname
   }
   catch {}
-  // 地址为空或不合法时不显示
-  if (!src || !hostname)
+  if (!hostname)
     return null
-  const title = siteInfo.sidebarIframeTitle || hostname
+  const cardTitle = title || hostname
   return (
-    <SidebarCard title={title} contentClassName="overflow-hidden rounded-xl">
+    <SidebarCard title={cardTitle} contentClassName="overflow-hidden rounded-xl">
       {show && (
         <iframe
-          src={src}
-          title={title}
+          src={url}
+          title={cardTitle}
           loading="lazy"
           referrerPolicy="strict-origin-when-cross-origin"
           style={{
             border: 'none',
             display: 'block',
             width: '100%',
-            height: '300px',
+            height: `${height}px`,
             colorScheme: 'light dark',
           }}
         >
@@ -242,4 +240,13 @@ export function SidebarMisskeyIframe() {
       )}
     </SidebarCard>
   )
+}
+
+// 文章组件块作为侧边栏卡片：有标题时放在标准卡片内，否则直接展示组件（如天气卡、仓库卡）
+export function SidebarComponentCard({ title, name, props, version }: { title: string, name: string, props: Record<string, unknown>, version?: number }) {
+  const resolved = resolveComponent(name, props, version)
+  if (!resolved.ok)
+    return null
+  const view = <ContentComponentView def={resolved.def} props={resolved.props} className="my-0" />
+  return title ? <SidebarCard title={title}>{view}</SidebarCard> : view
 }

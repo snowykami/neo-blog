@@ -1,3 +1,4 @@
+import type { SidebarCardConfig } from '@/components/blog-sidebar/sidebar-cards'
 import type { MusicSourceType } from '@/models/music'
 
 export interface SiteInfo {
@@ -33,8 +34,9 @@ export interface SiteInfo {
   }
   // 以下为前台个性化资源，留空即隐藏对应组件
   aboutBackground?: string // 侧边栏「关于我」卡片背景图
-  sidebarIframeUrl?: string // 侧边栏嵌入页面（如 Misskey 时间线）地址
-  sidebarIframeTitle?: string // 侧边栏嵌入卡片标题
+  sidebarCards?: SidebarCardConfig[] // 文章列表页侧边栏卡片（按顺序），未配置时使用默认卡片
+  sidebarIframeUrl?: string // 旧配置：侧边栏嵌入页面地址，仅在未配置 sidebarCards 时生效
+  sidebarIframeTitle?: string // 旧配置：侧边栏嵌入卡片标题
   musicSource?: MusicSourceType // 悬浮音乐播放器的歌单来源，默认为静态 JSON
   musicPlaylistUrl?: string // 悬浮音乐播放器歌单 JSON 地址（静态来源）
   enableThirdPartyScript?: boolean // 是否在前台加载全局第三方脚本
