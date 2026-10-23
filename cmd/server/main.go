@@ -23,6 +23,8 @@ func main() {
 
 	// 定期清理超过保留期的访问记录
 	tasks.StartVisitLogCleanup()
+	// 定期重算文章热度（随时间衰减）
+	tasks.StartPostHeatRefresh()
 	// 定期清理过期会话
 	tasks.StartSessionCleanup()
 

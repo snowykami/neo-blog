@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
-	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
@@ -61,15 +60,6 @@ func (p *Post) AISummaryStale() bool {
 	return p.AISummarySourceHash != "" && p.ContentHash != "" && p.AISummarySourceHash != p.ContentHash
 }
 
-// CalculateHeat 热度计算
-func (p *Post) CalculateHeat() float64 {
-	return float64(
-		p.LikeCount*constant.HeatFactorLikeWeight +
-			p.CommentCount*constant.HeatFactorCommentWeight +
-			p.ViewCount*constant.HeatFactorViewWeight,
-	)
-}
-
 func (p *Post) ToDto() *dto.PostDto {
 	return &dto.PostDto{
 		ID:     p.ID,
@@ -109,7 +99,7 @@ func (p *Post) ToDto() *dto.PostDto {
 		LikeCount:    p.LikeCount,
 		CommentCount: p.CommentCount,
 		ViewCount:    p.ViewCount,
-		Heat:         uint64(p.CalculateHeat()),
+		Heat:         p.Heat,
 		CreatedAt:    p.CreatedAt,
 		UpdatedAt:    p.UpdatedAt,
 		User:         p.User.ToDto(),

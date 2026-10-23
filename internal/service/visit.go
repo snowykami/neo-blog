@@ -142,6 +142,7 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 		if err := repo.Visit.CreateVisitLog(log); err != nil {
 			return "", errs.NewInternalServer("failed_to_create_target")
 		}
+		countPostView(log)
 		return "", nil
 	}
 
@@ -184,7 +185,18 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 	if err := repo.Visit.CreateVisitLog(log); err != nil {
 		return "", errs.NewInternalServer("failed_to_create_target")
 	}
+	countPostView(log)
 	return visitor.VisitorKey, nil
+}
+
+// countPostView 记录了一次新的文章访问（已去重、排除爬虫与管理员）后累加文章浏览量；失败只打日志
+func countPostView(log *model.VisitLog) {
+	if log.TargetType != constant.TargetTypePost || log.TargetID == 0 {
+		return
+	}
+	if err := repo.Post.IncreaseViewCount(log.TargetID); err != nil {
+		logrus.Warnf("increase view count of post %d failed: %v", log.TargetID, err)
+	}
 }
 
 func isRandomPath(path string) bool {

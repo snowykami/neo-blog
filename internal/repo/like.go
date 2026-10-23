@@ -43,7 +43,7 @@ func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string) (bool, e
 	return finalStatus, err
 }
 
-// syncLikeCount 按实际点赞记录回写计数，文章同时刷新热度
+// syncLikeCount 按实际点赞记录回写计数；文章热度由定时任务重算
 func syncLikeCount(tx *gorm.DB, targetType string, targetID uint) error {
 	var count int64
 	if err := tx.Model(&model.Like{}).Where("target_type = ? AND target_id = ?", targetType, targetID).Count(&count).Error; err != nil {
@@ -51,10 +51,7 @@ func syncLikeCount(tx *gorm.DB, targetType string, targetID uint) error {
 	}
 	switch targetType {
 	case constant.TargetTypePost:
-		if err := tx.Model(&model.Post{}).Where("id = ?", targetID).UpdateColumn("like_count", count).Error; err != nil {
-			return err
-		}
-		return refreshPostHeat(tx, targetID)
+		return tx.Model(&model.Post{}).Where("id = ?", targetID).UpdateColumn("like_count", count).Error
 	case constant.TargetTypeComment:
 		return tx.Model(&model.Comment{}).Where("id = ?", targetID).UpdateColumn("like_count", count).Error
 	}

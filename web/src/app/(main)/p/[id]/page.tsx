@@ -36,7 +36,7 @@ export const revalidate = 60
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { id } = await params
-  // 参数需与页面中的调用完全一致，才能命中 React cache，避免重复请求（后端会重复计数浏览量）
+  // 参数需与页面中的调用完全一致，才能命中 React cache，避免重复请求；浏览量由前台访问上报计数，与此无关
   const { type } = await searchParams
   const post = await getCachedPost(id, type)
   const locale = (await getLocale()) || 'en'
