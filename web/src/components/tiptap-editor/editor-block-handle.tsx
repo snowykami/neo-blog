@@ -16,10 +16,12 @@ import { EditorMenuContent, EditorMenuEntries, getBlockTypeEntries } from './edi
 import { EditorTooltip } from './editor-toolbar-button'
 
 // 需保持引用稳定，否则 DragHandle 会重复注册插件
+// 手柄紧贴块的左边缘（间距由手柄内部的右内边距提供）：插件在鼠标离开编辑区且没有直接进入手柄时会隐藏手柄，
+// 手柄与块之间若留有空隙，鼠标移向手柄时会先经过空隙而让手柄消失
 const COMPUTE_POSITION_CONFIG = {
   placement: 'left-start' as const,
   strategy: 'absolute' as const,
-  middleware: [offset({ mainAxis: 6, crossAxis: 0 })],
+  middleware: [offset({ mainAxis: 0, crossAxis: 0 })],
 }
 
 const CONVERTIBLE_CONTAINERS = ['bulletList', 'orderedList', 'taskList', 'blockquote']
@@ -162,7 +164,7 @@ export function EditorBlockHandle({ editor, readOnly }: { editor: Editor, readOn
 
   return (
     <DragHandle editor={editor} className="neo-drag-handle" computePositionConfig={COMPUTE_POSITION_CONFIG} onNodeChange={onNodeChange}>
-      <div className="flex items-center">
+      <div className="flex items-center pr-1.5">
         <EditorTooltip label={t('block_add')} side="top">
           <button
             type="button"
