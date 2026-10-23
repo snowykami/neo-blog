@@ -196,3 +196,30 @@ describe('模型输出的容错', () => {
     expect(result.doc.toJSON()).toEqual(parse('<p>前文术语后文</p>').toJSON())
   })
 })
+
+describe('提示词中的平台格式', () => {
+  // 与后端 aiWriteSystemPrompt「平台格式」一节的示例保持一致：模型按这些写法输出时，编辑器应解析为对应格式
+  it('注释、链接、高亮、文字颜色、上下标、任务列表等写法都能解析为平台格式', () => {
+    const output = [
+      '<span data-annotation="一种分布式版本控制系统">Git</span>见[官网](https://git-scm.com)，**粗体**与<strong>“中文粗体”</strong>，*斜体*、~~删除~~、`code`，'
+      + '<u>下划线</u>、H<sub>2</sub>O、x<sup>2</sup>、<mark>高亮</mark>、<mark data-color="var(--color-yellow-200)">黄色高亮</mark>、<span style="color: var(--color-red-500)">红字</span>',
+      '',
+      '- [ ] 待办',
+      '- [x] 已完成',
+    ].join('\n')
+    const marks: Record<string, unknown> = {}
+    const nodes = new Set<string>()
+    markdownToSlice(schema, output, 'block').content.descendants((node) => {
+      nodes.add(node.type.name)
+      for (const mark of node.marks)
+        marks[`${mark.type.name}:${node.text}`] = mark.attrs
+    })
+    expect(marks['annotation:Git']).toMatchObject({ note: '一种分布式版本控制系统' })
+    expect(marks['link:官网']).toMatchObject({ href: 'https://git-scm.com' })
+    expect(marks['highlight:黄色高亮']).toMatchObject({ color: 'var(--color-yellow-200)' })
+    expect(marks['textStyle:红字']).toMatchObject({ color: 'var(--color-red-500)' })
+    for (const key of ['bold:粗体', 'bold:“中文粗体”', 'italic:斜体', 'strike:删除', 'code:code', 'underline:下划线', 'subscript:2', 'superscript:2', 'highlight:高亮'])
+      expect(marks, key).toHaveProperty([key])
+    expect([...nodes]).toEqual(expect.arrayContaining(['taskList', 'taskItem']))
+  })
+})

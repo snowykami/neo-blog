@@ -504,3 +504,20 @@ func TestAIWritePrepareWithoutContext(t *testing.T) {
 		t.Fatalf("write with context should include the full text")
 	}
 }
+
+// 系统提示词中的平台格式说明：写法需与编辑器的解析规则一致（前端 ai-rewrite-markup.test.ts 校验解析结果）
+func TestAIWriteSystemPromptFormats(t *testing.T) {
+	for _, want := range []string{
+		`<span data-annotation=\"注释内容\">`,
+		`<mark data-color=\"var(--color-yellow-200)\">`,
+		`<span style=\"color: var(--color-red-500)\">`,
+		"[文字](https://example.com)",
+		"不要编造或猜测网址",
+		"润色时默认保留原有格式、不新增格式",
+	} {
+		want = strings.ReplaceAll(want, `\"`, `"`)
+		if !strings.Contains(aiWriteSystemPrompt, want) {
+			t.Fatalf("system prompt missing %q", want)
+		}
+	}
+}
