@@ -52,6 +52,14 @@ const aiWriteSystemPrompt = "# 角色\n" +
 	"- HTML 标签的属性值一律用英文双引号。\n" +
 	"使用原则：格式服务于内容，宁少勿滥。帮写时可以按需少量使用，例如给首次出现的术语加注释、强调关键结论；润色时默认保留原有格式、不新增格式，作者明确要求（如“给术语加注释”“高亮重点”）时再添加。\n"
 
+// aiWriteComponentGuide 组件的写法与使用原则；组件列表（名称、用途、props 的 JSON Schema）由前端按组件注册表提供
+const aiWriteComponentGuide = "需要时可以在段落之间插入下列组件，让内容更有层次，例如把注意事项放进提示框、把多语言示例放进代码组、把补充说明放进折叠块。\n" +
+	"使用原则：宁少勿滥，一次最多使用 2 个；普通段落、列表能表达清楚时不要使用；不要把整段回答都放进组件。\n" +
+	"写法：每个组件单独写成一个代码块，代码块语言写成 component:组件名，内容是一行 props 的 JSON（字段与取值以下方 JSON Schema 为准，字符串中的换行写成 \\n），例如：\n" +
+	"```component:callout\n{\"type\":\"tip\",\"title\":\"小提示\",\"content\":\"先备份数据再升级。\"}\n```\n" +
+	"组件内的文字是纯文本，不支持 Markdown、HTML 和上方的平台格式；组件名必须来自下方列表。\n" +
+	"组件列表（组件名：用途；props 的 JSON Schema）：\n"
+
 // aiWritePrompt 构建 AI 写作用户消息所需的信息
 type aiWritePrompt struct {
 	targetType  string
@@ -68,6 +76,7 @@ type aiWritePrompt struct {
 	selection   string // 润色：选中的内容
 	structured  bool   // 选中内容为保留格式的标记文本（Markdown + 行内 HTML 标签 + 占位符）
 	noContext   bool   // 作者选择不附带全文：润色不给正文，帮写只给插入点附近的片段
+	components  string // 独立成块的帮写可用的组件说明，为空时不允许使用组件
 }
 
 // splitAIWriteDocument 把带标记的正文纯文本拆成前文、选区与后文
@@ -157,6 +166,12 @@ func (p *aiWritePrompt) build() string {
 
 	sb.WriteString("\n# 写作位置\n")
 	sb.WriteString(p.positionGuide())
+
+	if p.components != "" {
+		sb.WriteString("\n\n# 可用组件\n")
+		sb.WriteString(aiWriteComponentGuide)
+		sb.WriteString(p.components)
+	}
 
 	sb.WriteString("\n\n# 作者的要求\n")
 	instruction := strings.TrimSpace(p.instruction)

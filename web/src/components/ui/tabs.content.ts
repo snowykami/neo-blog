@@ -21,6 +21,7 @@ export default defineContentComponent({
   icon: PanelsTopLeftIcon,
   keywords: ['tabs', 'tab', 'biaoqianye', 'bqy', 'qiehuan', '标签页', '选项卡', '切换'],
   fallback: ({ tabs }: TextTabsContentProps) => tabs.flatMap(tab => [['p', {}, ['strong', {}, tab.label]], ...textParagraphs(tab.content)]),
+  ai: { usage: '文字标签页：并列的几段文字切换显示，如不同方案、不同平台或不同角色的说明' },
   example: t => ({
     tabs: [
       { label: t('tab1'), content: t('content1') },

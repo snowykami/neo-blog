@@ -16,6 +16,7 @@ export default defineContentComponent({
     ['p', {}, ['strong', {}, tab.label]],
     ['pre', {}, ['code', tab.language ? { class: `language-${tab.language}` } : {}, tab.code]],
   ]),
+  ai: { usage: '代码组：同一功能的多种写法并排切换，如不同语言、不同包管理器或不同操作系统的命令；language 为 highlight.js 语言名' },
   example: () => ({
     tabs: [
       { label: 'pnpm', language: 'bash', code: 'pnpm add zod' },

@@ -26,6 +26,7 @@ const (
 	aiWriteMaxInstructionRune = 1000             // 用户要求的长度上限
 	aiWriteMaxSelectionRune   = 8000             // 润色选区的长度上限（需完整改写，超出直接拒绝）
 	aiWriteMaxMarkupRune      = 24000            // 润色选区格式化表示的长度上限（含格式标签，约为纯文本的数倍）
+	aiWriteMaxComponentsRune  = 8000             // 可用组件说明的长度上限
 	aiWriteMaxContextRune     = 12000            // 插入点前后正文的总长上限，超出部分从远端截断
 	aiWriteLocalContextRune   = 800              // 不附带全文时，帮写保留插入点附近的正文长度
 )
@@ -130,6 +131,14 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 			structured = true
 		}
 	}
+	// 可用组件说明只用于独立成块的帮写：润色保持原有结构，段落中间与代码块内无法放置组件
+	components := ""
+	if req.Mode == aiWriteModeWrite && scope == aiWriteScopeBlock {
+		components = strings.TrimSpace(req.Components)
+		if utf8.RuneCountInString(components) > aiWriteMaxComponentsRune {
+			return nil, errs.NewBadRequest("ai_input_too_long")
+		}
+	}
 	switch {
 	case req.IncludeContext:
 		before, after = truncateAIWriteContext(before, after, aiWriteMaxContextRune)
@@ -156,6 +165,7 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 		selection:   selection,
 		structured:  structured,
 		noContext:   !req.IncludeContext,
+		components:  components,
 	}
 	return &AIWriteJob{userID: userID, cfg: cfg, user: prompt.build()}, nil
 }

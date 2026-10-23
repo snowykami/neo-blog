@@ -11,6 +11,7 @@ import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { toast } from 'sonner'
 import { streamAIWrite } from '@/api/ai-write'
+import { buildAIComponentGuide, convertAIComponentBlocks } from '@/components/content-components/ai-components'
 import { AI_PREVIEW_META, aiWritePluginKey } from '@/components/tiptap-extension/ai-write-extension'
 import { useStoredState } from '@/hooks/use-storage-state'
 import { useErrorMessageT } from '@/hooks/use-translations'
@@ -56,6 +57,11 @@ interface AIWriterSession {
   keeps: PMNode[]
   marks: string[]
   preview: AIPreview | null
+}
+
+// 只有独立成块的帮写可以插入组件；润色保持原有结构，段落中间与代码块内无法放置组件
+function allowsAIComponents(target: { mode: AIWriteMode, scope: AIWriteScope }) {
+  return target.mode === 'write' && target.scope === 'block'
 }
 
 const IDLE_STATE: AIWriterState = { status: 'idle', mode: 'write', scope: 'block', instruction: '', error: null, stopped: false }
@@ -116,7 +122,11 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
     // 占位符还原为原节点；生成结束时补回模型遗漏的节点，生成中不补，避免末尾闪现
     const structured = session.selection !== undefined
     const source = structured ? repairTagQuotes(markdown) : markdown
-    const parsed = markdownToSlice(editor.schema, source, session.target.scope, structured ? body => restoreMarkTokens(body, session.marks) : undefined)
+    // 润色还原编号标签；独立成块的帮写把组件代码块转换为组件块（不合法的降级为普通段落）
+    const transform = structured
+      ? (body: HTMLElement) => restoreMarkTokens(body, session.marks)
+      : allowsAIComponents(session.target) ? convertAIComponentBlocks : undefined
+    const parsed = markdownToSlice(editor.schema, source, session.target.scope, transform)
     const slice = restoreRewriteKeeps(parsed, session.keeps, editor.schema, !streaming)
     const preview = buildPreview(session.baseDoc, session.target, slice)
     session.preview = preview
@@ -186,6 +196,8 @@ export function useAIWriter({ editor, target: contentTarget, docId, getContext, 
           instruction,
           document: session.document,
           selection: session.selection,
+          // 独立成块的帮写可以插入白名单组件，附上组件说明
+          components: allowsAIComponents(session.target) ? buildAIComponentGuide() : undefined,
           includeContext: includeContextRef.current,
           ...getCtx(),
         },

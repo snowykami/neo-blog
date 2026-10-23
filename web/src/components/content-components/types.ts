@@ -50,6 +50,9 @@ export interface ContentComponentDef<S extends z.ZodObject = z.ZodObject> {
   defaultWidth?: ComponentWidth
   // 属性弹窗的扩展
   editor?: ContentComponentEditor<NoInfer<z.input<S>>>
+  // 允许 AI 帮写使用该组件：usage 说明适用场景，与 props 的 JSON Schema 一起写入提示词；
+  // 只应开放不依赖外部 ID（歌曲、仓库等）的组件，避免模型编造不存在的数据
+  ai?: { usage: string }
 }
 
 export type AnyContentComponentDef = ContentComponentDef<z.ZodObject>

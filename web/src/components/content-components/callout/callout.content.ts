@@ -20,4 +20,5 @@ export default defineContentComponent({
     ...textParagraphs(content),
   ]],
   example: t => ({ type: 'tip' as const, title: t('title'), content: t('content') }),
+  ai: { usage: '提示框：突出需要读者特别注意的一段话。type 为 info（补充说明）、tip（技巧、建议）或 warning（注意事项、风险）' },
 })

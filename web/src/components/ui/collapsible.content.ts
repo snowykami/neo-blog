@@ -24,4 +24,5 @@ export default defineContentComponent({
     ['details', defaultOpen ? { open: '' } : {}, ['summary', {}, title], ...textParagraphs(content)],
   ],
   example: t => ({ title: t('title'), content: t('content') }),
+  ai: { usage: '折叠块：默认收起的补充内容，适合较长的推导、背景资料、剧透或常见问题的答案' },
 })

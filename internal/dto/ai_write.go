@@ -11,6 +11,8 @@ type AIWriteReq struct {
 	// Selection 润色选区的格式化表示：块结构为 Markdown，行内格式为 HTML 标签，图片等不可改写的节点为 [[KEEP_n]] 占位符
 	// 提供时原样交给模型（不再从正文中提取纯文本），以便保留格式；代码块内的选区不使用
 	Selection string `json:"selection"`
+	// Components 独立成块的帮写可用的组件说明（名称、用途与 props 的 JSON Schema），由前端按组件注册表生成；其他情况忽略
+	Components string `json:"components"`
 	// IncludeContext 是否附带全文作为上下文；不附带时润色只给出选中内容，帮写只给出插入点附近的片段，提示词更精简
 	IncludeContext bool     `json:"include_context"`
 	Title          string   `json:"title"`

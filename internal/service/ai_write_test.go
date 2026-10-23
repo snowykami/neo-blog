@@ -521,3 +521,44 @@ func TestAIWriteSystemPromptFormats(t *testing.T) {
 		}
 	}
 }
+
+// 可用组件说明只用于独立成块的帮写：附上写法与组件列表；润色、段落中间不附；过长时拒绝
+func TestAIWritePrepareComponents(t *testing.T) {
+	author, _, _, post, _ := setupEditTest(t)
+	s := NewAIWriteService()
+	configureAI(t, "https://example.com/v1")
+	guide := "- callout：提示框\n  props：{\"type\":\"object\"}"
+
+	req := writeReq("<p>前文" + aiWriteInsertMarker + "后文</p>")
+	req.Scope, req.Components = aiWriteScopeBlock, guide
+	job, svcerr := s.Prepare(author, constant.TargetTypePost, post.ID, req)
+	if svcerr != nil {
+		t.Fatalf("prepare: %v", svcerr)
+	}
+	// 组件说明位于作者的要求之前，作者的要求仍在最后
+	section := strings.Index(job.user, "# 可用组件\n")
+	if section < 0 || !strings.Contains(job.user, "component:组件名") || !strings.Contains(job.user, guide) || section > strings.Index(job.user, "# 作者的要求") {
+		t.Fatalf("component guide missing or misplaced:\n%s", job.user)
+	}
+
+	// 段落中间无法放置组件
+	req.Scope = aiWriteScopeInline
+	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, req); strings.Contains(job.user, "# 可用组件") {
+		t.Fatalf("inline scope should not offer components:\n%s", job.user)
+	}
+
+	// 润色保持原有结构
+	rewrite := &dto.AIWriteReq{Mode: aiWriteModeRewrite, Scope: aiWriteScopeBlock, Document: "<p>前文" + aiWriteSelectionStart + "选中" + aiWriteSelectionEnd + "后文</p>", Components: guide}
+	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, rewrite); strings.Contains(job.user, "# 可用组件") {
+		t.Fatalf("rewrite should not offer components:\n%s", job.user)
+	}
+
+	// 未提供组件说明时不附
+	req.Scope, req.Components = aiWriteScopeBlock, "  "
+	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, req); strings.Contains(job.user, "# 可用组件") {
+		t.Fatalf("empty guide should not add section:\n%s", job.user)
+	}
+
+	req.Components = strings.Repeat("字", aiWriteMaxComponentsRune+1)
+	expectMessage(t, prepareErr(s, author, constant.TargetTypePost, post.ID, req), http.StatusBadRequest, "ai_input_too_long")
+}
