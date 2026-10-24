@@ -16,6 +16,8 @@ import { formatDisplayName } from '@/utils/common/username'
  * - 访问路径 /p/{slug 或 id}/share-image，排版见 components/blog-post/share-card.tsx
  * - 用 route handler 而不是 opengraph-image 文件约定：约定文件放在 (main) 路由组里不生效（Next 16.4 + Turbopack），
  *   改由 page.tsx 的 generateMetadata 显式写入 og:image / twitter:image
+ * - 惰性生成：没人请求就不生成，首次请求时才渲染；结果在内存里缓存 10 分钟，
+ *   文章更新后前端会把更新时间作为 v 拼进地址（见 getPostShareImageUrl），地址一变即重新渲染
  * - 标题摘要按字符数截断；封面抓取失败、文章不存在时仍然出图，不让爬虫拿到错误页
  * - 字体为 Noto Sans SC 子集（satori 只支持 ttf / otf / woff），生成方式见 src/assets/fonts/README.md
  */
@@ -36,12 +38,69 @@ const SITE_NAME_MAX = 18
 // 抓图（封面 / 站点图标）的最长等待，慢图直接跳过，避免分享图接口变慢
 const IMAGE_TIMEOUT_MS = 4000
 const IMAGE_MAX_BYTES = 6_000_000
-// 分享图按文章内容生成：文章一改动，前端就把更新时间作为 v 参数拼进地址（见 getPostShareImageUrl），
-// 地址变了自然换新图，所以这里可以放心让浏览器和 CDN 缓存；站点名、图标这类站点级信息变化在 max-age 后收敛
-const CACHE_CONTROL = 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400'
+// 生成结果的有效期：同一地址超过 10 分钟就重新渲染，浏览器 / CDN 端保持一致
+const IMAGE_TTL_MS = 10 * 60 * 1000
+const CACHE_CONTROL = 'public, max-age=600, s-maxage=600'
+// 同时缓存的图片数量上限，长期运行也不会无限占用内存
+const IMAGE_CACHE_MAX = 64
+
+// 已生成图片的内存缓存：key 为「文章 key + 地址里的版本号」，命中就不必再请求后端与渲染
+const imageCache = new Map<string, { body: ArrayBuffer, generatedAt: number }>()
+
+function readImageCache(key: string): ArrayBuffer | null {
+  const entry = imageCache.get(key)
+  if (!entry)
+    return null
+  if (Date.now() - entry.generatedAt > IMAGE_TTL_MS) {
+    imageCache.delete(key)
+    return null
+  }
+  return entry.body
+}
+
+function writeImageCache(key: string, body: ArrayBuffer) {
+  const now = Date.now()
+  // 先清掉过期项，再看数量上限
+  for (const [cachedKey, entry] of imageCache) {
+    if (now - entry.generatedAt > IMAGE_TTL_MS)
+      imageCache.delete(cachedKey)
+  }
+  imageCache.set(key, { body, generatedAt: now })
+  // Map 按插入顺序遍历，超限时从最早写入的开始淘汰
+  for (const cachedKey of imageCache.keys()) {
+    if (imageCache.size <= IMAGE_CACHE_MAX)
+      break
+    imageCache.delete(cachedKey)
+  }
+}
+
+function pngResponse(body: ArrayBuffer, cacheState: 'hit' | 'miss') {
+  return new Response(body, {
+    headers: {
+      'Content-Type': 'image/png',
+      'Cache-Control': CACHE_CONTROL,
+      // 便于排查命中情况：命中内存缓存时不渲染、不访问后端
+      'X-Share-Image-Cache': cacheState,
+    },
+  })
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  // 版本号由前端按文章更新时间生成，文章一改动地址就变，旧缓存自然失效
+  const version = new URL(request.url).searchParams.get('v') ?? ''
+  const cacheKey = `${id}\u0000${version}`
+
+  const cached = readImageCache(cacheKey)
+  if (cached)
+    return pngResponse(cached, 'hit')
+
+  const body = await renderShareImage({ id, request })
+  writeImageCache(cacheKey, body)
+  return pngResponse(body, 'miss')
+}
+
+async function renderShareImage({ id, request }: { id: string, request: Request }): Promise<ArrayBuffer> {
   const [post, siteInfo, font, scanText] = await Promise.all([
     getPostByIdServer({ id }).then(res => res.data).catch(() => null),
     getCachedSiteInfo(),
@@ -67,7 +126,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const author = post?.user ? formatDisplayName(post.user) : ''
   const date = post?.createdAt ? post.createdAt.slice(0, 10) : ''
 
-  return new ImageResponse(
+  const image = new ImageResponse(
     (
       <ShareCard
         siteName={clip(siteInfo.metadata.name, SITE_NAME_MAX)}
@@ -87,9 +146,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     {
       ...SHARE_CARD_SIZE,
       fonts: [{ name: 'Noto Sans SC', data: font, weight: 500, style: 'normal' }],
-      headers: { 'Cache-Control': CACHE_CONTROL },
     },
   )
+
+  return image.arrayBuffer()
 }
 
 /** 二维码下方提示语跟随界面语言，取不到时退回中文 */
