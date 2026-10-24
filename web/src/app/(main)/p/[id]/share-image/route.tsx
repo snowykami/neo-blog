@@ -36,8 +36,9 @@ const SITE_NAME_MAX = 18
 // 抓图（封面 / 站点图标）的最长等待，慢图直接跳过，避免分享图接口变慢
 const IMAGE_TIMEOUT_MS = 4000
 const IMAGE_MAX_BYTES = 6_000_000
-// 分享图按文章内容生成，变化不频繁：浏览器缓存 1 小时，CDN 缓存 1 天
-const CACHE_CONTROL = 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800'
+// 分享图按文章内容生成：文章一改动，前端就把更新时间作为 v 参数拼进地址（见 getPostShareImageUrl），
+// 地址变了自然换新图，所以这里可以放心让浏览器和 CDN 缓存；站点名、图标这类站点级信息变化在 max-age 后收敛
+const CACHE_CONTROL = 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400'
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

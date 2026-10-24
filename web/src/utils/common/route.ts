@@ -48,10 +48,18 @@ export function getPostUrl<T extends { slug?: string | null, id?: string | numbe
   return `/p/${String(key)}${type ? `?type=${type}` : ''}`
 }
 
-export function getPostShareImageUrl<T extends { slug?: string | null, id?: string | number | null }>(
+/*
+ * 文章分享图：地址带上更新时间作为版本号，文章改动后地址随之变化，
+ * 因此分享图接口可以放心长缓存，也不会出现「文章改了但分享图还是旧的」
+ */
+export function getPostShareImageUrl<
+  T extends { slug?: string | null, id?: string | number | null, updatedAt?: string | null },
+>(
   post: T,
 ): string {
-  return `${getPostUrl({ post })}/share-image`
+  const url = `${getPostUrl({ post })}/share-image`
+  const version = post.updatedAt ? Date.parse(post.updatedAt) : Number.NaN
+  return Number.isNaN(version) ? url : `${url}?v=${version}`
 }
 
 export function getPostEditUrl<T extends { slug?: string | null, id?: string | number | null }>(
