@@ -24,14 +24,14 @@ export function isTallMusicCard(height: ComponentHeight | null): boolean {
   return height != null && height >= 5
 }
 
-/** 2 单位（112px）的单行卡片：只有封面、标题与按钮，进度行依然常显示 */
+/** 2 单位（112px）的单行卡片：只有封面、标题与按钮，进度行依然常显示；高度紧张，封面收到 4rem 以免进度行被裁切 */
 function isCompactMusicCard(height: ComponentHeight | null): boolean {
   return height === 2
 }
 
 // 各高度档位的卡片布局与封面尺寸（自动高度为 auto）
 const AUTO_CARD_LAYOUT = { card: 'gap-2.5 p-3', cover: 'size-16' }
-const COMPACT_CARD_LAYOUT = { card: 'h-full overflow-hidden content-center p-3', cover: 'size-18 @max-3xs:hidden' }
+const COMPACT_CARD_LAYOUT = { card: 'h-full overflow-hidden content-center p-3', cover: 'size-16 @max-3xs:hidden' }
 const NORMAL_CARD_LAYOUT = { card: 'h-full overflow-hidden content-center p-4', cover: 'size-24' }
 // 头部（标题 / 进度）与歌词区两行，歌词区占满剩余高度；最高档位封面略大
 const TALL_CARD_LAYOUT = { card: 'h-full overflow-hidden grid-rows-[auto_minmax(0,1fr)] gap-3 p-4', cover: 'size-20' }
@@ -49,7 +49,7 @@ function getCardLayout(height: ComponentHeight | null) {
 
 /**
  * 音乐卡片的展示部分（网易云与自定义音频共用）：封面、标题、副标题、操作按钮，以及可拖动的进度
- * loading 时显示骨架；进度行在封面右侧的文字列下方常显示（不播放时也不隐藏），避免播放开始时把卡片撑开；
+ * loading 时显示骨架；进度行常显示（不播放时也不隐藏），避免播放开始时把卡片撑开；
  * lyrics 为 5 单位及以上高度时的歌词区
  */
 export function MusicCardView({ cover, title, href, subtitle, action, progress, loading, lyrics }: {
@@ -68,7 +68,8 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
   return (
     // minmax(0,1fr)：网格项默认不小于内容宽度，过长的一行歌词会把卡片撑宽，导致无法触发横向滚动
     <div className={cn('grid grid-cols-[minmax(0,1fr)] rounded-xl border bg-card text-card-foreground', layout.card)}>
-      <div className="flex items-center gap-3.5">
+      {/* 进度行单独占一行：左边缘与标题 / 歌词文字左对齐（靠第 1 列留出封面宽度），右边缘与播放按钮右边对齐 */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1">
         <div className={cn('relative shrink-0 overflow-hidden rounded-lg bg-muted', layout.cover)}>
           {cover
             ? <SafeImage src={cover} alt="" fill sizes="96px" className="object-cover" />
@@ -76,7 +77,7 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
               ? <Skeleton className="size-full" />
               : <Music2Icon aria-hidden className="absolute inset-0 m-auto size-6 text-muted-foreground" />}
         </div>
-        <div className="grid min-w-0 flex-1 gap-1">
+        <div className="grid min-w-0 gap-1">
           {loading
             ? (
                 <div className="grid gap-2">
@@ -92,9 +93,17 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
                   {subtitle}
                 </>
               )}
-          {progress && <MusicCardProgressRow {...progress} />}
         </div>
         {action}
+        {progress && (
+          <>
+            {/* 第 1 列占位：撑住封面宽度，让进度行左边缘正好落在标题左边 */}
+            <div aria-hidden className="col-start-1" />
+            <div className="col-span-2 col-start-2 min-w-0">
+              <MusicCardProgressRow {...progress} />
+            </div>
+          </>
+        )}
       </div>
       {tall && <div className="min-h-0">{lyrics}</div>}
     </div>
