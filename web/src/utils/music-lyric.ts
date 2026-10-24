@@ -23,6 +23,9 @@ export interface MusicLyricParseResult {
 
 export type MusicLyricMode = 'none' | 'romaji' | 'translation'
 
+/** 没有歌词时歌词接口返回的占位文本，不应作为歌词展示 */
+export const LYRIC_PLACEHOLDERS = new Set(['no_lyric', 'pure_music_without_lyric'])
+
 interface TimedRomajiUnit {
   text: string
   reading: string

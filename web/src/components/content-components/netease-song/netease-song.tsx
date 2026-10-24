@@ -8,13 +8,11 @@ import { LyricLine } from '@/components/common/music-lyric-line'
 import LyricScroll from '@/components/common/music-lyric-scroll'
 import { Button } from '@/components/ui/button'
 import { useMusic } from '@/contexts/music-context'
+import { LYRIC_PLACEHOLDERS } from '@/utils/music-lyric'
 import { useCachedRequest } from '../use-cached-request'
 import { useComponentHeight } from '../use-component-height'
 import { CustomAudioCard } from './custom-audio-card'
 import { isTallMusicCard, MusicCardLyricHint, MusicCardView } from './music-card-view'
-
-// 没有歌词时歌词接口返回的占位文本，不在卡片中展示
-const LYRIC_PLACEHOLDERS = new Set(['no_lyric', 'pure_music_without_lyric'])
 
 /** 音乐卡片：网易云歌曲或自定义音频 */
 export default function MusicCard(props: NeteaseSongProps) {

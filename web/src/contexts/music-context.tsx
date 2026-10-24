@@ -12,7 +12,7 @@ import React, {
   useState,
 } from 'react'
 import { fetchNcmLyric } from '@/api/music'
-import { getCurrentLyricIndex, getCurrentWordIndex, parseMusicLyrics } from '@/utils/music-lyric'
+import { getCurrentLyricIndex, getCurrentWordIndex, LYRIC_PLACEHOLDERS, parseMusicLyrics } from '@/utils/music-lyric'
 
 export type PlayMode = 'repeat-all' | 'repeat-one' | 'shuffle'
 
@@ -92,6 +92,57 @@ function getAdjacentIndex(list: MusicTrack[], curr: number | null, mode: PlayMod
   if (curr == null)
     return direction === 1 ? 0 : list.length - 1
   return (curr + direction + list.length) % list.length
+}
+
+/** MediaSession 封面：无封面时返回空数组，避免浏览器因空 src 报错 */
+function makeMediaArtwork(url?: string) {
+  if (!url)
+    return []
+  return [
+    { src: url, sizes: '512x512', type: 'image/png' },
+    { src: url, sizes: '96x96', type: 'image/png' },
+  ]
+}
+
+/**
+ * 同步 MediaSession 元数据：播放中若能拿到有效歌词，标题就用当前歌词，否则回退到曲目名；
+ * 暂停时恢复为曲目名，避免锁屏/控制中心一直挂着一句悬空的歌词
+ */
+function updateMediaSessionMetadata(
+  ms: MediaSession,
+  track: MusicTrack | null,
+  lyric: string | null,
+  playing: boolean,
+) {
+  if (!track) {
+    try {
+      ms.metadata = null
+    }
+    catch { }
+    ms.playbackState = 'none'
+    return
+  }
+
+  const lyricTitle = playing && lyric ? lyric.trim() : ''
+  const hasLyricTitle = lyricTitle.length > 0 && !LYRIC_PLACEHOLDERS.has(lyricTitle)
+  const metadata = {
+    title: hasLyricTitle ? lyricTitle : (track.name ?? ''),
+    artist: Array.isArray(track.artists) ? track.artists.join(', ') : (track.artists ?? ''),
+    album: track.album ?? '',
+    artwork: makeMediaArtwork(track.albumPic),
+  }
+
+  try {
+    ms.metadata = new MediaMetadata(metadata)
+  }
+  catch {
+    // 某些环境可能不支持构造函数
+    try {
+      ms.metadata = metadata as MediaMetadata
+    }
+    catch { }
+  }
+  ms.playbackState = playing ? 'playing' : 'paused'
 }
 
 export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -503,47 +554,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!audio)
       return
 
-    const makeArtwork = (url?: string) => {
-      if (!url)
-        return []
-      return [
-        { src: url, sizes: '512x512', type: 'image/png' },
-        { src: url, sizes: '96x96', type: 'image/png' },
-      ]
-    }
-
-    const updateMetadata = () => {
-      if (!currentTrack) {
-        try {
-          ms.metadata = null
-        }
-        catch { }
-        ms.playbackState = 'none'
-        return
-      }
-      try {
-        ms.metadata = new MediaMetadata({
-          title: currentTrack.name ?? '',
-          artist: Array.isArray(currentTrack.artists) ? currentTrack.artists.join(', ') : (currentTrack.artists ?? ''),
-          album: currentTrack.album ?? '',
-          artwork: makeArtwork(currentTrack.albumPic),
-        })
-      }
-      catch {
-        // 某些环境可能不支持构造函数
-        try {
-          ms.metadata = {
-            title: currentTrack.name ?? '',
-            artist: Array.isArray(currentTrack.artists) ? currentTrack.artists.join(', ') : (currentTrack.artists ?? ''),
-            album: currentTrack.album ?? '',
-            artwork: makeArtwork(currentTrack.albumPic),
-          }
-        }
-        catch { }
-      }
-      ms.playbackState = isPlaying ? 'playing' : 'paused'
-    }
-
     try {
       ms.setActionHandler('play', () => play())
       ms.setActionHandler('pause', () => pause())
@@ -583,9 +593,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       catch { }
     }
 
-    updateMetadata()
     audio.addEventListener('timeupdate', onTimeUpdate)
-    // 当 track 或 isPlaying 变化时也更新 metadata/playbackState
+    // 事件回调只依赖稳定的播放控制方法，元数据交给下方 effect 按曲目/歌词/播放状态更新
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate)
       try {
@@ -597,7 +606,14 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       catch { }
     }
-  }, [currentTrack, isPlaying, play, pause, next, prev])
+  }, [pause, play, next, prev])
+
+  // 有歌词且正在播放时，把 MediaSession 的标题更新为当前歌词，暂停后回退到曲目名
+  useEffect(() => {
+    if (typeof window === 'undefined' || !navigator.mediaSession)
+      return
+    updateMediaSessionMetadata(navigator.mediaSession, currentTrack, currentLyric, isPlaying)
+  }, [currentTrack, currentLyric, isPlaying])
 
   const value: MusicContextValue = {
     playlist,
