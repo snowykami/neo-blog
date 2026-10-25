@@ -72,6 +72,7 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
       {/* 进度行单独占一行：左边缘与标题 / 歌词文字左对齐（靠第 1 列留出封面宽度），右边缘与播放按钮右边对齐。
           items-start：标题顶部与封面顶部对齐，播放按钮单独居中 */}
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3.5 gap-y-1">
+        {/* 封面 */}
         <div className={cn('relative shrink-0 overflow-hidden rounded-lg bg-muted', layout.cover)}>
           {cover
             ? <SafeImage src={cover} alt="" fill sizes="96px" className="object-cover" />
@@ -79,33 +80,32 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
               ? <Skeleton className="size-full" />
               : <Music2Icon aria-hidden className="absolute inset-0 m-auto size-6 text-muted-foreground" />}
         </div>
-        <div className="grid min-w-0 gap-0.5">
+        {/* 内容区 */}
+        <div className="grid min-w-0 grid-rows-3">
           {loading
             ? (
-                <div className="grid gap-2">
-                  <Skeleton className="h-4 w-1/2" />
-                  <Skeleton className="h-3.5 w-1/3" />
-                </div>
-              )
+              <div className="grid gap-2">
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-3.5 w-1/3" />
+              </div>
+            )
             : (
-                <>
-                  {title && (href
-                    ? <a href={href} target="_blank" rel="noopener noreferrer" className="block truncate font-semibold leading-tight text-foreground no-underline hover:text-primary">{title}</a>
-                    : <p className="truncate font-semibold leading-tight text-foreground">{title}</p>)}
-                  {subtitle}
-                </>
-              )}
+              <>
+                {title && (href
+                  ? <a href={href} target="_blank" rel="noopener noreferrer" className="block truncate font-semibold leading-tight text-foreground no-underline hover:text-primary">{title}</a>
+                  : <p className="truncate font-semibold leading-tight text-foreground">{title}</p>)}
+                {subtitle}
+                {progress && (
+                  <>
+                    {/* 第 1 列占位：撑住封面宽度，让进度行左边缘正好落在标题左边 */}
+                    <MusicCardProgressRow {...progress} />
+                  </>
+                )}
+              </>
+            )}
         </div>
+        {/* 操作按钮 */}
         {action && <div className="self-center">{action}</div>}
-        {progress && (
-          <>
-            {/* 第 1 列占位：撑住封面宽度，让进度行左边缘正好落在标题左边 */}
-            <div aria-hidden className="col-start-1" />
-            <div className="col-span-2 col-start-2 min-w-0">
-              <MusicCardProgressRow {...progress} />
-            </div>
-          </>
-        )}
       </div>
       {tall && <div className="min-h-0">{lyrics}</div>}
     </div>
@@ -129,7 +129,7 @@ function MusicCardProgressRow({ active, currentTime, duration, onSeek }: MusicCa
 
   return (
     <div className="flex items-center gap-2 text-xs leading-none text-muted-foreground tabular-nums">
-      <span className="w-10 shrink-0 text-right">{shownTime}</span>
+      <span className="w-10 shrink-0 text-left">{shownTime}</span>
       <ProgressControl
         className="flex-1"
         value={progress}
@@ -144,7 +144,7 @@ function MusicCardProgressRow({ active, currentTime, duration, onSeek }: MusicCa
             onSeek((value / 100) * duration)
         }}
       />
-      <span className="w-10 shrink-0">{totalTime}</span>
+      <span className="w-10 shrink-0 text-right">{totalTime}</span>
     </div>
   )
 }
