@@ -98,14 +98,18 @@ export function CustomAudioCard({ title, artist, album, cover, src, lyric }: Net
     setCurrentTime(seconds)
   }
 
+  // 标题行合并成「歌名 - 艺术家」，副标题留给专辑名（播放中换成当前歌词）
+  const displayTitle = [title, artist].filter(Boolean).join(' - ')
   const subtitle = lyricText
     ? <p className="truncate text-sm text-primary">{lyricText}</p>
-    : <p className="truncate text-sm text-muted-foreground">{[artist, album].filter(Boolean).join(' · ')}</p>
+    : album
+      ? <p className="truncate text-sm text-muted-foreground">{album}</p>
+      : null
 
   return (
     <MusicCardView
       cover={cover}
-      title={title}
+      title={displayTitle}
       subtitle={subtitle}
       action={(
         <Button
