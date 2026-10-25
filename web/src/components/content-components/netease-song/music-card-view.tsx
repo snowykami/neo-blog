@@ -30,11 +30,12 @@ function isCompactMusicCard(height: ComponentHeight | null): boolean {
 }
 
 // 各高度档位的卡片布局与封面尺寸（自动高度为 auto）
-const AUTO_CARD_LAYOUT = { card: 'gap-2.5 p-3', cover: 'size-16' }
-const COMPACT_CARD_LAYOUT = { card: 'h-full overflow-hidden content-center p-3', cover: 'size-16 @max-3xs:hidden' }
+const AUTO_CARD_LAYOUT = { card: 'gap-2 p-3', cover: 'size-16' }
+// 最低档位只留给封面 + 标题 + 进度条：收紧内边距、封面收到 3.5rem，避免进度条贴着下边框甚至被裁切
+const COMPACT_CARD_LAYOUT = { card: 'h-full overflow-hidden content-center p-2.5', cover: 'size-14 @max-3xs:hidden' }
 const NORMAL_CARD_LAYOUT = { card: 'h-full overflow-hidden content-center p-4', cover: 'size-24' }
 // 头部（标题 / 进度）与歌词区两行，歌词区占满剩余高度；最高档位封面略大
-const TALL_CARD_LAYOUT = { card: 'h-full overflow-hidden grid-rows-[auto_minmax(0,1fr)] gap-3 p-4', cover: 'size-20' }
+const TALL_CARD_LAYOUT = { card: 'h-full overflow-hidden grid-rows-[auto_minmax(0,1fr)] gap-2.5 p-4', cover: 'size-20' }
 const TALLEST_CARD_LAYOUT = { card: TALL_CARD_LAYOUT.card, cover: 'size-24' }
 
 function getCardLayout(height: ComponentHeight | null) {
@@ -68,8 +69,9 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
   return (
     // minmax(0,1fr)：网格项默认不小于内容宽度，过长的一行歌词会把卡片撑宽，导致无法触发横向滚动
     <div className={cn('grid grid-cols-[minmax(0,1fr)] rounded-xl border bg-card text-card-foreground', layout.card)}>
-      {/* 进度行单独占一行：左边缘与标题 / 歌词文字左对齐（靠第 1 列留出封面宽度），右边缘与播放按钮右边对齐 */}
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1">
+      {/* 进度行单独占一行：左边缘与标题 / 歌词文字左对齐（靠第 1 列留出封面宽度），右边缘与播放按钮右边对齐。
+          items-start：标题顶部与封面顶部对齐，播放按钮单独居中 */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3.5 gap-y-1">
         <div className={cn('relative shrink-0 overflow-hidden rounded-lg bg-muted', layout.cover)}>
           {cover
             ? <SafeImage src={cover} alt="" fill sizes="96px" className="object-cover" />
@@ -77,7 +79,7 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
               ? <Skeleton className="size-full" />
               : <Music2Icon aria-hidden className="absolute inset-0 m-auto size-6 text-muted-foreground" />}
         </div>
-        <div className="grid min-w-0 gap-1">
+        <div className="grid min-w-0 gap-0.5">
           {loading
             ? (
                 <div className="grid gap-2">
@@ -88,13 +90,13 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
             : (
                 <>
                   {title && (href
-                    ? <a href={href} target="_blank" rel="noopener noreferrer" className="block truncate font-semibold text-foreground no-underline hover:text-primary">{title}</a>
-                    : <p className="truncate font-semibold text-foreground">{title}</p>)}
+                    ? <a href={href} target="_blank" rel="noopener noreferrer" className="block truncate font-semibold leading-tight text-foreground no-underline hover:text-primary">{title}</a>
+                    : <p className="truncate font-semibold leading-tight text-foreground">{title}</p>)}
                   {subtitle}
                 </>
               )}
         </div>
-        {action}
+        {action && <div className="self-center">{action}</div>}
         {progress && (
           <>
             {/* 第 1 列占位：撑住封面宽度，让进度行左边缘正好落在标题左边 */}
@@ -126,7 +128,7 @@ function MusicCardProgressRow({ active, currentTime, duration, onSeek }: MusicCa
   const totalTime = hasDuration ? formatDurationMMSS(Math.floor(duration)) : '--:--'
 
   return (
-    <div className="flex items-center gap-2.5 text-xs text-muted-foreground tabular-nums">
+    <div className="flex items-center gap-2 text-xs leading-none text-muted-foreground tabular-nums">
       <span className="w-10 shrink-0 text-right">{shownTime}</span>
       <ProgressControl
         className="flex-1"

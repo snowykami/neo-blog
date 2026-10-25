@@ -144,7 +144,7 @@ function CardLyricList({ lines, activeIndex, onSeek }: { lines: MusicLyricLine[]
   return (
     <div
       ref={containerRef}
-      className="relative grid h-full content-start gap-1 overflow-y-auto py-16 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="relative grid h-full content-start gap-0.5 overflow-y-auto py-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       style={{ maskImage: 'linear-gradient(to bottom, transparent, black 18%, black 82%, transparent)' }}
     >
       {lines.map((line, index) => (
@@ -154,7 +154,7 @@ function CardLyricList({ lines, activeIndex, onSeek }: { lines: MusicLyricLine[]
           ref={(el) => { lineRefs.current[index] = el }}
           type="button"
           className={cn(
-            'rounded-md px-2 py-0.5 text-center text-sm transition-colors hover:text-foreground',
+            'rounded-md px-2 py-px text-center text-sm transition-colors hover:text-foreground',
             index === activeIndex ? 'font-semibold text-primary' : 'text-muted-foreground',
           )}
           onClick={() => onSeek(line.startTime / 1000)}
