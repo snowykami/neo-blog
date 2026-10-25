@@ -126,10 +126,10 @@ export function PostMeta({
       <PostMetaItem icon={FolderIcon} label={t('Route.category')}>
         {post.category
           ? (
-              <Link href={getCategoryUrl(post.category)} className={metaLinkClass}>
-                {post.category.name}
-              </Link>
-            )
+            <Link href={getCategoryUrl(post.category)} className={metaLinkClass}>
+              {post.category.name}
+            </Link>
+          )
           : t('Common.uncategorized')}
       </PostMetaItem>
       {labels.length > 0 && (
@@ -147,19 +147,6 @@ export function PostMeta({
           </span>
         </PostMetaItem>
       )}
-      {showStats && (
-        <>
-          <PostMetaItem icon={EyeIcon} label={t('Metrics.view_count')}>
-            <span className="tabular-nums">{post.viewCount || 0}</span>
-          </PostMetaItem>
-          <PostMetaItem icon={HeartIcon} label={t('Metrics.like_count')}>
-            <span className="tabular-nums">{post.likeCount || 0}</span>
-          </PostMetaItem>
-          <PostMetaItem icon={MessageCircleIcon} label={t('Metrics.comment_count')}>
-            <span className="tabular-nums">{post.commentCount || 0}</span>
-          </PostMetaItem>
-        </>
-      )}
     </div>
   )
 }
@@ -167,14 +154,20 @@ export function PostMeta({
 /**
  * 字数与阅读时长：需传入完整正文计算（列表接口的正文已截断，因此只在文章页展示）；withIcons 时带小图标块
  */
-export function PostWordStats({
+export function PostStats({
   words,
   minutes,
+  views,
+  likes,
+  comments,
   withIcons = false,
   className,
 }: {
   words: number
   minutes: number
+  views: number
+  likes: number
+  comments: number
   withIcons?: boolean
   className?: string
 }) {
@@ -182,6 +175,9 @@ export function PostWordStats({
   const items = [
     { icon: FileTextIcon, text: t('word_count', { count: words }) },
     { icon: ClockIcon, text: t('reading_time', { count: minutes }) },
+    { icon: EyeIcon, text: views },
+    { icon: HeartIcon, text: likes },
+    { icon: MessageCircleIcon, text: comments },
   ]
   return (
     <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-foreground/30 tabular-nums', withIcons && 'gap-x-5', className)}>

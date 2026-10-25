@@ -4,7 +4,7 @@ import { useFormatter, useTranslations } from 'next-intl'
 import { SidebarCard } from '@/components/blog-sidebar/sidebar-card'
 import { readingTimeFromWords } from '@/utils/common/post'
 import { formatDisplayName } from '@/utils/common/username'
-import { PostWordStats } from './post-meta'
+import { PostStats } from './post-meta'
 
 /** 独立页面阅读版式的侧栏信息：作者、更新时间、字数与阅读时长 */
 export function PageInfoCard({ page, words }: { page: PageModel, words: number }) {
@@ -26,7 +26,7 @@ export function PageInfoCard({ page, words }: { page: PageModel, words: number }
           </div>
         ))}
       </dl>
-      <PostWordStats words={words} minutes={readingTimeFromWords(words)} />
+      <PostStats words={words} minutes={readingTimeFromWords(words)} />
     </SidebarCard>
   )
 }

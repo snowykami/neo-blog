@@ -11,7 +11,7 @@ import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
 import { PostEditButton } from '@/components/blog-post/post-edit-button.client'
-import { PostMeta, PostWordStats } from '@/components/blog-post/post-meta'
+import { PostMeta, PostStats } from '@/components/blog-post/post-meta'
 import { PostToc } from '@/components/blog-post/post-toc.client'
 import { BlogSidebarAbout } from '@/components/blog-sidebar/blog-sidebar-card'
 import { CommentSection } from '@/components/comment'
@@ -38,7 +38,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
   const content = (isDraft ? post.draftContent : post.content) || ''
   return (
     <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
-      <PostWordStats withIcons words={countWords(content)} minutes={calculateReadingTime(content)} className="mb-3" />
+      <PostStats withIcons words={countWords(content)} minutes={calculateReadingTime(content)} views={post.viewCount || 0} likes={post.likeCount || 0} comments={post.commentCount || 0} className="mb-3" />
 
       {(post.top > 0 || post.isPrivate) && (
         <div className="mb-3 flex flex-wrap gap-2">
