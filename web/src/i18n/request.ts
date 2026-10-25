@@ -25,8 +25,12 @@ export async function getUserLocales(): Promise<string[]> {
 
   try {
     const user = (await getLoginUserServer()).data
-    locales.push(user?.language || '')
-    locales.push((user?.language || '').split('-')[0])
+    // 站点只保留部分界面语言：用户设置的语言若已被移除，按浏览器语言回退
+    const preferred = (user?.language || '').trim().toLowerCase()
+    if (preferred && localesData[preferred]) {
+      locales.push(preferred)
+      locales.push(preferred.split('-')[0])
+    }
   }
   catch {}
 

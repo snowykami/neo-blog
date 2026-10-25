@@ -28,7 +28,7 @@
    ```
 
 2. 运行 `pnpm gen:content`（`pnpm dev` / `pnpm build` 会自动运行）更新 `registry.generated.ts`；组件库中的位置即定义文件所在目录（文件名与目录同名时只显示目录）。
-3. 在 12 个语言文件的 `ContentComponents.<name>` 下补齐 `name`、`description`、`fields.*`、枚举的 `options.<字段>.*`，以及可选的 `placeholders` / `descriptions` / `example`。
+3. 在各语言文件（`web/src/locales/*.json`，当前为 `zh`/`zh-tw`/`ja`/`en`/`ko`）的 `ContentComponents.<name>` 下补齐 `name`、`description`、`fields.*`、枚举的 `options.<字段>.*`，以及可选的 `placeholders` / `descriptions` / `example`。
 4. 运行 `pnpm test`：会检查注册表是否最新、组件名是否唯一、各语言文案是否完整、示例 props 是否通过校验。
 
 ## 尺寸与对齐

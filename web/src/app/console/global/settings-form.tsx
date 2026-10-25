@@ -36,8 +36,8 @@ import { SidebarCardsField } from './sidebar-cards-field'
 
 // 站点内置的配色方案，对应 app/styles 下的主题文件
 const ALL_COLOR_SCHEMES = fallbackSiteInfo.colorSchemes
-// RSS 语言代码
-const RSS_LANGUAGES = ['zh-cn', 'zh-tw', 'en-us', 'ja-jp', 'ko-kr', 'de-de', 'fr-fr', 'es-es', 'pt-br', 'ru-ru', 'hi-in']
+// RSS 语言代码，与界面支持的语言保持一致（zh / zh-tw / ja / en / ko）
+const RSS_LANGUAGES = ['zh-cn', 'zh-tw', 'en-us', 'ja-jp', 'ko-kr']
 
 interface SettingsValues {
   siteName: string

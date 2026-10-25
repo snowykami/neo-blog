@@ -7,7 +7,7 @@ import { ErrorBoundaryPage } from '@/components/common/error-boundary-page'
 import './globals.css'
 
 // 根布局本身出错时使用，此时没有 NextIntlClientProvider，按浏览器语言按需加载对应文案
-const SUPPORTED_LOCALES = ['de', 'en', 'es', 'fr', 'hi', 'ja', 'ko', 'pt', 'ru', 'zh', 'zh-tw', 'zh-wy']
+const SUPPORTED_LOCALES = ['en', 'ja', 'ko', 'zh', 'zh-tw']
 
 function detectLocale(): string {
   for (const raw of navigator.languages ?? [navigator.language]) {
