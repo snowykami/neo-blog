@@ -19,3 +19,9 @@ export async function locateWeatherByIP(lang: string): Promise<WeatherPlace> {
   const res = await axiosClient.get<BaseResponse<WeatherPlace>>('/misc/weather/locate', { params: { lang } })
   return res.data.data
 }
+
+// 按坐标反查地名（市 / 区级）；lang 可带地区码（如 zh-tw），用于访客定位后显示位置名称
+export async function reverseWeatherPlace(lat: number, lon: number, lang: string): Promise<WeatherPlace> {
+  const res = await axiosClient.get<BaseResponse<WeatherPlace>>('/misc/weather/reverse', { params: { lat, lon, lang } })
+  return res.data.data
+}

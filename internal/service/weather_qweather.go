@@ -183,3 +183,46 @@ func getQWeatherJSON(ctx context.Context, cfg tools.QWeatherConfig, path string,
 	}
 	return fmt.Errorf("status %d, code %s", resp.StatusCode, status.Code)
 }
+
+// fetchQWeatherReverse 用和风的城市搜索接口按经纬度反查地名：location 支持「经度,纬度」，结果按距离排序
+func fetchQWeatherReverse(ctx context.Context, cfg tools.QWeatherConfig, lat, lon float64, lang string) (*dto.WeatherPlaceDto, error) {
+	params := url.Values{}
+	params.Set("location", strconv.FormatFloat(lon, 'f', 2, 64)+","+strconv.FormatFloat(lat, 'f', 2, 64))
+	params.Set("number", "1")
+	params.Set("lang", qweatherLang(lang))
+	var raw struct {
+		Location []struct {
+			Name    string `json:"name"`
+			Lat     string `json:"lat"`
+			Lon     string `json:"lon"`
+			Adm1    string `json:"adm1"`
+			Adm2    string `json:"adm2"`
+			Country string `json:"country"`
+		} `json:"location"`
+	}
+	if err := getQWeatherJSON(ctx, cfg, "/geo/v2/city/lookup", params, &raw); err != nil {
+		return nil, err
+	}
+	if len(raw.Location) == 0 || raw.Location[0].Name == "" {
+		return nil, nil
+	}
+	first := raw.Location[0]
+	// 名称所在的上级行政区，与名称同名时退到省级
+	admin := first.Adm2
+	if admin == "" || admin == first.Name {
+		admin = first.Adm1
+	}
+	// 和风返回的是行政区中心点，解析失败时用请求坐标
+	placeLat, latErr := strconv.ParseFloat(first.Lat, 64)
+	placeLon, lonErr := strconv.ParseFloat(first.Lon, 64)
+	if latErr != nil || lonErr != nil || !validCoordinate(placeLat, 90) || !validCoordinate(placeLon, 180) {
+		placeLat, placeLon = lat, lon
+	}
+	return &dto.WeatherPlaceDto{
+		Name:      first.Name,
+		Admin1:    admin,
+		Country:   first.Country,
+		Latitude:  placeLat,
+		Longitude: placeLon,
+	}, nil
+}

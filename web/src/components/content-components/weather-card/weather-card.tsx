@@ -20,7 +20,7 @@ import {
   WindIcon,
 } from 'lucide-react'
 import { useFormatter, useLocale, useTranslations } from 'next-intl'
-import { getWeather, locateWeatherByIP } from '@/api/weather'
+import { getWeather, locateWeatherByIP, reverseWeatherPlace } from '@/api/weather'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useCachedRequest } from '../use-cached-request'
@@ -147,7 +147,7 @@ function rememberGeolocationDenied() {
 
 /**
  * 取访客的精确定位（需浏览器授权）；非 HTTPS、不支持、超时或被拒绝时返回 null，由 IP 定位兜底。
- * 不做反向地理编码，因此调用方用「当前位置」作为城市名
+ * 只返回坐标，地名由调用方按坐标反查
  */
 async function requestPreciseLocation(timeout = 8000): Promise<{ latitude: number, longitude: number } | null> {
   if (typeof navigator === 'undefined' || !navigator.geolocation || !window.isSecureContext || geolocationDenied())
@@ -198,7 +198,12 @@ function LiveWeatherCard({ city, latitude, longitude }: WeatherCardProps) {
       const position = await requestPreciseLocation()
       if (position) {
         const precise = { latitude: roundCoordinate(position.latitude), longitude: roundCoordinate(position.longitude) }
-        return { weather: await getWeather(precise.latitude, precise.longitude), city: '' }
+        const [place, weather] = await Promise.all([
+          // 地名只用于显示，反查失败时退回「当前位置」
+          reverseWeatherPlace(precise.latitude, precise.longitude, locale).catch(() => null),
+          getWeather(precise.latitude, precise.longitude),
+        ])
+        return { weather, city: place ? [place.admin1, place.name].filter(Boolean).join(' · ') : '' }
       }
       const place = await locateWeatherByIP(lang)
       return { weather: await getWeather(place.latitude, place.longitude), city: place.name }

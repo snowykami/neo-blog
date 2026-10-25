@@ -28,8 +28,9 @@ import (
 // 坐标取整后缓存，请求失败时返回过期的旧数据
 
 const (
-	weatherTTL            = 30 * time.Minute // 当前天气缓存时间
-	weatherGeoTTL         = 24 * time.Hour   // 城市搜索缓存时间
+	weatherTTL            = 30 * time.Minute   // 当前天气缓存时间
+	weatherGeoTTL         = 24 * time.Hour     // 城市搜索缓存时间
+	weatherReverseTTL     = 7 * 24 * time.Hour // 行政区名几乎不变，反查结果可长缓存
 	weatherRequestTimeout = 10 * time.Second
 	weatherCacheMaxLen    = 1000
 	weatherGeoQueryMaxLen = 60 // 城市名最大字符数
@@ -42,11 +43,14 @@ var (
 	openMeteoGeocodingURL = "https://geocoding-api.open-meteo.com/v1/search"
 )
 
-var weatherLangPattern = regexp.MustCompile(`^[a-z]{2}$`)
+// 语言代码：两位小写语言码，可带两位地区码（如 zh-tw）
+var weatherLangPattern = regexp.MustCompile(`^[a-z]{2}(?:-[a-z]{2})?$`)
 
 var (
 	weatherCache    = newTTLCache[*dto.WeatherDto](weatherTTL, weatherCacheMaxLen)
 	weatherGeoCache = newTTLCache[[]dto.WeatherPlaceDto](weatherGeoTTL, weatherCacheMaxLen)
+	// 坐标 -> 地名，结果与语言有关
+	weatherReverseCache = newTTLCache[*dto.WeatherPlaceDto](weatherReverseTTL, weatherCacheMaxLen)
 	// 同一坐标 / 同一搜索词同时只请求一次
 	weatherFetchGroup singleflight.Group
 )
@@ -84,10 +88,7 @@ func (s *WeatherService) SearchPlaces(ctx context.Context, req *dto.WeatherGeoRe
 	if query == "" || utf8.RuneCountInString(query) > weatherGeoQueryMaxLen || !utf8.ValidString(query) {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
-	lang := strings.ToLower(req.Lang)
-	if !weatherLangPattern.MatchString(lang) {
-		lang = "en"
-	}
+	lang := primaryWeatherLang(normalizeWeatherLang(req.Lang))
 	key := "geo:open-meteo:" + lang + ":" + strings.ToLower(query)
 	fetch := func(ctx context.Context) ([]dto.WeatherPlaceDto, error) { return fetchPlaces(ctx, query, lang) }
 	if qw := tools.GetQWeatherConfig(); qw.Configured() {
@@ -101,6 +102,53 @@ func (s *WeatherService) SearchPlaces(ctx context.Context, req *dto.WeatherGeoRe
 		return nil, errs.New(http.StatusBadGateway, "weather_request_failed", err)
 	}
 	return places, nil
+}
+
+// Reverse 按坐标反查地名，让实时卡能显示「市 · 区」级别的名称
+// 和风天气已配置时用其城市搜索（location 支持「经度,纬度」），否则用 BigDataCloud 的免费反查接口
+// 坐标先按 0.01°（约 1 km）取整，结果缓存 7 天
+func (s *WeatherService) Reverse(ctx context.Context, req *dto.WeatherReverseReq) (*dto.WeatherPlaceDto, *errs.ServiceError) {
+	if req.Lat == nil || req.Lon == nil || !validCoordinate(*req.Lat, 90) || !validCoordinate(*req.Lon, 180) {
+		return nil, errs.NewBadRequest("invalid_request_parameters")
+	}
+	lat, lon := roundCoordinate(*req.Lat), roundCoordinate(*req.Lon)
+	lang := normalizeWeatherLang(req.Lang)
+	coord := strconv.FormatFloat(lat, 'f', 2, 64) + "," + strconv.FormatFloat(lon, 'f', 2, 64)
+	key := "reverse:bigdatacloud:" + lang + ":" + coord
+	fetch := func(ctx context.Context) (*dto.WeatherPlaceDto, error) {
+		return fetchBigDataCloudReverse(ctx, lat, lon, lang)
+	}
+	if qw := tools.GetQWeatherConfig(); qw.Configured() {
+		key = "reverse:qweather:" + qw.Host + ":" + lang + ":" + coord
+		fetch = func(ctx context.Context) (*dto.WeatherPlaceDto, error) {
+			return fetchQWeatherReverse(ctx, qw, lat, lon, primaryWeatherLang(lang))
+		}
+	}
+	place, err := cachedFetch(ctx, weatherReverseCache, key, fetch)
+	if err != nil {
+		return nil, errs.New(http.StatusBadGateway, "weather_request_failed", err)
+	}
+	if place == nil || place.Name == "" {
+		return nil, errs.NewNotFound("weather_location_unavailable")
+	}
+	return place, nil
+}
+
+// normalizeWeatherLang 规范语言代码；不合法时回退 en
+func normalizeWeatherLang(lang string) string {
+	lang = strings.ToLower(strings.TrimSpace(lang))
+	if !weatherLangPattern.MatchString(lang) {
+		return "en"
+	}
+	return lang
+}
+
+// primaryWeatherLang 取语言代码的主标签（zh-tw -> zh），供只认两位码的上游接口使用
+func primaryWeatherLang(lang string) string {
+	if i := strings.IndexByte(lang, '-'); i > 0 {
+		return lang[:i]
+	}
+	return lang
 }
 
 func validCoordinate(value, limit float64) bool {
@@ -217,7 +265,7 @@ func fetchCurrentWeather(ctx context.Context, lat, lon float64) (*dto.WeatherDto
 			IsDay       int      `json:"is_day"`
 		} `json:"current"`
 	}
-	if err := getOpenMeteoJSON(ctx, openMeteoForecastURL, params, &raw); err != nil {
+	if err := getJSON(ctx, openMeteoForecastURL, params, &raw); err != nil {
 		return nil, err
 	}
 	current := raw.Current
@@ -254,7 +302,7 @@ func fetchPlaces(ctx context.Context, query, lang string) ([]dto.WeatherPlaceDto
 			Longitude   float64 `json:"longitude"`
 		} `json:"results"`
 	}
-	if err := getOpenMeteoJSON(ctx, openMeteoGeocodingURL, params, &raw); err != nil {
+	if err := getJSON(ctx, openMeteoGeocodingURL, params, &raw); err != nil {
 		return nil, err
 	}
 	places := make([]dto.WeatherPlaceDto, 0, len(raw.Results))
@@ -274,7 +322,8 @@ func fetchPlaces(ctx context.Context, query, lang string) ([]dto.WeatherPlaceDto
 	return places, nil
 }
 
-func getOpenMeteoJSON(ctx context.Context, endpoint string, params url.Values, out any) error {
+// getJSON 请求上游 JSON 接口（10 秒超时，最多读取 1 MiB）
+func getJSON(ctx context.Context, endpoint string, params url.Values, out any) error {
 	ctx, cancel := context.WithTimeout(ctx, weatherRequestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+params.Encode(), nil)

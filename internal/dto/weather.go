@@ -40,3 +40,10 @@ type WeatherPlaceDto struct {
 	Latitude    float64 `json:"latitude"`
 	Longitude   float64 `json:"longitude"`
 }
+
+// WeatherReverseReq 按坐标反查地名（实时卡跟随访客定位后显示位置名称）
+type WeatherReverseReq struct {
+	Lat  *float64 `query:"lat"`
+	Lon  *float64 `query:"lon"`
+	Lang string   `query:"lang"` // 结果语言，两位小写语言代码，可带地区码（如 zh-tw），默认 en
+}

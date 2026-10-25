@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/ipregion"
 )
 
@@ -310,5 +311,100 @@ func TestIPPlaceCandidates(t *testing.T) {
 				break
 			}
 		}
+	}
+}
+
+func TestWeatherReverse(t *testing.T) {
+	setupEditTest(t)
+	setMusicKV(t, map[string]any{"qweather_api_host": "", "qweather_api_key": ""})
+	var calls atomic.Int32
+	var lastQuery atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		lastQuery.Store(r.URL.RawQuery)
+		if r.URL.Query().Get("latitude") == "0.00" {
+			// 无地名（如远洋）返回空字段，由服务层按 404 处理
+			_ = json.NewEncoder(w).Encode(map[string]any{"city": "", "locality": "", "principalSubdivision": ""})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"city": "杭州市", "locality": "拱墅区", "principalSubdivision": "浙江省",
+			"countryName": "中华人民共和国", "countryCode": "CN",
+		})
+	}))
+	t.Cleanup(srv.Close)
+	original := bigDataCloudReverseURL
+	bigDataCloudReverseURL = srv.URL
+	t.Cleanup(func() { bigDataCloudReverseURL = original })
+	weatherReverseCache.reset()
+
+	s := NewWeatherService()
+	ctx := context.Background()
+	reverse := func(lat, lon float64, lang string) (*dto.WeatherPlaceDto, *errs.ServiceError) {
+		return s.Reverse(ctx, &dto.WeatherReverseReq{Lat: &lat, Lon: &lon, Lang: lang})
+	}
+
+	// 坐标缺失或越界时不请求上游
+	invalid := []*dto.WeatherReverseReq{{}, {Lat: new(float64)}, func() *dto.WeatherReverseReq {
+		lat, lon := 91.0, 0.0
+		return &dto.WeatherReverseReq{Lat: &lat, Lon: &lon}
+	}(), func() *dto.WeatherReverseReq {
+		lat, lon := math.NaN(), 0.0
+		return &dto.WeatherReverseReq{Lat: &lat, Lon: &lon}
+	}()}
+	for i, req := range invalid {
+		_, svcerr := s.Reverse(ctx, req)
+		expectCode(t, svcerr, http.StatusBadRequest, fmt.Sprintf("invalid coordinate #%d", i))
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("invalid coordinates should not request upstream, calls=%d", calls.Load())
+	}
+
+	place, svcerr := reverse(30.27410, 120.15510, "zh")
+	if svcerr != nil || place.Name != "拱墅区" || place.Admin1 != "杭州市" || place.CountryCode != "CN" || place.Latitude != 30.27 {
+		t.Fatalf("reverse: %v %+v", svcerr, place)
+	}
+	// 简体、坐标取整
+	if q := lastQuery.Load().(string); !strings.Contains(q, "localityLanguage=zh-Hans") || !strings.Contains(q, "latitude=30.27") {
+		t.Fatalf("unexpected upstream query: %s", q)
+	}
+	// 取整后相同的坐标命中缓存，语言不同则分别请求
+	if _, svcerr = reverse(30.27499, 120.15501, "zh"); svcerr != nil || calls.Load() != 1 {
+		t.Fatalf("cache miss for same rounded coordinate: %v calls=%d", svcerr, calls.Load())
+	}
+	if _, svcerr = reverse(30.27410, 120.15510, "zh-tw"); svcerr != nil || calls.Load() != 2 {
+		t.Fatalf("different language should be cached separately: %v calls=%d", svcerr, calls.Load())
+	}
+	if q := lastQuery.Load().(string); !strings.Contains(q, "localityLanguage=zh-Hant") {
+		t.Fatalf("zh-tw should request traditional names: %s", q)
+	}
+	// 没有地名时返回 404，由前端退回「当前位置」
+	_, svcerr = reverse(0, 0, "zh")
+	expectCode(t, svcerr, http.StatusNotFound, "no place")
+}
+
+func TestWeatherReverseQWeather(t *testing.T) {
+	setupEditTest(t)
+	var lastQuery atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastQuery.Store(r.URL.RawQuery)
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": "200", "location": []map[string]any{
+			{"name": "拱墅区", "lat": "30.319", "lon": "120.142", "adm2": "杭州市", "adm1": "浙江省", "country": "中国"},
+			{"name": "杭州市", "lat": "30.287", "lon": "120.154", "adm2": "杭州市", "adm1": "浙江省", "country": "中国"},
+		}})
+	}))
+	t.Cleanup(srv.Close)
+	weatherReverseCache.reset()
+	setMusicKV(t, map[string]any{"qweather_api_host": srv.URL, "qweather_api_key": "qw-key"})
+
+	lat, lon := 30.27410, 120.15510
+	place, svcerr := NewWeatherService().Reverse(context.Background(), &dto.WeatherReverseReq{Lat: &lat, Lon: &lon, Lang: "zh-tw"})
+	if svcerr != nil || place.Name != "拱墅区" || place.Admin1 != "杭州市" || place.Latitude != 30.319 {
+		t.Fatalf("qweather reverse: %v %+v", svcerr, place)
+	}
+	// 和风按「经度,纬度」查最近的一个，语言只认两位码
+	q := lastQuery.Load().(string)
+	if !strings.Contains(q, "location=120.16%2C30.27") || !strings.Contains(q, "number=1") || !strings.Contains(q, "lang=zh&") {
+		t.Fatalf("unexpected upstream query: %s", q)
 	}
 }

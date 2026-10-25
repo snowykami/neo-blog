@@ -49,6 +49,23 @@ func (w *weatherType) Geo(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, places)
 }
 
+// Reverse 按坐标反查地名（实时卡跟随访客定位后显示位置名称）
+func (w *weatherType) Reverse(ctx context.Context, c *app.RequestContext) {
+	var req dto.WeatherReverseReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	place, svcerr := w.service.Reverse(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	// 结果只与坐标和语言有关，可让浏览器缓存一天
+	c.Response.Header.Set("Cache-Control", "public, max-age=86400")
+	resps.Ok(c, resps.Success, place)
+}
+
 // Locate 按访客 IP 估计所在城市（实时天气卡未指定城市时跟随访客所在地）
 func (w *weatherType) Locate(ctx context.Context, c *app.RequestContext) {
 	var req dto.WeatherLocateReq
