@@ -1,7 +1,6 @@
 import type { AnyExtension } from '@tiptap/react'
 import type { SlashCommandItem } from '@/components/tiptap-extension/slash-command-extension'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import Color from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
 import { HorizontalRule } from '@tiptap/extension-horizontal-rule'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
@@ -17,6 +16,7 @@ import { common, createLowlight } from 'lowlight'
 import { AIWriteHighlight } from '@/components/tiptap-extension/ai-write-extension'
 import { Annotation, LinkAutoMatch } from '@/components/tiptap-extension/annotation-extension'
 import { EditorShortcuts } from '@/components/tiptap-extension/editor-shortcuts-extension'
+import { InlineCode } from '@/components/tiptap-extension/inline-code-extension'
 import { SelectionHighlight } from '@/components/tiptap-extension/selection-highlight-extension'
 import { SlashCommand } from '@/components/tiptap-extension/slash-command-extension'
 import { ComponentBlock } from '@/components/tiptap-node/component-block-node'
@@ -52,16 +52,19 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
       horizontalRule: false,
       // 代码块使用 lowlight 高亮版本
       codeBlock: false,
+      // 行内代码换成可叠加链接与注释的版本
+      code: false,
       link: {
         openOnClick: false,
         enableClickSelection: true,
       },
       dropcursor: { width: 2, class: 'neo-editor-dropcursor' },
     }),
-    Color.configure({ types: ['textStyle'] }),
+    InlineCode,
     HorizontalRule,
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
-    TextStyleKit,
+    // 文字颜色由 TextStyleKit 内置的 Color 提供（types 固定为 textStyle），不要重复注册
+    TextStyleKit.configure({ color: { types: ['textStyle'] } }),
     TaskList,
     TaskItem.configure({ nested: true }),
     Highlight.configure({ multicolor: true }),
