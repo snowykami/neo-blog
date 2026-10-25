@@ -4,7 +4,7 @@ import type { ChangeEvent } from 'react'
 import { CircleXIcon, FileIcon } from 'lucide-react'
 import mime from 'mime-types'
 import { useTranslations } from 'next-intl'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -20,6 +20,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { useClipboardFilePaste } from '@/hooks/use-clipboard-file-paste'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { mimeTypeIcons } from '@/utils/client/file'
 import { formatDataSize } from '@/utils/common/datasize'
@@ -42,20 +43,34 @@ export function FileUploadDialogWithButton({
   const t = useTranslations('Console.files')
   const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
+  const [open, setOpen] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [compressLevel, setCompressLevel] = useState(0)
+
+  // 粘贴回调与选择文件共用同一套数量上限校验，需要读到最新的文件列表
+  const filesRef = useRef(files)
+  filesRef.current = files
+
+  const appendFiles = (incoming: File[]) => {
+    if (incoming.length === 0)
+      return
+    if (filesRef.current.length + incoming.length > limit) {
+      toast.error(t('can_only_upload_n_files_at_a_time', { n: limit }))
+      return
+    }
+    setFiles(prev => [...prev, ...incoming])
+  }
 
   const handleFilesSelected = (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files
     if (!selectedFiles)
       return
-    if (selectedFiles.length + files.length > limit) {
-      toast.error(t('can_only_upload_n_files_at_a_time', { n: limit }))
-      return
-    }
-    setFiles([...files, ...Array.from(selectedFiles)])
+    appendFiles(Array.from(selectedFiles))
     e.target.value = ''
   }
+
+  // 弹窗打开时支持直接粘贴剪贴板中的文件（如截图）
+  useClipboardFilePaste({ enabled: open, onFiles: appendFiles })
 
   const handleSubmit = async () => {
     if (files.length === 0)
@@ -94,7 +109,7 @@ export function FileUploadDialogWithButton({
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {children || <Button size="sm" className={className}>{operationT('upload')}</Button>}
       </DialogTrigger>
@@ -131,6 +146,7 @@ export function FileUploadDialogWithButton({
         </DialogHeader>
         <div>
           <Input multiple id="files" type="file" onChange={handleFilesSelected} />
+          <p className="mt-2 text-xs text-muted-foreground">{t('paste_hint')}</p>
           <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
             {files.map((file, index) => (
               <FileUploadPreviewItem

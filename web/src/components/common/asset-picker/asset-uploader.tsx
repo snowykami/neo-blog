@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useClipboardFilePaste } from '@/hooks/use-clipboard-file-paste'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { formatDataSize } from '@/utils/common/datasize'
 import { matchAccept, toPickedAsset } from './utils'
@@ -26,8 +27,8 @@ interface UploadItem {
 const COMPRESS_LEVELS = Array.from({ length: 11 }, (_, i) => i)
 
 /**
- * 本地上传：拖拽或点击选择文件，逐个上传并显示进度；每个文件上传成功后回调 onUploaded，
- * 一批全部结束后回调 onBatchDone（至少成功一个时）
+ * 本地上传：拖拽、点击选择或直接粘贴（如截图）文件，逐个上传并显示进度；
+ * 每个文件上传成功后回调 onUploaded，一批全部结束后回调 onBatchDone（至少成功一个时）
  */
 export function AssetUploader({
   accept,
@@ -110,6 +111,9 @@ export function AssetUploader({
       onBatchDone()
   }
 
+  // 在弹层内直接粘贴剪贴板中的文件（截图、复制的图片等）
+  useClipboardFilePaste({ onFiles: files => void handleFiles(files) })
+
   const removeItem = (item: UploadItem) => {
     item.controller.abort()
     setItems(prev => prev.filter(other => other.key !== item.key))
@@ -154,6 +158,7 @@ export function AssetUploader({
         <span className="text-xs text-muted-foreground">
           {[accept && accept !== '*' ? t('accept_hint', { accept }) : null, maxSize ? t('size_hint', { size: formatDataSize({ size: maxSize }) }) : null].filter(Boolean).join(' · ')}
         </span>
+        <span className="text-xs text-muted-foreground">{t('paste_hint')}</span>
       </div>
       <input
         ref={inputRef}
