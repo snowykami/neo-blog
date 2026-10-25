@@ -172,17 +172,18 @@ export function PostStats({
   className?: string
 }) {
   const t = useTranslations('Common')
+  // key 用固定的统计项名，不用文本值：浏览量/点赞数同为 0 或相等时文本 key 会重复
   const items = [
-    { icon: FileTextIcon, text: t('word_count', { count: words }) },
-    { icon: ClockIcon, text: t('reading_time', { count: minutes }) },
-    { icon: EyeIcon, text: views },
-    { icon: HeartIcon, text: likes },
-    { icon: MessageCircleIcon, text: comments },
+    { key: 'words', icon: FileTextIcon, text: t('word_count', { count: words }) },
+    { key: 'minutes', icon: ClockIcon, text: t('reading_time', { count: minutes }) },
+    { key: 'views', icon: EyeIcon, text: views },
+    { key: 'likes', icon: HeartIcon, text: likes },
+    { key: 'comments', icon: MessageCircleIcon, text: comments },
   ]
   return (
     <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-foreground/30 tabular-nums', withIcons && 'gap-x-5', className)}>
       {items.map(item => (
-        <div key={item.text} className="flex items-center">
+        <div key={item.key} className="flex items-center">
           {withIcons && (
             <span aria-hidden className="mr-2 flex size-6 items-center justify-center rounded-md bg-foreground/5 text-foreground/50">
               <item.icon className="size-3.5" />
