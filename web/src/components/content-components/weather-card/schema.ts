@@ -27,13 +27,11 @@ export const weatherCardSchema = z.object({
   latitude: z.number().min(-90).max(90).default(0),
   longitude: z.number().min(-180).max(180).default(0),
 }).superRefine((props, ctx) => {
-  // 实时模式需要城市名与坐标（0, 0 视为未填写）
+  // 实时模式只要求坐标，城市名可以留空（留空时卡片显示「当前位置」）；0, 0 视为未填写
   if (props.mode !== 'live')
     return
-  if (!props.city)
-    ctx.addIssue({ code: 'too_small', origin: 'string', minimum: 1, inclusive: true, path: ['city'], input: props.city })
   if (props.latitude === 0 && props.longitude === 0)
-    ctx.addIssue({ code: 'custom', path: ['latitude'], input: props.latitude })
+    ctx.addIssue({ code: 'custom', path: ['latitude'], params: { reason: 'required' }, input: props.latitude })
 })
 
 export type WeatherCardProps = z.output<typeof weatherCardSchema>

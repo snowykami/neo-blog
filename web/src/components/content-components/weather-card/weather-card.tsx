@@ -47,6 +47,7 @@ function parseLocalDateTime(value: string): Date | null {
 }
 
 interface WeatherCardBodyProps {
+  // 城市名可为空：留空时显示「当前位置」（作者不想公开具体城市）
   city: string
   condition: WeatherCondition
   temperature: number
@@ -57,7 +58,7 @@ interface WeatherCardBodyProps {
 }
 
 /**
- * 天气卡主体：高度 2 单位（112px）时横排显示图标、温度、天气与城市，收起湿度、风力与时间；
+ * 天气卡主体：高度 2 单位（112px）时横排显示图标、温度、天气与位置，收起湿度、风力与时间；
  * 其余高度为完整布局（固定高度时底部信息贴底）；窄卡片收起次要信息
  */
 function WeatherCardBody({ city, condition, temperature, humidity, wind, isDay = true, footer }: WeatherCardBodyProps) {
@@ -66,6 +67,7 @@ function WeatherCardBody({ city, condition, temperature, humidity, wind, isDay =
   const height = useComponentHeight()
   const { icon: Icon, gradient } = condition === 'clear' && !isDay ? CLEAR_NIGHT_STYLE : CONDITION_STYLES[condition]
   const temperatureText = format.number(temperature, { maximumFractionDigits: 1 })
+  const placeText = city || t('current_location')
 
   if (height === 2) {
     return (
@@ -77,12 +79,10 @@ function WeatherCardBody({ city, condition, temperature, humidity, wind, isDay =
         </div>
         <div className="ml-auto grid min-w-0 justify-items-end gap-0.5 text-right">
           <span className="font-medium">{t(`options.condition.${condition}`)}</span>
-          {city && (
-            <span className="flex max-w-full items-center gap-1 text-sm text-white/85">
-              <MapPinIcon className="size-3.5 shrink-0" aria-hidden />
-              <span className="truncate">{city}</span>
-            </span>
-          )}
+          <span className="flex max-w-full items-center gap-1 text-sm text-white/85">
+            <MapPinIcon className="size-3.5 shrink-0" aria-hidden />
+            <span className="truncate">{placeText}</span>
+          </span>
         </div>
       </div>
     )
@@ -92,12 +92,10 @@ function WeatherCardBody({ city, condition, temperature, humidity, wind, isDay =
     <div className={cn('flex h-full flex-col justify-between overflow-hidden rounded-xl bg-linear-to-br p-5 text-white shadow-sm', gradient)}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          {city && (
-            <div className="flex items-center gap-1.5 text-sm font-medium text-white/85">
-              <MapPinIcon className="size-4 shrink-0" aria-hidden />
-              <span className="truncate">{city}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5 text-sm font-medium text-white/85">
+            <MapPinIcon className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">{placeText}</span>
+          </div>
           <div className="mt-1.5 text-5xl font-semibold tracking-tight tabular-nums">
             {temperatureText}
             <span className="ml-0.5 align-top text-2xl font-medium">°C</span>
@@ -141,7 +139,7 @@ function LiveWeatherCard({ city, latitude, longitude }: WeatherCardProps) {
     return (
       <div className="flex h-full items-center gap-2 rounded-xl border bg-card p-5 text-sm text-muted-foreground">
         <MapPinIcon className="size-4 shrink-0" aria-hidden />
-        {city}
+        {city || t('current_location')}
         <span className="ml-auto">{t('load_failed')}</span>
       </div>
     )

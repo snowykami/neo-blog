@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/pkg/ipregion"
 )
 
 func TestWeatherCurrent(t *testing.T) {
@@ -231,5 +232,83 @@ func TestQWeatherCondition(t *testing.T) {
 	}
 	if !qweatherIsNight(151) || qweatherIsNight(101) {
 		t.Fatal("night icon detection")
+	}
+}
+
+func TestWeatherLocateByIP(t *testing.T) {
+	setupEditTest(t) // 天气数据源由配置决定，需要读取配置
+	setMusicKV(t, map[string]any{"qweather_api_host": "", "qweather_api_key": ""})
+	var queries []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := r.URL.Query().Get("name")
+		queries = append(queries, name)
+		// 地名库对不带「市」后缀的名字匹配更好：带后缀的查不到结果
+		if name != "重庆" {
+			_, _ = w.Write([]byte(`{"generationtime_ms":0.1}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"name": "重庆", "admin1": "重庆市", "country": "中国", "country_code": "CN", "latitude": 29.56026, "longitude": 106.55771},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+	original := openMeteoGeocodingURL
+	openMeteoGeocodingURL = srv.URL
+	t.Cleanup(func() { openMeteoGeocodingURL = original })
+	weatherGeoCache.reset()
+
+	s := NewWeatherService()
+	ctx := context.Background()
+
+	// 内网 / 本机 / 非法地址无法估计位置，且不请求地名服务
+	for _, ip := range []string{"", "127.0.0.1", "10.0.0.8", "::1", "not-an-ip"} {
+		_, svcerr := s.LocateByIP(ctx, ip, "zh")
+		expectCode(t, svcerr, http.StatusNotFound, "unlocatable ip "+ip)
+	}
+	if len(queries) != 0 {
+		t.Fatalf("reserved ip should not request geocoding, queries=%v", queries)
+	}
+
+	// 归属地城市名带「市」后缀时，回退到去掉后缀的写法
+	place, svcerr := s.LocateByIP(ctx, "222.178.10.1", "zh")
+	if svcerr != nil || place == nil || place.Name != "重庆" || place.Latitude != 29.56026 || place.CountryCode != "CN" {
+		t.Fatalf("place: %v %+v", svcerr, place)
+	}
+	if len(queries) != 2 || queries[0] != "重庆市" || queries[1] != "重庆" {
+		t.Fatalf("unexpected queries: %v", queries)
+	}
+	// 同一城市命中缓存，不再请求地名服务
+	if _, svcerr = s.LocateByIP(ctx, "222.178.10.2", "zh"); svcerr != nil || len(queries) != 2 {
+		t.Fatalf("locate should be cached: %v %v", svcerr, queries)
+	}
+}
+
+func TestIPPlaceCandidates(t *testing.T) {
+	cases := []struct {
+		name   string
+		region ipregion.Region
+		want   []string
+	}{
+		{"domestic city", ipregion.Region{Country: "中国", Province: "广东省", City: "深圳市", CountryCode: "CN"}, []string{"深圳市", "深圳", "广东省", "广东"}},
+		{"municipality", ipregion.Region{Country: "中国", Province: "重庆市", City: "重庆市", CountryCode: "CN"}, []string{"重庆市", "重庆"}},
+		{"city unknown", ipregion.Region{Country: "中国", Province: "浙江省", City: "0"}, []string{"浙江省", "浙江"}},
+		{"overseas", ipregion.Region{Country: "United States", Province: "California", City: "0"}, []string{"California"}},
+		{"reserved", ipregion.Region{Reserved: true}, nil},
+		{"empty", ipregion.Region{}, nil},
+	}
+	for _, c := range cases {
+		got := ipPlaceCandidates(c.region)
+		if len(got) != len(c.want) {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+				break
+			}
+		}
 	}
 }

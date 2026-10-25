@@ -7,7 +7,7 @@ import { SiteShell } from '@/components/layout/site-shell'
 
 // 隐私政策：内容需与后端实际行为保持一致，涉及访客记录（internal/service/visit.go）、
 // Cookie、评论、账号、第三方请求等改动时同步更新文案与 UPDATED_AT
-const UPDATED_AT = '2026-10-22'
+const UPDATED_AT = '2026-10-25'
 // 与后端 internal/tasks/visit_log_cleanup.go 的默认值一致
 const DEFAULT_RETENTION_DAYS = 90
 
@@ -18,7 +18,7 @@ const SECTIONS: { key: string, body?: boolean, items?: readonly string[], note?:
   { key: 'interact', body: true, items: ['comment', 'client_info', 'like'] },
   { key: 'dnt', body: true },
   { key: 'cookie', body: true, items: ['visitor', 'login', 'oidc', 'local'], note: true },
-  { key: 'third_party', body: true, items: ['ip_lookup', 'captcha', 'oidc', 'gravatar', 'email', 'resources', 'embed'], note: true },
+  { key: 'third_party', body: true, items: ['ip_lookup', 'weather', 'captcha', 'oidc', 'gravatar', 'email', 'resources', 'embed'], note: true },
   { key: 'use', items: ['stats', 'service', 'security'], note: true },
   { key: 'retention', items: ['visit', 'visitor', 'account', 'session'] },
   { key: 'rights', body: true, items: ['self', 'content', 'limit', 'request'], note: true },

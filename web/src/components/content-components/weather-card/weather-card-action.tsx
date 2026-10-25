@@ -3,10 +3,10 @@
 import type { ContentEditorActionProps } from '../types'
 import type { WeatherCardInput } from './schema'
 import type { Weather, WeatherPlace } from '@/models/weather'
-import { LocateFixedIcon, MapPinIcon, SearchIcon } from 'lucide-react'
+import { LocateFixedIcon, MapPinIcon, NetworkIcon, SearchIcon } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import { useState } from 'react'
-import { getWeather, searchWeatherPlaces } from '@/api/weather'
+import { getWeather, locateWeatherByIP, searchWeatherPlaces } from '@/api/weather'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
@@ -24,11 +24,11 @@ function getPosition(): Promise<GeolocationPosition> {
   })
 }
 
-type Status = { type: 'idle' } | { type: 'busy', action: 'search' | 'locate' | 'fetch' } | { type: 'message', key: string, error?: boolean }
+type Status = { type: 'idle' } | { type: 'busy', action: 'search' | 'locate' | 'ip' | 'fetch' } | { type: 'message', key: string, error?: boolean }
 
 /**
- * 天气卡的「获取当前天气」：快照模式下按城市或作者当前位置获取天气并填入表单（定位结果不写入正文）；
- * 实时模式下搜索城市，填入城市名与坐标
+ * 天气卡的「获取当前天气」：城市名可以留空（卡片显示「当前位置」），
+ * 可以用城市搜索、浏览器定位（精确到设备）或按 IP 粗略定位三种方式获取天气与坐标
  */
 export default function WeatherCardAction({ values, setValues }: ContentEditorActionProps<WeatherCardInput>) {
   const t = useTranslations('ContentComponents.weatherCard.action')
@@ -56,7 +56,7 @@ export default function WeatherCardAction({ values, setValues }: ContentEditorAc
       return
     setStatus({ type: 'busy', action: 'search' })
     try {
-      // 地名语言取界面语言的两位代码（zh-tw / zh-wy 均为 zh）
+      // 地名语言取界面语言的两位代码（zh-tw 同样取 zh）
       const result = await searchWeatherPlaces(q, locale.slice(0, 2))
       setPlaces(result)
       setStatus(result.length ? { type: 'idle' } : { type: 'message', key: 'no_results' })
@@ -96,14 +96,40 @@ export default function WeatherCardAction({ values, setValues }: ContentEditorAc
       setStatus({ type: 'message', key: 'locate_failed', error: true })
       return
     }
+    const latitude = roundCoordinate(position.coords.latitude)
+    const longitude = roundCoordinate(position.coords.longitude)
+    if (live) {
+      // 定位拿不到城市名，留空后卡片显示「当前位置」
+      setValues({ city: '', latitude, longitude })
+      setPlaces(null)
+      setStatus({ type: 'message', key: 'located' })
+      return
+    }
+    setStatus({ type: 'busy', action: 'fetch' })
     try {
-      applyWeather(await getWeather(roundCoordinate(position.coords.latitude), roundCoordinate(position.coords.longitude)))
-      // 不做逆地理编码，城市名由作者填写
-      setStatus({ type: 'message', key: values.city ? 'filled' : 'filled_need_city' })
+      applyWeather(await getWeather(latitude, longitude), '')
+      setPlaces(null)
+      setStatus({ type: 'message', key: 'filled' })
     }
     catch {
       setStatus({ type: 'message', key: 'failed', error: true })
     }
+  }
+
+  const locateByIP = async () => {
+    if (busy)
+      return
+    setStatus({ type: 'busy', action: 'ip' })
+    let place: WeatherPlace
+    try {
+      place = await locateWeatherByIP(locale.slice(0, 2))
+    }
+    catch {
+      setStatus({ type: 'message', key: 'locate_ip_failed', error: true })
+      return
+    }
+    // 与手动选中城市后的处理一致：实时模式只填城市与坐标，快照模式顺便取一次天气
+    await selectPlace(place)
   }
 
   return (
@@ -131,12 +157,16 @@ export default function WeatherCardAction({ values, setValues }: ContentEditorAc
           {status.type === 'busy' && status.action === 'search' ? <Spinner /> : <SearchIcon />}
           {t('search')}
         </Button>
-        {!live && (
-          <Button type="button" variant="outline" disabled={busy} onClick={() => void locate()}>
-            {status.type === 'busy' && status.action === 'locate' ? <Spinner /> : <LocateFixedIcon />}
-            {t('locate')}
-          </Button>
-        )}
+      </div>
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" className="flex-1" disabled={busy} onClick={() => void locate()}>
+          {status.type === 'busy' && status.action === 'locate' ? <Spinner /> : <LocateFixedIcon />}
+          {t('locate')}
+        </Button>
+        <Button type="button" variant="outline" className="flex-1" disabled={busy} onClick={() => void locateByIP()}>
+          {status.type === 'busy' && status.action === 'ip' ? <Spinner /> : <NetworkIcon />}
+          {t('locate_ip')}
+        </Button>
       </div>
       {places && places.length > 0 && (
         <div className="grid max-h-48 gap-1 overflow-y-auto">

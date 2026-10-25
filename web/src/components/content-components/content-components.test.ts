@@ -145,9 +145,10 @@ describe('注册表', () => {
     expect(resolveComponent('weatherCard', { condition: 'tornado' }).ok).toBe(false)
     expect(resolveComponent('weatherCard', { recordedAt: '<script>' }).ok).toBe(false)
     expect(resolveComponent('weatherCard', { humidity: 101 }).ok).toBe(false)
-    // 实时模式需要城市与坐标
+    // 实时模式只要求坐标：城市名可留空（卡片显示「当前位置」）
     expect(resolveComponent('weatherCard', { mode: 'live', city: '上海' }).ok).toBe(false)
-    expect(resolveComponent('weatherCard', { mode: 'live', latitude: 31.23, longitude: 121.47 }).ok).toBe(false)
+    expect(resolveComponent('weatherCard', { mode: 'live', latitude: 31.23, longitude: 121.47 }).ok).toBe(true)
+    expect(resolveComponent('weatherCard', { mode: 'live', city: '', latitude: 31.23, longitude: 121.47 }).ok).toBe(true)
     expect(resolveComponent('weatherCard', { mode: 'live', city: '上海', latitude: 31.23, longitude: 121.47 }).ok).toBe(true)
     expect(resolveComponent('weatherCard', { mode: 'live', city: '上海', latitude: 91, longitude: 0 }).ok).toBe(false)
 

@@ -19,11 +19,13 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/ipregion"
 	"golang.org/x/sync/singleflight"
 )
 
 // 天气信息：供文章内的天气卡使用，数据源为 Open-Meteo（无需 Key）
-// 只接受经纬度与城市名，不会按访客 IP 定位；坐标取整后缓存，请求失败时返回过期的旧数据
+// 只接受经纬度与城市名；按访客 IP 定位仅在作者点击「网络定位」时发生，结果不保存
+// 坐标取整后缓存，请求失败时返回过期的旧数据
 
 const (
 	weatherTTL            = 30 * time.Minute // 当前天气缓存时间
@@ -103,6 +105,56 @@ func (s *WeatherService) SearchPlaces(ctx context.Context, req *dto.WeatherGeoRe
 
 func validCoordinate(value, limit float64) bool {
 	return !math.IsNaN(value) && value >= -limit && value <= limit
+}
+
+// LocateByIP 按访客 IP 估计所在城市，并复用城市搜索拿到坐标
+// 只做城市级估计：归属地来自离线 ip2region 数据（不联网），地名与坐标来自城市搜索（缓存 24 小时）
+// 结果不落库，仅用于天气卡的「网络定位」
+func (s *WeatherService) LocateByIP(ctx context.Context, ip, lang string) (*dto.WeatherPlaceDto, *errs.ServiceError) {
+	candidates := ipPlaceCandidates(ipregion.Lookup(strings.TrimSpace(ip)))
+	if len(candidates) == 0 {
+		return nil, errs.NewNotFound("weather_location_unavailable")
+	}
+	for _, name := range candidates {
+		places, svcerr := s.SearchPlaces(ctx, &dto.WeatherGeoReq{Query: name, Lang: lang})
+		if svcerr != nil {
+			return nil, svcerr
+		}
+		// 城市搜索按相关度排序，取第一个可用结果
+		for i := range places {
+			if places[i].Name != "" {
+				return &places[i], nil
+			}
+		}
+	}
+	return nil, errs.NewNotFound("weather_location_unavailable")
+}
+
+// ipPlaceCandidates 由 IP 归属地得到可用于地名搜索的候选城市名，按优先级排列
+// ip2region 只有行政区名，且“0”表示未知；地名库对不带「市 / 省」后缀的名字匹配更好，因此两种写法都试
+func ipPlaceCandidates(region ipregion.Region) []string {
+	if region.Reserved {
+		return nil
+	}
+	candidates := make([]string, 0, 4)
+	seen := make(map[string]struct{}, 4)
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" || name == "0" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		candidates = append(candidates, name)
+	}
+	// 城市优先（更接近访客实际位置），其次省份
+	add(region.City)
+	add(strings.TrimSuffix(region.City, "市"))
+	add(region.Province)
+	add(strings.TrimSuffix(region.Province, "省"))
+	return candidates
 }
 
 func roundCoordinate(value float64) float64 {

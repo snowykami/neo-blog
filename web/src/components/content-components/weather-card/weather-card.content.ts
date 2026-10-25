@@ -19,8 +19,9 @@ const CONDITION_EMOJI: Record<WeatherCondition, string> = {
 }
 
 function weatherSummary({ mode, city, condition, temperature, humidity, wind, recordedAt }: WeatherCardProps): string {
+  // 实时模式的城市名可留空（卡片显示「当前位置」），降级内容同样只保留图标
   if (mode === 'live')
-    return `🌡️ ${city}`
+    return city ? `🌡️ ${city}` : '🌡️'
   const parts = [city, `${temperature}°C`, `💧 ${humidity}%`, `🍃 ${wind} Bft`, recordedAt.replace('T', ' ')]
   return `${CONDITION_EMOJI[condition]} ${parts.filter(Boolean).join(' · ')}`
 }

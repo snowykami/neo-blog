@@ -48,3 +48,20 @@ func (w *weatherType) Geo(ctx context.Context, c *app.RequestContext) {
 	c.Response.Header.Set("Cache-Control", "public, max-age=3600")
 	resps.Ok(c, resps.Success, places)
 }
+
+// Locate 按访客 IP 估计所在城市（天气卡的「网络定位」）
+func (w *weatherType) Locate(ctx context.Context, c *app.RequestContext) {
+	var req dto.WeatherLocateReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	place, svcerr := w.service.LocateByIP(ctx, c.ClientIP(), req.Lang)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	// 结果与访客 IP 有关，只允许浏览器私有缓存
+	c.Response.Header.Set("Cache-Control", "private, max-age=600")
+	resps.Ok(c, resps.Success, place)
+}
