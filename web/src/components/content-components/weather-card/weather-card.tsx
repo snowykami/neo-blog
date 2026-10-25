@@ -3,7 +3,7 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { WeatherCardProps } from './schema'
-import type { WeatherCondition } from '@/models/weather'
+import type { Weather, WeatherCondition } from '@/models/weather'
 import {
   CloudDrizzleIcon,
   CloudFogIcon,
@@ -19,8 +19,8 @@ import {
   SunIcon,
   WindIcon,
 } from 'lucide-react'
-import { useFormatter, useTranslations } from 'next-intl'
-import { getWeather } from '@/api/weather'
+import { useFormatter, useLocale, useTranslations } from 'next-intl'
+import { getWeather, locateWeatherByIP } from '@/api/weather'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useCachedRequest } from '../use-cached-request'
@@ -119,12 +119,33 @@ function WeatherCardBody({ city, condition, temperature, humidity, wind, isDay =
   )
 }
 
-/** 实时模式：按保存的坐标请求后端代理接口（后端按坐标缓存），显示观测地的当前天气 */
+/** 实时模式的数据：跟随访客所在地时把解析出的城市名一并返回，供卡片显示 */
+interface LiveWeatherData {
+  weather: Weather
+  city: string
+}
+
+/**
+ * 实时模式：作者指定了城市（及其坐标）时显示该城市的天气；
+ * 两者都留空时改为跟随访客所在地 —— 按访客 IP 估计城市，再按该城市坐标取当前天气
+ */
 function LiveWeatherCard({ city, latitude, longitude }: WeatherCardProps) {
   const t = useTranslations('ContentComponents.weatherCard')
+  const locale = useLocale()
   const format = useFormatter()
   const height = useComponentHeight()
-  const state = useCachedRequest(`weather:${latitude.toFixed(2)},${longitude.toFixed(2)}`, () => getWeather(latitude, longitude))
+  const fixed = latitude !== 0 || longitude !== 0
+  // 地名语言取界面语言的两位代码（zh-tw 同样取 zh）
+  const lang = locale.slice(0, 2)
+  const state = useCachedRequest<LiveWeatherData>(
+    fixed ? `weather:${latitude.toFixed(2)},${longitude.toFixed(2)}` : `weather:visitor:${lang}`,
+    async () => {
+      if (fixed)
+        return { weather: await getWeather(latitude, longitude), city }
+      const place = await locateWeatherByIP(lang)
+      return { weather: await getWeather(place.latitude, place.longitude), city: place.name }
+    },
+  )
 
   if (state.status === 'loading') {
     return (
@@ -144,11 +165,13 @@ function LiveWeatherCard({ city, latitude, longitude }: WeatherCardProps) {
       </div>
     )
   }
-  const { data } = state
+  const { weather: data } = state.data
+  // 跟随访客所在地时，用后端解析出的城市名替换作者留空的占位文案
+  const cityText = state.data.city || city
   const observedAt = parseLocalDateTime(data.observedAt)
   return (
     <WeatherCardBody
-      city={city}
+      city={cityText}
       condition={data.condition}
       temperature={data.temperature}
       humidity={data.humidity}

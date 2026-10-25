@@ -14,7 +14,7 @@ export async function searchWeatherPlaces(q: string, lang: string): Promise<Weat
   return res.data.data
 }
 
-// 按访客 IP 粗略估计所在城市（城市级，不保存）；用于天气卡的「网络定位」
+// 按访客 IP 粗略估计所在城市（城市级，不保存）；天气卡未指定城市时用它跟随访客所在地
 export async function locateWeatherByIP(lang: string): Promise<WeatherPlace> {
   const res = await axiosClient.get<BaseResponse<WeatherPlace>>('/misc/weather/locate', { params: { lang } })
   return res.data.data

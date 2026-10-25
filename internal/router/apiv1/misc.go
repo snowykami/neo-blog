@@ -18,7 +18,7 @@ func registerMiscRoutes(group *route.RouterGroup) {
 		miscGroup.GET("/rss-data", miscController.GetRssData)           // 用于rss
 		// 文章内 GitHub 仓库卡：只返回公开仓库信息，后端缓存
 		miscGroup.GET("/github/repos/:owner/:repo", controller.Github.Repo)
-		// 文章内天气卡：接受经纬度 / 城市名；「网络定位」按访客 IP 估计城市（不保存），结果均在后端缓存
+		// 文章内天气卡：接受经纬度 / 城市名；按访客 IP 估计城市（不保存）用于实时卡跟随访客所在地，结果均在后端缓存
 		miscGroup.GET("/weather", controller.Weather.Current)
 		miscGroup.GET("/weather/geo", controller.Weather.Geo)
 		miscGroup.GET("/weather/locate", controller.Weather.Locate)

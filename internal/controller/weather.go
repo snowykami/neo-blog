@@ -49,7 +49,7 @@ func (w *weatherType) Geo(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, places)
 }
 
-// Locate 按访客 IP 估计所在城市（天气卡的「网络定位」）
+// Locate 按访客 IP 估计所在城市（实时天气卡未指定城市时跟随访客所在地）
 func (w *weatherType) Locate(ctx context.Context, c *app.RequestContext) {
 	var req dto.WeatherLocateReq
 	if err := c.BindAndValidate(&req); err != nil {

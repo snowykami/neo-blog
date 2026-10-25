@@ -63,7 +63,7 @@
       "body": "Some features rely on third-party services. When you use them, your browser or this site’s server communicates with that service, which may therefore receive basic information such as your IP address and handle it under its own privacy policy. Which services are enabled depends on the site owner’s configuration:",
       "items": {
         "ip_lookup": "<b>IP region lookup</b>: IPv4 addresses are resolved offline on this site’s server and are not sent to anyone. IPv6 addresses (when the site owner has not set up offline data) and the “IP region” shown on profile pages are looked up by sending the IP address to a third-party lookup service (mir6.com).",
-        "weather": "<b>Weather card location</b>: When inserting a weather card in the editor you can pick “Current location” (the browser asks for permission first; the coordinates are only used to fetch the weather and, in live mode, are published with the post at roughly 1 km precision) or “Network location” (the site estimates the city from your IP address for that single request and does not store it). Weather data is requested by our server from Open-Meteo or the QWeather account the site owner configured; your IP address or raw position is not sent to them.",
+        "weather": "<b>Weather card location</b>: picking a city in the editor stores only that city's name and approximate coordinates (~1 km precision). If the author does not pick a city, the card estimates each reader's city from their IP address for that single request only — it is neither stored nor written into the post. Weather data is requested by our server from Open-Meteo or the QWeather account the site owner configured; your IP address or raw position is not sent to them.",
         "captcha": "<b>Human verification</b>: sign-in and sign-up may load Cloudflare Turnstile, hCaptcha or Google reCAPTCHA to block fake sign-ups and password guessing.",
         "oidc": "<b>Third-party sign-in</b>: when you sign in with a third-party account, you are sent to that platform to authorize it.",
         "gravatar": "<b>Gravatar avatars</b>: users without an avatar are shown their Gravatar picture. Your browser requests the image from Gravatar using a scrambled digest of the email address, not the address itself.",
@@ -2039,16 +2039,16 @@
         "longitude": "Longitude"
       },
       "placeholders": {
-        "city": "e.g. Shanghai (optional)"
+        "city": "e.g. Shanghai"
       },
       "descriptions": {
-        "mode": "Snapshots are saved in the post; live mode fetches the current weather when readers open it",
-        "city": "Leave empty to show \"Current location\" on the card",
+        "mode": "A snapshot is stored in the post; live mode fetches the current weather when a reader opens it, and shows the reader's own location when no city is set",
+        "city": "Leave empty in live mode to follow each reader's location",
         "temperature": "Degrees Celsius",
         "wind": "Beaufort scale 0–12",
         "recordedAt": "Local time at the location; leave empty to hide",
-        "latitude": "Filled automatically by city search or locating; in live mode it is published with the post (~1 km precision)",
-        "longitude": "Filled automatically by city search or locating"
+        "latitude": "Filled in automatically after picking a city; leave both city and coordinates empty to follow the reader's location",
+        "longitude": "Filled in automatically after picking a city"
       },
       "options": {
         "mode": {
@@ -2079,19 +2079,14 @@
       "current_location": "Current location",
       "action": {
         "title_snapshot": "Get current weather",
-        "title_live": "Choose a city or locate automatically",
-        "hint_snapshot": "Search a city, use your current location, or estimate it from your network address to fill in the weather below; the city name can be left empty",
-        "hint_live": "Search a city, use your current location, or estimate it from your network address to fill in the coordinates; the city name can be left empty and the card will show \"Current location\"",
+        "title_live": "Search and pick a city",
+        "hint_snapshot": "Search a city to fill in its current weather below",
+        "hint_live": "Search and pick a city to show that city's live weather; leave it empty to show each reader's own location",
         "search_placeholder": "City name",
         "search": "Search",
-        "locate": "Current location",
-        "locate_ip": "Network location",
         "fetching": "Fetching weather…",
         "no_results": "No matching cities found",
         "failed": "Request failed, please try again later",
-        "locate_failed": "Couldn’t get your location. Check the browser’s location permission, or search for a city instead.",
-        "locate_ip_failed": "Could not estimate your location from your network address. Please search for a city instead.",
-        "located": "Coordinates filled in",
         "filled": "Current weather filled in",
         "place_selected": "City selected"
       }

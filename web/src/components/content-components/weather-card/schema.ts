@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { WEATHER_CONDITIONS } from '@/models/weather'
 
-// snapshot：记录写作时的天气，数据固定在正文中；live：读者打开时按保存的坐标请求当前天气
+// snapshot：记录写作时的天气，数据固定在正文中；
+// live：读者打开时请求当前天气——作者选定城市则固定该城市，未选定则跟随每位访客的所在地
 export const WEATHER_MODES = ['snapshot', 'live'] as const
 
 // 记录时间：datetime-local 格式的当地时间（不含时区），按原样展示
@@ -27,10 +28,10 @@ export const weatherCardSchema = z.object({
   latitude: z.number().min(-90).max(90).default(0),
   longitude: z.number().min(-180).max(180).default(0),
 }).superRefine((props, ctx) => {
-  // 实时模式只要求坐标，城市名可以留空（留空时卡片显示「当前位置」）；0, 0 视为未填写
+  // 实时模式：作者指定城市时必须有坐标；城市名与坐标（0, 0）都留空表示跟随访客所在地
   if (props.mode !== 'live')
     return
-  if (props.latitude === 0 && props.longitude === 0)
+  if (props.latitude === 0 && props.longitude === 0 && props.city !== '')
     ctx.addIssue({ code: 'custom', path: ['latitude'], params: { reason: 'required' }, input: props.latitude })
 })
 

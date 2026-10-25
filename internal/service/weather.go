@@ -24,7 +24,7 @@ import (
 )
 
 // 天气信息：供文章内的天气卡使用，数据源为 Open-Meteo（无需 Key）
-// 只接受经纬度与城市名；按访客 IP 定位仅在作者点击「网络定位」时发生，结果不保存
+// 只接受经纬度与城市名；实时卡未指定城市时按访客 IP 定位，结果不保存
 // 坐标取整后缓存，请求失败时返回过期的旧数据
 
 const (
@@ -109,7 +109,7 @@ func validCoordinate(value, limit float64) bool {
 
 // LocateByIP 按访客 IP 估计所在城市，并复用城市搜索拿到坐标
 // 只做城市级估计：归属地来自离线 ip2region 数据（不联网），地名与坐标来自城市搜索（缓存 24 小时）
-// 结果不落库，仅用于天气卡的「网络定位」
+// 结果不落库，仅用于实时天气卡跟随访客所在地
 func (s *WeatherService) LocateByIP(ctx context.Context, ip, lang string) (*dto.WeatherPlaceDto, *errs.ServiceError) {
 	candidates := ipPlaceCandidates(ipregion.Lookup(strings.TrimSpace(ip)))
 	if len(candidates) == 0 {

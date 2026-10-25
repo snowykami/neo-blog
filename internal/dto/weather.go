@@ -26,7 +26,7 @@ type WeatherGeoReq struct {
 	Lang  string `query:"lang"` // 结果语言，两位小写语言代码，默认 en
 }
 
-// WeatherLocateReq 按访客 IP 估计所在城市（天气卡的「网络定位」）
+// WeatherLocateReq 按访客 IP 估计所在城市（实时天气卡未指定城市时使用）
 type WeatherLocateReq struct {
 	Lang string `query:"lang"` // 结果语言，两位小写语言代码，默认 en
 }
