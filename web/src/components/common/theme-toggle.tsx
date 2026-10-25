@@ -1,5 +1,5 @@
 import type React from 'react'
-import { Moon, Sun, SunMoon } from 'lucide-react'
+import { Moon, Sun, Contrast } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { useDevice } from '@/contexts/device-context'
@@ -26,7 +26,7 @@ export function ThemeModeCycleButton({
     return 'light'
   }
   // 跟随系统用日月合一的 SunMoon，与亮/暗图标同属一套隐喻，一眼可知是「自动切换」
-  const Icon = mode === 'light' ? Sun : mode === 'dark' ? Moon : SunMoon
+  const Icon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Contrast
   return (
     <button
       type="button"
@@ -53,7 +53,7 @@ export function ThemeModeSegmented(
     { value: 'light', icon: <Sun className="w-4 h-4" />, label: t('light_mode') },
     {
       value: 'system',
-      icon: <SunMoon className="w-4 h-4" />,
+      icon: <Contrast className="w-4 h-4" />,
       label: t('system_mode'),
     },
     { value: 'dark', icon: <Moon className="w-4 h-4" />, label: t('dark_mode') },

@@ -100,7 +100,7 @@ function useNavPages() {
           .sort((a, b) => a.navOrder - b.navOrder || a.id - b.id)
         setPages(navPages)
       })
-      .catch(() => {})
+      .catch(() => { })
     return () => {
       cancelled = true
     }
@@ -207,6 +207,7 @@ export default function Navbar() {
         <Link
           href={mainPath.feed}
           className={cn(navIconButtonClass, 'hidden md:inline-flex')}
+          target='_blank'
           aria-label={routeT('rss')}
           title={routeT('rss')}
         >
@@ -237,59 +238,59 @@ function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
                 ? (
                   // 使用带 href 的真实链接：可点击光标、支持中键/新标签页打开与预取；
                   // 不包 NavigationMenuLink，避免其默认样式与这里的样式冲突
-                    <Link
-                      href={item.href}
-                      aria-current={active ? 'page' : undefined}
-                      className={cn(navItemClass, active && navItemActiveClass)}
-                    >
-                      <item.icon aria-hidden className="size-5" />
-                      <span>{item.label ?? routeT(item.title)}</span>
-                    </Link>
-                  )
+                  <Link
+                    href={item.href}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(navItemClass, active && navItemActiveClass)}
+                  >
+                    <item.icon aria-hidden className="size-5" />
+                    <span>{item.label ?? routeT(item.title)}</span>
+                  </Link>
+                )
                 : item.children
                   ? (
-                      <>
-                        <NavigationMenuTrigger
-                          className={cn(
-                            navItemClass,
-                            'bg-transparent text-base focus:bg-primary/10 focus:text-primary data-[state=open]:bg-primary/10 data-[state=open]:text-primary data-[state=open]:hover:bg-primary/10 data-[state=open]:focus:bg-primary/10',
-                            active && navItemActiveClass,
-                          )}
-                          onClick={(e) => {
-                            // 鼠标点击已展开的菜单时保持展开；键盘触发（detail 为 0）仍可切换
-                            if (e.detail > 0 && openMenu === item.title)
-                              e.preventDefault()
-                          }}
-                        >
-                          <item.icon aria-hidden className="size-5" />
-                          <span>{item.label ?? routeT(item.title)}</span>
-                        </NavigationMenuTrigger>
-                        <NavigationMenuContent className="rounded-xl! p-1.5 shadow-lg!">
-                          <ul className="grid min-w-40 gap-0.5">
-                            {item.children.map((child) => {
-                              const childActive = isActivePath(pathname, child.href)
-                              return (
-                                <li key={child.title}>
-                                  <NavigationMenuLink asChild>
-                                    <Link
-                                      href={child.href}
-                                      aria-current={childActive ? 'page' : undefined}
-                                      className={cn(
-                                        'flex-row! items-center gap-2! rounded-lg! px-3 py-2 text-sm font-medium text-foreground/75 hover:bg-primary/10! hover:text-primary! focus:bg-primary/10! focus:text-primary!',
-                                        childActive && 'bg-primary/10 text-primary',
-                                      )}
-                                    >
-                                      <child.icon aria-hidden className="size-4 text-current!" />
-                                      <span className="truncate">{child.label ?? routeT(child.title)}</span>
-                                    </Link>
-                                  </NavigationMenuLink>
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        </NavigationMenuContent>
-                      </>
-                    )
+                    <>
+                      <NavigationMenuTrigger
+                        className={cn(
+                          navItemClass,
+                          'bg-transparent text-base focus:bg-primary/10 focus:text-primary data-[state=open]:bg-primary/10 data-[state=open]:text-primary data-[state=open]:hover:bg-primary/10 data-[state=open]:focus:bg-primary/10',
+                          active && navItemActiveClass,
+                        )}
+                        onClick={(e) => {
+                          // 鼠标点击已展开的菜单时保持展开；键盘触发（detail 为 0）仍可切换
+                          if (e.detail > 0 && openMenu === item.title)
+                            e.preventDefault()
+                        }}
+                      >
+                        <item.icon aria-hidden className="size-5" />
+                        <span>{item.label ?? routeT(item.title)}</span>
+                      </NavigationMenuTrigger>
+                      <NavigationMenuContent className="rounded-xl! p-1.5 shadow-lg!">
+                        <ul className="grid min-w-40 gap-0.5">
+                          {item.children.map((child) => {
+                            const childActive = isActivePath(pathname, child.href)
+                            return (
+                              <li key={child.title}>
+                                <NavigationMenuLink asChild>
+                                  <Link
+                                    href={child.href}
+                                    aria-current={childActive ? 'page' : undefined}
+                                    className={cn(
+                                      'flex-row! items-center gap-2! rounded-lg! px-3 py-2 text-sm font-medium text-foreground/75 hover:bg-primary/10! hover:text-primary! focus:bg-primary/10! focus:text-primary!',
+                                      childActive && 'bg-primary/10 text-primary',
+                                    )}
+                                  >
+                                    <child.icon aria-hidden className="size-4 text-current!" />
+                                    <span className="truncate">{child.label ?? routeT(child.title)}</span>
+                                  </Link>
+                                </NavigationMenuLink>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </NavigationMenuContent>
+                    </>
+                  )
                   : null}
             </NavigationMenuItem>
           )
@@ -326,35 +327,35 @@ function SidebarMenu({ items }: { items: NavMenuItem[] }) {
             {items.map(item =>
               item.href
                 ? (
-                    <Link
-                      key={item.title}
-                      href={item.href}
-                      aria-current={isActivePath(pathname, item.href) ? 'page' : undefined}
-                      className={linkClass(item.href)}
-                      onClick={() => setOpen(false)}
-                    >
-                      <item.icon aria-hidden className="size-5" />
-                      {item.label ?? routeT(item.title)}
-                    </Link>
-                  )
+                  <Link
+                    key={item.title}
+                    href={item.href}
+                    aria-current={isActivePath(pathname, item.href) ? 'page' : undefined}
+                    className={linkClass(item.href)}
+                    onClick={() => setOpen(false)}
+                  >
+                    <item.icon aria-hidden className="size-5" />
+                    {item.label ?? routeT(item.title)}
+                  </Link>
+                )
                 : item.children
                   ? (
-                      <div key={item.title} className="mt-2 grid gap-1">
-                        <div className="px-3 py-1 text-sm font-medium text-foreground/50">{item.label ?? routeT(item.title)}</div>
-                        {item.children.map(child => (
-                          <Link
-                            key={child.title}
-                            href={child.href}
-                            aria-current={isActivePath(pathname, child.href) ? 'page' : undefined}
-                            className={linkClass(child.href)}
-                            onClick={() => setOpen(false)}
-                          >
-                            <child.icon aria-hidden className="size-5" />
-                            <span className="truncate">{child.label ?? routeT(child.title)}</span>
-                          </Link>
-                        ))}
-                      </div>
-                    )
+                    <div key={item.title} className="mt-2 grid gap-1">
+                      <div className="px-3 py-1 text-sm font-medium text-foreground/50">{item.label ?? routeT(item.title)}</div>
+                      {item.children.map(child => (
+                        <Link
+                          key={child.title}
+                          href={child.href}
+                          aria-current={isActivePath(pathname, child.href) ? 'page' : undefined}
+                          className={linkClass(child.href)}
+                          onClick={() => setOpen(false)}
+                        >
+                          <child.icon aria-hidden className="size-5" />
+                          <span className="truncate">{child.label ?? routeT(child.title)}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )
                   : null,
             )}
             <div className="mt-2 grid gap-1 border-t border-dashed pt-3">
