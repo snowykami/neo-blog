@@ -125,9 +125,62 @@ interface LiveWeatherData {
   city: string
 }
 
+// 访客拒绝过定位后记下来，避免每次打开文章都再弹一次权限框
+const GEOLOCATION_DENIED_KEY = 'neo-blog:weather-geolocation-denied'
+
+function geolocationDenied(): boolean {
+  try {
+    return localStorage.getItem(GEOLOCATION_DENIED_KEY) === '1'
+  }
+  catch {
+    // 隐私模式等场景下 localStorage 不可用，当作未拒绝
+    return false
+  }
+}
+
+function rememberGeolocationDenied() {
+  try {
+    localStorage.setItem(GEOLOCATION_DENIED_KEY, '1')
+  }
+  catch {}
+}
+
+/**
+ * 取访客的精确定位（需浏览器授权）；非 HTTPS、不支持、超时或被拒绝时返回 null，由 IP 定位兜底。
+ * 不做反向地理编码，因此调用方用「当前位置」作为城市名
+ */
+async function requestPreciseLocation(timeout = 8000): Promise<{ latitude: number, longitude: number } | null> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation || !window.isSecureContext || geolocationDenied())
+    return null
+  // 已明确拒绝时不再弹框（Safari 不支持查询 geolocation 权限，忽略即可）
+  try {
+    const status = await navigator.permissions.query({ name: 'geolocation' })
+    if (status.state === 'denied') {
+      rememberGeolocationDenied()
+      return null
+    }
+  }
+  catch {}
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      position => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      (error) => {
+        // 1 = PERMISSION_DENIED，其余（超时 / 位置不可用）下次仍可再试
+        if (error.code === 1)
+          rememberGeolocationDenied()
+        resolve(null)
+      },
+      { enableHighAccuracy: false, timeout, maximumAge: 10 * 60 * 1000 },
+    )
+  })
+}
+
+// 与后端缓存粒度一致（0.01° ≈ 1 km），避免把更精确的位置发给服务端
+const roundCoordinate = (value: number) => Math.round(value * 100) / 100
+
 /**
  * 实时模式：作者指定了城市（及其坐标）时显示该城市的天气；
- * 两者都留空时改为跟随访客所在地 —— 按访客 IP 估计城市，再按该城市坐标取当前天气
+ * 两者都留空时跟随访客所在地 —— 先请求浏览器精确定位，访客拒绝或不可用时按 IP 粗略定位
  */
 function LiveWeatherCard({ city, latitude, longitude }: WeatherCardProps) {
   const t = useTranslations('ContentComponents.weatherCard')
@@ -142,6 +195,11 @@ function LiveWeatherCard({ city, latitude, longitude }: WeatherCardProps) {
     async () => {
       if (fixed)
         return { weather: await getWeather(latitude, longitude), city }
+      const position = await requestPreciseLocation()
+      if (position) {
+        const precise = { latitude: roundCoordinate(position.latitude), longitude: roundCoordinate(position.longitude) }
+        return { weather: await getWeather(precise.latitude, precise.longitude), city: '' }
+      }
       const place = await locateWeatherByIP(lang)
       return { weather: await getWeather(place.latitude, place.longitude), city: place.name }
     },

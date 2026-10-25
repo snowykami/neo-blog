@@ -63,7 +63,7 @@
       "body": "Some features rely on third-party services. When you use them, your browser or this site’s server communicates with that service, which may therefore receive basic information such as your IP address and handle it under its own privacy policy. Which services are enabled depends on the site owner’s configuration:",
       "items": {
         "ip_lookup": "<b>IP region lookup</b>: IPv4 addresses are resolved offline on this site’s server and are not sent to anyone. IPv6 addresses (when the site owner has not set up offline data) and the “IP region” shown on profile pages are looked up by sending the IP address to a third-party lookup service (mir6.com).",
-        "weather": "<b>Weather card location</b>: picking a city in the editor stores only that city's name and approximate coordinates (~1 km precision). If the author does not pick a city, the card estimates each reader's city from their IP address for that single request only — it is neither stored nor written into the post. Weather data is requested by our server from Open-Meteo or the QWeather account the site owner configured; your IP address or raw position is not sent to them.",
+        "weather": "<b>Weather card location</b>: picking a city in the editor stores only that city's name and approximate coordinates (~1 km precision). When the author has not picked a city, the card first asks whether it may use your location: if you allow it, the coordinates are rounded to roughly 1 km and used only to fetch the weather where you are — never stored or written into the post. If you decline or your browser does not support it, the site falls back to estimating your city from your IP address for that single request. Weather data is requested by our server from Open-Meteo or the QWeather account the site owner configured; your IP address or raw position is not sent to them.",
         "captcha": "<b>Human verification</b>: sign-in and sign-up may load Cloudflare Turnstile, hCaptcha or Google reCAPTCHA to block fake sign-ups and password guessing.",
         "oidc": "<b>Third-party sign-in</b>: when you sign in with a third-party account, you are sent to that platform to authorize it.",
         "gravatar": "<b>Gravatar avatars</b>: users without an avatar are shown their Gravatar picture. Your browser requests the image from Gravatar using a scrambled digest of the email address, not the address itself.",
@@ -2043,7 +2043,7 @@
       },
       "descriptions": {
         "mode": "A snapshot is stored in the post; live mode fetches the current weather when a reader opens it, and shows the reader's own location when no city is set",
-        "city": "Leave empty in live mode to follow each reader's location",
+        "city": "Leave empty in live mode to follow each reader's location: browser geolocation first, falling back to an IP-based estimate if declined",
         "temperature": "Degrees Celsius",
         "wind": "Beaufort scale 0–12",
         "recordedAt": "Local time at the location; leave empty to hide",
