@@ -1,21 +1,29 @@
 import type { MetadataRoute } from 'next'
 import { getSitemapData } from '@/api/misc'
-import { getCategoryUrl, getLabelUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
+import { getCategoryUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 
 // 站点地图每小时重新生成一次
 export const revalidate = 3600
 
-function getChangeFreqAndPriority(lastModified: Date) {
-  const ageDays = (Date.now() - lastModified.getTime()) / (1000 * 60 * 60 * 24)
-  if (ageDays < 1)
-    return { changefreq: 'daily' as const, priority: 0.9 }
-  if (ageDays < 30)
-    return { changefreq: 'weekly' as const, priority: 0.8 }
-  if (ageDays < 365)
-    return { changefreq: 'monthly' as const, priority: 0.7 }
-  return { changefreq: 'yearly' as const, priority: 0.5 }
+/**
+ * 取一组时间里最晚的一个；全部无效时返回 undefined（该字段直接省略）
+ */
+function latestDate(...dates: (string | null | undefined)[]): Date | undefined {
+  const times = dates
+    .filter((date): date is string => Boolean(date))
+    .map(date => new Date(date).getTime())
+    .filter(time => Number.isFinite(time))
+  return times.length > 0 ? new Date(Math.max(...times)) : undefined
 }
 
+/*
+ * sitemap 约定（依据 Google 官方文档）：
+ * - <priority> 与 <changefreq> 会被 Google 直接忽略，不再输出，避免暗示与实际不符的权重
+ * - <lastmod> 只有在「始终准确」时才会被采用，因此这里只写真实的最后修改时间，
+ *   绝不用本次生成时间顶替，否则整站 lastmod 都会失去参考价值
+ * - <loc> 不允许带 #fragment，归档月份等锚点不再单独成条（它们和 /a 是同一个 URL）
+ * - 标签筛选页 /?label=xxx 的 canonical 指向首页，不属于规范 URL，故不列入
+ */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const sitemapData = await getSitemapData()
     .then(res => res.data)
@@ -25,75 +33,46 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return []
   }
 
+  const posts = sitemapData.posts || []
+  // 首页与归档页的内容由文章列表构成，lastmod 取最新一篇的最后修改时间
+  const listLastModified = latestDate(...posts.map(post => post.updatedAt || post.createdAt))
+
   const items: MetadataRoute.Sitemap = []
 
   items.push({
     url: sitemapData.baseUrl,
-    lastModified: new Date(),
-    changeFrequency: 'daily',
-    priority: 1,
+    lastModified: listLastModified,
   })
   items.push({
     url: `${sitemapData.baseUrl}/a`,
-    lastModified: new Date(),
-    changeFrequency: 'weekly',
-    priority: 0.7,
+    lastModified: listLastModified,
+  })
+  items.push({
+    url: `${sitemapData.baseUrl}/l`,
+    lastModified: listLastModified,
   })
 
   // posts
-  sitemapData?.posts?.forEach((post) => {
-    const lastMod = new Date(post.updatedAt || post.createdAt)
-    const { changefreq, priority } = getChangeFreqAndPriority(lastMod)
+  posts.forEach((post) => {
     items.push({
       url: sitemapData.baseUrl + getPostUrl({ post }),
-      lastModified: lastMod,
-      changeFrequency: changefreq,
-      priority,
+      lastModified: latestDate(post.updatedAt, post.createdAt),
     })
   })
 
   // editors
   sitemapData?.editors?.forEach((editor) => {
-    const lastMod = new Date(editor.updatedAt)
-    const { changefreq, priority } = getChangeFreqAndPriority(lastMod)
     items.push({
       url: sitemapData.baseUrl + getUserUrl(editor),
-      lastModified: lastMod,
-      changeFrequency: changefreq,
-      priority,
+      lastModified: latestDate(editor.updatedAt),
     })
   })
 
   // categories
   sitemapData?.categories?.forEach((category) => {
-    const lastMod = new Date(category.updatedAt)
-    const { changefreq, priority } = getChangeFreqAndPriority(lastMod)
     items.push({
       url: sitemapData.baseUrl + getCategoryUrl(category),
-      lastModified: lastMod,
-      changeFrequency: changefreq,
-      priority,
-    })
-  })
-
-  // labels
-  sitemapData?.labels?.forEach((label) => {
-    const lastMod = new Date(label.updatedAt)
-    const { changefreq, priority } = getChangeFreqAndPriority(lastMod)
-    items.push({
-      url: sitemapData.baseUrl + getLabelUrl(label),
-      lastModified: lastMod,
-      changeFrequency: changefreq,
-      priority,
-    })
-  })
-
-  sitemapData?.archives?.forEach((archive) => {
-    items.push({
-      url: `${sitemapData.baseUrl}/a#${archive}`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.5,
+      lastModified: latestDate(category.updatedAt),
     })
   })
 

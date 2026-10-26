@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
 import type { Article, WithContext } from 'schema-dts'
 import { getLocale } from 'next-intl/server'
-import { notFound, redirect } from 'next/navigation'
-import Script from 'next/script'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { cache } from 'react'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { getPostByIdServer } from '@/api/post.server'
@@ -39,20 +38,20 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   // 参数需与页面中的调用完全一致，才能命中 React cache，避免重复请求；浏览量由前台访问上报计数，与此无关
   const { type } = await searchParams
   const post = await getCachedPost(id, type)
+  // 元信息在流式渲染开始前解析完成，404 与永久重定向必须在这里判定：
+  // 页面里有 loading.tsx，外壳一旦流出，页面内再 notFound() / redirect() 就只能返回 200，对爬虫是软 404
+  if (!post)
+    notFound()
+  if (post.slug && post.slug !== id)
+    permanentRedirect(getPostUrl({ post, type }))
   const locale = (await getLocale()) || 'en'
   const siteInfo = await getCachedSiteInfo()
-  if (!post) {
-    return {
-      title: 'Post Not Found',
-      description: 'The post you are looking for does not exist.',
-    }
-  }
   const shareImage = getPostShareImageUrl(post)
   return {
     title: post.title || 'No Title',
     description: stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
     metadataBase: safeMetadataBase(siteInfo?.baseUrl),
-    alternates: { canonical: post ? getPostUrl({ post }) : undefined },
+    alternates: { canonical: getPostUrl({ post }) },
     authors: post.user ? [{ name: formatFullName(post.user) }] : undefined,
     creator: post.user ? formatFullName(post.user) : undefined,
     keywords: post.labels?.map(label => label.name) || undefined,
@@ -74,17 +73,19 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       description: stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
       images: [shareImage],
     },
-    robots: {
-      index: true,
-      follow: true,
-      googleBot: {
-        'index': true,
-        'follow': true,
-        'max-video-preview': -1,
-        'max-image-preview': 'large',
-        'max-snippet': -1,
-      },
-    },
+    robots: type === 'draft'
+      ? { index: false, follow: false }
+      : {
+          index: true,
+          follow: true,
+          googleBot: {
+            'index': true,
+            'follow': true,
+            'max-video-preview': -1,
+            'max-image-preview': 'large',
+            'max-snippet': -1,
+          },
+        },
   }
 }
 
@@ -95,9 +96,9 @@ export default async function PostPage({ params, searchParams }: Props) {
   const siteInfo = await getCachedSiteInfo()
   if (!post)
     return notFound()
-  // 如果当前访问的 id 不是 post 的 slug，则重定向到正确的 URL
+  // 如果当前访问的 id 不是 post 的 slug，则永久重定向到正确的 URL（metadata 中已处理，这里兜底）
   if (post.slug && post.slug !== id) {
-    redirect(getPostUrl({ post, type }))
+    permanentRedirect(getPostUrl({ post, type }))
   }
 
   const jsonLd: WithContext<Article> = {
@@ -107,9 +108,12 @@ export default async function PostPage({ params, searchParams }: Props) {
     'author': {
       '@type': 'Person',
       'name': formatFullName(post.user),
-      'url': `${siteInfo.baseUrl}/${getUserUrl({ username: post.user.username })}`,
+      'url': `${siteInfo.baseUrl}${getUserUrl({ username: post.user.username })}`,
     },
-    'image': post.cover || '',
+    // 没有封面时省略 image；站内相对路径要补成绝对地址（结构化数据不接受相对 URL）
+    ...(post.cover
+      ? { image: post.cover.startsWith('http') ? post.cover : `${siteInfo.baseUrl}${post.cover}` }
+      : {}),
     'datePublished': post.createdAt,
     'dateModified': post.updatedAt,
     'publisher': {
@@ -121,19 +125,20 @@ export default async function PostPage({ params, searchParams }: Props) {
       },
     },
     'description': stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title,
+    // mainEntityOfPage 指向文章自身，而不是站点根地址
     'mainEntityOfPage': {
       '@type': 'WebPage',
-      '@id': siteInfo?.baseUrl || '',
+      '@id': `${siteInfo.baseUrl}${getPostUrl({ post })}`,
     },
   }
 
   return (
     <div className="flex flex-col h-100vh">
       <BlogPost post={post} isDraft={type === 'draft'} />
-      <Script
+      {/* 结构化数据必须直接出现在 SSR 的 HTML 里：用 next/script 只会进 __next_s 队列，需执行 JS 才注入 */}
+      <script
         id="json-ld"
         type="application/ld+json"
-        strategy="beforeInteractive"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
         }}

@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import type { WebSite, WithContext } from 'schema-dts'
 import type { BlogHomeInitialData } from './blog-home-query'
 import { getLocale, getTranslations } from 'next-intl/server'
-import Script from 'next/script'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { listPostsServer } from '@/api/post.server'
 import { OrderBy } from '@/models/common'
@@ -91,10 +90,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   return (
     <>
       <BlogHome initialData={initialData} />
-      <Script
+      {/* 结构化数据直接输出在 SSR 的 HTML 里，不依赖 JS 注入 */}
+      <script
         id="json-ld"
         type="application/ld+json"
-        strategy="beforeInteractive"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
         }}

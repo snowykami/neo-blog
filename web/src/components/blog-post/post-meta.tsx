@@ -165,9 +165,10 @@ export function PostStats({
 }: {
   words: number
   minutes: number
-  views: number
-  likes: number
-  comments: number
+  // 浏览量/点赞/评论为可选：独立页面没有这些统计，传 undefined 时不渲染对应项
+  views?: number
+  likes?: number
+  comments?: number
   withIcons?: boolean
   className?: string
 }) {
@@ -176,9 +177,9 @@ export function PostStats({
   const items = [
     { key: 'words', icon: FileTextIcon, text: t('word_count', { count: words }) },
     { key: 'minutes', icon: ClockIcon, text: t('reading_time', { count: minutes }) },
-    { key: 'views', icon: EyeIcon, text: views },
-    { key: 'likes', icon: HeartIcon, text: likes },
-    { key: 'comments', icon: MessageCircleIcon, text: comments },
+    ...(views === undefined ? [] : [{ key: 'views', icon: EyeIcon, text: views }]),
+    ...(likes === undefined ? [] : [{ key: 'likes', icon: HeartIcon, text: likes }]),
+    ...(comments === undefined ? [] : [{ key: 'comments', icon: MessageCircleIcon, text: comments }]),
   ]
   return (
     <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-foreground/30 tabular-nums', withIcons && 'gap-x-5', className)}>
