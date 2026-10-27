@@ -20,7 +20,8 @@ COPY . .
 # 构建版本（CI 传入 commit），写入前端代码，供已打开的页面检测新版本；未传入时不启用更新提醒
 ARG APP_VERSION=""
 ENV NEXT_PUBLIC_APP_VERSION=${APP_VERSION}
-RUN pnpm run lint:fix && pnpm run build
+# 这里用 lint 而不是 lint:fix：格式不合规应当直接失败，避免 CI 静默重排代码导致镜像内容与仓库不一致
+RUN pnpm run lint && pnpm run build
 
 # production image
 FROM node:24-alpine AS runner
