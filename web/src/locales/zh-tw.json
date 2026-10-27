@@ -1639,6 +1639,10 @@
     "role": "角色",
     "location": "所在地"
   },
+  "ColorScheme": {
+    "title": "顏色主題",
+    "update_failed": "更新顏色主題失敗"
+  },
   "ThemeMode": {
     "light_mode": "淺色模式",
     "dark_mode": "深色模式",

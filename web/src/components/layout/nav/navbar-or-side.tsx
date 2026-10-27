@@ -10,7 +10,6 @@ import {
   MenuIcon,
   NewspaperIcon,
   PanelsTopLeftIcon,
-  RssIcon,
   ShuffleIcon,
   TagsIcon,
 } from 'lucide-react'
@@ -21,6 +20,11 @@ import { usePathname } from 'next/navigation'
 import * as React from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { listPages } from '@/api/page'
+import {
+  ColorSchemeCircles,
+  ColorSchemePicker,
+  useColorScheme,
+} from '@/components/common/color-scheme-picker'
 import { ThemeModeToggle } from '@/components/common/theme-toggle'
 import { AvatarWithDropdownMenu } from '@/components/layout/nav/avatar-with-dropdown-menu'
 import { NavSearch } from '@/components/layout/nav/nav-search'
@@ -158,7 +162,6 @@ function useScrolled(threshold = 8) {
 
 export default function Navbar() {
   const { siteInfo } = useSiteInfo()
-  const routeT = useTranslations('Route')
   const { navTitle, navIcon } = useNav()
   const menuItems = useNavMenuItems()
   const scrolled = useScrolled()
@@ -199,20 +202,12 @@ export default function Navbar() {
         <NavMenuCenter items={menuItems} />
       </div>
 
-      {/* 右侧：搜索、明暗切换、RSS、用户；明暗切换与 RSS 在移动端收进侧边菜单
+      {/* 右侧：搜索、明暗切换、配色切换、用户；明暗切换与配色切换在移动端收进侧边菜单
        * 移动端只占按钮所需宽度，把剩余空间让给站名；md 及以上与左侧等分，保证主菜单居中 */}
       <div className="flex flex-none items-center justify-end md:min-w-0 md:flex-1">
         <NavSearch className={navIconButtonClass} />
         <ThemeModeToggle className={cn(navIconButtonClass, 'hidden md:inline-flex')} />
-        <Link
-          href={mainPath.feed}
-          className={cn(navIconButtonClass, 'hidden md:inline-flex')}
-          target="_blank"
-          aria-label={routeT('rss')}
-          title={routeT('rss')}
-        >
-          <RssIcon aria-hidden className="size-5" />
-        </Link>
+        <ColorSchemePicker className={cn(navIconButtonClass, 'hidden md:inline-flex')} />
         <AvatarWithDropdownMenu className={navIconButtonClass} />
         <SidebarMenu items={menuItems} />
       </div>
@@ -358,19 +353,28 @@ function SidebarMenu({ items }: { items: NavMenuItem[] }) {
                     )
                   : null,
             )}
-            <div className="mt-2 grid gap-1 border-t border-dashed pt-3">
-              <Link href={mainPath.feed} className={linkClass(mainPath.feed)} onClick={() => setOpen(false)}>
-                <RssIcon aria-hidden className="size-5" />
-                {routeT('rss')}
-              </Link>
-            </div>
           </nav>
 
-          <div className="flex items-center justify-center border-t p-4">
-            <ThemeModeToggle showSegmented={true} />
+          <div className="grid gap-4 border-t p-4">
+            <SidebarColorSchemes />
+            <div className="flex items-center justify-center">
+              <ThemeModeToggle showSegmented={true} />
+            </div>
           </div>
         </SheetContent>
       </Sheet>
+    </div>
+  )
+}
+
+// 移动端侧边菜单内的配色切换：直接展示圆形色块，避免弹层套弹层
+function SidebarColorSchemes() {
+  const t = useTranslations('ColorScheme')
+  const { color, colorSchemes, selectColor } = useColorScheme()
+  return (
+    <div className="grid gap-2">
+      <div className="text-xs font-medium text-muted-foreground">{t('title')}</div>
+      <ColorSchemeCircles color={color} colorSchemes={colorSchemes} onSelect={selectColor} />
     </div>
   )
 }

@@ -1639,6 +1639,10 @@
     "role": "ロール",
     "location": "所在地"
   },
+  "ColorScheme": {
+    "title": "カラーテーマ",
+    "update_failed": "カラーテーマの更新に失敗しました"
+  },
   "ThemeMode": {
     "light_mode": "ライトモード",
     "dark_mode": "ダークモード",

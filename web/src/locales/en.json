@@ -1639,6 +1639,10 @@
     "role": "Role",
     "location": "Location"
   },
+  "ColorScheme": {
+    "title": "Color theme",
+    "update_failed": "Failed to update color theme"
+  },
   "ThemeMode": {
     "light_mode": "Light mode",
     "dark_mode": "Dark mode",

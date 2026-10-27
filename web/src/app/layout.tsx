@@ -37,8 +37,9 @@ export const viewport: Viewport = {
   ],
 }
 
-// 首次绘制前根据本地保存的主题偏好（与 DeviceProvider 一致：localStorage.theme，缺省跟随系统）设置 .dark，避免暗色闪白
-const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light'}catch(_){}})()`
+// 首次绘制前根据本地保存的主题偏好（与 DeviceProvider 一致：localStorage.theme，缺省跟随系统）设置 .dark，避免暗色闪白；
+// 同时应用本地保存的配色方案（顶栏配色切换，访客也有），避免刷新后闪烁回站点默认色
+const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light';var c=localStorage.getItem('color-scheme');if(c){e.setAttribute('data-user-color',c)}}catch(_){}})()`
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteInfo = await getCachedSiteInfo()

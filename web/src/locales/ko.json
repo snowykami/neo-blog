@@ -1639,6 +1639,10 @@
     "role": "역할",
     "location": "위치"
   },
+  "ColorScheme": {
+    "title": "색상 테마",
+    "update_failed": "색상 테마 업데이트 실패"
+  },
   "ThemeMode": {
     "light_mode": "라이트 모드",
     "dark_mode": "다크 모드",
