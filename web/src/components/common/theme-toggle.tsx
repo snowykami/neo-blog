@@ -1,5 +1,5 @@
 import type React from 'react'
-import { Moon, Sun, Contrast } from 'lucide-react'
+import { Contrast, Moon, Sun } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { useDevice } from '@/contexts/device-context'

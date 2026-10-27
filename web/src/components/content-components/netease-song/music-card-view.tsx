@@ -84,25 +84,25 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
         <div className="grid min-w-0 grid-rows-3">
           {loading
             ? (
-              <div className="grid gap-2">
-                <Skeleton className="h-4 w-1/2" />
-                <Skeleton className="h-3.5 w-1/3" />
-              </div>
-            )
+                <div className="grid gap-2">
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-3.5 w-1/3" />
+                </div>
+              )
             : (
-              <>
-                {title && (href
-                  ? <a href={href} target="_blank" rel="noopener noreferrer" className="block truncate font-semibold leading-tight text-foreground no-underline hover:text-primary">{title}</a>
-                  : <p className="truncate font-semibold leading-tight text-foreground">{title}</p>)}
-                {subtitle}
-                {progress && (
-                  <>
-                    {/* 第 1 列占位：撑住封面宽度，让进度行左边缘正好落在标题左边 */}
-                    <MusicCardProgressRow {...progress} />
-                  </>
-                )}
-              </>
-            )}
+                <>
+                  {title && (href
+                    ? <a href={href} target="_blank" rel="noopener noreferrer" className="block truncate font-semibold leading-tight text-foreground no-underline hover:text-primary">{title}</a>
+                    : <p className="truncate font-semibold leading-tight text-foreground">{title}</p>)}
+                  {subtitle}
+                  {progress && (
+                    <>
+                      {/* 第 1 列占位：撑住封面宽度，让进度行左边缘正好落在标题左边 */}
+                      <MusicCardProgressRow {...progress} />
+                    </>
+                  )}
+                </>
+              )}
         </div>
         {/* 操作按钮 */}
         {action && <div className="self-center">{action}</div>}
