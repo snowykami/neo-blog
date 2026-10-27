@@ -276,6 +276,30 @@ const PLAY_MODES: PlayMode[] = ['repeat-all', 'repeat-one', 'shuffle']
 // 专辑封面旋转一圈的时长，使用 CSS 动画代替逐帧 setState
 const ALBUM_ROTATE_CLASSNAME = 'animate-spin [animation-duration:30s]'
 
+/**
+ * 播放时替换导航栏图标的旋转封面：与悬浮球一致，只把封面裁成圆形，不加边框
+ * 组件内部自行读取播放状态，曲目切换时无需重新 setNavIcon
+ */
+function AlbumNavIcon() {
+  const { currentTrack, isPlaying } = useMusic()
+
+  // 没有封面时回退为音乐图标，避免导航栏出现占位块
+  if (!currentTrack?.albumPic) {
+    return <MusicIcon aria-hidden className="size-6!" />
+  }
+
+  return (
+    <CrossfadeAlbumImage
+      src={currentTrack.albumPic}
+      alt=""
+      sizes="24px"
+      style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+      className={cn('size-6', ALBUM_ROTATE_CLASSNAME)}
+      imageClassName="object-cover rounded-full"
+    />
+  )
+}
+
 function readStoredNumber(key: string): number | null {
   try {
     const raw = localStorage.getItem(key)
@@ -350,11 +374,7 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
       ? <LyricLine />
       : '')
     if (isPlaying) {
-      setNavIcon(
-        <MusicIcon
-          className="size-6!"
-        />,
-      )
+      setNavIcon(<AlbumNavIcon />)
     }
     else {
       resetNavIcon()
