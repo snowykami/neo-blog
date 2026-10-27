@@ -1598,6 +1598,7 @@
     "homepage": "首页",
     "label": "标签",
     "menu": "菜单",
+    "music": "音乐",
     "page": "页面",
     "post": "文章",
     "privacy_policy": "隐私政策",
@@ -2131,5 +2132,9 @@
       "wechat": "微信"
     },
     "card_scan": "扫码阅读全文"
+  },
+  "MusicPage": {
+    "placeholder_title": "播放器正在建设中",
+    "placeholder_description": "这里将放置完整的音乐播放器，包括歌单、歌词与播放控制。"
   }
 }

@@ -1483,6 +1483,7 @@
     "homepage": "ホーム",
     "label": "タグ",
     "menu": "メニュー",
+    "music": "音楽",
     "page": "ページ",
     "post": "投稿",
     "privacy_policy": "プライバシーポリシー",
@@ -2131,5 +2132,9 @@
       "wechat": "WeChat"
     },
     "card_scan": "QR コードで全文を読む"
+  },
+  "MusicPage": {
+    "placeholder_title": "プレイヤーは準備中です",
+    "placeholder_description": "ここにプレイリスト・歌詞・再生コントロールを備えた音楽プレイヤーを置く予定です。"
   }
 }

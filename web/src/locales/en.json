@@ -1483,6 +1483,7 @@
     "homepage": "Home",
     "label": "Tag",
     "menu": "Menu",
+    "music": "Music",
     "page": "Page",
     "post": "Post",
     "privacy_policy": "Privacy Policy",
@@ -2131,5 +2132,9 @@
       "wechat": "WeChat"
     },
     "card_scan": "Scan to read the post"
+  },
+  "MusicPage": {
+    "placeholder_title": "The music player is on its way",
+    "placeholder_description": "A full player with playlists, lyrics, and playback controls will live here."
   }
 }

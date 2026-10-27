@@ -1483,6 +1483,7 @@
     "homepage": "홈",
     "label": "태그",
     "menu": "메뉴",
+    "music": "음악",
     "page": "페이지",
     "post": "게시물",
     "privacy_policy": "개인정보 보호정책",
@@ -2131,5 +2132,9 @@
       "wechat": "WeChat"
     },
     "card_scan": "QR 코드로 전체 글 읽기"
+  },
+  "MusicPage": {
+    "placeholder_title": "플레이어를 준비 중입니다",
+    "placeholder_description": "이곳에 재생 목록, 가사, 재생 컨트롤을 갖춘 음악 플레이어가 들어갑니다."
   }
 }
