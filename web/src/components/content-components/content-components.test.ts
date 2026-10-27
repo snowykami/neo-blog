@@ -138,6 +138,19 @@ describe('注册表', () => {
     expect(visible('id', { mode: 'custom' })).toBe(false)
   })
 
+  it('歌词摘录：翻译/发音开关与字段', () => {
+    const def = getContentComponent('lyricQuote')!
+    expect(getDefaultProps(def)).toMatchObject({ showTranslation: false, showRomaji: false, translation: '', romaji: '' })
+    expect(resolveComponent('lyricQuote', { source: 'netease', id: 1, showTranslation: true }).ok).toBe(true)
+    expect(resolveComponent('lyricQuote', { source: 'custom', title: 'x', src: '/a.mp3', showRomaji: true }).ok).toBe(true)
+    const visible = def.editor!.isFieldVisible!
+    expect(visible('showTranslation', { source: 'netease' })).toBe(true)
+    expect(visible('translation', { source: 'netease' })).toBe(false)
+    expect(visible('translation', { source: 'netease', showTranslation: true })).toBe(true)
+    expect(visible('romaji', { source: 'custom' })).toBe(false)
+    expect(visible('romaji', { source: 'custom', showRomaji: true })).toBe(true)
+  })
+
   it('天气卡：快照与实时模式的校验、字段显隐与降级内容', () => {
     const def = getContentComponent('weatherCard')!
     expect(getDefaultProps(def)).toMatchObject({ mode: 'snapshot', condition: 'clear' })

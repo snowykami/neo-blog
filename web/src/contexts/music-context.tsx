@@ -48,7 +48,8 @@ interface MusicContextValue {
   replacePlaylist: (tracks: MusicTrack[], startIndex?: number, startTime?: number) => void
 
   // 播放控制
-  playTrack: (index: number) => void // 指定播放曲目
+  // startTime：可选的起始播放进度（秒），用于从歌词摘录等位置开始播放
+  playTrack: (index: number, startTime?: number) => void // 指定播放曲目
   play: () => void // 播放
   pause: () => void // 暂停
   togglePlay: () => void // 切换播放/暂停
@@ -282,21 +283,38 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [currentTrackId])
 
   // 切换到指定索引；目标与当前曲目相同时（如单曲歌单）直接从头播放，避免 effect 不触发导致停播
-  const goTo = useCallback((index: number | null, autoplay: boolean) => {
+  // startTime 为可选的起始进度（秒），在不切歌时立即跳转，切歌时等元数据就绪后再跳转
+  const goTo = useCallback((index: number | null, autoplay: boolean, startTime?: number) => {
     if (index == null) {
       currentIndexRef.current = null
+      pendingSeekRef.current = null
       setCurrentIndex(null)
       return
     }
     const audio = audioRef.current
+    const track = playlistRef.current[index]
+    const pendingSeek = track && startTime != null && Number.isFinite(startTime) && startTime >= 0
+      ? { trackId: track.id, time: startTime }
+      : null
     if (index === currentIndexRef.current) {
+      pendingSeekRef.current = null
       if (audio) {
-        audio.currentTime = 0
+        if (pendingSeek) {
+          try {
+            audio.currentTime = Math.max(0, Math.min(pendingSeek.time, audio.duration || pendingSeek.time))
+          }
+          catch { }
+          setCurrentTime(pendingSeek.time)
+        }
+        else {
+          audio.currentTime = 0
+        }
         if (autoplay)
           void audio.play().catch(() => { })
       }
       return
     }
+    pendingSeekRef.current = pendingSeek
     pendingPlayRef.current = autoplay
     // 立即同步 ref，保证连续切歌时基于最新索引计算
     currentIndexRef.current = index
@@ -442,9 +460,14 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentIndex(index)
   }, [])
 
-  const playTrack = useCallback((index: number) => {
+  const playTrack = useCallback((index: number, startTime?: number) => {
     if (index < 0 || index >= playlistRef.current.length)
       return
+    // 指定了起始进度时（如歌词摘录）总是从该位置播放
+    if (startTime != null) {
+      goTo(index, true, startTime)
+      return
+    }
     // 点击正在播放的曲目时仅继续播放，不从头开始
     if (index === currentIndexRef.current) {
       void audioRef.current?.play().catch(() => { })

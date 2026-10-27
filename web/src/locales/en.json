@@ -1815,7 +1815,7 @@
       "load_failed": "Failed to load the song",
       "action": {
         "title": "Search songs",
-        "hint": "Search by title or artist and click a result to fill in the song ID; songs marked “In playlist” can be played on this site",
+        "hint": "Click the start line, then the end line; clicking an earlier line starts over",
         "search_placeholder": "Title, artist…",
         "search": "Search",
         "results": "Search results",
@@ -1832,6 +1832,70 @@
       },
       "lyric_idle": "Lyrics appear here while playing",
       "no_lyric": "No lyrics"
+    },
+    "lyricQuote": {
+      "name": "Lyric quote",
+      "description": "Quote a line or passage of lyrics, optionally with translation or pronunciation, and play from that point",
+      "fields": {
+        "source": "Source",
+        "id": "Song ID",
+        "title": "Title",
+        "artist": "Artist",
+        "src": "Audio URL",
+        "lyric": "Lyrics (LRC)",
+        "showTranslation": "Show translation",
+        "translation": "Translation (LRC)",
+        "showRomaji": "Show pronunciation",
+        "romaji": "Pronunciation / romanization (LRC)",
+        "start": "Start time (ms)",
+        "end": "End time (ms)",
+        "text": "Lyric text"
+      },
+      "placeholders": {
+        "id": "1824020871",
+        "title": "Title",
+        "artist": "Artist"
+      },
+      "descriptions": {
+        "source": "NetEase mode loads lyrics by song ID; custom audio uses the audio URL you provide",
+        "id": "The number after id= in the song link; only songs in the blog playlist can be played on this site",
+        "src": "Audio file URL; pick or upload from the asset library",
+        "lyric": "Optional; with LRC / YRC lyrics you can pick lines by sentence. Leave empty in NetEase mode to load lyrics by song ID",
+        "translation": "Optional timestamped translation lyrics; loaded automatically in NetEase mode when empty",
+        "romaji": "Optional timestamped pronunciation/romanization lyrics for Japanese, Korean, Cantonese, etc.; loaded automatically in NetEase mode when empty",
+        "start": "Filled by “Choose lyrics”; you can also enter the lyric timestamp manually",
+        "end": "Optional; pick an end line to quote a passage. Leave empty to quote only the starting line",
+        "text": "Lyric text shown when the lyric API is unavailable or the timestamp is entered manually"
+      },
+      "play": "Play",
+      "pause": "Pause",
+      "not_in_playlist": "This song is not in the blog playlist; listen on NetEase Cloud Music",
+      "loading_lyric": "Loading lyrics…",
+      "no_lyric": "Choose a lyric line",
+      "action": {
+        "title": "Choose lyrics",
+        "hint": "Click the start line, then the end line; clicking an earlier line starts over",
+        "loading": "Loading lyrics…",
+        "failed": "Failed to load lyrics, please try again later",
+        "empty": "No lyrics to choose",
+        "need_lyric": "Fill in LRC / YRC lyrics first",
+        "need_song": "Choose a song first",
+        "start": "Start",
+        "end": "End",
+        "selected": "Selected lyrics starting at {time}",
+        "range": "Quoting lyrics from {start} to {end}"
+      },
+      "example": {
+        "title": "Example song",
+        "artist": "Example artist",
+        "lyric": "Put your favorite lyric into the post"
+      },
+      "options": {
+        "source": {
+          "netease": "NetEase Cloud Music",
+          "custom": "Custom audio"
+        }
+      }
     },
     "library": {
       "open": "Component library…",
@@ -2116,7 +2180,7 @@
   "Share": {
     "share": "Share",
     "title": "Share this post",
-    "hint": "The share image is generated on the server; save it or send it in any chat app.",
+    "hint": "Click the start line, then the end line; clicking an earlier line starts over",
     "preview_alt": "Post share image preview",
     "download": "Save share image",
     "copy_link": "Copy link",

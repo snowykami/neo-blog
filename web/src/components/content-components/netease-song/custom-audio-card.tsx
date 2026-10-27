@@ -9,11 +9,9 @@ import { Button } from '@/components/ui/button'
 import { useMusic } from '@/contexts/music-context'
 import { cn } from '@/lib/utils'
 import { getCurrentLyricIndex, parseMusicLyrics } from '@/utils/music-lyric'
+import { claimActiveAudio, releaseActiveAudio } from '../active-audio'
 import { useComponentHeight } from '../use-component-height'
 import { isTallMusicCard, MusicCardLyricHint, MusicCardView } from './music-card-view'
-
-// 同一时间只播放一张自定义音频卡片
-let activeAudio: HTMLAudioElement | null = null
 
 /**
  * 自定义音频：使用卡片自己的 audio 播放，与全站播放器互斥（开始播放时暂停全站播放器，全站播放器开始播放时暂停卡片）；
@@ -35,9 +33,7 @@ export function CustomAudioCard({ title, artist, album, cover, src, lyric }: Net
     const onTime = () => setCurrentTime(audio.currentTime)
     const onMeta = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : null)
     const onPlay = () => {
-      if (activeAudio && activeAudio !== audio)
-        activeAudio.pause()
-      activeAudio = audio
+      claimActiveAudio(audio)
       setPlaying(true)
     }
     const onPause = () => setPlaying(false)
@@ -55,8 +51,7 @@ export function CustomAudioCard({ title, artist, album, cover, src, lyric }: Net
       audio.removeEventListener('play', onPlay)
       audio.removeEventListener('pause', onPause)
       audio.removeEventListener('ended', onPause)
-      if (activeAudio === audio)
-        activeAudio = null
+      releaseActiveAudio(audio)
       // 释放音频资源
       audio.removeAttribute('src')
       audio.load()

@@ -5,6 +5,7 @@ import commonLinkPreviewCard from '@/components/common/link-preview-card.content
 import contentComponentsCallout from '@/components/content-components/callout/callout.content'
 import contentComponentsCodeTabs from '@/components/content-components/code-tabs/code-tabs.content'
 import contentComponentsGithubRepo from '@/components/content-components/github-repo/github-repo.content'
+import contentComponentsLyricQuote from '@/components/content-components/lyric-quote/lyric-quote.content'
 import contentComponentsNeteaseSong from '@/components/content-components/netease-song/netease-song.content'
 import contentComponentsWeatherCard from '@/components/content-components/weather-card/weather-card.content'
 import uiAlert from '@/components/ui/alert.content'
@@ -22,6 +23,7 @@ export const GENERATED_CONTENT_COMPONENTS: ContentComponentEntry[] = [
   { path: 'content-components/callout', def: contentComponentsCallout },
   { path: 'content-components/code-tabs', def: contentComponentsCodeTabs },
   { path: 'content-components/github-repo', def: contentComponentsGithubRepo },
+  { path: 'content-components/lyric-quote', def: contentComponentsLyricQuote },
   { path: 'content-components/netease-song', def: contentComponentsNeteaseSong },
   { path: 'content-components/weather-card', def: contentComponentsWeatherCard },
   { path: 'ui/alert', def: uiAlert },
