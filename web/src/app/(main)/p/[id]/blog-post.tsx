@@ -63,7 +63,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
       </h1>
 
       <div className="mb-5 flex items-start justify-between gap-3 border-b border-dashed border-foreground/10 pb-5">
-        <PostMeta post={post} showAuthor showUpdated showStats />
+        <PostMeta post={post} showAuthor showUpdated />
         <PostEditButton post={post} />
       </div>
 

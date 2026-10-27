@@ -81,7 +81,6 @@ export function PostMeta({
   showAuthor = false,
   authorAvatar = false,
   showUpdated = false,
-  showStats = false,
   className,
 }: {
   post: Post
@@ -91,8 +90,6 @@ export function PostMeta({
   authorAvatar?: boolean
   /** 更新时间与发布时间不在同一天时额外显示更新时间（文章页） */
   showUpdated?: boolean
-  /** 显示浏览 / 点赞 / 评论数（文章页） */
-  showStats?: boolean
   className?: string
 }) {
   const t = useTranslations()
