@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,6 +25,11 @@ const (
 	// 给模型挑选的热评条数：尾奏与关键节点的「时刻」都优先用热评
 	lyricAnnotationComments = 12
 	lyricCommentMaxRunes    = 140
+	// 长音：逐字歌词中不短于这个时长（毫秒）的音节在歌词行末标出，供模型设计颤音（shake）。
+	// 实测普通音节中位数 0.2～0.4 秒，真正拖长的音多在 1.5～6 秒
+	lyricHeldNoteMs = 1500
+	// 向其他平台借长音时，行开始时间的容差（毫秒）：各平台的时间轴常有一两秒的偏差，文字还须一致
+	lyricHeldBorrowTolerance = 3000
 )
 
 var (
@@ -45,6 +51,8 @@ type lyricAnnotationInfo struct {
 	Chorus []lyricChorusRange
 	// 歌词各行的开始时间（与歌词行一一对应）
 	Timed []lyricTimedLine
+	// 歌词有逐字时间（长音直接从中找出）；没有时在生成时向 QQ 音乐 / 酷狗的逐字歌词借（borrowHeldNotes）
+	WordTimed bool
 }
 
 // lyricAnnotationComment 一条网易云热评
@@ -57,6 +65,15 @@ type lyricAnnotationComment struct {
 type lyricTimedLine struct {
 	Start int64
 	Text  string
+	// 这一行唱得最长的音节（逐字歌词中不短于 lyricHeldNoteMs 时），没有时为 nil
+	Held *lyricHeldNote
+}
+
+// lyricHeldNote 一个长音：音节文字、时长（毫秒），以及是否为这一行的最后一个音节（尾音）
+type lyricHeldNote struct {
+	Text     string
+	Duration int64
+	Tail     bool
 }
 
 // lyricTimedLines 歌词正文（LRC / YRC / QRC）中每一行的开始时间与文字；跳过元信息、无歌词占位与空行，
@@ -76,12 +93,75 @@ func lyricTimedLines(raw string, maxLines int) []lyricTimedLine {
 		if runes := []rune(text); len(runes) > lyricAnnotationMaxLineRunes {
 			text = string(runes[:lyricAnnotationMaxLineRunes])
 		}
-		lines = append(lines, lyricTimedLine{Start: lyricHeadStart(head), Text: text})
+		lines = append(lines, lyricTimedLine{Start: lyricHeadStart(head), Text: text, Held: lyricHeldNoteOf(line[len(head):])})
 		if maxLines > 0 && len(lines) >= maxLines {
 			break
 		}
 	}
 	return lines
+}
+
+// lyricHeldNoteOf 逐字歌词一行（去掉行头后）中唱得最长的音节，不短于 lyricHeldNoteMs 时返回；
+// YRC 的时间标签在字前，QRC 的在字后；逐行歌词没有逐字时间，返回 nil
+func lyricHeldNoteOf(body string) *lyricHeldNote {
+	tags := lyricWordTagRe.FindAllStringSubmatchIndex(body, -1)
+	if len(tags) == 0 {
+		return nil
+	}
+	yrc := tags[0][4] >= 0
+	var held *lyricHeldNote
+	heldIndex, lastIndex := -1, -1
+	for i, tag := range tags {
+		var text string
+		if yrc {
+			end := len(body)
+			if i+1 < len(tags) {
+				end = tags[i+1][0]
+			}
+			text = body[tag[1]:end]
+		} else {
+			start := 0
+			if i > 0 {
+				start = tags[i-1][1]
+			}
+			text = body[start:tag[0]]
+		}
+		if text = strings.TrimSpace(text); text == "" {
+			continue
+		}
+		lastIndex = i
+		duration, _ := strconv.ParseInt(body[tag[2]:tag[3]], 10, 64)
+		if duration >= lyricHeldNoteMs && (held == nil || duration > held.Duration) {
+			held, heldIndex = &lyricHeldNote{Text: text, Duration: duration}, i
+		}
+	}
+	if held != nil {
+		held.Tail = heldIndex == lastIndex
+	}
+	return held
+}
+
+// borrowHeldNotes 逐行歌词没有逐字时间：向同一首歌的逐字歌词（QQ 音乐 / 酷狗的 QRC）借长音，
+// 开始时间在容差内且文字一致（忽略空白与标点）的行才借（宁缺勿错），歌词文字不变
+func borrowHeldNotes(lines []lyricTimedLine, raw string) []lyricTimedLine {
+	if strings.TrimSpace(raw) == "" {
+		return lines
+	}
+	source := lyricTimedLines(raw, 0)
+	borrowed := slices.Clone(lines)
+	for i, line := range borrowed {
+		if line.Start < 0 || line.Held != nil {
+			continue
+		}
+		text := normalizeLyricMatch(line.Text)
+		for _, other := range source {
+			if other.Held != nil && math.Abs(float64(other.Start-line.Start)) <= lyricHeldBorrowTolerance && normalizeLyricMatch(other.Text) == text {
+				borrowed[i].Held = other.Held
+				break
+			}
+		}
+	}
+	return borrowed
 }
 
 // lyricHeadStart 行头的开始时间（毫秒）；无法解析时为 -1
@@ -167,7 +247,8 @@ func fetchNCMHotComments(ctx context.Context, id int64) []lyricAnnotationComment
 			LikedCount int64  `json:"likedCount"`
 		} `json:"hotComments"`
 	}
-	params := url.Values{"id": {strconv.FormatInt(id, 10)}, "type": {"0"}, "limit": {"20"}}
+	// 多取一些：过滤掉灌水与广告后仍有足够的评论给模型挑
+	params := url.Values{"id": {strconv.FormatInt(id, 10)}, "type": {"0"}, "limit": {"50"}}
 	// 热评不需要登录，不携带 Cookie
 	if err := ncmGet(ctx, tools.NCMConfig{BaseURL: cfg.BaseURL}, "/comment/hot", params, &raw); err != nil {
 		return nil
@@ -179,12 +260,12 @@ func fetchNCMHotComments(ctx context.Context, id int64) []lyricAnnotationComment
 	return pickHotComments(comments)
 }
 
-// pickHotComments 按点赞数从高到低取前几条：合并空白、截断过长的评论，去掉空评论
+// pickHotComments 按点赞数从高到低取前几条：合并空白、截断过长的评论，过滤灌水与广告（见 isLowQualityComment）
 func pickHotComments(comments []lyricAnnotationComment) []lyricAnnotationComment {
 	var picked []lyricAnnotationComment
 	for _, comment := range comments {
 		content := strings.TrimSpace(whitespaceRe.ReplaceAllString(comment.Content, " "))
-		if content == "" {
+		if isLowQualityComment(content) {
 			continue
 		}
 		if utf8.RuneCountInString(content) > lyricCommentMaxRunes {
@@ -197,6 +278,53 @@ func pickHotComments(comments []lyricAnnotationComment) []lyricAnnotationComment
 		picked = picked[:lyricAnnotationComments]
 	}
 	return picked
+}
+
+var (
+	// 网易云表情（[大哭]）、@某人
+	commentEmojiRe   = regexp.MustCompile(`\[[^\[\]]{1,6}\]`)
+	commentMentionRe = regexp.MustCompile(`@\S+`)
+	// 笑声与刷屏：哈哈哈、hhh、233、666
+	commentLaughRe = regexp.MustCompile(`(?i)(哈{2,}|呵{2,}|嘿{2,}|h{3,}|2{1}3{2,}|6{3,})`)
+	// 广告、引流与链接：出现即过滤
+	commentAdRe = regexp.MustCompile(`(?i)(https?://|www\.|微信|v信|vx|加群|qq群|关注我|私信我|代刷|淘宝|招租|广告|推广|兼职)`)
+	// 抢楼、打卡等灌水：评论较短时过滤
+	commentSpamRe = regexp.MustCompile(`(前排|沙发|板凳|地板|打卡|签到|第[一1]个?|来了来了|路过|留名|考古|有人吗|顶顶|楼主|冲冲冲|mark)`)
+)
+
+// 去掉表情与 @ 后至少这么多字才有内容；灌水词只在评论短于 commentSpamMaxRunes 时过滤
+const (
+	commentMinRunes     = 6
+	commentSpamMaxRunes = 20
+)
+
+// isLowQualityComment 是否为灌水、刷屏或广告评论：这些评论不交给模型，也就不会出现在时刻与尾奏中
+func isLowQualityComment(content string) bool {
+	if commentAdRe.MatchString(content) {
+		return true
+	}
+	text := strings.TrimSpace(commentMentionRe.ReplaceAllString(commentEmojiRe.ReplaceAllString(content, ""), ""))
+	runes := []rune(strings.Join(strings.Fields(text), ""))
+	if len(runes) < commentMinRunes {
+		return true
+	}
+	// 几乎只由一两种字组成（啊啊啊啊、。。。。）
+	distinct := map[rune]bool{}
+	for _, r := range runes {
+		distinct[r] = true
+	}
+	if len(distinct) <= 2 {
+		return true
+	}
+	// 笑声、刷屏占了大半
+	laugh := 0
+	for _, match := range commentLaughRe.FindAllString(text, -1) {
+		laugh += utf8.RuneCountInString(match)
+	}
+	if laugh*2 >= len(runes) {
+		return true
+	}
+	return len(runes) < commentSpamMaxRunes && commentSpamRe.MatchString(strings.ToLower(text))
 }
 
 // buildLyricAnnotationPrompt 用户消息：歌曲信息、热评（低可信度参考）与带行号的歌词（有翻译时附在行末）
@@ -227,19 +355,41 @@ func buildLyricAnnotationPrompt(info lyricAnnotationInfo, lines []string) string
 			fmt.Fprintf(&b, "第 %d 行～第 %d 行（%s～%s）\n", chorus.From, chorus.To, formatLyricTime(chorus.Start), formatLyricTime(chorus.End))
 		}
 	}
+	writeLyricAnnotationLines(&b, info, lines)
+	return b.String()
+}
+
+// writeLyricAnnotationLines 带行号的歌词：有翻译时在行末附上〔译：…〕，逐字歌词中唱得特别长的音节附上〔长音：…〕
+func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lines []string) {
+	held := func(i int) *lyricHeldNote {
+		if i < len(info.Timed) {
+			return info.Timed[i].Held
+		}
+		return nil
+	}
+	hasHeld := slices.ContainsFunc(info.Timed, func(line lyricTimedLine) bool { return line.Held != nil })
 	b.WriteString("\n【歌词】")
 	if info.Translations != nil {
 		b.WriteString("（外语歌词在行末用〔译：…〕附上中文翻译，只帮助你理解含义；phrases 的 text 只能取自原文，不能取自翻译）")
 	}
+	if hasHeld {
+		b.WriteString("（按逐字时间，唱得特别长的音节在行末用〔长音：…〕标出：音节、时长，以及是否为句尾的尾音）")
+	}
 	b.WriteString("\n")
 	for i, line := range lines {
-		fmt.Fprintf(&b, "%d: %s", i, line)
+		fmt.Fprintf(b, "%d: %s", i, line)
 		if i < len(info.Translations) && info.Translations[i] != "" {
 			b.WriteString("　〔译：" + info.Translations[i] + "〕")
 		}
+		if note := held(i); note != nil {
+			tail := ""
+			if note.Tail {
+				tail = "，句尾"
+			}
+			fmt.Fprintf(b, "　〔长音：「%s」%.1f 秒%s〕", note.Text, float64(note.Duration)/1000, tail)
+		}
 		b.WriteString("\n")
 	}
-	return b.String()
 }
 
 // formatLyricTime 毫秒 → m:ss

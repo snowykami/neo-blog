@@ -52,16 +52,17 @@ func TestLyricTranslationSource(t *testing.T) {
 }
 
 func TestPickHotComments(t *testing.T) {
-	long := strings.Repeat("长", lyricCommentMaxRunes+10)
+	long := strings.Repeat("长句子", lyricCommentMaxRunes)
 	comments := []lyricAnnotationComment{
-		{Content: "一般", Liked: 10}, {Content: "  ", Liked: 999}, {Content: "最热\n的评论", Liked: 500},
-		{Content: long, Liked: 300}, {Content: "a", Liked: 1}, {Content: "b", Liked: 2}, {Content: "c", Liked: 3},
+		{Content: "一般般吧还行", Liked: 10}, {Content: "  ", Liked: 999}, {Content: "最热\n的评论，听哭了好多次", Liked: 500},
+		{Content: long, Liked: 300}, {Content: "哈哈哈前排", Liked: 400}, {Content: "广告位招租", Liked: 450},
 	}
 	for i := 0; i < lyricAnnotationComments; i++ {
-		comments = append(comments, lyricAnnotationComment{Content: "凑数", Liked: 0})
+		comments = append(comments, lyricAnnotationComment{Content: "这首歌陪我度过了很多夜晚", Liked: 0})
 	}
 	got := pickHotComments(comments)
-	if len(got) != lyricAnnotationComments || got[0].Content != "最热 的评论" || got[1].Liked != 300 {
+	// 空评论、灌水与广告被过滤；按点赞排序并截断过长的评论
+	if len(got) != lyricAnnotationComments || got[0].Content != "最热 的评论，听哭了好多次" || got[1].Liked != 300 || got[2].Liked != 10 {
 		t.Fatalf("picked = %+v", got)
 	}
 	if !strings.HasSuffix(got[1].Content, "…") || len([]rune(got[1].Content)) != lyricCommentMaxRunes+1 {
@@ -98,5 +99,95 @@ func TestChorusLineRanges(t *testing.T) {
 	prompt := buildLyricAnnotationPrompt(lyricAnnotationInfo{Chorus: got}, []string{"a"})
 	if !strings.Contains(prompt, "第 2 行～第 4 行（0:34～1:01）") {
 		t.Fatalf("prompt = %s", prompt)
+	}
+}
+
+func TestIsLowQualityComment(t *testing.T) {
+	junk := []string{
+		"哈哈哈前排", "广告位招租", "前排打卡", "沙发！", "哈哈哈哈哈哈哈哈哈哈好听", "啊啊啊啊啊啊啊啊", "[大哭][大哭][大哭]",
+		"@某某某 你听", "加微信看更多", "https://example.com 好听", "hhhhhhhhh笑死", "第一个听的来了来了", "666666666",
+	}
+	for _, content := range junk {
+		if !isLowQualityComment(content) {
+			t.Errorf("%q should be filtered", content)
+		}
+	}
+	good := []string{
+		"每次加班到深夜，回家路上都会听这首，好像有人在说：辛苦了。",
+		"那年夏天我们都在，后来只剩我一个人听这首歌",
+		"前排说一句：这首歌陪我走过了最难的那一年，谢谢你。",
+		"哈哈，第一次听哭了，想起了外婆家门口的那棵紫荆花树",
+	}
+	for _, content := range good {
+		if isLowQualityComment(content) {
+			t.Errorf("%q should be kept", content)
+		}
+	}
+}
+
+func TestLyricHeldNotes(t *testing.T) {
+	raw := strings.Join([]string{
+		// YRC：标签在字前；尾音「た」拖了 2.1 秒
+		"[1000,4000](1000,300,0)連(1300,300,0)れ(1600,300,0)出(1900,300,0)し(2200,2100,0)た",
+		// QRC：标签在字后；最长的「啦」在句中，不是尾音
+		"[5000,6000]啦(5000,3500)啦(8500,400)啦(8900,300)",
+		// 没有足够长的音节
+		"[12000,1000](12000,500,0)短(12500,500,0)句",
+		// 英文吟唱：空格不算音节，Ahh 是尾音
+		"[14000,3000](14000,400,0)Oh (14400,2600,0)Ahh",
+		// 逐行歌词没有逐字时间
+		"[00:20.00]逐行歌词",
+	}, "\n")
+	lines := lyricTimedLines(raw, 0)
+	want := []*lyricHeldNote{
+		{Text: "た", Duration: 2100, Tail: true},
+		{Text: "啦", Duration: 3500, Tail: false},
+		nil,
+		{Text: "Ahh", Duration: 2600, Tail: true},
+		nil,
+	}
+	if len(lines) != len(want) {
+		t.Fatalf("lines = %+v", lines)
+	}
+	for i, line := range lines {
+		if !reflect.DeepEqual(line.Held, want[i]) {
+			t.Errorf("line %d (%s): held = %+v, want %+v", i, line.Text, line.Held, want[i])
+		}
+	}
+	if lines[0].Text != "連れ出した" || lines[1].Text != "啦啦啦" {
+		t.Errorf("text = %q, %q", lines[0].Text, lines[1].Text)
+	}
+
+	// 用户消息中在行末标出长音
+	prompt := buildLyricAnnotationPrompt(lyricAnnotationInfo{Timed: lines}, []string{lines[0].Text, lines[1].Text, lines[2].Text})
+	for _, part := range []string{"〔长音：…〕标出", "0: 連れ出した　〔长音：「た」2.1 秒，句尾〕", "1: 啦啦啦　〔长音：「啦」3.5 秒〕", "2: 短句\n"} {
+		if !strings.Contains(prompt, part) {
+			t.Errorf("prompt missing %q:\n%s", part, prompt)
+		}
+	}
+}
+
+func TestBorrowHeldNotes(t *testing.T) {
+	lines := lyricTimedLines("[00:01.00]連れ出した\n[00:06.00]啦啦啦\n[00:20.00]别的歌词", 0)
+	qrc := strings.Join([]string{
+		// 时间轴相差 0.8 秒、文字一致（忽略空白）：借
+		"[1800,4000]連(1800,300)れ(2100,300)出(2400,300)し(2700,300)た(3000,2100)",
+		// 文字不同：不借
+		"[6000,6000]啦(6000,3500)啦(9500,400)",
+		// 时间相差太远：不借
+		"[40000,3000]别(40000,300)的(40300,300)歌(40600,300)词(40900,2000)",
+	}, "\n")
+	borrowed := borrowHeldNotes(lines, qrc)
+	if got := borrowed[0].Held; got == nil || got.Text != "た" || !got.Tail {
+		t.Errorf("line 0 held = %+v", got)
+	}
+	if borrowed[1].Held != nil || borrowed[2].Held != nil {
+		t.Errorf("should not borrow: %+v, %+v", borrowed[1].Held, borrowed[2].Held)
+	}
+	if lines[0].Held != nil || borrowed[0].Text != "連れ出した" {
+		t.Error("borrowing must not change the original lines or text")
+	}
+	if got := borrowHeldNotes(lines, ""); !reflect.DeepEqual(got, lines) {
+		t.Error("no word-timed lyric: unchanged")
 	}
 }

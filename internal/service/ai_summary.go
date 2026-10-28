@@ -418,12 +418,34 @@ func chatCompletion(ctx context.Context, cfg tools.AIConfig, system, user string
 
 // chatCompletionWithTemperature 同 chatCompletion，可指定温度（越高越有创意、越不稳定）
 func chatCompletionWithTemperature(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64) (string, error) {
-	resp, err := postChatCompletions(ctx, cfg, map[string]any{
+	return chatCompletionWithReasoning(ctx, cfg, system, user, temperature, "")
+}
+
+// reasoningEffortUnsupported 不支持 reasoning_effort 参数（带上时返回 400）的接口与模型，之后不再携带
+var reasoningEffortUnsupported sync.Map
+
+// chatCompletionWithReasoning 同 chatCompletionWithTemperature，可指定思考强度（OpenAI 兼容的 reasoning_effort：none / low / medium / high，
+// 空为不指定，由模型默认）。思考型模型默认会先输出大量思考内容，任务简单时调低能快数倍。
+// 不支持该参数的接口返回 400 时，去掉参数重试一次并记住
+func chatCompletionWithReasoning(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) (string, error) {
+	payload := map[string]any{
 		"model":       cfg.Model,
 		"messages":    chatMessages(system, user),
 		"temperature": temperature,
 		"stream":      false,
-	})
+	}
+	key := cfg.BaseURL + "\x00" + cfg.Model
+	if _, unsupported := reasoningEffortUnsupported.Load(key); effort != "" && !unsupported {
+		payload["reasoning_effort"] = effort
+	}
+	resp, err := postChatCompletions(ctx, cfg, payload)
+	var statusErr *chatStatusError
+	if _, sent := payload["reasoning_effort"]; sent && errors.As(err, &statusErr) && statusErr.code == http.StatusBadRequest {
+		logrus.Warnf("chat completion rejected reasoning_effort, retrying without it: %v", err)
+		reasoningEffortUnsupported.Store(key, true)
+		delete(payload, "reasoning_effort")
+		resp, err = postChatCompletions(ctx, cfg, payload)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -440,6 +462,16 @@ func chatMessages(system, user string) []map[string]string {
 		{"role": "system", "content": system},
 		{"role": "user", "content": user},
 	}
+}
+
+// chatStatusError 接口返回非 200：状态码与少量响应内容
+type chatStatusError struct {
+	code int
+	msg  string
+}
+
+func (e *chatStatusError) Error() string {
+	return fmt.Sprintf("status %d: %s", e.code, e.msg)
 }
 
 // postChatCompletions 发送请求，非 200 时读取少量响应内容作为错误返回；成功时由调用方关闭响应体
@@ -467,7 +499,7 @@ func postChatCompletions(ctx context.Context, cfg tools.AIConfig, payload map[st
 		if r := []rune(msg); len(r) > 200 {
 			msg = string(r[:200])
 		}
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, msg)
+		return nil, &chatStatusError{code: resp.StatusCode, msg: msg}
 	}
 	return resp, nil
 }

@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -162,5 +165,35 @@ func TestClearDescriptionAndCover(t *testing.T) {
 	title := "新标题"
 	if _, svcerr := NewPostService().UpdatePost(author, &dto.CreateOrUpdatePostReq{ID: post.ID, PostBaseDto: dto.PostBaseDto{Title: title}}); svcerr != nil {
 		t.Fatalf("title: %v", svcerr)
+	}
+}
+
+func TestChatCompletionReasoningFallback(t *testing.T) {
+	var withEffort, without atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["reasoning_effort"] != nil {
+			// 不支持该参数的接口
+			withEffort.Add(1)
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"unknown parameter reasoning_effort"}`))
+			return
+		}
+		without.Add(1)
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}]}`))
+	}))
+	t.Cleanup(server.Close)
+	cfg := tools.AIConfig{BaseURL: server.URL, Model: "m"}
+
+	// 第一次带参数被拒，去掉参数重试成功；之后不再携带
+	for range 2 {
+		got, err := chatCompletionWithReasoning(context.Background(), cfg, "s", "u", 0.5, "none")
+		if err != nil || got != "ok" {
+			t.Fatalf("got %q, %v", got, err)
+		}
+	}
+	if withEffort.Load() != 1 || without.Load() != 2 {
+		t.Fatalf("calls with effort = %d, without = %d", withEffort.Load(), without.Load())
 	}
 }

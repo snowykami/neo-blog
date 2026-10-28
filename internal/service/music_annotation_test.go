@@ -81,6 +81,9 @@ func TestParseLyricAnnotationData(t *testing.T) {
 
 func TestLyricAnnotationJob(t *testing.T) {
 	setupEditTest(t)
+	originalDelay := lyricAnnotationPlanRetryDelay
+	lyricAnnotationPlanRetryDelay = 0
+	t.Cleanup(func() { lyricAnnotationPlanRetryDelay = originalDelay })
 	var calls atomic.Int32
 	reply := `{"lines":[{"i":0,"phrases":[{"text":"心动","effect":"swell"}]}]}`
 	var fail atomic.Bool
@@ -90,9 +93,12 @@ func TestLyricAnnotationJob(t *testing.T) {
 		jobs:        make(map[string]*lyricAnnotationJob),
 		limiter:     &aiLimiter{},
 		concurrency: func() int { return 1 },
-		complete: func(_ context.Context, _ tools.AIConfig, _, user string) (string, error) {
-			lastUser.Store(user)
-			calls.Add(1)
+		// 只数全曲规划的请求（每次生成一次）；逐段标注返回同样的短语
+		complete: func(_ context.Context, _ tools.AIConfig, system, user string) (string, error) {
+			if system == lyricAnnotationPlanPrompt {
+				lastUser.Store(user)
+				calls.Add(1)
+			}
 			if fail.Load() {
 				return "", errors.New("boom")
 			}
@@ -165,32 +171,44 @@ func TestLyricAnnotationJob(t *testing.T) {
 	if _, svcerr = service.get(1, []string{"怦然心动", "新的一行"}, info, cfg, ttl); svcerr == nil || svcerr.Code != http.StatusNotFound {
 		t.Fatalf("failed job should not retry immediately, got %v", svcerr)
 	}
-	if calls.Load() != 4 {
+	// 失败的那次生成会把全曲规划重试 lyricAnnotationPlanRetries 次
+	if calls.Load() != int32(4+lyricAnnotationPlanRetries) {
 		t.Fatalf("model called %d times", calls.Load())
 	}
 }
 
 func TestLyricAnnotationPrompt(t *testing.T) {
-	if strings.Contains(lyricAnnotationPrompt, "{{") {
-		t.Fatal("palette or scene placeholder not replaced")
-	}
-	for _, scene := range lyricAnnotationSceneList {
-		if !strings.Contains(lyricAnnotationPrompt, scene.Key+" "+scene.Name) {
-			t.Fatalf("prompt missing scene %s", scene.Key)
+	for name, prompt := range map[string]string{"plan": lyricAnnotationPlanPrompt, "lines": lyricAnnotationLinesPrompt} {
+		if strings.Contains(prompt, "{{") {
+			t.Fatalf("%s: palette or scene placeholder not replaced", name)
+		}
+		for _, scene := range lyricAnnotationSceneList {
+			if !strings.Contains(prompt, scene.Key+" "+scene.Name) {
+				t.Fatalf("%s: prompt missing scene %s", name, scene.Key)
+			}
+		}
+		for _, font := range lyricAnnotationFontList {
+			if !strings.Contains(prompt, font.Key+" "+font.Name) {
+				t.Fatalf("%s: prompt missing font %s", name, font.Key)
+			}
+		}
+		for _, color := range lyricAnnotationPalette {
+			if !strings.Contains(prompt, color.Key+" "+color.Name) {
+				t.Fatalf("%s: prompt missing color %s", name, color.Key)
+			}
+		}
+		// 两步共用同一套规则（含上色与同一意象一致的要求）
+		for _, rule := range []string{"65%以上的颜色联想概率", "不要这一处用一种颜色", "硬性规则", "情感与演出的对应"} {
+			if !strings.Contains(prompt, rule) {
+				t.Fatalf("%s: prompt missing rule %q", name, rule)
+			}
 		}
 	}
-	for _, font := range lyricAnnotationFontList {
-		if !strings.Contains(lyricAnnotationPrompt, font.Key+" "+font.Name) {
-			t.Fatalf("prompt missing font %s", font.Key)
-		}
+	if !strings.Contains(lyricAnnotationPlanPrompt, "imagery") || !strings.Contains(lyricAnnotationLinesPrompt, "【本次标注范围】") {
+		t.Fatal("task-specific instructions missing")
 	}
 	if len(lyricAnnotationScenes) != len(lyricAnnotationSceneList) {
 		t.Fatal("duplicate scene keys")
-	}
-	for _, color := range lyricAnnotationPalette {
-		if !strings.Contains(lyricAnnotationPrompt, color.Key+" "+color.Name) {
-			t.Fatalf("prompt missing color %s", color.Key)
-		}
 	}
 	if len(lyricAnnotationColors) != len(lyricAnnotationPalette) {
 		t.Fatal("duplicate color keys in palette")
