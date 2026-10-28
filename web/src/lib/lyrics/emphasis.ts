@@ -8,6 +8,7 @@ import { normalizeForMatch } from './strip-credits'
  * - 歌词标注（后端用大模型对歌词文本做的一次性标注，见 7.2b）：挑出的短语按文本匹配到行内，只要唱满 0.6 秒即演出，
  *   并可指定特效类型、颜色、字体与字形；唱不满 0.6 秒的短语不做动效，但保留颜色、字体与字形；与标注短语重叠的规则词让位给标注。标注只引用文本，时间一律取自歌词本身
  * - 一行最后一组强调的词加强（同 AMLL），副歌行加强，副歌起点行更强；只处理逐字歌词
+ * - shake 短语中唱满 1 秒的最长音节记为长音（hold），演出时先放大、唱了一会儿后整个词开始颤音
  */
 
 export interface LyricAnnotationPhrase {
@@ -55,6 +56,8 @@ const CHORUS_BOOST = 1.2
 const CHORUS_START_BOOST = 1.4
 // 强度过低时看不出效果，不演出
 const MIN_FACTOR = 0.03
+// shake 短语中的音节唱满这么久（毫秒）才算长音，演出颤音
+const HOLD_MIN_MS = 1000
 
 const CJK_RE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const IGNORED_RE = /[\s\p{P}\p{S}]/u
@@ -153,6 +156,16 @@ function findPhrase(text: string, phrase: string): [number, number][] {
   return ranges
 }
 
+/** words[from, to) 中唱得最长、且唱满 HOLD_MIN_MS 的音节的时段（长音），没有时为 undefined */
+function holdOf(line: LyricLine, from: number, to: number): LyricEmphasis['hold'] {
+  let hold: LyricEmphasis['hold']
+  for (const word of line.words.slice(from, to)) {
+    if (word.text.trim() && word.end - word.start >= HOLD_MIN_MS && (!hold || word.end - word.start > hold.end - hold.start))
+      hold = { start: word.start, end: word.end }
+  }
+  return hold
+}
+
 function annotatedGroups(line: LyricLine, text: string, wordAt: number[], annotation: LyricAnnotationLine): LyricEmphasis[] {
   const groups: LyricEmphasis[] = []
   for (const phrase of annotation.phrases) {
@@ -166,7 +179,8 @@ function annotatedGroups(line: LyricLine, text: string, wordAt: number[], annota
         continue
       // 唱得太快的短语不做动效（factor 为 0），只保留颜色、字体与字形
       const factor = duration < ANNOTATED_MIN_MS ? 0 : Math.max(ANNOTATED_MIN_FACTOR, factorOf(duration, ANNOTATED_MIN_MS))
-      groups.push({ ...range, start: line.words[range.from].start, end: line.words[range.to - 1].end, factor, effect: phrase.effect, color: phrase.color, font: phrase.font, styles: phrase.styles?.length ? phrase.styles : undefined })
+      const hold = phrase.effect === 'shake' ? holdOf(line, range.from, range.to) : undefined
+      groups.push({ ...range, start: line.words[range.from].start, end: line.words[range.to - 1].end, factor, effect: phrase.effect, color: phrase.color, font: phrase.font, styles: phrase.styles?.length ? phrase.styles : undefined, ...(hold && { hold }) })
     }
   }
   return groups

@@ -59,6 +59,15 @@ describe('歌词强调', () => {
     expect([result.lines[0].start, result.lines[0].end]).toEqual([HEARTBEAT.start, HEARTBEAT.end])
   })
 
+  it('shake 短语中唱满 1 秒的最长音节记为长音（颤音），其他特效与短音不记', () => {
+    const held = line([['連', 0, 300], ['れ', 300, 600], ['出', 600, 900], ['し', 900, 1200], ['た', 1200, 3300]])
+    const phrase = (effect: 'shake' | 'glow') => ({ text: '連れ出した', phrases: [{ text: '出した', effect }] })
+    expect(lineEmphasis(held, phrase('shake'))[0]).toMatchObject({ from: 2, to: 5, effect: 'shake', hold: { start: 1200, end: 3300 } })
+    expect(lineEmphasis(held, phrase('glow'))[0].hold).toBeUndefined()
+    const short = line([['連', 0, 300], ['れ', 300, 600], ['出', 600, 900], ['し', 900, 1200], ['た', 1200, 1900]])
+    expect(lineEmphasis(short, phrase('shake'))[0].hold).toBeUndefined()
+  })
+
   it('逐行歌词不处理', () => {
     const lyrics: ResolvedLyrics = { source: 'ncm-lrc', wordTimed: false, instrumental: false, lines: [line([['一句歌词', 0, 5000]])] }
     expect(applyEmphasis(lyrics)).toBe(lyrics)

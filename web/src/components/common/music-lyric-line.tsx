@@ -1,9 +1,11 @@
 'use client'
 
+import type { NavWordStyle } from '@/lib/lyrics/nav-emphasis'
 import type { LyricMarqueeWordBox, MusicLyricLine } from '@/utils/music-lyric'
 import { useTranslations } from 'next-intl'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useCurrentLyricIndex, useMusic } from '@/contexts/music-context'
+import { navEmphasisStyle } from '@/lib/lyrics/nav-emphasis'
 import { cn } from '@/lib/utils'
 import { getCurrentLyricIndex, getLyricMarqueeOffset, getWordProgress, isWordTimedLyricLine } from '@/utils/music-lyric'
 
@@ -36,18 +38,25 @@ interface NavLyricLayout {
   containerWidth: number
   contentWidth: number
   wordBoxes: LyricMarqueeWordBox[]
+  words: HTMLElement[]
   fills: HTMLElement[]
 }
 
 /**
  * 当前一行歌词（导航栏、文章内单曲卡共用）：当前行超出容器宽度时水平滚动
  * - 逐行歌词：先停留约 10%，再匀速滚动，在约 88% 行时长处露出结尾
- * - 逐字歌词：跟随当前演唱位置滚动，使其保持在可视区域约 65% 处
- * 偏移量、逐字高亮均在 requestAnimationFrame 中直接写 DOM，不触发逐帧 React 渲染
+ * - 逐字歌词：跟随当前演唱位置滚动，使其保持在可视区域约 65% 处；开启歌词特效时沿用播放器的强调分组（含歌词标注），
+ *   做简化的特效（放大、辉光、上浮、抖动与长音颤音、由虚到实、上色与粗体 / 斜体，见 lib/lyrics/nav-emphasis.ts）
+ * 偏移量、逐字高亮与特效均在 requestAnimationFrame 中直接写 DOM，不触发逐帧 React 渲染
  */
 export function LyricLine() {
   const t = useTranslations('MusicPlayer')
-  const { lyricLines, lyrics, getAudio } = useMusic()
+  const { lyricLines, lyrics, getAudio, showLyricEffects } = useMusic()
+  // 与 lyricLines 一一对应的强调分组（lyricLines 为 lyrics 中的主唱行）；关闭歌词特效或不是逐字歌词时为 null
+  const emphasisLines = useMemo(
+    () => showLyricEffects && lyrics.wordTimed ? lyrics.lines.filter(line => !line.isBackground).map(line => line.emphasis ?? []) : null,
+    [lyrics, showLyricEffects],
+  )
   const currentLyricIndex = useCurrentLyricIndex()
   const prefersReducedMotion = usePrefersReducedMotion()
   const containerRef = useRef<HTMLSpanElement>(null)
@@ -82,6 +91,7 @@ export function LyricLine() {
     let lastTransform = ''
     let lastMask: string | null = null
     const fillProgress = new WeakMap<HTMLElement, number>()
+    const wordStyles = new WeakMap<HTMLElement, NavWordStyle>()
 
     const measure = (content: HTMLElement, container: HTMLElement, key: string): NavLyricLayout => {
       const words = Array.from(content.querySelectorAll<HTMLElement>('[data-word-index]'))
@@ -91,6 +101,7 @@ export function LyricLine() {
         contentWidth: content.scrollWidth,
         // offsetLeft 不受 transform 影响，内容元素为 relative 定位，作为各字的 offsetParent
         wordBoxes: words.map(word => ({ left: word.offsetLeft, width: word.offsetWidth })),
+        words,
         fills: words.map(word => word.querySelector<HTMLElement>('[data-word-fill]')).filter((fill): fill is HTMLElement => Boolean(fill)),
       }
     }
@@ -137,6 +148,26 @@ export function LyricLine() {
           fillProgress.set(fill, progress)
           fill.style.clipPath = `inset(0 ${(1 - progress) * 100}% 0 0)`
         })
+        // 强调特效：样式写在词上，颜色写在已唱部分上；未变化时不重复写 DOM
+        for (const group of (index == null ? null : emphasisLines?.[index]) ?? []) {
+          for (let wordIndex = group.from; wordIndex < group.to; wordIndex++) {
+            const word = layout.words[wordIndex]
+            const fill = layout.fills[wordIndex]
+            if (!word || !fill)
+              continue
+            const style = navEmphasisStyle(group, wordIndex - group.from, group.to - group.from, timeMs, !prefersReducedMotion)
+            const last = wordStyles.get(word)
+            if (last?.transform !== style.transform)
+              word.style.transform = style.transform
+            if (last?.textShadow !== style.textShadow)
+              word.style.textShadow = style.textShadow
+            if (last?.filter !== style.filter)
+              word.style.filter = style.filter
+            if (last?.color !== style.color)
+              fill.style.color = style.color
+            wordStyles.set(word, style)
+          }
+        }
       }
 
       // 减少动态效果时不滚动，仅显示开头并以省略号截断
@@ -167,7 +198,7 @@ export function LyricLine() {
 
     rafId = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafId)
-  }, [getAudio, lyricLines, prefersReducedMotion])
+  }, [emphasisLines, getAudio, lyricLines, prefersReducedMotion])
 
   // 切换减少动态效果时清理已写入的位移与遮罩
   useEffect(() => {
@@ -184,6 +215,15 @@ export function LyricLine() {
 
   if (!line)
     return lyrics.instrumental ? t('pure_music_without_lyric') : ''
+  // 粗体 / 斜体的词（来自歌词标注）
+  const styledWords = new Map<number, string>()
+  for (const group of (activeLyricIndex == null ? null : emphasisLines?.[activeLyricIndex]) ?? []) {
+    const className = cn(group.styles?.includes('bold') && 'font-bold', group.styles?.includes('italic') && 'italic')
+    if (!className)
+      continue
+    for (let wordIndex = group.from; wordIndex < group.to; wordIndex++)
+      styledWords.set(wordIndex, className)
+  }
 
   return (
     <span
@@ -202,7 +242,7 @@ export function LyricLine() {
               <span
                 key={`${word.startTime}-${word.duration}-${index}`}
                 data-word-index={index}
-                className="relative inline-block align-baseline"
+                className={cn('relative inline-block align-baseline', styledWords.get(index))}
               >
                 <span className="select-none text-primary/45">{word.text}</span>
                 <span

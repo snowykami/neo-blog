@@ -11,6 +11,21 @@ importers:
       '@floating-ui/react':
         specifier: ^0.27.20
         version: 0.27.20(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@fontsource/dancing-script':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/noto-serif-sc':
+        specifier: ^5.3.1
+        version: 5.3.1
+      '@fontsource/zcool-kuaile':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/zcool-xiaowei':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/zhi-mang-xing':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@hcaptcha/react-hcaptcha':
         specifier: ^2.2.0
         version: 2.2.0
@@ -179,6 +194,9 @@ importers:
       lucide-react:
         specifier: ^1.61.0
         version: 1.61.0(@types/react@19.3.0)(react@19.3.1)
+      lxgw-wenkai-screen-webfont:
+        specifier: ^1.7.0
+        version: 1.7.0
       marked:
         specifier: ^18.1.1
         version: 18.1.1
@@ -757,6 +775,21 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
+
+  '@fontsource/dancing-script@5.3.0':
+    resolution: {integrity: sha512-/FFbz4ZCNN+eG2a6phkZB41iKmyCC6rq2blA/kG9OFeI3/tpzLNazND1bBdEnogLhpfg7o4NfauTbEEYSpSUGg==}
+
+  '@fontsource/noto-serif-sc@5.3.1':
+    resolution: {integrity: sha512-nIK2HyNGcUi2TGwIfrk2MItkh0O3Y5+TI8iPfPSzoNY6uyXYfQ9qqch8czk3aa1VhV4EU52uwCYCe1UDKJELpg==}
+
+  '@fontsource/zcool-kuaile@5.3.0':
+    resolution: {integrity: sha512-jn4vpQ6QSVEckUn7uk5a9XcZMxEksTRqljmeE1VKRGMjGd6VoXdMyLGSdnTXSVwZLCCEHaIcm/2cdQuwvasJ9w==}
+
+  '@fontsource/zcool-xiaowei@5.3.0':
+    resolution: {integrity: sha512-iRuUPl9ONFbYzi6JcEshpE4VedINyzQ4hv0Z5XEt0cB0pMPiQeqc2Qvv1NwJCNzkPwG02VCdcO+cF2K8ylYn2A==}
+
+  '@fontsource/zhi-mang-xing@5.3.0':
+    resolution: {integrity: sha512-V21yCCm5o2PHdXF2P9KKh7uiqL8QFFuII4DRQkpG24tfyDzJPchXKsxkcvKM43xEPvQKdbhHCBbXEFjcm/TUCQ==}
 
   '@formatjs/fast-memoize@3.1.5':
     resolution: {integrity: sha512-KLi3fan6WnCHmigd9pmEEN8Hid0v4wiFBW576M/d07KMWYecf1CvyMI3n34vCmHT4AoVqG2n702kiHbXjzZX2A==}
@@ -4069,6 +4102,9 @@ packages:
       '@types/react':
         optional: true
 
+  lxgw-wenkai-screen-webfont@1.7.0:
+    resolution: {integrity: sha512-xvfF4V26Mb335xKg3uxljz+V2nq4F5ek0ku9pmyKgT0Dzo/d2rHi7WpnqgvM9mlXAcAKOrxrcDmUZiIs/ZQ9bQ==}
+
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -5782,6 +5818,16 @@ snapshots:
     optional: true
 
   '@floating-ui/utils@0.2.12': {}
+
+  '@fontsource/dancing-script@5.3.0': {}
+
+  '@fontsource/noto-serif-sc@5.3.1': {}
+
+  '@fontsource/zcool-kuaile@5.3.0': {}
+
+  '@fontsource/zcool-xiaowei@5.3.0': {}
+
+  '@fontsource/zhi-mang-xing@5.3.0': {}
 
   '@formatjs/fast-memoize@3.1.5': {}
 
@@ -9119,6 +9165,8 @@ snapshots:
       react: 19.3.1
     optionalDependencies:
       '@types/react': 19.3.0
+
+  lxgw-wenkai-screen-webfont@1.7.0: {}
 
   magic-string@0.30.21:
     dependencies:

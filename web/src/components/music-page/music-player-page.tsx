@@ -83,14 +83,15 @@ function PlayerPlaceholder({ state }: { state: 'not_configured' | 'loading' | 'f
 
 /**
  * 播放器页（/music，见 docs/music-player-spec.md 第 5 节）：沉浸式全屏，与悬浮播放器共用全局播放状态。
- * 桌面端左栏为封面、信息与控制栏，右栏为歌词舞台；移动端在封面视图与歌词视图之间切换，控制栏固定在底部
+ * 桌面端左栏为封面、信息与控制栏，右栏为歌词舞台；移动端在歌词视图（默认）与封面视图之间切换，控制栏固定在底部
  */
 export function MusicPlayerPage() {
   const t = useTranslations('MusicPage')
   const router = useRouter()
   const { siteInfo } = useSiteInfo()
   const { playlist, currentTrack, isPlaying } = useMusic()
-  const [view, setView] = useState<'cover' | 'lyrics'>('cover')
+  // 移动端在歌词与封面两个视图之间切换，默认先看歌词
+  const [view, setView] = useState<'cover' | 'lyrics'>('lyrics')
   const [playlistOpen, setPlaylistOpen] = useState(false)
   useMusicHotkeys()
   // 地址实时带上当前曲目与进度（?id=…&start=…），打开带参数的地址时定位到该曲目与进度

@@ -27,6 +27,7 @@ import { interludeDot } from './interlude'
 import { Spring } from './spring'
 import { buildTimeline, getTimelineState, getWordProgress } from './timeline'
 import { EMPTY_LYRICS } from './types'
+import { holdVibrato, VIBRATO_HZ, vibratoWave } from './vibrato'
 
 export interface LyricPlayerOptions {
   // 当前播放进度（秒），每帧读取；没有音频时返回 null
@@ -158,6 +159,15 @@ const easeOut = (t: number) => 1 - (1 - t) ** 2
  * - 滚轮 / 触摸拖动（带惯性）进入手动滚动，冻结焦点，停手一段时间后回到自动对齐
  * - 进度突变（跳转）时瞬移到位；暂停且动画静止时停止逐帧循环，由 wake() 唤醒
  */
+/**
+ * 是否允许下载歌词的网页字体：读者开了省流量模式，或网络为 2G 及以下时不下载。
+ * 3G 不排除：effectiveType 是按近期往返时间估算的，Wi-Fi 下也常被判为 3G；网页字体加载期间文字先用系统字体显示（font-display: swap）
+ */
+function allowLyricWebFonts() {
+  const connection = typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { connection?: { saveData?: boolean, effectiveType?: string } }).connection
+  return !connection?.saveData && !['slow-2g', '2g'].includes(connection?.effectiveType ?? '')
+}
+
 /** 把强调的词拆成单字放进 wordEl，非空白的字加入 chars 逐字演出；同时带上该组的字体与字形 */
 function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[], group: LyricEmphasis) {
   const doc = wordEl.ownerDocument
@@ -208,6 +218,9 @@ export class LyricPlayer {
 
   constructor(private readonly container: HTMLElement, private readonly options: LyricPlayerOptions) {
     container.classList.add('lyric-player')
+    // 省流量模式或慢速网络时不下载歌词的网页字体（见 lyric-player.css）
+    if (!allowLyricWebFonts())
+      container.classList.add('lyric-player--no-webfonts')
     if (options.compact)
       container.classList.add('lyric-player--compact')
     this.interludeHeight = options.compact ? INTERLUDE_HEIGHT_COMPACT_PX : INTERLUDE_HEIGHT_PX
@@ -239,7 +252,7 @@ export class LyricPlayer {
     // 只移除引擎自己创建的节点，不碰容器里可能由其他代码（如 React）管理的内容
     this.views.forEach(view => view.el.remove())
     this.views = []
-    this.container.classList.remove('lyric-player', 'lyric-player--compact', 'lyric-player--no-roman')
+    this.container.classList.remove('lyric-player', 'lyric-player--compact', 'lyric-player--no-roman', 'lyric-player--no-webfonts')
     delete this.container.dataset.lyricFont
   }
 
@@ -698,7 +711,8 @@ export class LyricPlayer {
   /**
    * 强调特效（参考 AMLL 与 StarryPlayer）：组内的字依次错开，按起落曲线放大、发光并上浮；
    * swell 放大 + 辉光 + 上浮，glow 只发光（几乎不放大），wave 不发光、逐字波浪上浮，
-   * shake 演唱时快速细微地抖动，focus 在高亮行内先模糊、唱到时变清晰。强度 factor 决定幅度，为 0 时不做动效。
+   * shake 演唱时快速细微地抖动（带长音时为颤音：先放大，唱了一会儿后整个词起伏颤动，见 vibrato.ts），
+   * focus 在高亮行内先模糊、唱到时变清晰。强度 factor 决定幅度，为 0 时不做动效。
    * 带下划线 / 删除线字形的组：每个字在自己的演唱时段内从左到右画出线条
    * 指定了颜色的组：字随演出逐渐上色（辉光也用该颜色），唱过后在高亮行内保留部分颜色
    */
@@ -715,9 +729,14 @@ export class LyricPlayer {
       const charMs = Math.max(1, (group.end - group.start) / Math.max(1, count))
       // 波浪的字间错开更明显
       const stagger = (duration * (wave ? 1 / 1.5 : EMPHASIS_STAGGER_RATIO)) / Math.max(1, count)
+      // 长音：放大到峰值后保持到长音唱完再收住；颤音从延迟后渐强，随长音结束收住
+      const hold = group.effect === 'shake' && group.hold ? holdVibrato(group.hold, timeMs) : null
       chars.forEach((char, i) => {
         const begin = group.start + stagger * i
-        const v = swellCurve((timeMs - begin) / duration)
+        let v = swellCurve((timeMs - begin) / duration)
+        if (hold && timeMs >= begin + duration / 2)
+          v = Math.max(v, hold.release)
+        const vibrato = hold?.amount ?? 0
         const lift = Math.sin(Math.PI * Math.min(1, Math.max(0, (timeMs - begin + EMPHASIS_FLOAT_LEAD_MS) / (duration * EMPHASIS_FLOAT_STRETCH))))
         let transform = ''
         let shadow = ''
@@ -756,6 +775,14 @@ export class LyricPlayer {
             scale = 1 + v * 0.04 * f
             glow = v * (0.35 + 0.5 * f)
             radius = 0.45
+          }
+          else if (group.effect === 'shake' && hold) {
+            // 长音：同 swell 放大；颤音时整个词同步起伏（字间略有相位差），像音高的起伏
+            const wobble = vibratoWave(timeMs, hold.onset, i)
+            scale = 1 + v * 0.14 * f + wobble * vibrato * 0.02 * f
+            x = -v * 0.03 * f * (count / 2 - i - 0.5) + Math.cos(2 * Math.PI * VIBRATO_HZ * 2 * (timeMs - hold.onset) / 1000 + i) * vibrato * 0.008 * f
+            y -= v * 0.025 * f + wobble * vibrato * 0.035 * f
+            glow = v * (0.25 + 0.45 * f) + vibrato * 0.12 * f
           }
           else if (group.effect === 'shake') {
             // 每个字的相位不同，抖动幅度随起落曲线

@@ -1,5 +1,6 @@
 'use client'
 
+import { RotateCwIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useRef } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -8,6 +9,8 @@ import { LyricPlayer } from '@/lib/lyrics/lyric-player'
 import { cn } from '@/lib/utils'
 import { lyricSourceLabelKey } from './lyric-source-badge'
 import '@/lib/lyrics/lyric-player.css'
+// 歌词字体的网页字体回退（只声明 @font-face，用到时才下载）
+import '@/lib/lyrics/lyric-fonts'
 
 /**
  * 播放器页的歌词舞台：歌词引擎（lib/lyrics/lyric-player.ts）的 React 包装。
@@ -18,7 +21,7 @@ import '@/lib/lyrics/lyric-player.css'
 export function MusicLyricStage({ className, compact = false, themed = false }: { className?: string, compact?: boolean, themed?: boolean }) {
   const t = useTranslations('MusicPlayer')
   const pageT = useTranslations('MusicPage')
-  const { lyrics, lyricStatus, showTranslation, showRomaji, showLyricEffects, isPlaying, getAudio, seek, play } = useMusic()
+  const { lyrics, lyricStatus, showTranslation, showRomaji, showLyricEffects, isPlaying, getAudio, seek, play, refreshLyrics, lyricSourcesPending } = useMusic()
   const clock = useMusicClockStore()
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<LyricPlayer | null>(null)
@@ -76,8 +79,23 @@ export function MusicLyricStage({ className, compact = false, themed = false }: 
   }
   if (!hasLines) {
     return (
-      <div key="empty" className={cn('flex items-center justify-center font-bold', themed ? 'text-muted-foreground' : 'text-white/40', compact ? 'text-sm' : 'text-2xl', className)}>
-        {t(lyrics.instrumental ? 'pure_music_without_lyric' : 'no_lyric')}
+      <div key="empty" className={cn('flex flex-col items-center justify-center', compact ? 'gap-2' : 'gap-4', className)}>
+        <span className={cn('font-bold', themed ? 'text-muted-foreground' : 'text-white/40', compact ? 'text-sm' : 'text-2xl')}>
+          {t(lyrics.instrumental ? 'pure_music_without_lyric' : 'no_lyric')}
+        </span>
+        {/* 获取失败时最常见的情况：直接在这里重新获取 */}
+        <button
+          type="button"
+          onClick={refreshLyrics}
+          disabled={lyricSourcesPending}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-60',
+            themed ? 'bg-muted text-muted-foreground hover:text-foreground' : 'bg-white/10 text-white/70 hover:bg-white/15 hover:text-white',
+          )}
+        >
+          <RotateCwIcon aria-hidden className={cn('size-3.5', lyricSourcesPending && 'motion-safe:animate-spin')} />
+          {pageT('lyric_refresh')}
+        </button>
       </div>
     )
   }

@@ -85,28 +85,47 @@
 }
 
 /*
- * 字体（来自歌词标注，与后端 lyricAnnotationFontList 一致）：全曲字体作用于原文，短语字体覆盖全曲字体；
- * 只使用系统字体，没有对应字体时依次回退（Windows / Linux 上可能回退到近似字体）
+ * 字体（来自歌词标注，与后端 lyricAnnotationFontList 一致）：全曲字体作用于原文，短语字体覆盖全曲字体。
+ * 字体栈按「系统字体 → 自托管网页字体（lyric-fonts.ts）→ 通用字体」逐字回退：电脑上有系统字体时直接使用、不下载网页字体，
+ * 手机等没有对应字体的设备才下载网页字体（只下载用到的字所在的分片）。
+ * 网页字体通过 --lyric-wf-* 插入字体栈；省流量模式或慢速网络时引擎加上 lyric-player--no-webfonts，把它们置空，直接回退到通用字体
  */
+.lyric-player {
+  --lyric-wf-song: 'Noto Serif SC',;
+  --lyric-wf-kai: 'LXGW WenKai Screen',;
+  --lyric-wf-xingkai: 'Zhi Mang Xing', 'LXGW WenKai Screen',;
+  --lyric-wf-fangsong: 'ZCOOL XiaoWei',;
+  --lyric-wf-round: 'ZCOOL KuaiLe',;
+  --lyric-wf-script: 'Dancing Script',;
+}
+.lyric-player--no-webfonts {
+  --lyric-wf-song: ;
+  --lyric-wf-kai: ;
+  --lyric-wf-xingkai: ;
+  --lyric-wf-fangsong: ;
+  --lyric-wf-round: ;
+  --lyric-wf-script: ;
+}
 .lyric-player[data-lyric-font='song'] .lyric-main,
 .lyric-word[data-font='song'] {
-  font-family: 'Songti SC', STSong, 'Noto Serif SC', 'Source Han Serif SC', 'Noto Serif CJK SC', SimSun, serif;
+  font-family: 'Songti SC', STSong, var(--lyric-wf-song) 'Source Han Serif SC', SimSun, serif;
 }
 .lyric-player[data-lyric-font='kai'] .lyric-main,
 .lyric-word[data-font='kai'] {
-  font-family: 'Kaiti SC', STKaiti, KaiTi, BiauKai, 'LXGW WenKai', 'Noto Serif SC', serif;
+  font-family: 'Kaiti SC', STKaiti, KaiTi, var(--lyric-wf-kai) serif;
 }
 .lyric-player[data-lyric-font='xingkai'] .lyric-main,
 .lyric-word[data-font='xingkai'] {
-  font-family: 'Xingkai SC', STXingkai, 'Kaiti SC', STKaiti, KaiTi, serif;
+  font-family: 'Xingkai SC', STXingkai, var(--lyric-wf-xingkai) 'Kaiti SC', serif;
 }
 .lyric-player[data-lyric-font='fangsong'] .lyric-main,
 .lyric-word[data-font='fangsong'] {
-  font-family: STFangsong, FangSong, 'Fangsong SC', 'Songti SC', serif;
+  font-family: STFangsong, FangSong, var(--lyric-wf-fangsong) 'Songti SC', serif;
 }
+/* 日文圆体缺少部分简体字，会与回退字体混排，所以网页字体排在它前面 */
 .lyric-player[data-lyric-font='round'] .lyric-main,
 .lyric-word[data-font='round'] {
-  font-family: 'Yuanti SC', 'Hiragino Maru Gothic ProN', 'Arial Rounded MT Bold', 'Varela Round', sans-serif;
+  font-family: 'Yuanti SC', var(--lyric-wf-round) 'Arial Rounded MT Bold', sans-serif;
 }
 .lyric-player[data-lyric-font='mono'] .lyric-main,
 .lyric-word[data-font='mono'] {
@@ -115,7 +134,7 @@
 /* 英文花体：中日韩文字回退到苹方等无衬线字体 */
 .lyric-player[data-lyric-font='script'] .lyric-main,
 .lyric-word[data-font='script'] {
-  font-family: 'Snell Roundhand', 'Apple Chancery', 'Segoe Script', 'Brush Script MT', 'PingFang SC', sans-serif;
+  font-family: 'Snell Roundhand', 'Apple Chancery', 'Segoe Script', var(--lyric-wf-script) 'PingFang SC', sans-serif;
 }
 
 /* 字形（来自歌词标注） */
