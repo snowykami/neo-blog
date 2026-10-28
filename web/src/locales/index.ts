@@ -10,5 +10,5 @@ export const localesData: Record<string, { name: string, data: Record<string, un
   'ja': { name: '日本語', data: jaData },
   'ko': { name: '한국어', data: koData },
   'zh': { name: '简体中文', data: zhData },
-  'zh-tw': { name: '繁體中文(中國台灣)', data: zhTwData },
+  'zh-tw': { name: '繁體中文', data: zhTwData },
 }
