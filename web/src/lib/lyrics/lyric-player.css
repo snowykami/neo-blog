@@ -211,7 +211,7 @@
 .lyric-interlude {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   height: 56px;
   padding-inline: 1.25rem;
 }
@@ -221,6 +221,16 @@
   height: 0.75rem;
   border-radius: 9999px;
   background: var(--lyric-color, #fff);
+  opacity: 0;
+}
+
+/* 两侧的圆点以中间那个点为缩放原点：放大时向外舒展，消失时收拢到中间 */
+.lyric-interlude span:first-child {
+  transform-origin: 180% 50%;
+}
+
+.lyric-interlude span:last-child {
+  transform-origin: -80% 50%;
 }
 
 .lyric-footer {

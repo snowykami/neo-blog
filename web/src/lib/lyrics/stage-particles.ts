@@ -455,8 +455,16 @@ function resolveColor(color: string): Rgb {
 
 const sceneKey = (scene: StageScene | null) => (scene ? `${scene.name}:${scene.color ?? ''}` : '')
 
+/** 小窗等小画面的精简：粒子尺寸缩放与数量上限（场景种类不变） */
+export interface StageParticlesOptions {
+  scale?: number
+  maxParticles?: number
+}
+
 export class StageParticles {
   private ctx: CanvasRenderingContext2D | null
+  private scale: number
+  private maxParticles: number
   private particles: Particle[] = []
   private density = 0
   private scene: StageScene | null = null
@@ -465,8 +473,10 @@ export class StageParticles {
   private width = 0
   private height = 0
 
-  constructor(private canvas: HTMLCanvasElement) {
+  constructor(private canvas: HTMLCanvasElement, { scale = 1, maxParticles = MAX_PARTICLES }: StageParticlesOptions = {}) {
     this.ctx = canvas.getContext('2d')
+    this.scale = scale
+    this.maxParticles = maxParticles
   }
 
   /** 画面尺寸变化时调用（CSS 像素），按设备像素比放大画布，最多 2 倍 */
@@ -506,11 +516,12 @@ export class StageParticles {
       this.pending += spec.rate * area * this.density * dt
       while (this.pending >= 1) {
         this.pending--
-        if (this.particles.length >= MAX_PARTICLES)
+        if (this.particles.length >= this.maxParticles)
           continue
         // 指定颜色主题时略微随机提亮，避免整片同色
         const color = current.color ? mixWhite(resolveColor(current.color), rand(0, 0.25)) : resolveColor(pick(spec.colors))
-        this.particles.push({ ...spec.spawn(this.width, this.height), scene: current.name, key: currentKey, color, age: 0, seed: Math.random() * 10, leave: 0 })
+        const motion = spec.spawn(this.width, this.height)
+        this.particles.push({ ...motion, size: motion.size * this.scale, scene: current.name, key: currentKey, color, age: 0, seed: Math.random() * 10, leave: 0 })
       }
     }
     else {

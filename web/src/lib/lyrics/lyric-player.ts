@@ -23,6 +23,7 @@ import {
   LYRIC_WORD_FLOAT_EM,
 } from './config'
 import { swellCurve } from './easing'
+import { interludeDot } from './interlude'
 import { Spring } from './spring'
 import { buildTimeline, getTimelineState, getWordProgress } from './timeline'
 import { EMPTY_LYRICS } from './types'
@@ -179,7 +180,7 @@ export class LyricPlayer {
   private lyrics: ResolvedLyrics = EMPTY_LYRICS
   private items: TimelineItem[] = []
   private views: ItemView[] = []
-  private display: LyricPlayerDisplay = { showTranslation: true, showRomanization: false, footerText: '', effects: true }
+  private display: LyricPlayerDisplay = { showTranslation: true, showRomanization: true, footerText: '', effects: true }
   private state: TimelineState = { active: [], focus: 0, interlude: null }
   private activeLines = new Set<number>()
 
@@ -647,10 +648,15 @@ export class LyricPlayer {
           view.opacity = opacity
           view.el.style.opacity = opacity
         }
-        // 三个点按间奏进度依次点亮
-        const progress = getWordProgress(item.start, item.end, timeMs)
+        // 间奏圆点：依次淡入、倒计时点亮、呼吸，结束前放大后收拢消失（见 interlude.ts）；减少动态效果时只保留透明度
         view.dots.forEach((dot, index) => {
-          dot.style.opacity = (0.25 + 0.75 * Math.min(1, Math.max(0, progress * 3 - index))).toFixed(3)
+          const state = interludeDot(item.start, item.end, timeMs, index, view.dots.length)
+          const opacity = state.opacity.toFixed(3)
+          const transform = this.reducedMotion ? '' : `scale(${state.scale.toFixed(3)})`
+          if (dot.style.opacity !== opacity)
+            dot.style.opacity = opacity
+          if (dot.style.transform !== transform)
+            dot.style.transform = transform
         })
       }
       else {
@@ -770,7 +776,7 @@ export class LyricPlayer {
           }
           transform = `translate(${x.toFixed(3)}em, ${y.toFixed(3)}em) scale(${scale.toFixed(3)})`
           if (glow > 0.005)
-            shadow = `0 0 ${radius}em color-mix(in srgb, ${tintColor ?? 'var(--lyric-glow, var(--lyric-color, #fff))'} ${(glow * 100).toFixed(1)}%, transparent)`
+            shadow = `0 0 ${radius}em color-mix(in srgb, ${tintColor ?? 'var(--lyric-glow, var(--lyric-accent, var(--lyric-color, #fff)))'} ${(glow * 100).toFixed(1)}%, transparent)`
         }
         if (transform !== char.transform) {
           char.transform = transform

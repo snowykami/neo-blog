@@ -2258,7 +2258,9 @@
     "lyric_badge_ai_effects": "AI 歌詞特效",
     "lyric_ai_refresh": "重新產生 AI 歌詞特效",
     "lyric_ai_refresh_started": "已開始重新產生，完成後自動替換",
-    "lyric_ai_refresh_failed": "重新產生失敗"
+    "lyric_ai_refresh_failed": "重新產生失敗",
+    "outro_source": "網易雲熱評 · {count} 讚",
+    "lyric_badge_ai_generating": "AI 歌詞特效生成中"
   },
   "Nav": {
     "expand_topbar": "展開頂欄",

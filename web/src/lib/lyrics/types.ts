@@ -93,6 +93,24 @@ export interface ResolvedLyrics {
   lines: LyricLine[]
   // 全曲字体（来自歌词标注），为空时用站点默认字体
   font?: LyricFont
+  // 前奏导语、尾奏热评与关键节点的「时刻」（来自歌词标注），见 moments.ts
+  intro?: string
+  outro?: LyricOutro
+  notes?: LyricNote[]
+}
+
+/** 关键节点的「时刻」：在 start（毫秒，对应歌词行开唱）时显示的热评或模型写的旁白 */
+export interface LyricNote {
+  start: number
+  content: string
+  source: 'comment' | 'ai'
+  liked?: number
+}
+
+/** 尾奏时展示的一条网易云热评 */
+export interface LyricOutro {
+  content: string
+  liked: number
 }
 
 export const EMPTY_LYRICS: ResolvedLyrics = { source: 'none', wordTimed: false, instrumental: false, lines: [] }

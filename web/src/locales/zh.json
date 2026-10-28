@@ -2258,7 +2258,9 @@
     "lyric_badge_ai_effects": "AI 歌词特效",
     "lyric_ai_refresh": "重新生成 AI 歌词特效",
     "lyric_ai_refresh_started": "已开始重新生成，完成后自动替换",
-    "lyric_ai_refresh_failed": "重新生成失败"
+    "lyric_ai_refresh_failed": "重新生成失败",
+    "outro_source": "网易云热评 · {count} 赞",
+    "lyric_badge_ai_generating": "AI 歌词特效生成中"
   },
   "Nav": {
     "expand_topbar": "展开顶栏",

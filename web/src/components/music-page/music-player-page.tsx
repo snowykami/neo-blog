@@ -16,10 +16,12 @@ import { cn } from '@/lib/utils'
 import { LyricAnnotationRefresh } from './lyric-annotation-refresh'
 import { LyricSourceBadge } from './lyric-source-badge'
 import { MusicBackground } from './music-background'
+import { MusicLyricMoments } from './music-lyric-moments'
 import { MusicLyricStage } from './music-lyric-stage'
 import { MusicPageControls } from './music-page-controls'
 import { MusicPlaylistSheet } from './music-playlist-sheet'
 import { MusicStageEffects } from './music-stage-effects'
+import { useCoverAccent } from './use-cover-accent'
 import { useMusicHotkeys } from './use-music-hotkeys'
 import { useMusicShareUrl } from './use-music-share-url'
 
@@ -98,6 +100,8 @@ export function MusicPlayerPage() {
   // 歌单获取失败时全局播放器会以示例曲目（id 为 0）兜底
   const failed = playlist.length > 0 && playlist.every(track => track.id === 0)
   const placeholder = !configured ? 'not_configured' : failed ? 'failed' : !currentTrack ? 'loading' : null
+  // 封面主色：作为歌词辉光与背景呼吸的默认颜色
+  const accent = useCoverAccent(placeholder ? undefined : currentTrack?.albumPic)
 
   const goBack = () => {
     if (window.history.length > 1)
@@ -107,7 +111,7 @@ export function MusicPlayerPage() {
   }
 
   return (
-    <div className="dark fixed inset-0 flex flex-col overflow-hidden text-white" style={PAGE_STYLE}>
+    <div className="dark fixed inset-0 flex flex-col overflow-hidden text-white" style={accent ? { ...PAGE_STYLE, '--lyric-accent': accent } as React.CSSProperties : PAGE_STYLE}>
       <VisitReporter />
       <MusicBackground cover={placeholder ? undefined : currentTrack?.albumPic} />
       {!placeholder && <MusicStageEffects />}
@@ -153,6 +157,8 @@ export function MusicPlayerPage() {
                 className={cn('[grid-area:main] lg:[grid-area:hero]', view === 'lyrics' && 'max-lg:hidden')}
               />
               <MusicLyricStage className={cn('min-h-0 [grid-area:main] lg:[grid-area:stage]', view === 'cover' && 'max-lg:hidden')} />
+              {/* 与歌词舞台叠在同一网格区域，贴着底部：前奏导语与尾奏热评 */}
+              <MusicLyricMoments className={cn('self-end pb-4 [grid-area:main] lg:[grid-area:stage] lg:pb-10', view === 'cover' && 'max-lg:hidden')} />
               <MusicPageControls className="[grid-area:controls]" onOpenPlaylist={() => setPlaylistOpen(true)} />
             </main>
           )}

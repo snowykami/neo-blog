@@ -18,7 +18,7 @@ import { applyEmphasis } from '@/lib/lyrics/emphasis'
 import { toSingleLineLyrics } from '@/lib/lyrics/from-platform'
 import { LYRIC_SOURCE_KINDS } from '@/lib/lyrics/resolve'
 import { getCurrentLyricIndex, LYRIC_PLACEHOLDERS } from '@/utils/music-lyric'
-import { requestLyricAnnotations, useLyricAnnotations } from './lyric-annotations'
+import { requestLyricAnnotations, useLyricAnnotations, useLyricAnnotationsGenerating } from './lyric-annotations'
 import { useResolvedSongLyrics } from './song-lyrics'
 
 export type PlayMode = 'repeat-all' | 'repeat-one' | 'shuffle'
@@ -59,6 +59,8 @@ interface MusicContextValue {
   lyricSourcesPending: boolean
   // 当前显示的歌词叠加了 AI 歌词标注（强调词句、上色、情绪等）
   lyricAnnotated: boolean
+  // AI 歌词标注正在生成（首次生成或重新生成）
+  lyricAnnotationsGenerating: boolean
   // 翻译与音译是两个独立开关，可同时开启
   showTranslation: boolean
   showRomaji: boolean
@@ -70,6 +72,10 @@ interface MusicContextValue {
   hasTranslationLyric: boolean
   hasRomajiLyric: boolean
   getAudio: () => HTMLAudioElement | null
+  // 歌单全部是站内代理的音频（网易云歌单）时可以接入 Web Audio 做节拍分析（播放器页的鼓点呼吸）
+  audioAnalysable: boolean
+  // 开启节拍分析：之后加载的曲目带上 CORS；当前曲目已可分析时返回 true（暂停中的当前曲目会带上 CORS 重新加载）
+  enableAudioAnalysis: () => boolean
 
   // 播放列表 操作
   // startTime：起始曲目的初始播放进度（秒），用于刷新后恢复进度，会在该曲目元数据就绪后应用
@@ -200,6 +206,11 @@ export function useMusic(): MusicContextValue {
 export function useSongLyrics(id: number | null, track?: LyricTrackInfo | null) {
   const { getLyricPin } = useMusic()
   return useResolvedSongLyrics(id, id == null ? null : getLyricPin(id), track)
+}
+
+/** 站内代理的网易云音频（同源请求，302 到支持 CORS 的网易云 CDN） */
+function isProxiedAudio(src?: string | null) {
+  return !!src && src.startsWith('/api/v1/music/song/')
 }
 
 export function useMusicClockStore(): MusicClock {
@@ -334,12 +345,16 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 原始歌词响应，与所属曲目 id 绑定；只有 trackId 与当前曲目一致时才会被使用
   // 各歌词来源的原始结果，与所属曲目 id 绑定：undefined 为请求中，null 为没有或失败
   const [lyricPins, setLyricPins] = useState<Record<string, LyricSourceKind>>({})
+  // 翻译与音译默认都打开；读者切换后的选择保存在本地，以读者的选择为准
   const [showTranslation, setShowTranslationState] = useState(true)
-  const [showRomaji, setShowRomajiState] = useState(false)
+  const [showRomaji, setShowRomajiState] = useState(true)
   const [showLyricEffects, setShowLyricEffectsState] = useState(true)
   const currentTrack = currentIndex != null ? playlist[currentIndex] ?? null : null
   const currentTrackId = currentTrack?.id ?? null
   const getAudio = useCallback(() => audioRef.current, [])
+  // 节拍分析：开启后，站内代理的音频带上 CORS 加载（网易云 CDN 返回 Access-Control-Allow-Origin: *），Web Audio 才能读到数据
+  const audioAnalysisRef = useRef(false)
+  const audioAnalysable = playlist.length > 0 && playlist.every(track => isProxiedAudio(track.audio))
 
   // 供事件回调读取最新值，避免闭包拿到过期的 playlist / index / mode
   const playlistRef = useRef(playlist)
@@ -452,6 +467,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setDuration(null)
     clock.set(0)
     setBufferedPercent(0)
+    audio.crossOrigin = audioAnalysisRef.current && isProxiedAudio(track?.audio) ? 'anonymous' : null
     audio.src = track?.audio || ''
     audio.currentTime = 0
     if (pendingPlayRef.current) {
@@ -461,6 +477,28 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
     }
   }, [clock, currentTrackId])
+
+  const enableAudioAnalysis = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio || !audioAnalysable)
+      return false
+    audioAnalysisRef.current = true
+    if (audio.crossOrigin === 'anonymous')
+      return true
+    const track = playlistRef.current[currentIndexRef.current ?? -1]
+    // 正在播放时不打断，从下一首开始生效；暂停中的当前曲目带上 CORS 重新加载并回到原进度
+    if (!audio.paused || !track || !isProxiedAudio(track.audio))
+      return false
+    const time = audio.currentTime
+    audio.crossOrigin = 'anonymous'
+    audio.load()
+    if (time > 0) {
+      audio.addEventListener('loadedmetadata', () => {
+        audio.currentTime = time
+      }, { once: true })
+    }
+    return true
+  }, [audioAnalysable])
 
   // 切换到指定索引；目标与当前曲目相同时（如单曲歌单）直接从头播放，避免 effect 不触发导致停播
   // startTime 为可选的起始进度（秒），在不切歌时立即跳转，切歌时等元数据就绪后再跳转
@@ -585,6 +623,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [currentTrackId, wantsAnnotations])
   const annotations = useLyricAnnotations(currentTrackId)
   const lyrics = useMemo(() => applyEmphasis(songLyrics.lyrics, annotations), [annotations, songLyrics.lyrics])
+  const lyricAnnotationsGenerating = useLyricAnnotationsGenerating(showLyricEffects && songLyrics.lyrics.wordTimed ? currentTrackId : null)
   const lyricAnnotated = showLyricEffects && songLyrics.lyrics.wordTimed && (annotations?.lines.length ?? 0) > 0
   const lyricCandidates = songLyrics.candidates
   const lyricKind = songLyrics.kind
@@ -875,6 +914,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getLyricPin,
     lyricSourcesPending: lyricsPending,
     lyricAnnotated,
+    lyricAnnotationsGenerating,
     showTranslation,
     showRomaji,
     setShowTranslation,
@@ -884,6 +924,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     hasTranslationLyric,
     hasRomajiLyric,
     getAudio,
+    audioAnalysable,
+    enableAudioAnalysis,
     replacePlaylist,
     playTrack,
     play,
@@ -917,6 +959,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getLyricPin,
     lyricsPending,
     lyricAnnotated,
+    lyricAnnotationsGenerating,
     showTranslation,
     showRomaji,
     setShowTranslation,
@@ -926,6 +969,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     hasTranslationLyric,
     hasRomajiLyric,
     getAudio,
+    audioAnalysable,
+    enableAudioAnalysis,
     replacePlaylist,
     playTrack,
     play,

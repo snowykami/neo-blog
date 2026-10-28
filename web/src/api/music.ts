@@ -80,6 +80,9 @@ export interface MusicLyricAnnotations {
   status: 'ready' | 'pending'
   stale?: boolean
   font?: LyricAnnotations['font']
+  intro?: LyricAnnotations['intro']
+  outro?: LyricAnnotations['outro']
+  moments?: LyricAnnotations['moments']
   lines: LyricAnnotations['lines']
 }
 
@@ -100,6 +103,43 @@ export async function fetchLyricAnnotations(id: number): Promise<MusicLyricAnnot
 export async function refreshLyricAnnotations(id: number): Promise<MusicLyricAnnotations> {
   const res = await axiosClient.post<BaseResponse<MusicLyricAnnotations>>(`/music/song/${id}/lyric/annotations/refresh`)
   return res.data.data
+}
+
+// 歌词缓存快照：最近一次选出的最佳来源（kind）与各来源的原始数据（与各来源接口的返回相同），打开时先用它立即显示
+export interface MusicLyricCache {
+  kind: 'ttml' | 'ncm' | 'qq'
+  ncm?: MusicLyrics
+  ttml?: MusicTtmlLyric
+  qq?: MusicQqLyric
+}
+
+// 没有缓存或已过期时为 null
+export async function fetchLyricCache(id: number): Promise<MusicLyricCache | null> {
+  try {
+    const res = await axiosClient.get<BaseResponse<MusicLyricCache>>(`/music/song/${id}/lyric/cache`)
+    return res.data.data
+  }
+  catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404)
+      return null
+    throw error
+  }
+}
+
+// 上报选出的最佳来源，后端用自己获取的来源数据更新缓存（不上传歌词内容）
+export async function saveLyricCache(id: number, kind: MusicLyricCache['kind']): Promise<void> {
+  await axiosClient.post(`/music/song/${id}/lyric/cache`, { kind })
+}
+
+// 网易云标出的副歌 / 高潮片段（毫秒）；没有时为空数组
+export interface MusicChorus {
+  start: number
+  end: number
+}
+
+export async function fetchSongChorus(id: number): Promise<MusicChorus[]> {
+  const res = await axiosClient.get<BaseResponse<MusicChorus[]>>(`/music/song/${id}/chorus`)
+  return res.data.data ?? []
 }
 
 // 单曲公开信息（任意歌曲），播放仍只限博客歌单内的歌曲

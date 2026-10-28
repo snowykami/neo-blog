@@ -1,4 +1,4 @@
-import type { LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricScene, LyricTextStyle, ResolvedLyrics } from './types'
+import type { LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricNote, LyricOutro, LyricScene, LyricTextStyle, ResolvedLyrics } from './types'
 import { normalizeForMatch } from './strip-credits'
 
 /**
@@ -28,8 +28,20 @@ export interface LyricAnnotationLine {
   phrases: LyricAnnotationPhrase[]
 }
 
+/** 关键节点的「时刻」：在 text 的第 occurrence 次出现（从 0 开始）开唱时显示 */
+export interface LyricAnnotationMoment {
+  text: string
+  occurrence: number
+  content: string
+  source: 'comment' | 'ai'
+  liked?: number
+}
+
 export interface LyricAnnotations {
   font?: LyricFont
+  intro?: string
+  outro?: LyricOutro
+  moments?: LyricAnnotationMoment[]
   lines: LyricAnnotationLine[]
 }
 
@@ -200,10 +212,31 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
   return {
     ...lyrics,
     font: annotations?.font,
+    intro: annotations?.intro,
+    outro: annotations?.outro,
+    notes: resolveNotes(lyrics.lines, annotations?.moments),
     lines: lyrics.lines.map((line) => {
       const annotation = byText.get(normalizeForMatch(line.words.map(word => word.text).join(''))) ?? null
       const emphasis = lineEmphasis(line, annotation)
       return { ...line, emphasis: emphasis.length > 0 ? emphasis : undefined, mood: annotation?.mood, scene: annotation?.scene, sceneColor: annotation?.scene ? annotation.sceneColor : undefined, chorusStart: annotation?.chorusStart }
     }),
   }
+}
+
+/**
+ * 把关键节点的「时刻」按行文字（归一化后）匹配到歌词行：取该文字第 occurrence 次出现的主唱行（不够时取最后一次），
+ * 找不到时丢弃；结果按开唱时间排序
+ */
+export function resolveNotes(lines: LyricLine[], moments?: LyricAnnotationMoment[]): LyricNote[] | undefined {
+  if (!moments?.length)
+    return undefined
+  const notes: LyricNote[] = []
+  for (const moment of moments) {
+    const key = normalizeForMatch(moment.text)
+    const matches = lines.filter(line => !line.isBackground && normalizeForMatch(line.words.map(word => word.text).join('')) === key)
+    const line = matches[Math.min(moment.occurrence, matches.length - 1)]
+    if (key && line)
+      notes.push({ start: line.start, content: moment.content, source: moment.source, liked: moment.liked })
+  }
+  return notes.length > 0 ? notes.sort((a, b) => a.start - b.start) : undefined
 }

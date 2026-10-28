@@ -2258,7 +2258,9 @@
     "lyric_badge_ai_effects": "AI 歌詞エフェクト",
     "lyric_ai_refresh": "AI 歌詞エフェクトを再生成",
     "lyric_ai_refresh_started": "再生成を開始しました。完了すると自動で反映されます",
-    "lyric_ai_refresh_failed": "再生成に失敗しました"
+    "lyric_ai_refresh_failed": "再生成に失敗しました",
+    "outro_source": "NetEase Cloud Music の人気コメント · {count} いいね",
+    "lyric_badge_ai_generating": "AI 歌詞エフェクトを生成中"
   },
   "Nav": {
     "expand_topbar": "上部バーを表示",

@@ -13,6 +13,8 @@ interface Props {
   onIsDraggingChange?: (isDragging: boolean) => void
   ariaLabel?: string // 读屏朗读的名称，如「播放进度」
   ariaValueText?: string // 读屏朗读的当前值，如「01:23 / 03:45」
+  marks?: { start: number, end: number }[] // 在进度条上标出的区间（百分比 0..100），如歌曲的副歌片段
+  markClassName?: string
 }
 
 export function ProgressControl({
@@ -25,6 +27,8 @@ export function ProgressControl({
   onIsDraggingChange,
   ariaLabel,
   ariaValueText,
+  marks,
+  markClassName = 'bg-white/35',
 }: Props) {
   const trackRef = useRef<HTMLDivElement | null>(null)
   const draggingRef = useRef(false)
@@ -188,9 +192,17 @@ export function ProgressControl({
         aria-valuetext={ariaValueText}
         onPointerDown={handlePointerDown}
         onKeyDown={handleKeyDown}
-        className={`touch-none select-none ${disabled ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}`}
+        className={`relative touch-none select-none ${disabled ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}`}
       >
         <Progress value={percent} />
+        {marks?.map(mark => (
+          <span
+            key={`${mark.start}-${mark.end}`}
+            aria-hidden
+            className={`pointer-events-none absolute inset-y-0 rounded-full ${markClassName}`}
+            style={{ left: `${mark.start}%`, width: `${Math.max(0, mark.end - mark.start)}%` }}
+          />
+        ))}
       </div>
     </div>
   )

@@ -1,12 +1,12 @@
 'use client'
 
-import type { MusicLyrics, MusicQqLyric, MusicTtmlLyric } from '@/api/music'
+import type { MusicLyricCache, MusicLyrics, MusicQqLyric, MusicTtmlLyric } from '@/api/music'
 import type { LyricCandidate, LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricTrackInfo } from '@/lib/lyrics/strip-credits'
 import type { ResolvedLyrics } from '@/lib/lyrics/types'
 import type { MusicLyricParseResult } from '@/utils/music-lyric'
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
-import { fetchNcmLyric, fetchQqLyric, fetchTtmlLyric } from '@/api/music'
+import { fetchLyricCache, fetchNcmLyric, fetchQqLyric, fetchTtmlLyric, saveLyricCache } from '@/api/music'
 import { platformToLyrics } from '@/lib/lyrics/from-platform'
 import { parseTtml } from '@/lib/lyrics/parse-ttml'
 import { resolveLyrics } from '@/lib/lyrics/resolve'
@@ -19,12 +19,16 @@ import { parseMusicLyrics, parseQqLyrics } from '@/utils/music-lyric'
  * - 网易云与 TTML 并发请求；网易云不是逐字、且 TTML 还没有命中时才请求 QQ 音乐（同 StarryPlayer：先问歌曲自己的平台）；
  *   读者为这首歌固定了 QQ 音乐时立即请求
  * - 来源的值：undefined 为请求中（或尚未请求），null 为没有或请求失败；失败的来源在下次需要时重试
+ * - 歌词缓存（spec 7.2e）：与各来源并发请求后端保存的最佳歌词快照；某个来源还在请求中或失败时先用快照里的同一来源，
+ *   所以打开时能立即显示最佳歌词，实时结果到达后原地替换。各来源都到齐后上报按等级最好的来源，后端据此更新快照
  */
 
 export interface SongLyricSources {
   ncm?: MusicLyrics | null
   ttml?: MusicTtmlLyric | null
   qq?: MusicQqLyric | null
+  // 后端保存的最佳歌词快照（不算一个来源，只在实时来源缺失时补位）
+  cache?: MusicLyricCache | null
 }
 
 type SourceKey = keyof SongLyricSources
@@ -109,6 +113,8 @@ export function loadSongLyrics(id: number, { wantQq = false }: { wantQq?: boolea
     entry.qqDecided = true
     settle(entry, 'qq', null)
   }
+  if (!entry.started.has('cache'))
+    request(entry, 'cache', () => fetchLyricCache(id))
   if (!entry.started.has('ttml') || entry.failed.has('ttml')) {
     request(entry, 'ttml', () => fetchTtmlLyric(id), (value) => {
       entry.ttmlFound = value != null
@@ -175,7 +181,9 @@ function safely<T>(parse: () => T, label: string): T | null {
 
 /** 一首歌最终显示的歌词：获取各来源并按同一套规则选择；track 用于去掉「歌名 - 歌手」等署名行 */
 export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | null, track?: LyricTrackInfo | null): SongLyrics {
-  const sources = useSongLyricSources(id, pin === 'qq')
+  const fresh = useSongLyricSources(id, pin === 'qq')
+  // 实时来源还在请求中或失败时，用缓存快照中的同一来源补位
+  const sources = useMemo(() => withCachedSources(fresh), [fresh])
   const trackName = track?.name ?? ''
   const trackArtists = track?.artists
   const trackInfo = useMemo(() => ({ name: trackName, artists: trackArtists ?? [] }), [trackArtists, trackName])
@@ -191,9 +199,9 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
   const ttmlKind = sources?.ttml?.source === 'custom' ? 'ttml-custom' : 'ttml-amll'
   const ttmlLyrics = useMemo(() => (ttmlText ? safely(() => parseTtml(ttmlText, ttmlKind), 'TTML') : null), [ttmlKind, ttmlText])
 
-  return useMemo(() => {
+  const result = useMemo<SongLyrics>(() => {
     const resolution = resolveLyrics({ ttml: ttmlLyrics, ncm: ncmLyrics, ncmParsed, qq: qqLyrics, qqParsed, pin })
-    const pending = sources != null && (sources.ncm === undefined || sources.ttml === undefined || sources.qq === undefined)
+    const pending = fresh != null && (fresh.ncm === undefined || fresh.ttml === undefined || fresh.qq === undefined)
     return {
       // 音译对齐到原文音节（逐字音译）
       lyrics: withRomanizationWords(resolution.lyrics),
@@ -203,5 +211,39 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
       status: resolution.lyrics.lines.length > 0 ? 'ready' : pending ? 'loading' : 'none',
       ncmParsed,
     }
-  }, [ncmLyrics, ncmParsed, pin, qqLyrics, qqParsed, sources, ttmlLyrics])
+  }, [fresh, ncmLyrics, ncmParsed, pin, qqLyrics, qqParsed, ttmlLyrics])
+  useReportBestLyricSource(id, result)
+  return result
+}
+
+/** 用缓存快照补齐还在请求中（undefined）或失败（null）的来源 */
+export function withCachedSources(sources: SongLyricSources | null): SongLyricSources | null {
+  const cache = sources?.cache
+  if (!sources || !cache)
+    return sources
+  return {
+    ...sources,
+    ncm: sources.ncm ?? cache.ncm ?? sources.ncm,
+    ttml: sources.ttml ?? cache.ttml ?? sources.ttml,
+    qq: sources.qq ?? cache.qq ?? sources.qq,
+  }
+}
+
+const reportedCache = new Set<string>()
+
+/**
+ * 各来源都到齐后，上报按等级最好的来源（不受读者固定的来源影响），后端据此更新歌词缓存；
+ * 同一页面内每首歌的同一结果只上报一次
+ */
+function useReportBestLyricSource(id: number | null, lyrics: SongLyrics) {
+  const best = lyrics.pending ? null : lyrics.candidates[0]?.kind ?? null
+  useEffect(() => {
+    if (id == null || id <= 0 || !best)
+      return
+    const key = `${id}:${best}`
+    if (reportedCache.has(key))
+      return
+    reportedCache.add(key)
+    saveLyricCache(id, best).catch(() => {})
+  }, [best, id])
 }

@@ -2258,7 +2258,9 @@
     "lyric_badge_ai_effects": "AI 가사 효과",
     "lyric_ai_refresh": "AI 가사 효과 다시 생성",
     "lyric_ai_refresh_started": "다시 생성을 시작했습니다. 완료되면 자동으로 적용됩니다",
-    "lyric_ai_refresh_failed": "다시 생성에 실패했습니다"
+    "lyric_ai_refresh_failed": "다시 생성에 실패했습니다",
+    "outro_source": "NetEase Cloud Music 인기 댓글 · 좋아요 {count}",
+    "lyric_badge_ai_generating": "AI 가사 효과 생성 중"
   },
   "Nav": {
     "expand_topbar": "상단 바 펼치기",

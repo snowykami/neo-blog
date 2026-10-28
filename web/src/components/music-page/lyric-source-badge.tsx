@@ -28,11 +28,11 @@ const AUTO = 'auto'
 /**
  * 歌词来源标签：来源的标志 + 「来源 · 逐字 / 逐行 · 翻译 · 音译」（功能与 StarryPlayer 播放页的歌词标签一致，外观为我们自己的单色标志样式）。
  * 有多个来源时点击可切换：选择某个来源即为这首歌固定该来源（下次播放仍使用），选择「自动」按等级选择；
- * 更高等级的来源仍在请求中时显示加载图标；叠加了 AI 歌词标注时在最前面显示 AI 标志
+ * 更高等级的来源仍在请求中时显示加载图标；叠加了 AI 歌词标注时在最前面显示 AI 标志，正在生成时标志呼吸闪烁
  */
 export function LyricSourceBadge({ className }: { className?: string }) {
   const t = useTranslations('MusicPage')
-  const { lyrics, lyricStatus, lyricCandidates, lyricKind, lyricPin, setLyricPin, lyricSourcesPending, lyricAnnotated } = useMusic()
+  const { lyrics, lyricStatus, lyricCandidates, lyricKind, lyricPin, setLyricPin, lyricSourcesPending, lyricAnnotated, lyricAnnotationsGenerating } = useMusic()
   if (lyricStatus === 'loading')
     return null
 
@@ -55,10 +55,11 @@ export function LyricSourceBadge({ className }: { className?: string }) {
         switchable && 'transition-colors hover:bg-white/15 hover:text-white/90',
       )}
     >
-      {lyricAnnotated && (
-        <span title={t('lyric_badge_ai_effects')} className="inline-flex shrink-0">
-          <SparklesIcon aria-hidden className="size-3" />
-          <span className="sr-only">{t('lyric_badge_ai_effects')}</span>
+      {/* AI 歌词特效：生成中（首次或重新生成）时标志呼吸闪烁 */}
+      {(lyricAnnotated || lyricAnnotationsGenerating) && (
+        <span title={t(lyricAnnotationsGenerating ? 'lyric_badge_ai_generating' : 'lyric_badge_ai_effects')} className="inline-flex shrink-0">
+          <SparklesIcon aria-hidden className={cn('size-3', lyricAnnotationsGenerating && 'motion-safe:animate-pulse')} />
+          <span className="sr-only">{t(lyricAnnotationsGenerating ? 'lyric_badge_ai_generating' : 'lyric_badge_ai_effects')}</span>
         </span>
       )}
       {/* 来源标志：网易云、QQ 音乐、AMLL 等各自的标志，统一为与文字相同的单色 */}

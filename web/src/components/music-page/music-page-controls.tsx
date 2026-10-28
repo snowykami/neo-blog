@@ -5,9 +5,10 @@ import type { ReactNode } from 'react'
 import type { PlayMode } from '@/contexts/music-context'
 import { CaseSensitiveIcon, LanguagesIcon, ListMusicIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, SparklesIcon, Volume1Icon, Volume2Icon, VolumeXIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ProgressControl } from '@/components/common/controlled-progress'
 import { getNextPlayMode, useMusic, useMusicClock } from '@/contexts/music-context'
+import { useSongChorus } from '@/contexts/song-chorus'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
 
@@ -49,10 +50,11 @@ function IconButton({ icon: Icon, label, onClick, active, disabled, className, i
   )
 }
 
-/** 进度条与时间：订阅播放时钟（约每秒 4 次），拖动时显示预览时间、松手后跳转 */
+/** 进度条与时间：订阅播放时钟（约每秒 4 次），拖动时显示预览时间、松手后跳转；网易云标出的副歌片段在进度条上标出 */
 function ProgressRow() {
   const t = useTranslations('MusicPage')
-  const { duration, seek } = useMusic()
+  const { duration, seek, currentTrack } = useMusic()
+  const chorus = useSongChorus(currentTrack?.id ?? null)
   const currentTime = useMusicClock()
   const [dragPercent, setDragPercent] = useState<number | null>(null)
   const total = duration && Number.isFinite(duration) ? duration : 0
@@ -60,6 +62,9 @@ function ProgressRow() {
   const value = dragPercent ?? (total > 0 ? Math.min(100, (currentTime / total) * 100) : 0)
   const shownTime = formatDurationMMSS(Math.floor(shownSeconds))
   const totalTime = total > 0 ? formatDurationMMSS(Math.floor(total)) : '--:--'
+  const marks = useMemo(() => total > 0
+    ? chorus.map(item => ({ start: Math.min(100, item.start / 10 / total), end: Math.min(100, item.end / 10 / total) }))
+    : [], [chorus, total])
 
   return (
     <div className="grid gap-1.5">
@@ -69,6 +74,7 @@ function ProgressRow() {
         step={2}
         ariaLabel={t('progress')}
         ariaValueText={`${shownTime} / ${totalTime}`}
+        marks={marks}
         onChange={setDragPercent}
         onChangeEnd={(next) => {
           setDragPercent(null)

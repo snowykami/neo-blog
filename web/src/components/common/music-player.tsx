@@ -10,9 +10,12 @@ import { fetchPlaylist } from '@/api/music'
 import { SafeImage } from '@/components/common/safe-image'
 import { LyricSourceBadge } from '@/components/music-page/lyric-source-badge'
 import { MusicBackground } from '@/components/music-page/music-background'
+import { MusicLyricMoments } from '@/components/music-page/music-lyric-moments'
 import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
 import { MUSIC_ICON_BUTTON_CLASSNAME, MusicPageControls } from '@/components/music-page/music-page-controls'
 import { readMusicShareParamsFromLocation } from '@/components/music-page/music-share-params'
+import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
+import { useCoverAccent } from '@/components/music-page/use-cover-accent'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useNav } from '@/contexts/nav-context'
@@ -486,18 +489,22 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
 }
 
 /**
- * 悬浮播放器：播放器页（/music）的缩小版，共用歌词引擎（紧凑模式）、歌词来源标签与控制栏；
+ * 悬浮播放器：播放器页（/music）的缩小版，共用歌词引擎（紧凑模式）、歌词来源标签、控制栏与全部特效（全屏特效为小窗精简版）；
  * 歌单为从歌单按钮弹出的小浮层，歌名与歌手过长时以跑马灯滚动；右上角的按钮进入完整的播放器页
  */
 function MiniPlayer({ onOpenPage }: { onOpenPage: () => void }) {
   const t = useTranslations('MusicPlayer')
   const { currentTrack, isPlaying } = useMusic()
+  // 与播放器页相同：封面主色作为辉光与呼吸的默认颜色
+  const accent = useCoverAccent(currentTrack?.albumPic)
   if (!currentTrack)
     return null
 
   return (
-    <div role="region" aria-label={t('floating_player')} className="relative isolate">
+    <div role="region" aria-label={t('floating_player')} className="relative isolate" style={accent ? { '--lyric-accent': accent } as React.CSSProperties : undefined}>
       <MusicBackground cover={currentTrack.albumPic} contained />
+      {/* 全屏特效的小窗版：背景呼吸、副歌爆发、染色、鼓点、粒子场景（粒子缩小、数量减少） */}
+      <MusicStageEffects contained />
       <div className="relative grid gap-3 p-4">
         <div className="flex items-center gap-3">
           {/* 暂停时封面略微缩小，与播放器页一致 */}
@@ -530,7 +537,10 @@ function MiniPlayer({ onOpenPage }: { onOpenPage: () => void }) {
             <Maximize2Icon aria-hidden className="size-4" />
           </Link>
         </div>
-        <MusicLyricStage compact className="h-44" />
+        <div className="relative h-44">
+          <MusicLyricStage compact className="h-full" />
+          <MusicLyricMoments compact className="absolute inset-x-0 bottom-1" />
+        </div>
         <MusicPageControls compact playlistSlot={<MusicMiniPlaylist />} />
       </div>
     </div>
