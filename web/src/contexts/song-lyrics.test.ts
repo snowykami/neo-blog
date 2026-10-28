@@ -26,41 +26,19 @@ describe('全站共用的歌词来源', () => {
     kugou.mockResolvedValue(null)
   })
 
-  it('网易云只有逐行且没有 TTML 时并发请求 QQ 音乐与酷狗音乐', async () => {
-    ncm.mockResolvedValue(LINE_TIMED)
-    ttml.mockResolvedValue(null)
-    loadSongLyrics(1)
-    await flush()
-    expect(qq).toHaveBeenCalledWith(1)
-    expect(kugou).toHaveBeenCalledWith(1)
-  })
-
-  it('网易云有逐字歌词时不请求 QQ 音乐；同一首歌只请求一次', async () => {
+  it('所有来源都并发请求：网易云有逐字歌词也照样请求 QQ 音乐与酷狗音乐；同一首歌只请求一次', async () => {
     ncm.mockResolvedValue(WORD_TIMED)
-    ttml.mockResolvedValue(null)
-    loadSongLyrics(2)
-    loadSongLyrics(2)
-    await flush()
-    expect(qq).not.toHaveBeenCalled()
-    expect(kugou).not.toHaveBeenCalled()
-    expect(ncm).toHaveBeenCalledTimes(1)
-  })
-
-  it('tTML 先于网易云命中时不请求兜底来源；固定了兜底来源时仍然请求', async () => {
-    let resolveNcm: (value: typeof LINE_TIMED) => void = () => {}
-    ncm.mockReturnValue(new Promise((resolve) => {
-      resolveNcm = resolve
-    }))
     ttml.mockResolvedValue({ source: 'amll', ttml: '<tt/>' })
-    loadSongLyrics(3)
+    loadSongLyrics(2)
+    loadSongLyrics(2)
+    // 不等网易云与 TTML 的结果，一开始就全部发出
+    expect(qq).toHaveBeenCalledWith(2)
+    expect(kugou).toHaveBeenCalledWith(2)
     await flush()
-    resolveNcm(LINE_TIMED)
-    await flush()
-    expect(qq).not.toHaveBeenCalled()
-
-    loadSongLyrics(3, { wantFallback: true })
-    expect(qq).toHaveBeenCalledWith(3)
-    expect(kugou).toHaveBeenCalledWith(3)
+    expect(ncm).toHaveBeenCalledTimes(1)
+    expect(ttml).toHaveBeenCalledTimes(1)
+    expect(qq).toHaveBeenCalledTimes(1)
+    expect(kugou).toHaveBeenCalledTimes(1)
   })
 
   it('请求失败的来源在下次需要时重试', async () => {
@@ -73,7 +51,7 @@ describe('全站共用的歌词来源', () => {
     expect(ncm).toHaveBeenCalledTimes(2)
   })
 
-  it('兜底来源只重试失败的那个', async () => {
+  it('只重试失败的来源', async () => {
     ncm.mockResolvedValue(LINE_TIMED)
     ttml.mockResolvedValue(null)
     kugou.mockRejectedValueOnce(new Error('network')).mockResolvedValue(null)
@@ -93,12 +71,12 @@ describe('全站共用的歌词来源', () => {
     expect(withCachedSources({ cache: null, ttml: null })).toEqual({ cache: null, ttml: null })
   })
 
-  it('重新获取歌词：所有来源都带 refresh 重新请求（含原本不需要的兜底来源）', async () => {
+  it('重新获取歌词：所有来源都带 refresh 重新请求', async () => {
     ncm.mockResolvedValue(WORD_TIMED)
     ttml.mockResolvedValue(null)
     loadSongLyrics(30)
     await flush()
-    expect(qq).not.toHaveBeenCalled()
+    expect(qq).toHaveBeenLastCalledWith(30)
     refreshSongLyrics(30)
     await flush()
     expect(ncm).toHaveBeenLastCalledWith(30, undefined, true)

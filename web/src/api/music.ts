@@ -64,7 +64,7 @@ export interface MusicQqLyric {
   ttml?: string
 }
 
-// 按网易云歌曲 id 取 QQ 音乐歌词（网易云没有逐字歌词时的兜底）；没有匹配或没有歌词时返回 null
+// 按网易云歌曲 id 取 QQ 音乐歌词（与其余来源一起请求，按质量选择）；没有匹配或没有歌词时返回 null
 export async function fetchQqLyric(id: number, signal?: AbortSignal, refresh?: boolean): Promise<MusicQqLyric | null> {
   try {
     const res = await axiosClient.get<BaseResponse<MusicQqLyric>>(`/music/song/${id}/lyric/qq`, { signal, params: refreshParams(refresh) })
@@ -87,7 +87,7 @@ export interface MusicKugouLyric {
   romanization: string
 }
 
-// 按网易云歌曲 id 取酷狗音乐歌词（与 QQ 音乐同时作为兜底）；没有匹配或没有歌词时返回 null
+// 按网易云歌曲 id 取酷狗音乐歌词（与其余来源一起请求，按质量选择）；没有匹配或没有歌词时返回 null
 export async function fetchKugouLyric(id: number, signal?: AbortSignal, refresh?: boolean): Promise<MusicKugouLyric | null> {
   try {
     const res = await axiosClient.get<BaseResponse<MusicKugouLyric>>(`/music/song/${id}/lyric/kugou`, { signal, params: refreshParams(refresh) })

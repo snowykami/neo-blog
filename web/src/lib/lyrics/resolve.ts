@@ -4,12 +4,13 @@ import { alignExtraLyricLines, getExtraLyricLine } from '@/utils/music-lyric'
 import { EMPTY_LYRICS } from './types'
 
 /**
- * 多来源歌词的选择（见 spec 2.1、2.4，规则参考 StarryPlayer 的 LyricsResolver）：
- * - 来源等级：TTML（自定义源 / AMLL）> 平台逐字 > 平台逐行；同一等级按 网易云（歌曲自己的平台）> QQ 音乐 > 酷狗音乐。
- *   结果只升不降：先到的先上屏，更高等级到达后原地替换
- * - 读者按曲目固定（pin）了来源且该来源有歌词时使用它，否则按等级自动选择
- * - TTML 缺翻译 / 音译时向平台歌词借（依次为网易云、QQ 音乐、酷狗音乐，各补缺失的一种）：按时间一对一挂载（宁缺勿错），
- *   含中日文字符的音译行不借（多为说明文字）
+ * 多来源歌词的选择（见 spec 2.1、2.4，规则参考 StarryPlayer 的 LyricsResolver）：所有来源都请求，按质量选择
+ * - 等级：TTML（自定义源 / AMLL）> 平台逐字 > 平台逐行
+ * - 同一等级：来源自带的翻译、音译越全越好（各算一项）；仍相同时按 网易云（歌曲自己的平台，时间轴与播放的音频一致）> QQ 音乐 > 酷狗音乐。
+ *   结果只升不降：先到的先上屏，更好的来源到达后原地替换
+ * - 读者按曲目固定（pin）了来源且该来源有歌词时使用它，否则按质量自动选择
+ * - 每个来源缺翻译 / 音译时都向其余平台的歌词借（依次为网易云、QQ 音乐、酷狗音乐，各补缺失的一种）：按时间一对一挂载（宁缺勿错），
+ *   含中日文字符的音译行不借（多为说明文字）；排序只看来源自带的，借来的不算
  */
 
 export type LyricSourceKind = 'ttml' | 'ncm' | 'qq' | 'kugou'
@@ -19,6 +20,11 @@ export const LYRIC_SOURCE_KINDS: LyricSourceKind[] = ['ttml', 'ncm', 'qq', 'kugo
 export interface LyricCandidate {
   kind: LyricSourceKind
   lyrics: ResolvedLyrics
+}
+
+/** 来源自带的翻译、音译各算一项（0 ~ 2），同一等级时越多越好 */
+export function lyricExtras(lyrics: ResolvedLyrics): number {
+  return Number(lyrics.lines.some(line => line.translation)) + Number(lyrics.lines.some(line => line.romanization))
 }
 
 /** 来源等级，越小越好 */
@@ -82,15 +88,18 @@ export function resolveLyrics({ ttml, ncm, ncmParsed, qq = null, qqParsed = null
   kugouParsed?: MusicLyricParseResult | null
   pin: LyricSourceKind | null
 }): LyricResolution {
-  const candidates: LyricCandidate[] = []
-  if (ttml && ttml.lines.length > 0)
-    candidates.push({ kind: 'ttml', lyrics: [ncmParsed, qqParsed, kugouParsed].reduce(borrowExtras, ttml) })
-  for (const [kind, lyrics] of [['ncm', ncm], ['qq', qq], ['kugou', kugou]] as const) {
-    if (lyrics && lyrics.lines.length > 0)
-      candidates.push({ kind, lyrics })
-  }
-  // 排序是稳定的：同一等级保持 网易云 > QQ 音乐 > 酷狗音乐 的顺序
-  candidates.sort((a, b) => lyricTier(a.lyrics) - lyricTier(b.lyrics))
+  const parsed = { ncm: ncmParsed, qq: qqParsed, kugou: kugouParsed }
+  const sources = [['ttml', ttml], ['ncm', ncm], ['qq', qq], ['kugou', kugou]] as const
+  const ranked = sources
+    .filter((item): item is [LyricSourceKind, ResolvedLyrics] => item[1] != null && item[1].lines.length > 0)
+    // 先按来源自带的质量排序（排序是稳定的：质量相同时保持 网易云 > QQ 音乐 > 酷狗音乐 的顺序）
+    .map(([kind, lyrics]) => ({ kind, lyrics, tier: lyricTier(lyrics), extras: lyricExtras(lyrics) }))
+    .sort((a, b) => a.tier - b.tier || b.extras - a.extras)
+  // 再向其余平台借缺失的翻译 / 音译
+  const candidates: LyricCandidate[] = ranked.map(({ kind, lyrics }) => ({
+    kind,
+    lyrics: (['ncm', 'qq', 'kugou'] as const).filter(other => other !== kind).map(other => parsed[other]).reduce(borrowExtras, lyrics),
+  }))
 
   const chosen = candidates.find(candidate => candidate.kind === pin) ?? candidates[0]
   if (chosen)

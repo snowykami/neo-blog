@@ -16,8 +16,7 @@ import { parseMusicLyrics, parseQqLyrics } from '@/utils/music-lyric'
 /**
  * 全站共用的歌词来源（见 spec 2.3、2.4、7.4）：按网易云歌曲 id 获取并缓存，播放器页、悬浮播放器、导航栏、
  * 文章内的单曲卡与歌词摘录都从这里取，同一首歌只请求一次，按同一套规则选出同一份歌词。
- * - 网易云与 TTML 并发请求；网易云不是逐字、且 TTML 还没有命中时才并发请求兜底来源 QQ 音乐与酷狗音乐
- *   （同 StarryPlayer：先问歌曲自己的平台）；读者为这首歌固定了 QQ 音乐或酷狗音乐时立即请求
+ * - 网易云、TTML、QQ 音乐与酷狗音乐全部并发请求（网易云有逐字歌词也照样请求其余来源），到齐的来源按质量选择（见 resolve.ts）
  * - 来源的值：undefined 为请求中（或尚未请求），null 为没有或请求失败；失败的来源在下次需要时重试
  * - 歌词缓存（spec 7.2e）：与各来源并发请求后端保存的最佳歌词快照；某个来源还在请求中或失败时先用快照里的同一来源，
  *   所以打开时能立即显示最佳歌词，实时结果到达后原地替换。各来源都到齐后上报按等级最好的来源，后端据此更新快照
@@ -39,10 +38,6 @@ interface Entry {
   listeners: Set<() => void>
   started: Set<SourceKey>
   failed: Set<SourceKey>
-  // 已决定是否请求兜底来源（QQ 音乐、酷狗音乐）；fallbackRequested 为真正发出了请求
-  fallbackDecided: boolean
-  fallbackRequested: boolean
-  ttmlFound: boolean
 }
 
 // 最多缓存的歌曲数，超出时淘汰最久未使用且没有组件在用的
@@ -57,7 +52,7 @@ function getEntry(id: number): Entry {
     entries.set(id, existing)
     return existing
   }
-  const entry: Entry = { sources: {}, listeners: new Set(), started: new Set(), failed: new Set(), fallbackDecided: false, fallbackRequested: false, ttmlFound: false }
+  const entry: Entry = { sources: {}, listeners: new Set(), started: new Set(), failed: new Set() }
   entries.set(id, entry)
   for (const [key, old] of entries) {
     if (entries.size <= MAX_ENTRIES)
@@ -95,55 +90,34 @@ function request<K extends SourceKey>(entry: Entry, key: K, load: () => Promise<
   })
 }
 
-// 兜底来源：网易云没有逐字歌词时并发请求
-const FALLBACK_SOURCES = { qq: fetchQqLyric, kugou: fetchKugouLyric } as const
-type FallbackKey = keyof typeof FALLBACK_SOURCES
-const FALLBACK_KEYS = Object.keys(FALLBACK_SOURCES) as FallbackKey[]
+// 歌词来源：全部并发请求；refresh 为跳过后端缓存中「没有歌词」的记录（重新获取歌词）
+const LYRIC_SOURCES = {
+  ncm: fetchNcmLyric,
+  ttml: fetchTtmlLyric,
+  qq: fetchQqLyric,
+  kugou: fetchKugouLyric,
+} as const
+type LyricSourceKey = keyof typeof LYRIC_SOURCES
+const LYRIC_SOURCE_KEYS = Object.keys(LYRIC_SOURCES) as LyricSourceKey[]
 
-/** 请求兜底来源；onlyFailed 为只重试失败的 */
-function requestFallbacks(id: number, entry: Entry, { onlyFailed = false, refresh = false } = {}) {
-  entry.fallbackDecided = true
-  entry.fallbackRequested = true
-  for (const key of FALLBACK_KEYS) {
-    if (!onlyFailed || entry.failed.has(key))
-      request(entry, key, () => refresh ? FALLBACK_SOURCES[key](id, undefined, true) : FALLBACK_SOURCES[key](id))
-  }
+function requestSource(id: number, entry: Entry, key: LyricSourceKey, refresh = false) {
+  const load = LYRIC_SOURCES[key] as (id: number, signal?: AbortSignal, refresh?: boolean) => Promise<SongLyricSources[LyricSourceKey]>
+  request(entry, key, () => refresh ? load(id, undefined, true) : load(id))
 }
 
-/** 开始（或补齐、重试）获取一首歌的歌词来源；wantFallback 为读者固定了 QQ 音乐或酷狗音乐 */
-export function loadSongLyrics(id: number, { wantFallback = false }: { wantFallback?: boolean } = {}) {
+/** 开始（或补齐、重试）获取一首歌的歌词来源：还没请求过或上次失败的来源重新请求 */
+export function loadSongLyrics(id: number) {
   const entry = getEntry(id)
-  const decideFallback = (request: boolean) => {
-    if (entry.fallbackDecided)
-      return
-    if (request) {
-      requestFallbacks(id, entry)
-      return
-    }
-    entry.fallbackDecided = true
-    for (const key of FALLBACK_KEYS)
-      settle(entry, key, null)
-  }
   if (!entry.started.has('cache'))
     request(entry, 'cache', () => fetchLyricCache(id))
-  if (!entry.started.has('ttml') || entry.failed.has('ttml')) {
-    request(entry, 'ttml', () => fetchTtmlLyric(id), (value) => {
-      entry.ttmlFound = value != null
-    })
+  for (const key of LYRIC_SOURCE_KEYS) {
+    if (!entry.started.has(key) || entry.failed.has(key))
+      requestSource(id, entry, key)
   }
-  if (!entry.started.has('ncm') || entry.failed.has('ncm')) {
-    request(entry, 'ncm', () => fetchNcmLyric(id), (value) => {
-      decideFallback(!entry.ttmlFound && (value == null || parseMusicLyrics(value).sourceType !== 'yrc'))
-    })
-  }
-  if (wantFallback && !entry.fallbackRequested)
-    requestFallbacks(id, entry)
-  else if (entry.fallbackRequested && FALLBACK_KEYS.some(key => entry.failed.has(key)))
-    requestFallbacks(id, entry, { onlyFailed: true })
 }
 
 /**
- * 重新从所有来源获取歌词（读者在播放器里点「重新获取歌词」，见 spec 7.2h）：所有来源（含兜底的 QQ 音乐、酷狗音乐）都带 refresh 重新请求，
+ * 重新从所有来源获取歌词（读者在播放器里点「重新获取歌词」，见 spec 7.2h）：所有来源都带 refresh 重新请求，
  * 后端跳过缓存中「没有歌词」的记录。请求期间把当前已有的结果当作快照补位，歌词不会消失，新结果到达后原地替换；
  * 某个来源这次失败时沿用之前的结果
  */
@@ -165,19 +139,15 @@ export function refreshSongLyrics(id: number) {
   entry.started.clear()
   entry.started.add('cache')
   entry.failed.clear()
-  entry.ttmlFound = false
   entry.listeners.forEach(listener => listener())
-  request(entry, 'ttml', () => fetchTtmlLyric(id, undefined, true), (value) => {
-    entry.ttmlFound = value != null
-  })
-  request(entry, 'ncm', () => fetchNcmLyric(id, undefined, true))
-  requestFallbacks(id, entry, { refresh: true })
+  for (const key of LYRIC_SOURCE_KEYS)
+    requestSource(id, entry, key, true)
 }
 
 const EMPTY_SOURCES: SongLyricSources = {}
 
 /** 订阅一首歌的歌词来源并在需要时开始获取；id 为空或不大于 0（示例曲目）时不获取 */
-export function useSongLyricSources(id: number | null, wantFallback: boolean): SongLyricSources | null {
+export function useSongLyricSources(id: number | null): SongLyricSources | null {
   const valid = id != null && id > 0
   const subscribe = useCallback((listener: () => void) => {
     if (!valid)
@@ -195,8 +165,8 @@ export function useSongLyricSources(id: number | null, wantFallback: boolean): S
   )
   useEffect(() => {
     if (valid)
-      loadSongLyrics(id, { wantFallback })
-  }, [id, valid, wantFallback])
+      loadSongLyrics(id)
+  }, [id, valid])
   return sources
 }
 
@@ -226,7 +196,7 @@ function safely<T>(parse: () => T, label: string): T | null {
 
 /** 一首歌最终显示的歌词：获取各来源并按同一套规则选择；track 用于去掉「歌名 - 歌手」等署名行 */
 export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | null, track?: LyricTrackInfo | null): SongLyrics {
-  const fresh = useSongLyricSources(id, pin === 'qq' || pin === 'kugou')
+  const fresh = useSongLyricSources(id)
   // 实时来源还在请求中或失败时，用缓存快照中的同一来源补位
   const sources = useMemo(() => withCachedSources(fresh), [fresh])
   const trackName = track?.name ?? ''

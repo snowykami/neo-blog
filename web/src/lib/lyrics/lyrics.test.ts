@@ -194,17 +194,35 @@ describe('歌词来源：QQ 音乐', () => {
     expect(lyrics.lines).toEqual([])
   })
 
-  it('兜底顺序：网易云逐行时用 QQ 逐字；同一等级网易云优先；固定 QQ 时使用 QQ', () => {
+  it('按质量选择：等级优先；同一等级比自带的翻译与音译，仍相同时网易云优先；固定来源时使用它', () => {
     const ncmLine = platformToLyrics(parseMusicLyrics({ lrc: { lyric: '[00:01.00]你好\n[00:03.00]再见', version: 1 } }), 'ncm')
-    const ncmWord = platformToLyrics(parseMusicLyrics({ yrc: { lyric: '[1000,1000](1000,1000,0)你好', version: 1 } }), 'ncm')
+    const ncmWordParsed = parseMusicLyrics({ yrc: { lyric: '[1000,1000](1000,500,0)你(1500,500,0)好\n[3000,1000](3000,500,0)再(3500,500,0)见', version: 1 } })
+    const ncmWord = platformToLyrics(ncmWordParsed, 'ncm')
+    const ncmFull = {
+      ...ncmWord,
+      lines: ncmWord.lines.map(line => ({ ...line, translation: '译', romanization: 'yi' })),
+    }
     const qqParsed = parseQqLyrics(qqInput)
     const qq = platformToLyrics(qqParsed, 'qq')
-    const qqLine = { ...qq, source: 'qq-lrc' as const, wordTimed: false }
 
+    // 等级：逐字 > 逐行
     expect(resolveLyrics({ ttml: null, ncm: ncmLine, ncmParsed: null, qq, qqParsed, pin: null }).kind).toBe('qq')
-    expect(resolveLyrics({ ttml: null, ncm: ncmWord, ncmParsed: null, qq, qqParsed, pin: null }).kind).toBe('ncm')
-    expect(resolveLyrics({ ttml: null, ncm: ncmLine, ncmParsed: null, qq: qqLine, qqParsed, pin: null }).kind).toBe('ncm')
-    expect(resolveLyrics({ ttml: null, ncm: ncmWord, ncmParsed: null, qq, qqParsed, pin: 'qq' }).kind).toBe('qq')
+    // 同为逐字：QQ 音乐自带翻译与音译，比没有的网易云好
+    expect(resolveLyrics({ ttml: null, ncm: ncmWord, ncmParsed: ncmWordParsed, qq, qqParsed, pin: null }).kind).toBe('qq')
+    // 翻译与音译同样齐全时网易云优先（时间轴与播放的音频一致）
+    expect(resolveLyrics({ ttml: null, ncm: ncmFull, ncmParsed: null, qq, qqParsed, pin: null }).kind).toBe('ncm')
+    expect(resolveLyrics({ ttml: null, ncm: ncmFull, ncmParsed: null, qq, qqParsed, pin: 'qq' }).kind).toBe('qq')
+  })
+
+  it('每个来源缺翻译时都向其余平台借，借来的不影响排序', () => {
+    const ncmWordParsed = parseMusicLyrics({ yrc: { lyric: '[1000,1000](1000,500,0)你(1500,500,0)好\n[3000,1000](3000,500,0)再(3500,500,0)见', version: 1 } })
+    const ncmWord = platformToLyrics(ncmWordParsed, 'ncm')
+    const qqParsed = parseQqLyrics(qqInput)
+    const qq = platformToLyrics(qqParsed, 'qq')
+    const { candidates } = resolveLyrics({ ttml: null, ncm: ncmWord, ncmParsed: ncmWordParsed, qq, qqParsed, pin: null })
+    const borrowed = candidates.find(candidate => candidate.kind === 'ncm')!.lyrics
+    expect(candidates.map(candidate => candidate.kind)).toEqual(['qq', 'ncm'])
+    expect(borrowed.lines[0].translation).toBe(qq.lines.find(line => line.words.map(word => word.text).join('') === '你好')?.translation)
   })
 })
 
