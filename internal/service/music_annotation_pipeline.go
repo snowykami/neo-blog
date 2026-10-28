@@ -29,6 +29,9 @@ const (
 	lyricAnnotationPlanRetries = 1
 )
 
+// lyricAnnotationChunkContext 逐段标注时附带的本段前后的行数（只作上下文，节约输入；全曲的一致性由规划中的意象保证）
+var lyricAnnotationChunkContext = 2
+
 // lyricAnnotationPlanRetryDelay 全曲规划重试前的等待（网络抖动、接口限流时稍后再试）；等待期间不占用并发名额，测试时可改为 0
 var lyricAnnotationPlanRetryDelay = 2 * time.Second
 
@@ -91,7 +94,7 @@ func (a *lyricAnnotationService) plan(id int64, cfg tools.AIConfig, info lyricAn
 			time.Sleep(lyricAnnotationPlanRetryDelay)
 		}
 		var raw, planJSON string
-		raw, err = a.call(cfg, lyricAnnotationPlanPrompt, user)
+		raw, err = a.call(cfg, lyricAnnotationText.PlanPrompt, user)
 		if err == nil {
 			planJSON, err = extractJSONObject(raw)
 		}
@@ -125,7 +128,7 @@ func (a *lyricAnnotationService) generate(id int64, cfg tools.AIConfig, info lyr
 			defer wg.Done()
 			user := buildLyricAnnotationLinesPrompt(info, lines, plan, chunk[0], chunk[1], len(chunks))
 			for attempt := 0; attempt <= lyricAnnotationChunkRetries; attempt++ {
-				raw, err := a.call(cfg, lyricAnnotationLinesPrompt, user)
+				raw, err := a.call(cfg, lyricAnnotationText.LinesPrompt, user)
 				object := ""
 				if err == nil {
 					object, err = extractJSONObject(raw)
@@ -207,38 +210,31 @@ func mergeLyricAnnotationResults(planJSON string, chunks [][2]int, results []str
 	return string(data), err
 }
 
-// buildLyricAnnotationLinesPrompt 逐段标注的用户消息：歌曲信息、全曲规划（方向、意象、副歌与情绪）、完整歌词（上下文）与本次范围
+// buildLyricAnnotationLinesPrompt 逐段标注的用户消息：歌曲信息、全曲规划（方向、意象、本段的副歌与情绪）、
+// 本段歌词与前后 lyricAnnotationChunkContext 行（上下文），以及本次范围
 func buildLyricAnnotationLinesPrompt(info lyricAnnotationInfo, lines []string, plan lyricAnnotationPlan, from, to, chunks int) string {
+	text := lyricAnnotationText
 	var b strings.Builder
-	b.WriteString("【歌曲信息】\n")
-	if info.Title != "" {
-		b.WriteString("歌名：" + info.Title + "\n")
-	}
-	if len(info.Artists) > 0 {
-		b.WriteString("歌手：" + strings.Join(info.Artists, " / ") + "\n")
-	}
-	if len(info.Aliases) > 0 {
-		b.WriteString("别名 / 描述：" + strings.Join(info.Aliases, "；") + "\n")
-	}
+	writeLyricAnnotationSong(&b, info, false)
 
-	b.WriteString("\n【全曲规划】\n")
+	b.WriteString(text.Plan)
 	if plan.Theme != "" {
-		b.WriteString("主题：" + plan.Theme + "\n")
+		b.WriteString(text.Theme + plan.Theme + "\n")
 	}
 	if plan.Direction != "" {
-		b.WriteString("方向：" + plan.Direction + "\n")
+		b.WriteString(text.Direction + plan.Direction + "\n")
 	}
 	if plan.Font != "" {
-		b.WriteString("全曲字体：" + plan.Font + "\n")
+		b.WriteString(text.Font + plan.Font + "\n")
 	}
 	if len(plan.Imagery) > 0 {
-		b.WriteString("意象（出现时 effect 与 color 必须与此一致）：\n")
+		b.WriteString(text.Imagery)
 		for _, item := range plan.Imagery {
 			color := item.Color
 			if color == "" {
-				color = "不上色"
+				color = text.NoColor
 			}
-			fmt.Fprintf(&b, "- %s：%s，%s\n", item.Text, item.Effect, color)
+			fmt.Fprintf(&b, text.ImageryItem, item.Text, item.Effect, color)
 		}
 	}
 	var marks []string
@@ -248,23 +244,22 @@ func buildLyricAnnotationLinesPrompt(info lyricAnnotationInfo, lines []string, p
 		}
 		var parts []string
 		if line.ChorusStart {
-			parts = append(parts, "副歌起点")
+			parts = append(parts, text.ChorusStart)
 		} else if line.Chorus {
-			parts = append(parts, "副歌")
+			parts = append(parts, text.ChorusLine)
 		}
 		if line.Mood != "" {
-			parts = append(parts, "情绪 "+line.Mood)
+			parts = append(parts, text.Mood+line.Mood)
 		}
 		if len(parts) > 0 {
-			marks = append(marks, fmt.Sprintf("第 %d 行：%s", line.I, strings.Join(parts, "，")))
+			marks = append(marks, fmt.Sprintf(text.Mark, line.I, strings.Join(parts, ", ")))
 		}
 	}
 	if len(marks) > 0 {
-		b.WriteString("本段已标注的行：\n" + strings.Join(marks, "\n") + "\n")
+		b.WriteString(text.Marks + strings.Join(marks, ""))
 	}
 
-	writeLyricAnnotationLines(&b, info, lines)
-	fmt.Fprintf(&b, "\n【本次标注范围】第 %d 行～第 %d 行（只输出这些行；整首歌分 %d 段并行标注，本段换字体的短语最多 %d 处）\n",
-		from, to, chunks, max(1, (lyricAnnotationMaxPhraseFonts+chunks-1)/chunks))
+	writeLyricAnnotationLines(&b, info, lines, from-lyricAnnotationChunkContext, to+lyricAnnotationChunkContext)
+	fmt.Fprintf(&b, text.Range, from, to, chunks, max(1, (lyricAnnotationMaxPhraseFonts+chunks-1)/chunks))
 	return b.String()
 }

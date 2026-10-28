@@ -327,66 +327,79 @@ func isLowQualityComment(content string) bool {
 	return len(runes) < commentSpamMaxRunes && commentSpamRe.MatchString(strings.ToLower(text))
 }
 
-// buildLyricAnnotationPrompt 用户消息：歌曲信息、热评（低可信度参考）与带行号的歌词（有翻译时附在行末）
+// buildLyricAnnotationPrompt 全曲规划的用户消息：歌曲信息、热评（低可信度参考）、网易云副歌片段与带行号的完整歌词
 func buildLyricAnnotationPrompt(info lyricAnnotationInfo, lines []string) string {
+	text := lyricAnnotationText
 	var b strings.Builder
-	b.WriteString("【歌曲信息】\n")
-	if info.Title != "" {
-		b.WriteString("歌名：" + info.Title + "\n")
-	}
-	if len(info.Artists) > 0 {
-		b.WriteString("歌手：" + strings.Join(info.Artists, " / ") + "\n")
-	}
-	if info.Album != "" {
-		b.WriteString("专辑：" + info.Album + "\n")
-	}
-	if len(info.Aliases) > 0 {
-		b.WriteString("别名 / 描述：" + strings.Join(info.Aliases, "；") + "\n")
-	}
+	writeLyricAnnotationSong(&b, info, true)
 	if len(info.Comments) > 0 {
-		b.WriteString("\n【听众热评】（来自网易云的普通听众，只用来感受这首歌在听众心中的情绪与故事；可信度有限，玩笑、广告或与歌曲无关的评论请直接忽略）\n")
+		b.WriteString(text.Comments)
 		for i, comment := range info.Comments {
-			fmt.Fprintf(&b, "%d. %s（%d 赞）\n", i+1, comment.Content, comment.Liked)
+			fmt.Fprintf(&b, text.Comment, i+1, comment.Content, comment.Liked)
 		}
 	}
 	if len(info.Chorus) > 0 {
-		b.WriteString("\n【网易云标出的副歌 / 高潮片段】（网易云客户端在进度条上标出的片段，判断副歌起点时优先参考）\n")
+		b.WriteString(text.Chorus)
 		for _, chorus := range info.Chorus {
-			fmt.Fprintf(&b, "第 %d 行～第 %d 行（%s～%s）\n", chorus.From, chorus.To, formatLyricTime(chorus.Start), formatLyricTime(chorus.End))
+			fmt.Fprintf(&b, text.ChorusRange, chorus.From, chorus.To, formatLyricTime(chorus.Start), formatLyricTime(chorus.End))
 		}
 	}
-	writeLyricAnnotationLines(&b, info, lines)
+	writeLyricAnnotationLines(&b, info, lines, 0, len(lines)-1)
 	return b.String()
 }
 
-// writeLyricAnnotationLines 带行号的歌词：有翻译时在行末附上〔译：…〕，逐字歌词中唱得特别长的音节附上〔长音：…〕
-func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lines []string) {
+// writeLyricAnnotationSong 歌曲信息：歌名、歌手、（全曲规划时）专辑与别名 / 描述
+func writeLyricAnnotationSong(b *strings.Builder, info lyricAnnotationInfo, album bool) {
+	text := lyricAnnotationText
+	b.WriteString(text.SongInfo)
+	if info.Title != "" {
+		b.WriteString(text.Title + info.Title + "\n")
+	}
+	if len(info.Artists) > 0 {
+		b.WriteString(text.Artists + strings.Join(info.Artists, " / ") + "\n")
+	}
+	if album && info.Album != "" {
+		b.WriteString(text.Album + info.Album + "\n")
+	}
+	if len(info.Aliases) > 0 {
+		b.WriteString(text.Aliases + strings.Join(info.Aliases, "; ") + "\n")
+	}
+}
+
+// writeLyricAnnotationLines 带行号的歌词（第 from～to 行，行号为全曲行号）：有翻译时在行末附上翻译，逐字歌词中唱得特别长的音节附上长音标记
+func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lines []string, from, to int) {
+	text := lyricAnnotationText
+	from, to = max(0, from), min(len(lines)-1, to)
 	held := func(i int) *lyricHeldNote {
 		if i < len(info.Timed) {
 			return info.Timed[i].Held
 		}
 		return nil
 	}
-	hasHeld := slices.ContainsFunc(info.Timed, func(line lyricTimedLine) bool { return line.Held != nil })
-	b.WriteString("\n【歌词】")
-	if info.Translations != nil {
-		b.WriteString("（外语歌词在行末用〔译：…〕附上中文翻译，只帮助你理解含义；phrases 的 text 只能取自原文，不能取自翻译）")
+	hasTranslation, hasHeld := false, false
+	for i := from; i <= to; i++ {
+		hasTranslation = hasTranslation || (i < len(info.Translations) && info.Translations[i] != "")
+		hasHeld = hasHeld || held(i) != nil
+	}
+	b.WriteString(text.Lyrics)
+	if hasTranslation {
+		b.WriteString(text.TranslationNote)
 	}
 	if hasHeld {
-		b.WriteString("（按逐字时间，唱得特别长的音节在行末用〔长音：…〕标出：音节、时长，以及是否为句尾的尾音）")
+		b.WriteString(text.HeldNote)
 	}
 	b.WriteString("\n")
-	for i, line := range lines {
-		fmt.Fprintf(b, "%d: %s", i, line)
+	for i := from; i <= to; i++ {
+		fmt.Fprintf(b, "%d: %s", i, lines[i])
 		if i < len(info.Translations) && info.Translations[i] != "" {
-			b.WriteString("　〔译：" + info.Translations[i] + "〕")
+			fmt.Fprintf(b, text.Translation, info.Translations[i])
 		}
 		if note := held(i); note != nil {
 			tail := ""
 			if note.Tail {
-				tail = "，句尾"
+				tail = text.HeldTail
 			}
-			fmt.Fprintf(b, "　〔长音：「%s」%.1f 秒%s〕", note.Text, float64(note.Duration)/1000, tail)
+			fmt.Fprintf(b, text.Held, note.Text, float64(note.Duration)/1000, tail)
 		}
 		b.WriteString("\n")
 	}

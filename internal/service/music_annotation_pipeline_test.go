@@ -41,7 +41,7 @@ func TestLyricAnnotationPipeline(t *testing.T) {
 		limiter:     &aiLimiter{},
 		concurrency: func() int { return 3 },
 		complete: func(_ context.Context, _ tools.AIConfig, system, user string) (string, error) {
-			if system == lyricAnnotationPlanPrompt {
+			if system == lyricAnnotationText.PlanPrompt {
 				// 规划：副歌起点、场景、意象；规划里不应出现的短语会被忽略
 				return `{"theme":"t","direction":"d","intro":"导语","font":"song","imagery":[{"text":"歌词","effect":"glow","color":"gold"}],
 					"lines":[{"i":0,"chorus_start":true,"scene":"petals","phrases":[{"text":"不该出现","effect":"swell"}]},{"i":40,"mood":"sad"}]}`, nil
@@ -57,7 +57,7 @@ func TestLyricAnnotationPipeline(t *testing.T) {
 			chunkCalls.Add(1)
 			// 模拟模型耗时，让并行的段有机会重叠
 			time.Sleep(50 * time.Millisecond)
-			if !strings.Contains(user, "意象（出现时 effect 与 color 必须与此一致）") || !strings.Contains(user, "- 歌词：glow，gold") {
+			if !strings.Contains(user, "意象：\n") || !strings.Contains(user, "- 歌词：glow，gold") {
 				return "", errors.New("plan not passed to chunk")
 			}
 			m := rangeRe.FindStringSubmatch(user)
@@ -119,7 +119,7 @@ func TestLyricAnnotationPlanRetry(t *testing.T) {
 			limiter:     &aiLimiter{},
 			concurrency: func() int { return 2 },
 			complete: func(_ context.Context, _ tools.AIConfig, system, _ string) (string, error) {
-				if system == lyricAnnotationPlanPrompt {
+				if system == lyricAnnotationText.PlanPrompt {
 					n := int(planCalls.Add(1)) - 1
 					return planReplies[min(n, len(planReplies)-1)]()
 				}
