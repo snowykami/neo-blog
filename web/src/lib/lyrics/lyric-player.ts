@@ -132,15 +132,17 @@ const INTERLUDE_HEIGHT_COMPACT_PX = 28
 const COMPACT_ALIGN_POSITION = 0.4
 const COMPACT_BLUR_FACTOR = 0.5
 // 聚光灯（点题句，见 stage-effects.ts 的 spotlightLevel）：这一句移到歌词区垂直中央、放大（不超出右侧，见 spotlightFit），
-// 带一圈暖光；其余行向两侧让开、变淡（不透明度降到 SPOTLIGHT_OTHERS_ALPHA）、略微变虚。紧凑模式放大与让开都更小
+// 暖光由舞台层（MusicStageEffects）在身后打出；其余行向两侧让开、变淡（不透明度降到 SPOTLIGHT_OTHERS_ALPHA）、略微变虚。紧凑模式放大与让开都更小。
+// 点题句通常也带着强调短语，整行放大后字的辉光会连成一片显得发虚，因此聚光灯亮起时收敛这一句的字词特效：
+// 辉光降到 SPOTLIGHT_EMPHASIS_GLOW、字的放大幅度降到 SPOTLIGHT_EMPHASIS_SCALE（颜色、字体与字形不变）
 const SPOTLIGHT_SCALE = 1.25
 const SPOTLIGHT_SCALE_COMPACT = 1.1
 const SPOTLIGHT_SPREAD_EM = 0.75
 const SPOTLIGHT_SPREAD_COMPACT_EM = 0.35
 const SPOTLIGHT_OTHERS_ALPHA = 0.24
 const SPOTLIGHT_BLUR_PX = 2.5
-const SPOTLIGHT_GLOW = '255 236 200'
-const SPOTLIGHT_GLOW_ALPHA = 0.35
+const SPOTLIGHT_EMPHASIS_GLOW = 0.3
+const SPOTLIGHT_EMPHASIS_SCALE = 0.5
 // 拖动超过此距离视为滚动，不再触发点击
 const DRAG_CLICK_TOLERANCE_PX = 6
 // 惯性速度低于此值（px/s）时停止
@@ -728,7 +730,7 @@ export class LyricPlayer {
         const active = this.activeLines.has(item.line)
         const alpha = active ? 1 : inactiveAlpha
         const spotted = i === this.spotView
-        // 聚光灯亮起时其余行变淡、变虚，点题句带一圈暖光
+        // 聚光灯亮起时其余行变淡、变虚
         const dimmed = spot > 0 && !spotted ? alpha + (Math.min(alpha, SPOTLIGHT_OTHERS_ALPHA) - alpha) * spot : alpha
         const color = lyricColor(Math.round(dimmed * 100) / 100)
         if (color !== view.color) {
@@ -739,8 +741,7 @@ export class LyricPlayer {
         let blur = noBlur || active || distance === 0 ? 0 : Math.min(LYRIC_BLUR_MAX_PX, 1 + distance) * blurFactor
         if (spot > 0 && !spotted)
           blur = Math.max(blur, SPOTLIGHT_BLUR_PX * spot * blurFactor)
-        const glow = spot > 0 && spotted ? `drop-shadow(0 0 0.6em rgb(${SPOTLIGHT_GLOW} / ${(SPOTLIGHT_GLOW_ALPHA * spot).toFixed(2)}))` : ''
-        const filter = glow || (blur > 0 ? `blur(${blur.toFixed(1)}px)` : '')
+        const filter = blur > 0 ? `blur(${blur.toFixed(1)}px)` : ''
         if (filter !== view.filter) {
           view.filter = filter
           view.el.style.filter = filter
@@ -817,6 +818,10 @@ export class LyricPlayer {
    */
   private paintEmphasis(view: ItemView, active: boolean, timeMs: number) {
     const bg = view.item.kind === 'line' && this.lyrics.lines[view.item.line]?.isBackground
+    // 聚光灯下的点题句：辉光与字的放大随聚光灯强度收敛（见 SPOTLIGHT_EMPHASIS_GLOW）
+    const spot = this.views[this.spotView] === view ? this.spot : 0
+    const glowScale = 1 - (1 - SPOTLIGHT_EMPHASIS_GLOW) * spot
+    const growScale = 1 - (1 - SPOTLIGHT_EMPHASIS_SCALE) * spot
     for (const { group, chars } of view.emphasis) {
       // 特效节奏：起落曲线的时长、抖动与颤音的快慢、心跳拍长、流光与消散的速度（见 pace.ts）
       const pace = group.pace ?? 'medium'
@@ -933,6 +938,8 @@ export class LyricPlayer {
             y = -lift * (0.08 + 0.14 * f)
             scale = 1 + lift * 0.05 * f
           }
+          scale = 1 + (scale - 1) * growScale
+          glow *= glowScale
           transform = `translate(${x.toFixed(3)}em, ${y.toFixed(3)}em) scale(${scale.toFixed(3)})`
           if (glow > 0.005)
             shadow = `0 0 ${radius}em color-mix(in srgb, ${tintColor ?? 'var(--lyric-glow, var(--lyric-accent, var(--lyric-color, #fff)))'} ${(glow * 100).toFixed(1)}%, transparent)`
