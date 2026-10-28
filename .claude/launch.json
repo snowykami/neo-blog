@@ -252,6 +252,20 @@
         "cd /tmp/neo-realtest && MODE=dev PORT=18906 DB_PATH=/tmp/neo-realtest/data.db exec /tmp/neo-realtest/server"
       ],
       "port": 18906
+    },
+    {
+      "name": "lyric-effects-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "docs/prototypes/lyric-effects"
+      ],
+      "port": 8766
     }
   ]
 }
