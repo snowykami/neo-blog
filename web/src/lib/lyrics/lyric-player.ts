@@ -67,6 +67,9 @@ interface CharView {
   filter: string
   // 下划线画出的进度（--lyric-line）
   line: string
+  // 这个字的演唱时段：所在音节的时间（一个音节有多个字时平分），下划线据此与逐字擦除同步画出
+  start: number
+  end: number
   // 流光的背景（光带 + 底色，裁剪到字形）与消散的不透明度
   background: string
   opacity: string
@@ -175,21 +178,28 @@ function allowLyricWebFonts() {
   return !connection?.saveData && !['slow-2g', '2g'].includes(connection?.effectiveType ?? '')
 }
 
-/** 把强调的词拆成单字放进 wordEl，非空白的字加入 chars 逐字演出；同时带上该组的字体与字形 */
-function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[], group: LyricEmphasis) {
+/** 把强调的词拆成单字放进 wordEl，非空白的字加入 chars 逐字演出；同时带上该组的字体与字形。timing 为这个音节的演唱时段 */
+function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[], group: LyricEmphasis, timing: { start: number, end: number }) {
   const doc = wordEl.ownerDocument
   wordEl.classList.add('lyric-word--emphasis', `lyric-word--fx-${group.effect}`, ...(group.styles ?? []).map(style => `lyric-word--${style}`))
   if (group.font)
     wordEl.dataset.font = group.font
-  for (const char of splitGraphemes(preserveEdgeSpaces(text))) {
+  const graphemes = splitGraphemes(preserveEdgeSpaces(text))
+  const visible = Math.max(1, graphemes.filter(char => char.trim()).length)
+  const step = (timing.end - timing.start) / visible
+  let k = 0
+  for (const char of graphemes) {
     const charEl = doc.createElement('span')
     charEl.className = 'lyric-char'
     charEl.textContent = char
     wordEl.append(charEl)
-    if (char.trim())
-      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '', line: '', background: '', opacity: '', dissolvedAt: null })
-    else
+    if (char.trim()) {
+      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '', line: '', background: '', opacity: '', dissolvedAt: null, start: timing.start + step * k, end: timing.start + step * (k + 1) })
+      k++
+    }
+    else {
       charEl.classList.add('lyric-char--space')
+    }
   }
 }
 
@@ -362,7 +372,7 @@ export class LyricPlayer {
             wordEl.className = 'lyric-word'
             const group = groupOf(index)
             if (group >= 0)
-              fillEmphasisChars(wordEl, word.text, view.emphasis[group].chars, view.emphasis[group].group)
+              fillEmphasisChars(wordEl, word.text, view.emphasis[group].chars, view.emphasis[group].group, word)
             else
               wordEl.textContent = preserveEdgeSpaces(word.text)
             return { word, el: wordEl, width: 0, pad: 0, mask: '', transform: '' }
@@ -465,7 +475,7 @@ export class LyricPlayer {
         el.className = 'lyric-word'
         const emphasis = emphasisOf(part.word)
         if (emphasis)
-          fillEmphasisChars(el, part.text, emphasis.chars, emphasis.group)
+          fillEmphasisChars(el, part.text, emphasis.chars, emphasis.group, part)
         else
           el.textContent = preserveEdgeSpaces(part.text)
         ruby.append(el)
@@ -789,7 +799,7 @@ export class LyricPlayer {
           }
         }
         if (lined)
-          line = Math.min(1, Math.max(0, (timeMs - group.start - charMs * i) / charMs)).toFixed(3)
+          line = Math.min(1, Math.max(0, (timeMs - char.start) / Math.max(1, char.end - char.start))).toFixed(3)
         if (group.effect === 'focus' && active && f > 0) {
           // 唱到之前模糊，唱到后在前 60% 的演出时长内变清晰
           const clear = Math.min(1, Math.max(0, (timeMs - begin) / (duration * EMPHASIS_FOCUS_CLEAR_RATIO)))
