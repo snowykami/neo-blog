@@ -45,3 +45,12 @@ export const LYRIC_COLORS: Record<LyricColor, string> = {
   'moonlight': '#f0f4ff', // 月光白
   'silver': '#d7dde8', // 银白
 }
+
+/** 颜色的 RGB 分量（0 ~ 255），供 canvas 拼接带透明度的颜色 */
+export type Rgb = [number, number, number]
+
+/** #rrggbb → RGB 分量 */
+export function hexToRgb(hex: string): Rgb {
+  const n = Number.parseInt(hex.slice(1), 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}

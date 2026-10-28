@@ -10,8 +10,9 @@ import { fetchLyricAnnotations, refreshLyricAnnotations } from '@/api/music'
  * 本次访问内不再请求。后端返回旧结果（stale，过期或管理员刷新后正在重新生成）时先使用旧结果，继续轮询直到拿到新结果
  */
 
-const POLL_MS = 5000
-const MAX_POLLS = 36
+// 每 2 秒取一次，最多等 3 分钟
+const POLL_MS = 2000
+const MAX_POLLS = 90
 
 interface Entry {
   // undefined 为尚未取到（请求中或等待生成）
@@ -58,7 +59,7 @@ export function requestLyricAnnotations(id: number) {
         return
       }
       if (result.status === 'ready')
-        settle(entry, { lines: result.lines })
+        settle(entry, { font: result.font, lines: result.lines })
       if (result.status === 'ready' && !result.stale)
         return
       polls++

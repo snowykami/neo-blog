@@ -85,6 +85,73 @@
 }
 
 /*
+ * 字体（来自歌词标注，与后端 lyricAnnotationFontList 一致）：全曲字体作用于原文，短语字体覆盖全曲字体；
+ * 只使用系统字体，没有对应字体时依次回退（Windows / Linux 上可能回退到近似字体）
+ */
+.lyric-player[data-lyric-font='song'] .lyric-main,
+.lyric-word[data-font='song'] {
+  font-family: 'Songti SC', STSong, 'Noto Serif SC', 'Source Han Serif SC', 'Noto Serif CJK SC', SimSun, serif;
+}
+.lyric-player[data-lyric-font='kai'] .lyric-main,
+.lyric-word[data-font='kai'] {
+  font-family: 'Kaiti SC', STKaiti, KaiTi, BiauKai, 'LXGW WenKai', 'Noto Serif SC', serif;
+}
+.lyric-player[data-lyric-font='xingkai'] .lyric-main,
+.lyric-word[data-font='xingkai'] {
+  font-family: 'Xingkai SC', STXingkai, 'Kaiti SC', STKaiti, KaiTi, serif;
+}
+.lyric-player[data-lyric-font='fangsong'] .lyric-main,
+.lyric-word[data-font='fangsong'] {
+  font-family: STFangsong, FangSong, 'Fangsong SC', 'Songti SC', serif;
+}
+.lyric-player[data-lyric-font='round'] .lyric-main,
+.lyric-word[data-font='round'] {
+  font-family: 'Yuanti SC', 'Hiragino Maru Gothic ProN', 'Arial Rounded MT Bold', 'Varela Round', sans-serif;
+}
+.lyric-player[data-lyric-font='mono'] .lyric-main,
+.lyric-word[data-font='mono'] {
+  font-family: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+/* 英文花体：中日韩文字回退到苹方等无衬线字体 */
+.lyric-player[data-lyric-font='script'] .lyric-main,
+.lyric-word[data-font='script'] {
+  font-family: 'Snell Roundhand', 'Apple Chancery', 'Segoe Script', 'Brush Script MT', 'PingFang SC', sans-serif;
+}
+
+/* 字形（来自歌词标注） */
+.lyric-word--bold {
+  font-weight: 900;
+}
+.lyric-word--italic {
+  font-style: italic;
+}
+/* 下划线 / 删除线：按 --lyric-line（0 ~ 1）从左到右画出，不演出时完整显示 */
+.lyric-word--underline .lyric-char,
+.lyric-word--strike .lyric-char {
+  position: relative;
+}
+.lyric-word--underline .lyric-char:not(.lyric-char--space)::before,
+.lyric-word--strike .lyric-char:not(.lyric-char--space)::after {
+  content: '';
+  position: absolute;
+  left: -0.03em;
+  right: -0.03em;
+  height: 0.075em;
+  border-radius: 999px;
+  background: currentColor;
+  transform: scaleX(var(--lyric-line, 1));
+  transform-origin: left center;
+  pointer-events: none;
+}
+.lyric-word--underline .lyric-char:not(.lyric-char--space)::before {
+  bottom: 0.04em;
+}
+.lyric-word--strike .lyric-char:not(.lyric-char--space)::after {
+  top: 52%;
+  margin-top: -0.0375em;
+}
+
+/*
  * 原文之下依次为音译、翻译（参考 StarryPlayer 的字号比例：原文 48、音译 28、翻译 22，翻译不透明度 0.5）。
  * 整行的音译与翻译不小于 10px
  */

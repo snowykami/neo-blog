@@ -8,6 +8,8 @@ import { StageParticles } from '@/lib/lyrics/stage-particles'
 
 // 背景呼吸与染色的最大不透明度
 const PULSE_MAX_OPACITY = 0.22
+// 副歌爆发更亮
+const BURST_MAX_OPACITY = 0.45
 const TINT_MAX_OPACITY = 0.38
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
@@ -20,7 +22,7 @@ function subscribeReducedMotion(listener: () => void) {
 
 /**
  * 播放器页的全屏特效（只在 /music 演出，叠在动态背景之上、内容之下）：
- * 背景呼吸（唱到 swell / shake 强调时亮起）、背景染色（唱到带颜色的强调时泛起该颜色）、粒子场景（歌词标注的 scene）。
+ * 背景呼吸（唱到 swell / shake 强调时亮起，每段副歌开唱时更强烈地爆发一次）、背景染色（唱到带颜色的强调时泛起该颜色）、粒子场景（歌词标注的 scene）。
  * 关闭歌词特效或系统要求减少动态效果时不渲染；逐帧更新直接写 DOM / canvas，不触发 React 渲染
  */
 export function MusicStageEffects() {
@@ -60,7 +62,7 @@ export function MusicStageEffects() {
       const time = getAudio()?.currentTime
       const signals = time == null ? null : getStageSignals(lyrics, time * 1000)
 
-      const nextPulse = ((signals?.pulse ?? 0) * PULSE_MAX_OPACITY).toFixed(3)
+      const nextPulse = Math.max((signals?.pulse ?? 0) * PULSE_MAX_OPACITY, (signals?.burst ?? 0) * BURST_MAX_OPACITY).toFixed(3)
       if (nextPulse !== pulseOpacity) {
         pulseOpacity = nextPulse
         pulseEl.style.opacity = nextPulse

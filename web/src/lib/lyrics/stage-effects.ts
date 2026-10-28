@@ -5,30 +5,44 @@ import { swellCurve } from './easing'
  * 播放器页的全屏特效信号（纯函数，由 MusicStageEffects 每帧调用）：
  * - pulse 背景呼吸：唱到 swell / shake 强调时随起落曲线亮起，强度取 factor
  * - tint 背景染色：唱到带颜色的强调时，背景泛起该颜色，唱完后慢慢淡出
- * - scene 粒子场景：从标了 scene 的行开始，持续 SCENE_MAX_LINES 行，或到下一个标了 scene 的行为止
+ * - burst 副歌爆发：每段副歌的第一行开唱时迅速亮起，再慢慢回落
+ * - scene 粒子场景（含颜色主题）：从标了 scene 的行开始，持续 SCENE_MAX_LINES 行，或到下一个标了 scene 的行为止
  */
 
 export interface StageSignals {
   pulse: number
+  burst: number
   tint: { color: LyricColor, strength: number } | null
-  scene: LyricScene | null
+  scene: StageScene | null
+}
+
+export interface StageScene {
+  name: LyricScene
+  // 颜色主题，null 为场景默认色
+  color: LyricColor | null
 }
 
 // 演出时长下限（与歌词引擎的强调一致）、染色淡入与淡出时长
 const PULSE_MIN_MS = 1000
 const TINT_ATTACK_MS = 300
 const TINT_RELEASE_MS = 1500
+// 副歌爆发的亮起与回落时长
+const BURST_ATTACK_MS = 200
+const BURST_RELEASE_MS = 1800
 // 粒子场景持续的行数（含标注行）
 export const SCENE_MAX_LINES = 8
 
-const NO_SIGNALS: StageSignals = { pulse: 0, tint: null, scene: null }
+const NO_SIGNALS: StageSignals = { pulse: 0, burst: 0, tint: null, scene: null }
 
 export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number): StageSignals {
   if (lyrics.lines.length === 0)
     return NO_SIGNALS
   let pulse = 0
+  let burst = 0
   let tint: StageSignals['tint'] = null
   for (const line of lyrics.lines) {
+    if (line.chorusStart)
+      burst = Math.max(burst, burstEnvelope(line.start, timeMs))
     for (const group of line.emphasis ?? []) {
       if (group.effect === 'swell' || group.effect === 'shake') {
         const duration = Math.max(PULSE_MIN_MS, group.end - group.start)
@@ -41,7 +55,17 @@ export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number): StageSi
       }
     }
   }
-  return { pulse, tint, scene: sceneAt(lyrics, timeMs) }
+  return { pulse, burst, tint, scene: sceneAt(lyrics, timeMs) }
+}
+
+/** 副歌爆发包络：开唱后 BURST_ATTACK_MS 内升满，再按缓出曲线在 BURST_RELEASE_MS 内回落 */
+function burstEnvelope(start: number, timeMs: number) {
+  const t = timeMs - start
+  if (t < 0 || t > BURST_ATTACK_MS + BURST_RELEASE_MS)
+    return 0
+  if (t <= BURST_ATTACK_MS)
+    return t / BURST_ATTACK_MS
+  return (1 - (t - BURST_ATTACK_MS) / BURST_RELEASE_MS) ** 2
 }
 
 /** 染色包络：开始后 TINT_ATTACK_MS 内升满，保持到结束，之后 TINT_RELEASE_MS 内淡出 */
@@ -54,8 +78,8 @@ function tintEnvelope(start: number, end: number, timeMs: number) {
 }
 
 /** 当前的粒子场景：最近一个已开始的场景行，且当前行距它不超过 SCENE_MAX_LINES 行 */
-function sceneAt(lyrics: ResolvedLyrics, timeMs: number): LyricScene | null {
-  let scene: LyricScene | null = null
+function sceneAt(lyrics: ResolvedLyrics, timeMs: number): StageScene | null {
+  let scene: StageScene | null = null
   let sceneIndex = -1
   let current = -1
   lyrics.lines.forEach((line, index) => {
@@ -63,7 +87,7 @@ function sceneAt(lyrics: ResolvedLyrics, timeMs: number): LyricScene | null {
       return
     current = index
     if (line.scene) {
-      scene = line.scene
+      scene = { name: line.scene, color: line.sceneColor ?? null }
       sceneIndex = index
     }
   })

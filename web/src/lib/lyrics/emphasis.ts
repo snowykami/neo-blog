@@ -1,4 +1,4 @@
-import type { LyricColor, LyricEffect, LyricEmphasis, LyricLine, LyricMood, LyricScene, ResolvedLyrics } from './types'
+import type { LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricScene, LyricTextStyle, ResolvedLyrics } from './types'
 import { normalizeForMatch } from './strip-credits'
 
 /**
@@ -6,25 +6,30 @@ import { normalizeForMatch } from './strip-credits'
  * - 规则（同 StarryPlayer）：按词判断，一个词唱满 1 秒、且少于 8 个字（拉丁文字还须多于 1 个字母）时强调，
  *   强度 = (min(时长, 2 秒) − 1 秒) / 1 秒。中日文用浏览器的分词（Intl.Segmenter）切词，词由若干逐字音节组成
  * - 歌词标注（后端用大模型对歌词文本做的一次性标注，见 7.2b）：挑出的短语按文本匹配到行内，只要唱满 0.6 秒即演出，
- *   并可指定特效类型与颜色；与标注短语重叠的规则词让位给标注。标注只引用文本，时间一律取自歌词本身
- * - 一行最后一组强调的词加强（同 AMLL），副歌行加强；只处理逐字歌词
+ *   并可指定特效类型、颜色、字体与字形；唱不满 0.6 秒的短语不做动效，但保留颜色、字体与字形；与标注短语重叠的规则词让位给标注。标注只引用文本，时间一律取自歌词本身
+ * - 一行最后一组强调的词加强（同 AMLL），副歌行加强，副歌起点行更强；只处理逐字歌词
  */
 
 export interface LyricAnnotationPhrase {
   text: string
   effect: LyricEffect
   color?: LyricColor
+  font?: LyricFont
+  styles?: LyricTextStyle[]
 }
 
 export interface LyricAnnotationLine {
   text: string
   mood?: LyricMood
   chorus?: boolean
+  chorusStart?: boolean
   scene?: LyricScene
+  sceneColor?: LyricColor
   phrases: LyricAnnotationPhrase[]
 }
 
 export interface LyricAnnotations {
+  font?: LyricFont
   lines: LyricAnnotationLine[]
 }
 
@@ -35,6 +40,7 @@ const ANNOTATED_MIN_MS = 600
 const ANNOTATED_MIN_FACTOR = 0.3
 const LAST_GROUP_BOOST = 1.3
 const CHORUS_BOOST = 1.2
+const CHORUS_START_BOOST = 1.4
 // 强度过低时看不出效果，不演出
 const MIN_FACTOR = 0.03
 
@@ -143,9 +149,12 @@ function annotatedGroups(line: LyricLine, text: string, wordAt: number[], annota
       if (!range)
         continue
       const duration = rangeDuration(line, range.from, range.to)
-      if (duration < ANNOTATED_MIN_MS)
+      const styled = !!(phrase.color || phrase.font || phrase.styles?.length)
+      if (duration < ANNOTATED_MIN_MS && !styled)
         continue
-      groups.push({ ...range, start: line.words[range.from].start, end: line.words[range.to - 1].end, factor: Math.max(ANNOTATED_MIN_FACTOR, factorOf(duration, ANNOTATED_MIN_MS)), effect: phrase.effect, color: phrase.color })
+      // 唱得太快的短语不做动效（factor 为 0），只保留颜色、字体与字形
+      const factor = duration < ANNOTATED_MIN_MS ? 0 : Math.max(ANNOTATED_MIN_FACTOR, factorOf(duration, ANNOTATED_MIN_MS))
+      groups.push({ ...range, start: line.words[range.from].start, end: line.words[range.to - 1].end, factor, effect: phrase.effect, color: phrase.color, font: phrase.font, styles: phrase.styles?.length ? phrase.styles : undefined })
     }
   }
   return groups
@@ -170,13 +179,15 @@ export function lineEmphasis(line: LyricLine, annotation?: LyricAnnotationLine |
   let lastWord = line.words.length - 1
   while (lastWord > 0 && !line.words[lastWord].text.trim())
     lastWord--
-  const boost = annotation?.chorus ? CHORUS_BOOST : 1
+  const boost = annotation?.chorusStart ? CHORUS_START_BOOST : annotation?.chorus ? CHORUS_BOOST : 1
   return chosen
     .map(group => ({ ...group, factor: Math.min(1, group.factor * boost * (group.to > lastWord ? LAST_GROUP_BOOST : 1)) }))
-    .filter(group => group.factor >= MIN_FACTOR)
+    // 强度过低的不演出；只有样式（颜色、字体、字形）的保留，不做动效
+    .map(group => group.factor < MIN_FACTOR ? { ...group, factor: 0 } : group)
+    .filter(group => group.factor > 0 || group.color || group.font || group.styles)
 }
 
-/** 给逐字歌词的每一行加上强调分组、情绪基调与粒子场景；标注按行文本（归一化后）匹配，同一文本的行共用一条标注 */
+/** 给逐字歌词加上全曲字体，并给每一行加上强调分组、情绪基调、副歌起点与粒子场景（含颜色主题）；标注按行文本（归一化后）匹配，同一文本的行共用一条标注 */
 export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotations | null): ResolvedLyrics {
   if (!lyrics.wordTimed || lyrics.lines.length === 0)
     return lyrics
@@ -188,10 +199,11 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
   }
   return {
     ...lyrics,
+    font: annotations?.font,
     lines: lyrics.lines.map((line) => {
       const annotation = byText.get(normalizeForMatch(line.words.map(word => word.text).join(''))) ?? null
       const emphasis = lineEmphasis(line, annotation)
-      return { ...line, emphasis: emphasis.length > 0 ? emphasis : undefined, mood: annotation?.mood, scene: annotation?.scene }
+      return { ...line, emphasis: emphasis.length > 0 ? emphasis : undefined, mood: annotation?.mood, scene: annotation?.scene, sceneColor: annotation?.scene ? annotation.sceneColor : undefined, chorusStart: annotation?.chorusStart }
     }),
   }
 }

@@ -61,6 +61,8 @@ interface CharView {
   shadow: string
   color: string
   filter: string
+  // 下划线 / 删除线画出的进度（--lyric-line）
+  line: string
 }
 
 /** 一组强调的词拆成的单字 */
@@ -155,17 +157,21 @@ const easeOut = (t: number) => 1 - (1 - t) ** 2
  * - 滚轮 / 触摸拖动（带惯性）进入手动滚动，冻结焦点，停手一段时间后回到自动对齐
  * - 进度突变（跳转）时瞬移到位；暂停且动画静止时停止逐帧循环，由 wake() 唤醒
  */
-/** 把强调的词拆成单字放进 wordEl，非空白的字加入 chars 逐字演出 */
-function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[]) {
+/** 把强调的词拆成单字放进 wordEl，非空白的字加入 chars 逐字演出；同时带上该组的字体与字形 */
+function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[], group: LyricEmphasis) {
   const doc = wordEl.ownerDocument
-  wordEl.classList.add('lyric-word--emphasis')
+  wordEl.classList.add('lyric-word--emphasis', ...(group.styles ?? []).map(style => `lyric-word--${style}`))
+  if (group.font)
+    wordEl.dataset.font = group.font
   for (const char of splitGraphemes(preserveEdgeSpaces(text))) {
     const charEl = doc.createElement('span')
     charEl.className = 'lyric-char'
     charEl.textContent = char
     wordEl.append(charEl)
     if (char.trim())
-      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '' })
+      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '', line: '' })
+    else
+      charEl.classList.add('lyric-char--space')
   }
 }
 
@@ -233,12 +239,18 @@ export class LyricPlayer {
     this.views.forEach(view => view.el.remove())
     this.views = []
     this.container.classList.remove('lyric-player', 'lyric-player--compact', 'lyric-player--no-roman')
+    delete this.container.dataset.lyricFont
   }
 
   setLyrics(lyrics: ResolvedLyrics) {
     if (lyrics === this.lyrics)
       return
     this.lyrics = lyrics
+    // 全曲字体（来自歌词标注），字体栈见 lyric-player.css
+    if (lyrics.font)
+      this.container.dataset.lyricFont = lyrics.font
+    else
+      delete this.container.dataset.lyricFont
     this.items = buildTimeline(lyrics.lines)
     this.manual = null
     this.lastTimeMs = null
@@ -322,14 +334,14 @@ export class LyricPlayer {
             wordEl.className = 'lyric-word'
             const group = groupOf(index)
             if (group >= 0)
-              fillEmphasisChars(wordEl, word.text, view.emphasis[group].chars)
+              fillEmphasisChars(wordEl, word.text, view.emphasis[group].chars, view.emphasis[group].group)
             else
               wordEl.textContent = preserveEdgeSpaces(word.text)
             return { word, el: wordEl, width: 0, pad: 0, mask: '', transform: '' }
           })
           view.words = [...mainWords, ...this.buildWords(main, line, mainWords, (index) => {
             const group = groupOf(index)
-            return group >= 0 ? rubyEmphasis[group].chars : null
+            return group >= 0 ? rubyEmphasis[group] : null
           })]
           view.emphasis.push(...rubyEmphasis.filter(item => item.chars.length > 0))
         }
@@ -375,9 +387,9 @@ export class LyricPlayer {
   /**
    * 把原文的词放进主行；有逐字音译时，被同一个音译词覆盖的连续音节组成一个注音单元：原文在上、音译在下居中对齐
    * （参考 StarryPlayer 的注音行），音译的每一段也作为可擦除的词返回，按自己的时间逐字擦除。
-   * emphasisOf 返回某个音节所在强调组的音译单字列表（不强调时为 null），注在强调音节下的音译段拆成单字放入其中
+   * emphasisOf 返回某个音节所在强调组的音译部分（不强调时为 null），注在强调音节下的音译段拆成单字放入其中，并带上该组的字体与字形
    */
-  private buildWords(main: HTMLElement, line: ResolvedLyrics['lines'][number], mainWords: WordView[], emphasisOf: (index: number) => CharView[] | null): WordView[] {
+  private buildWords(main: HTMLElement, line: ResolvedLyrics['lines'][number], mainWords: WordView[], emphasisOf: (index: number) => EmphasisView | null): WordView[] {
     const doc = this.container.ownerDocument
     const parts = line.romanizationWords ?? []
     if (parts.length === 0) {
@@ -423,9 +435,9 @@ export class LyricPlayer {
       for (const part of u.parts) {
         const el = doc.createElement('span')
         el.className = 'lyric-word'
-        const chars = emphasisOf(part.word)
-        if (chars)
-          fillEmphasisChars(el, part.text, chars)
+        const emphasis = emphasisOf(part.word)
+        if (emphasis)
+          fillEmphasisChars(el, part.text, emphasis.chars, emphasis.group)
         else
           el.textContent = preserveEdgeSpaces(part.text)
         ruby.append(el)
@@ -680,7 +692,8 @@ export class LyricPlayer {
   /**
    * 强调特效（参考 AMLL 与 StarryPlayer）：组内的字依次错开，按起落曲线放大、发光并上浮；
    * swell 放大 + 辉光 + 上浮，glow 只发光（几乎不放大），wave 不发光、逐字波浪上浮，
-   * shake 演唱时快速细微地抖动，focus 在高亮行内先模糊、唱到时变清晰。强度 factor 决定幅度。
+   * shake 演唱时快速细微地抖动，focus 在高亮行内先模糊、唱到时变清晰。强度 factor 决定幅度，为 0 时不做动效。
+   * 带下划线 / 删除线字形的组：每个字在自己的演唱时段内从左到右画出线条
    * 指定了颜色的组：字随演出逐渐上色（辉光也用该颜色），唱过后在高亮行内保留部分颜色
    */
   private paintEmphasis(view: ItemView, active: boolean, timeMs: number) {
@@ -691,6 +704,9 @@ export class LyricPlayer {
       const count = chars.length
       const wave = group.effect === 'wave'
       const tintColor = group.color ? LYRIC_COLORS[group.color] : null
+      // 下划线 / 删除线：每个字在自己的演唱时段内从左到右画出
+      const lined = group.styles?.some(style => style === 'underline' || style === 'strike')
+      const charMs = Math.max(1, (group.end - group.start) / Math.max(1, count))
       // 波浪的字间错开更明显
       const stagger = (duration * (wave ? 1 / 1.5 : EMPHASIS_STAGGER_RATIO)) / Math.max(1, count)
       chars.forEach((char, i) => {
@@ -701,7 +717,10 @@ export class LyricPlayer {
         let shadow = ''
         let color = ''
         let filter = ''
-        if (group.effect === 'focus' && active) {
+        let line = ''
+        if (lined)
+          line = Math.min(1, Math.max(0, (timeMs - group.start - charMs * i) / charMs)).toFixed(3)
+        if (group.effect === 'focus' && active && f > 0) {
           // 唱到之前模糊，唱到后在前 60% 的演出时长内变清晰
           const clear = Math.min(1, Math.max(0, (timeMs - begin) / (duration * EMPHASIS_FOCUS_CLEAR_RATIO)))
           const blur = (1 - clear) * (0.05 + 0.07 * f)
@@ -713,7 +732,8 @@ export class LyricPlayer {
           if (tint > 0.005)
             color = `color-mix(in srgb, ${tintColor} ${(tint * 100).toFixed(1)}%, currentColor)`
         }
-        if (v > 0 || lift > 0) {
+        // factor 为 0 的组（唱得太快的标注短语）只保留颜色、字体与字形，不做动效
+        if (f > 0 && (v > 0 || lift > 0)) {
           let scale = 1
           let x = 0
           let y = -lift * (bg ? 0.1 : 0.05)
@@ -768,6 +788,10 @@ export class LyricPlayer {
           char.filter = filter
           char.el.style.filter = filter
         }
+        if (line !== char.line) {
+          char.line = line
+          char.el.style.setProperty('--lyric-line', line)
+        }
       })
     }
   }
@@ -790,6 +814,11 @@ export class LyricPlayer {
         if (char.filter) {
           char.filter = ''
           char.el.style.filter = ''
+        }
+        // 不演出时下划线 / 删除线完整显示（CSS 默认值）
+        if (char.line) {
+          char.line = ''
+          char.el.style.removeProperty('--lyric-line')
         }
       }
     }

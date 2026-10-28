@@ -79,6 +79,7 @@ export async function fetchQqLyric(id: number, signal?: AbortSignal): Promise<Mu
 export interface MusicLyricAnnotations {
   status: 'ready' | 'pending'
   stale?: boolean
+  font?: LyricAnnotations['font']
   lines: LyricAnnotations['lines']
 }
 

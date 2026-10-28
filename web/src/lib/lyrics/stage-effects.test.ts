@@ -38,18 +38,26 @@ describe('播放器页全屏特效信号', () => {
     expect(getStageSignals(lyrics, 3000).tint).toBeNull()
   })
 
-  it('粒子场景：从标注行开始，持续若干行，遇到新场景时切换', () => {
+  it('副歌爆发：副歌起点行开唱时迅速亮起，再慢慢回落', () => {
+    const lyrics = lyricsOf([{}, { chorusStart: true }])
+    expect(getStageSignals(lyrics, 1900).burst).toBe(0)
+    expect(getStageSignals(lyrics, 2200).burst).toBe(1)
+    expect(getStageSignals(lyrics, 3100).burst).toBeCloseTo(0.25, 2)
+    expect(getStageSignals(lyrics, 4100).burst).toBe(0)
+  })
+
+  it('粒子场景：从标注行开始，持续若干行，遇到新场景时切换（带颜色主题）', () => {
     const lines: Partial<LyricLine>[] = Array.from({ length: SCENE_MAX_LINES + 4 }, () => ({}))
     lines[1] = { scene: 'petals' }
     const lyrics = lyricsOf(lines)
     expect(getStageSignals(lyrics, 1500).scene).toBeNull()
-    expect(getStageSignals(lyrics, 2000).scene).toBe('petals')
+    expect(getStageSignals(lyrics, 2000).scene).toEqual({ name: 'petals', color: null })
     // 第 1 ~ SCENE_MAX_LINES 行（共 SCENE_MAX_LINES 行）唱完后结束
     const lastLine = SCENE_MAX_LINES
-    expect(getStageSignals(lyrics, lastLine * 2000 + 500).scene).toBe('petals')
+    expect(getStageSignals(lyrics, lastLine * 2000 + 500).scene?.name).toBe('petals')
     expect(getStageSignals(lyrics, lastLine * 2000 + 1500).scene).toBeNull()
 
-    lines[3] = { scene: 'snow' }
-    expect(getStageSignals(lyricsOf(lines), 6500).scene).toBe('snow')
+    lines[3] = { scene: 'snow', sceneColor: 'ice' }
+    expect(getStageSignals(lyricsOf(lines), 6500).scene).toEqual({ name: 'snow', color: 'ice' })
   })
 })
