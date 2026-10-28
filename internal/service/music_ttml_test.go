@@ -4,10 +4,15 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
 const testTTML = `<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="00:01.000" end="00:02.000"><span begin="00:01.000" end="00:02.000">hi</span></p></div></body></tt>`
@@ -29,8 +34,19 @@ func ttmlServer(t *testing.T, status int, body string) (*httptest.Server, *atomi
 	return server, &calls
 }
 
+// setupTTMLDB 自定义源的地址在环境变量没有设置时读后台配置，测试用临时数据库
+func setupTTMLDB(t *testing.T) {
+	t.Helper()
+	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
+	if err := repo.InitDatabase(); err != nil {
+		t.Fatalf("init database: %v", err)
+	}
+}
+
 func setupTTMLTest(t *testing.T, customPrefix string, mirrors ...string) {
 	t.Helper()
+	setupTTMLDB(t)
 	t.Setenv("MUSIC_TTML_URL_PREFIX", customPrefix)
 	original := musicTTMLMirrors
 	musicTTMLMirrors = mirrors
@@ -63,6 +79,7 @@ func TestTTMLLyricPriority(t *testing.T) {
 }
 
 func TestCustomTTMLURL(t *testing.T) {
+	setupTTMLDB(t)
 	for _, item := range []struct{ config, want string }{
 		{"", ""},
 		{"https://cdn.example.com/lyrics/", "https://cdn.example.com/lyrics/42.ttml"},
@@ -76,6 +93,26 @@ func TestCustomTTMLURL(t *testing.T) {
 		if got := customTTMLURL(42); got != item.want {
 			t.Errorf("%q: got %q, want %q", item.config, got, item.want)
 		}
+	}
+}
+
+func TestCustomTTMLURLConfig(t *testing.T) {
+	setupTTMLDB(t)
+	t.Setenv("MUSIC_TTML_URL_PREFIX", "")
+	if err := repo.KV.SetKV("music_ttml_url_template", "https://console.example.com/{song_id}.ttml"); err != nil {
+		t.Fatal(err)
+	}
+	// 环境变量没有设置时用后台配置
+	if got := customTTMLURL(7); got != "https://console.example.com/7.ttml" {
+		t.Fatalf("console config: got %q", got)
+	}
+	// 两者都有时环境变量优先，并报告给后台显示为只读
+	t.Setenv("MUSIC_TTML_URL_PREFIX", "https://env.example.com/{id}.ttml")
+	if got := customTTMLURL(7); got != "https://env.example.com/7.ttml" {
+		t.Fatalf("env first: got %q", got)
+	}
+	if overrides := tools.EnvOverrides(); overrides["music_ttml_url_template"] != "https://env.example.com/{id}.ttml" {
+		t.Fatalf("overrides = %v", overrides)
 	}
 }
 

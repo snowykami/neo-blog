@@ -120,6 +120,24 @@ func GetNCMConfig() NCMConfig {
 	}
 }
 
+// GetMusicTTMLURLTemplate 自定义 TTML 歌词源的地址（含 {id} / {song_id} 的模板，或目录前缀）：环境变量 MUSIC_TTML_URL_PREFIX 优先，
+// 未设置时取后台配置 music_ttml_url_template；fromEnv 表示取自环境变量（后台的配置此时不生效）
+func GetMusicTTMLURLTemplate() (value string, fromEnv bool) {
+	if env := strings.TrimSpace(utils.Env.Get(constant.EnvKeyMusicTTMLURL)); env != "" {
+		return env, true
+	}
+	return strings.TrimSpace(repo.KV.GetStringWithoutErr("music_ttml_url_template", "")), false
+}
+
+// EnvOverrides 由环境变量设置、优先于后台配置的配置项：配置键 → 环境变量中的值（未设置的不列出），供后台显示
+func EnvOverrides() map[string]string {
+	overrides := map[string]string{}
+	if value, fromEnv := GetMusicTTMLURLTemplate(); fromEnv {
+		overrides["music_ttml_url_template"] = value
+	}
+	return overrides
+}
+
 // getNCMSongLevel 读取播放音质，未配置或不在可选范围内时使用默认音质
 func getNCMSongLevel() string {
 	level := strings.TrimSpace(repo.KV.GetStringWithoutErr("ncm_song_level", NCMSongLevelDefault))

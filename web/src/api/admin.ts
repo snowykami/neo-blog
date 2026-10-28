@@ -122,6 +122,12 @@ export async function listKV(query = ''): Promise<BaseResponse<{ items: KVItem[]
   return res.data
 }
 
+// 由环境变量设置、优先于后台配置的配置项：配置键（camelCase）→ 环境变量中的值，后台把这些配置显示为只读
+export async function getEnvOverrides(): Promise<BaseResponse<{ overrides: Record<string, string> }>> {
+  const res = await axiosClient.get('/admin/config/env-overrides')
+  return res.data
+}
+
 export async function setKV(item: KVItem): Promise<BaseResponse<null>> {
   const res = item.key
     ? await axiosClient.put(`/admin/kv/${encodeURIComponent(item.key)}`, item)

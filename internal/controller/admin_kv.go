@@ -7,6 +7,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
@@ -21,6 +22,11 @@ func (cc *AdminController) ListKV(ctx context.Context, c *app.RequestContext) {
 		items = append(items, dto.KVDto{Key: kv.Key, Value: kv.Value["value"]})
 	}
 	resps.Ok(c, resps.Success, utils.H{"items": items})
+}
+
+// EnvOverrides 由环境变量设置、优先于后台配置的配置项（配置键 → 环境变量中的值），后台据此把这些配置显示为只读
+func (cc *AdminController) EnvOverrides(ctx context.Context, c *app.RequestContext) {
+	resps.Ok(c, resps.Success, utils.H{"overrides": tools.EnvOverrides()})
 }
 
 func (cc *AdminController) SetKV(ctx context.Context, c *app.RequestContext) {

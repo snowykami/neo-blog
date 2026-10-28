@@ -9,7 +9,7 @@ import { parseAsStringEnum, useQueryState } from 'nuqs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FormProvider, useForm, useFormContext, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
-import { listKV, setKV } from '@/api/admin'
+import { getEnvOverrides, listKV, setKV } from '@/api/admin'
 import { getSiteInfo } from '@/api/misc'
 import { listNCMPlaylists } from '@/api/music'
 import { defaultSidebarCards } from '@/components/blog-sidebar/sidebar-cards'
@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
+import { FormControl, FormDescription, FormField, FormItem, FormLabel } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
@@ -75,6 +75,7 @@ interface SettingsValues {
   musicSource: MusicSourceType
   musicPlaylistUrl: string
   ncmApiBaseUrl: string
+  musicTtmlUrlTemplate: string
   ncmCookie: string
   ncmPlaylistId: number
   ncmSongLevel: NCMSongLevel
@@ -148,6 +149,8 @@ const STANDALONE_KEYS: Partial<Record<FieldName, { key: string, toValue?: (value
   ncmCookie: { key: 'ncm_cookie', toValue: values => values.ncmCookie.trim() },
   ncmPlaylistId: { key: 'ncm_playlist_id' },
   ncmSongLevel: { key: 'ncm_song_level' },
+  // 自定义 TTML 歌词源地址（环境变量 MUSIC_TTML_URL_PREFIX 优先）
+  musicTtmlUrlTemplate: { key: 'music_ttml_url_template', toValue: values => values.musicTtmlUrlTemplate.trim() },
   // 和风天气配置仅后端使用，Key 只写入独立配置键
   qweatherApiHost: { key: 'qweather_api_host', toValue: values => values.qweatherApiHost.trim() },
   qweatherApiKey: { key: 'qweather_api_key', toValue: values => values.qweatherApiKey.trim() },
@@ -202,6 +205,7 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     ncmCookie: str('ncmCookie', ''),
     ncmPlaylistId: num('ncmPlaylistId', 0),
     ncmSongLevel: NCM_SONG_LEVELS.find(level => level === kv.ncmSongLevel) ?? 'exhigh',
+    musicTtmlUrlTemplate: str('musicTtmlUrlTemplate', ''),
     qweatherApiHost: str('qweatherApiHost', ''),
     qweatherApiKey: str('qweatherApiKey', ''),
     enableThirdPartyScript: info.enableThirdPartyScript ?? fallbackSiteInfo.enableThirdPartyScript ?? false,
@@ -255,7 +259,7 @@ type GlobalTab = typeof GLOBAL_TABS[number]
 const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
   site: ['siteName', 'baseUrl', 'siteDescription', 'siteIcon', 'keywords', 'defaultCovers', 'ownerName', 'ownerMotto', 'ownerDescription', 'ownerAvatar', 'ownerGravatarEmail'],
   content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
-  frontend: ['aboutBackground', 'sidebarCards', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel', 'qweatherApiHost', 'qweatherApiKey'],
+  frontend: ['aboutBackground', 'sidebarCards', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel', 'musicTtmlUrlTemplate', 'qweatherApiHost', 'qweatherApiKey'],
   account: ['enableRegister', 'enableRegisterFromOidc', 'verifyCodeCoolDown', 'visitLogRetentionDays'],
   ai: ['aiApiBaseUrl', 'aiApiKey', 'aiModel', 'aiSummaryConcurrency', 'lyricAnnotationTtlDays'],
   rss: ['rssTitle', 'rssAuthor', 'rssCopyright', 'rssLanguage', 'rssImage'],
@@ -271,6 +275,8 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
   const { setSiteInfo } = useSiteInfo()
   const [baseSiteInfo, setBaseSiteInfo] = useState<SiteInfo | null>(null)
   const [saving, setSaving] = useState(false)
+  // 由环境变量设置的配置（只读显示），键为 camelCase 的字段名
+  const [envOverrides, setEnvOverrides] = useState<Record<string, string>>({})
   const form = useForm<SettingsValues>()
   // 当前 Tab 写入地址参数，便于直接打开某个分组
   const [tab, setTab] = useQueryState('tab', parseAsStringEnum<GlobalTab>([...GLOBAL_TABS]).withDefault('site').withOptions({ history: 'replace', clearOnDefault: true }))
@@ -285,6 +291,10 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
         form.reset(toValues(infoRes.data, camelKv))
       })
       .catch(() => toast.error(operationT('fetch_failed')))
+    // 读取失败时按没有环境变量处理，不影响编辑
+    getEnvOverrides()
+      .then(res => setEnvOverrides(res.data.overrides ?? {}))
+      .catch(() => {})
   }, [form, operationT])
 
   const onSubmit = async (values: SettingsValues) => {
@@ -395,7 +405,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
               <SidebarCardsField />
             </Section>
 
-            <MusicSection />
+            <MusicSection envOverrides={envOverrides} />
             <Section title={t('section_weather')} description={t('section_weather_desc')}>
               <TextField name="qweatherApiHost" label={t('qweather_api_host')} description={t('qweather_api_host_desc')} placeholder="abc123xyz.re.qweatherapi.com" />
               <PasswordField name="qweatherApiKey" label={t('qweather_api_key')} description={t('qweather_api_key_desc')} />
@@ -482,6 +492,19 @@ function TextField({ name, label, description, placeholder, wide, type = 'text' 
         </FormItem>
       )}
     />
+  )
+}
+
+// 可由环境变量覆盖的文本配置：环境变量设置时显示它的值（只读）并说明，否则正常编辑
+function EnvOverridableField({ envValue, envNote, ...props }: FieldProps & { envValue?: string, envNote: string }) {
+  if (!envValue)
+    return <TextField {...props} />
+  return (
+    <FormItem className={props.wide ? 'md:col-span-2' : undefined}>
+      <LabelWithInfo info={props.description}><FormLabel>{props.label}</FormLabel></LabelWithInfo>
+      <Input value={envValue} readOnly disabled />
+      <FormDescription>{envNote}</FormDescription>
+    </FormItem>
   )
 }
 
@@ -735,8 +758,8 @@ function LinkListField({ name, label, description }: FieldProps) {
   )
 }
 
-// 音乐播放器：歌单来源为静态 JSON 地址，或从网易云账号的歌单中选择
-function MusicSection() {
+// 音乐播放器：歌单来源为静态 JSON 地址，或从网易云账号的歌单中选择；自定义 TTML 歌词源地址（环境变量设置时只读）
+function MusicSection({ envOverrides }: { envOverrides: Record<string, string> }) {
   const t = useTranslations('Console.global')
   const source = useWatch<SettingsValues, 'musicSource'>({ name: 'musicSource' })
   return (
@@ -764,6 +787,15 @@ function MusicSection() {
             </>
           )
         : <UrlField name="musicPlaylistUrl" label={t('music_playlist_url')} description={t('music_playlist_url_desc')} />}
+      <EnvOverridableField
+        name="musicTtmlUrlTemplate"
+        label={t('music_ttml_url_template')}
+        description={t('music_ttml_url_template_desc')}
+        placeholder="https://cdn.example.com/lyrics/{song_id}.ttml"
+        envValue={envOverrides.musicTtmlUrlTemplate}
+        envNote={t('env_override_note', { name: 'MUSIC_TTML_URL_PREFIX' })}
+        wide
+      />
     </Section>
   )
 }

@@ -23,6 +23,7 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.POST("/kv", adminController.SetKV)
 		consoleGroup.PUT("/kv/:key", adminController.SetKV)
 		consoleGroup.DELETE("/kv/:key", adminController.DeleteKV)
+		consoleGroup.GET("/config/env-overrides", adminController.EnvOverrides)
 		// 用户区
 		consoleGroup.GET("/users", adminController.ListUsers)
 		consoleGroup.POST("/users", adminController.CreateUser)

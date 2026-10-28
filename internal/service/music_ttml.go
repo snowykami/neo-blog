@@ -17,14 +17,15 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/cache"
 	"github.com/snowykami/neo-blog/pkg/errs"
-	"github.com/snowykami/neo-blog/pkg/utils"
 	"golang.org/x/sync/singleflight"
 )
 
 // TTML 歌词来源（见 docs/music-player-spec.md 2.6、7.2，规则参考 StarryPlayer）：
-// - 自定义源：环境变量 MUSIC_TTML_URL_PREFIX 配置的地址（含 {id} 的模板，或静态目录前缀 {prefix}/{网易云歌曲 id}.ttml），优先级最高，命中即采用
+// - 自定义源：环境变量 MUSIC_TTML_URL_PREFIX 或后台配置 music_ttml_url_template（环境变量优先）的地址（含 {id} 的模板，或静态目录前缀 {prefix}/{网易云歌曲 id}.ttml），
+//   优先级最高，命中即采用
 // - AMLL TTML DB：按网易云歌曲 id 取 ncm-lyrics/{id}.ttml；多个镜像并发请求，先返回有效结果的采用。
 //   在 QQ 音乐匹配到同一首歌后，还会按 QQ 歌曲 mid 取 qq-lyrics/{mid}.ttml（见 music_qq.go）
 // 两个来源并发探测；只把「确定没有」（3xx / 404 / 410、正文不是 TTML）记为未命中并缓存，超时与网络错误不缓存
@@ -74,7 +75,7 @@ type musicTTMLCacheEntry struct {
 // 如 https://cdn.example.com/lyrics/{id}.ttml、https://example.com/ttml?id={id}），否则视为目录前缀，拼接为 {前缀}/{id}.ttml。
 // 只接受 http(s) 绝对地址；未配置或无效时为空（跳过自定义源）
 func customTTMLURL(id int64) string {
-	pattern := strings.TrimSpace(utils.Env.Get("MUSIC_TTML_URL_PREFIX"))
+	pattern, _ := tools.GetMusicTTMLURLTemplate()
 	if pattern == "" {
 		return ""
 	}
@@ -122,11 +123,14 @@ func (s *MusicService) GetTTMLLyric(ctx context.Context, id int64, source string
 // probeTTMLSource 探测一个来源（按网易云歌曲 id）
 func probeTTMLSource(ctx context.Context, source string, id int64) *ttmlProbe {
 	name := strconv.FormatInt(id, 10) + ".ttml"
-	urls := []string{customTTMLURL(id)}
 	if source == musicTTMLSourceAMLL {
-		urls = amllTTMLURLs("ncm-lyrics/" + name)
+		return probeTTML(ctx, musicTTMLCache, ttmlCacheKey(source, id), source+":"+name, amllTTMLURLs("ncm-lyrics/"+name))
 	}
-	return probeTTML(ctx, musicTTMLCache, ttmlCacheKey(source, id), source+":"+name, urls)
+	// 自定义源按完整地址缓存：后台改了地址后立即按新地址探测，不受旧地址「确定未命中」缓存的影响
+	address := customTTMLURL(id)
+	hash := fnv.New64a()
+	_, _ = hash.Write([]byte(address))
+	return probeTTML(ctx, musicTTMLCache, uint(hash.Sum64()), source+":"+address, []string{address})
 }
 
 // probeQQTTML AMLL TTML DB 中按 QQ 音乐歌曲 mid 收录的歌词（qq-lyrics/{mid}.ttml），mid 由 QQ 音乐匹配得到
