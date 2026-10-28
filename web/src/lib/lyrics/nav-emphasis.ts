@@ -8,7 +8,8 @@ import { dissolveState, heartbeatLevel, shimmerCenter } from './word-effects'
  * 导航栏与单曲卡的单行逐字歌词的简化强调特效（见 spec 8.2）：沿用播放器的强调分组（规则 + 歌词标注），
  * 但只做轻量的动效，幅度比播放器小，避免在一行高的导航栏里溢出：
  * - swell 放大 + 辉光；glow 辉光；wave 上浮；shake 抖动（带长音时为延迟的颤音，见 vibrato.ts）；focus 由虚到实；
- *   heartbeat 随双拍轻跳；shimmer 光带经过的词依次亮起；dissolve 唱完后变淡、变虚并向右飘（不生成颗粒），之后恢复
+ *   heartbeat 随双拍轻跳；shimmer 光带经过的词依次亮起；dissolve 唱完后变淡、变虚并向右飘（不生成颗粒），之后恢复，
+ *   拖动进度后落点之前的不消散（seekAt，同播放器）
  * - 指定了颜色时随演唱上色，唱过后保留部分颜色；factor 为 0 或减少动态效果时只上色
  */
 
@@ -32,8 +33,8 @@ export interface NavWordStyle {
 
 const NONE: NavWordStyle = { transform: '', textShadow: '', filter: '', opacity: '', color: '' }
 
-/** 一组强调中第 i 个词（共 count 个）在 timeMs 时的样式；motion 为 false 时只上色 */
-export function navEmphasisStyle(group: LyricEmphasis, i: number, count: number, timeMs: number, motion: boolean): NavWordStyle {
+/** 一组强调中第 i 个词（共 count 个）在 timeMs 时的样式；motion 为 false 时只上色；seekAt 为最近一次跳转的落点 */
+export function navEmphasisStyle(group: LyricEmphasis, i: number, count: number, timeMs: number, motion: boolean, seekAt = Number.NEGATIVE_INFINITY): NavWordStyle {
   const duration = Math.max(MIN_MS, group.end - group.start)
   const begin = group.start + (duration * STAGGER_RATIO / Math.max(1, count)) * i
   const hold = group.effect === 'shake' && group.hold ? holdVibrato(group.hold, timeMs) : null
@@ -103,7 +104,7 @@ export function navEmphasisStyle(group: LyricEmphasis, i: number, count: number,
   }
   let opacity = ''
   if (group.effect === 'dissolve') {
-    const amount = dissolveState(group.start, group.end, i, count, timeMs).amount
+    const amount = dissolveState(group.start, group.end, i, count, timeMs, seekAt).amount
     if (amount > 0.002) {
       opacity = (1 - amount).toFixed(3)
       filter = `blur(${(amount * 0.06).toFixed(3)}em)`

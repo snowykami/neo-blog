@@ -88,6 +88,9 @@ export function LyricLine() {
       return
     let rafId = 0
     let lastIndex: number | null | undefined
+    // 跳转检测（同歌词引擎）：进度与按经过时间推算的进度相差超过 1 秒视为拖动了进度，记下落点（消散特效在落点之前的不消散）
+    let lastTime: { timeMs: number, at: number } | null = null
+    let seekAt = Number.NEGATIVE_INFINITY
     let lastTransform = ''
     let lastMask: string | null = null
     const fillProgress = new WeakMap<HTMLElement, number>()
@@ -112,6 +115,10 @@ export function LyricLine() {
       if (!audio)
         return
       const timeMs = audio.currentTime * 1000
+      const now = performance.now()
+      if (!lastTime || Math.abs(timeMs - (lastTime.timeMs + (audio.paused ? 0 : now - lastTime.at))) > 1000)
+        seekAt = timeMs
+      lastTime = { timeMs, at: now }
       const index = getCurrentLyricIndex(lyricLines, timeMs, null)
       if (index !== lastIndex) {
         lastIndex = index
@@ -155,7 +162,7 @@ export function LyricLine() {
             const fill = layout.fills[wordIndex]
             if (!word || !fill)
               continue
-            const style = navEmphasisStyle(group, wordIndex - group.from, group.to - group.from, timeMs, !prefersReducedMotion)
+            const style = navEmphasisStyle(group, wordIndex - group.from, group.to - group.from, timeMs, !prefersReducedMotion, seekAt)
             const last = wordStyles.get(word)
             if (last?.transform !== style.transform)
               word.style.transform = style.transform

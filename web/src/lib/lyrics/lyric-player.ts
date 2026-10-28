@@ -211,6 +211,8 @@ export class LyricPlayer {
   private rafId = 0
   private lastFrame = 0
   private lastTimeMs: number | null = null
+  // 最近一次跳转（拖动进度、打开页面、换歌）的落点：消散特效在它之前就该消散的字直接显示
+  private seekAt = Number.NEGATIVE_INFINITY
 
   // 手动滚动：offset 为手动设定的滚动位置；touching 为正在拖动
   private manual: { offset: number, velocity: number, until: number, touching: boolean } | null = null
@@ -510,8 +512,13 @@ export class LyricPlayer {
     // 跳转检测：进度与按经过时间推算的进度相差过大
     if (this.lastTimeMs != null) {
       const expected = this.lastTimeMs + (playing ? dt * 1000 : 0)
-      if (Math.abs(timeMs - expected) > LYRIC_SEEK_THRESHOLD_MS)
+      if (Math.abs(timeMs - expected) > LYRIC_SEEK_THRESHOLD_MS) {
         this.teleport = true
+        this.seekAt = timeMs
+      }
+    }
+    else {
+      this.seekAt = timeMs
     }
     this.lastTimeMs = timeMs
 
@@ -767,7 +774,7 @@ export class LyricPlayer {
         let drift = 0
         if (group.effect === 'dissolve' && f > 0) {
           // 消散：字唱完后淡出、变虚并向右飘，同时生成颗粒；过一会儿慢慢恢复
-          const dissolve = dissolveState(group.start, group.end, i, count, timeMs)
+          const dissolve = dissolveState(group.start, group.end, i, count, timeMs, this.seekAt)
           if (timeMs < dissolve.at) {
             char.dissolvedAt = null
           }

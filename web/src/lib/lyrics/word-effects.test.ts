@@ -21,14 +21,22 @@ describe('消散、流光与心跳', () => {
     expect(shimmerCenter(1000, 1000 + 950 * 2, 4)).toBeNull()
   })
 
-  it('消散：每个字唱完后依次淡出，过一会儿恢复', () => {
+  it('消散：每个字唱完后依次淡出，保持很久再慢慢恢复', () => {
     // 4 个字唱 0 ~ 2000ms，第 1 个字 500ms 唱完，650ms 开始消散
     expect(dissolveState(0, 2000, 0, 4, 600).amount).toBe(0)
     expect(dissolveState(0, 2000, 0, 4, 950).amount).toBeCloseTo(0.5)
     expect(dissolveState(0, 2000, 0, 4, 1300).amount).toBe(1)
     expect(dissolveState(0, 2000, 3, 4, 1300).amount).toBe(0)
-    expect(dissolveState(0, 2000, 0, 4, 650 + 2600 + 500).amount).toBeCloseTo(0.5)
-    expect(dissolveState(0, 2000, 0, 4, 650 + 3700).amount).toBe(0)
+    expect(dissolveState(0, 2000, 0, 4, 650 + 10000).amount).toBe(1)
+    expect(dissolveState(0, 2000, 0, 4, 650 + 12000 + 750).amount).toBeCloseTo(0.5)
+    expect(dissolveState(0, 2000, 0, 4, 650 + 14000).amount).toBe(0)
+  })
+
+  it('消散：拖动进度后，落点之前就该消散的字直接显示；落点之后的照常消散', () => {
+    // 拖到 1800ms：第 1、2 个字（650ms、1150ms 开始消散）显示，第 3 个字（1650ms）也在落点前，第 4 个字（2150ms）照常
+    expect(dissolveState(0, 2000, 0, 4, 2000, 1800).amount).toBe(0)
+    expect(dissolveState(0, 2000, 2, 4, 2000, 1800).amount).toBe(0)
+    expect(dissolveState(0, 2000, 3, 4, 2750, 1800).amount).toBe(1)
   })
 
   it('镜头推近：副歌起点开唱后推近，再缓缓回落', () => {

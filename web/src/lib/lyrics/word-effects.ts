@@ -2,7 +2,8 @@
  * 消散、流光、心跳三种强调特效的时间曲线（纯函数，播放器、导航栏与全屏舞台共用，见 spec 8.2）：
  * - heartbeat 心跳：「扑通-扑通」双拍，第二拍稍弱、相隔约 22% 拍长；拍数按唱的时长分（约 0.75 秒一拍，至少 2 拍）
  * - shimmer 流光：唱到时一道光带从左到右扫过整个词，扫两遍
- * - dissolve 消散：每个字唱完后化成颗粒淡出；过一会儿再慢慢恢复，回看歌词时文字仍可读
+ * - dissolve 消散：每个字唱完后化成颗粒淡出，保持消散（这一行通常早已滚出视野），之后再慢慢恢复；
+ *   拖动进度（或中途打开页面）后，落点之前就该消散的字直接显示，看到的是完整歌词
  */
 
 const HEARTBEAT_BEAT_MS = 750
@@ -18,8 +19,8 @@ const SHIMMER_SWEEPS = 2
 // 字唱完后多久开始消散、淡出时长、保持消散的时长、恢复时长；字间再错开（像被风从左往右吹）
 const DISSOLVE_DELAY_MS = 150
 const DISSOLVE_FADE_MS = 600
-const DISSOLVE_HOLD_MS = 2600
-const DISSOLVE_RESTORE_MS = 1000
+const DISSOLVE_HOLD_MS = 12000
+const DISSOLVE_RESTORE_MS = 1500
 
 function beatPulse(ms: number) {
   if (ms < 0)
@@ -47,10 +48,15 @@ export function shimmerCenter(start: number, timeMs: number, count: number): num
   return (sweep % 1) * (count + 2) - 1
 }
 
-/** 第 i 个字（共 count 个）的消散：at 为开始消散的时刻，amount 为消散程度（0 正常 ~ 1 完全消散） */
-export function dissolveState(start: number, end: number, i: number, count: number, timeMs: number): { at: number, amount: number } {
+/**
+ * 第 i 个字（共 count 个）的消散：at 为开始消散的时刻，amount 为消散程度（0 正常 ~ 1 完全消散）；
+ * seekAt 为最近一次跳转（拖动进度、打开页面）的落点，在它之前就该消散的字不消散
+ */
+export function dissolveState(start: number, end: number, i: number, count: number, timeMs: number, seekAt = Number.NEGATIVE_INFINITY): { at: number, amount: number } {
   const charEnd = start + (end - start) * (i + 1) / Math.max(1, count)
   const at = charEnd + DISSOLVE_DELAY_MS
+  if (at < seekAt)
+    return { at, amount: 0 }
   const out = Math.min(1, Math.max(0, (timeMs - at) / DISSOLVE_FADE_MS))
   const back = Math.min(1, Math.max(0, (timeMs - at - DISSOLVE_HOLD_MS) / DISSOLVE_RESTORE_MS))
   return { at, amount: out * (1 - back) }
