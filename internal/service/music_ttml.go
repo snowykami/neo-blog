@@ -70,7 +70,7 @@ type musicTTMLCacheEntry struct {
 	MissUntil int64  `json:"miss_until,omitempty"`
 }
 
-// customTTMLURL 自定义源中这首歌的地址：配置中含 {id} 时把它替换为网易云歌曲 id（支持任意链接风格，
+// customTTMLURL 自定义源中这首歌的地址：配置中含 {id}（或 {song_id}）时把它替换为网易云歌曲 id（支持任意链接风格，
 // 如 https://cdn.example.com/lyrics/{id}.ttml、https://example.com/ttml?id={id}），否则视为目录前缀，拼接为 {前缀}/{id}.ttml。
 // 只接受 http(s) 绝对地址；未配置或无效时为空（跳过自定义源）
 func customTTMLURL(id int64) string {
@@ -80,8 +80,8 @@ func customTTMLURL(id int64) string {
 	}
 	songID := strconv.FormatInt(id, 10)
 	raw := strings.TrimRight(pattern, "/") + "/" + songID + ".ttml"
-	if strings.Contains(pattern, "{id}") {
-		raw = strings.ReplaceAll(pattern, "{id}", songID)
+	if strings.Contains(pattern, "{id}") || strings.Contains(pattern, "{song_id}") {
+		raw = strings.NewReplacer("{id}", songID, "{song_id}", songID).Replace(pattern)
 	}
 	if u, err := url.Parse(raw); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return ""

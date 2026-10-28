@@ -68,6 +68,7 @@ func TestCustomTTMLURL(t *testing.T) {
 		{"https://cdn.example.com/lyrics/", "https://cdn.example.com/lyrics/42.ttml"},
 		{"https://cdn.example.com/lyrics/{id}.ttml", "https://cdn.example.com/lyrics/42.ttml"},
 		{"https://example.com/ttml?id={id}&format=ttml", "https://example.com/ttml?id=42&format=ttml"},
+		{"https://cdn.liteyuki.org/snowykami/music/lyrics/{song_id}.ttml", "https://cdn.liteyuki.org/snowykami/music/lyrics/42.ttml"},
 		{"ftp://example.com/{id}.ttml", ""},
 		{"/lyrics/{id}.ttml", ""},
 	} {
