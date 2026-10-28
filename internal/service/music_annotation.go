@@ -179,6 +179,8 @@ var (
 		}
 		return fonts
 	}()
+	// 特效节奏（动效的快慢）：slow / fast；medium 为默认，不保存
+	lyricAnnotationPaces = map[string]bool{"slow": true, "fast": true}
 	// 短语字形：粗体、斜体、下划线（下划线在演唱时逐字画出）；删除线已去掉（被否定、放弃的词改用 dissolve 消散），旧标注中的 strike 校验时丢弃
 	lyricAnnotationStyles = map[string]bool{"bold": true, "italic": true, "underline": true}
 )
@@ -395,7 +397,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 
 	if found {
 		data := parseLyricAnnotationData(record.Data)
-		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Lines: data.Lines}
+		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Lines: data.Lines}
 		// 旧版颜色名映射到新色板
 		for i := range result.Lines {
 			result.Lines[i].SceneColor = normalizeLyricColor(result.Lines[i].SceneColor)
@@ -498,6 +500,7 @@ func (a *lyricAnnotationService) run(key string, id int64, hash string, lines []
 // lyricAnnotationData 保存到数据库的标注结果（旧版记录只有 lines 数组，读取时兼容）
 type lyricAnnotationData struct {
 	Font    string                           `json:"font,omitempty"`
+	Pace    string                           `json:"pace,omitempty"`
 	Intro   string                           `json:"intro,omitempty"`
 	Outro   *dto.MusicLyricAnnotationComment `json:"outro,omitempty"`
 	Moments []dto.MusicLyricAnnotationMoment `json:"moments,omitempty"`
@@ -528,6 +531,7 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	// theme 与 direction 是 SOP 中先写下的分析，只用于引导模型，不保存
 	var parsed struct {
 		Font         string `json:"font"`
+		Pace         string `json:"pace"`
 		Intro        string `json:"intro"`
 		OutroComment int    `json:"outro_comment"`
 		Moments      []struct {
@@ -553,6 +557,7 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 				Color  string   `json:"color"`
 				Font   string   `json:"font"`
 				Styles []string `json:"styles"`
+				Pace   string   `json:"pace"`
 			} `json:"phrases"`
 		} `json:"lines"`
 	}
@@ -632,6 +637,9 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 				styles[normalized] = dto.MusicLyricAnnotationPhrase{Effect: effect, Color: color}
 			}
 			annotated := dto.MusicLyricAnnotationPhrase{Text: phraseText, Effect: effect, Color: color}
+			if lyricAnnotationPaces[phrase.Pace] && phrase.Pace != parsed.Pace {
+				annotated.Pace = phrase.Pace
+			}
 			if lyricAnnotationFonts[phrase.Font] && phraseFontCount < lyricAnnotationMaxPhraseFonts {
 				annotated.Font = phrase.Font
 				phraseFontCount++
@@ -657,6 +665,9 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 		font = parsed.Font
 	}
 	data := lyricAnnotationData{Font: font, Intro: sanitizeLyricIntro(parsed.Intro), Lines: kept}
+	if lyricAnnotationPaces[parsed.Pace] {
+		data.Pace = parsed.Pace
+	}
 	// outro_comment 为热评在提示词中的编号（从 1 开始），超出范围时不展示
 	usedComments := map[int]bool{}
 	if n := parsed.OutroComment; n >= 1 && n <= len(comments) {

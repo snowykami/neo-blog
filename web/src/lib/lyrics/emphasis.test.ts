@@ -68,6 +68,19 @@ describe('歌词强调', () => {
     expect(lineEmphasis(short, phrase('shake'))[0].hold).toBeUndefined()
   })
 
+  it('节奏：标注短语有自己的节奏时用它，否则与规则强调一样沿用全曲节奏', () => {
+    const line = HEARTBEAT
+    const lyrics: ResolvedLyrics = { source: 'ttml-amll', wordTimed: true, instrumental: false, lines: [line] }
+    const text = line.words.map(word => word.text).join('')
+    const applied = applyEmphasis(lyrics, { pace: 'slow', lines: [{ text, phrases: [{ text: '怦然心动', effect: 'heartbeat', pace: 'fast' }, { text: '图书馆', effect: 'glow' }] }] })
+    const groups = applied.lines[0].emphasis ?? []
+    expect(groups.find(group => group.effect === 'heartbeat')?.pace).toBe('fast')
+    expect(groups.find(group => group.effect === 'glow')?.pace).toBe('slow')
+    // 全曲为 medium 时不标注节奏
+    const medium = applyEmphasis(lyrics, { pace: 'medium', lines: [{ text, phrases: [{ text: '图书馆', effect: 'glow' }] }] })
+    expect(medium.lines[0].emphasis?.[0].pace).toBeUndefined()
+  })
+
   it('逐行歌词不处理', () => {
     const lyrics: ResolvedLyrics = { source: 'ncm-lrc', wordTimed: false, instrumental: false, lines: [line([['一句歌词', 0, 5000]])] }
     expect(applyEmphasis(lyrics)).toBe(lyrics)

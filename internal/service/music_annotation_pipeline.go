@@ -40,6 +40,7 @@ type lyricAnnotationPlan struct {
 	Theme     string `json:"theme"`
 	Direction string `json:"direction"`
 	Font      string `json:"font"`
+	Pace      string `json:"pace"`
 	Imagery   []struct {
 		Text   string `json:"text"`
 		Effect string `json:"effect"`
@@ -226,6 +227,9 @@ func buildLyricAnnotationLinesPrompt(info lyricAnnotationInfo, lines []string, p
 	}
 	if plan.Font != "" {
 		b.WriteString(text.Font + plan.Font + "\n")
+	}
+	if plan.Pace != "" {
+		b.WriteString(text.Pace + plan.Pace + "\n")
 	}
 	if len(plan.Imagery) > 0 {
 		b.WriteString(text.Imagery)

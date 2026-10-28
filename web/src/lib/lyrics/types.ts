@@ -1,3 +1,4 @@
+import type { LyricPace } from './pace'
 /**
  * 播放器页歌词引擎的数据模型（见 docs/music-player-spec.md 7.3）；时间单位均为毫秒。
  * 逐词音译、注音等 TTML 特有字段在第三期加入
@@ -85,6 +86,8 @@ export interface LyricEmphasis {
   styles?: LyricTextStyle[]
   // shake 组里唱得特别长的音节（长音）的时段：先按 swell 放大，唱了一会儿后整个词开始颤音（见 lyric-player.ts）
   hold?: { start: number, end: number }
+  // 特效节奏（动效的快慢，见 pace.ts）：短语自己的节奏，没有时沿用全曲的；都没有时为 medium
+  pace?: LyricPace
 }
 
 export type LyricSource = 'ttml-custom' | 'ttml-amll' | 'ncm-yrc' | 'ncm-lrc' | 'qq-qrc' | 'qq-lrc' | 'kugou-krc' | 'kugou-lrc' | 'none'

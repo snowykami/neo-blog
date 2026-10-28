@@ -91,6 +91,8 @@ type MusicLyricAnnotationsDto struct {
 	Stale  bool   `json:"stale,omitempty"`
 	// 全曲字体（字体表中的名称，见 service.lyricAnnotationFonts），为空时用站点默认字体
 	Font string `json:"font,omitempty"`
+	// 全曲特效节奏：slow / fast（按歌曲的轻快程度），为空时为 medium
+	Pace string `json:"pace,omitempty"`
 	// 前奏时显示的一句导语（模型写给听众），可为空
 	Intro string `json:"intro,omitempty"`
 	// 尾奏时显示的一条网易云热评（模型从热评中挑出最贴合歌曲的一条），可为空
@@ -137,6 +139,8 @@ type MusicLyricAnnotationPhrase struct {
 	// 短语字体（字体表中的名称）与字形（bold / italic / underline），均可为空
 	Font   string   `json:"font,omitempty"`
 	Styles []string `json:"styles,omitempty"`
+	// 特效节奏：slow / fast，为空时沿用全曲的节奏（见 MusicLyricAnnotationsDto.Pace）
+	Pace string `json:"pace,omitempty"`
 }
 
 // MusicTTMLReq 只取某一来源（手动切换时），为空时自动选择

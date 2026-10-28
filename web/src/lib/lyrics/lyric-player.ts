@@ -25,10 +25,11 @@ import {
 import { DissolveGrains } from './dissolve-grains'
 import { swellCurve } from './easing'
 import { interludeDot } from './interlude'
+import { PACE } from './pace'
 import { Spring } from './spring'
 import { buildTimeline, getTimelineState, getWordProgress } from './timeline'
 import { EMPTY_LYRICS } from './types'
-import { holdVibrato, VIBRATO_HZ, vibratoWave } from './vibrato'
+import { holdVibrato, vibratoWave } from './vibrato'
 import { dissolveState, heartbeatLevel, shimmerCenter } from './word-effects'
 
 export interface LyricPlayerOptions {
@@ -117,8 +118,7 @@ const MOOD_GLOW: Record<LyricMood, string> = {
   intense: '#ffc0b3',
 }
 
-// shake 的抖动周期（毫秒，越小越快）；focus 在演出时长的多少比例内由模糊变清晰
-const EMPHASIS_SHAKE_PERIOD_MS = 45
+// focus 在演出时长的多少比例内由模糊变清晰（shake 的抖动周期等随节奏变化的参数见 pace.ts）
 const EMPHASIS_FOCUS_CLEAR_RATIO = 0.6
 // 上色的峰值与唱过后保留的比例（高亮行内）
 const EMPHASIS_TINT_PEAK = 0.85
@@ -746,27 +746,28 @@ export class LyricPlayer {
    * swell 放大 + 辉光 + 上浮，glow 只发光（几乎不放大），wave 不发光、逐字波浪上浮，
    * shake 演唱时快速细微地抖动（带长音时为颤音：先放大，唱了一会儿后整个词起伏颤动，见 vibrato.ts），
    * focus 在高亮行内先模糊、唱到时变清晰。强度 factor 决定幅度，为 0 时不做动效。
-   * 带下划线字形的组：每个字在自己的演唱时段内从左到右画出下划线
+   * 带下划线字形的组：每个字在自己所在音节的演唱时段内从左到右画出下划线（与逐字擦除同步）
    * 指定了颜色的组：字随演出逐渐上色（辉光也用该颜色），唱过后在高亮行内保留部分颜色
    */
   private paintEmphasis(view: ItemView, active: boolean, timeMs: number) {
     const bg = view.item.kind === 'line' && this.lyrics.lines[view.item.line]?.isBackground
     for (const { group, chars } of view.emphasis) {
-      const duration = Math.max(EMPHASIS_MIN_MS, group.end - group.start)
+      // 特效节奏：起落曲线的时长、抖动与颤音的快慢、心跳拍长、流光与消散的速度（见 pace.ts）
+      const pace = group.pace ?? 'medium'
+      const duration = Math.max(EMPHASIS_MIN_MS, group.end - group.start) * PACE.envelope[pace]
       const f = group.factor
       const count = chars.length
       const wave = group.effect === 'wave'
       const tintColor = group.color ? LYRIC_COLORS[group.color] : null
-      // 下划线：每个字在自己的演唱时段内从左到右画出
+      // 下划线：每个字在自己所在音节的演唱时段内从左到右画出，与逐字擦除同步
       const lined = group.styles?.includes('underline')
-      const charMs = Math.max(1, (group.end - group.start) / Math.max(1, count))
       // 波浪的字间错开更明显
       const stagger = (duration * (wave ? 1 / 1.5 : EMPHASIS_STAGGER_RATIO)) / Math.max(1, count)
       // 长音：放大到峰值后保持到长音唱完再收住；颤音从延迟后渐强，随长音结束收住
-      const hold = group.effect === 'shake' && group.hold ? holdVibrato(group.hold, timeMs) : null
+      const hold = group.effect === 'shake' && group.hold ? holdVibrato(group.hold, timeMs, pace) : null
       // 流光的光带位置、心跳的强度（整个词同步）
-      const shine = group.effect === 'shimmer' ? shimmerCenter(group.start, timeMs, count) : null
-      const beat = group.effect === 'heartbeat' ? heartbeatLevel(group.start, group.end, timeMs) : 0
+      const shine = group.effect === 'shimmer' ? shimmerCenter(group.start, timeMs, count, pace) : null
+      const beat = group.effect === 'heartbeat' ? heartbeatLevel(group.start, group.end, timeMs, pace) : 0
       chars.forEach((char, i) => {
         const begin = group.start + stagger * i
         let v = swellCurve((timeMs - begin) / duration)
@@ -784,7 +785,7 @@ export class LyricPlayer {
         let drift = 0
         if (group.effect === 'dissolve' && f > 0) {
           // 消散：字唱完后淡出、变虚并向右飘，同时生成颗粒；过一会儿慢慢恢复
-          const dissolve = dissolveState(group.start, group.end, i, count, timeMs, this.seekAt)
+          const dissolve = dissolveState(group.start, group.end, i, count, timeMs, this.seekAt, pace)
           if (timeMs < dissolve.at) {
             char.dissolvedAt = null
           }
@@ -833,15 +834,15 @@ export class LyricPlayer {
           }
           else if (group.effect === 'shake' && hold) {
             // 长音：同 swell 放大；颤音时整个词同步起伏（字间略有相位差），像音高的起伏
-            const wobble = vibratoWave(timeMs, hold.onset, i)
+            const wobble = vibratoWave(timeMs, hold.onset, i, pace)
             scale = 1 + v * 0.14 * f + wobble * vibrato * 0.02 * f
-            x = -v * 0.03 * f * (count / 2 - i - 0.5) + Math.cos(2 * Math.PI * VIBRATO_HZ * 2 * (timeMs - hold.onset) / 1000 + i) * vibrato * 0.008 * f
+            x = -v * 0.03 * f * (count / 2 - i - 0.5) + Math.cos(2 * Math.PI * PACE.vibratoHz[pace] * 2 * (timeMs - hold.onset) / 1000 + i) * vibrato * 0.008 * f
             y -= v * 0.025 * f + wobble * vibrato * 0.035 * f
             glow = v * (0.25 + 0.45 * f) + vibrato * 0.12 * f
           }
           else if (group.effect === 'shake') {
             // 每个字的相位不同，抖动幅度随起落曲线
-            const phase = (timeMs - begin) / EMPHASIS_SHAKE_PERIOD_MS
+            const phase = (timeMs - begin) / PACE.shakePeriod[pace]
             x = Math.sin(phase * 2.3 + i * 1.7) * 0.035 * f * v
             y += Math.cos(phase * 1.9 + i * 1.3) * 0.025 * f * v
             scale = 1 + v * 0.06 * f

@@ -1,5 +1,6 @@
 import type { LyricColor, LyricScene, ResolvedLyrics } from './types'
 import { swellCurve } from './easing'
+import { PACE } from './pace'
 import { heartbeatLevel } from './word-effects'
 
 /**
@@ -55,11 +56,11 @@ export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number): StageSi
     }
     for (const group of line.emphasis ?? []) {
       if (group.effect === 'swell' || group.effect === 'shake') {
-        const duration = Math.max(PULSE_MIN_MS, group.end - group.start)
+        const duration = Math.max(PULSE_MIN_MS, group.end - group.start) * PACE.envelope[group.pace ?? 'medium']
         pulse = Math.max(pulse, swellCurve((timeMs - group.start) / duration) * group.factor)
       }
       else if (group.effect === 'heartbeat') {
-        pulse = Math.max(pulse, heartbeatLevel(group.start, group.end, timeMs) * group.factor)
+        pulse = Math.max(pulse, heartbeatLevel(group.start, group.end, timeMs, group.pace) * group.factor)
       }
       if (group.color) {
         const strength = tintEnvelope(group.start, group.end, timeMs)

@@ -323,3 +323,31 @@ func TestSanitizeLyricAnnotationsConsistency(t *testing.T) {
 		t.Errorf("third shimmer = %s", e)
 	}
 }
+
+func TestSanitizeLyricAnnotationsPace(t *testing.T) {
+	lines := []string{"心跳加速", "慢慢地说"}
+	raw := `{"pace":"slow","lines":[
+		{"i":0,"phrases":[{"text":"心跳","effect":"heartbeat","pace":"fast"}]},
+		{"i":1,"phrases":[{"text":"慢慢","effect":"glow","pace":"slow"},{"text":"地说","effect":"glow","pace":"warp"}]}]}`
+	got, err := sanitizeLyricAnnotations(lines, nil, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 全曲节奏保存；短语与全曲相同或无效时不保存（沿用全曲）
+	if got.Pace != "slow" {
+		t.Fatalf("song pace = %q", got.Pace)
+	}
+	paces := map[string]string{}
+	for _, line := range got.Lines {
+		for _, phrase := range line.Phrases {
+			paces[phrase.Text] = phrase.Pace
+		}
+	}
+	if paces["心跳"] != "fast" || paces["慢慢"] != "" || paces["地说"] != "" {
+		t.Fatalf("phrase paces = %v", paces)
+	}
+	// medium 为默认，不保存
+	if got, _ := sanitizeLyricAnnotations(lines, nil, `{"pace":"medium","lines":[]}`); got.Pace != "" {
+		t.Fatalf("medium pace = %q", got.Pace)
+	}
+}

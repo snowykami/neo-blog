@@ -1,4 +1,6 @@
+import type { LyricPace } from './pace'
 import type { LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricNote, LyricOutro, LyricScene, LyricTextStyle, ResolvedLyrics } from './types'
+import { isLyricPace } from './pace'
 import { normalizeForMatch } from './strip-credits'
 
 /**
@@ -17,6 +19,8 @@ export interface LyricAnnotationPhrase {
   color?: LyricColor
   font?: LyricFont
   styles?: LyricTextStyle[]
+  // 短语自己的特效节奏，没有时沿用全曲的
+  pace?: LyricPace
 }
 
 export interface LyricAnnotationLine {
@@ -40,6 +44,8 @@ export interface LyricAnnotationMoment {
 
 export interface LyricAnnotations {
   font?: LyricFont
+  // 全曲的特效节奏（按歌曲的轻快程度），规则强调也沿用它
+  pace?: LyricPace
   intro?: string
   outro?: LyricOutro
   moments?: LyricAnnotationMoment[]
@@ -183,7 +189,8 @@ function annotatedGroups(line: LyricLine, text: string, wordAt: number[], annota
       // 唱得太快的短语不做动效（factor 为 0），只保留颜色、字体与字形
       const factor = duration < ANNOTATED_MIN_MS ? 0 : Math.max(ANNOTATED_MIN_FACTOR, factorOf(duration, ANNOTATED_MIN_MS))
       const hold = phrase.effect === 'shake' ? holdOf(line, range.from, range.to) : undefined
-      groups.push({ ...range, start: line.words[range.from].start, end: line.words[range.to - 1].end, factor, effect: phrase.effect, color: phrase.color, font: phrase.font, styles: styles?.length ? styles : undefined, ...(hold && { hold }) })
+      const pace = isLyricPace(phrase.pace) ? phrase.pace : undefined
+      groups.push({ ...range, start: line.words[range.from].start, end: line.words[range.to - 1].end, factor, effect: phrase.effect, color: phrase.color, font: phrase.font, styles: styles?.length ? styles : undefined, ...(hold && { hold }), ...(pace && { pace }) })
     }
   }
   return groups
@@ -226,6 +233,8 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
     if (key && !byText.has(key))
       byText.set(key, line)
   }
+  // 全曲节奏：标注短语没有自己的节奏时、以及规则强调都沿用它
+  const songPace = isLyricPace(annotations?.pace) && annotations.pace !== 'medium' ? annotations.pace : undefined
   return {
     ...lyrics,
     font: annotations?.font,
@@ -234,7 +243,7 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
     notes: resolveNotes(lyrics.lines, annotations?.moments),
     lines: lyrics.lines.map((line) => {
       const annotation = byText.get(normalizeForMatch(line.words.map(word => word.text).join(''))) ?? null
-      const emphasis = lineEmphasis(line, annotation)
+      const emphasis = lineEmphasis(line, annotation).map(group => (group.pace || !songPace ? group : { ...group, pace: songPace }))
       return { ...line, emphasis: emphasis.length > 0 ? emphasis : undefined, mood: annotation?.mood, scene: annotation?.scene, sceneColor: annotation?.scene ? annotation.sceneColor : undefined, chorusStart: annotation?.chorusStart }
     }),
   }

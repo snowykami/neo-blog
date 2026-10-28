@@ -1,6 +1,7 @@
 import type { LyricEmphasis } from './types'
 import { LYRIC_COLORS } from './colors'
 import { swellCurve } from './easing'
+import { PACE } from './pace'
 import { holdVibrato, vibratoWave } from './vibrato'
 import { dissolveState, heartbeatLevel, shimmerCenter } from './word-effects'
 
@@ -13,10 +14,9 @@ import { dissolveState, heartbeatLevel, shimmerCenter } from './word-effects'
  * - 指定了颜色时随演唱上色，唱过后保留部分颜色；factor 为 0 或减少动态效果时只上色
  */
 
-// 演出时长下限与字间错开比例（同播放器）、shake 的抖动周期
+// 演出时长下限与字间错开比例（同播放器）；随节奏变化的参数见 pace.ts
 const MIN_MS = 1000
 const STAGGER_RATIO = 1 / 2.5
-const SHAKE_PERIOD_MS = 45
 // 上色的峰值与唱过后保留的比例：导航栏背景有深有浅，比播放器略淡
 const TINT_PEAK = 0.8
 const TINT_HOLD = 0.55
@@ -35,9 +35,10 @@ const NONE: NavWordStyle = { transform: '', textShadow: '', filter: '', opacity:
 
 /** 一组强调中第 i 个词（共 count 个）在 timeMs 时的样式；motion 为 false 时只上色；seekAt 为最近一次跳转的落点 */
 export function navEmphasisStyle(group: LyricEmphasis, i: number, count: number, timeMs: number, motion: boolean, seekAt = Number.NEGATIVE_INFINITY): NavWordStyle {
-  const duration = Math.max(MIN_MS, group.end - group.start)
+  const pace = group.pace ?? 'medium'
+  const duration = Math.max(MIN_MS, group.end - group.start) * PACE.envelope[pace]
   const begin = group.start + (duration * STAGGER_RATIO / Math.max(1, count)) * i
-  const hold = group.effect === 'shake' && group.hold ? holdVibrato(group.hold, timeMs) : null
+  const hold = group.effect === 'shake' && group.hold ? holdVibrato(group.hold, timeMs, pace) : null
   let v = swellCurve((timeMs - begin) / duration)
   // 长音：放大到峰值后保持到长音唱完
   if (hold && timeMs >= begin + duration / 2)
@@ -71,13 +72,13 @@ export function navEmphasisStyle(group: LyricEmphasis, i: number, count: number,
     y = -v * 0.12 * f
   }
   else if (group.effect === 'shake' && hold) {
-    const wobble = vibratoWave(timeMs, hold.onset, i)
+    const wobble = vibratoWave(timeMs, hold.onset, i, pace)
     scale = 1 + v * 0.08 * f + wobble * hold.amount * 0.015 * f
     y = -wobble * hold.amount * 0.03 * f
     glow = v * (0.3 + 0.4 * f) + hold.amount * 0.1 * f
   }
   else if (group.effect === 'shake') {
-    const phase = (timeMs - begin) / SHAKE_PERIOD_MS
+    const phase = (timeMs - begin) / PACE.shakePeriod[pace]
     x = Math.sin(phase * 2.3 + i * 1.7) * 0.03 * f * v
     y = Math.cos(phase * 1.9 + i * 1.3) * 0.02 * f * v
     scale = 1 + v * 0.04 * f
@@ -91,20 +92,20 @@ export function navEmphasisStyle(group: LyricEmphasis, i: number, count: number,
     glow = v * (0.2 + 0.3 * f)
   }
   else if (group.effect === 'heartbeat') {
-    const beat = heartbeatLevel(group.start, group.end, timeMs)
+    const beat = heartbeatLevel(group.start, group.end, timeMs, pace)
     scale = 1 + v * 0.03 * f + beat * 0.1 * f
     x = (i - (count - 1) / 2) * beat * 0.04 * f
     glow = beat * (0.3 + 0.3 * f)
   }
   else if (group.effect === 'shimmer') {
     // 导航栏的字很小，不画光带：光带经过的词依次亮起
-    const shine = shimmerCenter(group.start, timeMs, count)
+    const shine = shimmerCenter(group.start, timeMs, count, pace)
     glow = shine == null ? v * 0.3 * f : Math.max(0, 1 - Math.abs(shine - i - 0.5)) * 0.9
     scale = 1 + v * 0.03 * f
   }
   let opacity = ''
   if (group.effect === 'dissolve') {
-    const amount = dissolveState(group.start, group.end, i, count, timeMs, seekAt).amount
+    const amount = dissolveState(group.start, group.end, i, count, timeMs, seekAt, pace).amount
     if (amount > 0.002) {
       opacity = (1 - amount).toFixed(3)
       filter = `blur(${(amount * 0.06).toFixed(3)}em)`

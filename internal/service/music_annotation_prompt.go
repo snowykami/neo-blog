@@ -19,8 +19,8 @@ type lyricAnnotationLocale struct {
 	ClimaxStart, ClimaxEnd string
 	// 歌词标题，有翻译 / 有长音时追加的说明；翻译：译文；长音：音节、秒数、句尾标记
 	Lyrics, TranslationNote, HeldNote, Translation, Held, HeldTail string
-	// 逐段标注：全曲规划标题、主题、方向、全曲字体、意象标题、一个意象（原文、特效、颜色）、不上色
-	Plan, Theme, Direction, Font, Imagery, ImageryItem, NoColor string
+	// 逐段标注：全曲规划标题、主题、方向、全曲字体、全曲节奏、意象标题、一个意象（原文、特效、颜色）、不上色
+	Plan, Theme, Direction, Font, Pace, Imagery, ImageryItem, NoColor string
 	// 本段已标注的行（标题、一行：行号与标注）、副歌起点、副歌、情绪
 	Marks, Mark, ChorusStart, ChorusLine, Mood string
 	// 本次标注范围：起止行号、段数、本段换字体的上限
@@ -39,7 +39,7 @@ var lyricAnnotationEN = lyricAnnotationLocale{
 	ClimaxStart: "　〔climax starts〕", ClimaxEnd: "　〔climax ends〕",
 	Lyrics: "\n[Lyrics]", TranslationNote: " (〔译：…〕 is a Chinese translation)", HeldNote: " (〔held: …〕 marks a long-held syllable)",
 	Translation: "　〔译：%s〕", Held: "　〔held: \"%s\" %.1fs%s〕", HeldTail: ", line end",
-	Plan: "\n[Plan]\n", Theme: "Theme: ", Direction: "Direction: ", Font: "Song font: ",
+	Plan: "\n[Plan]\n", Theme: "Theme: ", Direction: "Direction: ", Font: "Song font: ", Pace: "Song pace: ",
 	Imagery: "Imagery:\n", ImageryItem: "- %s: %s, %s\n", NoColor: "no color",
 	Marks: "Marked lines in this chunk:\n", Mark: "line %d: %s\n", ChorusStart: "chorus start", ChorusLine: "chorus", Mood: "mood ",
 	Range: "\n[Your range] lines %d-%d (the song is split into %d chunks annotated in parallel; at most %d font changes in this chunk)\n",
@@ -74,11 +74,12 @@ Task: plan the whole song. Per-line phrases are done later in parallel; do not o
 - outro_comment: the number of the comment shown during the outro, the one that best fits the song; omit if none fits.
 - moments: 4-5, at emotional turns, chorus starts, the most moving line, the climax or ending (i = line index), spread out with several lines between; prefer comment (a comment number, no repeats, not the outro_comment); otherwise text (a narration of at most 40 Chinese characters, heartfelt and vivid, not copying lyrics, no quotes).
 - font: song-wide font, optional (default sans).
+- pace: how fast the effects move, from the song's tempo and lightness — fast for upbeat, bouncy, energetic songs; slow for ballads, lyrical, tender or heavy songs; medium otherwise. It sets the speed of shake, wave, heartbeat, shimmer, dissolve and the held-note vibrato.
 - lines: mood (calm / bright / sad / intense) on emotionally clear lines; scene on lines describing a concrete image or starting a chorus (at most 6 per song, lasts ~8 lines), with optional scene_color (a color value, e.g. bauhinia for bauhinia petals).
 scene:
 {{scenes}}
 
-Output: {"theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","imagery":[{"text":"","effect":"glow","color":"rain"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain"}]}; list only lines with marks.`
+Output: {"theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","pace":"medium","imagery":[{"text":"","effect":"glow","color":"rain"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain"}]}; list only lines with marks.`
 
 const lyricAnnotationENLines = `
 Task: annotate phrases line by line. The song plan is in [Plan]; annotate only lines in [Your range] — other lines are context.
@@ -89,10 +90,11 @@ Task: annotate phrases line by line. The song plan is in [Plan]; annotate only l
 - Pick the words most worth singing out: confessions, shouts, core images, title words, chorus keywords. Skip credit lines, onomatopoeia and interjections (unless held).
 - Use dissolve, shimmer and heartbeat only where the meaning fits, at most once each per chunk.
 - Change fonts only for contrast (kai for a memory, mono for electronic sounds).
+- pace (optional): only when a phrase's feel differs from the song pace in [Plan] — fast for a light, bouncy, excited or racing-heart phrase; slow for a lingering, heavy or tender one. Omit it otherwise.
 styles (combinable): bold declaration, strength | italic whisper, memory, quotation | underline vow, promise (forever, surely)
 
 Before output, check: every 〔held〕 line in your range has its shake phrase; every text is a contiguous substring of its line.
-Output: {"lines":[{"i":0,"phrases":[{"text":"original fragment","effect":"swell","color":"gold","font":"kai","styles":["bold"]}]}]}; list only annotated lines in your range.`
+Output: {"lines":[{"i":0,"phrases":[{"text":"original fragment","effect":"swell","color":"gold","font":"kai","styles":["bold"],"pace":"fast"}]}]}; list only annotated lines in your range.`
 
 // fillLyricAnnotationPrompt 填入色板、粒子场景与字体：每项一行「名称: 适合的意象」
 func fillLyricAnnotationPrompt(prompt string) string {

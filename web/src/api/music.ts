@@ -106,6 +106,7 @@ export interface MusicLyricAnnotations {
   status: 'ready' | 'pending'
   stale?: boolean
   font?: LyricAnnotations['font']
+  pace?: LyricAnnotations['pace']
   intro?: LyricAnnotations['intro']
   outro?: LyricAnnotations['outro']
   moments?: LyricAnnotations['moments']

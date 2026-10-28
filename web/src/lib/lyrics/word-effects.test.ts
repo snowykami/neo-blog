@@ -51,4 +51,17 @@ describe('消散、流光与心跳', () => {
     expect(getStageSignals(lyrics, 1450 + 1300).push).toBeCloseTo(0.5)
     expect(getStageSignals(lyrics, 1450 + 2700).push).toBe(0)
   })
+
+  it('节奏：快的心跳拍子更密、流光扫得更快、消散淡出更快；慢的反之', () => {
+    // 3 秒：慢 1000ms 一拍（3 拍），中 750ms（4 拍），快 520ms（6 拍）；拍首附近最强
+    const beatsOf = (pace: 'slow' | 'medium' | 'fast') => [...Array.from({ length: 3000 / 10 }).keys()].filter(i => heartbeatLevel(0, 3000, i * 10, pace) > 0.5 && heartbeatLevel(0, 3000, i * 10 - 10, pace) <= 0.5).length
+    expect(beatsOf('slow')).toBeLessThan(beatsOf('medium'))
+    expect(beatsOf('medium')).toBeLessThan(beatsOf('fast'))
+    // 扫两遍：快的 1.3 秒就扫完，同一时刻中速仍在扫
+    expect(shimmerCenter(0, 1300, 4, 'fast')).toBeNull()
+    expect(shimmerCenter(0, 1300, 4, 'medium')).not.toBeNull()
+    expect(shimmerCenter(0, 1400 * 1.5, 4, 'slow')).not.toBeNull()
+    expect(dissolveState(0, 2000, 0, 4, 650 + 350, undefined, 'fast').amount).toBe(1)
+    expect(dissolveState(0, 2000, 0, 4, 650 + 350, undefined, 'slow').amount).toBeCloseTo(0.35)
+  })
 })

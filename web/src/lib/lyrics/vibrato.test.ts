@@ -1,7 +1,7 @@
 import type { LyricEmphasis } from './types'
 import { describe, expect, it } from 'vitest'
 import { navEmphasisStyle } from './nav-emphasis'
-import { holdVibrato } from './vibrato'
+import { holdVibrato, vibratoWave } from './vibrato'
 
 // 「出した」：长音「た」从 1.2 秒唱到 3.3 秒（2.1 秒）
 const HELD: LyricEmphasis = { from: 0, to: 3, start: 600, end: 3300, factor: 1, effect: 'shake', hold: { start: 1200, end: 3300 } }
@@ -15,6 +15,16 @@ describe('长音的颤音', () => {
     expect(holdVibrato(hold, 2500).amount).toBe(1)
     expect(holdVibrato(hold, 3450).amount).toBeCloseTo(0.5)
     expect(holdVibrato(hold, 3700).amount).toBe(0)
+  })
+
+  it('节奏：慢歌颤得慢、开始得晚，快歌颤得快、开始得早', () => {
+    const hold = { start: 0, end: 2000 }
+    expect(holdVibrato(hold, 0, 'slow').onset).toBeGreaterThan(holdVibrato(hold, 0, 'fast').onset)
+    // 半个周期后过零：快的周期更短
+    const zero = (pace: 'slow' | 'fast') => 1000 / (pace === 'slow' ? 4.8 : 6.5) / 2
+    expect(Math.abs(vibratoWave(zero('fast'), 0, 0, 'fast'))).toBeLessThan(1e-9)
+    expect(Math.abs(vibratoWave(zero('slow'), 0, 0, 'slow'))).toBeLessThan(1e-9)
+    expect(zero('fast')).toBeLessThan(zero('slow'))
   })
 
   it('延迟限制在 250～700 毫秒', () => {
