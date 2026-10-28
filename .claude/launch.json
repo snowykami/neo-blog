@@ -175,6 +175,57 @@
         "cd /tmp/neo-linkpreview/web && export BACKEND_URL=http://127.0.0.1:18889 && exec pnpm start -p 3111"
       ],
       "port": 3111
+    },
+    {
+      "name": "mock-ncm-api",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/tmp/neo-tools/ncm_mock.py"
+      ],
+      "port": 18997
+    },
+    {
+      "name": "mock-audio",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-audio && exec python3 /tmp/neo-tools/range_server.py"
+      ],
+      "port": 18996
+    },
+    {
+      "name": "mock-ai-annotate",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/tmp/neo-tools/mock_annotate.py"
+      ],
+      "port": 18903
+    },
+    {
+      "name": "mock-ai-stagefx",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/tmp/neo-stagefx/mock_annotate.py"
+      ],
+      "port": 18905
+    },
+    {
+      "name": "backend-stagefx",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-stagefx && MODE=dev PORT=18906 DB_PATH=/tmp/neo-stagefx/data.db exec /tmp/neo-stagefx/server"
+      ],
+      "port": 18906
+    },
+    {
+      "name": "web-stagefx",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-stagefx/web && export BACKEND_URL=http://127.0.0.1:18906 && exec ./node_modules/.bin/next dev --turbopack -p 3120"
+      ],
+      "port": 3120
     }
   ]
 }
