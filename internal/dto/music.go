@@ -75,19 +75,23 @@ type MusicQQLyricDto struct {
 // 标注只引用歌词文本（行文本 + 行内的短语），不含时间，由前端按文本匹配到歌词上。
 // stale 为 true 时 lines 是旧结果（已过期或管理员刷新），后台正在重新生成，稍后再取可得到新结果
 type MusicLyricAnnotationsDto struct {
-	Status string                     `json:"status"`
-	Stale  bool                       `json:"stale,omitempty"`
-	Lines  []MusicLyricAnnotationLine `json:"lines"`
+	Status string `json:"status"`
+	Stale  bool   `json:"stale,omitempty"`
+	// 全曲字体（字体表中的名称，见 service.lyricAnnotationFonts），为空时用站点默认字体
+	Font  string                     `json:"font,omitempty"`
+	Lines []MusicLyricAnnotationLine `json:"lines"`
 }
 
-// MusicLyricAnnotationLine 一行的标注：mood 为情绪基调（calm / bright / sad / intense，可为空），chorus 为副歌行，
-// scene 为从这一行开始的全屏粒子场景（petals / sparks / snow / stars / bubbles / rain，可为空）
+// MusicLyricAnnotationLine 一行的标注：mood 为情绪基调（calm / bright / sad / intense，可为空），chorus 为副歌行，chorus_start 为一段副歌的第一行，
+// scene 为从这一行开始的全屏粒子场景（见 service.lyricAnnotationSceneList，可为空），scene_color 为场景的颜色主题（色板中的名称，为空时用场景默认色）
 type MusicLyricAnnotationLine struct {
-	Text    string                       `json:"text"`
-	Mood    string                       `json:"mood,omitempty"`
-	Chorus  bool                         `json:"chorus,omitempty"`
-	Scene   string                       `json:"scene,omitempty"`
-	Phrases []MusicLyricAnnotationPhrase `json:"phrases"`
+	Text        string                       `json:"text"`
+	Mood        string                       `json:"mood,omitempty"`
+	Chorus      bool                         `json:"chorus,omitempty"`
+	ChorusStart bool                         `json:"chorus_start,omitempty"`
+	Scene       string                       `json:"scene,omitempty"`
+	SceneColor  string                       `json:"scene_color,omitempty"`
+	Phrases     []MusicLyricAnnotationPhrase `json:"phrases"`
 }
 
 // MusicLyricAnnotationPhrase 行内要强调的短语（该行原文的连续片段）、特效类型（swell / glow / wave / shake / focus）
@@ -96,6 +100,9 @@ type MusicLyricAnnotationPhrase struct {
 	Text   string `json:"text"`
 	Effect string `json:"effect"`
 	Color  string `json:"color,omitempty"`
+	// 短语字体（字体表中的名称）与字形（bold / italic / underline / strike），均可为空
+	Font   string   `json:"font,omitempty"`
+	Styles []string `json:"styles,omitempty"`
 }
 
 // MusicTTMLReq 只取某一来源（手动切换时），为空时自动选择

@@ -260,10 +260,15 @@
 `GET /api/v1/music/song/:id/lyric/annotations`（公开，`:id` 为网易云歌曲 id）
 
 - 目的：补足浏览器分词的不足，并为强调特效（8.2）挑选值得强调的词句、特效类型、每行的情绪基调与副歌行。**标注只引用歌词原文，不含也不改变任何时间轴**；时间一律取自歌词本身。
-- 懒处理：读者播放到某首歌（且开启了歌词特效、歌词是逐字的）时，前端才请求；还没有标注时后端开始生成并返回 `{ "status": "pending" }`，前端每 5 秒再取一次，最多等 3 分钟。
+- 懒处理：读者播放到某首歌（且开启了歌词特效、歌词是逐字的）时，前端才请求；还没有标注时后端开始生成并返回 `{ "status": "pending" }`，前端每 2 秒再取一次，最多等 3 分钟。
 - 生成：用站点配置的大模型（与 AI 摘要相同的配置与全局并发限制），输入为带行号的歌词文本（网易云逐字 > 网易云逐行 > QQ 音乐，去掉时间标签，最多 150 行），要求只输出 JSON：`{"lines":[{"i":行号,"mood":"bright","chorus":true,"phrases":[{"text":"原文片段","effect":"swell","color":"gold"}]}]}`；`color` 可选，只用于带颜色联想的意象；`scene` 可选，为写到具体画面的行选择全屏粒子场景，全曲最多 4 处。
 - 校验（不合格的条目一律丢弃）：行号必须存在；短语必须是该行原文的连续片段（忽略空白、标点与大小写）、最长 12 个字；每行最多 2 个短语，全曲短语总数不超过「行数 / 2 + 4」；情绪只能是 calm / bright / sad / intense，特效只能是 swell / glow / wave / shake / focus（未知的特效改为 swell），场景只能是 petals / sparks / snow / stars / bubbles / rain（未知的丢弃），颜色只能取 32 色语义化色板中的名称（如 starry-blue 星空蓝、violet 罗兰紫，定义在后端 `lyricAnnotationPalette`，名称、中文名与意象写进提示词，色值在前端 `lib/lyrics/colors.ts`；旧版 8 色名称映射到最接近的新颜色，未知的颜色丢弃）。同一文本的行合并为一条。
-- 返回：`{ "status": "ready", "stale"?, "lines": [{ "text": 行原文, "mood"?, "chorus"?, "scene"?, "phrases": [{ "text", "effect", "color"? }] }] }`
+- 返回：`{ "status": "ready", "stale"?, "font"?, "lines": [{ "text": 行原文, "mood"?, "chorus"?, "chorus_start"?, "scene"?, "scene_color"?, "phrases": [{ "text", "effect", "color"?, "font"?, "styles"? }] }] }`
+- 上下文（`music_annotation_context.go`）：除歌词外，用户消息还带上歌曲信息（博客歌单曲目的歌名、歌手、专辑、别名 / 描述）、逐行中文翻译（与所选歌词同一来源，按开始时间在 1 秒容差内对齐，附在行末〔译：…〕，不参与歌词哈希）与网易云热评（`/comment/hot`，按点赞取前 5 条、每条最长 140 字，只在生成时拉取，失败时不带）；提示词要求热评只作低可信度参考、偏离歌曲的忽略，引用只能取自原文。
+- 提示词以「深情、敏感又大胆的演出导演」为角色，附情感与演出的对应参考（伤感、喜悦、激昂、温柔），采用 SOP：模型先在 JSON 中写下 `theme`（主题与情绪走向）与 `direction`（主色、特效风格、字体基调），再结合自身对这首歌的了解标出每段副歌的起点（`chorus_start`），最后逐行设计；`theme` / `direction` 只用于引导，不保存。温度 0.9；每行最多 3 个短语，全曲短语不超过「行数 + 6」，粒子场景最多 6 处，换字体的短语最多 10 处。
+- 字体（全曲 `font` 与短语 `font`）：song 宋体、kai 楷体、xingkai 行楷、fangsong 仿宋、round 圆体、mono 等宽、script 英文花体，只用系统字体并逐级回退；字形 `styles`：bold、italic、underline、strike，下划线与删除线在演唱时逐字画出。唱不满 0.6 秒的短语不做动效，但保留颜色、字体与字形。
+- 副歌起点：该行强调强度 ×1.4，播放器页背景在开唱时爆发一次（0.2 秒亮起、1.8 秒回落）。
+- 保存格式：`{ "font"?, "lines": [...] }`；旧版记录为 lines 数组，读取时兼容。
 - 演出：shake 演唱时字快速细微地抖动；focus 在高亮行内先模糊、唱到时变清晰。播放器页（`/music`）另有全屏特效（`MusicStageEffects`，信号计算见 `lib/lyrics/stage-effects.ts`）：唱到 swell / shake 时背景呼吸亮起，唱到带颜色的短语时背景泛起该颜色，`scene` 从标注行开始持续 8 行（或到下一个场景）全屏飘落粒子（`lib/lyrics/stage-particles.ts`）。悬浮播放器与文章内单曲卡只有字词级效果；关闭歌词特效或系统要求减少动态效果时全部不演出。；前端按行文本（归一化后）匹配到当前显示的歌词上，因此与歌词来源（TTML / QQ / 网易云）无关。
 - 持久化：表 `lyric_annotations`，按「歌曲 id + 歌词文本 SHA-256」唯一；歌词文本变化后重新生成。
 - 有效期：后台「AI」中配置（`lyric_annotation_ttl_days`，默认 7 天，1～365）。过期后接口仍返回旧结果并标记 `stale: true`，同时在后台重新生成，前端先用旧结果并继续轮询；生成成功后覆盖原记录（`created_at` 为本次生成时间），失败时继续使用旧结果，30 分钟后再试。

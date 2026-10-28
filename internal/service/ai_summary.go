@@ -411,12 +411,17 @@ func isMostlyLatin(text string) bool {
 	return total > 0 && latin*2 > total
 }
 
-// chatCompletion 调用 OpenAI 兼容的 /chat/completions 接口
+// chatCompletion 调用 OpenAI 兼容的 /chat/completions 接口（温度 0.3，偏稳定）
 func chatCompletion(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
+	return chatCompletionWithTemperature(ctx, cfg, system, user, 0.3)
+}
+
+// chatCompletionWithTemperature 同 chatCompletion，可指定温度（越高越有创意、越不稳定）
+func chatCompletionWithTemperature(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64) (string, error) {
 	resp, err := postChatCompletions(ctx, cfg, map[string]any{
 		"model":       cfg.Model,
 		"messages":    chatMessages(system, user),
-		"temperature": 0.3,
+		"temperature": temperature,
 		"stream":      false,
 	})
 	if err != nil {
