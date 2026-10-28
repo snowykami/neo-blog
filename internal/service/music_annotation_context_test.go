@@ -96,9 +96,17 @@ func TestChorusLineRanges(t *testing.T) {
 	if want := []lyricChorusRange{{From: 2, To: 4, Start: 34500, End: 61000}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("ranges = %+v", got)
 	}
-	prompt := buildLyricAnnotationPrompt(lyricAnnotationInfo{Chorus: got}, []string{"a"})
-	if !strings.Contains(prompt, "第 2 行～第 4 行（0:34～1:01）") {
-		t.Fatalf("prompt = %s", prompt)
+	// 高潮片段标在歌词行末：第一行标开始，最后一行标结束（全曲规划与逐段标注都能看到）
+	lines6 := []string{"a", "b", "c", "d", "e", "f"}
+	prompt := buildLyricAnnotationPrompt(lyricAnnotationInfo{Chorus: got}, lines6)
+	for _, want := range []string{"2: c　〔高潮片段开始〕\n", "3: d\n", "4: e　〔高潮片段结束〕\n"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, prompt)
+		}
+	}
+	chunk := buildLyricAnnotationLinesPrompt(lyricAnnotationInfo{Chorus: got}, lines6, lyricAnnotationPlan{}, 3, 5, 2)
+	if !strings.Contains(chunk, "4: e　〔高潮片段结束〕") {
+		t.Fatalf("chunk prompt = %s", chunk)
 	}
 }
 

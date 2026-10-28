@@ -16,8 +16,8 @@ type lyricAnnotationLocale struct {
 	SongInfo, Title, Artists, Album, Aliases string
 	// 热评标题；一条热评：序号、内容、点赞数
 	Comments, Comment string
-	// 网易云副歌片段标题；一段：起止行号、起止时间
-	Chorus, ChorusRange string
+	// 网易云高潮片段在歌词行末的标记：片段开始、片段结束
+	ClimaxStart, ClimaxEnd string
 	// 歌词标题，有翻译 / 有长音时追加的说明；翻译：译文；长音：音节、秒数、句尾标记
 	Lyrics, TranslationNote, HeldNote, Translation, Held, HeldTail string
 	// 逐段标注：全曲规划标题、主题、方向、全曲字体、意象标题、一个意象（原文、特效、颜色）、不上色
@@ -37,7 +37,7 @@ var lyricAnnotationZH = lyricAnnotationLocale{
 
 	SongInfo: "【歌曲信息】\n", Title: "歌名：", Artists: "歌手：", Album: "专辑：", Aliases: "别名 / 描述：",
 	Comments: "\n【听众热评】\n", Comment: "%d. %s（%d 赞）\n",
-	Chorus: "\n【副歌片段】（网易云在进度条上标出的副歌 / 高潮）\n", ChorusRange: "第 %d 行～第 %d 行（%s～%s）\n",
+	ClimaxStart: "　〔高潮片段开始〕", ClimaxEnd: "　〔高潮片段结束〕",
 	Lyrics: "\n【歌词】", TranslationNote: "（〔译：…〕是中文翻译）", HeldNote: "（〔长音：…〕是拖长的音节）",
 	Translation: "　〔译：%s〕", Held: "　〔长音：「%s」%.1f 秒%s〕", HeldTail: "，句尾",
 	Plan: "\n【全曲规划】\n", Theme: "主题：", Direction: "方向：", Font: "全曲字体：",
@@ -52,7 +52,7 @@ var lyricAnnotationEN = lyricAnnotationLocale{
 
 	SongInfo: "[Song]\n", Title: "Title: ", Artists: "Artists: ", Album: "Album: ", Aliases: "Aliases / description: ",
 	Comments: "\n[Listener comments]\n", Comment: "%d. %s (%d likes)\n",
-	Chorus: "\n[Chorus ranges] (marked by NetEase on the progress bar)\n", ChorusRange: "lines %d-%d (%s-%s)\n",
+	ClimaxStart: "　〔climax starts〕", ClimaxEnd: "　〔climax ends〕",
 	Lyrics: "\n[Lyrics]", TranslationNote: " (〔译：…〕 is a Chinese translation)", HeldNote: " (〔held: …〕 marks a long-held syllable)",
 	Translation: "　〔译：%s〕", Held: "　〔held: \"%s\" %.1fs%s〕", HeldTail: ", line end",
 	Plan: "\n[Plan]\n", Theme: "Theme: ", Direction: "Direction: ", Font: "Song font: ",
@@ -63,7 +63,7 @@ var lyricAnnotationEN = lyricAnnotationLocale{
 
 const lyricAnnotationENHead = `You are a lyric performance director designing visuals for a word-synced lyric player. First understand the song's emotion and story, then convey it with restrained, moving effects: effects serve the feeling; fewer but precise.
 
-Input: [Song] (aliases / description often reveal the background — use them); [Listener comments] (may be absent; keep only what matches the song's feeling, ignore jokes and off-topic ones); [Lyrics], one "index: original text" per line, possibly followed by 〔译：…〕 (translation, for understanding only) and 〔held: …〕 (a long-held syllable found from word timing).
+Input: [Song] (aliases / description often reveal the background — use them); [Listener comments] (may be absent; keep only what matches the song's feeling, ignore jokes and off-topic ones); [Lyrics], one "index: original text" per line, possibly followed by 〔译：…〕 (translation, for understanding only), 〔held: …〕 (a long-held syllable found from word timing) and 〔climax starts / ends〕 (the climax NetEase marks on its progress bar, usually one chorus).
 Quote the original lyrics only — never rewrite or translate them. Output exactly one JSON object, no explanation or code fence. Write intro and moment text in Simplified Chinese.
 
 Emotion guide (adapt to the song; mark emotional turns with a change of color and scene):
@@ -83,7 +83,7 @@ const lyricAnnotationENPlan = `
 Task: plan the whole song. Per-line phrases are done later in parallel; do not output phrases now. In order:
 1. theme: one or two sentences — what the song is about, to whom, and how the feeling moves.
 2. direction: the visual tone — 2-4 main colors, main effects, font usage, images suited to particle scenes; all later choices follow it, like one art-directed show.
-3. chorus: using your knowledge of the song, repeated sections and [Chorus ranges], set chorus_start on the first line of each chorus and chorus on chorus lines. A chorus start is an outburst — start or switch a scene there when possible.
+3. chorus: using your knowledge of the song, repeated sections and the 〔climax〕 marks, set chorus_start on the first line of each chorus and chorus on chorus lines; the same lyrics elsewhere usually form the other choruses. A chorus start is an outburst — start or switch a scene there when possible.
 4. imagery: the song's recurring or title images (original words), each with one effect and color (color optional); used consistently everywhere.
 5. Layout:
 - intro: a lead-in shown during the intro, at most 40 Chinese characters, like a late-night radio host's murmur; may hint at background or mood; no lyric spoilers, no quotes.
@@ -111,7 +111,7 @@ Output: {"lines":[{"i":0,"phrases":[{"text":"original fragment","effect":"swell"
 
 const lyricAnnotationZHHead = `你是歌词演出导演，为逐字歌词播放器设计视觉演出。先读懂歌曲的情绪与故事，再用克制而有感染力的特效把它交给听众：特效服务于情感，宁少而准。
 
-输入：【歌曲信息】（别名 / 描述常点明创作背景，要参考）；【听众热评】（可能没有，只取与歌曲情感一致的，玩笑、跑题的忽略）；【歌词】每行「行号: 原文」，行末可能附〔译：…〕（只帮助理解）与〔长音：…〕（按逐字时间找出的拖长音节）。
+输入：【歌曲信息】（别名 / 描述常点明创作背景，要参考）；【听众热评】（可能没有，只取与歌曲情感一致的，玩笑、跑题的忽略）；【歌词】每行「行号: 原文」，行末可能附〔译：…〕（只帮助理解）、〔长音：…〕（按逐字时间找出的拖长音节）与〔高潮片段开始 / 结束〕（网易云在进度条上标出的高潮，通常是一段副歌）。
 只引用原文，不改写、不翻译；只输出一个 JSON 对象，不要解释或代码块。
 
 情感参考（可按歌曲气质变化，情绪转折处用颜色与场景的切换表现）：
@@ -131,7 +131,7 @@ const lyricAnnotationZHPlan = `
 任务：全曲规划。逐行短语由后续任务并行完成，本次不输出 phrases。按顺序完成：
 1. theme：一两句话写歌在讲什么、对谁说、情感从哪里走向哪里。
 2. direction：演出基调——2～4 个主色、主要特效、字体用法、适合粒子场景的画面；后续标注都围绕它，像一场统一美术风格的演出。
-3. 副歌：结合你对这首歌的了解、反复出现的段落与【副歌片段】，每段副歌的第一行标 chorus_start，副歌行标 chorus。副歌起点是爆发点，尽量在这里开启或切换场景。
+3. 副歌：结合你对这首歌的了解、反复出现的段落与〔高潮片段〕标记，每段副歌的第一行标 chorus_start，副歌行标 chorus；同样的歌词在别处出现时一般也是副歌。副歌起点是爆发点，尽量在这里开启或切换场景。
 4. imagery：全曲反复出现或点题的核心意象（原文的词），各定一个 effect 与 color（可不上色），全曲一律照此执行。
 5. 布置：
 - intro：前奏导语，40 字以内，像深夜电台主持人开场的低语，可点出背景或心情，不剧透歌词、不加引号。

@@ -327,7 +327,7 @@ func isLowQualityComment(content string) bool {
 	return len(runes) < commentSpamMaxRunes && commentSpamRe.MatchString(strings.ToLower(text))
 }
 
-// buildLyricAnnotationPrompt 全曲规划的用户消息：歌曲信息、热评（低可信度参考）、网易云副歌片段与带行号的完整歌词
+// buildLyricAnnotationPrompt 全曲规划的用户消息：歌曲信息、热评（低可信度参考）与带行号的完整歌词（行末标出网易云的高潮片段）
 func buildLyricAnnotationPrompt(info lyricAnnotationInfo, lines []string) string {
 	text := lyricAnnotationText
 	var b strings.Builder
@@ -336,12 +336,6 @@ func buildLyricAnnotationPrompt(info lyricAnnotationInfo, lines []string) string
 		b.WriteString(text.Comments)
 		for i, comment := range info.Comments {
 			fmt.Fprintf(&b, text.Comment, i+1, comment.Content, comment.Liked)
-		}
-	}
-	if len(info.Chorus) > 0 {
-		b.WriteString(text.Chorus)
-		for _, chorus := range info.Chorus {
-			fmt.Fprintf(&b, text.ChorusRange, chorus.From, chorus.To, formatLyricTime(chorus.Start), formatLyricTime(chorus.End))
 		}
 	}
 	writeLyricAnnotationLines(&b, info, lines, 0, len(lines)-1)
@@ -366,7 +360,8 @@ func writeLyricAnnotationSong(b *strings.Builder, info lyricAnnotationInfo, albu
 	}
 }
 
-// writeLyricAnnotationLines 带行号的歌词（第 from～to 行，行号为全曲行号）：有翻译时在行末附上翻译，逐字歌词中唱得特别长的音节附上长音标记
+// writeLyricAnnotationLines 带行号的歌词（第 from～to 行，行号为全曲行号）：有翻译时在行末附上翻译，逐字歌词中唱得特别长的音节附上长音标记，
+// 网易云高潮片段的第一行与最后一行附上开始 / 结束标记（模型据此找到副歌，再认出其余重复的副歌）
 func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lines []string, from, to int) {
 	text := lyricAnnotationText
 	from, to = max(0, from), min(len(lines)-1, to)
@@ -401,11 +396,14 @@ func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lin
 			}
 			fmt.Fprintf(b, text.Held, note.Text, float64(note.Duration)/1000, tail)
 		}
+		for _, climax := range info.Chorus {
+			if climax.From == i {
+				b.WriteString(text.ClimaxStart)
+			}
+			if climax.To == i {
+				b.WriteString(text.ClimaxEnd)
+			}
+		}
 		b.WriteString("\n")
 	}
-}
-
-// formatLyricTime 毫秒 → m:ss
-func formatLyricTime(ms int64) string {
-	return fmt.Sprintf("%d:%02d", ms/60000, ms/1000%60)
 }
