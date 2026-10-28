@@ -101,7 +101,7 @@
 任意含 {id} 的地址模板                  # 如 https://cdn.liteyuki.org/snowykami/music/lyrics/{id}.ttml、https://example.com/ttml?id={id}
 ```
 
-- 由后端环境变量 `MUSIC_TTML_URL_PREFIX` 提供：含 `{id}`（或 `{song_id}`）时视为地址模板，替换为歌曲的网易云 id（可以是任意链接风格）；
+- 由后端环境变量 `MUSIC_TTML_URL_PREFIX` 或后台「全局配置 › 前台 › 音乐播放器 › 自定义歌词源地址」（KV `music_ttml_url_template`）提供，**环境变量优先**：设置了环境变量时后台的该项显示为只读并注明（`GET /api/v1/admin/config/env-overrides` 返回被环境变量覆盖的配置项）。含 `{id}`（或 `{song_id}`）时视为地址模板，替换为歌曲的网易云 id（可以是任意链接风格）；
   不含 `{id}` 时视为目录前缀（例如 `https://static.example.com/ttml`），后端去尾斜杠后拼接 `/{id}.ttml`。
 - 拼出的地址必须是 http(s) 绝对地址，否则视为未配置。
 - 浏览器不直接请求自定义源：前端请求本站后端的 `/api/v1/music/song/:id/lyric/ttml`，由后端去自定义源与 AMLL 镜像取词、校验并缓存（避免跨域、统一缓存与未命中判定）。站长的源为 `https://cdn.liteyuki.org/snowykami/music/lyrics/{song_id}.ttml`。
@@ -244,7 +244,7 @@
 - 命中：`200`，`{ "source": "custom" | "amll", "ttml": "<tt ...>...</tt>" }`；均未命中：`404`（`lyric_not_found`）。
 - 后端只做探测、校验（以 `<` 开头、格式正确的 XML、根元素为 `tt`）与缓存，不把 TTML 转换为其他结构；解析在前端（`lib/lyrics/parse-ttml.ts`）。
 - 配置：
-  - `MUSIC_TTML_URL_PREFIX`（环境变量，可选）：自定义源的地址模板（含 `{id}`）或目录前缀，未配置时跳过自定义源。
+  - `MUSIC_TTML_URL_PREFIX`（环境变量，可选）或后台配置 `music_ttml_url_template`（环境变量优先）：自定义源的地址模板（含 `{id}` / `{song_id}`）或目录前缀，都未配置时跳过自定义源。自定义源的缓存按完整地址区分，后台改了地址后立即按新地址探测。
   - AMLL 镜像列表为后端常量（raw.githubusercontent / jsDelivr / `amlldb.bikonoo.com`）。
 - 缓存见 2.5。单次请求超时 8 秒（同 StarryPlayer），响应体上限 1 MB，不跟随重定向。
 
