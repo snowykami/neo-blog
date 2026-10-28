@@ -21,6 +21,10 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroup.GET("/song/:id/lyric/ttml", controller.Music.SongTTMLLyric)
 		musicGroup.GET("/song/:id/lyric/qq", controller.Music.SongQQLyric)
 		musicGroup.GET("/song/:id/lyric/annotations", controller.Music.SongLyricAnnotations)
+		musicGroup.GET("/song/:id/chorus", controller.Music.SongChorus)
+		// 歌词缓存：前端只上报最佳来源的类型，内容由后端用自己获取的来源数据写入
+		musicGroup.GET("/song/:id/lyric/cache", controller.Music.SongLyricCache)
+		musicGroup.POST("/song/:id/lyric/cache", controller.Music.SaveLyricCache)
 
 		// 搜索歌曲只在编辑器中使用，限编辑者及以上，避免被当作公开的搜索代理
 		musicGroupWithEditor.GET("/search", controller.Music.Search)

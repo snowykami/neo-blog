@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,6 +44,10 @@ const (
 	lyricAnnotationMaxPhraseRune = 12
 	lyricAnnotationMaxPerLine    = 3
 	lyricAnnotationMaxScenes     = 6
+	// 导语最长字数（提示词要求 40 字以内，留些余量）
+	lyricAnnotationMaxIntroRunes = 60
+	// 关键节点「时刻」的数量上限
+	lyricAnnotationMaxMoments = 5
 	// 换字体的短语上限：太多会显得杂乱
 	lyricAnnotationMaxPhraseFonts = 10
 	// 标注的温度：调高让演出设计更大胆
@@ -217,6 +222,15 @@ const lyricAnnotationSystemPrompt = `你是一位深情、敏感又大胆的歌�
 
 字段：
 - theme（必填）：第 1 步的结论。direction（必填）：第 2 步的结论。
+- intro（必填）：一句写给听众的导语，会在前奏时淡入歌词区：40 字以内，深情而有画面感，像深夜电台主持人在歌曲开始前的低语；
+  可以点出歌曲背景或此刻的心情，但不要照抄或剧透歌词，不要加引号。
+- outro_comment（可选）：从【听众热评】中挑一条最贴合这首歌情感、最动人的评论，填它的编号（1、2……），会在尾奏时展示给听众；
+  玩笑、跑题或与歌曲无关的不要选，没有热评或没有合适的就不填。
+- moments（建议 4～5 个）：在歌词的关键节点放「时刻」——情绪转折处、副歌开始、最打动人的那一句、故事的高潮或落点，
+  在该行开唱时于歌词下方淡入、停留约 9 秒，像有人在耳边轻声说出此刻的心情。每个时刻：
+  i 为行号；优先填 comment（【听众热评】的编号），选与这一刻情感呼应、能让人共鸣的评论；没有合适的评论时再填 text，
+  自己写一句旁白（40 字以内，深情、有画面感，不照抄歌词，不加引号）。同一条评论不要重复使用，也不要与 outro_comment 相同；
+  时刻之间至少相隔几句，分布在整首歌中，不要挤在一起。
 - font（可选，全曲字体）：按整首歌的气质从下方字体中挑一个作为全曲字体，不填则使用站点默认的黑体：
 {{fonts}}
 - lines[].chorus_start（可选）：一段副歌的第一行标 true（见第 3 步）。lines[].chorus（可选）：副歌行标 true。
@@ -242,7 +256,7 @@ const lyricAnnotationSystemPrompt = `你是一位深情、敏感又大胆的歌�
   颜色要符合画面（如紫荆花瓣用 bauhinia、秋天的落叶用 maple、夏夜萤火用 spring-green），不填则使用场景本身的默认颜色。
 
 输出格式（字段顺序即 SOP 顺序）：
-{"theme":"……","direction":"……","font":"song","lines":[{"i":行号,"mood":"bright","chorus":true,"chorus_start":true,"scene":"petals","scene_color":"bauhinia",
+{"theme":"……","direction":"……","intro":"……","outro_comment":1,"moments":[{"i":行号,"comment":2},{"i":行号,"text":"……"}],"font":"song","lines":[{"i":行号,"mood":"bright","chorus":true,"chorus_start":true,"scene":"petals","scene_color":"bauhinia",
 "phrases":[{"text":"原文片段","effect":"swell","color":"gold","font":"kai","styles":["bold"]}]}]}，lines 只列出有标注的行。`
 
 // lyricAnnotationPrompt 填入色板、粒子场景与字体后的系统提示词
@@ -294,8 +308,9 @@ type lyricAnnotationService struct {
 	limiter *aiLimiter
 	// complete 调用大模型，测试时可替换
 	complete func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
-	// hotComments 生成时拉取热评，可为 nil（测试时不拉取）
+	// hotComments / chorus 生成时拉取热评与网易云副歌片段，可为 nil（测试时不拉取）
 	hotComments func(ctx context.Context, id int64) []lyricAnnotationComment
+	chorus      func(ctx context.Context, id int64) []dto.MusicChorusDto
 	concurrency func() int
 	// done 任务结束时调用（测试用），可为 nil
 	done func()
@@ -308,6 +323,7 @@ var lyricAnnotations = &lyricAnnotationService{
 		return chatCompletionWithTemperature(ctx, cfg, system, user, lyricAnnotationTemperature)
 	},
 	hotComments: fetchNCMHotComments,
+	chorus:      fetchSongChorus,
 	concurrency: tools.GetAISummaryConcurrency,
 }
 
@@ -401,6 +417,7 @@ func (s *MusicService) annotationSource(ctx context.Context, track *dto.MusicTra
 		Album:        track.Album,
 		Aliases:      track.Aliases,
 		Translations: alignLyricTranslations(timed, translation),
+		Timed:        timed,
 	}
 	return lines, info, nil
 }
@@ -438,7 +455,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 
 	if found {
 		data := parseLyricAnnotationData(record.Data)
-		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Lines: data.Lines}
+		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Lines: data.Lines}
 		// 旧版颜色名映射到新色板
 		for i := range result.Lines {
 			result.Lines[i].SceneColor = normalizeLyricColor(result.Lines[i].SceneColor)
@@ -509,12 +526,15 @@ func (a *lyricAnnotationService) run(key string, id int64, hash string, lines []
 	if a.hotComments != nil {
 		info.Comments = a.hotComments(ctx, id)
 	}
+	if a.chorus != nil {
+		info.Chorus = chorusLineRanges(info.Timed, a.chorus(ctx, id))
+	}
 	raw, err := a.complete(ctx, cfg, lyricAnnotationPrompt, buildLyricAnnotationPrompt(info, lines))
 	if err != nil {
 		logrus.Warnf("lyric annotation failed for song %d: %v", id, err)
 		return
 	}
-	annotated, err := sanitizeLyricAnnotations(lines, raw)
+	annotated, err := sanitizeLyricAnnotations(lines, info.Comments, raw)
 	if err != nil {
 		logrus.Warnf("lyric annotation for song %d is invalid: %v", id, err)
 		return
@@ -537,8 +557,11 @@ func (a *lyricAnnotationService) run(key string, id int64, hash string, lines []
 // 情绪、特效、颜色与场景只能取允许的值（旧版颜色名映射到新色板，未知颜色与场景丢弃，场景全曲最多 4 处），每行最多 2 个短语，全曲短语总数有上限；同一文本的行合并为一条（前端按文本匹配）
 // lyricAnnotationData 保存到数据库的标注结果（旧版记录只有 lines 数组，读取时兼容）
 type lyricAnnotationData struct {
-	Font  string                         `json:"font,omitempty"`
-	Lines []dto.MusicLyricAnnotationLine `json:"lines"`
+	Font    string                           `json:"font,omitempty"`
+	Intro   string                           `json:"intro,omitempty"`
+	Outro   *dto.MusicLyricAnnotationComment `json:"outro,omitempty"`
+	Moments []dto.MusicLyricAnnotationMoment `json:"moments,omitempty"`
+	Lines   []dto.MusicLyricAnnotationLine   `json:"lines"`
 }
 
 // parseLyricAnnotationData 读取保存的标注：新版为对象，旧版为 lines 数组
@@ -557,14 +580,21 @@ func parseLyricAnnotationData(data string) lyricAnnotationData {
 	return result
 }
 
-func sanitizeLyricAnnotations(lines []string, raw string) (lyricAnnotationData, error) {
+func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment, raw string) (lyricAnnotationData, error) {
 	start, end := strings.Index(raw, "{"), strings.LastIndex(raw, "}")
 	if start < 0 || end <= start {
 		return lyricAnnotationData{}, errors.New("no json object in response")
 	}
 	// theme 与 direction 是 SOP 中先写下的分析，只用于引导模型，不保存
 	var parsed struct {
-		Font  string `json:"font"`
+		Font         string `json:"font"`
+		Intro        string `json:"intro"`
+		OutroComment int    `json:"outro_comment"`
+		Moments      []struct {
+			I       int    `json:"i"`
+			Comment int    `json:"comment"`
+			Text    string `json:"text"`
+		} `json:"moments"`
 		Lines []struct {
 			I           int    `json:"i"`
 			Mood        string `json:"mood"`
@@ -659,5 +689,73 @@ func sanitizeLyricAnnotations(lines []string, raw string) (lyricAnnotationData, 
 	if lyricAnnotationFonts[parsed.Font] {
 		font = parsed.Font
 	}
-	return lyricAnnotationData{Font: font, Lines: kept}, nil
+	data := lyricAnnotationData{Font: font, Intro: sanitizeLyricIntro(parsed.Intro), Lines: kept}
+	// outro_comment 为热评在提示词中的编号（从 1 开始），超出范围时不展示
+	usedComments := map[int]bool{}
+	if n := parsed.OutroComment; n >= 1 && n <= len(comments) {
+		data.Outro = &dto.MusicLyricAnnotationComment{Content: comments[n-1].Content, Liked: comments[n-1].Liked}
+		usedComments[n] = true
+	}
+	data.Moments = sanitizeLyricMoments(lines, comments, parsed.Moments, usedComments)
+	return data, nil
+}
+
+// sanitizeLyricMoments 关键节点的「时刻」：行号必须存在、每行最多一个、最多 lyricAnnotationMaxMoments 个，按行号排序；
+// 优先使用热评（编号有效且没被用过），否则使用模型写的旁白；同一条热评不重复使用（含尾奏）
+func sanitizeLyricMoments(lines []string, comments []lyricAnnotationComment, items []struct {
+	I       int    `json:"i"`
+	Comment int    `json:"comment"`
+	Text    string `json:"text"`
+}, usedComments map[int]bool,
+) []dto.MusicLyricAnnotationMoment {
+	type moment struct {
+		index int
+		value dto.MusicLyricAnnotationMoment
+	}
+	var picked []moment
+	usedLines := map[int]bool{}
+	for _, item := range items {
+		if len(picked) >= lyricAnnotationMaxMoments {
+			break
+		}
+		if item.I < 0 || item.I >= len(lines) || usedLines[item.I] {
+			continue
+		}
+		value := dto.MusicLyricAnnotationMoment{Text: lines[item.I]}
+		if n := item.Comment; n >= 1 && n <= len(comments) && !usedComments[n] {
+			value.Content, value.Liked, value.Source = comments[n-1].Content, comments[n-1].Liked, "comment"
+			usedComments[n] = true
+		} else if text := sanitizeLyricIntro(item.Text); text != "" {
+			value.Content, value.Source = text, "ai"
+		} else {
+			continue
+		}
+		// 这一行的文字在第几次出现（副歌常有重复的行，前端按文字匹配到第几次出现的那一行）
+		for i := 0; i < item.I; i++ {
+			if lines[i] == lines[item.I] {
+				value.Occurrence++
+			}
+		}
+		usedLines[item.I] = true
+		picked = append(picked, moment{item.I, value})
+	}
+	if len(picked) == 0 {
+		return nil
+	}
+	sort.Slice(picked, func(a, b int) bool { return picked[a].index < picked[b].index })
+	result := make([]dto.MusicLyricAnnotationMoment, len(picked))
+	for i, item := range picked {
+		result[i] = item.value
+	}
+	return result
+}
+
+// sanitizeLyricIntro 导语：合并空白、去掉首尾引号，过长时截断
+func sanitizeLyricIntro(intro string) string {
+	intro = strings.TrimSpace(whitespaceRe.ReplaceAllString(intro, " "))
+	intro = strings.Trim(intro, "\"'“”「」『』 ")
+	if runes := []rune(intro); len(runes) > lyricAnnotationMaxIntroRunes {
+		intro = string(runes[:lyricAnnotationMaxIntroRunes]) + "…"
+	}
+	return intro
 }

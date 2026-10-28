@@ -57,6 +57,9 @@ func TestPickHotComments(t *testing.T) {
 		{Content: "一般", Liked: 10}, {Content: "  ", Liked: 999}, {Content: "最热\n的评论", Liked: 500},
 		{Content: long, Liked: 300}, {Content: "a", Liked: 1}, {Content: "b", Liked: 2}, {Content: "c", Liked: 3},
 	}
+	for i := 0; i < lyricAnnotationComments; i++ {
+		comments = append(comments, lyricAnnotationComment{Content: "凑数", Liked: 0})
+	}
 	got := pickHotComments(comments)
 	if len(got) != lyricAnnotationComments || got[0].Content != "最热 的评论" || got[1].Liked != 300 {
 		t.Fatalf("picked = %+v", got)
@@ -82,5 +85,18 @@ func TestBuildLyricAnnotationPrompt(t *testing.T) {
 	plain := buildLyricAnnotationPrompt(lyricAnnotationInfo{Title: "歌"}, []string{"晴天"})
 	if strings.Contains(plain, "听众热评") || strings.Contains(plain, "〔译") {
 		t.Fatalf("plain prompt = %s", plain)
+	}
+}
+
+func TestChorusLineRanges(t *testing.T) {
+	lines := []lyricTimedLine{{Start: 1000}, {Start: 20000}, {Start: 34000}, {Start: 40000}, {Start: 60000}, {Start: 70000}}
+	got := chorusLineRanges(lines, []dto.MusicChorusDto{{Start: 34500, End: 61000}, {Start: 200000, End: 210000}})
+	// 第二段附近 3 秒内没有歌词行，不换算
+	if want := []lyricChorusRange{{From: 2, To: 4, Start: 34500, End: 61000}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ranges = %+v", got)
+	}
+	prompt := buildLyricAnnotationPrompt(lyricAnnotationInfo{Chorus: got}, []string{"a"})
+	if !strings.Contains(prompt, "第 2 行～第 4 行（0:34～1:01）") {
+		t.Fatalf("prompt = %s", prompt)
 	}
 }

@@ -21,8 +21,9 @@ import (
 const (
 	// 翻译与原文按时间对齐的容差（毫秒）：逐字歌词与逐行翻译的时间戳常有几百毫秒的偏差
 	lyricTranslationTolerance = 1000
-	lyricAnnotationComments   = 5
-	lyricCommentMaxRunes      = 140
+	// 给模型挑选的热评条数：尾奏与关键节点的「时刻」都优先用热评
+	lyricAnnotationComments = 12
+	lyricCommentMaxRunes    = 140
 )
 
 var (
@@ -40,6 +41,10 @@ type lyricAnnotationInfo struct {
 	Aliases      []string
 	Translations []string
 	Comments     []lyricAnnotationComment
+	// 网易云标出的副歌片段对应的歌词行（副歌起点的参考），生成时根据 Timed 换算
+	Chorus []lyricChorusRange
+	// 歌词各行的开始时间（与歌词行一一对应）
+	Timed []lyricTimedLine
 }
 
 // lyricAnnotationComment 一条网易云热评
@@ -216,6 +221,12 @@ func buildLyricAnnotationPrompt(info lyricAnnotationInfo, lines []string) string
 			fmt.Fprintf(&b, "%d. %s（%d 赞）\n", i+1, comment.Content, comment.Liked)
 		}
 	}
+	if len(info.Chorus) > 0 {
+		b.WriteString("\n【网易云标出的副歌 / 高潮片段】（网易云客户端在进度条上标出的片段，判断副歌起点时优先参考）\n")
+		for _, chorus := range info.Chorus {
+			fmt.Fprintf(&b, "第 %d 行～第 %d 行（%s～%s）\n", chorus.From, chorus.To, formatLyricTime(chorus.Start), formatLyricTime(chorus.End))
+		}
+	}
 	b.WriteString("\n【歌词】")
 	if info.Translations != nil {
 		b.WriteString("（外语歌词在行末用〔译：…〕附上中文翻译，只帮助你理解含义；phrases 的 text 只能取自原文，不能取自翻译）")
@@ -229,4 +240,9 @@ func buildLyricAnnotationPrompt(info lyricAnnotationInfo, lines []string) string
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// formatLyricTime 毫秒 → m:ss
+func formatLyricTime(ms int64) string {
+	return fmt.Sprintf("%d:%02d", ms/60000, ms/1000%60)
 }

@@ -39,7 +39,7 @@ func TestSanitizeLyricAnnotations(t *testing.T) {
 		{"i":9,"phrases":[{"text":"x","effect":"swell"}]},
 		{"i":3,"mood":"","scene":"tornado","phrases":[]}
 	]}` + "\n```"
-	got, err := sanitizeLyricAnnotations(lines, raw)
+	got, err := sanitizeLyricAnnotations(lines, nil, raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestSanitizeLyricAnnotations(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("annotations = %+v\nwant %+v", got, want)
 	}
-	if _, err := sanitizeLyricAnnotations(lines, "抱歉，我无法完成"); err == nil {
+	if _, err := sanitizeLyricAnnotations(lines, nil, "抱歉，我无法完成"); err == nil {
 		t.Fatal("non-json response should fail")
 	}
 }
@@ -199,5 +199,57 @@ func TestLyricAnnotationPrompt(t *testing.T) {
 		if !lyricAnnotationColors[mapped] || lyricAnnotationColors[legacy] {
 			t.Fatalf("legacy color %s maps to %s", legacy, mapped)
 		}
+	}
+}
+
+func TestSanitizeLyricIntroAndOutro(t *testing.T) {
+	comments := []lyricAnnotationComment{{Content: "哈哈哈", Liked: 9}, {Content: "那年夏天我们都在", Liked: 5}}
+	raw := `{"intro":"  「在离别的街口，\n风替我们说了再见」 ","outro_comment":2,"lines":[]}`
+	got, err := sanitizeLyricAnnotations([]string{"晴天"}, comments, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Intro != "在离别的街口， 风替我们说了再见" {
+		t.Fatalf("intro = %q", got.Intro)
+	}
+	if got.Outro == nil || got.Outro.Content != "那年夏天我们都在" || got.Outro.Liked != 5 {
+		t.Fatalf("outro = %+v", got.Outro)
+	}
+	// 编号超出范围（或没有热评）时不展示；过长的导语截断
+	long := strings.Repeat("长", lyricAnnotationMaxIntroRunes+5)
+	got, _ = sanitizeLyricAnnotations([]string{"晴天"}, nil, `{"intro":"`+long+`","outro_comment":1,"lines":[]}`)
+	if got.Outro != nil || len([]rune(got.Intro)) != lyricAnnotationMaxIntroRunes+1 {
+		t.Fatalf("got = %+v", got)
+	}
+}
+
+func TestSanitizeLyricMoments(t *testing.T) {
+	lines := []string{"前奏", "副歌", "主歌", "副歌", "结尾", "尾声", "再见"}
+	comments := []lyricAnnotationComment{{Content: "评论一", Liked: 30}, {Content: "评论二", Liked: 20}, {Content: "评论三", Liked: 10}}
+	raw := `{"outro_comment":3,"moments":[
+		{"i":3,"comment":1},
+		{"i":1,"comment":1,"text":"热评用过了就用旁白"},
+		{"i":3,"text":"同一行只放一个"},
+		{"i":4,"comment":3},
+		{"i":9,"text":"行号不存在"},
+		{"i":5,"comment":2},
+		{"i":6,"text":"「旁白」"},
+		{"i":0,"text":"第五个"},
+		{"i":2,"text":"超出 5 个"}
+	],"lines":[]}`
+	got, err := sanitizeLyricAnnotations(lines, comments, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 按行号排序、最多 5 个；第二次出现的「副歌」记为 occurrence 1；与尾奏相同的热评不再使用，第 4 行没有旁白而被跳过
+	want := []dto.MusicLyricAnnotationMoment{
+		{Text: "前奏", Content: "第五个", Source: "ai"},
+		{Text: "副歌", Occurrence: 0, Content: "热评用过了就用旁白", Source: "ai"},
+		{Text: "副歌", Occurrence: 1, Content: "评论一", Source: "comment", Liked: 30},
+		{Text: "尾声", Content: "评论二", Source: "comment", Liked: 20},
+		{Text: "再见", Content: "旁白", Source: "ai"},
+	}
+	if !reflect.DeepEqual(got.Moments, want) {
+		t.Fatalf("moments = %+v\nwant %+v", got.Moments, want)
 	}
 }

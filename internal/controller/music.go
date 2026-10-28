@@ -115,6 +115,40 @@ func (m *musicType) RefreshLyricAnnotations(ctx context.Context, c *app.RequestC
 	resps.Ok(c, resps.Success, result)
 }
 
+// SongChorus 网易云标出的副歌 / 高潮片段（进度条标记）
+func (m *musicType) SongChorus(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.GetSongChorus(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// SongLyricCache 一首歌的歌词缓存快照（最近一次选出的最佳歌词来源），供打开时立即显示
+func (m *musicType) SongLyricCache(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.GetLyricCache(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// SaveLyricCache 上报选出的最佳歌词来源，后端用自己获取的来源数据更新缓存
+func (m *musicType) SaveLyricCache(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricCacheReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if svcerr := m.service.SaveLyricCache(ctx, ctxutils.GetIDParam(c).Int64, req.Kind); svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
+}
+
 // NCMPlaylists 获取网易云账号的歌单，供后台选择博客歌单
 func (m *musicType) NCMPlaylists(ctx context.Context, c *app.RequestContext) {
 	var req dto.NCMPlaylistsReq

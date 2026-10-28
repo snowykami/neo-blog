@@ -78,8 +78,30 @@ type MusicLyricAnnotationsDto struct {
 	Status string `json:"status"`
 	Stale  bool   `json:"stale,omitempty"`
 	// 全曲字体（字体表中的名称，见 service.lyricAnnotationFonts），为空时用站点默认字体
-	Font  string                     `json:"font,omitempty"`
-	Lines []MusicLyricAnnotationLine `json:"lines"`
+	Font string `json:"font,omitempty"`
+	// 前奏时显示的一句导语（模型写给听众），可为空
+	Intro string `json:"intro,omitempty"`
+	// 尾奏时显示的一条网易云热评（模型从热评中挑出最贴合歌曲的一条），可为空
+	Outro *MusicLyricAnnotationComment `json:"outro,omitempty"`
+	// 歌词关键节点的「时刻」：在某句开唱时显示的热评或模型写的旁白（最多 5 条）
+	Moments []MusicLyricAnnotationMoment `json:"moments,omitempty"`
+	Lines   []MusicLyricAnnotationLine   `json:"lines"`
+}
+
+// MusicLyricAnnotationMoment 一个「时刻」：在歌词 text 的第 occurrence 次出现（从 0 开始，副歌常有重复的行）开唱时显示；
+// source 为 comment（网易云热评，liked 为点赞数）或 ai（模型写的旁白）
+type MusicLyricAnnotationMoment struct {
+	Text       string `json:"text"`
+	Occurrence int    `json:"occurrence"`
+	Content    string `json:"content"`
+	Source     string `json:"source"`
+	Liked      int64  `json:"liked,omitempty"`
+}
+
+// MusicLyricAnnotationComment 一条网易云热评：内容与点赞数
+type MusicLyricAnnotationComment struct {
+	Content string `json:"content"`
+	Liked   int64  `json:"liked"`
 }
 
 // MusicLyricAnnotationLine 一行的标注：mood 为情绪基调（calm / bright / sad / intense，可为空），chorus 为副歌行，chorus_start 为一段副歌的第一行，
@@ -136,4 +158,23 @@ type NCMPlaylistDto struct {
 type NCMPlaylistsDto struct {
 	Account   NCMAccountDto    `json:"account"`
 	Playlists []NCMPlaylistDto `json:"playlists"`
+}
+
+// MusicLyricCacheReq 上报一首歌选出的最佳歌词来源（ttml / ncm / qq），后端用自己获取的来源数据写入缓存
+type MusicLyricCacheReq struct {
+	Kind string `json:"kind" vd:"len($)>0"`
+}
+
+// MusicLyricCacheDto 歌词缓存快照：kind 为最佳来源；ncm / ttml / qq 与各来源接口的返回相同（只含需要的来源，网易云歌词总会附带，供翻译借用与单行歌词）
+type MusicLyricCacheDto struct {
+	Kind string           `json:"kind"`
+	Ncm  *MusicLyricDto   `json:"ncm,omitempty"`
+	TTML *MusicTTMLDto    `json:"ttml,omitempty"`
+	QQ   *MusicQQLyricDto `json:"qq,omitempty"`
+}
+
+// MusicChorusDto 网易云标出的副歌 / 高潮片段（毫秒）
+type MusicChorusDto struct {
+	Start int64 `json:"start"`
+	End   int64 `json:"end"`
 }

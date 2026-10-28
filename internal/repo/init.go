@@ -175,6 +175,7 @@ func migrate() error {
 		&model.Label{},
 		&model.Like{},
 		&model.LyricAnnotation{},
+		&model.LyricCache{},
 		&model.File{},
 		&model.StorageProviderModelAndDto{},
 		&model.KV{},
