@@ -65,6 +65,7 @@ type evalResult struct {
 	ChorusRanges     int                 `json:"chorus_ranges"`
 	ChorusHits       int                 `json:"chorus_hits"`
 	Effects          map[string]int      `json:"effects"`
+	Invalid          []string            `json:"invalid,omitempty"`
 	Annotation       lyricAnnotationData `json:"annotation"`
 }
 
@@ -276,12 +277,25 @@ func evalGenerate(variant string, run int, song evalSong, cfg tools.AIConfig) ev
 	}
 	var rawParsed struct {
 		Lines []struct {
-			Phrases []json.RawMessage `json:"phrases"`
+			I       int `json:"i"`
+			Phrases []struct {
+				Text string `json:"text"`
+			} `json:"phrases"`
 		} `json:"lines"`
 	}
 	_ = json.Unmarshal([]byte(raw), &rawParsed)
 	for _, line := range rawParsed.Lines {
 		result.RawPhrases += len(line.Phrases)
+		// 不是该行原文片段的短语（校验时会被丢弃）
+		for _, phrase := range line.Phrases {
+			if line.I < 0 || line.I >= len(song.lines) || !strings.Contains(normalizeLyricMatch(song.lines[line.I]), normalizeLyricMatch(phrase.Text)) || normalizeLyricMatch(phrase.Text) == "" {
+				text := ""
+				if line.I >= 0 && line.I < len(song.lines) {
+					text = song.lines[line.I]
+				}
+				result.Invalid = append(result.Invalid, fmt.Sprintf("%d %q in %q", line.I, phrase.Text, text))
+			}
+		}
 	}
 	annotation, err := sanitizeLyricAnnotations(song.lines, song.info.Comments, raw)
 	if err != nil {
@@ -394,8 +408,12 @@ func evalSummary(name string, results []evalResult) string {
 		}
 		return fmt.Sprintf("%.0f%%", float64(a)*100/float64(b))
 	}
-	return fmt.Sprintf("%s: runs=%d failed=%d avg %.1fs, input %.0f / output %.0f tokens; valid phrases %s, phrased lines %s, consistent imagery %s, held→shake %s, shake off held %s, moments/run %.1f, intro ok %s, chorus hits %s; effects %v",
-		name, n, failed, seconds/float64(n), in/float64(n), outTokens/float64(n), ratio(kept, raw), ratio(phrased, lines), ratio(consistent, repeated),
+	invalid := 0
+	for _, r := range results {
+		invalid += len(r.Invalid)
+	}
+	return fmt.Sprintf("%s: runs=%d failed=%d avg %.1fs, input %.0f / output %.0f tokens; invalid phrases %s, kept phrases %s, phrased lines %s, consistent imagery %s, held→shake %s, shake off held %s, moments/run %.1f, intro ok %s, chorus hits %s; effects %v",
+		name, n, failed, seconds/float64(n), in/float64(n), outTokens/float64(n), ratio(invalid, raw), ratio(kept, raw), ratio(phrased, lines), ratio(consistent, repeated),
 		ratio(heldShake, heldLines), ratio(offHeld, shake), float64(moments)/float64(n), ratio(introOK, n), ratio(chorusHits, chorus), effects)
 }
 
