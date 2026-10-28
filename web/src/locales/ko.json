@@ -2169,7 +2169,10 @@
         "failed": "가져오지 못했습니다. 잠시 후 다시 시도하세요",
         "filled": "현재 날씨를 채웠습니다",
         "place_selected": "도시를 선택했습니다"
-      }
+      },
+      "live_short": "실시간",
+      "use_precise_location": "정확한 위치 사용",
+      "retry": "다시 시도"
     },
     "layout": {
       "width": "너비",

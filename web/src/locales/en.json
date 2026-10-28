@@ -2169,7 +2169,10 @@
         "failed": "Request failed, please try again later",
         "filled": "Current weather filled in",
         "place_selected": "City selected"
-      }
+      },
+      "live_short": "Live",
+      "use_precise_location": "Use precise location",
+      "retry": "Retry"
     },
     "layout": {
       "width": "Width",

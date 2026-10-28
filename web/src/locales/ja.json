@@ -2169,7 +2169,10 @@
         "failed": "取得に失敗しました。しばらくしてから再試行してください",
         "filled": "現在の天気を入力しました",
         "place_selected": "都市を選択しました"
-      }
+      },
+      "live_short": "ライブ",
+      "use_precise_location": "正確な位置を使用",
+      "retry": "再試行"
     },
     "layout": {
       "width": "幅",

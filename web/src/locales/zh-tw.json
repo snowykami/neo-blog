@@ -2169,7 +2169,10 @@
         "failed": "取得失敗，請稍後再試",
         "filled": "已填入目前天氣",
         "place_selected": "已選擇城市"
-      }
+      },
+      "live_short": "即時",
+      "use_precise_location": "使用精確位置",
+      "retry": "重試"
     },
     "layout": {
       "width": "寬度",
