@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>歌词动效一览 · 原型</title>
+<style>
+  :root { --bg: #0d0e13; --card: #161821; --line: #262a3a; --fg: #eef0f6; --dim: #8a8fa3; --accent: #8ab4ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.6 -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif; }
+  header, section { max-width: 1320px; margin: auto; padding: 0 28px; }
+  header { padding-top: 28px; }
+  h1 { margin: 0 0 4px; font-size: 24px; }
+  .sub { color: var(--dim); margin: 0; }
+  .summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 4px; }
+  .pill { padding: 3px 11px; border-radius: 999px; background: #ffffff0d; border: 1px solid var(--line); font-size: 12.5px; color: #c9cdda; }
+  .pill b { color: var(--fg); }
+  h2 { font-size: 17px; margin: 30px 0 4px; }
+  h2 small { color: var(--dim); font-weight: 400; margin-left: 8px; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; margin-top: 10px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; cursor: pointer; transition: border-color .2s, transform .2s; }
+  .card:hover { border-color: #3d4363; }
+  .card.playing { border-color: var(--accent); }
+  .card.wide { grid-column: span 2; }
+  @media (max-width: 820px) { .card.wide { grid-column: auto; } }
+  .stage { position: relative; height: 160px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(120% 140% at 15% 0%, #2a2f4d 0%, #14151e 70%); }
+  .stage.tall { height: 230px; }
+  .stage .hint { position: absolute; right: 10px; bottom: 7px; font-size: 11.5px; color: #ffffff70; pointer-events: none; }
+  .stage .bgfx { position: absolute; inset: 0; pointer-events: none; }
+  .meta { padding: 11px 14px 12px; }
+  .meta h3 { margin: 0; font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tag { font-size: 11px; padding: 1px 8px; border-radius: 999px; font-weight: 400; }
+  .tag.t-auto { background: #3fcf9e22; color: #6ee7b7; }
+  .tag.t-ai { background: #a77bff26; color: #c4a8ff; }
+  .tag.t-stage { background: #ffb34722; color: #ffcc80; }
+  .tag.t-where { background: #ffffff10; color: var(--dim); }
+  .tag.t-new { background: #ff6f9126; color: #ff9fb8; }
+  .card.cand { border-color: #ff6f9140; }
+  .meta p { margin: 6px 0 0; color: #b7bccb; font-size: 13px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 13px; }
+  .chip { font-size: 12px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--line); background: #ffffff08; color: #d6d9e4; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+  .chip.on { border-color: var(--accent); color: var(--accent); }
+  .chip i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+  /* 歌词 */
+  .lyric { position: relative; font-size: 30px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+  .lyric.small { font-size: 18px; }
+  .ch { display: inline-block; position: relative; color: transparent; -webkit-background-clip: text; background-clip: text;
+    background-image: linear-gradient(90deg, var(--hi, #fff) var(--p, -18%), rgba(255, 255, 255, .32) calc(var(--p, -18%) + 18%));
+    will-change: transform, filter; }
+  .ch.sp { width: .35em; }
+  .ch::after { content: ''; position: absolute; left: 0; right: 0; height: .07em; border-radius: .04em; background: var(--hi, #fff);
+    transform-origin: left center; transform: scaleX(var(--line, 0)); opacity: 0; }
+  .ch.u::after { bottom: .06em; opacity: 1; }
+  .ch.s::after { top: 52%; opacity: 1; }
+  .roman { display: block; text-align: center; font-size: 12px; font-weight: 500; margin-top: 2px; letter-spacing: 0; }
+  .note { position: absolute; left: 0; right: 0; bottom: 18px; text-align: center; font-size: 13px; color: #ffffffd0; opacity: 0; transition: opacity .8s; padding: 0 30px; }
+  .note small { display: block; font-size: 11px; color: #ffffff80; }
+</style>
+</head>
+<body>
+<header>
+  <h1>歌词动效一览</h1>
+  <p class="sub">当前已实现的全部歌词动效（按代码清点：lyric-player / emphasis / vibrato / stage-effects / stage-particles / interlude / moments / nav-emphasis）。点击卡片播放演示，带标签的卡片可以切换参数。</p>
+  <div class="summary" id="summary"></div>
+  <p class="sub" style="font-size:12.5px;margin-top:6px">
+    <span class="tag t-auto">自动</span> 所有逐字歌词都有
+    <span class="tag t-ai">AI 标注</span> 来自后台大模型对歌词的标注
+    <span class="tag t-stage">舞台</span> 只在播放器页（/music）全屏演出
+    原型用简化的实现模拟真实效果（曲线、时长与幅度取自代码），用于看效果、讨论新增方向。
+  </p>
+</header>
+<main id="main"></main>
+
+<script>
+// ================= 曲线（与 easing.ts 相同） =================
+function cubicBezier(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by
+  const sx = t => ((ax * t + bx) * t + cx) * t, sy = t => ((ay * t + by) * t + cy) * t, dx = t => (3 * ax * t + 2 * bx) * t + cx
+  return (x) => {
+    if (x <= 0) return 0
+    if (x >= 1) return 1
+    let t = x
+    for (let i = 0; i < 8; i++) { const e = sx(t) - x; if (Math.abs(e) < 1e-5) break; const d = dx(t); if (Math.abs(d) < 1e-6) break; t -= e / d }
+    return sy(t)
+  }
+}
+const swellIn = cubicBezier(0.2, 0.4, 0.58, 1), swellOut = cubicBezier(0.3, 0, 0.58, 1)
+const swell = x => (x <= 0 || x >= 1) ? 0 : x < 0.5 ? swellIn(x / 0.5) : 1 - swellOut((x - 0.5) / 0.5)
+const clamp01 = x => Math.min(1, Math.max(0, x))
+
+// ================= 色板 / 字体 / 情绪（与 colors.ts、lyric-player.css、lyric-player.ts 一致） =================
+const COLORS = { crimson: ['#ff5c6c', '绯红'], rose: ['#ff6f91', '玫瑰'], flame: ['#ff6a3d', '火焰'], sunset: ['#ff8a65', '夕阳'], coral: ['#ff9f80', '珊瑚'], maple: ['#ff7f3f', '枫叶'], amber: ['#ffb347', '琥珀'], peach: ['#ffa8a0', '蜜桃'], 'cherry-blossom': ['#ffb3c8', '樱花'], bauhinia: ['#e86fb0', '紫荆'], sunshine: ['#ffd54f', '阳光'], gold: ['#f5c542', '金色'], lemon: ['#fff176', '柠檬'], candlelight: ['#ffe0a3', '烛光'], 'spring-green': ['#a5e887', '春绿'], forest: ['#5fd38d', '森林'], mint: ['#8ef0c8', '薄荷'], jade: ['#3fcf9e', '翡翠'], aurora: ['#6effd0', '极光'], lake: ['#4fd1d9', '湖水'], sky: ['#74c0fc', '天空'], ocean: ['#3d9df5', '海洋'], 'starry-blue': ['#6c8cff', '星蓝'], midnight: ['#7b83eb', '午夜'], ice: ['#b5e8ff', '冰'], rain: ['#9bb7d4', '雨'], lavender: ['#c3a6ff', '薰衣草'], violet: ['#a77bff', '紫罗兰'], twilight: ['#b388eb', '暮光'], wisteria: ['#d4a5f5', '紫藤'], moonlight: ['#f0f4ff', '月光'], silver: ['#d7dde8', '银'] }
+const FONTS = { song: ['宋体', '"Songti SC","Noto Serif SC",serif'], kai: ['楷体', '"Kaiti SC","LXGW WenKai",cursive'], xingkai: ['行楷', '"Xingkai SC","Zhi Mang Xing",cursive'], fangsong: ['仿宋', '"STFangsong","FangSong",serif'], round: ['圆体', '"Yuanti SC","ZCOOL KuaiLe",sans-serif'], mono: ['等宽', '"SF Mono",Menlo,monospace'], script: ['手写（英文）', '"Snell Roundhand","Dancing Script",cursive'] }
+const MOODS = { calm: ['平静', '#cfe8ff'], bright: ['明亮', '#ffe6a8'], sad: ['伤感', '#d6ceff'], intense: ['激昂', '#ffc0b3'] }
+
+// ================= 歌词行：逐字时间、擦除、上浮、强调（移植自 lyric-player.ts paintEmphasis） =================
+function buildLine(parent, text, { ms = 380, holds = {}, cls = '', start = 0 } = {}) {
+  const el = document.createElement('div')
+  el.className = 'lyric ' + cls
+  const chars = []
+  let t = start
+  ;[...text].forEach((c, i) => {
+    const span = document.createElement('span')
+    span.className = 'ch' + (c === ' ' ? ' sp' : '')
+    span.textContent = c === ' ' ? ' ' : c
+    const d = holds[i] ?? (c === ' ' ? 150 : ms)
+    chars.push({ el: span, start: t, end: t + d, text: c })
+    t += d
+    el.appendChild(span)
+  })
+  parent.appendChild(el)
+  return { el, chars, end: t }
+}
+
+/** 一组强调：chars[from, to)；effect / color / factor / styles / hold 同 LyricEmphasis */
+function group(line, from, to, opt = {}) {
+  if (from < 0 || to > line.chars.length || from >= to)
+    throw new Error(`group [${from}, ${to}) out of range for ${line.chars.map(c => c.text).join('')}`)
+  const g = { from, to, factor: 1, effect: 'swell', ...opt }
+  g.start = line.chars[from].start
+  g.end = line.chars[to - 1].end
+  if (g.effect === 'shake' && opt.holdIndex != null) {
+    const c = line.chars[opt.holdIndex]
+    g.hold = { start: c.start, end: c.end }
+  }
+  return g
+}
+
+function holdVibrato(hold, t) {
+  const onset = hold.start + Math.min(700, Math.max(250, (hold.end - hold.start) * 0.2))
+  const release = t < hold.end ? 1 : Math.max(0, 1 - (t - hold.end) / 300)
+  return { onset, release, amount: clamp01((t - onset) / 360) * release }
+}
+
+/** 绘制一行：擦除 + 演唱上浮 + 强调；glowBase 为没有颜色时辉光的颜色（情绪或封面取色），scale 为幅度倍数（导航栏用） */
+function paintLine(line, groups, t, { glowBase = '#ffffff', amp = 1, lift = true } = {}) {
+  const fx = new Map()
+  for (const g of groups) {
+    const dur = Math.max(1000, g.end - g.start)
+    const count = g.to - g.from
+    const stagger = dur * (g.effect === 'wave' ? 1 / 1.5 : 1 / 2.5) / Math.max(1, count)
+    const tint = g.color ? COLORS[g.color][0] : null
+    const charMs = Math.max(1, (g.end - g.start) / count)
+    const hold = g.effect === 'shake' && g.hold ? holdVibrato(g.hold, t) : null
+    for (let i = 0; i < count; i++) {
+      const begin = g.start + stagger * i
+      let v = swell((t - begin) / dur)
+      if (hold && t >= begin + dur / 2) v = Math.max(v, hold.release)
+      const lf = Math.sin(Math.PI * clamp01((t - begin + 400) / (dur * 1.4)))
+      const f = g.factor
+      let scale = 1, x = 0, y = -lf * 0.05, glow = 0, blur = 0, radius = 0.3
+      if (g.effect === 'swell') { scale = 1 + v * 0.14 * f; x = -v * 0.03 * f * (count / 2 - i - 0.5); y -= v * 0.025 * f; glow = v * (0.25 + 0.45 * f) }
+      else if (g.effect === 'glow') { scale = 1 + v * 0.04 * f; glow = v * (0.35 + 0.5 * f); radius = 0.45 }
+      else if (g.effect === 'shake' && hold) {
+        const w = Math.sin(2 * Math.PI * 5.5 * (t - hold.onset) / 1000 - i * 0.35)
+        scale = 1 + v * 0.14 * f + w * hold.amount * 0.02 * f
+        x = -v * 0.03 * f * (count / 2 - i - 0.5) + Math.cos(2 * Math.PI * 11 * (t - hold.onset) / 1000 + i) * hold.amount * 0.008 * f
+        y -= v * 0.025 * f + w * hold.amount * 0.035 * f
+        glow = v * (0.25 + 0.45 * f) + hold.amount * 0.12 * f
+      }
+      else if (g.effect === 'shake') { const ph = (t - begin) / 45; x = Math.sin(ph * 2.3 + i * 1.7) * 0.035 * f * v; y += Math.cos(ph * 1.9 + i * 1.3) * 0.025 * f * v; scale = 1 + v * 0.06 * f; glow = v * (0.15 + 0.25 * f) }
+      else if (g.effect === 'focus') { const clear = clamp01((t - begin) / (dur * 0.6)); blur = (1 - clear) * (0.05 + 0.07 * f); scale = 1 + v * 0.05 * f; glow = v * (0.2 + 0.3 * f); radius = 0.4 }
+      else if (g.effect === 'wave') { y = -lf * (0.08 + 0.14 * f); scale = 1 + lf * 0.05 * f }
+      let color = null
+      if (tint) { const k = Math.max(v * 0.85, t >= begin ? 0.6 : 0); if (k > 0.005) color = `color-mix(in srgb, ${tint} ${(k * 100).toFixed(1)}%, #ffffff)` }
+      const ln = g.styles && (g.styles.includes('underline') || g.styles.includes('strike')) ? clamp01((t - g.start - charMs * i) / charMs) : null
+      fx.set(g.from + i, { scale: 1 + (scale - 1) * amp, x: x * amp, y: y * amp, glow, blur: blur * amp, radius, color, glowColor: tint || glowBase, ln, g })
+    }
+  }
+  line.chars.forEach((c, idx) => {
+    const p = clamp01((t - c.start) / (c.end - c.start))
+    c.el.style.setProperty('--p', (p * 118 - 18).toFixed(1) + '%')
+    const e = fx.get(idx)
+    if (e) {
+      c.el.style.transform = `translate(${e.x.toFixed(3)}em, ${e.y.toFixed(3)}em) scale(${e.scale.toFixed(3)})`
+      const filters = []
+      if (e.blur > 0.002) filters.push(`blur(${e.blur.toFixed(3)}em)`)
+      if (e.glow > 0.01) filters.push(`drop-shadow(0 0 ${e.radius}em color-mix(in srgb, ${e.glowColor} ${(e.glow * 100).toFixed(0)}%, transparent))`)
+      c.el.style.filter = filters.join(' ')
+      c.el.style.setProperty('--hi', e.color || '#fff')
+      if (e.ln != null) c.el.style.setProperty('--line', e.ln.toFixed(3))
+    }
+    else {
+      // 普通词：唱到时轻微上浮并保持
+      const up = lift ? -0.04 * clamp01((t - c.start + 200) / 400) : 0
+      c.el.style.transform = `translateY(${up.toFixed(3)}em)`
+      c.el.style.filter = ''
+      c.el.style.setProperty('--hi', '#fff')
+    }
+  })
+}
+
+function applyStyles(line, g) {
+  for (let i = g.from; i < g.to; i++) {
+    const el = line.chars[i].el
+    if (g.styles?.includes('bold')) el.style.fontWeight = 900
+    if (g.styles?.includes('italic')) el.style.fontStyle = 'italic'
+    if (g.styles?.includes('underline')) el.classList.add('u')
+    if (g.styles?.includes('strike')) el.classList.add('s')
+    if (g.font) el.style.fontFamily = FONTS[g.font][1]
+  }
+}
+
+// ================= 卡片框架 =================
+const playing = new Set()
+function loop(now) {
+  for (const card of [...playing]) {
+    const t = now - card.t0 - 300
+    card.demo.frame(Math.max(0, t), now)
+    if (t > card.demo.duration + 800) { playing.delete(card); card.el.classList.remove('playing') }
+  }
+  requestAnimationFrame(loop)
+}
+requestAnimationFrame(loop)
+
+// 演示已由 render 建好，这里只从头开始计时
+function play(card) {
+  card.t0 = performance.now()
+  playing.add(card)
+  card.el.classList.add('playing')
+}
+
+const SECTIONS = []
+function section(title, note, cards) { SECTIONS.push({ title, note, cards }) }
+
+// ---------- 一、基础引擎 ----------
+section('一、基础歌词引擎', '逐字歌词播放时一直都有，不需要标注', [
+  { title: '逐字擦除 + 演唱上浮', tags: [['auto', '自动'], ['where', '播放器 / 小窗 / 单曲卡']],
+    desc: '带羽化边缘的遮罩从左到右擦亮每个字（羽化宽度约 0.5 字），唱到的字轻微上浮并保持；只有逐字歌词有，逐行歌词整行高亮。',
+    build(stage) {
+      const line = buildLine(stage, '风吹过的街道 我还在等你', { ms: 330 })
+      return { duration: line.end, frame: t => paintLine(line, [], t) }
+    } },
+  { title: '行切换：弹簧滚动 + 阶梯入场 + 景深模糊', tags: [['auto', '自动']],
+    desc: '每行由弹簧驱动位置与缩放，换行时离焦点越远的行越晚出发（阶梯入场）；非焦点行按距离逐级模糊、变暗、缩小。',
+    build(stage) {
+      stage.style.alignItems = 'flex-start'
+      const texts = ['夜色 慢慢落下', '路灯 一盏一盏亮起', '我数着 你离开的脚步', '风里 还有你的味道', '天亮之前 再想你一遍', '然后 好好告别']
+      const box = document.createElement('div')
+      box.style.cssText = 'position:absolute;inset:0'
+      stage.appendChild(box)
+      const rows = texts.map((tx) => {
+        const r = document.createElement('div')
+        r.className = 'lyric small'
+        r.textContent = tx
+        r.style.cssText += 'position:absolute;left:28px;top:0;transform-origin:left center;transition:transform .75s cubic-bezier(.25,1.35,.45,1),filter .5s,opacity .5s'
+        box.appendChild(r)
+        return r
+      })
+      let focus = -1
+      const set = (f) => {
+        focus = f
+        rows.forEach((r, i) => {
+          const d = i - f
+          r.style.transitionDelay = `${Math.abs(d) * 45}ms`
+          r.style.transform = `translateY(${62 + d * 34}px) scale(${d === 0 ? 1 : 0.9})`
+          r.style.filter = `blur(${Math.min(4, Math.abs(d) * 1.3)}px)`
+          r.style.opacity = d === 0 ? 1 : Math.max(0.15, 0.55 - Math.abs(d) * 0.12)
+        })
+      }
+      set(0)
+      return { duration: 5400, frame: t => { const f = Math.min(texts.length - 1, Math.floor(t / 1000)); if (f !== focus) set(f) } }
+    } },
+  { title: '间奏倒计时圆点', tags: [['auto', '自动'], ['where', '间奏 ≥ 数秒时']],
+    desc: '三个圆点依次淡入，间奏开始后按时间依次点亮（倒计时），全程吸气 / 呼气式呼吸；结束前先放大，再向中间收拢淡出，随后下一行入场。',
+    build(stage) {
+      const wrap = document.createElement('div')
+      wrap.style.cssText = 'display:flex;gap:14px'
+      const dots = [0, 1, 2].map(() => { const d = document.createElement('i'); d.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#fff;display:block'; wrap.appendChild(d); return d })
+      stage.appendChild(wrap)
+      const D = 5200
+      return { duration: D, frame: (t) => {
+        const breath = 1 + 0.12 * Math.sin(t / 900 * Math.PI)
+        const out = clamp01((t - (D - 600)) / 600)
+        dots.forEach((d, i) => {
+          const appear = clamp01((t - i * 160) / 400)
+          const lit = t > 900 + i * 1100 ? 1 : 0
+          const toCenter = (1 - i) * 30 * out
+          d.style.opacity = (appear * (0.25 + 0.75 * lit) * (1 - out)).toFixed(3)
+          d.style.transform = `translateX(${toCenter}px) scale(${(breath * (out > 0 ? 1.15 - out : 1)).toFixed(3)})`
+        })
+      } }
+    } },
+  { title: '背景人声 / 对唱', tags: [['auto', '自动'], ['where', 'TTML 歌词']],
+    desc: '对唱的另一位歌手右对齐；背景人声（和声）以小字跟在主唱行下，上浮幅度是主唱的两倍。数据来自 TTML 的 agent 与背景标记。',
+    build(stage) {
+      stage.style.flexDirection = 'column'; stage.style.alignItems = 'stretch'; stage.style.padding = '0 28px'; stage.style.gap = '2px'
+      const a = buildLine(stage, '你听 风在唱歌', { ms: 300, cls: 'small' })
+      const bg = buildLine(stage, '（啦 啦 啦）', { ms: 260, cls: 'small', start: 900 })
+      bg.el.style.fontSize = '13px'; bg.el.style.opacity = '.75'
+      const b = buildLine(stage, '我听见了 就在耳边', { ms: 300, cls: 'small', start: 2300 })
+      b.el.style.textAlign = 'right'; b.el.style.marginTop = '14px'
+      return { duration: b.end, frame: (t) => { paintLine(a, [], t); paintLine(bg, [], t, {}); bg.chars.forEach(c => { if (t >= c.start) c.el.style.transform = 'translateY(-0.12em)' }); paintLine(b, [], t) } }
+    } },
+  { title: '逐音节音译', tags: [['auto', '自动'], ['where', '日语 / 韩语等']],
+    desc: '罗马音按音节对齐到原文的每个字下方，与原文同步擦亮；平台音译带逐字时间时直接使用，否则按假名读音对齐。',
+    build(stage) {
+      const pairs = [['夢', 'yu me'], ['を', 'wo'], ['見', 'mi'], ['て', 'te'], ['い', 'i'], ['た', 'ta']]
+      const line = { chars: [] }
+      const el = document.createElement('div'); el.className = 'lyric'
+      let t = 0
+      for (const [c, r] of pairs) {
+        const col = document.createElement('span'); col.style.cssText = 'display:inline-flex;flex-direction:column;align-items:center;margin:0 2px'
+        const s = document.createElement('span'); s.className = 'ch'; s.textContent = c
+        const ro = document.createElement('span'); ro.className = 'ch roman'; ro.textContent = r
+        col.append(s, ro); el.appendChild(col)
+        const d = c === '夢' ? 700 : 420
+        line.chars.push({ el: s, start: t, end: t + d }, { el: ro, start: t, end: t + d })
+        t += d
+      }
+      stage.appendChild(el)
+      return { duration: t, frame: tt => paintLine(line, [], tt, { lift: false }) }
+    } },
+])
+
+// ---------- 二、词强调特效 ----------
+const effectCard = (effect, title, desc, text, from, to, extra = {}) => ({
+  title, desc, tags: [['ai', 'AI 标注'], ...(effect === 'swell' ? [['auto', '规则自动']] : [])],
+  build(stage) {
+    const line = buildLine(stage, text, { ms: extra.ms ?? 380, holds: extra.holds })
+    const g = group(line, from, to, { effect, holdIndex: extra.holdIndex })
+    return { duration: line.end, frame: t => paintLine(line, [g], t) }
+  },
+})
+section('二、词强调特效（5 种 + 长音颤音）', '规则：唱满 1 秒的词自动 swell；AI 标注可为任意短语指定特效。行尾一组 ×1.3、副歌 ×1.2、副歌起点 ×1.4', [
+  effectCard('swell', 'swell 放大辉光', '放大（最多 1.14 倍）+ 辉光 + 上浮，左右的字轻微外推；前半程较快升到顶点、后半程缓缓回落（AMLL 曲线）。规则强调（唱满 1 秒的词）也用它。', '终于看见 闪耀的光芒', 5, 10),
+  effectCard('glow', 'glow 柔光', '只发光、几乎不放大，辉光更大更柔；适合温柔、回忆、伤感的词。', '回忆里 温柔的月光', 4, 9, { ms: 420 }),
+  effectCard('wave', 'wave 波浪', '不发光，逐字明显错开地波浪上浮，像跳起来；适合轻快、俏皮的词。', '一起跳吧 快乐的夏天', 5, 10, { ms: 360 }),
+  effectCard('shake', 'shake 震颤', '演唱时每个字以不同相位快速细微地抖动（约 7～8 Hz），伴随轻微放大与辉光；用于呐喊、愤怒、心跳加速。', '我在呐喊 不要走', 5, 8, { ms: 320 }),
+  effectCard('shake', 'shake · 长音颤音', '短语中唱满 1 秒的最长音节视为长音：先只按 swell 放大，开唱后延迟「音长 × 20%」（250～700ms）整个词以 5.5 Hz 同步起伏，约 360ms 渐强，唱完 300ms 内收住（参考声乐研究的延迟颤音）。', '你是否还记得', 3, 6, { holds: { 5: 2600 }, holdIndex: 5 }),
+  effectCard('focus', 'focus 由虚到实', '高亮行内先模糊，唱到时在前 60% 的时长内逐渐变清晰；用于回忆浮现、梦醒、恍然、看清。', '恍然间 看清了你', 4, 8, { ms: 420 }),
+])
+
+// ---------- 三、词样式 ----------
+section('三、词样式（AI 标注）', '与特效叠加使用：颜色 32 种、字体 7 种、字形 4 种', [
+  { title: '上色（32 色语义色板）', tags: [['ai', 'AI 标注']], desc: '唱到时逐渐染上颜色（峰值 85%），唱过后在高亮行内保留约 60%；辉光同色。颜色按意象挑选，全曲同一意象颜色一致。',
+    options: { color: 'cherry-blossom' }, chips: () => Object.entries(COLORS).map(([k, [hex, name]]) => ({ key: 'color', value: k, label: name, dot: hex })),
+    build(stage, o) { const line = buildLine(stage, '樱花 落在你的肩上'); const g = group(line, 0, 2, { effect: 'glow', color: o.color }); const g2 = group(line, 7, 9, { effect: 'swell', color: o.color }); return { duration: line.end, frame: t => paintLine(line, [g, g2], t) } } },
+  { title: '字体（全曲字体 / 单句反差字体）', tags: [['ai', 'AI 标注']], desc: '全曲可换一种字体；个别短语可单独换字体制造反差（如回忆里的一句换楷体、电子音般的词换等宽）。字体自托管，省流量模式不下载。',
+    options: { font: 'kai' }, chips: () => Object.entries(FONTS).map(([k, [name]]) => ({ key: 'font', value: k, label: name })),
+    build(stage, o) { const line = buildLine(stage, o.font === 'script' ? 'Remember the old letter' : '抽屉里 一封旧信', { ms: o.font === 'script' ? 160 : 400 }); const n = line.chars.length; const g = group(line, o.font === 'script' ? 13 : 4, n, { effect: 'glow', font: o.font }); applyStyles(line, g); return { duration: line.end, frame: t => paintLine(line, [g], t) } } },
+  { title: '粗体 / 斜体', tags: [['ai', 'AI 标注']], desc: '粗体用于宣言、力量、点题的词；斜体用于低语、心声、回忆、引用别人说过的话。',
+    build(stage) { const line = buildLine(stage, '我发誓 她只是轻声说'); const a = group(line, 0, 3, { effect: 'swell', styles: ['bold'] }); const b = group(line, 7, 10, { effect: 'glow', styles: ['italic'], color: 'lavender' }); applyStyles(line, a); applyStyles(line, b); return { duration: line.end, frame: t => paintLine(line, [a, b], t) } } },
+  { title: '下划线：逐字画出', tags: [['ai', 'AI 标注']], desc: '誓言、承诺、「一定」「永远」这类要被记住的词，唱到时每个字在自己的演唱时段内从左到右画出下划线。',
+    build(stage) { const line = buildLine(stage, '我会 永远 记得你', { ms: 450 }); const g = group(line, 3, 5, { effect: 'swell', styles: ['underline'], color: 'gold' }); applyStyles(line, g); return { duration: line.end, frame: t => paintLine(line, [g], t) } } },
+  { title: '删除线：逐字划掉', tags: [['ai', 'AI 标注']], desc: '被否定、被放弃、被推翻或反讽的词（「不再」「假装」「说好的」），唱到时逐字划掉。',
+    build(stage) { const line = buildLine(stage, '说好的未来 不再提起', { ms: 420 }); const g = group(line, 0, 5, { effect: 'glow', styles: ['strike'], color: 'rain' }); applyStyles(line, g); return { duration: line.end, frame: t => paintLine(line, [g], t) } } },
+])
+
+// ---------- 四、行级 ----------
+section('四、行级效果', '整行的色温与强度', [
+  { title: '情绪色温（4 种）', tags: [['ai', 'AI 标注']], desc: '情绪鲜明的行标注基调，决定这行辉光的颜色：平静偏蓝、明亮偏暖黄、伤感偏紫、激昂偏红，只带一点色温。没有标注时用封面取色。',
+    options: { mood: 'bright' }, chips: () => Object.entries(MOODS).map(([k, [name, hex]]) => ({ key: 'mood', value: k, label: name, dot: hex })),
+    build(stage, o) { const line = buildLine(stage, '今夜的 星空很美', { ms: 420 }); const g = group(line, 4, 8, { effect: 'swell' }); return { duration: line.end, frame: t => paintLine(line, [g], t, { glowBase: MOODS[o.mood][1] }) } } },
+  { title: '副歌与行尾加强', tags: [['auto', '自动'], ['ai', '副歌来自标注']], desc: '同样的强调在不同位置强度不同：普通行 ×1、副歌行 ×1.2、副歌起点 ×1.4，一行最后一组再 ×1.3（上限 1）。下面三行依次为普通、副歌、副歌起点。',
+    build(stage) {
+      stage.style.flexDirection = 'column'; stage.style.gap = '4px'
+      const rows = [0.55, 0.66, 0.77].map((f, i) => { const l = buildLine(stage, ['普通行 天空', '副歌 天空', '副歌起点 天空'][i], { ms: 300, cls: 'small' }); l.el.style.fontSize = '22px'; return { l, g: group(l, l.chars.length - 2, l.chars.length, { effect: 'swell', factor: f }) } })
+      return { duration: 3000, frame: t => rows.forEach(({ l, g }) => paintLine(l, [g], t)) }
+    } },
+])
+
+// ---------- 五、全屏舞台 ----------
+function bgLayer(stage) { const d = document.createElement('div'); d.className = 'bgfx'; stage.prepend(d); return d }
+section('五、全屏舞台（播放器页）', '只在 /music 播放器页演出，小窗与单曲卡没有', [
+  { title: '背景呼吸', tags: [['stage', '舞台'], ['auto', '跟随强调']], desc: '唱到 swell / shake 强调时，整个背景随同一条起落曲线亮起，强度取强调的 factor。',
+    build(stage) { const bg = bgLayer(stage); const line = buildLine(stage, '把心事 交给大海', { ms: 420 }); const g = group(line, 6, 8, { effect: 'swell' }); return { duration: line.end, frame: (t) => { paintLine(line, [g], t); const v = swell((t - g.start) / Math.max(1000, g.end - g.start)); bg.style.background = `radial-gradient(80% 90% at 50% 50%, rgba(170,190,255,${(v * 0.35).toFixed(3)}), transparent)` } } } },
+  { title: '背景泛色', tags: [['stage', '舞台'], ['ai', 'AI 标注颜色']], desc: '唱到带颜色的短语时背景泛起该颜色（300ms 起，1.5s 淡出）。',
+    options: { color: 'gold' }, chips: () => ['gold', 'cherry-blossom', 'ocean', 'forest', 'crimson', 'lavender'].map(k => ({ key: 'color', value: k, label: COLORS[k][1], dot: COLORS[k][0] })),
+    build(stage, o) { const bg = bgLayer(stage); const line = buildLine(stage, '风吹过 金色的麦田', { ms: 400 }); const g = group(line, 4, 9, { effect: 'glow', color: o.color }); return { duration: line.end + 1500, frame: (t) => { paintLine(line, [g], t); const k = t < g.start ? 0 : t < g.start + 300 ? (t - g.start) / 300 : t < g.end ? 1 : Math.max(0, 1 - (t - g.end) / 1500); bg.style.background = `radial-gradient(90% 100% at 50% 60%, color-mix(in srgb, ${COLORS[o.color][0]} ${(k * 38).toFixed(1)}%, transparent), transparent)` } } } },
+  { title: '副歌爆发', tags: [['stage', '舞台'], ['ai', '副歌起点']], desc: '每段副歌的第一行开唱时，全屏 200ms 内迅速亮起，再在 1.8s 内缓缓回落；该行的强调也最强（×1.4）。',
+    build(stage) { const bg = bgLayer(stage); const line = buildLine(stage, '就让我 燃烧到最后', { ms: 380, start: 600 }); const g = group(line, 4, 9, { effect: 'swell', color: 'flame' }); return { duration: line.end + 800, frame: (t) => { paintLine(line, [g], t); const s = t - 600; const k = s < 0 ? 0 : s < 200 ? s / 200 : Math.max(0, 1 - swellOut((s - 200) / 1800)); bg.style.background = `radial-gradient(120% 120% at 50% 50%, rgba(255,170,120,${(k * 0.5).toFixed(3)}), rgba(255,120,80,${(k * 0.12).toFixed(3)}) 60%, transparent)` } } } },
+  { title: '鼓点呼吸', tags: [['stage', '舞台'], ['auto', '自动']], desc: '用 Web Audio 读取低频能量，能量突然高于近期平均值时视为一次节拍，背景随之轻轻一跳（需要音频支持跨域读取）。原型以 120 BPM 模拟。',
+    build(stage) { const bg = bgLayer(stage); const line = buildLine(stage, '跟着心跳 一起摇摆', { ms: 380 }); return { duration: 6000, frame: (t) => { paintLine(line, [], t % line.end); const beat = (t % 500) / 500; const k = Math.exp(-beat * 6); bg.style.background = `radial-gradient(70% 80% at 50% 50%, rgba(140,170,255,${(k * 0.28).toFixed(3)}), transparent)`; bg.style.transform = `scale(${(1 + k * 0.04).toFixed(3)})` } } } },
+  { title: '封面取色', tags: [['stage', '舞台'], ['auto', '自动']], desc: '从专辑封面挑出最有代表性的彩色并提亮，作为辉光与背景呼吸的默认颜色，让没有 AI 标注的歌也有自己的色温。',
+    options: { cover: 0 }, chips: () => ['青橙', '粉紫', '深蓝'].map((n, i) => ({ key: 'cover', value: i, label: n })),
+    build(stage, o) {
+      const covers = [['#1aa39a', '#f39a3c', '#5ee0c4'], ['#d65db1', '#845ec2', '#ff9fd8'], ['#203a8f', '#4b7bec', '#8fb3ff']]
+      const [a, b, accent] = covers[o.cover]
+      const cover = document.createElement('div'); cover.style.cssText = `width:74px;height:74px;border-radius:10px;margin-right:22px;background:linear-gradient(135deg,${a},${b});box-shadow:0 6px 20px #0008;flex:none`
+      stage.appendChild(cover)
+      const line = buildLine(stage, '我们的 那首歌', { ms: 420 }); line.el.style.fontSize = '26px'
+      const g = group(line, 4, 7, { effect: 'swell' })
+      stage.style.background = `radial-gradient(120% 140% at 15% 0%, color-mix(in srgb, ${accent} 22%, #1a1c28), #14151e 70%)`
+      return { duration: line.end, frame: t => paintLine(line, [g], t, { glowBase: accent }) }
+    } },
+])
+
+// ---------- 粒子场景（简化重绘，参数取意） ----------
+const SCENES = {
+  petals: ['花瓣', '#ffb3c8'], sparks: ['火花', '#ffb347'], snow: ['雪花', '#ffffff'], stars: ['星空', '#fff6c8'], bubbles: ['气泡', '#b5e8ff'], rain: ['雨', '#9bb7d4'],
+  leaves: ['落叶', '#ff9a4d'], fireflies: ['萤火虫', '#d9ff8a'], feathers: ['羽毛', '#f0f4ff'], hearts: ['爱心', '#ff6f91'], confetti: ['彩纸', '*'], fireworks: ['烟花', '*'],
+  dandelion: ['蒲公英', '#f6f3e8'], butterflies: ['蝴蝶', '#c3a6ff'], meteors: ['流星', '#e6efff'], clouds: ['云', '#dfe6f3'], ripples: ['涟漪', '#8fd3ff'], notes: ['音符', '#ffe0a3'],
+}
+const MULTI = ['#ff6f91', '#ffd54f', '#74c0fc', '#8ef0c8', '#c3a6ff', '#ff9f80']
+function particleScene(canvas, scene, theme) {
+  const ctx = canvas.getContext('2d')
+  const W = canvas.width, H = canvas.height
+  const parts = []
+  const color = () => theme || (SCENES[scene][1] === '*' ? MULTI[Math.random() * MULTI.length | 0] : SCENES[scene][1])
+  const rnd = (a, b) => a + Math.random() * (b - a)
+  const spawn = () => {
+    const p = { x: rnd(0, W), y: -20, vx: rnd(-15, 15), vy: rnd(30, 60), r: rnd(3, 7), a: 0, rot: rnd(0, 6), vr: rnd(-1.5, 1.5), life: 0, max: rnd(5, 9), c: color(), ph: rnd(0, 6) }
+    if (['sparks', 'bubbles', 'hearts', 'notes', 'fireflies', 'dandelion'].includes(scene)) { p.y = H + 20; p.vy = -rnd(25, 60) }
+    if (scene === 'fireflies' || scene === 'stars') { p.y = rnd(0, H); p.vy = rnd(-8, 8); p.vx = rnd(-8, 8) }
+    if (scene === 'rain') { p.vy = rnd(380, 520); p.vx = -40; p.r = rnd(10, 18) }
+    if (scene === 'snow') { p.vy = rnd(20, 45); p.r = rnd(1.5, 3.5) }
+    if (scene === 'meteors') { p.x = rnd(W * 0.3, W * 1.2); p.y = rnd(-40, H * 0.3); p.vx = -rnd(320, 420); p.vy = rnd(160, 220); p.max = 1.4 }
+    if (scene === 'clouds') { p.x = -120; p.y = rnd(10, H - 40); p.vx = rnd(12, 22); p.vy = 0; p.r = rnd(30, 55); p.max = 40 }
+    if (scene === 'ripples') { p.x = rnd(40, W - 40); p.y = rnd(40, H - 30); p.vx = p.vy = 0; p.max = 2.6 }
+    if (scene === 'dandelion') { p.vx = rnd(20, 40) }
+    if (scene === 'fireworks') { p.x = rnd(W * 0.2, W * 0.8); p.y = rnd(H * 0.15, H * 0.5); p.vx = p.vy = 0; p.max = 1.8; p.burst = Array.from({ length: 26 }, (_, i) => ({ ang: i / 26 * Math.PI * 2, sp: rnd(50, 90) })) }
+    parts.push(p)
+  }
+  const rate = { rain: 40, snow: 14, stars: 5, meteors: 1.6, clouds: 0.5, ripples: 1.4, fireworks: 1.3, fireflies: 4, confetti: 10 }[scene] ?? 6
+  // 稀疏的场景一开始就放几个，不用等
+  let acc = { clouds: 3, meteors: 1.5, fireworks: 1.5 }[scene] ?? 0
+  if (scene === 'clouds') { for (let k = 0; k < 3; k++) { spawn(); parts[parts.length - 1].x = Math.random() * W; parts[parts.length - 1].life = 1 } acc = 0 }
+  return (dt, density) => {
+    acc += dt * rate * density
+    while (acc > 1) { spawn(); acc -= 1 }
+    ctx.clearRect(0, 0, W, H)
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i]
+      p.life += dt
+      if (p.life > p.max || p.y > H + 40 || p.y < -60 || p.x < -160 || p.x > W + 160) { parts.splice(i, 1); continue }
+      p.x += p.vx * dt + (['petals', 'leaves', 'feathers', 'snow', 'dandelion', 'butterflies'].includes(scene) ? Math.sin(p.life * 1.6 + p.ph) * 18 * dt : 0)
+      p.y += p.vy * dt
+      p.rot += p.vr * dt
+      const fade = Math.min(1, p.life / 0.6, (p.max - p.life) / 0.8)
+      ctx.save(); ctx.globalAlpha = Math.max(0, fade) * 0.9; ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = ctx.strokeStyle = p.c
+      switch (scene) {
+        case 'petals': ctx.beginPath(); ctx.ellipse(0, 0, p.r * 1.3, p.r * 0.7, 0, 0, 7); ctx.fill(); break
+        case 'leaves': ctx.beginPath(); ctx.ellipse(0, 0, p.r * 1.6, p.r * 0.6, 0, 0, 7); ctx.fill(); break
+        case 'feathers': ctx.beginPath(); ctx.ellipse(0, 0, p.r * 2.4, p.r * 0.5, 0, 0, 7); ctx.globalAlpha *= 0.7; ctx.fill(); break
+        case 'snow': case 'dandelion': ctx.beginPath(); ctx.arc(0, 0, p.r, 0, 7); ctx.fill(); if (scene === 'dandelion') { ctx.globalAlpha *= 0.5; for (let k = 0; k < 6; k++) { ctx.rotate(1.05); ctx.fillRect(0, -0.5, p.r * 2.4, 1) } } break
+        case 'sparks': ctx.shadowBlur = 10; ctx.shadowColor = p.c; ctx.beginPath(); ctx.arc(0, 0, p.r * 0.45, 0, 7); ctx.fill(); break
+        case 'stars': ctx.globalAlpha *= 0.4 + 0.6 * Math.abs(Math.sin(p.life * 3 + p.ph)); ctx.beginPath(); for (let k = 0; k < 4; k++) { ctx.rotate(Math.PI / 2); ctx.moveTo(0, 0); ctx.lineTo(p.r * 0.35, p.r * 0.35); ctx.lineTo(0, p.r * 1.3) } ctx.fill(); break
+        case 'bubbles': ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(0, 0, p.r * 1.4, 0, 7); ctx.stroke(); break
+        case 'rain': ctx.rotate(-p.rot + 0.08); ctx.globalAlpha *= 0.6; ctx.fillRect(0, 0, 1.2, p.r); break
+        case 'fireflies': ctx.shadowBlur = 14; ctx.shadowColor = p.c; ctx.globalAlpha *= 0.5 + 0.5 * Math.sin(p.life * 4 + p.ph); ctx.beginPath(); ctx.arc(0, 0, 2.4, 0, 7); ctx.fill(); break
+        case 'hearts': ctx.rotate(-p.rot); ctx.font = `${p.r * 3.2}px sans-serif`; ctx.fillText('♥', 0, 0); break
+        case 'notes': ctx.rotate(-p.rot * 0.3); ctx.font = `${p.r * 3.4}px sans-serif`; ctx.fillText(p.ph > 3 ? '♪' : '♫', 0, 0); break
+        case 'confetti': ctx.fillRect(-p.r, -p.r * 0.4, p.r * 2, p.r * 0.8); break
+        case 'butterflies': { ctx.rotate(-p.rot); const w = Math.abs(Math.sin(p.life * 9)); ctx.beginPath(); ctx.ellipse(-p.r * 0.8 * w, 0, p.r * w, p.r * 1.1, 0, 0, 7); ctx.ellipse(p.r * 0.8 * w, 0, p.r * w, p.r * 1.1, 0, 0, 7); ctx.fill(); break }
+        case 'meteors': { ctx.rotate(-p.rot); const g = ctx.createLinearGradient(0, 0, 90, -45); g.addColorStop(0, p.c); g.addColorStop(1, 'transparent'); ctx.strokeStyle = g; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(90, -45); ctx.stroke(); break }
+        case 'clouds': { ctx.rotate(-p.rot); const g = ctx.createRadialGradient(0, 0, 0, 0, 0, p.r * 1.8); g.addColorStop(0, p.c); g.addColorStop(1, 'transparent'); ctx.fillStyle = g; ctx.globalAlpha *= 0.35; ctx.scale(1, 0.4); ctx.beginPath(); ctx.arc(0, 0, p.r * 1.8, 0, 7); ctx.fill(); break }
+        case 'ripples': { ctx.rotate(-p.rot); const k = p.life / p.max; ctx.globalAlpha = (1 - k) * 0.8; ctx.lineWidth = 1.5; for (let j = 0; j < 2; j++) { ctx.beginPath(); ctx.ellipse(0, 0, (k * 60) + j * 10, ((k * 60) + j * 10) * 0.35, 0, 0, 7); ctx.stroke() } break }
+        case 'fireworks': { ctx.rotate(-p.rot); const k = p.life; for (const b of p.burst) { ctx.globalAlpha = Math.max(0, 1 - k / p.max); ctx.beginPath(); ctx.arc(Math.cos(b.ang) * b.sp * k, Math.sin(b.ang) * b.sp * k + 20 * k * k, 1.8, 0, 7); ctx.fill() } break }
+      }
+      ctx.restore()
+    }
+  }
+}
+
+section('六、粒子场景（18 种）', 'AI 为写到具体画面的行选择场景，持续约 8 行或到下一个场景；可指定颜色主题。全曲最多 6 处', [
+  { title: '全屏粒子场景', tags: [['stage', '舞台'], ['ai', 'AI 标注']], wide: true, tall: true,
+    desc: '18 种场景：花瓣、火花、雪花、星空、气泡、雨、落叶、萤火虫、羽毛、爱心、彩纸、烟花、蒲公英、蝴蝶、流星、云、涟漪、音符。场景切换时渐入，旧粒子淡出；颜色主题让所有粒子用同一颜色（如紫荆花瓣用 bauhinia）。原型为简化重绘。',
+    options: { scene: 'petals', theme: '' },
+    chips: () => [...Object.entries(SCENES).map(([k, [n]]) => ({ key: 'scene', value: k, label: n })), { key: 'theme', value: '', label: '默认色' }, { key: 'theme', value: '#e86fb0', label: '紫荆', dot: '#e86fb0' }, { key: 'theme', value: '#ff7f3f', label: '枫叶', dot: '#ff7f3f' }, { key: 'theme', value: '#a5e887', label: '春绿', dot: '#a5e887' }],
+    build(stage, o) {
+      const canvas = document.createElement('canvas'); canvas.className = 'bgfx'; canvas.width = stage.clientWidth; canvas.height = stage.clientHeight
+      stage.prepend(canvas)
+      const step = particleScene(canvas, o.scene, o.theme || null)
+      const line = buildLine(stage, '花瓣飘落的季节', { ms: 450 })
+      let last = 0
+      return { duration: 9000, frame: (t) => { const dt = Math.min(0.05, (t - last) / 1000); last = t; step(dt, clamp01(t / 800) * (t > 8000 ? 0 : 1)); paintLine(line, [], t % (line.end + 1200)) } }
+    } },
+])
+
+// ---------- 七、文字时刻 ----------
+const noteEl = (stage, html) => { const n = document.createElement('div'); n.className = 'note'; n.innerHTML = html; stage.appendChild(n); return n }
+section('七、文字时刻（AI 标注 + 热评）', '在歌词下方淡入的文字，像电台主持人在耳边说话', [
+  { title: '前奏导语', tags: [['ai', 'AI 标注']], desc: '前奏时在歌词区淡入一句 40 字以内的导语，开唱前 INTRO_LEAD 淡出，不挡歌词。',
+    build(stage) { const line = buildLine(stage, '外面在下太阳雨', { ms: 380, start: 3600 }); line.el.style.opacity = 0; const n = noteEl(stage, '外面在下太阳雨。撑伞的人不知道，有人把整颗心都下成了雨。'); n.style.bottom = '60px'; n.style.fontSize = '14px'; return { duration: line.end, frame: (t) => { n.style.opacity = t > 200 && t < 3000 ? 1 : 0; line.el.style.opacity = t > 3300 ? 1 : 0; line.el.style.transition = 'opacity .6s'; paintLine(line, [], t) } } } },
+  { title: '关键节点时刻', tags: [['ai', 'AI 标注 / 热评']], desc: '在情绪转折、副歌开始、最打动人的一句开唱时，于歌词下方淡入一句旁白或一条热评，停留约 9 秒；全曲 4～5 个。',
+    options: { kind: 'ai' }, chips: () => [{ key: 'kind', value: 'ai', label: 'AI 旁白' }, { key: 'kind', value: 'comment', label: '热评' }],
+    build(stage, o) { const line = buildLine(stage, '把伞留给你', { ms: 450, start: 300 }); line.el.style.marginBottom = '30px'; const n = noteEl(stage, o.kind === 'ai' ? '她把伞留给你，自己走进了雨里。<small>旁白</small>' : '心意相悖的情感，高湿度的沉重真是美味至极。<small>网易云热评 · 63 赞</small>'); return { duration: 5000, frame: (t) => { paintLine(line, [], t); n.style.opacity = t > 300 ? 1 : 0 } } } },
+  { title: '尾奏热评', tags: [['ai', 'AI 挑选']], desc: '最后一句唱完后，在尾奏展示一条 AI 从热评中挑出的、最贴合这首歌情感的评论，直到歌曲结束前。',
+    build(stage) { const line = buildLine(stage, '后会有期', { ms: 450 }); line.el.style.marginBottom = '40px'; const n = noteEl(stage, '“科普一下，狐雨就是太阳雨，借传说隐喻突如其来的离别。”<small>网易云热评 · 775 赞</small>'); return { duration: 5200, frame: (t) => { paintLine(line, [], t); line.el.style.opacity = t > line.end + 600 ? 0.35 : 1; line.el.style.transition = 'opacity .8s'; n.style.opacity = t > line.end + 900 ? 1 : 0 } } } },
+  { title: '副歌进度标记', tags: [['auto', '网易云副歌片段']], desc: '进度条上标出网易云的副歌 / 高潮片段，播放到片段内时标记点亮；也作为 AI 判断副歌起点的参考。',
+    build(stage) {
+      stage.style.flexDirection = 'column'; stage.style.padding = '0 30px'
+      const bar = document.createElement('div'); bar.style.cssText = 'position:relative;width:100%;height:6px;border-radius:3px;background:#ffffff26'
+      const seg = [[0.32, 0.48], [0.68, 0.86]].map(([a, b]) => { const s = document.createElement('i'); s.style.cssText = `position:absolute;left:${a * 100}%;width:${(b - a) * 100}%;top:0;bottom:0;border-radius:3px;background:#ffd54f55;transition:background .3s,box-shadow .3s`; bar.appendChild(s); return [a, b, s] })
+      const fill = document.createElement('i'); fill.style.cssText = 'position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:#fff'; bar.appendChild(fill)
+      const label = document.createElement('div'); label.style.cssText = 'margin-top:12px;font-size:12px;color:#ffffffa0;height:18px'
+      stage.append(bar, label)
+      return { duration: 6000, frame: (t) => { const p = t / 6000; fill.style.width = (p * 100) + '%'; let inside = false; for (const [a, b, s] of seg) { const on = p >= a && p <= b; inside ||= on; s.style.background = on ? '#ffd54f' : '#ffd54f55'; s.style.boxShadow = on ? '0 0 10px #ffd54f' : 'none' } label.textContent = inside ? '♪ 副歌' : '' } }
+    } },
+])
+
+// ---------- 八、导航栏 ----------
+section('八、导航栏与单曲卡的简化特效', '沿用同一套强调分组，幅度更小（放大约 1.08 倍），不换字体、不画线；减少动态效果时只上色', [
+  { title: '导航栏单行逐字歌词', tags: [['auto', '自动'], ['ai', 'AI 标注']], wide: true,
+    desc: '导航栏当前一行：逐字高亮、跟随演唱位置横向滚动，叠加简化的放大、辉光、上浮、抖动与长音颤音、由虚到实、颜色与粗体 / 斜体。',
+    build(stage) {
+      stage.style.background = '#f4f5f8'
+      const nav = document.createElement('div'); nav.style.cssText = 'width:86%;height:52px;border-radius:12px;background:#fff;box-shadow:0 2px 12px #0001;display:flex;align-items:center;padding:0 18px;gap:16px;color:#1d2433'
+      nav.innerHTML = '<b style="color:#3b6fd8;font-size:15px">Snowykami\'s Blog</b><span style="flex:1"></span>'
+      const holder = document.createElement('div'); holder.style.cssText = 'font-size:15px;color:#1d2433'
+      nav.insertBefore(holder, nav.lastChild)
+      stage.appendChild(nav)
+      const line = buildLine(holder, '你是否还记得 那年的夏天', { ms: 300, holds: { 5: 2400 }, cls: 'small' })
+      line.el.style.fontSize = '15px'; line.el.style.fontWeight = 500
+      line.chars.forEach(c => { c.el.style.backgroundImage = 'linear-gradient(90deg, var(--hi, #1d2433) var(--p, -18%), rgba(29,36,51,.35) calc(var(--p, -18%) + 18%))' })
+      const g1 = group(line, 3, 6, { effect: 'shake', holdIndex: 5, factor: 1 })
+      const g2 = group(line, 7, 12, { effect: 'wave', color: 'sunshine' })
+      return { duration: line.end, frame: (t) => { paintLine(line, [g1, g2], t, { amp: 0.55, glowBase: '#3b6fd8' }); line.chars.forEach((c, i) => { if (i >= 7 && t >= c.start) c.el.style.setProperty('--hi', 'color-mix(in srgb, #f5a623 70%, #1d2433)') }) } }
+    } },
+])
+
+// ---------- 九、候选新动效 ----------
+const WIPE = 'linear-gradient(90deg, var(--hi, #fff) var(--p, -18%), rgba(255,255,255,.32) calc(var(--p, -18%) + 18%))'
+section('九、候选新动效（待确认）', '只在原型里，确认效果后再做进正式代码', [
+  { title: '消散 dissolve', tags: [['new', '候选'], ['ai', 'AI 标注']],
+    desc: '唱完后，字从左到右化成细沙般的颗粒，被风吹向右上方并淡出，字本身随之变淡、轻微模糊。适合「消失、离开、告别、梦醒」。',
+    build(stage) {
+      const line = buildLine(stage, '梦醒了 你也消失了', { ms: 380 })
+      const g = group(line, 4, 9, { effect: 'glow', color: 'silver' })
+      const canvas = document.createElement('canvas'); canvas.className = 'bgfx'
+      canvas.width = stage.clientWidth * 2; canvas.height = stage.clientHeight * 2
+      canvas.style.width = '100%'; canvas.style.height = '100%'
+      stage.appendChild(canvas)
+      const ctx = canvas.getContext('2d'); ctx.scale(2, 2)
+      // 每个字唱完 500ms 后开始消散，字间相隔 140ms（像被风从左往右吹）
+      let grains = null
+      return { duration: line.end + 3400, frame: (t) => {
+        paintLine(line, [g], t)
+        if (!grains) {
+          const sr = stage.getBoundingClientRect()
+          grains = []
+          for (let i = g.from; i < g.to; i++) {
+            const c = line.chars[i]; const r = c.el.getBoundingClientRect()
+            c.dis = g.end + 500 + (i - g.from) * 140
+            for (let k = 0; k < 50; k++) grains.push({ x: r.left - sr.left + Math.random() * r.width, y: r.top - sr.top + r.height * (0.2 + Math.random() * 0.65), at: c.dis + Math.random() * 400, vx: 30 + Math.random() * 80, vy: -8 - Math.random() * 30, s: 0.6 + Math.random() * 1.6, ph: Math.random() * 6 })
+          }
+        }
+        for (let i = g.from; i < g.to; i++) {
+          const c = line.chars[i]; const k = clamp01((t - c.dis) / 700)
+          c.el.style.opacity = (1 - k).toFixed(3)
+          if (k > 0) { c.el.style.filter = `blur(${(k * 0.08).toFixed(3)}em)`; c.el.style.transform += ` translateX(${(k * 0.15).toFixed(3)}em)` }
+        }
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        ctx.fillStyle = '#e9eefc'
+        for (const p of grains) {
+          const a = (t - p.at) / 1000
+          if (a < 0 || a > 2.2) continue
+          ctx.globalAlpha = Math.max(0, 1 - a / 2.2) * 0.9
+          ctx.fillRect(p.x + p.vx * a + 8 * Math.sin(a * 3 + p.ph), p.y + p.vy * a - 12 * a * a, p.s, p.s)
+        }
+      } }
+    } },
+  { title: '流光 shimmer', tags: [['new', '候选'], ['ai', 'AI 标注']],
+    desc: '唱到时一道高光从左到右扫过整个词的笔画内部（扫两遍），像金属反光；也可以是彩虹色的光带。适合「光芒、闪耀、彩虹、星星」。',
+    options: { mode: 'gold' }, chips: () => [{ key: 'mode', value: 'gold', label: '金属流光', dot: '#f5c542' }, { key: 'mode', value: 'rainbow', label: '彩虹流光', dot: '#c3a6ff' }],
+    build(stage, o) {
+      const line = buildLine(stage, '你是我 最耀眼的光芒', { ms: 380 })
+      const g = group(line, 4, 10, { effect: 'glow', color: o.mode === 'gold' ? 'gold' : undefined })
+      const count = g.to - g.from
+      return { duration: line.end + 1800, frame: (t) => {
+        paintLine(line, [g], t)
+        const s = (t - g.start) / 950
+        for (let i = 0; i < count; i++) {
+          const el = line.chars[g.from + i].el
+          if (s < 0 || s > 2) { el.style.backgroundImage = ''; continue }
+          // 光带中心在整个词上的位置（以字为单位，从 -1 扫到 count + 1），换算成在第 i 个字内的百分比
+          const pos = ((s % 1) * (count + 2) - 1 - i) * 100
+          const band = o.mode === 'gold'
+            ? `linear-gradient(105deg, transparent ${pos - 40}%, rgba(255,250,225,.98) ${pos}%, transparent ${pos + 40}%)`
+            : `linear-gradient(105deg, transparent ${pos - 70}%, #ff6f91 ${pos - 45}%, #ffd54f ${pos - 20}%, #8ef0c8 ${pos}%, #74c0fc ${pos + 20}%, #c3a6ff ${pos + 45}%, transparent ${pos + 70}%)`
+          el.style.backgroundImage = `${band}, ${WIPE}`
+        }
+      } }
+    } },
+  { title: '心跳 heartbeat', tags: [['new', '候选'], ['ai', 'AI 标注']],
+    desc: '整个词按「扑通-扑通」的双拍节奏放大（第二拍稍弱，相隔约 22% 拍长），左右的字随拍向外轻推，辉光随拍闪；拍数按唱的时长定（约 0.75 秒一拍）。适合「心跳、喜欢你、紧张」。',
+    build(stage) {
+      const line = buildLine(stage, '一见你 就心跳加速', { ms: 300, holds: { 8: 1900 } })
+      const g = group(line, 5, 9, { effect: 'glow', color: 'rose' })
+      const count = g.to - g.from
+      const dur = g.end - g.start
+      const beats = Math.max(2, Math.round(dur / 750))
+      const P = dur / beats
+      const pulse = x => (x < 0 ? 0 : Math.exp(-x / 90) * clamp01(x / 45))
+      return { duration: line.end + 600, frame: (t) => {
+        paintLine(line, [g], t)
+        const local = t - g.start
+        let k = 0
+        if (local >= 0 && local < dur + 200) { const ph = local % P; k = Math.max(pulse(ph), 0.7 * pulse(ph - 0.22 * P)) }
+        for (let i = 0; i < count; i++) {
+          const el = line.chars[g.from + i].el
+          el.style.transform += ` translateX(${((i - (count - 1) / 2) * k * 0.06).toFixed(3)}em) scale(${(1 + k * 0.16).toFixed(3)})`
+          el.style.filter = `drop-shadow(0 0 ${(0.2 + k * 0.35).toFixed(2)}em color-mix(in srgb, #ff6f91 ${(25 + k * 65).toFixed(0)}%, transparent))`
+        }
+      } }
+    } },
+  { title: '聚光灯 · 点题句', tags: [['new', '候选 · 已调整'], ['ai', 'AI 标注']], tall: true,
+    desc: 'AI 选出全曲最点题的一句。唱到时这一句移到中央放大，身后亮起一团暖光；其余歌词不消失，只是向两侧让开、变淡变虚；唱完后恢复。全曲只有一次。可切换三种强度对比（原版是上一稿，偏暗）。',
+    options: { level: 'soft' },
+    chips: () => [{ key: 'level', value: 'soft', label: '柔和（推荐）' }, { key: 'level', value: 'bright', label: '只提亮不压暗' }, { key: 'level', value: 'original', label: '原版（偏暗）' }],
+    build(stage, o) {
+      // 三种强度：背景压暗程度、身后暖光、其余行的透明度与模糊、点题句放大倍数
+      const LEVELS = {
+        soft: { dim: 0.18, warm: 0.22, others: 0.24, blur: 2.5, scale: 1.25, spread: 46 },
+        bright: { dim: 0, warm: 0.3, others: 0.32, blur: 1.5, scale: 1.2, spread: 42 },
+        original: { dim: 0.65, warm: 0.16, others: 0, blur: 6, scale: 1.4, spread: 46 },
+      }
+      const L = LEVELS[o.level]
+      const texts = ['我走过 很多城市', '看过 很多风景', '可是 只有你是我的远方', '天黑了 也不怕', '因为 你在身边']
+      const light = document.createElement('div'); light.className = 'bgfx'
+      light.style.cssText += `background:radial-gradient(42% 30% at 50% 52%, rgba(255,236,200,${L.warm}), transparent 70%), radial-gradient(75% 60% at 50% 50%, transparent 40%, rgba(0,0,0,${L.dim}) 100%);opacity:0;transition:opacity .9s`
+      stage.appendChild(light)
+      const rows = texts.map((tx, i) => {
+        const r = document.createElement('div')
+        r.style.cssText = 'position:absolute;left:0;right:0;top:0;text-align:center;transition:transform .9s cubic-bezier(.22,1.2,.4,1),opacity .7s,filter .7s'
+        stage.appendChild(r)
+        if (i === 2) { const l = buildLine(r, tx, { ms: 300, start: 2300, cls: 'small' }); r.line = l } else { const d = document.createElement('div'); d.className = 'lyric small'; d.textContent = tx; r.appendChild(d) }
+        return r
+      })
+      const spot = rows[2]
+      let state = ''
+      const layout = (f, spotlight) => {
+        rows.forEach((r, i) => {
+          const d = i - f
+          if (spotlight) {
+            r.style.transform = i === 2 ? `translateY(98px) scale(${L.scale})` : `translateY(${98 + d * L.spread}px) scale(.9)`
+            r.style.opacity = i === 2 ? 1 : L.others
+            r.style.filter = i === 2 ? 'drop-shadow(0 0 .6em rgba(255,236,200,.35))' : `blur(${L.blur}px)`
+          }
+          else {
+            r.style.transform = `translateY(${98 + d * 34}px) scale(${d === 0 ? 1 : 0.9})`
+            r.style.opacity = d === 0 ? 1 : Math.max(0.15, 0.55 - Math.abs(d) * 0.12)
+            r.style.filter = `blur(${Math.min(4, Math.abs(d) * 1.3)}px)`
+          }
+        })
+        light.style.opacity = spotlight ? 1 : 0
+      }
+      layout(0, false)
+      return { duration: 8200, frame: (t) => {
+        const f = t < 1000 ? 0 : t < 2000 ? 1 : t < 5600 ? 2 : t < 6800 ? 3 : 4
+        const spotlight = t >= 2000 && t < 5600
+        const key = `${f}:${spotlight}`
+        if (key !== state) { state = key; layout(f, spotlight) }
+        paintLine(spot.line, [], t)
+      } }
+    } },
+  { title: '镜头推近', tags: [['new', '候选'], ['stage', '舞台'], ['ai', '副歌起点']], tall: true,
+    desc: '副歌爆发的一刻，整个歌词区连同背景在约 0.45 秒内轻微放大、提亮，前景光斑放大得更多（视差），再用 2.6 秒缓缓回落，像镜头往前推了一下。可与副歌爆发叠加。',
+    build(stage) {
+      const world = document.createElement('div')
+      world.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;transform-origin:50% 55%;background:radial-gradient(120% 140% at 15% 0%, #2a2f4d 0%, #14151e 70%)'
+      stage.appendChild(world)
+      const dots = Array.from({ length: 9 }, (_, i) => {
+        const d = document.createElement('i'); const size = 18 + (i * 37) % 40
+        d.style.cssText = `position:absolute;left:${(i * 53) % 95}%;top:${(i * 29) % 85}%;width:${size}px;height:${size}px;border-radius:50%;background:${['#74c0fc', '#ffd54f', '#c3a6ff'][i % 3]};opacity:.18;filter:blur(6px)`
+        world.appendChild(d); return d
+      })
+      const l1 = buildLine(world, '一路走来 跌跌撞撞', { ms: 240, cls: 'small' }); l1.el.style.opacity = '.55'
+      const l2 = buildLine(world, '这一次 我要飞得更高', { ms: 330, start: 1900 })
+      const g = group(l2, 4, 10, { effect: 'swell', color: 'sunshine' })
+      return { duration: l2.end + 2400, frame: (t) => {
+        paintLine(l1, [], t); paintLine(l2, [g], t)
+        const s = t - 1900
+        const k = s < 0 ? 0 : s < 450 ? swellIn(s / 450) : Math.max(0, 1 - swellOut((s - 450) / 2600))
+        world.style.transform = `scale(${(1 + k * 0.09).toFixed(4)})`
+        world.style.filter = `brightness(${(1 + k * 0.18).toFixed(3)})`
+        dots.forEach((d, i) => { d.style.transform = `scale(${(1 + k * (0.25 + (i % 3) * 0.15)).toFixed(3)})` })
+      } }
+    } },
+])
+
+// ================= 渲染 =================
+const main = document.getElementById('main')
+let total = 0
+const counts = []
+for (const s of SECTIONS) {
+  const sec = document.createElement('section')
+  sec.innerHTML = `<h2>${s.title}<small>${s.note}</small></h2>`
+  const grid = document.createElement('div'); grid.className = 'grid'
+  for (const def of s.cards) {
+    total++
+    const el = document.createElement('div'); el.className = 'card' + (def.wide ? ' wide' : '') + (def.tags.some(([k]) => k === 'new') ? ' cand' : '')
+    const stage = document.createElement('div'); stage.className = 'stage' + (def.tall ? ' tall' : '')
+    const meta = document.createElement('div'); meta.className = 'meta'
+    meta.innerHTML = `<h3>${def.title}${def.tags.map(([k, n]) => `<span class="tag t-${k}">${n}</span>`).join('')}</h3><p>${def.desc}</p>`
+    el.append(stage, meta)
+    const card = { el, def, stage, options: { ...(def.options || {}) } }
+    const reset = () => { stage.innerHTML = ''; stage.removeAttribute('style'); playing.delete(card); el.classList.remove('playing') }
+    const render = (autoplay) => { reset(); card.demo = def.build(stage, card.options); card.demo.frame(0, 0); const h = document.createElement('span'); h.className = 'hint'; h.textContent = '点击播放 ▶'; stage.appendChild(h); if (autoplay) play(card) }
+    if (def.chips) {
+      const chips = document.createElement('div'); chips.className = 'chips'
+      for (const c of def.chips()) {
+        const b = document.createElement('span'); b.className = 'chip'; b.dataset.key = c.key; b.dataset.value = c.value
+        b.innerHTML = (c.dot ? `<i style="background:${c.dot}"></i>` : '') + c.label
+        if (card.options[c.key] === c.value) b.classList.add('on')
+        b.onclick = (e) => { e.stopPropagation(); card.options[c.key] = c.value; chips.querySelectorAll(`[data-key="${c.key}"]`).forEach(x => x.classList.toggle('on', x === b)); render(true) }
+        chips.appendChild(b)
+      }
+      el.appendChild(chips)
+    }
+    el.addEventListener('click', () => render(true))
+    grid.appendChild(el)
+    requestAnimationFrame(() => render(false))
+  }
+  sec.appendChild(grid); main.appendChild(sec)
+  counts.push([s.title.replace(/^.、/, '').replace(/（.*）/, ''), s.cards.length])
+}
+document.getElementById('summary').innerHTML = `<span class="pill">共 <b>${total}</b> 张演示</span>` + [['词强调特效', '5 种 + 长音颤音'], ['颜色', '32 种'], ['字体', '7 种'], ['字形', '4 种'], ['情绪色温', '4 种'], ['粒子场景', '18 种'], ['舞台效果', '5 种'], ['文字时刻', '4 种'], ['基础引擎', '5 项'], ['候选新动效', '5 个']].map(([a, b]) => `<span class="pill">${a} <b>${b}</b></span>`).join('')
+</script>
+</body>
+</html>
