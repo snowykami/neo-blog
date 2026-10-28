@@ -18,10 +18,15 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroup.GET("/song/:id", controller.Music.Song)
 		musicGroup.GET("/song/:id/audio", controller.Music.SongAudio)
 		musicGroup.GET("/song/:id/lyric", controller.Music.SongLyric)
+		musicGroup.GET("/song/:id/lyric/ttml", controller.Music.SongTTMLLyric)
+		musicGroup.GET("/song/:id/lyric/qq", controller.Music.SongQQLyric)
+		musicGroup.GET("/song/:id/lyric/annotations", controller.Music.SongLyricAnnotations)
 
 		// 搜索歌曲只在编辑器中使用，限编辑者及以上，避免被当作公开的搜索代理
 		musicGroupWithEditor.GET("/search", controller.Music.Search)
 
+		// 手动重新生成歌词标注会消耗模型额度，仅管理员可用
+		musicGroupWithAdmin.POST("/song/:id/lyric/annotations/refresh", controller.Music.RefreshLyricAnnotations)
 		// 请求体中含 Cookie，使用 POST 避免出现在地址中
 		musicGroupWithAdmin.POST("/ncm/playlists", controller.Music.NCMPlaylists)
 	}

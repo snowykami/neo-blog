@@ -174,6 +174,7 @@ func migrate() error {
 		&model.EditSession{},
 		&model.Label{},
 		&model.Like{},
+		&model.LyricAnnotation{},
 		&model.File{},
 		&model.StorageProviderModelAndDto{},
 		&model.KV{},

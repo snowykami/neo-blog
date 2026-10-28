@@ -1,0 +1,78 @@
+/**
+ * 播放器页歌词引擎的数据模型（见 docs/music-player-spec.md 7.3）；时间单位均为毫秒。
+ * 逐词音译、注音等 TTML 特有字段在第三期加入
+ */
+
+export interface LyricWord {
+  text: string
+  start: number
+  end: number
+}
+
+export interface LyricLine {
+  words: LyricWord[]
+  // 行的开始时间：经过预处理的「提前起唱」后可能早于第一个词，用于高亮与滚动
+  start: number
+  end: number
+  translation?: string
+  romanization?: string
+  // 逐字音译（与原文的音节对齐，显示在原文下方并随演唱擦除）；对不齐时为空，只显示整行音译
+  romanizationWords?: LyricRomanWord[]
+  // 对唱：右对齐显示
+  isDuet: boolean
+  // 背景人声：附着在主行上
+  isBackground: boolean
+  // 强调特效（只有逐字歌词有）：按演唱时长规则与歌词标注计算，见 emphasis.ts
+  emphasis?: LyricEmphasis[]
+  // 这一行的情绪基调（来自歌词标注），影响强调辉光的颜色
+  mood?: LyricMood
+  // 从这一行开始的全屏粒子场景（来自歌词标注，只在播放器页演出），持续若干行或到下一个标了场景的行，见 stage-effects.ts
+  scene?: LyricScene
+}
+
+/** 音译的一段：显示在原文第 word 个词（音节）的下方，演唱时间取自该音节；text 末尾的空格表示一个音译词结束 */
+export interface LyricRomanWord {
+  text: string
+  start: number
+  end: number
+  word: number
+}
+
+/** 强调特效的类型：swell 放大 + 辉光 + 上浮（默认），glow 只有辉光，wave 逐字波浪上浮，shake 震颤，focus 由虚到实 */
+export type LyricEffect = 'swell' | 'glow' | 'wave' | 'shake' | 'focus'
+
+export type LyricMood = 'calm' | 'bright' | 'sad' | 'intense'
+
+/** 全屏粒子场景：花瓣、光点、雪、星空、气泡、雨 */
+export type LyricScene = 'petals' | 'sparks' | 'snow' | 'stars' | 'bubbles' | 'rain'
+
+/** 强调短语的颜色：语义化色板中的名称（来自歌词标注，与后端 lyricAnnotationPalette 一致），具体色值见 colors.ts */
+export type LyricColor
+  = | 'crimson' | 'rose' | 'flame' | 'sunset' | 'coral' | 'maple' | 'amber' | 'peach'
+    | 'cherry-blossom' | 'bauhinia' | 'sunshine' | 'gold' | 'lemon' | 'candlelight' | 'spring-green' | 'forest'
+    | 'mint' | 'jade' | 'aurora' | 'lake' | 'sky' | 'ocean' | 'starry-blue' | 'midnight'
+    | 'ice' | 'rain' | 'lavender' | 'violet' | 'twilight' | 'wisteria' | 'moonlight' | 'silver'
+
+/** 一组强调的词：words[from, to)，在 [start, end) 内演出，factor 为强度（0 ~ 1），color 为演唱时的上色（可选） */
+export interface LyricEmphasis {
+  from: number
+  to: number
+  start: number
+  end: number
+  factor: number
+  effect: LyricEffect
+  color?: LyricColor
+}
+
+export type LyricSource = 'ttml-custom' | 'ttml-amll' | 'ncm-yrc' | 'ncm-lrc' | 'qq-qrc' | 'qq-lrc' | 'none'
+
+export interface ResolvedLyrics {
+  source: LyricSource
+  // 是否有词级时间（逐字擦除）；行级歌词只做整行高亮
+  wordTimed: boolean
+  // 纯音乐（接口明确标记没有歌词）
+  instrumental: boolean
+  lines: LyricLine[]
+}
+
+export const EMPTY_LYRICS: ResolvedLyrics = { source: 'none', wordTimed: false, instrumental: false, lines: [] }

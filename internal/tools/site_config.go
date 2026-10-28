@@ -80,6 +80,18 @@ func GetAISummaryConcurrency() int {
 	return min(max(n, 1), AISummaryConcurrencyMax)
 }
 
+// 歌词特效（歌词标注）的有效期天数：默认值与允许范围，过期后在后台重新生成
+const (
+	LyricAnnotationTTLDaysDefault = 7
+	LyricAnnotationTTLDaysMax     = 365
+)
+
+// GetLyricAnnotationTTLDays 读取歌词标注有效期天数，超出范围时取边界值
+func GetLyricAnnotationTTLDays() int {
+	n := repo.KV.GetIntWithoutErr("lyric_annotation_ttl_days", LyricAnnotationTTLDaysDefault)
+	return min(max(n, 1), LyricAnnotationTTLDaysMax)
+}
+
 // NCMConfig 网易云音乐 API（NeteaseCloudMusicApi Enhanced）配置（仅后端使用，Cookie 不对外公开）
 type NCMConfig struct {
 	BaseURL    string

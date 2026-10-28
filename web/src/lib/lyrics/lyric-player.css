@@ -1,0 +1,204 @@
+/* 歌词引擎（lyric-player.ts）的样式：位置、缩放、颜色、模糊与遮罩由引擎逐帧写入行内样式；文字颜色取 --lyric-color（默认白色） */
+.lyric-player {
+  position: relative;
+  overflow: hidden;
+  /* 触摸拖动由引擎处理（带惯性），不交给浏览器滚动 */
+  touch-action: none;
+  user-select: none;
+}
+
+.lyric-item {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.lyric-line {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border-radius: 1rem;
+  background: transparent;
+  text-align: left;
+  font-size: 1.625rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: color-mix(in srgb, var(--lyric-color, #fff) 35%, transparent);
+  cursor: pointer;
+  transition: color 0.4s ease-out, background-color 0.2s ease-out;
+}
+
+@media (min-width: 1024px) {
+  .lyric-line {
+    font-size: 2.125rem;
+  }
+}
+
+.lyric-line:hover,
+.lyric-line:focus-visible {
+  background-color: color-mix(in srgb, var(--lyric-color, #fff) 8%, transparent);
+  outline: none;
+}
+
+/* 背景人声：主字号的 0.7 倍，整体更淡 */
+.lyric-line--bg {
+  font-size: calc(1.625rem * 0.7);
+  padding-block: 0.125rem;
+  opacity: 0.75;
+}
+
+@media (min-width: 1024px) {
+  .lyric-line--bg {
+    font-size: calc(2.125rem * 0.7);
+  }
+}
+
+/* 对唱：右对齐，缩放以右侧为原点 */
+.lyric-line--duet {
+  text-align: right;
+  transform-origin: right center;
+}
+
+.lyric-main {
+  display: block;
+}
+
+/* 逐字擦除的词：遮罩与上浮需要 inline-block */
+.lyric-word {
+  display: inline-block;
+  white-space: pre;
+}
+
+/* 强调的词：四周留出内边距（用负外边距抵消，不影响排版），放大的字与辉光不被擦除遮罩裁掉 */
+.lyric-word--emphasis {
+  padding: 0.3em;
+  margin: -0.3em;
+}
+
+/* 强调词拆成的单字：放大以底部偏上为原点，向上长 */
+.lyric-char {
+  display: inline-block;
+  white-space: pre;
+  transform-origin: 50% 80%;
+}
+
+/*
+ * 原文之下依次为音译、翻译（参考 StarryPlayer 的字号比例：原文 48、音译 28、翻译 22，翻译不透明度 0.5）。
+ * 整行的音译与翻译不小于 10px
+ */
+.lyric-extra {
+  display: block;
+  margin-top: 0.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.lyric-extra[data-kind='romanization'] {
+  font-size: max(0.58em, 10px);
+  opacity: 0.65;
+}
+
+.lyric-extra[data-kind='translation'] {
+  font-size: max(0.46em, 10px);
+  opacity: 0.5;
+}
+
+/* 逐字音译的注音单元：原文在上、音译在下居中对齐，单元宽度取两者中较宽的一个 */
+.lyric-unit {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lyric-unit-main {
+  white-space: pre;
+}
+
+.lyric-ruby {
+  margin-top: 0.05em;
+  padding-inline: 0.06em;
+  font-size: 0.58em;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: pre;
+  opacity: 0.75;
+}
+
+.lyric-player--no-roman .lyric-ruby {
+  display: none;
+}
+
+/* 紧凑模式（参考 StarryPlayer 的小尺寸：原文 28、音译与翻译 18） */
+.lyric-player--compact .lyric-ruby,
+.lyric-player--compact .lyric-extra[data-kind='romanization'],
+.lyric-player--compact .lyric-extra[data-kind='translation'] {
+  font-size: max(0.64em, 10px);
+}
+
+.lyric-extra[hidden] {
+  display: none;
+}
+
+.lyric-interlude {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  height: 56px;
+  padding-inline: 1.25rem;
+}
+
+.lyric-interlude span {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+  background: var(--lyric-color, #fff);
+}
+
+.lyric-footer {
+  padding: 2rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.4s ease-out;
+}
+
+/* 紧凑模式（悬浮播放器）：与播放器页同一套样式，只缩小字号与间距 */
+.lyric-player--compact .lyric-line {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 1.0625rem;
+  line-height: 1.35;
+}
+
+.lyric-player--compact .lyric-line--bg {
+  font-size: calc(1.0625rem * 0.7);
+  padding-block: 0.0625rem;
+}
+
+.lyric-player--compact .lyric-extra {
+  margin-top: 0.125rem;
+}
+
+.lyric-player--compact .lyric-interlude {
+  gap: 0.35rem;
+  height: 28px;
+  padding-inline: 0.75rem;
+}
+
+.lyric-player--compact .lyric-interlude span {
+  width: 0.4375rem;
+  height: 0.4375rem;
+}
+
+.lyric-player--compact .lyric-footer {
+  padding: 1rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyric-line,
+  .lyric-footer {
+    transition: none;
+  }
+}

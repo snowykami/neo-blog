@@ -49,8 +49,8 @@
     cursor: text;
   }
 
-  /* ---------- 引用：左侧主色圆角竖条（同前台） ---------- */
-  blockquote {
+  /* ---------- 引用：左侧主色圆角竖条（同前台）；不作用于组件块预览 ---------- */
+  blockquote:not(.neo-component-block blockquote) {
     position: relative;
     border-left: none;
     padding: 0.25rem 0 0.25rem 1.25rem;

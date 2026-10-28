@@ -1,65 +1,60 @@
 'use client'
 
+import type { CardAudioStatus } from '../use-card-audio'
 import type { LyricQuoteProps } from './schema'
-import type { MusicLyrics } from '@/api/music'
 import type { MusicLyricLine } from '@/utils/music-lyric'
-import { ExternalLinkIcon, PauseIcon, PlayIcon, QuoteIcon } from 'lucide-react'
+import { QuoteIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { fetchNcmLyric, getMusicSong } from '@/api/music'
-import { Button } from '@/components/ui/button'
-import { useMusic } from '@/contexts/music-context'
+import { getMusicSong } from '@/api/music'
+import { useMusic, useMusicClock, useSongLyrics } from '@/contexts/music-context'
+import { toSingleLineLyrics } from '@/lib/lyrics/from-platform'
 import { cn } from '@/lib/utils'
-import { getExtraLyricLine, getWordProgress, isWordTimedLyricLine, LYRIC_PLACEHOLDERS, parseMusicLyrics } from '@/utils/music-lyric'
-import { claimActiveAudio, releaseActiveAudio } from '../active-audio'
+import { getExtraLyricLine, getWordProgress, isWordTimedLyricLine } from '@/utils/music-lyric'
+import { MusicPlayButton, NeteaseOpenButton } from '../netease-song/music-controls'
 import { useCachedRequest } from '../use-cached-request'
+import { useCardAudio } from '../use-card-audio'
+import { buildQuoteLyrics, getSnippetEndMs, resolveQuoteLines } from './quote-lines'
 
 /** 把首尾空白替换为不换行空格：逐字歌词每个字渲染为 inline-block，普通空格会被折叠 */
 function preserveEdgeSpaces(text: string) {
   return text.replace(/^\s+|\s+$/g, match => '\u00A0'.repeat(match.length))
 }
 
+// 片段播放开始后的一小段时间内不判断是否离开片段：播放器跳转到起始位置需要时间，期间读到的还是旧进度
+const SNIPPET_ARM_DELAY_MS = 1500
+// 进度越过片段结尾太多（读者自己拖动了进度）时视为离开片段，不再自动暂停
+const SNIPPET_LEAVE_MS = 2000
+
 /**
- * 取引用范围内的歌词行：start 为起始句的开始时间（毫秒），end 为结束句（0 表示只引用起始句）；
- * 找不到完全一致的时间时取最后一个已开始的行，便于作者手填时间
+ * 片段播放：从摘录处开始播放，到摘录结尾自动暂停；只对通过摘录按钮开始的播放生效，
+ * 读者在全站播放器中完整收听同一首歌时不打断
  */
-function getQuoteLines(lines: MusicLyricLine[], start: number, end: number): MusicLyricLine[] {
-  if (lines.length === 0)
-    return []
+function useSnippetStop(timeMs: number, active: boolean, endMs: number, stop: () => void) {
+  const armedAtRef = useRef<number | null>(null)
 
-  const findIndex = (time: number, exact = true) => {
-    const found = lines.findIndex(line => Math.abs(line.startTime - time) <= 350)
-    if (found >= 0 || exact)
-      return found
-    let index = 0
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startTime <= time)
-        index = i
+  useEffect(() => {
+    const armedAt = armedAtRef.current
+    if (armedAt == null || !active || performance.now() - armedAt < SNIPPET_ARM_DELAY_MS)
+      return
+    if (timeMs >= endMs + SNIPPET_LEAVE_MS) {
+      armedAtRef.current = null
+      return
     }
-    return index
+    if (timeMs >= endMs) {
+      armedAtRef.current = null
+      stop()
+    }
+  }, [active, endMs, stop, timeMs])
+
+  return {
+    arm: () => {
+      armedAtRef.current = performance.now()
+    },
+    disarm: () => {
+      armedAtRef.current = null
+    },
   }
-
-  let startIndex = findIndex(start)
-  if (startIndex < 0)
-    startIndex = findIndex(start, false)
-  const endIndex = end > 0 ? Math.max(startIndex, findIndex(end, false)) : startIndex
-  return lines.slice(startIndex, endIndex + 1)
-}
-
-function getQuoteEndMs(lines: MusicLyricLine[], quoteLines: MusicLyricLine[]): number {
-  const lastLine = quoteLines[quoteLines.length - 1]
-  if (!lastLine)
-    return 0
-  if (lastLine.duration > 0)
-    return lastLine.startTime + lastLine.duration
-  const index = lines.indexOf(lastLine)
-  const nextLine = index >= 0 ? lines[index + 1] : undefined
-  return nextLine?.startTime ?? lastLine.startTime + 5000
-}
-
-/** 过滤歌词接口返回的占位文本，避免把 no_lyric 当作翻译/发音展示 */
-function cleanLyricLines(lines: MusicLyricLine[]): MusicLyricLine[] {
-  return lines.filter(line => !LYRIC_PLACEHOLDERS.has(line.originalText.trim()))
 }
 
 /** 引用范围内的一行歌词：播放时按行区分已唱/当前/未唱，逐字歌词在已唱和当前行显示擦除高亮 */
@@ -121,7 +116,8 @@ function QuoteLyricLine({ line, playing, state, getTime }: { line: MusicLyricLin
 }
 
 interface LyricQuoteViewProps {
-  lines: MusicLyricLine[]
+  // 与快照文本对齐的歌词行；为 null 时只展示快照文本（fallbackText）
+  lines: MusicLyricLine[] | null
   translationLines: MusicLyricLine[]
   romajiLines: MusicLyricLine[]
   showTranslation: boolean
@@ -131,17 +127,19 @@ interface LyricQuoteViewProps {
   artists?: string[]
   href?: string
   loading?: boolean
+  // 片段正在播放：用于按行区分已唱 / 当前 / 未唱
   playing: boolean
-  playable: boolean
+  // 播放按钮的状态；为 null 时不能在站内播放（显示网易云链接）
+  status: CardAudioStatus | null
   getTime: () => number | null
   onToggle: () => void
 }
 
 /** 歌词摘录的展示部分：引用样式 + 单句/多句歌词 + 翻译/发音 + 旁边的播放按钮 */
-function LyricQuoteView({ lines, translationLines, romajiLines, showTranslation, showRomaji, fallbackText, title, artists, href, loading, playing, playable, getTime, onToggle }: LyricQuoteViewProps) {
+function LyricQuoteView({ lines, translationLines, romajiLines, showTranslation, showRomaji, fallbackText, title, artists, href, loading, playing, status, getTime, onToggle }: LyricQuoteViewProps) {
   const t = useTranslations('ContentComponents.lyricQuote')
-  // 没有解析到歌词时，使用作者选择时保存的文本快照
-  const quoteLines = lines.length > 0 ? lines : null
+  const songT = useTranslations('ContentComponents.neteaseSong')
+  const quoteLines = lines && lines.length > 0 ? lines : null
   const caption = [title, artists?.filter(Boolean).join(' / ')].filter(Boolean).join(' · ')
   // 只在跨过歌词行时更新，避免播放期间每帧触发 React 重渲染
   const [activeLineIndex, setActiveLineIndex] = useState<number | null>(null)
@@ -176,29 +174,9 @@ function LyricQuoteView({ lines, translationLines, romajiLines, showTranslation,
     return () => cancelAnimationFrame(rafId)
   }, [getTime, playing, quoteLines])
 
-  const action = playable
-    ? (
-        <Button
-          type="button"
-          variant="secondary"
-          size="icon"
-          className="size-9 shrink-0 rounded-full"
-          aria-label={t(playing ? 'pause' : 'play')}
-          title={t(playing ? 'pause' : 'play')}
-          onClick={onToggle}
-        >
-          {playing ? <PauseIcon /> : <PlayIcon className="translate-x-px" />}
-        </Button>
-      )
-    : href
-      ? (
-          <Button asChild variant="outline" size="icon" className="size-9 shrink-0 rounded-full">
-            <a href={href} target="_blank" rel="noopener noreferrer" title={t('not_in_playlist')} aria-label={t('not_in_playlist')}>
-              <ExternalLinkIcon />
-            </a>
-          </Button>
-        )
-      : null
+  const action = status
+    ? <MusicPlayButton status={status} onClick={onToggle} />
+    : href && <NeteaseOpenButton href={href} />
 
   return (
     <figure className="flex items-start gap-3 rounded-xl border bg-muted/30 px-4 py-3.5">
@@ -243,7 +221,8 @@ function LyricQuoteView({ lines, translationLines, romajiLines, showTranslation,
                 )
               })
             : (
-                <span className={cn('block', loading && 'text-muted-foreground')}>
+                // 快照文本中多句以换行分隔，保留换行
+                <span className={cn('block whitespace-pre-line', loading && !fallbackText && 'text-muted-foreground')}>
                   {fallbackText || t(loading ? 'loading_lyric' : 'no_lyric')}
                 </span>
               )}
@@ -255,86 +234,57 @@ function LyricQuoteView({ lines, translationLines, romajiLines, showTranslation,
               : caption}
           </figcaption>
         )}
+        {status === 'error' && <p className="text-xs text-destructive">{songT('audio_error')}</p>}
       </div>
       {action && <div className="self-center">{action}</div>}
     </figure>
   )
 }
 
-/** 歌词摘录：把一句（或一段）歌词引用到文章中，点击播放从该句开始播放 */
+/** 歌词摘录：把一句（或一段）歌词引用到文章中，点击播放从该句开始播放，到摘录结尾自动暂停 */
 export default function LyricQuote(props: LyricQuoteProps) {
   return props.source === 'custom' ? <CustomLyricQuote {...props} /> : <NeteaseLyricQuote {...props} />
 }
 
 function NeteaseLyricQuote({ id, lyric: authorLyric, translation, romaji, showTranslation, showRomaji, start, end, text, title, artist }: LyricQuoteProps) {
-  const { playlist, currentTrack, isPlaying, currentTime, playTrack, togglePlay, getAudio } = useMusic()
+  const { playlist, currentTrack, isPlaying, playTrack, pause, getAudio } = useMusic()
   const index = playlist.findIndex(track => track.id === id)
   const track = index >= 0 ? playlist[index] : null
   const songState = useCachedRequest(track ? null : `ncm-song:${id}`, () => getMusicSong(id))
-  // 作者未填写原歌词，或需要在线补全已开启显示的翻译/发音时才请求歌词
+  const song = track ?? (songState.status === 'success' ? songState.data : null)
+  // 作者未填写原歌词，或需要在线补全已开启显示的翻译/发音时才取在线歌词
   const needsTranslation = showTranslation && !translation.trim()
   const needsRomaji = showRomaji && !romaji.trim()
   const needsFetchedLyric = id > 0 && (!authorLyric.trim() || needsTranslation || needsRomaji)
-  const lyricState = useCachedRequest(needsFetchedLyric ? `ncm-lyric:${id}` : null, () => fetchNcmLyric(id))
-
-  const parsed = useMemo(() => {
-    try {
-      const fetched = lyricState.status === 'success' ? lyricState.data : null
-      let raw: MusicLyrics | null = fetched
-      // 作者手填原歌词时优先使用手填版本，同时保留网易云的翻译/发音
-      if (authorLyric.trim()) {
-        raw = {
-          ...(fetched ?? {}),
-          lrc: { lyric: authorLyric, version: 1 },
-          yrc: null,
-        }
-      }
-      // 作者手填翻译/发音时覆盖在线数据
-      if (translation.trim()) {
-        raw = {
-          ...(raw ?? {}),
-          tlyric: { lyric: translation, version: 1 },
-          ytlrc: null,
-        }
-      }
-      if (romaji.trim()) {
-        raw = {
-          ...(raw ?? {}),
-          romalrc: { lyric: romaji, version: 1 },
-          yromalrc: null,
-        }
-      }
-      return raw ? parseMusicLyrics(raw) : null
-    }
-    catch {
-      return null
-    }
-  }, [authorLyric, lyricState, romaji, translation])
-
-  const lines = useMemo(() => cleanLyricLines(parsed?.lines ?? []), [parsed])
-  const translationLines = useMemo(() => cleanLyricLines(parsed?.translationLines ?? []), [parsed])
-  const romajiLines = useMemo(() => cleanLyricLines(parsed?.romajiLines ?? []), [parsed])
-  const quoteLines = useMemo(() => getQuoteLines(lines, start, end), [lines, start, end])
-  const playFromMs = quoteLines[0]?.startTime ?? start
-  const quoteEndMs = getQuoteEndMs(lines, quoteLines)
-  // 只有文本快照、没有可解析歌词时，按 5 秒估算引用范围，保证播放按钮仍能切换状态
-  const activeEndMs = quoteEndMs > playFromMs ? quoteEndMs : playFromMs + 5000
+  // 在线歌词与播放器、导航栏共用同一份来源与选择结果
+  const songLyrics = useSongLyrics(needsFetchedLyric ? id : null, song)
+  const online = useMemo(() => (songLyrics.status === 'ready' ? toSingleLineLyrics(songLyrics.lyrics) : null), [songLyrics])
+  const { lines, translationLines, romajiLines } = useMemo(
+    () => buildQuoteLyrics({ online, authorLyric, translation, romaji }),
+    [authorLyric, online, romaji, translation],
+  )
+  const quoteLines = useMemo(() => resolveQuoteLines(lines, start, end, text), [lines, start, end, text])
+  const playFromMs = quoteLines?.[0]?.startTime ?? start
+  const endMs = getSnippetEndMs(lines, quoteLines ?? [], start, end)
   const isCurrent = track != null && currentTrack?.id === id
-  const timeMs = (currentTime ?? 0) * 1000
-  // 只有正在播放当前歌曲且进度落在引用范围内时才显示逐字高亮
-  const playing = isCurrent && isPlaying && timeMs >= playFromMs - 250 && timeMs < activeEndMs + 500
+  // 只有摘录的歌曲正在全站播放器中时才订阅播放进度
+  const timeMs = useMusicClock(isCurrent) * 1000
+  // 正在播放这首歌且进度落在摘录范围内时，摘录处于播放状态（按行高亮）
+  const playing = isCurrent && isPlaying && timeMs >= playFromMs - 250 && timeMs < endMs + 500
   const getTime = useCallback(() => getAudio()?.currentTime ?? null, [getAudio])
+  const snippet = useSnippetStop(timeMs, isCurrent && isPlaying, endMs, pause)
 
-  const song = track ?? (songState.status === 'success' ? songState.data : null)
   const href = song?.link || `https://music.163.com/#/song?id=${id}`
   const loading = !song && songState.status === 'loading'
   const onToggle = () => {
     if (!track)
       return
     if (playing) {
-      togglePlay()
+      snippet.disarm()
+      pause()
       return
     }
+    snippet.arm()
     playTrack(index, playFromMs / 1000)
   }
 
@@ -349,9 +299,9 @@ function NeteaseLyricQuote({ id, lyric: authorLyric, translation, romaji, showTr
       title={song?.name || title}
       artists={song?.artists ?? (artist ? [artist] : [])}
       href={href}
-      loading={loading || (!authorLyric.trim() && lyricState.status === 'loading')}
+      loading={loading || (!authorLyric.trim() && songLyrics.status === 'loading')}
       playing={playing}
-      playable={track != null}
+      status={track ? (playing ? 'playing' : 'idle') : null}
       getTime={getTime}
       onToggle={onToggle}
     />
@@ -359,81 +309,26 @@ function NeteaseLyricQuote({ id, lyric: authorLyric, translation, romaji, showTr
 }
 
 function CustomLyricQuote({ title, artist, src, lyric, translation, romaji, showTranslation, showRomaji, start, end, text }: LyricQuoteProps) {
-  const { isPlaying: globalPlaying, pause: pauseGlobal } = useMusic()
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [playing, setPlaying] = useState(false)
+  const audio = useCardAudio(src)
 
-  useEffect(() => {
-    const audio = new Audio()
-    audio.preload = 'metadata'
-    audio.src = src
-    audioRef.current = audio
-    const onPlay = () => {
-      claimActiveAudio(audio)
-      setPlaying(true)
-    }
-    const onPause = () => setPlaying(false)
-    audio.addEventListener('play', onPlay)
-    audio.addEventListener('pause', onPause)
-    audio.addEventListener('ended', onPause)
-    return () => {
-      audio.pause()
-      audio.removeEventListener('play', onPlay)
-      audio.removeEventListener('pause', onPause)
-      audio.removeEventListener('ended', onPause)
-      releaseActiveAudio(audio)
-      audio.removeAttribute('src')
-      audio.load()
-      audioRef.current = null
-      setPlaying(false)
-    }
-  }, [src])
-
-  // 全站播放器开始播放时暂停当前摘录
-  useEffect(() => {
-    if (globalPlaying)
-      audioRef.current?.pause()
-  }, [globalPlaying])
-
-  const parsed = useMemo(() => {
-    try {
-      if (!lyric.trim())
-        return null
-      const raw: MusicLyrics = { lrc: { lyric, version: 1 } }
-      if (translation.trim())
-        raw.tlyric = { lyric: translation, version: 1 }
-      if (romaji.trim())
-        raw.romalrc = { lyric: romaji, version: 1 }
-      return parseMusicLyrics(raw)
-    }
-    catch {
-      return null
-    }
-  }, [lyric, romaji, translation])
-
-  const lines = useMemo(() => cleanLyricLines(parsed?.lines ?? []), [parsed])
-  const translationLines = useMemo(() => cleanLyricLines(parsed?.translationLines ?? []), [parsed])
-  const romajiLines = useMemo(() => cleanLyricLines(parsed?.romajiLines ?? []), [parsed])
-  const quoteLines = useMemo(() => getQuoteLines(lines, start, end), [lines, start, end])
-  const playFromMs = quoteLines[0]?.startTime ?? start
-  const getTime = useCallback(() => audioRef.current?.currentTime ?? null, [])
+  const { lines, translationLines, romajiLines } = useMemo(
+    () => buildQuoteLyrics({ online: null, authorLyric: lyric, translation, romaji }),
+    [lyric, romaji, translation],
+  )
+  const quoteLines = useMemo(() => resolveQuoteLines(lines, start, end, text), [lines, start, end, text])
+  const playFromMs = quoteLines?.[0]?.startTime ?? start
+  const endMs = getSnippetEndMs(lines, quoteLines ?? [], start, end)
+  const snippet = useSnippetStop(audio.currentTime * 1000, audio.playing, endMs, audio.pause)
 
   const onToggle = () => {
-    const audio = audioRef.current
-    if (!audio)
-      return
-    if (!audio.paused) {
+    if (audio.playing) {
+      snippet.disarm()
       audio.pause()
       return
     }
-    pauseGlobal()
-    try {
-      audio.currentTime = playFromMs / 1000
-    }
-    catch { }
-    void audio.play().catch(() => {
-      // 浏览器阻止播放或音频无法加载时保持暂停状态
-    })
+    // 每次都从摘录处开始播放
+    snippet.arm()
+    audio.play(playFromMs / 1000)
   }
 
   return (
@@ -446,9 +341,9 @@ function CustomLyricQuote({ title, artist, src, lyric, translation, romaji, show
       fallbackText={text}
       title={title}
       artists={artist ? [artist] : []}
-      playing={playing}
-      playable
-      getTime={getTime}
+      playing={audio.playing}
+      status={audio.status}
+      getTime={audio.getTime}
       onToggle={onToggle}
     />
   )

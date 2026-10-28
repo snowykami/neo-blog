@@ -599,6 +599,8 @@
       "hide_secret": "Hide",
       "ai_summary_concurrency": "AI concurrency",
       "ai_summary_concurrency_desc": "Maximum number of simultaneous model requests (1–20), shared by AI summaries and AI writing in the editor; extra requests queue in order, with AI writing served first",
+      "lyric_annotation_ttl_days": "Lyric effects lifetime (days)",
+      "lyric_annotation_ttl_days_desc": "How long AI lyric effects are cached (1–365); after expiry readers keep seeing the old effects while new ones are generated in the background",
       "section_music": "Music player",
       "section_music_desc": "Where the floating music player on the public site gets its playlist",
       "music_source": "Playlist source",
@@ -1521,11 +1523,7 @@
     "floating_player": "Floating music player",
     "mute": "Mute",
     "unmute": "Unmute",
-    "toggle_lyric_mode": "Toggle extra lyrics",
     "no_extra_lyric": "No translation or romaji available",
-    "lyric_mode_none": "No extra lyrics",
-    "lyric_mode_romaji": "Romaji",
-    "lyric_mode_translation": "Translation",
     "toggle_play_mode": "Toggle play mode",
     "play_mode_repeat-all": "Repeat all",
     "play_mode_repeat-one": "Repeat one",
@@ -1537,7 +1535,11 @@
     "previous": "Previous",
     "next": "Next",
     "play": "Play",
-    "pause": "Pause"
+    "pause": "Pause",
+    "show_translation": "Show translation",
+    "show_romaji": "Show romanization",
+    "open_player_page": "Open the player page",
+    "show_lyric_effects": "Lyric effects"
   },
   "Response": {
     "error": {
@@ -1618,8 +1620,11 @@
       "ncm_cookie_required": "Please enter the NetEase cookie",
       "ncm_cookie_invalid": "The NetEase cookie is invalid or expired",
       "ncm_request_failed": "Request to the NetEase API failed; check the service URL",
+      "music_lyric_source_failed": "Failed to request the lyric source",
       "ncm_not_configured": "NetEase playlist is not configured",
-      "invalid_page_link": "Invalid link: use an internal path starting with / or an http(s) URL"
+      "invalid_page_link": "Invalid link: use an internal path starting with / or an http(s) URL",
+      "lyric_annotations_unavailable": "Lyric annotations are not available for this song",
+      "lyric_annotations_failed": "Failed to generate lyric annotations, please try again later"
     }
   },
   "ErrorPage": {
@@ -1846,7 +1851,11 @@
         }
       },
       "lyric_idle": "Lyrics appear here while playing",
-      "no_lyric": "No lyrics"
+      "no_lyric": "No lyrics",
+      "audio_error": "Audio unavailable",
+      "audio_error_retry": "Audio unavailable — click to retry",
+      "buffering": "Buffering…",
+      "not_in_playlist_short": "Not in this site's playlist — listen on NetEase"
     },
     "lyricQuote": {
       "name": "Lyric quote",
@@ -1882,9 +1891,6 @@
         "end": "Optional; pick an end line to quote a passage. Leave empty to quote only the starting line",
         "text": "Lyric text shown when the lyric API is unavailable or the timestamp is entered manually"
       },
-      "play": "Play",
-      "pause": "Pause",
-      "not_in_playlist": "This song is not in the blog playlist; listen on NetEase Cloud Music",
       "loading_lyric": "Loading lyrics…",
       "no_lyric": "Choose a lyric line",
       "action": {
@@ -2216,8 +2222,43 @@
     "card_scan": "Scan to read the post"
   },
   "MusicPage": {
-    "placeholder_title": "The music player is on its way",
-    "placeholder_description": "A full player with playlists, lyrics, and playback controls will live here."
+    "back": "Back",
+    "show_lyrics": "Lyrics",
+    "show_cover": "Cover",
+    "progress": "Playback progress",
+    "volume": "Volume",
+    "open_playlist": "Playlist",
+    "playlist_title": "Playlist ({count})",
+    "playlist_description": "Search and pick a song from the playlist",
+    "search_placeholder": "Search title, translated title, artist, album or id",
+    "search_empty": "No matching songs",
+    "playlist_empty": "The playlist is empty",
+    "loading": "Loading playlist",
+    "not_configured_title": "No playlist configured",
+    "not_configured_description": "Set a playlist source in Global settings to play music here",
+    "failed_title": "Failed to load the playlist",
+    "failed_description": "Please refresh the page and try again later",
+    "lyrics_region": "Lyrics",
+    "lyric_badge_label": "Lyrics source",
+    "lyric_source_ncm": "NetEase",
+    "lyric_source_qq": "QQ Music",
+    "lyric_source_amll": "AMLL TTML",
+    "lyric_source_custom": "Custom TTML",
+    "lyric_badge_word": "Word-synced",
+    "lyric_badge_line": "Line-synced",
+    "lyric_badge_translation": "Translation",
+    "lyric_badge_romanization": "Romanization",
+    "lyric_badge_none": "No lyrics",
+    "lyric_badge_instrumental": "Instrumental",
+    "lyric_footer": "Lyrics from {source}",
+    "lyric_badge_switch": "Switch lyrics source",
+    "lyric_badge_auto": "Auto (best quality)",
+    "lyric_badge_pinned": "Source pinned for this song",
+    "lyric_badge_upgrading": "Looking for better lyrics",
+    "lyric_badge_ai_effects": "AI lyric effects",
+    "lyric_ai_refresh": "Regenerate AI lyric effects",
+    "lyric_ai_refresh_started": "Regenerating, the new effects will apply automatically",
+    "lyric_ai_refresh_failed": "Failed to regenerate"
   },
   "Nav": {
     "expand_topbar": "Show top bar",

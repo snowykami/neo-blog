@@ -599,6 +599,8 @@
       "hide_secret": "非表示",
       "ai_summary_concurrency": "AI の同時実行数",
       "ai_summary_concurrency_desc": "モデルへの同時リクエスト数の上限（1～20）。AI 要約とエディターの AI ライティングで共有し、超えた分は順番に待機します（AI ライティングを優先）",
+      "lyric_annotation_ttl_days": "歌詞エフェクトの有効期間（日）",
+      "lyric_annotation_ttl_days_desc": "AI 歌詞エフェクトのキャッシュ日数（1～365）。期限切れ後も新しいエフェクトがバックグラウンドで生成されるまで古いものを表示します",
       "section_music": "音楽プレーヤー",
       "section_music_desc": "公開サイトのフローティング音楽プレーヤーのプレイリスト取得元",
       "music_source": "プレイリストの取得元",
@@ -1521,11 +1523,7 @@
     "floating_player": "フローティング音楽プレーヤー",
     "mute": "ミュート",
     "unmute": "ミュート解除",
-    "toggle_lyric_mode": "追加歌詞の表示を切り替え",
     "no_extra_lyric": "翻訳・ローマ字はありません",
-    "lyric_mode_none": "追加歌詞なし",
-    "lyric_mode_romaji": "ローマ字",
-    "lyric_mode_translation": "翻訳",
     "toggle_play_mode": "再生モードを切り替え",
     "play_mode_repeat-all": "全曲リピート",
     "play_mode_repeat-one": "1曲リピート",
@@ -1537,7 +1535,11 @@
     "previous": "前の曲",
     "next": "次の曲",
     "play": "再生",
-    "pause": "一時停止"
+    "pause": "一時停止",
+    "show_translation": "翻訳を表示",
+    "show_romaji": "ローマ字を表示",
+    "open_player_page": "プレーヤーページを開く",
+    "show_lyric_effects": "歌詞エフェクト"
   },
   "Response": {
     "error": {
@@ -1618,8 +1620,11 @@
       "ncm_cookie_required": "NetEase の Cookie を入力してください",
       "ncm_cookie_invalid": "NetEase の Cookie が無効か期限切れです",
       "ncm_request_failed": "NetEase API へのリクエストに失敗しました。サービスの URL を確認してください",
+      "music_lyric_source_failed": "歌詞ソースのリクエストに失敗しました",
       "ncm_not_configured": "NetEase のプレイリストが設定されていません",
-      "invalid_page_link": "リンクが無効です。/ で始まるパスか http(s) の URL を指定してください"
+      "invalid_page_link": "リンクが無効です。/ で始まるパスか http(s) の URL を指定してください",
+      "lyric_annotations_unavailable": "この曲には歌詞アノテーションがありません",
+      "lyric_annotations_failed": "歌詞アノテーションの生成に失敗しました。しばらくしてからお試しください"
     }
   },
   "ErrorPage": {
@@ -1846,7 +1851,11 @@
         }
       },
       "lyric_idle": "再生するとここに歌詞が表示されます",
-      "no_lyric": "歌詞なし"
+      "no_lyric": "歌詞なし",
+      "audio_error": "音声を読み込めません",
+      "audio_error_retry": "音声を読み込めません。クリックして再試行",
+      "buffering": "バッファリング中…",
+      "not_in_playlist_short": "サイトのプレイリスト外・NetEase で聴けます"
     },
     "lyricQuote": {
       "name": "歌詞の引用",
@@ -1882,9 +1891,6 @@
         "end": "任意。終了行を選ぶと一連の歌詞を引用します。空の場合は開始行だけを引用します",
         "text": "歌詞 API が使えない場合や時間を手動入力した場合に表示する歌詞テキスト"
       },
-      "play": "再生",
-      "pause": "一時停止",
-      "not_in_playlist": "この曲はブログのプレイリストにありません。NetEase Cloud Music でお聴きください",
       "loading_lyric": "歌詞を読み込み中…",
       "no_lyric": "歌詞を選択してください",
       "action": {
@@ -2216,8 +2222,43 @@
     "card_scan": "QR コードで全文を読む"
   },
   "MusicPage": {
-    "placeholder_title": "プレイヤーは準備中です",
-    "placeholder_description": "ここにプレイリスト・歌詞・再生コントロールを備えた音楽プレイヤーを置く予定です。"
+    "back": "戻る",
+    "show_lyrics": "歌詞",
+    "show_cover": "ジャケット",
+    "progress": "再生位置",
+    "volume": "音量",
+    "open_playlist": "プレイリスト",
+    "playlist_title": "プレイリスト（{count}）",
+    "playlist_description": "プレイリストから曲を検索して選択",
+    "search_placeholder": "曲名・訳名・アーティスト・アルバム・ID で検索",
+    "search_empty": "一致する曲がありません",
+    "playlist_empty": "プレイリストは空です",
+    "loading": "プレイリストを読み込み中",
+    "not_configured_title": "プレイリストが未設定です",
+    "not_configured_description": "グローバル設定でプレイリストのソースを設定すると、ここで再生できます",
+    "failed_title": "プレイリストを読み込めませんでした",
+    "failed_description": "しばらくしてからページを再読み込みしてください",
+    "lyrics_region": "歌詞",
+    "lyric_badge_label": "歌詞の提供元",
+    "lyric_source_ncm": "NetEase",
+    "lyric_source_qq": "QQ音楽",
+    "lyric_source_amll": "AMLL TTML",
+    "lyric_source_custom": "カスタム TTML",
+    "lyric_badge_word": "単語同期",
+    "lyric_badge_line": "行同期",
+    "lyric_badge_translation": "翻訳",
+    "lyric_badge_romanization": "ローマ字",
+    "lyric_badge_none": "歌詞なし",
+    "lyric_badge_instrumental": "インスト",
+    "lyric_footer": "歌詞提供：{source}",
+    "lyric_badge_switch": "歌詞の提供元を切り替え",
+    "lyric_badge_auto": "自動（品質順）",
+    "lyric_badge_pinned": "この曲の提供元を固定中",
+    "lyric_badge_upgrading": "より高品質な歌詞を取得中",
+    "lyric_badge_ai_effects": "AI 歌詞エフェクト",
+    "lyric_ai_refresh": "AI 歌詞エフェクトを再生成",
+    "lyric_ai_refresh_started": "再生成を開始しました。完了すると自動で反映されます",
+    "lyric_ai_refresh_failed": "再生成に失敗しました"
   },
   "Nav": {
     "expand_topbar": "上部バーを表示",

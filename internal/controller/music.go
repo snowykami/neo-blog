@@ -70,6 +70,51 @@ func (m *musicType) SongLyric(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, lyric)
 }
 
+// SongTTMLLyric 歌曲的 TTML 歌词（自定义源 / AMLL TTML DB），没有时返回 404
+func (m *musicType) SongTTMLLyric(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicTTMLReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	lyric, svcerr := m.service.GetTTMLLyric(ctx, ctxutils.GetIDParam(c).Int64, req.Source)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, lyric)
+}
+
+// SongQQLyric 在 QQ 音乐匹配同一首歌并返回它的歌词（逐字 QRC、翻译、音译，以及按 QQ 歌曲收录的 TTML），没有时返回 404
+func (m *musicType) SongQQLyric(ctx context.Context, c *app.RequestContext) {
+	lyric, svcerr := m.service.GetQQLyric(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, lyric)
+}
+
+// SongLyricAnnotations 歌词标注（强调的词句、特效类型、情绪基调）：只为博客歌单内的歌曲生成，生成中返回 status=pending
+func (m *musicType) SongLyricAnnotations(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.GetLyricAnnotations(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// RefreshLyricAnnotations 管理员手动重新生成一首歌的歌词标注，返回 status=pending，之后通过 SongLyricAnnotations 取结果
+func (m *musicType) RefreshLyricAnnotations(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.RefreshLyricAnnotations(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
 // NCMPlaylists 获取网易云账号的歌单，供后台选择博客歌单
 func (m *musicType) NCMPlaylists(ctx context.Context, c *app.RequestContext) {
 	var req dto.NCMPlaylistsReq

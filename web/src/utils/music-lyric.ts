@@ -15,13 +15,12 @@ export interface MusicLyricLine {
 }
 
 export interface MusicLyricParseResult {
-  sourceType: 'yrc' | 'lrc' | 'none'
+  // yrc / qrc 为逐字（网易云 / QQ 音乐），lrc 为逐行
+  sourceType: 'yrc' | 'qrc' | 'lrc' | 'none'
   lines: MusicLyricLine[]
   translationLines: MusicLyricLine[]
   romajiLines: MusicLyricLine[]
 }
-
-export type MusicLyricMode = 'none' | 'romaji' | 'translation'
 
 /** 没有歌词时歌词接口返回的占位文本，不应作为歌词展示 */
 export const LYRIC_PLACEHOLDERS = new Set(['no_lyric', 'pure_music_without_lyric'])
@@ -119,6 +118,48 @@ function parseYrc(yrcText: string): MusicLyricLine[] {
   return yrcText
     .split('\n')
     .map(line => parseYrcLine(line.trim()))
+    .filter((line): line is MusicLyricLine => Boolean(line))
+    .sort((a, b) => a.startTime - b.startTime)
+}
+
+/**
+ * QRC（QQ 音乐逐字歌词）的一行：[行开始,行时长]字(开始,时长)字(开始,时长)…，时间为绝对毫秒，字在时间标签之前。
+ * 不是数字标签的括号（如歌词里的「(」）保留为文字
+ */
+function parseQrcLine(lineText: string): MusicLyricLine | null {
+  const lineMatch = lineText.match(/^\[(\d+),(\d+)\]/)
+  if (!lineMatch)
+    return null
+
+  const lineStartTime = Number.parseInt(lineMatch[1], 10)
+  const lineDuration = Number.parseInt(lineMatch[2], 10)
+  const content = lineText.slice(lineMatch[0].length)
+  const items: MusicLyricItem[] = []
+  const wordRegex = /([\s\S]*?)\((\d+),(\d+)\)/g
+
+  let wordMatch = wordRegex.exec(content)
+  while (wordMatch !== null) {
+    if (wordMatch[1])
+      items.push({ text: wordMatch[1], startTime: Number.parseInt(wordMatch[2], 10), duration: Number.parseInt(wordMatch[3], 10) })
+    wordMatch = wordRegex.exec(content)
+  }
+
+  const originalText = items.map(item => item.text).join('').trim()
+  if (!originalText)
+    return null
+  const last = items[items.length - 1]
+  return {
+    items,
+    startTime: lineStartTime,
+    duration: Math.max(lineDuration, (last.startTime + last.duration) - lineStartTime),
+    originalText,
+  }
+}
+
+function parseQrc(qrcText: string): MusicLyricLine[] {
+  return qrcText
+    .split('\n')
+    .map(line => parseQrcLine(line.trim()))
     .filter((line): line is MusicLyricLine => Boolean(line))
     .sort((a, b) => a.startTime - b.startTime)
 }
@@ -466,24 +507,99 @@ function inferTimedExtraLines(baseLines: MusicLyricLine[], extraLines: MusicLyri
   }).filter((line): line is MusicLyricLine => Boolean(line))
 }
 
+/** 翻译 / 音译行与主歌词行的最大时间差（毫秒）：超过时视为不属于任何一行 */
+export const EXTRA_LYRIC_MAX_OFFSET_MS = 1000
+
+/**
+ * 把翻译 / 音译行挂到主歌词行上（宁缺勿错）：每行附加歌词最多挂到一行主歌词、每行主歌词最多挂一行附加歌词，
+ * 按时间差从小到大配对，时间差超过 maxOffset 的不挂。挂上的附加行开始时间改为所属主行的开始时间，
+ * 之后按开始时间精确查找即可（见 getExtraLyricLine）；没挂上的附加行丢弃，不用「最近一行」凑
+ */
+export function alignExtraLyricLines(baseLines: MusicLyricLine[], extraLines: MusicLyricLine[], maxOffset = EXTRA_LYRIC_MAX_OFFSET_MS): MusicLyricLine[] {
+  const pairs: { offset: number, base: number, extra: number }[] = []
+  extraLines.forEach((extraLine, extra) => {
+    baseLines.forEach((baseLine, base) => {
+      const offset = Math.abs(baseLine.startTime - extraLine.startTime)
+      if (offset <= maxOffset)
+        pairs.push({ offset, base, extra })
+    })
+  })
+  pairs.sort((a, b) => a.offset - b.offset)
+
+  const usedBase = new Set<number>()
+  const assigned = new Map<number, number>()
+  for (const { base, extra } of pairs) {
+    if (usedBase.has(base) || assigned.has(extra))
+      continue
+    usedBase.add(base)
+    assigned.set(extra, base)
+  }
+  return [...assigned.entries()]
+    .map(([extra, base]) => ({ ...extraLines[extra], startTime: baseLines[base].startTime }))
+    .sort((a, b) => a.startTime - b.startTime)
+}
+
 export function parseMusicLyrics(rawLyric: MusicLyrics | null): MusicLyricParseResult {
-  const translationLines = parseExtraLyric(rawLyric?.ytlrc?.lyric?.trim() || rawLyric?.tlyric?.lyric?.trim())
-  const romajiLines = parseExtraLyric(rawLyric?.yromalrc?.lyric?.trim() || rawLyric?.romalrc?.lyric?.trim())
+  const rawTranslationLines = parseExtraLyric(rawLyric?.ytlrc?.lyric?.trim() || rawLyric?.tlyric?.lyric?.trim())
+  const rawRomajiLines = parseExtraLyric(rawLyric?.yromalrc?.lyric?.trim() || rawLyric?.romalrc?.lyric?.trim())
   const yrcText = rawLyric?.yrc?.lyric?.trim()
   if (yrcText) {
     const lines = parseYrc(yrcText)
-    if (lines.length > 0)
-      return { sourceType: 'yrc', lines, translationLines, romajiLines: inferTimedExtraLines(lines, romajiLines) }
+    if (lines.length > 0) {
+      return {
+        sourceType: 'yrc',
+        lines,
+        translationLines: alignExtraLyricLines(lines, rawTranslationLines),
+        romajiLines: inferTimedExtraLines(lines, alignExtraLyricLines(lines, rawRomajiLines)),
+      }
+    }
   }
 
   const lrcText = rawLyric?.lrc?.lyric?.trim()
   if (lrcText) {
     const lines = parseLrc(lrcText)
     if (lines.length > 0)
-      return { sourceType: 'lrc', lines, translationLines, romajiLines }
+      return { sourceType: 'lrc', lines, translationLines: alignExtraLyricLines(lines, rawTranslationLines), romajiLines: alignExtraLyricLines(lines, rawRomajiLines) }
   }
 
-  return { sourceType: 'none', lines: [], translationLines, romajiLines }
+  return { sourceType: 'none', lines: [], translationLines: [], romajiLines: [] }
+}
+
+/** QQ 音乐歌词（后端已解密并去掉 XML 外壳）：format 为 qrc（逐字）或 lrc；翻译为 LRC，音译与正文同格式 */
+export interface QqLyricInput {
+  format: string
+  lyric: string
+  translation: string
+  romanization: string
+}
+
+const CJK_RE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+
+/**
+ * 解析 QQ 音乐歌词，结构与网易云相同；翻译中的「//」表示这一行没有翻译，含中日韩文字的音译行多为说明文字，均不挂载
+ */
+export function parseQqLyrics(input: QqLyricInput | null): MusicLyricParseResult {
+  const empty: MusicLyricParseResult = { sourceType: 'none', lines: [], translationLines: [], romajiLines: [] }
+  const text = input?.lyric?.trim()
+  if (!text)
+    return empty
+  const qrc = input!.format === 'qrc'
+  const lines = qrc ? parseQrc(text) : parseLrc(text)
+  if (lines.length === 0)
+    return empty
+
+  const parseExtra = (extra: string | undefined) => {
+    const trimmed = extra?.trim()
+    if (!trimmed)
+      return []
+    return sanitizeExtraLyricLines(/^\[\d+,\d+\]/m.test(trimmed) ? parseQrc(trimmed) : parseLrc(trimmed))
+  }
+  return {
+    sourceType: qrc ? 'qrc' : 'lrc',
+    lines,
+    translationLines: alignExtraLyricLines(lines, parseExtra(input!.translation).filter(line => line.originalText !== '//')),
+    romajiLines: alignExtraLyricLines(lines, parseExtra(input!.romanization).filter(line => !CJK_RE.test(line.originalText))),
+  }
 }
 
 export function getCurrentLyricIndex(lines: MusicLyricLine[], currentTimeMs: number, previousIndex: number | null): number | null {
@@ -546,19 +662,12 @@ export function getExtraLyricText(lines: MusicLyricLine[], lineStartTime: number
   return getExtraLyricLine(lines, lineStartTime)?.originalText ?? ''
 }
 
+/**
+ * 取某行主歌词对应的翻译 / 音译行：附加歌词已在解析时按 alignExtraLyricLines 挂到主行上（开始时间与主行一致），
+ * 这里只做精确查找；找不到说明这一行没有附加歌词，返回 null
+ */
 export function getExtraLyricLine(lines: MusicLyricLine[], lineStartTime: number): MusicLyricLine | null {
-  if (lines.length === 0)
-    return null
-
-  const exactLine = lines.find(line => line.startTime === lineStartTime)
-  if (exactLine)
-    return exactLine
-
-  const closestLine = lines.reduce((prev, curr) =>
-    Math.abs(curr.startTime - lineStartTime) < Math.abs(prev.startTime - lineStartTime) ? curr : prev,
-  )
-
-  return closestLine
+  return lines.find(line => line.startTime === lineStartTime) ?? null
 }
 
 /** 逐行歌词（LRC）在无法得知下一行时间时使用的默认行时长 */

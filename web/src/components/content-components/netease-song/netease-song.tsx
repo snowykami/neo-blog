@@ -1,18 +1,17 @@
 'use client'
 
 import type { NeteaseSongProps } from './schema'
-import { ExternalLinkIcon, PauseIcon, PlayIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { getMusicSong } from '@/api/music'
 import { LyricLine } from '@/components/common/music-lyric-line'
-import LyricScroll from '@/components/common/music-lyric-scroll'
-import { Button } from '@/components/ui/button'
-import { useMusic } from '@/contexts/music-context'
+import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
+import { useCurrentLyric, useMusic, useMusicClock } from '@/contexts/music-context'
 import { LYRIC_PLACEHOLDERS } from '@/utils/music-lyric'
 import { useCachedRequest } from '../use-cached-request'
 import { useComponentHeight } from '../use-component-height'
 import { CustomAudioCard } from './custom-audio-card'
 import { isTallMusicCard, MusicCardLyricHint, MusicCardView } from './music-card-view'
+import { MusicPlayButton, NeteaseOpenButton } from './music-controls'
 
 /** 音乐卡片：网易云歌曲或自定义音频 */
 export default function MusicCard(props: NeteaseSongProps) {
@@ -25,7 +24,7 @@ export default function MusicCard(props: NeteaseSongProps) {
  */
 function NeteaseSongCard({ id }: { id: number }) {
   const t = useTranslations('ContentComponents.neteaseSong')
-  const { playlist, currentTrack, isPlaying, currentTime, duration, currentLyric, playTrack, togglePlay, seek } = useMusic()
+  const { playlist, currentTrack, isPlaying, duration, playTrack, togglePlay, seek } = useMusic()
   const index = playlist.findIndex(track => track.id === id)
   const track = index >= 0 ? playlist[index] : null
   // 歌单内的歌曲直接使用歌单数据，否则请求单曲公开信息
@@ -33,10 +32,14 @@ function NeteaseSongCard({ id }: { id: number }) {
   const song = track ?? (state.status === 'success' ? state.data : null)
   const link = song?.link || `https://music.163.com/#/song?id=${id}`
   const isCurrent = track != null && currentTrack?.id === id
+  // 只有卡片对应的曲目正在全站播放器中时才订阅播放进度，其余卡片不随进度重渲染
+  const currentTime = useMusicClock(isCurrent)
   const playing = isCurrent && isPlaying
-  // 5 单位及以上高度时歌词显示在歌词区（与播放器面板共用滚动歌词），副标题固定显示歌手与专辑
+  // 5 单位及以上高度时歌词显示在歌词区（与播放器页同一套歌词引擎的紧凑模式），副标题固定显示歌手与专辑
   const tall = isTallMusicCard(useComponentHeight())
   // 播放中显示当前歌词（与导航栏共用逐字高亮与超长滚动），否则显示歌手与专辑
+  // 只有正在播放这张卡片的歌曲时才订阅当前歌词行
+  const currentLyric = useCurrentLyric(!tall && playing)
   const showLyric = !tall && playing && !!currentLyric && !LYRIC_PLACEHOLDERS.has(currentLyric.trim())
 
   const subtitle = !song
@@ -46,26 +49,8 @@ function NeteaseSongCard({ id }: { id: number }) {
       : <p className="truncate text-sm text-muted-foreground">{[song.artists.join(' / '), song.album].filter(Boolean).join(' · ')}</p>
 
   const action = track
-    ? (
-        <Button
-          type="button"
-          size="icon"
-          className="size-10 shrink-0 rounded-full"
-          aria-label={t(playing ? 'pause' : 'play')}
-          title={t(playing ? 'pause' : 'play')}
-          onClick={() => (isCurrent ? togglePlay() : playTrack(index))}
-        >
-          {playing ? <PauseIcon /> : <PlayIcon className="translate-x-px" />}
-        </Button>
-      )
-    : (
-        <Button asChild variant="outline" size="sm" className="shrink-0">
-          <a href={link} target="_blank" rel="noopener noreferrer" title={t('not_in_playlist')}>
-            <ExternalLinkIcon />
-            {t('open')}
-          </a>
-        </Button>
-      )
+    ? <MusicPlayButton status={playing ? 'playing' : 'idle'} onClick={() => (isCurrent ? togglePlay() : playTrack(index))} />
+    : <NeteaseOpenButton href={link} />
 
   return (
     <MusicCardView
@@ -76,12 +61,14 @@ function NeteaseSongCard({ id }: { id: number }) {
       action={action}
       loading={!song && state.status === 'loading'}
       lyrics={isCurrent
-        ? <LyricScroll className="h-full" />
+        ? <MusicLyricStage compact themed className="h-full" />
         : song && <MusicCardLyricHint>{t(track ? 'lyric_idle' : 'not_in_playlist')}</MusicCardLyricHint>}
-      // 进度行常显示（不在本站播放时不可拖动），避免开始播放后才出现进度行把卡片撑开；不在歌单内的歌曲不能播放，不显示进度
+      // 进度行常显示（不是当前曲目时不可拖动，但显示歌单中的时长），避免开始播放后才出现进度行把卡片撑开；
+      // 不在歌单内的歌曲不能播放，在进度行的位置直接说明原因（触屏设备看不到按钮的 title）
       progress={track
-        ? { active: isCurrent, currentTime: isCurrent ? currentTime ?? 0 : 0, duration: isCurrent ? duration : null, onSeek: seek }
+        ? { active: isCurrent, currentTime, duration: isCurrent ? duration : (track.duration ?? 0) / 1000 || null, onSeek: seek }
         : null}
+      note={song && !track && t('not_in_playlist_short')}
     />
   )
 }

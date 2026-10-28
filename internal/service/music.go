@@ -75,6 +75,17 @@ var musicFetchMu sync.Mutex
 // 歌词缓存：按歌曲 ID 保存序列化后的歌词
 var musicLyricCache = cache.NewLRUCacheWithSize(500, 16<<20)
 
+// 网易云歌词缓存时长（参考 StarryPlayer）：有歌词 30 天，没有歌词 1 天（之后可能补上）；请求出错不缓存
+const (
+	musicLyricHitTTL  = 30 * 24 * time.Hour
+	musicLyricMissTTL = 24 * time.Hour
+)
+
+type musicLyricCacheEntry struct {
+	Lyric     dto.MusicLyricDto `json:"lyric"`
+	ExpiresAt int64             `json:"expires_at"`
+}
+
 // 单曲信息缓存：按歌曲 ID 保存序列化后的信息（歌曲名、歌手、封面基本不变）
 var musicSongCache = cache.NewLRUCacheWithSize(1000, 4<<20)
 
@@ -221,6 +232,7 @@ func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackD
 			} `json:"al"`
 			Alia []string `json:"alia"`
 			Tns  []string `json:"tns"`
+			Dt   int64    `json:"dt"` // 时长（毫秒）
 		} `json:"songs"`
 		Privileges []struct {
 			ID int64 `json:"id"`
@@ -258,6 +270,7 @@ func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackD
 			Lyric:    constant.ApiPrefix + "/music/song/" + id + "/lyric",
 			Link:     "https://music.163.com/#/song?id=" + id,
 			Aliases:  mergeAliases(song.Alia, song.Tns),
+			Duration: song.Dt,
 		})
 	}
 	return tracks, nil
@@ -313,10 +326,11 @@ func (s *MusicService) GetLyric(ctx context.Context, id int64) (*dto.MusicLyricD
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
 	if data, ok := musicLyricCache.Get(uint(id)); ok {
-		var lyric dto.MusicLyricDto
-		if json.Unmarshal(data, &lyric) == nil {
-			return &lyric, nil
+		var entry musicLyricCacheEntry
+		if json.Unmarshal(data, &entry) == nil && time.Now().Unix() < entry.ExpiresAt {
+			return &entry.Lyric, nil
 		}
+		musicLyricCache.Remove(uint(id))
 	}
 
 	var raw struct {
@@ -340,14 +354,16 @@ func (s *MusicService) GetLyric(ctx context.Context, id int64) (*dto.MusicLyricD
 	}
 
 	lyric := raw.MusicLyricDto
+	ttl := musicLyricHitTTL
 	if lyric.Lrc == nil || strings.TrimSpace(lyric.Lrc.Lyric) == "" {
 		placeholder := "[00:00.00]no_lyric"
 		if raw.NoLyric {
 			placeholder = "[00:00.00]pure_music_without_lyric"
 		}
 		lyric.Lrc = &dto.MusicLyricPart{Lyric: placeholder, Version: 1}
+		ttl = musicLyricMissTTL
 	}
-	if data, err := json.Marshal(lyric); err == nil {
+	if data, err := json.Marshal(musicLyricCacheEntry{Lyric: lyric, ExpiresAt: time.Now().Add(ttl).Unix()}); err == nil {
 		musicLyricCache.Put(uint(id), data)
 	}
 	return &lyric, nil
@@ -392,6 +408,7 @@ func (s *MusicService) GetSong(ctx context.Context, id int64) (*dto.MusicSongDto
 		Album:    album,
 		AlbumPic: albumPic,
 		Link:     "https://music.163.com/#/song?id=" + idStr,
+		Duration: item.duration(),
 	}
 	if data, err := json.Marshal(song); err == nil {
 		musicSongCache.Put(uint(id), data)
@@ -431,10 +448,6 @@ func (s *MusicService) SearchSongs(ctx context.Context, keywords string) ([]dto.
 	songs := make([]dto.MusicSearchSongDto, 0, len(raw.Result.Songs))
 	for _, item := range raw.Result.Songs {
 		album, albumPic := item.album()
-		duration := item.Dt
-		if duration == 0 {
-			duration = item.Duration
-		}
 		songs = append(songs, dto.MusicSearchSongDto{
 			ID:         item.ID,
 			Name:       item.Name,
@@ -442,7 +455,7 @@ func (s *MusicService) SearchSongs(ctx context.Context, keywords string) ([]dto.
 			Album:      album,
 			AlbumPic:   albumPic,
 			Aliases:    mergeAliases(item.Alia, item.Tns),
-			Duration:   duration,
+			Duration:   item.duration(),
 			InPlaylist: containsTrack(tracks, item.ID),
 		})
 	}
@@ -482,6 +495,14 @@ func (s ncmSong) artistNames() []string {
 		names = append(names, item.Name)
 	}
 	return names
+}
+
+// duration 时长（毫秒）：新版接口为 dt，旧接口为 duration
+func (s ncmSong) duration() int64 {
+	if s.Dt != 0 {
+		return s.Dt
+	}
+	return s.Duration
 }
 
 func (s ncmSong) album() (name, pic string) {

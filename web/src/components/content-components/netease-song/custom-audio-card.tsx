@@ -2,133 +2,57 @@
 
 import type { NeteaseSongProps } from './schema'
 import type { MusicLyricLine } from '@/utils/music-lyric'
-import { PauseIcon, PlayIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { useMusic } from '@/contexts/music-context'
+import { useEffect, useMemo, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { getCurrentLyricIndex, parseMusicLyrics } from '@/utils/music-lyric'
-import { claimActiveAudio, releaseActiveAudio } from '../active-audio'
+import { cleanLyricLines } from '../lyric-quote/quote-lines'
+import { useCardAudio } from '../use-card-audio'
 import { useComponentHeight } from '../use-component-height'
 import { isTallMusicCard, MusicCardLyricHint, MusicCardView } from './music-card-view'
+import { MusicPlayButton } from './music-controls'
 
 /**
- * 自定义音频：使用卡片自己的 audio 播放，与全站播放器互斥（开始播放时暂停全站播放器，全站播放器开始播放时暂停卡片）；
+ * 自定义音频：使用卡片自己的 audio 播放，与全站播放器互斥；
  * 填写了 LRC 歌词时，播放中显示当前一行；5 单位及以上高度时在歌词区显示全部歌词
  */
 export function CustomAudioCard({ title, artist, album, cover, src, lyric }: NeteaseSongProps) {
   const t = useTranslations('ContentComponents.neteaseSong')
-  const { isPlaying: globalPlaying, pause: pauseGlobal } = useMusic()
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [playing, setPlaying] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState<number | null>(null)
-
-  useEffect(() => {
-    const audio = new Audio()
-    audio.preload = 'metadata'
-    audio.src = src
-    audioRef.current = audio
-    const onTime = () => setCurrentTime(audio.currentTime)
-    const onMeta = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : null)
-    const onPlay = () => {
-      claimActiveAudio(audio)
-      setPlaying(true)
-    }
-    const onPause = () => setPlaying(false)
-    audio.addEventListener('timeupdate', onTime)
-    audio.addEventListener('loadedmetadata', onMeta)
-    audio.addEventListener('durationchange', onMeta)
-    audio.addEventListener('play', onPlay)
-    audio.addEventListener('pause', onPause)
-    audio.addEventListener('ended', onPause)
-    return () => {
-      audio.pause()
-      audio.removeEventListener('timeupdate', onTime)
-      audio.removeEventListener('loadedmetadata', onMeta)
-      audio.removeEventListener('durationchange', onMeta)
-      audio.removeEventListener('play', onPlay)
-      audio.removeEventListener('pause', onPause)
-      audio.removeEventListener('ended', onPause)
-      releaseActiveAudio(audio)
-      // 释放音频资源
-      audio.removeAttribute('src')
-      audio.load()
-      setPlaying(false)
-      setCurrentTime(0)
-      setDuration(null)
-    }
-  }, [src])
-
-  // 全站播放器开始播放时暂停卡片
-  useEffect(() => {
-    if (globalPlaying)
-      audioRef.current?.pause()
-  }, [globalPlaying])
-
-  const toggle = () => {
-    const audio = audioRef.current
-    if (!audio)
-      return
-    if (!audio.paused) {
-      audio.pause()
-      return
-    }
-    pauseGlobal()
-    void audio.play().catch(() => {
-      // 浏览器阻止播放或音频无法加载时保持暂停状态
-    })
-  }
+  const audio = useCardAudio(src)
+  const { status, playing, currentTime, duration } = audio
 
   const tall = isTallMusicCard(useComponentHeight())
-  const lines = useMemo(() => (lyric.trim() ? parseMusicLyrics({ lrc: { lyric, version: 1 } }).lines : []), [lyric])
-  const activeIndex = lines.length > 0 ? getCurrentLyricIndex(lines, currentTime * 1000, null) : null
-  const lineIndex = playing && !tall ? activeIndex : null
-  const lyricText = lineIndex != null ? lines[lineIndex]?.originalText.trim() : ''
+  // 与歌词摘录一致：去掉作词、作曲等署名行
+  const lines = useMemo(() => (lyric.trim() ? cleanLyricLines(parseMusicLyrics({ lrc: { lyric, version: 1 } }).lines) : []), [lyric])
+  // 还没开始播放时不高亮任何一句
+  const started = playing || currentTime > 0
+  const activeIndex = started && lines.length > 0 ? getCurrentLyricIndex(lines, currentTime * 1000, null) : null
+  const lyricText = playing && !tall && activeIndex != null ? lines[activeIndex]?.originalText.trim() : ''
 
-  const seek = (seconds: number) => {
-    if (audioRef.current)
-      audioRef.current.currentTime = seconds
-    setCurrentTime(seconds)
-  }
-
-  // 标题行合并成「歌名 - 艺术家」，副标题留给专辑名（播放中换成当前歌词）
-  const displayTitle = [title, artist].filter(Boolean).join(' - ')
-  const subtitle = lyricText
-    ? <p className="truncate text-sm text-primary">{lyricText}</p>
-    : album
-      ? <p className="truncate text-sm text-muted-foreground">{album}</p>
-      : null
+  // 与网易云模式一致：标题为歌名，副标题为「艺人 · 专辑」，播放中换成当前歌词；无法加载时提示
+  const subtitle = status === 'error'
+    ? <p className="truncate text-sm text-destructive">{t('audio_error')}</p>
+    : lyricText
+      ? <p className="truncate text-sm text-primary">{lyricText}</p>
+      : <p className="truncate text-sm text-muted-foreground">{[artist, album].filter(Boolean).join(' · ')}</p>
 
   return (
     <MusicCardView
       cover={cover}
-      title={displayTitle}
+      title={title}
       subtitle={subtitle}
-      action={(
-        <Button
-          type="button"
-          size="icon"
-          className="size-10 shrink-0 rounded-full"
-          aria-label={t(playing ? 'pause' : 'play')}
-          title={t(playing ? 'pause' : 'play')}
-          onClick={toggle}
-        >
-          {playing ? <PauseIcon /> : <PlayIcon className="translate-x-px" />}
-        </Button>
-      )}
+      action={<MusicPlayButton status={status} onClick={() => (playing ? audio.pause() : audio.play())} />}
       // 卡片自带 audio：进度行常显示，时长未就绪时不可拖拽
-      progress={{ active: true, currentTime, duration, onSeek: seek }}
+      progress={{ active: true, currentTime, duration, onSeek: audio.seek }}
       lyrics={lines.length > 0
-        ? <CardLyricList lines={lines} activeIndex={activeIndex} onSeek={seek} />
+        ? <CardLyricList lines={lines} activeIndex={activeIndex} onSelect={seconds => audio.seek(seconds, { play: true })} />
         : <MusicCardLyricHint>{t('no_lyric')}</MusicCardLyricHint>}
     />
   )
 }
 
-/** 歌词区：列出全部歌词，当前行高亮并滚动到中间，点击某行跳转 */
-function CardLyricList({ lines, activeIndex, onSeek }: { lines: MusicLyricLine[], activeIndex: number | null, onSeek: (seconds: number) => void }) {
+/** 歌词区：列出全部歌词，当前行高亮并滚动到中间，点击某行从该句开始播放（与全站播放器的歌词面板一致） */
+function CardLyricList({ lines, activeIndex, onSelect }: { lines: MusicLyricLine[], activeIndex: number | null, onSelect: (seconds: number) => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const lineRefs = useRef<(HTMLButtonElement | null)[]>([])
 
@@ -143,7 +67,7 @@ function CardLyricList({ lines, activeIndex, onSeek }: { lines: MusicLyricLine[]
   return (
     <div
       ref={containerRef}
-      className="relative grid h-full content-start gap-0.5 overflow-y-auto py-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="relative grid h-full content-start gap-0.5 overflow-y-auto py-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       style={{ maskImage: 'linear-gradient(to bottom, transparent, black 18%, black 82%, transparent)' }}
     >
       {lines.map((line, index) => (
@@ -156,7 +80,7 @@ function CardLyricList({ lines, activeIndex, onSeek }: { lines: MusicLyricLine[]
             'rounded-md px-2 py-px text-center text-sm transition-colors hover:text-foreground',
             index === activeIndex ? 'font-semibold text-primary' : 'text-muted-foreground',
           )}
-          onClick={() => onSeek(line.startTime / 1000)}
+          onClick={() => onSelect(line.startTime / 1000)}
         >
           {line.originalText.trim() || '\u00A0'}
         </button>

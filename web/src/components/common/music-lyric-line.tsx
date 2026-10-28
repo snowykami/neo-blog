@@ -3,7 +3,7 @@
 import type { LyricMarqueeWordBox, MusicLyricLine } from '@/utils/music-lyric'
 import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { useMusic } from '@/contexts/music-context'
+import { useCurrentLyricIndex, useMusic } from '@/contexts/music-context'
 import { cn } from '@/lib/utils'
 import { getCurrentLyricIndex, getLyricMarqueeOffset, getWordProgress, isWordTimedLyricLine } from '@/utils/music-lyric'
 
@@ -47,16 +47,16 @@ interface NavLyricLayout {
  */
 export function LyricLine() {
   const t = useTranslations('MusicPlayer')
-  const { parsedLyricLines, lyricLines, currentLyricIndex, getAudio } = useMusic()
+  const { lyricLines, lyrics, getAudio } = useMusic()
+  const currentLyricIndex = useCurrentLyricIndex()
   const prefersReducedMotion = usePrefersReducedMotion()
   const containerRef = useRef<HTMLSpanElement>(null)
   const contentRef = useRef<HTMLSpanElement>(null)
   const layoutRef = useRef<NavLyricLayout | null>(null)
   // rAF 中计算出的行索引，与所属歌词数组绑定，避免切歌后沿用旧索引
   const [rafActive, setRafActive] = useState<{ lines: MusicLyricLine[], index: number | null } | null>(null)
-  const activeLyricIndex = rafActive?.lines === parsedLyricLines ? rafActive.index : currentLyricIndex
-  const line = activeLyricIndex == null ? undefined : parsedLyricLines[activeLyricIndex]
-  const text = activeLyricIndex == null ? '' : lyricLines[activeLyricIndex]?.text
+  const activeLyricIndex = rafActive?.lines === lyricLines ? rafActive.index : currentLyricIndex
+  const line = activeLyricIndex == null ? undefined : lyricLines[activeLyricIndex]
   const isWordLyric = Boolean(line && isWordTimedLyricLine(line))
   const lineKey = line ? `${activeLyricIndex}-${line.startTime}` : ''
 
@@ -75,7 +75,7 @@ export function LyricLine() {
   }, [lineKey])
 
   useEffect(() => {
-    if (parsedLyricLines.length === 0)
+    if (lyricLines.length === 0)
       return
     let rafId = 0
     let lastIndex: number | null | undefined
@@ -101,15 +101,15 @@ export function LyricLine() {
       if (!audio)
         return
       const timeMs = audio.currentTime * 1000
-      const index = getCurrentLyricIndex(parsedLyricLines, timeMs, null)
+      const index = getCurrentLyricIndex(lyricLines, timeMs, null)
       if (index !== lastIndex) {
         lastIndex = index
-        setRafActive({ lines: parsedLyricLines, index })
+        setRafActive({ lines: lyricLines, index })
       }
 
       const container = containerRef.current
       const content = contentRef.current
-      const current = index == null ? undefined : parsedLyricLines[index]
+      const current = index == null ? undefined : lyricLines[index]
       if (!container || !content || !current)
         return
       // React 尚未渲染出新行时跳过，避免把旧行的测量结果用于新行
@@ -146,7 +146,7 @@ export function LyricLine() {
       const overflow = layout.contentWidth - layout.containerWidth
       const offset = getLyricMarqueeOffset({
         line: current,
-        nextLineStartTime: index == null ? undefined : parsedLyricLines[index + 1]?.startTime,
+        nextLineStartTime: index == null ? undefined : lyricLines[index + 1]?.startTime,
         currentTimeMs: timeMs,
         containerWidth: layout.containerWidth,
         contentWidth: layout.contentWidth,
@@ -167,7 +167,7 @@ export function LyricLine() {
 
     rafId = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafId)
-  }, [getAudio, parsedLyricLines, prefersReducedMotion])
+  }, [getAudio, lyricLines, prefersReducedMotion])
 
   // 切换减少动态效果时清理已写入的位移与遮罩
   useEffect(() => {
@@ -183,11 +183,7 @@ export function LyricLine() {
   }, [prefersReducedMotion])
 
   if (!line)
-    return ''
-
-  if (lyricLines.length === 1 && (text === 'pure_music_without_lyric' || text === 'no_lyric')) {
-    return t(text)
-  }
+    return lyrics.instrumental ? t('pure_music_without_lyric') : ''
 
   return (
     <span

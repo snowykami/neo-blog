@@ -100,14 +100,14 @@ article h4 {
   scroll-margin-top: calc(var(--nav-h, 4.5rem) + 1rem);
 }
 
-/* blockquote：左侧主色圆角竖条（伪元素），不再使用整条彩色边框 */
-article.prose blockquote {
+/* blockquote：左侧主色圆角竖条（伪元素），不再使用整条彩色边框；组件岛内的引用（如歌词摘录）保持组件自身样式 */
+article.prose blockquote:not([data-component-root] blockquote) {
   position: relative;
   border-left: none;
   padding: 0.25rem 0 0.25rem 1.25rem;
   font-style: normal;
 }
-article.prose blockquote::before {
+article.prose blockquote:not([data-component-root] blockquote)::before {
   content: "";
   position: absolute;
   inset-block: 0;
@@ -117,8 +117,8 @@ article.prose blockquote::before {
   background: var(--primary);
 }
 /* typography 插件默认给引用段落加引号，中文内容里显得多余 */
-article.prose blockquote p:first-of-type::before,
-article.prose blockquote p:last-of-type::after {
+article.prose blockquote:not([data-component-root] blockquote) p:first-of-type::before,
+article.prose blockquote:not([data-component-root] blockquote) p:last-of-type::after {
   content: none;
 }
 

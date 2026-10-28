@@ -8,6 +8,7 @@ export interface MusicTrack {
   lyric: string
   link: string
   aliases: string[]
+  duration?: number // 时长（毫秒）；静态歌单可不提供
 }
 
 // 单曲公开信息（文章内的单曲卡），不含播放地址

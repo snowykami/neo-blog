@@ -599,6 +599,8 @@
       "hide_secret": "隱藏",
       "ai_summary_concurrency": "AI 並行數",
       "ai_summary_concurrency_desc": "同時呼叫模型的請求數上限（1～20），AI 摘要與編輯器 AI 寫作共用；超出時排隊依序執行，AI 寫作優先",
+      "lyric_annotation_ttl_days": "歌詞特效有效期（天）",
+      "lyric_annotation_ttl_days_desc": "AI 歌詞特效的快取天數（1～365）；過期後讀者仍先看到舊特效，背景自動重新產生",
       "section_music": "音樂播放器",
       "section_music_desc": "前台懸浮音樂播放器的歌單來源",
       "music_source": "歌單來源",
@@ -1521,11 +1523,7 @@
     "floating_player": "懸浮音樂播放器",
     "mute": "靜音",
     "unmute": "取消靜音",
-    "toggle_lyric_mode": "切換歌詞附加顯示",
     "no_extra_lyric": "暫無翻譯或羅馬音",
-    "lyric_mode_none": "無附加歌詞",
-    "lyric_mode_romaji": "羅馬音",
-    "lyric_mode_translation": "翻譯",
     "toggle_play_mode": "切換播放模式",
     "play_mode_repeat-all": "列表循環",
     "play_mode_repeat-one": "單曲循環",
@@ -1537,7 +1535,11 @@
     "previous": "上一首",
     "next": "下一首",
     "play": "播放",
-    "pause": "暫停"
+    "pause": "暫停",
+    "show_translation": "顯示翻譯",
+    "show_romaji": "顯示音譯",
+    "open_player_page": "開啟播放器頁",
+    "show_lyric_effects": "歌詞特效"
   },
   "Response": {
     "error": {
@@ -1618,8 +1620,11 @@
       "ncm_cookie_required": "請填寫網易雲 Cookie",
       "ncm_cookie_invalid": "網易雲 Cookie 無效或已過期",
       "ncm_request_failed": "請求網易雲 API 失敗，請檢查服務網址",
+      "music_lyric_source_failed": "請求歌詞來源失敗",
       "ncm_not_configured": "尚未設定網易雲歌單",
-      "invalid_page_link": "連結網址無效：請使用以 / 開頭的站內路徑或 http(s) 網址"
+      "invalid_page_link": "連結網址無效：請使用以 / 開頭的站內路徑或 http(s) 網址",
+      "lyric_annotations_unavailable": "目前歌曲沒有可用的歌詞標註",
+      "lyric_annotations_failed": "歌詞標註生成失敗，請稍後再試"
     }
   },
   "ErrorPage": {
@@ -1846,7 +1851,11 @@
         }
       },
       "lyric_idle": "播放後在這裡顯示歌詞",
-      "no_lyric": "暫無歌詞"
+      "no_lyric": "暫無歌詞",
+      "audio_error": "音訊無法載入",
+      "audio_error_retry": "音訊無法載入，點擊重試",
+      "buffering": "緩衝中…",
+      "not_in_playlist_short": "不在本站歌單，可在網易雲收聽"
     },
     "lyricQuote": {
       "name": "歌詞摘錄",
@@ -1882,9 +1891,6 @@
         "end": "選填，選擇結束句後引用一段歌詞；留空時只引用起始句",
         "text": "歌詞介面無法使用或手填時間時顯示的歌詞文字"
       },
-      "play": "播放",
-      "pause": "暫停",
-      "not_in_playlist": "此歌曲不在部落格歌單內，請在網易雲音樂收聽",
       "loading_lyric": "歌詞載入中…",
       "no_lyric": "選擇一句歌詞",
       "action": {
@@ -2216,8 +2222,43 @@
     "card_scan": "掃碼閱讀全文"
   },
   "MusicPage": {
-    "placeholder_title": "播放器正在建置中",
-    "placeholder_description": "這裡將放置完整的音樂播放器，包含歌單、歌詞與播放控制。"
+    "back": "返回",
+    "show_lyrics": "歌詞",
+    "show_cover": "封面",
+    "progress": "播放進度",
+    "volume": "音量",
+    "open_playlist": "播放清單",
+    "playlist_title": "播放清單（{count}）",
+    "playlist_description": "在目前的歌單中搜尋並選擇歌曲",
+    "search_placeholder": "搜尋歌名、譯名、歌手、專輯或 id",
+    "search_empty": "沒有符合的歌曲",
+    "playlist_empty": "歌單為空",
+    "loading": "正在載入歌單",
+    "not_configured_title": "尚未設定歌單",
+    "not_configured_description": "在後台「全域設定」中設定歌單來源後，就可以在這裡播放了",
+    "failed_title": "歌單載入失敗",
+    "failed_description": "請稍後重新整理頁面再試",
+    "lyrics_region": "歌詞",
+    "lyric_badge_label": "歌詞來源",
+    "lyric_source_ncm": "網易雲",
+    "lyric_source_qq": "QQ 音樂",
+    "lyric_source_amll": "AMLL TTML",
+    "lyric_source_custom": "自訂 TTML",
+    "lyric_badge_word": "逐字",
+    "lyric_badge_line": "逐行",
+    "lyric_badge_translation": "翻譯",
+    "lyric_badge_romanization": "音譯",
+    "lyric_badge_none": "無歌詞",
+    "lyric_badge_instrumental": "純音樂",
+    "lyric_footer": "歌詞來源：{source}",
+    "lyric_badge_switch": "切換歌詞來源",
+    "lyric_badge_auto": "自動（依品質選擇）",
+    "lyric_badge_pinned": "已為這首歌固定來源",
+    "lyric_badge_upgrading": "正在取得更高品質的歌詞",
+    "lyric_badge_ai_effects": "AI 歌詞特效",
+    "lyric_ai_refresh": "重新產生 AI 歌詞特效",
+    "lyric_ai_refresh_started": "已開始重新產生，完成後自動替換",
+    "lyric_ai_refresh_failed": "重新產生失敗"
   },
   "Nav": {
     "expand_topbar": "展開頂欄",

@@ -599,6 +599,8 @@
       "hide_secret": "隐藏",
       "ai_summary_concurrency": "AI 并发数",
       "ai_summary_concurrency_desc": "同时调用模型的请求数上限（1～20），AI 摘要与编辑器 AI 写作共用；超出时排队依次执行，AI 写作优先",
+      "lyric_annotation_ttl_days": "歌词特效有效期（天）",
+      "lyric_annotation_ttl_days_desc": "AI 歌词特效的缓存天数（1～365）；过期后读者仍先看到旧特效，后台自动重新生成",
       "section_music": "音乐播放器",
       "section_music_desc": "前台悬浮音乐播放器的歌单来源",
       "music_source": "歌单来源",
@@ -1377,11 +1379,7 @@
     "floating_player": "悬浮音乐播放器",
     "mute": "静音",
     "unmute": "取消静音",
-    "toggle_lyric_mode": "切换歌词附加显示",
     "no_extra_lyric": "暂无翻译或罗马音",
-    "lyric_mode_none": "无附加歌词",
-    "lyric_mode_romaji": "罗马音",
-    "lyric_mode_translation": "翻译",
     "toggle_play_mode": "切换播放模式",
     "play_mode_repeat-all": "列表循环",
     "play_mode_repeat-one": "单曲循环",
@@ -1393,7 +1391,11 @@
     "previous": "上一首",
     "next": "下一首",
     "play": "播放",
-    "pause": "暂停"
+    "pause": "暂停",
+    "show_translation": "显示翻译",
+    "show_romaji": "显示音译",
+    "open_player_page": "打开播放器页",
+    "show_lyric_effects": "歌词特效"
   },
   "Operation": {
     "back_to_home": "返回首页",
@@ -1589,8 +1591,11 @@
       "ncm_cookie_required": "请填写网易云 Cookie",
       "ncm_cookie_invalid": "网易云 Cookie 无效或已过期",
       "ncm_request_failed": "请求网易云 API 失败，请检查服务地址",
+      "music_lyric_source_failed": "请求歌词来源失败",
       "ncm_not_configured": "尚未配置网易云歌单",
-      "invalid_page_link": "链接地址无效：请使用以 / 开头的站内路径或 http(s) 地址"
+      "invalid_page_link": "链接地址无效：请使用以 / 开头的站内路径或 http(s) 地址",
+      "lyric_annotations_unavailable": "当前歌曲没有可用的歌词标注",
+      "lyric_annotations_failed": "歌词标注生成失败，请稍后再试"
     }
   },
   "Role": {
@@ -1846,7 +1851,11 @@
         }
       },
       "lyric_idle": "播放后在这里显示歌词",
-      "no_lyric": "暂无歌词"
+      "no_lyric": "暂无歌词",
+      "audio_error": "音频无法加载",
+      "audio_error_retry": "音频无法加载，点击重试",
+      "buffering": "缓冲中…",
+      "not_in_playlist_short": "不在本站歌单，可在网易云收听"
     },
     "lyricQuote": {
       "name": "歌词摘录",
@@ -1882,9 +1891,6 @@
         "end": "可选，选择结束句后引用一段歌词；留空时只引用起始句",
         "text": "歌词接口不可用或手填时间时显示的歌词文本"
       },
-      "play": "播放",
-      "pause": "暂停",
-      "not_in_playlist": "该歌曲不在博客歌单内，请在网易云音乐收听",
       "loading_lyric": "歌词加载中…",
       "no_lyric": "选择一句歌词",
       "action": {
@@ -2216,8 +2222,43 @@
     "card_scan": "扫码阅读全文"
   },
   "MusicPage": {
-    "placeholder_title": "播放器正在建设中",
-    "placeholder_description": "这里将放置完整的音乐播放器，包括歌单、歌词与播放控制。"
+    "back": "返回",
+    "show_lyrics": "歌词",
+    "show_cover": "封面",
+    "progress": "播放进度",
+    "volume": "音量",
+    "open_playlist": "播放列表",
+    "playlist_title": "播放列表（{count}）",
+    "playlist_description": "在当前歌单中搜索并选择歌曲",
+    "search_placeholder": "搜索歌名、译名、歌手、专辑或 id",
+    "search_empty": "没有匹配的歌曲",
+    "playlist_empty": "歌单为空",
+    "loading": "正在加载歌单",
+    "not_configured_title": "尚未配置歌单",
+    "not_configured_description": "在后台「全局配置」中设置歌单来源后，就可以在这里播放了",
+    "failed_title": "歌单加载失败",
+    "failed_description": "请稍后刷新页面重试",
+    "lyrics_region": "歌词",
+    "lyric_badge_label": "歌词来源",
+    "lyric_source_ncm": "网易云",
+    "lyric_source_qq": "QQ 音乐",
+    "lyric_source_amll": "AMLL TTML",
+    "lyric_source_custom": "自定义 TTML",
+    "lyric_badge_word": "逐字",
+    "lyric_badge_line": "逐行",
+    "lyric_badge_translation": "翻译",
+    "lyric_badge_romanization": "音译",
+    "lyric_badge_none": "无歌词",
+    "lyric_badge_instrumental": "纯音乐",
+    "lyric_footer": "歌词来源：{source}",
+    "lyric_badge_switch": "切换歌词来源",
+    "lyric_badge_auto": "自动（按质量选择）",
+    "lyric_badge_pinned": "已为这首歌固定来源",
+    "lyric_badge_upgrading": "正在获取更高质量的歌词",
+    "lyric_badge_ai_effects": "AI 歌词特效",
+    "lyric_ai_refresh": "重新生成 AI 歌词特效",
+    "lyric_ai_refresh_started": "已开始重新生成，完成后自动替换",
+    "lyric_ai_refresh_failed": "重新生成失败"
   },
   "Nav": {
     "expand_topbar": "展开顶栏",

@@ -51,15 +51,16 @@ function getCardLayout(height: ComponentHeight | null) {
 /**
  * 音乐卡片的展示部分（网易云与自定义音频共用）：封面、标题、副标题、操作按钮，以及可拖动的进度
  * loading 时显示骨架；进度行常显示（不播放时也不隐藏），避免播放开始时把卡片撑开；
- * lyrics 为 5 单位及以上高度时的歌词区
+ * 不能播放时（progress 为空）在进度行的位置显示 note；lyrics 为 5 单位及以上高度时的歌词区
  */
-export function MusicCardView({ cover, title, href, subtitle, action, progress, loading, lyrics }: {
+export function MusicCardView({ cover, title, href, subtitle, action, progress, note, loading, lyrics }: {
   cover?: string
   title?: string
   href?: string
   subtitle?: React.ReactNode
   action?: React.ReactNode
   progress?: MusicCardProgress | null
+  note?: React.ReactNode
   loading?: boolean
   lyrics?: React.ReactNode
 }) {
@@ -69,8 +70,7 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
   return (
     // minmax(0,1fr)：网格项默认不小于内容宽度，过长的一行歌词会把卡片撑宽，导致无法触发横向滚动
     <div className={cn('grid grid-cols-[minmax(0,1fr)] rounded-xl border bg-card text-card-foreground', layout.card)}>
-      {/* 进度行单独占一行：左边缘与标题 / 歌词文字左对齐（靠第 1 列留出封面宽度），右边缘与播放按钮右边对齐。
-          items-start：标题顶部与封面顶部对齐，播放按钮单独居中 */}
+      {/* 封面 | 标题、副标题与进度 | 播放按钮；items-start：标题顶部与封面顶部对齐，播放按钮单独居中 */}
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3.5 gap-y-1">
         {/* 封面 */}
         <div className={cn('relative shrink-0 overflow-hidden rounded-lg bg-muted', layout.cover)}>
@@ -95,12 +95,9 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
                     ? <a href={href} target="_blank" rel="noopener noreferrer" className="block truncate font-semibold leading-tight text-foreground no-underline hover:text-primary">{title}</a>
                     : <p className="truncate font-semibold leading-tight text-foreground">{title}</p>)}
                   {subtitle}
-                  {progress && (
-                    <>
-                      {/* 第 1 列占位：撑住封面宽度，让进度行左边缘正好落在标题左边 */}
-                      <MusicCardProgressRow {...progress} />
-                    </>
-                  )}
+                  {progress
+                    ? <MusicCardProgressRow {...progress} />
+                    : note && <p className="truncate text-xs text-muted-foreground">{note}</p>}
                 </>
               )}
         </div>
@@ -121,11 +118,13 @@ function MusicCardProgressRow({ active, currentTime, duration, onSeek }: MusicCa
   const t = useTranslations('ContentComponents.neteaseSong')
   // 拖动进度时的预览位置（百分比），松开后才真正跳转
   const [dragPercent, setDragPercent] = useState<number | null>(null)
-  const hasDuration = active && !!duration && Number.isFinite(duration)
-  const progress = hasDuration ? Math.min(100, (currentTime / duration) * 100) : 0
-  const shownSeconds = hasDuration && dragPercent != null ? (dragPercent / 100) * duration : currentTime
+  const total = duration && Number.isFinite(duration) ? duration : 0
+  // 只有卡片对应的曲目可以拖动；其余情况已知时长时仍显示总时长，避免显示 --:-- 像是加载失败
+  const hasDuration = active && total > 0
+  const progress = hasDuration ? Math.min(100, (currentTime / total) * 100) : 0
+  const shownSeconds = hasDuration && dragPercent != null ? (dragPercent / 100) * total : currentTime
   const shownTime = formatDurationMMSS(Math.floor(shownSeconds))
-  const totalTime = hasDuration ? formatDurationMMSS(Math.floor(duration)) : '--:--'
+  const totalTime = total > 0 ? formatDurationMMSS(Math.floor(total)) : '--:--'
 
   return (
     <div className="flex items-center gap-2 text-xs leading-none text-muted-foreground tabular-nums">
@@ -141,7 +140,7 @@ function MusicCardProgressRow({ active, currentTime, duration, onSeek }: MusicCa
         onChangeEnd={(value) => {
           setDragPercent(null)
           if (hasDuration)
-            onSeek((value / 100) * duration)
+            onSeek((value / 100) * total)
         }}
       />
       <span className="w-10 shrink-0 text-right">{totalTime}</span>

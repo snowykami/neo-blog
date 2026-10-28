@@ -1,6 +1,7 @@
 import type { LyricQuoteProps } from './schema'
 import { QuoteIcon } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { textParagraphs } from '../content-helpers'
 import { defineContentComponent } from '../define'
 import { LYRIC_QUOTE_SOURCE_FIELDS, lyricQuoteSchema } from './schema'
 
@@ -14,10 +15,11 @@ export default defineContentComponent({
   component: dynamic(() => import('./lyric-quote')),
   icon: QuoteIcon,
   keywords: ['lyric', 'lyrics', 'quote', 'music', 'translation', 'romaji', 'pronunciation', 'geci', 'yinyue', 'fanyi', 'luomayin', '歌词', '摘录', '引用', '音乐', '单曲', '翻译', '发音', '罗马音'],
+  // 降级为引用：多句歌词按行分段，歌曲信息单独一段
   fallback: ({ source, id, title, artist, text }: LyricQuoteProps) => {
     const lyric = text || (source === 'netease' && id > 0 ? `music.163.com/#/song?id=${id}` : '')
     const caption = [title, artist].filter(Boolean).join(' - ')
-    return [['blockquote', {}, caption ? `${lyric} —— ${caption}` : lyric]]
+    return [['blockquote', {}, ...textParagraphs(lyric), ...(caption ? [['p', {}, `—— ${caption}`]] : [])]]
   },
   example: t => ({
     source: 'custom' as const,

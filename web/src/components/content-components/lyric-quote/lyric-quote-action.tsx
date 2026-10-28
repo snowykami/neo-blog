@@ -2,17 +2,17 @@
 
 import type { ContentEditorActionProps } from '../types'
 import type { LyricQuoteInput } from './schema'
-import type { MusicLyrics } from '@/api/music'
 import type { MusicLyricLine } from '@/utils/music-lyric'
 import { QuoteIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useMemo } from 'react'
-import { fetchNcmLyric } from '@/api/music'
 import { Spinner } from '@/components/ui/spinner'
+import { useSongLyrics } from '@/contexts/music-context'
+import { toSingleLineLyrics } from '@/lib/lyrics/from-platform'
 import { cn } from '@/lib/utils'
-import { getExtraLyricLine, LYRIC_PLACEHOLDERS, parseMusicLyrics } from '@/utils/music-lyric'
+import { getExtraLyricLine } from '@/utils/music-lyric'
 import { NeteaseSongSearch } from '../netease-song/netease-song-search'
-import { useCachedRequest } from '../use-cached-request'
+import { buildQuoteLyrics } from './quote-lines'
 
 function formatTimestamp(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000))
@@ -26,11 +26,6 @@ function toMs(value: unknown): number {
   return Number.isFinite(num) && num > 0 ? Math.round(num) : 0
 }
 
-/** 过滤歌词接口返回的占位文本，避免把 no_lyric 当作翻译/发音展示 */
-function cleanLyricLines(lines: MusicLyricLine[]): MusicLyricLine[] {
-  return lines.filter(line => !LYRIC_PLACEHOLDERS.has(line.originalText.trim()))
-}
-
 /**
  * 歌词摘录的「选择歌词」：复用音乐卡片的网易云歌曲搜索选择音源，再按行选择歌词；
  * 依次点击起始句和结束句，选中后把时间点与歌词文本写回表单
@@ -42,45 +37,14 @@ export default function LyricQuoteAction({ values, setValues }: ContentEditorAct
   const authorLyric = values.lyric?.trim() ?? ''
   const authorTranslation = values.translation?.trim() ?? ''
   const authorRomaji = values.romaji?.trim() ?? ''
-  // 网易云模式：作者未填写歌词且已选择歌曲时，按歌曲 ID 拉取歌词用于选句
+  // 网易云模式：作者未填写歌词且已选择歌曲时，取在线歌词用于选句（与文章内展示、播放器同一来源与选择结果）
   const fetchLyric = source === 'netease' && id > 0 && !authorLyric
-  const lyricState = useCachedRequest(fetchLyric ? `ncm-lyric:${id}` : null, () => fetchNcmLyric(id))
-
-  const parsed = useMemo(() => {
-    try {
-      const fetched = fetchLyric && lyricState.status === 'success' ? lyricState.data : null
-      let raw: MusicLyrics | null = fetched
-      if (authorLyric) {
-        raw = {
-          ...(fetched ?? {}),
-          lrc: { lyric: authorLyric, version: 1 },
-          yrc: null,
-        }
-      }
-      if (authorTranslation) {
-        raw = {
-          ...(raw ?? {}),
-          tlyric: { lyric: authorTranslation, version: 1 },
-          ytlrc: null,
-        }
-      }
-      if (authorRomaji) {
-        raw = {
-          ...(raw ?? {}),
-          romalrc: { lyric: authorRomaji, version: 1 },
-          yromalrc: null,
-        }
-      }
-      return raw ? parseMusicLyrics(raw) : null
-    }
-    catch {
-      return null
-    }
-  }, [authorLyric, authorRomaji, authorTranslation, fetchLyric, lyricState])
-
-  const lines = useMemo(() => cleanLyricLines(parsed?.lines ?? []), [parsed])
-  const translationLines = cleanLyricLines(parsed?.translationLines ?? [])
-  const romajiLines = cleanLyricLines(parsed?.romajiLines ?? [])
+  const songLyrics = useSongLyrics(fetchLyric ? id : null)
+  const online = useMemo(() => (songLyrics.status === 'ready' ? toSingleLineLyrics(songLyrics.lyrics) : null), [songLyrics])
+  const { lines, translationLines, romajiLines } = useMemo(
+    () => buildQuoteLyrics({ online, authorLyric, translation: authorTranslation, romaji: authorRomaji }),
+    [authorLyric, authorRomaji, authorTranslation, online],
+  )
 
   const start = toMs(values.start)
   const end = toMs(values.end)
@@ -113,10 +77,8 @@ export default function LyricQuoteAction({ values, setValues }: ContentEditorAct
   const lineHint = (() => {
     if (source === 'custom' && !authorLyric)
       return t('need_lyric')
-    if (fetchLyric && lyricState.status === 'loading')
+    if (fetchLyric && songLyrics.status === 'loading')
       return t('loading')
-    if (fetchLyric && lyricState.status === 'error')
-      return t('failed')
     if (source === 'netease' && id <= 0)
       return t('need_song')
     if (lines.length === 0)
@@ -146,8 +108,8 @@ export default function LyricQuoteAction({ values, setValues }: ContentEditorAct
         </div>
         {lineHint
           ? (
-              <p className={cn('rounded-md border border-dashed px-3 py-2 text-xs', fetchLyric && lyricState.status === 'error' ? 'text-destructive' : 'text-muted-foreground')}>
-                {fetchLyric && lyricState.status === 'loading' && <Spinner className="mr-1.5 inline size-3" />}
+              <p className={cn('rounded-md border border-dashed px-3 py-2 text-xs', 'text-muted-foreground')}>
+                {fetchLyric && songLyrics.status === 'loading' && <Spinner className="mr-1.5 inline size-3" />}
                 {lineHint}
               </p>
             )

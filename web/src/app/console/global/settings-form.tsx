@@ -85,6 +85,7 @@ interface SettingsValues {
   aiApiKey: string
   aiModel: string
   aiSummaryConcurrency: number
+  lyricAnnotationTtlDays: number
 }
 
 type FieldName = keyof SettingsValues
@@ -141,6 +142,7 @@ const STANDALONE_KEYS: Partial<Record<FieldName, { key: string, toValue?: (value
   aiApiKey: { key: 'ai_api_key', toValue: values => values.aiApiKey.trim() },
   aiModel: { key: 'ai_model', toValue: values => values.aiModel.trim() },
   aiSummaryConcurrency: { key: 'ai_summary_concurrency' },
+  lyricAnnotationTtlDays: { key: 'lyric_annotation_ttl_days' },
   // 网易云 API 与 Cookie 仅后端使用，同样只写入独立配置键
   ncmApiBaseUrl: { key: 'ncm_api_base_url', toValue: values => values.ncmApiBaseUrl.trim() },
   ncmCookie: { key: 'ncm_cookie', toValue: values => values.ncmCookie.trim() },
@@ -207,6 +209,7 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     aiApiKey: str('aiApiKey', ''),
     aiModel: str('aiModel', ''),
     aiSummaryConcurrency: num('aiSummaryConcurrency', 3),
+    lyricAnnotationTtlDays: num('lyricAnnotationTtlDays', 7),
   }
 }
 
@@ -254,7 +257,7 @@ const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
   content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
   frontend: ['aboutBackground', 'sidebarCards', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel', 'qweatherApiHost', 'qweatherApiKey'],
   account: ['enableRegister', 'enableRegisterFromOidc', 'verifyCodeCoolDown', 'visitLogRetentionDays'],
-  ai: ['aiApiBaseUrl', 'aiApiKey', 'aiModel', 'aiSummaryConcurrency'],
+  ai: ['aiApiBaseUrl', 'aiApiKey', 'aiModel', 'aiSummaryConcurrency', 'lyricAnnotationTtlDays'],
   rss: ['rssTitle', 'rssAuthor', 'rssCopyright', 'rssLanguage', 'rssImage'],
 }
 
@@ -415,6 +418,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
               <TextField name="aiModel" label={t('ai_model')} description={t('ai_model_desc')} placeholder="gpt-4o-mini / deepseek-chat" />
               <PasswordField name="aiApiKey" label={t('ai_api_key')} description={t('ai_api_key_desc')} wide />
               <NumberField name="aiSummaryConcurrency" label={t('ai_summary_concurrency')} description={t('ai_summary_concurrency_desc')} min={1} max={20} />
+              <NumberField name="lyricAnnotationTtlDays" label={t('lyric_annotation_ttl_days')} description={t('lyric_annotation_ttl_days_desc')} min={1} max={365} />
             </Section>
           </TabsContent>
           <TabsContent value="rss" forceMount className="grid gap-4 data-[state=inactive]:hidden">
