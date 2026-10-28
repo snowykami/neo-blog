@@ -157,7 +157,8 @@ export function MusicPlayerPage() {
                 onCoverClick={() => setView('lyrics')}
                 className={cn('[grid-area:main] lg:[grid-area:hero]', view === 'lyrics' && 'max-lg:hidden')}
               />
-              <MusicLyricStage className={cn('min-h-0 [grid-area:main] lg:[grid-area:stage]', view === 'cover' && 'max-lg:hidden')} />
+              {/* 副歌开唱时随镜头推近略微放大（--stage-push，见 MusicStageEffects） */}
+              <MusicLyricStage className={cn('min-h-0 [grid-area:main] [scale:calc(1+var(--stage-push,0)*0.04)] lg:[grid-area:stage]', view === 'cover' && 'max-lg:hidden')} />
               {/* 与歌词舞台叠在同一网格区域，贴着底部：前奏导语与尾奏热评 */}
               <MusicLyricMoments className={cn('self-end pb-4 [grid-area:main] lg:[grid-area:stage] lg:pb-10', view === 'cover' && 'max-lg:hidden')} />
               <MusicPageControls className="[grid-area:controls]" onOpenPlaylist={() => setPlaylistOpen(true)} />

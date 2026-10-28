@@ -33,7 +33,9 @@ function subscribeReducedMotion(listener: () => void) {
  * 播放器的全屏特效（叠在动态背景之上、内容之下）：播放器页铺满视口；contained 时铺满最近的定位祖先（悬浮小窗），粒子缩小、数量减少，种类不变。
  * 背景呼吸（唱到 swell / shake 强调时亮起，每段副歌开唱时更强烈地爆发一次）、背景染色（唱到带颜色的强调时泛起该颜色）、粒子场景（歌词标注的 scene）。
  * 背景还会跟随鼓点轻轻呼吸（Web Audio 节拍分析，只在桌面端、网易云歌单时于用户手势中接入，见 audio-beat.ts）；
- * 呼吸的颜色取封面主色（--lyric-accent）。关闭歌词特效或系统要求减少动态效果时不渲染；逐帧更新直接写 DOM / canvas，不触发 React 渲染
+ * 呼吸的颜色取封面主色（--lyric-accent）。播放器页（非 contained）在副歌开唱时还会「镜头推近」：把推近程度写入父元素的 --stage-push（0 ~ 1），
+ * 背景、歌词区与本层各按不同倍数放大（越靠前放大越多，有景深感），见 music-player-page.tsx。
+ * 关闭歌词特效或系统要求减少动态效果时不渲染；逐帧更新直接写 DOM / canvas，不触发 React 渲染
  */
 export function MusicStageEffects({ contained = false }: { contained?: boolean }) {
   const { lyrics, isPlaying, getAudio, showLyricEffects, audioAnalysable, enableAudioAnalysis } = useMusic()
@@ -42,6 +44,7 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
   const pulseRef = useRef<HTMLDivElement>(null)
   const tintRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   // 逐帧循环通过 ref 读取，不随渲染重启
   const stateRef = useRef({ lyrics, isPlaying })
   const beatRef = useRef<{ graph: BeatGraph, state: BeatState } | null>(null)
@@ -85,6 +88,9 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
     let pulseOpacity = ''
     let tintOpacity = ''
     let tintColor = ''
+    let push = ''
+    // 镜头推近写到页面根元素上（小窗不推近）
+    const pushTarget = contained ? null : rootRef.current?.parentElement ?? null
     const tick = (now: number) => {
       // 切到后台再回来时不一次推进太久
       const dt = Math.min(0.05, (now - last) / 1000)
@@ -115,6 +121,11 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
         tintColor = LYRIC_COLORS[tint.color]
         tintEl.style.setProperty('--stage-tint', tintColor)
       }
+      const nextPush = (signals?.push ?? 0).toFixed(3)
+      if (pushTarget && nextPush !== push) {
+        push = nextPush
+        pushTarget.style.setProperty('--stage-push', nextPush)
+      }
       particles.update(dt, signals?.scene ?? null, isPlaying)
       frame = requestAnimationFrame(tick)
     }
@@ -125,13 +136,14 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
       particles.clear()
       pulseEl.style.opacity = '0'
       tintEl.style.opacity = '0'
+      pushTarget?.style.removeProperty('--stage-push')
     }
   }, [contained, enabled, getAudio])
 
   if (!enabled)
     return null
   return (
-    <div aria-hidden className={cn('pointer-events-none inset-0 overflow-hidden', contained ? 'absolute' : 'fixed')}>
+    <div ref={rootRef} aria-hidden className={cn('pointer-events-none inset-0 overflow-hidden [scale:calc(1+var(--stage-push,0)*0.08)]', contained ? 'absolute' : 'fixed')}>
       <div
         ref={tintRef}
         className="absolute inset-0 opacity-0 mix-blend-screen"

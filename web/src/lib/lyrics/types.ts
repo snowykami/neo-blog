@@ -42,8 +42,11 @@ export interface LyricRomanWord {
   word: number
 }
 
-/** 强调特效的类型：swell 放大 + 辉光 + 上浮（默认），glow 只有辉光，wave 逐字波浪上浮，shake 震颤，focus 由虚到实 */
-export type LyricEffect = 'swell' | 'glow' | 'wave' | 'shake' | 'focus'
+/**
+ * 强调特效的类型：swell 放大 + 辉光 + 上浮（默认），glow 只有辉光，wave 逐字波浪上浮，shake 震颤，focus 由虚到实，
+ * dissolve 唱完后化成颗粒消散，shimmer 流光扫过，heartbeat 心跳（时间曲线见 word-effects.ts）
+ */
+export type LyricEffect = 'swell' | 'glow' | 'wave' | 'shake' | 'focus' | 'dissolve' | 'shimmer' | 'heartbeat'
 
 export type LyricMood = 'calm' | 'bright' | 'sad' | 'intense'
 

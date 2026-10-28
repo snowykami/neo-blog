@@ -10,7 +10,8 @@ import { cn } from '@/lib/utils'
  */
 export function MusicBackground({ cover, contained = false }: { cover?: string, contained?: boolean }) {
   return (
-    <div aria-hidden className={cn('pointer-events-none inset-0 overflow-hidden bg-neutral-950', contained ? 'absolute' : 'fixed')}>
+    // 播放器页副歌开唱时的镜头推近（--stage-push，见 MusicStageEffects），小窗没有这个变量
+    <div aria-hidden className={cn('pointer-events-none inset-0 overflow-hidden bg-neutral-950 [scale:calc(1+var(--stage-push,0)*0.06)]', contained ? 'absolute' : 'fixed')}>
       {cover && (
         <SafeImage
           // 换封面时重新挂载以触发淡入

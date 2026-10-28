@@ -84,6 +84,22 @@
   transform-origin: 50% 80%;
 }
 
+/* 流光：扫动时字的颜色由背景绘制（光带 + 底色），裁剪到字形 */
+.lyric-word--fx-shimmer .lyric-char {
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* 消散特效的颗粒层（dissolve-grains.ts） */
+.lyric-grains {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 /*
  * 字体（来自歌词标注，与后端 lyricAnnotationFontList 一致）：全曲字体作用于原文，短语字体覆盖全曲字体。
  * 字体栈按「系统字体 → 自托管网页字体（lyric-fonts.ts）→ 通用字体」逐字回退：电脑上有系统字体时直接使用、不下载网页字体，

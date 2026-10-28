@@ -2,11 +2,13 @@ import type { LyricEmphasis } from './types'
 import { LYRIC_COLORS } from './colors'
 import { swellCurve } from './easing'
 import { holdVibrato, vibratoWave } from './vibrato'
+import { dissolveState, heartbeatLevel, shimmerCenter } from './word-effects'
 
 /**
  * 导航栏与单曲卡的单行逐字歌词的简化强调特效（见 spec 8.2）：沿用播放器的强调分组（规则 + 歌词标注），
  * 但只做轻量的动效，幅度比播放器小，避免在一行高的导航栏里溢出：
- * - swell 放大 + 辉光；glow 辉光；wave 上浮；shake 抖动（带长音时为延迟的颤音，见 vibrato.ts）；focus 由虚到实
+ * - swell 放大 + 辉光；glow 辉光；wave 上浮；shake 抖动（带长音时为延迟的颤音，见 vibrato.ts）；focus 由虚到实；
+ *   heartbeat 随双拍轻跳；shimmer 光带经过的词依次亮起；dissolve 唱完后变淡、变虚并向右飘（不生成颗粒），之后恢复
  * - 指定了颜色时随演唱上色，唱过后保留部分颜色；factor 为 0 或减少动态效果时只上色
  */
 
@@ -23,11 +25,12 @@ export interface NavWordStyle {
   transform: string
   textShadow: string
   filter: string
+  opacity: string
   // 写在已唱部分（高亮层）上
   color: string
 }
 
-const NONE: NavWordStyle = { transform: '', textShadow: '', filter: '', color: '' }
+const NONE: NavWordStyle = { transform: '', textShadow: '', filter: '', opacity: '', color: '' }
 
 /** 一组强调中第 i 个词（共 count 个）在 timeMs 时的样式；motion 为 false 时只上色 */
 export function navEmphasisStyle(group: LyricEmphasis, i: number, count: number, timeMs: number, motion: boolean): NavWordStyle {
@@ -86,12 +89,35 @@ export function navEmphasisStyle(group: LyricEmphasis, i: number, count: number,
       filter = `blur(${blur.toFixed(3)}em)`
     glow = v * (0.2 + 0.3 * f)
   }
+  else if (group.effect === 'heartbeat') {
+    const beat = heartbeatLevel(group.start, group.end, timeMs)
+    scale = 1 + v * 0.03 * f + beat * 0.1 * f
+    x = (i - (count - 1) / 2) * beat * 0.04 * f
+    glow = beat * (0.3 + 0.3 * f)
+  }
+  else if (group.effect === 'shimmer') {
+    // 导航栏的字很小，不画光带：光带经过的词依次亮起
+    const shine = shimmerCenter(group.start, timeMs, count)
+    glow = shine == null ? v * 0.3 * f : Math.max(0, 1 - Math.abs(shine - i - 0.5)) * 0.9
+    scale = 1 + v * 0.03 * f
+  }
+  let opacity = ''
+  if (group.effect === 'dissolve') {
+    const amount = dissolveState(group.start, group.end, i, count, timeMs).amount
+    if (amount > 0.002) {
+      opacity = (1 - amount).toFixed(3)
+      filter = `blur(${(amount * 0.06).toFixed(3)}em)`
+      x += amount * 0.12
+    }
+    scale = 1 + v * 0.03 * f
+  }
 
   const moved = Math.abs(scale - 1) > 0.0005 || Math.abs(x) > 0.0005 || Math.abs(y) > 0.0005
   return {
     transform: moved ? `translate(${x.toFixed(3)}em, ${y.toFixed(3)}em) scale(${scale.toFixed(3)})` : '',
     textShadow: glow > 0.005 ? `0 0 0.35em color-mix(in srgb, ${tintColor ?? 'currentColor'} ${(glow * 100).toFixed(1)}%, transparent)` : '',
     filter,
+    opacity,
     color,
   }
 }

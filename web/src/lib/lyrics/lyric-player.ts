@@ -22,12 +22,14 @@ import {
   LYRIC_USER_SCROLL_HOLD_MS,
   LYRIC_WORD_FLOAT_EM,
 } from './config'
+import { DissolveGrains } from './dissolve-grains'
 import { swellCurve } from './easing'
 import { interludeDot } from './interlude'
 import { Spring } from './spring'
 import { buildTimeline, getTimelineState, getWordProgress } from './timeline'
 import { EMPTY_LYRICS } from './types'
 import { holdVibrato, VIBRATO_HZ, vibratoWave } from './vibrato'
+import { dissolveState, heartbeatLevel, shimmerCenter } from './word-effects'
 
 export interface LyricPlayerOptions {
   // 当前播放进度（秒），每帧读取；没有音频时返回 null
@@ -65,6 +67,11 @@ interface CharView {
   filter: string
   // 下划线 / 删除线画出的进度（--lyric-line）
   line: string
+  // 流光的背景（光带 + 底色，裁剪到字形）与消散的不透明度
+  background: string
+  opacity: string
+  // 消散：已为这个时刻生成过颗粒（往回拖动进度后重新生成）
+  dissolvedAt: number | null
 }
 
 /** 一组强调的词拆成的单字 */
@@ -171,7 +178,7 @@ function allowLyricWebFonts() {
 /** 把强调的词拆成单字放进 wordEl，非空白的字加入 chars 逐字演出；同时带上该组的字体与字形 */
 function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[], group: LyricEmphasis) {
   const doc = wordEl.ownerDocument
-  wordEl.classList.add('lyric-word--emphasis', ...(group.styles ?? []).map(style => `lyric-word--${style}`))
+  wordEl.classList.add('lyric-word--emphasis', `lyric-word--fx-${group.effect}`, ...(group.styles ?? []).map(style => `lyric-word--${style}`))
   if (group.font)
     wordEl.dataset.font = group.font
   for (const char of splitGraphemes(preserveEdgeSpaces(text))) {
@@ -180,7 +187,7 @@ function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[],
     charEl.textContent = char
     wordEl.append(charEl)
     if (char.trim())
-      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '', line: '' })
+      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '', line: '', background: '', opacity: '', dissolvedAt: null })
     else
       charEl.classList.add('lyric-char--space')
   }
@@ -211,6 +218,8 @@ export class LyricPlayer {
   private suppressClick = false
 
   private resizeObserver: ResizeObserver | null = null
+  // 消散特效的颗粒层（第一次有字消散时才创建 canvas）
+  private readonly grains: DissolveGrains
   private readonly listeners: [string, EventListener, AddEventListenerOptions?][]
 
   private readonly interludeHeight: number
@@ -223,6 +232,7 @@ export class LyricPlayer {
       container.classList.add('lyric-player--no-webfonts')
     if (options.compact)
       container.classList.add('lyric-player--compact')
+    this.grains = new DissolveGrains(container)
     this.interludeHeight = options.compact ? INTERLUDE_HEIGHT_COMPACT_PX : INTERLUDE_HEIGHT_PX
     this.alignPosition = options.compact ? COMPACT_ALIGN_POSITION : LYRIC_ALIGN_POSITION
     this.listeners = [
@@ -252,6 +262,7 @@ export class LyricPlayer {
     // 只移除引擎自己创建的节点，不碰容器里可能由其他代码（如 React）管理的内容
     this.views.forEach(view => view.el.remove())
     this.views = []
+    this.grains.dispose()
     this.container.classList.remove('lyric-player', 'lyric-player--compact', 'lyric-player--no-roman', 'lyric-player--no-webfonts')
     delete this.container.dataset.lyricFont
   }
@@ -266,6 +277,7 @@ export class LyricPlayer {
     else
       delete this.container.dataset.lyricFont
     this.items = buildTimeline(lyrics.lines)
+    this.grains.clear()
     this.manual = null
     this.lastTimeMs = null
     this.build()
@@ -508,12 +520,16 @@ export class LyricPlayer {
     this.activeLines = new Set(this.state.active)
     const focusChanged = this.state.focus !== previousFocus
 
+    // 跳转后旧的消散颗粒不再对应当前歌词
+    if (this.teleport)
+      this.grains.clear()
     const animating = this.layout(dt, now, focusChanged)
     this.paint(timeMs)
+    const grains = this.grains.step(playing ? dt : 0)
 
     const teleported = this.teleport
     this.teleport = false
-    if (playing || animating || this.manual || teleported)
+    if (playing || animating || this.manual || teleported || (grains && playing))
       this.wake()
   }
 
@@ -731,6 +747,9 @@ export class LyricPlayer {
       const stagger = (duration * (wave ? 1 / 1.5 : EMPHASIS_STAGGER_RATIO)) / Math.max(1, count)
       // 长音：放大到峰值后保持到长音唱完再收住；颤音从延迟后渐强，随长音结束收住
       const hold = group.effect === 'shake' && group.hold ? holdVibrato(group.hold, timeMs) : null
+      // 流光的光带位置、心跳的强度（整个词同步）
+      const shine = group.effect === 'shimmer' ? shimmerCenter(group.start, timeMs, count) : null
+      const beat = group.effect === 'heartbeat' ? heartbeatLevel(group.start, group.end, timeMs) : 0
       chars.forEach((char, i) => {
         const begin = group.start + stagger * i
         let v = swellCurve((timeMs - begin) / duration)
@@ -743,6 +762,25 @@ export class LyricPlayer {
         let color = ''
         let filter = ''
         let line = ''
+        let background = ''
+        let opacity = ''
+        let drift = 0
+        if (group.effect === 'dissolve' && f > 0) {
+          // 消散：字唱完后淡出、变虚并向右飘，同时生成颗粒；过一会儿慢慢恢复
+          const dissolve = dissolveState(group.start, group.end, i, count, timeMs)
+          if (timeMs < dissolve.at) {
+            char.dissolvedAt = null
+          }
+          else if (char.dissolvedAt !== dissolve.at && timeMs - dissolve.at < 300) {
+            char.dissolvedAt = dissolve.at
+            this.grains.spawn(char.el)
+          }
+          if (dissolve.amount > 0.002) {
+            opacity = (1 - dissolve.amount).toFixed(3)
+            filter = `blur(${(dissolve.amount * 0.08).toFixed(3)}em)`
+            drift = dissolve.amount * 0.15
+          }
+        }
         if (lined)
           line = Math.min(1, Math.max(0, (timeMs - group.start - charMs * i) / charMs)).toFixed(3)
         if (group.effect === 'focus' && active && f > 0) {
@@ -797,6 +835,16 @@ export class LyricPlayer {
             glow = v * (0.2 + 0.3 * f)
             radius = 0.4
           }
+          else if (group.effect === 'heartbeat') {
+            // 心跳：整个词随双拍放大，左右的字向外轻推，辉光随拍闪
+            scale = 1 + v * 0.04 * f + beat * 0.16 * f
+            x = (i - (count - 1) / 2) * beat * 0.06 * f
+            glow = v * (0.2 + 0.2 * f) + beat * (0.3 + 0.35 * f)
+          }
+          else if (group.effect === 'shimmer' || group.effect === 'dissolve') {
+            scale = 1 + v * 0.04 * f
+            glow = shine == null ? v * (0.25 + 0.3 * f) : 0
+          }
           else {
             y = -lift * (0.08 + 0.14 * f)
             scale = 1 + lift * 0.05 * f
@@ -804,6 +852,16 @@ export class LyricPlayer {
           transform = `translate(${x.toFixed(3)}em, ${y.toFixed(3)}em) scale(${scale.toFixed(3)})`
           if (glow > 0.005)
             shadow = `0 0 ${radius}em color-mix(in srgb, ${tintColor ?? 'var(--lyric-glow, var(--lyric-accent, var(--lyric-color, #fff)))'} ${(glow * 100).toFixed(1)}%, transparent)`
+        }
+        if (drift > 0)
+          transform = `${transform} translateX(${drift.toFixed(3)}em)`.trim()
+        if (shine != null) {
+          // 流光：字的颜色改由背景绘制（裁剪到字形，见 lyric-player.css），叠上一道光带；文字本身透明，辉光会盖住背景所以不用
+          const pos = (shine - i) * 100
+          const base = color ? color.replace('currentColor', 'var(--lyric-color, #fff)') : 'var(--lyric-color, #fff)'
+          background = `linear-gradient(105deg, transparent ${(pos - 40).toFixed(1)}%, rgb(255 250 230 / 0.95) ${pos.toFixed(1)}%, transparent ${(pos + 40).toFixed(1)}%), linear-gradient(${base}, ${base})`
+          color = 'transparent'
+          shadow = ''
         }
         if (transform !== char.transform) {
           char.transform = transform
@@ -824,6 +882,14 @@ export class LyricPlayer {
         if (line !== char.line) {
           char.line = line
           char.el.style.setProperty('--lyric-line', line)
+        }
+        if (background !== char.background) {
+          char.background = background
+          char.el.style.backgroundImage = background
+        }
+        if (opacity !== char.opacity) {
+          char.opacity = opacity
+          char.el.style.opacity = opacity
         }
       })
     }
@@ -847,6 +913,14 @@ export class LyricPlayer {
         if (char.filter) {
           char.filter = ''
           char.el.style.filter = ''
+        }
+        if (char.background) {
+          char.background = ''
+          char.el.style.backgroundImage = ''
+        }
+        if (char.opacity) {
+          char.opacity = ''
+          char.el.style.opacity = ''
         }
         // 不演出时下划线 / 删除线完整显示（CSS 默认值）
         if (char.line) {

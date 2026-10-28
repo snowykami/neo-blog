@@ -1,17 +1,21 @@
 import type { LyricColor, LyricScene, ResolvedLyrics } from './types'
 import { swellCurve } from './easing'
+import { heartbeatLevel } from './word-effects'
 
 /**
  * 播放器页的全屏特效信号（纯函数，由 MusicStageEffects 每帧调用）：
  * - pulse 背景呼吸：唱到 swell / shake 强调时随起落曲线亮起，强度取 factor
  * - tint 背景染色：唱到带颜色的强调时，背景泛起该颜色，唱完后慢慢淡出
  * - burst 副歌爆发：每段副歌的第一行开唱时迅速亮起，再慢慢回落
+ * - push 镜头推近：同样在副歌第一行开唱时触发，约 0.45 秒推近、2.6 秒缓缓回落（由页面换算成背景与歌词区的放大）
+ * - 心跳强调（heartbeat）让背景随双拍跳动
  * - scene 粒子场景（含颜色主题）：从标了 scene 的行开始，持续 SCENE_MAX_LINES 行，或到下一个标了 scene 的行为止
  */
 
 export interface StageSignals {
   pulse: number
   burst: number
+  push: number
   tint: { color: LyricColor, strength: number } | null
   scene: StageScene | null
 }
@@ -29,24 +33,33 @@ const TINT_RELEASE_MS = 1500
 // 副歌爆发的亮起与回落时长
 const BURST_ATTACK_MS = 200
 const BURST_RELEASE_MS = 1800
+// 镜头推近的推近与回落时长
+const PUSH_ATTACK_MS = 450
+const PUSH_RELEASE_MS = 2600
 // 粒子场景持续的行数（含标注行）
 export const SCENE_MAX_LINES = 8
 
-const NO_SIGNALS: StageSignals = { pulse: 0, burst: 0, tint: null, scene: null }
+const NO_SIGNALS: StageSignals = { pulse: 0, burst: 0, push: 0, tint: null, scene: null }
 
 export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number): StageSignals {
   if (lyrics.lines.length === 0)
     return NO_SIGNALS
   let pulse = 0
   let burst = 0
+  let push = 0
   let tint: StageSignals['tint'] = null
   for (const line of lyrics.lines) {
-    if (line.chorusStart)
+    if (line.chorusStart) {
       burst = Math.max(burst, burstEnvelope(line.start, timeMs))
+      push = Math.max(push, pushEnvelope(line.start, timeMs))
+    }
     for (const group of line.emphasis ?? []) {
       if (group.effect === 'swell' || group.effect === 'shake') {
         const duration = Math.max(PULSE_MIN_MS, group.end - group.start)
         pulse = Math.max(pulse, swellCurve((timeMs - group.start) / duration) * group.factor)
+      }
+      else if (group.effect === 'heartbeat') {
+        pulse = Math.max(pulse, heartbeatLevel(group.start, group.end, timeMs) * group.factor)
       }
       if (group.color) {
         const strength = tintEnvelope(group.start, group.end, timeMs)
@@ -55,7 +68,7 @@ export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number): StageSi
       }
     }
   }
-  return { pulse, burst, tint, scene: sceneAt(lyrics, timeMs) }
+  return { pulse, burst, push, tint, scene: sceneAt(lyrics, timeMs) }
 }
 
 /** 副歌爆发包络：开唱后 BURST_ATTACK_MS 内升满，再按缓出曲线在 BURST_RELEASE_MS 内回落 */
@@ -66,6 +79,17 @@ function burstEnvelope(start: number, timeMs: number) {
   if (t <= BURST_ATTACK_MS)
     return t / BURST_ATTACK_MS
   return (1 - (t - BURST_ATTACK_MS) / BURST_RELEASE_MS) ** 2
+}
+
+/** 镜头推近包络：开唱后 PUSH_ATTACK_MS 内缓出地推近，再在 PUSH_RELEASE_MS 内缓缓回落 */
+function pushEnvelope(start: number, timeMs: number) {
+  const t = timeMs - start
+  if (t < 0 || t > PUSH_ATTACK_MS + PUSH_RELEASE_MS)
+    return 0
+  if (t <= PUSH_ATTACK_MS)
+    return 1 - (1 - t / PUSH_ATTACK_MS) ** 3
+  const back = (t - PUSH_ATTACK_MS) / PUSH_RELEASE_MS
+  return 1 - back * back * (3 - 2 * back)
 }
 
 /** 染色包络：开始后 TINT_ATTACK_MS 内升满，保持到结束，之后 TINT_RELEASE_MS 内淡出 */

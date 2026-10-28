@@ -46,7 +46,7 @@ interface NavLyricLayout {
  * 当前一行歌词（导航栏、文章内单曲卡共用）：当前行超出容器宽度时水平滚动
  * - 逐行歌词：先停留约 10%，再匀速滚动，在约 88% 行时长处露出结尾
  * - 逐字歌词：跟随当前演唱位置滚动，使其保持在可视区域约 65% 处；开启歌词特效时沿用播放器的强调分组（含歌词标注），
- *   做简化的特效（放大、辉光、上浮、抖动与长音颤音、由虚到实、上色与粗体 / 斜体，见 lib/lyrics/nav-emphasis.ts）
+ *   做简化的特效（放大、辉光、上浮、抖动与长音颤音、由虚到实、心跳、流光、消散、上色与粗体 / 斜体，见 lib/lyrics/nav-emphasis.ts）
  * 偏移量、逐字高亮与特效均在 requestAnimationFrame 中直接写 DOM，不触发逐帧 React 渲染
  */
 export function LyricLine() {
@@ -163,6 +163,8 @@ export function LyricLine() {
               word.style.textShadow = style.textShadow
             if (last?.filter !== style.filter)
               word.style.filter = style.filter
+            if (last?.opacity !== style.opacity)
+              word.style.opacity = style.opacity
             if (last?.color !== style.color)
               fill.style.color = style.color
             wordStyles.set(word, style)
