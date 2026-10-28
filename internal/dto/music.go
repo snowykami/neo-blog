@@ -132,7 +132,7 @@ type MusicLyricAnnotationPhrase struct {
 	Text   string `json:"text"`
 	Effect string `json:"effect"`
 	Color  string `json:"color,omitempty"`
-	// 短语字体（字体表中的名称）与字形（bold / italic / underline / strike），均可为空
+	// 短语字体（字体表中的名称）与字形（bold / italic / underline），均可为空
 	Font   string   `json:"font,omitempty"`
 	Styles []string `json:"styles,omitempty"`
 }

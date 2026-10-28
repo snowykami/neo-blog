@@ -53,7 +53,8 @@ func TestSanitizeLyricAnnotations(t *testing.T) {
 		}},
 		// 忽略大小写与标点匹配原文；未知情绪丢弃；副歌起点同时是副歌行；未知场景（第 4 行的 tornado）丢弃，该行没有其他标注而被去掉
 		{Text: lines[1], Chorus: true, ChorusStart: true, Scene: "petals", SceneColor: "cherry-blossom", Phrases: []dto.MusicLyricAnnotationPhrase{
-			{Text: "I LOVE you!", Effect: "shake", Color: "starry-blue", Styles: []string{"strike", "underline"}},
+			// 删除线已去掉，旧输出中的 strike 丢弃
+			{Text: "I LOVE you!", Effect: "shake", Color: "starry-blue", Styles: []string{"underline"}},
 		}},
 	}}
 	if !reflect.DeepEqual(got, want) {

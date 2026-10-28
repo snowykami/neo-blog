@@ -66,8 +66,8 @@ export type LyricColor
 /** 歌词字体（来自歌词标注，与后端 lyricAnnotationFontList 一致），字体栈见 lyric-player.css */
 export type LyricFont = 'song' | 'kai' | 'xingkai' | 'fangsong' | 'round' | 'mono' | 'script'
 
-/** 短语字形：粗体、斜体、下划线、删除线（下划线与删除线在演唱时逐字画出） */
-export type LyricTextStyle = 'bold' | 'italic' | 'underline' | 'strike'
+/** 短语字形：粗体、斜体、下划线（下划线在演唱时逐字画出） */
+export type LyricTextStyle = 'bold' | 'italic' | 'underline'
 
 /**
  * 一组强调的词：words[from, to)，在 [start, end) 内演出，factor 为强度（0 ~ 1，为 0 时不做动效、只保留样式），

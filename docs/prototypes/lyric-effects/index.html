@@ -53,7 +53,6 @@
   .ch::after { content: ''; position: absolute; left: 0; right: 0; height: .07em; border-radius: .04em; background: var(--hi, #fff);
     transform-origin: left center; transform: scaleX(var(--line, 0)); opacity: 0; }
   .ch.u::after { bottom: .06em; opacity: 1; }
-  .ch.s::after { top: 52%; opacity: 1; }
   .roman { display: block; text-align: center; font-size: 12px; font-weight: 500; margin-top: 2px; letter-spacing: 0; }
   .note { position: absolute; left: 0; right: 0; bottom: 18px; text-align: center; font-size: 13px; color: #ffffffd0; opacity: 0; transition: opacity .8s; padding: 0 30px; }
   .note small { display: block; font-size: 11px; color: #ffffff80; }
@@ -166,7 +165,7 @@ function paintLine(line, groups, t, { glowBase = '#ffffff', amp = 1, lift = true
       else if (g.effect === 'wave') { y = -lf * (0.08 + 0.14 * f); scale = 1 + lf * 0.05 * f }
       let color = null
       if (tint) { const k = Math.max(v * 0.85, t >= begin ? 0.6 : 0); if (k > 0.005) color = `color-mix(in srgb, ${tint} ${(k * 100).toFixed(1)}%, #ffffff)` }
-      const ln = g.styles && (g.styles.includes('underline') || g.styles.includes('strike')) ? clamp01((t - g.start - charMs * i) / charMs) : null
+      const ln = g.styles && g.styles.includes('underline') ? clamp01((t - g.start - charMs * i) / charMs) : null
       fx.set(g.from + i, { scale: 1 + (scale - 1) * amp, x: x * amp, y: y * amp, glow, blur: blur * amp, radius, color, glowColor: tint || glowBase, ln, g })
     }
   }
@@ -199,7 +198,6 @@ function applyStyles(line, g) {
     if (g.styles?.includes('bold')) el.style.fontWeight = 900
     if (g.styles?.includes('italic')) el.style.fontStyle = 'italic'
     if (g.styles?.includes('underline')) el.classList.add('u')
-    if (g.styles?.includes('strike')) el.classList.add('s')
     if (g.font) el.style.fontFamily = FONTS[g.font][1]
   }
 }
@@ -335,7 +333,7 @@ section('二、词强调特效（5 种 + 长音颤音）', '规则：唱满 1 �
 ])
 
 // ---------- 三、词样式 ----------
-section('三、词样式（AI 标注）', '与特效叠加使用：颜色 32 种、字体 7 种、字形 4 种', [
+section('三、词样式（AI 标注）', '与特效叠加使用：颜色 32 种、字体 7 种、字形 3 种（删除线已去掉，改用消散）', [
   { title: '上色（32 色语义色板）', tags: [['ai', 'AI 标注']], desc: '唱到时逐渐染上颜色（峰值 85%），唱过后在高亮行内保留约 60%；辉光同色。颜色按意象挑选，全曲同一意象颜色一致。',
     options: { color: 'cherry-blossom' }, chips: () => Object.entries(COLORS).map(([k, [hex, name]]) => ({ key: 'color', value: k, label: name, dot: hex })),
     build(stage, o) { const line = buildLine(stage, '樱花 落在你的肩上'); const g = group(line, 0, 2, { effect: 'glow', color: o.color }); const g2 = group(line, 7, 9, { effect: 'swell', color: o.color }); return { duration: line.end, frame: t => paintLine(line, [g, g2], t) } } },
@@ -346,8 +344,6 @@ section('三、词样式（AI 标注）', '与特效叠加使用：颜色 32 种
     build(stage) { const line = buildLine(stage, '我发誓 她只是轻声说'); const a = group(line, 0, 3, { effect: 'swell', styles: ['bold'] }); const b = group(line, 7, 10, { effect: 'glow', styles: ['italic'], color: 'lavender' }); applyStyles(line, a); applyStyles(line, b); return { duration: line.end, frame: t => paintLine(line, [a, b], t) } } },
   { title: '下划线：逐字画出', tags: [['ai', 'AI 标注']], desc: '誓言、承诺、「一定」「永远」这类要被记住的词，唱到时每个字在自己的演唱时段内从左到右画出下划线。',
     build(stage) { const line = buildLine(stage, '我会 永远 记得你', { ms: 450 }); const g = group(line, 3, 5, { effect: 'swell', styles: ['underline'], color: 'gold' }); applyStyles(line, g); return { duration: line.end, frame: t => paintLine(line, [g], t) } } },
-  { title: '删除线：逐字划掉', tags: [['ai', 'AI 标注']], desc: '被否定、被放弃、被推翻或反讽的词（「不再」「假装」「说好的」），唱到时逐字划掉。',
-    build(stage) { const line = buildLine(stage, '说好的未来 不再提起', { ms: 420 }); const g = group(line, 0, 5, { effect: 'glow', styles: ['strike'], color: 'rain' }); applyStyles(line, g); return { duration: line.end, frame: t => paintLine(line, [g], t) } } },
 ])
 
 // ---------- 四、行级 ----------
@@ -709,7 +705,7 @@ for (const s of SECTIONS) {
   sec.appendChild(grid); main.appendChild(sec)
   counts.push([s.title.replace(/^.、/, '').replace(/（.*）/, ''), s.cards.length])
 }
-document.getElementById('summary').innerHTML = `<span class="pill">共 <b>${total}</b> 张演示</span>` + [['词强调特效', '5 种 + 长音颤音'], ['颜色', '32 种'], ['字体', '7 种'], ['字形', '4 种'], ['情绪色温', '4 种'], ['粒子场景', '18 种'], ['舞台效果', '5 种'], ['文字时刻', '4 种'], ['基础引擎', '5 项'], ['候选新动效', '5 个']].map(([a, b]) => `<span class="pill">${a} <b>${b}</b></span>`).join('')
+document.getElementById('summary').innerHTML = `<span class="pill">共 <b>${total}</b> 张演示</span>` + [['词强调特效', '5 种 + 长音颤音'], ['颜色', '32 种'], ['字体', '7 种'], ['字形', '3 种'], ['情绪色温', '4 种'], ['粒子场景', '18 种'], ['舞台效果', '5 种'], ['文字时刻', '4 种'], ['基础引擎', '5 项'], ['候选新动效', '5 个']].map(([a, b]) => `<span class="pill">${a} <b>${b}</b></span>`).join('')
 </script>
 </body>
 </html>

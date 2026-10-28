@@ -65,7 +65,7 @@ interface CharView {
   shadow: string
   color: string
   filter: string
-  // 下划线 / 删除线画出的进度（--lyric-line）
+  // 下划线画出的进度（--lyric-line）
   line: string
   // 流光的背景（光带 + 底色，裁剪到字形）与消散的不透明度
   background: string
@@ -736,7 +736,7 @@ export class LyricPlayer {
    * swell 放大 + 辉光 + 上浮，glow 只发光（几乎不放大），wave 不发光、逐字波浪上浮，
    * shake 演唱时快速细微地抖动（带长音时为颤音：先放大，唱了一会儿后整个词起伏颤动，见 vibrato.ts），
    * focus 在高亮行内先模糊、唱到时变清晰。强度 factor 决定幅度，为 0 时不做动效。
-   * 带下划线 / 删除线字形的组：每个字在自己的演唱时段内从左到右画出线条
+   * 带下划线字形的组：每个字在自己的演唱时段内从左到右画出下划线
    * 指定了颜色的组：字随演出逐渐上色（辉光也用该颜色），唱过后在高亮行内保留部分颜色
    */
   private paintEmphasis(view: ItemView, active: boolean, timeMs: number) {
@@ -747,8 +747,8 @@ export class LyricPlayer {
       const count = chars.length
       const wave = group.effect === 'wave'
       const tintColor = group.color ? LYRIC_COLORS[group.color] : null
-      // 下划线 / 删除线：每个字在自己的演唱时段内从左到右画出
-      const lined = group.styles?.some(style => style === 'underline' || style === 'strike')
+      // 下划线：每个字在自己的演唱时段内从左到右画出
+      const lined = group.styles?.includes('underline')
       const charMs = Math.max(1, (group.end - group.start) / Math.max(1, count))
       // 波浪的字间错开更明显
       const stagger = (duration * (wave ? 1 / 1.5 : EMPHASIS_STAGGER_RATIO)) / Math.max(1, count)
@@ -929,7 +929,7 @@ export class LyricPlayer {
           char.opacity = ''
           char.el.style.opacity = ''
         }
-        // 不演出时下划线 / 删除线完整显示（CSS 默认值）
+        // 不演出时下划线完整显示（CSS 默认值）
         if (char.line) {
           char.line = ''
           char.el.style.removeProperty('--lyric-line')

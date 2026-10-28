@@ -54,6 +54,7 @@ const ANNOTATED_MIN_FACTOR = 0.3
 const LAST_GROUP_BOOST = 1.3
 const CHORUS_BOOST = 1.2
 const CHORUS_START_BOOST = 1.4
+const TEXT_STYLES = new Set<string>(['bold', 'italic', 'underline'] satisfies LyricTextStyle[])
 // 强度过低时看不出效果，不演出
 const MIN_FACTOR = 0.03
 // shake 短语中的音节唱满这么久（毫秒）才算长音，演出颤音
@@ -174,13 +175,15 @@ function annotatedGroups(line: LyricLine, text: string, wordAt: number[], annota
       if (!range)
         continue
       const duration = rangeDuration(line, range.from, range.to)
-      const styled = !!(phrase.color || phrase.font || phrase.styles?.length)
+      // 旧标注中可能有已去掉的字形（如删除线），只保留认识的
+      const styles = phrase.styles?.filter(style => TEXT_STYLES.has(style))
+      const styled = !!(phrase.color || phrase.font || styles?.length)
       if (duration < ANNOTATED_MIN_MS && !styled)
         continue
       // 唱得太快的短语不做动效（factor 为 0），只保留颜色、字体与字形
       const factor = duration < ANNOTATED_MIN_MS ? 0 : Math.max(ANNOTATED_MIN_FACTOR, factorOf(duration, ANNOTATED_MIN_MS))
       const hold = phrase.effect === 'shake' ? holdOf(line, range.from, range.to) : undefined
-      groups.push({ ...range, start: line.words[range.from].start, end: line.words[range.to - 1].end, factor, effect: phrase.effect, color: phrase.color, font: phrase.font, styles: phrase.styles?.length ? phrase.styles : undefined, ...(hold && { hold }) })
+      groups.push({ ...range, start: line.words[range.from].start, end: line.words[range.to - 1].end, factor, effect: phrase.effect, color: phrase.color, font: phrase.font, styles: styles?.length ? styles : undefined, ...(hold && { hold }) })
     }
   }
   return groups

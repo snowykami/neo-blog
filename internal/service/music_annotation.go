@@ -179,8 +179,8 @@ var (
 		}
 		return fonts
 	}()
-	// 短语字形：粗体、斜体、下划线、删除线（下划线与删除线在演唱时逐字画出）
-	lyricAnnotationStyles = map[string]bool{"bold": true, "italic": true, "underline": true, "strike": true}
+	// 短语字形：粗体、斜体、下划线（下划线在演唱时逐字画出）；删除线已去掉（被否定、放弃的词改用 dissolve 消散），旧标注中的 strike 校验时丢弃
+	lyricAnnotationStyles = map[string]bool{"bold": true, "italic": true, "underline": true}
 )
 
 // normalizeLyricColor 规范化颜色名：旧版名称映射到新色板，不在色板中的返回空字符串（不上色）
