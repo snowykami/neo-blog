@@ -35,7 +35,7 @@ func TestLyricAnnotationPipeline(t *testing.T) {
 	for i := range lines {
 		lines[i] = fmt.Sprintf("第%d句歌词在这里", i)
 	}
-	rangeRe := regexp.MustCompile(`【本次标注范围】第 (\d+) 行～第 (\d+) 行`)
+	rangeRe := regexp.MustCompile(`\[Your range\] lines (\d+)-(\d+)`)
 	var inFlight, peak, chunkCalls atomic.Int32
 	service := &lyricAnnotationService{
 		limiter:     &aiLimiter{},
@@ -57,7 +57,7 @@ func TestLyricAnnotationPipeline(t *testing.T) {
 			chunkCalls.Add(1)
 			// 模拟模型耗时，让并行的段有机会重叠
 			time.Sleep(50 * time.Millisecond)
-			if !strings.Contains(user, "意象：\n") || !strings.Contains(user, "- 歌词：glow，gold") {
+			if !strings.Contains(user, "Imagery:\n") || !strings.Contains(user, "- 歌词: glow, gold") {
 				return "", errors.New("plan not passed to chunk")
 			}
 			m := rangeRe.FindStringSubmatch(user)

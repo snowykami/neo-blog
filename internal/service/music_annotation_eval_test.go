@@ -24,8 +24,9 @@ import (
 //
 //	NEO_PROMPT_EVAL=1 DB_PATH=<数据库副本> NEO_EVAL_SONGS=<网易云歌曲 id,…> go test ./internal/service -run TestLyricAnnotationPromptEval -v -timeout 60m
 //
-// 对每首歌按各提示词版本（zh / en，NEO_EVAL_BASELINE 目录下有 baseline_plan.txt 与 baseline_lines.txt 时加上旧版 baseline）生成 NEO_EVAL_RUNS 次标注，
-// 统计 token、合规与质量指标，再让模型（开启思考）对 zh 与 en、baseline 与 zh 做 A/B 盲评（每对正反各评一次）；明细写入 NEO_EVAL_OUT（默认 /tmp/neo-eval/out）
+// 对每首歌用当前提示词（current）生成 NEO_EVAL_RUNS 次标注；NEO_EVAL_BASELINE 目录下有 baseline_plan.txt 与 baseline_lines.txt（要对比的系统提示词，
+// 用户消息仍用当前的标签）时加上 baseline 生成 1 次。统计 token、合规与质量指标，再让模型（开启思考）对 baseline 与 current 做 A/B 盲评
+// （每对正反各评一次）；明细写入 NEO_EVAL_OUT（默认 /tmp/neo-eval/out）
 
 type evalVariant struct {
 	name    string
@@ -84,12 +85,13 @@ func TestLyricAnnotationPromptEval(t *testing.T) {
 	_ = os.MkdirAll(out, 0o755)
 	runs, _ := strconv.Atoi(envOr("NEO_EVAL_RUNS", "2"))
 
-	variants := []evalVariant{{"zh", lyricAnnotationZH, 2}, {"en", lyricAnnotationEN, 2}}
+	current, currentContext := lyricAnnotationText, lyricAnnotationChunkContext
+	variants := []evalVariant{{"current", current, currentContext}}
 	if dir := os.Getenv("NEO_EVAL_BASELINE"); dir != "" {
 		plan, err1 := os.ReadFile(filepath.Join(dir, "baseline_plan.txt"))
 		lines, err2 := os.ReadFile(filepath.Join(dir, "baseline_lines.txt"))
 		if err1 == nil && err2 == nil {
-			baseline := lyricAnnotationZH
+			baseline := current
 			baseline.PlanPrompt, baseline.LinesPrompt = string(plan), string(lines)
 			variants = append([]evalVariant{{"baseline", baseline, 1000}}, variants...)
 		}
@@ -124,7 +126,7 @@ func TestLyricAnnotationPromptEval(t *testing.T) {
 		}
 		wg.Wait()
 	}
-	lyricAnnotationText, lyricAnnotationChunkContext = lyricAnnotationZH, 2
+	lyricAnnotationText, lyricAnnotationChunkContext = current, currentContext
 
 	data, _ := json.MarshalIndent(results, "", "  ")
 	_ = os.WriteFile(filepath.Join(out, "results.json"), data, 0o644)
@@ -133,9 +135,9 @@ func TestLyricAnnotationPromptEval(t *testing.T) {
 	}
 
 	// A/B 盲评：同一首歌同一轮次的两个版本，正反各评一次
-	pairs := [][2]string{{"zh", "en"}}
+	var pairs [][2]string
 	if len(results["baseline"]) > 0 {
-		pairs = append(pairs, [2]string{"baseline", "zh"})
+		pairs = append(pairs, [2]string{"baseline", "current"})
 	}
 	byKey := map[string]evalResult{}
 	for name, list := range results {

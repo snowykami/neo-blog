@@ -87,88 +87,88 @@ var (
 	lyricWordTagRe = regexp.MustCompile(`\(\d+,(\d+)(,\d+)?\)`)
 )
 
-// lyricAnnotationColor 色板中的一种颜色：英文名（模型输出与前端色值的键）、中文名与适合的意象，名称与意象写进提示词供模型挑选
+// lyricAnnotationColor 色板中的一种颜色：名称（模型输出与前端色值的键）与适合的意象（英文，写进提示词供模型挑选）
 type lyricAnnotationColor struct {
-	Key, Name, Hint string
+	Key, Hint string
 }
 
 // lyricAnnotationPalette 歌词上色的语义化色板（与前端 web/src/lib/lyrics/colors.ts 保持一致）
 var lyricAnnotationPalette = []lyricAnnotationColor{
-	{"crimson", "绯红", "热烈、心跳、鲜血、红色本身"},
-	{"rose", "玫瑰红", "玫瑰、爱情、告白、吻"},
-	{"flame", "火焰红", "火焰、燃烧、激情、战斗"},
-	{"sunset", "晚霞红", "黄昏、晚霞、夕阳、离别"},
-	{"coral", "珊瑚橙", "珊瑚、海边、盛夏"},
-	{"maple", "枫叶橙", "枫叶、深秋、落叶"},
-	{"amber", "琥珀橙", "秋天、怀旧、灯火、旧时光"},
-	{"peach", "蜜桃粉", "脸红、甜蜜、心动、害羞"},
-	{"cherry-blossom", "樱花粉", "樱花、春天、少女心、初恋"},
-	{"bauhinia", "紫荆红", "紫荆花、洋紫荆、香港"},
-	{"sunshine", "阳光金", "阳光、晴天、夏天、希望"},
-	{"gold", "鎏金", "荣耀、梦想、光芒、宝藏、金色"},
-	{"lemon", "柠檬黄", "清新、青春、俏皮、活力"},
-	{"candlelight", "烛光暖黄", "烛光、温暖、家、拥抱、陪伴"},
-	{"spring-green", "嫩芽绿", "嫩芽、发芽、新生、成长"},
-	{"forest", "森林绿", "森林、树木、草地、大自然"},
-	{"mint", "薄荷绿", "清凉、微风、夏日午后"},
-	{"jade", "翡翠绿", "翡翠、宝石、湖光、古典"},
-	{"aurora", "极光绿", "极光、奇幻、遥远的北方"},
-	{"lake", "湖水青", "湖水、溪流、清澈、倒影"},
-	{"sky", "天空蓝", "晴空、自由、飞翔、远方"},
-	{"ocean", "海洋蓝", "大海、海港、浪花、远航"},
-	{"starry-blue", "星空蓝", "星空、夜晚、宇宙、梦想"},
-	{"midnight", "午夜蓝", "深夜、思念、寂静、失眠"},
-	{"ice", "冰蓝", "冰雪、寒冷、冬天、疏离"},
-	{"rain", "雨幕蓝灰", "雨天、忧郁、泪水、阴天"},
-	{"lavender", "薰衣草紫", "薰衣草、浪漫、温柔的思念"},
-	{"violet", "罗兰紫", "紫罗兰、神秘、高贵、紫色本身"},
-	{"twilight", "暮光紫", "暮色、黄昏后、暧昧、朦胧"},
-	{"wisteria", "紫藤", "紫藤花、柔美、等待"},
-	{"moonlight", "月光白", "月亮、月光、纯洁、皎洁"},
-	{"silver", "银白", "银河、金属、冷静、时间流逝"},
+	{"crimson", "passion, heartbeat, blood, red itself"},
+	{"rose", "roses, love, confession, kiss"},
+	{"flame", "fire, burning, passion, battle"},
+	{"sunset", "dusk, sunset glow, parting"},
+	{"coral", "coral, seaside, midsummer"},
+	{"maple", "maple leaves, late autumn"},
+	{"amber", "autumn, nostalgia, lamplight, old times"},
+	{"peach", "blushing, sweetness, crush, shyness"},
+	{"cherry-blossom", "cherry blossoms, spring, first love"},
+	{"bauhinia", "bauhinia flowers, Hong Kong"},
+	{"sunshine", "sunshine, sunny days, summer, hope"},
+	{"gold", "glory, dreams, radiance, treasure, gold"},
+	{"lemon", "fresh, youth, playful, lively"},
+	{"candlelight", "candlelight, warmth, home, embrace, company"},
+	{"spring-green", "sprouts, new life, growing"},
+	{"forest", "forests, trees, grass, nature"},
+	{"mint", "cool, breeze, summer afternoon"},
+	{"jade", "jade, gems, lake light, classical"},
+	{"aurora", "aurora, fantasy, the far north"},
+	{"lake", "lakes, streams, clarity, reflection"},
+	{"sky", "clear sky, freedom, flying, far away"},
+	{"ocean", "sea, harbor, waves, voyage"},
+	{"starry-blue", "starry sky, night, universe, dreams"},
+	{"midnight", "late night, longing, silence, insomnia"},
+	{"ice", "ice and snow, cold, winter, distance"},
+	{"rain", "rainy days, gloom, tears, overcast"},
+	{"lavender", "lavender, romance, gentle longing"},
+	{"violet", "violets, mystery, nobility, purple itself"},
+	{"twilight", "after dusk, ambiguity, haze"},
+	{"wisteria", "wisteria, softness, waiting"},
+	{"moonlight", "moon, moonlight, purity"},
+	{"silver", "milky way, metal, calm, passing time"},
 }
 
-// lyricAnnotationScene 全屏粒子场景：英文名（模型输出与前端绘制的键）、中文名与适合的画面，写进提示词供模型挑选
+// lyricAnnotationScene 全屏粒子场景：名称（模型输出与前端绘制的键）与适合的画面（英文，写进提示词供模型挑选）
 type lyricAnnotationScene struct {
-	Key, Name, Hint string
+	Key, Hint string
 }
 
 // lyricAnnotationSceneList 全屏粒子场景（与前端 web/src/lib/lyrics/stage-particles.ts 保持一致）
 var lyricAnnotationSceneList = []lyricAnnotationScene{
-	{"petals", "花瓣", "花、花瓣飘落、春天"},
-	{"sparks", "光点", "光芒、火花、闪耀、希望"},
-	{"snow", "雪", "雪、冬天、寒冷"},
-	{"stars", "星空", "星星、夜空、宇宙"},
-	{"bubbles", "气泡", "水下、海底、汽水、梦幻"},
-	{"rain", "雨", "雨、阴天、泪水"},
-	{"leaves", "落叶", "落叶、秋天、凋零、离别"},
-	{"fireflies", "萤火虫", "萤火虫、夏夜、田野、童年"},
-	{"feathers", "羽毛", "羽毛、翅膀、天使、轻盈"},
-	{"hearts", "爱心", "爱、心动、告白、甜蜜"},
-	{"confetti", "彩色纸屑", "庆祝、派对、生日、欢呼"},
-	{"fireworks", "烟花", "烟花、节日、跨年、绚烂而短暂"},
-	{"dandelion", "蒲公英", "蒲公英、随风、漂泊、远行"},
-	{"butterflies", "蝴蝶", "蝴蝶、花园、蜕变、自由"},
-	{"meteors", "流星", "流星、许愿、转瞬即逝"},
-	{"clouds", "云雾", "云、雾、天空、朦胧"},
-	{"ripples", "涟漪", "湖面、水面、雨落水中、心起波澜"},
-	{"notes", "音符", "唱歌、旋律、音乐本身"},
+	{"petals", "flowers, falling petals, spring"},
+	{"sparks", "light, sparks, shining, hope"},
+	{"snow", "snow, winter, cold"},
+	{"stars", "stars, night sky, universe"},
+	{"bubbles", "underwater, seabed, soda, dreamy"},
+	{"rain", "rainy days, gloom, tears, overcast"},
+	{"leaves", "falling leaves, autumn, withering, parting"},
+	{"fireflies", "fireflies, summer nights, fields, childhood"},
+	{"feathers", "feathers, wings, angels, lightness"},
+	{"hearts", "love, crush, confession, sweetness"},
+	{"confetti", "celebration, party, birthday, cheering"},
+	{"fireworks", "fireworks, festivals, new year, brilliant but brief"},
+	{"dandelion", "dandelions, drifting with the wind, wandering"},
+	{"butterflies", "butterflies, gardens, transformation, freedom"},
+	{"meteors", "meteors, wishes, fleeting"},
+	{"clouds", "clouds, mist, sky, haze"},
+	{"ripples", "lake surface, rain on water, a stirred heart"},
+	{"notes", "singing, melody, music itself"},
 }
 
-// lyricAnnotationFont 字体：英文名（模型输出与前端字体栈的键）、中文名与适合的气质，写进提示词供模型挑选
+// lyricAnnotationFont 字体：名称（模型输出与前端字体栈的键）与字体及适合的气质（英文，写进提示词供模型挑选）
 type lyricAnnotationFont struct {
-	Key, Name, Hint string
+	Key, Hint string
 }
 
 // lyricAnnotationFontList 可选字体（与前端 web/src/lib/lyrics/lyric-player.css 的字体栈保持一致）
 var lyricAnnotationFontList = []lyricAnnotationFont{
-	{"song", "宋体", "古典、文艺、诗意、怀旧"},
-	{"kai", "楷体", "书信、手写、古风、私语、温柔"},
-	{"xingkai", "行楷", "书法、豪迈、江湖、写意"},
-	{"fangsong", "仿宋", "旧时光、老电影字幕、日记"},
-	{"round", "圆体", "可爱、童真、甜美、轻松"},
-	{"mono", "等宽", "电子、机械、科幻、数字、冷感"},
-	{"script", "英文花体", "浪漫、优雅（只对英文字母有效）"},
+	{"song", "Song serif — classical, literary, poetic, nostalgic"},
+	{"kai", "Kai — letters, handwriting, ancient style, whispers"},
+	{"xingkai", "running script — calligraphy, heroic, freehand"},
+	{"fangsong", "FangSong — old times, old film subtitles, diaries"},
+	{"round", "rounded — cute, childlike, sweet"},
+	{"mono", "monospace — electronic, mechanical, sci-fi, cold"},
+	{"script", "English script — romantic, elegant (Latin letters only)"},
 }
 
 var (

@@ -77,14 +77,14 @@ func TestBuildLyricAnnotationPrompt(t *testing.T) {
 		Comments:     []lyricAnnotationComment{{Content: "泪目", Liked: 100}},
 	}
 	prompt := buildLyricAnnotationPrompt(info, []string{"紫荆花飘扬", "Hello"})
-	for _, want := range []string{"歌名：紫荆花盛开", "歌手：李荣浩 / 梁咏琪", "别名 / 描述：香港回归25周年纪念", "1. 泪目（100 赞）", "0: 紫荆花飘扬\n", "1: Hello　〔译：你好〕\n", "〔译：…〕是中文翻译"} {
+	for _, want := range []string{"Title: 紫荆花盛开", "Artists: 李荣浩 / 梁咏琪", "Aliases / description: 香港回归25周年纪念", "1. 泪目 (100 likes)", "0: 紫荆花飘扬\n", "1: Hello　〔译：你好〕\n", "is a Chinese translation"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, prompt)
 		}
 	}
 	// 没有热评与翻译时不出现对应段落
 	plain := buildLyricAnnotationPrompt(lyricAnnotationInfo{Title: "歌"}, []string{"晴天"})
-	if strings.Contains(plain, "听众热评") || strings.Contains(plain, "〔译") {
+	if strings.Contains(plain, "Listener comments") || strings.Contains(plain, "〔译") {
 		t.Fatalf("plain prompt = %s", plain)
 	}
 }
@@ -99,13 +99,13 @@ func TestChorusLineRanges(t *testing.T) {
 	// 高潮片段标在歌词行末：第一行标开始，最后一行标结束（全曲规划与逐段标注都能看到）
 	lines6 := []string{"a", "b", "c", "d", "e", "f"}
 	prompt := buildLyricAnnotationPrompt(lyricAnnotationInfo{Chorus: got}, lines6)
-	for _, want := range []string{"2: c　〔高潮片段开始〕\n", "3: d\n", "4: e　〔高潮片段结束〕\n"} {
+	for _, want := range []string{"2: c　〔climax starts〕\n", "3: d\n", "4: e　〔climax ends〕\n"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, prompt)
 		}
 	}
 	chunk := buildLyricAnnotationLinesPrompt(lyricAnnotationInfo{Chorus: got}, lines6, lyricAnnotationPlan{}, 3, 5, 2)
-	if !strings.Contains(chunk, "4: e　〔高潮片段结束〕") {
+	if !strings.Contains(chunk, "4: e　〔climax ends〕") {
 		t.Fatalf("chunk prompt = %s", chunk)
 	}
 }
@@ -168,7 +168,7 @@ func TestLyricHeldNotes(t *testing.T) {
 
 	// 用户消息中在行末标出长音
 	prompt := buildLyricAnnotationPrompt(lyricAnnotationInfo{Timed: lines}, []string{lines[0].Text, lines[1].Text, lines[2].Text})
-	for _, part := range []string{"〔长音：…〕是拖长的音节", "0: 連れ出した　〔长音：「た」2.1 秒，句尾〕", "1: 啦啦啦　〔长音：「啦」3.5 秒〕", "2: 短句\n"} {
+	for _, part := range []string{"marks a long-held syllable", "0: 連れ出した　〔held: \"た\" 2.1s, line end〕", "1: 啦啦啦　〔held: \"啦\" 3.5s〕", "2: 短句\n"} {
 		if !strings.Contains(prompt, part) {
 			t.Errorf("prompt missing %q:\n%s", part, prompt)
 		}

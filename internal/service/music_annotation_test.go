@@ -127,7 +127,7 @@ func TestLyricAnnotationJob(t *testing.T) {
 		t.Fatalf("first call = %+v, %v", got, svcerr)
 	}
 	wait()
-	if user, _ := lastUser.Load().(string); !strings.Contains(user, "听哭了（42 赞）") || !strings.Contains(user, "歌名：歌") {
+	if user, _ := lastUser.Load().(string); !strings.Contains(user, "听哭了 (42 likes)") || !strings.Contains(user, "Title: 歌") {
 		t.Fatalf("user prompt = %q", user)
 	}
 	got, svcerr = service.get(1, []string{"怦然心动"}, info, cfg, ttl)
@@ -179,53 +179,40 @@ func TestLyricAnnotationJob(t *testing.T) {
 }
 
 func TestLyricAnnotationPrompt(t *testing.T) {
-	for lang, locale := range map[string]lyricAnnotationLocale{"zh": lyricAnnotationZH, "en": lyricAnnotationEN} {
-		for name, prompt := range map[string]string{"plan": locale.PlanPrompt, "lines": locale.LinesPrompt} {
-			if strings.Contains(prompt, "{{") {
-				t.Fatalf("%s/%s: list placeholder not replaced", lang, name)
-			}
-			// 两步都要能取色、选字体与特效（规划的意象也要定 effect 与 color）
-			for _, color := range lyricAnnotationPalette {
-				if !strings.Contains(prompt, color.Key) {
-					t.Fatalf("%s/%s: prompt missing color %s", lang, name, color.Key)
-				}
-			}
-			for _, font := range lyricAnnotationFontList {
-				if !strings.Contains(prompt, font.Key) {
-					t.Fatalf("%s/%s: prompt missing font %s", lang, name, font.Key)
-				}
-			}
-			for effect := range lyricAnnotationEffects {
-				if !strings.Contains(prompt, effect) {
-					t.Fatalf("%s/%s: prompt missing effect %s", lang, name, effect)
-				}
+	locale := lyricAnnotationText
+	for name, prompt := range map[string]string{"plan": locale.PlanPrompt, "lines": locale.LinesPrompt} {
+		if strings.Contains(prompt, "{{") {
+			t.Fatalf("%s: list placeholder not replaced", name)
+		}
+		// 两步都要能取色、选字体与特效（规划的意象也要定 effect 与 color）
+		for _, color := range lyricAnnotationPalette {
+			if color.Hint == "" || !strings.Contains(prompt, color.Key+": "+color.Hint) {
+				t.Fatalf("%s: prompt missing color %s", name, color.Key)
 			}
 		}
-		// 场景只在规划中使用
-		for _, scene := range lyricAnnotationSceneList {
-			if !strings.Contains(locale.PlanPrompt, scene.Key+":") && !strings.Contains(locale.PlanPrompt, scene.Key+" "+scene.Name) {
-				t.Fatalf("%s: plan prompt missing scene %s", lang, scene.Key)
+		for _, font := range lyricAnnotationFontList {
+			if font.Hint == "" || !strings.Contains(prompt, font.Key+": "+font.Hint) {
+				t.Fatalf("%s: prompt missing font %s", name, font.Key)
 			}
 		}
-		if !strings.Contains(locale.PlanPrompt, "imagery") || !strings.Contains(locale.LinesPrompt, "styles") {
-			t.Fatalf("%s: task-specific instructions missing", lang)
+		for effect := range lyricAnnotationEffects {
+			if !strings.Contains(prompt, effect) {
+				t.Fatalf("%s: prompt missing effect %s", name, effect)
+			}
+		}
+		// 导语与时刻的文字要求用中文
+		if !strings.Contains(prompt, "Simplified Chinese") {
+			t.Fatalf("%s: prompt must ask for chinese text", name)
 		}
 	}
-	// 英文提示词的说明齐全
-	for _, color := range lyricAnnotationPalette {
-		if lyricAnnotationHintsEN[color.Key] == "" {
-			t.Fatalf("missing english hint for color %s", color.Key)
-		}
-	}
-	for _, font := range lyricAnnotationFontList {
-		if lyricAnnotationHintsEN[font.Key] == "" {
-			t.Fatalf("missing english hint for font %s", font.Key)
-		}
-	}
+	// 场景只在规划中使用
 	for _, scene := range lyricAnnotationSceneList {
-		if lyricAnnotationHintsEN[scene.Key] == "" {
-			t.Fatalf("missing english hint for scene %s", scene.Key)
+		if scene.Hint == "" || !strings.Contains(locale.PlanPrompt, scene.Key+": "+scene.Hint) {
+			t.Fatalf("plan prompt missing scene %s", scene.Key)
 		}
+	}
+	if !strings.Contains(locale.PlanPrompt, "imagery") || !strings.Contains(locale.LinesPrompt, "styles") || !strings.Contains(locale.LinesPrompt, "Held notes first") {
+		t.Fatal("task-specific instructions missing")
 	}
 	if len(lyricAnnotationScenes) != len(lyricAnnotationSceneList) {
 		t.Fatal("duplicate scene keys")
