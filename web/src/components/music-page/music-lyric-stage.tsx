@@ -83,10 +83,11 @@ export function MusicLyricStage({ className, compact = false, themed = false }: 
   }
 
   return (
-    // 容器内的节点由歌词引擎直接管理，React 不渲染任何子元素
+    // 外层负责布局（className 会随页面状态变化，如移动端的封面 / 歌词切换）与上下渐隐遮罩；
+    // 引擎挂在类名固定的内层上：引擎会给容器加 lyric-player 等类，若容器的 className 由 React 管理，
+    // 重新渲染时会被覆盖，容器失去定位与裁切，歌词行铺满整页（两侧截断、盖住按钮导致点击穿透）
     <div
       key="stage"
-      ref={containerRef}
       role="region"
       aria-label={pageT('lyrics_region')}
       className={className}
@@ -95,6 +96,9 @@ export function MusicLyricStage({ className, compact = false, themed = false }: 
         maskImage: 'linear-gradient(to bottom, transparent, black 10%, black 85%, transparent)',
         WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 10%, black 85%, transparent)',
       }}
-    />
+    >
+      {/* 节点由歌词引擎直接管理，React 不渲染任何子元素，也不改动它的类名 */}
+      <div ref={containerRef} className="size-full" />
+    </div>
   )
 }
