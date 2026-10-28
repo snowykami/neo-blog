@@ -243,6 +243,15 @@
         "cd /tmp/neo-audio && exec python3 /tmp/neo-stagefx/range_server.py"
       ],
       "port": 18996
+    },
+    {
+      "name": "backend-realtest",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-realtest && MODE=dev PORT=18906 DB_PATH=/tmp/neo-realtest/data.db exec /tmp/neo-realtest/server"
+      ],
+      "port": 18906
     }
   ]
 }
