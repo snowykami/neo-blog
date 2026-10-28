@@ -30,6 +30,7 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-frontend:latest
           build-args: |
             APP_VERSION=${{ github.sha }}
+            IMAGE_OPTIMIZE_HOSTS=${{ vars.IMAGE_OPTIMIZE_HOSTS }}
 
   build-and-push-backend:
     runs-on: ubuntu-latest

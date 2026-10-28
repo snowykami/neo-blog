@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { shouldOptimize } from '@/utils/common/image'
 
 /**
  * 图片占位：图片为空或加载失败时显示，尺寸由调用方通过 className/style 决定
@@ -50,11 +51,6 @@ function srcKey(src: SafeImageProps['src']) {
   return typeof src === 'string' ? src : 'default' in src ? src.default.src : src.src
 }
 
-// next.config 只允许优化 https 外链，http 外链不经服务端代理，交给浏览器直接加载
-function isHttpUrl(src: ImageProps['src']) {
-  return typeof src === 'string' && src.startsWith('http://')
-}
-
 /**
  * 带兜底的图片：原图 → 备用图 → 占位块，每一级只尝试一次；src 变化后重新从原图开始
  */
@@ -94,7 +90,8 @@ export function SafeImage({ src, fallbackSrc, fallback, alt = '', onError, ...pr
         onError?.(event)
       }}
       {...props}
-      unoptimized={props.unoptimized || isHttpUrl(current)}
+      // 站外图片不经服务端代理，交给浏览器直接加载
+      unoptimized={props.unoptimized || !shouldOptimize(current)}
     />
   )
 }

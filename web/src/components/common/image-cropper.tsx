@@ -1,9 +1,9 @@
 'use client'
 import type { Crop } from 'react-image-crop'
 import { useTranslations } from 'next-intl'
-import Image from 'next/image'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import ReactCrop from 'react-image-crop'
+import { SafeImage } from '@/components/common/safe-image'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -211,7 +211,7 @@ export function ImageCropper({
                       aspect={lockAspect ? normalizeAspect(initialAspect) : undefined}
                     >
                       {/* 必须用原生 img 元素 */}
-                      <Image
+                      <SafeImage
                         src={imageSrc}
                         alt="source"
                         onLoad={onImageLoad}
