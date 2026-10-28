@@ -42,6 +42,7 @@ export interface ContentMeta {
   showInNav: boolean
   navOrder: number
   layout: PageLayout
+  fullscreen: boolean
 }
 
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
@@ -78,6 +79,7 @@ const EMPTY_META: ContentMeta = {
   showInNav: false,
   navOrder: 0,
   layout: 'reading',
+  fullscreen: false,
 }
 
 const postAdapter: ContentAdapter = {
@@ -125,7 +127,7 @@ const postAdapter: ContentAdapter = {
     return updatePost({ post: patch, editSessionId: sessionId })
   },
   mergeMeta: (doc, meta) => {
-    const { showInNav: _showInNav, navOrder: _navOrder, layout: _layout, ...rest } = meta
+    const { showInNav: _showInNav, navOrder: _navOrder, layout: _layout, fullscreen: _fullscreen, ...rest } = meta
     return { ...(doc as Post), ...rest, slug: meta.slug !== undefined ? meta.slug || null : (doc as Post).slug }
   },
 }
@@ -144,6 +146,7 @@ const pageAdapter: ContentAdapter = {
       showInNav: !!page.showInNav,
       navOrder: page.navOrder || 0,
       layout: page.layout === 'wide' ? 'wide' : 'reading',
+      fullscreen: !!page.fullscreen,
     }
   },
   update: ({ id, draftContent, content, meta, sessionId }) => {
@@ -170,6 +173,8 @@ const pageAdapter: ContentAdapter = {
       patch.navOrder = Number(meta.navOrder) || 0
     if (meta.layout !== undefined)
       patch.layout = meta.layout
+    if (meta.fullscreen !== undefined)
+      patch.fullscreen = meta.fullscreen
     return updatePage({ page: patch, editSessionId: sessionId })
   },
   mergeMeta: (doc, meta) => {

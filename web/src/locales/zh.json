@@ -907,11 +907,19 @@
         "private": "私有",
         "show_in_nav": "导航展示",
         "nav_order": "导航排序",
-        "title_and_slug_required": "标题和 slug 不能为空"
+        "title_and_slug_required": "标题和 slug 不能为空",
+        "kind": "页面类型",
+        "kind_hint": "正文页面像文章一样用编辑器撰写；链接页面在导航中直接跳转到站内路径或站外地址",
+        "kind_content": "正文页面",
+        "kind_link": "链接",
+        "link_url": "链接地址",
+        "link_hint": "站内路径以 / 开头（如 /music），在站内切换；站外地址需以 http:// 或 https:// 开头，在新窗口打开",
+        "link_invalid": "请输入以 / 开头的站内路径，或以 http(s):// 开头的地址"
       },
       "search_pages": "搜索页面",
       "create_page": "创建页面",
-      "nav_order": "导航 #{order}"
+      "nav_order": "导航 #{order}",
+      "fullscreen_badge": "全屏"
     },
     "post_manage_ai": {
       "generate": "生成 AI 摘要",
@@ -1305,7 +1313,9 @@
       "layout": "前台版式",
       "layout_hint": "阅读：正文旁显示页面信息与目录，正文宽度与文章一致；宽屏：正文占满整行，适合作品集、图片较多的页面",
       "layout_reading": "阅读（正文 + 目录）",
-      "layout_wide": "宽屏（正文占满整行）"
+      "layout_wide": "宽屏（正文占满整行）",
+      "fullscreen": "全屏",
+      "fullscreen_hint": "正文占满整个窗口，顶栏收起为顶部的小横条，鼠标移到顶部或点击横条时展开；适合播放器、作品展示等沉浸式页面"
     },
     "menu": {
       "content": "文章与页面",
@@ -1579,7 +1589,8 @@
       "ncm_cookie_required": "请填写网易云 Cookie",
       "ncm_cookie_invalid": "网易云 Cookie 无效或已过期",
       "ncm_request_failed": "请求网易云 API 失败，请检查服务地址",
-      "ncm_not_configured": "尚未配置网易云歌单"
+      "ncm_not_configured": "尚未配置网易云歌单",
+      "invalid_page_link": "链接地址无效：请使用以 / 开头的站内路径或 http(s) 地址"
     }
   },
   "Role": {
@@ -2204,5 +2215,9 @@
   "MusicPage": {
     "placeholder_title": "播放器正在建设中",
     "placeholder_description": "这里将放置完整的音乐播放器，包括歌单、歌词与播放控制。"
+  },
+  "Nav": {
+    "expand_topbar": "展开顶栏",
+    "collapse_topbar": "收起顶栏"
   }
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/url"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -15,6 +16,9 @@ import (
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
+
+// linkPageSlugPrefix 链接页面自动生成的 slug 前缀
+const linkPageSlugPrefix = "link-"
 
 type PageService struct{}
 
@@ -31,12 +35,23 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	if svcerr != nil {
 		return 0, svcerr
 	}
+	kind := model.NormalizePageKind(utils.Deref(req.Kind))
+	// 链接页面通过导航跳转到它的地址，不需要自己的访问路径：未填写时生成内部 slug，只用于满足唯一约束
+	if kind == model.PageKindLink && slug == "" {
+		slug = linkPageSlugPrefix + strings.ToLower(utils.Strings.GenerateRandomString(10))
+	}
 	if strings.TrimSpace(req.Title) == "" || slug == "" {
 		return 0, errs.NewBadRequest("invalid_request_parameters")
 	}
 	pageType := req.Type
 	if pageType == "" {
 		pageType = "html"
+	}
+	linkURL := ""
+	if kind == model.PageKindLink {
+		if linkURL, svcerr = normalizePageLink(utils.Deref(req.LinkURL)); svcerr != nil {
+			return 0, svcerr
+		}
 	}
 	page := &model.Page{
 		UserID: currentUser.ID,
@@ -52,6 +67,9 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 			ShowInNav:    utils.Deref(req.ShowInNav),
 			NavOrder:     utils.Deref(req.NavOrder),
 			Layout:       model.NormalizePageLayout(utils.Deref(req.Layout)),
+			Kind:         kind,
+			LinkURL:      linkURL,
+			Fullscreen:   utils.Deref(req.Fullscreen),
 		},
 	}
 	if err := repo.Page.CreatePage(page); err != nil {
@@ -142,6 +160,25 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	if req.Layout != nil {
 		page.Layout = model.NormalizePageLayout(*req.Layout)
 	}
+	if req.Fullscreen != nil {
+		page.Fullscreen = *req.Fullscreen
+	}
+	if req.Kind != nil {
+		page.Kind = model.NormalizePageKind(*req.Kind)
+	}
+	if req.LinkURL != nil {
+		page.LinkURL = *req.LinkURL
+	}
+	// 链接页面必须有合法的地址；正文页面不保留链接地址
+	if model.NormalizePageKind(page.Kind) == model.PageKindLink {
+		link, svcerr := normalizePageLink(page.LinkURL)
+		if svcerr != nil {
+			return 0, svcerr
+		}
+		page.LinkURL = link
+	} else {
+		page.LinkURL = ""
+	}
 
 	if err := repo.Page.SavePage(page); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
@@ -154,6 +191,22 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 		NewRevisionService().RecordAfterSave(ctx, constant.TargetTypePage, page.ID, req.Content != "", req.EditSessionID)
 	}
 	return page.ID, nil
+}
+
+// normalizePageLink 链接页面的地址：站内路径（以单个 / 开头）或 http(s) 绝对地址；
+// 协议相对地址（//host）、javascript: 等其他协议与含空白的地址一律拒绝
+func normalizePageLink(raw string) (string, *errs.ServiceError) {
+	link := strings.TrimSpace(raw)
+	if link == "" || len(link) > 2000 || strings.ContainsAny(link, " \t\r\n\\") {
+		return "", errs.NewBadRequest("invalid_page_link")
+	}
+	if strings.HasPrefix(link, "/") && !strings.HasPrefix(link, "//") {
+		return link, nil
+	}
+	if u, err := url.Parse(link); err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
+		return link, nil
+	}
+	return "", errs.NewBadRequest("invalid_page_link")
 }
 
 func (p *PageService) ListPages(ctx context.Context, req *dto.ListPageReq) ([]*dto.PageDto, int64, *errs.ServiceError) {

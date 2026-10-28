@@ -2,6 +2,8 @@ package service
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/errs"
 )
 
 func revisionsOf(t *testing.T, targetType string, id uint) []model.ContentRevision {
@@ -227,5 +230,81 @@ func TestPageLayout(t *testing.T) {
 	}
 	if got := layoutOf(); got != model.PageLayoutReading {
 		t.Fatalf("restore should bring back layout, got %q", got)
+	}
+}
+
+func TestPageKindLinkAndFullscreen(t *testing.T) {
+	author, _, _, _, _ := setupEditTest(t)
+	s := NewPageService()
+	ptr := func(v string) *string { return &v }
+	create := func(slug string, kind, link *string) (uint, *errs.ServiceError) {
+		return s.CreatePage(author, &dto.CreateOrUpdatePageReq{PageBaseDto: dto.PageBaseDto{Title: slug, Slug: slug}, Kind: kind, LinkURL: link})
+	}
+
+	// 合法的站内路径与站外地址
+	for slug, link := range map[string]string{"music": "/music", "github": "https://github.com/snowykami"} {
+		id, svcerr := create(slug, ptr(model.PageKindLink), ptr(link))
+		if svcerr != nil {
+			t.Fatalf("create link %s: %v", link, svcerr)
+		}
+		page, _ := repo.Page.GetPageByID(id)
+		if got := page.ToDto(); got.Kind != model.PageKindLink || got.LinkURL != link {
+			t.Fatalf("link page = %+v", got.PageBaseDto)
+		}
+	}
+	// 非法地址：协议相对、javascript:、空白、空
+	for i, link := range []string{"//evil.com", "javascript:alert(1)", "/a b", "", "ftp://x.com/a"} {
+		if _, svcerr := create("bad"+strconv.Itoa(i), ptr(model.PageKindLink), ptr(link)); svcerr == nil || svcerr.Code != http.StatusBadRequest {
+			t.Fatalf("link %q should be rejected, got %v", link, svcerr)
+		}
+	}
+	// 链接页面不填 slug 时自动生成，可以创建多个；正文页面仍然必须填写
+	for range 2 {
+		id, svcerr := s.CreatePage(author, &dto.CreateOrUpdatePageReq{PageBaseDto: dto.PageBaseDto{Title: "外链"}, Kind: ptr(model.PageKindLink), LinkURL: ptr("/music")})
+		if svcerr != nil {
+			t.Fatalf("create link page without slug: %v", svcerr)
+		}
+		if page, _ := repo.Page.GetPageByID(id); !strings.HasPrefix(page.Slug, linkPageSlugPrefix) {
+			t.Fatalf("generated slug = %q", page.Slug)
+		}
+	}
+	if _, svcerr := s.CreatePage(author, &dto.CreateOrUpdatePageReq{PageBaseDto: dto.PageBaseDto{Title: "正文"}}); svcerr == nil {
+		t.Fatal("content page without slug should be rejected")
+	}
+
+	// 未指定类型时为正文页面，忽略链接地址
+	id, svcerr := create("plain", nil, ptr("/ignored"))
+	if svcerr != nil {
+		t.Fatalf("create content page: %v", svcerr)
+	}
+	page, _ := repo.Page.GetPageByID(id)
+	if got := page.ToDto(); got.Kind != model.PageKindContent || got.LinkURL != "" || got.Fullscreen {
+		t.Fatalf("content page = %+v", got.PageBaseDto)
+	}
+
+	// 全屏设置：更新后保留，恢复版本时随之恢复
+	session, _ := NewEditSessionService().Acquire(author, constant.TargetTypePage, id, "test")
+	update := func(req dto.CreateOrUpdatePageReq) *errs.ServiceError {
+		draft := "<p>改了</p>"
+		req.ID, req.PageBaseDto.Title, req.PageBaseDto.Slug, req.PageBaseDto.DraftContent, req.EditSessionID = id, "plain", "plain", &draft, session.SessionID
+		_, svcerr := s.UpdatePage(author, &req)
+		return svcerr
+	}
+	on := true
+	if svcerr := update(dto.CreateOrUpdatePageReq{Fullscreen: &on}); svcerr != nil {
+		t.Fatalf("update fullscreen: %v", svcerr)
+	}
+	if page, _ = repo.Page.GetPageByID(id); !page.Fullscreen {
+		t.Fatal("fullscreen should be saved")
+	}
+	// 改成链接页面但地址非法：拒绝
+	if svcerr := update(dto.CreateOrUpdatePageReq{Kind: ptr(model.PageKindLink), LinkURL: ptr("javascript:x")}); svcerr == nil {
+		t.Fatal("invalid link on update should be rejected")
+	}
+	if svcerr := NewRevisionService().Restore(author, constant.TargetTypePage, id, session.BaseRevisionID, session.SessionID); svcerr != nil {
+		t.Fatalf("restore: %v", svcerr)
+	}
+	if page, _ = repo.Page.GetPageByID(id); page.Fullscreen {
+		t.Fatal("restore should bring back fullscreen = false")
 	}
 }

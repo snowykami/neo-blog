@@ -29,6 +29,7 @@ interface PageSettingsValues {
   showInNav: boolean
   navOrder: number
   layout: PageLayout
+  fullscreen: boolean
 }
 
 function toValues(meta: ContentMeta): PageSettingsValues {
@@ -40,6 +41,7 @@ function toValues(meta: ContentMeta): PageSettingsValues {
     showInNav: meta.showInNav,
     navOrder: meta.navOrder,
     layout: meta.layout,
+    fullscreen: meta.fullscreen,
   }
 }
 
@@ -137,6 +139,7 @@ export function PageSettingsSheet({
                 </FormItem>
               )}
             />
+            <SwitchField form={form} name="fullscreen" label={t('fullscreen')} description={t('fullscreen_hint')} />
           </SettingsSection>
 
           <SettingsSection icon={SendIcon} title={t('settings_publish')}>

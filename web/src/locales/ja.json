@@ -907,11 +907,19 @@
         "private": "非公開",
         "show_in_nav": "ナビゲーションに表示",
         "nav_order": "ナビゲーション順序",
-        "title_and_slug_required": "タイトルとスラッグは空にできません"
+        "title_and_slug_required": "タイトルとスラッグは空にできません",
+        "kind": "ページの種類",
+        "kind_hint": "本文ページは記事と同じくエディターで書きます。リンクページはメニューからサイト内のパスや外部 URL へ直接移動します",
+        "kind_content": "本文ページ",
+        "kind_link": "リンク",
+        "link_url": "リンク先",
+        "link_hint": "サイト内のパスは / で始めます（例：/music）。外部 URL は http:// または https:// で始め、新しいタブで開きます",
+        "link_invalid": "/ で始まるサイト内のパス、または http(s):// で始まる URL を入力してください"
       },
       "search_pages": "ページを検索",
       "create_page": "ページを作成",
-      "nav_order": "ナビ #{order}"
+      "nav_order": "ナビ #{order}",
+      "fullscreen_badge": "全画面"
     },
     "post_manage_ai": {
       "generate": "AI 要約を生成",
@@ -1305,7 +1313,9 @@
       "layout": "ページのレイアウト",
       "layout_hint": "読書：本文の横にページ情報と目次を表示し、本文幅は記事と同じ。ワイド：本文を横幅いっぱいに表示し、ポートフォリオや画像の多いページ向け",
       "layout_reading": "読書（本文 + 目次）",
-      "layout_wide": "ワイド（全幅）"
+      "layout_wide": "ワイド（全幅）",
+      "fullscreen": "全画面",
+      "fullscreen_hint": "本文がウィンドウ全体に表示され、上部バーは小さなハンドルに収納されます。ポインターを上端に移動するかハンドルをタップすると展開します"
     },
     "menu": {
       "content": "記事とページ",
@@ -1608,7 +1618,8 @@
       "ncm_cookie_required": "NetEase の Cookie を入力してください",
       "ncm_cookie_invalid": "NetEase の Cookie が無効か期限切れです",
       "ncm_request_failed": "NetEase API へのリクエストに失敗しました。サービスの URL を確認してください",
-      "ncm_not_configured": "NetEase のプレイリストが設定されていません"
+      "ncm_not_configured": "NetEase のプレイリストが設定されていません",
+      "invalid_page_link": "リンクが無効です。/ で始まるパスか http(s) の URL を指定してください"
     }
   },
   "ErrorPage": {
@@ -2204,5 +2215,9 @@
   "MusicPage": {
     "placeholder_title": "プレイヤーは準備中です",
     "placeholder_description": "ここにプレイリスト・歌詞・再生コントロールを備えた音楽プレイヤーを置く予定です。"
+  },
+  "Nav": {
+    "expand_topbar": "上部バーを表示",
+    "collapse_topbar": "上部バーを隠す"
   }
 }

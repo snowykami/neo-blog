@@ -13,7 +13,10 @@ type PageBaseDto struct {
 	IsPrivate    bool    `json:"is_private"`
 	ShowInNav    bool    `json:"show_in_nav"`
 	NavOrder     int     `json:"nav_order"`
-	Layout       string  `json:"layout"` // 前台版式：reading 阅读（正文 + 目录侧边栏）/ wide 宽屏
+	Layout       string  `json:"layout"`     // 前台版式：reading 阅读（正文 + 目录侧边栏）/ wide 宽屏
+	Kind         string  `json:"kind"`       // 页面类型：content 正文页面 / link 链接页面
+	LinkURL      string  `json:"link_url"`   // 链接页面的地址：站内路径（/ 开头）或 http(s) 站外地址
+	Fullscreen   bool    `json:"fullscreen"` // 全屏页面：顶栏收起为手势条
 }
 
 type PageDto struct {
@@ -29,10 +32,13 @@ type CreateOrUpdatePageReq struct {
 	ID uint `path:"id" json:"id"`
 	PageBaseDto
 	// 以下字段覆盖 PageBaseDto 同名字段，用指针区分“未传”与“零值”，避免只保存草稿时把私密、导航设置重置
-	IsPrivate *bool   `json:"is_private"`
-	ShowInNav *bool   `json:"show_in_nav"`
-	NavOrder  *int    `json:"nav_order"`
-	Layout    *string `json:"layout"`
+	IsPrivate  *bool   `json:"is_private"`
+	ShowInNav  *bool   `json:"show_in_nav"`
+	NavOrder   *int    `json:"nav_order"`
+	Layout     *string `json:"layout"`
+	Kind       *string `json:"kind"`
+	LinkURL    *string `json:"link_url"`
+	Fullscreen *bool   `json:"fullscreen"`
 	// 摘要、封面传空字符串表示清空，未传则保持原值
 	Description *string `json:"description"`
 	Cover       *string `json:"cover"`

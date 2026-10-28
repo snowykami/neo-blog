@@ -3,7 +3,8 @@ import { MotionConfig } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { VisitReporter } from '@/components/common/visit-reporter'
 import Footer from '@/components/layout/footer'
-import Navbar from '@/components/layout/nav/navbar-or-side'
+import { SiteHeader } from '@/components/layout/nav/site-header'
+import { useNav } from '@/contexts/nav-context'
 
 export default function RootLayout({
   children,
@@ -11,6 +12,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   const commonT = useTranslations('Common')
+  // 全屏页面：顶栏收起为手势条、不显示页脚
+  const { fullscreen } = useNav()
   return (
     // 交互动效遵循系统「减少动态效果」设置
     <MotionConfig reducedMotion="user">
@@ -26,15 +29,12 @@ export default function RootLayout({
           {commonT('skip_to_content')}
         </a>
 
-        {/* 吸顶导航：与正文同宽，首屏入场动画为纯 CSS（见 styles/animation.css），不依赖水合 */}
-        <header className="enter-fade-down sticky top-0 z-40 mx-auto w-full max-w-[var(--page-w)] px-0 md:px-4">
-          <Navbar />
-        </header>
+        <SiteHeader />
 
         <main id="main-content" className="w-full min-w-0 flex-1">
           {children}
         </main>
-        <Footer />
+        {!fullscreen && <div data-site-footer><Footer /></div>}
       </div>
     </MotionConfig>
   )

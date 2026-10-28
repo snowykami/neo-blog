@@ -907,11 +907,19 @@
         "private": "Private",
         "show_in_nav": "Show in navigation",
         "nav_order": "Navigation order",
-        "title_and_slug_required": "Title and slug cannot be empty"
+        "title_and_slug_required": "Title and slug cannot be empty",
+        "kind": "Page type",
+        "kind_hint": "Content pages are written in the editor like posts; link pages jump straight to an internal path or an external URL from the menu",
+        "kind_content": "Content page",
+        "kind_link": "Link",
+        "link_url": "Link",
+        "link_hint": "Internal paths start with / (e.g. /music) and open in place; external URLs must start with http:// or https:// and open in a new tab",
+        "link_invalid": "Enter an internal path starting with / or a URL starting with http(s)://"
       },
       "search_pages": "Search pages",
       "create_page": "Create page",
-      "nav_order": "Nav #{order}"
+      "nav_order": "Nav #{order}",
+      "fullscreen_badge": "Fullscreen"
     },
     "post_manage_ai": {
       "generate": "Generate AI summary",
@@ -1305,7 +1313,9 @@
       "layout": "Page layout",
       "layout_hint": "Reading: page info and table of contents beside the text, same width as posts; Wide: the content spans the full width, good for portfolios and image-heavy pages",
       "layout_reading": "Reading (content + TOC)",
-      "layout_wide": "Wide (full-width content)"
+      "layout_wide": "Wide (full-width content)",
+      "fullscreen": "Fullscreen",
+      "fullscreen_hint": "Content fills the window and the top bar folds into a small handle at the top; it slides back when you move the pointer to the top or tap the handle. Good for players and showcase pages"
     },
     "menu": {
       "content": "Posts & pages",
@@ -1608,7 +1618,8 @@
       "ncm_cookie_required": "Please enter the NetEase cookie",
       "ncm_cookie_invalid": "The NetEase cookie is invalid or expired",
       "ncm_request_failed": "Request to the NetEase API failed; check the service URL",
-      "ncm_not_configured": "NetEase playlist is not configured"
+      "ncm_not_configured": "NetEase playlist is not configured",
+      "invalid_page_link": "Invalid link: use an internal path starting with / or an http(s) URL"
     }
   },
   "ErrorPage": {
@@ -2204,5 +2215,9 @@
   "MusicPage": {
     "placeholder_title": "The music player is on its way",
     "placeholder_description": "A full player with playlists, lyrics, and playback controls will live here."
+  },
+  "Nav": {
+    "expand_topbar": "Show top bar",
+    "collapse_topbar": "Hide top bar"
   }
 }

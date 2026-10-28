@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { cache } from 'react'
 import { getPageById } from '@/api/page'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
@@ -11,6 +11,7 @@ import { PostToc } from '@/components/blog-post/post-toc.client'
 import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
 import { ComponentIslands } from '@/components/content-components/component-islands'
+import { FullscreenChrome } from '@/components/layout/fullscreen-chrome'
 import { SiteShell } from '@/components/layout/site-shell'
 import { isNotFoundLikeError } from '@/utils/common/error'
 import { countWords } from '@/utils/common/post'
@@ -54,8 +55,39 @@ export default async function Page({
   const page = await getCachedPage(id)
   if (!page)
     notFound()
+  // 链接页面：跳转到其地址（站内路径或站外地址），导航中已直接链接，这里处理直接访问 /page/{slug} 的情况
+  if (page.kind === 'link' && page.linkUrl)
+    redirect(page.linkUrl)
 
   const { html, headings } = renderContentHtml(page.content)
+  // 代码块工具栏 / 高亮、链接卡片、图片失效兜底与预览，与文章正文复用同一套增强
+  const enhancers = (
+    <>
+      <HtmlEnhancer containerId="page-content" />
+      <ComponentIslands containerId="page-content" />
+      <ContentHoverCard containerId="page-content" />
+      <ContentImageFallback containerId="page-content" />
+      <ContentImageViewer containerId="page-content" />
+      <VisitReporter targetType="page" targetId={page.id} />
+    </>
+  )
+
+  // 全屏页面：正文占满视口，不显示标题区与侧栏；顶栏收起为手势条、隐藏页脚
+  if (page.fullscreen) {
+    return (
+      <div className="min-h-dvh w-full px-4 pt-10 pb-16 md:px-8">
+        <FullscreenChrome />
+        <h1 className="sr-only">{page.title}</h1>
+        <article
+          id="page-content"
+          className="prose max-w-none dark:prose-invert pangu-autospace"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+        {enhancers}
+      </div>
+    )
+  }
+
   const wide = page.layout === 'wide'
   // 外框与顶栏同宽：阅读版式为「正文 + 侧栏（页面信息与目录）」，与文章页的正文宽度一致；宽屏版式正文占满整行
   const sidebar = wide
@@ -89,13 +121,7 @@ export default async function Page({
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </div>
-      {/* 代码块工具栏 / 高亮、链接卡片、图片失效兜底与预览，与文章正文复用同一套增强 */}
-      <HtmlEnhancer containerId="page-content" />
-      <ComponentIslands containerId="page-content" />
-      <ContentHoverCard containerId="page-content" />
-      <ContentImageFallback containerId="page-content" />
-      <ContentImageViewer containerId="page-content" />
-      <VisitReporter targetType="page" targetId={page.id} />
+      {enhancers}
     </SiteShell>
   )
 }

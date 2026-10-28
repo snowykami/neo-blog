@@ -4,9 +4,11 @@ import type { LucideIcon } from 'lucide-react'
 import type { PageModel } from '@/models/page'
 import {
   ArchiveIcon,
+  ExternalLinkIcon,
   FileTextIcon,
   FolderIcon,
   HouseIcon,
+  LinkIcon,
   MenuIcon,
   NewspaperIcon,
   PanelsTopLeftIcon,
@@ -48,7 +50,19 @@ interface NavLinkItem {
   label?: string
   href: string
   icon: LucideIcon
+  // 站外链接：新窗口打开
+  external?: boolean
 }
+
+/** 菜单中的链接：站内路径用 Next 的路由切换，站外地址在新窗口打开 */
+function NavItemLink({ href, external, ...props }: React.ComponentProps<typeof Link> & { href: string, external?: boolean }) {
+  if (external)
+    return <a href={href} target="_blank" rel="noopener noreferrer" {...(props as React.ComponentProps<'a'>)} />
+  return <Link href={href} {...props} />
+}
+
+/** 站外地址：http(s) 绝对地址（链接页面的站内路径以 / 开头） */
+const isExternalHref = (href: string) => /^https?:\/\//i.test(href)
 
 // 一级菜单：带 href 的直接跳转，带 children 的展开子菜单
 interface NavMenuItem extends Omit<NavLinkItem, 'href'> {
@@ -91,22 +105,32 @@ const staticMenuItems: NavMenuItem[] = [
 ]
 
 // 导航中展示的自定义页面：只取公开且勾选了「导航展示」的页面，按导航排序升序
+// 顶栏挂载时获取；标签页重新可见时再取一次，在其他标签页（如后台）修改了页面设置后切回来即可看到
 function useNavPages() {
   const [pages, setPages] = useState<PageModel[]>([])
   useEffect(() => {
     let cancelled = false
-    listPages({ onlyNav: true, noContent: true, page: 1, size: 50 })
-      .then((res) => {
-        if (cancelled)
-          return
-        const navPages = (res.data.pages || [])
-          .filter(page => page.showInNav && !page.isPrivate)
-          .sort((a, b) => a.navOrder - b.navOrder || a.id - b.id)
-        setPages(navPages)
-      })
-      .catch(() => { })
+    const load = () => {
+      listPages({ onlyNav: true, noContent: true, page: 1, size: 50 })
+        .then((res) => {
+          if (cancelled)
+            return
+          const navPages = (res.data.pages || [])
+            .filter(page => page.showInNav && !page.isPrivate)
+            .sort((a, b) => a.navOrder - b.navOrder || a.id - b.id)
+          setPages(navPages)
+        })
+        .catch(() => { })
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible')
+        load()
+    }
+    load()
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       cancelled = true
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [])
   return pages
@@ -123,12 +147,18 @@ function useNavMenuItems(): NavMenuItem[] {
       {
         title: 'page',
         icon: PanelsTopLeftIcon,
-        children: pages.map(page => ({
-          title: `page-${page.id}`,
-          label: page.title,
-          href: getPageUrl(page),
-          icon: FileTextIcon,
-        })),
+        // 链接页面直接跳转到其地址：站内路径用路由切换，站外地址新窗口打开
+        children: pages.map((page) => {
+          const isLink = page.kind === 'link' && !!page.linkUrl
+          const external = isLink && isExternalHref(page.linkUrl)
+          return {
+            title: `page-${page.id}`,
+            label: page.title,
+            href: isLink ? page.linkUrl : getPageUrl(page),
+            icon: external ? ExternalLinkIcon : isLink ? LinkIcon : FileTextIcon,
+            external,
+          }
+        }),
       },
     ]
   }, [pages])
@@ -267,8 +297,9 @@ function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
                               return (
                                 <li key={child.title}>
                                   <NavigationMenuLink asChild>
-                                    <Link
+                                    <NavItemLink
                                       href={child.href}
+                                      external={child.external}
                                       aria-current={childActive ? 'page' : undefined}
                                       className={cn(
                                         'flex-row! items-center gap-2! rounded-lg! px-3 py-2 text-sm font-medium text-foreground/75 hover:bg-primary/10! hover:text-primary! focus:bg-primary/10! focus:text-primary!',
@@ -277,7 +308,7 @@ function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
                                     >
                                       <child.icon aria-hidden className="size-4 text-current!" />
                                       <span className="truncate">{child.label ?? routeT(child.title)}</span>
-                                    </Link>
+                                    </NavItemLink>
                                   </NavigationMenuLink>
                                 </li>
                               )
@@ -338,16 +369,17 @@ function SidebarMenu({ items }: { items: NavMenuItem[] }) {
                       <div key={item.title} className="mt-2 grid gap-1">
                         <div className="px-3 py-1 text-sm font-medium text-foreground/50">{item.label ?? routeT(item.title)}</div>
                         {item.children.map(child => (
-                          <Link
+                          <NavItemLink
                             key={child.title}
                             href={child.href}
+                            external={child.external}
                             aria-current={isActivePath(pathname, child.href) ? 'page' : undefined}
                             className={linkClass(child.href)}
                             onClick={() => setOpen(false)}
                           >
                             <child.icon aria-hidden className="size-5" />
                             <span className="truncate">{child.label ?? routeT(child.title)}</span>
-                          </Link>
+                          </NavItemLink>
                         ))}
                       </div>
                     )

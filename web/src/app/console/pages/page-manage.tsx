@@ -2,7 +2,7 @@
 
 import type { PageModel } from '@/models/page'
 import type { BaseResponseError } from '@/models/resp'
-import { Ellipsis, Eye } from 'lucide-react'
+import { Ellipsis, Eye, LinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -29,6 +29,11 @@ import { getPageEditUrl, getPageUrl } from '@/utils/common/route'
 import { PageMetaDialog } from './page-meta-dialog'
 
 const PAGE_SIZE = 15
+
+// 查看：链接页面直接打开其地址
+function getPageViewUrl(page: PageModel) {
+  return page.kind === 'link' && page.linkUrl ? page.linkUrl : getPageUrl(page)
+}
 
 export function PageManage() {
   const { user } = useAuth()
@@ -150,7 +155,15 @@ function PageItem({
             ID:
             {page.id}
           </Badge>
-          <Badge variant="secondary">{page.slug}</Badge>
+          {/* 链接页面的 slug 只是内部标识，显示链接地址 */}
+          {page.kind !== 'link' && <Badge variant="secondary">{page.slug}</Badge>}
+          {page.kind === 'link' && (
+            <Badge variant="outline" className="max-w-56 gap-1 font-mono" title={page.linkUrl}>
+              <LinkIcon aria-hidden className="size-3" />
+              <span className="truncate">{page.linkUrl}</span>
+            </Badge>
+          )}
+          {page.fullscreen && <Badge variant="outline">{t('fullscreen_badge')}</Badge>}
           <Badge className={page.isPrivate ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}>
             {page.isPrivate ? stateT('private') : stateT('public')}
           </Badge>
@@ -163,7 +176,7 @@ function PageItem({
       </div>
       <div className="ml-auto flex items-center gap-2">
         <Button variant="ghost" size="icon-sm" asChild>
-          <a href={getPageUrl(page)} target="_blank" rel="noreferrer" aria-label={operationT('view')} title={operationT('view')}>
+          <a href={getPageViewUrl(page)} target="_blank" rel="noreferrer" aria-label={operationT('view')} title={operationT('view')}>
             <Eye className="size-4" />
           </a>
         </Button>
@@ -235,9 +248,12 @@ function PageDropdownMenu({
         // 打开删除确认时不把焦点还给菜单按钮，焦点交给气泡
         onCloseAutoFocus={e => confirmOpen && e.preventDefault()}
       >
-        <DropdownMenuItem asChild><a href={getPageEditUrl(page)}>{operationT('edit')}</a></DropdownMenuItem>
+        {/* 链接页面没有正文，编辑即打开设置 */}
+        {page.kind === 'link'
+          ? <DropdownMenuItem onClick={() => setMetaDialogOpen(true)}>{operationT('edit')}</DropdownMenuItem>
+          : <DropdownMenuItem asChild><a href={getPageEditUrl(page)}>{operationT('edit')}</a></DropdownMenuItem>}
         <DropdownMenuItem onClick={() => setMetaDialogOpen(true)}>{operationT('setting')}</DropdownMenuItem>
-        <DropdownMenuItem asChild><a href={getPageUrl(page)} target="_blank" rel="noreferrer">{operationT('view')}</a></DropdownMenuItem>
+        <DropdownMenuItem asChild><a href={getPageViewUrl(page)} target="_blank" rel="noreferrer">{operationT('view')}</a></DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={togglePrivate}>{operationT(page.isPrivate ? 'set_public' : 'set_private')}</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => setConfirmOpen(true)} className="text-destructive">

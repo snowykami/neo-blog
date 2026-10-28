@@ -13,6 +13,9 @@ interface NavContextValue {
   setNavTitle: (title: React.ReactNode) => void
   setNavIcon: (icon: React.ReactNode) => void
   resetNavIcon: () => void
+  // 全屏页面：顶栏收起为手势条、隐藏页脚（由页面中的 FullscreenChrome 设置）
+  fullscreen: boolean
+  setFullscreen: (fullscreen: boolean) => void
 }
 
 const NavContext = createContext<NavContextValue | undefined>(undefined)
@@ -25,14 +28,15 @@ function DefaultNavIcon() {
 export function NavProvider({ children }: { children: React.ReactNode }) {
   const [navIcon, setNavIcon] = useState<React.ReactNode>(<DefaultNavIcon />)
   const [navTitle, setNavTitle] = useState<React.ReactNode>('')
+  const [fullscreen, setFullscreen] = useState(false)
 
   const resetNavIcon = useCallback(() => {
     setNavIcon(<DefaultNavIcon />)
   }, [])
 
   const value = useMemo(
-    () => ({ navTitle, setNavTitle, navIcon, setNavIcon, resetNavIcon }),
-    [navTitle, navIcon, resetNavIcon],
+    () => ({ navTitle, setNavTitle, navIcon, setNavIcon, resetNavIcon, fullscreen, setFullscreen }),
+    [navTitle, navIcon, resetNavIcon, fullscreen],
   )
 
   return <NavContext.Provider value={value}>{children}</NavContext.Provider>

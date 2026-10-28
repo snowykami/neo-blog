@@ -907,11 +907,19 @@
         "private": "私人",
         "show_in_nav": "導覽列顯示",
         "nav_order": "導覽排序",
-        "title_and_slug_required": "標題和 slug 不能為空"
+        "title_and_slug_required": "標題和 slug 不能為空",
+        "kind": "頁面類型",
+        "kind_hint": "內文頁面像文章一樣用編輯器撰寫；連結頁面在導覽中直接跳轉到站內路徑或站外網址",
+        "kind_content": "內文頁面",
+        "kind_link": "連結",
+        "link_url": "連結網址",
+        "link_hint": "站內路徑以 / 開頭（如 /music），在站內切換；站外網址需以 http:// 或 https:// 開頭，在新視窗開啟",
+        "link_invalid": "請輸入以 / 開頭的站內路徑，或以 http(s):// 開頭的網址"
       },
       "search_pages": "搜尋頁面",
       "create_page": "建立頁面",
-      "nav_order": "導覽 #{order}"
+      "nav_order": "導覽 #{order}",
+      "fullscreen_badge": "全螢幕"
     },
     "post_manage_ai": {
       "generate": "產生 AI 摘要",
@@ -1305,7 +1313,9 @@
       "layout": "前台版式",
       "layout_hint": "閱讀：正文旁顯示頁面資訊與目錄，正文寬度與文章一致；寬螢幕：正文佔滿整行，適合作品集、圖片較多的頁面",
       "layout_reading": "閱讀（正文 + 目錄）",
-      "layout_wide": "寬螢幕（正文佔滿整行）"
+      "layout_wide": "寬螢幕（正文佔滿整行）",
+      "fullscreen": "全螢幕",
+      "fullscreen_hint": "內文佔滿整個視窗，頂欄收起為頂部的小橫條，滑鼠移到頂部或點擊橫條時展開；適合播放器、作品展示等沉浸式頁面"
     },
     "menu": {
       "content": "文章與頁面",
@@ -1608,7 +1618,8 @@
       "ncm_cookie_required": "請填寫網易雲 Cookie",
       "ncm_cookie_invalid": "網易雲 Cookie 無效或已過期",
       "ncm_request_failed": "請求網易雲 API 失敗，請檢查服務網址",
-      "ncm_not_configured": "尚未設定網易雲歌單"
+      "ncm_not_configured": "尚未設定網易雲歌單",
+      "invalid_page_link": "連結網址無效：請使用以 / 開頭的站內路徑或 http(s) 網址"
     }
   },
   "ErrorPage": {
@@ -2204,5 +2215,9 @@
   "MusicPage": {
     "placeholder_title": "播放器正在建置中",
     "placeholder_description": "這裡將放置完整的音樂播放器，包含歌單、歌詞與播放控制。"
+  },
+  "Nav": {
+    "expand_topbar": "展開頂欄",
+    "collapse_topbar": "收起頂欄"
   }
 }
