@@ -10,6 +10,7 @@ import { getMusicSong } from '@/api/music'
 import { useMusic, useMusicClock, useSongLyrics } from '@/contexts/music-context'
 import { toSingleLineLyrics } from '@/lib/lyrics/from-platform'
 import { cn } from '@/lib/utils'
+import { songToTrack } from '@/models/music'
 import { getExtraLyricLine, getWordProgress, isWordTimedLyricLine } from '@/utils/music-lyric'
 import { MusicPlayButton, NeteaseOpenButton } from '../netease-song/music-controls'
 import { useCachedRequest } from '../use-cached-request'
@@ -247,11 +248,14 @@ export default function LyricQuote(props: LyricQuoteProps) {
 }
 
 function NeteaseLyricQuote({ id, lyric: authorLyric, translation, romaji, showTranslation, showRomaji, start, end, text, title, artist }: LyricQuoteProps) {
-  const { playlist, currentTrack, isPlaying, playTrack, pause, getAudio } = useMusic()
+  const { playlist, currentTrack, isPlaying, playTrack, playSong, pause, getAudio } = useMusic()
   const index = playlist.findIndex(track => track.id === id)
   const track = index >= 0 ? playlist[index] : null
   const songState = useCachedRequest(track ? null : `ncm-song:${id}`, () => getMusicSong(id))
-  const song = track ?? (songState.status === 'success' ? songState.data : null)
+  const fetched = !track && songState.status === 'success' ? songState.data : null
+  const song = track ?? fetched
+  // 不在歌单内的歌曲由后端判断能否在站内播放（公开文章引用的歌曲、登录的管理员与编辑），可以时插到当前曲目之后播放
+  const playable = track != null || !!fetched?.playable
   // 作者未填写原歌词，或需要在线补全已开启显示的翻译/发音时才取在线歌词
   const needsTranslation = showTranslation && !translation.trim()
   const needsRomaji = showRomaji && !romaji.trim()
@@ -277,7 +281,7 @@ function NeteaseLyricQuote({ id, lyric: authorLyric, translation, romaji, showTr
   const href = song?.link || `https://music.163.com/#/song?id=${id}`
   const loading = !song && songState.status === 'loading'
   const onToggle = () => {
-    if (!track)
+    if (!playable)
       return
     if (playing) {
       snippet.disarm()
@@ -285,7 +289,10 @@ function NeteaseLyricQuote({ id, lyric: authorLyric, translation, romaji, showTr
       return
     }
     snippet.arm()
-    playTrack(index, playFromMs / 1000)
+    if (track)
+      playTrack(index, playFromMs / 1000)
+    else if (fetched)
+      playSong(songToTrack(fetched), playFromMs / 1000)
   }
 
   return (
@@ -301,7 +308,7 @@ function NeteaseLyricQuote({ id, lyric: authorLyric, translation, romaji, showTr
       href={href}
       loading={loading || (!authorLyric.trim() && songLyrics.status === 'loading')}
       playing={playing}
-      status={track ? (playing ? 'playing' : 'idle') : null}
+      status={playable ? (playing ? 'playing' : 'idle') : null}
       getTime={getTime}
       onToggle={onToggle}
     />

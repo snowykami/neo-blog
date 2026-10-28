@@ -19,6 +19,25 @@ export interface MusicSong {
   album: string
   albumPic: string
   link: string
+  duration?: number // 时长（毫秒）
+  // 当前访客能否在站内播放：博客歌单、公开文章引用的歌曲，或登录的管理员与编辑（见后端 music_whitelist.go）
+  playable?: boolean
+}
+
+/** 不在歌单内、但可以在站内播放的单曲（文章引用的歌曲）转为播放队列中的曲目；播放地址与歌单曲目相同，由后端按白名单校验 */
+export function songToTrack(song: MusicSong): MusicTrack {
+  return {
+    id: song.id,
+    name: song.name,
+    artists: song.artists,
+    album: song.album,
+    albumPic: song.albumPic,
+    audio: `/api/v1/music/song/${song.id}/audio`,
+    lyric: '',
+    link: song.link || `https://music.163.com/#/song?id=${song.id}`,
+    aliases: [],
+    duration: song.duration,
+  }
 }
 
 // 悬浮播放器的歌单来源：静态 JSON 地址，或后台配置的网易云歌单

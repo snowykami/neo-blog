@@ -285,11 +285,11 @@ func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackD
 
 // GetSongURL 歌单内歌曲的临时播放地址；地址有有效期，缓存时间短于有效期
 func (s *MusicService) GetSongURL(ctx context.Context, id int64) (string, *errs.ServiceError) {
-	tracks, svcerr := s.GetPlaylist(ctx)
-	if svcerr != nil {
+	if _, svcerr := s.GetPlaylist(ctx); svcerr != nil {
 		return "", svcerr
 	}
-	if !containsTrack(tracks, id) {
+	// 只对白名单内的歌曲换取播放地址（歌单、公开文章引用的歌曲、管理员与编辑，见 music_whitelist.go）
+	if !s.SongPlayable(ctx, id) {
 		return "", errs.NewNotFound("music_song_not_found")
 	}
 

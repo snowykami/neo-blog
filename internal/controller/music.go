@@ -30,12 +30,16 @@ func (m *musicType) Playlist(ctx context.Context, c *app.RequestContext) {
 
 // Song 单曲公开信息（文章内的单曲卡）
 func (m *musicType) Song(ctx context.Context, c *app.RequestContext) {
-	song, svcerr := m.service.GetSong(ctx, ctxutils.GetIDParam(c).Int64)
+	id := ctxutils.GetIDParam(c).Int64
+	song, svcerr := m.service.GetSong(ctx, id)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
-	resps.Ok(c, resps.Success, song)
+	// 单曲信息按歌曲缓存，能否播放随访客而定，返回前再填写
+	result := *song
+	result.Playable = m.service.SongPlayable(ctx, id)
+	resps.Ok(c, resps.Success, result)
 }
 
 // Search 搜索网易云歌曲（编辑器中为单曲卡选择歌曲）

@@ -103,3 +103,10 @@ func (p *pageRepo) ListPages(currentUserID uint, req *dto.ListPageReq, query []s
 	req.OrderBy = AllowedOrderBy(req.OrderBy, constant.OrderByEnumPage, constant.OrderByCreatedAt)
 	return PaginateQuery[model.Page](q, req.Page, req.Size, req.OrderBy, req.Desc)
 }
+
+// ListPublicContentsWithComponents 公开页面（不含私密与草稿）中带内容组件的正文，用于找出页面引用的网易云歌曲（见 service/music_whitelist.go）
+func (p *pageRepo) ListPublicContentsWithComponents() ([]string, error) {
+	var contents []string
+	err := GetDB().Model(&model.Page{}).Where("is_private = ? AND content LIKE ?", false, "%data-component%").Pluck("content", &contents).Error
+	return contents, err
+}

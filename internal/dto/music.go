@@ -23,6 +23,8 @@ type MusicSongDto struct {
 	AlbumPic string   `json:"album_pic"`
 	Link     string   `json:"link"`
 	Duration int64    `json:"duration,omitempty"` // 时长（毫秒），用于在其他平台匹配同一首歌
+	// 当前访客能否在站内播放（歌单、公开文章引用的歌曲，或登录的管理员与编辑，见 service/music_whitelist.go）；只在单曲接口返回时填写
+	Playable bool `json:"playable"`
 }
 
 // MusicSearchSongDto 歌曲搜索结果（编辑器中为单曲卡选择歌曲）

@@ -86,6 +86,8 @@ interface MusicContextValue {
   // 播放控制
   // startTime：可选的起始播放进度（秒），用于从歌词摘录等位置开始播放
   playTrack: (index: number, startTime?: number) => void // 指定播放曲目
+  // 播放一首歌：已在播放列表中时直接播放，否则插到当前曲目之后再播放（文章引用的、不在歌单内的歌曲）
+  playSong: (track: MusicTrack, startTime?: number) => void
   play: () => void // 播放
   pause: () => void // 暂停
   togglePlay: () => void // 切换播放/暂停
@@ -684,6 +686,19 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     goTo(index, true)
   }, [goTo])
 
+  const playSong = useCallback((track: MusicTrack, startTime?: number) => {
+    const existing = playlistRef.current.findIndex(item => item.id === track.id)
+    if (existing >= 0) {
+      playTrack(existing, startTime)
+      return
+    }
+    const insertAt = (currentIndexRef.current ?? -1) + 1
+    const tracks = [...playlistRef.current.slice(0, insertAt), track, ...playlistRef.current.slice(insertAt)]
+    playlistRef.current = tracks
+    setPlaylist(tracks)
+    goTo(insertAt, true, startTime)
+  }, [goTo, playTrack])
+
   const play = useCallback(() => {
     const audio = audioRef.current
     if (!audio)
@@ -935,6 +950,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     enableAudioAnalysis,
     replacePlaylist,
     playTrack,
+    playSong,
     play,
     pause,
     togglePlay,
@@ -981,6 +997,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     enableAudioAnalysis,
     replacePlaylist,
     playTrack,
+    playSong,
     play,
     pause,
     togglePlay,

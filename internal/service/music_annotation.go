@@ -268,7 +268,7 @@ func (s *MusicService) prepareLyricAnnotations(ctx context.Context, id int64) ([
 	if !cfg.Configured() {
 		return nil, lyricAnnotationInfo{}, cfg, errs.NewNotFound("lyric_annotations_unavailable")
 	}
-	track := s.playlistTrack(ctx, id)
+	track := s.annotatableTrack(ctx, id)
 	if track == nil {
 		return nil, lyricAnnotationInfo{}, cfg, errs.NewNotFound("lyric_annotations_unavailable")
 	}
@@ -277,6 +277,22 @@ func (s *MusicService) prepareLyricAnnotations(ctx context.Context, id int64) ([
 		return nil, lyricAnnotationInfo{}, cfg, svcerr
 	}
 	return lines, info, cfg, nil
+}
+
+// annotatableTrack 可以生成标注的歌曲：博客歌单中的歌曲，或公开文章与页面引用的歌曲（取单曲信息，见 music_whitelist.go）；
+// 不随登录身份放开，避免消耗过多大模型额度
+func (s *MusicService) annotatableTrack(ctx context.Context, id int64) *dto.MusicTrackDto {
+	if track := s.playlistTrack(ctx, id); track != nil {
+		return track
+	}
+	if !tools.GetNCMConfig().Configured() || !articleSongReferenced(id) {
+		return nil
+	}
+	song, svcerr := s.GetSong(ctx, id)
+	if svcerr != nil {
+		return nil
+	}
+	return &dto.MusicTrackDto{ID: song.ID, Name: song.Name, Artists: song.Artists, Album: song.Album, AlbumPic: song.AlbumPic, Link: song.Link, Duration: song.Duration}
 }
 
 // playlistTrack 博客歌单中的这首歌；只有网易云歌单由后端提供，静态歌单无法校验，视为不在歌单内（返回 nil）

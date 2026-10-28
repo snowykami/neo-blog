@@ -310,3 +310,10 @@ func (p *postRepo) ToggleLikePost(postID uint, userID uint) (bool, error) {
 	}
 	return liked, nil
 }
+
+// ListPublicContentsWithComponents 公开文章（不含私密与草稿）中带内容组件的正文，用于找出文章引用的网易云歌曲（见 service/music_whitelist.go）
+func (p *postRepo) ListPublicContentsWithComponents() ([]string, error) {
+	var contents []string
+	err := GetDB().Model(&model.Post{}).Where("is_private = ? AND content LIKE ?", false, "%data-component%").Pluck("content", &contents).Error
+	return contents, err
+}
