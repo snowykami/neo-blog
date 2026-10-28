@@ -351,3 +351,20 @@ func TestSanitizeLyricAnnotationsPace(t *testing.T) {
 		t.Fatalf("medium pace = %q", got.Pace)
 	}
 }
+
+func TestSanitizeLyricAnnotationsSpotlight(t *testing.T) {
+	lines := []string{"副歌", "主歌", "副歌", "尾声"}
+	got, err := sanitizeLyricAnnotations(lines, nil, `{"spotlight":2,"lines":[]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 第 3 行是「副歌」的第 2 次出现
+	if got.Spotlight == nil || got.Spotlight.Text != "副歌" || got.Spotlight.Occurrence != 1 {
+		t.Fatalf("spotlight = %+v", got.Spotlight)
+	}
+	for _, raw := range []string{`{"spotlight":9,"lines":[]}`, `{"spotlight":null,"lines":[]}`, `{"lines":[]}`} {
+		if got, _ := sanitizeLyricAnnotations(lines, nil, raw); got.Spotlight != nil {
+			t.Fatalf("%s: spotlight = %+v", raw, got.Spotlight)
+		}
+	}
+}

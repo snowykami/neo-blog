@@ -99,7 +99,9 @@ type MusicLyricAnnotationsDto struct {
 	Outro *MusicLyricAnnotationComment `json:"outro,omitempty"`
 	// 歌词关键节点的「时刻」：在某句开唱时显示的热评或模型写的旁白（最多 5 条）
 	Moments []MusicLyricAnnotationMoment `json:"moments,omitempty"`
-	Lines   []MusicLyricAnnotationLine   `json:"lines"`
+	// 聚光灯：全曲最点题的一句（歌词 text 的第 occurrence 次出现），唱到时这一句移到中央放大、身后亮起暖光，可为空
+	Spotlight *MusicLyricAnnotationSpotlight `json:"spotlight,omitempty"`
+	Lines     []MusicLyricAnnotationLine     `json:"lines"`
 }
 
 // MusicLyricAnnotationMoment 一个「时刻」：在歌词 text 的第 occurrence 次出现（从 0 开始，副歌常有重复的行）开唱时显示；
@@ -110,6 +112,12 @@ type MusicLyricAnnotationMoment struct {
 	Content    string `json:"content"`
 	Source     string `json:"source"`
 	Liked      int64  `json:"liked,omitempty"`
+}
+
+// MusicLyricAnnotationSpotlight 聚光灯的那一句：歌词 text 的第 occurrence 次出现（从 0 开始，副歌常有重复的行）
+type MusicLyricAnnotationSpotlight struct {
+	Text       string `json:"text"`
+	Occurrence int    `json:"occurrence"`
 }
 
 // MusicLyricAnnotationComment 一条网易云热评：内容与点赞数

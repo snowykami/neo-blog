@@ -27,6 +27,7 @@ import { swellCurve } from './easing'
 import { interludeDot } from './interlude'
 import { PACE } from './pace'
 import { Spring } from './spring'
+import { spotlightLevel } from './stage-effects'
 import { buildTimeline, getTimelineState, getWordProgress } from './timeline'
 import { EMPTY_LYRICS } from './types'
 import { holdVibrato, vibratoWave } from './vibrato'
@@ -130,10 +131,43 @@ const INTERLUDE_HEIGHT_COMPACT_PX = 28
 // 紧凑模式下焦点条目的对齐位置与模糊系数：歌词区很矮，焦点放在中间附近，模糊减半以免远处的行完全糊掉
 const COMPACT_ALIGN_POSITION = 0.4
 const COMPACT_BLUR_FACTOR = 0.5
+// 聚光灯（点题句，见 stage-effects.ts 的 spotlightLevel）：这一句移到歌词区垂直中央、放大（不超出右侧，见 spotlightFit），
+// 带一圈暖光；其余行向两侧让开、变淡（不透明度降到 SPOTLIGHT_OTHERS_ALPHA）、略微变虚。紧凑模式放大与让开都更小
+const SPOTLIGHT_SCALE = 1.25
+const SPOTLIGHT_SCALE_COMPACT = 1.1
+const SPOTLIGHT_SPREAD_EM = 0.75
+const SPOTLIGHT_SPREAD_COMPACT_EM = 0.35
+const SPOTLIGHT_OTHERS_ALPHA = 0.24
+const SPOTLIGHT_BLUR_PX = 2.5
+const SPOTLIGHT_GLOW = '255 236 200'
+const SPOTLIGHT_GLOW_ALPHA = 0.35
 // 拖动超过此距离视为滚动，不再触发点击
 const DRAG_CLICK_TOLERANCE_PX = 6
 // 惯性速度低于此值（px/s）时停止
 const INERTIA_MIN_VELOCITY = 20
+
+/**
+ * 聚光灯放大倍数：不超过 max，且放大后文字不超出整行（缩放以行首为原点，对唱行以行尾为原点）。
+ * 按各文字节点相对整行的位置计算，与当前缩放无关
+ */
+function spotlightFit(el: HTMLElement, max: number): number {
+  const box = el.getBoundingClientRect()
+  if (box.width <= 0 || el.offsetWidth <= 0)
+    return max
+  const fromRight = el.classList.contains('lyric-line--duet')
+  const range = el.ownerDocument.createRange()
+  const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  let extent = 0
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    range.selectNodeContents(node)
+    const rect = range.getBoundingClientRect()
+    if (rect.width > 0)
+      extent = Math.max(extent, fromRight ? box.right - rect.left : rect.right - box.left)
+  }
+  // 留出行尾的内边距
+  const pad = (Number.parseFloat(getComputedStyle(el).paddingRight) || 0) * box.width / el.offsetWidth
+  return extent > 0 ? Math.max(1, Math.min(max, (box.width - pad) / extent)) : max
+}
 
 /**
  * 歌词文字颜色：容器上的 --lyric-color（默认白色，播放器页与悬浮播放器为深色界面）按不透明度混合，
@@ -210,6 +244,10 @@ export class LyricPlayer {
   private display: LyricPlayerDisplay = { showTranslation: true, showRomanization: true, footerText: '', effects: true }
   private state: TimelineState = { active: [], focus: 0, interlude: null }
   private activeLines = new Set<number>()
+  // 聚光灯：点题句所在条目（没有时为 -1）、当前强度与放大倍数上限（开始亮起时按文字宽度测量）
+  private spotView = -1
+  private spot = 0
+  private spotScale: number | null = null
 
   private containerHeight = 0
   private narrow = false
@@ -415,6 +453,7 @@ export class LyricPlayer {
       }
       return view
     })
+    this.spotView = this.views.findIndex(view => view.item.kind === 'line' && view.item.line === this.lyrics.spotlight)
     this.container.querySelectorAll(':scope > .lyric-item').forEach(el => el.remove())
     this.container.append(...this.views.map(view => view.el))
     this.layoutDirty = true
@@ -503,6 +542,7 @@ export class LyricPlayer {
         word.pad = view.emphasis.length > 0 ? Number.parseFloat(getComputedStyle(word.el).paddingLeft) || 0 : 0
       }
     }
+    this.spotScale = null
     this.layoutDirty = false
   }
 
@@ -540,6 +580,10 @@ export class LyricPlayer {
     // 跳转后旧的消散颗粒不再对应当前歌词
     if (this.teleport)
       this.grains.clear()
+    // 聚光灯随特效开关；减少动态效果与手动滚动时不演出
+    this.spot = this.spotView >= 0 && this.display.effects && !this.reducedMotion && !this.manual ? spotlightLevel(this.lyrics, timeMs) : 0
+    if (this.spot === 0)
+      this.spotScale = null
     const animating = this.layout(dt, now, focusChanged)
     this.paint(timeMs)
     const grains = this.grains.step(playing ? dt : 0)
@@ -584,6 +628,19 @@ export class LyricPlayer {
     const scroll = this.updateManual(dt, now, autoScroll, total) ?? autoScroll
     const dragging = this.manual?.touching ?? false
 
+    // 聚光灯：整体平移使点题句移到垂直中央，其余行再向两侧让开
+    const spot = this.spot
+    const spotView = spot > 0 ? this.spotView : -1
+    let spotShift = 0
+    let spotSpread = 0
+    let spotScale = 1
+    if (spotView >= 0) {
+      spotShift = (this.containerHeight / 2 - heights[spotView] / 2 - (tops[spotView] - scroll)) * spot
+      spotSpread = (this.options.compact ? SPOTLIGHT_SPREAD_COMPACT_EM : SPOTLIGHT_SPREAD_EM) * this.fontSize * spot
+      this.spotScale ??= spotlightFit(this.views[spotView].el, this.options.compact ? SPOTLIGHT_SCALE_COMPACT : SPOTLIGHT_SCALE)
+      spotScale = this.spotScale
+    }
+
     // 阶梯入场：焦点因播放推进而变化时，从视口内第一个条目开始逐个增加延迟
     let delay = 0
     let step = LYRIC_STAGGER_BASE_S
@@ -591,7 +648,7 @@ export class LyricPlayer {
 
     for (let i = 0; i < this.views.length; i++) {
       const view = this.views[i]
-      const target = tops[i] - scroll
+      const target = tops[i] - scroll + spotShift + (spotView >= 0 && i !== spotView ? Math.sign(i - spotView) * spotSpread : 0)
       const onScreen = target + heights[i] > -LYRIC_OVERSCAN_PX && target < this.containerHeight + LYRIC_OVERSCAN_PX
       if (jump || dragging) {
         view.y.jump(target)
@@ -607,7 +664,8 @@ export class LyricPlayer {
       view.y.step(dt)
 
       const highlighted = view.item.kind === 'line' ? this.activeLines.has(view.item.line) || i === focus : false
-      const scaleTarget = view.item.kind === 'line' && !highlighted ? LYRIC_INACTIVE_SCALE : 1
+      const baseScale = view.item.kind === 'line' && !highlighted ? LYRIC_INACTIVE_SCALE : 1
+      const scaleTarget = i === spotView ? baseScale + (spotScale - baseScale) * spot : baseScale
       if (jump)
         view.scale.jump(scaleTarget)
       else
@@ -642,6 +700,7 @@ export class LyricPlayer {
 
   private paint(timeMs: number) {
     const focus = this.state.focus
+    const spot = this.spot
     const inactiveAlpha = this.lyrics.wordTimed ? LYRIC_INACTIVE_ALPHA : LYRIC_INACTIVE_ALPHA_LINE_TIMED
     const blurFactor = (this.narrow ? LYRIC_BLUR_NARROW_FACTOR : 1) * (this.options.compact ? COMPACT_BLUR_FACTOR : 1)
     const noBlur = this.reducedMotion || this.manual != null
@@ -667,14 +726,21 @@ export class LyricPlayer {
       const item = view.item
       if (item.kind === 'line') {
         const active = this.activeLines.has(item.line)
-        const color = lyricColor(active ? 1 : inactiveAlpha)
+        const alpha = active ? 1 : inactiveAlpha
+        const spotted = i === this.spotView
+        // 聚光灯亮起时其余行变淡、变虚，点题句带一圈暖光
+        const dimmed = spot > 0 && !spotted ? alpha + (Math.min(alpha, SPOTLIGHT_OTHERS_ALPHA) - alpha) * spot : alpha
+        const color = lyricColor(Math.round(dimmed * 100) / 100)
         if (color !== view.color) {
           view.color = color
           view.el.style.color = color
         }
         const distance = Math.abs(i - focus)
-        const blur = noBlur || active || distance === 0 ? 0 : Math.min(LYRIC_BLUR_MAX_PX, 1 + distance) * blurFactor
-        const filter = blur > 0 ? `blur(${blur.toFixed(1)}px)` : ''
+        let blur = noBlur || active || distance === 0 ? 0 : Math.min(LYRIC_BLUR_MAX_PX, 1 + distance) * blurFactor
+        if (spot > 0 && !spotted)
+          blur = Math.max(blur, SPOTLIGHT_BLUR_PX * spot * blurFactor)
+        const glow = spot > 0 && spotted ? `drop-shadow(0 0 0.6em rgb(${SPOTLIGHT_GLOW} / ${(SPOTLIGHT_GLOW_ALPHA * spot).toFixed(2)}))` : ''
+        const filter = glow || (blur > 0 ? `blur(${blur.toFixed(1)}px)` : '')
         if (filter !== view.filter) {
           view.filter = filter
           view.el.style.filter = filter

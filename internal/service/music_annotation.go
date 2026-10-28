@@ -397,7 +397,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 
 	if found {
 		data := parseLyricAnnotationData(record.Data)
-		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Lines: data.Lines}
+		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlight: data.Spotlight, Lines: data.Lines}
 		// 旧版颜色名映射到新色板
 		for i := range result.Lines {
 			result.Lines[i].SceneColor = normalizeLyricColor(result.Lines[i].SceneColor)
@@ -499,12 +499,13 @@ func (a *lyricAnnotationService) run(key string, id int64, hash string, lines []
 // 情绪、特效、颜色与场景只能取允许的值（旧版颜色名映射到新色板，未知颜色与场景丢弃，场景全曲最多 4 处），每行最多 2 个短语，全曲短语总数有上限；同一文本的行合并为一条（前端按文本匹配）
 // lyricAnnotationData 保存到数据库的标注结果（旧版记录只有 lines 数组，读取时兼容）
 type lyricAnnotationData struct {
-	Font    string                           `json:"font,omitempty"`
-	Pace    string                           `json:"pace,omitempty"`
-	Intro   string                           `json:"intro,omitempty"`
-	Outro   *dto.MusicLyricAnnotationComment `json:"outro,omitempty"`
-	Moments []dto.MusicLyricAnnotationMoment `json:"moments,omitempty"`
-	Lines   []dto.MusicLyricAnnotationLine   `json:"lines"`
+	Font      string                             `json:"font,omitempty"`
+	Pace      string                             `json:"pace,omitempty"`
+	Intro     string                             `json:"intro,omitempty"`
+	Outro     *dto.MusicLyricAnnotationComment   `json:"outro,omitempty"`
+	Moments   []dto.MusicLyricAnnotationMoment   `json:"moments,omitempty"`
+	Spotlight *dto.MusicLyricAnnotationSpotlight `json:"spotlight,omitempty"`
+	Lines     []dto.MusicLyricAnnotationLine     `json:"lines"`
 }
 
 // parseLyricAnnotationData 读取保存的标注：新版为对象，旧版为 lines 数组
@@ -532,6 +533,7 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	var parsed struct {
 		Font         string `json:"font"`
 		Pace         string `json:"pace"`
+		Spotlight    *int   `json:"spotlight"` // 聚光灯那一句的行号（没有时为 null）
 		Intro        string `json:"intro"`
 		OutroComment int    `json:"outro_comment"`
 		Moments      []struct {
@@ -675,6 +677,15 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 		usedComments[n] = true
 	}
 	data.Moments = sanitizeLyricMoments(lines, comments, parsed.Moments, usedComments)
+	if i := parsed.Spotlight; i != nil && *i >= 0 && *i < len(lines) {
+		data.Spotlight = &dto.MusicLyricAnnotationSpotlight{Text: lines[*i]}
+		// 这一行的文字在第几次出现（同 moments）
+		for j := 0; j < *i; j++ {
+			if lines[j] == lines[*i] {
+				data.Spotlight.Occurrence++
+			}
+		}
+	}
 	return data, nil
 }
 

@@ -11,12 +11,14 @@ import { heartbeatLevel } from './word-effects'
  * - push 镜头推近：同样在副歌第一行开唱时触发，约 0.45 秒推近、2.6 秒缓缓回落（由页面换算成背景与歌词区的放大）
  * - 心跳强调（heartbeat）让背景随双拍跳动
  * - scene 粒子场景（含颜色主题）：从标了 scene 的行开始，持续 SCENE_MAX_LINES 行，或到下一个标了 scene 的行为止
+ * - spotlight 聚光灯：唱到全曲最点题的那一句时身后亮起暖光、四周略微压暗（与歌词引擎的聚光灯共用 spotlightLevel）
  */
 
 export interface StageSignals {
   pulse: number
   burst: number
   push: number
+  spotlight: number
   tint: { color: LyricColor, strength: number } | null
   scene: StageScene | null
 }
@@ -37,10 +39,14 @@ const BURST_RELEASE_MS = 1800
 // 镜头推近的推近与回落时长
 const PUSH_ATTACK_MS = 450
 const PUSH_RELEASE_MS = 2600
+// 聚光灯：提前于开唱亮起的时长、亮起时长、唱完后回落的时长
+const SPOTLIGHT_LEAD_MS = 200
+const SPOTLIGHT_ATTACK_MS = 500
+const SPOTLIGHT_RELEASE_MS = 600
 // 粒子场景持续的行数（含标注行）
 export const SCENE_MAX_LINES = 8
 
-const NO_SIGNALS: StageSignals = { pulse: 0, burst: 0, push: 0, tint: null, scene: null }
+const NO_SIGNALS: StageSignals = { pulse: 0, burst: 0, push: 0, spotlight: 0, tint: null, scene: null }
 
 export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number): StageSignals {
   if (lyrics.lines.length === 0)
@@ -69,7 +75,22 @@ export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number): StageSi
       }
     }
   }
-  return { pulse, burst, push, tint, scene: sceneAt(lyrics, timeMs) }
+  return { pulse, burst, push, spotlight: spotlightLevel(lyrics, timeMs), tint, scene: sceneAt(lyrics, timeMs) }
+}
+
+/**
+ * 聚光灯强度（0 ~ 1）：在点题句开唱前 SPOTLIGHT_LEAD_MS 开始、SPOTLIGHT_ATTACK_MS 内缓入亮满，
+ * 保持到这一句唱完，再在 SPOTLIGHT_RELEASE_MS 内缓出回落；没有点题句时为 0
+ */
+export function spotlightLevel(lyrics: ResolvedLyrics, timeMs: number): number {
+  const line = lyrics.spotlight == null ? undefined : lyrics.lines[lyrics.spotlight]
+  if (!line)
+    return 0
+  const t = timeMs - (line.start - SPOTLIGHT_LEAD_MS)
+  if (t < 0 || timeMs >= line.end + SPOTLIGHT_RELEASE_MS)
+    return 0
+  const level = timeMs <= line.end ? Math.min(1, t / SPOTLIGHT_ATTACK_MS) : 1 - (timeMs - line.end) / SPOTLIGHT_RELEASE_MS
+  return level * level * (3 - 2 * level)
 }
 
 /** 副歌爆发包络：开唱后 BURST_ATTACK_MS 内升满，再按缓出曲线在 BURST_RELEASE_MS 内回落 */

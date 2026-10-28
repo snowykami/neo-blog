@@ -1,6 +1,6 @@
 import type { LyricLine, ResolvedLyrics } from './types'
 import { describe, expect, it } from 'vitest'
-import { getStageSignals, SCENE_MAX_LINES } from './stage-effects'
+import { getStageSignals, SCENE_MAX_LINES, spotlightLevel } from './stage-effects'
 
 /** 每行 1 秒、间隔 1 秒的歌词：第 i 行在 [2i, 2i+1) 秒演唱 */
 function lyricsOf(lines: Partial<LyricLine>[]): ResolvedLyrics {
@@ -59,5 +59,17 @@ describe('播放器页全屏特效信号', () => {
 
     lines[3] = { scene: 'snow', sceneColor: 'ice' }
     expect(getStageSignals(lyricsOf(lines), 6500).scene).toEqual({ name: 'snow', color: 'ice' })
+  })
+
+  it('聚光灯：点题句开唱前 0.2 秒开始亮起，0.5 秒内亮满，唱完后 0.6 秒内回落', () => {
+    // 第 2 行在 [4, 5) 秒演唱
+    const lyrics = { ...lyricsOf([{}, {}, {}, {}]), spotlight: 2 }
+    expect(spotlightLevel(lyrics, 3700)).toBe(0)
+    expect(spotlightLevel(lyrics, 4050)).toBeCloseTo(0.5)
+    expect(spotlightLevel(lyrics, 4500)).toBe(1)
+    expect(spotlightLevel(lyrics, 5300)).toBeCloseTo(0.5)
+    expect(spotlightLevel(lyrics, 5600)).toBe(0)
+    expect(getStageSignals(lyrics, 4500).spotlight).toBe(1)
+    expect(spotlightLevel(lyricsOf([{}, {}]), 500)).toBe(0)
   })
 })

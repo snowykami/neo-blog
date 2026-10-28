@@ -105,6 +105,8 @@ export interface ResolvedLyrics {
   intro?: string
   outro?: LyricOutro
   notes?: LyricNote[]
+  // 聚光灯（来自歌词标注）：全曲最点题那一句的行号，唱到时移到中央放大、身后亮起暖光，见 stage-effects.ts 的 spotlightLevel
+  spotlight?: number
 }
 
 /** 关键节点的「时刻」：在 start（毫秒，对应歌词行开唱）时显示的热评或模型写的旁白 */

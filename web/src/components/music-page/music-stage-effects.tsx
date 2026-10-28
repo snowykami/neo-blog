@@ -14,6 +14,9 @@ const PULSE_MAX_OPACITY = 0.22
 // 副歌爆发更亮
 const BURST_MAX_OPACITY = 0.45
 const TINT_MAX_OPACITY = 0.38
+// 聚光灯：身后暖光与四周压暗的不透明度（柔和版，只压暗一点，不让画面变黑）
+const SPOTLIGHT_WARM_OPACITY = 0.22
+const SPOTLIGHT_DIM_OPACITY = 0.18
 // 跟随鼓点的呼吸：比歌词强调的呼吸更轻
 const BEAT_MAX_OPACITY = 0.12
 // 小窗（contained）：粒子缩小、数量减少，种类不变
@@ -31,7 +34,8 @@ function subscribeReducedMotion(listener: () => void) {
 
 /**
  * 播放器的全屏特效（叠在动态背景之上、内容之下）：播放器页铺满视口；contained 时铺满最近的定位祖先（悬浮小窗），粒子缩小、数量减少，种类不变。
- * 背景呼吸（唱到 swell / shake 强调时亮起，每段副歌开唱时更强烈地爆发一次）、背景染色（唱到带颜色的强调时泛起该颜色）、粒子场景（歌词标注的 scene）。
+ * 背景呼吸（唱到 swell / shake 强调时亮起，每段副歌开唱时更强烈地爆发一次）、背景染色（唱到带颜色的强调时泛起该颜色）、粒子场景（歌词标注的 scene）、
+ * 聚光灯（唱到全曲最点题的一句时歌词区中央亮起暖光，歌词引擎同时把这一句移到中央放大）。
  * 背景还会跟随鼓点轻轻呼吸（Web Audio 节拍分析，只在桌面端、网易云歌单时于用户手势中接入，见 audio-beat.ts）；
  * 呼吸的颜色取封面主色（--lyric-accent）。播放器页（非 contained）在副歌开唱时还会「镜头推近」：把推近程度写入父元素的 --stage-push（0 ~ 1），
  * 背景、歌词区与本层各按不同倍数放大（越靠前放大越多，有景深感），见 music-player-page.tsx。
@@ -43,6 +47,7 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
   const enabled = showLyricEffects && !reducedMotion
   const pulseRef = useRef<HTMLDivElement>(null)
   const tintRef = useRef<HTMLDivElement>(null)
+  const spotlightRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   // 逐帧循环通过 ref 读取，不随渲染重启
@@ -77,7 +82,8 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
     const canvas = canvasRef.current
     const pulseEl = pulseRef.current
     const tintEl = tintRef.current
-    if (!enabled || !canvas || !pulseEl || !tintEl)
+    const spotlightEl = spotlightRef.current
+    if (!enabled || !canvas || !pulseEl || !tintEl || !spotlightEl)
       return
     const particles = new StageParticles(canvas, contained ? CONTAINED_PARTICLES : undefined)
     const observer = new ResizeObserver(([entry]) => particles.resize(entry.contentRect.width, entry.contentRect.height))
@@ -89,6 +95,7 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
     let tintOpacity = ''
     let tintColor = ''
     let push = ''
+    let spotlight = ''
     // 镜头推近写到页面根元素上（小窗不推近）
     const pushTarget = contained ? null : rootRef.current?.parentElement ?? null
     const tick = (now: number) => {
@@ -121,6 +128,11 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
         tintColor = LYRIC_COLORS[tint.color]
         tintEl.style.setProperty('--stage-tint', tintColor)
       }
+      const nextSpotlight = (signals?.spotlight ?? 0).toFixed(3)
+      if (nextSpotlight !== spotlight) {
+        spotlight = nextSpotlight
+        spotlightEl.style.opacity = nextSpotlight
+      }
       const nextPush = (signals?.push ?? 0).toFixed(3)
       if (pushTarget && nextPush !== push) {
         push = nextPush
@@ -136,6 +148,7 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
       particles.clear()
       pulseEl.style.opacity = '0'
       tintEl.style.opacity = '0'
+      spotlightEl.style.opacity = '0'
       pushTarget?.style.removeProperty('--stage-push')
     }
   }, [contained, enabled, getAudio])
@@ -153,6 +166,12 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
         ref={pulseRef}
         className="absolute inset-0 opacity-0 mix-blend-soft-light"
         style={{ background: 'radial-gradient(ellipse at 50% 50%, var(--lyric-accent, #fff), transparent 75%)' }}
+      />
+      {/* 聚光灯：歌词区中央一团暖光（播放器页宽屏时歌词在右侧），四周略微压暗 */}
+      <div
+        ref={spotlightRef}
+        className="absolute inset-0 opacity-0 [--spot-x:50%] lg:[--spot-x:62%]"
+        style={{ background: `radial-gradient(42% 30% at ${contained ? '50%' : 'var(--spot-x)'} 50%, rgb(255 236 200 / ${SPOTLIGHT_WARM_OPACITY}), transparent 70%), radial-gradient(75% 60% at 50% 50%, transparent 40%, rgb(0 0 0 / ${SPOTLIGHT_DIM_OPACITY}) 100%)` }}
       />
       <canvas ref={canvasRef} className="absolute inset-0 size-full" />
     </div>

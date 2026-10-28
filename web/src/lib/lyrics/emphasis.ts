@@ -42,6 +42,12 @@ export interface LyricAnnotationMoment {
   liked?: number
 }
 
+/** 聚光灯的那一句：text 的第 occurrence 次出现（从 0 开始） */
+export interface LyricAnnotationSpotlight {
+  text: string
+  occurrence: number
+}
+
 export interface LyricAnnotations {
   font?: LyricFont
   // 全曲的特效节奏（按歌曲的轻快程度），规则强调也沿用它
@@ -49,6 +55,7 @@ export interface LyricAnnotations {
   intro?: string
   outro?: LyricOutro
   moments?: LyricAnnotationMoment[]
+  spotlight?: LyricAnnotationSpotlight
   lines: LyricAnnotationLine[]
 }
 
@@ -241,6 +248,7 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
     intro: annotations?.intro,
     outro: annotations?.outro,
     notes: resolveNotes(lyrics.lines, annotations?.moments),
+    spotlight: resolveSpotlight(lyrics.lines, annotations?.spotlight),
     lines: lyrics.lines.map((line) => {
       const annotation = byText.get(normalizeForMatch(line.words.map(word => word.text).join(''))) ?? null
       const emphasis = lineEmphasis(line, annotation).map(group => (group.pace || !songPace ? group : { ...group, pace: songPace }))
@@ -249,20 +257,34 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
   }
 }
 
-/**
- * 把关键节点的「时刻」按行文字（归一化后）匹配到歌词行：取该文字第 occurrence 次出现的主唱行（不够时取最后一次），
- * 找不到时丢弃；结果按开唱时间排序
- */
+/** 按行文字（归一化后）找歌词行：取该文字第 occurrence 次出现的主唱行（不够时取最后一次）的行号，找不到时为 -1 */
+export function findLyricLine(lines: LyricLine[], text: string, occurrence: number): number {
+  const key = normalizeForMatch(text)
+  if (!key)
+    return -1
+  const matches: number[] = []
+  lines.forEach((line, index) => {
+    if (!line.isBackground && normalizeForMatch(line.words.map(word => word.text).join('')) === key)
+      matches.push(index)
+  })
+  return matches[Math.min(Math.max(0, occurrence), matches.length - 1)] ?? -1
+}
+
+/** 把关键节点的「时刻」匹配到歌词行（见 findLyricLine），找不到时丢弃；结果按开唱时间排序 */
 export function resolveNotes(lines: LyricLine[], moments?: LyricAnnotationMoment[]): LyricNote[] | undefined {
   if (!moments?.length)
     return undefined
   const notes: LyricNote[] = []
   for (const moment of moments) {
-    const key = normalizeForMatch(moment.text)
-    const matches = lines.filter(line => !line.isBackground && normalizeForMatch(line.words.map(word => word.text).join('')) === key)
-    const line = matches[Math.min(moment.occurrence, matches.length - 1)]
-    if (key && line)
+    const line = lines[findLyricLine(lines, moment.text, moment.occurrence)]
+    if (line)
       notes.push({ start: line.start, content: moment.content, source: moment.source, liked: moment.liked })
   }
   return notes.length > 0 ? notes.sort((a, b) => a.start - b.start) : undefined
+}
+
+/** 把聚光灯的那一句匹配到歌词行，返回行号；没有或找不到时为 undefined */
+export function resolveSpotlight(lines: LyricLine[], spotlight?: LyricAnnotationSpotlight): number | undefined {
+  const index = spotlight ? findLyricLine(lines, spotlight.text, spotlight.occurrence) : -1
+  return index >= 0 ? index : undefined
 }

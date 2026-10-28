@@ -110,6 +110,7 @@ export interface MusicLyricAnnotations {
   intro?: LyricAnnotations['intro']
   outro?: LyricAnnotations['outro']
   moments?: LyricAnnotations['moments']
+  spotlight?: LyricAnnotations['spotlight']
   lines: LyricAnnotations['lines']
 }
 

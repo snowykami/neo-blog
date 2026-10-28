@@ -74,12 +74,13 @@ Task: plan the whole song. Per-line phrases are done later in parallel; do not o
 - outro_comment: the number of the comment shown during the outro, the one that best fits the song; omit if none fits.
 - moments: 4-5, at emotional turns, chorus starts, the most moving line, the climax or ending (i = line index), spread out with several lines between; prefer comment (a comment number, no repeats, not the outro_comment); otherwise text (a narration of at most 40 Chinese characters, heartfelt and vivid, not copying lyrics, no quotes).
 - font: song-wide font, optional (default sans).
+- spotlight: the index i of the ONE line that sums up the whole song — its title line or deepest confession, usually inside the last chorus, sung for at least ~2 seconds. While it is sung it moves alone to the center, enlarged, with a warm light behind it and the other lines dimmed; once per song. Omit it if no line clearly stands out.
 - pace: how fast the effects move, from the song's tempo and lightness — fast for upbeat, bouncy, energetic songs; slow for ballads, lyrical, tender or heavy songs; medium otherwise. It sets the speed of shake, wave, heartbeat, shimmer, dissolve and the held-note vibrato.
 - lines: mood (calm / bright / sad / intense) on emotionally clear lines; scene on lines describing a concrete image or starting a chorus (at most 6 per song, lasts ~8 lines), with optional scene_color (a color value, e.g. bauhinia for bauhinia petals).
 scene:
 {{scenes}}
 
-Output: {"theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","pace":"medium","imagery":[{"text":"","effect":"glow","color":"rain"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain"}]}; list only lines with marks.`
+Output: {"theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","pace":"medium","spotlight":0,"imagery":[{"text":"","effect":"glow","color":"rain"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain"}]}; list only lines with marks.`
 
 const lyricAnnotationENLines = `
 Task: annotate phrases line by line. The song plan is in [Plan]; annotate only lines in [Your range] — other lines are context.
