@@ -35,7 +35,22 @@ export function QqMusicIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 /**
- * 各歌词来源的标志（单色，跟随文字颜色）：网易云音乐、QQ 音乐、AMLL TTML DB 用各自的标志，
+ * 酷狗音乐的标志：同样只提供位图标志，按其「圆形底 + 字母 K」的样式绘制简化的单色版本：
+ * 圆形底上镂空一个 K（单个多边形，以 evenodd 镂空），以 currentColor 绘制
+ */
+export function KugouIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
+      <path
+        fillRule="evenodd"
+        d="M12 1a11 11 0 1 1 0 22a11 11 0 1 1 0-22ZM8 6.5h2.2v4.6l4.2-4.6h2.8l-4.9 5.3l5.2 5.7h-2.9l-4.4-4.8v4.8H8Z"
+      />
+    </svg>
+  )
+}
+
+/**
+ * 各歌词来源的标志（单色，跟随文字颜色）：网易云音乐、QQ 音乐、酷狗音乐、AMLL TTML DB 用各自的标志，
  * 站长的自定义 TTML 用音乐文件图标；没有歌词时为引号图标
  */
 export function LyricSourceIcon({ source, className }: { source: LyricSource, className?: string }) {
@@ -46,6 +61,9 @@ export function LyricSourceIcon({ source, className }: { source: LyricSource, cl
     case 'qq-qrc':
     case 'qq-lrc':
       return <QqMusicIcon className={className} />
+    case 'kugou-krc':
+    case 'kugou-lrc':
+      return <KugouIcon className={className} />
     case 'ttml-amll':
       return <AmllIcon className={className} />
     case 'ttml-custom':

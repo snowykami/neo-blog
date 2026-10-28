@@ -2242,6 +2242,7 @@
     "lyric_badge_label": "歌词来源",
     "lyric_source_ncm": "网易云",
     "lyric_source_qq": "QQ 音乐",
+    "lyric_source_kugou": "酷狗音乐",
     "lyric_source_amll": "AMLL TTML",
     "lyric_source_custom": "自定义 TTML",
     "lyric_badge_word": "逐字",
@@ -2260,7 +2261,9 @@
     "lyric_ai_refresh_started": "已开始重新生成，完成后自动替换",
     "lyric_ai_refresh_failed": "重新生成失败",
     "outro_source": "网易云热评 · {count} 赞",
-    "lyric_badge_ai_generating": "AI 歌词特效生成中"
+    "lyric_badge_ai_generating": "AI 歌词特效生成中",
+    "lyric_refresh": "重新获取歌词",
+    "lyric_refresh_hint": "重新从网易云、QQ 音乐、酷狗音乐与 TTML 获取"
   },
   "Nav": {
     "expand_topbar": "展开顶栏",

@@ -1,12 +1,12 @@
 'use client'
 
-import type { MusicLyricCache, MusicLyrics, MusicQqLyric, MusicTtmlLyric } from '@/api/music'
+import type { MusicKugouLyric, MusicLyricCache, MusicLyrics, MusicQqLyric, MusicTtmlLyric } from '@/api/music'
 import type { LyricCandidate, LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricTrackInfo } from '@/lib/lyrics/strip-credits'
 import type { ResolvedLyrics } from '@/lib/lyrics/types'
 import type { MusicLyricParseResult } from '@/utils/music-lyric'
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
-import { fetchLyricCache, fetchNcmLyric, fetchQqLyric, fetchTtmlLyric, saveLyricCache } from '@/api/music'
+import { fetchKugouLyric, fetchLyricCache, fetchNcmLyric, fetchQqLyric, fetchTtmlLyric, saveLyricCache } from '@/api/music'
 import { platformToLyrics } from '@/lib/lyrics/from-platform'
 import { parseTtml } from '@/lib/lyrics/parse-ttml'
 import { resolveLyrics } from '@/lib/lyrics/resolve'
@@ -16,8 +16,8 @@ import { parseMusicLyrics, parseQqLyrics } from '@/utils/music-lyric'
 /**
  * 全站共用的歌词来源（见 spec 2.3、2.4、7.4）：按网易云歌曲 id 获取并缓存，播放器页、悬浮播放器、导航栏、
  * 文章内的单曲卡与歌词摘录都从这里取，同一首歌只请求一次，按同一套规则选出同一份歌词。
- * - 网易云与 TTML 并发请求；网易云不是逐字、且 TTML 还没有命中时才请求 QQ 音乐（同 StarryPlayer：先问歌曲自己的平台）；
- *   读者为这首歌固定了 QQ 音乐时立即请求
+ * - 网易云与 TTML 并发请求；网易云不是逐字、且 TTML 还没有命中时才并发请求兜底来源 QQ 音乐与酷狗音乐
+ *   （同 StarryPlayer：先问歌曲自己的平台）；读者为这首歌固定了 QQ 音乐或酷狗音乐时立即请求
  * - 来源的值：undefined 为请求中（或尚未请求），null 为没有或请求失败；失败的来源在下次需要时重试
  * - 歌词缓存（spec 7.2e）：与各来源并发请求后端保存的最佳歌词快照；某个来源还在请求中或失败时先用快照里的同一来源，
  *   所以打开时能立即显示最佳歌词，实时结果到达后原地替换。各来源都到齐后上报按等级最好的来源，后端据此更新快照
@@ -27,6 +27,7 @@ export interface SongLyricSources {
   ncm?: MusicLyrics | null
   ttml?: MusicTtmlLyric | null
   qq?: MusicQqLyric | null
+  kugou?: MusicKugouLyric | null
   // 后端保存的最佳歌词快照（不算一个来源，只在实时来源缺失时补位）
   cache?: MusicLyricCache | null
 }
@@ -38,9 +39,9 @@ interface Entry {
   listeners: Set<() => void>
   started: Set<SourceKey>
   failed: Set<SourceKey>
-  // 已决定是否请求 QQ 音乐；qqRequested 为真正发出了请求
-  qqDecided: boolean
-  qqRequested: boolean
+  // 已决定是否请求兜底来源（QQ 音乐、酷狗音乐）；fallbackRequested 为真正发出了请求
+  fallbackDecided: boolean
+  fallbackRequested: boolean
   ttmlFound: boolean
 }
 
@@ -56,7 +57,7 @@ function getEntry(id: number): Entry {
     entries.set(id, existing)
     return existing
   }
-  const entry: Entry = { sources: {}, listeners: new Set(), started: new Set(), failed: new Set(), qqDecided: false, qqRequested: false, ttmlFound: false }
+  const entry: Entry = { sources: {}, listeners: new Set(), started: new Set(), failed: new Set(), fallbackDecided: false, fallbackRequested: false, ttmlFound: false }
   entries.set(id, entry)
   for (const [key, old] of entries) {
     if (entries.size <= MAX_ENTRIES)
@@ -94,24 +95,34 @@ function request<K extends SourceKey>(entry: Entry, key: K, load: () => Promise<
   })
 }
 
-function requestQq(id: number, entry: Entry) {
-  entry.qqDecided = true
-  entry.qqRequested = true
-  request(entry, 'qq', () => fetchQqLyric(id))
+// 兜底来源：网易云没有逐字歌词时并发请求
+const FALLBACK_SOURCES = { qq: fetchQqLyric, kugou: fetchKugouLyric } as const
+type FallbackKey = keyof typeof FALLBACK_SOURCES
+const FALLBACK_KEYS = Object.keys(FALLBACK_SOURCES) as FallbackKey[]
+
+/** 请求兜底来源；onlyFailed 为只重试失败的 */
+function requestFallbacks(id: number, entry: Entry, { onlyFailed = false, refresh = false } = {}) {
+  entry.fallbackDecided = true
+  entry.fallbackRequested = true
+  for (const key of FALLBACK_KEYS) {
+    if (!onlyFailed || entry.failed.has(key))
+      request(entry, key, () => refresh ? FALLBACK_SOURCES[key](id, undefined, true) : FALLBACK_SOURCES[key](id))
+  }
 }
 
-/** 开始（或补齐、重试）获取一首歌的歌词来源；wantQq 为读者固定了 QQ 音乐 */
-export function loadSongLyrics(id: number, { wantQq = false }: { wantQq?: boolean } = {}) {
+/** 开始（或补齐、重试）获取一首歌的歌词来源；wantFallback 为读者固定了 QQ 音乐或酷狗音乐 */
+export function loadSongLyrics(id: number, { wantFallback = false }: { wantFallback?: boolean } = {}) {
   const entry = getEntry(id)
-  const decideQq = (request: boolean) => {
-    if (entry.qqDecided)
+  const decideFallback = (request: boolean) => {
+    if (entry.fallbackDecided)
       return
     if (request) {
-      requestQq(id, entry)
+      requestFallbacks(id, entry)
       return
     }
-    entry.qqDecided = true
-    settle(entry, 'qq', null)
+    entry.fallbackDecided = true
+    for (const key of FALLBACK_KEYS)
+      settle(entry, key, null)
   }
   if (!entry.started.has('cache'))
     request(entry, 'cache', () => fetchLyricCache(id))
@@ -122,17 +133,51 @@ export function loadSongLyrics(id: number, { wantQq = false }: { wantQq?: boolea
   }
   if (!entry.started.has('ncm') || entry.failed.has('ncm')) {
     request(entry, 'ncm', () => fetchNcmLyric(id), (value) => {
-      decideQq(!entry.ttmlFound && (value == null || parseMusicLyrics(value).sourceType !== 'yrc'))
+      decideFallback(!entry.ttmlFound && (value == null || parseMusicLyrics(value).sourceType !== 'yrc'))
     })
   }
-  if ((wantQq && !entry.qqRequested) || (entry.qqRequested && entry.failed.has('qq')))
-    requestQq(id, entry)
+  if (wantFallback && !entry.fallbackRequested)
+    requestFallbacks(id, entry)
+  else if (entry.fallbackRequested && FALLBACK_KEYS.some(key => entry.failed.has(key)))
+    requestFallbacks(id, entry, { onlyFailed: true })
+}
+
+/**
+ * 重新从所有来源获取歌词（读者在播放器里点「重新获取歌词」，见 spec 7.2h）：所有来源（含兜底的 QQ 音乐、酷狗音乐）都带 refresh 重新请求，
+ * 后端跳过缓存中「没有歌词」的记录。请求期间把当前已有的结果当作快照补位，歌词不会消失，新结果到达后原地替换；
+ * 某个来源这次失败时沿用之前的结果
+ */
+export function refreshSongLyrics(id: number) {
+  if (id <= 0)
+    return
+  const entry = getEntry(id)
+  const previous = entry.sources
+  const cached = previous.cache ?? null
+  entry.sources = {
+    cache: {
+      kind: cached?.kind ?? 'ncm',
+      ncm: previous.ncm ?? cached?.ncm,
+      ttml: previous.ttml ?? cached?.ttml,
+      qq: previous.qq ?? cached?.qq,
+      kugou: previous.kugou ?? cached?.kugou,
+    },
+  }
+  entry.started.clear()
+  entry.started.add('cache')
+  entry.failed.clear()
+  entry.ttmlFound = false
+  entry.listeners.forEach(listener => listener())
+  request(entry, 'ttml', () => fetchTtmlLyric(id, undefined, true), (value) => {
+    entry.ttmlFound = value != null
+  })
+  request(entry, 'ncm', () => fetchNcmLyric(id, undefined, true))
+  requestFallbacks(id, entry, { refresh: true })
 }
 
 const EMPTY_SOURCES: SongLyricSources = {}
 
 /** 订阅一首歌的歌词来源并在需要时开始获取；id 为空或不大于 0（示例曲目）时不获取 */
-export function useSongLyricSources(id: number | null, wantQq: boolean): SongLyricSources | null {
+export function useSongLyricSources(id: number | null, wantFallback: boolean): SongLyricSources | null {
   const valid = id != null && id > 0
   const subscribe = useCallback((listener: () => void) => {
     if (!valid)
@@ -150,8 +195,8 @@ export function useSongLyricSources(id: number | null, wantQq: boolean): SongLyr
   )
   useEffect(() => {
     if (valid)
-      loadSongLyrics(id, { wantQq })
-  }, [id, valid, wantQq])
+      loadSongLyrics(id, { wantFallback })
+  }, [id, valid, wantFallback])
   return sources
 }
 
@@ -181,7 +226,7 @@ function safely<T>(parse: () => T, label: string): T | null {
 
 /** 一首歌最终显示的歌词：获取各来源并按同一套规则选择；track 用于去掉「歌名 - 歌手」等署名行 */
 export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | null, track?: LyricTrackInfo | null): SongLyrics {
-  const fresh = useSongLyricSources(id, pin === 'qq')
+  const fresh = useSongLyricSources(id, pin === 'qq' || pin === 'kugou')
   // 实时来源还在请求中或失败时，用缓存快照中的同一来源补位
   const sources = useMemo(() => withCachedSources(fresh), [fresh])
   const trackName = track?.name ?? ''
@@ -190,18 +235,22 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
 
   const ncm = sources?.ncm ?? null
   const qq = sources?.qq ?? null
+  const kugou = sources?.kugou ?? null
   const ncmParsed = useMemo(() => (ncm ? safely(() => parseMusicLyrics(ncm), 'NetEase') : null), [ncm])
   const qqParsed = useMemo(() => (qq ? safely(() => parseQqLyrics(qq), 'QQ Music') : null), [qq])
+  // 酷狗音乐的 KRC 已由后端转换为 QQ 音乐的格式
+  const kugouParsed = useMemo(() => (kugou ? safely(() => parseQqLyrics(kugou), 'Kugou') : null), [kugou])
   const ncmLyrics = useMemo(() => platformToLyrics(ncmParsed, 'ncm', trackInfo), [ncmParsed, trackInfo])
   const qqLyrics = useMemo(() => platformToLyrics(qqParsed, 'qq', trackInfo), [qqParsed, trackInfo])
+  const kugouLyrics = useMemo(() => platformToLyrics(kugouParsed, 'kugou', trackInfo), [kugouParsed, trackInfo])
   // TTML：按网易云歌曲收录的优先，其次是按匹配到的 QQ 歌曲收录的
   const ttmlText = sources?.ttml?.ttml ?? qq?.ttml ?? null
   const ttmlKind = sources?.ttml?.source === 'custom' ? 'ttml-custom' : 'ttml-amll'
   const ttmlLyrics = useMemo(() => (ttmlText ? safely(() => parseTtml(ttmlText, ttmlKind), 'TTML') : null), [ttmlKind, ttmlText])
 
   const result = useMemo<SongLyrics>(() => {
-    const resolution = resolveLyrics({ ttml: ttmlLyrics, ncm: ncmLyrics, ncmParsed, qq: qqLyrics, qqParsed, pin })
-    const pending = fresh != null && (fresh.ncm === undefined || fresh.ttml === undefined || fresh.qq === undefined)
+    const resolution = resolveLyrics({ ttml: ttmlLyrics, ncm: ncmLyrics, ncmParsed, qq: qqLyrics, qqParsed, kugou: kugouLyrics, kugouParsed, pin })
+    const pending = fresh != null && (fresh.ncm === undefined || fresh.ttml === undefined || fresh.qq === undefined || fresh.kugou === undefined)
     return {
       // 音译对齐到原文音节（逐字音译）
       lyrics: withRomanizationWords(resolution.lyrics),
@@ -211,7 +260,7 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
       status: resolution.lyrics.lines.length > 0 ? 'ready' : pending ? 'loading' : 'none',
       ncmParsed,
     }
-  }, [fresh, ncmLyrics, ncmParsed, pin, qqLyrics, qqParsed, ttmlLyrics])
+  }, [fresh, kugouLyrics, kugouParsed, ncmLyrics, ncmParsed, pin, qqLyrics, qqParsed, ttmlLyrics])
   useReportBestLyricSource(id, result)
   return result
 }
@@ -226,6 +275,7 @@ export function withCachedSources(sources: SongLyricSources | null): SongLyricSo
     ncm: sources.ncm ?? cache.ncm ?? sources.ncm,
     ttml: sources.ttml ?? cache.ttml ?? sources.ttml,
     qq: sources.qq ?? cache.qq ?? sources.qq,
+    kugou: sources.kugou ?? cache.kugou ?? sources.kugou,
   }
 }
 

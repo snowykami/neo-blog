@@ -71,6 +71,16 @@ type MusicQQLyricDto struct {
 	TTML         string `json:"ttml,omitempty"`
 }
 
+// MusicKugouLyricDto 酷狗音乐歌词：hash 为匹配到的歌曲；后端已把 KRC 转换为与 QQ 音乐相同的格式——
+// format 为 qrc（逐字）或 lrc，translation 为 LRC，romanization 为与正文逐字对齐的 QRC（均可能为空）
+type MusicKugouLyricDto struct {
+	Hash         string `json:"hash"`
+	Format       string `json:"format"`
+	Lyric        string `json:"lyric"`
+	Translation  string `json:"translation"`
+	Romanization string `json:"romanization"`
+}
+
 // MusicLyricAnnotationsDto 歌词标注：status 为 ready（已有结果）或 pending（生成中，稍后再取）。
 // 标注只引用歌词文本（行文本 + 行内的短语），不含时间，由前端按文本匹配到歌词上。
 // stale 为 true 时 lines 是旧结果（已过期或管理员刷新），后台正在重新生成，稍后再取可得到新结果
@@ -129,7 +139,13 @@ type MusicLyricAnnotationPhrase struct {
 
 // MusicTTMLReq 只取某一来源（手动切换时），为空时自动选择
 type MusicTTMLReq struct {
-	Source string `query:"source"`
+	Source  string `query:"source"`
+	Refresh bool   `query:"refresh"`
+}
+
+// MusicLyricReq 网易云 / QQ 音乐歌词：refresh 为读者「重新获取歌词」，跳过缓存中「没有歌词」的记录
+type MusicLyricReq struct {
+	Refresh bool `query:"refresh"`
 }
 
 // NCMPlaylistsReq 获取网易云用户歌单；字段为空时使用已保存的配置，便于保存前先测试
@@ -160,17 +176,18 @@ type NCMPlaylistsDto struct {
 	Playlists []NCMPlaylistDto `json:"playlists"`
 }
 
-// MusicLyricCacheReq 上报一首歌选出的最佳歌词来源（ttml / ncm / qq），后端用自己获取的来源数据写入缓存
+// MusicLyricCacheReq 上报一首歌选出的最佳歌词来源（ttml / ncm / qq / kugou），后端用自己获取的来源数据写入缓存
 type MusicLyricCacheReq struct {
 	Kind string `json:"kind" vd:"len($)>0"`
 }
 
 // MusicLyricCacheDto 歌词缓存快照：kind 为最佳来源；ncm / ttml / qq 与各来源接口的返回相同（只含需要的来源，网易云歌词总会附带，供翻译借用与单行歌词）
 type MusicLyricCacheDto struct {
-	Kind string           `json:"kind"`
-	Ncm  *MusicLyricDto   `json:"ncm,omitempty"`
-	TTML *MusicTTMLDto    `json:"ttml,omitempty"`
-	QQ   *MusicQQLyricDto `json:"qq,omitempty"`
+	Kind  string              `json:"kind"`
+	Ncm   *MusicLyricDto      `json:"ncm,omitempty"`
+	TTML  *MusicTTMLDto       `json:"ttml,omitempty"`
+	QQ    *MusicQQLyricDto    `json:"qq,omitempty"`
+	Kugou *MusicKugouLyricDto `json:"kugou,omitempty"`
 }
 
 // MusicChorusDto 网易云标出的副歌 / 高潮片段（毫秒）

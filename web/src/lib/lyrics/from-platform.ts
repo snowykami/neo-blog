@@ -7,7 +7,7 @@ import { romanWordsFromTimed } from './romanization'
 import { stripCredits } from './strip-credits'
 import { EMPTY_LYRICS } from './types'
 
-export type LyricPlatform = 'ncm' | 'qq'
+export type LyricPlatform = 'ncm' | 'qq' | 'kugou'
 
 // 行级歌词最后一行没有下一行可参考时的行时长
 const LAST_LINE_DURATION_MS = 5000
@@ -15,13 +15,14 @@ const LAST_LINE_DURATION_MS = 5000
 const PLATFORM_SOURCES: Record<LyricPlatform, { wordTimed: LyricSource, lineTimed: LyricSource }> = {
   ncm: { wordTimed: 'ncm-yrc', lineTimed: 'ncm-lrc' },
   qq: { wordTimed: 'qq-qrc', lineTimed: 'qq-lrc' },
+  kugou: { wordTimed: 'kugou-krc', lineTimed: 'kugou-lrc' },
 }
 
-// QQ 音乐纯音乐的占位歌词
-const QQ_INSTRUMENTAL_RE = /纯音乐，请您?欣赏/
+// QQ 音乐、酷狗音乐纯音乐的占位歌词
+const INSTRUMENTAL_RE = /纯音乐，请您?欣赏/
 
 /**
- * 平台歌词（网易云 parseMusicLyrics / QQ 音乐 parseQqLyrics 的结果）转换为歌词引擎的数据模型并预处理：
+ * 平台歌词（网易云 parseMusicLyrics / QQ 音乐与酷狗音乐 parseQqLyrics 的结果）转换为歌词引擎的数据模型并预处理：
  * - 逐字（yrc / qrc）：词的结束时间 = 开始 + 时长；逐行（lrc）：整行为一个词，结束时间取下一行的开始
  * - 翻译 / 音译已在解析时一对一挂到主行（宁缺勿错），这里按开始时间精确取；与原文相同的翻译不显示
  * - 去掉首尾的署名行（歌名 - 歌手、作词、作曲等，需要曲目信息判断歌名行）
@@ -34,7 +35,7 @@ export function platformToLyrics(parsed: MusicLyricParseResult | null, platform:
   const placeholder = parsed.lines.length === 1 ? parsed.lines[0].originalText.trim() : ''
   if (LYRIC_PLACEHOLDERS.has(placeholder))
     return { ...EMPTY_LYRICS, instrumental: placeholder === 'pure_music_without_lyric' }
-  if (platform === 'qq' && parsed.lines.every(line => QQ_INSTRUMENTAL_RE.test(line.originalText)))
+  if (platform !== 'ncm' && parsed.lines.every(line => INSTRUMENTAL_RE.test(line.originalText)))
     return { ...EMPTY_LYRICS, instrumental: true }
 
   const wordTimed = parsed.sourceType === 'yrc' || parsed.sourceType === 'qrc'
@@ -48,8 +49,8 @@ export function platformToLyrics(parsed: MusicLyricParseResult | null, platform:
     const words = wordTimed
       ? line.items.map(item => ({ text: item.text, start: item.startTime, end: item.startTime + item.duration }))
       : [{ text: line.originalText, start: line.startTime, end }]
-    // QQ 音乐的音译是带逐字时间的 QRC，直接使用；其他来源的音译在最终歌词上对齐（见 romanization.ts）
-    const romanizationWords = platform === 'qq' && wordTimed && romajiLine ? romanWordsFromTimed(romajiLine.items, words) ?? undefined : undefined
+    // QQ 音乐、酷狗音乐的音译是带逐字时间的 QRC，直接使用；其他来源的音译在最终歌词上对齐（见 romanization.ts）
+    const romanizationWords = platform !== 'ncm' && wordTimed && romajiLine ? romanWordsFromTimed(romajiLine.items, words) ?? undefined : undefined
     return {
       words,
       start: line.startTime,

@@ -20,6 +20,7 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroup.GET("/song/:id/lyric", controller.Music.SongLyric)
 		musicGroup.GET("/song/:id/lyric/ttml", controller.Music.SongTTMLLyric)
 		musicGroup.GET("/song/:id/lyric/qq", controller.Music.SongQQLyric)
+		musicGroup.GET("/song/:id/lyric/kugou", controller.Music.SongKugouLyric)
 		musicGroup.GET("/song/:id/lyric/annotations", controller.Music.SongLyricAnnotations)
 		musicGroup.GET("/song/:id/chorus", controller.Music.SongChorus)
 		// 歌词缓存：前端只上报最佳来源的类型，内容由后端用自己获取的来源数据写入

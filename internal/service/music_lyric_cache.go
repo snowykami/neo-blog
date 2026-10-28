@@ -21,7 +21,7 @@ import (
 
 const lyricCacheTTL = 30 * 24 * time.Hour
 
-var lyricCacheKinds = map[string]bool{"ttml": true, "ncm": true, "qq": true}
+var lyricCacheKinds = map[string]bool{"ttml": true, "ncm": true, "qq": true, "kugou": true}
 
 // GetLyricCache 一首歌的歌词缓存快照；没有或已过期时 404
 func (s *MusicService) GetLyricCache(ctx context.Context, id int64) (*dto.MusicLyricCacheDto, *errs.ServiceError) {
@@ -86,6 +86,13 @@ func (s *MusicService) lyricCacheSnapshot(ctx context.Context, id int64, kind st
 			return snapshot, true
 		}
 		return snapshot, false
+	case "kugou":
+		kugou, svcerr := s.GetKugouLyric(ctx, id)
+		if svcerr != nil {
+			return snapshot, false
+		}
+		snapshot.Kugou = kugou
+		return snapshot, true
 	default:
 		qq, svcerr := s.GetQQLyric(ctx, id)
 		if svcerr != nil || qq.Lyric == "" {

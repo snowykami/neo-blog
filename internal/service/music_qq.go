@@ -13,8 +13,10 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -27,14 +29,13 @@ import (
 )
 
 // QQ 音乐歌词（见 docs/music-player-spec.md 2.4，规则参考 StarryPlayer 的 QQ 音乐歌词插件与候选匹配）：
-// - 网易云歌曲在 QQ 音乐没有对应 id：以「歌名 歌手」搜索（主搜索接口失败时改用联想搜索 + 曲目详情），再按歌名、歌手、专辑、时长打分，选出同一首歌（宁缺勿错）
+// - 网易云歌曲在 QQ 音乐没有对应 id：以「歌名 歌手」搜索（客户端签名搜索没有结果或失败时，再用歌名与联想搜索 + 曲目详情），再按歌名、歌手、专辑、时长打分，选出同一首歌（宁缺勿错）
 // - 取 QRC 逐字歌词、翻译（LRC）与音译（QRC）；正文与音译是加密的（见 music_qrc.go）
 // - 匹配到的歌曲还会按 mid 查 AMLL TTML DB 的 qq-lyrics 目录
 // - 前端只在需要时请求（网易云没有逐字歌词，或读者固定了 QQ 音乐）；结果按网易云歌曲 id 缓存：
 //   有歌词 30 天，没有匹配或没有歌词 1 天，出错不缓存
 
 var (
-	musicQQSearchURL   = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp"
 	musicQQSmartboxURL = "https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg"
 	// 歌词、曲目详情等 CGI 的统一入口
 	musicQQLyricURL = "https://u.y.qq.com/cgi-bin/musicu.fcg"
@@ -43,10 +44,11 @@ var (
 const (
 	musicQQReferer        = "https://y.qq.com/"
 	musicQQUserAgent      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
-	musicQQSearchLimit    = 20
 	musicQQKeywordMaxRune = 100
 	musicQQHitTTL         = 30 * 24 * time.Hour
 	musicQQMissTTL        = 24 * time.Hour
+	// 搜索不完整（有某一路搜索出错）时「没有匹配」的缓存时长
+	musicQQDegradedMissTTL = time.Hour
 )
 
 var (
@@ -87,7 +89,8 @@ func (s *MusicService) GetQQLyric(ctx context.Context, id int64) (*dto.MusicQQLy
 func (s *MusicService) cachedQQLyric(ctx context.Context, id int64) (*dto.MusicQQLyricDto, *errs.ServiceError) {
 	if data, ok := musicQQCache.Get(uint(id)); ok {
 		var entry musicQQCacheEntry
-		if json.Unmarshal(data, &entry) == nil && time.Now().Unix() < entry.ExpiresAt {
+		// 刷新歌词时不使用「没有匹配或没有歌词」的缓存
+		if json.Unmarshal(data, &entry) == nil && time.Now().Unix() < entry.ExpiresAt && (entry.Lyric.Lyric != "" || !lyricRefreshing(ctx)) {
 			return &entry.Lyric, nil
 		}
 		musicQQCache.Remove(uint(id))
@@ -100,7 +103,7 @@ func (s *MusicService) cachedQQLyric(ctx context.Context, id int64) (*dto.MusicQ
 		if svcerr != nil {
 			return nil, svcerr
 		}
-		lyric, err := fetchQQLyric(ctx, song)
+		lyric, degraded, err := fetchQQLyric(ctx, song)
 		if err != nil {
 			logrus.Warnf("qq music lyric request failed: %v", err)
 			return nil, errs.New(http.StatusBadGateway, "music_lyric_source_failed", err)
@@ -108,6 +111,10 @@ func (s *MusicService) cachedQQLyric(ctx context.Context, id int64) (*dto.MusicQ
 		ttl := musicQQHitTTL
 		if lyric.Lyric == "" {
 			ttl = musicQQMissTTL
+			// 有某一路搜索出错时「没有匹配」可能只是没搜全，只短暂缓存
+			if degraded {
+				ttl = musicQQDegradedMissTTL
+			}
 		}
 		if data, err := json.Marshal(musicQQCacheEntry{Lyric: *lyric, ExpiresAt: time.Now().Add(ttl).Unix()}); err == nil {
 			musicQQCache.Put(uint(id), data)
@@ -124,25 +131,25 @@ func (s *MusicService) cachedQQLyric(ctx context.Context, id int64) (*dto.MusicQ
 	return value.(*dto.MusicQQLyricDto), nil
 }
 
-// fetchQQLyric 搜索并匹配同一首歌，取它的歌词；没有匹配时返回空结果（不是错误）
-func fetchQQLyric(ctx context.Context, song *dto.MusicSongDto) (*dto.MusicQQLyricDto, error) {
+// fetchQQLyric 搜索并匹配同一首歌，取它的歌词；没有匹配时返回空结果（不是错误）。
+// degraded 为有某一路搜索出错（搜索可能不全），此时「没有匹配」只短暂缓存
+func fetchQQLyric(ctx context.Context, song *dto.MusicSongDto) (lyric *dto.MusicQQLyricDto, degraded bool, err error) {
 	query := lyricQuery{Title: song.Name, Artists: song.Artists, Album: song.Album, Duration: float64(song.Duration) / 1000}
-	candidates, err := searchQQSongs(ctx, query.keyword())
+	best, degraded, err := searchQQSong(ctx, query)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
-	best := bestLyricCandidate(candidates, query)
 	if best == nil {
-		return &dto.MusicQQLyricDto{}, nil
+		return &dto.MusicQQLyricDto{}, degraded, nil
 	}
 	// 同时预热按 mid 收录的 TTML（结果进缓存，GetQQLyric 随后直接取用）
 	go probeQQTTML(ctx, best.MID)
-	lyric, err := fetchQQSongLyric(ctx, best)
+	lyric, err = fetchQQSongLyric(ctx, best)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	lyric.SongMID = best.MID
-	return lyric, nil
+	return lyric, degraded, nil
 }
 
 // qqRequest 请求 QQ 音乐接口并解析 JSON；code 不为 0 时视为失败
@@ -186,18 +193,85 @@ func qqRequest(ctx context.Context, method, endpoint string, body []byte, out an
 	return json.Unmarshal(data, out)
 }
 
-// searchQQSongs 搜索 QQ 音乐歌曲。主搜索接口会间歇性返回 500，失败时改用联想搜索取歌曲 mid，再批量查曲目详情补上时长、专辑与歌手
-func searchQQSongs(ctx context.Context, keyword string) ([]lyricCandidate, error) {
-	candidates, err := searchQQSongsCP(ctx, keyword)
-	if err == nil {
-		return candidates, nil
+// searchQQSong 在 QQ 音乐搜索并匹配同一首歌（匹配规则见 scoreLyricCandidate），分两轮：
+//  1. 客户端签名搜索（歌名 + 歌手），一次返回完整结果，大多数歌在这一轮匹配到
+//  2. 第一轮出错或没有匹配时，并发进行：签名搜索（只用歌名）、联想搜索（三种关键词），合并去重后再匹配
+//     （网页公开搜索 client_search_cp 与签名搜索的数据相同，但现在基本只返回 500、且常要 5 秒才返回，所以不再使用）
+//
+// degraded 为有某一路搜索出错；所有搜索都出错时返回错误
+func searchQQSong(ctx context.Context, query lyricQuery) (best *lyricCandidate, degraded bool, err error) {
+	keyword := query.keyword()
+	candidates, firstErr := searchQQSongsDesktop(ctx, keyword)
+	if firstErr == nil {
+		if best := bestLyricCandidate(candidates, query); best != nil {
+			return best, false, nil
+		}
+	} else {
+		logrus.Debugf("qq music desktop search failed: %v", firstErr)
 	}
-	logrus.Debugf("qq music search failed, falling back to smartbox: %v", err)
-	candidates, fallbackErr := searchQQSongsSmartbox(ctx, keyword)
-	if fallbackErr != nil {
-		return nil, errors.Join(err, fallbackErr)
+
+	type search struct {
+		name string
+		run  func() ([]lyricCandidate, error)
 	}
-	return candidates, nil
+	title := strings.TrimSpace(query.Title)
+	searches := []search{
+		{"desktop-title", func() ([]lyricCandidate, error) { return searchQQSongsDesktop(ctx, title) }},
+	}
+	for _, key := range qqSmartboxKeywords(query) {
+		searches = append(searches, search{"smartbox:" + key, func() ([]lyricCandidate, error) { return searchQQSongsSmartbox(ctx, key) }})
+	}
+	results := make([][]lyricCandidate, len(searches))
+	errs := make([]error, len(searches))
+	var wg sync.WaitGroup
+	for i, item := range searches {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results[i], errs[i] = item.run()
+		}()
+	}
+	wg.Wait()
+
+	failed := 0
+	if firstErr != nil {
+		failed++
+	}
+	merged := candidates
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		seen[candidate.MID] = true
+	}
+	for i, list := range results {
+		if errs[i] != nil {
+			failed++
+			logrus.Debugf("qq music search %s failed: %v", searches[i].name, errs[i])
+			continue
+		}
+		for _, candidate := range list {
+			if !seen[candidate.MID] {
+				seen[candidate.MID] = true
+				merged = append(merged, candidate)
+			}
+		}
+	}
+	if failed == len(searches)+1 {
+		return nil, true, errors.Join(append([]error{firstErr}, errs...)...)
+	}
+	return bestLyricCandidate(merged, query), failed > 0, nil
+}
+
+// qqSmartboxKeywords 联想搜索的关键词：联想搜索只给几条结果，关键词越长越容易漏，所以同时用歌名、歌名 + 第一位歌手、歌名 + 全部歌手
+func qqSmartboxKeywords(query lyricQuery) []string {
+	title := strings.TrimSpace(query.Title)
+	keywords := []string{title}
+	if len(query.Artists) > 0 {
+		keywords = append(keywords, strings.TrimSpace(title+" "+query.Artists[0]))
+	}
+	if full := query.keyword(); !slices.Contains(keywords, full) {
+		keywords = append(keywords, full)
+	}
+	return slices.DeleteFunc(slices.Compact(keywords), func(key string) bool { return key == "" })
 }
 
 // qqMusicuBody musicu.fcg 的请求体：一个 CGI 请求
@@ -270,41 +344,6 @@ func searchQQSongsSmartbox(ctx context.Context, keyword string) ([]lyricCandidat
 			artists = append(artists, singer.Name)
 		}
 		candidates = append(candidates, lyricCandidate{MID: track.MID, Title: track.Name, Artists: artists, Album: track.Album.Name, Duration: track.Interval})
-	}
-	return candidates, nil
-}
-
-// searchQQSongsCP 公开搜索接口（不需要签名），一次返回带时长与专辑的结果
-func searchQQSongsCP(ctx context.Context, keyword string) ([]lyricCandidate, error) {
-	params := url.Values{"format": {"json"}, "p": {"1"}, "n": {strconv.Itoa(musicQQSearchLimit)}, "w": {keyword}}
-	var raw struct {
-		Data struct {
-			Song struct {
-				List []struct {
-					SongMID   string  `json:"songmid"`
-					SongName  string  `json:"songname"`
-					AlbumName string  `json:"albumname"`
-					Interval  float64 `json:"interval"` // 秒
-					Singer    []struct {
-						Name string `json:"name"`
-					} `json:"singer"`
-				} `json:"list"`
-			} `json:"song"`
-		} `json:"data"`
-	}
-	if err := qqRequest(ctx, http.MethodGet, musicQQSearchURL+"?"+params.Encode(), nil, &raw); err != nil {
-		return nil, fmt.Errorf("search: %w", err)
-	}
-	candidates := make([]lyricCandidate, 0, len(raw.Data.Song.List))
-	for _, item := range raw.Data.Song.List {
-		if item.SongMID == "" || item.SongName == "" {
-			continue
-		}
-		artists := make([]string, 0, len(item.Singer))
-		for _, singer := range item.Singer {
-			artists = append(artists, singer.Name)
-		}
-		candidates = append(candidates, lyricCandidate{MID: item.SongMID, Title: item.SongName, Artists: artists, Album: item.AlbumName, Duration: item.Interval})
 	}
 	return candidates, nil
 }

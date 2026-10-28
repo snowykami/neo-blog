@@ -19,7 +19,7 @@ import { toSingleLineLyrics } from '@/lib/lyrics/from-platform'
 import { LYRIC_SOURCE_KINDS } from '@/lib/lyrics/resolve'
 import { getCurrentLyricIndex, LYRIC_PLACEHOLDERS } from '@/utils/music-lyric'
 import { requestLyricAnnotations, useLyricAnnotations, useLyricAnnotationsGenerating } from './lyric-annotations'
-import { useResolvedSongLyrics } from './song-lyrics'
+import { refreshSongLyrics, useResolvedSongLyrics } from './song-lyrics'
 
 export type PlayMode = 'repeat-all' | 'repeat-one' | 'shuffle'
 
@@ -57,6 +57,8 @@ interface MusicContextValue {
   getLyricPin: (id: number) => LyricSourceKind | null
   // 仍有来源在请求中（已显示的歌词可能被更高等级的来源替换）
   lyricSourcesPending: boolean
+  // 重新从所有来源获取当前曲目的歌词（获取失败或歌词不对时由读者手动触发）
+  refreshLyrics: () => void
   // 当前显示的歌词叠加了 AI 歌词标注（强调词句、上色、情绪等）
   lyricAnnotated: boolean
   // AI 歌词标注正在生成（首次生成或重新生成）
@@ -623,6 +625,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [currentTrackId, wantsAnnotations])
   const annotations = useLyricAnnotations(currentTrackId)
   const lyrics = useMemo(() => applyEmphasis(songLyrics.lyrics, annotations), [annotations, songLyrics.lyrics])
+  const refreshLyrics = useCallback(() => {
+    if (currentTrackId != null)
+      refreshSongLyrics(currentTrackId)
+  }, [currentTrackId])
   const lyricAnnotationsGenerating = useLyricAnnotationsGenerating(showLyricEffects && songLyrics.lyrics.wordTimed ? currentTrackId : null)
   const lyricAnnotated = showLyricEffects && songLyrics.lyrics.wordTimed && (annotations?.lines.length ?? 0) > 0
   const lyricCandidates = songLyrics.candidates
@@ -913,6 +919,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setLyricPin,
     getLyricPin,
     lyricSourcesPending: lyricsPending,
+    refreshLyrics,
     lyricAnnotated,
     lyricAnnotationsGenerating,
     showTranslation,
@@ -958,6 +965,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setLyricPin,
     getLyricPin,
     lyricsPending,
+    refreshLyrics,
     lyricAnnotated,
     lyricAnnotationsGenerating,
     showTranslation,

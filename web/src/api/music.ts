@@ -27,8 +27,11 @@ export async function fetchPlaylist(source: MusicSource): Promise<MusicTrack[]> 
   return snakeToCamelObj(await response.json())
 }
 
-export async function fetchNcmLyric(id: number, signal?: AbortSignal): Promise<MusicLyrics> {
-  const res = await axiosClient.get<BaseResponse<MusicLyrics>>(`/music/song/${id}/lyric`, { signal })
+// refresh：读者「重新获取歌词」，后端跳过缓存中「没有歌词」的记录（各来源相同）
+const refreshParams = (refresh?: boolean) => (refresh ? { refresh: 1 } : undefined)
+
+export async function fetchNcmLyric(id: number, signal?: AbortSignal, refresh?: boolean): Promise<MusicLyrics> {
+  const res = await axiosClient.get<BaseResponse<MusicLyrics>>(`/music/song/${id}/lyric`, { signal, params: refreshParams(refresh) })
   return res.data.data
 }
 
@@ -39,9 +42,9 @@ export interface MusicTtmlLyric {
 }
 
 // 按网易云歌曲 id 取 TTML 歌词（后端并发探测自定义源与 AMLL 各镜像）；没有时返回 null
-export async function fetchTtmlLyric(id: number, signal?: AbortSignal): Promise<MusicTtmlLyric | null> {
+export async function fetchTtmlLyric(id: number, signal?: AbortSignal, refresh?: boolean): Promise<MusicTtmlLyric | null> {
   try {
-    const res = await axiosClient.get<BaseResponse<MusicTtmlLyric>>(`/music/song/${id}/lyric/ttml`, { signal })
+    const res = await axiosClient.get<BaseResponse<MusicTtmlLyric>>(`/music/song/${id}/lyric/ttml`, { signal, params: refreshParams(refresh) })
     return res.data.data
   }
   catch (error) {
@@ -62,9 +65,32 @@ export interface MusicQqLyric {
 }
 
 // 按网易云歌曲 id 取 QQ 音乐歌词（网易云没有逐字歌词时的兜底）；没有匹配或没有歌词时返回 null
-export async function fetchQqLyric(id: number, signal?: AbortSignal): Promise<MusicQqLyric | null> {
+export async function fetchQqLyric(id: number, signal?: AbortSignal, refresh?: boolean): Promise<MusicQqLyric | null> {
   try {
-    const res = await axiosClient.get<BaseResponse<MusicQqLyric>>(`/music/song/${id}/lyric/qq`, { signal })
+    const res = await axiosClient.get<BaseResponse<MusicQqLyric>>(`/music/song/${id}/lyric/qq`, { signal, params: refreshParams(refresh) })
+    return res.data.data
+  }
+  catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404)
+      return null
+    throw error
+  }
+}
+
+// 酷狗音乐歌词：后端按网易云歌曲信息在酷狗匹配同一首歌，KRC 已解密并转换为与 QQ 音乐相同的格式
+// （format 为 qrc 时 lyric 为逐字 QRC，翻译为 LRC，音译为逐字 QRC），可直接用 parseQqLyrics 解析
+export interface MusicKugouLyric {
+  hash: string
+  format: 'qrc' | 'lrc' | ''
+  lyric: string
+  translation: string
+  romanization: string
+}
+
+// 按网易云歌曲 id 取酷狗音乐歌词（与 QQ 音乐同时作为兜底）；没有匹配或没有歌词时返回 null
+export async function fetchKugouLyric(id: number, signal?: AbortSignal, refresh?: boolean): Promise<MusicKugouLyric | null> {
+  try {
+    const res = await axiosClient.get<BaseResponse<MusicKugouLyric>>(`/music/song/${id}/lyric/kugou`, { signal, params: refreshParams(refresh) })
     return res.data.data
   }
   catch (error) {
@@ -107,10 +133,11 @@ export async function refreshLyricAnnotations(id: number): Promise<MusicLyricAnn
 
 // 歌词缓存快照：最近一次选出的最佳来源（kind）与各来源的原始数据（与各来源接口的返回相同），打开时先用它立即显示
 export interface MusicLyricCache {
-  kind: 'ttml' | 'ncm' | 'qq'
+  kind: 'ttml' | 'ncm' | 'qq' | 'kugou'
   ncm?: MusicLyrics
   ttml?: MusicTtmlLyric
   qq?: MusicQqLyric
+  kugou?: MusicKugouLyric
 }
 
 // 没有缓存或已过期时为 null

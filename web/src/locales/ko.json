@@ -2242,6 +2242,7 @@
     "lyric_badge_label": "가사 출처",
     "lyric_source_ncm": "NetEase",
     "lyric_source_qq": "QQ 뮤직",
+    "lyric_source_kugou": "쿠거우 뮤직",
     "lyric_source_amll": "AMLL TTML",
     "lyric_source_custom": "사용자 TTML",
     "lyric_badge_word": "단어 싱크",
@@ -2260,7 +2261,9 @@
     "lyric_ai_refresh_started": "다시 생성을 시작했습니다. 완료되면 자동으로 적용됩니다",
     "lyric_ai_refresh_failed": "다시 생성에 실패했습니다",
     "outro_source": "NetEase Cloud Music 인기 댓글 · 좋아요 {count}",
-    "lyric_badge_ai_generating": "AI 가사 효과 생성 중"
+    "lyric_badge_ai_generating": "AI 가사 효과 생성 중",
+    "lyric_refresh": "가사 다시 가져오기",
+    "lyric_refresh_hint": "NetEase, QQ 음악, 쿠거우 뮤직, TTML에서 다시 가져오기"
   },
   "Nav": {
     "expand_topbar": "상단 바 펼치기",

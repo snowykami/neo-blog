@@ -62,7 +62,16 @@ func (m *musicType) SongAudio(ctx context.Context, c *app.RequestContext) {
 
 // SongLyric 歌曲歌词
 func (m *musicType) SongLyric(ctx context.Context, c *app.RequestContext) {
-	lyric, svcerr := m.service.GetLyric(ctx, ctxutils.GetIDParam(c).Int64)
+	var req dto.MusicLyricReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	id := ctxutils.GetIDParam(c).Int64
+	if req.Refresh {
+		ctx = service.WithLyricRefresh(ctx, "ncm", id)
+	}
+	lyric, svcerr := m.service.GetLyric(ctx, id)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -77,7 +86,11 @@ func (m *musicType) SongTTMLLyric(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	lyric, svcerr := m.service.GetTTMLLyric(ctx, ctxutils.GetIDParam(c).Int64, req.Source)
+	id := ctxutils.GetIDParam(c).Int64
+	if req.Refresh {
+		ctx = service.WithLyricRefresh(ctx, "ttml", id)
+	}
+	lyric, svcerr := m.service.GetTTMLLyric(ctx, id, req.Source)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -87,7 +100,35 @@ func (m *musicType) SongTTMLLyric(ctx context.Context, c *app.RequestContext) {
 
 // SongQQLyric 在 QQ 音乐匹配同一首歌并返回它的歌词（逐字 QRC、翻译、音译，以及按 QQ 歌曲收录的 TTML），没有时返回 404
 func (m *musicType) SongQQLyric(ctx context.Context, c *app.RequestContext) {
-	lyric, svcerr := m.service.GetQQLyric(ctx, ctxutils.GetIDParam(c).Int64)
+	var req dto.MusicLyricReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	id := ctxutils.GetIDParam(c).Int64
+	if req.Refresh {
+		ctx = service.WithLyricRefresh(ctx, "qq", id)
+	}
+	lyric, svcerr := m.service.GetQQLyric(ctx, id)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, lyric)
+}
+
+// SongKugouLyric 在酷狗音乐匹配同一首歌并返回歌词（已转换为与 QQ 音乐相同的格式），没有时返回 404
+func (m *musicType) SongKugouLyric(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	id := ctxutils.GetIDParam(c).Int64
+	if req.Refresh {
+		ctx = service.WithLyricRefresh(ctx, "kugou", id)
+	}
+	lyric, svcerr := m.service.GetKugouLyric(ctx, id)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return

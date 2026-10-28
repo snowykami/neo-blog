@@ -80,9 +80,11 @@ export interface LyricEmphasis {
   color?: LyricColor
   font?: LyricFont
   styles?: LyricTextStyle[]
+  // shake 组里唱得特别长的音节（长音）的时段：先按 swell 放大，唱了一会儿后整个词开始颤音（见 lyric-player.ts）
+  hold?: { start: number, end: number }
 }
 
-export type LyricSource = 'ttml-custom' | 'ttml-amll' | 'ncm-yrc' | 'ncm-lrc' | 'qq-qrc' | 'qq-lrc' | 'none'
+export type LyricSource = 'ttml-custom' | 'ttml-amll' | 'ncm-yrc' | 'ncm-lrc' | 'qq-qrc' | 'qq-lrc' | 'kugou-krc' | 'kugou-lrc' | 'none'
 
 export interface ResolvedLyrics {
   source: LyricSource

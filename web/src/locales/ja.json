@@ -2242,6 +2242,7 @@
     "lyric_badge_label": "歌詞の提供元",
     "lyric_source_ncm": "NetEase",
     "lyric_source_qq": "QQ音楽",
+    "lyric_source_kugou": "酷狗音楽",
     "lyric_source_amll": "AMLL TTML",
     "lyric_source_custom": "カスタム TTML",
     "lyric_badge_word": "単語同期",
@@ -2260,7 +2261,9 @@
     "lyric_ai_refresh_started": "再生成を開始しました。完了すると自動で反映されます",
     "lyric_ai_refresh_failed": "再生成に失敗しました",
     "outro_source": "NetEase Cloud Music の人気コメント · {count} いいね",
-    "lyric_badge_ai_generating": "AI 歌詞エフェクトを生成中"
+    "lyric_badge_ai_generating": "AI 歌詞エフェクトを生成中",
+    "lyric_refresh": "歌詞を再取得",
+    "lyric_refresh_hint": "NetEase・QQ 音楽・酷狗音楽・TTML から再取得"
   },
   "Nav": {
     "expand_topbar": "上部バーを表示",

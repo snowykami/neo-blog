@@ -84,6 +84,13 @@ const (
 type musicLyricCacheEntry struct {
 	Lyric     dto.MusicLyricDto `json:"lyric"`
 	ExpiresAt int64             `json:"expires_at"`
+	// 没有歌词（占位歌词）：刷新歌词时不使用
+	Miss bool `json:"miss,omitempty"`
+}
+
+// miss 是否为「没有歌词」的缓存（旧条目没有 Miss 字段，按占位歌词判断）
+func (e musicLyricCacheEntry) miss() bool {
+	return e.Miss || (e.Lyric.Lrc != nil && strings.HasPrefix(e.Lyric.Lrc.Lyric, "[00:00.00]no_lyric"))
 }
 
 // 单曲信息缓存：按歌曲 ID 保存序列化后的信息（歌曲名、歌手、封面基本不变）
@@ -327,7 +334,8 @@ func (s *MusicService) GetLyric(ctx context.Context, id int64) (*dto.MusicLyricD
 	}
 	if data, ok := musicLyricCache.Get(uint(id)); ok {
 		var entry musicLyricCacheEntry
-		if json.Unmarshal(data, &entry) == nil && time.Now().Unix() < entry.ExpiresAt {
+		// 刷新歌词时不使用「没有歌词」的缓存
+		if json.Unmarshal(data, &entry) == nil && time.Now().Unix() < entry.ExpiresAt && (!entry.miss() || !lyricRefreshing(ctx)) {
 			return &entry.Lyric, nil
 		}
 		musicLyricCache.Remove(uint(id))
@@ -363,7 +371,7 @@ func (s *MusicService) GetLyric(ctx context.Context, id int64) (*dto.MusicLyricD
 		lyric.Lrc = &dto.MusicLyricPart{Lyric: placeholder, Version: 1}
 		ttl = musicLyricMissTTL
 	}
-	if data, err := json.Marshal(musicLyricCacheEntry{Lyric: lyric, ExpiresAt: time.Now().Add(ttl).Unix()}); err == nil {
+	if data, err := json.Marshal(musicLyricCacheEntry{Lyric: lyric, ExpiresAt: time.Now().Add(ttl).Unix(), Miss: ttl == musicLyricMissTTL}); err == nil {
 		musicLyricCache.Put(uint(id), data)
 	}
 	return &lyric, nil

@@ -24,7 +24,7 @@ import (
 )
 
 // TTML 歌词来源（见 docs/music-player-spec.md 2.6、7.2，规则参考 StarryPlayer）：
-// - 自定义源：环境变量 MUSIC_TTML_URL_PREFIX 配置的静态目录，{prefix}/{网易云歌曲 id}.ttml，优先级最高，命中即采用
+// - 自定义源：环境变量 MUSIC_TTML_URL_PREFIX 配置的地址（含 {id} 的模板，或静态目录前缀 {prefix}/{网易云歌曲 id}.ttml），优先级最高，命中即采用
 // - AMLL TTML DB：按网易云歌曲 id 取 ncm-lyrics/{id}.ttml；多个镜像并发请求，先返回有效结果的采用。
 //   在 QQ 音乐匹配到同一首歌后，还会按 QQ 歌曲 mid 取 qq-lyrics/{mid}.ttml（见 music_qq.go）
 // 两个来源并发探测；只把「确定没有」（3xx / 404 / 410、正文不是 TTML）记为未命中并缓存，超时与网络错误不缓存
@@ -37,6 +37,9 @@ const (
 	musicTTMLMaxBytes = 1 << 20
 	// 命中长期有效（只受 LRU 淘汰），确定未命中 72 小时内不再探测
 	musicTTMLMissTTL = 72 * time.Hour
+	// 各镜像是同一仓库的副本：这么多个镜像确定未命中时即可断定没有，不再等其余镜像
+	// （amlldb.bikonoo.com 对不存在的文件约 5～8 秒后才返回 302，等它会拖慢每一首没有 TTML 的歌）
+	musicTTMLMissQuorum = 2
 )
 
 // AMLL TTML DB 镜像（仓库 amll-dev/amll-ttml-db），按顺序列出，实际并发请求
@@ -67,16 +70,23 @@ type musicTTMLCacheEntry struct {
 	MissUntil int64  `json:"miss_until,omitempty"`
 }
 
-// customTTMLPrefix 自定义源前缀：只接受 http(s) 绝对地址，去掉末尾的斜杠
-func customTTMLPrefix() string {
-	prefix := strings.TrimRight(strings.TrimSpace(utils.Env.Get("MUSIC_TTML_URL_PREFIX")), "/")
-	if prefix == "" {
+// customTTMLURL 自定义源中这首歌的地址：配置中含 {id} 时把它替换为网易云歌曲 id（支持任意链接风格，
+// 如 https://cdn.example.com/lyrics/{id}.ttml、https://example.com/ttml?id={id}），否则视为目录前缀，拼接为 {前缀}/{id}.ttml。
+// 只接受 http(s) 绝对地址；未配置或无效时为空（跳过自定义源）
+func customTTMLURL(id int64) string {
+	pattern := strings.TrimSpace(utils.Env.Get("MUSIC_TTML_URL_PREFIX"))
+	if pattern == "" {
 		return ""
 	}
-	if u, err := url.Parse(prefix); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	songID := strconv.FormatInt(id, 10)
+	raw := strings.TrimRight(pattern, "/") + "/" + songID + ".ttml"
+	if strings.Contains(pattern, "{id}") {
+		raw = strings.ReplaceAll(pattern, "{id}", songID)
+	}
+	if u, err := url.Parse(raw); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return ""
 	}
-	return prefix
+	return raw
 }
 
 // GetTTMLLyric 按网易云歌曲 id 取 TTML 歌词。source 为空时自动选择（自定义源优先），也可只取某一来源（用于手动切换）
@@ -88,7 +98,7 @@ func (s *MusicService) GetTTMLLyric(ctx context.Context, id int64, source string
 	if source != "" {
 		sources = []string{source}
 	}
-	if customTTMLPrefix() == "" {
+	if customTTMLURL(id) == "" {
 		sources = slices.DeleteFunc(sources, func(src string) bool { return src == musicTTMLSourceCustom })
 	}
 
@@ -112,7 +122,7 @@ func (s *MusicService) GetTTMLLyric(ctx context.Context, id int64, source string
 // probeTTMLSource 探测一个来源（按网易云歌曲 id）
 func probeTTMLSource(ctx context.Context, source string, id int64) *ttmlProbe {
 	name := strconv.FormatInt(id, 10) + ".ttml"
-	urls := []string{customTTMLPrefix() + "/" + name}
+	urls := []string{customTTMLURL(id)}
 	if source == musicTTMLSourceAMLL {
 		urls = amllTTMLURLs("ncm-lyrics/" + name)
 	}
@@ -143,7 +153,8 @@ func probeTTML(ctx context.Context, store *cache.LRUCache, key uint, flight stri
 			if entry.TTML != "" {
 				return &ttmlProbe{ttml: entry.TTML}
 			}
-			if time.Now().Unix() < entry.MissUntil {
+			// 刷新歌词时不信任「确定未命中」的缓存，重新探测
+			if time.Now().Unix() < entry.MissUntil && !lyricRefreshing(ctx) {
 				return &ttmlProbe{miss: true}
 			}
 		}
@@ -181,7 +192,8 @@ func ttmlCacheKey(source string, id int64) uint {
 	return key
 }
 
-// fetchTTMLURLs 并发请求同一文件的各个地址（自定义源只有一个，AMLL 为各镜像）：任一命中即采用，全部确定未命中才算未命中，否则视为出错
+// fetchTTMLURLs 并发请求同一文件的各个地址（自定义源只有一个，AMLL 为各镜像）：任一命中即采用；
+// 全部（或 musicTTMLMissQuorum 个）确定未命中即算未命中，其余请求取消；否则视为出错
 func fetchTTMLURLs(ctx context.Context, urls []string) *ttmlProbe {
 	ctx, cancel := context.WithTimeout(ctx, musicTTMLTimeout)
 	defer cancel()
@@ -205,9 +217,9 @@ func fetchTTMLURLs(ctx context.Context, urls []string) *ttmlProbe {
 			return probe
 		}
 		misses++
-	}
-	if misses == len(urls) {
-		return &ttmlProbe{miss: true}
+		if misses >= min(musicTTMLMissQuorum, len(urls)) {
+			return &ttmlProbe{miss: true}
+		}
 	}
 	return nil
 }

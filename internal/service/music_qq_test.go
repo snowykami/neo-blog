@@ -7,7 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
 )
@@ -80,18 +83,30 @@ func TestFetchQQLyric(t *testing.T) {
 	qrc := `<?xml version="1.0"?><QrcInfos><LyricInfo LyricCount="1"><Lyric_1 LyricType="1" LyricContent="[ti:歌]
 [1000,1000]你(1000,500)好(1500,500)
 "/></LyricInfo></QrcInfos>`
-	var searched string
+	var searched sync.Map
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/amll/") {
+		if strings.HasPrefix(r.URL.Path, "/amll/") || r.URL.Path == "/smartbox" {
 			http.NotFound(w, r)
 			return
 		}
-		if r.Method == http.MethodGet {
-			searched = r.URL.Query().Get("w")
-			_, _ = w.Write([]byte(`{"code":0,"data":{"song":{"list":[
-				{"songmid":"cover","songname":"歌","singer":[{"name":"别人"}],"interval":200},
-				{"songmid":"mid1","songname":"歌","singer":[{"name":"歌手"}],"albumname":"专辑","interval":201}
-			]}}}`))
+		switch r.URL.Path {
+		case "/client/musicu.fcg":
+			_, _ = w.Write([]byte(`{"code":0,"req":{"code":0,"data":{"session":{"uid":"u1","sid":"s1"}}}}`))
+			return
+		case "/client/musics.fcg":
+			var search struct {
+				Req struct {
+					Param struct {
+						Query string `json:"query"`
+					} `json:"param"`
+				} `json:"req"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&search)
+			searched.Store(search.Req.Param.Query, true)
+			_, _ = w.Write([]byte(`{"code":0,"req":{"code":0,"data":{"body":{"song":{"list":[
+				{"mid":"cover","title":"歌","singer":[{"title":"别人"}],"interval":200},
+				{"mid":"mid1","title":"歌","singer":[{"title":"歌手"}],"album":{"title":"专辑"},"interval":201}
+			]}}}}}`))
 			return
 		}
 		var body struct {
@@ -113,18 +128,16 @@ func TestFetchQQLyric(t *testing.T) {
 		_, _ = w.Write(data)
 	}))
 	t.Cleanup(server.Close)
-	originalSearch, originalLyric := musicQQSearchURL, musicQQLyricURL
-	musicQQSearchURL, musicQQLyricURL = server.URL+"/search", server.URL+"/lyric"
+	stubQQEndpoints(t, server.URL)
 	// 预热 TTML 的请求也指向本地，避免访问外网
 	setupTTMLTest(t, "", server.URL+"/amll")
-	t.Cleanup(func() { musicQQSearchURL, musicQQLyricURL = originalSearch, originalLyric })
 
-	lyric, err := fetchQQLyric(context.Background(), &dto.MusicSongDto{Name: "歌", Artists: []string{"歌手"}, Album: "专辑", Duration: 200500})
-	if err != nil {
-		t.Fatal(err)
+	lyric, degraded, err := fetchQQLyric(context.Background(), &dto.MusicSongDto{Name: "歌", Artists: []string{"歌手"}, Album: "专辑", Duration: 200500})
+	if err != nil || degraded {
+		t.Fatal(err, degraded)
 	}
-	if searched != "歌 歌手" {
-		t.Errorf("keyword = %q", searched)
+	if _, ok := searched.Load("歌 歌手"); !ok {
+		t.Error("first round should search title + artists")
 	}
 	if lyric.SongMID != "mid1" || lyric.Format != "qrc" || lyric.Translation != "[00:01.00]你好呀" || lyric.Romanization != "" {
 		t.Fatalf("lyric = %+v", lyric)
@@ -134,20 +147,36 @@ func TestFetchQQLyric(t *testing.T) {
 	}
 
 	// 没有匹配的歌曲：空结果，不是错误
-	lyric, err = fetchQQLyric(context.Background(), &dto.MusicSongDto{Name: "另一首", Artists: []string{"歌手"}})
+	lyric, _, err = fetchQQLyric(context.Background(), &dto.MusicSongDto{Name: "另一首", Artists: []string{"歌手"}})
 	if err != nil || lyric.SongMID != "" || lyric.Lyric != "" {
 		t.Fatalf("no match = %+v, %v", lyric, err)
 	}
 }
 
-func TestSearchQQSongsFallback(t *testing.T) {
+// stubQQEndpoints 把 QQ 音乐的各个接口指向本地测试服务器，避免访问外网
+func stubQQEndpoints(t *testing.T, base string) {
+	t.Helper()
+	smartbox, lyric, client, delay := musicQQSmartboxURL, musicQQLyricURL, musicQQClientHost, musicQQClientRetryDelay
+	musicQQSmartboxURL, musicQQLyricURL, musicQQClientHost, musicQQClientRetryDelay = base+"/smartbox", base+"/lyric", base+"/client/", 0
+	musicQQSession.Lock()
+	musicQQSession.expires = time.Time{}
+	musicQQSession.Unlock()
+	t.Cleanup(func() {
+		musicQQSmartboxURL, musicQQLyricURL, musicQQClientHost, musicQQClientRetryDelay = smartbox, lyric, client, delay
+	})
+}
+
+func TestSearchQQSongFallback(t *testing.T) {
+	var smartboxKeys sync.Map
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/search":
+		case "/client/musics.fcg", "/client/musicu.fcg":
+			// 签名搜索不可用
 			w.WriteHeader(http.StatusInternalServerError)
 		case "/smartbox":
+			smartboxKeys.Store(r.URL.Query().Get("key"), true)
 			_, _ = w.Write([]byte(`{"code":0,"data":{"song":{"itemlist":[{"mid":"mid1","name":"歌","singer":"歌手"}]}}}`))
-		case "/musicu":
+		case "/lyric":
 			var body struct {
 				Req struct {
 					Module string `json:"module"`
@@ -164,17 +193,58 @@ func TestSearchQQSongsFallback(t *testing.T) {
 		}
 	}))
 	t.Cleanup(server.Close)
-	originalSearch, originalSmartbox, originalLyric := musicQQSearchURL, musicQQSmartboxURL, musicQQLyricURL
-	musicQQSearchURL, musicQQSmartboxURL, musicQQLyricURL = server.URL+"/search", server.URL+"/smartbox", server.URL+"/musicu"
-	t.Cleanup(func() {
-		musicQQSearchURL, musicQQSmartboxURL, musicQQLyricURL = originalSearch, originalSmartbox, originalLyric
-	})
+	stubQQEndpoints(t, server.URL)
 
-	candidates, err := searchQQSongs(context.Background(), "歌 歌手")
-	if err != nil || len(candidates) != 1 {
-		t.Fatalf("fallback = %+v, %v", candidates, err)
+	best, degraded, err := searchQQSong(context.Background(), lyricQuery{Title: "歌", Artists: []string{"歌手", "合唱"}, Duration: 200})
+	if err != nil || best == nil || !degraded {
+		t.Fatalf("fallback = %+v, %v, %v", best, degraded, err)
 	}
-	if got := candidates[0]; got.MID != "mid1" || got.Duration != 201 || got.Album != "专辑" || len(got.Artists) != 1 {
-		t.Fatalf("candidate = %+v", got)
+	if best.MID != "mid1" || best.Duration != 201 || best.Album != "专辑" {
+		t.Fatalf("candidate = %+v", best)
+	}
+	// 联想搜索同时用了三种关键词
+	for _, key := range []string{"歌", "歌 歌手", "歌 歌手 合唱"} {
+		if _, ok := smartboxKeys.Load(key); !ok {
+			t.Errorf("smartbox keyword %q not searched", key)
+		}
+	}
+}
+
+func TestSearchQQSongDesktop(t *testing.T) {
+	var otherSearches atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/client/musicu.fcg":
+			_, _ = w.Write([]byte(`{"code":0,"req":{"code":0,"data":{"session":{"uid":"u1","sid":"s1"}}}}`))
+		case "/client/musics.fcg":
+			if r.Header.Get("Sign") == "" || r.Header.Get("Mask") == "" {
+				t.Error("desktop search must be signed")
+			}
+			var body struct {
+				Comm map[string]string `json:"comm"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body.Comm["uid"] != "u1" || body.Comm["sid"] != "s1" || body.Comm["ct"] != "6" {
+				t.Errorf("comm = %+v", body.Comm)
+			}
+			_, _ = w.Write([]byte(`{"code":0,"req":{"code":0,"data":{"body":{"song":{"list":[
+				{"mid":"cover","title":"歌","singer":[{"title":"别人"}],"interval":200},
+				{"mid":"mid1","title":"歌","singer":[{"title":"歌手"}],"album":{"title":"专辑"},"interval":201}
+			]}}}}}`))
+		default:
+			otherSearches.Add(1)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	stubQQEndpoints(t, server.URL)
+
+	best, degraded, err := searchQQSong(context.Background(), lyricQuery{Title: "歌", Artists: []string{"歌手"}, Album: "专辑", Duration: 201})
+	if err != nil || degraded || best == nil || best.MID != "mid1" || best.Album != "专辑" {
+		t.Fatalf("desktop = %+v, %v, %v", best, degraded, err)
+	}
+	// 第一轮命中，不再进行其他搜索
+	if otherSearches.Load() != 0 {
+		t.Fatalf("other searches = %d", otherSearches.Load())
 	}
 }

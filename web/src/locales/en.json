@@ -2242,6 +2242,7 @@
     "lyric_badge_label": "Lyrics source",
     "lyric_source_ncm": "NetEase",
     "lyric_source_qq": "QQ Music",
+    "lyric_source_kugou": "Kugou",
     "lyric_source_amll": "AMLL TTML",
     "lyric_source_custom": "Custom TTML",
     "lyric_badge_word": "Word-synced",
@@ -2260,7 +2261,9 @@
     "lyric_ai_refresh_started": "Regenerating, the new effects will apply automatically",
     "lyric_ai_refresh_failed": "Failed to regenerate",
     "outro_source": "Top comment on NetEase Cloud Music · {count} likes",
-    "lyric_badge_ai_generating": "Generating AI lyric effects"
+    "lyric_badge_ai_generating": "Generating AI lyric effects",
+    "lyric_refresh": "Reload lyrics",
+    "lyric_refresh_hint": "Fetch again from NetEase, QQ Music, Kugou and TTML"
   },
   "Nav": {
     "expand_topbar": "Show top bar",
