@@ -290,3 +290,48 @@ func TestSanitizeLyricMoments(t *testing.T) {
 		t.Fatalf("moments = %+v\nwant %+v", got.Moments, want)
 	}
 }
+
+func TestSanitizeLyricAnnotationsConsistency(t *testing.T) {
+	lines := []string{"樱花飘落", "我们说再见", "樱花又开了", "说再见吧", "光芒万丈", "光芒四射", "光芒依旧", "光芒不灭"}
+	raw := `{"imagery":[{"text":"樱花","effect":"glow","color":"cherry-blossom"}],"lines":[
+		{"i":0,"phrases":[{"text":"樱花","effect":"swell","color":"rose"}]},
+		{"i":1,"phrases":[{"text":"再见","effect":"dissolve"}]},
+		{"i":2,"phrases":[{"text":"樱花","effect":"wave"}]},
+		{"i":3,"phrases":[{"text":"再见","effect":"shake","color":"crimson"}]},
+		{"i":4,"phrases":[{"text":"光芒万丈","effect":"shimmer"}]},
+		{"i":5,"phrases":[{"text":"光芒四射","effect":"shimmer"}]},
+		{"i":6,"phrases":[{"text":"光芒依旧","effect":"shimmer"}]},
+		{"i":7,"phrases":[{"text":"光芒不灭","effect":"shimmer"}]}]}`
+	got, err := sanitizeLyricAnnotations(lines, nil, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	effect := func(text string) (string, string) {
+		for _, line := range got.Lines {
+			for _, phrase := range line.Phrases {
+				if phrase.Text == text {
+					return phrase.Effect, phrase.Color
+				}
+			}
+		}
+		return "", ""
+	}
+	// 规划的意象优先；同一短语与第一次出现时一致
+	if e, c := effect("樱花"); e != "glow" || c != "cherry-blossom" {
+		t.Errorf("imagery = %s %s", e, c)
+	}
+	for _, line := range got.Lines {
+		for _, phrase := range line.Phrases {
+			if phrase.Text == "再见" && (phrase.Effect != "dissolve" || phrase.Color != "") {
+				t.Errorf("repeated phrase = %+v", phrase)
+			}
+		}
+	}
+	// 流光全曲最多 3 处，第 4 处换成 glow
+	if e, _ := effect("光芒不灭"); e != "glow" {
+		t.Errorf("fourth shimmer = %s", e)
+	}
+	if e, _ := effect("光芒依旧"); e != "shimmer" {
+		t.Errorf("third shimmer = %s", e)
+	}
+}

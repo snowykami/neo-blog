@@ -49,6 +49,8 @@ const (
 	lyricAnnotationMaxMoments = 5
 	// 换字体的短语上限：太多会显得杂乱
 	lyricAnnotationMaxPhraseFonts = 10
+	// 消散、流光、心跳每种的上限
+	lyricAnnotationMaxSpecialEffect = 3
 	// 标注的温度：调高让演出设计更大胆
 	lyricAnnotationTemperature = 0.9
 	// 思考强度（reasoning_effort）：思考型模型默认的思考内容是正式输出的 3～9 倍，是生成慢的主要原因
@@ -57,8 +59,10 @@ const (
 )
 
 var (
-	lyricAnnotationMoods   = map[string]bool{"calm": true, "bright": true, "sad": true, "intense": true}
-	lyricAnnotationEffects = map[string]bool{"swell": true, "glow": true, "wave": true, "shake": true, "focus": true, "dissolve": true, "shimmer": true, "heartbeat": true}
+	lyricAnnotationMoods = map[string]bool{"calm": true, "bright": true, "sad": true, "intense": true}
+	// 消散、流光、心跳全曲每种最多 lyricAnnotationMaxSpecialEffect 处，超出的换成相近的常规特效
+	lyricAnnotationSpecialEffects = map[string]string{"dissolve": "glow", "shimmer": "glow", "heartbeat": "swell"}
+	lyricAnnotationEffects        = map[string]bool{"swell": true, "glow": true, "wave": true, "shake": true, "focus": true, "dissolve": true, "shimmer": true, "heartbeat": true}
 	// 行级全屏粒子场景（只在播放器页演出）
 	lyricAnnotationScenes = func() map[string]bool {
 		scenes := make(map[string]bool, len(lyricAnnotationSceneList))
@@ -515,6 +519,11 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 			Comment int    `json:"comment"`
 			Text    string `json:"text"`
 		} `json:"moments"`
+		Imagery []struct {
+			Text   string `json:"text"`
+			Effect string `json:"effect"`
+			Color  string `json:"color"`
+		} `json:"imagery"`
 		Lines []struct {
 			I           int    `json:"i"`
 			Mood        string `json:"mood"`
@@ -535,8 +544,17 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 		return lyricAnnotationData{}, err
 	}
 
-	maxPhrases := len(lines) + 6
+	// 每行最多 3 个短语，总数上限只防止异常输出（太紧会砍掉歌尾副歌的短语）
+	maxPhrases := len(lines)*2 + 6
 	phraseCount := 0
+	// 同一意象全曲一致：规划的意象对照表优先，其次是同一短语第一次出现时的特效与颜色
+	styles := map[string]dto.MusicLyricAnnotationPhrase{}
+	for _, item := range parsed.Imagery {
+		if key := normalizeLyricMatch(item.Text); key != "" && lyricAnnotationEffects[item.Effect] {
+			styles[key] = dto.MusicLyricAnnotationPhrase{Effect: item.Effect, Color: normalizeLyricColor(item.Color)}
+		}
+	}
+	specialCount := map[string]int{}
 	sceneCount := 0
 	phraseFontCount := 0
 	result := []dto.MusicLyricAnnotationLine{}
@@ -580,11 +598,24 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 			if duplicate {
 				continue
 			}
-			effect := phrase.Effect
+			effect, color := phrase.Effect, normalizeLyricColor(phrase.Color)
 			if !lyricAnnotationEffects[effect] {
 				effect = "swell"
 			}
-			annotated := dto.MusicLyricAnnotationPhrase{Text: phraseText, Effect: effect, Color: normalizeLyricColor(phrase.Color)}
+			if style, ok := styles[normalized]; ok {
+				effect, color = style.Effect, style.Color
+			} else {
+				// 消散、流光、心跳是点睛之笔，全曲每种最多几处，超出的换成相近的常规特效
+				if fallback, special := lyricAnnotationSpecialEffects[effect]; special {
+					if specialCount[effect] >= lyricAnnotationMaxSpecialEffect {
+						effect = fallback
+					} else {
+						specialCount[effect]++
+					}
+				}
+				styles[normalized] = dto.MusicLyricAnnotationPhrase{Effect: effect, Color: color}
+			}
+			annotated := dto.MusicLyricAnnotationPhrase{Text: phraseText, Effect: effect, Color: color}
 			if lyricAnnotationFonts[phrase.Font] && phraseFontCount < lyricAnnotationMaxPhraseFonts {
 				annotated.Font = phrase.Font
 				phraseFontCount++
