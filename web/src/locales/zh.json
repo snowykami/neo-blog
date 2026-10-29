@@ -2350,7 +2350,15 @@
     "lyric_offset_reset": "归零",
     "lyric_offset_save_failed": "保存歌词偏移失败",
     "lyric_ai_refresh_edited_title": "覆盖手动编辑的歌词特效？",
-    "lyric_ai_refresh_edited_description": "这首歌的歌词特效在后台手动编辑过，重新生成会覆盖这些修改。"
+    "lyric_ai_refresh_edited_description": "这首歌的歌词特效在后台手动编辑过，重新生成会覆盖这些修改。",
+    "lyric_badge_switch_site": "切换全站歌词来源",
+    "lyric_badge_switch_site_hint": "选择后所有读者默认显示这一来源",
+    "lyric_badge_site_default": "默认（站长选择）",
+    "lyric_badge_site_tag": "站长选择",
+    "lyric_badge_site_pinned": "已设为全站默认来源",
+    "lyric_site_pin_saved": "已设为全站默认歌词来源",
+    "lyric_site_pin_cleared": "已恢复按质量自动选择",
+    "lyric_site_pin_failed": "设置全站歌词来源失败"
   },
   "LyricOptions": {
     "categories": {

@@ -1,4 +1,5 @@
 import type { LyricAnnotations } from '@/lib/lyrics/emphasis'
+import type { LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricSource } from '@/lib/lyrics/types'
 import type { MusicSearchSong, MusicSong, MusicSource, MusicTrack, NCMPlaylists } from '@/models/music'
 import type { BaseResponse } from '@/models/resp'
@@ -136,14 +137,21 @@ export async function refreshLyricAnnotations(id: number): Promise<MusicLyricAnn
   return res.data.data
 }
 
-// 歌词的人工设置：各歌词来源（ResolvedLyrics.source）的整体偏移（毫秒，正数让歌词推迟、负数提前），没有设置的来源不出现
+// 歌词的人工设置：各歌词来源（ResolvedLyrics.source）的整体偏移（毫秒，正数让歌词推迟、负数提前），没有设置的来源不出现；
+// pin 为管理员选定的全站默认歌词来源，没有时按质量自动选择
 export interface MusicLyricSettings {
   offsets: Partial<Record<LyricSource, number>>
+  pin?: LyricSourceKind
 }
 
 export async function fetchLyricSettings(id: number): Promise<MusicLyricSettings> {
   const res = await axiosClient.get<BaseResponse<MusicLyricSettings>>(`/music/song/${id}/lyric/settings`)
   return res.data.data
+}
+
+// 管理员设置全站默认歌词来源，为 null 时取消（恢复按质量自动选择）
+export async function saveLyricPin(id: number, kind: LyricSourceKind | null): Promise<void> {
+  await axiosClient.put(`/music/song/${id}/lyric/pin`, { kind: kind ?? '' })
 }
 
 // 管理员保存某一歌词来源的整体偏移（毫秒），为 0 时清除；对所有人生效

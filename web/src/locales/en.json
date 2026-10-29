@@ -2350,7 +2350,15 @@
     "lyric_offset_reset": "Reset",
     "lyric_offset_save_failed": "Failed to save the lyric offset",
     "lyric_ai_refresh_edited_title": "Overwrite edited lyric effects?",
-    "lyric_ai_refresh_edited_description": "This song's lyric effects were edited in the console. Regenerating replaces those edits."
+    "lyric_ai_refresh_edited_description": "This song's lyric effects were edited in the console. Regenerating replaces those edits.",
+    "lyric_badge_switch_site": "Site-wide lyric source",
+    "lyric_badge_switch_site_hint": "Everyone sees this source by default",
+    "lyric_badge_site_default": "Default (chosen by the site owner)",
+    "lyric_badge_site_tag": "Site default",
+    "lyric_badge_site_pinned": "Site-wide default source",
+    "lyric_site_pin_saved": "Set as the site-wide lyric source",
+    "lyric_site_pin_cleared": "Back to automatic selection by quality",
+    "lyric_site_pin_failed": "Failed to set the site-wide lyric source"
   },
   "LyricOptions": {
     "categories": {

@@ -47,6 +47,33 @@ func TestLyricOffset(t *testing.T) {
 	}
 }
 
+func TestLyricPin(t *testing.T) {
+	setupTTMLDB(t)
+	s := NewMusicService()
+	ctx := context.Background()
+	if got, _ := s.GetLyricSettings(ctx, 8); got.Pin != "" {
+		t.Fatalf("pin = %q", got.Pin)
+	}
+	for _, kind := range []string{"qq", "ttml"} {
+		if svcerr := s.SaveLyricPin(ctx, 8, kind); svcerr != nil {
+			t.Fatal(svcerr)
+		}
+	}
+	if got, _ := s.GetLyricSettings(ctx, 8); got.Pin != "ttml" {
+		t.Fatalf("pin = %q", got.Pin)
+	}
+	// 为空时取消；未知来源不接受
+	if svcerr := s.SaveLyricPin(ctx, 8, ""); svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	if got, _ := s.GetLyricSettings(ctx, 8); got.Pin != "" {
+		t.Fatalf("pin after clear = %q", got.Pin)
+	}
+	if svcerr := s.SaveLyricPin(ctx, 8, "spotify"); svcerr == nil {
+		t.Fatal("unknown kind should be rejected")
+	}
+}
+
 func TestSanitizeEditedLyricAnnotations(t *testing.T) {
 	lines := []string{"樱花飘落的季节", "我们说再见", "樱花飘落的季节"}
 	req := &dto.MusicLyricAnnotationsEditReq{

@@ -205,6 +205,20 @@ func (m *musicType) SongLyricSettings(ctx context.Context, c *app.RequestContext
 	resps.Ok(c, resps.Success, result)
 }
 
+// SaveLyricPin 设置一首歌的全站默认歌词来源（仅管理员），kind 为空时取消
+func (m *musicType) SaveLyricPin(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricPinReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if svcerr := m.service.SaveLyricPin(ctx, ctxutils.GetIDParam(c).Int64, req.Kind); svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
+}
+
 // SaveLyricOffset 保存一首歌某一歌词来源的整体偏移（仅管理员）
 func (m *musicType) SaveLyricOffset(ctx context.Context, c *app.RequestContext) {
 	var req dto.MusicLyricOffsetReq

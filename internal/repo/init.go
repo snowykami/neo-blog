@@ -177,6 +177,7 @@ func migrate() error {
 		&model.LyricAnnotation{},
 		&model.LyricCache{},
 		&model.LyricSetting{},
+		&model.LyricSongSetting{},
 		&model.File{},
 		&model.StorageProviderModelAndDto{},
 		&model.KV{},

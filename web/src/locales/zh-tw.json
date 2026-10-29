@@ -2350,7 +2350,15 @@
     "lyric_offset_reset": "歸零",
     "lyric_offset_save_failed": "儲存歌詞偏移失敗",
     "lyric_ai_refresh_edited_title": "覆蓋手動編輯的歌詞特效？",
-    "lyric_ai_refresh_edited_description": "這首歌的歌詞特效在後台手動編輯過，重新產生會覆蓋這些修改。"
+    "lyric_ai_refresh_edited_description": "這首歌的歌詞特效在後台手動編輯過，重新產生會覆蓋這些修改。",
+    "lyric_badge_switch_site": "切換全站歌詞來源",
+    "lyric_badge_switch_site_hint": "選擇後所有讀者預設顯示這個來源",
+    "lyric_badge_site_default": "預設（站長選擇）",
+    "lyric_badge_site_tag": "站長選擇",
+    "lyric_badge_site_pinned": "已設為全站預設來源",
+    "lyric_site_pin_saved": "已設為全站預設歌詞來源",
+    "lyric_site_pin_cleared": "已恢復依品質自動選擇",
+    "lyric_site_pin_failed": "設定全站歌詞來源失敗"
   },
   "LyricOptions": {
     "categories": {

@@ -40,6 +40,8 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroupWithAdmin.PUT("/song/:id/lyric/annotations", controller.Music.SaveLyricAnnotations)
 		// 歌词整体偏移对所有人生效，仅管理员可以调整
 		musicGroupWithAdmin.PUT("/song/:id/lyric/offset", controller.Music.SaveLyricOffset)
+		// 全站默认歌词来源：所有读者默认显示这一来源，仅管理员可以设置
+		musicGroupWithAdmin.PUT("/song/:id/lyric/pin", controller.Music.SaveLyricPin)
 		// 请求体中含 Cookie，使用 POST 避免出现在地址中
 		musicGroupWithAdmin.POST("/ncm/playlists", controller.Music.NCMPlaylists)
 	}

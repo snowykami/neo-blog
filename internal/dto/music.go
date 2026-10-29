@@ -237,9 +237,16 @@ type MusicChorusDto struct {
 	End   int64 `json:"end"`
 }
 
-// MusicLyricSettingsDto 一首歌的歌词人工设置：offsets 为各歌词来源（ResolvedLyrics.source）的整体偏移（毫秒，正数推迟、负数提前），没有设置的来源不出现
+// MusicLyricSettingsDto 一首歌的歌词人工设置：offsets 为各歌词来源（ResolvedLyrics.source）的整体偏移（毫秒，正数推迟、负数提前），没有设置的来源不出现；
+// pin 为管理员选定的全站默认歌词来源（ttml / ncm / qq / kugou），没有时为空（按质量自动选择）
 type MusicLyricSettingsDto struct {
 	Offsets map[string]int `json:"offsets"`
+	Pin     string         `json:"pin,omitempty"`
+}
+
+// MusicLyricPinReq 管理员设置全站默认歌词来源，kind 为空时取消（恢复按质量自动选择）
+type MusicLyricPinReq struct {
+	Kind string `json:"kind"`
 }
 
 // MusicLyricOffsetReq 管理员保存某一歌词来源的整体偏移（毫秒），为 0 时清除

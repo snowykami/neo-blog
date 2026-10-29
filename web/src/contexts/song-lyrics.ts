@@ -13,7 +13,7 @@ import { parseTtml } from '@/lib/lyrics/parse-ttml'
 import { resolveLyrics } from '@/lib/lyrics/resolve'
 import { withRomanizationWords } from '@/lib/lyrics/romanization'
 import { parseMusicLyrics, parseQqLyrics } from '@/utils/music-lyric'
-import { useLyricOffsets } from './lyric-settings'
+import { useLyricOffsets, useLyricSitePin } from './lyric-settings'
 
 /**
  * 全站共用的歌词来源（见 spec 2.3、2.4、7.4）：按网易云歌曲 id 获取并缓存，播放器页、悬浮播放器、导航栏、
@@ -23,6 +23,7 @@ import { useLyricOffsets } from './lyric-settings'
  * - 歌词缓存（spec 7.2e）：与各来源并发请求后端保存的最佳歌词快照；某个来源还在请求中或失败时先用快照里的同一来源，
  *   所以打开时能立即显示最佳歌词，实时结果到达后原地替换。各来源都到齐后上报按等级最好的来源，后端据此更新快照
  * - 整体偏移（spec 7.2l）：管理员为某一来源保存的偏移在选出歌词后平移所有时间，所有播放这首歌的地方都按它显示
+ * - 全站默认来源（spec 7.2n）：读者自己在本地固定的来源优先，其次是管理员选定的全站默认来源，都没有时按质量自动选择
  */
 
 export interface SongLyricSources {
@@ -221,11 +222,13 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
   const ttmlKind = sources?.ttml?.source === 'custom' ? 'ttml-custom' : 'ttml-amll'
   const ttmlLyrics = useMemo(() => (ttmlText ? safely(() => parseTtml(ttmlText, ttmlKind), 'TTML') : null), [ttmlKind, ttmlText])
 
-  // 管理员保存的整体偏移（按选出的歌词来源），对所有播放这首歌的地方生效（见 lyric-settings.ts）
+  // 管理员保存的整体偏移（按选出的歌词来源）与全站默认来源，对所有播放这首歌的地方生效（见 lyric-settings.ts）
   const offsets = useLyricOffsets(id)
+  const sitePin = useLyricSitePin(id)
+  const effectivePin = pin ?? sitePin
 
   const result = useMemo<SongLyrics>(() => {
-    const resolution = resolveLyrics({ ttml: ttmlLyrics, ncm: ncmLyrics, ncmParsed, qq: qqLyrics, qqParsed, kugou: kugouLyrics, kugouParsed, pin })
+    const resolution = resolveLyrics({ ttml: ttmlLyrics, ncm: ncmLyrics, ncmParsed, qq: qqLyrics, qqParsed, kugou: kugouLyrics, kugouParsed, pin: effectivePin })
     const pending = fresh != null && (fresh.ncm === undefined || fresh.ttml === undefined || fresh.qq === undefined || fresh.kugou === undefined)
     return {
       // 音译对齐到原文音节（逐字音译），再按这一来源的整体偏移平移时间
@@ -236,8 +239,8 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
       status: resolution.lyrics.lines.length > 0 ? 'ready' : pending ? 'loading' : 'none',
       ncmParsed,
     }
-  }, [fresh, kugouLyrics, kugouParsed, ncmLyrics, ncmParsed, offsets, pin, qqLyrics, qqParsed, ttmlLyrics])
-  useReportBestLyricSource(id, result)
+  }, [effectivePin, fresh, kugouLyrics, kugouParsed, ncmLyrics, ncmParsed, offsets, qqLyrics, qqParsed, ttmlLyrics])
+  useReportBestLyricSource(id, result, sitePin)
   return result
 }
 
@@ -261,8 +264,9 @@ const reportedCache = new Set<string>()
  * 各来源都到齐后，上报按等级最好的来源（不受读者固定的来源影响），后端据此更新歌词缓存；
  * 同一页面内每首歌的同一结果只上报一次
  */
-function useReportBestLyricSource(id: number | null, lyrics: SongLyrics) {
-  const best = lyrics.pending ? null : lyrics.candidates[0]?.kind ?? null
+function useReportBestLyricSource(id: number | null, lyrics: SongLyrics, sitePin: LyricSourceKind | null) {
+  // 有全站默认来源且已选用它时，缓存它（打开时立即显示的就是全站看到的版本），否则缓存按质量最好的来源
+  const best = lyrics.pending ? null : sitePin && lyrics.kind === sitePin ? sitePin : lyrics.candidates[0]?.kind ?? null
   useEffect(() => {
     if (id == null || id <= 0 || !best)
       return

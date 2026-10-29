@@ -2350,7 +2350,15 @@
     "lyric_offset_reset": "リセット",
     "lyric_offset_save_failed": "歌詞のずれを保存できませんでした",
     "lyric_ai_refresh_edited_title": "手動で編集した歌詞エフェクトを上書きしますか？",
-    "lyric_ai_refresh_edited_description": "この曲の歌詞エフェクトは管理画面で手動編集されています。再生成すると編集内容は上書きされます。"
+    "lyric_ai_refresh_edited_description": "この曲の歌詞エフェクトは管理画面で手動編集されています。再生成すると編集内容は上書きされます。",
+    "lyric_badge_switch_site": "サイト全体の歌詞ソース",
+    "lyric_badge_switch_site_hint": "全員にこのソースが既定で表示されます",
+    "lyric_badge_site_default": "既定（サイト管理者の選択）",
+    "lyric_badge_site_tag": "管理者の選択",
+    "lyric_badge_site_pinned": "サイト全体の既定ソース",
+    "lyric_site_pin_saved": "サイト全体の既定の歌詞ソースに設定しました",
+    "lyric_site_pin_cleared": "品質による自動選択に戻しました",
+    "lyric_site_pin_failed": "サイト全体の歌詞ソースを設定できませんでした"
   },
   "LyricOptions": {
     "categories": {
