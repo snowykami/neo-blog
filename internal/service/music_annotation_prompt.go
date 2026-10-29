@@ -21,8 +21,8 @@ type lyricAnnotationLocale struct {
 	Lyrics, TranslationNote, HeldNote, Translation, Held, HeldTail string
 	// 逐段标注：全曲规划标题、主题、方向、全曲字体、全曲节奏、意象标题、一个意象（原文、特效、颜色）、不上色
 	Plan, Theme, Direction, Font, Pace, Imagery, ImageryItem, NoColor string
-	// 本段已标注的行（标题、一行：行号与标注）、副歌起点、副歌、情绪
-	Marks, Mark, ChorusStart, ChorusLine, Mood string
+	// 本段已标注的行（标题、一行：行号与标注）、副歌起点、副歌、情绪、聚光灯
+	Marks, Mark, ChorusStart, ChorusLine, Mood, Spotlight string
 	// 本次标注范围：起止行号、段数、本段换字体的上限
 	Range string
 }
@@ -41,7 +41,7 @@ var lyricAnnotationEN = lyricAnnotationLocale{
 	Translation: "　〔译：%s〕", Held: "　〔held: \"%s\" %.1fs%s〕", HeldTail: ", line end",
 	Plan: "\n[Plan]\n", Theme: "Theme: ", Direction: "Direction: ", Font: "Song font: ", Pace: "Song pace: ",
 	Imagery: "Imagery:\n", ImageryItem: "- %s: %s, %s\n", NoColor: "no color",
-	Marks: "Marked lines in this chunk:\n", Mark: "line %d: %s\n", ChorusStart: "chorus start", ChorusLine: "chorus", Mood: "mood ",
+	Marks: "Marked lines in this chunk:\n", Mark: "line %d: %s\n", ChorusStart: "chorus start", ChorusLine: "chorus", Mood: "mood ", Spotlight: "spotlight",
 	Range: "\n[Your range] lines %d-%d (the song is split into %d chunks annotated in parallel; at most %d font changes in this chunk)\n",
 }
 
@@ -56,7 +56,12 @@ Emotion guide (adapt to the song; mark emotional turns with a change of color an
 - passionate, shouting: swell / shake; fiery colors (flame, crimson, gold, sunset); sparks, fireworks, meteors
 - tender, comforting: glow / heartbeat; candle and moon light (candlelight, moonlight, lavender); fireflies, stars, dandelion
 
-effect: swell full, rising to a peak | glow tender, memory, sorrow | wave light, playful | shake shout, impact, or vibrato on a held note | focus memory surfacing, sudden clarity | dissolve crumbles into drifting grains after it is sung: vanish, leave, farewell, waking from a dream, something denied or given up (no longer, what we promised) | shimmer a gleam sweeps across: light, shining, stars, rainbow | heartbeat double-beat pulse: crush, heartbeat, nervous, "I like you"
+effect, grouped by what the words do:
+- grow: swell full, rising to a peak | heartbeat double-beat pulse: crush, heartbeat, nervous, "I like you" | wave light, playful
+- tremble: shake shout, impact, or vibrato on a held note
+- light: glow tender, memory, sorrow | shimmer a gleam sweeps across: light, shining, stars, rainbow
+- focus: focus memory surfacing, sudden clarity (the player also pushes the camera in at each chorus_start and spotlights the plan's spotlight line)
+- vanish: dissolve crumbles into drifting grains after it is sung: vanish, leave, farewell, waking from a dream, something denied or given up (no longer, what we promised)
 color (only when the word has ~65%+ color association; match the image; prefer the main colors):
 {{colors}}
 font:
@@ -90,6 +95,7 @@ Task: annotate phrases line by line. The song plan is in [Plan]; annotate only l
 - Keep verses restrained and build toward the chorus: roughly half to two thirds of lines get emphasis, almost every chorus line does; a chorus_start line gets 3 phrases with swell / shake and vivid colors.
 - Pick the words most worth singing out: confessions, shouts, core images, title words, chorus keywords. Skip credit lines, onomatopoeia and interjections (unless held).
 - Use dissolve, shimmer and heartbeat only where the meaning fits, at most once each per chunk.
+- A line marked spotlight is already enlarged, centered and lit by the player: give it at most 2 simple phrases (color, bold, one swell or glow) — no heartbeat, shimmer or stacked glows, which blur when enlarged.
 - Change fonts only for contrast (kai for a memory, mono for electronic sounds).
 - pace (optional): only when a phrase's feel differs from the song pace in [Plan] — fast for a light, bouncy, excited or racing-heart phrase; slow for a lingering, heavy or tender one. Omit it otherwise.
 styles (combinable): bold declaration, strength | italic whisper, memory, quotation | underline vow, promise (forever, surely)

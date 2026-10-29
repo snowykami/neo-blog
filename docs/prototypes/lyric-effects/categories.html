@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>歌词特效分类与使用场景 · 原型</title>
+<style>
+  :root { --bg: #0d0e13; --card: #161821; --line: #262a3a; --fg: #eef0f6; --dim: #8a8fa3; --accent: #8ab4ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.6 -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif; }
+  header, section, footer { max-width: 1320px; margin: auto; padding: 0 28px; }
+  header { padding-top: 28px; }
+  h1 { margin: 0 0 4px; font-size: 24px; }
+  a { color: var(--accent); }
+  .sub { color: var(--dim); margin: 0; }
+  /* 决策流程 */
+  .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 18px 0 6px; }
+  @media (max-width: 900px) { .flow { grid-template-columns: repeat(2, 1fr); } }
+  .step { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--card); border-top: 3px solid var(--c); cursor: pointer; }
+  .step b { display: block; font-size: 15px; }
+  .step span { color: var(--dim); font-size: 12.5px; }
+  .step em { font-style: normal; color: var(--c); font-size: 12px; }
+  .layer { color: var(--dim); font-size: 12.5px; margin: 8px 0 0; }
+  /* 类别 */
+  h2 { font-size: 18px; margin: 34px 0 2px; display: flex; align-items: center; gap: 10px; }
+  h2 i { width: 10px; height: 22px; border-radius: 3px; background: var(--c); }
+  .cat-desc { color: #b7bccb; margin: 2px 0 0; }
+  .cat-rule { color: var(--dim); font-size: 12.5px; margin: 2px 0 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(400px, 100%), 1fr)); gap: 14px; margin-top: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; cursor: pointer; transition: border-color .2s; }
+  .card:hover { border-color: #3d4363; }
+  .card.playing { border-color: var(--c, var(--accent)); }
+  .stage { position: relative; height: 210px; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 0 28px;
+    background: radial-gradient(120% 140% at 15% 0%, #2a2f4d 0%, #14151e 70%); }
+  .stage .hint { position: absolute; right: 10px; bottom: 7px; font-size: 11.5px; color: #ffffff70; pointer-events: none; }
+  .stage .ctx { position: absolute; left: 12px; top: 9px; font-size: 11.5px; color: #ffffff80; }
+  .stage .bgfx { position: absolute; inset: 0; pointer-events: none; }
+  .row { transition: opacity .4s, filter .4s; transform-origin: left center; }
+  .meta { padding: 11px 14px 13px; }
+  .meta h3 { margin: 0; font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tag { font-size: 11px; padding: 1px 8px; border-radius: 999px; font-weight: 400; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+  .tag.auto { --c: #6ee7b7; }
+  .meta p { margin: 6px 0 0; color: #b7bccb; font-size: 13px; }
+  .meta p b { color: var(--fg); font-weight: 600; margin-right: 4px; }
+  .meta p.avoid b { color: #ff9fb8; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 13px; }
+  .chip { font-size: 12px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--line); background: #ffffff08; color: #d6d9e4; cursor: pointer; }
+  .chip.on { border-color: var(--accent); color: var(--accent); }
+  details { margin: 34px 0 40px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 10px 14px; }
+  summary { cursor: pointer; font-weight: 600; }
+  pre { white-space: pre-wrap; color: #c9cdda; font-size: 12.5px; line-height: 1.55; margin: 10px 0 0; }
+
+  /* 歌词（与 index.html 相同） */
+  .lyric { position: relative; font-size: 26px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+  .ch { display: inline-block; position: relative; color: transparent; -webkit-background-clip: text; background-clip: text;
+    background-image: linear-gradient(90deg, var(--hi, #fff) var(--p, -18%), rgba(255, 255, 255, .32) calc(var(--p, -18%) + 18%));
+    will-change: transform, filter; }
+  .ch.sp { width: .35em; }
+  .ch::after { content: ''; position: absolute; left: 0; right: 0; height: .07em; border-radius: .04em; background: var(--hi, #fff);
+    transform-origin: left center; transform: scaleX(var(--line, 0)); opacity: 0; }
+  .ch.u::after { bottom: .06em; opacity: 1; }
+  @media (max-width: 560px) {
+    header, section, footer { padding: 0 14px; }
+    header { padding-top: 20px; }
+    .stage { padding: 0 16px; }
+    .lyric { font-size: 19px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>歌词特效分类与使用场景</h1>
+  <p class="sub">AI 标注时先判断<b>这几个字在「做什么」</b>——变大、发抖、发光、被看清、消失——再在对应类别里挑特效（分类与提示词 <code>music_annotation_prompt.go</code> 一致）。
+    每张卡片是一小段模拟歌曲（歌词为示意，原创），点击播放；「为什么」和「别这样用」是每类特效的设计依据。全部动效的参数一览见 <a href="index.html">歌词动效一览</a>。</p>
+  <div class="flow" id="flow"></div>
+  <p class="layer">另有一层<b>字形</b>（32 色、7 种字体、粗体 / 斜体 / 下划线）可叠加在任一类上；<b>节奏</b>（快 / 中 / 慢）改变所有动效的快慢。一个短语只用一种特效。</p>
+</header>
+<main id="main"></main>
+<footer>
+  <details>
+    <summary>提示词原文（英文，逐段标注与全曲规划共用的特效部分）</summary>
+    <p class="sub" style="font-size:12.5px;margin-top:8px">提示词只给模型类别与一句话含义；本页的场景、「为什么」与「别这样用」是给人看的设计依据。实测（7 首歌 × 3 轮盲评）把场景与示例短语直接写进提示词时，模型更爱堆特效，盲评 10:18 落后；只按类别分组的精简版盲评 8:6 领先，长音用颤音 52%→69%，普通句尾误用 shake 26%→8%。</p>
+    <pre id="prompt"></pre>
+  </details>
+</footer>
+
+<script src="core.js"></script>
+<script>
+// ================= 场景：几行歌词依次演唱，当前行高亮，其余行变淡 =================
+/** 短语在行内的字下标区间（按字符，含空格） */
+function span(text, phrase) {
+  const chars = [...text], target = [...phrase]
+  for (let i = 0; i + target.length <= chars.length; i++)
+    if (target.every((c, k) => chars[i + k] === c)) return [i, i + target.length]
+  throw new Error(`「${phrase}」不在「${text}」里`)
+}
+
+/**
+ * 建一个场景：specs 每项 { text, ms?, hold?: [字, 毫秒], phrases?: [[短语, 选项]] }，选项同 LyricEmphasis（effect / color / styles / font）；
+ * 长音所在的短语用 shake 时自动带上 hold
+ */
+function buildScene(parent, specs, { gap = 380 } = {}) {
+  let t = 0
+  return specs.map((sp) => {
+    const row = document.createElement('div'); row.className = 'row'; parent.appendChild(row)
+    const chars = [...sp.text]
+    const holds = {}
+    let holdIndex = null
+    if (sp.hold) { holdIndex = chars.lastIndexOf(sp.hold[0]); holds[holdIndex] = sp.hold[1] }
+    const line = buildLine(row, sp.text, { ms: sp.ms ?? 360, holds, start: t })
+    line.row = row
+    line.start = t
+    line.groups = (sp.phrases ?? []).map(([phrase, opt]) => {
+      const [from, to] = span(sp.text, phrase)
+      const g = group(line, from, to, { ...opt, holdIndex: opt.effect === 'shake' && holdIndex >= from && holdIndex < to ? holdIndex : undefined })
+      applyStyles(line, g)
+      return g
+    })
+    t = line.end + gap
+    return line
+  })
+}
+
+/** 当前行：已开唱且下一行还没开唱 */
+function currentIndex(lines, t) {
+  let current = 0
+  lines.forEach((line, i) => { if (t >= line.start - 150) current = i })
+  return current
+}
+
+function paintScene(lines, t, opts) {
+  const current = currentIndex(lines, t)
+  lines.forEach((line, i) => {
+    const active = i === current
+    line.row.style.opacity = active ? '1' : '0.42'
+    line.row.style.filter = active ? '' : 'blur(1px)'
+    paintLine(line, line.groups, t, opts)
+  })
+}
+
+/** 普通场景卡片 */
+const sceneCard = (title, effect, ctx, specs, why, avoid, extra = {}) => ({
+  title, effect, ctx, why, avoid, ...extra,
+  build(stage) {
+    const lines = buildScene(stage, specs)
+    const end = lines.at(-1).end
+    return { duration: end + (extra.tail ?? 900), frame: t => paintScene(lines, t) }
+  },
+})
+
+// ================= 五个类别 =================
+const CATEGORIES = [
+  { key: 'grow', name: '放大·起伏', verb: '情绪在变大', c: '#ffb347',
+    desc: '词语被唱得越来越满、心在跳、脚步在蹦。动效以放大和起伏为主。',
+    rule: '包含 swell 放大 · heartbeat 心跳 · wave 波浪。副歌起点最常用 swell；heartbeat 全曲最多 3 处。',
+    cards: [
+      sceneCard('副歌宣言', 'swell 放大', '流行情歌 · 副歌第一句', [
+        { text: '沉默了 那么多年' },
+        { text: '这一次 我要大声说爱你', phrases: [['大声说爱你', { effect: 'swell', color: 'crimson', styles: ['bold'] }]] },
+      ], '全力唱出的宣言，情绪冲到顶点：放大到峰值再缓缓回落，像声音被推满。', '平铺直叙的主歌（「我走在回家的路上」）不要放大；每行都放大就没有层次了。'),
+      sceneCard('告白前一秒', 'heartbeat 心跳', '甜歌 · 主歌', [
+        { text: '站在你面前 话到嘴边' },
+        { text: '心跳 快要藏不住了', hold: ['跳', 1300], phrases: [['心跳', { effect: 'heartbeat', color: 'rose' }]] },
+      ], '词本身就是心跳、紧张、喜欢：「扑通-扑通」的双拍像胸口在跳。', '呐喊和愤怒用 swell / shake；心跳只给悸动，不要用在宏大的副歌上。'),
+      sceneCard('轻快出游', 'wave 波浪', '夏日轻快歌 · 副歌', [
+        { text: '周末的风 吹过街角', ms: 300 },
+        { text: '我们一起 去兜风吧', ms: 320, phrases: [['去兜风吧', { effect: 'wave', color: 'sunshine' }]] },
+      ], '轻盈、蹦跳、俏皮的词：字一个接一个跳起来，像轻快的脚步。', '慢歌和伤感的词不用 wave，会显得轻浮。'),
+    ] },
+  { key: 'tremble', name: '抖动', verb: '声音或身体在发抖', c: '#ff6a3d',
+    desc: '歌手在长音上唱出颤音，或者真的在喊、在发怒。',
+    rule: '只有 shake 一种：有〔长音〕标记时先放大、延迟后颤（颤音），没有时是快速细抖（呐喊）。普通句尾不要抖。',
+    cards: [
+      sceneCard('句尾长音', 'shake · 长音颤音', '抒情歌 · 句尾拖长音', [
+        { text: '说好的 明天见' },
+        { text: '我还在等 你回来', hold: ['来', 2600], phrases: [['你回来', { effect: 'shake', color: 'lavender' }]] },
+      ], '〔held〕标出了歌手拖长并颤音的字：先只放大，唱了一会儿整个词才开始起伏，持续到长音结束。', '没有长音的普通句尾不要抖；轻声气音的长音可以改用 glow。'),
+      sceneCard('愤怒呐喊', 'shake 呐喊', '摇滚 · 副歌', [
+        { text: '一次又一次', ms: 260 },
+        { text: '别再骗我 我受够了', ms: 270, phrases: [['别再骗我', { effect: 'shake', color: 'flame', styles: ['bold'] }]] },
+      ], '真正的喊叫、愤怒、冲击：每个字以不同相位快速细抖。', '温柔的句子情绪再满也别抖，用 swell 或 glow。'),
+    ] },
+  { key: 'light', name: '光效', verb: '有东西在发光', c: '#ffd54f',
+    desc: '温柔的回忆在发光，或者歌词写的就是光。',
+    rule: '包含 glow 柔光 · shimmer 流光。抽象的光（希望、温暖）用 glow，具体的光（星光、阳光、闪耀）用 shimmer；shimmer 全曲最多 3 处。',
+    cards: [
+      sceneCard('温柔回忆', 'glow 柔光', '民谣 · 主歌', [
+        { text: '那年夏天 你的笑', ms: 420, phrases: [['那年夏天', { effect: 'glow', styles: ['italic'] }]] },
+        { text: '像月光 落进我心里', ms: 420, phrases: [['月光', { effect: 'glow', color: 'moonlight' }]] },
+      ], '温柔、怀念、低语、淡淡的伤感：柔光把字包住，不抢戏；回忆可以再加斜体。', '热烈的副歌只用 glow 会显得没力气。'),
+      sceneCard('真实的光', 'shimmer 流光', '治愈系 · 副歌', [
+        { text: '抬起头 就看见' },
+        { text: '满天星光 为我们闪烁', phrases: [['满天星光', { effect: 'shimmer', color: 'gold' }]] },
+      ], '词写的就是光——星光、阳光、闪耀、彩虹：一道光带从左到右扫过笔画。', '「希望」「未来」不是看得见的光，用 glow。'),
+    ] },
+  { key: 'focus', name: '聚焦·镜头', verb: '注意力被拉近', c: '#74c0fc',
+    desc: '突然看清了什么，或者整首歌的镜头对准这一刻。',
+    rule: '词级的 focus 由 AI 标注；聚光灯（spotlight 点题句）与镜头推近（副歌起点）由播放器根据全曲规划自动演出，这两处的短语要收敛。',
+    cards: [
+      sceneCard('恍然大悟', 'focus 由虚到实', '情歌 · 桥段', [
+        { text: '人海里 那个背影', ms: 400 },
+        { text: '原来 一直是你', ms: 420, phrases: [['原来', { effect: 'focus' }], ['一直是你', { effect: 'glow', color: 'sky' }]] },
+      ], '回忆浮现、突然看清、梦醒：先模糊，唱到时变清晰。', '普通强调别用 focus，它的意思是「看清」。'),
+      { title: '全曲点题句', effect: '聚光灯 spotlight', auto: true, ctx: '全曲规划选出唯一一句', tall: true,
+        why: 'AI 在全曲规划里选出最点题的一句（通常在最后一段副歌），播放器自动把它移到中央放大、身后打暖光，其余行退后。这一句的短语只给 1～2 个、保持简单（颜色、粗体、一个 swell 或 glow）。',
+        avoid: '不要在点题句上叠心跳、流光或多层辉光——放大后会糊成一片（切到「叠满特效」看看）。',
+        options: { mode: 'calm' }, chips: [['mode', 'calm', '收敛（新规则）'], ['mode', 'stacked', '叠满特效（会发虚）']],
+        build(stage, o) {
+          stage.style.display = 'block'
+          const light = document.createElement('div'); light.className = 'bgfx'
+          light.style.cssText += 'background:radial-gradient(42% 30% at 40% 52%, rgba(255,236,200,.22), transparent 70%), radial-gradient(75% 60% at 50% 50%, transparent 40%, rgba(0,0,0,.18) 100%);opacity:0;transition:opacity .6s'
+          stage.appendChild(light)
+          const phrases = o.mode === 'calm'
+            ? [['才是我的远方', { effect: 'swell', color: 'candlelight', styles: ['bold'] }]]
+            : [['原来你', { effect: 'glow', color: 'midnight', styles: ['bold'] }], ['才是', { effect: 'heartbeat', color: 'rose', styles: ['bold'] }], ['我的远方', { effect: 'shimmer', color: 'moonlight', styles: ['bold'] }]]
+          const holder = document.createElement('div'); holder.style.cssText = 'position:absolute;inset:0'
+          stage.appendChild(holder)
+          const lines = buildScene(holder, [
+            { text: '后来的街灯 一盏盏熄灭', ms: 300 },
+            { text: '原来你 才是我的远方', ms: 380, hold: ['方', 1400], phrases },
+            { text: '我还在 原地等候', ms: 320 },
+          ])
+          lines.forEach((l) => { l.row.style.cssText += 'position:absolute;left:28px;top:0;transition:transform .9s cubic-bezier(.22,1.2,.4,1),opacity .6s,filter .6s' })
+          const spot = lines[1]
+          return { duration: lines.at(-1).end + 900, frame: (t) => {
+            const current = currentIndex(lines, t)
+            const on = t >= spot.start - 200 && t < spot.end + 600
+            light.style.opacity = on ? '1' : '0'
+            lines.forEach((l, i) => {
+              const d = i - current
+              if (on) {
+                const y = 88 + (i - 1) * 62
+                l.row.style.transform = i === 1 ? `translateY(${y}px) scale(1.25)` : `translateY(${y}px) scale(.94)`
+                l.row.style.opacity = i === 1 ? '1' : '.24'
+                l.row.style.filter = i === 1 ? '' : 'blur(2.5px)'
+              }
+              else {
+                l.row.style.transform = `translateY(${88 + d * 44}px) scale(${d === 0 ? 1 : 0.94})`
+                l.row.style.opacity = d === 0 ? '1' : '.42'
+                l.row.style.filter = d === 0 ? '' : 'blur(1px)'
+              }
+              // 新规则：聚光灯下收敛字的辉光与放大（与 lyric-player.ts 一致）
+              paintLine(l, l.groups, t, i === 1 && on && o.mode === 'calm' ? { amp: 0.5 } : undefined)
+            })
+          } }
+        } },
+      { title: '副歌起点', effect: '镜头推近', auto: true, ctx: '每段副歌的第一行（chorus_start）',
+        why: '副歌第一行开唱时播放器自动把画面往前推一下（0.45 秒推近、2.6 秒回落）。AI 只需标对副歌起点，并给这一行最多 3 个饱满的 swell / shake 短语。',
+        avoid: '不要为了推近而把非副歌的行标成 chorus_start。',
+        build(stage) {
+          const world = document.createElement('div')
+          world.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:0 28px;transform-origin:40% 55%'
+          stage.appendChild(world)
+          const lines = buildScene(world, [
+            { text: '一路走来 跌跌撞撞', ms: 260 },
+            { text: '这一次 我要飞得更高', ms: 330, phrases: [['飞得更高', { effect: 'swell', color: 'sunshine', styles: ['bold'] }]] },
+          ])
+          const start = lines[1].start
+          return { duration: lines.at(-1).end + 2400, frame: (t) => {
+            paintScene(lines, t)
+            const s = t - start
+            const k = s < 0 ? 0 : s < 450 ? swellIn(s / 450) : Math.max(0, 1 - swellOut((s - 450) / 2600))
+            world.style.transform = `scale(${(1 + k * 0.08).toFixed(4)})`
+            world.style.filter = `brightness(${(1 + k * 0.18).toFixed(3)})`
+          } }
+        } },
+    ] },
+  { key: 'vanish', name: '消失', verb: '东西在消失', c: '#c3a6ff',
+    desc: '离开、消逝、放下、梦醒，或者被否定的承诺。',
+    rule: '只有 dissolve 一种：唱完后化成颗粒散去（原型简化为淡出，正式版有颗粒），之后再慢慢恢复。全曲最多 3 处。',
+    cards: [
+      sceneCard('告别', 'dissolve 消散', '分手歌 · 副歌结尾', [
+        { text: '就这样吧 各自远走', ms: 380 },
+        { text: '让我 消失在人海里', ms: 400, phrases: [['消失在人海', { effect: 'dissolve', color: 'silver' }]] },
+      ], '离开、消逝、放下、梦醒：字唱完就散掉，留下空白。', '想留住、想珍惜的东西不要消散。', { tail: 1600 }),
+      sceneCard('被否定的承诺', 'dissolve + 下划线', '情歌 · 桥段', [
+        { text: '你说过的 永远', ms: 380, hold: ['远', 900], phrases: [['永远', { effect: 'dissolve', styles: ['underline'] }]] },
+        { text: '早就不算数了', ms: 360 },
+      ], '被否定、被放弃的词（不再、说好的、永远）：先像誓言一样画下划线，唱完就散掉——代替原来的删除线。', '真心的承诺只用下划线，不要消散。', { tail: 1600 }),
+    ] },
+]
+
+// ================= 渲染 =================
+document.getElementById('flow').innerHTML = CATEGORIES.map(c => `<a class="step" style="--c:${c.c};text-decoration:none;color:inherit" href="#${c.key}"><em>${c.verb} →</em><b>${c.name}</b><span>${[...new Set(c.cards.map(card => card.effect))].join(' · ')}</span></a>`).join('')
+
+const main = document.getElementById('main')
+for (const cat of CATEGORIES) {
+  const sec = document.createElement('section'); sec.id = cat.key; sec.style.setProperty('--c', cat.c)
+  sec.innerHTML = `<h2><i></i>${cat.name}<small style="color:var(--dim);font-weight:400;font-size:13px">${cat.verb}</small></h2><p class="cat-desc">${cat.desc}</p><p class="cat-rule">${cat.rule}</p>`
+  const grid = document.createElement('div'); grid.className = 'grid'
+  for (const def of cat.cards) {
+    const el = document.createElement('div'); el.className = 'card'
+    const stage = document.createElement('div'); stage.className = 'stage'
+    const meta = document.createElement('div'); meta.className = 'meta'
+    meta.innerHTML = `<h3>场景：${def.title}<span class="tag">${def.effect}</span>${def.auto ? '<span class="tag auto">播放器自动</span>' : ''}</h3><p><b>为什么</b>${def.why}</p><p class="avoid"><b>别这样用</b>${def.avoid}</p>`
+    el.append(stage, meta)
+    const card = { el, def, stage, options: { ...(def.options || {}) } }
+    const render = (autoplay) => {
+      stage.innerHTML = ''; stage.removeAttribute('style'); playing.delete(card); el.classList.remove('playing')
+      card.demo = def.build(stage, card.options); card.demo.frame(0, 0)
+      stage.insertAdjacentHTML('beforeend', `<span class="ctx">${def.ctx}</span><span class="hint">点击播放 ▶</span>`)
+      if (autoplay) play(card)
+    }
+    if (def.chips) {
+      const chips = document.createElement('div'); chips.className = 'chips'
+      for (const [key, value, label] of def.chips) {
+        const b = document.createElement('span'); b.className = 'chip' + (card.options[key] === value ? ' on' : ''); b.textContent = label; b.dataset.key = key
+        b.onclick = (e) => { e.stopPropagation(); card.options[key] = value; chips.querySelectorAll(`[data-key="${key}"]`).forEach(x => x.classList.toggle('on', x === b)); render(true) }
+        chips.appendChild(b)
+      }
+      el.appendChild(chips)
+    }
+    el.addEventListener('click', () => render(true))
+    grid.appendChild(el)
+    requestAnimationFrame(() => render(false))
+  }
+  sec.appendChild(grid); main.appendChild(sec)
+}
+
+// 与 music_annotation_prompt.go 的特效部分一致：只给模型分类与一句话含义，场景与示例留在本页（实测带示例的长版本盲评落后，见 spec 7.2b）
+document.getElementById('prompt').textContent = `effect, grouped by what the words do:
+- grow: swell full, rising to a peak | heartbeat double-beat pulse: crush, heartbeat, nervous, "I like you" | wave light, playful
+- tremble: shake shout, impact, or vibrato on a held note
+- light: glow tender, memory, sorrow | shimmer a gleam sweeps across: light, shining, stars, rainbow
+- focus: focus memory surfacing, sudden clarity (the player also pushes the camera in at each chorus_start and spotlights the plan's spotlight line)
+- vanish: dissolve crumbles into drifting grains after it is sung: vanish, leave, farewell, waking from a dream, something denied or given up (no longer, what we promised)
+
+（逐段标注另加）A line marked spotlight is already enlarged, centered and lit by the player: give it at most 2 simple phrases (color, bold, one swell or glow) — no heartbeat, shimmer or stacked glows, which blur when enlarged.`
+</script>
+</body>
+</html>

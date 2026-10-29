@@ -41,6 +41,8 @@ type lyricAnnotationPlan struct {
 	Direction string `json:"direction"`
 	Font      string `json:"font"`
 	Pace      string `json:"pace"`
+	// 聚光灯那一句的行号：逐段标注时在这一行标上 spotlight，让模型少给它叠特效
+	Spotlight *int `json:"spotlight"`
 	Imagery   []struct {
 		Text   string `json:"text"`
 		Effect string `json:"effect"`
@@ -242,11 +244,20 @@ func buildLyricAnnotationLinesPrompt(info lyricAnnotationInfo, lines []string, p
 		}
 	}
 	var marks []string
+	spotlight := -1
+	if plan.Spotlight != nil {
+		spotlight = *plan.Spotlight
+	}
+	spotlightMarked := false
 	for _, line := range plan.Lines {
 		if line.I < from || line.I > to {
 			continue
 		}
 		var parts []string
+		if line.I == spotlight {
+			parts = append(parts, text.Spotlight)
+			spotlightMarked = true
+		}
 		if line.ChorusStart {
 			parts = append(parts, text.ChorusStart)
 		} else if line.Chorus {
@@ -258,6 +269,10 @@ func buildLyricAnnotationLinesPrompt(info lyricAnnotationInfo, lines []string, p
 		if len(parts) > 0 {
 			marks = append(marks, fmt.Sprintf(text.Mark, line.I, strings.Join(parts, ", ")))
 		}
+	}
+	// 聚光灯那一行没有其他标注时单独列出
+	if !spotlightMarked && spotlight >= from && spotlight <= to {
+		marks = append(marks, fmt.Sprintf(text.Mark, spotlight, text.Spotlight))
 	}
 	if len(marks) > 0 {
 		b.WriteString(text.Marks + strings.Join(marks, ""))

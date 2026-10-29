@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -152,5 +153,26 @@ func TestLyricAnnotationPlanRetry(t *testing.T) {
 	}
 	if planCalls.Load() != int32(lyricAnnotationPlanRetries+1) || chunkCalls.Load() != 0 {
 		t.Fatalf("plan calls = %d, chunk calls = %d", planCalls.Load(), chunkCalls.Load())
+	}
+}
+
+func TestLyricAnnotationLinesPromptSpotlight(t *testing.T) {
+	lines := []string{"主歌", "副歌", "点题句", "尾声"}
+	var plan lyricAnnotationPlan
+	if err := json.Unmarshal([]byte(`{"spotlight":2,"lines":[{"i":1,"chorus_start":true},{"i":2,"mood":"sad"}]}`), &plan); err != nil {
+		t.Fatal(err)
+	}
+	// 聚光灯那一行与其他标注合并在同一行
+	prompt := buildLyricAnnotationLinesPrompt(lyricAnnotationInfo{}, lines, plan, 0, 3, 1)
+	if !strings.Contains(prompt, "line 2: spotlight, mood sad\n") {
+		t.Fatalf("prompt missing spotlight mark:\n%s", prompt)
+	}
+	// 没有其他标注时单独列出；不在本段时不标
+	plan.Lines = nil
+	if prompt := buildLyricAnnotationLinesPrompt(lyricAnnotationInfo{}, lines, plan, 0, 3, 1); !strings.Contains(prompt, "line 2: spotlight\n") {
+		t.Fatalf("prompt missing standalone spotlight mark:\n%s", prompt)
+	}
+	if prompt := buildLyricAnnotationLinesPrompt(lyricAnnotationInfo{}, lines, plan, 3, 3, 2); strings.Contains(prompt, "spotlight\n") {
+		t.Fatal("spotlight outside the chunk should not be marked")
 	}
 }
