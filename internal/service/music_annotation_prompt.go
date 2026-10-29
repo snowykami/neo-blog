@@ -61,7 +61,7 @@ effect, grouped by what the words do:
 - tremble: shake shout, impact, or vibrato on a held note
 - light: glow tender, memory, sorrow | shimmer a gleam sweeps across: light, shining, stars, rainbow
 - focus: focus memory surfacing, sudden clarity (the player also pushes the camera in at each chorus_start and spotlights the plan's spotlight line)
-- vanish: dissolve crumbles into drifting grains after it is sung: vanish, leave, farewell, waking from a dream, something denied or given up (no longer, what we promised)
+- vanish: dissolve crumbles into drifting grains after it is sung, slowly: vanish, leave, farewell, waking from a dream, something denied or given up (no longer, what we promised) | shatter breaks into falling shards the instant it is sung: a sudden break — a heart breaking, a dream or glass shattering, a promise snapped, a crash
 color (only when the word has ~65%+ color association; match the image; prefer the main colors):
 {{colors}}
 font:
@@ -94,7 +94,7 @@ Task: annotate phrases line by line. The song plan is in [Plan]; annotate only l
 - Follow the plan's direction and main colors; words listed in Imagery must use the planned effect and color.
 - Keep verses restrained and build toward the chorus: roughly half to two thirds of lines get emphasis, almost every chorus line does; a chorus_start line gets 3 phrases with swell / shake and vivid colors.
 - Pick the words most worth singing out: confessions, shouts, core images, title words, chorus keywords. Skip credit lines, onomatopoeia and interjections (unless held).
-- Use dissolve, shimmer and heartbeat only where the meaning fits, at most once each per chunk.
+- Use dissolve, shatter, shimmer and heartbeat only where the meaning fits, at most once each per chunk.
 - A line marked spotlight is already enlarged, centered and lit by the player: give it at most 2 simple phrases (color, bold, one swell or glow) — no heartbeat, shimmer or stacked glows, which blur when enlarged.
 - Change fonts only for contrast (kai for a memory, mono for electronic sounds).
 - pace (optional): only when a phrase's feel differs from the song pace in [Plan] — fast for a light, bouncy, excited or racing-heart phrase; slow for a lingering, heavy or tender one. Omit it otherwise.

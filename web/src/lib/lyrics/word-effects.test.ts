@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { rayToRect } from './lyric-debris'
 import { getStageSignals } from './stage-effects'
-import { dissolveState, heartbeatLevel, shimmerCenter } from './word-effects'
+import { dissolveState, heartbeatLevel, shatterFlash, shatterState, shimmerCenter } from './word-effects'
 
 describe('消散、流光与心跳', () => {
   it('心跳：每拍「扑通-扑通」两下，第二下稍弱；唱完后停止', () => {
@@ -63,5 +64,37 @@ describe('消散、流光与心跳', () => {
     expect(shimmerCenter(0, 1400 * 1.5, 4, 'slow')).not.toBeNull()
     expect(dissolveState(0, 2000, 0, 4, 650 + 350, undefined, 'fast').amount).toBe(1)
     expect(dissolveState(0, 2000, 0, 4, 650 + 350, undefined, 'slow').amount).toBeCloseTo(0.35)
+  })
+
+  it('破碎：整个词唱完 60ms 后一起碎，碎前 140ms 渐强地颤，碎后保持隐去再慢慢恢复', () => {
+    // 词在 2000ms 唱完，2060ms 碎
+    expect(shatterState(2000, 1900)).toEqual({ at: 2060, crack: 0, amount: 0 })
+    expect(shatterState(2000, 1990).crack).toBeCloseTo(0.5)
+    expect(shatterState(2000, 2060)).toEqual({ at: 2060, crack: 0, amount: 1 })
+    expect(shatterState(2000, 2060 + 10000).amount).toBe(1)
+    expect(shatterState(2000, 2060 + 12000 + 750).amount).toBeCloseTo(0.5)
+    expect(shatterState(2000, 2060 + 12000 + 1500).amount).toBe(0)
+    // 跳转落点之后才碎的照常碎，之前就该碎的直接显示
+    expect(shatterState(2000, 3000, 1500).amount).toBe(1)
+    expect(shatterState(2000, 3000, 2500)).toEqual({ at: 2060, crack: 0, amount: 0 })
+  })
+
+  it('破碎的闪光：碎的一瞬间亮满，随后衰减', () => {
+    expect(shatterFlash(2000, 2050)).toBe(0)
+    expect(shatterFlash(2000, 2060)).toBe(1)
+    expect(shatterFlash(2000, 2280)).toBeCloseTo(Math.exp(-1))
+    expect(shatterFlash(2000, 4000)).toBe(0)
+    const lyrics = { source: 'ncm-yrc' as const, wordTimed: true, instrumental: false, lines: [{ words: [{ text: '碎了', start: 0, end: 2000 }], start: 0, end: 2000, isDuet: false, isBackground: false, emphasis: [{ from: 0, to: 1, start: 0, end: 2000, factor: 0.8, effect: 'shatter' as const }] }] }
+    expect(getStageSignals(lyrics, 2060).pulse).toBeCloseTo(0.8)
+  })
+
+  it('碎片：从裂点出发的射线与字框的交点', () => {
+    expect(rayToRect(10, 10, 0, 40, 20)).toEqual([40, 10])
+    const [x, y] = rayToRect(10, 10, Math.PI / 2, 40, 20)
+    expect(x).toBeCloseTo(10)
+    expect(y).toBeCloseTo(20)
+    const [x2, y2] = rayToRect(10, 10, Math.PI * 1.25, 40, 20)
+    expect(x2).toBeCloseTo(0)
+    expect(y2).toBeCloseTo(0)
   })
 })

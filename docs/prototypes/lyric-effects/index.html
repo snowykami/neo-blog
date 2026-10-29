@@ -402,6 +402,22 @@ section('九、候选新动效（待确认）', '只在原型里，确认效果�
         }
       } }
     } },
+  { title: '破碎 shatter', tags: [['new', '新增'], ['ai', 'AI 标注']],
+    desc: '消散的「一下子」版本：整个词唱完 60ms 后一起碎掉——碎前 140ms 字细微地颤（裂开的前兆），碎时每个字以一个裂点为中心切成 6～8 块带字形的三角形碎片，向外迸开、旋转、坠落，背景同时一闪；之后同消散保持隐去、再慢慢恢复。适合「心碎、梦碎、玻璃碎、誓言被撕碎、撞车」。',
+    build(stage) {
+      const line = buildLine(stage, '那一刻 梦碎了', { ms: 360, holds: { 5: 700 } })
+      const g = group(line, 4, 7, { effect: 'shatter', color: 'crimson' })
+      applyStyles(line, { ...g, styles: ['bold'] })
+      const debris = new ShardLayer(stage)
+      const flash = Object.assign(document.createElement('div'), { className: 'bgfx' })
+      flash.style.background = 'radial-gradient(60% 70% at 50% 50%, rgba(255,255,255,.22), transparent 70%)'; flash.style.opacity = '0'; stage.appendChild(flash)
+      return { duration: line.end + 1800, frame: (t) => {
+        paintLine(line, [g], t, { debris })
+        debris.draw(t)
+        const d = t - g.end - 60
+        flash.style.opacity = (d < 0 || d > 1100 ? 0 : Math.exp(-d / 220)).toFixed(3)
+      } }
+    } },
   { title: '流光 shimmer', tags: [['new', '候选'], ['ai', 'AI 标注']],
     desc: '唱到时一道高光从左到右扫过整个词的笔画内部（扫两遍），像金属反光；也可以是彩虹色的光带。适合「光芒、闪耀、彩虹、星星」。',
     options: { mode: 'gold' }, chips: () => [{ key: 'mode', value: 'gold', label: '金属流光', dot: '#f5c542' }, { key: 'mode', value: 'rainbow', label: '彩虹流光', dot: '#c3a6ff' }],
@@ -557,7 +573,7 @@ for (const s of SECTIONS) {
   sec.appendChild(grid); main.appendChild(sec)
   counts.push([s.title.replace(/^.、/, '').replace(/（.*）/, ''), s.cards.length])
 }
-document.getElementById('summary').innerHTML = `<span class="pill">共 <b>${total}</b> 张演示</span>` + [['词强调特效', '5 种 + 长音颤音'], ['颜色', '32 种'], ['字体', '7 种'], ['字形', '3 种'], ['情绪色温', '4 种'], ['粒子场景', '18 种'], ['舞台效果', '5 种'], ['文字时刻', '4 种'], ['基础引擎', '5 项'], ['候选新动效', '5 个']].map(([a, b]) => `<span class="pill">${a} <b>${b}</b></span>`).join('')
+document.getElementById('summary').innerHTML = `<span class="pill">共 <b>${total}</b> 张演示</span>` + [['词强调特效', '5 种 + 长音颤音'], ['颜色', '32 种'], ['字体', '7 种'], ['字形', '3 种'], ['情绪色温', '4 种'], ['粒子场景', '18 种'], ['舞台效果', '5 种'], ['文字时刻', '4 种'], ['基础引擎', '5 项'], ['候选新动效', '6 个']].map(([a, b]) => `<span class="pill">${a} <b>${b}</b></span>`).join('')
 </script>
 </body>
 </html>

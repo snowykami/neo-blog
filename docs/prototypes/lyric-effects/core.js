@@ -72,7 +72,8 @@ function holdVibrato(hold, t) {
 }
 
 /** 绘制一行：擦除 + 演唱上浮 + 强调；glowBase 为没有颜色时辉光的颜色（情绪或封面取色），scale 为幅度倍数（导航栏用） */
-function paintLine(line, groups, t, { glowBase = '#ffffff', amp = 1, lift = true } = {}) {
+function paintLine(line, groups, t, opts = {}) {
+  const { glowBase = '#ffffff', amp = 1, lift = true } = opts
   const fx = new Map()
   for (const g of groups) {
     const dur = Math.max(1000, g.end - g.start)
@@ -105,7 +106,18 @@ function paintLine(line, groups, t, { glowBase = '#ffffff', amp = 1, lift = true
         const beat = heartbeat(g.start, g.end, t)
         scale = 1 + v * 0.04 * f + beat * 0.16 * f; x = (i - (count - 1) / 2) * beat * 0.06 * f; glow = v * (0.2 + 0.2 * f) + beat * (0.3 + 0.35 * f)
       }
-      else if (g.effect === 'shimmer' || g.effect === 'dissolve') { scale = 1 + v * 0.04 * f; glow = v * (0.25 + 0.3 * f) }
+      else if (g.effect === 'shimmer' || g.effect === 'dissolve' || g.effect === 'shatter') { scale = 1 + v * 0.04 * f; glow = v * (0.25 + 0.3 * f) }
+      // 破碎：整个词唱完 60ms 后一起碎，碎前 140ms 渐强地颤；碎时字隐去，由 ShardLayer 画出碎片
+      let broken = false
+      if (g.effect === 'shatter') {
+        const at = g.end + 60
+        const crack = t < at ? clamp01((t - at + 140) / 140) : 0
+        x += Math.sin(t * 0.09 + i * 1.7) * 0.03 * crack; y += Math.cos(t * 0.11 + i) * 0.02 * crack
+        const c = line.chars[g.from + i]
+        if (t < at) c.shatterAt = null
+        else if (opts.debris && c.shatterAt !== at) { c.shatterAt = at; opts.debris.shatter(c.el, count > 1 ? i / (count - 1) * 2 - 1 : 0, at) }
+        broken = t >= at
+      }
       // 流光：光带中心（以字为单位）从 -1 扫到 count + 1，扫两遍
       const sweep = g.effect === 'shimmer' ? (t - g.start) / 950 : -1
       const shine = sweep >= 0 && sweep < 2 ? (sweep % 1) * (count + 2) - 1 - i : null
@@ -116,7 +128,7 @@ function paintLine(line, groups, t, { glowBase = '#ffffff', amp = 1, lift = true
       let color = null
       if (tint) { const k = Math.max(v * 0.85, t >= begin ? 0.6 : 0); if (k > 0.005) color = `color-mix(in srgb, ${tint} ${(k * 100).toFixed(1)}%, #ffffff)` }
       const ln = g.styles && g.styles.includes('underline') ? clamp01((t - g.start - charMs * i) / charMs) : null
-      fx.set(g.from + i, { scale: 1 + (scale - 1) * amp, x: x * amp, y: y * amp, glow, blur: blur * amp, radius, color, glowColor: tint || glowBase, ln, shine, fade, g })
+      fx.set(g.from + i, { scale: 1 + (scale - 1) * amp, x: x * amp, y: y * amp, glow, blur: blur * amp, radius, color, glowColor: tint || glowBase, ln, shine, fade, broken, g })
     }
   }
   line.chars.forEach((c, idx) => {
@@ -137,6 +149,7 @@ function paintLine(line, groups, t, { glowBase = '#ffffff', amp = 1, lift = true
         c.el.style.backgroundImage = pos == null ? '' : `linear-gradient(105deg, transparent ${pos - 40}%, rgba(255,250,225,.98) ${pos}%, transparent ${pos + 40}%), ${WIPE}`
       }
       if (e.g.effect === 'dissolve') c.el.style.opacity = (1 - e.fade).toFixed(3)
+      if (e.g.effect === 'shatter') c.el.style.opacity = e.broken ? '0' : ''
     }
     else {
       // 普通词：唱到时轻微上浮并保持
@@ -175,4 +188,65 @@ function play(card) {
   card.t0 = performance.now()
   playing.add(card)
   card.el.classList.add('playing')
+}
+
+// ================= 破碎的碎片层（移植自 lyric-debris.ts，按演示时间计算位置，可重复播放） =================
+class ShardLayer {
+  constructor(stage) {
+    this.stage = stage
+    this.canvas = document.createElement('canvas'); this.canvas.className = 'bgfx'
+    this.canvas.style.cssText += 'width:100%;height:100%;z-index:2'
+    stage.appendChild(this.canvas)
+    this.ctx = this.canvas.getContext('2d')
+    this.shards = []
+  }
+
+  /** 把一个字切成 6～8 块带字形的三角形碎片，从裂点向外迸开；push 为整个词的迸开方向（-1 ~ 1） */
+  shatter(el, push, born) {
+    const box = this.stage.getBoundingClientRect(), rect = el.getBoundingClientRect()
+    const w = rect.width, h = rect.height
+    if (w <= 0) return
+    const glyph = document.createElement('canvas'); glyph.width = Math.ceil(w * 2); glyph.height = Math.ceil(h * 2)
+    const g = glyph.getContext('2d'), style = getComputedStyle(el)
+    g.scale(2, 2)
+    g.font = `${style.fontStyle} ${style.fontWeight} ${parseFloat(style.fontSize) * (el.offsetHeight ? h / el.offsetHeight : 1)}px ${style.fontFamily}`
+    // 字的颜色（--hi，可能是 color-mix）经 DOM 换算成 rgb 再交给 canvas
+    const probe = document.createElement('i'); probe.style.color = style.getPropertyValue('--hi').trim() || '#fff'
+    this.stage.appendChild(probe); g.fillStyle = getComputedStyle(probe).color; probe.remove()
+    g.textAlign = 'center'; g.textBaseline = 'middle'
+    g.fillText(el.textContent, w / 2, h / 2)
+    const cx0 = w * (0.35 + Math.random() * 0.3), cy0 = h * (0.35 + Math.random() * 0.3)
+    const n = 6 + Math.floor(Math.random() * 3)
+    const edge = Array.from({ length: n }, (_, k) => {
+      const a = (k + 0.2 + Math.random() * 0.6) / n * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a)
+      const tx = dx > 0 ? (w - cx0) / dx : dx < 0 ? -cx0 / dx : Infinity, ty = dy > 0 ? (h - cy0) / dy : dy < 0 ? -cy0 / dy : Infinity
+      const s = Math.min(tx, ty); return [cx0 + dx * s, cy0 + dy * s]
+    })
+    for (let k = 0; k < n; k++) {
+      const a = edge[k], b = edge[(k + 1) % n], cx = (cx0 + a[0] + b[0]) / 3, cy = (cy0 + a[1] + b[1]) / 3
+      const len = Math.hypot(cx - cx0, cy - cy0) || 1, speed = 90 + Math.random() * 130
+      this.shards.push({ glyph, w, h, left: rect.left - box.left, top: rect.top - box.top, pts: [[cx0, cy0], a, b], cx, cy,
+        vx: (cx - cx0) / len * speed + push * 80, vy: (cy - cy0) / len * speed - 70, spin: (Math.random() - 0.5) * 10, born, life: 900 + Math.random() * 400 })
+    }
+  }
+
+  draw(t) {
+    const { canvas, ctx } = this
+    const W = this.stage.clientWidth, H = this.stage.clientHeight
+    if (canvas.width !== W * 2 || canvas.height !== H * 2) { canvas.width = W * 2; canvas.height = H * 2 }
+    ctx.setTransform(2, 0, 0, 2, 0, 0); ctx.clearRect(0, 0, W, H)
+    this.shards = this.shards.filter(s => t >= s.born - 50)
+    for (const s of this.shards) {
+      const a = (t - s.born) / 1000
+      if (a < 0 || a * 1000 > s.life) continue
+      ctx.globalAlpha = Math.min(1, 2 * (1 - a * 1000 / s.life))
+      ctx.save()
+      ctx.translate(s.left + s.cx + s.vx * a, s.top + s.cy + s.vy * a + 450 * a * a)
+      ctx.rotate(s.spin * a); ctx.translate(-s.cx, -s.cy)
+      ctx.beginPath(); ctx.moveTo(...s.pts[0]); ctx.lineTo(...s.pts[1]); ctx.lineTo(...s.pts[2]); ctx.closePath(); ctx.clip()
+      ctx.drawImage(s.glyph, 0, 0, s.w, s.h)
+      ctx.restore()
+    }
+    ctx.globalAlpha = 1
+  }
 }

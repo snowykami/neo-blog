@@ -138,7 +138,7 @@ type MusicLyricAnnotationLine struct {
 	Phrases     []MusicLyricAnnotationPhrase `json:"phrases"`
 }
 
-// MusicLyricAnnotationPhrase 行内要强调的短语（该行原文的连续片段）、特效类型（swell / glow / wave / shake / focus / dissolve / shimmer / heartbeat）
+// MusicLyricAnnotationPhrase 行内要强调的短语（该行原文的连续片段）、特效类型（swell / glow / wave / shake / focus / dissolve / shatter / shimmer / heartbeat）
 // 与可选的颜色（语义化色板中的名称，如 starry-blue、violet，见 service.lyricAnnotationPalette；为空时不上色）
 type MusicLyricAnnotationPhrase struct {
 	Text   string `json:"text"`

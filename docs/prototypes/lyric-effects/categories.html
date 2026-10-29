@@ -144,7 +144,18 @@ const sceneCard = (title, effect, ctx, specs, why, avoid, extra = {}) => ({
   build(stage) {
     const lines = buildScene(stage, specs)
     const end = lines.at(-1).end
-    return { duration: end + (extra.tail ?? 900), frame: t => paintScene(lines, t) }
+    // 破碎：碎片层，碎的一瞬间背景闪一下（同 stage-effects.ts 的 shatterFlash）
+    const shatters = lines.flatMap(l => l.groups.filter(g => g.effect === 'shatter'))
+    const debris = shatters.length > 0 ? new ShardLayer(stage) : null
+    const flash = debris && Object.assign(document.createElement('div'), { className: 'bgfx' })
+    if (flash) { flash.style.background = 'radial-gradient(60% 70% at 40% 50%, rgba(255,255,255,.22), transparent 70%)'; flash.style.opacity = '0'; stage.appendChild(flash) }
+    return { duration: end + (extra.tail ?? 900), frame: (t) => {
+      paintScene(lines, t, { debris })
+      if (!debris) return
+      debris.draw(t)
+      const k = Math.max(0, ...shatters.map(g => { const d = t - g.end - 60; return d < 0 || d > 1100 ? 0 : Math.exp(-d / 220) }))
+      flash.style.opacity = k.toFixed(3)
+    } }
   },
 })
 
@@ -266,13 +277,17 @@ const CATEGORIES = [
         } },
     ] },
   { key: 'vanish', name: '消失', verb: '东西在消失', c: '#c3a6ff',
-    desc: '离开、消逝、放下、梦醒，或者被否定的承诺。',
-    rule: '只有 dissolve 一种：唱完后化成颗粒散去（原型简化为淡出，正式版有颗粒），之后再慢慢恢复。全曲最多 3 处。',
+    desc: '离开、消逝、放下、梦醒、被否定的承诺，或者一瞬间的破碎。',
+    rule: '慢慢散去用 dissolve（唱完逐字化成颗粒飘走，原型简化为淡出，正式版有颗粒），一下子破掉用 shatter（整个词唱完的一瞬间碎成带字形的碎片坠落，背景一闪）。之后都会慢慢恢复；每种全曲最多 3 处。',
     cards: [
       sceneCard('告别', 'dissolve 消散', '分手歌 · 副歌结尾', [
         { text: '就这样吧 各自远走', ms: 380 },
         { text: '让我 消失在人海里', ms: 400, phrases: [['消失在人海', { effect: 'dissolve', color: 'silver' }]] },
-      ], '离开、消逝、放下、梦醒：字唱完就散掉，留下空白。', '想留住、想珍惜的东西不要消散。', { tail: 1600 }),
+      ], '离开、消逝、放下、梦醒：字唱完就慢慢散掉，留下空白。', '想留住、想珍惜的东西不要消散；突然破裂的用 shatter。', { tail: 1600 }),
+      sceneCard('心碎的瞬间', 'shatter 破碎', '情歌 · 副歌高潮', [
+        { text: '原来你 从来没爱过我', ms: 330 },
+        { text: '心 一下子碎了', ms: 380, hold: ['碎', 700], phrases: [['一下子碎了', { effect: 'shatter', color: 'crimson', styles: ['bold'] }]] },
+      ], '突然破裂的东西——心碎、梦碎、玻璃碎、誓言被撕碎、撞车：整个词唱完的一瞬间碎成碎片坠落，背景同时一闪，像有东西摔在地上。', '慢慢消失、渐行渐远的用 dissolve；不是「破」的强烈情绪用 shake。', { tail: 1600 }),
       sceneCard('被否定的承诺', 'dissolve + 下划线', '情歌 · 桥段', [
         { text: '你说过的 永远', ms: 380, hold: ['远', 900], phrases: [['永远', { effect: 'dissolve', styles: ['underline'] }]] },
         { text: '早就不算数了', ms: 360 },
@@ -323,7 +338,7 @@ document.getElementById('prompt').textContent = `effect, grouped by what the wor
 - tremble: shake shout, impact, or vibrato on a held note
 - light: glow tender, memory, sorrow | shimmer a gleam sweeps across: light, shining, stars, rainbow
 - focus: focus memory surfacing, sudden clarity (the player also pushes the camera in at each chorus_start and spotlights the plan's spotlight line)
-- vanish: dissolve crumbles into drifting grains after it is sung: vanish, leave, farewell, waking from a dream, something denied or given up (no longer, what we promised)
+- vanish: dissolve crumbles into drifting grains after it is sung, slowly: vanish, leave, farewell, waking from a dream, something denied or given up (no longer, what we promised) | shatter breaks into falling shards the instant it is sung: a sudden break — a heart breaking, a dream or glass shattering, a promise snapped, a crash
 
 （逐段标注另加）A line marked spotlight is already enlarged, centered and lit by the player: give it at most 2 simple phrases (color, bold, one swell or glow) — no heartbeat, shimmer or stacked glows, which blur when enlarged.`
 </script>

@@ -1,7 +1,7 @@
 import type { LyricColor, LyricScene, ResolvedLyrics } from './types'
 import { swellCurve } from './easing'
 import { PACE } from './pace'
-import { heartbeatLevel } from './word-effects'
+import { heartbeatLevel, shatterFlash } from './word-effects'
 
 /**
  * 播放器页的全屏特效信号（纯函数，由 MusicStageEffects 每帧调用）：
@@ -9,7 +9,7 @@ import { heartbeatLevel } from './word-effects'
  * - tint 背景染色：唱到带颜色的强调时，背景泛起该颜色，唱完后慢慢淡出
  * - burst 副歌爆发：每段副歌的第一行开唱时迅速亮起，再慢慢回落
  * - push 镜头推近：同样在副歌第一行开唱时触发，约 0.45 秒推近、2.6 秒缓缓回落（由页面换算成背景与歌词区的放大）
- * - 心跳强调（heartbeat）让背景随双拍跳动
+ * - 心跳强调（heartbeat）让背景随双拍跳动；破碎（shatter）碎的一瞬间背景闪一下
  * - scene 粒子场景（含颜色主题）：从标了 scene 的行开始，持续 SCENE_MAX_LINES 行，或到下一个标了 scene 的行为止
  * - spotlight 聚光灯：唱到全曲最点题的那一句时身后亮起暖光、四周略微压暗（与歌词引擎的聚光灯共用 spotlightLevel）
  */
@@ -67,6 +67,9 @@ export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number): StageSi
       }
       else if (group.effect === 'heartbeat') {
         pulse = Math.max(pulse, heartbeatLevel(group.start, group.end, timeMs, group.pace) * group.factor)
+      }
+      else if (group.effect === 'shatter') {
+        pulse = Math.max(pulse, shatterFlash(group.end, timeMs) * group.factor)
       }
       if (group.color) {
         const strength = tintEnvelope(group.start, group.end, timeMs)

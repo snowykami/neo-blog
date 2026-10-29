@@ -22,16 +22,16 @@ import {
   LYRIC_USER_SCROLL_HOLD_MS,
   LYRIC_WORD_FLOAT_EM,
 } from './config'
-import { DissolveGrains } from './dissolve-grains'
 import { swellCurve } from './easing'
 import { interludeDot } from './interlude'
+import { LyricDebris } from './lyric-debris'
 import { PACE } from './pace'
 import { Spring } from './spring'
 import { spotlightLevel } from './stage-effects'
 import { buildTimeline, getTimelineState, getWordProgress } from './timeline'
 import { EMPTY_LYRICS } from './types'
 import { holdVibrato, vibratoWave } from './vibrato'
-import { dissolveState, heartbeatLevel, shimmerCenter } from './word-effects'
+import { dissolveState, heartbeatLevel, shatterState, shimmerCenter } from './word-effects'
 
 export interface LyricPlayerOptions {
   // 当前播放进度（秒），每帧读取；没有音频时返回 null
@@ -75,8 +75,8 @@ interface CharView {
   // 流光的背景（光带 + 底色，裁剪到字形）与消散的不透明度
   background: string
   opacity: string
-  // 消散：已为这个时刻生成过颗粒（往回拖动进度后重新生成）
-  dissolvedAt: number | null
+  // 消散 / 破碎：已为这个时刻生成过颗粒或碎片（往回拖动进度后重新生成）
+  debrisAt: number | null
 }
 
 /** 一组强调的词拆成的单字 */
@@ -230,7 +230,7 @@ function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[],
     charEl.textContent = char
     wordEl.append(charEl)
     if (char.trim()) {
-      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '', line: '', background: '', opacity: '', dissolvedAt: null, start: timing.start + step * k, end: timing.start + step * (k + 1) })
+      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '', line: '', background: '', opacity: '', debrisAt: null, start: timing.start + step * k, end: timing.start + step * (k + 1) })
       k++
     }
     else {
@@ -271,7 +271,7 @@ export class LyricPlayer {
 
   private resizeObserver: ResizeObserver | null = null
   // 消散特效的颗粒层（第一次有字消散时才创建 canvas）
-  private readonly grains: DissolveGrains
+  private readonly debris: LyricDebris
   private readonly listeners: [string, EventListener, AddEventListenerOptions?][]
 
   private readonly interludeHeight: number
@@ -284,7 +284,7 @@ export class LyricPlayer {
       container.classList.add('lyric-player--no-webfonts')
     if (options.compact)
       container.classList.add('lyric-player--compact')
-    this.grains = new DissolveGrains(container)
+    this.debris = new LyricDebris(container)
     this.interludeHeight = options.compact ? INTERLUDE_HEIGHT_COMPACT_PX : INTERLUDE_HEIGHT_PX
     this.alignPosition = options.compact ? COMPACT_ALIGN_POSITION : LYRIC_ALIGN_POSITION
     this.listeners = [
@@ -314,7 +314,7 @@ export class LyricPlayer {
     // 只移除引擎自己创建的节点，不碰容器里可能由其他代码（如 React）管理的内容
     this.views.forEach(view => view.el.remove())
     this.views = []
-    this.grains.dispose()
+    this.debris.dispose()
     this.container.classList.remove('lyric-player', 'lyric-player--compact', 'lyric-player--no-roman', 'lyric-player--no-webfonts')
     delete this.container.dataset.lyricFont
   }
@@ -329,7 +329,7 @@ export class LyricPlayer {
     else
       delete this.container.dataset.lyricFont
     this.items = buildTimeline(lyrics.lines)
-    this.grains.clear()
+    this.debris.clear()
     this.manual = null
     this.lastTimeMs = null
     this.build()
@@ -579,20 +579,20 @@ export class LyricPlayer {
     this.activeLines = new Set(this.state.active)
     const focusChanged = this.state.focus !== previousFocus
 
-    // 跳转后旧的消散颗粒不再对应当前歌词
+    // 跳转后旧的消散颗粒与破碎碎片不再对应当前歌词
     if (this.teleport)
-      this.grains.clear()
+      this.debris.clear()
     // 聚光灯随特效开关；减少动态效果与手动滚动时不演出
     this.spot = this.spotView >= 0 && this.display.effects && !this.reducedMotion && !this.manual ? spotlightLevel(this.lyrics, timeMs) : 0
     if (this.spot === 0)
       this.spotScale = null
     const animating = this.layout(dt, now, focusChanged)
     this.paint(timeMs)
-    const grains = this.grains.step(playing ? dt : 0)
+    const debris = this.debris.step(playing ? dt : 0)
 
     const teleported = this.teleport
     this.teleport = false
-    if (playing || animating || this.manual || teleported || (grains && playing))
+    if (playing || animating || this.manual || teleported || (debris && playing))
       this.wake()
   }
 
@@ -854,21 +854,36 @@ export class LyricPlayer {
         let background = ''
         let opacity = ''
         let drift = 0
+        let crack = 0
         if (group.effect === 'dissolve' && f > 0) {
           // 消散：字唱完后淡出、变虚并向右飘，同时生成颗粒；过一会儿慢慢恢复
           const dissolve = dissolveState(group.start, group.end, i, count, timeMs, this.seekAt, pace)
           if (timeMs < dissolve.at) {
-            char.dissolvedAt = null
+            char.debrisAt = null
           }
-          else if (char.dissolvedAt !== dissolve.at && timeMs - dissolve.at < 300) {
-            char.dissolvedAt = dissolve.at
-            this.grains.spawn(char.el)
+          else if (char.debrisAt !== dissolve.at && timeMs - dissolve.at < 300) {
+            char.debrisAt = dissolve.at
+            this.debris.spawn(char.el)
           }
           if (dissolve.amount > 0.002) {
             opacity = (1 - dissolve.amount).toFixed(3)
             filter = `blur(${(dissolve.amount * 0.08).toFixed(3)}em)`
             drift = dissolve.amount * 0.15
           }
+        }
+        if (group.effect === 'shatter' && f > 0) {
+          // 破碎：整个词唱完的一瞬间一起碎掉，字隐去、由碎屑层画出碎片；碎之前字细微地颤；过一会儿慢慢恢复
+          const shatter = shatterState(group.end, timeMs, this.seekAt)
+          if (timeMs < shatter.at) {
+            char.debrisAt = null
+          }
+          else if (char.debrisAt !== shatter.at && timeMs - shatter.at < 300) {
+            char.debrisAt = shatter.at
+            this.debris.shatter(char.el, count > 1 ? (i / (count - 1)) * 2 - 1 : 0)
+          }
+          if (shatter.amount > 0.002)
+            opacity = (1 - shatter.amount).toFixed(3)
+          crack = shatter.crack
         }
         if (lined)
           line = Math.min(1, Math.max(0, (timeMs - char.start) / Math.max(1, char.end - char.start))).toFixed(3)
@@ -930,7 +945,7 @@ export class LyricPlayer {
             x = (i - (count - 1) / 2) * beat * 0.06 * f
             glow = v * (0.2 + 0.2 * f) + beat * (0.3 + 0.35 * f)
           }
-          else if (group.effect === 'shimmer' || group.effect === 'dissolve') {
+          else if (group.effect === 'shimmer' || group.effect === 'dissolve' || group.effect === 'shatter') {
             scale = 1 + v * 0.04 * f
             glow = shine == null ? v * (0.25 + 0.3 * f) : 0
           }
@@ -946,6 +961,10 @@ export class LyricPlayer {
         }
         if (drift > 0)
           transform = `${transform} translateX(${drift.toFixed(3)}em)`.trim()
+        if (crack > 0) {
+          // 碎之前的颤：每个字相位不同，越接近碎越明显
+          transform = `${transform} translate(${(Math.sin(timeMs * 0.09 + i * 1.7) * 0.03 * crack).toFixed(3)}em, ${(Math.cos(timeMs * 0.11 + i) * 0.02 * crack).toFixed(3)}em)`.trim()
+        }
         if (shine != null) {
           // 流光：字的颜色改由背景绘制（裁剪到字形，见 lyric-player.css），叠上一道光带；文字本身透明，辉光会盖住背景所以不用
           const pos = (shine - i) * 100

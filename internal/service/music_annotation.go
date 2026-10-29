@@ -49,7 +49,7 @@ const (
 	lyricAnnotationMaxMoments = 5
 	// 换字体的短语上限：太多会显得杂乱
 	lyricAnnotationMaxPhraseFonts = 10
-	// 消散、流光、心跳每种的上限
+	// 消散、破碎、流光、心跳每种的上限
 	lyricAnnotationMaxSpecialEffect = 3
 	// 标注的温度：调高让演出设计更大胆
 	lyricAnnotationTemperature = 0.9
@@ -60,9 +60,9 @@ const (
 
 var (
 	lyricAnnotationMoods = map[string]bool{"calm": true, "bright": true, "sad": true, "intense": true}
-	// 消散、流光、心跳全曲每种最多 lyricAnnotationMaxSpecialEffect 处，超出的换成相近的常规特效
-	lyricAnnotationSpecialEffects = map[string]string{"dissolve": "glow", "shimmer": "glow", "heartbeat": "swell"}
-	lyricAnnotationEffects        = map[string]bool{"swell": true, "glow": true, "wave": true, "shake": true, "focus": true, "dissolve": true, "shimmer": true, "heartbeat": true}
+	// 消散、破碎、流光、心跳全曲每种最多 lyricAnnotationMaxSpecialEffect 处，超出的换成相近的常规特效（破碎换成同样有冲击感的 shake）
+	lyricAnnotationSpecialEffects = map[string]string{"dissolve": "glow", "shatter": "shake", "shimmer": "glow", "heartbeat": "swell"}
+	lyricAnnotationEffects        = map[string]bool{"swell": true, "glow": true, "wave": true, "shake": true, "focus": true, "dissolve": true, "shatter": true, "shimmer": true, "heartbeat": true}
 	// 行级全屏粒子场景（只在播放器页演出）
 	lyricAnnotationScenes = func() map[string]bool {
 		scenes := make(map[string]bool, len(lyricAnnotationSceneList))
@@ -628,7 +628,7 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 			if style, ok := styles[normalized]; ok {
 				effect, color = style.Effect, style.Color
 			} else {
-				// 消散、流光、心跳是点睛之笔，全曲每种最多几处，超出的换成相近的常规特效
+				// 消散、破碎、流光、心跳是点睛之笔，全曲每种最多几处，超出的换成相近的常规特效
 				if fallback, special := lyricAnnotationSpecialEffects[effect]; special {
 					if specialCount[effect] >= lyricAnnotationMaxSpecialEffect {
 						effect = fallback

@@ -368,3 +368,26 @@ func TestSanitizeLyricAnnotationsSpotlight(t *testing.T) {
 		}
 	}
 }
+
+func TestSanitizeLyricAnnotationsShatter(t *testing.T) {
+	lines := []string{"心碎了", "梦碎了", "玻璃碎了", "誓言碎了"}
+	raw := `{"lines":[
+		{"i":0,"phrases":[{"text":"心碎了","effect":"shatter"}]},
+		{"i":1,"phrases":[{"text":"梦碎了","effect":"shatter"}]},
+		{"i":2,"phrases":[{"text":"玻璃碎了","effect":"shatter"}]},
+		{"i":3,"phrases":[{"text":"誓言碎了","effect":"shatter"}]}]}`
+	got, err := sanitizeLyricAnnotations(lines, nil, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var effects []string
+	for _, line := range got.Lines {
+		for _, phrase := range line.Phrases {
+			effects = append(effects, phrase.Effect)
+		}
+	}
+	// 破碎全曲最多 3 处，第 4 处换成同样有冲击感的 shake
+	if want := []string{"shatter", "shatter", "shatter", "shake"}; !reflect.DeepEqual(effects, want) {
+		t.Fatalf("effects = %v, want %v", effects, want)
+	}
+}

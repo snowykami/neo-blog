@@ -49,4 +49,12 @@ describe('导航栏的简化特效', () => {
       expect(style.color).toContain('color-mix')
     }
   })
+
+  it('破碎：碎前细微地颤，碎后下坠淡出，之后隐去', () => {
+    const shatter: LyricEmphasis = { from: 0, to: 2, start: 0, end: 2000, factor: 1, effect: 'shatter' }
+    expect(navEmphasisStyle(shatter, 0, 2, 1990, true).transform).not.toBe('')
+    const falling = navEmphasisStyle(shatter, 0, 2, 2160, true)
+    expect(Number(falling.opacity)).toBeCloseTo(0.5)
+    expect(navEmphasisStyle(shatter, 0, 2, 3000, true).opacity).toBe('0.000')
+  })
 })

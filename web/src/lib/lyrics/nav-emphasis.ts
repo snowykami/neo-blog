@@ -3,14 +3,14 @@ import { LYRIC_COLORS } from './colors'
 import { swellCurve } from './easing'
 import { PACE } from './pace'
 import { holdVibrato, vibratoWave } from './vibrato'
-import { dissolveState, heartbeatLevel, shimmerCenter } from './word-effects'
+import { dissolveState, heartbeatLevel, shatterState, shimmerCenter } from './word-effects'
 
 /**
  * 导航栏与单曲卡的单行逐字歌词的简化强调特效（见 spec 8.2）：沿用播放器的强调分组（规则 + 歌词标注），
  * 但只做轻量的动效，幅度比播放器小，避免在一行高的导航栏里溢出：
  * - swell 放大 + 辉光；glow 辉光；wave 上浮；shake 抖动（带长音时为延迟的颤音，见 vibrato.ts）；focus 由虚到实；
- *   heartbeat 随双拍轻跳；shimmer 光带经过的词依次亮起；dissolve 唱完后变淡、变虚并向右飘（不生成颗粒），之后恢复，
- *   拖动进度后落点之前的不消散（seekAt，同播放器）
+ *   heartbeat 随双拍轻跳；shimmer 光带经过的词依次亮起；dissolve 唱完后变淡、变虚并向右飘（不生成颗粒），之后恢复；
+ *   shatter 碎之前细微地颤，碎时整个词迅速下坠、淡出（不生成碎片），之后恢复；拖动进度后落点之前的不消散、不破碎（seekAt，同播放器）
  * - 指定了颜色时随演唱上色，唱过后保留部分颜色；factor 为 0 或减少动态效果时只上色
  */
 
@@ -110,6 +110,20 @@ export function navEmphasisStyle(group: LyricEmphasis, i: number, count: number,
       opacity = (1 - amount).toFixed(3)
       filter = `blur(${(amount * 0.06).toFixed(3)}em)`
       x += amount * 0.12
+    }
+    scale = 1 + v * 0.03 * f
+  }
+  else if (group.effect === 'shatter') {
+    const shatter = shatterState(group.end, timeMs, seekAt)
+    if (shatter.crack > 0) {
+      x += Math.sin(timeMs * 0.09 + i * 1.7) * 0.025 * shatter.crack
+      y += Math.cos(timeMs * 0.11 + i) * 0.015 * shatter.crack
+    }
+    // 碎后的 0.2 秒内下坠并淡出（之后保持隐去，恢复时原地淡入）
+    const fall = Math.min(1, Math.max(0, (timeMs - shatter.at) / 200))
+    if (shatter.amount > 0.002) {
+      opacity = (1 - shatter.amount * fall).toFixed(3)
+      y += shatter.amount === 1 ? fall * 0.25 : 0
     }
     scale = 1 + v * 0.03 * f
   }

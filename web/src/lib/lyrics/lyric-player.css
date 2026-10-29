@@ -90,8 +90,8 @@
   background-clip: text;
 }
 
-/* 消散特效的颗粒层（dissolve-grains.ts） */
-.lyric-grains {
+/* 消散与破碎特效的碎屑层（lyric-debris.ts） */
+.lyric-debris {
   position: absolute;
   inset: 0;
   z-index: 1;
