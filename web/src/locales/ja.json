@@ -1615,7 +1615,8 @@
     "show_translation": "翻訳を表示",
     "show_romaji": "ローマ字を表示",
     "open_player_page": "プレーヤーページを開く",
-    "show_lyric_effects": "歌詞エフェクト"
+    "show_lyric_effects": "歌詞エフェクト",
+    "show_lyric_moments": "コメントとナレーション"
   },
   "Response": {
     "error": {

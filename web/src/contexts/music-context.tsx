@@ -69,6 +69,9 @@ interface MusicContextValue {
   // 歌词强调特效（放大、辉光、波浪）开关，播放器页与悬浮播放器共用
   showLyricEffects: boolean
   setShowLyricEffects: (show: boolean) => void
+  // 播放时出现的网易云热评与 AI 旁白（前奏导语、关键节点的时刻、尾奏热评）开关，播放器页与悬浮播放器共用
+  showLyricMoments: boolean
+  setShowLyricMoments: (show: boolean) => void
   setShowTranslation: (show: boolean) => void
   setShowRomaji: (show: boolean) => void
   hasTranslationLyric: boolean
@@ -174,6 +177,7 @@ const MAX_LYRIC_PINS = 2000
 const STORAGE_KEY_SHOW_TRANSLATION = 'music-show-translation'
 const STORAGE_KEY_SHOW_ROMAJI = 'music-show-romaji'
 const STORAGE_KEY_SHOW_LYRIC_EFFECTS = 'music-show-lyric-effects'
+const STORAGE_KEY_SHOW_LYRIC_MOMENTS = 'music-show-lyric-moments'
 // 旧版的三选一歌词模式（none / romaji / translation），读取后迁移为两个开关
 const LEGACY_STORAGE_KEY_LYRIC_MODE = 'music-lyric-mode'
 
@@ -353,6 +357,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [showTranslation, setShowTranslationState] = useState(true)
   const [showRomaji, setShowRomajiState] = useState(true)
   const [showLyricEffects, setShowLyricEffectsState] = useState(true)
+  // 热评与旁白默认显示，读者关掉后记在本地
+  const [showLyricMoments, setShowLyricMomentsState] = useState(true)
   const currentTrack = currentIndex != null ? playlist[currentIndex] ?? null : null
   const currentTrackId = currentTrack?.id ?? null
   const getAudio = useCallback(() => audioRef.current, [])
@@ -404,6 +410,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const storedEffects = readStoredBoolean(STORAGE_KEY_SHOW_LYRIC_EFFECTS)
       if (storedEffects != null)
         setShowLyricEffectsState(storedEffects)
+
+      const storedMoments = readStoredBoolean(STORAGE_KEY_SHOW_LYRIC_MOMENTS)
+      if (storedMoments != null)
+        setShowLyricMomentsState(storedMoments)
 
       const storedTranslation = readStoredBoolean(STORAGE_KEY_SHOW_TRANSLATION)
       const storedRomaji = readStoredBoolean(STORAGE_KEY_SHOW_ROMAJI)
@@ -807,6 +817,11 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     writeStored(STORAGE_KEY_SHOW_LYRIC_EFFECTS, show)
   }, [])
 
+  const setShowLyricMoments = useCallback((show: boolean) => {
+    setShowLyricMomentsState(show)
+    writeStored(STORAGE_KEY_SHOW_LYRIC_MOMENTS, show)
+  }, [])
+
   const setShowRomaji = useCallback((show: boolean) => {
     setShowRomajiState(show)
     writeStored(STORAGE_KEY_SHOW_ROMAJI, show)
@@ -943,6 +958,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setShowRomaji,
     showLyricEffects,
     setShowLyricEffects,
+    showLyricMoments,
+    setShowLyricMoments,
     hasTranslationLyric,
     hasRomajiLyric,
     getAudio,
@@ -990,6 +1007,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setShowRomaji,
     showLyricEffects,
     setShowLyricEffects,
+    showLyricMoments,
+    setShowLyricMoments,
     hasTranslationLyric,
     hasRomajiLyric,
     getAudio,

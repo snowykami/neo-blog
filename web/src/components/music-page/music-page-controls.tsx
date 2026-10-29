@@ -3,7 +3,7 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { PlayMode } from '@/contexts/music-context'
-import { CaseSensitiveIcon, LanguagesIcon, ListMusicIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, SparklesIcon, Volume1Icon, Volume2Icon, VolumeXIcon } from 'lucide-react'
+import { CaseSensitiveIcon, LanguagesIcon, ListMusicIcon, MessageSquareQuoteIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, SparklesIcon, Volume1Icon, Volume2Icon, VolumeXIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useMemo, useState } from 'react'
 import { ProgressControl } from '@/components/common/controlled-progress'
@@ -149,6 +149,8 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
     hasRomajiLyric,
     showLyricEffects,
     setShowLyricEffects,
+    showLyricMoments,
+    setShowLyricMoments,
   } = useMusic()
 
   return (
@@ -189,6 +191,12 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
             label={playerT('show_lyric_effects')}
             active={showLyricEffects}
             onClick={() => setShowLyricEffects(!showLyricEffects)}
+          />
+          <IconButton
+            icon={MessageSquareQuoteIcon}
+            label={playerT('show_lyric_moments')}
+            active={showLyricMoments}
+            onClick={() => setShowLyricMoments(!showLyricMoments)}
           />
           <IconButton
             icon={CaseSensitiveIcon}

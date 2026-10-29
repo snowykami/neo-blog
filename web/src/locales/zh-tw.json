@@ -1615,7 +1615,8 @@
     "show_translation": "顯示翻譯",
     "show_romaji": "顯示音譯",
     "open_player_page": "開啟播放器頁",
-    "show_lyric_effects": "歌詞特效"
+    "show_lyric_effects": "歌詞特效",
+    "show_lyric_moments": "評論與旁白"
   },
   "Response": {
     "error": {

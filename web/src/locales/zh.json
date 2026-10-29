@@ -1471,7 +1471,8 @@
     "show_translation": "显示翻译",
     "show_romaji": "显示音译",
     "open_player_page": "打开播放器页",
-    "show_lyric_effects": "歌词特效"
+    "show_lyric_effects": "歌词特效",
+    "show_lyric_moments": "评论与旁白"
   },
   "Operation": {
     "back_to_home": "返回首页",

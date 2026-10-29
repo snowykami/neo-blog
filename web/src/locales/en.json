@@ -1615,7 +1615,8 @@
     "show_translation": "Show translation",
     "show_romaji": "Show romanization",
     "open_player_page": "Open the player page",
-    "show_lyric_effects": "Lyric effects"
+    "show_lyric_effects": "Lyric effects",
+    "show_lyric_moments": "Comments & narration"
   },
   "Response": {
     "error": {

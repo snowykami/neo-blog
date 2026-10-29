@@ -9,12 +9,12 @@ import { cn } from '@/lib/utils'
 /**
  * 歌词区底部的「时刻」（播放器页与悬浮小窗，compact 时字号更小，均来自歌词标注，时机见 lib/lyrics/moments.ts）：
  * 前奏时淡入 AI 写给听众的一句导语；关键节点开唱时淡入 AI 挑选的热评或写的旁白；尾奏时淡入一条最贴合歌曲的网易云热评。
- * 只订阅播放时钟换算出的时刻（前奏 / 尾奏 / 无），时刻不变时不重渲染
+ * 只订阅播放时钟换算出的时刻（前奏 / 尾奏 / 无），时刻不变时不重渲染；读者在控制栏关掉「评论与旁白」后不显示
  */
 export function MusicLyricMoments({ className, compact = false }: { className?: string, compact?: boolean }) {
   const t = useTranslations('MusicPage')
   const format = useFormatter()
-  const { lyrics, duration } = useMusic()
+  const { lyrics, duration, showLyricMoments } = useMusic()
   const clock = useMusicClockStore()
   const getMoment = useCallback(
     () => lyricMomentAt(lyrics, clock.getSnapshot() * 1000, duration == null ? null : duration * 1000),
@@ -22,7 +22,7 @@ export function MusicLyricMoments({ className, compact = false }: { className?: 
   )
   const moment = useSyncExternalStore(clock.subscribe, getMoment, () => null)
   const notes = lyrics.notes ?? []
-  if (!lyrics.intro && !lyrics.outro && notes.length === 0)
+  if (!showLyricMoments || (!lyrics.intro && !lyrics.outro && notes.length === 0))
     return null
   const caption = (liked: number) => t('outro_source', { count: format.number(liked, { notation: 'compact' }) })
 

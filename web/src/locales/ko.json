@@ -1615,7 +1615,8 @@
     "show_translation": "번역 표시",
     "show_romaji": "발음 표시",
     "open_player_page": "플레이어 페이지 열기",
-    "show_lyric_effects": "가사 효과"
+    "show_lyric_effects": "가사 효과",
+    "show_lyric_moments": "댓글과 내레이션"
   },
   "Response": {
     "error": {
