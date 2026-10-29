@@ -50,7 +50,7 @@ function NeteaseSongCard({ id }: { id: number }) {
   const subtitle = !song
     ? state.status === 'error' && <p className="text-sm text-muted-foreground">{t('load_failed')}</p>
     : showLyric
-      ? <div className="text-sm"><LyricLine /></div>
+      ? <div className="min-w-0 text-sm"><LyricLine /></div>
       : <p className="truncate text-sm text-muted-foreground">{[song.artists.join(' / '), song.album].filter(Boolean).join(' · ')}</p>
 
   const action = track

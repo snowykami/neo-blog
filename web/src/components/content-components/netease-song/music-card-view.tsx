@@ -80,8 +80,8 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
               ? <Skeleton className="size-full" />
               : <Music2Icon aria-hidden className="absolute inset-0 m-auto size-6 text-muted-foreground" />}
         </div>
-        {/* 内容区 */}
-        <div className="grid min-w-0 grid-rows-3">
+        {/* 内容区：列宽显式为 minmax(0,1fr)，否则隐式的 auto 列会按最长一行（如超长的署名歌词）撑宽，进度行跟着被挤出卡片 */}
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-3">
           {loading
             ? (
                 <div className="grid gap-2">
