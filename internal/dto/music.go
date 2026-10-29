@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 // MusicTrackDto 悬浮音乐播放器的曲目，与静态歌单 JSON 的结构一致
 type MusicTrackDto struct {
 	ID       int64    `json:"id"`
@@ -102,6 +104,8 @@ type MusicLyricAnnotationsDto struct {
 	// 聚光灯：全曲最点题的一句（歌词 text 的第 occurrence 次出现），唱到时这一句移到中央放大、身后亮起暖光，可为空
 	Spotlight *MusicLyricAnnotationSpotlight `json:"spotlight,omitempty"`
 	Lines     []MusicLyricAnnotationLine     `json:"lines"`
+	// 管理员手动编辑过（不再因过期自动重新生成；播放器里手动重新生成前提示会覆盖编辑）
+	Edited bool `json:"edited,omitempty"`
 }
 
 // MusicLyricAnnotationMoment 一个「时刻」：在歌词 text 的第 occurrence 次出现（从 0 开始，副歌常有重复的行）开唱时显示；
@@ -208,4 +212,44 @@ type MusicLyricCacheDto struct {
 type MusicChorusDto struct {
 	Start int64 `json:"start"`
 	End   int64 `json:"end"`
+}
+
+// MusicLyricSettingsDto 一首歌的歌词人工设置：offsets 为各歌词来源（ResolvedLyrics.source）的整体偏移（毫秒，正数推迟、负数提前），没有设置的来源不出现
+type MusicLyricSettingsDto struct {
+	Offsets map[string]int `json:"offsets"`
+}
+
+// MusicLyricOffsetReq 管理员保存某一歌词来源的整体偏移（毫秒），为 0 时清除
+type MusicLyricOffsetReq struct {
+	Source   string `json:"source" vd:"len($)>0"`
+	OffsetMs int    `json:"offset_ms"`
+}
+
+// MusicLyricAnnotationsEditReq 管理员手动编辑的歌词标注：只含可编辑的部分（全曲字体、节奏、导语、聚光灯与各行），时刻与尾奏热评保持原样
+type MusicLyricAnnotationsEditReq struct {
+	Font      string                         `json:"font"`
+	Pace      string                         `json:"pace"`
+	Intro     string                         `json:"intro"`
+	Spotlight *MusicLyricAnnotationSpotlight `json:"spotlight"`
+	Lines     []MusicLyricAnnotationLine     `json:"lines"`
+}
+
+// MusicLyricAnnotationEditorDto 后台编辑一首歌的歌词标注所需的数据：lines 为送去标注的完整歌词（按顺序、含重复的行），
+// annotation 为当前标注（还没有时为空）；edited_at 为手动编辑时间，generated_at / model 为最近一次 AI 生成的时间与模型，generating 为正在生成
+type MusicLyricAnnotationEditorDto struct {
+	Lines       []string                  `json:"lines"`
+	Annotation  *MusicLyricAnnotationsDto `json:"annotation"`
+	EditedAt    *time.Time                `json:"edited_at,omitempty"`
+	GeneratedAt *time.Time                `json:"generated_at,omitempty"`
+	Model       string                    `json:"model,omitempty"`
+	Generating  bool                      `json:"generating"`
+}
+
+// MusicLyricAnnotationSummaryDto 后台歌词特效列表中的一条：已有标注的歌曲、短语数与生成 / 编辑时间
+type MusicLyricAnnotationSummaryDto struct {
+	SongID      int64      `json:"song_id"`
+	Phrases     int        `json:"phrases"`
+	GeneratedAt time.Time  `json:"generated_at"`
+	EditedAt    *time.Time `json:"edited_at,omitempty"`
+	Model       string     `json:"model,omitempty"`
 }

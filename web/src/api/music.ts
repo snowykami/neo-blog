@@ -1,4 +1,5 @@
 import type { LyricAnnotations } from '@/lib/lyrics/emphasis'
+import type { LyricSource } from '@/lib/lyrics/types'
 import type { MusicSearchSong, MusicSong, MusicSource, MusicTrack, NCMPlaylists } from '@/models/music'
 import type { BaseResponse } from '@/models/resp'
 import { isAxiosError } from 'axios'
@@ -112,6 +113,7 @@ export interface MusicLyricAnnotations {
   moments?: LyricAnnotations['moments']
   spotlight?: LyricAnnotations['spotlight']
   lines: LyricAnnotations['lines']
+  edited?: boolean
 }
 
 // 只为博客歌单内的歌曲生成；没有配置大模型、不在歌单内或生成失败时返回 null
@@ -130,6 +132,64 @@ export async function fetchLyricAnnotations(id: number): Promise<MusicLyricAnnot
 // 管理员手动重新生成一首歌的歌词标注，之后通过 fetchLyricAnnotations 取结果
 export async function refreshLyricAnnotations(id: number): Promise<MusicLyricAnnotations> {
   const res = await axiosClient.post<BaseResponse<MusicLyricAnnotations>>(`/music/song/${id}/lyric/annotations/refresh`)
+  return res.data.data
+}
+
+// 歌词的人工设置：各歌词来源（ResolvedLyrics.source）的整体偏移（毫秒，正数让歌词推迟、负数提前），没有设置的来源不出现
+export interface MusicLyricSettings {
+  offsets: Partial<Record<LyricSource, number>>
+}
+
+export async function fetchLyricSettings(id: number): Promise<MusicLyricSettings> {
+  const res = await axiosClient.get<BaseResponse<MusicLyricSettings>>(`/music/song/${id}/lyric/settings`)
+  return res.data.data
+}
+
+// 管理员保存某一歌词来源的整体偏移（毫秒），为 0 时清除；对所有人生效
+export async function saveLyricOffset(id: number, source: LyricSource, offsetMs: number): Promise<void> {
+  await axiosClient.put(`/music/song/${id}/lyric/offset`, { source, offsetMs })
+}
+
+// 后台歌词特效列表中的一条：已有标注的歌曲、短语数、生成与手动编辑的时间
+export interface MusicLyricAnnotationSummary {
+  songId: number
+  phrases: number
+  generatedAt: string
+  editedAt?: string
+  model?: string
+}
+
+export async function listLyricAnnotations(): Promise<MusicLyricAnnotationSummary[]> {
+  const res = await axiosClient.get<BaseResponse<MusicLyricAnnotationSummary[]>>('/music/lyric/annotations')
+  return res.data.data ?? []
+}
+
+// 后台编辑一首歌的歌词标注：lines 为完整歌词（按顺序、含重复的行），annotation 为当前标注（还没有时为 null）
+export interface MusicLyricAnnotationEditor {
+  lines: string[]
+  annotation: MusicLyricAnnotations | null
+  editedAt?: string
+  generatedAt?: string
+  model?: string
+  generating: boolean
+}
+
+// 手动编辑可改的部分：全曲字体、节奏、导语、聚光灯与各行（时刻与尾奏热评保持原样）
+export interface MusicLyricAnnotationsEdit {
+  font?: LyricAnnotations['font']
+  pace?: LyricAnnotations['pace']
+  intro?: string
+  spotlight?: LyricAnnotations['spotlight'] | null
+  lines: LyricAnnotations['lines']
+}
+
+export async function fetchLyricAnnotationEditor(id: number): Promise<MusicLyricAnnotationEditor> {
+  const res = await axiosClient.get<BaseResponse<MusicLyricAnnotationEditor>>(`/music/song/${id}/lyric/annotations/editor`)
+  return res.data.data
+}
+
+export async function saveLyricAnnotations(id: number, edit: MusicLyricAnnotationsEdit): Promise<MusicLyricAnnotationEditor> {
+  const res = await axiosClient.put<BaseResponse<MusicLyricAnnotationEditor>>(`/music/song/${id}/lyric/annotations`, edit)
   return res.data.data
 }
 

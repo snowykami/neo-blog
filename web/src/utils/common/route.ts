@@ -5,6 +5,7 @@ export const consolePath = {
   post: '/console/posts',
   page: '/console/pages',
   comment: '/console/comments',
+  lyricEffect: '/console/lyric-effects',
   visit: '/console/visits',
   file: '/console/files',
   global: '/console/global',

@@ -160,6 +160,65 @@ func (m *musicType) RefreshLyricAnnotations(ctx context.Context, c *app.RequestC
 	resps.Ok(c, resps.Success, result)
 }
 
+// ListLyricAnnotations 后台歌词特效列表：已有标注的歌曲与生成 / 编辑时间（仅管理员）
+func (m *musicType) ListLyricAnnotations(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.ListLyricAnnotations(ctx)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// LyricAnnotationEditor 后台编辑一首歌的歌词标注所需的数据：完整歌词与当前标注（仅管理员）
+func (m *musicType) LyricAnnotationEditor(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.GetLyricAnnotationEditor(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// SaveLyricAnnotations 保存管理员手动编辑的歌词标注（仅管理员），返回保存后的编辑器数据
+func (m *musicType) SaveLyricAnnotations(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricAnnotationsEditReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.SaveLyricAnnotations(ctx, ctxutils.GetIDParam(c).Int64, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// SongLyricSettings 一首歌的歌词人工设置（各来源的整体偏移），所有人播放时使用
+func (m *musicType) SongLyricSettings(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.GetLyricSettings(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// SaveLyricOffset 保存一首歌某一歌词来源的整体偏移（仅管理员）
+func (m *musicType) SaveLyricOffset(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricOffsetReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if svcerr := m.service.SaveLyricOffset(ctx, ctxutils.GetIDParam(c).Int64, req.Source, req.OffsetMs); svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
+}
+
 // SongChorus 网易云标出的副歌 / 高潮片段（进度条标记）
 func (m *musicType) SongChorus(ctx context.Context, c *app.RequestContext) {
 	result, svcerr := m.service.GetSongChorus(ctx, ctxutils.GetIDParam(c).Int64)

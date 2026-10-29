@@ -26,12 +26,20 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		// 歌词缓存：前端只上报最佳来源的类型，内容由后端用自己获取的来源数据写入
 		musicGroup.GET("/song/:id/lyric/cache", controller.Music.SongLyricCache)
 		musicGroup.POST("/song/:id/lyric/cache", controller.Music.SaveLyricCache)
+		// 歌词的人工设置（整体偏移）：所有人播放时都要用到，公开读取
+		musicGroup.GET("/song/:id/lyric/settings", controller.Music.SongLyricSettings)
 
 		// 搜索歌曲只在编辑器中使用，限编辑者及以上，避免被当作公开的搜索代理
 		musicGroupWithEditor.GET("/search", controller.Music.Search)
 
 		// 手动重新生成歌词标注会消耗模型额度，仅管理员可用
 		musicGroupWithAdmin.POST("/song/:id/lyric/annotations/refresh", controller.Music.RefreshLyricAnnotations)
+		// 后台歌词特效页：列表、编辑器数据与保存手动编辑的标注，仅管理员可用
+		musicGroupWithAdmin.GET("/lyric/annotations", controller.Music.ListLyricAnnotations)
+		musicGroupWithAdmin.GET("/song/:id/lyric/annotations/editor", controller.Music.LyricAnnotationEditor)
+		musicGroupWithAdmin.PUT("/song/:id/lyric/annotations", controller.Music.SaveLyricAnnotations)
+		// 歌词整体偏移对所有人生效，仅管理员可以调整
+		musicGroupWithAdmin.PUT("/song/:id/lyric/offset", controller.Music.SaveLyricOffset)
 		// 请求体中含 Cookie，使用 POST 避免出现在地址中
 		musicGroupWithAdmin.POST("/ncm/playlists", controller.Music.NCMPlaylists)
 	}

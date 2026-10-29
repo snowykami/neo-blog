@@ -57,6 +57,8 @@ export interface LyricAnnotations {
   moments?: LyricAnnotationMoment[]
   spotlight?: LyricAnnotationSpotlight
   lines: LyricAnnotationLine[]
+  // 管理员在后台手动编辑过（重新生成会覆盖编辑）
+  edited?: boolean
 }
 
 const RULE_MIN_MS = 1000

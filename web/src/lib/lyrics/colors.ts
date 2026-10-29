@@ -1,4 +1,4 @@
-import type { LyricColor } from './types'
+import type { LyricColor, LyricMood } from './types'
 
 /**
  * 歌词标注的语义化色板（强调短语上色、播放器页背景染色共用；名称与后端 lyricAnnotationPalette 一致）：
@@ -53,4 +53,12 @@ export type Rgb = [number, number, number]
 export function hexToRgb(hex: string): Rgb {
   const n = Number.parseInt(hex.slice(1), 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+// 情绪基调对应的辉光颜色（偏淡，叠在白色文字上只带一点色温；后台编辑器用作情绪标记的颜色）
+export const MOOD_GLOW: Record<LyricMood, string> = {
+  calm: '#cfe8ff',
+  bright: '#ffe6a8',
+  sad: '#d6ceff',
+  intense: '#ffc0b3',
 }

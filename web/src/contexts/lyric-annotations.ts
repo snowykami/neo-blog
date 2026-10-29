@@ -70,7 +70,7 @@ export function requestLyricAnnotations(id: number) {
       }
       const generating = result.status === 'pending' || !!result.stale
       if (result.status === 'ready')
-        settle(entry, { font: result.font, pace: result.pace, intro: result.intro, outro: result.outro, moments: result.moments, spotlight: result.spotlight, lines: result.lines }, generating)
+        settle(entry, { font: result.font, pace: result.pace, intro: result.intro, outro: result.outro, moments: result.moments, spotlight: result.spotlight, lines: result.lines, edited: result.edited }, generating)
       else
         setGenerating(entry, generating)
       if (!generating)
@@ -93,6 +93,15 @@ export async function refreshAnnotations(id: number) {
   await refreshLyricAnnotations(id)
   const entry = getEntry(id)
   setGenerating(entry, true)
+  entry.started = false
+  requestLyricAnnotations(id)
+}
+
+/** 标注已在后台修改（管理员保存了手动编辑）：本页已取过的歌重新取一次，新结果到达前继续使用旧结果 */
+export function reloadAnnotations(id: number) {
+  const entry = entries.get(id)
+  if (!entry?.started)
+    return
   entry.started = false
   requestLyricAnnotations(id)
 }

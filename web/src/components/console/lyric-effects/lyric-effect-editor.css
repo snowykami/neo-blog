@@ -1,0 +1,185 @@
+/*
+ * 后台歌词特效编辑器的短语样式：底色与下方色条取特效类别的颜色（--fx-category），上了色的短语文字带上该颜色（--fx-color）；
+ * 字体栈与字形同播放器（lyric-player.css，只用系统字体，不加载网页字体）。悬停短语时用简化的 CSS 动画预览特效，
+ * 系统要求减少动态效果时不播放
+ */
+.lyric-fx {
+  position: relative;
+  border-radius: 0.25rem;
+  padding: 0 0.05em;
+  background: color-mix(in srgb, var(--fx-color, var(--fx-category)) 16%, transparent);
+  box-shadow: inset 0 -2px 0 var(--fx-category);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.lyric-fx[data-colored] {
+  color: color-mix(in srgb, var(--fx-color) 70%, currentColor);
+}
+.lyric-fx:hover,
+.lyric-fx[data-active] {
+  background: color-mix(in srgb, var(--fx-color, var(--fx-category)) 30%, transparent);
+}
+.lyric-fx[data-active] {
+  outline: 2px solid var(--fx-category);
+  outline-offset: 1px;
+}
+.lyric-fx[data-bold] {
+  font-weight: 900;
+}
+.lyric-fx[data-italic] {
+  font-style: italic;
+}
+.lyric-fx[data-underline] {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.lyric-fx[data-font='song'] {
+  font-family: 'Songti SC', STSong, 'Source Han Serif SC', SimSun, serif;
+}
+.lyric-fx[data-font='kai'] {
+  font-family: 'Kaiti SC', STKaiti, KaiTi, serif;
+}
+.lyric-fx[data-font='xingkai'] {
+  font-family: 'Xingkai SC', STXingkai, 'Kaiti SC', serif;
+}
+.lyric-fx[data-font='fangsong'] {
+  font-family: STFangsong, FangSong, 'Songti SC', serif;
+}
+.lyric-fx[data-font='round'] {
+  font-family: 'Yuanti SC', 'Arial Rounded MT Bold', sans-serif;
+}
+.lyric-fx[data-font='mono'] {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+.lyric-fx[data-font='script'] {
+  font-family: 'Snell Roundhand', 'Apple Chancery', 'Segoe Script', 'PingFang SC', sans-serif;
+}
+
+/* 悬停预览：每种特效一个简化的循环动画 */
+@media (prefers-reduced-motion: no-preference) {
+  .lyric-fx {
+    display: inline-block;
+  }
+  .lyric-fx:hover[data-effect='swell'] {
+    animation: lyric-fx-swell 1.2s ease-in-out infinite;
+  }
+  .lyric-fx:hover[data-effect='heartbeat'] {
+    animation: lyric-fx-heartbeat 0.9s ease-out infinite;
+  }
+  .lyric-fx:hover[data-effect='wave'] {
+    animation: lyric-fx-wave 0.8s ease-in-out infinite;
+  }
+  .lyric-fx:hover[data-effect='shake'] {
+    animation: lyric-fx-shake 0.18s linear infinite;
+  }
+  .lyric-fx:hover[data-effect='glow'] {
+    animation: lyric-fx-glow 1.4s ease-in-out infinite;
+  }
+  .lyric-fx:hover[data-effect='shimmer'] {
+    animation: lyric-fx-shimmer 1.1s linear infinite;
+  }
+  .lyric-fx:hover[data-effect='focus'] {
+    animation: lyric-fx-focus 1.4s ease-out infinite;
+  }
+  .lyric-fx:hover[data-effect='dissolve'] {
+    animation: lyric-fx-dissolve 1.8s ease-in infinite;
+  }
+  .lyric-fx:hover[data-effect='shatter'] {
+    animation: lyric-fx-shatter 1.4s ease-in infinite;
+  }
+}
+
+@keyframes lyric-fx-swell {
+  50% {
+    transform: scale(1.14) translateY(-0.05em);
+    text-shadow: 0 0 0.35em color-mix(in srgb, var(--fx-color, currentColor) 60%, transparent);
+  }
+}
+@keyframes lyric-fx-heartbeat {
+  0%,
+  45%,
+  100% {
+    transform: scale(1);
+  }
+  10% {
+    transform: scale(1.16);
+  }
+  25% {
+    transform: scale(1.1);
+  }
+}
+@keyframes lyric-fx-wave {
+  50% {
+    transform: translateY(-0.18em);
+  }
+}
+@keyframes lyric-fx-shake {
+  25% {
+    transform: translate(0.03em, -0.02em);
+  }
+  50% {
+    transform: translate(-0.03em, 0.02em);
+  }
+  75% {
+    transform: translate(0.02em, 0.03em);
+  }
+}
+@keyframes lyric-fx-glow {
+  50% {
+    text-shadow: 0 0 0.5em color-mix(in srgb, var(--fx-color, currentColor) 80%, transparent);
+  }
+}
+@keyframes lyric-fx-shimmer {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.6) drop-shadow(0 0 0.15em rgb(255 250 225 / 0.8));
+  }
+}
+@keyframes lyric-fx-focus {
+  0% {
+    filter: blur(0.12em);
+  }
+  60%,
+  100% {
+    filter: blur(0);
+  }
+}
+@keyframes lyric-fx-dissolve {
+  0%,
+  30% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateX(0);
+  }
+  80%,
+  100% {
+    opacity: 0;
+    filter: blur(0.08em);
+    transform: translateX(0.15em);
+  }
+}
+@keyframes lyric-fx-shatter {
+  0%,
+  35% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  38% {
+    transform: translate(0.03em, -0.02em);
+  }
+  41% {
+    transform: translate(-0.03em, 0.02em);
+  }
+  45% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: translateY(0.5em) rotate(6deg);
+  }
+}

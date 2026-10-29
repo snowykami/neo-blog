@@ -8,10 +8,12 @@ import type { MusicLyricParseResult } from '@/utils/music-lyric'
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { fetchKugouLyric, fetchLyricCache, fetchNcmLyric, fetchQqLyric, fetchTtmlLyric, saveLyricCache } from '@/api/music'
 import { platformToLyrics } from '@/lib/lyrics/from-platform'
+import { shiftLyrics } from '@/lib/lyrics/offset'
 import { parseTtml } from '@/lib/lyrics/parse-ttml'
 import { resolveLyrics } from '@/lib/lyrics/resolve'
 import { withRomanizationWords } from '@/lib/lyrics/romanization'
 import { parseMusicLyrics, parseQqLyrics } from '@/utils/music-lyric'
+import { useLyricOffsets } from './lyric-settings'
 
 /**
  * 全站共用的歌词来源（见 spec 2.3、2.4、7.4）：按网易云歌曲 id 获取并缓存，播放器页、悬浮播放器、导航栏、
@@ -20,6 +22,7 @@ import { parseMusicLyrics, parseQqLyrics } from '@/utils/music-lyric'
  * - 来源的值：undefined 为请求中（或尚未请求），null 为没有或请求失败；失败的来源在下次需要时重试
  * - 歌词缓存（spec 7.2e）：与各来源并发请求后端保存的最佳歌词快照；某个来源还在请求中或失败时先用快照里的同一来源，
  *   所以打开时能立即显示最佳歌词，实时结果到达后原地替换。各来源都到齐后上报按等级最好的来源，后端据此更新快照
+ * - 整体偏移（spec 7.2l）：管理员为某一来源保存的偏移在选出歌词后平移所有时间，所有播放这首歌的地方都按它显示
  */
 
 export interface SongLyricSources {
@@ -218,19 +221,22 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
   const ttmlKind = sources?.ttml?.source === 'custom' ? 'ttml-custom' : 'ttml-amll'
   const ttmlLyrics = useMemo(() => (ttmlText ? safely(() => parseTtml(ttmlText, ttmlKind), 'TTML') : null), [ttmlKind, ttmlText])
 
+  // 管理员保存的整体偏移（按选出的歌词来源），对所有播放这首歌的地方生效（见 lyric-settings.ts）
+  const offsets = useLyricOffsets(id)
+
   const result = useMemo<SongLyrics>(() => {
     const resolution = resolveLyrics({ ttml: ttmlLyrics, ncm: ncmLyrics, ncmParsed, qq: qqLyrics, qqParsed, kugou: kugouLyrics, kugouParsed, pin })
     const pending = fresh != null && (fresh.ncm === undefined || fresh.ttml === undefined || fresh.qq === undefined || fresh.kugou === undefined)
     return {
-      // 音译对齐到原文音节（逐字音译）
-      lyrics: withRomanizationWords(resolution.lyrics),
+      // 音译对齐到原文音节（逐字音译），再按这一来源的整体偏移平移时间
+      lyrics: shiftLyrics(withRomanizationWords(resolution.lyrics), offsets[resolution.lyrics.source] ?? 0),
       candidates: resolution.candidates,
       kind: resolution.kind,
       pending,
       status: resolution.lyrics.lines.length > 0 ? 'ready' : pending ? 'loading' : 'none',
       ncmParsed,
     }
-  }, [fresh, kugouLyrics, kugouParsed, ncmLyrics, ncmParsed, pin, qqLyrics, qqParsed, ttmlLyrics])
+  }, [fresh, kugouLyrics, kugouParsed, ncmLyrics, ncmParsed, offsets, pin, qqLyrics, qqParsed, ttmlLyrics])
   useReportBestLyricSource(id, result)
   return result
 }

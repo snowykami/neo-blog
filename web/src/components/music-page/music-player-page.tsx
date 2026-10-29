@@ -14,6 +14,7 @@ import { useMusic } from '@/contexts/music-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { cn } from '@/lib/utils'
 import { LyricAnnotationRefresh } from './lyric-annotation-refresh'
+import { LyricOffsetControl } from './lyric-offset-control'
 import { LyricSourceBadge } from './lyric-source-badge'
 import { MusicBackground } from './music-background'
 import { MusicLyricMoments } from './music-lyric-moments'
@@ -59,6 +60,7 @@ function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTr
         <div className="mt-1 flex items-center gap-1.5 justify-self-center lg:justify-self-start">
           <LyricSourceBadge />
           <LyricAnnotationRefresh />
+          <LyricOffsetControl />
         </div>
       </div>
     </div>

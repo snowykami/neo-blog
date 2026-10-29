@@ -270,15 +270,20 @@ func (s *MusicService) prepareLyricAnnotations(ctx context.Context, id int64) ([
 	if !cfg.Configured() {
 		return nil, lyricAnnotationInfo{}, cfg, errs.NewNotFound("lyric_annotations_unavailable")
 	}
-	track := s.annotatableTrack(ctx, id)
-	if track == nil {
-		return nil, lyricAnnotationInfo{}, cfg, errs.NewNotFound("lyric_annotations_unavailable")
-	}
-	lines, info, svcerr := s.annotationSource(ctx, track)
+	lines, info, svcerr := s.annotationLines(ctx, id)
 	if svcerr != nil {
 		return nil, lyricAnnotationInfo{}, cfg, svcerr
 	}
 	return lines, info, cfg, nil
+}
+
+// annotationLines 可以标注的歌曲（见 annotatableTrack）送去标注的歌词文本与上下文；后台手动编辑也用它，不要求配置大模型
+func (s *MusicService) annotationLines(ctx context.Context, id int64) ([]string, lyricAnnotationInfo, *errs.ServiceError) {
+	track := s.annotatableTrack(ctx, id)
+	if track == nil {
+		return nil, lyricAnnotationInfo{}, errs.NewNotFound("lyric_annotations_unavailable")
+	}
+	return s.annotationSource(ctx, track)
 }
 
 // annotatableTrack 可以生成标注的歌曲：博客歌单中的歌曲，或公开文章与页面引用的歌曲（取单曲信息，见 music_whitelist.go）；
@@ -397,7 +402,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 
 	if found {
 		data := parseLyricAnnotationData(record.Data)
-		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlight: data.Spotlight, Lines: data.Lines}
+		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlight: data.Spotlight, Lines: data.Lines, Edited: record.EditedAt != nil}
 		// 旧版颜色名映射到新色板
 		for i := range result.Lines {
 			result.Lines[i].SceneColor = normalizeLyricColor(result.Lines[i].SceneColor)
@@ -405,8 +410,8 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 				result.Lines[i].Phrases[j].Color = normalizeLyricColor(result.Lines[i].Phrases[j].Color)
 			}
 		}
-		// 已过期：先返回旧结果，在后台重新生成（失败冷却期内不重试，继续使用旧结果）
-		if !running && !coolingDown && time.Since(record.CreatedAt) > ttl {
+		// 已过期：先返回旧结果，在后台重新生成（失败冷却期内不重试，继续使用旧结果）；管理员手动编辑过的不自动重新生成
+		if !running && !coolingDown && record.EditedAt == nil && time.Since(record.CreatedAt) > ttl {
 			a.startLocked(key, id, hash, lines, info, cfg)
 			running = true
 		}
@@ -483,10 +488,10 @@ func (a *lyricAnnotationService) run(key string, id int64, hash string, lines []
 	}
 	data, _ := json.Marshal(annotated)
 	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Data: string(data), Model: cfg.Model, CreatedAt: time.Now()}
-	// 重新生成（过期或手动刷新）时覆盖旧结果
+	// 重新生成（过期或手动刷新）时覆盖旧结果，手动编辑的内容随之被覆盖（清空 edited_at）
 	upsert := clause.OnConflict{
 		Columns:   []clause.Column{{Name: "song_id"}, {Name: "lyric_hash"}},
-		DoUpdates: clause.AssignmentColumns([]string{"data", "model", "created_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"data", "model", "created_at", "edited_at"}),
 	}
 	if err := repo.GetDB().Clauses(upsert).Create(record).Error; err != nil {
 		logrus.Errorf("save lyric annotation for song %d failed: %v", id, err)

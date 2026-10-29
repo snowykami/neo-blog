@@ -1,6 +1,6 @@
 import type { TimelineItem, TimelineState } from './timeline'
-import type { LyricEmphasis, LyricMood, LyricWord, ResolvedLyrics } from './types'
-import { LYRIC_COLORS } from './colors'
+import type { LyricEmphasis, LyricWord, ResolvedLyrics } from './types'
+import { LYRIC_COLORS, MOOD_GLOW } from './colors'
 import {
   LYRIC_ALIGN_POSITION,
   LYRIC_BLUR_MAX_PX,
@@ -110,14 +110,6 @@ const EMPHASIS_MIN_MS = 1000
 const EMPHASIS_STAGGER_RATIO = 1 / 2.5
 const EMPHASIS_FLOAT_LEAD_MS = 400
 const EMPHASIS_FLOAT_STRETCH = 1.4
-
-// 情绪基调对应的辉光颜色（偏淡，叠在白色文字上只带一点色温）
-const MOOD_GLOW: Record<LyricMood, string> = {
-  calm: '#cfe8ff',
-  bright: '#ffe6a8',
-  sad: '#d6ceff',
-  intense: '#ffc0b3',
-}
 
 // focus 在演出时长的多少比例内由模糊变清晰（shake 的抖动周期等随节奏变化的参数见 pace.ts）
 const EMPHASIS_FOCUS_CLEAR_RATIO = 0.6
