@@ -337,6 +337,7 @@ func buildLyricAnnotationPrompt(info lyricAnnotationInfo, lines []string) string
 		for i, comment := range info.Comments {
 			fmt.Fprintf(&b, text.Comment, i+1, comment.Content, comment.Liked)
 		}
+		b.WriteString(text.CommentsEnd)
 	}
 	writeLyricAnnotationLines(&b, info, lines, 0, len(lines)-1)
 	return b.String()
@@ -358,6 +359,7 @@ func writeLyricAnnotationSong(b *strings.Builder, info lyricAnnotationInfo, albu
 	if len(info.Aliases) > 0 {
 		b.WriteString(text.Aliases + strings.Join(info.Aliases, "; ") + "\n")
 	}
+	b.WriteString(text.SongEnd)
 }
 
 // writeLyricAnnotationLines 带行号的歌词（第 from～to 行，行号为全曲行号）：有翻译时在行末附上翻译，逐字歌词中唱得特别长的音节附上长音标记，
@@ -383,7 +385,6 @@ func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lin
 	if hasHeld {
 		b.WriteString(text.HeldNote)
 	}
-	b.WriteString("\n")
 	for i := from; i <= to; i++ {
 		fmt.Fprintf(b, "%d: %s", i, lines[i])
 		if i < len(info.Translations) && info.Translations[i] != "" {
@@ -406,4 +407,5 @@ func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lin
 		}
 		b.WriteString("\n")
 	}
+	b.WriteString(text.LyricsEnd)
 }

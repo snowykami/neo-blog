@@ -114,7 +114,7 @@ func TestBuildAIWritePrompt(t *testing.T) {
 		before: before, selection: selection, after: after,
 	}
 	got := p.build()
-	for _, want := range []string{"- 标题：标题", "- 描述：（无）", "- 分类：笔记", "- 标签：go、tiptap", "第一段" + aiWriteSelectionMarker + "。", "# 选中内容\n<<<\n需要润色的句子\n>>>", "不要换行", "润色选中内容"} {
+	for _, want := range []string{"- 标题：标题", "- 描述：（无）", "- 分类：笔记", "- 标签：go、tiptap", "第一段" + aiWriteSelectionMarker + "。", "<selection>\n需要润色的句子\n</selection>", "<article_info>\n", "</document>\n", "<request>\n", "</request>", "不要换行", "润色选中内容"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
 		}
@@ -441,7 +441,7 @@ func TestAIWritePrepareStructuredSelection(t *testing.T) {
 	if svcerr != nil {
 		t.Fatalf("prepare: %v", svcerr)
 	}
-	if !strings.Contains(job.user, "# 选中内容\n<<<\n"+markup+"\n>>>") {
+	if !strings.Contains(job.user, "<selection>\n"+markup+"\n</selection>") {
 		t.Fatalf("structured selection should be passed verbatim:\n%s", job.user)
 	}
 	if !strings.Contains(job.user, "[[KEEP_1]] 这类占位符") || !strings.Contains(job.user, "保留格式") {
@@ -479,10 +479,10 @@ func TestAIWritePrepareWithoutContext(t *testing.T) {
 	if svcerr != nil {
 		t.Fatalf("prepare rewrite: %v", svcerr)
 	}
-	if strings.Contains(job.user, "很长的前文") || strings.Contains(job.user, "很长的后文") || strings.Contains(job.user, "# 当前正文") {
+	if strings.Contains(job.user, "很长的前文") || strings.Contains(job.user, "很长的后文") || strings.Contains(job.user, "<document>") {
 		t.Fatalf("rewrite without context should only include the selection:\n%s", job.user)
 	}
-	if !strings.Contains(job.user, "# 选中内容\n<<<\n选中内容\n>>>") {
+	if !strings.Contains(job.user, "<selection>\n选中内容\n</selection>") {
 		t.Fatalf("selection missing:\n%s", job.user)
 	}
 
@@ -491,7 +491,7 @@ func TestAIWritePrepareWithoutContext(t *testing.T) {
 	if job, svcerr = s.Prepare(author, constant.TargetTypePost, post.ID, write); svcerr != nil {
 		t.Fatalf("prepare write: %v", svcerr)
 	}
-	if !strings.Contains(job.user, "# 插入点附近的正文") || !strings.Contains(job.user, near+aiWriteInsertMarker+near) {
+	if !strings.Contains(job.user, "只是插入点附近的片段") || !strings.Contains(job.user, near+aiWriteInsertMarker+near) {
 		t.Fatalf("write without context should keep the nearby text:\n%s", job.user)
 	}
 	if strings.Count(job.user, "远") > aiWriteLocalContextRune {
@@ -500,7 +500,7 @@ func TestAIWritePrepareWithoutContext(t *testing.T) {
 
 	// 附带全文时保留更长的上下文
 	write.IncludeContext = true
-	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, write); strings.Count(job.user, "远") < 5000 || !strings.Contains(job.user, "# 当前正文") {
+	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, write); strings.Count(job.user, "远") < 5000 || !strings.Contains(job.user, "<document> 内是当前正文") {
 		t.Fatalf("write with context should include the full text")
 	}
 }
@@ -536,26 +536,26 @@ func TestAIWritePrepareComponents(t *testing.T) {
 		t.Fatalf("prepare: %v", svcerr)
 	}
 	// 组件说明位于作者的要求之前，作者的要求仍在最后
-	section := strings.Index(job.user, "# 可用组件\n")
-	if section < 0 || !strings.Contains(job.user, "component:组件名") || !strings.Contains(job.user, guide) || section > strings.Index(job.user, "# 作者的要求") {
+	section := strings.Index(job.user, "<components>\n")
+	if section < 0 || !strings.Contains(job.user, "component:组件名") || !strings.Contains(job.user, guide) || section > strings.Index(job.user, "<request>") {
 		t.Fatalf("component guide missing or misplaced:\n%s", job.user)
 	}
 
 	// 段落中间无法放置组件
 	req.Scope = aiWriteScopeInline
-	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, req); strings.Contains(job.user, "# 可用组件") {
+	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, req); strings.Contains(job.user, "<components>") {
 		t.Fatalf("inline scope should not offer components:\n%s", job.user)
 	}
 
 	// 润色保持原有结构
 	rewrite := &dto.AIWriteReq{Mode: aiWriteModeRewrite, Scope: aiWriteScopeBlock, Document: "<p>前文" + aiWriteSelectionStart + "选中" + aiWriteSelectionEnd + "后文</p>", Components: guide}
-	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, rewrite); strings.Contains(job.user, "# 可用组件") {
+	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, rewrite); strings.Contains(job.user, "<components>") {
 		t.Fatalf("rewrite should not offer components:\n%s", job.user)
 	}
 
 	// 未提供组件说明时不附
 	req.Scope, req.Components = aiWriteScopeBlock, "  "
-	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, req); strings.Contains(job.user, "# 可用组件") {
+	if job, _ = s.Prepare(author, constant.TargetTypePost, post.ID, req); strings.Contains(job.user, "<components>") {
 		t.Fatalf("empty guide should not add section:\n%s", job.user)
 	}
 

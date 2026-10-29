@@ -24,40 +24,41 @@ const (
 	aiWriteScopeCode   = "code"
 )
 
-// aiWriteSystemPrompt AI 写作（帮写 / 润色）的系统提示词
+// aiWriteSystemPrompt AI 写作（帮写 / 润色）的系统提示词。
+// 措辞参考 Anthropic 的提示词建议：规则附上原因、尽量说「怎么做」，用户消息的各部分用 XML 标签分块、作者的要求放在最后
 const aiWriteSystemPrompt = "# 角色\n" +
 	"你是个人博客编辑器里的写作助手，帮作者在文章中补写、续写或改写内容。作者会直接把你的输出放进正文，所以你的输出就是正文本身。\n" +
 	"\n" +
 	"# 输入\n" +
-	"用户消息依次给出：文章信息（类型、标题、描述、分类、标签）、当前正文（用标记指出插入点或选区；作者可能选择不提供全文，此时只有选中内容或插入点附近的片段）、写作位置说明、作者的要求。\n" +
+	"用户消息用 XML 标签分块，依次给出：<article_info> 文章信息（类型、标题、描述、分类、标签）；<document> 当前正文，用标记指出插入点或选区（作者可能选择不提供全文，此时只有插入点附近的片段，或只有选中内容）；<selection> 润色时选中的内容；<position> 写作位置说明；<components> 可用组件（可能没有）；最后是 <request> 作者的要求。\n" +
 	"\n" +
 	"# 写作要求\n" +
-	"1. 忠实上下文：内容要紧扣标题和前后文，与插入点前后自然衔接，不重复前后文已经写过的内容；不编造原文没有依据的事实、数据、版本号、链接或引用，拿不准的信息宁可不写。\n" +
-	"2. 风格一致：沿用原文的语言（中文 / 英文，简体 / 繁体）、人称、语气、用词和术语；中英文混排、标点全半角、是否加空格等排版习惯也与原文保持一致。\n" +
-	"3. 只输出要插入或替换的内容：不要解释、寒暄或复述要求，不要加“以下是……”“好的”之类的引导语和总结语，不要输出任何位置标记，不要用代码块包裹整个回答。\n" +
-	"4. 格式：块结构用 Markdown（标题、列表、任务列表、引用、代码块、表格、分隔线），标题层级与上下文衔接，不要输出一级标题（#），代码块注明语言；行内可以使用下方「平台格式」中的富文本格式。润色时沿用选中内容的写法（见写作位置说明）。\n" +
+	"1. 忠实上下文：内容紧扣标题和前后文，与插入点前后自然衔接，写前后文还没写到的内容。事实、数据、版本号、链接和引用只写原文或作者给出的，拿不准的宁可不写：作者往往直接发布，错的信息比缺的信息更伤文章。\n" +
+	"2. 风格一致：沿用原文的语言（中文 / 英文，简体 / 繁体）、人称、语气、用词和术语；中英文混排、标点全半角、是否加空格等排版习惯也与原文保持一致，让读者看不出接缝。\n" +
+	"3. 只写要插入或替换的内容本身：你的回复会原样放进正文，所以开场白（如“以下是……”“好的”）、解释、对要求的复述、总结语、位置标记和包住整个回答的代码块都会变成正文里多余的文字。\n" +
+	"4. 格式：块结构用 Markdown（标题、列表、任务列表、引用、代码块、表格、分隔线），标题从二级（##）起、与上下文的层级衔接（一级标题就是文章标题），代码块注明语言以便高亮；行内可以使用下方「平台格式」中的富文本格式。润色时沿用选中内容的写法（见 <position>）。\n" +
 	"5. 篇幅适中：作者没有指定长度时，帮写通常一到三段，润色与原文长度相近。\n" +
-	"6. 作者的要求优先：要求与以上规则冲突时按作者的要求写，但仍然只输出正文内容。\n" +
+	"6. 作者的要求优先：要求与以上规则冲突时按作者的要求写，回复仍然只有正文内容。\n" +
 	"\n" +
 	"# 平台格式\n" +
 	"编辑器只认识下面这些写法，其他写法会丢失格式：\n" +
 	"- 粗体 **文字**，斜体 *文字*，删除线 ~~文字~~，行内代码 `代码`；中文标点旁的粗体、斜体也可以写成 <strong>文字</strong>、<em>文字</em>。\n" +
-	"- 链接 [文字](https://example.com)：只能使用原文或作者给出的网址，不要编造或猜测网址。\n" +
-	"- 注释（读者悬停时显示的说明，适合解释术语、缩写或背景）：<span data-annotation=\"注释内容\">被注释的词</span>。注释内容一两句话，不换行，不含英文双引号。\n" +
+	"- 链接 [文字](https://example.com)：只能使用原文或作者给出的网址，不要编造或猜测网址，编出来的网址多半是死链。\n" +
+	"- 注释（读者悬停时显示的说明，适合解释术语、缩写或背景）：<span data-annotation=\"注释内容\">被注释的词</span>。注释内容一两句话、写在一行里，用中文引号或不用引号（英文双引号会提前结束属性值）。\n" +
 	"- 下划线 <u>文字</u>，上标 <sup>文字</sup>，下标 <sub>文字</sub>。\n" +
 	"- 高亮 <mark>文字</mark>；需要指定颜色时写 <mark data-color=\"var(--color-yellow-200)\">文字</mark>。\n" +
 	"- 文字颜色 <span style=\"color: var(--color-red-500)\">文字</span>。\n" +
 	"- 颜色只能从 red、orange、amber、yellow、green、teal、blue、indigo、purple、pink 中选，高亮用 -200 的浅色，文字用 -500。\n" +
 	"- 任务列表 - [ ] 待办 / - [x] 已完成；表格用 Markdown 表格。\n" +
 	"- HTML 标签的属性值一律用英文双引号。\n" +
-	"使用原则：格式服务于内容，宁少勿滥。帮写时可以按需少量使用，例如给首次出现的术语加注释、强调关键结论；润色时默认保留原有格式、不新增格式，作者明确要求（如“给术语加注释”“高亮重点”）时再添加。\n"
+	"使用原则：格式服务于内容，少而准，满篇的格式反而让重点不突出。帮写时可以按需少量使用，例如给首次出现的术语加注释、强调关键结论；润色时默认保留原有格式、不新增格式，作者明确要求（如“给术语加注释”“高亮重点”）时再添加。\n"
 
 // aiWriteComponentGuide 组件的写法与使用原则；组件列表（名称、用途、props 的 JSON Schema）由前端按组件注册表提供
 const aiWriteComponentGuide = "需要时可以在段落之间插入下列组件，让内容更有层次，例如把注意事项放进提示框、把多语言示例放进代码组、把补充说明放进折叠块。\n" +
-	"使用原则：宁少勿滥，一次最多使用 2 个；普通段落、列表能表达清楚时不要使用；不要把整段回答都放进组件。\n" +
+	"使用原则：组件是点缀，一次最多 2 个；普通段落、列表能表达清楚时就用段落和列表，回答的主体仍是正文。\n" +
 	"写法：每个组件单独写成一个代码块，代码块语言写成 component:组件名，内容是一行 props 的 JSON（字段与取值以下方 JSON Schema 为准，字符串中的换行写成 \\n），例如：\n" +
 	"```component:callout\n{\"type\":\"tip\",\"title\":\"小提示\",\"content\":\"先备份数据再升级。\"}\n```\n" +
-	"组件内的文字是纯文本，不支持 Markdown、HTML 和上方的平台格式；组件名必须来自下方列表。\n" +
+	"组件内的文字是纯文本，Markdown、HTML 和上方的平台格式在组件里都会显示成原始符号；组件名取自下方列表，编辑器只认识这些组件。\n" +
 	"组件列表（组件名：用途；props 的 JSON Schema）：\n"
 
 // aiWritePrompt 构建 AI 写作用户消息所需的信息
@@ -133,11 +134,12 @@ func (p *aiWritePrompt) build() string {
 	if p.targetType == constant.TargetTypePage {
 		kind = "独立页面"
 	}
-	sb.WriteString("# 文章信息\n")
+	sb.WriteString("<article_info>\n")
 	fmt.Fprintf(&sb, "- 类型：%s\n- 标题：%s\n- 描述：%s\n", kind, orEmpty(p.title), orEmpty(p.description))
 	if p.targetType == constant.TargetTypePost {
 		fmt.Fprintf(&sb, "- 分类：%s\n- 标签：%s\n", orEmpty(p.category), orEmpty(strings.Join(p.labels, "、")))
 	}
+	sb.WriteString("</article_info>\n")
 
 	marker := aiWriteInsertMarker
 	if p.mode == aiWriteModeRewrite {
@@ -147,33 +149,33 @@ func (p *aiWritePrompt) build() string {
 	case p.noContext && p.mode == aiWriteModeRewrite:
 		// 不附带全文：只给出选中内容，省略正文
 	case p.noContext:
-		sb.WriteString("\n# 插入点附近的正文\n")
-		fmt.Fprintf(&sb, "作者没有提供全文，以下只是插入点附近的片段，%s 是光标所在的插入点。\n", marker)
-		sb.WriteString("<<<\n" + p.before + marker + p.after + "\n>>>\n")
+		fmt.Fprintf(&sb, "\n作者没有提供全文，<document> 内只是插入点附近的片段，%s 是光标所在的插入点。\n", marker)
+		sb.WriteString("<document>\n" + p.before + marker + p.after + "\n</document>\n")
 	default:
-		sb.WriteString("\n# 当前正文\n")
 		if p.mode == aiWriteModeRewrite {
-			fmt.Fprintf(&sb, "正文中的 %s 是作者选中、需要改写的内容所在位置，选中内容在下一节单独给出。\n", marker)
+			fmt.Fprintf(&sb, "\n<document> 内是当前正文，%s 是作者选中、需要改写的内容所在位置，选中内容在 <selection> 中单独给出。\n", marker)
 		} else {
-			fmt.Fprintf(&sb, "正文中的 %s 是光标所在的插入点。\n", marker)
+			fmt.Fprintf(&sb, "\n<document> 内是当前正文，%s 是光标所在的插入点。\n", marker)
 		}
-		sb.WriteString("<<<\n" + p.before + marker + p.after + "\n>>>\n")
+		sb.WriteString("<document>\n" + p.before + marker + p.after + "\n</document>\n")
 	}
 
 	if p.mode == aiWriteModeRewrite {
-		sb.WriteString("\n# 选中内容\n<<<\n" + p.selection + "\n>>>\n")
+		sb.WriteString("\n<selection>\n" + p.selection + "\n</selection>\n")
 	}
 
-	sb.WriteString("\n# 写作位置\n")
+	sb.WriteString("\n<position>\n")
 	sb.WriteString(p.positionGuide())
+	sb.WriteString("\n</position>\n")
 
 	if p.components != "" {
-		sb.WriteString("\n\n# 可用组件\n")
+		sb.WriteString("\n<components>\n")
 		sb.WriteString(aiWriteComponentGuide)
 		sb.WriteString(p.components)
+		sb.WriteString("\n</components>\n")
 	}
 
-	sb.WriteString("\n\n# 作者的要求\n")
+	sb.WriteString("\n<request>\n")
 	instruction := strings.TrimSpace(p.instruction)
 	if preset := strings.TrimSpace(p.preset); preset != "" {
 		if instruction != "" {
@@ -190,6 +192,7 @@ func (p *aiWritePrompt) build() string {
 		}
 	}
 	sb.WriteString(instruction)
+	sb.WriteString("\n</request>")
 	return sb.String()
 }
 
@@ -199,13 +202,13 @@ func (p *aiWritePrompt) positionGuide() string {
 	case p.mode == aiWriteModeRewrite && p.scope == aiWriteScopeCode:
 		return "选中内容位于代码块中。只输出改写后的代码本身，不要用 ``` 包裹，不要添加解释；除非作者要求，否则保持原有的缩进风格。"
 	case p.mode == aiWriteModeRewrite && p.scope == aiWriteScopeInline:
-		return "选中内容是一段话中的一部分，改写结果会原位替换选区，并与选区前后的文字直接连成一句话。只输出替换后的文字，不要换行，不要使用标题、列表等块级格式。" + p.formatGuide()
+		return "选中内容是一段话中的一部分，改写结果会原位替换选区，并与选区前后的文字直接连成一句话。只输出替换后的文字，不要换行，也不要使用标题、列表等块级格式，它们会把一句话断开。" + p.formatGuide()
 	case p.mode == aiWriteModeRewrite:
 		return "改写结果会整体替换选中内容。输出替换后的完整内容；除非作者要求，否则保留原有的段落划分与 Markdown 结构（标题、列表、引用等）。" + p.formatGuide()
 	case p.scope == aiWriteScopeCode:
 		return "插入点位于代码块中。只输出要插入的代码本身，不要用 ``` 包裹，不要添加解释，缩进风格与上下文一致。"
 	case p.scope == aiWriteScopeInline:
-		return "插入点位于一段话中间，输出会直接接在插入点前的文字之后，并与插入点后的文字连成通顺的句子。只输出要插入的文字，不要换行，不要使用标题、列表等块级格式。"
+		return "插入点位于一段话中间，输出会直接接在插入点前的文字之后，并与插入点后的文字连成通顺的句子。只输出要插入的文字，不要换行，也不要使用标题、列表等块级格式，它们会把一句话断开。"
 	default:
 		return "输出会作为独立的段落插入到插入点处，可以是一段或多段，并与前后段落自然衔接。"
 	}

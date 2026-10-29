@@ -77,7 +77,7 @@ func TestBuildLyricAnnotationPrompt(t *testing.T) {
 		Comments:     []lyricAnnotationComment{{Content: "泪目", Liked: 100}},
 	}
 	prompt := buildLyricAnnotationPrompt(info, []string{"紫荆花飘扬", "Hello"})
-	for _, want := range []string{"Title: 紫荆花盛开", "Artists: 李荣浩 / 梁咏琪", "Aliases / description: 香港回归25周年纪念", "1. 泪目 (100 likes)", "0: 紫荆花飘扬\n", "1: Hello　〔译：你好〕\n", "is a Chinese translation"} {
+	for _, want := range []string{"Title: 紫荆花盛开", "Artists: 李荣浩 / 梁咏琪", "Aliases / description: 香港回归25周年纪念", "1. 泪目 (100 likes)", "0: 紫荆花飘扬\n", "1: Hello　〔译：你好〕\n", "is a Chinese translation", "<song>\n", "</song>\n", "<listener_comments>\n", "</listener_comments>\n", "<lyrics>\n", "</lyrics>\n"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, prompt)
 		}

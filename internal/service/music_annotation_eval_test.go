@@ -26,7 +26,9 @@ import (
 //
 // 对每首歌用当前提示词（current）生成 NEO_EVAL_RUNS 次标注；NEO_EVAL_BASELINE 目录下有 baseline_plan.txt 与 baseline_lines.txt（要对比的系统提示词，
 // 用户消息仍用当前的标签）时加上 baseline 生成 1 次。统计 token、合规与质量指标，再让模型（开启思考）对 baseline 与 current 做 A/B 盲评
-// （每对正反各评一次）；明细写入 NEO_EVAL_OUT（默认 /tmp/neo-eval/out）
+// （每对正反各评一次）；明细写入 NEO_EVAL_OUT（默认 /tmp/neo-eval/out）。
+// 改动涉及用户消息的格式（不只是系统提示词）时，先在旧版本上运行一次（NEO_EVAL_RUNS=1），再把它的 results.json 交给
+// NEO_EVAL_BASELINE_RESULTS：旧版本第 1 轮的结果作为 baseline 参与盲评，不再重新生成
 
 type evalVariant struct {
 	name    string
@@ -127,6 +129,20 @@ func TestLyricAnnotationPromptEval(t *testing.T) {
 		wg.Wait()
 	}
 	lyricAnnotationText, lyricAnnotationChunkContext = current, currentContext
+	if path := os.Getenv("NEO_EVAL_BASELINE_RESULTS"); path != "" {
+		var previous map[string][]evalResult
+		raw, err := os.ReadFile(path)
+		if err != nil || json.Unmarshal(raw, &previous) != nil {
+			t.Fatalf("read baseline results %s: %v", path, err)
+		}
+		for _, result := range previous["current"] {
+			if result.Run == 1 {
+				result.Variant = "baseline"
+				results["baseline"] = append(results["baseline"], result)
+			}
+		}
+		variants = append([]evalVariant{{name: "baseline"}}, variants...)
+	}
 
 	data, _ := json.MarshalIndent(results, "", "  ")
 	_ = os.WriteFile(filepath.Join(out, "results.json"), data, 0o644)

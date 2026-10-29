@@ -322,7 +322,7 @@ func buildAISummaryUserPrompt(title, content string) string {
 		tail := aiSummaryMaxInputRunes - head
 		text = string(runes[:head]) + "\n\n……（中间部分省略）……\n\n" + string(runes[len(runes)-tail:])
 	}
-	return fmt.Sprintf("文章标题：%s\n\n文章正文：\n%s", title, text)
+	return fmt.Sprintf("<title>%s</title>\n\n<article>\n%s\n</article>", title, text)
 }
 
 var (

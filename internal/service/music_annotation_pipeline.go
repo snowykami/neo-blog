@@ -277,6 +277,7 @@ func buildLyricAnnotationLinesPrompt(info lyricAnnotationInfo, lines []string, p
 	if len(marks) > 0 {
 		b.WriteString(text.Marks + strings.Join(marks, ""))
 	}
+	b.WriteString(text.PlanEnd)
 
 	writeLyricAnnotationLines(&b, info, lines, from-lyricAnnotationChunkContext, to+lyricAnnotationChunkContext)
 	fmt.Fprintf(&b, text.Range, from, to, chunks, max(1, (lyricAnnotationMaxPhraseFonts+chunks-1)/chunks))

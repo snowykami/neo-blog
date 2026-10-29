@@ -36,7 +36,7 @@ func TestLyricAnnotationPipeline(t *testing.T) {
 	for i := range lines {
 		lines[i] = fmt.Sprintf("第%d句歌词在这里", i)
 	}
-	rangeRe := regexp.MustCompile(`\[Your range\] lines (\d+)-(\d+)`)
+	rangeRe := regexp.MustCompile(`Annotate lines (\d+)-(\d+)`)
 	var inFlight, peak, chunkCalls atomic.Int32
 	service := &lyricAnnotationService{
 		limiter:     &aiLimiter{},
