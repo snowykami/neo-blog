@@ -1396,6 +1396,7 @@
       "chorus_start": "Chorus start",
       "chorus_start_hint": "Camera push and background burst when it starts; stronger effects on this line",
       "scene": "Particle scene",
+      "scene_custom": "Custom: {label}",
       "scene_color": "Scene color",
       "scene_color_default": "Default color",
       "phrases": "Effects in this line",

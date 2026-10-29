@@ -1,6 +1,7 @@
 'use client'
 
 import type { AnnotationForm, UniqueLine } from '@/lib/lyrics/annotation-edit'
+import type { LyricSprite } from '@/lib/lyrics/types'
 import { Trash2Icon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useFormContext, useWatch } from 'react-hook-form'
@@ -107,8 +108,8 @@ export function SongSettingsPanel({ lines }: { lines: string[] }) {
   )
 }
 
-/** 当前行的设置：情绪、副歌、副歌起点、粒子场景与颜色、聚光灯，以及这一行的特效列表 */
-export function LineSettingsPanel({ index, line }: { index: number, line?: UniqueLine }) {
+/** 当前行的设置：情绪、副歌、副歌起点、粒子场景（含这首歌的自定义粒子）与颜色、聚光灯，以及这一行的特效列表 */
+export function LineSettingsPanel({ index, line, sprites = [] }: { index: number, line?: UniqueLine, sprites?: LyricSprite[] }) {
   const t = useTranslations('Console.lyric_effects')
   const optionT = useTranslations('LyricOptions')
   const { control, setValue, getValues } = useFormContext<AnnotationForm>()
@@ -230,6 +231,12 @@ export function LineSettingsPanel({ index, line }: { index: number, line?: Uniqu
                 </FormControl>
                 <SelectContent>
                   <SelectItem value={NONE}>{t('none')}</SelectItem>
+                  {sprites.map(sprite => (
+                    <SelectItem key={sprite.name} value={`custom:${sprite.name}`}>
+                      <Swatch color={LYRIC_COLORS[sprite.color]} />
+                      {t('scene_custom', { label: sprite.label || sprite.name })}
+                    </SelectItem>
+                  ))}
                   {LYRIC_SCENES.map(scene => <SelectItem key={scene} value={scene}>{optionT(`scenes.${scene}`)}</SelectItem>)}
                 </SelectContent>
               </Select>

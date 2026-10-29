@@ -53,7 +53,10 @@ type lyricAnnotationPlan struct {
 		Mood        string `json:"mood"`
 		Chorus      bool   `json:"chorus"`
 		ChorusStart bool   `json:"chorus_start"`
+		Scene       string `json:"scene"`
 	} `json:"lines"`
+	// 自定义粒子：没有选图标库图标的，与逐段标注并行请模型画出来
+	Sprites []lyricSpriteRequest `json:"sprites"`
 }
 
 // lyricAnnotationChunks 把 n 行分成若干段（含首尾的行号区间），段数为 ceil(n / 每段行数)，不超过上限
@@ -125,6 +128,26 @@ func (a *lyricAnnotationService) generate(id int64, cfg tools.AIConfig, info lyr
 	chunks := lyricAnnotationChunks(len(lines))
 	results := make([]string, len(chunks))
 	var wg sync.WaitGroup
+	// 画自定义粒子（与逐段标注并行）：失败时这个粒子没有路径，校验时丢弃，用到它的行改用备用场景
+	drawn := map[string]json.RawMessage{}
+	var drawnMu sync.Mutex
+	for index, sprite := range plan.Sprites {
+		if index >= lyricSpriteMax || !sprite.needsDrawing() {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			paths, err := a.drawLyricSprite(cfg, sprite.Image, lyricSpriteLine(plan, lines, sprite.Name))
+			if err != nil {
+				logrus.Warnf("lyric annotation sprite %q for song %d failed: %v", sprite.Name, id, err)
+				return
+			}
+			drawnMu.Lock()
+			drawn[sprite.Name] = paths
+			drawnMu.Unlock()
+		}()
+	}
 	for index, chunk := range chunks {
 		wg.Add(1)
 		go func() {
@@ -148,9 +171,41 @@ func (a *lyricAnnotationService) generate(id int64, cfg tools.AIConfig, info lyr
 		}()
 	}
 	wg.Wait()
-	logrus.Infof("lyric annotation for song %d: %d lines, plan %.1fs, %d chunks %.1fs",
-		id, len(lines), planned.Sub(start).Seconds(), len(chunks), time.Since(planned).Seconds())
-	return mergeLyricAnnotationResults(planJSON, chunks, results)
+	logrus.Infof("lyric annotation for song %d: %d lines, plan %.1fs, %d chunks %.1fs, %d sprites drawn",
+		id, len(lines), planned.Sub(start).Seconds(), len(chunks), time.Since(planned).Seconds(), len(drawn))
+	merged, err := mergeLyricAnnotationResults(planJSON, chunks, results)
+	if err != nil || len(drawn) == 0 {
+		return merged, err
+	}
+	return attachLyricSpritePaths(merged, drawn)
+}
+
+// lyricSpriteLine 用到这个粒子的第一行歌词（画图标时作为上下文），没有时为空
+func lyricSpriteLine(plan lyricAnnotationPlan, lines []string, name string) string {
+	for _, line := range plan.Lines {
+		if line.Scene == "custom:"+name && line.I >= 0 && line.I < len(lines) {
+			return lines[line.I]
+		}
+	}
+	return ""
+}
+
+// attachLyricSpritePaths 把画好的路径并入合并后的 JSON（sprites 中同名的项）
+func attachLyricSpritePaths(merged string, drawn map[string]json.RawMessage) (string, error) {
+	var object map[string]any
+	if err := json.Unmarshal([]byte(merged), &object); err != nil {
+		return "", err
+	}
+	sprites, _ := object["sprites"].([]any)
+	for _, item := range sprites {
+		sprite, ok := item.(map[string]any)
+		name, _ := sprite["name"].(string)
+		if paths, found := drawn[name]; ok && found {
+			sprite["paths"] = paths
+		}
+	}
+	data, err := json.Marshal(object)
+	return string(data), err
 }
 
 // mergeLyricAnnotationResults 把规划与各段的短语合并成单次生成的 JSON 格式：规划的行级标注（副歌、情绪、场景）与

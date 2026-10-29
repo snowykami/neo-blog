@@ -72,4 +72,11 @@ describe('播放器页全屏特效信号', () => {
     expect(getStageSignals(lyrics, 4500).spotlight).toBe(1)
     expect(spotlightLevel(lyricsOf([{}, {}]), 500)).toBe(0)
   })
+
+  it('自定义粒子：场景带上这首歌的粒子；粒子不存在时当作没有场景', () => {
+    const sprite = { name: 'doll', paths: [{ d: 'M2 2 L22 2 L12 20 Z', paint: 'fill' as const }], motion: 'fall' as const, size: 'm' as const, color: 'peach' as const }
+    const lyrics = { ...lyricsOf([{ scene: 'custom:doll' }, {}]), sprites: { doll: sprite } }
+    expect(getStageSignals(lyrics, 500).scene).toEqual({ name: 'custom:doll', color: null, sprite })
+    expect(getStageSignals({ ...lyrics, sprites: undefined }, 500).scene).toBeNull()
+  })
 })

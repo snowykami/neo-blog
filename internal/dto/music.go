@@ -104,6 +104,8 @@ type MusicLyricAnnotationsDto struct {
 	// 聚光灯：全曲最点题的一句（歌词 text 的第 occurrence 次出现），唱到时这一句移到中央放大、身后亮起暖光，可为空
 	Spotlight *MusicLyricAnnotationSpotlight `json:"spotlight,omitempty"`
 	Lines     []MusicLyricAnnotationLine     `json:"lines"`
+	// 这首歌的自定义粒子（最多 2 种）：行的 scene 为 custom:<name> 时使用，见 MusicLyricSprite
+	Sprites []MusicLyricSprite `json:"sprites,omitempty"`
 	// 管理员手动编辑过（不再因过期自动重新生成；播放器里手动重新生成前提示会覆盖编辑）
 	Edited bool `json:"edited,omitempty"`
 }
@@ -116,6 +118,27 @@ type MusicLyricAnnotationMoment struct {
 	Content    string `json:"content"`
 	Source     string `json:"source"`
 	Liked      int64  `json:"liked,omitempty"`
+}
+
+// MusicLyricSprite 自定义粒子：歌词里有内置粒子场景表达不了的具体意象（玩偶、纸飞机、糖果）时，由模型从精选图标库中选一个图标，
+// 或自己画一个简单剪影（24×24 的路径）；motion 为动作预设（fall / float / drift / sway / swirl / burst），size 为 s / m / l，
+// color 为色板中的名称。路径只在粒子画布上用 Path2D 绘制，不作为 SVG 插入页面
+type MusicLyricSprite struct {
+	Name   string                 `json:"name"`
+	Label  string                 `json:"label,omitempty"`
+	Icon   string                 `json:"icon,omitempty"`
+	Paths  []MusicLyricSpritePath `json:"paths"`
+	Motion string                 `json:"motion"`
+	Size   string                 `json:"size"`
+	Spin   bool                   `json:"spin,omitempty"`
+	Color  string                 `json:"color"`
+}
+
+// MusicLyricSpritePath 粒子的一条路径：d 为 SVG 路径数据（只含绝对坐标的 M L H V C Q A Z），paint 为 fill（主色填充）、
+// light（浅色填充）、stroke（细线）或 line（图标库的线条，线宽较粗）
+type MusicLyricSpritePath struct {
+	D     string `json:"d"`
+	Paint string `json:"paint"`
 }
 
 // MusicLyricAnnotationSpotlight 聚光灯的那一句：歌词 text 的第 occurrence 次出现（从 0 开始，副歌常有重复的行）

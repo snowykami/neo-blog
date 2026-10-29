@@ -27,8 +27,9 @@ export interface LyricLine {
   emphasis?: LyricEmphasis[]
   // 这一行的情绪基调（来自歌词标注），影响强调辉光的颜色
   mood?: LyricMood
-  // 从这一行开始的全屏粒子场景（来自歌词标注，只在播放器页演出），持续若干行或到下一个标了场景的行，见 stage-effects.ts
-  scene?: LyricScene
+  // 从这一行开始的全屏粒子场景（来自歌词标注，只在播放器页演出），持续若干行或到下一个标了场景的行，见 stage-effects.ts；
+  // custom:<name> 为这首歌的自定义粒子（ResolvedLyrics.sprites）
+  scene?: LyricSceneName
   // 粒子场景的颜色主题（色板中的名称），为空时用场景默认色
   sceneColor?: LyricColor
   // 一段副歌的第一行（来自歌词标注）：强调加强，播放器页全屏爆发一次
@@ -56,6 +57,27 @@ export type LyricScene
   = | 'petals' | 'sparks' | 'snow' | 'stars' | 'bubbles' | 'rain'
     | 'leaves' | 'fireflies' | 'feathers' | 'hearts' | 'confetti' | 'fireworks'
     | 'dandelion' | 'butterflies' | 'meteors' | 'clouds' | 'ripples' | 'notes'
+
+/** 行的粒子场景：内置场景，或 custom:<name> 指向这首歌的自定义粒子 */
+export type LyricSceneName = LyricScene | `custom:${string}`
+
+/** 自定义粒子的动作预设：落下、上飘、横向滑过、摇摆、打旋、从中间散开 */
+export type LyricSpriteMotion = 'fall' | 'float' | 'drift' | 'sway' | 'swirl' | 'burst'
+
+/**
+ * 自定义粒子（来自歌词标注，见 spec 7.2m）：图标库中的图标（paint 为 line）或模型画的 24×24 简单剪影（fill / light / stroke），
+ * 只在粒子画布上用 Path2D 绘制；动作、大小、是否自转与颜色由模型从预设中选
+ */
+export interface LyricSprite {
+  name: string
+  label?: string
+  icon?: string
+  paths: { d: string, paint: 'fill' | 'light' | 'stroke' | 'line' }[]
+  motion: LyricSpriteMotion
+  size: 's' | 'm' | 'l'
+  spin?: boolean
+  color: LyricColor
+}
 
 /** 强调短语的颜色：语义化色板中的名称（来自歌词标注，与后端 lyricAnnotationPalette 一致），具体色值见 colors.ts */
 export type LyricColor
@@ -105,6 +127,8 @@ export interface ResolvedLyrics {
   intro?: string
   outro?: LyricOutro
   notes?: LyricNote[]
+  // 这首歌的自定义粒子（来自歌词标注），按名称索引
+  sprites?: Record<string, LyricSprite>
   // 聚光灯（来自歌词标注）：全曲最点题那一句的行号，唱到时移到中央放大、身后亮起暖光，见 stage-effects.ts 的 spotlightLevel
   spotlight?: number
 }

@@ -1396,6 +1396,7 @@
       "chorus_start": "副歌起点",
       "chorus_start_hint": "开唱时镜头推近、背景爆发，这一行的特效更强",
       "scene": "粒子场景",
+      "scene_custom": "自定义：{label}",
       "scene_color": "场景颜色",
       "scene_color_default": "场景默认色",
       "phrases": "这一行的特效",

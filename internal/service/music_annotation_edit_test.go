@@ -60,7 +60,7 @@ func TestSanitizeEditedLyricAnnotations(t *testing.T) {
 			{Text: "我们说再见", Mood: "sad", Phrases: []dto.MusicLyricAnnotationPhrase{{Text: "再见", Effect: "dissolve"}}},
 		},
 	}
-	data, ok := sanitizeEditedLyricAnnotations(lines, req)
+	data, ok := sanitizeEditedLyricAnnotations(lines, req, nil)
 	if !ok {
 		t.Fatal("valid annotation rejected")
 	}
@@ -102,7 +102,7 @@ func TestSanitizeEditedLyricAnnotations(t *testing.T) {
 		spot := *req.Spotlight
 		copied.Spotlight = &spot
 		mutate(&copied)
-		if _, ok := sanitizeEditedLyricAnnotations(lines, &copied); ok {
+		if _, ok := sanitizeEditedLyricAnnotations(lines, &copied, nil); ok {
 			t.Errorf("case %d should be rejected", i)
 		}
 	}

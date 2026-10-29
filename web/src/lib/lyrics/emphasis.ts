@@ -1,5 +1,5 @@
 import type { LyricPace } from './pace'
-import type { LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricNote, LyricOutro, LyricScene, LyricTextStyle, ResolvedLyrics } from './types'
+import type { LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricNote, LyricOutro, LyricSceneName, LyricSprite, LyricTextStyle, ResolvedLyrics } from './types'
 import { isLyricPace } from './pace'
 import { normalizeForMatch } from './strip-credits'
 
@@ -28,7 +28,7 @@ export interface LyricAnnotationLine {
   mood?: LyricMood
   chorus?: boolean
   chorusStart?: boolean
-  scene?: LyricScene
+  scene?: LyricSceneName
   sceneColor?: LyricColor
   phrases: LyricAnnotationPhrase[]
 }
@@ -57,6 +57,7 @@ export interface LyricAnnotations {
   moments?: LyricAnnotationMoment[]
   spotlight?: LyricAnnotationSpotlight
   lines: LyricAnnotationLine[]
+  sprites?: LyricSprite[]
   // 管理员在后台手动编辑过（重新生成会覆盖编辑）
   edited?: boolean
 }
@@ -251,6 +252,7 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
     outro: annotations?.outro,
     notes: resolveNotes(lyrics.lines, annotations?.moments),
     spotlight: resolveSpotlight(lyrics.lines, annotations?.spotlight),
+    sprites: annotations?.sprites?.length ? Object.fromEntries(annotations.sprites.map(sprite => [sprite.name, sprite])) : undefined,
     lines: lyrics.lines.map((line) => {
       const annotation = byText.get(normalizeForMatch(line.words.map(word => word.text).join(''))) ?? null
       const emphasis = lineEmphasis(line, annotation).map(group => (group.pace || !songPace ? group : { ...group, pace: songPace }))

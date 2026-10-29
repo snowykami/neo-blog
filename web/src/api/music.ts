@@ -113,6 +113,7 @@ export interface MusicLyricAnnotations {
   moments?: LyricAnnotations['moments']
   spotlight?: LyricAnnotations['spotlight']
   lines: LyricAnnotations['lines']
+  sprites?: LyricAnnotations['sprites']
   edited?: boolean
 }
 

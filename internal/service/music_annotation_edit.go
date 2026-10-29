@@ -51,7 +51,7 @@ func (s *MusicService) GetLyricAnnotationEditor(ctx context.Context, id int64) (
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	data := parseLyricAnnotationData(record.Data)
-	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlight: data.Spotlight, Lines: data.Lines, Edited: record.EditedAt != nil}
+	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlight: data.Spotlight, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
 	result.EditedAt = record.EditedAt
 	result.GeneratedAt = &record.CreatedAt
 	result.Model = record.Model
@@ -67,10 +67,6 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 	if svcerr != nil {
 		return nil, svcerr
 	}
-	data, ok := sanitizeEditedLyricAnnotations(lines, req)
-	if !ok {
-		return nil, errInvalidLyricAnnotation
-	}
 	_, hash := lyricAnnotationKey(id, lines)
 	db := repo.GetDB().WithContext(ctx)
 	var existing model.LyricAnnotation
@@ -78,11 +74,19 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
+	var previous lyricAnnotationData
+	if err == nil {
+		previous = parseLyricAnnotationData(existing.Data)
+	}
+	data, ok := sanitizeEditedLyricAnnotations(lines, req, previous.Sprites)
+	if !ok {
+		return nil, errInvalidLyricAnnotation
+	}
 	now := time.Now()
 	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Model: "manual", CreatedAt: now, EditedAt: &now}
 	if err == nil {
-		previous := parseLyricAnnotationData(existing.Data)
-		data.Outro, data.Moments = previous.Outro, previous.Moments
+		// 时刻、尾奏热评与自定义粒子不在编辑范围内，保持原样（行的场景可以选用这首歌已有的自定义粒子）
+		data.Outro, data.Moments, data.Sprites = previous.Outro, previous.Moments, previous.Sprites
 		record.Model, record.CreatedAt = existing.Model, existing.CreatedAt
 	}
 	raw, _ := json.Marshal(data)
@@ -129,9 +133,9 @@ func (a *lyricAnnotationService) running(key string) bool {
 }
 
 // sanitizeEditedLyricAnnotations 校验手动编辑的标注：行必须是歌词中的原文（同一文本只能有一条），短语必须是该行的连续片段且不重复，
-// 情绪、特效、颜色、字体、字形、节奏与场景只能取允许的值，导语不超过上限，聚光灯必须指向存在的行；不合法时返回 false（不做静默修正，
+// 情绪、特效、颜色、字体、字形、节奏与场景（内置场景或这首歌已有的自定义粒子）只能取允许的值，导语不超过上限，聚光灯必须指向存在的行；不合法时返回 false（不做静默修正，
 // 让管理员看到保存失败）。与模型输出的校验不同，手动编辑不限制特殊特效与场景的数量
-func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotationsEditReq) (lyricAnnotationData, bool) {
+func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotationsEditReq, sprites []dto.MusicLyricSprite) (lyricAnnotationData, bool) {
 	counts := map[string]int{}
 	for _, line := range lines {
 		counts[line]++
@@ -169,7 +173,8 @@ func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotatio
 			return data, false
 		}
 		line.Mood = item.Mood
-		if item.Scene != "" && !lyricAnnotationScenes[item.Scene] {
+		// 场景：内置场景，或这首歌已有的自定义粒子（custom:<name>）
+		if item.Scene != "" && lyricSpriteScene(item.Scene, sprites, nil) != item.Scene {
 			return data, false
 		}
 		line.Scene = item.Scene

@@ -402,7 +402,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 
 	if found {
 		data := parseLyricAnnotationData(record.Data)
-		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlight: data.Spotlight, Lines: data.Lines, Edited: record.EditedAt != nil}
+		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlight: data.Spotlight, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
 		// 旧版颜色名映射到新色板
 		for i := range result.Lines {
 			result.Lines[i].SceneColor = normalizeLyricColor(result.Lines[i].SceneColor)
@@ -511,6 +511,7 @@ type lyricAnnotationData struct {
 	Moments   []dto.MusicLyricAnnotationMoment   `json:"moments,omitempty"`
 	Spotlight *dto.MusicLyricAnnotationSpotlight `json:"spotlight,omitempty"`
 	Lines     []dto.MusicLyricAnnotationLine     `json:"lines"`
+	Sprites   []dto.MusicLyricSprite             `json:"sprites,omitempty"`
 }
 
 // parseLyricAnnotationData 读取保存的标注：新版为对象，旧版为 lines 数组
@@ -536,11 +537,12 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	}
 	// theme 与 direction 是 SOP 中先写下的分析，只用于引导模型，不保存
 	var parsed struct {
-		Font         string `json:"font"`
-		Pace         string `json:"pace"`
-		Spotlight    *int   `json:"spotlight"` // 聚光灯那一句的行号（没有时为 null）
-		Intro        string `json:"intro"`
-		OutroComment int    `json:"outro_comment"`
+		Font         string               `json:"font"`
+		Pace         string               `json:"pace"`
+		Spotlight    *int                 `json:"spotlight"` // 聚光灯那一句的行号（没有时为 null）
+		Sprites      []lyricSpriteRequest `json:"sprites"`
+		Intro        string               `json:"intro"`
+		OutroComment int                  `json:"outro_comment"`
 		Moments      []struct {
 			I       int    `json:"i"`
 			Comment int    `json:"comment"`
@@ -584,6 +586,8 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	}
 	specialCount := map[string]int{}
 	sceneCount := 0
+	// 自定义粒子：先校验，行的 custom:<name> 场景指向被丢弃的粒子时改用它的备用场景
+	sprites, spriteFallbacks := sanitizeLyricSprites(parsed.Sprites)
 	phraseFontCount := 0
 	result := []dto.MusicLyricAnnotationLine{}
 	byText := map[string]int{}
@@ -604,8 +608,8 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 		}
 		line.Chorus = line.Chorus || item.Chorus || item.ChorusStart
 		line.ChorusStart = line.ChorusStart || item.ChorusStart
-		if line.Scene == "" && lyricAnnotationScenes[item.Scene] && sceneCount < lyricAnnotationMaxScenes {
-			line.Scene = item.Scene
+		if scene := lyricSpriteScene(item.Scene, sprites, spriteFallbacks); line.Scene == "" && scene != "" && sceneCount < lyricAnnotationMaxScenes {
+			line.Scene = scene
 			line.SceneColor = normalizeLyricColor(item.SceneColor)
 			sceneCount++
 		}
@@ -671,7 +675,7 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	if lyricAnnotationFonts[parsed.Font] {
 		font = parsed.Font
 	}
-	data := lyricAnnotationData{Font: font, Intro: sanitizeLyricIntro(parsed.Intro), Lines: kept}
+	data := lyricAnnotationData{Font: font, Intro: sanitizeLyricIntro(parsed.Intro), Lines: kept, Sprites: lyricUsedSprites(sprites, kept)}
 	if lyricAnnotationPaces[parsed.Pace] {
 		data.Pace = parsed.Pace
 	}

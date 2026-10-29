@@ -12,6 +12,9 @@ import "strings"
 type lyricAnnotationLocale struct {
 	PlanPrompt  string
 	LinesPrompt string
+	// 画自定义粒子图标的系统提示词；用户消息中的意象与歌词标签
+	SpritePrompt               string
+	SpriteSubject, SpriteLyric string
 
 	// 用户消息的各部分用 XML 标签包住（Anthropic 的提示词建议：不同类型的输入分块标出，模型更不容易混淆）：歌曲信息的开始与结束标签、各字段
 	SongInfo, SongEnd, Title, Artists, Album, Aliases string
@@ -33,8 +36,9 @@ type lyricAnnotationLocale struct {
 var lyricAnnotationText = lyricAnnotationEN
 
 var lyricAnnotationEN = lyricAnnotationLocale{
-	PlanPrompt:  fillLyricAnnotationPrompt(lyricAnnotationENHead + lyricAnnotationENPlan),
-	LinesPrompt: fillLyricAnnotationPrompt(lyricAnnotationENHead + lyricAnnotationENLines),
+	PlanPrompt:   fillLyricAnnotationPrompt(lyricAnnotationENHead + lyricAnnotationENPlan),
+	LinesPrompt:  fillLyricAnnotationPrompt(lyricAnnotationENHead + lyricAnnotationENLines),
+	SpritePrompt: fillLyricAnnotationPrompt(lyricAnnotationENSprite), SpriteSubject: "Image: ", SpriteLyric: "Lyric: ",
 
 	SongInfo: "<song>\n", SongEnd: "</song>\n", Title: "Title: ", Artists: "Artists: ", Album: "Album: ", Aliases: "Aliases / description: ",
 	Comments: "\n<listener_comments>\n", CommentsEnd: "</listener_comments>\n", Comment: "%d. %s (%d likes)\n",
@@ -90,8 +94,20 @@ Task: plan the whole song. Phrases are annotated afterwards, chunk by chunk in p
 - lines: mood (calm / bright / sad / intense) on emotionally clear lines; scene on lines describing a concrete image or starting a chorus (up to 6 per song, each lasting ~8 lines), with optional scene_color (a color value, e.g. bauhinia for bauhinia petals).
 scene:
 {{scenes}}
+- sprites (optional, up to 2): when a line shows a distinctive concrete image that no scene above can show — dolls falling, paper planes, candy, a kite — define a sprite and set scene "custom:<name>" on that line; it then floats across the screen like the scenes do. Common images (rain, snow, petals, stars, hearts) already have scenes and look better there. Prefer an icon from the list below (its name in icon), since icons always look clean; when none fits, leave icon empty and describe the image in a few English words in image, and it will be drawn for you. motion: fall (tumbles down), float (rises), drift (glides sideways), sway (hangs and swings), swirl (spins along a curve) or burst (bursts outward once) — how the image moves in the lyric. size: s / m / l. color: a color value. fallback: the scene to use if the sprite cannot be drawn.
+icons:
+{{icons}}
 
-Output: {"theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","pace":"medium","spotlight":0,"imagery":[{"text":"","effect":"glow","color":"rain"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain"}]}; list only lines with marks.`
+Output: {"theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","pace":"medium","spotlight":0,"imagery":[{"text":"","effect":"glow","color":"rain"}],"sprites":[{"name":"doll","image":"plush toy","icon":"","motion":"fall","size":"m","spin":true,"color":"peach","fallback":"hearts"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain"}]}; list only lines with marks.`
+
+// lyricAnnotationENSprite 画自定义粒子图标的系统提示词（规划中没有合适的图标库图标时使用）
+const lyricAnnotationENSprite = `You design one tiny sprite for a particle effect in a music player: many copies of it drift across the screen behind the lyrics, each drawn 12-28 px tall and semi-transparent. Draw a simple, instantly recognizable flat silhouette of the image, like a bold emoji glyph: one solid main shape plus at most a few small details. At that size the outline carries the meaning and inner lines disappear, so give the silhouette its most distinctive features (a teddy bear's round ears, a kite's diamond and tail).
+
+Canvas: 24x24 units. Keep the drawing within 2..22 so it has a margin.
+
+Reply with one JSON object only, since it is parsed directly:
+{"paths":[{"d":"...","paint":"fill"}]}
+- paths: 1-4, main body first. d uses absolute commands M L H V C Q A Z with numbers between 0 and 24, because the renderer accepts only these. paint is fill (the main color), light (a lighter tint, for small highlights or details on top of the body) or stroke (a 1.5-unit line, for thin parts such as a kite string).`
 
 const lyricAnnotationENLines = `
 Task: annotate phrases line by line for the lines named at the end, following the song plan in <plan>. Neighbouring lines in <lyrics> are there as context.
@@ -122,6 +138,7 @@ func fillLyricAnnotationPrompt(prompt string) string {
 		scenes = append(scenes, scene.Key+": "+scene.Hint)
 	}
 	return strings.NewReplacer(
+		"{{icons}}", lyricSpriteIconList(),
 		"{{colors}}", strings.Join(colors, "\n"),
 		"{{fonts}}", strings.Join(fonts, "\n"),
 		"{{scenes}}", strings.Join(scenes, "\n"),

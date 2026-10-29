@@ -1396,6 +1396,7 @@
       "chorus_start": "サビの始まり",
       "chorus_start_hint": "歌い出しでカメラが寄り、背景が弾け、この行のエフェクトが強くなります",
       "scene": "パーティクル",
+      "scene_custom": "カスタム：{label}",
       "scene_color": "パーティクルの色",
       "scene_color_default": "既定の色",
       "phrases": "この行のエフェクト",

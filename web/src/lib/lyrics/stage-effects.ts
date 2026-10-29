@@ -1,4 +1,4 @@
-import type { LyricColor, LyricScene, ResolvedLyrics } from './types'
+import type { LyricColor, LyricSceneName, LyricSprite, ResolvedLyrics } from './types'
 import { swellCurve } from './easing'
 import { PACE } from './pace'
 import { heartbeatLevel, shatterFlash } from './word-effects'
@@ -24,9 +24,11 @@ export interface StageSignals {
 }
 
 export interface StageScene {
-  name: LyricScene
+  name: LyricSceneName
   // 颜色主题，null 为场景默认色
   color: LyricColor | null
+  // 自定义粒子（name 为 custom:<name> 时）
+  sprite?: LyricSprite
 }
 
 // 演出时长下限（与歌词引擎的强调一致）、染色淡入与淡出时长
@@ -136,8 +138,12 @@ function sceneAt(lyrics: ResolvedLyrics, timeMs: number): StageScene | null {
       return
     current = index
     if (line.scene) {
-      scene = { name: line.scene, color: line.sceneColor ?? null }
-      sceneIndex = index
+      // 自定义粒子在这首歌的粒子中找不到时（标注与歌词不同步）当作没有场景
+      const sprite = line.scene.startsWith('custom:') ? lyrics.sprites?.[line.scene.slice('custom:'.length)] : undefined
+      if (!line.scene.startsWith('custom:') || sprite) {
+        scene = { name: line.scene, color: line.sceneColor ?? null, ...(sprite && { sprite }) }
+        sceneIndex = index
+      }
     }
   })
   if (scene == null)

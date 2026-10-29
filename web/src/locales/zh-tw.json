@@ -1396,6 +1396,7 @@
       "chorus_start": "副歌起點",
       "chorus_start_hint": "開唱時鏡頭推近、背景爆發，這一行的特效更強",
       "scene": "粒子場景",
+      "scene_custom": "自訂：{label}",
       "scene_color": "場景顏色",
       "scene_color_default": "場景預設色",
       "phrases": "這一行的特效",

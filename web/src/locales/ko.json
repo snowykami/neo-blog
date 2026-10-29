@@ -1396,6 +1396,7 @@
       "chorus_start": "후렴 시작",
       "chorus_start_hint": "시작할 때 카메라가 다가가고 배경이 터지며 이 줄의 효과가 강해집니다",
       "scene": "파티클 장면",
+      "scene_custom": "사용자 지정: {label}",
       "scene_color": "장면 색상",
       "scene_color_default": "기본 색상",
       "phrases": "이 줄의 효과",

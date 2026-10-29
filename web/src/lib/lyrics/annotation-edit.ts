@@ -1,6 +1,6 @@
 import type { LyricAnnotationLine, LyricAnnotationPhrase, LyricAnnotations } from './emphasis'
 import type { LyricPace } from './pace'
-import type { LyricColor, LyricEffect, LyricFont, LyricMood, LyricScene, LyricTextStyle } from './types'
+import type { LyricColor, LyricEffect, LyricFont, LyricMood, LyricSceneName, LyricTextStyle } from './types'
 
 /**
  * 后台歌词特效编辑器的数据处理（纯函数）：标注按行文本保存（同一文本的行共用一条），所以编辑器按「去重后的行」编辑；
@@ -21,7 +21,8 @@ export interface LineForm {
   mood: LyricMood | ''
   chorus: boolean
   chorusStart: boolean
-  scene: LyricScene | ''
+  // 内置场景或 custom:<name>（这首歌的自定义粒子）
+  scene: LyricSceneName | ''
   sceneColor: LyricColor | ''
   phrases: PhraseForm[]
 }

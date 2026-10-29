@@ -188,7 +188,7 @@ function LyricCanvasLine({
         {line.indices.length > 1 && <span title={t('line_repeat', { count: line.indices.length })}>{`×${line.indices.length}`}</span>}
         {form?.chorusStart && <FlagIcon aria-label={t('chorus_start')} className="size-3 text-primary" />}
         {form?.mood && <span aria-label={optionT(`moods.${form.mood}`)} title={optionT(`moods.${form.mood}`)} className="size-2 rounded-full" style={{ background: MOOD_GLOW[form.mood] }} />}
-        {form?.scene && <SparklesIcon aria-label={optionT(`scenes.${form.scene}`)} className="size-3" />}
+        {form?.scene && <SparklesIcon aria-label={form.scene.startsWith('custom:') ? t('scene_custom', { label: form.scene.slice('custom:'.length) }) : optionT(`scenes.${form.scene}`)} className="size-3" />}
         {spotlight && <SunIcon aria-label={t('spotlight')} className="size-3 text-amber-500" />}
       </div>
       <div data-lyric-line={index} className="text-[17px] leading-8 whitespace-pre-wrap select-text">

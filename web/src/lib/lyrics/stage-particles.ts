@@ -1,16 +1,17 @@
 import type { Rgb } from './colors'
 import type { StageScene } from './stage-effects'
-import type { LyricColor, LyricScene } from './types'
+import type { LyricColor, LyricScene, LyricSprite, LyricSpriteMotion } from './types'
 import { hexToRgb, LYRIC_COLORS } from './colors'
 
 /**
  * 播放器页的全屏粒子（canvas 2D），共 18 种场景（与后端 lyricAnnotationSceneList 一致）。
  * 当前场景按 density（0 ~ 1，渐入渐出）生成粒子；切换场景或颜色主题、结束场景或暂停后不再生成，已有粒子在 LEAVE_SECONDS 内淡出。
- * 颜色：指定了颜色主题时所有粒子使用该颜色（略微随机提亮以增加层次），否则使用场景的默认色（部分场景为多色）
+ * 颜色：指定了颜色主题时所有粒子使用该颜色（略微随机提亮以增加层次），否则使用场景的默认色（部分场景为多色）。
+ * 自定义粒子（场景名为 custom:<name>，见 spriteSpec）：按动作预设生成，用 Path2D 画图标库的图标或模型画的剪影，数量与透明度有上限
  */
 
 interface Particle {
-  scene: LyricScene
+  spec: SceneSpec
   // 场景 + 颜色主题，与当前不同时淡出
   key: string
   color: Rgb
@@ -38,6 +39,8 @@ interface SceneSpec {
   colors: readonly string[]
   spawn: (w: number, h: number) => Motion
   draw: (ctx: CanvasRenderingContext2D, p: Particle, alpha: number) => void
+  // 同屏数量上限（自定义粒子用），未设置时只受总数上限限制
+  max?: number
 }
 
 const MAX_PARTICLES = 240
@@ -448,6 +451,91 @@ const SCENES: Record<LyricScene, SceneSpec> = {
   },
 }
 
+// 自定义粒子：尺寸（px，再随机 ±20%）、透明度上限、同屏上限；图标库图标的线宽（原样 2 在粒子尺寸下偏细）
+const SPRITE_SIZES = { s: 14, m: 20, l: 26 }
+const SPRITE_MAX_ALPHA = 0.75
+const SPRITE_MAX_COUNT = 40
+const SPRITE_LINE_WIDTH = 2.5
+
+/** 各动作预设：生成速率（1280×800 画面上每秒）、出生位置与速度、绘制时的附加位移或旋转（update 只做匀速运动） */
+const SPRITE_MOTIONS: Record<LyricSpriteMotion, {
+  rate: number
+  spawn: (w: number, h: number, spin: boolean) => Omit<Motion, 'size'>
+  offset?: (p: Particle) => { x?: number, y?: number, rotation?: number }
+}> = {
+  // 从上方翻滚着落下，左右轻摆
+  fall: { rate: 2.2, spawn: (w, _h, spin) => ({ x: rand(0, w), y: -20, vx: rand(-12, 12), vy: rand(38, 62), rotation: rand(0, TAU), spin: spin ? rand(-1.4, 1.4) : 0, life: Infinity }), offset: p => ({ x: Math.sin(p.age * 1.3 + p.seed) * 14 }) },
+  // 从下方向上飘
+  float: { rate: 2, spawn: (w, h, spin) => ({ x: rand(0, w), y: h + 20, vx: 0, vy: rand(-55, -30), rotation: rand(-0.3, 0.3), spin: spin ? rand(-0.4, 0.4) : 0, life: Infinity }), offset: p => ({ x: Math.sin(p.age * 1.1 + p.seed) * 16 }) },
+  // 从左侧滑过，轻微起伏
+  drift: { rate: 1.6, spawn: (_w, h, spin) => ({ x: -24, y: rand(h * 0.08, h * 0.75), vx: rand(45, 75), vy: rand(-6, 6), rotation: 0, spin: spin ? rand(-0.3, 0.3) : 0, life: Infinity }), offset: p => ({ y: Math.sin(p.age * 2 + p.seed) * 10 }) },
+  // 在原地出现，像挂着一样摇摆，几秒后淡出
+  sway: { rate: 1.2, spawn: (w, h) => ({ x: rand(w * 0.08, w * 0.92), y: rand(h * 0.1, h * 0.7), vx: 0, vy: 6, rotation: 0, spin: 0, life: rand(4, 6) }), offset: p => ({ rotation: Math.sin(p.age * 2.2 + p.seed) * 0.35 }) },
+  // 边旋转边沿弧线落下
+  swirl: { rate: 1.8, spawn: (w, _h, spin) => ({ x: rand(0, w), y: -20, vx: 0, vy: rand(30, 45), rotation: 0, spin: spin ? rand(1.5, 3) : 0, life: Infinity }), offset: p => ({ x: Math.sin(p.age * 1.6 + p.seed) * (18 + (p.seed % 1) * 22) }) },
+  // 从画面中部向外散开，减速后淡出
+  burst: {
+    rate: 2.5,
+    spawn: (w, h, spin) => ({ x: w / 2 + rand(-w * 0.15, w * 0.15), y: h * 0.45 + rand(-h * 0.1, h * 0.1), vx: 0, vy: 0, rotation: rand(0, TAU), spin: spin ? rand(-3, 3) : 0, life: rand(1.6, 2.2) }),
+    offset: (p) => {
+      const angle = p.seed / 10 * TAU
+      const distance = (70 + (p.seed * 37) % 60) * (1 - Math.exp(-1.5 * p.age)) / 1.5
+      return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance + 10 * p.age * p.age }
+    },
+  },
+}
+
+const spriteSpecs = new WeakMap<LyricSprite, SceneSpec>()
+
+/** 自定义粒子的场景：路径编译为 Path2D 后缓存，按动作预设生成与绘制 */
+function spriteSpec(sprite: LyricSprite): SceneSpec {
+  const cached = spriteSpecs.get(sprite)
+  if (cached)
+    return cached
+  const paths = sprite.paths.map(path => ({ paint: path.paint, path: new Path2D(path.d) }))
+  const motion = SPRITE_MOTIONS[sprite.motion] ?? SPRITE_MOTIONS.fall
+  const size = SPRITE_SIZES[sprite.size] ?? SPRITE_SIZES.m
+  const spec: SceneSpec = {
+    rate: motion.rate,
+    colors: [sprite.color],
+    max: SPRITE_MAX_COUNT,
+    spawn: (w, h) => ({ ...motion.spawn(w, h, !!sprite.spin), size: size * rand(0.8, 1.2) }),
+    draw: (ctx, p, alpha) => {
+      const offset = motion.offset?.(p) ?? {}
+      const a = alpha * SPRITE_MAX_ALPHA
+      ctx.save()
+      ctx.translate(p.x + (offset.x ?? 0), p.y + (offset.y ?? 0))
+      ctx.rotate(offset.rotation ?? p.rotation)
+      // 路径画在 24×24 的画布上，缩放到粒子尺寸并以中心为原点
+      ctx.scale(p.size / 24, p.size / 24)
+      ctx.translate(-12, -12)
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      for (const { paint, path } of paths) {
+        if (paint === 'fill' || paint === 'light') {
+          ctx.fillStyle = rgba(paint === 'light' ? mixWhite(p.color, 0.55) : p.color, a)
+          ctx.fill(path)
+        }
+        else {
+          ctx.strokeStyle = rgba(p.color, a)
+          ctx.lineWidth = paint === 'line' ? SPRITE_LINE_WIDTH : 1.5
+          ctx.stroke(path)
+        }
+      }
+      ctx.restore()
+    },
+  }
+  spriteSpecs.set(sprite, spec)
+  return spec
+}
+
+/** 场景的生成与绘制规则：内置场景或自定义粒子 */
+function specOf(scene: StageScene): SceneSpec | null {
+  if (scene.sprite)
+    return spriteSpec(scene.sprite)
+  return SCENES[scene.name as LyricScene] ?? null
+}
+
 /** 解析颜色：色板名称或 #rrggbb */
 function resolveColor(color: string): Rgb {
   return hexToRgb(color.startsWith('#') ? color : LYRIC_COLORS[color as LyricColor])
@@ -510,18 +598,18 @@ export class StageParticles {
       ? Math.min(target, this.density + DENSITY_IN * dt)
       : Math.max(target, this.density - DENSITY_OUT * dt)
 
-    if (current && this.density > 0) {
-      const spec = SCENES[current.name]
+    const spec = current ? specOf(current) : null
+    if (current && spec && this.density > 0) {
       const area = Math.min(2, Math.max(0.3, (this.width * this.height) / BASE_AREA))
       this.pending += spec.rate * area * this.density * dt
       while (this.pending >= 1) {
         this.pending--
-        if (this.particles.length >= this.maxParticles)
+        if (this.particles.length >= this.maxParticles || (spec.max != null && this.particles.filter(p => p.spec === spec).length >= spec.max))
           continue
         // 指定颜色主题时略微随机提亮，避免整片同色
         const color = current.color ? mixWhite(resolveColor(current.color), rand(0, 0.25)) : resolveColor(pick(spec.colors))
         const motion = spec.spawn(this.width, this.height)
-        this.particles.push({ ...motion, size: motion.size * this.scale, scene: current.name, key: currentKey, color, age: 0, seed: Math.random() * 10, leave: 0 })
+        this.particles.push({ ...motion, size: motion.size * this.scale, spec, key: currentKey, color, age: 0, seed: Math.random() * 10, leave: 0 })
       }
     }
     else {
@@ -541,7 +629,7 @@ export class StageParticles {
         return false
       // 刚生成时淡入，有寿命的在最后一秒淡出
       const alpha = Math.min(1, p.age / 0.6, Number.isFinite(p.life) ? p.life - p.age : 1) * (1 - p.leave)
-      SCENES[p.scene].draw(ctx, p, alpha)
+      p.spec.draw(ctx, p, alpha)
       return true
     })
   }
