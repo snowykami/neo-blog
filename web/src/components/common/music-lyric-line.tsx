@@ -25,6 +25,9 @@ function usePrefersReducedMotion() {
   )
 }
 
+// 逐帧更新的最短间隔：高刷新率屏幕（120Hz）上也只按约 60fps 更新，逐字擦除看起来一样平滑，工作量减半
+const MIN_FRAME_MS = 1000 / 60 - 1
+
 // 导航栏歌词两侧渐隐遮罩：仅在内容溢出时启用，滚动到头/尾时去掉对应一侧
 const NAV_LYRIC_FADE = '1.25em'
 function getNavLyricMask(fadeStart: boolean, fadeEnd: boolean) {
@@ -47,7 +50,7 @@ interface NavLyricLayout {
  * - 逐行歌词：先停留约 10%，再匀速滚动，在约 88% 行时长处露出结尾
  * - 逐字歌词：跟随当前演唱位置滚动，使其保持在可视区域约 65% 处；开启歌词特效时沿用播放器的强调分组（含歌词标注），
  *   做简化的特效（放大、辉光、上浮、抖动与长音颤音、由虚到实、心跳、流光、消散、上色与粗体 / 斜体，见 lib/lyrics/nav-emphasis.ts）
- * 偏移量、逐字高亮与特效均在 requestAnimationFrame 中直接写 DOM，不触发逐帧 React 渲染
+ * 偏移量、逐字高亮与特效均在 requestAnimationFrame 中直接写 DOM，不触发逐帧 React 渲染；最多约 60fps，滚出视野或被隐藏时不更新
  */
 export function LyricLine() {
   const t = useTranslations('MusicPlayer')
@@ -62,6 +65,8 @@ export function LyricLine() {
   const containerRef = useRef<HTMLSpanElement>(null)
   const contentRef = useRef<HTMLSpanElement>(null)
   const layoutRef = useRef<NavLyricLayout | null>(null)
+  // 是否在可视区域内：滚出视野的单曲卡、被隐藏的导航栏不做逐帧计算与 DOM 写入
+  const visibleRef = useRef(true)
   // rAF 中计算出的行索引，与所属歌词数组绑定，避免切歌后沿用旧索引
   const [rafActive, setRafActive] = useState<{ lines: MusicLyricLine[], index: number | null } | null>(null)
   const activeLyricIndex = rafActive?.lines === lyricLines ? rafActive.index : currentLyricIndex
@@ -84,9 +89,21 @@ export function LyricLine() {
   }, [lineKey])
 
   useEffect(() => {
+    const container = containerRef.current
+    if (!container || typeof IntersectionObserver === 'undefined')
+      return
+    const observer = new IntersectionObserver(([entry]) => {
+      visibleRef.current = entry.isIntersecting
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [lineKey])
+
+  useEffect(() => {
     if (lyricLines.length === 0)
       return
     let rafId = 0
+    let lastFrameAt = 0
     let lastIndex: number | null | undefined
     // 跳转检测（同歌词引擎）：进度与按经过时间推算的进度相差超过 1 秒视为拖动了进度，记下落点（消散特效在落点之前的不消散）
     let lastTime: { timeMs: number, at: number } | null = null
@@ -111,11 +128,15 @@ export function LyricLine() {
 
     const tick = () => {
       rafId = requestAnimationFrame(tick)
+      const now = performance.now()
+      // 不可见时跳过；限制到约 60fps
+      if (!visibleRef.current || now - lastFrameAt < MIN_FRAME_MS)
+        return
+      lastFrameAt = now
       const audio = getAudio()
       if (!audio)
         return
       const timeMs = audio.currentTime * 1000
-      const now = performance.now()
       if (!lastTime || Math.abs(timeMs - (lastTime.timeMs + (audio.paused ? 0 : now - lastTime.at))) > 1000)
         seekAt = timeMs
       lastTime = { timeMs, at: now }
