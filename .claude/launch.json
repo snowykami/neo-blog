@@ -329,6 +329,24 @@
         "cd /tmp/neo-revisions/web && export BACKEND_URL=http://127.0.0.1:18930 && exec pnpm start -p 3150"
       ],
       "port": 3150
+    },
+    {
+      "name": "backend-lyricver",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-lyricver && MODE=dev PORT=18940 DB_PATH=/tmp/neo-lyricver/data.db ENABLE_REGISTER=true ENABLE_EMAIL_VERIFY=false BASE_URL=http://localhost:3160 exec /tmp/neo-lyricver/server"
+      ],
+      "port": 18940
+    },
+    {
+      "name": "web-lyricver",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-lyricver/web && export BACKEND_URL=http://127.0.0.1:18940 && exec pnpm start -p 3160"
+      ],
+      "port": 3160
     }
   ]
 }
