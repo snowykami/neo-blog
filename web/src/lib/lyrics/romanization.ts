@@ -8,6 +8,8 @@ import { isKana, toRomaji } from 'wanakana'
  * 2. 含假名的行（日文）：假名与拉丁文字的音节用自己的读音（wanakana）作为锚点在音译字母中依次查找，
  *    锚点之间的字母按音拍分给其间的汉字音节（浏览器拿不到汉字读音）；锚点找不到、或汉字分不到音拍时视为对不齐
  * 3. 其他（纯拉丁文字、韩文等）不对齐
+ * 来源本身带分段时间的音译（TTML 的 transliteration 分段、QQ 音乐 / 酷狗的音译 QRC）按时间对到音节上，不走上面的猜测。
+ * 同一个音节分到多段（多个音拍）而这几段没有各自的时间时，按字母数依次分配这个音节的时长，逐字擦除从左到右连续推进
  */
 
 const MACRONS: Record<string, string> = { ā: 'aa', â: 'aa', ī: 'ii', î: 'ii', ū: 'uu', û: 'uu', ē: 'ee', ê: 'ee', ō: 'ou', ô: 'ou' }
@@ -196,6 +198,23 @@ function assignLetters(letters: string[], words: LyricWord[]): number[] | null {
   return owner.map(index => (index >= 0 ? index : first))
 }
 
+/** 音译段的长度权重：字母与数字的个数（至少为 1） */
+const letterWeight = (text: string) => Math.max(1, fold(text).length)
+
+/** 把一个时间段按各段的字母数依次分给这些段（同一个音节的多个音拍按顺序擦除，而不是同时擦除） */
+function splitTime<T extends { text: string }>(items: T[], start: number, end: number): (T & { start: number, end: number })[] {
+  const total = items.reduce((sum, item) => sum + letterWeight(item.text), 0)
+  let at = start
+  let used = 0
+  return items.map((item) => {
+    used += letterWeight(item.text)
+    const next = start + Math.round((end - start) * used / total)
+    const piece = { ...item, start: at, end: next }
+    at = next
+    return piece
+  })
+}
+
 function build(tokens: Token[], ownerOfLetter: number[], words: LyricWord[]): LyricRomanWord[] {
   const result: LyricRomanWord[] = []
   let letter = 0
@@ -222,7 +241,11 @@ function build(tokens: Token[], ownerOfLetter: number[], words: LyricWord[]): Ly
     for (const run of runs)
       result.push({ text: run.text, start: words[run.word].start, end: words[run.word].end, word: run.word })
   })
-  return result
+  // 同一个音节分到的多段依次分配它的时长
+  return words.flatMap((word, index) => {
+    const parts = result.filter(part => part.word === index)
+    return parts.length > 1 ? splitTime(parts, word.start, word.end) : parts
+  })
 }
 
 /** 拼音、粤拼等：纯汉字行的有内容音节与音译词一一配对 */
@@ -268,6 +291,24 @@ export function romanWordsFromTimed(items: { text: string, startTime: number, du
       word = i
     return { text: item.text, start: item.startTime, end: item.startTime + item.duration, word }
   })
+}
+
+/**
+ * 带时间的音译分段（TTML 的 transliteration）：按开始时间对到原文音节（开始时间相同的那个，否则为在它之前开始的最后一个），
+ * 一段里有多个音拍（以空格分开，如 hi ka ri）时拆开并按字母数依次分配这一段的时长
+ */
+export function romanWordsFromSpans(spans: { text: string, start: number, end: number }[], words: LyricWord[]): LyricRomanWord[] | null {
+  if (spans.length === 0 || words.length === 0)
+    return null
+  const result: LyricRomanWord[] = []
+  for (const span of spans) {
+    let word = 0
+    for (let i = 0; i < words.length && words[i].start <= span.start + 20; i++)
+      word = i
+    const morae = span.text.split(/\s+/).filter(Boolean).map(text => ({ text, word }))
+    result.push(...splitTime(morae, span.start, span.end))
+  }
+  return result.length > 0 ? result : null
 }
 
 /** 给逐字歌词中还没有逐字音译的行对齐音译 */

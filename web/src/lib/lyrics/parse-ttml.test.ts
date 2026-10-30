@@ -46,4 +46,26 @@ describe('解析 TTML 歌词', () => {
     expect(parseTtml('<html><body/></html>', 'ttml-custom')).toBeNull()
     expect(parseTtml('not xml', 'ttml-custom')).toBeNull()
   })
+
+  it('音译取罗马音那组（ja-Latn）的带时间分段，假名读音不当音译', () => {
+    const ttml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:itunes="http://music.apple.com/lyric-ttml-internal">
+<head><metadata><iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal"><transliterations>
+  <transliteration xml:lang="ja"><text for="L1"><span begin="1.000" end="1.600">ひかり</span></text></transliteration>
+  <transliteration xml:lang="ja-Latn"><text for="L1"><span begin="1.000" end="1.600">hi ka ri</span> <span begin="1.600" end="1.900">chi</span></text></transliteration>
+</transliterations></iTunesMetadata></metadata></head>
+<body><div><p begin="1.000" end="1.900" itunes:key="L1"><span begin="1.000" end="1.600">光</span><span begin="1.600" end="1.900">散</span></p></div></body></tt>`
+    const [line] = parseTtml(ttml, 'ttml-amll')!.lines
+    expect(line.romanization).toBe('hi ka ri chi')
+    expect(line.romanizationWords?.map(part => [part.text, part.word, part.start, part.end])).toEqual([
+      ['hi', 0, 1000, 1200],
+      ['ka', 0, 1200, 1400],
+      ['ri', 0, 1400, 1600],
+      ['chi', 1, 1600, 1900],
+    ])
+    // 预处理去掉空音节后，音译重新对应到原来的字
+    const withEmpty = ttml.replace('<span begin="1.000" end="1.600">光</span>', '<span begin="0.900" end="1.000"></span><span begin="1.000" end="1.600">光</span>')
+    const [shifted] = parseTtml(withEmpty, 'ttml-amll')!.lines
+    expect(shifted.words.map(word => word.text)).toEqual(['光', '散'])
+    expect(shifted.romanizationWords?.map(part => part.word)).toEqual([0, 0, 0, 1])
+  })
 })

@@ -1,10 +1,13 @@
 import type { LyricLine, LyricSource, LyricWord, ResolvedLyrics } from './types'
 import { preprocessLyricLines } from './preprocess'
+import { romanWordsFromSpans } from './romanization'
 
 /**
  * TTML 歌词解析（AMLL TTML DB / 自定义源，Apple Music 风格），解析规则参考 StarryPlayer：
  * - p 为一行，其中带时间的 span 为音节；span 之间的空白归到前一个音节（拉丁文字的词间空格）
- * - ttm:role="x-bg" 为背景人声，x-translation / x-roman 为翻译 / 音译；head 中的 translations / transliterations 按 itunes:key 挂到对应行
+ * - ttm:role="x-bg" 为背景人声，x-translation / x-roman 为翻译 / 音译；head 中的 translations / transliterations 按 itunes:key 挂到对应行。
+ *   音译只取拉丁字母的那组（xml:lang 为 *-Latn 的优先；只有假名的读音不当音译）；带 begin / end 的分段按时间对到原文音节上，
+ *   直接得到逐字音译（见 romanWordsFromSpans），不再按文字猜测
  * - 演唱者：第一个非 group 的 agent 为主唱，其余为对唱（右对齐），一行多个 agent 或 group 类型为合唱（不偏移）
  * - AMLL 导出的 00:00.000 占位时间：一串占位音节结束于下一个有时间的音节开始，每个占位音节的时长取那个音节的时长
  * 只读取文本与时间属性，不把任何内容作为 HTML 插入页面
@@ -54,7 +57,7 @@ function buildSingerResolver(doc: Document): (agentAttr: string | null) => Singe
   }
 }
 
-/** head 中按 itunes:key 提供的翻译 / 音译（Apple Music 格式） */
+/** head 中按 itunes:key 提供的翻译（Apple Music 格式） */
 function readKeyedTexts(doc: Document, container: string): Map<string, string> {
   const texts = new Map<string, string>()
   for (const block of childElements(doc.documentElement, container)) {
@@ -68,10 +71,51 @@ function readKeyedTexts(doc: Document, container: string): Map<string, string> {
   return texts
 }
 
+interface KeyedRomanization {
+  text: string
+  // 带时间的分段（一个分段通常对应原文的一个音节，可含多个音拍，如「光」的 hi ka ri）
+  spans: { text: string, start: number, end: number }[]
+}
+
+const LATIN_RE = /\p{Script=Latin}/u
+const CJK_RE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+
+/**
+ * head 中按 itunes:key 提供的音译：一份 TTML 可能同时带假名读音（xml:lang="ja"）与罗马音（xml:lang="ja-Latn"），
+ * 只取拉丁字母、不含中日韩文字的文本，xml:lang 以 -Latn 结尾的一组优先
+ */
+function readTransliterations(doc: Document): Map<string, KeyedRomanization> {
+  const result = new Map<string, KeyedRomanization>()
+  const blocks = childElements(doc.documentElement, 'transliteration')
+  const latinFirst = [...blocks].sort((a, b) => Number(/-Latn$/i.test(attr(b, 'lang') ?? '')) - Number(/-Latn$/i.test(attr(a, 'lang') ?? '')))
+  for (const block of latinFirst) {
+    for (const text of childElements(block, 'text')) {
+      const key = attr(text, 'for')
+      const content = text.textContent?.replace(/\s+/g, ' ').trim()
+      if (!key || !content || result.has(key) || !LATIN_RE.test(content) || CJK_RE.test(content))
+        continue
+      const spans: KeyedRomanization['spans'] = []
+      for (const node of Array.from(text.childNodes)) {
+        // 背景人声（x-bg）的音译不对应主行的音节
+        if (node.nodeType !== 1 || (node as Element).localName?.split(':').pop() !== 'span' || attr(node as Element, 'role'))
+          continue
+        const start = parseTtmlTime(attr(node as Element, 'begin'))
+        const end = parseTtmlTime(attr(node as Element, 'end'))
+        const spanText = node.textContent?.replace(/\s+/g, ' ').trim()
+        if (start != null && end != null && spanText)
+          spans.push({ text: spanText, start, end: Math.max(start, end) })
+      }
+      result.set(key, { text: content, spans })
+    }
+  }
+  return result
+}
+
 interface ParsedLineContent {
   words: LyricWord[]
   translation?: string
   romanization?: string
+  romanizationSpans?: KeyedRomanization['spans']
   background?: ParsedLineContent
 }
 
@@ -150,6 +194,7 @@ function toLine(content: ParsedLineContent, start: number, end: number, singer: 
     end: Math.max(end, wordEnd),
     translation: content.translation,
     romanization: content.romanization,
+    romanizationWords: content.romanizationSpans?.length ? romanWordsFromSpans(content.romanizationSpans, words) ?? undefined : undefined,
     isDuet: singer === 'secondary',
     isBackground,
   }
@@ -164,7 +209,7 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
 
   const singerOf = buildSingerResolver(doc)
   const translations = readKeyedTexts(doc, 'translations')
-  const transliterations = readKeyedTexts(doc, 'transliterations')
+  const transliterations = readTransliterations(doc)
   const lines: LyricLine[] = []
 
   for (const p of childElements(doc.documentElement, 'p')) {
@@ -185,7 +230,11 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
     const key = attr(p, 'key')
     if (key) {
       content.translation ??= translations.get(key)
-      content.romanization ??= transliterations.get(key)
+      const romanization = transliterations.get(key)
+      if (!content.romanization && romanization) {
+        content.romanization = romanization.text
+        content.romanizationSpans = romanization.spans
+      }
     }
     if (begin == null || end == null || content.words.length === 0)
       continue

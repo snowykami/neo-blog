@@ -17,18 +17,26 @@ const EARLY_START_OVERLAP_RATIO = 0.7
 
 function normalizeLine(line: LyricLine): LyricLine {
   // 只合并连续空白：拉丁文字的词间空格保存在词的首尾，不能 trim；行首、行尾只有空白的词去掉
-  const words = line.words.map(word => ({ ...word, text: word.text.replace(/\s+/g, ' ') })).filter(word => word.text !== '')
+  const words = line.words.map((word, index) => ({ word: { ...word, text: word.text.replace(/\s+/g, ' ') }, index })).filter(item => item.word.text !== '')
   let first = 0
   let last = words.length
-  while (first < last && words[first].text === ' ')
+  while (first < last && words[first].word.text === ' ')
     first++
-  while (last > first && words[last - 1].text === ' ')
+  while (last > first && words[last - 1].word.text === ' ')
     last--
+  const kept = words.slice(first, last)
+  // 逐字音译按音节下标对应原文：去掉词后重新对应，对应的音节被去掉的段丢弃
+  const remap = new Map(kept.map((item, i) => [item.index, i]))
+  const romanizationWords = line.romanizationWords?.flatMap((part) => {
+    const word = remap.get(part.word)
+    return word == null ? [] : [{ ...part, word }]
+  })
   return {
     ...line,
-    words: words.slice(first, last),
+    words: kept.map(item => item.word),
     translation: line.translation?.replace(/\s+/g, ' ').trim() || undefined,
     romanization: line.romanization?.replace(/\s+/g, ' ').trim() || undefined,
+    romanizationWords: romanizationWords?.length ? romanizationWords : undefined,
   }
 }
 

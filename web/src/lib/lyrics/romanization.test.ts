@@ -1,6 +1,6 @@
 import type { LyricWord } from './types'
 import { describe, expect, it } from 'vitest'
-import { alignRomanization, romanWordsFromTimed } from './romanization'
+import { alignRomanization, romanWordsFromSpans, romanWordsFromTimed } from './romanization'
 
 /** 每个字一个音节，依次 500ms */
 function syllables(text: string): LyricWord[] {
@@ -50,5 +50,26 @@ describe('逐字音译', () => {
     const words = [{ text: '初', start: 20699, end: 21133 }, { text: 'め', start: 21133, end: 21302 }]
     const parts = romanWordsFromTimed([{ text: 'ha ', startTime: 20699, duration: 19 }, { text: 'ji ', startTime: 20718, duration: 415 }, { text: 'me ', startTime: 21133, duration: 169 }], words)
     expect(parts?.map(part => [part.text, part.word])).toEqual([['ha ', 0], ['ji ', 0], ['me ', 1]])
+  })
+
+  it('同一个音节分到多段时按字母数依次分配时长，从左到右擦除', () => {
+    // 光散：没有假名作锚点时平均分音拍（光 → hi ka，散 → ri chi），每段在所属音节的时间内依次占用
+    const words = syllables('が光散ら')
+    const aligned = alignRomanization('ga hi ka ri chi ra', words)!
+    const light = aligned.filter(part => part.word === 1).map(part => [part.text.trim(), part.start, part.end])
+    expect(light).toEqual([['hi', 500, 750], ['ka', 750, 1000]])
+  })
+
+  it('带时间的音译分段（TTML）按开始时间对到音节，一段里的多个音拍依次分配时长', () => {
+    // 光 [1000, 1600)、散 [1600, 1900)：分段 hi ka ri 对光、chi 对散
+    const words: LyricWord[] = [{ text: '光', start: 1000, end: 1600 }, { text: '散', start: 1600, end: 1900 }]
+    const parts = romanWordsFromSpans([{ text: 'hi ka ri', start: 1000, end: 1600 }, { text: 'chi', start: 1600, end: 1900 }], words)!
+    expect(parts.map(part => [part.text, part.word, part.start, part.end])).toEqual([
+      ['hi', 0, 1000, 1200],
+      ['ka', 0, 1200, 1400],
+      ['ri', 0, 1400, 1600],
+      ['chi', 1, 1600, 1900],
+    ])
+    expect(romanWordsFromSpans([], words)).toBeNull()
   })
 })
