@@ -1,4 +1,4 @@
-import type { LyricColor, LyricSceneName, LyricSprite, ResolvedLyrics } from './types'
+import type { LyricColor, LyricLine, LyricSceneName, LyricSprite, ResolvedLyrics } from './types'
 import { swellCurve } from './easing'
 import { PACE } from './pace'
 import { heartbeatLevel, shatterFlash } from './word-effects'
@@ -11,7 +11,7 @@ import { heartbeatLevel, shatterFlash } from './word-effects'
  * - push 镜头推近：同样在副歌第一行开唱时触发，约 0.45 秒推近、2.6 秒缓缓回落（由页面换算成背景与歌词区的放大）
  * - 心跳强调（heartbeat）让背景随双拍跳动；破碎（shatter）碎的一瞬间背景闪一下
  * - scene 粒子场景（含颜色主题）：从标了 scene 的行开始，持续 SCENE_MAX_LINES 行，或到下一个标了 scene 的行为止
- * - spotlight 聚光灯：唱到全曲最点题的那一句时身后亮起暖光、四周略微压暗（与歌词引擎的聚光灯共用 spotlightLevel）
+ * - spotlight 聚光灯：唱到全曲最点题的句子（1～3 句，每次出现）时身后亮起暖光、四周略微压暗（与歌词引擎的聚光灯共用 spotlightAt）
  */
 
 export interface StageSignals {
@@ -84,18 +84,35 @@ export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number): StageSi
 }
 
 /**
- * 聚光灯强度（0 ~ 1）：在点题句开唱前 SPOTLIGHT_LEAD_MS 开始、SPOTLIGHT_ATTACK_MS 内缓入亮满，
- * 保持到这一句唱完，再在 SPOTLIGHT_RELEASE_MS 内缓出回落；没有点题句时为 0
+ * 一次聚光灯的强度（0 ~ 1）：在点题句开唱前 SPOTLIGHT_LEAD_MS 开始、SPOTLIGHT_ATTACK_MS 内缓入亮满，
+ * 保持到这一句唱完，再在 SPOTLIGHT_RELEASE_MS 内缓出回落
  */
-export function spotlightLevel(lyrics: ResolvedLyrics, timeMs: number): number {
-  const line = lyrics.spotlight == null ? undefined : lyrics.lines[lyrics.spotlight]
-  if (!line)
-    return 0
+function spotlightEnvelope(line: LyricLine, timeMs: number): number {
   const t = timeMs - (line.start - SPOTLIGHT_LEAD_MS)
   if (t < 0 || timeMs >= line.end + SPOTLIGHT_RELEASE_MS)
     return 0
   const level = timeMs <= line.end ? Math.min(1, t / SPOTLIGHT_ATTACK_MS) : 1 - (timeMs - line.end) / SPOTLIGHT_RELEASE_MS
   return level * level * (3 - 2 * level)
+}
+
+/**
+ * 当前的聚光灯：点题句可以有多句、每句可能重复出现，取此刻强度最高的那一次（line 为行号）；都不在演出时为 null。
+ * 相邻两次聚光灯（如连续重复的副歌句）前一句回落、后一句亮起有重叠，取较强者，不会中途熄灭
+ */
+export function spotlightAt(lyrics: ResolvedLyrics, timeMs: number): { line: number, level: number } | null {
+  let best: { line: number, level: number } | null = null
+  for (const index of lyrics.spotlights ?? []) {
+    const line = lyrics.lines[index]
+    const level = line ? spotlightEnvelope(line, timeMs) : 0
+    if (level > 0 && (!best || level > best.level))
+      best = { line: index, level }
+  }
+  return best
+}
+
+/** 聚光灯强度（0 ~ 1），见 spotlightAt；没有点题句时为 0 */
+export function spotlightLevel(lyrics: ResolvedLyrics, timeMs: number): number {
+  return spotlightAt(lyrics, timeMs)?.level ?? 0
 }
 
 /** 副歌爆发包络：开唱后 BURST_ATTACK_MS 内升满，再按缓出曲线在 BURST_RELEASE_MS 内回落 */

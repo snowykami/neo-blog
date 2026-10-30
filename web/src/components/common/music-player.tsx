@@ -15,7 +15,7 @@ import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
 import { MUSIC_ICON_BUTTON_CLASSNAME, MusicPageControls } from '@/components/music-page/music-page-controls'
 import { readMusicShareParamsFromLocation } from '@/components/music-page/music-share-params'
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
-import { useCoverAccent } from '@/components/music-page/use-cover-accent'
+import { useSongAccent } from '@/components/music-page/use-cover-accent'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useNav } from '@/contexts/nav-context'
@@ -495,8 +495,8 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
 function MiniPlayer({ onOpenPage }: { onOpenPage: () => void }) {
   const t = useTranslations('MusicPlayer')
   const { currentTrack, isPlaying } = useMusic()
-  // 与播放器页相同：封面主色作为辉光与呼吸的默认颜色
-  const accent = useCoverAccent(currentTrack?.albumPic)
+  // 与播放器页相同：主题色（模型选的颜色或封面主色）作为辉光与呼吸的默认颜色
+  const accent = useSongAccent(currentTrack?.albumPic)
   if (!currentTrack)
     return null
 

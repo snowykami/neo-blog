@@ -51,7 +51,7 @@ func (s *MusicService) GetLyricAnnotationEditor(ctx context.Context, id int64) (
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	data := parseLyricAnnotationData(record.Data)
-	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlight: data.Spotlight, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
+	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.Spotlights, Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
 	result.EditedAt = record.EditedAt
 	result.GeneratedAt = &record.CreatedAt
 	result.Model = record.Model
@@ -156,11 +156,20 @@ func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotatio
 		return data, false
 	}
 	data.Intro = intro
-	if spot := req.Spotlight; spot != nil {
-		if spot.Occurrence < 0 || spot.Occurrence >= counts[spot.Text] {
+	if req.Accent != "" {
+		if data.Accent = sanitizeLyricAccent(req.Accent); data.Accent == "" {
 			return data, false
 		}
-		data.Spotlight = &dto.MusicLyricAnnotationSpotlight{Text: spot.Text, Occurrence: spot.Occurrence}
+	}
+	// 聚光灯：歌词中存在的不同句子，最多 lyricAnnotationMaxSpotlights 句
+	if len(req.Spotlights) > lyricAnnotationMaxSpotlights {
+		return data, false
+	}
+	for _, text := range req.Spotlights {
+		if counts[text] == 0 || slices.Contains(data.Spotlights, text) {
+			return data, false
+		}
+		data.Spotlights = append(data.Spotlights, text)
 	}
 	seen := map[string]bool{}
 	for _, item := range req.Lines {

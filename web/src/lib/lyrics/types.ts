@@ -129,8 +129,10 @@ export interface ResolvedLyrics {
   notes?: LyricNote[]
   // 这首歌的自定义粒子（来自歌词标注），按名称索引
   sprites?: Record<string, LyricSprite>
-  // 聚光灯（来自歌词标注）：全曲最点题那一句的行号，唱到时移到中央放大、身后亮起暖光，见 stage-effects.ts 的 spotlightLevel
-  spotlight?: number
+  // 聚光灯（来自歌词标注）：全曲最点题的 1～3 句每次出现的行号（升序），唱到时移到中央放大、身后亮起暖光，见 stage-effects.ts 的 spotlightAt
+  spotlights?: number[]
+  // 这首歌的主题色（来自歌词标注，#rrggbb）：歌词辉光与背景呼吸的默认颜色，没有时用封面主色
+  accent?: string
 }
 
 /** 关键节点的「时刻」：在 start（毫秒，对应歌词行开唱）时显示的热评或模型写的旁白 */

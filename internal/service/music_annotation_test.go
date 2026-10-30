@@ -353,19 +353,27 @@ func TestSanitizeLyricAnnotationsPace(t *testing.T) {
 }
 
 func TestSanitizeLyricAnnotationsSpotlight(t *testing.T) {
-	lines := []string{"副歌", "主歌", "副歌", "尾声"}
-	got, err := sanitizeLyricAnnotations(lines, nil, `{"spotlight":2,"lines":[]}`)
+	lines := []string{"副歌", "主歌", "副歌", "尾声", "点题", "结尾"}
+	// 按文字去重（第 0 行与第 2 行同为「副歌」），越界的丢弃，最多 3 句
+	got, err := sanitizeLyricAnnotations(lines, nil, `{"spotlights":[2,0,9,4,3,5],"accent":" #FFB37A ","lines":[]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 第 3 行是「副歌」的第 2 次出现
-	if got.Spotlight == nil || got.Spotlight.Text != "副歌" || got.Spotlight.Occurrence != 1 {
-		t.Fatalf("spotlight = %+v", got.Spotlight)
+	if !reflect.DeepEqual(got.Spotlights, []string{"副歌", "点题", "尾声"}) {
+		t.Fatalf("spotlights = %v", got.Spotlights)
 	}
-	for _, raw := range []string{`{"spotlight":9,"lines":[]}`, `{"spotlight":null,"lines":[]}`, `{"lines":[]}`} {
-		if got, _ := sanitizeLyricAnnotations(lines, nil, raw); got.Spotlight != nil {
-			t.Fatalf("%s: spotlight = %+v", raw, got.Spotlight)
+	if got.Accent != "#ffb37a" {
+		t.Fatalf("accent = %q", got.Accent)
+	}
+	for _, raw := range []string{`{"spotlights":[9],"accent":"orange","lines":[]}`, `{"spotlights":null,"accent":"#fff","lines":[]}`, `{"lines":[]}`} {
+		if got, _ := sanitizeLyricAnnotations(lines, nil, raw); got.Spotlights != nil || got.Accent != "" {
+			t.Fatalf("%s: spotlights = %v, accent = %q", raw, got.Spotlights, got.Accent)
 		}
+	}
+	// 旧版只有一句聚光灯的记录读取时并入 spotlights
+	legacy := parseLyricAnnotationData(`{"spotlight":{"text":"副歌","occurrence":1},"lines":[]}`)
+	if !reflect.DeepEqual(legacy.Spotlights, []string{"副歌"}) || legacy.LegacySpotlight != nil {
+		t.Fatalf("legacy = %+v", legacy)
 	}
 }
 

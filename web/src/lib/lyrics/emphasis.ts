@@ -42,12 +42,6 @@ export interface LyricAnnotationMoment {
   liked?: number
 }
 
-/** 聚光灯的那一句：text 的第 occurrence 次出现（从 0 开始） */
-export interface LyricAnnotationSpotlight {
-  text: string
-  occurrence: number
-}
-
 export interface LyricAnnotations {
   font?: LyricFont
   // 全曲的特效节奏（按歌曲的轻快程度），规则强调也沿用它
@@ -55,7 +49,10 @@ export interface LyricAnnotations {
   intro?: string
   outro?: LyricOutro
   moments?: LyricAnnotationMoment[]
-  spotlight?: LyricAnnotationSpotlight
+  // 聚光灯的句子（1～3 句歌词原文），每次出现都放大
+  spotlights?: string[]
+  // 主题色 #rrggbb（模型按歌曲自由选择）
+  accent?: string
   lines: LyricAnnotationLine[]
   sprites?: LyricSprite[]
   // 管理员在后台手动编辑过（重新生成会覆盖编辑）
@@ -251,7 +248,8 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
     intro: annotations?.intro,
     outro: annotations?.outro,
     notes: resolveNotes(lyrics.lines, annotations?.moments),
-    spotlight: resolveSpotlight(lyrics.lines, annotations?.spotlight),
+    spotlights: resolveSpotlights(lyrics.lines, annotations?.spotlights),
+    accent: annotations?.accent,
     sprites: annotations?.sprites?.length ? Object.fromEntries(annotations.sprites.map(sprite => [sprite.name, sprite])) : undefined,
     lines: lyrics.lines.map((line) => {
       const annotation = byText.get(normalizeForMatch(line.words.map(word => word.text).join(''))) ?? null
@@ -287,8 +285,15 @@ export function resolveNotes(lines: LyricLine[], moments?: LyricAnnotationMoment
   return notes.length > 0 ? notes.sort((a, b) => a.start - b.start) : undefined
 }
 
-/** 把聚光灯的那一句匹配到歌词行，返回行号；没有或找不到时为 undefined */
-export function resolveSpotlight(lines: LyricLine[], spotlight?: LyricAnnotationSpotlight): number | undefined {
-  const index = spotlight ? findLyricLine(lines, spotlight.text, spotlight.occurrence) : -1
-  return index >= 0 ? index : undefined
+/** 把聚光灯的句子匹配到歌词行（按归一化后的文字，每次出现的主唱行都算），返回升序的行号；没有或找不到时为 undefined */
+export function resolveSpotlights(lines: LyricLine[], texts?: string[]): number[] | undefined {
+  const keys = new Set((texts ?? []).map(normalizeForMatch).filter(Boolean))
+  if (keys.size === 0)
+    return undefined
+  const indices: number[] = []
+  lines.forEach((line, index) => {
+    if (!line.isBackground && keys.has(normalizeForMatch(line.words.map(word => word.text).join(''))))
+      indices.push(index)
+  })
+  return indices.length > 0 ? indices : undefined
 }

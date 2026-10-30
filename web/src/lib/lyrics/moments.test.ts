@@ -1,6 +1,6 @@
 import type { ResolvedLyrics } from './types'
 import { describe, expect, it } from 'vitest'
-import { resolveNotes, resolveSpotlight } from './emphasis'
+import { resolveNotes, resolveSpotlights } from './emphasis'
 import { lyricMomentAt } from './moments'
 
 function lyrics(spans: [number, number][], extra: Partial<ResolvedLyrics> = {}, texts?: string[]): ResolvedLyrics {
@@ -58,11 +58,11 @@ describe('歌词区底部的「时刻」', () => {
     expect(resolveNotes(lines, [])).toBeUndefined()
   })
 
-  it('聚光灯按文字匹配到行号，找不到时为空', () => {
-    const lines = lyrics([[1000, 2000], [3000, 4000], [5000, 6000]], {}, ['副歌', '主歌', '副歌！']).lines
-    expect(resolveSpotlight(lines, { text: '副歌', occurrence: 1 })).toBe(2)
-    expect(resolveSpotlight(lines, { text: '主歌', occurrence: 0 })).toBe(1)
-    expect(resolveSpotlight(lines, { text: '不存在', occurrence: 0 })).toBeUndefined()
-    expect(resolveSpotlight(lines)).toBeUndefined()
+  it('聚光灯按文字匹配到每次出现的行号，找不到时为空', () => {
+    const lines = lyrics([[1000, 2000], [3000, 4000], [5000, 6000], [7000, 8000]], {}, ['副歌', '主歌', '副歌！', '尾声']).lines
+    expect(resolveSpotlights(lines, ['副歌'])).toEqual([0, 2])
+    expect(resolveSpotlights(lines, ['尾声', '主歌', '不存在'])).toEqual([1, 3])
+    expect(resolveSpotlights(lines, ['不存在'])).toBeUndefined()
+    expect(resolveSpotlights(lines)).toBeUndefined()
   })
 })

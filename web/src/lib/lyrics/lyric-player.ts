@@ -27,7 +27,7 @@ import { interludeDot } from './interlude'
 import { LyricDebris } from './lyric-debris'
 import { PACE } from './pace'
 import { Spring } from './spring'
-import { spotlightLevel } from './stage-effects'
+import { spotlightAt } from './stage-effects'
 import { buildTimeline, getTimelineState, getWordProgress } from './timeline'
 import { EMPTY_LYRICS } from './types'
 import { holdVibrato, vibratoWave } from './vibrato'
@@ -123,7 +123,7 @@ const INTERLUDE_HEIGHT_COMPACT_PX = 28
 // 紧凑模式下焦点条目的对齐位置与模糊系数：歌词区很矮，焦点放在中间附近，模糊减半以免远处的行完全糊掉
 const COMPACT_ALIGN_POSITION = 0.4
 const COMPACT_BLUR_FACTOR = 0.5
-// 聚光灯（点题句，见 stage-effects.ts 的 spotlightLevel）：这一句移到歌词区垂直中央、放大（不超出右侧，见 spotlightFit），
+// 聚光灯（点题句，可以有多句、每次出现都演出，见 stage-effects.ts 的 spotlightAt）：唱到的这一句移到歌词区垂直中央、放大（不超出右侧，见 spotlightFit），
 // 暖光由舞台层（MusicStageEffects）在身后打出；其余行向两侧让开、变淡（不透明度降到 SPOTLIGHT_OTHERS_ALPHA）、略微变虚。紧凑模式放大与让开都更小。
 // 点题句通常也带着强调短语，整行放大后字的辉光会连成一片显得发虚，因此聚光灯亮起时收敛这一句的字词特效：
 // 辉光降到 SPOTLIGHT_EMPHASIS_GLOW、字的放大幅度降到 SPOTLIGHT_EMPHASIS_SCALE（颜色、字体与字形不变）
@@ -238,7 +238,8 @@ export class LyricPlayer {
   private display: LyricPlayerDisplay = { showTranslation: true, showRomanization: true, footerText: '', effects: true }
   private state: TimelineState = { active: [], focus: 0, interlude: null }
   private activeLines = new Set<number>()
-  // 聚光灯：点题句所在条目（没有时为 -1）、当前强度与放大倍数上限（开始亮起时按文字宽度测量）
+  // 聚光灯：点题句的行号到条目的映射、此刻演出的条目（没有时为 -1）、当前强度与放大倍数上限（开始亮起时按文字宽度测量）
+  private spotViews = new Map<number, number>()
   private spotView = -1
   private spot = 0
   private spotScale: number | null = null
@@ -447,7 +448,13 @@ export class LyricPlayer {
       }
       return view
     })
-    this.spotView = this.views.findIndex(view => view.item.kind === 'line' && view.item.line === this.lyrics.spotlight)
+    const spotlights = new Set(this.lyrics.spotlights)
+    this.spotViews = new Map()
+    this.views.forEach((view, index) => {
+      if (view.item.kind === 'line' && spotlights.has(view.item.line))
+        this.spotViews.set(view.item.line, index)
+    })
+    this.spotView = -1
     this.container.querySelectorAll(':scope > .lyric-item').forEach(el => el.remove())
     this.container.append(...this.views.map(view => view.el))
     this.layoutDirty = true
@@ -575,9 +582,13 @@ export class LyricPlayer {
     if (this.teleport)
       this.debris.clear()
     // 聚光灯随特效开关；减少动态效果与手动滚动时不演出
-    this.spot = this.spotView >= 0 && this.display.effects && !this.reducedMotion && !this.manual ? spotlightLevel(this.lyrics, timeMs) : 0
-    if (this.spot === 0)
+    const spotlight = this.spotViews.size > 0 && this.display.effects && !this.reducedMotion && !this.manual ? spotlightAt(this.lyrics, timeMs) : null
+    const spotView = spotlight ? this.spotViews.get(spotlight.line) ?? -1 : -1
+    this.spot = spotView >= 0 && spotlight ? spotlight.level : 0
+    // 换到另一句（或熄灭）时重新测量放大倍数
+    if (spotView !== this.spotView)
       this.spotScale = null
+    this.spotView = spotView
     const animating = this.layout(dt, now, focusChanged)
     this.paint(timeMs)
     const debris = this.debris.step(playing ? dt : 0)

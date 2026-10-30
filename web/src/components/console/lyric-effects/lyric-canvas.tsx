@@ -47,7 +47,7 @@ export function LyricCanvas({
   const t = useTranslations('Console.lyric_effects')
   const { control, getValues, setValue } = useFormContext<AnnotationForm>()
   const lines = useWatch({ control, name: 'lines' })
-  const spotlight = useWatch({ control, name: 'spotlight' })
+  const spotlights = useWatch({ control, name: 'spotlights' })
   const [bubble, setBubble] = React.useState<Bubble | null>(null)
   // 上一次添加时用的样式，下次选中时沿用
   const lastStyle = React.useRef<PhraseStyle>(DEFAULT_STYLE)
@@ -124,7 +124,7 @@ export function LyricCanvas({
             line={line}
             form={lines[index]}
             active={index === activeLine}
-            spotlight={spotlight != null && line.indices.includes(spotlight)}
+            spotlight={spotlights.includes(line.text)}
             activePhrase={bubble?.mode === 'edit' && bubble.line === index ? bubble.phrase : null}
             onActivate={() => onActiveLineChange(index)}
             onPhraseClick={(phrase, rect) => {

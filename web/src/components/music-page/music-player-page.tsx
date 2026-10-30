@@ -22,7 +22,7 @@ import { MusicLyricStage } from './music-lyric-stage'
 import { MusicPageControls } from './music-page-controls'
 import { MusicPlaylistSheet } from './music-playlist-sheet'
 import { MusicStageEffects } from './music-stage-effects'
-import { useCoverAccent } from './use-cover-accent'
+import { useSongAccent } from './use-cover-accent'
 import { useMusicHotkeys } from './use-music-hotkeys'
 import { useMusicShareUrl } from './use-music-share-url'
 
@@ -103,8 +103,8 @@ export function MusicPlayerPage() {
   // 歌单获取失败时全局播放器会以示例曲目（id 为 0）兜底
   const failed = playlist.length > 0 && playlist.every(track => track.id === 0)
   const placeholder = !configured ? 'not_configured' : failed ? 'failed' : !currentTrack ? 'loading' : null
-  // 封面主色：作为歌词辉光与背景呼吸的默认颜色
-  const accent = useCoverAccent(placeholder ? undefined : currentTrack?.albumPic)
+  // 主题色（标注中模型选的颜色，没有时取封面主色）：作为歌词辉光与背景呼吸的默认颜色
+  const accent = useSongAccent(placeholder ? undefined : currentTrack?.albumPic)
 
   const goBack = () => {
     if (window.history.length > 1)

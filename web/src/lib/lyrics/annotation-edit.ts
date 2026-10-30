@@ -31,10 +31,14 @@ export interface AnnotationForm {
   font: LyricFont | ''
   pace: LyricPace
   intro: string
-  // 聚光灯那一句在完整歌词中的行号，没有时为 null
-  spotlight: number | null
+  // 主题色 #rrggbb，为空时用封面主色
+  accent: string
+  // 聚光灯的句子（去重后的行文字，最多 MAX_SPOTLIGHTS 句），每次出现都放大
+  spotlights: string[]
   lines: LineForm[]
 }
+
+export const MAX_SPOTLIGHTS = 3
 
 /** 一条去重后的行：文本与它在完整歌词中出现的行号 */
 export interface UniqueLine {
@@ -129,20 +133,16 @@ function toPhraseForm(phrase: LyricAnnotationPhrase): PhraseForm {
   }
 }
 
-/** 后端的标注转为编辑表单：每条去重后的行一项（没有标注的行为空），聚光灯换算成完整歌词中的行号 */
+/** 后端的标注转为编辑表单：每条去重后的行一项（没有标注的行为空），聚光灯只保留歌词中存在的句子 */
 export function toAnnotationForm(lines: string[], annotation: LyricAnnotations | null): AnnotationForm {
   const byText = new Map((annotation?.lines ?? []).map(line => [line.text, line]))
   const unique = uniqueLyricLines(lines)
-  let spotlight: number | null = null
-  if (annotation?.spotlight) {
-    const indices = unique.find(line => line.text === annotation.spotlight?.text)?.indices ?? []
-    spotlight = indices[annotation.spotlight.occurrence] ?? null
-  }
   return {
     font: annotation?.font ?? '',
     pace: annotation?.pace ?? 'medium',
     intro: annotation?.intro ?? '',
-    spotlight,
+    accent: annotation?.accent ?? '',
+    spotlights: (annotation?.spotlights ?? []).filter(text => lines.includes(text)).slice(0, MAX_SPOTLIGHTS),
     lines: unique.map(({ text }) => {
       const line = byText.get(text)
       if (!line)
@@ -162,11 +162,6 @@ export function toAnnotationForm(lines: string[], annotation: LyricAnnotations |
 
 /** 编辑表单转为保存请求：只保留有标注的行，去掉空字段 */
 export function fromAnnotationForm(lines: string[], form: AnnotationForm) {
-  let spotlight: LyricAnnotations['spotlight'] | null = null
-  if (form.spotlight != null && lines[form.spotlight] != null) {
-    const text = lines[form.spotlight]
-    spotlight = { text, occurrence: lines.slice(0, form.spotlight).filter(line => line === text).length }
-  }
   const annotated: LyricAnnotationLine[] = form.lines
     .filter(line => line.mood || line.chorus || line.chorusStart || line.scene || line.phrases.length > 0)
     .map(line => ({
@@ -188,7 +183,8 @@ export function fromAnnotationForm(lines: string[], form: AnnotationForm) {
     font: form.font || undefined,
     pace: form.pace === 'medium' ? undefined : form.pace,
     intro: form.intro.trim(),
-    spotlight,
+    accent: form.accent || undefined,
+    spotlights: [...new Set(form.spotlights)].filter(text => lines.includes(text)).slice(0, MAX_SPOTLIGHTS),
     lines: annotated,
   }
 }

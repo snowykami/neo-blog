@@ -6,10 +6,12 @@ import { Trash2Icon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useFormContext, useWatch } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
-import { FormControl, FormDescription, FormField, FormItem, FormLabel } from '@/components/ui/form'
+import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { MAX_SPOTLIGHTS } from '@/lib/lyrics/annotation-edit'
 import { LYRIC_COLOR_NAMES, LYRIC_EFFECT_CATEGORIES, LYRIC_FONTS, LYRIC_INTRO_MAX, LYRIC_MOODS, LYRIC_SCENES, lyricEffectCategory } from '@/lib/lyrics/annotation-options'
 import { LYRIC_COLORS, MOOD_GLOW } from '@/lib/lyrics/colors'
 import { LYRIC_PACES } from '@/lib/lyrics/pace'
@@ -32,12 +34,15 @@ function Swatch({ color }: { color: string }) {
   return <span aria-hidden className="size-3 shrink-0 rounded-full border" style={{ background: color }} />
 }
 
-/** 全曲设置：字体、特效节奏、前奏导语与当前的聚光灯 */
-export function SongSettingsPanel({ lines }: { lines: string[] }) {
+// 主题色：#rrggbb（与后端校验一致）
+const ACCENT_PATTERN = /^#[0-9a-f]{6}$/i
+
+/** 全曲设置：字体、特效节奏、前奏导语、主题色与聚光灯的句子 */
+export function SongSettingsPanel({ unique }: { unique: UniqueLine[] }) {
   const t = useTranslations('Console.lyric_effects')
   const optionT = useTranslations('LyricOptions')
-  const { control, setValue } = useFormContext<AnnotationForm>()
-  const spotlight = useWatch({ control, name: 'spotlight' })
+  const { control, setValue, getValues } = useFormContext<AnnotationForm>()
+  const spotlights = useWatch({ control, name: 'spotlights' })
   const intro = useWatch({ control, name: 'intro' })
   return (
     <Panel title={t('song_settings')}>
@@ -91,18 +96,56 @@ export function SongSettingsPanel({ lines }: { lines: string[] }) {
           </FormItem>
         )}
       />
-      <div className="grid gap-2">
-        <span className="text-sm font-medium">{t('spotlight')}</span>
-        {spotlight != null && lines[spotlight] != null
-          ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="min-w-0 flex-1 truncate">{t('spotlight_current', { line: spotlight + 1, text: lines[spotlight] })}</span>
-                <Button type="button" size="icon-sm" variant="ghost" aria-label={t('spotlight_clear')} title={t('spotlight_clear')} onClick={() => setValue('spotlight', null, { shouldDirty: true })}>
+      <FormField
+        control={control}
+        name="accent"
+        rules={{ validate: value => !value || ACCENT_PATTERN.test(value) || t('accent_invalid') }}
+        render={({ field }) => (
+          <FormItem className="grid gap-2">
+            <FormLabel>{t('accent')}</FormLabel>
+            <div className="flex gap-3">
+              <Input
+                type="color"
+                aria-label={t('accent_pick')}
+                className="w-12 shrink-0 cursor-pointer p-1"
+                value={ACCENT_PATTERN.test(field.value) ? field.value : '#ffffff'}
+                onChange={event => field.onChange(event.target.value)}
+              />
+              <FormControl>
+                <Input {...field} placeholder={t('accent_default')} maxLength={7} className="font-mono" />
+              </FormControl>
+              {field.value && (
+                <Button type="button" size="icon" variant="ghost" aria-label={t('accent_clear')} title={t('accent_clear')} onClick={() => field.onChange('')}>
                   <XIcon className="size-4" />
                 </Button>
-              </div>
-            )
-          : <p className="text-sm text-muted-foreground">{t('spotlight_empty')}</p>}
+              )}
+            </div>
+            <FormDescription>{t('accent_hint')}</FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <div className="grid gap-2">
+        <span className="text-sm font-medium">{t('spotlights', { count: spotlights.length, max: MAX_SPOTLIGHTS })}</span>
+        {spotlights.length === 0 && <p className="text-sm text-muted-foreground">{t('spotlight_empty')}</p>}
+        {spotlights.map((text) => {
+          const line = unique.find(item => item.text === text)
+          return (
+            <div key={text} className="flex items-center gap-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">{t('spotlight_item', { line: (line?.indices[0] ?? 0) + 1, count: line?.indices.length ?? 1, text })}</span>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label={t('spotlight_clear')}
+                title={t('spotlight_clear')}
+                onClick={() => setValue('spotlights', getValues('spotlights').filter(item => item !== text), { shouldDirty: true })}
+              >
+                <XIcon className="size-4" />
+              </Button>
+            </div>
+          )
+        })}
       </div>
     </Panel>
   )
@@ -114,60 +157,57 @@ export function LineSettingsPanel({ index, line, sprites = [] }: { index: number
   const optionT = useTranslations('LyricOptions')
   const { control, setValue, getValues } = useFormContext<AnnotationForm>()
   const form = useWatch({ control, name: `lines.${index}` })
-  const spotlight = useWatch({ control, name: 'spotlight' })
+  const spotlights = useWatch({ control, name: 'spotlights' })
   if (!line || !form)
     return <Panel title={t('line_settings')}><p className="text-sm text-muted-foreground">{t('line_hint')}</p></Panel>
 
-  const spotlightValue = spotlight != null && line.indices.includes(spotlight) ? String(spotlight) : NONE
+  const spotlighted = spotlights.includes(line.text)
+  const spotlightFull = !spotlighted && spotlights.length >= MAX_SPOTLIGHTS
   return (
     <Panel title={t('line_title', { index: line.indices[0] + 1 })}>
       <div className="grid gap-1">
         <p className="text-sm break-words">{line.text}</p>
         {line.indices.length > 1 && <p className="text-xs text-muted-foreground">{t('line_repeat', { count: line.indices.length })}</p>}
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField
-          control={control}
-          name={`lines.${index}.mood`}
-          render={({ field }) => (
-            <FormItem className="grid gap-2">
-              <FormLabel>{t('mood')}</FormLabel>
-              <Select value={toSelect(field.value)} onValueChange={value => field.onChange(fromSelect(value))}>
-                <FormControl>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value={NONE}>{t('none')}</SelectItem>
-                  {LYRIC_MOODS.map(mood => (
-                    <SelectItem key={mood} value={mood}>
-                      <Swatch color={MOOD_GLOW[mood]} />
-                      {optionT(`moods.${mood}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-        <div className="grid gap-2">
-          <span className="text-sm font-medium">{t('spotlight')}</span>
-          <Select
-            value={spotlightValue}
-            onValueChange={value => setValue('spotlight', value === NONE ? (spotlightValue === NONE ? spotlight : null) : Number(value), { shouldDirty: true })}
-          >
-            <SelectTrigger className="w-full" aria-label={t('spotlight')}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>{t('spotlight_none')}</SelectItem>
-              {line.indices.map((lineIndex, occurrence) => (
-                <SelectItem key={lineIndex} value={String(lineIndex)}>
-                  {t('spotlight_occurrence', { occurrence: occurrence + 1, line: lineIndex + 1 })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <FormField
+        control={control}
+        name={`lines.${index}.mood`}
+        render={({ field }) => (
+          <FormItem className="grid gap-2">
+            <FormLabel>{t('mood')}</FormLabel>
+            <Select value={toSelect(field.value)} onValueChange={value => field.onChange(fromSelect(value))}>
+              <FormControl>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value={NONE}>{t('none')}</SelectItem>
+                {LYRIC_MOODS.map(mood => (
+                  <SelectItem key={mood} value={mood}>
+                    <Swatch color={MOOD_GLOW[mood]} />
+                    {optionT(`moods.${mood}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormItem>
+        )}
+      />
       <div className="grid gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="grid gap-1">
+            <span className="text-sm font-medium">{t('spotlight')}</span>
+            <span className="text-sm text-muted-foreground">{spotlightFull ? t('spotlight_full', { max: MAX_SPOTLIGHTS }) : t('spotlight_hint')}</span>
+          </div>
+          <Switch
+            aria-label={t('spotlight')}
+            checked={spotlighted}
+            disabled={spotlightFull}
+            onCheckedChange={(checked) => {
+              const current = getValues('spotlights').filter(text => text !== line.text)
+              setValue('spotlights', checked ? [...current, line.text] : current, { shouldDirty: true })
+            }}
+          />
+        </div>
         <FormField
           control={control}
           name={`lines.${index}.chorus`}

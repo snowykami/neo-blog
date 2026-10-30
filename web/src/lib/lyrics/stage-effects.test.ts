@@ -1,6 +1,6 @@
 import type { LyricLine, ResolvedLyrics } from './types'
 import { describe, expect, it } from 'vitest'
-import { getStageSignals, SCENE_MAX_LINES, spotlightLevel } from './stage-effects'
+import { getStageSignals, SCENE_MAX_LINES, spotlightAt, spotlightLevel } from './stage-effects'
 
 /** 每行 1 秒、间隔 1 秒的歌词：第 i 行在 [2i, 2i+1) 秒演唱 */
 function lyricsOf(lines: Partial<LyricLine>[]): ResolvedLyrics {
@@ -63,7 +63,7 @@ describe('播放器页全屏特效信号', () => {
 
   it('聚光灯：点题句开唱前 0.2 秒开始亮起，0.5 秒内亮满，唱完后 0.6 秒内回落', () => {
     // 第 2 行在 [4, 5) 秒演唱
-    const lyrics = { ...lyricsOf([{}, {}, {}, {}]), spotlight: 2 }
+    const lyrics = { ...lyricsOf([{}, {}, {}, {}]), spotlights: [2] }
     expect(spotlightLevel(lyrics, 3700)).toBe(0)
     expect(spotlightLevel(lyrics, 4050)).toBeCloseTo(0.5)
     expect(spotlightLevel(lyrics, 4500)).toBe(1)
@@ -71,6 +71,17 @@ describe('播放器页全屏特效信号', () => {
     expect(spotlightLevel(lyrics, 5600)).toBe(0)
     expect(getStageSignals(lyrics, 4500).spotlight).toBe(1)
     expect(spotlightLevel(lyricsOf([{}, {}]), 500)).toBe(0)
+  })
+
+  it('聚光灯：多句时取此刻最亮的一次，相邻两句交接时不熄灭', () => {
+    // 第 1、2 行紧挨着，在 [2, 3)、[3, 4) 秒演唱
+    const lyrics = { ...lyricsOf([{}, {}, { start: 3000, end: 4000 }]), spotlights: [1, 2] }
+    expect(spotlightAt(lyrics, 2500)).toEqual({ line: 1, level: 1 })
+    // 交接：前一句刚开始回落时仍以它为准，后一句亮满后换到后一句
+    expect(spotlightAt(lyrics, 3050)?.line).toBe(1)
+    expect(spotlightAt(lyrics, 3300)).toEqual({ line: 2, level: 1 })
+    expect(spotlightLevel(lyrics, 3150)).toBeGreaterThan(0.75)
+    expect(spotlightAt(lyrics, 5000)).toBeNull()
   })
 
   it('自定义粒子：场景带上这首歌的粒子；粒子不存在时当作没有场景', () => {

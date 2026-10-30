@@ -157,14 +157,14 @@ func TestLyricAnnotationPlanRetry(t *testing.T) {
 }
 
 func TestLyricAnnotationLinesPromptSpotlight(t *testing.T) {
-	lines := []string{"主歌", "副歌", "点题句", "尾声"}
+	lines := []string{"主歌", "副歌", "点题句", "尾声", "点题句"}
 	var plan lyricAnnotationPlan
-	if err := json.Unmarshal([]byte(`{"spotlight":2,"lines":[{"i":1,"chorus_start":true},{"i":2,"mood":"sad"}]}`), &plan); err != nil {
+	if err := json.Unmarshal([]byte(`{"spotlights":[2],"lines":[{"i":1,"chorus_start":true},{"i":2,"mood":"sad"}]}`), &plan); err != nil {
 		t.Fatal(err)
 	}
-	// 聚光灯那一行与其他标注合并在同一行
-	prompt := buildLyricAnnotationLinesPrompt(lyricAnnotationInfo{}, lines, plan, 0, 3, 1)
-	if !strings.Contains(prompt, "line 2: spotlight, mood sad\n") {
+	// 聚光灯那一行与其他标注合并在同一行；同一句的重复出现也标上
+	prompt := buildLyricAnnotationLinesPrompt(lyricAnnotationInfo{}, lines, plan, 0, 4, 1)
+	if !strings.Contains(prompt, "line 2: spotlight, mood sad\n") || !strings.Contains(prompt, "line 4: spotlight\n") {
 		t.Fatalf("prompt missing spotlight mark:\n%s", prompt)
 	}
 	// 没有其他标注时单独列出；不在本段时不标

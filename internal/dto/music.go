@@ -101,9 +101,11 @@ type MusicLyricAnnotationsDto struct {
 	Outro *MusicLyricAnnotationComment `json:"outro,omitempty"`
 	// 歌词关键节点的「时刻」：在某句开唱时显示的热评或模型写的旁白（最多 5 条）
 	Moments []MusicLyricAnnotationMoment `json:"moments,omitempty"`
-	// 聚光灯：全曲最点题的一句（歌词 text 的第 occurrence 次出现），唱到时这一句移到中央放大、身后亮起暖光，可为空
-	Spotlight *MusicLyricAnnotationSpotlight `json:"spotlight,omitempty"`
-	Lines     []MusicLyricAnnotationLine     `json:"lines"`
+	// 聚光灯：全曲最点题的 1～3 句（歌词原文，各不相同），每次唱到这些句子时移到中央放大、身后亮起暖光，可为空
+	Spotlights []string `json:"spotlights,omitempty"`
+	// 这首歌的主题色（#rrggbb，由模型按歌曲自由选择）：歌词辉光与背景呼吸的默认颜色，为空时用封面主色
+	Accent string                     `json:"accent,omitempty"`
+	Lines  []MusicLyricAnnotationLine `json:"lines"`
 	// 这首歌的自定义粒子（最多 2 种）：行的 scene 为 custom:<name> 时使用，见 MusicLyricSprite
 	Sprites []MusicLyricSprite `json:"sprites,omitempty"`
 	// 管理员手动编辑过（不再因过期自动重新生成；播放器里手动重新生成前提示会覆盖编辑）
@@ -139,12 +141,6 @@ type MusicLyricSprite struct {
 type MusicLyricSpritePath struct {
 	D     string `json:"d"`
 	Paint string `json:"paint"`
-}
-
-// MusicLyricAnnotationSpotlight 聚光灯的那一句：歌词 text 的第 occurrence 次出现（从 0 开始，副歌常有重复的行）
-type MusicLyricAnnotationSpotlight struct {
-	Text       string `json:"text"`
-	Occurrence int    `json:"occurrence"`
 }
 
 // MusicLyricAnnotationComment 一条网易云热评：内容与点赞数
@@ -255,13 +251,14 @@ type MusicLyricOffsetReq struct {
 	OffsetMs int    `json:"offset_ms"`
 }
 
-// MusicLyricAnnotationsEditReq 管理员手动编辑的歌词标注：只含可编辑的部分（全曲字体、节奏、导语、聚光灯与各行），时刻与尾奏热评保持原样
+// MusicLyricAnnotationsEditReq 管理员手动编辑的歌词标注：只含可编辑的部分（全曲字体、节奏、导语、主题色、聚光灯与各行），时刻与尾奏热评保持原样
 type MusicLyricAnnotationsEditReq struct {
-	Font      string                         `json:"font"`
-	Pace      string                         `json:"pace"`
-	Intro     string                         `json:"intro"`
-	Spotlight *MusicLyricAnnotationSpotlight `json:"spotlight"`
-	Lines     []MusicLyricAnnotationLine     `json:"lines"`
+	Font       string                     `json:"font"`
+	Pace       string                     `json:"pace"`
+	Intro      string                     `json:"intro"`
+	Accent     string                     `json:"accent"`
+	Spotlights []string                   `json:"spotlights"`
+	Lines      []MusicLyricAnnotationLine `json:"lines"`
 }
 
 // MusicLyricAnnotationEditorDto 后台编辑一首歌的歌词标注所需的数据：lines 为送去标注的完整歌词（按顺序、含重复的行），

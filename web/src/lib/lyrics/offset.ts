@@ -8,13 +8,14 @@ import type { ResolvedLyrics } from './types'
 export function shiftLyrics(lyrics: ResolvedLyrics, offsetMs: number): ResolvedLyrics {
   if (!offsetMs || lyrics.lines.length === 0)
     return lyrics
+  const shift = <T extends { start: number, end: number }>(item: T): T => ({ ...item, start: item.start + offsetMs, end: item.end + offsetMs })
   return {
     ...lyrics,
     lines: lyrics.lines.map(line => ({
-      ...line,
-      start: line.start + offsetMs,
-      end: line.end + offsetMs,
-      words: line.words.map(word => ({ ...word, start: word.start + offsetMs, end: word.end + offsetMs })),
+      ...shift(line),
+      words: line.words.map(shift),
+      // 逐字音译有自己的时间（随原文音节擦除），要一起平移，否则偏移后音译与原文错开
+      ...(line.romanizationWords && { romanizationWords: line.romanizationWords.map(shift) }),
     })),
   }
 }

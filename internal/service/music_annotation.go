@@ -51,6 +51,8 @@ const (
 	lyricAnnotationMaxPhraseFonts = 10
 	// 消散、破碎、流光、心跳每种的上限
 	lyricAnnotationMaxSpecialEffect = 3
+	// 聚光灯句子的上限（不同的文字；同一句的每次出现都会放大）
+	lyricAnnotationMaxSpotlights = 3
 	// 标注的温度：调高让演出设计更大胆
 	lyricAnnotationTemperature = 0.9
 	// 思考强度（reasoning_effort）：思考型模型默认的思考内容是正式输出的 3～9 倍，是生成慢的主要原因
@@ -60,6 +62,8 @@ const (
 
 var (
 	lyricAnnotationMoods = map[string]bool{"calm": true, "bright": true, "sad": true, "intense": true}
+	// 主题色：#rrggbb
+	lyricAccentPattern = regexp.MustCompile(`^#[0-9a-f]{6}$`)
 	// 消散、破碎、流光、心跳全曲每种最多 lyricAnnotationMaxSpecialEffect 处，超出的换成相近的常规特效（破碎换成同样有冲击感的 shake）
 	lyricAnnotationSpecialEffects = map[string]string{"dissolve": "glow", "shatter": "shake", "shimmer": "glow", "heartbeat": "swell"}
 	lyricAnnotationEffects        = map[string]bool{"swell": true, "glow": true, "wave": true, "shake": true, "focus": true, "dissolve": true, "shatter": true, "shimmer": true, "heartbeat": true}
@@ -402,7 +406,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 
 	if found {
 		data := parseLyricAnnotationData(record.Data)
-		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlight: data.Spotlight, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
+		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.Spotlights, Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
 		// 旧版颜色名映射到新色板
 		for i := range result.Lines {
 			result.Lines[i].SceneColor = normalizeLyricColor(result.Lines[i].SceneColor)
@@ -504,14 +508,19 @@ func (a *lyricAnnotationService) run(key string, id int64, hash string, lines []
 // 情绪、特效、颜色与场景只能取允许的值（旧版颜色名映射到新色板，未知颜色与场景丢弃，场景全曲最多 4 处），每行最多 2 个短语，全曲短语总数有上限；同一文本的行合并为一条（前端按文本匹配）
 // lyricAnnotationData 保存到数据库的标注结果（旧版记录只有 lines 数组，读取时兼容）
 type lyricAnnotationData struct {
-	Font      string                             `json:"font,omitempty"`
-	Pace      string                             `json:"pace,omitempty"`
-	Intro     string                             `json:"intro,omitempty"`
-	Outro     *dto.MusicLyricAnnotationComment   `json:"outro,omitempty"`
-	Moments   []dto.MusicLyricAnnotationMoment   `json:"moments,omitempty"`
-	Spotlight *dto.MusicLyricAnnotationSpotlight `json:"spotlight,omitempty"`
-	Lines     []dto.MusicLyricAnnotationLine     `json:"lines"`
-	Sprites   []dto.MusicLyricSprite             `json:"sprites,omitempty"`
+	Font       string                           `json:"font,omitempty"`
+	Pace       string                           `json:"pace,omitempty"`
+	Intro      string                           `json:"intro,omitempty"`
+	Outro      *dto.MusicLyricAnnotationComment `json:"outro,omitempty"`
+	Moments    []dto.MusicLyricAnnotationMoment `json:"moments,omitempty"`
+	Spotlights []string                         `json:"spotlights,omitempty"`
+	Accent     string                           `json:"accent,omitempty"`
+	Lines      []dto.MusicLyricAnnotationLine   `json:"lines"`
+	Sprites    []dto.MusicLyricSprite           `json:"sprites,omitempty"`
+	// 旧版只有一句聚光灯（歌词 text 的第 occurrence 次出现），读取时并入 Spotlights
+	LegacySpotlight *struct {
+		Text string `json:"text"`
+	} `json:"spotlight,omitempty"`
 }
 
 // parseLyricAnnotationData 读取保存的标注：新版为对象，旧版为 lines 数组
@@ -527,7 +536,37 @@ func parseLyricAnnotationData(data string) lyricAnnotationData {
 	if err != nil || result.Lines == nil {
 		result.Lines = []dto.MusicLyricAnnotationLine{}
 	}
+	if legacy := result.LegacySpotlight; legacy != nil {
+		if legacy.Text != "" && len(result.Spotlights) == 0 {
+			result.Spotlights = []string{legacy.Text}
+		}
+		result.LegacySpotlight = nil
+	}
 	return result
+}
+
+// lyricSpotlightTexts 聚光灯的句子：按行号取原文，去掉重复的文字（同一句的每次出现都会放大，只需记一次），最多 lyricAnnotationMaxSpotlights 句
+func lyricSpotlightTexts(lines []string, indices []int) []string {
+	var texts []string
+	for _, i := range indices {
+		if len(texts) >= lyricAnnotationMaxSpotlights {
+			break
+		}
+		if i < 0 || i >= len(lines) || strings.TrimSpace(lines[i]) == "" || slices.Contains(texts, lines[i]) {
+			continue
+		}
+		texts = append(texts, lines[i])
+	}
+	return texts
+}
+
+// sanitizeLyricAccent 主题色只接受 #rrggbb（模型可自由选色），统一为小写；无效时为空（前端回退到封面主色）
+func sanitizeLyricAccent(accent string) string {
+	accent = strings.ToLower(strings.TrimSpace(accent))
+	if !lyricAccentPattern.MatchString(accent) {
+		return ""
+	}
+	return accent
 }
 
 func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment, raw string) (lyricAnnotationData, error) {
@@ -539,7 +578,8 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	var parsed struct {
 		Font         string               `json:"font"`
 		Pace         string               `json:"pace"`
-		Spotlight    *int                 `json:"spotlight"` // 聚光灯那一句的行号（没有时为 null）
+		Spotlights   []int                `json:"spotlights"` // 聚光灯句子的行号（1～3 句，不同的文字）
+		Accent       string               `json:"accent"`     // 主题色 #rrggbb
 		Sprites      []lyricSpriteRequest `json:"sprites"`
 		Intro        string               `json:"intro"`
 		OutroComment int                  `json:"outro_comment"`
@@ -686,15 +726,8 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 		usedComments[n] = true
 	}
 	data.Moments = sanitizeLyricMoments(lines, comments, parsed.Moments, usedComments)
-	if i := parsed.Spotlight; i != nil && *i >= 0 && *i < len(lines) {
-		data.Spotlight = &dto.MusicLyricAnnotationSpotlight{Text: lines[*i]}
-		// 这一行的文字在第几次出现（同 moments）
-		for j := 0; j < *i; j++ {
-			if lines[j] == lines[*i] {
-				data.Spotlight.Occurrence++
-			}
-		}
-	}
+	data.Spotlights = lyricSpotlightTexts(lines, parsed.Spotlights)
+	data.Accent = sanitizeLyricAccent(parsed.Accent)
 	return data, nil
 }
 

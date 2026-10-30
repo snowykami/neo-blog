@@ -28,25 +28,28 @@ describe('歌词特效编辑器', () => {
     expect(addPhrase(line, phrases, 5, 7, { ...swell, effect: 'shatter' }).map(p => [p.text, p.effect])).toEqual([['樱花', 'swell'], ['季节', 'shatter']])
   })
 
-  it('表单与后端格式互转：聚光灯换算成行号，空字段与没有标注的行不保存', () => {
+  it('表单与后端格式互转：聚光灯只保留歌词中存在的句子，空字段与没有标注的行不保存', () => {
     const lines = ['樱花', '再见', '樱花']
     const form = toAnnotationForm(lines, {
       font: 'kai',
       pace: 'slow',
-      spotlight: { text: '樱花', occurrence: 1 },
+      accent: '#ffb37a',
+      spotlights: ['樱花', '不存在'],
       lines: [{ text: '樱花', chorusStart: true, phrases: [{ text: '樱花', effect: 'glow', color: 'cherry-blossom' }] }],
     })
-    expect(form.spotlight).toBe(2)
+    expect(form.spotlights).toEqual(['樱花'])
+    expect(form.accent).toBe('#ffb37a')
     expect(form.lines).toHaveLength(2)
     expect(form.lines[0]).toMatchObject({ chorus: true, chorusStart: true, phrases: [{ text: '樱花', effect: 'glow', color: 'cherry-blossom', font: '', styles: [], pace: '' }] })
     expect(fromAnnotationForm(lines, { ...form, pace: 'medium', intro: '  春天  ' })).toEqual({
       font: 'kai',
       pace: undefined,
       intro: '春天',
-      spotlight: { text: '樱花', occurrence: 1 },
+      accent: '#ffb37a',
+      spotlights: ['樱花'],
       lines: [{ text: '樱花', chorus: true, chorusStart: true, phrases: [{ text: '樱花', effect: 'glow', color: 'cherry-blossom' }] }],
     })
-    expect(fromAnnotationForm(lines, { ...form, spotlight: null }).spotlight).toBeNull()
+    expect(fromAnnotationForm(lines, { ...form, accent: '', spotlights: ['再见', '樱花', '再见'] })).toMatchObject({ accent: undefined, spotlights: ['再见', '樱花'] })
   })
 })
 
@@ -55,12 +58,21 @@ describe('歌词整体偏移', () => {
     source: 'ncm-yrc',
     wordTimed: true,
     instrumental: false,
-    lines: [{ words: [{ text: '你', start: 1000, end: 1400 }], start: 900, end: 1400, isDuet: false, isBackground: false }],
+    lines: [{
+      words: [{ text: '私', start: 1000, end: 1400 }],
+      start: 900,
+      end: 1400,
+      romanizationWords: [{ text: 'wa', start: 1000, end: 1200, word: 0 }, { text: 'ta', start: 1200, end: 1400, word: 0 }],
+      isDuet: false,
+      isBackground: false,
+    }],
   }
 
-  it('平移行与词的时间；为 0 时原样返回', () => {
+  it('平移行、词与逐字音译的时间；为 0 时原样返回', () => {
     const shifted = shiftLyrics(lyrics, 300)
     expect(shifted.lines[0]).toMatchObject({ start: 1200, end: 1700, words: [{ start: 1300, end: 1700 }] })
+    // 逐字音译有自己的时间，不一起平移的话偏移后音译与原文错开
+    expect(shifted.lines[0].romanizationWords).toEqual([{ text: 'wa', start: 1300, end: 1500, word: 0 }, { text: 'ta', start: 1500, end: 1700, word: 0 }])
     expect(shiftLyrics(lyrics, 0)).toBe(lyrics)
   })
 

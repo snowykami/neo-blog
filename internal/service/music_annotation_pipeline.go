@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -41,9 +42,9 @@ type lyricAnnotationPlan struct {
 	Direction string `json:"direction"`
 	Font      string `json:"font"`
 	Pace      string `json:"pace"`
-	// 聚光灯那一句的行号：逐段标注时在这一行标上 spotlight，让模型少给它叠特效
-	Spotlight *int `json:"spotlight"`
-	Imagery   []struct {
+	// 聚光灯句子的行号：逐段标注时在这些句子（含重复出现的行）上标 spotlight，让模型少给它们叠特效
+	Spotlights []int `json:"spotlights"`
+	Imagery    []struct {
 		Text   string `json:"text"`
 		Effect string `json:"effect"`
 		Color  string `json:"color"`
@@ -299,19 +300,18 @@ func buildLyricAnnotationLinesPrompt(info lyricAnnotationInfo, lines []string, p
 		}
 	}
 	var marks []string
-	spotlight := -1
-	if plan.Spotlight != nil {
-		spotlight = *plan.Spotlight
-	}
-	spotlightMarked := false
+	// 聚光灯按文字生效：本段中与聚光灯句子文字相同的行都标上
+	spotlights := lyricSpotlightTexts(lines, plan.Spotlights)
+	isSpotlight := func(i int) bool { return i >= 0 && i < len(lines) && slices.Contains(spotlights, lines[i]) }
+	spotlightMarked := map[int]bool{}
 	for _, line := range plan.Lines {
 		if line.I < from || line.I > to {
 			continue
 		}
 		var parts []string
-		if line.I == spotlight {
+		if isSpotlight(line.I) {
 			parts = append(parts, text.Spotlight)
-			spotlightMarked = true
+			spotlightMarked[line.I] = true
 		}
 		if line.ChorusStart {
 			parts = append(parts, text.ChorusStart)
@@ -325,9 +325,11 @@ func buildLyricAnnotationLinesPrompt(info lyricAnnotationInfo, lines []string, p
 			marks = append(marks, fmt.Sprintf(text.Mark, line.I, strings.Join(parts, ", ")))
 		}
 	}
-	// 聚光灯那一行没有其他标注时单独列出
-	if !spotlightMarked && spotlight >= from && spotlight <= to {
-		marks = append(marks, fmt.Sprintf(text.Mark, spotlight, text.Spotlight))
+	// 聚光灯的行没有其他标注时单独列出
+	for i := from; i <= to; i++ {
+		if isSpotlight(i) && !spotlightMarked[i] {
+			marks = append(marks, fmt.Sprintf(text.Mark, i, text.Spotlight))
+		}
 	}
 	if len(marks) > 0 {
 		b.WriteString(text.Marks + strings.Join(marks, ""))

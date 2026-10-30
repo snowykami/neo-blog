@@ -65,9 +65,14 @@
   display: block;
 }
 
-/* 逐字擦除的词：遮罩与上浮需要 inline-block */
+/*
+ * 逐字擦除的词：遮罩与上浮需要 inline-block。
+ * 遮罩只覆盖词自己的盒子，上下留出内边距（用负外边距抵消，不影响排版），未唱到的词里 g、y 的下伸部分与花体字不被裁掉
+ */
 .lyric-word {
   display: inline-block;
+  padding-block: 0.25em;
+  margin-block: -0.25em;
   white-space: pre;
 }
 

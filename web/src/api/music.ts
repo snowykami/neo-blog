@@ -112,7 +112,8 @@ export interface MusicLyricAnnotations {
   intro?: LyricAnnotations['intro']
   outro?: LyricAnnotations['outro']
   moments?: LyricAnnotations['moments']
-  spotlight?: LyricAnnotations['spotlight']
+  spotlights?: LyricAnnotations['spotlights']
+  accent?: LyricAnnotations['accent']
   lines: LyricAnnotations['lines']
   sprites?: LyricAnnotations['sprites']
   edited?: boolean
@@ -183,12 +184,13 @@ export interface MusicLyricAnnotationEditor {
   generating: boolean
 }
 
-// 手动编辑可改的部分：全曲字体、节奏、导语、聚光灯与各行（时刻与尾奏热评保持原样）
+// 手动编辑可改的部分：全曲字体、节奏、导语、主题色、聚光灯与各行（时刻与尾奏热评保持原样）
 export interface MusicLyricAnnotationsEdit {
   font?: LyricAnnotations['font']
   pace?: LyricAnnotations['pace']
   intro?: string
-  spotlight?: LyricAnnotations['spotlight'] | null
+  accent?: string
+  spotlights: string[]
   lines: LyricAnnotations['lines']
 }
 
