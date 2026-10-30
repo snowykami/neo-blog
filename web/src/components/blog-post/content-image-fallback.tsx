@@ -37,10 +37,14 @@ export function ContentImageFallback({ containerId }: { containerId: string }) {
       const align = img.getAttribute('data-align')
       if (align)
         holder.dataset.align = align
+      // 宽度预设（百分比，见 image-width.ts）由样式按 data-width 控制
+      const widthPreset = img.getAttribute('data-width')
+      if (widthPreset)
+        holder.dataset.width = widthPreset
       // 保留原图尺寸，避免版面跳动
       const width = Number.parseInt(img.getAttribute('width') ?? '', 10)
       const height = Number.parseInt(img.getAttribute('height') ?? '', 10)
-      if (width > 0)
+      if (width > 0 && !widthPreset)
         holder.style.width = `${width}px`
       if (width > 0 && height > 0)
         holder.style.aspectRatio = `${width} / ${height}`

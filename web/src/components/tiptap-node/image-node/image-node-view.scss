@@ -28,6 +28,13 @@
     display: flex;
   }
 
+  // 宽度预设：与前台一致，窄屏一律满宽（容器宽度由行内样式按预设写入）
+  @media (max-width: 639px) {
+    .tiptap-image[data-width-preset] .tiptap-image-container {
+      width: 100% !important;
+    }
+  }
+
   .tiptap-image-content {
     align-items: center;
     max-width: 100%;

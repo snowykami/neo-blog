@@ -18,6 +18,7 @@ import {
   ExternalLinkIcon,
   LinkIcon,
   MessageSquareTextIcon,
+  MoveHorizontalIcon,
   PilcrowIcon,
   RemoveFormattingIcon,
   Repeat2Icon,
@@ -35,6 +36,8 @@ import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { toast } from 'sonner'
 import { AssetPicker } from '@/components/common/asset-picker'
+import { getImageWidthEntries } from '@/components/tiptap-node/image-node/image-node-toolbar'
+import { imageWidthAttrs, parseImageWidthPreset } from '@/components/tiptap-node/image-node/image-width'
 import { downloadSelectedImage } from '@/components/tiptap-ui/image-download-button/use-image-download'
 import { EDITOR_FLOATING_ATTR } from '@/components/tiptap-ui/link-popover/link-popover'
 import {
@@ -378,6 +381,13 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
             active: align === id,
             onSelect: () => selectNode(pos).updateAttributes('image', { 'data-align': id }).run(),
           })),
+        },
+        {
+          type: 'sub',
+          key: 'image-width',
+          icon: MoveHorizontalIcon,
+          label: t('image_width'),
+          entries: getImageWidthEntries(t, parseImageWidthPreset(node.attrs['data-width']) ?? (node.attrs.width ? 'custom' : null), preset => selectNode(pos).updateAttributes('image', imageWidthAttrs(preset)).run()),
         },
         { key: 'image-copy-url', icon: LinkIcon, label: t('context.image_copy_url'), disabled: !src, onSelect: () => copyText(new URL(src, window.location.href).href) },
         { key: 'image-open', icon: ExternalLinkIcon, label: t('context.image_open'), disabled: !src, onSelect: () => window.open(src, '_blank', 'noopener,noreferrer') },

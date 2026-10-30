@@ -1,12 +1,18 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import { DownloadIcon, ReplaceIcon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon, Trash2Icon } from 'lucide-react'
+import type { useTranslations as UseTranslations } from 'next-intl'
+import type { ImageWidthPreset } from './image-width'
+import type { EditorMenuEntry } from '@/components/tiptap-editor/editor-menus'
+import { DownloadIcon, MoveHorizontalIcon, ReplaceIcon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { AssetPicker } from '@/components/common/asset-picker'
-import { EditorToolbarButton, EditorToolbarSeparator } from '@/components/tiptap-editor/editor-toolbar-button'
+import { EditorMenuContent, EditorMenuEntries } from '@/components/tiptap-editor/editor-menus'
+import { EditorToolbarButton, EditorToolbarSeparator, EditorTooltip } from '@/components/tiptap-editor/editor-toolbar-button'
 import { downloadSelectedImage } from '@/components/tiptap-ui/image-download-button/use-image-download'
+import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { IMAGE_TOOLBAR_ATTR } from './image-node-constants'
+import { IMAGE_WIDTH_PRESETS } from './image-width'
 
 export type ImageAlign = 'left' | 'center' | 'right'
 
@@ -16,18 +22,38 @@ const ALIGNS: { id: ImageAlign, icon: typeof TextAlignStartIcon }[] = [
   { id: 'right', icon: TextAlignEndIcon },
 ]
 
+// 当前宽度：预设、拖动得到的像素宽度（custom）或原始尺寸（null）
+export type ImageWidthValue = ImageWidthPreset | 'custom' | null
+
+/** 宽度菜单项（图片浮动工具栏与右键菜单共用）：五个预设与原始尺寸，当前项打勾 */
+export function getImageWidthEntries(t: ReturnType<typeof UseTranslations>, current: ImageWidthValue, onSelect: (preset: ImageWidthPreset | null) => void): EditorMenuEntry[] {
+  return [
+    ...IMAGE_WIDTH_PRESETS.map(preset => ({
+      key: `image-width-${preset}`,
+      label: t(`image_width_${preset.replace('.', '_')}`),
+      hint: `${preset}%`,
+      active: current === preset,
+      onSelect: () => onSelect(preset),
+    })),
+    { type: 'separator' as const, key: 'image-width-sep' },
+    { key: 'image-width-original', label: t('image_width_original'), active: current === null, onSelect: () => onSelect(null) },
+  ]
+}
+
 export interface ImageNodeToolbarProps {
   editor: Editor
   align: ImageAlign
   onAlignChange: (align: ImageAlign) => void
+  width: ImageWidthValue
+  onWidthChange: (preset: ImageWidthPreset | null) => void
   onReplace: (src: string, name: string) => void
   onDelete: () => void
 }
 
 /**
- * 图片浮动工具栏：附着在选中的图片上（对齐 / 替换 / 下载 / 删除），不占用主工具栏
+ * 图片浮动工具栏：附着在选中的图片上（对齐 / 宽度 / 替换 / 下载 / 删除），不占用主工具栏
  */
-export function ImageNodeToolbar({ editor, align, onAlignChange, onReplace, onDelete }: ImageNodeToolbarProps) {
+export function ImageNodeToolbar({ editor, align, onAlignChange, width, onWidthChange, onReplace, onDelete }: ImageNodeToolbarProps) {
   const t = useTranslations('Console.editor')
 
   return (
@@ -49,6 +75,23 @@ export function ImageNodeToolbar({ editor, align, onAlignChange, onReplace, onDe
           <Icon className="size-[17px]" />
         </EditorToolbarButton>
       ))}
+      <EditorToolbarSeparator className="mx-1" />
+      {/* 宽度预设：阻止弹层内事件沿 React 树冒泡到图片节点 */}
+      <span className="contents" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+        <DropdownMenu modal={false}>
+          <EditorTooltip label={t('image_width')}>
+            <DropdownMenuTrigger asChild>
+              <EditorToolbarButton label={t('image_width')} noTooltip className="h-[30px] min-w-[30px] px-2 tabular-nums">
+                <MoveHorizontalIcon className="size-[17px]" />
+                <span className="text-xs">{width === 'custom' ? t('image_width_custom') : width ? `${width}%` : t('image_width_original')}</span>
+              </EditorToolbarButton>
+            </DropdownMenuTrigger>
+          </EditorTooltip>
+          <EditorMenuContent editor={editor} align="center" className="min-w-44">
+            <EditorMenuEntries entries={getImageWidthEntries(t, width, onWidthChange)} />
+          </EditorMenuContent>
+        </DropdownMenu>
+      </span>
       <EditorToolbarSeparator className="mx-1" />
       {/* 替换图片：从资产库选择或本地上传；阻止弹层内事件沿 React 树冒泡到图片节点 */}
       <span className="contents" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>

@@ -3,6 +3,7 @@ import { Image as TiptapImage } from '@tiptap/extension-image'
 import { mergeAttributes, ReactNodeViewRenderer } from '@tiptap/react'
 import { IMAGE_CAPTION_ATTR, IMAGE_FIGURE_CLASS, IMAGE_TOOLBAR_ATTR } from './image-node-constants'
 import { ImageNodeView } from './image-node-view'
+import { parseImageWidthPreset } from './image-width'
 
 export const Image = TiptapImage.extend<ImageOptions>({
   addAttributes() {
@@ -10,6 +11,11 @@ export const Image = TiptapImage.extend<ImageOptions>({
       ...this.parent?.(),
       'data-align': {
         default: null,
+      },
+      // 宽度预设（占正文宽度的百分比，见 image-width.ts）；不是预设值时丢弃
+      'data-width': {
+        default: null,
+        parseHTML: element => parseImageWidthPreset(element.getAttribute('data-width')),
       },
       'caption': {
         default: null,
@@ -39,6 +45,7 @@ export const Image = TiptapImage.extend<ImageOptions>({
             'width': toNumber(img.getAttribute('width')),
             'height': toNumber(img.getAttribute('height')),
             'data-align': element.getAttribute('data-align') || img.getAttribute('data-align'),
+            'data-width': parseImageWidthPreset(element.getAttribute('data-width') || img.getAttribute('data-width')),
           }
         },
       },
@@ -53,7 +60,7 @@ export const Image = TiptapImage.extend<ImageOptions>({
       return img
     return [
       'figure',
-      { 'class': IMAGE_FIGURE_CLASS, 'data-align': node.attrs['data-align'] },
+      { 'class': IMAGE_FIGURE_CLASS, 'data-align': node.attrs['data-align'], 'data-width': node.attrs['data-width'] },
       img,
       ['figcaption', {}, caption],
     ]

@@ -62,3 +62,32 @@
 .prose figure.image-figure > .image-fallback {
   margin: 0;
 }
+
+/* 宽度预设（data-width，占正文宽度的百分比，见 image-width.ts）：窄屏一律满宽，640px 起按预设；
+ * 带注释时预设写在 figure 上，其中的图片撑满 figure */
+.prose :is(img, figure.image-figure, .image-fallback)[data-width] {
+  width: 100%;
+  height: auto;
+}
+
+.prose figure.image-figure[data-width] > :is(img, .image-fallback) {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .prose :is(img, figure.image-figure, .image-fallback)[data-width="33"] {
+    width: 33.333%;
+  }
+
+  .prose :is(img, figure.image-figure, .image-fallback)[data-width="50"] {
+    width: 50%;
+  }
+
+  .prose :is(img, figure.image-figure, .image-fallback)[data-width="61.8"] {
+    width: 61.8%;
+  }
+
+  .prose :is(img, figure.image-figure, .image-fallback)[data-width="75"] {
+    width: 75%;
+  }
+}
