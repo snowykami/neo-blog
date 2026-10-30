@@ -162,11 +162,16 @@ func TestLyricAnnotationLinesPromptSpotlight(t *testing.T) {
 	if err := json.Unmarshal([]byte(`{"spotlights":[2],"lines":[{"i":1,"chorus_start":true},{"i":2,"mood":"sad"}]}`), &plan); err != nil {
 		t.Fatal(err)
 	}
-	// 聚光灯那一行与其他标注合并在同一行；同一句的重复出现也标上
+	// 聚光灯那一行与其他标注合并在同一行；同一句的其他出现没有选中时不标
 	prompt := buildLyricAnnotationLinesPrompt(lyricAnnotationInfo{}, lines, plan, 0, 4, 1)
-	if !strings.Contains(prompt, "line 2: spotlight, mood sad\n") || !strings.Contains(prompt, "line 4: spotlight\n") {
-		t.Fatalf("prompt missing spotlight mark:\n%s", prompt)
+	if !strings.Contains(prompt, "line 2: spotlight, mood sad\n") || strings.Contains(prompt, "line 4: spotlight\n") {
+		t.Fatalf("spotlight marks wrong:\n%s", prompt)
 	}
+	plan.Spotlights = []int{2, 4}
+	if prompt := buildLyricAnnotationLinesPrompt(lyricAnnotationInfo{}, lines, plan, 0, 4, 1); !strings.Contains(prompt, "line 4: spotlight\n") {
+		t.Fatalf("selected repeat not marked:\n%s", prompt)
+	}
+	plan.Spotlights = []int{2}
 	// 没有其他标注时单独列出；不在本段时不标
 	plan.Lines = nil
 	if prompt := buildLyricAnnotationLinesPrompt(lyricAnnotationInfo{}, lines, plan, 0, 3, 1); !strings.Contains(prompt, "line 2: spotlight\n") {

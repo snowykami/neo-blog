@@ -46,6 +46,18 @@ describe('播放器页全屏特效信号', () => {
     expect(getStageSignals(lyrics, 4100).burst).toBe(0)
   })
 
+  it('粒子场景：模型给出持续行数时按它结束（第 sceneLines 行唱完后）', () => {
+    const lines: Partial<LyricLine>[] = Array.from({ length: 8 }, () => ({}))
+    // 第 1 行起持续 3 行：第 1 ~ 3 行，第 3 行在 [6, 7) 秒
+    lines[1] = { scene: 'rain', sceneLines: 3 }
+    const lyrics = lyricsOf(lines)
+    expect(getStageSignals(lyrics, 6500).scene?.name).toBe('rain')
+    expect(getStageSignals(lyrics, 7500).scene).toBeNull()
+    // 0 或缺省按默认行数
+    lines[1] = { scene: 'rain', sceneLines: 0 }
+    expect(getStageSignals(lyricsOf(lines), 7500).scene?.name).toBe('rain')
+  })
+
   it('粒子场景：从标注行开始，持续若干行，遇到新场景时切换（带颜色主题）', () => {
     const lines: Partial<LyricLine>[] = Array.from({ length: SCENE_MAX_LINES + 4 }, () => ({}))
     lines[1] = { scene: 'petals' }

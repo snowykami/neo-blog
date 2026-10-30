@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/tools"
 )
 
@@ -42,7 +43,7 @@ type lyricAnnotationPlan struct {
 	Direction string `json:"direction"`
 	Font      string `json:"font"`
 	Pace      string `json:"pace"`
-	// 聚光灯句子的行号：逐段标注时在这些句子（含重复出现的行）上标 spotlight，让模型少给它们叠特效
+	// 聚光灯的行号（选定的那几次出现）：逐段标注时在这些行上标 spotlight，让模型少给它们叠特效
 	Spotlights []int `json:"spotlights"`
 	Imagery    []struct {
 		Text   string `json:"text"`
@@ -300,9 +301,11 @@ func buildLyricAnnotationLinesPrompt(info lyricAnnotationInfo, lines []string, p
 		}
 	}
 	var marks []string
-	// 聚光灯按文字生效：本段中与聚光灯句子文字相同的行都标上
-	spotlights := lyricSpotlightTexts(lines, plan.Spotlights)
-	isSpotlight := func(i int) bool { return i >= 0 && i < len(lines) && slices.Contains(spotlights, lines[i]) }
+	// 聚光灯只在选定的那几次出现上演出：本段中只标这些行
+	spotlights := lyricSpotlightLines(lines, plan.Spotlights)
+	isSpotlight := func(i int) bool {
+		return i >= 0 && i < len(lines) && slices.Contains(spotlights, dto.MusicLyricAnnotationSpotlight{Text: lines[i], Occurrence: lyricOccurrence(lines, i)})
+	}
 	spotlightMarked := map[int]bool{}
 	for _, line := range plan.Lines {
 		if line.I < from || line.I > to {

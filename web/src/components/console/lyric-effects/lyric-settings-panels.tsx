@@ -6,15 +6,21 @@ import { Trash2Icon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useFormContext, useWatch } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { MAX_SPOTLIGHTS } from '@/lib/lyrics/annotation-edit'
+import { canAddSpotlight, MAX_SPOTLIGHT_LINES, MAX_SPOTLIGHTS } from '@/lib/lyrics/annotation-edit'
 import { LYRIC_COLOR_NAMES, LYRIC_EFFECT_CATEGORIES, LYRIC_FONTS, LYRIC_INTRO_MAX, LYRIC_MOODS, LYRIC_SCENES, lyricEffectCategory } from '@/lib/lyrics/annotation-options'
 import { LYRIC_COLORS, MOOD_GLOW } from '@/lib/lyrics/colors'
 import { LYRIC_PACES } from '@/lib/lyrics/pace'
+import { SCENE_MAX_LINES } from '@/lib/lyrics/stage-effects'
+
+// 粒子场景可选的持续行数（含开始的一行，与后端上限一致）
+const SCENE_LINE_OPTIONS = Array.from({ length: 16 }, (_, i) => i + 1)
 
 // 选择框的「无」：Radix 的选项值不能为空字符串
 const NONE = 'none'
@@ -126,20 +132,20 @@ export function SongSettingsPanel({ unique }: { unique: UniqueLine[] }) {
         )}
       />
       <div className="grid gap-2">
-        <span className="text-sm font-medium">{t('spotlights', { count: spotlights.length, max: MAX_SPOTLIGHTS })}</span>
+        <span className="text-sm font-medium">{t('spotlights', { count: spotlights.length, max: MAX_SPOTLIGHT_LINES })}</span>
         {spotlights.length === 0 && <p className="text-sm text-muted-foreground">{t('spotlight_empty')}</p>}
-        {spotlights.map((text) => {
-          const line = unique.find(item => item.text === text)
+        {spotlights.map((lineIndex) => {
+          const text = unique.find(item => item.indices.includes(lineIndex))?.text ?? ''
           return (
-            <div key={text} className="flex items-center gap-2 text-sm">
-              <span className="min-w-0 flex-1 truncate">{t('spotlight_item', { line: (line?.indices[0] ?? 0) + 1, count: line?.indices.length ?? 1, text })}</span>
+            <div key={lineIndex} className="flex items-center gap-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">{t('spotlight_item', { line: lineIndex + 1, text })}</span>
               <Button
                 type="button"
                 size="icon-sm"
                 variant="ghost"
                 aria-label={t('spotlight_clear')}
                 title={t('spotlight_clear')}
-                onClick={() => setValue('spotlights', getValues('spotlights').filter(item => item !== text), { shouldDirty: true })}
+                onClick={() => setValue('spotlights', getValues('spotlights').filter(item => item !== lineIndex), { shouldDirty: true })}
               >
                 <XIcon className="size-4" />
               </Button>
@@ -152,7 +158,7 @@ export function SongSettingsPanel({ unique }: { unique: UniqueLine[] }) {
 }
 
 /** 当前行的设置：情绪、副歌、副歌起点、粒子场景（含这首歌的自定义粒子）与颜色、聚光灯，以及这一行的特效列表 */
-export function LineSettingsPanel({ index, line, sprites = [] }: { index: number, line?: UniqueLine, sprites?: LyricSprite[] }) {
+export function LineSettingsPanel({ index, line, lyricLines, sprites = [] }: { index: number, line?: UniqueLine, lyricLines: string[], sprites?: LyricSprite[] }) {
   const t = useTranslations('Console.lyric_effects')
   const optionT = useTranslations('LyricOptions')
   const { control, setValue, getValues } = useFormContext<AnnotationForm>()
@@ -161,8 +167,8 @@ export function LineSettingsPanel({ index, line, sprites = [] }: { index: number
   if (!line || !form)
     return <Panel title={t('line_settings')}><p className="text-sm text-muted-foreground">{t('line_hint')}</p></Panel>
 
-  const spotlighted = spotlights.includes(line.text)
-  const spotlightFull = !spotlighted && spotlights.length >= MAX_SPOTLIGHTS
+  // 这一句重复时每次出现单独选择（同一句不一定每次都放大）
+  const spotlightFull = line.indices.some(i => !spotlights.includes(i) && !canAddSpotlight(lyricLines, spotlights, i))
   return (
     <Panel title={t('line_title', { index: line.indices[0] + 1 })}>
       <div className="grid gap-1">
@@ -193,20 +199,26 @@ export function LineSettingsPanel({ index, line, sprites = [] }: { index: number
         )}
       />
       <div className="grid gap-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="grid gap-2">
           <div className="grid gap-1">
             <span className="text-sm font-medium">{t('spotlight')}</span>
-            <span className="text-sm text-muted-foreground">{spotlightFull ? t('spotlight_full', { max: MAX_SPOTLIGHTS }) : t('spotlight_hint')}</span>
+            <span className="text-sm text-muted-foreground">{spotlightFull ? t('spotlight_full', { texts: MAX_SPOTLIGHTS, max: MAX_SPOTLIGHT_LINES }) : t('spotlight_hint')}</span>
           </div>
-          <Switch
-            aria-label={t('spotlight')}
-            checked={spotlighted}
-            disabled={spotlightFull}
-            onCheckedChange={(checked) => {
-              const current = getValues('spotlights').filter(text => text !== line.text)
-              setValue('spotlights', checked ? [...current, line.text] : current, { shouldDirty: true })
-            }}
-          />
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {line.indices.map((lineIndex, occurrence) => (
+              <Label key={lineIndex} className="flex items-center gap-2 text-sm font-normal">
+                <Checkbox
+                  checked={spotlights.includes(lineIndex)}
+                  disabled={!canAddSpotlight(lyricLines, spotlights, lineIndex)}
+                  onCheckedChange={(checked) => {
+                    const current = getValues('spotlights').filter(item => item !== lineIndex)
+                    setValue('spotlights', checked === true ? [...current, lineIndex].sort((a, b) => a - b) : current, { shouldDirty: true })
+                  }}
+                />
+                {line.indices.length > 1 ? t('spotlight_occurrence', { occurrence: occurrence + 1, line: lineIndex + 1 }) : t('spotlight_single', { line: lineIndex + 1 })}
+              </Label>
+            ))}
+          </div>
         </div>
         <FormField
           control={control}
@@ -262,8 +274,10 @@ export function LineSettingsPanel({ index, line, sprites = [] }: { index: number
                 value={toSelect(field.value)}
                 onValueChange={(value) => {
                   field.onChange(fromSelect(value))
-                  if (value === NONE)
+                  if (value === NONE) {
                     setValue(`lines.${index}.sceneColor`, '', { shouldDirty: true })
+                    setValue(`lines.${index}.sceneLines`, 0, { shouldDirty: true })
+                  }
                 }}
               >
                 <FormControl>
@@ -307,6 +321,25 @@ export function LineSettingsPanel({ index, line, sprites = [] }: { index: number
           )}
         />
       </div>
+      <FormField
+        control={control}
+        name={`lines.${index}.sceneLines`}
+        render={({ field }) => (
+          <FormItem className="grid gap-2">
+            <FormLabel>{t('scene_lines')}</FormLabel>
+            <Select value={String(field.value || 0)} onValueChange={value => field.onChange(Number(value))} disabled={!form.scene}>
+              <FormControl>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="0">{t('scene_lines_default', { count: SCENE_MAX_LINES })}</SelectItem>
+                {SCENE_LINE_OPTIONS.map(count => <SelectItem key={count} value={String(count)}>{t('scene_lines_count', { count })}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <FormDescription>{t('scene_lines_hint')}</FormDescription>
+          </FormItem>
+        )}
+      />
       <div className="grid gap-2">
         <span className="text-sm font-medium">{t('phrases')}</span>
         {form.phrases.length === 0 && <p className="text-sm text-muted-foreground">{t('phrases_empty')}</p>}

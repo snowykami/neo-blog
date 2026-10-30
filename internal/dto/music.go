@@ -101,8 +101,8 @@ type MusicLyricAnnotationsDto struct {
 	Outro *MusicLyricAnnotationComment `json:"outro,omitempty"`
 	// 歌词关键节点的「时刻」：在某句开唱时显示的热评或模型写的旁白（最多 5 条）
 	Moments []MusicLyricAnnotationMoment `json:"moments,omitempty"`
-	// 聚光灯：全曲最点题的 1～3 句（歌词原文，各不相同），每次唱到这些句子时移到中央放大、身后亮起暖光，可为空
-	Spotlights []string `json:"spotlights,omitempty"`
+	// 聚光灯：全曲最点题的 1～3 句中、选定的那几次出现（同一句重复时不一定每次都放大），唱到时移到中央放大、身后亮起暖光，可为空
+	Spotlights []MusicLyricAnnotationSpotlight `json:"spotlights,omitempty"`
 	// 这首歌的主题色（#rrggbb，由模型按歌曲自由选择）：歌词辉光与背景呼吸的默认颜色，为空时用封面主色
 	Accent string                     `json:"accent,omitempty"`
 	Lines  []MusicLyricAnnotationLine `json:"lines"`
@@ -143,6 +143,12 @@ type MusicLyricSpritePath struct {
 	Paint string `json:"paint"`
 }
 
+// MusicLyricAnnotationSpotlight 聚光灯的一处：歌词 text 的第 occurrence 次出现（从 0 开始，副歌常有重复的行）
+type MusicLyricAnnotationSpotlight struct {
+	Text       string `json:"text"`
+	Occurrence int    `json:"occurrence"`
+}
+
 // MusicLyricAnnotationComment 一条网易云热评：内容与点赞数
 type MusicLyricAnnotationComment struct {
 	Content string `json:"content"`
@@ -150,7 +156,8 @@ type MusicLyricAnnotationComment struct {
 }
 
 // MusicLyricAnnotationLine 一行的标注：mood 为情绪基调（calm / bright / sad / intense，可为空），chorus 为副歌行，chorus_start 为一段副歌的第一行，
-// scene 为从这一行开始的全屏粒子场景（见 service.lyricAnnotationSceneList，可为空），scene_color 为场景的颜色主题（色板中的名称，为空时用场景默认色）
+// scene 为从这一行开始的全屏粒子场景（见 service.lyricAnnotationSceneList，可为空），scene_color 为场景的颜色主题（色板中的名称，为空时用场景默认色），
+// scene_lines 为场景持续的歌词行数（含这一行，1～16；为 0 时由播放器按默认行数结束）。标注按行文字保存，同一文字的每次出现都从这一行起持续相同的行数
 type MusicLyricAnnotationLine struct {
 	Text        string                       `json:"text"`
 	Mood        string                       `json:"mood,omitempty"`
@@ -158,6 +165,7 @@ type MusicLyricAnnotationLine struct {
 	ChorusStart bool                         `json:"chorus_start,omitempty"`
 	Scene       string                       `json:"scene,omitempty"`
 	SceneColor  string                       `json:"scene_color,omitempty"`
+	SceneLines  int                          `json:"scene_lines,omitempty"`
 	Phrases     []MusicLyricAnnotationPhrase `json:"phrases"`
 }
 
@@ -263,12 +271,12 @@ type MusicLyricOffsetReq struct {
 
 // MusicLyricAnnotationsEditReq 管理员手动编辑的歌词标注：只含可编辑的部分（全曲字体、节奏、导语、主题色、聚光灯与各行），时刻与尾奏热评保持原样
 type MusicLyricAnnotationsEditReq struct {
-	Font       string                     `json:"font"`
-	Pace       string                     `json:"pace"`
-	Intro      string                     `json:"intro"`
-	Accent     string                     `json:"accent"`
-	Spotlights []string                   `json:"spotlights"`
-	Lines      []MusicLyricAnnotationLine `json:"lines"`
+	Font       string                          `json:"font"`
+	Pace       string                          `json:"pace"`
+	Intro      string                          `json:"intro"`
+	Accent     string                          `json:"accent"`
+	Spotlights []MusicLyricAnnotationSpotlight `json:"spotlights"`
+	Lines      []MusicLyricAnnotationLine      `json:"lines"`
 }
 
 // MusicLyricAnnotationEditorDto 后台编辑一首歌的歌词标注所需的数据：lines 为送去标注的完整歌词（按顺序、含重复的行），

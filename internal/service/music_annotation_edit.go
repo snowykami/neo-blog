@@ -51,7 +51,7 @@ func (s *MusicService) GetLyricAnnotationEditor(ctx context.Context, id int64) (
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	data := parseLyricAnnotationData(record.Data)
-	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.Spotlights, Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
+	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
 	result.EditedAt = record.EditedAt
 	result.GeneratedAt = &record.CreatedAt
 	result.Model = record.Model
@@ -161,15 +161,20 @@ func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotatio
 			return data, false
 		}
 	}
-	// 聚光灯：歌词中存在的不同句子，最多 lyricAnnotationMaxSpotlights 句
-	if len(req.Spotlights) > lyricAnnotationMaxSpotlights {
+	// 聚光灯：歌词中存在的那几次出现，不重复；不同的句子最多 lyricAnnotationMaxSpotlights 句、合计最多 lyricAnnotationMaxSpotlightLines 处
+	if len(req.Spotlights) > lyricAnnotationMaxSpotlightLines {
 		return data, false
 	}
-	for _, text := range req.Spotlights {
-		if counts[text] == 0 || slices.Contains(data.Spotlights, text) {
+	spotTexts := map[string]bool{}
+	for _, spot := range req.Spotlights {
+		if spot.Occurrence < 0 || spot.Occurrence >= counts[spot.Text] || slices.Contains(data.Spotlights, spot) {
 			return data, false
 		}
-		data.Spotlights = append(data.Spotlights, text)
+		spotTexts[spot.Text] = true
+		data.Spotlights = append(data.Spotlights, spot)
+	}
+	if len(spotTexts) > lyricAnnotationMaxSpotlights {
+		return data, false
 	}
 	seen := map[string]bool{}
 	for _, item := range req.Lines {
@@ -191,6 +196,13 @@ func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotatio
 			if line.SceneColor = normalizeLyricColor(item.SceneColor); line.SceneColor == "" {
 				return data, false
 			}
+		}
+		// 持续行数：0 为默认行数，只对有场景的行有效
+		if item.SceneLines < 0 || item.SceneLines > lyricAnnotationMaxSceneLines {
+			return data, false
+		}
+		if item.Scene != "" {
+			line.SceneLines = item.SceneLines
 		}
 		normalizedLine := normalizeLyricMatch(item.Text)
 		phraseKeys := map[string]bool{}

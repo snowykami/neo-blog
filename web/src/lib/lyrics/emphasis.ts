@@ -30,6 +30,8 @@ export interface LyricAnnotationLine {
   chorusStart?: boolean
   scene?: LyricSceneName
   sceneColor?: LyricColor
+  // 场景持续的行数（含这一行），没有时按 SCENE_MAX_LINES
+  sceneLines?: number
   phrases: LyricAnnotationPhrase[]
 }
 
@@ -42,6 +44,12 @@ export interface LyricAnnotationMoment {
   liked?: number
 }
 
+/** 聚光灯的一处：text 的第 occurrence 次出现（从 0 开始；同一句重复时只放大选中的那几次） */
+export interface LyricAnnotationSpotlight {
+  text: string
+  occurrence: number
+}
+
 export interface LyricAnnotations {
   font?: LyricFont
   // 全曲的特效节奏（按歌曲的轻快程度），规则强调也沿用它
@@ -49,8 +57,8 @@ export interface LyricAnnotations {
   intro?: string
   outro?: LyricOutro
   moments?: LyricAnnotationMoment[]
-  // 聚光灯的句子（1～3 句歌词原文），每次出现都放大
-  spotlights?: string[]
+  // 聚光灯的各处（不同的句子最多 3 句，合计最多 6 处）
+  spotlights?: LyricAnnotationSpotlight[]
   // 主题色 #rrggbb（模型按歌曲自由选择）
   accent?: string
   lines: LyricAnnotationLine[]
@@ -254,7 +262,7 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
     lines: lyrics.lines.map((line) => {
       const annotation = byText.get(normalizeForMatch(line.words.map(word => word.text).join(''))) ?? null
       const emphasis = lineEmphasis(line, annotation).map(group => (group.pace || !songPace ? group : { ...group, pace: songPace }))
-      return { ...line, emphasis: emphasis.length > 0 ? emphasis : undefined, mood: annotation?.mood, scene: annotation?.scene, sceneColor: annotation?.scene ? annotation.sceneColor : undefined, chorusStart: annotation?.chorusStart }
+      return { ...line, emphasis: emphasis.length > 0 ? emphasis : undefined, mood: annotation?.mood, scene: annotation?.scene, sceneColor: annotation?.scene ? annotation.sceneColor : undefined, sceneLines: annotation?.scene ? annotation.sceneLines : undefined, chorusStart: annotation?.chorusStart }
     }),
   }
 }
@@ -285,15 +293,13 @@ export function resolveNotes(lines: LyricLine[], moments?: LyricAnnotationMoment
   return notes.length > 0 ? notes.sort((a, b) => a.start - b.start) : undefined
 }
 
-/** 把聚光灯的句子匹配到歌词行（按归一化后的文字，每次出现的主唱行都算），返回升序的行号；没有或找不到时为 undefined */
-export function resolveSpotlights(lines: LyricLine[], texts?: string[]): number[] | undefined {
-  const keys = new Set((texts ?? []).map(normalizeForMatch).filter(Boolean))
-  if (keys.size === 0)
-    return undefined
-  const indices: number[] = []
-  lines.forEach((line, index) => {
-    if (!line.isBackground && keys.has(normalizeForMatch(line.words.map(word => word.text).join(''))))
-      indices.push(index)
-  })
-  return indices.length > 0 ? indices : undefined
+/** 把聚光灯的各处匹配到歌词行（见 findLyricLine），返回去重、升序的行号；没有或找不到时为 undefined */
+export function resolveSpotlights(lines: LyricLine[], spots?: LyricAnnotationSpotlight[]): number[] | undefined {
+  const indices = new Set<number>()
+  for (const spot of spots ?? []) {
+    const index = findLyricLine(lines, spot.text, spot.occurrence)
+    if (index >= 0)
+      indices.add(index)
+  }
+  return indices.size > 0 ? [...indices].sort((a, b) => a - b) : undefined
 }

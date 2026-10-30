@@ -124,7 +124,7 @@ export function LyricCanvas({
             line={line}
             form={lines[index]}
             active={index === activeLine}
-            spotlight={spotlights.includes(line.text)}
+            spotlight={line.indices.some(i => spotlights.includes(i))}
             activePhrase={bubble?.mode === 'edit' && bubble.line === index ? bubble.phrase : null}
             onActivate={() => onActiveLineChange(index)}
             onPhraseClick={(phrase, rect) => {

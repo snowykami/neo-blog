@@ -32,6 +32,8 @@ export interface LyricLine {
   scene?: LyricSceneName
   // 粒子场景的颜色主题（色板中的名称），为空时用场景默认色
   sceneColor?: LyricColor
+  // 粒子场景持续的主唱行数（含这一行，由模型按意象的段落给出），为空时按默认行数（见 stage-effects.ts 的 SCENE_MAX_LINES）
+  sceneLines?: number
   // 一段副歌的第一行（来自歌词标注）：强调加强，播放器页全屏爆发一次
   chorusStart?: boolean
 }

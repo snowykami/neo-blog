@@ -190,7 +190,7 @@ export interface MusicLyricAnnotationsEdit {
   pace?: LyricAnnotations['pace']
   intro?: string
   accent?: string
-  spotlights: string[]
+  spotlights: NonNullable<LyricAnnotations['spotlights']>
   lines: LyricAnnotations['lines']
 }
 

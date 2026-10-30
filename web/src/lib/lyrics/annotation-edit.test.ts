@@ -1,7 +1,7 @@
 import type { PhraseForm } from './annotation-edit'
 import type { ResolvedLyrics } from './types'
 import { describe, expect, it } from 'vitest'
-import { addPhrase, fromAnnotationForm, lineSegments, phraseRanges, toAnnotationForm, trimSelection, uniqueLyricLines } from './annotation-edit'
+import { addPhrase, canAddSpotlight, fromAnnotationForm, lineSegments, phraseRanges, toAnnotationForm, trimSelection, uniqueLyricLines } from './annotation-edit'
 import { formatLyricOffset, shiftLyrics } from './offset'
 
 const swell: Omit<PhraseForm, 'text'> = { effect: 'swell', color: '', font: '', styles: [], pace: '' }
@@ -28,16 +28,19 @@ describe('歌词特效编辑器', () => {
     expect(addPhrase(line, phrases, 5, 7, { ...swell, effect: 'shatter' }).map(p => [p.text, p.effect])).toEqual([['樱花', 'swell'], ['季节', 'shatter']])
   })
 
-  it('表单与后端格式互转：聚光灯只保留歌词中存在的句子，空字段与没有标注的行不保存', () => {
+  it('表单与后端格式互转：聚光灯换算成行号（只选中的那几次），空字段与没有标注的行不保存', () => {
     const lines = ['樱花', '再见', '樱花']
     const form = toAnnotationForm(lines, {
       font: 'kai',
       pace: 'slow',
       accent: '#ffb37a',
-      spotlights: ['樱花', '不存在'],
-      lines: [{ text: '樱花', chorusStart: true, phrases: [{ text: '樱花', effect: 'glow', color: 'cherry-blossom' }] }],
+      spotlights: [{ text: '樱花', occurrence: 1 }, { text: '不存在', occurrence: 0 }, { text: '樱花', occurrence: 5 }],
+      lines: [{ text: '樱花', chorusStart: true, scene: 'petals', sceneLines: 4, phrases: [{ text: '樱花', effect: 'glow', color: 'cherry-blossom' }] }],
     })
-    expect(form.spotlights).toEqual(['樱花'])
+    expect(form.lines[0].sceneLines).toBe(4)
+    expect(form.lines[1].sceneLines).toBe(0)
+    // 只选了「樱花」的第 2 次出现（第 2 行），找不到的丢弃
+    expect(form.spotlights).toEqual([2])
     expect(form.accent).toBe('#ffb37a')
     expect(form.lines).toHaveLength(2)
     expect(form.lines[0]).toMatchObject({ chorus: true, chorusStart: true, phrases: [{ text: '樱花', effect: 'glow', color: 'cherry-blossom', font: '', styles: [], pace: '' }] })
@@ -46,10 +49,20 @@ describe('歌词特效编辑器', () => {
       pace: undefined,
       intro: '春天',
       accent: '#ffb37a',
-      spotlights: ['樱花'],
-      lines: [{ text: '樱花', chorus: true, chorusStart: true, phrases: [{ text: '樱花', effect: 'glow', color: 'cherry-blossom' }] }],
+      spotlights: [{ text: '樱花', occurrence: 1 }],
+      lines: [{ text: '樱花', chorus: true, chorusStart: true, scene: 'petals', sceneLines: 4, phrases: [{ text: '樱花', effect: 'glow', color: 'cherry-blossom' }] }],
     })
-    expect(fromAnnotationForm(lines, { ...form, accent: '', spotlights: ['再见', '樱花', '再见'] })).toMatchObject({ accent: undefined, spotlights: ['再见', '樱花'] })
+    expect(fromAnnotationForm(lines, { ...form, accent: '', spotlights: [2, 0, 2, 9] })).toMatchObject({ accent: undefined, spotlights: [{ text: '樱花', occurrence: 0 }, { text: '樱花', occurrence: 1 }] })
+  })
+})
+
+describe('聚光灯上限', () => {
+  it('不同的句子最多 3 句、合计最多 6 处；已选中的可以取消', () => {
+    const lines = ['甲', '乙', '丙', '丁', '甲', '甲', '甲', '甲', '甲']
+    expect(canAddSpotlight(lines, [0, 1, 2], 3)).toBe(false)
+    expect(canAddSpotlight(lines, [0, 1, 2], 4)).toBe(true)
+    expect(canAddSpotlight(lines, [0, 4, 5, 6, 7, 1], 8)).toBe(false)
+    expect(canAddSpotlight(lines, [0, 1, 2], 2)).toBe(true)
   })
 })
 

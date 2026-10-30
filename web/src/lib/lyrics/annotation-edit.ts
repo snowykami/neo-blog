@@ -24,6 +24,8 @@ export interface LineForm {
   // 内置场景或 custom:<name>（这首歌的自定义粒子）
   scene: LyricSceneName | ''
   sceneColor: LyricColor | ''
+  // 场景持续的行数（含这一行），0 为默认行数
+  sceneLines: number
   phrases: PhraseForm[]
 }
 
@@ -33,12 +35,22 @@ export interface AnnotationForm {
   intro: string
   // 主题色 #rrggbb，为空时用封面主色
   accent: string
-  // 聚光灯的句子（去重后的行文字，最多 MAX_SPOTLIGHTS 句），每次出现都放大
-  spotlights: string[]
+  // 聚光灯的各处：完整歌词中的行号（同一句重复时可以只选其中几次），升序
+  spotlights: number[]
   lines: LineForm[]
 }
 
+// 聚光灯的上限：不同的句子最多 MAX_SPOTLIGHTS 句，合计最多 MAX_SPOTLIGHT_LINES 处（与后端一致）
 export const MAX_SPOTLIGHTS = 3
+export const MAX_SPOTLIGHT_LINES = 6
+
+/** 能否再给第 index 行加聚光灯：合计未满，且这一句已在聚光灯中或不同的句子未满 */
+export function canAddSpotlight(lines: string[], spotlights: number[], index: number): boolean {
+  if (spotlights.includes(index))
+    return true
+  const texts = new Set(spotlights.map(i => lines[i]))
+  return spotlights.length < MAX_SPOTLIGHT_LINES && (texts.has(lines[index]) || texts.size < MAX_SPOTLIGHTS)
+}
 
 /** 一条去重后的行：文本与它在完整歌词中出现的行号 */
 export interface UniqueLine {
@@ -119,7 +131,7 @@ export function addPhrase(line: string, phrases: PhraseForm[], start: number, en
 }
 
 export function emptyLineForm(text: string): LineForm {
-  return { text, mood: '', chorus: false, chorusStart: false, scene: '', sceneColor: '', phrases: [] }
+  return { text, mood: '', chorus: false, chorusStart: false, scene: '', sceneColor: '', sceneLines: 0, phrases: [] }
 }
 
 function toPhraseForm(phrase: LyricAnnotationPhrase): PhraseForm {
@@ -133,7 +145,7 @@ function toPhraseForm(phrase: LyricAnnotationPhrase): PhraseForm {
   }
 }
 
-/** 后端的标注转为编辑表单：每条去重后的行一项（没有标注的行为空），聚光灯只保留歌词中存在的句子 */
+/** 后端的标注转为编辑表单：每条去重后的行一项（没有标注的行为空），聚光灯换算成完整歌词中的行号（找不到的丢弃） */
 export function toAnnotationForm(lines: string[], annotation: LyricAnnotations | null): AnnotationForm {
   const byText = new Map((annotation?.lines ?? []).map(line => [line.text, line]))
   const unique = uniqueLyricLines(lines)
@@ -142,7 +154,10 @@ export function toAnnotationForm(lines: string[], annotation: LyricAnnotations |
     pace: annotation?.pace ?? 'medium',
     intro: annotation?.intro ?? '',
     accent: annotation?.accent ?? '',
-    spotlights: (annotation?.spotlights ?? []).filter(text => lines.includes(text)).slice(0, MAX_SPOTLIGHTS),
+    spotlights: [...new Set((annotation?.spotlights ?? []).flatMap((spot) => {
+      const index = unique.find(line => line.text === spot.text)?.indices[spot.occurrence]
+      return index == null ? [] : [index]
+    }))].sort((a, b) => a - b),
     lines: unique.map(({ text }) => {
       const line = byText.get(text)
       if (!line)
@@ -154,6 +169,7 @@ export function toAnnotationForm(lines: string[], annotation: LyricAnnotations |
         chorusStart: !!line.chorusStart,
         scene: line.scene ?? '',
         sceneColor: line.sceneColor ?? '',
+        sceneLines: line.sceneLines ?? 0,
         phrases: line.phrases.map(toPhraseForm),
       }
     }),
@@ -169,7 +185,7 @@ export function fromAnnotationForm(lines: string[], form: AnnotationForm) {
       ...(line.mood && { mood: line.mood }),
       ...((line.chorus || line.chorusStart) && { chorus: true }),
       ...(line.chorusStart && { chorusStart: true }),
-      ...(line.scene && { scene: line.scene, ...(line.sceneColor && { sceneColor: line.sceneColor }) }),
+      ...(line.scene && { scene: line.scene, ...(line.sceneColor && { sceneColor: line.sceneColor }), ...(line.sceneLines > 0 && { sceneLines: line.sceneLines }) }),
       phrases: line.phrases.map(phrase => ({
         text: phrase.text,
         effect: phrase.effect,
@@ -184,7 +200,10 @@ export function fromAnnotationForm(lines: string[], form: AnnotationForm) {
     pace: form.pace === 'medium' ? undefined : form.pace,
     intro: form.intro.trim(),
     accent: form.accent || undefined,
-    spotlights: [...new Set(form.spotlights)].filter(text => lines.includes(text)).slice(0, MAX_SPOTLIGHTS),
+    spotlights: [...new Set(form.spotlights)]
+      .filter(index => lines[index] != null)
+      .sort((a, b) => a - b)
+      .map(index => ({ text: lines[index], occurrence: lines.slice(0, index).filter(line => line === lines[index]).length })),
     lines: annotated,
   }
 }

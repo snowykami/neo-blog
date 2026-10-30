@@ -354,13 +354,19 @@ func TestSanitizeLyricAnnotationsPace(t *testing.T) {
 
 func TestSanitizeLyricAnnotationsSpotlight(t *testing.T) {
 	lines := []string{"副歌", "主歌", "副歌", "尾声", "点题", "结尾"}
-	// 按文字去重（第 0 行与第 2 行同为「副歌」），越界的丢弃，最多 3 句
-	got, err := sanitizeLyricAnnotations(lines, nil, `{"spotlights":[2,0,9,4,3,5],"accent":" #FFB37A ","lines":[]}`)
+	// 按行号记下这一句的第几次出现（同一句重复时只放大选中的那几次），重复与越界的丢弃，不同的句子最多 3 句
+	got, err := sanitizeLyricAnnotations(lines, nil, `{"spotlights":[2,2,0,9,4,3,5],"accent":" #FFB37A ","lines":[]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got.Spotlights, []string{"副歌", "点题", "尾声"}) {
+	want := []dto.MusicLyricAnnotationSpotlight{{Text: "副歌", Occurrence: 1}, {Text: "副歌", Occurrence: 0}, {Text: "点题", Occurrence: 0}, {Text: "尾声", Occurrence: 0}}
+	if !reflect.DeepEqual(got.Spotlights, want) {
 		t.Fatalf("spotlights = %v", got.Spotlights)
+	}
+	// 合计最多 lyricAnnotationMaxSpotlightLines 处
+	many := []string{"副歌", "副歌", "副歌", "副歌", "副歌", "副歌", "副歌", "副歌"}
+	if got, _ := sanitizeLyricAnnotations(many, nil, `{"spotlights":[0,1,2,3,4,5,6,7],"lines":[]}`); len(got.Spotlights) != lyricAnnotationMaxSpotlightLines {
+		t.Fatalf("spotlights over limit: %v", got.Spotlights)
 	}
 	if got.Accent != "#ffb37a" {
 		t.Fatalf("accent = %q", got.Accent)
@@ -370,10 +376,19 @@ func TestSanitizeLyricAnnotationsSpotlight(t *testing.T) {
 			t.Fatalf("%s: spotlights = %v, accent = %q", raw, got.Spotlights, got.Accent)
 		}
 	}
-	// 旧版只有一句聚光灯的记录读取时并入 spotlights
-	legacy := parseLyricAnnotationData(`{"spotlight":{"text":"副歌","occurrence":1},"lines":[]}`)
-	if !reflect.DeepEqual(legacy.Spotlights, []string{"副歌"}) || legacy.LegacySpotlight != nil {
-		t.Fatalf("legacy = %+v", legacy)
+	// 旧版：只记句子的展开为每一次出现（旧版的效果），更早的单句保留原来那一次；新版直接使用
+	if spots := parseLyricAnnotationData(`{"spotlights":["副歌"],"lines":[]}`).spotlightsFor(lines); !reflect.DeepEqual(spots, []dto.MusicLyricAnnotationSpotlight{{Text: "副歌", Occurrence: 0}, {Text: "副歌", Occurrence: 1}}) {
+		t.Fatalf("legacy texts = %v", spots)
+	}
+	repeated := []string{"副歌", "副歌", "副歌", "副歌", "副歌", "副歌", "副歌", "副歌"}
+	if spots := parseLyricAnnotationData(`{"spotlights":["副歌"],"lines":[]}`).spotlightsFor(repeated); len(spots) != lyricAnnotationMaxSpotlightLines {
+		t.Fatalf("legacy texts should be capped: %v", spots)
+	}
+	if spots := parseLyricAnnotationData(`{"spotlight":{"text":"副歌","occurrence":1},"lines":[]}`).spotlightsFor(lines); !reflect.DeepEqual(spots, []dto.MusicLyricAnnotationSpotlight{{Text: "副歌", Occurrence: 1}}) {
+		t.Fatalf("legacy single = %v", spots)
+	}
+	if spots := parseLyricAnnotationData(`{"spotlight_lines":[{"text":"尾声","occurrence":0}],"lines":[]}`).spotlightsFor(lines); !reflect.DeepEqual(spots, []dto.MusicLyricAnnotationSpotlight{{Text: "尾声", Occurrence: 0}}) {
+		t.Fatalf("spotlight lines = %v", spots)
 	}
 }
 
@@ -397,5 +412,41 @@ func TestSanitizeLyricAnnotationsShatter(t *testing.T) {
 	// 破碎全曲最多 3 处，第 4 处换成同样有冲击感的 shake
 	if want := []string{"shatter", "shatter", "shatter", "shake"}; !reflect.DeepEqual(effects, want) {
 		t.Fatalf("effects = %v, want %v", effects, want)
+	}
+}
+
+func TestSanitizeLyricAnnotationsSceneLines(t *testing.T) {
+	lines := []string{"第一行", "第二行", "第三行", "第四行", "第五行"}
+	// scene_until 换算成持续行数（含开始行）；早于开始行或没有给出时为 0（播放器按默认行数）；上限 lyricAnnotationMaxSceneLines
+	got, err := sanitizeLyricAnnotations(lines, nil, `{"lines":[
+		{"i":0,"scene":"rain","scene_until":2},
+		{"i":1,"scene":"snow","scene_until":0},
+		{"i":2,"scene":"stars","scene_until":99},
+		{"i":3,"scene":"petals"},
+		{"i":4,"mood":"sad","scene_until":4}
+	]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]int{"第一行": 3, "第二行": 0, "第三行": lyricAnnotationMaxSceneLines, "第四行": 0, "第五行": 0}
+	for _, line := range got.Lines {
+		if line.SceneLines != want[line.Text] {
+			t.Fatalf("%s: scene_lines = %d, want %d", line.Text, line.SceneLines, want[line.Text])
+		}
+	}
+}
+
+func TestParseLyricAnnotationDataNormalizesLegacy(t *testing.T) {
+	// 旧版颜色名映射到新色板，已取消的删除线字形去掉（否则编辑器读回后保存会被校验拒绝）
+	data := parseLyricAnnotationData(`{"lines":[{"text":"再见","scene":"rain","scene_color":"pink","phrases":[
+		{"text":"再见","effect":"glow","color":"red","styles":["strike","bold"]},
+		{"text":"见","effect":"glow","styles":["strike"]}
+	]}]}`)
+	line := data.Lines[0]
+	if line.SceneColor != "cherry-blossom" || line.Phrases[0].Color != "crimson" {
+		t.Fatalf("colors not normalized: %+v", line)
+	}
+	if !reflect.DeepEqual(line.Phrases[0].Styles, []string{"bold"}) || line.Phrases[1].Styles != nil {
+		t.Fatalf("styles not normalized: %+v", line.Phrases)
 	}
 }

@@ -10,7 +10,8 @@ import { heartbeatLevel, shatterFlash } from './word-effects'
  * - burst 副歌爆发：每段副歌的第一行开唱时迅速亮起，再慢慢回落
  * - push 镜头推近：同样在副歌第一行开唱时触发，约 0.45 秒推近、2.6 秒缓缓回落（由页面换算成背景与歌词区的放大）
  * - 心跳强调（heartbeat）让背景随双拍跳动；破碎（shatter）碎的一瞬间背景闪一下
- * - scene 粒子场景（含颜色主题）：从标了 scene 的行开始，持续 SCENE_MAX_LINES 行，或到下一个标了 scene 的行为止
+ * - scene 粒子场景（含颜色主题）：从标了 scene 的行开始，持续这一行的 sceneLines 行（模型按意象的段落给出，旧标注没有时为 SCENE_MAX_LINES），
+ *   或到下一个标了 scene 的行为止；最后一行唱完后结束
  * - spotlight 聚光灯：唱到全曲最点题的句子（1～3 句，每次出现）时身后亮起暖光、四周略微压暗（与歌词引擎的聚光灯共用 spotlightAt）
  */
 
@@ -149,6 +150,7 @@ function tintEnvelope(start: number, end: number, timeMs: number) {
 function sceneAt(lyrics: ResolvedLyrics, timeMs: number): StageScene | null {
   let scene: StageScene | null = null
   let sceneIndex = -1
+  let sceneLines = SCENE_MAX_LINES
   let current = -1
   lyrics.lines.forEach((line, index) => {
     if (line.isBackground || line.start > timeMs)
@@ -160,6 +162,7 @@ function sceneAt(lyrics: ResolvedLyrics, timeMs: number): StageScene | null {
       if (!line.scene.startsWith('custom:') || sprite) {
         scene = { name: line.scene, color: line.sceneColor ?? null, ...(sprite && { sprite }) }
         sceneIndex = index
+        sceneLines = line.sceneLines && line.sceneLines > 0 ? line.sceneLines : SCENE_MAX_LINES
       }
     }
   })
@@ -172,7 +175,7 @@ function sceneAt(lyrics: ResolvedLyrics, timeMs: number): StageScene | null {
       lines++
   }
   // 超出行数后，最后一行唱完才结束
-  if (lines > SCENE_MAX_LINES || (lines === SCENE_MAX_LINES && timeMs > lyrics.lines[current].end))
+  if (lines > sceneLines || (lines === sceneLines && timeMs > lyrics.lines[current].end))
     return null
   return scene
 }

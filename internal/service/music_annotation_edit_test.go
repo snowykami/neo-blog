@@ -79,9 +79,9 @@ func TestSanitizeEditedLyricAnnotations(t *testing.T) {
 	lines := []string{"樱花飘落的季节", "我们说再见", "樱花飘落的季节"}
 	req := &dto.MusicLyricAnnotationsEditReq{
 		Font: "kai", Pace: "slow", Intro: "  春天的告别  ", Accent: "#FFB37A",
-		Spotlights: []string{"樱花飘落的季节", "我们说再见"},
+		Spotlights: []dto.MusicLyricAnnotationSpotlight{{Text: "樱花飘落的季节", Occurrence: 1}, {Text: "我们说再见"}},
 		Lines: []dto.MusicLyricAnnotationLine{
-			{Text: "樱花飘落的季节", ChorusStart: true, Scene: "petals", SceneColor: "pink", Phrases: []dto.MusicLyricAnnotationPhrase{
+			{Text: "樱花飘落的季节", ChorusStart: true, Scene: "petals", SceneColor: "pink", SceneLines: 4, Phrases: []dto.MusicLyricAnnotationPhrase{
 				{Text: "樱花", Effect: "glow", Color: "cherry-blossom", Styles: []string{"bold", "bold"}, Pace: "slow"},
 				{Text: "季节", Effect: "shatter", Pace: "fast"},
 			}},
@@ -94,10 +94,10 @@ func TestSanitizeEditedLyricAnnotations(t *testing.T) {
 	}
 	want := lyricAnnotationData{
 		Font: "kai", Pace: "slow", Intro: "春天的告别", Accent: "#ffb37a",
-		Spotlights: []string{"樱花飘落的季节", "我们说再见"},
+		Spotlights: []dto.MusicLyricAnnotationSpotlight{{Text: "樱花飘落的季节", Occurrence: 1}, {Text: "我们说再见"}},
 		Lines: []dto.MusicLyricAnnotationLine{
 			// 副歌起点也是副歌；旧版颜色名映射到新色板；与全曲节奏相同的不单独保存；重复的字形去掉
-			{Text: "樱花飘落的季节", Chorus: true, ChorusStart: true, Scene: "petals", SceneColor: "cherry-blossom", Phrases: []dto.MusicLyricAnnotationPhrase{
+			{Text: "樱花飘落的季节", Chorus: true, ChorusStart: true, Scene: "petals", SceneColor: "cherry-blossom", SceneLines: 4, Phrases: []dto.MusicLyricAnnotationPhrase{
 				{Text: "樱花", Effect: "glow", Color: "cherry-blossom", Styles: []string{"bold"}},
 				{Text: "季节", Effect: "shatter", Pace: "fast"},
 			}},
@@ -117,12 +117,19 @@ func TestSanitizeEditedLyricAnnotations(t *testing.T) {
 		func(r *dto.MusicLyricAnnotationsEditReq) { r.Lines[1].Text = "樱花飘落的季节" },
 		func(r *dto.MusicLyricAnnotationsEditReq) { r.Lines[1].Mood = "angry" },
 		func(r *dto.MusicLyricAnnotationsEditReq) { r.Lines[0].Phrases[0].Color = "neon" },
-		func(r *dto.MusicLyricAnnotationsEditReq) { r.Spotlights[1] = "不存在的一行" },
-		func(r *dto.MusicLyricAnnotationsEditReq) { r.Spotlights[1] = "樱花飘落的季节" },
 		func(r *dto.MusicLyricAnnotationsEditReq) {
-			r.Spotlights = []string{"樱花飘落的季节", "我们说再见", "樱花飘落的季节", "我们说再见"}
+			r.Spotlights[1] = dto.MusicLyricAnnotationSpotlight{Text: "不存在的一行"}
+		},
+		func(r *dto.MusicLyricAnnotationsEditReq) { r.Spotlights[1] = r.Spotlights[0] },
+		// 「樱花飘落的季节」只出现两次
+		func(r *dto.MusicLyricAnnotationsEditReq) { r.Spotlights[0].Occurrence = 2 },
+		func(r *dto.MusicLyricAnnotationsEditReq) { r.Spotlights[0].Occurrence = -1 },
+		func(r *dto.MusicLyricAnnotationsEditReq) {
+			r.Spotlights = slices.Repeat(r.Spotlights, 4)
 		},
 		func(r *dto.MusicLyricAnnotationsEditReq) { r.Accent = "orange" },
+		func(r *dto.MusicLyricAnnotationsEditReq) { r.Lines[0].SceneLines = lyricAnnotationMaxSceneLines + 1 },
+		func(r *dto.MusicLyricAnnotationsEditReq) { r.Lines[0].SceneLines = -1 },
 		func(r *dto.MusicLyricAnnotationsEditReq) { r.Font = "comic" },
 		func(r *dto.MusicLyricAnnotationsEditReq) {
 			r.Intro = string(make([]rune, lyricAnnotationMaxIntroRunes+1))
