@@ -764,7 +764,8 @@
       "untitled": "Untitled",
       "horizontal_rule": "Horizontal rule",
       "add_image": "Add",
-      "title_required": "Title is required"
+      "title_required": "Title is required",
+      "edit_session_api_token_device": "API token “{name}”"
     },
     "storages": {
       "title": "Storage providers",
@@ -1312,7 +1313,8 @@
         "discard_unpublished_title": "Discard unpublished changes?",
         "discard_unpublished_description": "The draft goes back to the published content; settings such as the title are not changed. The current content is backed up to version history.",
         "revert_failed": "Operation failed",
-        "reverted": "Changes discarded"
+        "reverted": "Changes discarded",
+        "via_api_token": "via API token “{name}”"
       },
       "settings_layout": "Layout",
       "layout": "Page layout",
@@ -1410,6 +1412,51 @@
       "phrases_empty": "No effects yet. Select lyrics to add one.",
       "legend": "Effect categories",
       "legend_hint": "Words sung for a full second are gently enlarged automatically even without an effect."
+    },
+    "api_tokens": {
+      "title": "API tokens",
+      "description": "Personal API tokens let external AI tools such as Claude Code, Claude Desktop and Cursor read, edit and publish posts as you over MCP.",
+      "description_safety": "AI changes are saved as drafts and kept in version history, and AI cannot write while you have the post open in the editor. Tokens can never delete anything.",
+      "create": "Create token",
+      "create_description": "Choose what this token can do. It never gets more access than your current role.",
+      "name": "Name",
+      "name_placeholder": "e.g. Claude Code (laptop)",
+      "name_required": "Enter a name",
+      "name_too_long": "Name can be at most {max} characters",
+      "scopes": "Scopes",
+      "scopes_required": "Select at least one scope",
+      "scope_posts_read": "Read posts, including your own drafts",
+      "scope_posts_write": "Create posts and edit drafts without changing what readers see",
+      "scope_posts_publish": "Publish and unpublish posts, and change the title, labels and other details of public posts",
+      "scope_files_write": "Upload images for posts",
+      "scope_requires_editor": "(requires the editor role or higher)",
+      "expires_at": "Expiration",
+      "expires_in_days": "{days} days",
+      "never_expires": "Never expires",
+      "last_used_at": "Last used",
+      "never_used": "Never used",
+      "status": "Status",
+      "status_active": "Active",
+      "status_expired": "Expired",
+      "status_revoked": "Revoked",
+      "actions": "Actions",
+      "revoke": "Revoke",
+      "revoke_title": "Revoke “{name}”?",
+      "revoke_description": "Tools using this token lose access immediately. This cannot be undone.",
+      "revoke_failed": "Failed to revoke",
+      "load_failed": "Failed to load",
+      "retry": "Retry",
+      "empty": "No API tokens yet",
+      "created_title": "Token created",
+      "created_once_title": "Copy it now",
+      "created_once_description": "You won’t be able to see this token again after closing this dialog. If you lose it, revoke it and create a new one.",
+      "token": "Token",
+      "connect_claude_code": "Add to Claude Code",
+      "connect_json": "MCP config for other clients (Cursor, etc.)",
+      "copy": "Copy",
+      "copied": "Copied to clipboard",
+      "copy_failed": "Copy failed, please copy it manually",
+      "done": "I’ve saved it"
     }
   },
   "Copyright": {
@@ -1710,7 +1757,15 @@
       "invalid_page_link": "Invalid link: use an internal path starting with / or an http(s) URL",
       "lyric_annotations_unavailable": "Lyric annotations are not available for this song",
       "lyric_annotations_failed": "Failed to generate lyric annotations, please try again later",
-      "invalid_lyric_annotation": "The lyric effects are invalid"
+      "invalid_lyric_annotation": "The lyric effects are invalid",
+      "invalid_api_token_name": "Token name must be 1–64 characters",
+      "invalid_api_token_scopes": "Select valid scopes",
+      "api_token_scope_not_allowed": "Your role can’t use the selected scopes",
+      "invalid_api_token_expiry": "Expiration must be in the future",
+      "too_many_api_tokens": "You’ve reached the limit of active tokens. Revoke unused ones first",
+      "invalid_api_token": "The API token is invalid, expired or revoked",
+      "api_token_scope_insufficient": "The API token is missing a required scope",
+      "edit_session_in_use": "The post is open in the editor and can’t be written right now"
     }
   },
   "ErrorPage": {

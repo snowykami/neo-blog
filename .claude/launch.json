@@ -266,6 +266,24 @@
         "docs/prototypes/lyric-effects"
       ],
       "port": 8766
+    },
+    {
+      "name": "backend-mcp",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-blog-mcp-test/run && MODE=dev PORT=18910 DB_PATH=/tmp/neo-blog-mcp-test/run/data.db ENABLE_REGISTER=true ENABLE_EMAIL_VERIFY=false BASE_URL=http://localhost:3130 exec /tmp/neo-blog-mcp-test/bin/server"
+      ],
+      "port": 18910
+    },
+    {
+      "name": "web-mcp",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-blog-mcp-test/web && export BACKEND_URL=http://127.0.0.1:18910 && exec pnpm start -p 3130"
+      ],
+      "port": 3130
     }
   ]
 }

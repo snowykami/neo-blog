@@ -25,6 +25,7 @@ export interface Revision {
   wordCount: number
   user: User
   createdAt: string
+  apiTokenName?: string // 通过个人 API Token（外部 AI 工具）写入时为 Token 名称
 }
 
 export interface RevisionDetail extends Revision {

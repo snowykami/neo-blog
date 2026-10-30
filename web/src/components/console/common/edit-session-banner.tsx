@@ -17,7 +17,10 @@ export function EditSessionBanner({ holder, onTakeOver, className }: { holder: E
   const format = useFormatter()
   const [taking, setTaking] = useState(false)
 
-  const device = [holder?.browser, holder?.os].filter(Boolean).join(' · ') || t('edit_session_unknown_device')
+  // 外部 AI 工具通过 API Token 写入时，以 Token 名称代替设备
+  const device = holder?.apiTokenName
+    ? t('edit_session_api_token_device', { name: holder.apiTokenName })
+    : [holder?.browser, holder?.os].filter(Boolean).join(' · ') || t('edit_session_unknown_device')
   const description = holder
     ? t('edit_session_taken_over_by', {
         name: holder.user?.nickname || holder.user?.username || '-',

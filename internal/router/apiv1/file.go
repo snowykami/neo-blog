@@ -12,6 +12,8 @@ func registerFileRoutes(group *route.RouterGroup) {
 	fileGroup := group.Group("/file").Use(middleware.UseAuth(true))
 	fileGroupWithoutAuth := group.Group("/file").Use(middleware.UseAuth(false))
 	fileGroupWithAdmin := group.Group("/file").Use(middleware.UseAuth(true), middleware.UseRole(constant.RoleAdmin))
+	// 上传额外接受具有 files:write 的个人 API Token，便于外部 AI 工具上传文章配图
+	fileGroupUpload := group.Group("/file").Use(middleware.UseAuth(true, constant.ScopeFilesWrite))
 	{
 		// 公共接口
 		fileGroupWithoutAuth.GET("/f/:id", fileController.GetFile)
@@ -19,7 +21,7 @@ func registerFileRoutes(group *route.RouterGroup) {
 		fileGroupWithoutAuth.HEAD("/f/:id", fileController.GetFile)
 		fileGroupWithoutAuth.HEAD("/f/:id/*filename", fileController.GetFile)
 
-		fileGroup.POST("/f", fileController.UploadFileStream)       // 上传文件 Upload file
+		fileGroupUpload.POST("/f", fileController.UploadFileStream) // 上传文件 Upload file
 		fileGroup.DELETE("/f/:id", fileController.DeleteFile)       // 删除文件 Delete file
 		fileGroup.DELETE("/batch", fileController.BatchDeleteFiles) // 批量删除文件 Batch delete files
 		fileGroup.GET("/file-list", fileController.ListFiles)       // 列出文件 List files

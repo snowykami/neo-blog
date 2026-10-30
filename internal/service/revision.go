@@ -17,6 +17,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
 
@@ -111,7 +112,10 @@ func countWords(content string) int {
 
 // record 记录当前状态为一个版本，返回该版本（内容与最新版本相同时复用最新版本）
 // 自动保存的检查点距上一个版本不足间隔时跳过，返回 nil
-func (s *RevisionService) record(targetType string, targetID, userID uint, kind, sessionID string) (*model.ContentRevision, error) {
+// 通过 API Token 的写入记录 Token，便于在版本历史中区分外部 AI 工具的修改
+func (s *RevisionService) record(ctx context.Context, targetType string, targetID uint, kind, sessionID string) (*model.ContentRevision, error) {
+	userID, _ := ctxutils.GetCurrentUserID(ctx)
+	tokenID := ctxutils.GetAPITokenID(ctx)
 	snap, err := s.snapshot(targetType, targetID)
 	if err != nil {
 		return nil, err
@@ -127,7 +131,8 @@ func (s *RevisionService) record(targetType string, targetID, userID uint, kind,
 	if latest != nil && latest.Hash == hash && !(kind == RevisionKindPublish && latest.Kind != RevisionKindPublish) {
 		return latest, nil
 	}
-	if kind == RevisionKindAutosave && latest != nil && time.Since(latest.CreatedAt) < revisionAutosaveInterval {
+	// 外部 AI 工具的每次写入都单独记录，便于逐次回溯；编辑页的自动保存按间隔记录
+	if kind == RevisionKindAutosave && tokenID == 0 && latest != nil && time.Since(latest.CreatedAt) < revisionAutosaveInterval {
 		return nil, nil
 	}
 	revision := &model.ContentRevision{
@@ -136,6 +141,7 @@ func (s *RevisionService) record(targetType string, targetID, userID uint, kind,
 		Kind:          kind,
 		EditSessionID: sessionID,
 		UserID:        userID,
+		APITokenID:    utils.Ternary(tokenID != 0, &tokenID, nil),
 		Title:         snap.title,
 		Content:       snap.content,
 		Meta:          string(metaJSON),
@@ -154,8 +160,8 @@ func (s *RevisionService) record(targetType string, targetID, userID uint, kind,
 }
 
 // RecordSessionStart 打开编辑器时记录编辑起点，返回版本 ID（失败时返回 0，不影响编辑）
-func (s *RevisionService) RecordSessionStart(targetType string, targetID, userID uint, sessionID string) uint {
-	revision, err := s.record(targetType, targetID, userID, RevisionKindSession, sessionID)
+func (s *RevisionService) RecordSessionStart(ctx context.Context, targetType string, targetID uint, sessionID string) uint {
+	revision, err := s.record(ctx, targetType, targetID, RevisionKindSession, sessionID)
 	if err != nil || revision == nil {
 		if err != nil {
 			logrus.Warnf("record session revision of %s %d failed: %v", targetType, targetID, err)
@@ -167,12 +173,11 @@ func (s *RevisionService) RecordSessionStart(targetType string, targetID, userID
 
 // RecordAfterSave 保存后记录版本：发布必记，保存草稿按间隔记检查点；失败只记录日志
 func (s *RevisionService) RecordAfterSave(ctx context.Context, targetType string, targetID uint, published bool, sessionID string) {
-	userID, _ := ctxutils.GetCurrentUserID(ctx)
 	kind := RevisionKindAutosave
 	if published {
 		kind = RevisionKindPublish
 	}
-	if _, err := s.record(targetType, targetID, userID, kind, sessionID); err != nil {
+	if _, err := s.record(ctx, targetType, targetID, kind, sessionID); err != nil {
 		logrus.Warnf("record %s revision of %s %d failed: %v", kind, targetType, targetID, err)
 	}
 }
@@ -222,8 +227,7 @@ func (s *RevisionService) Get(ctx context.Context, targetType string, targetID, 
 
 // backup 恢复 / 放弃修改前先备份当前状态，保证这次操作本身也能撤回
 func (s *RevisionService) backup(ctx context.Context, targetType string, targetID uint, sessionID string) *errs.ServiceError {
-	userID, _ := ctxutils.GetCurrentUserID(ctx)
-	if _, err := s.record(targetType, targetID, userID, RevisionKindBackup, sessionID); err != nil {
+	if _, err := s.record(ctx, targetType, targetID, RevisionKindBackup, sessionID); err != nil {
 		return errs.NewInternalServer("failed_to_create_target")
 	}
 	return nil

@@ -165,6 +165,10 @@ export function EditorRevisionSheet({ open, onOpenChange, target, docId, schema,
                       {' · '}
                       {t('words', { count: revision.wordCount })}
                     </span>
+                    {/* 外部 AI 工具通过 API Token 写入的版本 */}
+                    {revision.apiTokenName && (
+                      <span className="truncate text-xs text-muted-foreground">{t('via_api_token', { name: revision.apiTokenName })}</span>
+                    )}
                   </button>
                 ))}
               </div>

@@ -169,6 +169,7 @@ func migrate() error {
 	}
 	if err := GetDB().AutoMigrate(
 		&model.AIPrompt{},
+		&model.APIToken{},
 		&model.Comment{},
 		&model.ContentRevision{},
 		&model.EditSession{},

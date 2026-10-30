@@ -15,6 +15,7 @@ export const consolePath = {
   userProfile: '/console/user-profile',
   userSecurity: '/console/user-security',
   userPreference: '/console/user-preference',
+  apiToken: '/console/api-tokens',
 }
 
 export const mainPath = {

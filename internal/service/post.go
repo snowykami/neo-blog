@@ -252,3 +252,16 @@ func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, inclu
 	}
 	return postDtos, total, nil
 }
+
+// ListCategories 全部文章分类
+func (p *PostService) ListCategories() ([]dto.CategoryDto, *errs.ServiceError) {
+	categories, err := repo.Post.ListCategories()
+	if err != nil {
+		return nil, errs.NewInternalServer("failed_to_get_target")
+	}
+	result := make([]dto.CategoryDto, 0, len(categories))
+	for i := range categories {
+		result = append(result, *categories[i].ToDto())
+	}
+	return result, nil
+}

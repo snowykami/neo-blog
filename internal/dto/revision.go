@@ -28,6 +28,8 @@ type RevisionDto struct {
 	WordCount int       `json:"word_count"`
 	User      UserDto   `json:"user"`
 	CreatedAt time.Time `json:"created_at"`
+	// 通过个人 API Token（外部 AI 工具）写入时为 Token 名称
+	APITokenName string `json:"api_token_name,omitempty"`
 }
 
 // RevisionDetailDto 版本详情：含正文与元信息

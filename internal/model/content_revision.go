@@ -16,6 +16,8 @@ type ContentRevision struct {
 	EditSessionID string    `gorm:"type:varchar(64)"`
 	UserID        uint      `gorm:"index"`
 	User          User      `gorm:"foreignKey:UserID;references:ID"`
+	APITokenID    *uint     `gorm:"index"` // 通过个人 API Token（外部 AI 工具）写入时的 Token
+	APIToken      *APIToken `gorm:"foreignKey:APITokenID;references:ID"`
 	Title         string    `gorm:"type:text"`
 	Content       string    `gorm:"type:text"`
 	Meta          string    `gorm:"type:text"`        // dto.RevisionMeta 的 JSON
@@ -24,7 +26,7 @@ type ContentRevision struct {
 }
 
 func (r *ContentRevision) ToDto() *dto.RevisionDto {
-	return &dto.RevisionDto{
+	result := &dto.RevisionDto{
 		ID:        r.ID,
 		Kind:      r.Kind,
 		Title:     r.Title,
@@ -32,4 +34,8 @@ func (r *ContentRevision) ToDto() *dto.RevisionDto {
 		User:      r.User.ToDto(),
 		CreatedAt: r.CreatedAt,
 	}
+	if r.APIToken != nil {
+		result.APITokenName = r.APIToken.Name
+	}
+	return result
 }

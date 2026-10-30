@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
-	"mime/multipart"
 )
 
 // FilePath 根据哈希值生成文件路径，前4位为目录位hash[0:4]/hash
@@ -14,7 +13,7 @@ func FilePath(hash string) (dir, file string) {
 	return
 }
 
-func FileHashFromStream(file multipart.File) (string, error) {
+func FileHashFromStream(file io.Reader) (string, error) {
 	// 创建哈希计算器
 	hash := sha256.New()
 

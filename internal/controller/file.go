@@ -20,7 +20,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/internal/storage"
 	"github.com/snowykami/neo-blog/internal/tasks"
-	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/cache"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -61,9 +60,6 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		resps.Forbidden(c, resps.ErrForbidden)
 		return
 	}
-	if req.ProviderID == 0 {
-		req.ProviderID = storage.GetDefaultStorageProviderID()
-	}
 	file, err := c.FormFile("file")
 	if err != nil {
 		logrus.Error("无法读取文件: ", err)
@@ -82,12 +78,6 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 			return
 		}
 	}
-	// 初始化文件驱动
-	provider, ok := storage.GetStorageProvider(req.ProviderID)
-	if !ok {
-		resps.InternalServerError(c, "没有可用的存储提供者")
-		return
-	}
 
 	// 打开文件
 	src, err := file.Open()
@@ -98,70 +88,22 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 	}
 	defer src.Close()
 
-	// 计算文件哈希值
-	hash, err := utils.FileHashFromStream(src)
-	if err != nil {
-		logrus.Error("计算文件哈希失败: ", err)
-		resps.BadRequest(c, err.Error())
-		return
-	}
-
-	// 根据哈希值生成存储路径
-	dir, fileNameHash := utils.FilePath(hash)
-	storagePath := filepath.Join(dir, fileNameHash)
-	// 保存文件：相同内容已存在时直接复用（哈希由服务端计算，不信任客户端传入）
-	if _, err := provider.Stat(ctx, storagePath); err != nil {
-		if _, err := src.Seek(0, io.SeekStart); err != nil {
-			logrus.Error("无法重置文件流位置: ", err)
-			resps.BadRequest(c, err.Error())
-			return
-		}
-		if err := provider.Save(ctx, storagePath, src); err != nil {
-			logrus.Error("保存文件失败: ", err)
-			resps.InternalServerError(c, err.Error())
-			return
-		}
-	}
-	// 数据库索引建立
-	currentUser, ok := ctxutils.GetCurrentUser(ctx)
-	if !ok {
-		resps.InternalServerError(c, "获取当前用户失败")
-		return
-	}
-	fileModel := &model.File{
-		Hash:       hash,
-		UserID:     currentUser.ID,
-		Group:      req.Group,
+	saved, svcerr := service.NewFileService().SaveFile(ctx, &service.SaveFileInput{
 		Name:       req.Name,
+		Group:      req.Group,
 		ProviderID: req.ProviderID,
 		Size:       file.Size,
 		MimeType:   mimeType,
-	}
-
-	if err := repo.File.Create(fileModel); err != nil {
-		logrus.Error("数据库索引建立失败: ", err)
-		resps.InternalServerError(c, "数据库索引建立失败")
+		Src:        src,
+	})
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
-
-	// 非后端代理请求，直接返回文件URL
-	if !provider.IsProxy() {
-		url, err := provider.GetURL(ctx, storagePath, 0)
-		if err != nil {
-			logrus.Error("获取文件访问URL失败: ", err)
-		}
-		resps.Ok(c, "文件上传成功(直链)", map[string]any{
-			"hash": hash,
-			"id":   fileModel.ID,
-			"url":  url,
-		})
-		return
-	}
-
-	resps.Ok(c, "文件上传成功", map[string]any{
-		"hash": hash,
-		"id":   fileModel.ID,
-		"url":  fmt.Sprintf("%s%s%s/%d", tools.GetBaseUrl(), constant.ApiPrefix, constant.FileUriPrefix, fileModel.ID),
+	resps.Ok(c, utils.Ternary(saved.Direct, "文件上传成功(直链)", "文件上传成功"), map[string]any{
+		"hash": saved.Hash,
+		"id":   saved.ID,
+		"url":  saved.URL,
 	})
 }
 

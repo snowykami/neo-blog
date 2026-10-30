@@ -317,3 +317,10 @@ func (p *postRepo) ListPublicContentsWithComponents() ([]string, error) {
 	err := GetDB().Model(&model.Post{}).Where("is_private = ? AND content LIKE ?", false, "%data-component%").Pluck("content", &contents).Error
 	return contents, err
 }
+
+// ListCategories 全部文章分类，新的在前
+func (p *postRepo) ListCategories() ([]model.Category, error) {
+	var categories []model.Category
+	err := GetDB().Order("id DESC").Find(&categories).Error
+	return categories, err
+}

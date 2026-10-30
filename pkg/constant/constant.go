@@ -69,3 +69,16 @@ const (
 	UserStatusActive   = "active"
 	UserStatusDisabled = "disabled"
 )
+
+// 个人 API Token：供外部 AI 工具（MCP）等以用户身份调用，权限为 Token 权限范围与用户角色的交集
+const (
+	APITokenPrefix = "nbp_" // Token 明文前缀，便于识别与密钥扫描
+
+	ScopePostsRead    = "posts:read"    // 读取文章（含本人 / 管理员可见的草稿）
+	ScopePostsWrite   = "posts:write"   // 创建文章、写入草稿；不会改动任何公开可见的内容
+	ScopePostsPublish = "posts:publish" // 发布 / 取消发布，以及修改公开文章的元信息
+	ScopeFilesWrite   = "files:write"   // 上传图片
+)
+
+// APITokenScopes 全部可选的 API Token 权限范围
+var APITokenScopes = []string{ScopePostsRead, ScopePostsWrite, ScopePostsPublish, ScopeFilesWrite}

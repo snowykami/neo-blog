@@ -40,15 +40,15 @@ func (r *revisionRepo) List(targetType string, targetID uint, pagination dto.Pag
 	if page <= 0 {
 		page = 1
 	}
-	err := query.Select("id", "created_at", "target_type", "target_id", "kind", "user_id", "title", "word_count").
-		Preload("User").Order("id DESC").Offset((page - 1) * size).Limit(size).Find(&revisions).Error
+	err := query.Select("id", "created_at", "target_type", "target_id", "kind", "user_id", "api_token_id", "title", "word_count").
+		Preload("User").Preload("APIToken").Order("id DESC").Offset((page - 1) * size).Limit(size).Find(&revisions).Error
 	return revisions, total, err
 }
 
 // Get 指定目标下的某个版本（含正文）
 func (r *revisionRepo) Get(targetType string, targetID, revisionID uint) (*model.ContentRevision, error) {
 	var revision model.ContentRevision
-	err := GetDB().Preload("User").
+	err := GetDB().Preload("User").Preload("APIToken").
 		Where("id = ? AND target_type = ? AND target_id = ?", revisionID, targetType, targetID).
 		First(&revision).Error
 	return &revision, err

@@ -764,7 +764,8 @@
       "untitled": "無題",
       "horizontal_rule": "区切り線",
       "add_image": "追加",
-      "title_required": "タイトルは必須です"
+      "title_required": "タイトルは必須です",
+      "edit_session_api_token_device": "API トークン「{name}」"
     },
     "storages": {
       "title": "ストレージプロバイダ",
@@ -1312,7 +1313,8 @@
         "discard_unpublished_title": "未公開の変更を破棄しますか？",
         "discard_unpublished_description": "下書きが公開中の本文に戻ります。タイトルなどの設定は変わりません。現在の内容は版の履歴へバックアップされます。",
         "revert_failed": "操作に失敗しました",
-        "reverted": "変更を破棄しました"
+        "reverted": "変更を破棄しました",
+        "via_api_token": "API トークン「{name}」経由"
       },
       "settings_layout": "レイアウト",
       "layout": "ページのレイアウト",
@@ -1410,6 +1412,51 @@
       "phrases_empty": "まだエフェクトはありません。歌詞を選択すると追加できます",
       "legend": "エフェクトの分類",
       "legend_hint": "エフェクトのない語も、1 秒以上歌われるとプレーヤーが自動で少し拡大します。"
+    },
+    "api_tokens": {
+      "title": "API トークン",
+      "description": "個人用 API トークンを使うと、Claude Code、Claude Desktop、Cursor などの外部 AI ツールが MCP 経由であなたとして記事を読み取り・編集・公開できます。",
+      "description_safety": "AI による変更はまず下書きとして保存され、版の履歴に残ります。エディターで記事を開いている間は AI は書き込めません。トークンで削除はできません。",
+      "create": "トークンを作成",
+      "create_description": "このトークンでできることを選択します。実際の権限が現在のロールを超えることはありません。",
+      "name": "名前",
+      "name_placeholder": "例：Claude Code（ノート PC）",
+      "name_required": "名前を入力してください",
+      "name_too_long": "名前は最大 {max} 文字です",
+      "scopes": "スコープ",
+      "scopes_required": "スコープを 1 つ以上選択してください",
+      "scope_posts_read": "記事を読み取る（自分の下書きを含む）",
+      "scope_posts_write": "記事の作成と下書きの編集。読者に見える内容は変わりません",
+      "scope_posts_publish": "記事の公開・非公開、公開記事のタイトルやラベルなどの変更",
+      "scope_files_write": "記事用の画像をアップロード",
+      "scope_requires_editor": "（編集者以上のロールが必要）",
+      "expires_at": "有効期限",
+      "expires_in_days": "{days} 日",
+      "never_expires": "無期限",
+      "last_used_at": "最終使用",
+      "never_used": "未使用",
+      "status": "状態",
+      "status_active": "有効",
+      "status_expired": "期限切れ",
+      "status_revoked": "取り消し済み",
+      "actions": "操作",
+      "revoke": "取り消す",
+      "revoke_title": "「{name}」を取り消しますか？",
+      "revoke_description": "このトークンを使っているツールは直ちにアクセスできなくなります。元に戻せません。",
+      "revoke_failed": "取り消しに失敗しました",
+      "load_failed": "読み込みに失敗しました",
+      "retry": "再試行",
+      "empty": "API トークンはまだありません",
+      "created_title": "トークンを作成しました",
+      "created_once_title": "今すぐコピーしてください",
+      "created_once_description": "このダイアログを閉じるとトークンは二度と表示されません。紛失した場合は取り消して作り直してください。",
+      "token": "トークン",
+      "connect_claude_code": "Claude Code に追加",
+      "connect_json": "その他のクライアント（Cursor など）の MCP 設定",
+      "copy": "コピー",
+      "copied": "クリップボードにコピーしました",
+      "copy_failed": "コピーに失敗しました。手動でコピーしてください",
+      "done": "保存しました"
     }
   },
   "Copyright": {
@@ -1710,7 +1757,15 @@
       "invalid_page_link": "リンクが無効です。/ で始まるパスか http(s) の URL を指定してください",
       "lyric_annotations_unavailable": "この曲には歌詞アノテーションがありません",
       "lyric_annotations_failed": "歌詞アノテーションの生成に失敗しました。しばらくしてからお試しください",
-      "invalid_lyric_annotation": "歌詞エフェクトの内容が不正です"
+      "invalid_lyric_annotation": "歌詞エフェクトの内容が不正です",
+      "invalid_api_token_name": "トークン名は 1〜64 文字で入力してください",
+      "invalid_api_token_scopes": "有効なスコープを選択してください",
+      "api_token_scope_not_allowed": "あなたのロールでは選択したスコープを使えません",
+      "invalid_api_token_expiry": "有効期限は現在より後にしてください",
+      "too_many_api_tokens": "有効なトークン数の上限に達しました。不要なトークンを取り消してください",
+      "invalid_api_token": "API トークンが無効か、期限切れか、取り消されています",
+      "api_token_scope_insufficient": "API トークンに必要なスコープがありません",
+      "edit_session_in_use": "記事がエディターで開かれているため、現在は書き込めません"
     }
   },
   "ErrorPage": {

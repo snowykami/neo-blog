@@ -9,6 +9,7 @@ import (
 func registerUserRoutes(group *route.RouterGroup) {
 	const userRoute = "/user"
 	userController := controller.NewUserController()
+	apiTokenController := controller.NewAPITokenController()
 
 	userGroupWithAuth := group.Group(userRoute).Use(middleware.UseAuth(true))
 	userGroupNoAuth := group.Group(userRoute).Use(middleware.UseAuth(false))
@@ -32,6 +33,10 @@ func registerUserRoutes(group *route.RouterGroup) {
 		userGroupWithAuth.PUT("/password/edit", userController.ChangePassword)
 		userGroupWithAuth.GET("/openids", userController.GetUserOpenIDList)      // 获取登录用户的OIDC列表
 		userGroupWithAuth.DELETE("/openid/:id", userController.DeleteUserOpenID) // 删除、解绑登录用户的某个OIDC绑定
+		// 个人 API Token：仅浏览器会话可管理，API Token 本身无法访问这些接口
+		userGroupWithAuth.GET("/api-tokens", apiTokenController.List)
+		userGroupWithAuth.POST("/api-tokens", apiTokenController.Create)
+		userGroupWithAuth.POST("/api-tokens/:id/revoke", apiTokenController.Revoke)
 		// 需要邮箱验证但是不需要登录
 		group.Group(userRoute).Use(middleware.UseEmailVerify()).PUT("/password/reset", userController.ResetPassword) // 不需要登录
 		// 需要邮箱验证和登录

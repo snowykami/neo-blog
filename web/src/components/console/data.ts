@@ -8,6 +8,7 @@ import {
   Footprints,
   Gauge,
   IdCard,
+  KeyRound,
   MessageCircle,
   Newspaper,
   NotebookText,
@@ -56,6 +57,8 @@ const oidc: SidebarItem = { id: 'oidc', title: 'oidc.title', url: consolePath.oi
 const userProfile: SidebarItem = { id: 'user_profile', title: 'user_profile.title', url: consolePath.userProfile, icon: UserPen, permission: () => true }
 const userSecurity: SidebarItem = { id: 'user_security', title: 'user_security.title', url: consolePath.userSecurity, icon: ShieldCheck, permission: () => true }
 const userPreference: SidebarItem = { id: 'user_preference', title: 'user_preference.title', url: consolePath.userPreference, icon: Palette, permission: () => true }
+// 个人 API Token：所有登录用户可创建，可选的权限范围由角色决定
+const apiTokens: SidebarItem = { id: 'api_tokens', title: 'api_tokens.title', url: consolePath.apiToken, icon: KeyRound, permission: () => true }
 
 export const sidebarData: {
   navContent: SidebarMenu[]
@@ -75,7 +78,7 @@ export const sidebarData: {
     { id: 'accounts', title: 'menu.accounts', icon: Users, items: [users, oidc] },
   ],
   navPersonal: [
-    { id: 'personal', title: 'menu.personal_settings', icon: UserPen, items: [userProfile, userSecurity, userPreference] },
+    { id: 'personal', title: 'menu.personal_settings', icon: UserPen, items: [userProfile, userSecurity, userPreference, apiTokens] },
   ],
 }
 

@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"context"
+	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -9,7 +11,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"golang.org/x/sync/singleflight"
@@ -19,8 +23,23 @@ var ipCacheDuration = 30 * time.Minute
 var ipSingleflight singleflight.Group
 
 // UseAuth 认证中间件，验证用户身份, block参数决定认证失败时是否阻断请求, 否则起一个用户记录作用
-func UseAuth(block bool) app.HandlerFunc {
+// tokenScopes 为空时不接受个人 API Token（默认拒绝）；非空时额外接受同时具有这些权限范围的 API Token
+func UseAuth(block bool, tokenScopes ...string) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
+		if raw := bearerAPIToken(c); raw != "" && len(tokenScopes) > 0 {
+			apiCtx, svcerr := authenticateAPIToken(ctx, raw, tokenScopes)
+			if svcerr == nil {
+				c.Next(apiCtx)
+				return
+			}
+			if block {
+				abortAPITokenError(c, svcerr)
+				return
+			}
+			c.Next(ctx)
+			return
+		}
+
 		token := string(c.Cookie("token"))
 		if token == "" {
 			token = strings.TrimPrefix(string(c.GetHeader("Authorization")), "Bearer ")
@@ -89,6 +108,61 @@ func UseAuth(block bool) app.HandlerFunc {
 		logrus.Debug("UseAuth: failed but not blocking request")
 		c.Next(ctx)
 	}
+}
+
+// UseAPIToken 只接受个人 API Token 的鉴权，用于 MCP 等面向外部工具的接口
+// 不接受浏览器 Cookie，避免登录态被跨站请求借用；具体操作所需的权限范围由调用方检查
+func UseAPIToken() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		raw := bearerAPIToken(c)
+		if raw == "" {
+			abortAPITokenError(c, errs.NewUnauthorized("invalid_api_token"))
+			return
+		}
+		apiCtx, svcerr := authenticateAPIToken(ctx, raw, nil)
+		if svcerr != nil {
+			abortAPITokenError(c, svcerr)
+			return
+		}
+		c.Next(apiCtx)
+	}
+}
+
+// bearerAPIToken 取出 Authorization 头中的个人 API Token，不是 API Token 时返回空
+func bearerAPIToken(c *app.RequestContext) string {
+	raw := strings.TrimSpace(strings.TrimPrefix(string(c.GetHeader("Authorization")), "Bearer "))
+	if !strings.HasPrefix(raw, constant.APITokenPrefix) {
+		return ""
+	}
+	return raw
+}
+
+// authenticateAPIToken 校验 API Token 并要求具有全部 requiredScopes，通过后在上下文中写入用户与 Token 信息
+func authenticateAPIToken(ctx context.Context, raw string, requiredScopes []string) (context.Context, *errs.ServiceError) {
+	userID, info, svcerr := service.NewAPITokenService().Authenticate(raw)
+	if svcerr != nil {
+		return ctx, svcerr
+	}
+	if len(info.Scopes) == 0 {
+		return ctx, errs.NewForbidden("api_token_scope_insufficient")
+	}
+	for _, scope := range requiredScopes {
+		if !slices.Contains(info.Scopes, scope) {
+			return ctx, errs.NewForbidden("api_token_scope_insufficient")
+		}
+	}
+	ctx = context.WithValue(ctx, "user_id", userID)
+	ctx = ctxutils.WithUserCache(ctx)
+	ctx = ctxutils.WithAPIToken(ctx, info)
+	logrus.Debugf("user_id: %d, api_token_id: %d pass", userID, info.ID)
+	return ctx, nil
+}
+
+func abortAPITokenError(c *app.RequestContext, svcerr *errs.ServiceError) {
+	if svcerr.Code == http.StatusUnauthorized {
+		c.Header("WWW-Authenticate", `Bearer realm="neo-blog", error="invalid_token"`)
+	}
+	resps.Error(c, svcerr)
 }
 
 // UseRole 检查用户角色是否符合要求，必须在 UseAuth 之后使用

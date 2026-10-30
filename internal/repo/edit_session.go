@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"time"
+
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -15,17 +17,25 @@ var EditSession = &editSessionRepo{}
 func (e *editSessionRepo) Upsert(session *model.EditSession) error {
 	return GetDB().Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "target_type"}, {Name: "target_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"session_id", "user_id", "user_agent", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"session_id", "user_id", "user_agent", "updated_at", "api_token_id", "active_at"}),
 	}).Create(session).Error
 }
 
 // Get 获取目标当前的编辑会话（包含用户信息）
 func (e *editSessionRepo) Get(targetType string, targetID uint) (*model.EditSession, error) {
 	var session model.EditSession
-	if err := GetDB().Preload("User").Where("target_type = ? AND target_id = ?", targetType, targetID).First(&session).Error; err != nil {
+	if err := GetDB().Preload("User").Preload("APIToken").Where("target_type = ? AND target_id = ?", targetType, targetID).First(&session).Error; err != nil {
 		return nil, err
 	}
 	return &session, nil
+}
+
+// TouchActive 刷新会话的最近活跃时间，距上次记录不足 interval 时不写库
+func (e *editSessionRepo) TouchActive(targetType string, targetID uint, sessionID string, now time.Time, interval time.Duration) error {
+	return GetDB().Model(&model.EditSession{}).
+		Where("target_type = ? AND target_id = ? AND session_id = ?", targetType, targetID, sessionID).
+		Where("active_at IS NULL OR active_at < ?", now.Add(-interval)).
+		UpdateColumn("active_at", now).Error
 }
 
 // GetTargetOwnerID 获取文章/页面的作者ID，仅查询作者字段，不影响浏览量等统计

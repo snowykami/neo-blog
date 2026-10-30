@@ -764,7 +764,8 @@
       "untitled": "無標題",
       "horizontal_rule": "分隔線",
       "add_image": "新增",
-      "title_required": "標題不能為空"
+      "title_required": "標題不能為空",
+      "edit_session_api_token_device": "API Token「{name}」"
     },
     "storages": {
       "title": "儲存供應商",
@@ -1312,7 +1313,8 @@
         "discard_unpublished_title": "放棄未發布的修改？",
         "discard_unpublished_description": "內文草稿會還原為目前已發布的版本，標題等設定不受影響。放棄前的內容會備份到版本歷史。",
         "revert_failed": "操作失敗",
-        "reverted": "已放棄修改"
+        "reverted": "已放棄修改",
+        "via_api_token": "經 API Token「{name}」"
       },
       "settings_layout": "版式",
       "layout": "前台版式",
@@ -1410,6 +1412,51 @@
       "phrases_empty": "這一行還沒有特效，選取歌詞即可新增",
       "legend": "特效分類",
       "legend_hint": "沒有標註的詞唱滿 1 秒時，播放器也會自動輕微放大。"
+    },
+    "api_tokens": {
+      "title": "API Token",
+      "description": "個人 API Token 讓 Claude Code、Claude Desktop、Cursor 等外部 AI 工具透過 MCP 以你的身分讀取、編輯與發布文章。",
+      "description_safety": "AI 的修改都會先儲存為草稿並記入版本歷史，你在編輯器中開啟文章時 AI 無法寫入；Token 無法刪除任何內容。",
+      "create": "建立 Token",
+      "create_description": "選擇這個 Token 能做什麼。實際權限不會超過你目前的角色。",
+      "name": "名稱",
+      "name_placeholder": "例如：Claude Code（筆電）",
+      "name_required": "請填寫名稱",
+      "name_too_long": "名稱最多 {max} 個字元",
+      "scopes": "權限範圍",
+      "scopes_required": "至少選擇一項權限",
+      "scope_posts_read": "讀取文章，包括你自己的草稿",
+      "scope_posts_write": "建立文章、修改草稿，不會改動讀者看到的內容",
+      "scope_posts_publish": "發布與取消發布文章，修改公開文章的標題、標籤等資訊",
+      "scope_files_write": "上傳文章配圖",
+      "scope_requires_editor": "（需要編輯者以上角色）",
+      "expires_at": "有效期限",
+      "expires_in_days": "{days} 天",
+      "never_expires": "永不過期",
+      "last_used_at": "最近使用",
+      "never_used": "從未使用",
+      "status": "狀態",
+      "status_active": "有效",
+      "status_expired": "已過期",
+      "status_revoked": "已撤銷",
+      "actions": "操作",
+      "revoke": "撤銷",
+      "revoke_title": "撤銷「{name}」？",
+      "revoke_description": "撤銷後使用該 Token 的工具會立即失去存取權限，此操作無法復原。",
+      "revoke_failed": "撤銷失敗",
+      "load_failed": "載入失敗",
+      "retry": "重試",
+      "empty": "還沒有 API Token",
+      "created_title": "Token 已建立",
+      "created_once_title": "請立即複製保存",
+      "created_once_description": "關閉此視窗後將無法再次查看這個 Token。如果遺失，撤銷後重新建立即可。",
+      "token": "Token",
+      "connect_claude_code": "新增到 Claude Code",
+      "connect_json": "其他用戶端（Cursor 等）的 MCP 設定",
+      "copy": "複製",
+      "copied": "已複製到剪貼簿",
+      "copy_failed": "複製失敗，請手動複製",
+      "done": "我已保存"
     }
   },
   "Copyright": {
@@ -1710,7 +1757,15 @@
       "invalid_page_link": "連結網址無效：請使用以 / 開頭的站內路徑或 http(s) 網址",
       "lyric_annotations_unavailable": "目前歌曲沒有可用的歌詞標註",
       "lyric_annotations_failed": "歌詞標註生成失敗，請稍後再試",
-      "invalid_lyric_annotation": "歌詞特效的內容不合法"
+      "invalid_lyric_annotation": "歌詞特效的內容不合法",
+      "invalid_api_token_name": "Token 名稱不能為空，且最多 64 個字元",
+      "invalid_api_token_scopes": "請選擇有效的權限範圍",
+      "api_token_scope_not_allowed": "你的角色無法使用所選的權限範圍",
+      "invalid_api_token_expiry": "過期時間必須晚於目前時間",
+      "too_many_api_tokens": "有效的 Token 數量已達上限，請先撤銷不用的 Token",
+      "invalid_api_token": "API Token 無效、已過期或已被撤銷",
+      "api_token_scope_insufficient": "API Token 缺少所需的權限範圍",
+      "edit_session_in_use": "文章正在編輯器中開啟，暫時無法寫入"
     }
   },
   "ErrorPage": {
