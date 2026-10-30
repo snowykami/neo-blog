@@ -51,6 +51,9 @@ interface MusicContextValue {
   // 当前曲目已到达且有歌词的各来源（等级从高到低），当前显示的来源，以及读者为这首歌固定的来源
   lyricCandidates: LyricCandidate[]
   lyricKind: LyricSourceKind | null
+  // 全站歌词版本的来源（后端选出，见 spec 7.2o），以及当前显示的是否就是它（歌词特效只叠加在全站版本上）
+  lyricSiteKind: LyricSourceKind | null
+  lyricIsSiteVersion: boolean
   lyricPin: LyricSourceKind | null
   setLyricPin: (pin: LyricSourceKind | null) => void
   // 读者为某首歌固定的歌词来源（文章内的歌词摘录等按歌曲 id 取歌词时使用）
@@ -629,22 +632,25 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const lyricPin = currentTrackId != null ? lyricPins[currentTrackId] ?? null : null
   const songLyrics = useResolvedSongLyrics(currentTrackId, lyricPin, currentTrack)
   // 强调特效：按演唱时长规则计算，并叠加歌词标注（逐字歌词）。标注在读者播放到这首歌时才请求（懒处理），
-  // 关闭歌词特效或不是逐字歌词时不请求
-  const wantsAnnotations = isPlaying && showLyricEffects && songLyrics.lyrics.wordTimed && currentTrackId != null && currentTrackId > 0
+  // 关闭歌词特效、不是逐字歌词或读者固定了全站版本以外的来源时不请求。标注只按全站歌词版本生成，只在显示这一版本时叠加
+  const wantsAnnotations = isPlaying && showLyricEffects && songLyrics.lyrics.wordTimed && songLyrics.isSiteVersion && currentTrackId != null && currentTrackId > 0
   useEffect(() => {
     if (wantsAnnotations && currentTrackId != null)
       requestLyricAnnotations(currentTrackId)
   }, [currentTrackId, wantsAnnotations])
-  const annotations = useLyricAnnotations(currentTrackId)
+  const storedAnnotations = useLyricAnnotations(currentTrackId)
+  const annotations = storedAnnotations?.source === songLyrics.lyrics.source ? storedAnnotations : null
   const lyrics = useMemo(() => applyEmphasis(songLyrics.lyrics, annotations), [annotations, songLyrics.lyrics])
   const refreshLyrics = useCallback(() => {
     if (currentTrackId != null)
       refreshSongLyrics(currentTrackId)
   }, [currentTrackId])
-  const lyricAnnotationsGenerating = useLyricAnnotationsGenerating(showLyricEffects && songLyrics.lyrics.wordTimed ? currentTrackId : null)
+  const lyricAnnotationsGenerating = useLyricAnnotationsGenerating(showLyricEffects && songLyrics.lyrics.wordTimed && songLyrics.isSiteVersion ? currentTrackId : null)
   const lyricAnnotated = showLyricEffects && songLyrics.lyrics.wordTimed && (annotations?.lines.length ?? 0) > 0
   const lyricCandidates = songLyrics.candidates
   const lyricKind = songLyrics.kind
+  const lyricSiteKind = songLyrics.siteKind
+  const lyricIsSiteVersion = songLyrics.isSiteVersion
   const lyricsPending = songLyrics.pending
   const lyricStatus = songLyrics.status
 
@@ -945,6 +951,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     lyrics,
     lyricCandidates,
     lyricKind,
+    lyricSiteKind,
+    lyricIsSiteVersion,
     lyricPin,
     setLyricPin,
     getLyricPin,
@@ -994,6 +1002,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     lyrics,
     lyricCandidates,
     lyricKind,
+    lyricSiteKind,
+    lyricIsSiteVersion,
     lyricPin,
     setLyricPin,
     getLyricPin,

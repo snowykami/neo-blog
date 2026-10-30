@@ -4,11 +4,15 @@ import type { LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricSource, ResolvedLyrics } from '@/lib/lyrics/types'
 import { ChevronDownIcon, LoaderCircleIcon, PinIcon, RotateCwIcon, SparklesIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { useState } from 'react'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/auth-context'
+import { reloadAnnotations, useLyricAnnotations } from '@/contexts/lyric-annotations'
 import { setLyricSitePin, useLyricSitePin } from '@/contexts/lyric-settings'
 import { useMusic } from '@/contexts/music-context'
+import { setSongLyricVersion } from '@/contexts/song-lyrics'
 import { cn } from '@/lib/utils'
 import { isAdmin } from '@/utils/common/permission'
 import { LyricSourceIcon } from './lyric-source-icons'
@@ -36,18 +40,34 @@ const AUTO = 'auto'
  * 点击打开菜单：有多个来源时可切换（选择某个来源即为这首歌固定该来源，下次播放仍使用；选择「自动」按等级选择），
  * 并始终可以「重新获取歌词」（重新从所有来源获取，获取失败或歌词不对时使用）；
  * 更高等级的来源仍在请求中时显示加载图标；叠加了 AI 歌词标注时在最前面显示 AI 标志，正在生成时标志呼吸闪烁。
- * 全站默认来源（spec 7.2n）：管理员在这里选择来源即设为全站默认（选「自动」取消），所有读者默认显示它；
- * 读者的选择只保存在本地，有全站默认来源时读者的「自动」显示为「默认（站长选择）」
+ * 全站默认来源（spec 7.2n）：管理员在这里选择来源即设为全站默认（选「自动」取消），后端立即按它重新选出全站歌词版本并生成歌词特效；
+ * 当前的特效在后台手动编辑过时先确认（切换后不再显示，切换回来时恢复）。读者的选择只保存在本地，有全站默认来源时读者的「自动」显示为
+ * 「默认（站长选择）」；歌词特效只叠加在全站版本上（spec 7.2o），菜单里标出全站版本并提示
  */
 export function LyricSourceBadge({ className }: { className?: string }) {
   const t = useTranslations('MusicPage')
-  const { lyrics, lyricStatus, lyricCandidates, lyricKind, lyricPin, setLyricPin, lyricSourcesPending, refreshLyrics, lyricAnnotated, lyricAnnotationsGenerating, currentTrack } = useMusic()
+  const { lyrics, lyricStatus, lyricCandidates, lyricKind, lyricSiteKind, lyricPin, setLyricPin, lyricSourcesPending, refreshLyrics, lyricAnnotated, lyricAnnotationsGenerating, currentTrack } = useMusic()
   const { user } = useAuth()
   const admin = !!user && isAdmin({ user })
   const trackId = currentTrack?.id ?? 0
   const sitePin = useLyricSitePin(trackId > 0 ? trackId : null)
+  const annotationsEdited = useLyricAnnotations(trackId > 0 ? trackId : null)?.edited ?? false
+  // 等待确认的全站来源切换（当前特效手动编辑过）
+  const [confirmKind, setConfirmKind] = useState<LyricSourceKind | typeof AUTO | null>(null)
   if (lyricStatus === 'loading')
     return null
+
+  const saveSitePin = (kind: LyricSourceKind | null) => {
+    // 管理员：设为全站默认，并清除自己在本地固定的来源，看到的就是全站的版本；后端返回重新选出的全站版本，按新版本重新取歌词特效
+    setLyricPin(null)
+    setLyricSitePin(trackId, kind)
+      .then((version) => {
+        setSongLyricVersion(trackId, version)
+        reloadAnnotations(trackId)
+        toast.success(t(kind ? 'lyric_site_pin_saved' : 'lyric_site_pin_cleared'))
+      })
+      .catch(() => toast.error(t('lyric_site_pin_failed')))
+  }
 
   const selectSource = (value: string) => {
     const kind = value === AUTO ? null : value as LyricSourceKind
@@ -55,11 +75,11 @@ export function LyricSourceBadge({ className }: { className?: string }) {
       setLyricPin(kind)
       return
     }
-    // 管理员：设为全站默认，并清除自己在本地固定的来源，看到的就是全站的版本
-    setLyricPin(null)
-    setLyricSitePin(trackId, kind)
-      .then(() => toast.success(t(kind ? 'lyric_site_pin_saved' : 'lyric_site_pin_cleared')))
-      .catch(() => toast.error(t('lyric_site_pin_failed')))
+    if (annotationsEdited && value !== (sitePin ?? AUTO)) {
+      setConfirmKind(kind ?? AUTO)
+      return
+    }
+    saveSitePin(kind)
   }
 
   const describe = (target: ResolvedLyrics) => {
@@ -96,50 +116,65 @@ export function LyricSourceBadge({ className }: { className?: string }) {
   )
 
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger
-        title={t(switchable ? 'lyric_badge_switch' : 'lyric_badge_label')}
-        // className 加在外层：页面用它控制标签在网格中的位置（移动端居中）
-        className={cn('inline-flex rounded-full focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none', className)}
-      >
-        {badge}
-      </DropdownMenuTrigger>
-      {/* 播放器页固定为深色界面；下拉菜单渲染在 body 下，单独加 dark。层级高于悬浮播放器的弹层（z-1000） */}
-      <DropdownMenuContent align="start" className="dark z-1001 min-w-56 border-white/10 bg-neutral-900/95 text-white backdrop-blur-xl">
-        {switchable && (
-          <>
-            <DropdownMenuLabel className="grid text-xs text-white/60">
-              {t(admin ? 'lyric_badge_switch_site' : 'lyric_badge_switch')}
-              {admin && <span className="text-[11px] font-normal text-white/40">{t('lyric_badge_switch_site_hint')}</span>}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-white/10" />
-            <DropdownMenuRadioGroup value={selected} onValueChange={selectSource}>
-              <DropdownMenuRadioItem value={AUTO} className="text-xs">
-                <span className="grid">
-                  {t(!admin && sitePin ? 'lyric_badge_site_default' : 'lyric_badge_auto')}
-                  {lyricKind && selected === AUTO && <span className="text-[11px] text-white/50">{describe(lyrics)}</span>}
-                </span>
-              </DropdownMenuRadioItem>
-              {lyricCandidates.map(candidate => (
-                <DropdownMenuRadioItem key={candidate.kind} value={candidate.kind} className="gap-2 text-xs">
-                  <LyricSourceIcon source={candidate.lyrics.source} className="size-3.5 shrink-0 text-white/80" />
-                  {describe(candidate.lyrics)}
-                  {!admin && candidate.kind === sitePin && <span className="ml-auto text-[11px] text-white/50">{t('lyric_badge_site_tag')}</span>}
+    <>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          title={t(switchable ? 'lyric_badge_switch' : 'lyric_badge_label')}
+          // className 加在外层：页面用它控制标签在网格中的位置（移动端居中）
+          className={cn('inline-flex rounded-full focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none', className)}
+        >
+          {badge}
+        </DropdownMenuTrigger>
+        {/* 播放器页固定为深色界面；下拉菜单渲染在 body 下，单独加 dark。层级高于悬浮播放器的弹层（z-1000） */}
+        <DropdownMenuContent align="start" className="dark z-1001 min-w-56 border-white/10 bg-neutral-900/95 text-white backdrop-blur-xl">
+          {switchable && (
+            <>
+              <DropdownMenuLabel className="grid text-xs text-white/60">
+                {t(admin ? 'lyric_badge_switch_site' : 'lyric_badge_switch')}
+                <span className="text-[11px] font-normal text-white/40">{t(admin ? 'lyric_badge_switch_site_hint' : 'lyric_badge_effects_site_only')}</span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-white/10" />
+              <DropdownMenuRadioGroup value={selected} onValueChange={selectSource}>
+                <DropdownMenuRadioItem value={AUTO} className="text-xs">
+                  <span className="grid">
+                    {t(!admin && sitePin ? 'lyric_badge_site_default' : 'lyric_badge_auto')}
+                    {lyricKind && selected === AUTO && <span className="text-[11px] text-white/50">{describe(lyrics)}</span>}
+                  </span>
                 </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator className="bg-white/10" />
-          </>
-        )}
-        {/* 重新从所有来源获取（获取失败或歌词不对时）；获取期间显示加载并暂时不可点 */}
-        <DropdownMenuItem disabled={lyricSourcesPending} onSelect={refreshLyrics} className="gap-2 text-xs">
-          <RotateCwIcon aria-hidden className={cn('size-3.5 shrink-0 text-white/80', lyricSourcesPending && 'motion-safe:animate-spin')} />
-          <span className="grid">
-            {t('lyric_refresh')}
-            <span className="text-[11px] text-white/50">{t('lyric_refresh_hint')}</span>
-          </span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+                {lyricCandidates.map(candidate => (
+                  <DropdownMenuRadioItem key={candidate.kind} value={candidate.kind} className="gap-2 text-xs">
+                    <LyricSourceIcon source={candidate.lyrics.source} className="size-3.5 shrink-0 text-white/80" />
+                    {describe(candidate.lyrics)}
+                    {!admin && candidate.kind === lyricSiteKind && <span className="ml-auto text-[11px] text-white/50">{t('lyric_badge_site_version_tag')}</span>}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator className="bg-white/10" />
+            </>
+          )}
+          {/* 重新从所有来源获取（获取失败或歌词不对时）；获取期间显示加载并暂时不可点 */}
+          <DropdownMenuItem disabled={lyricSourcesPending} onSelect={refreshLyrics} className="gap-2 text-xs">
+            <RotateCwIcon aria-hidden className={cn('size-3.5 shrink-0 text-white/80', lyricSourcesPending && 'motion-safe:animate-spin')} />
+            <span className="grid">
+              {t('lyric_refresh')}
+              <span className="text-[11px] text-white/50">{t('lyric_refresh_hint')}</span>
+            </span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ConfirmDialog
+        open={confirmKind != null}
+        onOpenChange={open => !open && setConfirmKind(null)}
+        title={t('lyric_site_switch_edited_title')}
+        description={t('lyric_site_switch_edited_description')}
+        confirmLabel={t('lyric_site_switch_confirm')}
+        confirmVariant="destructive"
+        onConfirm={() => {
+          if (confirmKind != null)
+            saveSitePin(confirmKind === AUTO ? null : confirmKind)
+          setConfirmKind(null)
+        }}
+      />
+    </>
   )
 }

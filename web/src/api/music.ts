@@ -117,6 +117,8 @@ export interface MusicLyricAnnotations {
   lines: LyricAnnotations['lines']
   sprites?: LyricAnnotations['sprites']
   edited?: boolean
+  // 标注所属的全站歌词版本（具体来源）：只在显示这一版本时叠加特效
+  source?: LyricSource
 }
 
 // 只为博客歌单内的歌曲生成；没有配置大模型、不在歌单内或生成失败时返回 null
@@ -150,9 +152,16 @@ export async function fetchLyricSettings(id: number): Promise<MusicLyricSettings
   return res.data.data
 }
 
-// 管理员设置全站默认歌词来源，为 null 时取消（恢复按质量自动选择）
-export async function saveLyricPin(id: number, kind: LyricSourceKind | null): Promise<void> {
-  await axiosClient.put(`/music/song/${id}/lyric/pin`, { kind: kind ?? '' })
+// 全站歌词版本（后端选出，见 spec 7.2o）：kind 为来源，source 为具体来源（与 ResolvedLyrics.source 一致）；没有歌词时都为空字符串
+export interface MusicLyricVersion {
+  kind: LyricSourceKind | ''
+  source: LyricSource | ''
+}
+
+// 管理员设置全站默认歌词来源，为 null 时取消（恢复按质量自动选择）；返回后端按新设置重新选出的全站歌词版本
+export async function saveLyricPin(id: number, kind: LyricSourceKind | null): Promise<MusicLyricVersion> {
+  const res = await axiosClient.put<BaseResponse<MusicLyricVersion>>(`/music/song/${id}/lyric/pin`, { kind: kind ?? '' })
+  return res.data.data
 }
 
 // 管理员保存某一歌词来源的整体偏移（毫秒），为 0 时清除；对所有人生效
@@ -167,6 +176,12 @@ export interface MusicLyricAnnotationSummary {
   generatedAt: string
   editedAt?: string
   model?: string
+  // 生成时全站歌词版本的具体来源（旧数据没有）
+  source?: LyricSource
+  // 不属于当前的全站歌词版本（版本已更换，下次播放时按新版本重新生成）
+  outdated?: boolean
+  // 有手动编辑过、但属于旧歌词版本（不再显示）的标注时，最近一次编辑的时间
+  outdatedEditedAt?: string
 }
 
 export async function listLyricAnnotations(): Promise<MusicLyricAnnotationSummary[]> {
@@ -204,7 +219,7 @@ export async function saveLyricAnnotations(id: number, edit: MusicLyricAnnotatio
   return res.data.data
 }
 
-// 歌词缓存快照：最近一次选出的最佳来源（kind）与各来源的原始数据（与各来源接口的返回相同），打开时先用它立即显示
+// 歌词缓存快照：全站歌词版本的来源（kind）与原始数据（与各来源接口的返回相同），打开时先用它立即显示
 export interface MusicLyricCache {
   kind: 'ttml' | 'ncm' | 'qq' | 'kugou'
   ncm?: MusicLyrics
@@ -226,9 +241,104 @@ export async function fetchLyricCache(id: number): Promise<MusicLyricCache | nul
   }
 }
 
-// 上报选出的最佳来源，后端用自己获取的来源数据更新缓存（不上传歌词内容）
-export async function saveLyricCache(id: number, kind: MusicLyricCache['kind']): Promise<void> {
-  await axiosClient.post(`/music/song/${id}/lyric/cache`, { kind })
+// 歌词流（SSE）的事件：cache 为歌词缓存快照，source 为一个来源的结果（data 与该来源接口的返回相同，没有歌词时为 null；
+// failed 为获取失败，之后可以重试），decided 为后端选出的全站歌词版本，done 为结束
+export type MusicLyricStreamEvent
+  = | { event: 'cache', cache: MusicLyricCache }
+    | { event: 'source', kind: 'ncm', data: MusicLyrics | null, failed: boolean }
+    | { event: 'source', kind: 'ttml', data: MusicTtmlLyric | null, failed: boolean }
+    | { event: 'source', kind: 'qq', data: MusicQqLyric | null, failed: boolean }
+    | { event: 'source', kind: 'kugou', data: MusicKugouLyric | null, failed: boolean }
+    | { event: 'decided', version: MusicLyricVersion }
+    | { event: 'done' }
+
+const LYRIC_STREAM_KINDS = new Set(['ncm', 'ttml', 'qq', 'kugou'])
+
+/** 解析一条 SSE 消息（event + data 行，data 为 snake_case 的 JSON），无法识别时返回 null */
+function parseLyricStreamMessage(raw: string): MusicLyricStreamEvent | null {
+  let event = 'message'
+  const data: string[] = []
+  for (const line of raw.split('\n')) {
+    if (line.startsWith('event:'))
+      event = line.slice(6).trim()
+    else if (line.startsWith('data:'))
+      data.push(line.slice(5).trimStart())
+  }
+  let payload: Record<string, unknown>
+  try {
+    payload = snakeToCamelObj(JSON.parse(data.join('\n') || 'null') ?? {})
+  }
+  catch {
+    return null
+  }
+  switch (event) {
+    case 'cache':
+      return { event, cache: payload as unknown as MusicLyricCache }
+    case 'source':
+      if (!LYRIC_STREAM_KINDS.has(String(payload.kind)))
+        return null
+      return { event, kind: payload.kind, data: payload.data ?? null, failed: !!payload.failed } as MusicLyricStreamEvent
+    case 'decided':
+      return { event, version: { kind: (payload.kind ?? '') as MusicLyricVersion['kind'], source: (payload.source ?? '') as MusicLyricVersion['source'] } }
+    case 'done':
+      return { event }
+    default:
+      return null
+  }
+}
+
+/**
+ * 歌词流：后端并发获取各来源，到达即推送，最后推送选出的全站歌词版本（见 spec 7.2o）。逐个回调事件，收到 done 时返回 true；
+ * 请求失败或流在 done 之前中断时返回 false（调用方改用各来源的接口）。refresh 为「重新获取歌词」
+ */
+export async function streamSongLyrics(id: number, { refresh, signal, onEvent }: {
+  refresh?: boolean
+  signal?: AbortSignal
+  onEvent: (event: MusicLyricStreamEvent) => void
+}): Promise<boolean> {
+  let stream: ReadableStream<Uint8Array>
+  try {
+    const res = await axiosClient.get(`/music/song/${id}/lyric/stream`, {
+      adapter: 'fetch',
+      responseType: 'stream',
+      params: refreshParams(refresh),
+      // 各来源最多等 8 秒，整个流很快结束；不使用默认超时，避免慢来源被截断
+      timeout: 0,
+      signal,
+    })
+    stream = res.data
+  }
+  catch {
+    return false
+  }
+  if (!(stream instanceof ReadableStream))
+    return false
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let done = false
+  try {
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done)
+        break
+      buffer += decoder.decode(chunk.value, { stream: true }).replace(/\r\n?/g, '\n')
+      let index = buffer.indexOf('\n\n')
+      while (index >= 0) {
+        const message = parseLyricStreamMessage(buffer.slice(0, index))
+        buffer = buffer.slice(index + 2)
+        if (message) {
+          done = done || message.event === 'done'
+          onEvent(message)
+        }
+        index = buffer.indexOf('\n\n')
+      }
+    }
+  }
+  catch {
+    return done
+  }
+  return done
 }
 
 // 网易云标出的副歌 / 高潮片段（毫秒）；没有时为空数组

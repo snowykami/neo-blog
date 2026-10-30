@@ -1420,6 +1420,10 @@
       "status_ai": "AI 生成",
       "status_edited": "手动编辑过",
       "phrase_count": "{count} 个特效",
+      "status_outdated": "旧歌词版本",
+      "status_outdated_hint": "全站歌词版本已更换，这份特效不再显示，下次播放时按新版本重新生成",
+      "status_outdated_edit": "有旧版本的手动编辑",
+      "status_outdated_edit_hint": "这首歌有手动编辑过的特效属于旧的歌词版本，已不再显示；把全站歌词来源切换回去即可恢复",
       "preview": "在播放器中试听",
       "back": "返回列表",
       "generated_at": "AI 生成于 {time} · {model}",
@@ -1826,6 +1830,7 @@
       "lyric_annotations_unavailable": "当前歌曲没有可用的歌词标注",
       "lyric_annotations_failed": "歌词标注生成失败，请稍后再试",
       "invalid_lyric_annotation": "歌词特效的内容不合法",
+      "lyric_version_pending": "歌词版本还在确定中，请稍后再试",
       "invalid_api_token_name": "Token 名称不能为空，且最多 64 个字符",
       "invalid_api_token_scopes": "请选择有效的权限范围",
       "api_token_scope_not_allowed": "你的角色无法使用所选的权限范围",
@@ -2514,11 +2519,15 @@
     "lyric_badge_switch_site": "切换全站歌词来源",
     "lyric_badge_switch_site_hint": "选择后所有读者默认显示这一来源",
     "lyric_badge_site_default": "默认（站长选择）",
-    "lyric_badge_site_tag": "站长选择",
     "lyric_badge_site_pinned": "已设为全站默认来源",
     "lyric_site_pin_saved": "已设为全站默认歌词来源",
     "lyric_site_pin_cleared": "已恢复按质量自动选择",
-    "lyric_site_pin_failed": "设置全站歌词来源失败"
+    "lyric_site_pin_failed": "设置全站歌词来源失败",
+    "lyric_badge_effects_site_only": "歌词特效只显示在全站版本上",
+    "lyric_badge_site_version_tag": "全站版本",
+    "lyric_site_switch_edited_title": "切换全站歌词版本？",
+    "lyric_site_switch_edited_description": "当前的歌词特效在后台手动编辑过。切换后会按新的歌词版本生成特效，手动编辑的内容不再显示（仍保留，切换回原来的来源即可恢复）。",
+    "lyric_site_switch_confirm": "仍然切换"
   },
   "LyricOptions": {
     "categories": {

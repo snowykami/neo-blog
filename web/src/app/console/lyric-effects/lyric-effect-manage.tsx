@@ -133,6 +133,9 @@ function LyricEffectItem({ row }: { row: LyricEffectRow }) {
           {!summary && <Badge variant="outline">{t('status_none')}</Badge>}
           {summary && !summary.editedAt && <Badge className="bg-violet-100 text-violet-800">{t('status_ai')}</Badge>}
           {summary?.editedAt && <Badge className="bg-green-100 text-green-800">{t('status_edited')}</Badge>}
+          {/* 全站歌词版本已更换（spec 7.2o）：显示的标注属于旧版本，或有旧版本的手动编辑不再显示 */}
+          {summary?.outdated && <Badge className="bg-amber-100 text-amber-800" title={t('status_outdated_hint')}>{t('status_outdated')}</Badge>}
+          {summary?.outdatedEditedAt && <Badge className="bg-amber-100 text-amber-800" title={t('status_outdated_edit_hint')}>{t('status_outdated_edit')}</Badge>}
           {summary && <Badge variant="outline">{t('phrase_count', { count: summary.phrases })}</Badge>}
           {summary && (
             <span className="text-xs text-muted-foreground">

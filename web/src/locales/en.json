@@ -1420,6 +1420,10 @@
       "status_ai": "AI generated",
       "status_edited": "Edited",
       "phrase_count": "{count, plural, one {# effect} other {# effects}}",
+      "status_outdated": "Old lyric version",
+      "status_outdated_hint": "The site-wide lyric version has changed. These effects are no longer shown and will be regenerated for the new version on the next play",
+      "status_outdated_edit": "Manual edits on an old version",
+      "status_outdated_edit_hint": "This song has hand-edited effects for an older lyric version that are no longer shown. Switch the site-wide lyric source back to restore them",
       "preview": "Preview in player",
       "back": "Back to list",
       "generated_at": "AI generated {time} · {model}",
@@ -1855,6 +1859,7 @@
       "lyric_annotations_unavailable": "Lyric annotations are not available for this song",
       "lyric_annotations_failed": "Failed to generate lyric annotations, please try again later",
       "invalid_lyric_annotation": "The lyric effects are invalid",
+      "lyric_version_pending": "The lyric version is still being decided. Please try again shortly",
       "invalid_api_token_name": "Token name must be 1–64 characters",
       "invalid_api_token_scopes": "Select valid scopes",
       "api_token_scope_not_allowed": "Your role can’t use the selected scopes",
@@ -2514,11 +2519,15 @@
     "lyric_badge_switch_site": "Site-wide lyric source",
     "lyric_badge_switch_site_hint": "Everyone sees this source by default",
     "lyric_badge_site_default": "Default (chosen by the site owner)",
-    "lyric_badge_site_tag": "Site default",
     "lyric_badge_site_pinned": "Site-wide default source",
     "lyric_site_pin_saved": "Set as the site-wide lyric source",
     "lyric_site_pin_cleared": "Back to automatic selection by quality",
-    "lyric_site_pin_failed": "Failed to set the site-wide lyric source"
+    "lyric_site_pin_failed": "Failed to set the site-wide lyric source",
+    "lyric_badge_effects_site_only": "Lyric effects only appear on the site-wide version",
+    "lyric_badge_site_version_tag": "Site version",
+    "lyric_site_switch_edited_title": "Switch the site-wide lyric version?",
+    "lyric_site_switch_edited_description": "The current lyric effects were edited by hand in the console. After switching, effects are generated for the new lyric version and the manual edits are no longer shown (they are kept and come back if you switch back to the original source).",
+    "lyric_site_switch_confirm": "Switch anyway"
   },
   "LyricOptions": {
     "categories": {

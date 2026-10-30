@@ -1420,6 +1420,10 @@
       "status_ai": "AI 생성",
       "status_edited": "직접 편집함",
       "phrase_count": "효과 {count}개",
+      "status_outdated": "이전 가사 버전",
+      "status_outdated_hint": "사이트 전체 가사 버전이 바뀌어 이 효과는 더 이상 표시되지 않으며, 다음 재생 때 새 버전으로 다시 생성됩니다",
+      "status_outdated_edit": "이전 버전의 직접 편집 있음",
+      "status_outdated_edit_hint": "이 곡에는 이전 가사 버전용으로 직접 편집한 효과가 있으며 지금은 표시되지 않습니다. 사이트 전체 가사 출처를 되돌리면 복원됩니다",
       "preview": "플레이어에서 미리 듣기",
       "back": "목록으로",
       "generated_at": "{time} AI 생성 · {model}",
@@ -1855,6 +1859,7 @@
       "lyric_annotations_unavailable": "이 곡에는 사용할 수 있는 가사 주석이 없습니다",
       "lyric_annotations_failed": "가사 주석 생성에 실패했습니다. 잠시 후 다시 시도하세요",
       "invalid_lyric_annotation": "가사 효과 내용이 올바르지 않습니다",
+      "lyric_version_pending": "가사 버전을 정하는 중입니다. 잠시 후 다시 시도하세요",
       "invalid_api_token_name": "토큰 이름은 1~64자여야 합니다",
       "invalid_api_token_scopes": "올바른 권한 범위를 선택하세요",
       "api_token_scope_not_allowed": "내 역할로는 선택한 권한 범위를 사용할 수 없습니다",
@@ -2514,11 +2519,15 @@
     "lyric_badge_switch_site": "사이트 전체 가사 출처",
     "lyric_badge_switch_site_hint": "모든 사용자에게 기본으로 이 출처가 표시됩니다",
     "lyric_badge_site_default": "기본(사이트 관리자 선택)",
-    "lyric_badge_site_tag": "관리자 선택",
     "lyric_badge_site_pinned": "사이트 전체 기본 출처",
     "lyric_site_pin_saved": "사이트 전체 기본 가사 출처로 설정했습니다",
     "lyric_site_pin_cleared": "품질에 따른 자동 선택으로 되돌렸습니다",
-    "lyric_site_pin_failed": "사이트 전체 가사 출처를 설정하지 못했습니다"
+    "lyric_site_pin_failed": "사이트 전체 가사 출처를 설정하지 못했습니다",
+    "lyric_badge_effects_site_only": "가사 효과는 사이트 전체 버전에만 표시됩니다",
+    "lyric_badge_site_version_tag": "사이트 버전",
+    "lyric_site_switch_edited_title": "사이트 전체 가사 버전을 바꿀까요?",
+    "lyric_site_switch_edited_description": "현재 가사 효과는 관리 화면에서 직접 편집되었습니다. 바꾸면 새 가사 버전에 맞춰 효과가 생성되고, 직접 편집한 내용은 더 이상 표시되지 않습니다(내용은 보존되며 원래 출처로 되돌리면 복원됩니다).",
+    "lyric_site_switch_confirm": "그래도 바꾸기"
   },
   "LyricOptions": {
     "categories": {

@@ -1420,6 +1420,10 @@
       "status_ai": "AI 生成",
       "status_edited": "手動で編集済み",
       "phrase_count": "エフェクト {count} 件",
+      "status_outdated": "旧歌詞バージョン",
+      "status_outdated_hint": "サイト全体の歌詞バージョンが変わったため、このエフェクトは表示されません。次回の再生時に新しいバージョンで再生成されます",
+      "status_outdated_edit": "旧バージョンの手動編集あり",
+      "status_outdated_edit_hint": "この曲には旧い歌詞バージョン向けに手動編集したエフェクトがあり、現在は表示されていません。サイト全体の歌詞ソースを元に戻すと復元されます",
       "preview": "プレーヤーで試聴",
       "back": "一覧に戻る",
       "generated_at": "{time}に AI が生成 · {model}",
@@ -1855,6 +1859,7 @@
       "lyric_annotations_unavailable": "この曲には歌詞アノテーションがありません",
       "lyric_annotations_failed": "歌詞アノテーションの生成に失敗しました。しばらくしてからお試しください",
       "invalid_lyric_annotation": "歌詞エフェクトの内容が不正です",
+      "lyric_version_pending": "歌詞バージョンを決定中です。しばらくしてからもう一度お試しください",
       "invalid_api_token_name": "トークン名は 1〜64 文字で入力してください",
       "invalid_api_token_scopes": "有効なスコープを選択してください",
       "api_token_scope_not_allowed": "あなたのロールでは選択したスコープを使えません",
@@ -2514,11 +2519,15 @@
     "lyric_badge_switch_site": "サイト全体の歌詞ソース",
     "lyric_badge_switch_site_hint": "全員にこのソースが既定で表示されます",
     "lyric_badge_site_default": "既定（サイト管理者の選択）",
-    "lyric_badge_site_tag": "管理者の選択",
     "lyric_badge_site_pinned": "サイト全体の既定ソース",
     "lyric_site_pin_saved": "サイト全体の既定の歌詞ソースに設定しました",
     "lyric_site_pin_cleared": "品質による自動選択に戻しました",
-    "lyric_site_pin_failed": "サイト全体の歌詞ソースを設定できませんでした"
+    "lyric_site_pin_failed": "サイト全体の歌詞ソースを設定できませんでした",
+    "lyric_badge_effects_site_only": "歌詞エフェクトはサイト全体のバージョンにのみ表示されます",
+    "lyric_badge_site_version_tag": "サイト版",
+    "lyric_site_switch_edited_title": "サイト全体の歌詞バージョンを切り替えますか？",
+    "lyric_site_switch_edited_description": "現在の歌詞エフェクトは管理画面で手動編集されています。切り替えると新しい歌詞バージョンに合わせてエフェクトが生成され、手動編集した内容は表示されなくなります（内容は保持され、元のソースに戻すと復元されます）。",
+    "lyric_site_switch_confirm": "切り替える"
   },
   "LyricOptions": {
     "categories": {

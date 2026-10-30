@@ -1420,6 +1420,10 @@
       "status_ai": "AI 產生",
       "status_edited": "手動編輯過",
       "phrase_count": "{count} 個特效",
+      "status_outdated": "舊歌詞版本",
+      "status_outdated_hint": "全站歌詞版本已更換，這份特效不再顯示，下次播放時依新版本重新產生",
+      "status_outdated_edit": "有舊版本的手動編輯",
+      "status_outdated_edit_hint": "這首歌有手動編輯過的特效屬於舊的歌詞版本，已不再顯示；把全站歌詞來源切換回去即可恢復",
       "preview": "在播放器中試聽",
       "back": "返回列表",
       "generated_at": "AI 產生於 {time} · {model}",
@@ -1855,6 +1859,7 @@
       "lyric_annotations_unavailable": "目前歌曲沒有可用的歌詞標註",
       "lyric_annotations_failed": "歌詞標註生成失敗，請稍後再試",
       "invalid_lyric_annotation": "歌詞特效的內容不合法",
+      "lyric_version_pending": "歌詞版本仍在確定中，請稍後再試",
       "invalid_api_token_name": "Token 名稱不能為空，且最多 64 個字元",
       "invalid_api_token_scopes": "請選擇有效的權限範圍",
       "api_token_scope_not_allowed": "你的角色無法使用所選的權限範圍",
@@ -2514,11 +2519,15 @@
     "lyric_badge_switch_site": "切換全站歌詞來源",
     "lyric_badge_switch_site_hint": "選擇後所有讀者預設顯示這個來源",
     "lyric_badge_site_default": "預設（站長選擇）",
-    "lyric_badge_site_tag": "站長選擇",
     "lyric_badge_site_pinned": "已設為全站預設來源",
     "lyric_site_pin_saved": "已設為全站預設歌詞來源",
     "lyric_site_pin_cleared": "已恢復依品質自動選擇",
-    "lyric_site_pin_failed": "設定全站歌詞來源失敗"
+    "lyric_site_pin_failed": "設定全站歌詞來源失敗",
+    "lyric_badge_effects_site_only": "歌詞特效只顯示在全站版本上",
+    "lyric_badge_site_version_tag": "全站版本",
+    "lyric_site_switch_edited_title": "切換全站歌詞版本？",
+    "lyric_site_switch_edited_description": "目前的歌詞特效在後台手動編輯過。切換後會依新的歌詞版本產生特效，手動編輯的內容不再顯示（仍會保留，切換回原本的來源即可恢復）。",
+    "lyric_site_switch_confirm": "仍要切換"
   },
   "LyricOptions": {
     "categories": {

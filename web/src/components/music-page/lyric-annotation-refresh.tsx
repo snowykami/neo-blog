@@ -14,19 +14,20 @@ import { cn } from '@/lib/utils'
 import { isAdmin } from '@/utils/common/permission'
 
 /**
- * 重新生成 AI 歌词特效（歌词标注）：仅管理员可见（后端接口同样限管理员），只对逐字歌词且开启了歌词特效时显示。
+ * 重新生成 AI 歌词特效（歌词标注）：仅管理员可见（后端接口同样限管理员），只对逐字歌词、开启了歌词特效且显示的是全站歌词版本时显示
+ * （特效只按全站版本生成）。
  * 点击后后台重新生成，新结果生成前继续使用旧结果，生成完成后自动替换；在后台手动编辑过的标注会被覆盖，先确认。
  * 标注要开始播放才会请求，暂停时还不知道是否编辑过，点击时先查询一次
  */
 export function LyricAnnotationRefresh({ className }: { className?: string }) {
   const t = useTranslations('MusicPage')
   const { user } = useAuth()
-  const { currentTrack, lyrics, showLyricEffects } = useMusic()
+  const { currentTrack, lyrics, showLyricEffects, lyricIsSiteVersion } = useMusic()
   const [refreshing, setRefreshing] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const trackId = currentTrack?.id ?? 0
   const edited = useLyricAnnotations(trackId > 0 ? trackId : null)?.edited ?? false
-  if (!user || !isAdmin({ user }) || trackId <= 0 || !lyrics.wordTimed || !showLyricEffects)
+  if (!user || !isAdmin({ user }) || trackId <= 0 || !lyrics.wordTimed || !showLyricEffects || !lyricIsSiteVersion)
     return null
 
   const refresh = async () => {

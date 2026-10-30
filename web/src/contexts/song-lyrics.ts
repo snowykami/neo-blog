@@ -1,12 +1,12 @@
 'use client'
 
-import type { MusicKugouLyric, MusicLyricCache, MusicLyrics, MusicQqLyric, MusicTtmlLyric } from '@/api/music'
+import type { MusicKugouLyric, MusicLyricCache, MusicLyrics, MusicLyricStreamEvent, MusicLyricVersion, MusicQqLyric, MusicTtmlLyric } from '@/api/music'
 import type { LyricCandidate, LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricTrackInfo } from '@/lib/lyrics/strip-credits'
 import type { ResolvedLyrics } from '@/lib/lyrics/types'
 import type { MusicLyricParseResult } from '@/utils/music-lyric'
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
-import { fetchKugouLyric, fetchLyricCache, fetchNcmLyric, fetchQqLyric, fetchTtmlLyric, saveLyricCache } from '@/api/music'
+import { fetchKugouLyric, fetchLyricCache, fetchNcmLyric, fetchQqLyric, fetchTtmlLyric, streamSongLyrics } from '@/api/music'
 import { platformToLyrics } from '@/lib/lyrics/from-platform'
 import { shiftLyrics } from '@/lib/lyrics/offset'
 import { parseTtml } from '@/lib/lyrics/parse-ttml'
@@ -18,12 +18,13 @@ import { useLyricOffsets, useLyricSitePin } from './lyric-settings'
 /**
  * 全站共用的歌词来源（见 spec 2.3、2.4、7.4）：按网易云歌曲 id 获取并缓存，播放器页、悬浮播放器、导航栏、
  * 文章内的单曲卡与歌词摘录都从这里取，同一首歌只请求一次，按同一套规则选出同一份歌词。
- * - 网易云、TTML、QQ 音乐与酷狗音乐全部并发请求（网易云有逐字歌词也照样请求其余来源），到齐的来源按质量选择（见 resolve.ts）
+ * - 歌词流（spec 7.2o）：后端并发获取网易云、TTML、QQ 音乐与酷狗音乐，一个请求逐条推送——先推歌词缓存快照，再推各来源（到达即推，
+ *   先到的先上屏、更好的到达后原地升级），最后推后端选出的全站歌词版本。歌词流不可用（请求失败或中途断开）时改用各来源的接口并发请求
  * - 来源的值：undefined 为请求中（或尚未请求），null 为没有或请求失败；失败的来源在下次需要时重试
- * - 歌词缓存（spec 7.2e）：与各来源并发请求后端保存的最佳歌词快照；某个来源还在请求中或失败时先用快照里的同一来源，
- *   所以打开时能立即显示最佳歌词，实时结果到达后原地替换。各来源都到齐后上报按等级最好的来源，后端据此更新快照
+ * - 歌词缓存（spec 7.2e）：某个来源还在请求中或失败时先用快照里的同一来源，所以打开时能立即显示全站版本，实时结果到达后原地替换
  * - 整体偏移（spec 7.2l）：管理员为某一来源保存的偏移在选出歌词后平移所有时间，所有播放这首歌的地方都按它显示
- * - 全站默认来源（spec 7.2n）：读者自己在本地固定的来源优先，其次是管理员选定的全站默认来源，都没有时按质量自动选择
+ * - 全站版本：读者自己在本地固定的来源优先，否则显示后端选出的全站版本（没有选出前按快照的来源，再其次按质量自动选择）；
+ *   歌词特效只按全站版本生成，读者固定了其他来源时不叠加
  */
 
 export interface SongLyricSources {
@@ -31,8 +32,10 @@ export interface SongLyricSources {
   ttml?: MusicTtmlLyric | null
   qq?: MusicQqLyric | null
   kugou?: MusicKugouLyric | null
-  // 后端保存的最佳歌词快照（不算一个来源，只在实时来源缺失时补位）
-  cache?: MusicLyricCache | null
+  // 后端保存的全站版本快照（不算一个来源，只在实时来源缺失时补位）；重新获取歌词期间是当前已有的结果，没有 kind
+  cache?: (Omit<MusicLyricCache, 'kind'> & { kind?: MusicLyricCache['kind'] }) | null
+  // 后端选出的全站歌词版本（歌词流的 decided；管理员切换来源后更新），undefined 为本页还没有收到
+  decided?: MusicLyricVersion | null
 }
 
 type SourceKey = keyof SongLyricSources
@@ -42,6 +45,8 @@ interface Entry {
   listeners: Set<() => void>
   started: Set<SourceKey>
   failed: Set<SourceKey>
+  // 歌词流进行中
+  streaming: boolean
 }
 
 // 最多缓存的歌曲数，超出时淘汰最久未使用且没有组件在用的
@@ -56,7 +61,7 @@ function getEntry(id: number): Entry {
     entries.set(id, existing)
     return existing
   }
-  const entry: Entry = { sources: {}, listeners: new Set(), started: new Set(), failed: new Set() }
+  const entry: Entry = { sources: {}, listeners: new Set(), started: new Set(), failed: new Set(), streaming: false }
   entries.set(id, entry)
   for (const [key, old] of entries) {
     if (entries.size <= MAX_ENTRIES)
@@ -109,43 +114,122 @@ function requestSource(id: number, entry: Entry, key: LyricSourceKey, refresh = 
   request(entry, key, () => refresh ? load(id, undefined, true) : load(id))
 }
 
-/** 开始（或补齐、重试）获取一首歌的歌词来源：还没请求过或上次失败的来源重新请求 */
+// 歌词流在收到任何事件之前就失败过（接口不可用、被代理拦截等）：本页之后直接用各来源的接口
+let streamUnavailable = false
+
+/**
+ * 用歌词流获取（或重试）一首歌的歌词来源；keys 为这次要获取的来源（失败过的先回到请求中）。
+ * refresh 时保留当前的快照（重新获取前已有的结果），不用后端推送的快照替换。流在 done 之前中断时，没到达的来源改用各来源的接口
+ */
+function streamSources(id: number, entry: Entry, keys: LyricSourceKey[], refresh = false) {
+  entry.streaming = true
+  const retrying = keys.filter(key => entry.failed.has(key))
+  for (const key of keys) {
+    entry.started.add(key)
+    entry.failed.delete(key)
+  }
+  entry.started.add('cache')
+  if (retrying.length > 0) {
+    // 重试：先回到请求中
+    const sources = { ...entry.sources }
+    for (const key of retrying)
+      delete sources[key]
+    entry.sources = sources
+    entry.listeners.forEach(listener => listener())
+  }
+  const received = new Set<SourceKey>()
+  const onEvent = (event: MusicLyricStreamEvent) => {
+    switch (event.event) {
+      case 'cache':
+        received.add('cache')
+        if (!refresh)
+          settle(entry, 'cache', event.cache)
+        break
+      case 'source':
+        received.add(event.kind)
+        // 只更新这次要获取的来源；重新获取时某个来源失败，沿用之前的结果（见 refreshSongLyrics 的快照）
+        if (keys.includes(event.kind))
+          settle(entry, event.kind, event.data as SongLyricSources[typeof event.kind], event.failed)
+        break
+      case 'decided':
+        settle(entry, 'decided', event.version.kind ? event.version : null)
+        break
+    }
+  }
+  streamSongLyrics(id, { refresh, onEvent }).then((done) => {
+    entry.streaming = false
+    if (done) {
+      if (!received.has('cache') && entry.sources.cache === undefined)
+        settle(entry, 'cache', null)
+      return
+    }
+    if (received.size === 0)
+      streamUnavailable = true
+    if (!received.has('cache') && entry.sources.cache === undefined)
+      request(entry, 'cache', () => fetchLyricCache(id))
+    for (const key of keys) {
+      if (!received.has(key))
+        requestSource(id, entry, key, refresh)
+    }
+  })
+}
+
+/** 开始（或补齐、重试）获取一首歌的歌词来源：还没请求过或上次失败的来源重新获取 */
 export function loadSongLyrics(id: number) {
   const entry = getEntry(id)
+  if (entry.streaming)
+    return
+  const keys = LYRIC_SOURCE_KEYS.filter(key => !entry.started.has(key) || entry.failed.has(key))
+  if (keys.length === 0)
+    return
+  if (!streamUnavailable) {
+    streamSources(id, entry, keys)
+    return
+  }
   if (!entry.started.has('cache'))
     request(entry, 'cache', () => fetchLyricCache(id))
-  for (const key of LYRIC_SOURCE_KEYS) {
-    if (!entry.started.has(key) || entry.failed.has(key))
-      requestSource(id, entry, key)
-  }
+  for (const key of keys)
+    requestSource(id, entry, key)
 }
 
 /**
- * 重新从所有来源获取歌词（读者在播放器里点「重新获取歌词」，见 spec 7.2h）：所有来源都带 refresh 重新请求，
- * 后端跳过缓存中「没有歌词」的记录。请求期间把当前已有的结果当作快照补位，歌词不会消失，新结果到达后原地替换；
- * 某个来源这次失败时沿用之前的结果
+ * 重新从所有来源获取歌词（读者在播放器里点「重新获取歌词」，见 spec 7.2h）：所有来源都带 refresh 重新获取，
+ * 后端跳过缓存中「没有歌词」的记录。获取期间把当前已有的结果当作快照补位，歌词不会消失，新结果到达后原地替换；
+ * 某个来源这次失败时沿用之前的结果；全站版本在新的选择结果到达前保持不变
  */
 export function refreshSongLyrics(id: number) {
   if (id <= 0)
     return
   const entry = getEntry(id)
+  if (entry.streaming)
+    return
   const previous = entry.sources
   const cached = previous.cache ?? null
   entry.sources = {
     cache: {
-      kind: cached?.kind ?? 'ncm',
+      kind: cached?.kind,
       ncm: previous.ncm ?? cached?.ncm,
       ttml: previous.ttml ?? cached?.ttml,
       qq: previous.qq ?? cached?.qq,
       kugou: previous.kugou ?? cached?.kugou,
     },
+    decided: previous.decided,
   }
   entry.started.clear()
   entry.started.add('cache')
   entry.failed.clear()
   entry.listeners.forEach(listener => listener())
+  if (!streamUnavailable) {
+    streamSources(id, entry, LYRIC_SOURCE_KEYS, true)
+    return
+  }
   for (const key of LYRIC_SOURCE_KEYS)
     requestSource(id, entry, key, true)
+}
+
+/** 管理员切换全站歌词来源后，后端重新选出的全站版本：立即按它显示（各来源已在本页取到，不需要重新获取） */
+export function setSongLyricVersion(id: number, version: MusicLyricVersion) {
+  settle(getEntry(id), 'decided', version.kind ? version : null)
 }
 
 const EMPTY_SOURCES: SongLyricSources = {}
@@ -186,6 +270,10 @@ export interface SongLyrics {
   status: 'loading' | 'ready' | 'none'
   // 网易云歌词的解析结果（旧数据结构）
   ncmParsed: MusicLyricParseResult | null
+  // 全站歌词版本的来源（后端选出；还没有收到时为快照的来源），不知道时为 null
+  siteKind: LyricSourceKind | null
+  // 当前显示的是全站版本（歌词特效只叠加在全站版本上）；不知道全站版本时视为是
+  isSiteVersion: boolean
 }
 
 function safely<T>(parse: () => T, label: string): T | null {
@@ -222,10 +310,13 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
   const ttmlKind = sources?.ttml?.source === 'custom' ? 'ttml-custom' : 'ttml-amll'
   const ttmlLyrics = useMemo(() => (ttmlText ? safely(() => parseTtml(ttmlText, ttmlKind), 'TTML') : null), [ttmlKind, ttmlText])
 
-  // 管理员保存的整体偏移（按选出的歌词来源）与全站默认来源，对所有播放这首歌的地方生效（见 lyric-settings.ts）
+  // 管理员保存的整体偏移（按选出的歌词来源）对所有播放这首歌的地方生效（见 lyric-settings.ts）；
+  // 全站版本以后端选出的为准，还没有收到时按快照的来源，都没有时（歌词流不可用且没有快照）按管理员的全站默认来源
   const offsets = useLyricOffsets(id)
   const sitePin = useLyricSitePin(id)
-  const effectivePin = pin ?? sitePin
+  const decided = sources?.decided
+  const siteKind: LyricSourceKind | null = decided !== undefined ? (decided?.kind || null) : (sources?.cache?.kind ?? sitePin)
+  const effectivePin = pin ?? siteKind
 
   const result = useMemo<SongLyrics>(() => {
     const resolution = resolveLyrics({ ttml: ttmlLyrics, ncm: ncmLyrics, ncmParsed, qq: qqLyrics, qqParsed, kugou: kugouLyrics, kugouParsed, pin: effectivePin })
@@ -238,9 +329,10 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
       pending,
       status: resolution.lyrics.lines.length > 0 ? 'ready' : pending ? 'loading' : 'none',
       ncmParsed,
+      siteKind,
+      isSiteVersion: siteKind == null || resolution.kind === siteKind,
     }
-  }, [effectivePin, fresh, kugouLyrics, kugouParsed, ncmLyrics, ncmParsed, offsets, qqLyrics, qqParsed, ttmlLyrics])
-  useReportBestLyricSource(id, result, sitePin)
+  }, [effectivePin, fresh, kugouLyrics, kugouParsed, ncmLyrics, ncmParsed, offsets, qqLyrics, qqParsed, siteKind, ttmlLyrics])
   return result
 }
 
@@ -256,24 +348,4 @@ export function withCachedSources(sources: SongLyricSources | null): SongLyricSo
     qq: sources.qq ?? cache.qq ?? sources.qq,
     kugou: sources.kugou ?? cache.kugou ?? sources.kugou,
   }
-}
-
-const reportedCache = new Set<string>()
-
-/**
- * 各来源都到齐后，上报按等级最好的来源（不受读者固定的来源影响），后端据此更新歌词缓存；
- * 同一页面内每首歌的同一结果只上报一次
- */
-function useReportBestLyricSource(id: number | null, lyrics: SongLyrics, sitePin: LyricSourceKind | null) {
-  // 有全站默认来源且已选用它时，缓存它（打开时立即显示的就是全站看到的版本），否则缓存按质量最好的来源
-  const best = lyrics.pending ? null : sitePin && lyrics.kind === sitePin ? sitePin : lyrics.candidates[0]?.kind ?? null
-  useEffect(() => {
-    if (id == null || id <= 0 || !best)
-      return
-    const key = `${id}:${best}`
-    if (reportedCache.has(key))
-      return
-    reportedCache.add(key)
-    saveLyricCache(id, best).catch(() => {})
-  }, [best, id])
 }

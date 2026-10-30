@@ -1,5 +1,6 @@
 'use client'
 
+import type { MusicLyricVersion } from '@/api/music'
 import type { LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricSource } from '@/lib/lyrics/types'
 import { useCallback, useSyncExternalStore } from 'react'
@@ -99,15 +100,17 @@ export function useLyricSitePin(id: number | null): LyricSourceKind | null {
   return useSyncExternalStore(subscribe, () => (valid ? entries.get(id)?.pin ?? null : null), () => null)
 }
 
-/** 管理员设置全站默认歌词来源（null 为取消）：立即在本地生效并保存，失败时恢复原值并抛出 */
-export async function setLyricSitePin(id: number, kind: LyricSourceKind | null) {
+/**
+ * 管理员设置全站默认歌词来源（null 为取消）：立即在本地生效并保存，返回后端按新设置重新选出的全站歌词版本；失败时恢复原值并抛出
+ */
+export async function setLyricSitePin(id: number, kind: LyricSourceKind | null): Promise<MusicLyricVersion> {
   const entry = getEntry(id)
   const previous = entry.pin
   entry.pin = kind
   entry.pinTouched = true
   notify(entry)
   try {
-    await saveLyricPin(id, kind)
+    return await saveLyricPin(id, kind)
   }
   catch (error) {
     entry.pin = previous
