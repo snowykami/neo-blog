@@ -284,6 +284,33 @@
         "cd /tmp/neo-blog-mcp-test/web && export BACKEND_URL=http://127.0.0.1:18910 && exec pnpm start -p 3130"
       ],
       "port": 3130
+    },
+    {
+      "name": "backend-pagehtml",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-pagehtml && MODE=dev PORT=18920 DB_PATH=/tmp/neo-pagehtml/data.db ENABLE_REGISTER=true ENABLE_EMAIL_VERIFY=false BASE_URL=http://localhost:3140 exec /tmp/neo-pagehtml/server"
+      ],
+      "port": 18920
+    },
+    {
+      "name": "backend-pagehtml-origin",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-pagehtml && MODE=dev PORT=18920 DB_PATH=/tmp/neo-pagehtml/data.db ENABLE_REGISTER=true ENABLE_EMAIL_VERIFY=false BASE_URL=http://localhost:3140 PAGE_HTML_ORIGIN=http://127.0.0.1:18920 exec /tmp/neo-pagehtml/server"
+      ],
+      "port": 18920
+    },
+    {
+      "name": "web-pagehtml",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-pagehtml/web && export BACKEND_URL=http://127.0.0.1:18920 && exec pnpm start -p 3140"
+      ],
+      "port": 3140
     }
   ]
 }
