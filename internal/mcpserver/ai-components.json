@@ -1,0 +1,160 @@
+{
+  "components": [
+    {
+      "name": "callout",
+      "version": 1,
+      "usage": "提示框：突出需要读者特别注意的一段话。type 为 info（补充说明）、tip（技巧、建议）或 warning（注意事项、风险）",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "default": "info",
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "tip"
+            ]
+          },
+          "title": {
+            "default": "",
+            "type": "string",
+            "maxLength": 120
+          },
+          "content": {
+            "default": "",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        }
+      }
+    },
+    {
+      "name": "codeTabs",
+      "version": 1,
+      "usage": "代码组：同一功能的多种写法并排切换，如不同语言、不同包管理器或不同操作系统的命令；language 为 highlight.js 语言名",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "tabs": {
+            "default": [
+              {
+                "label": "TypeScript",
+                "language": "typescript",
+                "code": ""
+              },
+              {
+                "label": "JavaScript",
+                "language": "javascript",
+                "code": ""
+              }
+            ],
+            "minItems": 1,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "default": "",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "language": {
+                  "default": "",
+                  "type": "string",
+                  "maxLength": 30,
+                  "pattern": "^[\\w+#.-]*$"
+                },
+                "code": {
+                  "default": "",
+                  "type": "string",
+                  "maxLength": 20000
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "collapsible",
+      "version": 1,
+      "usage": "折叠块：默认收起的补充内容，适合较长的推导、背景资料、剧透或常见问题的答案",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "default": "",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "content": {
+            "default": "",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "defaultOpen": {
+            "default": false,
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "name": "textTabs",
+      "version": 1,
+      "usage": "文字标签页：并列的几段文字切换显示，如不同方案、不同平台或不同角色的说明",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "tabs": {
+            "default": [
+              {
+                "label": "",
+                "content": ""
+              }
+            ],
+            "minItems": 1,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "default": "",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "content": {
+                  "default": "",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4000
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "fallback_skip_keys": [
+    "type",
+    "variant",
+    "language",
+    "mode",
+    "align",
+    "width",
+    "icon",
+    "id",
+    "url",
+    "href",
+    "src"
+  ]
+}

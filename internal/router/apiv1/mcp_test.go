@@ -112,7 +112,7 @@ func TestMCPEndpoint(t *testing.T) {
 		}
 	}
 	slices.Sort(names)
-	if got := strings.Join(names, ","); got != "create_post,get_post,list_posts,list_taxonomy,publish_post,unpublish_post,update_post,upload_image" {
+	if got := strings.Join(names, ","); got != "create_post,get_post,get_writing_guide,list_posts,list_taxonomy,publish_post,unpublish_post,update_post,upload_image" {
 		t.Fatalf("tools: %s", got)
 	}
 

@@ -46,6 +46,15 @@ func GetVerifyCodeCoolDown() int {
 	return repo.KV.GetIntWithoutErr("verify_code_cool_down", 60)
 }
 
+// AIWritingStyleMaxRunes 站点写作风格的长度上限，超出部分不放进提示词，避免挤占正文的上下文
+const AIWritingStyleMaxRunes = 4000
+
+// GetAIWritingStyle 站点写作风格：管理员在全局配置中填写，编辑器 AI 帮写与外部 AI（MCP）写作时遵循
+func GetAIWritingStyle() string {
+	style := []rune(strings.TrimSpace(repo.KV.GetStringWithoutErr("ai_writing_style", "")))
+	return string(style[:min(len(style), AIWritingStyleMaxRunes)])
+}
+
 // AIConfig OpenAI 兼容接口配置（仅后端使用，不对外公开）
 type AIConfig struct {
 	BaseURL     string

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
@@ -244,4 +245,117 @@ func TestRequireScopeWithoutToken(t *testing.T) {
 	// 浏览器会话（没有 API Token）不能直接调用工具
 	_, _, err := listPosts(env.authorCtx, nil, listPostsInput{})
 	wantErr(t, err, "personal API tokens")
+}
+
+const calloutFence = "```component:callout\n{\"type\":\"tip\",\"title\":\"注意\",\"content\":\"**不是** Markdown & <b>纯文本</b>\\n\\n第二段\",\"extra\":1}\n```"
+
+// 组件代码块与组件块双向转换：写入时校验并补默认值，读取时还原为同样的写法
+func TestComponentFences(t *testing.T) {
+	html, err := parseContent("前文\n\n"+calloutFence+"\n\n```component:codeTabs\n{\"tabs\":[{\"label\":\"Go\",\"code\":\"fmt.Println(1)\"}]}\n```\n\n后文", formatMarkdown)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`data-component="callout"`, `data-version="1"`,
+		`<p>**不是** Markdown &amp; &lt;b&gt;纯文本&lt;/b&gt;</p><p>第二段</p>`, // 降级内容为纯文本段落
+		`data-component="codeTabs"`, `&#34;language&#34;:&#34;&#34;`, // 补全默认值
+		`\u003cb\u003e`, // props 中的 < > 转义，与前端 serializePropsAttr 一致
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("html missing %q:\n%s", want, html)
+		}
+	}
+	if strings.Contains(html, "extra") || strings.Contains(html, "<pre>") {
+		t.Fatalf("unknown props must be dropped and fences replaced:\n%s", html)
+	}
+
+	md, err := renderContent(html, formatMarkdown)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(md, "```component:callout\n{") || !strings.Contains(md, "```component:codeTabs\n{") {
+		t.Fatalf("components should read back as fences:\n%s", md)
+	}
+	again, err := parseContent(md, formatMarkdown)
+	if err != nil || again != html {
+		t.Fatalf("round trip changed content: %v\nfirst:  %s\nsecond: %s", err, html, again)
+	}
+
+	// 不对 AI 开放的组件、带自定义布局或 props 不合法的组件保留原始 HTML
+	for _, raw := range []string{
+		`<div data-component="neteaseSong" data-props="{&#34;id&#34;:1}" data-version="1"></div>`,
+		`<div data-component="callout" data-props="{&#34;content&#34;:&#34;x&#34;}" data-version="1" data-align="center"></div>`,
+		`<div data-component="callout" data-props="{&#34;type&#34;:&#34;info&#34;}" data-version="1"></div>`,
+		`<div data-component="callout" data-props="{&#34;content&#34;:&#34;x&#34;}" data-version="2"></div>`,
+	} {
+		md, _ := renderContent(raw, formatMarkdown)
+		if !strings.Contains(md, "<div data-component=") {
+			t.Errorf("should keep raw HTML for %s, got %s", raw, md)
+		}
+	}
+}
+
+func TestComponentFenceErrors(t *testing.T) {
+	cases := map[string]string{
+		"```component:neteaseSong\n{\"id\":1}\n```":                          "unknown component",
+		"```component:callout\n{\"type\":\"danger\",\"content\":\"x\"}\n```": "callout",
+		"```component:callout\n{\"title\":\"no content\"}\n```":              "callout",
+		"```component:callout\nnot json\n```":                                "JSON object",
+	}
+	for input, want := range cases {
+		if _, err := parseContent("text\n\n"+input, formatMarkdown); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: want error containing %q, got %v", input, want, err)
+		}
+	}
+	// html 格式不做转换
+	if got, err := parseContent("<pre><code class=\"language-component:x\">{}</code></pre>", formatHTML); err != nil || !strings.Contains(got, "<pre>") {
+		t.Fatalf("html format must be stored as-is: %v %s", err, got)
+	}
+}
+
+func TestWritingGuide(t *testing.T) {
+	env := setupTest(t)
+	reader := tokenCtx(t, env.author, constant.ScopePostsRead)
+	if err := repo.KV.SetKV("ai_writing_style", "多用短句，结尾总结要点。"); err != nil {
+		t.Fatal(err)
+	}
+	result, _, err := getWritingGuide(reader, nil, struct{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	guide := result.Content[0].(*mcp.TextContent).Text
+	for _, want := range []string{"## 站点写作风格", "多用短句", "## 平台格式", "data-annotation", "```component:callout", "- codeTabs：", "props："} {
+		if !strings.Contains(guide, want) {
+			t.Errorf("guide missing %q", want)
+		}
+	}
+	if _, _, err := getWritingGuide(env.authorCtx, nil, struct{}{}); err == nil {
+		t.Fatal("browser session must not call tools")
+	}
+}
+
+// 编辑器的行内格式与带对齐的段落在 Markdown 往返后保持不变，文字中的 Markdown 符号不被误解析
+func TestInlineFormatsRoundTrip(t *testing.T) {
+	stored := `<p>术语 <span data-annotation="Model Context Protocol">MCP</span> 和 <mark data-color="var(--color-yellow-200)">重*点*_x_</mark>，<u>下划线</u>，H<sub>2</sub>O，x<sup>2</sup>，<span style="color: var(--color-red-500)">红字</span></p>` +
+		`<p style="text-align: center">居中 *不是斜体*</p><p>普通 <strong>粗体</strong></p>`
+	md, err := renderContent(stored, formatMarkdown)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := parseContent(md, formatMarkdown)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`<span data-annotation="Model Context Protocol">MCP</span>`,
+		`<mark data-color="var(--color-yellow-200)">重*点*_x_</mark>`,
+		`<u>下划线</u>`, `H<sub>2</sub>O`, `x<sup>2</sup>`,
+		`<span style="color: var(--color-red-500)">红字</span>`,
+		`<p style="text-align: center">居中 *不是斜体*</p>`,
+		`<strong>粗体</strong>`,
+	} {
+		if !strings.Contains(back, want) {
+			t.Errorf("lost %q\nmarkdown:\n%s\nhtml:\n%s", want, md, back)
+		}
+	}
 }

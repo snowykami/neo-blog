@@ -663,7 +663,10 @@
       "qweather_api_host": "QWeather API Host",
       "qweather_api_host_desc": "QWeather コンソールの設定にある専用 API Host",
       "qweather_api_key": "QWeather API Key",
-      "qweather_api_key_desc": "サーバーにのみ保存され、訪問者には公開されません"
+      "qweather_api_key_desc": "サーバーにのみ保存され、訪問者には公開されません",
+      "ai_writing_style": "AI の文体",
+      "ai_writing_style_desc": "エディターの AI アシスタントと、MCP で接続した外部 AI が執筆時に従います。口調、人称、表記の習慣、よく使う用語などを書きます。作者の個別の指示が優先されます。最大 4000 文字。",
+      "ai_writing_style_placeholder": "例：一人称で、くだけすぎない話し言葉。和文と英数字の間にスペースを入れる。コード例は Go を優先。記事の最後は 2〜3 文でまとめる。"
     },
     "labels": {
       "title": "タグ管理",

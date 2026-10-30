@@ -45,6 +45,7 @@ const (
 type AIWriteJob struct {
 	userID uint
 	cfg    tools.AIConfig
+	system string
 	user   string
 }
 
@@ -167,7 +168,7 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 		noContext:   !req.IncludeContext,
 		components:  components,
 	}
-	return &AIWriteJob{userID: userID, cfg: cfg, user: prompt.build()}, nil
+	return &AIWriteJob{userID: userID, cfg: cfg, system: aiWriteSystemPromptWithStyle(tools.GetAIWritingStyle()), user: prompt.build()}, nil
 }
 
 // register 登记当前用户的生成并取消其上一次未结束的生成；返回的函数用于结束时注销
@@ -242,7 +243,7 @@ func (s *AIWriteService) Stream(ctx context.Context, job *AIWriteJob, emit func(
 		produced = true
 		return send(AIWriteEventDelta, map[string]string{"text": text})
 	}
-	err := s.stream(ctx, job.cfg, aiWriteSystemPrompt, job.user, func(content, reasoning string) error {
+	err := s.stream(ctx, job.cfg, job.system, job.user, func(content, reasoning string) error {
 		text, inThink := filter.push(content)
 		if (reasoning != "" || inThink) && !thinking && !produced {
 			thinking = true

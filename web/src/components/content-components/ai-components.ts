@@ -25,15 +25,37 @@ function stripEditorKeys(value: unknown): unknown {
   return value
 }
 
+/** props 的 JSON Schema（输入形态，去掉只与编辑器有关的字段） */
+function getPropsJSONSchema(def: RegisteredContentComponent): unknown {
+  return stripEditorKeys(z.toJSONSchema(def.schema, { io: 'input' }))
+}
+
 /** 可用组件说明：每个组件一行用途与一行 props 的 JSON Schema，由后端放入帮写提示词 */
 export function buildAIComponentGuide(): string {
   return getAIComponents()
-    .map(def => `- ${def.name}：${def.ai!.usage}\n  props：${JSON.stringify(stripEditorKeys(z.toJSONSchema(def.schema, { io: 'input' })))}`)
+    .map(def => `- ${def.name}：${def.ai!.usage}\n  props：${JSON.stringify(getPropsJSONSchema(def))}`)
     .join('\n')
 }
 
 // 取值为选项或标识而非正文的字段，降级时不当作文字
 const NON_TEXT_KEYS = new Set(['type', 'variant', 'language', 'mode', 'align', 'width', 'icon', 'id', 'url', 'href', 'src'])
+
+/**
+ * 后端 MCP 使用的组件清单（与帮写开放的组件一致）：由 ai-components.test.ts 写入 internal/mcpserver/ai-components.json，
+ * 组件有变化时运行 pnpm test -u 更新；后端据此生成写作指南，并校验、转换外部 AI 写入的组件代码块
+ */
+export function buildAIComponentManifest() {
+  return {
+    components: getAIComponents().map(def => ({
+      name: def.name,
+      version: def.version,
+      usage: def.ai!.usage,
+      ...(def.defaultWidth && def.defaultWidth !== 100 && { default_width: def.defaultWidth }),
+      props_schema: getPropsJSONSchema(def),
+    })),
+    fallback_skip_keys: [...NON_TEXT_KEYS],
+  }
+}
 
 /** 收集 props 中的正文文字，组件不可用时作为普通段落保留内容 */
 function collectText(value: unknown, out: string[]) {

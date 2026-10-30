@@ -562,3 +562,23 @@ func TestAIWritePrepareComponents(t *testing.T) {
 	req.Components = strings.Repeat("字", aiWriteMaxComponentsRune+1)
 	expectMessage(t, prepareErr(s, author, constant.TargetTypePost, post.ID, req), http.StatusBadRequest, "ai_input_too_long")
 }
+
+// 站点写作风格附在系统提示词末尾，未设置时与原提示词一致；外部 AI 的写作指南共用同一份格式说明
+func TestAIWritingStyle(t *testing.T) {
+	if aiWriteSystemPromptWithStyle("") != aiWriteSystemPrompt {
+		t.Fatal("empty style must not change the system prompt")
+	}
+	withStyle := aiWriteSystemPromptWithStyle("多用短句。")
+	if !strings.HasPrefix(withStyle, aiWriteSystemPrompt) || !strings.HasSuffix(withStyle, "# 站点写作风格\n"+aiWritingStyleIntro+"多用短句。\n") {
+		t.Fatalf("unexpected prompt tail: %q", withStyle[len(aiWriteSystemPrompt):])
+	}
+	guide := BuildAgentWritingGuide("- callout：提示框")
+	for _, want := range []string{aiPlatformFormatRules, aiBlockFormatRule, aiComponentSyntaxRules, "- callout：提示框"} {
+		if !strings.Contains(guide, want) {
+			t.Fatalf("agent guide missing %q", want)
+		}
+	}
+	if strings.Contains(BuildAgentWritingGuide(""), "## 组件") {
+		t.Fatal("guide without components must not describe components")
+	}
+}

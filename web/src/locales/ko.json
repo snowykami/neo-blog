@@ -663,7 +663,10 @@
       "qweather_api_host": "QWeather API Host",
       "qweather_api_host_desc": "QWeather 콘솔 설정의 전용 API Host",
       "qweather_api_key": "QWeather API Key",
-      "qweather_api_key_desc": "서버에만 저장되며 방문자에게 공개되지 않습니다"
+      "qweather_api_key_desc": "서버에만 저장되며 방문자에게 공개되지 않습니다",
+      "ai_writing_style": "AI 글쓰기 스타일",
+      "ai_writing_style_desc": "편집기 AI 도우미와 MCP로 연결한 외부 AI가 글을 쓸 때 따릅니다. 어조, 인칭, 서식 습관, 자주 쓰는 용어 등을 적어 주세요. 작성자가 그때그때 하는 요청이 우선합니다. 최대 4000자.",
+      "ai_writing_style_placeholder": "예: 1인칭으로, 친근하지만 가볍지 않게. 한글과 영문 사이에 공백. 코드 예시는 Go 우선. 글 끝에 두세 문장으로 요약."
     },
     "labels": {
       "title": "태그",

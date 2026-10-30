@@ -23,14 +23,16 @@ const (
 
 const serverInstructions = `Tools for reading, drafting and publishing posts on a neo-blog site, acting as the user who owns the API token.
 
+Before writing or editing post content, call get_writing_guide once: it has the site owner's writing style, the formats the editor supports, and the custom components (callouts, code tabs, collapsibles, ...) you can insert.
+
 How posts work:
-- Post bodies are stored as HTML produced by a rich-text editor. Tools read and write Markdown by default; pass content_format "html" to work with the raw HTML instead. Markdown cannot express some editor features (text colors, alignment); site components (<div data-component=...>) are kept as raw HTML. For small edits to rich posts, prefer the "html" format.
+- Post bodies are stored as HTML produced by a rich-text editor. Tools read and write Markdown by default; pass content_format "html" to work with the raw HTML instead. Components you may write appear as fenced code blocks whose language is component:<name>, holding one line of props JSON; other site components appear as raw HTML and must be kept as-is. Inline formats such as annotations, highlights and colors are written as small HTML tags (see the guide).
 - Every content write goes to an unpublished draft. Readers only see the published version. Call publish_post to make the draft live.
 - A post that is open in the web console editor is locked: writes are refused while a person is editing it. Do not retry in a loop; tell the user and ask them to close the editor first.
 - Metadata (title, description, slug, cover, category, labels) has no draft. On a public post those changes are visible immediately, so they need the posts:publish scope.
 - There is no delete tool. Every write is recorded in the post's version history and can be rolled back from the console.
 
-Typical flow: list_posts or get_post -> update_post (draft) -> show the user the preview_url -> publish_post when the user agrees.`
+Typical flow: get_writing_guide -> list_posts or get_post -> update_post (draft) -> show the user the preview_url -> publish_post when the user agrees.`
 
 // NewHandler 创建 MCP 的 Streamable HTTP 处理器
 // 采用无状态 + JSON 响应：每个请求独立处理，便于经过 Next.js rewrites 等反向代理转发
@@ -49,6 +51,7 @@ func newServer() *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: serverName, Title: "neo-blog", Version: serverVersion}, &mcp.ServerOptions{
 		Instructions: serverInstructions,
 	})
+	registerGuideTools(server)
 	registerPostTools(server)
 	registerFileTools(server)
 	return server

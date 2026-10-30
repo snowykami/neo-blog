@@ -663,7 +663,10 @@
       "qweather_api_host": "和风天气 API Host",
       "qweather_api_host_desc": "和风天气控制台「设置」中的专属 API Host",
       "qweather_api_key": "和风天气 API Key",
-      "qweather_api_key_desc": "仅保存在服务端，不会公开给访客"
+      "qweather_api_key_desc": "仅保存在服务端，不会公开给访客",
+      "ai_writing_style": "AI 写作风格",
+      "ai_writing_style_desc": "编辑器 AI 帮写和通过 MCP 连接的外部 AI 写作时都会遵循，例如语气、人称、排版习惯和常用术语。作者每次的具体要求优先。最多 4000 字。",
+      "ai_writing_style_placeholder": "例如：用第一人称、口语化但不卖萌；中英文之间加空格；代码示例优先用 Go；每篇结尾用两三句话总结。"
     },
     "labels": {
       "title": "标签管理",

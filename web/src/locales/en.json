@@ -663,7 +663,10 @@
       "qweather_api_host": "QWeather API Host",
       "qweather_api_host_desc": "Your dedicated API Host from the QWeather console settings",
       "qweather_api_key": "QWeather API Key",
-      "qweather_api_key_desc": "Stored on the server only and never exposed to visitors"
+      "qweather_api_key_desc": "Stored on the server only and never exposed to visitors",
+      "ai_writing_style": "AI writing style",
+      "ai_writing_style_desc": "Followed by the editor’s AI assistant and by external AI tools connected over MCP: tone, voice, formatting habits, preferred terms and so on. An author’s request for a specific edit takes priority. Up to 4000 characters.",
+      "ai_writing_style_placeholder": "e.g. First person, conversational but not cutesy; put spaces between Chinese and English; prefer Go for code samples; end each post with a two- or three-sentence summary."
     },
     "labels": {
       "title": "Tags",

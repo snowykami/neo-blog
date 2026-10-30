@@ -68,6 +68,7 @@ Claude Desktop 的配置文件只能启动本地进程，可以借助 [`mcp-remo
 
 | 工具 | 权限 | 说明 |
 | --- | --- | --- |
+| `get_writing_guide` | 任意 | 写作指南：站点写作风格、编辑器支持的格式、可插入的组件及其 props 的 JSON Schema |
 | `list_posts` | `posts:read` | 搜索 / 列出文章（关键词、分类、标签、仅自己的），不含正文；管理员可见所有私密文章 |
 | `get_post` | `posts:read` | 读取单篇文章的元信息与正文；作者或管理员默认读到最新草稿 |
 | `list_taxonomy` | `posts:read` | 列出全部分类与标签及其 ID |
@@ -85,7 +86,28 @@ Claude Desktop 的配置文件只能启动本地进程，可以借助 [`mcp-remo
 
 - 写入：GFM Markdown → HTML（表格、代码块、删除线等）；Markdown 中可以直接写 HTML。
 - 读取：HTML → Markdown。站内组件块（`<div data-component=...>`）原样保留为 HTML，往返不丢失。
-- 文字颜色、对齐等 Markdown 无法表达的样式在 Markdown 往返中会丢失；对排版复杂的文章做小修改时，请让 AI 使用 `content_format: "html"`。
+- 注释、高亮、文字颜色等行内格式以少量 HTML 标签书写（与编辑器 AI 帮写的「平台格式」完全相同，见写作指南）。段落对齐等其他样式在 Markdown 往返中会丢失；对排版复杂的文章做小修改时，请让 AI 使用 `content_format: "html"`。
+
+### 写作指南与自定义组件
+
+服务端的 instructions 要求 AI 在动笔前调用一次 `get_writing_guide`，指南由三部分组成：
+
+1. **站点写作风格**：全局配置 → AI → 「AI 写作风格」，由管理员填写（最多 4000 字），编辑器 AI 帮写与 MCP 共用；作者每次的具体要求优先。
+2. **正文格式**：块结构与行内格式的写法，与编辑器 AI 帮写的系统提示词共用同一份文本（`internal/service/ai_write_prompt.go`）。
+3. **组件**：与编辑器 AI 帮写开放的组件一致（提示框、代码组、折叠块、文字标签页，即定义了 `ai` 的组件；歌曲、仓库等依赖外部 ID 的组件不开放，避免 AI 编造数据）。
+
+组件以代码块书写，语言为 `component:组件名`，内容是一行 props JSON：
+
+````markdown
+```component:callout
+{"type":"tip","title":"小提示","content":"先备份数据再升级。"}
+```
+````
+
+- 写入时服务端按 JSON Schema 补全默认值、去掉未定义的字段并校验，转换为编辑器的组件块；组件名不存在或 props 不合法时**整次写入被拒绝**并说明原因，AI 可据此修正重试。
+- 以 Markdown 读取时，开放给 AI 的组件同样以代码块给出，读写对称；其他组件、带自定义布局（对齐、高度、非默认宽度）或 props 不合法的组件以原始 HTML 给出，原样写回即可保留。
+
+组件清单 `internal/mcpserver/ai-components.json` 由前端测试根据组件注册表生成（`web/src/components/content-components/ai-components.test.ts`）。修改组件的 schema、版本或 `ai.usage` 后，在 `web/` 运行 `pnpm test -u` 更新；清单过期时该测试会失败。
 
 ## 4. 安全边界：草稿、编辑锁与版本历史
 

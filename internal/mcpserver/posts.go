@@ -308,7 +308,7 @@ func listTaxonomy(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp
 
 type createPostInput struct {
 	Title         string  `json:"title" jsonschema:"post title"`
-	Content       string  `json:"content,omitempty" jsonschema:"post body, saved as an unpublished draft"`
+	Content       string  `json:"content,omitempty" jsonschema:"post body, saved as an unpublished draft; may contain component blocks described by get_writing_guide"`
 	ContentFormat string  `json:"content_format,omitempty" jsonschema:"format of content: markdown (default) or html"`
 	Description   *string `json:"description,omitempty" jsonschema:"short summary shown in post lists"`
 	Slug          *string `json:"slug,omitempty" jsonschema:"friendly URL segment; must be unique and not purely numeric"`
@@ -509,13 +509,13 @@ func registerPostTools(server *mcp.Server) {
 	}, listTaxonomy)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "create_post",
-		Description: "Create a new post. It starts unpublished (private) with the body saved as a draft, so readers see nothing until publish_post. Requires posts:write.",
+		Description: "Create a new post. It starts unpublished (private) with the body saved as a draft, so readers see nothing until publish_post. Follow get_writing_guide for formats and components. Requires posts:write.",
 		InputSchema: inputSchema[createPostInput](map[string][]any{"content_format": formatEnum}),
 		Annotations: &mcp.ToolAnnotations{Title: "Create draft post", DestructiveHint: boolPtr(false), OpenWorldHint: boolPtr(false)},
 	}, createPost)
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "update_post",
-		Description: "Update a post. content replaces the whole body and is saved as an unpublished draft; read it first with get_post. " +
+		Description: "Update a post. content replaces the whole body and is saved as an unpublished draft; read it first with get_post and follow get_writing_guide. " +
 			"Metadata fields (title, description, slug, cover, category_id, label_ids) apply immediately; on a public post they also need posts:publish. " +
 			"Refused while the post is open in the console editor. Requires posts:write.",
 		InputSchema: inputSchema[updatePostInput](map[string][]any{"content_format": formatEnum}),

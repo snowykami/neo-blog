@@ -41,10 +41,20 @@ func newHTMLConverter() *converter.Converter {
 		strikethrough.NewStrikethroughPlugin(),
 		table.NewTablePlugin(),
 	))
-	// 站内组件块（<div data-component=...>）在 Markdown 中没有对应语法，原样保留为 HTML，写回时不会丢失
+	// 站内组件块（<div data-component=...>）：对 AI 开放的组件输出为组件代码块（与写入时的写法一致），
+	// 其余组件在 Markdown 中没有对应语法，原样保留为 HTML，写回时不会丢失
 	conv.Register.Renderer(func(ctx converter.Context, w converter.Writer, n *html.Node) converter.RenderStatus {
-		if _, ok := dom.GetAttribute(n, "data-component"); !ok {
+		name, ok := dom.GetAttribute(n, "data-component")
+		if !ok {
 			return converter.RenderTryNext
+		}
+		attrs := make(map[string]string, len(n.Attr))
+		for _, attr := range n.Attr {
+			attrs[attr.Key] = attr.Val
+		}
+		if fence, ok := componentFence(name, attrs["data-version"], attrs["data-props"], attrs); ok {
+			w.WriteString("\n\n" + fence + "\n\n")
+			return converter.RenderSuccess
 		}
 		var buf bytes.Buffer
 		if err := html.Render(&buf, n); err != nil {
@@ -54,7 +64,66 @@ func newHTMLConverter() *converter.Converter {
 		w.WriteString("\n\n" + reBlankLines.ReplaceAllString(buf.String(), "\n") + "\n\n")
 		return converter.RenderSuccess
 	}, converter.PriorityEarly)
+	// 编辑器的行内格式（注释、高亮、文字颜色、下划线、上下标）在 Markdown 中没有对应语法：标签原样保留，
+	// 标签内的文字仍按 Markdown 输出（会被正确转义），写回时由 Markdown 中的行内 HTML 还原
+	conv.Register.Renderer(func(ctx converter.Context, w converter.Writer, n *html.Node) converter.RenderStatus {
+		if !keepInlineTag(n) {
+			return converter.RenderTryNext
+		}
+		w.WriteString(openTag(n))
+		ctx.RenderChildNodes(ctx, w, n)
+		w.WriteString("</" + n.Data + ">")
+		return converter.RenderSuccess
+	}, converter.PriorityEarly)
+	// 带对齐等样式的段落与标题整段保留为 HTML 块
+	conv.Register.Renderer(func(ctx converter.Context, w converter.Writer, n *html.Node) converter.RenderStatus {
+		if !keepStyledBlock(n) {
+			return converter.RenderTryNext
+		}
+		var buf bytes.Buffer
+		if err := html.Render(&buf, n); err != nil {
+			return converter.RenderTryNext
+		}
+		w.WriteString("\n\n" + strings.ReplaceAll(buf.String(), "\n", " ") + "\n\n")
+		return converter.RenderSuccess
+	}, converter.PriorityEarly)
 	return conv
+}
+
+func keepInlineTag(n *html.Node) bool {
+	if n.Type != html.ElementNode {
+		return false
+	}
+	switch n.Data {
+	case "mark", "u", "sup", "sub":
+		return true
+	case "span":
+		return len(n.Attr) > 0
+	}
+	return false
+}
+
+func keepStyledBlock(n *html.Node) bool {
+	if n.Type != html.ElementNode {
+		return false
+	}
+	switch n.Data {
+	case "p", "h1", "h2", "h3", "h4", "h5", "h6":
+		_, ok := dom.GetAttribute(n, "style")
+		return ok
+	}
+	return false
+}
+
+// openTag 输出元素的开始标签，属性值一律用双引号并转义
+func openTag(n *html.Node) string {
+	var sb strings.Builder
+	sb.WriteString("<" + n.Data)
+	for _, attr := range n.Attr {
+		sb.WriteString(" " + attr.Key + `="` + html.EscapeString(attr.Val) + `"`)
+	}
+	sb.WriteString(">")
+	return sb.String()
 }
 
 // normalizeFormat 未指定时默认为 Markdown
@@ -100,6 +169,9 @@ func parseContent(content, format string) (string, error) {
 		var err error
 		if result, err = markdownToHTML(content); err != nil {
 			return "", fmt.Errorf("failed to convert markdown: %w", err)
+		}
+		if result, err = convertComponentFences(result); err != nil {
+			return "", fmt.Errorf("invalid component: %w (call get_writing_guide for the component list and props schemas)", err)
 		}
 	}
 	if strings.TrimSpace(result) == "" {

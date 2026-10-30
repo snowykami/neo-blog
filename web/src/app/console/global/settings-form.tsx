@@ -86,6 +86,7 @@ interface SettingsValues {
   aiApiKey: string
   aiModel: string
   aiSummaryConcurrency: number
+  aiWritingStyle: string
   lyricAnnotationTtlDays: number
 }
 
@@ -143,6 +144,7 @@ const STANDALONE_KEYS: Partial<Record<FieldName, { key: string, toValue?: (value
   aiApiKey: { key: 'ai_api_key', toValue: values => values.aiApiKey.trim() },
   aiModel: { key: 'ai_model', toValue: values => values.aiModel.trim() },
   aiSummaryConcurrency: { key: 'ai_summary_concurrency' },
+  aiWritingStyle: { key: 'ai_writing_style', toValue: values => values.aiWritingStyle.trim() },
   lyricAnnotationTtlDays: { key: 'lyric_annotation_ttl_days' },
   // 网易云 API 与 Cookie 仅后端使用，同样只写入独立配置键
   ncmApiBaseUrl: { key: 'ncm_api_base_url', toValue: values => values.ncmApiBaseUrl.trim() },
@@ -213,6 +215,7 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     aiApiKey: str('aiApiKey', ''),
     aiModel: str('aiModel', ''),
     aiSummaryConcurrency: num('aiSummaryConcurrency', 3),
+    aiWritingStyle: str('aiWritingStyle', ''),
     lyricAnnotationTtlDays: num('lyricAnnotationTtlDays', 7),
   }
 }
@@ -261,7 +264,7 @@ const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
   content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
   frontend: ['aboutBackground', 'sidebarCards', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel', 'musicTtmlUrlTemplate', 'qweatherApiHost', 'qweatherApiKey'],
   account: ['enableRegister', 'enableRegisterFromOidc', 'verifyCodeCoolDown', 'visitLogRetentionDays'],
-  ai: ['aiApiBaseUrl', 'aiApiKey', 'aiModel', 'aiSummaryConcurrency', 'lyricAnnotationTtlDays'],
+  ai: ['aiApiBaseUrl', 'aiApiKey', 'aiModel', 'aiSummaryConcurrency', 'aiWritingStyle', 'lyricAnnotationTtlDays'],
   rss: ['rssTitle', 'rssAuthor', 'rssCopyright', 'rssLanguage', 'rssImage'],
 }
 
@@ -428,6 +431,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
               <TextField name="aiModel" label={t('ai_model')} description={t('ai_model_desc')} placeholder="gpt-4o-mini / deepseek-chat" />
               <PasswordField name="aiApiKey" label={t('ai_api_key')} description={t('ai_api_key_desc')} wide />
               <NumberField name="aiSummaryConcurrency" label={t('ai_summary_concurrency')} description={t('ai_summary_concurrency_desc')} min={1} max={20} />
+              <TextAreaField name="aiWritingStyle" label={t('ai_writing_style')} description={t('ai_writing_style_desc')} placeholder={t('ai_writing_style_placeholder')} rows={6} wide />
               <NumberField name="lyricAnnotationTtlDays" label={t('lyric_annotation_ttl_days')} description={t('lyric_annotation_ttl_days_desc')} min={1} max={365} />
             </Section>
           </TabsContent>
@@ -554,7 +558,7 @@ function PasswordField({ name, label, description, placeholder, wide }: FieldPro
   )
 }
 
-function TextAreaField({ name, label, description, wide }: FieldProps) {
+function TextAreaField({ name, label, description, placeholder, wide, rows = 3 }: FieldProps & { rows?: number }) {
   const { control } = useFormContext<SettingsValues>()
   return (
     <FormField
@@ -564,7 +568,7 @@ function TextAreaField({ name, label, description, wide }: FieldProps) {
         <FormItem className={wide ? 'md:col-span-2' : undefined}>
           <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <FormControl>
-            <Textarea rows={3} {...field} value={(field.value as string) ?? ''} />
+            <Textarea rows={rows} placeholder={placeholder} {...field} value={(field.value as string) ?? ''} />
           </FormControl>
         </FormItem>
       )}

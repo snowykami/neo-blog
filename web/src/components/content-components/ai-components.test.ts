@@ -3,7 +3,7 @@ import { getSchema } from '@tiptap/react'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { markdownToSlice } from '@/components/tiptap-editor/ai-write-utils'
 import { createContentExtensions } from '@/lib/tiptap-extensions'
-import { buildAIComponentGuide, convertAIComponentBlocks, getAIComponents } from './ai-components'
+import { buildAIComponentGuide, buildAIComponentManifest, convertAIComponentBlocks, getAIComponents } from './ai-components'
 import { parsePropsAttr } from './props'
 import { CONTENT_COMPONENTS } from './registry'
 
@@ -30,6 +30,11 @@ function parseAIMarkdown(markdown: string) {
 const fence = (name: string, props: unknown) => `\`\`\`component:${name}\n${typeof props === 'string' ? props : JSON.stringify(props)}\n\`\`\``
 
 describe('ai component whitelist', () => {
+  // 后端 MCP 读取这份清单校验组件；组件定义变化后运行 pnpm test -u 更新
+  it('keeps the backend component manifest in sync', async () => {
+    await expect(`${JSON.stringify(buildAIComponentManifest(), null, 2)}\n`).toMatchFileSnapshot('../../../../internal/mcpserver/ai-components.json')
+  })
+
   it('only offers components without external ids', () => {
     const names = getAIComponents().map(def => def.name).sort()
     expect(names).toEqual(['callout', 'codeTabs', 'collapsible', 'textTabs'])
