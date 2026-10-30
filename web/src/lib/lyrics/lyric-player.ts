@@ -1,3 +1,4 @@
+import type { RubyMetrics } from './ruby-layout'
 import type { TimelineItem, TimelineState } from './timeline'
 import type { LyricEmphasis, LyricWord, ResolvedLyrics } from './types'
 import { LYRIC_COLORS, MOOD_GLOW } from './colors'
@@ -26,6 +27,7 @@ import { swellCurve } from './easing'
 import { interludeDot } from './interlude'
 import { LyricDebris } from './lyric-debris'
 import { PACE } from './pace'
+import { placeRuby, rubyGroups, rubyText } from './ruby-layout'
 import { Spring } from './spring'
 import { spotlightAt } from './stage-effects'
 import { buildTimeline, getTimelineState, getWordProgress } from './timeline'
@@ -59,6 +61,16 @@ interface WordView {
   pad: number
   mask: string
   transform: string
+}
+
+/** 注音单元（一个字在上、它的音译在下）：排版见 ruby-layout.ts 的 placeRuby，测量时写入左外边距 */
+interface RubyUnitView {
+  el: HTMLElement
+  ruby: HTMLElement
+  word: HTMLElement
+  wordText: string
+  // 音译各段的元素与显示的文字（一个字有多个音拍时为多段）
+  parts: { el: HTMLElement, text: string }[]
 }
 
 interface CharView {
@@ -96,6 +108,7 @@ interface ItemView {
   words: WordView[]
   emphasis: EmphasisView[]
   extras: HTMLElement[]
+  rubyUnits: RubyUnitView[]
   dots: HTMLElement[]
   // 上次写入的样式，未变化时不重复写 DOM
   transform: string
@@ -183,6 +196,51 @@ function splitGraphemes(text: string): string[] {
 }
 
 /** 把词首尾的空格换成不换行空格：词为 inline-block，普通空格会被折叠，拉丁文字的单词会粘连 */
+let measureContext: CanvasRenderingContext2D | null | undefined
+
+/** 文字（去掉首尾空白）按元素的字体排出的宽度（px）：用 canvas 测量，不受行的缩放与字的特效变换影响；无法测量时为 null */
+function textWidth(el: HTMLElement, text: string): number | null {
+  measureContext ??= el.ownerDocument.createElement('canvas').getContext('2d')
+  const trimmed = text.trim()
+  if (!measureContext || !trimmed)
+    return null
+  const style = getComputedStyle(el)
+  measureContext.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+  return measureContext.measureText(trimmed).width
+}
+
+// 同一排相邻两段音译的最小间距（音译字号的倍数）
+const RUBY_GAP_EM = 0.35
+
+/**
+ * 排版一行的注音单元（见 ruby-layout.ts 的 placeRuby）：先清除上次的偏移再测量位置与宽度，然后写入
+ * 单元的推移（左外边距）与音译相对字的偏移；隐藏音译时只清除，原文按原样排列
+ */
+function layoutRubyUnits(units: RubyUnitView[], visible: boolean) {
+  for (const unit of units) {
+    unit.el.style.marginLeft = ''
+    unit.ruby.style.marginLeft = ''
+  }
+  if (!visible || units.length === 0)
+    return
+  const metrics: RubyMetrics[] = units.map((unit) => {
+    const firstWidth = textWidth(unit.parts[0].el, unit.parts[0].text) ?? 0
+    return {
+      left: unit.el.offsetLeft,
+      top: unit.el.offsetTop,
+      charWidth: textWidth(unit.word, unit.wordText) ?? unit.word.offsetWidth,
+      firstWidth,
+      rubyWidth: unit.parts.reduce((sum, part, i) => sum + (i === 0 ? firstWidth : textWidth(part.el, part.text) ?? 0), 0),
+    }
+  })
+  const gap = RUBY_GAP_EM * (Number.parseFloat(getComputedStyle(units[0].ruby).fontSize) || 10)
+  placeRuby(metrics, gap).forEach(({ shift, offset }, i) => {
+    if (shift > 0)
+      units[i].el.style.marginLeft = `${shift.toFixed(1)}px`
+    units[i].ruby.style.marginLeft = `${offset.toFixed(1)}px`
+  })
+}
+
 function preserveEdgeSpaces(text: string) {
   return text.replace(/^ +| +$/g, match => '\u00A0'.repeat(match.length))
 }
@@ -297,12 +355,20 @@ export class LyricPlayer {
       })
       this.resizeObserver.observe(container)
     }
+    // 网页字体加载完成后字宽与行高会变，重新测量（含注音单元的对齐）
+    container.ownerDocument.fonts?.addEventListener('loadingdone', this.onFontsLoaded)
+  }
+
+  private onFontsLoaded = () => {
+    this.layoutDirty = true
+    this.wake()
   }
 
   dispose() {
     cancelAnimationFrame(this.rafId)
     this.rafId = 0
     this.resizeObserver?.disconnect()
+    this.container.ownerDocument.fonts?.removeEventListener('loadingdone', this.onFontsLoaded)
     this.listeners.forEach(([type, listener, opts]) => this.container.removeEventListener(type, listener, opts))
     // 只移除引擎自己创建的节点，不碰容器里可能由其他代码（如 React）管理的内容
     this.views.forEach(view => view.el.remove())
@@ -372,6 +438,7 @@ export class LyricPlayer {
         words: [],
         emphasis: [],
         extras: [],
+        rubyUnits: [],
         dots: [],
         transform: '',
         filter: '',
@@ -410,7 +477,7 @@ export class LyricPlayer {
               wordEl.textContent = preserveEdgeSpaces(word.text)
             return { word, el: wordEl, width: 0, pad: 0, mask: '', transform: '' }
           })
-          view.words = [...mainWords, ...this.buildWords(main, line, mainWords, (index) => {
+          view.words = [...mainWords, ...this.buildWords(main, line, mainWords, view.rubyUnits, (index) => {
             const group = groupOf(index)
             return group >= 0 ? rubyEmphasis[group] : null
           })]
@@ -463,69 +530,48 @@ export class LyricPlayer {
   }
 
   /**
-   * 把原文的词放进主行；有逐字音译时，被同一个音译词覆盖的连续音节组成一个注音单元：原文在上、音译在下居中对齐
-   * （参考 StarryPlayer 的注音行），音译的每一段也作为可擦除的词返回，按自己的时间逐字擦除。
+   * 把原文的词放进主行；有逐字音译时，每个有音译的字组成一个注音单元：字在上、它的音译在下
+   * （单元记入 units，测量时排版，见 layoutRubyUnits），音译的每一段也作为可擦除的词返回，按自己的时间逐字擦除。
    * emphasisOf 返回某个音节所在强调组的音译部分（不强调时为 null），注在强调音节下的音译段拆成单字放入其中，并带上该组的字体与字形
    */
-  private buildWords(main: HTMLElement, line: ResolvedLyrics['lines'][number], mainWords: WordView[], emphasisOf: (index: number) => EmphasisView | null): WordView[] {
+  private buildWords(main: HTMLElement, line: ResolvedLyrics['lines'][number], mainWords: WordView[], units: RubyUnitView[], emphasisOf: (index: number) => EmphasisView | null): WordView[] {
     const doc = this.container.ownerDocument
     const parts = line.romanizationWords ?? []
     if (parts.length === 0) {
       main.append(...mainWords.map(word => word.el))
       return []
     }
-    // 音译词（以空格结尾的一段为一个词的结束）覆盖的音节范围，重叠的合并为一个单元
-    const units: { from: number, to: number, parts: typeof parts }[] = []
-    let current: typeof parts = []
-    parts.forEach((part, i) => {
-      current.push(part)
-      if (!part.text.endsWith(' ') && i < parts.length - 1)
-        return
-      const from = Math.min(...current.map(item => item.word))
-      const to = Math.max(...current.map(item => item.word))
-      const last = units.at(-1)
-      if (last && from <= last.to) {
-        last.to = Math.max(last.to, to)
-        last.parts.push(...current)
-      }
-      else {
-        units.push({ from, to, parts: current })
-      }
-      current = []
-    })
-
+    // 每个字一个注音单元：这个字的音译段放在它下面（显示时去掉标点与空白，见 ruby-layout.ts）
+    const groups = new Map(rubyGroups(parts).map(group => [group.word, group.parts]))
     const rubyWords: WordView[] = []
-    let unit = 0
-    for (let index = 0; index < mainWords.length; index++) {
-      const u = units[unit]
-      if (!u || index < u.from) {
-        main.append(mainWords[index].el)
-        continue
+    mainWords.forEach((mainWord, index) => {
+      const group = groups.get(index)
+      if (!group) {
+        main.append(mainWord.el)
+        return
       }
       const unitEl = doc.createElement('span')
       unitEl.className = 'lyric-unit'
-      const unitMain = doc.createElement('span')
-      unitMain.className = 'lyric-unit-main'
-      for (let i = u.from; i <= u.to; i++)
-        unitMain.append(mainWords[i].el)
       const ruby = doc.createElement('span')
       ruby.className = 'lyric-ruby'
-      for (const part of u.parts) {
+      const unitParts: RubyUnitView['parts'] = []
+      for (const part of group) {
+        const text = rubyText(part.text)
         const el = doc.createElement('span')
         el.className = 'lyric-word'
         const emphasis = emphasisOf(part.word)
         if (emphasis)
-          fillEmphasisChars(el, part.text, emphasis.chars, emphasis.group, part)
+          fillEmphasisChars(el, text, emphasis.chars, emphasis.group, part)
         else
-          el.textContent = preserveEdgeSpaces(part.text)
+          el.textContent = text
         ruby.append(el)
-        rubyWords.push({ word: { text: part.text, start: part.start, end: part.end }, el, width: 0, pad: 0, mask: '', transform: '' })
+        unitParts.push({ el, text })
+        rubyWords.push({ word: { text, start: part.start, end: part.end }, el, width: 0, pad: 0, mask: '', transform: '' })
       }
-      unitEl.append(unitMain, ruby)
+      unitEl.append(mainWord.el, ruby)
       main.append(unitEl)
-      index = u.to
-      unit++
-    }
+      units.push({ el: unitEl, ruby, word: mainWord.el, wordText: mainWord.word.text, parts: unitParts })
+    })
     return rubyWords
   }
 
@@ -535,6 +581,9 @@ export class LyricPlayer {
     const firstMain = this.container.querySelector<HTMLElement>('.lyric-main')
     if (firstMain)
       this.fontSize = Number.parseFloat(getComputedStyle(firstMain).fontSize) || 16
+    // 注音单元的排版会改变行宽与换行，先于测量高度
+    for (const view of this.views)
+      layoutRubyUnits(view.rubyUnits, this.display.showRomanization)
     for (const view of this.views) {
       // 缩放不影响 offsetHeight / offsetWidth
       view.height = view.item.kind === 'interlude' ? this.interludeHeight : view.el.offsetHeight

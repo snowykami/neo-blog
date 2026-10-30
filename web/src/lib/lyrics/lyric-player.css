@@ -206,21 +206,19 @@
   opacity: 0.5;
 }
 
-/* 逐字音译的注音单元：原文在上、音译在下，按首音节左对齐（「私」对齐 watashi 的 wa），单元宽度取两者中较宽的一个 */
+/*
+ * 逐字音译的注音单元：一个字在上、它的音译在下。单元宽度只取字的宽度，音译不占宽度（width: 0，内容溢出显示），
+ * 可以伸到相邻的字下面；第一个音拍对准字的中心、与前一段音译重叠时推后单元，由引擎测量后写入左外边距（见 ruby-layout.ts）
+ */
 .lyric-unit {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
 }
 
-.lyric-unit-main {
-  white-space: pre;
-}
-
 .lyric-ruby {
+  width: 0;
   margin-top: 0.05em;
-  /* 左侧不留空，音译的首字母与原文的左边缘对齐 */
-  padding-inline: 0 0.06em;
   font-size: 0.58em;
   font-weight: 600;
   line-height: 1.25;
