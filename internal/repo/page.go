@@ -70,6 +70,11 @@ func (p *pageRepo) GetPageBySlugOrID(slugOrID string) (*model.Page, error) {
 	return &page, nil
 }
 
+// SetHTMLVersion 切换 HTML 页面当前生效的版本
+func (p *pageRepo) SetHTMLVersion(pageID, versionID uint) error {
+	return GetDB().Model(&model.Page{}).Where("id = ?", pageID).Update("html_version_id", versionID).Error
+}
+
 func (p *pageRepo) SavePage(page *model.Page) error {
 	if page.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")

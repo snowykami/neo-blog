@@ -1,5 +1,5 @@
 import type { PaginationParams } from '@/models/common'
-import type { PageModel } from '@/models/page'
+import type { PageHtmlVersion, PageModel } from '@/models/page'
 import type { BaseResponse } from '@/models/resp'
 import { OrderBy } from '@/models/common'
 import axiosClient from './client'
@@ -70,5 +70,51 @@ export async function updatePage({
 
 export async function deletePage({ id }: { id: number }): Promise<BaseResponse<null>> {
   const res = await axiosClient.delete(`/page/p/${id}`)
+  return res.data
+}
+
+// HTML 页面：上传单个 .html 文件或 .zip 包，创建新版本并立即生效（仅管理员）
+export async function uploadPageHtml({
+  pageId,
+  file,
+  onProgress,
+  signal,
+}: {
+  pageId: number
+  file: File
+  onProgress?: (progress: number) => void // 上传进度 0-100
+  signal?: AbortSignal
+}): Promise<BaseResponse<PageHtmlVersion>> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await axiosClient.post(`/page/p/${pageId}/html/versions`, formData, {
+    signal,
+    // 文件包可能较大，解压与写入存储也需要时间，不使用默认的 10 秒超时
+    timeout: 0,
+    onUploadProgress: onProgress
+      ? event => event.total && onProgress(Math.round((event.loaded / event.total) * 100))
+      : undefined,
+  })
+  return res.data
+}
+
+export async function listPageHtmlVersions({ pageId }: { pageId: number }): Promise<BaseResponse<{ versions: PageHtmlVersion[] }>> {
+  const res = await axiosClient.get(`/page/p/${pageId}/html/versions`)
+  return res.data
+}
+
+// 修改版本的入口文件，或切换为页面当前生效的版本
+export async function updatePageHtmlVersion({
+  pageId,
+  versionId,
+  entry,
+  active,
+}: {
+  pageId: number
+  versionId: number
+  entry?: string
+  active?: boolean
+}): Promise<BaseResponse<PageHtmlVersion>> {
+  const res = await axiosClient.put(`/page/p/${pageId}/html/versions/${versionId}`, { entry, active })
   return res.data
 }

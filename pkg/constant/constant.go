@@ -19,6 +19,7 @@ const (
 	ApiPrefix                  = "/api/v1"                  // API版本前缀
 	OidcUri                    = "/user/oidc/login"         // OIDC登录URI
 	FileUriPrefix              = "/file/f"                  // 文件访问URI前缀
+	PageHTMLUriPrefix          = "/page-html"               // HTML 页面静态文件访问URI前缀
 	DefaultCaptchaDevPasscode  = "dev_passcode"
 	DefaultBaseUrl             = "http://localhost:3000" // 默认BaseUrl
 	DefaultPasswordSalt        = "default_salt_114514"
@@ -36,6 +37,14 @@ const (
 	MaxReplyDepthDefault       = 3          // 默认最大回复深度
 	PageLimitDefault           = 20         // 默认分页大小
 	DefaultMaxRequestBodySize  = 1000 << 20 // 默认请求体上限 1000MiB
+)
+
+// HTML 页面上传的默认上限与保留的版本数
+const (
+	DefaultPageHTMLMaxTotalSize = 100 << 20 // 单个版本解压后的总大小 100MiB
+	DefaultPageHTMLMaxFiles     = 1000      // 单个版本的文件数
+	DefaultPageHTMLMaxFileSize  = 50 << 20  // 单个文件 50MiB
+	PageHTMLKeepVersions        = 5         // 每个页面保留最近的版本数（当前生效的版本始终保留）
 )
 
 var (

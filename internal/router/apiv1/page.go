@@ -30,4 +30,15 @@ func registerPageRoutes(group *route.RouterGroup) {
 		// AI 写作：编辑器内帮写 / 润色，以 SSE 流式返回
 		postGroup.POST("/p/:id/ai-write", controller.AIWrite.Stream(constant.TargetTypePage))
 	}
+
+	// HTML 页面：上传静态文件包与版本管理只开放给管理员
+	htmlGroup := group.Group("/page/p/:id/html").Use(middleware.UseAuth(true), middleware.UseRole(constant.RoleAdmin))
+	{
+		htmlGroup.GET("/versions", controller.PageHTML.ListVersions)
+		htmlGroup.POST("/versions", controller.PageHTML.Upload)
+		htmlGroup.PUT("/versions/:vid", controller.PageHTML.UpdateVersion)
+	}
+	// HTML 页面的静态文件：不经过登录鉴权（沙箱中的不透明源不会携带 Cookie），凭路径中不可猜测的版本标识访问
+	group.GET(constant.PageHTMLUriPrefix+"/:page_id/:key/*path", controller.PageHTML.Serve)
+	group.HEAD(constant.PageHTMLUriPrefix+"/:page_id/:key/*path", controller.PageHTML.Serve)
 }

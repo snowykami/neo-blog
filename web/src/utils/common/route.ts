@@ -94,7 +94,10 @@ export function getPageUrl<T extends { slug?: string | null, id?: string | numbe
   return `/page/${String(key)}`
 }
 
-export function getPageEditUrl<T extends { slug?: string | null, id?: string | number | null }>(page: T): string {
+export function getPageEditUrl<T extends { slug?: string | null, id?: string | number | null, kind?: string }>(page: T): string {
+  // HTML 页面没有正文，编辑页为静态文件包的上传与版本管理
+  if (page.kind === 'html' && page.id)
+    return `/console/pages/html/${String(page.id)}`
   const key = page.slug || page.id
   if (key == null) {
     throw new Error('getPageEditUrl: object must contain slug or id')

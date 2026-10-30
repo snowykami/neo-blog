@@ -11,6 +11,7 @@ import { PostToc } from '@/components/blog-post/post-toc.client'
 import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
 import { ComponentIslands } from '@/components/content-components/component-islands'
+import { HtmlPageView } from '@/components/html-page/html-page-view'
 import { FullscreenChrome } from '@/components/layout/fullscreen-chrome'
 import { SiteShell } from '@/components/layout/site-shell'
 import { isNotFoundLikeError } from '@/utils/common/error'
@@ -58,6 +59,15 @@ export default async function Page({
   // 链接页面：跳转到其地址（站内路径或站外地址），导航中已直接链接，这里处理直接访问 /page/{slug} 的情况
   if (page.kind === 'link' && page.linkUrl)
     redirect(page.linkUrl)
+  // HTML 页面：上传的静态 HTML 在沙箱 iframe 中展示
+  if (page.kind === 'html') {
+    return (
+      <>
+        <HtmlPageView page={page} />
+        <VisitReporter targetType="page" targetId={page.id} />
+      </>
+    )
+  }
 
   const { html, headings } = renderContentHtml(page.content)
   // 代码块工具栏 / 高亮、链接卡片、图片失效兜底与预览，与文章正文复用同一套增强

@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -36,6 +38,10 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 		return 0, svcerr
 	}
 	kind := model.NormalizePageKind(utils.Deref(req.Kind))
+	// HTML 页面可运行任意脚本，只有管理员可以创建
+	if kind == model.PageKindHTML && !ctxutils.IsAdmin(ctx) {
+		return 0, errs.NewForbidden("permission_denied")
+	}
 	// 链接页面通过导航跳转到它的地址，不需要自己的访问路径：未填写时生成内部 slug，只用于满足唯一约束
 	if kind == model.PageKindLink && slug == "" {
 		slug = linkPageSlugPrefix + strings.ToLower(utils.Strings.GenerateRandomString(10))
@@ -70,7 +76,14 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 			Kind:         kind,
 			LinkURL:      linkURL,
 			Fullscreen:   utils.Deref(req.Fullscreen),
+			// HTML 页面的显示尺寸
+			HTMLSizeMode:    utils.Deref(req.HTMLSizeMode),
+			HTMLAspectRatio: utils.Deref(req.HTMLAspectRatio),
+			HTMLHeight:      utils.Deref(req.HTMLHeight),
 		},
+	}
+	if svcerr := normalizePageHTMLSize(page); svcerr != nil {
+		return 0, svcerr
 	}
 	if err := repo.Page.CreatePage(page); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
@@ -101,6 +114,9 @@ func (p *PageService) DeletePage(ctx context.Context, pageID uint) *errs.Service
 	if err := repo.Revision.DeleteByTarget(constant.TargetTypePage, pageID); err != nil {
 		logrus.Warnf("delete revisions of page %d failed: %v", pageID, err)
 	}
+	if err := NewPageHTMLService().DeleteAllForPage(ctx, pageID); err != nil {
+		logrus.Warnf("delete html versions of page %d failed: %v", pageID, err)
+	}
 	return nil
 }
 
@@ -115,7 +131,9 @@ func (p *PageService) GetPageSlugOrID(ctx context.Context, slugOrID string) (*dt
 	if page.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, page.UserID) || ctxutils.IsAdmin(ctx)) {
 		return nil, errs.NewForbidden("permission_denied")
 	}
-	return page.ToDto(), nil
+	pageDto := page.ToDto()
+	pageDto.HTMLBundle = NewPageHTMLService().BundleForPage(page)
+	return pageDto, nil
 }
 
 func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePageReq) (uint, *errs.ServiceError) {
@@ -124,6 +142,12 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 		return 0, errs.NewNotFound("target_not_found")
 	}
 	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, page.UserID)) {
+		return 0, errs.NewForbidden("permission_denied")
+	}
+	// HTML 页面只有管理员可以修改，也只有管理员可以把页面改为 HTML 页面
+	touchesHTML := model.NormalizePageKind(page.Kind) == model.PageKindHTML ||
+		(req.Kind != nil && model.NormalizePageKind(*req.Kind) == model.PageKindHTML)
+	if touchesHTML && !ctxutils.IsAdmin(ctx) {
 		return 0, errs.NewForbidden("permission_denied")
 	}
 	// 保存正文时校验编辑会话，被其他编辑会话顶掉后不能再覆盖正文
@@ -169,6 +193,18 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	if req.LinkURL != nil {
 		page.LinkURL = *req.LinkURL
 	}
+	if req.HTMLSizeMode != nil {
+		page.HTMLSizeMode = *req.HTMLSizeMode
+	}
+	if req.HTMLAspectRatio != nil {
+		page.HTMLAspectRatio = *req.HTMLAspectRatio
+	}
+	if req.HTMLHeight != nil {
+		page.HTMLHeight = *req.HTMLHeight
+	}
+	if svcerr := normalizePageHTMLSize(page); svcerr != nil {
+		return 0, svcerr
+	}
 	// 链接页面必须有合法的地址；正文页面不保留链接地址
 	if model.NormalizePageKind(page.Kind) == model.PageKindLink {
 		link, svcerr := normalizePageLink(page.LinkURL)
@@ -207,6 +243,43 @@ func normalizePageLink(raw string) (string, *errs.ServiceError) {
 		return link, nil
 	}
 	return "", errs.NewBadRequest("invalid_page_link")
+}
+
+// normalizePageHTMLSize 校验 HTML 页面的显示尺寸：只校验当前尺寸模式用到的字段，
+// 固定宽高比为「宽:高」（1~1000 的整数），固定高度为 100~10000px
+func normalizePageHTMLSize(page *model.Page) *errs.ServiceError {
+	page.HTMLSizeMode = model.NormalizePageHTMLSizeMode(page.HTMLSizeMode)
+	switch page.HTMLSizeMode {
+	case model.PageHTMLSizeRatio:
+		ratio, ok := normalizeAspectRatio(page.HTMLAspectRatio)
+		if !ok {
+			return errs.NewBadRequest("invalid_page_html_size")
+		}
+		page.HTMLAspectRatio = ratio
+	case model.PageHTMLSizeHeight:
+		if page.HTMLHeight < 100 || page.HTMLHeight > 10000 {
+			return errs.NewBadRequest("invalid_page_html_size")
+		}
+	}
+	return nil
+}
+
+// normalizeAspectRatio 接受 16:9、16/9 等写法，统一为 16:9
+func normalizeAspectRatio(raw string) (string, bool) {
+	sep := ":"
+	if !strings.Contains(raw, sep) {
+		sep = "/"
+	}
+	w, h, found := strings.Cut(raw, sep)
+	if !found {
+		return "", false
+	}
+	width, errW := strconv.Atoi(strings.TrimSpace(w))
+	height, errH := strconv.Atoi(strings.TrimSpace(h))
+	if errW != nil || errH != nil || width < 1 || height < 1 || width > 1000 || height > 1000 {
+		return "", false
+	}
+	return fmt.Sprintf("%d:%d", width, height), true
 }
 
 func (p *PageService) ListPages(ctx context.Context, req *dto.ListPageReq) ([]*dto.PageDto, int64, *errs.ServiceError) {

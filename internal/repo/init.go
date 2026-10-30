@@ -184,6 +184,7 @@ func migrate() error {
 		&model.KV{},
 		&model.OidcConfig{},
 		&model.Page{},
+		&model.PageHTMLVersion{},
 		&model.Post{},
 		&model.Session{},
 		&model.User{},

@@ -39,4 +39,8 @@ const (
 	EnvKeyRefreshTokenDurationWithRemember = "REFRESH_TOKEN_DURATION_WITH_REMEMBER" // 环境变量：记住我刷新令牌有效期
 	EnvKeyMaxRequestBodySize               = "MAX_REQUEST_BODY_SIZE"                // 环境变量：请求体（上传文件）大小上限，单位字节
 	EnvKeyIP2RegionV6Path                  = "IP2REGION_V6_PATH"                    // 环境变量：ip2region IPv6 数据文件路径（可选，未设置时 IPv6 回退在线查询）
+	EnvKeyPageHTMLOrigin                   = "PAGE_HTML_ORIGIN"                     // 环境变量：托管 HTML 页面的独立无 Cookie 源（如 https://html.example-usercontent.com），设置后 iframe 放开 allow-same-origin
+	EnvKeyPageHTMLMaxTotalSize             = "PAGE_HTML_MAX_TOTAL_SIZE"             // 环境变量：HTML 页面单个版本解压后的总大小上限，单位字节
+	EnvKeyPageHTMLMaxFiles                 = "PAGE_HTML_MAX_FILES"                  // 环境变量：HTML 页面单个版本的文件数上限
+	EnvKeyPageHTMLMaxFileSize              = "PAGE_HTML_MAX_FILE_SIZE"              // 环境变量：HTML 页面单个文件的大小上限，单位字节
 )

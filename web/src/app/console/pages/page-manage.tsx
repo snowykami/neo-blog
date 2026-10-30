@@ -2,7 +2,7 @@
 
 import type { PageModel } from '@/models/page'
 import type { BaseResponseError } from '@/models/resp'
-import { Ellipsis, Eye, LinkIcon } from 'lucide-react'
+import { CodeXmlIcon, Ellipsis, Eye, LinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -161,6 +161,12 @@ function PageItem({
             <Badge variant="outline" className="max-w-56 gap-1 font-mono" title={page.linkUrl}>
               <LinkIcon aria-hidden className="size-3" />
               <span className="truncate">{page.linkUrl}</span>
+            </Badge>
+          )}
+          {page.kind === 'html' && (
+            <Badge variant="outline" className="gap-1">
+              <CodeXmlIcon aria-hidden className="size-3" />
+              {t('html_badge')}
             </Badge>
           )}
           {page.fullscreen && <Badge variant="outline">{t('fullscreen_badge')}</Badge>}
