@@ -528,6 +528,8 @@
       "loading": "加载中…",
       "max_reply_depth": "评论最大回复层级",
       "max_reply_depth_desc": "超过该层级的回复不再缩进嵌套",
+      "revision_max_keep": "每篇保留的历史版本数",
+      "revision_max_keep_desc": "每篇文章 / 页面最多保留的历史版本数（10～500，含发布版本），超出时自动删除最旧的；当前发布的版本与正在编辑的起点始终保留",
       "no_changes": "没有需要保存的修改",
       "owner_avatar": "站长头像",
       "owner_description": "站长简介",
@@ -1361,7 +1363,24 @@
         "discard_unpublished_description": "正文草稿会恢复为当前已发布的版本，标题等设置不受影响。放弃前的内容会备份到版本历史。",
         "revert_failed": "操作失败",
         "reverted": "已放弃修改",
-        "via_api_token": "经 API Token「{name}」"
+        "via_api_token": "经 API Token「{name}」",
+        "published_marker": "当前发布",
+        "retention_hint": "每篇最多保留最近 {count} 个版本，更早的会自动清理；当前发布的版本与本次的编辑起点始终保留。",
+        "total": "共 {count} 个版本",
+        "select": "选择",
+        "select_all": "全选",
+        "selected_count": "已选 {count} 个",
+        "select_revision": "选择 {time} 的版本",
+        "cancel_select": "取消",
+        "load_more": "加载更多（还有 {count} 个）",
+        "delete": "删除",
+        "delete_title": "{count, plural, =1 {删除这个版本？} other {删除 # 个版本？}}",
+        "delete_description": "删除后无法找回。正文草稿与已发布的内容不受影响。",
+        "delete_failed": "删除失败",
+        "deleted": "已删除 {count} 个版本",
+        "protected_published": "当前发布的版本，不能删除",
+        "protected_latest": "最新版本（当前草稿），不能删除",
+        "protected_base": "本次打开编辑器时的版本，“放弃本次修改”需要用到，不能删除"
       },
       "settings_layout": "版式",
       "layout": "前台版式",
@@ -1800,7 +1819,8 @@
       "too_many_api_tokens": "有效的 Token 数量已达上限，请先吊销不用的 Token",
       "invalid_api_token": "API Token 无效、已过期或已被吊销",
       "api_token_scope_insufficient": "API Token 缺少所需的权限范围",
-      "edit_session_in_use": "文章正在编辑器中打开，暂时无法写入"
+      "edit_session_in_use": "文章正在编辑器中打开，暂时无法写入",
+      "revision_protected": "当前发布的版本、最新版本与本次的编辑起点不能删除"
     }
   },
   "Role": {

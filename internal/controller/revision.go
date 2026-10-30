@@ -86,3 +86,35 @@ func (r *revisionType) DiscardDraft(targetType string) app.HandlerFunc {
 		resps.Ok(c, resps.Success, nil)
 	}
 }
+
+// Delete 删除单个版本
+func (r *revisionType) Delete(targetType string) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		req, ok := bindRevisionReq(c)
+		if !ok {
+			return
+		}
+		if svcerr := r.service.Delete(ctx, targetType, req.ID, req.RevisionID, req.EditSessionID); svcerr != nil {
+			resps.Error(c, svcerr)
+			return
+		}
+		resps.Ok(c, resps.Success, nil)
+	}
+}
+
+// BatchDelete 批量删除版本
+func (r *revisionType) BatchDelete(targetType string) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		var req dto.BatchDeleteRevisionReq
+		if err := c.BindAndValidate(&req); err != nil || req.ID == 0 {
+			resps.BadRequest(c, resps.ErrParamInvalid)
+			return
+		}
+		result, svcerr := r.service.BatchDelete(ctx, targetType, req.ID, req.RevisionIDs, req.EditSessionID)
+		if svcerr != nil {
+			resps.Error(c, svcerr)
+			return
+		}
+		resps.Ok(c, resps.Success, result)
+	}
+}

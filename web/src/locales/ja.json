@@ -528,6 +528,8 @@
       "loading": "読み込み中…",
       "max_reply_depth": "返信の最大階層",
       "max_reply_depth_desc": "これより深い返信は入れ子にしません",
+      "revision_max_keep": "1 件あたりの保存版数",
+      "revision_max_keep_desc": "記事・ページごとに保存する履歴の版数の上限（10～500、公開版を含む）。超えた分は古い順に自動削除されます。公開中の版と編集中の開始時点は常に保存されます",
       "no_changes": "保存する変更はありません",
       "owner_avatar": "管理者のアバター",
       "owner_description": "管理者の紹介",
@@ -1361,7 +1363,24 @@
         "discard_unpublished_description": "下書きが公開中の本文に戻ります。タイトルなどの設定は変わりません。現在の内容は版の履歴へバックアップされます。",
         "revert_failed": "操作に失敗しました",
         "reverted": "変更を破棄しました",
-        "via_api_token": "API トークン「{name}」経由"
+        "via_api_token": "API トークン「{name}」経由",
+        "published_marker": "公開中",
+        "retention_hint": "1 件あたり最新 {count} 版まで保存し、古い版は自動的に削除されます。公開中の版と今回の編集の開始時点は常に保存されます。",
+        "total": "{count} 版",
+        "select": "選択",
+        "select_all": "すべて選択",
+        "selected_count": "{count} 版を選択中",
+        "select_revision": "{time} の版を選択",
+        "cancel_select": "キャンセル",
+        "load_more": "さらに読み込む（残り {count} 版）",
+        "delete": "削除",
+        "delete_title": "{count, plural, =1 {この版を削除しますか？} other {# 版を削除しますか？}}",
+        "delete_description": "削除した版は元に戻せません。下書きと公開中の内容には影響しません。",
+        "delete_failed": "削除に失敗しました",
+        "deleted": "{count} 版を削除しました",
+        "protected_published": "公開中の版は削除できません",
+        "protected_latest": "最新の版（現在の下書き）は削除できません",
+        "protected_base": "今回エディターを開いた時点の版です。「今回の変更を破棄」に必要なため削除できません"
       },
       "settings_layout": "レイアウト",
       "layout": "ページのレイアウト",
@@ -1829,7 +1848,8 @@
       "too_many_api_tokens": "有効なトークン数の上限に達しました。不要なトークンを取り消してください",
       "invalid_api_token": "API トークンが無効か、期限切れか、取り消されています",
       "api_token_scope_insufficient": "API トークンに必要なスコープがありません",
-      "edit_session_in_use": "記事がエディターで開かれているため、現在は書き込めません"
+      "edit_session_in_use": "記事がエディターで開かれているため、現在は書き込めません",
+      "revision_protected": "公開中の版、最新の版、今回の編集の開始時点は削除できません"
     }
   },
   "ErrorPage": {

@@ -1,15 +1,19 @@
 package service
 
 import (
+	"context"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 )
@@ -132,34 +136,224 @@ func TestRevisionLifecycle(t *testing.T) {
 	}
 }
 
-// 非发布版本每篇最多保留 revisionKeep 个，发布版本永久保留
-func TestRevisionPrune(t *testing.T) {
-	author, _, _, post, _ := setupEditTest(t)
-	s := NewRevisionService()
-	session, _ := NewEditSessionService().Acquire(author, constant.TargetTypePost, post.ID, "test")
-	html := "<p>published</p>"
-	if _, svcerr := NewPostService().UpdatePost(author, &dto.CreateOrUpdatePostReq{ID: post.ID, PostBaseDto: dto.PostBaseDto{Content: html, DraftContent: &html}, EditSessionID: session.SessionID}); svcerr != nil {
-		t.Fatalf("publish: %v", svcerr)
-	}
-	for i := range revisionKeep + 5 {
-		draft := "<p>" + time.Now().Format(time.RFC3339Nano) + string(rune('a'+i%26)) + "</p>"
-		if err := repo.GetDB().Model(&model.Post{}).Where("id = ?", post.ID).UpdateColumn("draft_content", draft).Error; err != nil {
+// backupRevisions 直接改写草稿（不经过保存接口）再记录备份版本，用于快速生成大量版本
+func backupRevisions(t *testing.T, ctx context.Context, postID uint, sessionID string, n int) {
+	t.Helper()
+	for i := range n {
+		draft := "<p>" + time.Now().Format(time.RFC3339Nano) + strconv.Itoa(i) + "</p>"
+		if err := repo.GetDB().Model(&model.Post{}).Where("id = ?", postID).UpdateColumn("draft_content", draft).Error; err != nil {
 			t.Fatalf("set draft: %v", err)
 		}
-		if svcerr := s.backup(author, constant.TargetTypePost, post.ID, session.SessionID); svcerr != nil {
+		if svcerr := NewRevisionService().backup(ctx, constant.TargetTypePost, postID, sessionID); svcerr != nil {
 			t.Fatalf("backup: %v", svcerr)
 		}
 	}
-	publish, others := 0, 0
-	for _, r := range revisionsOf(t, constant.TargetTypePost, post.ID) {
-		if r.Kind == RevisionKindPublish {
-			publish++
-		} else {
-			others++
+}
+
+func publishPost(t *testing.T, ctx context.Context, postID uint, sessionID, html string) uint {
+	t.Helper()
+	if _, svcerr := NewPostService().UpdatePost(ctx, &dto.CreateOrUpdatePostReq{ID: postID, PostBaseDto: dto.PostBaseDto{Content: html, DraftContent: &html}, EditSessionID: sessionID}); svcerr != nil {
+		t.Fatalf("publish: %v", svcerr)
+	}
+	id, _ := repo.Revision.LatestID(constant.TargetTypePost, postID, RevisionKindPublish)
+	return id
+}
+
+func revisionIDs(t *testing.T, targetType string, id uint) []uint {
+	t.Helper()
+	var ids []uint
+	for _, r := range revisionsOf(t, targetType, id) {
+		ids = append(ids, r.ID)
+	}
+	return ids
+}
+
+// 保留上限：读取全局配置，缺失或类型不符时取默认值，超出范围时取边界值
+func TestRevisionMaxKeepConfig(t *testing.T) {
+	setupEditTest(t)
+	if got := tools.GetRevisionMaxKeep(); got != tools.RevisionMaxKeepDefault {
+		t.Fatalf("default = %d", got)
+	}
+	for value, want := range map[any]int{3: tools.RevisionMaxKeepMin, 9999: tools.RevisionMaxKeepMax, 120: 120, "abc": tools.RevisionMaxKeepDefault} {
+		if err := repo.KV.SetKV("revision_max_keep", value); err != nil {
+			t.Fatal(err)
+		}
+		if got := tools.GetRevisionMaxKeep(); got != want {
+			t.Fatalf("revision_max_keep %v: got %d, want %d", value, got, want)
 		}
 	}
-	if publish != 1 || others != revisionKeep {
-		t.Fatalf("expected 1 publish and %d others, got %d and %d", revisionKeep, publish, others)
+}
+
+// 版本总数（含发布版本）按上限保留；当前发布的版本、最新版本与当前编辑会话的编辑起点始终保留
+func TestRevisionPrune(t *testing.T) {
+	author, _, _, post, _ := setupEditTest(t)
+	if err := repo.KV.SetKV("revision_max_keep", tools.RevisionMaxKeepMin); err != nil {
+		t.Fatal(err)
+	}
+	keep := tools.RevisionMaxKeepMin
+	session, _ := NewEditSessionService().Acquire(author, constant.TargetTypePost, post.ID, "test")
+	base := session.BaseRevisionID
+	published := publishPost(t, author, post.ID, session.SessionID, "<p>published</p>")
+
+	// 编辑起点与发布版本都已超出最新的 keep 个，仍然保留
+	backupRevisions(t, author, post.ID, session.SessionID, keep*2)
+	ids := revisionIDs(t, constant.TargetTypePost, post.ID)
+	if len(ids) != keep+2 || ids[0] != base || ids[1] != published {
+		t.Fatalf("expected base, published and newest %d, got %v (base %d, published %d)", keep, ids, base, published)
+	}
+
+	// 频繁发布同样受上限约束：旧的发布版本不再永久保留
+	for i := range keep * 2 {
+		published = publishPost(t, author, post.ID, session.SessionID, "<p>published "+strconv.Itoa(i)+"</p>")
+	}
+	ids = revisionIDs(t, constant.TargetTypePost, post.ID)
+	if len(ids) != keep+1 || ids[0] != base || ids[len(ids)-1] != published {
+		t.Fatalf("expected base and newest %d publishes, got %v", keep, ids)
+	}
+
+	// 编辑会话被顶掉后，旧的编辑起点不再受保护，下一次写入版本时被清理
+	if _, svcerr := NewEditSessionService().Acquire(author, constant.TargetTypePost, post.ID, "test"); svcerr != nil {
+		t.Fatalf("re-acquire: %v", svcerr)
+	}
+	backupRevisions(t, author, post.ID, "", 1)
+	ids = revisionIDs(t, constant.TargetTypePost, post.ID)
+	if len(ids) != keep || slices.Contains(ids, base) {
+		t.Fatalf("old base should be pruned, got %v", ids)
+	}
+}
+
+// 存量数据与调低上限：定期清理所有超出上限的目标，受保护的版本始终保留
+func TestRevisionPruneAll(t *testing.T) {
+	author, _, _, post, _ := setupEditTest(t)
+	userID, _ := ctxutils.GetCurrentUserID(author)
+	pageID, svcerr := NewPageService().CreatePage(author, &dto.CreateOrUpdatePageReq{PageBaseDto: dto.PageBaseDto{Title: "关于", Slug: "about", Content: "<p>hi</p>"}})
+	if svcerr != nil {
+		t.Fatalf("create page: %v", svcerr)
+	}
+	// 文章的编辑起点是最旧的版本；之后直接写入旧规则下累积的大量发布版本（不经过即时清理）
+	session, _ := NewEditSessionService().Acquire(author, constant.TargetTypePost, post.ID, "test")
+	insert := func(targetType string, targetID uint, kind string, n int) {
+		for i := range n {
+			if err := repo.Revision.Create(&model.ContentRevision{TargetType: targetType, TargetID: targetID, Kind: kind, UserID: userID, Content: "<p>" + strconv.Itoa(i) + "</p>"}); err != nil {
+				t.Fatalf("insert revision: %v", err)
+			}
+		}
+	}
+	insert(constant.TargetTypePost, post.ID, RevisionKindPublish, 60)
+	insert(constant.TargetTypePage, pageID, RevisionKindAutosave, 30)
+	newestPublish, _ := repo.Revision.LatestID(constant.TargetTypePost, post.ID, RevisionKindPublish)
+
+	s := NewRevisionService()
+	deleted, err := s.PruneAll()
+	postIDs := revisionIDs(t, constant.TargetTypePost, post.ID)
+	if err != nil || deleted != 10 || len(postIDs) != tools.RevisionMaxKeepDefault+1 || postIDs[0] != session.BaseRevisionID || postIDs[len(postIDs)-1] != newestPublish {
+		t.Fatalf("prune all: deleted %d, err %v, post revisions %d", deleted, err, len(postIDs))
+	}
+	if n := len(revisionIDs(t, constant.TargetTypePage, pageID)); n != 30 {
+		t.Fatalf("page under the limit should be untouched, got %d", n)
+	}
+
+	// 调低上限后，未再编辑的内容也会被清理到新的上限
+	if err := repo.KV.SetKV("revision_max_keep", 20); err != nil {
+		t.Fatal(err)
+	}
+	deleted, err = s.PruneAll()
+	postIDs = revisionIDs(t, constant.TargetTypePost, post.ID)
+	if err != nil || deleted != 40 || len(postIDs) != 21 || postIDs[0] != session.BaseRevisionID {
+		t.Fatalf("prune after lowering limit: deleted %d, err %v, post revisions %v", deleted, err, postIDs)
+	}
+	if n := len(revisionIDs(t, constant.TargetTypePage, pageID)); n != 20 {
+		t.Fatalf("page should be pruned to 20, got %d", n)
+	}
+	// 已在上限以内时不再删除
+	if deleted, err = s.PruneAll(); err != nil || deleted != 0 {
+		t.Fatalf("second prune: deleted %d, err %v", deleted, err)
+	}
+}
+
+// 删除版本：单个与批量，受保护的版本不能删除，需有编辑权限并持有当前编辑会话
+func TestRevisionDelete(t *testing.T) {
+	author, admin, other, post, _ := setupEditTest(t)
+	s := NewRevisionService()
+	session, _ := NewEditSessionService().Acquire(author, constant.TargetTypePost, post.ID, "test")
+	sid, base := session.SessionID, session.BaseRevisionID
+	published := publishPost(t, author, post.ID, sid, "<p>published</p>")
+	backupRevisions(t, author, post.ID, sid, 5)
+	ids := revisionIDs(t, constant.TargetTypePost, post.ID)
+	latest, olds := ids[len(ids)-1], ids[2:len(ids)-1]
+
+	// 列表标出受保护的版本与保留上限
+	resp, svcerr := s.List(author, constant.TargetTypePost, post.ID, dto.PaginationParams{Page: 1, Size: 50})
+	if svcerr != nil || resp.MaxKeep != tools.RevisionMaxKeepDefault {
+		t.Fatalf("list: %v %+v", svcerr, resp)
+	}
+	wantProtected := map[uint]string{base: RevisionProtectedBase, published: RevisionProtectedPublished, latest: RevisionProtectedLatest}
+	for _, r := range resp.Revisions {
+		if r.Protected != wantProtected[r.ID] {
+			t.Fatalf("revision %d protected = %q, want %q", r.ID, r.Protected, wantProtected[r.ID])
+		}
+	}
+
+	// 受保护的版本不能删除；批量中含有受保护的版本时整批拒绝
+	for id := range wantProtected {
+		svcerr := s.Delete(author, constant.TargetTypePost, post.ID, id, sid)
+		if svcerr == nil || svcerr.Code != http.StatusBadRequest || svcerr.Message != "revision_protected" {
+			t.Fatalf("delete protected %d: %v", id, svcerr)
+		}
+	}
+	_, svcerr = s.BatchDelete(author, constant.TargetTypePost, post.ID, []uint{olds[0], published}, sid)
+	expectCode(t, svcerr, http.StatusBadRequest, "batch with protected")
+	if !slices.Contains(revisionIDs(t, constant.TargetTypePost, post.ID), olds[0]) {
+		t.Fatal("rejected batch must not delete anything")
+	}
+
+	// 权限：其他编辑者不能删除；被顶掉的编辑会话不能删除
+	expectCode(t, s.Delete(other, constant.TargetTypePost, post.ID, olds[0], sid), http.StatusForbidden, "other delete")
+	_, svcerr = s.BatchDelete(other, constant.TargetTypePost, post.ID, []uint{olds[0]}, sid)
+	expectCode(t, svcerr, http.StatusForbidden, "other batch delete")
+	expectCode(t, s.Delete(author, constant.TargetTypePost, post.ID, olds[0], "stale-session"), http.StatusConflict, "stale delete")
+
+	// 参数校验：空列表、ID 为 0、超出单次上限
+	tooMany := make([]uint, revisionBatchDeleteMax+1)
+	for i := range tooMany {
+		tooMany[i] = uint(i + 1)
+	}
+	for name, batch := range map[string][]uint{"empty": nil, "zero": {olds[0], 0}, "too many": tooMany} {
+		_, svcerr := s.BatchDelete(author, constant.TargetTypePost, post.ID, batch, sid)
+		expectCode(t, svcerr, http.StatusBadRequest, name)
+	}
+
+	// 单个删除；已不存在的版本返回 404
+	if svcerr := s.Delete(author, constant.TargetTypePost, post.ID, olds[0], sid); svcerr != nil {
+		t.Fatalf("delete: %v", svcerr)
+	}
+	expectCode(t, s.Delete(author, constant.TargetTypePost, post.ID, olds[0], sid), http.StatusNotFound, "delete again")
+
+	// 批量删除：其他文章的版本 ID 被忽略，已删除的版本不计入
+	otherPostID, svcerr := NewPostService().CreatePost(author, &dto.CreateOrUpdatePostReq{PostBaseDto: dto.PostBaseDto{Title: "另一篇", Content: "<p>x</p>"}})
+	if svcerr != nil {
+		t.Fatalf("create post: %v", svcerr)
+	}
+	otherSession, _ := NewEditSessionService().Acquire(author, constant.TargetTypePost, otherPostID, "test")
+	result, svcerr := s.BatchDelete(author, constant.TargetTypePost, post.ID, []uint{olds[0], olds[1], olds[2], otherSession.BaseRevisionID}, sid)
+	if svcerr != nil || result.Deleted != 2 {
+		t.Fatalf("batch delete: %v %+v", svcerr, result)
+	}
+	if len(revisionIDs(t, constant.TargetTypePost, otherPostID)) != 1 {
+		t.Fatal("revision of another post must not be deleted")
+	}
+
+	// 管理员：接管编辑会话后可以删除他人文章的版本；原会话的编辑起点不再受保护
+	adminSession, svcerr := NewEditSessionService().Acquire(admin, constant.TargetTypePost, post.ID, "test")
+	if svcerr != nil {
+		t.Fatalf("admin acquire: %v", svcerr)
+	}
+	result, svcerr = s.BatchDelete(admin, constant.TargetTypePost, post.ID, []uint{olds[3], base}, adminSession.SessionID)
+	if svcerr != nil || result.Deleted != 2 {
+		t.Fatalf("admin batch delete: %v %+v", svcerr, result)
+	}
+	if ids := revisionIDs(t, constant.TargetTypePost, post.ID); len(ids) != 2 || ids[0] != published || ids[1] != latest {
+		t.Fatalf("expected only published and latest left, got %v", ids)
 	}
 }
 

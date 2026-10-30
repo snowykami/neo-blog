@@ -284,6 +284,7 @@ function LoadedShell({
               await controller.restoreToRevision(revisionId)
               toast.success(t('revision.restored'))
             }}
+            onDelete={controller.deleteRevisions}
           />
         )}
 

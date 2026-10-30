@@ -30,6 +30,8 @@ type RevisionDto struct {
 	CreatedAt time.Time `json:"created_at"`
 	// 通过个人 API Token（外部 AI 工具）写入时为 Token 名称
 	APITokenName string `json:"api_token_name,omitempty"`
+	// 受保护（不能删除、不会被自动清理）的原因：published 当前发布的版本 / latest 最新版本 / base 编辑起点；仅列表返回
+	Protected string `json:"protected,omitempty"`
 }
 
 // RevisionDetailDto 版本详情：含正文与元信息
@@ -42,6 +44,7 @@ type RevisionDetailDto struct {
 type ListRevisionResp struct {
 	Revisions []*RevisionDto `json:"revisions"`
 	Total     int64          `json:"total"`
+	MaxKeep   int            `json:"max_keep"` // 每篇最多保留的版本数，超出的旧版本自动清理
 }
 
 // RevisionTargetReq 版本相关接口的路径参数与编辑会话
@@ -50,4 +53,16 @@ type RevisionTargetReq struct {
 	RevisionID    uint   `path:"rid"`
 	EditSessionID string `header:"X-Edit-Session"`
 	PaginationParams
+}
+
+// BatchDeleteRevisionReq 批量删除版本
+type BatchDeleteRevisionReq struct {
+	ID            uint   `path:"id"`
+	EditSessionID string `header:"X-Edit-Session"`
+	RevisionIDs   []uint `json:"revision_ids"`
+}
+
+// DeleteRevisionResp 删除版本的结果
+type DeleteRevisionResp struct {
+	Deleted int64 `json:"deleted"` // 实际删除的数量（已不存在的版本不计入）
 }

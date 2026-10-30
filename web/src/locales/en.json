@@ -528,6 +528,8 @@
       "loading": "Loading…",
       "max_reply_depth": "Maximum reply depth",
       "max_reply_depth_desc": "Replies deeper than this are no longer nested",
+      "revision_max_keep": "Versions kept per item",
+      "revision_max_keep_desc": "Maximum number of history versions kept for each post or page (10–500, including published ones); the oldest are deleted automatically, while the live version and the starting point of an open editing session are always kept",
       "no_changes": "No changes to save",
       "owner_avatar": "Owner avatar",
       "owner_description": "Owner bio",
@@ -1361,7 +1363,24 @@
         "discard_unpublished_description": "The draft goes back to the published content; settings such as the title are not changed. The current content is backed up to version history.",
         "revert_failed": "Operation failed",
         "reverted": "Changes discarded",
-        "via_api_token": "via API token “{name}”"
+        "via_api_token": "via API token “{name}”",
+        "published_marker": "Live",
+        "retention_hint": "Up to {count} recent versions are kept per item and older ones are removed automatically; the live version and this session's starting point are always kept.",
+        "total": "{count, plural, one {# version} other {# versions}}",
+        "select": "Select",
+        "select_all": "Select all",
+        "selected_count": "{count} selected",
+        "select_revision": "Select the version from {time}",
+        "cancel_select": "Cancel",
+        "load_more": "Load more ({count} left)",
+        "delete": "Delete",
+        "delete_title": "{count, plural, one {Delete this version?} other {Delete # versions?}}",
+        "delete_description": "Deleted versions can’t be recovered. The draft and the published content are not affected.",
+        "delete_failed": "Failed to delete",
+        "deleted": "{count, plural, one {Deleted # version} other {Deleted # versions}}",
+        "protected_published": "This is the live version and can’t be deleted",
+        "protected_latest": "This is the latest version (the current draft) and can’t be deleted",
+        "protected_base": "This is where this editing session started; “Discard changes from this session” needs it, so it can’t be deleted"
       },
       "settings_layout": "Layout",
       "layout": "Page layout",
@@ -1829,7 +1848,8 @@
       "too_many_api_tokens": "You’ve reached the limit of active tokens. Revoke unused ones first",
       "invalid_api_token": "The API token is invalid, expired or revoked",
       "api_token_scope_insufficient": "The API token is missing a required scope",
-      "edit_session_in_use": "The post is open in the editor and can’t be written right now"
+      "edit_session_in_use": "The post is open in the editor and can’t be written right now",
+      "revision_protected": "The live version, the latest version and this session’s starting point can’t be deleted"
     }
   },
   "ErrorPage": {

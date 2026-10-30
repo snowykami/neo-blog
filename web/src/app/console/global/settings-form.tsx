@@ -57,6 +57,7 @@ interface SettingsValues {
   postsPerPage: number
   commentsPerPage: number
   maxReplyDepth: number
+  revisionMaxKeep: number
   copyright: string
   copyrightLink: string
   footerText: string
@@ -131,6 +132,7 @@ const STANDALONE_KEYS: Partial<Record<FieldName, { key: string, toValue?: (value
   // RSS 的默认封面只支持单张，取第一张
   defaultCovers: { key: 'default_cover', toValue: values => values.defaultCovers[0] ?? '' },
   maxReplyDepth: { key: 'max_reply_depth' },
+  revisionMaxKeep: { key: 'revision_max_keep' },
   enableRegister: { key: 'enable_register' },
   enableRegisterFromOidc: { key: 'enable_register_from_oidc' },
   visitLogRetentionDays: { key: 'visit_log_retention_days' },
@@ -181,6 +183,7 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     commentsPerPage: info.commentsPerPage,
     // 以下为后端独立配置，默认值与后端保持一致
     maxReplyDepth: num('maxReplyDepth', 3),
+    revisionMaxKeep: num('revisionMaxKeep', 50),
     copyright: info.copyright ?? '',
     copyrightLink: info.copyrightLink ?? '',
     footerText: info.footer.text ?? '',
@@ -261,7 +264,7 @@ type GlobalTab = typeof GLOBAL_TABS[number]
 
 const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
   site: ['siteName', 'baseUrl', 'siteDescription', 'siteIcon', 'keywords', 'defaultCovers', 'ownerName', 'ownerMotto', 'ownerDescription', 'ownerAvatar', 'ownerGravatarEmail'],
-  content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
+  content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'revisionMaxKeep', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
   frontend: ['aboutBackground', 'sidebarCards', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel', 'musicTtmlUrlTemplate', 'qweatherApiHost', 'qweatherApiKey'],
   account: ['enableRegister', 'enableRegisterFromOidc', 'verifyCodeCoolDown', 'visitLogRetentionDays'],
   ai: ['aiApiBaseUrl', 'aiApiKey', 'aiModel', 'aiSummaryConcurrency', 'aiWritingStyle', 'lyricAnnotationTtlDays'],
@@ -389,6 +392,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
               <NumberField name="postsPerPage" label={t('posts_per_page')} min={1} max={100} />
               <NumberField name="commentsPerPage" label={t('comments_per_page')} min={1} max={100} />
               <NumberField name="maxReplyDepth" label={t('max_reply_depth')} description={t('max_reply_depth_desc')} min={1} max={10} />
+              <NumberField name="revisionMaxKeep" label={t('revision_max_keep')} description={t('revision_max_keep_desc')} min={10} max={500} />
               <TextField name="copyright" label={t('copyright')} placeholder="CC BY-NC-SA 4.0" />
               <UrlField name="copyrightLink" label={t('copyright_link')} />
             </Section>

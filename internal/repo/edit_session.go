@@ -17,8 +17,15 @@ var EditSession = &editSessionRepo{}
 func (e *editSessionRepo) Upsert(session *model.EditSession) error {
 	return GetDB().Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "target_type"}, {Name: "target_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"session_id", "user_id", "user_agent", "updated_at", "api_token_id", "active_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"session_id", "user_id", "user_agent", "updated_at", "api_token_id", "active_at", "base_revision_id"}),
 	}).Create(session).Error
+}
+
+// SetBaseRevision 记录会话的编辑起点版本；会话已被顶掉时不修改
+func (e *editSessionRepo) SetBaseRevision(targetType string, targetID uint, sessionID string, revisionID uint) error {
+	return GetDB().Model(&model.EditSession{}).
+		Where("target_type = ? AND target_id = ? AND session_id = ?", targetType, targetID, sessionID).
+		UpdateColumn("base_revision_id", revisionID).Error
 }
 
 // Get 获取目标当前的编辑会话（包含用户信息）

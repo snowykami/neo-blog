@@ -22,6 +22,8 @@ type EditSession struct {
 	APIToken   *APIToken `gorm:"foreignKey:APITokenID;references:ID"`
 	// 最近活跃时间：编辑页定时检查会话与保存时刷新，用于判断编辑页是否仍打开
 	ActiveAt *time.Time
+	// 本次会话的编辑起点版本（“放弃本次修改”恢复到该版本），会话期间不能删除，也不会被自动清理
+	BaseRevisionID uint
 }
 
 // LastActiveAt 最近活跃时间，旧数据没有 ActiveAt 时以开启时间为准

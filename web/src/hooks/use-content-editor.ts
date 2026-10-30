@@ -15,7 +15,7 @@ import { isEditSessionConflict } from '@/api/edit-session'
 import { uploadFile } from '@/api/file'
 import { getPageById, updatePage } from '@/api/page'
 import { getPostById, updatePost } from '@/api/post'
-import { discardDraft, restoreRevision } from '@/api/revision'
+import { batchDeleteRevisions, deleteRevision, discardDraft, restoreRevision } from '@/api/revision'
 import { AI_PREVIEW_META } from '@/components/tiptap-extension/ai-write-extension'
 import { buildSlashItems, filterSlashItems } from '@/components/tiptap-ui/slash-menu/slash-items'
 import { useEditSession } from '@/hooks/use-edit-session'
@@ -640,6 +640,22 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     if (doc)
       await restoreRevision({ target: kind, id: doc.id, revisionId, sessionId })
   }, true), [runRevisionAction, doc, kind, sessionId])
+  /** 删除历史版本（单个或批量），不影响正文；出错时抛出，编辑会话被接管时切换为只读 */
+  const deleteRevisions = useCallback(async (revisionIds: number[]) => {
+    if (!doc || revisionIds.length === 0)
+      return
+    try {
+      if (revisionIds.length === 1)
+        await deleteRevision({ target: kind, id: doc.id, revisionId: revisionIds[0], sessionId })
+      else
+        await batchDeleteRevisions({ target: kind, id: doc.id, revisionIds, sessionId })
+    }
+    catch (error) {
+      if (isEditSessionConflict(error))
+        markTakenOver()
+      throw error
+    }
+  }, [doc, kind, sessionId, markTakenOver])
 
   // ---------- 派生状态 ----------
   let saveState: SaveState = 'idle'
@@ -676,6 +692,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     revertSession,
     discardUnpublished,
     restoreToRevision,
+    deleteRevisions,
     editSession,
     readOnly,
     takeOver,

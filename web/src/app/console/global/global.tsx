@@ -41,6 +41,7 @@ const PRESET_KEYS = [
   'enable_register',
   'enable_register_from_oidc',
   'max_reply_depth',
+  'revision_max_keep',
   'visit_log_retention_days',
 ]
 

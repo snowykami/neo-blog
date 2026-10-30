@@ -27,6 +27,8 @@ func main() {
 	tasks.StartPostHeatRefresh()
 	// 定期清理过期会话
 	tasks.StartSessionCleanup()
+	// 定期清理超出保留上限的文章 / 页面历史版本
+	tasks.StartRevisionPrune()
 
 	err = router.Run()
 	if err != nil {

@@ -25,10 +25,12 @@ func registerPostRoutes(group *route.RouterGroup) {
 		// 编辑会话：同时只允许最新打开编辑页的会话保存正文
 		postGroupWithAuth.POST("/p/:id/edit-session", controller.EditSession.Acquire(constant.TargetTypePost))
 		postGroupWithAuth.GET("/p/:id/edit-session", controller.EditSession.Current(constant.TargetTypePost))
-		// 版本历史：列表、详情、恢复为草稿、放弃未发布的修改
+		// 版本历史：列表、详情、恢复为草稿、删除（单个 / 批量）、放弃未发布的修改
 		postGroupWithAuth.GET("/p/:id/revisions", controller.Revision.List(constant.TargetTypePost))
 		postGroupWithAuth.GET("/p/:id/revisions/:rid", controller.Revision.Get(constant.TargetTypePost))
 		postGroupWithAuth.POST("/p/:id/revisions/:rid/restore", controller.Revision.Restore(constant.TargetTypePost))
+		postGroupWithAuth.DELETE("/p/:id/revisions/:rid", controller.Revision.Delete(constant.TargetTypePost))
+		postGroupWithAuth.POST("/p/:id/revisions/batch-delete", controller.Revision.BatchDelete(constant.TargetTypePost))
 		postGroupWithAuth.POST("/p/:id/discard-draft", controller.Revision.DiscardDraft(constant.TargetTypePost))
 		// AI 摘要：后台生成任务，同一文章同时只能有一个任务
 		postGroupWithAuth.POST("/p/:id/ai-summary", postController.TriggerAISummary)

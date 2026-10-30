@@ -528,6 +528,8 @@
       "loading": "불러오는 중…",
       "max_reply_depth": "최대 답글 깊이",
       "max_reply_depth_desc": "이보다 깊은 답글은 더 이상 중첩되지 않습니다",
+      "revision_max_keep": "글마다 보관할 버전 수",
+      "revision_max_keep_desc": "글·페이지마다 보관하는 기록 버전 수의 상한(10~500, 게시 버전 포함). 초과하면 가장 오래된 버전부터 자동 삭제되며, 현재 게시된 버전과 편집 중인 시작 시점은 항상 보관됩니다",
       "no_changes": "저장할 변경 사항이 없습니다",
       "owner_avatar": "운영자 아바타",
       "owner_description": "운영자 소개",
@@ -1361,7 +1363,24 @@
         "discard_unpublished_description": "초안이 게시된 본문으로 돌아갑니다. 제목 등의 설정은 바뀌지 않습니다. 현재 내용은 버전 기록에 백업됩니다.",
         "revert_failed": "작업에 실패했습니다",
         "reverted": "수정을 버렸습니다",
-        "via_api_token": "API 토큰 “{name}” 경유"
+        "via_api_token": "API 토큰 “{name}” 경유",
+        "published_marker": "현재 게시",
+        "retention_hint": "글마다 최근 {count}개 버전까지 보관하며 오래된 버전은 자동으로 삭제됩니다. 현재 게시된 버전과 이번 편집 시작 시점은 항상 보관됩니다.",
+        "total": "버전 {count}개",
+        "select": "선택",
+        "select_all": "모두 선택",
+        "selected_count": "{count}개 선택됨",
+        "select_revision": "{time} 버전 선택",
+        "cancel_select": "취소",
+        "load_more": "더 불러오기 ({count}개 남음)",
+        "delete": "삭제",
+        "delete_title": "{count, plural, =1 {이 버전을 삭제할까요?} other {버전 #개를 삭제할까요?}}",
+        "delete_description": "삭제한 버전은 되돌릴 수 없습니다. 초안과 게시된 내용에는 영향이 없습니다.",
+        "delete_failed": "삭제하지 못했습니다",
+        "deleted": "버전 {count}개를 삭제했습니다",
+        "protected_published": "현재 게시된 버전은 삭제할 수 없습니다",
+        "protected_latest": "최신 버전(현재 초안)은 삭제할 수 없습니다",
+        "protected_base": "이번에 편집기를 열었을 때의 버전으로, ‘이번 수정 버리기’에 필요해 삭제할 수 없습니다"
       },
       "settings_layout": "레이아웃",
       "layout": "페이지 레이아웃",
@@ -1829,7 +1848,8 @@
       "too_many_api_tokens": "유효한 토큰 수가 한도에 도달했습니다. 쓰지 않는 토큰을 먼저 취소하세요",
       "invalid_api_token": "API 토큰이 잘못되었거나 만료되었거나 취소되었습니다",
       "api_token_scope_insufficient": "API 토큰에 필요한 권한 범위가 없습니다",
-      "edit_session_in_use": "글이 편집기에서 열려 있어 지금은 쓸 수 없습니다"
+      "edit_session_in_use": "글이 편집기에서 열려 있어 지금은 쓸 수 없습니다",
+      "revision_protected": "현재 게시된 버전, 최신 버전, 이번 편집 시작 시점은 삭제할 수 없습니다"
     }
   },
   "ErrorPage": {

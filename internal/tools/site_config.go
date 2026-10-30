@@ -193,3 +193,16 @@ func normalizeAPIHost(raw string) string {
 func GetMaximumReplyDepth() int {
 	return repo.KV.GetIntWithoutErr("max_reply_depth", utils.Env.GetAsInt(constant.EnvKeyMaxReplyDepth, constant.MaxReplyDepthDefault))
 }
+
+// 每篇文章 / 页面最多保留的历史版本数：默认值与允许范围，超出的旧版本自动清理
+const (
+	RevisionMaxKeepDefault = 50
+	RevisionMaxKeepMin     = 10
+	RevisionMaxKeepMax     = 500
+)
+
+// GetRevisionMaxKeep 读取历史版本保留上限，超出范围时取边界值
+func GetRevisionMaxKeep() int {
+	n := repo.KV.GetIntWithoutErr("revision_max_keep", RevisionMaxKeepDefault)
+	return min(max(n, RevisionMaxKeepMin), RevisionMaxKeepMax)
+}
