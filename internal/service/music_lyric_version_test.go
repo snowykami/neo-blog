@@ -12,6 +12,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
 )
 
 // stubLyricSources 各来源返回固定结果（没有列出的来源为获取失败），选出的版本总是保存；delays 为各来源返回前的等待
@@ -384,5 +385,37 @@ func TestListLyricAnnotationsOutdated(t *testing.T) {
 	got, _ = NewMusicService().ListLyricAnnotations(context.Background())
 	if got[0].Outdated || got[0].Source != "ttml-amll" || got[0].OutdatedEditedAt == nil || got[0].OutdatedEditedAt.Sub(edited).Abs() > time.Second {
 		t.Fatalf("after regeneration = %+v", got[0])
+	}
+}
+
+// TestAnnotationHelpersUseSiteVersionLines 聚光灯、粒子场景等按行号 / 出现次数换算的结果都按全站版本的行计算
+func TestAnnotationHelpersUseSiteVersionLines(t *testing.T) {
+	setupTTMLDB(t)
+	// TTML 把一联拆成两行，并在结尾重复第一句；网易云每行一联
+	ttml := strings.Replace(pipaTTML, `</div></body></tt>`, `<p begin="00:30.000" end="00:33.000"><span begin="00:30.000" end="00:33.000">浔阳江头夜送客</span></p></div></body></tt>`, 1)
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ttml": {data: &dto.MusicTTMLDto{Source: musicTTMLSourceAMLL, TTML: ttml}, outcome: lyricOutcomeHit},
+		"ncm":  {data: &dto.MusicLyricDto{Lrc: lyricPart(pipaNCMLrc), Yrc: lyricPart(pipaNCMYrc)}, outcome: lyricOutcomeHit},
+	})
+	s := NewMusicService()
+	lines, info, svcerr := s.annotationSource(context.Background(), &dto.MusicTrackDto{ID: 5})
+	if svcerr != nil || info.Source != "ttml-amll" || len(lines) != 5 || lines[4] != "浔阳江头夜送客" {
+		t.Fatalf("site lines = %q %v", lines, svcerr)
+	}
+	// 旧版只记句子的聚光灯：按全站版本的行展开为每一次出现
+	_, hash := lyricAnnotationKey(5, lines)
+	repo.GetDB().Create(&model.LyricAnnotation{SongID: 5, LyricHash: hash, Data: `{"spotlights":["浔阳江头夜送客"],"lines":[]}`, CreatedAt: time.Now()})
+	got, svcerr := lyricAnnotations.get(5, lines, info, tools.AIConfig{}, time.Hour)
+	want := []dto.MusicLyricAnnotationSpotlight{{Text: "浔阳江头夜送客", Occurrence: 0}, {Text: "浔阳江头夜送客", Occurrence: 1}}
+	if svcerr != nil || !reflect.DeepEqual(got.Spotlights, want) {
+		t.Fatalf("legacy spotlights = %+v %v", got, svcerr)
+	}
+	// 模型给出的行号按全站版本的行换算：第 4 行是这句的第二次出现，场景从第 1 行持续到第 3 行
+	data, err := sanitizeLyricAnnotations(lines, nil, `{"spotlights":[4],"lines":[{"i":1,"scene":"leaves","scene_until":3,"phrases":[{"text":"狄花","effect":"glow"}]}]}`)
+	if err != nil || !reflect.DeepEqual(data.Spotlights, []dto.MusicLyricAnnotationSpotlight{{Text: "浔阳江头夜送客", Occurrence: 1}}) {
+		t.Fatalf("spotlights = %+v %v", data.Spotlights, err)
+	}
+	if len(data.Lines) != 1 || data.Lines[0].Text != "枫叶狄花秋瑟瑟" || data.Lines[0].SceneLines != 3 || data.Lines[0].Phrases[0].Text != "狄花" {
+		t.Fatalf("lines = %+v", data.Lines)
 	}
 }
