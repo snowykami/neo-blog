@@ -63,7 +63,7 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 	if id <= 0 || req == nil {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
-	lines, _, svcerr := s.annotationLines(ctx, id)
+	lines, info, svcerr := s.annotationLines(ctx, id)
 	if svcerr != nil {
 		return nil, svcerr
 	}
@@ -83,7 +83,7 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 		return nil, errInvalidLyricAnnotation
 	}
 	now := time.Now()
-	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Model: "manual", CreatedAt: now, EditedAt: &now}
+	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Model: "manual", Source: info.Source, CreatedAt: now, EditedAt: &now}
 	if err == nil {
 		// 时刻、尾奏热评与自定义粒子不在编辑范围内，保持原样（行的场景可以选用这首歌已有的自定义粒子）
 		data.Outro, data.Moments, data.Sprites = previous.Outro, previous.Moments, previous.Sprites
@@ -93,7 +93,7 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 	record.Data = string(raw)
 	upsert := clause.OnConflict{
 		Columns:   []clause.Column{{Name: "song_id"}, {Name: "lyric_hash"}},
-		DoUpdates: clause.AssignmentColumns([]string{"data", "edited_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"data", "source", "edited_at"}),
 	}
 	if err := db.Clauses(upsert).Create(record).Error; err != nil {
 		logrus.Errorf("save edited lyric annotation for song %d failed: %v", id, err)
@@ -102,24 +102,62 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 	return s.GetLyricAnnotationEditor(ctx, id)
 }
 
-// ListLyricAnnotations 后台歌词特效列表：每首歌最近的一份标注（同一首歌歌词变化后可能有多份），按生成或编辑时间倒序
+// ListLyricAnnotations 后台歌词特效列表：每首歌一条，按生成或编辑时间倒序。同一首歌可能有多份标注（歌词或全站歌词版本变化后），
+// 优先显示属于当前全站歌词版本的那份；没有时显示最近的一份并标为过时（下次播放时按新版本重新生成）。
+// 手动编辑过、但属于旧版本的标注不再显示在播放器里，记下最近的编辑时间提醒管理员
 func (s *MusicService) ListLyricAnnotations(ctx context.Context) ([]dto.MusicLyricAnnotationSummaryDto, *errs.ServiceError) {
+	db := repo.GetDB().WithContext(ctx)
 	var records []model.LyricAnnotation
-	if err := repo.GetDB().WithContext(ctx).Order("created_at DESC").Find(&records).Error; err != nil {
+	if err := db.Order("created_at DESC").Find(&records).Error; err != nil {
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
-	result := []dto.MusicLyricAnnotationSummaryDto{}
-	seen := map[int64]bool{}
-	for _, record := range records {
-		if seen[record.SongID] {
-			continue
+	// 当前全站歌词版本的哈希；还没有选出版本、或旧数据没有记录哈希的歌曲不判断是否过时
+	var versions []model.LyricCache
+	if err := db.Select("song_id", "lyric_hash").Where("lyric_hash <> ''").Find(&versions).Error; err != nil {
+		return nil, errs.NewInternalServer("failed_to_get_target")
+	}
+	current := make(map[int64]string, len(versions))
+	for _, version := range versions {
+		current[version.SongID] = version.LyricHash
+	}
+
+	type songRecords struct {
+		shown, outdatedEdit *model.LyricAnnotation
+	}
+	order := []int64{}
+	bySong := map[int64]*songRecords{}
+	for i := range records {
+		record := &records[i]
+		song := bySong[record.SongID]
+		if song == nil {
+			song = &songRecords{shown: record}
+			bySong[record.SongID] = song
+			order = append(order, record.SongID)
 		}
-		seen[record.SongID] = true
+		hash, known := current[record.SongID]
+		if known && record.LyricHash == hash && song.shown.LyricHash != hash {
+			song.shown = record
+		}
+		if known && record.LyricHash != hash && record.EditedAt != nil && (song.outdatedEdit == nil || record.EditedAt.After(*song.outdatedEdit.EditedAt)) {
+			song.outdatedEdit = record
+		}
+	}
+	result := []dto.MusicLyricAnnotationSummaryDto{}
+	for _, id := range order {
+		song := bySong[id]
 		phrases := 0
-		for _, line := range parseLyricAnnotationData(record.Data).Lines {
+		for _, line := range parseLyricAnnotationData(song.shown.Data).Lines {
 			phrases += len(line.Phrases)
 		}
-		result = append(result, dto.MusicLyricAnnotationSummaryDto{SongID: record.SongID, Phrases: phrases, GeneratedAt: record.CreatedAt, EditedAt: record.EditedAt, Model: record.Model})
+		hash, known := current[id]
+		summary := dto.MusicLyricAnnotationSummaryDto{
+			SongID: id, Phrases: phrases, GeneratedAt: song.shown.CreatedAt, EditedAt: song.shown.EditedAt, Model: song.shown.Model,
+			Source: song.shown.Source, Outdated: known && song.shown.LyricHash != hash,
+		}
+		if song.outdatedEdit != nil && song.outdatedEdit != song.shown {
+			summary.OutdatedEditedAt = song.outdatedEdit.EditedAt
+		}
+		result = append(result, summary)
 	}
 	return result, nil
 }

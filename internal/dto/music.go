@@ -110,6 +110,8 @@ type MusicLyricAnnotationsDto struct {
 	Sprites []MusicLyricSprite `json:"sprites,omitempty"`
 	// 管理员手动编辑过（不再因过期自动重新生成；播放器里手动重新生成前提示会覆盖编辑）
 	Edited bool `json:"edited,omitempty"`
+	// 标注所属的全站歌词版本（具体来源，与前端 ResolvedLyrics.source 一致）：前端只在显示这一版本时叠加特效
+	Source string `json:"source,omitempty"`
 }
 
 // MusicLyricAnnotationMoment 一个「时刻」：在歌词 text 的第 occurrence 次出现（从 0 开始，副歌常有重复的行）开唱时显示；
@@ -231,18 +233,28 @@ type NCMPlaylistsDto struct {
 	Playlists []NCMPlaylistDto `json:"playlists"`
 }
 
-// MusicLyricCacheReq 上报一首歌选出的最佳歌词来源（ttml / ncm / qq / kugou），后端用自己获取的来源数据写入缓存
-type MusicLyricCacheReq struct {
-	Kind string `json:"kind" vd:"len($)>0"`
-}
-
-// MusicLyricCacheDto 歌词缓存快照：kind 为最佳来源；ncm / ttml / qq 与各来源接口的返回相同（只含需要的来源，网易云歌词总会附带，供翻译借用与单行歌词）
+// MusicLyricCacheDto 歌词缓存快照：kind 为全站歌词版本的来源；ncm / ttml / qq 与各来源接口的返回相同（只含需要的来源，网易云歌词总会附带，供翻译借用与单行歌词）
 type MusicLyricCacheDto struct {
 	Kind  string              `json:"kind"`
 	Ncm   *MusicLyricDto      `json:"ncm,omitempty"`
 	TTML  *MusicTTMLDto       `json:"ttml,omitempty"`
 	QQ    *MusicQQLyricDto    `json:"qq,omitempty"`
 	Kugou *MusicKugouLyricDto `json:"kugou,omitempty"`
+}
+
+// MusicLyricVersionDto 全站歌词版本（后端选出，见 docs/music-player-spec.md 7.2o）：kind 为来源（ttml / ncm / qq / kugou），
+// source 为具体来源（与前端 ResolvedLyrics.source 一致，如 ttml-amll、ncm-yrc）；没有歌词时都为空
+type MusicLyricVersionDto struct {
+	Kind   string `json:"kind"`
+	Source string `json:"source"`
+}
+
+// MusicLyricStreamSourceDto 歌词流中一个来源的结果：data 与该来源接口的返回相同，没有歌词时为 null；
+// failed 为获取失败（出错或超时，不代表没有歌词，前端之后可以重试）
+type MusicLyricStreamSourceDto struct {
+	Kind   string `json:"kind"`
+	Data   any    `json:"data"`
+	Failed bool   `json:"failed,omitempty"`
 }
 
 // MusicChorusDto 网易云标出的副歌 / 高潮片段（毫秒）
@@ -297,4 +309,10 @@ type MusicLyricAnnotationSummaryDto struct {
 	GeneratedAt time.Time  `json:"generated_at"`
 	EditedAt    *time.Time `json:"edited_at,omitempty"`
 	Model       string     `json:"model,omitempty"`
+	// 生成时全站歌词版本的具体来源（旧数据为空）
+	Source string `json:"source,omitempty"`
+	// 这份标注不属于当前的全站歌词版本（版本已更换，下次播放时按新版本重新生成）
+	Outdated bool `json:"outdated,omitempty"`
+	// 这首歌有手动编辑过、但属于旧歌词版本的标注（不再显示）时，最近一次编辑的时间
+	OutdatedEditedAt *time.Time `json:"outdated_edited_at,omitempty"`
 }

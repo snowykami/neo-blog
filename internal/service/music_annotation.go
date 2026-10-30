@@ -250,13 +250,21 @@ func fetchWordTimedLyric(ctx context.Context, id int64) string {
 }
 
 // GetLyricAnnotations 取一首歌的歌词标注；还没有时开始生成并返回 pending，已过期时返回旧结果并在后台重新生成
+// 全站歌词版本还没有选出时先开始选择、稍等片刻，等不到就返回 pending（前端会轮询），绝不改用其他来源的歌词
 func (s *MusicService) GetLyricAnnotations(ctx context.Context, id int64) (*dto.MusicLyricAnnotationsDto, *errs.ServiceError) {
-	lines, info, cfg, svcerr := s.prepareLyricAnnotations(ctx, id)
+	lines, info, cfg, svcerr := s.prepareLyricAnnotations(withLyricVersionWait(ctx, lyricVersionPollWait), id)
+	if svcerr == errLyricVersionPending {
+		return &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusPending, Lines: []dto.MusicLyricAnnotationLine{}}, nil
+	}
 	if svcerr != nil {
 		return nil, svcerr
 	}
 	ttl := time.Duration(tools.GetLyricAnnotationTTLDays()) * 24 * time.Hour
-	return lyricAnnotations.get(id, lines, info, cfg, ttl)
+	result, svcerr := lyricAnnotations.get(id, lines, info, cfg, ttl)
+	if result != nil {
+		result.Source = info.Source
+	}
+	return result, svcerr
 }
 
 // RefreshLyricAnnotations 管理员手动重新生成一首歌的歌词标注（忽略有效期与失败冷却），旧结果在新结果生成前继续使用
@@ -326,54 +334,29 @@ func (s *MusicService) playlistTrack(ctx context.Context, id int64) *dto.MusicTr
 	return nil
 }
 
-// annotationSource 送去标注的歌词文本（每行一句，去掉时间标签）与上下文（歌曲信息、逐行中文翻译）：
-// 优先网易云逐字歌词，其次网易云逐行歌词，网易云没有歌词时依次用 QQ 音乐、酷狗的歌词；翻译取自同一来源
+// annotationSource 送去标注的歌词文本（每行一句，去掉时间标签）与上下文（歌曲信息、逐行中文翻译）：只取全站歌词版本
+// （见 music_lyric_version.go：送去标注的行与前端显示这一版本时的行一致，时间与长音也取自它；还没有选出时返回 errLyricVersionPending，
+// 绝不改用其他来源）。标注按歌词文本哈希保存，版本更换后文本不同即重新生成，旧版本的标注保留。
+// 前端只给逐字歌词叠加特效，全站版本是逐行歌词时不生成（不消耗模型额度）
 func (s *MusicService) annotationSource(ctx context.Context, track *dto.MusicTrackDto) ([]string, lyricAnnotationInfo, *errs.ServiceError) {
-	var timed []lyricTimedLine
-	translation := ""
-	wordTimed := false
-	if lyric, svcerr := s.GetLyric(ctx, track.ID); svcerr == nil {
-		if lyric.Yrc != nil {
-			timed = lyricTimedLines(lyric.Yrc.Lyric, lyricAnnotationMaxLines)
-			translation = lyricTranslationSource(lyric, true)
-			wordTimed = len(timed) > 0
-		}
-		if len(timed) == 0 && lyric.Lrc != nil {
-			timed = lyricTimedLines(lyric.Lrc.Lyric, lyricAnnotationMaxLines)
-			translation = lyricTranslationSource(lyric, false)
-		}
+	version, svcerr := s.siteLyricVersion(ctx, track.ID)
+	if svcerr != nil {
+		return nil, lyricAnnotationInfo{}, svcerr
 	}
-	if len(timed) == 0 {
-		if qq, svcerr := s.cachedQQLyric(ctx, track.ID); svcerr == nil {
-			timed = lyricTimedLines(qq.Lyric, lyricAnnotationMaxLines)
-			translation = qq.Translation
-			wordTimed = qq.Format == "qrc"
-		}
-	}
-	if len(timed) == 0 {
-		if kugou, svcerr := s.cachedKugouLyric(ctx, track.ID); svcerr == nil {
-			timed = lyricTimedLines(kugou.Lyric, lyricAnnotationMaxLines)
-			translation = kugou.Translation
-			wordTimed = kugou.Format == "qrc"
-		}
-	}
-	if len(timed) == 0 {
-		return nil, lyricAnnotationInfo{}, errs.NewNotFound("lyric_not_found")
-	}
-	lines := make([]string, len(timed))
-	for i, line := range timed {
-		lines[i] = line.Text
+	if !version.Lines.WordTimed {
+		return nil, lyricAnnotationInfo{}, errs.NewNotFound("lyric_annotations_unavailable")
 	}
 	info := lyricAnnotationInfo{
 		Title:        track.Name,
 		Artists:      track.Artists,
 		Album:        track.Album,
 		Aliases:      track.Aliases,
-		Translations: alignLyricTranslations(timed, translation),
-		Timed:        timed,
-		WordTimed:    wordTimed,
+		Translations: version.Lines.Translations,
+		Timed:        version.Lines.Timed,
+		WordTimed:    version.Lines.WordTimed,
+		Source:       version.Lines.Source,
 	}
-	return lines, info, nil
+	return version.Lines.Texts(), info, nil
 }
 
 // lyricTextLines 歌词正文（LRC / YRC / QRC）中每一行的文字；跳过元信息、无歌词占位与空行，行数与每行长度有上限
@@ -487,11 +470,11 @@ func (a *lyricAnnotationService) run(key string, id int64, hash string, lines []
 		return
 	}
 	data, _ := json.Marshal(annotated)
-	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Data: string(data), Model: cfg.Model, CreatedAt: time.Now()}
+	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Data: string(data), Model: cfg.Model, Source: info.Source, CreatedAt: time.Now()}
 	// 重新生成（过期或手动刷新）时覆盖旧结果，手动编辑的内容随之被覆盖（清空 edited_at）
 	upsert := clause.OnConflict{
 		Columns:   []clause.Column{{Name: "song_id"}, {Name: "lyric_hash"}},
-		DoUpdates: clause.AssignmentColumns([]string{"data", "model", "created_at", "edited_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"data", "model", "source", "created_at", "edited_at"}),
 	}
 	if err := repo.GetDB().Clauses(upsert).Create(record).Error; err != nil {
 		logrus.Errorf("save lyric annotation for song %d failed: %v", id, err)

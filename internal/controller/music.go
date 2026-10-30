@@ -2,9 +2,11 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
@@ -17,6 +19,9 @@ type musicType struct {
 
 // Music 悬浮音乐播放器的网易云歌单
 var Music = &musicType{service: service.NewMusicService()}
+
+// streamLyrics 歌词流的事件来源（测试时替换，只验证 SSE 的写出）
+var streamLyrics = (*service.MusicService).StreamLyrics
 
 // Playlist 博客歌单的曲目
 func (m *musicType) Playlist(ctx context.Context, c *app.RequestContext) {
@@ -104,6 +109,35 @@ func (m *musicType) SongLyric(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	resps.Ok(c, resps.Success, lyric)
+}
+
+// SongLyricStream 歌词流（SSE）：歌词缓存快照、各来源（到达即推送）与后端选出的全站歌词版本，最后推送 done。
+// 参数无效时返回普通 JSON 错误；推送期间客户端断开不影响后台完成选择。各来源的接口保留，供歌词流不可用时使用
+func (m *musicType) SongLyricStream(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	id := ctxutils.GetIDParam(c).Int64
+	if id <= 0 {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	c.SetStatusCode(http.StatusOK)
+	c.Response.Header.Set("Content-Type", "text/event-stream; charset=utf-8")
+	// no-transform：反向代理与 CDN（以及 Next.js 的压缩）不压缩、不改写，事件逐条到达
+	c.Response.Header.Set("Cache-Control", "no-cache, no-transform")
+	// 关闭反向代理（Nginx / OpenResty 等）的响应缓冲
+	c.Response.Header.Set("X-Accel-Buffering", "no")
+	c.Response.HijackWriter(resp.NewChunkedBodyWriter(&c.Response, c.GetWriter()))
+	streamLyrics(m.service, ctx, id, req.Refresh, func(event string, data any) error {
+		payload, _ := json.Marshal(data)
+		if _, err := c.Write([]byte("event: " + event + "\ndata: " + string(payload) + "\n\n")); err != nil {
+			return err
+		}
+		return c.Flush()
+	})
 }
 
 // SongTTMLLyric 歌曲的 TTML 歌词（自定义源 / AMLL TTML DB），没有时返回 404
@@ -228,18 +262,19 @@ func (m *musicType) SongLyricSettings(ctx context.Context, c *app.RequestContext
 	resps.Ok(c, resps.Success, result)
 }
 
-// SaveLyricPin 设置一首歌的全站默认歌词来源（仅管理员），kind 为空时取消
+// SaveLyricPin 设置一首歌的全站默认歌词来源（仅管理员），kind 为空时取消；返回重新选出的全站歌词版本
 func (m *musicType) SaveLyricPin(ctx context.Context, c *app.RequestContext) {
 	var req dto.MusicLyricPinReq
 	if err := c.BindAndValidate(&req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	if svcerr := m.service.SaveLyricPin(ctx, ctxutils.GetIDParam(c).Int64, req.Kind); svcerr != nil {
+	version, svcerr := m.service.SaveLyricPin(ctx, ctxutils.GetIDParam(c).Int64, req.Kind)
+	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
-	resps.Ok(c, resps.Success, nil)
+	resps.Ok(c, resps.Success, version)
 }
 
 // SaveLyricOffset 保存一首歌某一歌词来源的整体偏移（仅管理员）
@@ -274,20 +309,6 @@ func (m *musicType) SongLyricCache(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	resps.Ok(c, resps.Success, result)
-}
-
-// SaveLyricCache 上报选出的最佳歌词来源，后端用自己获取的来源数据更新缓存
-func (m *musicType) SaveLyricCache(ctx context.Context, c *app.RequestContext) {
-	var req dto.MusicLyricCacheReq
-	if err := c.BindAndValidate(&req); err != nil {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
-	if svcerr := m.service.SaveLyricCache(ctx, ctxutils.GetIDParam(c).Int64, req.Kind); svcerr != nil {
-		resps.Error(c, svcerr)
-		return
-	}
-	resps.Ok(c, resps.Success, nil)
 }
 
 // NCMPlaylists 获取网易云账号的歌单，供后台选择博客歌单

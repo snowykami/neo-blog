@@ -47,28 +47,40 @@ func (s *MusicService) GetLyricSettings(ctx context.Context, id int64) (*dto.Mus
 	return result, nil
 }
 
-// SaveLyricPin 设置一首歌的全站默认歌词来源（仅管理员，由路由限制）；kind 为空时取消
-func (s *MusicService) SaveLyricPin(ctx context.Context, id int64, kind string) *errs.ServiceError {
+// SaveLyricPin 设置一首歌的全站默认歌词来源（仅管理员，由路由限制）；kind 为空时取消（恢复按质量自动选择）。
+// 保存后立即重新选择全站歌词版本（见 music_lyric_version.go）并返回；版本有变化时按新版本生成歌词特效
+// （这份歌词已有标注时直接使用，不重复消耗模型额度；旧版本的标注保留，切换回去时仍可使用）
+func (s *MusicService) SaveLyricPin(ctx context.Context, id int64, kind string) (*dto.MusicLyricVersionDto, *errs.ServiceError) {
 	if id <= 0 || (kind != "" && !lyricCacheKinds[kind]) {
-		return errs.NewBadRequest("invalid_request_parameters")
+		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
 	db := repo.GetDB().WithContext(ctx)
 	if kind == "" {
 		if err := db.Where("song_id = ?", id).Delete(&model.LyricSongSetting{}).Error; err != nil {
-			return errs.NewInternalServer("failed_to_update_target")
+			return nil, errs.NewInternalServer("failed_to_update_target")
 		}
-		return nil
+	} else {
+		record := &model.LyricSongSetting{SongID: id, PinnedKind: kind, UpdatedAt: time.Now()}
+		upsert := clause.OnConflict{
+			Columns:   []clause.Column{{Name: "song_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"pinned_kind", "updated_at"}),
+		}
+		if err := db.Clauses(upsert).Create(record).Error; err != nil {
+			logrus.Errorf("save lyric pin for song %d failed: %v", id, err)
+			return nil, errs.NewInternalServer("failed_to_update_target")
+		}
 	}
-	record := &model.LyricSongSetting{SongID: id, PinnedKind: kind, UpdatedAt: time.Now()}
-	upsert := clause.OnConflict{
-		Columns:   []clause.Column{{Name: "song_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"pinned_kind", "updated_at"}),
+	previous, _ := loadLyricVersionRecord(ctx, id)
+	version, svcerr := s.redecideLyricVersion(ctx, id)
+	if svcerr != nil {
+		return nil, svcerr
 	}
-	if err := db.Clauses(upsert).Create(record).Error; err != nil {
-		logrus.Errorf("save lyric pin for song %d failed: %v", id, err)
-		return errs.NewInternalServer("failed_to_update_target")
+	if version != nil && (previous == nil || previous.LyricHash != version.Hash) {
+		// 没有配置大模型或不能生成标注的歌曲会返回错误，忽略
+		_, _ = s.GetLyricAnnotations(ctx, id)
 	}
-	return nil
+	result := version.dto()
+	return &result, nil
 }
 
 // SaveLyricOffset 保存一首歌某一歌词来源的整体偏移（仅管理员，由路由限制）；为 0 时删除记录

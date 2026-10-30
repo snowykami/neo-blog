@@ -20,14 +20,15 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		// 同一播放地址以 JSON 返回（允许跨源读取），供需要按字节范围只加载片段的页面使用（如沙箱中的歌词特效演示页）
 		musicGroup.GET("/song/:id/audio/url", controller.Music.SongAudioURL)
 		musicGroup.GET("/song/:id/lyric", controller.Music.SongLyric)
+		// 歌词流（SSE）：一次推送各来源与后端选出的全站歌词版本；下面各来源的接口保留，供歌词流不可用时使用
+		musicGroup.GET("/song/:id/lyric/stream", controller.Music.SongLyricStream)
 		musicGroup.GET("/song/:id/lyric/ttml", controller.Music.SongTTMLLyric)
 		musicGroup.GET("/song/:id/lyric/qq", controller.Music.SongQQLyric)
 		musicGroup.GET("/song/:id/lyric/kugou", controller.Music.SongKugouLyric)
 		musicGroup.GET("/song/:id/lyric/annotations", controller.Music.SongLyricAnnotations)
 		musicGroup.GET("/song/:id/chorus", controller.Music.SongChorus)
-		// 歌词缓存：前端只上报最佳来源的类型，内容由后端用自己获取的来源数据写入
+		// 歌词缓存：全站歌词版本的快照，由后端选出版本后用自己获取的来源数据写入（歌词流会先推送它，这里供歌词流不可用时使用）
 		musicGroup.GET("/song/:id/lyric/cache", controller.Music.SongLyricCache)
-		musicGroup.POST("/song/:id/lyric/cache", controller.Music.SaveLyricCache)
 		// 歌词的人工设置（整体偏移）：所有人播放时都要用到，公开读取
 		musicGroup.GET("/song/:id/lyric/settings", controller.Music.SongLyricSettings)
 
@@ -42,7 +43,7 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroupWithAdmin.PUT("/song/:id/lyric/annotations", controller.Music.SaveLyricAnnotations)
 		// 歌词整体偏移对所有人生效，仅管理员可以调整
 		musicGroupWithAdmin.PUT("/song/:id/lyric/offset", controller.Music.SaveLyricOffset)
-		// 全站默认歌词来源：所有读者默认显示这一来源，仅管理员可以设置
+		// 全站默认歌词来源：所有读者默认显示这一来源（并按它重新选出全站歌词版本、生成歌词特效），仅管理员可以设置
 		musicGroupWithAdmin.PUT("/song/:id/lyric/pin", controller.Music.SaveLyricPin)
 		// 请求体中含 Cookie，使用 POST 避免出现在地址中
 		musicGroupWithAdmin.POST("/ncm/playlists", controller.Music.NCMPlaylists)

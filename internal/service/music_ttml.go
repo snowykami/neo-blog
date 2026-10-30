@@ -99,11 +99,19 @@ func (s *MusicService) GetTTMLLyric(ctx context.Context, id int64, source string
 	if source != "" {
 		sources = []string{source}
 	}
-	if customTTMLURL(id) == "" {
-		sources = slices.DeleteFunc(sources, func(src string) bool { return src == musicTTMLSourceCustom })
+	lyric, _ := probeTTMLSources(ctx, id, sources)
+	if lyric == nil {
+		return nil, errs.NewNotFound("lyric_not_found")
 	}
+	return lyric, nil
+}
 
-	// 各来源并发探测（每个来源自己带缓存与同 id 请求合并），按优先级取第一个命中
+// probeTTMLSources 各来源并发探测（每个来源自己带缓存与同 id 请求合并），按优先级取第一个命中（未配置的自定义源跳过）；
+// 没有命中时 outcome 区分「都确定没有」与「有来源出错」（全站歌词版本据此判断能否换掉已选的 TTML，见 music_lyric_version.go）
+func probeTTMLSources(ctx context.Context, id int64, sources []string) (*dto.MusicTTMLDto, lyricOutcome) {
+	if customTTMLURL(id) == "" {
+		sources = slices.DeleteFunc(slices.Clone(sources), func(src string) bool { return src == musicTTMLSourceCustom })
+	}
 	results := make([]chan *ttmlProbe, len(sources))
 	for i, src := range sources {
 		results[i] = make(chan *ttmlProbe, 1)
@@ -111,13 +119,18 @@ func (s *MusicService) GetTTMLLyric(ctx context.Context, id int64, source string
 			out <- probeTTMLSource(ctx, src, id)
 		}(src, results[i])
 	}
+	outcome := lyricOutcomeMiss
 	for i, src := range sources {
 		// 优先级高的来源命中后直接返回，不等后面的来源
-		if result := <-results[i]; result != nil && result.ttml != "" {
-			return &dto.MusicTTMLDto{Source: src, TTML: result.ttml}, nil
+		result := <-results[i]
+		if result != nil && result.ttml != "" {
+			return &dto.MusicTTMLDto{Source: src, TTML: result.ttml}, lyricOutcomeHit
+		}
+		if result == nil {
+			outcome = lyricOutcomeFailed
 		}
 	}
-	return nil, errs.NewNotFound("lyric_not_found")
+	return nil, outcome
 }
 
 // probeTTMLSource 探测一个来源（按网易云歌曲 id）

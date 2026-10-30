@@ -69,20 +69,34 @@ func (s *MusicService) GetQQLyric(ctx context.Context, id int64) (*dto.MusicQQLy
 	if id <= 0 {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
-	lyric, svcerr := s.cachedQQLyric(ctx, id)
+	result, _, svcerr := s.qqLyricWithTTML(ctx, id)
 	if svcerr != nil {
 		return nil, svcerr
-	}
-	result := *lyric
-	if result.SongMID != "" {
-		if probe := probeQQTTML(ctx, result.SongMID); probe != nil {
-			result.TTML = probe.ttml
-		}
 	}
 	if result.Lyric == "" && result.TTML == "" {
 		return nil, errs.NewNotFound("lyric_not_found")
 	}
-	return &result, nil
+	return result, nil
+}
+
+// qqLyricWithTTML QQ 音乐的歌词，附上 AMLL TTML DB 按匹配到的 QQ 歌曲 mid 收录的 TTML；
+// ttml 为这份 TTML 的获取结果（没有匹配到歌曲时为确定没有，探测出错时为失败）
+func (s *MusicService) qqLyricWithTTML(ctx context.Context, id int64) (*dto.MusicQQLyricDto, lyricOutcome, *errs.ServiceError) {
+	lyric, svcerr := s.cachedQQLyric(ctx, id)
+	if svcerr != nil {
+		return nil, lyricOutcomeFailed, svcerr
+	}
+	result := *lyric
+	ttml := lyricOutcomeMiss
+	if result.SongMID != "" {
+		switch probe := probeQQTTML(ctx, result.SongMID); {
+		case probe == nil:
+			ttml = lyricOutcomeFailed
+		case probe.ttml != "":
+			result.TTML, ttml = probe.ttml, lyricOutcomeHit
+		}
+	}
+	return &result, ttml, nil
 }
 
 // cachedQQLyric 先查缓存，再合并同一首歌的并发请求

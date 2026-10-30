@@ -53,6 +53,8 @@ type lyricAnnotationInfo struct {
 	Timed []lyricTimedLine
 	// 歌词有逐字时间（长音直接从中找出）；没有时在生成时向 QQ 音乐 / 酷狗的逐字歌词借（borrowHeldNotes）
 	WordTimed bool
+	// 歌词所属的全站歌词版本（具体来源，如 ttml-amll、ncm-yrc），随标注保存
+	Source string
 }
 
 // lyricAnnotationComment 一条网易云热评

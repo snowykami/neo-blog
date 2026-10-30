@@ -18,9 +18,8 @@ func TestLyricCache(t *testing.T) {
 	if _, svcerr := service.GetLyricCache(ctx, 9); svcerr == nil || svcerr.Code != http.StatusNotFound {
 		t.Fatalf("missing cache should be 404, got %v", svcerr)
 	}
-	// 只接受三种来源；不合法时不请求任何来源
-	if svcerr := service.SaveLyricCache(ctx, 9, "evil"); svcerr == nil || svcerr.Code != http.StatusBadRequest {
-		t.Fatalf("invalid kind should be 400, got %v", svcerr)
+	if _, svcerr := service.GetLyricCache(ctx, 0); svcerr == nil || svcerr.Code != http.StatusBadRequest {
+		t.Fatalf("invalid id should be 400, got %v", svcerr)
 	}
 
 	data := `{"kind":"ttml","ttml":{"source":"amll","ttml":"<tt/>"},"ncm":{"lrc":{"lyric":"[00:01.00]晴天","version":1}}}`
