@@ -54,7 +54,12 @@ func (m *musicType) Search(ctx context.Context, c *app.RequestContext) {
 
 // SongAudio 跳转到歌曲的临时播放地址
 func (m *musicType) SongAudio(ctx context.Context, c *app.RequestContext) {
-	songURL, svcerr := m.service.GetSongURL(ctx, ctxutils.GetIDParam(c).Int64)
+	var req dto.MusicSongAudioReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	songURL, svcerr := m.service.GetSongURL(ctx, ctxutils.GetIDParam(c).Int64, req.Level)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -62,6 +67,24 @@ func (m *musicType) SongAudio(ctx context.Context, c *app.RequestContext) {
 	// 播放地址会过期，不让浏览器缓存跳转
 	c.Response.Header.Set("Cache-Control", "no-store")
 	c.Redirect(http.StatusFound, []byte(songURL))
+}
+
+// SongAudioURL 以 JSON 返回歌曲的临时播放地址（与 SongAudio 的跳转目标相同、同样只对白名单内的歌曲开放）：
+// 页面可以直接向 CDN 按字节范围只加载需要的片段。地址本身公开可得，允许任意来源（包括沙箱中的不透明源）读取，不携带凭据
+func (m *musicType) SongAudioURL(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicSongAudioReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	c.Response.Header.Set("Access-Control-Allow-Origin", "*")
+	c.Response.Header.Set("Cache-Control", "no-store")
+	songURL, svcerr := m.service.GetSongURL(ctx, ctxutils.GetIDParam(c).Int64, req.Level)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, dto.MusicSongAudioURLDto{URL: songURL})
 }
 
 // SongLyric 歌曲歌词

@@ -197,26 +197,35 @@ func TestMusicPlaylistAndSongURL(t *testing.T) {
 	}
 
 	// 只能获取歌单内歌曲的播放地址
-	_, svcerr = s.GetSongURL(ctx, 12345)
+	_, svcerr = s.GetSongURL(ctx, 12345, "")
 	expectCode(t, svcerr, http.StatusNotFound, "song outside playlist")
-	_, svcerr = s.GetSongURL(ctx, 3)
+	_, svcerr = s.GetSongURL(ctx, 3, "")
 	expectCode(t, svcerr, http.StatusNotFound, "removed song")
 	// 未配置音质时使用默认的 exhigh
-	songURL, svcerr := s.GetSongURL(ctx, 1)
+	songURL, svcerr := s.GetSongURL(ctx, 1, "")
 	if svcerr != nil || songURL != "https://m701.music.126.net/1-exhigh.mp3" {
 		t.Fatalf("song url: %v %q", svcerr, songURL)
 	}
-	if _, svcerr = s.GetSongURL(ctx, 1); svcerr != nil || calls["/song/url/v1"].Load() != 1 {
+	if _, svcerr = s.GetSongURL(ctx, 1, ""); svcerr != nil || calls["/song/url/v1"].Load() != 1 {
 		t.Fatalf("song url should be cached: %v %d", svcerr, calls["/song/url/v1"].Load())
+	}
+	// 试听可要求较低音质（单独缓存）；高于后台设置或无效的音质按后台设置处理
+	if songURL, svcerr = s.GetSongURL(ctx, 1, "higher"); svcerr != nil || songURL != "https://m701.music.126.net/1-higher.mp3" || calls["/song/url/v1"].Load() != 2 {
+		t.Fatalf("higher song url: %v %q %d", svcerr, songURL, calls["/song/url/v1"].Load())
+	}
+	for _, level := range []string{"lossless", "jymaster"} {
+		if songURL, svcerr = s.GetSongURL(ctx, 1, level); svcerr != nil || songURL != "https://m701.music.126.net/1-exhigh.mp3" || calls["/song/url/v1"].Load() != 2 {
+			t.Fatalf("%s should not exceed the configured level: %v %q", level, svcerr, songURL)
+		}
 	}
 	// 修改音质后不使用旧音质的缓存
 	setMusicKV(t, map[string]any{"ncm_song_level": "lossless"})
-	if songURL, svcerr = s.GetSongURL(ctx, 1); svcerr != nil || songURL != "https://m701.music.126.net/1-lossless.mp3" || calls["/song/url/v1"].Load() != 2 {
+	if songURL, svcerr = s.GetSongURL(ctx, 1, ""); svcerr != nil || songURL != "https://m701.music.126.net/1-lossless.mp3" || calls["/song/url/v1"].Load() != 3 {
 		t.Fatalf("lossless song url: %v %q %d", svcerr, songURL, calls["/song/url/v1"].Load())
 	}
 	// 不在可选范围内的音质按默认音质处理
 	setMusicKV(t, map[string]any{"ncm_song_level": "jymaster"})
-	if songURL, svcerr = s.GetSongURL(ctx, 1); svcerr != nil || songURL != "https://m701.music.126.net/1-exhigh.mp3" {
+	if songURL, svcerr = s.GetSongURL(ctx, 1, ""); svcerr != nil || songURL != "https://m701.music.126.net/1-exhigh.mp3" {
 		t.Fatalf("invalid level should fall back: %v %q", svcerr, songURL)
 	}
 

@@ -55,8 +55,13 @@ func NewMusicService() *MusicService {
 
 type musicSongURL struct {
 	url       string
-	level     string // 请求时的音质，修改音质后重新获取
 	expiresAt time.Time
+}
+
+// musicSongURLKey 播放地址按歌曲与音质分别缓存（修改音质或试听用较低音质时不复用其他音质的地址）
+type musicSongURLKey struct {
+	id    int64
+	level string
 }
 
 // musicState 歌单与播放地址缓存；配置（API、Cookie、歌单）变化后按新配置重新获取
@@ -66,7 +71,7 @@ var musicState = struct {
 	fetchedAt  time.Time
 	tracks     []dto.MusicTrackDto
 	refreshing bool // 正在后台刷新歌单
-	songURLs   map[int64]musicSongURL
+	songURLs   map[musicSongURLKey]musicSongURL
 }{}
 
 // musicFetchMu 同一时间只向 API 获取一次歌单
@@ -283,8 +288,9 @@ func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackD
 	return tracks, nil
 }
 
-// GetSongURL 歌单内歌曲的临时播放地址；地址有有效期，缓存时间短于有效期
-func (s *MusicService) GetSongURL(ctx context.Context, id int64) (string, *errs.ServiceError) {
+// GetSongURL 歌单内歌曲的临时播放地址；地址有有效期，缓存时间短于有效期。
+// level 为试听等场景要求的较低音质（如 higher 192k，加载更快），只能低于或等于后台设置的音质，为空或无效时用后台设置
+func (s *MusicService) GetSongURL(ctx context.Context, id int64, level string) (string, *errs.ServiceError) {
 	if _, svcerr := s.GetPlaylist(ctx); svcerr != nil {
 		return "", svcerr
 	}
@@ -294,10 +300,14 @@ func (s *MusicService) GetSongURL(ctx context.Context, id int64) (string, *errs.
 	}
 
 	cfg := tools.GetNCMConfig()
+	if requested := slices.Index(tools.NCMSongLevels, level); requested >= 0 && requested < slices.Index(tools.NCMSongLevels, cfg.Level) {
+		cfg.Level = level
+	}
+	key := musicSongURLKey{id: id, level: cfg.Level}
 	musicState.Lock()
-	cached, ok := musicState.songURLs[id]
+	cached, ok := musicState.songURLs[key]
 	musicState.Unlock()
-	if ok && cached.level == cfg.Level && time.Now().Before(cached.expiresAt) {
+	if ok && time.Now().Before(cached.expiresAt) {
 		return cached.url, nil
 	}
 
@@ -319,9 +329,9 @@ func (s *MusicService) GetSongURL(ctx context.Context, id int64) (string, *errs.
 	if ttl := min(time.Duration(result.Data[0].Expi)*time.Second-time.Minute, musicSongURLMaxTTL); ttl > 0 {
 		musicState.Lock()
 		if musicState.songURLs == nil {
-			musicState.songURLs = make(map[int64]musicSongURL)
+			musicState.songURLs = make(map[musicSongURLKey]musicSongURL)
 		}
-		musicState.songURLs[id] = musicSongURL{url: songURL, level: cfg.Level, expiresAt: time.Now().Add(ttl)}
+		musicState.songURLs[key] = musicSongURL{url: songURL, expiresAt: time.Now().Add(ttl)}
 		musicState.Unlock()
 	}
 	return songURL, nil

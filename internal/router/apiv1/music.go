@@ -17,6 +17,8 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroup.GET("/playlist", controller.Music.Playlist)
 		musicGroup.GET("/song/:id", controller.Music.Song)
 		musicGroup.GET("/song/:id/audio", controller.Music.SongAudio)
+		// 同一播放地址以 JSON 返回（允许跨源读取），供需要按字节范围只加载片段的页面使用（如沙箱中的歌词特效演示页）
+		musicGroup.GET("/song/:id/audio/url", controller.Music.SongAudioURL)
 		musicGroup.GET("/song/:id/lyric", controller.Music.SongLyric)
 		musicGroup.GET("/song/:id/lyric/ttml", controller.Music.SongTTMLLyric)
 		musicGroup.GET("/song/:id/lyric/qq", controller.Music.SongQQLyric)

@@ -185,6 +185,16 @@ type MusicLyricReq struct {
 	Refresh bool `query:"refresh"`
 }
 
+// MusicSongAudioReq 播放地址：level 为试听用的较低音质（standard / higher），不高于后台设置的音质，为空时用后台设置
+type MusicSongAudioReq struct {
+	Level string `query:"level"`
+}
+
+// MusicSongAudioURLDto 歌曲的临时播放地址（网易云 CDN，支持 Range 与跨源读取，有效期数分钟）
+type MusicSongAudioURLDto struct {
+	URL string `json:"url"`
+}
+
 // NCMPlaylistsReq 获取网易云用户歌单；字段为空时使用已保存的配置，便于保存前先测试
 type NCMPlaylistsReq struct {
 	APIBaseURL string `json:"api_base_url"`
