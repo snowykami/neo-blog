@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>歌词特效演示</title>
+<style>
+  :root { --bg: #0d0e13; --card: #161821; --line: #262a3a; --fg: #eef0f6; --dim: #8a8fa3; --accent: #8ab4ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.6 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+  header, section, footer { max-width: 1320px; margin: auto; padding: 0 28px; }
+  header { padding-top: 28px; }
+  h1 { margin: 0 0 6px; font-size: 24px; }
+  a { color: var(--accent); }
+  .sub { color: #b7bccb; margin: 0; max-width: 860px; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 14px 0 0; color: var(--dim); font-size: 13px; }
+  .toolbar label { display: inline-flex; align-items: center; gap: 6px; color: #d6d9e4; cursor: pointer; }
+  .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 18px 0 6px; }
+  @media (max-width: 900px) { .flow { grid-template-columns: repeat(2, 1fr); } }
+  .step { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--card); border-top: 3px solid var(--c); text-decoration: none; color: inherit; }
+  .step b { display: block; font-size: 15px; }
+  .step span { color: var(--dim); font-size: 12.5px; }
+  .step em { font-style: normal; color: var(--c); font-size: 12px; }
+  h2 { font-size: 18px; margin: 34px 0 2px; display: flex; align-items: center; gap: 10px; }
+  h2 i { width: 10px; height: 22px; border-radius: 3px; background: var(--c); }
+  h2 small { color: var(--dim); font-weight: 400; font-size: 13px; }
+  .cat-desc { color: #b7bccb; margin: 2px 0 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr)); gap: 14px; margin-top: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; transition: border-color .2s; }
+  .card:hover { border-color: #3d4363; }
+  .card.playing { border-color: var(--c, var(--accent)); }
+  .stage { position: relative; height: 210px; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 0 28px; cursor: pointer;
+    background: radial-gradient(120% 140% at 15% 0%, #2a2f4d 0%, #14151e 70%); --fs: 26px; }
+  .card.tall .stage { height: 250px; }
+  .stage .hint { position: absolute; right: 10px; bottom: 7px; font-size: 11.5px; color: #ffffff80; pointer-events: none; }
+  .stage .bgfx { position: absolute; inset: 0; pointer-events: none; }
+  .row { transition: opacity .4s, filter .4s; transform-origin: left center; }
+  .song { display: flex; align-items: center; gap: 10px; padding: 10px 14px 0; }
+  .song img { width: 34px; height: 34px; border-radius: 6px; object-fit: cover; flex: none; }
+  .song .info { min-width: 0; flex: 1; line-height: 1.35; }
+  .song .info b { display: block; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song .info span { display: block; font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song a { flex: none; font-size: 12.5px; text-decoration: none; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; color: #d6d9e4; }
+  .song a:hover { border-color: var(--accent); color: var(--accent); }
+  .meta { padding: 8px 14px 13px; }
+  .meta h3 { margin: 0; font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tag { font-size: 11px; padding: 1px 8px; border-radius: 999px; font-weight: 400; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+  .tag.auto { --c: #6ee7b7; }
+  .meta p { margin: 6px 0 0; color: #b7bccb; font-size: 13px; }
+  .meta p b { color: var(--fg); font-weight: 600; margin-right: 4px; }
+  .meta p.avoid b { color: #ff9fb8; }
+  footer { color: var(--dim); font-size: 12.5px; padding-top: 34px; padding-bottom: 40px; }
+
+  /* 歌词：逐字擦除（与博客播放器同一套动效，移植自 lyric-player.ts） */
+  .lyric { position: relative; font-size: var(--fs); font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+  .ch { display: inline-block; position: relative; color: transparent; -webkit-background-clip: text; background-clip: text;
+    background-image: linear-gradient(90deg, var(--hi, #fff) var(--p, -18%), rgba(255, 255, 255, .32) calc(var(--p, -18%) + 18%));
+    will-change: transform, filter; }
+  .ch.sp { width: .35em; }
+  .ch::after { content: ''; position: absolute; left: 0; right: 0; height: .07em; border-radius: .04em; background: var(--hi, #fff);
+    transform-origin: left center; transform: scaleX(var(--line, 0)); opacity: 0; }
+  .ch.u::after { bottom: .06em; opacity: 1; }
+  @media (max-width: 560px) {
+    header, section, footer { padding-left: 14px; padding-right: 14px; }
+    header { padding-top: 20px; }
+    .stage { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>歌词特效演示</h1>
+  <p class="sub">本站音乐播放器会为每首歌生成一份「歌词特效」：AI 读完整首歌后，先判断这几个字在<b>做什么</b>——变大、发抖、发光、被看清、还是消失——再挑对应的特效，播放时随逐字歌词一起演出。
+    下面每张卡片都是我歌单里的一首歌，点击歌词即可连同原曲片段一起播放；「为什么」和「不适合」是每种特效的设计依据。</p>
+  <div class="toolbar">
+    <label><input type="checkbox" id="with-audio" checked> 播放原曲片段</label>
+    <span>想听完整的效果？点卡片上的「完整收听」，在播放器里从这一句开始播放。</span>
+  </div>
+  <div class="flow" id="flow"></div>
+</header>
+<main id="main"></main>
+<footer>
+  歌词与音频来自网易云音乐，仅作演示；歌词时间轴为逐字歌词，原曲片段从对应时间开始播放。
+</footer>
+
+<script src="core.js"></script>
+<script src="showcase-data.js"></script>
+<script>
+// 博客地址：音频经博客后端代理（302 到网易云 CDN，试听用 192k 的 higher 音质，加载更快），「完整收听」打开博客的播放器页
+// 本地测试时可用 ?site=http://localhost:端口 指向其他后端
+const SITE = new URLSearchParams(location.search).get('site') || 'https://blog.sfkm.me'
+
+/** 短语在行内的字下标区间（按字符，含空格） */
+function span(text, phrase) {
+  const chars = [...text], target = [...phrase]
+  for (let i = 0; i + target.length <= chars.length; i++)
+    if (target.every((c, k) => chars[i + k] === c)) return [i, i + target.length]
+  throw new Error(`「${phrase}」不在「${text}」里`)
+}
+
+/** 由逐字歌词建一行：一个音节有多个字时平分它的时长；时间换算为相对片段开头 origin 的毫秒 */
+function buildWordsLine(parent, words, origin) {
+  const el = document.createElement('div')
+  el.className = 'lyric'
+  const chars = []
+  for (const [text, start, end] of words) {
+    const cs = [...text]
+    const per = (end - start) / Math.max(1, cs.length)
+    cs.forEach((c, k) => {
+      const node = document.createElement('span')
+      node.className = 'ch' + (c === ' ' ? ' sp' : '')
+      node.textContent = c === ' ' ? ' ' : c
+      chars.push({ el: node, start: start - origin + per * k, end: start - origin + per * (k + 1), text: c })
+      el.appendChild(node)
+    })
+  }
+  parent.appendChild(el)
+  return { el, chars, end: chars.at(-1).end }
+}
+
+/** 建一个场景：几行真实歌词，目标行带短语特效；shake 的短语里唱满 1.2 秒以上的字作为长音（颤音） */
+function buildScene(parent, lines, origin) {
+  return lines.map((spec) => {
+    const row = document.createElement('div'); row.className = 'row'; parent.appendChild(row)
+    const line = buildWordsLine(row, spec.words, origin)
+    line.row = row
+    line.start = line.chars[0].start
+    const text = line.chars.map(c => c.text).join('')
+    line.groups = spec.phrases.map(([phrase, opt]) => {
+      const [from, to] = span(text, phrase)
+      let holdIndex
+      if (opt.effect === 'shake') {
+        let longest = 1200
+        for (let i = from; i < to; i++) {
+          const d = line.chars[i].end - line.chars[i].start
+          if (d > longest) { longest = d; holdIndex = i }
+        }
+      }
+      const g = group(line, from, to, { ...opt, holdIndex })
+      applyStyles(line, g)
+      return g
+    })
+    return line
+  })
+}
+
+function currentIndex(lines, t) {
+  let current = 0
+  lines.forEach((line, i) => { if (t >= line.start - 150) current = i })
+  return current
+}
+
+function paintScene(lines, t, opts) {
+  const current = currentIndex(lines, t)
+  lines.forEach((line, i) => {
+    const active = i === current
+    line.row.style.opacity = active ? '1' : '0.42'
+    line.row.style.filter = active ? '' : 'blur(1px)'
+    paintLine(line, line.groups, t, opts)
+  })
+}
+
+/** 字号：最长的一行放得下（默认 26px） */
+function fitFont(stage, lines) {
+  const longest = Math.max(...lines.map(l => l.chars.reduce((w, c) => w + (/[\x00-\xff]/.test(c.text) ? 0.55 : 1), 0)))
+  const room = stage.clientWidth - (stage.clientWidth < 420 ? 32 : 56)
+  stage.style.setProperty('--fs', `${Math.max(14, Math.min(26, room / (longest * 1.06))).toFixed(1)}px`)
+}
+
+/** 普通场景：依次演唱，当前行高亮；有破碎时加碎片层与背景闪光（同 stage-effects.ts 的 shatterFlash） */
+const scene = (key, title, effect, why, avoid, extra = {}) => ({
+  key, title, effect, why, avoid, ...extra,
+  build(stage, origin) {
+    const lines = buildScene(stage, SHOWCASE[key].lines, origin)
+    fitFont(stage, lines)
+    const shatters = lines.flatMap(l => l.groups.filter(g => g.effect === 'shatter'))
+    const debris = shatters.length > 0 ? new ShardLayer(stage) : null
+    const flash = debris && Object.assign(document.createElement('div'), { className: 'bgfx' })
+    if (flash) { flash.style.background = 'radial-gradient(60% 70% at 40% 50%, rgba(255,255,255,.22), transparent 70%)'; flash.style.opacity = '0'; stage.appendChild(flash) }
+    return { frame: (t) => {
+      paintScene(lines, t, { debris })
+      if (!debris) return
+      debris.draw(t)
+      const k = Math.max(0, ...shatters.map(g => { const d = t - g.end - 60; return d < 0 || d > 1100 ? 0 : Math.exp(-d / 220) }))
+      flash.style.opacity = k.toFixed(3)
+    } }
+  },
+})
+
+const CATEGORIES = [
+  { key: 'grow', name: '放大·起伏', verb: '情绪在变大', c: '#ffb347',
+    desc: '词语被唱得越来越满、心在跳、脚步在蹦。动效以放大和起伏为主。',
+    cards: [
+      scene('swell', '副歌宣言', 'swell 放大',
+        '全力唱出的宣言，情绪冲到顶点：字放大到峰值再缓缓回落，像声音被推满。',
+        '平铺直叙的主歌不要放大；每行都放大就没有层次了。'),
+      scene('heartbeat', '怦然心动', 'heartbeat 心跳',
+        '「怦然心动」就是心跳本身：「扑通-扑通」的双拍像胸口在跳，一直跳到这个词唱完。',
+        '呐喊和愤怒用放大或抖动；心跳只留给悸动，不用在宏大的副歌上。'),
+      scene('wave', '蹦蹦跳跳', 'wave 波浪',
+        '轻盈、蹦跳、俏皮的词：字一个接一个跳起来，像轻快的脚步。',
+        '慢歌和伤感的词不用波浪，会显得轻浮。'),
+    ] },
+  { key: 'tremble', name: '抖动', verb: '声音或身体在发抖', c: '#ff6a3d',
+    desc: '歌手在长音上唱出颤音，或者真的在喊、在发怒。抖动只有一种，按有没有长音自动分成两种演法。',
+    cards: [
+      scene('held', '句尾长音', 'shake · 长音颤音',
+        '「宕」字拖了两秒多：先只放大，唱了一会儿整个词才开始起伏，像歌手的颤音，持续到长音结束。',
+        '没有长音的普通句尾不要抖；轻声气音的长音更适合柔光。'),
+      scene('shout', '生气地吐槽', 'shake 呐喊',
+        '真正的喊叫、生气：每个字以不同节奏快速细抖。',
+        '温柔的句子情绪再满也别抖，用放大或柔光。'),
+    ] },
+  { key: 'light', name: '光效', verb: '有东西在发光', c: '#ffd54f',
+    desc: '温柔的回忆在发光，或者歌词写的就是光。',
+    cards: [
+      scene('glow', '温柔回忆', 'glow 柔光',
+        '「那一天」是回忆，用斜体和柔光包住；「风的颜色」带一点天空色。温柔、怀念、低语都适合柔光，不抢戏。',
+        '热烈的副歌只用柔光会显得没力气。'),
+      scene('shimmer', '真实的光', 'shimmer 流光',
+        '词写的就是光——星光、阳光、闪耀：一道光带从左到右扫过笔画。',
+        '「希望」「未来」不是看得见的光，用柔光。'),
+    ] },
+  { key: 'focus', name: '聚焦·镜头', verb: '注意力被拉近', c: '#74c0fc',
+    desc: '突然看清了什么，或者整首歌的镜头对准这一刻。后两种由播放器根据 AI 的全曲规划自动演出。',
+    cards: [
+      scene('focus', '看清 / 看不清', 'focus 由虚到实',
+        '「看清」本身就是聚焦：字先模糊，唱到时变清晰。回忆浮现、突然明白、梦醒也用它。',
+        '普通的强调别用，它的意思是「看清」。'),
+      { key: 'spotlight', title: '全曲点题句', effect: '聚光灯 spotlight', auto: true, tall: true, tail: 1400, fullPrevious: true,
+        why: 'AI 在整首歌里选出 1～3 句最点题的句子（同一句每次唱到都会演出）：这一句移到中央放大，身后亮起暖光，其余行退后变暗。点题句上的特效保持简单，放大后才不会糊。',
+        avoid: '不要在点题句上叠心跳、流光或多层辉光；也不要选太多句，稀有才有分量。',
+        build(stage, origin) {
+          stage.style.display = 'block'
+          const light = document.createElement('div'); light.className = 'bgfx'
+          light.style.cssText += 'background:radial-gradient(42% 30% at 40% 52%, rgba(255,236,200,.22), transparent 70%), radial-gradient(75% 60% at 50% 50%, transparent 40%, rgba(0,0,0,.18) 100%);opacity:0;transition:opacity .6s'
+          stage.appendChild(light)
+          const holder = document.createElement('div'); holder.style.cssText = 'position:absolute;inset:0'
+          stage.appendChild(holder)
+          const lines = buildScene(holder, SHOWCASE.spotlight.lines, origin)
+          fitFont(stage, lines)
+          lines.forEach((l) => { l.row.style.cssText += 'position:absolute;left:28px;top:0;transition:transform .9s cubic-bezier(.22,1.2,.4,1),opacity .6s,filter .6s' })
+          const spot = lines[1]
+          const mid = stage.clientHeight / 2 - 22
+          return { frame: (t) => {
+            const current = currentIndex(lines, t)
+            const on = t >= spot.start - 200 && t < spot.end + 600
+            light.style.opacity = on ? '1' : '0'
+            lines.forEach((l, i) => {
+              const d = i - current
+              if (on) {
+                l.row.style.transform = i === 1 ? `translateY(${mid}px) scale(1.25)` : `translateY(${mid + (i - 1) * 64}px) scale(.94)`
+                l.row.style.opacity = i === 1 ? '1' : '.24'
+                l.row.style.filter = i === 1 ? '' : 'blur(2.5px)'
+              }
+              else {
+                l.row.style.transform = `translateY(${mid + d * 46}px) scale(${d === 0 ? 1 : 0.94})`
+                l.row.style.opacity = d === 0 ? '1' : '.42'
+                l.row.style.filter = d === 0 ? '' : 'blur(1px)'
+              }
+              // 聚光灯下收敛字的辉光与放大（与 lyric-player.ts 一致）
+              paintLine(l, l.groups, t, i === 1 && on ? { amp: 0.5 } : undefined)
+            })
+          } }
+        } },
+      { key: 'push', title: '副歌起点', effect: '镜头推近', auto: true,
+        why: '副歌第一句开唱时，播放器把整个画面往前推一下（0.45 秒推近、2.6 秒回落），背景同时亮一下。AI 只需要标对副歌从哪一句开始。',
+        avoid: '不是副歌的句子不要标成副歌起点，推近多了就不稀奇了。',
+        build(stage, origin) {
+          const world = document.createElement('div')
+          world.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:12px;transform-origin:40% 55%'
+          world.style.padding = getComputedStyle(stage).padding
+          stage.appendChild(world)
+          const lines = buildScene(world, SHOWCASE.push.lines, origin)
+          fitFont(stage, lines)
+          const start = lines[1].start
+          return { frame: (t) => {
+            paintScene(lines, t)
+            const s = t - start
+            const k = s < 0 ? 0 : s < 450 ? swellIn(s / 450) : Math.max(0, 1 - swellOut((s - 450) / 2600))
+            world.style.transform = `scale(${(1 + k * 0.08).toFixed(4)})`
+            world.style.filter = `brightness(${(1 + k * 0.18).toFixed(3)})`
+          } }
+        } },
+    ] },
+  { key: 'vanish', name: '消失', verb: '东西在消失', c: '#c3a6ff',
+    desc: '离开、消逝、放下、梦醒、没能兑现的承诺，或者一瞬间的破碎。消失之后都会慢慢恢复。',
+    cards: [
+      scene('dissolve', '远去', 'dissolve 消散',
+        '离开、消逝、放下：字唱完就化成颗粒慢慢散掉（这里简化为淡出，播放器里是真的颗粒），留下空白。',
+        '想留住、想珍惜的东西不要消散；一下子破掉的用破碎。', { tail: 1800 }),
+      scene('shatter', '心碎的瞬间', 'shatter 破碎',
+        '「心碎像玻璃」：整个词唱完的一瞬间碎成带字形的碎片坠落，背景同时一闪，像有东西摔在地上。',
+        '慢慢消失、渐行渐远的用消散；不是「破」的强烈情绪用抖动。', { tail: 1800 }),
+      scene('promise', '没能兑现的约定', 'dissolve + 下划线',
+        '「没能实现的约定」：先像誓言一样画下划线，唱完就散掉——说好的事没有做到。',
+        '真心的、还在坚守的承诺只用下划线，不要消散。', { tail: 1800 }),
+    ] },
+]
+
+// ================= 播放：原曲片段驱动动画时间（音频不可用时按本机时钟静音演示） =================
+// 片段：从演示那一句的前一句最后一两个字开始（相隔太远时只提前一点），唱完这一句再留一点余韵；
+// fullPrevious 的卡片（聚光灯）完整唱一遍前一句做铺垫，点题句亮起时才有分量
+const KEEP_BEFORE_MS = 2500
+const LEAD = 700
+
+function clipOf(key, { fullPrevious = false } = {}) {
+  const lines = SHOWCASE[key].lines
+  const index = lines.findIndex(l => l.target)
+  const target = lines[index]
+  const start = target.words[0][1]
+  let origin = start - LEAD
+  const sung = (lines[index - 1]?.words ?? []).filter(w => w[0].trim())
+  const keep = fullPrevious ? sung[0] : sung[Math.max(0, sung.length - 2)]
+  if (keep && (fullPrevious || start - keep[1] <= KEEP_BEFORE_MS))
+    origin = Math.min(origin, keep[1] - (fullPrevious ? 400 : 200))
+  return { origin, end: target.words.at(-1)[2] }
+}
+
+const withAudio = document.getElementById('with-audio')
+// 点击后等待原曲的最长时间（地址已预取，通常不到 1 秒）
+const LOAD_TIMEOUT_MS = 15000
+let active = null
+let audioContext = null
+
+/**
+ * 只加载片段：向后端要歌曲的临时地址（网易云 CDN，支持 Range 与跨源），先读开头几 KB 解析 MP3 帧头，
+ * 按恒定码率算出片段所在的字节范围，只下载这一段并用 Web Audio 解码播放。
+ * 不是恒定码率的 MP3 或任何一步失败时返回 null，改用 <audio> 播放
+ */
+const clipCache = new Map()
+const MP3_BITRATES = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0]
+const MP3_RATES = [44100, 48000, 32000, 0]
+
+async function fetchRange(url, from, to) {
+  const abort = new AbortController()
+  const res = await fetch(url, { headers: { Range: `bytes=${from}-${to}` }, signal: abort.signal })
+  // 不支持 Range 时会返回整首，立即放弃
+  if (res.status !== 206) { abort.abort(); throw new Error(`range ${res.status}`) }
+  return new Uint8Array(await res.arrayBuffer())
+}
+
+/** 解析 MP3 开头：跳过 ID3v2，读第一帧的码率与采样率；第一帧是 Info（恒定码率）标记帧时从下一帧算起，Xing（可变码率）不支持 */
+async function mp3Layout(url) {
+  let head = await fetchRange(url, 0, 8191)
+  let base = 0
+  if (head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33) {
+    base = 10 + (((head[6] & 0x7F) << 21) | ((head[7] & 0x7F) << 14) | ((head[8] & 0x7F) << 7) | (head[9] & 0x7F)) + (head[5] & 0x10 ? 10 : 0)
+    // ID3 里有封面图时帧头在更后面
+    if (base > head.length - 512) { head = await fetchRange(url, base, base + 8191); base = -base }
+  }
+  const offset = base < 0 ? -base : 0
+  let pos = base < 0 ? 0 : base
+  while (pos < head.length - 4 && !(head[pos] === 0xFF && (head[pos + 1] & 0xE0) === 0xE0)) pos++
+  const version = (head[pos + 1] >> 3) & 3, layer = (head[pos + 1] >> 1) & 3
+  const bitrate = MP3_BITRATES[head[pos + 2] >> 4], rate = MP3_RATES[(head[pos + 2] >> 2) & 3]
+  if (version !== 3 || layer !== 1 || !bitrate || !rate) throw new Error('not mpeg1 layer3')
+  const frameBytes = 144000 * bitrate / rate
+  const tag = String.fromCharCode(...head.slice(pos + 4, pos + 60)).match(/Xing|Info/)?.[0]
+  if (tag === 'Xing') throw new Error('vbr')
+  const first = offset + pos + (tag === 'Info' ? Math.floor(frameBytes) + ((head[pos + 2] >> 1) & 1) : 0)
+  // 编码器延迟（LAME 默认 576 + 529 个采样）：整首解码时开头多出这一段，按片段解码时没有，需要扣掉才能与整首的时间对齐
+  return { first, frameBytes, frameMs: 1152 / rate * 1000, delayMs: 1105 / rate * 1000 }
+}
+
+/**
+ * 每首歌的临时地址与帧布局：进入页面后在后台依次获取（换地址要后端去问网易云，冷启动可能要几秒），点击时直接用。
+ * 地址几分钟后过期，超过 SOURCE_TTL_MS 重新获取；后端没有 /audio/url 时记下来，点击后直接用整首的 <audio>
+ */
+const SOURCE_TTL_MS = 8 * 60 * 1000
+const sources = new Map()
+let clipEndpoint = 'unknown'
+
+function sourceOf(song) {
+  const cached = sources.get(song.id)
+  if (cached && performance.now() - cached.at < SOURCE_TTL_MS) return cached.promise
+  const promise = (async () => {
+    let res
+    try {
+      res = await fetch(`${SITE}/api/v1/music/song/${song.id}/audio/url?level=higher`)
+    }
+    catch (error) {
+      // 旧版后端没有这个接口时，404 不带跨源响应头，浏览器只报网络错误
+      if (clipEndpoint !== 'ok') clipEndpoint = 'missing'
+      throw error
+    }
+    if (!res.ok) {
+      // 失败也可能是这首歌不在白名单内：只要有一首成功就说明后端支持
+      if (clipEndpoint !== 'ok') clipEndpoint = 'missing'
+      throw new Error(`url ${res.status}`)
+    }
+    clipEndpoint = 'ok'
+    const url = (await res.json()).data.url
+    return { url, ...(await mp3Layout(url)) }
+  })()
+  sources.set(song.id, { promise, at: performance.now() })
+  promise.catch(() => sources.delete(song.id))
+  return promise
+}
+
+/** 进入页面后在后台预取所有歌曲的地址与帧布局，同时最多 3 个请求，不阻塞页面 */
+async function prefetchSources(songs) {
+  const queue = [...new Map(songs.map(song => [song.id, song])).values()]
+  const worker = async () => {
+    while (queue.length > 0) {
+      const song = queue.shift()
+      await sourceOf(song).catch(() => {})
+    }
+  }
+  await Promise.all([worker(), worker(), worker()])
+}
+
+function loadClip(card) {
+  const key = `${card.song.id}:${card.clip.origin}`
+  if (!clipCache.has(key)) {
+    const promise = (async () => {
+      const { url, first, frameBytes, frameMs, delayMs } = await sourceOf(card.song)
+      // 前后各多取约 0.3 秒，避免解码器丢掉开头的帧
+      const fromFrame = Math.max(0, Math.floor((card.clip.origin - 300) / frameMs))
+      const toFrame = Math.ceil((card.clip.end + card.tail + 300) / frameMs)
+      const bytes = await fetchRange(url, first + Math.floor(fromFrame * frameBytes), first + Math.ceil(toFrame * frameBytes))
+      // 解码不需要用户手势：还没有音频上下文时先建一个（处于暂停状态，点击时再恢复）
+      audioContext ??= new AudioContext()
+      const buffer = await audioContext.decodeAudioData(bytes.buffer)
+      return { buffer, start: fromFrame * frameMs - delayMs }
+    })()
+    clipCache.set(key, promise)
+    promise.catch(() => clipCache.delete(key))
+  }
+  return clipCache.get(key)
+}
+
+// 回退：整首的 <audio>（后端尚不支持片段地址或解码失败时）；片段结束后清掉地址，不再继续缓冲
+const audio = new Audio()
+audio.preload = 'none'
+
+function stopActive() {
+  if (!active) return
+  const { card } = active
+  if (active.source) { try { active.source.stop() } catch {} active.gain.disconnect() }
+  if (active.mode === 'element' || active.mode === 'loading') { audio.pause(); audio.removeAttribute('src'); audio.load() }
+  active = null
+  card.el.classList.remove('playing')
+  card.setHint('点击播放 ▶')
+}
+
+function useClock(card, hint) {
+  if (active?.card !== card || active.mode === 'webaudio' || active.mode === 'element') return
+  active.mode = 'clock'; active.t0 = performance.now()
+  card.setHint(hint)
+}
+
+function playWithElement(card) {
+  if (active?.card !== card) return
+  // 超时从音频真正开始加载时算起
+  Object.assign(active, { mode: 'loading', since: performance.now() })
+  audio.src = `${SITE}/api/v1/music/song/${card.song.id}/audio?level=higher`
+  audio.currentTime = card.clip.origin / 1000
+  audio.volume = 1
+  audio.play().then(() => {
+    if (active?.card !== card) return
+    if (Math.abs(audio.currentTime * 1000 - card.clip.origin) > 1500) audio.currentTime = card.clip.origin / 1000
+    active.mode = 'element'
+    card.setHint('播放中')
+  }, () => useClock(card, '原曲无法播放，静音演示'))
+}
+
+function startCard(card) {
+  stopActive()
+  card.render()
+  active = { card, mode: 'loading', since: performance.now() }
+  card.el.classList.add('playing')
+  if (!withAudio.checked) { useClock(card, '静音演示'); return }
+  card.setHint('加载原曲片段…')
+  // 在点击中创建 / 恢复音频上下文（浏览器的自动播放限制）
+  try {
+    audioContext ??= new AudioContext()
+    audioContext.resume()
+  }
+  catch { audioContext = null }
+  // 后端没有片段地址：在点击中直接用 <audio>（不白等一次 404，也保留用户手势）
+  if (!audioContext || clipEndpoint === 'missing') { playWithElement(card); return }
+  loadClip(card).then(({ buffer, start }) => {
+    if (active?.card !== card) return
+    const gain = audioContext.createGain()
+    gain.connect(audioContext.destination)
+    const source = audioContext.createBufferSource()
+    source.buffer = buffer
+    source.connect(gain)
+    source.start(0, Math.max(0, (card.clip.origin - start) / 1000))
+    Object.assign(active, { mode: 'webaudio', source, gain, startedAt: audioContext.currentTime })
+    card.setHint('播放中')
+  }, () => playWithElement(card))
+}
+
+audio.addEventListener('error', () => active?.mode === 'loading' && audio.getAttribute('src') && useClock(active.card, '原曲加载失败，静音演示'))
+
+/** 当前时间（相对片段开头的毫秒），还在加载时为 0 */
+function clipTime(now) {
+  switch (active.mode) {
+    case 'webaudio': return (audioContext.currentTime - active.startedAt) * 1000
+    case 'element': return audio.currentTime * 1000 - active.card.clip.origin
+    case 'clock': return now - active.t0
+    default: return 0
+  }
+}
+
+function tick(now) {
+  if (active) {
+    const { card } = active
+    // 加载超过 LOAD_TIMEOUT_MS 仍未开始播放：改为静音演示
+    if (active.mode === 'loading' && now - active.since > LOAD_TIMEOUT_MS) { audio.pause(); useClock(card, '原曲加载太慢，静音演示') }
+    const t = clipTime(now)
+    const duration = card.clip.end - card.clip.origin + card.tail
+    // 结尾 0.7 秒淡出
+    const volume = Math.min(1, Math.max(0, (duration - t) / 700))
+    if (active.mode === 'webaudio') active.gain.gain.value = volume
+    if (active.mode === 'element') audio.volume = volume
+    card.demo.frame(Math.max(0, t), now)
+    if (t > duration) stopActive()
+  }
+  requestAnimationFrame(tick)
+}
+requestAnimationFrame(tick)
+
+// ================= 渲染 =================
+document.getElementById('flow').innerHTML = CATEGORIES.map(c => `<a class="step" style="--c:${c.c}" href="#${c.key}"><em>${c.verb} →</em><b>${c.name}</b><span>${[...new Set(c.cards.map(card => card.effect))].join(' · ')}</span></a>`).join('')
+
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]))
+const main = document.getElementById('main')
+const cards = []
+for (const cat of CATEGORIES) {
+  const sec = document.createElement('section'); sec.id = cat.key; sec.style.setProperty('--c', cat.c)
+  sec.innerHTML = `<h2><i></i>${cat.name}<small>${cat.verb}</small></h2><p class="cat-desc">${cat.desc}</p>`
+  const grid = document.createElement('div'); grid.className = 'grid'
+  for (const def of cat.cards) {
+    const song = SHOWCASE[def.key]
+    const el = document.createElement('div'); el.className = 'card' + (def.tall ? ' tall' : '')
+    const stage = document.createElement('div'); stage.className = 'stage'
+    const clip = clipOf(def.key, { fullPrevious: def.fullPrevious })
+    const listen = `${SITE}/music?id=${song.id}&start=${Math.max(0, clip.origin / 1000 - 3).toFixed(2)}`
+    const info = document.createElement('div'); info.className = 'song'
+    info.innerHTML = `<img src="${esc(song.cover)}?param=68y68" alt="" loading="lazy" referrerpolicy="no-referrer"><div class="info"><b>${esc(song.name)}</b><span>${esc(song.artists.join(' / '))}</span></div><a href="${esc(listen)}" target="_blank" rel="noopener noreferrer">完整收听 ↗</a>`
+    const meta = document.createElement('div'); meta.className = 'meta'
+    meta.innerHTML = `<h3>${def.title}<span class="tag">${def.effect}</span>${def.auto ? '<span class="tag auto">播放器自动</span>' : ''}</h3><p><b>为什么</b>${def.why}</p><p class="avoid"><b>不适合</b>${def.avoid}</p>`
+    el.append(stage, info, meta)
+    const card = { el, def, stage, song, clip, tail: def.tail ?? 1000 }
+    card.setHint = (text) => { const hint = stage.querySelector('.hint'); if (hint) hint.textContent = text }
+    card.render = () => {
+      stage.innerHTML = ''; stage.removeAttribute('style')
+      card.demo = def.build(stage, clip.origin)
+      card.demo.frame(0, 0)
+      stage.insertAdjacentHTML('beforeend', '<span class="hint">点击播放 ▶</span>')
+    }
+    stage.addEventListener('click', () => (active?.card === card ? stopActive() : startCard(card)))
+    grid.appendChild(el)
+    cards.push(card)
+  }
+  sec.appendChild(grid); main.appendChild(sec)
+}
+requestAnimationFrame(() => cards.forEach(card => card.render()))
+// 进入页面就在后台换地址；鼠标移到卡片上（触屏为按下）时预取这一段片段
+prefetchSources(cards.map(card => card.song))
+for (const card of cards) {
+  const warm = () => { if (withAudio.checked && clipEndpoint !== 'missing') loadClip(card).catch(() => {}) }
+  card.stage.addEventListener('pointerenter', warm)
+  card.stage.addEventListener('touchstart', warm, { passive: true })
+}
+// 窗口大小变化时重排（不打断正在播放的卡片）
+let resizeTimer
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(() => cards.forEach(card => { if (active?.card !== card) card.render() }), 200)
+})
+</script>
+</body>
+</html>
