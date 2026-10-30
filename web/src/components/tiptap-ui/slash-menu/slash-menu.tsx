@@ -31,8 +31,19 @@ export function SlashMenu({ items, query, onSelect, ref }: SlashMenuProps & { re
   }
   const safeIndex = Math.min(index, Math.max(0, items.length - 1))
 
+  // 选中项滚动到可见：只滚动面板自己的列表。不用 scrollIntoView：面板由 suggestion 插件先挂到 body 末尾、随后才定位，
+  // 这期间 scrollIntoView 会把整个页面滚到底部（输入「/music」等时编辑器跳到文末）
   React.useEffect(() => {
-    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+    const list = listRef.current
+    const option = list?.querySelector<HTMLElement>('[aria-selected="true"]')
+    if (!list || !option)
+      return
+    const top = option.offsetTop
+    const bottom = top + option.offsetHeight
+    if (top < list.scrollTop)
+      list.scrollTop = top
+    else if (bottom > list.scrollTop + list.clientHeight)
+      list.scrollTop = bottom - list.clientHeight
   }, [safeIndex, items])
 
   React.useImperativeHandle(ref, () => ({
@@ -65,7 +76,7 @@ export function SlashMenu({ items, query, onSelect, ref }: SlashMenuProps & { re
       ref={listRef}
       role="listbox"
       aria-label={t('slash.aria')}
-      className="bg-popover text-popover-foreground w-72 max-w-[calc(100vw-1rem)] max-h-80 overflow-y-auto overscroll-contain rounded-xl border p-1 shadow-lg"
+      className="bg-popover text-popover-foreground relative w-72 max-w-[calc(100vw-1rem)] max-h-80 overflow-y-auto overscroll-contain rounded-xl border p-1 shadow-lg"
       // 保持编辑器焦点与选区
       onMouseDown={e => e.preventDefault()}
     >
