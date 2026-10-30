@@ -311,6 +311,24 @@
         "cd /tmp/neo-pagehtml/web && export BACKEND_URL=http://127.0.0.1:18920 && exec pnpm start -p 3140"
       ],
       "port": 3140
+    },
+    {
+      "name": "backend-revisions",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-revisions && MODE=dev PORT=18930 DB_PATH=/tmp/neo-revisions/data.db ENABLE_REGISTER=true ENABLE_EMAIL_VERIFY=false BASE_URL=http://localhost:3150 exec /tmp/neo-revisions/server"
+      ],
+      "port": 18930
+    },
+    {
+      "name": "web-revisions",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-revisions/web && export BACKEND_URL=http://127.0.0.1:18930 && exec pnpm start -p 3150"
+      ],
+      "port": 3150
     }
   ]
 }
