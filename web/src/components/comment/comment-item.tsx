@@ -1,5 +1,5 @@
 import type { Comment } from '@/models/comment'
-import { Ellipsis, Heart, Lock, Reply } from 'lucide-react'
+import { Ellipsis, Lock, Reply } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useState } from 'react'
@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { LikeIcon } from '@/contexts/theme-context'
 import { useToLogin } from '@/hooks/use-route'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
@@ -344,7 +345,7 @@ export function CommentItem({
                 onClick={handleToggleLike}
                 className={`fade-in flex h-7 min-w-7 items-center justify-center gap-1 rounded-md px-2 text-xs tabular-nums transition-colors ${liked ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-secondary text-secondary-foreground hover:bg-primary/15 hover:text-primary'}`}
               >
-                <Heart aria-hidden className={`size-3.5 ${liked ? 'fill-current' : ''}`} />
+                <LikeIcon className={`size-3.5 ${liked ? 'fill-current' : ''}`} />
                 {' '}
                 <div>{likeCount}</div>
               </button>

@@ -1,14 +1,16 @@
 'use client'
 
-import { CheckIcon, PaletteIcon } from 'lucide-react'
+import { CheckIcon, PaletteIcon, SparklesIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { updateUser } from '@/api/user'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { useTheme } from '@/contexts/theme-context'
 import { cn } from '@/lib/utils'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
@@ -131,6 +133,46 @@ export function ColorSchemeCircles({
 }
 
 /**
+ * 节日 / 季节性主题开关：只在当前有生效主题时出现。
+ * 关闭后写入本地偏好，之后不会再自动应用（见 contexts/theme-context）
+ */
+export function ThemePackSection() {
+  const t = useTranslations('ThemePack')
+  const tMode = useTranslations('ThemeMode')
+  const { theme, enabled, setEnabled } = useTheme()
+  if (!theme)
+    return null
+  // 内置主题都有对应文案；将来用户自定义主题可能没有，回退到 id
+  const nameKey = `names.${theme.id}`
+  const name = t.has(nameKey) ? t(nameKey) : theme.id
+  return (
+    <div className="mt-3 grid gap-2 border-t border-border pt-3 text-xs">
+      <div className="font-medium text-muted-foreground">{t('title')}</div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <SparklesIcon aria-hidden className="size-3.5 shrink-0 text-primary" />
+          <span className="truncate">{name}</span>
+          {/* 节日绑定的明暗：让用户知道当前为什么是夜里 */}
+          {theme.mode && (
+            <span className="shrink-0 text-muted-foreground/70">
+              ·
+              {' '}
+              {tMode(`${theme.mode}_mode`)}
+            </span>
+          )}
+        </span>
+        <Switch
+          checked={enabled}
+          onCheckedChange={setEnabled}
+          aria-label={t('title')}
+          title={enabled ? t('disable') : t('enable')}
+        />
+      </div>
+    </div>
+  )
+}
+
+/**
  * 顶栏配色切换：调色盘图标 + 弹层里的圆形色块
  */
 export function ColorSchemePicker({ className }: { className?: string }) {
@@ -155,6 +197,7 @@ export function ColorSchemePicker({ className }: { className?: string }) {
           colorSchemes={colorSchemes}
           onSelect={selectColor}
         />
+        <ThemePackSection />
       </PopoverContent>
     </Popover>
   )

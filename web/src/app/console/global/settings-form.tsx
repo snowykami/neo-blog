@@ -3,7 +3,7 @@
 import type { SidebarCardConfig } from '@/components/blog-sidebar/sidebar-cards'
 import type { MusicSourceType, NCMPlaylists, NCMSongLevel } from '@/models/music'
 import type { SiteInfo } from '@/utils/common/siteinfo'
-import { EyeIcon, EyeOffIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, ImageIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { parseAsStringEnum, useQueryState } from 'nuqs'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -15,6 +15,7 @@ import { listNCMPlaylists } from '@/api/music'
 import { defaultSidebarCards } from '@/components/blog-sidebar/sidebar-cards'
 import { AssetField } from '@/components/common/asset-picker'
 import { LabelWithInfo } from '@/components/common/info-tooltip'
+import { ThemePackPreviewField } from '@/components/console/theme-pack-preview'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -54,6 +55,11 @@ interface SettingsValues {
   colorSchemes: string[]
   defaultColorScheme: string
   animationDurationSecond: number
+  pageBackgroundImage: string
+  pageBackgroundBlur: number
+  pageBackgroundOpacity: number
+  pageBackgroundVeil: number
+  pageBackgroundDecorations: boolean
   postsPerPage: number
   commentsPerPage: number
   maxReplyDepth: number
@@ -179,6 +185,11 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     colorSchemes: info.colorSchemes,
     defaultColorScheme: info.defaultColorScheme,
     animationDurationSecond: info.animationDurationSecond,
+    pageBackgroundImage: info.pageBackground?.image ?? '',
+    pageBackgroundBlur: info.pageBackground?.blur ?? 0,
+    pageBackgroundOpacity: info.pageBackground?.opacity ?? 1,
+    pageBackgroundVeil: info.pageBackground?.veil ?? 0.72,
+    pageBackgroundDecorations: info.pageBackground?.decorations ?? true,
     postsPerPage: info.postsPerPage,
     commentsPerPage: info.commentsPerPage,
     // 以下为后端独立配置，默认值与后端保持一致
@@ -242,6 +253,15 @@ function toSiteInfo(base: SiteInfo, values: SettingsValues): SiteInfo {
     colorSchemes: values.colorSchemes,
     defaultColorScheme: values.defaultColorScheme,
     animationDurationSecond: Number(values.animationDurationSecond),
+    pageBackground: {
+      // 单独一栏「背景图」即可：填了就铺满非内容区，清空就回到纯色背景
+      enabled: true,
+      image: (values.pageBackgroundImage ?? '').trim(),
+      blur: Number(values.pageBackgroundBlur) || 0,
+      opacity: Number.isNaN(Number(values.pageBackgroundOpacity)) ? 1 : Number(values.pageBackgroundOpacity),
+      veil: Number.isNaN(Number(values.pageBackgroundVeil)) ? 0.72 : Number(values.pageBackgroundVeil),
+      decorations: values.pageBackgroundDecorations,
+    },
     postsPerPage: Number(values.postsPerPage),
     commentsPerPage: Number(values.commentsPerPage),
     copyright: values.copyright,
@@ -264,7 +284,7 @@ type GlobalTab = typeof GLOBAL_TABS[number]
 
 const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
   site: ['siteName', 'baseUrl', 'siteDescription', 'siteIcon', 'keywords', 'defaultCovers', 'ownerName', 'ownerMotto', 'ownerDescription', 'ownerAvatar', 'ownerGravatarEmail'],
-  content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'revisionMaxKeep', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
+  content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'pageBackgroundImage', 'pageBackgroundBlur', 'pageBackgroundOpacity', 'pageBackgroundVeil', 'pageBackgroundDecorations', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'revisionMaxKeep', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
   frontend: ['aboutBackground', 'sidebarCards', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel', 'musicTtmlUrlTemplate', 'qweatherApiHost', 'qweatherApiKey'],
   account: ['enableRegister', 'enableRegisterFromOidc', 'verifyCodeCoolDown', 'visitLogRetentionDays'],
   ai: ['aiApiBaseUrl', 'aiApiKey', 'aiModel', 'aiSummaryConcurrency', 'aiWritingStyle', 'lyricAnnotationTtlDays'],
@@ -384,8 +404,18 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
           </TabsContent>
           <TabsContent value="content" forceMount className="grid gap-4 data-[state=inactive]:hidden">
             <Section title={t('section_appearance')}>
+              <ThemePackPreviewField />
               <ColorSchemesField />
               <NumberField name="animationDurationSecond" label={t('animation_duration')} description={t('animation_duration_desc')} min={0} max={3} step="any" />
+              <div className="flex items-center gap-2 pt-2 text-sm font-semibold text-muted-foreground md:col-span-2">
+                <ImageIcon aria-hidden className="size-4" />
+                {t('page_background')}
+              </div>
+              <ImageField name="pageBackgroundImage" label={t('page_background_image')} description={t('page_background_image_desc')} />
+              <SwitchField name="pageBackgroundDecorations" label={t('page_background_decorations')} description={t('page_background_decorations_desc')} />
+              <NumberField name="pageBackgroundBlur" label={t('page_background_blur')} description={t('page_background_blur_desc')} min={0} max={40} />
+              <NumberField name="pageBackgroundOpacity" label={t('page_background_opacity')} description={t('page_background_opacity_desc')} min={0} max={1} step={0.05} />
+              <NumberField name="pageBackgroundVeil" label={t('page_background_veil')} description={t('page_background_veil_desc')} min={0} max={1} step={0.05} />
             </Section>
 
             <Section title={t('section_content')}>

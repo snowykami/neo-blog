@@ -13,7 +13,11 @@ import { DeviceProvider } from '@/contexts/device-context'
 import { MusicProvider } from '@/contexts/music-context'
 import { NavProvider } from '@/contexts/nav-context'
 import { SiteInfoProvider } from '@/contexts/site-info-context'
+import { ThemeProvider } from '@/contexts/theme-context'
 import { getFirstLocale } from '@/i18n/request'
+import { resolveActiveTheme, themeAttributes, themeCssVars } from '@/themes'
+import { themeInitScript } from '@/themes/init-script'
+import { resolvePreviewTheme } from '@/utils/server/theme-preview'
 import './globals.css'
 
 // 字体通过 CSS 变量注入，在 globals.css 的 @theme 中组合中文回退字体（font-sans / font-mono）
@@ -36,10 +40,6 @@ export const viewport: Viewport = {
     { media: '(prefers-color-scheme: dark)', color: '#181e24' },
   ],
 }
-
-// 首次绘制前根据本地保存的主题偏好（与 DeviceProvider 一致：localStorage.theme，缺省跟随系统）设置 .dark，避免暗色闪白；
-// 同时应用本地保存的配色方案（顶栏配色切换，访客也有），避免刷新后闪烁回站点默认色
-const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light';var c=localStorage.getItem('color-scheme');if(c){e.setAttribute('data-user-color',c)}}catch(_){}})()`
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteInfo = await getCachedSiteInfo()
@@ -66,6 +66,11 @@ export default async function RootLayout({
         .catch(() => null)
     : null
   const siteInfo = await getCachedSiteInfo()
+  // 节日 / 季节性主题：只按当前日期计算，不读用户偏好，因此服务端渲染结果稳定；
+  // 用户关闭主题的偏好在客户端处理（见 themeInitScript 与 ThemeProvider）
+  // 管理员可在控制台强制指定主题用于预览/调试（cookie，仅 admin 生效，优先于日期）
+  const preview = await resolvePreviewTheme(user)
+  const theme = preview.override ? preview.theme : resolveActiveTheme()
   return (
     // 主题脚本会在水合前修改 class / style，需忽略根节点的属性差异
     <html
@@ -73,6 +78,9 @@ export default async function RootLayout({
       lang={(await getFirstLocale()) || 'en'}
       className={`h-full ${inter.variable} ${sourceCodePro.variable}`}
       data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || 'blue'}
+      // 主题色板以 CSS 自定义属性的形式注入，globals.css 里映射到既有 token
+      style={themeCssVars(theme) as React.CSSProperties}
+      {...themeAttributes(theme)}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
@@ -84,16 +92,18 @@ export default async function RootLayout({
             <Toaster richColors position="top-center" offset={80} />
             <NextIntlClientProvider>
               <AppUpdateChecker />
-              <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
-                <SiteInfoProvider initialData={siteInfo}>
-                  <MusicProvider>
-                    <NavProvider>
-                      <FloatingWidgets />
-                      {children}
-                    </NavProvider>
-                  </MusicProvider>
-                </SiteInfoProvider>
-              </AuthProvider>
+              <ThemeProvider theme={theme}>
+                <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
+                  <SiteInfoProvider initialData={siteInfo}>
+                    <MusicProvider>
+                      <NavProvider>
+                        <FloatingWidgets />
+                        {children}
+                      </NavProvider>
+                    </MusicProvider>
+                  </SiteInfoProvider>
+                </AuthProvider>
+              </ThemeProvider>
             </NextIntlClientProvider>
           </DeviceProvider>
         </NuqsAdapter>

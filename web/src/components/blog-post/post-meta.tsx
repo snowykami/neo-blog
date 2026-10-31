@@ -1,21 +1,19 @@
-import type { LucideIcon } from 'lucide-react'
+import type { ComponentType, ReactNode } from 'react'
 import type { Post } from '@/models/post'
 import {
   CalendarClockIcon,
   CalendarDaysIcon,
   ClockIcon,
-  EyeIcon,
   FileTextIcon,
   FolderIcon,
   HashIcon,
-  HeartIcon,
-  MessageCircleIcon,
   PenLineIcon,
 } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { Fragment } from 'react'
 import { UserAvatar } from '@/components/common/avatar'
+import { CommentIcon, LikeIcon, ViewIcon } from '@/contexts/theme-context'
 import { cn } from '@/lib/utils'
 import { getCategoryUrl, getLabelUrl, getUserUrl } from '@/utils/common/route'
 
@@ -35,7 +33,7 @@ export function PostMetaItem({
   children,
   className,
 }: {
-  icon: LucideIcon
+  icon: ComponentType<{ className?: string }>
   label: string
   children: React.ReactNode
   className?: string
@@ -171,12 +169,13 @@ export function PostStats({
 }) {
   const t = useTranslations('Common')
   // key 用固定的统计项名，不用文本值：浏览量/点赞数同为 0 或相等时文本 key 会重复
-  const items = [
+  // 图标统一收敛成同一签名：这些图标会随主题包变化（见 contexts/theme-context）
+  const items: { key: string, icon: ComponentType<{ className?: string }>, text: ReactNode }[] = [
     { key: 'words', icon: FileTextIcon, text: t('word_count', { count: words }) },
     { key: 'minutes', icon: ClockIcon, text: t('reading_time', { count: minutes }) },
-    ...(views === undefined ? [] : [{ key: 'views', icon: EyeIcon, text: views }]),
-    ...(likes === undefined ? [] : [{ key: 'likes', icon: HeartIcon, text: likes }]),
-    ...(comments === undefined ? [] : [{ key: 'comments', icon: MessageCircleIcon, text: comments }]),
+    ...(views === undefined ? [] : [{ key: 'views', icon: ViewIcon, text: views }]),
+    ...(likes === undefined ? [] : [{ key: 'likes', icon: LikeIcon, text: likes }]),
+    ...(comments === undefined ? [] : [{ key: 'comments', icon: CommentIcon, text: comments }]),
   ]
   return (
     <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-foreground/30 tabular-nums', withIcons && 'gap-x-5', className)}>

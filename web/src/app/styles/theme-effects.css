@@ -1,0 +1,278 @@
+/* ---------------------------------------------------------------------------
+ * 主题动效：完全由 <html data-theme-effect="…"> 触发，不产生额外 DOM。
+ * 用户关闭主题时属性被移除，装饰立即消失。
+ *
+ * 约定：
+ * - 只用 transform / opacity 动画，不触发布局；
+ * - 装饰层一律 pointer-events: none，且 z-index 低于弹层（z-50），不挡交互；
+ * - 减少动态效果的系统偏好由 animation.css 的全局规则统一关闭。
+ * ------------------------------------------------------------------------- */
+
+/* 粒子类动效（飘雪 / 花瓣 / 星点）的颜色：亮色下用低对比的中性色，暗色下用白色 */
+html[data-theme-effect] {
+  --effect-color: oklch(0.62 0.02 var(--hue) / 0.55);
+}
+
+html.dark[data-theme-effect] {
+  --effect-color: oklch(1 0 0 / 0.72);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-effect] body::before,
+  html[data-theme-effect] body::after {
+    display: none;
+  }
+}
+
+/* 灯笼：春节 / 元宵，两只挂在天花板下方并轻轻摆动，窄屏隐藏 */
+html[data-theme-effect='lantern'] body::before,
+html[data-theme-effect='lantern'] body::after {
+  content: '';
+  position: fixed;
+  top: -1.25rem;
+  z-index: 30;
+  width: 3.25rem;
+  height: 4.25rem;
+  pointer-events: none;
+  border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%;
+  background:
+    radial-gradient(circle at 50% 18%, oklch(0.98 0.06 85 / 0.85), transparent 58%),
+    linear-gradient(180deg, oklch(0.62 0.2 28), oklch(0.48 0.19 32));
+  box-shadow:
+    0 0 26px oklch(0.7 0.2 32 / 0.45),
+    inset 0 0 10px oklch(0.3 0.09 25 / 0.45);
+  transform-origin: 50% -1.25rem;
+  animation: theme-lantern-swing 6s ease-in-out infinite;
+}
+
+html[data-theme-effect='lantern'] body::before {
+  left: 11%;
+}
+
+html[data-theme-effect='lantern'] body::after {
+  right: 11%;
+  animation-delay: -3s;
+}
+
+@keyframes theme-lantern-swing {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+@media (max-width: 767px) {
+  html[data-theme-effect='lantern'] body::before,
+  html[data-theme-effect='lantern'] body::after {
+    display: none;
+  }
+}
+
+/* 飘雪：圣诞。整层纹理缓慢下移，元素上下各留 60% 余量保证循环时不会露出边缘 */
+html[data-theme-effect='snow'] body::after {
+  content: '';
+  position: fixed;
+  inset: -60% 0;
+  z-index: 30;
+  pointer-events: none;
+  background-image:
+    radial-gradient(2px 2px at 20% 30%, var(--effect-color), transparent 60%),
+    radial-gradient(2.5px 2.5px at 62% 12%, var(--effect-color), transparent 60%),
+    radial-gradient(3px 3px at 84% 58%, var(--effect-color), transparent 60%),
+    radial-gradient(2px 2px at 36% 82%, var(--effect-color), transparent 60%),
+    radial-gradient(2.5px 2.5px at 8% 66%, var(--effect-color), transparent 60%);
+  background-size:
+    340px 340px,
+    260px 260px,
+    420px 420px,
+    300px 300px,
+    380px 380px;
+  animation: theme-snow-drift 22s linear infinite;
+}
+
+@keyframes theme-snow-drift {
+  from {
+    transform: translate3d(0, -18%, 0);
+  }
+
+  to {
+    transform: translate3d(-3%, 18%, 0);
+  }
+}
+
+/* 花瓣：樱花季，比飘雪更慢、更大、更偏粉 */
+html[data-theme-effect='sakura'] {
+  --effect-color: oklch(0.8 0.13 350 / 0.75);
+}
+
+html.dark[data-theme-effect='sakura'] {
+  --effect-color: oklch(0.82 0.14 350 / 0.6);
+}
+
+html[data-theme-effect='sakura'] body::after {
+  content: '';
+  position: fixed;
+  inset: -60% 0;
+  z-index: 30;
+  pointer-events: none;
+  background-image:
+    radial-gradient(7px 4px at 18% 24%, var(--effect-color), transparent 62%),
+    radial-gradient(6px 3px at 58% 16%, var(--effect-color), transparent 62%),
+    radial-gradient(8px 4px at 82% 62%, var(--effect-color), transparent 62%),
+    radial-gradient(6px 3px at 34% 78%, var(--effect-color), transparent 62%);
+  background-size:
+    360px 360px,
+    280px 280px,
+    440px 440px,
+    320px 320px;
+  animation: theme-sakura-drift 30s linear infinite;
+}
+
+@keyframes theme-sakura-drift {
+  from {
+    transform: translate3d(0, -16%, 0) rotate(-4deg);
+  }
+
+  to {
+    transform: translate3d(6%, 16%, 0) rotate(4deg);
+  }
+}
+
+/* 星点：中秋 / 七夕 / 情人节，画面整体轻微明灭 */
+html[data-theme-effect='stars'] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.6px 1.6px at 8% 12%, var(--effect-color), transparent 60%),
+    radial-gradient(1.6px 1.6px at 26% 6%, var(--effect-color), transparent 60%),
+    radial-gradient(2px 2px at 44% 18%, var(--effect-color), transparent 60%),
+    radial-gradient(1.6px 1.6px at 63% 8%, var(--effect-color), transparent 60%),
+    radial-gradient(2px 2px at 78% 20%, var(--effect-color), transparent 60%),
+    radial-gradient(1.6px 1.6px at 92% 10%, var(--effect-color), transparent 60%),
+    radial-gradient(1.6px 1.6px at 15% 34%, var(--effect-color), transparent 60%),
+    radial-gradient(1.6px 1.6px at 70% 38%, var(--effect-color), transparent 60%);
+  animation: theme-twinkle 6s ease-in-out infinite;
+}
+
+@keyframes theme-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* 烟花：跨年 / 国庆 / 儿童节，顶部几圈向外扩散后消散 */
+/*
+ * 节日礼花：原来是三个铺满全屏的圆环整体放大，看起来像巨大的光环压在正文上（很怪）。
+ * 现在改成「顶部两侧的小簇炸开」——用 background-size 限定每簇尺寸、background-position 定位，
+ * 只做很小幅度的缩放 + 明暗闪烁，像远处的礼花，不干扰阅读。
+ */
+html[data-theme-effect='fireworks'] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(circle at 50% 50%, transparent 30%, oklch(0.86 0.15 85 / 0.55) 32%, transparent 37%),
+    radial-gradient(circle at 50% 50%, transparent 26%, oklch(0.82 0.16 32 / 0.5) 28%, transparent 33%),
+    radial-gradient(circle at 50% 50%, transparent 30%, oklch(0.88 0.12 210 / 0.42) 32%, transparent 37%),
+    radial-gradient(circle at 50% 50%, transparent 24%, oklch(0.9 0.13 95 / 0.4) 26%, transparent 31%);
+  background-size: 22vw 22vw, 17vw 17vw, 19vw 19vw, 14vw 14vw;
+  background-position: 13% 2%, 79% 6%, 34% -6%, 64% -8%;
+  transform-origin: 50% 0;
+  animation: theme-burst 6.5s ease-out infinite;
+}
+
+@keyframes theme-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+
+  16% {
+    opacity: 1;
+  }
+
+  55% {
+    opacity: 0.5;
+    transform: scale(1.04);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+/*
+ * 儿童节：糖果色纸屑缓缓飘落。用重复的圆点贴图 + background-position 位移，
+ * 只有一个伪元素、只动画 background-position，开销极低。
+ */
+html[data-theme-effect='confetti'] body::before {
+  content: '';
+  position: fixed;
+  inset: -10% 0 0;
+  z-index: 30;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, oklch(0.8 0.16 25 / 0.75) 2.4px, transparent 2.8px),
+    radial-gradient(circle, oklch(0.84 0.15 95 / 0.7) 2px, transparent 2.4px),
+    radial-gradient(circle, oklch(0.78 0.14 200 / 0.7) 2.2px, transparent 2.6px),
+    radial-gradient(circle, oklch(0.8 0.15 330 / 0.7) 1.8px, transparent 2.2px);
+  background-size: 130px 190px, 170px 230px, 110px 160px, 150px 210px;
+  animation: theme-confetti 16s linear infinite;
+}
+
+@keyframes theme-confetti {
+  to {
+    background-position: 26px 190px, -34px 230px, 18px 160px, -22px 210px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-effect='confetti'] body::before {
+    animation: none;
+  }
+}
+
+html[data-theme-effect='flicker'] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  background: radial-gradient(120% 60% at 50% 0%, oklch(0.72 0.18 50 / 0.18), transparent 62%);
+  animation: theme-flicker 9s ease-in-out infinite;
+}
+
+@keyframes theme-flicker {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+
+  38% {
+    opacity: 0.85;
+  }
+
+  52% {
+    opacity: 0.45;
+  }
+
+  68% {
+    opacity: 0.9;
+  }
+}

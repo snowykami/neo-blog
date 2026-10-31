@@ -1,7 +1,7 @@
 'use client'
 import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
-import { ChevronDownIcon, ChevronUpIcon, Eye, Heart } from 'lucide-react'
+import { ChevronDownIcon, ChevronUpIcon, Eye } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -14,6 +14,7 @@ import { ContentComponentView } from '@/components/content-components/content-co
 import { resolveComponent } from '@/components/content-components/props'
 import { Button } from '@/components/ui/button'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { LikeIcon } from '@/contexts/theme-context'
 import { cn } from '@/lib/utils'
 import { OrderBy } from '@/models/common'
 import { getGravatarUrl } from '@/utils/common/gravatar'
@@ -111,7 +112,7 @@ export function BlogSidebarHotPosts({ posts: initialPosts, orderType = OrderBy.H
                     {post.viewCount}
                   </span>
                   <span className="flex items-center gap-1">
-                    <Heart aria-hidden className="size-3" />
+                    <LikeIcon className="size-3" />
                     <span className="sr-only">{metricsT('like_count')}</span>
                     {post.likeCount}
                   </span>

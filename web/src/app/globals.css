@@ -11,6 +11,8 @@
 @import './styles/animation.css';
 @import './styles/font.scss';
 @import './styles/tailwindcolor.css';
+@import './styles/page-background.css';
+@import './styles/theme-effects.css';
 
 @plugin "@tailwindcss/typography";
 
@@ -163,6 +165,35 @@
   --chart-5: oklch(0.7 0.14 calc(var(--hue) - 60));
 
   --sidebar: oklch(0.2 0.015 var(--hue));
+}
+
+/* ---------------------------------------------------------------------------
+ * 主题包（节日 / 季节性 / 将来用户自定义）：把 html 上注入的 --theme-* 原料
+ * 映射到既有 token。`html[data-theme]` 比 `[data-user-color]` 与 `.dark` 特异性高，
+ * 因此主题优先于用户选择的配色方案；关闭主题只需移除 data-theme 属性即可整体回退。
+ * 主题不提供任何尺寸 / 圆角 / 布局变量，所以不可能改变界面形状。
+ * ------------------------------------------------------------------------- */
+html[data-theme] {
+  --hue: var(--theme-hue);
+  --chroma: var(--theme-chroma, 0.14);
+  --primary-l: var(--theme-primary-l, 0.55);
+  --primary-l-dark: var(--theme-primary-l-dark, 0.75);
+}
+
+/* 页面装饰渐变：固定背景，不参与布局、不吃事件；只在主题生效时存在 */
+html[data-theme] body {
+  background-image: var(--theme-overlay-light, none);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+html.dark[data-theme] body {
+  background-image: var(--theme-overlay-dark, var(--theme-overlay-light, none));
+}
+
+/* 主色元素（按钮、色块）上叠加同色系透明渐变，制造「布料质感」，不影响对比度 */
+html[data-theme] .bg-primary {
+  background-image: var(--theme-primary-image, none);
 }
 
 /* 正文配色接入设计 token：token 本身已随明暗切换，invert 变量写成相同的值（不能互相引用，否则形成循环） */

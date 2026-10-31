@@ -1,7 +1,7 @@
 'use client'
 
 import type { Post } from '@/models/post'
-import { ChevronRightIcon, EyeIcon, FileSearchIcon, HeartIcon, LockIcon, MessageCircleIcon, PinIcon, RotateCwIcon, XIcon } from 'lucide-react'
+import { ChevronRightIcon, FileSearchIcon, LockIcon, RotateCwIcon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { Fragment } from 'react'
@@ -10,6 +10,7 @@ import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CommentIcon, LikeIcon, PinnedIcon, ViewIcon } from '@/contexts/theme-context'
 import { cn } from '@/lib/utils'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostUrl } from '@/utils/common/route'
@@ -48,7 +49,7 @@ export function PostListItem({ post, showAuthor = true }: { post: Post, showAuth
           <div className="mb-2 flex flex-wrap gap-2">
             {post.top > 0 && (
               <Badge variant="secondary" className="rounded-md">
-                <PinIcon aria-hidden />
+                <PinnedIcon />
                 {t('Common.pinned')}
               </Badge>
             )}
@@ -81,17 +82,17 @@ export function PostListItem({ post, showAuthor = true }: { post: Post, showAuth
         {/* 列表正文已被接口截断，字数 / 阅读时长只在文章页按完整正文展示 */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-foreground/30 tabular-nums">
           <span className="flex items-center gap-1" title={t('Metrics.like_count')}>
-            <HeartIcon aria-hidden className="size-3.5" />
+            <LikeIcon className="size-3.5" />
             <span className="sr-only">{t('Metrics.like_count')}</span>
             {post.likeCount || 0}
           </span>
           <span className="flex items-center gap-1" title={t('Metrics.comment_count')}>
-            <MessageCircleIcon aria-hidden className="size-3.5" />
+            <CommentIcon className="size-3.5" />
             <span className="sr-only">{t('Metrics.comment_count')}</span>
             {post.commentCount || 0}
           </span>
           <span className="flex items-center gap-1" title={t('Metrics.view_count')}>
-            <EyeIcon aria-hidden className="size-3.5" />
+            <ViewIcon className="size-3.5" />
             <span className="sr-only">{t('Metrics.view_count')}</span>
             {post.viewCount || 0}
           </span>

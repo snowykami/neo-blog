@@ -1,7 +1,7 @@
 'use client'
 
 import type { Post } from '@/models/post'
-import { DownloadIcon, LinkIcon, Share2Icon } from 'lucide-react'
+import { DownloadIcon, LinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { ShareIcon } from '@/contexts/theme-context'
 import copyToClipboard from '@/lib/clipboard'
 import { getPostShareImageUrl, getPostUrl } from '@/utils/common/route'
 
@@ -91,7 +92,7 @@ export function BlogShare({ post }: { post: Post }) {
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="secondary" size="lg" className="gap-2 rounded-lg">
-          <Share2Icon aria-hidden />
+          <ShareIcon />
           {t('share')}
         </Button>
       </DialogTrigger>
@@ -171,7 +172,7 @@ export function BlogShare({ post }: { post: Post }) {
               aria-label={t('native')}
               onClick={nativeShare}
             >
-              <Share2Icon aria-hidden />
+              <ShareIcon />
             </Button>
           )}
         </div>

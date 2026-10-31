@@ -1,13 +1,13 @@
 'use client'
 import type { Post } from '@/models/post'
 import type { User } from '@/models/user'
-import { HeartIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { getLikedUsers, toggleLike } from '@/api/like'
 import { UserAvatar } from '@/components/common/avatar'
 import { useAuth } from '@/contexts/auth-context'
+import { LikeIcon } from '@/contexts/theme-context'
 import { useToLogin } from '@/hooks/use-route'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
@@ -122,7 +122,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
             : 'bg-secondary text-secondary-foreground hover:bg-primary/15',
         )}
       >
-        <HeartIcon aria-hidden className={cn('size-5', liked && 'fill-current')} />
+        <LikeIcon className={cn('size-5', liked && 'fill-current')} />
         <span className="tabular-nums">{likeCount}</span>
       </button>
       <div className="text-sm text-foreground/50">

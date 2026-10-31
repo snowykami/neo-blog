@@ -1,0 +1,122 @@
+/*
+ * 全站背景层（见 components/layout/page-background.tsx）
+ *
+ * 这一层是「背景系统」的载体：底色、背景图（可调高斯模糊与不透明度）、遮罩，
+ * 以及正文两侧留白处的节日装饰，全部在这里绘制。
+ * 约束：纯装饰，pointer-events: none，不参与布局，内容区宽度与没有背景时完全一致。
+ */
+
+.pb-root {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  /* 与 body 底色一致，避免滚动到底部时漏出白边 */
+  background-color: var(--background);
+  animation: pb-fade-in 0.4s ease-out both;
+}
+
+.pb-color {
+  position: absolute;
+  inset: 0;
+  background: var(--background);
+}
+
+/* 背景图：模糊由内联 style 控制，这里只负责铺满与不被裁切出边缘 */
+.pb-image {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  will-change: filter, transform;
+}
+
+/* 遮罩：用主题底色叠加，明暗与节日配色变化时自动跟随 */
+.pb-veil {
+  position: absolute;
+  inset: 0;
+  background-color: var(--background);
+}
+
+.pb-slot-base,
+.pb-slot-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+/*
+ * 两侧留白轨道：
+ * 页面列宽 1200px，只有在视口 ≥1536px 时两侧才真的有空位，窄屏直接隐藏，绝不为装饰挤压正文。
+ */
+.pb-rail {
+  display: none;
+  position: absolute;
+  top: calc(var(--nav-h) + 1rem);
+  bottom: 1rem;
+  width: 9.375rem; /* 150px */
+}
+
+@media (min-width: 1536px) {
+  .pb-rail {
+    display: block;
+  }
+}
+
+.pb-rail-left {
+  left: max(0px, calc(50% - var(--page-w) / 2 - 9.375rem - 0.75rem));
+}
+
+.pb-rail-right {
+  right: max(0px, calc(50% - var(--page-w) / 2 - 9.375rem - 0.75rem));
+}
+
+.pb-rail-item {
+  position: absolute;
+  transform: translate(-50%, -50%) rotate(var(--gutter-rotate, 0deg)) scaleX(var(--gutter-scale, 1));
+}
+
+.pb-rail-art {
+  display: block;
+  filter: drop-shadow(0 6px 16px rgb(0 0 0 / 0.12));
+}
+
+/* 暗色下把深色图元（蝙蝠、学士帽等）提亮一档，避免糊在深背景里 */
+html.dark .pb-rail-art {
+  filter: drop-shadow(0 6px 16px rgb(0 0 0 / 0.5)) brightness(1.15) saturate(1.05);
+}
+
+/* 缓慢上下漂浮：只动 transform，不触发重排；图元之间用负延迟错开 */
+@media (prefers-reduced-motion: no-preference) {
+  .pb-rail-art {
+    animation: pb-float 9s ease-in-out infinite;
+  }
+}
+
+@keyframes pb-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-10px) rotate(1.5deg);
+  }
+}
+
+@keyframes pb-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* 打印时不输出背景与装饰 */
+@media print {
+  .pb-root {
+    display: none;
+  }
+}

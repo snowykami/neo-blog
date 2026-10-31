@@ -1,5 +1,5 @@
 import type { Post } from '@/models/post'
-import { LockIcon, PinIcon } from 'lucide-react'
+import { LockIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import { Suspense } from 'react'
 import { AISummary } from '@/components/blog-post/ai-summary.client'
@@ -21,6 +21,7 @@ import { ComponentIslands } from '@/components/content-components/component-isla
 import { SiteShell } from '@/components/layout/site-shell'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PinnedIcon } from '@/contexts/theme-context'
 import { TargetType } from '@/models/types'
 import { calculateReadingTime, countWords } from '@/utils/common/post'
 import { renderContentHtml } from '@/utils/server/render-content'
@@ -44,7 +45,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
         <div className="mb-3 flex flex-wrap gap-2">
           {post.top > 0 && (
             <Badge variant="secondary" className="rounded-md">
-              <PinIcon aria-hidden />
+              <PinnedIcon />
               {t('pinned')}
             </Badge>
           )}
