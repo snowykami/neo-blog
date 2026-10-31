@@ -144,7 +144,7 @@ export function SwitchField<T extends FieldValues>({ form, name, label, descript
 }
 
 /** 数字输入（置顶权重、导航排序） */
-export function NumberField<T extends FieldValues>({ form, name, label, description, min }: { form: UseFormReturn<T>, name: Path<T>, label: string, description?: string, min?: number }) {
+export function NumberField<T extends FieldValues>({ form, name, label, description, min, max, step = 1 }: { form: UseFormReturn<T>, name: Path<T>, label: string, description?: string, min?: number, max?: number, step?: number | 'any' }) {
   return (
     <FormField
       control={form.control}
@@ -157,10 +157,11 @@ export function NumberField<T extends FieldValues>({ form, name, label, descript
               type="number"
               inputMode="numeric"
               min={min}
-              step={1}
-              {...field}
-              value={field.value ?? 0}
-              onChange={e => field.onChange(Number(e.target.value) || 0)}
+              max={max}
+              step={step}
+              value={(field.value as number) ?? 0}
+              onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))}
+              onBlur={field.onBlur}
             />
           </FormControl>
           <FormMessage />

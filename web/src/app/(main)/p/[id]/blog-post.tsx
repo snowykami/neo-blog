@@ -154,8 +154,8 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
   const { html, headings } = renderContentHtml((isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>')
   return (
     <>
-      {/* 文章配了背景图就铺满非内容区，没配则沿用全站背景 */}
-      <PostBackground image={post.backgroundImage} />
+      {/* 文章配了背景就铺满非内容区，没配则沿用全站背景 */}
+      <PostBackground background={post.background} />
       <SiteShell
         stickySidebar={false}
         sidebar={(

@@ -7,6 +7,7 @@ import { FileTextIcon, FolderIcon, SendIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { InfoTooltip, LabelWithInfo } from '@/components/common/info-tooltip'
+import { ColorField } from '@/components/console/common/color-field'
 import { PostCategorySelector, PostLabelSelector } from '@/components/console/common/post-meta-category-and-label-selector'
 import {
   ContentSettingsSheet,
@@ -26,6 +27,10 @@ interface PostSettingsValues {
   description: string
   cover: string
   backgroundImage: string
+  backgroundBlur: number
+  backgroundOpacity: number
+  backgroundVeil: number
+  backgroundVeilColor: string
   category: Category | null
   labels: Label[]
   isPrivate: boolean
@@ -37,7 +42,11 @@ function toValues(meta: ContentMeta): PostSettingsValues {
     slug: meta.slug,
     description: meta.description,
     cover: meta.cover,
-    backgroundImage: meta.backgroundImage,
+    backgroundImage: meta.background.image,
+    backgroundBlur: meta.background.blur,
+    backgroundOpacity: meta.background.opacity,
+    backgroundVeil: meta.background.veil,
+    backgroundVeilColor: meta.background.veilColor,
     category: meta.category,
     labels: meta.labels,
     isPrivate: meta.isPrivate,
@@ -67,9 +76,30 @@ export function PostSettingsSheet({
 }) {
   const t = useTranslations('Console.editor')
   const postEditT = useTranslations('Console.post_edit')
+  // 背景的几个子项沿用全局设置里的文案，避免同一套说明写两遍
+  const bgT = useTranslations('Console.global')
   const errorDetailsT = useResponseErrorDetailsT()
   const form = useForm<PostSettingsValues>({ mode: 'onChange', defaultValues: toValues(meta) })
-  useSyncSettingsForm(form, open, toValues(meta), onChange)
+  // 表单里一项一行更好填，保存前再组装成后端要的背景对象；
+  // onChange 只给「变了的那个字段」，所以其余子项从当前表单里取，避免互相覆盖
+  useSyncSettingsForm(form, open, toValues(meta), (patch) => {
+    const { backgroundImage, backgroundBlur, backgroundOpacity, backgroundVeil, backgroundVeilColor, ...rest } = patch as Partial<PostSettingsValues>
+    if ([backgroundImage, backgroundBlur, backgroundOpacity, backgroundVeil, backgroundVeilColor].every(value => value === undefined)) {
+      onChange(rest as Partial<ContentMeta>)
+      return
+    }
+    const values = form.getValues()
+    onChange({
+      ...rest,
+      background: {
+        image: values.backgroundImage ?? '',
+        blur: values.backgroundBlur ?? 0,
+        opacity: values.backgroundOpacity ?? 1,
+        veil: values.backgroundVeil ?? 0.72,
+        veilColor: values.backgroundVeilColor ?? '',
+      },
+    } as Partial<ContentMeta>)
+  })
 
   return (
     <ContentSettingsSheet open={open} onOpenChange={onOpenChange} title={t('settings_post')}>
@@ -113,6 +143,10 @@ export function PostSettingsSheet({
               label={postEditT('post_background_image')}
               hint={postEditT('post_background_image_hint')}
             />
+            <NumberField form={form} name="backgroundBlur" label={bgT('page_background_blur')} description={bgT('page_background_blur_desc')} min={0} max={40} />
+            <NumberField form={form} name="backgroundOpacity" label={bgT('page_background_opacity')} description={bgT('page_background_opacity_desc')} min={0} max={1} step={0.05} />
+            <NumberField form={form} name="backgroundVeil" label={bgT('page_background_veil')} description={bgT('page_background_veil_desc')} min={0} max={1} step={0.05} />
+            <ColorField form={form} name="backgroundVeilColor" label={bgT('page_background_veil_color')} description={bgT('page_background_veil_color_desc')} />
           </SettingsSection>
 
           <SettingsSection icon={FolderIcon} title={t('settings_classify')}>

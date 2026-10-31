@@ -7,10 +7,10 @@ type RevisionMeta struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Cover       string `json:"cover"`
-	// 文章专属背景图（版本快照里也保存，恢复时一并还原）
-	BackgroundImage string  `json:"background_image,omitempty"`
-	Slug            *string `json:"slug,omitempty"`
-	IsPrivate       bool    `json:"is_private"`
+	// 文章专属背景（版本快照里也保存，恢复时一并还原）
+	Background *PostBackgroundDto `json:"background,omitempty"`
+	Slug       *string            `json:"slug,omitempty"`
+	IsPrivate  bool               `json:"is_private"`
 	// 文章
 	CategoryID *uint  `json:"category_id,omitempty"`
 	LabelIds   []uint `json:"label_ids,omitempty"`

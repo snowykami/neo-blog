@@ -5,7 +5,7 @@ import type { AIWriterOpenOptions } from '@/components/tiptap-editor/use-ai-writ
 import type { Category } from '@/models/category'
 import type { Label } from '@/models/label'
 import type { PageLayout, PageModel } from '@/models/page'
-import type { Post } from '@/models/post'
+import type { Post, PostBackground } from '@/models/post'
 import { EditorState } from '@tiptap/pm/state'
 import { useEditor } from '@tiptap/react'
 import { useFormatter, useTranslations } from 'next-intl'
@@ -23,6 +23,11 @@ import { useUnsavedChangesWarning } from '@/hooks/use-editor-helpers'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { createContentExtensions } from '@/lib/tiptap-extensions'
 
+/** 文章背景的默认值：全部留空即沿用全站背景 */
+export const EMPTY_BACKGROUND: PostBackground = { image: '', blur: 0, opacity: 1, veil: 0.72, veilColor: '' }
+
+const EMPTY_BACKGROUND_KEYS: (keyof PostBackground)[] = ['image', 'blur', 'opacity', 'veil', 'veilColor']
+
 export type ContentKind = 'post' | 'page'
 
 export type ContentDoc = Post | PageModel
@@ -33,8 +38,8 @@ export interface ContentMeta {
   description: string
   slug: string
   cover: string
-  /** 文章专属背景图（页面没有这个概念，仅文章设置里出现） */
-  backgroundImage: string
+  /** 文章专属背景（页面没有这个概念，仅文章设置里出现） */
+  background: PostBackground
   isPrivate: boolean
   // 仅文章
   category: Category | null
@@ -74,7 +79,7 @@ const EMPTY_META: ContentMeta = {
   description: '',
   slug: '',
   cover: '',
-  backgroundImage: '',
+  background: EMPTY_BACKGROUND,
   isPrivate: false,
   category: null,
   labels: [],
@@ -95,7 +100,7 @@ const postAdapter: ContentAdapter = {
       description: post.description || '',
       slug: post.slug || '',
       cover: post.cover || '',
-      backgroundImage: post.backgroundImage || '',
+      background: post.background ?? EMPTY_BACKGROUND,
       isPrivate: !!post.isPrivate,
       category: post.category ?? null,
       labels: post.labels ?? [],
@@ -119,8 +124,8 @@ const postAdapter: ContentAdapter = {
       patch.slug = meta.slug.trim()
     if (meta.cover !== undefined)
       patch.cover = meta.cover
-    if (meta.backgroundImage !== undefined)
-      patch.backgroundImage = meta.backgroundImage
+    if (meta.background !== undefined)
+      patch.background = meta.background
     if (meta.isPrivate !== undefined)
       patch.isPrivate = meta.isPrivate
     if (meta.top !== undefined)
@@ -202,6 +207,9 @@ function diffMeta(next: ContentMeta, saved: ContentMeta): Partial<ContentMeta> |
       same = (next.category?.id ?? 0) === (saved.category?.id ?? 0)
     else if (key === 'labels')
       same = next.labels.map(l => l.id).join(',') === saved.labels.map(l => l.id).join(',')
+    // 背景是对象，按字段比较，避免重建出的等价对象被当成「有改动」触发多余保存
+    else if (key === 'background')
+      same = EMPTY_BACKGROUND_KEYS.every(field => (next.background?.[field] ?? null) === (saved.background?.[field] ?? null))
     else
       same = a === b
     if (!same)

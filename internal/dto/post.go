@@ -2,21 +2,31 @@ package dto
 
 import "time"
 
+// PostBackgroundDto 文章专属背景：整段留空（image 与 veil_color 都为空）时沿用全站背景。
+// 字段含义与站点配置的 PageBackground 一致，前端可以直接交给背景层使用。
+type PostBackgroundDto struct {
+	Image     string  `json:"image"`      // 背景图地址
+	Blur      float64 `json:"blur"`       // 高斯模糊，0-40 px
+	Opacity   float64 `json:"opacity"`    // 图片不透明度，0-1
+	Veil      float64 `json:"veil"`       // 蒙版不透明度，0-1；无背景图时即纯色背景的不透明度
+	VeilColor string  `json:"veil_color"` // 蒙版颜色，空表示跟随主题
+}
+
 type PostBaseDto struct {
-	Title           string       `json:"title"`
-	Description     string       `json:"description"`
-	Slug            *string      `json:"slug"`
-	Cover           string       `json:"cover"`
-	BackgroundImage string       `json:"background_image"` // 文章专属背景图，空表示沿用全站背景
-	Content         string       `json:"content"`
-	DraftContent    *string      `json:"draft_content"`
-	Type            string       `json:"type"`
-	Category        *CategoryDto `json:"category"`
-	CategoryID      *uint        `json:"category_id"`
-	Labels          []LabelDto   `json:"labels"`
-	LabelIds        []uint       `json:"label_ids"`
-	IsPrivate       bool         `json:"is_private"`
-	Top             uint         `json:"top"` // 置顶级别，0表示不置顶，数值越大优先级越高
+	Title        string            `json:"title"`
+	Description  string            `json:"description"`
+	Slug         *string           `json:"slug"`
+	Cover        string            `json:"cover"`
+	Background   PostBackgroundDto `json:"background"`
+	Content      string            `json:"content"`
+	DraftContent *string           `json:"draft_content"`
+	Type         string            `json:"type"`
+	Category     *CategoryDto      `json:"category"`
+	CategoryID   *uint             `json:"category_id"`
+	Labels       []LabelDto        `json:"labels"`
+	LabelIds     []uint            `json:"label_ids"`
+	IsPrivate    bool              `json:"is_private"`
+	Top          uint              `json:"top"` // 置顶级别，0表示不置顶，数值越大优先级越高
 }
 
 type PostDto struct {
@@ -73,8 +83,8 @@ type CreateOrUpdatePostReq struct {
 	// 摘要、封面传空字符串表示清空，未传则保持原值
 	Description *string `json:"description"`
 	Cover       *string `json:"cover"`
-	// 封面、背景图传空字符串表示清空
-	BackgroundImage *string `json:"background_image"`
+	// 封面传空字符串表示清空；背景整段覆盖，未传（nil）表示不修改
+	Background *PostBackgroundDto `json:"background"`
 	// 编辑会话ID，保存正文时校验，见 EditSessionService
 	EditSessionID string `header:"X-Edit-Session" json:"-"`
 }

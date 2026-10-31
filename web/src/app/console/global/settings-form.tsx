@@ -3,7 +3,7 @@
 import type { SidebarCardConfig } from '@/components/blog-sidebar/sidebar-cards'
 import type { MusicSourceType, NCMPlaylists, NCMSongLevel } from '@/models/music'
 import type { SiteInfo } from '@/utils/common/siteinfo'
-import { EyeIcon, EyeOffIcon, ImageIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon, XIcon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, ImageIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { parseAsStringEnum, useQueryState } from 'nuqs'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -15,6 +15,7 @@ import { listNCMPlaylists } from '@/api/music'
 import { defaultSidebarCards } from '@/components/blog-sidebar/sidebar-cards'
 import { AssetField } from '@/components/common/asset-picker'
 import { LabelWithInfo } from '@/components/common/info-tooltip'
+import { ColorField } from '@/components/console/common/color-field'
 import { ThemePackPreviewField } from '@/components/console/theme-pack-preview'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -636,57 +637,6 @@ function NumberField({ name, label, description, min, max, step = 1 }: FieldProp
           </FormControl>
         </FormItem>
       )}
-    />
-  )
-}
-
-/** 颜色输入：原生取色器（只认 #rrggbb）+ 自由文本（可写 oklch() 等），留空表示跟随主题 */
-function ColorField({ name, label, description, wide }: FieldProps) {
-  const { control } = useFormContext<SettingsValues>()
-  const t = useTranslations('Console.global')
-  return (
-    <FormField
-      control={control}
-      name={name}
-      render={({ field }) => {
-        const value = (field.value as string) ?? ''
-        return (
-          <FormItem className={wide ? 'md:col-span-2' : undefined}>
-            <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
-            <div className="flex gap-3">
-              <Input
-                type="color"
-                aria-label={t('pick_color')}
-                className="w-12 shrink-0 cursor-pointer p-1"
-                value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#ffffff'}
-                onChange={e => field.onChange(e.target.value)}
-              />
-              <FormControl>
-                <Input
-                  {...field}
-                  value={value}
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder={t('color_placeholder')}
-                  className="font-mono"
-                />
-              </FormControl>
-              {value && (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  aria-label={t('clear_color')}
-                  title={t('clear_color')}
-                  onClick={() => field.onChange('')}
-                >
-                  <XIcon className="size-4" />
-                </Button>
-              )}
-            </div>
-          </FormItem>
-        )
-      }}
     />
   )
 }

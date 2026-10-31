@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -39,20 +40,25 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	if svcerr != nil {
 		return 0, svcerr
 	}
+	background := normalizePostBackground(utils.Deref(req.Background))
 	post := &model.Post{
 		UserID: currentUser.ID,
 		PostBase: model.PostBase{
-			CategoryID:      categoryID,
-			Cover:           utils.Deref(req.Cover),
-			BackgroundImage: utils.Deref(req.BackgroundImage),
-			Content:         req.Content,
-			Description:     utils.Deref(req.Description),
-			IsPrivate:       utils.Deref(req.IsPrivate),
-			Labels:          labels,
-			Slug:            slug,
-			Title:           req.Title,
-			Top:             utils.Deref(req.Top),
-			Type:            req.Type,
+			CategoryID:          categoryID,
+			Cover:               utils.Deref(req.Cover),
+			BackgroundImage:     background.Image,
+			BackgroundBlur:      background.Blur,
+			BackgroundOpacity:   background.Opacity,
+			BackgroundVeil:      background.Veil,
+			BackgroundVeilColor: background.VeilColor,
+			Content:             req.Content,
+			Description:         utils.Deref(req.Description),
+			IsPrivate:           utils.Deref(req.IsPrivate),
+			Labels:              labels,
+			Slug:                slug,
+			Title:               req.Title,
+			Top:                 utils.Deref(req.Top),
+			Type:                req.Type,
 		},
 	}
 	if err := repo.Post.CreatePost(post); err != nil {
@@ -74,6 +80,18 @@ func normalizeSlug(slug string) (string, *errs.ServiceError) {
 }
 
 // normalizePostSlug 文章 slug 可选，空字符串存为 NULL，避免多篇无 slug 的文章触发唯一约束
+// normalizePostBackground 把文章背景收敛到「前端背景层能直接吃」的范围：
+// 模糊 0-40px、透明度 0-1，颜色与地址去空白，避免一条脏数据把文章糊成一片。
+func normalizePostBackground(background dto.PostBackgroundDto) dto.PostBackgroundDto {
+	return dto.PostBackgroundDto{
+		Image:     strings.TrimSpace(background.Image),
+		Blur:      math.Min(40, math.Max(0, background.Blur)),
+		Opacity:   math.Min(1, math.Max(0, background.Opacity)),
+		Veil:      math.Min(1, math.Max(0, background.Veil)),
+		VeilColor: strings.TrimSpace(background.VeilColor),
+	}
+}
+
 func normalizePostSlug(slug *string) (*string, *errs.ServiceError) {
 	if slug == nil {
 		return nil, nil
@@ -172,8 +190,14 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	if req.Cover != nil {
 		post.Cover = *req.Cover
 	}
-	if req.BackgroundImage != nil {
-		post.BackgroundImage = *req.BackgroundImage
+	// 背景整段覆盖：传了就按传入值重写（空对象即清空，回到全站背景）
+	if req.Background != nil {
+		background := normalizePostBackground(*req.Background)
+		post.BackgroundImage = background.Image
+		post.BackgroundBlur = background.Blur
+		post.BackgroundOpacity = background.Opacity
+		post.BackgroundVeil = background.Veil
+		post.BackgroundVeilColor = background.VeilColor
 	}
 	if req.Description != nil {
 		post.Description = *req.Description
