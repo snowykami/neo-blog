@@ -1592,7 +1592,7 @@
     "login_success": "登入成功",
     "login_failed": "登入失敗",
     "welcome": "歡迎回來",
-    "with_oidc": "使用第三方登入",
+    "with_oidc": "使用第三方帳號（自動註冊）",
     "or_continue_with_local_account": "或使用本地帳號",
     "email_or_username": "電子郵件或使用者名稱",
     "password": "密碼",

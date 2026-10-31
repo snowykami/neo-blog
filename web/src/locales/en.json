@@ -1592,7 +1592,7 @@
     "login_success": "Login successful",
     "login_failed": "Login failed",
     "welcome": "Welcome back",
-    "with_oidc": "Use third-party account",
+    "with_oidc": "Use third-party account (auto sign-up)",
     "or_continue_with_local_account": "Or use local account",
     "email_or_username": "Email or username",
     "password": "Password",

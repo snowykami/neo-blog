@@ -1592,7 +1592,7 @@
     "login_success": "로그인 성공",
     "login_failed": "로그인 실패",
     "welcome": "환영합니다",
-    "with_oidc": "타사 계정 사용",
+    "with_oidc": "타사 계정 사용(자동 가입)",
     "or_continue_with_local_account": "또는 로컬 계정 사용",
     "email_or_username": "이메일 또는 사용자 이름",
     "password": "비밀번호",

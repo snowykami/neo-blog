@@ -1592,7 +1592,7 @@
     "login_success": "ログイン成功",
     "login_failed": "ログインに失敗しました",
     "welcome": "おかえりなさい",
-    "with_oidc": "サードパーティで続行",
+    "with_oidc": "サードパーティで続行（自動登録）",
     "or_continue_with_local_account": "またはローカルアカウントで続行",
     "email_or_username": "メールまたはユーザー名",
     "password": "パスワード",
