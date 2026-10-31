@@ -21,8 +21,10 @@ export interface ResolvedPageBackground {
     position: string
     size: string
   }
-  /** 遮罩强度 0-1：图片越花，这里越高 */
+  /** 蒙版不透明度 0-1：图片越花，这里越高；没有图片时就是纯色背景的不透明度 */
   veil: number
+  /** 蒙版颜色；未设置时由 CSS 回退到 var(--background)，从而跟随明暗与节日主题 */
+  veilColor?: string
   /** 是否渲染节日装饰（两侧留白轨道） */
   decorations: boolean
 }
@@ -46,6 +48,7 @@ export function resolvePageBackground(input?: PageBackground | null): ResolvedPa
   const raw = input ?? fallbackSiteInfo.pageBackground ?? {}
   const decorations = raw.decorations !== false
   const src = raw.image?.trim() ?? ''
+  const veilColor = raw.veilColor?.trim()
   return {
     enabled: raw.enabled !== false,
     image: src
@@ -58,6 +61,7 @@ export function resolvePageBackground(input?: PageBackground | null): ResolvedPa
         }
       : undefined,
     veil: clamp(raw.veil, 0, 1, IMAGE_DEFAULTS.veil),
+    veilColor: veilColor || undefined,
     decorations,
   }
 }

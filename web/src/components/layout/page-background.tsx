@@ -62,8 +62,10 @@ export function PageBackground() {
   // enabled 只管「自定义底色 / 背景图」；节日装饰有自己的 decorations 开关，两者互不牵连
   const hasImage = background.enabled && Boolean(background.image)
   const hasColor = background.enabled && Boolean(background.color)
+  // 蒙版颜色单独也能顶一个纯色背景，所以它自己也算「有内容」
+  const hasVeilColor = background.enabled && Boolean(background.veilColor)
 
-  if (!hasImage && !hasColor && !showDecor && !hasSlots)
+  if (!hasImage && !hasColor && !hasVeilColor && !showDecor && !hasSlots)
     return null
 
   return (
@@ -89,8 +91,19 @@ export function PageBackground() {
         />
       )}
 
-      {/* 遮罩：保证正文对比度不被背景图吃掉 */}
-      {hasImage && <div className="pb-veil" style={{ opacity: background.veil }} />}
+      {/*
+        * 蒙版：有背景图时压住图片保证正文对比度；没有背景图时它就是纯色背景
+        * （颜色 × 不透明度 直接铺在底色上）。颜色留空则由 CSS 回退到 var(--background)。
+        */}
+      {(hasImage || hasVeilColor) && (
+        <div
+          className="pb-veil"
+          style={{
+            opacity: background.veil,
+            ...(background.veilColor ? { '--pb-veil-color': background.veilColor } : {}),
+          } as React.CSSProperties}
+        />
+      )}
 
       {/* 任意内容：背景图与遮罩之上的整屏覆盖层（噪点、暗角…） */}
       {slots.overlay && <div className="pb-slot-overlay">{slots.overlay}</div>}

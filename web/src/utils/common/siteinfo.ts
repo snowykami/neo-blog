@@ -14,8 +14,10 @@ export interface PageBackground {
   blur?: number
   /** 图片不透明度，0-1 */
   opacity?: number
-  /** 图片上方的遮罩强度，0-1，越高正文越清晰 */
+  /** 蒙版（遮罩）不透明度，0-1：有背景图时越高正文越清晰；没有背景图时就是纯色背景的不透明度 */
   veil?: number
+  /** 蒙版颜色，任意 CSS 颜色；留空则跟随主题底色。没有背景图时这个颜色本身就是纯色背景 */
+  veilColor?: string
   /** 是否显示节日装饰（正文两侧留白处的插画） */
   decorations?: boolean
 }

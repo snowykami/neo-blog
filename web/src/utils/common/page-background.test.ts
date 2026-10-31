@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { mergePageBackground, resolvePageBackground } from './page-background'
 
 describe('resolvePageBackground', () => {
+  it('蒙版颜色可单独使用：没有背景图时它就是纯色背景', () => {
+    const resolved = resolvePageBackground({ veilColor: '  #101018  ', veil: 1 })
+    expect(resolved.image).toBeUndefined()
+    expect(resolved.veilColor).toBe('#101018')
+    expect(resolved.veil).toBe(1)
+  })
+
+  it('蒙版颜色留空时返回 undefined，交给 CSS 回退到主题底色', () => {
+    expect(resolvePageBackground({ veilColor: '   ' }).veilColor).toBeUndefined()
+    expect(resolvePageBackground().veilColor).toBeUndefined()
+  })
+
   it('缺省没有背景图，但默认显示节日装饰', () => {
     const resolved = resolvePageBackground()
     // 后台只暴露「背景图」一个字段：有图就生效，没图这一层只负责节日装饰

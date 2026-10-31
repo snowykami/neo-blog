@@ -3,7 +3,7 @@
 import type { SidebarCardConfig } from '@/components/blog-sidebar/sidebar-cards'
 import type { MusicSourceType, NCMPlaylists, NCMSongLevel } from '@/models/music'
 import type { SiteInfo } from '@/utils/common/siteinfo'
-import { EyeIcon, EyeOffIcon, ImageIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, ImageIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { parseAsStringEnum, useQueryState } from 'nuqs'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -59,6 +59,7 @@ interface SettingsValues {
   pageBackgroundBlur: number
   pageBackgroundOpacity: number
   pageBackgroundVeil: number
+  pageBackgroundVeilColor: string
   pageBackgroundDecorations: boolean
   postsPerPage: number
   commentsPerPage: number
@@ -189,6 +190,7 @@ function toValues(info: SiteInfo, kv: Record<string, unknown>): SettingsValues {
     pageBackgroundBlur: info.pageBackground?.blur ?? 0,
     pageBackgroundOpacity: info.pageBackground?.opacity ?? 1,
     pageBackgroundVeil: info.pageBackground?.veil ?? 0.72,
+    pageBackgroundVeilColor: info.pageBackground?.veilColor ?? '',
     pageBackgroundDecorations: info.pageBackground?.decorations ?? true,
     postsPerPage: info.postsPerPage,
     commentsPerPage: info.commentsPerPage,
@@ -260,6 +262,7 @@ function toSiteInfo(base: SiteInfo, values: SettingsValues): SiteInfo {
       blur: Number(values.pageBackgroundBlur) || 0,
       opacity: Number.isNaN(Number(values.pageBackgroundOpacity)) ? 1 : Number(values.pageBackgroundOpacity),
       veil: Number.isNaN(Number(values.pageBackgroundVeil)) ? 0.72 : Number(values.pageBackgroundVeil),
+      veilColor: (values.pageBackgroundVeilColor ?? '').trim(),
       decorations: values.pageBackgroundDecorations,
     },
     postsPerPage: Number(values.postsPerPage),
@@ -284,7 +287,7 @@ type GlobalTab = typeof GLOBAL_TABS[number]
 
 const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
   site: ['siteName', 'baseUrl', 'siteDescription', 'siteIcon', 'keywords', 'defaultCovers', 'ownerName', 'ownerMotto', 'ownerDescription', 'ownerAvatar', 'ownerGravatarEmail'],
-  content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'pageBackgroundImage', 'pageBackgroundBlur', 'pageBackgroundOpacity', 'pageBackgroundVeil', 'pageBackgroundDecorations', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'revisionMaxKeep', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
+  content: ['colorSchemes', 'defaultColorScheme', 'animationDurationSecond', 'pageBackgroundImage', 'pageBackgroundBlur', 'pageBackgroundOpacity', 'pageBackgroundVeil', 'pageBackgroundVeilColor', 'pageBackgroundDecorations', 'postsPerPage', 'commentsPerPage', 'maxReplyDepth', 'revisionMaxKeep', 'copyright', 'copyrightLink', 'footerText', 'footerLinks'],
   frontend: ['aboutBackground', 'sidebarCards', 'enableThirdPartyScript', 'musicSource', 'musicPlaylistUrl', 'ncmApiBaseUrl', 'ncmCookie', 'ncmPlaylistId', 'ncmSongLevel', 'musicTtmlUrlTemplate', 'qweatherApiHost', 'qweatherApiKey'],
   account: ['enableRegister', 'enableRegisterFromOidc', 'verifyCodeCoolDown', 'visitLogRetentionDays'],
   ai: ['aiApiBaseUrl', 'aiApiKey', 'aiModel', 'aiSummaryConcurrency', 'aiWritingStyle', 'lyricAnnotationTtlDays'],
@@ -416,6 +419,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
               <NumberField name="pageBackgroundBlur" label={t('page_background_blur')} description={t('page_background_blur_desc')} min={0} max={40} />
               <NumberField name="pageBackgroundOpacity" label={t('page_background_opacity')} description={t('page_background_opacity_desc')} min={0} max={1} step={0.05} />
               <NumberField name="pageBackgroundVeil" label={t('page_background_veil')} description={t('page_background_veil_desc')} min={0} max={1} step={0.05} />
+              <ColorField name="pageBackgroundVeilColor" label={t('page_background_veil_color')} description={t('page_background_veil_color_desc')} />
             </Section>
 
             <Section title={t('section_content')}>
@@ -632,6 +636,57 @@ function NumberField({ name, label, description, min, max, step = 1 }: FieldProp
           </FormControl>
         </FormItem>
       )}
+    />
+  )
+}
+
+/** 颜色输入：原生取色器（只认 #rrggbb）+ 自由文本（可写 oklch() 等），留空表示跟随主题 */
+function ColorField({ name, label, description, wide }: FieldProps) {
+  const { control } = useFormContext<SettingsValues>()
+  const t = useTranslations('Console.global')
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => {
+        const value = (field.value as string) ?? ''
+        return (
+          <FormItem className={wide ? 'md:col-span-2' : undefined}>
+            <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
+            <div className="flex gap-3">
+              <Input
+                type="color"
+                aria-label={t('pick_color')}
+                className="w-12 shrink-0 cursor-pointer p-1"
+                value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#ffffff'}
+                onChange={e => field.onChange(e.target.value)}
+              />
+              <FormControl>
+                <Input
+                  {...field}
+                  value={value}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={t('color_placeholder')}
+                  className="font-mono"
+                />
+              </FormControl>
+              {value && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  aria-label={t('clear_color')}
+                  title={t('clear_color')}
+                  onClick={() => field.onChange('')}
+                >
+                  <XIcon className="size-4" />
+                </Button>
+              )}
+            </div>
+          </FormItem>
+        )
+      }}
     />
   )
 }

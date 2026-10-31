@@ -32,11 +32,14 @@
   will-change: filter, transform;
 }
 
-/* 遮罩：用主题底色叠加，明暗与节日配色变化时自动跟随 */
+/*
+ * 蒙版：颜色由 --pb-veil-color 提供，未设置时回退到主题底色（因此明暗与节日配色会自动跟随）。
+ * 有背景图时它是「压住图片的遮罩」，没有背景图时它就是纯色背景。
+ */
 .pb-veil {
   position: absolute;
   inset: 0;
-  background-color: var(--background);
+  background-color: var(--pb-veil-color, var(--background));
 }
 
 .pb-slot-base,
