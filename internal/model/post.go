@@ -12,18 +12,20 @@ import (
 
 // TIPS: 每次增加新的可变字段请在更新逻辑中添加对应的空值检验
 type PostBase struct {
-	Category     *Category `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
-	CategoryID   *uint     `gorm:"index"`
-	Cover        string    `gorm:"type:text"`
-	Content      string    `gorm:"type:text"`
-	Description  string    `gorm:"type:text"`
-	DraftContent *string   `gorm:"type:text"` // 草稿内容
-	IsPrivate    bool      `gorm:"default:false"`
-	Labels       []Label   `gorm:"many2many:post_labels;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
-	Slug         *string   `gorm:"type:text;index;uniqueIndex"` // 友好链接
-	Title        string    `gorm:"type:text;not null"`
-	Type         string    `gorm:"type:varchar(20);default:'html'"` // 文章类型，默认为 'markdown'，可为html或其他
-	Top          uint      `gorm:"default:0;index"`                 // 置顶级别，0表示不置顶，数值越大优先级越高
+	Category   *Category `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	CategoryID *uint     `gorm:"index"`
+	Cover      string    `gorm:"type:text"`
+	// BackgroundImage 文章专属的整页背景图；为空时沿用全站背景
+	BackgroundImage string  `gorm:"type:text"`
+	Content         string  `gorm:"type:text"`
+	Description     string  `gorm:"type:text"`
+	DraftContent    *string `gorm:"type:text"` // 草稿内容
+	IsPrivate       bool    `gorm:"default:false"`
+	Labels          []Label `gorm:"many2many:post_labels;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	Slug            *string `gorm:"type:text;index;uniqueIndex"` // 友好链接
+	Title           string  `gorm:"type:text;not null"`
+	Type            string  `gorm:"type:varchar(20);default:'html'"` // 文章类型，默认为 'markdown'，可为html或其他
+	Top             uint    `gorm:"default:0;index"`                 // 置顶级别，0表示不置顶，数值越大优先级越高
 }
 type Post struct {
 	gorm.Model
@@ -72,11 +74,12 @@ func (p *Post) ToDto() *dto.PostDto {
 			return collaboratorDtos
 		}(),
 		PostBaseDto: dto.PostBaseDto{
-			Title:   p.Title,
-			Type:    p.Type,
-			Slug:    utils.Ternary(p.Slug != nil, p.Slug, nil),
-			Content: p.Content,
-			Cover:   p.Cover,
+			Title:           p.Title,
+			Type:            p.Type,
+			Slug:            utils.Ternary(p.Slug != nil, p.Slug, nil),
+			Content:         p.Content,
+			Cover:           p.Cover,
+			BackgroundImage: p.BackgroundImage,
 			Category: func() *dto.CategoryDto {
 				if p.Category != nil {
 					return p.Category.ToDto()

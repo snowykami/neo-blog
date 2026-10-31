@@ -80,7 +80,8 @@ func (s *RevisionService) snapshot(targetType string, targetID uint) (*revisionS
 			content: currentDraft(post.DraftContent, post.Content),
 			meta: dto.RevisionMeta{
 				Title: post.Title, Description: post.Description, Cover: post.Cover, Slug: slug, IsPrivate: post.IsPrivate,
-				CategoryID: post.CategoryID, LabelIds: labelIDs, Top: post.Top,
+				BackgroundImage: post.BackgroundImage,
+				CategoryID:      post.CategoryID, LabelIds: labelIDs, Top: post.Top,
 			},
 		}, nil
 	case constant.TargetTypePage:
@@ -389,7 +390,8 @@ func (s *RevisionService) Restore(ctx context.Context, targetType string, target
 				Title: meta.Title, Slug: &slug, DraftContent: &content, CategoryID: &categoryID, LabelIds: labelIDs,
 			},
 			IsPrivate: &meta.IsPrivate, Top: &meta.Top, Description: &meta.Description, Cover: &meta.Cover,
-			EditSessionID: sessionID,
+			BackgroundImage: &meta.BackgroundImage,
+			EditSessionID:   sessionID,
 		})
 	case constant.TargetTypePage:
 		slug := ""

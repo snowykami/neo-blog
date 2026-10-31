@@ -747,6 +747,8 @@
       "post_category": "Category",
       "post_category_desc": "Choose a category for the post",
       "post_cover": "Cover",
+      "post_background_image": "배경 이미지",
+      "post_background_image_hint": "콘텐츠 뒤쪽 배경을 채웁니다. 눈에 띄지 않는 큰 이미지를 권장합니다. 비우면 사이트 배경을 사용합니다",
       "post_description": "Description",
       "post_labels": "Tags",
       "post_meta": "Meta",

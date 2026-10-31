@@ -747,6 +747,8 @@
       "post_category": "分類",
       "post_category_desc": "為文章選擇一個分類",
       "post_cover": "封面",
+      "post_background_image": "背景圖",
+      "post_background_image_hint": "鋪滿部落格的非內容區作為背景，建議用不搶眼的大圖；留空則沿用全站背景",
       "post_description": "描述",
       "post_labels": "標籤",
       "post_meta": "文章資訊",

@@ -4,11 +4,13 @@ import "time"
 
 // RevisionMeta 版本快照中的元信息；文章与页面共用，各自只使用相关字段
 type RevisionMeta struct {
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	Cover       string  `json:"cover"`
-	Slug        *string `json:"slug,omitempty"`
-	IsPrivate   bool    `json:"is_private"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Cover       string `json:"cover"`
+	// 文章专属背景图（版本快照里也保存，恢复时一并还原）
+	BackgroundImage string  `json:"background_image,omitempty"`
+	Slug            *string `json:"slug,omitempty"`
+	IsPrivate       bool    `json:"is_private"`
 	// 文章
 	CategoryID *uint  `json:"category_id,omitempty"`
 	LabelIds   []uint `json:"label_ids,omitempty"`

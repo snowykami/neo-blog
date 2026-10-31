@@ -747,6 +747,8 @@
       "post_category": "カテゴリ",
       "post_category_desc": "記事のカテゴリを選択してください",
       "post_cover": "カバー画像",
+      "post_background_image": "背景画像",
+      "post_background_image_hint": "コンテンツの背後を覆う背景です。主張しすぎない大きな画像がおすすめです。空にするとサイト全体の背景を使います",
       "post_description": "説明",
       "post_labels": "タグ",
       "post_meta": "メタ情報",

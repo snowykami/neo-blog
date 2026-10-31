@@ -747,6 +747,8 @@
       "post_category": "Category",
       "post_category_desc": "Choose a category for the post",
       "post_cover": "Cover",
+      "post_background_image": "Background image",
+      "post_background_image_hint": "Fills the page background behind the content; a calm, large image works best. Leave empty to use the site background",
       "post_description": "Description",
       "post_labels": "Tags",
       "post_meta": "Meta",

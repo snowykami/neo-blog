@@ -3,19 +3,20 @@ package dto
 import "time"
 
 type PostBaseDto struct {
-	Title        string       `json:"title"`
-	Description  string       `json:"description"`
-	Slug         *string      `json:"slug"`
-	Cover        string       `json:"cover"`
-	Content      string       `json:"content"`
-	DraftContent *string      `json:"draft_content"`
-	Type         string       `json:"type"`
-	Category     *CategoryDto `json:"category"`
-	CategoryID   *uint        `json:"category_id"`
-	Labels       []LabelDto   `json:"labels"`
-	LabelIds     []uint       `json:"label_ids"`
-	IsPrivate    bool         `json:"is_private"`
-	Top          uint         `json:"top"` // 置顶级别，0表示不置顶，数值越大优先级越高
+	Title           string       `json:"title"`
+	Description     string       `json:"description"`
+	Slug            *string      `json:"slug"`
+	Cover           string       `json:"cover"`
+	BackgroundImage string       `json:"background_image"` // 文章专属背景图，空表示沿用全站背景
+	Content         string       `json:"content"`
+	DraftContent    *string      `json:"draft_content"`
+	Type            string       `json:"type"`
+	Category        *CategoryDto `json:"category"`
+	CategoryID      *uint        `json:"category_id"`
+	Labels          []LabelDto   `json:"labels"`
+	LabelIds        []uint       `json:"label_ids"`
+	IsPrivate       bool         `json:"is_private"`
+	Top             uint         `json:"top"` // 置顶级别，0表示不置顶，数值越大优先级越高
 }
 
 type PostDto struct {
@@ -72,6 +73,8 @@ type CreateOrUpdatePostReq struct {
 	// 摘要、封面传空字符串表示清空，未传则保持原值
 	Description *string `json:"description"`
 	Cover       *string `json:"cover"`
+	// 封面、背景图传空字符串表示清空
+	BackgroundImage *string `json:"background_image"`
 	// 编辑会话ID，保存正文时校验，见 EditSessionService
 	EditSessionID string `header:"X-Edit-Session" json:"-"`
 }

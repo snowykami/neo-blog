@@ -101,7 +101,7 @@ export function useSyncSettingsForm<T extends FieldValues>(
 }
 
 /** 封面：预览 + 地址输入 + 从资产库选择 / 本地上传 / 移除 */
-export function CoverField<T extends FieldValues>({ form, name, label }: { form: UseFormReturn<T>, name: Path<T>, label: string }) {
+export function CoverField<T extends FieldValues>({ form, name, label, hint }: { form: UseFormReturn<T>, name: Path<T>, label: string, hint?: string }) {
   const t = useTranslations('Console.editor')
   return (
     <FormField
@@ -109,7 +109,7 @@ export function CoverField<T extends FieldValues>({ form, name, label }: { form:
       name={name}
       render={({ field }) => (
         <FormItem>
-          <LabelWithInfo info={t('cover_hint')}><FormLabel>{label}</FormLabel></LabelWithInfo>
+          <LabelWithInfo info={hint ?? t('cover_hint')}><FormLabel>{label}</FormLabel></LabelWithInfo>
           <FormControl>
             <AssetField
               {...field}

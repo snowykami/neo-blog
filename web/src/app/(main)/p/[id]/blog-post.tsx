@@ -10,6 +10,7 @@ import { BlogShare } from '@/components/blog-post/blog-share.client'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
+import { PostBackground } from '@/components/blog-post/post-background.client'
 import { PostEditButton } from '@/components/blog-post/post-edit-button.client'
 import { PostMeta, PostStats } from '@/components/blog-post/post-meta'
 import { PostToc } from '@/components/blog-post/post-toc.client'
@@ -152,31 +153,35 @@ function CommentsSkeleton() {
 export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?: boolean }) {
   const { html, headings } = renderContentHtml((isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>')
   return (
-    <SiteShell
-      stickySidebar={false}
-      sidebar={(
+    <>
+      {/* 文章配了背景图就铺满非内容区，没配则沿用全站背景 */}
+      <PostBackground image={post.backgroundImage} />
+      <SiteShell
+        stickySidebar={false}
+        sidebar={(
         // 侧栏与正文等高，只让目录吸顶
-        <div className="flex h-full flex-col gap-4">
-          <BlogSidebarAbout />
-          <PostToc
-            headings={headings}
-            className="hidden lg:sticky lg:top-[calc(var(--nav-h)+1rem)] lg:block"
-          />
+          <div className="flex h-full flex-col gap-4">
+            <BlogSidebarAbout />
+            <PostToc
+              headings={headings}
+              className="hidden lg:sticky lg:top-[calc(var(--nav-h)+1rem)] lg:block"
+            />
+          </div>
+        )}
+      >
+        <PostArticle post={post} html={html} isDraft={isDraft} />
+        {/* Comments section wrapped in Suspense for better performance */}
+        <div className="rounded-2xl bg-card px-6 py-6 md:px-9 md:py-8">
+          <Suspense fallback={<CommentsSkeleton />}>
+            <CommentSection
+              targetType={TargetType.Post}
+              ownerId={post.user.id}
+              targetId={post.id}
+              totalCount={post.commentCount}
+            />
+          </Suspense>
         </div>
-      )}
-    >
-      <PostArticle post={post} html={html} isDraft={isDraft} />
-      {/* Comments section wrapped in Suspense for better performance */}
-      <div className="rounded-2xl bg-card px-6 py-6 md:px-9 md:py-8">
-        <Suspense fallback={<CommentsSkeleton />}>
-          <CommentSection
-            targetType={TargetType.Post}
-            ownerId={post.user.id}
-            targetId={post.id}
-            totalCount={post.commentCount}
-          />
-        </Suspense>
-      </div>
-    </SiteShell>
+      </SiteShell>
+    </>
   )
 }

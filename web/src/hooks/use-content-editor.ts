@@ -33,6 +33,8 @@ export interface ContentMeta {
   description: string
   slug: string
   cover: string
+  /** 文章专属背景图（页面没有这个概念，仅文章设置里出现） */
+  backgroundImage: string
   isPrivate: boolean
   // 仅文章
   category: Category | null
@@ -72,6 +74,7 @@ const EMPTY_META: ContentMeta = {
   description: '',
   slug: '',
   cover: '',
+  backgroundImage: '',
   isPrivate: false,
   category: null,
   labels: [],
@@ -92,6 +95,7 @@ const postAdapter: ContentAdapter = {
       description: post.description || '',
       slug: post.slug || '',
       cover: post.cover || '',
+      backgroundImage: post.backgroundImage || '',
       isPrivate: !!post.isPrivate,
       category: post.category ?? null,
       labels: post.labels ?? [],
@@ -115,6 +119,8 @@ const postAdapter: ContentAdapter = {
       patch.slug = meta.slug.trim()
     if (meta.cover !== undefined)
       patch.cover = meta.cover
+    if (meta.backgroundImage !== undefined)
+      patch.backgroundImage = meta.backgroundImage
     if (meta.isPrivate !== undefined)
       patch.isPrivate = meta.isPrivate
     if (meta.top !== undefined)

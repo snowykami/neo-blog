@@ -25,6 +25,7 @@ interface PostSettingsValues {
   slug: string
   description: string
   cover: string
+  backgroundImage: string
   category: Category | null
   labels: Label[]
   isPrivate: boolean
@@ -36,6 +37,7 @@ function toValues(meta: ContentMeta): PostSettingsValues {
     slug: meta.slug,
     description: meta.description,
     cover: meta.cover,
+    backgroundImage: meta.backgroundImage,
     category: meta.category,
     labels: meta.labels,
     isPrivate: meta.isPrivate,
@@ -105,6 +107,12 @@ export function PostSettingsSheet({
               )}
             />
             <CoverField form={form} name="cover" label={postEditT('post_cover')} />
+            <CoverField
+              form={form}
+              name="backgroundImage"
+              label={postEditT('post_background_image')}
+              hint={postEditT('post_background_image_hint')}
+            />
           </SettingsSection>
 
           <SettingsSection icon={FolderIcon} title={t('settings_classify')}>

@@ -42,16 +42,17 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	post := &model.Post{
 		UserID: currentUser.ID,
 		PostBase: model.PostBase{
-			CategoryID:  categoryID,
-			Cover:       utils.Deref(req.Cover),
-			Content:     req.Content,
-			Description: utils.Deref(req.Description),
-			IsPrivate:   utils.Deref(req.IsPrivate),
-			Labels:      labels,
-			Slug:        slug,
-			Title:       req.Title,
-			Top:         utils.Deref(req.Top),
-			Type:        req.Type,
+			CategoryID:      categoryID,
+			Cover:           utils.Deref(req.Cover),
+			BackgroundImage: utils.Deref(req.BackgroundImage),
+			Content:         req.Content,
+			Description:     utils.Deref(req.Description),
+			IsPrivate:       utils.Deref(req.IsPrivate),
+			Labels:          labels,
+			Slug:            slug,
+			Title:           req.Title,
+			Top:             utils.Deref(req.Top),
+			Type:            req.Type,
 		},
 	}
 	if err := repo.Post.CreatePost(post); err != nil {
@@ -170,6 +171,9 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	utils.UpdateNonEmpty(&post.Content, req.Content)
 	if req.Cover != nil {
 		post.Cover = *req.Cover
+	}
+	if req.BackgroundImage != nil {
+		post.BackgroundImage = *req.BackgroundImage
 	}
 	if req.Description != nil {
 		post.Description = *req.Description
