@@ -110,11 +110,19 @@ article.prose blockquote:not([data-component-root] blockquote) {
 article.prose blockquote:not([data-component-root] blockquote)::before {
   content: "";
   position: absolute;
-  inset-block: 0;
+  /* 内缩一点，竖条与首行/末行文字对齐，不再顶满整块 */
+  inset-block: 0.25rem;
   left: 0;
   width: 4px;
   border-radius: 999px;
   background: var(--primary);
+}
+/* 段落自带 1.25em 上下外边距，会让单行引用被撑到 2 倍多高；首尾段落去掉外边距 */
+article.prose blockquote:not([data-component-root] blockquote) > :first-child {
+  margin-top: 0;
+}
+article.prose blockquote:not([data-component-root] blockquote) > :last-child {
+  margin-bottom: 0;
 }
 /* typography 插件默认给引用段落加引号，中文内容里显得多余 */
 article.prose blockquote:not([data-component-root] blockquote) p:first-of-type::before,
