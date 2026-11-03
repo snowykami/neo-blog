@@ -62,8 +62,7 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 	}
 	file, err := c.FormFile("file")
 	if err != nil {
-		logrus.Error("无法读取文件: ", err)
-		resps.BadRequest(c, err.Error())
+		resps.Error(c, errs.NewBadRequest("failed_to_read_file").WithCause(err))
 		return
 	}
 	mimeType := f.getContentType(file.Filename)
@@ -82,8 +81,7 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 	// 打开文件
 	src, err := file.Open()
 	if err != nil {
-		logrus.Error("无法打开文件: ", err)
-		resps.BadRequest(c, err.Error())
+		resps.Error(c, errs.NewBadRequest("failed_to_open_file").WithCause(err))
 		return
 	}
 	defer src.Close()
@@ -168,7 +166,7 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	filePath := filepath.Join(utils.FilePath(fileModel.Hash))
 	readableFile, err := provider.Open(ctx, filePath)
 	if err != nil {
-		resps.Error(c, errs.NewInternalServer("failed_to_open_file"))
+		resps.Error(c, errs.Internal("failed_to_open_file", err))
 		return
 	}
 	size := readableFile.Size()
@@ -184,7 +182,7 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 		}
 		if _, err := readableFile.Seek(start, io.SeekStart); err != nil {
 			readableFile.Close()
-			resps.Error(c, errs.NewInternalServer("failed_to_read_file"))
+			resps.Error(c, errs.Internal("failed_to_read_file", err))
 			return
 		}
 		length := end - start + 1
@@ -208,7 +206,7 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	// 小文件读取到内存，用于缓存
 	fileData, err := io.ReadAll(readableFile)
 	if err != nil {
-		resps.Error(c, errs.NewInternalServer("failed_to_read_file"))
+		resps.Error(c, errs.Internal("failed_to_read_file", err))
 		return
 	}
 
@@ -248,28 +246,25 @@ func (f *FileController) DeleteFile(ctx context.Context, c *app.RequestContext) 
 	fileId := ctxutils.GetIDParam(c).Uint
 	fileModel, err := repo.File.GetByID(fileId)
 	if err != nil {
-		logrus.Error("获取文件信息失败: ", err)
-		resps.InternalServerError(c, "获取文件信息失败")
+		resps.Error(c, errs.FromDB(err, "file", "failed_to_get_target"))
 		return
 	}
 	// 只有文件所有者或管理员可以删除文件
 	if !(ctxutils.IsOwnerOfTarget(ctx, fileModel.UserID) || ctxutils.IsAdmin(ctx)) {
-		resps.Forbidden(c, "没有权限删除该文件")
+		resps.Forbidden(c, resps.ErrForbidden)
 		return
 	}
 	provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
 	if !ok {
-		resps.BadRequest(c, "文件存储提供者不存在")
+		resps.BadRequest(c, "storage_provider_not_found")
 		return
 	}
 	if svcerr := repo.File.DeleteByID(fileId); svcerr != nil {
-		logrus.Error("删除文件记录失败: ", svcerr)
-		resps.InternalServerError(c, "删除文件记录失败")
+		resps.Error(c, errs.Internal("failed_to_delete_target", svcerr).WithResource("file"))
 		return
 	}
 	if err := f.deleteObjectIfUnused(ctx, provider, &fileModel); err != nil {
-		logrus.Error("删除文件失败: ", err)
-		resps.InternalServerError(c, "删除文件失败")
+		resps.Error(c, errs.Internal("failed_to_delete_target", err).WithResource("file"))
 		return
 	}
 	// 从缓存中删除文件
@@ -286,7 +281,7 @@ func (f *FileController) CreateStorageProvider(ctx context.Context, c *app.Reque
 		return
 	}
 	if req.Name == "" || !slices.Contains(storage.SupportedProviderTypes, req.Type) {
-		resps.BadRequest(c, "存储提供者名称不能为空且类型必须受支持")
+		resps.BadRequest(c, "invalid_storage_provider")
 		return
 	}
 	svcerr := repo.File.CreateStorageProvider(&req)
@@ -295,8 +290,7 @@ func (f *FileController) CreateStorageProvider(ctx context.Context, c *app.Reque
 		return
 	}
 	if err := tasks.ReloadStorageProviders(); err != nil {
-		logrus.Error("重载存储提供者失败: ", err)
-		resps.InternalServerError(c, "重载存储提供者失败")
+		resps.Error(c, errs.Internal("failed_to_reload_storage_providers", err))
 		return
 	}
 	resps.Ok(c, "存储提供者创建成功", req)
@@ -310,7 +304,7 @@ func (f *FileController) UpdateStorageProvider(ctx context.Context, c *app.Reque
 		return
 	}
 	if req.Name == "" || !slices.Contains(storage.SupportedProviderTypes, req.Type) {
-		resps.BadRequest(c, "存储提供者名称不能为空且类型必须受支持")
+		resps.BadRequest(c, "invalid_storage_provider")
 		return
 	}
 
@@ -320,8 +314,7 @@ func (f *FileController) UpdateStorageProvider(ctx context.Context, c *app.Reque
 	}
 
 	if err := tasks.ReloadStorageProviders(); err != nil {
-		logrus.Error("重载存储提供者失败: ", err)
-		resps.InternalServerError(c, "重载存储提供者失败")
+		resps.Error(c, errs.Internal("failed_to_reload_storage_providers", err))
 		return
 	}
 	resps.Ok(c, "存储提供者更新成功", req)
@@ -332,12 +325,11 @@ func (f *FileController) DeleteStorageProvider(ctx context.Context, c *app.Reque
 	// 先检查是否有文件在使用该存储提供者
 	count, err := repo.File.CountFilesByProviderID(id)
 	if err != nil {
-		logrus.Error("检查存储提供者使用情况失败: ", err)
-		resps.InternalServerError(c, "检查存储提供者使用情况失败")
+		resps.Error(c, errs.Internal("failed_to_check_target", err).WithResource("storage_provider"))
 		return
 	}
 	if count > 0 {
-		resps.BadRequest(c, "无法删除存储提供者，有文件正在使用该提供者")
+		resps.Error(c, errs.NewConflict("storage_provider_in_use").WithResource("storage_provider"))
 		return
 	}
 
@@ -347,8 +339,7 @@ func (f *FileController) DeleteStorageProvider(ctx context.Context, c *app.Reque
 	}
 
 	if err := tasks.ReloadStorageProviders(); err != nil {
-		logrus.Error("重载存储提供者失败: ", err)
-		resps.InternalServerError(c, "重载存储提供者失败")
+		resps.Error(c, errs.Internal("failed_to_reload_storage_providers", err))
 		return
 	}
 	resps.Ok(c, "存储提供者删除成功", nil)
@@ -365,7 +356,7 @@ func (f *FileController) BatchDeleteFiles(ctx context.Context, c *app.RequestCon
 	for _, idStr := range idStrs {
 		id, err := strconv.ParseUint(idStr, 10, 64)
 		if err != nil {
-			resps.BadRequest(c, "参数ids格式不正确")
+			resps.Error(c, errs.NewBadRequest(resps.ErrParamInvalid).WithField("ids", idStr))
 			return
 		}
 		idUints = append(idUints, uint(id))
@@ -379,7 +370,7 @@ func (f *FileController) BatchDeleteFiles(ctx context.Context, c *app.RequestCon
 			continue
 		}
 		if !(ctxutils.IsOwnerOfTarget(ctx, fileModel.UserID) || ctxutils.IsAdmin(ctx)) {
-			resps.Forbidden(c, fmt.Sprintf("没有权限删除文件ID为%d的文件", id))
+			resps.Forbidden(c, resps.ErrForbidden)
 			return
 		}
 	}
@@ -399,7 +390,7 @@ func (f *FileController) BatchDeleteFiles(ctx context.Context, c *app.RequestCon
 		// 删除实体文件
 		provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
 		if !ok {
-			resps.BadRequest(c, "文件存储提供者不存在")
+			resps.BadRequest(c, "storage_provider_not_found")
 			return
 		}
 		if err := f.deleteObjectIfUnused(ctx, provider, &fileModel); err != nil {
@@ -417,7 +408,7 @@ func (f *FileController) BatchDeleteFiles(ctx context.Context, c *app.RequestCon
 func (f *FileController) ListStorageProviders(ctx context.Context, c *app.RequestContext) {
 	providers, err := repo.File.ListStorageProviders()
 	if err != nil {
-		resps.Error(c, errs.NewInternalServer("failed_to_get_target"))
+		resps.Error(c, errs.Internal("failed_to_get_target", err))
 		return
 	}
 	resps.Ok(c, "存储提供者列表", map[string]any{"providers": providers})

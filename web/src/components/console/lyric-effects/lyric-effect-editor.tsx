@@ -19,8 +19,8 @@ import { Button } from '@/components/ui/button'
 import { Form } from '@/components/ui/form'
 import { Skeleton } from '@/components/ui/skeleton'
 import { reloadAnnotations } from '@/contexts/lyric-annotations'
+import { useErrorMessageT } from '@/hooks/use-translations'
 import { fromAnnotationForm, toAnnotationForm, uniqueLyricLines } from '@/lib/lyrics/annotation-edit'
-import { getErrorMessage } from '@/utils/common/error'
 import { consolePath } from '@/utils/common/route'
 import { LyricCanvas } from './lyric-canvas'
 import { EffectLegendPanel, LineSettingsPanel, SongSettingsPanel } from './lyric-settings-panels'
@@ -38,6 +38,7 @@ const EMPTY_FORM: AnnotationForm = { font: '', pace: 'medium', intro: '', accent
  */
 export function LyricEffectEditor() {
   const t = useTranslations('Console.lyric_effects')
+  const errorMessageT = useErrorMessageT()
   const format = useFormatter()
   const now = useNow({ updateInterval: 60_000 })
   // 刚保存或生成的时间可能晚于每分钟更新一次的 now，按「刚刚」显示
@@ -95,7 +96,7 @@ export function LyricEffectEditor() {
       toast.success(t('saved'))
     }
     catch (error) {
-      toast.error(`${t('save_failed')}: ${getErrorMessage(error as BaseResponseError)}`)
+      toast.error(`${t('save_failed')}: ${errorMessageT(error as BaseResponseError)}`)
     }
   })
 
@@ -116,7 +117,7 @@ export function LyricEffectEditor() {
       }
     }
     catch (error) {
-      toast.error(`${t('regenerate_failed')}: ${getErrorMessage(error as BaseResponseError)}`)
+      toast.error(`${t('regenerate_failed')}: ${errorMessageT(error as BaseResponseError)}`)
     }
     finally {
       setRegenerating(false)

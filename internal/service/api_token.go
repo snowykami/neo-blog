@@ -111,7 +111,7 @@ func (s *APITokenService) Create(ctx context.Context, req *dto.CreateAPITokenReq
 	}
 	count, err := repo.APIToken.CountActiveByUser(currentUser.ID, now)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("api_token")
 	}
 	if count >= apiTokenMaxActive {
 		return nil, errs.NewBadRequest("too_many_api_tokens")
@@ -127,7 +127,7 @@ func (s *APITokenService) Create(ctx context.Context, req *dto.CreateAPITokenReq
 		ExpiresAt: req.ExpiresAt,
 	}
 	if err := repo.APIToken.Create(token); err != nil {
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err).WithResource("api_token")
 	}
 	return &dto.CreateAPITokenResp{APIToken: token.ToDto(), Token: raw}, nil
 }
@@ -140,7 +140,7 @@ func (s *APITokenService) List(ctx context.Context) (*dto.ListAPITokenResp, *err
 	}
 	tokens, err := repo.APIToken.ListByUser(currentUser.ID)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("api_token")
 	}
 	result := &dto.ListAPITokenResp{APITokens: make([]*dto.APITokenDto, 0, len(tokens))}
 	for i := range tokens {
@@ -157,15 +157,15 @@ func (s *APITokenService) Revoke(ctx context.Context, id uint) *errs.ServiceErro
 	token, err := repo.APIToken.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errs.NewNotFound("target_not_found")
+			return errs.NewNotFound("target_not_found").WithResource("api_token")
 		}
-		return errs.NewInternalServer("failed_to_get_target")
+		return errs.Internal("failed_to_get_target", err).WithResource("api_token")
 	}
 	if !(ctxutils.IsOwnerOfTarget(ctx, token.UserID) || ctxutils.IsAdmin(ctx)) {
 		return errs.NewForbidden("permission_denied")
 	}
 	if err := repo.APIToken.Revoke(id, time.Now()); err != nil {
-		return errs.NewInternalServer("failed_to_update_target")
+		return errs.Internal("failed_to_update_target", err).WithResource("api_token")
 	}
 	return nil
 }
@@ -182,7 +182,7 @@ func (s *APITokenService) Authenticate(raw string) (uint, *ctxutils.APITokenInfo
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, nil, invalid
 		}
-		return 0, nil, errs.NewInternalServer("failed_to_get_target")
+		return 0, nil, errs.Internal("failed_to_get_target", err).WithResource("api_token")
 	}
 	now := time.Now()
 	if token.IsRevoked() || token.IsExpired(now) {

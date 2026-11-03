@@ -32,7 +32,7 @@ func (s *MusicService) GetLyricCache(ctx context.Context, id int64) (*dto.MusicL
 		return nil, errs.NewNotFound("lyric_cache_miss")
 	}
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	var snapshot dto.MusicLyricCacheDto
 	if json.Unmarshal([]byte(record.Data), &snapshot) != nil {

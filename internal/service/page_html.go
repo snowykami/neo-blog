@@ -77,7 +77,7 @@ func (s *PageHTMLService) Upload(ctx context.Context, in *PageHTMLUploadInput) (
 	}
 	maxVersion, err := repo.PageHTML.MaxVersion(page.ID)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("page")
 	}
 
 	key := utils.Strings.GenerateRandomStringWithCharset(pageHTMLKeyLength, pageHTMLKeyCharset)
@@ -109,10 +109,10 @@ func (s *PageHTMLService) Upload(ctx context.Context, in *PageHTMLUploadInput) (
 	}
 	if err := repo.PageHTML.Create(version); err != nil {
 		deleteStoredFiles(ctx, provider, written)
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err).WithResource("page")
 	}
 	if err := repo.Page.SetHTMLVersion(page.ID, version.ID); err != nil {
-		return nil, errs.NewInternalServer("failed_to_update_target")
+		return nil, errs.Internal("failed_to_update_target", err).WithResource("page")
 	}
 	page.HTMLVersionID = version.ID
 	s.pruneVersions(ctx, page)
@@ -127,7 +127,7 @@ func (s *PageHTMLService) ListVersions(ctx context.Context, pageID uint) ([]*dto
 	}
 	versions, err := repo.PageHTML.ListByPage(page.ID)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("page")
 	}
 	result := make([]*dto.PageHTMLVersionDto, 0, len(versions))
 	for i := range versions {
@@ -144,7 +144,7 @@ func (s *PageHTMLService) UpdateVersion(ctx context.Context, req *dto.UpdatePage
 	}
 	version, err := repo.PageHTML.GetByID(req.VersionID)
 	if err != nil || version.PageID != page.ID {
-		return nil, errs.NewNotFound("target_not_found")
+		return nil, errs.NewNotFound("target_not_found").WithResource("page")
 	}
 	if req.Entry != nil {
 		entry := *req.Entry
@@ -152,13 +152,13 @@ func (s *PageHTMLService) UpdateVersion(ctx context.Context, req *dto.UpdatePage
 			return nil, errs.NewBadRequest("invalid_page_html_entry")
 		}
 		if err := repo.PageHTML.UpdateEntry(version.ID, entry); err != nil {
-			return nil, errs.NewInternalServer("failed_to_update_target")
+			return nil, errs.Internal("failed_to_update_target", err).WithResource("page")
 		}
 		version.Entry = entry
 	}
 	if req.Active != nil && *req.Active {
 		if err := repo.Page.SetHTMLVersion(page.ID, version.ID); err != nil {
-			return nil, errs.NewInternalServer("failed_to_update_target")
+			return nil, errs.Internal("failed_to_update_target", err).WithResource("page")
 		}
 		page.HTMLVersionID = version.ID
 	}
@@ -204,22 +204,22 @@ type PageHTMLServeFile struct {
 // OpenFile 按访问路径打开版本内的文件：只允许访问文件清单内的路径，目录路径指向其下的 index.html
 func (s *PageHTMLService) OpenFile(ctx context.Context, pageID uint, key, filePath string) (*PageHTMLServeFile, *errs.ServiceError) {
 	if !isPageHTMLKey(key) {
-		return nil, errs.NewNotFound("target_not_found")
+		return nil, errs.NewNotFound("target_not_found").WithResource("page")
 	}
 	version, err := repo.PageHTML.GetByKey(key)
 	if err != nil || version.PageID != pageID {
-		return nil, errs.NewNotFound("target_not_found")
+		return nil, errs.NewNotFound("target_not_found").WithResource("page")
 	}
 	// 页面删除后立即停止访问，即使清理存储失败
 	if _, err := repo.Page.GetPageMeta(pageID); err != nil {
-		return nil, errs.NewNotFound("target_not_found")
+		return nil, errs.NewNotFound("target_not_found").WithResource("page")
 	}
 	filePath = strings.TrimPrefix(filePath, "/")
 	if filePath == "" || strings.HasSuffix(filePath, "/") {
 		filePath += "index.html"
 	}
 	if _, ok := version.HasFile(filePath); !ok {
-		return nil, errs.NewNotFound("target_not_found")
+		return nil, errs.NewNotFound("target_not_found").WithResource("page")
 	}
 	provider, ok := storage.GetStorageProvider(version.ProviderID)
 	if !ok {
@@ -228,7 +228,7 @@ func (s *PageHTMLService) OpenFile(ctx context.Context, pageID uint, key, filePa
 	file, err := provider.Open(ctx, pageHTMLStoragePath(pageID, key, filePath))
 	if err != nil {
 		logrus.Errorf("open html file %s of page %d failed: %v", filePath, pageID, err)
-		return nil, errs.NewInternalServer("failed_to_open_file")
+		return nil, errs.Internal("failed_to_open_file", err)
 	}
 	return &PageHTMLServeFile{File: file, ContentType: PageHTMLContentType(filePath)}, nil
 }
@@ -284,7 +284,7 @@ func (s *PageHTMLService) getPage(ctx context.Context, pageID uint) (*model.Page
 	}
 	page, err := repo.Page.GetPageByID(pageID)
 	if err != nil {
-		return nil, errs.NewNotFound("target_not_found")
+		return nil, errs.NewNotFound("target_not_found").WithResource("page")
 	}
 	return page, nil
 }

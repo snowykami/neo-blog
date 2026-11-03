@@ -353,7 +353,7 @@ func withLyricVersionWait(ctx context.Context, wait time.Duration) context.Conte
 func (s *MusicService) siteLyricVersion(ctx context.Context, id int64) (*lyricSiteVersion, *errs.ServiceError) {
 	record, err := loadLyricVersionRecord(ctx, id)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	if version := lyricSiteVersionOf(record); version != nil {
 		return version, nil

@@ -19,7 +19,7 @@ func (cc *AdminController) ListComments(ctx context.Context, c *app.RequestConte
 		return
 	}
 	if !slices.Contains(constant.OrderByEnumComment, paginationParams.OrderBy) {
-		resps.BadRequest(c, "无效的排序字段")
+		resps.BadRequest(c, "invalid_order_by")
 		return
 	}
 	commentService := service.NewCommentService()

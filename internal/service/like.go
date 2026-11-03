@@ -41,7 +41,7 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 	}
 	state, err := repo.Like.ToggleLike(currentUser.ID, targetID, targetType)
 	if err != nil {
-		return state, errs.NewInternalServer("failed_to_toggle_like")
+		return state, errs.Internal("failed_to_toggle_like", err)
 	}
 	// 点赞记入访客记录时间线，取消点赞时一并撤销
 	if state {
@@ -55,7 +55,7 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 func (ls *LikeService) GetLikedUsers(ctx context.Context, targetID uint, targetType string, limit int) ([]dto.UserDto, *errs.ServiceError) {
 	users, err := repo.Like.GetLikedUsers(targetID, targetType, limit)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	var userDtos []dto.UserDto
 	for _, user := range users {

@@ -77,7 +77,7 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 		"base_url": tools.GetBaseUrl(),
 	})
 	if err != nil {
-		resps.InternalServerError(c, err.Error())
+		resps.InternalError(c, err)
 		return
 	}
 	resps.Ok(c, "", value)
@@ -121,13 +121,13 @@ func (mc *MiscController) SetPublicConfig(ctx context.Context, c *app.RequestCon
 	data := make(map[string]interface{})
 	err := c.BindAndValidate(&data)
 	if err != nil {
-		resps.BadRequest(c, err.Error())
+		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
 	for key, value := range data {
 		err = repo.KV.SetKV(key, value)
 		if err != nil {
-			resps.InternalServerError(c, err.Error())
+			resps.InternalError(c, err)
 			return
 		}
 	}
@@ -239,7 +239,7 @@ func (mc *MiscController) GetRssData(ctx context.Context, c *app.RequestContext)
 		Preload("User").
 		Preload("Category").
 		Find(&posts).Error; err != nil {
-		resps.InternalServerError(c, err.Error())
+		resps.InternalError(c, err)
 		return
 	}
 

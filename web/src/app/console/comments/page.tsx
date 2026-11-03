@@ -31,15 +31,15 @@ import {
 } from '@/components/ui/table'
 import { useDevice } from '@/contexts/device-context'
 import { useDebouncedState } from '@/hooks/use-debounce'
-import { useCommonT, useOperationT } from '@/hooks/use-translations'
+import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
-import { getErrorMessage } from '@/utils/common/error'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
 
 export default function CommentsManage() {
   const commonT = useCommonT()
+  const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const metricsT = useTranslations('Metrics')
   const t = useTranslations('Console.comments')
@@ -84,7 +84,7 @@ export default function CommentsManage() {
       setTotal(res.data.total)
     }
     catch (error) {
-      toast.error(`${operationT('fetch_failed')}: ${getErrorMessage(error)}`)
+      toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`)
     }
     finally {
       setLoading(false)

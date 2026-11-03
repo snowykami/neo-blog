@@ -48,7 +48,7 @@ func (s *MusicService) GetLyricAnnotationEditor(ctx context.Context, id int64) (
 		return result, nil
 	}
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	data := parseLyricAnnotationData(record.Data)
 	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
@@ -72,7 +72,7 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 	var existing model.LyricAnnotation
 	err := db.Where("song_id = ? AND lyric_hash = ?", id, hash).First(&existing).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	var previous lyricAnnotationData
 	if err == nil {
@@ -97,7 +97,7 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 	}
 	if err := db.Clauses(upsert).Create(record).Error; err != nil {
 		logrus.Errorf("save edited lyric annotation for song %d failed: %v", id, err)
-		return nil, errs.NewInternalServer("failed_to_update_target")
+		return nil, errs.Internal("failed_to_update_target", err)
 	}
 	return s.GetLyricAnnotationEditor(ctx, id)
 }
@@ -109,12 +109,12 @@ func (s *MusicService) ListLyricAnnotations(ctx context.Context) ([]dto.MusicLyr
 	db := repo.GetDB().WithContext(ctx)
 	var records []model.LyricAnnotation
 	if err := db.Order("created_at DESC").Find(&records).Error; err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	// 当前全站歌词版本的哈希；还没有选出版本、或旧数据没有记录哈希的歌曲不判断是否过时
 	var versions []model.LyricCache
 	if err := db.Select("song_id", "lyric_hash").Where("lyric_hash <> ''").Find(&versions).Error; err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	current := make(map[int64]string, len(versions))
 	for _, version := range versions {

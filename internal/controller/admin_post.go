@@ -19,7 +19,7 @@ func (cc *AdminController) ListPosts(ctx context.Context, c *app.RequestContext)
 		return
 	}
 	if !slices.Contains(constant.OrderByEnumPost, req.OrderBy) {
-		resps.BadRequest(c, "无效的排序字段")
+		resps.BadRequest(c, "invalid_order_by")
 		return
 	}
 	postService := service.NewPostService()

@@ -15,8 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { useOperationT } from '@/hooks/use-translations'
-import { getErrorMessage } from '@/utils/common/error'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { consolePath } from '@/utils/common/route'
 
 interface LyricEffectRow {
@@ -31,6 +30,7 @@ interface LyricEffectRow {
  */
 export function LyricEffectManage() {
   const t = useTranslations('Console.lyric_effects')
+  const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const router = useRouter()
   const [tracks, setTracks] = useState<MusicTrack[]>([])
@@ -47,7 +47,7 @@ export function LyricEffectManage() {
       if (annotations.status === 'fulfilled')
         setSummaries(annotations.value)
       else
-        toast.error(`${operationT('fetch_failed')}: ${getErrorMessage(annotations.reason as BaseResponseError)}`)
+        toast.error(`${operationT('fetch_failed')}: ${errorMessageT(annotations.reason as BaseResponseError)}`)
       setLoading(false)
     })
   }, [operationT])

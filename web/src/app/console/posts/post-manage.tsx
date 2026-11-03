@@ -38,9 +38,8 @@ import { useDevice } from '@/contexts/device-context'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useToEditPost, useToPost } from '@/hooks/use-route'
-import { useCommonT, useOperationT } from '@/hooks/use-translations'
+import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
-import { getErrorMessage } from '@/utils/common/error'
 import { isAdmin } from '@/utils/common/permission'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '../../../components/console/common/post-meta-dialog-form'
 import { AISummaryBadges, PostDescriptionLine, useAISummary, useAISummaryMenuLabel } from './post-ai-summary'
@@ -432,6 +431,7 @@ function PostDropdownMenu({
   onTriggerAISummary: () => void
 }) {
   const operationT = useOperationT()
+  const errorMessageT = useErrorMessageT()
   const clickToPostEdit = useToEditPost()
   const clickToPost = useToPost()
   const aiSummaryLabel = useAISummaryMenuLabel(post)
@@ -445,7 +445,7 @@ function PostDropdownMenu({
       })
       .catch((error: BaseResponseError) => {
         toast.error(
-          `${operationT('update_failed')}: ${getErrorMessage(error)}`,
+          `${operationT('update_failed')}: ${errorMessageT(error)}`,
         )
       })
   }

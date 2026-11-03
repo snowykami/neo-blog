@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"slices"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -38,7 +39,7 @@ func (p *PostController) Create(ctx context.Context, c *app.RequestContext) {
 	if req.Cover != nil && *req.Cover != "" {
 		pass := utils2.Url.IsValidUrl(*req.Cover)
 		if !pass {
-			resps.BadRequest(c, "Cover URL is invalid")
+			resps.BadRequest(c, "invalid_cover_url")
 			return
 		}
 	}
@@ -94,13 +95,13 @@ func (p *PostController) GetRandom(ctx context.Context, c *app.RequestContext) {
 	// 先只随机取 id，避免对整表正文排序
 	var ids []uint
 	if err := repo.GetDB().Model(&model.Post{}).Where("is_private = ?", false).Order("RANDOM()").Limit(1).Pluck("id", &ids).Error; err != nil {
-		resps.InternalServerError(c, err.Error())
+		resps.InternalError(c, err)
 		return
 	}
 	var post model.Post
 	if len(ids) > 0 {
 		if err := repo.GetDB().Omit("draft_content").First(&post, ids[0]).Error; err != nil {
-			resps.InternalServerError(c, err.Error())
+			resps.InternalError(c, err)
 			return
 		}
 	}
@@ -138,7 +139,7 @@ func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	if !slices.Contains(constant.OrderByEnumPost, req.OrderBy) {
-		resps.BadRequest(c, "无效的排序字段")
+		resps.BadRequest(c, "invalid_order_by")
 		return
 	}
 	posts, total, svcerr := p.service.ListPosts(ctx, req)
@@ -153,7 +154,7 @@ func (p *PostController) GetCategories(ctx context.Context, c *app.RequestContex
 	var categories []model.Category
 	err := repo.GetDB().Order("id DESC").Find(&categories).Error
 	if err != nil {
-		resps.Error(c, errs.NewInternalServer("failed_to_get_target"))
+		resps.Error(c, errs.Internal("failed_to_get_target", err).WithResource("category"))
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"categories": func() []dto.CategoryDto {
@@ -177,7 +178,7 @@ func (p *PostController) CreateCategory(ctx context.Context, c *app.RequestConte
 		Slug:        req.Slug,
 	}
 	if err := repo.GetDB().Create(categoryModel).Error; err != nil {
-		resps.Error(c, errs.NewInternalServer("failed_to_create_target"))
+		resps.Error(c, categoryWriteError(err, categoryModel, "failed_to_create_target"))
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"id": categoryModel.ID})
@@ -196,7 +197,7 @@ func (p *PostController) UpdateCategory(ctx context.Context, c *app.RequestConte
 		Slug:        req.Slug,
 	}
 	if err := repo.GetDB().Updates(categoryModel).Error; err != nil {
-		resps.Error(c, errs.NewInternalServer("failed_to_update_target"))
+		resps.Error(c, categoryWriteError(err, categoryModel, "failed_to_update_target"))
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"id": categoryModel.ID})
@@ -211,7 +212,7 @@ func (p *PostController) DeleteCategory(ctx context.Context, c *app.RequestConte
 		}
 		return tx.Unscoped().Delete(&model.Category{}, id).Error
 	}); err != nil {
-		resps.Error(c, errs.NewInternalServer("failed_to_delete_target"))
+		resps.Error(c, errs.Internal("failed_to_delete_target", err).WithResource("category"))
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -251,4 +252,17 @@ func (p *PostController) GetAISummaryStatus(ctx context.Context, c *app.RequestC
 		return
 	}
 	resps.Ok(c, resps.Success, status)
+}
+
+// categoryWriteError 分类的名称与 slug 都唯一：重复时指明是哪个字段，其他错误只写日志
+func categoryWriteError(err error, category *model.Category, code string) *errs.ServiceError {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		var count int64
+		repo.GetDB().Model(&model.Category{}).Where("slug = ? AND id <> ?", category.Slug, category.ID).Count(&count)
+		if count > 0 {
+			return errs.AlreadyExists("category", "slug", category.Slug)
+		}
+		return errs.AlreadyExists("category", "name", category.Name)
+	}
+	return errs.Internal(code, err).WithResource("category")
 }

@@ -148,7 +148,7 @@ func (s *AISummaryService) loadEditablePost(ctx context.Context, postID uint) (*
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errs.NewNotFound("target_not_found")
 		}
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	if !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx)) {
 		return nil, errs.NewForbidden("permission_denied")
@@ -227,7 +227,7 @@ func (s *AISummaryService) TriggerAll(ctx context.Context, overwriteManual bool)
 	}
 	posts, err := repo.Post.ListPostsForAISummary()
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	result := &dto.BatchAISummaryResultDto{}
 	for i := range posts {

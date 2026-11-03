@@ -22,9 +22,8 @@ func (l *LabelService) CreateLabel(req *dto.CreateLabelReq) (uint, *errs.Service
 		TailwindClassName: req.TailwindClassName,
 		Slug:              req.Slug,
 	}
-	err := repo.Label.CreateLabel(label)
-	if err != nil {
-		return 0, errs.NewInternalServer("failed_to_create_target")
+	if err := repo.Label.CreateLabel(label); err != nil {
+		return 0, labelWriteError(err, label, "failed_to_create_target")
 	}
 	return label.ID, nil
 }
@@ -36,9 +35,8 @@ func (l *LabelService) UpdateLabel(req *dto.UpdateLabelReq) (uint, *errs.Service
 		TailwindClassName: req.TailwindClassName,
 		Slug:              req.Slug,
 	}
-	err := repo.Label.UpdateLabel(label)
-	if err != nil {
-		return 0, errs.NewInternalServer("failed_to_update_target")
+	if err := repo.Label.UpdateLabel(label); err != nil {
+		return 0, labelWriteError(err, label, "failed_to_update_target")
 	}
 	return label.ID, nil
 }
@@ -46,7 +44,7 @@ func (l *LabelService) UpdateLabel(req *dto.UpdateLabelReq) (uint, *errs.Service
 func (l *LabelService) DeleteLabel(id uint) *errs.ServiceError {
 	err := repo.Label.DeleteLabel(id)
 	if err != nil {
-		return errs.NewInternalServer("failed_to_delete_target")
+		return errs.Internal("failed_to_delete_target", err).WithResource("label")
 	}
 	return nil
 }
@@ -55,9 +53,9 @@ func (l *LabelService) GetLabelByID(id uint) (*dto.LabelDto, *errs.ServiceError)
 	label, err := repo.Label.GetLabelByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errs.NewNotFound("target_not_found")
+			return nil, errs.NewNotFound("target_not_found").WithResource("label")
 		}
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("label")
 	}
 	return &dto.LabelDto{
 		ID: label.ID,
@@ -72,10 +70,18 @@ func (l *LabelService) ListLabels() ([]dto.LabelDto, *errs.ServiceError) {
 	labels, err := repo.Label.ListLabels()
 	var labelDtos []dto.LabelDto
 	if err != nil {
-		return labelDtos, errs.NewInternalServer("failed_to_list_targets")
+		return labelDtos, errs.Internal("failed_to_list_targets", err)
 	}
 	for _, label := range labels {
 		labelDtos = append(labelDtos, label.ToDto())
 	}
 	return labelDtos, nil
+}
+
+// labelWriteError 标签的 slug 唯一：重复时指明是哪个 slug，其他错误只写日志
+func labelWriteError(err error, label *model.Label, code string) *errs.ServiceError {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return errs.AlreadyExists("label", "slug", label.Slug)
+	}
+	return errs.Internal(code, err).WithResource("label")
 }

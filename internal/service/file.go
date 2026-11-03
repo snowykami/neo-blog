@@ -60,7 +60,7 @@ func (f *FileService) ListFiles(ctx context.Context, req *dto.FileListReq) ([]mo
 	files, total, err := repo.File.ListFiles(userID, &req.PaginationParams, keywords, req.Type)
 	if err != nil {
 		logrus.Error("获取文件列表失败: ", err)
-		return nil, 0, errs.NewInternalServer("failed_to_get_target")
+		return nil, 0, errs.Internal("failed_to_get_target", err)
 	}
 	return files, total, nil
 }
@@ -125,7 +125,7 @@ func (f *FileService) SaveFile(ctx context.Context, in *SaveFileInput) (*SavedFi
 	}
 	if err := repo.File.Create(fileModel); err != nil {
 		logrus.Error("数据库索引建立失败: ", err)
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err)
 	}
 	// 非后端代理的存储直接返回直链
 	if !provider.IsProxy() {

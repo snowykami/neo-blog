@@ -32,14 +32,14 @@ func (c *AdminService) CreateOidcConfig(req *dto.CreateOidcConfigDto) *errs.Serv
 		Type:                  req.Type,
 	}
 	if err := repo.Oidc.CreateOidcConfig(oidcConfig); err != nil {
-		return errs.NewInternalServer("failed_to_create_target")
+		return errs.Internal("failed_to_create_target", err)
 	}
 	return nil
 }
 
 func (c *AdminService) DeleteOidcConfig(id uint) *errs.ServiceError {
 	if err := repo.Oidc.DeleteOidcConfig(id); err != nil {
-		return errs.NewInternalServer("failed_to_delete_target")
+		return errs.Internal("failed_to_delete_target", err)
 	}
 	return nil
 }
@@ -47,7 +47,7 @@ func (c *AdminService) DeleteOidcConfig(id uint) *errs.ServiceError {
 func (c *AdminService) GetOidcConfigByID(id uint) (*dto.AdminOidcConfigDto, *errs.ServiceError) {
 	config, err := repo.Oidc.GetOidcConfigByID(id)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	return config.ToAdminDto(), nil
 }
@@ -55,7 +55,7 @@ func (c *AdminService) GetOidcConfigByID(id uint) (*dto.AdminOidcConfigDto, *err
 func (c *AdminService) ListOidcConfigs(onlyEnabled bool) ([]*dto.AdminOidcConfigDto, *errs.ServiceError) {
 	configs, err := repo.Oidc.ListOidcConfigs(onlyEnabled)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	var dtos []*dto.AdminOidcConfigDto
 	for _, config := range configs {
@@ -83,7 +83,7 @@ func (c *AdminService) UpdateOidcConfig(req *dto.UpdateOidcConfigDto) *errs.Serv
 		Type:                  req.Type,
 	}
 	if err := repo.Oidc.UpdateOidcConfig(oidcConfig); err != nil {
-		return errs.NewInternalServer("failed_to_update_target")
+		return errs.Internal("failed_to_update_target", err)
 	}
 	return nil
 }

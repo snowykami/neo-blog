@@ -257,11 +257,11 @@ func (s *RevisionService) List(ctx context.Context, targetType string, targetID 
 	}
 	revisions, total, err := repo.Revision.List(targetType, targetID, pagination)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("revision")
 	}
 	protected, err := s.protectedRevisions(targetType, targetID)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("revision")
 	}
 	result := &dto.ListRevisionResp{Revisions: make([]*dto.RevisionDto, 0, len(revisions)), Total: total, MaxKeep: tools.GetRevisionMaxKeep()}
 	for i := range revisions {
@@ -279,13 +279,13 @@ func (s *RevisionService) get(ctx context.Context, targetType string, targetID, 
 	revision, err := repo.Revision.Get(targetType, targetID, revisionID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil, errs.NewNotFound("target_not_found")
+			return nil, nil, errs.NewNotFound("target_not_found").WithResource("revision")
 		}
-		return nil, nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, nil, errs.Internal("failed_to_get_target", err).WithResource("revision")
 	}
 	var meta dto.RevisionMeta
 	if err := json.Unmarshal([]byte(revision.Meta), &meta); err != nil {
-		return nil, nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, nil, errs.Internal("failed_to_get_target", err).WithResource("revision")
 	}
 	return revision, &meta, nil
 }
@@ -309,7 +309,7 @@ func (s *RevisionService) Delete(ctx context.Context, targetType string, targetI
 		return svcerr
 	}
 	if deleted == 0 {
-		return errs.NewNotFound("target_not_found")
+		return errs.NewNotFound("target_not_found").WithResource("revision")
 	}
 	return nil
 }
@@ -338,7 +338,7 @@ func (s *RevisionService) delete(ctx context.Context, targetType string, targetI
 	}
 	protected, err := s.protectedRevisions(targetType, targetID)
 	if err != nil {
-		return 0, errs.NewInternalServer("failed_to_get_target")
+		return 0, errs.Internal("failed_to_get_target", err).WithResource("revision")
 	}
 	for _, id := range revisionIDs {
 		if _, ok := protected[id]; ok {
@@ -347,7 +347,7 @@ func (s *RevisionService) delete(ctx context.Context, targetType string, targetI
 	}
 	deleted, err := repo.Revision.DeleteByIDs(targetType, targetID, revisionIDs)
 	if err != nil {
-		return 0, errs.NewInternalServer("failed_to_delete_target")
+		return 0, errs.Internal("failed_to_delete_target", err).WithResource("revision")
 	}
 	return deleted, nil
 }
@@ -355,7 +355,7 @@ func (s *RevisionService) delete(ctx context.Context, targetType string, targetI
 // backup 恢复 / 放弃修改前先备份当前状态，保证这次操作本身也能撤回
 func (s *RevisionService) backup(ctx context.Context, targetType string, targetID uint, sessionID string) *errs.ServiceError {
 	if _, err := s.record(ctx, targetType, targetID, RevisionKindBackup, sessionID); err != nil {
-		return errs.NewInternalServer("failed_to_create_target")
+		return errs.Internal("failed_to_create_target", err).WithResource("revision")
 	}
 	return nil
 }
@@ -429,7 +429,7 @@ func (s *RevisionService) DiscardDraft(ctx context.Context, targetType string, t
 	}
 	snap, err := s.publishedContent(targetType, targetID)
 	if err != nil {
-		return errs.NewInternalServer("failed_to_get_target")
+		return errs.Internal("failed_to_get_target", err).WithResource("revision")
 	}
 	if svcerr := s.backup(ctx, targetType, targetID, sessionID); svcerr != nil {
 		return svcerr

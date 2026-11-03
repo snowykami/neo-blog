@@ -12,6 +12,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -65,11 +66,11 @@ func (u *UserController) Register(ctx context.Context, c *app.RequestContext) {
 	}
 	// 校验输入
 	if userRegisterReq.Email == "" {
-		resps.BadRequest(c, "Email header is required")
+		resps.BadRequest(c, "email_cannot_be_empty")
 		return
 	}
 	if userRegisterReq.Password == "" || userRegisterReq.Username == "" {
-		resps.BadRequest(c, "Username and password are required")
+		resps.BadRequest(c, "username_and_password_required")
 		return
 	}
 	// 从Header获取Email
@@ -97,7 +98,7 @@ func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 	// 服务端删除Session
 	err := repo.Session.RevokeSession(sessionId)
 	if err != nil {
-		resps.InternalServerError(c, err.Error())
+		resps.InternalError(c, err)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -151,14 +152,14 @@ func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) 
 	if updateUserReq.AvatarUrl != "" {
 		pass1 := utils2.Url.IsValidUrl(updateUserReq.AvatarUrl)
 		if !pass1 {
-			resps.BadRequest(c, "Avatar URL is invalid")
+			resps.BadRequest(c, "invalid_avatar_url")
 			return
 		}
 	}
 	if updateUserReq.BackgroundUrl != "" {
 		pass2 := utils2.Url.IsValidUrl(updateUserReq.BackgroundUrl)
 		if !pass2 {
-			resps.BadRequest(c, "Background URL is invalid")
+			resps.BadRequest(c, "invalid_background_url")
 			return
 		}
 	}
@@ -198,13 +199,13 @@ func (u *UserController) ChangePassword(ctx context.Context, c *app.RequestConte
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	ok, err := u.service.UpdatePassword(ctx, &updatePasswordReq)
-	if err != nil {
-		resps.InternalServerError(c, err.Error())
+	ok, svcerr := u.service.UpdatePassword(ctx, &updatePasswordReq)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	if !ok {
-		resps.BadRequest(c, "Failed to change password")
+		resps.BadRequest(c, "failed_to_change_password")
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -218,17 +219,17 @@ func (u *UserController) ResetPassword(ctx context.Context, c *app.RequestContex
 	}
 	email := strings.TrimSpace(string(c.GetHeader("X-Email")))
 	if email == "" {
-		resps.BadRequest(c, "Email header is required")
+		resps.BadRequest(c, "email_cannot_be_empty")
 		return
 	}
 	resetPasswordReq.Email = email
-	ok, err := u.service.ResetPassword(&resetPasswordReq)
-	if err != nil {
-		resps.InternalServerError(c, err.Error())
+	ok, svcerr := u.service.ResetPassword(&resetPasswordReq)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	if !ok {
-		resps.BadRequest(c, "Failed to reset password")
+		resps.BadRequest(c, "failed_to_reset_password")
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -237,16 +238,16 @@ func (u *UserController) ResetPassword(ctx context.Context, c *app.RequestContex
 func (u *UserController) ChangeEmail(ctx context.Context, c *app.RequestContext) {
 	email := strings.TrimSpace(string(c.GetHeader("X-Email")))
 	if email == "" {
-		resps.BadRequest(c, "Email header is required")
+		resps.BadRequest(c, "email_cannot_be_empty")
 		return
 	}
-	ok, err := u.service.UpdateEmail(ctx, email)
-	if err != nil {
-		resps.InternalServerError(c, err.Error())
+	ok, svcerr := u.service.UpdateEmail(ctx, email)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	if !ok {
-		resps.BadRequest(c, "Failed to change email")
+		resps.BadRequest(c, "failed_to_change_email")
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -267,21 +268,21 @@ func (u *UserController) GetUserLastIPLocation(ctx context.Context, c *app.Reque
 	// 获取用户最新的session
 	session, err := repo.Session.GetLatestSessionByUserID(userID)
 	if err != nil {
-		resps.InternalServerError(c, "Failed to get user session")
+		resps.Error(c, errs.FromDB(err, "session", "failed_to_get_target"))
 		return
 	}
 	user, err := repo.User.GetUserByID(userID)
 	if err != nil {
-		resps.InternalServerError(c, "Failed to get user info")
+		resps.Error(c, errs.FromDB(err, "user", "failed_to_get_user"))
 		return
 	}
 	if !*user.ShowIPLocation {
-		resps.Forbidden(c, "User has disabled IP location display")
+		resps.Forbidden(c, "ip_location_hidden")
 		return
 	}
 	ipInfo, err := utils2.GetIPInfo(session.LatestIP())
 	if err != nil {
-		resps.InternalServerError(c, "Failed to get IP location")
+		resps.Error(c, errs.Internal("failed_to_get_ip_location", err))
 		return
 	}
 	// 脱敏

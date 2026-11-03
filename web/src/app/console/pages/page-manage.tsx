@@ -22,9 +22,8 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/contexts/auth-context'
 import { useDebouncedState } from '@/hooks/use-debounce'
-import { useOperationT } from '@/hooks/use-translations'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
-import { getErrorMessage } from '@/utils/common/error'
 import { getPageEditUrl, getPageUrl } from '@/utils/common/route'
 import { PageMetaDialog } from './page-meta-dialog'
 
@@ -38,6 +37,7 @@ function getPageViewUrl(page: PageModel) {
 export function PageManage() {
   const { user } = useAuth()
   const t = useTranslations('Console.pages')
+  const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const [pages, setPages] = useState<PageModel[]>([])
   const [total, setTotal] = useState(0)
@@ -61,7 +61,7 @@ export function PageManage() {
       setPages(res.data.pages)
       setTotal(res.data.total)
     }).catch((error: BaseResponseError) => {
-      toast.error(`${operationT('fetch_failed')}: ${getErrorMessage(error)}`)
+      toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`)
     })
   }, [debouncedQueryInput, operationT, page, size, user])
 
@@ -210,6 +210,7 @@ function PageDropdownMenu({
   setMetaDialogOpen: (open: boolean) => void
 }) {
   const operationT = useOperationT()
+  const errorMessageT = useErrorMessageT()
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const togglePrivate = () => {
@@ -218,7 +219,7 @@ function PageDropdownMenu({
         toast.success(operationT('update_success'))
         onPageChange({ page: { id: page.id, isPrivate: !page.isPrivate } })
       })
-      .catch((error: BaseResponseError) => toast.error(`${operationT('update_failed')}: ${getErrorMessage(error)}`))
+      .catch((error: BaseResponseError) => toast.error(`${operationT('update_failed')}: ${errorMessageT(error)}`))
   }
 
   // 失败时抛出，由 Popconfirm 统一提示并保持打开

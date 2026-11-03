@@ -74,7 +74,7 @@ func getManagedUser(ctx context.Context, userID uint, forbidSelf bool) (*model.U
 			return nil, nil, errs.NewNotFound("user_not_found")
 		}
 		logrus.Errorln("Failed to get user by ID:", err)
-		return nil, nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, nil, errs.Internal("failed_to_get_target", err).WithResource("user")
 	}
 	return operator, target, nil
 }
@@ -86,7 +86,7 @@ func ensureOtherActiveAdmin(target *model.User) *errs.ServiceError {
 	}
 	count, err := repo.User.CountActiveAdmins(target.ID)
 	if err != nil {
-		return errs.NewInternalServer("failed_to_check_target")
+		return errs.Internal("failed_to_check_target", err).WithResource("user")
 	}
 	if count == 0 {
 		return errs.NewForbidden("cannot_remove_last_admin")
@@ -99,12 +99,12 @@ func checkUsernameEmailFree(username, email string, selfID uint) *errs.ServiceEr
 	if u, err := repo.User.GetUserByUsername(username); err == nil && u.ID != selfID {
 		return errs.NewConflict("username_or_email_already_exists")
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return errs.NewInternalServer("failed_to_check_target")
+		return errs.Internal("failed_to_check_target", err).WithResource("user")
 	}
 	if u, err := repo.User.GetUserByEmail(email); err == nil && u.ID != selfID {
 		return errs.NewConflict("username_or_email_already_exists")
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return errs.NewInternalServer("failed_to_check_target")
+		return errs.Internal("failed_to_check_target", err).WithResource("user")
 	}
 	return nil
 }
@@ -119,7 +119,7 @@ func (s *AdminUserService) ListUsers(ctx context.Context, req *dto.AdminListUser
 	users, total, err := repo.User.ListUsers(req)
 	if err != nil {
 		logrus.Errorln("Failed to list users:", err)
-		return nil, 0, errs.NewInternalServer("failed_to_get_target")
+		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("user")
 	}
 	return model.ToUserDtos(users), total, nil
 }
@@ -131,7 +131,7 @@ func (s *AdminUserService) GetUserDetail(ctx context.Context, userID uint) (*dto
 	}
 	posts, pages, comments, err := repo.User.CountUserContent(target.ID)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("user")
 	}
 	return &dto.AdminUserDetailResp{
 		User:         target.ToPrivateDto(),
@@ -171,7 +171,7 @@ func (s *AdminUserService) CreateUser(ctx context.Context, req *dto.AdminCreateU
 	}
 	hashedPassword, err := utils.Password.HashPassword(req.Password)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err).WithResource("user")
 	}
 	nickname := req.Nickname
 	if nickname == "" {
@@ -187,7 +187,7 @@ func (s *AdminUserService) CreateUser(ctx context.Context, req *dto.AdminCreateU
 	}
 	if err := repo.User.CreateUser(newUser); err != nil {
 		logrus.Errorln("Failed to create user:", err)
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err).WithResource("user")
 	}
 	userDto := newUser.ToPrivateDto()
 	return &userDto, nil
@@ -231,7 +231,7 @@ func (s *AdminUserService) UpdateUser(ctx context.Context, req *dto.AdminUpdateU
 	})
 	if err != nil {
 		logrus.Errorln("Failed to update user:", err)
-		return errs.NewInternalServer("failed_to_update_target")
+		return errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	return nil
 }
@@ -251,7 +251,7 @@ func (s *AdminUserService) UpdateUserRole(ctx context.Context, req *dto.AdminUpd
 		return svcerr
 	}
 	if err := repo.User.UpdateUserColumns(target.ID, map[string]any{"role": req.Role}); err != nil {
-		return errs.NewInternalServer("failed_to_update_target")
+		return errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	return nil
 }
@@ -270,7 +270,7 @@ func (s *AdminUserService) UpdateUserStatus(ctx context.Context, req *dto.AdminU
 		}
 	}
 	if err := repo.User.UpdateUserColumns(target.ID, map[string]any{"disabled": req.Disabled}); err != nil {
-		return errs.NewInternalServer("failed_to_update_target")
+		return errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	// 禁用后吊销全部会话，refresh token 立即失效
 	if req.Disabled {
@@ -291,10 +291,10 @@ func (s *AdminUserService) ResetUserPassword(ctx context.Context, req *dto.Admin
 	}
 	hashedPassword, err := utils.Password.HashPassword(req.NewPassword)
 	if err != nil {
-		return errs.NewInternalServer("failed_to_update_target")
+		return errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	if err := repo.User.UpdateUserColumns(target.ID, map[string]any{"password": hashedPassword}); err != nil {
-		return errs.NewInternalServer("failed_to_update_target")
+		return errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	// 重置密码后该用户所有设备需重新登录；管理员重置自己的密码时保留当前会话
 	currentSessionID := ""
@@ -318,7 +318,7 @@ func (s *AdminUserService) DeleteUser(ctx context.Context, userID uint) *errs.Se
 	}
 	if err := repo.User.DeleteUser(target.ID, operator.ID); err != nil {
 		logrus.Errorln("Failed to delete user:", err)
-		return errs.NewInternalServer("failed_to_delete_target")
+		return errs.Internal("failed_to_delete_target", err).WithResource("user")
 	}
 	return nil
 }

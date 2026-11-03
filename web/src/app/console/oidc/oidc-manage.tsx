@@ -41,8 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useOperationT } from '@/hooks/use-translations'
-import { getErrorMessage } from '@/utils/common/error'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 
 type OidcForm = Omit<OidcConfig, 'id' | 'loginUrl'> & { id?: number }
 
@@ -89,6 +88,7 @@ function toForm(config: OidcConfig): OidcForm {
 
 export default function OidcManage() {
   const t = useTranslations('Console.oidc')
+  const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const [configs, setConfigs] = useState<OidcConfig[]>([])
   const [loading, setLoading] = useState(false)
@@ -102,7 +102,7 @@ export default function OidcManage() {
       setConfigs(res.data)
     }
     catch (error) {
-      toast.error(`${operationT('fetch_failed')}: ${getErrorMessage(error)}`)
+      toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`)
     }
     finally {
       setLoading(false)
@@ -225,6 +225,7 @@ function OidcConfigForm({
   onSaved: () => Promise<void>
 }) {
   const t = useTranslations('Console.oidc')
+  const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const form = useForm<OidcForm>({
     defaultValues: initialValues,
@@ -250,7 +251,7 @@ function OidcConfigForm({
       await onSaved()
     }
     catch (error) {
-      toast.error(`${operationT('save_failed')}: ${getErrorMessage(error)}`)
+      toast.error(`${operationT('save_failed')}: ${errorMessageT(error)}`)
     }
   }
 

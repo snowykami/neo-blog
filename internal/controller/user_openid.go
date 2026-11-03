@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"errors"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -12,7 +11,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
-	"gorm.io/gorm"
 )
 
 func (u *UserController) GetOidcConfigList(ctx context.Context, c *app.RequestContext) {
@@ -20,7 +18,7 @@ func (u *UserController) GetOidcConfigList(ctx context.Context, c *app.RequestCo
 		RedirectBack: "/",
 	}
 	if err := c.Bind(req); err != nil {
-		resps.BadRequest(c, err.Error())
+		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
 	// 绑定操作只能由已登录用户发起，并记录发起人
@@ -49,7 +47,7 @@ func (u *UserController) GetUserOpenIDList(ctx context.Context, c *app.RequestCo
 	}
 	userOpenIdModels, err := repo.User.ListUserOpenIDsByUserID(userID)
 	if err != nil {
-		resps.Error(c, errs.NewInternalServer(err.Error()))
+		resps.Error(c, errs.Internal("failed_to_get_target", err).WithResource("user_openid"))
 		return
 	}
 	userOpenIdDtos := model.ToOpenIdDtos(userOpenIdModels)
@@ -64,7 +62,7 @@ func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 		BrowserNonce: string(c.Cookie(ctxutils.OidcNonceCookie)),
 	}
 	if err := c.Bind(req); err != nil {
-		resps.BadRequest(c, err.Error())
+		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
 	resp, svcerr := u.service.OidcLogin(ctx, req)
@@ -89,11 +87,7 @@ func (u *UserController) DeleteUserOpenID(ctx context.Context, c *app.RequestCon
 	// 检查该OIDC是否属于当前用户
 	userOpenIdModel, err := repo.User.GetUserOpenIDByID(id)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			resps.BadRequest(c, resps.ErrNotFound)
-			return
-		}
-		resps.Error(c, errs.NewInternalServer(err.Error()))
+		resps.Error(c, errs.FromDB(err, "user_openid", "failed_to_get_target"))
 		return
 	}
 	if !ctxutils.IsOwnerOfTarget(ctx, userOpenIdModel.UserID) {
@@ -102,7 +96,7 @@ func (u *UserController) DeleteUserOpenID(ctx context.Context, c *app.RequestCon
 	}
 	err = repo.User.DeleteUserOpenID(id)
 	if err != nil {
-		resps.Error(c, errs.NewInternalServer(err.Error()))
+		resps.Error(c, errs.Internal("failed_to_delete_target", err).WithResource("user_openid"))
 		return
 	}
 	resps.Ok(c, resps.Success, nil)

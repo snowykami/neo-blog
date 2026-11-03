@@ -41,7 +41,7 @@ func (s *AIPromptService) List(ctx context.Context, mode string) ([]*dto.AIPromp
 	userID, _ := ctxutils.GetCurrentUserID(ctx)
 	prompts, err := repo.AIPrompt.ListVisible(userID)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	result := make([]*dto.AIPromptDto, 0, len(prompts))
 	for i := range prompts {
@@ -86,7 +86,7 @@ func (s *AIPromptService) Create(ctx context.Context, req *dto.CreateOrUpdateAIP
 	userID, _ := ctxutils.GetCurrentUserID(ctx)
 	prompt := &model.AIPrompt{Scope: req.Scope, UserID: userID, Mode: req.Mode, Label: req.Label, Instruction: req.Instruction}
 	if err := repo.AIPrompt.Create(prompt); err != nil {
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err)
 	}
 	return prompt.ToDto(true), nil
 }
@@ -97,7 +97,7 @@ func (s *AIPromptService) loadManageable(ctx context.Context, id uint) (*model.A
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errs.NewNotFound("target_not_found")
 		}
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	if !s.canManage(ctx, prompt) {
 		return nil, errs.NewForbidden("permission_denied")
@@ -116,7 +116,7 @@ func (s *AIPromptService) Update(ctx context.Context, req *dto.CreateOrUpdateAIP
 	}
 	prompt.Mode, prompt.Label, prompt.Instruction = req.Mode, req.Label, req.Instruction
 	if err := repo.AIPrompt.Save(prompt); err != nil {
-		return nil, errs.NewInternalServer("failed_to_update_target")
+		return nil, errs.Internal("failed_to_update_target", err)
 	}
 	return prompt.ToDto(true), nil
 }
@@ -127,7 +127,7 @@ func (s *AIPromptService) Delete(ctx context.Context, id uint) *errs.ServiceErro
 		return svcerr
 	}
 	if err := repo.AIPrompt.Delete(id); err != nil {
-		return errs.NewInternalServer("failed_to_delete_target")
+		return errs.Internal("failed_to_delete_target", err)
 	}
 	return nil
 }
@@ -139,7 +139,7 @@ func (s *AIPromptService) resolve(ctx context.Context, id uint, mode string) (*m
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errs.NewNotFound("target_not_found")
 		}
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	if !s.canUse(ctx, prompt) {
 		return nil, errs.NewForbidden("permission_denied")

@@ -125,7 +125,7 @@ func (p *pageHTMLType) Serve(ctx context.Context, c *app.RequestContext) {
 		}
 		if _, err := readable.Seek(start, io.SeekStart); err != nil {
 			readable.Close()
-			resps.Error(c, errs.NewInternalServer("failed_to_read_file"))
+			resps.Error(c, errs.Internal("failed_to_read_file", err))
 			return
 		}
 		length := end - start + 1

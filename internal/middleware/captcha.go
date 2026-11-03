@@ -25,13 +25,13 @@ func UseCaptcha() app.HandlerFunc {
 		ok, err := utils.Captcha.VerifyCaptcha(captchaConfig, CaptchaToken)
 		if err != nil {
 			logrus.Error("Captcha verification error:", err)
-			resps.InternalServerError(c, "Captcha verification failed")
+			resps.InternalServerError(c, "captcha_verification_failed")
 			c.Abort()
 			return
 		}
 		if !ok {
-			logrus.Warn("Captcha verification failed")
-			resps.Forbidden(c, "Captcha verification failed")
+			logrus.Warn("captcha_verification_failed")
+			resps.Forbidden(c, "captcha_verification_failed")
 			c.Abort()
 			return
 		}

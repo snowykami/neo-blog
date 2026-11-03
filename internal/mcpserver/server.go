@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/pkg/errs"
 )
@@ -83,14 +84,24 @@ var errorHints = map[string]string{
 	"failed_to_create_target": "server error while creating",
 }
 
-// serviceError 将 service 层错误转为工具错误（以 isError 结果返回给模型，而不是协议错误）
+// serviceError 将 service 层错误转为工具错误（以 isError 结果返回给模型，而不是协议错误）。
+// 与 HTTP 接口一致只返回错误码与出错的资源 / 字段，原始错误（数据库等内部信息）只写日志
 func serviceError(e *errs.ServiceError) error {
 	msg := e.Message
 	if hint, ok := errorHints[e.Message]; ok {
 		msg = hint + " [" + e.Message + "]"
 	}
+	if e.Resource != "" {
+		msg += " (resource: " + e.Resource + ")"
+	}
+	if e.Field != "" {
+		msg += fmt.Sprintf(" (field: %s = %v)", e.Field, e.Value)
+	}
+	if e.Detail != "" {
+		msg += ": " + e.Detail
+	}
 	if e.Err != nil {
-		msg += ": " + e.Err.Error()
+		logrus.WithError(e.Err).Warn("mcp tool error: " + e.Message)
 	}
 	return errors.New(msg)
 }

@@ -87,9 +87,9 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	}
 	if err := repo.Page.CreatePage(page); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return 0, errs.NewConflict("slug_already_exists")
+			return 0, errs.AlreadyExists("page", "slug", slug)
 		}
-		return 0, errs.NewInternalServer("failed_to_create_target")
+		return 0, errs.Internal("failed_to_create_target", err).WithResource("page")
 	}
 	return page.ID, nil
 }
@@ -101,15 +101,15 @@ func (p *PageService) DeletePage(ctx context.Context, pageID uint) *errs.Service
 	page, err := repo.Page.GetPageByID(pageID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errs.NewNotFound("target_not_found")
+			return errs.NewNotFound("target_not_found").WithResource("page")
 		}
-		return errs.NewInternalServer("failed_to_get_target")
+		return errs.Internal("failed_to_get_target", err).WithResource("page")
 	}
 	if !(ctxutils.IsOwnerOfTarget(ctx, page.UserID) || ctxutils.IsAdmin(ctx)) {
 		return errs.NewForbidden("permission_denied")
 	}
 	if err := repo.Page.DeletePage(pageID); err != nil {
-		return errs.NewInternalServer("failed_to_delete_target")
+		return errs.Internal("failed_to_delete_target", err).WithResource("page")
 	}
 	if err := repo.Revision.DeleteByTarget(constant.TargetTypePage, pageID); err != nil {
 		logrus.Warnf("delete revisions of page %d failed: %v", pageID, err)
@@ -126,7 +126,7 @@ func (p *PageService) GetPageSlugOrID(ctx context.Context, slugOrID string) (*dt
 	}
 	page, err := repo.Page.GetPageBySlugOrID(slugOrID)
 	if err != nil {
-		return nil, errs.NewNotFound("target_not_found")
+		return nil, errs.NewNotFound("target_not_found").WithResource("page")
 	}
 	if page.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, page.UserID) || ctxutils.IsAdmin(ctx)) {
 		return nil, errs.NewForbidden("permission_denied")
@@ -139,7 +139,7 @@ func (p *PageService) GetPageSlugOrID(ctx context.Context, slugOrID string) (*dt
 func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePageReq) (uint, *errs.ServiceError) {
 	page, err := repo.Page.GetPageByID(req.ID)
 	if err != nil {
-		return 0, errs.NewNotFound("target_not_found")
+		return 0, errs.NewNotFound("target_not_found").WithResource("page")
 	}
 	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, page.UserID)) {
 		return 0, errs.NewForbidden("permission_denied")
@@ -218,9 +218,9 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 
 	if err := repo.Page.SavePage(page); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return 0, errs.NewConflict("slug_already_exists")
+			return 0, errs.AlreadyExists("page", "slug", slug)
 		}
-		return 0, errs.NewInternalServer("failed_to_update_target")
+		return 0, errs.Internal("failed_to_update_target", err).WithResource("page")
 	}
 	// 发布或保存草稿后记录版本历史
 	if req.Content != "" || req.DraftContent != nil {
@@ -292,7 +292,7 @@ func (p *PageService) ListPages(ctx context.Context, req *dto.ListPageReq) ([]*d
 	}
 	pages, total, err := repo.Page.ListPages(currentUserID, req, queryArray)
 	if err != nil {
-		return nil, total, errs.NewInternalServer("failed_to_get_target")
+		return nil, total, errs.Internal("failed_to_get_target", err).WithResource("page")
 	}
 	pageDtos := make([]*dto.PageDto, 0, len(pages))
 	for _, page := range pages {

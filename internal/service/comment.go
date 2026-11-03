@@ -36,7 +36,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		return 0, svcerr
 	}
 	if !target.canAccess(ctx) {
-		return 0, errs.NewNotFound("operation_target_not_found")
+		return 0, errs.NewNotFound("operation_target_not_found").WithResource("comment")
 	}
 	// 被评论内容的作者，用于记录互动：回复时为被回复评论的作者，否则为文章/页面作者
 	ownerID := target.ownerID
@@ -44,14 +44,14 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 	if req.ReplyID != 0 {
 		parent, err := repo.Comment.GetComment(req.ReplyID)
 		if err != nil {
-			return 0, errs.NewNotFound("operation_target_not_found")
+			return 0, errs.NewNotFound("operation_target_not_found").WithResource("comment")
 		}
 		visible, svcerr := cs.canViewComment(ctx, parent, target)
 		if svcerr != nil {
 			return 0, svcerr
 		}
 		if !visible {
-			return 0, errs.NewNotFound("operation_target_not_found")
+			return 0, errs.NewNotFound("operation_target_not_found").WithResource("comment")
 		}
 		ownerID = parent.UserID
 	}
@@ -93,7 +93,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 			return 0, svcErr
 		}
 		logrus.Errorf("CreateComment: CreateComment error: %s", err.Error())
-		return 0, errs.NewInternalServer("failed_to_create_target")
+		return 0, errs.Internal("failed_to_create_target", err).WithResource("comment")
 	}
 
 	// 评论记入访客记录时间线：回复记在被回复的评论上，否则记在文章/页面上
@@ -108,7 +108,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateCommentReq) *errs.ServiceError {
 	comment, err := repo.Comment.GetComment(req.ID)
 	if err != nil {
-		return errs.NewNotFound("operation_target_not_found")
+		return errs.NewNotFound("operation_target_not_found").WithResource("comment")
 	}
 
 	// 仅管理员或评论主人可以修改评论
@@ -131,7 +131,7 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	err = repo.Comment.UpdateComment(comment)
 	if err != nil {
 		logrus.Errorf("UpdateComment error: %s", err.Error())
-		return errs.NewInternalServer("failed_to_update_target")
+		return errs.Internal("failed_to_update_target", err).WithResource("comment")
 	}
 	return nil
 }
@@ -142,12 +142,12 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 		return errs.NewUnauthorized("login_required")
 	}
 	if commentID == 0 {
-		return errs.NewBadRequest("operation_target_not_found")
+		return errs.NewBadRequest("operation_target_not_found").WithResource("comment")
 	}
 
 	comment, err := repo.Comment.GetComment(commentID)
 	if err != nil {
-		return errs.NewNotFound("operation_target_not_found")
+		return errs.NewNotFound("operation_target_not_found").WithResource("comment")
 	}
 
 	// 目标已不存在时只有管理员和评论主人可以删除
@@ -163,7 +163,7 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 
 	if err := repo.Comment.DeleteComment(commentID); err != nil {
 		logrus.Errorf("DeleteComment error: %s", err.Error())
-		return errs.NewInternalServer("failed_to_delete_target")
+		return errs.Internal("failed_to_delete_target", err).WithResource("comment")
 	}
 	return nil
 }
@@ -171,7 +171,7 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.CommentDto, *errs.ServiceError) {
 	comment, err := repo.Comment.GetComment(commentID)
 	if err != nil {
-		return nil, errs.NewNotFound("operation_target_not_found")
+		return nil, errs.NewNotFound("operation_target_not_found").WithResource("comment")
 	}
 	currentUserID := uint(0)
 	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
@@ -182,7 +182,7 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.
 		return nil, svcerr
 	}
 	if !target.canAccess(ctx) {
-		return nil, errs.NewNotFound("operation_target_not_found")
+		return nil, errs.NewNotFound("operation_target_not_found").WithResource("comment")
 	}
 	// 私密评论可见性：管理员、目标作者、评论作者以及参与过该评论树的用户可见
 	visible, svcerr := cs.canViewComment(ctx, comment, target)
@@ -222,7 +222,7 @@ func (cs *CommentService) ListCommentsAdmin(ctx context.Context, pagination *dto
 	comments, total, err := repo.Comment.ListCommentsAdmin(pagination.Page, pagination.Size, pagination.OrderBy, pagination.Desc, strings.TrimSpace(query))
 	if err != nil {
 		logrus.Errorf("ListCommentsAdmin: ListCommentsAdmin error: %s", err.Error())
-		return nil, 0, errs.NewInternalServer("failed_to_get_target")
+		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("comment")
 	}
 	return cs.toGetCommentDtos(comments, currentUserID), total, nil
 }
@@ -234,7 +234,7 @@ func (cs *CommentService) ListUserComments(ctx context.Context, req *dto.ListUse
 		req.Page, req.Size, req.OrderBy, req.Desc)
 	if err != nil {
 		logrus.Errorf("ListUserComments: ListCommentsByUser error: %s", err.Error())
-		return nil, 0, errs.NewInternalServer("failed_to_get_target")
+		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("comment")
 	}
 
 	// 按目标类型分组，批量查询标题与 slug
@@ -247,7 +247,7 @@ func (cs *CommentService) ListUserComments(ctx context.Context, req *dto.ListUse
 		briefs, err := repo.Comment.ListTargetBriefs(targetType, ids)
 		if err != nil {
 			logrus.Errorf("ListUserComments: ListTargetBriefs error: %s", err.Error())
-			return nil, 0, errs.NewInternalServer("failed_to_get_target")
+			return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("comment")
 		}
 		briefsByType[targetType] = briefs
 	}
@@ -356,10 +356,10 @@ func (cs *CommentService) getTarget(targetID uint, targetType string) (*commentT
 	}
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errs.NewNotFound("operation_target_not_found")
+			return nil, errs.NewNotFound("operation_target_not_found").WithResource("page")
 		}
 		logrus.Errorf("getTarget error: %s", err.Error())
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("comment")
 	}
 	return &commentTarget{ownerID: meta.UserID, isPrivate: meta.IsPrivate}, nil
 }
@@ -375,7 +375,7 @@ func (cs *CommentService) canViewComment(ctx context.Context, comment *model.Com
 	}
 	participated, err := repo.Comment.HasUserCommentedInTree(comment.RootID, currentUserID)
 	if err != nil {
-		return false, errs.NewInternalServer("failed_to_get_target")
+		return false, errs.Internal("failed_to_get_target", err).WithResource("comment")
 	}
 	return participated, nil
 }

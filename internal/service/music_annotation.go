@@ -380,7 +380,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 	var record model.LyricAnnotation
 	err := repo.GetDB().Where("song_id = ? AND lyric_hash = ?", id, hash).First(&record).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	found := err == nil
 

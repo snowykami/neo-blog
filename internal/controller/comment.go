@@ -26,7 +26,7 @@ func NewCommentController() *CommentController {
 func (cc *CommentController) CreateComment(ctx context.Context, c *app.RequestContext) {
 	var req dto.CreateCommentReq
 	if err := c.BindAndValidate(&req); err != nil {
-		resps.BadRequest(c, err.Error())
+		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
 	req.RemoteAddr = c.ClientIP()
@@ -80,7 +80,7 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 	}
 	// 校验排序字段
 	if !slices.Contains(constant.OrderByEnumComment, req.OrderBy) {
-		resps.BadRequest(c, "无效的排序字段")
+		resps.BadRequest(c, "invalid_order_by")
 		return
 	}
 	commentDtos, svcerr := cc.service.GetCommentList(ctx, req)
@@ -98,7 +98,7 @@ func (cc *CommentController) ListUserComments(ctx context.Context, c *app.Reques
 		return
 	}
 	if !slices.Contains(constant.OrderByEnumComment, req.OrderBy) {
-		resps.BadRequest(c, "无效的排序字段")
+		resps.BadRequest(c, "invalid_order_by")
 		return
 	}
 	commentDtos, total, svcerr := cc.service.ListUserComments(ctx, req)

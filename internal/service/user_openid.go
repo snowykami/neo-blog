@@ -125,12 +125,12 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		existingUserOpenID, err := repo.User.GetUserOpenIDByIssuerAndSub(oidcConfig.Issuer, userInfo.Sub)
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			logrus.Errorln("Failed to get user OpenID:", err)
-			return nil, errs.NewInternalServer("failed_to_get_user_openid")
+			return nil, errs.Internal("failed_to_get_user_openid", err)
 		}
 		if existingUserOpenID != nil {
 			// 已经绑定过的账号，不绑定直接登录，同时更新信息
 			if err = s.updateUserOpenIdInfo(existingUserOpenID, userInfo); err != nil {
-				return nil, errs.NewInternalServer("failed_to_update_target")
+				return nil, errs.Internal("failed_to_update_target", err)
 			}
 			// 与其他登录方式一样创建会话：刷新令牌按会话校验，空会话的令牌在访问令牌过期后无法续期
 			sessionID := utils.Strings.GenerateRandomString(32)
@@ -139,11 +139,11 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 				SessionID: sessionID,
 				UserIP:    utils.NewIPRecord(req.UserIP),
 			}); err != nil {
-				return nil, errs.NewInternalServer("failed_to_create_target")
+				return nil, errs.Internal("failed_to_create_target", err)
 			}
 			token, refreshToken, err := utils.Jwt.New2Tokens(existingUserOpenID.UserID, sessionID, false)
 			if err != nil {
-				return nil, errs.NewInternalServer("failed_to_create_target")
+				return nil, errs.Internal("failed_to_create_target", err)
 			}
 			return &dto.OidcLoginResp{
 				Token:        token,
@@ -161,7 +161,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 			return nil, errs.NewConflict("failed_to_link_oidc_account")
 		}
 		if err = s.updateUserOpenIdInfo(userOpenID, userInfo); err != nil {
-			return nil, errs.NewInternalServer("failed_to_update_target")
+			return nil, errs.Internal("failed_to_update_target", err)
 		}
 		return &dto.OidcLoginResp{
 			Token:        "",
@@ -176,31 +176,31 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 	// 1) 尝试查找曾经绑定过的登录
 	userOpenID, err := repo.User.GetUserOpenIDByIssuerAndSub(oidcConfig.Issuer, userInfo.Sub)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errs.NewInternalServer("failed_to_get_user_openid")
+		return nil, errs.Internal("failed_to_get_user_openid", err)
 	}
 	if userOpenID != nil {
 		// openid不为空，则查找到了，更新信息并登录
 		user, err := repo.User.GetUserByID(userOpenID.UserID)
 		if err != nil {
-			return nil, errs.NewInternalServer("failed_to_get_user")
+			return nil, errs.Internal("failed_to_get_user", err)
 		}
 		if user.Disabled {
 			return nil, errs.NewForbidden("user_disabled")
 		}
 		// 更新openid信息，不致命错误不阻断登录
 		if err = s.updateUserOpenIdInfo(userOpenID, userInfo); err != nil {
-			return nil, errs.NewInternalServer("failed_to_update_target")
+			return nil, errs.Internal("failed_to_update_target", err)
 		}
 		if err = repo.Session.CreateSession(&model.Session{
 			UserID:    user.ID,
 			SessionID: sessionId,
 			UserIP:    utils.NewIPRecord(req.UserIP),
 		}); err != nil {
-			return nil, errs.NewInternalServer("failed_to_create_target")
+			return nil, errs.Internal("failed_to_create_target", err)
 		}
 		token, refreshToken, err := utils.Jwt.New2Tokens(user.ID, sessionId, false)
 		if err != nil {
-			return nil, errs.NewInternalServer("failed_to_create_target")
+			return nil, errs.Internal("failed_to_create_target", err)
 		}
 		return &dto.OidcLoginResp{
 			Token:        token,
@@ -214,7 +214,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 	// 关闭邮箱验证时本地账户的邮箱本身未经验证，同样不做关联，防止先用他人邮箱注册再等待关联
 	localUser, err := repo.User.GetUserByEmail(userInfo.Email)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errs.NewInternalServer("failed_to_get_user")
+		return nil, errs.Internal("failed_to_get_user", err)
 	}
 	if localUser != nil && !(userInfo.IsEmailVerified() && emailVerifyEnabled()) {
 		// 邮箱已被本地账户占用但无法确认归属：不关联，新建账户时也不使用该邮箱
@@ -235,18 +235,18 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		}
 		// 更新openid信息，上一步保存后模型就有主键ID，不致命错误不阻断登录
 		if err = s.updateUserOpenIdInfo(userOpenID, userInfo); err != nil {
-			return nil, errs.NewInternalServer("failed_to_update_target")
+			return nil, errs.Internal("failed_to_update_target", err)
 		}
 		if err = repo.Session.CreateSession(&model.Session{
 			UserID:    localUser.ID,
 			SessionID: sessionId,
 			UserIP:    utils.NewIPRecord(req.UserIP),
 		}); err != nil {
-			return nil, errs.NewInternalServer("failed_to_create_target")
+			return nil, errs.Internal("failed_to_create_target", err)
 		}
 		token, refreshToken, err := utils.Jwt.New2Tokens(localUser.ID, sessionId, false)
 		if err != nil {
-			return nil, errs.NewInternalServer("failed_to_generate_tokens")
+			return nil, errs.Internal("failed_to_generate_tokens", err)
 		}
 
 		return &dto.OidcLoginResp{
@@ -263,7 +263,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 
 	usernameExists, err := repo.User.CheckUsernameExists(userInfo.PreferredUsername)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_check_target")
+		return nil, errs.Internal("failed_to_check_target", err)
 	}
 	if usernameExists {
 		for i := 0; i < 10; i++ {
@@ -271,7 +271,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 			newUsername := userInfo.PreferredUsername + "_" + randomSuffix
 			exists, err := repo.User.CheckUsernameExists(newUsername)
 			if err != nil {
-				return nil, errs.NewInternalServer("failed_to_check_target")
+				return nil, errs.Internal("failed_to_check_target", err)
 			}
 			if !exists {
 				userInfo.PreferredUsername = newUsername
@@ -290,13 +290,13 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 	}
 
 	if err = repo.User.CreateUser(newUser); err != nil {
-		return nil, errs.NewInternalServer("failed_to_create_user")
+		return nil, errs.Internal("failed_to_create_user", err)
 	}
 	if newUser.ID == 1 {
 		newUser.Role = constant.RoleAdmin
 		if err = repo.User.UpdateUser(newUser); err != nil {
 			logrus.Errorln("Failed to update user role to admin:", err)
-			return nil, errs.NewInternalServer("failed_to_update_target")
+			return nil, errs.Internal("failed_to_update_target", err)
 		}
 	}
 	userOpenID = &model.UserOpenID{
@@ -309,18 +309,18 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 	}
 	// 更新openid信息，不致命错误不阻断登录
 	if err = s.updateUserOpenIdInfo(userOpenID, userInfo); err != nil {
-		return nil, errs.NewInternalServer("failed_to_update_target")
+		return nil, errs.Internal("failed_to_update_target", err)
 	}
 	if err = repo.Session.CreateSession(&model.Session{
 		UserID:    newUser.ID,
 		SessionID: sessionId,
 		UserIP:    utils.NewIPRecord(req.UserIP),
 	}); err != nil {
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err)
 	}
 	token, refreshToken, err := utils.Jwt.New2Tokens(newUser.ID, sessionId, false)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_generate_tokens")
+		return nil, errs.Internal("failed_to_generate_tokens", err)
 	}
 	return &dto.OidcLoginResp{
 		Token:        token,
@@ -345,7 +345,7 @@ func (s *UserService) exchangeAndFetchUserinfo(oidcConfig *model.OidcConfig, req
 		misskeyTokenResp, err := utils.Oidc.RequestMisskeyToken(oidcConfig.TokenEndpoint, req.Session)
 		if err != nil {
 			logrus.WithError(err).Error("failed to request misskey oidc token")
-			return nil, errs.NewInternalServer("failed_to_request_oidc_token")
+			return nil, errs.Internal("failed_to_request_oidc_token", err)
 		}
 		userInfo.Sub = misskeyTokenResp.User.ID
 		userInfo.Name = misskeyTokenResp.User.Name
@@ -366,11 +366,11 @@ func (s *UserService) exchangeAndFetchUserinfo(oidcConfig *model.OidcConfig, req
 	)
 	if err != nil {
 		logrus.WithError(err).Error("failed to request oidc token")
-		return nil, errs.NewInternalServer("failed_to_request_oidc_token")
+		return nil, errs.Internal("failed_to_request_oidc_token", err)
 	}
 	userInfo, err = utils.Oidc.RequestUserinfo(oidcConfig.UserinfoEndpoint, tokenResp.AccessToken)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_request_oidc_userinfo")
+		return nil, errs.Internal("failed_to_request_oidc_userinfo", err)
 	}
 
 	// GitHub 特例：补充字段与优先邮箱选择
@@ -382,14 +382,14 @@ func (s *UserService) exchangeAndFetchUserinfo(oidcConfig *model.OidcConfig, req
 		}
 		emails, err := utils.Oidc.RequestGitHubUserVerifiedEmails(tokenResp.AccessToken)
 		if err != nil {
-			return nil, errs.NewInternalServer("failed_to_request_oidc_userinfo")
+			return nil, errs.Internal("failed_to_request_oidc_userinfo", err)
 		}
 		if len(emails) > 0 {
 			emailFound := false
 			for _, email := range emails {
 				exists, err := repo.User.CheckEmailExists(email)
 				if err != nil {
-					return nil, errs.NewInternalServer("failed_to_check_target")
+					return nil, errs.Internal("failed_to_check_target", err)
 				}
 				if exists {
 					userInfo.Email = email

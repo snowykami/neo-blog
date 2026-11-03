@@ -13,7 +13,7 @@ import (
 func (cc *AdminController) ListKV(ctx context.Context, c *app.RequestContext) {
 	kvs, err := repo.KV.ListKV(c.Query("query"))
 	if err != nil {
-		resps.InternalServerError(c, err.Error())
+		resps.InternalError(c, err)
 		return
 	}
 	items := make([]dto.KVDto, 0, len(kvs))
@@ -57,7 +57,7 @@ func (cc *AdminController) SetKV(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	if err := repo.KV.SetKV(key, req.Value); err != nil {
-		resps.InternalServerError(c, err.Error())
+		resps.InternalError(c, err)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -70,7 +70,7 @@ func (cc *AdminController) DeleteKV(ctx context.Context, c *app.RequestContext) 
 		return
 	}
 	if err := repo.KV.DeleteKV(key); err != nil {
-		resps.InternalServerError(c, err.Error())
+		resps.InternalError(c, err)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)

@@ -58,7 +58,7 @@ func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, *err
 	// 按照用户名或邮箱查找用户；用户不存在与密码错误返回相同错误，避免枚举用户
 	user, err := repo.User.GetUserByUsernameOrEmail(req.Username)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("user")
 	}
 	if user == nil || err != nil || !utils.Password.VerifyPassword(req.Password, user.Password) {
 		utils.RecordFailure(accountKey, loginLimitWindow)
@@ -76,13 +76,13 @@ func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, *err
 		UserIP:    utils.NewIPRecord(req.UserIP),
 	})
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err).WithResource("session")
 	}
 	token, refreshToken, err := utils.Jwt.New2Tokens(user.ID, sessionId, req.RememberMe)
 
 	if err != nil {
 		logrus.Errorln("Failed to generate tokens:", err)
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err).WithResource("user")
 	}
 	resp := &dto.UserLoginResp{
 		Token:        token,
@@ -107,11 +107,11 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 	// 检查用户名或邮箱是否已存在
 	usernameExist, err := repo.User.CheckUsernameExists(req.Username)
 	if err != nil {
-		return nil, errs.NewBadRequest("failed_to_check_target")
+		return nil, errs.NewBadRequest("failed_to_check_target").WithResource("user")
 	}
 	emailExist, err := repo.User.CheckEmailExists(req.Email)
 	if err != nil {
-		return nil, errs.NewBadRequest("failed_to_check_target")
+		return nil, errs.NewBadRequest("failed_to_check_target").WithResource("user")
 	}
 	if usernameExist || emailExist {
 		return nil, errs.NewConflict("username_or_email_already_exists")
@@ -119,7 +119,7 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 	// 创建新用户
 	hashedPassword, err := utils.Password.HashPassword(req.Password)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err).WithResource("user")
 	}
 	newUser := &model.User{
 		Username: req.Username,
@@ -131,7 +131,7 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 	}
 	err = repo.User.CreateUser(newUser)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err).WithResource("user")
 	}
 	// 创建默认管理员账户
 	if newUser.ID == 1 {
@@ -139,7 +139,7 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 		err = repo.User.UpdateUser(newUser)
 		if err != nil {
 			logrus.Errorln("Failed to update user role to admin:", err)
-			return nil, errs.NewInternalServer("failed_to_update_target")
+			return nil, errs.Internal("failed_to_update_target", err).WithResource("user")
 		}
 	}
 	// 生成访问令牌和刷新令牌并保存session
@@ -150,12 +150,12 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 		UserIP:    utils.NewIPRecord(req.UserIP),
 	})
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err).WithResource("session")
 	}
 	token, refreshToken, err := utils.Jwt.New2Tokens(newUser.ID, sessionId, false)
 
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err).WithResource("user")
 	}
 	resp := &dto.UserRegisterResp{
 		Token:        token,
@@ -186,14 +186,14 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 		"Details":    "你正在验证电子邮件所有权",
 	})
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_render_email")
+		return nil, errs.Internal("failed_to_render_email", err)
 	}
 	if utils.IsDevMode {
 		logrus.Debugf("%s's verification code is %s", req.Email, verifyCode)
 	}
 	err = utils.Email.SendEmail(tools.GetEmailConfig(), req.Email, "验证你的电子邮件 / Verify your email", template, true)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_send_email")
+		return nil, errs.Internal("failed_to_send_email", err)
 	}
 	return &dto.VerifyEmailResp{Success: true}, nil
 }
@@ -201,7 +201,7 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 func (s *UserService) ListOidcConfigs(req *dto.ListOidcConfigReq) ([]dto.UserOidcConfigDto, *errs.ServiceError) {
 	enabledOidcConfigs, err := repo.Oidc.ListOidcConfigs(true)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("oidc_config")
 	}
 	var oidcConfigsDtos []dto.UserOidcConfigDto
 	req.RedirectBack = normalizeOidcRedirectBack(req.RedirectBack)
@@ -278,13 +278,13 @@ func (s *UserService) GetUser(ctx context.Context, req *dto.GetUserReq) (*dto.Ge
 	user, err := repo.User.GetUserByID(req.UserID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errs.NewNotFound("target_not_found")
+			return nil, errs.NewNotFound("target_not_found").WithResource("user")
 		}
 		logrus.Errorln("Failed to get user by ID:", err)
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("user")
 	}
 	if user == nil {
-		return nil, errs.NewNotFound("target_not_found")
+		return nil, errs.NewNotFound("target_not_found").WithResource("user")
 	}
 	return &dto.GetUserResp{
 		User: viewUserDto(ctx, user),
@@ -298,13 +298,13 @@ func (s *UserService) GetUserByUsername(ctx context.Context, req *dto.GetUserByU
 	user, err := repo.User.GetUserByUsername(req.Username)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errs.NewNotFound("target_not_found")
+			return nil, errs.NewNotFound("target_not_found").WithResource("user")
 		}
 		logrus.Errorln("Failed to get user by username:", err)
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("user")
 	}
 	if user == nil {
-		return nil, errs.NewNotFound("target_not_found")
+		return nil, errs.NewNotFound("target_not_found").WithResource("user")
 	}
 	return &dto.GetUserResp{
 		User: viewUserDto(ctx, user),
@@ -328,10 +328,10 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, *
 	err := repo.User.UpdateUser(user)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errs.NewNotFound("target_not_found")
+			return nil, errs.NewNotFound("target_not_found").WithResource("user")
 		}
 		logrus.Errorln("Failed to update user:", err)
-		return nil, errs.NewInternalServer("failed_to_update_target")
+		return nil, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	return &dto.UpdateUserResp{}, nil
 }
@@ -351,12 +351,12 @@ func (s *UserService) UpdatePassword(ctx context.Context, req *dto.UpdatePasswor
 	hashedPassword, err := utils.Password.HashPassword(req.NewPassword)
 	if err != nil {
 		logrus.Errorln("Failed to update password:", err)
-		return false, errs.NewInternalServer("failed_to_update_target")
+		return false, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	currentUser.Password = hashedPassword
 	err = repo.GetDB().Save(currentUser).Error
 	if err != nil {
-		return false, errs.NewInternalServer("failed_to_update_target")
+		return false, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	// 改密后其他设备上的登录全部失效，只保留当前会话
 	currentSessionID, _ := ctx.Value("session_id").(string)
@@ -377,12 +377,12 @@ func (s *UserService) ResetPassword(req *dto.ResetPasswordReq) (bool, *errs.Serv
 	}
 	hashedPassword, err := utils.Password.HashPassword(req.NewPassword)
 	if err != nil {
-		return false, errs.NewInternalServer("failed_to_create_target")
+		return false, errs.Internal("failed_to_create_target", err).WithResource("user")
 	}
 	user.Password = hashedPassword
 	err = repo.User.UpdateUser(user)
 	if err != nil {
-		return false, errs.NewInternalServer("failed_to_update_target")
+		return false, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	// 重置密码后吊销该用户的全部会话
 	if err := repo.Session.RevokeUserSessions(user.ID, ""); err != nil {
@@ -399,7 +399,7 @@ func (s *UserService) UpdateEmail(ctx context.Context, email string) (bool, *err
 	currentUser.Email = email
 	err := repo.GetDB().Save(currentUser).Error
 	if err != nil {
-		return false, errs.NewInternalServer("failed_to_update_target")
+		return false, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	return true, nil
 }

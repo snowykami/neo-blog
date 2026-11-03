@@ -34,7 +34,7 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	}
 	labels, err := repo.Label.GetLabelsByIDs(req.LabelIds)
 	if err != nil {
-		return 0, errs.NewInternalServer("failed_to_get_target")
+		return 0, errs.Internal("failed_to_get_target", err).WithResource("label")
 	}
 	categoryID, svcerr := normalizeCategoryID(req.CategoryID)
 	if svcerr != nil {
@@ -63,9 +63,9 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	}
 	if err := repo.Post.CreatePost(post); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return 0, errs.NewConflict("slug_already_exists")
+			return 0, errs.AlreadyExists("post", "slug", slug)
 		}
-		return 0, errs.NewInternalServer("failed_to_create_target")
+		return 0, errs.Internal("failed_to_create_target", err).WithResource("post")
 	}
 	return post.ID, nil
 }
@@ -110,7 +110,7 @@ func normalizeCategoryID(categoryID *uint) (*uint, *errs.ServiceError) {
 	}
 	var count int64
 	if err := repo.GetDB().Model(&model.Category{}).Where("id = ?", *categoryID).Count(&count).Error; err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
 	}
 	if count == 0 {
 		return nil, errs.NewBadRequest("category_not_found")
@@ -125,15 +125,15 @@ func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.Service
 	post, err := repo.Post.GetPostByID(postId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errs.NewNotFound("target_not_found")
+			return errs.NewNotFound("target_not_found").WithResource("post")
 		}
-		return errs.NewInternalServer("failed_to_get_target")
+		return errs.Internal("failed_to_get_target", err).WithResource("post")
 	}
 	if !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx)) {
 		return errs.NewForbidden("permission_denied")
 	}
 	if err := repo.Post.DeletePost(postId); err != nil {
-		return errs.NewInternalServer("failed_to_delete_target")
+		return errs.Internal("failed_to_delete_target", err).WithResource("post")
 	}
 	if err := repo.Revision.DeleteByTarget(constant.TargetTypePost, postId); err != nil {
 		logrus.Warnf("delete revisions of post %d failed: %v", postId, err)
@@ -147,7 +147,7 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 	}
 	post, err := repo.Post.GetPostBySlugOrID(slugOrId)
 	if err != nil {
-		return nil, errs.NewNotFound("target_not_found")
+		return nil, errs.NewNotFound("target_not_found").WithResource("post")
 	}
 	currentUser, userOk := ctxutils.GetCurrentUser(ctx)
 	// 私密文章只有自己和管理员能看
@@ -168,7 +168,7 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (uint, *errs.ServiceError) {
 	post, err := repo.Post.GetPostByID(req.ID)
 	if err != nil {
-		return 0, errs.NewNotFound("target_not_found")
+		return 0, errs.NewNotFound("target_not_found").WithResource("post")
 	}
 
 	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, post.UserID)) {
@@ -229,15 +229,15 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		// 跳过不存在的标签
 		labels, err := repo.Label.GetLabelsByIDs(req.LabelIds)
 		if err != nil {
-			return 0, errs.NewInternalServer("failed_to_get_target")
+			return 0, errs.Internal("failed_to_get_target", err).WithResource("label")
 		}
 		post.Labels = labels
 	}
 	if err := repo.Post.SavePost(post); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return 0, errs.NewConflict("slug_already_exists")
+			return 0, errs.AlreadyExists("post", "slug", utils.Deref(post.Slug))
 		}
-		return 0, errs.NewInternalServer("failed_to_update_target")
+		return 0, errs.Internal("failed_to_update_target", err).WithResource("post")
 	}
 	// 发布或保存草稿后记录版本历史
 	if req.Content != "" || req.DraftContent != nil {
@@ -269,7 +269,7 @@ func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, inclu
 	}
 	posts, total, err := repo.Post.ListPosts(currentUserID, includeAllPrivate, queryArray, req)
 	if err != nil {
-		return nil, total, errs.NewInternalServer("failed_to_get_target")
+		return nil, total, errs.Internal("failed_to_get_target", err).WithResource("post")
 	}
 	for _, post := range posts {
 		postDtos = append(postDtos, post.ToDtoWithShortContent(200))
@@ -285,7 +285,7 @@ func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, inclu
 func (p *PostService) ListCategories() ([]dto.CategoryDto, *errs.ServiceError) {
 	categories, err := repo.Post.ListCategories()
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
 	}
 	result := make([]dto.CategoryDto, 0, len(categories))
 	for i := range categories {

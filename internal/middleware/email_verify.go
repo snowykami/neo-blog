@@ -16,22 +16,22 @@ func UseEmailVerify() app.HandlerFunc {
 		req := &dto.EmailVerifyReq{}
 		err := c.Bind(req)
 		if err != nil {
-			resps.BadRequest(c, "缺失email和verifyCode")
+			resps.BadRequest(c, "missing_email_or_verify_code")
 			return
 		}
 		// 如果全局关闭，则不允许
 		if !utils.Env.GetAsBool(constant.EnvKeyEnableEmailVerify, true) {
-			resps.Forbidden(c, "邮箱验证功能已关闭")
+			resps.Forbidden(c, "email_verify_disabled")
 			c.Abort()
 			return
 		}
 		if req.Email == "" || req.VerifyCode == "" {
-			resps.BadRequest(c, "缺失email和verifyCode")
+			resps.BadRequest(c, "missing_email_or_verify_code")
 			return
 		}
 		ok := utils.VerifyEmailCode(req.Email, req.VerifyCode)
 		if !ok {
-			resps.Unauthorized(c, "验证码错误")
+			resps.Unauthorized(c, "invalid_verify_code")
 			return
 		}
 		c.Next(ctx)

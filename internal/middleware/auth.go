@@ -73,7 +73,7 @@ func UseAuth(block bool, tokenScopes ...string) app.HandlerFunc {
 					// 续期沿用登录时的「记住我」，否则记住我的会话续期后会缩短成普通有效期
 					newToken, newRefreshToken, err := utils.Jwt.New2Tokens(refreshTokenClaims.UserID, refreshTokenClaims.SessionID, refreshTokenClaims.RememberMe())
 					if err != nil {
-						resps.InternalServerError(c, "Failed to generate new tokens")
+						resps.Error(c, errs.Internal("failed_to_generate_tokens", err))
 						c.Abort()
 						return
 					}
@@ -193,7 +193,7 @@ func UseRole(requiredRole constant.Role) app.HandlerFunc {
 		case constant.RoleUser:
 			// 所有登录用户均为user，无需额外检查
 		default:
-			resps.InternalServerError(c, "Invalid role configuration")
+			resps.InternalServerError(c, resps.ErrInternalServerError)
 			c.Abort()
 			return
 		}

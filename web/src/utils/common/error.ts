@@ -17,6 +17,28 @@ export function getErrorMessage(error: unknown, fallback = ''): string {
   return fallback
 }
 
+/** 后端错误详情（见后端 pkg/errs.Body）：reason 为错误原因枚举，code 为具体错误码，其余字段可选 */
+export interface ApiErrorBody {
+  reason: string
+  code: string
+  resource?: string // 出错的资源类型，如 label
+  field?: string // 出错的字段，如 slug
+  value?: unknown // 用户提交的值
+  detail?: string // 可以公开的补充说明
+}
+
+/**
+ * 取出后端返回的错误详情；非后端错误（如网络错误）返回 undefined
+ */
+export function getErrorBody(error: unknown): ApiErrorBody | undefined {
+  if (!isAxiosError(error))
+    return undefined
+  const body = (error.response?.data as { error?: unknown } | undefined)?.error
+  if (body && typeof body === 'object' && typeof (body as ApiErrorBody).code === 'string')
+    return body as ApiErrorBody
+  return undefined
+}
+
 /**
  * 获取请求错误的 HTTP 状态码，非 HTTP 错误返回 undefined
  */

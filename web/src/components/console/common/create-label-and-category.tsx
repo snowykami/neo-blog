@@ -28,8 +28,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { useOperationT } from '@/hooks/use-translations'
-import { getErrorMessage } from '@/utils/common/error'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 
 export function CreateOrUpdateLabelDialogWithButton({
   label,
@@ -41,6 +40,7 @@ export function CreateOrUpdateLabelDialogWithButton({
   buttonSize?: 'sm' | 'lg' | 'icon' | 'icon-sm' | 'icon-lg' | 'default' | null | undefined
 }) {
   const t = useTranslations('Console.labels')
+  const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const [open, setOpen] = useState(false)
 
@@ -90,7 +90,7 @@ export function CreateOrUpdateLabelDialogWithButton({
           form.reset(data)
         })
         .catch((error) => {
-          const message = getErrorMessage(error)
+          const message = errorMessageT(error)
           toast.error(operationT('update_failed') + (message ? `: ${message}` : ''))
         })
     }
@@ -114,7 +114,7 @@ export function CreateOrUpdateLabelDialogWithButton({
           form.reset()
         })
         .catch((error) => {
-          const message = getErrorMessage(error)
+          const message = errorMessageT(error)
           toast.error(operationT('create_failed') + (message ? `: ${message}` : ''))
         })
     }
@@ -223,6 +223,7 @@ export function CreateOrUpdateCategoryDialogWithButton({
   buttonSize?: 'sm' | 'lg' | 'icon' | 'icon-sm' | 'icon-lg' | 'default' | null | undefined
 }) {
   const t = useTranslations('Console.categories')
+  const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const [open, setOpen] = useState(false)
 
@@ -269,7 +270,7 @@ export function CreateOrUpdateCategoryDialogWithButton({
           form.reset(saved)
         })
         .catch((error) => {
-          const message = getErrorMessage(error)
+          const message = errorMessageT(error)
           toast.error(operationT('update_failed') + (message ? `: ${message}` : ''))
         })
     }
@@ -293,7 +294,7 @@ export function CreateOrUpdateCategoryDialogWithButton({
           form.reset()
         })
         .catch((error) => {
-          const message = getErrorMessage(error)
+          const message = errorMessageT(error)
           toast.error(operationT('create_failed') + (message ? `: ${message}` : ''))
         })
     }

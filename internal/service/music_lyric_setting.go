@@ -31,7 +31,7 @@ func (s *MusicService) GetLyricSettings(ctx context.Context, id int64) (*dto.Mus
 	}
 	var records []model.LyricSetting
 	if err := repo.GetDB().WithContext(ctx).Where("song_id = ?", id).Find(&records).Error; err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	result := &dto.MusicLyricSettingsDto{Offsets: map[string]int{}}
 	for _, record := range records {
@@ -41,7 +41,7 @@ func (s *MusicService) GetLyricSettings(ctx context.Context, id int64) (*dto.Mus
 	}
 	var song model.LyricSongSetting
 	if err := repo.GetDB().WithContext(ctx).Where("song_id = ?", id).Limit(1).Find(&song).Error; err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	result.Pin = song.PinnedKind
 	return result, nil
@@ -57,7 +57,7 @@ func (s *MusicService) SaveLyricPin(ctx context.Context, id int64, kind string) 
 	db := repo.GetDB().WithContext(ctx)
 	if kind == "" {
 		if err := db.Where("song_id = ?", id).Delete(&model.LyricSongSetting{}).Error; err != nil {
-			return nil, errs.NewInternalServer("failed_to_update_target")
+			return nil, errs.Internal("failed_to_update_target", err)
 		}
 	} else {
 		record := &model.LyricSongSetting{SongID: id, PinnedKind: kind, UpdatedAt: time.Now()}
@@ -67,7 +67,7 @@ func (s *MusicService) SaveLyricPin(ctx context.Context, id int64, kind string) 
 		}
 		if err := db.Clauses(upsert).Create(record).Error; err != nil {
 			logrus.Errorf("save lyric pin for song %d failed: %v", id, err)
-			return nil, errs.NewInternalServer("failed_to_update_target")
+			return nil, errs.Internal("failed_to_update_target", err)
 		}
 	}
 	previous, _ := loadLyricVersionRecord(ctx, id)
@@ -91,7 +91,7 @@ func (s *MusicService) SaveLyricOffset(ctx context.Context, id int64, source str
 	db := repo.GetDB().WithContext(ctx)
 	if offsetMs == 0 {
 		if err := db.Where("song_id = ? AND source = ?", id, source).Delete(&model.LyricSetting{}).Error; err != nil {
-			return errs.NewInternalServer("failed_to_update_target")
+			return errs.Internal("failed_to_update_target", err)
 		}
 		return nil
 	}
@@ -102,7 +102,7 @@ func (s *MusicService) SaveLyricOffset(ctx context.Context, id int64, source str
 	}
 	if err := db.Clauses(upsert).Create(record).Error; err != nil {
 		logrus.Errorf("save lyric offset for song %d failed: %v", id, err)
-		return errs.NewInternalServer("failed_to_update_target")
+		return errs.Internal("failed_to_update_target", err)
 	}
 	return nil
 }

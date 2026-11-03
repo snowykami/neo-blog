@@ -13,14 +13,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useOperationT } from '@/hooks/use-translations'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { StorageType } from '@/models/types'
-import { getErrorMessage } from '@/utils/common/error'
 import { providerFormMap } from './storage-forms'
 
 export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: { initStorageProvider?: StorageProviderConfig, onCreate: () => void }) {
   const t = useTranslations('Console.storages')
+  const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const [open, setOpen] = useState(false)
   const form = useForm<StorageProviderConfig>({
@@ -58,7 +58,7 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
         onCreate()
       }
       catch (err) {
-        const message = getErrorMessage(err)
+        const message = errorMessageT(err)
         toast.error(operationT('update_failed') + (message ? `: ${message}` : ''))
       }
     }
@@ -71,7 +71,7 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
         onCreate()
       }
       catch (err) {
-        const message = getErrorMessage(err)
+        const message = errorMessageT(err)
         toast.error(operationT('create_failed') + (message ? `: ${message}` : ''))
       }
     }

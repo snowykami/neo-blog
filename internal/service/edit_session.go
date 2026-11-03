@@ -36,7 +36,7 @@ func (s *EditSessionService) checkEditPermission(ctx context.Context, targetType
 	}
 	ownerID, err := repo.EditSession.GetTargetOwnerID(targetType, targetID)
 	if err != nil {
-		return errs.NewInternalServer("failed_to_get_target")
+		return errs.Internal("failed_to_get_target", err)
 	}
 	if ownerID == 0 {
 		return errs.NewNotFound("target_not_found")
@@ -110,11 +110,11 @@ func (s *EditSessionService) acquire(ctx context.Context, targetType string, tar
 		session.APITokenID = &tokenID
 	}
 	if err := repo.EditSession.Upsert(session); err != nil {
-		return nil, errs.NewInternalServer("failed_to_create_target")
+		return nil, errs.Internal("failed_to_create_target", err)
 	}
 	saved, err := repo.EditSession.Get(targetType, targetID)
 	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	result := saved.ToDto(true)
 	result.IsCurrent = true
@@ -137,7 +137,7 @@ func (s *EditSessionService) Current(ctx context.Context, targetType string, tar
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	result := session.ToDto(false)
 	result.IsCurrent = sessionID != "" && session.SessionID == sessionID
@@ -156,7 +156,7 @@ func (s *EditSessionService) CheckContentWrite(targetType string, targetID uint,
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
-		return errs.NewInternalServer("failed_to_get_target")
+		return errs.Internal("failed_to_get_target", err)
 	}
 	if session.SessionID != sessionID {
 		return errs.NewConflict("edit_session_taken_over")
