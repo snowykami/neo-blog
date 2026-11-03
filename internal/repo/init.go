@@ -163,59 +163,40 @@ func configureConnPool(driver string) {
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 }
 
-func migrate() error {
-	if err := prepareLikeUniqueIndex(); err != nil {
-		return err
-	}
-	if err := GetDB().AutoMigrate(
-		&model.AIPrompt{},
-		&model.APIToken{},
-		&model.Comment{},
-		&model.ContentRevision{},
-		&model.EditSession{},
-		&model.Label{},
-		&model.Like{},
-		&model.LyricAnnotation{},
-		&model.LyricCache{},
-		&model.LyricSetting{},
-		&model.LyricSongSetting{},
-		&model.File{},
-		&model.StorageProviderModelAndDto{},
-		&model.KV{},
-		&model.OidcConfig{},
-		&model.Page{},
-		&model.PageHTMLVersion{},
-		&model.Post{},
-		&model.Session{},
-		&model.User{},
-		&model.UserOpenID{},
-		&model.Visitor{},
-		&model.VisitLog{},
-		&model.VisitEvent{}); err != nil {
-		return err
-	}
-	if err := createQueryIndexes(); err != nil {
-		return err
-	}
-	if err := seedDefaultAIPrompts(); err != nil {
-		return err
-	}
-	return backfillPostContentHash()
+// models 由 AutoMigrate 管理的全部模型
+var models = []any{
+	&model.AIPrompt{},
+	&model.APIToken{},
+	&model.Comment{},
+	&model.ContentRevision{},
+	&model.EditSession{},
+	&model.Label{},
+	&model.Like{},
+	&model.LyricAnnotation{},
+	&model.LyricCache{},
+	&model.LyricSetting{},
+	&model.LyricSongSetting{},
+	&model.File{},
+	&model.StorageProviderModelAndDto{},
+	&model.KV{},
+	&model.OidcConfig{},
+	&model.Page{},
+	&model.PageHTMLVersion{},
+	&model.Post{},
+	&model.Session{},
+	&model.User{},
+	&model.UserOpenID{},
+	&model.Visitor{},
+	&model.VisitLog{},
+	&model.VisitEvent{},
 }
 
-// backfillPostContentHash 为升级前已有的文章补全正文哈希（AI 摘要过期判断依赖它）
-func backfillPostContentHash() error {
-	var posts []model.Post
-	if err := GetDB().Unscoped().Select("id, content").Where("content_hash IS NULL OR content_hash = ''").Find(&posts).Error; err != nil {
+// migrate 执行版本迁移与 AutoMigrate（见 runMigrations），再写入默认数据
+func migrate() error {
+	if err := runMigrations(); err != nil {
 		return err
 	}
-	for _, post := range posts {
-		if err := GetDB().Unscoped().Model(&model.Post{}).Where("id = ?", post.ID).
-			UpdateColumn("content_hash", model.HashContent(post.Content)).Error; err != nil {
-			return err
-		}
-	}
-	return nil
+	return seedDefaultAIPrompts()
 }
 
 // createQueryIndexes 为常用查询补充组合索引（gorm.Model 内的字段无法通过标签声明组合索引）
@@ -239,24 +220,4 @@ func createQueryIndexes() error {
 		}
 	}
 	return nil
-}
-
-// prepareLikeUniqueIndex 点赞表加唯一索引前，清理软删除记录和并发产生的重复点赞，并按实际记录修正计数
-func prepareLikeUniqueIndex() error {
-	db := GetDB()
-	if !db.Migrator().HasTable(&model.Like{}) || db.Migrator().HasIndex(&model.Like{}, "idx_like_target_user") {
-		return nil
-	}
-	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec("DELETE FROM likes WHERE deleted_at IS NOT NULL").Error; err != nil {
-			return err
-		}
-		if err := tx.Exec("DELETE FROM likes WHERE id NOT IN (SELECT MIN(id) FROM likes GROUP BY target_type, target_id, user_id)").Error; err != nil {
-			return err
-		}
-		if err := tx.Exec("UPDATE posts SET like_count = (SELECT COUNT(*) FROM likes WHERE likes.target_type = ? AND likes.target_id = posts.id)", "post").Error; err != nil {
-			return err
-		}
-		return tx.Exec("UPDATE comments SET like_count = (SELECT COUNT(*) FROM likes WHERE likes.target_type = ? AND likes.target_id = comments.id)", "comment").Error
-	})
 }

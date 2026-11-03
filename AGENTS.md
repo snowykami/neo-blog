@@ -85,6 +85,24 @@
   - 对公开接口、公开页面、用户资料等功能，优先先收紧再按需求逐项放开，不要先放开再补限制
 - 后端 DTO 的 JSON 字段保持 snake_case，与现有接口一致
 
+### 数据库迁移
+
+启动时由 `internal/repo/migrate.go` 自动执行：先跑 `internal/repo/migrations/` 中未执行的版本迁移（基于 gormigrate，记录在 `schema_migrations` 表），再由 AutoMigrate 补齐纯增量的表和列，最后补组合索引。全新库直接按最新模型建表并把全部迁移标记为已执行；Postgres 下用咨询锁串行，SQLite 只支持单实例。
+
+- 纯增量改动（新表、可空或带默认值的新列、标签声明的索引）只改模型并加入 `internal/repo/init.go` 的 `models` 即可
+- 以下改动必须写版本迁移，不要在启动路径新增“每次启动检查一遍”的修数函数，也不要用查询条件长期过滤旧数据：
+  - 删列、删表、重命名、改类型 / 长度 / 默认值 / NULL 约束
+  - 新增或修改唯一索引、组合索引变更与删除
+  - 数据回填、一次性修数、清理旧数据
+- 迁移写法：
+  - 一个迁移一个文件，命名 `YYYYMMDDNN_snake_case.go`，ID 与文件名一致，并按顺序追加到 `migrations.List()` 末尾
+  - ID 只增不改，已发布的迁移不得修改；修正问题请写新迁移
+  - 迁移在 AutoMigrate 之前执行：用到的表或列若不是更早的迁移创建的，先 `HasTable` / `HasColumn` 判断并补建
+  - 在迁移文件内定义当时的快照结构体（如 `post2026110402`），不要依赖会变化的 `model` 结构体做 DDL；可以调用 `model.HashContent` 这类纯函数
+  - 必须同时兼容 SQLite 与 Postgres，优先使用 `tx.Migrator()`；确需原生 SQL 时按 `tx.Dialector.Name()` 分支
+  - 全部待执行迁移在同一事务中执行，失败整体回滚；不提供自动 down，回退到旧版本前需先恢复数据库备份（库中有当前代码不认识的迁移时会拒绝启动）
+- 新增迁移需在 `internal/repo/migrate_test.go` 补充用例，覆盖旧库升级路径
+
 ### Next.js / TypeScript 前端
 
 - 遵循现有 ESLint/格式化结果，不手写与项目风格冲突的格式
@@ -230,6 +248,7 @@ pnpm lint:fix
 
 - 后端代码改动：至少运行 `go test ./...`
 - 后端入口/编译相关改动：补充运行 `go build -o bin/server ./cmd/server`
+- 数据库迁移改动：除 SQLite 外，尽量再在 Postgres 上跑 `go test ./internal/repo/`（设置 `NEO_TEST_POSTGRES_DSN`，key=value 格式；未设置时 Postgres 用例自动跳过）
 - 前端代码改动：至少运行 `cd web && pnpm lint`
 - 前端路由、构建、配置类改动：补充运行 `cd web && pnpm build`
 - 前后端接口联动改动：检查 DTO、前端 model、API 封装、页面使用是否一致
