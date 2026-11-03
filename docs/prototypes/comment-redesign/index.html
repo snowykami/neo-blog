@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>评论区优化 · 原型</title>
+<style>
+  /* 色板沿用前台 web/src/app/globals.css 的默认参数（hue 250） */
+  :root {
+    --hue: 250; --chroma: .14; --radius: .625rem;
+    color-scheme: light;
+    --background: oklch(.96 .01 var(--hue));
+    --foreground: oklch(.22 .02 var(--hue));
+    --card: oklch(1 0 0);
+    --primary: oklch(.55 var(--chroma) var(--hue));
+    --primary-foreground: oklch(.98 .01 var(--hue));
+    --secondary: oklch(.95 .025 var(--hue));
+    --secondary-foreground: oklch(.45 var(--chroma) var(--hue));
+    --muted: oklch(.95 .01 var(--hue));
+    --muted-foreground: oklch(.5 .02 var(--hue));
+    --border: oklch(.9 .01 var(--hue));
+    --rail: oklch(.88 .012 var(--hue));
+    --tint: oklch(.55 var(--chroma) var(--hue) / 7%);
+  }
+  html.dark {
+    color-scheme: dark;
+    --background: oklch(.16 .014 var(--hue));
+    --foreground: oklch(.93 .01 var(--hue));
+    --card: oklch(.23 .015 var(--hue));
+    --primary: oklch(.75 var(--chroma) var(--hue));
+    --primary-foreground: oklch(.2 .03 var(--hue));
+    --secondary: oklch(.33 .035 var(--hue));
+    --secondary-foreground: oklch(.85 .08 var(--hue));
+    --muted: oklch(.27 .015 var(--hue));
+    --muted-foreground: oklch(.7 .015 var(--hue));
+    --border: oklch(1 0 0 / 10%);
+    --rail: oklch(1 0 0 / 12%);
+    --tint: oklch(.75 var(--chroma) var(--hue) / 9%);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font: 15px/1.65 system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  svg.i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .muted { color: var(--muted-foreground); }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .hidden { display: none !important; }
+
+  /* 原型外框 */
+  .topbar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 24px; background: color-mix(in oklch, var(--background) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar h1 { margin: 0; font-size: 16px; }
+  .topbar nav { display: flex; gap: 4px; flex-wrap: wrap; margin-left: 8px; }
+  .topbar nav a { padding: 4px 10px; border-radius: 999px; color: var(--muted-foreground); text-decoration: none; font-size: 13px; }
+  .topbar nav a:hover { background: var(--muted); color: var(--foreground); }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--muted); }
+  .seg button { border: 0; background: transparent; padding: 4px 12px; border-radius: 8px; font-size: 13px; color: var(--muted-foreground); }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px oklch(0 0 0 / 12%); }
+  main { max-width: 1120px; margin: 0 auto; padding: 24px; display: grid; gap: 40px; }
+  .stage-title { display: flex; align-items: baseline; gap: 12px; margin: 0 0 4px; font-size: 20px; }
+  .stage-title small { font-size: 13px; font-weight: 400; color: var(--muted-foreground); }
+  .stage-desc { margin: 0 0 16px; color: var(--muted-foreground); font-size: 14px; max-width: 760px; }
+  .grid2 { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+  .label { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--muted-foreground); }
+  .label .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-foreground); }
+  .label.new .dot { background: var(--primary); }
+  .label.new { color: var(--primary); }
+  /* 模拟文章页里的评论卡片 */
+  .panel { background: var(--card); border-radius: calc(var(--radius) + 6px); padding: 20px 24px; box-shadow: 0 1px 2px oklch(0 0 0 / 6%); }
+  .frame-mobile .panel { padding: 16px 14px; }
+  .notes { margin: 0; padding-left: 20px; color: var(--muted-foreground); font-size: 13.5px; }
+  .notes b { color: var(--foreground); font-weight: 600; }
+
+  /* 实际效果对比：左右两张截图 */
+  .compare { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); align-items: start; }
+  .compare figure { margin: 0; }
+  .compare img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--border); box-shadow: 0 4px 16px oklch(0 0 0 / 8%); }
+  .compare figcaption { margin-top: 8px; font-size: 13px; color: var(--muted-foreground); }
+  .compare .phone-shot { max-width: 300px; justify-self: center; }
+  .pair-title { margin: 28px 0 10px; font-size: 15px; font-weight: 600; }
+  .pair-title:first-of-type { margin-top: 8px; }
+  .tag { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; margin-left: 6px; border-radius: 999px; font-size: 11px; font-weight: 600; vertical-align: 2px; }
+  .tag.done { background: color-mix(in oklch, #0ca30c 15%, transparent); color: #0a8a0a; }
+  .tag.skip { background: var(--muted); color: var(--muted-foreground); }
+
+  /* 手机预览：把评论区放进 375px 的框里 */
+  .device { display: grid; place-items: start center; }
+  .phone { width: 375px; border-radius: 28px; padding: 10px; background: var(--foreground); box-shadow: 0 12px 40px oklch(0 0 0 / 18%); }
+  .phone-inner { border-radius: 20px; background: var(--background); padding: 12px 8px; max-height: 760px; overflow: auto; }
+
+  /* ---------- 通用组件（对应 shadcn 的 Button / Badge / Avatar） ---------- */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: calc(var(--radius) - 2px); border: 1px solid transparent; font-size: 13px; font-weight: 500; transition: background .15s, color .15s, opacity .15s; }
+  .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+  .btn-primary:hover { opacity: .9; }
+  .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-outline { background: var(--card); border-color: var(--border); }
+  .btn-outline:hover { background: var(--muted); }
+  .btn-ghost { background: transparent; color: var(--muted-foreground); }
+  .btn-ghost:hover { background: var(--muted); color: var(--foreground); }
+  .btn-sm { height: 28px; padding: 0 8px; font-size: 12.5px; }
+  .badge { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--secondary); color: var(--secondary-foreground); }
+  .avatar { position: relative; flex: none; display: grid; place-items: center; border-radius: 50%; color: white; font-weight: 700; overflow: hidden; }
+  .av40 { width: 40px; height: 40px; font-size: 15px; }
+  .av28 { width: 28px; height: 28px; font-size: 11.5px; }
+  .av20 { width: 20px; height: 20px; font-size: 9px; border: 2px solid var(--card); }
+  /* 游客头像：柔和底色 + 实心剪影，替代线条粗重的 CircleUser 图标 */
+  .avatar.guest { background: linear-gradient(145deg, var(--muted), color-mix(in oklch, var(--muted) 60%, var(--border))); color: var(--muted-foreground); }
+  .avatar.guest svg { width: 62%; height: 62%; margin-top: 18%; fill: currentColor; opacity: .55; }
+
+  /* ---------- 现状复刻 ---------- */
+  .old-composer { display: flex; gap: 8px; }
+  .old-icon { width: 40px; height: 40px; flex: none; color: var(--foreground); }
+  .old-icon svg { width: 40px; height: 40px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .old-textarea { flex: 1; min-height: 64px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); padding: 8px 12px; color: var(--muted-foreground); background: transparent; }
+  .old-opts { display: flex; justify-content: flex-end; align-items: center; gap: 16px; margin-top: 12px; font-size: 13px; }
+  .old-opts label { display: inline-flex; gap: 6px; align-items: center; }
+
+  /* ---------- 未登录：邀请卡片 ---------- */
+  .guest-card { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px dashed color-mix(in oklch, var(--primary) 35%, var(--border)); border-radius: calc(var(--radius) + 4px); background: var(--tint); }
+  .guest-card .text { flex: 1; min-width: 0; }
+  .guest-card .text strong { display: block; font-size: 15px; }
+  .guest-card .text span { font-size: 13px; color: var(--muted-foreground); }
+  .guest-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .providers { display: flex; gap: 6px; }
+  .provider { width: 32px; height: 32px; padding: 0; border-radius: 50%; }
+  .provider svg { width: 16px; height: 16px; }
+  .frame-mobile .guest-card { flex-wrap: wrap; }
+  .frame-mobile .guest-actions { width: 100%; }
+  .frame-mobile .guest-actions .btn-primary { flex: 1; }
+
+  /* ---------- 评论框（登录后 / 未登录的占位） ---------- */
+  .composer { display: flex; gap: 12px; align-items: flex-start; }
+  .box { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px); background: var(--card); transition: border-color .15s, box-shadow .15s; }
+  .box:focus-within, .box.focus { border-color: color-mix(in oklch, var(--primary) 60%, var(--border)); box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 18%, transparent); }
+  .box textarea { display: block; width: 100%; resize: none; border: 0; outline: 0; background: transparent; padding: 10px 12px 4px; min-height: 44px; line-height: 1.6; }
+  .box .bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px 8px; }
+  .box.collapsed .bar { display: none; }
+  .box.collapsed textarea { min-height: 42px; padding-bottom: 10px; }
+  .chip-toggle { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--border); background: transparent; font-size: 12px; color: var(--muted-foreground); }
+  .chip-toggle svg { width: 13px; height: 13px; }
+  .chip-toggle[aria-pressed="true"] { border-color: transparent; background: var(--secondary); color: var(--secondary-foreground); }
+  .count { font-size: 12px; color: var(--muted-foreground); }
+  .kbd { font-size: 11px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted-foreground); }
+  .reply-chip { display: inline-flex; align-items: center; gap: 4px; margin: 8px 0 0 10px; padding: 1px 4px 1px 8px; border-radius: 999px; background: var(--secondary); color: var(--secondary-foreground); font-size: 12px; }
+  .reply-chip button { border: 0; background: transparent; padding: 0 2px; line-height: 1; color: inherit; opacity: .7; }
+  /* 未登录占位：长得像输入框，点击给出登录提示 */
+  .box.locked { cursor: pointer; background: var(--muted); border-style: dashed; }
+  .box.locked .fake { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 8px 9px 12px; color: var(--muted-foreground); }
+  .login-pop { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--border); box-shadow: 0 6px 24px oklch(0 0 0 / 10%); font-size: 13px; }
+
+  /* ---------- 评论列表 ---------- */
+  .list-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .list-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 20px; }
+  .list-head h3::before { content: ""; width: 4px; height: 18px; border-radius: 2px; background: var(--primary); }
+  .list-head .total { font-size: 14px; font-weight: 500; color: var(--muted-foreground); }
+  .comments { margin-top: 20px; display: grid; }
+  .comment { position: relative; display: grid; grid-template-columns: 40px 1fr; column-gap: 12px; padding: 14px 0; border-top: 1px solid var(--border); }
+  .comment:first-child { border-top: 0; }
+  .head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; line-height: 1.3; }
+  .name { font-weight: 700; color: var(--uc, var(--primary)); text-decoration: none; }
+  .meta { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
+  /* 时间、地点、设备各自不折行，空间不够时整段换到下一行 */
+  .meta.dot::before { content: "·"; margin-right: 8px; opacity: .6; }
+  .content { margin: 6px 0 4px; white-space: pre-wrap; word-break: break-word; }
+  .content .at { color: var(--uc, var(--primary)); font-weight: 600; }
+  .actions { display: flex; align-items: center; gap: 2px; margin-left: -8px; }
+  .act { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; font-size: 12.5px; color: var(--muted-foreground); }
+  .act:hover { background: var(--muted); color: var(--foreground); }
+  .act svg { width: 15px; height: 15px; }
+  .act.liked { color: var(--primary); }
+  .act.liked svg { fill: currentColor; }
+  .act.more { margin-left: auto; opacity: 0; }
+  .comment:hover > .body > .actions .act.more, .reply:hover > .body > .actions .act.more { opacity: 1; }
+  .private-tag { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted-foreground); }
+  .private-tag svg { width: 12px; height: 12px; }
+
+  /* 回复：扁平两层 + 线程连线，不再让父评论整体右移 */
+  .thread { grid-column: 2; position: relative; margin-top: 4px; }
+  .thread::before { content: ""; position: absolute; left: -32px; top: -8px; bottom: 22px; width: 2px; border-radius: 1px; background: var(--rail); }
+  .thread.collapsed::before { bottom: 14px; }
+  .reply { position: relative; display: grid; grid-template-columns: 28px 1fr; column-gap: 10px; padding: 8px 0; }
+  .reply::before { content: ""; position: absolute; left: -32px; top: 0; width: 22px; height: 22px; border-left: 2px solid var(--rail); border-bottom: 2px solid var(--rail); border-bottom-left-radius: 12px; }
+  .reply .content { margin-top: 3px; font-size: 14.5px; }
+  .reply.by-author .body { position: relative; }
+  .reply.highlight { animation: flash 1.6s ease-out; border-radius: 10px; }
+  @keyframes flash { from { background: var(--tint); } to { background: transparent; } }
+  .thread-toggle { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px 0 6px; margin: 2px 0; border: 0; border-radius: 999px; background: var(--muted); font-size: 13px; color: var(--foreground); }
+  .thread-toggle::before { content: ""; position: absolute; left: -32px; top: -2px; width: 22px; height: 17px; border-left: 2px solid var(--rail); border-bottom: 2px solid var(--rail); border-bottom-left-radius: 12px; }
+  .thread-toggle:hover { background: color-mix(in oklch, var(--muted) 70%, var(--border)); }
+  .thread-toggle .stack { display: flex; }
+  .thread-toggle .stack .avatar + .avatar { margin-left: -6px; }
+  .thread-toggle .who { color: var(--muted-foreground); }
+  .thread-toggle svg.chev { width: 14px; height: 14px; color: var(--muted-foreground); transition: transform .2s; }
+  .thread:not(.collapsed) .thread-toggle svg.chev { transform: rotate(180deg); }
+  .thread .inline-composer { margin: 6px 0 4px; }
+  .more-replies { border: 0; background: transparent; padding: 4px 0; margin-left: 38px; font-size: 13px; color: var(--primary); font-weight: 500; }
+  .frame-mobile .comment { grid-template-columns: 34px 1fr; column-gap: 10px; }
+  .frame-mobile .comment > .avatar.av40 { width: 34px; height: 34px; }
+  .frame-mobile .thread::before, .frame-mobile .reply::before, .frame-mobile .thread-toggle::before { left: -27px; }
+  .frame-mobile .reply::before, .frame-mobile .thread-toggle::before { width: 17px; }
+  .frame-mobile .meta.device { display: none; }
+  .frame-mobile .composer .avatar { display: none; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>评论区优化 · 原型</h1>
+  <nav>
+    <a href="#compare">实际效果</a>
+    <a href="#guest">未登录</a>
+    <a href="#composer">评论框</a>
+    <a href="#threads">回复展开</a>
+    <a href="#mobile">手机</a>
+    <a href="#notes">改动要点</a>
+  </nav>
+  <div class="spacer"></div>
+  <div class="seg" role="group" aria-label="主题">
+    <button type="button" data-theme="light" aria-pressed="true">浅色</button>
+    <button type="button" data-theme="dark" aria-pressed="false">深色</button>
+  </div>
+</header>
+
+<main>
+  <!-- 0. 实际效果 -->
+  <section id="compare">
+    <h2 class="stage-title">⓪ 修改前后对比 <small>线上博客（修改前）与本地实现（修改后）的截图，深色模式</small></h2>
+    <p class="stage-desc">方案 A 已落地：未登录显示邀请卡片，登录后是可收起的评论框，回复按线程平铺在主评论下一层。下面是同一组场景改版前后的实际截图；再往下是最初的交互原型，可以点着试。</p>
+
+    <div class="pair-title">未登录时的评论区与评论列表</div>
+    <div class="compare">
+      <figure><div class="label"><span class="dot"></span>修改前</div><img src="screenshots/before-guest.jpg" alt="修改前：未登录时的评论区" loading="lazy"><figcaption>修改前：粗线条人像图标，游客也能看到输入框、两个选项和提交按钮；回复入口是灰色小字「展开 3 条」</figcaption></figure>
+      <figure><div class="label new"><span class="dot"></span>修改后</div><img src="screenshots/after-guest.jpg" alt="修改后：未登录时的评论区" loading="lazy"><figcaption>修改后：登录邀请卡片（启用第三方登录时会显示对应按钮）；回复折叠成带回复者头像的「N 条回复」</figcaption></figure>
+    </div>
+
+    <div class="pair-title">展开回复</div>
+    <div class="compare">
+      <figure><div class="label"><span class="dot"></span>修改前</div><img src="screenshots/before-replies.jpg" alt="修改前：展开回复" loading="lazy"><figcaption>修改前：父评论整体右移并加虚线框，回复和主评论一样大，每条都带「回复 xxx：」</figcaption></figure>
+      <figure><div class="label new"><span class="dot"></span>修改后</div><img src="screenshots/after-replies.jpg" alt="修改后：展开回复" loading="lazy"><figcaption>修改后：回复平铺在主评论下一层，小头像 + 连线；只有回复的是另一条回复时才显示 @某人；先显示 5 条，其余点「展开剩余」</figcaption></figure>
+    </div>
+
+    <div class="pair-title">登录后的评论框 · 手机</div>
+    <div class="compare">
+      <figure><div class="label new"><span class="dot"></span>修改后</div><img src="screenshots/after-composer.jpg" alt="修改后：登录后的评论框" loading="lazy"><figcaption>修改后：平时收起成一行，聚焦后展开；「私密评论」「展示客户端信息」是框内的开关，内容为空时不能发布，⌘/Ctrl + Enter 发布</figcaption></figure>
+      <figure class="phone-shot"><div class="label new"><span class="dot"></span>修改后</div><img src="screenshots/after-mobile.jpg" alt="修改后：手机上的回复线程" loading="lazy"><figcaption>修改后（手机）：回复只缩进一层，「更多」按钮在触屏上常显</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- 1. 未登录 -->
+  <section id="guest">
+    <h2 class="stage-title">① 未登录时的评论区 <small>替换掉线条粗重的 CircleUser 大图标</small></h2>
+    <p class="stage-desc">现在游客看到的是一个 40px 的线条图标 + 一个能输入但提交时才报错的输入框，还有两个对游客没有意义的选项。优化后不让游客白写一段再被告知要登录。</p>
+    <div class="grid2">
+      <div>
+        <div class="label"><span class="dot"></span>现状</div>
+        <div class="panel">
+          <div class="old-composer">
+            <div class="old-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg></div>
+            <div class="old-textarea">请先登录后再操作</div>
+          </div>
+          <div class="old-opts">
+            <label><input type="checkbox" checked> 展示客户端信息</label>
+            <label><input type="checkbox"> 私密评论</label>
+            <button class="btn btn-primary btn-sm" type="button">提交</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="label new"><span class="dot"></span>方案 A · 邀请卡片<span class="tag done">已采用</span></div>
+        <div class="panel">
+          <div class="guest-card">
+            <span class="avatar av40 guest" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="4.5"/><path d="M3 22c0-5 4-8.5 9-8.5s9 3.5 9 8.5z"/></svg></span>
+            <div class="text">
+              <strong>登录后参与讨论</strong>
+              <span>评论会显示你的头像和昵称，也能收到回复通知</span>
+            </div>
+            <div class="guest-actions">
+              <div class="providers">
+                <button class="btn btn-outline provider" type="button" title="使用 GitHub 登录" aria-label="使用 GitHub 登录"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.27 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg></button>
+              </div>
+              <button class="btn btn-primary" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/></svg>登录</button>
+            </div>
+          </div>
+          <p class="muted" style="font-size:12.5px;margin:10px 2px 0">第三方登录按钮读后台已启用的 OIDC 配置；隐藏「私密」「设备信息」选项和提交按钮。</p>
+        </div>
+      </div>
+      <div>
+        <div class="label"><span class="dot"></span>方案 B · 占位输入框<span class="tag skip">未采用</span></div>
+        <div class="panel">
+          <div class="composer">
+            <span class="avatar av40 guest" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="4.5"/><path d="M3 22c0-5 4-8.5 9-8.5s9 3.5 9 8.5z"/></svg></span>
+            <div style="flex:1;min-width:0">
+              <div class="box locked" id="lockedBox" role="button" tabindex="0">
+                <div class="fake"><span>写下你的想法…</span><span class="btn btn-primary btn-sm">登录后评论</span></div>
+              </div>
+              <div class="login-pop hidden" id="loginPop">
+                <span style="flex:1">登录后就能发表评论啦</span>
+                <button class="btn btn-ghost btn-sm" type="button" data-close-pop>稍后</button>
+                <button class="btn btn-primary btn-sm" type="button">去登录</button>
+              </div>
+            </div>
+          </div>
+          <p class="muted" style="font-size:12.5px;margin:10px 2px 0">保留「评论框」的样子，但不可输入；点一下就在下方弹出登录提示（点上面的框试试）。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. 登录后的评论框 -->
+  <section id="composer">
+    <h2 class="stage-title">② 登录后的评论框 <small>平时收起成一行，聚焦后展开工具栏</small></h2>
+    <p class="stage-desc">「私密」「显示设备信息」从输入框外的两个复选框，收进输入框底部的开关小标签；发布按钮在内容为空时禁用，支持 ⌘/Ctrl + Enter 发布。</p>
+    <div class="grid2">
+      <div>
+        <div class="label new"><span class="dot"></span>收起（未聚焦）</div>
+        <div class="panel">
+          <div class="composer">
+            <span class="avatar av40" style="background:linear-gradient(135deg,#7aa7ff,#8b7bff)">远</span>
+            <div class="box collapsed"><textarea rows="1" placeholder="写下你的想法…" aria-label="评论内容"></textarea></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="label new"><span class="dot"></span>展开（输入中，可交互）</div>
+        <div class="panel">
+          <div class="composer">
+            <span class="avatar av40" style="background:linear-gradient(135deg,#7aa7ff,#8b7bff)">远</span>
+            <div class="box focus" data-composer>
+              <textarea rows="3" placeholder="写下你的想法…" aria-label="评论内容">这个评论区的新样式看起来清爽多了！</textarea>
+              <div class="bar">
+                <button type="button" class="chip-toggle" aria-pressed="false" data-toggle><svg class="i" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>私密</button>
+                <button type="button" class="chip-toggle" aria-pressed="true" data-toggle><svg class="i" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>显示设备信息</button>
+                <span class="spacer"></span>
+                <span class="kbd">⌘ ↵</span>
+                <button type="button" class="btn btn-primary btn-sm" data-submit>发布</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. 回复展开 -->
+  <section id="threads">
+    <h2 class="stage-title">③ 评论列表与回复 <small>扁平两层 + 线程连线</small></h2>
+    <p class="stage-desc">现在展开回复时父评论整体右移、加虚线边框，回复和主评论一样大，每条都带「回复 xxx：」。优化后回复统一挂在主评论下面一层（回复的回复也不再继续缩进），用小头像和连线表达层级；只有回复的是另一条回复时才显示 @某人。</p>
+    <div class="grid2" style="grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)">
+      <div>
+        <div class="label new"><span class="dot"></span>优化后（可交互：展开 / 回复 / 点赞）</div>
+        <div class="panel" data-list-host></div>
+      </div>
+      <div>
+        <div class="label"><span class="dot"></span>现状（展开后）</div>
+        <div class="panel" style="font-size:14px">
+          <div style="border-left:2px dashed var(--border);padding-left:12px">
+            <div style="display:flex;gap:8px">
+              <span class="avatar av40" style="background:linear-gradient(135deg,#ff9ac8,#c58bff)">A</span>
+              <div style="flex:1">
+                <div><b style="color:oklch(.6 .15 330)">Ariasaka</b> <span class="meta">2025年10月13日</span></div>
+                <div style="margin:6px 0;padding:6px 12px;border-radius:12px;background:var(--muted)">qwq</div>
+                <div class="meta" style="display:flex;justify-content:space-between"><span>日本 东京</span><span>收起 · ↩ · ♡ 1</span></div>
+              </div>
+            </div>
+            <div style="padding-left:24px;margin-top:12px;display:grid;gap:12px">
+              <div style="display:flex;gap:8px">
+                <span class="avatar av40" style="background:linear-gradient(135deg,#7aa7ff,#8b7bff)">远</span>
+                <div style="flex:1">
+                  <div><b class="name">远野千束</b> <span class="badge">作者</span> <span class="meta">2025年10月19日</span></div>
+                  <div style="margin:6px 0;padding:6px 12px;border-radius:12px;background:var(--muted)">回复 <b class="name">Ariasaka</b>：你怎么在东京</div>
+                  <div class="meta" style="display:flex;justify-content:space-between"><span>中国 重庆市 南岸区</span><span>↩ · ♡ 1</span></div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <span class="avatar av40" style="background:linear-gradient(135deg,#7aa7ff,#8b7bff)">远</span>
+                <div style="flex:1">
+                  <div><b class="name">远野千束</b> <span class="badge">作者</span> <span class="meta">2025年10月19日</span></div>
+                  <div style="margin:6px 0;padding:6px 12px;border-radius:12px;background:var(--muted)">回复 <b class="name">Ariasaka</b>：记得把轻雪CDN IP段的规则设置成大陆直连哦，走香港更快</div>
+                  <div class="meta" style="display:flex;justify-content:space-between"><span>中国 重庆市 南岸区</span><span>↩ · ♡ 0</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. 手机 -->
+  <section id="mobile">
+    <h2 class="stage-title">④ 手机上的效果 <small>375px，回复只多缩进一层</small></h2>
+    <p class="stage-desc">手机上隐藏评论框左侧头像、设备信息只在桌面显示；不论回复多少层，最多缩进 44px，不会越缩越窄。</p>
+    <div class="device">
+      <div class="phone"><div class="phone-inner frame-mobile">
+        <div class="panel" style="margin-bottom:12px">
+          <div class="guest-card">
+            <span class="avatar av40 guest" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="4.5"/><path d="M3 22c0-5 4-8.5 9-8.5s9 3.5 9 8.5z"/></svg></span>
+            <div class="text"><strong>登录后参与讨论</strong><span>评论会显示你的头像和昵称</span></div>
+            <div class="guest-actions">
+              <button class="btn btn-outline provider" type="button" aria-label="使用 GitHub 登录"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.27 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg></button>
+              <button class="btn btn-primary" type="button">登录</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel" data-list-host data-mobile></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 5. 已落地的改动 -->
+  <section id="notes">
+    <h2 class="stage-title">⑤ 已落地的改动</h2>
+    <ol class="notes">
+      <li><b>游客头像：</b>新增 <code>GuestAvatar</code>（柔和底色 + 实心剪影），替代线条 <code>CircleUser</code>。</li>
+      <li><b>未登录评论框：</b><code>CommentInput</code> 在未登录时渲染邀请卡片，登录按钮复用 <code>useToLogin</code>，第三方登录按钮读 <code>/user/oidc/list</code>（登录后回到当前页）；回复、点赞按钮对游客给出登录提示。</li>
+      <li><b>登录后评论框：</b>主评论框收起成一行、聚焦展开；两个复选框改为框内开关；内容为空或编辑后没有改动时禁用发布；⌘/Ctrl + Enter 发布；回复框内显示「回复 @某人」并可取消。</li>
+      <li><b>回复线程（后端）：</b>评论列表接口支持 <code>root_id</code> 一次取回主评论下整个线程（不限层级）；主评论列表附带 <code>thread_count</code> 与 <code>thread_users</code>（可见回复数与最早回复的 3 位用户），可见性规则与列表一致，私密回复不会泄露。</li>
+      <li><b>回复线程（前端）：</b>回复按时间平铺在主评论下一层，回复的是另一条回复时才显示 @某人；默认收起，展开后先显示 5 条；回复、删除后重新加载线程并更新评论总数。</li>
+      <li><b>操作与信息：</b>回复 / 点赞改为文字按钮，「更多」在桌面端悬停时显示；时间、地点、设备合并进名字那一行，设备只在桌面端显示。</li>
+      <li><b>顺手修复：</b>评论容器不再用 <code>article</code>，避免正文排版样式（<code>article img</code>）把评论头像压扁。</li>
+    </ol>
+  </section>
+</main>
+
+<template id="iconReply"><svg class="i" viewBox="0 0 24 24"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></template>
+<template id="iconHeart"><svg class="i" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></template>
+<template id="iconMore"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></template>
+<template id="iconLock"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></template>
+<template id="iconChev"><svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></template>
+
+<script>
+  // 主题切换
+  document.querySelectorAll('[data-theme]').forEach(btn => btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark', btn.dataset.theme === 'dark')
+    document.querySelectorAll('[data-theme]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)))
+  }))
+
+  // 未登录占位框：点击弹出登录提示
+  const lockedBox = document.getElementById('lockedBox')
+  const loginPop = document.getElementById('loginPop')
+  lockedBox.addEventListener('click', () => loginPop.classList.toggle('hidden'))
+  lockedBox.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loginPop.classList.toggle('hidden') } })
+  document.querySelector('[data-close-pop]').addEventListener('click', () => loginPop.classList.add('hidden'))
+
+  // 评论框：开关标签、空内容禁用发布、聚焦展开
+  function wireComposer(box) {
+    const ta = box.querySelector('textarea')
+    const count = box.querySelector('[data-count]')
+    const submit = box.querySelector('[data-submit]')
+    const update = () => {
+      if (count) count.textContent = `${ta.value.length} / 1000`
+      if (submit) submit.disabled = !ta.value.trim()
+      ta.style.height = 'auto'
+      ta.style.height = `${Math.max(ta.scrollHeight, 44)}px`
+    }
+    ta.addEventListener('input', update)
+    box.querySelectorAll('[data-toggle]').forEach(t => t.addEventListener('click', () => t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true'))))
+    update()
+  }
+  document.querySelectorAll('[data-composer]').forEach(wireComposer)
+  document.querySelectorAll('.box.collapsed').forEach(box => {
+    box.querySelector('textarea').addEventListener('focus', () => box.classList.remove('collapsed'))
+  })
+
+  // ---- 评论数据（取自博客现有评论，回复按时间拍平到主评论下） ----
+  const users = {
+    aria: { name: 'Ariasaka', short: 'A', bg: 'linear-gradient(135deg,#ff9ac8,#c58bff)', color: 'oklch(.62 .17 330)' },
+    yuki: { name: 'Nanaloveyuki', short: 'N', bg: 'linear-gradient(135deg,#ffb0c8,#ffd1a8)', color: 'oklch(.62 .15 300)' },
+    andr: { name: 'Android', short: 'An', bg: 'linear-gradient(135deg,#9fd3ff,#c9b8ff)', color: 'oklch(.6 .14 240)' },
+    me: { name: '远野千束', short: '远', bg: 'linear-gradient(135deg,#7aa7ff,#8b7bff)', color: 'oklch(.6 .14 250)', author: true },
+    kumo: { name: '雲雀', short: '雲', bg: 'linear-gradient(135deg,#7fd6c2,#76a8ff)', color: 'oklch(.6 .12 190)' },
+  }
+  const data = [
+    { id: 1, user: 'aria', time: '2025年10月13日', loc: '日本 东京', device: 'Chrome · macOS', text: 'qwq', likes: 1, replies: [
+      { id: 11, user: 'me', time: '2025年10月19日', loc: '中国 重庆', text: '你怎么在东京', likes: 1 },
+      { id: 12, user: 'me', time: '2025年10月19日', loc: '中国 重庆', text: '记得把轻雪CDN IP段的规则设置成大陆直连哦，走香港更快', likes: 0 },
+      { id: 13, user: 'aria', time: '2025年10月20日', loc: '日本 东京', text: '好嘞，已经改了，现在快多了', likes: 2, to: 'me' },
+      { id: 14, user: 'kumo', time: '2025年10月21日', loc: '中国 上海', text: '蹲一个规则配置教程 👀', likes: 0 },
+      { id: 15, user: 'me', time: '2025年10月21日', loc: '中国 重庆', text: '下篇文章就写这个', likes: 3, to: 'kumo' },
+      { id: 16, user: 'yuki', time: '2025年10月22日', loc: '中国 郑州', text: '+1', likes: 0, to: 'kumo' },
+      { id: 17, user: 'andr', time: '2025年10月23日', loc: '中国 天津', text: '原来还能这样配', likes: 0 },
+    ] },
+    { id: 2, user: 'yuki', time: '2025年10月7日', loc: '中国 河南省 郑州市', device: 'Edge · Windows', text: 'awa 第三个评论', likes: 2, replies: [
+      { id: 21, user: 'me', time: '2025年10月7日', loc: '中国 重庆', text: '欢迎欢迎 (*^▽^*)', likes: 1 },
+    ] },
+    { id: 3, user: 'andr', time: '2025年10月6日', loc: '中国 天津市', device: 'Chrome · Android', text: 'owo 第二个评论！', likes: 2, private: true, replies: [] },
+    { id: 4, user: 'me', time: '2025年10月6日', loc: '中国 重庆市', device: 'Safari · iOS', text: '第一个评论', likes: 2, replies: [] },
+  ]
+  const PAGE = 5
+  const icon = id => document.getElementById(id).innerHTML
+  const avatar = (key, size) => `<span class="avatar av${size}" style="background:${users[key].bg}" aria-hidden="true">${users[key].short}</span>`
+  const meta = (c, showDevice) => `<span class="meta">${c.time}</span><span class="meta dot">${c.loc}</span>${showDevice && c.device ? `<span class="meta dot device">${c.device}</span>` : ''}`
+  const actions = c => `<div class="actions">
+      <button type="button" class="act" data-reply="${c.id}">${icon('iconReply')}回复</button>
+      <button type="button" class="act" data-like>${icon('iconHeart')}<span class="tnum">${c.likes || ''}</span></button>
+      <button type="button" class="act more" aria-label="更多">${icon('iconMore')}</button>
+    </div>`
+  const head = c => `<div class="head">
+      <a class="name" style="--uc:${users[c.user].color}">${users[c.user].name}</a>
+      ${users[c.user].author ? '<span class="badge">作者</span>' : ''}
+      ${c.private ? `<span class="private-tag">${icon('iconLock')}私密</span>` : ''}
+      ${meta(c, true)}
+    </div>`
+
+  function renderList(host) {
+    const state = host._state || (host._state = { open: { 1: true }, shown: {}, replyTo: null })
+    const total = data.reduce((n, c) => n + 1 + c.replies.length, 0)
+    host.innerHTML = `<div class="list-head"><h3>评论 <span class="total tnum">${total}</span></h3><button class="btn btn-outline btn-sm" type="button">最新</button></div>
+      <div class="comments">${data.map(c => renderComment(c, state)).join('')}</div>`
+    host.querySelectorAll('[data-composer]').forEach(wireComposer)
+  }
+
+  function renderComment(c, state) {
+    const open = state.open[c.id]
+    const n = c.replies.length
+    const shown = state.shown[c.id] || PAGE
+    const repliers = [...new Set(c.replies.map(r => r.user))]
+    let thread = ''
+    if (n > 0) {
+      const toggle = `<button type="button" class="thread-toggle" data-toggle-thread="${c.id}">
+          <span class="stack">${repliers.slice(0, 3).map(u => avatar(u, 20)).join('')}</span>
+          <span>${open ? '收起回复' : `${n} 条回复`}</span>
+          ${open ? '' : `<span class="who">· ${users[repliers[0]].name}${repliers.length > 1 ? ' 等' : ''}</span>`}
+          ${icon('iconChev')}
+        </button>`
+      const replies = open ? c.replies.slice(0, shown).map(r => renderReply(r, c, state)).join('') : ''
+      const more = open && n > shown ? `<button type="button" class="more-replies" data-more="${c.id}">展开剩余 ${n - shown} 条回复</button>` : ''
+      thread = `<div class="thread ${open ? '' : 'collapsed'}">${replies}${more}${state.replyTo === c.id ? composer(c) : ''}${toggle}</div>`
+    }
+    else if (state.replyTo === c.id) {
+      thread = `<div class="thread">${composer(c)}</div>`
+    }
+    return `<article class="comment">
+        ${avatar(c.user, 40)}
+        <div class="body">${head(c)}<div class="content">${c.text}</div>${actions(c)}</div>
+        ${thread}
+      </article>`
+  }
+
+  function renderReply(r, root, state) {
+    // 只有回复的是另一条回复时才显示 @某人
+    const at = r.to ? `<span class="at" style="--uc:${users[r.to].color}">@${users[r.to].name}</span> ` : ''
+    return `<div class="reply ${state.flash === r.id ? 'highlight' : ''}">
+        ${avatar(r.user, 28)}
+        <div class="body">
+          <div class="head"><a class="name" style="--uc:${users[r.user].color}">${users[r.user].name}</a>${users[r.user].author ? '<span class="badge">作者</span>' : ''}<span class="meta">${r.time}</span></div>
+          <div class="content">${at}${r.text}</div>
+          ${actions(r)}
+        </div>
+      </div>${state.replyTo === r.id ? composer(r) : ''}`
+  }
+
+  function composer(target) {
+    return `<div class="inline-composer">
+        <div class="box focus" data-composer>
+          <span class="reply-chip">回复 @${users[target.user].name}<button type="button" data-cancel aria-label="取消回复">×</button></span>
+          <textarea rows="2" placeholder="写下你的回复…" aria-label="回复内容"></textarea>
+          <div class="bar"><span class="spacer"></span><button type="button" class="btn btn-ghost btn-sm" data-cancel>取消</button><button type="button" class="btn btn-primary btn-sm" data-submit>回复</button></div>
+        </div>
+      </div>`
+  }
+
+  document.querySelectorAll('[data-list-host]').forEach((host) => {
+    renderList(host)
+    host.addEventListener('click', (e) => {
+      const state = host._state
+      const t = e.target.closest('button')
+      if (!t)
+        return
+      if (t.dataset.toggleThread) {
+        const id = Number(t.dataset.toggleThread)
+        state.open[id] = !state.open[id]
+        state.shown[id] = PAGE
+      }
+      else if (t.dataset.more) {
+        state.shown[Number(t.dataset.more)] = Infinity
+      }
+      else if (t.dataset.reply) {
+        const id = Number(t.dataset.reply)
+        state.replyTo = state.replyTo === id ? null : id
+        const root = data.find(c => c.id === id || c.replies.some(r => r.id === id))
+        if (root && root.id !== id)
+          state.open[root.id] = true
+      }
+      else if ('cancel' in t.dataset) {
+        state.replyTo = null
+      }
+      else if ('like' in t.dataset) {
+        t.classList.toggle('liked')
+        const n = t.querySelector('.tnum')
+        n.textContent = String((Number(n.textContent) || 0) + (t.classList.contains('liked') ? 1 : -1) || '')
+        return
+      }
+      else if ('submit' in t.dataset) {
+        const ta = t.closest('[data-composer]').querySelector('textarea')
+        if (!ta.value.trim())
+          return
+        const root = data.find(c => c.id === state.replyTo || c.replies.some(r => r.id === state.replyTo))
+        const target = root.id === state.replyTo ? null : root.replies.find(r => r.id === state.replyTo)
+        const reply = { id: Date.now(), user: 'me', time: '刚刚', loc: '中国 重庆', text: ta.value.trim(), likes: 0, to: target?.user }
+        root.replies.push(reply)
+        state.open[root.id] = true
+        state.shown[root.id] = Infinity
+        state.flash = reply.id
+        state.replyTo = null
+        document.querySelectorAll('[data-list-host]').forEach(h => h !== host && renderList(h))
+      }
+      else {
+        return
+      }
+      renderList(host)
+      host.querySelector('[data-composer] textarea')?.focus()
+    })
+  })
+</script>
+</body>
+</html>
