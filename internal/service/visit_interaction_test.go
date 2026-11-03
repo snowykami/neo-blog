@@ -142,7 +142,7 @@ func TestVisitRandomAndPathNames(t *testing.T) {
 	}
 	report := func(ctx context.Context, req *dto.ReportVisitReq) {
 		t.Helper()
-		if _, svcerr := svc.Report(ctx, req, "", testIP, testChromeUA, false, "blog.example.com"); svcerr != nil {
+		if _, svcerr := svc.Report(ctx, req, "", VisitClient{IP: testIP, UserAgent: testChromeUA, Hosts: []string{"blog.example.com"}}); svcerr != nil {
 			t.Fatalf("report %s: %v", req.Path, svcerr)
 		}
 	}

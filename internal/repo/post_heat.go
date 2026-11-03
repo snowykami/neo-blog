@@ -34,6 +34,7 @@ func (p *postRepo) ListHeatVisits(since time.Time) ([]HeatEvent, error) {
 		Select("visit_logs.target_id AS post_id, visit_logs.created_at").
 		Joins("JOIN posts ON posts.id = visit_logs.target_id AND posts.deleted_at IS NULL").
 		Where("visit_logs.action = ? AND visit_logs.target_type = ? AND visit_logs.created_at >= ?", constant.VisitActionVisit, constant.TargetTypePost, since).
+		Where("(visit_logs.trust IS NULL OR visit_logs.trust <> ?)", constant.VisitTrustBot).
 		Where("(visit_logs.user_id IS NULL OR visit_logs.user_id <> posts.user_id)").
 		Scan(&events).Error
 	return events, err

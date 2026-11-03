@@ -6,7 +6,7 @@ import type { OidcConfig } from '@/models/oidc-config'
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
 import type { Role, User } from '@/models/user'
-import type { VisitLog, Visitor, VisitStats } from '@/models/visit'
+import type { VisitDetail, VisitInsights, VisitLog, Visitor, VisitStats, VisitTrust } from '@/models/visit'
 import axiosClient from './client'
 
 export async function getDashboard(days: DashboardDays): Promise<BaseResponse<Dashboard>> {
@@ -180,6 +180,9 @@ export async function listVisitsAdmin({
   targetId,
   source,
   sourceHost,
+  trust,
+  country,
+  device,
   ...pagination
 }: {
   kind?: 'all' | 'user' | 'anonymous'
@@ -189,8 +192,22 @@ export async function listVisitsAdmin({
   targetId?: number
   source?: string // 按来源筛选
   sourceHost?: string // 来源为其他网站时按域名筛选
+  trust?: VisitTrust // 按可信度结论筛选
+  country?: string // 按推断国家筛选
+  device?: string // 按设备类型筛选
 } & PaginationParams): Promise<BaseResponse<{ visits: VisitLog[], total: number }>> {
-  const res = await axiosClient.get('/admin/visits', { params: { ...pagination, kind, action, visitorId, targetType, targetId, source, sourceHost } })
+  const res = await axiosClient.get('/admin/visits', { params: { ...pagination, kind, action, visitorId, targetType, targetId, source, sourceHost, trust, country, device } })
+  return res.data
+}
+
+export async function getVisitDetailAdmin(id: number): Promise<BaseResponse<VisitDetail>> {
+  const res = await axiosClient.get(`/admin/visits/${id}`)
+  return res.data
+}
+
+// days：1 为今日（按小时），7 / 30 按天
+export async function getVisitInsightsAdmin(days: 1 | 7 | 30): Promise<BaseResponse<VisitInsights>> {
+  const res = await axiosClient.get('/admin/visits/insights', { params: { days } })
   return res.data
 }
 

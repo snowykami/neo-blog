@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -79,10 +80,23 @@ func siteHosts(requestHosts []string) []string {
 	return hosts
 }
 
+// VisitClient 访问请求附带的客户端信息，由 controller 从连接与请求头中读取
+type VisitClient struct {
+	IP             string
+	UserAgent      string
+	AcceptLanguage string
+	CHUA           string   // Sec-CH-UA
+	CHUAMobile     string   // Sec-CH-UA-Mobile
+	CHUAPlatform   string   // Sec-CH-UA-Platform
+	DoNotTrack     bool     // 浏览器开启 DNT / GPC
+	Hosts          []string // 本次请求的站点域名，用于区分站内跳转与外部来源
+}
+
 // Report 记录一次访问，返回应写入 Cookie 的访客ID（为空表示不写入）
-// doNotTrack 为 true 时（浏览器开启 DNT / GPC）只做匿名计数：不识别访客、不保存 IP 与 UA
-// requestHosts 为本次请求的站点域名，用于区分站内跳转与外部来源
-func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visitorKey, ip, userAgent string, doNotTrack bool, requestHosts ...string) (string, *errs.ServiceError) {
+// 开启请勿追踪时只做匿名计数：不识别访客，不保存 IP、UA 与浏览器信号
+// 每次访问都会做一致性检测，疑似自动化的访问照常记录，但不计入浏览量
+func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visitorKey string, client VisitClient) (string, *errs.ServiceError) {
+	ip, userAgent, doNotTrack := client.IP, client.UserAgent, client.DoNotTrack
 	if !allowVisitReport(ip) {
 		return "", errs.New(http.StatusTooManyRequests, "too_many_requests", nil)
 	}
@@ -114,9 +128,10 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 		userID = &currentUser.ID
 	}
 	now := time.Now()
-	location := ipregion.Lookup(ip).String()
+	region := ipregion.Lookup(ip)
+	location := region.String()
 	referrer := utils.Truncate(strings.TrimSpace(req.Referrer), maxVisitTextLength)
-	source, sourceHost := utils.ClassifyReferrer(referrer, path, siteHosts(requestHosts)...)
+	source, sourceHost := utils.ClassifyReferrer(referrer, path, siteHosts(client.Hosts)...)
 	if source == utils.SourceInternal {
 		if u, err := url.Parse(referrer); err == nil && isRandomPath(u.Path) {
 			source = utils.SourceRandom
@@ -136,9 +151,13 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 		Browser:      ua.Browser,
 		DeviceType:   ua.DeviceType,
 		CreatedAt:    now,
+		IPCountry:    regionCountry(region),
+		ISP:          utils.Truncate(region.ISP, 64),
+		Datacenter:   isDatacenterISP(region.ISP),
 	}
 
 	if doNotTrack {
+		applyVisitTrust(log)
 		if err := repo.Visit.CreateVisitLog(log); err != nil {
 			return "", errs.NewInternalServer("failed_to_create_target")
 		}
@@ -164,6 +183,12 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 		}
 	}
 
+	fillVisitSignals(log, req.Signals, client)
+	if visitor.ID != 0 {
+		log.PrevCountry = visitor.LastCountry
+	}
+	applyVisitTrust(log)
+
 	if fingerprint != "" {
 		visitor.Fingerprint = fingerprint
 	}
@@ -172,7 +197,8 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 	}
 	visitor.LastIP = ip
 	visitor.LastLocation = location
-	visitor.OS, visitor.Browser, visitor.DeviceType = ua.OS, ua.Browser, ua.DeviceType
+	visitor.LastCountry = log.IPCountry
+	visitor.OS, visitor.Browser, visitor.DeviceType = ua.OS, ua.Browser, log.DeviceType
 	visitor.VisitCount++
 	visitor.LastSeenAt = now
 	if err := repo.Visit.SaveVisitor(visitor); err != nil {
@@ -189,9 +215,9 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 	return visitor.VisitorKey, nil
 }
 
-// countPostView 记录了一次新的文章访问（已去重、排除爬虫与管理员）后累加文章浏览量；失败只打日志
+// countPostView 记录了一次新的文章访问（已去重、排除爬虫、疑似自动化与管理员）后累加文章浏览量；失败只打日志
 func countPostView(log *model.VisitLog) {
-	if log.TargetType != constant.TargetTypePost || log.TargetID == 0 {
+	if log.TargetType != constant.TargetTypePost || log.TargetID == 0 || log.Trust == constant.VisitTrustBot {
 		return
 	}
 	if err := repo.Post.IncreaseViewCount(log.TargetID); err != nil {
@@ -269,7 +295,15 @@ func (s *VisitService) ListVisitLogs(ctx context.Context, req *dto.ListVisitLogR
 	if err != nil {
 		return nil, 0, errs.NewInternalServer("failed_to_get_target")
 	}
+	result, err := s.enrichVisitLogs(logs)
+	if err != nil {
+		return nil, 0, errs.NewInternalServer("failed_to_get_target")
+	}
+	return result, total, nil
+}
 
+// enrichVisitLogs 转换为 DTO，附带文章/页面标题、评论摘要与常见页面名称
+func (s *VisitService) enrichVisitLogs(logs []model.VisitLog) ([]*dto.VisitLogDto, error) {
 	// 1. 被点赞/被回复的评论与新发表的评论
 	var commentIDs []uint
 	for _, l := range logs {
@@ -282,7 +316,7 @@ func (s *VisitService) ListVisitLogs(ctx context.Context, req *dto.ListVisitLogR
 	}
 	comments, err := repo.Visit.GetCommentBriefs(commentIDs)
 	if err != nil {
-		return nil, 0, errs.NewInternalServer("failed_to_get_target")
+		return nil, err
 	}
 
 	// 2. 所在的文章/页面：目标为评论时取评论所在的文章/页面
@@ -302,7 +336,7 @@ func (s *VisitService) ListVisitLogs(ctx context.Context, req *dto.ListVisitLogR
 	infos := map[string]map[uint]repo.TargetInfo{}
 	for targetType, targetIDs := range ids {
 		if infos[targetType], err = repo.Visit.GetTargetInfos(targetType, targetIDs); err != nil {
-			return nil, 0, errs.NewInternalServer("failed_to_get_target")
+			return nil, err
 		}
 	}
 
@@ -320,7 +354,7 @@ func (s *VisitService) ListVisitLogs(ctx context.Context, req *dto.ListVisitLogR
 	names := map[string]map[string]string{}
 	for kind, kindKeys := range keys {
 		if names[kind], err = repo.Visit.GetPathNames(kind, kindKeys); err != nil {
-			return nil, 0, errs.NewInternalServer("failed_to_get_target")
+			return nil, err
 		}
 	}
 
@@ -354,7 +388,7 @@ func (s *VisitService) ListVisitLogs(ctx context.Context, req *dto.ListVisitLogR
 		}
 		result = append(result, item)
 	}
-	return result, total, nil
+	return result, nil
 }
 
 // visitPath 常见页面路由的识别结果，kind 与前端 Console.visits.path_* 文案对应
@@ -408,6 +442,164 @@ func truncateRunes(s string, n int) string {
 		return string(runes)
 	}
 	return string(runes[:n]) + "…"
+}
+
+// visitHistoryLimit 访问详情中展示的同一访客最近访问数
+const visitHistoryLimit = 10
+
+// GetVisitDetail 后台：单次访问详情，附带全部信号、一致性检测过程与同一访客最近的访问
+func (s *VisitService) GetVisitDetail(ctx context.Context, id uint) (*dto.VisitDetailDto, *errs.ServiceError) {
+	if !ctxutils.IsAdmin(ctx) {
+		return nil, errs.NewForbidden("permission_denied")
+	}
+	log, err := repo.Visit.GetVisitLog(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errs.NewNotFound("target_not_found")
+		}
+		return nil, errs.NewInternalServer("failed_to_get_target")
+	}
+	logs := []model.VisitLog{*log}
+	if log.VisitorID != nil {
+		history, err := repo.Visit.ListVisitorVisits(*log.VisitorID, visitHistoryLimit)
+		if err != nil {
+			return nil, errs.NewInternalServer("failed_to_get_target")
+		}
+		logs = append(logs, history...)
+	}
+	items, err := s.enrichVisitLogs(logs)
+	if err != nil {
+		return nil, errs.NewInternalServer("failed_to_get_target")
+	}
+	detail := &dto.VisitDetailDto{Visit: items[0], Signals: log.SignalsDto(), History: items[1:]}
+	if log.Action == constant.VisitActionVisit {
+		detail.Trust = analyzeVisitTrust(log)
+	}
+	if log.VisitorID == nil {
+		detail.History = []*dto.VisitLogDto{}
+	}
+	return detail, nil
+}
+
+// visitInsightsTop 统计列表的最大条数
+const visitInsightsTop = 10
+
+// GetInsights 后台：访客统计。今日按小时、近 7 / 30 天按天汇总，按服务器时区计算
+func (s *VisitService) GetInsights(ctx context.Context, req *dto.VisitInsightsReq) (*dto.VisitInsightsDto, *errs.ServiceError) {
+	if !ctxutils.IsAdmin(ctx) {
+		return nil, errs.NewForbidden("permission_denied")
+	}
+	days := req.Days
+	if !(days == 1 || days == 7 || days == 30) {
+		days = 7
+	}
+	now := time.Now()
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	since := midnight.AddDate(0, 0, 1-days)
+	logs, err := repo.Visit.ListInsightVisits(since)
+	if err != nil {
+		return nil, errs.NewInternalServer("failed_to_get_target")
+	}
+
+	// 时间桶：今日 24 小时，其余每天一个
+	var labels []string
+	if days == 1 {
+		for h := 0; h < 24; h++ {
+			labels = append(labels, strconv.Itoa(h))
+		}
+	} else {
+		for d := 0; d < days; d++ {
+			labels = append(labels, since.AddDate(0, 0, d).Format(time.DateOnly))
+		}
+	}
+	trend := make(map[string]map[string]int64, len(labels))
+	for _, label := range labels {
+		trend[label] = map[string]int64{}
+	}
+
+	counters := map[string]map[string]int64{}
+	add := func(group, name string) {
+		if name == "" {
+			return
+		}
+		if counters[group] == nil {
+			counters[group] = map[string]int64{}
+		}
+		counters[group][name]++
+	}
+	result := &dto.VisitInsightsDto{Days: days}
+	visitors := map[uint]bool{}
+	for i := range logs {
+		l := &logs[i]
+		verdict := l.Trust
+		if verdict == "" {
+			verdict = constant.VisitTrustUnknown
+		}
+		result.Total++
+		add("verdicts", verdict)
+		label := l.CreatedAt.In(now.Location()).Format(time.DateOnly)
+		if days == 1 {
+			label = strconv.Itoa(l.CreatedAt.In(now.Location()).Hour())
+		}
+		if bucket, ok := trend[label]; ok {
+			bucket[verdict]++
+		}
+		for _, flag := range l.ParseTrustFlags() {
+			if flag.Severity != sevInfo {
+				add("rules", flag.ID)
+			}
+		}
+		if verdict == constant.VisitTrustProxy {
+			add("proxy_exits", l.IPCountry)
+		}
+		if verdict != constant.VisitTrustBot {
+			result.PV++
+			if l.VisitorID != nil {
+				visitors[*l.VisitorID] = true
+			}
+		}
+		add("devices", l.DeviceType)
+		add("os", l.OS)
+		add("browsers", l.Browser)
+		if l.HasSignals {
+			result.SignalVisits++
+			add("ip_countries", l.IPCountry)
+			add("inferred_countries", l.InferredCountry)
+			add("time_zones", l.TimeZone)
+			add("color_schemes", l.ColorScheme)
+			if langs := l.LanguageList(); len(langs) > 0 {
+				add("languages", langs[0])
+			}
+		}
+	}
+	result.UV = int64(len(visitors))
+	top := func(group string, limit int) []dto.NamedCount { return topCounts(counters[group], limit) }
+	result.Verdicts = top("verdicts", 0)
+	result.IPCountries = top("ip_countries", 0)
+	result.InferredCountries = top("inferred_countries", 0)
+	result.ProxyExits = top("proxy_exits", visitInsightsTop)
+	result.Rules = top("rules", visitInsightsTop)
+	result.Devices = top("devices", visitInsightsTop)
+	result.OS = top("os", visitInsightsTop)
+	result.Browsers = top("browsers", visitInsightsTop)
+	result.Languages = top("languages", visitInsightsTop)
+	result.TimeZones = top("time_zones", visitInsightsTop)
+	result.ColorSchemes = top("color_schemes", 0)
+	result.Trend = make([]dto.VisitTrendPoint, len(labels))
+	for i, label := range labels {
+		result.Trend[i] = dto.VisitTrendPoint{Label: label, Counts: trend[label]}
+	}
+	visitorIDs := make([]uint, 0, len(visitors))
+	for id := range visitors {
+		visitorIDs = append(visitorIDs, id)
+	}
+	if err := fillContentInsights(result, logs, visitorIDs, since); err != nil {
+		return nil, errs.NewInternalServer("failed_to_get_target")
+	}
+	if err := fillVitalInsights(result, since); err != nil {
+		return nil, errs.NewInternalServer("failed_to_get_target")
+	}
+	return result, nil
 }
 
 // GetVisitor 后台：访客详情

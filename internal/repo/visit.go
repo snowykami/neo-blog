@@ -91,6 +91,15 @@ func (v *visitRepo) ListVisitLogs(req *dto.ListVisitLogReq) ([]model.VisitLog, i
 			q = q.Where("referrer_host = ?", req.SourceHost)
 		}
 	}
+	if req.Trust != "" {
+		q = q.Where("trust = ?", req.Trust)
+	}
+	if req.Country != "" {
+		q = q.Where("inferred_country = ?", req.Country)
+	}
+	if req.Device != "" {
+		q = q.Where("device_type = ?", req.Device)
+	}
 	if req.TargetType != "" {
 		q = q.Where("target_type = ?", req.TargetType)
 		if req.TargetID > 0 {
@@ -118,9 +127,9 @@ func (v *visitRepo) ListVisitLogs(req *dto.ListVisitLogReq) ([]model.VisitLog, i
 func (v *visitRepo) CountVisitStats(since time.Time) (*dto.VisitStatsDto, error) {
 	stats := &dto.VisitStatsDto{}
 	db := GetDB()
-	// 只统计访问，不含点赞、评论等互动记录
+	// 只统计访问，不含点赞、评论等互动记录与疑似自动化
 	visits := func() *gorm.DB {
-		return db.Model(&model.VisitLog{}).Where("action = ?", constant.VisitActionVisit)
+		return HumanVisits(db.Model(&model.VisitLog{}))
 	}
 	if err := visits().Where("created_at >= ?", since).Count(&stats.TodayPV).Error; err != nil {
 		return nil, err
@@ -146,6 +155,111 @@ func (v *visitRepo) CountVisitStats(since time.Time) (*dto.VisitStatsDto, error)
 		return nil, err
 	}
 	return stats, nil
+}
+
+// HumanVisits 只保留访问记录（不含互动），并排除疑似自动化；用于浏览量、访客数等统计
+func HumanVisits(q *gorm.DB) *gorm.DB {
+	return q.Where("visit_logs.action = ?", constant.VisitActionVisit).
+		Where("(visit_logs.trust IS NULL OR visit_logs.trust <> ?)", constant.VisitTrustBot)
+}
+
+func (v *visitRepo) GetVisitLog(id uint) (*model.VisitLog, error) {
+	var log model.VisitLog
+	if err := GetDB().Preload("User").Preload("Visitor").Preload("TargetUser").First(&log, id).Error; err != nil {
+		return nil, err
+	}
+	return &log, nil
+}
+
+// ListVisitorVisits 某访客最近的访问记录
+func (v *visitRepo) ListVisitorVisits(visitorID uint, limit int) ([]model.VisitLog, error) {
+	var logs []model.VisitLog
+	err := GetDB().Preload("User").Preload("Visitor").
+		Where("visitor_id = ? AND action = ?", visitorID, constant.VisitActionVisit).
+		Order("created_at DESC, id DESC").Limit(limit).Find(&logs).Error
+	return logs, err
+}
+
+// ListInsightVisits 指定时间之后的全部访问（含疑似自动化），只取统计用到的字段
+func (v *visitRepo) ListInsightVisits(since time.Time) ([]model.VisitLog, error) {
+	var logs []model.VisitLog
+	err := GetDB().Model(&model.VisitLog{}).
+		Select("visitor_id, created_at, path, target_type, target_id, source, referrer, referrer_host, os, browser, device_type, ip_country, has_signals, time_zone, languages, color_scheme, trust, trust_flags, inferred_country, engaged_ms, scroll_depth").
+		Where("action = ? AND created_at >= ? AND path <> ?", constant.VisitActionVisit, since, "/random").
+		Find(&logs).Error
+	return logs, err
+}
+
+// FindLatestVisit 访客在指定时间之后最近一次访问某路径的记录
+func (v *visitRepo) FindLatestVisit(visitorID uint, path string, since time.Time) (*model.VisitLog, error) {
+	var log model.VisitLog
+	err := GetDB().Where("visitor_id = ? AND path = ? AND action = ? AND created_at >= ?", visitorID, path, constant.VisitActionVisit, since).
+		Order("created_at DESC, id DESC").First(&log).Error
+	if err != nil {
+		return nil, err
+	}
+	return &log, nil
+}
+
+// AddVisitEngagement 累加停留时长，滚动深度取最大值
+func (v *visitRepo) AddVisitEngagement(visitID uint, engagedMs int64, scrollDepth int) error {
+	return GetDB().Model(&model.VisitLog{}).Where("id = ?", visitID).UpdateColumns(map[string]any{
+		"engaged_ms":   gorm.Expr("COALESCE(engaged_ms, 0) + ?", engagedMs),
+		"scroll_depth": gorm.Expr("CASE WHEN scroll_depth IS NULL OR scroll_depth < ? THEN ? ELSE scroll_depth END", scrollDepth, scrollDepth),
+	}).Error
+}
+
+func (v *visitRepo) CreateVisitEvent(event *model.VisitEvent) error {
+	return GetDB().Create(event).Error
+}
+
+// ListVisitEvents 指定时间之后的某类事件
+func (v *visitRepo) ListVisitEvents(name string, since time.Time) ([]model.VisitEvent, error) {
+	var events []model.VisitEvent
+	err := GetDB().Where("name = ? AND created_at >= ?", name, since).Find(&events).Error
+	return events, err
+}
+
+// CountVisitorsFirstSeenSince 访客中首次访问在指定时间之后的人数
+func (v *visitRepo) CountVisitorsFirstSeenSince(ids []uint, since time.Time) (int64, error) {
+	var total int64
+	for start := 0; start < len(ids); start += 500 {
+		var n int64
+		end := min(start+500, len(ids))
+		if err := GetDB().Model(&model.Visitor{}).Where("id IN ? AND created_at >= ?", ids[start:end], since).Count(&n).Error; err != nil {
+			return 0, err
+		}
+		total += n
+	}
+	return total, nil
+}
+
+// PostInteraction 区间内对某篇文章的点赞或评论次数
+type PostInteraction struct {
+	TargetID uint
+	Action   string
+	Count    int64
+}
+
+// CountPostInteractions 指定时间之后对文章的点赞与评论（不含对评论的点赞和回复）
+func (v *visitRepo) CountPostInteractions(since time.Time) ([]PostInteraction, error) {
+	var rows []PostInteraction
+	err := GetDB().Model(&model.VisitLog{}).Select("target_id, action, COUNT(*) AS count").
+		Where("action IN ? AND target_type = ? AND created_at >= ?", []string{constant.VisitActionLike, constant.VisitActionComment}, constant.TargetTypePost, since).
+		Group("target_id, action").Scan(&rows).Error
+	return rows, err
+}
+
+// DeleteVisitEventsBefore 删除指定时间之前的页面事件
+func (v *visitRepo) DeleteVisitEventsBefore(before time.Time) (int64, error) {
+	result := GetDB().Where("created_at < ?", before).Delete(&model.VisitEvent{})
+	return result.RowsAffected, result.Error
+}
+
+// DeleteInactiveVisitors 删除指定时间之后没有再访问的访客汇总，返回删除条数
+func (v *visitRepo) DeleteInactiveVisitors(before time.Time) (int64, error) {
+	result := GetDB().Where("last_seen_at < ?", before).Delete(&model.Visitor{})
+	return result.RowsAffected, result.Error
 }
 
 // DeleteVisitLogsBefore 删除指定时间之前的访问记录，返回删除条数

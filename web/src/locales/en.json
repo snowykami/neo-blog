@@ -1,122 +1,55 @@
 {
   "Privacy": {
-    "updated": "Last updated and effective {date}",
-    "intro": "Welcome to {site}. This privacy policy explains, in plain words, what this site records when you browse, sign up or comment, what it is used for, how long it is kept, and how you can manage your information. This site is run by {owner}; “we” and “the site owner” below refer to the operator of this site.",
+    "updated": "Last updated and effective on {date}",
     "summary": {
-      "title": "At a glance",
-      "items": {
-        "no_sale": "We <b>never sell</b> your information or use it for advertising.",
-        "stats": "When you browse, the site records visit statistics (which pages you viewed, your approximate region, device type and so on) to understand how the blog is read.",
-        "dnt": "If your browser sends “Do Not Track”, the site only records the bare minimum: no IP address is stored and no visitor cookie is set.",
-        "comment": "Commenting and liking require an account; your IP address is never shown publicly.",
-        "rights": "You can edit your profile at any time, or contact the site owner to view or delete information about you."
-      }
+      "title": "In short",
+      "body": "{site} is the personal blog of {owner}. It records only the little information needed to understand readership and prevent abuse. No selling data, no ads, no cross-site tracking."
     },
     "browse": {
-      "title": "When you browse",
-      "body": "To understand which posts are read and where readers come from, the site records the following when you open a page:",
+      "title": "What is recorded while you browse",
       "items": {
-        "page": "<b>What you visited</b>: the page, the time, and the page that sent you here (for example a search engine or another website).",
-        "network": "<b>Network information</b>: your IP address and the approximate region (province/state, city) and network provider estimated from it. This only gives a rough area and cannot pinpoint where you are.",
-        "device": "<b>Device information</b>: the basic description your browser sends to every website, which shows your device type, operating system and browser.",
-        "feature": "<b>Browser feature summary</b>: an irreversible code calculated from basic settings such as language, time zone and screen size. It is only used to recognize the same browser again if the visitor cookie has been cleared. We do not use more invasive “device fingerprinting” techniques.",
-        "account": "<b>Account link</b>: if you are signed in, your visits are linked to your account."
+        "page": "The pages you visit, when, and which page you came from.",
+        "network": "Your IP address, plus the approximate region and ISP looked up from it. Only the site owner can see IP addresses in the admin console; they are never made public.",
+        "browser": "Basic information your browser exposes: OS, browser, device type, screen size, language, time zone, light / dark preference, and whether it is controlled by an automation program.",
+        "engagement": "Reading activity: engaged time on the page, how far you scrolled, which outbound links or downloads you clicked, and performance data such as page load speed."
       },
-      "note": "Visits from search engine crawlers and other automated programs, as well as the site owner’s own visits, are not recorded. Only the site owner can view visit records in the admin console, where the second half of each IP address is hidden."
+      "note": "We check the IP location against your time zone and language to tell whether a visit went through a proxy or came from a bot, and use the result only for statistics. We <b>do not collect</b> device fingerprints such as canvas, graphics card, or audio, nor font lists or precise location. Visits from search engine crawlers and from the site owner are not recorded."
     },
     "account": {
-      "title": "Signing up and signing in",
-      "body": "An account is optional — you can read all public content without one. If you choose to sign up or sign in:",
+      "title": "Sign-in, comments, and likes",
       "items": {
-        "profile": "<b>Registration details</b>: username, nickname, email and password. Your email is used for verification codes and password recovery; your password is stored with irreversible encryption, so nobody can see it. You may also choose to add an avatar, profile background, gender, preferred language and theme color.",
-        "oidc": "<b>Signing in with another account</b>: if you sign in with a third-party account, we receive your account ID, name, username, email and avatar from that platform to create or link your account here, and update them each time you sign in. You can unlink it in your account settings.",
-        "login": "<b>Sign-in records</b>: to keep you signed in and protect your account, each sign-in session records the IP addresses it was used from. Sessions that stay inactive for a long time are deleted automatically.",
-        "ip_location": "<b>IP region on your profile</b>: by default, your profile page shows visitors the approximate region of the IP address you last signed in from (not the IP itself). You can turn off “Show IP Location” in your account settings."
+        "profile": "Account: username, nickname, and email; passwords are stored encrypted. When you sign in with a third-party account, we receive the name, email, and avatar it provides. Each sign-in records the IP address used, to keep your account secure. Your profile page shows the approximate region of your latest sign-in by default; you can turn this off in account settings.",
+        "comment": "Comments and likes: the content, plus the IP and approximate region at the time of posting. IPs are never made public; you decide whether the region and client info are shown."
       }
-    },
-    "interact": {
-      "title": "Comments and likes",
-      "body": "You need to sign in to comment or like.",
-      "items": {
-        "comment": "<b>Comments</b>: besides the comment text and time, the site stores the IP address, approximate region and device information from when you posted it, to fight spam and abuse. Your IP address is never shown publicly.",
-        "client_info": "<b>Public client info</b>: if you tick “Show client info” when commenting, other readers can see your approximate region, operating system and browser; otherwise nothing is shown.",
-        "like": "<b>Likes and interactions</b>: the site records what you have liked. Your likes and comments also appear in the site owner’s interaction log so they can follow reader feedback; when you remove a like, its record is deleted too."
-      }
-    },
-    "dnt": {
-      "title": "Do Not Track",
-      "body": "If your browser has “Do Not Track” or “Global Privacy Control” (GPC) turned on, the site respects your choice: it only records the page, time, referring page, approximate region and device type. It does not store your IP address or full browser information, does not set the visitor cookie, and does not compute the browser feature summary (your IP address is used briefly to estimate your region but is not stored). If you are signed in at the same time, the visit is still linked to your account."
     },
     "cookie": {
-      "title": "Cookies and local storage",
-      "body": "Cookies are small pieces of data a website stores in your browser. This site only sets the following cookies itself, and none of them are used for advertising or cross-site tracking:",
+      "title": "Cookies",
       "items": {
-        "visitor": "<b>Visitor ID (nb_vid)</b>: a random number used to recognize repeat visits from the same browser, kept for one year. It is not set when “Do Not Track” is on.",
-        "login": "<b>Sign-in state (token, refresh_token)</b>: set only after you sign in, to keep you signed in. They expire when you sign out or when they time out.",
-        "oidc": "<b>Third-party sign-in check (oidc_nonce)</b>: set briefly when you sign in with a third-party account, to confirm the request came from your own browser. It expires after 10 minutes.",
-        "local": "<b>Local preferences</b>: interface settings such as light/dark theme and the music player’s volume and progress are stored only in your browser and never uploaded to the server."
-      },
-      "note": "You can view or clear this data in your browser settings at any time. After clearing it you will need to sign in again, and your next visit will be counted as a new visitor. Third-party services used on the pages may set their own cookies; see the next section."
-    },
-    "third_party": {
-      "title": "Third-party services",
-      "body": "Some features rely on third-party services. When you use them, your browser or this site’s server communicates with that service, which may therefore receive basic information such as your IP address and handle it under its own privacy policy. Which services are enabled depends on the site owner’s configuration:",
-      "items": {
-        "ip_lookup": "<b>IP region lookup</b>: IPv4 addresses are resolved offline on this site’s server and are not sent to anyone. IPv6 addresses (when the site owner has not set up offline data) and the “IP region” shown on profile pages are looked up by sending the IP address to a third-party lookup service (mir6.com).",
-        "weather": "<b>Weather card location</b>: picking a city in the editor stores only that city's name and approximate coordinates (~1 km precision). When the author has not picked a city, the card first asks whether it may use your location: if you allow it, the coordinates are rounded to roughly 1 km and used only to fetch the weather where you are and to look up the name of that place (through QWeather when the site owner has configured it, otherwise BigDataCloud's free reverse-geocoding endpoint, which again only receives the rounded coordinates) — never stored or written into the post. If you decline or your browser does not support it, the site falls back to estimating your city from your IP address for that single request. Weather data is requested by our server from Open-Meteo or the QWeather account the site owner configured; your IP address or raw position is not sent to them.",
-        "captcha": "<b>Human verification</b>: sign-in and sign-up may load Cloudflare Turnstile, hCaptcha or Google reCAPTCHA to block fake sign-ups and password guessing.",
-        "oidc": "<b>Third-party sign-in</b>: when you sign in with a third-party account, you are sent to that platform to authorize it.",
-        "gravatar": "<b>Gravatar avatars</b>: users without an avatar are shown their Gravatar picture. Your browser requests the image from Gravatar using a scrambled digest of the email address, not the address itself.",
-        "email": "<b>Email delivery</b>: emails such as verification codes are sent through the mail service configured by the site owner.",
-        "resources": "<b>Static resources and music</b>: images, scripts, music and other files may be hosted on a CDN or other platforms, and pages may load a small CDN status widget; posts may include external images. When the music player is enabled, the playlist and audio are loaded from their own addresses.",
-        "embed": "<b>Embedded content</b>: the sidebar and other areas may embed pages from other websites (such as a social media timeline), which works the same as visiting that website directly."
-      },
-      "note": "Some third-party services may have servers outside your country or region. Apart from the cases above and where required by law, we do not share your personal information with any third party."
-    },
-    "use": {
-      "title": "How we use this information",
-      "items": {
-        "stats": "<b>Understanding readership</b>: measuring post popularity, traffic sources and regional distribution so the site owner can improve the content.",
-        "service": "<b>Providing features</b>: letting you sign in, comment, like and have a profile page.",
-        "security": "<b>Keeping the site safe</b>: detecting and blocking spam, fake sign-ups and abnormal traffic."
-      },
-      "note": "We do not sell your personal information or use it for advertising or marketing profiles. Visit statistics are based on the site owner’s legitimate interest in understanding how the site is used; account information is necessary to provide the features you ask for; optional public displays such as your region or client info are based on your choice and can be turned off at any time."
+        "visitor": "<b>nb_vid</b>: a random visitor ID used to tell new and returning visitors apart, kept for 1 year.",
+        "login": "<b>token, refresh_token</b>: sign-in state; <b>oidc_nonce</b>: third-party sign-in verification, expires after 10 minutes.",
+        "local": "Preferences such as theme and volume are stored only in your browser. This site uses no advertising or cross-site tracking cookies."
+      }
     },
     "retention": {
       "title": "How long we keep it",
       "items": {
-        "visit": "<b>Visit and interaction records</b>: kept for {days} days, then deleted automatically.",
-        "visitor": "<b>Visitor summaries</b>: each browser has one summary (last IP address, approximate region, device type and visit count). It is currently not deleted together with visit records; you can ask the site owner to delete it.",
-        "account": "<b>Account and comments</b>: kept for as long as you use your account. Once you delete a comment it is no longer shown; to have comment data erased completely or to close your account, please contact the site owner.",
-        "session": "<b>Sign-in records</b>: deleted automatically once a session has been inactive for a long time."
+        "visit": "Visit and interaction records: deleted automatically after {days} days.",
+        "visitor": "Visitor summary (latest region, device, and visit count): deleted 1 year after the last visit.",
+        "account": "Accounts and comments: until you delete them or close your account."
       }
     },
-    "rights": {
-      "title": "Your rights",
-      "body": "You have the right to be informed about, access, obtain a copy of, correct and delete your personal information, to withdraw consent, and to close your account. Here is how:",
+    "third_party": {
+      "title": "Third-party services",
+      "body": "CAPTCHA, third-party sign-in, Gravatar avatars, CDN resources, and embedded content let the respective services see your IP, which they handle under their own privacy policies. The weather card uses your location, rounded to about 1 km, only after you allow it, and discards it right after use. IPv4 locations are looked up offline on this site’s server; IPv6 locations may be looked up through a third party. Beyond that, we don’t share your information with anyone."
+    },
+    "choices": {
+      "title": "What you can do",
       "items": {
-        "self": "<b>Do it yourself</b>: after signing in, edit your nickname, avatar, email, password and other details in your account settings, turn off “Show IP Location”, or unlink third-party accounts.",
-        "content": "<b>Manage your content</b>: delete comments you have posted, or remove your likes.",
-        "limit": "<b>Reduce tracking</b>: turn on “Do Not Track” or “Global Privacy Control” in your browser, or clear this site’s cookies.",
-        "request": "<b>Contact the site owner</b>: to view or get a copy of information about you, delete visit records, erase comments completely or close your account, please contact the site owner. To protect your information, we may need to verify your identity first."
+        "dnt": "<b>If you don’t want to be recorded</b>: turn on “Do Not Track” or “Global Privacy Control” in your browser. The site then only counts the visit anonymously: it doesn’t store your IP, read the browser information above, record reading activity, or set the visitor cookie.",
+        "cookie": "After you clear this site’s cookies, your next visit will be treated as a new visitor.",
+        "request": "Contact the site owner {owner} to view, export, or delete records about you, or to close your account."
       },
-      "note": "We will reply and handle your request as soon as possible. If you believe the way we handle personal information violates your rights, you may also lodge a complaint with your local data protection authority."
-    },
-    "security": {
-      "title": "Security",
-      "body": "We take reasonable measures to protect your information: passwords are stored encrypted; sign-in cookies cannot be read by page scripts; visit records can only be viewed by the site owner in the admin console, with IP addresses partially hidden. No system on the internet is perfectly secure, though. If a data breach ever happens, we will let you know on this site promptly and do our best to limit the impact."
-    },
-    "children": {
-      "title": "Children",
-      "body": "This site is meant for a general audience and is not directed at children. If you are under 14 (or the minimum age required by law where you live), please get a parent or guardian’s consent before signing up or commenting. If a parent or guardian finds that a child has given us personal information without consent, please contact the site owner to have it deleted."
-    },
-    "changes": {
-      "title": "Changes to this policy",
-      "body": "We may update this policy as the site’s features change. The updated version will be published on this page with the date shown at the top; for significant changes we will also make a clear announcement on this site."
-    },
-    "contact": {
-      "title": "Contact us",
-      "body": "If you have any questions about this policy or want to exercise the rights above, please contact the site owner, {owner}, through the contact details published on this site (for example the links in the footer or on the owner’s profile)."
+      "note": "If you are under 14, please get a guardian’s consent before registering or commenting. When this policy changes, the date on this page will be updated, and major changes will be announced on the site. Contact details are in the footer or on the site owner’s homepage."
     }
   },
   "Archive": {
@@ -328,7 +261,277 @@
       "original_comment": "Original: {content}",
       "comment_deleted": "(comment deleted)",
       "deleted_user": "Deleted user",
-      "source_random": "Random"
+      "source_random": "Random",
+      "view_detail": "Details",
+      "trust_all": "All",
+      "country_all": "All regions",
+      "device_all": "All devices",
+      "filter_country": "Inferred region",
+      "filter_device": "Device",
+      "inferred": "Inferred",
+      "inferred_hint": "IP location conflicts with time zone and language; region inferred from other signals",
+      "ip_untrusted_hint": "IP location conflicts with other signals or belongs to a data center range; not trusted",
+      "trust": {
+        "verdicts": {
+          "trusted": {
+            "label": "Trusted",
+            "why": "All signals agree with each other; the IP location is reliable."
+          },
+          "proxy": {
+            "label": "Likely proxy",
+            "why": "The IP location conflicts with signals such as time zone and language, or belongs to a data center range. The visit most likely went through a proxy / VPN. Use the inferred region instead."
+          },
+          "spoofed": {
+            "label": "Spoofed environment",
+            "why": "What the browser reports about itself is contradictory (UA, Client Hints, UTC offset, touch, etc.). A UA switcher extension, anti-detect browser, or tampering script may be in use."
+          },
+          "bot": {
+            "label": "Likely automated",
+            "why": "Shows signs of automation, most likely a crawler or script. Not counted in page views or visitors."
+          },
+          "unknown": {
+            "label": "Insufficient signals",
+            "why": "The visitor enabled “Do Not Track” or did not report browser signals. Only a basic record was kept, so no verdict is possible."
+          }
+        },
+        "severity": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low",
+          "info": "Info"
+        },
+        "categories": {
+          "location": "Location reliability",
+          "env": "Browser environment",
+          "auto": "Automation"
+        },
+        "sources": {
+          "ip": "IP location",
+          "tz": "Browser time zone",
+          "lang": "Browser language"
+        },
+        "confidence": {
+          "high": "high",
+          "medium": "medium",
+          "low": "low"
+        },
+        "devices": {
+          "desktop": "Desktop",
+          "mobile": "Phone",
+          "tablet": "Tablet"
+        },
+        "pointers": {
+          "fine": "mouse / trackpad",
+          "coarse": "finger"
+        },
+        "rules": {
+          "tz_vs_ip": {
+            "name": "Time zone doesn’t match IP location",
+            "why": "VPNs and proxies change only the exit IP, not the system time zone, so the time zone is closer to the real location."
+          },
+          "lang_vs_ip": {
+            "name": "Language doesn’t match IP location",
+            "why": "Language reflects usage habits. A mismatch on its own usually means a user abroad; a mismatch together with the time zone means the IP is not the real location."
+          },
+          "datacenter_ip": {
+            "name": "IP belongs to a data center / cloud provider",
+            "why": "Home broadband and mobile networks rarely use data center IPs directly, while most VPNs, proxies, and crawlers run on cloud servers."
+          },
+          "ip_jump": {
+            "name": "IP country changed for the same visitor",
+            "why": "The time zone stayed the same and only the IP country changed, which usually means the proxy node was switched."
+          },
+          "tz_hidden": {
+            "name": "Time zone hidden as UTC",
+            "why": "Tor Browser, Firefox’s fingerprinting resistance mode, and similar tools always report UTC; the time zone is then left out of region inference."
+          },
+          "offset_vs_tz": {
+            "name": "UTC offset doesn’t match time zone",
+            "why": "Both come from the same browser setting and should always agree. A mismatch means a script or anti-detect browser changed only one of them."
+          },
+          "ua_vs_ch_platform": {
+            "name": "UA OS doesn’t match Client Hints",
+            "why": "UA switcher extensions usually change only the UA string; Chromium still reports the real OS in Client Hints."
+          },
+          "ua_vs_ch_mobile": {
+            "name": "UA device type doesn’t match Client Hints",
+            "why": "When the UA is changed to a phone or computer, Client Hints still report the real device type."
+          },
+          "ua_engine_vs_ch": {
+            "name": "UA browser doesn’t match engine",
+            "why": "Only Chromium-based browsers send Client Hints, so their presence or absence verifies the browser name in the UA."
+          },
+          "mobile_no_touch": {
+            "name": "Claims to be mobile but has no touch",
+            "why": "Phones and tablets all have touchscreens; no touch points means it is actually a desktop device."
+          },
+          "mobile_large_screen": {
+            "name": "Claims to be a phone but has a desktop-size screen",
+            "why": "The short side of a phone screen is usually between 320–480 CSS pixels."
+          },
+          "accept_lang_vs_nav": {
+            "name": "Request header language doesn’t match browser language",
+            "why": "Both come from the same browser setting. A mismatch usually means a proxy, extension, or script rewrote one of them."
+          },
+          "ipad_desktop_ua": {
+            "name": "macOS UA with multi-touch (iPad)",
+            "why": "Safari on iPadOS requests desktop websites by default, with the same UA as a Mac. Counted as a tablet, not as spoofing."
+          },
+          "webdriver": {
+            "name": "Browser under automated control",
+            "why": "navigator.webdriver is true, meaning the browser is controlled by tools such as Selenium, Puppeteer, or Playwright."
+          },
+          "no_languages": {
+            "name": "Empty language list",
+            "why": "A normal browser has at least one language; an empty list is common in headless browsers."
+          },
+          "zero_screen": {
+            "name": "Screen size is 0",
+            "why": "Headless browsers often report a 0×0 screen."
+          }
+        },
+        "reasons": {
+          "no_signals": "No browser signals collected",
+          "no_ip": "No usable IP location",
+          "tz_hidden": "Time zone is hidden",
+          "offset_conflict": "The time zone itself conflicts with the clock offset; left to the “UTC offset” rule",
+          "tz_unknown": "Unrecognized time zone {tz}",
+          "tz_ip_match": "Time zone and IP are both in {country}",
+          "tz_ip_mismatch": "Time zone is {tz} ({tzCountry}, {offset}), but the IP is in {ipCountry} ({ipOffsets}). The two places have different UTC offsets, so the IP is most likely a proxy exit.",
+          "tz_ip_mismatch_same_offset": "Time zone is {tz} ({tzCountry}, {offset}), but the IP is in {ipCountry}. The two places share the same UTC offset, which is common with proxy nodes in nearby regions.",
+          "no_languages": "Empty language list",
+          "lang_universal": "{lang} is a lingua franca and is not used for the check",
+          "lang_ip_match": "{lang} matches {country}",
+          "lang_ip_mismatch_tz": "Preferred language {lang} usually points to {countries}, but the IP is in {ipCountry}. The time zone isn’t local either, so the IP is most likely not the real location.",
+          "lang_ip_mismatch_local": "Preferred language {lang} usually points to {countries}, but the IP is in {ipCountry}. The time zone matches the IP, so this looks more like a foreign-language user who is actually there.",
+          "no_isp": "The location data gives no ISP",
+          "isp_datacenter": "ISP is “{isp}”, a data center range.",
+          "isp_normal": "ISP is “{isp}”",
+          "no_history": "No previous record for this visitor",
+          "ip_same": "Same as last time, both in {country}",
+          "ip_jump": "Last time the IP was in {from}, this time in {to}, yet the time zone is still {tz}.",
+          "ip_back": "IP moved from {from} back to {to}, consistent with the time zone",
+          "ip_moved": "IP moved from {from} to {to}",
+          "tz_utc": "Time zone reported as {tz}; fingerprinting protection may be on.",
+          "tz_ok": "Time zone is {tz}",
+          "offset_mismatch": "{tz} should currently be {expected}, but the browser clock is {offset}.",
+          "offset_ok": "{tz} = {offset}",
+          "no_ch": "No Client Hints in the request (Safari and Firefox don’t send them)",
+          "no_os": "No OS detected in the UA",
+          "platform_ok": "{os} matches {platform}",
+          "platform_mismatch": "UA claims {os}, but Sec-CH-UA-Platform is {platform}.",
+          "mobile_ok": "UA and Client Hints agree on device type",
+          "mobile_mismatch_ua": "UA shows a phone, but Sec-CH-UA-Mobile is ?0 (not a phone).",
+          "mobile_mismatch_ch": "UA shows a non-phone, but Sec-CH-UA-Mobile is ?1 (phone).",
+          "engine_fake": "UA claims {browser}, but the request carries Sec-CH-UA ({brands}), which only Chromium sends.",
+          "engine_no_ch_ok": "{browser} doesn’t send Client Hints, as expected",
+          "ios_chrome": "Browsers on iOS use WebKit and don’t send Client Hints",
+          "engine_missing_ch": "UA claims {browser}, but the request lacks Sec-CH-UA, which Chromium sends by default.",
+          "engine_ch_ok": "Has Sec-CH-UA ({brands})",
+          "browser_unchecked": "Only visits claiming to be Chrome, Edge, Opera, Safari, or Firefox are checked",
+          "not_mobile": "UA is not a mobile device",
+          "touch_ok": "Touch points: {points}",
+          "no_touch": "UA device type is {device}, but there are 0 touch points and the pointer is {pointer}.",
+          "not_phone": "UA is not a phone",
+          "screen_zero_skip": "Screen size is 0",
+          "screen_ok": "Screen {screen}",
+          "screen_large": "Screen {screen} (CSS pixels) is clearly larger than a phone.",
+          "no_accept_language": "No Accept-Language in the request",
+          "accept_lang_ok": "Both are {lang}",
+          "accept_lang_mismatch": "Accept-Language prefers {header}, navigator.languages prefers {lang}.",
+          "not_macos": "Not a macOS UA",
+          "ipad": "macOS UA, yet {points} touch points: this is an iPad, counted as a tablet.",
+          "mac_no_touch": "No touch",
+          "webdriver_on": "The browser is under automated control.",
+          "webdriver_off": "navigator.webdriver is false",
+          "languages_empty": "The language list is empty.",
+          "languages_ok": "{languages}",
+          "screen_zero": "Screen size is {screen}."
+        },
+        "notes": {
+          "reserved": "Local network address",
+          "no_region": "Location not found",
+          "datacenter": "Data center range, not trusted",
+          "no_signals": "No browser signals collected",
+          "tz_hidden": "Time zone hidden as UTC",
+          "offset_conflict": "Time zone conflicts with clock offset, not trusted",
+          "tz_unknown": "Time zone not in the lookup table",
+          "no_languages": "Empty language list",
+          "lang_universal": "Lingua francas such as English are not used for inference",
+          "lang_ambiguous": "This language maps to multiple regions"
+        }
+      },
+      "detail": {
+        "title": "Visit details",
+        "back": "Back to visitor log",
+        "not_found": "The visit record doesn’t exist or has been cleaned up",
+        "visitor": "Visitor #{id} · {count} visits in total",
+        "no_visitor": "Unidentified visitor (Do Not Track)",
+        "score": "Consistency score",
+        "score_value": "{score} / 100",
+        "hits": "{count} rules triggered",
+        "location_title": "Location assessment",
+        "location_hint": "Time zone has weight 2, IP and language 1 each; on a tie, time zone wins, then IP, then language",
+        "col_source": "Source",
+        "col_value": "Value read",
+        "col_country": "Points to",
+        "col_weight": "Weight",
+        "col_result": "Result",
+        "agree": "Accepted",
+        "conflict": "Conflict",
+        "ignored": "Excluded",
+        "inferred_result": "Inferred region: {country} (confidence: {confidence}).",
+        "cannot_infer": "Cannot infer region: no trustworthy signals.",
+        "ip_trusted": "The IP location agrees with other signals and can be used as is.",
+        "ip_untrusted": "The IP location “{location}” is not trustworthy.",
+        "ip_exit": "The IP location “{location}” is not trustworthy; it is more likely a proxy exit.",
+        "rules_title": "Consistency checks",
+        "rules_summary": "Triggered {hit} · Passed {pass} · Not applicable {skip}",
+        "no_hits": "No rules triggered",
+        "passed": "Passed rules ({count})",
+        "skipped": "Rules not applicable ({count})",
+        "why": "Rationale: {why}",
+        "history_title": "Recent visits from this visitor",
+        "signals_title": "All signals",
+        "signals_missing": "Not collected (Do Not Track was on, or this is an older record)",
+        "groups": {
+          "network": "Network",
+          "headers": "Request headers",
+          "locale": "Language and region",
+          "device": "Device",
+          "prefs": "Preferences and automation"
+        },
+        "fields": {
+          "ip": "IP address",
+          "location": "IP location",
+          "country": "Country / region",
+          "isp": "ISP",
+          "datacenter": "Data center range",
+          "prev_country": "IP country of last visit",
+          "parsed": "Parsed result",
+          "dnt": "Do Not Track",
+          "time_zone": "Time zone",
+          "utc_offset": "UTC offset",
+          "languages": "Languages",
+          "screen": "Screen",
+          "touch_points": "Touch points",
+          "pointer": "Pointer",
+          "color_scheme": "Color scheme"
+        },
+        "not_collected": "—",
+        "not_saved": "Not saved",
+        "not_sent": "Not sent",
+        "yes": "Yes",
+        "no": "No",
+        "dnt_on": "On (DNT / GPC)",
+        "dnt_off": "Off",
+        "scheme_light": "Light",
+        "scheme_dark": "Dark",
+        "engagement": "Engaged {time} · max scroll depth {depth}%",
+        "no_engagement": "No engagement data yet"
+      },
+      "engaged": "Read {time} · {depth}% scrolled",
+      "engaged_hint": "Engaged time (page in the foreground) and maximum scroll depth"
     },
     "about_content": "Content",
     "about_system": "System",
@@ -1613,6 +1816,94 @@
       "copied": "Copied to clipboard",
       "copy_failed": "Copy failed, please copy it manually",
       "done": "I’ve saved it"
+    },
+    "visit_insights": {
+      "title": "Visitor statistics",
+      "range_1": "Today",
+      "range_7": "Last 7 days",
+      "range_30": "Last 30 days",
+      "bot_note": "Likely automated visits are not counted in page views or visitors, but still appear in the charts below for troubleshooting.",
+      "load_failed": "Failed to load statistics",
+      "pv": "Page views",
+      "pv_hint": "Plus {count} likely automated",
+      "uv": "Unique visitors",
+      "uv_hint": "Deduplicated by visitor cookie, excluding Do Not Track",
+      "proxy_ratio": "Likely proxy share",
+      "proxy_hint": "{count} / {total} visits with signals",
+      "abnormal": "Abnormal environment",
+      "abnormal_hint": "Spoofed {spoofed} · Likely automated {bot}",
+      "verdict_title": "Trust distribution",
+      "visits_total": "{count} visits",
+      "region_title": "Top regions: IP location vs inferred location",
+      "region_hint": "{count} visits with browser signals",
+      "legend_ip": "IP location",
+      "legend_inferred": "Inferred location (from time zone and language)",
+      "region_tip": "IP location {ip} · Inferred location {inferred}",
+      "region_note": "Looking at IP alone overstates common proxy exit regions; inferred location maps these visits back to the regions their time zone and language point to.",
+      "trend_day_title": "Daily visits (by trust)",
+      "trend_hour_title": "Hourly visits (by trust)",
+      "trend_max": "Peak {count}",
+      "hour_suffix": ":00",
+      "proxy_exits_title": "Proxy exit locations",
+      "proxy_exits_hint": "{count} likely proxy visits, by IP location",
+      "rules_title": "Most triggered rules",
+      "rules_hint": "Excluding info level",
+      "devices_title": "Device types",
+      "os_title": "Operating systems",
+      "browsers_title": "Browsers",
+      "languages_title": "Preferred languages",
+      "time_zones_title": "Time zones",
+      "color_schemes_title": "Color schemes",
+      "signal_hint": "Visits with browser signals",
+      "scheme_light": "Light",
+      "scheme_dark": "Dark",
+      "empty": "No data yet",
+      "count_tip": "{name}: {count} ({percent})",
+      "section_visitors": "Visitors",
+      "section_content": "Content",
+      "section_performance": "Performance",
+      "new_visitors": "New visitors",
+      "returning_visitors": "Returning visitors",
+      "share_of_visitors": "{percent} of visitors",
+      "avg_engaged": "Avg. engaged time",
+      "median_engaged": "Median {time}",
+      "completion_rate": "Read-through rate",
+      "completion_hint": "{count} / {total} reached 90% · avg. scroll depth {depth}%",
+      "depth_title": "Scroll depth",
+      "depth_hint": "How far down the page each visit scrolled",
+      "posts_title": "Post performance",
+      "posts_hint": "Most viewed posts. Read-through means scrolling to 90%; interaction rate is likes plus comments in the period divided by views",
+      "col_post": "Post",
+      "col_views": "Views",
+      "col_read_time": "Avg. time",
+      "col_depth": "Avg. depth",
+      "col_completion": "Read-through",
+      "col_interaction": "Interaction",
+      "col_source": "Top source",
+      "interaction_tip": "{likes} likes · {comments} comments",
+      "paths_title": "Internal paths",
+      "paths_hint": "Where readers went after finishing a page",
+      "outbound_title": "Outbound clicks",
+      "outbound_hint": "Links readers followed off the site",
+      "downloads_title": "File downloads",
+      "downloads_hint": "Clicks on links to files such as pdf or zip",
+      "vitals_hint": "Collected from real visitors’ browsers. p75 means 75% of visits were at least this good, which is how Google assesses page experience; rating thresholds follow web.dev.",
+      "vitals_empty": "No performance data yet: it is reported after visitors open pages",
+      "vital_samples": "{count} samples",
+      "vital_mobile": "Mobile",
+      "vital_desktop": "Desktop",
+      "rating_good": "Good",
+      "rating_needsImprovement": "Needs improvement",
+      "rating_poor": "Poor",
+      "slow_pages_title": "Slowest pages (LCP)",
+      "slow_pages_hint": "At least 3 samples, sorted by LCP p75, slowest first",
+      "vital_names": {
+        "LCP": "Largest Contentful Paint: how soon the main content appears",
+        "INP": "Interaction to Next Paint: how quickly the page responds to input",
+        "CLS": "Cumulative Layout Shift: whether elements jump around",
+        "FCP": "First Contentful Paint: how soon the first content appears",
+        "TTFB": "Time to First Byte: how soon the server starts responding"
+      }
     }
   },
   "Copyright": {

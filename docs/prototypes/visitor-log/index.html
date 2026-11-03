@@ -1,0 +1,1591 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>访客记录 2.0 · 原型</title>
+<style>
+  /* 色板沿用控制台 web/src/app/globals.css 的默认参数（hue 250） */
+  :root {
+    --hue: 250; --chroma: .14; --radius: .625rem;
+    color-scheme: light;
+    --background: oklch(.96 .01 var(--hue));
+    --foreground: oklch(.22 .02 var(--hue));
+    --card: oklch(1 0 0);
+    --primary: oklch(.55 var(--chroma) var(--hue));
+    --primary-foreground: oklch(.98 .01 var(--hue));
+    --secondary: oklch(.95 .025 var(--hue));
+    --secondary-foreground: oklch(.45 var(--chroma) var(--hue));
+    --muted: oklch(.95 .01 var(--hue));
+    --muted-foreground: oklch(.5 .02 var(--hue));
+    --accent: oklch(.95 .025 var(--hue));
+    --accent-foreground: oklch(.25 .03 var(--hue));
+    --border: oklch(.9 .01 var(--hue));
+    --sidebar: oklch(.98 .005 var(--hue));
+    /* 状态色（固定，始终配图标与文字） */
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b; --neutral: oklch(.7 .01 var(--hue));
+    /* 图表系列色：1 蓝（推断位置 / 单系列）、2 橙（IP 归属地），已用 dataviz 校验脚本验证 */
+    --s1: #2a78d6; --s2: #eb6834;
+    --grid: oklch(.92 .005 var(--hue));
+  }
+  html.dark {
+    color-scheme: dark;
+    --background: oklch(.16 .014 var(--hue));
+    --foreground: oklch(.93 .01 var(--hue));
+    --card: oklch(.23 .015 var(--hue));
+    --primary: oklch(.75 var(--chroma) var(--hue));
+    --primary-foreground: oklch(.2 .03 var(--hue));
+    --secondary: oklch(.33 .035 var(--hue));
+    --secondary-foreground: oklch(.85 .08 var(--hue));
+    --muted: oklch(.27 .015 var(--hue));
+    --muted-foreground: oklch(.7 .015 var(--hue));
+    --accent: oklch(.3 .025 var(--hue));
+    --accent-foreground: oklch(.93 .01 var(--hue));
+    --border: oklch(1 0 0 / 10%);
+    --sidebar: oklch(.19 .014 var(--hue));
+    --neutral: oklch(.5 .01 var(--hue));
+    --s1: #3987e5; --s2: #d95926;
+    --grid: oklch(1 0 0 / 7%);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font: 14px/1.6 system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+  button, select, input { font: inherit; color: inherit; }
+  svg.i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+  .muted { color: var(--muted-foreground); }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .hidden { display: none !important; }
+
+  /* 布局：仿控制台侧边栏 */
+  .app { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
+  .sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 4px; padding: 14px 10px; background: var(--sidebar); border-right: 1px solid var(--border); }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 12px; }
+  .brand .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--primary); color: var(--primary-foreground); display: grid; place-items: center; font-weight: 700; }
+  .brand b { display: block; font-size: 14px; line-height: 1.2; }
+  .brand small { color: var(--muted-foreground); font-size: 12px; }
+  .nav-group { font-size: 12px; color: var(--muted-foreground); padding: 10px 10px 4px; }
+  .nav a { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 8px; color: var(--foreground); opacity: .85; }
+  .nav a:hover { background: var(--accent); opacity: 1; }
+  .nav a.on { background: var(--accent); color: var(--accent-foreground); font-weight: 600; opacity: 1; }
+  .sidebar .foot { margin-top: auto; padding: 8px; font-size: 12px; color: var(--muted-foreground); display: grid; gap: 8px; }
+  main { min-width: 0; padding: 18px 28px 48px; }
+  .topbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .crumb { font-size: 12px; color: var(--muted-foreground); }
+  .topbar h1 { margin: 2px 0 0; font-size: 20px; }
+  .topbar p { margin: 2px 0 0; color: var(--muted-foreground); font-size: 13px; max-width: 760px; }
+  .proto-tag { font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px dashed var(--border); color: var(--muted-foreground); white-space: nowrap; }
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--border); }
+    .nav-group, .sidebar .foot small { display: none; }
+    .nav { display: flex; flex-wrap: wrap; gap: 2px; }
+    main { padding: 14px; }
+  }
+
+  /* 基础组件（shadcn 风格） */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); box-shadow: 0 1px 2px rgb(0 0 0 / .04); min-width: 0; }
+  .card-h { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 8px; padding: 14px 16px 0; font-weight: 600; }
+  .card-h small { font-weight: 400; color: var(--muted-foreground); font-size: 12px; }
+  .card-b { padding: 12px 16px 16px; }
+  .grid { display: grid; gap: 16px; }
+  .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .g-detail { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+  .span2 { grid-column: span 2; }
+  @media (max-width: 1100px) { .g3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g-detail { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) { .g2, .g3, .g4 { grid-template-columns: 1fr 1fr; } .span2 { grid-column: auto; } }
+  .stat { padding: 12px 16px; }
+  .stat .k { font-size: 12px; color: var(--muted-foreground); }
+  .stat .v { font-size: 24px; font-weight: 600; line-height: 1.3; }
+  .stat .d { font-size: 12px; color: var(--muted-foreground); }
+  .tabs { display: inline-flex; align-items: center; gap: 2px; padding: 3px; height: 34px; border-radius: 10px; background: var(--muted); }
+  .tab { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: none; color: var(--muted-foreground); cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .tab:hover { color: var(--foreground); }
+  .tab.on { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / .08); font-weight: 500; }
+  .tab .n { font-size: 11px; color: var(--muted-foreground); }
+  .badge { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; background: var(--card); }
+  .badge svg.i { width: 13px; height: 13px; }
+  .badge.secondary { background: var(--secondary); color: var(--secondary-foreground); border-color: transparent; }
+  .badge.outline { background: none; }
+  .sel, .chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+  select { height: 32px; padding: 0 28px 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center; appearance: none; cursor: pointer; }
+  input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--primary); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); cursor: pointer; font-size: 13px; }
+  .btn:hover { background: var(--accent); }
+  .btn.ghost { border-color: transparent; background: none; }
+  .sep { height: 1px; background: var(--border); }
+  .row-flex { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .between { justify-content: space-between; }
+  .note { font-size: 12px; color: var(--muted-foreground); }
+  .callout { display: flex; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--muted); font-size: 13px; }
+  .callout svg { margin-top: 3px; color: var(--muted-foreground); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-weight: 500; color: var(--muted-foreground); font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  .table-wrap { overflow-x: auto; }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--secondary); color: var(--secondary-foreground); font-size: 12px; font-weight: 600; flex: none; }
+
+  /* 可信度 / 严重度：浅色底 + 彩色图标 + 文字，不单靠颜色 */
+  .v-trusted { --c: var(--good); } .v-proxy { --c: var(--warning); } .v-spoofed { --c: var(--serious); } .v-bot { --c: var(--critical); } .v-unknown { --c: var(--neutral); }
+  .s-high { --c: var(--critical); } .s-medium { --c: var(--serious); } .s-low { --c: var(--warning); } .s-info { --c: var(--s1); }
+  .tone { background: color-mix(in oklab, var(--c) 12%, var(--card)); border-color: color-mix(in oklab, var(--c) 38%, transparent); }
+  .tone > svg.i { color: var(--c); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; display: inline-block; }
+
+  /* 访客列表 */
+  .vrow { display: grid; gap: 4px; padding: 12px 6px; border-bottom: 1px solid var(--border); cursor: pointer; border-radius: 6px; }
+  .vrow:hover { background: color-mix(in oklab, var(--accent) 60%, transparent); }
+  .vrow .l1 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+  .vrow .who { display: inline-flex; align-items: center; gap: 7px; font-weight: 500; }
+  .vrow .who svg.i { color: var(--muted-foreground); width: 18px; height: 18px; }
+  .vrow .act a { font-weight: 500; color: var(--foreground); }
+  .vrow .l2 { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; font-size: 12px; color: var(--muted-foreground); }
+  .vrow .l2 > span { display: inline-flex; align-items: center; gap: 4px; }
+  .ip-bad { text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--warning) 80%, transparent); }
+  .flagchips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .quote { border-left: 2px solid var(--border); padding-left: 10px; color: var(--muted-foreground); font-size: 13px; }
+  .tag-inferred { font-size: 11px; padding: 0 5px; border-radius: 4px; background: var(--secondary); color: var(--secondary-foreground); font-weight: 500; }
+
+  /* 详情 */
+  .back { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--muted-foreground); margin-bottom: 10px; }
+  .back:hover { color: var(--foreground); }
+  .hero { display: grid; gap: 10px; padding: 16px; }
+  .hero h2 { margin: 0; font-size: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .hero .why { font-size: 13px; color: var(--muted-foreground); max-width: 760px; }
+  .meter { position: relative; height: 8px; border-radius: 4px; background: var(--muted); overflow: hidden; width: 180px; }
+  .meter > span { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--c); }
+  .src-table td:first-child { white-space: nowrap; }
+  .vote { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+  .vote.yes svg { color: var(--good); } .vote.no svg { color: var(--critical); } .vote.off svg { color: var(--neutral); }
+  .rule { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 2px 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .rule:last-child { border-bottom: 0; }
+  .rule > svg.i { margin-top: 3px; }
+  .rule .t { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 500; }
+  .rule .t code { font-size: 11px; color: var(--muted-foreground); font-weight: 400; }
+  .rule .d { grid-column: 2; font-size: 13px; color: var(--muted-foreground); }
+  .rule.pass > svg.i { color: var(--good); } .rule.skip > svg.i { color: var(--neutral); }
+  .rule.hit > svg.i { color: var(--c); }
+  details.more > summary { cursor: pointer; font-size: 13px; color: var(--muted-foreground); padding: 8px 0 0; list-style: none; }
+  details.more > summary::before { content: "▸ "; }
+  details.more[open] > summary::before { content: "▾ "; }
+  .sig-group + .sig-group { margin-top: 14px; }
+  .sig-group h4 { margin: 0 0 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+  .kv { display: grid; grid-template-columns: 132px minmax(0, 1fr) auto; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 13px; align-items: baseline; }
+  .kv:last-child { border-bottom: 0; }
+  .kv .k { color: var(--muted-foreground); }
+  .kv .val { word-break: break-all; }
+  .kv .tags { display: flex; gap: 4px; }
+  .mini { font-size: 11px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted-foreground); white-space: nowrap; }
+  .mini.collect { border-color: color-mix(in oklab, var(--good) 45%, transparent); }
+  .mini.optional { border-color: color-mix(in oklab, var(--warning) 60%, transparent); }
+  .mini.no { border-color: color-mix(in oklab, var(--critical) 50%, transparent); }
+  .timeline { display: grid; gap: 0; }
+  .tl { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; align-items: center; }
+  .tl:last-child { border-bottom: 0; }
+  .tl.cur { font-weight: 600; }
+
+  /* 图表：细条、4px 圆角数据端、2px 表面间隙 */
+  .bars { display: grid; gap: 7px; }
+  .bar-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 52px; align-items: center; gap: 10px; font-size: 13px; }
+  .bars.wide .bar-row { grid-template-columns: 176px minmax(0, 1fr) 52px; }
+  .bar-row .lb { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-row .vl { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted-foreground); font-size: 12px; }
+  .track { height: 10px; position: relative; }
+  .bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: var(--s1); min-width: 2px; }
+  .pair-row { display: grid; grid-template-columns: 84px minmax(0, 1fr) 118px; align-items: center; gap: 10px; font-size: 13px; padding: 3px 0; }
+  .pair-row .tracks { display: grid; gap: 2px; }
+  .pair-row .track { height: 9px; }
+  .pair-row .bar.ip { background: var(--s2); }
+  .pair-row .nums { font-size: 12px; color: var(--muted-foreground); text-align: right; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted-foreground); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .stack { display: flex; gap: 2px; height: 16px; }
+  .stack > span { background: var(--c); min-width: 3px; }
+  .stack > span:first-child { border-radius: 4px 0 0 4px; } .stack > span:last-child { border-radius: 0 4px 4px 0; }
+  .cols { display: flex; align-items: flex-end; gap: 4px; height: 150px; border-bottom: 1px solid var(--grid); background: repeating-linear-gradient(to top, transparent 0 49px, var(--grid) 49px 50px); }
+  .col { flex: 1; display: flex; justify-content: center; height: 100%; align-items: flex-end; }
+  .col > div { width: 100%; max-width: 22px; display: flex; flex-direction: column-reverse; gap: 2px; }
+  .col > div > span { background: var(--c); display: block; }
+  .col > div > span:last-child { border-radius: 4px 4px 0 0; }
+  .col-labels { display: flex; gap: 4px; font-size: 11px; color: var(--muted-foreground); margin-top: 4px; }
+  .col-labels span { flex: 1; text-align: center; overflow: hidden; white-space: nowrap; }
+  .hero-num { font-size: 48px; font-weight: 600; line-height: 1.1; }
+  #tip { position: fixed; z-index: 50; pointer-events: none; padding: 6px 9px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); box-shadow: 0 6px 18px rgb(0 0 0 / .14); font-size: 12px; max-width: 280px; display: none; white-space: pre-line; }
+
+  /* 实时检测 */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  pre.payload { margin: 0; padding: 12px; border-radius: 10px; background: var(--muted); font-size: 12px; overflow: auto; max-height: 420px; }
+
+  /* 隐私政策（仿 prose） */
+  .prose { max-width: 720px; margin: 0 auto; padding: 28px 36px; line-height: 1.85; }
+  .prose h1 { font-size: 26px; margin: 0 0 4px; }
+  .prose h2 { font-size: 17px; margin: 26px 0 6px; }
+  .prose p { margin: 8px 0; }
+  .prose ul { margin: 6px 0; padding-left: 20px; }
+  .prose li { margin: 4px 0; }
+  .prose li::marker { color: var(--primary); }
+  .prose .todo { font-size: 11px; padding: 0 6px; border-radius: 4px; background: color-mix(in oklab, var(--warning) 22%, var(--card)); border: 1px solid color-mix(in oklab, var(--warning) 50%, transparent); margin-left: 4px; white-space: nowrap; }
+  .tldr { padding: 12px 16px; border-radius: 12px; background: var(--muted); }
+  @media (max-width: 720px) { .prose { padding: 20px 18px; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">N</div><div><b>neo-blog 控制台</b><small>访客记录 2.0 原型</small></div></div>
+    <nav class="nav" id="nav">
+      <div class="nav-group">控制台视图</div>
+      <a href="#list" data-view="list"></a>
+      <a href="#detail" data-view="detail"></a>
+      <a href="#dashboard" data-view="dashboard"></a>
+      <div class="nav-group">设计说明</div>
+      <a href="#live" data-view="live"></a>
+      <a href="#fields" data-view="fields"></a>
+      <a href="#rules" data-view="rules"></a>
+      <a href="#privacy" data-view="privacy"></a>
+    </nav>
+    <div class="foot">
+      <div class="tabs" id="theme"></div>
+      <small>除「实时检测」外均为模拟数据，不连接后端。</small>
+    </div>
+  </aside>
+  <main>
+    <div class="topbar">
+      <div>
+        <div class="crumb" id="crumb"></div>
+        <h1 id="title"></h1>
+        <p id="desc"></p>
+      </div>
+      <span class="proto-tag">原型 · 仅供评审</span>
+    </div>
+    <section id="view"></section>
+  </main>
+</div>
+<div id="tip"></div>
+
+<script>
+'use strict'
+
+/* ============================================================
+ * 1. 图标（lucide 路径）
+ * ============================================================ */
+const ICONS = {
+  list: '<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  dashboard: '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+  activity: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
+  table: '<path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/>',
+  checks: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+  file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  shieldCheck: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  shieldX: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m14.5 9.5-5 5"/><path d="m9.5 9.5 5 5"/>',
+  route: '<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>',
+  bot: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+  help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+  monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>',
+  phone: '<rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/>',
+  tablet: '<rect width="16" height="20" x="4" y="2" rx="2"/><path d="M12 18h.01"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  minus: '<path d="M5 12h14"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  back: '<path d="m15 18-6-6 6-6"/>',
+  pin: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+  heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
+  message: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+}
+const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+
+/* ============================================================
+ * 2. 参照表：国家、时区→国家、语言→国家、机房运营商
+ *    正式实现时放在后端（如 pkg/geo），时区表可由 tzdata 的 zone1970.tab 生成
+ * ============================================================ */
+const COUNTRY = {
+  CN: '中国', HK: '中国香港', MO: '中国澳门', TW: '中国台湾', JP: '日本', KR: '韩国', SG: '新加坡', MY: '马来西亚',
+  TH: '泰国', VN: '越南', PH: '菲律宾', ID: '印度尼西亚', IN: '印度', AE: '阿联酋', US: '美国', CA: '加拿大', MX: '墨西哥',
+  BR: '巴西', AR: '阿根廷', GB: '英国', IE: '爱尔兰', DE: '德国', FR: '法国', NL: '荷兰', BE: '比利时', ES: '西班牙',
+  IT: '意大利', CH: '瑞士', AT: '奥地利', SE: '瑞典', PL: '波兰', RU: '俄罗斯', UA: '乌克兰', TR: '土耳其', AU: '澳大利亚', NZ: '新西兰', ZA: '南非',
+}
+const cn = cc => COUNTRY[cc] || cc || '未知'
+
+const TZ_COUNTRY = {
+  'Asia/Shanghai': 'CN', 'Asia/Urumqi': 'CN', 'Asia/Chongqing': 'CN', 'Asia/Harbin': 'CN', 'PRC': 'CN',
+  'Asia/Hong_Kong': 'HK', 'Asia/Macau': 'MO', 'Asia/Taipei': 'TW', 'Asia/Tokyo': 'JP', 'Asia/Seoul': 'KR',
+  'Asia/Singapore': 'SG', 'Asia/Kuala_Lumpur': 'MY', 'Asia/Bangkok': 'TH', 'Asia/Ho_Chi_Minh': 'VN', 'Asia/Saigon': 'VN',
+  'Asia/Manila': 'PH', 'Asia/Jakarta': 'ID', 'Asia/Kolkata': 'IN', 'Asia/Calcutta': 'IN', 'Asia/Dubai': 'AE',
+  'America/New_York': 'US', 'America/Chicago': 'US', 'America/Denver': 'US', 'America/Phoenix': 'US', 'America/Los_Angeles': 'US',
+  'America/Anchorage': 'US', 'Pacific/Honolulu': 'US', 'America/Detroit': 'US',
+  'America/Toronto': 'CA', 'America/Vancouver': 'CA', 'America/Edmonton': 'CA', 'America/Mexico_City': 'MX',
+  'America/Sao_Paulo': 'BR', 'America/Argentina/Buenos_Aires': 'AR',
+  'Europe/London': 'GB', 'Europe/Dublin': 'IE', 'Europe/Berlin': 'DE', 'Europe/Paris': 'FR', 'Europe/Amsterdam': 'NL',
+  'Europe/Brussels': 'BE', 'Europe/Madrid': 'ES', 'Europe/Rome': 'IT', 'Europe/Zurich': 'CH', 'Europe/Vienna': 'AT',
+  'Europe/Stockholm': 'SE', 'Europe/Warsaw': 'PL', 'Europe/Moscow': 'RU', 'Europe/Kyiv': 'UA', 'Europe/Kiev': 'UA', 'Europe/Istanbul': 'TR',
+  'Australia/Sydney': 'AU', 'Australia/Melbourne': 'AU', 'Australia/Brisbane': 'AU', 'Australia/Perth': 'AU',
+  'Pacific/Auckland': 'NZ', 'Africa/Johannesburg': 'ZA',
+}
+
+// 无地区子标签时，语言可能对应的国家；英语过于通用，不参与判断
+const LANG_COUNTRIES = {
+  zh: ['CN', 'TW', 'HK', 'MO', 'SG', 'MY'], ja: ['JP'], ko: ['KR'], de: ['DE', 'AT', 'CH'], fr: ['FR', 'BE', 'CH', 'CA'],
+  ru: ['RU', 'UA'], es: ['ES', 'MX', 'AR'], pt: ['PT', 'BR'], it: ['IT', 'CH'], nl: ['NL', 'BE'], th: ['TH'], vi: ['VN'], tr: ['TR'], pl: ['PL'], sv: ['SE'],
+}
+// 无地区子标签时用于推断的首选国家（只有明显以单一地区为主的语言才给）
+const LANG_PRIMARY = { ja: 'JP', ko: 'KR', th: 'TH', vi: 'VN', tr: 'TR', pl: 'PL', sv: 'SE' }
+
+// 运营商名单：命中即视为机房 / 云服务网段（正式实现可换成 ASN 列表）
+const DATACENTER_ISP = /阿里云|腾讯云|华为云|百度云|UCloud|Amazon|AWS|Google|Microsoft|Azure|DigitalOcean|Vultr|Choopa|Linode|Akamai|OVH|Hetzner|Cloudflare|G-Core|M247|Oracle|Contabo|DMIT|Leaseweb/i
+
+const DEVICE = { desktop: '桌面设备', mobile: '手机', tablet: '平板', bot: '爬虫', '': '未知设备' }
+
+/* ============================================================
+ * 3. 工具函数
+ * ============================================================ */
+const offsetCache = new Map()
+// IANA 时区在指定时刻相对 UTC 的偏移（分钟，东正西负）；无法识别时返回 null
+function tzOffsetMinutes(tz, date = new Date()) {
+  const key = tz
+  if (offsetCache.has(key)) return offsetCache.get(key)
+  let result = null
+  try {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(date).map(p => [p.type, p.value]))
+    const asUTC = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour % 24, +parts.minute, +parts.second)
+    result = Math.round((asUTC - Math.floor(date.getTime() / 1000) * 1000) / 60000)
+  }
+  catch { result = null }
+  offsetCache.set(key, result)
+  return result
+}
+function fmtOffset(min) {
+  if (min == null || Number.isNaN(min)) return '—'
+  const sign = min >= 0 ? '+' : '−'
+  const a = Math.abs(min), h = Math.floor(a / 60), m = a % 60
+  return `UTC${sign}${h}${m ? ':' + String(m).padStart(2, '0') : ''}`
+}
+const countryOffsetCache = new Map()
+function countryOffsets(cc) {
+  if (!countryOffsetCache.has(cc)) {
+    const set = new Set()
+    for (const [tz, c] of Object.entries(TZ_COUNTRY)) if (c === cc) { const o = tzOffsetMinutes(tz); if (o != null) set.add(o) }
+    countryOffsetCache.set(cc, set)
+  }
+  return countryOffsetCache.get(cc)
+}
+function fmtOffsets(set) {
+  const list = [...set].sort((a, b) => a - b)
+  if (!list.length) return '时区未知'
+  return list.length > 2 ? `${fmtOffset(list[0])} ~ ${fmtOffset(list[list.length - 1])}` : list.map(fmtOffset).join(' / ')
+}
+const isPrivacyTz = tz => !tz || /^(UTC|GMT|Etc\/|Universal|Zulu)/.test(tz)
+const baseLang = l => String(l || '').split('-')[0].toLowerCase()
+// 语言 → 可能的国家与首选国家：zh-CN → CN；zh / zh-Hans → 以中国为主；en → 不参与
+function langInfo(tag) {
+  if (!tag) return null
+  const parts = tag.split('-'), base = parts[0].toLowerCase()
+  if (base === 'en') return null
+  const region = parts.slice(1).find(p => /^[a-z]{2}$/i.test(p))
+  const script = parts.slice(1).find(p => p.length === 4)?.toLowerCase()
+  if (region) return { countries: [region.toUpperCase()], primary: region.toUpperCase() }
+  if (base === 'zh') return script === 'hant' ? { countries: ['TW', 'HK', 'MO'], primary: null } : { countries: ['CN', 'SG', 'MY'], primary: 'CN' }
+  const list = LANG_COUNTRIES[base]
+  return list ? { countries: list, primary: LANG_PRIMARY[base] || null } : null
+}
+const parseScreen = s => String(s || '').split('x').map(Number)
+const toAcceptLanguage = langs => langs.map((l, i) => (i ? `${l};q=${(1 - i * 0.1).toFixed(1)}` : l)).join(',')
+const PLATFORM = { macOS: ['macos'], Windows: ['windows'], Android: ['android'], Linux: ['linux'], ChromeOS: ['chrome os', 'chromeos'], HarmonyOS: ['harmonyos', 'openharmony', 'android'], iOS: ['ios'], iPadOS: ['ios', 'ipados'] }
+const platformMatch = (os, ch) => (PLATFORM[os] || [os.toLowerCase()]).includes(ch.replace(/"/g, '').toLowerCase())
+
+// 地区展示，与后端 ipregion.Region.String 一致：国内「省 市 运营商」，国外「国家 省/州 城市」
+function regionText(r) {
+  if (!r) return ''
+  if (r.reserved) return '局域网'
+  const parts = []
+  const add = s => { if (s && parts[parts.length - 1] !== s) parts.push(s) }
+  if (r.cc === 'CN') { add(r.province); add(r.city); add(r.isp); if (!parts.length) add('中国') }
+  else { add(cn(r.cc)); add(r.province); add(r.city) }
+  return parts.join(' ')
+}
+
+// UA 解析：与后端 pkg/utils/ua.go 的 ParseUA 规则一致
+const OS_PATTERNS = [
+  [/(?:HarmonyOS|OpenHarmony)[ /]?([\d.]*)/, 'HarmonyOS', ''],
+  [/iPad.*? OS ([\d_]+)/, 'iPadOS', 'tablet'],
+  [/(?:iPhone|iPod).*? OS ([\d_]+)/, 'iOS', 'mobile'],
+  [/Android ([\d.]+)/, 'Android', ''],
+  [/Windows NT ([\d.]+)/, 'Windows', 'desktop'],
+  [/Mac OS X ([\d_.]+)/, 'macOS', 'desktop'],
+  [/CrOS \S+ ([\d.]+)/, 'ChromeOS', 'desktop'],
+  [/Linux()/, 'Linux', 'desktop'],
+]
+const BROWSER_PATTERNS = [
+  [/MicroMessenger\/([\d.]+)/, 'WeChat'], [/(?:MQQBrowser|QQBrowser)\/([\d.]+)/, 'QQ Browser'], [/UCBrowser\/([\d.]+)/, 'UC Browser'],
+  [/SamsungBrowser\/([\d.]+)/, 'Samsung Internet'], [/(?:Edg|EdgA|EdgiOS)\/([\d.]+)/, 'Edge'], [/(?:OPR|OPiOS)\/([\d.]+)/, 'Opera'],
+  [/(?:Firefox|FxiOS)\/([\d.]+)/, 'Firefox'], [/(?:Chrome|CriOS)\/([\d.]+)/, 'Chrome'], [/Version\/([\d.]+).*Safari/, 'Safari'],
+]
+function parseUA(ua) {
+  const r = { os: '', osVersion: '', browser: '', browserVersion: '', deviceType: 'desktop' }
+  for (const [re, os, device] of OS_PATTERNS) {
+    const m = ua.match(re)
+    if (m) { r.os = os; r.osVersion = (m[1] || '').replace(/_/g, '.'); r.deviceType = device || (ua.includes('Mobile') ? 'mobile' : 'tablet'); break }
+  }
+  for (const [re, name] of BROWSER_PATTERNS) {
+    const m = ua.match(re)
+    if (m) { r.browser = name; r.browserVersion = m[1]; break }
+  }
+  if (/bot|spider|crawl|slurp|headless|lighthouse|curl|wget|python-requests/i.test(ua)) r.deviceType = 'bot'
+  return r
+}
+
+/* ============================================================
+ * 4. 一致性规则
+ *    每条规则返回 skip（不适用）/ pass（通过）/ hit（命中，附严重度与说明）
+ * ============================================================ */
+const SEV = {
+  high: { label: '严重', w: 45, rank: 3 },
+  medium: { label: '中等', w: 20, rank: 2 },
+  low: { label: '轻微', w: 6, rank: 1 },
+  info: { label: '提示', w: 0, rank: 0 },
+}
+const CAT = { location: '位置可信度', env: '浏览器环境', auto: '自动化' }
+const skip = (detail = '') => ({ status: 'skip', detail })
+const pass = (detail = '') => ({ status: 'pass', detail })
+const hit = (sev, detail) => ({ status: 'hit', sev, detail })
+const NO_SIG = '未采集浏览器信号'
+
+const RULES = [
+  {
+    id: 'tz_vs_ip', cat: 'location', name: '时区与 IP 所在地不符', sevText: '中等 / 严重',
+    cond: '时区所属国家 ≠ IP 国家；两地时差不同为严重，相同为中等',
+    why: 'VPN、代理只改变出口 IP，不会改系统时区，所以时区更接近真实位置。',
+    fp: '出差、旅居后没改系统时区；时差相同的邻近地区（如新加坡与中国）。',
+    check(c) {
+      if (!c.sig) return skip(NO_SIG)
+      if (!c.ipCC) return skip('没有可用的 IP 归属地')
+      if (c.tzPrivacy) return skip('时区被隐藏为 UTC')
+      if (c.offsetBad) return skip('时区本身与时钟偏移矛盾，交给「UTC 偏移」规则')
+      if (!c.tzCC) return skip(`时区 ${c.tz} 不在对照表中`)
+      if (c.tzCC === c.ipCC) return pass(`时区与 IP 都在${cn(c.ipCC)}`)
+      const offs = countryOffsets(c.ipCC)
+      const same = offs.has(c.sig.utcOffset)
+      return hit(same || !offs.size ? 'medium' : 'high', `时区 ${c.tz}（${cn(c.tzCC)}，${fmtOffset(c.sig.utcOffset)}），IP 却在${cn(c.ipCC)}（${fmtOffsets(offs)}）。${same ? '两地时差相同，常见于邻近地区的代理节点。' : '两地时差不同，IP 多半是代理出口。'}`)
+    },
+  },
+  {
+    id: 'lang_vs_ip', cat: 'location', name: '语言与 IP 所在地不符', sevText: '轻微 / 中等',
+    cond: '首选语言对应的国家不含 IP 国家；时区也不在 IP 所在地时升为中等',
+    why: '语言反映用户习惯。单独不符多是身在海外的用户；和时区同时不符，说明 IP 不是真实位置。',
+    fp: '外语学习者、海外留学或工作的人（时区与 IP 一致时只记轻微）。',
+    check(c) {
+      if (!c.sig) return skip(NO_SIG)
+      if (!c.ipCC) return skip('没有可用的 IP 归属地')
+      const first = c.sig.languages[0]
+      if (!first) return skip('语言列表为空')
+      if (!c.lang) return skip(`${first} 为通用语言，不参与判断`)
+      if (c.lang.countries.includes(c.ipCC)) return pass(`${first} 与${cn(c.ipCC)}相符`)
+      const tzElsewhere = c.tzCC && !c.offsetBad && c.tzCC !== c.ipCC
+      return hit(tzElsewhere ? 'medium' : 'low', `首选语言 ${first} 通常对应${c.lang.countries.map(cn).join('、')}，IP 却在${cn(c.ipCC)}。${tzElsewhere ? '时区同样不在当地，IP 多半不是真实位置。' : '时区与 IP 一致，更像是身在当地的外语用户。'}`)
+    },
+  },
+  {
+    id: 'datacenter_ip', cat: 'location', name: 'IP 属于机房 / 云服务商', sevText: '中等',
+    cond: 'IP 运营商命中云服务商名单（阿里云、腾讯云、AWS、Google Cloud、Vultr、Cloudflare 等）',
+    why: '家庭宽带和手机网络很少直接用机房 IP；VPN、代理和爬虫大多跑在云服务器上。',
+    fp: '公司网络出口、Cloudflare WARP 等加速服务、云桌面。',
+    check(c) {
+      if (!c.ip || c.ip.reserved) return skip('没有可用的 IP 归属地')
+      if (!c.ip.isp) return skip('归属地数据没有给出运营商')
+      return c.datacenter ? hit('medium', `运营商为「${c.ip.isp}」，属于机房网段。`) : pass(`运营商为「${c.ip.isp}」`)
+    },
+  },
+  {
+    id: 'ip_jump', cat: 'location', name: '同一访客的 IP 国家突变', sevText: '轻微',
+    cond: '该访客上次的 IP 国家与本次不同，而时区仍指向上次的国家',
+    why: '时区和语言没变、只有 IP 换了国家，多半是切换了代理节点。',
+    fp: '刚落地、还没改时区的旅行者。',
+    check(c) {
+      if (!c.prevCC) return skip('没有该访客的上一次记录')
+      if (!c.ipCC) return skip('没有可用的 IP 归属地')
+      if (c.prevCC === c.ipCC) return pass(`与上次相同，都在${cn(c.ipCC)}`)
+      if (c.tzCC && c.tzCC === c.prevCC) return hit('low', `上次 IP 在${cn(c.prevCC)}，这次在${cn(c.ipCC)}，时区却仍是 ${c.tz}。`)
+      return pass(c.tzCC === c.ipCC ? `IP 从${cn(c.prevCC)}回到${cn(c.ipCC)}，与时区一致` : `IP 从${cn(c.prevCC)}换到${cn(c.ipCC)}`)
+    },
+  },
+  {
+    id: 'tz_hidden', cat: 'location', name: '时区被隐藏为 UTC', sevText: '轻微',
+    cond: '时区为 UTC、GMT 或 Etc/*',
+    why: 'Tor 浏览器、Firefox 抗指纹模式等会统一报告 UTC；此时时区不参与地区推断。',
+    fp: '确实把系统时区设成 UTC 的用户（少见，生活在 UTC+0 地区一般会用 Europe/London 等）。',
+    check(c) {
+      if (!c.sig) return skip(NO_SIG)
+      return c.tzPrivacy ? hit('low', `时区报告为 ${c.tz || '空'}，可能开启了防指纹。`) : pass(c.tz)
+    },
+  },
+  {
+    id: 'offset_vs_tz', cat: 'env', name: 'UTC 偏移与时区不符', sevText: '严重',
+    cond: 'Date 的时区偏移 ≠ 该 IANA 时区此刻应有的偏移（误差 ≥ 15 分钟）',
+    why: '两者来自浏览器的同一项设置，正常情况下必然一致；不一致说明有脚本或指纹浏览器只改了其中一个。',
+    fp: '几乎没有；夏令时切换当天极少数旧浏览器。',
+    check(c) {
+      if (!c.sig) return skip(NO_SIG)
+      if (c.tzPrivacy) return skip('时区被隐藏')
+      if (c.expectedOffset == null) return skip(`无法识别时区 ${c.tz}`)
+      return c.offsetBad ? hit('high', `${c.tz} 此刻应为 ${fmtOffset(c.expectedOffset)}，浏览器时钟却是 ${fmtOffset(c.sig.utcOffset)}。`) : pass(`${c.tz} = ${fmtOffset(c.expectedOffset)}`)
+    },
+  },
+  {
+    id: 'ua_vs_ch_platform', cat: 'env', name: 'UA 系统与 Client Hints 不符', sevText: '严重',
+    cond: 'UA 解析出的系统 ≠ Sec-CH-UA-Platform',
+    why: 'UA 切换插件通常只改 UA 字符串，Chromium 仍会在 Client Hints 里报告真实系统。',
+    fp: '开发者工具的设备模拟（会同时改两者，一般不触发）。',
+    check(c) {
+      if (!c.h.chPlatform) return skip('请求没有 Client Hints（Safari、Firefox 不发送）')
+      if (!c.ua.os) return skip('UA 中识别不到系统')
+      return platformMatch(c.ua.os, c.h.chPlatform) ? pass(`${c.ua.os} = ${c.h.chPlatform}`) : hit('high', `UA 声称 ${c.ua.os}，Sec-CH-UA-Platform 却是 ${c.h.chPlatform}。`)
+    },
+  },
+  {
+    id: 'ua_vs_ch_mobile', cat: 'env', name: 'UA 设备类型与 Client Hints 不符', sevText: '严重',
+    cond: 'UA 是否为手机 ≠ Sec-CH-UA-Mobile',
+    why: '同上：UA 被改成手机时，Client Hints 仍会报告真实的「非手机」。',
+    fp: '同上。',
+    check(c) {
+      if (c.h.chMobile == null) return skip('请求没有 Client Hints')
+      const m = c.ua.deviceType === 'mobile'
+      return m === c.h.chMobile ? pass(`都为${m ? '手机' : '非手机'}`) : hit('high', `UA 显示${m ? '手机' : '非手机'}，Sec-CH-UA-Mobile 却是 ${c.h.chMobile ? '?1（手机）' : '?0（非手机）'}。`)
+    },
+  },
+  {
+    id: 'ua_engine_vs_ch', cat: 'env', name: 'UA 浏览器与内核不符', sevText: '中等 / 严重',
+    cond: '自称 Safari / Firefox 却带 Sec-CH-UA（严重）；自称 Chrome / Edge / Opera 却不带（中等，iOS 除外）',
+    why: '只有 Chromium 内核会发送 Client Hints，它的有无可以验证 UA 里的浏览器名。',
+    fp: '少数去掉 Client Hints 的隐私浏览器、旧版内嵌 WebView。',
+    check(c) {
+      const b = c.ua.browser
+      const chromium = ['Chrome', 'Edge', 'Opera'].includes(b), nonCh = ['Safari', 'Firefox'].includes(b)
+      if (!(chromium || nonCh)) return skip(b ? `${b} 不在检查范围` : 'UA 中识别不到浏览器')
+      if (nonCh) return c.h.chBrands ? hit('high', `UA 自称 ${b}，请求却带有只有 Chromium 才发送的 Sec-CH-UA（${c.h.chBrands}）。`) : pass(`${b} 不发送 Client Hints，符合预期`)
+      if (['iOS', 'iPadOS'].includes(c.ua.os)) return skip('iOS 上的 Chrome 使用 WebKit，不发送 Client Hints')
+      return c.h.chBrands ? pass(`带有 Sec-CH-UA（${c.h.chBrands}）`) : hit('medium', `UA 自称 ${b}，请求却没有 Chromium 默认发送的 Sec-CH-UA。`)
+    },
+  },
+  {
+    id: 'mobile_no_touch', cat: 'env', name: '自称移动设备却没有触控', sevText: '中等',
+    cond: 'UA 为手机 / 平板，但 maxTouchPoints = 0',
+    why: '手机和平板都有触摸屏；没有触控点说明实际是桌面设备。',
+    fp: '外接键鼠并关闭触控的平板（罕见）。',
+    check(c) {
+      if (!c.sig) return skip(NO_SIG)
+      if (!['mobile', 'tablet'].includes(c.ua.deviceType)) return skip('UA 不是移动设备')
+      return c.sig.touchPoints > 0 ? pass(`${c.sig.touchPoints} 个触控点`) : hit('medium', `UA 为${DEVICE[c.ua.deviceType]}，触控点却为 0，指针为${c.sig.pointer === 'fine' ? '鼠标 / 触控板' : '粗指针'}。`)
+    },
+  },
+  {
+    id: 'mobile_large_screen', cat: 'env', name: '自称手机但屏幕是桌面尺寸', sevText: '轻微',
+    cond: 'UA 为手机，屏幕短边 ≥ 600 CSS 像素',
+    why: '手机屏幕短边一般在 320–480 CSS 像素之间。',
+    fp: '折叠屏展开状态。',
+    check(c) {
+      if (!c.sig) return skip(NO_SIG)
+      if (c.ua.deviceType !== 'mobile') return skip('UA 不是手机')
+      const [w, h] = parseScreen(c.sig.screen)
+      if (!w || !h) return skip('屏幕尺寸为 0')
+      return Math.min(w, h) < 600 ? pass(c.sig.screen) : hit('low', `屏幕 ${c.sig.screen}（CSS 像素）明显大于手机。`)
+    },
+  },
+  {
+    id: 'accept_lang_vs_nav', cat: 'env', name: '请求头语言与浏览器语言不符', sevText: '中等',
+    cond: 'Accept-Language 的首选语言 ≠ navigator.languages[0]（只比语言，不比地区）',
+    why: '两者来自同一项浏览器设置；不一致通常是代理、插件或脚本改写了其中一个。',
+    fp: '少数隐私插件只改请求头。',
+    check(c) {
+      if (!c.sig) return skip(NO_SIG)
+      if (!c.h.acceptLanguage) return skip('请求没有 Accept-Language')
+      const first = c.sig.languages[0]
+      if (!first) return skip('语言列表为空')
+      const a = c.h.acceptLanguage.split(',')[0].split(';')[0].trim()
+      return baseLang(a) === baseLang(first) ? pass(`都是 ${baseLang(first)}`) : hit('medium', `Accept-Language 首选 ${a}，navigator.languages 首选 ${first}。`)
+    },
+  },
+  {
+    id: 'ipad_desktop_ua', cat: 'env', name: 'macOS UA 带多点触控（iPad）', sevText: '提示',
+    cond: 'UA 为 macOS，maxTouchPoints > 1',
+    why: 'iPadOS 的 Safari 默认请求桌面版网页，UA 与 Mac 相同；按平板统计，不算伪装。',
+    fp: '—',
+    check(c) {
+      if (!c.sig) return skip(NO_SIG)
+      if (c.ua.os !== 'macOS') return skip('不是 macOS UA')
+      return c.sig.touchPoints > 1 ? hit('info', `macOS UA，却有 ${c.sig.touchPoints} 个触控点：这是一台 iPad，设备类型按平板统计。`) : pass('没有触控')
+    },
+  },
+  {
+    id: 'webdriver', cat: 'auto', name: 'navigator.webdriver 为真', sevText: '严重',
+    cond: 'navigator.webdriver === true',
+    why: '浏览器正被 WebDriver 控制（Selenium、Puppeteer、Playwright 等）。',
+    fp: '自动化测试、站长自己的监控脚本。',
+    check(c) {
+      if (!c.sig) return skip(NO_SIG)
+      return c.sig.webdriver ? hit('high', '浏览器处于自动化控制之下。') : pass('false')
+    },
+  },
+  {
+    id: 'no_languages', cat: 'auto', name: '语言列表为空', sevText: '中等',
+    cond: 'navigator.languages 为空',
+    why: '正常浏览器至少有一种语言，为空多见于无头浏览器。',
+    fp: '极少。',
+    check(c) {
+      if (!c.sig) return skip(NO_SIG)
+      return c.sig.languages.length ? pass(c.sig.languages.join(', ')) : hit('medium', '语言列表为空。')
+    },
+  },
+  {
+    id: 'zero_screen', cat: 'auto', name: '屏幕尺寸为 0', sevText: '中等',
+    cond: 'screen.width 或 screen.height 为 0',
+    why: '无头浏览器常报告 0×0 屏幕。',
+    fp: '部分内嵌浏览器、隐藏窗口。',
+    check(c) {
+      if (!c.sig) return skip(NO_SIG)
+      const [w, h] = parseScreen(c.sig.screen)
+      return w && h ? pass(c.sig.screen) : hit('medium', `屏幕尺寸为 ${c.sig.screen || '空'}。`)
+    },
+  },
+]
+
+const VERDICT = {
+  trusted: { label: '可信', icon: 'shieldCheck', why: '各项信号互相吻合，IP 归属地可信。' },
+  proxy: { label: '疑似代理', icon: 'route', why: 'IP 归属地和时区、语言等信号矛盾，或者属于机房网段，访问多半经过代理 / VPN。地区以推断结果为准。' },
+  spoofed: { label: '环境伪装', icon: 'shieldX', why: '浏览器自报的信息互相矛盾（UA、Client Hints、时区偏移、触控等），可能用了 UA 切换插件、指纹浏览器或篡改脚本。' },
+  bot: { label: '疑似自动化', icon: 'bot', why: '存在自动化特征，多半是爬虫或脚本。默认不计入浏览量与访客数。' },
+  unknown: { label: '信号不足', icon: 'help', why: '访客开启了「请勿追踪」或缺少浏览器信号，只保留了基础记录，无法判断。' },
+}
+const VERDICT_ORDER = ['trusted', 'proxy', 'spoofed', 'bot', 'unknown']
+const CONF = { high: '高', medium: '中', low: '低' }
+
+// 地区推断：IP（权重 1，机房 IP 为 0）、时区（权重 2，被隐藏或被篡改为 0）、语言（权重 1，需有明确的首选国家）投票
+function infer(c) {
+  const { sig, ip, ipCC, tz, tzCC, tzPrivacy, offsetBad, lang, datacenter } = c
+  const sources = [
+    {
+      key: 'ip', label: 'IP 归属地', icon: 'globe', value: ip ? (regionText(ip) || '未知') : '未保存', cc: ipCC, weight: ipCC && !datacenter ? 1 : 0,
+      note: !ip ? '开启请勿追踪时不保存 IP' : ip.reserved ? '局域网地址' : datacenter ? `机房网段（${ip.isp}），不采信` : !ipCC ? '查不到归属地' : '',
+    },
+    {
+      key: 'tz', label: '浏览器时区', icon: 'clock', value: sig ? `${tz || '空'} · ${fmtOffset(sig.utcOffset)}` : '未采集', cc: tzCC, weight: tzCC && !offsetBad ? 2 : 0,
+      note: !sig ? '' : tzPrivacy ? '时区被隐藏为 UTC' : offsetBad ? '时区与时钟偏移矛盾，不采信' : !tzCC ? '时区不在对照表中' : '',
+    },
+    {
+      key: 'lang', label: '浏览器语言', icon: 'message', value: sig ? (sig.languages.join(', ') || '空') : '未采集', cc: lang?.primary || null, weight: lang?.primary ? 1 : 0,
+      note: !sig ? '' : !sig.languages.length ? '语言列表为空' : !lang ? '英语等通用语言不参与推断' : !lang.primary ? '该语言对应多个地区' : '',
+    },
+  ]
+  const votes = {}
+  for (const s of sources) if (s.weight) votes[s.cc] = (votes[s.cc] || 0) + s.weight
+  // 票数相同时依次信任时区、IP、语言
+  const prio = cc => ['tz', 'ip', 'lang'].findIndex(k => sources.find(s => s.key === k && s.weight && s.cc === cc))
+  const ranked = Object.entries(votes).sort((a, b) => b[1] - a[1] || prio(a[0]) - prio(b[0]))
+  if (!ranked.length) return { cc: null, sources, confidence: null, ipTrusted: false, label: '无法推断' }
+  const [cc, score] = ranked[0]
+  const second = ranked[1]?.[1] || 0
+  for (const s of sources) s.agree = s.weight ? s.cc === cc : null
+  const ipTrusted = sources[0].weight > 0 && ipCC === cc
+  const confidence = score >= 3 && score - second >= 2 ? 'high' : score >= 2 && score > second ? 'medium' : 'low'
+  return { cc, sources, confidence, ipTrusted, label: ipTrusted ? regionText(ip) : cn(cc), score }
+}
+
+function analyze(v) {
+  if (v.action !== 'visit') return null
+  const sig = v.dnt ? null : v.signals
+  const ip = v.ipRegion
+  const tz = sig?.timeZone
+  const tzPrivacy = !!sig && isPrivacyTz(tz)
+  const expectedOffset = sig && !tzPrivacy ? tzOffsetMinutes(tz) : null
+  const c = {
+    v, sig, ip, tz, tzPrivacy, expectedOffset,
+    ua: v.uaInfo, h: v.headers || {}, prevCC: v.prevCC,
+    ipCC: ip && !ip.reserved ? ip.cc : null,
+    tzCC: sig && !tzPrivacy ? (TZ_COUNTRY[tz] || null) : null,
+    offsetBad: expectedOffset != null && Math.abs(expectedOffset - sig.utcOffset) >= 15,
+    lang: sig ? langInfo(sig.languages[0]) : null,
+    datacenter: !!(ip?.isp && DATACENTER_ISP.test(ip.isp)),
+  }
+  const results = RULES.map(rule => ({ rule, ...rule.check(c) }))
+  const hits = results.filter(r => r.status === 'hit')
+  const atLeast = (cat, sev) => hits.some(r => r.rule.cat === cat && SEV[r.sev].rank >= SEV[sev].rank)
+  let verdict = 'trusted'
+  if (!sig) verdict = 'unknown'
+  else if (atLeast('auto', 'medium')) verdict = 'bot'
+  else if (atLeast('env', 'medium')) verdict = 'spoofed'
+  else if (atLeast('location', 'medium')) verdict = 'proxy'
+  return {
+    results, hits, verdict, datacenter: c.datacenter,
+    score: sig ? Math.max(0, 100 - hits.reduce((s, r) => s + SEV[r.sev].w, 0)) : null,
+    inferred: infer(c),
+    deviceType: hits.some(r => r.rule.id === 'ipad_desktop_ua') ? 'tablet' : v.uaInfo.deviceType,
+  }
+}
+
+/* ============================================================
+ * 5. 模拟数据
+ * ============================================================ */
+const CH = (platform, mobile, brand = 'Google Chrome') => ({ platform, mobile, brands: `Chromium 152 · ${brand} 152` })
+const UA = {
+  macChrome: { ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36', ch: CH('macOS', false) },
+  winChrome: { ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36', ch: CH('Windows', false) },
+  winEdge: { ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36 Edg/152.0.0.0', ch: CH('Windows', false, 'Microsoft Edge') },
+  linuxChrome: { ua: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36', ch: CH('Linux', false) },
+  android: { ua: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36', ch: CH('Android', true) },
+  macSafari: { ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15', ch: null },
+  iphone: { ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Mobile/15E148 Safari/604.1', ch: null },
+  winFirefox: { ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:150.0) Gecko/20100101 Firefox/150.0', ch: null },
+}
+const SIG = (o = {}) => ({ timeZone: 'Asia/Shanghai', utcOffset: 'auto', languages: ['zh-CN', 'zh'], locale: 'zh-CN', screen: '1512x982', dpr: 2, touchPoints: 0, pointer: 'fine', colorScheme: 'light', reducedMotion: false, webdriver: false, ...o })
+const PHONE = { screen: '393x852', dpr: 3, touchPoints: 5, pointer: 'coarse' }
+const DESK = { screen: '1920x1080', dpr: 1 }
+const R = (cc, province = '', city = '', isp = '') => ({ cc, province, city, isp })
+
+// ago 为几分钟前；visitor 为访客ID；target：[类型, 标题]
+const RAW_VISITS = [
+  { id: 2048, ago: 2, visitor: 311, count: 14, target: ['post', '用 Go 写一个离线 IP 归属地查询'], src: 'google', ip: '113.204.*.*', region: R('CN', '重庆', '重庆', '移动'), ua: 'macChrome', sig: SIG() },
+  { id: 2047, ago: 5, visitor: 512, count: 3, target: ['post', 'Next.js App Router 踩坑记'], src: 'direct', ip: '154.17.*.*', region: R('US', '加利福尼亚', '洛杉矶'), ua: 'macChrome', sig: SIG({ screen: '1728x1117' }) },
+  { id: 2046, ago: 9, visitor: 498, count: 1, target: ['post', '浅谈 Hertz 中间件'], src: 'github', ip: '45.76.*.*', region: R('JP', '东京都', '东京', 'Vultr'), ua: 'winChrome', sig: SIG({ ...DESK, colorScheme: 'dark' }) },
+  { id: 2045, ago: 14, visitor: 377, count: 6, target: ['page', '关于'], src: 'direct', ip: '103.152.*.*', region: R('HK', '', '', 'HKBN'), ua: 'iphone', sig: SIG(PHONE) },
+  { id: 2044, ago: 21, visitor: 290, count: 22, user: '小鹿', target: ['post', '博客折腾日志 #12'], src: 'internal', ip: '36.229.*.*', region: R('TW', '台湾', '台北', '中华电信'), ua: 'macSafari', sig: SIG({ timeZone: 'Asia/Taipei', languages: ['zh-TW', 'zh'], locale: 'zh-TW', screen: '1470x956' }) },
+  { id: 2043, ago: 26, visitor: 601, count: 1, target: ['post', 'Go 泛型实战'], src: 'bing', ip: '72.14.*.*', region: R('US', '纽约', '纽约', 'Verizon'), ua: 'winEdge', sig: SIG({ timeZone: 'America/New_York', languages: ['zh-CN', 'en-US'], ...DESK }) },
+  { id: 2042, ago: 33, visitor: 455, count: 2, target: ['post', 'Tailwind v4 迁移笔记'], src: 'direct', ip: '221.4.*.*', region: R('CN', '广东', '广州', '联通'), ua: 'iphone', ch: CH('Windows', false), sig: SIG(DESK) },
+  { id: 2041, ago: 40, visitor: 702, count: 1, target: ['page', '友链'], src: 'external', srcHost: 'blog.example.org', ip: '120.229.*.*', region: R('CN', '广东', '深圳', '移动'), ua: 'winChrome', ch: CH('macOS', false), sig: SIG() },
+  { id: 2040, ago: 48, visitor: 733, count: 1, target: ['post', 'Rust 与 Go 的错误处理对比'], src: 'direct', ip: '47.96.*.*', region: R('CN', '浙江', '杭州', '阿里云'), ua: 'linuxChrome', sig: SIG({ ...DESK, languages: ['en-US'], webdriver: true }) },
+  { id: 2039, ago: 61, visitor: 740, count: 1, target: ['post', 'Go 泛型实战'], src: 'direct', ip: '185.220.*.*', region: R('DE', '黑森', '法兰克福', 'M247'), ua: 'winFirefox', sig: SIG({ timeZone: 'UTC', languages: ['en-US', 'en'], locale: 'en-US', screen: '1400x900', dpr: 1 }) },
+  { id: 2038, ago: 72, visitor: 615, count: 4, target: ['post', 'Next.js App Router 踩坑记'], src: 'juejin', ip: '58.250.*.*', region: R('CN', '广东', '深圳', '联通'), ua: 'macChrome', sig: SIG({ timeZone: 'America/New_York', utcOffset: 480 }) },
+  { id: 2037, ago: 85, dnt: true, target: ['post', '用 Go 写一个离线 IP 归属地查询'], src: 'zhihu', region: R('CN', '四川', '成都', '电信'), ua: 'android' },
+  { id: 2036, ago: 100, visitor: 512, count: 2, target: ['post', 'Go 泛型实战'], src: 'direct', ip: '123.118.*.*', region: R('CN', '北京', '北京', '联通'), ua: 'macChrome', sig: SIG({ screen: '1728x1117' }) },
+  { id: 2035, ago: 120, visitor: 820, count: 1, target: ['post', '用 Go 写一个离线 IP 归属地查询'], src: 'v2ex', ip: '104.28.*.*', region: R('US', '加利福尼亚', '旧金山', 'Cloudflare'), ua: 'android', sig: SIG({ screen: '412x915', dpr: 2.625, touchPoints: 5, pointer: 'coarse', colorScheme: 'dark' }) },
+  { id: 2034, ago: 140, visitor: 299, count: 9, target: ['post', '浅谈 Hertz 中间件'], src: 'google', ip: '126.33.*.*', region: R('JP', '东京都', '东京', 'SoftBank'), ua: 'macSafari', sig: SIG({ timeZone: 'Asia/Tokyo', languages: ['ja-JP', 'ja'], locale: 'ja-JP', screen: '1440x900' }) },
+  { id: 2033, ago: 170, visitor: 851, count: 1, target: ['page', '关于'], src: 'direct', ip: '121.34.*.*', region: R('CN', '广东', '深圳', '电信'), ua: 'winChrome', al: 'en-US,en;q=0.9', sig: SIG(DESK) },
+  { id: 2032, ago: 180, visitor: 860, count: 1, target: ['post', 'Tailwind v4 迁移笔记'], src: 'direct', ip: '112.10.*.*', region: R('CN', '浙江', '杭州', '移动'), ua: 'android', ch: null, sig: SIG({ screen: '2560x1440', dpr: 1, colorScheme: 'dark' }) },
+  { id: 2031, ago: 210, visitor: 870, count: 1, target: ['post', 'Rust 与 Go 的错误处理对比'], src: 'chatgpt', ip: '211.36.*.*', region: R('KR', '首尔', '首尔', 'SK Broadband'), ua: 'android', sig: SIG({ timeZone: 'Asia/Seoul', languages: ['ko-KR', 'ko', 'en-US'], locale: 'ko-KR', screen: '384x832', dpr: 2.8125, touchPoints: 5, pointer: 'coarse' }) },
+  { id: 2030, ago: 240, visitor: 311, count: 13, target: ['post', '博客折腾日志 #12'], src: 'internal', ip: '45.32.*.*', region: R('JP', '东京都', '东京', 'Vultr'), ua: 'macChrome', sig: SIG() },
+  { id: 2029, ago: 270, visitor: 311, count: 12, target: ['post', 'Go 泛型实战'], src: 'google', ip: '113.204.*.*', region: R('CN', '重庆', '重庆', '移动'), ua: 'macChrome', sig: SIG() },
+  { id: 2028, ago: 300, visitor: 880, count: 2, target: ['post', '博客折腾日志 #12'], src: 'direct', ip: '101.80.*.*', region: R('CN', '上海', '上海', '电信'), ua: 'macSafari', sig: SIG({ screen: '1024x1366', dpr: 2, touchPoints: 5, pointer: 'coarse' }) },
+  { id: 2027, ago: 360, visitor: 890, count: 1, target: ['post', 'Next.js App Router 踩坑记'], src: 'direct', ip: '34.83.*.*', region: R('US', '俄勒冈', '达尔斯', 'Google Cloud'), ua: 'linuxChrome', sig: SIG({ timeZone: 'America/Los_Angeles', languages: [], screen: '0x0', dpr: 1 }) },
+  { id: 2026, ago: 400, action: 'like', user: '小鹿', target: ['post', '博客折腾日志 #12'] },
+  { id: 2025, ago: 430, action: 'comment', user: 'Kiri', target: ['post', 'Go 泛型实战'], comment: '泛型约束那段讲得很清楚，期待下一篇！' },
+  { id: 2024, ago: 480, visitor: 905, count: 1, target: ['post', 'Go 泛型实战'], src: 'reddit', ip: '91.64.*.*', region: R('DE', '柏林', '柏林', 'Deutsche Telekom'), ua: 'android', sig: SIG({ timeZone: 'Europe/Berlin', languages: ['de-DE', 'de', 'en'], locale: 'de-DE', screen: '412x915', dpr: 2.625, touchPoints: 5, pointer: 'coarse' }) },
+  { id: 2023, ago: 540, visitor: 912, count: 5, target: ['post', '浅谈 Hertz 中间件'], src: 'baidu', ip: '180.110.*.*', region: R('CN', '江苏', '南京', '电信'), ua: 'winEdge', sig: SIG({ ...DESK, colorScheme: 'dark' }) },
+]
+
+const NOW = Date.now()
+function normalize(raw) {
+  const visit = (raw.action || 'visit') === 'visit'
+  const preset = UA[raw.ua]
+  const ch = raw.ch !== undefined ? raw.ch : preset?.ch
+  const sig = visit && raw.sig && !raw.dnt
+    ? { ...raw.sig, utcOffset: raw.sig.utcOffset === 'auto' ? (tzOffsetMinutes(raw.sig.timeZone) ?? 0) : raw.sig.utcOffset }
+    : null
+  const v = {
+    id: raw.id, action: raw.action || 'visit', createdAt: raw.ago != null ? NOW - raw.ago * 60000 : null, day: raw.day ?? 0, hour: raw.hour ?? 0,
+    visitorId: raw.dnt ? null : (raw.visitor ?? null), visitCount: raw.count ?? 1, user: raw.user ? { nickname: raw.user } : null,
+    target: raw.target || null, comment: raw.comment || '', source: raw.src || 'direct', sourceHost: raw.srcHost || '',
+    dnt: !!raw.dnt, ip: raw.dnt ? '' : (raw.ip || ''), ipRegion: raw.region || null,
+    // 开启请勿追踪时不保存 UA 原文与请求头信号，只保留解析出的系统、浏览器、设备类型
+    ua: visit && !raw.dnt ? (preset?.ua || '') : '', uaInfo: preset ? parseUA(preset.ua) : { os: '', browser: '', deviceType: '' },
+    headers: visit && !raw.dnt ? { acceptLanguage: raw.al ?? (sig ? toAcceptLanguage(sig.languages) : ''), chPlatform: ch?.platform ?? null, chMobile: ch ? ch.mobile : null, chBrands: ch?.brands ?? null } : {},
+    signals: sig, prevCC: null,
+  }
+  return v
+}
+const VISITS = RAW_VISITS.map(normalize)
+// 上一次访问的 IP 国家：正式实现读取 Visitor.LastLocation 更新前的值
+for (const v of VISITS) {
+  if (!v.visitorId) continue
+  const prev = VISITS.find(o => o.visitorId === v.visitorId && o.action === 'visit' && o.createdAt < v.createdAt)
+  v.prevCC = prev?.ipRegion?.cc || null
+}
+const ANALYSIS = new Map(VISITS.map(v => [v.id, analyze(v)]))
+
+// 统计视图用的合成数据：按场景比例生成近 30 天的访问，与列表共用同一套规则
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296 } }
+function pick(r, list) { const total = list.reduce((s, x) => s + x[1], 0); let x = r() * total; for (const [item, w] of list) { if ((x -= w) < 0) return item } return list[list.length - 1][0] }
+const pickU = (r, list) => list[Math.floor(r() * list.length)]
+const CN_CITIES = [['北京', '北京'], ['上海', '上海'], ['广东', '深圳'], ['广东', '广州'], ['浙江', '杭州'], ['四川', '成都'], ['重庆', '重庆'], ['江苏', '南京'], ['湖北', '武汉'], ['陕西', '西安'], ['福建', '厦门'], ['山东', '济南']]
+const CN_ISP = [['电信', 4], ['联通', 3], ['移动', 4]]
+const PROXY_EXITS = [[R('US', '加利福尼亚', '洛杉矶'), 5], [R('JP', '东京都', '东京'), 4], [R('HK'), 4], [R('SG'), 3], [R('KR', '首尔', '首尔'), 1], [R('DE', '黑森', '法兰克福'), 1], [R('TW', '台湾', '台北'), 1], [R('GB', '英格兰', '伦敦'), 1]]
+const PROXY_ISP = [['', 5], ['Cloudflare', 2], ['Vultr', 1], ['DigitalOcean', 1], ['Amazon', 1], ['G-Core', 1]]
+const OVERSEAS = [
+  { tz: 'America/New_York', region: R('US', '纽约', '纽约', 'Verizon') }, { tz: 'America/Los_Angeles', region: R('US', '加利福尼亚', '圣何塞', 'Comcast') },
+  { tz: 'America/Toronto', region: R('CA', '安大略', '多伦多', 'Rogers') }, { tz: 'Europe/London', region: R('GB', '英格兰', '伦敦', 'BT') },
+  { tz: 'Australia/Sydney', region: R('AU', '新南威尔士', '悉尼', 'Telstra') }, { tz: 'Asia/Singapore', region: R('SG', '', '', 'Singtel') },
+]
+const LOCALS = [
+  [{ tz: 'Asia/Taipei', langs: ['zh-TW', 'zh'], region: R('TW', '台湾', '台北', '中华电信') }, 4],
+  [{ tz: 'Asia/Hong_Kong', langs: ['zh-HK', 'zh', 'en'], region: R('HK', '', '', 'HKBN') }, 2],
+  [{ tz: 'Asia/Tokyo', langs: ['ja-JP', 'ja'], region: R('JP', '东京都', '东京', 'NTT') }, 3],
+  [{ tz: 'Asia/Seoul', langs: ['ko-KR', 'ko'], region: R('KR', '首尔', '首尔', 'KT') }, 1],
+  [{ tz: 'America/Los_Angeles', langs: ['en-US', 'en'], region: R('US', '加利福尼亚', '洛杉矶', 'Charter') }, 2],
+  [{ tz: 'Europe/Berlin', langs: ['de-DE', 'de', 'en'], region: R('DE', '柏林', '柏林', 'Deutsche Telekom') }, 1],
+]
+const UA_WEIGHTS = [['winChrome', 22], ['iphone', 20], ['macChrome', 18], ['android', 16], ['winEdge', 10], ['macSafari', 6], ['winFirefox', 4], ['linuxChrome', 4]]
+const SCENARIOS = [['cn', 52], ['cnProxy', 18], ['overseasCN', 5], ['local', 13], ['spoof', 3], ['bot', 4], ['dnt', 5]]
+function deviceSig(r, uaKey) {
+  if (uaKey === 'iphone') return pickU(r, [PHONE, { ...PHONE, screen: '390x844' }, { ...PHONE, screen: '430x932' }])
+  if (uaKey === 'android') return pickU(r, [{ screen: '412x915', dpr: 2.625, touchPoints: 5, pointer: 'coarse' }, { screen: '360x800', dpr: 3, touchPoints: 5, pointer: 'coarse' }])
+  if (uaKey.startsWith('mac')) return pickU(r, [{ screen: '1512x982', dpr: 2 }, { screen: '1440x900', dpr: 2 }, { screen: '1728x1117', dpr: 2 }])
+  return pickU(r, [DESK, { screen: '2560x1440', dpr: 1 }, { screen: '1536x864', dpr: 1.25 }])
+}
+function makeSynthetic(r, scenario, day, id) {
+  const uaKey = pick(r, UA_WEIGHTS)
+  const base = { id, day, hour: Math.floor(r() * 24), visitor: 10000 + Math.floor(r() * 600), ua: uaKey }
+  const sig = (o = {}) => SIG({ ...deviceSig(r, uaKey), colorScheme: r() < 0.38 ? 'dark' : 'light', ...o })
+  const cnRegion = () => { const [p, c] = pickU(r, CN_CITIES); return R('CN', p, c, pick(r, CN_ISP)) }
+  switch (scenario) {
+    case 'cn': return { ...base, region: cnRegion(), sig: sig() }
+    case 'cnProxy': return { ...base, region: { ...pick(r, PROXY_EXITS), isp: pick(r, PROXY_ISP) }, sig: sig() }
+    case 'overseasCN': { const loc = pickU(r, OVERSEAS); return { ...base, region: loc.region, sig: sig({ timeZone: loc.tz, languages: ['zh-CN', 'zh', 'en'] }) } }
+    case 'local': { const loc = pick(r, LOCALS); return { ...base, region: loc.region, sig: sig({ timeZone: loc.tz, languages: loc.langs, locale: loc.langs[0] }) } }
+    case 'spoof': {
+      const k = Math.floor(r() * 4)
+      if (k === 0) return { ...base, ua: 'iphone', ch: CH('Windows', false), region: cnRegion(), sig: SIG(DESK) }
+      if (k === 1) return { ...base, ua: 'winChrome', ch: CH('macOS', false), region: cnRegion(), sig: SIG() }
+      if (k === 2) return { ...base, region: cnRegion(), sig: sig({ timeZone: 'America/New_York', utcOffset: 480 }) }
+      return { ...base, region: cnRegion(), al: 'en-US,en;q=0.9', sig: sig() }
+    }
+    case 'bot': return r() < 0.6
+      ? { ...base, ua: 'linuxChrome', region: R('CN', '浙江', '杭州', '阿里云'), sig: SIG({ ...DESK, languages: ['en-US'], webdriver: true }) }
+      : { ...base, ua: 'linuxChrome', region: R('US', '俄勒冈', '达尔斯', 'Google Cloud'), sig: SIG({ timeZone: 'America/Los_Angeles', languages: [], screen: '0x0', dpr: 1 }) }
+    default: return { ...base, dnt: true, region: cnRegion() }
+  }
+}
+const SYNTH = (() => {
+  const r = mulberry32(20261104)
+  const out = []
+  let id = 1
+  for (let day = 0; day < 30; day++) {
+    const n = Math.round(110 + r() * 50 - ((day + 2) % 7 >= 5 ? 28 : 0))
+    for (let i = 0; i < n; i++) {
+      const v = normalize(makeSynthetic(r, pick(r, SCENARIOS), day, id++))
+      out.push({ v, a: analyze(v) })
+    }
+  }
+  return out
+})()
+
+/* ============================================================
+ * 6. 通用渲染片段
+ * ============================================================ */
+const pct = (n, total) => (total ? `${(n / total * 100).toFixed(n / total < 0.1 ? 1 : 0)}%` : '0%')
+function ago(ts) {
+  const m = Math.round((NOW - ts) / 60000)
+  if (m < 1) return '刚刚'
+  if (m < 60) return `${m} 分钟前`
+  if (m < 1440) return `${Math.floor(m / 60)} 小时前`
+  return `${Math.floor(m / 1440)} 天前`
+}
+const fullTime = ts => new Date(ts).toLocaleString('zh-CN', { hour12: false })
+const verdictBadge = (key, extra = '') => `<span class="badge tone v-${key} ${extra}">${icon(VERDICT[key].icon)}${VERDICT[key].label}</span>`
+const sevBadge = sev => `<span class="badge tone s-${sev}">${icon(sev === 'info' ? 'info' : 'alert')}${SEV[sev].label}</span>`
+const deviceIcon = d => icon(d === 'mobile' ? 'phone' : d === 'tablet' ? 'tablet' : 'monitor')
+const SOURCE_NAMES = { direct: '直接访问', internal: '站内跳转', external: '其他网站', google: 'Google', bing: 'Bing', baidu: '百度', github: 'GitHub', zhihu: '知乎', juejin: '掘金', v2ex: 'V2EX', chatgpt: 'ChatGPT', reddit: 'Reddit' }
+const sourceName = v => (v.source === 'external' ? v.sourceHost || '其他网站' : SOURCE_NAMES[v.source] || v.source)
+function actionText(v) {
+  const [type, title] = v.target || []
+  const link = `<a href="#">${esc(title)}</a>`
+  if (v.action === 'like') return `喜欢了你的文章 ${link}`
+  if (v.action === 'comment') return `评论了你的文章 ${link}`
+  return type === 'page' ? `访问了页面 ${link}` : `访问了文章 ${link}`
+}
+// 访客身份行：已登录显示昵称；匿名访客显示推断地区（IP 可信时即 IP 归属地）
+function identity(v, a) {
+  if (v.user) return `<span class="who"><span class="avatar">${esc(v.user.nickname[0])}</span>${esc(v.user.nickname)}</span>`
+  const inf = a?.inferred
+  const place = !inf ? '未知地区'
+    : inf.ipTrusted ? esc(inf.label)
+      : inf.cc ? `${esc(inf.label)} <span class="tag-inferred" data-tip="IP 归属地与其他信号矛盾，按时区、语言推断">推断</span>`
+        : esc(regionText(v.ipRegion) || '未知地区')
+  return `<span class="who">${deviceIcon(a?.deviceType)}${place}<span class="muted" style="font-weight:400;font-size:13px">${esc(v.uaInfo.browser || '未知浏览器')}</span></span>`
+}
+
+/* ============================================================
+ * 7. 视图
+ * ============================================================ */
+const VIEWS = {
+  list: { icon: 'list', nav: '访客列表', title: '访客记录', crumb: '控制台 / 访客记录', desc: '在现有时间线上增加可信度标记、推断地区与命中规则；点击任意一条访问查看详情。' },
+  detail: { icon: 'search', nav: '访问详情', title: '访问详情', crumb: '控制台 / 访客记录 / 详情', desc: '一次访问的全部信号、位置判断过程和每条一致性规则的结果。' },
+  dashboard: { icon: 'dashboard', nav: '统计概览', title: '访客统计', crumb: '控制台 / 访客记录 / 统计', desc: '按推断位置与 IP 位置对比地区分布，查看代理占比、设备与语言。合成数据，按场景比例生成。' },
+  live: { icon: 'activity', nav: '实时检测', title: '实时检测', crumb: '设计说明 / 实时检测', desc: '读取你当前浏览器的真实信号，套用同一套规则。IP 与请求头在纯前端原型中拿不到，用下方选项模拟。' },
+  fields: { icon: 'table', nav: '采集字段', title: '采集字段分级', crumb: '设计说明 / 采集字段', desc: '按「采集 / 可选 / 不建议」分级，优先低熵、不可单独识别个人的信号。' },
+  rules: { icon: 'checks', nav: '检测规则', title: '一致性规则', crumb: '设计说明 / 检测规则', desc: '每条规则的判定条件、严重度和可能的误报；以及可信度结论与地区推断的计算方式。' },
+  privacy: { icon: 'file', nav: '隐私政策（简版）', title: '隐私政策草案', crumb: '设计说明 / 隐私政策', desc: '与新采集方案对应的简化版政策，暂不替换线上 /privacy 页面。' },
+}
+
+/* ---------- 7.1 访客列表 ---------- */
+const listState = { verdict: 'all', action: 'all', country: 'all', device: 'all' }
+function renderList() {
+  const today = SYNTH.filter(x => x.v.day === 0)
+  const tv = today.filter(x => x.a)
+  const proxies = tv.filter(x => x.a.verdict === 'proxy').length
+  const abnormal = tv.filter(x => ['spoofed', 'bot'].includes(x.a.verdict)).length
+  const humans = tv.filter(x => x.a.verdict !== 'bot')
+  const stats = [
+    ['今日浏览量', humans.length, '不含疑似自动化'],
+    ['今日访客', new Set(humans.map(x => x.v.visitorId).filter(Boolean)).size, '按访客 Cookie 去重'],
+    ['疑似代理', proxies, `占有信号访问的 ${pct(proxies, tv.filter(x => x.a.verdict !== 'unknown').length)}`],
+    ['环境异常', abnormal, `伪装 ${tv.filter(x => x.a.verdict === 'spoofed').length} · 自动化 ${tv.filter(x => x.a.verdict === 'bot').length}`],
+  ]
+  const visits = VISITS.filter(v => v.action === 'visit')
+  const count = key => (key === 'all' ? visits.length : visits.filter(v => ANALYSIS.get(v.id).verdict === key).length)
+  const countries = [...new Set(visits.map(v => ANALYSIS.get(v.id).inferred.cc).filter(Boolean))]
+  const shown = VISITS.filter((v) => {
+    const a = ANALYSIS.get(v.id)
+    if (listState.action === 'visit' && v.action !== 'visit') return false
+    if (listState.action === 'interaction' && v.action === 'visit') return false
+    if (!a) return listState.verdict === 'all' && listState.country === 'all' && listState.device === 'all'
+    if (listState.verdict !== 'all' && a.verdict !== listState.verdict) return false
+    if (listState.country !== 'all' && a.inferred.cc !== listState.country) return false
+    if (listState.device !== 'all' && a.deviceType !== listState.device) return false
+    return true
+  })
+  return `
+  <div class="grid">
+    <div class="grid g4">${stats.map(([k, v, d]) => `<div class="card stat"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('')}</div>
+    <div class="row-flex between">
+      <div class="row-flex">
+        <div class="tabs" data-state="action">${[['all', '全部动态'], ['visit', '访问'], ['interaction', '互动']].map(([k, l]) => `<button class="tab ${listState.action === k ? 'on' : ''}" data-v="${k}">${l}</button>`).join('')}</div>
+        <div class="tabs" data-state="verdict">
+          <button class="tab ${listState.verdict === 'all' ? 'on' : ''}" data-v="all">全部 <span class="n">${count('all')}</span></button>
+          ${VERDICT_ORDER.map(k => `<button class="tab ${listState.verdict === k ? 'on' : ''}" data-v="${k}"><span class="dot v-${k}"></span>${VERDICT[k].label} <span class="n">${count(k)}</span></button>`).join('')}
+        </div>
+      </div>
+      <div class="row-flex">
+        <label class="sel">推断地区 <select data-state="country"><option value="all">全部</option>${countries.map(cc => `<option value="${cc}" ${listState.country === cc ? 'selected' : ''}>${cn(cc)}</option>`).join('')}</select></label>
+        <label class="sel">设备 <select data-state="device">${[['all', '全部'], ['desktop', '桌面'], ['mobile', '手机'], ['tablet', '平板']].map(([k, l]) => `<option value="${k}" ${listState.device === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      </div>
+    </div>
+    <div class="card"><div class="card-b" style="padding-top:4px;padding-bottom:4px">
+      ${shown.length ? shown.map(listRow).join('') : '<p class="muted" style="text-align:center;padding:32px 0">没有符合条件的记录</p>'}
+    </div></div>
+    <p class="note">列表沿用现有时间线：互动（点赞、评论）不带浏览器信号，因此没有可信度标记。地区一栏优先显示推断结果；IP 不可信时，IP 归属地以删除线显示在第二行。</p>
+  </div>`
+}
+function listRow(v) {
+  const a = ANALYSIS.get(v.id)
+  if (!a) {
+    return `<div class="vrow" style="cursor:default">
+      <div class="l1">${identity(v)}<span class="act muted">${actionText(v)}</span></div>
+      ${v.comment ? `<div class="quote">${esc(v.comment)}</div>` : ''}
+      <div class="l2"><span title="${fullTime(v.createdAt)}">${ago(v.createdAt)}</span><span>${icon(v.action === 'like' ? 'heart' : 'message')}互动记录</span></div>
+    </div>`
+  }
+  const s = v.signals
+  const flags = a.hits.filter(h => h.sev !== 'info').sort((x, y) => SEV[y.sev].rank - SEV[x.sev].rank)
+  return `<div class="vrow" data-go="#detail/${v.id}">
+    <div class="l1">${identity(v, a)}${verdictBadge(a.verdict)}<span class="act muted">${actionText(v)}</span></div>
+    <div class="l2">
+      <span title="${fullTime(v.createdAt)}">${ago(v.createdAt)}</span>
+      <span>${icon('link')}${esc(sourceName(v))}</span>
+      ${v.ip ? `<span class="mono">${esc(v.ip)}</span>` : ''}
+      ${v.user && a.inferred.ipTrusted ? `<span>${icon('pin')}${esc(a.inferred.label)}</span>` : ''}
+      ${!a.inferred.ipTrusted && v.ipRegion ? `<span data-tip="IP 归属地：${esc(regionText(v.ipRegion))}${a.datacenter ? '（机房网段）' : ''}\n与其他信号矛盾，不采信">IP <span class="ip-bad">${esc(regionText(v.ipRegion))}</span></span>` : ''}
+      ${s ? `<span>${icon('message')}${esc(s.languages[0] || '无语言')}</span><span>${icon('clock')}${esc(fmtOffset(s.utcOffset))}</span>` : ''}
+      ${v.dnt ? '<span class="badge outline">请勿追踪</span>' : `<span>累计 ${v.visitCount} 次访问</span>`}
+    </div>
+    ${flags.length ? `<div class="flagchips">${flags.map(h => `<span class="badge tone s-${h.sev}" data-tip="${esc(h.detail)}">${icon('alert')}${esc(h.rule.name)}</span>`).join('')}</div>` : ''}
+  </div>`
+}
+
+/* ---------- 7.2 访问详情 ---------- */
+let detailId = 2047
+function renderDetail() {
+  const v = VISITS.find(x => x.id === detailId) || VISITS[1]
+  const a = ANALYSIS.get(v.id)
+  const inf = a.inferred
+  const history = v.visitorId ? VISITS.filter(o => o.visitorId === v.visitorId) : [v]
+  const hits = a.results.filter(r => r.status === 'hit').sort((x, y) => SEV[y.sev].rank - SEV[x.sev].rank)
+  const passes = a.results.filter(r => r.status === 'pass')
+  const skips = a.results.filter(r => r.status === 'skip')
+  return `
+  <a class="back" href="#list">${icon('back')}返回访客记录</a>
+  <div class="grid">
+    <div class="card hero v-${a.verdict}">
+      <h2>${deviceIcon(a.deviceType)}${esc(inf.cc ? inf.label : regionText(v.ipRegion) || '未知地区')}${!inf.ipTrusted && inf.cc ? '<span class="tag-inferred">推断</span>' : ''}${verdictBadge(a.verdict)}</h2>
+      <div class="why">${VERDICT[a.verdict].why}</div>
+      <div class="row-flex note">
+        <span>${actionText(v)}</span><span>${ago(v.createdAt)}（${fullTime(v.createdAt)}）</span><span>来源：${esc(sourceName(v))}</span>
+        ${v.visitorId ? `<span>访客 #${v.visitorId} · 累计 ${v.visitCount} 次</span>` : '<span>未识别访客（请勿追踪）</span>'}
+      </div>
+      ${a.score != null ? `<div class="row-flex note"><span>一致性得分</span><div class="meter"><span style="width:${a.score}%"></span></div><b class="tnum" style="color:var(--foreground)">${a.score}</b><span>/ 100 · 命中 ${hits.filter(h => h.sev !== 'info').length} 条规则</span></div>` : ''}
+    </div>
+    <div class="grid g-detail">
+      <div class="grid">
+        <div class="card">
+          <div class="card-h">位置判断 <small>时区权重 2，IP 与语言各 1；票数相同时依次信任时区、IP、语言</small></div>
+          <div class="card-b">
+            <div class="table-wrap"><table class="src-table">
+              <thead><tr><th>依据</th><th>读到的值</th><th>指向</th><th>权重</th><th>结论</th></tr></thead>
+              <tbody>${inf.sources.map(s => `<tr>
+                <td><span class="row-flex" style="gap:6px">${icon(s.icon)}${s.label}</span></td>
+                <td>${esc(s.value)}${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}</td>
+                <td>${s.cc ? cn(s.cc) : '—'}</td>
+                <td class="tnum">${s.weight}</td>
+                <td>${s.agree === true ? `<span class="vote yes">${icon('check')}采信</span>` : s.agree === false ? `<span class="vote no">${icon('x')}矛盾</span>` : `<span class="vote off">${icon('minus')}不参与</span>`}</td>
+              </tr>`).join('')}</tbody>
+            </table></div>
+            <div class="callout" style="margin-top:12px">${icon('pin')}<div>
+              ${inf.cc ? `推断地区：<b>${esc(inf.label)}</b>（置信度${CONF[inf.confidence]}）。` : '<b>无法推断地区</b>：没有可采信的信号。'}
+              ${inf.ipTrusted ? 'IP 归属地与其他信号一致，可以直接使用。' : v.ipRegion ? `IP 归属地「${esc(regionText(v.ipRegion))}」不可信${inf.cc && inf.cc !== v.ipRegion.cc ? '，它更可能是代理出口' : ''}。` : ''}
+            </div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h">一致性检查 <small>命中 ${hits.length} · 通过 ${passes.length} · 不适用 ${skips.length}</small></div>
+          <div class="card-b" style="padding-top:4px">
+            ${hits.length ? hits.map(ruleItem).join('') : `<div class="rule pass">${icon('check')}<div class="t">没有命中任何规则</div></div>`}
+            <details class="more"><summary>通过的规则（${passes.length}）</summary>${passes.map(ruleItem).join('')}</details>
+            <details class="more"><summary>不适用的规则（${skips.length}）</summary>${skips.map(ruleItem).join('')}</details>
+          </div>
+        </div>
+        ${history.length > 1 ? `<div class="card">
+          <div class="card-h">该访客的其他访问 <small>按时间倒序</small></div>
+          <div class="card-b timeline">${history.map((o) => {
+            const oa = ANALYSIS.get(o.id)
+            return `<a class="tl ${o.id === v.id ? 'cur' : ''}" href="#detail/${o.id}"><span class="muted">${ago(o.createdAt)}</span><span>${esc(regionText(o.ipRegion))}<span class="note"> · ${esc(o.target?.[1] || '')}</span></span>${verdictBadge(oa.verdict)}</a>`
+          }).join('')}</div>
+        </div>` : ''}
+      </div>
+      <div class="card">
+        <div class="card-h">全部信号 <small>浏览器 = 前端上报 · 请求头 / 服务器 = 后端读取</small></div>
+        <div class="card-b">${signalGroups(v, a).map(sigGroup).join('')}</div>
+      </div>
+    </div>
+  </div>`
+}
+function ruleItem(r) {
+  const cls = r.status === 'hit' ? `hit s-${r.sev}` : r.status
+  const ic = r.status === 'hit' ? (r.sev === 'info' ? 'info' : 'alert') : r.status === 'pass' ? 'check' : 'minus'
+  return `<div class="rule ${cls}">${icon(ic)}<div class="t">${esc(r.rule.name)}${r.status === 'hit' ? sevBadge(r.sev) : ''}<span class="badge outline">${CAT[r.rule.cat]}</span><code>${r.rule.id}</code></div>
+    <div class="d">${esc(r.detail)}${r.status === 'hit' ? `<br><span class="note">为什么：${esc(r.rule.why)}</span>` : ''}</div></div>`
+}
+function sigGroup([title, items]) {
+  if (!items) return `<div class="sig-group"><h4>${title}</h4><div class="note">未采集（请勿追踪或旧记录）</div></div>`
+  return `<div class="sig-group"><h4>${title}</h4>${items.map(([k, val, src, tier]) => `<div class="kv"><span class="k">${k}</span><span class="val ${/UA|IP 地址|Sec-CH/.test(k) ? 'mono' : ''}">${esc(val)}</span><span class="tags"><span class="mini">${SRC[src]}</span>${tier ? `<span class="mini ${tier}">${TIER[tier].short}</span>` : ''}</span></div>`).join('')}</div>`
+}
+const SRC = { js: '浏览器', hdr: '请求头', srv: '服务器' }
+const TIER = { collect: { label: '采集', short: '采集' }, optional: { label: '可选', short: '可选' }, no: { label: '不建议', short: '不建议' } }
+function signalGroups(v, a) {
+  const s = v.signals, h = v.headers || {}, ip = v.ipRegion, u = v.uaInfo
+  return [
+    ['网络', [
+      ['IP 地址', v.ip || '未保存', 'srv', 'collect'],
+      ['IP 归属地', regionText(ip) || '—', 'srv', 'collect'],
+      ['国家代码', ip?.cc || '—', 'srv', 'collect'],
+      ['运营商', ip?.isp || '—', 'srv', 'collect'],
+      ['机房网段', a.datacenter ? '是' : '否', 'srv', 'collect'],
+    ]],
+    ['请求头', [
+      ['User-Agent', v.ua || '未保存', 'hdr', 'collect'],
+      ['解析结果', `${u.os || '未知系统'} · ${u.browser || '未知浏览器'} · ${DEVICE[a.deviceType] || '未知'}`, 'srv', 'collect'],
+      ['Accept-Language', h.acceptLanguage || '—', 'hdr', 'collect'],
+      ['Sec-CH-UA', h.chBrands || '未发送', 'hdr', 'collect'],
+      ['Sec-CH-UA-Platform', h.chPlatform || '未发送', 'hdr', 'collect'],
+      ['Sec-CH-UA-Mobile', h.chMobile == null ? '未发送' : (h.chMobile ? '?1' : '?0'), 'hdr', 'collect'],
+      ['请勿追踪', v.dnt ? '开启（DNT / GPC）' : '未开启', 'hdr', 'collect'],
+    ]],
+    ['语言和地区', s && [
+      ['时区', s.timeZone || '空', 'js', 'collect'],
+      ['UTC 偏移', fmtOffset(s.utcOffset), 'js', 'collect'],
+      ['语言', s.languages.join(', ') || '空', 'js', 'collect'],
+      ['区域设置', s.locale, 'js', 'optional'],
+    ]],
+    ['设备', s && [
+      ['屏幕', `${s.screen.replace('x', '×')} @${s.dpr}x`, 'js', 'collect'],
+      ['触控点', String(s.touchPoints), 'js', 'collect'],
+      ['指针', s.pointer === 'coarse' ? '粗（手指）' : '精细（鼠标 / 触控板）', 'js', 'collect'],
+    ]],
+    ['偏好与自动化', s && [
+      ['深浅色', s.colorScheme === 'dark' ? '深色' : '浅色', 'js', 'collect'],
+      ['减少动态效果', s.reducedMotion ? '是' : '否', 'js', 'optional'],
+      ['navigator.webdriver', String(s.webdriver), 'js', 'collect'],
+    ]],
+  ]
+}
+
+/* ---------- 7.3 统计概览 ---------- */
+let dashRange = 7
+function renderDashboard() {
+  const rows = SYNTH.filter(x => x.v.day < dashRange)
+  const visits = rows.filter(x => x.a)
+  const total = visits.length
+  const withSig = visits.filter(x => x.a.verdict !== 'unknown')
+  const vc = Object.fromEntries(VERDICT_ORDER.map(k => [k, visits.filter(x => x.a.verdict === k).length]))
+  const uv = new Set(visits.map(x => x.v.visitorId).filter(Boolean)).size
+  const countBy = (list, fn) => { const m = new Map(); for (const x of list) { const k = fn(x); if (k) m.set(k, (m.get(k) || 0) + 1) } return [...m.entries()].sort((a, b) => b[1] - a[1]) }
+
+  // 地区对比：只统计有浏览器信号的访问，二者口径一致
+  const ipC = new Map(countBy(withSig, x => x.v.ipRegion?.cc))
+  const infC = new Map(countBy(withSig, x => x.a.inferred.cc))
+  const ccs = [...new Set([...ipC.keys(), ...infC.keys()])].sort((a, b) => Math.max(infC.get(b) || 0, ipC.get(b) || 0) - Math.max(infC.get(a) || 0, ipC.get(a) || 0)).slice(0, 8)
+  const pairMax = Math.max(...ccs.map(cc => Math.max(ipC.get(cc) || 0, infC.get(cc) || 0)), 1)
+  const proxies = visits.filter(x => x.a.verdict === 'proxy')
+
+  // 每日（今日按小时）可信度堆叠柱
+  const buckets = dashRange === 1 ? Array.from({ length: 24 }, (_, i) => i) : Array.from({ length: dashRange }, (_, i) => dashRange - 1 - i)
+  const bucketOf = x => (dashRange === 1 ? x.v.hour : x.v.day)
+  const colData = buckets.map(b => { const list = visits.filter(x => bucketOf(x) === b); return { b, counts: Object.fromEntries(VERDICT_ORDER.map(k => [k, list.filter(x => x.a.verdict === k).length])), total: list.length } })
+  const colMax = Math.max(...colData.map(c => c.total), 1)
+  const colLabel = b => (dashRange === 1 ? `${b}` : (() => { const d = new Date(NOW - b * 86400000); return `${d.getMonth() + 1}/${d.getDate()}` })())
+  const labelEvery = dashRange === 30 ? 5 : dashRange === 1 ? 3 : 1
+
+  const ruleCounts = countBy(visits.flatMap(x => x.a.hits.filter(h => h.sev !== 'info').map(h => ({ id: h.rule.id }))), x => x.id)
+  const ruleName = id => RULES.find(r => r.id === id).name
+  const bars = (list, labelFn = k => k, n = 6, denom = total, wide = false) => barList(list.slice(0, n).map(([k, c]) => ({ label: labelFn(k), value: c })), denom, wide)
+
+  return `
+  <div class="grid">
+    <div class="row-flex between">
+      <div class="tabs" data-state="range">${[[1, '今日'], [7, '近 7 天'], [30, '近 30 天']].map(([k, l]) => `<button class="tab ${dashRange === k ? 'on' : ''}" data-v="${k}">${l}</button>`).join('')}</div>
+      <span class="note">疑似自动化默认不计入浏览量与访客数，但仍出现在下方图表中以便排查。</span>
+    </div>
+    <div class="grid g4">
+      <div class="card stat"><div class="k">浏览量</div><div class="hero-num">${(total - vc.bot).toLocaleString()}</div><div class="d">另有 ${vc.bot} 次疑似自动化</div></div>
+      <div class="card stat"><div class="k">独立访客</div><div class="v">${uv.toLocaleString()}</div><div class="d">开启请勿追踪的 ${vc.unknown} 次访问不计入</div></div>
+      <div class="card stat"><div class="k">疑似代理占比</div><div class="v">${pct(vc.proxy, withSig.length)}</div><div class="d">${vc.proxy} / ${withSig.length} 次有信号的访问</div></div>
+      <div class="card stat"><div class="k">环境异常</div><div class="v">${vc.spoofed + vc.bot}</div><div class="d">环境伪装 ${vc.spoofed} · 疑似自动化 ${vc.bot}</div></div>
+    </div>
+    <div class="grid g2">
+      <div class="card span2">
+        <div class="card-h">地区排行：IP 归属地 vs 推断位置 <small>${withSig.length} 次有浏览器信号的访问</small></div>
+        <div class="card-b">
+          <div class="legend" style="margin-bottom:10px"><span><i class="sw" style="background:var(--s2)"></i>IP 归属地</span><span><i class="sw" style="background:var(--s1)"></i>推断位置（综合时区、语言）</span></div>
+          ${ccs.map((cc) => {
+            const i = ipC.get(cc) || 0, f = infC.get(cc) || 0
+            return `<div class="pair-row" data-tip="${cn(cc)}\nIP 归属地：${i} 次（${pct(i, withSig.length)}）\n推断位置：${f} 次（${pct(f, withSig.length)}）">
+              <span>${cn(cc)}</span>
+              <span class="tracks"><span class="track"><span class="bar ip" style="width:${i / pairMax * 100}%"></span></span><span class="track"><span class="bar" style="width:${f / pairMax * 100}%"></span></span></span>
+              <span class="nums">${pct(i, withSig.length)} → <b style="color:var(--foreground)">${pct(f, withSig.length)}</b></span>
+            </div>`
+          }).join('')}
+          <p class="note" style="margin:10px 0 0">只看 IP 会高估美国、日本、中国香港、新加坡等常见代理出口；推断位置把这些访问还原回时区和语言所指的地区。</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h">可信度分布 <small>${total} 次访问</small></div>
+        <div class="card-b">
+          <div class="stack">${VERDICT_ORDER.filter(k => vc[k]).map(k => `<span class="v-${k}" style="flex:${vc[k]}" data-tip="${VERDICT[k].label}：${vc[k]} 次（${pct(vc[k], total)}）"></span>`).join('')}</div>
+          <div style="margin-top:12px;display:grid;gap:6px">${VERDICT_ORDER.map(k => `<div class="row-flex between" style="font-size:13px"><span class="row-flex" style="gap:6px">${verdictBadge(k)}</span><span class="tnum muted">${vc[k]} · ${pct(vc[k], total)}</span></div>`).join('')}</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h">${dashRange === 1 ? '每小时访问' : '每日访问'}（按可信度） <small>最高 ${colMax} 次</small></div>
+        <div class="card-b">
+          <div class="cols">${colData.map(c => `<div class="col" data-tip="${colLabel(c.b)}${dashRange === 1 ? ' 时' : ''}：共 ${c.total} 次\n${VERDICT_ORDER.filter(k => c.counts[k]).map(k => `${VERDICT[k].label} ${c.counts[k]}`).join(' · ')}"><div style="height:${c.total / colMax * 100}%">${VERDICT_ORDER.filter(k => c.counts[k]).map(k => `<span class="v-${k}" style="flex:${c.counts[k]};min-height:2px"></span>`).join('')}</div></div>`).join('')}</div>
+          <div class="col-labels">${colData.map((c, i) => `<span>${i % labelEvery === 0 ? colLabel(c.b) : ''}</span>`).join('')}</div>
+          <div class="legend" style="margin-top:8px">${VERDICT_ORDER.map(k => `<span><i class="sw v-${k}" style="background:var(--c)"></i>${VERDICT[k].label}</span>`).join('')}</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h">代理出口所在地 <small>疑似代理的 ${proxies.length} 次访问，按 IP 归属地</small></div>
+        <div class="card-b">${bars(countBy(proxies, x => x.v.ipRegion?.cc), cn, 6, proxies.length)}</div>
+      </div>
+      <div class="card">
+        <div class="card-h">命中最多的规则 <small>不含「提示」级</small></div>
+        <div class="card-b">${bars(ruleCounts, ruleName, 7, total, true)}</div>
+      </div>
+      <div class="card">
+        <div class="card-h">设备类型</div>
+        <div class="card-b">${bars(countBy(visits, x => x.a.deviceType), k => DEVICE[k])}</div>
+      </div>
+      <div class="card">
+        <div class="card-h">操作系统 / 浏览器</div>
+        <div class="card-b">${bars(countBy(visits, x => x.v.uaInfo.os), k => k, 5)}<div class="sep" style="margin:12px 0"></div>${bars(countBy(visits, x => x.v.uaInfo.browser), k => k, 5)}</div>
+      </div>
+      <div class="card">
+        <div class="card-h">首选语言 <small>有信号的访问</small></div>
+        <div class="card-b">${bars(countBy(withSig, x => x.v.signals.languages[0] || '（空）'), k => k, 7, withSig.length)}</div>
+      </div>
+      <div class="card">
+        <div class="card-h">时区 / 深浅色</div>
+        <div class="card-b">${bars(countBy(withSig, x => x.v.signals.timeZone), k => k, 5, withSig.length, true)}<div class="sep" style="margin:12px 0"></div>${bars(countBy(withSig, x => x.v.signals.colorScheme), k => (k === 'dark' ? '深色' : '浅色'), 2, withSig.length)}</div>
+      </div>
+    </div>
+  </div>`
+}
+function barList(items, denom, wide = false) {
+  if (!items.length) return '<p class="note">暂无数据</p>'
+  const max = Math.max(...items.map(i => i.value), 1)
+  return `<div class="bars ${wide ? 'wide' : ''}">${items.map(i => `<div class="bar-row" data-tip="${esc(i.label)}：${i.value} 次（${pct(i.value, denom)}）"><span class="lb">${esc(i.label)}</span><span class="track"><span class="bar" style="width:${i.value / max * 100}%"></span></span><span class="vl">${pct(i.value, denom)}</span></div>`).join('')}</div>`
+}
+
+/* ---------- 7.4 实时检测 ---------- */
+const liveState = { ip: 'auto', datacenter: false, ua: 'real', al: 'auto', optional: false }
+const LIVE_IP = { CN: R('CN', '北京', '北京', '联通'), HK: R('HK'), US: R('US', '加利福尼亚', '洛杉矶'), JP: R('JP', '东京都', '东京'), SG: R('SG'), DE: R('DE', '黑森', '法兰克福'), lan: { cc: '', reserved: true } }
+let liveExtra = null
+function collectLive() {
+  const nav = navigator
+  const ro = Intl.DateTimeFormat().resolvedOptions()
+  const mm = q => matchMedia(q).matches
+  return {
+    timeZone: ro.timeZone, utcOffset: -new Date().getTimezoneOffset(), languages: [...(nav.languages || [])].slice(0, 3), locale: ro.locale,
+    screen: `${screen.width}x${screen.height}`, dpr: Math.round(devicePixelRatio * 1000) / 1000, touchPoints: nav.maxTouchPoints || 0,
+    pointer: mm('(pointer: coarse)') ? 'coarse' : 'fine', colorScheme: mm('(prefers-color-scheme: dark)') ? 'dark' : 'light',
+    reducedMotion: mm('(prefers-reduced-motion: reduce)'), webdriver: nav.webdriver === true,
+  }
+}
+function liveOptional() {
+  const nav = navigator
+  return {
+    hardwareConcurrency: nav.hardwareConcurrency ?? null, deviceMemory: nav.deviceMemory ?? null,
+    viewport: `${innerWidth}x${innerHeight}`, effectiveType: nav.connection?.effectiveType ?? null,
+    hourCycle: new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hourCycle ?? null,
+    calendar: Intl.DateTimeFormat().resolvedOptions().calendar, numberingSystem: Intl.NumberFormat().resolvedOptions().numberingSystem,
+    contrast: matchMedia('(prefers-contrast: more)').matches ? 'more' : 'no-preference',
+  }
+}
+function liveWebGL() {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl')
+    const ext = gl && gl.getExtension('WEBGL_debug_renderer_info')
+    return ext ? `${gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)} · ${gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)}` : '浏览器未提供'
+  }
+  catch { return '读取失败' }
+}
+function realCH() {
+  const d = navigator.userAgentData
+  if (!d) return null
+  return { platform: d.platform, mobile: d.mobile, brands: d.brands.filter(b => !/not.a.brand/i.test(b.brand)).map(b => `${b.brand} ${b.version}`).join(' · ') }
+}
+function buildLiveVisit() {
+  const sig = collectLive()
+  const tzCC = TZ_COUNTRY[sig.timeZone] || 'CN'
+  let region = liveState.ip === 'auto' ? R(tzCC, '', '', '') : LIVE_IP[liveState.ip]
+  if (liveState.datacenter && !region.reserved) region = { ...region, isp: region.cc === 'CN' ? '阿里云' : 'Vultr' }
+  const uaString = liveState.ua === 'real' ? navigator.userAgent : UA[liveState.ua].ua
+  const ch = realCH()
+  const dnt = navigator.doNotTrack === '1' || navigator.globalPrivacyControl === true
+  const v = {
+    id: 0, action: 'visit', createdAt: NOW, visitorId: null, visitCount: 1, user: null, target: ['post', '（当前页面）'], source: 'direct', sourceHost: '',
+    dnt: false, ip: '（模拟）', ipRegion: region, ua: uaString, uaInfo: parseUA(uaString),
+    headers: { acceptLanguage: liveState.al === 'auto' ? toAcceptLanguage(sig.languages) : liveState.al, chPlatform: ch?.platform ?? null, chMobile: ch ? ch.mobile : null, chBrands: ch?.brands || null },
+    signals: sig, prevCC: null,
+  }
+  return { v, a: analyze(v), dnt }
+}
+function renderLive() {
+  const { v, a, dnt } = buildLiveVisit()
+  const opt = liveOptional()
+  const s = v.signals
+  const payload = {
+    path: location.pathname, target_type: 'other', referrer: document.referrer, fingerprint: '（沿用现有 SHA-256 摘要）',
+    signals: {
+      time_zone: s.timeZone, utc_offset: s.utcOffset, languages: s.languages, screen: s.screen, dpr: s.dpr,
+      touch_points: s.touchPoints, pointer: s.pointer, color_scheme: s.colorScheme, webdriver: s.webdriver,
+      ...(liveState.optional ? { locale: s.locale, reduced_motion: s.reducedMotion, hardware_concurrency: opt.hardwareConcurrency, device_memory: opt.deviceMemory, platform_version: liveExtra?.platformVersion ?? null } : {}),
+    },
+  }
+  const sel = (key, options) => `<select data-live="${key}">${options.map(([k, l]) => `<option value="${k}" ${String(liveState[key]) === String(k) ? 'selected' : ''}>${l}</option>`).join('')}</select>`
+  const inf = a.inferred
+  const groups = signalGroups(v, a)
+  groups.splice(2, 0, ['（模拟说明）', null])
+  const optionalItems = [
+    ['区域设置', s.locale], ['时钟格式', opt.hourCycle], ['日历 / 数字', `${opt.calendar} · ${opt.numberingSystem}`], ['减少动态效果', s.reducedMotion ? '是' : '否'], ['高对比度', opt.contrast],
+    ['CPU 线程', opt.hardwareConcurrency ?? '浏览器未提供'], ['设备内存', opt.deviceMemory ? `≥ ${opt.deviceMemory} GB` : '浏览器未提供'], ['视口', opt.viewport.replace('x', '×')], ['网络类型', opt.effectiveType ?? '浏览器未提供'],
+    ['系统版本（高熵 CH）', liveExtra ? (liveExtra.platformVersion ? `${liveExtra.platform} ${liveExtra.platformVersion}${liveExtra.architecture ? ` · ${liveExtra.architecture}` : ''}${liveExtra.model ? ` · ${liveExtra.model}` : ''}` : '浏览器未提供') : '读取中…'],
+  ]
+  return `
+  <div class="grid">
+    ${dnt ? `<div class="callout">${icon('info')}<div>你的浏览器开启了「请勿追踪」或「全局隐私控制」。按新方案，正式环境下<b>不会读取也不会上报</b>这些信号，这里仅在本地演示。</div></div>` : ''}
+    <div class="card"><div class="card-b controls">
+      <label class="sel">模拟 IP 所在地 ${sel('ip', [['auto', '与时区一致（不走代理）'], ['CN', '中国 北京'], ['HK', '中国香港'], ['US', '美国 洛杉矶'], ['JP', '日本 东京'], ['SG', '新加坡'], ['DE', '德国 法兰克福'], ['lan', '局域网']])}</label>
+      <label class="chk"><input type="checkbox" data-live="datacenter" ${liveState.datacenter ? 'checked' : ''}>机房 IP</label>
+      <label class="sel">模拟 UA 切换插件 ${sel('ua', [['real', '不改（真实 UA）'], ['iphone', 'iPhone Safari'], ['winChrome', 'Windows Chrome'], ['macSafari', 'macOS Safari'], ['winFirefox', 'Windows Firefox']])}</label>
+      <label class="sel">模拟 Accept-Language ${sel('al', [['auto', '与浏览器一致'], ['en-US,en;q=0.9', 'en-US（被改写）'], ['ja-JP,ja;q=0.9', 'ja-JP（被改写）']])}</label>
+    </div></div>
+    <div class="grid g-detail">
+      <div class="grid">
+        <div class="card hero v-${a.verdict}">
+          <h2>${deviceIcon(a.deviceType)}${esc(inf.cc ? inf.label : '无法推断')}${verdictBadge(a.verdict)}</h2>
+          <div class="why">${VERDICT[a.verdict].why}</div>
+          <div class="row-flex note"><span>一致性得分</span><div class="meter"><span style="width:${a.score}%"></span></div><b class="tnum" style="color:var(--foreground)">${a.score}</b><span>/ 100</span>${inf.cc ? `<span>推断置信度：${CONF[inf.confidence]}</span>` : ''}</div>
+          <div class="table-wrap"><table class="src-table"><tbody>${inf.sources.map(x => `<tr><td><span class="row-flex" style="gap:6px">${icon(x.icon)}${x.label}</span></td><td>${esc(x.value)}${x.note ? `<div class="note">${esc(x.note)}</div>` : ''}</td><td>${x.cc ? cn(x.cc) : '—'}</td><td>${x.agree === true ? `<span class="vote yes">${icon('check')}采信</span>` : x.agree === false ? `<span class="vote no">${icon('x')}矛盾</span>` : `<span class="vote off">${icon('minus')}不参与</span>`}</td></tr>`).join('')}</tbody></table></div>
+        </div>
+        <div class="card">
+          <div class="card-h">规则结果</div>
+          <div class="card-b" style="padding-top:4px">
+            ${a.hits.length ? a.hits.sort((x, y) => SEV[y.sev].rank - SEV[x.sev].rank).map(ruleItem).join('') : `<div class="rule pass">${icon('check')}<div class="t">没有命中任何规则</div></div>`}
+            <details class="more"><summary>通过与不适用的规则（${a.results.length - a.hits.length}）</summary>${a.results.filter(r => r.status !== 'hit').map(ruleItem).join('')}</details>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h">上报内容预览 <label class="chk" style="font-weight:400"><input type="checkbox" data-live="optional" ${liveState.optional ? 'checked' : ''}>包含可选字段</label></div>
+          <div class="card-b">
+            <pre class="payload">POST /api/v1/visit\n${esc(JSON.stringify(payload, null, 2))}</pre>
+            <p class="note" style="margin:8px 0 0">此外服务器从请求头读取 Accept-Language、Sec-CH-UA、Sec-CH-UA-Mobile、Sec-CH-UA-Platform、DNT / Sec-GPC，并推算 IP 归属地、机房标记与一致性结论。</p>
+          </div>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="card-h">读到的信号</div>
+          <div class="card-b">${groups.map(g => (g[0] === '（模拟说明）' ? `<div class="sig-group"><div class="callout" style="padding:6px 10px">${icon('info')}<div class="note">IP 与 Accept-Language 为模拟值；Client Hints 取自 navigator.userAgentData（与请求头中的值相同），Safari / Firefox 下为空。</div></div></div>` : sigGroup(g))).join('')}</div>
+        </div>
+        <div class="card">
+          <div class="card-h">可选字段 <small>默认不上报</small></div>
+          <div class="card-b">${optionalItems.map(([k, val]) => `<div class="kv"><span class="k">${k}</span><span class="val">${esc(val)}</span><span class="tags"><span class="mini optional">可选</span></span></div>`).join('')}</div>
+        </div>
+        <div class="card">
+          <div class="card-h">不建议采集的例子 <small>仅在本地读取，不会上报</small></div>
+          <div class="card-b">
+            <div class="kv"><span class="k">显卡型号</span><span class="val">${esc(liveWebGL())}</span><span class="tags"><span class="mini no">不建议</span></span></div>
+            <p class="note" style="margin:8px 0 0">显卡型号、Canvas / 音频哈希、字体列表等组合起来几乎能唯一识别一台设备，它们只服务于跨站追踪，对博客统计没有帮助。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`
+}
+
+/* ---------- 7.5 采集字段 ---------- */
+// [分级, 字段, 建议字段名, 读取方式, 示例, 用途, 识别度, 现状]
+const FIELDS = [
+  ['collect', '访问页面、时间、来源', 'path / referrer / source', '前端上报 + 服务器分类', '/p/hello · Google', '阅读统计', '低', '已有'],
+  ['collect', 'IP 地址', 'ip', '服务器（连接地址）', '113.204.50.134，后台显示 113.204.*.*', '归属地查询、限流、防滥用', '高', '已有'],
+  ['collect', 'IP 归属地与运营商', 'location', '服务器离线查询（ip2region）', '重庆 重庆 移动', '地区统计', '低', '已有'],
+  ['collect', 'IP 国家代码', 'ip_country', '服务器离线查询', 'CN', '与时区、语言比对', '低', '新增'],
+  ['collect', '机房网段标记', 'datacenter', '服务器按运营商名单判断', '阿里云 → 是', '识别代理与爬虫', '低', '新增'],
+  ['collect', 'User-Agent 及解析结果', 'user_agent / os / browser / device_type', '请求头', 'macOS · Chrome · 桌面', '设备统计', '中', '已有'],
+  ['collect', 'Client Hints（低熵）', 'ch_platform / ch_mobile / ch_brands', '请求头 Sec-CH-UA*（Chromium 默认发送）', 'macOS · ?0 · Chromium 152', '核对 UA 是否被改', '低', '新增'],
+  ['collect', 'Accept-Language', 'accept_language', '请求头', 'zh-CN,zh;q=0.9', '与浏览器语言比对', '低', '新增'],
+  ['collect', '请勿追踪', '—', '请求头 DNT / Sec-GPC', '开启 → 只做匿名计数', '尊重访客选择', '—', '已有'],
+  ['collect', '时区', 'time_zone', 'Intl.DateTimeFormat().resolvedOptions().timeZone', 'Asia/Shanghai', '推断真实地区、识别代理', '低', '新增'],
+  ['collect', 'UTC 偏移', 'utc_offset', '-new Date().getTimezoneOffset()', '480（UTC+8）', '校验时区是否被篡改', '低', '新增'],
+  ['collect', '浏览器语言（前 3 个）', 'languages', 'navigator.languages', 'zh-CN, zh', '推断地区、读者语言统计', '低', '新增'],
+  ['collect', '屏幕尺寸与像素比', 'screen / dpr', 'screen.width × height、devicePixelRatio', '1512×982 @2x', '核对设备类型、适配参考', '中', '新增'],
+  ['collect', '触控点与指针', 'touch_points / pointer', 'navigator.maxTouchPoints、(pointer: coarse)', '0 · 精细', '核对移动设备、识别 iPad', '低', '新增'],
+  ['collect', '深浅色偏好', 'color_scheme', '(prefers-color-scheme: dark)', '深色', '主题设计参考', '低', '新增'],
+  ['collect', '自动化标记', 'webdriver', 'navigator.webdriver', 'false', '识别脚本访问', '低', '新增'],
+  ['collect', '浏览器特征摘要', 'fingerprint', '以上低熵特征的 SHA-256', '3f9a…（不可还原）', 'Cookie 丢失时找回访客', '中', '已有'],
+  ['collect', '一致性结论', 'trust / flags / inferred_country', '服务器按规则计算', '疑似代理 · tz_vs_ip · CN', '列表筛选、统计', '—', '新增'],
+  ['optional', '区域设置、时钟格式、日历', 'locale / hour_cycle', 'Intl 各项 resolvedOptions', 'zh-CN · h23 · gregory', '几乎都能由语言推出，检测价值低', '低', '—'],
+  ['optional', '减少动态效果、高对比度', 'reduced_motion / contrast', 'matchMedia', '否', '无障碍统计', '低', '—'],
+  ['optional', 'CPU 线程与设备内存', 'hardware_concurrency / device_memory', 'navigator.hardwareConcurrency、deviceMemory', '10 · ≥ 8 GB', '设备档次统计，对检测帮助小', '中', '—'],
+  ['optional', '视口尺寸', 'viewport', 'innerWidth × innerHeight', '1280×720', '排版适配，随窗口变化', '中', '—'],
+  ['optional', '网络类型', 'effective_type', 'navigator.connection（仅 Chromium）', '4g', '粗略网速', '低', '—'],
+  ['optional', '系统版本、设备型号（高熵 Client Hints）', 'platform_version / model', 'userAgentData.getHighEntropyValues()', 'macOS 26.1 · Pixel 9', 'UA 里的版本号已冻结，这是区分 Windows 10 / 11 的唯一办法', '中高', '—'],
+  ['no', 'Canvas / WebGL 图像哈希、音频指纹', '—', '绘图或合成音频后取哈希', '7669158d…', '只用于跨站追踪', '高', '—'],
+  ['no', '显卡型号', 'webgl_renderer', 'WEBGL_debug_renderer_info', 'Apple M5', '高熵。若要识别软件渲染，只在前端算出「是否软件渲染」一位', '高', '—'],
+  ['no', '字体列表、语音列表、数学函数指纹', '—', '逐个探测', '装了 14 / 46 种字体', '指纹级', '高', '—'],
+  ['no', 'WebRTC 公网 / 局域网地址', '—', 'RTCPeerConnection + STUN', '185.244.*.*', '利用泄露绕过 VPN，还要连接第三方 STUN 服务器', '高', '—'],
+  ['no', '媒体设备、电池、存储配额、权限状态', '—', 'enumerateDevices / getBattery 等', '摄像头 1 · 电量 100%', '与博客无关', '中高', '—'],
+  ['no', '扩展 / 广告拦截探测、history.length', '—', 'DOM 诱饵、页面历史', '未检测到', '侵入性强，与博客无关', '中', '—'],
+  ['no', 'TLS 指纹（JA3 / JA4）', '—', '在 CDN / 反代层读取 ClientHello', '5d1e0655…', '指纹级，且依赖部署环境', '高', '—'],
+  ['no', '精确地理位置', '—', 'Geolocation（会弹出授权）', '—', '超出访客统计所需（天气卡片另有授权流程）', '高', '—'],
+]
+function renderFields() {
+  const section = (tier, title, desc) => {
+    const rows = FIELDS.filter(f => f[0] === tier)
+    return `<div class="card">
+      <div class="card-h"><span class="row-flex" style="gap:8px"><span class="mini ${tier}" style="font-size:12px">${TIER[tier].label}</span>${title}</span><small>${rows.length} 项</small></div>
+      <div class="card-b"><p class="note" style="margin:0 0 8px">${desc}</p><div class="table-wrap"><table>
+        <thead><tr><th>字段</th><th>建议字段名</th><th>读取方式</th><th>示例</th><th>用途</th><th>识别度</th>${tier === 'collect' ? '<th>现状</th>' : ''}</tr></thead>
+        <tbody>${rows.map(f => `<tr><td><b style="font-weight:500">${f[1]}</b></td><td class="mono">${f[2]}</td><td class="muted">${f[3]}</td><td>${f[4]}</td><td>${f[5]}</td><td>${f[6]}</td>${tier === 'collect' ? `<td>${f[7] === '新增' ? '<span class="badge secondary">新增</span>' : '<span class="muted">已有</span>'}</td>` : ''}</tr>`).join('')}</tbody>
+      </table></div></div>
+    </div>`
+  }
+  return `<div class="grid">
+    <div class="callout">${icon('info')}<div>
+      <b>取舍原则</b>：只收「能回答博客问题」的信号——读者在哪、用什么设备、IP 是否可信、是不是机器人。所有新增信号都是浏览器无需授权就公开的低熵值，可以完整写进隐私政策；开启「请勿追踪」时一律不读取。
+      现有的 <span class="mono">fingerprint</span> 摘要继续只用于找回丢失 Cookie 的访客，不新增任何指纹级信号。
+    </div></div>
+    ${section('collect', '建议采集', '新增项都随访问上报写入 visit_logs，跟随现有保留期自动删除；访客汇总表只保留最近一次的结论。')}
+    ${section('optional', '可选', '有一定统计价值，但对一致性检测帮助不大，或熵值偏高。建议先不收，有具体需求再逐项打开。')}
+    ${section('no', '不建议', '指纹级或侵入性信号：组合后可以跨站、跨会话识别同一台设备，与「个人博客访客统计」不成比例。')}
+  </div>`
+}
+
+/* ---------- 7.6 检测规则 ---------- */
+function renderRules() {
+  return `<div class="grid">
+    <div class="card"><div class="card-h">规则列表 <small>${RULES.length} 条，按类别分组</small></div>
+      <div class="card-b"><div class="table-wrap"><table>
+        <thead><tr><th>类别</th><th>规则</th><th>严重度</th><th>判定条件</th><th>依据</th><th>可能误报</th></tr></thead>
+        <tbody>${RULES.map(r => `<tr><td class="muted" style="white-space:nowrap">${CAT[r.cat]}</td><td><b style="font-weight:500">${r.name}</b><div class="mono muted" style="font-size:11px">${r.id}</div></td><td style="white-space:nowrap">${r.sevText}</td><td>${r.cond}</td><td class="muted">${r.why}</td><td class="muted">${r.fp}</td></tr>`).join('')}</tbody>
+      </table></div></div>
+    </div>
+    <div class="grid g3">
+      <div class="card"><div class="card-h">可信度结论</div><div class="card-b" style="display:grid;gap:10px;font-size:13px">
+        <div>${verdictBadge('unknown')} 开启请勿追踪，或没有浏览器信号（旧记录）</div>
+        <div>${verdictBadge('bot')} 「自动化」类规则命中中等及以上</div>
+        <div>${verdictBadge('spoofed')} 否则，「浏览器环境」类命中中等及以上</div>
+        <div>${verdictBadge('proxy')} 否则，「位置可信度」类命中中等及以上</div>
+        <div>${verdictBadge('trusted')} 其余（允许命中轻微和提示级）</div>
+        <p class="note" style="margin:0">按上面的顺序取第一个满足的结论。疑似自动化默认不计入浏览量、访客数和文章浏览量。</p>
+      </div></div>
+      <div class="card"><div class="card-h">地区推断</div><div class="card-b" style="font-size:13px">
+        <p style="margin:0 0 8px">三个来源投票，得票最多的国家即推断地区：</p>
+        <ul style="margin:0 0 8px;padding-left:18px">
+          <li><b>时区</b> 权重 2：代理改不了系统时区；被隐藏（UTC）或与偏移矛盾时为 0</li>
+          <li><b>IP</b> 权重 1：机房网段为 0</li>
+          <li><b>语言</b> 权重 1：只在能确定单一国家时参与（zh-CN、ja 等），英语不参与</li>
+        </ul>
+        <p class="note" style="margin:0">票数相同时依次信任时区、IP、语言。推断结果与 IP 国家一致时显示 IP 的省市；不一致时只显示国家，并标记「推断」。置信度：领先 ≥ 2 票且总票 ≥ 3 为高，单纯领先为中，打平为低。</p>
+      </div></div>
+      <div class="card"><div class="card-h">一致性得分</div><div class="card-b" style="font-size:13px">
+        <p style="margin:0 0 8px">满分 100，每条命中按严重度扣分：</p>
+        <div style="display:grid;gap:6px">${Object.entries(SEV).map(([k, s]) => `<div class="row-flex between">${sevBadge(k)}<span class="tnum muted">−${s.w}</span></div>`).join('')}</div>
+        <p class="note" style="margin:8px 0 0">得分只用于详情页展示和排序，结论以上面的分类为准，避免多条轻微规则叠加成误判。</p>
+      </div></div>
+    </div>
+    <div class="callout">${icon('info')}<div>
+      <b>后端实现要点</b>：规则在服务端用 Go 实现（新文件 <span class="mono">internal/service/visit_trust.go</span>），只依赖上报信号、请求头与 ip2region 结果，不做额外网络请求。时区→国家对照表可由 tzdata 的 zone1970.tab 生成后内置；客户端结论不可信，所以前端只上报原始值，结论一律由服务器计算。
+    </div></div>
+  </div>`
+}
+
+/* ---------- 7.7 隐私政策（简版） ---------- */
+function renderPrivacy() {
+  return `<div class="grid">
+    <div class="callout">${icon('info')}<div>
+      现行政策 13 节，正文约 3,700 字；草案 6 节，<span id="privacy-count"></span>。删掉的主要是第三方服务的逐项说明、天气卡片定位细节和重复的权利条款，保留了法律上需要告知的要点。标有 <span class="todo" style="font-size:11px;padding:0 6px;border-radius:4px;background:color-mix(in oklab, var(--warning) 22%, var(--card))">待实现</span> 的条目需要配套改动后端。
+    </div></div>
+    <article class="card prose" id="privacy-doc">
+      <h1>隐私政策</h1>
+      <p class="muted" style="font-size:13px">最近更新：2026 年 11 月（草案）</p>
+      <div class="tldr"><b>一句话</b>：这是一个个人博客，只记录了解阅读情况和防止滥用所需的少量信息。不卖数据，不投广告，不做跨站追踪。</div>
+
+      <h2>1. 浏览时记录什么</h2>
+      <ul>
+        <li>你访问的页面、时间，以及从哪个网页过来。</li>
+        <li>IP 地址，以及据此查到的大致地区和运营商。后台只显示 IP 的前半段。</li>
+        <li>浏览器公开的基础信息：系统、浏览器、设备类型、屏幕尺寸、语言、时区、深浅色偏好，以及是否由自动化程序控制。</li>
+      </ul>
+      <p>我们用时区和语言核对 IP 所在地，判断访问是否经过代理或来自机器人，结果只用于统计。我们<b>不收集</b>画布、显卡、音频等设备指纹，也不收集字体列表或精确位置。</p>
+
+      <h2>2. 登录、评论和点赞</h2>
+      <ul>
+        <li>账号：用户名、昵称和邮箱；密码加密保存。用第三方账号登录时，会获取对方提供的名称、邮箱和头像。</li>
+        <li>评论：内容，以及发表时的 IP 和大致地区。IP 不会公开；地区和客户端信息是否展示由你决定。</li>
+      </ul>
+
+      <h2>3. Cookie</h2>
+      <ul>
+        <li><b>nb_vid</b>：随机访客编号，用来区分新老访客，保存 1 年。</li>
+        <li><b>token、refresh_token</b>：登录状态；<b>oidc_nonce</b>：第三方登录校验，10 分钟后失效。</li>
+        <li>主题、音量等偏好只存在你的浏览器里。本站不使用广告或跨站追踪 Cookie。</li>
+      </ul>
+
+      <h2>4. 保存多久</h2>
+      <ul>
+        <li>访问记录：90 天后自动删除。</li>
+        <li>访客汇总（最近一次的地区、设备和访问次数）：最后一次访问 1 年后删除。<span class="todo">待实现</span></li>
+        <li>账号和评论：直到你删除或注销。</li>
+      </ul>
+
+      <h2>5. 第三方服务</h2>
+      <p>人机验证、第三方登录、Gravatar 头像、CDN 资源和天气卡片会让对应服务看到你的 IP，它们按自己的隐私政策处理。IPv4 归属地在本站服务器离线查询；IPv6 归属地可能交给第三方查询。除此之外，我们不会把你的信息交给任何人。</p>
+
+      <h2>6. 你可以怎么做</h2>
+      <ul>
+        <li><b>不想被记录</b>：开启浏览器的「请勿追踪」或「全局隐私控制」。本站只做匿名计数：不保存 IP，不读取上面的浏览器信息，也不设置访客 Cookie。</li>
+        <li>清除本站 Cookie 后，下次访问会被当作新访客。</li>
+        <li>联系站长查看、导出或删除与你有关的记录，或注销账号。</li>
+      </ul>
+      <p class="muted" style="font-size:13px">未满 14 周岁请在监护人同意后注册或评论。政策变化时会更新本页日期，重大变化会在站内提示。联系方式见页脚或站长主页。</p>
+    </article>
+  </div>`
+}
+
+/* ============================================================
+ * 8. 路由、交互与主题
+ * ============================================================ */
+const view = document.getElementById('view')
+const RENDER = { list: renderList, detail: renderDetail, dashboard: renderDashboard, live: renderLive, fields: renderFields, rules: renderRules, privacy: renderPrivacy }
+function route() {
+  const [name, arg] = (location.hash.slice(1) || 'list').split('/')
+  const key = RENDER[name] ? name : 'list'
+  if (key === 'detail' && arg) detailId = Number(arg)
+  const meta = VIEWS[key]
+  document.getElementById('crumb').textContent = meta.crumb
+  document.getElementById('title').textContent = meta.title
+  document.getElementById('desc').textContent = meta.desc
+  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.view === key))
+  view.innerHTML = RENDER[key]()
+  hideTip()
+  if (key === 'privacy') {
+    const n = document.getElementById('privacy-doc').innerText.replace(/\s/g, '').length
+    document.getElementById('privacy-count').textContent = `约 ${Math.round(n / 50) * 50} 字`
+  }
+  if (key === 'live' && !liveExtra) {
+    const d = navigator.userAgentData
+    const done = (x) => { liveExtra = x; if ((location.hash.slice(1) || 'list') === 'live') view.innerHTML = renderLive() }
+    if (d?.getHighEntropyValues) d.getHighEntropyValues(['platformVersion', 'architecture', 'model']).then(x => done({ ...x, platform: d.platform })).catch(() => done({}))
+    else done({})
+  }
+}
+document.querySelectorAll('#nav a').forEach((a) => { const m = VIEWS[a.dataset.view]; a.innerHTML = `${icon(m.icon)}${m.nav}` })
+window.addEventListener('hashchange', () => { route(); window.scrollTo(0, 0) })
+
+view.addEventListener('click', (e) => {
+  const tab = e.target.closest('.tabs[data-state] .tab')
+  if (tab) {
+    const key = tab.parentElement.dataset.state
+    if (key === 'range') dashRange = Number(tab.dataset.v)
+    else listState[key] = tab.dataset.v
+    route()
+    return
+  }
+  // 原型中标题链接不跳转，点击整行进入详情
+  if (e.target.closest('a[href="#"]')) e.preventDefault()
+  const row = e.target.closest('[data-go]')
+  if (row) location.hash = row.dataset.go
+})
+view.addEventListener('change', (e) => {
+  const el = e.target
+  if (el.dataset.state) { listState[el.dataset.state] = el.value; route() }
+  if (el.dataset.live) { liveState[el.dataset.live] = el.type === 'checkbox' ? el.checked : el.value; view.innerHTML = renderLive(); hideTip() }
+})
+
+// 悬停提示：图表与标记统一使用 data-tip
+const tip = document.getElementById('tip')
+function hideTip() { tip.style.display = 'none' }
+window.addEventListener('scroll', hideTip, { passive: true })
+document.addEventListener('mousemove', (e) => {
+  const el = e.target.closest('[data-tip]')
+  if (!el) { hideTip(); return }
+  tip.textContent = el.dataset.tip
+  tip.style.display = 'block'
+  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8)
+  const y = e.clientY + 16 + tip.offsetHeight > innerHeight ? e.clientY - tip.offsetHeight - 10 : e.clientY + 16
+  tip.style.left = `${x}px`
+  tip.style.top = `${y}px`
+})
+
+// 主题：跟随系统 / 浅色 / 深色
+const THEMES = [['system', 'laptop', '系统'], ['light', 'sun', '浅色'], ['dark', 'moon', '深色']]
+let theme = localStorage.getItem('visitor-proto-theme') || 'system'
+const media = matchMedia('(prefers-color-scheme: dark)')
+function applyTheme() {
+  document.documentElement.classList.toggle('dark', theme === 'dark' || (theme === 'system' && media.matches))
+  document.getElementById('theme').innerHTML = THEMES.map(([k, ic, l]) => `<button class="tab ${theme === k ? 'on' : ''}" data-theme="${k}" title="${l}">${icon(ic)}${l}</button>`).join('')
+}
+document.getElementById('theme').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-theme]')
+  if (!b) return
+  theme = b.dataset.theme
+  localStorage.setItem('visitor-proto-theme', theme)
+  applyTheme()
+})
+media.addEventListener('change', applyTheme)
+applyTheme()
+route()
+</script>
+</body>
+</html>

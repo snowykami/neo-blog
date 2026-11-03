@@ -62,6 +62,22 @@ const (
 	VisitActionComment = "comment" // 评论文章/页面，目标为评论时即回复
 )
 
+// 访问的可信度结论：由浏览器信号、请求头与 IP 归属地的一致性检测得出
+const (
+	VisitTrustTrusted = "trusted" // 各项信号互相吻合
+	VisitTrustProxy   = "proxy"   // IP 与时区、语言矛盾或属于机房，多半经过代理
+	VisitTrustSpoofed = "spoofed" // 浏览器自报信息互相矛盾
+	VisitTrustBot     = "bot"     // 存在自动化特征，不计入浏览量与访客数
+	VisitTrustUnknown = "unknown" // 开启请勿追踪或缺少浏览器信号
+)
+
+// 页面内事件类型，由兼容 Plausible 的上报接口写入
+const (
+	VisitEventOutbound = "outbound"  // 点击外链
+	VisitEventDownload = "download"  // 下载文件
+	VisitEventWebVital = "web_vital" // Web Vitals 性能指标
+)
+
 // 资产库列表范围与类型筛选
 const (
 	FileScopeMine = "mine"

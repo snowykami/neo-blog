@@ -190,7 +190,8 @@ func migrate() error {
 		&model.User{},
 		&model.UserOpenID{},
 		&model.Visitor{},
-		&model.VisitLog{}); err != nil {
+		&model.VisitLog{},
+		&model.VisitEvent{}); err != nil {
 		return err
 	}
 	if err := createQueryIndexes(); err != nil {

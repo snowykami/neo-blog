@@ -42,3 +42,26 @@ func (cc *AdminController) GetVisitor(ctx context.Context, c *app.RequestContext
 	}
 	resps.Ok(c, resps.Success, visitor)
 }
+
+func (cc *AdminController) GetVisit(ctx context.Context, c *app.RequestContext) {
+	detail, svcerr := service.NewVisitService().GetVisitDetail(ctx, ctxutils.GetIDParam(c).Uint)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, detail)
+}
+
+func (cc *AdminController) GetVisitInsights(ctx context.Context, c *app.RequestContext) {
+	req := &dto.VisitInsightsReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	insights, svcerr := service.NewVisitService().GetInsights(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, insights)
+}

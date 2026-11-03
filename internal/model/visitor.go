@@ -1,10 +1,10 @@
 package model
 
 import (
+	"strings"
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
-	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
 // Visitor 访客：一个浏览器对应一条，通过 Cookie（VisitorKey）识别，Cookie 丢失时用指纹辅助找回
@@ -16,6 +16,7 @@ type Visitor struct {
 	User         *User  `gorm:"constraint:OnDelete:SET NULL"`
 	LastIP       string `gorm:"type:varchar(64)"`
 	LastLocation string `gorm:"type:varchar(128)"`
+	LastCountry  string `gorm:"type:varchar(8)"` // 最近一次访问的 IP 国家，用于发现 IP 国家突变
 	OS           string `gorm:"type:varchar(32)"`
 	Browser      string `gorm:"type:varchar(32)"`
 	DeviceType   string `gorm:"type:varchar(16)"`
@@ -53,12 +54,55 @@ type VisitLog struct {
 	Browser      string    `gorm:"type:varchar(32)"`
 	DeviceType   string    `gorm:"type:varchar(16)"`
 	CreatedAt    time.Time `gorm:"index"`
+
+	// IP 归属地补充信息
+	IPCountry   string `gorm:"type:varchar(8)"`  // 国家代码，港澳台单独区分
+	ISP         string `gorm:"type:varchar(64)"` // 运营商
+	Datacenter  bool   // 运营商属于机房 / 云服务商
+	PrevCountry string `gorm:"type:varchar(8)"` // 该访客上一次访问的 IP 国家
+	// 浏览器信号与请求头，开启请勿追踪时不保存
+	HasSignals     bool
+	TimeZone       string `gorm:"type:varchar(64)"`
+	UTCOffset      *int   // 分钟，东正西负
+	Languages      string `gorm:"type:varchar(128)"` // 逗号分隔
+	Screen         string `gorm:"type:varchar(32)"`
+	DPR            float64
+	TouchPoints    *int
+	Pointer        string `gorm:"type:varchar(8)"`
+	ColorScheme    string `gorm:"type:varchar(8)"`
+	Webdriver      bool
+	AcceptLanguage string `gorm:"type:varchar(128)"`
+	CHPlatform     string `gorm:"type:varchar(32)"`
+	CHMobile       *bool
+	CHBrands       string `gorm:"type:varchar(255)"`
+	// 一致性检测结果，见 service.analyzeVisitTrust
+	Trust           string `gorm:"type:varchar(16);default:'';index"`
+	TrustScore      *int
+	TrustFlags      string `gorm:"type:varchar(512)"` // 命中的规则：id:severity，逗号分隔，按严重度排序
+	InferredCountry string `gorm:"type:varchar(8);index"`
+	// 阅读参与度：由页面离开或切到后台时的 engagement 事件累计，未收到时为空
+	EngagedMs   *int64 // 页面在前台且获得焦点的累计时长（毫秒）
+	ScrollDepth *int   // 最大滚动深度（0-100）
+}
+
+// VisitEvent 页面内的行为与性能事件：外链点击、文件下载、Web Vitals
+type VisitEvent struct {
+	ID         uint   `gorm:"primaryKey"`
+	VisitLogID *uint  `gorm:"index"` // 所在的那次访问，无法关联时为空
+	VisitorID  *uint  `gorm:"index"`
+	Name       string `gorm:"type:varchar(32);index:idx_visit_events_name_time"` // 见 constant.VisitEvent*
+	Path       string `gorm:"type:varchar(512)"`
+	Label      string `gorm:"type:varchar(512)"` // 外链 / 文件地址，或 Web Vitals 指标名
+	Value      float64
+	Rating     string    `gorm:"type:varchar(24)"` // Web Vitals 评级：good / needs-improvement / poor
+	DeviceType string    `gorm:"type:varchar(16)"`
+	CreatedAt  time.Time `gorm:"index:idx_visit_events_name_time"`
 }
 
 func (v *Visitor) ToDto() *dto.VisitorDto {
 	result := &dto.VisitorDto{
 		ID:          v.ID,
-		IP:          utils.MaskIP(v.LastIP),
+		IP:          v.LastIP,
 		Location:    v.LastLocation,
 		OS:          v.OS,
 		Browser:     v.Browser,
@@ -85,12 +129,25 @@ func (l *VisitLog) ToDto() *dto.VisitLogDto {
 		Referrer:   l.Referrer,
 		Source:     l.Source,
 		SourceHost: l.ReferrerHost,
-		IP:         utils.MaskIP(l.IP),
+		IP:         l.IP,
 		Location:   l.Location,
 		OS:         l.OS,
 		Browser:    l.Browser,
 		DeviceType: l.DeviceType,
 		CreatedAt:  l.CreatedAt,
+
+		Trust:           l.Trust,
+		TrustScore:      l.TrustScore,
+		TrustFlags:      l.ParseTrustFlags(),
+		IPCountry:       l.IPCountry,
+		InferredCountry: l.InferredCountry,
+		IPTrusted:       l.InferredCountry != "" && l.InferredCountry == l.IPCountry && !l.Datacenter,
+		UTCOffset:       l.UTCOffset,
+		EngagedMs:       l.EngagedMs,
+		ScrollDepth:     l.ScrollDepth,
+	}
+	if langs := l.LanguageList(); len(langs) > 0 {
+		result.Language = langs[0]
 	}
 	if l.User != nil {
 		user := l.User.ToDto()
@@ -104,4 +161,49 @@ func (l *VisitLog) ToDto() *dto.VisitLogDto {
 		result.VisitCount = l.Visitor.VisitCount
 	}
 	return result
+}
+
+// LanguageList 保存的浏览器语言列表
+func (l *VisitLog) LanguageList() []string {
+	if l.Languages == "" {
+		return []string{}
+	}
+	return strings.Split(l.Languages, ",")
+}
+
+// ParseTrustFlags 解析命中的规则列表
+func (l *VisitLog) ParseTrustFlags() []dto.VisitTrustFlagDto {
+	flags := []dto.VisitTrustFlagDto{}
+	if l.TrustFlags == "" {
+		return flags
+	}
+	for _, item := range strings.Split(l.TrustFlags, ",") {
+		id, severity, _ := strings.Cut(item, ":")
+		flags = append(flags, dto.VisitTrustFlagDto{ID: id, Severity: severity})
+	}
+	return flags
+}
+
+// SignalsDto 后台详情展示的全部信号
+func (l *VisitLog) SignalsDto() *dto.VisitSignalsDto {
+	return &dto.VisitSignalsDto{
+		HasSignals:     l.HasSignals,
+		UserAgent:      l.UserAgent,
+		AcceptLanguage: l.AcceptLanguage,
+		CHPlatform:     l.CHPlatform,
+		CHMobile:       l.CHMobile,
+		CHBrands:       l.CHBrands,
+		ISP:            l.ISP,
+		Datacenter:     l.Datacenter,
+		PrevCountry:    l.PrevCountry,
+		TimeZone:       l.TimeZone,
+		UTCOffset:      l.UTCOffset,
+		Languages:      l.LanguageList(),
+		Screen:         l.Screen,
+		DPR:            l.DPR,
+		TouchPoints:    l.TouchPoints,
+		Pointer:        l.Pointer,
+		ColorScheme:    l.ColorScheme,
+		Webdriver:      l.Webdriver,
+	}
 }

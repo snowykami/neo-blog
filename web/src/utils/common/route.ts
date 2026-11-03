@@ -7,6 +7,7 @@ export const consolePath = {
   comment: '/console/comments',
   lyricEffect: '/console/lyric-effects',
   visit: '/console/visits',
+  visitInsights: '/console/visit-insights',
   file: '/console/files',
   global: '/console/global',
   storage: '/console/storages',

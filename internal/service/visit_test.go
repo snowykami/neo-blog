@@ -32,7 +32,7 @@ func TestVisitReport(t *testing.T) {
 	}
 
 	// 1. 新访客：生成访客ID并记录一条，归属地与设备解析正确
-	key, svcerr := svc.Report(anon, postReq(testFP), "", testIP, testChromeUA, false)
+	key, svcerr := svc.Report(anon, postReq(testFP), "", VisitClient{IP: testIP, UserAgent: testChromeUA})
 	if svcerr != nil || key == "" {
 		t.Fatalf("first report: key=%q err=%v", key, svcerr)
 	}
@@ -46,37 +46,37 @@ func TestVisitReport(t *testing.T) {
 	}
 
 	// 2. 同一访客 10 分钟内刷新同一页面不重复记录
-	if again, _ := svc.Report(anon, postReq(testFP), key, testIP, testChromeUA, false); again != key || countVisitLogs(t) != 1 {
+	if again, _ := svc.Report(anon, postReq(testFP), key, VisitClient{IP: testIP, UserAgent: testChromeUA}); again != key || countVisitLogs(t) != 1 {
 		t.Fatalf("dedup failed: key=%q logs=%d", again, countVisitLogs(t))
 	}
 
 	// 3. Cookie 丢失：同指纹、同网段找回原访客；访问另一页面正常记录
 	other := &dto.ReportVisitReq{Path: "/a", Fingerprint: testFP}
-	if recovered, _ := svc.Report(anon, other, "", "222.178.10.99", testChromeUA, false); recovered != key {
+	if recovered, _ := svc.Report(anon, other, "", VisitClient{IP: "222.178.10.99", UserAgent: testChromeUA}); recovered != key {
 		t.Fatalf("fingerprint recovery failed: got %q want %q", recovered, key)
 	}
 	// 不同网段即使指纹相同也视为新访客
-	if fresh, _ := svc.Report(anon, other, "", "113.92.157.29", testChromeUA, false); fresh == key || fresh == "" {
+	if fresh, _ := svc.Report(anon, other, "", VisitClient{IP: "113.92.157.29", UserAgent: testChromeUA}); fresh == key || fresh == "" {
 		t.Fatalf("different network should create new visitor, got %q", fresh)
 	}
 
 	// 4. 登录用户访问会关联到访客；管理员与爬虫不记录
 	before := countVisitLogs(t)
-	if _, svcerr := svc.Report(author, &dto.ReportVisitReq{Path: "/l"}, key, testIP, testChromeUA, false); svcerr != nil {
+	if _, svcerr := svc.Report(author, &dto.ReportVisitReq{Path: "/l"}, key, VisitClient{IP: testIP, UserAgent: testChromeUA}); svcerr != nil {
 		t.Fatalf("user report: %v", svcerr)
 	}
 	visitor, _ := repo.Visit.GetVisitorByKey(key)
 	if visitor.UserID == nil || visitor.VisitCount != 3 {
 		t.Fatalf("visitor not linked or count wrong: %+v", visitor)
 	}
-	svc.Report(admin, &dto.ReportVisitReq{Path: "/admin-visit"}, "", testIP, testChromeUA, false)
-	svc.Report(anon, &dto.ReportVisitReq{Path: "/bot"}, "", testIP, "Mozilla/5.0 (compatible; Googlebot/2.1)", false)
+	svc.Report(admin, &dto.ReportVisitReq{Path: "/admin-visit"}, "", VisitClient{IP: testIP, UserAgent: testChromeUA})
+	svc.Report(anon, &dto.ReportVisitReq{Path: "/bot"}, "", VisitClient{IP: testIP, UserAgent: "Mozilla/5.0 (compatible; Googlebot/2.1)"})
 	if got := countVisitLogs(t); got != before+1 {
 		t.Fatalf("admin/bot should not be recorded: logs %d -> %d", before, got)
 	}
 
 	// 5. 请勿追踪：只计数，不种 Cookie、不保存 IP/UA/访客
-	if dntKey, _ := svc.Report(anon, &dto.ReportVisitReq{Path: "/dnt", Fingerprint: testFP}, "", testIP, testChromeUA, true); dntKey != "" {
+	if dntKey, _ := svc.Report(anon, &dto.ReportVisitReq{Path: "/dnt", Fingerprint: testFP}, "", VisitClient{IP: testIP, UserAgent: testChromeUA, DoNotTrack: true}); dntKey != "" {
 		t.Fatalf("dnt should not return visitor key, got %q", dntKey)
 	}
 	// 用新变量查询，避免 GORM 带上已有主键作为条件
@@ -87,12 +87,12 @@ func TestVisitReport(t *testing.T) {
 	}
 
 	// 6. 非法路径被拒绝
-	if _, svcerr := svc.Report(anon, &dto.ReportVisitReq{Path: "http://evil"}, "", testIP, testChromeUA, false); svcerr == nil {
+	if _, svcerr := svc.Report(anon, &dto.ReportVisitReq{Path: "http://evil"}, "", VisitClient{IP: testIP, UserAgent: testChromeUA}); svcerr == nil {
 		t.Fatalf("invalid path should be rejected")
 	}
 
 	// 站内跳转（来源为本站域名）不计入来源排行
-	if _, svcerr := svc.Report(anon, &dto.ReportVisitReq{Path: "/c/go", Referrer: "https://blog.example.com/a"}, key, testIP, testChromeUA, false, "blog.example.com"); svcerr != nil {
+	if _, svcerr := svc.Report(anon, &dto.ReportVisitReq{Path: "/c/go", Referrer: "https://blog.example.com/a"}, key, VisitClient{IP: testIP, UserAgent: testChromeUA, Hosts: []string{"blog.example.com"}}); svcerr != nil {
 		t.Fatalf("internal report: %v", svcerr)
 	}
 	var internalLog model.VisitLog
@@ -123,7 +123,7 @@ func TestVisitReport(t *testing.T) {
 		t.Fatalf("list: total=%d err=%v", total, svcerr)
 	}
 	last := items[len(items)-1]
-	if last.Subject == nil || last.Subject.Title != post.Title || last.IP != "222.178.*.*" {
+	if last.Subject == nil || last.Subject.Title != post.Title || last.IP != testIP {
 		t.Fatalf("first log dto: subject=%+v ip=%q", last.Subject, last.IP)
 	}
 	userItems, userTotal, _ := svc.ListVisitLogs(admin, &dto.ListVisitLogReq{Kind: "user", PaginationParams: dto.PaginationParams{Page: 1, Size: 10}})

@@ -40,6 +40,8 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		// 访客记录
 		consoleGroup.GET("/visits", adminController.ListVisits)
 		consoleGroup.GET("/visits/stats", adminController.GetVisitStats)
+		consoleGroup.GET("/visits/insights", adminController.GetVisitInsights)
+		consoleGroup.GET("/visits/:id", adminController.GetVisit)
 		consoleGroup.GET("/visitors/:id", adminController.GetVisitor)
 	}
 }

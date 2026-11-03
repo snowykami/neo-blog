@@ -1,122 +1,55 @@
 {
   "Privacy": {
-    "updated": "最近更新並自 {date} 起生效",
-    "intro": "歡迎來到 {site}。這份隱私權政策會用盡量淺白的話告訴你：你在瀏覽、註冊、留言時，本站會記錄哪些資訊、拿來做什麼、保存多久，以及你可以如何管理自己的資訊。本站由站長 {owner} 經營，下文中的「我們」「站長」皆指本站經營者。",
+    "updated": "最近更新並生效於 {date}",
     "summary": {
-      "title": "一分鐘速覽",
-      "items": {
-        "no_sale": "我們<b>不會出售</b>你的資訊，也不會用它投放廣告。",
-        "stats": "你瀏覽時，本站會記錄造訪統計（看了哪些頁面、大致地區、裝置類型等），用來了解部落格的閱讀情況。",
-        "dnt": "瀏覽器開啟「請勿追蹤」後，本站只記錄最基本的造訪資訊，不保存 IP 位址，也不設定訪客 Cookie。",
-        "comment": "留言和按讚需要登入；你的 IP 位址不會公開顯示。",
-        "rights": "你可以隨時修改自己的個人資料，或聯絡站長查閱、刪除與你有關的資訊。"
-      }
+      "title": "一句話",
+      "body": "{site} 是 {owner} 的個人部落格，只記錄了解閱讀情況和防止濫用所需的少量資訊。不賣資料，不投放廣告，不做跨網站追蹤。"
     },
     "browse": {
-      "title": "瀏覽本站時",
-      "body": "為了統計文章的閱讀情況、了解讀者從哪裡來，你開啟頁面時本站會記錄以下資訊：",
+      "title": "瀏覽時記錄什麼",
       "items": {
-        "page": "<b>造訪了什麼</b>：造訪的頁面和時間，以及你是從哪個網頁連過來的（例如搜尋引擎或其他網站）。",
-        "network": "<b>網路資訊</b>：你的 IP 位址，以及據此推算出的大致地區（省份、城市）和網路服務供應商。它只能大致反映地區，無法定位到你的具體位置。",
-        "device": "<b>裝置資訊</b>：瀏覽器造訪任何網站時都會附帶的基本說明，從中可以看出你使用的裝置類型、作業系統和瀏覽器。",
-        "feature": "<b>瀏覽器特徵摘要</b>：用語言、時區、螢幕尺寸等基本設定計算出的一串無法還原的編碼，僅在訪客 Cookie 被清除時幫助識別同一瀏覽器的再次造訪。我們不會使用更具侵入性的「裝置指紋」技術。",
-        "account": "<b>帳號關聯</b>：如果你已登入，造訪紀錄會與你的帳號關聯。"
+        "page": "你造訪的頁面、時間，以及從哪個網頁過來。",
+        "network": "IP 位址，以及據此查到的大致地區和網路業者。IP 位址只有站長能在後台看到，不會公開。",
+        "browser": "瀏覽器公開的基本資訊：系統、瀏覽器、裝置類型、螢幕尺寸、語言、時區、深淺色偏好，以及是否由自動化程式控制。",
+        "engagement": "閱讀情況：在頁面上的有效停留時間、捲動到多深、點擊了哪些外部連結或下載，以及頁面載入速度等效能資料。"
       },
-      "note": "搜尋引擎爬蟲等自動程式的造訪，以及站長本人的造訪不會被記錄。造訪紀錄只有站長能在後台查看，且後台顯示時會隱去 IP 位址的後半段。"
+      "note": "我們用時區和語言核對 IP 所在地，判斷造訪是否經過代理或來自機器人，結果只用於統計。我們<b>不收集</b>畫布、顯示卡、音訊等裝置指紋，也不收集字型清單或精確位置。搜尋引擎爬蟲和站長本人的造訪不會被記錄。"
     },
     "account": {
-      "title": "註冊與登入",
-      "body": "註冊不是必要的，不登入也能正常閱讀所有公開內容。如果你選擇註冊或登入：",
+      "title": "登入、留言和按讚",
       "items": {
-        "profile": "<b>註冊資料</b>：使用者名稱、暱稱、電子郵件和密碼。電子郵件用於接收驗證碼和找回密碼；密碼經過不可逆加密後保存，任何人都看不到原文。你也可以自願填寫大頭貼、個人背景、性別、偏好語言和主題色。",
-        "oidc": "<b>第三方帳號登入</b>：如果你使用第三方帳號登入，我們會從該平台取得你的帳號識別碼、名稱、使用者名稱、電子郵件和大頭貼，用於建立或關聯本站帳號，並在之後每次登入時同步更新。你可以在帳號設定中解除綁定。",
-        "login": "<b>登入紀錄</b>：為了維持登入狀態和保障帳號安全，每個登入工作階段會記錄你使用過的 IP 位址；工作階段長期未活動後會被自動清除。",
-        "ip_location": "<b>個人頁面 IP 歸屬地</b>：你的個人頁面預設會向訪客顯示你最近一次登入 IP 對應的大致地區（不顯示 IP 本身）。你可以在帳號設定中關閉「顯示 IP 歸屬地」。"
+        "profile": "帳號：使用者名稱、暱稱和電子郵件，密碼加密儲存。使用第三方帳號登入時，會取得對方提供的名稱、電子郵件和大頭貼。每次登入會記錄所用的 IP 位址以保障帳號安全；個人頁面預設顯示最近登入地的大致地區，可以在帳號設定中關閉。",
+        "comment": "留言和按讚：內容，以及發表時的 IP 和大致地區。IP 不會公開；地區和用戶端資訊是否顯示由你決定。"
       }
-    },
-    "interact": {
-      "title": "留言與按讚",
-      "body": "留言和按讚需要先登入。",
-      "items": {
-        "comment": "<b>留言</b>：除了留言內容和發布時間，本站還會保存發表留言時的 IP 位址、大致地區和裝置資訊，用於防範垃圾留言和濫用。IP 位址不會公開顯示。",
-        "client_info": "<b>公開的客戶端資訊</b>：發表留言時如果勾選「顯示客戶端資訊」，其他讀者可以看到你的大致地區、作業系統和瀏覽器；不勾選則不會顯示。",
-        "like": "<b>按讚與互動</b>：本站會記錄你按過讚的內容。你的按讚和留言也會出現在站長後台的互動紀錄中，方便站長了解讀者回饋；收回按讚時，對應紀錄會一併刪除。"
-      }
-    },
-    "dnt": {
-      "title": "請勿追蹤",
-      "body": "如果你在瀏覽器中開啟了「請勿追蹤」（Do Not Track）或「全域隱私控制」（GPC），本站會尊重你的選擇：只記錄造訪的頁面、時間、來源網頁、大致地區和裝置類型，不保存 IP 位址和完整的瀏覽器資訊，不設定訪客 Cookie，也不計算瀏覽器特徵摘要（推算大致地區時會暫時用到 IP 位址，但不會保存）。如果你同時處於登入狀態，這筆造訪紀錄仍會關聯到你的帳號。"
     },
     "cookie": {
-      "title": "Cookie 與本機儲存",
-      "body": "Cookie 是網站保存在你瀏覽器裡的小段資料。本站自己設定的 Cookie 只有以下幾種，皆不用於廣告或跨站追蹤：",
+      "title": "Cookie",
       "items": {
-        "visitor": "<b>訪客識別碼（nb_vid）</b>：一串隨機編號，用於識別同一瀏覽器的多次造訪，保存一年。開啟「請勿追蹤」時不會設定。",
-        "login": "<b>登入狀態（token、refresh_token）</b>：僅在你登入後設定，用於維持登入，登出或到期後失效。",
-        "oidc": "<b>第三方登入驗證（oidc_nonce）</b>：使用第三方帳號登入時暫時設定，用於確認登入請求來自你自己的瀏覽器，10 分鐘後失效。",
-        "local": "<b>本機偏好設定</b>：淺色 / 深色主題、音樂播放器音量與播放進度等介面設定只保存在你的瀏覽器裡，不會上傳到伺服器。"
-      },
-      "note": "你可以隨時在瀏覽器設定中查看或清除這些資料。清除後需要重新登入，下次造訪會被視為新訪客。頁面中用到的第三方服務也可能設定它們自己的 Cookie，詳見下一節。"
-    },
-    "third_party": {
-      "title": "第三方服務",
-      "body": "部分功能需要借助第三方服務。使用這些功能時，你的瀏覽器或本站伺服器會與對應服務通訊，對方可能因此取得你的 IP 位址等基本資訊，並依其自己的隱私權政策處理。實際啟用了哪些服務取決於站長的設定：",
-      "items": {
-        "ip_lookup": "<b>IP 歸屬地查詢</b>：IPv4 位址在本站伺服器上離線解析，不會傳送給第三方。IPv6 位址（站長未設定離線資料時）以及個人頁面的「IP 歸屬地」顯示，會把對應的 IP 位址傳送給第三方歸屬地查詢服務（mir6.com）。",
-        "weather": "<b>天氣卡定位</b>：編輯器中選擇城市時只儲存該城市的名稱與大致座標（約 1 公里精度）。作者未選城市時，天氣卡會先詢問是否允許使用你的位置：授權後座標會取整到約 1 公里，僅用於查詢你所在地的天氣並反查所在地名稱（和風天氣已設定時用其介面，否則用 BigDataCloud 的免費反查介面，同樣只傳送取整後的座標），不儲存、不寫入文章；拒絕授權或瀏覽器不支援時，本站改用你的 IP 位址粗略判斷所在城市，同樣只用於這次請求。天氣資料由本站伺服器代為向 Open-Meteo 或站長設定的和風天氣請求，不會把你的 IP 位址或原始位置傳給這些服務。",
-        "captcha": "<b>人機驗證</b>：登入和註冊時可能載入 Cloudflare Turnstile、hCaptcha 或 Google reCAPTCHA，用於防止惡意註冊和暴力登入。",
-        "oidc": "<b>第三方帳號登入</b>：選擇第三方帳號登入時，你會被導向對應平台完成授權。",
-        "gravatar": "<b>Gravatar 大頭貼</b>：沒有設定大頭貼的使用者會顯示 Gravatar 大頭貼，你的瀏覽器會向 Gravatar 請求大頭貼圖片，請求中使用的是電子郵件經過加密處理後的摘要，而不是電子郵件原文。",
-        "email": "<b>郵件寄送</b>：驗證碼等郵件透過站長設定的郵件服務寄出。",
-        "resources": "<b>靜態資源與音樂</b>：圖片、指令碼、音樂等資源可能託管在 CDN 或其他平台上，頁面也可能載入 CDN 提供的狀態小工具；文章中可能引用外部圖片。啟用音樂播放器時，歌單和音訊會從對應位址載入。",
-        "embed": "<b>嵌入內容</b>：側邊欄等位置可能嵌入其他網站的頁面（例如社群平台的動態），效果等同於你直接造訪該網站。"
-      },
-      "note": "部分第三方服務的伺服器可能位於你所在的國家或地區以外。除上述情況和法律法規要求外，我們不會向任何第三方提供你的個人資訊。"
-    },
-    "use": {
-      "title": "我們如何使用這些資訊",
-      "items": {
-        "stats": "<b>了解閱讀情況</b>：統計文章熱度、讀者來源和地區分布，幫助站長改進內容。",
-        "service": "<b>提供功能</b>：讓你能夠登入、留言、按讚，並顯示你的個人頁面。",
-        "security": "<b>保障安全</b>：識別並阻擋垃圾留言、惡意註冊和異常造訪。"
-      },
-      "note": "我們不會出售你的個人資訊，也不會把它用於廣告或行銷剖析。造訪統計基於站長了解網站經營情況的合理需要；帳號相關資訊是提供你所請求功能的必要條件；公開顯示歸屬地、客戶端資訊等選項基於你的選擇，可以隨時關閉。"
+        "visitor": "<b>nb_vid</b>：隨機訪客編號，用來區分新舊訪客，保存 1 年。",
+        "login": "<b>token、refresh_token</b>：登入狀態；<b>oidc_nonce</b>：第三方登入驗證，10 分鐘後失效。",
+        "local": "主題、音量等偏好只存在你的瀏覽器裡。本站不使用廣告或跨網站追蹤 Cookie。"
+      }
     },
     "retention": {
       "title": "保存多久",
       "items": {
-        "visit": "<b>造訪與互動紀錄</b>：保存 {days} 天，到期後自動刪除。",
-        "visitor": "<b>訪客彙總資訊</b>：每個瀏覽器對應一筆彙總（最近一次的 IP 位址、大致地區、裝置類型和造訪次數），目前不會隨造訪紀錄自動刪除，你可以聯絡站長刪除。",
-        "account": "<b>帳號與留言</b>：在你使用帳號期間持續保存。你刪除留言後，留言將不再顯示；如需徹底清除留言資料或註銷帳號，請聯絡站長。",
-        "session": "<b>登入紀錄</b>：工作階段長期未活動後自動清除。"
+        "visit": "造訪與互動紀錄：{days} 天後自動刪除。",
+        "visitor": "訪客彙總（最近一次的地區、裝置和造訪次數）：最後一次造訪 1 年後刪除。",
+        "account": "帳號和留言：直到你刪除或註銷帳號。"
       }
     },
-    "rights": {
-      "title": "你的權利",
-      "body": "你對自己的個人資訊享有知情、查閱、複製、更正、刪除、撤回同意和註銷帳號等權利，可以透過以下方式行使：",
+    "third_party": {
+      "title": "第三方服務",
+      "body": "人機驗證、第三方登入、Gravatar 大頭貼、CDN 資源和嵌入內容會讓對應服務看到你的 IP，它們依自己的隱私權政策處理。天氣卡片只在你允許後使用取整到約 1 公里的位置，用完即丟棄。IPv4 所在地在本站伺服器離線查詢，IPv6 所在地可能交由第三方查詢。除此之外，我們不會把你的資訊交給任何人。"
+    },
+    "choices": {
+      "title": "你可以怎麼做",
       "items": {
-        "self": "<b>自行修改</b>：登入後在帳號設定中修改暱稱、大頭貼、電子郵件、密碼等資料，關閉「顯示 IP 歸屬地」，或解除第三方帳號綁定。",
-        "content": "<b>管理自己的內容</b>：刪除自己發表的留言，或收回按讚。",
-        "limit": "<b>減少記錄</b>：開啟瀏覽器的「請勿追蹤」或「全域隱私控制」，或清除本站的 Cookie。",
-        "request": "<b>聯絡站長</b>：如需查閱或取得一份與你有關的資訊、刪除造訪紀錄、徹底清除留言或註銷帳號，請聯絡站長。為了保護你的資訊，處理前可能需要先核實你的身分。"
+        "dnt": "<b>不想被記錄</b>：開啟瀏覽器的「不要追蹤」或「全域隱私控制」。本站只做匿名計數：不保存 IP，不讀取上面的瀏覽器資訊，不記錄閱讀情況，也不設定訪客 Cookie。",
+        "cookie": "清除本站 Cookie 後，下次造訪會被當作新訪客。",
+        "request": "聯絡站長 {owner} 查看、匯出或刪除與你有關的紀錄，或註銷帳號。"
       },
-      "note": "我們會盡快回覆並處理你的請求。如果你認為我們處理個人資訊的方式侵害了你的權益，也可以向所在地的個人資料保護主管機關申訴。"
-    },
-    "security": {
-      "title": "資訊安全",
-      "body": "我們會採取合理的措施保護你的資訊：密碼加密保存；登入 Cookie 設定為網頁指令碼無法讀取；造訪紀錄只有站長能在後台查看，且 IP 位址會部分隱藏。但網際網路上沒有絕對安全的系統，如果不幸發生資訊外洩，我們會及時在本站告知你，並盡力採取補救措施。"
-    },
-    "children": {
-      "title": "未成年人",
-      "body": "本站面向一般讀者，並非專門以兒童為對象。如果你未滿 14 歲（或你所在地區法律規定的年齡），請在取得監護人同意後再註冊或發表留言。如果監護人發現孩子未經同意向本站提供了個人資訊，請聯絡站長刪除。"
-    },
-    "changes": {
-      "title": "政策更新",
-      "body": "隨著網站功能變化，我們可能會更新本政策。更新後的版本會發布在本頁面，並在頁面頂部標註日期；如有重大變更，我們也會在本站以醒目的方式告知。"
-    },
-    "contact": {
-      "title": "聯絡我們",
-      "body": "如果你對本政策有任何疑問，或希望行使上述權利，請透過本站公布的聯絡方式（例如頁尾或站長個人頁面中的連結）聯絡站長 {owner}。"
+      "note": "未滿 14 歲請在監護人同意後註冊或留言。政策變更時會更新本頁日期，重大變更會在站內提示。聯絡方式見頁尾或站長個人頁面。"
     }
   },
   "Archive": {
@@ -328,7 +261,277 @@
       "original_comment": "原留言：{content}",
       "comment_deleted": "（留言已刪除）",
       "deleted_user": "已註銷使用者",
-      "source_random": "隨機"
+      "source_random": "隨機",
+      "view_detail": "詳情",
+      "trust_all": "全部",
+      "country_all": "全部地區",
+      "device_all": "全部裝置",
+      "filter_country": "推斷地區",
+      "filter_device": "裝置",
+      "inferred": "推斷",
+      "inferred_hint": "IP 所在地與時區、語言矛盾，地區依其他訊號推斷",
+      "ip_untrusted_hint": "IP 所在地與其他訊號矛盾或屬於機房網段，不採信",
+      "trust": {
+        "verdicts": {
+          "trusted": {
+            "label": "可信",
+            "why": "各項訊號互相吻合，IP 所在地可信。"
+          },
+          "proxy": {
+            "label": "疑似代理",
+            "why": "IP 所在地和時區、語言等訊號矛盾，或者屬於機房網段，連線多半經過代理 / VPN。地區以推斷結果為準。"
+          },
+          "spoofed": {
+            "label": "環境偽裝",
+            "why": "瀏覽器自行回報的資訊互相矛盾（UA、Client Hints、時區偏移、觸控等），可能使用了 UA 切換擴充功能、指紋瀏覽器或竄改腳本。"
+          },
+          "bot": {
+            "label": "疑似自動化",
+            "why": "存在自動化特徵，多半是爬蟲或腳本，不計入瀏覽量與訪客數。"
+          },
+          "unknown": {
+            "label": "訊號不足",
+            "why": "訪客開啟了「請勿追蹤」或沒有回報瀏覽器訊號，只保留了基本紀錄，無法判斷。"
+          }
+        },
+        "severity": {
+          "high": "嚴重",
+          "medium": "中等",
+          "low": "輕微",
+          "info": "提示"
+        },
+        "categories": {
+          "location": "位置可信度",
+          "env": "瀏覽器環境",
+          "auto": "自動化"
+        },
+        "sources": {
+          "ip": "IP 所在地",
+          "tz": "瀏覽器時區",
+          "lang": "瀏覽器語言"
+        },
+        "confidence": {
+          "high": "高",
+          "medium": "中",
+          "low": "低"
+        },
+        "devices": {
+          "desktop": "桌上型裝置",
+          "mobile": "手機",
+          "tablet": "平板"
+        },
+        "pointers": {
+          "fine": "滑鼠 / 觸控板",
+          "coarse": "手指"
+        },
+        "rules": {
+          "tz_vs_ip": {
+            "name": "時區與 IP 所在地不符",
+            "why": "VPN、代理只改變出口 IP，不會改系統時區，所以時區更接近真實位置。"
+          },
+          "lang_vs_ip": {
+            "name": "語言與 IP 所在地不符",
+            "why": "語言反映使用習慣；單獨不符多是海外使用者，和時區同時不符則表示 IP 不是真實位置。"
+          },
+          "datacenter_ip": {
+            "name": "IP 屬於機房 / 雲端服務商",
+            "why": "家用寬頻和行動網路很少直接使用機房 IP，VPN、代理和爬蟲大多跑在雲端伺服器上。"
+          },
+          "ip_jump": {
+            "name": "同一訪客的 IP 國家突變",
+            "why": "時區沒變、只有 IP 換了國家，多半是切換了代理節點。"
+          },
+          "tz_hidden": {
+            "name": "時區被隱藏為 UTC",
+            "why": "Tor 瀏覽器、Firefox 抗指紋模式等會統一回報 UTC，此時時區不參與地區推斷。"
+          },
+          "offset_vs_tz": {
+            "name": "UTC 偏移與時區不符",
+            "why": "兩者來自同一項瀏覽器設定，正常情況下必然一致；不一致表示有腳本或指紋瀏覽器只改了其中一個。"
+          },
+          "ua_vs_ch_platform": {
+            "name": "UA 系統與 Client Hints 不符",
+            "why": "UA 切換擴充功能通常只改 UA 字串，Chromium 仍會在 Client Hints 中回報真實系統。"
+          },
+          "ua_vs_ch_mobile": {
+            "name": "UA 裝置類型與 Client Hints 不符",
+            "why": "UA 被改成手機或電腦時，Client Hints 仍會回報真實的裝置類型。"
+          },
+          "ua_engine_vs_ch": {
+            "name": "UA 瀏覽器與核心不符",
+            "why": "只有 Chromium 核心會傳送 Client Hints，它的有無可以驗證 UA 裡的瀏覽器名稱。"
+          },
+          "mobile_no_touch": {
+            "name": "自稱行動裝置卻沒有觸控",
+            "why": "手機和平板都有觸控螢幕，沒有觸控點表示實際是桌上型裝置。"
+          },
+          "mobile_large_screen": {
+            "name": "自稱手機但螢幕是桌機尺寸",
+            "why": "手機螢幕短邊一般在 320–480 CSS 像素之間。"
+          },
+          "accept_lang_vs_nav": {
+            "name": "請求標頭語言與瀏覽器語言不符",
+            "why": "兩者來自同一項瀏覽器設定，不一致通常是代理、擴充功能或腳本改寫了其中一個。"
+          },
+          "ipad_desktop_ua": {
+            "name": "macOS UA 帶多點觸控（iPad）",
+            "why": "iPadOS 的 Safari 預設請求桌面版網頁，UA 與 Mac 相同；以平板統計，不算偽裝。"
+          },
+          "webdriver": {
+            "name": "瀏覽器受自動化控制",
+            "why": "navigator.webdriver 為真，表示瀏覽器正被 Selenium、Puppeteer、Playwright 等工具控制。"
+          },
+          "no_languages": {
+            "name": "語言清單為空",
+            "why": "正常瀏覽器至少有一種語言，為空多見於無頭瀏覽器。"
+          },
+          "zero_screen": {
+            "name": "螢幕尺寸為 0",
+            "why": "無頭瀏覽器常回報 0×0 的螢幕。"
+          }
+        },
+        "reasons": {
+          "no_signals": "未收集瀏覽器訊號",
+          "no_ip": "沒有可用的 IP 所在地",
+          "tz_hidden": "時區被隱藏",
+          "offset_conflict": "時區本身與時鐘偏移矛盾，交給「UTC 偏移」規則判斷",
+          "tz_unknown": "無法辨識時區 {tz}",
+          "tz_ip_match": "時區與 IP 都在{country}",
+          "tz_ip_mismatch": "時區 {tz}（{tzCountry}，{offset}），IP 卻在{ipCountry}（{ipOffsets}）。兩地時差不同，IP 多半是代理出口。",
+          "tz_ip_mismatch_same_offset": "時區 {tz}（{tzCountry}，{offset}），IP 卻在{ipCountry}。兩地時差相同，常見於鄰近地區的代理節點。",
+          "no_languages": "語言清單為空",
+          "lang_universal": "{lang} 為通用語言，不參與判斷",
+          "lang_ip_match": "{lang} 與{country}相符",
+          "lang_ip_mismatch_tz": "首選語言 {lang} 通常對應{countries}，IP 卻在{ipCountry}；時區同樣不在當地，IP 多半不是真實位置。",
+          "lang_ip_mismatch_local": "首選語言 {lang} 通常對應{countries}，IP 卻在{ipCountry}；時區與 IP 一致，比較像是身在當地的外語使用者。",
+          "no_isp": "所在地資料沒有提供網路業者",
+          "isp_datacenter": "網路業者為「{isp}」，屬於機房網段。",
+          "isp_normal": "網路業者為「{isp}」",
+          "no_history": "沒有該訪客的上一筆紀錄",
+          "ip_same": "與上次相同，都在{country}",
+          "ip_jump": "上次 IP 在{from}，這次在{to}，時區卻仍是 {tz}。",
+          "ip_back": "IP 從{from}回到{to}，與時區一致",
+          "ip_moved": "IP 從{from}換到{to}",
+          "tz_utc": "時區回報為 {tz}，可能開啟了防指紋功能。",
+          "tz_ok": "時區為 {tz}",
+          "offset_mismatch": "{tz} 此時應為 {expected}，瀏覽器時鐘卻是 {offset}。",
+          "offset_ok": "{tz} = {offset}",
+          "no_ch": "請求沒有 Client Hints（Safari、Firefox 不傳送）",
+          "no_os": "UA 中辨識不到系統",
+          "platform_ok": "{os} 與 {platform} 一致",
+          "platform_mismatch": "UA 聲稱 {os}，Sec-CH-UA-Platform 卻是 {platform}。",
+          "mobile_ok": "UA 與 Client Hints 的裝置類型一致",
+          "mobile_mismatch_ua": "UA 顯示為手機，Sec-CH-UA-Mobile 卻是 ?0（非手機）。",
+          "mobile_mismatch_ch": "UA 顯示為非手機，Sec-CH-UA-Mobile 卻是 ?1（手機）。",
+          "engine_fake": "UA 自稱 {browser}，請求卻帶有只有 Chromium 才會傳送的 Sec-CH-UA（{brands}）。",
+          "engine_no_ch_ok": "{browser} 不傳送 Client Hints，符合預期",
+          "ios_chrome": "iOS 上的瀏覽器使用 WebKit，不傳送 Client Hints",
+          "engine_missing_ch": "UA 自稱 {browser}，請求卻沒有 Chromium 預設傳送的 Sec-CH-UA。",
+          "engine_ch_ok": "帶有 Sec-CH-UA（{brands}）",
+          "browser_unchecked": "只檢查自稱 Chrome、Edge、Opera、Safari、Firefox 的造訪",
+          "not_mobile": "UA 不是行動裝置",
+          "touch_ok": "{points} 個觸控點",
+          "no_touch": "UA 為{device}，觸控點卻為 0，指標為{pointer}。",
+          "not_phone": "UA 不是手機",
+          "screen_zero_skip": "螢幕尺寸為 0",
+          "screen_ok": "螢幕 {screen}",
+          "screen_large": "螢幕 {screen}（CSS 像素）明顯大於手機。",
+          "no_accept_language": "請求沒有 Accept-Language",
+          "accept_lang_ok": "都是 {lang}",
+          "accept_lang_mismatch": "Accept-Language 首選 {header}，navigator.languages 首選 {lang}。",
+          "not_macos": "不是 macOS UA",
+          "ipad": "macOS UA，卻有 {points} 個觸控點：這是一台 iPad，裝置類型以平板統計。",
+          "mac_no_touch": "沒有觸控",
+          "webdriver_on": "瀏覽器處於自動化控制之下。",
+          "webdriver_off": "navigator.webdriver 為 false",
+          "languages_empty": "語言清單為空。",
+          "languages_ok": "{languages}",
+          "screen_zero": "螢幕尺寸為 {screen}。"
+        },
+        "notes": {
+          "reserved": "區域網路位址",
+          "no_region": "查不到所在地",
+          "datacenter": "機房網段，不採信",
+          "no_signals": "未收集瀏覽器訊號",
+          "tz_hidden": "時區被隱藏為 UTC",
+          "offset_conflict": "時區與時鐘偏移矛盾，不採信",
+          "tz_unknown": "時區不在對照表中",
+          "no_languages": "語言清單為空",
+          "lang_universal": "英語等通用語言不參與推斷",
+          "lang_ambiguous": "該語言對應多個地區"
+        }
+      },
+      "detail": {
+        "title": "造訪詳情",
+        "back": "返回訪客紀錄",
+        "not_found": "造訪紀錄不存在或已被清除",
+        "visitor": "訪客 #{id} · 累計 {count} 次",
+        "no_visitor": "未識別訪客（請勿追蹤）",
+        "score": "一致性分數",
+        "score_value": "{score} / 100",
+        "hits": "命中 {count} 條規則",
+        "location_title": "位置判斷",
+        "location_hint": "時區權重 2，IP 與語言各 1；票數相同時依序信任時區、IP、語言",
+        "col_source": "依據",
+        "col_value": "讀到的值",
+        "col_country": "指向",
+        "col_weight": "權重",
+        "col_result": "結論",
+        "agree": "採信",
+        "conflict": "矛盾",
+        "ignored": "不參與",
+        "inferred_result": "推斷地區：{country}（信賴度{confidence}）。",
+        "cannot_infer": "無法推斷地區：沒有可採信的訊號。",
+        "ip_trusted": "IP 所在地與其他訊號一致，可以直接使用。",
+        "ip_untrusted": "IP 所在地「{location}」不可信。",
+        "ip_exit": "IP 所在地「{location}」不可信，它更可能是代理出口。",
+        "rules_title": "一致性檢查",
+        "rules_summary": "命中 {hit} · 通過 {pass} · 不適用 {skip}",
+        "no_hits": "沒有命中任何規則",
+        "passed": "通過的規則（{count}）",
+        "skipped": "不適用的規則（{count}）",
+        "why": "依據：{why}",
+        "history_title": "該訪客最近的造訪",
+        "signals_title": "全部訊號",
+        "signals_missing": "未收集（開啟了請勿追蹤，或是舊紀錄）",
+        "groups": {
+          "network": "網路",
+          "headers": "請求標頭",
+          "locale": "語言和地區",
+          "device": "裝置",
+          "prefs": "偏好與自動化"
+        },
+        "fields": {
+          "ip": "IP 位址",
+          "location": "IP 所在地",
+          "country": "國家 / 地區",
+          "isp": "網路業者",
+          "datacenter": "機房網段",
+          "prev_country": "上次造訪的 IP 國家",
+          "parsed": "解析結果",
+          "dnt": "請勿追蹤",
+          "time_zone": "時區",
+          "utc_offset": "UTC 偏移",
+          "languages": "語言",
+          "screen": "螢幕",
+          "touch_points": "觸控點",
+          "pointer": "指標",
+          "color_scheme": "深淺色"
+        },
+        "not_collected": "—",
+        "not_saved": "未儲存",
+        "not_sent": "未傳送",
+        "yes": "是",
+        "no": "否",
+        "dnt_on": "開啟（DNT / GPC）",
+        "dnt_off": "未開啟",
+        "scheme_light": "淺色",
+        "scheme_dark": "深色",
+        "engagement": "有效停留 {time} · 最大捲動深度 {depth}%",
+        "no_engagement": "尚未收到停留時間"
+      },
+      "engaged": "停留 {time} · 讀到 {depth}%",
+      "engaged_hint": "有效停留時間（頁面在前景的時間）與最大捲動深度"
     },
     "about_content": "內容",
     "about_system": "系統",
@@ -1613,6 +1816,94 @@
       "copied": "已複製到剪貼簿",
       "copy_failed": "複製失敗，請手動複製",
       "done": "我已保存"
+    },
+    "visit_insights": {
+      "title": "訪客統計",
+      "range_1": "今日",
+      "range_7": "近 7 天",
+      "range_30": "近 30 天",
+      "bot_note": "疑似自動化不計入瀏覽量與訪客數，但仍會出現在下方圖表中，方便排查。",
+      "load_failed": "統計資料載入失敗",
+      "pv": "瀏覽量",
+      "pv_hint": "另有 {count} 次疑似自動化",
+      "uv": "不重複訪客",
+      "uv_hint": "依訪客 Cookie 去除重複，不含請勿追蹤",
+      "proxy_ratio": "疑似代理占比",
+      "proxy_hint": "{count} / {total} 次帶訊號的造訪",
+      "abnormal": "環境異常",
+      "abnormal_hint": "環境偽裝 {spoofed} · 疑似自動化 {bot}",
+      "verdict_title": "可信度分布",
+      "visits_total": "{count} 次造訪",
+      "region_title": "地區排行：IP 所在地 vs 推斷位置",
+      "region_hint": "{count} 次帶瀏覽器訊號的造訪",
+      "legend_ip": "IP 所在地",
+      "legend_inferred": "推斷位置（綜合時區、語言）",
+      "region_tip": "IP 所在地 {ip} 次 · 推斷位置 {inferred} 次",
+      "region_note": "只看 IP 會高估常見的代理出口地區；推斷位置把這些造訪還原到時區和語言所指的地區。",
+      "trend_day_title": "每日造訪（依可信度）",
+      "trend_hour_title": "每小時造訪（依可信度）",
+      "trend_max": "最高 {count} 次",
+      "hour_suffix": " 時",
+      "proxy_exits_title": "代理出口所在地",
+      "proxy_exits_hint": "疑似代理的 {count} 次造訪，依 IP 所在地",
+      "rules_title": "命中最多的規則",
+      "rules_hint": "不含提示級",
+      "devices_title": "裝置類型",
+      "os_title": "作業系統",
+      "browsers_title": "瀏覽器",
+      "languages_title": "首選語言",
+      "time_zones_title": "時區",
+      "color_schemes_title": "深淺色",
+      "signal_hint": "帶瀏覽器訊號的造訪",
+      "scheme_light": "淺色",
+      "scheme_dark": "深色",
+      "empty": "暫無資料",
+      "count_tip": "{name}：{count} 次（{percent}）",
+      "section_visitors": "訪客",
+      "section_content": "內容",
+      "section_performance": "效能",
+      "new_visitors": "新訪客",
+      "returning_visitors": "回訪訪客",
+      "share_of_visitors": "佔訪客的 {percent}",
+      "avg_engaged": "平均有效停留",
+      "median_engaged": "中位數 {time}",
+      "completion_rate": "讀完率",
+      "completion_hint": "{count} / {total} 次讀到 90% · 平均捲動深度 {depth}%",
+      "depth_title": "捲動深度分布",
+      "depth_hint": "每次造訪捲動到頁面的多深",
+      "posts_title": "文章閱讀表現",
+      "posts_hint": "瀏覽量最高的文章；讀完指捲動到 90%，互動率為區間內按讚與留言數除以瀏覽量",
+      "col_post": "文章",
+      "col_views": "瀏覽",
+      "col_read_time": "平均停留",
+      "col_depth": "平均深度",
+      "col_completion": "讀完率",
+      "col_interaction": "互動率",
+      "col_source": "主要來源",
+      "interaction_tip": "按讚 {likes} · 留言 {comments}",
+      "paths_title": "站內路徑",
+      "paths_hint": "讀者看完一個頁面後接著去了哪裡",
+      "outbound_title": "外部連結點擊",
+      "outbound_hint": "讀者從站內點出去的連結",
+      "downloads_title": "檔案下載",
+      "downloads_hint": "pdf、zip 等檔案連結的點擊",
+      "vitals_hint": "資料來自真實訪客的瀏覽器。p75 表示 75% 的造訪都不比它差，是 Google 評估頁面體驗的標準；評級門檻與 web.dev 一致。",
+      "vitals_empty": "還沒有效能資料：訪客開啟頁面後才會回報",
+      "vital_samples": "{count} 個樣本",
+      "vital_mobile": "手機",
+      "vital_desktop": "桌面",
+      "rating_good": "良好",
+      "rating_needsImprovement": "待改進",
+      "rating_poor": "較差",
+      "slow_pages_title": "最慢的頁面（LCP）",
+      "slow_pages_hint": "至少 3 個樣本，依 LCP p75 由慢到快",
+      "vital_names": {
+        "LCP": "最大內容繪製：主要內容多久顯示出來",
+        "INP": "互動回應：點擊、輸入後多久有反應",
+        "CLS": "版面位移：頁面元素會不會亂跳",
+        "FCP": "首次內容繪製：多久看到第一塊內容",
+        "TTFB": "首位元組時間：伺服器多久開始回應"
+      }
     }
   },
   "Copyright": {

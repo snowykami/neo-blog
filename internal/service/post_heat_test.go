@@ -42,7 +42,7 @@ func TestViewCountFromVisitReport(t *testing.T) {
 	anon := context.Background()
 	views := func() uint64 { return reloadPost(t, post.ID).ViewCount }
 	report := func(ctx context.Context, key, ua string, dnt bool) string {
-		k, svcerr := svc.Report(ctx, &dto.ReportVisitReq{Path: "/p/1", TargetType: constant.TargetTypePost, TargetID: post.ID}, key, testIP, ua, dnt)
+		k, svcerr := svc.Report(ctx, &dto.ReportVisitReq{Path: "/p/1", TargetType: constant.TargetTypePost, TargetID: post.ID}, key, VisitClient{IP: testIP, UserAgent: ua, DoNotTrack: dnt})
 		if svcerr != nil {
 			t.Fatalf("report: %v", svcerr)
 		}

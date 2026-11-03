@@ -3,6 +3,7 @@ import type { IconType } from '@/types/icon'
 import {
   AudioLines,
   ChartBarStackedIcon,
+  ChartPie,
   Database,
   Folder,
   Footprints,
@@ -42,6 +43,8 @@ export interface SidebarMenu {
 
 const dashboard: SidebarItem = { id: 'dashboard', title: 'dashboard.title', tabTitle: 'menu.overview', url: consolePath.dashboard, icon: Gauge, permission: isAdmin }
 const visits: SidebarItem = { id: 'visits', title: 'visits.title', url: consolePath.visit, icon: Footprints, permission: isAdmin }
+// 访客统计：推断地区、可信度、设备与语言分布
+const visitInsights: SidebarItem = { id: 'visit_insights', title: 'visit_insights.title', url: consolePath.visitInsights, icon: ChartPie, permission: isAdmin }
 const posts: SidebarItem = { id: 'posts', title: 'posts.title', url: consolePath.post, icon: Newspaper, permission: isEditor }
 const pages: SidebarItem = { id: 'pages', title: 'pages.title', url: consolePath.page, icon: NotebookText, permission: isEditor }
 const categories: SidebarItem = { id: 'categories', title: 'categories.title', url: consolePath.category, icon: ChartBarStackedIcon, permission: isEditor }
@@ -66,7 +69,7 @@ export const sidebarData: {
   navPersonal: SidebarMenu[]
 } = {
   navContent: [
-    { id: 'dashboard', title: 'dashboard.title', icon: Gauge, items: [dashboard, visits] },
+    { id: 'dashboard', title: 'dashboard.title', icon: Gauge, items: [dashboard, visits, visitInsights] },
     { id: 'content', title: 'menu.content', icon: Newspaper, items: [posts, pages] },
     { id: 'taxonomy', title: 'menu.taxonomy', icon: TagsIcon, items: [categories, labels] },
     { id: 'comments', title: 'comments.title', icon: MessageCircle, items: [comments] },

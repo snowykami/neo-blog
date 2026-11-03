@@ -5,30 +5,21 @@ import { getPublicConfig } from '@/api/misc'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { SiteShell } from '@/components/layout/site-shell'
 
-// 隐私政策：内容需与后端实际行为保持一致，涉及访客记录（internal/service/visit.go）、
+// 隐私政策（简版）：内容需与后端实际行为保持一致，涉及访客记录（internal/service/visit.go、visit_trust.go）、
 // Cookie、评论、账号、第三方请求等改动时同步更新文案与 UPDATED_AT
-const UPDATED_AT = '2026-10-25'
+const UPDATED_AT = '2026-11-04'
 // 与后端 internal/tasks/visit_log_cleanup.go 的默认值一致
 const DEFAULT_RETENTION_DAYS = 90
 
 // 每节依次渲染：title、body（可选）、items 列表（可选）、note（可选）
 const SECTIONS: { key: string, body?: boolean, items?: readonly string[], note?: boolean }[] = [
-  { key: 'browse', body: true, items: ['page', 'network', 'device', 'feature', 'account'], note: true },
-  { key: 'account', body: true, items: ['profile', 'oidc', 'login', 'ip_location'] },
-  { key: 'interact', body: true, items: ['comment', 'client_info', 'like'] },
-  { key: 'dnt', body: true },
-  { key: 'cookie', body: true, items: ['visitor', 'login', 'oidc', 'local'], note: true },
-  { key: 'third_party', body: true, items: ['ip_lookup', 'weather', 'captcha', 'oidc', 'gravatar', 'email', 'resources', 'embed'], note: true },
-  { key: 'use', items: ['stats', 'service', 'security'], note: true },
-  { key: 'retention', items: ['visit', 'visitor', 'account', 'session'] },
-  { key: 'rights', body: true, items: ['self', 'content', 'limit', 'request'], note: true },
-  { key: 'security', body: true },
-  { key: 'children', body: true },
-  { key: 'changes', body: true },
-  { key: 'contact', body: true },
+  { key: 'browse', items: ['page', 'network', 'browser', 'engagement'], note: true },
+  { key: 'account', items: ['profile', 'comment'] },
+  { key: 'cookie', items: ['visitor', 'login', 'local'] },
+  { key: 'retention', items: ['visit', 'visitor', 'account'] },
+  { key: 'third_party', body: true },
+  { key: 'choices', items: ['dnt', 'cookie', 'request'], note: true },
 ]
-
-const SUMMARY_ITEMS = ['no_sale', 'stats', 'dnt', 'comment', 'rights'] as const
 
 export async function generateMetadata(): Promise<Metadata> {
   const routeT = await getTranslations('Route')
@@ -57,12 +48,9 @@ export default async function PrivacyPage() {
       <article className="prose max-w-none rounded-2xl bg-card px-6 py-8 dark:prose-invert pangu-autospace md:px-9">
         <h1>{routeT('privacy_policy')}</h1>
         <p className="text-sm text-muted-foreground">{t('updated', plain)}</p>
-        <p>{t.rich('intro', values)}</p>
-        <div className="not-prose grid gap-2 rounded-xl bg-muted/60 px-5 py-4">
+        <div className="not-prose grid gap-1 rounded-xl bg-muted/60 px-5 py-4">
           <p className="font-semibold">{t('summary.title')}</p>
-          <ul className="grid list-disc gap-1.5 pl-5 text-sm leading-relaxed text-muted-foreground marker:text-primary">
-            {SUMMARY_ITEMS.map(item => <li key={item}>{t.rich(`summary.items.${item}`, values)}</li>)}
-          </ul>
+          <p className="text-sm leading-relaxed text-muted-foreground">{t.rich('summary.body', values)}</p>
         </div>
         {SECTIONS.map((section, index) => (
           <section key={section.key}>

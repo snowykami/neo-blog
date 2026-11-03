@@ -2,7 +2,8 @@
 // 用于 Cookie 丢失时辅助识别同一访客；开启“请勿追踪”或全局隐私控制时不计算
 let cached: Promise<string> | null = null
 
-function doNotTrack() {
+// 浏览器开启“请勿追踪”或全局隐私控制
+export function doNotTrack() {
   const nav = navigator as Navigator & { globalPrivacyControl?: boolean, msDoNotTrack?: string }
   return nav.doNotTrack === '1' || nav.globalPrivacyControl === true
 }

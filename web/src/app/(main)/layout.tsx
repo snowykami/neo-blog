@@ -2,6 +2,7 @@
 import { MotionConfig } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { VisitReporter } from '@/components/common/visit-reporter'
+import { WebVitalsReporter } from '@/components/common/web-vitals-reporter'
 import Footer from '@/components/layout/footer'
 import { SiteHeader } from '@/components/layout/nav/site-header'
 import { PageBackground } from '@/components/layout/page-background'
@@ -25,6 +26,7 @@ export default function RootLayout({
         <div className="relative z-10 flex min-h-screen flex-col">
           {/* 访问上报；文章 / 自定义页面详情页带 ID 自行上报 */}
           <VisitReporter skipPrefixes={['/p/', '/page/']} />
+          <WebVitalsReporter />
 
           {/* 键盘用户可跳过导航直达正文 */}
           <a

@@ -68,9 +68,9 @@ func countInRanges(q *gorm.DB, distinct string, ranges []TimeRange) ([]int64, er
 	return counts, nil
 }
 
-// visits 只统计访问，不含点赞、评论等互动记录
+// visits 只统计访问，不含点赞、评论等互动记录与疑似自动化
 func (d *dashboardRepo) visits() *gorm.DB {
-	return GetDB().Model(&model.VisitLog{}).Where("action = ?", constant.VisitActionVisit)
+	return HumanVisits(GetDB().Model(&model.VisitLog{}))
 }
 
 // CountPV 各区间的访问次数
