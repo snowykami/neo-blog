@@ -179,7 +179,6 @@
     "failed": "コピーに失敗しました"
   },
   "Comment": {
-    "collapse_replies": "折りたたむ",
     "comment": "コメント",
     "comment_failed": "コメントに失敗しました",
     "comment_success": "コメントを投稿しました",
@@ -193,7 +192,6 @@
     "edit_at": "{time} に編集",
     "edit_failed": "編集に失敗しました",
     "edit_success": "コメントを更新しました",
-    "expand_replies": "{count} 件を表示",
     "load_more": "もっと読み込む",
     "no_more": "これ以上ありません",
     "placeholder": "コメントを入力...",
@@ -209,7 +207,18 @@
     "view_user_profile": "{name} のプロフィールを見る",
     "login_required": "操作するにはログインしてください",
     "delete_confirm_title": "このコメントを削除しますか？",
-    "delete_confirm_description": "削除すると元に戻せません。返信もあわせて削除されます。"
+    "delete_confirm_description": "削除すると元に戻せません。返信もあわせて削除されます。",
+    "guest_title": "ログインして会話に参加",
+    "guest_desc": "コメントにはアバターと名前が表示されます",
+    "login_with": "{name} でログイン",
+    "reply_to": "@{name} に返信",
+    "cancel_reply": "返信をキャンセル",
+    "submit_shortcut": "⌘/Ctrl + Enter で投稿",
+    "publish": "投稿",
+    "show_remaining": "残り {count} 件の返信を表示",
+    "collapse_thread": "返信を閉じる",
+    "thread_replies": "{count} 件の返信",
+    "thread_by": "{more, plural, =0 {{name}} other {{name} ほか}}"
   },
   "Common": {
     "image_load_failed": "画像を読み込めませんでした",

@@ -196,6 +196,9 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.
 	return &commentDtos[0], nil
 }
 
+// threadUsersLimit 主评论折叠时展示的回复者头像数
+const threadUsersLimit = 3
+
 func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommentListReq) ([]dto.CommentDto, *errs.ServiceError) {
 	currentUserID := uint(0)
 	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
@@ -207,14 +210,35 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 	}
 	// 私密文章、页面的评论只有作者和管理员能看到
 	if !target.canAccess(ctx) {
-		return nil, errs.NewNotFound("operation_target_not_found")
+		return nil, errs.NewNotFound("operation_target_not_found").WithResource("comment")
 	}
-	comments, err := repo.Comment.ListComments(currentUserID, req.TargetID, req.CommentID, req.TargetType, target.canViewAllComments(ctx), req.Page, req.Size, req.OrderBy, req.Desc, req.Depth)
+	viewAll := target.canViewAllComments(ctx)
+	// 按线程获取时不限层级
+	depth := req.Depth
+	if req.RootID > 0 {
+		depth = nil
+	}
+	comments, err := repo.Comment.ListComments(currentUserID, req.TargetID, req.CommentID, req.RootID, req.TargetType, viewAll, req.Page, req.Size, req.OrderBy, req.Desc, depth)
 	if err != nil {
-		logrus.Errorf("GetCommentList: ListComments error: %s", err.Error())
-		return nil, errs.NewInternalServer("failed_to_get_target")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("comment")
 	}
-	return cs.toGetCommentDtos(comments, currentUserID), nil
+	commentDtos := cs.toGetCommentDtos(comments, currentUserID)
+	// 主评论列表附带回复线程的摘要（可见回复数与最早回复的几位用户），前端折叠时展示
+	if req.RootID == 0 && req.CommentID == 0 && depth != nil && *depth == 0 && len(commentDtos) > 0 {
+		rootIDs := make([]uint, len(commentDtos))
+		for i, commentDto := range commentDtos {
+			rootIDs[i] = commentDto.ID
+		}
+		counts, repliers, err := repo.Comment.ThreadSummaries(rootIDs, currentUserID, viewAll, threadUsersLimit)
+		if err != nil {
+			return nil, errs.Internal("failed_to_get_target", err).WithResource("comment")
+		}
+		for i := range commentDtos {
+			commentDtos[i].ThreadCount = uint64(counts[commentDtos[i].ID])
+			commentDtos[i].ThreadUsers = model.ToUserDtos(repliers[commentDtos[i].ID])
+		}
+	}
+	return commentDtos, nil
 }
 
 func (cs *CommentService) ListCommentsAdmin(ctx context.Context, pagination *dto.PaginationParams, query string) ([]dto.CommentDto, int64, *errs.ServiceError) {

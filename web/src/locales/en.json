@@ -179,7 +179,6 @@
     "failed": "Copy failed"
   },
   "Comment": {
-    "collapse_replies": "Collapse",
     "comment": "Comment",
     "comment_failed": "Comment failed",
     "comment_success": "Comment posted",
@@ -193,7 +192,6 @@
     "edit_at": "Edited at {time}",
     "edit_failed": "Edit failed",
     "edit_success": "Comment updated",
-    "expand_replies": "Show {count} replies",
     "load_more": "Load more",
     "no_more": "No more",
     "placeholder": "Write a comment...",
@@ -209,7 +207,18 @@
     "view_user_profile": "View {name}'s profile",
     "login_required": "Please login first",
     "delete_confirm_title": "Delete this comment?",
-    "delete_confirm_description": "This cannot be undone. Its replies will also be deleted."
+    "delete_confirm_description": "This cannot be undone. Its replies will also be deleted.",
+    "guest_title": "Sign in to join the discussion",
+    "guest_desc": "Your comments will show your avatar and name",
+    "login_with": "Sign in with {name}",
+    "reply_to": "Replying to @{name}",
+    "cancel_reply": "Cancel reply",
+    "submit_shortcut": "⌘/Ctrl + Enter to post",
+    "publish": "Post",
+    "show_remaining": "Show {count} more {count, plural, one {reply} other {replies}}",
+    "collapse_thread": "Hide replies",
+    "thread_replies": "{count} {count, plural, one {reply} other {replies}}",
+    "thread_by": "{more, plural, =0 {{name}} other {{name} and others}}"
   },
   "Common": {
     "image_load_failed": "Image failed to load",

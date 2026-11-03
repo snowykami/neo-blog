@@ -179,7 +179,6 @@
     "failed": "複製失敗"
   },
   "Comment": {
-    "collapse_replies": "收合回覆",
     "comment": "評論",
     "comment_failed": "發表評論失敗",
     "comment_success": "評論已發表",
@@ -193,7 +192,6 @@
     "edit_at": "編輯於 {time}",
     "edit_failed": "編輯評論失敗",
     "edit_success": "評論已更新",
-    "expand_replies": "展開 {count} 則回覆",
     "load_more": "載入更多",
     "no_more": "沒有更多了",
     "placeholder": "寫下你的評論...",
@@ -209,7 +207,18 @@
     "view_user_profile": "查看 {name} 的主頁",
     "login_required": "請先登入再操作",
     "delete_confirm_title": "刪除這則留言？",
-    "delete_confirm_description": "刪除後無法復原，其下的回覆也會一併刪除。"
+    "delete_confirm_description": "刪除後無法復原，其下的回覆也會一併刪除。",
+    "guest_title": "登入後參與討論",
+    "guest_desc": "留言會顯示你的頭像與暱稱",
+    "login_with": "使用 {name} 登入",
+    "reply_to": "回覆 @{name}",
+    "cancel_reply": "取消回覆",
+    "submit_shortcut": "⌘/Ctrl + Enter 發布",
+    "publish": "發布",
+    "show_remaining": "展開其餘 {count} 則回覆",
+    "collapse_thread": "收起回覆",
+    "thread_replies": "{count} 則回覆",
+    "thread_by": "{more, plural, =0 {{name}} other {{name} 等}}"
   },
   "Common": {
     "image_load_failed": "圖片載入失敗",

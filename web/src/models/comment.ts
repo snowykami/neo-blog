@@ -19,6 +19,9 @@ export interface Comment {
   browser: string
   location: CommentLocation
   showClientInfo: boolean
+  // 只在主评论列表中返回：整个回复线程（不限层级）中可见的回复数，以及最早回复的几位用户
+  threadCount?: number
+  threadUsers?: User[]
 }
 
 export interface CommentLocation {

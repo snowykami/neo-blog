@@ -179,7 +179,6 @@
     "failed": "复制失败"
   },
   "Comment": {
-    "collapse_replies": "收起",
     "comment": "评论",
     "comment_failed": "评论失败",
     "comment_success": "评论成功！",
@@ -193,7 +192,6 @@
     "edit_at": "编辑于{time}",
     "edit_failed": "编辑评论失败",
     "edit_success": "评论已更新",
-    "expand_replies": "展开 {count} 条",
     "load_more": "加载更多",
     "no_more": "没有更多了!",
     "placeholder": "写下你的评论...",
@@ -209,7 +207,18 @@
     "view_user_profile": "查看 {name} 的主页",
     "login_required": "请先登录后再操作",
     "delete_confirm_title": "删除这条评论？",
-    "delete_confirm_description": "删除后不可恢复，其下的回复也会一并删除。"
+    "delete_confirm_description": "删除后不可恢复，其下的回复也会一并删除。",
+    "guest_title": "登录后参与讨论",
+    "guest_desc": "评论会显示你的头像和昵称",
+    "login_with": "使用 {name} 登录",
+    "reply_to": "回复 @{name}",
+    "cancel_reply": "取消回复",
+    "submit_shortcut": "⌘/Ctrl + Enter 发布",
+    "publish": "发布",
+    "show_remaining": "展开剩余 {count} 条回复",
+    "collapse_thread": "收起回复",
+    "thread_replies": "{count} 条回复",
+    "thread_by": "{more, plural, =0 {{name}} other {{name} 等}}"
   },
   "Common": {
     "image_load_failed": "图片加载失败",

@@ -22,6 +22,9 @@ type CommentDto struct {
 	OS             string             `json:"os"`       // 用户操作系统，基于User-Agent
 	Browser        string             `json:"browser"`  // 用户浏览器，基于User-Agent
 	ShowClientInfo bool               `json:"show_client_info"`
+	// 以下只在主评论列表中返回：整个回复线程（不限层级）中当前用户可见的回复数，以及最早回复的几位用户（去重），供折叠时展示
+	ThreadCount uint64    `json:"thread_count,omitempty"`
+	ThreadUsers []UserDto `json:"thread_users,omitempty"`
 }
 
 type CommentLocationDto struct {
@@ -56,6 +59,7 @@ type GetCommentListReq struct {
 	TargetID   uint   `query:"target_id" binding:"required" vd:"$>0"`
 	TargetType string `query:"target_type" binding:"required"`
 	CommentID  uint   `query:"comment_id"`                  // 获取某条评论的所有子评论
+	RootID     uint   `query:"root_id"`                     // 获取某条主评论下整个回复线程（不限层级，忽略 depth）
 	Depth      *int   `query:"depth" default:"1" vd:"$>-1"` // 评论的层级深度
 }
 

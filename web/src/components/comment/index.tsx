@@ -1,4 +1,5 @@
 'use client'
+import type { ActiveInput } from './comment-item'
 import type { Comment } from '@/models/comment'
 import type { TargetType } from '@/models/types'
 import { Loader2 } from 'lucide-react'
@@ -7,11 +8,10 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { createComment, deleteComment, getComment, listComments } from '@/api/comment'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { useErrorMessageT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
-import { getErrorMessage } from '@/utils/common/error'
 import { OrderSelector } from '../common/orderby-selector'
 import { SectionTitle } from '../layout/site-shell'
 import { CommentInput } from './comment-input'
@@ -31,12 +31,10 @@ export function CommentSection({
 }) {
   const { siteInfo } = useSiteInfo()
   const t = useTranslations('Comment')
+  const errorMessageT = useErrorMessageT()
   const pageSize = siteInfo.commentsPerPage || 8
   const [comments, setComments] = useState<Comment[]>([])
-  const [activeInput, setActiveInput] = useState<{
-    id: number
-    type: 'reply' | 'edit'
-  } | null>(null)
+  const [activeInput, setActiveInput] = useState<ActiveInput>(null)
   const [page, setPage] = useState(1) // 当前页码
   const [totalCommentCount, setTotalCommentCount] = useState(totalCount) // 评论总数
   const [needLoadMore, setNeedLoadMore] = useState(false) // 是否需要加载更多，当最后一次获取的评论数小于分页大小时设为false
@@ -78,7 +76,7 @@ export function CommentSection({
     }).catch((error) => {
       if (seq !== requestSeqRef.current)
         return
-      toast.error(`${t('load_failed')}: ${getErrorMessage(error)}`)
+      toast.error(`${t('load_failed')}: ${errorMessageT(error)}`)
     }).finally(() => {
       if (seq === requestSeqRef.current)
         setInitialLoading(false)
@@ -112,22 +110,23 @@ export function CommentSection({
       }).catch(() => {})
     }
     catch (error) {
-      toast.error(`${t('comment_failed')}: ${getErrorMessage(error)}`)
+      toast.error(`${t('comment_failed')}: ${errorMessageT(error)}`)
       // 抛出以通知输入框保留内容
       throw error
     }
   }
 
-  const onReplySubmitted = () => {
-    setTotalCommentCount(c => c + 1)
+  const onCountChange = (delta: number) => {
+    setTotalCommentCount(c => Math.max(0, c + delta))
   }
 
-  // 失败时抛出，由删除确认气泡统一提示并保持打开
+  // 失败时抛出，由删除确认气泡统一提示并保持打开；主评论下的回复会一并删除
   const onCommentDelete = async ({ commentId }: { commentId: number }) => {
     await deleteComment({ id: commentId })
     toast.success(t('delete_success'))
+    const removed = comments.find(comment => comment.id === commentId)
     setComments(prevComments => prevComments.filter(comment => comment.id !== commentId))
-    setTotalCommentCount(c => Math.max(0, c - 1))
+    onCountChange(-1 - (removed?.threadCount ?? 0))
     localDeletedRef.current += 1
   }
 
@@ -169,7 +168,7 @@ export function CommentSection({
     }).catch((error) => {
       if (seq !== requestSeqRef.current)
         return
-      toast.error(`${t('load_failed')}: ${getErrorMessage(error)}`)
+      toast.error(`${t('load_failed')}: ${errorMessageT(error)}`)
     }).finally(() => {
       if (seq === requestSeqRef.current)
         setLoadingMore(false)
@@ -199,23 +198,22 @@ export function CommentSection({
           />
         </div>
       </div>
-      <CommentInput onCommentSubmitted={onCommentSubmitted} />
       <div className="mt-4">
+        <CommentInput collapsible showAvatar onCommentSubmitted={onCommentSubmitted} />
+      </div>
+      <div className="mt-2">
         {initialLoading
           ? <CommentLoading />
-          : comments.map((comment, idx) => (
-              <div key={comment.id} className="" style={{ animationDelay: `${idx * 60}ms` }}>
-                <Separator className="my-3 border-t border-dashed border-foreground/10 bg-transparent" />
-                <CommentItem
-                  comment={comment}
-                  parentComment={null}
-                  onCommentDelete={onCommentDelete}
-                  activeInput={activeInput}
-                  setActiveInputId={setActiveInput}
-                  onReplySubmitted={onReplySubmitted}
-                  ownerId={ownerId}
-                />
-              </div>
+          : comments.map(comment => (
+              <CommentItem
+                key={comment.id}
+                comment={comment}
+                onCommentDelete={onCommentDelete}
+                activeInput={activeInput}
+                setActiveInputId={setActiveInput}
+                onCountChange={onCountChange}
+                ownerId={ownerId}
+              />
             ))}
         {!initialLoading && (needLoadMore
           ? (

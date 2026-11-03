@@ -1,16 +1,11 @@
 import type { Comment } from '@/models/comment'
-import { Ellipsis, Lock, Reply } from 'lucide-react'
+import type { User } from '@/models/user'
+import { ChevronDown, Ellipsis, Lock, Reply } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import {
-  createComment,
-  deleteComment,
-  getComment,
-  listComments,
-  updateComment,
-} from '@/api/comment'
+import { createComment, deleteComment, getComment, listCommentThread, updateComment } from '@/api/comment'
 import { toggleLike } from '@/api/like'
 import { UserAvatar } from '@/components/common/avatar'
 import { Popconfirm } from '@/components/common/popconfirm'
@@ -21,369 +16,374 @@ import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { LikeIcon } from '@/contexts/theme-context'
 import { useToLogin } from '@/hooks/use-route'
-import { useCommonT, useOperationT } from '@/hooks/use-translations'
-import { OrderBy } from '@/models/common'
+import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { cn } from '@/lib/utils'
 import { TargetType } from '@/models/types'
 import { formatDateTime } from '@/utils/common/datetime'
-import { getErrorMessage } from '@/utils/common/error'
 import { formatLocation } from '@/utils/common/location'
 import { isAdmin } from '@/utils/common/permission'
 import { getUserUrl } from '@/utils/common/route'
 import { CommentInput } from './comment-input'
 
+export type ActiveInput = { id: number, type: 'reply' | 'edit' } | null
+
+// 展开回复后先显示的条数，其余点「展开剩余」
+const THREAD_PAGE = 5
+
+interface SubmitPayload {
+  commentContent: string
+  isPrivate: boolean
+  showClientInfo: boolean
+}
+
+/**
+ * 主评论：主评论本身与它下面的整个回复线程。回复不论多少层都平铺在主评论下一层，
+ * 用小头像与连线表达层级；回复的是另一条回复时才显示 @某人
+ */
 export function CommentItem({
   comment,
   ownerId,
-  parentComment,
   onCommentDelete,
   activeInput,
   setActiveInputId,
-  onReplySubmitted, // 评论区计数更新用
+  onCountChange,
 }: {
   comment: Comment
   ownerId?: number // 不是评论的作者ID，而是文章的作者ID
-  parentComment: Comment | null
   onCommentDelete: ({ commentId }: { commentId: number }) => Promise<void>
-  activeInput: { id: number, type: 'reply' | 'edit' } | null
-  setActiveInputId: (input: { id: number, type: 'reply' | 'edit' } | null) => void
-  onReplySubmitted: ({
-    commentContent,
-    isPrivate,
-  }: {
-    commentContent: string
-    isPrivate: boolean
-  }) => void
+  activeInput: ActiveInput
+  setActiveInputId: (input: ActiveInput) => void
+  onCountChange: (delta: number) => void // 评论区总数的变化
+}) {
+  const t = useTranslations('Comment')
+  const errorMessageT = useErrorMessageT()
+  const [root, setRoot] = useState(comment)
+  const [replies, setReplies] = useState<Comment[] | null>(null) // 展开后才加载
+  const [expanded, setExpanded] = useState(false)
+  const [shown, setShown] = useState(THREAD_PAGE)
+
+  const loadThread = useCallback(async () => {
+    try {
+      const res = await listCommentThread({ targetType: root.targetType, targetId: root.targetId, rootId: root.id })
+      setReplies(res.data.comments ?? [])
+      return res.data.comments?.length ?? 0
+    }
+    catch (error) {
+      toast.error(`${t('load_failed')}: ${errorMessageT(error)}`)
+      return null
+    }
+  }, [root.targetType, root.targetId, root.id, t, errorMessageT])
+
+  const toggleThread = () => {
+    if (!expanded && replies === null)
+      void loadThread()
+    setExpanded(!expanded)
+    setShown(THREAD_PAGE)
+  }
+
+  // 加载后以实际可见的回复为准，未加载时用列表接口带回的线程摘要
+  const threadCount = replies?.length ?? root.threadCount ?? 0
+  const threadUsers = useMemo(() => {
+    if (!replies)
+      return root.threadUsers ?? []
+    const seen = new Map<number, User>()
+    replies.forEach(reply => seen.has(reply.user.id) || seen.set(reply.user.id, reply.user))
+    return [...seen.values()].slice(0, 3)
+  }, [replies, root.threadUsers])
+  const byId = useMemo(() => new Map((replies ?? []).map(reply => [reply.id, reply])), [replies])
+
+  const onReply = async (target: Comment, { commentContent, isPrivate, showClientInfo }: SubmitPayload) => {
+    try {
+      await createComment({ targetType: root.targetType, targetId: root.targetId, content: commentContent, replyId: target.id, isPrivate, showClientInfo })
+    }
+    catch (error) {
+      toast.error(`${t('comment_failed')}: ${errorMessageT(error)}`)
+      // 抛出以通知输入框保留内容
+      throw error
+    }
+    toast.success(t('comment_success'))
+    setActiveInputId(null)
+    onCountChange(1)
+    await loadThread()
+    setExpanded(true)
+    setShown(Infinity)
+  }
+
+  // 删除回复会连同它下面的回复一起删除，按重新加载后的数量更新总数
+  const onReplyDelete = async ({ commentId }: { commentId: number }) => {
+    await deleteComment({ id: commentId })
+    toast.success(t('delete_success'))
+    const before = replies?.length ?? 0
+    const after = await loadThread()
+    onCountChange(-(after === null ? 1 : before - after))
+  }
+
+  const replying = activeInput?.type === 'reply' ? activeInput.id : null
+  const replyComposer = (target: Comment) => (
+    <div className="comment-thread-composer">
+      <CommentInput
+        autoFocus
+        replyTo={target.user.nickname || target.user.username}
+        initIsPrivate={target.isPrivate}
+        onCancel={() => setActiveInputId(null)}
+        onCommentSubmitted={payload => onReply(target, payload)}
+      />
+    </div>
+  )
+
+  const visibleReplies = expanded && replies ? replies.slice(0, shown) : []
+  return (
+    // 不用 article：正文排版样式（article img 等）会作用到评论里的头像
+    <div className="comment-root border-t border-dashed border-foreground/10 py-4 first:border-t-0">
+      <CommentBody
+        comment={root}
+        variant="root"
+        ownerId={ownerId}
+        activeInput={activeInput}
+        setActiveInputId={setActiveInputId}
+        onDelete={onCommentDelete}
+        onUpdated={setRoot}
+      />
+      {(threadCount > 0 || replying === root.id) && (
+        <div className={cn('comment-thread', !expanded && 'is-collapsed')}>
+          {visibleReplies.map((reply) => {
+            // 只有回复的是另一条回复时才显示 @某人（被回复的那条不可见时不显示）
+            const target = reply.replyId === root.id ? undefined : byId.get(reply.replyId)
+            return (
+              <div key={reply.id}>
+                <div className="comment-reply">
+                  <CommentBody
+                    comment={reply}
+                    variant="reply"
+                    replyToUser={target?.user}
+                    ownerId={ownerId}
+                    activeInput={activeInput}
+                    setActiveInputId={setActiveInputId}
+                    onDelete={onReplyDelete}
+                    onUpdated={updated => setReplies(prev => prev?.map(r => (r.id === updated.id ? updated : r)) ?? prev)}
+                  />
+                </div>
+                {replying === reply.id && replyComposer(reply)}
+              </div>
+            )
+          })}
+          {expanded && replies && replies.length > shown && (
+            <button type="button" className="comment-thread-more" onClick={() => setShown(Infinity)}>
+              {t('show_remaining', { count: replies.length - shown })}
+            </button>
+          )}
+          {replying === root.id && replyComposer(root)}
+          {threadCount > 0 && (
+            <button type="button" className="comment-thread-toggle" aria-expanded={expanded} onClick={toggleThread}>
+              <span className="flex">
+                {threadUsers.map(u => (
+                  <UserAvatar key={u.id} user={u} size={40} className="-ml-1.5 size-5 border-2 border-card first:ml-0" fallbackClassName="text-[9px]" />
+                ))}
+              </span>
+              <span>{expanded ? t('collapse_thread') : t('thread_replies', { count: threadCount })}</span>
+              {!expanded && threadUsers[0] && (
+                <span className="text-muted-foreground">
+                  ·
+                  {' '}
+                  {t('thread_by', { name: threadUsers[0].nickname || threadUsers[0].username, more: threadUsers.length - 1 })}
+                </span>
+              )}
+              <ChevronDown aria-hidden className={cn('size-3.5 text-muted-foreground transition-transform', expanded && 'rotate-180')} />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * 单条评论：头像、名字与时间地点、内容、操作（回复、点赞、更多）；编辑时在下方打开编辑框
+ */
+function CommentBody({
+  comment,
+  variant,
+  replyToUser,
+  ownerId,
+  activeInput,
+  setActiveInputId,
+  onDelete,
+  onUpdated,
+}: {
+  comment: Comment
+  variant: 'root' | 'reply'
+  replyToUser?: User
+  ownerId?: number
+  activeInput: ActiveInput
+  setActiveInputId: (input: ActiveInput) => void
+  onDelete: ({ commentId }: { commentId: number }) => Promise<void>
+  onUpdated: (comment: Comment) => void
 }) {
   const { siteInfo } = useSiteInfo()
   const { user } = useAuth()
   const locale = useLocale()
   const t = useTranslations('Comment')
+  const errorMessageT = useErrorMessageT()
   const roleT = useTranslations('Role')
   const commonT = useCommonT()
   const operationT = useOperationT()
   const clickToLogin = useToLogin()
+  const [likeCount, setLikeCount] = useState(comment.likeCount)
+  const [liked, setLiked] = useState(comment.isLiked)
+  const [liking, setLiking] = useState(false)
 
-  const [commentState, setCommentState] = useState<Comment>(comment) // 用于更新评论内容
-  const [likeCount, setLikeCount] = useState(commentState.likeCount)
-  const [liked, setLiked] = useState(commentState.isLiked)
-  const [canClickLike, setCanClickLike] = useState(true)
-  const [replyCount, setReplyCount] = useState(commentState.replyCount)
-  const [showReplies, setShowReplies] = useState(false)
-  const [replies, setReplies] = useState<Comment[]>([])
-  const [repliesLoaded, setRepliesLoaded] = useState(false)
+  const requireLogin = () => {
+    toast.error(commonT('login_required'), { action: { label: operationT('login'), onClick: clickToLogin } })
+  }
 
   const handleToggleLike = () => {
-    if (!canClickLike) {
+    if (liking)
       return
-    }
     if (!user) {
-      toast.error(commonT('login_required'), {
-        action: {
-          label: operationT('login'),
-          onClick: clickToLogin,
-        },
-      })
+      requireLogin()
       return
     }
-    setCanClickLike(false)
+    setLiking(true)
     // 提前转换状态，让用户觉得响应很快
     const likedPrev = liked
     const likeCountPrev = likeCount
-    setLiked(prev => !prev)
-    setLikeCount(prev => prev + (likedPrev ? -1 : 1))
-    toggleLike({ targetType: TargetType.Comment, targetId: commentState.id })
-      .then((res) => {
-        toast.success(res.data.status ? operationT('like_success') : operationT('unlike_success'))
-        setCanClickLike(true)
-      })
+    setLiked(!likedPrev)
+    setLikeCount(likeCountPrev + (likedPrev ? -1 : 1))
+    toggleLike({ targetType: TargetType.Comment, targetId: comment.id })
+      .then(res => toast.success(res.data.status ? operationT('like_success') : operationT('unlike_success')))
       .catch((error) => {
-        toast.error(`${operationT('like_failed')}: ${getErrorMessage(error)}`)
+        toast.error(`${operationT('like_failed')}: ${errorMessageT(error)}`)
         // 失败回滚
         setLiked(likedPrev)
         setLikeCount(likeCountPrev)
-        setCanClickLike(true)
       })
+      .finally(() => setLiking(false))
   }
 
-  const reloadReplies = () => {
-    listComments({
-      targetType: commentState.targetType,
-      targetId: commentState.targetId,
-      depth: commentState.depth + 1,
-      orderBy: OrderBy.CreatedAt,
-      desc: false,
-      page: 1,
-      size: 999999,
-      commentId: commentState.id,
-    }).then((response) => {
-      setReplies(response.data.comments)
-      setRepliesLoaded(true)
-    }).catch((error) => {
-      toast.error(`${t('load_failed')}: ${getErrorMessage(error)}`)
-    })
-  }
-
-  const toggleReplies = () => {
-    if (!showReplies && !repliesLoaded) {
-      reloadReplies()
+  const toggleReply = () => {
+    if (!user) {
+      requireLogin()
+      return
     }
-    setShowReplies(!showReplies)
+    const active = activeInput?.type === 'reply' && activeInput.id === comment.id
+    setActiveInputId(active ? null : { id: comment.id, type: 'reply' })
   }
 
-  const onCommentEdit = async ({
-    commentContent: newContent,
-    isPrivate,
-    showClientInfo,
-  }: {
-    commentContent: string
-    isPrivate: boolean
-    showClientInfo: boolean
-  }) => {
+  const onEdit = async ({ commentContent, isPrivate, showClientInfo }: SubmitPayload) => {
     try {
-      await updateComment({
-        id: commentState.id,
-        content: newContent,
-        isPrivate,
-        showClientInfo,
-      })
+      await updateComment({ id: comment.id, content: commentContent, isPrivate, showClientInfo })
       toast.success(t('edit_success'))
-      getComment({ id: commentState.id }).then((response) => {
-        setCommentState(response.data)
-      }).catch(() => {})
+      getComment({ id: comment.id }).then(res => onUpdated({ ...comment, ...res.data })).catch(() => {})
       setActiveInputId(null)
     }
     catch (error) {
-      toast.error(`${t('edit_failed')}: ${getErrorMessage(error)}`)
+      toast.error(`${t('edit_failed')}: ${errorMessageT(error)}`)
       // 抛出以通知输入框保留内容
       throw error
     }
   }
 
-  const onReply = async ({
-    commentContent,
-    isPrivate,
-    showClientInfo,
-  }: {
-    commentContent: string
-    isPrivate: boolean
-    showClientInfo: boolean
-  }) => {
-    try {
-      await createComment({
-        targetType: commentState.targetType,
-        targetId: commentState.targetId,
-        content: commentContent,
-        replyId: commentState.id,
-        isPrivate,
-        showClientInfo,
-      })
-    }
-    catch (error) {
-      toast.error(`${t('comment_failed')}: ${getErrorMessage(error)}`)
-      // 抛出以通知输入框保留内容
-      throw error
-    }
-    toast.success(t('comment_success'))
-    reloadReplies()
-    setShowReplies(true)
-    setActiveInputId(null)
-    setReplyCount(c => c + 1)
-    onReplySubmitted({ commentContent, isPrivate })
-  }
-
-  // 失败时抛出，由删除确认气泡统一提示并保持打开
-  const onReplyDelete = async ({ commentId: replyId }: { commentId: number }) => {
-    await deleteComment({ id: replyId })
-    toast.success(t('delete_success'))
-    setReplyCount(c => Math.max(0, c - 1))
-    setReplies(prev => prev.filter(r => r.id !== replyId))
-  }
+  const time = (dateTimeString: string) => formatDateTime({
+    dateTimeString,
+    locale,
+    convertShortAgo: true,
+    unitI18n: { secondsAgo: commonT('secondsAgo'), minutesAgo: commonT('minutesAgo'), hoursAgo: commonT('hoursAgo'), daysAgo: commonT('daysAgo') },
+  })
+  const name = (u: User) => u.nickname || u.username
+  const userColor = (u: User) => u.preferredColor || siteInfo.defaultColorScheme || 'blue'
+  const edited = new Date(comment.updatedAt).getTime() - new Date(comment.createdAt).getTime() > 10000
+  const device = [comment.browser, comment.os].map(s => s.trim()).filter(Boolean).join(' · ')
+  const replyActive = activeInput?.type === 'reply' && activeInput.id === comment.id
+  const editing = activeInput?.type === 'edit' && activeInput.id === comment.id
+  const isRoot = variant === 'root'
 
   return (
-    <div className={`${replyCount > 0 && showReplies ? 'border-l-2 border-dashed border-foreground/10 pl-3' : ''}`}>
-      <div className="flex gap-2">
+    <div className="group/comment">
+      <div className="flex gap-3">
         <Link
-          href={getUserUrl(commentState.user)}
-          aria-label={t('view_user_profile', { name: commentState.user.nickname || commentState.user.username })}
-          className="cursor-pointer fade-in w-10 h-10 shrink-0"
+          href={getUserUrl(comment.user)}
+          aria-label={t('view_user_profile', { name: name(comment.user) })}
+          className={cn('shrink-0', isRoot ? 'size-9 sm:size-10' : 'size-7')}
         >
-          <UserAvatar user={commentState.user} className="size-full" />
+          <UserAvatar user={comment.user} className="size-full" />
         </Link>
-        <div className="flex-1 fade-in-up">
-          <div className="flex gap-2 md:gap-4 items-center flex-wrap">
-            {/* 用户名 */}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 leading-snug">
             <Link
-              href={getUserUrl(commentState.user)}
-              data-user-color={
-                commentState.user.preferredColor || siteInfo.defaultColorScheme || 'blue'
-              }
-              className="cursor-pointer font-bold text-primary hover:underline hover:decoration-dashed hover:underline-offset-4"
+              href={getUserUrl(comment.user)}
+              data-user-color={userColor(comment.user)}
+              className="font-bold text-primary hover:underline hover:decoration-dashed hover:underline-offset-4"
             >
-              {commentState.user.nickname || commentState.user.username}
+              {name(comment.user)}
             </Link>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* 吧唧 */}
-              {commentState.user.id === ownerId && (
-                <Badge variant="secondary" className="rounded-md">
-                  {roleT('author')}
-                </Badge>
-              )}
-              {/* 创建时间 */}
-              <span className="text-xs text-foreground/50 tabular-nums">
-                {formatDateTime({
-                  dateTimeString: commentState.createdAt,
-                  locale,
-                  convertShortAgo: true,
-                  unitI18n: {
-                    secondsAgo: commonT('secondsAgo'),
-                    minutesAgo: commonT('minutesAgo'),
-                    hoursAgo: commonT('hoursAgo'),
-                    daysAgo: commonT('daysAgo'),
-                  },
-                })}
+            {comment.user.id === ownerId && <Badge variant="secondary" className="h-[18px] rounded-md px-1.5 text-[11px]">{roleT('author')}</Badge>}
+            {comment.isPrivate && (
+              <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground">
+                <Lock aria-hidden className="size-3" />
+                {t('private')}
               </span>
-              {commentState.createdAt !== commentState.updatedAt
-                && new Date(commentState.updatedAt).getTime()
-                - new Date(commentState.createdAt).getTime()
-                > 10000 && (
-                <span className="hidden text-xs text-foreground/50 md:flex">
-                  {t('edit_at', {
-                    time: formatDateTime({
-                      dateTimeString: commentState.updatedAt,
-                      locale,
-                      convertShortAgo: true,
-                      unitI18n: {
-                        secondsAgo: commonT('secondsAgo'),
-                        minutesAgo: commonT('minutesAgo'),
-                        hoursAgo: commonT('hoursAgo'),
-                        daysAgo: commonT('daysAgo'),
-                      },
-                    }),
-                  })}
-                </span>
-              )}
-            </div>
+            )}
+            <span className="comment-meta tabular-nums">{time(comment.createdAt)}</span>
+            {edited && <span className="comment-meta hidden md:inline">{t('edit_at', { time: time(comment.updatedAt) })}</span>}
+            {comment.location && formatLocation({ location: comment.location, short: true }) && (
+              <span className="comment-meta comment-meta-dot">{formatLocation({ location: comment.location, short: true })}</span>
+            )}
+            {isRoot && device && <span className="comment-meta comment-meta-dot hidden md:inline">{device}</span>}
           </div>
-          <p className="fade-in my-2 rounded-xl bg-foreground/[.03] px-4 py-2 text-foreground/75 break-words">
-            {commentState.isPrivate && (
-              <Lock aria-hidden className="mr-1 mb-1 inline size-4 text-foreground/50" />
+          <p className={cn('mt-1 mb-0.5 break-words whitespace-pre-wrap text-foreground/85', !isRoot && 'text-[0.95em]')}>
+            {replyToUser && (
+              <Link
+                href={getUserUrl(replyToUser)}
+                data-user-color={userColor(replyToUser)}
+                className="mr-1 font-semibold text-primary hover:underline"
+              >
+                @
+                {name(replyToUser)}
+              </Link>
             )}
-            {/* 回复提示 */}
-            {parentComment && (
-              <span>
-                {t('reply')}
-                <Link
-                  href={getUserUrl(parentComment.user)}
-                  data-user-color={parentComment.user.preferredColor || siteInfo.defaultColorScheme || 'blue'}
-                  className="mx-1 cursor-pointer font-bold text-primary hover:underline hover:decoration-dashed hover:underline-offset-4"
-                >
-                  {parentComment.user.nickname || parentComment.user.username}
-                </Link>
-                :
-                {' '}
+            {comment.content}
+          </p>
+          <div className="-ml-2 flex items-center gap-0.5 text-xs text-muted-foreground">
+            <button
+              type="button"
+              onClick={toggleReply}
+              aria-pressed={replyActive}
+              className={cn('inline-flex h-7 items-center gap-1 rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground', replyActive && 'text-primary')}
+            >
+              <Reply aria-hidden className="size-3.5" />
+              {t('reply')}
+            </button>
+            <button
+              type="button"
+              title={liked ? operationT('unlike') : operationT('like')}
+              aria-label={liked ? operationT('unlike') : operationT('like')}
+              aria-pressed={liked}
+              onClick={handleToggleLike}
+              className={cn('inline-flex h-7 min-w-7 items-center gap-1 rounded-md px-2 tabular-nums transition-colors hover:bg-muted hover:text-foreground', liked && 'text-primary hover:text-primary')}
+            >
+              <LikeIcon className={cn('size-3.5', liked && 'fill-current')} />
+              {likeCount > 0 && likeCount}
+            </button>
+            {user && (user.id === comment.user.id || isAdmin({ user })) && (
+              // 桌面端悬停时才显示「更多」，触屏设备始终显示
+              <span className="ml-auto sm:opacity-0 sm:transition-opacity sm:group-focus-within/comment:opacity-100 sm:group-hover/comment:opacity-100">
+                <CommentDropdownMenu comment={comment} setActiveInputId={setActiveInputId} onCommentDelete={onDelete} />
               </span>
             )}
-            {commentState.content}
-          </p>
-          <div className="flex items-center justify-between gap-2 text-xs text-foreground/50">
-            <div className="flex items-center gap-2 justify-start flex-wrap">
-              {/* 用户地理，浏览器，系统信息 */}
-              {commentState.location && (
-                <span>
-                  {formatLocation({
-                    location: commentState.location,
-                    short: true,
-                  })}
-                </span>
-              )}
-              {commentState.browser && (
-                <span className="hidden md:flex">{commentState.browser}</span>
-              )}
-              {commentState.os && <span className="hidden md:flex">{commentState.os}</span>}
-            </div>
-            <div className="flex items-center gap-2 md:w-auto justify-end">
-              {replyCount > 0 && (
-                <button type="button" onClick={toggleReplies} className="fade-in-up">
-                  {!showReplies
-                    ? t('expand_replies', { count: replyCount })
-                    : t('collapse_replies')}
-                </button>
-              )}
-              {/* 更多 */}
-              {user && (user.id === comment.user.id || isAdmin({ user })) && (
-                <CommentDropdownMenu
-                  comment={commentState}
-                  setActiveInputId={setActiveInputId}
-                  onCommentDelete={onCommentDelete}
-                />
-              )}
-
-              {/* 回复按钮 */}
-              <button
-                type="button"
-                title={t('reply')}
-                aria-label={t('reply')}
-                onClick={() => {
-                  if (activeInput?.type === 'reply' && activeInput.id === commentState.id) {
-                    setActiveInputId(null)
-                  }
-                  else {
-                    setActiveInputId({ id: commentState.id, type: 'reply' })
-                  }
-                }}
-                className={`fade-in-up flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-xs transition-colors hover:bg-primary/15 hover:text-primary ${activeInput?.type === 'reply' && activeInput.id === commentState.id ? 'bg-primary/15 text-primary' : 'bg-secondary text-secondary-foreground'}`}
-              >
-                <Reply aria-hidden className="size-3.5" />
-              </button>
-              {/* 点赞按钮 */}
-              <button
-                type="button"
-                title={liked ? operationT('unlike') : operationT('like')}
-                aria-label={liked ? operationT('unlike') : operationT('like')}
-                aria-pressed={liked}
-                onClick={handleToggleLike}
-                className={`fade-in flex h-7 min-w-7 items-center justify-center gap-1 rounded-md px-2 text-xs tabular-nums transition-colors ${liked ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-secondary text-secondary-foreground hover:bg-primary/15 hover:text-primary'}`}
-              >
-                <LikeIcon className={`size-3.5 ${liked ? 'fill-current' : ''}`} />
-                {' '}
-                <div>{likeCount}</div>
-              </button>
-            </div>
           </div>
         </div>
-        {/* 这俩输入框一次只能显示一个 */}
       </div>
-      {activeInput && activeInput.type === 'reply' && activeInput.id === commentState.id && (
-        <CommentInput
-          onCommentSubmitted={onReply}
-          initIsPrivate={commentState.isPrivate}
-          placeholder={`${t('reply')} ${commentState.user.nickname || commentState.user.username} :`}
-        />
-      )}
-      {activeInput && activeInput.type === 'edit' && activeInput.id === commentState.id && (
-        <CommentInput
-          initContent={commentState.content}
-          initIsPrivate={commentState.isPrivate}
-          onCommentSubmitted={onCommentEdit}
-          isUpdate={true}
-          initShowClientInfo={commentState.showClientInfo}
-        />
-      )}
-      {showReplies && replies.length > 0 && (
-        <div className="mt-4 pl-4 md:pl-8 space-y-4">
-          {replies.map(reply => (
-            <CommentItem
-              key={reply.id}
-              comment={reply}
-              ownerId={ownerId}
-              parentComment={commentState}
-              onCommentDelete={onReplyDelete}
-              activeInput={activeInput}
-              setActiveInputId={setActiveInputId}
-              onReplySubmitted={onReplySubmitted}
-            />
-          ))}
+      {editing && (
+        <div className={cn('mt-2', isRoot ? 'sm:ml-13' : 'ml-10')}>
+          <CommentInput
+            autoFocus
+            isUpdate
+            initContent={comment.content}
+            initIsPrivate={comment.isPrivate}
+            initShowClientInfo={comment.showClientInfo}
+            onCancel={() => setActiveInputId(null)}
+            onCommentSubmitted={onEdit}
+          />
         </div>
       )}
     </div>
@@ -396,7 +396,7 @@ function CommentDropdownMenu({
   onCommentDelete,
 }: {
   comment: Comment
-  setActiveInputId: (input: { id: number, type: 'reply' | 'edit' } | null) => void
+  setActiveInputId: (input: ActiveInput) => void
   onCommentDelete: ({ commentId }: { commentId: number }) => Promise<void>
 }) {
   const operationT = useOperationT()
@@ -421,8 +421,8 @@ function CommentDropdownMenu({
       <span className="inline-flex">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" aria-label={t('more_actions')}>
-              <Ellipsis className="w-4 h-4" />
+            <Button variant="ghost" size="icon-sm" className="size-7 text-muted-foreground" aria-label={t('more_actions')}>
+              <Ellipsis className="size-4" />
             </Button>
           </PopoverTrigger>
           <PopoverContent

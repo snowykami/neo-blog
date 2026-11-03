@@ -244,7 +244,7 @@ func (cr *CommentRepo) GetComment(commentID uint) (*model.Comment, error) {
 }
 
 // ListComments 列出评论；viewAll 为 true 时（管理员或目标作者）可见全部私密评论
-func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, targetType string, viewAll bool, page, size uint64, orderBy string, desc bool, depth *int) ([]model.Comment, error) {
+func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID, rootID uint, targetType string, viewAll bool, page, size uint64, orderBy string, desc bool, depth *int) ([]model.Comment, error) {
 	if !slices.Contains(constant.OrderByEnumComment, orderBy) {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
@@ -254,19 +254,11 @@ func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID uint, tar
 	if commentID > 0 {
 		query = query.Where("reply_id = ?", commentID)
 	}
-
-	// 可见性规则（基于 root_id）：
-	if currentUserID == 0 {
-		// 游客只看公开
-		query = query.Where("is_private = ?", false)
-	} else if viewAll {
-		// 管理员和目标作者可见所有（不加过滤）
-	} else {
-		// 普通用户：公开评论，或私密但所属 root_id 在用户参与的那些树中
-		// 子查询：当前用户参与的 root_id 列表
-		sub := GetDB().Model(&model.Comment{}).Select("distinct root_id").Where("user_id = ?", currentUserID)
-		query = query.Where("(is_private = ? OR (is_private = ? AND root_id IN (?)))", false, true, sub)
+	// 主评论下整个回复线程（不含主评论本身）
+	if rootID > 0 {
+		query = query.Where("root_id = ? AND depth > 0", rootID)
 	}
+	query = visibleComments(query, currentUserID, viewAll)
 
 	if depth != nil && *depth >= 0 {
 		query = query.Where("target_id = ? AND target_type = ? AND depth = ?", targetID, targetType, *depth)
@@ -364,4 +356,68 @@ func (cr *CommentRepo) CountComments(targetType string, targetID uint) (int64, e
 		return 0, err
 	}
 	return count, nil
+}
+
+// visibleComments 评论的可见性规则（基于 root_id）：游客只看公开评论；管理员和目标作者可见全部；
+// 普通用户可见公开评论，以及自己参与过的评论树中的私密评论
+func visibleComments(query *gorm.DB, currentUserID uint, viewAll bool) *gorm.DB {
+	switch {
+	case currentUserID == 0:
+		return query.Where("is_private = ?", false)
+	case viewAll:
+		return query
+	}
+	sub := GetDB().Model(&model.Comment{}).Select("distinct root_id").Where("user_id = ?", currentUserID)
+	return query.Where("(is_private = ? OR (is_private = ? AND root_id IN (?)))", false, true, sub)
+}
+
+// ThreadSummaries 主评论下整个回复线程（不限层级）中当前用户可见的回复数，以及最早回复的用户（去重，每个线程最多 limit 位）
+func (cr *CommentRepo) ThreadSummaries(rootIDs []uint, currentUserID uint, viewAll bool, limit int) (map[uint]int64, map[uint][]model.User, error) {
+	counts := map[uint]int64{}
+	repliers := map[uint][]model.User{}
+	if len(rootIDs) == 0 {
+		return counts, repliers, nil
+	}
+	thread := func() *gorm.DB {
+		return visibleComments(GetDB().Model(&model.Comment{}), currentUserID, viewAll).Where("root_id IN ? AND depth > 0", rootIDs)
+	}
+	var countRows []struct {
+		RootID uint
+		Count  int64
+	}
+	if err := thread().Select("root_id, COUNT(*) AS count").Group("root_id").Scan(&countRows).Error; err != nil {
+		return nil, nil, err
+	}
+	for _, row := range countRows {
+		counts[row.RootID] = row.Count
+	}
+	// 每位用户在线程中的第一条回复（id 越小越早），按先后排列
+	var userRows []struct {
+		RootID  uint
+		UserID  uint
+		FirstID uint
+	}
+	if err := thread().Select("root_id, user_id, MIN(id) AS first_id").Group("root_id, user_id").Order("first_id").Scan(&userRows).Error; err != nil {
+		return nil, nil, err
+	}
+	userIDs := make([]uint, 0, len(userRows))
+	for _, row := range userRows {
+		userIDs = append(userIDs, row.UserID)
+	}
+	var users []model.User
+	if len(userIDs) > 0 {
+		if err := GetDB().Where("id IN ?", userIDs).Find(&users).Error; err != nil {
+			return nil, nil, err
+		}
+	}
+	byID := make(map[uint]model.User, len(users))
+	for _, user := range users {
+		byID[user.ID] = user
+	}
+	for _, row := range userRows {
+		if user, ok := byID[row.UserID]; ok && len(repliers[row.RootID]) < limit {
+			repliers[row.RootID] = append(repliers[row.RootID], user)
+		}
+	}
+	return counts, repliers, nil
 }

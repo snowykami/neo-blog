@@ -179,7 +179,6 @@
     "failed": "복사 실패"
   },
   "Comment": {
-    "collapse_replies": "접기",
     "comment": "댓글",
     "comment_failed": "댓글 작성 실패",
     "comment_success": "댓글 작성됨",
@@ -193,7 +192,6 @@
     "edit_at": "{time}에 수정됨",
     "edit_failed": "수정 실패",
     "edit_success": "댓글 업데이트됨",
-    "expand_replies": "{count}개 답글 표시",
     "load_more": "더 보기",
     "no_more": "더 이상 없음",
     "placeholder": "댓글을 작성하세요...",
@@ -209,7 +207,18 @@
     "view_user_profile": "{name}님의 프로필 보기",
     "login_required": "먼저 로그인하세요",
     "delete_confirm_title": "이 댓글을 삭제할까요?",
-    "delete_confirm_description": "삭제하면 되돌릴 수 없으며, 달린 답글도 함께 삭제됩니다."
+    "delete_confirm_description": "삭제하면 되돌릴 수 없으며, 달린 답글도 함께 삭제됩니다.",
+    "guest_title": "로그인하고 대화에 참여하세요",
+    "guest_desc": "댓글에 아바타와 이름이 표시됩니다",
+    "login_with": "{name}(으)로 로그인",
+    "reply_to": "@{name}에게 답글",
+    "cancel_reply": "답글 취소",
+    "submit_shortcut": "⌘/Ctrl + Enter로 게시",
+    "publish": "게시",
+    "show_remaining": "나머지 답글 {count}개 보기",
+    "collapse_thread": "답글 접기",
+    "thread_replies": "답글 {count}개",
+    "thread_by": "{more, plural, =0 {{name}} other {{name} 외}}"
   },
   "Common": {
     "image_load_failed": "이미지를 불러오지 못했습니다",

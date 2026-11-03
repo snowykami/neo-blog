@@ -84,6 +84,22 @@ export async function listComments({
   return res.data
 }
 
+// 主评论下的整个回复线程（不限层级），按时间正序
+export async function listCommentThread({
+  targetType,
+  targetId,
+  rootId,
+}: {
+  targetType: TargetType
+  targetId: number
+  rootId: number
+}): Promise<BaseResponse<{ comments: Comment[] }>> {
+  const res = await axiosClient.get(`/comment/list`, {
+    params: { targetType, targetId, rootId, orderBy: OrderBy.CreatedAt, desc: false, page: 1, size: 1000 },
+  })
+  return res.data
+}
+
 export async function getComment({ id }: { id: number }): Promise<BaseResponse<Comment>> {
   const res = await axiosClient.get(`/comment/c/${id}`)
   return res.data
