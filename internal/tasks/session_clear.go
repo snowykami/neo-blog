@@ -15,7 +15,7 @@ const sessionCleanupInterval = 6 * time.Hour
 func StartSessionCleanup() {
 	go func() {
 		for {
-			deleted, err := repo.Session.DeleteSessionsInactiveBefore(time.Now().Add(-utils.Jwt.RefreshTokenDurationWithRememberMe))
+			deleted, err := repo.Session.DeleteSessionsInactiveBefore(time.Now().Add(-utils.Jwt.CurrentDurations().RefreshRemember))
 			if err != nil {
 				logrus.Errorf("session cleanup failed: %v", err)
 			} else if deleted > 0 {

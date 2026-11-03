@@ -14,36 +14,65 @@ const (
 	JwtTokenTypeRefresh = "refresh"
 )
 
+// JwtDurations 访问令牌与刷新令牌的有效期（刷新令牌分普通与「记住我」）
+type JwtDurations struct {
+	Access          time.Duration
+	Refresh         time.Duration
+	RefreshRemember time.Duration
+}
+
+// DefaultJwtDurations 默认有效期；实际值由后台配置或环境变量决定（见 internal/tools.GetAuthDurations）
+var DefaultJwtDurations = JwtDurations{
+	Access:          300 * time.Second,
+	Refresh:         7 * 24 * time.Hour,
+	RefreshRemember: 30 * 24 * time.Hour,
+}
+
 type jwtUtils struct {
-	TokenDuration                      time.Duration
-	RefreshTokenDuration               time.Duration
-	RefreshTokenDurationWithRememberMe time.Duration
+	// Durations 返回当前有效期，启动时注入（读取后台配置，pkg 不依赖 internal）；未注入时用默认值
+	Durations func() JwtDurations
 }
 
-var Jwt = jwtUtils{
-	TokenDuration:                      time.Second * 60,    // 默认Token有效期
-	RefreshTokenDuration:               time.Hour * 24 * 3,  // 默认Refresh Token有效期
-	RefreshTokenDurationWithRememberMe: time.Hour * 24 * 15, // 记住我情况下的Refresh Token有效期
-}
+var Jwt = jwtUtils{}
 
-// loadJwtDurations 用环境变量（单位：秒）覆盖默认有效期，需在 .env 加载后调用
-func loadJwtDurations() {
-	for key, target := range map[string]*time.Duration{
-		constant.EnvKeyTokenDuration:                    &Jwt.TokenDuration,
-		constant.EnvKeyRefreshTokenDuration:             &Jwt.RefreshTokenDuration,
-		constant.EnvKeyRefreshTokenDurationWithRemember: &Jwt.RefreshTokenDurationWithRememberMe,
-	} {
-		if seconds := Env.GetAsInt(key, 0); seconds > 0 {
-			*target = time.Duration(seconds) * time.Second
-		}
+// CurrentDurations 当前生效的有效期
+func (j *jwtUtils) CurrentDurations() JwtDurations {
+	if j.Durations != nil {
+		return j.Durations()
 	}
+	return DefaultJwtDurations
+}
+
+func (j *jwtUtils) durations() JwtDurations {
+	return j.CurrentDurations()
+}
+
+// CookieMaxAge 令牌 Cookie 的保留时长（秒）：取令牌本身剩余的有效期，Cookie 与令牌同时到期；
+// 解析失败时取 fallback（如「记住我」的刷新令牌按 30 天，而不是固定按普通有效期，否则浏览器会提前删掉 Cookie）
+func (j *jwtUtils) CookieMaxAge(token string, fallback time.Duration) int {
+	if claims, err := j.ParseJsonWebTokenWithoutState(token); err == nil && claims.ExpiresAt != nil {
+		return max(0, int(time.Until(claims.ExpiresAt.Time).Seconds()))
+	}
+	return int(fallback.Seconds())
 }
 
 type Claims struct {
 	jwt.RegisteredClaims
 	UserID    uint   `json:"user_id"`
-	SessionID string `json:"session_id"` // 会话ID，仅在有状态Token中使用
-	TokenType string `json:"token_type"` // token用途：access 或 refresh
+	SessionID string `json:"session_id"`         // 会话ID，仅在有状态Token中使用
+	TokenType string `json:"token_type"`         // token用途：access 或 refresh
+	Remember  bool   `json:"remember,omitempty"` // 刷新令牌：登录时勾选了「记住我」，续期时沿用
+}
+
+// RememberMe 刷新令牌是否属于「记住我」的会话：新令牌带有标记；旧令牌没有标记，按签发时的有效期是否超过普通有效期判断
+func (c *Claims) RememberMe() bool {
+	if c.Remember {
+		return true
+	}
+	if c.ExpiresAt == nil || c.IssuedAt == nil {
+		return false
+	}
+	return c.ExpiresAt.Sub(c.IssuedAt.Time) > Jwt.durations().Refresh
 }
 
 // ToString 将Claims转换为JWT字符串
@@ -66,14 +95,17 @@ func (j *jwtUtils) NewClaims(userID uint, sessionID string, duration time.Durati
 }
 
 func (j *jwtUtils) NewTokenClaims(userID uint, sessionID string) *Claims {
-	return j.NewClaims(userID, sessionID, j.TokenDuration, JwtTokenTypeAccess)
+	return j.NewClaims(userID, sessionID, j.durations().Access, JwtTokenTypeAccess)
 }
 
 func (j *jwtUtils) NewRefreshClaims(userID uint, sessionID string, rememberMe bool) *Claims {
+	durations := j.durations()
 	if rememberMe {
-		return j.NewClaims(userID, sessionID, j.RefreshTokenDurationWithRememberMe, JwtTokenTypeRefresh)
+		claims := j.NewClaims(userID, sessionID, durations.RefreshRemember, JwtTokenTypeRefresh)
+		claims.Remember = true
+		return claims
 	}
-	return j.NewClaims(userID, sessionID, j.RefreshTokenDuration, JwtTokenTypeRefresh)
+	return j.NewClaims(userID, sessionID, durations.Refresh, JwtTokenTypeRefresh)
 }
 
 // New2Tokens 同时生成访问Token和刷新Token，自行处理持久化

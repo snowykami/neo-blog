@@ -70,7 +70,8 @@ func UseAuth(block bool, tokenScopes ...string) app.HandlerFunc {
 				valid, err := isStatefulJwtValid(refreshTokenClaims)
 				if err == nil && valid {
 					// 刷新双token
-					newToken, newRefreshToken, err := utils.Jwt.New2Tokens(refreshTokenClaims.UserID, refreshTokenClaims.SessionID, false)
+					// 续期沿用登录时的「记住我」，否则记住我的会话续期后会缩短成普通有效期
+					newToken, newRefreshToken, err := utils.Jwt.New2Tokens(refreshTokenClaims.UserID, refreshTokenClaims.SessionID, refreshTokenClaims.RememberMe())
 					if err != nil {
 						resps.InternalServerError(c, "Failed to generate new tokens")
 						c.Abort()

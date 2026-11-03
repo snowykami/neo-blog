@@ -132,7 +132,16 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 			if err = s.updateUserOpenIdInfo(existingUserOpenID, userInfo); err != nil {
 				return nil, errs.NewInternalServer("failed_to_update_target")
 			}
-			token, refreshToken, err := utils.Jwt.New2Tokens(existingUserOpenID.UserID, "", false)
+			// 与其他登录方式一样创建会话：刷新令牌按会话校验，空会话的令牌在访问令牌过期后无法续期
+			sessionID := utils.Strings.GenerateRandomString(32)
+			if err = repo.Session.CreateSession(&model.Session{
+				UserID:    existingUserOpenID.UserID,
+				SessionID: sessionID,
+				UserIP:    utils.NewIPRecord(req.UserIP),
+			}); err != nil {
+				return nil, errs.NewInternalServer("failed_to_create_target")
+			}
+			token, refreshToken, err := utils.Jwt.New2Tokens(existingUserOpenID.UserID, sessionID, false)
 			if err != nil {
 				return nil, errs.NewInternalServer("failed_to_create_target")
 			}
