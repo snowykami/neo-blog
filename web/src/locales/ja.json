@@ -1145,6 +1145,8 @@
       "username": "ユーザー名",
       "update_profile": "プロフィールを更新",
       "show_ip_location": "IP 位置を表示",
+      "show_likes": "いいねを公開する",
+      "show_likes_description": "オンにすると、プロフィールであなたがいいねした公開記事やコメントを誰でも見られます",
       "select_language": "言語を選択"
     },
     "user_security": {
@@ -2349,6 +2351,14 @@
     "no_public_comments": "公開されているコメントはまだありません",
     "commented_on": "コメント先",
     "comments_load_failed": "コメントの読み込みに失敗しました",
+    "tab_likes": "いいね",
+    "likes": "いいねした内容",
+    "liked_post": "<author></author> さんの記事にいいねしました",
+    "liked_comment": "<author></author> さんのコメントにいいねしました",
+    "no_likes": "いいねはまだありません",
+    "no_likes_hint": "いいねした記事やコメントがここに表示されます",
+    "likes_load_failed": "いいねの読み込みに失敗しました",
+    "likes_visibility": "本人と管理者のみ表示",
     "user_not_found": "ユーザーが見つかりません",
     "gender": "性別",
     "email": "メールアドレス",

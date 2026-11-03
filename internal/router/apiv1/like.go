@@ -13,5 +13,6 @@ func registerLikeRoutes(group *route.RouterGroup) {
 	{
 		likeGroup.PUT("/toggle", likeController.ToggleLike)
 		likeGroupWithoutAuth.GET("/liked_users", likeController.GetLikedUsers)
+		likeGroupWithoutAuth.GET("/user", likeController.ListUserLikes) // 仅本人与管理员可见，由 service 判定
 	}
 }

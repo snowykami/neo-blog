@@ -23,6 +23,7 @@ type User struct {
 	Language       string        `gorm:"default:'zh'"`
 	Password       string        // 密码，存储加密后的值
 	ShowIPLocation *bool         `gorm:"default:true"`  // 是否显示IP归属地
+	ShowLikes      *bool         `gorm:"default:false"` // 是否公开点赞记录，默认不公开
 	Disabled       bool          `gorm:"default:false"` // 是否被管理员禁用，禁用后无法登录且已有会话失效
 }
 
@@ -39,6 +40,7 @@ func (user *User) ToDto() dto.UserDto {
 		Role:           user.Role,
 		Language:       user.Language,
 		ShowIPLocation: user.ShowIPLocation,
+		ShowLikes:      user.ShowLikes,
 		GravatarHash:   gravatarHash(user.Email),
 	}
 }

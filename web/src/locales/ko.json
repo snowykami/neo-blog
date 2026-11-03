@@ -1145,6 +1145,8 @@
       "username": "Username",
       "update_profile": "Update profile",
       "show_ip_location": "Show IP Location",
+      "show_likes": "내 좋아요 공개",
+      "show_likes_description": "켜면 누구나 내 프로필에서 내가 좋아요한 공개 글과 댓글을 볼 수 있습니다",
       "select_language": "언어 선택"
     },
     "user_security": {
@@ -2349,6 +2351,14 @@
     "no_public_comments": "공개된 댓글이 아직 없습니다",
     "commented_on": "댓글 단 글",
     "comments_load_failed": "댓글을 불러오지 못했습니다",
+    "tab_likes": "좋아요",
+    "likes": "좋아요한 콘텐츠",
+    "liked_post": "<author></author> 님의 글을 좋아합니다",
+    "liked_comment": "<author></author> 님의 댓글을 좋아합니다",
+    "no_likes": "좋아요가 없습니다",
+    "no_likes_hint": "좋아요한 글과 댓글이 여기에 표시됩니다",
+    "likes_load_failed": "좋아요 목록을 불러오지 못했습니다",
+    "likes_visibility": "본인과 관리자만 볼 수 있음",
     "user_not_found": "사용자를 찾을 수 없습니다",
     "gender": "성별",
     "email": "이메일",

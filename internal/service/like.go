@@ -63,3 +63,89 @@ func (ls *LikeService) GetLikedUsers(ctx context.Context, targetID uint, targetT
 	}
 	return userDtos, nil
 }
+
+// ListUserLikes 用户主页的点赞列表：点赞记录涉及个人偏好，默认仅本人与管理员可见；
+// 用户开启「公开我的喜欢」后，其他人可以看到公开内容上的点赞
+func (ls *LikeService) ListUserLikes(ctx context.Context, req *dto.ListUserLikesReq) ([]dto.UserLikeDto, int64, *errs.ServiceError) {
+	isAdmin, isSelf := ctxutils.IsAdmin(ctx), ctxutils.IsOwnerOfTarget(ctx, req.UserID)
+	if !(isAdmin || isSelf) {
+		user, err := repo.User.GetUserByID(req.UserID)
+		if err != nil {
+			return nil, 0, errs.FromDB(err, "user", "failed_to_get_target")
+		}
+		if !(user.ShowLikes != nil && *user.ShowLikes) {
+			return nil, 0, errs.NewForbidden("permission_denied")
+		}
+	}
+	likes, total, err := repo.Like.ListLikesByUser(req.UserID, isAdmin, isSelf, req.Page, req.Size)
+	if err != nil {
+		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("like")
+	}
+
+	// 按目标类型分组，批量读取文章、评论及评论所在的文章/页面
+	var postIDs, commentIDs []uint
+	for _, like := range likes {
+		switch like.TargetType {
+		case constant.TargetTypePost:
+			postIDs = append(postIDs, like.TargetID)
+		case constant.TargetTypeComment:
+			commentIDs = append(commentIDs, like.TargetID)
+		}
+	}
+	posts, err := repo.Like.ListLikedPosts(postIDs)
+	if err != nil {
+		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("like")
+	}
+	comments, err := repo.Like.ListLikedComments(commentIDs)
+	if err != nil {
+		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("like")
+	}
+	idsByType := map[string][]uint{}
+	for _, comment := range comments {
+		idsByType[comment.TargetType] = append(idsByType[comment.TargetType], comment.TargetID)
+	}
+	briefsByType := map[string]map[uint]repo.CommentTargetBrief{}
+	for targetType, ids := range idsByType {
+		briefs, err := repo.Comment.ListTargetBriefs(targetType, ids)
+		if err != nil {
+			return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("like")
+		}
+		briefsByType[targetType] = briefs
+	}
+
+	result := make([]dto.UserLikeDto, 0, len(likes))
+	for _, like := range likes {
+		item := dto.UserLikeDto{
+			ID:         like.ID,
+			TargetType: like.TargetType,
+			TargetID:   like.TargetID,
+			CreatedAt:  like.CreatedAt,
+		}
+		// 查询期间目标被删除时跳过该条，避免返回残缺数据
+		switch like.TargetType {
+		case constant.TargetTypePost:
+			post, ok := posts[like.TargetID]
+			if !ok {
+				continue
+			}
+			item.Author = post.User.ToDto()
+			item.Target = dto.CommentTargetDto{ID: post.ID, Type: constant.TargetTypePost, Title: post.Title, Slug: post.Slug}
+		case constant.TargetTypeComment:
+			comment, ok := comments[like.TargetID]
+			if !ok {
+				continue
+			}
+			brief, ok := briefsByType[comment.TargetType][comment.TargetID]
+			if !ok {
+				continue
+			}
+			item.Author = comment.User.ToDto()
+			item.Content = comment.Content
+			item.Target = dto.CommentTargetDto{ID: brief.ID, Type: comment.TargetType, Title: brief.Title, Slug: brief.Slug}
+		default:
+			continue
+		}
+		result = append(result, item)
+	}
+	return result, total, nil
+}

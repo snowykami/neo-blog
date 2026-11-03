@@ -11,6 +11,7 @@ export interface User {
   role: Role
   language?: string
   showIpLocation: boolean
+  showLikes?: boolean // 是否公开点赞记录
   createdAt?: string // 注册时间，仅 /user/me 与管理员接口返回
   disabled?: boolean // 是否被禁用，仅 /user/me 与管理员接口返回
 }

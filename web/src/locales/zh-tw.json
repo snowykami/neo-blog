@@ -1145,6 +1145,8 @@
       "username": "使用者名稱",
       "update_profile": "更新資料",
       "show_ip_location": "顯示 IP 歸屬地",
+      "show_likes": "公開我的喜歡",
+      "show_likes_description": "開啟後，所有人都能在你的主頁查看你按讚的公開文章和留言",
       "select_language": "選擇語言"
     },
     "user_security": {
@@ -2349,6 +2351,14 @@
     "no_public_comments": "這裡還沒有可公開查看的評論",
     "commented_on": "評論於",
     "comments_load_failed": "評論載入失敗",
+    "tab_likes": "喜歡",
+    "likes": "喜歡的內容",
+    "liked_post": "喜歡了 <author></author> 的文章",
+    "liked_comment": "喜歡了 <author></author> 的留言",
+    "no_likes": "暫無喜歡",
+    "no_likes_hint": "按讚過的文章和留言會顯示在這裡",
+    "likes_load_failed": "喜歡列表載入失敗",
+    "likes_visibility": "僅本人與管理員可見",
     "user_not_found": "找不到使用者",
     "gender": "性別",
     "email": "電子郵件",

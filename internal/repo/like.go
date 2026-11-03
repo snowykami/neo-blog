@@ -130,6 +130,83 @@ func (l *likeRepo) GetLikedUsers(targetID uint, targetType string, limit int) ([
 	return users, nil
 }
 
+// ListLikesByUser 列出某用户的点赞记录（用户主页使用），只保留目标仍存在且可见的记录，按点赞时间倒序
+//   - viewAll：管理员查看，未删除的目标全部可见
+//   - isSelf：本人查看，文章、页面需公开或本人所有；
+//     私密评论需本人参与过该评论树（含本人发表），或本人是评论所在文章/页面的作者
+//   - 其他人查看（用户已公开点赞记录）：只保留公开文章、页面及其下的公开评论
+func (l *likeRepo) ListLikesByUser(userID uint, viewAll, isSelf bool, page, size uint64) ([]model.Like, int64, error) {
+	// 已删除（软删除）的文章、页面、评论会被模型默认作用域排除
+	visibleTargets := func(m any) *gorm.DB {
+		sub := GetDB().Model(m).Select("id")
+		switch {
+		case viewAll:
+		case isSelf:
+			sub = sub.Where("(is_private = ? OR user_id = ?)", false, userID)
+		default:
+			sub = sub.Where("is_private = ?", false)
+		}
+		return sub
+	}
+	visibleComments := GetDB().Model(&model.Comment{}).Select("id").
+		Where("((target_type = ? AND target_id IN (?)) OR (target_type = ? AND target_id IN (?)))",
+			constant.TargetTypePost, visibleTargets(&model.Post{}),
+			constant.TargetTypePage, visibleTargets(&model.Page{}))
+	switch {
+	case viewAll:
+	case isSelf:
+		ownTargets := func(m any) *gorm.DB {
+			return GetDB().Model(m).Select("id").Where("user_id = ?", userID)
+		}
+		participated := GetDB().Model(&model.Comment{}).Select("distinct root_id").Where("user_id = ?", userID)
+		visibleComments = visibleComments.Where("(is_private = ? OR root_id IN (?) OR (target_type = ? AND target_id IN (?)) OR (target_type = ? AND target_id IN (?)))",
+			false, participated,
+			constant.TargetTypePost, ownTargets(&model.Post{}),
+			constant.TargetTypePage, ownTargets(&model.Page{}))
+	default:
+		visibleComments = visibleComments.Where("is_private = ?", false)
+	}
+
+	query := GetDB().Model(&model.Like{}).
+		Where("user_id = ?", userID).
+		Where("((target_type = ? AND target_id IN (?)) OR (target_type = ? AND target_id IN (?)))",
+			constant.TargetTypePost, visibleTargets(&model.Post{}),
+			constant.TargetTypeComment, visibleComments)
+	return PaginateQuery[model.Like](query, page, size, constant.OrderByCreatedAt, true)
+}
+
+// ListLikedPosts 批量读取被点赞文章的标题、slug 与作者，返回以 id 为键的映射
+func (l *likeRepo) ListLikedPosts(ids []uint) (map[uint]model.Post, error) {
+	result := make(map[uint]model.Post, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	var posts []model.Post
+	if err := GetDB().Select("id, title, slug, user_id").Preload("User").Where("id IN ?", ids).Find(&posts).Error; err != nil {
+		return nil, err
+	}
+	for _, post := range posts {
+		result[post.ID] = post
+	}
+	return result, nil
+}
+
+// ListLikedComments 批量读取被点赞评论的内容、所在目标与作者，返回以 id 为键的映射
+func (l *likeRepo) ListLikedComments(ids []uint) (map[uint]model.Comment, error) {
+	result := make(map[uint]model.Comment, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	var comments []model.Comment
+	if err := GetDB().Select("id, content, target_type, target_id, user_id").Preload("User").Where("id IN ?", ids).Find(&comments).Error; err != nil {
+		return nil, err
+	}
+	for _, comment := range comments {
+		result[comment.ID] = comment
+	}
+	return result, nil
+}
+
 func (l *likeRepo) checkTargetType(targetType string) error {
 	switch targetType {
 	case constant.TargetTypePost, constant.TargetTypeComment:

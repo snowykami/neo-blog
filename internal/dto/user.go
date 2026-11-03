@@ -19,6 +19,7 @@ type UserDto struct {
 	Role           constant.Role `json:"role"`
 	Language       string        `json:"language"`             // 语言
 	ShowIPLocation *bool         `json:"show_ip_location"`     // 是否显示IP归属地
+	ShowLikes      *bool         `json:"show_likes"`           // 是否公开点赞记录
 	CreatedAt      *time.Time    `json:"created_at,omitempty"` // 注册时间，仅本人和管理员可见
 	Disabled       *bool         `json:"disabled,omitempty"`   // 是否被禁用，仅本人和管理员可见
 }
@@ -119,6 +120,7 @@ type UpdateUserReq struct {
 	Gender         string `json:"gender"`
 	Language       string `json:"language"`
 	ShowIPLocation *bool  `json:"show_ip_location"`
+	ShowLikes      *bool  `json:"show_likes"`
 }
 
 type UpdateUserResp struct {

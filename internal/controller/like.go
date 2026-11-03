@@ -59,3 +59,17 @@ func (lc *LikeController) GetLikedUsers(ctx context.Context, c *app.RequestConte
 	}
 	resps.Ok(c, resps.Success, utils.H{"users": users})
 }
+
+func (lc *LikeController) ListUserLikes(ctx context.Context, c *app.RequestContext) {
+	req := &dto.ListUserLikesReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	likes, total, svcerr := lc.service.ListUserLikes(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"likes": likes, "total": total})
+}

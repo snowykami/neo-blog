@@ -1,3 +1,5 @@
+import type { PaginationParams } from '@/models/common'
+import type { UserLike } from '@/models/like'
 import type { BaseResponse } from '@/models/resp'
 import type { TargetType } from '@/models/types'
 import type { User } from '@/models/user'
@@ -28,6 +30,20 @@ export async function getLikedUsers({
 }): Promise<BaseResponse<{ users: User[] }>> {
   const res = await axiosClient.get('/like/liked_users', {
     params: { targetType, targetId, number },
+  })
+  return res.data
+}
+
+// 用户主页：列出某用户的点赞记录，仅本人与管理员可见
+export async function listUserLikes({
+  userId,
+  page = 1,
+  size = 10,
+}: {
+  userId: number
+} & Pick<PaginationParams, 'page' | 'size'>): Promise<BaseResponse<{ likes: UserLike[], total: number }>> {
+  const res = await axiosClient.get('/like/user', {
+    params: { userId, page, size },
   })
   return res.data
 }

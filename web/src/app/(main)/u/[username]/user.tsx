@@ -67,7 +67,7 @@ export function UserPage() {
   return (
     <SiteShell>
       <UserHeader user={user} />
-      <UserContentTabs userId={user.id} />
+      <UserContentTabs userId={user.id} showLikes={!!user.showLikes} />
     </SiteShell>
   )
 }

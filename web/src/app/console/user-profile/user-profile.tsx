@@ -14,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -64,6 +65,7 @@ interface FormValues {
   gender: string
   language: string
   showIpLocation: boolean
+  showLikes: boolean
 }
 
 export function UserProfilePage() {
@@ -78,6 +80,7 @@ export function UserProfilePage() {
       gender: user?.gender ?? '',
       language: user?.language ?? 'en',
       showIpLocation: user?.showIpLocation ?? true,
+      showLikes: user?.showLikes ?? false,
     },
   })
 
@@ -103,6 +106,7 @@ export function UserProfilePage() {
       || avatarCropped !== null
       || backgroundCropped !== null
       || values.showIpLocation !== user.showIpLocation
+      || values.showLikes !== (user.showLikes ?? false)
     )
   }
 
@@ -146,6 +150,7 @@ export function UserProfilePage() {
         avatarUrl: nextAvatarUrl,
         backgroundUrl: nextBackgroundUrl,
         showIpLocation: values.showIpLocation,
+        showLikes: values.showLikes,
       })
       window.location.reload()
     }
@@ -271,6 +276,21 @@ export function UserProfilePage() {
                 <FormControl>
                   <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="showLikes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('show_likes')}</FormLabel>
+                <FormControl>
+                  <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                </FormControl>
+                <FormDescription>{t('show_likes_description')}</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
