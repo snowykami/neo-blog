@@ -7,7 +7,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
-	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
@@ -24,9 +23,23 @@ func (cc *AdminController) ListKV(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, utils.H{"items": items})
 }
 
-// EnvOverrides 由环境变量设置、优先于后台配置的配置项（配置键 → 环境变量中的值），后台据此把这些配置显示为只读
-func (cc *AdminController) EnvOverrides(ctx context.Context, c *app.RequestContext) {
-	resps.Ok(c, resps.Success, utils.H{"overrides": tools.EnvOverrides()})
+// GetConfig 后台全局配置表单的结构与当前值：每项的类型、名称与说明的 i18n 键、取值范围、数据库中的值与环境变量的值
+func (cc *AdminController) GetConfig(ctx context.Context, c *app.RequestContext) {
+	resps.Ok(c, resps.Success, cc.service.GetConfigSchema())
+}
+
+// SaveConfig 保存后台全局配置（只包含改动的项）
+func (cc *AdminController) SaveConfig(ctx context.Context, c *app.RequestContext) {
+	var req dto.SaveConfigReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if svcerr := cc.service.SaveConfig(&req); svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
 }
 
 func (cc *AdminController) SetKV(ctx context.Context, c *app.RequestContext) {

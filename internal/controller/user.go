@@ -10,6 +10,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
@@ -252,9 +253,11 @@ func (u *UserController) ChangeEmail(ctx context.Context, c *app.RequestContext)
 }
 
 func (u *UserController) GetCaptchaConfig(ctx context.Context, c *app.RequestContext) {
+	// 只公开前端渲染组件所需的提供方与站点 Key，密钥不外传
+	captcha := tools.GetCaptchaConfig()
 	resps.Ok(c, "ok", utils.H{
-		"provider": utils2.Env.Get(constant.EnvKeyCaptchaProvider, "disable"),
-		"site_key": utils2.Env.Get(constant.EnvKeyCaptchaSiteKey),
+		"provider": captcha.Type,
+		"site_key": captcha.SiteKey,
 		"url":      utils2.Env.Get(constant.EnvKeyCaptchaUrl),
 	})
 }

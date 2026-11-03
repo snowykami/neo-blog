@@ -23,7 +23,9 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.POST("/kv", adminController.SetKV)
 		consoleGroup.PUT("/kv/:key", adminController.SetKV)
 		consoleGroup.DELETE("/kv/:key", adminController.DeleteKV)
-		consoleGroup.GET("/config/env-overrides", adminController.EnvOverrides)
+		// 全局配置：按配置注册表下发表单结构与当前值，保存时校验
+		consoleGroup.GET("/config", adminController.GetConfig)
+		consoleGroup.PUT("/config", adminController.SaveConfig)
 		// 用户区
 		consoleGroup.GET("/users", adminController.ListUsers)
 		consoleGroup.POST("/users", adminController.CreateUser)

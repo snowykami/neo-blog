@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/snowykami/neo-blog/internal/config"
 	"github.com/snowykami/neo-blog/internal/repo"
-	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
@@ -111,8 +111,8 @@ func TestCustomTTMLURLConfig(t *testing.T) {
 	if got := customTTMLURL(7); got != "https://env.example.com/7.ttml" {
 		t.Fatalf("env first: got %q", got)
 	}
-	if overrides := tools.EnvOverrides(); overrides["music_ttml_url_template"] != "https://env.example.com/{id}.ttml" {
-		t.Fatalf("overrides = %v", overrides)
+	if env, _ := config.Lookup("music_ttml_url_template").EnvValue(); env != "https://env.example.com/{id}.ttml" {
+		t.Fatalf("env value = %q", env)
 	}
 }
 

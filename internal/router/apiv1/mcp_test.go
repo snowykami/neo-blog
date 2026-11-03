@@ -3,15 +3,12 @@ package apiv1
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
@@ -32,25 +29,7 @@ func (b bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // startServer 在随机端口启动与生产相同配置（流式请求体）的 Hertz 服务，只注册 MCP 路由
 func startServer(t *testing.T) string {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := l.Addr().String()
-	_ = l.Close()
-	h := server.New(server.WithHostPorts(addr), server.WithStreamBody(true), server.WithExitWaitTime(0))
-	registerMCPRoutes(h.Group("/api/v1"))
-	go func() { _ = h.Run() }()
-	t.Cleanup(func() { _ = h.Shutdown(context.Background()) })
-	for range 50 {
-		if conn, err := net.Dial("tcp", addr); err == nil {
-			_ = conn.Close()
-			return "http://" + addr + "/api/v1/mcp"
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatal("server did not start")
-	return ""
+	return startRoutes(t, registerMCPRoutes) + "/mcp"
 }
 
 // 经由 Hertz 路由、Token 中间件与 net/http 适配器，用官方客户端访问 MCP，验证鉴权与身份能传到工具

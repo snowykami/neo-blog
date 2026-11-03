@@ -114,9 +114,9 @@ function SidebarCardRow({ card, index, count, onChange, onMove, onRemove, onEdit
 /**
  * 侧边栏卡片配置：增删、调整顺序；组件卡片从组件库选择，属性弹窗与文章中的组件块共用
  */
-export function SidebarCardsField() {
+export function SidebarCardsField({ name, label, description }: { name: string, label: string, description?: string }) {
   const t = useTranslations('Console.global')
-  const { control } = useFormContext<{ sidebarCards: SidebarCardConfig[] }>()
+  const { control } = useFormContext<Record<string, SidebarCardConfig[]>>()
   const [libraryOpen, setLibraryOpen] = useState(false)
   // 正在编辑属性的组件卡片位置
   const [editing, setEditing] = useState<number | null>(null)
@@ -124,7 +124,7 @@ export function SidebarCardsField() {
   return (
     <FormField
       control={control}
-      name="sidebarCards"
+      name={name}
       rules={{ validate: cards => (cards ?? []).every(card => parseSidebarCard(card) != null) || t('sidebar_card_invalid') }}
       render={({ field }) => {
         const cards = field.value ?? []
@@ -141,7 +141,7 @@ export function SidebarCardsField() {
 
         return (
           <FormItem className="md:col-span-2">
-            <LabelWithInfo info={t('sidebar_cards_desc')}><FormLabel>{t('sidebar_cards')}</FormLabel></LabelWithInfo>
+            <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
             <div className="grid gap-2">
               {cards.length === 0 && <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">{t('sidebar_cards_empty')}</p>}
               {cards.map((card, index) => (

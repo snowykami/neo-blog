@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html/template"
 
-	"github.com/snowykami/neo-blog/pkg/constant"
 	"gopkg.in/gomail.v2"
 )
 
@@ -68,16 +67,4 @@ func (e *emailUtils) SendEmail(emailConfig *EmailConfig, target, subject, conten
 		return fmt.Errorf("发送邮件失败: %w", err)
 	}
 	return nil
-}
-
-func (e *emailUtils) GetEmailConfigFromEnv() *EmailConfig {
-	return &EmailConfig{
-		Enable:   Env.GetAsBool(constant.EnvKeyEmailEnable, false),
-		Username: Env.Get(constant.EnvKeyEmailUsername, ""),
-		Address:  Env.Get(constant.EnvKeyEmailAddress, ""),
-		Host:     Env.Get(constant.EnvKeyEmailHost, "smtp.example.com"),
-		Port:     Env.GetAsInt(constant.EnvKeyEmailPort, 587),
-		Password: Env.Get(constant.EnvKeyEmailPassword, ""),
-		SSL:      Env.GetAsBool(constant.EnvKeyEmailSsl, true),
-	}
 }

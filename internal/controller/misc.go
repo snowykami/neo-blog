@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"maps"
 	"runtime"
 	"slices"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/snowykami/neo-blog/internal/config"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
@@ -33,6 +35,14 @@ func NewMiscController() *MiscController {
 func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext) {
 	// 已保存整体站点信息时直接返回，避免为默认值逐项查询配置
 	if value, err := repo.KV.GetKV(KeySiteInfo); err == nil {
+		// 设置了环境变量 BASE_URL 时站点地址以它为准（复制一份再改，不动缓存里的值）
+		if info, ok := value.(map[string]any); ok {
+			if _, fromEnv := config.Lookup("base_url").EnvValue(); fromEnv {
+				info = maps.Clone(info)
+				info["base_url"] = tools.GetBaseUrl()
+				value = info
+			}
+		}
 		resps.Ok(c, "", value)
 		return
 	}
@@ -91,6 +101,11 @@ func (mc *MiscController) GetPublicConfig(ctx context.Context, c *app.RequestCon
 	for _, key := range keys {
 		// 只允许读取明确公开的配置，避免后台存储的其他键值被匿名读取
 		if !slices.Contains(publicConfigKeys, key) {
+			continue
+		}
+		// 已注册的配置返回实际生效的值（环境变量 > 后台配置 > 默认值）
+		if config.Lookup(key) != nil {
+			result[key] = config.Value(key)
 			continue
 		}
 		value, err := repo.KV.GetKV(key)
@@ -231,12 +246,12 @@ func (mc *MiscController) GetRssData(ctx context.Context, c *app.RequestContext)
 	resps.Ok(c, "", map[string]any{
 		"title":              repo.KV.GetKVWithoutErr(constant.KeySiteTitle, "Neo Blog Default Title"),
 		"description":        repo.KV.GetKVWithoutErr(constant.KeySiteDescription, "The default description of Neo Blog."),
-		"site_url":           repo.KV.GetKVWithoutErr(constant.KeyBaseUrl, utils2.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl)),
-		"feed_url":           repo.KV.GetStringWithoutErr(constant.KeyBaseUrl, utils2.Env.Get(constant.EnvKeyBaseUrl, constant.DefaultBaseUrl)) + "/rss.xml",
+		"site_url":           tools.GetBaseUrl(),
+		"feed_url":           tools.GetBaseUrl() + "/rss.xml",
 		"author":             repo.KV.GetKVWithoutErr(constant.KeySiteAuthor, "Neo Bloger"),
 		"copyright":          repo.KV.GetKVWithoutErr(constant.KeySiteCopyright, "CC BY-NC-SA 4.0"),
 		"image_url":          repo.KV.GetKVWithoutErr(constant.KeySiteImage, ""),
-		"language":           repo.KV.GetKVWithoutErr(constant.KeyDefaultLanguage, "en-us"),
+		"language":           config.String("default_language"),
 		"post_default_cover": repo.KV.GetKVWithoutErr(constant.KeyPostDefaultCover, "https://cdn.liteyuki.org/blog/background.png"),
 		"pub_date": func() time.Time {
 			if len(posts) > 0 {

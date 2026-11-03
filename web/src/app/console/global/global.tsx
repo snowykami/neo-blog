@@ -28,25 +28,14 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { useDebouncedState } from '@/hooks/use-debounce'
-import { useOperationT } from '@/hooks/use-translations'
-import { getErrorMessage } from '@/utils/common/error'
-
-// 后端实际读取的配置键（site_info 为前台站点信息整体配置）
-const PRESET_KEYS = [
-  'site_info',
-  'site_name',
-  'site_description',
-  'site_icon',
-  'base_url',
-  'enable_register',
-  'enable_register_from_oidc',
-  'max_reply_depth',
-  'revision_max_keep',
-  'visit_log_retention_days',
-]
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { useStandaloneConfigKeys } from './settings-form'
 
 export default function GlobalPage() {
   const operationT = useOperationT()
+  const errorMessageT = useErrorMessageT()
+  // 后端实际读取的配置键：site_info 为前台站点信息整体配置，其余来自配置注册表
+  const presetKeys = ['site_info', ...useStandaloneConfigKeys()]
   const t = useTranslations('Console.global.kv')
   const [items, setItems] = useState<KVItem[]>([])
   const [selectedKey, setSelectedKey] = useState('')
@@ -70,7 +59,7 @@ export default function GlobalPage() {
         setSelectedKey('')
     }
     catch (error) {
-      toast.error(`${operationT('fetch_failed')}: ${getErrorMessage(error)}`)
+      toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`)
     }
     finally {
       setLoading(false)
@@ -124,7 +113,7 @@ export default function GlobalPage() {
       await fetchItems()
     }
     catch (error) {
-      toast.error(`${operationT('save_failed')}: ${getErrorMessage(error)}`)
+      toast.error(`${operationT('save_failed')}: ${errorMessageT(error)}`)
     }
     finally {
       setSaving(false)
@@ -240,7 +229,7 @@ export default function GlobalPage() {
             <CardTitle>{t('preset_keys')}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
-            {PRESET_KEYS.map(key => (
+            {presetKeys.map(key => (
               <Button key={key} size="sm" variant="outline" onClick={() => handleNew(key)}>
                 {key}
               </Button>

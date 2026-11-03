@@ -17,14 +17,6 @@ type CaptchaConfig struct {
 	SecretKey string // Secret key for the captcha service
 }
 
-func (c *captchaUtils) GetCaptchaConfigFromEnv() *CaptchaConfig {
-	return &CaptchaConfig{
-		Type:      Env.Get(constant.EnvKeyCaptchaProvider, constant.CaptchaTypeDisable),
-		SiteKey:   Env.Get(constant.EnvKeyCaptchaSiteKey, ""),
-		SecretKey: Env.Get(constant.EnvKeyCaptchaSecreteKey, ""),
-	}
-}
-
 // VerifyCaptcha 根据提供的配置和令牌验证验证码
 func (c *captchaUtils) VerifyCaptcha(captchaConfig *CaptchaConfig, captchaToken string) (bool, error) {
 	restyClient := resty.New()

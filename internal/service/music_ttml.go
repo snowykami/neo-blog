@@ -75,7 +75,7 @@ type musicTTMLCacheEntry struct {
 // 如 https://cdn.example.com/lyrics/{id}.ttml、https://example.com/ttml?id={id}），否则视为目录前缀，拼接为 {前缀}/{id}.ttml。
 // 只接受 http(s) 绝对地址；未配置或无效时为空（跳过自定义源）
 func customTTMLURL(id int64) string {
-	pattern, _ := tools.GetMusicTTMLURLTemplate()
+	pattern := tools.GetMusicTTMLURLTemplate()
 	if pattern == "" {
 		return ""
 	}

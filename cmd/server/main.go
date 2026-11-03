@@ -4,7 +4,9 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/router"
 	"github.com/snowykami/neo-blog/internal/tasks"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/cache"
+	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
 func main() {
@@ -20,6 +22,9 @@ func main() {
 
 	// 初始化文件缓存
 	cache.InitFileCache()
+
+	// 令牌有效期读取后台配置（环境变量优先）
+	utils.Jwt.Durations = tools.GetAuthDurations
 
 	// 定期清理超过保留期的访问记录
 	tasks.StartVisitLogCleanup()

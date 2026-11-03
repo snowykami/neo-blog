@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/cloudwego/hertz/pkg/route"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
@@ -29,8 +30,8 @@ import (
 
 const strictSandbox = "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals"
 
-// startPageServer 在随机端口启动与生产相同配置（流式请求体）的 Hertz 服务，只注册页面路由
-func startPageServer(t *testing.T) string {
+// startRoutes 在随机端口启动与生产相同配置（流式请求体）的 Hertz 服务，只注册 register 中的路由，返回 /api/v1 的地址
+func startRoutes(t *testing.T, register func(*route.RouterGroup)) string {
 	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -39,7 +40,7 @@ func startPageServer(t *testing.T) string {
 	addr := l.Addr().String()
 	_ = l.Close()
 	h := server.New(server.WithHostPorts(addr), server.WithStreamBody(true), server.WithExitWaitTime(0))
-	registerPageRoutes(h.Group("/api/v1"))
+	register(h.Group("/api/v1"))
 	go func() { _ = h.Run() }()
 	t.Cleanup(func() { _ = h.Shutdown(context.Background()) })
 	for range 50 {
@@ -51,6 +52,12 @@ func startPageServer(t *testing.T) string {
 	}
 	t.Fatal("server did not start")
 	return ""
+}
+
+// startPageServer 只注册页面路由
+func startPageServer(t *testing.T) string {
+	t.Helper()
+	return startRoutes(t, registerPageRoutes)
 }
 
 func loginCookie(t *testing.T, u *model.User) string {

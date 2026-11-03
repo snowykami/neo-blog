@@ -1,5 +1,6 @@
 import type { PaginationParams } from '../models/common'
 import type { Comment } from '@/models/comment'
+import type { ConfigSchema } from '@/models/config'
 import type { Dashboard, DashboardDays } from '@/models/dashboard'
 import type { OidcConfig } from '@/models/oidc-config'
 import type { Post } from '@/models/post'
@@ -122,9 +123,15 @@ export async function listKV(query = ''): Promise<BaseResponse<{ items: KVItem[]
   return res.data
 }
 
-// 由环境变量设置、优先于后台配置的配置项：配置键（camelCase）→ 环境变量中的值，后台把这些配置显示为只读
-export async function getEnvOverrides(): Promise<BaseResponse<{ overrides: Record<string, string> }>> {
-  const res = await axiosClient.get('/admin/config/env-overrides')
+// 全局配置表单的结构与当前值（含环境变量设置的值）
+export async function getConfigSchema(): Promise<BaseResponse<ConfigSchema>> {
+  const res = await axiosClient.get('/admin/config')
+  return res.data
+}
+
+// 保存全局配置，只提交改动的项；后端按注册表校验类型与取值范围
+export async function saveConfig(items: { key: string, value: unknown }[]): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put('/admin/config', { items })
   return res.data
 }
 

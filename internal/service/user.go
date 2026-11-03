@@ -191,7 +191,7 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 	if utils.IsDevMode {
 		logrus.Debugf("%s's verification code is %s", req.Email, verifyCode)
 	}
-	err = utils.Email.SendEmail(utils.Email.GetEmailConfigFromEnv(), req.Email, "验证你的电子邮件 / Verify your email", template, true)
+	err = utils.Email.SendEmail(tools.GetEmailConfig(), req.Email, "验证你的电子邮件 / Verify your email", template, true)
 	if err != nil {
 		return nil, errs.NewInternalServer("failed_to_send_email")
 	}
