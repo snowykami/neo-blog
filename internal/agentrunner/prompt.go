@@ -136,10 +136,36 @@ func humanAgo(t time.Time) string {
 	}
 }
 
-// taskPrompt 任务说明与输出格式
+// nowFunc 当前时间，测试时替换
+var nowFunc = time.Now
+
+var weekdays = [...]string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"}
+
+// agentDefaultTimezone 性格档案未设置时区时使用，与调度器、性格档案的默认值一致
+const agentDefaultTimezone = "Asia/Shanghai"
+
+// localNow AI 用户所在时区的当前时间：时区来自性格档案的作息设置，作息也按这个时区计算
+func localNow(timezone string) (time.Time, string) {
+	if timezone == "" {
+		timezone = agentDefaultTimezone
+	}
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		timezone = agentDefaultTimezone
+		loc, err = time.LoadLocation(timezone)
+		if err != nil {
+			loc = time.Local
+		}
+	}
+	return nowFunc().In(loc), timezone
+}
+
+// taskPrompt 任务说明与输出格式；当前时间每次都不同，放在这里而不是人设里，不影响前缀缓存
 func taskPrompt(run *dto.AgentLeaseRun) string {
 	var b strings.Builder
 	b.WriteString("<task>\n")
+	now, timezone := localNow(run.Agent.Profile.Activity.Timezone)
+	fmt.Fprintf(&b, "现在是你所在时区（%s）的 %s %s %s。\n", timezone, now.Format("2006-01-02"), weekdays[now.Weekday()], now.Format("15:04"))
 	switch run.Trigger {
 	case "comment.replied":
 		b.WriteString("触发：有人回复了你的评论。你可以回复对方、给对方的评论点赞，或者不回应（不必每次都回，聊完了就停）。\n")

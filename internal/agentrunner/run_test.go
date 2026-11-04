@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
 )
@@ -64,6 +65,19 @@ func TestPrompts(t *testing.T) {
 	}
 	if task := taskPrompt(run); strings.Contains(task, "set_avatar") {
 		t.Fatal("self edit actions must be hidden when not allowed")
+	}
+	// AI 用户看到的是自己时区的当前时间；未设置或无效时用默认时区
+	defer func(f func() time.Time) { nowFunc = f }(nowFunc)
+	nowFunc = func() time.Time { return time.Date(2026, 11, 5, 14, 30, 0, 0, time.UTC) }
+	run.Agent.Profile.Activity.Timezone = "Asia/Tokyo"
+	if task := taskPrompt(run); !strings.Contains(task, "现在是你所在时区（Asia/Tokyo）的 2026-11-05 周四 23:30") {
+		t.Fatalf("task time = %s", task)
+	}
+	for _, tz := range []string{"", "Mars/Base"} {
+		run.Agent.Profile.Activity.Timezone = tz
+		if task := taskPrompt(run); !strings.Contains(task, "（Asia/Shanghai）的 2026-11-05 周四 22:30") {
+			t.Fatalf("default time for %q = %s", tz, task)
+		}
 	}
 	if got := htmlToText("<html><title>T</title><script>x()</script><p>a&amp;b</p></html>"); got != "# T\n\na&b" {
 		t.Fatalf("html text = %q", got)
