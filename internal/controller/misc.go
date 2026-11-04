@@ -17,7 +17,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
-	utils2 "github.com/snowykami/neo-blog/pkg/utils"
 )
 
 const (
@@ -139,7 +138,7 @@ func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestCont
 		Select("id, slug, created_at, updated_at").
 		Where("is_private = ?", false).
 		Order("created_at DESC").
-		Limit(utils2.Env.GetAsInt(constant.EnvKeySitemapLimit, constant.DefaultSitemapLimit)).
+		Limit(tools.GetSitemapLimit()).
 		Find(&posts)
 
 	var editors []model.User
@@ -147,21 +146,21 @@ func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestCont
 		Select("id, username, updated_at").
 		Where("role IN ?", []constant.Role{constant.RoleEditor, constant.RoleAdmin}).
 		Order("updated_at DESC").
-		Limit(utils2.Env.GetAsInt(constant.EnvKeySitemapLimit, constant.DefaultSitemapLimit)).
+		Limit(tools.GetSitemapLimit()).
 		Find(&editors)
 
 	var categories []model.Category
 	repo.GetDB().Model(&model.Category{}).
 		Select("id, slug, updated_at").
 		Order("updated_at DESC").
-		Limit(utils2.Env.GetAsInt(constant.EnvKeySitemapLimit, constant.DefaultSitemapLimit)).
+		Limit(tools.GetSitemapLimit()).
 		Find(&categories)
 
 	var labels []model.Label
 	repo.GetDB().Model(&model.Label{}).
 		Select("id, name, slug, updated_at").
 		Order("updated_at DESC").
-		Limit(utils2.Env.GetAsInt(constant.EnvKeySitemapLimit, constant.DefaultSitemapLimit)).
+		Limit(tools.GetSitemapLimit()).
 		Find(&labels)
 
 	archiveSet := make(map[string]struct{})
@@ -232,7 +231,7 @@ func (mc *MiscController) GetRssData(ctx context.Context, c *app.RequestContext)
 	if err := repo.GetDB().Model(&model.Post{}).
 		Where("is_private = ?", false).
 		Order("created_at DESC").
-		Limit(utils2.Env.GetAsInt(constant.EnvKeyRssLimit, constant.DefaultRssLimit)).
+		Limit(tools.GetRssLimit()).
 		Omit("draft_content").
 		Preload("User").
 		Preload("Category").

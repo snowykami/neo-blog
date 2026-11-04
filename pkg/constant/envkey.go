@@ -6,7 +6,6 @@ const (
 	EnvKeyPasscode                         = "CAPTCHA_DEV_PASSCODE"
 	EnvKeyCaptchaProvider                  = "CAPTCHA_PROVIDER"   // captcha提供者
 	EnvKeyCaptchaSecreteKey                = "CAPTCHA_SECRET_KEY" // captcha站点密钥
-	EnvKeyCaptchaUrl                       = "CAPTCHA_URL"        // 某些自托管的captcha的url
 	EnvKeyCaptchaSiteKey                   = "CAPTCHA_SITE_KEY"   // captcha密钥key
 	EnvKeyDBURL                            = "DB_URL"             // 环境变量：数据库连接地址（如 postgres://user:pass@host:5432/db 或 sqlite://./data/data.db），设置后忽略其他 DB_* 变量
 	EnvKeyDBDriver                         = "DB_DRIVER"          // 环境变量：数据库驱动
@@ -27,13 +26,12 @@ const (
 	EnvKeyEnableRegister                   = "ENABLE_REGISTER"
 	EnvKeyEnableRegisterFromOidc           = "ENABLE_REGISTER_FROM_OIDC"
 	EnvKeyEnableEmailVerify                = "ENABLE_EMAIL_VERIFY"
-	EnvKeyLocationFormat                   = "LOCATION_FORMAT"                      // 环境变量：时区格式
 	EnvKeyLogLevel                         = "LOG_LEVEL"                            // 环境变量：日志级别
 	EnvKeyMode                             = "MODE"                                 // 环境变量：运行模式
 	EnvKeyJwtSecrete                       = "JWT_SECRET"                           // 环境变量：JWT密钥
 	EnvKeyPasswordSalt                     = "PASSWORD_SALT"                        // 环境变量：密码盐
-	EnvKeyRssLimit                         = "RSS_LIMIT"                            // 环境变量：RSS限制
-	EnvKeySitemapLimit                     = "SITEMAP_LIMIT"                        // 环境变量：站点地图限制
+	EnvKeyRssLimit                         = "RSS_LIMIT"                            // 环境变量：RSS 输出的文章数（设置后优先于后台配置）
+	EnvKeySitemapLimit                     = "SITEMAP_LIMIT"                        // 环境变量：站点地图每类条目的数量上限（设置后优先于后台配置）
 	EnvKeyTokenDuration                    = "TOKEN_DURATION"                       // 环境变量：令牌有效期
 	EnvKeyMaxReplyDepth                    = "MAX_REPLY_DEPTH"                      // 环境变量：最大回复深度
 	EnvKeyRefreshTokenDuration             = "REFRESH_TOKEN_DURATION"               // 环境变量：刷新令牌有效期

@@ -151,6 +151,12 @@ func normalizeAPIHost(raw string) string {
 
 func GetMaximumReplyDepth() int { return config.Int("max_reply_depth") }
 
+// GetRssLimit RSS 输出的文章数
+func GetRssLimit() int { return config.Int("rss_limit") }
+
+// GetSitemapLimit 站点地图中每类条目（文章、页面等）的数量上限
+func GetSitemapLimit() int { return config.Int("sitemap_limit") }
+
 // 每篇文章 / 页面最多保留的历史版本数，超出的旧版本自动清理
 const (
 	RevisionMaxKeepDefault = config.RevisionMaxKeepDefault

@@ -11,7 +11,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/internal/tools"
-	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
@@ -259,7 +258,6 @@ func (u *UserController) GetCaptchaConfig(ctx context.Context, c *app.RequestCon
 	resps.Ok(c, "ok", utils.H{
 		"provider": captcha.Type,
 		"site_key": captcha.SiteKey,
-		"url":      utils2.Env.Get(constant.EnvKeyCaptchaUrl),
 	})
 }
 

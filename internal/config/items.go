@@ -73,6 +73,8 @@ var sections = []*Section{
 		{Key: "comments_per_page", Type: TypeInt, Label: "comments_per_page", Min: num(1), Max: num(100), Default: 10, siteInfoPath: path("comments_per_page")},
 		{Key: "max_reply_depth", Type: TypeInt, Label: "max_reply_depth", Description: "max_reply_depth_desc", Min: num(1), Max: num(10), Default: constant.MaxReplyDepthDefault, Env: constant.EnvKeyMaxReplyDepth},
 		{Key: "revision_max_keep", Type: TypeInt, Label: "revision_max_keep", Description: "revision_max_keep_desc", Min: num(RevisionMaxKeepMin), Max: num(RevisionMaxKeepMax), Default: RevisionMaxKeepDefault},
+		// 站点地图协议单个文件最多 50000 条
+		{Key: "sitemap_limit", Type: TypeInt, Label: "sitemap_limit", Description: "sitemap_limit_desc", Min: num(1), Max: num(50000), Default: constant.DefaultSitemapLimit, Env: constant.EnvKeySitemapLimit},
 		{Key: "copyright", Type: TypeString, Label: "copyright", Placeholder: "CC BY-NC-SA 4.0", Default: "", siteInfoPath: path("copyright")},
 		{Key: "copyright_link", Type: TypeURL, Label: "copyright_link", Default: "", siteInfoPath: path("copyright_link")},
 	}},
@@ -169,6 +171,7 @@ var sections = []*Section{
 		// RSS 语言代码，与界面支持的语言保持一致（zh / zh-tw / ja / en / ko）
 		{Key: "default_language", Type: TypeEnum, Label: "rss_language", Options: options([]string{"zh-cn", "zh-tw", "en-us", "ja-jp", "ko-kr"}, ""), Default: "zh-cn"},
 		{Key: "site_image", Type: TypeImage, Label: "rss_image", Default: ""},
+		{Key: "rss_limit", Type: TypeInt, Label: "rss_limit", Description: "rss_limit_desc", Min: num(1), Max: num(500), Default: constant.DefaultRssLimit, Env: constant.EnvKeyRssLimit},
 	}},
 }
 

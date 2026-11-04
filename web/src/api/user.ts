@@ -91,7 +91,6 @@ export async function getCaptchaConfig(): Promise<
   BaseResponse<{
     provider: CaptchaProvider
     siteKey: string
-    url?: string
   }>
 > {
   const res = await axiosClient.get('/user/captcha')
