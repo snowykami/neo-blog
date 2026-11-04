@@ -6,6 +6,7 @@ export interface Comment {
   targetType: TargetType
   targetId: number
   content: string
+  language: string // 评论语言（AI 翻译时识别），未知时为空
   replyId: number
   depth: number
   isPrivate: boolean

@@ -182,12 +182,18 @@ func (cr *CommentRepo) UpdateComment(comment *model.Comment) error {
 	}
 
 	return GetDB().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Select("IsPrivate", "ShowClientInfo", "Content").Updates(comment).Error; err != nil {
+		if err := tx.Select("IsPrivate", "ShowClientInfo", "Content", "Language").Updates(comment).Error; err != nil {
 			return err
 		}
 		// 内容变化后旧译文全部作废
 		return deleteStaleCommentTranslations(tx, comment.ID, model.CommentContentMD5(comment.Content))
 	})
+}
+
+// SetLanguage 记录 AI 识别出的评论语言；评论内容已不是 content（翻译期间被修改）时不更新。
+// 用 UpdateColumn 不改 updated_at，评论不会因此显示为「已编辑」
+func (cr *CommentRepo) SetLanguage(commentID uint, content, language string) error {
+	return GetDB().Model(&model.Comment{}).Where("id = ? AND content = ?", commentID, content).UpdateColumn("language", language).Error
 }
 
 func (cr *CommentRepo) DeleteComment(commentID uint) error {

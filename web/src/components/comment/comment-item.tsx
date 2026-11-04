@@ -243,6 +243,8 @@ function CommentBody({
   const [translating, setTranslating] = useState(false)
   const currentTranslation = translation?.source === comment.content && translation.data.targetLang === locale ? translation.data : null
   const translated = showTranslation && currentTranslation && !currentTranslation.sameLanguage ? currentTranslation : null
+  // 评论语言：本页刚识别出的优先（内容未变时），否则用后端记录的；与界面语言相同时不显示翻译按钮
+  const language = translation?.source === comment.content ? translation.data.sourceLang : comment.language
 
   // 未登录时由 requireLogin 弹出快捷登录，登录后接着执行，因此这里不再判断登录状态
   const like = () => {
@@ -406,7 +408,7 @@ function CommentBody({
               <LikeIcon className={cn('size-3.5', liked && 'fill-current')} />
               {likeCount > 0 && likeCount}
             </button>
-            {translatable && (
+            {translatable && language !== locale && (
               <button
                 type="button"
                 title={translating ? t('translating') : translated ? t('show_original') : t('translate')}

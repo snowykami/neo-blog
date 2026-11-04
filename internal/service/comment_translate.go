@@ -80,8 +80,8 @@ func (s *CommentTranslateService) Available() bool {
 	return tools.GetAIConfig().Configured()
 }
 
-// Translate 把评论翻译成目标语言：已有译文且评论内容的 MD5 一致时直接返回；
-// 内容变化后先删除该评论的全部旧译文（所有语言），再调用模型重新翻译并保存
+// Translate 把评论翻译成目标语言：已知评论语言与目标语言相同时直接说明无需翻译；已有译文且评论内容的 MD5 一致时直接返回；
+// 内容变化后先删除该评论的全部旧译文（所有语言），再调用模型重新翻译并保存。AI 识别出的源语言同时记为评论语言
 func (s *CommentTranslateService) Translate(ctx context.Context, req *dto.TranslateCommentReq) (*dto.CommentTranslationDto, *errs.ServiceError) {
 	targetLang := strings.ToLower(strings.TrimSpace(req.TargetLang))
 	langName, ok := commentTranslateLanguages[targetLang]
@@ -93,8 +93,11 @@ func (s *CommentTranslateService) Translate(ctx context.Context, req *dto.Transl
 	if svcerr != nil {
 		return nil, svcerr
 	}
+	if comment.Language == targetLang {
+		return &dto.CommentTranslationDto{CommentID: comment.ID, SourceLang: targetLang, TargetLang: targetLang, SameLanguage: true}, nil
+	}
 	contentMD5 := model.CommentContentMD5(comment.Content)
-	if cached, svcerr := s.cached(comment.ID, targetLang, contentMD5); cached != nil || svcerr != nil {
+	if cached, svcerr := s.cached(comment, targetLang, contentMD5); cached != nil || svcerr != nil {
 		return cached, svcerr
 	}
 	cfg := tools.GetAIConfig()
@@ -113,7 +116,7 @@ func (s *CommentTranslateService) Translate(ctx context.Context, req *dto.Transl
 		return nil, commentTranslateError(ctx, err)
 	}
 	defer release()
-	if cached, svcerr := s.cached(comment.ID, targetLang, contentMD5); cached != nil || svcerr != nil {
+	if cached, svcerr := s.cached(comment, targetLang, contentMD5); cached != nil || svcerr != nil {
 		return cached, svcerr
 	}
 	if !utils.AllowRequest(commentTranslateRateKey(ctx, req.RemoteAddr), s.rateLimit, commentTranslateRateWindow) {
@@ -137,12 +140,13 @@ func (s *CommentTranslateService) Translate(ctx context.Context, req *dto.Transl
 	if err := repo.CommentTranslation.Save(translation); err != nil {
 		return nil, errs.Internal("failed_to_create_target", err)
 	}
+	s.rememberLanguage(comment, sourceLang)
 	return toCommentTranslationDto(translation), nil
 }
 
-// cached 读取与当前评论内容一致的译文；没有可用译文时两个返回值均为 nil
-func (s *CommentTranslateService) cached(commentID uint, targetLang, contentMD5 string) (*dto.CommentTranslationDto, *errs.ServiceError) {
-	translation, err := repo.CommentTranslation.Get(commentID, targetLang)
+// cached 读取与当前评论内容一致的译文（命中时顺带记下评论语言）；没有可用译文时两个返回值均为 nil
+func (s *CommentTranslateService) cached(comment *model.Comment, targetLang, contentMD5 string) (*dto.CommentTranslationDto, *errs.ServiceError) {
+	translation, err := repo.CommentTranslation.Get(comment.ID, targetLang)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -152,7 +156,21 @@ func (s *CommentTranslateService) cached(commentID uint, targetLang, contentMD5 
 	if translation.ContentMD5 != contentMD5 {
 		return nil, nil
 	}
+	s.rememberLanguage(comment, translation.SourceLang)
 	return toCommentTranslationDto(translation), nil
+}
+
+// rememberLanguage 把 AI 识别出的源语言记为评论语言，前端据此对同语言的读者隐藏翻译按钮；
+// 只是附带信息，写入失败不影响本次翻译
+func (s *CommentTranslateService) rememberLanguage(comment *model.Comment, language string) {
+	if comment.Language == language {
+		return
+	}
+	if err := repo.Comment.SetLanguage(comment.ID, comment.Content, language); err != nil {
+		logrus.Warnf("save comment %d language: %v", comment.ID, err)
+		return
+	}
+	comment.Language = language
 }
 
 // translate 调用模型翻译，返回源语言与译文；模型偶尔返回空内容或格式不对时重试一次

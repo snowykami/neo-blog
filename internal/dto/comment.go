@@ -9,6 +9,7 @@ type CommentDto struct {
 	TargetID       uint               `json:"target_id"`
 	TargetType     string             `json:"target_type"` // 目标类型，如 "post", "page"
 	Content        string             `json:"content"`
+	Language       string             `json:"language"` // 评论语言（AI 翻译时识别），未知时为空；与界面语言相同时前端不显示翻译按钮
 	ReplyID        uint               `json:"reply_id"` // 回复的评论ID
 	Depth          int                `json:"depth"`    // 评论的层级深度
 	CreatedAt      time.Time          `json:"created_at"`

@@ -53,6 +53,86 @@ func countCommentTranslations(t *testing.T, commentID uint) map[string]model.Com
 	return result
 }
 
+func commentLanguage(t *testing.T, commentID uint) string {
+	t.Helper()
+	var comment model.Comment
+	if err := repo.GetDB().First(&comment, commentID).Error; err != nil {
+		t.Fatalf("get comment: %v", err)
+	}
+	return comment.Language
+}
+
+// 评论语言：AI 识别后写入并随评论返回，不改变编辑时间；内容被修改后清空；翻译期间评论被修改时不写入
+func TestCommentLanguage(t *testing.T) {
+	author, _, other, _, _ := setupEditTest(t)
+	configureTestAI(t)
+	postID := createPublicPost(t, author, nil)
+	commentID, _ := createComment(other, postID, 0, false)
+	s := NewCommentTranslateService()
+	var calls atomic.Int32
+	s.complete = fakeCommentTranslate(&calls)
+	defer func() { s.complete = commentTranslateCompletion }()
+	translate := func(lang string) *dto.CommentTranslationDto {
+		t.Helper()
+		got, svcerr := s.Translate(context.Background(), &dto.TranslateCommentReq{ID: commentID, TargetLang: lang, RemoteAddr: "203.0.113.1"})
+		if svcerr != nil {
+			t.Fatalf("translate %s: %v", lang, svcerr)
+		}
+		return got
+	}
+	before, svcerr := NewCommentService().GetComment(context.Background(), commentID)
+	if svcerr != nil || before.Language != "" {
+		t.Fatalf("new comment = %+v, %v", before, svcerr)
+	}
+
+	// 语言未知时由模型判断出与目标语言相同，记下语言后不再调用模型
+	if got := translate("zh"); !got.SameLanguage || calls.Load() != 1 {
+		t.Fatalf("same language = %+v, calls = %d", got, calls.Load())
+	}
+	if got := translate("zh"); !got.SameLanguage || calls.Load() != 1 {
+		t.Fatalf("known language = %+v, calls = %d", got, calls.Load())
+	}
+	after, _ := NewCommentService().GetComment(context.Background(), commentID)
+	if after.Language != "zh" || !after.UpdatedAt.Equal(before.UpdatedAt) {
+		t.Fatalf("comment after translate = %+v (updated_at before %v)", after, before.UpdatedAt)
+	}
+
+	// 内容不变的编辑保留语言，内容变化后清空
+	update := func(content string) {
+		t.Helper()
+		if svcerr := NewCommentService().UpdateComment(other, &dto.UpdateCommentReq{ID: commentID, Content: content}); svcerr != nil {
+			t.Fatalf("update comment: %v", svcerr)
+		}
+	}
+	update("c")
+	if lang := commentLanguage(t, commentID); lang != "zh" {
+		t.Fatalf("language after unchanged edit = %q", lang)
+	}
+	update("hello")
+	if lang := commentLanguage(t, commentID); lang != "" {
+		t.Fatalf("language after edit = %q", lang)
+	}
+
+	// 翻译期间评论被修改：按旧内容识别的语言不写入
+	if err := repo.Comment.SetLanguage(commentID, "c", "ja"); err != nil {
+		t.Fatalf("set language: %v", err)
+	}
+	if lang := commentLanguage(t, commentID); lang != "" {
+		t.Fatalf("language set for stale content = %q", lang)
+	}
+
+	// 命中已有译文时同样记下语言（如语言字段加入前保存的译文）
+	translate("en")
+	if err := repo.GetDB().Model(&model.Comment{}).Where("id = ?", commentID).UpdateColumn("language", "").Error; err != nil {
+		t.Fatalf("clear language: %v", err)
+	}
+	before2 := calls.Load()
+	translate("en")
+	if lang := commentLanguage(t, commentID); lang != "zh" || calls.Load() != before2 {
+		t.Fatalf("language from cache = %q, calls = %d", lang, calls.Load()-before2)
+	}
+}
+
 // 缓存命中、多语言分开存储、源语言相同、MD5 变化后删除重建、编辑与删除评论时清理译文
 func TestCommentTranslateCache(t *testing.T) {
 	author, _, other, _, _ := setupEditTest(t)
@@ -100,13 +180,15 @@ func TestCommentTranslateCache(t *testing.T) {
 	if got := translate("ja"); got.Content != "[ja] c" {
 		t.Fatalf("ja translation = %+v", got)
 	}
-	// 源语言与目标语言相同：说明无需翻译，同样缓存
+	// 翻译时记下 AI 识别出的评论语言；目标语言与它相同时直接说明无需翻译，不调用模型也不存译文
+	if lang := commentLanguage(t, commentID); lang != "zh" {
+		t.Fatalf("comment language = %q", lang)
+	}
 	if got := translate("zh"); !got.SameLanguage || got.Content != "" || got.SourceLang != "zh" {
 		t.Fatalf("same language = %+v", got)
 	}
-	translate("zh")
 	rows := countCommentTranslations(t, commentID)
-	if len(rows) != 3 || rows["en"].Content != "[en] c" || rows["ja"].Content != "[ja] c" || calls.Load() != 3 {
+	if len(rows) != 2 || rows["en"].Content != "[en] c" || rows["ja"].Content != "[ja] c" || calls.Load() != 2 {
 		t.Fatalf("rows = %+v, calls = %d", rows, calls.Load())
 	}
 	if rows["en"].ContentMD5 != model.CommentContentMD5("c") {
@@ -117,7 +199,7 @@ func TestCommentTranslateCache(t *testing.T) {
 	if err := repo.GetDB().Model(&model.Comment{}).Where("id = ?", commentID).UpdateColumn("content", "changed").Error; err != nil {
 		t.Fatalf("change content: %v", err)
 	}
-	if got := translate("en"); got.Content != "[en] changed" || calls.Load() != 4 {
+	if got := translate("en"); got.Content != "[en] changed" || calls.Load() != 3 {
 		t.Fatalf("retranslated = %+v, calls = %d", got, calls.Load())
 	}
 	rows = countCommentTranslations(t, commentID)

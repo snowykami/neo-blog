@@ -129,6 +129,10 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 		return errs.NewBadRequest("content_too_long")
 	}
 
+	// 内容变化后原先识别的语言不再可信，下次翻译时重新识别
+	if comment.Content != content {
+		comment.Language = ""
+	}
 	comment.Content = content
 	comment.IsPrivate = req.IsPrivate
 	comment.ShowClientInfo = req.ShowClientInfo
@@ -339,6 +343,7 @@ func (cs *CommentService) toGetCommentDto(comment *model.Comment, isLiked bool) 
 	return dto.CommentDto{
 		ID:         comment.ID,
 		Content:    comment.Content,
+		Language:   comment.Language,
 		TargetID:   comment.TargetID,
 		TargetType: comment.TargetType,
 		ReplyID:    comment.ReplyID,

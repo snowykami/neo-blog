@@ -13,6 +13,7 @@ type Comment struct {
 	RootID     uint   `gorm:"index;default:0"`                 // 根评论ID,用于分组同一线程的评论
 	ReplyID    uint   `gorm:"index"`                           // 回复的评论ID
 	Content    string `gorm:"type:text"`                       // 评论内容
+	Language   string `gorm:"type:varchar(16);default:''"`     // 评论语言：AI 翻译时识别后写入，内容被修改后清空，未知时为空
 	Depth      int    `gorm:"default:0"`                       // 评论的层级深度,从0开始计数
 	IsPrivate  bool   `gorm:"default:false"`                   // 是否为私密评论，私密评论只有评论者和被评论对象所有者可见
 	RemoteAddr string `gorm:"type:text"`                       // 远程地址
