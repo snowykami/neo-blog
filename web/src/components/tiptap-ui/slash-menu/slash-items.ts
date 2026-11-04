@@ -1,6 +1,6 @@
 import type { BlockTypeId } from '@/components/tiptap-editor/editor-commands'
 import type { SlashCommandItem } from '@/components/tiptap-extension/slash-command-extension'
-import { CalendarIcon, ImageIcon, MinusIcon, PuzzleIcon, SparklesIcon, TableIcon } from 'lucide-react'
+import { CalendarIcon, ImageIcon, MinusIcon, PuzzleIcon, SigmaIcon, SparklesIcon, SquareSigmaIcon, TableIcon } from 'lucide-react'
 import { CONTENT_COMPONENTS } from '@/components/content-components/registry'
 import { getBlockTypeDef, setBlockType } from '@/components/tiptap-editor/editor-commands'
 
@@ -10,7 +10,7 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
 type SlashGroup = 'ai' | 'basic' | 'list' | 'media' | 'other'
 
 interface SlashItemDef {
-  id: BlockTypeId | 'ai' | 'image' | 'table' | 'hr' | 'date'
+  id: BlockTypeId | 'ai' | 'image' | 'table' | 'hr' | 'date' | 'blockMath' | 'inlineMath'
   group: SlashGroup
   // 中文 / 拼音 / 英文别名
   keywords: string[]
@@ -25,6 +25,8 @@ const SLASH_ITEM_DEFS: SlashItemDef[] = [
   { group: 'basic', id: 'h4', keywords: ['h4', 'heading', 'title', 'biaoti', 'bt', 'biaoti4', 'siji', '标题', '四级', '小标题'] },
   { group: 'basic', id: 'blockquote', keywords: ['quote', 'blockquote', 'yinyong', 'yy', '引用', '>'] },
   { group: 'basic', id: 'codeBlock', keywords: ['code', 'codeblock', 'pre', 'daima', 'dm', 'daimakuai', '代码', '```'] },
+  { group: 'basic', id: 'blockMath', keywords: ['math', 'formula', 'equation', 'latex', 'katex', 'tex', 'gongshi', 'gs', 'shuxue', '公式', '数学', '方程', '$$'] },
+  { group: 'basic', id: 'inlineMath', keywords: ['math', 'formula', 'equation', 'latex', 'katex', 'tex', 'inline', 'gongshi', 'gs', 'hangnei', '公式', '行内', '数学', '$'] },
   { group: 'list', id: 'bulletList', keywords: ['ul', 'bullet', 'list', 'wuxu', 'wx', 'liebiao', 'lb', '列表', '无序', '-'] },
   { group: 'list', id: 'orderedList', keywords: ['ol', 'ordered', 'number', 'list', 'youxu', 'yx', 'bianhao', 'liebiao', '列表', '有序', '编号'] },
   { group: 'list', id: 'taskList', keywords: ['todo', 'task', 'check', 'renwu', 'rw', 'daiban', 'db', '待办', '任务', '清单', 'liebiao', '列表'] },
@@ -121,6 +123,18 @@ export function buildSlashItems(t: Translate, ct: Translate, formatDate: (date: 
             editor.chain().focus().deleteRange(range).setHorizontalRule().run()
           },
         }
+      case 'blockMath':
+      case 'inlineMath': {
+        const display = def.id === 'blockMath'
+        return {
+          ...base,
+          title: t(display ? 'math.block' : 'math.inline'),
+          icon: display ? SquareSigmaIcon : SigmaIcon,
+          run: (editor, range) => {
+            editor.chain().focus().deleteRange(range).insertMath({ display }).run()
+          },
+        }
+      }
       case 'date':
         return {
           ...base,

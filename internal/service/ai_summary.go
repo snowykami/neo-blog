@@ -444,10 +444,20 @@ var (
 	reListItem   = regexp.MustCompile(`(?i)<li[^>]*>`)
 	reTag        = regexp.MustCompile(`(?s)<[^>]+>`)
 	reBlankLines = regexp.MustCompile(`\n{3,}`)
+	// 公式节点（编辑器只保存 data-latex，没有文字内容）
+	reMathTag   = regexp.MustCompile(`(?i)<(?:span|div)\b[^>]*\bdata-type="(?:inline|block)-math"[^>]*>`)
+	reMathLatex = regexp.MustCompile(`\bdata-latex="([^"]*)"`)
 )
 
 // htmlToPlainText 把正文 HTML 转为便于模型理解的纯文本
 func htmlToPlainText(content string) string {
+	// 公式按 LaTeX 源码计入，写成 $…$
+	content = reMathTag.ReplaceAllStringFunc(content, func(m string) string {
+		if latex := reMathLatex.FindStringSubmatch(m); latex != nil {
+			return " $" + latex[1] + "$ "
+		}
+		return m
+	})
 	text := reHeading.ReplaceAllStringFunc(content, func(m string) string {
 		sub := reHeading.FindStringSubmatch(m)
 		level := int(sub[1][0] - '0')

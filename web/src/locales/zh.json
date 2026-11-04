@@ -1481,7 +1481,9 @@
         "group_ai": "AI",
         "hint_ai": "让 AI 在此处续写或按要求生成",
         "hint_table": "插入 3×3 表格",
-        "group_component": "组件"
+        "group_component": "组件",
+        "hint_blockMath": "独立成行的 LaTeX 公式",
+        "hint_inlineMath": "嵌在文字中的 LaTeX 公式"
       },
       "block_add": "点击插入块",
       "block_drag": "拖动移动 · 点击打开菜单",
@@ -1499,7 +1501,9 @@
         "horizontalRule": "分割线",
         "block": "块",
         "table": "表格",
-        "componentBlock": "组件"
+        "componentBlock": "组件",
+        "blockMath": "公式块",
+        "inlineMath": "行内公式"
       },
       "image_toolbar": "图片工具",
       "image_align_left": "居左",
@@ -1552,6 +1556,18 @@
       "show_in_nav_hint": "在站点导航栏中显示该页面",
       "nav_order_hint": "导航中的排序值",
       "insert_table": "表格",
+      "math": {
+        "block": "公式块",
+        "inline": "行内公式",
+        "block_hint": "单独成行，$$…$$",
+        "inline_hint": "嵌在文字中，$…$",
+        "placeholder": "输入 LaTeX，例如 E = mc^2",
+        "preview_empty": "输入公式后在这里预览",
+        "hint_inline": "Enter 应用 · Esc 取消",
+        "hint_block": "{shortcut} 应用 · Esc 取消",
+        "syntax": "支持的语法",
+        "remove": "删除"
+      },
       "table": {
         "add_row_before": "在上方插入行",
         "add_row_after": "在下方插入行",

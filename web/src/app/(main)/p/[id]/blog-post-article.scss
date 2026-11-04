@@ -135,3 +135,9 @@ article.prose#blog-content {
   font-size: 1.0625rem;
   line-height: 1.85;
 }
+
+/* 数学公式：独立成块的公式过宽时横向滚动，不撑破正文 */
+article [data-type="block-math"] {
+  overflow-x: auto;
+  overflow-y: hidden;
+}

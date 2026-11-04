@@ -23,6 +23,7 @@ import { ComponentBlock } from '@/components/tiptap-node/component-block-node'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-extension'
 import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
+import { createMathExtensions, skipInOpenMath } from '@/components/tiptap-node/math-node'
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
 
 const lowlight = createLowlight(common)
@@ -39,6 +40,8 @@ export interface ContentExtensionsOptions {
   onOpenAnnotation?: () => void
   // 快捷键：Mod-j 打开 AI 写作
   onOpenAI?: () => void
+  // 打开公式编辑弹层（点击公式、插入公式后）；pos 为公式节点的位置
+  onEditMath?: (pos: number) => void
 }
 
 /**
@@ -46,7 +49,7 @@ export interface ContentExtensionsOptions {
  * 输出的 HTML 结构（图片 figure、注释 span、分割线等）需与前台渲染保持一致，修改时注意兼容旧内容
  */
 export function createContentExtensions(options: ContentExtensionsOptions): AnyExtension[] {
-  const { upload, placeholder, getSlashItems, onOpenLink, onOpenAnnotation, onOpenAI } = options
+  const { upload, placeholder, getSlashItems, onOpenLink, onOpenAnnotation, onOpenAI, onEditMath } = options
   return [
     StarterKit.configure({
       horizontalRule: false,
@@ -75,7 +78,12 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
     SelectionHighlight,
     // 粘贴图片时按默认压缩等级上传并插入到光标处
     ImagePaste.configure({ upload }),
-    Typography,
+    // 排版替换（引号、省略号、箭头等）；正在输入的公式中不替换
+    Typography.extend({
+      addInputRules() {
+        return skipInOpenMath(this.parent?.() ?? [])
+      },
+    }),
     Superscript,
     Subscript,
     CodeBlockLowlight.configure({ lowlight }),
@@ -83,6 +91,8 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
     TableKit.configure({ table: { resizable: false } }),
     // 组件块：注册表中的内置 React 组件，正文只保存组件名与 JSON props
     ComponentBlock,
+    // 数学公式（LaTeX）：行内 $…$、独立成块 $$…$$，用 KaTeX 渲染
+    ...createMathExtensions(onEditMath),
     ImageUploadNode.configure({
       accept: 'image/*',
       maxSize: MAX_FILE_SIZE,

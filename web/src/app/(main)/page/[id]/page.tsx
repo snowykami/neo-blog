@@ -19,6 +19,8 @@ import { countWords } from '@/utils/common/post'
 import { renderContentHtml } from '@/utils/server/render-content'
 import '@/components/tiptap-node/image-node/image-figure.scss'
 import '../../p/[id]/blog-post-article.scss'
+// 公式样式（约 4 KB）；KaTeX 字体只在页面用到公式时才下载
+import 'katex/dist/katex.min.css'
 
 // 同一次渲染内复用页面数据；仅明确不存在 / 无权查看时返回 null，其余错误交给错误边界
 const getCachedPage = cache(async (id: string) => {

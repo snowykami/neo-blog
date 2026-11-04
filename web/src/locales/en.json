@@ -1481,7 +1481,9 @@
         "group_ai": "AI",
         "hint_ai": "Let AI continue writing or follow your prompt",
         "hint_table": "Insert a 3×3 table",
-        "group_component": "Components"
+        "group_component": "Components",
+        "hint_blockMath": "A LaTeX formula on its own line",
+        "hint_inlineMath": "A LaTeX formula within text"
       },
       "block_add": "Click to insert a block",
       "block_drag": "Drag to move · click for menu",
@@ -1499,7 +1501,9 @@
         "horizontalRule": "Divider",
         "block": "Block",
         "table": "Table",
-        "componentBlock": "Component"
+        "componentBlock": "Component",
+        "blockMath": "Math block",
+        "inlineMath": "Inline math"
       },
       "image_toolbar": "Image tools",
       "image_align_left": "Align left",
@@ -1552,6 +1556,18 @@
       "show_in_nav_hint": "Show this page in the site navigation",
       "nav_order_hint": "Sort value in the navigation",
       "insert_table": "Table",
+      "math": {
+        "block": "Math block",
+        "inline": "Inline math",
+        "block_hint": "On its own line, $$…$$",
+        "inline_hint": "Within text, $…$",
+        "placeholder": "Type LaTeX, e.g. E = mc^2",
+        "preview_empty": "The preview appears here",
+        "hint_inline": "Enter to apply · Esc to cancel",
+        "hint_block": "{shortcut} to apply · Esc to cancel",
+        "syntax": "Supported syntax",
+        "remove": "Remove"
+      },
       "table": {
         "add_row_before": "Insert row above",
         "add_row_after": "Insert row below",

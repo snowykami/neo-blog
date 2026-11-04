@@ -3,6 +3,7 @@ import RSS from 'rss'
 import { getRssData } from '@/api/misc'
 import { getPostUrl } from '@/utils/common/route'
 import { formatDisplayName } from '@/utils/common/username'
+import { renderMathHtml } from '@/utils/server/render-math'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
 
 // 订阅源 10 分钟重新生成一次
@@ -36,7 +37,8 @@ export async function GET() {
     rss.item({
       title: post.title,
       // 订阅源同样输出净化后的正文
-      description: sanitizeContentHtml(post.content),
+      // 公式输出为 MathML：阅读器不加载 KaTeX 样式也能显示
+      description: renderMathHtml(sanitizeContentHtml(post.content), 'mathml'),
       url: rssData.siteUrl + getPostUrl({ post }),
       guid: post.slug || post.id.toString(),
       date: post.updatedAt,

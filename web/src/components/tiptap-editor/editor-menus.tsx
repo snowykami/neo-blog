@@ -21,8 +21,10 @@ import {
   PuzzleIcon,
   Rows3Icon,
   Settings2Icon,
+  SigmaIcon,
   SparklesIcon,
   SquareCodeIcon,
+  SquareSigmaIcon,
   TableIcon,
   Trash2Icon,
 } from 'lucide-react'
@@ -190,6 +192,23 @@ export function getInsertEntries(editor: Editor, t: Translate, state: EditorTool
       label: t('insert_table'),
       disabled: !state.editable || state.inTable || !editor.can().insertTable(TABLE_DEFAULT),
       onSelect: () => editor.chain().focus().insertTable(TABLE_DEFAULT).run(),
+    },
+    {
+      key: 'insert-block-math',
+      icon: SquareSigmaIcon,
+      label: t('math.block'),
+      hint: t('math.block_hint'),
+      disabled: !state.editable || !editor.can().insertMath({ display: true }),
+      onSelect: () => editor.chain().focus().insertMath({ display: true }).run(),
+    },
+    {
+      key: 'insert-inline-math',
+      icon: SigmaIcon,
+      label: t('math.inline'),
+      hint: t('math.inline_hint'),
+      shortcut: 'mod+shift+m',
+      disabled: !state.editable || !editor.can().insertMath({ display: false }),
+      onSelect: () => editor.chain().focus().insertMath({ display: false }).run(),
     },
   ]
 }

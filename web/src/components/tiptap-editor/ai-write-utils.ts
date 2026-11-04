@@ -6,6 +6,7 @@ import { NodeSelection } from '@tiptap/pm/state'
 import { Transform } from '@tiptap/pm/transform'
 import { getHTMLFromFragment } from '@tiptap/react'
 import { Marked } from 'marked'
+import { markedMath } from '@/lib/math/marked-math'
 
 /**
  * AI 写作的文档操作：
@@ -101,7 +102,8 @@ export function buildMarkedDocument(doc: PMNode, schema: Schema, target: AITarge
   return getHTMLFromFragment(tr.doc.content, schema)
 }
 
-const marked = new Marked({ gfm: true, breaks: false })
+// 公式：$…$ / $$…$$ 转为编辑器的公式节点
+const marked = new Marked({ gfm: true, breaks: false }, markedMath())
 
 /** 代码块内的输出去掉模型可能加上的 ``` 包裹（包括生成中尚未闭合的情况） */
 function stripCodeFence(text: string) {

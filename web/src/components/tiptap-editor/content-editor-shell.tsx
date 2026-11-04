@@ -11,6 +11,7 @@ import { EditSessionBanner } from '@/components/console/common/edit-session-bann
 import { ComponentLibraryDialog } from '@/components/content-components/component-library-dialog'
 import { AnnotationPopover } from '@/components/tiptap-ui/annotation-popover'
 import { LinkPopover } from '@/components/tiptap-ui/link-popover'
+import { MathPopover } from '@/components/tiptap-ui/math-popover'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -28,6 +29,7 @@ import { EditorToolbar } from './editor-toolbar'
 import { useAIWriter } from './use-ai-writer'
 import { useEditorStats } from './use-editor-stats'
 import 'highlight.js/styles/github-dark.css'
+import 'katex/dist/katex.min.css'
 import './editor-content.scss'
 
 export interface EditorShellPanelProps {
@@ -111,6 +113,8 @@ function LoadedShell({
   const [focusMode, setFocusMode] = React.useState(false)
   const [linkOpen, setLinkOpen] = React.useState(false)
   const [annotationOpen, setAnnotationOpen] = React.useState(false)
+  // 正在编辑的公式节点位置
+  const [mathPos, setMathPos] = React.useState<number | null>(null)
   const [libraryOpen, setLibraryOpen] = React.useState(false)
   // 版本：确认放弃修改的弹窗与版本历史抽屉（由下拉菜单打开，使用受控模式）
   const [revisionConfirm, setRevisionConfirm] = React.useState<'session' | 'unpublished' | null>(null)
@@ -159,6 +163,15 @@ function LoadedShell({
     openComponentLibrary: () => {
       if (editor.isEditable)
         setLibraryOpen(true)
+    },
+    editMath: (pos: number) => {
+      if (!editor.isEditable)
+        return
+      setLinkOpen(false)
+      setAnnotationOpen(false)
+      // 选中公式节点，弹层定位到它下方
+      editor.commands.setNodeSelection(pos)
+      setMathPos(pos)
     },
   }), [editor, openAI])
   React.useEffect(() => {
@@ -338,6 +351,7 @@ function LoadedShell({
         <EditorAIPanel editor={editor} writer={aiWriter} />
         <LinkPopover editor={editor} open={linkOpen} onOpenChange={setLinkOpen} />
         <AnnotationPopover editor={editor} open={annotationOpen} onOpenChange={setAnnotationOpen} />
+        <MathPopover editor={editor} pos={mathPos} onClose={() => setMathPos(null)} />
         <ComponentLibraryDialog
           open={libraryOpen}
           onOpenChange={setLibraryOpen}

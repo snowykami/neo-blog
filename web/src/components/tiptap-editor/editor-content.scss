@@ -143,6 +143,44 @@
     }
   }
 
+  /* ---------- 数学公式（KaTeX 渲染）：点击打开编辑，空公式显示占位 ---------- */
+  .tiptap-mathematics-render {
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+
+    &:hover {
+      background: color-mix(in oklab, var(--primary) 8%, transparent);
+    }
+
+    &[data-latex=""]::before {
+      content: "∑";
+      display: inline-block;
+      min-width: 1.5em;
+      padding: 0 0.25em;
+      border: 1px dashed color-mix(in oklab, var(--foreground) 30%, transparent);
+      border-radius: 4px;
+      color: var(--muted-foreground);
+      text-align: center;
+    }
+  }
+
+  span.tiptap-mathematics-render {
+    padding: 0 0.1em;
+  }
+
+  div.tiptap-mathematics-render {
+    margin: 1em 0;
+    padding: 0.25em 0.5em;
+    overflow-x: auto;
+    overflow-y: hidden;
+    text-align: center;
+
+    .katex-display {
+      margin: 0.5em 0;
+    }
+  }
+
   /* ---------- 任务列表 ---------- */
   ul[data-type="taskList"] {
     list-style: none;

@@ -1,5 +1,6 @@
 import type { TocHeading } from '@/models/toc'
 import * as cheerio from 'cheerio'
+import { MATH_SELECTOR } from '@/lib/math/latex'
 
 // 生成目录的标题层级
 const TOC_SELECTOR = 'h1, h2, h3, h4'
@@ -34,7 +35,12 @@ export function extractHeadings(html: string): { html: string, headings: TocHead
   const headings: TocHeading[] = []
   headingEls.each((index, el) => {
     const $el = $(el)
-    const text = $el.text().trim()
+    // 标题中的公式（此时尚未渲染）按 LaTeX 源码计入目录文字
+    const $text = $el.clone()
+    $text.find(MATH_SELECTOR).each((_, math) => {
+      $(math).text($(math).attr('data-latex') ?? '')
+    })
+    const text = $text.text().trim()
     if (!text)
       return
     const base = `${ID_PREFIX}${slugify(text) || index + 1}`

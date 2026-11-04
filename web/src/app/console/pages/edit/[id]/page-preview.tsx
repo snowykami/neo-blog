@@ -11,6 +11,7 @@ import { SafeImage } from '@/components/common/safe-image'
 import { ComponentIslands } from '@/components/content-components/component-islands'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useOperationT } from '@/hooks/use-translations'
+import { renderMathInHtml } from '@/lib/math/latex'
 import '@/components/tiptap-node/image-node/image-figure.scss'
 import '../../../../(main)/p/[id]/blog-post-article.scss'
 
@@ -33,8 +34,8 @@ export function PagePreviewDialog({
 }) {
   const operationT = useOperationT()
   const t = useTranslations('Console.editor')
-  // 打开时取一次内容快照
-  const html = useMemo(() => (open ? DOMPurify.sanitize(getHtml()) : ''), [open, getHtml])
+  // 打开时取一次内容快照；净化后再渲染公式
+  const html = useMemo(() => (open ? renderMathInHtml(DOMPurify.sanitize(getHtml())) : ''), [open, getHtml])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { renderMathInHtml } from '@/lib/math/latex'
 import { cn } from '@/lib/utils'
 import { formatDisplayName } from '@/utils/common/username'
 
@@ -36,7 +37,7 @@ const PAGE_SIZE = 100
 /** 用编辑器的 schema 重新解析版本正文：只保留编辑器认识的节点与属性，样式与编辑器一致 */
 function sanitizeContent(schema: Schema, html: string) {
   const body = new window.DOMParser().parseFromString(html, 'text/html').body
-  return getHTMLFromFragment(PMDOMParser.fromSchema(schema).parse(body).content, schema)
+  return renderMathInHtml(getHTMLFromFragment(PMDOMParser.fromSchema(schema).parse(body).content, schema))
 }
 
 export interface EditorRevisionSheetProps {

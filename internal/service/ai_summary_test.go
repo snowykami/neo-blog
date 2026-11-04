@@ -115,8 +115,9 @@ func TestAISummaryFailureStatus(t *testing.T) {
 }
 
 func TestHTMLToPlainText(t *testing.T) {
-	got := htmlToPlainText(`<h2>标题</h2><p>段落 &amp; <strong>加粗</strong></p><ul><li>一</li><li>二</li></ul><pre><code>go run .</code></pre>`)
-	for _, part := range []string{"## 标题", "段落 & 加粗", "- 一", "- 二", "```\ngo run .\n```"} {
+	got := htmlToPlainText(`<h2>标题</h2><p>段落 &amp; <strong>加粗</strong></p><ul><li>一</li><li>二</li></ul><pre><code>go run .</code></pre>` +
+		`<p>能量 <span data-latex="E=mc^2" data-type="inline-math"></span></p><div data-type="block-math" data-latex="a&lt;b"></div>`)
+	for _, part := range []string{"## 标题", "段落 & 加粗", "- 一", "- 二", "```\ngo run .\n```", "能量  $E=mc^2$", "$a<b$"} {
 		if !contains(got, part) {
 			t.Fatalf("plain text missing %q:\n%s", part, got)
 		}

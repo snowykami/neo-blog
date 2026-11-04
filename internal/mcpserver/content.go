@@ -24,9 +24,10 @@ const (
 	formatHTML     = "html"
 )
 
-// 允许在 Markdown 中直接书写 HTML（与编辑者通过接口写入 HTML 的能力一致），渲染时由前端统一净化
+// 允许在 Markdown 中直接书写 HTML（与编辑者通过接口写入 HTML 的能力一致），渲染时由前端统一净化；
+// $…$ / $$…$$ 转为编辑器的公式节点
 var markdownRenderer = goldmark.New(
-	goldmark.WithExtensions(extension.GFM),
+	goldmark.WithExtensions(extension.GFM, &mathExtension{}),
 	goldmark.WithRendererOptions(goldmarkhtml.WithUnsafe()),
 )
 
@@ -41,6 +42,39 @@ func newHTMLConverter() *converter.Converter {
 		strikethrough.NewStrikethroughPlugin(),
 		table.NewTablePlugin(),
 	))
+	// 公式节点没有子节点，空白折叠时会被当作不存在而吞掉后面的空格：先填入公式内容占位（输出时只读 data-latex）
+	conv.Register.PreRenderer(func(ctx converter.Context, doc *html.Node) {
+		for _, n := range dom.FindAllNodes(doc, isMathElement) {
+			if latex, _ := dom.GetAttribute(n, "data-latex"); n.FirstChild == nil && latex != "" {
+				n.AppendChild(&html.Node{Type: html.TextNode, Data: latex})
+			}
+		}
+	}, converter.PriorityStandard)
+	// 公式节点输出为 $…$ / $$…$$；需先于下方「带属性的 span 原样保留」处理
+	conv.Register.Renderer(func(ctx converter.Context, w converter.Writer, n *html.Node) converter.RenderStatus {
+		if !isMathElement(n) {
+			return converter.RenderTryNext
+		}
+		nodeType, _ := dom.GetAttribute(n, "data-type")
+		latex, _ := dom.GetAttribute(n, "data-latex")
+		var next byte
+		if n.NextSibling != nil && n.NextSibling.Type == html.TextNode && n.NextSibling.Data != "" {
+			next = n.NextSibling.Data[0]
+		}
+		markdown, ok := mathMarkdown(nodeType, latex, next)
+		if !ok {
+			return converter.RenderTryNext
+		}
+		w.WriteString(markdown)
+		return converter.RenderSuccess
+	}, converter.PriorityEarly-10)
+	// 正文中的 $ 一律转义为 \$，写回时不会被当作公式的分隔符
+	conv.Register.UnEscaper(func(chars []byte, index int) int {
+		if chars[index] == '$' {
+			return 1
+		}
+		return -1
+	}, converter.PriorityStandard)
 	// 站内组件块（<div data-component=...>）：对 AI 开放的组件输出为组件代码块（与写入时的写法一致），
 	// 其余组件在 Markdown 中没有对应语法，原样保留为 HTML，写回时不会丢失
 	conv.Register.Renderer(func(ctx converter.Context, w converter.Writer, n *html.Node) converter.RenderStatus {

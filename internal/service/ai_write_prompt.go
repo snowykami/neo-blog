@@ -79,6 +79,7 @@ const aiPlatformFormatRules = "编辑器只认识下面这些写法，其他写�
 	"- 文字颜色 <span style=\"color: var(--color-red-500)\">文字</span>。\n" +
 	"- 颜色只能从 red、orange、amber、yellow、green、teal、blue、indigo、purple、pink 中选，高亮用 -200 的浅色，文字用 -500。\n" +
 	"- 任务列表 - [ ] 待办 / - [x] 已完成；表格用 Markdown 表格。\n" +
+	"- 数学公式用 LaTeX：行内写成 $公式$（$ 与公式之间不留空格）；独立成行的公式单独写成一段 $$公式$$，多行公式写成单独一行的 $$、公式、单独一行的 $$；表示金额等的普通美元符号写成 \\$。\n" +
 	"- HTML 标签的属性值一律用英文双引号。\n"
 
 // aiWritePrompt 构建 AI 写作用户消息所需的信息

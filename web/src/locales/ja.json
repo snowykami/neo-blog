@@ -1481,7 +1481,9 @@
         "group_ai": "AI",
         "hint_ai": "AI にここから続きを書いてもらう",
         "hint_table": "3×3 の表を挿入",
-        "group_component": "コンポーネント"
+        "group_component": "コンポーネント",
+        "hint_blockMath": "独立した行の LaTeX 数式",
+        "hint_inlineMath": "文中の LaTeX 数式"
       },
       "block_add": "クリックでブロックを挿入",
       "block_drag": "ドラッグで移動 · クリックでメニュー",
@@ -1499,7 +1501,9 @@
         "horizontalRule": "区切り線",
         "block": "ブロック",
         "table": "表",
-        "componentBlock": "コンポーネント"
+        "componentBlock": "コンポーネント",
+        "blockMath": "数式ブロック",
+        "inlineMath": "インライン数式"
       },
       "image_toolbar": "画像ツール",
       "image_align_left": "左寄せ",
@@ -1552,6 +1556,18 @@
       "show_in_nav_hint": "サイトのナビゲーションにこのページを表示",
       "nav_order_hint": "ナビゲーションでの並び順",
       "insert_table": "表",
+      "math": {
+        "block": "数式ブロック",
+        "inline": "インライン数式",
+        "block_hint": "単独の行に $$…$$",
+        "inline_hint": "文中に $…$",
+        "placeholder": "LaTeX を入力（例：E = mc^2）",
+        "preview_empty": "入力するとここにプレビューが表示されます",
+        "hint_inline": "Enter で適用 · Esc でキャンセル",
+        "hint_block": "{shortcut} で適用 · Esc でキャンセル",
+        "syntax": "対応している構文",
+        "remove": "削除"
+      },
       "table": {
         "add_row_before": "上に行を挿入",
         "add_row_after": "下に行を挿入",

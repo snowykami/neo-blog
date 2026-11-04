@@ -223,6 +223,7 @@ export interface EditorUiActions {
   openAnnotation?: () => void
   openAI?: (options?: AIWriterOpenOptions) => void
   openComponentLibrary?: () => void
+  editMath?: (pos: number) => void
 }
 
 /**
@@ -299,6 +300,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     onOpenLink: () => uiActionsRef.current.openLink?.(),
     onOpenAnnotation: () => uiActionsRef.current.openAnnotation?.(),
     onOpenAI: () => uiActionsRef.current.openAI?.(),
+    onEditMath: pos => uiActionsRef.current.editMath?.(pos),
   }), [])
 
   const editor = useEditor({
