@@ -73,12 +73,15 @@ func (cr *CommentRepo) deleteChildren(tx *gorm.DB, parentID uint) ([]uint, error
 	return deletedIDs, nil
 }
 
-// deleteCommentLikes 清理被删除评论上的点赞，以及访客记录中与这些评论相关的互动（点赞、发表、被回复）
+// deleteCommentLikes 清理被删除评论上的点赞、AI 译文，以及访客记录中与这些评论相关的互动（点赞、发表、被回复）
 func deleteCommentLikes(tx *gorm.DB, commentIDs []uint) error {
 	if len(commentIDs) == 0 {
 		return nil
 	}
 	if err := tx.Unscoped().Where("target_type = ? AND target_id IN ?", constant.TargetTypeComment, commentIDs).Delete(&model.Like{}).Error; err != nil {
+		return err
+	}
+	if err := deleteCommentTranslations(tx, commentIDs); err != nil {
 		return err
 	}
 	return tx.Where("action <> ? AND ((target_type = ? AND target_id IN ?) OR comment_id IN ?)",
@@ -178,11 +181,13 @@ func (cr *CommentRepo) UpdateComment(comment *model.Comment) error {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
 
-	if err := GetDB().Select("IsPrivate", "ShowClientInfo", "Content").Updates(comment).Error; err != nil {
-		return err
-	}
-
-	return nil
+	return GetDB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Select("IsPrivate", "ShowClientInfo", "Content").Updates(comment).Error; err != nil {
+			return err
+		}
+		// 内容变化后旧译文全部作废
+		return deleteStaleCommentTranslations(tx, comment.ID, model.CommentContentMD5(comment.Content))
+	})
 }
 
 func (cr *CommentRepo) DeleteComment(commentID uint) error {

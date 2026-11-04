@@ -150,7 +150,13 @@
     "show_remaining": "Show {count} more {count, plural, one {reply} other {replies}}",
     "collapse_thread": "Hide replies",
     "thread_replies": "{count} {count, plural, one {reply} other {replies}}",
-    "thread_by": "{more, plural, =0 {{name}} other {{name} and others}}"
+    "thread_by": "{more, plural, =0 {{name}} other {{name} and others}}",
+    "translate": "Translate",
+    "translating": "Translating…",
+    "show_original": "Show original",
+    "translate_failed": "Translation failed",
+    "translated_from": "Translated from {language} by AI",
+    "translate_same_language": "This comment is already in your language"
   },
   "Common": {
     "image_load_failed": "Image failed to load",
@@ -2918,7 +2924,8 @@
       "invalid_storage_migration": "Source and target storage must be different",
       "too_many_files": "Too many files selected at once",
       "failed_to_start_storage_migration": "Failed to start migration",
-      "failed_to_cancel_storage_migration": "Failed to cancel migration"
+      "failed_to_cancel_storage_migration": "Failed to cancel migration",
+      "ai_translate_failed": "AI translation failed, please try again later"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field} \"{value}\" is invalid} resource {Invalid {resource} parameters} other {Invalid request parameters}}",

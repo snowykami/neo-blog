@@ -1,4 +1,4 @@
-import type { Comment, UserComment } from '@/models/comment'
+import type { Comment, CommentTranslation, UserComment } from '@/models/comment'
 import type { PaginationParams } from '@/models/common'
 import type { BaseResponse } from '@/models/resp'
 import type { TargetType } from '@/models/types'
@@ -102,6 +102,12 @@ export async function listCommentThread({
 
 export async function getComment({ id }: { id: number }): Promise<BaseResponse<Comment>> {
   const res = await axiosClient.get(`/comment/c/${id}`)
+  return res.data
+}
+
+// AI 翻译评论：源语言由 AI 识别，译文按评论与目标语言缓存，评论内容变化后重新翻译
+export async function translateComment({ id, targetLang }: { id: number, targetLang: string }): Promise<BaseResponse<CommentTranslation>> {
+  const res = await axiosClient.post(`/comment/c/${id}/translate`, { targetLang })
   return res.data
 }
 

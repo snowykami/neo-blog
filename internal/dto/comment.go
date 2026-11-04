@@ -81,3 +81,18 @@ type UserCommentDto struct {
 	CommentDto
 	Target CommentTargetDto `json:"target"`
 }
+
+type TranslateCommentReq struct {
+	ID         uint   `path:"id"`                             // 评论ID
+	TargetLang string `json:"target_lang" binding:"required"` // 目标语言（界面语言代码，如 zh、zh-tw、en、ja、ko）
+	RemoteAddr string // 远程地址，用于未登录时限流
+}
+
+// CommentTranslationDto 评论的 AI 译文
+type CommentTranslationDto struct {
+	CommentID    uint   `json:"comment_id"`
+	SourceLang   string `json:"source_lang"`   // AI 识别出的源语言
+	TargetLang   string `json:"target_lang"`   // 目标语言
+	Content      string `json:"content"`       // 译文；源语言与目标语言相同时为空
+	SameLanguage bool   `json:"same_language"` // 评论已是目标语言，无需翻译
+}

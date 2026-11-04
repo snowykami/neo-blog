@@ -173,13 +173,23 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 }
 
 func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.CommentDto, *errs.ServiceError) {
-	comment, err := repo.Comment.GetComment(commentID)
-	if err != nil {
-		return nil, errs.NewNotFound("operation_target_not_found").WithResource("comment")
+	comment, svcerr := cs.loadVisibleComment(ctx, commentID)
+	if svcerr != nil {
+		return nil, svcerr
 	}
 	currentUserID := uint(0)
 	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
 		currentUserID = currentUser.ID
+	}
+	commentDtos := cs.toGetCommentDtos([]model.Comment{*comment}, currentUserID)
+	return &commentDtos[0], nil
+}
+
+// loadVisibleComment 读取当前用户看得到的评论：所属文章 / 页面可访问，私密评论还需对当前用户可见
+func (cs *CommentService) loadVisibleComment(ctx context.Context, commentID uint) (*model.Comment, *errs.ServiceError) {
+	comment, err := repo.Comment.GetComment(commentID)
+	if err != nil {
+		return nil, errs.NewNotFound("operation_target_not_found").WithResource("comment")
 	}
 	target, svcerr := cs.getTarget(comment.TargetID, comment.TargetType)
 	if svcerr != nil {
@@ -196,8 +206,7 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.
 	if !visible {
 		return nil, errs.NewForbidden("permission_denied")
 	}
-	commentDtos := cs.toGetCommentDtos([]model.Comment{*comment}, currentUserID)
-	return &commentDtos[0], nil
+	return comment, nil
 }
 
 // threadUsersLimit 主评论折叠时展示的回复者头像数

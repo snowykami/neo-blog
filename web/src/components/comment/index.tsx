@@ -42,6 +42,7 @@ export function CommentSection({
   const [desc, setDesc] = useState(true) // 是否降序，默认降序
   const [initialLoading, setInitialLoading] = useState(true) // 首屏加载中
   const [loadingMore, setLoadingMore] = useState(false) // 加载更多中
+  const [translatable, setTranslatable] = useState(false) // 后端已配置 AI 时可翻译评论
   // 请求序号：排序或目标变化后，丢弃过期请求的结果
   const requestSeqRef = useRef(0)
   // 上次加载后本地删除的顶层评论数，非 0 时下一页的 offset 会错位
@@ -71,6 +72,7 @@ export function CommentSection({
         return
       const list: Comment[] = response.data.comments || []
       setComments(list)
+      setTranslatable(Boolean(response.data.translatable))
       // If we got fewer comments than requested, no more pages
       setNeedLoadMore(list.length >= pageSize)
     }).catch((error) => {
@@ -213,6 +215,7 @@ export function CommentSection({
                 setActiveInputId={setActiveInput}
                 onCountChange={onCountChange}
                 ownerId={ownerId}
+                translatable={translatable}
               />
             ))}
         {!initialLoading && (needLoadMore

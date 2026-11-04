@@ -14,12 +14,14 @@ import (
 )
 
 type CommentController struct {
-	service *service.CommentService
+	service          *service.CommentService
+	translateService *service.CommentTranslateService
 }
 
 func NewCommentController() *CommentController {
 	return &CommentController{
-		service: service.NewCommentService(),
+		service:          service.NewCommentService(),
+		translateService: service.NewCommentTranslateService(),
 	}
 }
 
@@ -88,7 +90,24 @@ func (cc *CommentController) GetCommentList(ctx context.Context, c *app.RequestC
 		resps.Error(c, svcerr)
 		return
 	}
-	resps.Ok(c, resps.Success, utils.H{"comments": commentDtos})
+	// translatable：AI 已配置，前端据此显示翻译按钮
+	resps.Ok(c, resps.Success, utils.H{"comments": commentDtos, "translatable": cc.translateService.Available()})
+}
+
+// TranslateComment 把评论翻译成目标语言（AI 识别源语言），译文按评论与目标语言缓存
+func (cc *CommentController) TranslateComment(ctx context.Context, c *app.RequestContext) {
+	var req dto.TranslateCommentReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	req.RemoteAddr = c.ClientIP()
+	resp, svcerr := cc.translateService.Translate(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, resp)
 }
 
 func (cc *CommentController) ListUserComments(ctx context.Context, c *app.RequestContext) {

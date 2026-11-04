@@ -150,7 +150,13 @@
     "show_remaining": "展開其餘 {count} 則回覆",
     "collapse_thread": "收起回覆",
     "thread_replies": "{count} 則回覆",
-    "thread_by": "{more, plural, =0 {{name}} other {{name} 等}}"
+    "thread_by": "{more, plural, =0 {{name}} other {{name} 等}}",
+    "translate": "翻譯",
+    "translating": "翻譯中…",
+    "show_original": "顯示原文",
+    "translate_failed": "翻譯失敗",
+    "translated_from": "由 AI 翻譯自{language}",
+    "translate_same_language": "這則留言已經是目前的語言，無需翻譯"
   },
   "Common": {
     "image_load_failed": "圖片載入失敗",
@@ -2918,7 +2924,8 @@
       "invalid_storage_migration": "來源儲存與目標儲存不能相同",
       "too_many_files": "一次選取的檔案過多",
       "failed_to_start_storage_migration": "啟動遷移失敗",
-      "failed_to_cancel_storage_migration": "取消遷移失敗"
+      "failed_to_cancel_storage_migration": "取消遷移失敗",
+      "ai_translate_failed": "AI 翻譯失敗，請稍後再試"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的參數不符合要求} other {請求參數不符合要求}}",

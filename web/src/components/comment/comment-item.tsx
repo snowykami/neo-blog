@@ -1,11 +1,11 @@
-import type { Comment } from '@/models/comment'
+import type { Comment, CommentTranslation } from '@/models/comment'
 import type { User } from '@/models/user'
-import { ChevronDown, Ellipsis, Lock, Reply } from 'lucide-react'
+import { ChevronDown, Ellipsis, Languages, Loader2, Lock, Reply } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { createComment, deleteComment, getComment, listCommentThread, updateComment } from '@/api/comment'
+import { createComment, deleteComment, getComment, listCommentThread, translateComment, updateComment } from '@/api/comment'
 import { toggleLike } from '@/api/like'
 import { useRequireLogin } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
@@ -47,6 +47,7 @@ export function CommentItem({
   activeInput,
   setActiveInputId,
   onCountChange,
+  translatable = false,
 }: {
   comment: Comment
   ownerId?: number // 不是评论的作者ID，而是文章的作者ID
@@ -54,6 +55,7 @@ export function CommentItem({
   activeInput: ActiveInput
   setActiveInputId: (input: ActiveInput) => void
   onCountChange: (delta: number) => void // 评论区总数的变化
+  translatable?: boolean // 后端已配置 AI，显示翻译按钮
 }) {
   const t = useTranslations('Comment')
   const errorMessageT = useErrorMessageT()
@@ -143,6 +145,7 @@ export function CommentItem({
         setActiveInputId={setActiveInputId}
         onDelete={onCommentDelete}
         onUpdated={setRoot}
+        translatable={translatable}
       />
       {(threadCount > 0 || replying === root.id) && (
         <div className={cn('comment-thread', !expanded && 'is-collapsed')}>
@@ -161,6 +164,7 @@ export function CommentItem({
                     setActiveInputId={setActiveInputId}
                     onDelete={onReplyDelete}
                     onUpdated={updated => setReplies(prev => prev?.map(r => (r.id === updated.id ? updated : r)) ?? prev)}
+                    translatable={translatable}
                   />
                 </div>
                 {replying === reply.id && replyComposer(reply)}
@@ -209,6 +213,7 @@ function CommentBody({
   setActiveInputId,
   onDelete,
   onUpdated,
+  translatable,
 }: {
   comment: Comment
   variant: 'root' | 'reply'
@@ -218,6 +223,7 @@ function CommentBody({
   setActiveInputId: (input: ActiveInput) => void
   onDelete: ({ commentId }: { commentId: number }) => Promise<void>
   onUpdated: (comment: Comment) => void
+  translatable: boolean
 }) {
   const { siteInfo } = useSiteInfo()
   const { user } = useAuth()
@@ -231,6 +237,12 @@ function CommentBody({
   const [likeCount, setLikeCount] = useState(comment.likeCount)
   const [liked, setLiked] = useState(comment.isLiked)
   const [liking, setLiking] = useState(false)
+  // 译文连同翻译时的原文一起记录：评论被编辑或界面语言变化后旧译文不再使用
+  const [translation, setTranslation] = useState<{ source: string, data: CommentTranslation } | null>(null)
+  const [showTranslation, setShowTranslation] = useState(false)
+  const [translating, setTranslating] = useState(false)
+  const currentTranslation = translation?.source === comment.content && translation.data.targetLang === locale ? translation.data : null
+  const translated = showTranslation && currentTranslation && !currentTranslation.sameLanguage ? currentTranslation : null
 
   // 未登录时由 requireLogin 弹出快捷登录，登录后接着执行，因此这里不再判断登录状态
   const like = () => {
@@ -255,6 +267,37 @@ function CommentBody({
   }
 
   const handleToggleLike = () => requireLogin(like, 'like')
+
+  const showTranslationResult = (result: CommentTranslation) => {
+    if (result.sameLanguage)
+      toast.info(t('translate_same_language'))
+    else
+      setShowTranslation(true)
+  }
+
+  // 翻译成当前界面语言；已显示译文时切回原文，已翻译过的不再请求
+  const toggleTranslation = () => {
+    if (translated) {
+      setShowTranslation(false)
+      return
+    }
+    if (currentTranslation) {
+      showTranslationResult(currentTranslation)
+      return
+    }
+    if (translating)
+      return
+    setTranslating(true)
+    const source = comment.content
+    translateComment({ id: comment.id, targetLang: locale })
+      .then((res) => {
+        // 等待期间评论被编辑时，原文对不上，译文不会显示
+        setTranslation({ source, data: res.data })
+        showTranslationResult(res.data)
+      })
+      .catch(error => toast.error(`${t('translate_failed')}: ${errorMessageT(error)}`))
+      .finally(() => setTranslating(false))
+  }
 
   const toggleReply = () => requireLogin(() => {
     const active = activeInput?.type === 'reply' && activeInput.id === comment.id
@@ -322,7 +365,7 @@ function CommentBody({
             )}
             {isRoot && device && <span className="comment-meta comment-meta-dot hidden md:inline">{device}</span>}
           </div>
-          <p className={cn('mt-1 mb-0.5 break-words whitespace-pre-wrap text-foreground/85', !isRoot && 'text-[0.95em]')}>
+          <p lang={translated?.targetLang} className={cn('mt-1 mb-0.5 break-words whitespace-pre-wrap text-foreground/85', !isRoot && 'text-[0.95em]')}>
             {replyToUser && (
               <Link
                 href={getUserUrl(replyToUser)}
@@ -333,8 +376,14 @@ function CommentBody({
                 {name(replyToUser)}
               </Link>
             )}
-            {comment.content}
+            {translated ? translated.content : comment.content}
           </p>
+          {translated && (
+            <p className="mb-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Languages aria-hidden className="size-3" />
+              {t('translated_from', { language: languageName(translated.sourceLang, locale) })}
+            </p>
+          )}
           <div className="-ml-2 flex items-center gap-0.5 text-xs text-muted-foreground">
             <button
               type="button"
@@ -357,6 +406,22 @@ function CommentBody({
               <LikeIcon className={cn('size-3.5', liked && 'fill-current')} />
               {likeCount > 0 && likeCount}
             </button>
+            {translatable && (
+              <button
+                type="button"
+                title={translating ? t('translating') : translated ? t('show_original') : t('translate')}
+                aria-label={translating ? t('translating') : translated ? t('show_original') : t('translate')}
+                aria-pressed={Boolean(translated)}
+                aria-busy={translating}
+                disabled={translating}
+                onClick={toggleTranslation}
+                className={cn('inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground disabled:cursor-wait', translated && 'text-primary hover:text-primary')}
+              >
+                {translating
+                  ? <Loader2 aria-hidden className="size-3.5 animate-spin" />
+                  : <Languages aria-hidden className="size-3.5" />}
+              </button>
+            )}
             {user && (user.id === comment.user.id || isAdmin({ user })) && (
               // 桌面端悬停时才显示「更多」，触屏设备始终显示
               <span className="ml-auto sm:opacity-0 sm:transition-opacity sm:group-focus-within/comment:opacity-100 sm:group-hover/comment:opacity-100">
@@ -381,6 +446,16 @@ function CommentBody({
       )}
     </div>
   )
+}
+
+// 语言代码 → 当前界面语言下的名称（zh / zh-tw 显示为简体 / 繁体中文），无法识别时显示代码本身
+function languageName(code: string, locale: string) {
+  try {
+    return new Intl.DisplayNames([locale], { type: 'language' }).of(code === 'zh' ? 'zh-Hans' : code === 'zh-tw' ? 'zh-Hant' : code) ?? code
+  }
+  catch {
+    return code
+  }
 }
 
 function CommentDropdownMenu({

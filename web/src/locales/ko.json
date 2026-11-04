@@ -150,7 +150,13 @@
     "show_remaining": "나머지 답글 {count}개 보기",
     "collapse_thread": "답글 접기",
     "thread_replies": "답글 {count}개",
-    "thread_by": "{more, plural, =0 {{name}} other {{name} 외}}"
+    "thread_by": "{more, plural, =0 {{name}} other {{name} 외}}",
+    "translate": "번역",
+    "translating": "번역 중…",
+    "show_original": "원문 보기",
+    "translate_failed": "번역 실패",
+    "translated_from": "AI가 {language}에서 번역함",
+    "translate_same_language": "이 댓글은 이미 현재 언어로 작성되었습니다"
   },
   "Common": {
     "image_load_failed": "이미지를 불러오지 못했습니다",
@@ -2918,7 +2924,8 @@
       "invalid_storage_migration": "원본과 대상 스토리지는 서로 달라야 합니다",
       "too_many_files": "한 번에 선택한 파일이 너무 많습니다",
       "failed_to_start_storage_migration": "이전을 시작하지 못했습니다",
-      "failed_to_cancel_storage_migration": "이전을 취소하지 못했습니다"
+      "failed_to_cancel_storage_migration": "이전을 취소하지 못했습니다",
+      "ai_translate_failed": "AI 번역에 실패했습니다. 잠시 후 다시 시도해 주세요"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field} \"{value}\"이(가) 올바르지 않습니다} resource {{resource} 매개변수가 올바르지 않습니다} other {요청 매개변수가 올바르지 않습니다}}",

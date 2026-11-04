@@ -173,6 +173,7 @@ var models = []any{
 	&model.AIPrompt{},
 	&model.APIToken{},
 	&model.Comment{},
+	&model.CommentTranslation{},
 	&model.ContentRevision{},
 	&model.EditSession{},
 	&model.Label{},

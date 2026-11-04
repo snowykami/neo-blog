@@ -150,7 +150,13 @@
     "show_remaining": "展开剩余 {count} 条回复",
     "collapse_thread": "收起回复",
     "thread_replies": "{count} 条回复",
-    "thread_by": "{more, plural, =0 {{name}} other {{name} 等}}"
+    "thread_by": "{more, plural, =0 {{name}} other {{name} 等}}",
+    "translate": "翻译",
+    "translating": "翻译中…",
+    "show_original": "显示原文",
+    "translate_failed": "翻译失败",
+    "translated_from": "由 AI 翻译自{language}",
+    "translate_same_language": "这条评论已经是当前语言，无需翻译"
   },
   "Common": {
     "image_load_failed": "图片加载失败",
@@ -2889,7 +2895,8 @@
       "invalid_storage_migration": "源存储与目标存储不能相同",
       "too_many_files": "一次选择的文件过多",
       "failed_to_start_storage_migration": "启动迁移失败",
-      "failed_to_cancel_storage_migration": "取消迁移失败"
+      "failed_to_cancel_storage_migration": "取消迁移失败",
+      "ai_translate_failed": "AI 翻译失败，请稍后再试"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的参数不符合要求} other {请求参数不符合要求}}",

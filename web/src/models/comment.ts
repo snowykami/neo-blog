@@ -45,3 +45,12 @@ export interface CommentTarget {
 export interface UserComment extends Comment {
   target: CommentTarget
 }
+
+// 评论的 AI 译文
+export interface CommentTranslation {
+  commentId: number
+  sourceLang: string // AI 识别出的源语言
+  targetLang: string
+  content: string // 译文；源语言与目标语言相同时为空
+  sameLanguage: boolean // 评论已是目标语言，无需翻译
+}

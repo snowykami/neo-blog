@@ -150,7 +150,13 @@
     "show_remaining": "残り {count} 件の返信を表示",
     "collapse_thread": "返信を閉じる",
     "thread_replies": "{count} 件の返信",
-    "thread_by": "{more, plural, =0 {{name}} other {{name} ほか}}"
+    "thread_by": "{more, plural, =0 {{name}} other {{name} ほか}}",
+    "translate": "翻訳",
+    "translating": "翻訳中…",
+    "show_original": "原文を表示",
+    "translate_failed": "翻訳に失敗しました",
+    "translated_from": "{language}から AI が翻訳",
+    "translate_same_language": "このコメントはすでに表示言語で書かれています"
   },
   "Common": {
     "image_load_failed": "画像を読み込めませんでした",
@@ -2918,7 +2924,8 @@
       "invalid_storage_migration": "移行元と移行先は別のストレージにしてください",
       "too_many_files": "一度に選択したファイルが多すぎます",
       "failed_to_start_storage_migration": "移行を開始できませんでした",
-      "failed_to_cancel_storage_migration": "移行をキャンセルできませんでした"
+      "failed_to_cancel_storage_migration": "移行をキャンセルできませんでした",
+      "ai_translate_failed": "AI 翻訳に失敗しました。しばらくしてから再度お試しください"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」が正しくありません} resource {{resource}のパラメーターが正しくありません} other {リクエストのパラメーターが正しくありません}}",
