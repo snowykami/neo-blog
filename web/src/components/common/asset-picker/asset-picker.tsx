@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/auth-context'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useOperationT } from '@/hooks/use-translations'
+import { DEFAULT_COMPRESS_LEVEL } from '@/utils/client/image-compress'
 import { isAdmin } from '@/utils/common/permission'
 import { AssetLibrary } from './asset-library'
 import { AssetUploader } from './asset-uploader'
@@ -32,7 +33,7 @@ export interface AssetPickerProps {
   max?: number
   /** 本地上传单个文件的大小上限（字节） */
   maxSize?: number
-  /** 本地上传图片的默认压缩等级 0-10 */
+  /** 本地上传图片的默认压缩等级 0-10，仅在用户从未选择过压缩档位时使用 */
   compressLevel?: number
   title?: string
   defaultTab?: AssetPickerTab
@@ -88,7 +89,7 @@ function AssetPickerBody({
   multiple = false,
   max,
   maxSize,
-  compressLevel = 5,
+  compressLevel = DEFAULT_COMPRESS_LEVEL,
   defaultTab = 'library',
   onSelect,
   onClose,

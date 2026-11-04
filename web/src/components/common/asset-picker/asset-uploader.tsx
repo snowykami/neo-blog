@@ -6,25 +6,28 @@ import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
+import { CompressLevelPicker, CompressSizeChange } from '@/components/common/image-compress/compress-level-picker'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useClipboardFilePaste } from '@/hooks/use-clipboard-file-paste'
+import { useCompressLevel } from '@/hooks/use-image-compress'
 import { useErrorMessageT } from '@/hooks/use-translations'
+import { compressImage } from '@/utils/client/image-compress'
 import { formatDataSize } from '@/utils/common/datasize'
 import { matchAccept, toPickedAsset } from './utils'
 
 interface UploadItem {
   key: string
   file: File
+  /** 上传时使用的压缩等级 */
+  level: number
+  /** 按压缩档位处理后实际上传的文件，压缩完成前为 undefined */
+  prepared?: File
   progress: number
   status: 'uploading' | 'success' | 'error'
   error?: string
   controller: AbortController
 }
-
-const COMPRESS_LEVELS = Array.from({ length: 11 }, (_, i) => i)
 
 /**
  * 本地上传：拖拽、点击选择或直接粘贴（如截图）文件，逐个上传并显示进度；
@@ -41,6 +44,7 @@ export function AssetUploader({
   accept?: string
   multiple: boolean
   maxSize?: number
+  /** 用户从未选择过压缩档位时使用的默认等级 */
   defaultCompressLevel: number
   onUploaded: (asset: PickedAsset) => void
   onBatchDone: () => void
@@ -50,7 +54,8 @@ export function AssetUploader({
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [items, setItems] = React.useState<UploadItem[]>([])
   const [dragOver, setDragOver] = React.useState(false)
-  const [compressLevel, setCompressLevel] = React.useState(defaultCompressLevel)
+  // 与上传文件弹窗共用、记住上次选择的压缩档位
+  const [compressLevel, setCompressLevel] = useCompressLevel(defaultCompressLevel)
 
   // 关闭弹窗（组件卸载）时中止仍在进行的上传
   const itemsRef = React.useRef(items)
@@ -62,14 +67,17 @@ export function AssetUploader({
 
   const uploadOne = async (item: UploadItem) => {
     try {
+      // 先压缩以便在列表中展示压缩前后的体积，uploadFile 会复用同一结果
+      const prepared = await compressImage(item.file, item.level)
+      updateItem(item.key, { prepared })
       const res = await uploadFile({
         file: item.file,
-        compressLevel,
+        compressLevel: item.level,
         signal: item.controller.signal,
         onProgress: progress => updateItem(item.key, { progress }),
       })
       updateItem(item.key, { status: 'success', progress: 100 })
-      onUploaded(toPickedAsset({ id: res.data.id, name: item.file.name, mimeType: item.file.type, size: item.file.size }))
+      onUploaded(toPickedAsset({ id: res.data.id, name: prepared.name, mimeType: prepared.type, size: prepared.size }))
       return true
     }
     catch (error: unknown) {
@@ -101,6 +109,7 @@ export function AssetUploader({
     const newItems: UploadItem[] = accepted.map(file => ({
       key: crypto.randomUUID(),
       file,
+      level: compressLevel,
       progress: 0,
       status: 'uploading',
       controller: new AbortController(),
@@ -172,20 +181,7 @@ export function AssetUploader({
         }}
       />
 
-      <div className="flex items-center gap-3">
-        <Label htmlFor="asset-compress-level" className="text-xs font-normal text-muted-foreground">{t('compress_level')}</Label>
-        <Select value={String(compressLevel)} onValueChange={value => setCompressLevel(Number(value))}>
-          <SelectTrigger id="asset-compress-level" size="sm" className="w-28">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {COMPRESS_LEVELS.map(level => (
-              <SelectItem key={level} value={String(level)}>{level === 0 ? t('compress_none') : level}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span className="text-xs text-muted-foreground">{t('compress_hint')}</span>
-      </div>
+      <CompressLevelPicker value={compressLevel} onValueChange={setCompressLevel} />
 
       {items.length > 0 && (
         <ul className="grid max-h-56 gap-2 overflow-y-auto">
@@ -199,8 +195,15 @@ export function AssetUploader({
                     : <CloudUploadIcon className="size-4 shrink-0 text-muted-foreground" />}
                 <div className="grid min-w-0 flex-1">
                   <span className="truncate text-sm">{item.file.name}</span>
-                  <span className={item.status === 'error' ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
-                    {item.status === 'error' ? item.error : item.status === 'success' ? t('upload_done') : formatDataSize({ size: item.file.size })}
+                  <span className={item.status === 'error' ? 'text-xs text-destructive' : 'text-xs tabular-nums text-muted-foreground'}>
+                    {item.status === 'error'
+                      ? item.error
+                      : (
+                          <>
+                            {item.status === 'success' && `${t('upload_done')} · `}
+                            <CompressSizeChange file={item.file} level={item.level} result={item.prepared} />
+                          </>
+                        )}
                   </span>
                 </div>
                 {item.status === 'uploading' && <span className="text-xs tabular-nums text-primary">{`${item.progress}%`}</span>}

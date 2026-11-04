@@ -1,12 +1,15 @@
 'use client'
 
 import type { ChangeEvent } from 'react'
-import { CircleXIcon, FileIcon } from 'lucide-react'
+import type { CompressPreview } from '@/hooks/use-image-compress'
+import { CircleXIcon, EyeIcon, FileIcon } from 'lucide-react'
 import mime from 'mime-types'
 import { useTranslations } from 'next-intl'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
+import { CompressLevelPicker, CompressSizeChange } from '@/components/common/image-compress/compress-level-picker'
+import { CompressPreviewDialog } from '@/components/common/image-compress/compress-preview-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,11 +24,11 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useClipboardFilePaste } from '@/hooks/use-clipboard-file-paste'
+import { useCompressLevel, useCompressPreview } from '@/hooks/use-image-compress'
+import { useObjectUrl } from '@/hooks/use-object-url'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { mimeTypeIcons } from '@/utils/client/file'
-import { formatDataSize } from '@/utils/common/datasize'
-import { Label } from '../ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
+import { isCompressibleImage } from '@/utils/client/image-compress'
 
 const MAX_FILE_NUM_PER_UPLOAD = 20
 
@@ -45,7 +48,10 @@ export function FileUploadDialogWithButton({
   const operationT = useOperationT()
   const [open, setOpen] = useState(false)
   const [files, setFiles] = useState<File[]>([])
-  const [compressLevel, setCompressLevel] = useState(0)
+  // 记住上次选择的压缩档位；选中的图片在后台预先压缩，用于展示体积与预览，上传时复用结果
+  const [compressLevel, setCompressLevel] = useCompressLevel()
+  const compressPreview = useCompressPreview(files, compressLevel)
+  const compressibleImages = files.filter(isCompressibleImage)
 
   // 粘贴回调与选择文件共用同一套数量上限校验，需要读到最新的文件列表
   const filesRef = useRef(files)
@@ -77,7 +83,7 @@ export function FileUploadDialogWithButton({
       return
 
     const uploadPromises = files.map(file =>
-      uploadFile({ file, compressLevel }) // 默认压缩等级为 5
+      uploadFile({ file, compressLevel })
         .then(() => {
           toast.success(t('upload_file_success', { name: file.name }))
           return { success: true, file }
@@ -117,45 +123,31 @@ export function FileUploadDialogWithButton({
         <DialogHeader>
           <DialogTitle>{t('upload_file')}</DialogTitle>
           <DialogDescription>{t('select_file')}</DialogDescription>
-          <div className="flex items-center gap-2 mt-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Label className="cursor-pointer">
-                  {t('compress_level')}
-                  {': '}
-                  {compressLevel}
-                </Label>
-              </PopoverTrigger>
-              <PopoverContent className="w-40 p-4">
-                <div className="flex flex-wrap gap-2">
-                  {Array.from({ length: 11 }, (_, i) => i).map(level => (
-                    <Button
-                      key={level}
-                      size="sm"
-                      variant={compressLevel === level ? 'default' : 'outline'}
-                      className="w-8 h-8 p-0"
-                      onClick={() => setCompressLevel(level)}
-                    >
-                      {level}
-                    </Button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
         </DialogHeader>
-        <div>
-          <Input multiple id="files" type="file" onChange={handleFilesSelected} />
-          <p className="mt-2 text-xs text-muted-foreground">{t('paste_hint')}</p>
-          <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
-            {files.map((file, index) => (
-              <FileUploadPreviewItem
-                key={index}
-                file={file}
-                onFileCancel={file => setFiles(prev => prev.filter(f => f !== file))}
-              />
-            ))}
+        <div className="grid min-w-0 gap-4">
+          <div className="grid gap-2">
+            <Input multiple id="files" type="file" onChange={handleFilesSelected} />
+            <p className="text-xs text-muted-foreground">{t('paste_hint')}</p>
           </div>
+          <CompressLevelPicker
+            value={compressLevel}
+            onValueChange={setCompressLevel}
+            sizes={compressPreview.sizesOf(compressibleImages)}
+          />
+          {files.length > 0 && (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {files.map((file, index) => (
+                <FileUploadPreviewItem
+                  key={index}
+                  file={file}
+                  compressLevel={compressLevel}
+                  onCompressLevelChange={setCompressLevel}
+                  compressPreview={compressPreview}
+                  onFileCancel={file => setFiles(prev => prev.filter(f => f !== file))}
+                />
+              ))}
+            </div>
+          )}
         </div>
         <DialogFooter>
 
@@ -175,18 +167,27 @@ export function FileUploadDialogWithButton({
 
 function FileUploadPreviewItem({
   file,
+  compressLevel,
+  onCompressLevelChange,
+  compressPreview,
   onFileCancel,
 }: {
   file: File
+  compressLevel: number
+  onCompressLevelChange: (level: number) => void
+  compressPreview: CompressPreview
   onFileCancel: (file: File) => void
 }) {
+  const t = useTranslations('ImageCompress')
+  // 压缩结果陆续算好时列表会多次重渲染，预览地址需随文件缓存，不能每次渲染都新建
+  const previewUrl = useObjectUrl(file)
   return (
     <div className="flex items-center gap-3 p-2 border border-border rounded w-full overflow-hidden">
       <div className="flex-shrink-0 w-10 h-10 bg-muted rounded overflow-hidden flex items-center justify-center">
         <Avatar className="h-full w-full rounded-sm">
           <AvatarImage
             className="object-contain w-full h-full"
-            src={URL.createObjectURL(file)}
+            src={previewUrl ?? undefined}
             alt={file.name}
           />
           <AvatarFallback>
@@ -207,8 +208,23 @@ function FileUploadPreviewItem({
 
       <div className="w-0 flex-1">
         <div className="font-medium leading-none truncate max-w-full">{file.name}</div>
-        <div className="text-xs text-muted-foreground">{formatDataSize({ size: file.size })}</div>
+        <div className="text-xs tabular-nums text-muted-foreground">
+          <CompressSizeChange file={file} level={compressLevel} result={compressPreview.resultOf(file)} />
+        </div>
       </div>
+
+      {isCompressibleImage(file) && (
+        <CompressPreviewDialog
+          file={file}
+          level={compressLevel}
+          onLevelChange={onCompressLevelChange}
+          preview={compressPreview}
+        >
+          <Button type="button" className="flex-shrink-0" variant="ghost" size="icon" aria-label={t('preview')} title={t('preview')}>
+            <EyeIcon className="w-5 h-5" />
+          </Button>
+        </CompressPreviewDialog>
+      )}
 
       <Button
         className="flex-shrink-0"
