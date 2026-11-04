@@ -8,6 +8,7 @@ import { useFieldArray, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { importAIAgents } from '@/api/ai-agent'
 import { UserAvatar } from '@/components/common/avatar'
+import { isValidUsername, USERNAME_MAX } from '@/components/console/users/user-profile-fields'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,7 +21,6 @@ import { useCommonT, useErrorBodyT, useErrorMessageT, useOperationT } from '@/ho
 import { AI_AGENT_TIERS } from '@/models/ai-agent'
 import { consolePath } from '@/utils/common/route'
 import { parseAgentFile } from './agent-file'
-import { isValidAIUsername, USERNAME_MAX } from './create-agent-dialog'
 import { TierBadge, useAIAgentT } from './shared'
 
 const FILE_ACCEPT = '.json,application/json'
@@ -348,7 +348,7 @@ function ImportAgentsBody({ onCancel, onImported, onShowDistill }: {
                         const value = v.trim()
                         if (!value)
                           return t('create.required', { field: commonT('username') })
-                        if (!isValidAIUsername(value))
+                        if (!isValidUsername(value))
                           return t('create.invalid_username', { max: USERNAME_MAX })
                         if (values.agents.filter(row => row.username.trim() === value).length > 1)
                           return t('import.duplicate_username')

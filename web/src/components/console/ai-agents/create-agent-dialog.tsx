@@ -8,29 +8,18 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { listUsers } from '@/api/admin'
 import { convertUserToAIAgent, createAIAgent } from '@/api/ai-agent'
-import { AssetField } from '@/components/common/asset-picker/asset-field'
 import { UserAvatar } from '@/components/common/avatar'
+import { UserProfileFields } from '@/components/console/users/user-profile-fields'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { AI_AGENT_TIERS } from '@/models/ai-agent'
 import { Role } from '@/models/user'
 import { SearchSelect, useAIAgentT } from './shared'
-
-// 与后端用户名 / 昵称校验保持一致（见 internal/service/admin_user.go）
-export const USERNAME_MAX = 20
-const NICKNAME_MAX = 20
-
-export function isValidAIUsername(value: string) {
-  return value.length <= USERNAME_MAX && !/[\s/@]/.test(value)
-}
-// 外部 http(s) 地址，或站内文件的稳定链接（/api/v1/file/f/<id>，从资产库选择时得到）
-const URL_PATTERN = /^(?:https?:\/\/|\/)\S+$/i
 
 type CreateMode = 'new' | 'convert'
 
@@ -86,7 +75,6 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: {
 
 function CreateAgentFormBody({ onCancel, onCreated }: { onCancel: () => void, onCreated: (agent: AIAgent) => void }) {
   const t = useAIAgentT()
-  const commonT = useCommonT()
   const operationT = useOperationT()
   const errorMessageT = useErrorMessageT()
   const form = useForm<CreateAgentForm>({
@@ -137,54 +125,11 @@ function CreateAgentFormBody({ onCancel, onCreated }: { onCancel: () => void, on
         {mode === 'new'
           ? (
               <>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="username"
-                    rules={{
-                      validate: (v: string) => {
-                        const value = v.trim()
-                        if (!value)
-                          return t('create.required', { field: commonT('username') })
-                        if (!isValidAIUsername(value))
-                          return t('create.invalid_username', { max: USERNAME_MAX })
-                        return true
-                      },
-                    }}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{commonT('username')}</FormLabel>
-                        <FormControl><Input {...field} autoComplete="off" placeholder="ai_" /></FormControl>
-                        <FormDescription>{t('create.username_hint')}</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="nickname"
-                    rules={{ validate: (v: string) => v.trim().length <= NICKNAME_MAX || t('create.too_long', { max: NICKNAME_MAX }) }}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('create.nickname')}</FormLabel>
-                        <FormControl><Input {...field} autoComplete="off" /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="avatarUrl"
-                  rules={{ validate: (v: string) => !v.trim() || URL_PATTERN.test(v.trim()) || t('create.invalid_url') }}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('create.avatar_url')}</FormLabel>
-                      {/* 可粘贴外部地址，也可从资产库选择或上传 */}
-                      <FormControl><AssetField {...field} autoComplete="off" previewClassName="rounded-full" pickerProps={{ title: t('create.avatar_url') }} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                {/* 账号资料字段与用户管理的新建、编辑表单共用 */}
+                <UserProfileFields
+                  fields={['username', 'nickname', 'avatarUrl']}
+                  descriptions={{ username: t('create.username_hint') }}
+                  placeholders={{ username: 'ai_' }}
                 />
                 <Alert>
                   <Info />

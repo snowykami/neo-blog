@@ -16,6 +16,7 @@ import {
 } from '@/api/admin'
 import { UserAvatar } from '@/components/common/avatar'
 import { LabelWithInfo } from '@/components/common/info-tooltip'
+import { UserProfileFields, useUserFieldRules } from '@/components/console/users/user-profile-fields'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -46,46 +47,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { Role } from '@/models/user'
 
-// 与后端 internal/service/admin_user.go 的校验保持一致
-const USERNAME_MAX = 20
-const NICKNAME_MAX = 20
-const PASSWORD_MIN = 8
-const PASSWORD_MAX = 32
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/
-const URL_PATTERN = /^https?:\/\/\S+$/i
 export const ROLES = [Role.ADMIN, Role.EDITOR, Role.USER] as const
 
 export function displayName(user: User) {
   return user.nickname || user.username
-}
-
-function useUserFieldRules() {
-  const t = useTranslations('Console.users')
-  const commonT = useCommonT()
-  return {
-    username: {
-      validate: (v: string) => {
-        const value = v.trim()
-        if (!value)
-          return t('required', { field: commonT('username') })
-        if (value.length > USERNAME_MAX || /[\s/@]/.test(value))
-          return t('invalid_username', { max: USERNAME_MAX })
-        return true
-      },
-    },
-    nickname: {
-      validate: (v: string) => v.trim().length <= NICKNAME_MAX || t('too_long', { field: t('nickname'), max: NICKNAME_MAX }),
-    },
-    email: {
-      validate: (v: string) => EMAIL_PATTERN.test(v.trim()) || t('invalid_email'),
-    },
-    url: {
-      validate: (v: string) => !v.trim() || URL_PATTERN.test(v.trim()) || t('invalid_url'),
-    },
-    password: {
-      validate: (v: string) => (v.length >= PASSWORD_MIN && v.length <= PASSWORD_MAX) || t('password_hint', { min: PASSWORD_MIN, max: PASSWORD_MAX }),
-    },
-  }
 }
 
 function SubmitButton({ submitting, label }: { submitting: boolean, label: string }) {
@@ -171,44 +136,7 @@ function CreateUserFormBody({ onCancel, onSaved }: { onCancel: () => void, onSav
   return (
     <Form {...form}>
       <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="username"
-            rules={rules.username}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{commonT('username')}</FormLabel>
-                <FormControl><Input {...field} autoComplete="off" /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="nickname"
-            rules={rules.nickname}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('nickname')}</FormLabel>
-                <FormControl><Input {...field} autoComplete="off" /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <FormField
-          control={form.control}
-          name="email"
-          rules={rules.email}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{commonT('email')}</FormLabel>
-              <FormControl><Input {...field} type="email" autoComplete="off" /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <UserProfileFields fields={['username', 'nickname', 'email']} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
@@ -273,10 +201,8 @@ export function EditUserDialog({ user, onOpenChange, onSaved }: {
 
 function EditUserFormBody({ user, onCancel, onSaved }: { user: User, onCancel: () => void, onSaved: () => void }) {
   const t = useTranslations('Console.users')
-  const commonT = useCommonT()
   const operationT = useOperationT()
   const errorMessageT = useErrorMessageT()
-  const rules = useUserFieldRules()
   const form = useForm<EditUserForm>({
     defaultValues: {
       username: user.username,
@@ -287,8 +213,6 @@ function EditUserFormBody({ user, onCancel, onSaved }: { user: User, onCancel: (
       gender: user.gender ?? '',
     },
   })
-  const avatarUrl = form.watch('avatarUrl')
-
   const onSubmit = async (values: EditUserForm) => {
     try {
       await updateUserAdmin({
@@ -308,36 +232,13 @@ function EditUserFormBody({ user, onCancel, onSaved }: { user: User, onCancel: (
     }
   }
 
-  const textField = (name: keyof EditUserForm, label: string, rule?: { validate: (v: string) => string | true }, type?: string) => (
-    <FormField
-      control={form.control}
-      name={name}
-      rules={rule}
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>{label}</FormLabel>
-          <FormControl><Input {...field} type={type} autoComplete="off" /></FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  )
-
   return (
     <Form {...form}>
       <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
-        <div className="flex items-center gap-3">
-          <UserAvatar user={{ ...user, avatarUrl: avatarUrl.trim() || undefined }} size={96} className="size-12" />
-          <div className="text-sm text-muted-foreground">{t('avatar_hint')}</div>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {textField('username', commonT('username'), rules.username)}
-          {textField('nickname', t('nickname'), rules.nickname)}
-        </div>
-        {textField('email', commonT('email'), rules.email, 'email')}
-        {textField('avatarUrl', t('avatar_url'), rules.url)}
-        {textField('backgroundUrl', t('background_url'), rules.url)}
-        {textField('gender', t('gender'))}
+        <UserProfileFields
+          fields={['username', 'nickname', 'email', 'avatarUrl', 'backgroundUrl', 'gender']}
+          descriptions={{ avatarUrl: t('avatar_hint') }}
+        />
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onCancel}>{operationT('cancel')}</Button>
           <SubmitButton submitting={form.formState.isSubmitting} label={operationT('save')} />
