@@ -480,6 +480,50 @@
         "docs/prototypes/ai-agents"
       ],
       "port": 8772
+    },
+    {
+      "name": "backend-storagemig",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-storagemig && MODE=dev PORT=18980 DB_PATH=/tmp/neo-storagemig/data.db ENABLE_REGISTER=true ENABLE_EMAIL_VERIFY=false BASE_URL=http://localhost:3200 CAPTCHA_PROVIDER=disable exec /tmp/neo-storagemig/server"
+      ],
+      "port": 18980
+    },
+    {
+      "name": "web-storagemig",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-storagemig/web && export BACKEND_URL=http://127.0.0.1:18980 && exec ./node_modules/.bin/next dev --turbopack -p 3200"
+      ],
+      "port": 3200
+    },
+    {
+      "name": "mock-ai-translate",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/tmp/neo-translate/mock_ai.py"
+      ],
+      "port": 18991
+    },
+    {
+      "name": "backend-translate",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-translate && MODE=dev PORT=18990 DB_PATH=/tmp/neo-translate/data.db ENABLE_REGISTER=true ENABLE_EMAIL_VERIFY=false BASE_URL=http://localhost:3210 CAPTCHA_PROVIDER=disable exec /tmp/neo-translate/server"
+      ],
+      "port": 18990
+    },
+    {
+      "name": "web-translate",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-translate/web && export BACKEND_URL=http://127.0.0.1:18990 && exec ./node_modules/.bin/next dev --turbopack -p 3210"
+      ],
+      "port": 3210
     }
   ]
 }
