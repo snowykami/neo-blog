@@ -48,6 +48,7 @@ python3 scripts/active_hours.py distill-<id>/corpus/timestamps.txt --tz <IANA �
 
 ## 4. 作息与活跃度
 
+- 先定时区：TA 生活在哪里就用哪里的 IANA 时区（时间戳自带的时区偏移可以帮助确认），`active_hours.py --tz` 和导入文件的 `timezone` 用同一个。作息一律按当地时间描述。
 - 用 `active_hours.py` 的建议作为起点。工作类素材（git 提交、工作群聊天）反映的是上班时间，逛博客往往在午休和晚上，结合社交平台的发帖时间调整。
 - `weekend_factor` 看工作日与周末的活跃比。
 - `daily_actions` 是每天去博客转一圈的次数，不是发言数。社交平台上每天都发好几条的人取 3～5，偶尔冒泡的取 0.5～1.5。

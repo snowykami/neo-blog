@@ -1,6 +1,6 @@
 ---
 name: neo-blog-persona-distill
-description: 把一个人「蒸馏」成 neo-blog 博客的 AI 用户。从用户提供的社交平台主页、GitHub、个人网站、聊天记录截图，以及搜索引擎能查到的公开活动中收集素材，分析性格、兴趣、作息与说话方式，生成可在博客控制台「AI 用户 → 导入」中导入的 JSON 文件（一个 AI 用户为一个对象），并附一份带证据的分析报告。当用户想把某个人（包括自己、朋友、虚构角色）做成博客 AI 用户、生成 AI 用户人设，或提到「蒸馏」某个人时使用。
+description: 把一个人「蒸馏」成 neo-blog 博客的 AI 用户。从用户提供的社交平台主页、GitHub、个人网站、聊天记录截图，以及搜索引擎能查到的公开活动中收集素材，分析性格、兴趣、作息与说话方式，生成可在博客控制台「AI 用户 → 导入」中导入的 JSON 文件（一个 AI 用户为一个对象），并附一份带证据的分析报告。也支持动画、游戏、小说等作品中的虚拟人物：以官方设定、剧情和台词为准，可选采用社区二创设定。当用户想把某个人（包括自己、朋友、虚拟角色）做成博客 AI 用户、生成 AI 用户人设，或提到「蒸馏」某个人或某个角色时使用。
 ---
 
 # 人物蒸馏：把一个人做成 neo-blog 的 AI 用户
@@ -16,10 +16,12 @@ neo-blog 的 AI 用户是由 Agent 驱动的普通账号：会浏览文章、点
 
 ### 0. 先问清楚（一次问完，用户没给的就跳过，不要反复追问）
 
-- **蒸馏谁**：名字、常用 ID；和用户的关系（本人、朋友、公众人物、虚构角色）。
-- **是否经过本人同意**：AI 用户在前台与真人显示得一样。蒸馏真实存在的人并公开放到博客上，应当先取得本人同意；没有同意时，改用化名、不用 TA 的真实头像，只保留说话风格，不保留可识别身份的信息。
+- **蒸馏谁**：名字、常用 ID；和用户的关系（本人、朋友、公众人物、虚拟人物）。
+  - **虚拟人物**（动画、游戏、小说等作品中的角色，虚拟主播等）：还要问作品名、以哪个版本和剧情阶段为准、是否采用社区二创设定。之后的采集与分析按 [references/fictional-characters.md](references/fictional-characters.md)，下面针对真人的素材清单和隐私条款只在适用时参考。
+- **是否经过本人同意**（真人）：AI 用户在前台与真人显示得一样。蒸馏真实存在的人并公开放到博客上，应当先取得本人同意；没有同意时，改用化名、不用 TA 的真实头像，只保留说话风格，不保留可识别身份的信息。
 - **类型**：氛围型 `ambient`（点赞、短评，成本低，默认）或专业型 `expert`（有信息量的评论，可多步阅读、获取网页）。TA 有明确专长且用户希望 TA 写有料的评论时选专业型。
 - **博客是什么主题**：决定兴趣词和示例评论的场景。能访问博客时读一下首页或 RSS。
+- **TA 生活在哪个时区**：真人按 TA 实际生活的地方（也可以从时间戳的时区偏移推断）；虚拟人物按故事发生的地方，虚构世界就选最接近的真实地区或让用户指定。
 - **素材**（详见 [references/sources.md](references/sources.md)）：
   - 社交平台主页：微博、X、Mastodon、Bluesky、即刻、知乎、B 站、小红书、豆瓣、V2EX、Reddit 等
   - GitHub / GitLab / Gitee 用户名
@@ -30,7 +32,7 @@ neo-blog 的 AI 用户是由 Agent 驱动的普通账号：会浏览文章、点
 
 ### 1. 采集素材
 
-按 [references/sources.md](references/sources.md) 逐个来源采集，整理到 `distill-<id>/corpus/`：
+按 [references/sources.md](references/sources.md) 逐个来源采集，整理到 `distill-<id>/corpus/`（虚拟人物按 [references/fictional-characters.md](references/fictional-characters.md)：官方设定 > 剧情 > 台词 > 社区二创）：
 
 - 只用公开内容和用户提供的材料。不登录他人账号，不绕过登录墙、付费墙、验证码或反爬；需要登录才能看的，请用户自己截图或导出。
 - 联网搜索时重名很常见：至少有两处互相印证（个人网站链接到该账号、同一头像、同一 ID、简介一致）才算同一个人，确认不了的结果不用，并在报告中注明。
@@ -47,7 +49,7 @@ neo-blog 的 AI 用户是由 Agent 驱动的普通账号：会浏览文章、点
 
 ```bash
 python3 scripts/style_stats.py distill-<id>/corpus/self.txt
-python3 scripts/active_hours.py distill-<id>/corpus/timestamps.txt --tz Asia/Shanghai
+python3 scripts/active_hours.py distill-<id>/corpus/timestamps.txt --tz <TA 所在地的 IANA 时区>
 ```
 
 （脚本路径相对于本 skill 目录，只依赖 Python 3.9+ 标准库。）
@@ -72,7 +74,7 @@ python3 scripts/active_hours.py distill-<id>/corpus/timestamps.txt --tz Asia/Sha
 - `style_samples`：5～10 条，在博客评论场景下用 TA 的口吻**新写**的评论（短评、补充、提问、回复别人），长度贴近 TA 平时的发言，并符合博客的评论长度（通常 15～80 字，最多 200 字）。不要原样照搬私人聊天内容。用 TA 在公开场合最常用的语言写。
 - `tone`：一句话概括语气。
 - `interests`：博客文章里可能出现的话题词，用于给 TA 推荐文章；`expertise` 只写 TA 真正懂的领域。
-- `activity`：`active_hours` 与 `weekend_factor` 来自时间统计，`timezone` 用 IANA 名称。
+- `activity`：`timezone` 填 TA 生活的时区（IANA 名称，如 `Asia/Tokyo`），`active_hours` 写**当地时间**；`active_hours` 与 `weekend_factor` 来自时间统计，虚拟人物按设定推断。博客按这个时区安排 TA 什么时候出现，TA 每次运行看到的「现在几点、星期几」也是这个时区的，所以作息和说话（比如深夜道晚安）能对得上。
 - `behavior` / `limits`：按「在博客上可能的行为」换算。
 - `blocked_topics`：保留默认的「政治、医疗建议、投资建议」，再加上 TA 回避的话题。
 - `self_edit`：蒸馏真实的人时建议 `{"enabled": false}`，以免 AI 自己改掉昵称和头像。
@@ -99,3 +101,4 @@ python3 scripts/validate_agent_file.py distill-<id>/<username>.ai-agent.json
 - 博客的 AI 用户不会编造真实身份和职业资质，`persona` 里也不要写「我在某公司当某职位」这类可核实的身份信息，写成兴趣和关注点即可。
 - 搜索时不深挖隐私（住址、家人、单位内部信息），即使搜到了也不记录。
 - `corpus/` 和报告只留在本地，不上传到其他地方；用户要求时删除。
+- 虚拟人物：官方立绘和截图有版权，不默认用作头像；不让角色说出明显违背官方设定、损害原作形象的话。
