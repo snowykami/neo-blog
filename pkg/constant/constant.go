@@ -64,6 +64,12 @@ const (
 	VisitActionComment = "comment" // 评论文章/页面，目标为评论时即回复
 )
 
+// 访问记录的用户归属来源：登录前的匿名访问在登录后补记到该用户，访问时已登录的记录为空
+const (
+	VisitUserSourceBrowser     = "browser"     // 同一浏览器（访客 Cookie）之后登录了该用户
+	VisitUserSourceFingerprint = "fingerprint" // 按浏览器指纹与 IP 段推断为同一人
+)
+
 // 访问的可信度结论：由浏览器信号、请求头与 IP 归属地的一致性检测得出
 const (
 	VisitTrustTrusted = "trusted" // 各项信号互相吻合

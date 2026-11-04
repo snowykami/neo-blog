@@ -300,6 +300,12 @@ function VisitActor({ visit, onSelectVisitor }: { visit: VisitLog, onSelectVisit
           <VisitorIdentity {...visit} />
         </Link>
       )}
+      {/* 登录前的匿名访问，登录后补记到该用户 */}
+      {visit.user && visit.userSource && (
+        <Badge variant="secondary" className="px-1.5 text-[11px]" title={t(`user_source_hint.${visit.userSource}`)}>
+          {t(`user_source.${visit.userSource}`)}
+        </Badge>
+      )}
       {selectButton}
       {!visit.user && !visit.visitorId && <VisitorIdentity {...visit} />}
       {!visit.visitorId && visit.action === 'visit' && <Badge variant="outline" className="text-xs">{t('do_not_track')}</Badge>}

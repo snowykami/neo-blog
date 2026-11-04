@@ -134,6 +134,7 @@ var sections = []*Section{
 	}},
 	{Tab: "account", Key: "visit", Title: "section_visit", Items: []*Item{
 		{Key: "visit_log_retention_days", Type: TypeInt, Label: "visit_log_retention_days", Description: "visit_log_retention_days_desc", Min: num(1), Max: num(3650), Default: 90},
+		{Key: "visit_fingerprint_attribution", Type: TypeBool, Label: "visit_fingerprint_attribution", Description: "visit_fingerprint_attribution_desc", Default: true},
 	}},
 
 	{Tab: "ai", Key: "ai", Title: "section_ai", Description: "section_ai_desc", Items: []*Item{

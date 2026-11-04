@@ -102,8 +102,9 @@ func TestVisitReport(t *testing.T) {
 	}
 
 	// 7. 后台统计与列表：文章标题、IP 脱敏、只看登录用户
+	// 第 4 步 author 登录后，同一访客登录前的两次访问补记到 author，登录用户访问共 3 次
 	stats, _ := svc.GetStats(admin)
-	if stats.TodayPV != 6 || stats.TodayUV != 2 || stats.TodayUserVisits != 1 || stats.TotalVisitors != 2 {
+	if stats.TodayPV != 6 || stats.TodayUV != 2 || stats.TodayUserVisits != 3 || stats.TotalVisitors != 2 {
 		t.Fatalf("unexpected stats: %+v", stats)
 	}
 	// 来源排行：直接访问 4 次排第一，谷歌 1 次，站内跳转不计入
@@ -127,7 +128,7 @@ func TestVisitReport(t *testing.T) {
 		t.Fatalf("first log dto: subject=%+v ip=%q", last.Subject, last.IP)
 	}
 	userItems, userTotal, _ := svc.ListVisitLogs(admin, &dto.ListVisitLogReq{Kind: "user", PaginationParams: dto.PaginationParams{Page: 1, Size: 10}})
-	if userTotal != 1 || userItems[0].User == nil || userItems[0].User.Username != "author" {
+	if userTotal != 3 || userItems[0].User == nil || userItems[0].User.Username != "author" {
 		t.Fatalf("user filter: total=%d items=%+v", userTotal, userItems)
 	}
 }

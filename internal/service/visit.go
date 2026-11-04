@@ -173,6 +173,10 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 	if svcerr != nil {
 		return "", svcerr
 	}
+	// 登录后把登录前的匿名访问补记到该用户；放在去重之前：登录后常常回到刚看过的页面，这次上报会被去重
+	if userID != nil {
+		attributeAnonymousVisits(visitor.ID, *userID, fingerprint, ip, now)
+	}
 
 	// 去重：刷新页面不重复记录，只更新最近活跃时间
 	if visitor.ID != 0 {
@@ -260,6 +264,52 @@ func (s *VisitService) RemoveInteraction(actorID uint, action, targetType string
 }
 
 // resolveVisitor 依次通过 Cookie、指纹（7 天内活跃且同一网段）找回访客，都找不到则新建（未保存）
+// attributeAnonymousVisits 把登录前的匿名访问补记到用户，失败只记日志、不影响上报：
+//   - 同一浏览器：该访客在上一次由其他用户登录访问之后的匿名访问（共用电脑时不把别人的浏览算进来）；
+//   - 指纹推断（可在后台关闭）：指纹相同、从未登录过的其他访客，最近 7 天内来自同一 IP 段的匿名访问。
+//     指纹只含低区分度的特征，同网络下同型号设备可能被认错，补记的记录标为 fingerprint 以便区分
+func attributeAnonymousVisits(visitorID, userID uint, fingerprint, ip string, now time.Time) {
+	if visitorID != 0 {
+		after, err := repo.Visit.LastOtherUserVisitAt(visitorID, userID)
+		if err == nil {
+			_, err = repo.Visit.AttributeVisitorVisits(visitorID, userID, after, constant.VisitUserSourceBrowser)
+		}
+		if err != nil {
+			logrus.Warnf("attribute visits of visitor %d: %v", visitorID, err)
+		}
+	}
+	prefix := utils.IPPrefix(ip)
+	if fingerprint == "" || prefix == "" || !tools.GetVisitFingerprintAttribution() {
+		return
+	}
+	since := now.Add(-fingerprintMatchWindow)
+	candidates, err := repo.Visit.ListVisitorsByFingerprint(fingerprint, since)
+	if err != nil {
+		logrus.Warnf("list visitors by fingerprint: %v", err)
+		return
+	}
+	others := make([]uint, 0, len(candidates))
+	for _, c := range candidates {
+		if c.ID != visitorID && c.UserID == nil {
+			others = append(others, c.ID)
+		}
+	}
+	logs, err := repo.Visit.ListAnonymousVisits(others, since)
+	if err != nil {
+		logrus.Warnf("list anonymous visits: %v", err)
+		return
+	}
+	ids := make([]uint, 0, len(logs))
+	for _, l := range logs {
+		if utils.IPPrefix(l.IP) == prefix {
+			ids = append(ids, l.ID)
+		}
+	}
+	if _, err := repo.Visit.AttributeVisits(ids, userID, constant.VisitUserSourceFingerprint); err != nil {
+		logrus.Warnf("attribute visits by fingerprint: %v", err)
+	}
+}
+
 func (s *VisitService) resolveVisitor(visitorKey, fingerprint, ip string, now time.Time) (*model.Visitor, *errs.ServiceError) {
 	if visitorKey != "" {
 		visitor, err := repo.Visit.GetVisitorByKey(visitorKey)

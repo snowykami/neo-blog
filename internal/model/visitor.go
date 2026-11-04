@@ -33,6 +33,8 @@ type VisitLog struct {
 	Visitor   *Visitor `gorm:"constraint:OnDelete:SET NULL"`
 	UserID    *uint    `gorm:"index"` // 访问者；互动记录中为执行互动的用户
 	User      *User    `gorm:"constraint:OnDelete:SET NULL"`
+	// 用户归属来源：空为访问时已登录；登录前的匿名访问在登录后补记时为 browser / fingerprint，见 constant.VisitUserSource*
+	UserSource string `gorm:"type:varchar(16);default:''"`
 	// 行为类型：visit / like / comment，见 constant.VisitAction*；升级前的旧记录由默认值补为 visit
 	Action string `gorm:"type:varchar(16);default:visit;index"`
 	// 访问：post / page / other；互动：post / page / comment（点赞或回复的评论）
@@ -122,6 +124,7 @@ func (l *VisitLog) ToDto() *dto.VisitLogDto {
 	result := &dto.VisitLogDto{
 		ID:         l.ID,
 		VisitorID:  l.VisitorID,
+		UserSource: l.UserSource,
 		Action:     l.Action,
 		TargetType: l.TargetType,
 		TargetID:   l.TargetID,

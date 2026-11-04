@@ -19,6 +19,7 @@
       "title": "Sign-in, comments, and likes",
       "items": {
         "profile": "Account: username, nickname, and email; passwords are stored encrypted. When you sign in with a third-party account, we receive the name, email, and avatar it provides. Each sign-in records the IP address used, to keep your account secure. Your profile page shows the approximate region of your latest sign-in by default; you can turn this off in account settings.",
+        "link": "<b>Linking after sign-in</b>: after you sign in on a browser, your earlier anonymous browsing on it is linked to your account. The site owner can also turn on inference from browser information: anonymous browsing from the same network with the same browser information in the last 7 days is linked to your account too and marked as inferred in the admin panel.",
         "comment": "Comments and likes: the content, plus the IP and approximate region at the time of posting. IPs are never made public; you decide whether the region and client info are shown."
       }
     },
@@ -46,7 +47,7 @@
       "title": "What you can do",
       "items": {
         "dnt": "<b>If you don’t want to be recorded</b>: turn on “Do Not Track” or “Global Privacy Control” in your browser. The site then only counts the visit anonymously: it doesn’t store your IP, read the browser information above, record reading activity, or set the visitor cookie.",
-        "cookie": "After you clear this site’s cookies, your next visit will be treated as a new visitor.",
+        "cookie": "After you clear this site’s cookies, your next visit will be treated as a new visitor, though within 7 days, visits from the same browser on the same network may still be recognized as the same visitor from browser information.",
         "request": "Contact the site owner {owner} to view, export, or delete records about you, or to close your account."
       },
       "note": "If you are under 14, please get a guardian’s consent before registering or commenting. When this policy changes, the date on this page will be updated, and major changes will be announced on the site. Contact details are in the footer or on the site owner’s homepage."
@@ -274,6 +275,14 @@
       "filter_device": "Device",
       "inferred": "Inferred",
       "inferred_hint": "IP location conflicts with time zone and language; region inferred from other signals",
+      "user_source": {
+        "browser": "Before login",
+        "fingerprint": "Before login · inferred"
+      },
+      "user_source_hint": {
+        "browser": "Anonymous browsing before login: this account later signed in on the same browser",
+        "fingerprint": "Anonymous browsing before login: inferred to be the same person from the browser fingerprint and IP range, which may be wrong"
+      },
       "ip_untrusted_hint": "IP location conflicts with other signals or belongs to a data center range; not trusted",
       "trust": {
         "verdicts": {
@@ -852,6 +861,8 @@
       "verify_code_cool_down": "Verification code cooldown",
       "visit_log_retention_days": "Visitor log retention (days)",
       "visit_log_retention_days_desc": "Visit records older than this are deleted automatically",
+      "visit_fingerprint_attribution": "Infer pre-login browsing from fingerprints",
+      "visit_fingerprint_attribution_desc": "After a user signs in, anonymous browsing from the last 7 days by other visitors who have never signed in and share the same browser fingerprint and IP range is also attributed to them and marked as inferred. Browsing before login on the same browser is always attributed, regardless of this setting",
       "kv": {
         "search_key": "Search keys",
         "new_item": "New entry",

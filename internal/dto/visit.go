@@ -62,6 +62,7 @@ type VisitLogDto struct {
 	VisitorID  *uint    `json:"visitor_id"`
 	VisitCount int64    `json:"visit_count"` // 该访客的累计访问次数
 	User       *UserDto `json:"user"`        // 访问者或执行互动的用户
+	UserSource string   `json:"user_source"` // 为空时访问时已登录；browser / fingerprint 为登录后补记的登录前访问
 	Action     string   `json:"action"`      // visit / like / comment
 	TargetType string   `json:"target_type"` // 访问：post / page / other；互动：post / page / comment
 	TargetID   uint     `json:"target_id"`

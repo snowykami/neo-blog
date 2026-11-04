@@ -25,6 +25,9 @@ func GetBaseUrl() string {
 func GetAllowRegister() bool         { return config.Bool("enable_register") }
 func GetAllowRegisterFromOidc() bool { return config.Bool("enable_register_from_oidc") }
 
+// GetVisitFingerprintAttribution 用户登录后，是否按浏览器指纹与 IP 段把其他访客登录前的匿名访问也补记到该用户
+func GetVisitFingerprintAttribution() bool { return config.Bool("visit_fingerprint_attribution") }
+
 // GetVerifyCodeCoolDown 验证码发送冷却秒数
 func GetVerifyCodeCoolDown() int { return config.Int("verify_code_cool_down") }
 

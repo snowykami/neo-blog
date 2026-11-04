@@ -38,6 +38,45 @@ func (v *visitRepo) ListVisitorsByFingerprint(fingerprint string, since time.Tim
 	return visitors, err
 }
 
+// LastOtherUserVisitAt 访客最近一次由其他用户登录访问的时间，没有时为零值
+func (v *visitRepo) LastOtherUserVisitAt(visitorID, userID uint) (time.Time, error) {
+	var log model.VisitLog
+	err := GetDB().Select("created_at").
+		Where("visitor_id = ? AND user_id IS NOT NULL AND user_id <> ?", visitorID, userID).
+		Order("created_at DESC").Limit(1).Find(&log).Error
+	return log.CreatedAt, err
+}
+
+// AttributeVisitorVisits 把访客在 after 之后未关联用户的访问补记到用户，返回补记条数
+func (v *visitRepo) AttributeVisitorVisits(visitorID, userID uint, after time.Time, source string) (int64, error) {
+	res := GetDB().Model(&model.VisitLog{}).
+		Where("visitor_id = ? AND user_id IS NULL AND action = ? AND created_at > ?", visitorID, constant.VisitActionVisit, after).
+		Updates(map[string]any{"user_id": userID, "user_source": source})
+	return res.RowsAffected, res.Error
+}
+
+// ListAnonymousVisits 这些访客在 since 之后未关联用户的访问（只取 ID 与 IP）
+func (v *visitRepo) ListAnonymousVisits(visitorIDs []uint, since time.Time) ([]model.VisitLog, error) {
+	var logs []model.VisitLog
+	if len(visitorIDs) == 0 {
+		return logs, nil
+	}
+	err := GetDB().Select("id", "ip").
+		Where("visitor_id IN ? AND user_id IS NULL AND action = ? AND created_at >= ?", visitorIDs, constant.VisitActionVisit, since).
+		Find(&logs).Error
+	return logs, err
+}
+
+// AttributeVisits 把指定的访问补记到用户，只改仍未关联用户的记录，返回补记条数
+func (v *visitRepo) AttributeVisits(ids []uint, userID uint, source string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	res := GetDB().Model(&model.VisitLog{}).Where("id IN ? AND user_id IS NULL", ids).
+		Updates(map[string]any{"user_id": userID, "user_source": source})
+	return res.RowsAffected, res.Error
+}
+
 // TouchVisitor 只更新最近活跃时间，去重命中时避免整行写入
 func (v *visitRepo) TouchVisitor(visitorID uint, at time.Time) error {
 	return GetDB().Model(&model.Visitor{}).Where("id = ?", visitorID).UpdateColumn("last_seen_at", at).Error

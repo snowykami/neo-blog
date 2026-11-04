@@ -44,11 +44,15 @@ export interface VisitComment {
   content: string // 已截断
 }
 
+// 访问记录的用户归属来源：为空时访问时已登录；browser / fingerprint 为登录后补记的登录前访问（同一浏览器 / 按指纹推断）
+export type VisitUserSource = '' | 'browser' | 'fingerprint'
+
 export interface VisitLog {
   id: number
   visitorId: number | null // 开启“请勿追踪”的访问与互动记录为空
   visitCount: number
   user: User | null // 访问者或执行互动的用户
+  userSource: VisitUserSource
   action: VisitAction
   targetType: VisitTargetType | 'comment' // 互动目标为评论时为 comment（点赞评论或回复）
   targetId: number
