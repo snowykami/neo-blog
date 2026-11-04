@@ -74,6 +74,8 @@ type Item struct {
 	mirror func(value any) any
 	// envCustom 环境变量的单位与配置不同（如令牌有效期按秒），由专门的读取函数处理，通用读取不使用环境变量
 	envCustom bool
+	// decode 结构化配置（json 类型）的校验与规整，后台保存的值与环境变量（字符串）都经过它；为空时不校验，也不能用环境变量设置
+	decode func(raw any) (any, bool)
 }
 
 // Section 后台表单中的一组配置
@@ -172,7 +174,12 @@ func (it *Item) parseEnv(env string) (any, bool) {
 	case TypeBool:
 		b, err := strconv.ParseBool(env)
 		return b, err == nil
-	case TypeStringList, TypeImageList, TypeLinkList, TypeJSON:
+	case TypeJSON:
+		if it.decode != nil {
+			return it.decode(env)
+		}
+		return nil, false
+	case TypeStringList, TypeImageList, TypeLinkList:
 		return nil, false
 	}
 	return env, true
@@ -226,6 +233,9 @@ func (it *Item) normalize(raw any) (any, bool) {
 	case TypeLinkList:
 		return toLinks(raw)
 	case TypeJSON:
+		if it.decode != nil {
+			return it.decode(raw)
+		}
 		return raw, raw != nil
 	}
 	s, ok := raw.(string)

@@ -8,7 +8,7 @@ import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { LyricPlayer } from '@/lib/lyrics/lyric-player'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 import { cn } from '@/lib/utils'
-import { lyricSourceLabelKey } from './lyric-source-badge'
+import { lyricSourceLabel } from './lyric-source-badge'
 import '@/lib/lyrics/lyric-player.css'
 // 歌词字体的网页字体回退（只声明 @font-face，用到时才下载）
 import '@/lib/lyrics/lyric-fonts'
@@ -70,8 +70,8 @@ export function MusicLyricStage({ className, compact = false, themed = false }: 
   }, [hasLines, lyrics])
 
   // 底栏注明实际显示的歌词来源
-  const sourceKey = lyricSourceLabelKey(lyrics.source)
-  const footerText = sourceKey ? pageT('lyric_footer', { source: pageT(sourceKey) }) : ''
+  const sourceLabel = lyricSourceLabel(lyrics, pageT)
+  const footerText = sourceLabel ? pageT('lyric_footer', { source: sourceLabel }) : ''
   useEffect(() => {
     playerRef.current?.setDisplay({ showTranslation, showRomanization: showRomaji, footerText, effects: showLyricEffects })
   }, [footerText, hasLines, showLyricEffects, showRomaji, showTranslation])

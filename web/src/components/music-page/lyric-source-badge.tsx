@@ -28,9 +28,11 @@ const SOURCE_KEYS: Record<Exclude<LyricSource, 'none'>, string> = {
   'ttml-custom': 'lyric_source_custom',
 }
 
-/** 歌词来源的名称（MusicPage 下的文案键），没有歌词时为 null */
-export function lyricSourceLabelKey(source: LyricSource): string | null {
-  return source === 'none' ? null : SOURCE_KEYS[source]
+/** 歌词来源的名称：自定义 TTML 源有名称时用它，否则为来源的通用名称（t 为 MusicPage 命名空间）；没有歌词时为 null */
+export function lyricSourceLabel(lyrics: Pick<ResolvedLyrics, 'source' | 'sourceName'>, t: (key: string) => string): string | null {
+  if (lyrics.source === 'none')
+    return null
+  return lyrics.sourceName || t(SOURCE_KEYS[lyrics.source])
 }
 
 const AUTO = 'auto'
@@ -86,7 +88,7 @@ export function LyricSourceBadge({ className }: { className?: string }) {
     if (target.source === 'none' || target.lines.length === 0)
       return t(target.instrumental ? 'lyric_badge_instrumental' : 'lyric_badge_none')
     return [
-      t(SOURCE_KEYS[target.source]),
+      lyricSourceLabel(target, t),
       t(target.wordTimed ? 'lyric_badge_word' : 'lyric_badge_line'),
       target.lines.some(line => line.translation) && t('lyric_badge_translation'),
       target.lines.some(line => line.romanization) && t('lyric_badge_romanization'),

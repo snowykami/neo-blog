@@ -12,7 +12,7 @@ import { useMusic } from '@/contexts/music-context'
 import { formatLyricOffset } from '@/lib/lyrics/offset'
 import { cn } from '@/lib/utils'
 import { isAdmin } from '@/utils/common/permission'
-import { lyricSourceLabelKey } from './lyric-source-badge'
+import { lyricSourceLabel } from './lyric-source-badge'
 
 // 每次调整的步长（毫秒）与上限（与后端 lyricOffsetMaxMs 一致）
 const STEPS = [-500, -100, 100, 500]
@@ -29,8 +29,8 @@ export function LyricOffsetControl({ className }: { className?: string }) {
   const trackId = currentTrack?.id ?? 0
   const offsets = useLyricOffsets(trackId > 0 ? trackId : null)
   const [saved, setSaved] = useState(true)
-  const sourceKey = lyricSourceLabelKey(lyrics.source)
-  if (!user || !isAdmin({ user }) || trackId <= 0 || lyrics.source === 'none' || lyrics.lines.length === 0 || !sourceKey)
+  const sourceLabel = lyricSourceLabel(lyrics, t)
+  if (!user || !isAdmin({ user }) || trackId <= 0 || lyrics.source === 'none' || lyrics.lines.length === 0 || !sourceLabel)
     return null
 
   const offset = offsets[lyrics.source] ?? 0
@@ -65,7 +65,7 @@ export function LyricOffsetControl({ className }: { className?: string }) {
             <span className="text-lg font-semibold tabular-nums">{formatLyricOffset(offset)}</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {t('lyric_offset_hint', { source: t(sourceKey) })}
+            {t('lyric_offset_hint', { source: sourceLabel })}
           </p>
         </div>
         <div className="grid grid-cols-4 gap-1.5">

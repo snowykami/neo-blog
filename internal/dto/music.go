@@ -57,9 +57,11 @@ type MusicLyricDto struct {
 	Yromalrc *MusicLyricPart `json:"yromalrc"`
 }
 
-// MusicTTMLDto TTML 歌词：source 为 custom（自定义源）或 amll（AMLL TTML DB），ttml 为原文，由前端解析
+// MusicTTMLDto TTML 歌词：source 为 custom（自定义源）或 amll（AMLL TTML DB），name 为命中的自定义源在后台配置的名称（可能为空），
+// ttml 为原文，由前端解析
 type MusicTTMLDto struct {
 	Source string `json:"source"`
+	Name   string `json:"name,omitempty"`
 	TTML   string `json:"ttml"`
 }
 

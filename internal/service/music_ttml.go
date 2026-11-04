@@ -9,10 +9,7 @@ import (
 	"hash/fnv"
 	"io"
 	"net/http"
-	"net/url"
-	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -24,11 +21,11 @@ import (
 )
 
 // TTML 歌词来源（见 docs/music-player-spec.md 2.6、7.2，规则参考 StarryPlayer）：
-// - 自定义源：环境变量 MUSIC_TTML_URL_PREFIX 或后台配置 music_ttml_url_template（环境变量优先）的地址（含 {id} 的模板，或静态目录前缀 {prefix}/{网易云歌曲 id}.ttml），
-//   优先级最高，命中即采用
+// - 自定义源：环境变量 MUSIC_TTML_URL_PREFIX 或后台配置 music_ttml_sources（环境变量优先）中的各个源（地址为含 {id} 的模板，
+//   或静态目录前缀 {prefix}/{网易云歌曲 id}.ttml），优先级最高，按列表顺序先命中的采用
 // - AMLL TTML DB：按网易云歌曲 id 取 ncm-lyrics/{id}.ttml；多个镜像并发请求，先返回有效结果的采用。
 //   在 QQ 音乐匹配到同一首歌后，还会按 QQ 歌曲 mid 取 qq-lyrics/{mid}.ttml（见 music_qq.go）
-// 两个来源并发探测；只把「确定没有」（3xx / 404 / 410、正文不是 TTML）记为未命中并缓存，超时与网络错误不缓存
+// 各来源并发探测；只把「确定没有」（3xx / 404 / 410、正文不是 TTML）记为未命中并缓存，超时与网络错误不缓存
 
 const (
 	musicTTMLSourceCustom = "custom"
@@ -71,26 +68,31 @@ type musicTTMLCacheEntry struct {
 	MissUntil int64  `json:"miss_until,omitempty"`
 }
 
-// customTTMLURL 自定义源中这首歌的地址：配置中含 {id}（或 {song_id}）时把它替换为网易云歌曲 id（支持任意链接风格，
-// 如 https://cdn.example.com/lyrics/{id}.ttml、https://example.com/ttml?id={id}），否则视为目录前缀，拼接为 {前缀}/{id}.ttml。
-// 只接受 http(s) 绝对地址；未配置或无效时为空（跳过自定义源）
-func customTTMLURL(id int64) string {
-	pattern := tools.GetMusicTTMLURLTemplate()
-	if pattern == "" {
-		return ""
-	}
-	songID := strconv.FormatInt(id, 10)
-	raw := strings.TrimRight(pattern, "/") + "/" + songID + ".ttml"
-	if strings.Contains(pattern, "{id}") || strings.Contains(pattern, "{song_id}") {
-		raw = strings.NewReplacer("{id}", songID, "{song_id}", songID).Replace(pattern)
-	}
-	if u, err := url.Parse(raw); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return ""
-	}
-	return raw
+// ttmlTarget 要探测的一个 TTML 来源：自定义源（各有名称与这首歌的地址）或 AMLL TTML DB
+type ttmlTarget struct {
+	source string
+	name   string
+	url    string
 }
 
-// GetTTMLLyric 按网易云歌曲 id 取 TTML 歌词。source 为空时自动选择（自定义源优先），也可只取某一来源（用于手动切换）
+// ttmlTargets 按优先级展开要探测的来源：custom 展开为后台配置的各个自定义源（按列表顺序，地址无效的跳过），amll 为 AMLL TTML DB
+func ttmlTargets(id int64, sources []string) []ttmlTarget {
+	var targets []ttmlTarget
+	for _, src := range sources {
+		if src == musicTTMLSourceAMLL {
+			targets = append(targets, ttmlTarget{source: src})
+			continue
+		}
+		for _, custom := range tools.GetMusicTTMLSources() {
+			if address := custom.SongURL(id); address != "" {
+				targets = append(targets, ttmlTarget{source: src, name: custom.Name, url: address})
+			}
+		}
+	}
+	return targets
+}
+
+// GetTTMLLyric 按网易云歌曲 id 取 TTML 歌词。source 为空时自动选择（自定义源优先），也可只取某一来源（用于手动切换，custom 为全部自定义源）
 func (s *MusicService) GetTTMLLyric(ctx context.Context, id int64, source string) (*dto.MusicTTMLDto, *errs.ServiceError) {
 	if id <= 0 || (source != "" && source != musicTTMLSourceCustom && source != musicTTMLSourceAMLL) {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
@@ -106,25 +108,23 @@ func (s *MusicService) GetTTMLLyric(ctx context.Context, id int64, source string
 	return lyric, nil
 }
 
-// probeTTMLSources 各来源并发探测（每个来源自己带缓存与同 id 请求合并），按优先级取第一个命中（未配置的自定义源跳过）；
+// probeTTMLSources 各来源并发探测（每个来源自己带缓存与同 id 请求合并），按优先级取第一个命中（没有配置自定义源时跳过）；
 // 没有命中时 outcome 区分「都确定没有」与「有来源出错」（全站歌词版本据此判断能否换掉已选的 TTML，见 music_lyric_version.go）
 func probeTTMLSources(ctx context.Context, id int64, sources []string) (*dto.MusicTTMLDto, lyricOutcome) {
-	if customTTMLURL(id) == "" {
-		sources = slices.DeleteFunc(slices.Clone(sources), func(src string) bool { return src == musicTTMLSourceCustom })
-	}
-	results := make([]chan *ttmlProbe, len(sources))
-	for i, src := range sources {
+	targets := ttmlTargets(id, sources)
+	results := make([]chan *ttmlProbe, len(targets))
+	for i, target := range targets {
 		results[i] = make(chan *ttmlProbe, 1)
-		go func(src string, out chan<- *ttmlProbe) {
-			out <- probeTTMLSource(ctx, src, id)
-		}(src, results[i])
+		go func(target ttmlTarget, out chan<- *ttmlProbe) {
+			out <- probeTTMLTarget(ctx, target, id)
+		}(target, results[i])
 	}
 	outcome := lyricOutcomeMiss
-	for i, src := range sources {
+	for i, target := range targets {
 		// 优先级高的来源命中后直接返回，不等后面的来源
 		result := <-results[i]
 		if result != nil && result.ttml != "" {
-			return &dto.MusicTTMLDto{Source: src, TTML: result.ttml}, lyricOutcomeHit
+			return &dto.MusicTTMLDto{Source: target.source, Name: target.name, TTML: result.ttml}, lyricOutcomeHit
 		}
 		if result == nil {
 			outcome = lyricOutcomeFailed
@@ -133,17 +133,16 @@ func probeTTMLSources(ctx context.Context, id int64, sources []string) (*dto.Mus
 	return nil, outcome
 }
 
-// probeTTMLSource 探测一个来源（按网易云歌曲 id）
-func probeTTMLSource(ctx context.Context, source string, id int64) *ttmlProbe {
-	name := strconv.FormatInt(id, 10) + ".ttml"
-	if source == musicTTMLSourceAMLL {
-		return probeTTML(ctx, musicTTMLCache, ttmlCacheKey(source, id), source+":"+name, amllTTMLURLs("ncm-lyrics/"+name))
+// probeTTMLTarget 探测一个来源（按网易云歌曲 id）
+func probeTTMLTarget(ctx context.Context, target ttmlTarget, id int64) *ttmlProbe {
+	if target.source == musicTTMLSourceAMLL {
+		name := strconv.FormatInt(id, 10) + ".ttml"
+		return probeTTML(ctx, musicTTMLCache, ttmlCacheKey(target.source, id), target.source+":"+name, amllTTMLURLs("ncm-lyrics/"+name))
 	}
 	// 自定义源按完整地址缓存：后台改了地址后立即按新地址探测，不受旧地址「确定未命中」缓存的影响
-	address := customTTMLURL(id)
 	hash := fnv.New64a()
-	_, _ = hash.Write([]byte(address))
-	return probeTTML(ctx, musicTTMLCache, uint(hash.Sum64()), source+":"+address, []string{address})
+	_, _ = hash.Write([]byte(target.url))
+	return probeTTML(ctx, musicTTMLCache, uint(hash.Sum64()), target.source+":"+target.url, []string{target.url})
 }
 
 // probeQQTTML AMLL TTML DB 中按 QQ 音乐歌曲 mid 收录的歌词（qq-lyrics/{mid}.ttml），mid 由 QQ 音乐匹配得到

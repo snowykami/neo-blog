@@ -37,9 +37,10 @@ export async function fetchNcmLyric(id: number, signal?: AbortSignal, refresh?: 
   return res.data.data
 }
 
-// TTML 歌词：custom 为站长配置的自定义源，amll 为 AMLL TTML DB
+// TTML 歌词：custom 为站长配置的自定义源（name 为命中的源在后台配置的名称，可能没有），amll 为 AMLL TTML DB
 export interface MusicTtmlLyric {
   source: 'custom' | 'amll'
+  name?: string
   ttml: string
 }
 

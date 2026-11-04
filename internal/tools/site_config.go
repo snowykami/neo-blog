@@ -90,8 +90,11 @@ func GetNCMConfig() NCMConfig {
 	}
 }
 
-// GetMusicTTMLURLTemplate 自定义 TTML 歌词源的地址（含 {id} / {song_id} 的模板，或目录前缀）
-func GetMusicTTMLURLTemplate() string { return config.String("music_ttml_url_template") }
+// GetMusicTTMLSources 自定义 TTML 歌词源，按探测顺序排列
+func GetMusicTTMLSources() []config.MusicTTMLSource {
+	sources, _ := config.Value("music_ttml_sources").([]config.MusicTTMLSource)
+	return sources
+}
 
 // GetCaptchaConfig 人机验证配置，每次请求时读取，后台修改后立即生效
 func GetCaptchaConfig() *utils.CaptchaConfig {

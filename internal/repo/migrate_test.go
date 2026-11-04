@@ -130,6 +130,18 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 		if got := annotations[3].Data; !json.Valid([]byte(got)) {
 			t.Errorf("legacy annotation should become an object, got %q", got)
 		}
+		// 单个自定义歌词源地址转为列表中一个没有名称的源，旧配置键删除
+		var kvs []model.KV
+		if err := db.Where("key LIKE ?", "music_ttml%").Order("key").Find(&kvs).Error; err != nil {
+			t.Fatalf("list ttml config: %v", err)
+		}
+		if len(kvs) != 1 || kvs[0].Key != "music_ttml_sources" {
+			t.Fatalf("ttml config = %+v, want only music_ttml_sources", kvs)
+		}
+		sources, _ := json.Marshal(kvs[0].Value["value"])
+		if want := `[{"name":"","url":"https://cdn.example.com/lyrics/{song_id}.ttml"}]`; string(sources) != want {
+			t.Errorf("music_ttml_sources = %s, want %s", sources, want)
+		}
 	})
 }
 
@@ -166,10 +178,11 @@ func TestMigrateConcurrentStartup(t *testing.T) {
 	})
 }
 
-// seedLegacyDatabase 模拟引入版本迁移前的旧库：没有迁移记录，点赞表没有唯一索引且有重复点赞，文章表没有正文哈希列
+// seedLegacyDatabase 模拟引入版本迁移前的旧库：没有迁移记录，点赞表没有唯一索引且有重复点赞，文章表没有正文哈希列，
+// 自定义歌词源还是单个地址
 func seedLegacyDatabase(t *testing.T) {
 	t.Helper()
-	if err := db.AutoMigrate(&model.User{}, &model.Post{}, &model.Comment{}, &model.Like{}, &model.LyricAnnotation{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Post{}, &model.Comment{}, &model.Like{}, &model.LyricAnnotation{}, &model.KV{}); err != nil {
 		t.Fatalf("create legacy tables: %v", err)
 	}
 	if err := db.Migrator().DropIndex(&model.Like{}, "idx_like_target_user"); err != nil {
@@ -202,6 +215,9 @@ func seedLegacyDatabase(t *testing.T) {
 		if err := db.Exec(s.sql, s.args...).Error; err != nil {
 			t.Fatalf("seed legacy data: %v", err)
 		}
+	}
+	if err := db.Create(&model.KV{Key: "music_ttml_url_template", Value: model.JSONMap{"value": " https://cdn.example.com/lyrics/{song_id}.ttml "}}).Error; err != nil {
+		t.Fatalf("seed legacy ttml config: %v", err)
 	}
 }
 

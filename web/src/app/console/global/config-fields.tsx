@@ -2,7 +2,7 @@
 
 import type { ConfigItem } from '@/models/config'
 import type { NCMPlaylists } from '@/models/music'
-import { EyeIcon, EyeOffIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, EyeIcon, EyeOffIcon, ListMusicIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFormContext, useWatch } from 'react-hook-form'
@@ -60,6 +60,8 @@ export function ConfigField({ item }: { item: ConfigItem }) {
       return <SidebarCardsField name={item.key} label={props.label} description={props.description} />
     case 'ncm_playlist':
       return <NCMPlaylistField {...props} />
+    case 'ttml_sources':
+      return <TTMLSourcesField {...props} />
   }
   switch (item.type) {
     case 'bool':
@@ -357,20 +359,36 @@ function ImageField({ item, label, description }: FieldProps) {
   )
 }
 
-// 可增删的列表，renderItem 负责单项的输入控件
-function ListEditor<T>({ items, onChange, createItem, renderItem }: {
+// 可增删的列表，renderItem 负责单项的输入控件；reorderable 时每项可以上移、下移
+function ListEditor<T>({ items, onChange, createItem, renderItem, reorderable }: {
   items: T[]
   onChange: (items: T[]) => void
   createItem: () => T
   renderItem: (item: T, update: (item: T) => void) => React.ReactNode
+  reorderable?: boolean
 }) {
   const t = useTranslations('Console.global')
+  const move = (from: number, to: number) => {
+    const next = items.slice()
+    next.splice(to, 0, ...next.splice(from, 1))
+    onChange(next)
+  }
   return (
     <div className="grid gap-2">
       {items.map((item, index) => (
         // 列表项没有稳定 ID，按位置编辑
         <div key={index} className="flex items-center gap-2">
           <div className="min-w-0 flex-1">{renderItem(item, next => onChange(items.map((old, i) => (i === index ? next : old))))}</div>
+          {reorderable && (
+            <div className="flex">
+              <Button type="button" variant="ghost" size="icon" aria-label={t('move_up')} disabled={index === 0} onClick={() => move(index, index - 1)}>
+                <ArrowUpIcon className="size-4" />
+              </Button>
+              <Button type="button" variant="ghost" size="icon" aria-label={t('move_down')} disabled={index === items.length - 1} onClick={() => move(index, index + 1)}>
+                <ArrowDownIcon className="size-4" />
+              </Button>
+            </div>
+          )}
           <Button type="button" variant="ghost" size="icon" aria-label={t('remove')} onClick={() => onChange(items.filter((_, i) => i !== index))}>
             <Trash2Icon className="size-4" />
           </Button>
@@ -455,6 +473,51 @@ function LinkListField({ item, label, description }: FieldProps) {
 }
 
 // ---- 专用组件 ----
+
+interface TTMLSource {
+  name: string
+  url: string
+}
+
+// 与后端一致：只接受 http(s) 绝对地址
+const HTTP_URL_RE = /^https?:\/\/[^/?#\s]+/i
+
+// 自定义 TTML 歌词源：按列表顺序探测，先命中的采用；名称显示在播放器的歌词来源标签上。名称与地址都为空的项保存时去掉
+function TTMLSourcesField({ item, label, description }: FieldProps) {
+  const t = useTranslations('Console.global')
+  const { control } = useFormContext<ConfigValues>()
+  const placeholder = usePlaceholder(item)
+  const validate = (value: unknown) => {
+    const sources = (value as TTMLSource[] | undefined) ?? []
+    const valid = sources.every(source => (!source.name.trim() && !source.url.trim()) || HTTP_URL_RE.test(source.url.trim()))
+    return valid || t('ttml_source_url_invalid')
+  }
+  return (
+    <FormField
+      control={control}
+      name={item.key}
+      rules={{ validate }}
+      render={({ field }) => (
+        <FormItem className="md:col-span-2">
+          <FieldLabel label={label} description={description} />
+          <ListEditor<TTMLSource>
+            items={(field.value as TTMLSource[] | undefined) ?? []}
+            onChange={field.onChange}
+            createItem={() => ({ name: '', url: '' })}
+            reorderable
+            renderItem={(source, update) => (
+              <div className="grid grid-cols-[1fr_2fr] gap-2">
+                <Input aria-label={t('ttml_source_name')} placeholder={t('ttml_source_name')} value={source.name} onChange={e => update({ ...source, name: e.target.value })} />
+                <Input type="url" aria-label={t('ttml_source_url')} placeholder={placeholder} value={source.url} onChange={e => update({ ...source, url: e.target.value })} />
+              </div>
+            )}
+          />
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+}
 
 // 配色色块直接使用对应主题的主色
 function ColorSwatch({ scheme }: { scheme: string }) {

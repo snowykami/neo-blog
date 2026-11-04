@@ -27,7 +27,7 @@
 
 优先级链（从高到低）：
 
-1. **TTML**（逐字 + 翻译 + 音译 + 对唱 agent + 背景人声 + 段落，信息最全，一旦命中就整段胜出）。同一等级内再分两个子来源：**自定义 TTML 源**（优先，见 2.6）> **AMLL TTML DB**
+1. **TTML**（逐字 + 翻译 + 音译 + 对唱 agent + 背景人声 + 段落，信息最全，一旦命中就整段胜出）。同一等级内再分两个子来源：**自定义 TTML 源**（优先，可配置多个、按顺序，见 2.6）> **AMLL TTML DB**
 2. **平台逐字歌词** —— 网易云 `yrc` / QQ `qrc` / 酷狗 `krc`，三家平级，按 2.3 的质量规则选择
 3. **平台行级歌词** —— `lrc`，仅行时间，无逐字
 4. 无歌词 —— 显示「暂无歌词」或纯音乐占位
@@ -52,7 +52,7 @@
 
 ### 2.3 命中与匹配
 
-- **自定义源**：最优先探测，URL 由配置的地址模板（或 `url_prefix`）与网易云歌曲 id 拼成，命中规则见 2.6。
+- **自定义源**：最优先探测（配置了多个时按列表顺序），URL 由各源的地址模板（或 `url_prefix`）与网易云歌曲 id 拼成，命中规则见 2.6。
 - **AMLL 官方库**：按歌曲在各平台的 id 直接拼 `{mirror}/{platform}-lyrics/{id}.ttml`，命中 200 即用（已实测 raw.githubusercontent / jsDelivr / `amlldb.bikonoo.com` 三个镜像均可用；不存在的 id 前两者返回 404，`amlldb.bikonoo.com` 约 5 秒后返回 302）。目前只有网易云 id，取 `ncm-lyrics/{id}.ttml`。
   - 偏离 StarryPlayer：StarryPlayer 只有一个镜像模板；我们**并发请求全部镜像**，任一命中即采用，其余取消；两个镜像「确定未命中」即记负缓存（各镜像是同一仓库的副本，不必等 `amlldb.bikonoo.com` 约 5～8 秒后才返回的 302）。
 - **平台侧**：有该平台 id 时直取；没有时用**标题 + 歌手 + 时长**打分匹配同一录音（当前音乐库只存了网易云 id，QQ / 酷狗的歌词要靠这一步才能用上）。匹配规则（同 StarryPlayer 的 `LyricCandidateMatcher`，`scoreLyricCandidate`）：
@@ -93,11 +93,13 @@
 
 ### 2.6 自定义源（自建 TTML）
 
-允许把自己整理好的 TTML 放到自有静态目录，作为一个与官方库同类型（AMLL/TTML）的歌词源，用来覆盖官方库未收录、或官方版本不满意的情况。
+允许把自己整理好的 TTML 放到自有静态目录，作为与官方库同类型（AMLL/TTML）的歌词源，用来覆盖官方库未收录、或官方版本不满意的情况。可以配置多个源，每个源有自己的名称与地址。
 
 **定位**：
 
 - 类型记为 `amll`（即 TTML 逐字格式），与官方库同一 tier，但**排在其前面**——同名先取自己的。
+- 多个源**按列表顺序回退**：并发探测，前面的源命中即采用（不等后面的），确定没有或出错时看下一个，都没有时才用官方库。不提供在各自定义源之间切换：歌词来源的切换、全站默认来源、全站歌词版本与整体偏移都按来源种类（`ttml` / `ncm` / `qq` / `kugou`）进行，所有自定义源都记为 `ttml-custom`。
+- 命中的源的名称随歌词返回（`name`），播放器的歌词来源标签、歌词底栏的「歌词来源」与偏移提示显示这个名称；名称为空时显示通用的「自定义 TTML」。
 - 只做「按网易云歌曲 id 的覆盖」，不做跨平台 id 体系、不做搜索接口。
 
 **寻址规则**：
@@ -107,9 +109,10 @@
 任意含 {id} 的地址模板                  # 如 https://cdn.liteyuki.org/snowykami/music/lyrics/{id}.ttml、https://example.com/ttml?id={id}
 ```
 
-- 由后端环境变量 `MUSIC_TTML_URL_PREFIX` 或后台「全局配置 › 前台 › 音乐播放器 › 自定义歌词源地址」（KV `music_ttml_url_template`）提供，**环境变量优先**：设置了环境变量时后台的该项显示为只读并注明（`GET /api/v1/admin/config/env-overrides` 返回被环境变量覆盖的配置项）。含 `{id}`（或 `{song_id}`）时视为地址模板，替换为歌曲的网易云 id（可以是任意链接风格）；
-  不含 `{id}` 时视为目录前缀（例如 `https://static.example.com/ttml`），后端去尾斜杠后拼接 `/{id}.ttml`。
-- 拼出的地址必须是 http(s) 绝对地址，否则视为未配置。
+- 由后端环境变量 `MUSIC_TTML_URL_PREFIX` 或后台「全局配置 › 前台 › 音乐播放器 › 自定义歌词源」（KV `music_ttml_sources`，`[{name, url}]`，可增删、排序、命名）提供，**环境变量优先**：设置了环境变量时后台的该项显示为只读并注明（`GET /api/v1/admin/config/env-overrides` 返回被环境变量覆盖的配置项）。环境变量为单个地址时视为一个没有名称的源（兼容旧配置），多个源写成同样结构的 JSON 数组。
+  每个源的地址含 `{id}`（或 `{song_id}`）时视为地址模板，替换为歌曲的网易云 id（可以是任意链接风格）；不含 `{id}` 时视为目录前缀（例如 `https://static.example.com/ttml`），后端去尾斜杠后拼接 `/{id}.ttml`。
+- 拼出的地址必须是 http(s) 绝对地址：后台保存时校验，环境变量无效时不生效（改用后台配置）。
+- 旧版本的单个地址（KV `music_ttml_url_template`）由版本迁移 `2026110501_music_ttml_sources` 转为列表中一个没有名称的源。
 - 浏览器不直接请求自定义源：前端请求本站后端的 `/api/v1/music/song/:id/lyric/ttml`，由后端去自定义源与 AMLL 镜像取词、校验并缓存（避免跨域、统一缓存与未命中判定）。站长的源为 `https://cdn.liteyuki.org/snowykami/music/lyrics/{song_id}.ttml`。
 - 一个 id 只对应一个文件，**没有索引文件，没有元数据**，命中判断完全靠 HTTP 状态。
 
@@ -259,12 +262,12 @@
 
 `GET /api/v1/music/song/:id/lyric/ttml`（公开，`:id` 为网易云歌曲 id）
 
-- 后端并发探测：自定义源（`MUSIC_TTML_URL_PREFIX` 的地址模板或 `{前缀}/{id}.ttml`）与 AMLL TTML DB 全部镜像 `{mirror}/ncm-lyrics/{id}.ttml`；按优先级取第一个命中（自定义源优先，命中后不等 AMLL）。
-- 可选参数 `source=custom|amll`：只取某一来源（供手动切换使用）；为空时自动选择。
-- 命中：`200`，`{ "source": "custom" | "amll", "ttml": "<tt ...>...</tt>" }`；均未命中：`404`（`lyric_not_found`）。
+- 后端并发探测：各个自定义源（地址模板或 `{前缀}/{id}.ttml`）与 AMLL TTML DB 全部镜像 `{mirror}/ncm-lyrics/{id}.ttml`；按优先级取第一个命中（自定义源按列表顺序优先，命中后不等后面的来源）。
+- 可选参数 `source=custom|amll`：只取某一来源（`custom` 为全部自定义源，供手动切换使用）；为空时自动选择。
+- 命中：`200`，`{ "source": "custom" | "amll", "name": "命中的自定义源的名称（可能没有）", "ttml": "<tt ...>...</tt>" }`；均未命中：`404`（`lyric_not_found`）。
 - 后端只做探测、校验（以 `<` 开头、格式正确的 XML、根元素为 `tt`）与缓存，不把 TTML 转换为其他结构；解析在前端（`lib/lyrics/parse-ttml.ts`）。
 - 配置：
-  - `MUSIC_TTML_URL_PREFIX`（环境变量，可选）或后台配置 `music_ttml_url_template`（环境变量优先）：自定义源的地址模板（含 `{id}` / `{song_id}`）或目录前缀，都未配置时跳过自定义源。自定义源的缓存按完整地址区分，后台改了地址后立即按新地址探测。
+  - `MUSIC_TTML_URL_PREFIX`（环境变量，可选）或后台配置 `music_ttml_sources`（环境变量优先）：自定义源列表，见 2.6，都未配置时跳过自定义源。自定义源的缓存按完整地址区分，后台改了地址后立即按新地址探测。
   - AMLL 镜像列表为后端常量（raw.githubusercontent / jsDelivr / `amlldb.bikonoo.com`）。
 - 缓存见 2.5。单次请求超时 8 秒（同 StarryPlayer），响应体上限 1 MB，不跟随重定向。
 
@@ -444,6 +447,7 @@ interface LyricLine {
 
 interface ResolvedLyrics {
   source: 'ttml-custom' | 'ttml-amll' | 'ncm-yrc' | 'ncm-lrc' | 'qq-qrc' | 'qq-lrc' | 'none'
+  sourceName?: string // 自定义 TTML 源在后台配置的名称，没有时按 source 显示通用名称
   wordTimed: boolean
   lines: LyricLine[]
 }

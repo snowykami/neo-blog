@@ -99,7 +99,8 @@ var sections = []*Section{
 		// 用当前填写的 API 地址与 Cookie 读取账号歌单，选择其一作为博客歌单
 		{Key: "ncm_playlist_id", Type: TypeInt, Widget: "ncm_playlist", Label: "ncm_playlist", Description: "ncm_playlist_desc", Min: num(0), Default: 0, ShowWhen: when("music_source", "ncm")},
 		{Key: "ncm_song_level", Type: TypeEnum, Label: "ncm_song_level", Description: "ncm_song_level_desc", Options: options(NCMSongLevels, "ncm_song_level_"), Default: "exhigh", ShowWhen: when("music_source", "ncm")},
-		{Key: "music_ttml_url_template", Type: TypeString, Label: "music_ttml_url_template", Description: "music_ttml_url_template_desc", Placeholder: "https://cdn.example.com/lyrics/{song_id}.ttml", Wide: true, Default: "", Env: constant.EnvKeyMusicTTMLURL},
+		// 自定义 TTML 歌词源，按顺序探测（见 ttml_sources.go）
+		{Key: "music_ttml_sources", Type: TypeJSON, Widget: "ttml_sources", Label: "music_ttml_sources", Description: "music_ttml_sources_desc", Placeholder: "https://cdn.example.com/lyrics/{song_id}.ttml", Default: []MusicTTMLSource{}, Env: constant.EnvKeyMusicTTMLURL, decode: decodeMusicTTMLSources},
 	}},
 	{Tab: "frontend", Key: "weather", Title: "section_weather", Description: "section_weather_desc", Items: []*Item{
 		{Key: "qweather_api_host", Type: TypeString, Label: "qweather_api_host", Description: "qweather_api_host_desc", Placeholder: "abc123xyz.re.qweatherapi.com", Default: ""},

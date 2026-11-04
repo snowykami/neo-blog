@@ -118,6 +118,8 @@ export type LyricSource = 'ttml-custom' | 'ttml-amll' | 'ncm-yrc' | 'ncm-lrc' | 
 
 export interface ResolvedLyrics {
   source: LyricSource
+  // 来源的名称：自定义 TTML 源在后台配置的名称，没有时按 source 显示通用名称
+  sourceName?: string
   // 是否有词级时间（逐字擦除）；行级歌词只做整行高亮
   wordTimed: boolean
   // 纯音乐（接口明确标记没有歌词）

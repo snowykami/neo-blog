@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -79,41 +80,63 @@ func TestTTMLLyricPriority(t *testing.T) {
 	}
 }
 
-func TestCustomTTMLURL(t *testing.T) {
-	setupTTMLDB(t)
-	for _, item := range []struct{ config, want string }{
-		{"", ""},
-		{"https://cdn.example.com/lyrics/", "https://cdn.example.com/lyrics/42.ttml"},
-		{"https://cdn.example.com/lyrics/{id}.ttml", "https://cdn.example.com/lyrics/42.ttml"},
-		{"https://example.com/ttml?id={id}&format=ttml", "https://example.com/ttml?id=42&format=ttml"},
-		{"https://cdn.liteyuki.org/snowykami/music/lyrics/{song_id}.ttml", "https://cdn.liteyuki.org/snowykami/music/lyrics/42.ttml"},
-		{"ftp://example.com/{id}.ttml", ""},
-		{"/lyrics/{id}.ttml", ""},
-	} {
-		t.Setenv("MUSIC_TTML_URL_PREFIX", item.config)
-		if got := customTTMLURL(42); got != item.want {
-			t.Errorf("%q: got %q, want %q", item.config, got, item.want)
-		}
+func TestTTMLLyricCustomSourcesOrder(t *testing.T) {
+	missing, missingCalls := ttmlServer(t, http.StatusNotFound, "")
+	second, _ := ttmlServer(t, http.StatusOK, strings.Replace(testTTML, "hi", "second", 1))
+	third, _ := ttmlServer(t, http.StatusOK, strings.Replace(testTTML, "hi", "third", 1))
+	amll, _ := ttmlServer(t, http.StatusOK, testTTML)
+	setupTTMLTest(t, "", amll.URL)
+	sources := []any{
+		map[string]any{"name": "liteyuki源", "url": missing.URL + "/{id}.ttml"},
+		map[string]any{"name": "snowykami源", "url": second.URL + "/{song_id}.ttml"},
+		map[string]any{"name": "", "url": third.URL},
+	}
+	if err := repo.KV.SetKV("music_ttml_sources", sources); err != nil {
+		t.Fatal(err)
+	}
+
+	// 按列表顺序：前面的源确定没有时用下一个命中的，并带上它的名称
+	got, svcerr := NewMusicService().GetTTMLLyric(context.Background(), 8, "")
+	if svcerr != nil || got.Source != musicTTMLSourceCustom || got.Name != "snowykami源" || !strings.Contains(got.TTML, "second") {
+		t.Fatalf("got %+v, %v", got, svcerr)
+	}
+	if missingCalls.Load() != 1 {
+		t.Fatalf("first source should be probed once, calls = %d", missingCalls.Load())
 	}
 }
 
-func TestCustomTTMLURLConfig(t *testing.T) {
+func TestTTMLSourcesConfig(t *testing.T) {
 	setupTTMLDB(t)
 	t.Setenv("MUSIC_TTML_URL_PREFIX", "")
-	if err := repo.KV.SetKV("music_ttml_url_template", "https://console.example.com/{song_id}.ttml"); err != nil {
+	urls := func() []string {
+		var got []string
+		for _, target := range ttmlTargets(7, []string{musicTTMLSourceCustom, musicTTMLSourceAMLL}) {
+			got = append(got, target.name+"|"+target.url)
+		}
+		return got
+	}
+	if got := urls(); !reflect.DeepEqual(got, []string{"|"}) {
+		t.Fatalf("no custom source: got %q", got)
+	}
+	if err := repo.KV.SetKV("music_ttml_sources", []any{map[string]any{"name": "后台", "url": "https://console.example.com/{song_id}.ttml"}}); err != nil {
 		t.Fatal(err)
 	}
 	// 环境变量没有设置时用后台配置
-	if got := customTTMLURL(7); got != "https://console.example.com/7.ttml" {
+	if got := urls(); !reflect.DeepEqual(got, []string{"后台|https://console.example.com/7.ttml", "|"}) {
 		t.Fatalf("console config: got %q", got)
 	}
-	// 两者都有时环境变量优先，并报告给后台显示为只读
+	// 两者都有时环境变量优先（旧的单个地址视为一个没有名称的源），并报告给后台显示为只读
 	t.Setenv("MUSIC_TTML_URL_PREFIX", "https://env.example.com/{id}.ttml")
-	if got := customTTMLURL(7); got != "https://env.example.com/7.ttml" {
+	if got := urls(); !reflect.DeepEqual(got, []string{"|https://env.example.com/7.ttml", "|"}) {
 		t.Fatalf("env first: got %q", got)
 	}
-	if env, _ := config.Lookup("music_ttml_url_template").EnvValue(); env != "https://env.example.com/{id}.ttml" {
+	if env, _ := config.Lookup("music_ttml_sources").EnvValue(); env != "https://env.example.com/{id}.ttml" {
 		t.Fatalf("env value = %q", env)
+	}
+	// 环境变量也可以是 JSON 数组
+	t.Setenv("MUSIC_TTML_URL_PREFIX", `[{"name":"甲","url":"https://a.example.com/lyrics/"},{"name":"乙","url":"https://b.example.com/{id}"}]`)
+	if got := urls(); !reflect.DeepEqual(got, []string{"甲|https://a.example.com/lyrics/7.ttml", "乙|https://b.example.com/7", "|"}) {
+		t.Fatalf("env list: got %q", got)
 	}
 }
 

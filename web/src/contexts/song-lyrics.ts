@@ -308,7 +308,12 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
   // TTML：按网易云歌曲收录的优先，其次是按匹配到的 QQ 歌曲收录的
   const ttmlText = sources?.ttml?.ttml ?? qq?.ttml ?? null
   const ttmlKind = sources?.ttml?.source === 'custom' ? 'ttml-custom' : 'ttml-amll'
-  const ttmlLyrics = useMemo(() => (ttmlText ? safely(() => parseTtml(ttmlText, ttmlKind), 'TTML') : null), [ttmlKind, ttmlText])
+  // 自定义源有多个时，标签显示命中的源的名称
+  const ttmlName = sources?.ttml?.source === 'custom' ? sources.ttml.name : undefined
+  const ttmlLyrics = useMemo(() => {
+    const parsed = ttmlText ? safely(() => parseTtml(ttmlText, ttmlKind), 'TTML') : null
+    return parsed && ttmlName ? { ...parsed, sourceName: ttmlName } : parsed
+  }, [ttmlKind, ttmlName, ttmlText])
 
   // 管理员保存的整体偏移（按选出的歌词来源）对所有播放这首歌的地方生效（见 lyric-settings.ts）；
   // 全站版本以后端选出的为准，还没有收到时按快照的来源，都没有时（歌词流不可用且没有快照）按管理员的全站默认来源
