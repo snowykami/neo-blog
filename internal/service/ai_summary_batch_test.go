@@ -13,13 +13,11 @@ import (
 	"github.com/snowykami/neo-blog/internal/tools"
 )
 
-// countJobs 统计处于指定状态的任务数
-func countJobs(s *AISummaryService, status string) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// countJobs 统计指定文章中处于指定状态的任务数
+func countJobs(s *AISummaryService, status string, postIDs ...uint) int {
 	n := 0
-	for _, job := range s.jobs {
-		if job.status == status {
+	for _, job := range s.jobStatuses(postIDs) {
+		if job.Status == status {
 			n++
 		}
 	}
@@ -29,9 +27,6 @@ func countJobs(s *AISummaryService, status string) int {
 func TestAISummaryTriggerAllAndConcurrency(t *testing.T) {
 	author, admin, _, post, _ := setupEditTest(t)
 	s := NewAISummaryService()
-	s.mu.Lock()
-	s.jobs = make(map[uint]*aiSummaryJob)
-	s.mu.Unlock()
 
 	release := make(chan struct{})
 	var inFlight, maxInFlight atomic.Int32
@@ -100,10 +95,10 @@ func TestAISummaryTriggerAllAndConcurrency(t *testing.T) {
 	}
 	// 并发上限为 1：一个生成中，一个排队
 	deadline := time.Now().Add(2 * time.Second)
-	for countJobs(s, aiSummaryStatusRunning) != 1 && time.Now().Before(deadline) {
+	for countJobs(s, aiSummaryStatusRunning, post.ID, stale.ID) != 1 && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
-	if r, q := countJobs(s, aiSummaryStatusRunning), countJobs(s, aiSummaryStatusQueued); r != 1 || q != 1 {
+	if r, q := countJobs(s, aiSummaryStatusRunning, post.ID, stale.ID), countJobs(s, aiSummaryStatusQueued, post.ID, stale.ID); r != 1 || q != 1 {
 		t.Fatalf("expected 1 running and 1 queued, got %d running %d queued", r, q)
 	}
 

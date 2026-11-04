@@ -1,3 +1,4 @@
+{{- include "neo-blog.validateReplicas" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,6 +45,20 @@ spec:
             {{- range $key, $val := .Values.backend.env }}
             - name: {{ $key | quote }}
               value: {{ $val | quote }}
+            {{- end }}
+            {{- if .Values.redis.existingSecret }}
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.existingSecret | quote }}
+                  key: {{ .Values.redis.existingSecretKey | default "redis-url" | quote }}
+            {{- else if .Values.redis.url }}
+            - name: REDIS_URL
+              value: {{ .Values.redis.url | quote }}
+            {{- end }}
+            {{- if and (or .Values.redis.existingSecret .Values.redis.url) .Values.redis.keyPrefix }}
+            - name: REDIS_KEY_PREFIX
+              value: {{ .Values.redis.keyPrefix | quote }}
             {{- end }}
           ports:
             - name: http

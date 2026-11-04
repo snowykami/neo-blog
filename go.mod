@@ -19,6 +19,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lionsoul2014/ip2region/binding/golang v0.0.0-20261018023631-f8b0792b0cd7
 	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/redis/go-redis/v9 v9.23.0
 	github.com/sirupsen/logrus v1.10.2
 	github.com/studio-b12/gowebdav v0.13.0
 	github.com/yuin/goldmark v1.8.7
@@ -49,6 +50,7 @@ require (
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/cloudwego/gopkg v0.2.0 // indirect
 	github.com/cloudwego/netpoll v0.7.5 // indirect
@@ -62,7 +64,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
@@ -73,6 +75,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+	go.uber.org/atomic v1.12.0 // indirect
 	golang.org/x/arch v0.23.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect

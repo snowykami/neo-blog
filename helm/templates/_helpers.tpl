@@ -66,6 +66,20 @@ Selector labels for Backend
 app.kubernetes.io/component: backend
 {{- end }}
 {{/*
+多副本部署校验：后端多于 1 个副本（或启用自动扩缩容）时，必须配置 Redis 共享状态并使用 Postgres
+*/}}
+{{- define "neo-blog.validateReplicas" -}}
+{{- if or .Values.autoscaling.enabled (gt (int .Values.replicaCount) 1) }}
+{{- if not (or .Values.redis.url .Values.redis.existingSecret .Values.backend.env.REDIS_URL) }}
+{{- fail "后端多副本部署（replicaCount > 1 或启用 autoscaling）必须配置 redis.url 或 redis.existingSecret，否则各副本的登录状态、验证码、限流与任务状态互不可见" }}
+{{- end }}
+{{- if eq (toString (default "sqlite" .Values.backend.env.DB_DRIVER)) "sqlite" }}
+{{- fail "后端多副本部署必须使用 Postgres（backend.env.DB_DRIVER: postgres），SQLite 只支持单实例" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "neo-blog.serviceAccountName" -}}

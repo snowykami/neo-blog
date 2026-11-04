@@ -103,6 +103,16 @@
   - 全部待执行迁移在同一事务中执行，失败整体回滚；不提供自动 down，回退到旧版本前需先恢复数据库备份（库中有当前代码不认识的迁移时会拒绝启动）
 - 新增迁移需在 `internal/repo/migrate_test.go` 补充用例，覆盖旧库升级路径
 
+### 共享状态与多副本
+
+后端可能以多副本运行，跨请求保存、且其他实例也要看到的状态一律放在 `pkg/sharedstate`（未配置 `REDIS_URL` 时为进程内存，配置后为 Redis），不要再用进程内的 map、`sync.Map` 或全局变量保存：
+
+- 一次性凭据、验证码、限流计数、任务状态：`sharedstate.Current()` 的 `Get` / `Set` / `SetNX` / `Take` / `Incr`，结构化数据用 `GetJSON` / `SetJSON` / `TakeJSON`，都要设置合理的过期时间
+- 跨实例互斥（读取—比较—写入的临界区）：`sharedstate.Lock` / `TryLock`，锁必须带过期时间
+- 定时任务：用 `internal/tasks` 的 `runPeriodically`，每轮只有一个实例执行
+- 进程内缓存的数据被修改时：本实例同步失效后调用 `sharedstate.Notify`，并在启动时用 `sharedstate.OnNotify` 订阅（收到空消息表示可能错过了通知，需全量刷新）
+- 只缓存上游或不可变数据（如音乐来源、天气、按内容哈希的渲染结果）的进程内缓存可以保留，不需要跨实例同步
+
 ### Next.js / TypeScript 前端
 
 - 遵循现有 ESLint/格式化结果，不手写与项目风格冲突的格式

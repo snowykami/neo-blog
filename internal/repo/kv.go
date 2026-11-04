@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"gorm.io/gorm"
 )
 
@@ -21,8 +22,11 @@ type kvCacheEntry struct {
 	expiresAt time.Time
 }
 
-// kvCacheTTL 本进程写入会立即失效缓存；多实例部署时其他实例最多延迟该时长生效
+// kvCacheTTL 本进程写入会立即失效缓存，并通知其他实例（配置 Redis 时）同步清除；通知丢失时其他实例最多延迟该时长生效
 const kvCacheTTL = 30 * time.Second
+
+// kvChangedChannel 配置写入后通知其他实例清除该键的缓存
+const kvChangedChannel = "config_changed"
 
 var KV = &kvRepo{cache: make(map[string]kvCacheEntry)}
 
@@ -54,6 +58,23 @@ func (k *kvRepo) resetCache() {
 	k.mu.Lock()
 	k.cache = make(map[string]kvCacheEntry)
 	k.mu.Unlock()
+}
+
+// changed 写入后清除本实例缓存并通知其他实例
+func (k *kvRepo) changed(key string) {
+	k.invalidate(key)
+	sharedstate.Notify(kvChangedChannel, key)
+}
+
+// ListenChanges 订阅其他实例的配置写入，及时清除本实例缓存；与 Redis 断线重连后清空全部缓存
+func (k *kvRepo) ListenChanges() {
+	sharedstate.OnNotify(kvChangedChannel, func(key string) {
+		if key == "" {
+			k.resetCache()
+			return
+		}
+		k.invalidate(key)
+	})
 }
 
 func (k *kvRepo) GetKV(key string, defaultValue ...any) (any, error) {
@@ -93,7 +114,7 @@ func (k *kvRepo) SetKV(key string, value any) error {
 		Key:   key,
 		Value: map[string]any{"value": value},
 	}
-	defer k.invalidate(key)
+	defer k.changed(key)
 	return GetDB().Save(kv).Error
 }
 
@@ -110,7 +131,7 @@ func (k *kvRepo) ListKV(query string) ([]model.KV, error) {
 }
 
 func (k *kvRepo) DeleteKV(key string) error {
-	defer k.invalidate(key)
+	defer k.changed(key)
 	return GetDB().Delete(&model.KV{}, "key = ?", key).Error
 }
 

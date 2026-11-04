@@ -15,6 +15,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
@@ -76,17 +77,15 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 }
 
 func (s *UserService) getOidcLoginState(req *dto.OidcLoginReq) (*oidcLoginState, *errs.ServiceError) {
-	kvStore := utils.KV.GetInstance()
-	stateValue, stateKey, ok := getOidcStateValue(kvStore, req.State)
-	if !ok && req.Session != "" {
-		stateValue, stateKey, ok = getOidcStateValue(kvStore, req.Session)
+	// 读取即作废（原子），同一个 state 只能完成一次登录（Misskey 以 session 参数带回）
+	var loginState oidcLoginState
+	ok, err := takeOidcState(req.State, &loginState)
+	if err == nil && !ok && req.Session != "" {
+		ok, err = takeOidcState(req.Session, &loginState)
 	}
-	if !ok {
-		return nil, errs.NewBadRequest("invalid_oidc_state")
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err)
 	}
-	kvStore.Delete(stateKey)
-
-	loginState, ok := stateValue.(oidcLoginState)
 	if !ok {
 		return nil, errs.NewBadRequest("invalid_oidc_state")
 	}
@@ -102,13 +101,11 @@ func (s *UserService) getOidcLoginState(req *dto.OidcLoginReq) (*oidcLoginState,
 	return &loginState, nil
 }
 
-func getOidcStateValue(kvStore *utils.KVStore, state string) (interface{}, string, bool) {
+func takeOidcState(state string, dst *oidcLoginState) (bool, error) {
 	if state == "" {
-		return nil, "", false
+		return false, nil
 	}
-	stateKey := oidcStateKeyPrefix + state
-	value, ok := kvStore.Get(stateKey)
-	return value, stateKey, ok
+	return sharedstate.TakeJSON(oidcStateKeyPrefix+state, dst)
 }
 
 // helper: 根据 userinfo 完成绑定 / 登录 / 创建 用户并返回 token response

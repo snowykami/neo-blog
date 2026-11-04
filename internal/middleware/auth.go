@@ -15,6 +15,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"golang.org/x/sync/singleflight"
 )
@@ -201,18 +202,19 @@ func UseRole(requiredRole constant.Role) app.HandlerFunc {
 	}
 }
 
-// touchSessionThrottled 刷新会话活跃时间，同一会话 10 分钟内只写一次库
+// touchSessionThrottled 刷新会话活跃时间，同一会话 10 分钟内只写一次库（节流标记在共享状态中，多实例共用）
 func touchSessionThrottled(sessionID string) {
-	kv := utils.KV.GetInstance()
-	key := "session_touch_" + sessionID
-	if kv.Lookup(key) {
+	store := sharedstate.Current()
+	key := "session_touch:" + sessionID
+	claimed, err := store.SetNX(key, "1", 10*time.Minute)
+	if err == nil && !claimed {
 		return
 	}
 	if err := repo.Session.TouchSession(sessionID); err != nil {
 		logrus.Warnf("touch session error: %v", err)
-		return
+		// 写库失败时撤销标记，下次请求重试
+		_ = store.Delete(key)
 	}
-	kv.Set(key, true, 10*time.Minute)
 }
 
 func isStatefulJwtValid(claims *utils.Claims) (bool, error) {
@@ -233,23 +235,19 @@ func recordUserIP(sessionId, ip string) error {
 		return nil
 	}
 
-	kv := utils.KV.GetInstance()
-	key := "session_ip_" + sessionId
+	store := sharedstate.Current()
+	key := "session_ip:" + sessionId
 
-	// 先尝试从 KV 读取，若一致则直接返回
-	if v, ok := kv.Get(key); ok {
-		if cur, _ := v.(string); cur == ip {
-			return nil
-		}
+	// 先尝试从共享状态读取，若一致则直接返回
+	if cur, ok, _ := store.Get(key); ok && cur == ip {
+		return nil
 	}
 
 	// singleflight 避免并发短时间内多次写 DB
 	_, err, _ := ipSingleflight.Do(key, func() (interface{}, error) {
-		// 再次校验 KV，减少窗口期写入
-		if v2, ok2 := kv.Get(key); ok2 {
-			if cur2, _ := v2.(string); cur2 == ip {
-				return nil, nil
-			}
+		// 再次校验，减少窗口期写入
+		if cur2, ok2, _ := store.Get(key); ok2 && cur2 == ip {
+			return nil, nil
 		}
 
 		// 从 DB 读取最后一次 IP（防止 KV 丢失导致重复写）
@@ -258,16 +256,16 @@ func recordUserIP(sessionId, ip string) error {
 			return nil, dbErr
 		}
 		if lastIP == ip {
-			// 更新 KV 并结束
-			kv.Set(key, ip, ipCacheDuration)
+			// 更新缓存并结束
+			_ = store.Set(key, ip, ipCacheDuration)
 			return nil, nil
 		}
 
-		// 写入 DB（附带时间戳），写成功后再更新 KV
+		// 写入 DB（附带时间戳），写成功后再更新缓存
 		if dbErr = repo.Session.AddSessionIPRecord(sessionId, ip); dbErr != nil {
 			return nil, dbErr
 		}
-		kv.Set(key, ip, ipCacheDuration)
+		_ = store.Set(key, ip, ipCacheDuration)
 		return nil, nil
 	})
 

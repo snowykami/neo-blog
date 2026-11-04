@@ -289,7 +289,7 @@ func (f *FileController) CreateStorageProvider(ctx context.Context, c *app.Reque
 		resps.Error(c, svcerr)
 		return
 	}
-	if err := tasks.ReloadStorageProviders(); err != nil {
+	if err := tasks.StorageProvidersChanged(); err != nil {
 		resps.Error(c, errs.Internal("failed_to_reload_storage_providers", err))
 		return
 	}
@@ -313,7 +313,7 @@ func (f *FileController) UpdateStorageProvider(ctx context.Context, c *app.Reque
 		return
 	}
 
-	if err := tasks.ReloadStorageProviders(); err != nil {
+	if err := tasks.StorageProvidersChanged(); err != nil {
 		resps.Error(c, errs.Internal("failed_to_reload_storage_providers", err))
 		return
 	}
@@ -338,7 +338,7 @@ func (f *FileController) DeleteStorageProvider(ctx context.Context, c *app.Reque
 		return
 	}
 
-	if err := tasks.ReloadStorageProviders(); err != nil {
+	if err := tasks.StorageProvidersChanged(); err != nil {
 		resps.Error(c, errs.Internal("failed_to_reload_storage_providers", err))
 		return
 	}

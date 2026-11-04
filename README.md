@@ -78,6 +78,17 @@ helm repo update
 helm install neo-blog git.liteyuki.org/neo-blog
 ```
 
+### 多副本部署
+
+默认的单实例部署不需要 Redis。后端需要多个副本（`replicaCount > 1` 或启用自动扩缩容）时：
+
+- 设置 `REDIS_URL`（Helm 中为 `redis.url` 或 `redis.existingSecret`），各副本通过 Redis 共享第三方登录 state、邮箱验证码、限流计数、AI 摘要任务状态、分布式锁与缓存失效通知；配置了 Redis 但连接失败时后端拒绝启动
+- 数据库使用 Postgres（SQLite 只支持单实例）
+- 文件存储使用 S3 / WebDAV，或为所有副本挂载同一个共享卷
+- 所有副本使用相同的 `JWT_SECRET` 与 `PASSWORD_SALT`
+
+Helm Chart 会在缺少 Redis 或仍使用 SQLite 时拒绝渲染多副本部署。前端没有跨请求的进程内状态，可直接增加副本。
+
 ### 使用源码构建部署(不推荐)
 
 需要准备：go、nodejs、pnpm

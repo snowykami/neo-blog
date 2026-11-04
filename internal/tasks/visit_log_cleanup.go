@@ -24,24 +24,21 @@ func visitLogRetentionDays() int {
 
 // StartVisitLogCleanup 后台定期清理超过保留期的访问记录，以及一年没有再访问的访客汇总
 func StartVisitLogCleanup() {
-	go func() {
-		for {
-			days := visitLogRetentionDays()
-			deleted, err := repo.Visit.DeleteVisitLogsBefore(time.Now().AddDate(0, 0, -days))
-			if err != nil {
-				logrus.Errorf("visit log cleanup failed: %v", err)
-			} else if deleted > 0 {
-				logrus.Infof("visit log cleanup: deleted %d logs older than %d days", deleted, days)
-			}
-			if _, err := repo.Visit.DeleteVisitEventsBefore(time.Now().AddDate(0, 0, -days)); err != nil {
-				logrus.Errorf("visit event cleanup failed: %v", err)
-			}
-			if deleted, err := repo.Visit.DeleteInactiveVisitors(time.Now().Add(-visitorRetention)); err != nil {
-				logrus.Errorf("visitor cleanup failed: %v", err)
-			} else if deleted > 0 {
-				logrus.Infof("visitor cleanup: deleted %d inactive visitors", deleted)
-			}
-			time.Sleep(visitLogCleanupInterval)
+	runPeriodically("visit_log_cleanup", visitLogCleanupInterval, func() {
+		days := visitLogRetentionDays()
+		deleted, err := repo.Visit.DeleteVisitLogsBefore(time.Now().AddDate(0, 0, -days))
+		if err != nil {
+			logrus.Errorf("visit log cleanup failed: %v", err)
+		} else if deleted > 0 {
+			logrus.Infof("visit log cleanup: deleted %d logs older than %d days", deleted, days)
 		}
-	}()
+		if _, err := repo.Visit.DeleteVisitEventsBefore(time.Now().AddDate(0, 0, -days)); err != nil {
+			logrus.Errorf("visit event cleanup failed: %v", err)
+		}
+		if deleted, err := repo.Visit.DeleteInactiveVisitors(time.Now().Add(-visitorRetention)); err != nil {
+			logrus.Errorf("visitor cleanup failed: %v", err)
+		} else if deleted > 0 {
+			logrus.Infof("visitor cleanup: deleted %d inactive visitors", deleted)
+		}
+	})
 }

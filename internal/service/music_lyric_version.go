@@ -15,6 +15,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -46,6 +47,8 @@ const (
 	lyricVersionTouchInterval = 24 * time.Hour
 	// 歌词标注接口等待选择的时长：前端会轮询，等不到时先返回 pending
 	lyricVersionPollWait = 1500 * time.Millisecond
+	// 选择并保存全站版本时持有的锁上限，进程中途退出时锁会自动过期
+	lyricVersionApplyLockTTL = 30 * time.Second
 )
 
 // lyricSourceKinds 歌词来源，按质量相同时的先后顺序排列（与前端 resolve.ts 一致）
@@ -63,9 +66,7 @@ var (
 	}
 	// 能否保存这首歌的全站版本（博客歌单与公开内容中引用的歌曲），测试时可替换
 	lyricVersionPersistable = func(s *MusicService, ctx context.Context, id int64) bool { return s.songPublic(ctx, id) }
-	// 选择并保存全站版本时持有：读取固定来源与已选版本、比较、写入是一个整体
-	lyricVersionApplyMu sync.Mutex
-	lyricVersionRuns    = &lyricVersionJobs{jobs: map[string]*lyricVersionJob{}}
+	lyricVersionRuns        = &lyricVersionJobs{jobs: map[string]*lyricVersionJob{}}
 )
 
 // lyricSourceResult 一个来源这次获取的结果：data 为与该来源接口相同的返回（没有时为 nil）
@@ -254,8 +255,12 @@ func chooseLyricVersion(candidates []lyricVersionCandidate, outcome func(kind st
 
 // applyLyricVersion 按这次各来源的结果选出全站版本，persist 时保存（与已保存的相同时不重复写入）；没有歌词时返回 nil
 func (s *MusicService) applyLyricVersion(ctx context.Context, id int64, results map[string]lyricSourceResult, persist bool) *lyricSiteVersion {
-	lyricVersionApplyMu.Lock()
-	defer lyricVersionApplyMu.Unlock()
+	// 读取固定来源与已选版本、比较、写入是一个整体，按歌曲加锁（多实例间同样互斥）
+	release, err := sharedstate.Lock(ctx, "lyric_version_apply:"+strconv.FormatInt(id, 10), lyricVersionApplyLockTTL)
+	if err != nil {
+		logrus.Warnf("lock lyric version for song %d failed, applying without lock: %v", id, err)
+	}
+	defer release()
 	db := repo.GetDB().WithContext(ctx)
 	var pin model.LyricSongSetting
 	if err := db.Where("song_id = ?", id).Limit(1).Find(&pin).Error; err != nil {

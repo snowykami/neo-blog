@@ -5,7 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 const (
@@ -16,32 +18,38 @@ const (
 	emailVerifyCodeLength  = 6
 )
 
+// RequestEmailVerify 生成验证码并存入共享状态（多实例部署时在任一实例都能校验）
 func RequestEmailVerify(email string) string {
 	email = strings.ToLower(email)
 	generatedVerificationCode := Strings.GenerateRandomStringWithCharset(emailVerifyCodeLength, emailVerifyCodeCharset)
-	kv := KV.GetInstance()
-	kv.Set(constant.KVKeyEmailVerificationCode+email, generatedVerificationCode, emailVerifyCodeTTL)
-	kv.Delete(emailVerifyAttemptsKey + email)
+	store := sharedstate.Current()
+	if err := store.Set(constant.KVKeyEmailVerificationCode+email, generatedVerificationCode, emailVerifyCodeTTL); err != nil {
+		logrus.Errorf("save email verification code failed: %v", err)
+	}
+	_ = store.Delete(emailVerifyAttemptsKey + email)
 	return generatedVerificationCode
 }
 
+// VerifyEmailCode 校验验证码，成功后作废；共享状态不可用时校验失败
 func VerifyEmailCode(email, code string) bool {
 	email = strings.ToLower(email)
-	kv := KV.GetInstance()
-	storedCode, ok := kv.Get(constant.KVKeyEmailVerificationCode + email)
-	if !ok {
+	store := sharedstate.Current()
+	codeKey := constant.KVKeyEmailVerificationCode + email
+	stored, ok, err := store.Get(codeKey)
+	if err != nil || !ok {
 		return false
 	}
-	stored, _ := storedCode.(string)
 	if stored == "" || subtle.ConstantTimeCompare([]byte(stored), []byte(strings.ToLower(code))) != 1 {
 		// 失败次数过多时作废验证码，防止暴力枚举
-		if kv.Incr(emailVerifyAttemptsKey+email, emailVerifyCodeTTL) >= emailVerifyMaxAttempts {
-			kv.Delete(constant.KVKeyEmailVerificationCode + email)
-			kv.Delete(emailVerifyAttemptsKey + email)
+		if attempts, err := store.Incr(emailVerifyAttemptsKey+email, emailVerifyCodeTTL); err == nil && attempts >= emailVerifyMaxAttempts {
+			_ = store.Delete(codeKey, emailVerifyAttemptsKey+email)
 		}
 		return false
 	}
-	kv.Delete(constant.KVKeyEmailVerificationCode + email)
-	kv.Delete(emailVerifyAttemptsKey + email)
+	// 原子作废，同一个验证码并发提交时只有一次成功
+	if used, err := store.CompareAndDelete(codeKey, stored); err != nil || !used {
+		return false
+	}
+	_ = store.Delete(emailVerifyAttemptsKey + email)
 	return true
 }

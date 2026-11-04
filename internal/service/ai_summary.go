@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"gorm.io/gorm"
 )
 
@@ -39,15 +41,97 @@ const (
 	aiSummaryMaxOutputRuneLatin = 1000  // 英文摘要最长字符数（提示词要求 80～130 词）
 )
 
-// aiSummaryJob 单篇文章的生成任务状态（进程内）
+// 任务状态存在共享状态中，多实例部署时在任一实例触发、在另一实例查询都能看到：
+// 排队或生成中的状态由执行任务的实例定期续期，实例退出后最多 aiSummaryActiveTTL 即消失，可以重新触发
+const (
+	aiSummaryActiveTTL       = 2 * time.Minute
+	aiSummaryHeartbeat       = 30 * time.Second
+	aiSummaryResultTTL       = 24 * time.Hour // 最近一次结果（成功或失败）保留时长
+	aiSummaryActiveKeyPrefix = "ai_summary:active:"
+	aiSummaryResultKeyPrefix = "ai_summary:result:"
+)
+
+// aiSummaryJob 单篇文章的生成任务状态
 type aiSummaryJob struct {
-	status string
-	err    string
+	Status string `json:"status"`
+	Err    string `json:"err,omitempty"`
 }
 
 // active 排队或生成中
-func (j *aiSummaryJob) active() bool {
-	return j.status == aiSummaryStatusQueued || j.status == aiSummaryStatusRunning
+func (j aiSummaryJob) active() bool {
+	return j.Status == aiSummaryStatusQueued || j.Status == aiSummaryStatusRunning
+}
+
+func aiSummaryActiveKey(postID uint) string {
+	return aiSummaryActiveKeyPrefix + strconv.FormatUint(uint64(postID), 10)
+}
+
+func aiSummaryResultKey(postID uint) string {
+	return aiSummaryResultKeyPrefix + strconv.FormatUint(uint64(postID), 10)
+}
+
+// aiSummaryTracker 执行任务的实例用它更新状态并定期续期，结束时写入结果
+type aiSummaryTracker struct {
+	postID uint
+	mu     sync.Mutex
+	status string
+	done   bool
+	stop   chan struct{}
+}
+
+func startAISummaryTracker(postID uint) *aiSummaryTracker {
+	t := &aiSummaryTracker{postID: postID, status: aiSummaryStatusQueued, stop: make(chan struct{})}
+	go t.heartbeat()
+	return t
+}
+
+func (t *aiSummaryTracker) heartbeat() {
+	ticker := time.NewTicker(aiSummaryHeartbeat)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-t.stop:
+			return
+		case <-ticker.C:
+			t.mu.Lock()
+			if !t.done {
+				t.saveActiveLocked()
+			}
+			t.mu.Unlock()
+		}
+	}
+}
+
+func (t *aiSummaryTracker) saveActiveLocked() {
+	if err := sharedstate.SetJSON(aiSummaryActiveKey(t.postID), aiSummaryJob{Status: t.status}, aiSummaryActiveTTL); err != nil {
+		logrus.Warnf("save ai summary status for post %d: %v", t.postID, err)
+	}
+}
+
+func (t *aiSummaryTracker) setRunning() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !t.done {
+		t.status = aiSummaryStatusRunning
+		t.saveActiveLocked()
+	}
+}
+
+// finish 先写结果再删除进行中的状态，查询方不会在两者之间看到「空闲」
+func (t *aiSummaryTracker) finish(status, errMsg string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.done {
+		return
+	}
+	t.done = true
+	close(t.stop)
+	if err := sharedstate.SetJSON(aiSummaryResultKey(t.postID), aiSummaryJob{Status: status, Err: errMsg}, aiSummaryResultTTL); err != nil {
+		logrus.Warnf("save ai summary result for post %d: %v", t.postID, err)
+	}
+	if err := sharedstate.Current().Delete(aiSummaryActiveKey(t.postID)); err != nil {
+		logrus.Warnf("clear ai summary status for post %d: %v", t.postID, err)
+	}
 }
 
 // aiLimiter 限制同时调用模型的请求数（AI 摘要与 AI 写作共用），上限每次获取时读取，修改配置后立即生效
@@ -119,10 +203,8 @@ func (l *aiLimiter) broadcastLocked() {
 	}
 }
 
-// AISummaryService 文章 AI 摘要：后台任务生成，同一文章同时只允许一个任务，全局按配置限制并发
+// AISummaryService 文章 AI 摘要：后台任务生成，同一文章同时只允许一个任务（多实例间也唯一），按配置限制本实例的并发
 type AISummaryService struct {
-	mu      sync.Mutex
-	jobs    map[uint]*aiSummaryJob
 	limiter *aiLimiter
 	// complete 调用大模型，测试时可替换
 	complete func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
@@ -131,7 +213,6 @@ type AISummaryService struct {
 }
 
 var aiSummaryService = &AISummaryService{
-	jobs:        make(map[uint]*aiSummaryJob),
 	limiter:     aiCallLimiter,
 	complete:    chatCompletion,
 	concurrency: tools.GetAISummaryConcurrency,
@@ -175,22 +256,47 @@ func (s *AISummaryService) Status(ctx context.Context, postID uint) (*dto.AISumm
 }
 
 func (s *AISummaryService) jobStatus(postID uint) (string, string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if job, ok := s.jobs[postID]; ok {
-		return job.status, job.err
+	if job, ok := s.jobStatuses([]uint{postID})[postID]; ok {
+		return job.Status, job.Err
 	}
 	return aiSummaryStatusIdle, ""
 }
 
+// jobStatuses 批量读取任务状态：排队或生成中的优先，其次是最近一次的结果；没有记录的文章不在结果中
+func (s *AISummaryService) jobStatuses(postIDs []uint) map[uint]aiSummaryJob {
+	keys := make([]string, 0, 2*len(postIDs))
+	for _, id := range postIDs {
+		keys = append(keys, aiSummaryActiveKey(id), aiSummaryResultKey(id))
+	}
+	values, err := sharedstate.Current().GetMany(keys...)
+	if err != nil {
+		logrus.Warnf("read ai summary status: %v", err)
+		return nil
+	}
+	result := make(map[uint]aiSummaryJob, len(values))
+	for _, id := range postIDs {
+		for _, key := range []string{aiSummaryActiveKey(id), aiSummaryResultKey(id)} {
+			var job aiSummaryJob
+			if raw, ok := values[key]; ok && json.Unmarshal([]byte(raw), &job) == nil {
+				result[id] = job
+				break
+			}
+		}
+	}
+	return result
+}
+
 // FillListStatus 为列表中的文章补充正在进行或失败的任务状态
 func (s *AISummaryService) FillListStatus(posts []*dto.PostDto) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	ids := make([]uint, len(posts))
+	for i, post := range posts {
+		ids[i] = post.ID
+	}
+	statuses := s.jobStatuses(ids)
 	for _, post := range posts {
-		if job, ok := s.jobs[post.ID]; ok && (job.active() || job.status == aiSummaryStatusFailed) {
-			post.AISummaryStatus = job.status
-			post.AISummaryError = job.err
+		if job, ok := statuses[post.ID]; ok && (job.active() || job.Status == aiSummaryStatusFailed) {
+			post.AISummaryStatus = job.Status
+			post.AISummaryError = job.Err
 		}
 	}
 }
@@ -209,7 +315,11 @@ func (s *AISummaryService) Trigger(ctx context.Context, postID uint) *errs.Servi
 		return errs.NewBadRequest("ai_summary_empty_content")
 	}
 
-	if !s.enqueue(post, cfg) {
+	queued, err := s.enqueue(post, cfg)
+	if err != nil {
+		return errs.Internal("failed_to_create_target", err)
+	}
+	if !queued {
 		return errs.NewConflict("ai_summary_running")
 	}
 	return nil
@@ -239,46 +349,47 @@ func (s *AISummaryService) TriggerAll(ctx context.Context, overwriteManual bool)
 			result.SkippedUpToDate++
 		case !overwriteManual && post.Description != "" && post.Description != post.AISummary:
 			result.SkippedManual++
-		case !s.enqueue(post, cfg):
-			result.SkippedRunning++
 		default:
-			result.Queued++
+			queued, err := s.enqueue(post, cfg)
+			if err != nil {
+				return nil, errs.Internal("failed_to_create_target", err)
+			}
+			if queued {
+				result.Queued++
+			} else {
+				result.SkippedRunning++
+			}
 		}
 	}
 	return result, nil
 }
 
-// enqueue 登记任务并在后台执行；该文章已有任务在排队或生成中时返回 false
-func (s *AISummaryService) enqueue(post *model.Post, cfg tools.AIConfig) bool {
-	s.mu.Lock()
-	if job, ok := s.jobs[post.ID]; ok && job.active() {
-		s.mu.Unlock()
-		return false
+// enqueue 登记任务并在后台执行；该文章已有任务在排队或生成中（包括在其他实例）时返回 false
+func (s *AISummaryService) enqueue(post *model.Post, cfg tools.AIConfig) (bool, error) {
+	data, _ := json.Marshal(aiSummaryJob{Status: aiSummaryStatusQueued})
+	claimed, err := sharedstate.Current().SetNX(aiSummaryActiveKey(post.ID), string(data), aiSummaryActiveTTL)
+	if err != nil || !claimed {
+		return false, err
 	}
-	s.jobs[post.ID] = &aiSummaryJob{status: aiSummaryStatusQueued}
-	s.mu.Unlock()
+	// 清掉上一次的结果，查询时只看到这次任务
+	_ = sharedstate.Current().Delete(aiSummaryResultKey(post.ID))
 
 	// 以触发时的正文为准，生成期间正文再被修改会在完成后显示为「需要重新生成」
-	go s.run(post.ID, cfg, post.Title, post.Content, model.HashContent(post.Content))
-	return true
+	go s.run(startAISummaryTracker(post.ID), cfg, post.Title, post.Content, model.HashContent(post.Content))
+	return true, nil
 }
 
-func (s *AISummaryService) finish(postID uint, status, errMsg string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.jobs[postID] = &aiSummaryJob{status: status, err: errMsg}
-}
-
-func (s *AISummaryService) run(postID uint, cfg tools.AIConfig, title, content, sourceHash string) {
+func (s *AISummaryService) run(job *aiSummaryTracker, cfg tools.AIConfig, title, content, sourceHash string) {
+	postID := job.postID
 	// 排队等待并发名额，拿到后才开始计算超时
 	_ = s.limiter.acquire(context.Background(), s.concurrency, false, nil)
 	defer s.limiter.release()
-	s.finish(postID, aiSummaryStatusRunning, "")
+	job.setRunning()
 
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("ai summary panic for post %d: %v", postID, r)
-			s.finish(postID, aiSummaryStatusFailed, "internal_error")
+			job.finish(aiSummaryStatusFailed, "internal_error")
 		}
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), aiSummaryTimeout)
@@ -290,13 +401,13 @@ func (s *AISummaryService) run(postID uint, cfg tools.AIConfig, title, content, 
 		raw, err := s.complete(ctx, cfg, aiSummarySystemPrompt, buildAISummaryUserPrompt(title, content))
 		if err != nil {
 			logrus.Warnf("ai summary failed for post %d: %v", postID, err)
-			s.finish(postID, aiSummaryStatusFailed, err.Error())
+			job.finish(aiSummaryStatusFailed, err.Error())
 			return
 		}
 		summary = normalizeAISummary(raw)
 	}
 	if summary == "" {
-		s.finish(postID, aiSummaryStatusFailed, "empty_response")
+		job.finish(aiSummaryStatusFailed, "empty_response")
 		return
 	}
 	now := time.Now()
@@ -307,10 +418,10 @@ func (s *AISummaryService) run(postID uint, cfg tools.AIConfig, title, content, 
 		"ai_summary_at":          now,
 	}).Error; err != nil {
 		logrus.Errorf("save ai summary failed for post %d: %v", postID, err)
-		s.finish(postID, aiSummaryStatusFailed, "failed_to_update_target")
+		job.finish(aiSummaryStatusFailed, "failed_to_update_target")
 		return
 	}
-	s.finish(postID, aiSummaryStatusSucceeded, "")
+	job.finish(aiSummaryStatusSucceeded, "")
 }
 
 // buildAISummaryUserPrompt 用户消息：标题 + 转成纯文本（保留标题层级与代码块标记）的正文

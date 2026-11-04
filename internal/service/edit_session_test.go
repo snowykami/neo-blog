@@ -11,11 +11,14 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 // setupEditTest 使用临时 SQLite 数据库，创建作者、管理员、其他编辑者与一篇私密置顶带标签的文章
 func setupEditTest(t *testing.T) (author, admin, other context.Context, post *model.Post, label *model.Label) {
 	t.Helper()
+	// 每个用例使用干净的共享状态（任务状态、限流计数等）
+	sharedstate.UseMemory()
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {

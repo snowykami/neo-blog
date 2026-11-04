@@ -43,4 +43,6 @@ const (
 	EnvKeyPageHTMLMaxTotalSize             = "PAGE_HTML_MAX_TOTAL_SIZE"             // 环境变量：HTML 页面单个版本解压后的总大小上限，单位字节
 	EnvKeyPageHTMLMaxFiles                 = "PAGE_HTML_MAX_FILES"                  // 环境变量：HTML 页面单个版本的文件数上限
 	EnvKeyPageHTMLMaxFileSize              = "PAGE_HTML_MAX_FILE_SIZE"              // 环境变量：HTML 页面单个文件的大小上限，单位字节
+	EnvKeyRedisURL                         = "REDIS_URL"                            // 环境变量：Redis 地址（如 redis://:password@redis:6379/0），未设置时为单实例模式；多副本部署必须设置
+	EnvKeyRedisKeyPrefix                   = "REDIS_KEY_PREFIX"                     // 环境变量：Redis 键前缀，多个应用共用一个 Redis 时区分，默认 neo-blog:
 )

@@ -16,6 +16,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
@@ -266,7 +267,10 @@ func (s *UserService) OidcAuthorize(ctx context.Context, req *dto.OidcAuthorizeR
 			"code_challenge_method": "S256",
 		})
 	}
-	utils.KV.GetInstance().Set(oidcStateKeyPrefix+state, loginState, oidcStateTTL)
+	// 存在共享状态中：多实例部署时回调落到任一实例都能校验
+	if err := sharedstate.SetJSON(oidcStateKeyPrefix+state, loginState, oidcStateTTL); err != nil {
+		return "", errs.Internal("failed_to_create_target", err)
+	}
 	return authorizeUrl, nil
 }
 
