@@ -162,8 +162,8 @@ func (user *userRepo) UpdateUserColumns(userID uint, columns map[string]any) err
 	return GetDB().Model(&model.User{}).Where("id = ?", userID).Updates(columns).Error
 }
 
-// DeleteUser 删除用户：文章、页面、文件（含已软删除的）转交给 transferTo，
-// 评论（连同其下回复）、点赞、会话、OIDC 绑定、编辑会话一并删除，最后硬删除用户以释放用户名和邮箱
+// DeleteUser 删除用户：文章、页面、文件（含已软删除的）、修订记录转交给 transferTo，
+// 评论（连同其下回复）、点赞、会话、OIDC 绑定、编辑会话、API Token、协作关系一并删除，最后硬删除用户以释放用户名和邮箱
 func (user *userRepo) DeleteUser(userID, transferTo uint) error {
 	if userID == 0 || transferTo == 0 || userID == transferTo {
 		return errs.NewBadRequest("invalid_target")
@@ -173,6 +173,11 @@ func (user *userRepo) DeleteUser(userID, transferTo uint) error {
 			if err := tx.Unscoped().Model(m).Where("user_id = ?", userID).UpdateColumn("user_id", transferTo).Error; err != nil {
 				return err
 			}
+		}
+		// 修订记录随文章、页面转交，其引用的 Token 随用户删除
+		if err := tx.Model(&model.ContentRevision{}).Where("user_id = ?", userID).
+			UpdateColumns(map[string]any{"user_id": transferTo, "api_token_id": nil}).Error; err != nil {
+			return err
 		}
 
 		// 逐条删除评论，复用评论删除的级联逻辑并同步计数
@@ -218,6 +223,10 @@ func (user *userRepo) DeleteUser(userID, transferTo uint) error {
 				}
 			}
 		}
+		// 软删除的评论仍引用用户，计数同步完成后硬删除该用户的全部评论（含此前已软删除的）
+		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&model.Comment{}).Error; err != nil {
+			return err
+		}
 
 		// 删除点赞后回写被点赞目标的计数
 		var likes []model.Like
@@ -233,10 +242,14 @@ func (user *userRepo) DeleteUser(userID, transferTo uint) error {
 			}
 		}
 
-		for _, m := range []any{&model.Session{}, &model.UserOpenID{}, &model.EditSession{}} {
+		// 编辑会话引用 Token，需先于 Token 删除
+		for _, m := range []any{&model.Session{}, &model.UserOpenID{}, &model.EditSession{}, &model.APIToken{}} {
 			if err := tx.Unscoped().Where("user_id = ?", userID).Delete(m).Error; err != nil {
 				return err
 			}
+		}
+		if err := tx.Table("post_collaborators").Where("user_id = ?", userID).Delete(nil).Error; err != nil {
+			return err
 		}
 		if err := deleteUserAIData(tx, userID); err != nil {
 			return err
