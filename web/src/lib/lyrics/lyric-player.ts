@@ -7,6 +7,7 @@ import {
   LYRIC_ALIGN_POSITION,
   LYRIC_BLUR_MAX_PX,
   LYRIC_BLUR_NARROW_FACTOR,
+  LYRIC_DETAIL_FRAME_MS,
   LYRIC_EMPHASIS_MIN_MS,
   LYRIC_FEATHER_EM,
   LYRIC_FOOTER_ALPHA,
@@ -315,6 +316,8 @@ export class LyricPlayer {
 
   private rafId = 0
   private lastFrame = 0
+  // 上一次重绘逐字效果的时间（见 LYRIC_DETAIL_FRAME_MS）
+  private lastDetail = Number.NEGATIVE_INFINITY
   private lastTimeMs: number | null = null
   // 最近一次跳转（拖动进度、打开页面、换歌）的落点：消散特效在它之前就该消散的字直接显示
   private seekAt = Number.NEGATIVE_INFINITY
@@ -646,12 +649,17 @@ export class LyricPlayer {
       this.spotScale = null
     this.spotView = spotView
     const animating = this.layout(dt, now, focusChanged)
-    this.paint(timeMs)
-    const debris = this.debris.step(playing ? dt : 0)
-
     const teleported = this.teleport
     this.teleport = false
-    if (playing || animating || this.manual || teleported || (debris && playing))
+    // 逐字效果隔帧重绘；跳转、换行或循环即将停下时（最后一帧）必须画
+    const continuing = playing || animating || this.manual != null || teleported
+    const detail = !continuing || teleported || focusChanged || now - this.lastDetail >= LYRIC_DETAIL_FRAME_MS
+    if (detail)
+      this.lastDetail = now
+    this.paint(timeMs, detail)
+    const debris = this.debris.step(playing ? dt : 0)
+
+    if (continuing || (debris && playing))
       this.wake()
   }
 
@@ -759,7 +767,7 @@ export class LyricPlayer {
     return manual.offset
   }
 
-  private paint(timeMs: number) {
+  private paint(timeMs: number, detail: boolean) {
     const focus = this.state.focus
     const spot = this.spot
     const inactiveAlpha = this.lyrics.wordTimed ? LYRIC_INACTIVE_ALPHA : LYRIC_INACTIVE_ALPHA_LINE_TIMED
@@ -805,6 +813,8 @@ export class LyricPlayer {
           view.filter = filter
           view.el.style.filter = filter
         }
+        if (!detail)
+          continue
         this.paintWords(view, active, timeMs, feather, inactiveAlpha)
         if (view.emphasis.length > 0) {
           if (this.display.effects && !this.reducedMotion)
@@ -1028,8 +1038,10 @@ export class LyricPlayer {
           scale = 1 + (scale - 1) * growScale
           glow *= glowScale
           transform = `translate(${x.toFixed(3)}em, ${y.toFixed(3)}em) scale(${scale.toFixed(3)})`
-          if (glow > 0.005)
-            shadow = `0 0 ${radius}em color-mix(in srgb, ${tintColor ?? 'var(--lyric-glow, var(--lyric-accent, var(--lyric-color, #fff)))'} ${(glow * 100).toFixed(1)}%, transparent)`
+          // 辉光强度按整数百分比写入：看不出的细微变化不重写 text-shadow（每次重写都要重绘这个字）
+          const glowPercent = Math.round(glow * 100)
+          if (glowPercent > 0)
+            shadow = `0 0 ${radius}em color-mix(in srgb, ${tintColor ?? 'var(--lyric-glow, var(--lyric-accent, var(--lyric-color, #fff)))'} ${glowPercent}%, transparent)`
         }
         if (drift > 0)
           transform = `${transform} translateX(${drift.toFixed(3)}em)`.trim()

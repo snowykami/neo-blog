@@ -49,6 +49,10 @@ export const LYRIC_SEEK_THRESHOLD_MS = 1000
 // 单帧时间差上限（秒）：页面挂起后回归时避免动画以数秒的时长冲过头
 export const LYRIC_MAX_FRAME_S = 0.1
 
+// 逐字效果（擦除遮罩、强调特效）的最短重绘间隔（毫秒）：这些改动都要重绘文字，高刷新率屏幕上隔帧更新（约 60 Hz）；
+// 行的滚动与缩放只改合成层，仍然逐帧
+export const LYRIC_DETAIL_FRAME_MS = 12
+
 // 强调的演出时长下限（毫秒）：唱得很快的短语也有完整的起落（播放器与调试面板共用）
 export const LYRIC_EMPHASIS_MIN_MS = 1000
 

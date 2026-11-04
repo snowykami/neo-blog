@@ -581,6 +581,8 @@ export class StageParticles {
   private scene: StageScene | null = null
   // 累积的待生成数量（小数部分留到下一帧）
   private pending = 0
+  // 画布上是否画着东西：空着且没有粒子时不再逐帧清空（每次清空都要重新合成整块画布）
+  private painted = false
   private width = 0
   private height = 0
 
@@ -656,6 +658,8 @@ export class StageParticles {
       this.pending = 0
     }
 
+    if (this.particles.length === 0 && !this.painted)
+      return
     ctx.clearRect(0, 0, this.width, this.height)
     this.particles = this.particles.filter((p) => {
       p.age += dt
@@ -672,12 +676,14 @@ export class StageParticles {
       p.spec.draw(ctx, p, alpha)
       return true
     })
+    this.painted = this.particles.length > 0
   }
 
   clear() {
     this.particles = []
     this.density = 0
     this.pending = 0
+    this.painted = false
     this.ctx?.clearRect(0, 0, this.width, this.height)
   }
 }

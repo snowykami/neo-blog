@@ -143,7 +143,8 @@ export function navEmphasisStyle(group: LyricEmphasis, i: number, count: number,
   const moved = Math.abs(scale - 1) > 0.0005 || Math.abs(x) > 0.0005 || Math.abs(y) > 0.0005
   return {
     transform: moved ? `translate(${x.toFixed(3)}em, ${y.toFixed(3)}em) scale(${scale.toFixed(3)})` : '',
-    textShadow: glow > 0.005 ? `0 0 0.35em color-mix(in srgb, ${tintColor ?? 'currentColor'} ${(glow * 100).toFixed(1)}%, transparent)` : '',
+    // 按整数百分比写入，细微变化不重写 text-shadow
+    textShadow: Math.round(glow * 100) > 0 ? `0 0 0.35em color-mix(in srgb, ${tintColor ?? 'currentColor'} ${Math.round(glow * 100)}%, transparent)` : '',
     filter,
     opacity,
     color,

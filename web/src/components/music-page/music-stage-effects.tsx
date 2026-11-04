@@ -148,20 +148,21 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
     return null
   return (
     <div ref={rootRef} aria-hidden className={cn('pointer-events-none inset-0 overflow-hidden [scale:calc(1+var(--stage-push,0)*0.08)]', contained ? 'absolute' : 'fixed')}>
+      {/* 三层的透明度逐帧变化：各自提升为合成层，只改合成参数，不必每帧重新光栅化整屏渐变 */}
       <div
         ref={tintRef}
-        className="absolute inset-0 opacity-0 mix-blend-screen"
+        className="absolute inset-0 opacity-0 mix-blend-screen will-change-[opacity]"
         style={{ background: 'radial-gradient(ellipse at 65% 45%, var(--stage-tint, transparent), transparent 70%)' }}
       />
       <div
         ref={pulseRef}
-        className="absolute inset-0 opacity-0 mix-blend-soft-light"
+        className="absolute inset-0 opacity-0 mix-blend-soft-light will-change-[opacity]"
         style={{ background: 'radial-gradient(ellipse at 50% 50%, var(--lyric-accent, #fff), transparent 75%)' }}
       />
       {/* 聚光灯：歌词区中央一团暖光（播放器页宽屏时歌词在右侧），四周略微压暗 */}
       <div
         ref={spotlightRef}
-        className="absolute inset-0 opacity-0 [--spot-x:50%] lg:[--spot-x:62%]"
+        className="absolute inset-0 opacity-0 will-change-[opacity] [--spot-x:50%] lg:[--spot-x:62%]"
         style={{ background: `radial-gradient(42% 30% at ${contained ? '50%' : 'var(--spot-x)'} 50%, rgb(255 236 200 / ${SPOTLIGHT_WARM_OPACITY}), transparent 70%), radial-gradient(75% 60% at 50% 50%, transparent 40%, rgb(0 0 0 / ${SPOTLIGHT_DIM_OPACITY}) 100%)` }}
       />
       <canvas ref={canvasRef} className="absolute inset-0 size-full" />
