@@ -2144,7 +2144,8 @@
         "logs": "日誌",
         "import": "匯入",
         "export": "匯出",
-        "export_hint": "依目前的篩選條件匯出帳號資料與性格檔案（不含記憶與日誌）"
+        "export_hint": "依目前的篩選條件匯出帳號資料與性格檔案（不含記憶與日誌）",
+        "distill": "人物蒸餾"
       },
       "create": {
         "title": "新增 AI 使用者",
@@ -2175,6 +2176,7 @@
         "dropzone": "點擊選擇或拖入 JSON 檔案",
         "paste_label": "或貼上 JSON",
         "invalid_file": "不是有效的 AI 使用者檔案：應為一個 AI 使用者物件或物件陣列，每一項都要有 username",
+        "skill_hint": "想把一個人「蒸餾」成 AI 使用者？用 Claude Code、Codex 等 AI 工具和<link>人物蒸餾 skill</link>，根據這個人的社群主頁、GitHub、個人網站、聊天記錄截圖等資料產生匯入檔案。",
         "read": "讀取",
         "count": "共 {count} 個 AI 使用者",
         "reselect": "重新選擇",
@@ -2195,6 +2197,21 @@
       "export": {
         "success": "已匯出 {count} 個 AI 使用者",
         "empty": "沒有可匯出的 AI 使用者"
+      },
+      "distill": {
+        "title": "人物蒸餾",
+        "description": "用 Claude Code、Codex 等 AI Agent 把一個人「蒸餾」成 AI 使用者：根據 TA 的社群主頁、GitHub、個人網站、聊天記錄截圖和公開的網路活動，分析性格與說話方式，產生可以在這裡匯入的檔案。",
+        "step_install": "複製下面的提示詞，傳給你的 Agent 用戶端（Claude Code、Codex 等），它會自己安裝 skill。",
+        "step_distill": "安裝後對它說「把某某蒸餾成我部落格的 AI 使用者」，依它的提示提供資料。",
+        "step_import": "回到這裡點「匯入」，選擇產生的 .ai-agent.json 檔案；同一個使用者名稱再次匯入會更新已有的 AI 使用者。",
+        "prompt_label": "安裝提示詞",
+        "copy": "複製",
+        "copied": "已複製提示詞",
+        "copy_failed": "複製失敗，請手動選取文字複製",
+        "consent": "蒸餾真實存在的人之前，請先取得本人同意：AI 使用者在前台與一般使用者顯示得一樣。",
+        "view_skill": "查看 skill",
+        "go_import": "去匯入",
+        "prompt": "請幫我安裝 neo-blog 部落格的「人物蒸餾」skill（{skillName}）。它能根據一個人的社群主頁、GitHub、個人網站、聊天記錄截圖和公開的網路活動，分析性格與說話方式，產生可以匯入部落格的 AI 使用者檔案。\n\n1. 從 {repoUrl} 取出 skills/{skillName} 目錄，例如：\n   git clone --depth 1 --filter=blob:none --sparse {repoUrl} neo-blog-skill-tmp\n   git -C neo-blog-skill-tmp sparse-checkout set skills/{skillName}\n   沒有 git 時，下載 {repoUrl}/archive/refs/heads/main.zip 再解壓出這個目錄。\n2. 把整個目錄複製到你載入 skill 的位置：Claude Code 為 ~/.claude/skills/{skillName}，Codex 為 ~/.codex/skills/{skillName}，其他用戶端放到它的 skills 目錄。已經裝過時直接覆蓋，即為更新。\n3. 確認目標目錄裡有 SKILL.md，刪除暫存檔案，然後告訴我裝到了哪裡。如果你不支援 skill，就把這個目錄留在本機，之後讓你蒸餾時先讀 SKILL.md，再依其中的流程工作。\n\n我的部落格網址：{siteUrl}"
       },
       "generate": {
         "title": "批次產生 AI 使用者",

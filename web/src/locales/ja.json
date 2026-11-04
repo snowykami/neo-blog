@@ -2144,7 +2144,8 @@
         "logs": "ログ",
         "import": "インポート",
         "export": "エクスポート",
-        "export_hint": "現在の絞り込み条件でアカウント情報と性格プロフィールをエクスポート（記憶とログは含みません）"
+        "export_hint": "現在の絞り込み条件でアカウント情報と性格プロフィールをエクスポート（記憶とログは含みません）",
+        "distill": "人物蒸留"
       },
       "create": {
         "title": "AI ユーザーを作成",
@@ -2175,6 +2176,7 @@
         "dropzone": "クリックして選択、または JSON ファイルをドロップ",
         "paste_label": "または JSON を貼り付け",
         "invalid_file": "有効な AI ユーザーファイルではありません：AI ユーザーのオブジェクトかその配列で、各項目に username が必要です",
+        "skill_hint": "ある人を AI ユーザーに「蒸留」しませんか？Claude Code や Codex などの AI ツールと<link>人物蒸留 skill</link>で、その人の SNS、GitHub、個人サイト、チャットのスクリーンショットなどからインポート用ファイルを生成できます。",
         "read": "読み込む",
         "count": "{count} 人の AI ユーザー",
         "reselect": "選び直す",
@@ -2195,6 +2197,21 @@
       "export": {
         "success": "{count} 人の AI ユーザーをエクスポートしました",
         "empty": "エクスポートできる AI ユーザーがありません"
+      },
+      "distill": {
+        "title": "人物蒸留",
+        "description": "Claude Code や Codex などの AI エージェントで、ある人を AI ユーザーに「蒸留」します。その人の SNS、GitHub、個人サイト、チャットのスクリーンショット、公開されているネット上の活動から性格と話し方を分析し、ここでインポートできるファイルを生成します。",
+        "step_install": "下のプロンプトをコピーしてエージェントクライアント（Claude Code、Codex など）に送ると、skill を自分でインストールします。",
+        "step_distill": "インストール後「○○を私のブログの AI ユーザーに蒸留して」と伝え、求められた資料を渡します。",
+        "step_import": "ここに戻って「インポート」を押し、生成された .ai-agent.json ファイルを選びます。同じユーザー名で再度インポートすると既存の AI ユーザーを更新します。",
+        "prompt_label": "インストール用プロンプト",
+        "copy": "コピー",
+        "copied": "プロンプトをコピーしました",
+        "copy_failed": "コピーできませんでした。テキストを選択して手動でコピーしてください",
+        "consent": "実在の人を蒸留する前に、本人の同意を得てください。AI ユーザーはサイト上で他のユーザーと同じように表示されます。",
+        "view_skill": "skill を見る",
+        "go_import": "インポートへ",
+        "prompt": "neo-blog ブログの「人物蒸留」skill（{skillName}）をインストールしてください。ある人の SNS、GitHub、個人サイト、チャットのスクリーンショット、公開されているネット上の活動から性格と話し方を分析し、ブログにインポートできる AI ユーザーファイルを生成する skill です。\n\n1. {repoUrl} から skills/{skillName} ディレクトリを取得します。例：\n   git clone --depth 1 --filter=blob:none --sparse {repoUrl} neo-blog-skill-tmp\n   git -C neo-blog-skill-tmp sparse-checkout set skills/{skillName}\n   git がない場合は {repoUrl}/archive/refs/heads/main.zip をダウンロードし、このディレクトリを展開します。\n2. ディレクトリごと skill を読み込む場所にコピーします：Claude Code は ~/.claude/skills/{skillName}、Codex は ~/.codex/skills/{skillName}、その他のクライアントはその skills ディレクトリです。インストール済みの場合は上書きすると更新になります。\n3. コピー先に SKILL.md があることを確認し、一時ファイルを削除して、インストール先を教えてください。skill に対応していない場合はディレクトリをローカルに残し、蒸留を頼んだときにまず SKILL.md を読んでその手順に従ってください。\n\n私のブログ：{siteUrl}"
       },
       "generate": {
         "title": "AI ユーザーを一括生成",

@@ -2144,7 +2144,8 @@
         "logs": "로그",
         "import": "가져오기",
         "export": "내보내기",
-        "export_hint": "현재 필터 조건으로 계정 정보와 성격 프로필을 내보냅니다 (기억과 로그 제외)"
+        "export_hint": "현재 필터 조건으로 계정 정보와 성격 프로필을 내보냅니다 (기억과 로그 제외)",
+        "distill": "인물 증류"
       },
       "create": {
         "title": "AI 사용자 만들기",
@@ -2175,6 +2176,7 @@
         "dropzone": "클릭하여 선택하거나 JSON 파일을 끌어다 놓으세요",
         "paste_label": "또는 JSON 붙여넣기",
         "invalid_file": "올바른 AI 사용자 파일이 아닙니다: AI 사용자 객체나 그 배열이어야 하며, 각 항목에 username이 있어야 합니다",
+        "skill_hint": "한 사람을 AI 사용자로 「증류」하고 싶나요? Claude Code, Codex 같은 AI 도구와 <link>인물 증류 skill</link>로 그 사람의 소셜 프로필, GitHub, 개인 사이트, 채팅 스크린샷 등에서 가져오기 파일을 생성할 수 있습니다.",
         "read": "읽기",
         "count": "AI 사용자 {count}명",
         "reselect": "다시 선택",
@@ -2195,6 +2197,21 @@
       "export": {
         "success": "AI 사용자 {count}명을 내보냈습니다",
         "empty": "내보낼 AI 사용자가 없습니다"
+      },
+      "distill": {
+        "title": "인물 증류",
+        "description": "Claude Code, Codex 같은 AI 에이전트로 한 사람을 AI 사용자로 「증류」합니다. 그 사람의 소셜 프로필, GitHub, 개인 사이트, 채팅 스크린샷과 공개된 온라인 활동에서 성격과 말투를 분석해 여기서 가져올 수 있는 파일을 생성합니다.",
+        "step_install": "아래 프롬프트를 복사해 에이전트 클라이언트(Claude Code, Codex 등)에 보내면 skill을 직접 설치합니다.",
+        "step_distill": "설치 후 「○○를 내 블로그의 AI 사용자로 증류해 줘」라고 말하고, 요청하는 자료를 제공하세요.",
+        "step_import": "여기로 돌아와 「가져오기」를 누르고 생성된 .ai-agent.json 파일을 선택하세요. 같은 사용자 이름으로 다시 가져오면 기존 AI 사용자를 업데이트합니다.",
+        "prompt_label": "설치 프롬프트",
+        "copy": "복사",
+        "copied": "프롬프트를 복사했습니다",
+        "copy_failed": "복사하지 못했습니다. 텍스트를 선택해 직접 복사하세요",
+        "consent": "실제 인물을 증류하기 전에 본인의 동의를 받으세요. AI 사용자는 사이트에서 다른 사용자와 똑같이 표시됩니다.",
+        "view_skill": "skill 보기",
+        "go_import": "가져오기로",
+        "prompt": "neo-blog 블로그의 「인물 증류」 skill({skillName})을 설치해 주세요. 한 사람의 소셜 프로필, GitHub, 개인 사이트, 채팅 스크린샷과 공개된 온라인 활동에서 성격과 말투를 분석해 블로그로 가져올 수 있는 AI 사용자 파일을 생성하는 skill입니다.\n\n1. {repoUrl}에서 skills/{skillName} 디렉터리를 가져옵니다. 예:\n   git clone --depth 1 --filter=blob:none --sparse {repoUrl} neo-blog-skill-tmp\n   git -C neo-blog-skill-tmp sparse-checkout set skills/{skillName}\n   git이 없으면 {repoUrl}/archive/refs/heads/main.zip을 내려받아 이 디렉터리를 압축 해제합니다.\n2. 디렉터리 전체를 skill을 불러오는 위치에 복사합니다: Claude Code는 ~/.claude/skills/{skillName}, Codex는 ~/.codex/skills/{skillName}, 다른 클라이언트는 해당 skills 디렉터리입니다. 이미 설치되어 있으면 덮어쓰면 업데이트됩니다.\n3. 대상 디렉터리에 SKILL.md가 있는지 확인하고 임시 파일을 지운 뒤 설치 위치를 알려 주세요. skill을 지원하지 않으면 디렉터리를 로컬에 두고, 증류를 요청받으면 먼저 SKILL.md를 읽고 그 절차를 따르세요.\n\n내 블로그: {siteUrl}"
       },
       "generate": {
         "title": "AI 사용자 일괄 생성",

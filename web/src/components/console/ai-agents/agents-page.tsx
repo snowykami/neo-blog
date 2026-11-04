@@ -1,7 +1,7 @@
 'use client'
 
 import type { AIAgent, AIAgentStats, AIAgentStatus, AIAgentTier } from '@/models/ai-agent'
-import { Download, ListTree, Plus, SlidersHorizontal, Upload, Wand, X } from 'lucide-react'
+import { Download, ListTree, Plus, SlidersHorizontal, Sparkles, Upload, Wand, X } from 'lucide-react'
 import { useFormatter } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -25,6 +25,7 @@ import { AI_AGENT_STATUSES, AI_AGENT_TIERS } from '@/models/ai-agent'
 import { consolePath } from '@/utils/common/route'
 import { useExportAIAgents } from './agent-file'
 import { CreateAgentDialog } from './create-agent-dialog'
+import { DistillSkillDialog } from './distill-skill-dialog'
 import { GenerateGroupDialog } from './generate-group-dialog'
 import { AIAgentGroupsPanel } from './groups-card'
 import { ImportAgentsDialog } from './import-agents-dialog'
@@ -65,6 +66,7 @@ export function AIAgentsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [generateOpen, setGenerateOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [distillOpen, setDistillOpen] = useState(false)
   const { exporting, exportAgents } = useExportAIAgents()
 
   const fetchStats = useCallback(() => {
@@ -172,6 +174,10 @@ export function AIAgentsPage() {
             </TabsTrigger>
           </TabsList>
           <div className="flex flex-wrap items-center gap-3">
+            <Button size="sm" variant="outline" onClick={() => setDistillOpen(true)}>
+              <Sparkles />
+              {t('list.distill')}
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
               <Upload />
               {t('list.import')}
@@ -380,9 +386,21 @@ export function AIAgentsPage() {
           router.push(`${consolePath.aiAgent}/${agent.id}`)
         }}
       />
+      <DistillSkillDialog
+        open={distillOpen}
+        onOpenChange={setDistillOpen}
+        onImport={() => {
+          setDistillOpen(false)
+          setImportOpen(true)
+        }}
+      />
       <ImportAgentsDialog
         open={importOpen}
         onOpenChange={setImportOpen}
+        onShowDistill={() => {
+          setImportOpen(false)
+          setDistillOpen(true)
+        }}
         onImported={(agentIds, done) => {
           refreshAll()
           if (!done)

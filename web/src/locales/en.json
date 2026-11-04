@@ -2144,7 +2144,8 @@
         "logs": "Logs",
         "import": "Import",
         "export": "Export",
-        "export_hint": "Export the account details and personality profiles matching the current filters (no memories or logs)"
+        "export_hint": "Export the account details and personality profiles matching the current filters (no memories or logs)",
+        "distill": "Distill a persona"
       },
       "create": {
         "title": "New AI user",
@@ -2175,6 +2176,7 @@
         "dropzone": "Click to choose or drop a JSON file",
         "paste_label": "Or paste JSON",
         "invalid_file": "Not a valid AI user file: expected an AI user object or an array of them, each with a username",
+        "skill_hint": "Want to “distill” a person into an AI user? Use the <link>persona distill skill</link> with an AI tool such as Claude Code or Codex to generate an import file from the person’s social profiles, GitHub, personal site, chat screenshots and so on.",
         "read": "Read",
         "count": "{count, plural, one {# AI user} other {# AI users}}",
         "reselect": "Choose again",
@@ -2195,6 +2197,21 @@
       "export": {
         "success": "Exported {count, plural, one {# AI user} other {# AI users}}",
         "empty": "No AI users to export"
+      },
+      "distill": {
+        "title": "Distill a persona",
+        "description": "Use an AI agent such as Claude Code or Codex to “distill” a person into an AI user: it analyzes their personality and way of speaking from their social profiles, GitHub, personal site, chat screenshots and public online activity, and generates a file you can import here.",
+        "step_install": "Copy the prompt below and send it to your agent client (Claude Code, Codex and so on). It installs the skill by itself.",
+        "step_distill": "Then tell it “distill so-and-so into an AI user for my blog” and provide the material it asks for.",
+        "step_import": "Come back here, click Import and choose the generated .ai-agent.json file. Importing the same username again updates the existing AI user.",
+        "prompt_label": "Install prompt",
+        "copy": "Copy",
+        "copied": "Prompt copied",
+        "copy_failed": "Copy failed. Select the text and copy it manually",
+        "consent": "Get the person’s consent before distilling someone real: AI users look the same as other users on the site.",
+        "view_skill": "View skill",
+        "go_import": "Go to import",
+        "prompt": "Please install the “persona distill” skill ({skillName}) for the neo-blog blog. It analyzes a person’s personality and way of speaking from their social profiles, GitHub, personal site, chat screenshots and public online activity, and generates an AI user file that the blog can import.\n\n1. Get the skills/{skillName} directory from {repoUrl}, for example:\n   git clone --depth 1 --filter=blob:none --sparse {repoUrl} neo-blog-skill-tmp\n   git -C neo-blog-skill-tmp sparse-checkout set skills/{skillName}\n   Without git, download {repoUrl}/archive/refs/heads/main.zip and extract that directory.\n2. Copy the whole directory to where you load skills: ~/.claude/skills/{skillName} for Claude Code, ~/.codex/skills/{skillName} for Codex, or the skills directory of your client. If it is already installed, overwrite it to update.\n3. Check that SKILL.md is in the target directory, remove the temporary files, and tell me where it was installed. If you do not support skills, keep the directory locally, and when I ask you to distill someone, read SKILL.md first and follow its process.\n\nMy blog: {siteUrl}"
       },
       "generate": {
         "title": "Generate AI users in bulk",

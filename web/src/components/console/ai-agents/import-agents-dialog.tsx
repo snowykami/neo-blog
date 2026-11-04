@@ -1,13 +1,14 @@
 'use client'
 
 import type { AIAgentFileItem, ImportAIAgentResult } from '@/models/ai-agent'
-import { CircleCheck, FileJson, Loader2, X } from 'lucide-react'
+import { CircleCheck, FileJson, Loader2, Sparkles, X } from 'lucide-react'
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { importAIAgents } from '@/api/ai-agent'
 import { UserAvatar } from '@/components/common/avatar'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -43,10 +44,11 @@ interface RowState {
 }
 
 // 导入 AI 用户：读取导出文件或 AI 生成的文件（单个对象或数组），试运行预览每一项新建还是更新，再逐个导入
-export function ImportAgentsDialog({ open, onOpenChange, onImported }: {
+export function ImportAgentsDialog({ open, onOpenChange, onImported, onShowDistill }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onImported: (agentIds: number[], done: boolean) => void
+  onShowDistill: () => void // 打开「人物蒸馏」说明
 }) {
   const t = useAIAgentT()
   return (
@@ -56,15 +58,16 @@ export function ImportAgentsDialog({ open, onOpenChange, onImported }: {
           <DialogTitle>{t('import.title')}</DialogTitle>
           <DialogDescription>{t('import.description')}</DialogDescription>
         </DialogHeader>
-        {open && <ImportAgentsBody onCancel={() => onOpenChange(false)} onImported={onImported} />}
+        {open && <ImportAgentsBody onCancel={() => onOpenChange(false)} onImported={onImported} onShowDistill={onShowDistill} />}
       </DialogContent>
     </Dialog>
   )
 }
 
-function ImportAgentsBody({ onCancel, onImported }: {
+function ImportAgentsBody({ onCancel, onImported, onShowDistill }: {
   onCancel: () => void
   onImported: (agentIds: number[], done: boolean) => void
+  onShowDistill: () => void
 }) {
   const t = useAIAgentT()
   const commonT = useCommonT()
@@ -251,6 +254,16 @@ function ImportAgentsBody({ onCancel, onImported }: {
           />
           {invalid && <p role="alert" className="text-sm text-destructive">{t('import.invalid_file')}</p>}
         </div>
+        <Alert>
+          <Sparkles />
+          <AlertDescription>
+            <p>
+              {t.rich('import.skill_hint', {
+                link: chunks => <button type="button" className="font-medium text-foreground underline underline-offset-4" onClick={onShowDistill}>{chunks}</button>,
+              })}
+            </p>
+          </AlertDescription>
+        </Alert>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onCancel}>{operationT('cancel')}</Button>
           <Button type="button" disabled={!content.trim()} onClick={() => load(content)}>{t('import.read')}</Button>

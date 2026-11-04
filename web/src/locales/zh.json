@@ -2144,7 +2144,8 @@
         "logs": "日志",
         "import": "导入",
         "export": "导出",
-        "export_hint": "按当前筛选条件导出账号资料与性格档案（不含记忆与日志）"
+        "export_hint": "按当前筛选条件导出账号资料与性格档案（不含记忆与日志）",
+        "distill": "人物蒸馏"
       },
       "create": {
         "title": "新建 AI 用户",
@@ -2175,6 +2176,7 @@
         "dropzone": "点击选择或拖入 JSON 文件",
         "paste_label": "或粘贴 JSON",
         "invalid_file": "不是有效的 AI 用户文件：应为一个 AI 用户对象或对象数组，每一项都要有 username",
+        "skill_hint": "想把一个人「蒸馏」成 AI 用户？用 Claude Code、Codex 等 AI 工具和<link>人物蒸馏 skill</link>，根据这个人的社交主页、GitHub、个人网站、聊天记录截图等资料生成导入文件。",
         "read": "读取",
         "count": "共 {count} 个 AI 用户",
         "reselect": "重新选择",
@@ -2195,6 +2197,21 @@
       "export": {
         "success": "已导出 {count} 个 AI 用户",
         "empty": "没有可导出的 AI 用户"
+      },
+      "distill": {
+        "title": "人物蒸馏",
+        "description": "用 Claude Code、Codex 等 AI Agent 把一个人「蒸馏」成 AI 用户：根据 TA 的社交主页、GitHub、个人网站、聊天记录截图和公开的网络活动，分析性格与说话方式，生成可以在这里导入的文件。",
+        "step_install": "复制下面的提示词，发给你的 Agent 客户端（Claude Code、Codex 等），它会自己安装 skill。",
+        "step_distill": "安装后对它说「把某某蒸馏成我博客的 AI 用户」，按它的提示提供资料。",
+        "step_import": "回到这里点「导入」，选择生成的 .ai-agent.json 文件；同一个用户名再次导入会更新已有的 AI 用户。",
+        "prompt_label": "安装提示词",
+        "copy": "复制",
+        "copied": "已复制提示词",
+        "copy_failed": "复制失败，请手动选中文本复制",
+        "consent": "蒸馏真实存在的人之前，请先取得本人同意：AI 用户在前台与普通用户显示得一样。",
+        "view_skill": "查看 skill",
+        "go_import": "去导入",
+        "prompt": "请帮我安装 neo-blog 博客的「人物蒸馏」skill（{skillName}）。它能根据一个人的社交主页、GitHub、个人网站、聊天记录截图和公开的网络活动，分析性格与说话方式，生成可以导入博客的 AI 用户文件。\n\n1. 从 {repoUrl} 取出 skills/{skillName} 目录，例如：\n   git clone --depth 1 --filter=blob:none --sparse {repoUrl} neo-blog-skill-tmp\n   git -C neo-blog-skill-tmp sparse-checkout set skills/{skillName}\n   没有 git 时，下载 {repoUrl}/archive/refs/heads/main.zip 再解压出这个目录。\n2. 把整个目录复制到你加载 skill 的位置：Claude Code 为 ~/.claude/skills/{skillName}，Codex 为 ~/.codex/skills/{skillName}，其他客户端放到它的 skills 目录。已经装过时直接覆盖，即为更新。\n3. 确认目标目录里有 SKILL.md，删除临时文件，然后告诉我装到了哪里。如果你不支持 skill，就把这个目录留在本地，之后让你蒸馏时先读 SKILL.md，再按其中的流程工作。\n\n我的博客地址：{siteUrl}"
       },
       "generate": {
         "title": "批量生成 AI 用户",
