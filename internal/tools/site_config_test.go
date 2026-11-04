@@ -14,6 +14,7 @@ import (
 // 后台全局配置保存的数字经 JSON 读出为 float64，读取时不能因类型断言 panic
 func TestSiteConfigTypedValues(t *testing.T) {
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)
@@ -59,6 +60,7 @@ func TestNormalizeAPIHost(t *testing.T) {
 // 令牌有效期：环境变量（秒）优先于后台配置（访问令牌按秒、刷新令牌按天），都没有时用默认值，超出范围取边界值
 func TestGetAuthDurations(t *testing.T) {
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)
@@ -93,6 +95,7 @@ func TestGetAuthDurations(t *testing.T) {
 // 人机验证与发信配置按注册表读取：环境变量优先于后台配置
 func TestCaptchaAndEmailConfig(t *testing.T) {
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)

@@ -30,6 +30,7 @@ func setupWorkerTest(t *testing.T) {
 	pollInterval = 100 * time.Millisecond
 	t.Cleanup(func() { pollInterval = interval })
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)

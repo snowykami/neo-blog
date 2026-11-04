@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,11 @@ type redisStore struct {
 func newRedisStore(redisURL, prefix string) (*redisStore, error) {
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
+		// url.Error 会带上完整地址（含密码），只保留原因
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
 		return nil, fmt.Errorf("invalid REDIS_URL: %w", err)
 	}
 	opt.DialTimeout = redisDialTimeout

@@ -20,6 +20,7 @@ func setupEditTest(t *testing.T) (author, admin, other context.Context, post *mo
 	// 每个用例使用干净的共享状态（任务状态、限流计数等）
 	sharedstate.UseMemory()
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)

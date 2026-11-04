@@ -28,6 +28,7 @@ type testEnv struct {
 func setupTest(t *testing.T) *testEnv {
 	t.Helper()
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)

@@ -79,16 +79,33 @@ helm repo update
 helm install neo-blog git.liteyuki.org/neo-blog
 ```
 
+### 数据库与 Redis 配置
+
+后端默认使用 `./data/data.db` 的 SQLite。可以用 `DB_URL` 一次配置好数据库，驱动由 scheme 决定；**设置了 `DB_URL` 时，`DB_DRIVER`、`DB_PATH`、`DB_HOST` 等其他 `DB_*` 变量全部忽略**，未设置时仍按 `DB_*` 读取（见 `.env.example`）。
+
+| 数据库 | `DB_URL` 示例 |
+| --- | --- |
+| Postgres | `postgres://blog:password@postgres:5432/blog?sslmode=disable`（也可写 `postgresql://`） |
+| SQLite（绝对路径） | `sqlite:///app/data/data.db` |
+| SQLite（相对路径） | `sqlite://./data/data.db` 或 `file:./data/data.db` |
+
+- Postgres 地址原样交给驱动，支持其全部连接参数；用户名、密码中的 `@`、`:`、`/` 等特殊字符需要 URL 编码
+- SQLite 地址 `?` 之后的参数追加在默认参数之后，如 `sqlite://./data/data.db?_pragma=foreign_keys(1)`
+- scheme 不认识时后端拒绝启动；启动日志中的连接信息会隐藏密码
+- Helm 中为 `database.url`，或用 `database.existingSecret` 从已有 Secret 读取（键默认为 `db-url`）
+
+`REDIS_URL` 为可选的共享状态地址，格式为 `redis://[user:password@]host:6379/0`，TLS 用 `rediss://`，也支持 `unix:///path/to/redis.sock`。未设置时使用进程内存，只支持单实例；配置了但连接失败时后端拒绝启动。Helm 中为 `redis.url`，或用 `redis.existingSecret` 从已有 Secret 读取（键默认为 `redis-url`）。
+
 ### 多副本部署
 
 默认的单实例部署不需要 Redis。后端需要多个副本（`replicaCount > 1` 或启用自动扩缩容）时：
 
 - 设置 `REDIS_URL`（Helm 中为 `redis.url` 或 `redis.existingSecret`），各副本通过 Redis 共享第三方登录 state、邮箱验证码、限流计数、AI 摘要任务状态、分布式锁与缓存失效通知；配置了 Redis 但连接失败时后端拒绝启动
-- 数据库使用 Postgres（SQLite 只支持单实例）
+- 数据库使用 Postgres（`DB_URL=postgres://…` 或 `DB_DRIVER=postgres`，SQLite 只支持单实例）
 - 文件存储使用 S3 / WebDAV，或为所有副本挂载同一个共享卷
 - 所有副本使用相同的 `JWT_SECRET` 与 `PASSWORD_SALT`
 
-Helm Chart 会在缺少 Redis 或仍使用 SQLite 时拒绝渲染多副本部署。前端没有跨请求的进程内状态，可直接增加副本。
+Helm Chart 会在缺少 Redis 或仍使用 SQLite 时拒绝渲染多副本部署（`database.existingSecret` 中的地址渲染时不可见，不做检查）。前端没有跨请求的进程内状态，可直接增加副本。
 
 ### 使用源码构建部署(不推荐)
 

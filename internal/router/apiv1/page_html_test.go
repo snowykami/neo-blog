@@ -90,6 +90,7 @@ func uploadRequest(t *testing.T, url, cookie, fileName string, content []byte) *
 
 func TestPageHTMLRoutes(t *testing.T) {
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	t.Setenv(constant.EnvKeyBaseUrl, "http://blog.test")
 	if err := repo.InitDatabase(); err != nil {

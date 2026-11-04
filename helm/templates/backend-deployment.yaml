@@ -46,6 +46,16 @@ spec:
             - name: {{ $key | quote }}
               value: {{ $val | quote }}
             {{- end }}
+            {{- if .Values.database.existingSecret }}
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret | quote }}
+                  key: {{ .Values.database.existingSecretKey | default "db-url" | quote }}
+            {{- else if .Values.database.url }}
+            - name: DB_URL
+              value: {{ .Values.database.url | quote }}
+            {{- end }}
             {{- if .Values.redis.existingSecret }}
             - name: REDIS_URL
               valueFrom:

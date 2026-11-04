@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -24,56 +26,109 @@ func GetDB() *gorm.DB {
 	return db
 }
 
-// DBConfig 数据库配置结构体
+// DBConfig 数据库连接配置：设置了 DB_URL 时完全由它决定，否则读取其他 DB_* 变量
 type DBConfig struct {
-	Driver   string // 数据库驱动类型，例如 "sqlite" 或 "postgres" Database driver type, e.g., "sqlite" or "postgres"
-	Path     string // SQLite 路径 SQLite path
-	Host     string // PostgreSQL 主机名 PostgreSQL hostname
-	Port     int    // PostgreSQL 端口 PostgreSQL port
-	User     string // PostgreSQL 用户名 PostgreSQL username
-	Password string // PostgreSQL 密码 PostgreSQL password
-	DBName   string // PostgreSQL 数据库名 PostgreSQL database name
-	SSLMode  string // PostgreSQL SSL 模式 PostgreSQL SSL mode
+	Driver string // 数据库驱动，"sqlite" 或 "postgres"
+	DSN    string // PostgreSQL 连接串（URL 或 key=value）
+	Path   string // SQLite 文件路径
+	Params string // SQLite 附加连接参数（DB_URL 中 ? 之后的部分），追加在默认参数之后
+	safe   string // 隐藏密码后的连接信息
 }
 
-// loadDBConfig 从配置文件加载数据库配置
-func loadDBConfig() DBConfig {
-	return DBConfig{
-		Driver:   utils.Env.Get(constant.EnvKeyDBDriver, "sqlite"),
-		Path:     utils.Env.Get(constant.EnvKeyDBPath, "./data/data.db"),
-		Host:     utils.Env.Get(constant.EnvKeyDBHost, "postgres"),
-		Port:     utils.Env.GetAsInt(constant.EnvKeyDBPort, 5432),
-		User:     utils.Env.Get(constant.EnvKeyDBUser, "blog"),
-		Password: utils.Env.Get(constant.EnvKeyDBPassword, "blog"),
-		DBName:   utils.Env.Get(constant.EnvKeyDBName, "blog"),
-		SSLMode:  utils.Env.Get(constant.EnvKeyDBSslMode, "disable"),
+// String 返回隐藏密码后的连接信息，打印配置时不会泄露密码
+func (c DBConfig) String() string {
+	return c.safe
+}
+
+// supportedDBURLs DB_URL 支持的格式，用于错误提示
+const supportedDBURLs = "postgres://user:password@host:5432/dbname?sslmode=disable (or postgresql://), sqlite:///abs/path/blog.db, sqlite://./data/data.db, file:./data/data.db"
+
+// LoadDBConfig 读取数据库配置：设置了 DB_URL 时以它为准，忽略其他 DB_* 变量
+func LoadDBConfig() (DBConfig, error) {
+	if raw := strings.TrimSpace(utils.Env.Get(constant.EnvKeyDBURL)); raw != "" {
+		return parseDBURL(raw)
 	}
+	switch driver := utils.Env.Get(constant.EnvKeyDBDriver, "sqlite"); driver {
+	case "postgres":
+		safe := fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=%s",
+			utils.Env.Get(constant.EnvKeyDBHost, "postgres"),
+			utils.Env.GetAsInt(constant.EnvKeyDBPort, 5432),
+			utils.Env.Get(constant.EnvKeyDBUser, "blog"),
+			utils.Env.Get(constant.EnvKeyDBName, "blog"),
+			utils.Env.Get(constant.EnvKeyDBSslMode, "disable"))
+		dsn := safe + " password=" + utils.Env.Get(constant.EnvKeyDBPassword, "blog")
+		return DBConfig{Driver: driver, DSN: dsn, safe: safe}, nil
+	case "sqlite":
+		path := utils.Env.Get(constant.EnvKeyDBPath, "./data/data.db")
+		return DBConfig{Driver: driver, Path: path, safe: path}, nil
+	default:
+		return DBConfig{}, errors.New("unsupported database driver, only sqlite and postgres are supported")
+	}
+}
+
+// parseDBURL 解析 DB_URL，驱动由 scheme 决定：Postgres 地址原样交给驱动；
+// SQLite 地址去掉 scheme 后为文件路径（sqlite:///abs 为绝对路径，sqlite://./rel 与 file:./rel 为相对路径）
+func parseDBURL(raw string) (DBConfig, error) {
+	scheme, rest, _ := strings.Cut(raw, ":")
+	switch scheme = strings.ToLower(scheme); scheme {
+	case "postgres", "postgresql":
+		dsn := scheme + ":" + rest // 驱动只认小写 scheme
+		u, err := url.Parse(dsn)
+		if err != nil {
+			// url.Error 会带上完整地址（含密码），只保留原因
+			var urlErr *url.Error
+			if errors.As(err, &urlErr) {
+				err = urlErr.Err
+			}
+			return DBConfig{}, fmt.Errorf("invalid %s: %w", constant.EnvKeyDBURL, err)
+		}
+		return DBConfig{Driver: "postgres", DSN: dsn, safe: redactURL(u)}, nil
+	case "sqlite", "file":
+		path, params, _ := strings.Cut(strings.TrimPrefix(rest, "//"), "?")
+		if path == "" {
+			return DBConfig{}, fmt.Errorf("%s is missing the SQLite file path, e.g. sqlite://./data/data.db", constant.EnvKeyDBURL)
+		}
+		return DBConfig{Driver: "sqlite", Path: path, Params: params, safe: path}, nil
+	}
+	// 只在能解析出合法 scheme 时回显，避免把误填的连接串（可能含密码）带进错误信息
+	if u, err := url.Parse(raw); err == nil && u.Scheme != "" {
+		return DBConfig{}, fmt.Errorf("unsupported %s scheme %q, supported formats: %s", constant.EnvKeyDBURL, u.Scheme, supportedDBURLs)
+	}
+	return DBConfig{}, fmt.Errorf("%s must start with a scheme, supported formats: %s", constant.EnvKeyDBURL, supportedDBURLs)
+}
+
+// redactURL 隐藏 URL 中的密码（用户信息与 password 参数）
+func redactURL(u *url.URL) string {
+	if q := u.Query(); q.Has("password") {
+		q.Set("password", "xxxxx")
+		u.RawQuery = q.Encode()
+	}
+	return u.Redacted()
 }
 
 // InitDatabase 手动初始化数据库连接
 func InitDatabase() error {
-	dbConfig := loadDBConfig()
+	dbConfig, err := LoadDBConfig()
+	if err != nil {
+		return err
+	}
 	// 创建通用的 GORM 配置
 	gormConfig := &gorm.Config{
 		Logger:         newDBLogger(),
 		TranslateError: true, // 统一数据库错误，便于识别唯一约束冲突（gorm.ErrDuplicatedKey）
 	}
 
-	var err error
-
 	switch dbConfig.Driver {
 	case "postgres":
-		if db, err = initPostgres(dbConfig, gormConfig); err != nil {
+		if db, err = initPostgres(dbConfig.DSN, gormConfig); err != nil {
 			return fmt.Errorf("postgres initialization failed: %w", err)
 		}
 		logrus.Infoln("postgres initialization succeeded", dbConfig)
 	case "sqlite":
-		if db, err = initSQLite(dbConfig.Path, gormConfig); err != nil {
+		if db, err = initSQLite(dbConfig.Path, dbConfig.Params, gormConfig); err != nil {
 			return fmt.Errorf("sqlite initialization failed: %w", err)
 		}
 		logrus.Infoln("sqlite initialization succeeded", dbConfig)
-	default:
-		return errors.New("unsupported database driver, only sqlite and postgres are supported")
 	}
 
 	configureConnPool(dbConfig.Driver)
@@ -110,18 +165,12 @@ func InitDatabase() error {
 }
 
 // initPostgres 初始化PostgreSQL连接
-func initPostgres(config DBConfig, gormConfig *gorm.Config) (db *gorm.DB, err error) {
-	if config.Host == "" || config.User == "" || config.Password == "" || config.DBName == "" {
-		err = errors.New("PostgreSQL configuration is incomplete: host, user, password, and dbname are required")
-	}
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		config.Host, config.Port, config.User, config.Password, config.DBName, config.SSLMode)
-	db, err = gorm.Open(postgres.Open(dsn), gormConfig)
-	return
+func initPostgres(dsn string, gormConfig *gorm.Config) (*gorm.DB, error) {
+	return gorm.Open(postgres.Open(dsn), gormConfig)
 }
 
-// initSQLite 初始化 SQLite 连接
-func initSQLite(path string, gormConfig *gorm.Config) (*gorm.DB, error) {
+// initSQLite 初始化 SQLite 连接，params 追加在默认参数之后（同名 pragma 以它为准）
+func initSQLite(path, params string, gormConfig *gorm.Config) (*gorm.DB, error) {
 	if path == "" {
 		path = "./data/data.db"
 	}
@@ -131,6 +180,9 @@ func initSQLite(path string, gormConfig *gorm.Config) (*gorm.DB, error) {
 	}
 	// WAL 让读写互不阻塞，busy_timeout 避免并发写入时直接报 database is locked
 	dsn := path + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)"
+	if params != "" {
+		dsn += "&" + params
+	}
 	db, err := gorm.Open(sqlite.Open(dsn), gormConfig)
 	return db, err
 }

@@ -27,6 +27,7 @@ type errorResponse struct {
 // 错误响应带有原因枚举、错误码与出错的资源 / 字段，前端据此显示「标签的 slug「aigc」已存在」而不是笼统的创建失败
 func TestErrorResponses(t *testing.T) {
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)

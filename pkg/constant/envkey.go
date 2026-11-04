@@ -8,6 +8,7 @@ const (
 	EnvKeyCaptchaSecreteKey                = "CAPTCHA_SECRET_KEY" // captcha站点密钥
 	EnvKeyCaptchaUrl                       = "CAPTCHA_URL"        // 某些自托管的captcha的url
 	EnvKeyCaptchaSiteKey                   = "CAPTCHA_SITE_KEY"   // captcha密钥key
+	EnvKeyDBURL                            = "DB_URL"             // 环境变量：数据库连接地址（如 postgres://user:pass@host:5432/db 或 sqlite://./data/data.db），设置后忽略其他 DB_* 变量
 	EnvKeyDBDriver                         = "DB_DRIVER"          // 环境变量：数据库驱动
 	EnvKeyDBPath                           = "DB_PATH"            // 环境变量：数据库文件路径（仅适用于SQLite）
 	EnvKeyDBHost                           = "DB_HOST"            // 环境变量：数据库主机（仅适用于PostgreSQL）

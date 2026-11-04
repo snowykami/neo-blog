@@ -19,7 +19,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if sharedstate.Shared() && utils.Env.Get(constant.EnvKeyDBDriver, "sqlite") == "sqlite" {
+	dbConfig, err := repo.LoadDBConfig()
+	if err != nil {
+		panic(err)
+	}
+	if sharedstate.Shared() && dbConfig.Driver == "sqlite" {
 		logrus.Warn("已配置 Redis 但数据库为 SQLite：SQLite 只支持单实例，多副本部署请改用 Postgres")
 	}
 	if sharedstate.Shared() && utils.Env.Get(constant.EnvKeyJwtSecrete) == "" {

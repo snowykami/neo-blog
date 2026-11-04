@@ -18,6 +18,7 @@ import (
 // 登录与静默续期写入的 Cookie 有效期跟随后台配置，「记住我」在续期后仍然保留
 func TestAuthCookieMaxAge(t *testing.T) {
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)

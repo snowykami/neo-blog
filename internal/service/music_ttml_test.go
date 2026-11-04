@@ -38,6 +38,7 @@ func ttmlServer(t *testing.T, status int, body string) (*httptest.Server, *atomi
 func setupTTMLDB(t *testing.T) {
 	t.Helper()
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)

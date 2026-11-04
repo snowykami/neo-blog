@@ -3,6 +3,7 @@ package sharedstate
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -192,5 +193,25 @@ func TestNotifyAcrossInstances(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatalf("notification not received")
+	}
+}
+
+// TestInitInvalidRedisURL 地址格式错误时直接报错，且错误信息不带出密码
+func TestInitInvalidRedisURL(t *testing.T) {
+	t.Cleanup(UseMemory)
+	for _, url := range []string{
+		"redis://:s3cret@127.0.0.1:abc/0",
+		"http://:s3cret@127.0.0.1:6379/0",
+	} {
+		err := Init(url, "")
+		if err == nil {
+			t.Fatalf("Init(%q) succeeded, want error", url)
+		}
+		if strings.Contains(err.Error(), "s3cret") {
+			t.Errorf("Init(%q) error leaks password: %v", url, err)
+		}
+		if Shared() {
+			t.Errorf("Init(%q) failed but switched to redis", url)
+		}
 	}
 }

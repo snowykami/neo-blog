@@ -236,7 +236,7 @@ func assertAppliedMigrations(t *testing.T, want []string) {
 // forEachDialect 分别在新建的 SQLite 库和独立 schema 的 Postgres 库（配置了 NEO_TEST_POSTGRES_DSN 时）上运行
 func forEachDialect(t *testing.T, fn func(t *testing.T)) {
 	t.Run("sqlite", func(t *testing.T) {
-		d, err := initSQLite(filepath.Join(t.TempDir(), "test.db"), testGormConfig())
+		d, err := initSQLite(filepath.Join(t.TempDir(), "test.db"), "", testGormConfig())
 		if err != nil {
 			t.Fatalf("open sqlite: %v", err)
 		}

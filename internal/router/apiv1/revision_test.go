@@ -19,6 +19,7 @@ import (
 // 版本删除接口：鉴权、请求体校验、编辑会话请求头与受保护版本，以及 batch-delete 与 :rid 路由共存
 func TestRevisionDeleteRoutes(t *testing.T) {
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)

@@ -73,8 +73,16 @@ app.kubernetes.io/component: backend
 {{- if not (or .Values.redis.url .Values.redis.existingSecret .Values.backend.env.REDIS_URL) }}
 {{- fail "后端多副本部署（replicaCount > 1 或启用 autoscaling）必须配置 redis.url 或 redis.existingSecret，否则各副本的登录状态、验证码、限流与任务状态互不可见" }}
 {{- end }}
-{{- if eq (toString (default "sqlite" .Values.backend.env.DB_DRIVER)) "sqlite" }}
-{{- fail "后端多副本部署必须使用 Postgres（backend.env.DB_DRIVER: postgres），SQLite 只支持单实例" }}
+{{- /* 设置了 DB_URL 时由其 scheme 判断驱动；existingSecret 的内容渲染时不可见，由后端启动时检查 */}}
+{{- if not .Values.database.existingSecret }}
+{{- $dbURL := lower (toString (.Values.database.url | default .Values.backend.env.DB_URL | default "")) }}
+{{- $sqlite := eq (toString (default "sqlite" .Values.backend.env.DB_DRIVER)) "sqlite" }}
+{{- if $dbURL }}
+{{- $sqlite = or (hasPrefix "sqlite:" $dbURL) (hasPrefix "file:" $dbURL) }}
+{{- end }}
+{{- if $sqlite }}
+{{- fail "后端多副本部署必须使用 Postgres（database.url 指向 postgres://，或 backend.env.DB_DRIVER: postgres），SQLite 只支持单实例" }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

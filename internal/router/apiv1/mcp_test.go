@@ -35,6 +35,7 @@ func startServer(t *testing.T) string {
 // 经由 Hertz 路由、Token 中间件与 net/http 适配器，用官方客户端访问 MCP，验证鉴权与身份能传到工具
 func TestMCPEndpoint(t *testing.T) {
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)

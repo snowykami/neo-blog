@@ -38,6 +38,7 @@ func (cdnProvider) GetURL(_ context.Context, path string, _ time.Duration) (stri
 // 写入的 JSON 中直链还原为稳定链接，GET 返回的 JSON 中稳定链接改写为直链
 func TestFileLinkMiddleware(t *testing.T) {
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)
@@ -115,6 +116,7 @@ func apiCall(t *testing.T, method, url, cookie, body string, data any) (int, str
 // 管理员通过接口把一个存储整体迁移到另一个存储，迁移后文件仍可通过稳定链接访问
 func TestStorageMigrationRoutes(t *testing.T) {
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)
