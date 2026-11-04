@@ -2,11 +2,12 @@ import process from 'node:process'
 import axios from 'axios'
 import { camelToSnakeObj, snakeToCamelObj } from 'field-conv'
 
+// 去掉末尾的 /，避免与 /api/v1 拼出 //api/v1
 export const BACKEND_URL
-  = process.env.BACKEND_URL
+  = (process.env.BACKEND_URL
     || (process.env.NODE_ENV === 'production'
       ? 'http://neo-blog-backend:8888'
-      : 'http://localhost:8888')
+      : 'http://localhost:8888')).replace(/\/+$/, '')
 
 const isServer = typeof window === 'undefined'
 

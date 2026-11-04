@@ -1,23 +1,13 @@
 import type { NextConfig } from 'next'
 import createNextIntlPlugin from 'next-intl/plugin'
-import { BACKEND_URL } from '@/api/client'
 import { IMAGE_OPTIMIZE_HOSTS } from '@/utils/common/image'
 
 const nextConfig: NextConfig = {
   output: 'standalone',
   images: {
     // 只优化白名单内的 https 图床域名，保持 Next 默认的私网地址拦截，避免 /_next/image 被用作 SSRF 跳板
-    // 站内文件使用相对路径（/api/v1/...），经 rewrites 内部转发，不受此限制；其余外链由 SafeImage 交给浏览器直接加载
+    // 站内文件使用相对路径（/api/v1/...），经 app/api/v1 路由转发到后端，不受此限制；其余外链由 SafeImage 交给浏览器直接加载
     remotePatterns: IMAGE_OPTIMIZE_HOSTS.map(hostname => ({ protocol: 'https', hostname, port: '', pathname: '/**' })),
-  },
-  async rewrites() {
-    return [
-      {
-        // AI 用户 Runner 的接口与 AI 用户专用 MCP 只供 Runner 直连后端，不经前端转发
-        source: '/api/v1/:path((?!agent-runner(?:/|$)|agent-mcp(?:/|$)).*)',
-        destination: `${BACKEND_URL}/api/v1/:path`,
-      },
-    ]
   },
   async redirects() {
     return [
