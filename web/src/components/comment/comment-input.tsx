@@ -186,8 +186,8 @@ function GuestInvite() {
   const operationT = useOperationT()
   const openLogin = useLoginDialog()
   const pathname = usePathname()
-  // 第三方登录完成后回到当前页面；读取失败时只显示登录按钮
-  const { providers } = useOidcProviders({ redirectBack: pathname })
+  // 读取失败时只显示登录按钮
+  const { providers } = useOidcProviders()
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4 fade-in-up sm:flex-nowrap">
@@ -197,7 +197,8 @@ function GuestInvite() {
         <p className="text-sm text-muted-foreground">{t('guest_desc')}</p>
       </div>
       <div className="flex w-full items-center gap-2 sm:w-auto">
-        <OidcProviderButtons providers={providers} variant="icon" />
+        {/* 第三方登录完成后回到当前页面 */}
+        <OidcProviderButtons providers={providers} redirectBack={pathname} variant="icon" />
         <Button type="button" className="flex-1 sm:flex-none" onClick={() => openLogin({ reason: 'comment' })}>
           <LogIn />
           {operationT('login')}

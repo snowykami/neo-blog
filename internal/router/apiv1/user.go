@@ -22,6 +22,7 @@ func registerUserRoutes(group *route.RouterGroup) {
 		userGroupNoAuth.POST("/email/verify", userController.VerifyEmail) // Send email verification code
 		userGroupNoAuth.GET("/captcha", userController.GetCaptchaConfig)
 		userGroupNoAuth.GET("/oidc/list", userController.GetOidcConfigList)
+		userGroupNoAuth.GET("/oidc/authorize/:name", userController.OidcAuthorize) // 点击第三方登录时访问，绑定时需已登录
 		userGroupNoAuth.GET("/oidc/login/:name", userController.OidcLogin)
 		userGroupNoAuth.GET("/u/:id", userController.GetUser)
 		userGroupNoAuth.GET("/username/:username", userController.GetUserByUsername)

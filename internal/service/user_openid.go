@@ -29,6 +29,7 @@ func (s *UserService) OidcLogin(ctx context.Context, req *dto.OidcLoginReq) (*dt
 	req.RedirectBack = loginState.RedirectBack
 	req.IsBind = loginState.IsBind
 	req.BindUserID = loginState.UserID
+	req.CodeVerifier = loginState.CodeVerifier
 
 	// 获取 OIDC 配置
 	oidcConfig, serr := s.getOidcConfig(req.Name)
@@ -105,7 +106,7 @@ func getOidcStateValue(kvStore *utils.KVStore, state string) (interface{}, strin
 	if state == "" {
 		return nil, "", false
 	}
-	stateKey := "oidc_state:" + state
+	stateKey := oidcStateKeyPrefix + state
 	value, ok := kvStore.Get(stateKey)
 	return value, stateKey, ok
 }
@@ -361,8 +362,9 @@ func (s *UserService) exchangeAndFetchUserinfo(oidcConfig *model.OidcConfig, req
 		oidcConfig.ClientID,
 		oidcConfig.ClientSecret,
 		req.Code,
-		tools.GetBaseUrl()+constant.ApiPrefix+constant.OidcUri+"/"+oidcConfig.Name,
+		oidcCallbackUrl(oidcConfig.Name),
 		oidcConfig.TokenAuthMethod,
+		req.CodeVerifier,
 	)
 	if err != nil {
 		logrus.WithError(err).Error("failed to request oidc token")

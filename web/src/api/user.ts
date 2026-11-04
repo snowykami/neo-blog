@@ -55,17 +55,21 @@ export async function userRegister({
   return res.data
 }
 
-export async function listOidcConfigs({
-  redirectBack = '/',
-  isBind = false,
-}: {
-  redirectBack?: string
-  isBind?: boolean
-} = {}): Promise<BaseResponse<OidcConfig[]>> {
-  const res = await axiosClient.get('/user/oidc/list', {
-    params: { redirectBack, isBind },
-  })
+/** 已启用的第三方登录，只含展示信息 */
+export async function listOidcConfigs(): Promise<BaseResponse<OidcConfig[]>> {
+  const res = await axiosClient.get('/user/oidc/list')
   return res.data
+}
+
+/**
+ * 第三方登录的跳转地址：浏览器直接访问，后端此时才生成 state 并跳到身份提供商，因此按钮不会过期。
+ * 完成后回到 redirectBack；bind 为已登录用户绑定第三方账号
+ */
+export function getOidcAuthorizeUrl({ name, redirectBack, bind = false }: { name: string, redirectBack: string, bind?: boolean }): string {
+  const params = new URLSearchParams({ redirect_back: redirectBack })
+  if (bind)
+    params.set('bind', 'true')
+  return `/api/v1/user/oidc/authorize/${encodeURIComponent(name)}?${params}`
 }
 
 export async function getLoginUser(): Promise<BaseResponse<User>> {

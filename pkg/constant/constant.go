@@ -18,6 +18,8 @@ const (
 	KVKeyEmailVerificationCode = "email_verification_code:" // KV存储：邮箱验证码
 	ApiPrefix                  = "/api/v1"                  // API版本前缀
 	OidcUri                    = "/user/oidc/login"         // OIDC登录URI
+	OidcAuthorizeUri           = "/user/oidc/authorize"     // 点击第三方登录时访问，生成 state 后跳转到身份提供商
+	LoginPagePath              = "/auth/login"              // 前端登录页，第三方登录失败时带上错误码回到这里
 	FileUriPrefix              = "/file/f"                  // 文件访问URI前缀
 	PageHTMLUriPrefix          = "/page-html"               // HTML 页面静态文件访问URI前缀
 	DefaultCaptchaDevPasscode  = "dev_passcode"

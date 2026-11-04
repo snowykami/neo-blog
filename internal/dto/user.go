@@ -28,7 +28,6 @@ type UserOidcConfigDto struct {
 	Name        string `json:"name"`         // OIDC配置名称
 	DisplayName string `json:"display_name"` // OIDC配置显示名称
 	Icon        string `json:"icon"`         // OIDC配置图标URL
-	LoginUrl    string `json:"login_url"`    // OIDC登录URL
 }
 type UserLoginReq struct {
 	Username   string `json:"username"` // username or email
@@ -79,6 +78,7 @@ type OidcLoginReq struct {
 	UserIP       string
 	BrowserNonce string // 浏览器 Cookie 中的 OIDC nonce，用于确认回调来自发起登录的同一浏览器
 	BindUserID   uint   // 从state恢复的发起绑定的用户ID
+	CodeVerifier string // 从state恢复的 PKCE code_verifier
 }
 
 type OidcLoginResp struct {
@@ -87,9 +87,11 @@ type OidcLoginResp struct {
 	User         UserDto `json:"user"`
 }
 
-type ListOidcConfigReq struct {
-	RedirectBack string `query:"redirect_back" default:"/"` // OIDC完成后回跳到前端的地址
-	IsBind       bool   `query:"is_bind" default:"false"`   // 是否是绑定操作
+// OidcAuthorizeReq 点击第三方登录时由浏览器直接访问，state 在此时生成
+type OidcAuthorizeReq struct {
+	Name         string `path:"name"`
+	RedirectBack string `query:"redirect_back"` // OIDC完成后回跳到前端的地址
+	IsBind       bool   `query:"bind"`          // 是否是绑定操作，需已登录
 	BrowserNonce string // 写入浏览器 Cookie 的 nonce
 	UserID       uint   // 绑定操作的发起用户
 }

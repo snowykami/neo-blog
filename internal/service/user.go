@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -32,7 +32,14 @@ type oidcLoginState struct {
 	IsBind       bool
 	Nonce        string // 与浏览器 Cookie 中的 nonce 对应，防止登录/绑定 CSRF
 	UserID       uint   // 绑定操作的发起用户，回调时必须是同一用户
+	CodeVerifier string // PKCE code_verifier，换取令牌时发送
 }
+
+const (
+	oidcStateKeyPrefix = "oidc_state:"
+	// 点击登录时才生成 state，有效期覆盖在第三方页面登录、授权的时间，与 nonce Cookie 一致
+	oidcStateTTL = 10 * time.Minute
+)
 
 const (
 	loginLimitWindow      = 15 * time.Minute
@@ -198,65 +205,91 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 	return &dto.VerifyEmailResp{Success: true}, nil
 }
 
-func (s *UserService) ListOidcConfigs(req *dto.ListOidcConfigReq) ([]dto.UserOidcConfigDto, *errs.ServiceError) {
+// ListOidcConfigs 已启用的第三方登录，只含展示信息，不产生任何状态；state 在点击登录时由 OidcAuthorize 生成
+func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, *errs.ServiceError) {
 	enabledOidcConfigs, err := repo.Oidc.ListOidcConfigs(true)
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("oidc_config")
 	}
-	var oidcConfigsDtos []dto.UserOidcConfigDto
-	req.RedirectBack = normalizeOidcRedirectBack(req.RedirectBack)
-
+	oidcConfigsDtos := make([]dto.UserOidcConfigDto, 0, len(enabledOidcConfigs))
 	for _, oidcConfig := range enabledOidcConfigs {
-		// 生成和储存state到kv
-		state := utils.Strings.GenerateRandomString(32)
-		kvStore := utils.KV.GetInstance()
-		kvStore.Set("oidc_state:"+state, oidcLoginState{
-			Name:         oidcConfig.Name,
-			RedirectBack: req.RedirectBack,
-			IsBind:       req.IsBind,
-			Nonce:        req.BrowserNonce,
-			UserID:       req.UserID,
-		}, 5*time.Minute)
-		var loginUrl string
-		callbackUrl := fmt.Sprintf("%s%s%s/%s",
-			tools.GetBaseUrl(),
-			constant.ApiPrefix,
-			constant.OidcUri,
-			oidcConfig.Name,
-		)
-		// 兼容misskey特殊的oidc实现
-		if oidcConfig.Type == "misskey" {
-			// Misskey OIDC 特殊处理
-			loginUrl = utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint+"/"+state, map[string]string{
-				"name":       tools.GetSiteName(),
-				"icon":       tools.GetSiteIcon(),
-				"callback":   callbackUrl,
-				"permission": "read:account",
-			})
-		} else {
-			// 常规 OAuth2/OIDC 处理
-			loginUrl = utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint, map[string]string{
-				"client_id":     oidcConfig.ClientID,
-				"redirect_uri":  callbackUrl,
-				"response_type": "code",
-				"scope":         "openid email profile",
-				"state":         state,
-			})
-		}
-		oidcConfigsDtos = append(oidcConfigsDtos, dto.UserOidcConfigDto{
-			Name:        oidcConfig.Name,
-			DisplayName: oidcConfig.DisplayName,
-			Icon:        oidcConfig.Icon,
-			LoginUrl:    loginUrl,
-		})
+		oidcConfigsDtos = append(oidcConfigsDtos, *oidcConfig.ToUserDto())
 	}
 	return oidcConfigsDtos, nil
 }
 
+// OidcAuthorize 用户点击第三方登录时生成一次性 state（含 PKCE code_verifier），返回跳转到身份提供商的地址。
+// 页面上的登录按钮只是普通链接，不会因为页面停留太久而失效
+func (s *UserService) OidcAuthorize(ctx context.Context, req *dto.OidcAuthorizeReq) (string, *errs.ServiceError) {
+	oidcConfig, serr := s.getOidcConfig(req.Name)
+	if serr != nil {
+		return "", serr
+	}
+	if !oidcConfig.Enabled {
+		return "", errs.NewBadRequest("invalid_oidc_name")
+	}
+	// 绑定操作只能由已登录用户发起，并记录发起人
+	if req.IsBind {
+		userID, ok := ctxutils.GetCurrentUserID(ctx)
+		if !ok {
+			return "", errs.NewUnauthorized("login_required")
+		}
+		req.UserID = userID
+	}
+	state := utils.Strings.GenerateRandomString(32)
+	loginState := oidcLoginState{
+		Name:         oidcConfig.Name,
+		RedirectBack: normalizeOidcRedirectBack(req.RedirectBack),
+		IsBind:       req.IsBind,
+		Nonce:        req.BrowserNonce,
+		UserID:       req.UserID,
+	}
+	var authorizeUrl string
+	if oidcConfig.Type == "misskey" {
+		// Misskey 的 MiAuth：state 作为 session 拼在授权地址里，回调时以 session 参数带回
+		authorizeUrl = utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint+"/"+state, map[string]string{
+			"name":       tools.GetSiteName(),
+			"icon":       tools.GetSiteIcon(),
+			"callback":   oidcCallbackUrl(oidcConfig.Name),
+			"permission": "read:account",
+		})
+	} else {
+		// 常规 OAuth2/OIDC，附带 PKCE（S256）；不支持 PKCE 的提供商按规范会忽略这些参数
+		loginState.CodeVerifier = utils.Strings.GenerateRandomString(64)
+		authorizeUrl = utils.Url.BuildUrl(oidcConfig.AuthorizationEndpoint, map[string]string{
+			"client_id":             oidcConfig.ClientID,
+			"redirect_uri":          oidcCallbackUrl(oidcConfig.Name),
+			"response_type":         "code",
+			"scope":                 "openid email profile",
+			"state":                 state,
+			"code_challenge":        utils.Oidc.PkceChallenge(loginState.CodeVerifier),
+			"code_challenge_method": "S256",
+		})
+	}
+	utils.KV.GetInstance().Set(oidcStateKeyPrefix+state, loginState, oidcStateTTL)
+	return authorizeUrl, nil
+}
+
+// OidcErrorPageUrl 第三方登录失败时回到的前端登录页，错误码由前端翻译显示
+func (s *UserService) OidcErrorPageUrl(redirectBack, errCode string) string {
+	query := url.Values{
+		"redirect_back": {normalizeOidcRedirectBack(redirectBack)},
+		"oidc_error":    {errCode},
+	}
+	return constant.LoginPagePath + "?" + query.Encode()
+}
+
+// oidcCallbackUrl 身份提供商授权后回调的地址，发起授权和换取令牌时必须一致
+func oidcCallbackUrl(name string) string {
+	return tools.GetBaseUrl() + constant.ApiPrefix + constant.OidcUri + "/" + name
+}
+
+// normalizeOidcRedirectBack 只允许站内路径；浏览器会把 /\ 当作 //，同样视为外站
 func normalizeOidcRedirectBack(redirectBack string) string {
 	if redirectBack == "" ||
 		!strings.HasPrefix(redirectBack, "/") ||
 		strings.HasPrefix(redirectBack, "//") ||
+		strings.HasPrefix(redirectBack, "/\\") ||
 		strings.ContainsAny(redirectBack, "\r\n") {
 		return "/"
 	}

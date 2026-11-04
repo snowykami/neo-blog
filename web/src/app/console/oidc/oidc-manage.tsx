@@ -43,7 +43,7 @@ import {
 } from '@/components/ui/table'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 
-type OidcForm = Omit<OidcConfig, 'id' | 'loginUrl'> & { id?: number }
+type OidcForm = Omit<OidcConfig, 'id'> & { id?: number }
 
 // 后端支持的认证源类型（见 internal/model/oidc_config.go）
 const OIDC_TYPES = ['oauth2', 'misskey'] as const

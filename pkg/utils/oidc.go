@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"net/url"
@@ -16,13 +17,22 @@ const (
 	OidcTokenAuthMethodClientSecretBasic = "client_secret_basic"
 )
 
-// RequestToken 请求访问令牌
-func (u *oidcUtils) RequestToken(tokenEndpoint, clientID, clientSecret, code, redirectUri, authMethod string) (*TokenResponse, error) {
+// PkceChallenge 按 S256 由 code_verifier 计算 code_challenge（RFC 7636）
+func (u *oidcUtils) PkceChallenge(codeVerifier string) string {
+	sum := sha256.Sum256([]byte(codeVerifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+// RequestToken 用授权码换取令牌；codeVerifier 为发起授权时生成的 PKCE 校验码，为空时不发送
+func (u *oidcUtils) RequestToken(tokenEndpoint, clientID, clientSecret, code, redirectUri, authMethod, codeVerifier string) (*TokenResponse, error) {
 	tokenResp := TokenResponse{}
 	formData := map[string]string{
 		"grant_type":   "authorization_code",
 		"code":         code,
 		"redirect_uri": redirectUri,
+	}
+	if codeVerifier != "" {
+		formData["code_verifier"] = codeVerifier
 	}
 	req := client.R().
 		SetHeader("Accept", "application/json").

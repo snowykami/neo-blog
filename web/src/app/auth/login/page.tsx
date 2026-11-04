@@ -1,7 +1,7 @@
 'use client'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { AuthHeader } from '@/components/auth/common/auth-header'
@@ -30,10 +30,12 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
   const errorMessageT = useErrorMessageT()
   const { user } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const redirectBack = searchParams.get('redirect_back') || '/'
-  // 已登录时为绑定第三方账号
-  const { providers, error: oidcError } = useOidcProviders({ redirectBack, isBind: !!user })
+  // 第三方登录失败时后端带着错误码回到登录页
+  const oidcLoginError = searchParams.get('oidc_error')
+  const { providers, error: oidcError } = useOidcProviders()
 
   useEffect(() => {
     if (!oidcError)
@@ -42,6 +44,16 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
     const message = errorMessageT(oidcError)
     toast.error(t('fetch_oidc_configs_failed') + (message ? `: ${message}` : ''))
   }, [oidcError, t, errorMessageT])
+
+  useEffect(() => {
+    if (!oidcLoginError)
+      return
+    // 固定 id 避免重复提示；提示后从地址里去掉错误码，刷新页面不再提示
+    toast.error(`${t('oidc_login_failed')}: ${errorMessageT(oidcLoginError)}`, { id: 'oidc-login-error' })
+    const params = new URLSearchParams(searchParams)
+    params.delete('oidc_error')
+    router.replace(params.size ? `${pathname}?${params}` : pathname)
+  }, [oidcLoginError, searchParams, pathname, router, t, errorMessageT])
 
   return (
     <div className={cn('flex flex-col gap-6', className)} {...props}>
@@ -57,7 +69,8 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
             </SectionDivider>
           )}
           <div className="grid gap-4">
-            <OidcProviderButtons providers={providers} className="gap-4" />
+            {/* 已登录时为绑定第三方账号 */}
+            <OidcProviderButtons providers={providers} redirectBack={redirectBack} bind={!!user} className="gap-4" />
             <SectionDivider className="my-2">
               {t('or_continue_with_local_account')}
             </SectionDivider>

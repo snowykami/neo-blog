@@ -3,7 +3,6 @@ export interface OidcConfig {
   name: string
   displayName: string
   icon: string
-  loginUrl: string
   // for admin
   oidcDiscoveryUrl?: string
   clientId?: string

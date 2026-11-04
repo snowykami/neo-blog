@@ -62,8 +62,7 @@ export function LoginDialogProvider({ children }: { children: React.ReactNode })
 
 function LoginDialogBody({ reason, redirectBack, onLoggedIn }: { reason: LoginReason, redirectBack: string, onLoggedIn: (user: User) => void }) {
   const t = useTranslations('Login')
-  // 弹窗打开时才读取第三方登录，登录完成后回到当前页面
-  const { providers } = useOidcProviders({ redirectBack })
+  const { providers } = useOidcProviders()
 
   return (
     <>
@@ -73,7 +72,8 @@ function LoginDialogBody({ reason, redirectBack, onLoggedIn }: { reason: LoginRe
       </DialogHeader>
       {providers.length > 0 && (
         <>
-          <OidcProviderButtons providers={providers} />
+          {/* 第三方登录会离开当前页面，完成后回到这里 */}
+          <OidcProviderButtons providers={providers} redirectBack={redirectBack} />
           <SectionDivider>{t('or_continue_with_local_account')}</SectionDivider>
         </>
       )}
