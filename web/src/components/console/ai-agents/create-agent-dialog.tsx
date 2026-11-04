@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { listUsers } from '@/api/admin'
 import { convertUserToAIAgent, createAIAgent } from '@/api/ai-agent'
+import { AssetField } from '@/components/common/asset-picker/asset-field'
 import { UserAvatar } from '@/components/common/avatar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -24,7 +25,8 @@ import { SearchSelect, useAIAgentT } from './shared'
 // 与后端用户名 / 昵称校验保持一致（见 internal/service/admin_user.go）
 const USERNAME_MAX = 20
 const NICKNAME_MAX = 20
-const URL_PATTERN = /^https?:\/\/\S+$/i
+// 外部 http(s) 地址，或站内文件的稳定链接（/api/v1/file/f/<id>，从资产库选择时得到）
+const URL_PATTERN = /^(?:https?:\/\/|\/)\S+$/i
 
 type CreateMode = 'new' | 'convert'
 
@@ -174,7 +176,8 @@ function CreateAgentFormBody({ onCancel, onCreated }: { onCancel: () => void, on
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('create.avatar_url')}</FormLabel>
-                      <FormControl><Input {...field} autoComplete="off" placeholder="https://" /></FormControl>
+                      {/* 可粘贴外部地址，也可从资产库选择或上传 */}
+                      <FormControl><AssetField {...field} autoComplete="off" previewClassName="rounded-full" pickerProps={{ title: t('create.avatar_url') }} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
