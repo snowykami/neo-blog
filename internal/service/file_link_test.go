@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -128,6 +129,20 @@ func waitStorageMigration(t *testing.T) func() {
 	}
 }
 
+// holdStorageMigration 让下一个后台迁移任务停在开始处理之前，返回放行函数（用例结束时自动放行）
+func holdStorageMigration(t *testing.T) func() {
+	t.Helper()
+	gate := make(chan struct{})
+	storageMigrationBeforeRun = func() { <-gate }
+	var once sync.Once
+	release := func() { once.Do(func() { close(gate) }) }
+	t.Cleanup(func() {
+		release()
+		storageMigrationBeforeRun = nil
+	})
+	return release
+}
+
 func TestStorageMigration(t *testing.T) {
 	env := setupFileLinkTest(t)
 	admin, localDir := env.admin, env.localDir
@@ -205,13 +220,15 @@ func TestStorageMigrationSelectedFiles(t *testing.T) {
 	b := saveTestFile(t, ctx, env.localID, "bbbb")
 
 	wait := waitStorageMigration(t)
+	release := holdStorageMigration(t)
 	if _, svcerr := StartStorageMigration(&dto.StorageMigrationReq{TargetProviderID: env.cdnID, FileIDs: []uint{a.ID}}); svcerr != nil {
 		t.Fatal(svcerr)
 	}
-	// 同一时间只运行一个迁移
+	// 同一时间只运行一个迁移：第一个任务停在开始处理之前，保证第二次发起时它仍在运行
 	if _, svcerr := StartStorageMigration(&dto.StorageMigrationReq{TargetProviderID: env.cdnID, FileIDs: []uint{b.ID}}); svcerr == nil || svcerr.Code != http.StatusConflict {
 		t.Fatalf("second migration: %v", svcerr)
 	}
+	release()
 	wait()
 	status, _ := GetStorageMigrationStatus()
 	if status.State != StorageMigrationDone || status.Objects != 1 || status.FileCount != 1 {

@@ -42,8 +42,11 @@ const (
 	StorageMigrationInterrupted = "interrupted"
 )
 
-// storageMigrationAfterRun 测试中等待后台任务结束
-var storageMigrationAfterRun func()
+// 测试用的钩子：storageMigrationBeforeRun 让后台任务停在开始处理之前，storageMigrationAfterRun 等待后台任务结束
+var (
+	storageMigrationBeforeRun func()
+	storageMigrationAfterRun  func()
+)
 
 // StartStorageMigration 校验并在后台启动迁移任务，返回初始进度
 func StartStorageMigration(req *dto.StorageMigrationReq) (*dto.StorageMigrationStatus, *errs.ServiceError) {
@@ -249,6 +252,9 @@ func (m *storageMigration) run() {
 		}
 	}()
 	ctx := context.Background()
+	if storageMigrationBeforeRun != nil {
+		storageMigrationBeforeRun()
+	}
 
 	// 1. 先把源存储遗留在内容中的直链还原为稳定链接，否则迁移后这些直链会随源存储失效
 	sourceIDs := make([]uint, 0, len(m.sources))
