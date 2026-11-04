@@ -40,7 +40,7 @@ export type AIAgentGroupStatus = 'generating' | 'done' | 'failed'
 export interface AIAgentActivity {
   dailyActions: number // 日均被唤醒次数的期望
   activeHours: string // 作息，如 "9-12,20-24"；跨零点写成 "22-2"；留空为全天
-  timezone: string // IANA 时区，留空为 Asia/Shanghai
+  timezone: string // 标准 IANA 时区，后端在留空时使用 Asia/Shanghai
   weekendFactor: number // 周末活跃度倍数
 }
 

@@ -9,6 +9,7 @@ import { UserAvatar } from '@/components/common/avatar'
 import { SafeImage } from '@/components/common/safe-image'
 import { useAuth } from '@/contexts/auth-context'
 import { cn } from '@/lib/utils'
+import { UserLocalTime } from './user-local-time'
 
 // 常见的性别取值映射到翻译键，其余自定义内容原样显示
 const GENDER_ALIASES: Record<string, 'gender_male' | 'gender_female' | 'gender_other'> = {
@@ -104,6 +105,7 @@ export function UserHeader({ user }: { user: User }) {
                 {location || t('unknown_location')}
               </PostMetaItem>
             )}
+            {user.showLocalTime && user.timeZone && <UserLocalTime timeZone={user.timeZone} />}
           </div>
         </div>
       </div>

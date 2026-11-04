@@ -24,6 +24,8 @@ type User struct {
 	Password       string        // 密码，存储加密后的值
 	ShowIPLocation *bool         `gorm:"default:true"`  // 是否显示IP归属地
 	ShowLikes      *bool         `gorm:"default:false"` // 是否公开点赞记录，默认不公开
+	ShowLocalTime  *bool         `gorm:"default:false"` // 是否在主页公开当地时间，默认不公开
+	TimeZone       string        `gorm:"default:''"`    // IANA 时区，只在公开当地时间时保存，关闭时清空
 	Disabled       bool          `gorm:"default:false"` // 是否被管理员禁用，禁用后无法登录且已有会话失效
 	IsAI           bool          `gorm:"default:false"` // 是否为 AI 用户：由 Agent 驱动、与普通用户同权限，不能密码登录
 }
@@ -42,8 +44,18 @@ func (user *User) ToDto() dto.UserDto {
 		Language:       user.Language,
 		ShowIPLocation: user.ShowIPLocation,
 		ShowLikes:      user.ShowLikes,
+		ShowLocalTime:  user.ShowLocalTime,
 		GravatarHash:   gravatarHash(user.Email),
 	}
+}
+
+// ToProfileDto 个人主页使用的公开信息：用户开启「公开当地时间」后才附带时区，评论、文章作者等其他场景不返回
+func (user *User) ToProfileDto() dto.UserDto {
+	userDto := user.ToDto()
+	if user.ShowLocalTime != nil && *user.ShowLocalTime {
+		userDto.TimeZone = user.TimeZone
+	}
+	return userDto
 }
 
 // gravatarHash 按 Gravatar 规范对邮箱（去空白、转小写）做 SHA-256，所有场景的默认头像都以此为准，保证同一用户处处一致
@@ -58,7 +70,7 @@ func gravatarHash(email string) string {
 
 // ToPrivateDto 包含邮箱的完整用户信息，只返回给本人和管理员
 func (user *User) ToPrivateDto() dto.UserDto {
-	userDto := user.ToDto()
+	userDto := user.ToProfileDto()
 	userDto.Email = user.Email
 	userDto.CreatedAt = &user.CreatedAt
 	userDto.Disabled = &user.Disabled

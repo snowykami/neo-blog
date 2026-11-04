@@ -19,6 +19,7 @@
       "title": "登录、评论和点赞",
       "items": {
         "profile": "账号：用户名、昵称和邮箱，密码加密保存。用第三方账号登录时，会获取对方提供的名称、邮箱和头像。每次登录会记录所用的 IP 地址以保障账号安全；个人主页默认显示最近登录地的大致地区，可以在账号设置中关闭。",
+        "local_time": "<b>当地时间</b>：默认不公开。在账号设置中开启后，会保存你选择的时区（默认为浏览器的时区），个人主页会据此显示你的当地时间和时区；关闭后时区一并删除。",
         "link": "<b>登录后的关联</b>：在这台浏览器上登录后，之前的匿名浏览记录会关联到你的账号。站长还可以开启按浏览器信息推断：近 7 天内来自同一网络、浏览器信息相同的匿名浏览，也会关联到你的账号，并在后台标为推断。",
         "comment": "评论和点赞：内容，以及发表时的 IP 和大致地区。IP 不会公开；地区和客户端信息是否展示由你决定。"
       }
@@ -1264,6 +1265,10 @@
       "show_ip_location": "显示IP归属地",
       "show_likes": "公开我的喜欢",
       "show_likes_description": "开启后，所有人都能在你的主页查看你点赞的公开文章和评论",
+      "show_local_time": "公开我的当地时间",
+      "show_local_time_description": "开启后，所有人都能在你的主页看到你所在时区的当前时间；关闭后不再公开，并删除已保存的时区",
+      "time_zone": "时区",
+      "invalid_time_zone": "请选择有效的时区",
       "username": "用户名",
       "update_profile": "更新资料",
       "select_language": "选择语言"
@@ -2371,7 +2376,7 @@
         "active_hours_desc": "活跃的小时区间，如 9-12,20-24；跨零点写成 22-2；留空为全天",
         "invalid_active_hours": "格式应为 9-12,20-24，小时取 0~24",
         "timezone": "时区",
-        "timezone_desc": "IANA 时区，留空为 Asia/Shanghai",
+        "timezone_desc": "AI 按这个时区安排作息、感知当前时间",
         "invalid_timezone": "无效的时区",
         "section_behavior": "行为倾向",
         "section_behavior_desc": "写进提示词作为倾向，实际做什么由模型读完后决定。",
@@ -3071,6 +3076,33 @@
     "digest": "错误编号：{digest}",
     "retry": "重试"
   },
+  "TimeZone": {
+    "placeholder": "选择时区",
+    "search": "输入城市、时区或 UTC 偏移",
+    "empty": "没有找到匹配的时区",
+    "group_common": "常用时区",
+    "group_all": "全部时区",
+    "browser": "当前浏览器",
+    "presets": {
+      "utc": "协调世界时",
+      "shanghai": "北京 / 上海",
+      "hong_kong": "香港",
+      "taipei": "台北",
+      "tokyo": "东京",
+      "seoul": "首尔",
+      "singapore": "新加坡",
+      "kolkata": "新德里 / 孟买",
+      "dubai": "迪拜",
+      "moscow": "莫斯科",
+      "berlin": "柏林",
+      "paris": "巴黎",
+      "london": "伦敦",
+      "new_york": "纽约",
+      "chicago": "芝加哥",
+      "los_angeles": "洛杉矶",
+      "sydney": "悉尼"
+    }
+  },
   "UserPage": {
     "no_nickname": "未填写昵称",
     "not_filled": "未填写",
@@ -3099,7 +3131,11 @@
     "gender": "性别",
     "email": "邮箱",
     "role": "角色",
-    "location": "所在地"
+    "location": "所在地",
+    "local_time": "当地时间",
+    "local_time_zone": "{zone}（{offset}）",
+    "local_time_ahead": "比你快 {duration}",
+    "local_time_behind": "比你慢 {duration}"
   },
   "ColorScheme": {
     "title": "颜色主题",

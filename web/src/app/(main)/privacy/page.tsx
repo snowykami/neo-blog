@@ -14,7 +14,7 @@ const DEFAULT_RETENTION_DAYS = 90
 // 每节依次渲染：title、body（可选）、items 列表（可选）、note（可选）
 const SECTIONS: { key: string, body?: boolean, items?: readonly string[], note?: boolean }[] = [
   { key: 'browse', items: ['page', 'network', 'browser', 'engagement'], note: true },
-  { key: 'account', items: ['profile', 'link', 'comment'] },
+  { key: 'account', items: ['profile', 'local_time', 'link', 'comment'] },
   { key: 'cookie', items: ['visitor', 'login', 'local'] },
   { key: 'retention', items: ['visit', 'visitor', 'account'] },
   { key: 'third_party', body: true },

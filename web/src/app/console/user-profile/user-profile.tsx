@@ -8,6 +8,7 @@ import { updateUser } from '@/api/user'
 import { AssetField } from '@/components/common/asset-picker'
 import { ImageAvatar } from '@/components/common/avatar'
 import { ImageCropper } from '@/components/common/image-cropper'
+import { TimeZoneCombobox } from '@/components/common/time-zone-combobox'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -31,10 +32,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAuth } from '@/contexts/auth-context'
+import { useBrowserTimeZone } from '@/hooks/use-browser-time-zone'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { localesData } from '@/locales'
 import { getFileUri } from '@/utils/client/file'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
+import { isValidTimeZone } from '@/utils/common/time-zone'
 import { getFallbackAvatarFromUsername } from '@/utils/common/username'
 
 const PICTURE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif'
@@ -66,6 +69,8 @@ interface FormValues {
   language: string
   showIpLocation: boolean
   showLikes: boolean
+  showLocalTime: boolean
+  timeZone: string
 }
 
 export function UserProfilePage() {
@@ -81,8 +86,12 @@ export function UserProfilePage() {
       language: user?.language ?? 'en',
       showIpLocation: user?.showIpLocation ?? true,
       showLikes: user?.showLikes ?? false,
+      showLocalTime: user?.showLocalTime ?? false,
+      timeZone: user?.timeZone ?? '',
     },
   })
+  const showLocalTime = form.watch('showLocalTime')
+  const browserTimeZone = useBrowserTimeZone()
 
   // 头像 / 背景图地址：从资产库选择、本地上传或手动填写；裁剪结果在提交时再上传
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '')
@@ -107,6 +116,8 @@ export function UserProfilePage() {
       || backgroundCropped !== null
       || values.showIpLocation !== user.showIpLocation
       || values.showLikes !== (user.showLikes ?? false)
+      || values.showLocalTime !== (user.showLocalTime ?? false)
+      || (values.showLocalTime && values.timeZone !== (user.timeZone ?? ''))
     )
   }
 
@@ -151,6 +162,9 @@ export function UserProfilePage() {
         backgroundUrl: nextBackgroundUrl,
         showIpLocation: values.showIpLocation,
         showLikes: values.showLikes,
+        showLocalTime: values.showLocalTime,
+        // 关闭时不再上报时区，后端会一并清空已保存的时区
+        timeZone: values.showLocalTime ? values.timeZone : '',
       })
       window.location.reload()
     }
@@ -295,6 +309,46 @@ export function UserProfilePage() {
               </FormItem>
             )}
           />
+
+          <FormField
+            control={form.control}
+            name="showLocalTime"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('show_local_time')}</FormLabel>
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked === true)
+                      // 首次开启时默认使用浏览器所在的时区
+                      if (checked === true && !form.getValues('timeZone') && isValidTimeZone(browserTimeZone))
+                        form.setValue('timeZone', browserTimeZone)
+                    }}
+                  />
+                </FormControl>
+                <FormDescription>{t('show_local_time_description')}</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {showLocalTime && (
+            <FormField
+              control={form.control}
+              name="timeZone"
+              rules={{ validate: value => isValidTimeZone(value) || t('invalid_time_zone') }}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('time_zone')}</FormLabel>
+                  <FormControl>
+                    <TimeZoneCombobox value={field.value} onChange={field.onChange} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           <FormField
             control={form.control}

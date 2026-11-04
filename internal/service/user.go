@@ -304,12 +304,12 @@ func normalizeOidcRedirectBack(redirectBack string) string {
 	return redirectBack
 }
 
-// viewUserDto 本人或管理员查看时包含邮箱，其他人只能看到公开信息
+// viewUserDto 个人主页的用户信息：本人或管理员查看时包含邮箱，其他人只能看到公开信息
 func viewUserDto(ctx context.Context, user *model.User) dto.UserDto {
 	if ctxutils.IsOwnerOfTarget(ctx, user.ID) || ctxutils.IsAdmin(ctx) {
 		return user.ToPrivateDto()
 	}
-	return user.ToDto()
+	return user.ToProfileDto()
 }
 
 func (s *UserService) GetUser(ctx context.Context, req *dto.GetUserReq) (*dto.GetUserResp, *errs.ServiceError) {
@@ -353,6 +353,18 @@ func (s *UserService) GetUserByUsername(ctx context.Context, req *dto.GetUserByU
 }
 
 func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, *errs.ServiceError) {
+	// 时区只在公开当地时间时保存，关闭时一并清空，不留存用户不想公开的信息；按列更新才能写入空值
+	var localTimeColumns map[string]any
+	if req.ShowLocalTime != nil {
+		timeZone := ""
+		if *req.ShowLocalTime {
+			var ok bool
+			if timeZone, ok = utils.NormalizeTimeZone(req.TimeZone); !ok {
+				return nil, errs.NewBadRequest("invalid_timezone")
+			}
+		}
+		localTimeColumns = map[string]any{"show_local_time": *req.ShowLocalTime, "time_zone": timeZone}
+	}
 	user := &model.User{
 		Model: gorm.Model{
 			ID: req.ID,
@@ -368,6 +380,9 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, *
 		ShowLikes:      req.ShowLikes,
 	}
 	err := repo.User.UpdateUser(user)
+	if err == nil && localTimeColumns != nil {
+		err = repo.User.UpdateUserColumns(req.ID, localTimeColumns)
+	}
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errs.NewNotFound("target_not_found").WithResource("user")

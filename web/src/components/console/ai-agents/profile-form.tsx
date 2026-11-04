@@ -6,6 +6,7 @@ import { Bot, Brain, Clock, Gauge, Loader2, Shield, SlidersHorizontal, Wand } fr
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { updateAIAgent } from '@/api/ai-agent'
+import { TimeZoneCombobox } from '@/components/common/time-zone-combobox'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -16,6 +17,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { AI_AGENT_SELF_EDIT_FIELDS, AI_AGENT_TRIGGERS } from '@/models/ai-agent'
+import { isValidTimeZone } from '@/utils/common/time-zone'
 import { TierToggle } from './create-agent-dialog'
 import { linesToList, listToLines, triggerKey, useAIAgentT } from './shared'
 
@@ -86,19 +88,6 @@ function toProfile(values: ProfileFormValues): AIAgentProfile {
     selfEdit: { ...values.selfEdit, hint: values.selfEdit.hint.trim() },
     memory: values.memory,
     webFetch: { enabled: values.webFetch.enabled, allowedDomains: linesToList(values.webFetch.allowedDomains) },
-  }
-}
-
-function isValidTimezone(value: string) {
-  if (!value.trim())
-    return true
-  try {
-    // eslint-disable-next-line no-new
-    new Intl.DateTimeFormat('en', { timeZone: value.trim() })
-    return true
-  }
-  catch {
-    return false
   }
 }
 
@@ -397,11 +386,11 @@ export function AgentProfileForm({ agent, onSaved }: { agent: AIAgent, onSaved: 
             <FormField
               control={control}
               name="activity.timezone"
-              rules={{ validate: v => isValidTimezone(v) || t('profile.invalid_timezone') }}
+              rules={{ validate: v => isValidTimeZone(v) || t('profile.invalid_timezone') }}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('profile.timezone')}</FormLabel>
-                  <FormControl><Input {...field} placeholder="Asia/Shanghai" /></FormControl>
+                  <FormControl><TimeZoneCombobox value={field.value} onChange={field.onChange} /></FormControl>
                   <FormDescription>{t('profile.timezone_desc')}</FormDescription>
                   <FormMessage />
                 </FormItem>

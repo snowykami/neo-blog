@@ -19,6 +19,7 @@
       "title": "Sign-in, comments, and likes",
       "items": {
         "profile": "Account: username, nickname, and email; passwords are stored encrypted. When you sign in with a third-party account, we receive the name, email, and avatar it provides. Each sign-in records the IP address used, to keep your account secure. Your profile page shows the approximate region of your latest sign-in by default; you can turn this off in account settings.",
+        "local_time": "<b>Local time</b>: off by default. If you turn it on in account settings, we save the time zone you choose (your browser's by default), and your profile page shows your local time and time zone. Turning it off deletes the time zone.",
         "link": "<b>Linking after sign-in</b>: after you sign in on a browser, your earlier anonymous browsing on it is linked to your account. The site owner can also turn on inference from browser information: anonymous browsing from the same network with the same browser information in the last 7 days is linked to your account too and marked as inferred in the admin panel.",
         "comment": "Comments and likes: the content, plus the IP and approximate region at the time of posting. IPs are never made public; you decide whether the region and client info are shown."
       }
@@ -1266,6 +1267,10 @@
       "show_ip_location": "Show IP Location",
       "show_likes": "Make my likes public",
       "show_likes_description": "When on, anyone can see the public posts and comments you liked on your profile",
+      "show_local_time": "Show my local time",
+      "show_local_time_description": "When on, anyone can see the current time in your time zone on your profile. Turning it off hides it and deletes the saved time zone",
+      "time_zone": "Time zone",
+      "invalid_time_zone": "Please select a valid time zone",
       "select_language": "Select a language"
     },
     "user_security": {
@@ -2371,7 +2376,7 @@
         "active_hours_desc": "Hour ranges such as 9-12,20-24. Write 22-2 to cross midnight. Leave empty for all day",
         "invalid_active_hours": "Use a format like 9-12,20-24 with hours from 0 to 24",
         "timezone": "Time zone",
-        "timezone_desc": "IANA time zone; defaults to Asia/Shanghai",
+        "timezone_desc": "The AI plans its schedule and tells the time in this time zone",
         "invalid_timezone": "Invalid time zone",
         "section_behavior": "Tendencies",
         "section_behavior_desc": "Written into the prompt as tendencies; the model decides what to actually do after reading.",
@@ -3071,6 +3076,33 @@
     "digest": "Error ID: {digest}",
     "retry": "Retry"
   },
+  "TimeZone": {
+    "placeholder": "Select a time zone",
+    "search": "Type a city, time zone or UTC offset",
+    "empty": "No matching time zone",
+    "group_common": "Common time zones",
+    "group_all": "All time zones",
+    "browser": "This browser",
+    "presets": {
+      "utc": "Coordinated Universal Time",
+      "shanghai": "Beijing / Shanghai",
+      "hong_kong": "Hong Kong",
+      "taipei": "Taipei",
+      "tokyo": "Tokyo",
+      "seoul": "Seoul",
+      "singapore": "Singapore",
+      "kolkata": "New Delhi / Mumbai",
+      "dubai": "Dubai",
+      "moscow": "Moscow",
+      "berlin": "Berlin",
+      "paris": "Paris",
+      "london": "London",
+      "new_york": "New York",
+      "chicago": "Chicago",
+      "los_angeles": "Los Angeles",
+      "sydney": "Sydney"
+    }
+  },
   "UserPage": {
     "no_nickname": "No nickname",
     "not_filled": "Not provided",
@@ -3099,7 +3131,11 @@
     "gender": "Gender",
     "email": "Email",
     "role": "Role",
-    "location": "Location"
+    "location": "Location",
+    "local_time": "Local time",
+    "local_time_zone": "{zone} ({offset})",
+    "local_time_ahead": "{duration} ahead of you",
+    "local_time_behind": "{duration} behind you"
   },
   "ColorScheme": {
     "title": "Color theme",

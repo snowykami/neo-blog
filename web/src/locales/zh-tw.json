@@ -19,6 +19,7 @@
       "title": "登入、留言和按讚",
       "items": {
         "profile": "帳號：使用者名稱、暱稱和電子郵件，密碼加密儲存。使用第三方帳號登入時，會取得對方提供的名稱、電子郵件和大頭貼。每次登入會記錄所用的 IP 位址以保障帳號安全；個人頁面預設顯示最近登入地的大致地區，可以在帳號設定中關閉。",
+        "local_time": "<b>當地時間</b>：預設不公開。在帳號設定中開啟後，會儲存你選擇的時區（預設為瀏覽器的時區），個人頁面會據此顯示你的當地時間和時區；關閉後時區一併刪除。",
         "link": "<b>登入後的關聯</b>：在這台瀏覽器上登入後，之前的匿名瀏覽紀錄會關聯到你的帳號。站長還可以開啟依瀏覽器資訊推斷：近 7 天內來自同一網路、瀏覽器資訊相同的匿名瀏覽，也會關聯到你的帳號，並在後台標為推斷。",
         "comment": "留言和按讚：內容，以及發表時的 IP 和大致地區。IP 不會公開；地區和用戶端資訊是否顯示由你決定。"
       }
@@ -1266,6 +1267,10 @@
       "show_ip_location": "顯示 IP 歸屬地",
       "show_likes": "公開我的喜歡",
       "show_likes_description": "開啟後，所有人都能在你的主頁查看你按讚的公開文章和留言",
+      "show_local_time": "公開我的當地時間",
+      "show_local_time_description": "開啟後，所有人都能在你的主頁看到你所在時區的目前時間；關閉後不再公開，並刪除已儲存的時區",
+      "time_zone": "時區",
+      "invalid_time_zone": "請選擇有效的時區",
       "select_language": "選擇語言"
     },
     "user_security": {
@@ -2371,7 +2376,7 @@
         "active_hours_desc": "活躍的小時區間，例如 9-12,20-24；跨午夜寫成 22-2；留空為全天",
         "invalid_active_hours": "格式應為 9-12,20-24，小時取 0~24",
         "timezone": "時區",
-        "timezone_desc": "IANA 時區，留空為 Asia/Shanghai",
+        "timezone_desc": "AI 依這個時區安排作息、感知目前時間",
         "invalid_timezone": "無效的時區",
         "section_behavior": "行為傾向",
         "section_behavior_desc": "寫進提示詞作為傾向，實際做什麼由模型讀完後決定。",
@@ -3071,6 +3076,33 @@
     "digest": "錯誤編號：{digest}",
     "retry": "重試"
   },
+  "TimeZone": {
+    "placeholder": "選擇時區",
+    "search": "輸入城市、時區或 UTC 偏移",
+    "empty": "找不到符合的時區",
+    "group_common": "常用時區",
+    "group_all": "全部時區",
+    "browser": "目前瀏覽器",
+    "presets": {
+      "utc": "協調世界時",
+      "shanghai": "北京 / 上海",
+      "hong_kong": "香港",
+      "taipei": "台北",
+      "tokyo": "東京",
+      "seoul": "首爾",
+      "singapore": "新加坡",
+      "kolkata": "新德里 / 孟買",
+      "dubai": "杜拜",
+      "moscow": "莫斯科",
+      "berlin": "柏林",
+      "paris": "巴黎",
+      "london": "倫敦",
+      "new_york": "紐約",
+      "chicago": "芝加哥",
+      "los_angeles": "洛杉磯",
+      "sydney": "雪梨"
+    }
+  },
   "UserPage": {
     "no_nickname": "未填寫暱稱",
     "not_filled": "未填寫",
@@ -3099,7 +3131,11 @@
     "gender": "性別",
     "email": "電子郵件",
     "role": "角色",
-    "location": "所在地"
+    "location": "所在地",
+    "local_time": "當地時間",
+    "local_time_zone": "{zone}（{offset}）",
+    "local_time_ahead": "比你快 {duration}",
+    "local_time_behind": "比你慢 {duration}"
   },
   "ColorScheme": {
     "title": "顏色主題",

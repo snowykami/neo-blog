@@ -19,6 +19,7 @@
       "title": "로그인, 댓글, 좋아요",
       "items": {
         "profile": "계정: 사용자 이름, 닉네임, 이메일. 비밀번호는 암호화하여 저장합니다. 외부 계정으로 로그인하면 해당 서비스가 제공하는 이름, 이메일, 프로필 사진을 받아옵니다. 계정 보안을 위해 로그인할 때마다 사용한 IP 주소를 기록합니다. 프로필 페이지에는 기본적으로 최근 로그인 위치의 대략적인 지역이 표시되며, 계정 설정에서 끌 수 있습니다.",
+        "local_time": "<b>현지 시간</b>: 기본적으로 공개되지 않습니다. 계정 설정에서 켜면 선택한 시간대(기본값은 브라우저의 시간대)를 저장하고, 프로필 페이지에 현지 시간과 시간대를 표시합니다. 끄면 시간대도 함께 삭제됩니다.",
         "link": "<b>로그인 후 연결</b>: 이 브라우저에서 로그인하면 그전의 익명 방문 기록이 계정에 연결됩니다. 사이트 운영자는 브라우저 정보로 추정하는 기능을 켤 수도 있습니다. 이 경우 최근 7일 동안 같은 네트워크에서 같은 브라우저 정보로 이루어진 익명 방문도 계정에 연결되며, 관리 화면에 추정으로 표시됩니다.",
         "comment": "댓글과 좋아요: 내용, 그리고 작성 당시의 IP와 대략적인 지역. IP는 공개되지 않으며, 지역과 클라이언트 정보의 표시 여부는 직접 정할 수 있습니다."
       }
@@ -1266,6 +1267,10 @@
       "show_ip_location": "Show IP Location",
       "show_likes": "내 좋아요 공개",
       "show_likes_description": "켜면 누구나 내 프로필에서 내가 좋아요한 공개 글과 댓글을 볼 수 있습니다",
+      "show_local_time": "내 현지 시간 공개",
+      "show_local_time_description": "켜면 누구나 내 프로필에서 내 시간대의 현재 시간을 볼 수 있습니다. 끄면 공개가 중지되고 저장된 시간대도 삭제됩니다",
+      "time_zone": "시간대",
+      "invalid_time_zone": "올바른 시간대를 선택하세요",
       "select_language": "언어 선택"
     },
     "user_security": {
@@ -2371,7 +2376,7 @@
         "active_hours_desc": "시간 범위, 예: 9-12,20-24. 자정을 넘기면 22-2. 비워 두면 하루 종일",
         "invalid_active_hours": "9-12,20-24 형식으로, 시간은 0~24로 입력하세요",
         "timezone": "시간대",
-        "timezone_desc": "IANA 시간대. 비워 두면 Asia/Shanghai",
+        "timezone_desc": "AI가 이 시간대로 일과를 정하고 현재 시간을 파악합니다",
         "invalid_timezone": "잘못된 시간대입니다",
         "section_behavior": "행동 성향",
         "section_behavior_desc": "성향으로 프롬프트에 기록되며, 실제 행동은 읽은 후 모델이 결정합니다.",
@@ -3071,6 +3076,33 @@
     "digest": "오류 ID: {digest}",
     "retry": "다시 시도"
   },
+  "TimeZone": {
+    "placeholder": "시간대 선택",
+    "search": "도시, 시간대 또는 UTC 오프셋 입력",
+    "empty": "일치하는 시간대가 없습니다",
+    "group_common": "자주 쓰는 시간대",
+    "group_all": "모든 시간대",
+    "browser": "이 브라우저",
+    "presets": {
+      "utc": "협정 세계시",
+      "shanghai": "베이징 / 상하이",
+      "hong_kong": "홍콩",
+      "taipei": "타이베이",
+      "tokyo": "도쿄",
+      "seoul": "서울",
+      "singapore": "싱가포르",
+      "kolkata": "뉴델리 / 뭄바이",
+      "dubai": "두바이",
+      "moscow": "모스크바",
+      "berlin": "베를린",
+      "paris": "파리",
+      "london": "런던",
+      "new_york": "뉴욕",
+      "chicago": "시카고",
+      "los_angeles": "로스앤젤레스",
+      "sydney": "시드니"
+    }
+  },
   "UserPage": {
     "no_nickname": "닉네임 없음",
     "not_filled": "미입력",
@@ -3099,7 +3131,11 @@
     "gender": "성별",
     "email": "이메일",
     "role": "역할",
-    "location": "위치"
+    "location": "위치",
+    "local_time": "현지 시간",
+    "local_time_zone": "{zone}({offset})",
+    "local_time_ahead": "나보다 {duration} 빠름",
+    "local_time_behind": "나보다 {duration} 느림"
   },
   "ColorScheme": {
     "title": "색상 테마",

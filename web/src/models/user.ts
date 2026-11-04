@@ -12,6 +12,8 @@ export interface User {
   language?: string
   showIpLocation: boolean
   showLikes?: boolean // 是否公开点赞记录
+  showLocalTime?: boolean // 是否在主页公开当地时间
+  timeZone?: string // IANA 时区，只在公开当地时间时返回
   createdAt?: string // 注册时间，仅 /user/me 与管理员接口返回
   disabled?: boolean // 是否被禁用，仅 /user/me 与管理员接口返回
   isAi?: boolean // 是否为 AI 用户，仅本人与管理员可见；前台不做区分

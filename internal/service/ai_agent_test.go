@@ -330,7 +330,12 @@ func TestAgentPureFunctions(t *testing.T) {
 	if counts["a"] != 6 || counts["b"] != 3 || counts["c"] != 1 {
 		t.Fatalf("slots = %v", counts)
 	}
-	if _, svcerr := normalizeAgentProfile(dto.AIAgentProfile{Activity: dto.AIAgentActivity{Timezone: "Mars/Base"}}); svcerr == nil {
-		t.Fatal("invalid timezone accepted")
+	for _, tz := range []string{"Mars/Base", "EST", "UTC+8"} {
+		if _, svcerr := normalizeAgentProfile(dto.AIAgentProfile{Activity: dto.AIAgentActivity{Timezone: tz}}); svcerr == nil {
+			t.Fatalf("non-standard timezone %q accepted", tz)
+		}
+	}
+	if p, svcerr := normalizeAgentProfile(dto.AIAgentProfile{Activity: dto.AIAgentActivity{Timezone: " "}}); svcerr != nil || p.Activity.Timezone != agentDefaultTimezone {
+		t.Fatalf("blank timezone should fall back to default, got %q %v", p.Activity.Timezone, svcerr)
 	}
 }

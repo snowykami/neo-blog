@@ -20,6 +20,8 @@ type UserDto struct {
 	Language       string        `json:"language"`             // 语言
 	ShowIPLocation *bool         `json:"show_ip_location"`     // 是否显示IP归属地
 	ShowLikes      *bool         `json:"show_likes"`           // 是否公开点赞记录
+	ShowLocalTime  *bool         `json:"show_local_time"`      // 是否公开当地时间
+	TimeZone       string        `json:"time_zone,omitempty"`  // IANA 时区，只在个人主页且用户公开当地时间时返回
 	CreatedAt      *time.Time    `json:"created_at,omitempty"` // 注册时间，仅本人和管理员可见
 	Disabled       *bool         `json:"disabled,omitempty"`   // 是否被禁用，仅本人和管理员可见
 	IsAI           *bool         `json:"is_ai,omitempty"`      // 是否为 AI 用户，仅本人和管理员可见；前台不做区分
@@ -124,6 +126,8 @@ type UpdateUserReq struct {
 	Language       string `json:"language"`
 	ShowIPLocation *bool  `json:"show_ip_location"`
 	ShowLikes      *bool  `json:"show_likes"`
+	ShowLocalTime  *bool  `json:"show_local_time"` // 为空表示不修改；关闭时一并清空时区
+	TimeZone       string `json:"time_zone"`       // 公开当地时间时必填的 IANA 时区
 }
 
 type UpdateUserResp struct {

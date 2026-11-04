@@ -178,13 +178,14 @@ func normalizeAgentProfile(p dto.AIAgentProfile) (dto.AIAgentProfile, *errs.Serv
 	if _, err := parseActiveHours(p.Activity.ActiveHours); err != nil {
 		return p, errs.NewBadRequest("invalid_active_hours")
 	}
-	p.Activity.Timezone = strings.TrimSpace(p.Activity.Timezone)
-	if p.Activity.Timezone == "" {
+	if strings.TrimSpace(p.Activity.Timezone) == "" {
 		p.Activity.Timezone = agentDefaultTimezone
 	}
-	if _, err := time.LoadLocation(p.Activity.Timezone); err != nil {
+	timezone, ok := utils.NormalizeTimeZone(p.Activity.Timezone)
+	if !ok {
 		return p, errs.NewBadRequest("invalid_timezone")
 	}
+	p.Activity.Timezone = timezone
 
 	b := &p.Behavior
 	b.Lurk, b.Like, b.Comment = clamp01(b.Lurk), clamp01(b.Like), clamp01(b.Comment)
