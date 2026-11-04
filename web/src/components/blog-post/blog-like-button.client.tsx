@@ -5,11 +5,10 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { getLikedUsers, toggleLike } from '@/api/like'
+import { useRequireLogin } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
-import { useAuth } from '@/contexts/auth-context'
 import { LikeIcon } from '@/contexts/theme-context'
-import { useToLogin } from '@/hooks/use-route'
-import { useCommonT, useOperationT } from '@/hooks/use-translations'
+import { useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { TargetType } from '@/models/types'
 import { getUserUrl } from '@/utils/common/route'
@@ -18,10 +17,8 @@ import { formatDisplayName } from '@/utils/common/username'
 const MAX_LIKED_USERS = 5
 
 export function BlogLikeButton({ post }: { post: Post }) {
-  const commonT = useCommonT()
   const operationT = useOperationT()
-  const { user } = useAuth()
-  const clickToLogin = useToLogin()
+  const requireLogin = useRequireLogin()
   const [liked, setLiked] = useState(post.isLiked)
   const [likeCount, setLikeCount] = useState(post.likeCount || 0)
   const [likedUsers, setLikedUsers] = useState<User[]>([])
@@ -64,32 +61,19 @@ export function BlogLikeButton({ post }: { post: Post }) {
       })
   }, [shouldFetchLikedUsers, likedUsersVersion, post.id])
 
-  const handleToggleLike = () => {
+  // 未登录时由 requireLogin 弹出快捷登录，登录后接着执行，因此这里不再判断登录状态
+  const like = () => {
     if (!canClickLike) {
       return
     }
     setCanClickLike(false)
-    if (!user) {
-      toast.error(commonT('login_required'), {
-        action: {
-          label: operationT('login'),
-          onClick: () => {
-            setCanClickLike(true)
-            clickToLogin()
-          },
-        },
-        onDismiss: () => {
-          setCanClickLike(true)
-        },
-      })
-      return
-    }
     // 提前转换状态，让用户觉得响应很快，失败时回滚
     const likedPrev = liked
     const likeCountPrev = likeCount
     setLiked(!likedPrev)
     setLikeCount(likeCountPrev + (likedPrev ? -1 : 1))
-    toggleLike({ targetType: TargetType.Post, targetId: post.id })
+    // 传入期望状态：快捷登录后页面上的点赞状态可能已过期，避免把已赞的点成取消
+    toggleLike({ targetType: TargetType.Post, targetId: post.id, liked: !likedPrev })
       .then((res) => {
         toast.success(res.data.status ? operationT('like_success') : operationT('unlike_success'))
         // 以服务端结果为准，校正乐观状态
@@ -111,7 +95,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
     <div ref={likeButtonRef} className="flex flex-col items-center gap-3">
       <button
         type="button"
-        onClick={handleToggleLike}
+        onClick={() => requireLogin(like, 'like')}
         aria-label={liked ? operationT('unlike') : operationT('like')}
         aria-pressed={liked}
         title={liked ? operationT('unlike') : operationT('like')}

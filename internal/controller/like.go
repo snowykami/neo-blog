@@ -28,7 +28,7 @@ func (lc *LikeController) ToggleLike(ctx context.Context, c *app.RequestContext)
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	liked, svcerr := lc.service.ToggleLike(ctx, toggleLikeReq.TargetID, toggleLikeReq.TargetType)
+	liked, svcerr := lc.service.ToggleLike(ctx, toggleLikeReq.TargetID, toggleLikeReq.TargetType, toggleLikeReq.Liked)
 	if svcerr != nil {
 		logrus.Error(svcerr.Error())
 		resps.Error(c, svcerr)

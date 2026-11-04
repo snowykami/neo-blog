@@ -8,13 +8,16 @@ import axiosClient from './client'
 export async function toggleLike({
   targetType,
   targetId,
+  liked,
 }: {
   targetType: TargetType
   targetId: number
+  liked?: boolean // 期望的点赞状态；不传时取反，传入时幂等，页面状态过期也不会点反
 }): Promise<BaseResponse<{ status: boolean }>> {
   const res = await axiosClient.put('/like/toggle', {
     targetType,
     targetId,
+    liked,
   })
   return res.data
 }

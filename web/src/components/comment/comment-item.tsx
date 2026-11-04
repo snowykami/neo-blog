@@ -7,6 +7,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { createComment, deleteComment, getComment, listCommentThread, updateComment } from '@/api/comment'
 import { toggleLike } from '@/api/like'
+import { useRequireLogin } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
 import { Popconfirm } from '@/components/common/popconfirm'
 import { Badge } from '@/components/ui/badge'
@@ -15,7 +16,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { LikeIcon } from '@/contexts/theme-context'
-import { useToLogin } from '@/hooks/use-route'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { TargetType } from '@/models/types'
@@ -227,29 +227,23 @@ function CommentBody({
   const roleT = useTranslations('Role')
   const commonT = useCommonT()
   const operationT = useOperationT()
-  const clickToLogin = useToLogin()
+  const requireLogin = useRequireLogin()
   const [likeCount, setLikeCount] = useState(comment.likeCount)
   const [liked, setLiked] = useState(comment.isLiked)
   const [liking, setLiking] = useState(false)
 
-  const requireLogin = () => {
-    toast.error(commonT('login_required'), { action: { label: operationT('login'), onClick: clickToLogin } })
-  }
-
-  const handleToggleLike = () => {
+  // 未登录时由 requireLogin 弹出快捷登录，登录后接着执行，因此这里不再判断登录状态
+  const like = () => {
     if (liking)
       return
-    if (!user) {
-      requireLogin()
-      return
-    }
     setLiking(true)
     // 提前转换状态，让用户觉得响应很快
     const likedPrev = liked
     const likeCountPrev = likeCount
     setLiked(!likedPrev)
     setLikeCount(likeCountPrev + (likedPrev ? -1 : 1))
-    toggleLike({ targetType: TargetType.Comment, targetId: comment.id })
+    // 传入期望状态：快捷登录后页面上的点赞状态可能已过期，避免把已赞的点成取消
+    toggleLike({ targetType: TargetType.Comment, targetId: comment.id, liked: !likedPrev })
       .then(res => toast.success(res.data.status ? operationT('like_success') : operationT('unlike_success')))
       .catch((error) => {
         toast.error(`${operationT('like_failed')}: ${errorMessageT(error)}`)
@@ -260,14 +254,12 @@ function CommentBody({
       .finally(() => setLiking(false))
   }
 
-  const toggleReply = () => {
-    if (!user) {
-      requireLogin()
-      return
-    }
+  const handleToggleLike = () => requireLogin(like, 'like')
+
+  const toggleReply = () => requireLogin(() => {
     const active = activeInput?.type === 'reply' && activeInput.id === comment.id
     setActiveInputId(active ? null : { id: comment.id, type: 'reply' })
-  }
+  }, 'reply')
 
   const onEdit = async ({ commentContent, isPrivate, showClientInfo }: SubmitPayload) => {
     try {
@@ -346,12 +338,13 @@ function CommentBody({
           <div className="-ml-2 flex items-center gap-0.5 text-xs text-muted-foreground">
             <button
               type="button"
+              title={t('reply')}
+              aria-label={t('reply')}
               onClick={toggleReply}
               aria-pressed={replyActive}
-              className={cn('inline-flex h-7 items-center gap-1 rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground', replyActive && 'text-primary')}
+              className={cn('inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground', replyActive && 'text-primary')}
             >
               <Reply aria-hidden className="size-3.5" />
-              {t('reply')}
             </button>
             <button
               type="button"

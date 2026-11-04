@@ -16,7 +16,8 @@ func NewLikeService() *LikeService {
 	return &LikeService{}
 }
 
-func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType string) (bool, *errs.ServiceError) {
+// ToggleLike 切换点赞状态；desired 不为空时设置为该状态，已是该状态则不做改动
+func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType string, desired *bool) (bool, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return false, errs.NewUnauthorized("login_required")
@@ -38,6 +39,15 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 		ownerID = comment.User.ID
 	default:
 		return false, errs.NewBadRequest("invalid_target_type")
+	}
+	if desired != nil {
+		current, err := repo.Like.IsLiked(currentUser.ID, targetID, targetType)
+		if err != nil {
+			return false, errs.Internal("failed_to_toggle_like", err)
+		}
+		if current == *desired {
+			return current, nil
+		}
 	}
 	state, err := repo.Like.ToggleLike(currentUser.ID, targetID, targetType)
 	if err != nil {

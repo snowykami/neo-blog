@@ -39,7 +39,7 @@ func TestListUserLikesVisibility(t *testing.T) {
 
 	mustLike := func(targetType string, targetID uint) {
 		t.Helper()
-		if _, svcerr := NewLikeService().ToggleLike(other, targetID, targetType); svcerr != nil {
+		if _, svcerr := NewLikeService().ToggleLike(other, targetID, targetType, nil); svcerr != nil {
 			t.Fatalf("like %s %d: %v", targetType, targetID, svcerr)
 		}
 	}

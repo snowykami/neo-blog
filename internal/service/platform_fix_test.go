@@ -90,7 +90,7 @@ func TestCommentVisibility(t *testing.T) {
 	if svcerr != nil {
 		t.Fatalf("reply: %v", svcerr)
 	}
-	if _, svcerr := NewLikeService().ToggleLike(other, reply, constant.TargetTypeComment); svcerr != nil {
+	if _, svcerr := NewLikeService().ToggleLike(other, reply, constant.TargetTypeComment, nil); svcerr != nil {
 		t.Fatalf("like reply: %v", svcerr)
 	}
 	if svcerr := NewCommentService().DeleteComment(other, publicComment); svcerr != nil {
@@ -115,7 +115,7 @@ func TestToggleLikeCount(t *testing.T) {
 	author, _, other, _, _ := setupEditTest(t)
 	postID := createPublicPost(t, author, nil)
 	like := func() bool {
-		liked, svcerr := NewLikeService().ToggleLike(other, postID, constant.TargetTypePost)
+		liked, svcerr := NewLikeService().ToggleLike(other, postID, constant.TargetTypePost, nil)
 		if svcerr != nil {
 			t.Fatalf("toggle like: %v", svcerr)
 		}
@@ -130,8 +130,26 @@ func TestToggleLikeCount(t *testing.T) {
 	if !like() || reloadPost(t, postID).LikeCount != 1 {
 		t.Fatalf("liking again after unlike should work (no soft-deleted unique conflict)")
 	}
-	_, svcerr := NewLikeService().ToggleLike(other, 99999, constant.TargetTypePost)
+	_, svcerr := NewLikeService().ToggleLike(other, 99999, constant.TargetTypePost, nil)
 	expectCode(t, svcerr, http.StatusNotFound, "like missing post")
+
+	// 指定期望状态时幂等：页面状态过期（如快捷登录后仍显示未点赞）再点一次也不会点反
+	set := func(want bool) bool {
+		liked, svcerr := NewLikeService().ToggleLike(other, postID, constant.TargetTypePost, &want)
+		if svcerr != nil {
+			t.Fatalf("set like %v: %v", want, svcerr)
+		}
+		return liked
+	}
+	if !set(true) || reloadPost(t, postID).LikeCount != 1 {
+		t.Fatalf("setting liked on an already liked post should keep it liked with count 1")
+	}
+	if set(false) || set(false) || reloadPost(t, postID).LikeCount != 0 {
+		t.Fatalf("setting unliked twice should unlike once and keep count 0")
+	}
+	if !set(true) || reloadPost(t, postID).LikeCount != 1 {
+		t.Fatalf("setting liked should like again")
+	}
 }
 
 func TestPostSlugAndCategory(t *testing.T) {

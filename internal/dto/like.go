@@ -6,6 +6,7 @@ type ToggleLikeOrIsLikedOrLikedUsersReq struct {
 	TargetID   uint   `query:"target_id" json:"target_id" binding:"required"`
 	TargetType string `query:"target_type" json:"target_type" binding:"required"` // 目标类型，如 "post", "comment"
 	Number     int    `query:"number" json:"number"`                              // 获取点赞用户数量，默认20，最大100
+	Liked      *bool  `json:"liked"`                                              // 切换点赞时期望的状态；为空时取反，指定时幂等（页面状态过期也不会点反）
 }
 
 type ListUserLikesReq struct {

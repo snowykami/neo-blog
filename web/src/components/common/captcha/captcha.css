@@ -1,1 +1,6 @@
 /* 选择 Turnstile 组件内的 iframe */
+
+/* 弹窗（如快捷登录）打开时 body 会禁用指针事件，hCaptcha 的验证挑战挂在 body 下，需单独恢复才能点击 */
+iframe[src*='hcaptcha'] {
+  pointer-events: auto;
+}

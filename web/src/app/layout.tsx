@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { getLoginUserServer } from '@/api/user.server'
+import { LoginDialogProvider } from '@/components/auth/login-dialog'
 import { AppUpdateChecker } from '@/components/common/app-update-checker'
 import { FloatingWidgets } from '@/components/common/main-floating-widgets'
 import { Toaster } from '@/components/ui/sonner'
@@ -94,14 +95,16 @@ export default async function RootLayout({
               <AppUpdateChecker />
               <ThemeProvider theme={theme}>
                 <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
-                  <SiteInfoProvider initialData={siteInfo}>
-                    <MusicProvider>
-                      <NavProvider>
-                        <FloatingWidgets />
-                        {children}
-                      </NavProvider>
-                    </MusicProvider>
-                  </SiteInfoProvider>
+                  <LoginDialogProvider>
+                    <SiteInfoProvider initialData={siteInfo}>
+                      <MusicProvider>
+                        <NavProvider>
+                          <FloatingWidgets />
+                          {children}
+                        </NavProvider>
+                      </MusicProvider>
+                    </SiteInfoProvider>
+                  </LoginDialogProvider>
                 </AuthProvider>
               </ThemeProvider>
             </NextIntlClientProvider>

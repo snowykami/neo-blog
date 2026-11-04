@@ -33,7 +33,7 @@ func TestVisitInteractions(t *testing.T) {
 
 	mustLike := func(ctx context.Context, targetType string, targetID uint) {
 		t.Helper()
-		if _, svcerr := likes.ToggleLike(ctx, targetID, targetType); svcerr != nil {
+		if _, svcerr := likes.ToggleLike(ctx, targetID, targetType, nil); svcerr != nil {
 			t.Fatalf("toggle like: %v", svcerr)
 		}
 	}

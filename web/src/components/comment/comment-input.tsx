@@ -1,18 +1,17 @@
-import type { OidcConfig } from '@/models/oidc-config'
 import { Loader2, Lock, LogIn, Monitor, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
-import { listOidcConfigs } from '@/api/user'
-import { GuestAvatar, ImageAvatar, UserAvatar } from '@/components/common/avatar'
+import { useLoginDialog } from '@/components/auth/login-dialog'
+import { OidcProviderButtons, useOidcProviders } from '@/components/auth/oidc-providers'
+import { GuestAvatar, UserAvatar } from '@/components/common/avatar'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { Textarea } from '@/components/ui/textarea'
 import { Toggle } from '@/components/ui/toggle'
 import { useAuth } from '@/contexts/auth-context'
-import { useToLogin } from '@/hooks/use-route'
 import { useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { getUserUrl } from '@/utils/common/route'
@@ -181,20 +180,14 @@ export function CommentInput({
   )
 }
 
-// 未登录时的登录邀请：登录按钮与后台已启用的第三方登录，不再显示游客用不了的输入框和选项
+// 未登录时的登录邀请：后台已启用的第三方登录与快捷登录按钮，不再显示游客用不了的输入框和选项
 function GuestInvite() {
   const t = useTranslations('Comment')
   const operationT = useOperationT()
-  const clickToLogin = useToLogin()
+  const openLogin = useLoginDialog()
   const pathname = usePathname()
-  const [providers, setProviders] = useState<OidcConfig[]>([])
-
-  useEffect(() => {
-    // 第三方登录完成后回到当前页面；读取失败时只显示登录按钮
-    listOidcConfigs({ redirectBack: pathname })
-      .then(res => setProviders(res.data ?? []))
-      .catch(() => {})
-  }, [pathname])
+  // 第三方登录完成后回到当前页面；读取失败时只显示登录按钮
+  const { providers } = useOidcProviders({ redirectBack: pathname })
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4 fade-in-up sm:flex-nowrap">
@@ -204,14 +197,8 @@ function GuestInvite() {
         <p className="text-sm text-muted-foreground">{t('guest_desc')}</p>
       </div>
       <div className="flex w-full items-center gap-2 sm:w-auto">
-        {providers.map(provider => (
-          <Button key={provider.id || provider.loginUrl} asChild variant="outline" size="icon" className="shrink-0 rounded-full">
-            <a href={provider.loginUrl} title={t('login_with', { name: provider.displayName })} aria-label={t('login_with', { name: provider.displayName })}>
-              <ImageAvatar src={provider.icon} alt="" fallback={provider.displayName.slice(0, 1)} className="size-5" fallbackClassName="text-[10px]" />
-            </a>
-          </Button>
-        ))}
-        <Button type="button" className="flex-1 sm:flex-none" onClick={clickToLogin}>
+        <OidcProviderButtons providers={providers} variant="icon" />
+        <Button type="button" className="flex-1 sm:flex-none" onClick={() => openLogin({ reason: 'comment' })}>
           <LogIn />
           {operationT('login')}
         </Button>
