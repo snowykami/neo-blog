@@ -30,7 +30,7 @@ import './lyric-effect-editor.css'
 const POLL_MS = 2000
 const MAX_POLLS = 90
 
-const EMPTY_FORM: AnnotationForm = { font: '', pace: 'medium', intro: '', accent: '', spotlights: [], lines: [] }
+const EMPTY_FORM: AnnotationForm = { font: '', pace: 'beat', intro: '', accent: '', spotlights: [], lines: [] }
 
 /**
  * 后台歌词特效编辑器（见 spec 7.2b「手动编辑」）：查看并手动修改一首歌的 AI 歌词标注。只能选区加特效、改各行与全曲的设置，

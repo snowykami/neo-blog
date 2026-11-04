@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -92,6 +93,43 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 				t.Errorf("post %d content_hash = %q, want hash of content", post.ID, post.ContentHash)
 			}
 		}
+		// 编辑过的保留 medium / slow；模型生成的改为跟随节拍（短语的节奏不变）；更早的数组记录转成对象
+		wantPace := map[uint]struct {
+			pace       string
+			phrasePace string
+		}{1: {pace: "medium"}, 2: {pace: "slow"}, 3: {phrasePace: "slow"}, 4: {pace: "medium"}}
+		var annotations []model.LyricAnnotation
+		if err := db.Order("id").Find(&annotations).Error; err != nil {
+			t.Fatalf("list lyric annotations: %v", err)
+		}
+		for _, a := range annotations {
+			var data struct {
+				Pace  string `json:"pace"`
+				Font  string `json:"font"`
+				Lines []struct {
+					Text    string `json:"text"`
+					Phrases []struct {
+						Pace string `json:"pace"`
+					} `json:"phrases"`
+				} `json:"lines"`
+			}
+			if err := json.Unmarshal([]byte(a.Data), &data); err != nil {
+				t.Fatalf("annotation %d data %q: %v", a.ID, a.Data, err)
+			}
+			want := wantPace[a.ID]
+			if data.Pace != want.pace {
+				t.Errorf("annotation %d pace = %q, want %q", a.ID, data.Pace, want.pace)
+			}
+			if want.phrasePace != "" && data.Lines[0].Phrases[0].Pace != want.phrasePace {
+				t.Errorf("annotation %d phrase pace = %q, want %q", a.ID, data.Lines[0].Phrases[0].Pace, want.phrasePace)
+			}
+		}
+		if annotations[0].Data == "" || !json.Valid([]byte(annotations[0].Data)) {
+			t.Errorf("annotation 1 data should stay valid JSON, got %q", annotations[0].Data)
+		}
+		if got := annotations[3].Data; !json.Valid([]byte(got)) {
+			t.Errorf("legacy annotation should become an object, got %q", got)
+		}
 	})
 }
 
@@ -131,7 +169,7 @@ func TestMigrateConcurrentStartup(t *testing.T) {
 // seedLegacyDatabase 模拟引入版本迁移前的旧库：没有迁移记录，点赞表没有唯一索引且有重复点赞，文章表没有正文哈希列
 func seedLegacyDatabase(t *testing.T) {
 	t.Helper()
-	if err := db.AutoMigrate(&model.User{}, &model.Post{}, &model.Comment{}, &model.Like{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Post{}, &model.Comment{}, &model.Like{}, &model.LyricAnnotation{}); err != nil {
 		t.Fatalf("create legacy tables: %v", err)
 	}
 	if err := db.Migrator().DropIndex(&model.Like{}, "idx_like_target_user"); err != nil {
@@ -154,6 +192,11 @@ func seedLegacyDatabase(t *testing.T) {
 		{"INSERT INTO likes (target_type, target_id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", []any{"post", 1, user.ID, now, now}},
 		{"INSERT INTO likes (target_type, target_id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", []any{"post", 1, user.ID, now, now}},
 		{"INSERT INTO likes (target_type, target_id, user_id, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?)", []any{"post", 2, user.ID, now, now, now}},
+		// 歌词标注的全曲节奏：编辑过且为空（当时即 medium）、编辑过的 slow、模型生成的 fast、只有 lines 数组的更早的编辑记录
+		{"INSERT INTO lyric_annotations (id, song_id, lyric_hash, data, created_at, edited_at) VALUES (?, ?, ?, ?, ?, ?)", []any{1, 1, "h1", `{"font":"kai","lines":[]}`, now, now}},
+		{"INSERT INTO lyric_annotations (id, song_id, lyric_hash, data, created_at, edited_at) VALUES (?, ?, ?, ?, ?, ?)", []any{2, 2, "h2", `{"pace":"slow","lines":[]}`, now, now}},
+		{"INSERT INTO lyric_annotations (id, song_id, lyric_hash, data, created_at) VALUES (?, ?, ?, ?, ?)", []any{3, 3, "h3", `{"pace":"fast","lines":[{"text":"心跳","phrases":[{"text":"心跳","effect":"heartbeat","pace":"slow"}]}]}`, now}},
+		{"INSERT INTO lyric_annotations (id, song_id, lyric_hash, data, created_at, edited_at) VALUES (?, ?, ?, ?, ?, ?)", []any{4, 4, "h4", `[{"text":"旧"}]`, now, now}},
 	}
 	for _, s := range statements {
 		if err := db.Exec(s.sql, s.args...).Error; err != nil {

@@ -20,6 +20,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { LYRIC_COLOR_NAMES, LYRIC_EFFECT_CATEGORIES, LYRIC_FONTS, lyricEffectCategory } from '@/lib/lyrics/annotation-options'
 import { LYRIC_COLORS } from '@/lib/lyrics/colors'
+import { LYRIC_PACES } from '@/lib/lyrics/pace'
 import { cn } from '@/lib/utils'
 
 export type PhraseStyle = Omit<PhraseForm, 'text'>
@@ -176,8 +177,7 @@ export function PhraseToolbar({
         <DropdownMenuContent align="start">
           <DropdownMenuRadioGroup value={value.pace || NONE} onValueChange={pace => set({ pace: pace === NONE ? '' : pace as PhraseStyle['pace'] })}>
             <DropdownMenuRadioItem value={NONE}>{t('phrase_pace_default')}</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="slow">{optionT('paces.slow')}</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="fast">{optionT('paces.fast')}</DropdownMenuRadioItem>
+            {LYRIC_PACES.map(pace => <DropdownMenuRadioItem key={pace} value={pace}>{optionT(`paces.${pace}`)}</DropdownMenuRadioItem>)}
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>

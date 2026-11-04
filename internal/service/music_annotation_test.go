@@ -333,8 +333,8 @@ func TestSanitizeLyricAnnotationsPace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 全曲节奏保存；短语与全曲相同或无效时不保存（沿用全曲）
-	if got.Pace != "slow" {
+	// 模型给的全曲节奏不保存（默认跟随节拍）；短语与模型的全曲节奏相同或无效时不保存（沿用全曲）
+	if got.Pace != "" {
 		t.Fatalf("song pace = %q", got.Pace)
 	}
 	paces := map[string]string{}
@@ -346,9 +346,10 @@ func TestSanitizeLyricAnnotationsPace(t *testing.T) {
 	if paces["心跳"] != "fast" || paces["慢慢"] != "" || paces["地说"] != "" {
 		t.Fatalf("phrase paces = %v", paces)
 	}
-	// medium 为默认，不保存
-	if got, _ := sanitizeLyricAnnotations(lines, nil, `{"pace":"medium","lines":[]}`); got.Pace != "" {
-		t.Fatalf("medium pace = %q", got.Pace)
+	// 短语只采用 slow / fast
+	got, _ = sanitizeLyricAnnotations(lines, nil, `{"lines":[{"i":0,"phrases":[{"text":"心跳","effect":"heartbeat","pace":"beat"}]}]}`)
+	if p := got.Lines[0].Phrases[0].Pace; p != "" {
+		t.Fatalf("model phrase pace beat = %q", p)
 	}
 }
 

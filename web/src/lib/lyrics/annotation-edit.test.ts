@@ -44,7 +44,8 @@ describe('歌词特效编辑器', () => {
     expect(form.accent).toBe('#ffb37a')
     expect(form.lines).toHaveLength(2)
     expect(form.lines[0]).toMatchObject({ chorus: true, chorusStart: true, phrases: [{ text: '樱花', effect: 'glow', color: 'cherry-blossom', font: '', styles: [], pace: '' }] })
-    expect(fromAnnotationForm(lines, { ...form, pace: 'medium', intro: '  春天  ' })).toEqual({
+    // 跟随节拍是默认值不保存；固定快慢（含 medium）显式保存
+    expect(fromAnnotationForm(lines, { ...form, pace: 'beat', intro: '  春天  ' })).toEqual({
       font: 'kai',
       pace: undefined,
       intro: '春天',
@@ -52,6 +53,8 @@ describe('歌词特效编辑器', () => {
       spotlights: [{ text: '樱花', occurrence: 1 }],
       lines: [{ text: '樱花', chorus: true, chorusStart: true, scene: 'petals', sceneLines: 4, phrases: [{ text: '樱花', effect: 'glow', color: 'cherry-blossom' }] }],
     })
+    expect(fromAnnotationForm(lines, { ...form, pace: 'medium' })).toMatchObject({ pace: 'medium' })
+    expect(toAnnotationForm(lines, null).pace).toBe('beat')
     expect(fromAnnotationForm(lines, { ...form, accent: '', spotlights: [2, 0, 2, 9] })).toMatchObject({ accent: undefined, spotlights: [{ text: '樱花', occurrence: 0 }, { text: '樱花', occurrence: 1 }] })
   })
 })

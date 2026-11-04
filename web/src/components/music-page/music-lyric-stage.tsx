@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { LyricPlayer } from '@/lib/lyrics/lyric-player'
+import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 import { cn } from '@/lib/utils'
 import { lyricSourceLabelKey } from './lyric-source-badge'
 import '@/lib/lyrics/lyric-player.css'
@@ -21,12 +22,16 @@ import '@/lib/lyrics/lyric-fonts'
 export function MusicLyricStage({ className, compact = false, themed = false }: { className?: string, compact?: boolean, themed?: boolean }) {
   const t = useTranslations('MusicPlayer')
   const pageT = useTranslations('MusicPage')
-  const { lyrics, lyricStatus, showTranslation, showRomaji, showLyricEffects, isPlaying, getAudio, seek, play, refreshLyrics, lyricSourcesPending } = useMusic()
+  const { lyrics, lyricStatus, showTranslation, showRomaji, showLyricEffects, isPlaying, getAudio, seek, play, refreshLyrics, lyricSourcesPending, currentTrack } = useMusic()
   const clock = useMusicClockStore()
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<LyricPlayer | null>(null)
   // 引擎每帧通过回调读取，不随渲染重建
   const isPlayingRef = useRef(isPlaying)
+  const trackIdRef = useRef(currentTrack?.id ?? null)
+  useEffect(() => {
+    trackIdRef.current = currentTrack?.id ?? null
+  }, [currentTrack?.id])
   const hasLines = lyricStatus !== 'loading' && lyrics.lines.length > 0
 
   useEffect(() => {
@@ -46,6 +51,8 @@ export function MusicLyricStage({ className, compact = false, themed = false }: 
         play()
       },
       compact,
+      // 韵律动效：这首歌的节拍模型（分析完成前或不可用时为 null，回退到固定快慢）
+      getRhythm: () => rhythmModelFor(trackIdRef.current),
     })
     playerRef.current = player
     // 暂停时拖动进度条等也要刷新：随播放时钟（约每秒 4 次）唤醒，引擎自身在静止时会停止逐帧循环

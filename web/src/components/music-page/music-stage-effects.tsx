@@ -1,10 +1,11 @@
 'use client'
 
-import type { BeatGraph, BeatState } from '@/lib/lyrics/audio-beat'
+import type { StageParticleRhythm } from '@/lib/lyrics/stage-particles'
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useMusic } from '@/contexts/music-context'
-import { beatStep, connectBeatAnalyser, lowEnergy } from '@/lib/lyrics/audio-beat'
 import { LYRIC_COLORS } from '@/lib/lyrics/colors'
+import { backgroundLevel, particleHeartLevel, particlePulses, periodOf, rhythmContext } from '@/lib/lyrics/rhythm/effects'
+import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 import { getStageSignals } from '@/lib/lyrics/stage-effects'
 import { StageParticles } from '@/lib/lyrics/stage-particles'
 import { cn } from '@/lib/utils'
@@ -17,14 +18,14 @@ const TINT_MAX_OPACITY = 0.38
 // 聚光灯：身后暖光与四周压暗的不透明度（柔和版，只压暗一点，不让画面变黑）
 const SPOTLIGHT_WARM_OPACITY = 0.22
 const SPOTLIGHT_DIM_OPACITY = 0.18
-// 跟随鼓点的呼吸：比歌词强调的呼吸更轻
+// 跟随节拍的呼吸：比歌词强调的呼吸更轻
 const BEAT_MAX_OPACITY = 0.12
+// 两帧之间的进度跳变超过它时视为拖动了进度，不补生成这段时间里的拍
+const BEAT_SEEK_GAP_MS = 500
 // 小窗（contained）：粒子缩小、数量减少，种类不变
 const CONTAINED_PARTICLES = { scale: 0.7, maxParticles: 80 }
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
-// 鼓点呼吸只在桌面端启用：移动端（尤其 iOS）在后台可能挂起 AudioContext，导致全站播放器没有声音
-const FINE_POINTER_QUERY = '(pointer: fine)'
 
 function subscribeReducedMotion(listener: () => void) {
   const query = window.matchMedia(REDUCED_MOTION_QUERY)
@@ -36,13 +37,13 @@ function subscribeReducedMotion(listener: () => void) {
  * 播放器的全屏特效（叠在动态背景之上、内容之下）：播放器页铺满视口；contained 时铺满最近的定位祖先（悬浮小窗），粒子缩小、数量减少，种类不变。
  * 背景呼吸（唱到 swell / shake 强调时亮起，每段副歌开唱时更强烈地爆发一次）、背景染色（唱到带颜色的强调时泛起该颜色）、粒子场景（歌词标注的 scene）、
  * 聚光灯（唱到全曲最点题的一句时歌词区中央亮起暖光，歌词引擎同时把这一句移到中央放大）。
- * 背景还会跟随鼓点轻轻呼吸（Web Audio 节拍分析，只在桌面端、网易云歌单时于用户手势中接入，见 audio-beat.ts）；
+ * 背景还会跟随节拍轻轻呼吸、离散事件类粒子在拍点成簇出现（节拍预先分析，见 rhythm/；不跟随节拍时背景不呼吸、粒子均匀生成）；
  * 呼吸的颜色取封面主色（--lyric-accent）。播放器页（非 contained）在副歌开唱时还会「镜头推近」：把推近程度写入父元素的 --stage-push（0 ~ 1），
  * 背景、歌词区与本层各按不同倍数放大（越靠前放大越多，有景深感），见 music-player-page.tsx。
  * 关闭歌词特效或系统要求减少动态效果时不渲染；逐帧更新直接写 DOM / canvas，不触发 React 渲染
  */
 export function MusicStageEffects({ contained = false }: { contained?: boolean }) {
-  const { lyrics, isPlaying, getAudio, showLyricEffects, audioAnalysable, enableAudioAnalysis } = useMusic()
+  const { lyrics, isPlaying, getAudio, showLyricEffects, currentTrack } = useMusic()
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(REDUCED_MOTION_QUERY).matches, () => true)
   const enabled = showLyricEffects && !reducedMotion
   const pulseRef = useRef<HTMLDivElement>(null)
@@ -51,32 +52,11 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   // 逐帧循环通过 ref 读取，不随渲染重启
-  const stateRef = useRef({ lyrics, isPlaying })
-  const beatRef = useRef<{ graph: BeatGraph, state: BeatState } | null>(null)
+  const stateRef = useRef({ lyrics, isPlaying, trackId: currentTrack?.id ?? null })
 
   useEffect(() => {
-    stateRef.current = { lyrics, isPlaying }
-  }, [isPlaying, lyrics])
-
-  // 节拍分析：在用户手势中接入（AudioContext 需要手势才能运行），之后每次手势顺便恢复被挂起的 AudioContext
-  useEffect(() => {
-    if (!enabled || !audioAnalysable || !window.matchMedia(FINE_POINTER_QUERY).matches)
-      return
-    const onGesture = () => {
-      const audio = getAudio()
-      if (!audio || !enableAudioAnalysis() || audio.crossOrigin !== 'anonymous')
-        return
-      const graph = connectBeatAnalyser(audio)
-      if (graph && beatRef.current?.graph !== graph)
-        beatRef.current = { graph, state: { average: 0, level: 0 } }
-    }
-    window.addEventListener('pointerdown', onGesture)
-    window.addEventListener('keydown', onGesture)
-    return () => {
-      window.removeEventListener('pointerdown', onGesture)
-      window.removeEventListener('keydown', onGesture)
-    }
-  }, [audioAnalysable, enableAudioAnalysis, enabled, getAudio])
+    stateRef.current = { lyrics, isPlaying, trackId: currentTrack?.id ?? null }
+  }, [currentTrack?.id, isPlaying, lyrics])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -91,6 +71,7 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
 
     let frame = 0
     let last = performance.now()
+    let lastTimeMs: number | null = null
     let pulseOpacity = ''
     let tintOpacity = ''
     let tintColor = ''
@@ -102,16 +83,26 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
       // 切到后台再回来时不一次推进太久
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
-      const { lyrics, isPlaying } = stateRef.current
+      const { lyrics, isPlaying, trackId } = stateRef.current
       const time = getAudio()?.currentTime
-      const signals = time == null ? null : getStageSignals(lyrics, time * 1000)
+      const timeMs = time == null ? null : time * 1000
+      const model = rhythmModelFor(trackId)
+      const signals = timeMs == null ? null : getStageSignals(lyrics, timeMs, model)
 
-      let beat = 0
-      const beatSource = beatRef.current
-      if (beatSource && isPlaying && beatSource.graph.context.state === 'running') {
-        beatSource.state = beatStep(beatSource.state, lowEnergy(beatSource.graph), dt)
-        beat = beatSource.state.level
-      }
+      // 跟随节拍：背景随拍呼吸；粒子取上一帧到这一帧之间经过的拍（拖动进度时不补）
+      const rhythm = rhythmContext(lyrics.pace, model)
+      const beat = timeMs == null ? 0 : backgroundLevel(rhythm, timeMs)
+      const since = lastTimeMs
+      lastTimeMs = timeMs
+      const particleRhythm: StageParticleRhythm | null = timeMs == null || since == null || timeMs <= since || timeMs - since > BEAT_SEEK_GAP_MS
+        ? null
+        : {
+            pulses: (octave) => {
+              const pulses = particlePulses(rhythm, octave, since, timeMs)
+              return pulses && { pulses, periodMs: periodOf(rhythm, rhythm.params.particles.octave + octave) }
+            },
+            heart: particleHeartLevel(rhythm, timeMs),
+          }
       const nextPulse = Math.max((signals?.pulse ?? 0) * PULSE_MAX_OPACITY, (signals?.burst ?? 0) * BURST_MAX_OPACITY, beat * BEAT_MAX_OPACITY).toFixed(3)
       if (nextPulse !== pulseOpacity) {
         pulseOpacity = nextPulse
@@ -138,7 +129,7 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
         push = nextPush
         pushTarget.style.setProperty('--stage-push', nextPush)
       }
-      particles.update(dt, signals?.scene ?? null, isPlaying)
+      particles.update(dt, signals?.scene ?? null, isPlaying, particleRhythm)
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)

@@ -49,5 +49,8 @@ export const LYRIC_SEEK_THRESHOLD_MS = 1000
 // 单帧时间差上限（秒）：页面挂起后回归时避免动画以数秒的时长冲过头
 export const LYRIC_MAX_FRAME_S = 0.1
 
+// 强调的演出时长下限（毫秒）：唱得很快的短语也有完整的起落（播放器与调试面板共用）
+export const LYRIC_EMPHASIS_MIN_MS = 1000
+
 // 松手后的惯性：速度每秒衰减到原来的倍数
 export const LYRIC_INERTIA_DECAY_PER_S = 0.05

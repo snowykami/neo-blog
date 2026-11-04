@@ -3538,6 +3538,7 @@
       "intense": "Intense"
     },
     "paces": {
+      "beat": "Follow the beat (recommended)",
       "slow": "Slow",
       "medium": "Medium",
       "fast": "Fast"

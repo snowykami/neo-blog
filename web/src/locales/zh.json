@@ -3538,6 +3538,7 @@
       "intense": "激昂"
     },
     "paces": {
+      "beat": "跟随节拍（推荐）",
       "slow": "慢",
       "medium": "中",
       "fast": "快"

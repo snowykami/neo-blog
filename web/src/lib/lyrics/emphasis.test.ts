@@ -76,9 +76,13 @@ describe('歌词强调', () => {
     const groups = applied.lines[0].emphasis ?? []
     expect(groups.find(group => group.effect === 'heartbeat')?.pace).toBe('fast')
     expect(groups.find(group => group.effect === 'glow')?.pace).toBe('slow')
-    // 全曲为 medium 时不标注节奏
+    expect(applied.pace).toBe('slow')
+    // 全曲跟随节拍（或未指定）时不标注节奏，由消费方按跟随节拍处理；固定的 medium 照常标注
+    const beat = applyEmphasis(lyrics, { pace: 'beat', lines: [{ text, phrases: [{ text: '图书馆', effect: 'glow' }] }] })
+    expect(beat.lines[0].emphasis?.[0].pace).toBeUndefined()
+    expect(beat.pace).toBeUndefined()
     const medium = applyEmphasis(lyrics, { pace: 'medium', lines: [{ text, phrases: [{ text: '图书馆', effect: 'glow' }] }] })
-    expect(medium.lines[0].emphasis?.[0].pace).toBeUndefined()
+    expect(medium.lines[0].emphasis?.[0].pace).toBe('medium')
   })
 
   it('逐行歌词不处理', () => {

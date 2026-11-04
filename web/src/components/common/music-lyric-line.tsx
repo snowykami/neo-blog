@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useCurrentLyricIndex, useMusic } from '@/contexts/music-context'
 import { navEmphasisStyle } from '@/lib/lyrics/nav-emphasis'
+import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 import { cn } from '@/lib/utils'
 import { getCurrentLyricIndex, getLyricMarqueeOffset, getWordProgress, isWordTimedLyricLine } from '@/utils/music-lyric'
 
@@ -54,7 +55,12 @@ interface NavLyricLayout {
  */
 export function LyricLine() {
   const t = useTranslations('MusicPlayer')
-  const { lyricLines, lyrics, getAudio, showLyricEffects } = useMusic()
+  const { lyricLines, lyrics, getAudio, showLyricEffects, currentTrack } = useMusic()
+  // 逐帧读取这首歌的节拍模型（分析完成前或不可用时为 null，动效回退到固定快慢）
+  const trackIdRef = useRef(currentTrack?.id ?? null)
+  useEffect(() => {
+    trackIdRef.current = currentTrack?.id ?? null
+  }, [currentTrack?.id])
   // 与 lyricLines 一一对应的强调分组（lyricLines 为 lyrics 中的主唱行）；关闭歌词特效或不是逐字歌词时为 null
   const emphasisLines = useMemo(
     () => showLyricEffects && lyrics.wordTimed ? lyrics.lines.filter(line => !line.isBackground).map(line => line.emphasis ?? []) : null,
@@ -177,13 +183,15 @@ export function LyricLine() {
           fill.style.clipPath = `inset(0 ${(1 - progress) * 100}% 0 0)`
         })
         // 强调特效：样式写在词上，颜色写在已唱部分上；未变化时不重复写 DOM
+        const rhythm = rhythmModelFor(trackIdRef.current)
+        const lineEnd = current.startTime + current.duration
         for (const group of (index == null ? null : emphasisLines?.[index]) ?? []) {
           for (let wordIndex = group.from; wordIndex < group.to; wordIndex++) {
             const word = layout.words[wordIndex]
             const fill = layout.fills[wordIndex]
             if (!word || !fill)
               continue
-            const style = navEmphasisStyle(group, wordIndex - group.from, group.to - group.from, timeMs, !prefersReducedMotion, seekAt)
+            const style = navEmphasisStyle(group, wordIndex - group.from, group.to - group.from, timeMs, !prefersReducedMotion, seekAt, rhythm, lineEnd)
             const last = wordStyles.get(word)
             if (last?.transform !== style.transform)
               word.style.transform = style.transform

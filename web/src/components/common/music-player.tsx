@@ -503,7 +503,7 @@ function MiniPlayer({ onOpenPage }: { onOpenPage: () => void }) {
   return (
     <div role="region" aria-label={t('floating_player')} className="relative isolate" style={accent ? { '--lyric-accent': accent } as React.CSSProperties : undefined}>
       <MusicBackground cover={currentTrack.albumPic} contained />
-      {/* 全屏特效的小窗版：背景呼吸、副歌爆发、染色、鼓点、粒子场景（粒子缩小、数量减少） */}
+      {/* 全屏特效的小窗版：背景呼吸、副歌爆发、染色、节拍呼吸、粒子场景（粒子缩小、数量减少） */}
       <MusicStageEffects contained />
       <div className="relative grid gap-3 p-4">
         <div className="flex items-center gap-3">

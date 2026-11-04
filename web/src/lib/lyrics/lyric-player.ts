@@ -1,3 +1,4 @@
+import type { RhythmModel } from './rhythm/model'
 import type { RubyMetrics } from './ruby-layout'
 import type { TimelineItem, TimelineState } from './timeline'
 import type { LyricEmphasis, LyricWord, ResolvedLyrics } from './types'
@@ -6,6 +7,7 @@ import {
   LYRIC_ALIGN_POSITION,
   LYRIC_BLUR_MAX_PX,
   LYRIC_BLUR_NARROW_FACTOR,
+  LYRIC_EMPHASIS_MIN_MS,
   LYRIC_FEATHER_EM,
   LYRIC_FOOTER_ALPHA,
   LYRIC_FOOTER_FOCUSED_ALPHA,
@@ -27,13 +29,14 @@ import { swellCurve } from './easing'
 import { interludeDot } from './interlude'
 import { LyricDebris } from './lyric-debris'
 import { PACE } from './pace'
+import { dissolveFadeMs, envelopeScale, glowLevel, heartbeatLevel, nearestFixedPace, rhythmContext, shakeCarrierMs, shakeLevel, shimmerCenter, swellAccent, waveLevels } from './rhythm/effects'
 import { placeRuby, rubyGroups, rubyText } from './ruby-layout'
 import { Spring } from './spring'
 import { spotlightAt } from './stage-effects'
 import { buildTimeline, getTimelineState, getWordProgress } from './timeline'
 import { EMPTY_LYRICS } from './types'
 import { holdVibrato, vibratoWave } from './vibrato'
-import { dissolveState, heartbeatLevel, shatterState, shimmerCenter } from './word-effects'
+import { dissolveState, shatterState } from './word-effects'
 
 export interface LyricPlayerOptions {
   // 当前播放进度（秒），每帧读取；没有音频时返回 null
@@ -43,6 +46,8 @@ export interface LyricPlayerOptions {
   onSeek: (timeMs: number) => void
   // 紧凑模式（悬浮播放器）：字号、间距更小（见 lyric-player.css），间奏更矮、模糊更轻，焦点更靠近中间
   compact?: boolean
+  // 这首歌的节拍模型，每帧读取；分析完成前或不可用时返回 null，动效回退到固定快慢（见 rhythm/effects.ts）
+  getRhythm?: () => RhythmModel | null
 }
 
 export interface LyricPlayerDisplay {
@@ -118,8 +123,7 @@ interface ItemView {
   visible: boolean
 }
 
-// 强调的演出时长下限（毫秒）、字与字的错开比例、上浮提前开始的时长（参考 AMLL）
-const EMPHASIS_MIN_MS = 1000
+// 字与字的错开比例、上浮提前开始的时长（参考 AMLL）；演出时长下限见 config.ts 的 LYRIC_EMPHASIS_MIN_MS
 const EMPHASIS_STAGGER_RATIO = 1 / 2.5
 const EMPHASIS_FLOAT_LEAD_MS = 400
 const EMPHASIS_FLOAT_STRETCH = 1.4
@@ -314,6 +318,8 @@ export class LyricPlayer {
   private lastTimeMs: number | null = null
   // 最近一次跳转（拖动进度、打开页面、换歌）的落点：消散特效在它之前就该消散的字直接显示
   private seekAt = Number.NEGATIVE_INFINITY
+  // 这一帧的节拍模型（见 LyricPlayerOptions.getRhythm）
+  private rhythm: RhythmModel | null = null
 
   // 手动滚动：offset 为手动设定的滚动位置；touching 为正在拖动
   private manual: { offset: number, velocity: number, until: number, touching: boolean } | null = null
@@ -609,6 +615,7 @@ export class LyricPlayer {
 
     const playing = this.options.isPlaying()
     const timeMs = (this.options.getTime() ?? 0) * 1000
+    this.rhythm = this.options.getRhythm?.() ?? null
     // 跳转检测：进度与按经过时间推算的进度相差过大
     if (this.lastTimeMs != null) {
       const expected = this.lastTimeMs + (playing ? dt * 1000 : 0)
@@ -815,7 +822,7 @@ export class LyricPlayer {
         }
         // 间奏圆点：依次淡入、倒计时点亮、呼吸，结束前放大后收拢消失（见 interlude.ts）；减少动态效果时只保留透明度
         view.dots.forEach((dot, index) => {
-          const state = interludeDot(item.start, item.end, timeMs, index, view.dots.length)
+          const state = interludeDot(item.start, item.end, timeMs, index, view.dots.length, rhythmContext(this.lyrics.pace, this.rhythm))
           const opacity = state.opacity.toFixed(3)
           const transform = this.reducedMotion ? '' : `scale(${state.scale.toFixed(3)})`
           if (dot.style.opacity !== opacity)
@@ -874,10 +881,14 @@ export class LyricPlayer {
     const spot = this.views[this.spotView] === view ? this.spot : 0
     const glowScale = 1 - (1 - SPOTLIGHT_EMPHASIS_GLOW) * spot
     const growScale = 1 - (1 - SPOTLIGHT_EMPHASIS_SCALE) * spot
+    // 柔光持续到这一行结束
+    const lineEnd = view.item.kind === 'line' ? this.lyrics.lines[view.item.line]?.end ?? 0 : 0
     for (const { group, chars } of view.emphasis) {
-      // 特效节奏：起落曲线的时长、抖动与颤音的快慢、心跳拍长、流光与消散的速度（见 pace.ts）
-      const pace = group.pace ?? 'medium'
-      const duration = Math.max(EMPHASIS_MIN_MS, group.end - group.start) * PACE.envelope[pace]
+      // 特效节奏：跟随节拍时由拍点驱动（心跳、重音、柔光呼吸、波浪、抖动的调幅、流光），固定快慢时按固定周期；
+      // 起落曲线、消散的时长按基准周期 T_b 换算（见 rhythm/effects.ts）
+      const rhythm = rhythmContext(group.pace, this.rhythm)
+      const pace = nearestFixedPace(rhythm)
+      const duration = Math.max(LYRIC_EMPHASIS_MIN_MS, group.end - group.start) * envelopeScale(rhythm)
       const f = group.factor
       const count = chars.length
       const wave = group.effect === 'wave'
@@ -888,9 +899,13 @@ export class LyricPlayer {
       const stagger = (duration * (wave ? 1 / 1.5 : EMPHASIS_STAGGER_RATIO)) / Math.max(1, count)
       // 长音：放大到峰值后保持到长音唱完再收住；颤音从延迟后渐强，随长音结束收住
       const hold = group.effect === 'shake' && group.hold ? holdVibrato(group.hold, timeMs, pace) : null
-      // 流光的光带位置、心跳的强度（整个词同步）
-      const shine = group.effect === 'shimmer' ? shimmerCenter(group.start, timeMs, count, pace) : null
-      const beat = group.effect === 'heartbeat' ? heartbeatLevel(group.start, group.end, timeMs, pace) : 0
+      // 流光的光带位置、心跳的强度、放大的拍上重音、柔光的门控与呼吸、抖动的调幅（整个词同步）；波浪每个字一个上浮
+      const shine = group.effect === 'shimmer' ? shimmerCenter(rhythm, group.start, timeMs, count) : null
+      const beat = group.effect === 'heartbeat' ? heartbeatLevel(rhythm, group.start, group.end, timeMs) : 0
+      const accent = group.effect === 'swell' ? swellAccent(rhythm, group.start, timeMs) : 0
+      const breath = group.effect === 'glow' ? glowLevel(rhythm, group.start, lineEnd || group.end, timeMs) : null
+      const waves = wave ? waveLevels(rhythm, group.start, group.end, count, timeMs) : null
+      const kick = group.effect === 'shake' && !hold ? shakeLevel(rhythm, group.start, group.start + duration, timeMs) : 0
       chars.forEach((char, i) => {
         const begin = group.start + stagger * i
         let v = swellCurve((timeMs - begin) / duration)
@@ -909,7 +924,7 @@ export class LyricPlayer {
         let crack = 0
         if (group.effect === 'dissolve' && f > 0) {
           // 消散：字唱完后淡出、变虚并向右飘，同时生成颗粒；过一会儿慢慢恢复
-          const dissolve = dissolveState(group.start, group.end, i, count, timeMs, this.seekAt, pace)
+          const dissolve = dissolveState(group.start, group.end, i, count, timeMs, this.seekAt, dissolveFadeMs(rhythm))
           if (timeMs < dissolve.at) {
             char.debrisAt = null
           }
@@ -951,23 +966,26 @@ export class LyricPlayer {
           if (tint > 0.005)
             color = `color-mix(in srgb, ${tintColor} ${(tint * 100).toFixed(1)}%, currentColor)`
         }
-        // factor 为 0 的组（唱得太快的标注短语）只保留颜色、字体与字形，不做动效
-        if (f > 0 && (v > 0 || lift > 0)) {
+        // factor 为 0 的组（唱得太快的标注短语）只保留颜色、字体与字形，不做动效；柔光与波浪由拍驱动，起落曲线之外也会动
+        const rise = waves?.[i] ?? 0
+        if (f > 0 && (v > 0 || lift > 0 || (breath?.gate ?? 0) > 0 || rise > 0)) {
           let scale = 1
           let x = 0
           let y = -lift * (bg ? 0.1 : 0.05)
           let glow = 0
           let radius = 0.3
           if (group.effect === 'swell') {
-            scale = 1 + v * 0.14 * f
-            // 左右两侧的字向外轻推
-            x = -v * 0.03 * f * (count / 2 - i - 0.5)
-            y -= v * 0.025 * f
-            glow = v * (0.25 + 0.45 * f)
+            // 起落曲线上叠加拍上的重音；左右两侧的字向外轻推
+            const k = v * (1 + rhythm.params.swell.gain * accent)
+            scale = 1 + k * 0.14 * f
+            x = -k * 0.03 * f * (count / 2 - i - 0.5)
+            y -= k * 0.025 * f
+            glow = v * (0.25 + 0.45 * f) * (1 + 0.4 * accent)
           }
-          else if (group.effect === 'glow') {
-            scale = 1 + v * 0.04 * f
-            glow = v * (0.35 + 0.5 * f)
+          else if (group.effect === 'glow' && breath) {
+            // 从开唱到行尾随拍呼吸
+            scale = 1 + breath.gate * breath.y * 0.04 * f
+            glow = breath.gate * (0.35 + 0.5 * f) * (0.3 + 0.7 * breath.y)
             radius = 0.45
           }
           else if (group.effect === 'shake' && hold) {
@@ -979,12 +997,13 @@ export class LyricPlayer {
             glow = v * (0.25 + 0.45 * f) + vibrato * 0.12 * f
           }
           else if (group.effect === 'shake') {
-            // 每个字的相位不同，抖动幅度随起落曲线
-            const phase = (timeMs - begin) / PACE.shakePeriod[pace]
-            x = Math.sin(phase * 2.3 + i * 1.7) * 0.035 * f * v
-            y += Math.cos(phase * 1.9 + i * 1.3) * 0.025 * f * v
-            scale = 1 + v * 0.06 * f
-            glow = v * (0.15 + 0.25 * f)
+            // 每个字的相位不同；幅度随起落曲线，并在拍上「踢」一下再衰减
+            const amp = v * (0.35 + 0.65 * kick)
+            const phase = (timeMs - begin) / shakeCarrierMs(rhythm)
+            x = Math.sin(phase * 2.3 + i * 1.7) * 0.035 * f * amp
+            y += Math.cos(phase * 1.9 + i * 1.3) * 0.025 * f * amp
+            scale = 1 + amp * 0.06 * f
+            glow = amp * (0.15 + 0.25 * f)
           }
           else if (group.effect === 'focus') {
             scale = 1 + v * 0.05 * f
@@ -1002,8 +1021,9 @@ export class LyricPlayer {
             glow = shine == null ? v * (0.25 + 0.3 * f) : 0
           }
           else {
-            y = -lift * (0.08 + 0.14 * f)
-            scale = 1 + lift * 0.05 * f
+            // 波浪：一拍内波峰从首字走到末字
+            y = -rise * (0.08 + 0.14 * f)
+            scale = 1 + rise * 0.05 * f
           }
           scale = 1 + (scale - 1) * growScale
           glow *= glowScale

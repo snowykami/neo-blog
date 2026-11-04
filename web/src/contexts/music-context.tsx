@@ -17,6 +17,7 @@ import React, {
 import { applyEmphasis } from '@/lib/lyrics/emphasis'
 import { toSingleLineLyrics } from '@/lib/lyrics/from-platform'
 import { LYRIC_SOURCE_KINDS } from '@/lib/lyrics/resolve'
+import { requestRhythm } from '@/lib/lyrics/rhythm/source'
 import { getCurrentLyricIndex, LYRIC_PLACEHOLDERS } from '@/utils/music-lyric'
 import { requestLyricAnnotations, useLyricAnnotations, useLyricAnnotationsGenerating } from './lyric-annotations'
 import { refreshSongLyrics, useResolvedSongLyrics } from './song-lyrics'
@@ -80,10 +81,6 @@ interface MusicContextValue {
   hasTranslationLyric: boolean
   hasRomajiLyric: boolean
   getAudio: () => HTMLAudioElement | null
-  // 歌单全部是站内代理的音频（网易云歌单）时可以接入 Web Audio 做节拍分析（播放器页的鼓点呼吸）
-  audioAnalysable: boolean
-  // 开启节拍分析：之后加载的曲目带上 CORS；当前曲目已可分析时返回 true（暂停中的当前曲目会带上 CORS 重新加载）
-  enableAudioAnalysis: () => boolean
 
   // 播放列表 操作
   // startTime：起始曲目的初始播放进度（秒），用于刷新后恢复进度，会在该曲目元数据就绪后应用
@@ -217,11 +214,6 @@ export function useMusic(): MusicContextValue {
 export function useSongLyrics(id: number | null, track?: LyricTrackInfo | null) {
   const { getLyricPin } = useMusic()
   return useResolvedSongLyrics(id, id == null ? null : getLyricPin(id), track)
-}
-
-/** 站内代理的网易云音频（同源请求，302 到支持 CORS 的网易云 CDN） */
-function isProxiedAudio(src?: string | null) {
-  return !!src && src.startsWith('/api/v1/music/song/')
 }
 
 export function useMusicClockStore(): MusicClock {
@@ -365,9 +357,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const currentTrack = currentIndex != null ? playlist[currentIndex] ?? null : null
   const currentTrackId = currentTrack?.id ?? null
   const getAudio = useCallback(() => audioRef.current, [])
-  // 节拍分析：开启后，站内代理的音频带上 CORS 加载（网易云 CDN 返回 Access-Control-Allow-Origin: *），Web Audio 才能读到数据
-  const audioAnalysisRef = useRef(false)
-  const audioAnalysable = playlist.length > 0 && playlist.every(track => isProxiedAudio(track.audio))
 
   // 供事件回调读取最新值，避免闭包拿到过期的 playlist / index / mode
   const playlistRef = useRef(playlist)
@@ -484,7 +473,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setDuration(null)
     clock.set(0)
     setBufferedPercent(0)
-    audio.crossOrigin = audioAnalysisRef.current && isProxiedAudio(track?.audio) ? 'anonymous' : null
     audio.src = track?.audio || ''
     audio.currentTime = 0
     if (pendingPlayRef.current) {
@@ -495,27 +483,11 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [clock, currentTrackId])
 
-  const enableAudioAnalysis = useCallback(() => {
-    const audio = audioRef.current
-    if (!audio || !audioAnalysable)
-      return false
-    audioAnalysisRef.current = true
-    if (audio.crossOrigin === 'anonymous')
-      return true
-    const track = playlistRef.current[currentIndexRef.current ?? -1]
-    // 正在播放时不打断，从下一首开始生效；暂停中的当前曲目带上 CORS 重新加载并回到原进度
-    if (!audio.paused || !track || !isProxiedAudio(track.audio))
-      return false
-    const time = audio.currentTime
-    audio.crossOrigin = 'anonymous'
-    audio.load()
-    if (time > 0) {
-      audio.addEventListener('loadedmetadata', () => {
-        audio.currentTime = time
-      }, { once: true })
-    }
-    return true
-  }, [audioAnalysable])
+  // 节拍分析（韵律动效）：开启歌词特效时分析当前曲目，结果按歌曲缓存；拿不到时动效回退到固定快慢（见 lib/lyrics/rhythm/source.ts）
+  useEffect(() => {
+    if (showLyricEffects && currentTrack)
+      requestRhythm(currentTrack.id, currentTrack.audio)
+  }, [currentTrack, showLyricEffects])
 
   // 切换到指定索引；目标与当前曲目相同时（如单曲歌单）直接从头播放，避免 effect 不触发导致停播
   // startTime 为可选的起始进度（秒），在不切歌时立即跳转，切歌时等元数据就绪后再跳转
@@ -971,8 +943,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     hasTranslationLyric,
     hasRomajiLyric,
     getAudio,
-    audioAnalysable,
-    enableAudioAnalysis,
     replacePlaylist,
     playTrack,
     playSong,
@@ -1022,8 +992,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     hasTranslationLyric,
     hasRomajiLyric,
     getAudio,
-    audioAnalysable,
-    enableAudioAnalysis,
     replacePlaylist,
     playTrack,
     playSong,

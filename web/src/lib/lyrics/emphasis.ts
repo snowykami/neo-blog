@@ -1,6 +1,6 @@
 import type { LyricPace } from './pace'
 import type { LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricNote, LyricOutro, LyricSceneName, LyricSprite, LyricTextStyle, ResolvedLyrics } from './types'
-import { isLyricPace } from './pace'
+import { DEFAULT_LYRIC_PACE, isLyricPace } from './pace'
 import { normalizeForMatch } from './strip-credits'
 
 /**
@@ -248,8 +248,8 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
     if (key && !byText.has(key))
       byText.set(key, line)
   }
-  // 全曲节奏：标注短语没有自己的节奏时、以及规则强调都沿用它
-  const songPace = isLyricPace(annotations?.pace) && annotations.pace !== 'medium' ? annotations.pace : undefined
+  // 全曲节奏：标注短语没有自己的节奏时、以及规则强调都沿用它；没有时跟随节拍（消费方按 DEFAULT_LYRIC_PACE 处理）
+  const songPace = isLyricPace(annotations?.pace) && annotations.pace !== DEFAULT_LYRIC_PACE ? annotations.pace : undefined
   return {
     ...lyrics,
     font: annotations?.font,
@@ -258,6 +258,7 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
     notes: resolveNotes(lyrics.lines, annotations?.moments),
     spotlights: resolveSpotlights(lyrics.lines, annotations?.spotlights),
     accent: annotations?.accent,
+    pace: songPace,
     sprites: annotations?.sprites?.length ? Object.fromEntries(annotations.sprites.map(sprite => [sprite.name, sprite])) : undefined,
     lines: lyrics.lines.map((line) => {
       const annotation = byText.get(normalizeForMatch(line.words.map(word => word.text).join(''))) ?? null

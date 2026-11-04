@@ -183,10 +183,11 @@ func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotatio
 		return data, false
 	}
 	data.Font = req.Font
-	if req.Pace != "" && req.Pace != "medium" && !lyricAnnotationPaces[req.Pace] {
+	if req.Pace != "" && !lyricAnnotationPaces[req.Pace] {
 		return data, false
 	}
-	if lyricAnnotationPaces[req.Pace] {
+	// 跟随节拍是默认值，存为空
+	if req.Pace != "beat" {
 		data.Pace = req.Pace
 	}
 	intro := strings.TrimSpace(req.Intro)
@@ -269,11 +270,11 @@ func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotatio
 					annotated.Styles = append(annotated.Styles, style)
 				}
 			}
-			if phrase.Pace != "" && phrase.Pace != "medium" && !lyricAnnotationPaces[phrase.Pace] {
+			if phrase.Pace != "" && !lyricAnnotationPaces[phrase.Pace] {
 				return data, false
 			}
 			// 与全曲节奏相同时不单独保存
-			if lyricAnnotationPaces[phrase.Pace] && phrase.Pace != data.Pace {
+			if phrase.Pace != "" && phrase.Pace != songLyricPace(data.Pace) {
 				annotated.Pace = phrase.Pace
 			}
 			line.Phrases = append(line.Phrases, annotated)

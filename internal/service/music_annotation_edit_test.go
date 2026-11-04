@@ -110,6 +110,16 @@ func TestSanitizeEditedLyricAnnotations(t *testing.T) {
 		t.Fatalf("data = %+v\nwant %+v", data, want)
 	}
 
+	// 跟随节拍是默认值存为空；medium 显式保存；短语与全曲（为空即跟随节拍）不同时保存
+	beatReq := &dto.MusicLyricAnnotationsEditReq{Pace: "beat", Lines: []dto.MusicLyricAnnotationLine{{Text: "我们说再见", Phrases: []dto.MusicLyricAnnotationPhrase{{Text: "再见", Effect: "glow", Pace: "beat"}, {Text: "我们", Effect: "glow", Pace: "medium"}}}}}
+	if data, ok := sanitizeEditedLyricAnnotations(lines, beatReq, nil); !ok || data.Pace != "" || data.Lines[0].Phrases[0].Pace != "" || data.Lines[0].Phrases[1].Pace != "medium" {
+		t.Fatalf("beat pace edit = %+v ok=%v", data, ok)
+	}
+	beatReq.Pace = "medium"
+	if data, ok := sanitizeEditedLyricAnnotations(lines, beatReq, nil); !ok || data.Pace != "medium" || data.Lines[0].Phrases[0].Pace != "beat" || data.Lines[0].Phrases[1].Pace != "" {
+		t.Fatalf("medium pace edit = %+v ok=%v", data, ok)
+	}
+
 	// 不合法的编辑整体拒绝（不静默修正）
 	invalid := []func(r *dto.MusicLyricAnnotationsEditReq){
 		func(r *dto.MusicLyricAnnotationsEditReq) { r.Lines[0].Phrases[0].Effect = "explode" },

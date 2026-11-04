@@ -110,7 +110,7 @@ export interface LyricEmphasis {
   styles?: LyricTextStyle[]
   // shake 组里唱得特别长的音节（长音）的时段：先按 swell 放大，唱了一会儿后整个词开始颤音（见 lyric-player.ts）
   hold?: { start: number, end: number }
-  // 特效节奏（动效的快慢，见 pace.ts）：短语自己的节奏，没有时沿用全曲的；都没有时为 medium
+  // 特效节奏（动效的快慢，见 pace.ts）：短语自己的节奏，没有时沿用全曲的；都没有时跟随节拍
   pace?: LyricPace
 }
 
@@ -135,6 +135,8 @@ export interface ResolvedLyrics {
   spotlights?: number[]
   // 这首歌的主题色（来自歌词标注，#rrggbb）：歌词辉光与背景呼吸的默认颜色，没有时用封面主色
   accent?: string
+  // 全曲特效节奏（来自歌词标注）：背景呼吸、粒子与间奏圆点按它演出；没有时跟随节拍
+  pace?: LyricPace
 }
 
 /** 关键节点的「时刻」：在 start（毫秒，对应歌词行开唱）时显示的热评或模型写的旁白 */

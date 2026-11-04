@@ -1,7 +1,8 @@
+import type { RhythmModel } from './rhythm/model'
 import type { LyricColor, LyricLine, LyricSceneName, LyricSprite, ResolvedLyrics } from './types'
 import { swellCurve } from './easing'
-import { PACE } from './pace'
-import { heartbeatLevel, shatterFlash } from './word-effects'
+import { envelopeScale, heartbeatLevel, rhythmContext } from './rhythm/effects'
+import { shatterFlash } from './word-effects'
 
 /**
  * 播放器页的全屏特效信号（纯函数，由 MusicStageEffects 每帧调用）：
@@ -51,7 +52,8 @@ export const SCENE_MAX_LINES = 8
 
 const NO_SIGNALS: StageSignals = { pulse: 0, burst: 0, push: 0, spotlight: 0, tint: null, scene: null }
 
-export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number): StageSignals {
+/** rhythm 为这首歌的节拍模型（没有时回退到固定快慢，见 rhythm/effects.ts） */
+export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number, rhythm: RhythmModel | null = null): StageSignals {
   if (lyrics.lines.length === 0)
     return NO_SIGNALS
   let pulse = 0
@@ -65,11 +67,11 @@ export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number): StageSi
     }
     for (const group of line.emphasis ?? []) {
       if (group.effect === 'swell' || group.effect === 'shake') {
-        const duration = Math.max(PULSE_MIN_MS, group.end - group.start) * PACE.envelope[group.pace ?? 'medium']
+        const duration = Math.max(PULSE_MIN_MS, group.end - group.start) * envelopeScale(rhythmContext(group.pace, rhythm))
         pulse = Math.max(pulse, swellCurve((timeMs - group.start) / duration) * group.factor)
       }
       else if (group.effect === 'heartbeat') {
-        pulse = Math.max(pulse, heartbeatLevel(group.start, group.end, timeMs, group.pace) * group.factor)
+        pulse = Math.max(pulse, heartbeatLevel(rhythmContext(group.pace, rhythm), group.start, group.end, timeMs) * group.factor)
       }
       else if (group.effect === 'shatter') {
         pulse = Math.max(pulse, shatterFlash(group.end, timeMs) * group.factor)

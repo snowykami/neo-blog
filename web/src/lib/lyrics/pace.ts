@@ -1,24 +1,29 @@
 /**
- * 特效节奏（见 spec 8.2）：歌词标注为全曲（pace）与个别短语（phrase.pace）指定 slow / medium / fast，按歌词的轻快程度选择；
- * 规则强调（没有标注的词）沿用全曲节奏。节奏只改变动效的快慢，不改变幅度；各特效的取值按其含义分别给出
+ * 特效节奏（见 spec 8.2）：歌词标注为全曲（pace）与个别短语（phrase.pace）指定动效的快慢。
+ * beat 跟随音乐节拍（默认，推荐）：前端分析音频得到拍点，动效由拍点驱动（见 rhythm/）；
+ * slow / medium / fast 为固定快慢，也是跟随节拍不可用（拿不到音频、分析未完成或节拍不可信）时的回退。
+ * 规则强调（没有标注的词）沿用全曲节奏。节奏只改变动效的快慢，不改变幅度
  */
-export type LyricPace = 'slow' | 'medium' | 'fast'
+export type LyricPace = 'beat' | 'slow' | 'medium' | 'fast'
 
-export const LYRIC_PACES: readonly LyricPace[] = ['slow', 'medium', 'fast']
+/** 固定快慢（不含跟随节拍） */
+export type FixedLyricPace = Exclude<LyricPace, 'beat'>
+
+export const LYRIC_PACES: readonly LyricPace[] = ['beat', 'slow', 'medium', 'fast']
+
+/** 全曲没有指定节奏时跟随节拍 */
+export const DEFAULT_LYRIC_PACE: LyricPace = 'beat'
+
+/** 跟随节拍不可用时的回退 */
+export const FALLBACK_LYRIC_PACE: FixedLyricPace = 'medium'
 
 export const PACE = {
-  // 起落曲线（swell / glow / wave / focus）的时长倍数：慢的余韵更长，快的更利落
-  envelope: { slow: 1.35, medium: 1, fast: 0.75 },
-  // shake 的抖动周期（毫秒，越小越快）
-  shakePeriod: { slow: 70, medium: 45, fast: 30 },
-  // 长音颤音的频率（Hz，声乐的颤音约 5～7 Hz）与开始颤之前的延迟（占音长的比例）
+  // 固定档的基准脉冲周期 T_b（毫秒）：心跳的拍长，其余动效的时长按 T_b 换算（见 rhythm/effects.ts）
+  basePeriod: { slow: 1000, medium: 750, fast: 520 },
+  // 长音颤音的频率（Hz，声乐的颤音约 5～7 Hz）与开始颤之前的延迟（占音长的比例）；模拟人声，不随节拍
   vibratoHz: { slow: 4.8, medium: 5.5, fast: 6.5 },
   vibratoDelay: { slow: 0.28, medium: 0.2, fast: 0.14 },
-  // 心跳的拍长、流光每遍的时长、消散的淡出时长（毫秒）
-  heartbeatBeat: { slow: 1000, medium: 750, fast: 520 },
-  shimmerSweep: { slow: 1400, medium: 950, fast: 650 },
-  dissolveFade: { slow: 1000, medium: 600, fast: 350 },
-} satisfies Record<string, Record<LyricPace, number>>
+} satisfies Record<string, Record<FixedLyricPace, number>>
 
 export function isLyricPace(value: unknown): value is LyricPace {
   return typeof value === 'string' && (LYRIC_PACES as readonly string[]).includes(value)

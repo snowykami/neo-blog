@@ -1,27 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { rayToRect } from './lyric-debris'
 import { getStageSignals } from './stage-effects'
-import { dissolveState, heartbeatLevel, shatterFlash, shatterState, shimmerCenter } from './word-effects'
+import { dissolveState, shatterFlash, shatterState } from './word-effects'
 
-describe('消散、流光与心跳', () => {
-  it('心跳：每拍「扑通-扑通」两下，第二下稍弱；唱完后停止', () => {
-    // 1.5 秒分成 2 拍，每拍 750ms，第二下在拍内约 165ms 处
-    expect(heartbeatLevel(0, 1500, 50)).toBeGreaterThan(0.55)
-    expect(heartbeatLevel(0, 1500, 215)).toBeGreaterThan(0.4)
-    expect(heartbeatLevel(0, 1500, 215)).toBeLessThan(heartbeatLevel(0, 1500, 50))
-    expect(heartbeatLevel(0, 1500, 600)).toBeLessThan(0.05)
-    expect(heartbeatLevel(0, 1500, 800)).toBeGreaterThan(0.55)
-    expect(heartbeatLevel(0, 1500, 2000)).toBe(0)
-  })
-
-  it('流光：唱到时从左扫到右，扫两遍后停止', () => {
-    expect(shimmerCenter(1000, 900, 4)).toBeNull()
-    expect(shimmerCenter(1000, 1000, 4)).toBe(-1)
-    expect(shimmerCenter(1000, 1475, 4)).toBeCloseTo(2)
-    expect(shimmerCenter(1000, 1000 + 950 * 1.5, 4)).toBeCloseTo(2)
-    expect(shimmerCenter(1000, 1000 + 950 * 2, 4)).toBeNull()
-  })
-
+describe('消散与破碎', () => {
   it('消散：每个字唱完后依次淡出，保持很久再慢慢恢复', () => {
     // 4 个字唱 0 ~ 2000ms，第 1 个字 500ms 唱完，650ms 开始消散
     expect(dissolveState(0, 2000, 0, 4, 600).amount).toBe(0)
@@ -53,17 +35,9 @@ describe('消散、流光与心跳', () => {
     expect(getStageSignals(lyrics, 1450 + 2700).push).toBe(0)
   })
 
-  it('节奏：快的心跳拍子更密、流光扫得更快、消散淡出更快；慢的反之', () => {
-    // 3 秒：慢 1000ms 一拍（3 拍），中 750ms（4 拍），快 520ms（6 拍）；拍首附近最强
-    const beatsOf = (pace: 'slow' | 'medium' | 'fast') => [...Array.from({ length: 3000 / 10 }).keys()].filter(i => heartbeatLevel(0, 3000, i * 10, pace) > 0.5 && heartbeatLevel(0, 3000, i * 10 - 10, pace) <= 0.5).length
-    expect(beatsOf('slow')).toBeLessThan(beatsOf('medium'))
-    expect(beatsOf('medium')).toBeLessThan(beatsOf('fast'))
-    // 扫两遍：快的 1.3 秒就扫完，同一时刻中速仍在扫
-    expect(shimmerCenter(0, 1300, 4, 'fast')).toBeNull()
-    expect(shimmerCenter(0, 1300, 4, 'medium')).not.toBeNull()
-    expect(shimmerCenter(0, 1400 * 1.5, 4, 'slow')).not.toBeNull()
-    expect(dissolveState(0, 2000, 0, 4, 650 + 350, undefined, 'fast').amount).toBe(1)
-    expect(dissolveState(0, 2000, 0, 4, 650 + 350, undefined, 'slow').amount).toBeCloseTo(0.35)
+  it('消散的淡出时长随节奏（0.8·T_b）', () => {
+    expect(dissolveState(0, 2000, 0, 4, 650 + 350, undefined, 350).amount).toBe(1)
+    expect(dissolveState(0, 2000, 0, 4, 650 + 350, undefined, 1000).amount).toBeCloseTo(0.35)
   })
 
   it('破碎：整个词唱完 60ms 后一起碎，碎前 140ms 渐强地颤，碎后保持隐去再慢慢恢复', () => {

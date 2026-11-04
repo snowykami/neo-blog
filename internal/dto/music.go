@@ -93,7 +93,7 @@ type MusicLyricAnnotationsDto struct {
 	Stale  bool   `json:"stale,omitempty"`
 	// 全曲字体（字体表中的名称，见 service.lyricAnnotationFonts），为空时用站点默认字体
 	Font string `json:"font,omitempty"`
-	// 全曲特效节奏：slow / fast（按歌曲的轻快程度），为空时为 medium
+	// 全曲特效节奏：beat 跟随音乐节拍 / fast / medium / slow，为空时为 beat（前端分析音频得到拍点，不可用时按 medium）
 	Pace string `json:"pace,omitempty"`
 	// 前奏时显示的一句导语（模型写给听众），可为空
 	Intro string `json:"intro,omitempty"`
@@ -180,7 +180,7 @@ type MusicLyricAnnotationPhrase struct {
 	// 短语字体（字体表中的名称）与字形（bold / italic / underline），均可为空
 	Font   string   `json:"font,omitempty"`
 	Styles []string `json:"styles,omitempty"`
-	// 特效节奏：slow / fast，为空时沿用全曲的节奏（见 MusicLyricAnnotationsDto.Pace）
+	// 特效节奏：beat / fast / medium / slow，为空时沿用全曲的节奏（见 MusicLyricAnnotationsDto.Pace）
 	Pace string `json:"pace,omitempty"`
 }
 

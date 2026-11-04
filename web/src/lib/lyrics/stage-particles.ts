@@ -1,4 +1,5 @@
 import type { Rgb } from './colors'
+import type { RhythmPulse } from './rhythm/model'
 import type { StageScene } from './stage-effects'
 import type { LyricColor, LyricScene, LyricSprite, LyricSpriteMotion } from './types'
 import { hexToRgb, LYRIC_COLORS } from './colors'
@@ -7,7 +8,9 @@ import { hexToRgb, LYRIC_COLORS } from './colors'
  * 播放器页的全屏粒子（canvas 2D），共 18 种场景（与后端 lyricAnnotationSceneList 一致）。
  * 当前场景按 density（0 ~ 1，渐入渐出）生成粒子；切换场景或颜色主题、结束场景或暂停后不再生成，已有粒子在 LEAVE_SECONDS 内淡出。
  * 颜色：指定了颜色主题时所有粒子使用该颜色（略微随机提亮以增加层次），否则使用场景的默认色（部分场景为多色）。
- * 自定义粒子（场景名为 custom:<name>，见 spriteSpec）：按动作预设生成，用 Path2D 画图标库的图标或模型画的剪影，数量与透明度有上限
+ * 自定义粒子（场景名为 custom:<name>，见 spriteSpec）：按动作预设生成，用 Path2D 画图标库的图标或模型画的剪影，数量与透明度有上限。
+ * 离散事件类场景（烟花、涟漪、音符、爱心，见 SceneSpec.beat）跟随节拍时在拍点成簇生成（点过程，长期平均速率不变），爱心随拍跳动；
+ * 不跟随节拍时均匀生成（见 rhythm/effects.ts 的 particlePulses）
  */
 
 interface Particle {
@@ -28,6 +31,8 @@ interface Particle {
   seed: number
   // 离场淡出的进度（0 ~ 1），场景切换、结束或暂停后开始
   leave: number
+  // 在拍点生成：淡入更快，让出现的瞬间落在拍上
+  onBeat?: boolean
 }
 
 type Motion = Pick<Particle, 'x' | 'y' | 'vx' | 'vy' | 'size' | 'rotation' | 'spin' | 'life'>
@@ -41,7 +46,19 @@ interface SceneSpec {
   draw: (ctx: CanvasRenderingContext2D, p: Particle, alpha: number) => void
   // 同屏数量上限（自定义粒子用），未设置时只受总数上限限制
   max?: number
+  // 离散事件类：跟随节拍时在拍点成簇生成，值为相对基准脉冲的八度；beatSpawn 为在拍点生成时的位置（直接出现在画面里，而不是从画面外进入）
+  beat?: number
+  beatSpawn?: (w: number, h: number) => Motion
 }
+
+/** 跟随节拍时的输入：本帧经过的拍（按八度）与爱心随拍的缩放；不跟随节拍时为 null */
+export interface StageParticleRhythm {
+  pulses: (octave: number) => { pulses: RhythmPulse[], periodMs: number } | null
+  heart: number | null
+}
+
+// 这一帧爱心随拍的缩放（update 中写入，绘制时读取）；不跟随节拍时为 null，爱心用缓慢起伏
+let heartBeat: number | null = null
 
 const MAX_PARTICLES = 240
 const BASE_AREA = 1280 * 800
@@ -244,13 +261,15 @@ const SCENES: Record<LyricScene, SceneSpec> = {
   hearts: {
     rate: 3,
     colors: ['rose', 'cherry-blossom', 'peach'],
+    beat: 0,
     spawn: (w, h) => ({ x: rand(0, w), y: h + 20, vx: 0, vy: rand(-60, -30), size: rand(6, 12), rotation: rand(-0.3, 0.3), spin: 0, life: Infinity }),
+    beatSpawn: (w, h) => ({ x: rand(0, w), y: rand(h * 0.55, h * 0.95), vx: 0, vy: rand(-60, -30), size: rand(6, 12), rotation: rand(-0.3, 0.3), spin: 0, life: Infinity }),
     draw: (ctx, p, alpha) => {
       ctx.save()
       ctx.translate(p.x + Math.sin(p.age * 1.4 + p.seed) * 14, p.y)
       ctx.rotate(p.rotation)
-      // 心跳一样轻微缩放
-      const beat = 1 + 0.08 * Math.sin(p.age * 4 + p.seed)
+      // 随拍跳动；不跟随节拍时心跳一样轻微缩放
+      const beat = heartBeat == null ? 1 + 0.08 * Math.sin(p.age * 4 + p.seed) : 1 + 0.12 * heartBeat
       ctx.scale(beat, beat)
       ctx.fillStyle = rgba(p.color, 0.7 * alpha)
       heartPath(ctx, p.size)
@@ -275,6 +294,7 @@ const SCENES: Record<LyricScene, SceneSpec> = {
   fireworks: {
     rate: 0.8,
     colors: FESTIVE,
+    beat: 1,
     // size 为炸开的最大半径
     spawn: (w, h) => ({ x: rand(w * 0.15, w * 0.85), y: rand(h * 0.1, h * 0.5), vx: 0, vy: 0, size: rand(60, 110), rotation: rand(0, TAU), spin: 0, life: rand(1.8, 2.4) }),
     draw: (ctx, p, alpha) => {
@@ -416,6 +436,7 @@ const SCENES: Record<LyricScene, SceneSpec> = {
   ripples: {
     rate: 2.5,
     colors: ['#c8ebff'],
+    beat: 0,
     // size 为扩散的最大半径
     spawn: (w, h) => ({ x: rand(0, w), y: rand(h * 0.4, h), vx: 0, vy: 0, size: rand(30, 70), rotation: 0, spin: 0, life: rand(2, 3) }),
     draw: (ctx, p, alpha) => {
@@ -436,7 +457,9 @@ const SCENES: Record<LyricScene, SceneSpec> = {
   notes: {
     rate: 2.5,
     colors: ['#ffffff'],
+    beat: 0,
     spawn: (w, h) => ({ x: rand(0, w), y: h + 20, vx: 0, vy: rand(-45, -25), size: rand(14, 22), rotation: rand(-0.3, 0.3), spin: rand(-0.3, 0.3), life: Infinity }),
+    beatSpawn: (w, h) => ({ x: rand(0, w), y: rand(h * 0.55, h * 0.95), vx: 0, vy: rand(-45, -25), size: rand(14, 22), rotation: rand(-0.3, 0.3), spin: rand(-0.3, 0.3), life: Infinity }),
     draw: (ctx, p, alpha) => {
       ctx.save()
       ctx.translate(p.x + Math.sin(p.age * 1.3 + p.seed) * 16, p.y)
@@ -582,11 +605,12 @@ export class StageParticles {
     return this.particles.length === 0 && this.density === 0
   }
 
-  /** 推进 dt 秒并绘制；scene 为当前场景与颜色主题（null 为无），active 为 false 时（暂停）不再生成 */
-  update(dt: number, scene: StageScene | null, active: boolean) {
+  /** 推进 dt 秒并绘制；scene 为当前场景与颜色主题（null 为无），active 为 false 时（暂停）不再生成；rhythm 为跟随节拍时的输入 */
+  update(dt: number, scene: StageScene | null, active: boolean, rhythm: StageParticleRhythm | null = null) {
     const ctx = this.ctx
     if (!ctx)
       return
+    heartBeat = rhythm?.heart ?? null
     const key = sceneKey(scene)
     // 换场景（或颜色主题）时先渐出旧场景，渐出完再渐入新场景
     if (key !== sceneKey(this.scene) && this.density === 0)
@@ -601,15 +625,31 @@ export class StageParticles {
     const spec = current ? specOf(current) : null
     if (current && spec && this.density > 0) {
       const area = Math.min(2, Math.max(0.3, (this.width * this.height) / BASE_AREA))
-      this.pending += spec.rate * area * this.density * dt
-      while (this.pending >= 1) {
-        this.pending--
+      const spawn = (onBeat: boolean) => {
         if (this.particles.length >= this.maxParticles || (spec.max != null && this.particles.filter(p => p.spec === spec).length >= spec.max))
-          continue
+          return
         // 指定颜色主题时略微随机提亮，避免整片同色
         const color = current.color ? mixWhite(resolveColor(current.color), rand(0, 0.25)) : resolveColor(pick(spec.colors))
-        const motion = spec.spawn(this.width, this.height)
-        this.particles.push({ ...motion, size: motion.size * this.scale, spec, key: currentKey, color, age: 0, seed: Math.random() * 10, leave: 0 })
+        const motion = (onBeat && spec.beatSpawn ? spec.beatSpawn : spec.spawn)(this.width, this.height)
+        this.particles.push({ ...motion, size: motion.size * this.scale, spec, key: currentKey, color, age: 0, seed: Math.random() * 10, leave: 0, onBeat })
+      }
+      const beat = spec.beat != null && active ? rhythm?.pulses(spec.beat) ?? null : null
+      if (beat) {
+        // 点过程：每拍生成 N_k = max(1, ⌊r·T_e·A·a_k + 累计的小数⌋) 个
+        for (const pulse of beat.pulses) {
+          this.pending += spec.rate * (beat.periodMs / 1000) * area * this.density * pulse.a
+          const count = Math.max(1, Math.floor(this.pending))
+          this.pending = Math.max(0, this.pending - count)
+          for (let i = 0; i < count; i++)
+            spawn(true)
+        }
+      }
+      else {
+        this.pending += spec.rate * area * this.density * dt
+        while (this.pending >= 1) {
+          this.pending--
+          spawn(false)
+        }
       }
     }
     else {
@@ -628,7 +668,7 @@ export class StageParticles {
       if (p.leave >= 1 || p.age >= p.life || p.y > this.height + margin || p.y < -margin * 2 || p.x > this.width + margin * 2 || p.x < -margin * 2)
         return false
       // 刚生成时淡入，有寿命的在最后一秒淡出
-      const alpha = Math.min(1, p.age / 0.6, Number.isFinite(p.life) ? p.life - p.age : 1) * (1 - p.leave)
+      const alpha = Math.min(1, p.age / (p.onBeat ? 0.25 : 0.6), Number.isFinite(p.life) ? p.life - p.age : 1) * (1 - p.leave)
       p.spec.draw(ctx, p, alpha)
       return true
     })

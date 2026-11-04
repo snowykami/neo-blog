@@ -186,11 +186,21 @@ var (
 		}
 		return fonts
 	}()
-	// 特效节奏（动效的快慢）：slow / fast；medium 为默认，不保存
-	lyricAnnotationPaces = map[string]bool{"slow": true, "fast": true}
+	// 特效节奏（动效的快慢）：beat 跟随音乐节拍（前端分析音频得到拍点）/ fast / medium / slow。
+	// 全曲为空表示 beat（默认）；短语为空表示沿用全曲。模型给出的全曲节奏不保存（默认跟随节拍），短语只采用 slow / fast
+	lyricAnnotationPaces      = map[string]bool{"beat": true, "slow": true, "medium": true, "fast": true}
+	lyricAnnotationModelPaces = map[string]bool{"slow": true, "fast": true}
 	// 短语字形：粗体、斜体、下划线（下划线在演唱时逐字画出）；删除线已去掉（被否定、放弃的词改用 dissolve 消散），旧标注中的 strike 校验时丢弃
 	lyricAnnotationStyles = map[string]bool{"bold": true, "italic": true, "underline": true}
 )
+
+// songLyricPace 全曲节奏的实际取值：为空时跟随节拍
+func songLyricPace(pace string) string {
+	if pace == "" {
+		return "beat"
+	}
+	return pace
+}
 
 // normalizeLyricColor 规范化颜色名：旧版名称映射到新色板，不在色板中的返回空字符串（不上色）
 func normalizeLyricColor(color string) string {
@@ -728,7 +738,8 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 				styles[normalized] = dto.MusicLyricAnnotationPhrase{Effect: effect, Color: color}
 			}
 			annotated := dto.MusicLyricAnnotationPhrase{Text: phraseText, Effect: effect, Color: color}
-			if lyricAnnotationPaces[phrase.Pace] && phrase.Pace != parsed.Pace {
+			// 与模型给的全曲节奏相同时视为沿用全曲（跟随节拍）
+			if lyricAnnotationModelPaces[phrase.Pace] && phrase.Pace != parsed.Pace {
 				annotated.Pace = phrase.Pace
 			}
 			if lyricAnnotationFonts[phrase.Font] && phraseFontCount < lyricAnnotationMaxPhraseFonts {
@@ -756,9 +767,6 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 		font = parsed.Font
 	}
 	data := lyricAnnotationData{Font: font, Intro: sanitizeLyricIntro(parsed.Intro), Lines: kept, Sprites: lyricUsedSprites(sprites, kept)}
-	if lyricAnnotationPaces[parsed.Pace] {
-		data.Pace = parsed.Pace
-	}
 	// outro_comment 为热评在提示词中的编号（从 1 开始），超出范围时不展示
 	usedComments := map[int]bool{}
 	if n := parsed.OutroComment; n >= 1 && n <= len(comments) {
