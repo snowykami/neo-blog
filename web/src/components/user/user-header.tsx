@@ -1,6 +1,6 @@
 'use client'
 import type { IpData, User } from '@/models/user'
-import { Mail, MapPin, Shield, User as UserIcon } from 'lucide-react'
+import { Mail, MapPin, Shield } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { getUserIpLocation } from '@/api/user'
@@ -9,25 +9,8 @@ import { UserAvatar } from '@/components/common/avatar'
 import { SafeImage } from '@/components/common/safe-image'
 import { useAuth } from '@/contexts/auth-context'
 import { cn } from '@/lib/utils'
+import { UserGender } from './user-gender'
 import { UserLocalTime } from './user-local-time'
-
-// 常见的性别取值映射到翻译键，其余自定义内容原样显示
-const GENDER_ALIASES: Record<string, 'gender_male' | 'gender_female' | 'gender_other'> = {
-  'male': 'gender_male',
-  'm': 'gender_male',
-  'man': 'gender_male',
-  '男': 'gender_male',
-  '男性': 'gender_male',
-  'female': 'gender_female',
-  'f': 'gender_female',
-  'woman': 'gender_female',
-  '女': 'gender_female',
-  '女性': 'gender_female',
-  'other': 'gender_other',
-  'others': 'gender_other',
-  'non-binary': 'gender_other',
-  '其他': 'gender_other',
-}
 
 export function UserHeader({ user }: { user: User }) {
   const t = useTranslations('UserPage')
@@ -53,10 +36,6 @@ export function UserHeader({ user }: { user: User }) {
       cancelled = true
     }
   }, [user.id])
-
-  const genderKey = user.gender ? GENDER_ALIASES[user.gender.trim().toLowerCase()] : undefined
-  // 注册时默认写入 unknown，未填写时不展示性别
-  const gender = genderKey ? t(genderKey) : user.gender?.trim().toLowerCase() === 'unknown' ? '' : user.gender
 
   const location = ipData
     ? [ipData.country, ipData.province, ipData.city, ipData.districts].filter(Boolean).join(' ')
@@ -87,11 +66,7 @@ export function UserHeader({ user }: { user: User }) {
           </div>
 
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 md:justify-start">
-            {gender && (
-              <PostMetaItem icon={UserIcon} label={t('gender')}>
-                {gender}
-              </PostMetaItem>
-            )}
+            <UserGender gender={user.gender} />
             {isSelf && (
               <PostMetaItem icon={Mail} label={t('email')}>
                 <span className="block truncate">{email || t('not_filled')}</span>

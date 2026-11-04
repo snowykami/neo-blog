@@ -2700,6 +2700,16 @@
     "me": "我",
     "user": "使用者"
   },
+  "Gender": {
+    "label": "性別",
+    "labelled": "性別：{gender}",
+    "none": "不填寫",
+    "male": "男",
+    "female": "女",
+    "custom": "自訂",
+    "custom_input": "自訂性別",
+    "custom_placeholder": "填寫自訂的性別，最多 {max} 個字"
+  },
   "Route": {
     "about": "關於我",
     "archive": "歸檔",
@@ -2913,6 +2923,7 @@
       "invalid_username": "使用者名稱格式無效",
       "invalid_nickname": "暱稱格式無效",
       "invalid_email": "信箱格式無效",
+      "invalid_gender": "性別格式無效",
       "ai_input_too_long": "內容過長，請縮短選取範圍或要求後重試",
       "ai_write_empty_selection": "選取的內容為空",
       "ai_timeout": "AI 回應逾時",
@@ -3108,9 +3119,6 @@
     "not_filled": "未填寫",
     "guest": "訪客",
     "unknown_location": "未知",
-    "gender_male": "男",
-    "gender_female": "女",
-    "gender_other": "其他",
     "posts": "發佈的文章",
     "tab_posts": "文章",
     "tab_comments": "評論",
@@ -3128,7 +3136,6 @@
     "likes_load_failed": "喜歡列表載入失敗",
     "likes_visibility": "僅本人與管理員可見",
     "user_not_found": "找不到使用者",
-    "gender": "性別",
     "email": "電子郵件",
     "role": "角色",
     "location": "所在地",

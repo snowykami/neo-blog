@@ -142,6 +142,20 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 		if want := `[{"name":"","url":"https://cdn.example.com/lyrics/{song_id}.ttml"}]`; string(sources) != want {
 			t.Errorf("music_ttml_sources = %s, want %s", sources, want)
 		}
+		// 系统写入的占位性别 unknown 改为不填，用户填写的内容原样保留
+		wantGender := map[string]string{"legacy": "", "male": "male", "custom": "猫娘", "upper": "Unknown"}
+		var users []model.User
+		if err := db.Find(&users).Error; err != nil {
+			t.Fatalf("list users: %v", err)
+		}
+		if len(users) != len(wantGender) {
+			t.Fatalf("users = %d, want %d", len(users), len(wantGender))
+		}
+		for _, u := range users {
+			if u.Gender != wantGender[u.Username] {
+				t.Errorf("user %s gender = %q, want %q", u.Username, u.Gender, wantGender[u.Username])
+			}
+		}
 	})
 }
 
@@ -179,7 +193,7 @@ func TestMigrateConcurrentStartup(t *testing.T) {
 }
 
 // seedLegacyDatabase 模拟引入版本迁移前的旧库：没有迁移记录，点赞表没有唯一索引且有重复点赞，文章表没有正文哈希列，
-// 自定义歌词源还是单个地址
+// 自定义歌词源还是单个地址，用户性别里有建号时写入的 unknown
 func seedLegacyDatabase(t *testing.T) {
 	t.Helper()
 	if err := db.AutoMigrate(&model.User{}, &model.Post{}, &model.Comment{}, &model.Like{}, &model.LyricAnnotation{}, &model.KV{}); err != nil {
@@ -191,9 +205,19 @@ func seedLegacyDatabase(t *testing.T) {
 	if err := db.Migrator().DropColumn(&model.Post{}, "content_hash"); err != nil {
 		t.Fatalf("drop content_hash: %v", err)
 	}
-	user := &model.User{Username: "legacy", Email: "legacy@test.local"}
+	user := &model.User{Username: "legacy", Email: "legacy@test.local", Gender: "unknown"}
 	if err := db.Create(user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
+	}
+	// 用户自己填写的性别：标准值、自定义文字、大小写不同的 Unknown
+	for _, u := range []model.User{
+		{Username: "male", Email: "male@test.local", Gender: "male"},
+		{Username: "custom", Email: "custom@test.local", Gender: "猫娘"},
+		{Username: "upper", Email: "upper@test.local", Gender: "Unknown"},
+	} {
+		if err := db.Create(&u).Error; err != nil {
+			t.Fatalf("create user %s: %v", u.Username, err)
+		}
 	}
 	now := time.Now()
 	statements := []struct {

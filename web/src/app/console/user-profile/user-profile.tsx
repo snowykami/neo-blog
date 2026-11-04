@@ -9,6 +9,7 @@ import { AssetField } from '@/components/common/asset-picker'
 import { ImageAvatar } from '@/components/common/avatar'
 import { ImageCropper } from '@/components/common/image-cropper'
 import { TimeZoneCombobox } from '@/components/common/time-zone-combobox'
+import { useUserFieldRules } from '@/components/console/users/user-profile-fields'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -31,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { GenderInput } from '@/components/user/gender-input'
 import { useAuth } from '@/contexts/auth-context'
 import { useBrowserTimeZone } from '@/hooks/use-browser-time-zone'
 import { useErrorMessageT } from '@/hooks/use-translations'
@@ -76,6 +78,7 @@ interface FormValues {
 export function UserProfilePage() {
   const t = useTranslations('Console.user_profile')
   const errorMessageT = useErrorMessageT()
+  const rules = useUserFieldRules()
   const { user } = useAuth()
 
   const form = useForm<FormValues>({
@@ -108,7 +111,7 @@ export function UserProfilePage() {
     return (
       values.nickname.trim() !== (user.nickname ?? '')
       || values.username.trim() !== (user.username ?? '')
-      || values.gender !== (user.gender ?? '')
+      || values.gender.trim() !== (user.gender ?? '')
       || values.language !== (user.language ?? '')
       || avatarUrl !== (user.avatarUrl ?? '')
       || backgroundUrl !== (user.backgroundUrl ?? '')
@@ -156,7 +159,7 @@ export function UserProfilePage() {
         id: user.id,
         nickname: values.nickname,
         username: values.username,
-        gender: values.gender,
+        gender: values.gender.trim(),
         language: values.language,
         avatarUrl: nextAvatarUrl,
         backgroundUrl: nextBackgroundUrl,
@@ -270,11 +273,12 @@ export function UserProfilePage() {
           <FormField
             control={form.control}
             name="gender"
+            rules={rules.gender}
             render={({ field }) => (
               <FormItem>
                 <FormLabel>{t('gender')}</FormLabel>
                 <FormControl>
-                  <Input {...field} />
+                  <GenderInput {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

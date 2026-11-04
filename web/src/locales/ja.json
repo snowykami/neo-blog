@@ -2700,6 +2700,16 @@
     "me": "私",
     "user": "ユーザー"
   },
+  "Gender": {
+    "label": "性別",
+    "labelled": "性別：{gender}",
+    "none": "未設定",
+    "male": "男性",
+    "female": "女性",
+    "custom": "カスタム",
+    "custom_input": "カスタムの性別",
+    "custom_placeholder": "性別を自由に入力（{max} 文字まで）"
+  },
   "Route": {
     "about": "私について",
     "archive": "アーカイブ",
@@ -2913,6 +2923,7 @@
       "invalid_username": "無効なユーザー名です",
       "invalid_nickname": "無効なニックネームです",
       "invalid_email": "無効なメールアドレスです",
+      "invalid_gender": "無効な性別です",
       "ai_input_too_long": "入力が長すぎます。選択範囲や指示を短くして再試行してください",
       "ai_write_empty_selection": "選択範囲が空です",
       "ai_timeout": "AI の応答がタイムアウトしました",
@@ -3108,9 +3119,6 @@
     "not_filled": "未設定",
     "guest": "ゲスト",
     "unknown_location": "不明",
-    "gender_male": "男性",
-    "gender_female": "女性",
-    "gender_other": "その他",
     "posts": "投稿記事",
     "tab_posts": "記事",
     "tab_comments": "コメント",
@@ -3128,7 +3136,6 @@
     "likes_load_failed": "いいねの読み込みに失敗しました",
     "likes_visibility": "本人と管理者のみ表示",
     "user_not_found": "ユーザーが見つかりません",
-    "gender": "性別",
     "email": "メールアドレス",
     "role": "ロール",
     "location": "所在地",

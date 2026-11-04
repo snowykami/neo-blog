@@ -137,7 +137,6 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 		Username: req.Username,
 		Nickname: req.Nickname,
 		Email:    req.Email,
-		Gender:   "unknown",
 		Role:     "user",
 		Password: hashedPassword,
 	}
@@ -365,13 +364,20 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, *
 		}
 		localTimeColumns = map[string]any{"show_local_time": *req.ShowLocalTime, "time_zone": timeZone}
 	}
+	// 性别同样允许清空，按列更新；未传表示不修改
+	gender := ""
+	if req.Gender != nil {
+		var ok bool
+		if gender, ok = normalizeGender(*req.Gender); !ok {
+			return nil, errs.NewBadRequest("invalid_gender")
+		}
+	}
 	user := &model.User{
 		Model: gorm.Model{
 			ID: req.ID,
 		},
 		Username:       req.Username,
 		Nickname:       req.Nickname,
-		Gender:         req.Gender,
 		AvatarUrl:      req.AvatarUrl,
 		BackgroundUrl:  req.BackgroundUrl,
 		PreferredColor: req.PreferredColor,
@@ -382,6 +388,9 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, *
 	err := repo.User.UpdateUser(user)
 	if err == nil && localTimeColumns != nil {
 		err = repo.User.UpdateUserColumns(req.ID, localTimeColumns)
+	}
+	if err == nil && req.Gender != nil {
+		err = repo.User.UpdateUserColumns(req.ID, map[string]any{"gender": gender})
 	}
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

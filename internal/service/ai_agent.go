@@ -498,7 +498,6 @@ func buildAIUser(username, nickname, avatarURL string) (*model.User, *errs.Servi
 		Username:  username,
 		Nickname:  nickname,
 		Email:     email,
-		Gender:    "unknown",
 		Role:      constant.RoleUser,
 		AvatarUrl: avatarURL,
 		IsAI:      true,

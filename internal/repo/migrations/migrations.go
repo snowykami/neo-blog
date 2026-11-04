@@ -17,5 +17,6 @@ func List() []*gormigrate.Migration {
 		postContentHashBackfill(),
 		lyricAnnotationPaceBeat(),
 		musicTTMLSources(),
+		clearUnknownGender(),
 	}
 }

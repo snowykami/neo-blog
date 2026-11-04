@@ -2700,6 +2700,16 @@
     "me": "Me",
     "user": "User"
   },
+  "Gender": {
+    "label": "Gender",
+    "labelled": "Gender: {gender}",
+    "none": "Not specified",
+    "male": "Male",
+    "female": "Female",
+    "custom": "Custom",
+    "custom_input": "Custom gender",
+    "custom_placeholder": "Describe your gender, up to {max} characters"
+  },
   "Route": {
     "about": "About",
     "archive": "Archive",
@@ -2913,6 +2923,7 @@
       "invalid_username": "Invalid username",
       "invalid_nickname": "Invalid nickname",
       "invalid_email": "Invalid email",
+      "invalid_gender": "Invalid gender",
       "ai_input_too_long": "Input is too long. Shorten the selection or prompt and try again",
       "ai_write_empty_selection": "The selection is empty",
       "ai_timeout": "AI response timed out",
@@ -3108,9 +3119,6 @@
     "not_filled": "Not provided",
     "guest": "Guest",
     "unknown_location": "Unknown",
-    "gender_male": "Male",
-    "gender_female": "Female",
-    "gender_other": "Other",
     "posts": "Posts",
     "tab_posts": "Posts",
     "tab_comments": "Comments",
@@ -3128,7 +3136,6 @@
     "likes_load_failed": "Failed to load likes",
     "likes_visibility": "Visible to you and admins only",
     "user_not_found": "User not found",
-    "gender": "Gender",
     "email": "Email",
     "role": "Role",
     "location": "Location",

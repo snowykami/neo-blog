@@ -7,7 +7,9 @@ import { useFormContext } from 'react-hook-form'
 import { AssetField } from '@/components/common/asset-picker/asset-field'
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { GenderInput } from '@/components/user/gender-input'
 import { useCommonT } from '@/hooks/use-translations'
+import { GENDER_CUSTOM_MAX, isValidGender } from '@/utils/common/gender'
 
 // 与后端 internal/service/admin_user.go 的校验保持一致
 export const USERNAME_MAX = 20
@@ -48,6 +50,9 @@ export function useUserFieldRules() {
     },
     password: {
       validate: (v: string) => (v.length >= PASSWORD_MIN && v.length <= PASSWORD_MAX) || t('password_hint', { min: PASSWORD_MIN, max: PASSWORD_MAX }),
+    },
+    gender: {
+      validate: (v: string) => isValidGender(v) || t('too_long', { field: t('gender'), max: GENDER_CUSTOM_MAX }),
     },
   }
 }
@@ -111,7 +116,7 @@ export function UserProfileFields({ fields, descriptions, placeholders }: {
       {has('email') && text('email', commonT('email'), rules.email, 'email')}
       {has('avatarUrl') && asset('avatarUrl', t('avatar_url'), true)}
       {has('backgroundUrl') && asset('backgroundUrl', t('background_url'), false)}
-      {has('gender') && text('gender', t('gender'))}
+      {has('gender') && field('gender', t('gender'), rules.gender, input => <GenderInput {...input} />)}
     </>
   )
 }

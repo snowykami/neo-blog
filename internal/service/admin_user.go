@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/mail"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/sirupsen/logrus"
@@ -21,6 +22,7 @@ import (
 const (
 	usernameMaxLen = 20
 	nicknameMaxLen = 20
+	genderMaxLen   = 20 // 自定义性别的最大字数
 )
 
 // AdminUserService 管理员用户管理，路由层已限制仅管理员可访问，这里仍逐一校验，防止被其他入口复用时越权
@@ -42,6 +44,16 @@ func isValidEmail(email string) bool {
 func isValidUsername(username string) bool {
 	n := utf8.RuneCountInString(username)
 	return n > 0 && n <= usernameMaxLen && !strings.ContainsAny(username, " \t\r\n/@")
+}
+
+// normalizeGender 去掉首尾空白后校验性别：空表示不填，male / female 为标准取值（只认小写，其余写法按自定义文字保存），
+// 其他内容为自定义文字，限制字数且不能包含换行等控制字符
+func normalizeGender(gender string) (string, bool) {
+	gender = strings.TrimSpace(gender)
+	if utf8.RuneCountInString(gender) > genderMaxLen || strings.IndexFunc(gender, unicode.IsControl) >= 0 {
+		return "", false
+	}
+	return gender, true
 }
 
 // requireAdmin 返回当前管理员
@@ -181,7 +193,6 @@ func (s *AdminUserService) CreateUser(ctx context.Context, req *dto.AdminCreateU
 		Username: req.Username,
 		Nickname: nickname,
 		Email:    req.Email,
-		Gender:   "unknown",
 		Role:     req.Role,
 		Password: hashedPassword,
 	}
@@ -218,6 +229,10 @@ func (s *AdminUserService) UpdateUser(ctx context.Context, req *dto.AdminUpdateU
 	if !(req.BackgroundUrl == "" || utils.Url.IsValidUrl(req.BackgroundUrl)) {
 		return errs.NewBadRequest("invalid_url")
 	}
+	gender, ok := normalizeGender(req.Gender)
+	if !ok {
+		return errs.NewBadRequest("invalid_gender")
+	}
 	if svcerr := checkUsernameEmailFree(req.Username, req.Email, target.ID); svcerr != nil {
 		return svcerr
 	}
@@ -227,7 +242,7 @@ func (s *AdminUserService) UpdateUser(ctx context.Context, req *dto.AdminUpdateU
 		"email":          req.Email,
 		"avatar_url":     req.AvatarUrl,
 		"background_url": req.BackgroundUrl,
-		"gender":         req.Gender,
+		"gender":         gender,
 	})
 	if err != nil {
 		logrus.Errorln("Failed to update user:", err)

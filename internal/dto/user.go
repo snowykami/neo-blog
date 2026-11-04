@@ -116,18 +116,18 @@ type GetUserResp struct {
 }
 
 type UpdateUserReq struct {
-	ID             uint   `path:"id" vd:"$>0"`
-	Username       string `json:"username"`
-	Nickname       string `json:"nickname"`
-	AvatarUrl      string `json:"avatar_url"`
-	BackgroundUrl  string `json:"background_url"`
-	PreferredColor string `json:"preferred_color"`
-	Gender         string `json:"gender"`
-	Language       string `json:"language"`
-	ShowIPLocation *bool  `json:"show_ip_location"`
-	ShowLikes      *bool  `json:"show_likes"`
-	ShowLocalTime  *bool  `json:"show_local_time"` // 为空表示不修改；关闭时一并清空时区
-	TimeZone       string `json:"time_zone"`       // 公开当地时间时必填的 IANA 时区
+	ID             uint    `path:"id" vd:"$>0"`
+	Username       string  `json:"username"`
+	Nickname       string  `json:"nickname"`
+	AvatarUrl      string  `json:"avatar_url"`
+	BackgroundUrl  string  `json:"background_url"`
+	PreferredColor string  `json:"preferred_color"`
+	Gender         *string `json:"gender"` // 为空表示不修改；空字符串表示清空
+	Language       string  `json:"language"`
+	ShowIPLocation *bool   `json:"show_ip_location"`
+	ShowLikes      *bool   `json:"show_likes"`
+	ShowLocalTime  *bool   `json:"show_local_time"` // 为空表示不修改；关闭时一并清空时区
+	TimeZone       string  `json:"time_zone"`       // 公开当地时间时必填的 IANA 时区
 }
 
 type UpdateUserResp struct {

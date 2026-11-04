@@ -44,6 +44,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useGenderText } from '@/components/user/user-gender'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { Role } from '@/models/user'
 
@@ -421,6 +422,7 @@ export function UserDetailSheet({ user, isSelf, onOpenChange }: {
   const t = useTranslations('Console.users')
   const commonT = useCommonT()
   const roleT = useTranslations('Role')
+  const genderText = useGenderText()
   const format = useFormatter()
   const { detail, error } = useUserDetail(user?.id ?? null)
   const current = detail?.user ?? user
@@ -431,7 +433,7 @@ export function UserDetailSheet({ user, isSelf, onOpenChange }: {
         [commonT('username'), current.username],
         [t('nickname'), current.nickname || '-'],
         [commonT('email'), current.email || '-'],
-        [t('gender'), current.gender || '-'],
+        [t('gender'), genderText(current.gender) || '-'],
         [t('role'), roleT(current.role)],
         [t('status'), current.disabled ? t('status_disabled') : t('status_active')],
         [commonT('created_at'), current.createdAt ? format.dateTime(new Date(current.createdAt), { dateStyle: 'medium', timeStyle: 'short' }) : '-'],

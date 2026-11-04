@@ -18,7 +18,7 @@ type User struct {
 	BackgroundUrl  string
 	PreferredColor string        `gorm:"default:''"` // 主题色
 	Email          string        `gorm:"uniqueIndex"`
-	Gender         string        `gorm:"default:''"`
+	Gender         string        `gorm:"default:''"`     // 性别：male / female 为标准取值，其余非空内容为自定义文字，空表示不填
 	Role           constant.Role `gorm:"default:'user'"` // user editor admin
 	Language       string        `gorm:"default:'zh'"`
 	Password       string        // 密码，存储加密后的值

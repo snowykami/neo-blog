@@ -2884,6 +2884,7 @@
       "invalid_username": "用户名格式无效",
       "invalid_nickname": "昵称格式无效",
       "invalid_email": "邮箱格式无效",
+      "invalid_gender": "性别格式无效",
       "ai_input_too_long": "内容过长，请缩短选区或要求后重试",
       "ai_write_empty_selection": "选中的内容为空",
       "ai_timeout": "AI 响应超时",
@@ -3048,6 +3049,16 @@
     "me": "我",
     "user": "用户"
   },
+  "Gender": {
+    "label": "性别",
+    "labelled": "性别：{gender}",
+    "none": "不填写",
+    "male": "男",
+    "female": "女",
+    "custom": "自定义",
+    "custom_input": "自定义性别",
+    "custom_placeholder": "填写自定义的性别，最多 {max} 个字"
+  },
   "Route": {
     "about": "关于我",
     "archive": "归档",
@@ -3108,9 +3119,6 @@
     "not_filled": "未填写",
     "guest": "访客",
     "unknown_location": "未知",
-    "gender_male": "男",
-    "gender_female": "女",
-    "gender_other": "其他",
     "posts": "发布的文章",
     "tab_posts": "文章",
     "tab_comments": "评论",
@@ -3128,7 +3136,6 @@
     "likes_load_failed": "喜欢列表加载失败",
     "likes_visibility": "仅本人与管理员可见",
     "user_not_found": "用户未找到",
-    "gender": "性别",
     "email": "邮箱",
     "role": "角色",
     "location": "所在地",
