@@ -438,7 +438,16 @@ func (s *AIAgentService) Create(ctx context.Context, req *dto.CreateAIAgentReq) 
 	if svcerr != nil {
 		return nil, svcerr
 	}
-	agent := &model.AIAgent{Tier: req.Tier, Status: constant.AIAgentStatusActive, Profile: mustJSON(profile)}
+	agent, svcerr := createAgentWithUser(user, req.Tier, profile)
+	if svcerr != nil {
+		return nil, svcerr
+	}
+	return s.agentDto(agent), nil
+}
+
+// createAgentWithUser 在同一事务中创建 AI 用户的账号与 Agent 配置
+func createAgentWithUser(user *model.User, tier string, profile dto.AIAgentProfile) (*model.AIAgent, *errs.ServiceError) {
+	agent := &model.AIAgent{Tier: tier, Status: constant.AIAgentStatusActive, Profile: mustJSON(profile)}
 	if err := repo.AIAgent.CreateWithUser(user, agent); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return nil, errs.NewConflict("username_or_email_already_exists")
@@ -446,11 +455,25 @@ func (s *AIAgentService) Create(ctx context.Context, req *dto.CreateAIAgentReq) 
 		return nil, errs.Internal("failed_to_create_target", err).WithResource("ai_agent")
 	}
 	agent.User = *user
-	return s.agentDto(agent), nil
+	return agent, nil
 }
 
 // newAIUser 构造 AI 用户的账号：占位邮箱、随机密码（不可登录）
 func newAIUser(username, nickname, avatarURL string) (*model.User, *errs.ServiceError) {
+	user, svcerr := buildAIUser(username, nickname, avatarURL)
+	if svcerr != nil {
+		return nil, svcerr
+	}
+	password, err := utils.Password.HashPassword(utils.Strings.GenerateRandomString(48))
+	if err != nil {
+		return nil, errs.Internal("failed_to_create_target", err).WithResource("user")
+	}
+	user.Password = password
+	return user, nil
+}
+
+// buildAIUser 校验 AI 用户的账号字段、确认用户名与占位邮箱未被占用，构造不含密码的账号
+func buildAIUser(username, nickname, avatarURL string) (*model.User, *errs.ServiceError) {
 	username = strings.TrimSpace(username)
 	nickname = strings.TrimSpace(nickname)
 	avatarURL = strings.TrimSpace(avatarURL)
@@ -467,10 +490,6 @@ func newAIUser(username, nickname, avatarURL string) (*model.User, *errs.Service
 	if svcerr := checkUsernameEmailFree(username, email, 0); svcerr != nil {
 		return nil, svcerr
 	}
-	password, err := utils.Password.HashPassword(utils.Strings.GenerateRandomString(48))
-	if err != nil {
-		return nil, errs.Internal("failed_to_create_target", err).WithResource("user")
-	}
 	if nickname == "" {
 		nickname = username
 	}
@@ -480,7 +499,6 @@ func newAIUser(username, nickname, avatarURL string) (*model.User, *errs.Service
 		Email:     email,
 		Gender:    "unknown",
 		Role:      constant.RoleUser,
-		Password:  password,
 		AvatarUrl: avatarURL,
 		IsAI:      true,
 	}, nil

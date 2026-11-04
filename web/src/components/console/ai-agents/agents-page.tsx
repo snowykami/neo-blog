@@ -1,7 +1,7 @@
 'use client'
 
 import type { AIAgent, AIAgentStats, AIAgentStatus, AIAgentTier } from '@/models/ai-agent'
-import { ListTree, Plus, SlidersHorizontal, Wand, X } from 'lucide-react'
+import { Download, ListTree, Plus, SlidersHorizontal, Upload, Wand, X } from 'lucide-react'
 import { useFormatter } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -23,9 +23,11 @@ import { useDebouncedState } from '@/hooks/use-debounce'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { AI_AGENT_STATUSES, AI_AGENT_TIERS } from '@/models/ai-agent'
 import { consolePath } from '@/utils/common/route'
+import { useExportAIAgents } from './agent-file'
 import { CreateAgentDialog } from './create-agent-dialog'
 import { GenerateGroupDialog } from './generate-group-dialog'
 import { AIAgentGroupsPanel } from './groups-card'
+import { ImportAgentsDialog } from './import-agents-dialog'
 import { AgentStatusBadge, TierBadge, useAIAgentT, useCompactNumber } from './shared'
 import { AIAgentStatsCards } from './stats-cards'
 
@@ -62,6 +64,8 @@ export function AIAgentsPage() {
   const [togglingId, setTogglingId] = useState<number | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [generateOpen, setGenerateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const { exporting, exportAgents } = useExportAIAgents()
 
   const fetchStats = useCallback(() => {
     getAIAgentStats().then(res => setStats(res.data)).catch(() => {})
@@ -168,6 +172,20 @@ export function AIAgentsPage() {
             </TabsTrigger>
           </TabsList>
           <div className="flex flex-wrap items-center gap-3">
+            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload />
+              {t('list.import')}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={exporting}
+              title={t('list.export_hint')}
+              onClick={() => exportAgents({ query: query.trim(), tier: tier ?? '', status: status ?? '', groupId: groupId ?? undefined })}
+            >
+              <Download />
+              {t('list.export')}
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
               <Wand />
               {t('list.generate')}
@@ -360,6 +378,19 @@ export function AIAgentsPage() {
           setCreateOpen(false)
           // 创建后直接进入性格设置
           router.push(`${consolePath.aiAgent}/${agent.id}`)
+        }}
+      />
+      <ImportAgentsDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={(agentIds, done) => {
+          refreshAll()
+          if (!done)
+            return
+          setImportOpen(false)
+          // 只导入了一个时直接进入详情页，便于试运行与调整
+          if (agentIds.length === 1)
+            router.push(`${consolePath.aiAgent}/${agentIds[0]}`)
         }}
       />
       <GenerateGroupDialog

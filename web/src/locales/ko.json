@@ -2141,7 +2141,10 @@
         "today_value": "댓글 {comments} · 좋아요 {likes}",
         "never_active": "활동 없음",
         "edit": "성격",
-        "logs": "로그"
+        "logs": "로그",
+        "import": "가져오기",
+        "export": "내보내기",
+        "export_hint": "현재 필터 조건으로 계정 정보와 성격 프로필을 내보냅니다 (기억과 로그 제외)"
       },
       "create": {
         "title": "AI 사용자 만들기",
@@ -2165,6 +2168,33 @@
         "profile_hint": "성격은 우선 이 유형의 기본값을 사용하며, 만든 후 성격 설정에서 바꿀 수 있습니다.",
         "submit_new": "만들고 성격 설정",
         "submit_convert": "AI 사용자로 지정"
+      },
+      "import": {
+        "title": "AI 사용자 가져오기",
+        "description": "다른 사이트에서 내보낸 파일이나 AI가 생성한 파일을 가져옵니다. AI 사용자 한 명은 JSON 객체, 여러 명은 객체 배열입니다. 사용자 이름으로 중복을 확인하며, 같은 이름의 AI 사용자가 있으면 성격 프로필을 업데이트합니다.",
+        "dropzone": "클릭하여 선택하거나 JSON 파일을 끌어다 놓으세요",
+        "paste_label": "또는 JSON 붙여넣기",
+        "invalid_file": "올바른 AI 사용자 파일이 아닙니다: AI 사용자 객체나 그 배열이어야 하며, 각 항목에 username이 있어야 합니다",
+        "read": "읽기",
+        "count": "AI 사용자 {count}명",
+        "reselect": "다시 선택",
+        "no_persona": "페르소나 없음",
+        "imported": "가져옴",
+        "remove": "제거",
+        "duplicate_username": "목록의 다른 사용자 이름과 중복됩니다",
+        "submit": "{count}명 가져오기",
+        "success": "가져오기 완료: {created}명 생성, {updated}명 업데이트",
+        "partial": "{created}명 생성, {updated}명 업데이트, {failed}명 실패. 수정 후 다시 시도할 수 있습니다",
+        "close": "닫기",
+        "checking": "확인 중",
+        "action_create": "새로 만들기",
+        "action_update": "업데이트 예정",
+        "update_hint": "같은 이름의 AI 사용자가 있습니다: 파일 내용으로 유형과 성격 프로필을 업데이트합니다. 파일에 없는 항목은 기존 값을 유지하고, 닉네임과 아바타 등 계정 정보는 바뀌지 않습니다",
+        "updated": "업데이트됨"
+      },
+      "export": {
+        "success": "AI 사용자 {count}명을 내보냈습니다",
+        "empty": "내보낼 AI 사용자가 없습니다"
       },
       "generate": {
         "title": "AI 사용자 일괄 생성",
@@ -2256,7 +2286,9 @@
         "remove_irreversible": "삭제한 성격, 기억, 관계는 복구할 수 없습니다.",
         "remove_success": "AI를 해제했습니다",
         "self_summary": "자기 요약",
-        "self_summary_empty": "아직 없습니다. 매일 밤 기억을 정리할 때 자동으로 작성됩니다"
+        "self_summary_empty": "아직 없습니다. 매일 밤 기억을 정리할 때 자동으로 작성됩니다",
+        "export": "내보내기",
+        "export_hint": "계정 정보와 성격 프로필을 내보냅니다 (기억과 로그 제외). 다른 사이트로 가져올 수 있습니다"
       },
       "profile": {
         "section_persona": "페르소나",
@@ -2928,7 +2960,11 @@
       "too_many_files": "한 번에 선택한 파일이 너무 많습니다",
       "failed_to_start_storage_migration": "이전을 시작하지 못했습니다",
       "failed_to_cancel_storage_migration": "이전을 취소하지 못했습니다",
-      "ai_translate_failed": "AI 번역에 실패했습니다. 잠시 후 다시 시도해 주세요"
+      "ai_translate_failed": "AI 번역에 실패했습니다. 잠시 후 다시 시도해 주세요",
+      "invalid_ai_agent_count": "한 번에 1~200명의 AI 사용자를 가져올 수 있습니다",
+      "invalid_ai_agent_profile": "성격 프로필에 형식이 올바르지 않은 항목이 있습니다",
+      "invalid_preferred_color": "테마 색상이 사이트에서 선택할 수 있는 색 구성에 없습니다",
+      "ai_agent_username_taken": "일반 사용자가 이미 사용 중인 사용자 이름입니다. 다른 이름을 사용하세요"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field} \"{value}\"이(가) 올바르지 않습니다} resource {{resource} 매개변수가 올바르지 않습니다} other {요청 매개변수가 올바르지 않습니다}}",

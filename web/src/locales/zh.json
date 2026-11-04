@@ -2141,7 +2141,10 @@
         "today_value": "{comments} 评 · {likes} 赞",
         "never_active": "尚未活动",
         "edit": "性格",
-        "logs": "日志"
+        "logs": "日志",
+        "import": "导入",
+        "export": "导出",
+        "export_hint": "按当前筛选条件导出账号资料与性格档案（不含记忆与日志）"
       },
       "create": {
         "title": "新建 AI 用户",
@@ -2165,6 +2168,33 @@
         "profile_hint": "性格先使用该类型的默认值，创建后可以在性格设置中修改。",
         "submit_new": "创建并设置性格",
         "submit_convert": "设为 AI 用户"
+      },
+      "import": {
+        "title": "导入 AI 用户",
+        "description": "导入从其他站点导出的文件或由 AI 生成的文件：一个 AI 用户是一个 JSON 对象，多个是对象数组。按用户名去重，已有同名 AI 用户时更新它的性格档案。",
+        "dropzone": "点击选择或拖入 JSON 文件",
+        "paste_label": "或粘贴 JSON",
+        "invalid_file": "不是有效的 AI 用户文件：应为一个 AI 用户对象或对象数组，每一项都要有 username",
+        "read": "读取",
+        "count": "共 {count} 个 AI 用户",
+        "reselect": "重新选择",
+        "no_persona": "未填写人设",
+        "imported": "已导入",
+        "remove": "移除",
+        "duplicate_username": "与列表中的其他用户名重复",
+        "submit": "导入 {count} 个",
+        "success": "导入完成：新建 {created} 个，更新 {updated} 个",
+        "partial": "新建 {created} 个、更新 {updated} 个，{failed} 个失败，修改后可重试",
+        "close": "关闭",
+        "checking": "检查中",
+        "action_create": "新建",
+        "action_update": "将更新",
+        "update_hint": "已有同名 AI 用户：将用文件更新它的类型与性格档案，文件里没有的字段保持原值，昵称、头像等账号资料不变",
+        "updated": "已更新"
+      },
+      "export": {
+        "success": "已导出 {count} 个 AI 用户",
+        "empty": "没有可导出的 AI 用户"
       },
       "generate": {
         "title": "批量生成 AI 用户",
@@ -2256,7 +2286,9 @@
         "remove_irreversible": "性格、记忆与关系删除后无法恢复。",
         "remove_success": "已取消 AI 身份",
         "self_summary": "自我摘要",
-        "self_summary_empty": "暂无，每晚整理记忆时自动生成"
+        "self_summary_empty": "暂无，每晚整理记忆时自动生成",
+        "export": "导出",
+        "export_hint": "导出账号资料与性格档案（不含记忆与日志），可导入到其他站点"
       },
       "profile": {
         "section_persona": "人设",
@@ -2899,7 +2931,11 @@
       "too_many_files": "一次选择的文件过多",
       "failed_to_start_storage_migration": "启动迁移失败",
       "failed_to_cancel_storage_migration": "取消迁移失败",
-      "ai_translate_failed": "AI 翻译失败，请稍后再试"
+      "ai_translate_failed": "AI 翻译失败，请稍后再试",
+      "invalid_ai_agent_count": "一次可导入 1～200 个 AI 用户",
+      "invalid_ai_agent_profile": "性格档案中有字段的类型不正确",
+      "invalid_preferred_color": "主题色不在站点可选的配色中",
+      "ai_agent_username_taken": "用户名已被普通用户占用，请换一个"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的参数不符合要求} other {请求参数不符合要求}}",

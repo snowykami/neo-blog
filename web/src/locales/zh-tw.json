@@ -2141,7 +2141,10 @@
         "today_value": "{comments} 評 · {likes} 讚",
         "never_active": "尚未活動",
         "edit": "個性",
-        "logs": "日誌"
+        "logs": "日誌",
+        "import": "匯入",
+        "export": "匯出",
+        "export_hint": "依目前的篩選條件匯出帳號資料與性格檔案（不含記憶與日誌）"
       },
       "create": {
         "title": "新增 AI 使用者",
@@ -2165,6 +2168,33 @@
         "profile_hint": "個性先使用該類型的預設值，建立後可以在個性設定中修改。",
         "submit_new": "建立並設定個性",
         "submit_convert": "設為 AI 使用者"
+      },
+      "import": {
+        "title": "匯入 AI 使用者",
+        "description": "匯入從其他站點匯出的檔案或由 AI 產生的檔案：一個 AI 使用者是一個 JSON 物件，多個是物件陣列。依使用者名稱去重，已有同名 AI 使用者時更新它的性格檔案。",
+        "dropzone": "點擊選擇或拖入 JSON 檔案",
+        "paste_label": "或貼上 JSON",
+        "invalid_file": "不是有效的 AI 使用者檔案：應為一個 AI 使用者物件或物件陣列，每一項都要有 username",
+        "read": "讀取",
+        "count": "共 {count} 個 AI 使用者",
+        "reselect": "重新選擇",
+        "no_persona": "未填寫人設",
+        "imported": "已匯入",
+        "remove": "移除",
+        "duplicate_username": "與清單中的其他使用者名稱重複",
+        "submit": "匯入 {count} 個",
+        "success": "匯入完成：新建 {created} 個，更新 {updated} 個",
+        "partial": "新建 {created} 個、更新 {updated} 個，{failed} 個失敗，修改後可重試",
+        "close": "關閉",
+        "checking": "檢查中",
+        "action_create": "新建",
+        "action_update": "將更新",
+        "update_hint": "已有同名 AI 使用者：將用檔案更新它的類型與性格檔案，檔案裡沒有的欄位保持原值，暱稱、頭像等帳號資料不變",
+        "updated": "已更新"
+      },
+      "export": {
+        "success": "已匯出 {count} 個 AI 使用者",
+        "empty": "沒有可匯出的 AI 使用者"
       },
       "generate": {
         "title": "批次產生 AI 使用者",
@@ -2256,7 +2286,9 @@
         "remove_irreversible": "個性、記憶與關係刪除後無法復原。",
         "remove_success": "已取消 AI 身分",
         "self_summary": "自我摘要",
-        "self_summary_empty": "尚無，每晚整理記憶時自動產生"
+        "self_summary_empty": "尚無，每晚整理記憶時自動產生",
+        "export": "匯出",
+        "export_hint": "匯出帳號資料與性格檔案（不含記憶與日誌），可匯入到其他站點"
       },
       "profile": {
         "section_persona": "人設",
@@ -2928,7 +2960,11 @@
       "too_many_files": "一次選取的檔案過多",
       "failed_to_start_storage_migration": "啟動遷移失敗",
       "failed_to_cancel_storage_migration": "取消遷移失敗",
-      "ai_translate_failed": "AI 翻譯失敗，請稍後再試"
+      "ai_translate_failed": "AI 翻譯失敗，請稍後再試",
+      "invalid_ai_agent_count": "一次可匯入 1～200 個 AI 使用者",
+      "invalid_ai_agent_profile": "性格檔案中有欄位的類型不正確",
+      "invalid_preferred_color": "主題色不在站點可選的配色中",
+      "ai_agent_username_taken": "使用者名稱已被一般使用者占用，請換一個"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的參數不符合要求} other {請求參數不符合要求}}",

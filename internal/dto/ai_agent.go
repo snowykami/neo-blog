@@ -1,6 +1,11 @@
 package dto
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/snowykami/neo-blog/pkg/errs"
+)
 
 // ---------- 性格档案（存于 ai_agents.profile，JSON） ----------
 
@@ -141,6 +146,41 @@ type UpdateAIAgentReq struct {
 	ID      uint            `path:"id"`
 	Tier    string          `json:"tier"`
 	Profile *AIAgentProfile `json:"profile"`
+}
+
+// ---------- 导入导出 ----------
+
+// AIAgentFileItem 导入导出文件中的一个 AI 用户：只含能在站点间迁移的账号资料、类型与性格档案，不含记忆、关系与运行记录。
+// 文件内容为单个对象（一个 AI 用户）或对象数组（多个），由前端读写文件时转换为下面接口中的 agents
+type AIAgentFileItem struct {
+	Username       string `json:"username"`
+	Nickname       string `json:"nickname"`
+	AvatarUrl      string `json:"avatar_url"`
+	BackgroundUrl  string `json:"background_url"`
+	PreferredColor string `json:"preferred_color"`
+	Tier           string `json:"tier"`
+	// Profile 即 AIAgentProfile；导入时缺少的字段（含嵌套对象中的字段）取该类型的默认值，数组整体替换
+	Profile json.RawMessage `json:"profile,omitempty"`
+}
+
+// ExportAIAgentsReq 导出：指定 ID 时只导出这一个，否则按列表的筛选条件导出全部（忽略分页）
+type ExportAIAgentsReq struct {
+	AdminListAIAgentsReq
+	ID uint `query:"id"`
+}
+
+// ImportAIAgentsReq 导入：按用户名逐个新建或更新，单个失败不影响其他
+type ImportAIAgentsReq struct {
+	Agents []AIAgentFileItem `json:"agents"`
+	DryRun bool              `json:"dry_run"` // 只校验并给出每一项将执行的操作，不写入
+}
+
+// ImportAIAgentResult 导入时每一项的结果
+type ImportAIAgentResult struct {
+	Index   int        `json:"index"`              // 在 agents 中的下标
+	Action  string     `json:"action,omitempty"`   // create：新建；update：已有同名 AI 用户，更新类型与性格档案。失败时为空
+	AgentID uint       `json:"agent_id,omitempty"` // 新建或更新的 AI 用户；试运行新建时为 0
+	Error   *errs.Body `json:"error,omitempty"`
 }
 
 // AIAgentDryRunReq 试运行：用指定文章或评论预演，只输出操作列表不执行

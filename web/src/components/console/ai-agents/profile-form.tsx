@@ -21,7 +21,8 @@ import { linesToList, listToLines, triggerKey, useAIAgentT } from './shared'
 
 // 作息：逗号分隔的小时区间，如 9-12,20-24；跨零点写成 22-2
 const ACTIVE_HOURS_PATTERN = /^\s*\d{1,2}\s*-\s*\d{1,2}(?:\s*,\s*\d{1,2}\s*-\s*\d{1,2})*\s*$/
-const PERSONA_MAX = 300
+// 与后端一致（internal/service/ai_agent.go 的 agentPersonaMaxRunes），导入的长人设也能编辑保存
+const PERSONA_MAX = 2000
 
 // 表单值：数组字段以「每行一条」的文本编辑，提交时再拆分
 export interface ProfileFormValues {

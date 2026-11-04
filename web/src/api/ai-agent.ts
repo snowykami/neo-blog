@@ -7,6 +7,7 @@ import type {
   AgentRunStatus,
   AgentRunTrigger,
   AIAgent,
+  AIAgentFileItem,
   AIAgentGroup,
   AIAgentGroupTemplate,
   AIAgentPreview,
@@ -14,6 +15,7 @@ import type {
   AIAgentStats,
   AIAgentStatus,
   AIAgentTier,
+  ImportAIAgentResult,
 } from '@/models/ai-agent'
 import type { PaginationParams } from '@/models/common'
 import type { BaseResponse } from '@/models/resp'
@@ -48,6 +50,18 @@ export interface CreateAIAgentReq {
 
 export async function createAIAgent(data: CreateAIAgentReq): Promise<BaseResponse<AIAgent>> {
   const res = await axiosClient.post('/admin/ai-agents', data)
+  return res.data
+}
+
+// 导出：指定 id 时只导出这一个，否则按列表的筛选条件导出全部
+export async function exportAIAgents(params: Omit<ListAIAgentsParams, 'page' | 'size'> & { id?: number }): Promise<BaseResponse<{ agents: AIAgentFileItem[] }>> {
+  const res = await axiosClient.get('/admin/ai-agents/export', { params })
+  return res.data
+}
+
+// 导入：按用户名逐个新建或更新已有的 AI 用户，单个失败不影响其他；dryRun 时只给出每一项将执行的操作。人数较多时较慢，放宽超时
+export async function importAIAgents(agents: AIAgentFileItem[], dryRun = false): Promise<BaseResponse<{ results: ImportAIAgentResult[] }>> {
+  const res = await axiosClient.post('/admin/ai-agents/import', { agents, dryRun }, { timeout: 120000 })
   return res.data
 }
 

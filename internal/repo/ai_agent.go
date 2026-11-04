@@ -58,8 +58,8 @@ func (r *aiAgentRepo) SetStatusByGroup(groupID uint, status, reason string) erro
 		Updates(map[string]any{"status": status, "paused_reason": reason}).Error
 }
 
-// List 管理后台列表，按用户名 / 昵称搜索
-func (r *aiAgentRepo) List(req *dto.AdminListAIAgentsReq) ([]model.AIAgent, int64, error) {
+// filterAgents 管理后台列表与导出共用的筛选条件，按用户名 / 昵称搜索
+func filterAgents(req *dto.AdminListAIAgentsReq) *gorm.DB {
 	db := GetDB().Model(&model.AIAgent{}).Joins("JOIN users ON users.id = ai_agents.user_id AND users.deleted_at IS NULL")
 	if q := strings.TrimSpace(req.Query); q != "" {
 		like := "%" + q + "%"
@@ -74,6 +74,12 @@ func (r *aiAgentRepo) List(req *dto.AdminListAIAgentsReq) ([]model.AIAgent, int6
 	if req.GroupID != 0 {
 		db = db.Where("ai_agents.group_id = ?", req.GroupID)
 	}
+	return db
+}
+
+// List 管理后台列表
+func (r *aiAgentRepo) List(req *dto.AdminListAIAgentsReq) ([]model.AIAgent, int64, error) {
+	db := filterAgents(req)
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -85,6 +91,13 @@ func (r *aiAgentRepo) List(req *dto.AdminListAIAgentsReq) ([]model.AIAgent, int6
 	var agents []model.AIAgent
 	err := db.Preload("User").Order("ai_agents.id DESC").Limit(size).Offset(int(req.Offset())).Find(&agents).Error
 	return agents, total, err
+}
+
+// ListAll 按筛选条件取出全部 AI 用户（导出用），按创建顺序
+func (r *aiAgentRepo) ListAll(req *dto.AdminListAIAgentsReq) ([]model.AIAgent, error) {
+	var agents []model.AIAgent
+	err := filterAgents(req).Preload("User").Order("ai_agents.id ASC").Find(&agents).Error
+	return agents, err
 }
 
 // ListActive 调度器使用：状态为启用且账号未被禁用的全部 AI 用户

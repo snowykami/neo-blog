@@ -23,8 +23,12 @@ import { Role } from '@/models/user'
 import { SearchSelect, useAIAgentT } from './shared'
 
 // 与后端用户名 / 昵称校验保持一致（见 internal/service/admin_user.go）
-const USERNAME_MAX = 20
+export const USERNAME_MAX = 20
 const NICKNAME_MAX = 20
+
+export function isValidAIUsername(value: string) {
+  return value.length <= USERNAME_MAX && !/[\s/@]/.test(value)
+}
 // 外部 http(s) 地址，或站内文件的稳定链接（/api/v1/file/f/<id>，从资产库选择时得到）
 const URL_PATTERN = /^(?:https?:\/\/|\/)\S+$/i
 
@@ -142,7 +146,7 @@ function CreateAgentFormBody({ onCancel, onCreated }: { onCancel: () => void, on
                         const value = v.trim()
                         if (!value)
                           return t('create.required', { field: commonT('username') })
-                        if (value.length > USERNAME_MAX || /[\s/@]/.test(value))
+                        if (!isValidAIUsername(value))
                           return t('create.invalid_username', { max: USERNAME_MAX })
                         return true
                       },

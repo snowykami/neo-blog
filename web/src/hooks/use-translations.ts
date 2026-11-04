@@ -1,3 +1,4 @@
+import type { ApiErrorBody } from '@/utils/common/error'
 import { useTranslations } from 'next-intl'
 import { useCallback } from 'react'
 import { getErrorBody, getErrorMessage } from '@/utils/common/error'
@@ -12,6 +13,12 @@ export const useOperationT = () => useTranslations('Operation')
 export function useErrorMessageT() {
   const t = useTranslations('Response')
   return useCallback((error: unknown, fallback = '') => formatApiError(t, error, fallback), [t])
+}
+
+/** 将后端错误详情转换为可读文案，用于批量接口逐项返回的错误，规则见 formatErrorBody */
+export function useErrorBodyT() {
+  const t = useTranslations('Response')
+  return useCallback((body: ApiErrorBody, fallback = '') => formatErrorBody(t, body, fallback), [t])
 }
 
 interface ResponseTranslator {
@@ -31,6 +38,11 @@ export function formatApiError(t: ResponseTranslator, error: unknown, fallback =
     const message = getErrorMessage(error, fallback)
     return message && t.has(`error_details.${message}`) ? t(`error_details.${message}`) : message
   }
+  return formatErrorBody(t, body, fallback)
+}
+
+/** 按后端错误详情生成文案，规则见 formatApiError 的 1、2 与补充说明部分 */
+export function formatErrorBody(t: ResponseTranslator, body: ApiErrorBody, fallback = ''): string {
   const name = (group: string, key?: string) => (key && t.has(`${group}.${key}`) ? t(`${group}.${key}`) : key)
   const params = {
     scope: body.field ? 'field' : body.resource ? 'resource' : 'none',

@@ -2141,7 +2141,10 @@
         "today_value": "コメント {comments} · いいね {likes}",
         "never_active": "未活動",
         "edit": "性格",
-        "logs": "ログ"
+        "logs": "ログ",
+        "import": "インポート",
+        "export": "エクスポート",
+        "export_hint": "現在の絞り込み条件でアカウント情報と性格プロフィールをエクスポート（記憶とログは含みません）"
       },
       "create": {
         "title": "AI ユーザーを作成",
@@ -2165,6 +2168,33 @@
         "profile_hint": "性格はまずこのタイプの既定値を使います。作成後に性格設定で変更できます。",
         "submit_new": "作成して性格を設定",
         "submit_convert": "AI ユーザーにする"
+      },
+      "import": {
+        "title": "AI ユーザーをインポート",
+        "description": "他のサイトからエクスポートしたファイル、または AI が生成したファイルをインポートします。AI ユーザー 1 人は JSON オブジェクト、複数はオブジェクトの配列です。ユーザー名で照合し、同じユーザー名の AI ユーザーがいる場合は性格プロフィールを更新します。",
+        "dropzone": "クリックして選択、または JSON ファイルをドロップ",
+        "paste_label": "または JSON を貼り付け",
+        "invalid_file": "有効な AI ユーザーファイルではありません：AI ユーザーのオブジェクトかその配列で、各項目に username が必要です",
+        "read": "読み込む",
+        "count": "{count} 人の AI ユーザー",
+        "reselect": "選び直す",
+        "no_persona": "人物設定なし",
+        "imported": "インポート済み",
+        "remove": "削除",
+        "duplicate_username": "リスト内の他のユーザー名と重複しています",
+        "submit": "{count} 人をインポート",
+        "success": "インポート完了：新規 {created} 人、更新 {updated} 人",
+        "partial": "新規 {created} 人、更新 {updated} 人、失敗 {failed} 人。修正して再試行できます",
+        "close": "閉じる",
+        "checking": "確認中",
+        "action_create": "新規",
+        "action_update": "更新予定",
+        "update_hint": "同じユーザー名の AI ユーザーがいます：ファイルの内容で種類と性格プロフィールを更新します。ファイルにない項目は元の値のままで、ニックネームやアバターなどのアカウント情報は変わりません",
+        "updated": "更新済み"
+      },
+      "export": {
+        "success": "{count} 人の AI ユーザーをエクスポートしました",
+        "empty": "エクスポートできる AI ユーザーがありません"
       },
       "generate": {
         "title": "AI ユーザーを一括生成",
@@ -2256,7 +2286,9 @@
         "remove_irreversible": "削除した性格、記憶、関係は元に戻せません。",
         "remove_success": "AI を解除しました",
         "self_summary": "自己要約",
-        "self_summary_empty": "まだありません。毎晩の記憶整理のときに自動生成されます"
+        "self_summary_empty": "まだありません。毎晩の記憶整理のときに自動生成されます",
+        "export": "エクスポート",
+        "export_hint": "アカウント情報と性格プロフィールをエクスポート（記憶とログは含みません）。他のサイトにインポートできます"
       },
       "profile": {
         "section_persona": "ペルソナ",
@@ -2928,7 +2960,11 @@
       "too_many_files": "一度に選択したファイルが多すぎます",
       "failed_to_start_storage_migration": "移行を開始できませんでした",
       "failed_to_cancel_storage_migration": "移行をキャンセルできませんでした",
-      "ai_translate_failed": "AI 翻訳に失敗しました。しばらくしてから再度お試しください"
+      "ai_translate_failed": "AI 翻訳に失敗しました。しばらくしてから再度お試しください",
+      "invalid_ai_agent_count": "一度にインポートできる AI ユーザーは 1〜200 人です",
+      "invalid_ai_agent_profile": "性格プロフィールに型の正しくない項目があります",
+      "invalid_preferred_color": "テーマカラーがサイトで選べる配色にありません",
+      "ai_agent_username_taken": "このユーザー名は一般ユーザーが使用しています。別の名前にしてください"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」が正しくありません} resource {{resource}のパラメーターが正しくありません} other {リクエストのパラメーターが正しくありません}}",

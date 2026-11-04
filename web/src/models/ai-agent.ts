@@ -1,5 +1,6 @@
 // AI 用户（由 Agent 驱动的普通账号）相关模型，与后端 internal/dto/ai_agent.go 对应
 import type { User } from './user'
+import type { ApiErrorBody } from '@/utils/common/error'
 
 export const AI_AGENT_TIERS = ['ambient', 'expert'] as const
 export type AIAgentTier = (typeof AI_AGENT_TIERS)[number]
@@ -281,4 +282,23 @@ export interface AIAgentPreview {
   tone: string
   styleSamples: string[] | null
   dailyActions: number
+}
+
+// 导入导出文件中的一个 AI 用户：只含账号资料、类型与性格档案。文件内容为单个对象（一个 AI 用户）或对象数组（多个）
+export interface AIAgentFileItem {
+  username: string
+  nickname: string
+  avatarUrl: string
+  backgroundUrl: string
+  preferredColor: string
+  tier: AIAgentTier
+  profile?: Partial<AIAgentProfile> // 缺少的字段：新建时取该类型的默认值，更新已有 AI 用户时保持原值
+}
+
+// 导入时每一项的结果：create 为新建，update 为更新已有的同名 AI 用户；失败时只有 error
+export interface ImportAIAgentResult {
+  index: number
+  action?: 'create' | 'update'
+  agentId?: number // 试运行新建时没有
+  error?: ApiErrorBody
 }

@@ -2,7 +2,7 @@
 
 import type { MemorySubject } from './memories-panel'
 import type { AIAgent } from '@/models/ai-agent'
-import { BotOff, ChevronLeft, ListTree, Pause, Play, UserPen } from 'lucide-react'
+import { BotOff, ChevronLeft, Download, ListTree, Pause, Play, UserPen } from 'lucide-react'
 import { useFormatter } from 'next-intl'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { consolePath } from '@/utils/common/route'
+import { useExportAIAgents } from './agent-file'
 import { DryRunCard } from './dry-run-card'
 import { AgentMemoriesPanel } from './memories-panel'
 import { AgentProfileForm } from './profile-form'
@@ -123,6 +124,7 @@ function AgentHeader({ agent, onChanged, onReload }: { agent: AIAgent, onChanged
   const [toggling, setToggling] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [removeOpen, setRemoveOpen] = useState(false)
+  const { exporting, exportAgents } = useExportAIAgents()
   const name = agent.user.nickname || agent.user.username
 
   const toggle = async () => {
@@ -192,6 +194,10 @@ function AgentHeader({ agent, onChanged, onReload }: { agent: AIAgent, onChanged
                 <ListTree />
                 {t('list.logs')}
               </Link>
+            </Button>
+            <Button size="sm" variant="outline" disabled={exporting} title={t('detail.export_hint')} onClick={() => exportAgents({ id: agent.id })}>
+              <Download />
+              {t('detail.export')}
             </Button>
             <Button size="sm" variant="destructive" onClick={() => setRemoveOpen(true)}>
               <BotOff />

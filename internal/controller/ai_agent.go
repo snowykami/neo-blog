@@ -69,6 +69,36 @@ func (cc *AIAgentController) Create(ctx context.Context, c *app.RequestContext) 
 	resps.Ok(c, resps.Success, agent)
 }
 
+// Export 导出 AI 用户文件（账号资料与性格档案）
+func (cc *AIAgentController) Export(ctx context.Context, c *app.RequestContext) {
+	req := &dto.ExportAIAgentsReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	agents, svcerr := cc.service.Export(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"agents": agents})
+}
+
+// Import 按导入文件创建 AI 用户，返回每一项的结果
+func (cc *AIAgentController) Import(ctx context.Context, c *app.RequestContext) {
+	req := &dto.ImportAIAgentsReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	results, svcerr := cc.service.Import(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"results": results})
+}
+
 func (cc *AIAgentController) ConvertUser(ctx context.Context, c *app.RequestContext) {
 	req := &dto.ConvertUserToAIReq{}
 	if err := c.BindAndValidate(req); err != nil || req.ID == 0 {
