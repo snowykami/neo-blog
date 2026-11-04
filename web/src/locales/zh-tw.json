@@ -711,7 +711,10 @@
       "upload_n_files_success": "成功上傳 {n} 個檔案",
       "upload_n_files_failed": "{n} 個檔案上傳失敗",
       "batch_delete_description": "將永久刪除選取的 {n} 個檔案，引用這些檔案的內容將無法正常顯示。",
-      "delete_file_description": "刪除後無法復原，引用此檔案的內容將無法正常顯示。"
+      "delete_file_description": "刪除後無法復原，引用此檔案的內容將無法正常顯示。",
+      "migrate_selected": "遷移所選",
+      "migration_started": "遷移已開始，可在儲存供應商頁面查看進度",
+      "view_migration": "查看進度"
     },
     "general": "一般",
     "global": {
@@ -1110,7 +1113,50 @@
       "use_as_default": "設為預設儲存",
       "select_storage_type": "選擇儲存類型...",
       "search_storage_type": "搜尋儲存類型...",
-      "no_storage_type_found": "找不到儲存類型"
+      "no_storage_type_found": "找不到儲存類型",
+      "usage": "{files} 個檔案 · {size}",
+      "usage_pages": "{n} 個 HTML 頁面版本",
+      "direct_hint": "已設定 Base URL：圖片由瀏覽器直接從儲存載入，不經過本站",
+      "proxy_hint": "經本站後端代理存取",
+      "migration": {
+        "title": "遷移檔案",
+        "description_provider": "把「{name}」中的 {files} 個檔案（{size}）和 {pages} 個 HTML 頁面版本複製到目標儲存。",
+        "description_files": "把選取的 {n} 個檔案複製到目標儲存。",
+        "target": "目標儲存",
+        "select_target": "選擇目標儲存…",
+        "target_required": "請選擇目標儲存",
+        "direct": "直連",
+        "proxy": "代理",
+        "hint_direct": "目標儲存已設定 Base URL，遷移後圖片由瀏覽器直接從儲存載入，不經過本站和 Next 圖片最佳化。",
+        "hint_proxy": "目標儲存經本站後端代理存取。",
+        "hint_keep_source": "文章、頁面中的連結無需改動，開始前會把遺留的舊直連統一換成站內連結；來源儲存中的檔案會保留，確認無誤後再刪除該儲存。",
+        "start": "開始遷移",
+        "started": "遷移已開始",
+        "migrate": "遷移",
+        "progress_title": "儲存遷移",
+        "cancel": "取消遷移",
+        "route_provider": "{source} → {target}",
+        "route_files": "選取的 {n} 個檔案 → {target}",
+        "objects": "物件 {done}/{total}",
+        "bytes": "{done} / {total}",
+        "copied": "已複製 {n}",
+        "pages": "HTML 頁面版本 {done}/{total}",
+        "links_updated": "已還原 {n} 筆記錄中的直連",
+        "failed": "失敗 {n}",
+        "resume_hint": "已遷移的檔案不受影響，重新發起遷移即可繼續處理剩餘檔案。",
+        "state": {
+          "running": "進行中",
+          "done": "已完成",
+          "failed": "部分失敗",
+          "canceled": "已取消",
+          "interrupted": "已中斷"
+        },
+        "phase": {
+          "links": "正在還原內容中的直連",
+          "files": "正在複製檔案",
+          "pages": "正在複製 HTML 頁面"
+        }
+      }
     },
     "users": {
       "title": "使用者管理",
@@ -2866,7 +2912,14 @@
       "invalid_count": "數量無效（1~2000）",
       "invalid_name": "名稱無效",
       "invalid_status": "無效的狀態",
-      "persona_generation_failed": "人設生成失敗，請檢查 AI 設定後重試"
+      "persona_generation_failed": "人設生成失敗，請檢查 AI 設定後重試",
+      "storage_migration_running": "已有遷移任務在進行，請等待完成或先取消",
+      "storage_migration_not_running": "目前沒有進行中的遷移",
+      "storage_provider_location_locked": "該儲存中仍有檔案，不能修改類型、目錄、Bucket、Prefix 或 WebDAV 位址；請先把檔案遷移到其他儲存",
+      "invalid_storage_migration": "來源儲存與目標儲存不能相同",
+      "too_many_files": "一次選取的檔案過多",
+      "failed_to_start_storage_migration": "啟動遷移失敗",
+      "failed_to_cancel_storage_migration": "取消遷移失敗"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的參數不符合要求} other {請求參數不符合要求}}",

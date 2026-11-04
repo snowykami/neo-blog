@@ -31,5 +31,8 @@ func registerFileRoutes(group *route.RouterGroup) {
 		fileGroupWithAdmin.PUT("/provider/:id", fileController.UpdateStorageProvider)    // 更新存储提供者 Update storage provider
 		fileGroupWithAdmin.DELETE("/provider/:id", fileController.DeleteStorageProvider) // 删除存储提供者 Delete storage provider
 		fileGroupWithAdmin.GET("/provider-list", fileController.ListStorageProviders)    // 列出存储提供者 List storage providers
+		fileGroupWithAdmin.POST("/migration", fileController.StartStorageMigration)      // 发起存储迁移 Start storage migration
+		fileGroupWithAdmin.GET("/migration", fileController.GetStorageMigration)         // 存储迁移进度 Storage migration status
+		fileGroupWithAdmin.POST("/migration/cancel", fileController.CancelStorageMigration)
 	}
 }

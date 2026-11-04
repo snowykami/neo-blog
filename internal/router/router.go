@@ -34,7 +34,7 @@ func init() {
 		// 流式读取请求体：上传大文件时由 multipart 解析落盘，不再整体缓存在内存中
 		server.WithStreamBody(true),
 	)
-	h.Use(recovery.Recovery(), middleware.UseTrack())
+	h.Use(recovery.Recovery(), middleware.UseTrack(), middleware.UseFileLinks())
 	apiv1.RegisterRoutes(h)
 	h.GET("/healthz", func(ctx context.Context, c *app.RequestContext) {
 		resps.Ok(c, "ok", nil)

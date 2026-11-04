@@ -711,7 +711,10 @@
       "upload_n_files_success": "Uploaded {n} file(s) successfully",
       "upload_n_files_failed": "{n} file(s) failed to upload",
       "batch_delete_description": "{n, plural, one {# selected file} other {# selected files}} will be permanently deleted. Content that references them will no longer display correctly.",
-      "delete_file_description": "This cannot be undone. Content that references this file will no longer display correctly."
+      "delete_file_description": "This cannot be undone. Content that references this file will no longer display correctly.",
+      "migrate_selected": "Migrate selected",
+      "migration_started": "Migration started. Track it on the storage providers page.",
+      "view_migration": "View progress"
     },
     "general": "General",
     "global": {
@@ -1110,7 +1113,50 @@
       "use_as_default": "Set as Default Storage",
       "select_storage_type": "Select storage type...",
       "search_storage_type": "Search storage type...",
-      "no_storage_type_found": "No storage type found."
+      "no_storage_type_found": "No storage type found.",
+      "usage": "{files} files · {size}",
+      "usage_pages": "{n} HTML page versions",
+      "direct_hint": "Base URL configured: browsers load images straight from the storage, not through this site",
+      "proxy_hint": "Served through this site’s backend",
+      "migration": {
+        "title": "Migrate files",
+        "description_provider": "Copy the {files} files ({size}) and {pages} HTML page versions in “{name}” to the target storage.",
+        "description_files": "Copy the {n} selected files to the target storage.",
+        "target": "Target storage",
+        "select_target": "Select target storage…",
+        "target_required": "Select a target storage",
+        "direct": "Direct",
+        "proxy": "Proxied",
+        "hint_direct": "The target has a Base URL, so after migration browsers load images straight from the storage, skipping this site and Next image optimization.",
+        "hint_proxy": "The target is served through this site’s backend.",
+        "hint_keep_source": "Links in posts and pages don’t change; any leftover direct links are switched to site links before copying starts. Files stay in the source storage, so delete it only after checking.",
+        "start": "Start migration",
+        "started": "Migration started",
+        "migrate": "Migrate",
+        "progress_title": "Storage migration",
+        "cancel": "Cancel migration",
+        "route_provider": "{source} → {target}",
+        "route_files": "{n} selected files → {target}",
+        "objects": "Objects {done}/{total}",
+        "bytes": "{done} / {total}",
+        "copied": "{n} copied",
+        "pages": "HTML page versions {done}/{total}",
+        "links_updated": "Direct links restored in {n} records",
+        "failed": "{n} failed",
+        "resume_hint": "Files already migrated are unaffected; start the migration again to process the rest.",
+        "state": {
+          "running": "Running",
+          "done": "Done",
+          "failed": "Partly failed",
+          "canceled": "Canceled",
+          "interrupted": "Interrupted"
+        },
+        "phase": {
+          "links": "Restoring direct links in content",
+          "files": "Copying files",
+          "pages": "Copying HTML pages"
+        }
+      }
     },
     "users": {
       "title": "Users",
@@ -2866,7 +2912,14 @@
       "invalid_count": "Invalid count (1–2000)",
       "invalid_name": "Invalid name",
       "invalid_status": "Invalid status",
-      "persona_generation_failed": "Failed to generate personas; check the AI settings and retry"
+      "persona_generation_failed": "Failed to generate personas; check the AI settings and retry",
+      "storage_migration_running": "A migration is already running. Wait for it to finish or cancel it first.",
+      "storage_migration_not_running": "No migration is running",
+      "storage_provider_location_locked": "This storage still holds files, so its type, directory, bucket, prefix or WebDAV address can’t change. Migrate the files to another storage first.",
+      "invalid_storage_migration": "Source and target storage must be different",
+      "too_many_files": "Too many files selected at once",
+      "failed_to_start_storage_migration": "Failed to start migration",
+      "failed_to_cancel_storage_migration": "Failed to cancel migration"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field} \"{value}\" is invalid} resource {Invalid {resource} parameters} other {Invalid request parameters}}",

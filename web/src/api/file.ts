@@ -1,4 +1,4 @@
-import type { FileModel, StorageProviderConfig } from '@/models/file'
+import type { FileModel, StorageMigrationStatus, StorageProviderConfig, StorageProviderUsage } from '@/models/file'
 import type { BaseResponse } from '@/models/resp'
 import axiosClient from './client'
 
@@ -143,6 +143,7 @@ export async function listFiles({
 export async function listStorageProviders(): Promise<
   BaseResponse<{
     providers: Array<StorageProviderConfig>
+    usage: Record<string, StorageProviderUsage> // 键为存储提供者 ID
   }>
 > {
   const res = await axiosClient.get('/file/provider-list', {
@@ -192,5 +193,25 @@ export async function setDefaultStorageProvider({
       withCredentials: true,
     },
   )
+  return res.data
+}
+
+// 发起存储迁移：迁移整个存储（sourceProviderId），或只迁移选中的文件（fileIds）
+export async function startStorageMigration(req: {
+  targetProviderId: number
+  sourceProviderId?: number
+  fileIds?: number[]
+}): Promise<BaseResponse<StorageMigrationStatus>> {
+  const res = await axiosClient.post('/file/migration', req)
+  return res.data
+}
+
+export async function getStorageMigration(): Promise<BaseResponse<{ migration: StorageMigrationStatus | null }>> {
+  const res = await axiosClient.get('/file/migration')
+  return res.data
+}
+
+export async function cancelStorageMigration(): Promise<BaseResponse<null>> {
+  const res = await axiosClient.post('/file/migration/cancel')
   return res.data
 }

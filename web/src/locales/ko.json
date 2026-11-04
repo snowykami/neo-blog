@@ -711,7 +711,10 @@
       "upload_n_files_success": "{n}개 파일 업로드 성공",
       "upload_n_files_failed": "{n}개 파일 업로드 실패",
       "batch_delete_description": "선택한 파일 {n}개가 영구 삭제됩니다. 이 파일을 참조하는 콘텐츠는 정상적으로 표시되지 않습니다.",
-      "delete_file_description": "삭제하면 되돌릴 수 없습니다. 이 파일을 참조하는 콘텐츠는 정상적으로 표시되지 않습니다."
+      "delete_file_description": "삭제하면 되돌릴 수 없습니다. 이 파일을 참조하는 콘텐츠는 정상적으로 표시되지 않습니다.",
+      "migrate_selected": "선택 항목 이전",
+      "migration_started": "이전을 시작했습니다. 스토리지 공급자 페이지에서 진행 상황을 확인하세요",
+      "view_migration": "진행 상황 보기"
     },
     "general": "일반",
     "global": {
@@ -1110,7 +1113,50 @@
       "use_as_default": "Set as Default Storage",
       "select_storage_type": "스토리지 유형 선택...",
       "search_storage_type": "스토리지 유형 검색...",
-      "no_storage_type_found": "스토리지 유형을 찾을 수 없습니다."
+      "no_storage_type_found": "스토리지 유형을 찾을 수 없습니다.",
+      "usage": "파일 {files}개 · {size}",
+      "usage_pages": "HTML 페이지 버전 {n}개",
+      "direct_hint": "Base URL 설정됨: 브라우저가 스토리지에서 이미지를 직접 불러오며 이 사이트를 거치지 않습니다",
+      "proxy_hint": "이 사이트의 백엔드를 통해 제공",
+      "migration": {
+        "title": "파일 이전",
+        "description_provider": "「{name}」의 파일 {files}개({size})와 HTML 페이지 버전 {pages}개를 대상 스토리지로 복사합니다.",
+        "description_files": "선택한 파일 {n}개를 대상 스토리지로 복사합니다.",
+        "target": "대상 스토리지",
+        "select_target": "대상 스토리지 선택…",
+        "target_required": "대상 스토리지를 선택하세요",
+        "direct": "직접 링크",
+        "proxy": "프록시",
+        "hint_direct": "대상에 Base URL이 설정되어 있어 이전 후 이미지는 브라우저가 스토리지에서 직접 불러오며, 이 사이트와 Next 이미지 최적화를 거치지 않습니다.",
+        "hint_proxy": "대상 스토리지는 이 사이트의 백엔드를 통해 제공됩니다.",
+        "hint_keep_source": "글과 페이지의 링크는 바꿀 필요가 없으며, 시작 전에 남아 있는 예전 직접 링크를 사이트 링크로 바꿉니다. 원본 스토리지의 파일은 남아 있으니 확인한 뒤 스토리지를 삭제하세요.",
+        "start": "이전 시작",
+        "started": "이전을 시작했습니다",
+        "migrate": "이전",
+        "progress_title": "스토리지 이전",
+        "cancel": "이전 취소",
+        "route_provider": "{source} → {target}",
+        "route_files": "선택한 파일 {n}개 → {target}",
+        "objects": "오브젝트 {done}/{total}",
+        "bytes": "{done} / {total}",
+        "copied": "복사 {n}",
+        "pages": "HTML 페이지 버전 {done}/{total}",
+        "links_updated": "레코드 {n}개의 직접 링크를 복원함",
+        "failed": "실패 {n}",
+        "resume_hint": "이미 이전된 파일은 영향을 받지 않습니다. 이전을 다시 시작하면 나머지를 처리합니다.",
+        "state": {
+          "running": "진행 중",
+          "done": "완료",
+          "failed": "일부 실패",
+          "canceled": "취소됨",
+          "interrupted": "중단됨"
+        },
+        "phase": {
+          "links": "콘텐츠의 직접 링크 복원 중",
+          "files": "파일 복사 중",
+          "pages": "HTML 페이지 복사 중"
+        }
+      }
     },
     "users": {
       "title": "사용자",
@@ -2866,7 +2912,14 @@
       "invalid_count": "개수가 잘못되었습니다 (1~2000)",
       "invalid_name": "이름이 잘못되었습니다",
       "invalid_status": "잘못된 상태입니다",
-      "persona_generation_failed": "페르소나 생성에 실패했습니다. AI 설정을 확인한 뒤 다시 시도하세요"
+      "persona_generation_failed": "페르소나 생성에 실패했습니다. AI 설정을 확인한 뒤 다시 시도하세요",
+      "storage_migration_running": "이미 진행 중인 이전 작업이 있습니다. 완료를 기다리거나 먼저 취소하세요",
+      "storage_migration_not_running": "진행 중인 이전 작업이 없습니다",
+      "storage_provider_location_locked": "이 스토리지에 아직 파일이 있어 유형, 디렉터리, Bucket, Prefix, WebDAV 주소를 바꿀 수 없습니다. 먼저 파일을 다른 스토리지로 이전하세요",
+      "invalid_storage_migration": "원본과 대상 스토리지는 서로 달라야 합니다",
+      "too_many_files": "한 번에 선택한 파일이 너무 많습니다",
+      "failed_to_start_storage_migration": "이전을 시작하지 못했습니다",
+      "failed_to_cancel_storage_migration": "이전을 취소하지 못했습니다"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field} \"{value}\"이(가) 올바르지 않습니다} resource {{resource} 매개변수가 올바르지 않습니다} other {요청 매개변수가 올바르지 않습니다}}",

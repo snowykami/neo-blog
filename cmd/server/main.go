@@ -4,6 +4,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/router"
+	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/internal/tasks"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/cache"
@@ -27,6 +28,7 @@ func main() {
 	// 其他实例修改配置、存储提供者后同步清除本实例的缓存
 	repo.KV.ListenChanges()
 	tasks.ListenStorageProviderChanges()
+	service.ListenFileLinkChanges()
 
 	err = repo.InitDatabase()
 	if err != nil {

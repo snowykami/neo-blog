@@ -2,8 +2,9 @@
 import type { FileModel } from '@/models/file'
 import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
 import { useAsyncTask } from '@snowykami/use-async-task'
-import { Ellipsis, LinkIcon } from 'lucide-react'
+import { ArrowRightLeft, Ellipsis, LinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
 import {
   parseAsBoolean,
   parseAsInteger,
@@ -20,6 +21,7 @@ import { FileUploadDialogWithButton } from '@/components/common/file-uploader'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { Popconfirm } from '@/components/common/popconfirm'
+import { StorageMigrationDialog } from '@/components/console/storage-migration'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -31,6 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import { useAuth } from '@/contexts/auth-context'
 import { useDevice } from '@/contexts/device-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useDebouncedState } from '@/hooks/use-debounce'
@@ -39,6 +42,8 @@ import copyToClipboard from '@/lib/clipboard'
 import { ArrangementMode, OrderBy } from '@/models/common'
 import { getFileUri } from '@/utils/client/file'
 import { formatDataSize } from '@/utils/common/datasize'
+import { isAdmin } from '@/utils/common/permission'
+import { consolePath } from '@/utils/common/route'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
@@ -49,6 +54,11 @@ export function FileManage() {
   const metricsT = useTranslations('Metrics')
   const operationT = useOperationT()
   const { isMobile } = useDevice()
+  const { user } = useAuth()
+  const router = useRouter()
+  // 只有管理员可以在存储之间迁移文件
+  const isAdminUser = !!user && isAdmin({ user })
+  const [migrateOpen, setMigrateOpen] = useState(false)
   const [files, setFiles] = useState<FileModel[]>([])
   const [total, setTotal] = useState(0)
   const [arrangement, setArrangement] = useQueryState(
@@ -228,6 +238,12 @@ export function FileManage() {
               {operationT('batch_delete')}
             </Button>
           </ConfirmDialog>
+          {isAdminUser && (
+            <Button variant="outline" size="sm" disabled={selectedFileIds.size === 0} onClick={() => setMigrateOpen(true)}>
+              <ArrowRightLeft />
+              {t('migrate_selected')}
+            </Button>
+          )}
           <Input
             type="search"
             placeholder={commonT('search')}
@@ -251,6 +267,20 @@ export function FileManage() {
           </div>
         </div>
       </div>
+      {isAdminUser && (
+        <StorageMigrationDialog
+          open={migrateOpen}
+          onOpenChange={setMigrateOpen}
+          fileIds={Array.from(selectedFileIds)}
+          onStarted={() => {
+            setMigrateOpen(false)
+            setSelectedFileIds(new Set())
+            toast(t('migration_started'), {
+              action: { label: t('view_migration'), onClick: () => router.push(consolePath.storage) },
+            })
+          }}
+        />
+      )}
       <Separator className="flex-1" />
       {/* 列表 */}
       {arrangement === ArrangementMode.List

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/snowykami/neo-blog/internal/model"
@@ -24,6 +25,13 @@ func GetStorageProvider(id uint) (storageprovider.StorageProvider, bool) {
 	defer providersMu.RUnlock()
 	provider, ok := providers[id]
 	return provider, ok
+}
+
+// ListStorageProviders 已注册存储提供者的快照
+func ListStorageProviders() map[uint]storageprovider.StorageProvider {
+	providersMu.RLock()
+	defer providersMu.RUnlock()
+	return maps.Clone(providers)
 }
 
 // ReplaceStorageProviders 整体替换已注册的存储提供者，已删除的提供者不会残留

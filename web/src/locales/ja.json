@@ -711,7 +711,10 @@
       "upload_n_files_success": "{n} 件のファイルをアップロードしました",
       "upload_n_files_failed": "{n} 件のファイルのアップロードに失敗しました",
       "batch_delete_description": "選択した {n} 件のファイルを完全に削除します。これらを参照しているコンテンツは正しく表示されなくなります。",
-      "delete_file_description": "削除すると元に戻せません。このファイルを参照しているコンテンツは正しく表示されなくなります。"
+      "delete_file_description": "削除すると元に戻せません。このファイルを参照しているコンテンツは正しく表示されなくなります。",
+      "migrate_selected": "選択を移行",
+      "migration_started": "移行を開始しました。進捗はストレージプロバイダーのページで確認できます",
+      "view_migration": "進捗を見る"
     },
     "general": "一般",
     "global": {
@@ -1110,7 +1113,50 @@
       "use_as_default": "デフォルトストレージに設定",
       "select_storage_type": "ストレージの種類を選択...",
       "search_storage_type": "ストレージの種類を検索...",
-      "no_storage_type_found": "ストレージの種類が見つかりません。"
+      "no_storage_type_found": "ストレージの種類が見つかりません。",
+      "usage": "{files} ファイル · {size}",
+      "usage_pages": "HTML ページ {n} 版",
+      "direct_hint": "Base URL 設定済み：画像はブラウザがストレージから直接読み込み、本サイトを経由しません",
+      "proxy_hint": "本サイトのバックエンド経由で配信",
+      "migration": {
+        "title": "ファイルを移行",
+        "description_provider": "「{name}」の {files} ファイル（{size}）と HTML ページ {pages} 版を移行先ストレージにコピーします。",
+        "description_files": "選択した {n} ファイルを移行先ストレージにコピーします。",
+        "target": "移行先ストレージ",
+        "select_target": "移行先ストレージを選択…",
+        "target_required": "移行先ストレージを選択してください",
+        "direct": "直リンク",
+        "proxy": "プロキシ",
+        "hint_direct": "移行先に Base URL が設定されているため、移行後の画像はブラウザがストレージから直接読み込み、本サイトや Next の画像最適化を経由しません。",
+        "hint_proxy": "移行先は本サイトのバックエンド経由で配信されます。",
+        "hint_keep_source": "記事やページのリンクは変更不要です。開始前に残っている古い直リンクをサイト内リンクに置き換えます。移行元のファイルは残るので、確認してからストレージを削除してください。",
+        "start": "移行を開始",
+        "started": "移行を開始しました",
+        "migrate": "移行",
+        "progress_title": "ストレージ移行",
+        "cancel": "移行をキャンセル",
+        "route_provider": "{source} → {target}",
+        "route_files": "選択した {n} ファイル → {target}",
+        "objects": "オブジェクト {done}/{total}",
+        "bytes": "{done} / {total}",
+        "copied": "コピー済み {n}",
+        "pages": "HTML ページ版 {done}/{total}",
+        "links_updated": "{n} 件のレコードの直リンクを復元",
+        "failed": "失敗 {n}",
+        "resume_hint": "移行済みのファイルには影響しません。もう一度移行を開始すると残りを処理します。",
+        "state": {
+          "running": "実行中",
+          "done": "完了",
+          "failed": "一部失敗",
+          "canceled": "キャンセル済み",
+          "interrupted": "中断"
+        },
+        "phase": {
+          "links": "コンテンツ内の直リンクを復元中",
+          "files": "ファイルをコピー中",
+          "pages": "HTML ページをコピー中"
+        }
+      }
     },
     "users": {
       "title": "ユーザー",
@@ -2866,7 +2912,14 @@
       "invalid_count": "数が無効です（1〜2000）",
       "invalid_name": "名前が無効です",
       "invalid_status": "無効なステータスです",
-      "persona_generation_failed": "ペルソナの生成に失敗しました。AI 設定を確認して再試行してください"
+      "persona_generation_failed": "ペルソナの生成に失敗しました。AI 設定を確認して再試行してください",
+      "storage_migration_running": "別の移行が実行中です。完了を待つか、先にキャンセルしてください",
+      "storage_migration_not_running": "実行中の移行はありません",
+      "storage_provider_location_locked": "このストレージにはまだファイルがあるため、種類・ディレクトリ・Bucket・Prefix・WebDAV アドレスは変更できません。先にファイルを別のストレージへ移行してください",
+      "invalid_storage_migration": "移行元と移行先は別のストレージにしてください",
+      "too_many_files": "一度に選択したファイルが多すぎます",
+      "failed_to_start_storage_migration": "移行を開始できませんでした",
+      "failed_to_cancel_storage_migration": "移行をキャンセルできませんでした"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」が正しくありません} resource {{resource}のパラメーターが正しくありません} other {リクエストのパラメーターが正しくありません}}",

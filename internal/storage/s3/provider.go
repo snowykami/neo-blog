@@ -393,6 +393,7 @@ func (p *S3StorageProvider) IsDefault() bool {
 	return p.cfg.IsDefault
 }
 
+// IsProxy 配置了公开访问地址时由浏览器直连存储；未配置时预签名链接会过期，只能经后端代理
 func (p *S3StorageProvider) IsProxy() bool {
-	return false
+	return p.baseURL == ""
 }

@@ -98,7 +98,7 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		resps.Error(c, svcerr)
 		return
 	}
-	resps.Ok(c, utils.Ternary(saved.Direct, "文件上传成功(直链)", "文件上传成功"), map[string]any{
+	resps.Ok(c, "文件上传成功", map[string]any{
 		"hash": saved.Hash,
 		"id":   saved.ID,
 		"url":  saved.URL,
@@ -308,7 +308,7 @@ func (f *FileController) UpdateStorageProvider(ctx context.Context, c *app.Reque
 		return
 	}
 
-	if svcerr := repo.File.UpdateStorageProvider(id, &req); svcerr != nil {
+	if svcerr := service.UpdateStorageProvider(id, &req); svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
@@ -322,18 +322,8 @@ func (f *FileController) UpdateStorageProvider(ctx context.Context, c *app.Reque
 
 func (f *FileController) DeleteStorageProvider(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
-	// 先检查是否有文件在使用该存储提供者
-	count, err := repo.File.CountFilesByProviderID(id)
-	if err != nil {
-		resps.Error(c, errs.Internal("failed_to_check_target", err).WithResource("storage_provider"))
-		return
-	}
-	if count > 0 {
-		resps.Error(c, errs.NewConflict("storage_provider_in_use").WithResource("storage_provider"))
-		return
-	}
-
-	if svcerr := repo.File.DeleteStorageProvider(id); svcerr != nil {
+	// 迁移中、仍有文件或 HTML 页面的存储不能删除
+	if svcerr := service.DeleteStorageProvider(id); svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
@@ -411,7 +401,46 @@ func (f *FileController) ListStorageProviders(ctx context.Context, c *app.Reques
 		resps.Error(c, errs.Internal("failed_to_get_target", err))
 		return
 	}
-	resps.Ok(c, "存储提供者列表", map[string]any{"providers": providers})
+	usage, svcerr := service.ListStorageProviderUsage()
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, "存储提供者列表", map[string]any{"providers": providers, "usage": usage})
+}
+
+// StartStorageMigration 发起存储迁移（后台执行）
+func (f *FileController) StartStorageMigration(ctx context.Context, c *app.RequestContext) {
+	var req dto.StorageMigrationReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	status, svcerr := service.StartStorageMigration(&req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, "存储迁移已开始", status)
+}
+
+// GetStorageMigration 最近一次存储迁移的进度
+func (f *FileController) GetStorageMigration(ctx context.Context, c *app.RequestContext) {
+	status, svcerr := service.GetStorageMigrationStatus()
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, "存储迁移进度", map[string]any{"migration": status})
+}
+
+// CancelStorageMigration 取消运行中的存储迁移
+func (f *FileController) CancelStorageMigration(ctx context.Context, c *app.RequestContext) {
+	if svcerr := service.CancelStorageMigration(); svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, "已请求取消存储迁移", nil)
 }
 
 // limitedReadCloser 限制读取长度，读取完毕后由框架关闭底层文件

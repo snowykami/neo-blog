@@ -2,10 +2,9 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
-	"path/filepath"
+	"path"
 	"slices"
 	"strings"
 
@@ -75,12 +74,11 @@ type SaveFileInput struct {
 	Src        io.ReadSeeker
 }
 
-// SavedFile 保存结果；Direct 表示 URL 为存储直链（非后端代理）
+// SavedFile 保存结果；URL 为稳定链接
 type SavedFile struct {
-	ID     uint
-	Hash   string
-	URL    string
-	Direct bool
+	ID   uint
+	Hash string
+	URL  string
 }
 
 // SaveFile 按内容哈希保存文件并建立索引：相同内容已存在时直接复用（哈希由服务端计算，不信任客户端传入）
@@ -103,7 +101,7 @@ func (f *FileService) SaveFile(ctx context.Context, in *SaveFileInput) (*SavedFi
 		return nil, errs.New(http.StatusBadRequest, "failed_to_read_file", err)
 	}
 	dir, fileNameHash := utils.FilePath(hash)
-	storagePath := filepath.Join(dir, fileNameHash)
+	storagePath := path.Join(dir, fileNameHash)
 	if _, err := provider.Stat(ctx, storagePath); err != nil {
 		if _, err := in.Src.Seek(0, io.SeekStart); err != nil {
 			logrus.Error("无法重置文件流位置: ", err)
@@ -127,17 +125,6 @@ func (f *FileService) SaveFile(ctx context.Context, in *SaveFileInput) (*SavedFi
 		logrus.Error("数据库索引建立失败: ", err)
 		return nil, errs.Internal("failed_to_create_target", err)
 	}
-	// 非后端代理的存储直接返回直链
-	if !provider.IsProxy() {
-		url, err := provider.GetURL(ctx, storagePath, 0)
-		if err != nil {
-			logrus.Error("获取文件访问URL失败: ", err)
-		}
-		return &SavedFile{ID: fileModel.ID, Hash: hash, URL: url, Direct: true}, nil
-	}
-	return &SavedFile{
-		ID:   fileModel.ID,
-		Hash: hash,
-		URL:  fmt.Sprintf("%s%s%s/%d", tools.GetBaseUrl(), constant.ApiPrefix, constant.FileUriPrefix, fileModel.ID),
-	}, nil
+	// 始终返回稳定链接：内容中只保存稳定链接，文件换存储或存储改地址时无需改动内容；可直连的存储在接口返回时再改写为直链
+	return &SavedFile{ID: fileModel.ID, Hash: hash, URL: tools.GetBaseUrl() + FileLink(fileModel.ID)}, nil
 }

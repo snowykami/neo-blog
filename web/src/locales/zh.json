@@ -711,7 +711,10 @@
       "upload_n_files_success": "成功上传 {n} 个文件",
       "upload_n_files_failed": "{n} 个文件上传失败",
       "batch_delete_description": "将永久删除选中的 {n} 个文件，引用这些文件的内容将无法正常显示。",
-      "delete_file_description": "删除后不可恢复，引用该文件的内容将无法正常显示。"
+      "delete_file_description": "删除后不可恢复，引用该文件的内容将无法正常显示。",
+      "migrate_selected": "迁移所选",
+      "migration_started": "迁移已开始，可在存储供应商页面查看进度",
+      "view_migration": "查看进度"
     },
     "general": "常规",
     "global": {
@@ -1110,7 +1113,50 @@
       "use_as_default": "设为默认存储",
       "select_storage_type": "选择存储类型...",
       "search_storage_type": "搜索存储类型...",
-      "no_storage_type_found": "没有找到存储类型"
+      "no_storage_type_found": "没有找到存储类型",
+      "usage": "{files} 个文件 · {size}",
+      "usage_pages": "{n} 个 HTML 页面版本",
+      "direct_hint": "已配置 Base URL：图片由浏览器直接从存储加载，不经过本站",
+      "proxy_hint": "经本站后端代理访问",
+      "migration": {
+        "title": "迁移文件",
+        "description_provider": "把「{name}」中的 {files} 个文件（{size}）和 {pages} 个 HTML 页面版本复制到目标存储。",
+        "description_files": "把选中的 {n} 个文件复制到目标存储。",
+        "target": "目标存储",
+        "select_target": "选择目标存储…",
+        "target_required": "请选择目标存储",
+        "direct": "直链",
+        "proxy": "代理",
+        "hint_direct": "目标存储已配置 Base URL，迁移后图片由浏览器直接从存储加载，不经过本站和 Next 图片优化。",
+        "hint_proxy": "目标存储经本站后端代理访问。",
+        "hint_keep_source": "文章、页面中的链接无需改动，开始前会把遗留的旧直链统一换成站内链接；源存储中的文件会保留，确认无误后再删除该存储。",
+        "start": "开始迁移",
+        "started": "迁移已开始",
+        "migrate": "迁移",
+        "progress_title": "存储迁移",
+        "cancel": "取消迁移",
+        "route_provider": "{source} → {target}",
+        "route_files": "选中的 {n} 个文件 → {target}",
+        "objects": "对象 {done}/{total}",
+        "bytes": "{done} / {total}",
+        "copied": "已复制 {n}",
+        "pages": "HTML 页面版本 {done}/{total}",
+        "links_updated": "已还原 {n} 条记录中的直链",
+        "failed": "失败 {n}",
+        "resume_hint": "已迁移的文件不受影响，重新发起迁移即可继续处理剩余文件。",
+        "state": {
+          "running": "进行中",
+          "done": "已完成",
+          "failed": "部分失败",
+          "canceled": "已取消",
+          "interrupted": "已中断"
+        },
+        "phase": {
+          "links": "正在还原内容中的直链",
+          "files": "正在复制文件",
+          "pages": "正在复制 HTML 页面"
+        }
+      }
     },
     "users": {
       "title": "用户管理",
@@ -2837,7 +2883,14 @@
       "invalid_count": "数量无效（1~2000）",
       "invalid_name": "名称无效",
       "invalid_status": "无效的状态",
-      "persona_generation_failed": "人设生成失败，请检查 AI 配置后重试"
+      "persona_generation_failed": "人设生成失败，请检查 AI 配置后重试",
+      "storage_migration_running": "已有迁移任务在进行，请等待完成或先取消",
+      "storage_migration_not_running": "当前没有进行中的迁移",
+      "storage_provider_location_locked": "该存储中仍有文件，不能修改类型、目录、Bucket、Prefix 或 WebDAV 地址；请先把文件迁移到其他存储",
+      "invalid_storage_migration": "源存储与目标存储不能相同",
+      "too_many_files": "一次选择的文件过多",
+      "failed_to_start_storage_migration": "启动迁移失败",
+      "failed_to_cancel_storage_migration": "取消迁移失败"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的参数不符合要求} other {请求参数不符合要求}}",

@@ -33,3 +33,35 @@ export interface StorageProviderConfig {
   webdavUsername?: string
   webdavPassword?: string
 }
+
+// 存储提供者的占用情况：仍有文件或 HTML 页面版本时不能删除
+export interface StorageProviderUsage {
+  files: number
+  bytes: number
+  pageHtmlVersions: number
+}
+
+export type StorageMigrationState = 'running' | 'done' | 'failed' | 'canceled' | 'interrupted'
+
+// 存储迁移进度；同一时间只运行一个迁移任务
+export interface StorageMigrationStatus {
+  state: StorageMigrationState
+  phase: 'links' | 'files' | 'pages'
+  sourceProviderId: number // 按选中文件迁移时为 0
+  targetProviderId: number
+  providerIds: number[]
+  fileCount: number // 选中的文件数，迁移整个存储时为 0
+  objects: number
+  totalBytes: number
+  done: number
+  copied: number
+  failed: number
+  bytes: number
+  pageHtmlVersions: number
+  pageHtmlDone: number
+  linksUpdated: number
+  errors: string[]
+  startedAt: string
+  updatedAt: string
+  finishedAt: string | null
+}

@@ -58,7 +58,7 @@ type StorageProvider interface {
 	// 获取提供者名称
 	Name() string
 	IsDefault() bool
-	IsProxy() bool // 是否后端代理文件，本地储存必须代理
+	IsProxy() bool // 是否后端代理文件，本地储存必须代理；为 false 时 GetURL 返回长期有效的公开直链
 }
 
 // 工厂函数类型

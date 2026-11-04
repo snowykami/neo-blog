@@ -56,3 +56,14 @@ func (p *pageHTMLRepo) UpdateEntry(id uint, entry string) error {
 func (p *pageHTMLRepo) DeleteByID(id uint) error {
 	return GetDB().Unscoped().Delete(&model.PageHTMLVersion{}, id).Error
 }
+
+// ListByProvider 存放在某个存储中的全部版本
+func (p *pageHTMLRepo) ListByProvider(providerID uint) ([]model.PageHTMLVersion, error) {
+	var versions []model.PageHTMLVersion
+	err := GetDB().Where("provider_id = ?", providerID).Order("id").Find(&versions).Error
+	return versions, err
+}
+
+func (p *pageHTMLRepo) UpdateProvider(id, providerID uint) error {
+	return GetDB().Model(&model.PageHTMLVersion{}).Where("id = ?", id).UpdateColumn("provider_id", providerID).Error
+}
