@@ -691,7 +691,12 @@
       "runtime_goroutines": "Goroutine 数",
       "runtime_frontend_memory": "フロントエンドメモリ（RSS）",
       "runtime_details_show": "すべての指標を表示",
-      "runtime_details_hide": "閉じる"
+      "runtime_details_hide": "閉じる",
+      "runtime_instance": "バックエンドインスタンス",
+      "runtime_instance_count": "バックエンドインスタンス {count} 台",
+      "runtime_instance_serving": "このリクエストを処理中",
+      "runtime_instance_snapshot": "{seconds} 秒前のスナップショット",
+      "runtime_frontend_instance": "インスタンス {hostname}（複数レプリカ時はこのリクエストを処理したフロントエンド）"
     },
     "files": {
       "title": "ファイル管理",

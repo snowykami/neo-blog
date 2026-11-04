@@ -691,7 +691,12 @@
       "runtime_goroutines": "Go 协程数",
       "runtime_frontend_memory": "前端内存（RSS）",
       "runtime_details_show": "展开全部指标",
-      "runtime_details_hide": "收起"
+      "runtime_details_hide": "收起",
+      "runtime_instance": "后端实例",
+      "runtime_instance_count": "共 {count} 个后端实例",
+      "runtime_instance_serving": "处理本次请求",
+      "runtime_instance_snapshot": "{seconds} 秒前的快照",
+      "runtime_frontend_instance": "实例 {hostname}（多副本时为处理本次请求的前端实例）"
     },
     "files": {
       "title": "文件管理",

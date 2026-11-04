@@ -93,6 +93,24 @@ func TestStoreContract(t *testing.T) {
 				t.Fatalf("a should be deleted")
 			}
 
+			// GetByPrefix：只返回该前缀下未过期的键，前缀中的通配符按字面匹配
+			_ = s.Set("snap:a", "1", time.Minute)
+			_ = s.Set("snap:b", "2", 0)
+			_ = s.Set("snap:gone", "x", 50*time.Millisecond)
+			_ = s.Set("snapshot", "no", time.Minute)
+			_ = s.Set("glob*:x", "literal", time.Minute)
+			_ = s.Set("globber:x", "other", time.Minute)
+			time.Sleep(120 * time.Millisecond)
+			if got, err := s.GetByPrefix("snap:"); err != nil || len(got) != 2 || got["snap:a"] != "1" || got["snap:b"] != "2" {
+				t.Fatalf("get by prefix = %v %v", got, err)
+			}
+			if got, err := s.GetByPrefix("glob*:"); err != nil || len(got) != 1 || got["glob*:x"] != "literal" {
+				t.Fatalf("glob prefix = %v %v", got, err)
+			}
+			if got, err := s.GetByPrefix("nothing:"); err != nil || len(got) != 0 {
+				t.Fatalf("empty prefix = %v %v", got, err)
+			}
+
 			// JSON
 			type payload struct{ Name string }
 			if err := SetJSON("json", payload{Name: "neo"}, time.Minute); err != nil {

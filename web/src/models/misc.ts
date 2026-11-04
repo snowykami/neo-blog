@@ -92,6 +92,29 @@ export type BackendMetricsData = Record<string, number> & {
   gcLastPauseNs: number // 最近一次GC暂停时间，单位纳秒
 }
 
+/** 一个后端实例的运行时指标快照 */
+export interface RuntimeInstance {
+  instanceId: string
+  hostname: string // 容器部署时为容器 / Pod 名
+  pid: number
+  startedAt: string
+  updatedAt: string // 快照时间；处理本次请求的实例为实时数据
+  current: boolean // 是否为处理本次请求的实例
+  metrics: BackendMetricsData
+}
+
+/** 全部存活后端实例的运行时指标；未配置 Redis 时只有本实例 */
+export interface RuntimeMetrics {
+  shared: boolean
+  instances: RuntimeInstance[]
+}
+
+/** 前端运行时指标：只反映处理本次请求的那个前端实例 */
+export interface FrontendMetrics {
+  hostname: string
+  metrics: FrontendMetricsData
+}
+
 export type FrontendMetricsData = Record<string, number> & {
   uptime: number
   nodeVersion: number

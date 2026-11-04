@@ -16,6 +16,7 @@ export async function GET() {
   const cpu = process.cpuUsage() // microseconds
   const load = os.loadavg() // 1,5,15 min
   const metrics = {
+    hostname: os.hostname(), // 多副本时用于区分处理本次请求的前端实例
     uptime: process.uptime(), // seconds
     nodeVersion: process.version,
     platform: process.platform,

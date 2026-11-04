@@ -32,6 +32,8 @@ type Store interface {
 	Delete(keys ...string) error
 	// Incr 计数加一并返回当前值；键不存在时从 1 开始并按 ttl 计时（固定窗口，期间再自增不延长）
 	Incr(key string, ttl time.Duration) (int64, error)
+	// GetByPrefix 读取以 prefix 开头的全部未过期键值（如各实例上报的快照）；键数量应保持很少
+	GetByPrefix(prefix string) (map[string]string, error)
 	// Publish 向其他实例广播消息
 	Publish(channel, message string) error
 	Close() error
@@ -78,6 +80,11 @@ func replace(store Store, isShared bool) {
 	if old != nil && old != store {
 		_ = old.Close()
 	}
+}
+
+// InstanceID 本实例的随机标识，进程启动时生成
+func InstanceID() string {
+	return instanceID
 }
 
 // Current 当前使用的存储

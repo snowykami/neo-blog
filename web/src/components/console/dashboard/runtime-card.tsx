@@ -1,15 +1,17 @@
 'use client'
 
-import type { BackendMetricsData, FrontendMetricsData } from '@/models/misc'
+import type { FrontendMetrics, RuntimeInstance, RuntimeMetrics } from '@/models/misc'
 import { ChevronDown } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useNow, useTranslations } from 'next-intl'
 import { JetBrains_Mono } from 'next/font/google'
 import { useEffect, useRef, useState } from 'react'
 import { backendMetricsHandler, frontendMetricsHandler, getBackendMetrics, getFrontendMetrics } from '@/api/misc'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
@@ -90,18 +92,44 @@ function formatMetric(handler: MetricsHandler, key: string, value: unknown) {
   return typeof value === 'number' ? (handler[key]?.(value) ?? String(value)) : String(value)
 }
 
+/**
+ * 当前查看的后端实例：多副本时每次请求可能落到不同实例，默认停留在第一次看到的实例上，
+ * 用户选择后保持不变；所选实例下线时回到处理本次请求的实例
+ */
+function useSelectedInstance(instances: RuntimeInstance[]) {
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selected = instances.find(i => i.instanceId === selectedId)
+    ?? instances.find(i => i.current)
+    ?? instances[0]
+    ?? null
+  useEffect(() => {
+    if (selected && selected.instanceId !== selectedId)
+      setSelectedId(selected.instanceId)
+  }, [selected, selectedId])
+  return [selected, setSelectedId] as const
+}
+
 // 系统运行：主视图只放判断“服务是否健康”最关键的四项，其余指标收进可展开区域
 export function RuntimeCard() {
   const t = useTranslations('Console.dashboard')
+  const now = useNow({ updateInterval: METRICS_POLL_INTERVAL })
   const [open, setOpen] = useState(false)
-  const backend = usePolling<BackendMetricsData>(() => getBackendMetrics().then(res => res.data), METRICS_POLL_INTERVAL)
-  const frontend = usePolling<FrontendMetricsData>(getFrontendMetrics, METRICS_POLL_INTERVAL)
+  const backend = usePolling<RuntimeMetrics>(() => getBackendMetrics().then(res => res.data), METRICS_POLL_INTERVAL)
+  const frontend = usePolling<FrontendMetrics>(getFrontendMetrics, METRICS_POLL_INTERVAL)
+  const instances = backend.data?.instances ?? []
+  const [instance, setInstance] = useSelectedInstance(instances)
+  const backendData = instance?.metrics ?? null
+  const frontendData = frontend.data?.metrics ?? null
+  // 非处理本次请求的实例展示的是快照，注明是多久之前的
+  const snapshotAge = instance && !instance.current
+    ? Math.max(0, Math.round((now.getTime() - new Date(instance.updatedAt).getTime()) / 1000))
+    : null
 
   const keyMetrics = [
-    { key: 'runtime_backend_uptime', data: backend.data, handler: backendMetricsHandler, field: 'uptime' },
-    { key: 'runtime_backend_memory', data: backend.data, handler: backendMetricsHandler, field: 'memorySys' },
-    { key: 'runtime_goroutines', data: backend.data, handler: backendMetricsHandler, field: 'goroutines' },
-    { key: 'runtime_frontend_memory', data: frontend.data, handler: frontendMetricsHandler, field: 'memoryRss' },
+    { key: 'runtime_backend_uptime', data: backendData, handler: backendMetricsHandler, field: 'uptime' },
+    { key: 'runtime_backend_memory', data: backendData, handler: backendMetricsHandler, field: 'memorySys' },
+    { key: 'runtime_goroutines', data: backendData, handler: backendMetricsHandler, field: 'goroutines' },
+    { key: 'runtime_frontend_memory', data: frontendData, handler: frontendMetricsHandler, field: 'memoryRss' },
   ] as const
 
   return (
@@ -114,6 +142,26 @@ export function RuntimeCard() {
         <CardContent className="grid gap-3 px-4">
           {!!backend.error && <MetricsError error={backend.error} label={t('backend_metrics')} />}
           {!!frontend.error && <MetricsError error={frontend.error} label={t('frontend_metrics')} />}
+          {instances.length > 1 && instance && (
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="text-muted-foreground">{t('runtime_instance_count', { count: instances.length })}</span>
+              <Select value={instance.instanceId} onValueChange={setInstance}>
+                <SelectTrigger size="sm" className="w-auto min-w-48" aria-label={t('runtime_instance')}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {instances.map(item => (
+                    <SelectItem key={item.instanceId} value={item.instanceId}>
+                      <span className={jetBrainsMono.className}>{item.hostname || item.instanceId.slice(0, 8)}</span>
+                      <span className="text-muted-foreground">{`PID ${item.pid}`}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {instance.current && <Badge variant="secondary">{t('runtime_instance_serving')}</Badge>}
+              {snapshotAge !== null && <span className="text-xs text-muted-foreground">{t('runtime_instance_snapshot', { seconds: snapshotAge })}</span>}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {keyMetrics.map(item => (
               <div key={item.key} className="grid gap-1 rounded-md border px-3 py-2">
@@ -137,8 +185,13 @@ export function RuntimeCard() {
         </CardContent>
         <CollapsibleContent>
           <CardContent className="grid gap-6 px-4 md:grid-cols-2">
-            <MetricsList title={t('backend_metrics')} data={backend.data} handler={backendMetricsHandler} reverse />
-            <MetricsList title={t('frontend_metrics')} data={frontend.data} handler={frontendMetricsHandler} />
+            <MetricsList title={t('backend_metrics')} data={backendData} handler={backendMetricsHandler} reverse />
+            <MetricsList
+              title={t('frontend_metrics')}
+              description={frontend.data?.hostname ? t('runtime_frontend_instance', { hostname: frontend.data.hostname }) : undefined}
+              data={frontendData}
+              handler={frontendMetricsHandler}
+            />
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
@@ -146,8 +199,9 @@ export function RuntimeCard() {
   )
 }
 
-function MetricsList({ title, data, handler, reverse = false }: {
+function MetricsList({ title, description, data, handler, reverse = false }: {
   title: string
+  description?: string
   data: Record<string, unknown> | null
   handler: MetricsHandler
   reverse?: boolean // 后端指标按接口返回的倒序展示，与之前的排列保持一致
@@ -158,7 +212,10 @@ function MetricsList({ title, data, handler, reverse = false }: {
     entries.reverse()
   return (
     <div className="grid content-start gap-2">
-      <h3 className="text-sm font-medium">{title}</h3>
+      <div className="grid gap-0.5">
+        <h3 className="text-sm font-medium">{title}</h3>
+        {description && <p className="text-xs text-muted-foreground">{description}</p>}
+      </div>
       {data
         ? (
             <dl className="grid gap-1.5 text-sm">

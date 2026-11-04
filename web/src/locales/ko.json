@@ -691,7 +691,12 @@
       "runtime_goroutines": "고루틴 수",
       "runtime_frontend_memory": "프런트엔드 메모리(RSS)",
       "runtime_details_show": "모든 지표 보기",
-      "runtime_details_hide": "접기"
+      "runtime_details_hide": "접기",
+      "runtime_instance": "백엔드 인스턴스",
+      "runtime_instance_count": "백엔드 인스턴스 {count}개",
+      "runtime_instance_serving": "이번 요청 처리 중",
+      "runtime_instance_snapshot": "{seconds}초 전 스냅샷",
+      "runtime_frontend_instance": "인스턴스 {hostname} (복제본이 여러 개일 때 이번 요청을 처리한 프론트엔드 인스턴스)"
     },
     "files": {
       "title": "파일",

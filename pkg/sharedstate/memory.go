@@ -2,6 +2,7 @@ package sharedstate
 
 import (
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -149,6 +150,22 @@ func (m *memoryStore) Incr(key string, ttl time.Duration) (int64, error) {
 	}
 	m.putLocked(key, memoryItem{value: "1", expireAt: expireAt(now, ttl)}, now)
 	return 1, nil
+}
+
+func (m *memoryStore) GetByPrefix(prefix string) (map[string]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := time.Now()
+	result := map[string]string{}
+	for key := range m.items {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		if item, ok := m.getLocked(key, now); ok {
+			result[key] = item.value
+		}
+	}
+	return result, nil
 }
 
 // Publish 单实例没有其他实例需要通知

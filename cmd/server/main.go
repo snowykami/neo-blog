@@ -54,6 +54,8 @@ func main() {
 	tasks.StartRevisionPrune()
 	// AI 用户：时间引擎唤醒、记忆整理与过期清理
 	tasks.StartAIAgentScheduler()
+	// 每个实例定时上报运行时指标，控制台可按实例查看
+	tasks.StartRuntimeMetricsReporter()
 
 	err = router.Run()
 	if err != nil {

@@ -691,7 +691,12 @@
       "runtime_goroutines": "Goroutines",
       "runtime_frontend_memory": "Frontend memory (RSS)",
       "runtime_details_show": "Show all metrics",
-      "runtime_details_hide": "Hide"
+      "runtime_details_hide": "Hide",
+      "runtime_instance": "Backend instance",
+      "runtime_instance_count": "{count} backend instances",
+      "runtime_instance_serving": "Serving this request",
+      "runtime_instance_snapshot": "Snapshot from {seconds}s ago",
+      "runtime_frontend_instance": "Instance {hostname} (with multiple replicas, the frontend instance serving this request)"
     },
     "files": {
       "title": "Files",

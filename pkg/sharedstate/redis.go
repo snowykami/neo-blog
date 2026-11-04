@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -151,6 +152,37 @@ func (s *redisStore) Incr(key string, ttl time.Duration) (int64, error) {
 	ctx, cancel := s.ctx()
 	defer cancel()
 	return incrScript.Run(ctx, s.client, []string{s.key(key)}, max(ttl, 0).Milliseconds()).Int64()
+}
+
+// globEscaper 转义 SCAN MATCH 中的通配符
+var globEscaper = strings.NewReplacer(`\`, `\\`, `*`, `\*`, `?`, `\?`, `[`, `\[`, `]`, `\]`)
+
+func (s *redisStore) GetByPrefix(prefix string) (map[string]string, error) {
+	ctx, cancel := s.ctx()
+	defer cancel()
+	var keys []string
+	iter := s.client.Scan(ctx, 0, globEscaper.Replace(s.key(prefix))+"*", 100).Iterator()
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+	result := make(map[string]string, len(keys))
+	if len(keys) == 0 {
+		return result, nil
+	}
+	values, err := s.client.MGet(ctx, keys...).Result()
+	if err != nil {
+		return nil, err
+	}
+	for i, value := range values {
+		// 扫描与读取之间过期的键 MGet 返回 nil，跳过
+		if str, ok := value.(string); ok {
+			result[strings.TrimPrefix(keys[i], s.prefix)] = str
+		}
+	}
+	return result, nil
 }
 
 func (s *redisStore) Publish(channel, message string) error {

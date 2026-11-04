@@ -1,4 +1,4 @@
-import type { BackendMetricsData, FrontendMetricsData, RssData, SitemapData } from '@/models/misc'
+import type { BackendMetricsData, FrontendMetrics, FrontendMetricsData, RssData, RuntimeMetrics, SitemapData } from '@/models/misc'
 import type { BaseResponse } from '@/models/resp'
 import type { SiteInfo } from '@/utils/common/siteinfo'
 import { camelToSnakeStr } from 'field-conv'
@@ -44,14 +44,16 @@ export async function getRssData(): Promise<BaseResponse<RssData>> {
   return res.data
 }
 
-export async function getBackendMetrics<T extends BackendMetricsData>(): Promise<BaseResponse<T>> {
-  const res = await axiosClient.get<BaseResponse<T>>('/misc/metrics')
+// 全部后端实例的运行时指标（多副本时各实例定时上报，处理本次请求的实例为实时数据）
+export async function getBackendMetrics(): Promise<BaseResponse<RuntimeMetrics>> {
+  const res = await axiosClient.get<BaseResponse<RuntimeMetrics>>('/misc/metrics')
   return res.data
 }
 
-export async function getFrontendMetrics(): Promise<FrontendMetricsData> {
-  const res = await fetch('/api/fe-metrics').then(r => r.json()) as FrontendMetricsData
-  return res
+// 前端运行时指标：只反映处理本次请求的那个前端实例
+export async function getFrontendMetrics(): Promise<FrontendMetrics> {
+  const { hostname, ...metrics } = await fetch('/api/fe-metrics').then(r => r.json()) as FrontendMetricsData & { hostname?: string }
+  return { hostname: String(hostname ?? ''), metrics: metrics as FrontendMetricsData }
 }
 
 export const backendMetricsHandler: Record<keyof BackendMetricsData, (value: number) => string> = {
