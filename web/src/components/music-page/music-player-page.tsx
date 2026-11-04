@@ -1,8 +1,9 @@
 'use client'
 
 import type { MusicTrack } from '@/models/music'
-import { ArrowLeftIcon, Disc3Icon, MicVocalIcon, MusicIcon } from 'lucide-react'
+import { ArrowLeftIcon, BugIcon, Disc3Icon, MicVocalIcon, MusicIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { MarqueeText } from '@/components/common/marquee-text'
@@ -25,6 +26,9 @@ import { MusicStageEffects } from './music-stage-effects'
 import { useSongAccent } from './use-cover-accent'
 import { useMusicHotkeys } from './use-music-hotkeys'
 import { useMusicShareUrl } from './use-music-share-url'
+
+// 韵律调试面板（含 KaTeX）只在打开时加载
+const RhythmDebugPanel = dynamic(() => import('./rhythm-debug/rhythm-debug-panel'), { ssr: false })
 
 // 播放器页固定为深色沉浸式界面：主色换成白色，进度条、焦点环等与白色文字协调
 const PAGE_STYLE = { '--primary': 'oklch(0.97 0 0)', '--primary-foreground': 'oklch(0.2 0 0)' } as React.CSSProperties
@@ -95,6 +99,8 @@ export function MusicPlayerPage() {
   // 移动端在歌词与封面两个视图之间切换，默认先看歌词
   const [view, setView] = useState<'cover' | 'lyrics'>('lyrics')
   const [playlistOpen, setPlaylistOpen] = useState(false)
+  const [debugOpen, setDebugOpen] = useState(false)
+  const debugT = useTranslations('RhythmDebug')
   useMusicHotkeys()
   // 地址实时带上当前曲目与进度（?id=…&start=…），打开带参数的地址时定位到该曲目与进度
   useMusicShareUrl()
@@ -129,18 +135,35 @@ export function MusicPlayerPage() {
         >
           <ArrowLeftIcon aria-hidden className="size-5" />
         </button>
-        {/* 移动端：封面视图与歌词视图切换 */}
         {!placeholder && (
-          <button
-            type="button"
-            onClick={() => setView(view === 'cover' ? 'lyrics' : 'cover')}
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-2 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none lg:hidden"
-          >
-            {view === 'cover' ? <MicVocalIcon aria-hidden className="size-4" /> : <Disc3Icon aria-hidden className="size-4" />}
-            {t(view === 'cover' ? 'show_lyrics' : 'show_cover')}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* 移动端：封面视图与歌词视图切换 */}
+            <button
+              type="button"
+              onClick={() => setView(view === 'cover' ? 'lyrics' : 'cover')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-2 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none lg:hidden"
+            >
+              {view === 'cover' ? <MicVocalIcon aria-hidden className="size-4" /> : <Disc3Icon aria-hidden className="size-4" />}
+              {t(view === 'cover' ? 'show_lyrics' : 'show_cover')}
+            </button>
+            {/* 韵律调试：节拍、动效的波形与公式 */}
+            <button
+              type="button"
+              onClick={() => setDebugOpen(open => !open)}
+              aria-label={debugT('open')}
+              aria-pressed={debugOpen}
+              title={debugT('open')}
+              className={cn(
+                'inline-flex size-10 items-center justify-center rounded-full text-white backdrop-blur transition-colors focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none',
+                debugOpen ? 'bg-white/25' : 'bg-white/10 hover:bg-white/20',
+              )}
+            >
+              <BugIcon aria-hidden className="size-5" />
+            </button>
+          </div>
         )}
       </header>
+      {debugOpen && !placeholder && <RhythmDebugPanel onClose={() => setDebugOpen(false)} />}
 
       {placeholder || !currentTrack
         ? <PlayerPlaceholder state={placeholder ?? 'loading'} />
