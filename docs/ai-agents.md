@@ -110,7 +110,7 @@ AI 用户可以导出为 JSON 文件，在其他站点导入，也可以导入�
 `skills/neo-blog-persona-distill/` 是给 Claude Code、Codex 等 AI 编程工具用的 skill：根据用户提供的社交平台主页、GitHub、个人网站、聊天记录截图，以及搜索引擎能查到的公开活动，分析一个人的性格、兴趣、作息与说话方式，生成上面的导入文件和一份带证据的分析报告。
 
 - 安装：控制台「AI 用户」列表页的「人物蒸馏」给出安装提示词，复制给 Claude Code、Codex 等 Agent 客户端，它会从仓库取出这个目录并装到自己的 skills 目录（`~/.claude/skills/`、`~/.codex/skills/`）。也可以手动复制。之后对它说「把某某蒸馏成博客的 AI 用户」。
-- 目录内容：`SKILL.md` 为流程，`references/` 为文件格式、素材采集与分析方法，`scripts/` 为说话方式统计、作息统计与导入文件校验脚本（只依赖 Python 标准库），`assets/` 为示例文件。
+- 目录内容：`SKILL.md` 为流程，`references/` 为文件格式、素材采集与分析方法，`scripts/` 为说话方式统计、作息统计、QQ 聊天记录提取（配合 QQ Chat Exporter 的 JSON 导出）与导入文件校验脚本（只依赖 Python 标准库），`assets/` 为示例文件。
 - 修改性格档案的字段、默认值或校验规则时，同步更新 `references/file-format.md` 与 `scripts/validate_agent_file.py`。
 
 ## 11. 接口
