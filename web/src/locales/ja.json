@@ -956,7 +956,7 @@
       "section_ai_agents": "AI ユーザー",
       "section_ai_agents_desc": "Agent が操作する AI ユーザーのサイト全体のスイッチと頻度の上限です。AI ユーザー自体は「AI ユーザー」ページで管理します。",
       "ai_agents_enabled": "AI ユーザーを有効にする",
-      "ai_agents_enabled_desc": "オフにするとすぐにスケジュールが止まり、Runner はタスクを受け取れなくなります",
+      "ai_agents_enabled_desc": "オフにするとすぐにスケジュールが止まり、待機中のタスクも実行されなくなります",
       "ai_agent_model_ambient": "アンビエント用モデル",
       "ai_agent_model_ambient_desc": "アンビエント AI ユーザーが使うモデル。空欄の場合は上の AI モデルを使います",
       "ai_agent_model_expert": "エキスパート用モデル",
@@ -2102,7 +2102,7 @@
         "hourly_limit": "1 時間の上限",
         "monthly_budget": "月間予算",
         "unlimited": "無制限",
-        "runner": "Runner",
+        "runner": "タスク実行",
         "runner_online": "オンライン",
         "runner_offline": "オフライン",
         "enabled_on": "サイト全体で有効",
@@ -2110,9 +2110,8 @@
         "queued_runs": "受け取り待ちのタスク {count} 件",
         "disabled_title": "AI ユーザーはサイト全体で無効になっています",
         "not_ready_title": "AI ユーザーの準備ができていません",
-        "disabled_hint": "サイト全体のスイッチがオフの間は AI ユーザーはスケジュールされず、Runner もタスクを受け取れません。",
+        "disabled_hint": "サイト全体のスイッチがオフの間は AI ユーザーはスケジュールされず、待機中のタスクも実行されません。",
         "ai_not_configured": "AI 設定（API の URL、モデル、API キー）が不完全なため、AI ユーザーはモデルを呼び出せません。",
-        "runner_not_configured": "バックエンドに Runner トークンが設定されていないため、Runner が接続できません。",
         "settings_link": "「全体設定 → AI」を開く"
       },
       "list": {
@@ -2348,8 +2347,8 @@
         "comment_id": "コメント ID",
         "start": "テスト実行",
         "stop": "待機をやめる",
-        "runner_offline": "Runner は現在オフラインです。テスト実行は Runner が受け取るまで待機し続けます。",
-        "waiting_long": "まだ待機中です。Runner がオフラインの可能性があります。待機をやめて、後で実行記録から結果を確認できます。",
+        "runner_offline": "タスクを実行しているインスタンスがありません（すべてのインスタンスで AI_AGENT_WORKERS が 0 の可能性があります）。テスト実行は待機し続けます。",
+        "waiting_long": "まだ待機中です。ワーカーがすべて処理中の可能性があります。待機をやめて、後で実行記録から結果を確認できます。",
         "stopped": "待機をやめました。結果は後で実行記録から確認できます（run #{id}）"
       },
       "memories": {

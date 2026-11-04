@@ -45,7 +45,7 @@ func setupAgentTest(t *testing.T) (admin, author context.Context, ai1, ai2 *dto.
 	return admin, author, ai1, ai2, createPublicPost(t, author, nil)
 }
 
-// leaseCtx 为 AI 用户创建一个已领取的运行，返回租约令牌鉴权后的上下文
+// leaseCtx 为 AI 用户创建一个已领取的运行，返回以该运行的 AI 用户身份执行工具的上下文
 func leaseCtx(t *testing.T, agentID uint, kind string) (context.Context, *model.AgentRun) {
 	t.Helper()
 	now := time.Now()
@@ -54,14 +54,9 @@ func leaseCtx(t *testing.T, agentID uint, kind string) (context.Context, *model.
 	if err := repo.AIAgent.CreateRun(run); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	agent, err := repo.AIAgent.GetByID(agentID)
-	if err != nil {
-		t.Fatalf("get agent: %v", err)
-	}
-	token := signAgentLease(agentLeaseClaims{UserID: agent.UserID, RunID: run.ID, AgentID: agentID, Exp: now.Add(agentLeaseTokenMaxAge).Unix()})
-	ctx, svcerr := NewAIAgentService().AuthenticateAgentLease(context.Background(), token)
+	ctx, svcerr := NewAIAgentService().AgentRunContext(context.Background(), run.ID)
 	if svcerr != nil {
-		t.Fatalf("authenticate lease: %v", svcerr)
+		t.Fatalf("agent run context: %v", svcerr)
 	}
 	return ctx, run
 }
@@ -116,15 +111,18 @@ func TestAgentLeaseScopes(t *testing.T) {
 	if ctxutils.HasAPITokenScope(dry, constant.ScopeCommentsWrite) || !ctxutils.HasAPITokenScope(dry, constant.ScopePostsRead) {
 		t.Fatal("dry run must be read-only")
 	}
-	// 令牌被篡改、运行结束后都失效
-	if _, svcerr := NewAIAgentService().AuthenticateAgentLease(context.Background(), "nba_x.y"); svcerr == nil {
-		t.Fatal("forged token accepted")
+	// 不存在的运行、已结束的运行、AI 用户被暂停后都不能再以其身份执行
+	if _, svcerr := NewAIAgentService().AgentRunContext(context.Background(), run.ID+1000); svcerr == nil {
+		t.Fatal("unknown run accepted")
+	}
+	_, pausedRun := leaseCtx(t, ai1.ID, constant.AgentRunKindBrowse)
+	_ = repo.AIAgent.UpdateColumns(ai1.ID, map[string]any{"status": constant.AIAgentStatusPaused})
+	if _, svcerr := NewAIAgentService().AgentRunContext(context.Background(), pausedRun.ID); svcerr == nil || svcerr.Message != "ai_agent_paused" {
+		t.Fatalf("paused agent must not act, got %v", svcerr)
 	}
 	_ = repo.AIAgent.UpdateRun(run.ID, map[string]any{"status": constant.AgentRunStatusDone})
-	agent, _ := repo.AIAgent.GetByID(ai1.ID)
-	token := signAgentLease(agentLeaseClaims{UserID: agent.UserID, RunID: run.ID, AgentID: ai1.ID, Exp: time.Now().Add(time.Minute).Unix()})
-	if _, svcerr := NewAIAgentService().AuthenticateAgentLease(context.Background(), token); svcerr == nil {
-		t.Fatal("finished run must not authenticate")
+	if _, svcerr := NewAIAgentService().AgentRunContext(context.Background(), run.ID); svcerr == nil {
+		t.Fatal("finished run must not act")
 	}
 }
 
@@ -247,31 +245,31 @@ func TestAgentLeaseCompleteFlow(t *testing.T) {
 	repo.GetDB().Model(&model.AgentRun{}).Where("trigger_type = ?", constant.AgentTriggerCommentReplied).Update("scheduled_at", time.Now().Add(-time.Minute))
 	repo.GetDB().Model(&model.AgentRun{}).Where("status = ?", constant.AgentRunStatusLeased).Update("status", constant.AgentRunStatusDone)
 
-	resp, svcerr := svc.Lease(context.Background(), &dto.AgentLeaseReq{Max: 5})
-	if svcerr != nil {
-		t.Fatal(svcerr)
+	runs, err := svc.ClaimRuns(context.Background(), 5)
+	if err != nil {
+		t.Fatal(err)
 	}
 	var leased *dto.AgentLeaseRun
-	for i := range resp.Runs {
-		if resp.Runs[i].Trigger == constant.AgentTriggerCommentReplied {
-			leased = &resp.Runs[i]
+	for i := range runs {
+		if runs[i].Trigger == constant.AgentTriggerCommentReplied {
+			leased = &runs[i]
 		}
 	}
 	if leased == nil || leased.Event == nil || leased.Event.Comment == nil || leased.Event.Comment.ID != reply || leased.Event.Post == nil {
-		t.Fatalf("lease = %+v", resp.Runs)
+		t.Fatalf("claimed = %+v", runs)
 	}
-	if leased.Quota.CommentsToday != 1 || leased.LeaseToken == "" || leased.Agent.Profile.Persona != "" && leased.Agent.Username != "ai_one" {
-		t.Fatalf("lease detail = %+v", leased)
+	if leased.Quota.CommentsToday != 1 || leased.Agent.Profile.Persona != "" && leased.Agent.Username != "ai_one" {
+		t.Fatalf("claimed detail = %+v", leased)
 	}
 	// 同一个 AI 同时只能领到一个任务
-	again, _ := svc.Lease(context.Background(), &dto.AgentLeaseReq{Max: 5})
-	for _, r := range again.Runs {
+	again, _ := svc.ClaimRuns(context.Background(), 5)
+	for _, r := range again {
 		if r.Agent.UserID == ai1.User.ID {
-			t.Fatal("agent leased twice")
+			t.Fatal("agent claimed twice")
 		}
 	}
-	// 以租约令牌回复并回报
-	leaseContext, svcerr := svc.AuthenticateAgentLease(context.Background(), leased.LeaseToken)
+	// 以运行的 AI 用户身份回复并回报
+	leaseContext, svcerr := svc.AgentRunContext(context.Background(), leased.RunID)
 	if svcerr != nil {
 		t.Fatal(svcerr)
 	}

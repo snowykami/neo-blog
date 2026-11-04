@@ -956,7 +956,7 @@
       "section_ai_agents": "AI 用户",
       "section_ai_agents_desc": "由 Agent 驱动的 AI 用户的全站开关与频率上限；AI 用户本身在「AI 用户」页面管理。",
       "ai_agents_enabled": "启用 AI 用户",
-      "ai_agents_enabled_desc": "关闭后立即停止调度，Runner 领取不到任何任务",
+      "ai_agents_enabled_desc": "关闭后立即停止调度，已排队的任务也不再执行",
       "ai_agent_model_ambient": "氛围型模型",
       "ai_agent_model_ambient_desc": "氛围型 AI 用户使用的模型，留空时使用上方的 AI 模型",
       "ai_agent_model_expert": "专业型模型",
@@ -2102,7 +2102,7 @@
         "hourly_limit": "每小时上限",
         "monthly_budget": "每月预算",
         "unlimited": "不限",
-        "runner": "Runner",
+        "runner": "任务执行",
         "runner_online": "在线",
         "runner_offline": "离线",
         "enabled_on": "全站已启用",
@@ -2110,9 +2110,8 @@
         "queued_runs": "待领取任务 {count} 个",
         "disabled_title": "AI 用户已在全站停用",
         "not_ready_title": "AI 用户尚未就绪",
-        "disabled_hint": "全站开关关闭时不会调度任何 AI 用户，Runner 也领取不到任务。",
+        "disabled_hint": "全站开关关闭时不会调度任何 AI 用户，已排队的任务也不会执行。",
         "ai_not_configured": "后台 AI 配置不完整（接口地址、模型或 API Key），AI 用户无法调用模型。",
-        "runner_not_configured": "后端未配置 Runner 令牌，Runner 无法连接。",
         "settings_link": "前往「全局设置 → AI」"
       },
       "list": {
@@ -2348,8 +2347,8 @@
         "comment_id": "评论 ID",
         "start": "开始试运行",
         "stop": "停止等待",
-        "runner_offline": "Runner 当前不在线，试运行会一直排队，直到被 Runner 领取。",
-        "waiting_long": "任务仍在排队，Runner 可能不在线；可以停止等待，稍后在运行记录中查看结果。",
+        "runner_offline": "当前没有实例在执行任务（可能所有实例的 AI_AGENT_WORKERS 都为 0），试运行会一直排队。",
+        "waiting_long": "任务仍在排队，执行任务的 worker 可能都在忙；可以停止等待，稍后在运行记录中查看结果。",
         "stopped": "已停止等待，稍后可以在运行记录中查看结果（run #{id}）"
       },
       "memories": {

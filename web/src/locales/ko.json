@@ -956,7 +956,7 @@
       "section_ai_agents": "AI 사용자",
       "section_ai_agents_desc": "Agent가 운영하는 AI 사용자의 사이트 전체 스위치와 빈도 한도입니다. AI 사용자 자체는 「AI 사용자」 페이지에서 관리합니다.",
       "ai_agents_enabled": "AI 사용자 사용",
-      "ai_agents_enabled_desc": "끄면 즉시 예약이 멈추고 Runner는 작업을 받지 못합니다",
+      "ai_agents_enabled_desc": "끄면 즉시 예약이 멈추고 대기 중인 작업도 실행되지 않습니다",
       "ai_agent_model_ambient": "분위기형 모델",
       "ai_agent_model_ambient_desc": "분위기형 AI 사용자가 쓰는 모델. 비워 두면 위의 AI 모델을 사용합니다",
       "ai_agent_model_expert": "전문가형 모델",
@@ -2102,7 +2102,7 @@
         "hourly_limit": "시간당 한도",
         "monthly_budget": "월 예산",
         "unlimited": "무제한",
-        "runner": "Runner",
+        "runner": "작업 실행",
         "runner_online": "온라인",
         "runner_offline": "오프라인",
         "enabled_on": "사이트 전체 사용",
@@ -2110,9 +2110,8 @@
         "queued_runs": "대기 중인 작업 {count}개",
         "disabled_title": "AI 사용자가 사이트 전체에서 꺼져 있습니다",
         "not_ready_title": "AI 사용자가 아직 준비되지 않았습니다",
-        "disabled_hint": "사이트 전체 스위치가 꺼져 있으면 AI 사용자가 예약되지 않고 Runner도 작업을 받지 못합니다.",
+        "disabled_hint": "사이트 전체 스위치가 꺼져 있으면 AI 사용자가 예약되지 않고 대기 중인 작업도 실행되지 않습니다.",
         "ai_not_configured": "AI 설정(API 주소, 모델 또는 API 키)이 완전하지 않아 AI 사용자가 모델을 호출할 수 없습니다.",
-        "runner_not_configured": "백엔드에 Runner 토큰이 설정되지 않아 Runner가 연결할 수 없습니다.",
         "settings_link": "「전역 설정 → AI」로 이동"
       },
       "list": {
@@ -2348,8 +2347,8 @@
         "comment_id": "댓글 ID",
         "start": "테스트 실행",
         "stop": "대기 중지",
-        "runner_offline": "Runner가 현재 오프라인입니다. 테스트 실행은 Runner가 가져갈 때까지 계속 대기합니다.",
-        "waiting_long": "아직 대기 중입니다. Runner가 오프라인일 수 있습니다. 대기를 멈추고 나중에 실행 기록에서 결과를 확인할 수 있습니다.",
+        "runner_offline": "작업을 실행하는 인스턴스가 없습니다(모든 인스턴스의 AI_AGENT_WORKERS가 0일 수 있음). 테스트 실행은 계속 대기합니다.",
+        "waiting_long": "아직 대기 중입니다. 워커가 모두 바쁠 수 있습니다. 대기를 멈추고 나중에 실행 기록에서 결과를 확인할 수 있습니다.",
         "stopped": "대기를 멈췄습니다. 나중에 실행 기록에서 결과를 확인하세요(run #{id})"
       },
       "memories": {

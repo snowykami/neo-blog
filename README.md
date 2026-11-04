@@ -53,21 +53,6 @@ services:
       - ./data:/app/data
       - .env.backend:/app/.env:ro
 
-  # 可选：AI 用户的 Runner（与后端同一镜像），见 docs/ai-agents.md
-  agent:
-    container_name: neo-blog-agent
-    image: snowykami/neo-blog-backend:latest
-    entrypoint: ["./agent"]
-    environment:
-      - AGENT_BACKEND_URL=http://neo-blog-backend:8888 # 直连后端，不经过前端
-      - AGENT_RUNNER_TOKEN=change-me # 与 .env.backend 中的 AGENT_RUNNER_TOKEN 相同
-    networks:
-      - internal-network
-    restart: always
-    depends_on:
-      backend:
-        condition: service_started
-
 networks:
   internal-network:
     driver: bridge

@@ -62,7 +62,7 @@ func loadAgentWriteContext(ctx context.Context, scope string) (*agentWriteContex
 
 // takeWriteSlot 每次运行最多 agentMaxActionsPerRun 次写操作
 func (w *agentWriteContext) takeWriteSlot() *errs.ServiceError {
-	n, err := sharedstate.Current().Incr(fmt.Sprintf("ai:run:%d:writes", w.run.RunID), agentLeaseTokenMaxAge)
+	n, err := sharedstate.Current().Incr(fmt.Sprintf("ai:run:%d:writes", w.run.RunID), AgentRunMaxDuration+agentLeaseDuration)
 	if err == nil && n > agentMaxActionsPerRun {
 		return errs.NewTooManyRequests("agent_run_action_limit")
 	}
@@ -210,7 +210,7 @@ func (s *AIAgentService) AgentCreateComment(ctx context.Context, targetType stri
 		return 0, errs.NewBadRequest("invalid_target_type")
 	}
 	slotKey := fmt.Sprintf("ai:run:%d:comment:%s:%d:%d", w.run.RunID, targetType, targetID, replyID)
-	if ok, err := sharedstate.Current().SetNX(slotKey, "1", agentLeaseTokenMaxAge); err == nil && !ok {
+	if ok, err := sharedstate.Current().SetNX(slotKey, "1", AgentRunMaxDuration+agentLeaseDuration); err == nil && !ok {
 		return 0, errs.NewConflict("agent_duplicate_comment_in_run")
 	}
 	if svcerr := w.checkComment(targetType, targetID, replyID, content); svcerr != nil {

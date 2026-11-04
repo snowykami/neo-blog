@@ -123,8 +123,7 @@ export interface AIAgent {
 export interface AIAgentStats {
   enabled: boolean // 全站开关
   aiConfigured: boolean // 后台 AI 配置是否完整
-  runnerConfigured: boolean
-  runnerOnline: boolean // 最近 2 分钟内有 Runner 领取过任务
+  runnerOnline: boolean // 最近 2 分钟内有实例的 worker 在检查任务
   total: number
   ambient: number
   expert: number

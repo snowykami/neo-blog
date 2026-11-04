@@ -369,7 +369,7 @@ func (r *aiAgentRepo) AddRunUsage(runID uint, modelName string, prompt, cached, 
 	}).Error
 }
 
-// LastLeaseAt 最近一次被领取的任务时间，用于判断 Runner 是否在线
+// LastLeaseAt 最近一次被领取的任务时间
 func (r *aiAgentRepo) LastLeaseAt() (*time.Time, error) {
 	var run model.AgentRun
 	err := GetDB().Where("attempts > 0").Order("updated_at DESC").Limit(1).Find(&run).Error

@@ -2,18 +2,12 @@ package service
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -29,82 +23,33 @@ import (
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
+// AI 用户的任务由各实例上的 worker（见 internal/agentrunner）执行：
+// 待办存在数据库 agent_runs；领取在全局锁内用条件更新抢占，同一任务只会被一个实例领到；
+// 新任务入队时经 sharedstate 通知各实例唤醒（单实例为进程内存，多副本为 Redis）
+
 const (
-	agentLeaseDuration    = 5 * time.Minute  // 租约时长，Runner 通过心跳续期
-	agentLeaseTokenMaxAge = 20 * time.Minute // 租约令牌的最长有效期（心跳续期也不超过）
-	agentRunsChannel      = "ai_runs"        // 新任务入队时通知其他实例唤醒长轮询
-	agentRunnerSeenKey    = "ai:runner:last_seen"
-	agentClaimLockKey     = "ai_runs_claim"
-	agentLLMTimeout       = 3 * time.Minute
+	agentLeaseDuration = 5 * time.Minute // 租约时长，worker 通过心跳续期；实例中途退出时到期后重新入队
+	// AgentRunMaxDuration 一次运行的最长时间：worker 到时中止，按运行计数的键以此为过期时间
+	AgentRunMaxDuration = 15 * time.Minute
+	agentRunsChannel    = "ai_runs" // 新任务入队时通知其他实例唤醒 worker
+	agentRunnerSeenKey  = "ai:runner:last_seen"
+	agentClaimLockKey   = "ai_runs_claim"
+	agentLLMTimeout     = 3 * time.Minute
 )
 
-// ---------- 租约令牌 ----------
+// ---------- 运行上下文 ----------
 
-type agentLeaseClaims struct {
-	UserID  uint  `json:"u"`
-	RunID   uint  `json:"r"`
-	AgentID uint  `json:"a"`
-	Exp     int64 `json:"e"`
-}
-
-func agentLeaseKey() []byte {
-	sum := sha256.Sum256([]byte("neo-blog/agent-lease\x00" + utils.Jwt.SigningSecret()))
-	return sum[:]
-}
-
-func signAgentLease(c agentLeaseClaims) string {
-	payload := base64.RawURLEncoding.EncodeToString([]byte(mustJSON(c)))
-	mac := hmac.New(sha256.New, agentLeaseKey())
-	mac.Write([]byte(payload))
-	return constant.AgentLeaseTokenPrefix + payload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-}
-
-func parseAgentLease(raw string) (*agentLeaseClaims, error) {
-	body, ok := strings.CutPrefix(raw, constant.AgentLeaseTokenPrefix)
-	if !ok {
-		return nil, errors.New("not a lease token")
-	}
-	payload, sig, ok := strings.Cut(body, ".")
-	if !ok {
-		return nil, errors.New("malformed lease token")
-	}
-	mac := hmac.New(sha256.New, agentLeaseKey())
-	mac.Write([]byte(payload))
-	want := mac.Sum(nil)
-	got, err := base64.RawURLEncoding.DecodeString(sig)
-	if err != nil || !hmac.Equal(want, got) {
-		return nil, errors.New("invalid signature")
-	}
-	data, err := base64.RawURLEncoding.DecodeString(payload)
-	if err != nil {
-		return nil, err
-	}
-	var c agentLeaseClaims
-	if err := json.Unmarshal(data, &c); err != nil {
-		return nil, err
-	}
-	if time.Now().Unix() >= c.Exp {
-		return nil, errors.New("lease token expired")
-	}
-	return &c, nil
-}
-
-// AuthenticateAgentLease 校验租约令牌：运行必须仍在租约中、AI 用户未被暂停或禁用。
-// 返回挂载了用户、权限范围与运行信息的上下文；权限范围 = 运行允许的范围 ∩ 用户角色，与个人 API Token 一致
-func (s *AIAgentService) AuthenticateAgentLease(ctx context.Context, raw string) (context.Context, *errs.ServiceError) {
-	invalid := errs.NewUnauthorized("invalid_lease_token")
-	claims, err := parseAgentLease(raw)
-	if err != nil {
-		return ctx, invalid
-	}
-	run, err := repo.AIAgent.GetRun(claims.RunID)
-	now := time.Now()
-	if err != nil || run.AgentID != claims.AgentID || run.Status != constant.AgentRunStatusLeased || run.LeaseUntil == nil || !run.LeaseUntil.After(now) {
-		return ctx, invalid
+// AgentRunContext 以某次运行的 AI 用户身份执行工具时的上下文：运行必须仍在租约中、AI 用户未被暂停或禁用，每次调用工具前确认。
+// 返回挂载了用户、权限范围与运行信息的上下文；权限范围 = 运行允许的范围 ∩ 用户角色，与个人 API Token 一致，试运行只有读权限
+func (s *AIAgentService) AgentRunContext(ctx context.Context, runID uint) (context.Context, *errs.ServiceError) {
+	notLeased := errs.NewNotFound("lease_not_found")
+	run, err := repo.AIAgent.GetRun(runID)
+	if err != nil || run.Status != constant.AgentRunStatusLeased || run.LeaseUntil == nil || !run.LeaseUntil.After(time.Now()) {
+		return ctx, notLeased
 	}
 	agent, err := repo.AIAgent.GetByID(run.AgentID)
-	if err != nil || agent.UserID != claims.UserID || agent.User.Disabled || !agent.User.IsAI {
-		return ctx, invalid
+	if err != nil || agent.User.Disabled || !agent.User.IsAI {
+		return ctx, notLeased
 	}
 	dryRun := run.Kind == constant.AgentRunKindDryRun
 	if !dryRun && (agent.Status != constant.AIAgentStatusActive || !tools.GetAIAgentConfig().Enabled) {
@@ -120,24 +65,12 @@ func (s *AIAgentService) AuthenticateAgentLease(ctx context.Context, raw string)
 	}
 	ctx = context.WithValue(ctx, "user_id", agent.UserID)
 	ctx = ctxutils.WithUserCache(ctx)
-	ctx = ctxutils.WithAPIToken(ctx, &ctxutils.APITokenInfo{Name: "agent-lease", Scopes: EffectiveScopes(scopes, agent.User.Role)})
+	ctx = ctxutils.WithAPIToken(ctx, &ctxutils.APITokenInfo{Name: "ai-agent", Scopes: EffectiveScopes(scopes, agent.User.Role)})
 	ctx = ctxutils.WithAgentRun(ctx, &ctxutils.AgentRunInfo{RunID: run.ID, AgentID: agent.ID, UserID: agent.UserID, DryRun: dryRun})
 	return ctx, nil
 }
 
-// CheckRunnerToken 校验 Runner 共享密钥；未配置时 Runner 接口整体关闭
-func CheckRunnerToken(raw string) *errs.ServiceError {
-	want := utils.Env.Get(constant.EnvKeyAgentRunnerToken)
-	if want == "" {
-		return errs.NewNotFound("agent_runner_disabled")
-	}
-	if subtle.ConstantTimeCompare([]byte(raw), []byte(want)) != 1 {
-		return errs.NewUnauthorized("invalid_runner_token")
-	}
-	return nil
-}
-
-// ---------- 新任务通知（长轮询唤醒） ----------
+// ---------- 新任务通知（唤醒 worker） ----------
 
 var (
 	runWakeMu sync.Mutex
@@ -152,13 +85,14 @@ func wakeLocalRunners() {
 	runWakeMu.Unlock()
 }
 
-func runWakeChan() <-chan struct{} {
+// AgentRunWake 新任务入队时关闭的通道：worker 空闲时在上面等待，每次等待前重新获取
+func AgentRunWake() <-chan struct{} {
 	runWakeMu.Lock()
 	defer runWakeMu.Unlock()
 	return runWake
 }
 
-// notifyAgentRuns 有新任务入队：唤醒本实例与其他实例上挂着的长轮询
+// notifyAgentRuns 有新任务入队：唤醒本实例与其他实例上空闲的 worker
 func notifyAgentRuns() {
 	wakeLocalRunners()
 	sharedstate.Notify(agentRunsChannel, "new")
@@ -173,36 +107,19 @@ func ListenAgentRuns() {
 
 // ---------- 领取、心跳、回报 ----------
 
-// Lease 长轮询领取待办：有任务立即返回，否则最多等待 wait_seconds
-func (s *AIAgentService) Lease(ctx context.Context, req *dto.AgentLeaseReq) (*dto.AgentLeaseResp, *errs.ServiceError) {
-	maxRuns := clampInt(req.Max, 1, 10)
-	wait := time.Duration(clampInt(req.WaitSeconds, 0, 30)) * time.Second
-	deadline := time.Now().Add(wait)
+// AgentSite 站点信息（写进系统提示词）
+func (s *AIAgentService) AgentSite() dto.AgentLeaseSite {
+	return dto.AgentLeaseSite{Name: tools.GetSiteName(), BaseURL: tools.GetBaseUrl()}
+}
+
+// MarkAgentWorkersOnline 记录有实例的 worker 在运行（后台总览据此显示在线状态），worker 每次检查任务时调用
+func MarkAgentWorkersOnline() {
 	_ = sharedstate.Current().Set(agentRunnerSeenKey, strconv.FormatInt(time.Now().Unix(), 10), 10*time.Minute)
-	resp := &dto.AgentLeaseResp{Site: dto.AgentLeaseSite{Name: tools.GetSiteName(), BaseURL: tools.GetBaseUrl()}, Runs: []dto.AgentLeaseRun{}}
-	for {
-		wake := runWakeChan()
-		runs, err := s.claimRuns(ctx, maxRuns)
-		if err != nil {
-			logrus.Errorf("claim agent runs: %v", err)
-			return nil, errs.Internal("failed_to_get_target", err).WithResource("agent_run")
-		}
-		resp.Runs = runs
-		remaining := time.Until(deadline)
-		if len(runs) > 0 || remaining <= 0 {
-			return resp, nil
-		}
-		// 计划时间到点的任务不会触发通知，最多 5 秒重新检查一次
-		timer := time.NewTimer(min(remaining, 5*time.Second))
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return resp, nil
-		case <-wake:
-			timer.Stop()
-		case <-timer.C:
-		}
-	}
+}
+
+// ClaimRuns 领取最多 maxRuns 个到点的任务，没有时返回空
+func (s *AIAgentService) ClaimRuns(ctx context.Context, maxRuns int) ([]dto.AgentLeaseRun, error) {
+	return s.claimRuns(ctx, clampInt(maxRuns, 1, 10))
 }
 
 // claimRuns 在全局锁内领取任务：同一 AI 同时只有一个任务在执行
@@ -289,7 +206,7 @@ func (s *AIAgentService) claimRuns(ctx context.Context, maxRuns int) ([]dto.Agen
 	return result, nil
 }
 
-// Heartbeat 续期租约；租约令牌本身最多有效 agentLeaseTokenMaxAge，超过后续期也无法再写入
+// Heartbeat 续期租约
 func (s *AIAgentService) Heartbeat(ctx context.Context, runID uint) (*time.Time, *errs.ServiceError) {
 	run, err := repo.AIAgent.GetRun(runID)
 	if err != nil || run.Status != constant.AgentRunStatusLeased {
@@ -302,7 +219,7 @@ func (s *AIAgentService) Heartbeat(ctx context.Context, runID uint) (*time.Time,
 	return &until, nil
 }
 
-// Complete Runner 回报一次运行的结果：保存操作列表、轨迹，并写入记忆
+// Complete 回报一次运行的结果：保存操作列表、轨迹，并写入记忆
 func (s *AIAgentService) Complete(ctx context.Context, req *dto.AgentCompleteReq) *errs.ServiceError {
 	run, err := repo.AIAgent.GetRun(req.ID)
 	if err != nil || run.Status != constant.AgentRunStatusLeased {
@@ -360,10 +277,20 @@ func (s *AIAgentService) Complete(ctx context.Context, req *dto.AgentCompleteReq
 	return nil
 }
 
-// ---------- LLM 网关 ----------
+// ---------- 调用模型 ----------
 
-// llmGatewayAllowedKeys Runner 可传入的 OpenAI 兼容参数；model、key、地址由后端按配置决定
-var llmGatewayAllowedKeys = []string{"messages", "tools", "tool_choice", "temperature", "response_format", "max_tokens", "parallel_tool_calls", "reasoning_effort"}
+// ErrAgentLLMBudget 全站模型调用频率或 token 预算已到上限，本次运行不再重试
+var ErrAgentLLMBudget = errors.New("agent llm budget or rate limit reached")
+
+// AgentLLMStatusError 模型接口返回的错误状态（不含密钥等内部信息）
+type AgentLLMStatusError struct {
+	Status  int
+	Message string
+}
+
+func (e *AgentLLMStatusError) Error() string {
+	return fmt.Sprintf("llm status %d: %s", e.Status, e.Message)
+}
 
 func hourKey(now time.Time) string {
 	return "ai:llm:h:" + now.Format("2006010215")
@@ -394,60 +321,51 @@ func monthTokensCached(now time.Time) int64 {
 	return n
 }
 
-// LLMGateway 转发 Runner 的 chat/completions 请求：复用后台 AI 配置，按全站上限与预算限流，并把用量记到运行上
-func (s *AIAgentService) LLMGateway(ctx context.Context, runID uint, body []byte) (int, []byte, *errs.ServiceError) {
+// AgentChat 以某次运行的名义调用模型（OpenAI 兼容的 chat/completions）：复用后台 AI 配置，
+// 按全站上限与预算限流，并把用量记到运行上；返回上游的原始响应体
+func (s *AIAgentService) AgentChat(ctx context.Context, runID uint, payload map[string]any) ([]byte, error) {
 	run, err := repo.AIAgent.GetRun(runID)
 	if err != nil || run.Status != constant.AgentRunStatusLeased {
-		return 0, nil, errs.NewNotFound("lease_not_found")
+		return nil, errs.NewNotFound("lease_not_found")
 	}
 	agent, err := repo.AIAgent.GetByID(run.AgentID)
 	if err != nil {
-		return 0, nil, errs.NewNotFound("target_not_found").WithResource("ai_agent")
+		return nil, errs.NewNotFound("target_not_found").WithResource("ai_agent")
 	}
 	aiCfg := tools.GetAIConfig()
 	if !aiCfg.Configured() {
-		return 0, nil, errs.NewUnavailable("ai_not_configured")
+		return nil, errs.NewUnavailable("ai_not_configured")
 	}
 	cfg := tools.GetAIAgentConfig()
 	now := time.Now()
 	if cfg.MonthlyTokenBudget > 0 && monthTokensCached(now) >= int64(cfg.MonthlyTokenBudget) {
-		return 0, nil, errs.NewTooManyRequests("agent_token_budget_exceeded")
+		return nil, fmt.Errorf("%w: monthly token budget", ErrAgentLLMBudget)
 	}
 	calls, err := sharedstate.Current().Incr(hourKey(now), 2*time.Hour)
 	if err == nil && cfg.LLMCallsPerHour > 0 && calls > int64(cfg.LLMCallsPerHour) {
-		return 0, nil, errs.NewTooManyRequests("agent_llm_rate_limited")
-	}
-	var raw map[string]any
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return 0, nil, errs.NewBadRequest("invalid_request_parameters")
-	}
-	payload := map[string]any{"stream": false}
-	for k, v := range raw {
-		if slices.Contains(llmGatewayAllowedKeys, k) {
-			payload[k] = v
-		}
-	}
-	if _, ok := payload["messages"]; !ok {
-		return 0, nil, errs.NewBadRequest("invalid_request_parameters")
+		return nil, fmt.Errorf("%w: hourly call limit", ErrAgentLLMBudget)
 	}
 	modelName := agentModel(agent, agent.ParsedProfile(), cfg, aiCfg)
-	payload["model"] = modelName
+	body := map[string]any{"stream": false}
+	for k, v := range payload {
+		body[k] = v
+	}
+	body["model"] = modelName
 
 	callCtx, cancel := context.WithTimeout(ctx, agentLLMTimeout)
 	defer cancel()
-	resp, err := postChatCompletions(callCtx, tools.AIConfig{BaseURL: aiCfg.BaseURL, APIKey: aiCfg.APIKey, Model: modelName}, payload)
+	resp, err := postChatCompletions(callCtx, tools.AIConfig{BaseURL: aiCfg.BaseURL, APIKey: aiCfg.APIKey, Model: modelName}, body)
 	var statusErr *chatStatusError
 	if errors.As(err, &statusErr) {
-		// 上游的错误原样转给 Runner，便于它判断是否重试（不含密钥等内部信息）
-		return statusErr.code, []byte(mustJSON(map[string]any{"error": map[string]any{"message": statusErr.msg}})), nil
+		return nil, &AgentLLMStatusError{Status: statusErr.code, Message: statusErr.msg}
 	}
 	if err != nil {
-		return http.StatusBadGateway, []byte(mustJSON(map[string]any{"error": map[string]any{"message": err.Error()}})), nil
+		return nil, err
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
-		return http.StatusBadGateway, []byte(mustJSON(map[string]any{"error": map[string]any{"message": err.Error()}})), nil
+		return nil, err
 	}
 	var usage struct {
 		Usage struct {
@@ -464,10 +382,10 @@ func (s *AIAgentService) LLMGateway(ctx context.Context, runID uint, body []byte
 	if err := repo.AIAgent.AddRunUsage(run.ID, modelName, usage.Usage.PromptTokens, cached, usage.Usage.CompletionTokens); err != nil {
 		logrus.Warnf("record llm usage for run %d: %v", run.ID, err)
 	}
-	return http.StatusOK, data, nil
+	return data, nil
 }
 
-// ---------- 构建租约内容 ----------
+// ---------- 构建运行内容 ----------
 
 func postRef(p *model.Post, baseURL string) dto.AgentPostRef {
 	labels := make([]string, 0, len(p.Labels))
@@ -506,9 +424,6 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 		Trigger:        run.Trigger,
 		DryRun:         dryRun,
 		LeaseExpiresAt: leaseUntil,
-		LeaseToken: signAgentLease(agentLeaseClaims{
-			UserID: agent.UserID, RunID: run.ID, AgentID: agent.ID, Exp: now.Add(agentLeaseTokenMaxAge).Unix(),
-		}),
 		Agent: dto.AgentLeaseAgent{
 			UserID: agent.UserID, Username: agent.User.Username, Nickname: agent.User.Nickname, AvatarUrl: agent.User.AvatarUrl,
 			Tier: agent.Tier, Profile: profile, SelfSummary: agent.SelfSummary,

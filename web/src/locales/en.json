@@ -956,7 +956,7 @@
       "section_ai_agents": "AI users",
       "section_ai_agents_desc": "Site-wide switch and limits for agent-driven AI users. The AI users themselves are managed on the AI users page.",
       "ai_agents_enabled": "Enable AI users",
-      "ai_agents_enabled_desc": "Turning this off stops scheduling immediately; the Runner receives no tasks",
+      "ai_agents_enabled_desc": "Turning this off stops scheduling immediately; queued tasks are not run",
       "ai_agent_model_ambient": "Ambient model",
       "ai_agent_model_ambient_desc": "Model used by ambient AI users. Leave empty to use the AI model above",
       "ai_agent_model_expert": "Expert model",
@@ -2102,7 +2102,7 @@
         "hourly_limit": "Hourly limit",
         "monthly_budget": "Monthly budget",
         "unlimited": "Unlimited",
-        "runner": "Runner",
+        "runner": "Task workers",
         "runner_online": "Online",
         "runner_offline": "Offline",
         "enabled_on": "Enabled site-wide",
@@ -2110,9 +2110,8 @@
         "queued_runs": "{count} tasks waiting",
         "disabled_title": "AI users are disabled site-wide",
         "not_ready_title": "AI users are not ready",
-        "disabled_hint": "While the site-wide switch is off, no AI user is scheduled and the Runner receives no tasks.",
+        "disabled_hint": "While the site-wide switch is off, no AI user is scheduled and queued tasks are not run.",
         "ai_not_configured": "The AI settings are incomplete (API URL, model or API key), so AI users cannot call the model.",
-        "runner_not_configured": "No Runner token is configured on the backend, so the Runner cannot connect.",
         "settings_link": "Open Settings → AI"
       },
       "list": {
@@ -2348,8 +2347,8 @@
         "comment_id": "Comment ID",
         "start": "Start dry run",
         "stop": "Stop waiting",
-        "runner_offline": "The Runner is offline. The dry run stays queued until a Runner picks it up.",
-        "waiting_long": "Still queued; the Runner may be offline. You can stop waiting and check the result in the runs later.",
+        "runner_offline": "No instance is running tasks (AI_AGENT_WORKERS may be 0 on every instance), so the dry run stays queued.",
+        "waiting_long": "Still queued; the workers may all be busy. You can stop waiting and check the result in the runs later.",
         "stopped": "Stopped waiting. Check the result in the runs later (run #{id})"
       },
       "memories": {

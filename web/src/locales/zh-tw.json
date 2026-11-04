@@ -956,7 +956,7 @@
       "section_ai_agents": "AI 使用者",
       "section_ai_agents_desc": "由 Agent 驅動的 AI 使用者的全站開關與頻率上限；AI 使用者本身在「AI 使用者」頁面管理。",
       "ai_agents_enabled": "啟用 AI 使用者",
-      "ai_agents_enabled_desc": "關閉後立即停止排程，Runner 領取不到任何任務",
+      "ai_agents_enabled_desc": "關閉後立即停止排程，已排隊的任務也不再執行",
       "ai_agent_model_ambient": "氛圍型模型",
       "ai_agent_model_ambient_desc": "氛圍型 AI 使用者使用的模型，留空時使用上方的 AI 模型",
       "ai_agent_model_expert": "專業型模型",
@@ -2102,7 +2102,7 @@
         "hourly_limit": "每小時上限",
         "monthly_budget": "每月預算",
         "unlimited": "不限",
-        "runner": "Runner",
+        "runner": "任務執行",
         "runner_online": "線上",
         "runner_offline": "離線",
         "enabled_on": "全站已啟用",
@@ -2110,9 +2110,8 @@
         "queued_runs": "待領取任務 {count} 個",
         "disabled_title": "AI 使用者已在全站停用",
         "not_ready_title": "AI 使用者尚未就緒",
-        "disabled_hint": "全站開關關閉時不會排程任何 AI 使用者，Runner 也領取不到任務。",
+        "disabled_hint": "全站開關關閉時不會排程任何 AI 使用者，已排隊的任務也不會執行。",
         "ai_not_configured": "後台 AI 設定不完整（介面位址、模型或 API Key），AI 使用者無法呼叫模型。",
-        "runner_not_configured": "後端未設定 Runner 權杖，Runner 無法連線。",
         "settings_link": "前往「全域設定 → AI」"
       },
       "list": {
@@ -2348,8 +2347,8 @@
         "comment_id": "評論 ID",
         "start": "開始試執行",
         "stop": "停止等待",
-        "runner_offline": "Runner 目前離線，試執行會一直排隊，直到被 Runner 領取。",
-        "waiting_long": "任務仍在排隊，Runner 可能離線；可以停止等待，稍後在執行紀錄中查看結果。",
+        "runner_offline": "目前沒有實例在執行任務（可能所有實例的 AI_AGENT_WORKERS 都為 0），試執行會一直排隊。",
+        "waiting_long": "任務仍在排隊，執行任務的 worker 可能都在忙；可以停止等待，稍後在執行紀錄中查看結果。",
         "stopped": "已停止等待，稍後可以在執行紀錄中查看結果（run #{id}）"
       },
       "memories": {

@@ -1,15 +1,13 @@
 package apiv1
 
 import (
-	"github.com/cloudwego/hertz/pkg/common/adaptor"
 	"github.com/cloudwego/hertz/pkg/route"
 	controller "github.com/snowykami/neo-blog/internal/controller"
-	"github.com/snowykami/neo-blog/internal/mcpserver"
 	"github.com/snowykami/neo-blog/internal/middleware"
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
-// registerAIAgentRoutes AI 用户：管理接口（管理员）、Runner 接口（共享密钥）、AI 用户的 MCP（租约令牌）
+// registerAIAgentRoutes AI 用户的管理接口（管理员）；任务由各实例上的 worker 在进程内执行，不对外开放接口
 func registerAIAgentRoutes(group *route.RouterGroup) {
 	cc := controller.NewAIAgentController()
 	admin := group.Group("/admin").Use(middleware.UseAuth(true), middleware.UseRole(constant.RoleAdmin))
@@ -36,23 +34,5 @@ func registerAIAgentRoutes(group *route.RouterGroup) {
 		admin.GET("/ai-agent-groups/:id", cc.GetGroup)
 		admin.PUT("/ai-agent-groups/:id/status", cc.SetGroupStatus)
 		admin.POST("/users/:id/ai", cc.ConvertUser)
-	}
-
-	// Runner 接口：只接受 AGENT_RUNNER_TOKEN，未配置时整体关闭；前端 rewrites 不转发这些路径
-	runner := group.Group("/agent-runner").Use(middleware.UseAgentRunner())
-	{
-		runner.POST("/lease", cc.Lease)
-		runner.POST("/runs/:id/heartbeat", cc.Heartbeat)
-		runner.POST("/runs/:id/complete", cc.Complete)
-		runner.POST("/llm/chat/completions", cc.LLMGateway)
-	}
-
-	// AI 用户的 MCP：只接受租约令牌，以该 AI 用户的身份执行
-	handler := adaptor.HertzHandler(mcpserver.NewAgentHandler())
-	agentMCP := group.Group("/agent-mcp").Use(middleware.UseAgentLease())
-	{
-		agentMCP.POST("", handler)
-		agentMCP.GET("", handler)
-		agentMCP.DELETE("", handler)
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/service"
 )
 
 const (
@@ -37,10 +38,8 @@ type decision struct {
 
 // execution 一次运行的上下文
 type execution struct {
-	backend    *backend
 	run        *dto.AgentLeaseRun
 	site       dto.AgentLeaseSite
-	session    *agentSession
 	trace      []dto.AgentTraceStep
 	imageURLs  map[string]bool // 本次 search_images 返回过的图片，set_avatar 只接受这些
 	fetchCount int
@@ -51,9 +50,9 @@ func (e *execution) step(name, detail string) {
 }
 
 // processRun 执行一次运行：预读 → 阅读（可选多步只读工具）→ 操作列表 → 执行 → 回报
-func processRun(ctx context.Context, b *backend, site dto.AgentLeaseSite, run *dto.AgentLeaseRun) {
-	e := &execution{backend: b, run: run, site: site, imageURLs: map[string]bool{}}
-	runCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+func processRun(ctx context.Context, site dto.AgentLeaseSite, run *dto.AgentLeaseRun) {
+	e := &execution{run: run, site: site, imageURLs: map[string]bool{}}
+	runCtx, cancel := context.WithTimeout(ctx, service.AgentRunMaxDuration)
 	defer cancel()
 	go e.keepAlive(runCtx)
 
@@ -66,14 +65,9 @@ func processRun(ctx context.Context, b *backend, site dto.AgentLeaseSite, run *d
 		result.Status, result.Error = "failed", err.Error()
 		logrus.Warnf("agent run %d failed: %v", run.RunID, err)
 	}
-	if e.session != nil {
-		e.session.close()
-	}
 	result.Trace = e.trace
-	completeCtx, cancelComplete := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancelComplete()
-	if err := b.complete(completeCtx, result); err != nil {
-		logrus.Warnf("complete agent run %d: %v", run.RunID, err)
+	if svcerr := service.NewAIAgentService().Complete(context.Background(), result); svcerr != nil {
+		logrus.Warnf("complete agent run %d: %v", run.RunID, svcerr)
 	}
 }
 
@@ -86,8 +80,8 @@ func (e *execution) keepAlive(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := e.backend.heartbeat(ctx, e.run.RunID); err != nil {
-				logrus.Warnf("heartbeat run %d: %v", e.run.RunID, err)
+			if _, svcerr := service.NewAIAgentService().Heartbeat(ctx, e.run.RunID); svcerr != nil {
+				logrus.Warnf("heartbeat run %d: %v", e.run.RunID, svcerr)
 			}
 		}
 	}
@@ -115,7 +109,7 @@ func (e *execution) preload(ctx context.Context) (*readPost, string) {
 		limit = expertBodyRunes
 	}
 	var post *readPost
-	if raw, err := e.session.call(ctx, "get_post", map[string]any{"post": fmt.Sprint(ref.ID), "version": "published"}); err == nil {
+	if raw, err := e.callTool(ctx, "get_post", map[string]any{"post": fmt.Sprint(ref.ID), "version": "published"}); err == nil {
 		var detail struct {
 			Content string `json:"content"`
 		}
@@ -135,7 +129,7 @@ func (e *execution) preload(ctx context.Context) (*readPost, string) {
 		args = map[string]any{"target": fmt.Sprintf("post:%d", ev.Comment.TargetID), "root_id": root, "limit": 30}
 	}
 	comments := ""
-	if raw, err := e.session.call(ctx, "list_comments", args); err == nil {
+	if raw, err := e.callTool(ctx, "list_comments", args); err == nil {
 		comments = formatComments(raw)
 		e.step("read_comments", fmt.Sprintf("%v", args["target"]))
 	}
@@ -181,11 +175,6 @@ func formatComments(raw string) string {
 
 // decide 阅读并得到操作列表
 func (e *execution) decide(ctx context.Context) (*decision, error) {
-	session, err := openSession(ctx, e.backend.cfg.BackendURL, e.run.LeaseToken)
-	if err != nil {
-		return nil, err
-	}
-	e.session = session
 	post, comments := e.preload(ctx)
 
 	user := materialPrompt(e.run, post, comments) + "\n\n" + personaPrompt(e.run) + "\n\n" + taskPrompt(e.run)
@@ -202,7 +191,7 @@ func (e *execution) decide(ctx context.Context) (*decision, error) {
 	} else if e.run.CanSelfEdit {
 		steps, allowed = ambientImageStep, []string{"search_images"}
 	}
-	tools := e.session.toolDefs(allowed)
+	tools := toolDefs(allowed)
 	if steps > 0 && e.run.Agent.Profile.WebFetch.Enabled && e.run.Agent.Tier == "expert" {
 		tools = append(tools, webFetchTool())
 	}
@@ -212,7 +201,7 @@ func (e *execution) decide(ctx context.Context) (*decision, error) {
 		if i >= steps {
 			useTools = nil // 最后一轮不再提供工具，要求直接给出结果
 		}
-		res, err := e.backend.chat(ctx, e.run.RunID, messages, useTools)
+		res, err := e.chat(ctx, messages, useTools)
 		if err != nil {
 			return nil, err
 		}
@@ -268,7 +257,7 @@ func (e *execution) callReadTool(ctx context.Context, call toolCall) string {
 	if !slices.Contains(readOnlyTools, name) {
 		return `{"error":"unknown tool"}`
 	}
-	out, err := e.session.call(ctx, name, args)
+	out, err := e.callTool(ctx, name, args)
 	if err != nil {
 		e.step("tool:"+name, "error: "+err.Error())
 		return fmt.Sprintf(`{"error":%q}`, err.Error())
@@ -367,7 +356,7 @@ func (e *execution) execute(ctx context.Context, actions []dto.AgentActionDto) [
 	return result
 }
 
-// apply 把一个动作映射为 MCP 写工具调用
+// apply 把一个动作映射为写工具调用
 func (e *execution) apply(ctx context.Context, a *dto.AgentActionDto) {
 	var name string
 	args := map[string]any{}
@@ -403,7 +392,7 @@ func (e *execution) apply(ctx context.Context, a *dto.AgentActionDto) {
 			args["kind"] = a.Kind
 		}
 	}
-	out, err := e.session.call(ctx, name, args)
+	out, err := e.callTool(ctx, name, args)
 	if err != nil {
 		a.Result, a.Detail = "error", err.Error()
 		return

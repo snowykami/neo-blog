@@ -53,7 +53,7 @@ type AIAgentGroup struct {
 
 func (AIAgentGroup) TableName() string { return "ai_agent_groups" }
 
-// AgentRun 一次唤醒或事件：既是 Runner 的待办，也是审计日志
+// AgentRun 一次唤醒或事件：既是 worker 的待办，也是审计日志
 type AgentRun struct {
 	ID               uint      `gorm:"primaryKey"`
 	CreatedAt        time.Time `gorm:"index"`
@@ -69,7 +69,7 @@ type AgentRun struct {
 	LeaseUntil       *time.Time
 	Attempts         int
 	SkipReason       string `gorm:"type:varchar(64)"`
-	Actions          string `gorm:"type:text"` // JSON：[]dto.AgentActionDto，Runner 回报的操作列表与执行结果
+	Actions          string `gorm:"type:text"` // JSON：[]dto.AgentActionDto，worker 回报的操作列表与执行结果
 	Effects          string `gorm:"type:text"` // JSON：[]dto.AgentEffectDto，后端记录的实际写入
 	Reason           string `gorm:"type:text"`
 	MemoryNote       string `gorm:"type:text"`

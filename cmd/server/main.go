@@ -54,7 +54,7 @@ func main() {
 	tasks.StartSessionCleanup()
 	// 定期清理超出保留上限的文章 / 页面历史版本
 	tasks.StartRevisionPrune()
-	// AI 用户：时间引擎唤醒、记忆整理与过期清理
+	// AI 用户：时间引擎唤醒、记忆整理与过期清理，并启动本实例执行任务的 worker
 	tasks.StartAIAgentScheduler()
 	// 每个实例定时上报运行时指标，控制台可按实例查看
 	tasks.StartRuntimeMetricsReporter()

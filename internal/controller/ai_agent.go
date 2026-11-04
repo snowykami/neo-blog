@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -13,7 +12,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
-// AIAgentController AI 用户的管理接口（管理员）与 Runner 接口
+// AIAgentController AI 用户的管理接口（管理员）
 type AIAgentController struct {
 	service *service.AIAgentService
 }
@@ -313,61 +312,4 @@ func (cc *AIAgentController) SetGroupStatus(ctx context.Context, c *app.RequestC
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
-}
-
-// ---------- Runner 接口 ----------
-
-func (cc *AIAgentController) Lease(ctx context.Context, c *app.RequestContext) {
-	req := &dto.AgentLeaseReq{}
-	if err := c.BindAndValidate(req); err != nil {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
-	resp, svcerr := cc.service.Lease(ctx, req)
-	if svcerr != nil {
-		resps.Error(c, svcerr)
-		return
-	}
-	resps.Ok(c, resps.Success, resp)
-}
-
-func (cc *AIAgentController) Heartbeat(ctx context.Context, c *app.RequestContext) {
-	id, ok := idParam(c)
-	if !ok {
-		return
-	}
-	until, svcerr := cc.service.Heartbeat(ctx, id)
-	if svcerr != nil {
-		resps.Error(c, svcerr)
-		return
-	}
-	resps.Ok(c, resps.Success, utils.H{"lease_expires_at": until})
-}
-
-func (cc *AIAgentController) Complete(ctx context.Context, c *app.RequestContext) {
-	req := &dto.AgentCompleteReq{}
-	if err := c.BindAndValidate(req); err != nil || req.ID == 0 {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
-	if svcerr := cc.service.Complete(ctx, req); svcerr != nil {
-		resps.Error(c, svcerr)
-		return
-	}
-	resps.Ok(c, resps.Success, nil)
-}
-
-// LLMGateway OpenAI 兼容的 chat/completions 转发，响应体为上游原样内容（不包统一响应结构）
-func (cc *AIAgentController) LLMGateway(ctx context.Context, c *app.RequestContext) {
-	runID, err := strconv.ParseUint(string(c.GetHeader("X-Agent-Run-ID")), 10, 64)
-	if err != nil || runID == 0 {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
-	status, body, svcerr := cc.service.LLMGateway(ctx, uint(runID), c.Request.Body())
-	if svcerr != nil {
-		resps.Error(c, svcerr)
-		return
-	}
-	c.Data(status, "application/json", body)
 }

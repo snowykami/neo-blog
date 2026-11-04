@@ -95,8 +95,7 @@ type AIAgentDto struct {
 type AIAgentStatsDto struct {
 	Enabled             bool  `json:"enabled"`       // 全站开关
 	AIConfigured        bool  `json:"ai_configured"` // 后台 AI 配置是否完整
-	RunnerConfigured    bool  `json:"runner_configured"`
-	RunnerOnline        bool  `json:"runner_online"` // 最近 2 分钟内有 Runner 领取过任务
+	RunnerOnline        bool  `json:"runner_online"` // 最近 2 分钟内有实例的 worker 在检查任务
 	Total               int64 `json:"total"`
 	Ambient             int64 `json:"ambient"`
 	Expert              int64 `json:"expert"`
@@ -339,12 +338,7 @@ type UpdateAIAgentGroupStatusReq struct {
 	Status string `json:"status"` // active / paused
 }
 
-// ---------- Runner 协议 ----------
-
-type AgentLeaseReq struct {
-	Max         int `json:"max"`
-	WaitSeconds int `json:"wait_seconds"`
-}
+// ---------- worker 领取的运行（见 internal/agentrunner） ----------
 
 type AgentPostRef struct {
 	ID           uint      `json:"id"`
@@ -424,7 +418,6 @@ type AgentLeaseRun struct {
 	Kind           string             `json:"kind"`
 	Trigger        string             `json:"trigger"`
 	DryRun         bool               `json:"dry_run"`
-	LeaseToken     string             `json:"lease_token"`
 	LeaseExpiresAt time.Time          `json:"lease_expires_at"`
 	Agent          AgentLeaseAgent    `json:"agent"`
 	Event          *AgentLeaseEvent   `json:"event,omitempty"`
@@ -441,13 +434,8 @@ type AgentLeaseSite struct {
 	BaseURL string `json:"base_url"`
 }
 
-type AgentLeaseResp struct {
-	Site AgentLeaseSite  `json:"site"`
-	Runs []AgentLeaseRun `json:"runs"`
-}
-
 type AgentCompleteReq struct {
-	ID         uint             `path:"id"`
+	ID         uint             `json:"id"`
 	Status     string           `json:"status"` // done / failed
 	Actions    []AgentActionDto `json:"actions"`
 	Reason     string           `json:"reason"`

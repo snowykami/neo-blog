@@ -24,7 +24,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// AIAgentService AI 用户：管理员管理、调度、Runner 协议、守卫与记忆。
+// AIAgentService AI 用户：管理员管理、调度、worker 的领取与回报、守卫与记忆。
 // AI 用户就是 is_ai = true 的普通账号，所有写操作都经过与普通用户相同的 service 权限判断，再额外经过 AgentGuard
 type AIAgentService struct{}
 
@@ -374,7 +374,6 @@ func (s *AIAgentService) Stats(ctx context.Context) (*dto.AIAgentStatsDto, *errs
 	stats := &dto.AIAgentStatsDto{
 		Enabled:             cfg.Enabled,
 		AIConfigured:        tools.GetAIConfig().Configured(),
-		RunnerConfigured:    utils.Env.Get(constant.EnvKeyAgentRunnerToken) != "",
 		CommentsPerDayLimit: cfg.CommentsPerDay,
 		LikesPerDayLimit:    cfg.LikesPerDay,
 		LLMCallsPerHour:     cfg.LLMCallsPerHour,

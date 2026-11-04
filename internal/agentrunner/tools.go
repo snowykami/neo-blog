@@ -6,17 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"html"
-	"net/http"
 	"net/url"
 	"regexp"
 	"slices"
 	"strings"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/snowykami/neo-blog/internal/mcpserver"
+	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
-// readOnlyTools 允许交给模型在阅读阶段调用的 MCP 工具（写工具只由执行器调用）
+// readOnlyTools 允许交给模型在阅读阶段调用的工具（写工具只由执行器调用）
 var readOnlyTools = []string{"get_post", "list_posts", "list_comments", "recall_memories", "search_images"}
 
 const (
@@ -26,83 +26,34 @@ const (
 	webFetchPerRun     = 2
 )
 
-// leaseTransport 给每个请求带上租约令牌
-type leaseTransport struct {
-	token string
-	base  http.RoundTripper
-}
-
-func (t *leaseTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.Clone(req.Context())
-	req.Header.Set("Authorization", "Bearer "+t.token)
-	return t.base.RoundTrip(req)
-}
-
-// agentSession 一次运行中以 AI 用户身份访问 MCP 的会话
-type agentSession struct {
-	session *mcp.ClientSession
-	tools   map[string]*mcp.Tool
-}
-
-func openSession(ctx context.Context, backendURL, leaseToken string) (*agentSession, error) {
-	client := mcp.NewClient(&mcp.Implementation{Name: "neo-blog-agent-runner", Version: "1.0.0"}, nil)
-	transport := &mcp.StreamableClientTransport{
-		Endpoint:             backendURL + "/api/v1/agent-mcp",
-		HTTPClient:           &http.Client{Transport: &leaseTransport{token: leaseToken, base: http.DefaultTransport}},
-		MaxRetries:           -1,
-		DisableStandaloneSSE: true,
+// callTool 以本次运行的 AI 用户身份调用工具，返回结构化结果的 JSON 文本。
+// 每次调用前确认运行仍在租约中、AI 用户未被暂停或禁用（见 service.AgentRunContext）
+func (e *execution) callTool(ctx context.Context, name string, args map[string]any) (string, error) {
+	tool := mcpserver.GetAgentTool(name)
+	if tool == nil {
+		return "", fmt.Errorf("unknown tool %s", name)
 	}
-	session, err := client.Connect(ctx, transport, nil)
-	if err != nil {
-		return nil, fmt.Errorf("connect agent mcp: %w", err)
+	agentCtx, svcerr := service.NewAIAgentService().AgentRunContext(ctx, e.run.RunID)
+	if svcerr != nil {
+		return "", errors.New(svcerr.Message)
 	}
-	list, err := session.ListTools(ctx, &mcp.ListToolsParams{})
-	if err != nil {
-		_ = session.Close()
-		return nil, fmt.Errorf("list tools: %w", err)
-	}
-	s := &agentSession{session: session, tools: map[string]*mcp.Tool{}}
-	for _, t := range list.Tools {
-		s.tools[t.Name] = t
-	}
-	return s, nil
-}
-
-func (s *agentSession) close() { _ = s.session.Close() }
-
-// call 调用工具，返回结构化结果的 JSON 文本；工具报错时返回 error
-func (s *agentSession) call(ctx context.Context, name string, args map[string]any) (string, error) {
-	res, err := s.session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+	data, err := json.Marshal(args)
 	if err != nil {
 		return "", err
 	}
-	text := ""
-	if res.StructuredContent != nil {
-		if data, err := json.Marshal(res.StructuredContent); err == nil {
-			text = string(data)
-		}
+	out, err := tool.Call(agentCtx, data)
+	if err != nil {
+		return "", errors.New(clip(err.Error(), 300))
 	}
-	if text == "" {
-		parts := make([]string, 0, len(res.Content))
-		for _, c := range res.Content {
-			if t, ok := c.(*mcp.TextContent); ok {
-				parts = append(parts, t.Text)
-			}
-		}
-		text = strings.Join(parts, "\n")
-	}
-	if res.IsError {
-		return "", errors.New(clip(text, 300))
-	}
-	return text, nil
+	return out, nil
 }
 
-// toolDefs 把只读 MCP 工具转为 OpenAI 兼容的函数定义
-func (s *agentSession) toolDefs(allowed []string) []toolDef {
+// toolDefs 把只读工具转为 OpenAI 兼容的函数定义
+func toolDefs(allowed []string) []toolDef {
 	defs := make([]toolDef, 0, len(allowed))
 	for _, name := range allowed {
-		t, ok := s.tools[name]
-		if !ok || !slices.Contains(readOnlyTools, name) {
+		t := mcpserver.GetAgentTool(name)
+		if t == nil || !t.ReadOnly {
 			continue
 		}
 		var d toolDef
@@ -110,15 +61,12 @@ func (s *agentSession) toolDefs(allowed []string) []toolDef {
 		d.Function.Name = t.Name
 		d.Function.Description = t.Description
 		d.Function.Parameters = t.InputSchema
-		if d.Function.Parameters == nil {
-			d.Function.Parameters = map[string]any{"type": "object", "properties": map[string]any{}}
-		}
 		defs = append(defs, d)
 	}
 	return defs
 }
 
-// webFetchTool Runner 本地的网页获取工具定义
+// webFetchTool 网页获取工具定义（由 worker 自己执行，经 SSRF 防护）
 func webFetchTool() toolDef {
 	var d toolDef
 	d.Type = "function"

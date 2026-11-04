@@ -56,10 +56,8 @@ spec:
             - name: REDIS_URL
               value: {{ .Values.redis.url | quote }}
             {{- end }}
-            {{- if .Values.agent.enabled }}
-            - name: AGENT_RUNNER_TOKEN
-              {{- include "neo-blog.agent.tokenValue" . | nindent 14 }}
-            {{- end }}
+            - name: AI_AGENT_WORKERS
+              value: {{ .Values.aiAgent.workers | quote }}
             {{- if and (or .Values.redis.existingSecret .Values.redis.url) .Values.redis.keyPrefix }}
             - name: REDIS_KEY_PREFIX
               value: {{ .Values.redis.keyPrefix | quote }}

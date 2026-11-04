@@ -89,25 +89,3 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
-
-{{/*
-Selector labels for AI agent runner
-*/}}
-{{- define "neo-blog.agent.selectorLabels" -}}
-{{- include "neo-blog.selectorLabels" . }}
-app.kubernetes.io/component: agent
-{{- end }}
-
-{{/*
-AI 用户 Runner 共享密钥的取值方式（value 或 valueFrom），后端与 Runner 共用
-*/}}
-{{- define "neo-blog.agent.tokenValue" -}}
-{{- if .Values.agent.existingSecret -}}
-valueFrom:
-  secretKeyRef:
-    name: {{ .Values.agent.existingSecret | quote }}
-    key: {{ .Values.agent.existingSecretKey | default "agent-runner-token" | quote }}
-{{- else -}}
-value: {{ required "启用 agent 时必须设置 agent.runnerToken 或 agent.existingSecret" .Values.agent.runnerToken | quote }}
-{{- end -}}
-{{- end }}

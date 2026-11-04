@@ -112,12 +112,10 @@ var APITokenScopes = []string{ScopePostsRead, ScopePostsWrite, ScopePostsPublish
 
 // AI 用户：由 Agent 驱动、与普通用户同权限的账号（users.is_ai = true）
 const (
-	// 以下权限范围只授予 AI 用户的租约令牌，不出现在个人 API Token 的可选范围里
+	// 以下权限范围只授予执行中的 AI 用户运行，不出现在个人 API Token 的可选范围里
 	ScopeCommentsWrite = "comments:write" // 发表评论 / 回复
 	ScopeLikesWrite    = "likes:write"    // 点赞 / 取消点赞
 	ScopeProfileWrite  = "profile:write"  // 修改自己的昵称、头像、背景、主题色
-
-	AgentLeaseTokenPrefix = "nba_" // 租约令牌前缀：绑定一次运行，几分钟后过期
 
 	AIAgentTierAmbient = "ambient" // 氛围型：一次调用给出操作列表
 	AIAgentTierExpert  = "expert"  // 专业型：可多步阅读（只读工具）后给出操作列表

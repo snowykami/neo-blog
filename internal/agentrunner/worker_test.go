@@ -1,4 +1,4 @@
-package apiv1
+package agentrunner
 
 import (
 	"context"
@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/snowykami/neo-blog/internal/agentrunner"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
@@ -22,16 +22,55 @@ import (
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
-// 端到端：真实的 Runner 经 Runner 接口领取任务、经 AI 用户的 MCP 读文章、经 LLM 网关调用（模拟的）模型、
-// 再由执行器经 MCP 点赞和评论，最后回报结果并写入记忆
-func TestAIAgentRunnerEndToEnd(t *testing.T) {
+// setupWorkerTest 初始化数据库（SQLite）与进程内共享状态
+func setupWorkerTest(t *testing.T) {
+	t.Helper()
 	sharedstate.UseMemory()
+	interval := pollInterval
+	pollInterval = 100 * time.Millisecond
+	t.Cleanup(func() { pollInterval = interval })
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
-	t.Setenv(constant.EnvKeyAgentRunnerToken, "runner-secret")
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)
 	}
+}
+
+// startWorkers 启动一组 worker（相当于一个实例），返回停止函数
+func startWorkers(t *testing.T, workers int) func() {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		workLoop(ctx, workers)
+		close(done)
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
+// waitRun 等待运行结束（完成或失败）
+func waitRun(t *testing.T, runID uint) *model.AgentRun {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		got, _ := repo.AIAgent.GetRun(runID)
+		if got.Status == constant.AgentRunStatusDone || got.Status == constant.AgentRunStatusFailed {
+			return got
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("run not finished: %+v", got)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// 端到端：后端进程内的 worker 领取任务、以 AI 用户身份读文章、调用（模拟的）模型，
+// 再由执行器点赞和评论，最后回报结果并写入记忆
+func TestAIAgentWorkerEndToEnd(t *testing.T) {
+	setupWorkerTest(t)
 
 	// 模拟 OpenAI 兼容的模型：检查后端替换了模型与密钥，返回操作列表
 	var mu sync.Mutex
@@ -108,44 +147,9 @@ func TestAIAgentRunnerEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	base := startRoutes(t, registerAIAgentRoutes)
-	root := strings.TrimSuffix(base, "/api/v1")
-
-	// Runner 接口与 AI 用户的 MCP 都拒绝错误的凭据
-	for path, token := range map[string]string{"/agent-runner/lease": "wrong", "/agent-mcp": "nbp_personal_token"} {
-		req, _ := http.NewRequest(http.MethodPost, base+path, strings.NewReader(`{}`))
-		req.Header.Set("Authorization", "Bearer "+token)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusUnauthorized {
-			t.Fatalf("%s with bad token: status %d", path, resp.StatusCode)
-		}
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		done <- agentrunner.Run(ctx, agentrunner.Config{BackendURL: root, RunnerToken: "runner-secret", Concurrency: 1, LeaseWait: time.Second})
-	}()
-	deadline := time.Now().Add(30 * time.Second)
-	for {
-		got, _ := repo.AIAgent.GetRun(run.ID)
-		if got.Status == constant.AgentRunStatusDone || got.Status == constant.AgentRunStatusFailed {
-			break
-		}
-		if time.Now().After(deadline) {
-			cancel()
-			t.Fatalf("run not finished: %+v", got)
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	cancel()
-	<-done
-
-	got, _ := repo.AIAgent.GetRun(run.ID)
+	stop := startWorkers(t, 1)
+	defer stop()
+	got := waitRun(t, run.ID)
 	if got.Status != constant.AgentRunStatusDone {
 		t.Fatalf("run failed: %s", got.Error)
 	}
@@ -170,7 +174,11 @@ func TestAIAgentRunnerEndToEnd(t *testing.T) {
 	if !liked[postID] {
 		t.Fatal("post should be liked by the ai user")
 	}
-	memories, _, _ := service.NewAIAgentService().ListMemories(adminCtx, &dto.ListAgentMemoriesReq{ID: agent.ID, PaginationParams: dto.PaginationParams{Page: 1, Size: 10}})
+	// 记忆在运行标记完成后写入
+	var memories []dto.AgentMemoryDto
+	for deadline := time.Now().Add(5 * time.Second); len(memories) == 0 && time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		memories, _, _ = service.NewAIAgentService().ListMemories(adminCtx, &dto.ListAgentMemoriesReq{ID: agent.ID, PaginationParams: dto.PaginationParams{Page: 1, Size: 10}})
+	}
 	if len(memories) == 0 || !strings.Contains(memories[0].Content, "离线 IP 库") {
 		t.Fatalf("memories = %+v", memories)
 	}
@@ -191,21 +199,8 @@ func TestAIAgentRunnerEndToEnd(t *testing.T) {
 	if err := repo.AIAgent.CreateRun(run2); err != nil {
 		t.Fatal(err)
 	}
-	ctx2, cancel2 := context.WithCancel(context.Background())
-	done2 := make(chan error, 1)
-	go func() {
-		done2 <- agentrunner.Run(ctx2, agentrunner.Config{BackendURL: root, RunnerToken: "runner-secret", Concurrency: 1, LeaseWait: time.Second})
-	}()
-	deadline = time.Now().Add(30 * time.Second)
-	for {
-		got, _ = repo.AIAgent.GetRun(run2.ID)
-		if got.Status == constant.AgentRunStatusDone || got.Status == constant.AgentRunStatusFailed || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	cancel2()
-	<-done2
+	// 直接写库的任务没有入队通知，由 worker 的定期检查领取
+	got = waitRun(t, run2.ID)
 	if got.Status != constant.AgentRunStatusDone || got.LLMCalls != 2 || !strings.Contains(got.Trace, "tool:list_comments") {
 		t.Fatalf("expert run = %+v", got)
 	}
@@ -216,5 +211,59 @@ func TestAIAgentRunnerEndToEnd(t *testing.T) {
 	reply, _ := repo.Comment.GetComment(actions[0].CommentID)
 	if reply.ReplyID != replyTarget || reply.UserID != expert.User.ID {
 		t.Fatalf("reply = %+v", reply)
+	}
+}
+
+// 多副本：两个实例的 worker 同时运行，任务都能完成且每个只执行一次
+func TestAIAgentWorkersAcrossInstances(t *testing.T) {
+	setupWorkerTest(t)
+	var calls atomic.Int32
+	llm := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		// 模型稍慢一些，让两个实例都有机会领到任务
+		time.Sleep(200 * time.Millisecond)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{"message": map[string]any{"role": "assistant", "content": `{"actions":[],"reason":"没什么想说的","memory_note":""}`}}},
+		})
+	}))
+	defer llm.Close()
+	for k, v := range map[string]any{"ai_agents_enabled": true, "ai_api_base_url": llm.URL, "ai_api_key": "sk-test", "ai_model": "site-model"} {
+		if err := repo.KV.SetKV(k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	admin := &model.User{Username: "admin", Email: "admin@test.local", Role: constant.RoleAdmin}
+	repo.GetDB().Create(admin)
+	adminCtx := context.WithValue(context.Background(), "user_id", admin.ID)
+	post := &model.Post{UserID: admin.ID, PostBase: model.PostBase{Title: "多副本", Content: "<p>正文</p>"}}
+	repo.GetDB().Create(post)
+
+	runIDs := make([]uint, 0, 4)
+	for i := range 4 {
+		profile := service.DefaultAIAgentProfile(constant.AIAgentTierAmbient)
+		profile.SelfEdit.Enabled = false
+		agent, svcerr := service.NewAIAgentService().Create(adminCtx, &dto.CreateAIAgentReq{Username: fmt.Sprintf("ai_%d", i), Nickname: fmt.Sprintf("AI %d", i), Profile: &profile})
+		if svcerr != nil {
+			t.Fatal(svcerr)
+		}
+		run := &model.AgentRun{AgentID: agent.ID, Kind: constant.AgentRunKindBrowse, Trigger: constant.AgentTriggerBrowse,
+			Feed: fmt.Sprintf("[%d]", post.ID), Status: constant.AgentRunStatusQueued, ScheduledAt: time.Now()}
+		if err := repo.AIAgent.CreateRun(run); err != nil {
+			t.Fatal(err)
+		}
+		runIDs = append(runIDs, run.ID)
+	}
+
+	stopA := startWorkers(t, 1)
+	stopB := startWorkers(t, 1)
+	for _, id := range runIDs {
+		if got := waitRun(t, id); got.Status != constant.AgentRunStatusDone || got.Attempts != 1 || got.LLMCalls != 1 {
+			t.Fatalf("run %d = %+v", id, got)
+		}
+	}
+	stopA()
+	stopB()
+	if n := calls.Load(); n != int32(len(runIDs)) {
+		t.Fatalf("llm called %d times for %d runs", n, len(runIDs))
 	}
 }

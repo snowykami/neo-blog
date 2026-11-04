@@ -51,7 +51,7 @@ export function AIAgentStatsCards({ stats }: { stats: AIAgentStats | null }) {
     max > 0 ? `${format(used)} / ${format(max)}` : `${format(used)}`
   return (
     <div className="grid gap-4">
-      {(!stats.enabled || !stats.aiConfigured || !stats.runnerConfigured) && (
+      {(!stats.enabled || !stats.aiConfigured) && (
         <Alert>
           <TriangleAlert />
           <AlertTitle>{!stats.enabled ? t('stats.disabled_title') : t('stats.not_ready_title')}</AlertTitle>
@@ -59,7 +59,6 @@ export function AIAgentStatsCards({ stats }: { stats: AIAgentStats | null }) {
             <ul className="list-inside list-disc">
               {!stats.enabled && <li>{t('stats.disabled_hint')}</li>}
               {!stats.aiConfigured && <li>{t('stats.ai_not_configured')}</li>}
-              {!stats.runnerConfigured && <li>{t('stats.runner_not_configured')}</li>}
             </ul>
             <Button size="sm" variant="outline" className="mt-2" asChild>
               <Link href={AI_SETTINGS_URL}>
