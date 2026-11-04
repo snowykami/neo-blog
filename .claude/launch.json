@@ -268,6 +268,38 @@
       "port": 8766
     },
     {
+      "name": "backend-visittrust",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-visittrust && MODE=dev PORT=18960 DB_PATH=/tmp/neo-visittrust/data.db ENABLE_REGISTER=true ENABLE_EMAIL_VERIFY=false BASE_URL=http://localhost:3180 exec /tmp/neo-visittrust/server"
+      ],
+      "port": 18960
+    },
+    {
+      "name": "web-visittrust",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-visittrust/web && export BACKEND_URL=http://127.0.0.1:18960 && exec ./node_modules/.bin/next dev --turbopack -p 3180"
+      ],
+      "port": 3180
+    },
+    {
+      "name": "visitor-log-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8767",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "docs/prototypes/visitor-log"
+      ],
+      "port": 8767
+    },
+    {
       "name": "backend-mcp",
       "runtimeExecutable": "/bin/sh",
       "runtimeArgs": [
@@ -347,6 +379,107 @@
         "cd /tmp/neo-lyricver/web && export BACKEND_URL=http://127.0.0.1:18940 && exec pnpm start -p 3160"
       ],
       "port": 3160
+    },
+    {
+      "name": "backend-likes",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-likes && MODE=dev PORT=18970 DB_PATH=/tmp/neo-likes/data.db ENABLE_REGISTER=true ENABLE_EMAIL_VERIFY=false BASE_URL=http://localhost:3190 exec /tmp/neo-likes/server"
+      ],
+      "port": 18970
+    },
+    {
+      "name": "web-likes",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-likes/web && export BACKEND_URL=http://127.0.0.1:18970 && exec pnpm start -p 3190"
+      ],
+      "port": 3190
+    },
+    {
+      "name": "comment-redesign-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8768",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "docs/prototypes/comment-redesign"
+      ],
+      "port": 8768
+    },
+    {
+      "name": "backend-envcfg",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-envcfg && MODE=dev PORT=18950 DB_PATH=/tmp/neo-envcfg/data.db ENABLE_REGISTER=true ENABLE_EMAIL_VERIFY=false BASE_URL=http://localhost:3170 CAPTCHA_PROVIDER=disable exec /tmp/neo-envcfg/server"
+      ],
+      "port": 18950
+    },
+    {
+      "name": "web-envcfg",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-envcfg/web && export BACKEND_URL=http://127.0.0.1:18950 && exec ./node_modules/.bin/next dev --turbopack -p 3170"
+      ],
+      "port": 3170
+    },
+    {
+      "name": "heartbeat-signal-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8769",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "docs/prototypes/heartbeat-signal"
+      ],
+      "port": 8769
+    },
+    {
+      "name": "web-localdb-preview",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /tmp/neo-visittrust/web && export BACKEND_URL=http://127.0.0.1:8888 && exec ./node_modules/.bin/next dev --turbopack -p 3181"
+      ],
+      "port": 3181
+    },
+    {
+      "name": "rhythm-effects-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8770",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "docs/prototypes/rhythm-effects"
+      ],
+      "port": 8770
+    },
+    {
+      "name": "ai-agents-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8772",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "docs/prototypes/ai-agents"
+      ],
+      "port": 8772
     }
   ]
 }
