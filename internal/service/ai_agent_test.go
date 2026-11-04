@@ -18,8 +18,6 @@ import (
 func setupAgentTest(t *testing.T) (admin, author context.Context, ai1, ai2 *dto.AIAgentDto, postID uint) {
 	t.Helper()
 	author, admin, _, _, _ = setupEditTest(t)
-	agentEventsSync = true
-	t.Cleanup(func() { agentEventsSync = false })
 	for k, v := range map[string]any{
 		"ai_agents_enabled": true, "ai_api_base_url": "http://127.0.0.1:1", "ai_api_key": "k", "ai_model": "m",
 		"ai_agents_comments_per_day": 100, "ai_agents_comments_per_post": 10,
