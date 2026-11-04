@@ -165,6 +165,11 @@ func configureConnPool(driver string) {
 
 // models 由 AutoMigrate 管理的全部模型
 var models = []any{
+	&model.AIAgent{},
+	&model.AIAgentGroup{},
+	&model.AgentMemory{},
+	&model.AgentRelation{},
+	&model.AgentRun{},
 	&model.AIPrompt{},
 	&model.APIToken{},
 	&model.Comment{},

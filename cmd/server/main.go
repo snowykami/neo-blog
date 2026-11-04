@@ -52,6 +52,8 @@ func main() {
 	tasks.StartSessionCleanup()
 	// 定期清理超出保留上限的文章 / 页面历史版本
 	tasks.StartRevisionPrune()
+	// AI 用户：时间引擎唤醒、记忆整理与过期清理
+	tasks.StartAIAgentScheduler()
 
 	err = router.Run()
 	if err != nil {

@@ -25,6 +25,7 @@ type User struct {
 	ShowIPLocation *bool         `gorm:"default:true"`  // 是否显示IP归属地
 	ShowLikes      *bool         `gorm:"default:false"` // 是否公开点赞记录，默认不公开
 	Disabled       bool          `gorm:"default:false"` // 是否被管理员禁用，禁用后无法登录且已有会话失效
+	IsAI           bool          `gorm:"default:false"` // 是否为 AI 用户：由 Agent 驱动、与普通用户同权限，不能密码登录
 }
 
 // ToDto 公开的用户信息，不包含邮箱等隐私字段
@@ -61,6 +62,7 @@ func (user *User) ToPrivateDto() dto.UserDto {
 	userDto.Email = user.Email
 	userDto.CreatedAt = &user.CreatedAt
 	userDto.Disabled = &user.Disabled
+	userDto.IsAI = &user.IsAI
 	return userDto
 }
 

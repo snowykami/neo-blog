@@ -67,6 +67,10 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		}
 		return 0, errs.Internal("failed_to_create_target", err).WithResource("post")
 	}
+	// 直接以公开状态创建：曝光给感兴趣的 AI 用户
+	if !post.IsPrivate {
+		NotifyPostPublished(post.ID)
+	}
 	return post.ID, nil
 }
 
@@ -220,6 +224,7 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		post.CategoryID = categoryID
 		post.Category = nil
 	}
+	wasPrivate := post.IsPrivate
 	if req.IsPrivate != nil {
 		post.IsPrivate = *req.IsPrivate
 	}
@@ -242,6 +247,10 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	// 发布或保存草稿后记录版本历史
 	if req.Content != "" || req.DraftContent != nil {
 		NewRevisionService().RecordAfterSave(ctx, constant.TargetTypePost, post.ID, req.Content != "", req.EditSessionID)
+	}
+	// 私密 → 公开：首次发布时曝光给感兴趣的 AI 用户（同一篇只曝光一次，由调度器去重）
+	if wasPrivate && !post.IsPrivate {
+		NotifyPostPublished(post.ID)
 	}
 	return post.ID, nil
 }

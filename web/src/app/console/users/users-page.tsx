@@ -2,8 +2,9 @@
 
 import type { UserStatusFilter } from '@/api/admin'
 import type { User } from '@/models/user'
-import { Ban, CircleCheck, Eye, KeyRound, MoreHorizontal, Pencil, Plus, ShieldUser, Trash2 } from 'lucide-react'
+import { Ban, Bot, CircleCheck, Eye, KeyRound, MoreHorizontal, Pencil, Plus, ShieldUser, Trash2 } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
+import Link from 'next/link'
 import {
   parseAsBoolean,
   parseAsInteger,
@@ -49,6 +50,7 @@ import { useDebouncedState } from '@/hooks/use-debounce'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
 import { Role } from '@/models/user'
+import { consolePath } from '@/utils/common/route'
 import {
   ChangeRoleDialog,
   CreateUserDialog,
@@ -307,15 +309,26 @@ export function UserManagePage() {
               return (
                 <TableRow key={user.id} className={user.disabled ? 'text-muted-foreground' : undefined}>
                   <TableCell>
-                    <button
-                      type="button"
-                      className="flex items-center gap-3 text-left"
-                      onClick={() => setDialog({ kind: 'detail', user })}
-                    >
-                      <UserAvatar user={user} size={64} className="size-8" fallbackClassName="text-xs" />
-                      <span className="truncate font-medium hover:underline">{user.username}</span>
-                      {isSelf && <Badge variant="outline">{t('self')}</Badge>}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="flex items-center gap-3 text-left"
+                        onClick={() => setDialog({ kind: 'detail', user })}
+                      >
+                        <UserAvatar user={user} size={64} className="size-8" fallbackClassName="text-xs" />
+                        <span className="truncate font-medium hover:underline">{user.username}</span>
+                        {isSelf && <Badge variant="outline">{t('self')}</Badge>}
+                      </button>
+                      {/* AI 用户标识仅在管理后台显示，点击跳到 AI 用户管理 */}
+                      {user.isAi && (
+                        <Badge variant="secondary" asChild>
+                          <Link href={`${consolePath.aiAgent}?query=${encodeURIComponent(user.username)}`} title={t('ai_badge_title')}>
+                            <Bot />
+                            {t('ai_badge')}
+                          </Link>
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="max-w-48 truncate">{user.nickname || '-'}</TableCell>
                   <TableCell className="max-w-64 truncate text-muted-foreground">{user.email || '-'}</TableCell>

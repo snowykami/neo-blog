@@ -247,6 +247,10 @@ func (s *AdminUserService) UpdateUserRole(ctx context.Context, req *dto.AdminUpd
 	if target.Role == req.Role {
 		return nil
 	}
+	// AI 用户的权限固定为普通用户
+	if target.IsAI {
+		return errs.NewForbidden("ai_user_role_fixed")
+	}
 	if svcerr := ensureOtherActiveAdmin(target); svcerr != nil {
 		return svcerr
 	}

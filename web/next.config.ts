@@ -13,8 +13,9 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: '/api/v1/:path*',
-        destination: `${BACKEND_URL}/api/v1/:path*`,
+        // AI 用户 Runner 的接口与 AI 用户专用 MCP 只供 Runner 直连后端，不经前端转发
+        source: '/api/v1/:path((?!agent-runner(?:/|$)|agent-mcp(?:/|$)).*)',
+        destination: `${BACKEND_URL}/api/v1/:path`,
       },
     ]
   },

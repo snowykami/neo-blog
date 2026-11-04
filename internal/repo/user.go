@@ -238,6 +238,9 @@ func (user *userRepo) DeleteUser(userID, transferTo uint) error {
 				return err
 			}
 		}
+		if err := deleteUserAIData(tx, userID); err != nil {
+			return err
+		}
 		return tx.Unscoped().Delete(&model.User{}, userID).Error
 	})
 }

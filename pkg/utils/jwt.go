@@ -28,6 +28,11 @@ var DefaultJwtDurations = JwtDurations{
 	RefreshRemember: 30 * 24 * time.Hour,
 }
 
+// SigningSecret 令牌签名密钥（JWT_SECRET，未设置时为本进程的随机值），其他自签令牌由它派生密钥
+func (j *jwtUtils) SigningSecret() string {
+	return Env.Get(constant.EnvKeyJwtSecrete, defaultJwtKey)
+}
+
 type jwtUtils struct {
 	// Durations 返回当前有效期，启动时注入（读取后台配置，pkg 不依赖 internal）；未注入时用默认值
 	Durations func() JwtDurations

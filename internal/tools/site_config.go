@@ -182,3 +182,47 @@ func GetAuthDurations() utils.JwtDurations {
 		RefreshRemember: pick("refresh_token_remember_days", day),
 	}
 }
+
+// AIAgentConfig AI 用户的全站配置
+type AIAgentConfig struct {
+	Enabled            bool
+	ModelAmbient       string // 留空时使用 ai_model
+	ModelExpert        string
+	LLMCallsPerHour    int
+	MonthlyTokenBudget int // 0 为不限
+	CommentsPerDay     int
+	LikesPerDay        int
+	CommentsPerPost    int
+	AIRatio            float64
+	PublishFanout      int
+	QuietHours         string
+	MaxChainDepth      int
+	PairExchanges      int
+	ProfileSelfEdit    bool
+	MemoryDaysAmbient  int
+	MemoryDaysExpert   int
+	RunRetentionDays   int
+}
+
+// GetAIAgentConfig 读取 AI 用户的全站配置
+func GetAIAgentConfig() AIAgentConfig {
+	return AIAgentConfig{
+		Enabled:            config.Bool("ai_agents_enabled"),
+		ModelAmbient:       strings.TrimSpace(config.String("ai_agent_model_ambient")),
+		ModelExpert:        strings.TrimSpace(config.String("ai_agent_model_expert")),
+		LLMCallsPerHour:    config.Int("ai_agents_llm_calls_per_hour"),
+		MonthlyTokenBudget: config.Int("ai_agents_monthly_token_budget"),
+		CommentsPerDay:     config.Int("ai_agents_comments_per_day"),
+		LikesPerDay:        config.Int("ai_agents_likes_per_day"),
+		CommentsPerPost:    config.Int("ai_agents_comments_per_post"),
+		AIRatio:            config.Float("ai_agents_ai_ratio"),
+		PublishFanout:      config.Int("ai_agents_publish_fanout"),
+		QuietHours:         strings.TrimSpace(config.String("ai_agents_quiet_hours")),
+		MaxChainDepth:      config.Int("ai_agents_max_chain_depth"),
+		PairExchanges:      config.Int("ai_agents_pair_exchanges"),
+		ProfileSelfEdit:    config.Bool("ai_agents_profile_self_edit"),
+		MemoryDaysAmbient:  config.Int("ai_agents_memory_days_ambient"),
+		MemoryDaysExpert:   config.Int("ai_agents_memory_days_expert"),
+		RunRetentionDays:   config.Int("ai_agents_run_retention_days"),
+	}
+}

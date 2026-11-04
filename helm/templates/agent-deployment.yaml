@@ -1,0 +1,51 @@
+{{- if .Values.agent.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "neo-blog.fullname" . }}-agent
+  labels:
+    {{- include "neo-blog.agent.selectorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.agent.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "neo-blog.agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "neo-blog.agent.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "neo-blog.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}-agent
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # 与后端同一镜像，只是入口换成 Runner
+          image: "{{ .Values.image.registry }}/{{ .Values.image.backend }}:{{ .Values.image.backendTag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["./agent"]
+          env:
+            # 直连集群内的后端 Service，不经过前端与 Ingress
+            - name: AGENT_BACKEND_URL
+              value: "http://{{ include "neo-blog.fullname" . }}-backend:{{ .Values.service.port }}"
+            - name: AGENT_CONCURRENCY
+              value: {{ .Values.agent.concurrency | quote }}
+            - name: AGENT_RUNNER_TOKEN
+              {{- include "neo-blog.agent.tokenValue" . | nindent 14 }}
+            - name: LOG_LEVEL
+              value: {{ .Values.backend.env.LOG_LEVEL | default "info" | quote }}
+          {{- with .Values.agent.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

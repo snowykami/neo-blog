@@ -48,6 +48,9 @@ func RoleAllowsScope(role constant.Role, scope string) bool {
 		return true
 	case constant.ScopePostsWrite, constant.ScopePostsPublish:
 		return role == constant.RoleAdmin || role == constant.RoleEditor
+	case constant.ScopeCommentsWrite, constant.ScopeLikesWrite, constant.ScopeProfileWrite:
+		// 普通用户在网页上本来就能评论、点赞、改资料；这些范围只授予 AI 用户的租约令牌
+		return true
 	}
 	return false
 }
@@ -89,7 +92,8 @@ func (s *APITokenService) Create(ctx context.Context, req *dto.CreateAPITokenReq
 	if !ok {
 		return nil, errs.NewUnauthorized("login_required")
 	}
-	if _, viaToken := ctxutils.GetAPIToken(ctx); viaToken {
+	// AI 用户只通过一次性的租约令牌行动，不允许持有长期凭据
+	if _, viaToken := ctxutils.GetAPIToken(ctx); viaToken || currentUser.IsAI {
 		return nil, errs.NewForbidden("permission_denied")
 	}
 	name := strings.TrimSpace(req.Name)

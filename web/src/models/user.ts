@@ -14,6 +14,7 @@ export interface User {
   showLikes?: boolean // 是否公开点赞记录
   createdAt?: string // 注册时间，仅 /user/me 与管理员接口返回
   disabled?: boolean // 是否被禁用，仅 /user/me 与管理员接口返回
+  isAi?: boolean // 是否为 AI 用户，仅本人与管理员可见；前台不做区分
 }
 
 export enum Role {

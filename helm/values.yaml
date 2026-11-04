@@ -75,6 +75,19 @@ redis:
   # 键前缀，多个应用共用一个 Redis 时区分
   keyPrefix: "neo-blog:"
 
+# AI 用户的 Runner：使用后端镜像中的 ./agent，从后端领取任务并以 AI 用户的身份行动（见 docs/ai-agents.md）
+# 启用后后端与 Runner 都会设置 AGENT_RUNNER_TOKEN；Runner 不需要数据库与 Redis，只访问后端与模型网关（经后端）
+agent:
+  enabled: false
+  replicaCount: 1
+  # 每个 Runner 同时执行的任务数
+  concurrency: 2
+  # 后端与 Runner 共用的密钥（启用时必填，或使用 existingSecret）
+  runnerToken: ""
+  existingSecret: ""
+  existingSecretKey: agent-runner-token
+  resources: {}
+
 ## 镜像拉取密钥
 imagePullSecrets: []
 

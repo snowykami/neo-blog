@@ -2,6 +2,7 @@ import type { User } from '@/models/user'
 import type { IconType } from '@/types/icon'
 import {
   AudioLines,
+  Bot,
   ChartBarStackedIcon,
   ChartPie,
   Database,
@@ -10,6 +11,7 @@ import {
   Gauge,
   IdCard,
   KeyRound,
+  ListTree,
   MessageCircle,
   Newspaper,
   NotebookText,
@@ -56,6 +58,9 @@ const files: SidebarItem = { id: 'files', title: 'files.title', tabTitle: 'menu.
 const storages: SidebarItem = { id: 'storages', title: 'storages.title', url: consolePath.storage, icon: Database, permission: isAdmin }
 const globalSettings: SidebarItem = { id: 'global', title: 'global.title', url: consolePath.global, icon: Settings, permission: isAdmin }
 const users: SidebarItem = { id: 'users', title: 'users.title', url: consolePath.user, icon: Users, permission: isAdmin }
+// AI 用户（由 Agent 驱动的普通账号）与行为日志：仅管理员可见
+const aiAgents: SidebarItem = { id: 'ai_agents', title: 'ai_agents.title', tabTitle: 'ai_agents.tab_agents', url: consolePath.aiAgent, icon: Bot, permission: isAdmin }
+const aiAgentRuns: SidebarItem = { id: 'ai_agent_runs', title: 'ai_agents.runs.title', url: consolePath.aiAgentRun, icon: ListTree, permission: isAdmin }
 const oidc: SidebarItem = { id: 'oidc', title: 'oidc.title', url: consolePath.oidc, icon: IdCard, permission: isAdmin }
 const userProfile: SidebarItem = { id: 'user_profile', title: 'user_profile.title', url: consolePath.userProfile, icon: UserPen, permission: () => true }
 const userSecurity: SidebarItem = { id: 'user_security', title: 'user_security.title', url: consolePath.userSecurity, icon: ShieldCheck, permission: () => true }
@@ -79,6 +84,7 @@ export const sidebarData: {
   navSystem: [
     { id: 'global', title: 'global.title', icon: Settings, items: [globalSettings] },
     { id: 'accounts', title: 'menu.accounts', icon: Users, items: [users, oidc] },
+    { id: 'ai_agents', title: 'ai_agents.title', icon: Bot, items: [aiAgents, aiAgentRuns] },
   ],
   navPersonal: [
     { id: 'personal', title: 'menu.personal_settings', icon: UserPen, items: [userProfile, userSecurity, userPreference, apiTokens] },
@@ -101,18 +107,20 @@ export function permittedItems(menu: SidebarMenu, user: User): SidebarItem[] {
 
 /**
  * 根据路径匹配控制台页面及其所属菜单；子路由（如 /console/posts/edit/1）归属于其父页面
- * 仪表盘路径为 /console，只做精确匹配，避免吞掉所有子路由
+ * 仪表盘路径为 /console，只做精确匹配，避免吞掉所有子路由；
+ * 页面路径互为前缀时（如 /console/ai-agents 与 /console/ai-agents/runs）优先精确匹配，其次取最长的前缀
  */
 export function matchSidebarItem(pathname: string): { menu: SidebarMenu, item: SidebarItem } | undefined {
+  let matched: { menu: SidebarMenu, item: SidebarItem } | undefined
   for (const menu of allSidebarMenus) {
-    const item = menu.items.find(item =>
-      pathname === item.url
-      || (item.url !== consolePath.dashboard && pathname.startsWith(`${item.url}/`)),
-    )
-    if (item)
-      return { menu, item }
+    for (const item of menu.items) {
+      if (pathname === item.url)
+        return { menu, item }
+      if (item.url !== consolePath.dashboard && pathname.startsWith(`${item.url}/`) && (!matched || item.url.length > matched.item.url.length))
+        matched = { menu, item }
+    }
   }
-  return undefined
+  return matched
 }
 
 // 当前用户有权限访问的第一个页面，用于无权访问仪表盘时的跳转

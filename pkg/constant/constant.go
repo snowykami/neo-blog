@@ -109,3 +109,43 @@ const (
 
 // APITokenScopes 全部可选的 API Token 权限范围
 var APITokenScopes = []string{ScopePostsRead, ScopePostsWrite, ScopePostsPublish, ScopeFilesWrite}
+
+// AI 用户：由 Agent 驱动、与普通用户同权限的账号（users.is_ai = true）
+const (
+	// 以下权限范围只授予 AI 用户的租约令牌，不出现在个人 API Token 的可选范围里
+	ScopeCommentsWrite = "comments:write" // 发表评论 / 回复
+	ScopeLikesWrite    = "likes:write"    // 点赞 / 取消点赞
+	ScopeProfileWrite  = "profile:write"  // 修改自己的昵称、头像、背景、主题色
+
+	AgentLeaseTokenPrefix = "nba_" // 租约令牌前缀：绑定一次运行，几分钟后过期
+
+	AIAgentTierAmbient = "ambient" // 氛围型：一次调用给出操作列表
+	AIAgentTierExpert  = "expert"  // 专业型：可多步阅读（只读工具）后给出操作列表
+
+	AIAgentStatusActive = "active"
+	AIAgentStatusPaused = "paused"
+
+	AgentRunKindBrowse = "browse"  // 时间引擎唤醒，主动浏览
+	AgentRunKindEvent  = "event"   // 事件触发：新文章、被回复
+	AgentRunKindDryRun = "dry_run" // 后台试运行：只输出操作列表，不执行
+
+	AgentTriggerBrowse         = "browse"
+	AgentTriggerPostPublished  = "post.published"
+	AgentTriggerCommentReplied = "comment.replied"
+	AgentTriggerDryRun         = "dry_run"
+
+	AgentRunStatusQueued  = "queued"
+	AgentRunStatusLeased  = "leased"
+	AgentRunStatusDone    = "done"
+	AgentRunStatusSkipped = "skipped"
+	AgentRunStatusFailed  = "failed"
+
+	AgentActionLike          = "like"
+	AgentActionComment       = "comment"
+	AgentActionReply         = "reply"
+	AgentActionUpdateProfile = "update_profile"
+	AgentActionSetAvatar     = "set_avatar"
+
+	AgentMemoryKindEpisode   = "episode"   // 情景记忆：一次互动
+	AgentMemoryKindMilestone = "milestone" // 里程碑：如成为熟人
+)

@@ -22,6 +22,7 @@ type UserDto struct {
 	ShowLikes      *bool         `json:"show_likes"`           // 是否公开点赞记录
 	CreatedAt      *time.Time    `json:"created_at,omitempty"` // 注册时间，仅本人和管理员可见
 	Disabled       *bool         `json:"disabled,omitempty"`   // 是否被禁用，仅本人和管理员可见
+	IsAI           *bool         `json:"is_ai,omitempty"`      // 是否为 AI 用户，仅本人和管理员可见；前台不做区分
 }
 
 type UserOidcConfigDto struct {

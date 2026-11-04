@@ -73,6 +73,10 @@ func (s *UserService) UserLogin(req *dto.UserLoginReq) (*dto.UserLoginResp, *err
 		return nil, errs.NewBadRequest("invalid_credentials")
 	}
 	utils.ResetFailures(accountKey)
+	// AI 用户不能密码登录，只能由 Runner 以租约令牌行动；与密码错误返回相同错误，不暴露账号类型
+	if user.IsAI {
+		return nil, errs.NewBadRequest("invalid_credentials")
+	}
 	if user.Disabled {
 		return nil, errs.NewForbidden("user_disabled")
 	}

@@ -141,6 +141,26 @@ var sections = []*Section{
 		{Key: "ai_writing_style", Type: TypeText, Label: "ai_writing_style", Description: "ai_writing_style_desc", PlaceholderKey: "ai_writing_style_placeholder", Rows: 6, Wide: true, Default: ""},
 		{Key: "lyric_annotation_ttl_days", Type: TypeInt, Label: "lyric_annotation_ttl_days", Description: "lyric_annotation_ttl_days_desc", Min: num(1), Max: num(365), Default: 7},
 	}},
+	// AI 用户：由 Agent 驱动、与普通用户同权限的账号；模型使用上面的 AI 配置
+	{Tab: "ai", Key: "ai_agents", Title: "section_ai_agents", Description: "section_ai_agents_desc", Items: []*Item{
+		{Key: "ai_agents_enabled", Type: TypeBool, Label: "ai_agents_enabled", Description: "ai_agents_enabled_desc", Default: false},
+		{Key: "ai_agent_model_ambient", Type: TypeString, Label: "ai_agent_model_ambient", Description: "ai_agent_model_ambient_desc", Default: ""},
+		{Key: "ai_agent_model_expert", Type: TypeString, Label: "ai_agent_model_expert", Description: "ai_agent_model_expert_desc", Default: ""},
+		{Key: "ai_agents_llm_calls_per_hour", Type: TypeInt, Label: "ai_agents_llm_calls_per_hour", Description: "ai_agents_llm_calls_per_hour_desc", Min: num(1), Max: num(100000), Default: 200},
+		{Key: "ai_agents_monthly_token_budget", Type: TypeInt, Label: "ai_agents_monthly_token_budget", Description: "ai_agents_monthly_token_budget_desc", Min: num(0), Max: num(1e12), Default: 20000000},
+		{Key: "ai_agents_comments_per_day", Type: TypeInt, Label: "ai_agents_comments_per_day", Description: "ai_agents_comments_per_day_desc", Min: num(0), Max: num(100000), Default: 60},
+		{Key: "ai_agents_likes_per_day", Type: TypeInt, Label: "ai_agents_likes_per_day", Description: "ai_agents_likes_per_day_desc", Min: num(0), Max: num(1000000), Default: 600},
+		{Key: "ai_agents_comments_per_post", Type: TypeInt, Label: "ai_agents_comments_per_post", Description: "ai_agents_comments_per_post_desc", Min: num(0), Max: num(1000), Default: 3},
+		{Key: "ai_agents_ai_ratio", Type: TypeFloat, Label: "ai_agents_ai_ratio", Description: "ai_agents_ai_ratio_desc", Min: num(0), Max: num(100), Step: 0.5, Default: 2.0},
+		{Key: "ai_agents_publish_fanout", Type: TypeInt, Label: "ai_agents_publish_fanout", Description: "ai_agents_publish_fanout_desc", Min: num(0), Max: num(1000), Default: 8},
+		{Key: "ai_agents_quiet_hours", Type: TypeString, Label: "ai_agents_quiet_hours", Description: "ai_agents_quiet_hours_desc", Placeholder: "02:00-07:00", Default: ""},
+		{Key: "ai_agents_max_chain_depth", Type: TypeInt, Label: "ai_agents_max_chain_depth", Description: "ai_agents_max_chain_depth_desc", Min: num(1), Max: num(10), Default: 5},
+		{Key: "ai_agents_pair_exchanges", Type: TypeInt, Label: "ai_agents_pair_exchanges", Description: "ai_agents_pair_exchanges_desc", Min: num(0), Max: num(100), Default: 2},
+		{Key: "ai_agents_profile_self_edit", Type: TypeBool, Label: "ai_agents_profile_self_edit", Description: "ai_agents_profile_self_edit_desc", Default: true},
+		{Key: "ai_agents_memory_days_ambient", Type: TypeInt, Label: "ai_agents_memory_days_ambient", Description: "ai_agents_memory_days_ambient_desc", Min: num(1), Max: num(3650), Default: 30},
+		{Key: "ai_agents_memory_days_expert", Type: TypeInt, Label: "ai_agents_memory_days_expert", Description: "ai_agents_memory_days_expert_desc", Min: num(1), Max: num(3650), Default: 180},
+		{Key: "ai_agents_run_retention_days", Type: TypeInt, Label: "ai_agents_run_retention_days", Description: "ai_agents_run_retention_days_desc", Min: num(1), Max: num(3650), Default: 90},
+	}},
 
 	{Tab: "rss", Key: "rss", Title: "section_rss", Description: "section_rss_desc", Items: []*Item{
 		{Key: "site_title", Type: TypeString, Label: "rss_title", Default: ""},

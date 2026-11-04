@@ -102,6 +102,10 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 	} else {
 		NewVisitService().RecordInteraction(currentUser.ID, ownerID, constant.VisitActionComment, req.TargetType, req.TargetID, commentID)
 	}
+	// 回复了 AI 用户的评论时，由调度器决定该 AI 是否回应（异步，不影响本次请求）
+	if req.ReplyID != 0 {
+		NotifyCommentCreated(commentID)
+	}
 	return commentID, nil
 }
 

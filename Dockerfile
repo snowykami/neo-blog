@@ -13,7 +13,8 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o server ./cmd/server
+RUN go build -o server ./cmd/server \
+  && go build -o agent ./cmd/agent
 
 # production
 FROM alpine:latest AS prod
@@ -33,9 +34,11 @@ RUN apk --no-cache add tzdata \
   && chown -R neo-blog:neo-blog /app
 
 COPY --from=builder /app/server /app/server
+# AI 用户的 Runner：与后端同一镜像，以 ./agent 启动（见 docs/ai-agents.md）
+COPY --from=builder /app/agent /app/agent
 
-RUN chmod +x /app/server \
-  && chown neo-blog:neo-blog /app/server
+RUN chmod +x /app/server /app/agent \
+  && chown neo-blog:neo-blog /app/server /app/agent
 
 USER neo-blog
 

@@ -56,3 +56,8 @@ func (a *apiTokenRepo) TouchLastUsed(id uint, now time.Time, interval time.Durat
 		Where("id = ? AND (last_used_at IS NULL OR last_used_at < ?)", id, now.Add(-interval)).
 		UpdateColumn("last_used_at", now).Error
 }
+
+// RevokeAllByUser 吊销用户全部未吊销的 Token（如把用户设为 AI 用户时）
+func (a *apiTokenRepo) RevokeAllByUser(userID uint, now time.Time) error {
+	return GetDB().Model(&model.APIToken{}).Where("user_id = ? AND revoked_at IS NULL", userID).UpdateColumn("revoked_at", now).Error
+}
