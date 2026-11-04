@@ -1,0 +1,2174 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>节奏绑定动效 · 信号与系统原型</title>
+<style>
+  /* 色板沿用前台 web/src/app/globals.css 的默认参数（hue 250），与 ../heartbeat-signal 原型一致 */
+  :root {
+    --hue: 250; --chroma: .14; --radius: .625rem;
+    color-scheme: light;
+    --background: oklch(.96 .01 var(--hue));
+    --foreground: oklch(.22 .02 var(--hue));
+    --card: oklch(1 0 0);
+    --primary: oklch(.55 var(--chroma) var(--hue));
+    --primary-foreground: oklch(.98 .01 var(--hue));
+    --muted: oklch(.95 .01 var(--hue));
+    --muted-foreground: oklch(.5 .02 var(--hue));
+    --border: oklch(.9 .01 var(--hue));
+    --heart: #e5484d;
+    --old: oklch(.62 .02 var(--hue));
+    --grid: oklch(.92 .005 var(--hue));
+    --ok: #16a34a;
+    --warn: #d97706;
+    --no: oklch(.6 .02 var(--hue));
+  }
+  html.dark {
+    color-scheme: dark;
+    --background: oklch(.16 .014 var(--hue));
+    --foreground: oklch(.93 .01 var(--hue));
+    --card: oklch(.23 .015 var(--hue));
+    --primary: oklch(.75 var(--chroma) var(--hue));
+    --primary-foreground: oklch(.2 .03 var(--hue));
+    --muted: oklch(.27 .015 var(--hue));
+    --muted-foreground: oklch(.7 .015 var(--hue));
+    --border: oklch(1 0 0 / 10%);
+    --heart: #ff6b70;
+    --old: oklch(.55 .02 var(--hue));
+    --grid: oklch(1 0 0 / 7%);
+    --ok: #4ade80;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font: 15px/1.65 system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  select { height: 30px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); font-size: 13px; }
+  .muted { color: var(--muted-foreground); }
+  .small { font-size: 12px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  code { font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 5px; border-radius: 5px; background: var(--muted); }
+
+  .topbar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 24px; background: color-mix(in oklch, var(--background) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar h1 { margin: 0; font-size: 16px; }
+  .topbar nav { display: flex; gap: 2px; flex-wrap: wrap; }
+  .topbar nav a { padding: 4px 9px; border-radius: 999px; color: var(--muted-foreground); text-decoration: none; font-size: 13px; }
+  .topbar nav a:hover { background: var(--muted); color: var(--foreground); }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--muted); flex-wrap: wrap; }
+  .seg button { border: 0; background: transparent; padding: 4px 11px; border-radius: 8px; font-size: 13px; color: var(--muted-foreground); }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px oklch(0 0 0 / 12%); }
+  .seg.sm button { padding: 2px 9px; font-size: 12px; }
+  .pace-eff { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; background: color-mix(in oklch, var(--primary) 12%, transparent); color: var(--primary); }
+  .pace-eff.fallback { background: color-mix(in oklch, var(--warn) 16%, transparent); color: var(--warn); }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; display: grid; gap: 30px; }
+  /* 网格子项默认 min-width: auto，会被长代码块、长表格撑宽，统一允许收缩 */
+  main > section, .grid2 > *, .fx-grid > * { min-width: 0; }
+  h2 { margin: 0 0 4px; font-size: 19px; }
+  .desc { margin: 0 0 14px; color: var(--muted-foreground); font-size: 14px; max-width: 860px; }
+  .panel { background: var(--card); border-radius: calc(var(--radius) + 6px); padding: 18px 20px; box-shadow: 0 1px 2px oklch(0 0 0 / 6%); }
+  .grid2 { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: calc(var(--radius) - 2px); border: 1px solid var(--border); background: var(--card); font-size: 13px; font-weight: 500; }
+  .btn:hover { background: var(--muted); }
+  .btn[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); }
+  .chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+  .chk input { accent-color: var(--primary); }
+  .ctl { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+  .ctl input[type=range] { width: 120px; accent-color: var(--primary); }
+  .ctl output { min-width: 44px; color: var(--primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* 歌曲与播放 */
+  .songs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .song { display: grid; gap: 1px; min-width: 150px; padding: 8px 12px; text-align: left; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+  .song b { font-size: 14px; }
+  .song span { font-size: 12px; color: var(--muted-foreground); }
+  .song[aria-pressed="true"] { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 18%, transparent); }
+  audio { width: 100%; margin: 4px 0 10px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .status { font-size: 13px; color: var(--muted-foreground); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  .stat { padding: 10px 12px; border-radius: 12px; background: var(--muted); }
+  .stat .k { font-size: 12px; color: var(--muted-foreground); }
+  .stat .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .s { font-size: 11.5px; color: var(--muted-foreground); }
+
+  /* 播放器舞台：始终是深色（与播放器页一致），歌词左对齐、白字，非焦点行 35% 不透明并按行距模糊 */
+  .player { position: relative; height: 380px; border-radius: 18px; overflow: hidden; color: #fff; isolation: isolate;
+    --lc: #fff; --lyric-glow: #cfe8ff; --accent: #8fb0ff;
+    background: radial-gradient(120% 140% at 20% 0%, oklch(.42 .09 var(--hue)), oklch(.18 .03 var(--hue)) 70%); }
+  .pl-pulse { position: absolute; inset: 0; opacity: 0; mix-blend-mode: soft-light; background: radial-gradient(ellipse at 50% 50%, var(--accent), transparent 75%); pointer-events: none; }
+  .pl-particles { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .pl-lyrics { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); padding: 0 48px; display: grid; gap: 14px; }
+  .pl-line { font-size: 30px; font-weight: 700; line-height: 1.3; color: color-mix(in srgb, #fff 35%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.3em; }
+  .pl-line.far { filter: blur(1.6px); font-size: 26px; }
+  .pl-line.cur { color: #fff; white-space: normal; overflow: visible; }
+  .pl-dots { display: none; gap: 12px; align-items: center; height: 39px; padding-left: 4px; }
+  .pl-dots i { display: block; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .pl-dots i:first-child { transform-origin: 180% 50%; }
+  .pl-dots i:last-child { transform-origin: -80% 50%; }
+  .pl-hud { position: absolute; left: 16px; right: 16px; top: 12px; display: flex; align-items: center; gap: 10px; font-size: 12px; color: #ffffffb0; }
+  .pl-hud .lamp { width: 12px; height: 12px; border-radius: 50%; background: #ffd54f; box-shadow: 0 0 12px #ffd54f; opacity: .15; }
+  .pl-hud .lamp.old { background: #9fb4d8; box-shadow: 0 0 12px #9fb4d8; }
+  .pl-sub { position: absolute; left: 16px; bottom: 10px; font-size: 12px; color: #ffffff90; }
+  .stage-ctl { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 12px; }
+  .stage-ctl .lbl { font-size: 12.5px; color: var(--muted-foreground); }
+
+  .w { display: inline-block; will-change: transform; transform-origin: 50% 60%; -webkit-background-clip: text; background-clip: text; }
+
+  /* 逐个对比的卡片 */
+  .fx-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }
+  .fx-card { display: grid; gap: 10px; padding: 14px; border-radius: 16px; background: var(--card); box-shadow: 0 1px 2px oklch(0 0 0 / 6%); }
+  .fx-card.off .mini { opacity: .45; }
+  .fx-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .fx-head .dot { width: 10px; height: 10px; border-radius: 50%; align-self: center; }
+  .fx-head b { font-size: 15px; }
+  .fx-head .d { font-size: 12px; color: var(--muted-foreground); width: 100%; }
+  .mini { position: relative; display: grid; place-items: center; height: 104px; border-radius: 12px; overflow: hidden; color: #fff; --lc: #fff; --lyric-glow: #cfe8ff;
+    background: radial-gradient(120% 140% at 20% 0%, oklch(.4 .08 var(--hue)), oklch(.19 .03 var(--hue)) 75%); }
+  .mini-lyric { font-size: 25px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+  .mini .pl-dots { display: flex; }
+  .mini-meter { position: absolute; left: 10px; right: 10px; bottom: 7px; height: 3px; border-radius: 2px; background: #ffffff1f; overflow: hidden; }
+  .mini-meter i { display: block; height: 100%; width: 0; background: #ffd54f; }
+  .mini .eff { position: absolute; top: 6px; right: 9px; font-size: 11px; color: #ffffffa0; }
+  .fx-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* 信号图 */
+  .plot { display: grid; gap: 6px; }
+  .plot-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+  .plot-head b { font-size: 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted-foreground); }
+  .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+  .plot canvas { width: 100%; height: 150px; display: block; border-radius: 10px; background: color-mix(in oklch, var(--muted) 50%, var(--card)); }
+  .plot canvas.tall { height: 200px; }
+  .plot canvas.lanes { height: 440px; }
+  .plot canvas.kernels { height: 330px; }
+
+  /* 表格 */
+  .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .tbl th, .tbl td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  .tbl th { font-size: 12px; color: var(--muted-foreground); font-weight: 600; white-space: nowrap; }
+  .tbl td.c { white-space: nowrap; }
+  .tbl tr.grp td { background: var(--muted); font-weight: 600; font-size: 12.5px; }
+  .pill { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
+  .pill.ok { background: color-mix(in oklch, var(--ok) 15%, transparent); color: var(--ok); }
+  .pill.part { background: color-mix(in oklch, var(--warn) 16%, transparent); color: var(--warn); }
+  .pill.no { background: var(--muted); color: var(--muted-foreground); }
+  .pill.new { background: color-mix(in oklch, var(--heart) 14%, transparent); color: var(--heart); }
+  .scroll-x { overflow-x: auto; }
+
+  /* 公式 */
+  .formula { display: grid; gap: 14px; }
+  .eq { display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; background: var(--muted); }
+  .eq h3 { margin: 0; font-size: 14px; }
+  .eq p { margin: 0; font-size: 13.5px; color: var(--muted-foreground); }
+  .eq ul { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--muted-foreground); }
+  math { font-size: 1.1em; }
+  math[display="block"] { margin: 4px 0; overflow-x: auto; }
+  pre { margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--muted); overflow-x: auto; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>节奏绑定动效 · 信号与系统原型</h1>
+  <nav>
+    <a href="#song">歌曲</a>
+    <a href="#stage">舞台</a>
+    <a href="#cards">逐个对比</a>
+    <a href="#signals">信号</a>
+    <a href="#inventory">动效清单</a>
+    <a href="#tiers">速度档位</a>
+    <a href="#formula">公式</a>
+    <a href="#backend">后端建议</a>
+  </nav>
+  <div class="spacer"></div>
+  <div class="seg" role="group" aria-label="全曲动效速度" id="paceSeg">
+    <button type="button" data-pace="beat" aria-pressed="true">跟随节拍（推荐）</button>
+    <button type="button" data-pace="fast" aria-pressed="false">快</button>
+    <button type="button" data-pace="medium" aria-pressed="false">中</button>
+    <button type="button" data-pace="slow" aria-pressed="false">慢</button>
+  </div>
+  <span class="pace-eff" id="paceEff">—</span>
+  <div class="seg" role="group" aria-label="主题">
+    <button type="button" data-theme="light" aria-pressed="true">浅色</button>
+    <button type="button" data-theme="dark" aria-pressed="false">深色</button>
+  </div>
+</header>
+
+<main>
+  <section id="song">
+    <h2>① 选歌并分析</h2>
+    <p class="desc">在浏览器里解码音频并提取节拍（分析代码原样取自 <code>../heartbeat-signal</code>：谱通量 → 自相关 → 八度族折叠 → 动态规划拍点）。顶栏的「全曲动效速度」就是后端要记录的那个枚举：跟随节拍用检测到的拍点驱动，快 / 中 / 慢用固定周期合成的冲激串驱动<b>同一套</b> h(t)。</p>
+    <div class="panel">
+      <div class="songs" id="songs"></div>
+      <audio id="audio" controls preload="auto"></audio>
+      <div class="toolbar">
+        <button type="button" class="btn" id="jumpChorus">跳到副歌</button>
+        <button type="button" class="btn" id="jumpInterlude">跳到间奏</button>
+        <button type="button" class="btn" id="prevBeat">◀ 上一拍</button>
+        <button type="button" class="btn" id="nextBeat">下一拍 ▶</button>
+        <button type="button" class="btn" id="click" aria-pressed="false">听基准脉冲（咔哒声）</button>
+        <span class="status" id="status">选一首歌开始</span>
+      </div>
+      <div class="toolbar" style="margin-top:10px">
+        <label class="chk"><input type="checkbox" id="simFail"> 模拟检测失败（音频不可读 / 置信度过低）</label>
+        <span class="ctl">回退档 <select id="fallbackSel"><option value="medium" selected>中</option><option value="fast">快</option><option value="slow">慢</option></select></span>
+        <span class="ctl">强度 f <input type="range" id="fRange" min="0" max="1.5" step="0.05" value="0.8"><output id="fOut">0.80</output></span>
+        <span class="ctl">画面提前 t<sub>lead</sub> <input type="range" id="leadRange" min="-60" max="120" step="5" value="20"><output id="leadOut">20 ms</output></span>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+  </section>
+
+  <section id="stage">
+    <h2>② 播放器舞台</h2>
+    <p class="desc">按播放器页的样式显示歌词（深色背景、左对齐、非焦点行变淡变虚），当前行整句套用所选特效；背景呼吸、粒子、间奏圆点同时随节拍运动。左上角的灯在每个基准脉冲处亮起，用来目测对齐；「◀ 上一拍 / 下一拍 ▶」会暂停并停在拍点后 55 ms（心跳第一声的峰值）。</p>
+    <div class="player" id="player">
+      <div class="pl-pulse" id="plPulse"></div>
+      <canvas class="pl-particles" id="plParticles"></canvas>
+      <div class="pl-hud"><span class="lamp" id="lamp"></span><span id="hudText">—</span></div>
+      <div class="pl-lyrics">
+        <div class="pl-line far" id="plPrev"></div>
+        <div class="pl-line cur" id="plCur"></div>
+        <div class="pl-dots" id="plDots"><i></i><i></i><i></i></div>
+        <div class="pl-line" id="plNext"></div>
+        <div class="pl-line far" id="plNext2"></div>
+      </div>
+      <span class="pl-sub tnum" id="plSub"></span>
+    </div>
+    <div class="stage-ctl">
+      <span class="lbl">当前行特效</span>
+      <div class="seg sm" id="stageFxSeg">
+        <button type="button" data-fx="heartbeat" aria-pressed="true">心跳</button>
+        <button type="button" data-fx="swell" aria-pressed="false">放大</button>
+        <button type="button" data-fx="glow" aria-pressed="false">柔光</button>
+        <button type="button" data-fx="wave" aria-pressed="false">波浪</button>
+        <button type="button" data-fx="shake" aria-pressed="false">抖动</button>
+        <button type="button" data-fx="shimmer" aria-pressed="false">流光</button>
+        <button type="button" data-fx="none" aria-pressed="false">无</button>
+      </div>
+      <span class="lbl">实现</span>
+      <div class="seg sm" id="stageImplSeg">
+        <button type="button" data-impl="new" aria-pressed="true">新 · 节拍驱动</button>
+        <button type="button" data-impl="old" aria-pressed="false">旧 · 线上实现</button>
+      </div>
+    </div>
+    <div class="stage-ctl">
+      <span class="ctl">背景鼓点呼吸 <select id="bgSel"><option value="new" selected>新：预先算好的拍点</option><option value="old">旧：实时低频检测（audio-beat.ts）</option><option value="off">关</option></select></span>
+      <span class="ctl">粒子场景 <select id="sceneSel"><option value="off">关</option><option value="fireworks">烟花</option><option value="ripples">涟漪</option><option value="notes" selected>音符</option><option value="hearts">爱心</option></select></span>
+      <span class="ctl">背景亮度 ×<input type="range" id="bgGain" min="1" max="4" step="0.5" value="2.5"><output id="bgGainOut">2.5</output></span>
+      <label class="chk"><input type="checkbox" id="nodChk"> 行级点头 <span class="pill new">建议新增</span></label>
+    </div>
+    <p class="desc small" style="margin-top:8px">「实现」切到旧时：当前行特效按线上 <code>word-effects.ts</code> / <code>lyric-player.ts</code> 的写法（按唱的时长、PACE 固定参数），粒子按速率均匀生成，间奏圆点按间奏长度均分呼吸。背景亮度倍数只为原型里看得清，线上为 ×1（<code>BEAT_MAX_OPACITY = 0.12</code>）。</p>
+  </section>
+
+  <section id="cards">
+    <h2>③ 逐个对比</h2>
+    <p class="desc">每张卡片取当前歌词行的前几个字当作一个「短语」，用同一时刻、同一套参数演出。每张卡片可以单独启停、切换新 / 旧实现，并单独覆盖速度（对应后端短语级的 <code>pace</code>，「跟随全曲」即为空）。底部黄条是该动效此刻的输出 o(t)。</p>
+    <div class="fx-grid" id="fxGrid"></div>
+  </section>
+
+  <section id="signals">
+    <h2>④ 信号</h2>
+    <p class="desc">时间轴以播放位置为中心（前后各 3 秒）。输入是基准脉冲串 x(t)（跟随节拍时为检测到的拍点，固定档时为等间隔网格，灰色竖线始终是检测到的拍点，便于看出固定档与音乐的漂移）；每个动效按自己的八度倍数 2<sup>n</sup> 取脉冲，经过自己的 h(t) 得到输出。</p>
+    <div class="grid2">
+      <div class="panel plot">
+        <div class="plot-head"><b>输入：起音强度 Õ(t) 与基准脉冲 x(t)</b><span class="muted tnum small" id="inputInfo"></span></div>
+        <div class="legend"><span><i style="background:var(--primary)"></i>起音强度 Õ(t)</span><span><i style="background:var(--muted-foreground)"></i>检测到的拍点</span><span><i style="background:var(--old)"></i>空档外推的补拍（虚线）</span><span><i style="background:var(--heart)"></i>基准脉冲 a<sub>k</sub>δ(t−t<sub>k</sub>)</span></div>
+        <canvas id="cvInput" class="tall"></canvas>
+      </div>
+      <div class="panel plot">
+        <div class="plot-head"><b>拍速估计：W(τ)·R(τ)</b><span class="muted tnum small" id="tempoInfo"></span></div>
+        <div class="legend"><span><i style="background:var(--old)"></i>自相关 R(τ)</span><span><i style="background:var(--primary)"></i>加先验 W(τ)·R(τ)</span><span><i style="background:var(--heart)"></i>八度族（粗线为歌曲拍速）</span><span><i style="background:#f59e0b"></i>基准脉冲 τ<sub>F</sub></span></div>
+        <canvas id="cvTempo" class="tall"></canvas>
+      </div>
+    </div>
+    <div class="panel plot" style="margin-top:16px">
+      <div class="plot-head"><b>系统：各动效的冲激响应 h<sub>e</sub>(t)</b><span class="muted tnum small" id="kernelInfo"></span></div>
+      <div class="legend"><span>横轴 −0.6 ~ 1.8 s，竖线为 t = 0（拍点）。参数里的 T<sub>e</sub> = 2<sup>n<sub>e</sub></sup>·T<sub>b</sub> 取当前生效档位。</span></div>
+      <canvas id="cvKernels" class="kernels"></canvas>
+    </div>
+    <div class="panel plot" style="margin-top:16px">
+      <div class="plot-head"><b>输出：各动效 o<sub>e</sub>(t) = G<sub>e</sub>(t)·M<sub>e</sub>[(w<sub>e</sub>x<sub>e</sub> * h<sub>e</sub>)(t)]</b></div>
+      <div class="legend"><span>竖线（短）为该动效实际使用的脉冲；关掉的卡片不显示。背景呼吸一栏的灰线是旧的实时检测（开启后记录），可以看到它比拍点晚。</span></div>
+      <canvas id="cvLanes" class="lanes"></canvas>
+    </div>
+  </section>
+
+  <section id="inventory">
+    <h2>⑤ 现有动效清单：哪些接入、哪些不接入</h2>
+    <p class="desc">以代码里真实存在的动效为准（<code>web/src/lib/lyrics/</code> 与 <code>web/src/components/music-page/music-stage-effects.tsx</code>）。判断标准：动效里有<b>没有依据的周期或时长</b>（现在拍长、扫动周期、抖动周期、呼吸周期都是拍脑袋的常数或按唱的时长均分），就适合换成节拍；动效是<b>跟着唱的时间走的一次性语义过渡</b>（唱完消散、唱完碎、由虚到实），就不接入，最多让时长随拍速缩放。</p>
+    <div class="panel scroll-x">
+      <table class="tbl">
+        <thead><tr><th>动效</th><th>现在的时间参数（来源）</th><th>结论</th><th>节拍下的系统</th><th>n<sub>e</sub></th><th>理由</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="6">歌词强调（逐字）：<code>lyric-player.ts</code> 的 paintEmphasis、导航栏 <code>nav-emphasis.ts</code>、时间曲线 <code>word-effects.ts</code> / <code>pace.ts</code></td></tr>
+          <tr><td class="c">心跳 heartbeat</td><td>拍长 <code>PACE.heartbeatBeat</code> 1000 / 750 / 520 ms，按唱的时长均分（至少 2 拍）；第二拍相隔 22%、强度 0.7；起 45 ms、落 90 ms</td><td><span class="pill ok">接入</span></td><td>h = g(t) + β·g(t−Δ)（双峰 alpha）</td><td class="c">0</td><td>本身就是周期动效，拍长是常数，与歌曲无关（心跳原型已验证）</td></tr>
+          <tr><td class="c">放大 swell</td><td>起落曲线 <code>swellCurve</code>，时长 max(1 s, 唱的时长) × <code>PACE.envelope</code> 1.35 / 1 / 0.75，字间错开 0.4</td><td><span class="pill ok">接入</span></td><td>一次性起落保留，乘上拍上重音 1 + 0.6·(x * g<sub>70ms</sub>)</td><td class="c">0</td><td>起落跟唱的时间走（保留），但放大到顶时随拍轻轻「顶」一下，最常用的特效最先受益</td></tr>
+          <tr><td class="c">柔光 glow</td><td>同 swell 的一次性起落，几乎不放大</td><td><span class="pill ok">接入</span></td><td>cos² 呼吸窗（非因果，峰值落在拍上）</td><td class="c">+1</td><td>辉光适合「呼吸」：两拍一呼吸约 1 ~ 2 秒，比单次起落更耐看</td></tr>
+          <tr><td class="c">波浪 wave</td><td>一次性上浮 sin，时长 ×1.4、提前 400 ms，字间错开 1/1.5</td><td><span class="pill ok">接入</span></td><td>半正弦 + 字间延迟线：每拍从左到右推一道波</td><td class="c">0</td><td>字间错开本来就是「行波」，让每道波由拍点发出最自然</td></tr>
+          <tr><td class="c">抖动 shake</td><td>正弦载波周期 <code>PACE.shakePeriod</code> 70 / 45 / 30 ms，幅度跟 swell 起落</td><td><span class="pill ok">接入</span></td><td>载波周期 = T<sub>b</sub>/16；幅度 = 起落 × (0.35 + 0.65·(x * e<sup>−t/0.12</sup>))</td><td class="c">−1</td><td>颤动本身不必锁拍（16 分频已接近现值），但「每拍震一下」的幅度调制让抖动有了重音</td></tr>
+          <tr><td class="c">流光 shimmer</td><td>每遍 <code>PACE.shimmerSweep</code> 1400 / 950 / 650 ms，从开唱起扫两遍</td><td><span class="pill ok">接入</span></td><td>相位型：从唱到后的第一拍起，每拍扫一遍，扫两遍</td><td class="c">0</td><td>扫动周期是常数；锁到拍上后光带「踩点」掠过（比现在快约 25%）</td></tr>
+          <tr><td class="c">长音颤音（shake + hold）</td><td><code>PACE.vibratoHz</code> 4.8 / 5.5 / 6.5 Hz，延迟 <code>vibratoDelay</code></td><td><span class="pill no">不接入</span></td><td>—（跟随节拍时取与 τ<sub>F</sub> 最近的档）</td><td class="c">—</td><td>模拟的是歌手声带的颤音（5 ~ 7 Hz 的生理频率），与伴奏节拍无关</td></tr>
+          <tr><td class="c">由虚到实 focus</td><td>演出时长的 60% 内由模糊变清晰</td><td><span class="pill no">不接入</span></td><td>—（时长 ∝ T<sub>b</sub>）</td><td class="c">—</td><td>一次性的语义过渡，周期化会变成反复「闪糊」</td></tr>
+          <tr><td class="c">消散 dissolve</td><td>字唱完 150 ms 后淡出 <code>PACE.dissolveFade</code> 1000 / 600 / 350 ms，保持 12 s，恢复 1.5 s</td><td><span class="pill part">只缩放时长</span></td><td>淡出 = 0.8·T<sub>b</sub></td><td class="c">—</td><td>跟着每个字唱完的时刻走，没有周期；只让淡出快慢随拍速</td></tr>
+          <tr><td class="c">破碎 shatter</td><td>唱完 60 ms 后碎，碎前 140 ms 颤，闪光衰减 220 ms</td><td><span class="pill no">不接入</span></td><td>—</td><td class="c">—</td><td>代码注释明确「破碎总是一瞬间，不随特效节奏变化」，钉在唱完的时刻</td></tr>
+          <tr><td class="c">下划线 / 上色 / 逐字擦除与上浮</td><td>按音节的演唱时段</td><td><span class="pill no">不接入</span></td><td>—</td><td class="c">—</td><td>本来就精确跟着唱的时间走</td></tr>
+          <tr class="grp"><td colspan="6">舞台与背景：<code>music-stage-effects.tsx</code>、<code>stage-effects.ts</code>、<code>audio-beat.ts</code>、<code>stage-particles.ts</code>、<code>interlude.ts</code></td></tr>
+          <tr><td class="c">背景鼓点呼吸</td><td>实时 AnalyserNode 取 &lt; 160 Hz 能量，高于近期均值 1.15 倍触发，按 e<sup>−7t</sup> 衰减；只在桌面端、网易云 CORS 音频启用</td><td><span class="pill ok">接入（替换）</span></td><td>h = min(1, t/30 ms)·e<sup>−t/150 ms</sup></td><td class="c">0</td><td>实时检测有延迟、会被人声误触发；拍点提前算好后可以无延迟、甚至提前 t<sub>lead</sub></td></tr>
+          <tr><td class="c">背景呼吸 pulse（强调联动）</td><td>唱到 swell / shake / heartbeat 强调时随其曲线亮起</td><td><span class="pill ok">自动跟随</span></td><td>直接取对应强调的输出</td><td class="c">—</td><td>上游强调接入后自然随拍</td></tr>
+          <tr><td class="c">爱心粒子的「心跳缩放」</td><td><code>1 + 0.08·sin(age·4 + seed)</code>，约 0.64 Hz 的任意周期</td><td><span class="pill ok">接入</span></td><td>与心跳共用 h：1 + 0.12·y<sub>♥</sub>(t)</td><td class="c">0</td><td>名字就叫「心跳一样轻微缩放」，周期却是常数</td></tr>
+          <tr><td class="c">离散事件类粒子：烟花 / 涟漪 / 音符 / 爱心</td><td>按速率均匀生成（0.8 / 2.5 / 2.5 / 3 个每秒）</td><td><span class="pill ok">接入</span></td><td>点过程：在拍点成簇生成，N<sub>k</sub> = r·T<sub>e</sub>·A·a<sub>k</sub></td><td class="c">+1 / 0 / 0 / 0</td><td>烟花炸开、涟漪起圈都是「事件」，落在拍上才有打击感；平均速率不变</td></tr>
+          <tr><td class="c">连续氛围类粒子：雪 / 雨 / 花瓣 / 落叶 / 云 / 羽毛 / 蒲公英 / 蝴蝶 / 流星 / 气泡 / 火花 / 彩纸，自定义粒子</td><td>均匀生成、匀速漂移</td><td><span class="pill no">不接入</span></td><td>—</td><td class="c">—</td><td>是「天气」不是「鼓点」，锁拍会显得机械；星星、萤火虫的闪烁（sin(age·5)、sin(age·2.5)）可选接入</td></tr>
+          <tr><td class="c">间奏圆点呼吸</td><td>呼吸拍长按间奏长度均分（约 2 秒一步），吸 1.2 / 呼 0.9</td><td><span class="pill ok">接入</span></td><td>交替符号的冲激串 × 平滑阶跃响应</td><td class="c">使 T<sub>e</sub> ≈ 2 s</td><td>间奏没有人声、拍子最清楚，呼吸踩拍效果最明显</td></tr>
+          <tr><td class="c">副歌爆发 burst / 镜头推近 push</td><td>200 ms 升 + 1.8 s 落 / 450 ms + 2.6 s</td><td><span class="pill no">不接入</span></td><td>—</td><td class="c">—</td><td>一次性事件，已经在副歌首行开唱时触发（本身就在强拍上）</td></tr>
+          <tr><td class="c">聚光灯 spotlight / 背景染色 tint</td><td>提前 200 ms、500 ms 亮起 / 300 ms 起、1.5 s 落</td><td><span class="pill no">不接入</span></td><td>—</td><td class="c">—</td><td>长时段的语义高亮，随拍闪会干扰阅读</td></tr>
+          <tr><td class="c">歌词滚动弹簧、阶梯入场、按行距模糊</td><td>弹簧参数（<code>config.ts</code>）</td><td><span class="pill no">不接入</span></td><td>—</td><td class="c">—</td><td>由焦点切换驱动的物理运动，不是节奏</td></tr>
+          <tr class="grp"><td colspan="6">建议新增（现在没有，分开列）</td></tr>
+          <tr><td class="c">行级点头</td><td>—</td><td><span class="pill new">建议新增</span></td><td>欠阻尼二阶 e<sup>−t/0.18</sup>·sin(2πt/0.36)：先沉后弹</td><td class="c">+1</td><td>整行每两拍轻轻点一下头，幅度 0.07 em；原型舞台可开关</td></tr>
+          <tr><td class="c">封面律动</td><td>—</td><td><span class="pill new">建议新增</span></td><td>与背景呼吸共用 y<sub>bg</sub></td><td class="c">0</td><td>播放器页封面随拍放大 1 ~ 2%，与背景同源，不增加计算</td></tr>
+          <tr><td class="c">氛围粒子随拍推一下</td><td>—</td><td><span class="pill new">建议新增</span></td><td>拍点处给速度冲量 Δv = κ·a<sub>k</sub></td><td class="c">0</td><td>不改生成方式，只让雪、花瓣在拍上微微一顿，比锁生成更自然</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tiers">
+    <h2>⑥ 速度档位</h2>
+    <p class="desc">四个档位共用同一套 h<sub>e</sub>(t)，区别只在输入冲激串：跟随节拍用检测到的拍点，快 / 中 / 慢用固定周期的网格。固定档的基准周期直接取现在 <code>PACE.heartbeatBeat</code> 的三个值，所以选固定档时心跳与现在完全一致，其余参数按 T<sub>b</sub> 的比例换算后也与现值接近。</p>
+    <div class="grid2">
+      <div class="panel scroll-x">
+        <table class="tbl">
+          <thead><tr><th>档位</th><th>枚举值</th><th>基准脉冲 T<sub>b</sub></th><th>等价</th><th>输入 x(t)</th></tr></thead>
+          <tbody>
+            <tr><td><b>跟随节拍</b>（默认，推荐）</td><td><code>beat</code></td><td>τ<sub>F</sub> ∈ [0.5, 1) s</td><td>60 ~ 120 次/分（拍速折叠到这一个八度）</td><td>检测到的拍点，按 2<sup>k<sub>b</sub>+n<sub>e</sub></sup> 抽取 / 补拍，a<sub>k</sub> 随响度</td></tr>
+            <tr><td>快</td><td><code>fast</code></td><td>0.52 s</td><td>≈ 115 次/分</td><td>t<sub>k</sub> = s + k·T<sub>e</sub>，a<sub>k</sub> = 1</td></tr>
+            <tr><td>中</td><td><code>medium</code></td><td>0.75 s</td><td>80 次/分</td><td>同上</td></tr>
+            <tr><td>慢</td><td><code>slow</code></td><td>1.00 s</td><td>60 次/分</td><td>同上</td></tr>
+          </tbody>
+        </table>
+        <p class="desc small" style="margin:10px 0 0">固定档的起点 s：逐字特效取短语开唱时刻（与现在心跳从开唱起数拍一致，第一拍落在开唱上）；背景、粒子取 0；间奏圆点取间奏开始。</p>
+      </div>
+      <div class="panel scroll-x">
+        <table class="tbl">
+          <thead><tr><th>现有参数</th><th>换算</th><th>慢 / 中 / 快（换算后）</th><th>现值</th></tr></thead>
+          <tbody>
+            <tr><td>心跳拍长</td><td>T<sub>b</sub></td><td>1000 / 750 / 520 ms</td><td>1000 / 750 / 520 ms</td></tr>
+            <tr><td>起落时长倍数</td><td>T<sub>b</sub> / 0.75 s</td><td>1.33 / 1 / 0.69</td><td>1.35 / 1 / 0.75</td></tr>
+            <tr><td>抖动载波周期</td><td>T<sub>b</sub> / 16</td><td>62 / 47 / 33 ms</td><td>70 / 45 / 30 ms</td></tr>
+            <tr><td>流光每遍</td><td>T<sub>b</sub>（锁拍）</td><td>1000 / 750 / 520 ms</td><td>1400 / 950 / 650 ms</td></tr>
+            <tr><td>消散淡出</td><td>0.8·T<sub>b</sub></td><td>800 / 600 / 416 ms</td><td>1000 / 600 / 350 ms</td></tr>
+            <tr><td>长音颤音</td><td>不换算</td><td>4.8 / 5.5 / 6.5 Hz</td><td>同左</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <b style="font-size:14px">回退策略（跟随节拍 → 固定档）</b>
+      <table class="tbl" style="margin-top:6px">
+        <tbody>
+          <tr><td class="c">分析未完成</td><td>首次播放一首歌时，分析约 1 ~ 2 秒（应放到 Web Worker）。期间按回退档演出；完成后<b>在下一个短语开始时</b>才切到节拍，不在短语中途切换，避免跳变。结果按歌曲 id + 音质缓存（内存 / IndexedDB），后端不存。</td></tr>
+          <tr><td class="c">拿不到音频</td><td>音频不可解码、跨域不可读（非 CORS）、移动端为省电不分析、用户关闭了分析 → 回退档。</td></tr>
+          <tr><td class="c">检测不可信</td><td>节拍置信度 c = R(T*)/R(0) &lt; 0.12（自由节奏、纯钢琴、朗诵）→ 回退档。</td></tr>
+          <tr><td class="c">局部空档</td><td>前奏、间奏、尾奏的静音段拍点被响度过滤掉 → 用前后拍距外推补拍（飞轮），相位连续，补拍权重 0.8·a<sub>min</sub>；图中以虚线显示。</td></tr>
+          <tr><td class="c">回退档取值</td><td>默认「中」（与现在全曲默认一致）。不额外存字段：管理员若认为某首歌检测不准，直接把全曲速度改成快 / 中 / 慢即可。</td></tr>
+          <tr><td class="c">减少动态效果</td><td>系统要求减少动态效果或关闭歌词特效时不演出（同现在）。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="formula">
+    <h2>⑦ 公式</h2>
+    <p class="desc">流程：音频 → 起音强度 → 拍速 T* 与拍点 → 基准脉冲（八度折叠到 τ<sub>F</sub>）→ 每个动效按 2<sup>n<sub>e</sub></sup> 取冲激串 x<sub>e</sub>(t) → 加窗 → 系统 h<sub>e</sub>(t) → 输出 y<sub>e</sub>(t) → 门控与映射到 transform / text-shadow。分析部分（谱通量、自相关、八度族、动态规划）见 <code>../heartbeat-signal</code> 原型的公式 1 ~ 3，这里不重复。</p>
+    <div class="panel formula">
+      <div class="eq">
+        <h3>1. 基准脉冲与动效周期</h3>
+        <math display="block"><msub><mi>T</mi><mi>b</mi></msub><mo>=</mo><mrow><mo>{</mo><mtable columnalign="left left"><mtr><mtd><msub><mi>τ</mi><mi>F</mi></msub><mo>=</mo><munder><mi>argmax</mi><mrow><mi>τ</mi><mo>∈</mo><mo>[</mo><mn>0.5</mn><mo>,</mo><mn>1</mn><mo>)</mo><mi>s</mi></mrow></munder><mi>R</mi><mo>(</mo><mi>τ</mi><mo>/</mo><mn>2</mn><mo>)</mo><mo>+</mo><mi>R</mi><mo>(</mo><mi>τ</mi><mo>)</mo><mo>+</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><mi>R</mi><mo>(</mo><mn>2</mn><mi>τ</mi><mo>)</mo></mtd><mtd><mtext>跟随节拍</mtext></mtd></mtr><mtr><mtd><mn>0.52</mn><mi>s</mi><mo>,</mo><mspace width="0.3em"/><mn>0.75</mn><mi>s</mi><mo>,</mo><mspace width="0.3em"/><mn>1.00</mn><mi>s</mi></mtd><mtd><mtext>快、中、慢</mtext></mtd></mtr></mtable></mrow><mo>,</mo><mspace width="1.5em"/><msub><mi>T</mi><mi>e</mi></msub><mo>=</mo><msup><mn>2</mn><msub><mi>n</mi><mi>e</mi></msub></msup><msub><mi>T</mi><mi>b</mi></msub></math>
+        <p>τ<sub>F</sub> 是八度族在 60 ~ 120 次/分这一个八度里的代表，正好覆盖固定三档（60 / 80 / 115），所以「跟随节拍」与「固定档」可以无缝互换。n<sub>e</sub> 是每个动效固定的八度倍数（前端常量，不存后端）：心跳、放大、波浪、流光、背景 0，柔光、行点头、烟花 +1，抖动 −1，间奏圆点取使 T<sub>e</sub> 最接近 2 s 的 n。等价于心跳原型里的「目标心率」折叠，取 r<sub>0</sub> = 60√2 ≈ 85 次/分时恰好 n = 0。</p>
+      </div>
+      <div class="eq">
+        <h3>2. 输入：冲激串（两种来源，同一形式）</h3>
+        <math display="block"><msub><mi>x</mi><mi>e</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><munder><mo>∑</mo><mi>k</mi></munder><msub><mi>a</mi><mi>k</mi></msub><mspace width="0.1em"/><mi>δ</mi><mo>(</mo><mi>t</mi><mo>−</mo><msubsup><mi>t</mi><mi>k</mi><mrow><mo>(</mo><mi>e</mi><mo>)</mo></mrow></msubsup><mo>)</mo><mo>,</mo><mspace width="1em"/><mrow><mo>{</mo><mtable columnalign="left left"><mtr><mtd><msubsup><mi>t</mi><mi>k</mi><mrow><mo>(</mo><mi>e</mi><mo>)</mo></mrow></msubsup><mo>∈</mo><msub><mi mathvariant="script">R</mi><mrow><msub><mi>k</mi><mi>b</mi></msub><mo>+</mo><msub><mi>n</mi><mi>e</mi></msub></mrow></msub><mo>{</mo><msub><mi>t</mi><mi>i</mi></msub><mo>}</mo><mo>,</mo><mspace width="0.5em"/><msub><mi>a</mi><mi>k</mi></msub><mo>=</mo><msub><mi>a</mi><mi>min</mi></msub><mo>+</mo><mo>(</mo><mn>1</mn><mo>−</mo><msub><mi>a</mi><mi>min</mi></msub><mo>)</mo><mspace width="0.1em"/><mi>clamp</mi><mo>(</mo><mfrac><mrow><mi>L</mi><mo>(</mo><msub><mi>t</mi><mi>k</mi></msub><mo>)</mo><mo>−</mo><msub><mi>L</mi><mn>10</mn></msub></mrow><mrow><msub><mi>L</mi><mn>95</mn></msub><mo>−</mo><msub><mi>L</mi><mn>10</mn></msub></mrow></mfrac><mo>)</mo></mtd><mtd><mtext>跟随节拍</mtext></mtd></mtr><mtr><mtd><msubsup><mi>t</mi><mi>k</mi><mrow><mo>(</mo><mi>e</mi><mo>)</mo></mrow></msubsup><mo>=</mo><mi>s</mi><mo>+</mo><mi>k</mi><msub><mi>T</mi><mi>e</mi></msub><mo>,</mo><mspace width="0.5em"/><msub><mi>a</mi><mi>k</mi></msub><mo>=</mo><mn>1</mn></mtd><mtd><mtext>快 / 中 / 慢</mtext></mtd></mtr></mtable></mrow></math>
+        <p>{t<sub>i</sub>} 为动态规划得到的拍点（拍长 T*），k<sub>b</sub> = round(log<sub>2</sub>(τ<sub>F</sub>/T*)) ∈ {−1, 0, 1}。重采样算子 𝓡<sub>m</sub>：m &gt; 0 时每 2<sup>m</sup> 拍取 1 拍（逐级二分，每级取起音强度之和较大的那一组，通常是强拍），m &lt; 0 时在相邻拍之间等分补拍（权重 0.85）。a<sub>min</sub> = 0.55：副歌更重、主歌更轻。空档（相邻拍距 &gt; 1.5T*）先按 T* 外推补拍。</p>
+      </div>
+      <div class="eq">
+        <h3>3. 输出：加窗 → 卷积 → 门控 → 映射</h3>
+        <math display="block"><msub><mi>y</mi><mi>e</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><mo>(</mo><msub><mi>w</mi><mi>e</mi></msub><msub><mi>x</mi><mi>e</mi></msub><mo>*</mo><msub><mi>h</mi><mi>e</mi></msub><mo>)</mo><mo>(</mo><mi>t</mi><mo>+</mo><msub><mi>t</mi><mi>lead</mi></msub><mo>)</mo><mo>=</mo><munder><mo>∑</mo><mrow><msub><mi>t</mi><mi>k</mi></msub><mo>∈</mo><msub><mi>W</mi><mi>e</mi></msub></mrow></munder><msub><mi>a</mi><mi>k</mi></msub><mspace width="0.1em"/><msub><mi>h</mi><mi>e</mi></msub><mo>(</mo><mi>t</mi><mo>+</mo><msub><mi>t</mi><mi>lead</mi></msub><mo>−</mo><msub><mi>t</mi><mi>k</mi></msub><mo>)</mo><mo>,</mo><mspace width="1em"/><msub><mi>o</mi><mi>e</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><msub><mi>G</mi><mi>e</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo><mo>·</mo><msub><mi>M</mi><mi>e</mi></msub><mo>[</mo><msub><mi>y</mi><mi>e</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo><mo>]</mo></math>
+        <p>分工：<b>节拍决定「什么时候动」</b>（x * h），<b>歌词决定「哪里动、动多少」</b>（窗 W<sub>e</sub> 只保留短语唱的区间里的拍；门控 G<sub>e</sub> 是原来的起落曲线或行高亮区间；强度 f 来自歌词标注）。短语里一拍都没有时取开唱后的第一拍，保证至少跳一次。拍点提前算好，所以 h 可以是非因果的（柔光在拍前就开始变亮，峰值正好落在拍上），播放时只对最近几拍求和。</p>
+      </div>
+      <div class="eq">
+        <h3>4. 各动效的系统 h<sub>e</sub>(t) 与映射 M<sub>e</sub></h3>
+        <p>记 g<sub>τ</sub>(t) = (t/τ)·e<sup>1−t/τ</sup>·u(t)（临界阻尼二阶，t = τ 处峰值 1），u 为单位阶跃。em 为字号单位。</p>
+        <div class="scroll-x">
+        <table class="tbl">
+          <thead><tr><th>动效</th><th>h<sub>e</sub>(t)</th><th>参数</th><th>窗 W<sub>e</sub> / 门控 G<sub>e</sub></th><th>映射 M<sub>e</sub>（每个字）</th></tr></thead>
+          <tbody>
+            <tr><td class="c">心跳</td><td>g<sub>τa</sub>(t) + β·g<sub>τa</sub>(t − Δ)</td><td>τ<sub>a</sub> = 55 ms，β = 0.65，Δ = clamp(0.3T<sub>e</sub>, 0.14, 0.30) s</td><td>W：[开唱 − 60 ms, 唱完]；G = 1</td><td>scale = 1 + 0.04f·v + 0.16f·y；x = (i − (m−1)/2)·0.06f·y；辉光 (0.3 + 0.35f)·y</td></tr>
+            <tr><td class="c">放大</td><td>g<sub>70 ms</sub>(t)</td><td>起落时长 D = max(1 s, 唱的时长)·T<sub>b</sub>/0.75，字间错开 0.4D/m</td><td>W：全部；G = v<sub>i</sub>(t) = swellCurve((t − s − 0.4Di/m)/D)</td><td>k = v·(1 + 0.6y)：scale = 1 + 0.14f·k，外推 0.03f·k，上浮 0.025f·k，辉光 v(0.25 + 0.45f)(1 + 0.4y)</td></tr>
+            <tr><td class="c">柔光</td><td>cos²(πt/T<sub>e</sub>)，|t| &lt; T<sub>e</sub>/2（非因果）</td><td>n = +1，T<sub>e</sub> ≈ 1 ~ 2 s</td><td>W：[开唱, 这一行结束]；G：开唱前 150 ms 起 0.3 s 淡入，行结束后 0.4 s 淡出</td><td>辉光 G(0.35 + 0.5f)(0.3 + 0.7y)，半径 0.45 em；scale = 1 + 0.04f·G·y</td></tr>
+            <tr><td class="c">波浪</td><td>第 i 个字：b(t − iδ)，b(t) = sin(πt/w)，0 ≤ t &lt; w</td><td>w = 0.5T<sub>e</sub>，δ = 0.5T<sub>e</sub>/(m − 1)（一拍内波峰走完整个短语）</td><td>W：[开唱 − 60 ms, 唱完]</td><td>上浮 (0.08 + 0.14f)·y<sub>i</sub>，scale = 1 + 0.05f·y<sub>i</sub></td></tr>
+            <tr><td class="c">抖动</td><td>e<sup>−t/τ<sub>s</sub></sup>·u(t)（调幅包络）</td><td>τ<sub>s</sub> = 0.12 s，n = −1；载波 φ = (t − s<sub>i</sub>)/(T<sub>b</sub>/16)</td><td>W：[开唱, 开唱 + D]；G = v<sub>i</sub>(t)</td><td>A = v(0.35 + 0.65y)：x = 0.035f·A·sin(2.3φ + 1.7i)，y = 0.025f·A·cos(1.9φ + 1.3i)，scale = 1 + 0.06f·A</td></tr>
+            <tr><td class="c">流光</td><td>相位型（见 5）</td><td>n = 0，两遍</td><td>从开唱前 120 ms 内或之后的第一拍起</td><td>光带中心 c(t) = frac(φ)·(m + 2) − 1，背景渐变裁剪到字形（同线上）</td></tr>
+            <tr><td class="c">间奏圆点</td><td>交替冲激 Σ(−1)<sup>k</sup>δ(t − t<sub>k</sub>) × 平滑阶跃（见 6）</td><td>n = round(log<sub>2</sub>(2 s / T<sub>b</sub>))，吸 1.2 / 呼 0.9</td><td>W：[间奏开始, 淡出前 1.8 s]</td><td>scale = 呼吸；出场、点亮、退场沿用 <code>interlude.ts</code></td></tr>
+            <tr><td class="c">背景呼吸</td><td>min(1, t/30 ms)·e<sup>−t/150 ms</sup>·u(t)</td><td>n = 0（与旧检测的 e<sup>−7t</sup> 衰减相当）</td><td>全曲</td><td>不透明度 0.12·min(1, y)</td></tr>
+            <tr><td class="c">爱心粒子缩放</td><td>同心跳</td><td>n = 0</td><td>全曲</td><td>scale = 1 + 0.12·y</td></tr>
+            <tr><td class="c">行点头 <span class="pill new">建议新增</span></td><td>e<sup>−t/0.18</sup>·sin(2πt/0.36)·u(t)（欠阻尼二阶）</td><td>n = +1</td><td>W：这一行</td><td>translateY = 0.07 em·y（先沉后弹）</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+      <div class="eq">
+        <h3>5. 相位型：流光</h3>
+        <math display="block"><mi>φ</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><mi>k</mi><mo>+</mo><mfrac><mrow><mi>t</mi><mo>−</mo><msub><mi>t</mi><mi>k</mi></msub></mrow><mrow><msub><mi>t</mi><mrow><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>−</mo><msub><mi>t</mi><mi>k</mi></msub></mrow></mfrac><mo>,</mo><mspace width="0.5em"/><msub><mi>t</mi><mi>k</mi></msub><mo>≤</mo><mi>t</mi><mo>&lt;</mo><msub><mi>t</mi><mrow><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>,</mo><mspace width="1.5em"/><mi>c</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><mi>frac</mi><mo>(</mo><mi>φ</mi><mo>)</mo><mo>·</mo><mo>(</mo><mi>m</mi><mo>+</mo><mn>2</mn><mo>)</mo><mo>−</mo><mn>1</mn></math>
+        <p>φ(t) 是冲激串的「计数 + 线性插值」，即节拍相位；它不是卷积，但输入仍是同一个 x(t)，所以同样有四个档位。每遍正好一拍：拍速有轻微漂移时，光带也跟着变快变慢。</p>
+      </div>
+      <div class="eq">
+        <h3>6. 交替阶跃：间奏圆点</h3>
+        <math display="block"><mi>s</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><msub><mi>s</mi><mrow><mi>k</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mo>(</mo><msub><mi>s</mi><mi>k</mi></msub><mo>−</mo><msub><mi>s</mi><mrow><mi>k</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>)</mo><mspace width="0.1em"/><mi>E</mi><mrow><mo>(</mo><mfrac><mrow><mi>t</mi><mo>−</mo><msub><mi>t</mi><mi>k</mi></msub></mrow><mrow><mn>0.8</mn><msub><mi>T</mi><mi>e</mi></msub></mrow></mfrac><mo>)</mo></mrow><mo>,</mo><mspace width="1em"/><msub><mi>s</mi><mi>k</mi></msub><mo>=</mo><mrow><mo>{</mo><mtable columnalign="left"><mtr><mtd><mn>1.2</mn><mspace width="0.5em"/><mtext>k 为奇数（吸）</mtext></mtd></mtr><mtr><mtd><mn>0.9</mn><mspace width="0.5em"/><mtext>k 为偶数（呼）</mtext></mtd></mtr></mtable></mrow></math>
+        <p>E 为 cubic-bezier(0, 0, 0.58, 1) 缓出（与 <code>interlude.ts</code> 相同）。等价于交替符号的冲激串经过「平滑阶跃」系统：每个拍点把目标在吸 / 呼之间翻转一次。</p>
+      </div>
+      <div class="eq">
+        <h3>7. 点过程：离散事件类粒子</h3>
+        <math display="block"><mi>λ</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><munder><mo>∑</mo><mi>k</mi></munder><msub><mi>N</mi><mi>k</mi></msub><mspace width="0.1em"/><mi>δ</mi><mo>(</mo><mi>t</mi><mo>−</mo><msub><mi>t</mi><mi>k</mi></msub><mo>)</mo><mo>,</mo><mspace width="1em"/><msub><mi>N</mi><mi>k</mi></msub><mo>=</mo><mi>max</mi><mo>(</mo><mn>1</mn><mo>,</mo><mo>⌊</mo><mi>r</mi><mspace width="0.1em"/><msub><mi>T</mi><mi>e</mi></msub><mspace width="0.1em"/><mi>A</mi><mspace width="0.1em"/><msub><mi>a</mi><mi>k</mi></msub><mo>+</mo><msub><mi>c</mi><mrow><mi>k</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>⌋</mo><mo>)</mo></math>
+        <p>r 为场景原来的生成速率（个/秒），A 为画面面积系数（同 <code>stage-particles.ts</code>），c 为累计的小数部分。长期平均速率与现在一致，只是从「均匀洒」变成「在拍点成簇出现」。</p>
+      </div>
+      <div class="eq">
+        <h3>8. 档位解析与回退</h3>
+        <math display="block"><msub><mi>p</mi><mi>eff</mi></msub><mo>=</mo><mrow><mo>{</mo><mtable columnalign="left left"><mtr><mtd><msub><mi>p</mi><mi>phrase</mi></msub><mo>∨</mo><msub><mi>p</mi><mi>song</mi></msub></mtd><mtd><mtext>不是 beat 时</mtext></mtd></mtr><mtr><mtd><mi>beat</mi></mtd><mtd><mtext>音频可读 ∧ 分析完成 ∧ c ≥ 0.12</mtext></mtd></mtr><mtr><mtd><msub><mi>p</mi><mi>fallback</mi></msub><mo>=</mo><mi>medium</mi></mtd><mtd><mtext>其他</mtext></mtd></mtr></mtable></mrow></math>
+      </div>
+    </div>
+  </section>
+
+  <section id="backend">
+    <h2>⑧ 后端数据结构建议（只给建议，不改代码）</h2>
+    <p class="desc">后端已经有「特效节奏」字段：全曲 <code>MusicLyricAnnotationsDto.Pace</code>（编辑请求 <code>MusicLyricAnnotationsEditReq.Pace</code>，存储 <code>lyricAnnotationData.Pace</code>）与短语 <code>MusicLyricAnnotationPhrase.Pace</code>，取值 slow / fast，medium 为空不保存（<code>lyricAnnotationPaces</code>）。最小改动是<b>沿用 pace，把枚举扩成四个值</b>，不新增字段、不改表（标注本来就整体存在 <code>lyric_annotations.data</code> 的 JSON 里）。</p>
+    <div class="grid2">
+      <div class="panel">
+        <b style="font-size:14px">接口里的样子</b>
+<pre>{
+  "status": "ready",
+  "font": "song",
+  "pace": "",            // 全曲：beat | fast | medium | slow
+                         // 为空 = beat（新的默认，推荐）
+  "lines": [{
+    "text": "怦然心动的瞬间",
+    "phrases": [{
+      "text": "怦然心动",
+      "effect": "heartbeat",
+      "pace": "slow"     // 可选：短语覆盖，为空 = 跟随全曲
+    }]
+  }]
+}</pre>
+      </div>
+      <div class="panel">
+        <b style="font-size:14px">要点</b>
+        <table class="tbl"><tbody>
+          <tr><td class="c">粒度</td><td><b>全曲级</b>一个 pace（默认 beat）+ <b>短语级</b>可选覆盖（现有能力，保留）。不按特效类型存：各特效相对基准脉冲的倍数 n<sub>e</sub> 是前端常量。</td></tr>
+          <tr><td class="c">取值与存储</td><td>全曲：beat 存空，medium / fast / slow 显式存（medium 以前不存，现在要存，因为空的含义变了）。短语：允许 beat / fast / medium / slow，与全曲相同时不存（沿用 <code>phrase.Pace != data.Pace</code> 的去重）。</td></tr>
+          <tr><td class="c">不存的东西</td><td>BPM、拍点、置信度都只在前端算、前端缓存；后端不需要音频分析能力。</td></tr>
+          <tr><td class="c">兼容</td><td>旧前端的 <code>isLyricPace('beat')</code> 为 false，会当作没有节奏 → medium，不会出错。</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <b style="font-size:14px">改动清单（建议）</b>
+<pre>// internal/service/music_annotation.go
+// 特效节奏：beat 跟随节拍（默认，为空）/ fast / medium / slow
+lyricAnnotationPaces = map[string]bool{"beat": true, "slow": true, "medium": true, "fast": true}
+// 保存时 beat 规范化为空字符串；sanitize 时模型输出的全曲 pace 不再采用（默认跟随节拍）
+
+// internal/service/music_annotation_edit.go
+// 编辑接口 req.Pace / phrase.Pace 允许四个值；"beat" → ""，其余原样保存
+
+// internal/dto/music.go
+// MusicLyricAnnotationsDto.Pace：beat / fast / medium / slow，为空时为 beat
+// MusicLyricAnnotationPhrase.Pace：同上，为空时沿用全曲
+
+// internal/service/music_annotation_prompt.go
+// 全曲的 "pace" 从 plan 输出里去掉（交给节拍检测）；短语级 pace 仍可给 slow / fast（例：快歌里一句慢下来的心跳）
+
+// internal/repo/migrations/20261104NN_lyric_annotation_pace_beat.go（编号接在现有 2026110401 / 02 之后）
+// 「空 = medium」改为「空 = beat」是语义变化，按 AGENTS.md 写一次性迁移，不在读取时长期分支判断：
+//   - edited_at 非空（管理员手动编辑过）且全曲 pace 为空 → 写成 "medium"，保留管理员当时的选择
+//   - edited_at 为空（模型生成）→ 删除全曲 pace（模型按「轻快程度」给的 slow / fast 改为跟随节拍）
+//   - 短语级 pace 不动；同时补 migrate_test.go 的旧库升级用例
+
+// web/src/lib/lyrics/pace.ts
+// export type LyricPace = 'beat' | 'slow' | 'medium' | 'fast'（PACE 表只服务固定档）
+// 新增 rhythm.ts：基准脉冲、重采样、各动效 h(t)；word-effects.ts / nav-emphasis.ts / stage-effects.ts 改为读取 y(t)
+// 后台编辑器 lyric-settings-panels.tsx 的 Select 增加「跟随节拍（推荐）」并设为默认，phrase-toolbar.tsx 同步；locales 五种语言补文案</pre>
+      <p class="desc small" style="margin:10px 0 0">另一种做法是新增 <code>rhythm</code> 字段、保留 pace 作为回退档，但两个字段表达的是同一件事（动效快慢），还要处理二者冲突，不推荐。</p>
+    </div>
+  </section>
+</main>
+
+<script>
+// ================= 基础工具 =================
+const $ = id => document.getElementById(id)
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x))
+const clamp01 = x => clamp(x, 0, 1)
+
+// 三次贝塞尔缓动（与 web/src/lib/lyrics/easing.ts 相同）
+function cubicBezier(x1, y1, x2, y2) {
+  const cx = 3 * x1
+  const bx = 3 * (x2 - x1) - cx
+  const ax = 1 - cx - bx
+  const cy = 3 * y1
+  const by = 3 * (y2 - y1) - cy
+  const ay = 1 - cy - by
+  const sampleX = t => ((ax * t + bx) * t + cx) * t
+  const sampleY = t => ((ay * t + by) * t + cy) * t
+  const slopeX = t => (3 * ax * t + 2 * bx) * t + cx
+  const solve = (x) => {
+    let t = x
+    for (let i = 0; i < 8; i++) {
+      const error = sampleX(t) - x
+      if (Math.abs(error) < 1e-5)
+        return t
+      const slope = slopeX(t)
+      if (Math.abs(slope) < 1e-6)
+        break
+      t -= error / slope
+    }
+    let low = 0
+    let high = 1
+    t = x
+    for (let i = 0; i < 20; i++) {
+      if (sampleX(t) < x)
+        low = t
+      else high = t
+      t = (low + high) / 2
+    }
+    return t
+  }
+  return x => (x <= 0 ? 0 : x >= 1 ? 1 : sampleY(solve(x)))
+}
+const swellIn = cubicBezier(0.2, 0.4, 0.58, 1)
+const swellOut = cubicBezier(0.3, 0, 0.58, 1)
+function swellCurve(x) {
+  if (x <= 0 || x >= 1)
+    return 0
+  return x < 0.5 ? swellIn(x / 0.5) : 1 - swellOut((x - 0.5) / 0.5)
+}
+const easeOut = cubicBezier(0, 0, 0.58, 1)
+const easeIn = cubicBezier(0.42, 0, 1, 1)
+const swellEase = cubicBezier(0.25, 0.1, 0.25, 1)
+
+// ================= 主题 =================
+document.querySelectorAll('[data-theme]').forEach(btn => btn.addEventListener('click', () => {
+  document.documentElement.classList.toggle('dark', btn.dataset.theme === 'dark')
+  document.querySelectorAll('[data-theme]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)))
+  drawKernels()
+  drawTempo()
+}))
+
+// ================= 歌曲 =================
+const SONGS = [
+  { id: 'biye-tongzhi', name: '毕业通知', artist: 'WOVOP, 洛天依', chorus: 71.1 },
+  { id: 'senbonzakura', name: '千本桜', artist: '黒うさP, 初音ミク', refBpm: 154, chorus: 57.0 },
+  { id: 'only-my-railgun', name: 'only my railgun', artist: 'fripSide', chorus: 62.4 },
+  { id: 'yu-ai', name: '雨爱', artist: '杨丞琳', chorus: 50.9 },
+]
+const audio = $('audio')
+const statusEl = $('status')
+let current = null // { song, analysis, error }
+let lines = []
+
+function renderSongs() {
+  const box = $('songs')
+  box.innerHTML = SONGS.map(s => `<button type="button" class="song" data-song="${s.id}" aria-pressed="false"><b>${s.name}</b><span>${s.artist}${s.refBpm ? ` · 参考 ${s.refBpm} BPM` : ''}</span></button>`).join('')
+  box.querySelectorAll('[data-song]').forEach(b => b.addEventListener('click', () => loadSong(SONGS.find(s => s.id === b.dataset.song))))
+}
+
+async function loadSong(song) {
+  document.querySelectorAll('[data-song]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.song === song.id)))
+  audio.pause()
+  const url = `audio/${song.id}.mp3`
+  audio.src = url
+  current = { song, analysis: null, error: null }
+  trains = new Map()
+  lines = []
+  resetParticles()
+  if (rt)
+    rt.hist = []
+  statusEl.textContent = '读取音频…'
+  refreshPace()
+  try {
+    const [buf, raw] = await Promise.all([
+      fetch(url).then(r => r.arrayBuffer()),
+      fetch(`audio/${song.id}.lyric.json`).then(r => r.json()).catch(() => []),
+    ])
+    lines = buildLines(raw)
+    const t0 = performance.now()
+    const analysis = await analyze(buf, p => (statusEl.textContent = `分析中 ${Math.round(p * 100)}%（期间按回退档演出）`))
+    analysis.elapsed = performance.now() - t0
+    if (current.song !== song)
+      return
+    current.analysis = analysis
+    buildTrains()
+    statusEl.textContent = `分析完成，用时 ${(analysis.elapsed / 1000).toFixed(2)} 秒，可以播放了`
+  }
+  catch (err) {
+    current.error = err.message
+    statusEl.textContent = `分析失败：${err.message}（回退到固定档）`
+  }
+  refreshPace()
+  drawTempo()
+}
+
+// ---------------- 分析：起音强度、拍速、节拍（原样取自 ../heartbeat-signal/index.html） ----------------
+const FS = 11025
+const N = 1024
+const HOP = 128
+const FR = FS / HOP
+
+function makeFFT(n) {
+  const rev = new Uint32Array(n)
+  const bits = Math.log2(n)
+  for (let i = 0; i < n; i++) {
+    let r = 0
+    for (let b = 0; b < bits; b++) r |= ((i >> b) & 1) << (bits - 1 - b)
+    rev[i] = r
+  }
+  const cos = new Float64Array(n / 2)
+  const sin = new Float64Array(n / 2)
+  for (let i = 0; i < n / 2; i++) {
+    cos[i] = Math.cos(2 * Math.PI * i / n)
+    sin[i] = Math.sin(2 * Math.PI * i / n)
+  }
+  return (re, im) => {
+    for (let i = 0; i < n; i++) {
+      const j = rev[i]
+      if (j > i) {
+        let t = re[i]; re[i] = re[j]; re[j] = t
+        t = im[i]; im[i] = im[j]; im[j] = t
+      }
+    }
+    for (let size = 2; size <= n; size <<= 1) {
+      const half = size >> 1
+      const step = n / size
+      for (let i = 0; i < n; i += size) {
+        for (let j = i, k = 0; j < i + half; j++, k += step) {
+          const l = j + half
+          const tre = re[l] * cos[k] + im[l] * sin[k]
+          const tim = im[l] * cos[k] - re[l] * sin[k]
+          re[l] = re[j] - tre
+          im[l] = im[j] - tim
+          re[j] += tre
+          im[j] += tim
+        }
+      }
+    }
+  }
+}
+
+const tick = () => new Promise(r => setTimeout(r, 0))
+
+async function analyze(arrayBuffer, onProgress) {
+  // 解码时直接重采样到 11025 Hz，再混成单声道
+  const ctx = new OfflineAudioContext(1, 1, FS)
+  const decoded = await ctx.decodeAudioData(arrayBuffer)
+  const len = decoded.length
+  const s = new Float32Array(len)
+  for (let c = 0; c < decoded.numberOfChannels; c++) {
+    const ch = decoded.getChannelData(c)
+    for (let i = 0; i < len; i++) s[i] += ch[i] / decoded.numberOfChannels
+  }
+
+  // 1. 谱通量起音强度 + 响度
+  const frames = Math.floor((len - N) / HOP) + 1
+  const win = new Float64Array(N).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N))
+  const fft = makeFFT(N)
+  const re = new Float64Array(N)
+  const im = new Float64Array(N)
+  const prev = new Float64Array(N / 2 + 1)
+  const onset = new Float32Array(frames)
+  const loud = new Float32Array(frames)
+  const GAMMA = 10
+  for (let m = 0; m < frames; m++) {
+    const off = m * HOP
+    let energy = 0
+    for (let i = 0; i < N; i++) {
+      const v = s[off + i]
+      re[i] = v * win[i]
+      im[i] = 0
+      energy += v * v
+    }
+    loud[m] = 10 * Math.log10(energy / N + 1e-10)
+    fft(re, im)
+    let flux = 0
+    for (let k = 1; k <= N / 2; k++) {
+      const y = Math.log1p(GAMMA * Math.hypot(re[k], im[k]))
+      const d = y - prev[k]
+      if (d > 0 && m > 0)
+        flux += d
+      prev[k] = y
+    }
+    onset[m] = flux
+    if (m % 2000 === 0) {
+      onProgress(m / frames * 0.85)
+      await tick()
+    }
+  }
+
+  // 去掉缓慢变化（0.4 秒滑动平均），半波整流并归一化
+  const norm = new Float32Array(frames)
+  const w = Math.round(0.4 * FR)
+  let acc = 0
+  const prefix = new Float64Array(frames + 1)
+  for (let m = 0; m < frames; m++) prefix[m + 1] = prefix[m] + onset[m]
+  for (let m = 0; m < frames; m++) {
+    const a = Math.max(0, m - w)
+    const b = Math.min(frames, m + w + 1)
+    norm[m] = Math.max(0, onset[m] - (prefix[b] - prefix[a]) / (b - a))
+    acc += norm[m] * norm[m]
+  }
+  const sd = Math.sqrt(acc / frames) || 1
+  for (let m = 0; m < frames; m++) norm[m] /= sd
+
+  // 响度平滑（0.5 秒）
+  const loudSmooth = new Float32Array(frames)
+  const lw = Math.round(0.25 * FR)
+  const lp = new Float64Array(frames + 1)
+  for (let m = 0; m < frames; m++) lp[m + 1] = lp[m] + loud[m]
+  for (let m = 0; m < frames; m++) {
+    const a = Math.max(0, m - lw)
+    const b = Math.min(frames, m + lw + 1)
+    loudSmooth[m] = (lp[b] - lp[a]) / (b - a)
+  }
+
+  // 2. 拍速：自相关后按八度折叠
+  onProgress(0.88)
+  await tick()
+  const maxLag = Math.ceil(FR * 4)
+  const R = new Float64Array(maxLag + 2)
+  for (let tau = 0; tau <= maxLag + 1; tau++) {
+    let sum = 0
+    for (let m = 0; m + tau < frames; m++) sum += norm[m] * norm[m + tau]
+    R[tau] = sum / (frames - tau)
+  }
+  const Ri = (tau) => {
+    const i = Math.floor(tau)
+    const f = tau - i
+    return i + 1 < R.length ? R[i] * (1 - f) + R[i + 1] * f : 0
+  }
+  const fam = tau => Ri(tau / 2) + Ri(tau) + 0.5 * Ri(2 * tau)
+  const famLo = FR * 0.5
+  const famHi = FR * 1.0
+  let famBest = famLo
+  for (let tau = famLo; tau < famHi; tau += 0.25) {
+    if (fam(tau) > fam(famBest))
+      famBest = tau
+  }
+  const prior = tau => Math.exp(-0.5 * (Math.log2((tau / FR) / 0.5)) ** 2)
+  const members = [famBest / 2, famBest, famBest * 2].filter(tau => tau >= FR * 0.25 && tau <= FR * 1.5)
+  const period = members.reduce((best, tau) => (prior(tau) * Ri(tau) > prior(best) * Ri(best) ? tau : best))
+  const bpm = 60 * FR / period
+  const confidence = Ri(period) / R[0]
+  const minLag = Math.floor(FR * 60 / 240)
+
+  // 3. 节拍：动态规划
+  onProgress(0.94)
+  await tick()
+  const ALPHA = 100
+  const C = new Float64Array(frames)
+  const back = new Int32Array(frames).fill(-1)
+  const lo = Math.round(2 * period)
+  const hi = Math.round(period / 2)
+  for (let t = 0; t < frames; t++) {
+    let bestScore = -Infinity
+    let arg = -1
+    for (let tau = Math.max(0, t - lo); tau <= t - hi; tau++) {
+      const score = C[tau] - ALPHA * Math.log((t - tau) / period) ** 2
+      if (score > bestScore) {
+        bestScore = score
+        arg = tau
+      }
+    }
+    C[t] = norm[t] + Math.max(0, bestScore)
+    back[t] = bestScore > 0 ? arg : -1
+  }
+  let end = frames - 1
+  for (let t = frames - Math.round(period); t < frames; t++) {
+    if (C[t] > C[end])
+      end = t
+  }
+  const beatFrames = []
+  for (let t = end; t >= 0; t = back[t]) beatFrames.push(t)
+  beatFrames.reverse()
+  const loudFloor = percentile(loudSmooth, 0.05) + 6
+  const beats = beatFrames
+    .filter(b => loudSmooth[b] > loudFloor)
+    .map(b => ({ t: (b * HOP + N / 2) / FS, loud: loudSmooth[b], strength: norm[b] }))
+
+  onProgress(1)
+  return {
+    duration: decoded.duration,
+    frames,
+    onset: norm,
+    loud: loudSmooth,
+    R,
+    minLag,
+    maxLag: Math.ceil(FR * 60 / 40),
+    famPeriod: famBest,
+    period,
+    bpm,
+    confidence,
+    beats,
+    l10: percentile(loudSmooth, 0.1),
+    l95: percentile(loudSmooth, 0.95),
+  }
+}
+
+function percentile(arr, q) {
+  const sorted = Float32Array.from(arr).sort()
+  return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]
+}
+
+// ================= 输入：基准脉冲与各八度的冲激串 =================
+const AMIN = 0.55
+let trains = new Map() // 八度 k（相对拍长 T*）→ [{ t, a, strength, synth }]
+let baseK = 0
+let trainInfo = { real: 0, synth: 0 }
+
+function accentOf(a, loud) {
+  return AMIN + (1 - AMIN) * clamp01((loud - a.l10) / (a.l95 - a.l10))
+}
+
+function buildTrains() {
+  const a = current.analysis
+  const T = a.period / FR
+  const src = a.beats.map(b => ({ t: b.t, a: accentOf(a, b.loud), strength: b.strength, synth: false }))
+  const filled = []
+  if (src.length) {
+    // 空档外推（飞轮）：开头、结尾与拍距超过 1.5T* 的空档按 T* 补拍，保持相位连续
+    const head = []
+    for (let t = src[0].t - T; t > 0.05; t -= T) head.push({ t, a: AMIN * 0.8, strength: 0, synth: true })
+    filled.push(...head.reverse())
+    for (let i = 0; i < src.length; i++) {
+      filled.push(src[i])
+      const next = src[i + 1]
+      if (!next)
+        break
+      const gap = next.t - src[i].t
+      if (gap > 1.5 * T) {
+        const m = Math.round(gap / T)
+        for (let j = 1; j < m; j++) filled.push({ t: src[i].t + gap * j / m, a: AMIN * 0.8, strength: 0, synth: true })
+      }
+    }
+    for (let t = src[src.length - 1].t + T; t < a.duration - 0.05; t += T) filled.push({ t, a: AMIN * 0.8, strength: 0, synth: true })
+  }
+  baseK = Math.round(Math.log2(a.famPeriod / a.period))
+  trains = new Map([[0, filled]])
+  // 逐级二分：k 级取 k−1 级中起音强度之和较大的那一组（通常是强拍），保证各级嵌套
+  for (let k = 1; k <= 4; k++) {
+    const prev = trains.get(k - 1)
+    let off = 0
+    let s0 = 0
+    let s1 = 0
+    prev.forEach((b, i) => (i % 2 ? (s1 += b.strength) : (s0 += b.strength)))
+    off = s1 > s0 ? 1 : 0
+    trains.set(k, prev.filter((_, i) => i % 2 === off))
+  }
+  // 补拍：在相邻拍之间插入中点
+  for (let k = -1; k >= -4; k--) {
+    const prev = trains.get(k + 1)
+    const out = []
+    for (let i = 0; i < prev.length; i++) {
+      out.push(prev[i])
+      const nx = prev[i + 1]
+      if (nx)
+        out.push({ t: (prev[i].t + nx.t) / 2, a: prev[i].a * 0.85, strength: 0, synth: prev[i].synth, sub: true })
+    }
+    trains.set(k, out)
+  }
+  trainInfo = { real: src.length, synth: filled.length - src.length }
+}
+
+function lowerIndex(arr, t) {
+  let lo = 0
+  let hi = arr.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (arr[mid].t <= t)
+      lo = mid + 1
+    else hi = mid
+  }
+  return lo - 1
+}
+
+// ================= 速度档位 =================
+const TIER_T = { fast: 0.52, medium: 0.75, slow: 1.0 }
+const PACE_NAME = { beat: '跟随节拍', fast: '快', medium: '中', slow: '慢' }
+const CONF_MIN = 0.12
+const S = { songPace: 'beat', fallback: 'medium', fail: false, f: 0.8, lead: 0.02, stageFx: 'heartbeat', stageImpl: 'new', bg: 'new', scene: 'notes', nod: false, bgGain: 2.5, click: false }
+
+// 跟随节拍不可用的原因；可用时为 null
+function beatProblem() {
+  if (S.fail)
+    return '模拟检测失败'
+  if (!current)
+    return '未选歌'
+  if (current.error)
+    return '音频分析失败'
+  if (!current.analysis)
+    return '分析中'
+  if (current.analysis.confidence < CONF_MIN)
+    return `节拍置信度 ${current.analysis.confidence.toFixed(2)} < ${CONF_MIN}`
+  return null
+}
+// 生效档位：override 为短语覆盖（空为跟随全曲）
+function effPace(override) {
+  const p = override || S.songPace
+  if (p !== 'beat')
+    return p
+  return beatProblem() ? S.fallback : 'beat'
+}
+function basePeriod(pace) {
+  return pace === 'beat' ? current.analysis.famPeriod / FR : TIER_T[pace]
+}
+function periodOf(pace, n) {
+  return basePeriod(pace) * 2 ** n
+}
+
+// 某动效（八度 n）在 [t0, t1] 内的脉冲；origin 为固定档的起点
+function pulsesIn(pace, n, origin, t0, t1) {
+  const out = []
+  if (pace === 'beat') {
+    const arr = trains.get(clamp(baseK + n, -4, 4)) ?? []
+    let i = Math.max(0, lowerIndex(arr, t0))
+    while (i < arr.length && arr[i].t < t0) i++
+    for (; i < arr.length && arr[i].t <= t1; i++) out.push(arr[i])
+    return out
+  }
+  const T = TIER_T[pace] * 2 ** n
+  for (let j = Math.max(0, Math.ceil((t0 - origin) / T - 1e-9)); origin + j * T <= t1; j++) out.push({ t: origin + j * T, a: 1, synth: false })
+  return out
+}
+// 加窗的脉冲：窗内一拍都没有时取窗起点之后的第一拍（保证至少动一次）
+function windowPulses(pace, n, origin, a, b) {
+  const list = pulsesIn(pace, n, origin, a, b)
+  if (list.length)
+    return list
+  const T = periodOf(pace, n)
+  const first = pulsesIn(pace, n, origin, a, a + 2.2 * T)[0]
+  return first ? [first] : []
+}
+function conv(list, t, h) {
+  let y = 0
+  for (const p of list) y += p.a * h(t - p.t)
+  return y
+}
+
+// ================= 系统：各动效的冲激响应 =================
+const g = (t, tau) => (t <= 0 ? 0 : (t / tau) * Math.exp(1 - t / tau))
+const H = {
+  heartbeat: (t, Te) => g(t, 0.055) + 0.65 * g(t - clamp(0.3 * Te, 0.14, 0.3), 0.055),
+  swell: t => g(t, 0.07),
+  glow: (t, Te) => (Math.abs(t) < Te / 2 ? Math.cos(Math.PI * t / Te) ** 2 : 0),
+  wave: (t, Te) => {
+    const w = 0.5 * Te
+    return t >= 0 && t < w ? Math.sin(Math.PI * t / w) : 0
+  },
+  shake: t => (t < 0 ? 0 : Math.exp(-t / 0.12)),
+  bg: t => (t < 0 ? 0 : Math.min(1, t / 0.03) * Math.exp(-t / 0.15)),
+  nod: t => (t < 0 ? 0 : Math.exp(-t / 0.18) * Math.sin(2 * Math.PI * t / 0.36)),
+}
+// 各动效相对基准脉冲的八度倍数 n_e（前端常量）
+const OCT = { heartbeat: 0, swell: 0, glow: 1, wave: 0, shake: -1, shimmer: 0, bg: 0, nod: 1 }
+function interludeOct(pace) {
+  return clamp(Math.round(Math.log2(2 / basePeriod(pace))), 0, 2)
+}
+
+// ================= 歌词 =================
+function buildLines(raw) {
+  return raw.map(([ms, text], i) => {
+    const s = ms / 1000
+    const nx = raw[i + 1] ? raw[i + 1][0] / 1000 : s + 5
+    const end = Math.min(nx, s + 8)
+    // 行级歌词没有逐字时间：假定唱到这一行时长的 85%（最多 5.5 秒），字按时间均分
+    return { s, end, e: s + Math.min(0.85 * (end - s), 5.5), text }
+  })
+}
+function lineIndexAt(t) {
+  let lo = 0
+  let hi = lines.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (lines[mid].s <= t)
+      lo = mid + 1
+    else hi = mid
+  }
+  return lo - 1
+}
+// 间奏：第一行前不少于 7 秒，或相邻两行开唱相隔不少于 12 秒（行级歌词不知道唱完的时刻，假定唱 5.5 秒）
+function interludeAt(t) {
+  if (!lines.length)
+    return null
+  if (t < lines[0].s)
+    return lines[0].s >= 7 ? { s: 0.5, e: lines[0].s } : null
+  const i = lineIndexAt(t)
+  const cur = lines[i]
+  const next = lines[i + 1]
+  if (next && next.s - cur.s >= 12) {
+    const s = cur.s + 5.5
+    if (t >= s && t < next.s)
+      return { s, e: next.s }
+  }
+  return null
+}
+// 卡片用的短语：这一行的前几个字（按行缓存，画波形时每帧要取很多次）
+function phraseOf(line, whole) {
+  const cacheKey = whole ? '_phWhole' : '_ph'
+  return (line[cacheKey] ??= makePhrase(line, whole))
+}
+function makePhrase(line, whole) {
+  const chars = [...line.text]
+  const k = whole ? chars.length : Math.min(chars.length, /[a-z]/i.test(line.text) ? 12 : 7)
+  const text = chars.slice(0, k).join('').trimEnd()
+  const count = Math.max(1, [...text].length)
+  const e = whole ? line.e : line.s + Math.max(1, (line.e - line.s) * count / chars.length)
+  return { s: line.s, e, lineEnd: line.end, text, count }
+}
+
+// ================= 动效：新（节拍驱动） =================
+// 返回每个字的 { x, y, s, glow, radius, shine } 与标量 level（画输出波形用）
+function fxNew(key, pace, ph, t, count) {
+  const f = S.f
+  const Tb = basePeriod(pace)
+  const origin = ph.s
+  const chars = []
+  let level = 0
+  const D = Math.max(1, ph.e - ph.s) * Tb / 0.75
+  const stagger = D * 0.4 / Math.max(1, count)
+  const vOf = i => swellCurve((t - (ph.s + stagger * i)) / D)
+  if (key === 'heartbeat') {
+    const Te = periodOf(pace, OCT.heartbeat)
+    const y = Math.min(1.2, conv(windowPulses(pace, OCT.heartbeat, origin, ph.s - 0.06, ph.e), t, dt => H.heartbeat(dt, Te)))
+    level = y
+    for (let i = 0; i < count; i++) {
+      const v = vOf(i)
+      chars.push({ x: (i - (count - 1) / 2) * y * 0.06 * f, y: 0, s: 1 + v * 0.04 * f + y * 0.16 * f, glow: v * (0.2 + 0.2 * f) + y * (0.3 + 0.35 * f) })
+    }
+  }
+  else if (key === 'swell') {
+    const y = conv(pulsesIn(pace, OCT.swell, origin, t - 0.6, t), t, H.swell)
+    for (let i = 0; i < count; i++) {
+      const v = vOf(i)
+      const k = v * (1 + 0.6 * y)
+      chars.push({ x: -k * 0.03 * f * (count / 2 - i - 0.5), y: -k * 0.025 * f, s: 1 + k * 0.14 * f, glow: v * (0.25 + 0.45 * f) * (1 + 0.4 * y) })
+    }
+    level = vOf(0) * (1 + 0.6 * y)
+  }
+  else if (key === 'glow') {
+    const Te = periodOf(pace, OCT.glow)
+    const y = Math.min(1, conv(windowPulses(pace, OCT.glow, origin, ph.s - 0.06, ph.lineEnd), t, dt => H.glow(dt, Te)))
+    const G = clamp01((t - ph.s + 0.15) / 0.3) * clamp01(1 - (t - ph.lineEnd) / 0.4)
+    level = G * (0.3 + 0.7 * y)
+    for (let i = 0; i < count; i++) chars.push({ s: 1 + G * y * 0.04 * f, glow: G * (0.35 + 0.5 * f) * (0.3 + 0.7 * y), radius: 0.45 })
+  }
+  else if (key === 'wave') {
+    const Te = periodOf(pace, OCT.wave)
+    const delta = count > 1 ? 0.5 * Te / (count - 1) : 0
+    const list = windowPulses(pace, OCT.wave, origin, ph.s - 0.06, ph.e)
+    for (let i = 0; i < count; i++) {
+      const yi = Math.min(1.2, conv(list, t - i * delta, dt => H.wave(dt, Te)))
+      chars.push({ y: -yi * (0.08 + 0.14 * f), s: 1 + yi * 0.05 * f })
+    }
+    level = Math.min(1.2, conv(list, t, dt => H.wave(dt, Te)))
+  }
+  else if (key === 'shake') {
+    const P = Tb / 16
+    const y = Math.min(1, conv(windowPulses(pace, OCT.shake, origin, ph.s - 0.06, ph.s + D), t, H.shake))
+    for (let i = 0; i < count; i++) {
+      const A = vOf(i) * (0.35 + 0.65 * y)
+      const phase = (t - (ph.s + stagger * i)) / P
+      chars.push({ x: Math.sin(phase * 2.3 + i * 1.7) * 0.035 * f * A, y: Math.cos(phase * 1.9 + i * 1.3) * 0.025 * f * A, s: 1 + A * 0.06 * f, glow: A * (0.15 + 0.25 * f) })
+    }
+    level = vOf(0) * (0.35 + 0.65 * y)
+  }
+  else if (key === 'shimmer') {
+    // 相位型：唱到后的第一拍起，每拍扫一遍，扫两遍
+    const list = pulsesIn(pace, OCT.shimmer, origin, ph.s - 0.12, ph.s + 6)
+    let pos = null
+    for (let k = 0; k < 2 && k + 1 < list.length; k++) {
+      if (t >= list[k].t && t < list[k + 1].t)
+        pos = ((t - list[k].t) / (list[k + 1].t - list[k].t)) * (count + 2) - 1
+    }
+    for (let i = 0; i < count; i++) {
+      const v = vOf(i)
+      chars.push({ s: 1 + v * 0.04 * f, glow: pos == null ? v * (0.25 + 0.3 * f) : 0, shine: pos })
+    }
+    level = pos == null ? 0 : (pos + 1) / (count + 2)
+  }
+  return { chars, level }
+}
+
+// ================= 动效：旧（线上实现，按唱的时长与 PACE 常数） =================
+const PACE = {
+  envelope: { slow: 1.35, medium: 1, fast: 0.75 },
+  shakePeriod: { slow: 70, medium: 45, fast: 30 },
+  heartbeatBeat: { slow: 1000, medium: 750, fast: 520 },
+  shimmerSweep: { slow: 1400, medium: 950, fast: 650 },
+}
+// web/src/lib/lyrics/word-effects.ts 的 heartbeatLevel（毫秒）
+function beatPulseOld(ms) {
+  return ms < 0 ? 0 : Math.exp(-ms / 90) * Math.min(1, ms / 45)
+}
+function heartbeatLevelOld(start, end, timeMs, pace) {
+  const duration = Math.max(1, end - start)
+  const local = timeMs - start
+  if (local < 0 || local > duration + 300)
+    return 0
+  const beats = Math.max(2, Math.round(duration / PACE.heartbeatBeat[pace]))
+  const period = duration / beats
+  const phase = local % period
+  return Math.max(beatPulseOld(phase), 0.7 * beatPulseOld(phase - 0.22 * period))
+}
+function fxOld(key, paceIn, ph, t, count) {
+  // 线上没有「跟随节拍」，按中处理
+  const pace = paceIn === 'beat' ? 'medium' : paceIn
+  const f = S.f
+  const D = Math.max(1, ph.e - ph.s) * PACE.envelope[pace]
+  const stagger = D * (key === 'wave' ? 1 / 1.5 : 0.4) / Math.max(1, count)
+  const begin = i => ph.s + stagger * i
+  const vOf = i => swellCurve((t - begin(i)) / D)
+  const chars = []
+  let level = 0
+  if (key === 'heartbeat') {
+    const beat = heartbeatLevelOld(ph.s * 1000, ph.e * 1000, t * 1000, pace)
+    level = beat
+    for (let i = 0; i < count; i++) {
+      const v = vOf(i)
+      chars.push({ x: (i - (count - 1) / 2) * beat * 0.06 * f, s: 1 + v * 0.04 * f + beat * 0.16 * f, glow: v * (0.2 + 0.2 * f) + beat * (0.3 + 0.35 * f) })
+    }
+  }
+  else if (key === 'swell') {
+    for (let i = 0; i < count; i++) {
+      const v = vOf(i)
+      chars.push({ x: -v * 0.03 * f * (count / 2 - i - 0.5), y: -v * 0.025 * f, s: 1 + v * 0.14 * f, glow: v * (0.25 + 0.45 * f) })
+    }
+    level = vOf(0)
+  }
+  else if (key === 'glow') {
+    for (let i = 0; i < count; i++) {
+      const v = vOf(i)
+      chars.push({ s: 1 + v * 0.04 * f, glow: v * (0.35 + 0.5 * f), radius: 0.45 })
+    }
+    level = vOf(0)
+  }
+  else if (key === 'wave') {
+    const liftOf = i => Math.sin(Math.PI * clamp01((t - begin(i) + 0.4) / (D * 1.4)))
+    for (let i = 0; i < count; i++) {
+      const lift = liftOf(i)
+      chars.push({ y: -lift * (0.08 + 0.14 * f), s: 1 + lift * 0.05 * f })
+    }
+    level = liftOf(0)
+  }
+  else if (key === 'shake') {
+    for (let i = 0; i < count; i++) {
+      const v = vOf(i)
+      const phase = (t - begin(i)) * 1000 / PACE.shakePeriod[pace]
+      chars.push({ x: Math.sin(phase * 2.3 + i * 1.7) * 0.035 * f * v, y: Math.cos(phase * 1.9 + i * 1.3) * 0.025 * f * v, s: 1 + v * 0.06 * f, glow: v * (0.15 + 0.25 * f) })
+    }
+    level = vOf(0)
+  }
+  else if (key === 'shimmer') {
+    const sweep = (t - ph.s) * 1000 / PACE.shimmerSweep[pace]
+    const pos = sweep < 0 || sweep >= 2 ? null : (sweep % 1) * (count + 2) - 1
+    for (let i = 0; i < count; i++) {
+      const v = vOf(i)
+      chars.push({ s: 1 + v * 0.04 * f, glow: pos == null ? v * (0.25 + 0.3 * f) : 0, shine: pos })
+    }
+    level = pos == null ? 0 : (pos + 1) / (count + 2)
+  }
+  return { chars, level }
+}
+
+// ================= 间奏圆点（web/src/lib/lyrics/interlude.ts，呼吸部分新旧两种） =================
+const IL = { LIGHT_DELAY: 1000, FADE_OUT_LEAD: 1800, UNLIT: 0.1, APPEAR: 800, APPEAR_STAGGER: 60, BREATH_DELAY: 200, INHALE: 1.2, EXHALE: 0.9, SWELL: 1000, VANISH_DELAY: 1000, VANISH_SCALE: 0.2, SHRINK: 500, VANISH_FADE: 300 }
+function breathOld(start, end, timeMs) {
+  const span = Math.max(end - IL.FADE_OUT_LEAD - start, 100)
+  const beat = span / Math.max(Math.floor((span / 1000) * 0.25), 1) * 0.5
+  const index = Math.max(1, Math.floor((timeMs - start) / beat) + 1)
+  const target = index % 2 === 1 ? IL.INHALE : IL.EXHALE
+  const from = index === 1 ? 1 : index % 2 === 1 ? IL.EXHALE : IL.INHALE
+  const local = timeMs - start - (index - 1) * beat
+  const progress = clamp01((local - IL.BREATH_DELAY) / Math.max(beat - 400, 50))
+  return from + (target - from) * easeOut(progress)
+}
+// 新：每个脉冲把目标在吸 / 呼之间翻转一次（交替符号的冲激串 × 平滑阶跃）
+function breathNew(start, end, timeMs, pace) {
+  const n = interludeOct(pace)
+  const T = periodOf(pace, n)
+  const now = Math.min(timeMs, end - IL.FADE_OUT_LEAD) / 1000
+  const list = pulsesIn(pace, n, start / 1000, start / 1000, now)
+  const j = list.length
+  if (!j)
+    return 1
+  const target = j % 2 === 1 ? IL.INHALE : IL.EXHALE
+  const from = j === 1 ? 1 : j % 2 === 1 ? IL.EXHALE : IL.INHALE
+  const progress = clamp01((now - list[j - 1].t - 0.03) / (0.8 * T))
+  return from + (target - from) * easeOut(progress)
+}
+function interludeDot(il, t, index, impl, pace) {
+  const start = il.s * 1000
+  const end = il.e * 1000
+  const timeMs = t * 1000
+  if (timeMs < start || timeMs >= end)
+    return { opacity: 0, scale: 1 }
+  const breath = ms => (impl === 'new' ? breathNew(start, end, ms, pace) : breathOld(start, end, ms))
+  const fadeOutAt = end - IL.FADE_OUT_LEAD
+  const appear = clamp01((timeMs - start - index * IL.APPEAR_STAGGER) / IL.APPEAR)
+  const lightMs = Math.max(fadeOutAt - (start + IL.LIGHT_DELAY), 100) / 3
+  const lit = clamp01((timeMs - (start + IL.LIGHT_DELAY) - index * lightMs) / lightMs)
+  let opacity = appear * (IL.UNLIT + (1 - IL.UNLIT) * lit)
+  if (timeMs < fadeOutAt)
+    return { opacity, scale: breath(timeMs) }
+  const elapsed = timeMs - fadeOutAt
+  const base = breath(fadeOutAt)
+  let scale = base + (IL.INHALE - base) * swellEase(clamp01(elapsed / IL.SWELL))
+  const vanish = elapsed - IL.VANISH_DELAY
+  if (vanish > 0) {
+    scale = IL.INHALE + (IL.VANISH_SCALE - IL.INHALE) * easeIn(clamp01(vanish / IL.SHRINK))
+    opacity *= 1 - easeIn(clamp01(vanish / IL.VANISH_FADE))
+  }
+  return { opacity, scale }
+}
+// 卡片里常驻演示：在间奏中用真实间奏，否则用每 16 秒一段的虚拟间奏
+function demoInterlude(t) {
+  return interludeAt(t) ?? { s: Math.floor(t / 16) * 16, e: Math.floor(t / 16) * 16 + 16 }
+}
+
+// ================= 画字 =================
+function ensureChars(el, text) {
+  if (el.dataset.text === text)
+    return el._spans
+  el.dataset.text = text
+  el.innerHTML = [...text].map(ch => `<span class="w">${ch === ' ' ? '&nbsp;' : ch.replace(/[<&]/g, c => (c === '<' ? '&lt;' : '&amp;'))}</span>`).join('')
+  el._spans = [...el.children]
+  return el._spans
+}
+function paintChars(spans, chars, wipe) {
+  spans.forEach((sp, i) => {
+    const c = chars[i] ?? {}
+    const tr = `translate(${(c.x ?? 0).toFixed(3)}em, ${(c.y ?? 0).toFixed(3)}em) scale(${(c.s ?? 1).toFixed(3)})`
+    if (sp._tr !== tr) {
+      sp._tr = tr
+      sp.style.transform = tr
+    }
+    let shadow = ''
+    let bgi = ''
+    let color = ''
+    if (c.shine != null) {
+      // 流光：字的颜色改由背景绘制（裁剪到字形），叠上一道光带（同线上 lyric-player.ts）
+      const pos = (c.shine - i) * 100
+      bgi = `linear-gradient(105deg, transparent ${(pos - 40).toFixed(1)}%, rgb(255 250 230 / 0.95) ${pos.toFixed(1)}%, transparent ${(pos + 40).toFixed(1)}%), linear-gradient(var(--lc), var(--lc))`
+      color = 'transparent'
+    }
+    else if ((c.glow ?? 0) > 0.005) {
+      shadow = `0 0 ${c.radius ?? 0.3}em color-mix(in srgb, var(--lyric-glow) ${(Math.min(1, c.glow) * 100).toFixed(1)}%, transparent)`
+    }
+    if (sp._sh !== shadow) {
+      sp._sh = shadow
+      sp.style.textShadow = shadow
+    }
+    if (sp._bg !== bgi) {
+      sp._bg = bgi
+      sp.style.backgroundImage = bgi
+      sp.style.color = color
+    }
+    const op = wipe ? wipe[i] : ''
+    if (sp._op !== op) {
+      sp._op = op
+      sp.style.opacity = op
+    }
+  })
+}
+
+// ================= 卡片 =================
+const CARDS = [
+  { key: 'heartbeat', name: '心跳', color: '#e5484d', d: '双峰 alpha：h = g(t) + β·g(t−Δ)，n = 0' },
+  { key: 'swell', name: '放大', color: '#f59e0b', d: '一次性起落 × 拍上重音 g₇₀ₘₛ，n = 0' },
+  { key: 'glow', name: '柔光', color: '#eab308', d: 'cos² 呼吸窗（非因果，峰值在拍上），n = +1' },
+  { key: 'wave', name: '波浪', color: '#14b8a6', d: '每拍一道波：半正弦 + 字间延迟，n = 0' },
+  { key: 'shake', name: '抖动', color: '#f97316', d: '载波 T_b/16，幅度 e^(−t/0.12) 随拍踢，n = −1' },
+  { key: 'shimmer', name: '流光', color: '#8b5cf6', d: '相位锁拍：唱到后第一拍起每拍扫一遍，两遍' },
+  { key: 'interlude', name: '间奏圆点', color: '#3b82f6', d: '吸 / 呼交替落在拍上，T_e ≈ 2 s（常驻演示）' },
+]
+const cardState = Object.fromEntries(CARDS.map(c => [c.key, { on: true, impl: 'new', pace: '' }]))
+
+function renderCards() {
+  $('fxGrid').innerHTML = CARDS.map(c => `
+    <div class="fx-card" data-card="${c.key}">
+      <div class="fx-head"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><span class="pill ok">接入</span><span class="d">${c.d}</span></div>
+      <div class="mini">${c.key === 'interlude' ? '<div class="pl-dots"><i></i><i></i><i></i></div>' : '<div class="mini-lyric">—</div>'}<span class="eff"></span><div class="mini-meter"><i></i></div></div>
+      <div class="fx-foot">
+        <label class="chk"><input type="checkbox" checked data-k="on"> 启用</label>
+        <div class="seg sm"><button type="button" data-impl="new" aria-pressed="true">新</button><button type="button" data-impl="old" aria-pressed="false">旧</button></div>
+        <select data-k="pace" aria-label="短语速度"><option value="">跟随全曲</option><option value="beat">跟随节拍</option><option value="fast">快</option><option value="medium">中</option><option value="slow">慢</option></select>
+      </div>
+    </div>`).join('')
+  document.querySelectorAll('[data-card]').forEach((el) => {
+    const st = cardState[el.dataset.card]
+    el._lyric = el.querySelector('.mini-lyric')
+    el._dots = [...el.querySelectorAll('.pl-dots i')]
+    el._meter = el.querySelector('.mini-meter i')
+    el._eff = el.querySelector('.eff')
+    el.querySelector('[data-k=on]').addEventListener('change', (e) => {
+      st.on = e.target.checked
+      el.classList.toggle('off', !st.on)
+    })
+    el.querySelectorAll('[data-impl]').forEach(b => b.addEventListener('click', () => {
+      st.impl = b.dataset.impl
+      el.querySelectorAll('[data-impl]').forEach(x => x.setAttribute('aria-pressed', String(x === b)))
+    }))
+    el.querySelector('[data-k=pace]').addEventListener('change', (e) => {
+      st.pace = e.target.value
+    })
+  })
+}
+
+function cardsFrame(t) {
+  const idx = lineIndexAt(t)
+  const line = lines[idx]
+  document.querySelectorAll('[data-card]').forEach((el) => {
+    const key = el.dataset.card
+    const st = cardState[key]
+    const pace = effPace(st.pace)
+    const paceLabel = st.impl === 'old' ? `旧 · ${PACE_NAME[pace === 'beat' ? 'medium' : pace]}` : PACE_NAME[pace]
+    if (el._eff.textContent !== paceLabel)
+      el._eff.textContent = paceLabel
+    let level = 0
+    if (key === 'interlude') {
+      const il = demoInterlude(t)
+      el._dots.forEach((d, i) => {
+        const dot = st.on ? interludeDot(il, t, i, st.impl, pace) : { opacity: 0.4, scale: 1 }
+        d.style.opacity = dot.opacity.toFixed(3)
+        d.style.transform = `scale(${dot.scale.toFixed(3)})`
+        if (i === 1)
+          level = clamp01((dot.scale - 0.85) / 0.4)
+      })
+    }
+    else {
+      const text = line ? phraseOf(line).text : '♪'
+      const spans = ensureChars(el._lyric, text)
+      if (st.on && line) {
+        const ph = phraseOf(line)
+        const r = (st.impl === 'new' ? fxNew : fxOld)(key, pace, ph, t, spans.length)
+        paintChars(spans, r.chars)
+        level = r.level
+      }
+      else {
+        paintChars(spans, [])
+      }
+    }
+    el._meter.style.width = `${(clamp01(level / (key === 'swell' ? 1.6 : 1)) * 100).toFixed(1)}%`
+  })
+}
+
+// ================= 舞台 =================
+const plCur = $('plCur')
+const plDots = $('plDots')
+const plDotEls = [...plDots.children]
+function setLineText(el, text) {
+  if (el.textContent !== text)
+    el.textContent = text
+}
+
+function stageFrame(t, dt) {
+  const pace = effPace('')
+  const idx = lineIndexAt(t)
+  const il = interludeAt(t)
+  setLineText($('plPrev'), lines[idx - 1]?.text ?? '')
+  setLineText($('plNext'), lines[idx + 1]?.text ?? '')
+  setLineText($('plNext2'), lines[idx + 2]?.text ?? '')
+  const line = lines[idx]
+  let subText = ''
+  if (il) {
+    plCur.style.display = 'none'
+    plDots.style.display = 'flex'
+    plDotEls.forEach((d, i) => {
+      const dot = interludeDot(il, t, i, S.stageImpl, pace)
+      d.style.opacity = dot.opacity.toFixed(3)
+      d.style.transform = `scale(${dot.scale.toFixed(3)})`
+    })
+    subText = `间奏 ${il.s.toFixed(1)} ~ ${il.e.toFixed(1)} s · 圆点呼吸 ${S.stageImpl === 'new' ? `每 ${periodOf(pace, interludeOct(pace)).toFixed(2)} s 翻转一次（锁拍）` : '按间奏长度均分（旧）'}`
+  }
+  else {
+    plCur.style.display = ''
+    plDots.style.display = 'none'
+    const spans = ensureChars(plCur, line?.text ?? '♪')
+    if (line && S.stageFx !== 'none') {
+      const ph = phraseOf(line, true)
+      const r = (S.stageImpl === 'new' ? fxNew : fxOld)(S.stageFx, pace, ph, t, spans.length)
+      // 行级歌词：按时间均分的逐字高亮（已唱 1，未唱 0.45）
+      const p = clamp01((t - ph.s) / (ph.e - ph.s)) * spans.length
+      const wipe = spans.map((_, i) => (i < Math.floor(p) ? '1' : i < p ? (0.45 + 0.55 * (p - i)).toFixed(3) : '0.45'))
+      paintChars(spans, r.chars, wipe)
+      subText = `${PACE_NAME[S.stageImpl === 'old' && pace === 'beat' ? 'medium' : pace]} · o(t) = ${r.level.toFixed(2)}`
+    }
+    else {
+      paintChars(spans, [])
+    }
+  }
+  // 行级点头（建议新增）
+  let nod = 0
+  if (S.nod && S.stageImpl === 'new' && line && !il)
+    nod = conv(windowPulses(pace, OCT.nod, line.s, line.s - 0.06, line.end), t, H.nod)
+  const nodTr = nod ? `0 ${(0.07 * nod).toFixed(3)}em` : ''
+  if (plCur._nod !== nodTr) {
+    plCur._nod = nodTr
+    plCur.style.translate = nodTr
+  }
+
+  // 背景鼓点呼吸
+  let bgLevel = 0
+  if (S.bg === 'new')
+    bgLevel = Math.min(1, conv(pulsesIn(pace, OCT.bg, 0, t - 1, t), t, H.bg))
+  else if (S.bg === 'old' && rt)
+    bgLevel = rt.state.level
+  $('plPulse').style.opacity = (0.12 * S.bgGain * bgLevel).toFixed(3)
+
+  // 左上角的灯：基准脉冲（与背景呼吸同一个 h）
+  const lamp = $('lamp')
+  const lampLevel = S.bg === 'old' && rt ? rt.state.level : Math.min(1, conv(pulsesIn(pace, 0, 0, t - 1, t), t, H.bg))
+  lamp.classList.toggle('old', S.bg === 'old')
+  lamp.style.opacity = (0.15 + 0.85 * lampLevel).toFixed(3)
+  const a = current?.analysis
+  const hud = !current
+    ? '选一首歌'
+    : pace === 'beat'
+      ? `跟随节拍 · 歌曲 ${a.bpm.toFixed(1)} BPM · 基准脉冲 ${(60 / basePeriod('beat')).toFixed(1)}/分`
+      : `${PACE_NAME[pace]} · 基准脉冲 ${(60 / TIER_T[pace]).toFixed(0)}/分${S.songPace === 'beat' ? `（回退：${beatProblem()}）` : ''}`
+  setLineText($('hudText'), `${hud}${S.bg === 'old' ? ' · 灯：旧实时检测' : ''}`)
+  setLineText($('plSub'), subText)
+
+  particlesFrame(t, dt, pace)
+}
+
+// ================= 粒子（取自 stage-particles.ts 的四种离散事件类场景，简化） =================
+const TAU = Math.PI * 2
+const rand = (a, b) => a + Math.random() * (b - a)
+const pick = arr => arr[Math.floor(Math.random() * arr.length)]
+const hexRgb = hex => [1, 3, 5].map(i => Number.parseInt(hex.slice(i, i + 2), 16))
+const rgba = ([r, g2, b], a) => `rgb(${r} ${g2} ${b} / ${Math.max(0, a).toFixed(3)})`
+const mixWhite = ([r, g2, b], k) => [r + (255 - r) * k, g2 + (255 - g2) * k, b + (255 - b) * k].map(Math.round)
+const NOTE_GLYPHS = ['♪', '♫', '♬', '♩']
+function heartPath(ctx, s) {
+  ctx.beginPath()
+  ctx.moveTo(0, s * 0.35)
+  ctx.bezierCurveTo(-s * 1.1, -s * 0.35, -s * 0.5, -s * 1.1, 0, -s * 0.45)
+  ctx.bezierCurveTo(s * 0.5, -s * 1.1, s * 1.1, -s * 0.35, 0, s * 0.35)
+  ctx.closePath()
+}
+let heartY = 0 // 爱心粒子的心跳缩放（新）
+const PSCENES = {
+  fireworks: {
+    n: 1, rate: 0.8,
+    colors: ['#ff5c6c', '#ffb347', '#ffd54f', '#a5e887', '#4fd1d9', '#6c8cff', '#c3a6ff', '#ffb3c8'],
+    spawn: (w, h) => ({ x: rand(w * 0.15, w * 0.85), y: rand(h * 0.15, h * 0.5), vx: 0, vy: 0, size: rand(45, 80), rotation: rand(0, TAU), life: rand(1.8, 2.4) }),
+    draw: (ctx, p, alpha) => {
+      const t = p.age / p.life
+      const radius = p.size * (1 - (1 - t) ** 3)
+      const fade = alpha * (1 - t) ** 1.5
+      const drop = 30 * t * t
+      ctx.fillStyle = rgba(mixWhite(p.color, 0.3), 0.9 * fade)
+      ctx.strokeStyle = rgba(p.color, 0.45 * fade)
+      ctx.lineWidth = 1.2
+      for (let i = 0; i < 28; i++) {
+        const angle = p.rotation + (i / 28) * TAU
+        const cos = Math.cos(angle)
+        const sin = Math.sin(angle)
+        const x = p.x + cos * radius
+        const y = p.y + sin * radius + drop
+        ctx.beginPath()
+        ctx.moveTo(p.x + cos * radius * 0.82, p.y + sin * radius * 0.82 + drop * 0.8)
+        ctx.lineTo(x, y)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.arc(x, y, 1.8 * (1 - t * 0.5), 0, TAU)
+        ctx.fill()
+      }
+      if (t < 0.12) {
+        ctx.fillStyle = rgba(mixWhite(p.color, 0.7), (1 - t / 0.12) * 0.6 * alpha)
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, 10, 0, TAU)
+        ctx.fill()
+      }
+    },
+  },
+  ripples: {
+    n: 0, rate: 2.5, colors: ['#c8ebff'],
+    spawn: (w, h) => ({ x: rand(0, w), y: rand(h * 0.4, h), vx: 0, vy: 0, size: rand(30, 70), rotation: 0, life: rand(2, 3) }),
+    draw: (ctx, p, alpha) => {
+      const t = p.age / p.life
+      ctx.lineWidth = 1.2
+      for (const [scale, a] of [[1, 0.5], [0.6, 0.35]]) {
+        const radius = p.size * scale * t
+        if (radius <= 0)
+          continue
+        ctx.strokeStyle = rgba(p.color, a * (1 - t) * alpha)
+        ctx.beginPath()
+        ctx.ellipse(p.x, p.y, radius, radius * 0.4, 0, 0, TAU)
+        ctx.stroke()
+      }
+    },
+  },
+  notes: {
+    n: 0, rate: 2.5, colors: ['#ffffff'],
+    // 随拍生成时从画面下部「冒出」（线上从画面外升入，看不到出现的那一下）
+    spawn: (w, h, beat) => ({ x: rand(0, w), y: beat ? rand(h * 0.55, h * 0.95) : h + 20, vx: 0, vy: rand(-45, -25), size: rand(14, 22), rotation: rand(-0.3, 0.3), life: Infinity }),
+    draw: (ctx, p, alpha) => {
+      ctx.save()
+      ctx.translate(p.x + Math.sin(p.age * 1.3 + p.seed) * 16, p.y)
+      ctx.rotate(p.rotation)
+      if (p.beat) {
+        const pop = 1 + 0.5 * g(p.age, 0.07)
+        ctx.scale(pop, pop)
+      }
+      ctx.fillStyle = rgba(p.color, 0.6 * alpha)
+      ctx.font = `${Math.round(p.size)}px sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(NOTE_GLYPHS[Math.floor(p.seed) % NOTE_GLYPHS.length], 0, 0)
+      ctx.restore()
+    },
+  },
+  hearts: {
+    n: 0, rate: 3, colors: ['#ff6f91', '#ffb3c8', '#ffa8a0'],
+    spawn: (w, h, beat) => ({ x: rand(0, w), y: beat ? rand(h * 0.55, h * 0.95) : h + 20, vx: 0, vy: rand(-60, -30), size: rand(6, 12), rotation: rand(-0.3, 0.3), life: Infinity }),
+    draw: (ctx, p, alpha) => {
+      ctx.save()
+      ctx.translate(p.x + Math.sin(p.age * 1.4 + p.seed) * 14, p.y)
+      ctx.rotate(p.rotation)
+      // 旧：sin(age·4) 的任意周期；新：与心跳共用 h(t)
+      const beat = S.stageImpl === 'new' ? 1 + 0.12 * heartY : 1 + 0.08 * Math.sin(p.age * 4 + p.seed)
+      ctx.scale(beat, beat)
+      ctx.fillStyle = rgba(p.color, 0.7 * alpha)
+      heartPath(ctx, p.size)
+      ctx.fill()
+      ctx.restore()
+    },
+  },
+}
+let parts = []
+let pending = 0
+let lastPT = null
+let lastScene = null
+function resetParticles() {
+  parts = []
+  pending = 0
+  lastPT = null
+}
+function particlesFrame(t, dt, pace) {
+  const cv = $('plParticles')
+  const dpr = window.devicePixelRatio || 1
+  const w = cv.clientWidth
+  const h = cv.clientHeight
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+    cv.width = Math.round(w * dpr)
+    cv.height = Math.round(h * dpr)
+  }
+  const ctx = cv.getContext('2d')
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, w, h)
+  const scene = PSCENES[S.scene]
+  if (S.scene !== lastScene) {
+    lastScene = S.scene
+    resetParticles()
+  }
+  const playing = !audio.paused
+  heartY = Math.min(1.2, conv(pulsesIn(pace, 0, 0, t - 1, t), t, dd => H.heartbeat(dd, periodOf(pace, 0))))
+  if (scene && current) {
+    const area = clamp(w * h / (1280 * 800), 0.3, 2)
+    const beat = S.stageImpl === 'new'
+    const spawn = () => {
+      const m = scene.spawn(w, h, beat)
+      parts.push({ ...m, spec: scene, beat, color: hexRgb(pick(scene.colors)), age: 0, seed: Math.random() * 10 })
+    }
+    if (S.stageImpl === 'new') {
+      // 点过程：在脉冲处成簇生成，平均速率不变
+      if (lastPT != null && t > lastPT && t - lastPT < 0.5) {
+        for (const p of pulsesIn(pace, scene.n, 0, lastPT + 1e-6, t)) {
+          pending += scene.rate * periodOf(pace, scene.n) * area * p.a
+          const k = Math.max(1, Math.floor(pending))
+          pending = Math.max(0, pending - k)
+          for (let i = 0; i < k; i++) spawn()
+        }
+      }
+    }
+    else if (playing) {
+      pending += scene.rate * area * dt
+      while (pending >= 1) {
+        pending--
+        spawn()
+      }
+    }
+  }
+  lastPT = t
+  const step = playing ? dt : 0
+  parts = parts.filter((p) => {
+    p.age += step
+    p.x += p.vx * step
+    p.y += p.vy * step
+    if (p.age >= p.life || p.y < -60 || p.y > h + 80)
+      return false
+    // 刚生成时快速淡入（线上为 0.6 秒，随拍生成时缩短，让出现的瞬间落在拍上），有寿命的在最后一秒淡出
+    const alpha = Math.min(1, p.age / 0.25, Number.isFinite(p.life) ? p.life - p.age : 1)
+    p.spec.draw(ctx, p, alpha)
+    return true
+  })
+}
+
+// ================= 旧：实时低频节拍检测（web/src/lib/lyrics/audio-beat.ts） =================
+let rt = null
+function ensureRealtime() {
+  if (rt) {
+    rt.ctx.resume()
+    return
+  }
+  const ctx = new AudioContext()
+  const source = ctx.createMediaElementSource(audio)
+  const analyser = ctx.createAnalyser()
+  analyser.fftSize = 1024
+  analyser.smoothingTimeConstant = 0.5
+  source.connect(analyser)
+  analyser.connect(ctx.destination)
+  ctx.resume()
+  rt = { ctx, analyser, data: new Uint8Array(analyser.frequencyBinCount), state: { average: 0, level: 0 }, hist: [] }
+}
+function beatStep(state, energy, dt) {
+  const average = state.average + (energy - state.average) * Math.min(1, dt * 2.5)
+  let level = state.level * Math.exp(-dt * 7)
+  const onset = energy - state.average * 1.15
+  if (onset > 0.02)
+    level = Math.max(level, Math.min(1, onset / Math.max(0.1, state.average * 0.6)))
+  return { average, level }
+}
+function lowEnergy() {
+  rt.analyser.getByteFrequencyData(rt.data)
+  const binHz = rt.ctx.sampleRate / rt.analyser.fftSize
+  const bins = Math.max(1, Math.min(rt.data.length, Math.ceil(160 / binHz)))
+  let sum = 0
+  for (let i = 0; i < bins; i++) sum += rt.data[i]
+  return sum / bins / 255
+}
+function realtimeFrame(dt) {
+  if (!rt || audio.paused || rt.ctx.state !== 'running')
+    return
+  rt.state = beatStep(rt.state, lowEnergy(), dt)
+  const t = audio.currentTime
+  const last = rt.hist[rt.hist.length - 1]
+  if (last && t < last.t)
+    rt.hist = []
+  rt.hist.push({ t, v: rt.state.level })
+  while (rt.hist.length && rt.hist[0].t < t - 8) rt.hist.shift()
+}
+
+// ================= 咔哒声：基准脉冲 =================
+let clickCtx = null
+let scheduledUntil = 0
+function scheduleClicks() {
+  if (!S.click || !clickCtx || audio.paused || !current)
+    return
+  const now = audio.currentTime
+  const pace = effPace('')
+  for (const p of pulsesIn(pace, 0, 0, Math.max(scheduledUntil, now) + 1e-6, now + 0.25)) {
+    const when = clickCtx.currentTime + (p.t - now)
+    const osc = clickCtx.createOscillator()
+    const amp = clickCtx.createGain()
+    osc.frequency.value = p.synth ? 900 : 1400
+    amp.gain.setValueAtTime(0.25 * p.a, when)
+    amp.gain.exponentialRampToValueAtTime(0.001, when + 0.05)
+    osc.connect(amp).connect(clickCtx.destination)
+    osc.start(when)
+    osc.stop(when + 0.06)
+    scheduledUntil = p.t
+  }
+}
+audio.addEventListener('seeked', () => {
+  scheduledUntil = audio.currentTime
+  lastPT = null
+})
+
+// ================= 控件 =================
+function refreshPace() {
+  const pace = effPace('')
+  const el = $('paceEff')
+  const prob = S.songPace === 'beat' ? beatProblem() : null
+  el.textContent = S.songPace === 'beat' && prob ? `生效：${PACE_NAME[pace]}（回退：${prob}）` : `生效：${PACE_NAME[pace]}${pace === 'beat' && current?.analysis ? ` · T_b = ${basePeriod('beat').toFixed(3)} s` : ''}`
+  el.classList.toggle('fallback', !!prob)
+  renderStats()
+  drawKernels()
+}
+document.querySelectorAll('[data-pace]').forEach(btn => btn.addEventListener('click', () => {
+  S.songPace = btn.dataset.pace
+  document.querySelectorAll('[data-pace]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)))
+  refreshPace()
+}))
+$('simFail').addEventListener('change', (e) => {
+  S.fail = e.target.checked
+  refreshPace()
+})
+$('fallbackSel').addEventListener('change', (e) => {
+  S.fallback = e.target.value
+  refreshPace()
+})
+$('fRange').addEventListener('input', (e) => {
+  S.f = Number(e.target.value)
+  $('fOut').textContent = S.f.toFixed(2)
+})
+$('leadRange').addEventListener('input', (e) => {
+  S.lead = Number(e.target.value) / 1000
+  $('leadOut').textContent = `${e.target.value} ms`
+})
+$('bgGain').addEventListener('input', (e) => {
+  S.bgGain = Number(e.target.value)
+  $('bgGainOut').textContent = S.bgGain.toFixed(1)
+})
+document.querySelectorAll('#stageFxSeg [data-fx]').forEach(btn => btn.addEventListener('click', () => {
+  S.stageFx = btn.dataset.fx
+  document.querySelectorAll('#stageFxSeg [data-fx]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)))
+}))
+document.querySelectorAll('#stageImplSeg [data-impl]').forEach(btn => btn.addEventListener('click', () => {
+  S.stageImpl = btn.dataset.impl
+  document.querySelectorAll('#stageImplSeg [data-impl]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)))
+  resetParticles()
+}))
+$('bgSel').addEventListener('change', (e) => {
+  S.bg = e.target.value
+  if (S.bg === 'old')
+    ensureRealtime()
+})
+$('sceneSel').addEventListener('change', (e) => {
+  S.scene = e.target.value
+})
+$('nodChk').addEventListener('change', (e) => {
+  S.nod = e.target.checked
+})
+$('click').addEventListener('click', (e) => {
+  S.click = !S.click
+  e.currentTarget.setAttribute('aria-pressed', String(S.click))
+  if (S.click && !clickCtx)
+    clickCtx = new AudioContext()
+  scheduledUntil = audio.currentTime
+})
+$('jumpChorus').addEventListener('click', () => {
+  if (!current)
+    return
+  audio.currentTime = Math.max(0, current.song.chorus - 1.5)
+  audio.play()
+})
+$('jumpInterlude').addEventListener('click', () => {
+  if (!lines.length)
+    return
+  const i = lines.findIndex((l, k) => k > 0 && lines[k + 1] && lines[k + 1].s - l.s >= 12)
+  audio.currentTime = i >= 0 ? lines[i].s + 4.5 : Math.max(0, lines[0].s - 6)
+  audio.play()
+})
+// 逐拍步进：暂停并停在基准脉冲后 55 ms（心跳第一声的峰值，已扣除画面提前量）
+function stepBeat(dir) {
+  if (!current)
+    return
+  audio.pause()
+  const t = audio.currentTime + S.lead
+  const pace = effPace('')
+  const T = periodOf(pace, 0)
+  const list = dir > 0 ? pulsesIn(pace, 0, 0, t - 0.055 + 0.02, t + 2.2 * T) : pulsesIn(pace, 0, 0, t - 2.2 * T, t - 0.055 - 0.02)
+  const p = dir > 0 ? list[0] : list[list.length - 1]
+  if (p)
+    audio.currentTime = Math.max(0, p.t + 0.055 - S.lead)
+}
+$('prevBeat').addEventListener('click', () => stepBeat(-1))
+$('nextBeat').addEventListener('click', () => stepBeat(1))
+
+function renderStats() {
+  const a = current?.analysis
+  const box = $('stats')
+  const pace = effPace('')
+  const prob = S.songPace === 'beat' ? beatProblem() : null
+  const items = []
+  if (a) {
+    items.push(['拍速', a.bpm.toFixed(1), `BPM · T* = ${(a.period / FR).toFixed(3)} s${current.song.refBpm ? ` · 参考 ${current.song.refBpm}` : ''}`])
+    items.push(['基准脉冲 τ_F', (60 * FR / a.famPeriod).toFixed(1), `次/分 · ${(a.famPeriod / FR).toFixed(3)} s（跟随节拍时的 T_b）`])
+    items.push(['节拍置信度 c', a.confidence.toFixed(2), a.confidence >= CONF_MIN ? `≥ ${CONF_MIN}，可跟随节拍` : `< ${CONF_MIN}，回退`])
+    items.push(['拍点 / 补拍', `${trainInfo.real} / ${trainInfo.synth}`, '补拍 = 空档外推（飞轮）'])
+    items.push(['分析耗时', (a.elapsed / 1000).toFixed(2), '秒（主线程）'])
+  }
+  items.push(['生效档位', PACE_NAME[pace], prob ? `回退原因：${prob}` : S.songPace === 'beat' ? '检测到的拍点驱动' : '固定周期网格驱动'])
+  box.innerHTML = items.map(([k, v, s]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('')
+}
+
+// ================= 绘图 =================
+function css(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+function setupCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1
+  const w = cv.clientWidth
+  const hgt = cv.clientHeight
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(hgt * dpr)) {
+    cv.width = Math.round(w * dpr)
+    cv.height = Math.round(hgt * dpr)
+  }
+  const ctx = cv.getContext('2d')
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, w, hgt)
+  return { ctx, w, h: hgt }
+}
+function drawPlayhead(ctx, x, H0, H1) {
+  ctx.strokeStyle = css('--foreground')
+  ctx.globalAlpha = 0.55
+  ctx.lineWidth = 1
+  ctx.beginPath(); ctx.moveTo(x, H0); ctx.lineTo(x, H1); ctx.stroke()
+  ctx.globalAlpha = 1
+}
+const WINDOW = 3
+
+function drawInput(t) {
+  const a = current?.analysis
+  const { ctx, w, h: H0 } = setupCanvas($('cvInput'))
+  if (!current)
+    return
+  const pace = effPace('')
+  const t0 = t - WINDOW
+  const t1 = t + WINDOW
+  const X = tt => (tt - t0) / (t1 - t0) * w
+  ctx.strokeStyle = css('--grid')
+  ctx.lineWidth = 1
+  for (let s = Math.ceil(t0); s <= t1; s++) {
+    ctx.beginPath(); ctx.moveTo(X(s), 0); ctx.lineTo(X(s), H0); ctx.stroke()
+  }
+  if (a) {
+    ctx.strokeStyle = css('--primary')
+    ctx.lineWidth = 1.2
+    ctx.beginPath()
+    for (let px = 0; px <= w; px++) {
+      const tt = t0 + px / w * (t1 - t0)
+      const m = Math.round((tt * FS - N / 2) / HOP)
+      const v = m >= 0 && m < a.frames ? a.onset[m] : 0
+      const yy = H0 - 8 - Math.min(1, v / 5) * (H0 * 0.55)
+      px ? ctx.lineTo(px, yy) : ctx.moveTo(px, yy)
+    }
+    ctx.stroke()
+    // 检测到的拍点（灰），补拍为虚线
+    for (const b of trains.get(0) ?? []) {
+      if (b.t < t0 || b.t > t1)
+        continue
+      ctx.strokeStyle = b.synth ? css('--old') : css('--muted-foreground')
+      ctx.globalAlpha = 0.6
+      ctx.setLineDash(b.synth ? [3, 3] : [])
+      ctx.beginPath(); ctx.moveTo(X(b.t), H0 * 0.1); ctx.lineTo(X(b.t), H0 - 4); ctx.stroke()
+    }
+    ctx.setLineDash([])
+    ctx.globalAlpha = 1
+  }
+  // 基准脉冲（棒棒糖图）
+  ctx.strokeStyle = css('--heart')
+  ctx.fillStyle = css('--heart')
+  ctx.lineWidth = 2.5
+  for (const p of pulsesIn(pace, 0, 0, t0, t1)) {
+    const top = H0 - 4 - p.a * (H0 * 0.8)
+    ctx.globalAlpha = p.synth ? 0.5 : 1
+    ctx.beginPath(); ctx.moveTo(X(p.t), H0 - 4); ctx.lineTo(X(p.t), top); ctx.stroke()
+    ctx.beginPath(); ctx.arc(X(p.t), top, 3.5, 0, TAU); ctx.fill()
+  }
+  ctx.globalAlpha = 1
+  drawPlayhead(ctx, w / 2, 0, H0)
+  let info = `${PACE_NAME[pace]}：T_b = ${TIER_T[pace]} s 的固定网格（与灰线比较可见漂移）`
+  if (pace === 'beat')
+    info = baseK > 0 ? `跟随节拍：每 ${2 ** baseK} 拍取 1 个基准脉冲（强拍）` : baseK < 0 ? '跟随节拍：每拍再补 1 个基准脉冲' : '跟随节拍：每拍 1 个基准脉冲'
+  setLineText($('inputInfo'), info)
+}
+
+// 各输出栏：key、标签、颜色、取值、归一化范围
+const LANES = [
+  { key: 'heartbeat', label: '心跳', color: '#e5484d', max: 1.2 },
+  { key: 'swell', label: '放大', color: '#f59e0b', max: 1.6 },
+  { key: 'glow', label: '柔光', color: '#eab308', max: 1 },
+  { key: 'wave', label: '波浪（首字）', color: '#14b8a6', max: 1.2 },
+  { key: 'shake', label: '抖动幅度', color: '#f97316', max: 1 },
+  { key: 'shimmer', label: '流光位置', color: '#8b5cf6', max: 1 },
+  { key: 'interlude', label: '间奏圆点', color: '#3b82f6', max: 1 },
+  { key: 'bg', label: '背景呼吸', color: '#06b6d4', max: 1 },
+  { key: 'nod', label: '行点头（建议）', color: '#64748b', min: -0.7, max: 1 },
+]
+function laneValue(key, t) {
+  if (key === 'bg') {
+    const pace = effPace('')
+    return Math.min(1, conv(pulsesIn(pace, OCT.bg, 0, t - 1, t), t, H.bg))
+  }
+  if (key === 'nod') {
+    const pace = effPace('')
+    const line = lines[lineIndexAt(t)]
+    return line ? conv(windowPulses(pace, OCT.nod, line.s, line.s - 0.06, line.end), t, H.nod) : 0
+  }
+  const st = cardState[key]
+  const pace = effPace(st.pace)
+  if (key === 'interlude')
+    return clamp01((interludeDot(demoInterlude(t), t, 1, st.impl, pace).scale - 0.85) / 0.4)
+  const line = lines[lineIndexAt(t)]
+  if (!line)
+    return 0
+  const ph = phraseOf(line)
+  return (st.impl === 'new' ? fxNew : fxOld)(key, pace, ph, t, ph.count).level
+}
+// 这一栏实际使用的脉冲（短竖线）
+function laneStems(key, t0, t1) {
+  const out = []
+  if (key === 'bg')
+    return pulsesIn(effPace(''), OCT.bg, 0, t0, t1)
+  if (key === 'interlude') {
+    const st = cardState.interlude
+    if (st.impl !== 'new')
+      return out
+    const pace = effPace(st.pace)
+    const il = demoInterlude((t0 + t1) / 2)
+    return pulsesIn(pace, interludeOct(pace), il.s, Math.max(t0, il.s), Math.min(t1, il.e - 1.8))
+  }
+  const st = cardState[key] ?? { impl: 'new', pace: '' }
+  if (st.impl !== 'new')
+    return out
+  const pace = effPace(st.pace)
+  const n = OCT[key]
+  for (let i = Math.max(0, lineIndexAt(t0)); i < lines.length && lines[i].s <= t1; i++) {
+    const line = lines[i]
+    const a = Math.max(t0, line.s - 0.06)
+    const b = Math.min(t1, line.end)
+    if (a < b)
+      out.push(...pulsesIn(pace, n, line.s, a, b))
+  }
+  return out
+}
+function drawLanes(t) {
+  const { ctx, w, h: H0 } = setupCanvas($('cvLanes'))
+  if (!current)
+    return
+  const lanes = LANES.filter(l => (cardState[l.key] ? cardState[l.key].on : l.key === 'bg' || S.nod))
+  const t0 = t - WINDOW
+  const t1 = t + WINDOW
+  const left = 92
+  const laneH = (H0 - 8) / Math.max(1, lanes.length)
+  const X = tt => left + (tt - t0) / (t1 - t0) * (w - left - 6)
+  ctx.font = '12px system-ui'
+  ctx.strokeStyle = css('--grid')
+  ctx.lineWidth = 1
+  for (let s = Math.ceil(t0); s <= t1; s++) {
+    ctx.beginPath(); ctx.moveTo(X(s), 0); ctx.lineTo(X(s), H0); ctx.stroke()
+  }
+  lanes.forEach((lane, li) => {
+    const top = 4 + li * laneH
+    const bottom = top + laneH - 6
+    const lo = lane.min ?? 0
+    const Y = v => bottom - (clamp(v, lo, lane.max) - lo) / (lane.max - lo) * (laneH - 12)
+    ctx.fillStyle = css('--muted-foreground')
+    ctx.fillText(lane.label, 8, top + laneH / 2)
+    ctx.strokeStyle = css('--grid')
+    ctx.beginPath(); ctx.moveTo(left, Y(0)); ctx.lineTo(w, Y(0)); ctx.stroke()
+    // 使用的脉冲
+    ctx.strokeStyle = lane.color
+    ctx.globalAlpha = 0.45
+    for (const p of laneStems(lane.key, t0, t1)) {
+      ctx.beginPath(); ctx.moveTo(X(p.t), bottom); ctx.lineTo(X(p.t), bottom - 8 - 6 * p.a); ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+    // 旧的实时检测（背景呼吸栏）
+    if (lane.key === 'bg' && rt?.hist.length) {
+      ctx.strokeStyle = css('--old')
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      let first = true
+      for (const s of rt.hist) {
+        if (s.t < t0)
+          continue
+        first ? ctx.moveTo(X(s.t), Y(s.v)) : ctx.lineTo(X(s.t), Y(s.v))
+        first = false
+      }
+      ctx.stroke()
+    }
+    ctx.strokeStyle = lane.color
+    ctx.lineWidth = 1.8
+    ctx.beginPath()
+    for (let px = left; px <= w; px += 2) {
+      const tt = t0 + (px - left) / (w - left - 6) * (t1 - t0)
+      const v = laneValue(lane.key, tt)
+      px === left ? ctx.moveTo(px, Y(v)) : ctx.lineTo(px, Y(v))
+    }
+    ctx.stroke()
+  })
+  drawPlayhead(ctx, X(t), 0, H0)
+}
+
+function drawKernels() {
+  const { ctx, w, h: H0 } = setupCanvas($('cvKernels'))
+  const pace = current ? effPace('') : S.fallback
+  const ready = pace !== 'beat' || current?.analysis
+  const Tb = ready ? basePeriod(pace) : 0.75
+  const panels = [
+    { key: 'heartbeat', title: '心跳 g + βg(t−Δ)', n: 0, fn: (t, Te) => H.heartbeat(t, Te), max: 1.1 },
+    { key: 'swell', title: '放大重音 g₇₀ₘₛ', n: 0, fn: t => H.swell(t), max: 1.1 },
+    { key: 'glow', title: '柔光 cos²（非因果）', n: 1, fn: (t, Te) => H.glow(t, Te), max: 1.1 },
+    { key: 'wave', title: '波浪：首字 / 中间 / 末字', n: 0, fn: (t, Te) => H.wave(t, Te), wave: true, max: 1.1 },
+    { key: 'shake', title: '抖动调幅 e^(−t/0.12)', n: -1, fn: t => H.shake(t), max: 1.1 },
+    { key: 'shimmer', title: '流光相位（两遍）', n: 0, phase: true, max: 1.1 },
+    { key: 'interlude', title: '间奏：交替阶跃', n: null, step: true, min: 0.85, max: 1.25 },
+    { key: 'bg', title: '背景呼吸 30ms 升 / 150ms 落', n: 0, fn: t => H.bg(t), max: 1.1 },
+    { key: 'nod', title: '行点头（建议）欠阻尼', n: 1, fn: t => H.nod(t), min: -0.7, max: 1.1 },
+    { key: 'particles', title: '粒子：点过程', n: 0, stems: true, max: 1.1 },
+  ]
+  const cols = w > 900 ? 5 : w > 600 ? 4 : 2
+  const rows = Math.ceil(panels.length / cols)
+  const pw = w / cols
+  const phh = H0 / rows
+  const T0 = -0.6
+  const T1 = 1.8
+  ctx.font = '11.5px system-ui'
+  panels.forEach((p, idx) => {
+    const ox = (idx % cols) * pw
+    const oy = Math.floor(idx / cols) * phh
+    const n = p.n ?? clamp(Math.round(Math.log2(2 / Tb)), 0, 2)
+    const Te = Tb * 2 ** n
+    const X = t => ox + 8 + (t - T0) / (T1 - T0) * (pw - 16)
+    const lo = p.min ?? 0
+    const Y = v => oy + phh - 16 - (v - lo) / (p.max - lo) * (phh - 40)
+    ctx.fillStyle = css('--foreground')
+    ctx.fillText(p.title, ox + 8, oy + 14)
+    ctx.fillStyle = css('--muted-foreground')
+    ctx.fillText(`n=${n} · Tₑ=${Te.toFixed(2)}s`, ox + 8, oy + 28)
+    ctx.strokeStyle = css('--grid')
+    ctx.lineWidth = 1
+    ctx.beginPath(); ctx.moveTo(X(T0), Y(0)); ctx.lineTo(X(T1), Y(0)); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(X(0), oy + 32); ctx.lineTo(X(0), oy + phh - 12); ctx.stroke()
+    const color = (LANES.find(l => l.key === p.key) ?? { color: '#ec4899' }).color
+    ctx.strokeStyle = color
+    ctx.lineWidth = 2
+    const curve = (fn) => {
+      ctx.beginPath()
+      for (let i = 0; i <= 240; i++) {
+        const t = T0 + i / 240 * (T1 - T0)
+        const v = fn(t)
+        i ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v))
+      }
+      ctx.stroke()
+    }
+    if (p.wave) {
+      const delta = 0.5 * Te / 5
+      ;[0, 3, 6].forEach((i, k) => {
+        ctx.globalAlpha = 1 - k * 0.3
+        curve(t => p.fn(t - i * delta, Te))
+      })
+      ctx.globalAlpha = 1
+    }
+    else if (p.phase) {
+      curve(t => (t >= 0 && t < 2 * Te ? ((t % Te) / Te) : 0))
+    }
+    else if (p.step) {
+      curve((t) => {
+        if (t < 0)
+          return 1
+        const k = Math.floor(t / Te) + 1
+        const target = k % 2 === 1 ? 1.2 : 0.9
+        const from = k === 1 ? 1 : k % 2 === 1 ? 0.9 : 1.2
+        return from + (target - from) * easeOut(clamp01((t - (k - 1) * Te - 0.03) / (0.8 * Te)))
+      })
+    }
+    else if (p.stems) {
+      ctx.fillStyle = color
+      for (let k = 0; k * Te <= T1; k++) {
+        ctx.beginPath(); ctx.moveTo(X(k * Te), Y(0)); ctx.lineTo(X(k * Te), Y(1)); ctx.stroke()
+        ctx.beginPath(); ctx.arc(X(k * Te), Y(1), 3, 0, TAU); ctx.fill()
+      }
+    }
+    else {
+      curve(t => p.fn(t, Te))
+    }
+  })
+  setLineText($('kernelInfo'), ready ? `当前 T_b = ${Tb.toFixed(3)} s（${PACE_NAME[pace]}）` : `分析完成前按回退档 T_b = ${Tb} s`)
+}
+
+function drawTempo() {
+  const a = current?.analysis
+  const { ctx, w, h: H0 } = setupCanvas($('cvTempo'))
+  if (!a)
+    return
+  const bpmOf = tau => 60 * FR / tau
+  const X = bpm => 10 + Math.log(bpm / 40) / Math.log(240 / 40) * (w - 20)
+  const prior = tau => Math.exp(-0.5 * (Math.log2((tau / FR) / 0.5)) ** 2)
+  let maxR = 0
+  for (let tau = a.minLag; tau <= a.maxLag; tau++) maxR = Math.max(maxR, a.R[tau])
+  const Y = v => H0 - 18 - v / maxR * (H0 - 30)
+  ctx.strokeStyle = css('--grid')
+  ctx.fillStyle = css('--muted-foreground')
+  ctx.font = '11px system-ui'
+  for (const b of [40, 60, 80, 100, 120, 160, 200, 240]) {
+    ctx.beginPath(); ctx.moveTo(X(b), 0); ctx.lineTo(X(b), H0 - 14); ctx.stroke()
+    ctx.fillText(String(b), X(b) - 8, H0 - 3)
+  }
+  for (const [color, fn] of [[css('--old'), tau => a.R[tau]], [css('--primary'), tau => prior(tau) * a.R[tau]]]) {
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    for (let tau = a.minLag; tau <= a.maxLag; tau++) {
+      const x = X(bpmOf(tau))
+      tau === a.minLag ? ctx.moveTo(x, Y(fn(tau))) : ctx.lineTo(x, Y(fn(tau)))
+    }
+    ctx.stroke()
+  }
+  ctx.strokeStyle = css('--heart')
+  for (const mult of [0.5, 1, 2]) {
+    const bpm = 60 * FR / (a.famPeriod * mult)
+    if (bpm < 40 || bpm > 240)
+      continue
+    ctx.lineWidth = Math.abs(bpm - a.bpm) < 0.5 ? 2.5 : 1
+    ctx.beginPath(); ctx.moveTo(X(bpm), 6); ctx.lineTo(X(bpm), H0 - 14); ctx.stroke()
+  }
+  // 基准脉冲 τ_F 与固定三档
+  ctx.strokeStyle = '#f59e0b'
+  ctx.lineWidth = 2
+  ctx.setLineDash([4, 3])
+  ctx.beginPath(); ctx.moveTo(X(60 * FR / a.famPeriod), 6); ctx.lineTo(X(60 * FR / a.famPeriod), H0 - 14); ctx.stroke()
+  ctx.setLineDash([])
+  ctx.fillStyle = css('--muted-foreground')
+  for (const [k, T] of Object.entries(TIER_T)) ctx.fillText(PACE_NAME[k], X(60 / T) - 6, 12)
+  const ref = current.song.refBpm
+  if (ref) {
+    ctx.setLineDash([3, 3])
+    ctx.strokeStyle = css('--foreground')
+    ctx.lineWidth = 1
+    ctx.beginPath(); ctx.moveTo(X(ref), 16); ctx.lineTo(X(ref), H0 - 14); ctx.stroke()
+    ctx.setLineDash([])
+  }
+  setLineText($('tempoInfo'), `${a.bpm.toFixed(1)} BPM · τ_F ${(60 * FR / a.famPeriod).toFixed(1)}/分${ref ? ` · 参考 ${ref}（细虚线）` : ''} · 顶部为固定三档位置`)
+}
+
+// ================= 主循环 =================
+let lastNow = performance.now()
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastNow) / 1000)
+  lastNow = now
+  realtimeFrame(dt)
+  const t = audio.currentTime + S.lead
+  if (current) {
+    stageFrame(t, dt)
+    cardsFrame(t)
+    drawInput(t)
+    drawLanes(t)
+    scheduleClicks()
+  }
+  requestAnimationFrame(frame)
+}
+
+renderSongs()
+renderCards()
+renderStats()
+drawKernels()
+window.addEventListener('resize', () => {
+  drawKernels()
+  drawTempo()
+})
+requestAnimationFrame(frame)
+</script>
+</body>
+</html>
