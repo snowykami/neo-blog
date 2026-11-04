@@ -3,11 +3,8 @@ package agentrunner
 import (
 	"context"
 	"math/rand/v2"
-	"os"
-	"os/signal"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -25,13 +22,12 @@ const (
 
 // Start 启动本实例的 worker：最多同时执行 workers 个任务，workers 为 0 时本实例不执行任务。
 // 新任务入队时各实例都会被唤醒（单实例经进程内存，多副本经 Redis），领取在全局锁内用条件更新抢占，同一任务只会被一个实例领到。
-// 收到退出信号后不再领取新任务；已领取的任务继续执行，进程退出时未完成的任务在租约到期后重新入队
-func Start(workers int) {
+// ctx 结束（收到退出信号）后不再领取新任务；已领取的任务继续执行，进程退出时未完成的任务在租约到期后重新入队
+func Start(ctx context.Context, workers int) {
 	if workers <= 0 {
 		logrus.Info("ai agent workers are disabled on this instance")
 		return
 	}
-	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	go workLoop(ctx, workers)
 }
 

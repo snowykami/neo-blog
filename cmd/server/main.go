@@ -1,6 +1,11 @@
 package main
 
 import (
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/router"
@@ -50,6 +55,10 @@ func main() {
 	// 令牌有效期读取后台配置（环境变量优先）
 	utils.Jwt.Durations = tools.GetAuthDurations
 
+	// 初始化完成后由此统一接收退出信号：通知 worker 停止领取新任务，并让 HTTP 服务优雅关停后退出
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	// 定期清理超过保留期的访问记录
 	tasks.StartVisitLogCleanup()
 	// 定期重算文章热度（随时间衰减）
@@ -59,11 +68,11 @@ func main() {
 	// 定期清理超出保留上限的文章 / 页面历史版本
 	tasks.StartRevisionPrune()
 	// AI 用户：时间引擎唤醒、记忆整理与过期清理，并启动本实例执行任务的 worker
-	tasks.StartAIAgentScheduler()
+	tasks.StartAIAgentScheduler(ctx)
 	// 每个实例定时上报运行时指标，控制台可按实例查看
 	tasks.StartRuntimeMetricsReporter()
 
-	err = router.Run()
+	err = router.Run(ctx)
 	if err != nil {
 		panic(err)
 	}

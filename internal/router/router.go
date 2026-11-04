@@ -16,15 +16,25 @@ import (
 
 var h *server.Hertz
 
-func Run() error {
+// Run 启动 HTTP 服务并阻塞，直到服务出错或 ctx 结束；ctx 结束（收到退出信号）后优雅关停再返回
+func Run(ctx context.Context) error {
 	if utils.IsDevMode {
 		logrus.Infoln("Running in development mode")
-		return h.Run()
 	} else {
 		logrus.Infoln("Running in production mode")
-		h.Spin()
-		return nil
 	}
+	// 退出信号由调用方经 ctx 统一接收，Hertz 不再自行监听
+	var runErr error
+	h.SetCustomSignalWaiter(func(errCh chan error) error {
+		select {
+		case <-ctx.Done():
+			return nil
+		case runErr = <-errCh:
+			return runErr
+		}
+	})
+	h.Spin()
+	return runErr
 }
 
 func init() {
