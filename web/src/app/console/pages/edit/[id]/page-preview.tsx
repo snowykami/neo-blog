@@ -5,15 +5,18 @@ import DOMPurify from 'isomorphic-dompurify'
 import { useTranslations } from 'next-intl'
 import { useMemo } from 'react'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
+import { ContentFontLinks } from '@/components/blog-post/content-font-links'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { SafeImage } from '@/components/common/safe-image'
 import { ComponentIslands } from '@/components/content-components/component-islands'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { useOperationT } from '@/hooks/use-translations'
+import { contentWebFonts, resolveContentTheme } from '@/lib/content-theme'
 import { renderMathInHtml } from '@/lib/math/latex'
+import '@/app/styles/content-themes/index.scss'
 import '@/components/tiptap-node/image-node/image-figure.scss'
-import '../../../../(main)/p/[id]/blog-post-article.scss'
 
 const CONTAINER_ID = 'page-preview-content'
 
@@ -36,6 +39,8 @@ export function PagePreviewDialog({
   const t = useTranslations('Console.editor')
   // 打开时取一次内容快照；净化后再渲染公式
   const html = useMemo(() => (open ? renderMathInHtml(DOMPurify.sanitize(getHtml())) : ''), [open, getHtml])
+  // 页面正文使用站点默认的内容主题
+  const theme = resolveContentTheme(null, useSiteInfo().siteInfo.contentTheme)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -53,9 +58,11 @@ export function PagePreviewDialog({
           </h1>
           {meta.description && <p className="mb-5 text-foreground/75">{meta.description}</p>}
           <div className="mb-6 border-b border-dashed border-foreground/10" />
+          <ContentFontLinks fonts={contentWebFonts(theme, html)} />
           <article
             id={CONTAINER_ID}
-            className="prose max-w-none dark:prose-invert pangu-autospace"
+            className="content-body prose max-w-none dark:prose-invert pangu-autospace"
+            data-content-theme={theme}
             dangerouslySetInnerHTML={{ __html: html }}
           />
           {open && (

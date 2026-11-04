@@ -87,7 +87,8 @@ func (s *RevisionService) snapshot(targetType string, targetID uint) (*revisionS
 					Veil:      post.BackgroundVeil,
 					VeilColor: post.BackgroundVeilColor,
 				},
-				CategoryID: post.CategoryID, LabelIds: labelIDs, Top: post.Top,
+				ContentTheme: &post.ContentTheme,
+				CategoryID:   post.CategoryID, LabelIds: labelIDs, Top: post.Top,
 			},
 		}, nil
 	case constant.TargetTypePage:
@@ -397,6 +398,7 @@ func (s *RevisionService) Restore(ctx context.Context, targetType string, target
 			},
 			IsPrivate: &meta.IsPrivate, Top: &meta.Top, Description: &meta.Description, Cover: &meta.Cover,
 			Background:    meta.Background,
+			ContentTheme:  meta.ContentTheme,
 			EditSessionID: sessionID,
 		})
 	case constant.TargetTypePage:

@@ -3,7 +3,7 @@
 import type { ContentMeta } from '@/hooks/use-content-editor'
 import type { Category } from '@/models/category'
 import type { Label } from '@/models/label'
-import { FileTextIcon, FolderIcon, SendIcon } from 'lucide-react'
+import { FileTextIcon, FolderIcon, SendIcon, TypeIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { InfoTooltip, LabelWithInfo } from '@/components/common/info-tooltip'
@@ -19,8 +19,11 @@ import {
 } from '@/components/console/editor/content-settings-sheet'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { useResponseErrorDetailsT } from '@/hooks/use-translations'
+import { CONTENT_THEMES, resolveContentTheme } from '@/lib/content-theme'
 
 interface PostSettingsValues {
   slug: string
@@ -31,6 +34,7 @@ interface PostSettingsValues {
   backgroundOpacity: number
   backgroundVeil: number
   backgroundVeilColor: string
+  contentTheme: string
   category: Category | null
   labels: Label[]
   isPrivate: boolean
@@ -47,6 +51,7 @@ function toValues(meta: ContentMeta): PostSettingsValues {
     backgroundOpacity: meta.background.opacity,
     backgroundVeil: meta.background.veil,
     backgroundVeilColor: meta.background.veilColor,
+    contentTheme: meta.contentTheme,
     category: meta.category,
     labels: meta.labels,
     isPrivate: meta.isPrivate,
@@ -54,13 +59,16 @@ function toValues(meta: ContentMeta): PostSettingsValues {
   }
 }
 
+// 下拉框的选项值不能为空字符串，「跟随站点默认」用占位值表示，写回元信息时还原为空字符串
+const FOLLOW_SITE_THEME = '__site__'
+
 // 后端不允许纯数字 slug（会与 id 访问冲突）
 function isNumericSlug(value: string) {
   return /^\d+$/.test(value.trim())
 }
 
 /**
- * 文章设置抽屉：访问路径、摘要（与画布同步）、封面、分类、标签、私密、置顶
+ * 文章设置抽屉：访问路径、摘要（与画布同步）、封面、内容主题、分类、标签、私密、置顶
  * 修改校验通过后写入编辑器元信息，随正文一起自动保存
  */
 export function PostSettingsSheet({
@@ -76,9 +84,10 @@ export function PostSettingsSheet({
 }) {
   const t = useTranslations('Console.editor')
   const postEditT = useTranslations('Console.post_edit')
-  // 背景的几个子项沿用全局设置里的文案，避免同一套说明写两遍
+  // 背景的几个子项与主题名沿用全局设置里的文案，避免同一套说明写两遍
   const bgT = useTranslations('Console.global')
   const errorDetailsT = useResponseErrorDetailsT()
+  const siteTheme = resolveContentTheme(null, useSiteInfo().siteInfo.contentTheme)
   const form = useForm<PostSettingsValues>({ mode: 'onChange', defaultValues: toValues(meta) })
   // 表单里一项一行更好填，保存前再组装成后端要的背景对象；
   // onChange 只给「变了的那个字段」，所以其余子项从当前表单里取，避免互相覆盖
@@ -147,6 +156,29 @@ export function PostSettingsSheet({
             <NumberField form={form} name="backgroundOpacity" label={bgT('page_background_opacity')} description={bgT('page_background_opacity_desc')} min={0} max={1} step={0.05} />
             <NumberField form={form} name="backgroundVeil" label={bgT('page_background_veil')} description={bgT('page_background_veil_desc')} min={0} max={1} step={0.05} />
             <ColorField form={form} name="backgroundVeilColor" label={bgT('page_background_veil_color')} description={bgT('page_background_veil_color_desc')} />
+          </SettingsSection>
+
+          <SettingsSection icon={TypeIcon} title={t('settings_typography')}>
+            <FormField
+              control={form.control}
+              name="contentTheme"
+              render={({ field }) => (
+                <FormItem>
+                  <LabelWithInfo info={t('content_theme_hint')}><FormLabel>{t('content_theme')}</FormLabel></LabelWithInfo>
+                  <Select value={field.value || FOLLOW_SITE_THEME} onValueChange={value => field.onChange(value === FOLLOW_SITE_THEME ? '' : value)}>
+                    <FormControl>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={FOLLOW_SITE_THEME}>{t('content_theme_follow_site', { theme: bgT(`content_theme_${siteTheme}`) })}</SelectItem>
+                      {CONTENT_THEMES.map(theme => (
+                        <SelectItem key={theme} value={theme}>{bgT(`content_theme_${theme}`)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
           </SettingsSection>
 
           <SettingsSection icon={FolderIcon} title={t('settings_classify')}>

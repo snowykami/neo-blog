@@ -10,7 +10,7 @@
   }
 }
 
-/* 文章页的链接使用主色（见 blog-post-article.scss），注释保持一致 */
+/* 文章页的链接使用主色（见 app/styles/content-themes/_base.scss），注释保持一致 */
 article.prose [data-annotation] {
   color: var(--primary);
 }

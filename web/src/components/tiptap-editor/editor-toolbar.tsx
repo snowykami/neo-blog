@@ -21,8 +21,10 @@ import {
   BlockTypeMenu,
   EditorMenuContent,
   EditorMenuEntries,
+  FontMenu,
   getAIEntries,
   getAlignEntries,
+  getFontEntries,
   getInsertMenuEntries,
   InsertMenu,
 } from './editor-menus'
@@ -123,7 +125,7 @@ function useMediaQuery(query: string) {
 }
 
 /**
- * 固定工具栏（单行）：撤销重做 | 块类型 | 标记 | 颜色 | 链接与注释 | 对齐 | 插入 | ⋯
+ * 固定工具栏（单行）：撤销重做 | 块类型 | 标记 | 颜色 | 字体 | 链接与注释 | 对齐 | 插入 | ⋯
  * 空间不足时从右往左把分组收进 ⋯ 菜单（priority+）；触屏窄屏改为横向滚动
  */
 export function EditorToolbar({ editor, actions }: { editor: Editor, actions: EditorToolbarActions }) {
@@ -172,6 +174,7 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
       content: <ColorButton editor={editor} state={state} />,
       overflow: () => [{ key: 'color', icon: BaselineIcon, label: t('color_more'), disabled: !state.canColor, onSelect: () => setColorFromOverflow(true) }],
     },
+    { id: 'font', label: t('font.label'), content: <FontMenu editor={editor} state={state} />, overflow: () => getFontEntries(editor, t, state) },
     {
       id: 'linkAnno',
       label: t('group_link_annotation'),

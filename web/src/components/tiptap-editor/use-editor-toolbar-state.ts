@@ -3,14 +3,17 @@
 import type { Editor } from '@tiptap/react'
 import type { BlockTypeId, InlineMarkId } from './editor-commands'
 import type { TextAlign } from '@/components/tiptap-ui/text-align-button/use-text-align'
+import type { ContentFont } from '@/lib/content-theme'
 import { NodeSelection } from '@tiptap/pm/state'
 import { useEditorState } from '@tiptap/react'
 import { ANNOTATION_MARK } from '@/components/tiptap-extension/annotation-constants'
+import { CONTENT_FONT_MARK } from '@/components/tiptap-extension/content-font-extension'
 import { canColorHighlight } from '@/components/tiptap-ui/color-highlight-button/use-color-highlight'
 import { canColorText } from '@/components/tiptap-ui/color-text-button/use-color-text'
 import { canSetLink } from '@/components/tiptap-ui/link-popover/use-link-popover'
 import { canToggleMark } from '@/components/tiptap-ui/mark-button/use-mark'
 import { canExecuteUndoRedoAction } from '@/components/tiptap-ui/undo-redo-button/use-undo-redo'
+import { isContentFont } from '@/lib/content-theme'
 import { getActiveMarkAttrs } from '@/lib/tiptap-advanced-utils'
 import { getActiveBlockType, getActiveTextAlign, INLINE_MARKS } from './editor-commands'
 
@@ -29,6 +32,9 @@ export interface EditorToolbarState {
   textColor: string | null
   highlightColor: string | null
   canColor: boolean
+  // 选区的局部字体，null 为正文默认字体
+  font: ContentFont | null
+  canFont: boolean
   isLink: boolean
   canLink: boolean
   isAnnotation: boolean
@@ -51,6 +57,8 @@ const EMPTY_STATE: EditorToolbarState = {
   textColor: null,
   highlightColor: null,
   canColor: false,
+  font: null,
+  canFont: false,
   isLink: false,
   canLink: false,
   isAnnotation: false,
@@ -88,6 +96,8 @@ export function useEditorToolbarState(editor: Editor | null): EditorToolbarState
         textColor: (getActiveMarkAttrs(ed, 'textStyle')?.color as string | undefined) ?? null,
         highlightColor: ed.isActive('highlight') ? ((getActiveMarkAttrs(ed, 'highlight')?.color as string | undefined) ?? null) : null,
         canColor: !inCodeBlock && (canColorText(ed) || canColorHighlight(ed)),
+        font: fontOf(getActiveMarkAttrs(ed, CONTENT_FONT_MARK)?.font),
+        canFont: editable && !inCodeBlock && ed.can().setContentFont('song'),
         isLink: editable && ed.isActive('link'),
         canLink: !inCodeBlock && canSetLink(ed),
         isAnnotation: editable && ed.isActive(ANNOTATION_MARK),
@@ -98,4 +108,8 @@ export function useEditorToolbarState(editor: Editor | null): EditorToolbarState
       }
     },
   }) ?? EMPTY_STATE
+}
+
+function fontOf(value: unknown): ContentFont | null {
+  return isContentFont(value) ? value : null
 }

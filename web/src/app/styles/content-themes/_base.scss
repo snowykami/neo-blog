@@ -1,0 +1,150 @@
+/* =========================================================================
+ * 正文基础样式（即默认主题「轻雪」）
+ * 作用于带 content-body 类名的正文容器：前台文章 / 页面正文与编辑器（.tiptap.ProseMirror）。
+ * 正文同时使用 Tailwind typography 的 prose，它位于 @layer utilities；这里的规则不分层，
+ * 因此不论选择器优先级都能覆盖 prose，主题（data-content-theme）再以更高的优先级覆盖这里。
+ * 组件块（前台 [data-component-root]、编辑器 .neo-component-block）内保持组件自身样式
+ * ========================================================================= */
+
+@use "shared" as *;
+
+.content-body {
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+  max-width: 100%;
+  background-color: transparent;
+  /* 统一基础字号与适合中文的行高；字体默认沿用全站字体，主题可通过变量替换 */
+  font-family: var(--ct-font, inherit);
+  font-size: var(--ct-size, 1.0625rem);
+  line-height: var(--ct-leading, 1.85);
+
+  /* 按 data-align 对齐图片 */
+  img[data-align="center"],
+  img[data-align="middle"] {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  img[data-align="left"] {
+    display: block;
+    margin-left: 0;
+    margin-right: auto;
+  }
+
+  img[data-align="right"] {
+    display: block;
+    margin-left: auto;
+    margin-right: 0;
+  }
+
+  /* 长串（网址、代码等）不撑破布局 */
+  :is(p, li, td, th, div) {
+    overflow-wrap: anywhere;
+    word-wrap: break-word;
+  }
+
+  /* 代码块保持原样排版、横向滚动，不强制折行；行内代码仍可折行避免撑破布局 */
+  pre {
+    white-space: pre;
+    overflow-wrap: normal;
+    word-break: normal;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
+  pre code {
+    white-space: inherit;
+    overflow-wrap: inherit;
+    word-break: inherit;
+  }
+
+  :not(pre) > code {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  /* 表格过宽时横向滚动 */
+  table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    word-wrap: break-word;
+  }
+
+  /* 编辑器在单元格里包一层段落，prose 给段落的上下外边距会把单元格撑高；
+   * 默认主题保持原有外观，其他主题去掉这层外边距让单元格紧凑 */
+  &:not([data-content-theme="default"]) :is(th, td) > p {
+    margin: 0;
+  }
+
+  /* 图像：block、水平居中、垂直间距、圆角（卡内区块圆角）；与上面的对齐规则同优先级，写在后面 */
+  img:not([data-component-root] *) {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1rem auto;
+    border-radius: 0.75rem;
+  }
+
+  /* 链接：主色 + 虚线下划线，悬停变实线；不加左右内间距 */
+  a#{$plain} {
+    color: var(--primary);
+    font-weight: 500;
+    text-decoration-line: underline;
+    text-decoration-style: dashed;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+    text-decoration-color: color-mix(in oklab, var(--primary) 60%, transparent);
+
+    &:hover {
+      text-decoration-style: solid;
+      text-decoration-color: var(--primary);
+    }
+  }
+
+  /* 标题锚点滚动偏移：吸顶导航高度 + 1rem */
+  :is(h1, h2, h3, h4) {
+    scroll-margin-top: calc(var(--nav-h, 4.5rem) + 1rem);
+  }
+
+  /* 引用：左侧主色圆角竖条（伪元素），不使用整条彩色边框 */
+  blockquote#{$plain} {
+    position: relative;
+    border-left: none;
+    padding: 0.25rem 0 0.25rem 1.25rem;
+    font-style: normal;
+
+    &::before {
+      content: "";
+      position: absolute;
+      /* 内缩一点，竖条与首行/末行文字对齐，不顶满整块 */
+      inset-block: 0.25rem;
+      left: 0;
+      width: 4px;
+      border-radius: 999px;
+      background: var(--primary);
+    }
+
+    /* 段落自带上下外边距，会让单行引用被撑到 2 倍多高；首尾段落去掉外边距 */
+    > :first-child {
+      margin-top: 0;
+    }
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+
+    /* typography 插件默认给引用段落加引号，中文内容里显得多余 */
+    p:first-of-type::before,
+    p:last-of-type::after {
+      content: none;
+    }
+  }
+
+  /* 数学公式：独立成块的公式过宽时横向滚动，不撑破正文 */
+  [data-type="block-math"] {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+}

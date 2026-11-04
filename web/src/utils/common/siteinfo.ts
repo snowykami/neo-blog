@@ -25,6 +25,7 @@ export interface PageBackground {
 export interface SiteInfo {
   colorSchemes: string[]
   defaultColorScheme: string
+  contentTheme?: string // 站点默认的文章内容主题，文章未单独选择时使用
   baseUrl?: string
   metadata: {
     name: string
@@ -67,6 +68,7 @@ export interface SiteInfo {
 export const fallbackSiteInfo: SiteInfo = {
   colorSchemes: ['blue', 'green', 'orange', 'red', 'pink', 'rose', 'violet', 'yellow'],
   defaultColorScheme: 'blue',
+  contentTheme: 'default',
   metadata: {
     name: 'Fail to fetch name',
     icon: 'https://cdn.liteyuki.org/snowykami/avatar_alpha.png',

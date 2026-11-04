@@ -6,6 +6,7 @@ import { XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { toast } from 'sonner'
+import { ContentFontLinks } from '@/components/blog-post/content-font-links'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EditSessionBanner } from '@/components/console/common/edit-session-banner'
 import { ComponentLibraryDialog } from '@/components/content-components/component-library-dialog'
@@ -15,7 +16,9 @@ import { MathPopover } from '@/components/tiptap-ui/math-popover'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { useFullscreen } from '@/hooks/use-editor-helpers'
+import { ALL_WEBFONTS, resolveContentTheme } from '@/lib/content-theme'
 import { cn } from '@/lib/utils'
 import { AIPromptsProvider } from './ai-prompts-context'
 import { EditorAIPanel } from './editor-ai-panel'
@@ -28,6 +31,7 @@ import { EditorStatusBar } from './editor-status-bar'
 import { EditorToolbar } from './editor-toolbar'
 import { useAIWriter } from './use-ai-writer'
 import { useEditorStats } from './use-editor-stats'
+import '@/app/styles/content-themes/index.scss'
 import 'highlight.js/styles/github-dark.css'
 import 'katex/dist/katex.min.css'
 import './editor-content.scss'
@@ -107,6 +111,13 @@ function LoadedShell({
   const editor = controller.editor!
   const { meta, updateMeta, readOnly, editSession } = controller
   const { words } = useEditorStats(editor)
+  const { siteInfo } = useSiteInfo()
+
+  // 编辑区与前台正文使用同一套内容主题：文章未选时跟随站点默认，页面固定跟随站点默认
+  const contentTheme = resolveContentTheme(meta.contentTheme, siteInfo.contentTheme)
+  React.useEffect(() => {
+    editor.view.dom.setAttribute('data-content-theme', contentTheme)
+  }, [editor, contentTheme])
 
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [previewOpen, setPreviewOpen] = React.useState(false)
@@ -235,6 +246,8 @@ function LoadedShell({
           focusMode && 'neo-focus-mode fixed inset-0 z-50 m-0 overflow-y-auto bg-background',
         )}
       >
+        {/* 切换主题、设置局部字体都可能用到任一网页字体，编辑器里全部声明（只下载用到的分片） */}
+        <ContentFontLinks fonts={ALL_WEBFONTS} />
         <EditorAppBar
           className={chromeClass}
           backHref={backHref}

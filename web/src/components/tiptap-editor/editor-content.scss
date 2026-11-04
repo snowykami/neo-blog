@@ -1,8 +1,8 @@
 /* =========================================================================
  * 编辑器正文样式
- * 正文本身使用与前台文章页相同的 `prose dark:prose-invert pangu-autospace`，
- * 这里补齐与前台 article.prose#blog-content 一致的细节，以及编辑态专用样式
- * （占位、选区、任务列表、图片节点、代码块、拖拽手柄、专注模式等）
+ * 正文本身使用与前台文章页相同的 `content-body prose dark:prose-invert pangu-autospace`，
+ * 字号、链接、引用等排版与内容主题共用 app/styles/content-themes；
+ * 这里只放编辑态专用样式（占位、选区、任务列表、图片节点、代码块、拖拽手柄、专注模式等）
  * ========================================================================= */
 
 .neo-editor-root .tiptap.ProseMirror {
@@ -11,9 +11,6 @@
   white-space: pre-wrap;
   caret-color: var(--primary);
   overflow-wrap: anywhere;
-  /* 与前台正文一致的字号与行高 */
-  font-size: 1.0625rem;
-  line-height: 1.85;
 
   > * {
     position: relative;
@@ -23,21 +20,9 @@
     margin-top: 0;
   }
 
-  /* ---------- 链接：主色 + 虚线下划线（同前台）；组件块预览内的链接保持组件自身样式 ---------- */
+  /* 链接样式见内容主题；编辑时点击链接是定位光标，不显示手形 */
   a:not(.neo-component-block a) {
-    color: var(--primary);
-    font-weight: 500;
-    text-decoration-line: underline;
-    text-decoration-style: dashed;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 4px;
-    text-decoration-color: color-mix(in oklab, var(--primary) 60%, transparent);
     cursor: text;
-
-    &:hover {
-      text-decoration-style: solid;
-      text-decoration-color: var(--primary);
-    }
   }
 
   [data-annotation] {
@@ -47,39 +32,6 @@
     text-underline-offset: 0.25em;
     border-radius: 2px;
     cursor: text;
-  }
-
-  /* ---------- 引用：左侧主色圆角竖条（同前台）；不作用于组件块预览 ---------- */
-  blockquote:not(.neo-component-block blockquote) {
-    position: relative;
-    border-left: none;
-    padding: 0.25rem 0 0.25rem 1.25rem;
-    font-style: normal;
-
-    &::before {
-      content: "";
-      position: absolute;
-      /* 内缩一点，竖条与首行/末行文字对齐，不再顶满整块 */
-      inset-block: 0.25rem;
-      left: 0;
-      width: 4px;
-      border-radius: 999px;
-      background: var(--primary);
-    }
-
-    /* 段落自带上下外边距，会让单行引用被撑到 2 倍多高；首尾去掉外边距 */
-    > :first-child {
-      margin-top: 0;
-    }
-
-    > :last-child {
-      margin-bottom: 0;
-    }
-
-    p:first-of-type::before,
-    p:last-of-type::after {
-      content: none;
-    }
   }
 
   /* ---------- 代码块：与前台一致的深色容器（代码高亮固定为 github-dark）；不作用于组件块预览 ---------- */
@@ -107,39 +59,6 @@
       &::after {
         content: none;
       }
-    }
-  }
-
-  /* ---------- 分割线 ---------- */
-  > hr {
-    margin: 2.25rem 0;
-    border: none;
-    height: 1px;
-    background: color-mix(in oklab, var(--foreground) 12%, transparent);
-    cursor: pointer;
-
-    &.ProseMirror-selectednode {
-      background: var(--primary);
-      box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent);
-    }
-  }
-
-  /* 旧内容中带包裹的分割线 */
-  [data-type="horizontalRule"] {
-    margin: 2rem 0;
-    padding: 0.75rem 0;
-    cursor: pointer;
-
-    hr {
-      margin: 0;
-      border: none;
-      height: 1px;
-      background: color-mix(in oklab, var(--foreground) 12%, transparent);
-    }
-
-    &.ProseMirror-selectednode hr {
-      background: var(--primary);
-      box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent);
     }
   }
 
@@ -362,7 +281,9 @@
     overflow-x: auto;
   }
 
+  /* 前台表格为横向滚动的块（见内容主题），编辑器由 .tableWrapper 负责滚动，表格保持表格布局以便铺满宽度 */
   table {
+    display: table;
     width: 100%;
     margin: 0;
     border-collapse: collapse;
@@ -374,19 +295,11 @@
   td {
     position: relative;
     min-width: 4em;
-    border: 1px solid var(--border);
-    padding: 0.4em 0.75em;
     vertical-align: top;
 
     > p {
       margin: 0;
     }
-  }
-
-  th {
-    background: var(--muted);
-    font-weight: 600;
-    text-align: left;
   }
 
   /* 选中的单元格 */
@@ -396,6 +309,58 @@
     inset: 0;
     background: color-mix(in oklab, var(--primary) 12%, transparent);
     pointer-events: none;
+  }
+}
+
+/* ---------- 可被内容主题覆盖的编辑态默认外观 ----------
+ * 放在 neo-editor 层：高于 prose 所在的 @layer utilities（本文件在全局样式之后加载，层声明更靠后），
+ * 但低于不分层的内容主题样式，因此切换主题后编辑区的分割线、表格与前台一致 */
+@layer neo-editor {
+  .neo-editor-root .tiptap.ProseMirror {
+    /* ---------- 分割线 ---------- */
+    > hr {
+      margin: 2.25rem 0;
+      border: none;
+      height: 1px;
+      background: color-mix(in oklab, var(--foreground) 12%, transparent);
+      cursor: pointer;
+
+      &.ProseMirror-selectednode {
+        background: var(--primary);
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent);
+      }
+    }
+
+    /* 旧内容中带包裹的分割线 */
+    [data-type="horizontalRule"] {
+      margin: 2rem 0;
+      padding: 0.75rem 0;
+      cursor: pointer;
+
+      hr {
+        margin: 0;
+        border: none;
+        height: 1px;
+        background: color-mix(in oklab, var(--foreground) 12%, transparent);
+      }
+
+      &.ProseMirror-selectednode hr {
+        background: var(--primary);
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent);
+      }
+    }
+
+    th,
+    td {
+      border: 1px solid var(--border);
+      padding: 0.4em 0.75em;
+    }
+
+    th {
+      background: var(--muted);
+      font-weight: 600;
+      text-align: left;
+    }
   }
 }
 

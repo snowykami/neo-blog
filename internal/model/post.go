@@ -22,6 +22,7 @@ type PostBase struct {
 	BackgroundVeil      float64 `gorm:"default:0.72"`     // 蒙版不透明度，0-1
 	BackgroundVeilColor string  `gorm:"type:varchar(64)"` // 蒙版颜色，空表示跟随主题
 	Content             string  `gorm:"type:text"`
+	ContentTheme        string  `gorm:"type:varchar(32);default:''"` // 文章内容主题（正文排版），空表示跟随站点默认
 	Description         string  `gorm:"type:text"`
 	DraftContent        *string `gorm:"type:text"` // 草稿内容
 	IsPrivate           bool    `gorm:"default:false"`
@@ -78,11 +79,12 @@ func (p *Post) ToDto() *dto.PostDto {
 			return collaboratorDtos
 		}(),
 		PostBaseDto: dto.PostBaseDto{
-			Title:   p.Title,
-			Type:    p.Type,
-			Slug:    utils.Ternary(p.Slug != nil, p.Slug, nil),
-			Content: p.Content,
-			Cover:   p.Cover,
+			Title:        p.Title,
+			Type:         p.Type,
+			Slug:         utils.Ternary(p.Slug != nil, p.Slug, nil),
+			Content:      p.Content,
+			ContentTheme: p.ContentTheme,
+			Cover:        p.Cover,
 			Background: dto.PostBackgroundDto{
 				Image:     p.BackgroundImage,
 				Blur:      p.BackgroundBlur,

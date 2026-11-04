@@ -1,0 +1,87 @@
+/* 手帐：楷体正文；二级标题荧光笔底色、三级标题波浪线，虚线圆角引用框、虚线分隔线 */
+
+@use "shared" as *;
+
+.content-body[data-content-theme="journal"] {
+  --ct-font: var(--cf-kai);
+  --ct-size: 1.1rem;
+  --ct-leading: 1.9;
+
+  /* 霞鹜文楷只有常规字重，标题不加粗，靠字号与装饰区分 */
+  > :is(h1, h2, h3, h4) {
+    font-family: var(--cf-kai);
+    font-weight: 400;
+  }
+
+  > h1 {
+    font-size: 1.85em;
+    text-align: center;
+  }
+
+  /* 荧光笔：加粗的下划线画在文字后面，多行标题逐行生效 */
+  > h2 {
+    font-size: 1.5em;
+    text-decoration-line: underline;
+    text-decoration-thickness: 0.38em;
+    text-underline-offset: -0.18em;
+    text-decoration-color: color-mix(in oklab, var(--primary) 28%, transparent);
+    text-decoration-skip-ink: none;
+  }
+
+  > h3 {
+    font-size: 1.25em;
+    text-decoration-line: underline;
+    text-decoration-style: wavy;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 0.3em;
+    text-decoration-color: color-mix(in oklab, var(--primary) 55%, transparent);
+    text-decoration-skip-ink: none;
+  }
+
+  a#{$plain} {
+    font-weight: inherit;
+
+    &,
+    &:hover {
+      text-decoration-style: wavy;
+    }
+  }
+
+  blockquote#{$plain} {
+    padding: 0.8em 1.1em;
+    border: 1.5px dashed color-mix(in oklab, var(--primary) 45%, transparent);
+    border-radius: 0.9rem;
+    background: color-mix(in oklab, var(--primary) 5%, transparent);
+
+    &::before {
+      display: none;
+    }
+  }
+
+  > ul:not([data-type="taskList"]) > li::marker {
+    content: "✦  ";
+    color: var(--primary);
+  }
+
+  :not(pre) > code {
+    padding: 0.1em 0.4em;
+    border-radius: 0.4em;
+    background: color-mix(in oklab, var(--primary) 10%, transparent);
+    color: var(--primary);
+    font-size: 0.85em;
+    font-weight: 400;
+
+    &::before,
+    &::after {
+      content: none;
+    }
+  }
+
+  > hr {
+    height: 0;
+    margin: 2.25em 0;
+    border: 0;
+    border-top: 2px dashed color-mix(in oklab, var(--foreground) 22%, transparent);
+    background: none;
+  }
+}

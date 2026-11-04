@@ -58,6 +58,7 @@ var sections = []*Section{
 	{Tab: "content", Key: "appearance", Title: "section_appearance", Widget: "theme_preview", Items: []*Item{
 		{Key: "color_schemes", Type: TypeStringList, Widget: "color_schemes", Label: "color_schemes", Description: "color_schemes_desc", Options: options(colorSchemes, ""), Default: []string{"blue", "green", "orange", "red", "rose", "pink", "violet", "yellow"}, siteInfoPath: path("color_schemes")},
 		{Key: "default_color_scheme", Type: TypeEnum, Widget: "color_scheme", Label: "default_color_scheme", Options: options(colorSchemes, ""), Default: "blue", siteInfoPath: path("default_color_scheme")},
+		{Key: "content_theme", Type: TypeEnum, Label: "content_theme", Description: "content_theme_desc", Options: options(ContentThemes, "content_theme_"), Default: ContentThemes[0], siteInfoPath: path("content_theme")},
 		{Key: "animation_duration_second", Type: TypeFloat, Label: "animation_duration", Description: "animation_duration_desc", Min: num(0), Max: num(3), Default: 0.618, siteInfoPath: path("animation_duration_second")},
 	}},
 	{Tab: "content", Key: "page_background", Title: "page_background", Items: []*Item{

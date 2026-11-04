@@ -40,6 +40,8 @@ export interface ContentMeta {
   cover: string
   /** 文章专属背景（页面没有这个概念，仅文章设置里出现） */
   background: PostBackground
+  /** 文章内容主题，空字符串表示跟随站点默认（页面固定跟随站点默认） */
+  contentTheme: string
   isPrivate: boolean
   // 仅文章
   category: Category | null
@@ -80,6 +82,7 @@ const EMPTY_META: ContentMeta = {
   slug: '',
   cover: '',
   background: EMPTY_BACKGROUND,
+  contentTheme: '',
   isPrivate: false,
   category: null,
   labels: [],
@@ -101,6 +104,7 @@ const postAdapter: ContentAdapter = {
       slug: post.slug || '',
       cover: post.cover || '',
       background: post.background ?? EMPTY_BACKGROUND,
+      contentTheme: post.contentTheme || '',
       isPrivate: !!post.isPrivate,
       category: post.category ?? null,
       labels: post.labels ?? [],
@@ -126,6 +130,8 @@ const postAdapter: ContentAdapter = {
       patch.cover = meta.cover
     if (meta.background !== undefined)
       patch.background = meta.background
+    if (meta.contentTheme !== undefined)
+      patch.contentTheme = meta.contentTheme
     if (meta.isPrivate !== undefined)
       patch.isPrivate = meta.isPrivate
     if (meta.top !== undefined)
@@ -189,7 +195,7 @@ const pageAdapter: ContentAdapter = {
     return updatePage({ page: patch, editSessionId: sessionId })
   },
   mergeMeta: (doc, meta) => {
-    const { category: _category, labels: _labels, top: _top, ...rest } = meta
+    const { category: _category, labels: _labels, top: _top, contentTheme: _contentTheme, ...rest } = meta
     return { ...(doc as PageModel), ...rest }
   },
 }
@@ -314,7 +320,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
         'autocapitalize': 'off',
         'spellcheck': 'false',
         'aria-label': kind === 'post' ? postEditT('editor_aria_label') : postEditT('page_editor_aria_label'),
-        'class': 'neo-editor-content prose max-w-none dark:prose-invert pangu-autospace',
+        // content-body：与前台正文共用内容主题样式，主题由外壳通过 data-content-theme 切换
+        'class': 'neo-editor-content content-body prose max-w-none dark:prose-invert pangu-autospace',
       },
     },
     extensions,

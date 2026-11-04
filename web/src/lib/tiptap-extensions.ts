@@ -15,6 +15,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { common, createLowlight } from 'lowlight'
 import { AIWriteHighlight } from '@/components/tiptap-extension/ai-write-extension'
 import { Annotation, LinkAutoMatch } from '@/components/tiptap-extension/annotation-extension'
+import { ContentFont } from '@/components/tiptap-extension/content-font-extension'
 import { EditorShortcuts } from '@/components/tiptap-extension/editor-shortcuts-extension'
 import { InlineCode } from '@/components/tiptap-extension/inline-code-extension'
 import { SelectionHighlight } from '@/components/tiptap-extension/selection-highlight-extension'
@@ -66,8 +67,10 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
     InlineCode,
     HorizontalRule,
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
-    // 文字颜色由 TextStyleKit 内置的 Color 提供（types 固定为 textStyle），不要重复注册
-    TextStyleKit.configure({ color: { types: ['textStyle'] } }),
+    // 文字颜色由 TextStyleKit 内置的 Color 提供（types 固定为 textStyle），不要重复注册；
+    // 关闭内置的 FontFamily，避免粘贴进来的任意 font-family 写入正文，字体改用 ContentFont 按字体键保存
+    TextStyleKit.configure({ color: { types: ['textStyle'] }, fontFamily: false }),
+    ContentFont,
     TaskList,
     TaskItem.configure({ nested: true }),
     Highlight.configure({ multicolor: true }),

@@ -61,3 +61,30 @@ describe('行内代码与其他标记的互斥关系', () => {
     editor.destroy()
   })
 })
+
+describe('局部字体', () => {
+  function editorWith(content: string) {
+    return new EditorClass({
+      extensions: createContentExtensions({ upload: async () => '', placeholder: () => '', getSlashItems: () => [] }),
+      content,
+    })
+  }
+
+  it('按字体键保存为 data-font，可以设置与清除', () => {
+    const editor = createEditor()
+    editor.commands.setContentFont('kai')
+    expect(editor.getHTML()).toBe('<p><span data-font="kai">hello</span> world</p>')
+    editor.commands.unsetContentFont()
+    expect(editor.getHTML()).toBe('<p>hello world</p>')
+    editor.destroy()
+  })
+
+  it('只认识注册表里的字体键，粘贴来的任意 font-family 不写入正文', () => {
+    const editor = editorWith('<p><span data-font="xingkai">行</span><span data-font="comic">x</span><span style="font-family: Comic Sans MS">y</span></p>')
+    const html = editor.getHTML()
+    expect(html).toContain('<span data-font="xingkai">行</span>x')
+    expect(html).not.toContain('comic')
+    expect(html).not.toContain('font-family')
+    editor.destroy()
+  })
+})

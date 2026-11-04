@@ -9,8 +9,10 @@ type RevisionMeta struct {
 	Cover       string `json:"cover"`
 	// 文章专属背景（版本快照里也保存，恢复时一并还原）
 	Background *PostBackgroundDto `json:"background,omitempty"`
-	Slug       *string            `json:"slug,omitempty"`
-	IsPrivate  bool               `json:"is_private"`
+	// 文章内容主题；旧版本快照中没有（nil）时恢复不修改
+	ContentTheme *string `json:"content_theme,omitempty"`
+	Slug         *string `json:"slug,omitempty"`
+	IsPrivate    bool    `json:"is_private"`
 	// 文章
 	CategoryID *uint  `json:"category_id,omitempty"`
 	LabelIds   []uint `json:"label_ids,omitempty"`

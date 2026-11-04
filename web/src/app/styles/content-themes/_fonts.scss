@@ -1,0 +1,41 @@
+/* =========================================================================
+ * 正文字体（字体键见 lib/content-theme.ts 的 CONTENT_FONTS）
+ * --cf-* 字体栈按「系统字体 → 自托管网页字体 → 通用字体」逐字回退，供主题正文使用：
+ * 电脑上有系统字体时直接使用、不下载网页字体，手机等没有对应字体的设备才下载（只下载正文用到的字所在的分片）。
+ * 网页字体的 @font-face 在 public/fonts/<字体>.css，文章页只为用到的字体插入 <link>
+ * ========================================================================= */
+
+:root {
+  --cf-sans: var(--font-inter), "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --cf-song: "Songti SC", STSong, "Noto Serif SC", "Source Han Serif SC", SimSun, serif;
+  --cf-kai: "Kaiti SC", STKaiti, KaiTi, "LXGW WenKai Screen", serif;
+  --cf-xingkai: "Xingkai SC", STXingkai, "Zhi Mang Xing", "LXGW WenKai Screen", serif;
+  --cf-fangsong: STFangsong, FangSong, "ZCOOL XiaoWei", serif;
+  /* 日文圆体缺少部分简体字，会与回退字体混排，所以网页字体排在它前面 */
+  --cf-round: "ZCOOL KuaiLe", "Yuanti SC", "Arial Rounded MT Bold", sans-serif;
+  /* 英文花体：中日韩文字回退到苹方等无衬线字体 */
+  --cf-script: "Snell Roundhand", "Apple Chancery", "Segoe Script", "Dancing Script", "PingFang SC", sans-serif;
+  --cf-mono: var(--font-source-code-pro), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/*
+ * 局部字体 <span data-font="…">：网页字体排在最前，保证各设备上效果一致
+ * （局部字体通常只有几个字，只下载一两个分片）；字体菜单里的预览项（.content-font-option）用同样的字体栈
+ */
+$phrase-fonts: (
+  sans: var(--cf-sans),
+  song: ("Noto Serif SC", var(--cf-song)),
+  kai: ("LXGW WenKai Screen", var(--cf-kai)),
+  xingkai: ("Zhi Mang Xing", var(--cf-xingkai)),
+  fangsong: ("ZCOOL XiaoWei", var(--cf-fangsong)),
+  round: var(--cf-round),
+  script: ("Dancing Script", var(--cf-script)),
+  mono: var(--cf-mono),
+);
+
+@each $key, $stack in $phrase-fonts {
+  .content-body [data-font="#{$key}"],
+  .content-font-option[data-font="#{$key}"] {
+    font-family: $stack;
+  }
+}

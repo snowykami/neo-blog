@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { cache } from 'react'
+import { getCachedSiteInfo } from '@/api/misc.server'
 import { getPageById } from '@/api/page'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
+import { ContentFontLinks } from '@/components/blog-post/content-font-links'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
@@ -14,11 +16,12 @@ import { ComponentIslands } from '@/components/content-components/component-isla
 import { HtmlPageView } from '@/components/html-page/html-page-view'
 import { FullscreenChrome } from '@/components/layout/fullscreen-chrome'
 import { SiteShell } from '@/components/layout/site-shell'
+import { contentWebFonts, resolveContentTheme } from '@/lib/content-theme'
 import { isNotFoundLikeError } from '@/utils/common/error'
 import { countWords } from '@/utils/common/post'
 import { renderContentHtml } from '@/utils/server/render-content'
+import '@/app/styles/content-themes/index.scss'
 import '@/components/tiptap-node/image-node/image-figure.scss'
-import '../../p/[id]/blog-post-article.scss'
 // 公式样式（约 4 KB）；KaTeX 字体只在页面用到公式时才下载
 import 'katex/dist/katex.min.css'
 
@@ -72,9 +75,12 @@ export default async function Page({
   }
 
   const { html, headings } = renderContentHtml(page.content)
+  // 页面正文使用站点默认的内容主题
+  const theme = resolveContentTheme(null, (await getCachedSiteInfo()).contentTheme)
   // 代码块工具栏 / 高亮、链接卡片、图片失效兜底与预览，与文章正文复用同一套增强
   const enhancers = (
     <>
+      <ContentFontLinks fonts={contentWebFonts(theme, html)} />
       <HtmlEnhancer containerId="page-content" />
       <ComponentIslands containerId="page-content" />
       <ContentHoverCard containerId="page-content" />
@@ -92,7 +98,8 @@ export default async function Page({
         <h1 className="sr-only">{page.title}</h1>
         <article
           id="page-content"
-          className="prose max-w-none dark:prose-invert pangu-autospace"
+          className="content-body prose max-w-none dark:prose-invert pangu-autospace"
+          data-content-theme={theme}
           dangerouslySetInnerHTML={{ __html: html }}
         />
         {enhancers}
@@ -129,7 +136,8 @@ export default async function Page({
         {/* 先自动匹配再净化，与文章正文保持一致 */}
         <article
           id="page-content"
-          className="prose max-w-none dark:prose-invert pangu-autospace"
+          className="content-body prose max-w-none dark:prose-invert pangu-autospace"
+          data-content-theme={theme}
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </div>

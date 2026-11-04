@@ -4,6 +4,7 @@ import type { Editor } from '@tiptap/react'
 import type { LucideIcon } from 'lucide-react'
 import type { AIWriterOpenOptions } from './use-ai-writer'
 import type { EditorToolbarState } from './use-editor-toolbar-state'
+import type { ContentFont } from '@/lib/content-theme'
 import type { AIPrompt } from '@/models/ai-prompt'
 import {
   BetweenHorizontalEndIcon,
@@ -27,6 +28,7 @@ import {
   SquareSigmaIcon,
   TableIcon,
   Trash2Icon,
+  TypeIcon,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
@@ -43,6 +45,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { CONTENT_FONTS } from '@/lib/content-theme'
 import { cn } from '@/lib/utils'
 import { AIPromptManageButton } from './ai-prompt-manager-dialog'
 import { useAIPrompts } from './ai-prompts-context'
@@ -62,6 +65,8 @@ export type EditorMenuEntry
       active?: boolean
       disabled?: boolean
       destructive?: boolean
+      // 字体菜单：文案用该字体显示
+      font?: ContentFont
       onSelect: () => void
     }
 
@@ -82,7 +87,7 @@ export function EditorMenuEntries({ entries }: { entries: EditorMenuEntry[] }) {
         onSelect={entry.onSelect}
       >
         {Icon && <Icon />}
-        <span className="min-w-0 flex-1 truncate">
+        <span className={cn('min-w-0 flex-1 truncate', entry.font && 'content-font-option')} data-font={entry.font}>
           {entry.label}
           {entry.hint && <span className="ml-1.5 text-xs text-muted-foreground">{entry.hint}</span>}
         </span>
@@ -150,6 +155,27 @@ export function getAlignEntries(editor: Editor, t: Translate, state: EditorToolb
     disabled: !state.canAlign,
     onSelect: () => setTextAlign(editor, def.id),
   }))
+}
+
+/** 局部字体：默认字体（清除）+ 各字体，文案用对应字体显示 */
+export function getFontEntries(editor: Editor, t: Translate, state: EditorToolbarState): EditorMenuEntry[] {
+  return [
+    {
+      key: 'font-default',
+      label: t('font.default'),
+      active: !state.font,
+      disabled: !state.canFont,
+      onSelect: () => editor.chain().focus().unsetContentFont().run(),
+    },
+    ...CONTENT_FONTS.map(font => ({
+      key: `font-${font}`,
+      label: t(`font.${font}`),
+      font,
+      active: state.font === font,
+      disabled: !state.canFont,
+      onSelect: () => editor.chain().focus().setContentFont(font).run(),
+    })),
+  ]
 }
 
 // 插入表格的默认尺寸：3×3，首行为标题行
@@ -337,6 +363,28 @@ export function AlignMenu({ editor, state }: { editor: Editor | null, state: Edi
       </EditorTooltip>
       <EditorMenuContent editor={editor}>
         <EditorMenuEntries entries={getAlignEntries(editor, t, state)} />
+      </EditorMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** 字体下拉：给选中的文字指定字体 */
+export function FontMenu({ editor, state, tooltipSide }: { editor: Editor | null, state: EditorToolbarState, tooltipSide?: 'top' | 'bottom' }) {
+  const t = useTranslations('Console.editor')
+  if (!editor)
+    return null
+  return (
+    <DropdownMenu modal={false}>
+      <EditorTooltip label={t('font.label')} side={tooltipSide}>
+        <DropdownMenuTrigger asChild>
+          <EditorToolbarButton label={t('font.label')} noTooltip active={!!state.font} disabled={!state.canFont}>
+            <TypeIcon />
+            <ChevronDownIcon className="-mr-0.5 size-3.5 opacity-50" />
+          </EditorToolbarButton>
+        </DropdownMenuTrigger>
+      </EditorTooltip>
+      <EditorMenuContent editor={editor} className="min-w-44">
+        <EditorMenuEntries entries={getFontEntries(editor, t, state)} />
       </EditorMenuContent>
     </DropdownMenu>
   )

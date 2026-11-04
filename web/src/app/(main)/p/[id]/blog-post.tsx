@@ -2,11 +2,13 @@ import type { Post } from '@/models/post'
 import { LockIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import { Suspense } from 'react'
+import { getCachedSiteInfo } from '@/api/misc.server'
 import { AISummary } from '@/components/blog-post/ai-summary.client'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import CopyrightCard from '@/components/blog-post/blog-copyright.client'
 import { BlogLikeButton } from '@/components/blog-post/blog-like-button.client'
 import { BlogShare } from '@/components/blog-post/blog-share.client'
+import { ContentFontLinks } from '@/components/blog-post/content-font-links'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
@@ -23,11 +25,12 @@ import { SiteShell } from '@/components/layout/site-shell'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PinnedIcon } from '@/contexts/theme-context'
+import { contentWebFonts, resolveContentTheme } from '@/lib/content-theme'
 import { TargetType } from '@/models/types'
 import { calculateReadingTime, countWords } from '@/utils/common/post'
 import { renderContentHtml } from '@/utils/server/render-content'
+import '@/app/styles/content-themes/index.scss'
 import '@/components/tiptap-node/image-node/image-figure.scss'
-import './blog-post-article.scss'
 // 公式样式（约 4 KB）；KaTeX 字体只在页面用到公式时才下载
 import 'katex/dist/katex.min.css'
 
@@ -40,6 +43,8 @@ import 'katex/dist/katex.min.css'
 async function PostArticle({ post, html, isDraft }: { post: Post, html: string, isDraft?: boolean }) {
   const t = await getTranslations('Common')
   const content = (isDraft ? post.draftContent : post.content) || ''
+  // 文章未选内容主题时跟随站点默认；只加载主题与局部字体实际用到的网页字体
+  const theme = resolveContentTheme(post.contentTheme, (await getCachedSiteInfo()).contentTheme)
   return (
     <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
       <PostStats withIcons words={countWords(content)} minutes={calculateReadingTime(content)} views={post.viewCount || 0} likes={post.likeCount || 0} comments={post.commentCount || 0} className="mb-3" />
@@ -91,9 +96,11 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
         : <p className="mb-6 text-foreground/75">{post.description}</p>)}
 
       {/* 文章内容 - Core content rendered immediately */}
+      <ContentFontLinks fonts={contentWebFonts(theme, html)} />
       <article
         id="blog-content"
-        className="prose max-w-none dark:prose-invert pangu-autospace"
+        className="content-body prose max-w-none dark:prose-invert pangu-autospace"
+        data-content-theme={theme}
         dangerouslySetInnerHTML={{ __html: html }}
       />
       <HtmlEnhancer containerId="blog-content" />

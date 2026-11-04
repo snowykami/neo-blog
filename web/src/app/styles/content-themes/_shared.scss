@@ -1,0 +1,2 @@
+// 组件块（前台 [data-component-root]、编辑器 .neo-component-block）内的元素保持组件自身样式；:where 不增加优先级
+$plain: ":not(:where([data-component-root], .neo-component-block) *)";

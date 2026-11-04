@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# 文章网页字体（scripts/gen-webfonts.mjs 生成）
+/public/fonts/
+
 # production
 /build
 

@@ -1,0 +1,101 @@
+/* 简洁：接近 GitHub 的 Markdown 排版——无衬线、一二级标题下划线、灰色引用竖条、带边框的斑马纹表格 */
+
+@use "shared" as *;
+
+.content-body[data-content-theme="github"] {
+  --ct-size: 1rem;
+  --ct-leading: 1.75;
+
+  > :is(h1, h2, h3, h4, h5, h6) {
+    margin-top: 1.6em;
+    margin-bottom: 0.8em;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  > :is(h1, h2) {
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
+  }
+
+  > h1 {
+    font-size: 2em;
+  }
+
+  > h2 {
+    font-size: 1.5em;
+  }
+
+  > h3 {
+    font-size: 1.25em;
+  }
+
+  > h4 {
+    font-size: 1em;
+  }
+
+  a#{$plain} {
+    font-weight: inherit;
+    text-decoration-line: none;
+
+    &:hover {
+      text-decoration-line: underline;
+      text-decoration-style: solid;
+    }
+  }
+
+  blockquote#{$plain} {
+    padding: 0 1em;
+    color: var(--muted-foreground);
+
+    &::before {
+      inset-block: 0;
+      width: 0.25em;
+      border-radius: 0;
+      background: color-mix(in oklab, var(--foreground) 15%, transparent);
+    }
+  }
+
+  :not(pre) > code {
+    padding: 0.2em 0.4em;
+    border-radius: 6px;
+    background: color-mix(in oklab, var(--foreground) 8%, transparent);
+    font-size: 85%;
+    font-weight: 400;
+
+    &::before,
+    &::after {
+      content: none;
+    }
+  }
+
+  table#{$plain} {
+    border-collapse: collapse;
+  }
+
+  tr#{$plain} {
+    border: 0;
+  }
+
+  :is(th, td)#{$plain} {
+    padding: 0.4em 0.85em;
+    border: 1px solid color-mix(in oklab, var(--foreground) 15%, transparent);
+  }
+
+  th#{$plain} {
+    font-weight: 600;
+    background: color-mix(in oklab, var(--foreground) 4%, transparent);
+  }
+
+  tr:nth-child(2n) > td#{$plain} {
+    background: color-mix(in oklab, var(--foreground) 3%, transparent);
+  }
+
+  > hr {
+    height: 0.25em;
+    margin: 1.75em 0;
+    padding: 0;
+    border: 0;
+    background: color-mix(in oklab, var(--foreground) 10%, transparent);
+  }
+}

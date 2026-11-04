@@ -1,0 +1,94 @@
+/* 书卷：宋体正文、段首缩进两字、两端对齐；标题居中，引用用大号引号，分隔线为星号花饰 */
+
+@use "shared" as *;
+
+.content-body[data-content-theme="book"] {
+  --ct-font: var(--cf-song);
+  --ct-size: 1.075rem;
+  --ct-leading: 1.95;
+
+  /* 只作用于正文直属段落；居中、右对齐等设置了对齐方式的段落保持原样 */
+  > p:not([style*="text-align"]) {
+    text-indent: 2em;
+    text-align: justify;
+  }
+
+  > :is(h1, h2, h3, h4) {
+    font-family: var(--cf-song);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  > h1 {
+    margin: 1.6em 0 1em;
+    font-size: 1.9em;
+    text-align: center;
+  }
+
+  > h2 {
+    margin: 2em 0 1em;
+    font-size: 1.45em;
+    text-align: center;
+
+    &::after {
+      content: "";
+      display: block;
+      width: 2.5em;
+      height: 1px;
+      margin: 0.55em auto 0;
+      background: currentColor;
+      opacity: 0.35;
+    }
+  }
+
+  > h3 {
+    font-size: 1.2em;
+  }
+
+  a#{$plain} {
+    color: inherit;
+    font-weight: inherit;
+    text-decoration-style: solid;
+    text-decoration-color: color-mix(in oklab, var(--primary) 70%, transparent);
+    text-underline-offset: 3px;
+
+    &:hover {
+      color: var(--primary);
+    }
+  }
+
+  blockquote#{$plain} {
+    padding: 0.25rem 2em;
+    color: color-mix(in oklab, var(--foreground) 72%, transparent);
+
+    &::before {
+      content: "“";
+      inset-block: auto;
+      top: -0.15em;
+      left: 0.1em;
+      width: auto;
+      border-radius: 0;
+      background: none;
+      font-family: var(--cf-song);
+      font-size: 2.6em;
+      line-height: 1;
+      color: color-mix(in oklab, var(--primary) 55%, transparent);
+    }
+  }
+
+  > hr {
+    height: auto;
+    margin: 2.5em 0;
+    border: 0;
+    background: none;
+    overflow: visible;
+    line-height: 1;
+    text-align: center;
+
+    &::before {
+      content: "＊　＊　＊";
+      font-size: 1.25em;
+      color: color-mix(in oklab, var(--foreground) 50%, transparent);
+    }
+  }
+}

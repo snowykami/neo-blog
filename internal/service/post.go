@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/internal/config"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
@@ -52,6 +53,7 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			BackgroundVeil:      background.Veil,
 			BackgroundVeilColor: background.VeilColor,
 			Content:             req.Content,
+			ContentTheme:        config.NormalizeContentTheme(utils.Deref(req.ContentTheme)),
 			Description:         utils.Deref(req.Description),
 			IsPrivate:           utils.Deref(req.IsPrivate),
 			Labels:              labels,
@@ -202,6 +204,9 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		post.BackgroundOpacity = background.Opacity
 		post.BackgroundVeil = background.Veil
 		post.BackgroundVeilColor = background.VeilColor
+	}
+	if req.ContentTheme != nil {
+		post.ContentTheme = config.NormalizeContentTheme(*req.ContentTheme)
 	}
 	if req.Description != nil {
 		post.Description = *req.Description

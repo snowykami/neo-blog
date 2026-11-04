@@ -21,6 +21,7 @@ export interface Post {
   draftContent?: string | null // 草稿内容，仅单篇草稿模式（作者/管理员）返回，列表与随机接口不包含
   cover: string | null // 封面可以为空
   background: PostBackground | null // 文章专属背景，整段留空表示沿用全站背景
+  contentTheme: string // 文章内容主题（正文排版），空表示跟随站点默认
   category: Category | null // 分类可以为空
   categoryId: number | null // 分类 ID，可以为空
   labels: Label[] | null // 标签可以为空

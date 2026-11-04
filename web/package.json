@@ -4,14 +4,15 @@
   "private": true,
   "packageManager": "pnpm@10.23.0",
   "scripts": {
-    "dev": "pnpm gen:content && next dev --turbopack",
-    "build": "pnpm gen:content && next build --turbopack",
+    "dev": "pnpm gen:content && pnpm gen:fonts && next dev --turbopack",
+    "build": "pnpm gen:content && pnpm gen:fonts && next build --turbopack",
     "start": "next start",
     "format": "prettier --write \"src/**/*.{js,ts,jsx,tsx,json,css,md,mdx}\"",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
-    "gen:content": "node scripts/gen-content-components.mjs"
+    "gen:content": "node scripts/gen-content-components.mjs",
+    "gen:fonts": "node scripts/gen-webfonts.mjs"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.20",

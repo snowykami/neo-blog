@@ -19,6 +19,7 @@ type PostBaseDto struct {
 	Cover        string            `json:"cover"`
 	Background   PostBackgroundDto `json:"background"`
 	Content      string            `json:"content"`
+	ContentTheme string            `json:"content_theme"` // 文章内容主题（正文排版），空表示跟随站点默认
 	DraftContent *string           `json:"draft_content"`
 	Type         string            `json:"type"`
 	Category     *CategoryDto      `json:"category"`
@@ -85,6 +86,8 @@ type CreateOrUpdatePostReq struct {
 	Cover       *string `json:"cover"`
 	// 封面传空字符串表示清空；背景整段覆盖，未传（nil）表示不修改
 	Background *PostBackgroundDto `json:"background"`
+	// 内容主题传空字符串表示跟随站点默认，未传则保持原值
+	ContentTheme *string `json:"content_theme"`
 	// 编辑会话ID，保存正文时校验，见 EditSessionService
 	EditSessionID string `header:"X-Edit-Session" json:"-"`
 }
