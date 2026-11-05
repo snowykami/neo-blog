@@ -4148,7 +4148,6 @@
     "music_playing": "재생 중: {title}",
     "music_paused": "일시정지됨: {title}. 탭하면 다시 재생",
     "music_now_playing": "재생 시작: {title}",
-    "music_open_player": "플레이어 열기",
     "reading_label": "읽는 중: {chapter}. 탭하면 목차 보기",
     "reading_left": "{count, plural, =0 {곧 다 읽어요} other {# 분 남음}}",
     "reading_progress": "{percent}% 읽음",

@@ -4148,7 +4148,6 @@
     "music_playing": "Now playing: {title}",
     "music_paused": "Paused: {title}. Tap to resume",
     "music_now_playing": "Started playing {title}",
-    "music_open_player": "Open player",
     "reading_label": "Reading: {chapter}. Tap for contents",
     "reading_left": "{count, plural, =0 {Almost done} other {# min left}}",
     "reading_progress": "{percent}% read",

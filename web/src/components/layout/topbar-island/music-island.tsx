@@ -3,34 +3,32 @@
 import type { IslandActivity } from '@/contexts/topbar-island'
 import type { MusicTrack } from '@/models/music'
 import type { IslandSettings } from '@/utils/common/siteinfo'
-import { Maximize2Icon, PlayIcon } from 'lucide-react'
+import { PlayIcon } from 'lucide-react'
 import { useReducedMotion } from 'motion/react'
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { MarqueeText } from '@/components/common/marquee-text'
-import { MusicMiniPlaylist } from '@/components/common/music-mini-playlist'
-import { AlbumNavIcon } from '@/components/common/music-player'
+import { AlbumNavIcon, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE, MiniPlayer } from '@/components/common/music-player'
 import { SafeImage } from '@/components/common/safe-image'
 import { MusicBackground } from '@/components/music-page/music-background'
 import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
-import { MusicPageControls } from '@/components/music-page/music-page-controls'
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useSongAccent } from '@/components/music-page/use-cover-accent'
-import { useCurrentLyric, useMusic, useMusicClockStore } from '@/contexts/music-context'
+import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useSongChorus } from '@/contexts/song-chorus'
-import { pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
+import { dismissIslandAlert, pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
 import { backgroundLevel, rhythmContext } from '@/lib/lyrics/rhythm/effects'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 
 // 优先级：播放中高于文章阅读进度（读者主动开启的音乐更有个性），暂停后低于一切
 const PLAYING_PRIORITY = 50
 const PAUSED_PRIORITY = 10
-// 切歌提示的停留时长
-const PEEK_MS = 3200
-// 与悬浮播放器一致：主色换成白色，进度条、焦点环等与深色面板协调
-const PANEL_STYLE = { '--primary': 'oklch(0.97 0 0)', '--primary-foreground': 'oklch(0.2 0 0)' } as React.CSSProperties
+// 切歌提示最多停留这么久；歌词一开唱就立即让位给歌词
+const PEEK_MS = 1500
+const PEEK_KEY = 'music-track'
+// 切歌加载新曲目时会短暂暂停：暂停持续这么久才换成暂停态，避免胶囊闪一下
+const PAUSE_SETTLE_MS = 350
 
 // 不需要订阅播放进度时的占位
 const noopSubscribe = () => () => {}
@@ -43,7 +41,7 @@ function trackTitle(track: MusicTrack) {
 /**
  * 音乐活动：播放时胶囊里是模糊封面底 + 旋转封面 + 歌词引擎的单行条（逐字擦除、强调特效、间奏圆点、副歌爆发都与播放器一致），
  * 右侧律动条跟随节拍；副歌段胶囊描边泛起封面主色；切歌时短暂显示歌名（不显示导语、热评等句子，岛上只放歌词）；
- * 暂停后（本页播放过时）缩成封面 + 播放键，点按继续；点按展开迷你播放器。播放器页本身就是完整播放器，不显示
+ * 暂停后（本页播放过时）缩成封面 + 播放键，点按继续；点按展开与悬浮球相同的播放器弹层（从胶囊下方弹出）。播放器页本身就是完整播放器，不显示
  */
 export function MusicIsland({ settings }: { settings: IslandSettings }) {
   const t = useTranslations('TopbarIsland')
@@ -53,14 +51,26 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
   const [hasPlayed, setHasPlayed] = useState(false)
   if (isPlaying && !hasPlayed)
     setHasPlayed(true)
+  const [pauseSettled, setPauseSettled] = useState(false)
+  useEffect(() => {
+    if (isPlaying) {
+      setPauseSettled(false)
+      return
+    }
+    const timer = window.setTimeout(setPauseSettled, PAUSE_SETTLE_MS, true)
+    return () => window.clearTimeout(timer)
+  }, [isPlaying])
+  // 刚暂停的一小段时间内仍按播放中显示
+  const showPlaying = isPlaying || (hasPlayed && !pauseSettled)
   const accent = useSongAccent(currentTrack?.albumPic)
   const inChorus = useInChorus(isPlaying && settings.musicChorus ? currentTrack?.id ?? null : null)
+  const lyricStarted = useLyricStarted(isPlaying)
   const title = currentTrack ? trackTitle(currentTrack) : ''
 
   const activity = useMemo<IslandActivity | null>(() => {
     if (!currentTrack || onPlayerPage)
       return null
-    if (isPlaying) {
+    if (showPlaying) {
       return {
         id: 'music',
         feature: 'music',
@@ -68,7 +78,9 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
         label: t('music_playing', { title }),
         compact: <MusicCompact beat={settings.musicBeat} />,
         minimal: <AlbumNavIcon />,
-        panel: <MusicPanel />,
+        panel: <MiniPlayer />,
+        panelClassName: MINI_PLAYER_POPOVER_CLASSNAME,
+        panelStyle: MINI_PLAYER_POPOVER_STYLE,
         glow: inChorus ? (accent ?? 'rgb(255 255 255)') : null,
       }
     }
@@ -88,17 +100,19 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       minimal: <AlbumNavIcon />,
       onPress: play,
     }
-  }, [accent, currentTrack, hasPlayed, inChorus, isPlaying, onPlayerPage, play, settings.musicBeat, t, title])
+  }, [accent, currentTrack, hasPlayed, inChorus, onPlayerPage, play, settings.musicBeat, showPlaying, t, title])
   useIslandActivity(activity)
 
-  // 开始播放或切歌时短暂显示歌名（同一首只提示一次）
+  // 开始播放或切歌时短暂显示歌名（同一首只提示一次）；歌词已经在唱（如从中段继续播放）时不提示，直接显示歌词
   const peekedRef = useRef<number | null>(null)
   useEffect(() => {
     if (!isPlaying || !currentTrack || onPlayerPage || peekedRef.current === currentTrack.id)
       return
     peekedRef.current = currentTrack.id
+    if (lyricStarted)
+      return
     pushIslandAlert({
-      key: 'music-track',
+      key: PEEK_KEY,
       feature: 'musicPeek',
       icon: currentTrack.albumPic
         ? <SafeImage src={currentTrack.albumPic} alt="" width={20} height={20} sizes="20px" fallback={null} className="size-5 rounded-md object-cover" />
@@ -107,9 +121,27 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       announce: t('music_now_playing', { title: trackTitle(currentTrack) }),
       duration: PEEK_MS,
     })
+    // lyricStarted 不放进依赖：只在切歌、开始播放时判断一次，歌词开唱后由下面的 effect 撤下提示
   }, [currentTrack, isPlaying, onPlayerPage, t])
 
+  // 歌词一开唱就撤下切歌提示
+  useEffect(() => {
+    if (lyricStarted)
+      dismissIslandAlert(PEEK_KEY)
+  }, [currentTrack?.id, lyricStarted])
+
   return null
+}
+
+/** 第一句歌词是否已经开唱（前奏期间为 false）；enabled 为 false 时不订阅播放进度 */
+function useLyricStarted(enabled: boolean) {
+  const { lyricLines } = useMusic()
+  const clock = useMusicClockStore()
+  const getSnapshot = useCallback(
+    () => lyricLines.length > 0 && clock.getSnapshot() * 1000 >= lyricLines[0].startTime,
+    [clock, lyricLines],
+  )
+  return useSyncExternalStore(enabled ? clock.subscribe : noopSubscribe, enabled ? getSnapshot : falseSnapshot, falseSnapshot)
 }
 
 /** 是否正在副歌段（网易云标出的高潮片段）；id 为空时不订阅播放进度 */
@@ -204,37 +236,5 @@ function BeatBars({ tintRef }: { tintRef: React.RefObject<HTMLSpanElement | null
         <span key={bar.freq} className="block h-full w-[3px] origin-center scale-y-50 rounded-full bg-[color:var(--lyric-accent,#fff)]" />
       ))}
     </span>
-  )
-}
-
-/** 展开面板：迷你播放器（封面、歌名、当前歌词、进度与控制），可跳到播放器页 */
-function MusicPanel() {
-  const t = useTranslations('TopbarIsland')
-  const { currentTrack } = useMusic()
-  const lyric = useCurrentLyric()
-  if (!currentTrack)
-    return null
-  return (
-    <div className="grid gap-3" style={PANEL_STYLE}>
-      <div className="flex items-center gap-3">
-        <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-white/10">
-          {currentTrack.albumPic && <SafeImage src={currentTrack.albumPic} alt="" fill sizes="56px" fallback={null} className="object-cover" />}
-        </div>
-        <div className="grid min-w-0 flex-1 gap-0.5">
-          <MarqueeText className="font-semibold">{currentTrack.name}</MarqueeText>
-          <p className="truncate text-sm text-white/60">{currentTrack.artists.join(' / ')}</p>
-        </div>
-        <Link
-          href="/music"
-          aria-label={t('music_open_player')}
-          title={t('music_open_player')}
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none"
-        >
-          <Maximize2Icon aria-hidden className="size-4" />
-        </Link>
-      </div>
-      {lyric && <p className="line-clamp-2 text-sm text-white/80">{lyric}</p>}
-      <MusicPageControls compact playlistSlot={<MusicMiniPlaylist />} />
-    </div>
   )
 }

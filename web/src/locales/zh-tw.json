@@ -4148,7 +4148,6 @@
     "music_playing": "正在播放：{title}",
     "music_paused": "已暫停：{title}，點按繼續播放",
     "music_now_playing": "開始播放：{title}",
-    "music_open_player": "開啟播放器",
     "reading_label": "閱讀進度：{chapter}，點按查看目錄",
     "reading_left": "{count, plural, =0 {即將讀完} other {還剩 # 分鐘}}",
     "reading_progress": "已讀 {percent}%",

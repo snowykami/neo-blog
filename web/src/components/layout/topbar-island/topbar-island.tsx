@@ -6,6 +6,7 @@ import type { IslandActivity, QueuedIslandAlert } from '@/contexts/topbar-island
 import type { IslandSettings } from '@/utils/common/siteinfo'
 import { AnimatePresence, LayoutGroup, motion, MotionConfig } from 'motion/react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { SiteLogo } from '@/components/common/site-logo'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -66,8 +67,11 @@ function IslandStage({ settings }: { settings: IslandSettings }) {
   const visible = settings.enabled ? activities.filter(activity => settings[activity.feature]) : []
   const primary = visible[0]
   const secondary = visible.slice(1).find(activity => activity.minimal)
-  // 当前展开面板所属的活动；活动撤下或换成别的活动后自然失效
-  const [openId, setOpenId] = useState<string | null>(null)
+  // 当前展开面板所属的活动与展开时的页面：活动撤下、换成别的活动或切换页面（如从面板进入播放器页）后自然失效，回来时不会自己再弹开
+  const pathname = usePathname()
+  const [opened, setOpened] = useState<{ id: string, pathname: string } | null>(null)
+  const openId = opened?.pathname === pathname ? opened.id : null
+  const setOpenId = (id: string | null) => setOpened(id ? { id, pathname } : null)
   // 悬停 / 聚焦在岛上时暂停提示计时
   const [holding, setHolding] = useState(false)
   const panelOpen = !!openId && visible.some(activity => activity.id === openId)
@@ -237,8 +241,10 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
       <PopoverContent
         align="start"
         sideOffset={10}
-        // 面板从胶囊处「长」出来：以触发处为原点放大，深色与胶囊一致
-        className="w-[min(22rem,calc(100vw-1.5rem))] rounded-3xl border-0 bg-neutral-950 p-4 text-white shadow-2xl ring-1 ring-white/10 data-[state=open]:duration-300 data-[state=open]:zoom-in-75"
+        collisionPadding={8}
+        // 面板从胶囊处「长」出来：以触发处为原点放大，默认深色与胶囊一致；活动可换成别处弹层的外观（如音乐用悬浮播放器的弹层）
+        className={activity?.panelClassName ?? 'w-[min(22rem,calc(100vw-1.5rem))] rounded-3xl border-0 bg-neutral-950 p-4 text-white shadow-2xl ring-1 ring-white/10 data-[state=open]:duration-300 data-[state=open]:zoom-in-75'}
+        style={activity?.panelStyle}
       >
         {panel}
       </PopoverContent>

@@ -272,6 +272,13 @@ const ALBUM_ROTATE_CLASSNAME = 'animate-spin [animation-duration:30s]'
 const PLAYER_STYLE = { '--primary': 'oklch(0.97 0 0)', '--primary-foreground': 'oklch(0.2 0 0)' } as React.CSSProperties
 
 /**
+ * 悬浮播放器弹层的外观：与播放器页一致的深色沉浸界面；弹层渲染在 body 下，单独加 dark。
+ * 顶栏灵动岛点按展开的播放器与悬浮球弹出的是同一个（MiniPlayer + 这里的外观），见 components/layout/topbar-island/music-island.tsx
+ */
+export const MINI_PLAYER_POPOVER_CLASSNAME = 'dark z-1000 w-88 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border-white/10 bg-neutral-950 p-0 text-white shadow-2xl'
+export const MINI_PLAYER_POPOVER_STYLE = { ...PLAYER_STYLE, pointerEvents: 'auto' } as React.CSSProperties
+
+/**
  * 顶栏灵动岛里的旋转封面（见 components/layout/topbar-island/music-island.tsx）：与悬浮球一致，只把封面裁成圆形，不加边框；
  * 组件内部自行读取播放状态，暂停时停转，曲目切换时交叉淡入新封面
  */
@@ -463,9 +470,8 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
         align={ball.side === 'left' ? 'start' : 'end'}
         sideOffset={12}
         collisionPadding={8}
-        // 与播放器页一致的深色沉浸界面；弹层渲染在 body 下，单独加 dark
-        className="dark z-1000 w-88 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border-white/10 bg-neutral-950 p-0 text-white shadow-2xl"
-        style={{ ...PLAYER_STYLE, pointerEvents: 'auto' }}
+        className={MINI_PLAYER_POPOVER_CLASSNAME}
+        style={MINI_PLAYER_POPOVER_STYLE}
       >
         <MiniPlayer onOpenPage={() => setOpen(false)} />
       </PopoverContent>
@@ -475,9 +481,10 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
 
 /**
  * 悬浮播放器：播放器页（/music）的缩小版，共用歌词引擎（紧凑模式）、歌词来源标签、控制栏与全部特效（全屏特效为小窗精简版）；
- * 歌单为从歌单按钮弹出的小浮层，歌名与歌手过长时以跑马灯滚动；右上角的按钮进入完整的播放器页
+ * 歌单为从歌单按钮弹出的小浮层，歌名与歌手过长时以跑马灯滚动；右上角的按钮进入完整的播放器页（onOpenPage 用于同时收起弹层）。
+ * 悬浮球与顶栏灵动岛的弹层共用
  */
-function MiniPlayer({ onOpenPage }: { onOpenPage: () => void }) {
+export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
   const t = useTranslations('MusicPlayer')
   const { currentTrack, isPlaying } = useMusic()
   // 与播放器页相同：主题色（模型选的颜色或封面主色）作为辉光与呼吸的默认颜色

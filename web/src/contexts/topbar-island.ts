@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { IslandSettings } from '@/utils/common/siteinfo'
 import { useEffect, useSyncExternalStore } from 'react'
 
@@ -28,6 +28,9 @@ export interface IslandActivity {
   minimal?: ReactNode
   // 点按展开的面板（后台关闭「点按展开」时不显示）
   panel?: ReactNode
+  // 面板弹层的外观，默认为与胶囊一致的深色圆角卡片；需要与别处弹层一模一样时（如音乐用悬浮播放器的弹层）传入覆盖
+  panelClassName?: string
+  panelStyle?: CSSProperties
   // 没有面板时点按胶囊执行
   onPress?: () => void
   // 胶囊描边辉光的颜色（如副歌时的封面主色），为空时不发光
@@ -151,6 +154,12 @@ export function pushIslandAlert(alert: IslandAlert): boolean {
     alerts.push({ ...alert, count: 1, seq })
   update({ ...state, alerts: alerts.slice(-MAX_QUEUED_ALERTS) })
   return true
+}
+
+/** 提前撤下某一类提示（不论是否正在显示），如歌词开唱后撤下切歌提示 */
+export function dismissIslandAlert(key: string) {
+  if (state.alerts.some(alert => alert.key === key))
+    update({ ...state, alerts: state.alerts.filter(alert => alert.key !== key) })
 }
 
 /** 当前提示显示完毕（seq 仍是这一条时才移除，期间合并过的会重新计时） */

@@ -4148,7 +4148,6 @@
     "music_playing": "再生中：{title}",
     "music_paused": "一時停止中：{title}。タップで再開",
     "music_now_playing": "再生開始：{title}",
-    "music_open_player": "プレーヤーを開く",
     "reading_label": "読書中：{chapter}。タップで目次を表示",
     "reading_left": "{count, plural, =0 {まもなく読了} other {残り # 分}}",
     "reading_progress": "{percent}% 読了",
