@@ -54,7 +54,7 @@ export function usePostPinAction(post: Post, onChange: (state: PostPinState) => 
   }
 }
 
-type ExpiryChoice = 'never' | '7' | '30' | 'custom'
+type ExpiryChoice = 'forever' | '7' | '30' | 'custom'
 
 // 日期输入框的值（本地时区 yyyy-mm-dd）与对应当天 0 点的时间
 const toDateInput = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -70,7 +70,7 @@ export function PostPinField({ postId, state, onChange }: { postId: number, stat
   const format = useFormatter()
   const errorMessageT = useErrorMessageT()
   const [busy, setBusy] = useState(false)
-  const [choice, setChoice] = useState<ExpiryChoice>(state.pinnedUntil ? 'custom' : 'never')
+  const [choice, setChoice] = useState<ExpiryChoice>(state.pinnedUntil ? 'custom' : 'forever')
   // 首页已满时列出的置顶文章
   const [occupied, setOccupied] = useState<Post[] | null>(null)
 
@@ -98,12 +98,12 @@ export function PostPinField({ postId, state, onChange }: { postId: number, stat
     if (await apply(pinned))
       toast.success(t(pinned ? 'pin_success' : 'unpin_success'))
     if (!pinned)
-      setChoice('never')
+      setChoice('forever')
   }
 
   const changeExpiry = (next: ExpiryChoice, date?: string) => {
     setChoice(next)
-    const until = next === 'never'
+    const until = next === 'forever'
       ? null
       : next === 'custom'
         ? fromDateInput(date ?? toDateInput(state.pinnedUntil ? new Date(state.pinnedUntil) : addDays(7)))
@@ -175,12 +175,13 @@ export function PostPinField({ postId, state, onChange }: { postId: number, stat
             disabled={busy}
             onValueChange={value => value && changeExpiry(value as ExpiryChoice)}
             aria-label={t('pin_expiry')}
-            className="justify-self-start"
+            className="w-full"
           >
-            <ToggleGroupItem value="never" className="px-2.5">{t('pin_expiry_never')}</ToggleGroupItem>
-            <ToggleGroupItem value="7" className="px-2.5">{t('pin_expiry_days', { days: 7 })}</ToggleGroupItem>
-            <ToggleGroupItem value="30" className="px-2.5">{t('pin_expiry_days', { days: 30 })}</ToggleGroupItem>
-            <ToggleGroupItem value="custom" className="px-2.5">{t('pin_expiry_custom')}</ToggleGroupItem>
+            {/* 四段等宽，占满一行 */}
+            <ToggleGroupItem value="forever" className="flex-1 px-2">{t('pin_expiry_forever')}</ToggleGroupItem>
+            <ToggleGroupItem value="7" className="flex-1 px-2">{t('pin_expiry_days', { days: 7 })}</ToggleGroupItem>
+            <ToggleGroupItem value="30" className="flex-1 px-2">{t('pin_expiry_days', { days: 30 })}</ToggleGroupItem>
+            <ToggleGroupItem value="custom" className="flex-1 px-2">{t('pin_expiry_custom')}</ToggleGroupItem>
           </ToggleGroup>
           {choice === 'custom' && (
             <Input
@@ -196,7 +197,7 @@ export function PostPinField({ postId, state, onChange }: { postId: number, stat
           <span className="text-xs text-muted-foreground">
             {until
               ? t('pin_expiry_result', { date: format.dateTime(until, { dateStyle: 'long', timeStyle: 'short' }) })
-              : t('pin_expiry_result_never')}
+              : t('pin_expiry_result_forever')}
           </span>
         </div>
       )}
