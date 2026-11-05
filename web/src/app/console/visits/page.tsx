@@ -383,11 +383,12 @@ function VisitRow({ visit, onSelectVisitor }: { visit: VisitLog, onSelectVisitor
   const source = visit.source === 'internal' && referrerUrl?.pathname === mainPath.random ? 'random' : visit.source
 
   return (
-    <div className="flex flex-col gap-1 py-3 text-sm">
+    // 长标题、长链接、长路径在窄屏上折行，不把页面撑宽
+    <div className="flex min-w-0 flex-col gap-1 py-3 text-sm">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <VisitActor visit={visit} onSelectVisitor={onSelectVisitor} />
         {visit.trust && <TrustBadge trust={visit.trust} />}
-        <span className="text-muted-foreground">
+        <span className="min-w-0 text-muted-foreground wrap-anywhere">
           <VisitActionText visit={visit} />
         </span>
       </div>
@@ -397,14 +398,14 @@ function VisitRow({ visit, onSelectVisitor }: { visit: VisitLog, onSelectVisitor
           {format.relativeTime(new Date(visit.createdAt))}
         </time>
         {source && (
-          <span className="flex items-center gap-1" title={visit.referrer || undefined}>
-            <SourceIcon source={source} className="size-3" />
+          <span className="flex min-w-0 items-center gap-1" title={visit.referrer || undefined}>
+            <SourceIcon source={source} className="size-3 shrink-0" />
             <SourceName source={source} host={visit.sourceHost} />
-            {source === 'internal' && referrerUrl && <span className="font-mono">{referrerUrl.pathname}</span>}
+            {source === 'internal' && referrerUrl && <span className="min-w-0 font-mono break-all">{referrerUrl.pathname}</span>}
           </span>
         )}
         {legacySource && <span>{t('from', { source: legacySource })}</span>}
-        {visit.ip && <IpAddress ip={visit.ip} />}
+        {visit.ip && <IpAddress ip={visit.ip} className="break-all" />}
         {/* 登录用户的身份行显示头像，地区放在这里 */}
         {visit.user && visit.location && visit.ipTrusted && (
           <span className="flex items-center gap-1">

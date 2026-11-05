@@ -216,7 +216,7 @@ export function UserProfilePage() {
 
           <div className="grid gap-2">
             <Label htmlFor="background">{t('background')}</Label>
-            <Avatar className="h-40 w-80 rounded-sm border-2">
+            <Avatar className="h-40 w-full max-w-80 rounded-sm border-2">
               <AvatarImage
                 className="object-cover rounded-none"
                 src={backgroundCroppedUrl ?? backgroundUrl}

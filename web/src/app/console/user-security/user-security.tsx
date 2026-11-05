@@ -217,7 +217,8 @@ export function UserSecurityPage() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>{t('verify_code')}</FormLabel>
-                <div className="flex gap-2 justify-between">
+                {/* 窄屏放不下验证码输入框和按钮时，按钮换到下一行 */}
+                <div className="flex flex-wrap gap-2 justify-between">
                   <FormControl>
                     <InputOTPControlled value={field.value} onChange={field.onChange} />
                   </FormControl>

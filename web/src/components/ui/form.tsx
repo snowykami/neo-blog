@@ -66,7 +66,8 @@ function FormItem({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <FormItemContext.Provider value={{ id }}>
       {/* content-start：在多列表单中被拉伸到同一行高度时，标签与输入框保持在顶部，不被拉开 */}
-      <div data-slot="form-item" className={cn('grid content-start gap-2', className)} {...props} />
+      {/* 单列时列宽可以收缩到 0：长链接、宽列表等内容不会把表单项（以及整个页面）撑宽 */}
+      <div data-slot="form-item" className={cn('grid grid-cols-[minmax(0,1fr)] content-start gap-2', className)} {...props} />
     </FormItemContext.Provider>
   )
 }

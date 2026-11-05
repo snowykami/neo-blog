@@ -181,8 +181,8 @@ export function PostManage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-y-4">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-x-3 gap-y-4">
+        <div className="flex flex-wrap items-center gap-3">
           <Input
             type="search"
             placeholder={commonT('search')}
@@ -217,7 +217,7 @@ export function PostManage() {
           )}
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <OrderSelector
               value={{ orderBy, desc }}
               onOrderChange={onOrderChange}
