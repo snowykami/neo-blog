@@ -59,3 +59,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .npmrc
+
+# Outline 文档源文件与截图（体积大，只同步到 Outline）
+docs/handbook/
