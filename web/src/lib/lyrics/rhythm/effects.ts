@@ -9,7 +9,7 @@ import { getRhythmParams } from './params'
 /**
  * 韵律动效（信号与系统）：节拍决定「什么时候动」，歌词决定「哪里动、动多少」。
  * 输入为冲激串 x_e(t) = Σ a_k δ(t − t_k)：跟随节拍时为检测到的拍点（见 model.ts），固定快慢时为从 origin 起每 T_e 一个；
- * 输出 y_e(t) = Σ_{t_k ∈ W_e} a_k h_e(t + t_lead − t_k)，再由各消费方（lyric-player.ts、nav-emphasis.ts、stage-effects.ts）映射到位移、缩放与辉光。
+ * 输出 y_e(t) = Σ_{t_k ∈ W_e} a_k h_e(t + t_lead − t_k)，再由各消费方（lyric-player.ts、stage-effects.ts）映射到位移、缩放与辉光。
  * 时间均为毫秒；参数见 params.ts，公式与图示见播放器的调试面板
  */
 

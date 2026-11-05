@@ -2,6 +2,8 @@ import type { RhythmModel } from './rhythm/model'
 import type { RubyMetrics } from './ruby-layout'
 import type { TimelineItem, TimelineState } from './timeline'
 import type { LyricEmphasis, LyricWord, ResolvedLyrics } from './types'
+import type { LyricMarqueeWordBox, MusicLyricLine } from '@/utils/music-lyric'
+import { getLyricMarqueeOffset } from '@/utils/music-lyric'
 import { LYRIC_COLORS, MOOD_GLOW } from './colors'
 import {
   LYRIC_ALIGN_POSITION,
@@ -47,6 +49,10 @@ export interface LyricPlayerOptions {
   onSeek: (timeMs: number) => void
   // 紧凑模式（悬浮播放器）：字号、间距更小（见 lyric-player.css），间奏更矮、模糊更轻，焦点更靠近中间
   compact?: boolean
+  // 单行条（导航栏标题、文章内单曲卡收起时）：容器只有一行高，每个条目铺满容器（字号跟随容器），一次只显示一行；
+  // 行不换行，超出宽度时跟随演唱位置横向滚动（见 utils/music-lyric.ts 的 getLyricMarqueeOffset）。
+  // 不显示翻译、音译与背景人声，没有聚光灯，不响应点击与滚动
+  strip?: boolean
   // 这首歌的节拍模型，每帧读取；分析完成前或不可用时返回 null，动效回退到固定快慢（见 rhythm/effects.ts）
   getRhythm?: () => RhythmModel | null
 }
@@ -97,6 +103,18 @@ interface CharView {
   debrisAt: number | null
 }
 
+/** 单行条中一行歌词的横向滚动：时间与各词位置（相对原文左边缘，测量时写入）及上次写入的位移与两侧渐隐 */
+interface StripMarquee {
+  main: HTMLElement
+  line: MusicLyricLine
+  nextStart?: number
+  boxes: LyricMarqueeWordBox[]
+  containerWidth: number
+  contentWidth: number
+  transform: string
+  mask: string
+}
+
 /** 一组强调的词拆成的单字 */
 interface EmphasisView {
   group: LyricEmphasis
@@ -116,6 +134,8 @@ interface ItemView {
   extras: HTMLElement[]
   rubyUnits: RubyUnitView[]
   dots: HTMLElement[]
+  // 单行条的横向滚动（只有歌词行有）
+  marquee: StripMarquee | null
   // 上次写入的样式，未变化时不重复写 DOM
   transform: string
   filter: string
@@ -187,6 +207,16 @@ function spotlightFit(el: HTMLElement, max: number): number {
  */
 function lyricColor(alpha: number) {
   return alpha >= 1 ? 'var(--lyric-color, #fff)' : `color-mix(in srgb, var(--lyric-color, #fff) ${(alpha * 100).toFixed(1)}%, transparent)`
+}
+
+// 单行条两侧的渐隐宽度：行的内边距之内开始渐隐
+const STRIP_FADE = '1.25em'
+
+/** 单行条超出宽度的行两侧的渐隐遮罩：滚动到头 / 尾时去掉对应一侧 */
+function stripFadeMask(fadeStart: boolean, fadeEnd: boolean) {
+  if (!fadeStart && !fadeEnd)
+    return ''
+  return `linear-gradient(to right, ${fadeStart ? 'transparent' : 'black'}, black ${STRIP_FADE}, black calc(100% - ${STRIP_FADE}), ${fadeEnd ? 'transparent' : 'black'})`
 }
 
 function prefersReducedMotion() {
@@ -334,7 +364,8 @@ export class LyricPlayer {
   private readonly debris: LyricDebris
   private readonly listeners: [string, EventListener, AddEventListenerOptions?][]
 
-  private readonly interludeHeight: number
+  // 间奏展开后的高度；单行条为容器高度，测量时写入
+  private interludeHeight: number
   private readonly alignPosition: number
 
   constructor(private readonly container: HTMLElement, private readonly options: LyricPlayerOptions) {
@@ -344,17 +375,23 @@ export class LyricPlayer {
       container.classList.add('lyric-player--no-webfonts')
     if (options.compact)
       container.classList.add('lyric-player--compact')
+    if (options.strip)
+      container.classList.add('lyric-player--strip')
     this.debris = new LyricDebris(container)
     this.interludeHeight = options.compact ? INTERLUDE_HEIGHT_COMPACT_PX : INTERLUDE_HEIGHT_PX
-    this.alignPosition = options.compact ? COMPACT_ALIGN_POSITION : LYRIC_ALIGN_POSITION
-    this.listeners = [
-      ['wheel', this.onWheel as EventListener, { passive: false }],
-      ['pointerdown', this.onPointerDown as EventListener],
-      ['pointermove', this.onPointerMove as EventListener],
-      ['pointerup', this.onPointerUp as EventListener],
-      ['pointercancel', this.onPointerUp as EventListener],
-      ['click', this.onClick as EventListener, { capture: true }],
-    ]
+    // 单行条：焦点条目与容器重合
+    this.alignPosition = options.strip ? 0.5 : options.compact ? COMPACT_ALIGN_POSITION : LYRIC_ALIGN_POSITION
+    // 单行条不响应滚动与点击（导航栏标题本身是链接）
+    this.listeners = options.strip
+      ? []
+      : [
+          ['wheel', this.onWheel as EventListener, { passive: false }],
+          ['pointerdown', this.onPointerDown as EventListener],
+          ['pointermove', this.onPointerMove as EventListener],
+          ['pointerup', this.onPointerUp as EventListener],
+          ['pointercancel', this.onPointerUp as EventListener],
+          ['click', this.onClick as EventListener, { capture: true }],
+        ]
     this.listeners.forEach(([type, listener, opts]) => container.addEventListener(type, listener, opts))
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => {
@@ -383,7 +420,7 @@ export class LyricPlayer {
     this.views.forEach(view => view.el.remove())
     this.views = []
     this.debris.dispose()
-    this.container.classList.remove('lyric-player', 'lyric-player--compact', 'lyric-player--no-roman', 'lyric-player--no-webfonts')
+    this.container.classList.remove('lyric-player', 'lyric-player--compact', 'lyric-player--strip', 'lyric-player--no-roman', 'lyric-player--no-webfonts')
     delete this.container.dataset.lyricFont
   }
 
@@ -440,7 +477,7 @@ export class LyricPlayer {
     this.views = this.items.map((item) => {
       const view: ItemView = {
         item,
-        el: doc.createElement(item.kind === 'line' ? 'button' : 'div'),
+        el: doc.createElement(item.kind === 'line' && !this.options.strip ? 'button' : 'div'),
         height: 0,
         y: new Spring(0, LYRIC_POSITION_SPRING),
         scale: new Spring(LYRIC_INACTIVE_SCALE, LYRIC_SCALE_SPRING),
@@ -449,6 +486,7 @@ export class LyricPlayer {
         extras: [],
         rubyUnits: [],
         dots: [],
+        marquee: null,
         transform: '',
         filter: '',
         color: '',
@@ -459,7 +497,8 @@ export class LyricPlayer {
       el.classList.add('lyric-item')
       if (item.kind === 'line') {
         const line = this.lyrics.lines[item.line]
-        el.setAttribute('type', 'button')
+        if (!this.options.strip)
+          el.setAttribute('type', 'button')
         el.classList.add('lyric-line')
         if (line.isDuet)
           el.classList.add('lyric-line--duet')
@@ -495,6 +534,8 @@ export class LyricPlayer {
         if (line.mood)
           el.style.setProperty('--lyric-glow', MOOD_GLOW[line.mood])
         el.append(main)
+        if (this.options.strip)
+          view.marquee = this.buildMarquee(main, item.line)
         // 主次顺序：原文（含注音行）、音译、翻译；已逐字对齐的音译显示在注音行，不再单独成行
         for (const [kind, text] of [['romanization', line.romanizationWords ? undefined : line.romanization], ['translation', line.translation]] as const) {
           if (!text)
@@ -584,8 +625,30 @@ export class LyricPlayer {
     return rubyWords
   }
 
+  /** 单行条一行歌词的横向滚动数据：时间按 getLyricMarqueeOffset 的格式（只取原文的词），下一行为之后最近的主唱行 */
+  private buildMarquee(main: HTMLElement, index: number): StripMarquee {
+    const line = this.lyrics.lines[index]
+    return {
+      main,
+      line: {
+        items: line.words.map(word => ({ text: word.text, startTime: word.start, duration: Math.max(0, word.end - word.start) })),
+        startTime: line.start,
+        duration: Math.max(0, line.end - line.start),
+        originalText: line.words.map(word => word.text).join(''),
+      },
+      nextStart: this.lyrics.lines.slice(index + 1).find(next => !next.isBackground)?.start,
+      boxes: [],
+      containerWidth: 0,
+      contentWidth: 0,
+      transform: '',
+      mask: '',
+    }
+  }
+
   private measure() {
     this.containerHeight = this.container.clientHeight
+    if (this.options.strip)
+      this.interludeHeight = this.containerHeight
     this.narrow = this.container.ownerDocument.defaultView?.matchMedia('(max-width: 1024px)').matches ?? false
     const firstMain = this.container.querySelector<HTMLElement>('.lyric-main')
     if (firstMain)
@@ -599,6 +662,17 @@ export class LyricPlayer {
       for (const word of view.words) {
         word.width = word.el.offsetWidth
         word.pad = view.emphasis.length > 0 ? Number.parseFloat(getComputedStyle(word.el).paddingLeft) || 0 : 0
+      }
+      const marquee = view.marquee
+      if (marquee) {
+        // 可视宽度为行的内容区；词的位置相对原文左边缘（offsetLeft 不受位移影响），去掉强调词四周的内边距
+        const style = getComputedStyle(view.el)
+        marquee.containerWidth = view.el.clientWidth - (Number.parseFloat(style.paddingLeft) || 0) - (Number.parseFloat(style.paddingRight) || 0)
+        marquee.contentWidth = marquee.main.offsetWidth
+        marquee.boxes = view.words.slice(0, marquee.line.items.length).map(word => ({
+          left: word.el.offsetLeft - marquee.main.offsetLeft + word.pad,
+          width: Math.max(0, word.width - word.pad * 2),
+        }))
       }
     }
     this.spotScale = null
@@ -634,14 +708,25 @@ export class LyricPlayer {
 
     const previousFocus = this.state.focus
     this.state = getTimelineState(this.lyrics.lines, this.items, timeMs)
+    if (this.options.strip)
+      this.state.focus = this.stripFocus(this.state.focus)
     this.activeLines = new Set(this.state.active)
     const focusChanged = this.state.focus !== previousFocus
+    // 单行条只把此刻显示的一行交给读屏（它是导航栏链接的文字）
+    if (this.options.strip && (focusChanged || this.teleport)) {
+      this.views.forEach((view, i) => {
+        if (i === this.state.focus && view.item.kind !== 'interlude')
+          view.el.removeAttribute('aria-hidden')
+        else
+          view.el.setAttribute('aria-hidden', 'true')
+      })
+    }
 
     // 跳转后旧的消散颗粒与破碎碎片不再对应当前歌词
     if (this.teleport)
       this.debris.clear()
     // 聚光灯随特效开关；减少动态效果与手动滚动时不演出
-    const spotlight = this.spotViews.size > 0 && this.display.effects && !this.reducedMotion && !this.manual ? spotlightAt(this.lyrics, timeMs) : null
+    const spotlight = this.spotViews.size > 0 && this.display.effects && !this.reducedMotion && !this.manual && !this.options.strip ? spotlightAt(this.lyrics, timeMs) : null
     const spotView = spotlight ? this.spotViews.get(spotlight.line) ?? -1 : -1
     this.spot = spotView >= 0 && spotlight ? spotlight.level : 0
     // 换到另一句（或熄灭）时重新测量放大倍数
@@ -661,6 +746,18 @@ export class LyricPlayer {
 
     if (continuing || (debris && playing))
       this.wake()
+  }
+
+  /** 单行条不显示背景人声：焦点落在背景人声行上时改为它之前最近的主唱行 */
+  private stripFocus(focus: number): number {
+    const isBackground = (index: number) => {
+      const item = this.items[index]
+      return item?.kind === 'line' && this.lyrics.lines[item.line]?.isBackground
+    }
+    let index = focus
+    while (index > 0 && isBackground(index))
+      index--
+    return index
   }
 
   /** 计算各条目的目标位置并推进弹簧；返回是否仍有动画在进行 */
@@ -718,7 +815,9 @@ export class LyricPlayer {
     for (let i = 0; i < this.views.length; i++) {
       const view = this.views[i]
       const target = tops[i] - scroll + spotShift + (spotView >= 0 && i !== spotView ? Math.sign(i - spotView) * spotSpread : 0)
-      const onScreen = target + heights[i] > -LYRIC_OVERSCAN_PX && target < this.containerHeight + LYRIC_OVERSCAN_PX
+      // 单行条按容器本身判断：移出的上一行不排队，新行立即移入
+      const overscan = this.options.strip ? 0 : LYRIC_OVERSCAN_PX
+      const onScreen = target + heights[i] > -overscan && target < this.containerHeight + overscan
       if (jump || dragging) {
         view.y.jump(target)
       }
@@ -813,6 +912,9 @@ export class LyricPlayer {
           view.filter = filter
           view.el.style.filter = filter
         }
+        // 横向滚动只改合成层，逐帧更新；只算此刻在容器内的行
+        if (view.marquee && y + view.height > 0 && y < this.containerHeight)
+          this.paintMarquee(view.marquee, view.el, timeMs)
         if (!detail)
           continue
         this.paintWords(view, active, timeMs, feather, inactiveAlpha)
@@ -848,6 +950,35 @@ export class LyricPlayer {
           view.el.style.color = color
         }
       }
+    }
+  }
+
+  /**
+   * 单行条的横向滚动：超出宽度的行跟随演唱位置（逐行歌词按行进度）匀变速地滚动，两侧按是否还有内容渐隐；
+   * 唱完的行停在末尾，随弹簧移出时仍露出结尾。减少动态效果时不滚动，只渐隐右侧
+   */
+  private paintMarquee(marquee: StripMarquee, el: HTMLElement, timeMs: number) {
+    const overflow = marquee.contentWidth - marquee.containerWidth
+    const offset = overflow > 0 && !this.reducedMotion
+      ? getLyricMarqueeOffset({
+          line: marquee.line,
+          nextLineStartTime: marquee.nextStart,
+          currentTimeMs: timeMs,
+          containerWidth: marquee.containerWidth,
+          contentWidth: marquee.contentWidth,
+          wordBoxes: this.lyrics.wordTimed ? marquee.boxes : undefined,
+        })
+      : 0
+    const transform = offset > 0 ? `translate3d(${(-offset).toFixed(2)}px, 0, 0)` : ''
+    if (transform !== marquee.transform) {
+      marquee.transform = transform
+      marquee.main.style.transform = transform
+    }
+    const mask = overflow > 0 ? stripFadeMask(offset > 0.5, offset < overflow - 0.5) : ''
+    if (mask !== marquee.mask) {
+      marquee.mask = mask
+      el.style.maskImage = mask
+      el.style.setProperty('-webkit-mask-image', mask)
     }
   }
 

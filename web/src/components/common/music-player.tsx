@@ -22,7 +22,6 @@ import { useNav } from '@/contexts/nav-context'
 import { cn } from '@/lib/utils'
 import { shouldOptimize } from '@/utils/common/image'
 import { MarqueeText } from './marquee-text'
-import { LyricLine } from './music-lyric-line'
 import { MusicMiniPlaylist } from './music-mini-playlist'
 import { useFloatingBall } from './use-floating-ball'
 
@@ -297,6 +296,29 @@ function AlbumNavIcon() {
   )
 }
 
+/**
+ * 导航栏标题处的歌词：一个以播放器背景（模糊封面 + 压暗）为底的圆角矩形，叠上悬浮小窗的舞台特效，
+ * 里面是播放器的歌词引擎（单行条，见 MusicLyricStage）：配色、逐字擦除、强调特效、间奏与换行的弹簧都与播放器一致，
+ * 浅色、深色主题下都清晰可辨；没有歌词可显示时不出现
+ */
+function NavLyric() {
+  const { currentTrack, lyricLines, lyrics } = useMusic()
+  const accent = useSongAccent(currentTrack?.albumPic)
+  if (lyricLines.length === 0 && !lyrics.instrumental)
+    return null
+  return (
+    <span
+      className="relative isolate block h-9 w-[36ch] max-w-full overflow-hidden rounded-lg"
+      style={accent ? { '--lyric-accent': accent } as React.CSSProperties : undefined}
+    >
+      {/* 标题区域只有一行高，按播放器的模糊半径会糊成一片黑，改用小半径保留封面的颜色 */}
+      <MusicBackground cover={currentTrack?.albumPic} contained imageClassName="blur-md" />
+      <MusicStageEffects contained />
+      <MusicLyricStage strip className="relative h-full" />
+    </span>
+  )
+}
+
 function readStoredNumber(key: string): number | null {
   try {
     const raw = localStorage.getItem(key)
@@ -372,7 +394,7 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
 
   useEffect(() => {
     setNavTitle(isPlaying
-      ? <LyricLine />
+      ? <NavLyric />
       : '')
     if (isPlaying) {
       setNavIcon(<AlbumNavIcon />)

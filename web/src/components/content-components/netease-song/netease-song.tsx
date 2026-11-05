@@ -3,7 +3,6 @@
 import type { NeteaseSongProps } from './schema'
 import { useTranslations } from 'next-intl'
 import { getMusicSong } from '@/api/music'
-import { LyricLine } from '@/components/common/music-lyric-line'
 import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
 import { useCurrentLyric, useMusic, useMusicClock } from '@/contexts/music-context'
 import { songToTrack } from '@/models/music'
@@ -42,7 +41,7 @@ function NeteaseSongCard({ id }: { id: number }) {
   const playing = isCurrent && isPlaying
   // 5 单位及以上高度时歌词显示在歌词区（与播放器页同一套歌词引擎的紧凑模式），副标题固定显示歌手与专辑
   const tall = isTallMusicCard(useComponentHeight())
-  // 播放中显示当前歌词（与导航栏共用逐字高亮与超长滚动），否则显示歌手与专辑
+  // 播放中显示当前歌词（与导航栏共用歌词引擎的单行条，特效与播放器一致），否则显示歌手与专辑
   // 只有正在播放这张卡片的歌曲时才订阅当前歌词行
   const currentLyric = useCurrentLyric(!tall && playing)
   const showLyric = !tall && playing && !!currentLyric && !LYRIC_PLACEHOLDERS.has(currentLyric.trim())
@@ -50,7 +49,7 @@ function NeteaseSongCard({ id }: { id: number }) {
   const subtitle = !song
     ? state.status === 'error' && <p className="text-sm text-muted-foreground">{t('load_failed')}</p>
     : showLyric
-      ? <div className="min-w-0 text-sm"><LyricLine /></div>
+      ? <MusicLyricStage strip themed className="-mx-2.5 h-5 min-w-0 text-sm" />
       : <p className="truncate text-sm text-muted-foreground">{[song.artists.join(' / '), song.album].filter(Boolean).join(' · ')}</p>
 
   const action = track

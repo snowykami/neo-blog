@@ -306,6 +306,63 @@
   font-size: 0.75rem;
 }
 
+/*
+ * 单行条（导航栏标题、文章内单曲卡收起时）：容器只有一行高，字号与字重跟随容器；每个条目铺满容器、内容垂直居中，一次只显示一行。
+ * 行不换行，原文按内容宽度排开，超出时由引擎横向滚动；不显示翻译、音译与背景人声，不可点击
+ */
+.lyric-player--strip .lyric-item {
+  height: 100%;
+}
+
+.lyric-player--strip .lyric-line {
+  display: flex;
+  align-items: center;
+  padding: 0 0.625rem;
+  border-radius: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  white-space: nowrap;
+  cursor: inherit;
+}
+
+.lyric-player--strip .lyric-line:hover {
+  background-color: transparent;
+}
+
+.lyric-player--strip .lyric-line--duet {
+  transform-origin: left center;
+}
+
+.lyric-player--strip .lyric-main {
+  flex: none;
+}
+
+.lyric-player--strip .lyric-line--bg,
+.lyric-player--strip .lyric-extra,
+.lyric-player--strip .lyric-ruby {
+  display: none;
+}
+
+.lyric-player--strip .lyric-interlude {
+  height: 100%;
+  gap: 0.35rem;
+  padding-inline: 0.75rem;
+}
+
+.lyric-player--strip .lyric-interlude span {
+  width: 0.4375rem;
+  height: 0.4375rem;
+}
+
+.lyric-player--strip .lyric-footer {
+  display: flex;
+  align-items: center;
+  padding: 0 0.625rem;
+  font-size: 0.75em;
+  white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lyric-line,
   .lyric-footer {

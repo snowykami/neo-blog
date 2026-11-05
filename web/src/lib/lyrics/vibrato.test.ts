@@ -1,6 +1,5 @@
 import type { LyricEmphasis } from './types'
 import { describe, expect, it } from 'vitest'
-import { navEmphasisStyle } from './nav-emphasis'
 import { holdVibrato, vibratoWave } from './vibrato'
 
 // 「出した」：长音「た」从 1.2 秒唱到 3.3 秒（2.1 秒）
@@ -30,31 +29,5 @@ describe('长音的颤音', () => {
   it('延迟限制在 250～700 毫秒', () => {
     expect(holdVibrato({ start: 0, end: 1000 }, 0).onset).toBe(250)
     expect(holdVibrato({ start: 0, end: 6000 }, 0).onset).toBe(700)
-  })
-})
-
-describe('导航栏的简化特效', () => {
-  it('长音在颤音开始前只放大，开始后整个词上下起伏', () => {
-    const before = navEmphasisStyle(HELD, 2, 3, 1500, true)
-    expect(before.transform).toMatch(/translate\(0\.000em, 0\.000em\) scale\(1\.0\d+\)/)
-    const during = [2000, 2050, 2100].map(time => navEmphasisStyle(HELD, 2, 3, time, true).transform)
-    expect(during.some(transform => !transform.includes(', 0.000em)'))).toBe(true)
-  })
-
-  it('减少动态效果或强度为 0 时只上色', () => {
-    const colored: LyricEmphasis = { ...HELD, effect: 'swell', color: 'gold', hold: undefined }
-    for (const style of [navEmphasisStyle(colored, 0, 3, 1500, false), navEmphasisStyle({ ...colored, factor: 0 }, 0, 3, 1500, true)]) {
-      expect(style.transform).toBe('')
-      expect(style.textShadow).toBe('')
-      expect(style.color).toContain('color-mix')
-    }
-  })
-
-  it('破碎：碎前细微地颤，碎后下坠淡出，之后隐去', () => {
-    const shatter: LyricEmphasis = { from: 0, to: 2, start: 0, end: 2000, factor: 1, effect: 'shatter' }
-    expect(navEmphasisStyle(shatter, 0, 2, 1990, true).transform).not.toBe('')
-    const falling = navEmphasisStyle(shatter, 0, 2, 2160, true)
-    expect(Number(falling.opacity)).toBeCloseTo(0.5)
-    expect(navEmphasisStyle(shatter, 0, 2, 3000, true).opacity).toBe('0.000')
   })
 })

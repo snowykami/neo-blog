@@ -1,6 +1,6 @@
-import type { MusicLyricLine } from './music-lyric'
+import type { LyricMarqueeWordBox, MusicLyricItem, MusicLyricLine } from './music-lyric'
 import { describe, expect, it } from 'vitest'
-import { alignExtraLyricLines, getExtraLyricLine, parseMusicLyrics } from './music-lyric'
+import { alignExtraLyricLines, getExtraLyricLine, getLyricMarqueeOffset, LYRIC_MARQUEE_ANCHOR_RATIO, LYRIC_MARQUEE_SMOOTH_WINDOW_MS, parseMusicLyrics } from './music-lyric'
 
 const line = (startTime: number, text: string): MusicLyricLine => ({ items: [{ text, startTime, duration: 0 }], startTime, duration: 0, originalText: text })
 
@@ -36,5 +36,101 @@ describe('翻译 / 音译挂载（宁缺勿错）', () => {
     expect(parsed.sourceType).toBe('yrc')
     expect(getExtraLyricLine(parsed.translationLines, 1000)?.originalText).toBe('line one')
     expect(getExtraLyricLine(parsed.translationLines, 3000)).toBeNull()
+  })
+})
+
+describe('逐字歌词跑马灯（分段匀变速）', () => {
+  // [开始时间, 时长, 字宽]：各字速度不同，1600~1800、3100~3300 为字间空隙
+  const syllables: [number, number, number][] = [
+    [1000, 200, 40],
+    [1200, 300, 30],
+    [1500, 100, 30],
+    [1800, 400, 80],
+    [2200, 150, 60],
+    [2350, 250, 25],
+    [2600, 500, 75],
+    [3300, 200, 90],
+    [3500, 300, 60],
+    [3800, 400, 120],
+  ]
+  const items: MusicLyricItem[] = []
+  const wordBoxes: LyricMarqueeWordBox[] = []
+  let contentWidth = 0
+  for (const [startTime, duration, width] of syllables) {
+    items.push({ text: '字', startTime, duration })
+    wordBoxes.push({ left: contentWidth, width })
+    contentWidth += width
+  }
+  const containerWidth = 200
+  const overflow = contentWidth - containerWidth
+  const wordLine: MusicLyricLine = { items, startTime: 1000, duration: 3200, originalText: '字'.repeat(items.length) }
+  const offsetAt = (currentTimeMs: number, smoothWindowMs?: number) =>
+    getLyricMarqueeOffset({ line: wordLine, currentTimeMs, containerWidth, contentWidth, wordBoxes, smoothWindowMs })
+  const half = LYRIC_MARQUEE_SMOOTH_WINDOW_MS / 2
+  const lineEnd = 4200
+
+  // 原偏移速度突变的时刻：各字边界，以及演唱位置越过滚动起点、终点的时刻
+  const crossingTime = (position: number) => {
+    const i = wordBoxes.findIndex(box => box.left + box.width > position)
+    return items[i].startTime + (position - wordBoxes[i].left) / wordBoxes[i].width * items[i].duration
+  }
+  const anchor = containerWidth * LYRIC_MARQUEE_ANCHOR_RATIO
+  const rawKinks = [...new Set(items.flatMap(item => [item.startTime, item.startTime + item.duration])), crossingTime(anchor), crossingTime(anchor + overflow)]
+  // 平滑后加速度跳变的时刻：原折点前后各半个窗口
+  const kinks = rawKinks.flatMap(time => [time - half, time + half])
+
+  const h = 0.01
+  const leftVelocity = (t: number, smoothWindowMs?: number) => (offsetAt(t, smoothWindowMs) - offsetAt(t - h, smoothWindowMs)) / h
+  const rightVelocity = (t: number, smoothWindowMs?: number) => (offsetAt(t + h, smoothWindowMs) - offsetAt(t, smoothWindowMs)) / h
+  const grid = (from: number, to: number, step: number) => Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step)
+
+  it('不平滑时速度在字的边界突变（对照）', () => {
+    // 2200ms 处由 0.2px/ms 突变为 0.4px/ms
+    expect(rightVelocity(2200, 0) - leftVelocity(2200, 0)).toBeCloseTo(0.2, 3)
+  })
+
+  it('字的边界、开始滚动与滚到底处速度连续', () => {
+    for (const t of [...rawKinks, ...kinks, ...grid(500, 4800, 7)])
+      expect(Math.abs(rightVelocity(t) - leftVelocity(t)), `t=${t}`).toBeLessThan(1e-3)
+  })
+
+  it('两次加速度跳变之间速度线性变化（匀变速）', () => {
+    const delta = 5
+    const velocity = (t: number) => (offsetAt(t + h) - offsetAt(t - h)) / (2 * h)
+    for (const t of grid(500, 4800, 3)) {
+      if (kinks.some(kink => Math.abs(kink - t) <= delta + h))
+        continue
+      expect(Math.abs(velocity(t) - (velocity(t - delta) + velocity(t + delta)) / 2), `t=${t}`).toBeLessThan(1e-3)
+    }
+  })
+
+  it('整句起止位置不变', () => {
+    for (const t of [0, 900, 1000])
+      expect(offsetAt(t)).toBe(0)
+    for (const t of [lineEnd, lineEnd + half, lineEnd + 5000]) {
+      expect(offsetAt(t)).toBeCloseTo(overflow, 6)
+      expect(offsetAt(t)).toBeCloseTo(offsetAt(t, 0), 6)
+    }
+  })
+
+  it('不超出文本范围，也不倒退', () => {
+    let last = 0
+    for (const t of grid(0, 5000, 3)) {
+      const offset = offsetAt(t)
+      expect(offset).toBeGreaterThanOrEqual(0)
+      expect(offset).toBeLessThanOrEqual(overflow)
+      expect(offset).toBeGreaterThanOrEqual(last - 1e-9)
+      last = offset
+    }
+  })
+
+  it('跟住演唱位置：介于前后半个窗口时刻的原偏移之间', () => {
+    for (const t of grid(500, 4800, 5)) {
+      const offset = offsetAt(t)
+      expect(offset).toBeGreaterThanOrEqual(offsetAt(t - half, 0) - 1e-9)
+      expect(offset).toBeLessThanOrEqual(offsetAt(t + half, 0) + 1e-9)
+    }
+    // 远离折点的匀速段与原偏移重合
+    expect(offsetAt(2850)).toBeCloseTo(offsetAt(2850, 0), 6)
   })
 })

@@ -6,9 +6,9 @@ import { cn } from '@/lib/utils'
 /**
  * 播放器页的动态背景（第一期，见 spec 8.10）：放大并高度模糊的封面 + 压暗遮罩，切歌时淡入新封面。
  * 模糊后看不出细节，只请求小尺寸图片；压暗遮罩保证任意封面配色下白色歌词都可读。
- * contained 时铺满最近的定位祖先（悬浮播放器的卡片），否则铺满视口
+ * contained 时铺满最近的定位祖先（悬浮播放器的卡片），否则铺满视口；imageClassName 用于调整封面的样式（如很小的区域里减小模糊半径）
  */
-export function MusicBackground({ cover, contained = false }: { cover?: string, contained?: boolean }) {
+export function MusicBackground({ cover, contained = false, imageClassName }: { cover?: string, contained?: boolean, imageClassName?: string }) {
   return (
     // 播放器页副歌开唱时的镜头推近（--stage-push，见 MusicStageEffects），小窗没有这个变量
     <div aria-hidden className={cn('pointer-events-none inset-0 overflow-hidden bg-neutral-950 [scale:calc(1+var(--stage-push,0)*0.06)]', contained ? 'absolute' : 'fixed')}>
@@ -21,7 +21,7 @@ export function MusicBackground({ cover, contained = false }: { cover?: string, 
           fill
           sizes="256px"
           fallback={null}
-          className="scale-125 animate-in object-cover opacity-80 blur-3xl saturate-150 duration-1000 fade-in"
+          className={cn('scale-125 animate-in object-cover opacity-80 blur-3xl saturate-150 duration-1000 fade-in', imageClassName)}
         />
       )}
       <div className="absolute inset-0 bg-black/50" />

@@ -17,9 +17,10 @@ import '@/lib/lyrics/lyric-fonts'
  * 播放器页的歌词舞台：歌词引擎（lib/lyrics/lyric-player.ts）的 React 包装。
  * 只负责创建 / 销毁引擎，并在歌词、显示选项、播放状态与进度变化时通知它；逐帧动画全部在引擎内完成，不触发 React 渲染。
  * compact 为紧凑模式（悬浮播放器、文章内单曲卡）：同一套引擎与样式，只缩小字号与间距；
+ * strip 为单行条（导航栏标题、单曲卡收起时）：容器只有一行高、字号跟随容器，一次显示一行，超出宽度时跟随演唱横向滚动，不显示翻译与音译；
  * themed 时文字跟随站点亮暗主题（单曲卡），否则为深色界面上的白色文字
  */
-export function MusicLyricStage({ className, compact = false, themed = false }: { className?: string, compact?: boolean, themed?: boolean }) {
+export function MusicLyricStage({ className, compact = false, strip = false, themed = false }: { className?: string, compact?: boolean, strip?: boolean, themed?: boolean }) {
   const t = useTranslations('MusicPlayer')
   const pageT = useTranslations('MusicPage')
   const { lyrics, lyricStatus, showTranslation, showRomaji, showLyricEffects, isPlaying, getAudio, seek, play, refreshLyrics, lyricSourcesPending, currentTrack } = useMusic()
@@ -51,6 +52,7 @@ export function MusicLyricStage({ className, compact = false, themed = false }: 
         play()
       },
       compact,
+      strip,
       // 韵律动效：这首歌的节拍模型（分析完成前或不可用时为 null，回退到固定快慢）
       getRhythm: () => rhythmModelFor(trackIdRef.current),
     })
@@ -62,7 +64,7 @@ export function MusicLyricStage({ className, compact = false, themed = false }: 
       player.dispose()
       playerRef.current = null
     }
-  }, [clock, compact, getAudio, hasLines, play, seek])
+  }, [clock, compact, getAudio, hasLines, play, seek, strip])
 
   useEffect(() => {
     if (hasLines)
@@ -73,9 +75,19 @@ export function MusicLyricStage({ className, compact = false, themed = false }: 
   const sourceLabel = lyricSourceLabel(lyrics, pageT)
   const footerText = sourceLabel ? pageT('lyric_footer', { source: sourceLabel }) : ''
   useEffect(() => {
-    playerRef.current?.setDisplay({ showTranslation, showRomanization: showRomaji, footerText, effects: showLyricEffects })
-  }, [footerText, hasLines, showLyricEffects, showRomaji, showTranslation])
+    // 单行条只有一行高，不显示翻译与音译
+    playerRef.current?.setDisplay({ showTranslation: showTranslation && !strip, showRomanization: showRomaji && !strip, footerText, effects: showLyricEffects })
+  }, [footerText, hasLines, showLyricEffects, showRomaji, showTranslation, strip])
 
+  const colorStyle = themed ? { '--lyric-color': 'var(--foreground)' } as React.CSSProperties : undefined
+  // 单行条：加载中留空，没有歌词时只注明纯音乐（不放重新获取的按钮）
+  if (strip && !hasLines) {
+    return (
+      <div key="empty" className={cn('flex items-center truncate px-2.5 text-[color:var(--lyric-color,#fff)]', className)} style={colorStyle} aria-busy={lyricStatus === 'loading'}>
+        {lyricStatus !== 'loading' && lyrics.instrumental ? t('pure_music_without_lyric') : null}
+      </div>
+    )
+  }
   if (lyricStatus === 'loading') {
     return (
       // key：三种状态是不同的元素，React 不会复用交给引擎管理的容器
@@ -113,14 +125,18 @@ export function MusicLyricStage({ className, compact = false, themed = false }: 
     // 重新渲染时会被覆盖，容器失去定位与裁切，歌词行铺满整页（两侧截断、盖住按钮导致点击穿透）
     <div
       key="stage"
-      role="region"
-      aria-label={pageT('lyrics_region')}
+      // 单行条嵌在链接（导航栏标题）里，只是其中的文字，不单独成区
+      role={strip ? undefined : 'region'}
+      aria-label={strip ? undefined : pageT('lyrics_region')}
       className={className}
-      style={{
-        ...(themed && { '--lyric-color': 'var(--foreground)' } as React.CSSProperties),
-        maskImage: 'linear-gradient(to bottom, transparent, black 10%, black 85%, transparent)',
-        WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 10%, black 85%, transparent)',
-      }}
+      // 单行条只有一行，不做上下渐隐
+      style={strip
+        ? colorStyle
+        : {
+            ...colorStyle,
+            maskImage: 'linear-gradient(to bottom, transparent, black 10%, black 85%, transparent)',
+            WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 10%, black 85%, transparent)',
+          }}
     >
       {/* 节点由歌词引擎直接管理，React 不渲染任何子元素，也不改动它的类名 */}
       <div ref={containerRef} className="size-full" />
