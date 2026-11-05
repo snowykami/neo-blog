@@ -26,6 +26,17 @@ export function filesFromClipboard(data: DataTransfer | null): File[] {
     .filter((file): file is File => file !== null)
 }
 
+/**
+ * 在文本框里粘贴时要当作文件处理的内容：截图、复制的图片或文件；
+ * 同时带有纯文本与 HTML 的（从 Word、表格、网页复制的内容，常附带一张渲染图）仍按文字粘贴
+ */
+export function pastedFilesOf(data: DataTransfer | null): File[] {
+  const files = filesFromClipboard(data)
+  if (files.length === 0 || (data?.getData('text/plain').trim() && data.getData('text/html')))
+    return []
+  return files
+}
+
 /** 剪贴板里的图片往往只有 image.png / blob 这类无意义的名字，重命名成带时间戳的可读名字 */
 function isGenericName(name: string) {
   return !name.trim() || /^(?:image|blob|clipboard|pasted|unknown|file)(?:[-_ ]?\d+)?(?:\.[\w-]+)?$/i.test(name.trim())

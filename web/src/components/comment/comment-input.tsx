@@ -1,3 +1,4 @@
+import type { CommentAttachment } from '@/models/comment'
 import { Loader2, Lock, LogIn, Monitor, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
@@ -12,17 +13,21 @@ import { Kbd } from '@/components/ui/kbd'
 import { Textarea } from '@/components/ui/textarea'
 import { Toggle } from '@/components/ui/toggle'
 import { useAuth } from '@/contexts/auth-context'
+import { pastedFilesOf, withPastedFileNames } from '@/hooks/use-clipboard-file-paste'
 import { useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { getUserUrl } from '@/utils/common/route'
+import { CommentAttachmentButton, CommentAttachmentList, useCommentAttachments } from './comment-attachment-input'
 
 /**
- * 评论框：未登录时显示登录邀请卡片；登录后为带工具栏的输入框（私密、显示设备信息、⌘/Ctrl + Enter 发布）。
+ * 评论框：未登录时显示登录邀请卡片；登录后为带工具栏的输入框（附件、私密、显示设备信息、⌘/Ctrl + Enter 发布）。
+ * 附件可直接粘贴 / 拖入，也可从资产库选择，排在文字之后展示；有附件时可以不写文字。
  * collapsible 时平时收起成一行，聚焦或有内容时展开工具栏；replyTo 时在框内显示「回复 @某人」
  */
 export function CommentInput({
   onCommentSubmitted,
   initContent = '',
+  initAttachments,
   initIsPrivate = false,
   placeholder = '',
   isUpdate = false,
@@ -33,16 +38,9 @@ export function CommentInput({
   replyTo,
   onCancel,
 }: {
-  onCommentSubmitted: ({
-    commentContent,
-    isPrivate,
-    showClientInfo,
-  }: {
-    commentContent: string
-    isPrivate: boolean
-    showClientInfo: boolean
-  }) => Promise<void> // 失败时需 reject，以便保留输入内容
+  onCommentSubmitted: (payload: CommentSubmitPayload) => Promise<void> // 失败时需 reject，以便保留输入内容
   initContent?: string
+  initAttachments?: CommentAttachment[]
   initIsPrivate?: boolean
   placeholder?: string
   isUpdate?: boolean
@@ -62,17 +60,25 @@ export function CommentInput({
   const [commentContent, setCommentContent] = useState(initContent)
   const [submitting, setSubmitting] = useState(false) // 提交中，防止重复提交
   const [focused, setFocused] = useState(false)
+  const attachments = useCommentAttachments(initAttachments)
 
   if (!user)
     return <GuestInvite />
 
-  const expanded = !collapsible || focused || commentContent.trim() !== ''
+  const empty = !commentContent.trim() && attachments.items.length === 0
+  const expanded = !collapsible || focused || !empty || attachments.pickerOpen
+  const attachmentIds = attachments.attachments.map(attachment => attachment.id)
   const unchanged = isUpdate && commentContent.trim() === initContent.trim() && isPrivate === initIsPrivate && showClientInfo === initShowClientInfo
+    && attachmentIds.join() === (initAttachments ?? []).map(attachment => attachment.id).join()
 
   const handleCommentSubmit = async () => {
     if (submitting)
       return
-    if (!commentContent.trim()) {
+    if (attachments.uploading) {
+      toast.warning(t('attachments_uploading'))
+      return
+    }
+    if (empty) {
       toast.error(t('content_required'))
       return
     }
@@ -82,9 +88,10 @@ export function CommentInput({
     }
     setSubmitting(true)
     try {
-      await onCommentSubmitted({ commentContent, isPrivate, showClientInfo })
+      await onCommentSubmitted({ commentContent, attachments: attachments.attachments, isPrivate, showClientInfo })
       // 仅在提交成功后清空，失败时保留用户输入
       setCommentContent('')
+      attachments.clear()
       setFocused(false)
     }
     catch {
@@ -114,6 +121,15 @@ export function CommentInput({
         onFocus={() => setFocused(true)}
         // 焦点移到框内的按钮上时不收起
         onBlur={e => !e.currentTarget.contains(e.relatedTarget) && setFocused(false)}
+        // 拖入文件作为附件，避免浏览器直接打开文件；资产库弹窗（Portal）里的拖放事件也会冒泡到这里，需排除
+        onDragOver={e => e.currentTarget.contains(e.target as Node) && e.dataTransfer.types.includes('Files') && e.preventDefault()}
+        onDrop={(e) => {
+          const files = Array.from(e.dataTransfer.files)
+          if (files.length === 0 || !e.currentTarget.contains(e.target as Node))
+            return
+          e.preventDefault()
+          attachments.addFiles(files)
+        }}
       >
         {replyTo && (
           <span className="mt-2 ml-2.5 inline-flex items-center gap-1 rounded-full bg-secondary py-0.5 pr-1 pl-2 text-xs text-secondary-foreground">
@@ -133,6 +149,14 @@ export function CommentInput({
           className={cn('resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent', expanded ? 'min-h-16' : 'min-h-10')}
           value={commentContent}
           onChange={e => setCommentContent(e.target.value)}
+          // 粘贴截图、图片或文件时作为附件上传，文字照常粘贴
+          onPaste={(e) => {
+            const files = pastedFilesOf(e.clipboardData)
+            if (files.length === 0)
+              return
+            e.preventDefault()
+            attachments.addFiles(withPastedFileNames(files))
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
               e.preventDefault()
@@ -140,8 +164,10 @@ export function CommentInput({
             }
           }}
         />
+        <CommentAttachmentList state={attachments} />
         {expanded && (
           <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2">
+            <CommentAttachmentButton state={attachments} />
             <Toggle
               size="sm"
               variant="outline"
@@ -169,7 +195,7 @@ export function CommentInput({
                 {operationT('cancel')}
               </Button>
             )}
-            <Button type="button" size="sm" onClick={handleCommentSubmit} disabled={submitting || !commentContent.trim() || unchanged}>
+            <Button type="button" size="sm" onClick={handleCommentSubmit} disabled={submitting || empty || attachments.uploading || unchanged}>
               {submitting && <Loader2 className="animate-spin" />}
               {isUpdate ? operationT('update') : replyTo ? t('reply') : t('publish')}
             </Button>
@@ -178,6 +204,13 @@ export function CommentInput({
       </div>
     </div>
   )
+}
+
+export interface CommentSubmitPayload {
+  commentContent: string
+  attachments: CommentAttachment[]
+  isPrivate: boolean
+  showClientInfo: boolean
 }
 
 // 未登录时的登录邀请：后台已启用的第三方登录与快捷登录按钮，不再显示游客用不了的输入框和选项

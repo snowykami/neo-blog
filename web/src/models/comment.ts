@@ -20,9 +20,19 @@ export interface Comment {
   browser: string
   location: CommentLocation
   showClientInfo: boolean
+  attachments?: CommentAttachment[] // 附件按添加顺序展示在正文之后，已删除的文件不返回
   // 只在主评论列表中返回：整个回复线程（不限层级）中可见的回复数，以及最早回复的几位用户
   threadCount?: number
   threadUsers?: User[]
+}
+
+// 评论附件：站内文件
+export interface CommentAttachment {
+  id: number // 文件 ID
+  url: string
+  name: string
+  mimeType: string
+  size: number
 }
 
 export interface CommentLocation {

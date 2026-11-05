@@ -1,6 +1,10 @@
 package model
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
+
 	"gorm.io/gorm"
 )
 
@@ -22,6 +26,9 @@ type Comment struct {
 	LikeCount      uint64
 	CommentCount   uint64
 	ShowClientInfo bool `gorm:"default:false"` // 是否显示客户端信息
+
+	// 附件的文件 ID，按展示顺序保存；文件被删除后不再展示
+	AttachmentIDs FileIDs `gorm:"type:text"`
 }
 
 type CommentLocation struct {
@@ -31,4 +38,38 @@ type CommentLocation struct {
 	Districts string
 	ISP       string
 	IDC       string
+}
+
+// FileIDs 以 JSON 文本存储的文件 ID 列表；为空时存 NULL
+type FileIDs []uint
+
+func (f FileIDs) Value() (driver.Value, error) {
+	if len(f) == 0 {
+		return nil, nil
+	}
+	b, err := json.Marshal([]uint(f))
+	if err != nil {
+		return nil, err
+	}
+	return string(b), nil
+}
+
+func (f *FileIDs) Scan(src any) error {
+	var data []byte
+	switch v := src.(type) {
+	case nil:
+		*f = nil
+		return nil
+	case string:
+		data = []byte(v)
+	case []byte:
+		data = v
+	default:
+		return fmt.Errorf("cannot scan FileIDs from %T", src)
+	}
+	if len(data) == 0 {
+		*f = nil
+		return nil
+	}
+	return json.Unmarshal(data, f)
 }

@@ -93,6 +93,10 @@ func (s *CommentTranslateService) Translate(ctx context.Context, req *dto.Transl
 	if svcerr != nil {
 		return nil, svcerr
 	}
+	// 只有附件、没有文字的评论无需翻译
+	if strings.TrimSpace(comment.Content) == "" {
+		return nil, errs.NewBadRequest("content_cannot_be_empty")
+	}
 	if comment.Language == targetLang {
 		return &dto.CommentTranslationDto{CommentID: comment.ID, SourceLang: targetLang, TargetLang: targetLang, SameLanguage: true}, nil
 	}

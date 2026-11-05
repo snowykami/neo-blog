@@ -1,3 +1,4 @@
+import type { CommentSubmitPayload } from './comment-input'
 import type { Comment, CommentTranslation } from '@/models/comment'
 import type { User } from '@/models/user'
 import { ChevronDown, Ellipsis, Languages, Loader2, Lock, Reply } from 'lucide-react'
@@ -23,18 +24,13 @@ import { formatDateTime } from '@/utils/common/datetime'
 import { formatLocation } from '@/utils/common/location'
 import { isAdmin } from '@/utils/common/permission'
 import { getUserUrl } from '@/utils/common/route'
+import { CommentAttachments } from './comment-attachments'
 import { CommentInput } from './comment-input'
 
 export type ActiveInput = { id: number, type: 'reply' | 'edit' } | null
 
 // 展开回复后先显示的条数，其余点「展开剩余」
 const THREAD_PAGE = 5
-
-interface SubmitPayload {
-  commentContent: string
-  isPrivate: boolean
-  showClientInfo: boolean
-}
 
 /**
  * 主评论：主评论本身与它下面的整个回复线程。回复不论多少层都平铺在主评论下一层，
@@ -94,9 +90,17 @@ export function CommentItem({
   }, [replies, root.threadUsers])
   const byId = useMemo(() => new Map((replies ?? []).map(reply => [reply.id, reply])), [replies])
 
-  const onReply = async (target: Comment, { commentContent, isPrivate, showClientInfo }: SubmitPayload) => {
+  const onReply = async (target: Comment, { commentContent, attachments, isPrivate, showClientInfo }: CommentSubmitPayload) => {
     try {
-      await createComment({ targetType: root.targetType, targetId: root.targetId, content: commentContent, replyId: target.id, isPrivate, showClientInfo })
+      await createComment({
+        targetType: root.targetType,
+        targetId: root.targetId,
+        content: commentContent,
+        attachmentIds: attachments.map(attachment => attachment.id),
+        replyId: target.id,
+        isPrivate,
+        showClientInfo,
+      })
     }
     catch (error) {
       toast.error(`${t('comment_failed')}: ${errorMessageT(error)}`)
@@ -306,9 +310,9 @@ function CommentBody({
     setActiveInputId(active ? null : { id: comment.id, type: 'reply' })
   }, 'reply')
 
-  const onEdit = async ({ commentContent, isPrivate, showClientInfo }: SubmitPayload) => {
+  const onEdit = async ({ commentContent, attachments, isPrivate, showClientInfo }: CommentSubmitPayload) => {
     try {
-      await updateComment({ id: comment.id, content: commentContent, isPrivate, showClientInfo })
+      await updateComment({ id: comment.id, content: commentContent, attachmentIds: attachments.map(attachment => attachment.id), isPrivate, showClientInfo })
       toast.success(t('edit_success'))
       getComment({ id: comment.id }).then(res => onUpdated({ ...comment, ...res.data })).catch(() => {})
       setActiveInputId(null)
@@ -333,6 +337,7 @@ function CommentBody({
   const replyActive = activeInput?.type === 'reply' && activeInput.id === comment.id
   const editing = activeInput?.type === 'edit' && activeInput.id === comment.id
   const isRoot = variant === 'root'
+  const hasText = comment.content.trim() !== ''
 
   return (
     <div className="group/comment">
@@ -367,25 +372,29 @@ function CommentBody({
             )}
             {isRoot && device && <span className="comment-meta comment-meta-dot hidden md:inline">{device}</span>}
           </div>
-          <p lang={translated?.targetLang} className={cn('mt-1 mb-0.5 break-words whitespace-pre-wrap text-foreground/85', !isRoot && 'text-[0.95em]')}>
-            {replyToUser && (
-              <Link
-                href={getUserUrl(replyToUser)}
-                data-user-color={userColor(replyToUser)}
-                className="mr-1 font-semibold text-primary hover:underline"
-              >
-                @
-                {name(replyToUser)}
-              </Link>
-            )}
-            {translated ? translated.content : comment.content}
-          </p>
+          {/* 只有附件的评论没有正文，回复时仍显示 @某人 */}
+          {(hasText || replyToUser) && (
+            <p lang={translated?.targetLang} className={cn('mt-1 mb-0.5 break-words whitespace-pre-wrap text-foreground/85', !isRoot && 'text-[0.95em]')}>
+              {replyToUser && (
+                <Link
+                  href={getUserUrl(replyToUser)}
+                  data-user-color={userColor(replyToUser)}
+                  className="mr-1 font-semibold text-primary hover:underline"
+                >
+                  @
+                  {name(replyToUser)}
+                </Link>
+              )}
+              {translated ? translated.content : comment.content}
+            </p>
+          )}
           {translated && (
             <p className="mb-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
               <Languages aria-hidden className="size-3" />
               {t('translated_from', { language: languageName(translated.sourceLang, locale) })}
             </p>
           )}
+          <CommentAttachments attachments={comment.attachments} className="mt-1.5 mb-1" />
           <div className="-ml-2 flex items-center gap-0.5 text-xs text-muted-foreground">
             <button
               type="button"
@@ -408,7 +417,7 @@ function CommentBody({
               <LikeIcon className={cn('size-3.5', liked && 'fill-current')} />
               {likeCount > 0 && likeCount}
             </button>
-            {translatable && language !== locale && (
+            {translatable && hasText && language !== locale && (
               <button
                 type="button"
                 title={translating ? t('translating') : translated ? t('show_original') : t('translate')}
@@ -439,6 +448,7 @@ function CommentBody({
             autoFocus
             isUpdate
             initContent={comment.content}
+            initAttachments={comment.attachments}
             initIsPrivate={comment.isPrivate}
             initShowClientInfo={comment.showClientInfo}
             onCancel={() => setActiveInputId(null)}

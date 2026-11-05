@@ -56,13 +56,17 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		ownerID = parent.UserID
 	}
 
-	// 内容校验：去首尾空白，非空且字符数不超过 200
+	// 内容校验：去首尾空白，字符数不超过 200；有附件时可以只发附件
 	content := strings.TrimSpace(req.Content)
-	if content == "" {
-		return 0, errs.NewBadRequest("content_cannot_be_empty")
-	}
 	if len([]rune(content)) > 200 {
 		return 0, errs.NewBadRequest("content_too_long")
+	}
+	attachmentIDs, svcerr := resolveCommentAttachments(ctx, req.AttachmentIDs, nil)
+	if svcerr != nil {
+		return 0, svcerr
+	}
+	if content == "" && len(attachmentIDs) == 0 {
+		return 0, errs.NewBadRequest("content_cannot_be_empty")
 	}
 
 	// 评论归属地使用离线库在事务外解析，不再在写库事务里请求第三方接口
@@ -75,6 +79,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 			ISP:      region.ISP,
 		},
 		Content:        content,
+		AttachmentIDs:  attachmentIDs,
 		ReplyID:        req.ReplyID,
 		TargetID:       req.TargetID,
 		TargetType:     req.TargetType,
@@ -120,13 +125,21 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 		return errs.NewForbidden("forbidden")
 	}
 
-	// 内容校验：去首尾空白，非空且字符数不超过 200
+	// 内容校验：去首尾空白，字符数不超过 200；有附件时可以只保留附件
 	content := strings.TrimSpace(req.Content)
-	if content == "" {
-		return errs.NewBadRequest("content_cannot_be_empty")
-	}
 	if len([]rune(content)) > 200 {
 		return errs.NewBadRequest("content_too_long")
+	}
+	// 不传附件时保持原样（兼容不带附件字段的旧客户端）
+	if req.AttachmentIDs != nil {
+		attachmentIDs, svcerr := resolveCommentAttachments(ctx, *req.AttachmentIDs, comment.AttachmentIDs)
+		if svcerr != nil {
+			return svcerr
+		}
+		comment.AttachmentIDs = attachmentIDs
+	}
+	if content == "" && len(comment.AttachmentIDs) == 0 {
+		return errs.NewBadRequest("content_cannot_be_empty")
 	}
 
 	// 内容变化后原先识别的语言不再可信，下次翻译时重新识别
@@ -310,7 +323,7 @@ func (cs *CommentService) ListUserComments(ctx context.Context, req *dto.ListUse
 	return result, total, nil
 }
 
-// toGetCommentDtos 批量转换评论，点赞状态一次查询完成，避免逐条查询
+// toGetCommentDtos 批量转换评论，点赞状态与附件各一次查询完成，避免逐条查询
 func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUserID uint) []dto.CommentDto {
 	likedIDs := map[uint]bool{}
 	if currentUserID != 0 && len(comments) > 0 {
@@ -323,9 +336,12 @@ func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUser
 			logrus.Errorf("toGetCommentDtos: LikedTargetIDs error: %s", err.Error())
 		}
 	}
+	files := commentAttachmentFiles(comments)
 	commentDtos := make([]dto.CommentDto, 0, len(comments))
 	for i := range comments {
-		commentDtos = append(commentDtos, cs.toGetCommentDto(&comments[i], likedIDs[comments[i].ID]))
+		commentDto := cs.toGetCommentDto(&comments[i], likedIDs[comments[i].ID])
+		commentDto.Attachments = toCommentAttachmentDtos(comments[i].AttachmentIDs, files)
+		commentDtos = append(commentDtos, commentDto)
 	}
 	return commentDtos
 }

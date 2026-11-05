@@ -1,4 +1,5 @@
 'use client'
+import type { CommentSubmitPayload } from './comment-input'
 import type { ActiveInput } from './comment-item'
 import type { Comment } from '@/models/comment'
 import type { TargetType } from '@/models/types'
@@ -87,18 +88,16 @@ export function CommentSection({
 
   const onCommentSubmitted = async ({
     commentContent,
+    attachments,
     isPrivate,
     showClientInfo,
-  }: {
-    commentContent: string
-    isPrivate: boolean
-    showClientInfo: boolean
-  }) => {
+  }: CommentSubmitPayload) => {
     try {
       const res = await createComment({
         targetType,
         targetId,
         content: commentContent,
+        attachmentIds: attachments.map(attachment => attachment.id),
         replyId: null,
         isPrivate,
         showClientInfo,

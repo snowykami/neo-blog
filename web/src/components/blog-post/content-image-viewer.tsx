@@ -8,7 +8,7 @@ import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constan
 import { cn } from '@/lib/utils'
 import './content-image-viewer.scss'
 
-interface ViewerImage {
+export interface ViewerImage {
   src: string
   alt: string
   caption: string
@@ -38,29 +38,8 @@ const clampScale = (scale: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, sc
  * - 预览使用原生 <img>，桌面右键、移动端长按均可保存
  */
 export function ContentImageViewer({ containerId }: { containerId: string }) {
-  const t = useTranslations('ImageViewer')
   const [images, setImages] = useState<ViewerImage[]>([])
   const [index, setIndex] = useState<number | null>(null)
-  const [transform, setTransform] = useState<Transform>(IDENTITY)
-  const [swipeX, setSwipeX] = useState(0)
-  const [dragging, setDragging] = useState(false)
-
-  const stageRef = useRef<HTMLDivElement>(null)
-  const imageRef = useRef<HTMLImageElement>(null)
-  const transformRef = useRef(transform)
-  transformRef.current = transform
-  const pointers = useRef(new Map<number, { x: number, y: number }>())
-  const gesture = useRef<{ startX: number, startY: number, moved: boolean, pinchDistance: number, pinchScale: number, lastTap: number }>({
-    startX: 0,
-    startY: 0,
-    moved: false,
-    pinchDistance: 0,
-    pinchScale: 1,
-    lastTap: 0,
-  })
-
-  const open = index !== null
-  const current = index !== null ? images[index] : null
 
   // 点击正文图片打开预览，链接内的图片保持原有跳转
   useEffect(() => {
@@ -82,19 +61,63 @@ export function ContentImageViewer({ containerId }: { containerId: string }) {
         alt: item.alt,
         caption: item.closest('figure')?.querySelector('figcaption')?.textContent?.trim() || item.alt,
       })))
-      setTransform(IDENTITY)
       setIndex(clicked)
     }
     container.addEventListener('click', onClick)
     return () => container.removeEventListener('click', onClick)
   }, [containerId])
 
+  return <ImageViewer images={images} index={index} onIndexChange={setIndex} />
+}
+
+/**
+ * 图片全屏预览（受控）：index 为当前查看的序号，为 null 时关闭；正文与评论附件共用
+ */
+export function ImageViewer({
+  images,
+  index,
+  onIndexChange,
+}: {
+  images: ViewerImage[]
+  index: number | null
+  onIndexChange: React.Dispatch<React.SetStateAction<number | null>>
+}) {
+  const t = useTranslations('ImageViewer')
+  const [transform, setTransform] = useState<Transform>(IDENTITY)
+  const [swipeX, setSwipeX] = useState(0)
+  const [dragging, setDragging] = useState(false)
+
+  const stageRef = useRef<HTMLDivElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
+  const transformRef = useRef(transform)
+  transformRef.current = transform
+  const pointers = useRef(new Map<number, { x: number, y: number }>())
+  const gesture = useRef<{ startX: number, startY: number, moved: boolean, pinchDistance: number, pinchScale: number, lastTap: number }>({
+    startX: 0,
+    startY: 0,
+    moved: false,
+    pinchDistance: 0,
+    pinchScale: 1,
+    lastTap: 0,
+  })
+
+  const open = index !== null
+  const current = index !== null ? images[index] : null
+
+  // 每次打开时从原始大小开始（关闭动画期间保持原样）
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open)
+      setTransform(IDENTITY)
+  }
+
   // 基于最新序号切换，连续按键/快速点击时不会因为闭包里的旧序号而少切换
   const step = useCallback((delta: number) => {
-    setIndex(prev => (prev === null ? prev : Math.min(images.length - 1, Math.max(0, prev + delta))))
+    onIndexChange(prev => (prev === null ? prev : Math.min(images.length - 1, Math.max(0, prev + delta))))
     setTransform(IDENTITY)
     setSwipeX(0)
-  }, [images.length])
+  }, [images.length, onIndexChange])
 
   // 以舞台中的某个点为中心缩放，使该点在缩放前后保持不动
   const zoomAt = useCallback((nextScale: number, clientX?: number, clientY?: number) => {
@@ -139,7 +162,7 @@ export function ContentImageViewer({ containerId }: { containerId: string }) {
     }
   }, [index, images])
 
-  const close = () => setIndex(null)
+  const close = () => onIndexChange(null)
 
   const onWheel = (event: React.WheelEvent) => {
     zoomAt(transformRef.current.scale * Math.exp(-event.deltaY * 0.002), event.clientX, event.clientY)

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { parseAsInteger, useQueryState } from 'nuqs'
 import { Fragment, useEffect, useState } from 'react'
 import { listUserComments } from '@/api/comment'
+import { CommentAttachments } from '@/components/comment/comment-attachments'
 import { UserAvatar } from '@/components/common/avatar'
 import { PaginationController } from '@/components/common/pagination'
 import { SectionTitle } from '@/components/layout/site-shell'
@@ -61,9 +62,12 @@ function UserCommentItem({ comment }: { comment: UserComment }) {
           </Badge>
         )}
       </div>
-      <p className="rounded-xl bg-foreground/[.03] px-4 py-2 break-words whitespace-pre-wrap text-foreground/75">
-        {comment.content}
-      </p>
+      {comment.content.trim() && (
+        <p className="rounded-xl bg-foreground/[.03] px-4 py-2 break-words whitespace-pre-wrap text-foreground/75">
+          {comment.content}
+        </p>
+      )}
+      <CommentAttachments attachments={comment.attachments} />
       <p className="flex min-w-0 items-center gap-1.5 text-sm text-foreground/50">
         <FileTextIcon aria-hidden className="size-3.5 shrink-0" />
         <span className="shrink-0">{t('commented_on')}</span>

@@ -170,6 +170,16 @@ func (f *FileRepo) ListLocations(ids []uint) ([]model.File, error) {
 	return files, err
 }
 
+// ListByIDs 按 ID 批量读取文件记录，不存在的 ID 不返回
+func (f *FileRepo) ListByIDs(ids []uint) ([]model.File, error) {
+	var files []model.File
+	if len(ids) == 0 {
+		return files, nil
+	}
+	err := GetDB().Where("id IN ?", ids).Find(&files).Error
+	return files, err
+}
+
 // FirstIDsByHash 存储中同一对象（哈希）对应的最小文件 ID，用于把直链还原为稳定链接
 func (f *FileRepo) FirstIDsByHash(providerID uint, hashes []string) (map[string]uint, error) {
 	result := make(map[string]uint, len(hashes))

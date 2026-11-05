@@ -23,9 +23,20 @@ type CommentDto struct {
 	OS             string             `json:"os"`       // 用户操作系统，基于User-Agent
 	Browser        string             `json:"browser"`  // 用户浏览器，基于User-Agent
 	ShowClientInfo bool               `json:"show_client_info"`
+	// 附件按添加顺序展示在正文之后；已删除的文件不返回
+	Attachments []CommentAttachmentDto `json:"attachments"`
 	// 以下只在主评论列表中返回：整个回复线程（不限层级）中当前用户可见的回复数，以及最早回复的几位用户（去重），供折叠时展示
 	ThreadCount uint64    `json:"thread_count,omitempty"`
 	ThreadUsers []UserDto `json:"thread_users,omitempty"`
+}
+
+// CommentAttachmentDto 评论附件：URL 为站内文件的稳定链接，返回时由中间件改写为直链
+type CommentAttachmentDto struct {
+	ID       uint   `json:"id"` // 文件 ID
+	URL      string `json:"url"`
+	Name     string `json:"name"`
+	MimeType string `json:"mime_type"`
+	Size     int64  `json:"size"`
 }
 
 type CommentLocationDto struct {
@@ -40,7 +51,8 @@ type CommentLocationDto struct {
 type CreateCommentReq struct {
 	TargetID       uint   `json:"target_id" binding:"required"`   // 目标ID
 	TargetType     string `json:"target_type" binding:"required"` // 目标类型，如 "post", "page"
-	Content        string `json:"content" binding:"required"`     // 评论内容
+	Content        string `json:"content"`                        // 评论内容，没有附件时不能为空
+	AttachmentIDs  []uint `json:"attachment_ids"`                 // 附件的文件 ID，最多 9 个
 	ReplyID        uint   `json:"reply_id"`                       // 回复的评论ID
 	IsPrivate      bool   `json:"is_private"`                     // 是否私密评论，默认false
 	RemoteAddr     string // 远程地址
@@ -49,10 +61,11 @@ type CreateCommentReq struct {
 }
 
 type UpdateCommentReq struct {
-	ID             uint   `path:"id"`                         // 评论ID
-	Content        string `json:"content" binding:"required"` // 评论内容
-	IsPrivate      bool   `json:"is_private"`                 // 是否私密
-	ShowClientInfo bool   `json:"show_client_info"`           // 是否显示客户端信息
+	ID             uint    `path:"id"`               // 评论ID
+	Content        string  `json:"content"`          // 评论内容，没有附件时不能为空
+	AttachmentIDs  *[]uint `json:"attachment_ids"`   // 附件的文件 ID，nil 不修改，空数组清空
+	IsPrivate      bool    `json:"is_private"`       // 是否私密
+	ShowClientInfo bool    `json:"show_client_info"` // 是否显示客户端信息
 }
 
 type GetCommentListReq struct {

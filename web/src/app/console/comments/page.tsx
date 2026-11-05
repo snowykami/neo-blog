@@ -1,6 +1,7 @@
 'use client'
 
 import type { Comment } from '@/models/comment'
+import { Paperclip } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import {
   parseAsBoolean,
@@ -204,6 +205,12 @@ function CommentRow({
     <TableRow>
       <TableCell className="max-w-[28rem] whitespace-normal">
         <div className="line-clamp-3 break-words">{comment.content || t('no_content')}</div>
+        {!!comment.attachments?.length && (
+          <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+            <Paperclip aria-hidden className="size-3" />
+            {t('attachments', { count: comment.attachments.length })}
+          </div>
+        )}
         {comment.depth > 0 && (
           <div className="mt-1 text-xs text-muted-foreground">
             {t('reply_depth', { depth: comment.depth + 1 })}
