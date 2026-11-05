@@ -2,15 +2,17 @@
 
 import type { ImageAvatarProps } from './image-avatar'
 import type { User } from '@/models/user'
+import { cn } from '@/lib/utils'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
-import { getFirstCharFromUser } from '@/utils/common/username'
+import { getFallbackAvatarStyle, getFirstCharFromUser } from '@/utils/common/username'
 import { ImageAvatar } from './image-avatar'
 
 type AvatarUser = Pick<User, 'avatarUrl' | 'gravatarHash' | 'username' | 'nickname'>
 
 /**
- * 用户头像：全平台统一的头像解析优先级（见 getAvatarOrGravatarUrlFromUser）与首字母兜底
+ * 用户头像：全平台统一的头像解析优先级（见 getAvatarOrGravatarUrlFromUser）与首字兜底
  * size 为请求的图片像素尺寸（Gravatar 按此裁剪），显示尺寸由 className 控制
+ * 没有头像或加载失败时显示首字头像：按用户名固定的渐变底色，字号默认随头像尺寸缩放，可用 fallbackClassName 覆盖
  */
 export function UserAvatar({
   user,
@@ -22,7 +24,10 @@ export function UserAvatar({
       src={getAvatarOrGravatarUrlFromUser({ user, size })}
       alt={props.alt ?? (user.nickname || user.username)}
       fallback={getFirstCharFromUser(user)}
+      fallbackStyle={getFallbackAvatarStyle(user.username || user.nickname || '')}
       {...props}
+      className={cn('@container', props.className)}
+      fallbackClassName={cn('text-[length:40cqw] font-semibold text-white', props.fallbackClassName)}
     />
   )
 }

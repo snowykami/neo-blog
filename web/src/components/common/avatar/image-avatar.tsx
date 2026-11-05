@@ -11,17 +11,18 @@ export interface ImageAvatarProps {
   className?: string
   imageClassName?: string
   fallbackClassName?: string
+  fallbackStyle?: React.CSSProperties
 }
 
 /**
  * 通用图片头像：任意图片 + 兜底内容，不限于用户
  * 用于第三方登录提供商图标、站点图标等；用户头像请使用 UserAvatar
  */
-export function ImageAvatar({ src, alt = '', fallback, className, imageClassName, fallbackClassName }: ImageAvatarProps) {
+export function ImageAvatar({ src, alt = '', fallback, className, imageClassName, fallbackClassName, fallbackStyle }: ImageAvatarProps) {
   return (
     <Avatar className={className}>
       {src && <AvatarImage src={src} alt={alt} className={cn('object-cover', imageClassName)} />}
-      <AvatarFallback className={cn('rounded-[inherit]', fallbackClassName)}>{fallback}</AvatarFallback>
+      <AvatarFallback className={cn('rounded-[inherit]', fallbackClassName)} style={fallbackStyle}>{fallback}</AvatarFallback>
     </Avatar>
   )
 }

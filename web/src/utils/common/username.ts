@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import type { User } from '@/models/user'
 
 /**
@@ -53,6 +54,17 @@ export function getFirstCharFromUser(user: Pick<User, 'nickname' | 'username'>):
     return getFallbackAvatarFromUsername(user.username)
   }
   return 'N'
+}
+
+/**
+ * 首字头像的渐变底色：按用户名算出固定色相，同一用户在各处颜色一致，配白色文字使用
+ */
+export function getFallbackAvatarStyle(seed: string): CSSProperties {
+  let hash = 0
+  for (const char of seed)
+    hash = (Math.imul(hash, 31) + char.codePointAt(0)!) | 0
+  const hue = Math.abs(hash) % 360
+  return { backgroundImage: `linear-gradient(135deg, oklch(0.8 0.11 ${hue}), oklch(0.62 0.15 ${hue + 40}))` }
 }
 
 /**

@@ -40,7 +40,7 @@ import { localesData } from '@/locales'
 import { getFileUri } from '@/utils/client/file'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { isValidTimeZone } from '@/utils/common/time-zone'
-import { getFallbackAvatarFromUsername } from '@/utils/common/username'
+import { getFallbackAvatarFromUsername, getFallbackAvatarStyle } from '@/utils/common/username'
 
 const PICTURE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif'
 const PICTURE_MAX_SIZE = 5 * 1024 * 1024
@@ -189,6 +189,8 @@ export function UserProfilePage() {
               alt={form.getValues('nickname') || form.getValues('username')}
               fallback={getFallbackAvatarFromUsername(form.getValues('nickname') || form.getValues('username'))}
               className="size-40 rounded-xl border-2"
+              fallbackClassName="text-6xl font-semibold text-white"
+              fallbackStyle={getFallbackAvatarStyle(user?.username ?? '')}
             />
             <AssetField
               id="picture"
