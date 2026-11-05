@@ -4,9 +4,9 @@ import type { RhythmPulse } from '@/lib/lyrics/rhythm/model'
 import type { LyricEmphasis } from '@/lib/lyrics/types'
 import { LYRIC_EMPHASIS_MIN_MS } from '@/lib/lyrics/config'
 import { cubicBezier, swellCurve } from '@/lib/lyrics/easing'
+import { interludeDots, interludePlan } from '@/lib/lyrics/interlude'
 import {
   backgroundLevel,
-  breathScale,
   envelopeScale,
   glowLevel,
   heartbeatLevel,
@@ -30,8 +30,6 @@ export interface EffectTrace {
   max: number
   stems: (t0: number, t1: number) => RhythmPulse[]
 }
-
-const INTERLUDE_FADE_OUT_LEAD_MS = 1800
 
 /** 强调组的输出：count 为字数，lineEnd 为所在行结束的时刻 */
 export function emphasisTrace(effect: DebugEffect, ctx: RhythmContext, group: LyricEmphasis, count: number, lineEnd: number): EffectTrace {
@@ -77,14 +75,14 @@ export function backgroundTrace(ctx: RhythmContext): EffectTrace {
   return { value: t => backgroundLevel(ctx, t), min: 0, max: 1, stems: (t0, t1) => (ctx.model ? pulsesIn(ctx, ctx.params.background.octave, 0, t0, t1) : []) }
 }
 
-/** 间奏圆点的呼吸（缩放换算到 0 ~ 1 显示） */
+/** 间奏圆点的呼吸（缩放换算到 0 ~ 1 显示，到退场开始为止）；竖线为翻转呼吸的拍（固定快慢时网格对齐到人声进入的时刻，见 interlude.ts） */
 export function interludeTrace(ctx: RhythmContext, start: number, end: number): EffectTrace {
-  const until = end - INTERLUDE_FADE_OUT_LEAD_MS
+  const plan = interludePlan(start, end, 3, ctx)
   return {
-    value: t => (t < start || t > until ? 0 : (breathScale(ctx, start, until, t) - 0.85) / 0.4),
+    value: t => (t < start || t > plan.exitAt ? 0 : (interludeDots(start, end, t, 3, ctx)[1].scale - 0.85) / 0.4),
     min: 0,
     max: 1,
-    stems: (t0, t1) => pulsesIn(ctx, interludeOctave(ctx), start, Math.max(t0, start), Math.min(t1, until)),
+    stems: (t0, t1) => pulsesIn(ctx, interludeOctave(ctx), plan.origin, Math.max(t0, start), Math.min(t1, plan.exitAt)),
   }
 }
 

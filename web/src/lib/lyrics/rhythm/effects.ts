@@ -197,13 +197,13 @@ export function interludeOctave(ctx: RhythmContext) {
 
 /**
  * 间奏圆点的呼吸缩放：交替符号的冲激串经过「平滑阶跃」，每个拍点把目标在吸 / 呼之间翻转一次（缓出 0.8·T_e）；
- * 间奏开始之后还没有拍时保持 1
+ * 间奏开始之后还没有拍时保持 1。固定快慢的网格从 origin 起（间奏圆点让网格对齐到人声进入的时刻，见 interlude.ts）
  */
-export function breathScale(ctx: RhythmContext, start: number, until: number, timeMs: number) {
+export function breathScale(ctx: RhythmContext, start: number, until: number, timeMs: number, origin = start) {
   const { inhale, exhale } = ctx.params.interlude
   const octave = interludeOctave(ctx)
   const now = Math.min(timeMs, until)
-  const list = pulsesIn(ctx, octave, start, start, now)
+  const list = pulsesIn(ctx, octave, origin, start, now)
   const j = list.length
   if (j === 0)
     return 1

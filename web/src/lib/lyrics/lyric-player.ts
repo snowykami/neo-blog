@@ -29,7 +29,7 @@ import {
   LYRIC_WORD_FLOAT_EM,
 } from './config'
 import { swellCurve } from './easing'
-import { interludeDot } from './interlude'
+import { interludeDots } from './interlude'
 import { LyricDebris } from './lyric-debris'
 import { PACE } from './pace'
 import { dissolveFadeMs, envelopeScale, glowLevel, heartbeatLevel, nearestFixedPace, rhythmContext, shakeCarrierMs, shakeLevel, shimmerCenter, swellAccent, waveLevels } from './rhythm/effects'
@@ -1006,9 +1006,10 @@ export class LyricPlayer {
           view.opacity = opacity
           view.el.style.opacity = opacity
         }
-        // 间奏圆点：依次淡入、倒计时点亮、呼吸，结束前放大后收拢消失（见 interlude.ts）；减少动态效果时只保留透明度
+        // 间奏圆点：依次淡入、按拍倒计时点亮、呼吸，结束前放大后收拢在人声进入的那一拍（见 interlude.ts）；减少动态效果时只保留透明度
+        const dots = interludeDots(item.start, item.end, timeMs, view.dots.length, rhythmContext(this.lyrics.pace, this.rhythm))
         view.dots.forEach((dot, index) => {
-          const state = interludeDot(item.start, item.end, timeMs, index, view.dots.length, rhythmContext(this.lyrics.pace, this.rhythm))
+          const state = dots[index]
           const opacity = state.opacity.toFixed(3)
           const transform = this.reducedMotion ? '' : `scale(${state.scale.toFixed(3)})`
           if (dot.style.opacity !== opacity)
