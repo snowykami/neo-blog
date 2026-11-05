@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -24,6 +25,15 @@ var db *gorm.DB
 
 func GetDB() *gorm.DB {
 	return db
+}
+
+// Ping 检查数据库连接是否可用（就绪检查使用）
+func Ping(ctx context.Context) error {
+	sqlDB, err := GetDB().DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.PingContext(ctx)
 }
 
 // DBConfig 数据库连接配置：设置了 DB_URL 时完全由它决定，否则读取其他 DB_* 变量

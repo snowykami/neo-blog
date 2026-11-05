@@ -19,8 +19,9 @@ import (
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
-// aiAgentDrainTimeout 退出时等待 AI 用户任务执行完的最长时间
-const aiAgentDrainTimeout = 20 * time.Second
+// aiAgentDrainTimeout 退出时等待 AI 用户任务执行完的最长时间；与就绪检查摘流（默认 5 秒）、HTTP 优雅关停（5 秒）
+// 合计不超过 Kubernetes 默认的 30 秒退出时间
+const aiAgentDrainTimeout = 15 * time.Second
 
 func main() {
 	// 共享状态：未配置 Redis 时为进程内存（单实例）；配置了但连不上时直接退出，避免多副本各自为政
@@ -80,7 +81,6 @@ func main() {
 
 	err = router.Run(ctx)
 	// 已领取的 AI 用户任务尽量执行完，来不及的立即放回队列由其他实例接着执行
-	// （Kubernetes 默认给 30 秒退出时间，HTTP 优雅关停约占 5 秒）
 	tasks.DrainAIAgentWorkers(aiAgentDrainTimeout)
 	if err != nil {
 		panic(err)

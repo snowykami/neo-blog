@@ -2,12 +2,16 @@ package router
 
 import (
 	"context"
+	"net/http"
+	"sync/atomic"
+	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/middleware"
+	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/router/apiv1"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
@@ -15,6 +19,14 @@ import (
 )
 
 var h *server.Hertz
+
+// shuttingDown 收到退出信号后置为 true，就绪检查随即失败
+var shuttingDown atomic.Bool
+
+const (
+	defaultShutdownDelay = 5 * time.Second // 收到退出信号到开始关停 HTTP 服务的等待时间，留给负载均衡摘掉本实例
+	readyzTimeout        = 2 * time.Second
+)
 
 // Run 启动 HTTP 服务并阻塞，直到服务出错或 ctx 结束；ctx 结束（收到退出信号）后优雅关停再返回
 func Run(ctx context.Context) error {
@@ -28,6 +40,12 @@ func Run(ctx context.Context) error {
 	h.SetCustomSignalWaiter(func(errCh chan error) error {
 		select {
 		case <-ctx.Done():
+			// 先让就绪检查失败，等负载均衡把本实例摘掉后再关停，滚动更新时请求不会打到正在关闭的实例
+			shuttingDown.Store(true)
+			if delay := shutdownDelay(); delay > 0 {
+				logrus.Infof("shutting down in %s", delay)
+				time.Sleep(delay)
+			}
 			return nil
 		case runErr = <-errCh:
 			return runErr
@@ -46,7 +64,35 @@ func init() {
 	)
 	h.Use(recovery.Recovery(), middleware.UseTrack(), middleware.UseFileLinks())
 	apiv1.RegisterRoutes(h)
+	// 存活检查：进程能响应即可，不依赖数据库，避免数据库抖动时实例被反复重启
 	h.GET("/healthz", func(ctx context.Context, c *app.RequestContext) {
 		resps.Ok(c, "ok", nil)
 	})
+	h.GET("/readyz", readyz)
+}
+
+// readyz 就绪检查：正在关停或连不上数据库时返回 503，负载均衡据此不再把请求转给本实例；
+// 新实例在数据库迁移完成、开始监听后才会就绪，滚动更新时配置有误的新实例不会接到请求
+func readyz(ctx context.Context, c *app.RequestContext) {
+	if shuttingDown.Load() {
+		resps.Custom(c, http.StatusServiceUnavailable, "shutting_down", nil)
+		return
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, readyzTimeout)
+	defer cancel()
+	if err := repo.Ping(pingCtx); err != nil {
+		logrus.Warnf("readyz: database unavailable: %v", err)
+		resps.Custom(c, http.StatusServiceUnavailable, "database_unavailable", nil)
+		return
+	}
+	resps.Ok(c, "ok", nil)
+}
+
+// shutdownDelay 收到退出信号后等待多久再关停 HTTP 服务（SHUTDOWN_DELAY_SECONDS，开发模式默认不等待）
+func shutdownDelay() time.Duration {
+	def := defaultShutdownDelay
+	if utils.IsDevMode {
+		def = 0
+	}
+	return time.Duration(utils.Env.GetAsInt(constant.EnvKeyShutdownDelaySeconds, int(def/time.Second))) * time.Second
 }

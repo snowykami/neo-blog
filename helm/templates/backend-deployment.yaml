@@ -9,6 +9,10 @@ spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      {{- toYaml .Values.rollingUpdate | nindent 6 }}
   selector:
     matchLabels:
       {{- include "neo-blog.backend.selectorLabels" . | nindent 6 }}
@@ -29,6 +33,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "neo-blog.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -76,14 +81,29 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+          # 启动检查：数据库迁移完成后才开始监听，迁移期间不做存活检查，最多等 5 分钟
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 150
+          # 存活检查只看进程能否响应，不依赖数据库
           livenessProbe:
             httpGet:
-              path: /api/v1/post/list
+              path: /healthz
               port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # 就绪检查：数据库不可用或正在退出时摘掉本实例
           readinessProbe:
             httpGet:
-              path: /api/v1/post/list
+              path: /readyz
               port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
           {{- with .Values.resources.backend }}
           resources:
             {{- toYaml . | nindent 12 }}

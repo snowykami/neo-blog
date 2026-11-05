@@ -9,6 +9,10 @@ spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      {{- toYaml .Values.rollingUpdate | nindent 6 }}
   selector:
     matchLabels:
       {{- include "neo-blog.frontend.selectorLabels" . | nindent 6 }}
@@ -29,6 +33,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "neo-blog.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -50,14 +55,32 @@ spec:
               value: "http://{{(include "neo-blog.fullname" .)}}-backend:{{ .Values.service.port }}"
             - name: PORT
               value: "{{ .Values.service.port }}"
+          # 退出前先等几秒，让负载均衡摘掉本实例，再由 Next.js 处理完进行中的请求后退出
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "{{ .Values.frontendPreStopSleepSeconds }}"]
+          # 探针用 /healthz：只看 Next.js 能否响应，不依赖后端，也不做页面渲染
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 60
           livenessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
           {{- with .Values.resources.frontend }}
           resources:
             {{- toYaml . | nindent 12}}
