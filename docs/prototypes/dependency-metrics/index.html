@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>系统运行 · 依赖服务（Postgres / Redis）· 原型</title>
+<style>
+  /* 界面色板沿用前台 web/src/app/globals.css 的默认参数（hue 250）；图表色按 dataviz 规范单独定义 */
+  :root {
+    --hue: 250; --chroma: .14; --radius: .625rem;
+    color-scheme: light;
+    --background: oklch(.96 .01 var(--hue));
+    --foreground: oklch(.22 .02 var(--hue));
+    --card: oklch(1 0 0);
+    --secondary: oklch(.95 .025 var(--hue));
+    --secondary-foreground: oklch(.45 var(--chroma) var(--hue));
+    --muted: oklch(.95 .01 var(--hue));
+    --muted-foreground: oklch(.5 .02 var(--hue));
+    --border: oklch(.9 .01 var(--hue));
+    /* 单一色相（蓝）表示大小；连接状态是有序的几档，用同一色相的深浅；状态色只用于有阈值的指标，并配图标与文字 */
+    --viz-accent: #2a78d6;
+    --viz-mid: #5598e7;
+    --viz-light: #86b6ef;
+    --viz-track: #e4eefb;
+    --viz-trend: #9a9890;
+    --viz-grid: #e4e3df;
+    --status-warning: #fab219;
+    --status-critical: #d03b3b;
+    --status-good: #0ca30c;
+  }
+  html.dark {
+    color-scheme: dark;
+    --background: oklch(.16 .014 var(--hue));
+    --foreground: oklch(.93 .01 var(--hue));
+    --card: oklch(.23 .015 var(--hue));
+    --secondary: oklch(.33 .035 var(--hue));
+    --secondary-foreground: oklch(.85 .08 var(--hue));
+    --muted: oklch(.27 .015 var(--hue));
+    --muted-foreground: oklch(.7 .015 var(--hue));
+    --border: oklch(1 0 0 / 10%);
+    --viz-accent: #3987e5;
+    --viz-mid: #256abf;
+    --viz-light: #184f95;
+    --viz-track: #1f2f45;
+    --viz-trend: #7d7c76;
+    --viz-grid: #383835;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font: 14px/1.6 system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .muted { color: var(--muted-foreground); }
+  .num { font-variant-numeric: tabular-nums; font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { font-size: 12px; padding: 0 4px; border-radius: 4px; background: var(--muted); }
+
+  /* 原型外框 */
+  .topbar { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 24px; background: color-mix(in oklch, var(--background) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar h1 { margin: 0; font-size: 15px; }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--muted); }
+  .seg button { border: 0; background: transparent; padding: 4px 12px; border-radius: 8px; font-size: 13px; color: var(--muted-foreground); }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px oklch(0 0 0 / 12%); }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; display: grid; gap: 20px; }
+  .intro { margin: 0; padding-left: 18px; font-size: 13px; }
+  .intro li { margin: 2px 0; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); padding: 16px; display: grid; gap: 16px; }
+  .card-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .card-head p { margin: 2px 0 0; font-size: 13px; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border-radius: 999px; font-size: 12px; line-height: 20px; background: var(--secondary); color: var(--secondary-foreground); white-space: nowrap; }
+  .badge.outline { background: transparent; border: 1px solid var(--border); color: var(--muted-foreground); }
+  .badge svg { width: 13px; height: 13px; }
+  .badge.good svg { color: var(--status-good); }
+  .badge.warning svg { color: var(--status-warning); }
+  .badge.critical svg { color: var(--status-critical); }
+
+  /* 已有部分的占位（上一版原型） */
+  .placeholder { border: 1px dashed var(--border); border-radius: var(--radius); padding: 10px 12px; font-size: 13px; color: var(--muted-foreground); }
+
+  /* 依赖服务 */
+  .group-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  .group-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .deps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .dep { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+  .dep-head { display: flex; align-items: flex-start; gap: 8px; }
+  .dep-head .title { display: grid; gap: 0; min-width: 0; }
+  .dep-head .title strong { font-size: 14px; }
+  .dep-head .title span { font-size: 12px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dep-head .spacer { flex: 1; }
+
+  /* 主指标：左边计量条（连接 / 内存），右边速率趋势 */
+  .main-row { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: end; }
+  .metric { display: grid; gap: 4px; min-width: 0; outline: none; border-radius: 4px; }
+  .metric:focus-visible { box-shadow: 0 0 0 2px var(--viz-accent); }
+  .metric .label { font-size: 12px; color: var(--muted-foreground); }
+  .metric .value { font-size: 20px; font-weight: 600; line-height: 1.25; display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
+  .metric .value small { font-size: 12px; font-weight: 400; color: var(--muted-foreground); }
+  .flag { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 500; color: var(--foreground); }
+  .flag svg { width: 13px; height: 13px; }
+  .flag.warning svg { color: var(--status-warning); }
+  .flag.critical svg { color: var(--status-critical); }
+
+  /* 细分段条：部分之和对上限（无文字，图例在下方列出数值） */
+  .segbar { display: flex; gap: 2px; height: 8px; border-radius: 4px; background: var(--viz-track); overflow: hidden; }
+  .segbar i { display: block; height: 100%; }
+  .segbar i:first-child { border-radius: 4px 0 0 4px; }
+  .segbar.warning i:first-child { background: var(--status-warning) !important; }
+  .segbar.critical i:first-child { background: var(--status-critical) !important; }
+  .legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; color: var(--muted-foreground); }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+  .trend { display: grid; gap: 4px; justify-items: start; }
+  .trend .row { display: flex; align-items: flex-end; gap: 8px; }
+  .trend svg { display: block; overflow: visible; }
+
+  /* 次要指标：小格子 */
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .stat { display: grid; gap: 0; min-width: 0; outline: none; border-radius: 4px; }
+  .stat:focus-visible { box-shadow: 0 0 0 2px var(--viz-accent); }
+  .stat span:first-child { font-size: 12px; color: var(--muted-foreground); }
+  .stat .v { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 4px; }
+
+  /* Redis 键分布：按数量排序的横向条形，单一色相 */
+  .keys { display: grid; gap: 4px; }
+  .keys .head { font-size: 12px; color: var(--muted-foreground); }
+  .krow { display: grid; grid-template-columns: 88px minmax(0, 1fr) 52px; align-items: center; gap: 8px; font-size: 12px; outline: none; border-radius: 4px; }
+  .krow:focus-visible { box-shadow: 0 0 0 2px var(--viz-accent); }
+  .krow .bar { height: 8px; border-radius: 0 4px 4px 0; background: var(--viz-accent); }
+  .krow .n { text-align: right; }
+
+  .empty { display: grid; gap: 6px; justify-items: start; padding: 8px 0; font-size: 13px; color: var(--muted-foreground); }
+  .note { font-size: 12px; color: var(--muted-foreground); margin: 0; }
+
+  .tip { position: fixed; z-index: 50; pointer-events: none; background: var(--card); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px oklch(0 0 0 / 14%); padding: 6px 10px; font-size: 12px; display: grid; gap: 1px; max-width: 280px; }
+  .tip[hidden] { display: none; }
+  .tip strong { font-size: 13px; }
+
+  @media (max-width: 860px) {
+    .deps { grid-template-columns: 1fr; }
+    main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>系统运行 · 依赖服务（原型）</h1>
+  <span class="spacer"></span>
+  <div class="seg" id="scenario" role="group" aria-label="场景">
+    <button data-v="normal" aria-pressed="true">平时</button>
+    <button data-v="busy">连接快满 · Redis 在淘汰</button>
+    <button data-v="sqlite">SQLite · 没配 Redis</button>
+  </div>
+  <div class="seg" id="theme" role="group" aria-label="主题">
+    <button data-v="light" aria-pressed="true">浅色</button>
+    <button data-v="dark">深色</button>
+  </div>
+</header>
+
+<main>
+  <ul class="intro muted">
+    <li>在「系统运行」的副本表下面加一块「依赖服务」：Postgres 和 Redis 各一张小卡，左边是最怕满的那一项（连接数 / 内存），右边是速率趋势（事务/秒 / 命令/秒），下面是次要指标。</li>
+    <li>数据由后端每 15 秒采集一次（多副本时每轮只有一个实例去查），按增量算速率，近 10 分钟的历史一起存进 Redis。</li>
+    <li>快满或出问题时标黄 / 标红，并带图标与文字；鼠标悬停（或键盘聚焦）看详细说明。数据都是模拟的。</li>
+  </ul>
+
+  <section class="card" aria-labelledby="runtime-title">
+    <div class="card-head">
+      <h2 id="runtime-title">系统运行</h2>
+      <p class="muted">6 个副本 · 每 15 秒上报一次</p>
+    </div>
+    <div class="placeholder">总数 · 后端副本表 · 前端副本表（同上一版，已上线，此处略）</div>
+
+    <div>
+      <div class="group-head"><h3>依赖服务</h3><span class="muted" id="deps-sub"></span></div>
+      <div class="deps" id="deps"></div>
+    </div>
+    <p class="note">连接数按 Postgres 的 <code>max_connections</code> 计，超过 80% 标「偏高」、超过 95% 标「将满」；Redis 内存按 <code>maxmemory</code> 计，没设上限时只显示已用。查询原文不会显示，只显示时长。</p>
+    <div class="placeholder">全部指标（折叠）</div>
+  </section>
+</main>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+
+<script>
+const POINTS = 40
+let seed = 11
+const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+const series = (base, wobble) => Array.from({ length: POINTS }, (_, i) => Math.max(0, base + Math.sin(i / 5 + base) * wobble + (rand() - .5) * wobble))
+
+function makeData(scenario) {
+  seed = 11
+  const pg = {
+    kind: 'postgres', version: 'PostgreSQL 16.4', where: '192.168.31.231:5432 / neo-blog',
+    max: 100, active: 3, idleTx: 1, idle: 14, waiting: 0,
+    tps: series(9.5, 3), hit: 99.7, rows: 214, size: '182 MB', longest: '0.4 s', deadlocks: 0, temp: 0,
+  }
+  const redis = {
+    kind: 'redis', version: 'Redis 7.2.5', where: 'luna-redis-ll2eu5-dev:6379 / db 0',
+    used: 38, max: 256, rss: 44, frag: 1.08,
+    ops: series(46, 12), clients: 14, blocked: 0, hit: 97.4, cpu: 1.3, keys: 1284, evicted: 0, expiredPerSec: 2.1,
+    groups: [['会话活跃标记', 612], ['限流计数', 388], ['任务与锁', 96], ['运行时指标', 6], ['AI 摘要', 4], ['其他', 178]],
+  }
+  if (scenario === 'busy') {
+    Object.assign(pg, { active: 61, idleTx: 23, idle: 9, waiting: 4, tps: series(9.5, 3).map((v, i) => (i > 28 ? v + (i - 28) * 4 : v)), hit: 96.8, longest: '48.2 s', deadlocks: 1, temp: 3 })
+    Object.assign(redis, { used: 251, rss: 279, frag: 1.11, evicted: 120, hit: 88.1, cpu: 7.9, ops: series(46, 12).map((v, i) => (i > 30 ? v * 2.4 : v)) })
+  }
+  if (scenario === 'sqlite') {
+    return { pg: { kind: 'sqlite', version: 'SQLite 3.46', where: './data/data.db', size: '24 MB', walSize: '1.2 MB', inUse: 1, open: 2 }, redis: null }
+  }
+  return { pg, redis }
+}
+
+// ---------- 工具 ----------
+const ICON_WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>'
+const ICON_OK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>'
+const ICON_PG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>'
+const ICON_REDIS = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 4.5-9 4.5-9-4.5z"/><path d="m3 12 9 4.5 9-4.5"/><path d="m3 16.5 9 4.5 9-4.5"/></svg>'
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag)
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') node.className = v
+    else if (k === 'html') node.innerHTML = v
+    else node.setAttribute(k, v)
+  }
+  for (const c of children) if (c != null) node.append(c)
+  return node
+}
+const tipped = (node, tip) => { node.dataset.tip = JSON.stringify(tip); node.tabIndex = 0; return node }
+const flag = level => (level ? el('span', { class: `flag ${level}`, html: ICON_WARN + ({ warning: '偏高', critical: '将满' })[level] }) : null)
+
+function sparkline(values, label, unit, width = 150, height = 32) {
+  const NS = 'http://www.w3.org/2000/svg'
+  const max = Math.max(1, ...values) * 1.1
+  const x = i => (i / (values.length - 1)) * width
+  const y = v => height - (v / max) * (height - 4) - 2
+  const svg = document.createElementNS(NS, 'svg')
+  svg.setAttribute('width', width); svg.setAttribute('height', height); svg.setAttribute('role', 'img')
+  svg.setAttribute('aria-label', `${label}近 10 分钟，最低 ${Math.min(...values).toFixed(1)}，最高 ${Math.max(...values).toFixed(1)}，当前 ${values.at(-1).toFixed(1)}`)
+  const mk = (tag, a) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); svg.append(n); return n }
+  mk('line', { x1: 0, x2: width, y1: height - .5, y2: height - .5, stroke: 'var(--viz-grid)', 'stroke-width': 1 })
+  const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
+  mk('path', { d: `M0,${height} L${pts.join(' L')} L${width},${height} Z`, fill: 'var(--viz-accent)', 'fill-opacity': .1 })
+  mk('polyline', { points: pts.join(' '), fill: 'none', stroke: 'var(--viz-trend)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' })
+  mk('circle', { cx: x(values.length - 1), cy: y(values.at(-1)), r: 4, fill: 'var(--viz-accent)', stroke: 'var(--card)', 'stroke-width': 2 })
+  const cross = mk('line', { y1: 0, y2: height, stroke: 'var(--muted-foreground)', 'stroke-width': 1, opacity: 0 })
+  const dot = mk('circle', { r: 4, fill: 'var(--viz-accent)', stroke: 'var(--card)', 'stroke-width': 2, opacity: 0 })
+  const hit = mk('rect', { x: -4, y: -6, width: width + 8, height: height + 12, fill: 'transparent' })
+  hit.addEventListener('pointermove', (e) => {
+    const r = svg.getBoundingClientRect()
+    const i = Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / width)) * (values.length - 1))
+    cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('opacity', .5)
+    dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(values[i])); dot.setAttribute('opacity', 1)
+    const ago = (values.length - 1 - i) * 15
+    showTip(e.clientX, e.clientY, { value: `${values[i].toFixed(1)} ${unit}`, lines: [label, ago ? `${ago} 秒前` : '最近 15 秒'] })
+  })
+  hit.addEventListener('pointerleave', () => { cross.setAttribute('opacity', 0); dot.setAttribute('opacity', 0); hideTip() })
+  return svg
+}
+
+function stat(label, value, tip, level = '') {
+  const v = el('span', { class: 'v num' }, value)
+  if (level) v.append(el('span', { class: `flag ${level}`, html: ICON_WARN }))
+  return tipped(el('div', { class: 'stat' }, el('span', {}, label), v), tip)
+}
+
+function statusBadge(level, text) {
+  return el('span', { class: `badge outline ${level}`, html: (level === 'good' ? ICON_OK : ICON_WARN) + text })
+}
+
+// ---------- Postgres ----------
+function pgCard(pg) {
+  const used = pg.active + pg.idleTx + pg.idle
+  const ratio = used / pg.max
+  const level = ratio > .95 ? 'critical' : ratio > .8 ? 'warning' : ''
+  const problems = [level && '连接偏高', pg.waiting > 0 && `${pg.waiting} 个在等锁`, pg.deadlocks > 0 && '有死锁'].filter(Boolean)
+  const head = el('div', { class: 'dep-head' },
+    el('span', { html: ICON_PG }),
+    el('div', { class: 'title' }, el('strong', {}, 'PostgreSQL'), el('span', { class: 'num', title: pg.where }, `${pg.version} · ${pg.where}`)),
+    el('span', { class: 'spacer' }),
+    problems.length ? statusBadge(level || 'warning', problems.join(' · ')) : statusBadge('good', '正常'))
+
+  // 连接：同一色相深浅表示几种状态，之和对上限
+  const segs = [['活跃', pg.active, 'var(--viz-accent)'], ['事务中空闲', pg.idleTx, 'var(--viz-mid)'], ['空闲', pg.idle, 'var(--viz-light)']]
+  // 几种状态各自的颜色保持不变，偏高 / 将满由旁边的图标和文字标出
+  const bar = el('div', { class: 'segbar' }, ...segs.filter(s => s[1] > 0).map(([, n, c]) => el('i', { style: `width:${(n / pg.max) * 100}%;background:${c}` })))
+  const legend = el('div', { class: 'legend num' }, ...segs.map(([name, n, c]) => el('span', {}, el('i', { style: `background:${c}` }), `${name} ${n}`)), el('span', {}, `上限 ${pg.max}`))
+  const conn = tipped(el('div', { class: 'metric' },
+    el('span', { class: 'label' }, '连接数'),
+    el('span', { class: 'value num' }, String(used), el('small', {}, `/ ${pg.max} · ${Math.round(ratio * 100)}%`), flag(level)),
+    bar, legend),
+  { value: `${used} / ${pg.max}`, lines: [`活跃 ${pg.active} · 事务中空闲 ${pg.idleTx} · 空闲 ${pg.idle}`, pg.waiting ? `${pg.waiting} 个会话在等锁` : '没有会话在等锁', '「事务中空闲」多说明有事务没及时提交'] })
+
+  const trend = el('div', { class: 'trend' },
+    el('span', { class: 'metric' }, el('span', { class: 'label' }, '事务/秒 · 近 10 分钟')),
+    el('div', { class: 'row' }, sparkline(pg.tps, 'Postgres 事务/秒', '次/秒'), el('span', { class: 'num', style: 'font-size:20px;font-weight:600;line-height:1' }, pg.tps.at(-1).toFixed(1))))
+
+  const stats = el('div', { class: 'stats' },
+    stat('缓存命中率', `${pg.hit}%`, { value: `${pg.hit}%`, lines: ['读数据时命中内存缓存的比例', '低于 99% 通常说明内存不够或有大查询'] }, pg.hit < 99 ? 'warning' : ''),
+    stat('读写行数/秒', String(pg.rows), { value: `${pg.rows} 行/秒`, lines: ['插入、更新、删除、读取的行数合计'] }),
+    stat('数据库大小', pg.size, { value: pg.size, lines: ['pg_database_size'] }),
+    stat('最久的查询', pg.longest, { value: pg.longest, lines: ['当前运行最久的查询已执行的时长', '只显示时长，不显示查询原文'] }, parseFloat(pg.longest) > 30 ? 'warning' : ''),
+    stat('等锁', String(pg.waiting), { value: `${pg.waiting} 个会话`, lines: ['正在等待锁的会话'] }, pg.waiting > 0 ? 'warning' : ''),
+    stat('死锁 · 临时文件', `${pg.deadlocks} · ${pg.temp}`, { value: `死锁 ${pg.deadlocks} · 临时文件 ${pg.temp}`, lines: ['近 10 分钟新增', '临时文件说明有查询的排序或哈希超出了 work_mem'] }, pg.deadlocks > 0 ? 'critical' : ''))
+
+  return el('div', { class: 'dep' }, head, el('div', { class: 'main-row' }, conn, trend), stats)
+}
+
+function sqliteCard(db) {
+  const head = el('div', { class: 'dep-head' },
+    el('span', { html: ICON_PG }),
+    el('div', { class: 'title' }, el('strong', {}, 'SQLite'), el('span', { class: 'num' }, `${db.version} · ${db.where}`)),
+    el('span', { class: 'spacer' }), statusBadge('good', '正常'))
+  const stats = el('div', { class: 'stats', style: 'border-top:0;padding-top:0' },
+    stat('文件大小', db.size, { value: db.size, lines: ['数据库文件'] }),
+    stat('WAL 文件', db.walSize, { value: db.walSize, lines: ['写前日志，检查点后会缩小'] }),
+    stat('连接池', `${db.inUse}/${db.open}`, { value: `使用中 ${db.inUse} · 打开 ${db.open}`, lines: ['SQLite 只支持单实例部署'] }))
+  return el('div', { class: 'dep' }, head, stats, el('p', { class: 'note' }, 'SQLite 没有连接上限、事务速率等服务端统计，只显示文件与连接池。'))
+}
+
+// ---------- Redis ----------
+function redisCard(r) {
+  const ratio = r.max ? r.used / r.max : 0
+  const level = r.max ? (ratio > .95 ? 'critical' : ratio > .8 ? 'warning' : '') : ''
+  const problems = [level && '内存将满', r.evicted > 0 && `在淘汰键（${r.evicted}/分钟）`].filter(Boolean)
+  const head = el('div', { class: 'dep-head' },
+    el('span', { html: ICON_REDIS }),
+    el('div', { class: 'title' }, el('strong', {}, 'Redis'), el('span', { class: 'num', title: r.where }, `${r.version} · ${r.where}`)),
+    el('span', { class: 'spacer' }),
+    problems.length ? statusBadge(r.evicted > 0 ? 'critical' : level, problems.join(' · ')) : statusBadge('good', '正常'))
+
+  const bar = el('div', { class: `segbar ${level}` }, el('i', { style: `width:${Math.max(1, ratio * 100)}%;background:var(--viz-accent)` }))
+  const mem = tipped(el('div', { class: 'metric' },
+    el('span', { class: 'label' }, '内存'),
+    el('span', { class: 'value num' }, String(r.used), el('small', {}, r.max ? `MB / ${r.max} MB · ${Math.round(ratio * 100)}%` : 'MB（未设上限）'), flag(level)),
+    bar,
+    el('div', { class: 'legend num' }, el('span', {}, `进程占用 ${r.rss} MB`), el('span', {}, `碎片率 ${r.frag}`))),
+  { value: `${r.used} MB${r.max ? ` / ${r.max} MB` : ''}`, lines: ['used_memory / maxmemory', '内存满了会按淘汰策略删键，锁、登录 state、限流计数都可能丢'] })
+
+  const trend = el('div', { class: 'trend' },
+    el('span', { class: 'metric' }, el('span', { class: 'label' }, '命令/秒 · 近 10 分钟')),
+    el('div', { class: 'row' }, sparkline(r.ops, 'Redis 命令/秒', '次/秒'), el('span', { class: 'num', style: 'font-size:20px;font-weight:600;line-height:1' }, r.ops.at(-1).toFixed(0))))
+
+  const stats = el('div', { class: 'stats' },
+    stat('客户端', `${r.clients}${r.blocked ? ` · 阻塞 ${r.blocked}` : ''}`, { value: `${r.clients} 个连接`, lines: ['前后端每个副本各有连接，另有订阅通知的连接'] }),
+    stat('命中率', `${r.hit}%`, { value: `${r.hit}%`, lines: ['读取时键存在的比例；限流、锁等「先查后写」的用法本来就会有未命中'] }),
+    stat('CPU', `${r.cpu}%`, { value: `${r.cpu}%`, lines: ['Redis 进程（1 核 = 100%）'] }, r.cpu > 70 ? 'warning' : ''),
+    stat('键总数', r.keys.toLocaleString(), { value: `${r.keys.toLocaleString()} 个键`, lines: ['本站使用的 db 中的键'] }),
+    stat('过期/秒', String(r.expiredPerSec), { value: `${r.expiredPerSec} 个/秒`, lines: ['到期自动删除的键'] }),
+    stat('淘汰', `${r.evicted}/分钟`, { value: `${r.evicted} 个/分钟`, lines: ['内存不够时被强制删除的键，正常应为 0'] }, r.evicted > 0 ? 'critical' : ''))
+
+  // 键分布：本站的键按用途分组，按数量排序
+  const top = Math.max(...r.groups.map(g => g[1]))
+  const keys = el('div', { class: 'keys' }, el('span', { class: 'head' }, '本站的键（按用途）'),
+    ...r.groups.map(([name, n]) => tipped(el('div', { class: 'krow' },
+      el('span', {}, name), el('div', {}, el('div', { class: 'bar', style: `width:${Math.max(2, (n / top) * 100)}%` })), el('span', { class: 'n num' }, n.toLocaleString())),
+    { value: `${n.toLocaleString()} 个键`, lines: [name] })))
+
+  return el('div', { class: 'dep' }, head, el('div', { class: 'main-row' }, mem, trend), stats, keys)
+}
+
+function noRedisCard() {
+  return el('div', { class: 'dep' },
+    el('div', { class: 'dep-head' }, el('span', { html: ICON_REDIS }), el('div', { class: 'title' }, el('strong', {}, 'Redis'), el('span', {}, '未使用')), el('span', { class: 'spacer' }), el('span', { class: 'badge outline' }, '进程内存')),
+    el('div', { class: 'empty' }, '没有配置 REDIS_URL：登录 state、限流、锁等共享状态保存在进程内存里，只适用于单实例部署。', el('span', {}, '多副本部署时需要配置 Redis，见 README「多副本部署」。')))
+}
+
+function render(scenario) {
+  const { pg, redis } = makeData(scenario)
+  document.getElementById('deps-sub').textContent = '每 15 秒采集一次 · 3 秒前更新'
+  const deps = document.getElementById('deps')
+  deps.replaceChildren(pg.kind === 'sqlite' ? sqliteCard(pg) : pgCard(pg), redis ? redisCard(redis) : noRedisCard())
+}
+
+// ---------- 提示框 ----------
+const tip = document.getElementById('tip')
+function showTip(x, y, { value, lines }) {
+  tip.replaceChildren(el('strong', { class: 'num' }, value), ...lines.map(l => el('span', { class: 'muted' }, l)))
+  tip.hidden = false
+  tip.style.left = `${Math.min(window.innerWidth - tip.offsetWidth - 8, x + 12)}px`
+  tip.style.top = `${y + 14}px`
+}
+function hideTip() { tip.hidden = true }
+document.addEventListener('pointermove', (e) => {
+  const node = e.target.closest?.('[data-tip]')
+  if (node) showTip(e.clientX, e.clientY, JSON.parse(node.dataset.tip))
+  else if (!e.target.closest?.('svg')) hideTip()
+})
+document.addEventListener('focusin', (e) => {
+  const node = e.target.closest?.('[data-tip]')
+  if (!node) return
+  const r = node.getBoundingClientRect()
+  showTip(r.left, r.bottom - 10, JSON.parse(node.dataset.tip))
+})
+document.addEventListener('focusout', hideTip)
+
+function bindSeg(id, onChange) {
+  const seg = document.getElementById(id)
+  seg.addEventListener('click', (e) => {
+    const btn = e.target.closest('button')
+    if (!btn) return
+    seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)))
+    onChange(btn.dataset.v)
+  })
+}
+bindSeg('scenario', render)
+bindSeg('theme', v => document.documentElement.classList.toggle('dark', v === 'dark'))
+render('normal')
+</script>
+</body>
+</html>

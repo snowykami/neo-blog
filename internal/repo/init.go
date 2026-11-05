@@ -128,6 +128,7 @@ func InitDatabase() error {
 		TranslateError: true, // 统一数据库错误，便于识别唯一约束冲突（gorm.ErrDuplicatedKey）
 	}
 
+	activeDBConfig = dbConfig
 	switch dbConfig.Driver {
 	case "postgres":
 		if db, err = initPostgres(dbConfig.DSN, gormConfig); err != nil {

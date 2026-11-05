@@ -117,3 +117,35 @@ func TestListFrontendMetrics(t *testing.T) {
 		t.Fatal("history should never be null")
 	}
 }
+
+// 依赖服务采集：结果存进共享状态，列表接口一起返回；未使用 Redis 时只有数据库
+func TestSampleDependencyMetrics(t *testing.T) {
+	setupEditTest(t)
+	sharedstate.UseMemory()
+	t.Cleanup(sharedstate.UseMemory)
+	if resp, _ := ListRuntimeMetrics(); resp.Dependencies != nil {
+		t.Fatal("no dependency metrics before the first sample")
+	}
+	SampleDependencyMetrics()
+	SampleDependencyMetrics()
+	resp, svcerr := ListRuntimeMetrics()
+	if svcerr != nil || resp.Dependencies == nil || resp.Dependencies.Database == nil {
+		t.Fatalf("resp = %+v %v", resp, svcerr)
+	}
+	db := resp.Dependencies.Database
+	if db.Driver != "sqlite" || db.Version == "" || db.Error != "" || db.TransactionsHistory == nil {
+		t.Fatalf("database = %+v", db)
+	}
+	if resp.Dependencies.Redis != nil {
+		t.Fatal("redis metrics should be absent without redis")
+	}
+}
+
+func TestRedisDBKeys(t *testing.T) {
+	if got := redisDBKeys("keys=1284,expires=900,avg_ttl=0"); got != 1284 {
+		t.Fatalf("keys = %d", got)
+	}
+	if got := redisDBKeys(""); got != 0 {
+		t.Fatalf("keys = %d", got)
+	}
+}

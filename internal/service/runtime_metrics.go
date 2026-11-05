@@ -209,7 +209,7 @@ func ListRuntimeMetrics() (*dto.RuntimeMetricsResp, *errs.ServiceError) {
 	if svcerr != nil {
 		return nil, svcerr
 	}
-	return &dto.RuntimeMetricsResp{Shared: sharedstate.Shared(), Instances: instances, Frontends: frontends}, nil
+	return &dto.RuntimeMetricsResp{Shared: sharedstate.Shared(), Instances: instances, Frontends: frontends, Dependencies: GetDependencyMetrics()}, nil
 }
 
 // listFrontendMetrics 前端实例写进共享状态的快照，按启动时间排序

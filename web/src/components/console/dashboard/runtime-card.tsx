@@ -1,10 +1,10 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import type { Level } from './runtime-shared'
 import type { BackendCoreMetrics, FrontendCoreMetrics, FrontendInstance, FrontendMetrics, RuntimeInstance, RuntimeMetrics } from '@/models/misc'
 import { ChevronDown, TriangleAlert } from 'lucide-react'
 import { useFormatter, useNow, useTranslations } from 'next-intl'
-import { JetBrains_Mono } from 'next/font/google'
 import { useEffect, useRef, useState } from 'react'
 import { backendMetricsHandler, frontendMetricsHandler, getFrontendMetrics, getRuntimeMetrics } from '@/api/misc'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -19,11 +19,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { formatDataSize } from '@/utils/common/datasize'
+import { DependencyCards } from './dependency-cards'
+import { formatRate, jetBrainsMono, pointAgo, REPORT_INTERVAL_SECONDS, Tip } from './runtime-shared'
 import { RuntimeSparkline } from './runtime-sparkline'
 
 // 指标轮询间隔；各实例每 15 秒上报一次快照
 const METRICS_POLL_INTERVAL = 5000
-const REPORT_INTERVAL_SECONDS = 15
 // CPU（1 核 = 100%）超过这两个值时标「偏高」「过高」
 const CPU_WARNING = 70
 const CPU_CRITICAL = 90
@@ -31,12 +32,6 @@ const CPU_CRITICAL = 90
 const EVENT_LOOP_WARNING_MS = 100
 // 各列条形的最小刻度：数值都很小时条形不会被放大成满格
 const BAR_FLOOR = { inflight: 5, latency: 200, memory: 256 << 20, goroutines: 200, db: 10, connections: 20, eventLoop: 50 }
-
-const jetBrainsMono = JetBrains_Mono({
-  variable: '--font-jet-mono',
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-})
 
 /**
  * 轮询拉取数据：页面不可见时暂停，重新可见时立即拉取一次
@@ -106,7 +101,6 @@ function formatMetric(handler: MetricsHandler, key: string, value: unknown) {
 }
 
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0)
-const formatRate = (v: number) => (v >= 10 ? v.toFixed(0) : v.toFixed(1))
 const shortHost = (hostname: string, instanceId: string) => hostname.split('-').at(-1) || instanceId.slice(0, 8)
 
 /**
@@ -201,6 +195,7 @@ export function RuntimeCard() {
               ? <TableSkeleton />
               : <FrontendTable instances={frontends} servingId={servingFrontend?.instanceId} />}
           </ReplicaGroup>
+          <DependencyCards metrics={runtime.data?.dependencies ?? null} loading={loading} />
           <p className="text-xs text-muted-foreground">{t('runtime_note', { warning: CPU_WARNING, critical: CPU_CRITICAL, seconds: REPORT_INTERVAL_SECONDS })}</p>
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="sm" className="justify-self-start text-muted-foreground">
@@ -270,10 +265,6 @@ function SummaryTiles({ backends, frontends, loading }: { backends: RuntimeInsta
       ))}
     </div>
   )
-}
-
-function pointAgo(t: ReturnType<typeof useTranslations<'Console.dashboard'>>, stepsAgo: number) {
-  return stepsAgo === 0 ? t('runtime_point_latest', { seconds: REPORT_INTERVAL_SECONDS }) : t('runtime_point_ago', { seconds: stepsAgo * REPORT_INTERVAL_SECONDS })
 }
 
 function ReplicaGroup({ title, subtitle, children }: { title: string, subtitle: string, children: ReactNode }) {
@@ -346,8 +337,6 @@ function ReplicaName({ replica }: { replica: Replica }) {
   )
 }
 
-type Level = 'warning' | 'critical' | null
-
 /** 数值 + 细条：条形在同一列内比较；悬停或键盘聚焦时显示详细说明 */
 function BarCell({ value, unit, ratio, tip, level = null }: { value: string, unit?: string, ratio: number, tip: ReactNode, level?: Level }) {
   const t = useTranslations('Console.dashboard')
@@ -375,16 +364,6 @@ function BarCell({ value, unit, ratio, tip, level = null }: { value: string, uni
       </TooltipTrigger>
       <TooltipContent>{tip}</TooltipContent>
     </Tooltip>
-  )
-}
-
-/** 提示内容：数值在前，说明在后 */
-function Tip({ value, lines }: { value: string, lines: string[] }) {
-  return (
-    <div className="grid gap-0.5">
-      <span className="font-semibold tabular-nums">{value}</span>
-      {lines.map(line => <span key={line} className="opacity-80">{line}</span>)}
-    </div>
   )
 }
 

@@ -132,6 +132,7 @@ export interface RuntimeInstance {
   metrics: BackendMetricsData
 }
 
+
 /** 一个前端实例的运行时指标快照 */
 export interface FrontendInstance {
   instanceId: string
@@ -144,11 +145,66 @@ export interface FrontendInstance {
   metrics: FrontendMetricsData
 }
 
+/** 数据库的运行统计；速率按最近两次采集（15 秒）之间的增量计算 */
+export interface DatabaseMetrics {
+  driver: string // postgres / sqlite
+  version: string
+  location: string // host:port/dbname 或 SQLite 文件路径
+  error?: string
+  maxConnections: number
+  totalConnections: number // 服务器上全部客户端连接
+  active: number // 以下为本站数据库中各状态的连接
+  idleInTransaction: number
+  idle: number
+  waiting: number // 在等锁的连接
+  longestQuerySeconds: number
+  transactionsPerSecond: number
+  transactionsHistory: number[]
+  cacheHitRatio: number // 0～1
+  rowsPerSecond: number
+  sizeBytes: number
+  walBytes: number
+  deadlocksRecent: number // 近 10 分钟新增
+  tempFilesRecent: number
+  poolInUse: number
+  poolOpen: number
+}
+
+/** 共享状态所在 Redis 的运行统计 */
+export interface RedisMetrics {
+  version: string
+  location: string
+  error?: string
+  usedMemory: number
+  maxMemory: number // 0 表示没有设置上限
+  rss: number
+  fragmentation: number
+  opsPerSecond: number
+  opsHistory: number[]
+  clients: number
+  blockedClients: number
+  hitRatio: number // 0～1
+  cpuPercent: number
+  keys: number
+  expiredPerSecond: number
+  evictedPerMinute: number
+  keyGroups: { group: string, count: number }[] // 本站的键按用途分组，数量多的在前
+  keyGroupsComplete: boolean
+}
+
+/** 依赖服务（数据库与 Redis），每 15 秒由一个后端实例采集 */
+export interface DependencyMetrics {
+  updatedAt: string
+  database: DatabaseMetrics | null
+  redis: RedisMetrics | null // 未使用 Redis 时为空
+}
+
 /** 全部存活前后端实例的运行时指标；未配置 Redis 时只有本实例，前端没有配置 Redis 时 frontends 为空 */
 export interface RuntimeMetrics {
   shared: boolean
   instances: RuntimeInstance[]
   frontends: FrontendInstance[]
+  dependencies: DependencyMetrics | null // 启动后第一次采集前为空
 }
 
 /** 处理本次请求的前端实例；shared 表示它配置了 Redis（全部前端实例会出现在 RuntimeMetrics.frontends 中） */

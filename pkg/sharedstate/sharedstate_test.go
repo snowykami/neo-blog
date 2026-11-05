@@ -259,3 +259,35 @@ func TestLease(t *testing.T) {
 		})
 	}
 }
+
+// 依赖服务统计：未使用 Redis 时不提供；使用 Redis 时读取 INFO，并按键名第一段统计本应用的键
+func TestServerInfoAndCountKeys(t *testing.T) {
+	for name, use := range stores(t) {
+		t.Run(name, func(t *testing.T) {
+			use()
+			info, ok, err := ServerInfo()
+			if name == "memory" {
+				if ok || info != nil {
+					t.Fatal("memory store has no server info")
+				}
+				if _, _, ok, _ := CountKeys(10); ok {
+					t.Fatal("memory store cannot count keys")
+				}
+				return
+			}
+			if err != nil || !ok || info.Fields["redis_version"] == "" || info.Addr == "" {
+				t.Fatalf("info = %+v %v %v", info, ok, err)
+			}
+			for _, key := range []string{"rate_limit:a", "rate_limit:b", "lock:x", "plain"} {
+				_ = Current().Set(key, "1", time.Minute)
+			}
+			groups, complete, ok, err := CountKeys(100)
+			if err != nil || !ok || !complete || groups["rate_limit"] != 2 || groups["lock"] != 1 || groups["plain"] != 1 {
+				t.Fatalf("groups = %v complete=%v ok=%v err=%v", groups, complete, ok, err)
+			}
+			if _, complete, _, _ := CountKeys(2); complete {
+				t.Fatal("scan limit should mark the result incomplete")
+			}
+		})
+	}
+}
