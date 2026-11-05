@@ -4,7 +4,7 @@ import { UploadIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useSyncExternalStore } from 'react'
 import { showIslandActivity } from '@/contexts/topbar-island'
-import { ProgressRing } from './progress-ring'
+import { IslandSlot, IslandText, ProgressRing } from './island-parts'
 
 // 上传中仅次于离线：读者需要知道还有文件没传完
 const UPLOAD_PRIORITY = 90
@@ -70,9 +70,9 @@ function UploadCompact() {
   const { count, percent } = useUploadSnapshot()
   return (
     <>
-      <UploadIcon aria-hidden className="size-4 shrink-0" />
-      <span className="truncate">{t('upload_text', { count })}</span>
-      <span className="shrink-0 text-white/60 tabular-nums">{`${percent}%`}</span>
+      <IslandSlot><UploadIcon aria-hidden /></IslandSlot>
+      <IslandText>{t('upload_text', { count })}</IslandText>
+      <IslandText className="shrink-0 text-white/60 tabular-nums">{`${percent}%`}</IslandText>
       <UploadRing />
     </>
   )

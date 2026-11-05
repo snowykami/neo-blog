@@ -10,7 +10,7 @@ import { getScrollOffset } from '@/components/blog-post/post-toc.client'
 import { LikeIcon } from '@/contexts/theme-context'
 import { pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
 import { cn } from '@/lib/utils'
-import { ProgressRing } from './progress-ring'
+import { IslandText, ProgressRing } from './island-parts'
 
 // 低于播放中的音乐：同时存在时阅读进度缩成旁边的进度环
 const READING_PRIORITY = 40
@@ -139,9 +139,9 @@ export function ReadingIsland({ title, headings, minutes }: { title: string, hea
         compact: (
           <>
             <ReadingRing store={store} />
-            <span className="max-w-[24ch] min-w-0 truncate">{chapter}</span>
+            <IslandText className="max-w-[24ch]">{chapter}</IslandText>
             {/* 窄屏把空间留给章节名，进度看进度环 */}
-            <RemainingTime store={store} minutes={minutes} className="hidden shrink-0 text-white/60 sm:inline" />
+            <RemainingTime store={store} minutes={minutes} className="hidden shrink-0 px-1 text-white/60 sm:inline" />
           </>
         ),
         minimal: <ReadingRing store={store} />,

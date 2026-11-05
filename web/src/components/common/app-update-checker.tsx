@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { IslandSlot, IslandText } from '@/components/layout/topbar-island/island-parts'
 import { useIslandAccepts, useIslandActivity } from '@/contexts/topbar-island'
 import { isChunkLoadError, reloadForChunkError } from '@/utils/client/chunk-error'
 
@@ -93,12 +94,12 @@ export function AppUpdateChecker() {
         label: `${t('title')}: ${t('refresh')}`,
         compact: (
           <>
-            <RefreshCwIcon aria-hidden className="size-4 shrink-0 text-sky-400" />
-            <span className="truncate">{t('title')}</span>
-            <span className="shrink-0 text-white/60">{t('refresh')}</span>
+            <IslandSlot><RefreshCwIcon aria-hidden className="text-sky-400" /></IslandSlot>
+            <IslandText>{t('title')}</IslandText>
+            <IslandText className="shrink-0 text-white/60">{t('refresh')}</IslandText>
           </>
         ),
-        minimal: <RefreshCwIcon aria-hidden className="size-4 text-sky-400" />,
+        minimal: <IslandSlot><RefreshCwIcon aria-hidden className="text-sky-400" /></IslandSlot>,
         onPress: () => window.location.reload(),
       }
     : null, [t, updateAvailable, viaIsland])

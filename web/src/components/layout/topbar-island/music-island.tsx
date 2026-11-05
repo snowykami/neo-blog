@@ -20,6 +20,7 @@ import { useSongChorus } from '@/contexts/song-chorus'
 import { dismissIslandAlert, pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
 import { backgroundLevel, rhythmContext } from '@/lib/lyrics/rhythm/effects'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
+import { IslandSlot, IslandText } from './island-parts'
 
 // 优先级：播放中高于文章阅读进度（读者主动开启的音乐更有个性），暂停后低于一切
 const PLAYING_PRIORITY = 50
@@ -93,8 +94,8 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       label: t('music_paused', { title }),
       compact: (
         <>
-          <AlbumNavIcon />
-          <PlayIcon aria-hidden className="size-3.5 fill-current" />
+          <IslandSlot><AlbumNavIcon /></IslandSlot>
+          <IslandSlot className="[&>svg]:size-3.5"><PlayIcon aria-hidden className="fill-current" /></IslandSlot>
         </>
       ),
       minimal: <AlbumNavIcon />,
@@ -115,7 +116,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       key: PEEK_KEY,
       feature: 'musicPeek',
       icon: currentTrack.albumPic
-        ? <SafeImage src={currentTrack.albumPic} alt="" width={20} height={20} sizes="20px" fallback={null} className="size-5 rounded-md object-cover" />
+        ? <SafeImage src={currentTrack.albumPic} alt="" width={24} height={24} sizes="24px" fallback={null} className="size-6 rounded-md object-cover" />
         : undefined,
       text: trackTitle(currentTrack),
       announce: t('music_now_playing', { title: trackTitle(currentTrack) }),
@@ -168,19 +169,26 @@ function MusicCompact({ beat }: { beat: boolean }) {
       <MusicBackground cover={currentTrack?.albumPic} contained imageClassName="blur-md" />
       <MusicStageEffects contained />
       {beat && <span ref={tintRef} aria-hidden className="pointer-events-none absolute inset-0 bg-[color:var(--lyric-accent,#fff)] opacity-0" />}
-      <span className="relative flex shrink-0 items-center"><AlbumNavIcon /></span>
+      <IslandSlot><AlbumNavIcon /></IslandSlot>
+      {/* 歌词与文字离封面、律动条各 10px：单行条自带 10px 内边距，左右各收回 6px */}
       <span className="relative flex h-9 w-[36ch] max-w-full min-w-0 shrink items-center">
         {hasLyric
-          ? <MusicLyricStage strip className="-mx-2.5 h-full w-full" />
-          : <MarqueeText>{currentTrack ? trackTitle(currentTrack) : ''}</MarqueeText>}
+          ? <MusicLyricStage strip className="-mx-1.5 h-full min-w-0 flex-1" />
+          : <IslandText className="flex-1"><MarqueeText>{currentTrack ? trackTitle(currentTrack) : ''}</MarqueeText></IslandText>}
       </span>
-      {beat && <BeatBars tintRef={tintRef} />}
+      {beat && <IslandSlot><BeatBars tintRef={tintRef} /></IslandSlot>}
     </span>
   )
 }
 
-// 律动条的相对高度与相位：三根错开一点，避免整齐划一
-const BARS = [{ weight: 0.75, lagMs: 60, freq: 7.1 }, { weight: 1, lagMs: 0, freq: 9.3 }, { weight: 0.85, lagMs: 120, freq: 5.7 }]
+// 律动条：5 根 2px 细条（同 Apple 音乐的波形，中间最高），相对高度与相位错开一点，避免整齐划一
+const BARS = [
+  { weight: 0.6, lagMs: 90, freq: 6.3 },
+  { weight: 0.85, lagMs: 40, freq: 8.1 },
+  { weight: 1, lagMs: 0, freq: 9.7 },
+  { weight: 0.8, lagMs: 60, freq: 7.4 },
+  { weight: 0.65, lagMs: 120, freq: 5.2 },
+]
 // 跟随节拍时胶囊底色泛起封面主色的最大不透明度
 const BEAT_TINT_OPACITY = 0.22
 
@@ -231,9 +239,9 @@ function BeatBars({ tintRef }: { tintRef: React.RefObject<HTMLSpanElement | null
   }, [getAudio, isPlaying, reducedMotion, tintRef])
 
   return (
-    <span ref={rootRef} aria-hidden className="relative flex h-4 shrink-0 items-center gap-[3px]">
+    <span ref={rootRef} aria-hidden className="flex h-4 items-center gap-[2px]">
       {BARS.map(bar => (
-        <span key={bar.freq} className="block h-full w-[3px] origin-center scale-y-50 rounded-full bg-[color:var(--lyric-accent,#fff)]" />
+        <span key={bar.freq} className="block h-full w-[2px] origin-center scale-y-50 rounded-full bg-[color:var(--lyric-accent,#fff)]" />
       ))}
     </span>
   )

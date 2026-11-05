@@ -31,6 +31,7 @@ import { useTheme } from '@/contexts/theme-context'
 import { pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
 import { toServiceLanguage } from '@/locales/registry'
 import { getThemeIcon } from '@/themes/icons'
+import { IslandSlot, IslandText } from './island-parts'
 
 // 离线压过一切：读者此时最需要知道的就是网络断了
 const OFFLINE_PRIORITY = 100
@@ -57,11 +58,11 @@ export function NetworkIsland() {
         label: t('network_offline_label'),
         compact: (
           <>
-            <WifiOffIcon aria-hidden className="size-4 shrink-0 text-amber-400" />
-            <span className="truncate">{t('network_offline')}</span>
+            <IslandSlot><WifiOffIcon aria-hidden className="text-amber-400" /></IslandSlot>
+            <IslandText>{t('network_offline')}</IslandText>
           </>
         ),
-        minimal: <WifiOffIcon aria-hidden className="size-4 text-amber-400" />,
+        minimal: <IslandSlot><WifiOffIcon aria-hidden className="text-amber-400" /></IslandSlot>,
       }, [online, t])
   useIslandActivity(activity)
 

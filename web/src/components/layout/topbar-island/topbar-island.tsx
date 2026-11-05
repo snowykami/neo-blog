@@ -15,6 +15,7 @@ import { finishIslandAlert, setIslandSettings, useIslandState } from '@/contexts
 import { cn } from '@/lib/utils'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import { AmbientIsland, NetworkIsland } from './ambient-island'
+import { IslandSlot, IslandText } from './island-parts'
 import { MusicIsland } from './music-island'
 
 /**
@@ -26,7 +27,7 @@ const ISLAND_SPRING: Transition = { type: 'spring', mass: 1, stiffness: 273, dam
 const ALERT_MS = 2400
 
 // 胶囊与小圆点共用的外观：深色药丸（浅色、深色主题下都是黑色，同灵动岛），细描边让它在深色卡片上也有边界
-const capsuleClass = 'relative isolate flex h-9 min-w-9 max-w-full shrink items-center overflow-hidden bg-neutral-950 text-sm font-medium text-white ring-1 ring-white/10 transition-shadow duration-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer'
+const capsuleClass = 'relative isolate flex h-9 min-w-9 max-w-full shrink items-center overflow-hidden bg-neutral-950 text-sm font-semibold text-white ring-1 ring-white/10 transition-shadow duration-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer'
 
 /**
  * 顶栏标题区（灵动岛，实验性）：左侧始终是回到首页的站点链接；有活动或提示时站名收起为图标，旁边弹出一枚胶囊。
@@ -225,7 +226,8 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
           animate={{ opacity: 1, filter: 'blur(0px)', scale: 1 }}
           exit={{ opacity: 0, filter: 'blur(6px)', scale: 0.92 }}
           transition={{ duration: 0.22 }}
-          className={cn('flex h-full min-w-0 items-center', isDot ? 'justify-center' : 'gap-2 px-3')}
+          // 两端元素与端头半圆同心（各留 6px），比例见 island-parts.tsx
+          className={cn('flex h-full min-w-0 items-center', isDot ? 'justify-center' : 'gap-1.5 px-1.5')}
         >
           {content}
         </motion.span>
@@ -255,9 +257,9 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
 function AlertContent({ alert }: { alert: QueuedIslandAlert }) {
   return (
     <>
-      {alert.icon && <span className="flex shrink-0 items-center [&_svg]:size-4">{alert.icon}</span>}
-      <span className="truncate">{alert.text}</span>
-      {alert.countable && alert.count > 1 && <span className="shrink-0 text-white/60 tabular-nums">{`×${alert.count}`}</span>}
+      {alert.icon && <IslandSlot>{alert.icon}</IslandSlot>}
+      <IslandText>{alert.text}</IslandText>
+      {alert.countable && alert.count > 1 && <IslandText className="shrink-0 text-white/60 tabular-nums">{`×${alert.count}`}</IslandText>}
     </>
   )
 }
