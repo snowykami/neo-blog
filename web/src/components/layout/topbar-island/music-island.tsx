@@ -196,9 +196,10 @@ function MusicCompact({ beat }: { beat: boolean }) {
       <MusicBackground cover={currentTrack?.albumPic} contained imageClassName="blur-md" />
       <MusicStageEffects contained />
       {beat && <span ref={tintRef} aria-hidden className="pointer-events-none absolute inset-0 bg-[color:var(--lyric-accent,#fff)] opacity-0" />}
-      <IslandSlot><AlbumNavIcon /></IslandSlot>
+      {/* 封面与歌词标了 data-island-morph：展开时封面放大飞到面板里的封面处，单行歌词带着样式飞到面板歌词区的焦点行（没有歌词时不飞，见 island-morph.ts） */}
+      <IslandSlot morph="cover"><AlbumNavIcon /></IslandSlot>
       {/* 歌词与文字离封面、律动条各 10px：单行条自带 10px 内边距，左右各收回 6px */}
-      <span className="relative flex h-9 w-[36ch] max-w-full min-w-0 shrink items-center">
+      <span data-island-morph={hasLyric ? 'lyrics' : undefined} className="relative flex h-9 w-[36ch] max-w-full min-w-0 shrink items-center">
         {hasLyric
           ? <MusicLyricStage strip className="-mx-1.5 h-full min-w-0 flex-1" />
           : <IslandText className="flex-1"><MarqueeText>{currentTrack ? trackTitle(currentTrack) : ''}</MarqueeText></IslandText>}

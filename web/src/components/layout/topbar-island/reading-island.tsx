@@ -64,7 +64,7 @@ function scrollToElement(id: string) {
 }
 
 /**
- * 文章阅读进度（挂在文章页）：正文读到一半时胶囊显示进度环 + 当前章节 + 剩余时间，点按展开迷你目录
+ * 文章阅读进度（挂在文章页）：正文读到一半时胶囊显示进度环 + 当前章节 + 阅读进度（百分比），点按展开迷你目录
  * （移动端侧栏目录不显示，这里补上）；读到末尾时提示一次「读完啦」：没赞过时点按提示直接点赞（未登录先快捷登录，登录后接着赞），
  * 把「跳到点赞按钮 → 再点一次」压成一次；赞过时只道谢。点赞状态与页面上的点赞按钮共用（见 hooks/use-post-like.tsx）
  */
@@ -156,10 +156,10 @@ export function ReadingIsland({ title, headings, minutes, post }: { title: strin
         label: t('reading_label', { chapter }),
         compact: (
           <>
-            <ReadingRing store={store} />
-            <IslandText className="max-w-[24ch]">{chapter}</IslandText>
-            {/* 窄屏把空间留给章节名，进度看进度环 */}
-            <RemainingTime store={store} minutes={minutes} className="hidden shrink-0 px-1 text-white/60 sm:inline" />
+            <ReadingRing store={store} morph="ring" />
+            <IslandText morph="chapter" className="max-w-[24ch]">{chapter}</IslandText>
+            {/* 窄屏把空间留给章节名，进度看进度环；展开时百分比飞到面板里的进度上（见 island-morph.ts） */}
+            <ReadingPercent store={store} morph="percent" className="hidden shrink-0 px-1 text-white/60 tabular-nums sm:inline" />
           </>
         ),
         minimal: <ReadingRing store={store} />,
@@ -175,8 +175,14 @@ function usePercent(store: ReadingStore) {
 }
 
 /** 阅读进度环：按百分比取整订阅，整篇文章最多重渲染一百次 */
-function ReadingRing({ store, className }: { store: ReadingStore, className?: string }) {
-  return <ProgressRing percent={usePercent(store)} className={className} />
+function ReadingRing({ store, className, morph }: { store: ReadingStore, className?: string, morph?: string }) {
+  return <ProgressRing percent={usePercent(store)} className={className} morph={morph} />
+}
+
+/** 阅读进度的百分比（胶囊里）：与面板里「已读 x%」中的百分比是同一段文字，展开时从这里变换过去 */
+function ReadingPercent({ store, className, morph }: { store: ReadingStore, className?: string, morph?: string }) {
+  const t = useTranslations('TopbarIsland')
+  return <span data-island-morph={morph} className={className}>{t('reading_percent', { percent: usePercent(store) })}</span>
 }
 
 /** 剩余阅读时间：按全文阅读时长与未读比例估算，按分钟取整订阅 */
@@ -197,9 +203,10 @@ function ReadingPanel({ store, headings, minutes }: { store: ReadingStore, headi
   return (
     <div className="grid gap-3">
       <div className="flex items-center gap-3">
-        <ReadingRing store={store} className="size-10" />
+        {/* 进度环、百分比与当前章节标了 data-island-morph：展开时从胶囊里的位置变换过来（见 island-morph.ts） */}
+        <ReadingRing store={store} className="size-10" morph="ring" />
         <div className="grid min-w-0 gap-0.5">
-          <p className="font-semibold tabular-nums">{t('reading_progress', { percent })}</p>
+          <p className="font-semibold tabular-nums">{t.rich('reading_progress', { percent, num: chunks => <span data-island-morph="percent">{chunks}</span> })}</p>
           <RemainingTime store={store} minutes={minutes} className="text-sm text-white/60" />
         </div>
       </div>
@@ -219,7 +226,7 @@ function ReadingPanel({ store, headings, minutes }: { store: ReadingStore, headi
                     )}
                   >
                     <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', index === activeIndex ? 'bg-primary' : 'bg-white/25')} />
-                    <span className="min-w-0 truncate">{heading.text}</span>
+                    <span data-island-morph={index === activeIndex ? 'chapter' : undefined} className="min-w-0 truncate">{heading.text}</span>
                   </button>
                 </PopoverPrimitive.Close>
               </li>
