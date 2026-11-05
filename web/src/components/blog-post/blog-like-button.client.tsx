@@ -52,7 +52,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
     if (!shouldFetchLikedUsers)
       return
 
-    getLikedUsers({ targetType: TargetType.Post, targetId: post.id, number: 5 })
+    getLikedUsers({ targetType: TargetType.Post, targetId: post.id, number: MAX_LIKED_USERS })
       .then((res) => {
         setLikedUsers(res.data.users?.slice(0, MAX_LIKED_USERS) || [])
       })
@@ -91,6 +91,9 @@ export function BlogLikeButton({ post }: { post: Post }) {
       })
   }
 
+  // 未展示头像的点赞人数
+  const moreLikedCount = Math.max(0, likeCount - likedUsers.length)
+
   return (
     <div ref={likeButtonRef} className="flex flex-col items-center gap-3">
       <button
@@ -112,19 +115,29 @@ export function BlogLikeButton({ post }: { post: Post }) {
       <div className="text-sm text-foreground/50">
         {operationT('n_users_liked', { n: likeCount })}
       </div>
+      {/* 最近点赞的人在前，头像互相压住一点；超出的人数用末尾的「+N」表示 */}
       {likedUsers.length > 0 && (
-        <div className="flex justify-center gap-2">
+        <div className="flex justify-center -space-x-2">
           {likedUsers.map(u => (
             <Link
               key={u.id}
               href={getUserUrl(u)}
               aria-label={formatDisplayName(u)}
               title={formatDisplayName(u)}
-              className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="relative rounded-full ring-2 ring-card transition-transform duration-150 hover:z-10 hover:-translate-y-0.5 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-ring"
             >
               <UserAvatar user={u} size={64} className="size-8" />
             </Link>
           ))}
+          {moreLikedCount > 0 && (
+            <span
+              title={operationT('n_more_users_liked', { n: moreLikedCount })}
+              aria-label={operationT('n_more_users_liked', { n: moreLikedCount })}
+              className="relative inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-secondary px-1.5 text-xs font-semibold tabular-nums text-secondary-foreground ring-2 ring-card"
+            >
+              {moreLikedCount > 99 ? '99+' : `+${moreLikedCount}`}
+            </span>
+          )}
         </div>
       )}
     </div>

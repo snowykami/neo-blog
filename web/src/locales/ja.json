@@ -2598,6 +2598,7 @@
     "like_success": "いいねしました",
     "login": "ログイン",
     "logout": "ログアウト",
+    "n_more_users_liked": "ほか {n} 人がいいねしました",
     "n_users_liked": "{n} 人がいいねしました",
     "open": "開く",
     "preview": "プレビュー",

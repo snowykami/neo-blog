@@ -107,7 +107,7 @@ func (l *likeRepo) Count(targetID uint, targetType string) (int64, error) {
 	return count, nil
 }
 
-// GetLikedUsers 获取点赞用户列表
+// GetLikedUsers 获取点赞用户列表，按点赞时间倒序，只返回最近点赞的 limit 人
 func (l *likeRepo) GetLikedUsers(targetID uint, targetType string, limit int) ([]model.User, error) {
 	if err := l.checkTargetType(targetType); err != nil {
 		return nil, err
@@ -116,6 +116,7 @@ func (l *likeRepo) GetLikedUsers(targetID uint, targetType string, limit int) ([
 	var likes []model.Like
 	// 先查询所有相关的点赞记录并 preload 关联的 User，并限制数量
 	if err := GetDB().Where("target_type = ? AND target_id = ?", targetType, targetID).
+		Order("created_at DESC, id DESC").
 		Limit(limit).
 		Preload("User").
 		Find(&likes).Error; err != nil {

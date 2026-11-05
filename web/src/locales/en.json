@@ -2598,6 +2598,7 @@
     "like_success": "Liked",
     "login": "Login",
     "logout": "Logout",
+    "n_more_users_liked": "{n} more users liked",
     "n_users_liked": "{n} users liked",
     "open": "Open",
     "preview": "Preview",

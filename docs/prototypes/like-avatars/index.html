@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>点赞人头像 · 原型</title>
+<style>
+  /* 色板沿用前台 web/src/app/globals.css 的默认参数（hue 250） */
+  :root {
+    --hue: 250; --chroma: .14; --radius: .625rem;
+    color-scheme: light;
+    --background: oklch(.96 .01 var(--hue));
+    --foreground: oklch(.22 .02 var(--hue));
+    --card: oklch(1 0 0);
+    --primary: oklch(.55 var(--chroma) var(--hue));
+    --primary-foreground: oklch(.98 .01 var(--hue));
+    --secondary: oklch(.95 .025 var(--hue));
+    --secondary-foreground: oklch(.45 var(--chroma) var(--hue));
+    --muted: oklch(.95 .01 var(--hue));
+    --muted-foreground: oklch(.5 .02 var(--hue));
+    --border: oklch(.9 .01 var(--hue));
+    --ring: var(--primary);
+  }
+  html.dark {
+    color-scheme: dark;
+    --background: oklch(.16 .014 var(--hue));
+    --foreground: oklch(.93 .01 var(--hue));
+    --card: oklch(.23 .015 var(--hue));
+    --primary: oklch(.75 var(--chroma) var(--hue));
+    --primary-foreground: oklch(.2 .03 var(--hue));
+    --secondary: oklch(.33 .035 var(--hue));
+    --secondary-foreground: oklch(.85 .08 var(--hue));
+    --muted: oklch(.27 .015 var(--hue));
+    --muted-foreground: oklch(.7 .015 var(--hue));
+    --border: oklch(1 0 0 / 10%);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font: 15px/1.65 system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .muted { color: var(--muted-foreground); }
+
+  /* 原型外框 */
+  .topbar { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 24px; background: color-mix(in oklch, var(--background) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar h1 { margin: 0; font-size: 16px; }
+  .topbar nav { display: flex; gap: 4px; flex-wrap: wrap; margin-left: 8px; }
+  .topbar nav a { padding: 4px 10px; border-radius: 999px; color: var(--muted-foreground); text-decoration: none; font-size: 13px; }
+  .topbar nav a:hover { background: var(--muted); color: var(--foreground); }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--muted); }
+  .seg button { border: 0; background: transparent; padding: 4px 12px; border-radius: 8px; font-size: 13px; color: var(--muted-foreground); }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px oklch(0 0 0 / 12%); }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; display: grid; gap: 36px; }
+  .intro { margin: 0; font-size: 14px; }
+  .intro li { margin: 2px 0; }
+  section { scroll-margin-top: 64px; }
+  .stage-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 4px; font-size: 19px; }
+  .stage-title .tag { font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 999px; background: var(--secondary); color: var(--secondary-foreground); }
+  .stage-title .tag.warn { background: oklch(.94 .05 30); color: oklch(.5 .15 30); }
+  html.dark .stage-title .tag.warn { background: oklch(.32 .06 30); color: oklch(.85 .08 30); }
+  .desc { margin: 0 0 12px; font-size: 14px; }
+  .notes { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 0 0 14px; font-size: 13px; }
+  .notes b { font-weight: 600; }
+  .cases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 980px) { .cases { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 520px) { .cases { grid-template-columns: minmax(0, 1fr); } }
+  .case { position: relative; background: var(--card); border-radius: 14px; padding: 14px 12px 26px; box-shadow: 0 1px 2px oklch(0 0 0 / 5%); }
+  .case-label { font-size: 12px; color: var(--muted-foreground); margin-bottom: 14px; }
+
+  /* —— 以下尽量对应文章页现有 Tailwind 写法 —— */
+  /* flex flex-col items-center gap-3 */
+  .foot { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  /* inline-flex h-11 rounded-lg px-5 bg-secondary text-secondary-foreground */
+  .like-btn { display: inline-flex; height: 44px; align-items: center; gap: 8px; padding: 0 20px; border: 0; border-radius: var(--radius); font-weight: 500; background: var(--secondary); color: var(--secondary-foreground); font-variant-numeric: tabular-nums; }
+  .like-btn:hover { background: color-mix(in oklch, var(--primary) 15%, var(--card)); }
+  /* text-sm text-foreground/50 */
+  .count { font-size: 14px; color: color-mix(in oklch, var(--foreground) 50%, transparent); }
+
+  /* 头像：size-8 rounded-full */
+  .av { position: relative; width: 32px; height: 32px; border-radius: 999px; flex: none; display: grid; place-items: center; color: #fff; font-size: 13px; font-weight: 600; text-decoration: none; background: linear-gradient(135deg, oklch(.8 .11 var(--h)), oklch(.62 .15 calc(var(--h) + 40))); transition: transform .15s; }
+  .av:focus-visible, .more:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .row { display: flex; justify-content: center; gap: 8px; }
+  .row .av:hover { transform: translateY(-2px); }
+
+  /* 重叠堆叠：-space-x-2 + ring-2 ring-card */
+  .stack { display: flex; justify-content: center; }
+  .stack > * + * { margin-left: -8px; }
+  .stack > * { box-shadow: 0 0 0 2px var(--card); }
+  .stack .av:hover { transform: translateY(-3px); z-index: 1; }
+
+  /* 「+N」徽标 */
+  .more { position: relative; height: 32px; min-width: 32px; padding: 0 7px; border: 0; border-radius: 999px; flex: none; display: inline-grid; place-items: center; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; background: var(--secondary); color: var(--secondary-foreground); }
+  button.more:hover { background: color-mix(in oklch, var(--primary) 15%, var(--card)); }
+
+  /* C：末尾渐隐 */
+  .fade { mask-image: linear-gradient(to right, #000 calc(100% - 52px), transparent); -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 52px), transparent); }
+
+  /* D：头像 + 文字同行 */
+  .inline { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 10px; max-width: 100%; }
+  .inline .text { font-size: 14px; color: color-mix(in oklch, var(--foreground) 60%, transparent); }
+  .inline .text a { color: var(--foreground); text-decoration: none; font-weight: 500; }
+  .inline .text a:hover { color: var(--primary); }
+
+  /* E：Popover 完整列表 */
+  .pop-anchor { position: relative; display: inline-flex; }
+  .pop-trigger { display: inline-flex; padding: 3px 4px; margin: -3px -4px; border: 0; background: transparent; border-radius: 999px; }
+  .pop-trigger:hover .more { background: color-mix(in oklch, var(--primary) 15%, var(--card)); }
+  .pop-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .pop { position: absolute; z-index: 20; top: calc(100% + 8px); left: 50%; translate: -50% 0; width: 240px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px oklch(0 0 0 / 14%); text-align: left; animation: pop .14s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+  .pop-head { padding: 10px 14px 8px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--border); }
+  .pop-list { max-height: 264px; overflow: auto; padding: 4px; }
+  .pop-item { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; text-decoration: none; color: inherit; font-size: 13px; }
+  .pop-item:hover { background: var(--muted); }
+  .pop-item .av { width: 28px; height: 28px; font-size: 12px; }
+  .pop-item .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pop-item .time { font-size: 12px; color: var(--muted-foreground); flex: none; }
+  .pop-foot { padding: 8px 14px; font-size: 12px; color: var(--muted-foreground); border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>点赞人头像 · 原型</h1>
+  <nav id="nav"></nav>
+  <span class="spacer"></span>
+  <div class="seg" role="group" aria-label="明暗">
+    <button type="button" data-theme="light" aria-pressed="true">浅色</button>
+    <button type="button" data-theme="dark" aria-pressed="false">深色</button>
+  </div>
+</div>
+
+<main>
+  <ul class="intro muted">
+    <li>每种方案都给出 5 / 6 / 20 / 128 人点赞时的样子；头像顺序统一改为<b>最新点赞在前</b>（最左边是最近点赞的人），更早的点赞不再出现在头像里。</li>
+    <li>悬停头像可看到昵称；方案 E 的头像组可悬停或点击展开完整列表。右上角可切换深色模式。</li>
+  </ul>
+  <div id="stages" style="display:grid;gap:36px"></div>
+</main>
+
+<script>
+  // —— 假数据：下标 0 为最近点赞 ——
+  const NAMES = ['轻雪', '小满', 'Akira', '星野', '若叶', 'Mio', '凛', '白鹭', 'Yuki', '千夏', '柚子', 'Sora', '七海', '奏', 'Hana', '真白', '栞', 'Ren', '朝雾', '琴音']
+  const TIMES = ['刚刚', '2 分钟前', '18 分钟前', '1 小时前', '3 小时前', '昨天', '2 天前', '5 天前', '1 周前', '2 周前']
+  const ALL = Array.from({ length: 128 }, (_, i) => {
+    const base = NAMES[i % NAMES.length]
+    const name = i < NAMES.length ? base : `${base}${Math.floor(i / NAMES.length) + 1}`
+    return { name, h: (i * 47 + 200) % 360, time: TIMES[Math.min(TIMES.length - 1, Math.floor(i / 3))] }
+  })
+  const CASES = [5, 6, 20, 128]
+  const MAX = 5 // 头像最多展示 5 个
+  const LIST_MAX = 100 // 后端 liked_users 单次最多 100 人
+
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+  const heart = '<svg class="i" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>'
+  const av = (u, tag = 'a') => `<${tag} class="av" style="--h:${u.h}" ${tag === 'a' ? 'href="#" onclick="return false"' : ''} title="${esc(u.name)}" aria-label="${esc(u.name)}">${esc([...u.name][0])}</${tag}>`
+  const plus = n => (n > 99 ? '99+' : `+${n}`)
+  const users = total => ALL.slice(0, total)
+  const likeBtn = total => `<button type="button" class="like-btn">${heart}<span>${total}</span></button>`
+  const countLine = total => `<div class="count">${total} 人已点赞</div>`
+
+  // 每个方案：render(total) 返回按钮下方的整块内容
+  const STAGES = [
+    {
+      id: 'now', key: '现状', title: '最多 5 个头像，等距排列', tag: '对照', warn: true,
+      desc: '当前线上的样子：6 人点赞时也只排 5 个头像，看起来像只有 5 个人；而且后端没有排序，展示的是最早点赞的人。',
+      render: total => countLine(total) + `<div class="row">${users(Math.min(total, MAX)).map(u => av(u)).join('')}</div>`,
+    },
+    {
+      id: 'a', key: 'A', title: '重叠堆叠 + 末尾「+N」徽标',
+      desc: '头像互相压住一点（带卡片色描边），最多 5 个；超出的人数用同尺寸的「+N」圆形徽标接在末尾，超过 99 显示「99+」。',
+      pros: '一眼看出还有多少人；整行更紧凑，是常见的「人群」样式',
+      cons: '头像被压住约 1/4，图案细节略少',
+      render: total => {
+        const shown = users(Math.min(total, MAX))
+        return countLine(total) + `<div class="stack">${shown.map(u => av(u)).join('')}${total > MAX ? `<span class="more" title="还有 ${total - MAX} 人">${plus(total - MAX)}</span>` : ''}</div>`
+      },
+    },
+    {
+      id: 'b', key: 'B', title: '第 5 个位置换成「+N」',
+      desc: '保留现在的等距排列和间距，总宽度始终是 5 格；超过 5 人时只放 4 个头像，第 5 格变成「+N」（N = 总数 − 4）。',
+      pros: '改动最小，版面宽度固定不跳动',
+      cons: '超过 5 人时只露 4 张脸',
+      render: total => {
+        const over = total > MAX
+        const shown = users(over ? MAX - 1 : total)
+        return countLine(total) + `<div class="row">${shown.map(u => av(u)).join('')}${over ? `<span class="more" title="还有 ${total - shown.length} 人">${plus(total - shown.length)}</span>` : ''}</div>`
+      },
+    },
+    {
+      id: 'c', key: 'C', title: '末尾渐隐遮罩',
+      desc: '超过 5 人时在末尾多露出第 6 个头像，并加从实到透明的渐隐遮罩，暗示「后面还有」；不显示具体的剩余人数。',
+      pros: '最轻量、没有额外元素，视觉上最安静',
+      cons: '只能感觉到还有更多，看不出具体多少；行宽变化后整体略偏左',
+      render: total => {
+        const over = total > MAX
+        const shown = users(Math.min(total, over ? MAX + 1 : MAX))
+        return countLine(total) + `<div class="row${over ? ' fade' : ''}">${shown.map(u => av(u)).join('')}</div>`
+      },
+    },
+    {
+      id: 'd', key: 'D', title: '头像 + 「某某、某某等 N 人」文字',
+      desc: '去掉单独的「N 人已点赞」那一行，改为一行：重叠的 3 个头像 + 「最近两位的昵称 + 等 N 人已点赞」，昵称可点进主页。',
+      pros: '信息最完整：既有人数，又能看到最近是谁点的赞',
+      cons: '文字较长，窄屏会折行；比现在多一种排版',
+      render: total => {
+        const shown = users(Math.min(total, 3))
+        const named = users(2).map(u => `<a href="#" onclick="return false">${esc(u.name)}</a>`).join('、')
+        return `<div class="inline"><div class="stack">${shown.map(u => av(u)).join('')}</div><span class="text">${named} 等 ${total} 人已点赞</span></div>`
+      },
+    },
+    {
+      id: 'e', key: 'E', title: '堆叠 + 「+N」，悬停 / 点击展开完整列表',
+      desc: '外观同方案 A，但整个头像组是一个按钮：桌面悬停、手机点击时弹出 Popover，按最新点赞在前列出所有人（昵称 + 点赞时间），单次最多 100 人，超出的在底部注明。',
+      pros: '既有 A 的直观，又能看到每一个点赞的人',
+      cons: '需要额外请求完整列表（打开时再拉取）；后端要多返回点赞时间',
+      render: (total, idx) => {
+        const shown = users(Math.min(total, MAX))
+        return countLine(total) + `<div class="pop-anchor" data-pop="${idx}" data-total="${total}">
+          <button type="button" class="pop-trigger" aria-haspopup="dialog" aria-expanded="false" title="查看全部点赞的人">
+            <span class="stack">${shown.map(u => av(u, 'span')).join('')}${total > MAX ? `<span class="more">${plus(total - MAX)}</span>` : ''}</span>
+          </button>
+        </div>`
+      },
+    },
+  ]
+
+  // —— 渲染 ——
+  const nav = document.getElementById('nav')
+  const stages = document.getElementById('stages')
+  nav.innerHTML = STAGES.map(s => `<a href="#${s.id}">${s.key === '现状' ? '现状' : `方案 ${s.key}`}</a>`).join('')
+  stages.innerHTML = STAGES.map(s => `
+    <section id="${s.id}">
+      <h2 class="stage-title">${s.key === '现状' ? '现状' : `方案 ${s.key}`} · ${esc(s.title)}${s.tag ? `<span class="tag${s.warn ? ' warn' : ''}">${s.tag}</span>` : ''}</h2>
+      <p class="desc muted">${esc(s.desc)}</p>
+      ${s.pros ? `<div class="notes"><span><b>优点</b> <span class="muted">${esc(s.pros)}</span></span><span><b>代价</b> <span class="muted">${esc(s.cons)}</span></span></div>` : ''}
+      <div class="cases">
+        ${CASES.map((n, i) => `<div class="case"><div class="case-label">${n} 人点赞</div><div class="foot">${likeBtn(n)}${s.render(n, `${s.id}-${i}`)}</div></div>`).join('')}
+      </div>
+    </section>`).join('')
+
+  // —— 方案 E 的 Popover：悬停延时打开，点击切换，点外部或 Esc 关闭 ——
+  let openAnchor = null
+  let hoverTimer = 0
+  function popHtml(total) {
+    const list = users(Math.min(total, LIST_MAX))
+    return `<div class="pop" role="dialog" aria-label="点赞的人">
+      <div class="pop-head">${total} 人已点赞</div>
+      <div class="pop-list">${list.map(u => `<a class="pop-item" href="#" onclick="return false">${av(u, 'span')}<span class="name">${esc(u.name)}</span><span class="time">${u.time}</span></a>`).join('')}</div>
+      ${total > LIST_MAX ? `<div class="pop-foot">还有 ${total - LIST_MAX} 人未列出</div>` : ''}
+    </div>`
+  }
+  function open(anchor) {
+    if (openAnchor === anchor) return
+    close()
+    anchor.insertAdjacentHTML('beforeend', popHtml(Number(anchor.dataset.total)))
+    anchor.querySelector('.pop-trigger').setAttribute('aria-expanded', 'true')
+    openAnchor = anchor
+  }
+  function close() {
+    if (!openAnchor) return
+    openAnchor.querySelector('.pop')?.remove()
+    openAnchor.querySelector('.pop-trigger').setAttribute('aria-expanded', 'false')
+    openAnchor = null
+  }
+  document.querySelectorAll('[data-pop]').forEach((anchor) => {
+    anchor.addEventListener('mouseenter', () => { clearTimeout(hoverTimer); hoverTimer = setTimeout(() => open(anchor), 200) })
+    anchor.addEventListener('mouseleave', () => { clearTimeout(hoverTimer); hoverTimer = setTimeout(() => { if (openAnchor === anchor) close() }, 250) })
+    anchor.querySelector('.pop-trigger').addEventListener('click', () => (openAnchor === anchor ? close() : open(anchor)))
+  })
+  document.addEventListener('click', (e) => { if (openAnchor && !openAnchor.contains(e.target)) close() })
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close() })
+
+  // —— 明暗切换 ——
+  document.querySelectorAll('[data-theme]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark', btn.dataset.theme === 'dark')
+      document.querySelectorAll('[data-theme]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)))
+    })
+  })
+</script>
+</body>
+</html>

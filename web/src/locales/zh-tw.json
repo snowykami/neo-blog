@@ -2598,6 +2598,7 @@
     "like_success": "已按讚",
     "login": "登入",
     "logout": "登出",
+    "n_more_users_liked": "還有 {n} 人按讚",
     "n_users_liked": "{n} 人按讚",
     "open": "打開",
     "preview": "預覽",

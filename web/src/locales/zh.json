@@ -2717,6 +2717,7 @@
     "like_success": "点赞成功",
     "login": "登录",
     "logout": "登出",
+    "n_more_users_liked": "还有 {n} 人点赞",
     "n_users_liked": "{n} 人已点赞",
     "open": "打开",
     "preview": "预览",

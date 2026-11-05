@@ -2598,6 +2598,7 @@
     "like_success": "좋아요 완료",
     "login": "로그인",
     "logout": "로그아웃",
+    "n_more_users_liked": "외 {n}명이 좋아요를 눌렀습니다",
     "n_users_liked": "{n}명이 좋아요를 눌렀습니다",
     "open": "열기",
     "preview": "미리보기",
