@@ -163,10 +163,23 @@ type AIAgentFileItem struct {
 	Profile json.RawMessage `json:"profile,omitempty"`
 }
 
-// ExportAIAgentsReq 导出：指定 ID 时只导出这一个，否则按列表的筛选条件导出全部（忽略分页）
+// ExportAIAgentsReq 导出：指定 ID 时只导出这一个，指定 IDs 时导出这些，否则按列表的筛选条件导出全部（忽略分页；不带筛选条件即导出所有）
 type ExportAIAgentsReq struct {
 	AdminListAIAgentsReq
-	ID uint `query:"id"`
+	ID  uint   `query:"id"`
+	IDs string `query:"ids"` // 逗号分隔的 AI 用户 ID，导出勾选的
+}
+
+// BatchAIAgentsReq 批量操作：pause 暂停 / resume 恢复 / delete 取消 AI 身份
+type BatchAIAgentsReq struct {
+	IDs    []uint `json:"ids"`
+	Action string `json:"action"`
+}
+
+// BatchAIAgentsResp 批量操作的结果：不存在等原因失败的 ID 单独列出，不影响其他
+type BatchAIAgentsResp struct {
+	Succeeded int    `json:"succeeded"`
+	Failed    []uint `json:"failed"`
 }
 
 // ImportAIAgentsReq 导入：按用户名逐个新建或更新，单个失败不影响其他

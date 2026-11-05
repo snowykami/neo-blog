@@ -2199,9 +2199,17 @@
         "edit": "性格",
         "logs": "ログ",
         "import": "インポート",
-        "export": "エクスポート",
-        "export_hint": "現在の絞り込み条件でアカウント情報と性格プロフィールをエクスポート（記憶とログは含みません）",
-        "distill": "人物蒸留"
+        "export": "すべてエクスポート",
+        "export_hint": "すべての AI ユーザーのアカウント情報と性格プロフィールをエクスポートします（記憶とログは含みません）。一部だけエクスポートするには先に選択してください",
+        "distill": "人物蒸留",
+        "select_agent": "{name} を選択",
+        "select_page": "このページをすべて選択",
+        "selected": "{count} 人を選択中",
+        "clear_selection": "選択を解除",
+        "batch_export": "選択をエクスポート",
+        "batch_remove_title": "{count} 人の AI ユーザーの AI を解除しますか？",
+        "batch_success": "{count} 人を処理しました",
+        "batch_partial": "{succeeded} 人成功、{failed} 人失敗（削除済みの可能性があります）"
       },
       "create": {
         "title": "AI ユーザーを作成",

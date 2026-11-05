@@ -176,6 +176,40 @@ func TestAgentGuard(t *testing.T) {
 	_ = author
 }
 
+// 批量暂停、恢复、取消 AI 身份：只有管理员能用，不存在的 ID 记为失败
+func TestAIAgentBatch(t *testing.T) {
+	admin, author, ai1, ai2, _ := setupAgentTest(t)
+	svc := NewAIAgentService()
+	if _, svcerr := svc.Batch(author, &dto.BatchAIAgentsReq{IDs: []uint{ai1.ID}, Action: "pause"}); svcerr == nil {
+		t.Fatal("non-admin batch should be refused")
+	}
+	for _, req := range []dto.BatchAIAgentsReq{{IDs: []uint{ai1.ID}, Action: "nope"}, {Action: "pause"}} {
+		if _, svcerr := svc.Batch(admin, &req); svcerr == nil {
+			t.Fatalf("batch %+v should be refused", req)
+		}
+	}
+	status := func(id uint) string {
+		agent, err := repo.AIAgent.GetByID(id)
+		if err != nil {
+			return "missing"
+		}
+		return agent.Status
+	}
+	result, svcerr := svc.Batch(admin, &dto.BatchAIAgentsReq{IDs: []uint{ai1.ID, ai2.ID, ai1.ID, 99999}, Action: "pause"})
+	if svcerr != nil || result.Succeeded != 2 || len(result.Failed) != 1 || result.Failed[0] != 99999 {
+		t.Fatalf("pause = %+v, %v", result, svcerr)
+	}
+	if status(ai1.ID) != constant.AIAgentStatusPaused || status(ai2.ID) != constant.AIAgentStatusPaused {
+		t.Fatal("agents should be paused")
+	}
+	if result, svcerr = svc.Batch(admin, &dto.BatchAIAgentsReq{IDs: []uint{ai2.ID}, Action: "resume"}); svcerr != nil || result.Succeeded != 1 || status(ai2.ID) != constant.AIAgentStatusActive {
+		t.Fatalf("resume = %+v, %v", result, svcerr)
+	}
+	if result, svcerr = svc.Batch(admin, &dto.BatchAIAgentsReq{IDs: []uint{ai1.ID}, Action: "delete"}); svcerr != nil || result.Succeeded != 1 || status(ai1.ID) != "missing" {
+		t.Fatalf("delete = %+v, %v", result, svcerr)
+	}
+}
+
 // 被回复时不在程序里掷骰子：回应概率为 0 也照样安排运行，回不回由 AI 看过回复后自己决定
 func TestAgentReplyDecidedByModel(t *testing.T) {
 	admin, author, ai1, _, postID := setupAgentTest(t)

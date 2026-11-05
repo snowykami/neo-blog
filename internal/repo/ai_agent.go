@@ -100,6 +100,16 @@ func (r *aiAgentRepo) ListAll(req *dto.AdminListAIAgentsReq) ([]model.AIAgent, e
 	return agents, err
 }
 
+// ListByIDs 按 ID 取出 AI 用户（导出勾选项用），按创建顺序；不存在的 ID 跳过
+func (r *aiAgentRepo) ListByIDs(ids []uint) ([]model.AIAgent, error) {
+	var agents []model.AIAgent
+	if len(ids) == 0 {
+		return agents, nil
+	}
+	err := GetDB().Preload("User").Where("ai_agents.id IN ?", ids).Order("ai_agents.id ASC").Find(&agents).Error
+	return agents, err
+}
+
 // ListActive 调度器使用：状态为启用且账号未被禁用的全部 AI 用户
 func (r *aiAgentRepo) ListActive() ([]model.AIAgent, error) {
 	var agents []model.AIAgent

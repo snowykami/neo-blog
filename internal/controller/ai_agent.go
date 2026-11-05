@@ -173,6 +173,21 @@ func (cc *AIAgentController) Delete(ctx context.Context, c *app.RequestContext) 
 	resps.Ok(c, resps.Success, nil)
 }
 
+// Batch 批量暂停、恢复或取消 AI 身份
+func (cc *AIAgentController) Batch(ctx context.Context, c *app.RequestContext) {
+	req := &dto.BatchAIAgentsReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := cc.service.Batch(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
 func (cc *AIAgentController) DryRun(ctx context.Context, c *app.RequestContext) {
 	req := &dto.AIAgentDryRunReq{}
 	if err := c.BindAndValidate(req); err != nil || req.ID == 0 {

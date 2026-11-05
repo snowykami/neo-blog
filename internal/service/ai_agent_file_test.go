@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -52,6 +53,14 @@ func TestAIAgentExportImport(t *testing.T) {
 	single, svcerr := svc.Export(admin, &dto.ExportAIAgentsReq{ID: ai2.ID})
 	if svcerr != nil || len(single) != 1 || single[0].Username != "ai_two" {
 		t.Fatalf("export single = %+v, %v", single, svcerr)
+	}
+	// 导出勾选的：不存在的 ID 跳过，格式不对时报错
+	picked, svcerr := svc.Export(admin, &dto.ExportAIAgentsReq{IDs: fmt.Sprintf("%d, 99999", ai2.ID)})
+	if svcerr != nil || len(picked) != 1 || picked[0].Username != "ai_two" {
+		t.Fatalf("export picked = %+v, %v", picked, svcerr)
+	}
+	if _, svcerr := svc.Export(admin, &dto.ExportAIAgentsReq{IDs: "1,x"}); svcerr == nil {
+		t.Fatal("invalid ids should be refused")
 	}
 
 	roundTrip := exported[1]

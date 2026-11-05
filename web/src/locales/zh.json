@@ -2199,9 +2199,17 @@
         "edit": "性格",
         "logs": "日志",
         "import": "导入",
-        "export": "导出",
-        "export_hint": "按当前筛选条件导出账号资料与性格档案（不含记忆与日志）",
-        "distill": "人物蒸馏"
+        "export": "导出全部",
+        "export_hint": "导出全部 AI 用户的账号资料与性格档案（不含记忆与日志）；只导出一部分时先勾选",
+        "distill": "人物蒸馏",
+        "select_agent": "选择 {name}",
+        "select_page": "选择本页全部",
+        "selected": "已选 {count} 个",
+        "clear_selection": "取消选择",
+        "batch_export": "导出选中",
+        "batch_remove_title": "取消 {count} 个 AI 用户的 AI 身份？",
+        "batch_success": "已处理 {count} 个",
+        "batch_partial": "{succeeded} 个成功，{failed} 个失败（可能已被删除）"
       },
       "create": {
         "title": "新建 AI 用户",

@@ -1,18 +1,21 @@
 'use client'
 
+import type { AIAgentBatchAction } from '@/api/ai-agent'
 import type { AIAgent, AIAgentStats, AIAgentStatus, AIAgentTier } from '@/models/ai-agent'
-import { Download, ListTree, Plus, SlidersHorizontal, Sparkles, Upload, Wand, X } from 'lucide-react'
+import { Download, ListTree, Pause, Play, Plus, SlidersHorizontal, Sparkles, Upload, UserMinus, Wand, X } from 'lucide-react'
 import { useFormatter } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { parseAsInteger, parseAsString, parseAsStringEnum, useQueryState } from 'nuqs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { getAIAgentStats, listAIAgentGroups, listAIAgents, pauseAIAgent, resumeAIAgent } from '@/api/ai-agent'
+import { batchAIAgents, getAIAgentStats, listAIAgentGroups, listAIAgents, pauseAIAgent, resumeAIAgent } from '@/api/ai-agent'
 import { UserAvatar } from '@/components/common/avatar'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -34,7 +37,7 @@ import { AIAgentStatsCards } from './stats-cards'
 
 const ALL = 'all'
 const PAGE_SIZE = 15
-const COLUMN_COUNT = 7
+const COLUMN_COUNT = 8
 const VIEWS = ['agents', 'groups'] as const
 type View = (typeof VIEWS)[number]
 
@@ -68,6 +71,10 @@ export function AIAgentsPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [distillOpen, setDistillOpen] = useState(false)
   const { exporting, exportAgents } = useExportAIAgents()
+  // 勾选的 AI 用户：翻页、筛选时保留，用于批量操作与导出选中
+  const [selected, setSelected] = useState<Set<number>>(() => new Set())
+  const [batching, setBatching] = useState(false)
+  const [batchRemoveOpen, setBatchRemoveOpen] = useState(false)
 
   const fetchStats = useCallback(() => {
     getAIAgentStats().then(res => setStats(res.data)).catch(() => {})
@@ -137,6 +144,37 @@ export function AIAgentsPage() {
     }
   }
 
+  const pageIds = agents.map(agent => agent.id)
+  const pageAllSelected = pageIds.length > 0 && pageIds.every(id => selected.has(id))
+  const setChecked = (ids: number[], checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      ids.forEach(id => (checked ? next.add(id) : next.delete(id)))
+      return next
+    })
+  }
+
+  const runBatch = async (action: AIAgentBatchAction) => {
+    setBatching(true)
+    try {
+      const { succeeded, failed } = (await batchAIAgents(Array.from(selected), action)).data
+      if (failed.length > 0)
+        toast.warning(t('list.batch_partial', { succeeded, failed: failed.length }))
+      else
+        toast.success(t('list.batch_success', { count: succeeded }))
+      // 取消 AI 身份后这些已不在列表中
+      if (action === 'delete')
+        setSelected(new Set())
+      refreshAll()
+    }
+    catch (err) {
+      toast.error(errorMessageT(err, operationT('operation_failed')))
+    }
+    finally {
+      setBatching(false)
+    }
+  }
+
   const filterSelect = <T extends string>(value: T | null, onChange: (value: T | null) => void, items: readonly { value: T, label: string }[], label: string, allLabel: string) => (
     <Select
       value={value ?? ALL}
@@ -187,7 +225,7 @@ export function AIAgentsPage() {
               variant="outline"
               disabled={exporting}
               title={t('list.export_hint')}
-              onClick={() => exportAgents({ query: query.trim(), tier: tier ?? '', status: status ?? '', groupId: groupId ?? undefined })}
+              onClick={() => exportAgents()}
             >
               <Download />
               {t('list.export')}
@@ -249,10 +287,44 @@ export function AIAgentsPage() {
             )}
           </div>
           <div className="text-sm text-muted-foreground tabular-nums">{t('list.total', { total })}</div>
+          {selected.size > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/40 px-3 py-2">
+              <span className="text-sm font-medium tabular-nums">{t('list.selected', { count: selected.size })}</span>
+              <Button size="sm" variant="outline" disabled={batching} onClick={() => runBatch('pause')}>
+                <Pause />
+                {t('pause')}
+              </Button>
+              <Button size="sm" variant="outline" disabled={batching} onClick={() => runBatch('resume')}>
+                <Play />
+                {t('resume')}
+              </Button>
+              <Button size="sm" variant="outline" disabled={exporting} onClick={() => exportAgents({ ids: Array.from(selected) })}>
+                <Download />
+                {t('list.batch_export')}
+              </Button>
+              <Button size="sm" variant="destructive" disabled={batching} onClick={() => setBatchRemoveOpen(true)}>
+                <UserMinus />
+                {t('detail.remove')}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                <X />
+                {t('list.clear_selection')}
+              </Button>
+            </div>
+          )}
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={pageAllSelected}
+                      disabled={loading || pageIds.length === 0}
+                      aria-label={t('list.select_page')}
+                      title={t('list.select_page')}
+                      onCheckedChange={checked => setChecked(pageIds, checked === true)}
+                    />
+                  </TableHead>
                   <TableHead>{t('list.col_agent')}</TableHead>
                   <TableHead>{t('tier_label')}</TableHead>
                   <TableHead>{t('list.col_status')}</TableHead>
@@ -265,6 +337,7 @@ export function AIAgentsPage() {
               <TableBody>
                 {loading && Array.from({ length: 5 }, (_, i) => (
                   <TableRow key={`skeleton-${i}`}>
+                    <TableCell><Skeleton className="size-4" /></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Skeleton className="size-8 rounded-full" />
@@ -295,7 +368,14 @@ export function AIAgentsPage() {
                   </TableRow>
                 )}
                 {!loading && !error && agents.map(agent => (
-                  <TableRow key={agent.id}>
+                  <TableRow key={agent.id} data-state={selected.has(agent.id) ? 'selected' : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.has(agent.id)}
+                        aria-label={t('list.select_agent', { name: agent.user.nickname || agent.user.username })}
+                        onCheckedChange={checked => setChecked([agent.id], checked === true)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <Link href={`${consolePath.aiAgent}/${agent.id}`} className="flex items-center gap-3">
                         <UserAvatar user={agent.user} size={64} className="size-8" fallbackClassName="text-xs" />
@@ -377,6 +457,22 @@ export function AIAgentsPage() {
         </TabsContent>
       </Tabs>
 
+      {batchRemoveOpen && (
+        <ConfirmDialog
+          open
+          title={t('list.batch_remove_title', { count: selected.size })}
+          description={(
+            <>
+              <p>{t('detail.remove_description')}</p>
+              <p className="font-medium text-destructive">{t('detail.remove_irreversible')}</p>
+            </>
+          )}
+          confirmLabel={t('detail.remove')}
+          errorText={operationT('operation_failed')}
+          onOpenChange={setBatchRemoveOpen}
+          onConfirm={() => runBatch('delete')}
+        />
+      )}
       <CreateAgentDialog
         open={createOpen}
         onOpenChange={setCreateOpen}

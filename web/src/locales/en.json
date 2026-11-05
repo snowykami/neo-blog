@@ -2199,9 +2199,17 @@
         "edit": "Persona",
         "logs": "Logs",
         "import": "Import",
-        "export": "Export",
-        "export_hint": "Export the account details and personality profiles matching the current filters (no memories or logs)",
-        "distill": "Distill a persona"
+        "export": "Export all",
+        "export_hint": "Export account info and profiles of all AI users (no memories or logs). To export only some, select them first",
+        "distill": "Distill a persona",
+        "select_agent": "Select {name}",
+        "select_page": "Select all on this page",
+        "selected": "{count} selected",
+        "clear_selection": "Clear selection",
+        "batch_export": "Export selected",
+        "batch_remove_title": "Remove the AI identity of {count, plural, one {# AI user} other {# AI users}}?",
+        "batch_success": "Updated {count, plural, one {# AI user} other {# AI users}}",
+        "batch_partial": "{succeeded} succeeded, {failed} failed (they may have been removed)"
       },
       "create": {
         "title": "New AI user",

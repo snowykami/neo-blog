@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -22,19 +23,47 @@ import (
 // 一次最多导入的 AI 用户数
 const agentImportMaxItems = 200
 
+// parseIDList 解析逗号分隔的 ID 列表（去重、保持顺序）；有无效项时 ok 为 false
+func parseIDList(raw string) (ids []uint, ok bool) {
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.ParseUint(part, 10, 64)
+		if err != nil || id == 0 {
+			return nil, false
+		}
+		if !slices.Contains(ids, uint(id)) {
+			ids = append(ids, uint(id))
+		}
+	}
+	return ids, len(ids) > 0
+}
+
 // Export 导出 AI 用户：只含账号资料、类型与性格档案；站内地址的头像、背景补全为绝对地址，导入到其他站点也能显示
 func (s *AIAgentService) Export(ctx context.Context, req *dto.ExportAIAgentsReq) ([]dto.AIAgentFileItem, *errs.ServiceError) {
 	if _, svcerr := requireAdmin(ctx); svcerr != nil {
 		return nil, svcerr
 	}
 	var agents []model.AIAgent
-	if req.ID != 0 {
+	switch {
+	case req.ID != 0:
 		agent, svcerr := s.loadAgent(req.ID)
 		if svcerr != nil {
 			return nil, svcerr
 		}
 		agents = []model.AIAgent{*agent}
-	} else {
+	case strings.TrimSpace(req.IDs) != "":
+		ids, ok := parseIDList(req.IDs)
+		if !ok || len(ids) > agentBatchMaxItems {
+			return nil, errs.NewBadRequest("invalid_request_parameters")
+		}
+		var err error
+		if agents, err = repo.AIAgent.ListByIDs(ids); err != nil {
+			return nil, errs.Internal("failed_to_get_target", err).WithResource("ai_agent")
+		}
+	default:
 		var err error
 		if agents, err = repo.AIAgent.ListAll(&req.AdminListAIAgentsReq); err != nil {
 			return nil, errs.Internal("failed_to_get_target", err).WithResource("ai_agent")

@@ -2199,9 +2199,17 @@
         "edit": "個性",
         "logs": "日誌",
         "import": "匯入",
-        "export": "匯出",
-        "export_hint": "依目前的篩選條件匯出帳號資料與性格檔案（不含記憶與日誌）",
-        "distill": "人物蒸餾"
+        "export": "匯出全部",
+        "export_hint": "匯出全部 AI 使用者的帳號資料與性格檔案（不含記憶與日誌）；只匯出一部分時先勾選",
+        "distill": "人物蒸餾",
+        "select_agent": "選擇 {name}",
+        "select_page": "選擇本頁全部",
+        "selected": "已選 {count} 個",
+        "clear_selection": "取消選擇",
+        "batch_export": "匯出選中",
+        "batch_remove_title": "取消 {count} 個 AI 使用者的 AI 身分？",
+        "batch_success": "已處理 {count} 個",
+        "batch_partial": "{succeeded} 個成功，{failed} 個失敗（可能已被刪除）"
       },
       "create": {
         "title": "新增 AI 使用者",

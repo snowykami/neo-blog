@@ -1,6 +1,6 @@
 'use client'
 
-import type { ListAIAgentsParams } from '@/api/ai-agent'
+import type { ExportAIAgentsParams } from '@/api/ai-agent'
 import type { AIAgentFileItem, AIAgentTier } from '@/models/ai-agent'
 import { camelToSnakeObj, snakeToCamelObj } from 'field-conv'
 import { useState } from 'react'
@@ -52,14 +52,14 @@ export function downloadAgentFile(data: AIAgentFileItem | AIAgentFileItem[], fil
   URL.revokeObjectURL(url)
 }
 
-/** 导出 AI 用户：指定 id 时只导出这一个（文件为单个对象，以用户名命名），否则按筛选条件导出全部（文件为数组） */
+/** 导出 AI 用户：指定 id 时只导出这一个（文件为单个对象，以用户名命名）；指定 ids 时导出勾选的，否则导出全部（文件为数组） */
 export function useExportAIAgents() {
   const t = useAIAgentT()
   const operationT = useOperationT()
   const errorMessageT = useErrorMessageT()
   const [exporting, setExporting] = useState(false)
 
-  const exportAgents = async (params: Omit<ListAIAgentsParams, 'page' | 'size'> & { id?: number }) => {
+  const exportAgents = async (params: ExportAIAgentsParams = {}) => {
     setExporting(true)
     try {
       const agents = (await exportAIAgents(params)).data.agents ?? []

@@ -53,9 +53,19 @@ export async function createAIAgent(data: CreateAIAgentReq): Promise<BaseRespons
   return res.data
 }
 
-// 导出：指定 id 时只导出这一个，否则按列表的筛选条件导出全部
-export async function exportAIAgents(params: Omit<ListAIAgentsParams, 'page' | 'size'> & { id?: number }): Promise<BaseResponse<{ agents: AIAgentFileItem[] }>> {
-  const res = await axiosClient.get('/admin/ai-agents/export', { params })
+export type ExportAIAgentsParams = Omit<ListAIAgentsParams, 'page' | 'size'> & { id?: number, ids?: number[] }
+
+// 导出：指定 id 时只导出这一个，指定 ids 时导出这些，否则按筛选条件导出全部（不带筛选条件即导出所有）
+export async function exportAIAgents({ ids, ...params }: ExportAIAgentsParams): Promise<BaseResponse<{ agents: AIAgentFileItem[] }>> {
+  const res = await axiosClient.get('/admin/ai-agents/export', { params: { ...params, ids: ids?.length ? ids.join(',') : undefined } })
+  return res.data
+}
+
+export type AIAgentBatchAction = 'pause' | 'resume' | 'delete'
+
+// 批量暂停、恢复或取消 AI 身份；不存在等原因失败的 ID 在 failed 中列出，不影响其他
+export async function batchAIAgents(ids: number[], action: AIAgentBatchAction): Promise<BaseResponse<{ succeeded: number, failed: number[] }>> {
+  const res = await axiosClient.post('/admin/ai-agents/batch', { ids, action })
   return res.data
 }
 

@@ -17,6 +17,7 @@ func registerAIAgentRoutes(group *route.RouterGroup) {
 		admin.POST("/ai-agents", cc.Create)
 		admin.GET("/ai-agents/export", cc.Export)
 		admin.POST("/ai-agents/import", cc.Import)
+		admin.POST("/ai-agents/batch", cc.Batch)
 		admin.GET("/ai-agents/:id", cc.Get)
 		admin.PUT("/ai-agents/:id", cc.Update)
 		admin.POST("/ai-agents/:id/pause", cc.Pause())

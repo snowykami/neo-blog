@@ -619,6 +619,45 @@ func (s *AIAgentService) Delete(ctx context.Context, id uint) *errs.ServiceError
 	return nil
 }
 
+// agentBatchMaxItems 一次批量操作或导出勾选项最多的 AI 用户数
+const agentBatchMaxItems = 500
+
+// Batch 批量暂停、恢复或取消 AI 身份；某一个失败（如已不存在）只记入 Failed，不影响其他
+func (s *AIAgentService) Batch(ctx context.Context, req *dto.BatchAIAgentsReq) (*dto.BatchAIAgentsResp, *errs.ServiceError) {
+	if _, svcerr := requireAdmin(ctx); svcerr != nil {
+		return nil, svcerr
+	}
+	ids := make([]uint, 0, len(req.IDs))
+	for _, id := range req.IDs {
+		if id != 0 && !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 || len(ids) > agentBatchMaxItems {
+		return nil, errs.NewBadRequest("invalid_request_parameters")
+	}
+	var apply func(id uint) *errs.ServiceError
+	switch req.Action {
+	case "pause":
+		apply = func(id uint) *errs.ServiceError { return s.SetStatus(ctx, id, constant.AIAgentStatusPaused) }
+	case "resume":
+		apply = func(id uint) *errs.ServiceError { return s.SetStatus(ctx, id, constant.AIAgentStatusActive) }
+	case "delete":
+		apply = func(id uint) *errs.ServiceError { return s.Delete(ctx, id) }
+	default:
+		return nil, errs.NewBadRequest("invalid_request_parameters")
+	}
+	result := &dto.BatchAIAgentsResp{Failed: []uint{}}
+	for _, id := range ids {
+		if svcerr := apply(id); svcerr != nil {
+			result.Failed = append(result.Failed, id)
+			continue
+		}
+		result.Succeeded++
+	}
+	return result, nil
+}
+
 // DryRun 试运行：创建一个只读的运行（租约令牌没有写权限），Runner 输出操作列表但不执行
 func (s *AIAgentService) DryRun(ctx context.Context, req *dto.AIAgentDryRunReq) (*dto.AgentRunDto, *errs.ServiceError) {
 	if _, svcerr := requireAdmin(ctx); svcerr != nil {

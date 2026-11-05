@@ -2199,9 +2199,17 @@
         "edit": "성격",
         "logs": "로그",
         "import": "가져오기",
-        "export": "내보내기",
-        "export_hint": "현재 필터 조건으로 계정 정보와 성격 프로필을 내보냅니다 (기억과 로그 제외)",
-        "distill": "인물 증류"
+        "export": "모두 내보내기",
+        "export_hint": "모든 AI 사용자의 계정 정보와 성격 프로필을 내보냅니다(기억과 로그 제외). 일부만 내보내려면 먼저 선택하세요",
+        "distill": "인물 증류",
+        "select_agent": "{name} 선택",
+        "select_page": "이 페이지 전체 선택",
+        "selected": "{count}명 선택됨",
+        "clear_selection": "선택 해제",
+        "batch_export": "선택 항목 내보내기",
+        "batch_remove_title": "AI 사용자 {count}명의 AI 신분을 해제할까요?",
+        "batch_success": "{count}명 처리됨",
+        "batch_partial": "{succeeded}명 성공, {failed}명 실패(이미 해제되었을 수 있음)"
       },
       "create": {
         "title": "AI 사용자 만들기",
