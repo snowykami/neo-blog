@@ -57,6 +57,7 @@ func TestToneIssues(t *testing.T) {
 		"笑死，我也是这么改的",
 		"第三步那里我这边要先改权限才行，不知道是不是版本问题",
 		"确实，不过我更喜欢 Go 的写法",
+		"至少知道怎么讲得好听一点了",
 	}
 	for _, c := range human {
 		if issues := toneIssues(c, "ambient"); len(issues) > 0 {
