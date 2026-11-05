@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,14 +23,19 @@ import (
 	"github.com/snowykami/neo-blog/pkg/cache"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 // 网易云音乐歌单：通过 NeteaseCloudMusicApi Enhanced 服务读取用户歌单、歌曲播放地址与歌词
 // Cookie 只在后端使用；公开接口只提供所选歌单内的曲目，避免借站长账号播放任意歌曲
 
 const (
-	musicPlaylistTTL     = 10 * time.Minute // 歌单曲目缓存时间，过期后先返回旧数据并在后台刷新
-	musicSongURLMaxTTL   = 10 * time.Minute // 播放地址最长缓存时间（地址本身有有效期）
+	musicPlaylistTTL   = 10 * time.Minute // 歌单曲目缓存时间，过期后先返回旧数据并在后台刷新
+	musicSongURLMaxTTL = 10 * time.Minute // 播放地址最长缓存时间（地址本身有有效期）
+	// 共享缓存里的歌单最多保留这么久：其间新实例启动后直接使用（过期的同样先返回再在后台刷新），上游长时间不可用时也有旧数据
+	musicPlaylistSharedTTL = 24 * time.Hour
+	// 其他实例正在刷新歌单时，本实例这么久后再检查共享缓存里的新歌单
+	musicPlaylistRecheck = 30 * time.Second
 	musicRequestTimeout  = 10 * time.Second
 	musicPlaylistMaxSize = 1000
 )
@@ -64,21 +71,48 @@ type musicSongURLKey struct {
 	level string
 }
 
-// musicState 歌单与播放地址缓存；配置（API、Cookie、歌单）变化后按新配置重新获取
+// musicState 歌单与播放地址缓存（本实例的 L1）；配置（API、Cookie、歌单）变化后按新配置重新获取
 var musicState = struct {
 	sync.Mutex
 	key        string
 	fetchedAt  time.Time
 	tracks     []dto.MusicTrackDto
-	refreshing bool // 正在后台刷新歌单
+	refreshing bool      // 正在后台刷新歌单
+	recheckAt  time.Time // 其他实例正在刷新时，到这个时间再检查共享缓存
 	songURLs   map[musicSongURLKey]musicSongURL
 }{}
+
+// musicShared 歌单与播放地址的共享缓存（只在配置 Redis 时使用：各实例共用、滚动更新后仍在；单实例时 musicState 就是全部）：
+// 新实例不用再向网易云获取歌单，同一首歌的播放地址各实例共用一份。键里只放配置的哈希，不放 Cookie
+var musicShared = cache.NewTiered("music:ncm", 200, 32<<20)
+
+// musicSharedPlaylist 共享缓存中的歌单
+type musicSharedPlaylist struct {
+	FetchedAt time.Time           `json:"fetched_at"`
+	Tracks    []dto.MusicTrackDto `json:"tracks"`
+}
+
+// musicSharedSongURL 共享缓存中的播放地址
+type musicSharedSongURL struct {
+	URL       string    `json:"url"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// musicConfigHash 配置（或其中一部分）的哈希，用作共享缓存的键：配置变化后自然换成新的键，键里不出现 Cookie
+func musicConfigHash(parts ...string) string {
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\n")))
+	return hex.EncodeToString(sum[:12])
+}
+
+func musicPlaylistCacheKey(key string) string {
+	return "playlist:" + musicConfigHash(key)
+}
 
 // musicFetchMu 同一时间只向 API 获取一次歌单
 var musicFetchMu sync.Mutex
 
-// 歌词缓存：按歌曲 ID 保存序列化后的歌词
-var musicLyricCache = cache.NewLRUCacheWithSize(500, 16<<20)
+// 歌词缓存：按歌曲 ID 保存序列化后的歌词（两级缓存：配置 Redis 时各实例共用、重启后仍在，见 pkg/cache/tiered.go）
+var musicLyricCache = cache.NewIDCache("music:lyric", 500, 16<<20)
 
 // 网易云歌词缓存时长（参考 StarryPlayer）：有歌词 30 天，没有歌词 1 天（之后可能补上）；请求出错不缓存
 const (
@@ -99,7 +133,10 @@ func (e musicLyricCacheEntry) miss() bool {
 }
 
 // 单曲信息缓存：按歌曲 ID 保存序列化后的信息（歌曲名、歌手、封面基本不变）
-var musicSongCache = cache.NewLRUCacheWithSize(1000, 4<<20)
+var musicSongCache = cache.NewIDCache("music:song", 1000, 4<<20)
+
+// musicSongTTL 单曲信息的缓存时间
+const musicSongTTL = 7 * 24 * time.Hour
 
 // ListNCMPlaylists 获取 Cookie 对应账号的歌单，供后台选择博客歌单
 func (s *MusicService) ListNCMPlaylists(ctx context.Context, req *dto.NCMPlaylistsReq) (*dto.NCMPlaylistsDto, *errs.ServiceError) {
@@ -177,11 +214,17 @@ func (s *MusicService) GetPlaylist(ctx context.Context) ([]dto.MusicTrackDto, *e
 		return tracks, nil
 	}
 
-	// 首次获取（或配置变化）：同一时间只获取一次，等待中的请求复用结果
+	// 首次获取（或配置变化）：同一时间只获取一次，等待中的请求复用结果；多个实例同时启动时也只有一个向网易云获取，其余等它写入共享缓存
 	musicFetchMu.Lock()
 	defer musicFetchMu.Unlock()
 	if tracks, ok := cachedPlaylist(key, cfg); ok {
 		return tracks, nil
+	}
+	if release, err := sharedstate.Lock(ctx, "music:playlist:fetch:"+musicConfigHash(key), musicRequestTimeout+5*time.Second); err == nil {
+		defer release()
+		if tracks, ok := cachedPlaylist(key, cfg); ok {
+			return tracks, nil
+		}
 	}
 	tracks, err := fetchNCMTracks(ctx, cfg)
 	if err != nil {
@@ -191,42 +234,100 @@ func (s *MusicService) GetPlaylist(ctx context.Context) ([]dto.MusicTrackDto, *e
 	return tracks, nil
 }
 
-// cachedPlaylist 读取同一配置下的缓存；过期时触发一次后台刷新并先返回旧数据
+// cachedPlaylist 读取同一配置下的缓存：本实例没有时读共享缓存（其他实例或重启前获取的）；
+// 过期时触发一次后台刷新并先返回旧数据
 func cachedPlaylist(key string, cfg tools.NCMConfig) ([]dto.MusicTrackDto, bool) {
+	musicState.Lock()
+	missing := musicState.key != key || musicState.tracks == nil
+	musicState.Unlock()
+	if missing && !adoptSharedPlaylist(key, time.Time{}) {
+		return nil, false
+	}
 	musicState.Lock()
 	defer musicState.Unlock()
 	if musicState.key != key || musicState.tracks == nil {
 		return nil, false
 	}
-	if time.Since(musicState.fetchedAt) >= musicPlaylistTTL && !musicState.refreshing {
+	if time.Since(musicState.fetchedAt) >= musicPlaylistTTL && !musicState.refreshing && time.Now().After(musicState.recheckAt) {
 		musicState.refreshing = true
 		go refreshPlaylist(key, cfg)
 	}
 	return musicState.tracks, true
 }
 
-// refreshPlaylist 后台刷新歌单；失败时保留旧数据，下次请求再重试
-func refreshPlaylist(key string, cfg tools.NCMConfig) {
-	musicFetchMu.Lock()
-	defer musicFetchMu.Unlock()
-	tracks, err := fetchNCMTracks(context.Background(), cfg)
-	if err != nil {
-		logrus.Warnf("ncm refresh playlist failed: %v", err)
-		musicState.Lock()
-		musicState.refreshing = false
-		musicState.Unlock()
-		return
+// adoptSharedPlaylist 共享缓存里有比 newerThan 新的歌单时用它更新本实例的缓存，返回是否更新
+func adoptSharedPlaylist(key string, newerThan time.Time) bool {
+	if !sharedstate.Shared() {
+		return false
 	}
-	storePlaylist(key, tracks)
-}
-
-func storePlaylist(key string, tracks []dto.MusicTrackDto) {
+	shared, ok := cache.GetJSON[musicSharedPlaylist](musicShared, musicPlaylistCacheKey(key))
+	if !ok || shared.Tracks == nil || !shared.FetchedAt.After(newerThan) {
+		return false
+	}
 	musicState.Lock()
 	defer musicState.Unlock()
 	if musicState.key != key {
 		musicState.songURLs = nil
 	}
-	musicState.key, musicState.fetchedAt, musicState.tracks, musicState.refreshing = key, time.Now(), tracks, false
+	musicState.key, musicState.fetchedAt, musicState.tracks = key, shared.FetchedAt, shared.Tracks
+	return true
+}
+
+// refreshPlaylist 后台刷新歌单：其他实例已经刷新过时直接用共享缓存里的；同一时间只有一个实例向网易云获取。
+// 失败时保留旧数据，下次请求再重试
+func refreshPlaylist(key string, cfg tools.NCMConfig) {
+	done := func(recheck bool) {
+		musicState.Lock()
+		musicState.refreshing = false
+		if recheck {
+			musicState.recheckAt = time.Now().Add(musicPlaylistRecheck)
+		}
+		musicState.Unlock()
+	}
+	musicState.Lock()
+	fetchedAt := musicState.fetchedAt
+	musicState.Unlock()
+	if adoptSharedPlaylist(key, fetchedAt) {
+		musicState.Lock()
+		fresh := time.Since(musicState.fetchedAt) < musicPlaylistTTL
+		musicState.Unlock()
+		if fresh {
+			done(false)
+			return
+		}
+	}
+	release, ok, err := sharedstate.TryLock("music:playlist:refresh:"+musicConfigHash(key), time.Minute)
+	if err == nil && !ok {
+		// 其他实例正在刷新，稍后读取它的结果
+		done(true)
+		return
+	}
+	if release != nil {
+		defer release()
+	}
+	musicFetchMu.Lock()
+	defer musicFetchMu.Unlock()
+	tracks, err := fetchNCMTracks(context.Background(), cfg)
+	if err != nil {
+		logrus.Warnf("ncm refresh playlist failed: %v", err)
+		done(false)
+		return
+	}
+	storePlaylist(key, tracks)
+}
+
+// storePlaylist 写入本实例与共享缓存
+func storePlaylist(key string, tracks []dto.MusicTrackDto) {
+	now := time.Now()
+	musicState.Lock()
+	if musicState.key != key {
+		musicState.songURLs = nil
+	}
+	musicState.key, musicState.fetchedAt, musicState.tracks, musicState.refreshing = key, now, tracks, false
+	musicState.Unlock()
+	if sharedstate.Shared() {
+		cache.SetJSON(musicShared, musicPlaylistCacheKey(key), musicSharedPlaylist{FetchedAt: now, Tracks: tracks}, musicPlaylistSharedTTL)
+	}
 }
 
 // fetchNCMTracks 获取歌单全部曲目，过滤已下架的歌曲
@@ -310,6 +411,12 @@ func (s *MusicService) GetSongURL(ctx context.Context, id int64, level string) (
 	if ok && time.Now().Before(cached.expiresAt) {
 		return cached.url, nil
 	}
+	// 播放地址与账号（API、Cookie）和音质有关，与歌单无关
+	sharedKey := "url:" + musicConfigHash(cfg.BaseURL, cfg.Cookie) + ":" + strconv.FormatInt(id, 10) + ":" + cfg.Level
+	if shared, ok := cache.GetJSON[musicSharedSongURL](musicShared, sharedKey); ok && sharedstate.Shared() && time.Now().Before(shared.ExpiresAt) {
+		storeSongURL(key, musicSongURL{url: shared.URL, expiresAt: shared.ExpiresAt})
+		return shared.URL, nil
+	}
 
 	var result struct {
 		Data []struct {
@@ -326,15 +433,24 @@ func (s *MusicService) GetSongURL(ctx context.Context, id int64, level string) (
 		return "", errs.NewNotFound("music_song_unavailable")
 	}
 	songURL := httpsURL(result.Data[0].URL)
+	// 按地址自身的有效期缓存，提前一分钟作废（播放器拿到地址后还要一段时间才开始加载）
 	if ttl := min(time.Duration(result.Data[0].Expi)*time.Second-time.Minute, musicSongURLMaxTTL); ttl > 0 {
-		musicState.Lock()
-		if musicState.songURLs == nil {
-			musicState.songURLs = make(map[musicSongURLKey]musicSongURL)
+		expiresAt := time.Now().Add(ttl)
+		storeSongURL(key, musicSongURL{url: songURL, expiresAt: expiresAt})
+		if sharedstate.Shared() {
+			cache.SetJSON(musicShared, sharedKey, musicSharedSongURL{URL: songURL, ExpiresAt: expiresAt}, ttl)
 		}
-		musicState.songURLs[key] = musicSongURL{url: songURL, expiresAt: time.Now().Add(ttl)}
-		musicState.Unlock()
 	}
 	return songURL, nil
+}
+
+func storeSongURL(key musicSongURLKey, value musicSongURL) {
+	musicState.Lock()
+	defer musicState.Unlock()
+	if musicState.songURLs == nil {
+		musicState.songURLs = make(map[musicSongURLKey]musicSongURL)
+	}
+	musicState.songURLs[key] = value
 }
 
 // GetLyric 歌曲歌词：优先使用配置的 API，失败时直接请求网易云；没有歌词时返回占位歌词
@@ -382,7 +498,7 @@ func (s *MusicService) GetLyric(ctx context.Context, id int64) (*dto.MusicLyricD
 		ttl = musicLyricMissTTL
 	}
 	if data, err := json.Marshal(musicLyricCacheEntry{Lyric: lyric, ExpiresAt: time.Now().Add(ttl).Unix(), Miss: ttl == musicLyricMissTTL}); err == nil {
-		musicLyricCache.Put(uint(id), data)
+		musicLyricCache.Put(uint(id), data, ttl)
 	}
 	return &lyric, nil
 }
@@ -429,7 +545,7 @@ func (s *MusicService) GetSong(ctx context.Context, id int64) (*dto.MusicSongDto
 		Duration: item.duration(),
 	}
 	if data, err := json.Marshal(song); err == nil {
-		musicSongCache.Put(uint(id), data)
+		musicSongCache.Put(uint(id), data, musicSongTTL)
 	}
 	return &song, nil
 }

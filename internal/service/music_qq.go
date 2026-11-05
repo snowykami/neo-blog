@@ -52,7 +52,7 @@ const (
 )
 
 var (
-	musicQQCache = cache.NewLRUCacheWithSize(500, 16<<20)
+	musicQQCache = cache.NewIDCache("music:qq", 500, 16<<20)
 	musicQQGroup singleflight.Group
 	// QRC 的行头：[开始毫秒,时长毫秒]
 	qrcLineRe = regexp.MustCompile(`(?m)^\[\d+,\d+\]`)
@@ -131,7 +131,7 @@ func (s *MusicService) cachedQQLyric(ctx context.Context, id int64) (*dto.MusicQ
 			}
 		}
 		if data, err := json.Marshal(musicQQCacheEntry{Lyric: *lyric, ExpiresAt: time.Now().Add(ttl).Unix()}); err == nil {
-			musicQQCache.Put(uint(id), data)
+			musicQQCache.Put(uint(id), data, ttl)
 		}
 		return lyric, nil
 	})

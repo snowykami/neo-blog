@@ -353,7 +353,7 @@ func (m *storageMigration) run() {
 			m.finish(StorageMigrationCanceled)
 			return
 		}
-		copied, size, err := copyStorageObject(ctx, m.sources[object.ProviderID], m.target, fileStoragePath(object.Hash))
+		copied, size, err := copyStorageObject(ctx, m.sources[object.ProviderID], m.target, fileStoragePath(object.Hash), utils.ServedContentType(object.MimeType))
 		if err == nil {
 			err = repo.File.MoveObject(object, m.fileIDs, m.status.TargetProviderID)
 		}
@@ -419,15 +419,16 @@ func (m *storageMigration) afterMove(moved bool) {
 
 func (m *storageMigration) copyPageHTMLVersion(ctx context.Context, source storageprovider.StorageProvider, version *model.PageHTMLVersion) error {
 	for _, f := range version.Files {
-		if _, _, err := copyStorageObject(ctx, source, m.target, pageHTMLStoragePath(version.PageID, version.Key, f.Path)); err != nil {
+		if _, _, err := copyStorageObject(ctx, source, m.target, pageHTMLStoragePath(version.PageID, version.Key, f.Path), ""); err != nil {
 			return fmt.Errorf("%s: %w", f.Path, err)
 		}
 	}
 	return repo.PageHTML.UpdateProvider(version.ID, m.status.TargetProviderID)
 }
 
-// copyStorageObject 把对象复制到目标存储并校验大小；目标中已有同样大小的对象时跳过复制（对象按内容哈希命名）
-func copyStorageObject(ctx context.Context, source, target storageprovider.StorageProvider, objectPath string) (copied bool, size int64, err error) {
+// copyStorageObject 把对象复制到目标存储并校验大小；目标中已有同样大小的对象时跳过复制（对象按内容哈希命名）。
+// contentType 为对象类型（可直连的存储由浏览器直接读取），为空时按扩展名推断
+func copyStorageObject(ctx context.Context, source, target storageprovider.StorageProvider, objectPath, contentType string) (copied bool, size int64, err error) {
 	if source == nil {
 		return false, 0, errors.New("source storage provider unavailable")
 	}
@@ -444,7 +445,7 @@ func copyStorageObject(ctx context.Context, source, target storageprovider.Stora
 		return false, size, fmt.Errorf("open source: %w", err)
 	}
 	defer src.Close()
-	if err := target.Save(ctx, objectPath, src); err != nil {
+	if err := storageprovider.SaveWithContentType(ctx, target, objectPath, src, contentType); err != nil {
 		return false, size, fmt.Errorf("save target: %w", err)
 	}
 	info, err = target.Stat(ctx, objectPath)

@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/cache"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/ipregion"
 	"golang.org/x/sync/singleflight"
@@ -47,10 +48,10 @@ var (
 var weatherLangPattern = regexp.MustCompile(`^[a-z]{2}(?:-[a-z]{2})?$`)
 
 var (
-	weatherCache    = newTTLCache[*dto.WeatherDto](weatherTTL, weatherCacheMaxLen)
-	weatherGeoCache = newTTLCache[[]dto.WeatherPlaceDto](weatherGeoTTL, weatherCacheMaxLen)
+	weatherCache    = newTTLCache[*dto.WeatherDto](weatherTTL, weatherCacheMaxLen, "weather:now")
+	weatherGeoCache = newTTLCache[[]dto.WeatherPlaceDto](weatherGeoTTL, weatherCacheMaxLen, "weather:geo")
 	// 坐标 -> 地名，结果与语言有关
-	weatherReverseCache = newTTLCache[*dto.WeatherPlaceDto](weatherReverseTTL, weatherCacheMaxLen)
+	weatherReverseCache = newTTLCache[*dto.WeatherPlaceDto](weatherReverseTTL, weatherCacheMaxLen, "weather:reverse")
 	// 同一坐标 / 同一搜索词同时只请求一次
 	weatherFetchGroup singleflight.Group
 )
@@ -377,27 +378,52 @@ type ttlEntry[T any] struct {
 	fetchedAt time.Time
 }
 
-// ttlCache 带过期时间与条数上限的内存缓存；过期条目保留，用于上游失败时兜底
+// weatherSharedEntry 共享缓存中的条目
+type weatherSharedEntry[T any] struct {
+	Value     T         `json:"value"`
+	FetchedAt time.Time `json:"fetched_at"`
+}
+
+// weatherSharedKeep 共享缓存中条目保留的时间是有效期的这么多倍：过期的旧数据同样用于上游失败时兜底
+const weatherSharedKeep = 8
+
+// ttlCache 带过期时间与条数上限的内存缓存；过期条目保留，用于上游失败时兜底。
+// 另有一份共享缓存（配置 Redis 时各实例共用、重启后仍在）：本实例没有新鲜数据时先读它，再请求上游
 type ttlCache[T any] struct {
 	mu      sync.Mutex
 	entries map[string]ttlEntry[T]
 	ttl     time.Duration
 	maxLen  int
+	shared  *cache.Tiered
 }
 
-func newTTLCache[T any](ttl time.Duration, maxLen int) *ttlCache[T] {
-	return &ttlCache[T]{entries: map[string]ttlEntry[T]{}, ttl: ttl, maxLen: maxLen}
+func newTTLCache[T any](ttl time.Duration, maxLen int, name string) *ttlCache[T] {
+	return &ttlCache[T]{entries: map[string]ttlEntry[T]{}, ttl: ttl, maxLen: maxLen, shared: cache.NewTiered(name, 200, 4<<20)}
 }
 
 func (c *ttlCache[T]) get(key string) (value T, fresh bool, ok bool) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	entry, ok := c.entries[key]
-	return entry.value, ok && time.Since(entry.fetchedAt) < c.ttl, ok
+	c.mu.Unlock()
+	if ok && time.Since(entry.fetchedAt) < c.ttl {
+		return entry.value, true, true
+	}
+	if shared, found := cache.GetJSON[weatherSharedEntry[T]](c.shared, key); found && (!ok || shared.FetchedAt.After(entry.fetchedAt)) {
+		c.store(key, ttlEntry[T]{value: shared.Value, fetchedAt: shared.FetchedAt})
+		return shared.Value, time.Since(shared.FetchedAt) < c.ttl, true
+	}
+	return entry.value, false, ok
 }
 
-// set 写入缓存；超出上限时先清理过期条目，仍超出则任意淘汰一条
+// set 写入本实例与共享缓存
 func (c *ttlCache[T]) set(key string, value T) {
+	now := time.Now()
+	c.store(key, ttlEntry[T]{value: value, fetchedAt: now})
+	cache.SetJSON(c.shared, key, weatherSharedEntry[T]{Value: value, FetchedAt: now}, weatherSharedKeep*c.ttl)
+}
+
+// store 写入本实例的缓存；超出上限时先清理过期条目，仍超出则任意淘汰一条
+func (c *ttlCache[T]) store(key string, entry ttlEntry[T]) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if _, exists := c.entries[key]; !exists && len(c.entries) >= c.maxLen {
@@ -413,12 +439,13 @@ func (c *ttlCache[T]) set(key string, value T) {
 			delete(c.entries, k)
 		}
 	}
-	c.entries[key] = ttlEntry[T]{value: value, fetchedAt: time.Now()}
+	c.entries[key] = entry
 }
 
 // reset 清空缓存（测试用）
 func (c *ttlCache[T]) reset() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.entries = map[string]ttlEntry[T]{}
+	c.mu.Unlock()
+	c.shared.Clear()
 }

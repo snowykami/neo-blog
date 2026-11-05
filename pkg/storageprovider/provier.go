@@ -61,6 +61,19 @@ type StorageProvider interface {
 	IsProxy() bool // 是否后端代理文件，本地储存必须代理；为 false 时 GetURL 返回长期有效的公开直链
 }
 
+// ContentTypeSaver 保存时可以指定对象类型的存储（S3 等可直连的存储：浏览器直接从存储读取，类型要随对象一起保存）
+type ContentTypeSaver interface {
+	SaveWithContentType(ctx context.Context, path string, reader io.Reader, contentType string) error
+}
+
+// SaveWithContentType 存储支持且给出了类型时按 contentType 保存，否则与 Save 相同（S3 按扩展名推断）
+func SaveWithContentType(ctx context.Context, provider StorageProvider, path string, reader io.Reader, contentType string) error {
+	if saver, ok := provider.(ContentTypeSaver); ok && contentType != "" {
+		return saver.SaveWithContentType(ctx, path, reader, contentType)
+	}
+	return provider.Save(ctx, path, reader)
+}
+
 // 工厂函数类型
 type ProviderFactory func(config map[string]any) (StorageProvider, error)
 

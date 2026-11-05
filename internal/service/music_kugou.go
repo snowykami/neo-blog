@@ -35,7 +35,7 @@ var (
 	musicKugouLyricSearchURL = "https://lyrics.kugou.com/search"
 	musicKugouDownloadURL    = "https://lyrics.kugou.com/download"
 
-	musicKugouCache = cache.NewLRUCacheWithSize(500, 16<<20)
+	musicKugouCache = cache.NewIDCache("music:kugou", 500, 16<<20)
 	musicKugouGroup singleflight.Group
 
 	// KRC 解密的固定密钥
@@ -103,7 +103,7 @@ func (s *MusicService) cachedKugouLyric(ctx context.Context, id int64) (*dto.Mus
 			}
 		}
 		if data, err := json.Marshal(musicKugouCacheEntry{Lyric: *lyric, ExpiresAt: time.Now().Add(ttl).Unix()}); err == nil {
-			musicKugouCache.Put(uint(id), data)
+			musicKugouCache.Put(uint(id), data, ttl)
 		}
 		return lyric, nil
 	})

@@ -191,6 +191,7 @@ func (p *PostController) CreateCategory(ctx context.Context, c *app.RequestConte
 		resps.Error(c, categoryWriteError(err, categoryModel, "failed_to_create_target"))
 		return
 	}
+	repo.InvalidatePostCache()
 	resps.Ok(c, resps.Success, utils.H{"id": categoryModel.ID})
 }
 
@@ -210,6 +211,7 @@ func (p *PostController) UpdateCategory(ctx context.Context, c *app.RequestConte
 		resps.Error(c, categoryWriteError(err, categoryModel, "failed_to_update_target"))
 		return
 	}
+	repo.InvalidatePostCache()
 	resps.Ok(c, resps.Success, utils.H{"id": categoryModel.ID})
 }
 
@@ -225,6 +227,7 @@ func (p *PostController) DeleteCategory(ctx context.Context, c *app.RequestConte
 		resps.Error(c, errs.Internal("failed_to_delete_target", err).WithResource("category"))
 		return
 	}
+	repo.InvalidatePostCache()
 	resps.Ok(c, resps.Success, nil)
 }
 

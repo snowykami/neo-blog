@@ -20,11 +20,16 @@ type postRepo struct{}
 var Post = &postRepo{}
 
 func (p *postRepo) CreatePost(post *model.Post) error {
-	return GetDB().Create(post).Error
+	if err := GetDB().Create(post).Error; err != nil {
+		return err
+	}
+	InvalidatePostCache()
+	return nil
 }
 
 // DeletePost 软删除文章，同时清理评论、点赞和标签关联，并释放 slug 以便新文章复用
 func (p *postRepo) DeletePost(id uint) error {
+	defer InvalidatePostCache()
 	return GetDB().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&model.Post{}).Where("id = ?", id).UpdateColumn("slug", nil).Error; err != nil {
 			return err
@@ -217,6 +222,7 @@ func (p *postRepo) SavePost(post *model.Post) error {
 	if post.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
+	defer InvalidatePostCache()
 	// Save 只会追加多对多关联，不会删除已移除的标签，需要显式 Replace
 	return GetDB().Transaction(func(tx *gorm.DB) error {
 		// 关联字段不随 Save 写入，否则已加载的 Category 会把清空的 category_id 写回去
@@ -361,6 +367,7 @@ func (p *postRepo) CountPinnedPosts(now time.Time, excludeID uint) (int64, error
 
 // SetPostPin 写入文章的置顶时间与到期时间（都为 nil 表示取消置顶）
 func (p *postRepo) SetPostPin(id uint, pinnedAt, pinnedUntil *time.Time) error {
+	defer InvalidatePostCache()
 	return GetDB().Model(&model.Post{}).Where("id = ?", id).
 		UpdateColumns(map[string]any{"pinned_at": pinnedAt, "pinned_until": pinnedUntil}).Error
 }

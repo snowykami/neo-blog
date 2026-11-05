@@ -33,7 +33,8 @@ const (
 
 	musicTTMLTimeout  = 8 * time.Second
 	musicTTMLMaxBytes = 1 << 20
-	// 命中长期有效（只受 LRU 淘汰），确定未命中 72 小时内不再探测
+	// 命中缓存 30 天（TTML 收录后基本不变），确定未命中 72 小时内不再探测
+	musicTTMLHitTTL  = 30 * 24 * time.Hour
 	musicTTMLMissTTL = 72 * time.Hour
 	// 各镜像是同一仓库的副本：这么多个镜像确定未命中时即可断定没有，不再等其余镜像
 	// （amlldb.bikonoo.com 对不存在的文件约 5～8 秒后才返回 302，等它会拖慢每一首没有 TTML 的歌）
@@ -48,9 +49,9 @@ var musicTTMLMirrors = []string{
 }
 
 var (
-	musicTTMLCache = cache.NewLRUCacheWithSize(1000, 32<<20)
+	musicTTMLCache = cache.NewIDCache("music:ttml", 1000, 32<<20)
 	// 按 QQ 音乐歌曲 mid 收录的 TTML，键为 mid 的哈希
-	musicQQTTMLCache = cache.NewLRUCacheWithSize(500, 16<<20)
+	musicQQTTMLCache = cache.NewIDCache("music:qq-ttml", 500, 16<<20)
 	musicTTMLGroup   singleflight.Group
 	// 不跟随重定向：重定向一律视为未命中
 	musicTTMLClient = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -162,7 +163,7 @@ func amllTTMLURLs(path string) []string {
 }
 
 // probeTTML 先查缓存，再合并同一文件的并发请求；出错时返回 nil
-func probeTTML(ctx context.Context, store *cache.LRUCache, key uint, flight string, urls []string) *ttmlProbe {
+func probeTTML(ctx context.Context, store cache.IDCache, key uint, flight string, urls []string) *ttmlProbe {
 	if data, ok := store.Get(key); ok {
 		var entry musicTTMLCacheEntry
 		if json.Unmarshal(data, &entry) == nil {
@@ -193,13 +194,17 @@ func probeTTML(ctx context.Context, store *cache.LRUCache, key uint, flight stri
 	return probe
 }
 
-func storeTTMLCache(store *cache.LRUCache, key uint, entry musicTTMLCacheEntry) {
+func storeTTMLCache(store cache.IDCache, key uint, entry musicTTMLCacheEntry) {
+	ttl := musicTTMLHitTTL
+	if entry.TTML == "" {
+		ttl = time.Until(time.Unix(entry.MissUntil, 0))
+	}
 	if data, err := json.Marshal(entry); err == nil {
-		store.Put(key, data)
+		store.Put(key, data, ttl)
 	}
 }
 
-// ttmlCacheKey LRU 以无符号整数为键：最低位区分来源
+// ttmlCacheKey 缓存以无符号整数为键：最低位区分来源
 func ttmlCacheKey(source string, id int64) uint {
 	key := uint(id) << 1
 	if source == musicTTMLSourceAMLL {

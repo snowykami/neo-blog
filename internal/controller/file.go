@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"slices"
@@ -108,7 +109,7 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	fileId := ctxutils.GetIDParam(c).Uint
 	fileName := c.Param("filename") // 此处的filename是请求时传入的文件名，可以整治浏览器直接访问时响应id作为文件名的情况
-	fileModel, svcerr := repo.File.GetByID(fileId)
+	fileModel, svcerr := repo.File.GetByIDCached(fileId)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -122,9 +123,21 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	if fileName != "" {
 		fileModel.Name = fileName // 使用请求中的文件名，避免浏览器下载时文件名为id
 	}
-	inline := isInlineContentType(contentType)
+	inline := utils.InlineContentType(contentType)
 	if !inline {
 		contentType = "application/octet-stream"
+	}
+	// 可直连的存储（配置了公开地址的 S3）：可直接显示的类型跳转到对象的公开地址，浏览器直接向存储（CDN）读取，不经后端转发；
+	// 跳转目标只在换存储时变化（迁移不删除源对象），可缓存一天。附件仍经后端返回（带下载文件名、按二进制下载），
+	// SVG 也经后端返回（附带禁止执行脚本的 CSP）
+	if inline && contentType != "image/svg+xml" {
+		if provider, ok := storage.GetStorageProvider(fileModel.ProviderID); ok && !provider.IsProxy() {
+			if url, err := provider.GetURL(ctx, filepath.Join(utils.FilePath(fileModel.Hash)), 0); err == nil {
+				c.Header("Cache-Control", "public, max-age=86400")
+				c.Redirect(http.StatusFound, []byte(url))
+				return
+			}
+		}
 	}
 	etag := fmt.Sprintf("\"%s\"", fileModel.Hash)
 	// 文件 id 对应的内容不会变化（按内容哈希存储），可长期缓存
@@ -500,15 +513,6 @@ func (f *FileController) deleteObjectIfUnused(ctx context.Context, provider stor
 
 // isInlineContentType 只有图片、音视频、PDF 和纯文本允许在浏览器内直接打开，其余一律作为附件下载
 // SVG 虽然按图片内联展示，但响应带有 CSP sandbox，内嵌脚本不会执行
-func isInlineContentType(contentType string) bool {
-	for _, prefix := range []string{"image/", "video/", "audio/", "application/pdf", "text/plain"} {
-		if strings.HasPrefix(contentType, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
 func (f *FileController) getContentType(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
 	contentTypes := map[string]string{

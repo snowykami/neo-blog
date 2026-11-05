@@ -16,7 +16,7 @@ import (
 // 副歌片段（见 docs/music-player-spec.md 7.2g）：网易云客户端在进度条上标出的高潮 / 副歌片段（NeteaseCloudMusicApi 的 /song/chorus），
 // 播放器在进度条上标出，歌词标注也把它作为判断副歌起点的参考。没有配置 API、请求失败或没有片段时为空列表
 
-var musicChorusCache = cache.NewLRUCacheWithSize(1000, 1<<20)
+var musicChorusCache = cache.NewIDCache("music:chorus", 1000, 1<<20)
 
 // 有片段缓存 7 天，没有片段缓存 1 天（之后可能补上）；请求出错不缓存
 const (
@@ -70,7 +70,7 @@ func fetchSongChorus(ctx context.Context, id int64) []dto.MusicChorusDto {
 		ttl = musicChorusMissTTL
 	}
 	if data, err := json.Marshal(musicChorusCacheEntry{Chorus: chorus, ExpiresAt: time.Now().Add(ttl).Unix()}); err == nil {
-		musicChorusCache.Put(uint(id), data)
+		musicChorusCache.Put(uint(id), data, ttl)
 	}
 	return chorus
 }

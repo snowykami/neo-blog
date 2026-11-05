@@ -150,6 +150,17 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 	if slugOrId == "" {
 		return nil, errs.NewBadRequest("missing_request_parameters")
 	}
+	// 访客读取的文章先读短时缓存（访客看不到草稿，缓存里也不存草稿）
+	return guestCached(ctx, "detail:"+slugOrId, func() (*dto.PostDto, *errs.ServiceError) {
+		postDto, svcerr := p.getPostSlugOrId(ctx, slugOrId)
+		if postDto != nil && isGuest(ctx) {
+			postDto.DraftContent = nil
+		}
+		return postDto, svcerr
+	})
+}
+
+func (p *PostService) getPostSlugOrId(ctx context.Context, slugOrId string) (*dto.PostDto, *errs.ServiceError) {
 	post, err := repo.Post.GetPostBySlugOrID(slugOrId)
 	if err != nil {
 		return nil, errs.NewNotFound("target_not_found").WithResource("post")
@@ -256,7 +267,11 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 }
 
 func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, *errs.ServiceError) {
-	return p.listPosts(ctx, req, false)
+	page, svcerr := guestCached(ctx, postListCacheKey(req), func() (guestPostList, *errs.ServiceError) {
+		posts, total, svcerr := p.listPosts(ctx, req, false)
+		return guestPostList{Posts: posts, Total: total}, svcerr
+	})
+	return page.Posts, page.Total, svcerr
 }
 
 // ListPostsAdmin 后台管理列出所有文章（包含所有用户的私密文章），仅管理员可用

@@ -1,10 +1,13 @@
 package repo
 
 import (
+	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/pkg/cache"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"gorm.io/gorm"
@@ -31,8 +34,42 @@ func (f *FileRepo) GetByID(id uint) (model.File, *errs.ServiceError) {
 	return file, nil
 }
 
+// fileMetaCache 文件记录的缓存（两级：配置 Redis 时各实例共用）：读取文件（文章图片、头像等）每次都要按 ID 查记录，
+// 记录只会被删除（DeleteByID）或换存储（MoveObject），两处都会让缓存失效
+var fileMetaCache = cache.NewIDCache("file:meta", 5000, 8<<20)
+
+const fileMetaTTL = time.Hour
+
+// resetQueryCaches 切换数据库（如测试中重新初始化）时清空本实例的查询缓存：新库里同一个 ID 是另一条记录
+func resetQueryCaches() {
+	fileMetaCache.ResetLocal()
+	PostGuestCache.ResetLocal()
+}
+
+// GetByIDCached 同 GetByID，读取文件内容时使用；找不到的记录不缓存
+func (f *FileRepo) GetByIDCached(id uint) (model.File, *errs.ServiceError) {
+	if data, ok := fileMetaCache.Get(id); ok {
+		var file model.File
+		if json.Unmarshal(data, &file) == nil {
+			return file, nil
+		}
+	}
+	file, svcerr := f.GetByID(id)
+	if svcerr != nil {
+		return file, svcerr
+	}
+	if data, err := json.Marshal(file); err == nil {
+		fileMetaCache.Put(id, data, fileMetaTTL)
+	}
+	return file, nil
+}
+
 func (f *FileRepo) DeleteByID(id uint) error {
-	return GetDB().Where("id = ?", id).Delete(&model.File{}).Error
+	if err := GetDB().Where("id = ?", id).Delete(&model.File{}).Error; err != nil {
+		return err
+	}
+	fileMetaCache.Remove(id)
+	return nil
 }
 
 func (f *FileRepo) CountFilesByProviderID(providerID uint) (int64, error) {
@@ -205,12 +242,13 @@ type StorageObject struct {
 	ProviderID uint
 	Hash       string
 	Size       int64
+	MimeType   string
 }
 
 // ListStorageObjects 待迁移的对象：fileIDs 为空时为 providerID 中的全部对象，否则为这些文件对应的对象
 func (f *FileRepo) ListStorageObjects(providerID uint, fileIDs []uint) ([]StorageObject, error) {
 	var objects []StorageObject
-	q := GetDB().Model(&model.File{}).Select("provider_id, hash, MAX(size) AS size")
+	q := GetDB().Model(&model.File{}).Select("provider_id, hash, MAX(size) AS size, MAX(mime_type) AS mime_type")
 	if len(fileIDs) > 0 {
 		q = q.Where("id IN ?", fileIDs)
 	} else {
@@ -226,7 +264,12 @@ func (f *FileRepo) MoveObject(object StorageObject, fileIDs []uint, targetID uin
 	if len(fileIDs) > 0 {
 		q = q.Where("id IN ?", fileIDs)
 	}
-	return q.UpdateColumn("provider_id", targetID).Error
+	if err := q.UpdateColumn("provider_id", targetID).Error; err != nil {
+		return err
+	}
+	// 同一对象可能被多条记录引用，迁移不频繁，整组作废
+	fileMetaCache.Clear()
+	return nil
 }
 
 // ProviderIDsOfFiles 文件所在的存储

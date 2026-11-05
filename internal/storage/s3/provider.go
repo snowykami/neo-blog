@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"path"
 	"strings"
 	"time"
@@ -125,8 +126,13 @@ func (p *S3StorageProvider) fullKey(filePath string) string {
 	return strings.TrimPrefix(key, "/")
 }
 
-// Save 保存文件到S3
+// Save 保存文件到S3：对象类型按扩展名推断（如 HTML 页面的各个文件）；按内容哈希命名、没有扩展名的文件用 SaveWithContentType 指定
 func (p *S3StorageProvider) Save(ctx context.Context, filePath string, reader io.Reader) error {
+	return p.SaveWithContentType(ctx, filePath, reader, mime.TypeByExtension(path.Ext(filePath)))
+}
+
+// SaveWithContentType 保存文件并记录对象类型：配置了公开地址时浏览器直接从存储读取，类型决定浏览器怎样处理（为空时由存储默认为二进制）
+func (p *S3StorageProvider) SaveWithContentType(ctx context.Context, filePath string, reader io.Reader, contentType string) error {
 	// 读取所有数据
 	data, err := io.ReadAll(reader)
 	if err != nil {
@@ -135,11 +141,15 @@ func (p *S3StorageProvider) Save(ctx context.Context, filePath string, reader io
 
 	key := p.fullKey(filePath)
 
-	_, err = p.client.PutObject(ctx, &s3.PutObjectInput{
+	input := &s3.PutObjectInput{
 		Bucket: aws.String(p.bucket),
 		Key:    aws.String(key),
 		Body:   bytes.NewReader(data),
-	})
+	}
+	if contentType != "" {
+		input.ContentType = aws.String(contentType)
+	}
+	_, err = p.client.PutObject(ctx, input)
 
 	if err != nil {
 		return fmt.Errorf("failed to upload file to S3: %w", err)

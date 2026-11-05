@@ -144,6 +144,7 @@ func InitDatabase() error {
 
 	configureConnPool(dbConfig.Driver)
 	KV.resetCache() // 切换数据库（如测试中重新初始化）时清空配置缓存
+	resetQueryCaches()
 
 	// 迁移模型
 	if err = migrate(); err != nil {

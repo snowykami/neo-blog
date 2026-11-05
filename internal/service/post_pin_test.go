@@ -97,6 +97,8 @@ func TestSetPostPin(t *testing.T) {
 	if err := repo.GetDB().Model(&model.Post{}).Where("id = ?", ids[2]).Update("pinned_until", past).Error; err != nil {
 		t.Fatalf("expire pin: %v", err)
 	}
+	// 直接改库模拟时间流逝：访客读取的置顶列表有短时缓存（到期最多晚 repo.PostGuestCacheTTL 生效），这里手动作废
+	repo.InvalidatePostCache()
 	if got := pinnedIDs(t, context.Background()); len(got) != 2 {
 		t.Fatalf("expired pin still listed: %v", got)
 	}

@@ -545,6 +545,7 @@ func (s *AISummaryService) run(job *aiSummaryTracker, cfg tools.AIConfig, title,
 		job.finish(aiSummaryStatusFailed, "failed_to_update_target")
 		return
 	}
+	repo.InvalidatePostCache()
 	job.finish(aiSummaryStatusSucceeded, "")
 }
 

@@ -12,6 +12,7 @@ type labelRepo struct{}
 var Label = &labelRepo{}
 
 func (l *labelRepo) CreateLabel(label *model.Label) error {
+	defer InvalidatePostCache()
 	return GetDB().Create(label).Error
 }
 
@@ -75,11 +76,13 @@ func fillLabelPostCounts(labels []*model.Label) error {
 }
 
 func (l *labelRepo) UpdateLabel(label *model.Label) error {
+	defer InvalidatePostCache()
 	return GetDB().Updates(label).Error
 }
 
 // DeleteLabel 标签直接硬删除并解除文章关联，避免软删除记录占用唯一的 slug
 func (l *labelRepo) DeleteLabel(id uint) error {
+	defer InvalidatePostCache()
 	return GetDB().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Table("post_labels").Where("label_id = ?", id).Delete(nil).Error; err != nil {
 			return err

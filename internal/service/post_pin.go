@@ -23,6 +23,10 @@ const postPinLockTTL = 10 * time.Second
 
 // ListPinnedPosts 首页的置顶文章（当前用户能看到的），后置顶的在前
 func (p *PostService) ListPinnedPosts(ctx context.Context) ([]*dto.PostDto, *errs.ServiceError) {
+	return guestCached(ctx, "pinned", func() ([]*dto.PostDto, *errs.ServiceError) { return p.listPinnedPosts(ctx) })
+}
+
+func (p *PostService) listPinnedPosts(ctx context.Context) ([]*dto.PostDto, *errs.ServiceError) {
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
 	posts, err := repo.Post.ListPinnedPosts(currentUserID, false, time.Now(), MaxPinnedPosts)
 	if err != nil {

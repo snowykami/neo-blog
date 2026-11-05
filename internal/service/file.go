@@ -17,6 +17,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/storageprovider"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
@@ -107,7 +108,8 @@ func (f *FileService) SaveFile(ctx context.Context, in *SaveFileInput) (*SavedFi
 			logrus.Error("无法重置文件流位置: ", err)
 			return nil, errs.New(http.StatusBadRequest, "failed_to_read_file", err)
 		}
-		if err := provider.Save(ctx, storagePath, in.Src); err != nil {
+		// 可直连的存储由浏览器直接读取对象，类型随对象保存（与经后端返回时的类型一致，附件按二进制）
+		if err := storageprovider.SaveWithContentType(ctx, provider, storagePath, in.Src, utils.ServedContentType(in.MimeType)); err != nil {
 			logrus.Error("保存文件失败: ", err)
 			return nil, errs.New(http.StatusInternalServerError, "failed_to_save_file", err)
 		}
