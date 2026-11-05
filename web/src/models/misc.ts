@@ -130,8 +130,22 @@ export interface RuntimeInstance {
   core: BackendCoreMetrics
   requestsHistory: number[] // 最近若干次上报时的请求/秒，旧的在前
   metrics: BackendMetricsData
+  environment?: RuntimeEnvironment | null // 旧版本实例的快照中没有
 }
 
+export type RuntimeEnvironmentKind = 'kubernetes' | 'docker' | 'podman' | 'container' | 'wsl' | 'vm' | 'linux' | 'windows' | 'macos'
+
+/** 实例自己检测的运行环境（前后端规则相同），只用于展示；读不到的字段为空字符串 */
+export interface RuntimeEnvironment {
+  kind: RuntimeEnvironmentKind
+  arch: string
+  kernel: string // 容器里是宿主机的内核
+  distro: string // 容器里是镜像的发行版
+  podName: string // Pod 名、命名空间、节点名由 Kubernetes Downward API 注入
+  podNamespace: string
+  nodeName: string
+  evidence: string // 命中的依据，如 env:KUBERNETES_SERVICE_HOST
+}
 
 /** 一个前端实例的运行时指标快照 */
 export interface FrontendInstance {
@@ -143,6 +157,7 @@ export interface FrontendInstance {
   core: FrontendCoreMetrics
   requestsHistory: number[]
   metrics: FrontendMetricsData
+  environment?: RuntimeEnvironment | null // 旧版本前端的快照中没有
 }
 
 /** 数据库的运行统计；速率按最近两次采集（15 秒）之间的增量计算 */

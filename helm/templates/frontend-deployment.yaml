@@ -55,6 +55,19 @@ spec:
               value: "http://{{(include "neo-blog.fullname" .)}}-backend:{{ .Values.service.port }}"
             - name: PORT
               value: "{{ .Values.service.port }}"
+            # Downward API：后台「系统运行」在实例信息里显示 Pod、命名空间与节点，只用于展示
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             # 与后端共用 Redis：前端每个副本把运行时指标写进去，后台「系统运行」才能列出全部前端副本
             {{- if .Values.redis.existingSecret }}
             - name: REDIS_URL

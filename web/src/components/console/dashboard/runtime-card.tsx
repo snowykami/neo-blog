@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import type { Level } from './runtime-shared'
-import type { BackendCoreMetrics, FrontendCoreMetrics, FrontendInstance, FrontendMetrics, RuntimeInstance, RuntimeMetrics } from '@/models/misc'
+import type { BackendCoreMetrics, FrontendCoreMetrics, FrontendInstance, FrontendMetrics, RuntimeEnvironment, RuntimeInstance, RuntimeMetrics } from '@/models/misc'
 import { ChevronDown, TriangleAlert } from 'lucide-react'
 import { useFormatter, useNow, useTranslations } from 'next-intl'
 import { useEffect, useRef, useState } from 'react'
@@ -20,6 +20,7 @@ import { useErrorMessageT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { formatDataSize } from '@/utils/common/datasize'
 import { DependencyCards } from './dependency-cards'
+import { EnvironmentBadge, EnvironmentDetails } from './runtime-environment'
 import { formatRate, jetBrainsMono, pointAgo, REPORT_INTERVAL_SECONDS, Tip } from './runtime-shared'
 import { RuntimeSparkline } from './runtime-sparkline'
 
@@ -127,6 +128,7 @@ interface Replica {
   startedAt: string
   updatedAt: string
   history: number[]
+  environment?: RuntimeEnvironment | null
 }
 
 /**
@@ -328,6 +330,7 @@ function ReplicaName({ replica }: { replica: Replica }) {
       <div className="flex items-center gap-1.5">
         <span className={cn(jetBrainsMono.className, 'font-medium')} title={replica.hostname}>{replica.label}</span>
         {replica.current && <Badge variant="secondary">{t('runtime_instance_serving')}</Badge>}
+        {replica.environment && <EnvironmentBadge environment={replica.environment} />}
       </div>
       <span className="text-xs text-muted-foreground">
         {t('runtime_uptime', { duration: format.number(Math.floor(amount), { style: 'unit', unit, unitDisplay: 'long' }) })}
@@ -526,7 +529,7 @@ function FrontendTable({ instances, servingId }: { instances: FrontendInstance[]
 }
 
 /** 「全部指标」：按实例查看完整的运行时指标 */
-function InstanceMetrics<T extends { instanceId: string, hostname: string, pid: number, metrics: Record<string, unknown> }>({ title, instances, isCurrent, handler, reverse = false }: {
+function InstanceMetrics<T extends { instanceId: string, hostname: string, pid: number, metrics: Record<string, unknown>, environment?: RuntimeEnvironment | null }>({ title, instances, isCurrent, handler, reverse = false }: {
   title: string
   instances: T[]
   isCurrent: (item: T) => boolean
@@ -556,6 +559,7 @@ function InstanceMetrics<T extends { instanceId: string, hostname: string, pid: 
           </SelectContent>
         </Select>
       )}
+      {instance?.environment && <EnvironmentDetails environment={instance.environment} />}
       {instance
         ? (
             <dl className="grid gap-1.5 text-sm">

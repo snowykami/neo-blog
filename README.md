@@ -106,6 +106,8 @@ helm install neo-blog git.liteyuki.org/neo-blog
 - 所有副本使用相同的 `JWT_SECRET` 与 `PASSWORD_SALT`
 - 前端也设置相同的 `REDIS_URL`（和 `REDIS_KEY_PREFIX`），每个前端副本才会把运行时指标写进 Redis，后台「系统运行」才能看到全部前端副本；不设置时只显示处理本次请求的那一个（Helm 会自动给前端加上）
 
+后台「系统运行」会显示每个前后端实例的运行环境（Kubernetes、Docker、虚拟机等，由实例自己检测，只用于展示）。在 Kubernetes 中通过 Downward API 设置 `POD_NAME`、`POD_NAMESPACE`、`NODE_NAME` 后，实例信息里还会显示所在的 Pod、命名空间与节点，Helm Chart 已自动注入。
+
 Helm Chart 会在缺少 Redis 或仍使用 SQLite 时拒绝渲染多副本部署（`database.existingSecret` 中的地址渲染时不可见，不做检查）。前端没有跨请求的进程内状态，可直接增加副本。
 
 滚动更新或实例崩溃时，进行中的后台任务不会丢：

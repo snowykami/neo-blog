@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Socket } from 'node:net'
+import type { RuntimeEnvironmentSnapshot } from './runtime-environment'
 import { randomUUID } from 'node:crypto'
 import http from 'node:http'
 import os from 'node:os'
@@ -7,6 +8,7 @@ import { monitorEventLoopDelay, performance } from 'node:perf_hooks'
 import process from 'node:process'
 import v8 from 'node:v8'
 import { Redis } from 'ioredis'
+import { currentEnvironment } from './runtime-environment'
 
 // 前端（Next.js）实例的运行时指标：统计本进程处理的 HTTP 请求与连接，每 15 秒算一次核心指标；
 // 配置了 REDIS_URL 时把快照写进与后端相同的 Redis（键前缀 REDIS_KEY_PREFIX，默认 neo-blog:），后台「系统运行」据此列出全部前端副本。
@@ -42,6 +44,7 @@ export interface FrontendSnapshot {
   core: FrontendCore
   requests_history: number[]
   metrics: Record<string, number | string | boolean> // 全部 Node 运行时指标（camelCase 键）
+  environment: RuntimeEnvironmentSnapshot // 运行环境，只用于展示
 }
 
 interface MetricsState {
@@ -176,6 +179,7 @@ function snapshot(s: MetricsState): FrontendSnapshot {
     core: { ...s.core, inflight_requests: s.inflight, connections: s.connections },
     requests_history: s.history,
     metrics: collectNodeMetrics(),
+    environment: currentEnvironment(),
   }
 }
 

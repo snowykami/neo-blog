@@ -161,6 +161,7 @@ func processRSS(fallback uint64) uint64 {
 // runtimeSnapshot 本实例的实时快照
 func runtimeSnapshot() dto.RuntimeInstanceDto {
 	core, history := runtimeCore.snapshot()
+	environment := currentEnvironment()
 	return dto.RuntimeInstanceDto{
 		InstanceID:      sharedstate.InstanceID(),
 		Hostname:        processHostname,
@@ -168,6 +169,7 @@ func runtimeSnapshot() dto.RuntimeInstanceDto {
 		StartedAt:       processStartedAt,
 		UpdatedAt:       time.Now(),
 		Core:            core,
+		Environment:     &environment,
 		RequestsHistory: history,
 		Metrics:         collectRuntimeMetrics(),
 	}

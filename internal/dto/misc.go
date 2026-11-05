@@ -11,9 +11,23 @@ type RuntimeInstanceDto struct {
 	UpdatedAt  time.Time      `json:"updated_at"` // 快照时间；处理本次请求的实例为实时数据
 	Current    bool           `json:"current"`    // 是否为处理本次请求的实例
 	Core       RuntimeCoreDto `json:"core"`
+	// Environment 运行环境，只用于展示；旧版本实例的快照中没有
+	Environment *RuntimeEnvironmentDto `json:"environment"`
 	// RequestsHistory 最近若干次上报时的请求/秒（旧的在前），用于画趋势线
 	RequestsHistory []float64      `json:"requests_history"`
 	Metrics         map[string]any `json:"metrics"` // 全部 Go 运行时指标
+}
+
+// RuntimeEnvironmentDto 实例自己检测的运行环境，前后端规则相同；读不到的字段为空
+type RuntimeEnvironmentDto struct {
+	Kind         string `json:"kind"`     // kubernetes / docker / podman / container / wsl / vm / linux / windows / macos
+	Arch         string `json:"arch"`     // CPU 架构，如 amd64、arm64
+	Kernel       string `json:"kernel"`   // 内核版本；容器里是宿主机的内核
+	Distro       string `json:"distro"`   // /etc/os-release 的 PRETTY_NAME；容器里是镜像的发行版
+	PodName      string `json:"pod_name"` // Pod 名、命名空间、节点名由 Kubernetes Downward API 注入
+	PodNamespace string `json:"pod_namespace"`
+	NodeName     string `json:"node_name"`
+	Evidence     string `json:"evidence"` // 命中的依据，如 env:KUBERNETES_SERVICE_HOST、file:/.dockerenv
 }
 
 // RuntimeCoreDto 后端实例的核心指标；速率类指标按最近两次上报之间的增量计算
@@ -40,6 +54,8 @@ type FrontendInstanceDto struct {
 	Core            FrontendCoreDto `json:"core"`
 	RequestsHistory []float64       `json:"requests_history"`
 	Metrics         map[string]any  `json:"metrics"` // 全部 Node 运行时指标
+	// Environment 运行环境，由前端按与后端相同的规则检测；旧版本前端的快照中没有
+	Environment *RuntimeEnvironmentDto `json:"environment"`
 }
 
 // FrontendCoreDto 前端实例的核心指标
