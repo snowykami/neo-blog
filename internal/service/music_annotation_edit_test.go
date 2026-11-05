@@ -164,7 +164,6 @@ func TestEditedLyricAnnotationLocked(t *testing.T) {
 	calls := 0
 	done := make(chan struct{}, 2)
 	service := &lyricAnnotationService{
-		jobs:        make(map[string]*lyricAnnotationJob),
 		limiter:     &aiLimiter{},
 		concurrency: func() int { return 1 },
 		complete: func(_ context.Context, _ tools.AIConfig, system, _ string) (string, error) {

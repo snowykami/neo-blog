@@ -29,6 +29,8 @@ type Store interface {
 	Take(key string) (string, bool, error)
 	// CompareAndDelete 值等于 value 时删除（原子），用于释放自己持有的锁
 	CompareAndDelete(key, value string) (bool, error)
+	// Extend 值等于 value 时把过期时间重设为 ttl（原子），用于续期自己持有的锁；已过期或被他人占用时返回 false
+	Extend(key, value string, ttl time.Duration) (bool, error)
 	Delete(keys ...string) error
 	// Incr 计数加一并返回当前值；键不存在时从 1 开始并按 ttl 计时（固定窗口，期间再自增不延长）
 	Incr(key string, ttl time.Duration) (int64, error)

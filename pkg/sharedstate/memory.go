@@ -126,6 +126,19 @@ func (m *memoryStore) CompareAndDelete(key, value string) (bool, error) {
 	return true, nil
 }
 
+func (m *memoryStore) Extend(key, value string, ttl time.Duration) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := time.Now()
+	item, ok := m.getLocked(key, now)
+	if !ok || item.value != value {
+		return false, nil
+	}
+	item.expireAt = expireAt(now, ttl)
+	m.items[key] = item
+	return true, nil
+}
+
 func (m *memoryStore) Delete(keys ...string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -21,17 +21,20 @@ import (
 
 // 存储迁移：把文件（及 HTML 页面）从一个存储复制到另一个存储，复制并校验大小后再修改 files.provider_id。
 // 内容中只保存稳定链接，迁移不需要逐篇替换正文；开始前先把源存储遗留在内容中的直链还原为稳定链接。
-// 源存储中的对象不会删除；存储中没有任何文件与 HTML 页面后才能删除该存储。中途失败或取消后重新发起即可继续。
+// 源存储中的对象不会删除；存储中没有任何文件与 HTML 页面后才能删除该存储。中途失败或取消后重新发起即可继续；
+// 执行的实例中途退出（如滚动更新）时，由定时任务 ResumeStorageMigration 按保存的参数在其他实例上自动继续。
 
 const (
-	storageMigrationActiveKey = "storage_migration:active" // 运行中的任务令牌，按租约续期，实例退出后自动过期
-	storageMigrationStatusKey = "storage_migration:status"
-	storageMigrationCancelKey = "storage_migration:cancel"
-	storageMigrationLease     = time.Minute
-	storageMigrationStatusTTL = 7 * 24 * time.Hour
-	storageMigrationMaxErrors = 20
-	storageMigrationMaxFiles  = 1000 // 按选中文件迁移时一次最多的文件数
-	storageMigrationSaveEvery = time.Second
+	storageMigrationActiveKey  = "storage_migration:active" // 运行中的任务令牌，按租约续期，实例退出后自动过期
+	storageMigrationStatusKey  = "storage_migration:status"
+	storageMigrationCancelKey  = "storage_migration:cancel"
+	storageMigrationRequestKey = "storage_migration:request" // 运行中任务的参数，用于实例中途退出后自动继续
+	storageMigrationMaxResumes = 5                           // 自动继续的次数上限，避免反复中断的任务无限重试
+	storageMigrationLease      = time.Minute
+	storageMigrationStatusTTL  = 7 * 24 * time.Hour
+	storageMigrationMaxErrors  = 20
+	storageMigrationMaxFiles   = 1000 // 按选中文件迁移时一次最多的文件数
+	storageMigrationSaveEvery  = time.Second
 )
 
 const (
@@ -48,8 +51,49 @@ var (
 	storageMigrationAfterRun  func()
 )
 
+// storageMigrationRequest 保存的任务参数与已自动继续的次数
+type storageMigrationRequest struct {
+	dto.StorageMigrationReq
+	Resumes int `json:"resumes"`
+}
+
 // StartStorageMigration 校验并在后台启动迁移任务，返回初始进度
 func StartStorageMigration(req *dto.StorageMigrationReq) (*dto.StorageMigrationStatus, *errs.ServiceError) {
+	return startStorageMigration(req, 0)
+}
+
+// ResumeStorageMigration 继续中途中断的迁移：进度仍为运行中、任务令牌已过期（执行的实例已退出）且保存了参数时，在本实例重新发起。
+// 由定时任务调用；重新发起时用 SetNX 抢占任务令牌，多个实例不会同时继续
+func ResumeStorageMigration() {
+	var status dto.StorageMigrationStatus
+	if found, err := sharedstate.GetJSON(storageMigrationStatusKey, &status); err != nil || !found || status.State != StorageMigrationRunning {
+		return
+	}
+	if _, active, err := sharedstate.Current().Get(storageMigrationActiveKey); err != nil || active {
+		return
+	}
+	var req storageMigrationRequest
+	if found, err := sharedstate.GetJSON(storageMigrationRequestKey, &req); err != nil || !found {
+		return
+	}
+	if req.Resumes >= storageMigrationMaxResumes {
+		now := time.Now()
+		status.State, status.FinishedAt, status.UpdatedAt = StorageMigrationFailed, &now, now
+		status.Errors = append(status.Errors, "interrupted too many times, please start it again")
+		if err := sharedstate.SetJSON(storageMigrationStatusKey, status, storageMigrationStatusTTL); err != nil {
+			logrus.Warnf("保存存储迁移进度失败: %v", err)
+		}
+		_ = sharedstate.Current().Delete(storageMigrationRequestKey)
+		return
+	}
+	if _, svcerr := startStorageMigration(&req.StorageMigrationReq, req.Resumes+1); svcerr != nil {
+		logrus.Warnf("继续中断的存储迁移失败: %v", svcerr)
+		return
+	}
+	logrus.Infof("已继续中断的存储迁移（第 %d 次）", req.Resumes+1)
+}
+
+func startStorageMigration(req *dto.StorageMigrationReq, resumes int) (*dto.StorageMigrationStatus, *errs.ServiceError) {
 	target, ok := storage.GetStorageProvider(req.TargetProviderID)
 	if !ok {
 		return nil, errs.NewBadRequest("storage_provider_not_found").WithField("target_provider_id", req.TargetProviderID)
@@ -89,6 +133,9 @@ func StartStorageMigration(req *dto.StorageMigrationReq) (*dto.StorageMigrationS
 		return nil, errs.NewConflict("storage_migration_running")
 	}
 	_ = sharedstate.Current().Delete(storageMigrationCancelKey)
+	if err := sharedstate.SetJSON(storageMigrationRequestKey, storageMigrationRequest{StorageMigrationReq: *req, Resumes: resumes}, storageMigrationStatusTTL); err != nil {
+		logrus.Warnf("保存存储迁移参数失败: %v", err)
+	}
 
 	now := time.Now()
 	m := &storageMigration{
@@ -215,6 +262,8 @@ func (m *storageMigration) finish(state string) {
 		s.FinishedAt = &now
 	})
 	m.save()
+	// 已结束（完成、失败或取消）的任务不再自动继续
+	_ = sharedstate.Current().Delete(storageMigrationRequestKey)
 }
 
 // keepAlive 运行期间续期任务令牌
@@ -226,8 +275,11 @@ func (m *storageMigration) keepAlive(stop <-chan struct{}) {
 		case <-stop:
 			return
 		case <-ticker.C:
-			if err := sharedstate.Current().Set(storageMigrationActiveKey, m.token, storageMigrationLease); err != nil {
+			// 只续期自己持有的令牌：令牌已过期并被其他实例接手时不覆盖
+			if ok, err := sharedstate.Current().Extend(storageMigrationActiveKey, m.token, storageMigrationLease); err != nil {
 				logrus.Warnf("续期存储迁移任务失败: %v", err)
+			} else if !ok {
+				logrus.Warnf("存储迁移任务令牌已失效")
 			}
 		}
 	}

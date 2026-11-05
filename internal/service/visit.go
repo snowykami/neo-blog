@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -44,31 +43,9 @@ func NewVisitService() *VisitService {
 	return &VisitService{}
 }
 
-// 简单的按 IP 固定窗口限流，防止上报接口被刷
-var (
-	visitRate   = map[string]*visitRateEntry{}
-	visitRateMu sync.Mutex
-)
-
-type visitRateEntry struct {
-	count int
-	start time.Time
-}
-
+// allowVisitReport 按 IP 固定窗口限流，防止上报接口被刷；计数在共享状态中，多副本时各实例共用同一个窗口
 func allowVisitReport(ip string) bool {
-	visitRateMu.Lock()
-	defer visitRateMu.Unlock()
-	now := time.Now()
-	if len(visitRate) > 10000 {
-		visitRate = map[string]*visitRateEntry{}
-	}
-	entry, ok := visitRate[ip]
-	if !ok || now.Sub(entry.start) > visitRateWindow {
-		visitRate[ip] = &visitRateEntry{count: 1, start: now}
-		return true
-	}
-	entry.count++
-	return entry.count <= visitRateLimit
+	return utils.AllowRequest("visit_report:"+ip, visitRateLimit, visitRateWindow)
 }
 
 // siteHosts 本站域名：请求方传入的域名（如 X-Forwarded-Host）加上配置的站点地址，用于识别站内跳转

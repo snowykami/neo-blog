@@ -337,3 +337,57 @@ func TestAIAgentHumanizeRewrite(t *testing.T) {
 		t.Fatalf("comment = %+v %v", comment, err)
 	}
 }
+
+// 实例退出：不再领取新任务，等不到已领取的任务执行完时立即放回队列（退回尝试次数），其他实例马上可以接着执行
+func TestAIAgentDrainReleasesUnfinishedRuns(t *testing.T) {
+	setupWorkerTest(t)
+	unblock := make(chan struct{})
+	llm := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-unblock
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{"message": map[string]any{"role": "assistant", "content": `{"actions":[],"reason":"","memory_note":""}`}}},
+		})
+	}))
+	defer llm.Close()
+	defer close(unblock)
+	for k, v := range map[string]any{"ai_agents_enabled": true, "ai_api_base_url": llm.URL, "ai_api_key": "sk-test", "ai_model": "site-model"} {
+		if err := repo.KV.SetKV(k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	admin := &model.User{Username: "admin", Email: "admin@test.local", Role: constant.RoleAdmin}
+	repo.GetDB().Create(admin)
+	adminCtx := context.WithValue(context.Background(), "user_id", admin.ID)
+	post := &model.Post{UserID: admin.ID, PostBase: model.PostBase{Title: "滚动更新", Content: "<p>正文</p>"}}
+	repo.GetDB().Create(post)
+	profile := service.DefaultAIAgentProfile(constant.AIAgentTierAmbient)
+	agent, svcerr := service.NewAIAgentService().Create(adminCtx, &dto.CreateAIAgentReq{Username: "ai_drain", Nickname: "AI", Profile: &profile})
+	if svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	run := &model.AgentRun{AgentID: agent.ID, Kind: constant.AgentRunKindBrowse, Trigger: constant.AgentTriggerBrowse,
+		Feed: fmt.Sprintf("[%d]", post.ID), Status: constant.AgentRunStatusQueued, ScheduledAt: time.Now()}
+	if err := repo.AIAgent.CreateRun(run); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	Start(ctx, 1)
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		got, _ := repo.AIAgent.GetRun(run.ID)
+		if got.Status == constant.AgentRunStatusLeased {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("run not claimed: %+v", got)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	cancel()
+	Drain(200 * time.Millisecond)
+	got, _ := repo.AIAgent.GetRun(run.ID)
+	if got.Status != constant.AgentRunStatusQueued || got.LeaseUntil != nil || got.Attempts != 0 {
+		t.Fatalf("unfinished run should be requeued, got %+v", got)
+	}
+}

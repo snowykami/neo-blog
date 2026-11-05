@@ -28,6 +28,10 @@ return v`)
   return redis.call('DEL', KEYS[1])
 end
 return 0`)
+	extendScript = redis.NewScript(`if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('PEXPIRE', KEYS[1], ARGV[2])
+end
+return 0`)
 	incrScript = redis.NewScript(`local v = redis.call('INCR', KEYS[1])
 if v == 1 and tonumber(ARGV[1]) > 0 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
 return v`)
@@ -138,6 +142,13 @@ func (s *redisStore) CompareAndDelete(key, value string) (bool, error) {
 	ctx, cancel := s.ctx()
 	defer cancel()
 	n, err := compareAndDeleteScript.Run(ctx, s.client, []string{s.key(key)}, value).Int64()
+	return n > 0, err
+}
+
+func (s *redisStore) Extend(key, value string, ttl time.Duration) (bool, error) {
+	ctx, cancel := s.ctx()
+	defer cancel()
+	n, err := extendScript.Run(ctx, s.client, []string{s.key(key)}, value, ttl.Milliseconds()).Int64()
 	return n > 0, err
 }
 

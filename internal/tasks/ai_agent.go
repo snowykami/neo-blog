@@ -29,3 +29,8 @@ func StartAIAgentScheduler(ctx context.Context) {
 	})
 	agentrunner.Start(ctx, utils.Env.GetAsInt(constant.EnvKeyAIAgentWorkers, aiAgentDefaultWorkers))
 }
+
+// DrainAIAgentWorkers 进程退出前等待本实例已领取的任务执行完，最多 timeout，来不及的立即放回队列
+func DrainAIAgentWorkers(timeout time.Duration) {
+	agentrunner.Drain(timeout)
+}

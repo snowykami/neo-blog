@@ -428,6 +428,49 @@ func TestAILimiterPriority(t *testing.T) {
 	}
 }
 
+// 名额在共享状态中：同名的限制器（模拟多个实例）合计不超过上限；上限大于 1 时第 0 个名额只留给交互式请求
+func TestAILimiterShared(t *testing.T) {
+	a, b := &aiLimiter{name: "shared_test"}, &aiLimiter{name: "shared_test"}
+	one := func() int { return 1 }
+	if err := a.acquire(context.Background(), one, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if err := b.acquire(ctx, one, false, nil); err == nil {
+		t.Fatal("another instance should wait while the only slot is taken")
+	}
+	a.release()
+	got := make(chan error, 1)
+	go func() { got <- b.acquire(context.Background(), one, false, nil) }()
+	select {
+	case err := <-got:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("slot released by another instance should be acquired")
+	}
+	b.release()
+
+	two := func() int { return 2 }
+	if err := a.acquire(context.Background(), two, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel2()
+	if err := b.acquire(ctx2, two, false, nil); err == nil {
+		t.Fatal("background request should not take the slot reserved for interactive requests")
+	}
+	ctx3, cancel3 := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel3()
+	if err := b.acquire(ctx3, two, true, nil); err != nil {
+		t.Fatalf("interactive request should get the reserved slot: %v", err)
+	}
+	a.release()
+	b.release()
+}
+
 // 润色：前端给出带格式的选区时原样交给模型并附上格式规则；未提供时退回纯文本；代码块内不使用；过长时拒绝
 func TestAIWritePrepareStructuredSelection(t *testing.T) {
 	author, _, _, post, _ := setupEditTest(t)

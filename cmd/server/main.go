@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/repo"
@@ -17,6 +18,9 @@ import (
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
+
+// aiAgentDrainTimeout 退出时等待 AI 用户任务执行完的最长时间
+const aiAgentDrainTimeout = 20 * time.Second
 
 func main() {
 	// 共享状态：未配置 Redis 时为进程内存（单实例）；配置了但连不上时直接退出，避免多副本各自为政
@@ -71,8 +75,13 @@ func main() {
 	tasks.StartAIAgentScheduler(ctx)
 	// 每个实例定时上报运行时指标，控制台可按实例查看
 	tasks.StartRuntimeMetricsReporter()
+	// 接手其他实例中途退出时没做完的 AI 摘要与存储迁移
+	tasks.StartJobRecovery()
 
 	err = router.Run(ctx)
+	// 已领取的 AI 用户任务尽量执行完，来不及的立即放回队列由其他实例接着执行
+	// （Kubernetes 默认给 30 秒退出时间，HTTP 优雅关停约占 5 秒）
+	tasks.DrainAIAgentWorkers(aiAgentDrainTimeout)
 	if err != nil {
 		panic(err)
 	}

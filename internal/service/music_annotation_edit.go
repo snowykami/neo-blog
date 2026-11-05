@@ -162,12 +162,10 @@ func (s *MusicService) ListLyricAnnotations(ctx context.Context) ([]dto.MusicLyr
 	return result, nil
 }
 
-// running 这份歌词文本是否正在生成标注
+// running 这份歌词文本是否正在生成标注（包括在其他实例上）
 func (a *lyricAnnotationService) running(key string) bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	job := a.jobs[key]
-	return job != nil && job.running
+	running, _ := a.jobState(key)
+	return running
 }
 
 // sanitizeEditedLyricAnnotations 校验手动编辑的标注：行必须是歌词中的原文（同一文本只能有一条），短语必须是该行的连续片段且不重复，

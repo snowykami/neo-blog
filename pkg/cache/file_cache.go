@@ -5,7 +5,11 @@ import (
 	"strconv"
 
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
+
+// fileCacheEvictChannel 文件被删除时通知其他实例清除各自的文件缓存（消息为文件 ID；空消息表示可能错过了通知，全部清空）
+const fileCacheEvictChannel = "file_cache_evict"
 
 var (
 	// FileCache 全局文件缓存实例
@@ -37,6 +41,7 @@ func InitFileCache() {
 
 	maxCacheBytes := int64(maxCacheSizeMB) * 1024 * 1024
 	FileCache = NewLRUCacheWithSize(maxCacheFile, maxCacheBytes)
+	listenFileCacheEvictions()
 	logrus.Infof("File cache initialized with capacity: %d files, max size: %d MB", maxCacheFile, maxCacheSizeMB)
 }
 
@@ -46,4 +51,22 @@ func GetFileCache() *LRUCache {
 		InitFileCache()
 	}
 	return FileCache
+}
+
+// EvictFile 从本实例与其他实例的文件缓存中移除文件（文件被删除后，其他实例不能再从内存里返回它）
+func EvictFile(id uint) {
+	GetFileCache().Remove(id)
+	sharedstate.Notify(fileCacheEvictChannel, strconv.FormatUint(uint64(id), 10))
+}
+
+// listenFileCacheEvictions 订阅其他实例的删除通知
+func listenFileCacheEvictions() {
+	sharedstate.OnNotify(fileCacheEvictChannel, func(message string) {
+		id, err := strconv.ParseUint(message, 10, 64)
+		if err != nil {
+			GetFileCache().Clear()
+			return
+		}
+		GetFileCache().Remove(uint(id))
+	})
 }

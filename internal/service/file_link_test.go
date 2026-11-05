@@ -17,6 +17,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/storage"
 	"github.com/snowykami/neo-blog/internal/storage/local"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/storageprovider"
 )
 
@@ -282,5 +283,49 @@ func TestS3DirectLinkMatcher(t *testing.T) {
 	}
 	if _, ok := newDirectLinkMatcher(5, provider); ok {
 		t.Fatal("proxied s3 has no direct links")
+	}
+}
+
+// 执行迁移的实例中途退出：任务令牌过期后，定时任务按保存的参数在其他实例上继续；反复中断超过上限时标记为失败
+func TestStorageMigrationResume(t *testing.T) {
+	env := setupFileLinkTest(t)
+	a := saveTestFile(t, userCtx(env.admin), env.localID, "aaa")
+	interrupted := func(resumes int) {
+		t.Helper()
+		_ = sharedstate.Current().Delete(storageMigrationActiveKey)
+		req := storageMigrationRequest{StorageMigrationReq: dto.StorageMigrationReq{TargetProviderID: env.cdnID, FileIDs: []uint{a.ID}}, Resumes: resumes}
+		if err := sharedstate.SetJSON(storageMigrationRequestKey, req, time.Hour); err != nil {
+			t.Fatal(err)
+		}
+		status := dto.StorageMigrationStatus{State: StorageMigrationRunning, Errors: []string{}}
+		if err := sharedstate.SetJSON(storageMigrationStatusKey, status, time.Hour); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// 仍有实例持有任务令牌时不继续
+	interrupted(0)
+	_ = sharedstate.Current().Set(storageMigrationActiveKey, "other", time.Minute)
+	ResumeStorageMigration()
+	if f, _ := repo.File.GetByID(a.ID); f.ProviderID != env.localID {
+		t.Fatal("migration held by another instance should not be resumed")
+	}
+
+	interrupted(0)
+	wait := waitStorageMigration(t)
+	ResumeStorageMigration()
+	wait()
+	status, _ := GetStorageMigrationStatus()
+	if f, _ := repo.File.GetByID(a.ID); status.State != StorageMigrationDone || f.ProviderID != env.cdnID {
+		t.Fatalf("resumed migration = %+v, provider %d", status, f.ProviderID)
+	}
+	if _, found, _ := sharedstate.Current().Get(storageMigrationRequestKey); found {
+		t.Fatal("finished migration should not be resumed again")
+	}
+
+	interrupted(storageMigrationMaxResumes)
+	ResumeStorageMigration()
+	if status, _ := GetStorageMigrationStatus(); status.State != StorageMigrationFailed {
+		t.Fatalf("migration interrupted too many times should fail, got %+v", status)
 	}
 }

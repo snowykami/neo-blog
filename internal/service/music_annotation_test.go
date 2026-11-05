@@ -91,7 +91,6 @@ func TestLyricAnnotationJob(t *testing.T) {
 	var lastUser atomic.Value
 	done := make(chan struct{}, 4)
 	service := &lyricAnnotationService{
-		jobs:        make(map[string]*lyricAnnotationJob),
 		limiter:     &aiLimiter{},
 		concurrency: func() int { return 1 },
 		// 只数全曲规划的请求（每次生成一次）；逐段标注返回同样的短语

@@ -28,7 +28,35 @@ func Start(ctx context.Context, workers int) {
 		logrus.Info("ai agent workers are disabled on this instance")
 		return
 	}
-	go workLoop(ctx, workers)
+	done := make(chan struct{})
+	workersDone = done
+	go func() {
+		workLoop(ctx, workers)
+		close(done)
+	}()
+}
+
+var (
+	workersDone chan struct{} // workLoop 退出且已领取的任务都执行完时关闭；本实例未启动 worker 时为 nil
+	inflight    sync.Map      // 本实例正在执行的任务 ID
+)
+
+// Drain 进程退出前调用（Start 的 ctx 应已结束，不再领取新任务）：等待已领取的任务执行完，最多 timeout；
+// 仍未完成的立即放回队列，由其他实例接着执行，不必等租约到期
+func Drain(timeout time.Duration) {
+	if workersDone == nil {
+		return
+	}
+	select {
+	case <-workersDone:
+		return
+	case <-time.After(timeout):
+	}
+	svc := service.NewAIAgentService()
+	inflight.Range(func(key, _ any) bool {
+		svc.ReleaseRun(key.(uint))
+		return true
+	})
 }
 
 // workLoop 领取并分发任务，直到 ctx 结束；返回前等待已领取的任务执行完
@@ -61,8 +89,10 @@ func workLoop(ctx context.Context, workers int) {
 					run := runs[i]
 					busy.Add(1)
 					wg.Add(1)
+					inflight.Store(run.RunID, struct{}{})
 					go func() {
 						defer wg.Done()
+						defer inflight.Delete(run.RunID)
 						defer func() {
 							if r := recover(); r != nil {
 								logrus.Errorf("agent run %d panic: %v", run.RunID, r)

@@ -109,6 +109,8 @@
 
 - 一次性凭据、验证码、限流计数、任务状态：`sharedstate.Current()` 的 `Get` / `Set` / `SetNX` / `Take` / `Incr`，结构化数据用 `GetJSON` / `SetJSON` / `TakeJSON`，都要设置合理的过期时间
 - 跨实例互斥（读取—比较—写入的临界区）：`sharedstate.Lock` / `TryLock`，锁必须带过期时间
+- 长时间运行的后台任务、并发名额：`sharedstate.AcquireLease`（持有期间自动续期，实例退出后自动过期）；续期自己持有的键用 `Extend`，不要用 `Set` 直接覆盖
+- 实例退出（滚动更新、崩溃）后需要接着做的任务：在共享状态中登记待办与任务参数，由 `internal/tasks/job_recovery.go` 的定时任务在任务令牌过期后接手（参考 AI 摘要与存储迁移）
 - 定时任务：用 `internal/tasks` 的 `runPeriodically`，每轮只有一个实例执行
 - 进程内缓存的数据被修改时：本实例同步失效后调用 `sharedstate.Notify`，并在启动时用 `sharedstate.OnNotify` 订阅（收到空消息表示可能错过了通知，需全量刷新）
 - 只缓存上游或不可变数据（如音乐来源、天气、按内容哈希的渲染结果）的进程内缓存可以保留，不需要跨实例同步

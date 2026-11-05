@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 func waitAISummary(t *testing.T, s *AISummaryService, ctx context.Context, postID uint) *dto.AISummaryStatusDto {
@@ -86,6 +88,45 @@ func TestAISummaryLifecycle(t *testing.T) {
 	}
 	if reloadPost(t, post.ID).ToDto().DescriptionByAI {
 		t.Fatalf("manually edited description should not be marked as AI")
+	}
+}
+
+// 执行任务的实例中途退出（如滚动更新）：待办还在、进行中的状态已过期时显示为排队，定时任务在其他实例上重新执行
+func TestAISummaryResumePending(t *testing.T) {
+	author, _, _, post, _ := setupEditTest(t)
+	s := NewAISummaryService()
+	var calls atomic.Int32
+	s.complete = func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
+		calls.Add(1)
+		return "接手后生成的摘要", nil
+	}
+	for k, v := range map[string]string{"ai_api_base_url": "https://example.com/v1", "ai_api_key": "sk-test", "ai_model": "test-model"} {
+		if err := repo.KV.SetKV(k, v); err != nil {
+			t.Fatalf("set kv: %v", err)
+		}
+	}
+	// 模拟中断：只剩待办，执行实例续期的进行中状态已过期
+	if err := sharedstate.Current().Set(aiSummaryPendingKey(post.ID), strconv.FormatUint(uint64(post.ID), 10), time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := s.Status(author, post.ID); st.Status != aiSummaryStatusQueued {
+		t.Fatalf("interrupted job should show as queued, got %+v", st)
+	}
+	// 其他实例仍在执行时不重复接手
+	_ = sharedstate.Current().Set(aiSummaryActiveKey(post.ID), `{"status":"running"}`, time.Minute)
+	s.ResumePending()
+	if calls.Load() != 0 {
+		t.Fatal("running job should not be resumed")
+	}
+	_ = sharedstate.Current().Delete(aiSummaryActiveKey(post.ID))
+
+	s.ResumePending()
+	st := waitAISummary(t, s, author, post.ID)
+	if st.Status != aiSummaryStatusSucceeded || st.Description != "接手后生成的摘要" || calls.Load() != 1 {
+		t.Fatalf("resumed job = %+v, calls %d", st, calls.Load())
+	}
+	if _, found, _ := sharedstate.Current().Get(aiSummaryPendingKey(post.ID)); found {
+		t.Fatal("finished job should leave no pending entry")
 	}
 }
 

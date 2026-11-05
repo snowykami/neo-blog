@@ -78,6 +78,22 @@ func TestStoreContract(t *testing.T) {
 				t.Fatalf("compare with right value should delete")
 			}
 
+			// Extend 只续期自己持有的值
+			_ = s.Set("ext", "mine", 80*time.Millisecond)
+			if ok, _ := s.Extend("ext", "other", time.Minute); ok {
+				t.Fatalf("extend with wrong value should fail")
+			}
+			if ok, _ := s.Extend("ext", "mine", time.Minute); !ok {
+				t.Fatalf("extend with right value should succeed")
+			}
+			time.Sleep(150 * time.Millisecond)
+			if v, ok, _ := s.Get("ext"); !ok || v != "mine" {
+				t.Fatalf("extended key should still exist, got %q %v", v, ok)
+			}
+			if ok, _ := s.Extend("missing-ext", "mine", time.Minute); ok {
+				t.Fatalf("extend missing key should fail")
+			}
+
 			// Incr 固定窗口
 			for i := int64(1); i <= 3; i++ {
 				if n, err := s.Incr("counter", 80*time.Millisecond); err != nil || n != i {
@@ -213,5 +229,33 @@ func TestInitInvalidRedisURL(t *testing.T) {
 		if Shared() {
 			t.Errorf("Init(%q) failed but switched to redis", url)
 		}
+	}
+}
+
+// 租约：同一键只能被一个持有者占用，持有期间自动续期，释放后其他人才能占用
+func TestLease(t *testing.T) {
+	for name, use := range stores(t) {
+		t.Run(name, func(t *testing.T) {
+			use()
+			l, err := AcquireLease("lease", 90*time.Millisecond)
+			if err != nil || l == nil {
+				t.Fatalf("acquire = %v %v", l, err)
+			}
+			if other, _ := AcquireLease("lease", time.Minute); other != nil {
+				t.Fatal("lease should be exclusive")
+			}
+			// 超过 ttl 仍在持有：后台按 ttl/3 续期
+			time.Sleep(200 * time.Millisecond)
+			if other, _ := AcquireLease("lease", time.Minute); other != nil {
+				t.Fatal("lease should be renewed while held")
+			}
+			l.Release()
+			l.Release()
+			other, _ := AcquireLease("lease", time.Minute)
+			if other == nil {
+				t.Fatal("lease should be free after release")
+			}
+			other.Release()
+		})
 	}
 }

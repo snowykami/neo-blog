@@ -21,6 +21,8 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
+	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -38,6 +40,7 @@ const (
 
 	lyricAnnotationTimeout       = 2 * time.Minute
 	lyricAnnotationRetryAfter    = 30 * time.Minute
+	lyricAnnotationJobTTL        = time.Minute // 生成中的租约，执行期间自动续期
 	lyricAnnotationMaxLines      = 150
 	lyricAnnotationMaxLineRunes  = 120
 	lyricAnnotationMaxPhraseRune = 12
@@ -213,16 +216,13 @@ func normalizeLyricColor(color string) string {
 	return ""
 }
 
-// lyricAnnotationJob 一首歌（一份歌词文本）的生成任务状态（进程内）
-type lyricAnnotationJob struct {
-	running     bool
-	failedUntil time.Time
-}
-
+// 生成任务的状态在共享状态中，多副本时各实例都能看到：生成中为执行实例持有的租约（实例退出后最多 lyricAnnotationJobTTL 释放，
+// 下次有人来看时重新生成），失败后的冷却期为带过期时间的标记
 type lyricAnnotationService struct {
-	mu      sync.Mutex
-	jobs    map[string]*lyricAnnotationJob
-	limiter *aiLimiter
+	name     string // 任务状态的键前缀；为空时使用随机前缀（测试中各个实例互不影响）
+	initOnce sync.Once
+	mu       sync.Mutex // 本实例内「检查是否在生成 → 开始生成」串行；跨实例由租约保证只有一个在生成
+	limiter  *aiLimiter
 	// complete 调用大模型，测试时可替换
 	complete func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
 	// hotComments / chorus 生成时拉取热评与网易云副歌片段，可为 nil（测试时不拉取）
@@ -236,7 +236,7 @@ type lyricAnnotationService struct {
 }
 
 var lyricAnnotations = &lyricAnnotationService{
-	jobs:    make(map[string]*lyricAnnotationJob),
+	name:    "lyric_annotation",
 	limiter: aiCallLimiter,
 	complete: func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
 		return chatCompletionWithReasoning(ctx, cfg, system, user, lyricAnnotationTemperature, lyricAnnotationReasoningEffort)
@@ -396,9 +396,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	job := a.jobs[key]
-	running := job != nil && job.running
-	coolingDown := job != nil && !job.running && time.Now().Before(job.failedUntil)
+	running, coolingDown := a.jobState(key)
 
 	if found {
 		data := parseLyricAnnotationData(record.Data)
@@ -427,31 +425,62 @@ func (a *lyricAnnotationService) refresh(id int64, lines []string, info lyricAnn
 	key, hash := lyricAnnotationKey(id, lines)
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if job := a.jobs[key]; job == nil || !job.running {
+	if running, _ := a.jobState(key); !running {
 		a.startLocked(key, id, hash, lines, info, cfg)
 	}
 	return &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusPending, Lines: []dto.MusicLyricAnnotationLine{}}
 }
 
-// startLocked 开始后台生成任务，调用方须持有 a.mu
-func (a *lyricAnnotationService) startLocked(key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) {
-	a.jobs[key] = &lyricAnnotationJob{running: true}
-	go a.run(key, id, hash, lines, info, cfg)
+func (a *lyricAnnotationService) stateKeys(key string) (job, failed string) {
+	a.initOnce.Do(func() {
+		if a.name == "" {
+			a.name = "lyric_annotation_" + utils.Strings.GenerateRandomString(8)
+		}
+	})
+	return a.name + ":job:" + key, a.name + ":failed:" + key
 }
 
-func (a *lyricAnnotationService) run(key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) {
+// jobState 这份歌词文本是否正在生成标注（包括在其他实例上）、是否在失败后的冷却期内
+func (a *lyricAnnotationService) jobState(key string) (running, coolingDown bool) {
+	jobKey, failedKey := a.stateKeys(key)
+	values, err := sharedstate.Current().GetMany(jobKey, failedKey)
+	if err != nil {
+		logrus.Warnf("read lyric annotation state %s: %v", key, err)
+		return false, false
+	}
+	_, running = values[jobKey]
+	_, coolingDown = values[failedKey]
+	return running, coolingDown
+}
+
+// startLocked 开始后台生成任务，调用方须持有 a.mu；其他实例刚好抢先开始时不重复生成
+func (a *lyricAnnotationService) startLocked(key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) {
+	jobKey, failedKey := a.stateKeys(key)
+	lease, err := sharedstate.AcquireLease(jobKey, lyricAnnotationJobTTL)
+	if err != nil || lease == nil {
+		if err != nil {
+			logrus.Warnf("start lyric annotation %s: %v", key, err)
+		}
+		return
+	}
+	_ = sharedstate.Current().Delete(failedKey)
+	go a.run(lease, key, id, hash, lines, info, cfg)
+}
+
+func (a *lyricAnnotationService) run(lease *sharedstate.Lease, key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) {
 	ok := false
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("lyric annotation panic for song %d: %v", id, r)
 		}
-		a.mu.Lock()
-		if ok {
-			delete(a.jobs, key)
-		} else {
-			a.jobs[key] = &lyricAnnotationJob{failedUntil: time.Now().Add(lyricAnnotationRetryAfter)}
+		// 先记下失败的冷却期再释放租约，查询方不会在两者之间看到「没有在生成」而立即重试
+		if !ok {
+			_, failedKey := a.stateKeys(key)
+			if err := sharedstate.Current().Set(failedKey, "1", lyricAnnotationRetryAfter); err != nil {
+				logrus.Warnf("save lyric annotation failure %s: %v", key, err)
+			}
 		}
-		a.mu.Unlock()
+		lease.Release()
 		if a.done != nil {
 			a.done()
 		}

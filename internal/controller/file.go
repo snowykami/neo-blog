@@ -268,7 +268,7 @@ func (f *FileController) DeleteFile(ctx context.Context, c *app.RequestContext) 
 		return
 	}
 	// 从缓存中删除文件
-	cache.GetFileCache().Remove(fileId)
+	cache.EvictFile(fileId)
 	logrus.Debugf("文件已从缓存中删除, fileId: %d", fileId)
 
 	resps.Ok(c, "文件删除成功", nil)
@@ -388,7 +388,7 @@ func (f *FileController) BatchDeleteFiles(ctx context.Context, c *app.RequestCon
 			continue
 		}
 		// 从缓存中删除文件
-		cache.GetFileCache().Remove(id)
+		cache.EvictFile(id)
 		logrus.Debugf("文件已从缓存中删除, fileId: %d", id)
 	}
 

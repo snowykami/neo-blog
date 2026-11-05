@@ -21,6 +21,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
+	"gorm.io/gorm"
 )
 
 // AI 用户的任务由各实例上的 worker（见 internal/agentrunner）执行：
@@ -93,6 +94,24 @@ func AgentRunWake() <-chan struct{} {
 }
 
 // notifyAgentRuns 有新任务入队：唤醒本实例与其他实例上空闲的 worker
+// ReleaseRun 实例退出前放弃尚未完成的任务：立即重新排队并退回这次领取计入的尝试次数，其他实例可以马上接着执行，不必等租约到期。
+// 已执行过的写操作不会重复：同一次运行对同一目标只发一条评论、写操作总数受限，这两项计数都在共享状态中
+func (s *AIAgentService) ReleaseRun(runID uint) {
+	ok, err := repo.AIAgent.UpdateRunIf(runID, constant.AgentRunStatusLeased, map[string]any{
+		"status":      constant.AgentRunStatusQueued,
+		"lease_until": nil,
+		"attempts":    gorm.Expr("attempts - 1"),
+	})
+	if err != nil {
+		logrus.Warnf("release agent run %d: %v", runID, err)
+		return
+	}
+	if ok {
+		logrus.Infof("released unfinished agent run %d for other instances", runID)
+		notifyAgentRuns()
+	}
+}
+
 func notifyAgentRuns() {
 	wakeLocalRunners()
 	sharedstate.Notify(agentRunsChannel, "new")

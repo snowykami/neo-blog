@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 const (
@@ -55,9 +57,10 @@ type aiStreamFunc func(ctx context.Context, cfg tools.AIConfig, system, user str
 // AIWriteService 编辑器 AI 写作：流式生成，结果由前端写入编辑器，不落库
 // 与 AI 摘要共用模型调用的并发限制，并优先获取名额；同一用户同时只保留最新的一次生成
 type AIWriteService struct {
-	mu      sync.Mutex
-	running map[uint]*aiWriteRun
-	limiter *aiLimiter
+	mu         sync.Mutex
+	running    map[uint]*aiWriteRun
+	listenOnce sync.Once
+	limiter    *aiLimiter
 	// stream 流式调用模型，测试时可替换
 	stream aiStreamFunc
 	// concurrency 读取并发上限，测试时可替换
@@ -171,8 +174,18 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 	return &AIWriteJob{userID: userID, cfg: cfg, system: aiWriteSystemPromptWithStyle(tools.GetAIWritingStyle()), user: prompt.build()}, nil
 }
 
-// register 登记当前用户的生成并取消其上一次未结束的生成；返回的函数用于结束时注销
+// aiWriteStartedChannel 有用户开始新的生成时通知其他实例，取消该用户在其他实例上未结束的生成（消息为用户 ID）
+const aiWriteStartedChannel = "ai_write_started"
+
+// register 登记当前用户的生成并取消其上一次未结束的生成（多副本时上一次可能在其他实例上）；返回的函数用于结束时注销
 func (s *AIWriteService) register(userID uint, cancel context.CancelFunc) func() {
+	s.listenOnce.Do(func() {
+		sharedstate.OnNotify(aiWriteStartedChannel, func(message string) {
+			if id, err := strconv.ParseUint(message, 10, 64); err == nil {
+				s.cancelLocal(uint(id))
+			}
+		})
+	})
 	run := &aiWriteRun{cancel: cancel}
 	s.mu.Lock()
 	if prev, ok := s.running[userID]; ok {
@@ -180,12 +193,23 @@ func (s *AIWriteService) register(userID uint, cancel context.CancelFunc) func()
 	}
 	s.running[userID] = run
 	s.mu.Unlock()
+	sharedstate.Notify(aiWriteStartedChannel, strconv.FormatUint(uint64(userID), 10))
 	return func() {
 		s.mu.Lock()
 		if s.running[userID] == run {
 			delete(s.running, userID)
 		}
 		s.mu.Unlock()
+	}
+}
+
+// cancelLocal 取消该用户在本实例上未结束的生成
+func (s *AIWriteService) cancelLocal(userID uint) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if run, ok := s.running[userID]; ok {
+		run.cancel()
+		delete(s.running, userID)
 	}
 }
 

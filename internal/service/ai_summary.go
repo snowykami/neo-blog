@@ -25,6 +25,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
+	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
 
@@ -42,13 +43,16 @@ const (
 )
 
 // 任务状态存在共享状态中，多实例部署时在任一实例触发、在另一实例查询都能看到：
-// 排队或生成中的状态由执行任务的实例定期续期，实例退出后最多 aiSummaryActiveTTL 即消失，可以重新触发
+// 排队或生成中的状态由执行任务的实例定期续期，实例退出后最多 aiSummaryActiveTTL 即消失；
+// 登记后到完成前任务一直留在待办中，执行的实例中途退出（如滚动更新）时，由定时任务 ResumePending 在其他实例上重新排队
 const (
-	aiSummaryActiveTTL       = 2 * time.Minute
-	aiSummaryHeartbeat       = 30 * time.Second
-	aiSummaryResultTTL       = 24 * time.Hour // 最近一次结果（成功或失败）保留时长
-	aiSummaryActiveKeyPrefix = "ai_summary:active:"
-	aiSummaryResultKeyPrefix = "ai_summary:result:"
+	aiSummaryActiveTTL        = 2 * time.Minute
+	aiSummaryHeartbeat        = 30 * time.Second
+	aiSummaryResultTTL        = 24 * time.Hour // 最近一次结果（成功或失败）保留时长
+	aiSummaryPendingTTL       = 24 * time.Hour // 待办保留时长，超过仍未完成的不再自动恢复
+	aiSummaryActiveKeyPrefix  = "ai_summary:active:"
+	aiSummaryResultKeyPrefix  = "ai_summary:result:"
+	aiSummaryPendingKeyPrefix = "ai_summary:pending:"
 )
 
 // aiSummaryJob 单篇文章的生成任务状态
@@ -68,6 +72,10 @@ func aiSummaryActiveKey(postID uint) string {
 
 func aiSummaryResultKey(postID uint) string {
 	return aiSummaryResultKeyPrefix + strconv.FormatUint(uint64(postID), 10)
+}
+
+func aiSummaryPendingKey(postID uint) string {
+	return aiSummaryPendingKeyPrefix + strconv.FormatUint(uint64(postID), 10)
 }
 
 // aiSummaryTracker 执行任务的实例用它更新状态并定期续期，结束时写入结果
@@ -129,70 +137,141 @@ func (t *aiSummaryTracker) finish(status, errMsg string) {
 	if err := sharedstate.SetJSON(aiSummaryResultKey(t.postID), aiSummaryJob{Status: status, Err: errMsg}, aiSummaryResultTTL); err != nil {
 		logrus.Warnf("save ai summary result for post %d: %v", t.postID, err)
 	}
-	if err := sharedstate.Current().Delete(aiSummaryActiveKey(t.postID)); err != nil {
+	if err := sharedstate.Current().Delete(aiSummaryActiveKey(t.postID), aiSummaryPendingKey(t.postID)); err != nil {
 		logrus.Warnf("clear ai summary status for post %d: %v", t.postID, err)
 	}
 }
 
-// aiLimiter 限制同时调用模型的请求数（AI 摘要与 AI 写作共用），上限每次获取时读取，修改配置后立即生效
-// 交互式的 AI 写作以优先级获取名额：有优先请求在等待时，后台摘要任务让出空闲名额，避免写作排在整批摘要之后
+// aiLimiter 限制同时调用模型的请求数（AI 摘要、AI 写作、评论翻译、歌词标注共用），上限每次获取时读取，修改配置后立即生效。
+// 名额是共享状态中的租约（多副本时在 Redis），所有实例合计不超过上限；持有名额的实例退出后，名额最多 aiSlotTTL 后自动释放。
+// 交互式请求（AI 写作、评论翻译）以优先级获取：上限大于 1 时第 0 个名额只留给它们；本实例有优先请求在等待时，后台任务让出名额
 type aiLimiter struct {
+	name string // 名额的键前缀；为空时使用随机前缀（测试中各个限制器互不影响）
+
+	initOnce        sync.Once
+	bgTurn          chan struct{} // 同一实例的后台任务依次等待名额，避免同时轮询共享状态
 	mu              sync.Mutex
-	running         int
-	priorityWaiting int           // 正在等待的优先请求数
-	wake            chan struct{} // 有名额释放时关闭，唤醒所有等待者重新竞争
+	priorityWaiting int                  // 本实例正在等待的优先请求数
+	wake            chan struct{}        // 有名额释放时关闭，唤醒所有等待者重新竞争
+	held            []*sharedstate.Lease // 本实例持有的名额（获取失败而放行时为 nil 占位）
 }
 
+const (
+	aiSlotTTL        = 45 * time.Second // 名额租约，持有期间自动续期
+	aiSlotPoll       = time.Second      // 等待名额时的轮询间隔（其他实例释放名额时也会通知）
+	aiLimiterChannel = "ai_limiter_release:"
+)
+
 // aiCallLimiter 全局共用的模型调用限制器
-var aiCallLimiter = &aiLimiter{}
+var aiCallLimiter = &aiLimiter{name: "ai_call"}
+
+func (l *aiLimiter) init() {
+	l.initOnce.Do(func() {
+		if l.name == "" {
+			l.name = "ai_limiter_" + utils.Strings.GenerateRandomString(8)
+		}
+		l.bgTurn = make(chan struct{}, 1)
+		sharedstate.OnNotify(aiLimiterChannel+l.name, func(string) {
+			l.mu.Lock()
+			l.broadcastLocked()
+			l.mu.Unlock()
+		})
+	})
+}
 
 // acquire 获取名额；首次需要等待时调用 onWait（可为 nil），ctx 取消时放弃等待并返回错误
 func (l *aiLimiter) acquire(ctx context.Context, limit func() int, priority bool, onWait func()) error {
+	l.init()
+	if !priority {
+		select {
+		case l.bgTurn <- struct{}{}:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		defer func() { <-l.bgTurn }()
+	}
 	waiting := false
-	for {
-		l.mu.Lock()
-		if l.running < limit() && (priority || l.priorityWaiting == 0) {
-			l.running++
-			if waiting && priority {
-				l.priorityWaiting--
-				l.broadcastLocked()
-			}
+	defer func() {
+		if waiting && priority {
+			l.mu.Lock()
+			l.priorityWaiting--
+			l.broadcastLocked()
 			l.mu.Unlock()
-			return nil
+		}
+	}()
+	for {
+		// 先取唤醒通道再尝试，尝试期间发生的释放也能唤醒本轮等待
+		l.mu.Lock()
+		if l.wake == nil {
+			l.wake = make(chan struct{})
+		}
+		wake := l.wake
+		yield := !priority && l.priorityWaiting > 0
+		l.mu.Unlock()
+		if !yield {
+			lease, err := l.trySlot(limit(), priority)
+			if err != nil || lease != nil {
+				if err != nil {
+					// 共享状态不可用时放行，不让调用方无限等待
+					logrus.Warnf("ai limiter unavailable, allowing call: %v", err)
+				}
+				l.mu.Lock()
+				l.held = append(l.held, lease)
+				l.mu.Unlock()
+				return nil
+			}
 		}
 		if !waiting {
 			waiting = true
 			if priority {
+				l.mu.Lock()
 				l.priorityWaiting++
+				l.mu.Unlock()
 			}
 			if onWait != nil {
 				onWait()
 			}
 		}
-		if l.wake == nil {
-			l.wake = make(chan struct{})
-		}
-		wake := l.wake
-		l.mu.Unlock()
 		select {
 		case <-wake:
+		case <-time.After(aiSlotPoll):
 		case <-ctx.Done():
-			if priority {
-				l.mu.Lock()
-				l.priorityWaiting--
-				l.broadcastLocked()
-				l.mu.Unlock()
-			}
 			return ctx.Err()
 		}
 	}
 }
 
+// trySlot 占用一个空闲名额，没有时返回 nil
+func (l *aiLimiter) trySlot(limit int, priority bool) (*sharedstate.Lease, error) {
+	limit = max(limit, 1)
+	first := 0
+	if !priority && limit > 1 {
+		first = 1 // 第 0 个名额留给交互式请求
+	}
+	for i := first; i < limit; i++ {
+		lease, err := sharedstate.AcquireLease(fmt.Sprintf("%s:slot:%d", l.name, i), aiSlotTTL)
+		if err != nil || lease != nil {
+			return lease, err
+		}
+	}
+	return nil, nil
+}
+
+// release 归还本实例持有的一个名额，并唤醒本实例与其他实例的等待者
 func (l *aiLimiter) release() {
 	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.running--
+	var lease *sharedstate.Lease
+	if n := len(l.held); n > 0 {
+		lease, l.held = l.held[n-1], l.held[:n-1]
+	}
+	l.mu.Unlock()
+	if lease != nil {
+		lease.Release()
+		sharedstate.Notify(aiLimiterChannel+l.name, "")
+	}
+	l.mu.Lock()
 	l.broadcastLocked()
+	l.mu.Unlock()
 }
 
 // broadcastLocked 唤醒所有等待者，调用方需持有锁
@@ -262,11 +341,12 @@ func (s *AISummaryService) jobStatus(postID uint) (string, string) {
 	return aiSummaryStatusIdle, ""
 }
 
-// jobStatuses 批量读取任务状态：排队或生成中的优先，其次是最近一次的结果；没有记录的文章不在结果中
+// jobStatuses 批量读取任务状态：排队或生成中的优先；执行的实例已退出、等待其他实例接手的待办视为排队；其次是最近一次的结果。
+// 没有记录的文章不在结果中
 func (s *AISummaryService) jobStatuses(postIDs []uint) map[uint]aiSummaryJob {
-	keys := make([]string, 0, 2*len(postIDs))
+	keys := make([]string, 0, 3*len(postIDs))
 	for _, id := range postIDs {
-		keys = append(keys, aiSummaryActiveKey(id), aiSummaryResultKey(id))
+		keys = append(keys, aiSummaryActiveKey(id), aiSummaryPendingKey(id), aiSummaryResultKey(id))
 	}
 	values, err := sharedstate.Current().GetMany(keys...)
 	if err != nil {
@@ -275,12 +355,13 @@ func (s *AISummaryService) jobStatuses(postIDs []uint) map[uint]aiSummaryJob {
 	}
 	result := make(map[uint]aiSummaryJob, len(values))
 	for _, id := range postIDs {
-		for _, key := range []string{aiSummaryActiveKey(id), aiSummaryResultKey(id)} {
-			var job aiSummaryJob
-			if raw, ok := values[key]; ok && json.Unmarshal([]byte(raw), &job) == nil {
-				result[id] = job
-				break
-			}
+		var job aiSummaryJob
+		if raw, ok := values[aiSummaryActiveKey(id)]; ok && json.Unmarshal([]byte(raw), &job) == nil {
+			result[id] = job
+		} else if _, ok := values[aiSummaryPendingKey(id)]; ok {
+			result[id] = aiSummaryJob{Status: aiSummaryStatusQueued}
+		} else if raw, ok := values[aiSummaryResultKey(id)]; ok && json.Unmarshal([]byte(raw), &job) == nil {
+			result[id] = job
 		}
 	}
 	return result
@@ -371,12 +452,55 @@ func (s *AISummaryService) enqueue(post *model.Post, cfg tools.AIConfig) (bool, 
 	if err != nil || !claimed {
 		return false, err
 	}
-	// 清掉上一次的结果，查询时只看到这次任务
+	// 清掉上一次的结果，查询时只看到这次任务；登记待办，执行的实例中途退出时由其他实例接着做
 	_ = sharedstate.Current().Delete(aiSummaryResultKey(post.ID))
+	if err := sharedstate.Current().Set(aiSummaryPendingKey(post.ID), strconv.FormatUint(uint64(post.ID), 10), aiSummaryPendingTTL); err != nil {
+		logrus.Warnf("save ai summary pending for post %d: %v", post.ID, err)
+	}
 
 	// 以触发时的正文为准，生成期间正文再被修改会在完成后显示为「需要重新生成」
 	go s.run(startAISummaryTracker(post.ID), cfg, post.Title, post.Content, model.HashContent(post.Content))
 	return true, nil
+}
+
+// ResumePending 重新排队执行中途中断的任务：仍在待办里、但已没有排队或生成中状态的文章（执行的实例已退出）。
+// 由定时任务调用，多实例时每轮只有一个实例执行；排队时用 SetNX 抢占，同一文章不会被重复执行
+func (s *AISummaryService) ResumePending() {
+	cfg := tools.GetAIConfig()
+	if !cfg.Configured() {
+		return
+	}
+	pending, err := sharedstate.Current().GetByPrefix(aiSummaryPendingKeyPrefix)
+	if err != nil {
+		logrus.Warnf("list pending ai summaries: %v", err)
+		return
+	}
+	for key, value := range pending {
+		id, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			_ = sharedstate.Current().Delete(key)
+			continue
+		}
+		postID := uint(id)
+		if _, active, err := sharedstate.Current().Get(aiSummaryActiveKey(postID)); err != nil || active {
+			continue
+		}
+		post, err := repo.Post.GetPostByID(postID)
+		if err != nil || strings.TrimSpace(htmlToPlainText(post.Content)) == "" {
+			_ = sharedstate.Current().Delete(key)
+			continue
+		}
+		if queued, err := s.enqueue(post, cfg); err != nil {
+			logrus.Warnf("resume ai summary for post %d: %v", postID, err)
+		} else if queued {
+			logrus.Infof("resumed interrupted ai summary for post %d", postID)
+		}
+	}
+}
+
+// ResumePendingAISummaries 定时任务入口
+func ResumePendingAISummaries() {
+	aiSummaryService.ResumePending()
 }
 
 func (s *AISummaryService) run(job *aiSummaryTracker, cfg tools.AIConfig, title, content, sourceHash string) {
