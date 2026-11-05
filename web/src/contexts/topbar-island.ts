@@ -33,8 +33,18 @@ export interface IslandActivity {
   panelStyle?: CSSProperties
   // 没有面板时点按胶囊执行
   onPress?: () => void
-  // 胶囊描边辉光的颜色（如副歌时的封面主色），为空时不发光
-  glow?: string | null
+  // 胶囊的描边辉光（如副歌时随歌词颜色发光），为空时不发光
+  glow?: IslandGlow | null
+  // 读者能否把它从顶栏滑走隐藏（断网、上传进度等需要一直看到的不允许）
+  hideable?: boolean
+  // 一段活动的标识（如当前曲目）：隐藏只在同一段内有效，换了（如切歌）重新出现；活动撤下后同样重新出现
+  sessionKey?: string
+}
+
+/** 胶囊的描边辉光：strong 时辉光范围更大、更亮（只变光，不改胶囊大小） */
+export interface IslandGlow {
+  color: string
+  strong: boolean
 }
 
 export interface IslandAlert {

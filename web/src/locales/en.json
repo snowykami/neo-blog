@@ -4146,6 +4146,9 @@
     "collapse_topbar": "Hide top bar"
   },
   "TopbarIsland": {
+    "hide_activity": "Hide from top bar",
+    "hidden_announce": "Hid “{label}” from the top bar. Swipe left or right on the site name to bring it back",
+    "restored_announce": "Hidden items are back in the top bar",
     "music_playing": "Now playing: {title}",
     "music_paused": "Paused: {title}. Tap to resume",
     "music_now_playing": "Started playing {title}",
@@ -4153,7 +4156,8 @@
     "reading_left": "{count, plural, =0 {Almost done} other {# min left}}",
     "reading_progress": "{percent}% read",
     "reading_to_comments": "Go to comments",
-    "reading_finish": "All done! Leave a like?",
+    "reading_finish": "All done! Tap here to like it",
+    "reading_finish_liked": "All done! Thanks for the like",
     "upload_text": "{count, plural, one {Uploading # file} other {Uploading # files}}",
     "network_offline": "Offline",
     "network_offline_label": "You are offline",

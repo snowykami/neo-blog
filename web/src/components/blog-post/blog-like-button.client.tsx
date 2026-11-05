@@ -3,12 +3,10 @@ import type { Post } from '@/models/post'
 import type { User } from '@/models/user'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { toast } from 'sonner'
-import { getLikedUsers, toggleLike } from '@/api/like'
-import { useRequireLogin } from '@/components/auth/login-dialog'
+import { getLikedUsers } from '@/api/like'
 import { UserAvatar } from '@/components/common/avatar'
-import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import { LikeIcon } from '@/contexts/theme-context'
+import { usePostLike } from '@/hooks/use-post-like'
 import { useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { TargetType } from '@/models/types'
@@ -19,14 +17,10 @@ const MAX_LIKED_USERS = 5
 
 export function BlogLikeButton({ post }: { post: Post }) {
   const operationT = useOperationT()
-  const requireLogin = useRequireLogin()
-  const [liked, setLiked] = useState(post.isLiked)
-  const [likeCount, setLikeCount] = useState(post.likeCount || 0)
+  // 与顶栏灵动岛的「读完啦」提示共用点赞状态（见 hooks/use-post-like.tsx）：在岛上点赞后这里同步变化
+  const { liked, count: likeCount, version: likedUsersVersion, toggle } = usePostLike(post)
   const [likedUsers, setLikedUsers] = useState<User[]>([])
-  const [canClickLike, setCanClickLike] = useState(true)
   const [shouldFetchLikedUsers, setShouldFetchLikedUsers] = useState(false)
-  // 点赞结果被服务端确认后自增，触发点赞用户列表刷新（不能依赖乐观状态，否则会在服务端更新前拉取）
-  const [likedUsersVersion, setLikedUsersVersion] = useState(0)
   const likeButtonRef = useRef<HTMLDivElement>(null)
 
   // Lazy load liked users only when in viewport
@@ -62,40 +56,6 @@ export function BlogLikeButton({ post }: { post: Post }) {
       })
   }, [shouldFetchLikedUsers, likedUsersVersion, post.id])
 
-  // 未登录时由 requireLogin 弹出快捷登录，登录后接着执行，因此这里不再判断登录状态
-  const like = () => {
-    if (!canClickLike) {
-      return
-    }
-    setCanClickLike(false)
-    // 提前转换状态，让用户觉得响应很快，失败时回滚
-    const likedPrev = liked
-    const likeCountPrev = likeCount
-    setLiked(!likedPrev)
-    setLikeCount(likeCountPrev + (likedPrev ? -1 : 1))
-    // 传入期望状态：快捷登录后页面上的点赞状态可能已过期，避免把已赞的点成取消
-    toggleLike({ targetType: TargetType.Post, targetId: post.id, liked: !likedPrev })
-      .then((res) => {
-        // 点赞时岛上的爱心（节日主题下为节日图形）随主题变化；取消点赞只给一句确认
-        if (res.data.status)
-          notifySuccess(operationT('like_success'), { key: 'like', icon: <LikeIcon aria-hidden className="fill-current text-rose-400" /> })
-        else
-          notifySuccess(operationT('unlike_success'), { key: 'unlike' })
-        // 以服务端结果为准，校正乐观状态
-        setLiked(res.data.status)
-        setLikeCount(likeCountPrev + (res.data.status === likedPrev ? 0 : res.data.status ? 1 : -1))
-        setLikedUsersVersion(v => v + 1)
-      })
-      .catch((error) => {
-        toast.error(`${operationT('like_failed')}: ${error.message}`)
-        setLiked(likedPrev)
-        setLikeCount(likeCountPrev)
-      })
-      .finally(() => {
-        setCanClickLike(true)
-      })
-  }
-
   // 未展示头像的点赞人数
   const moreLikedCount = Math.max(0, likeCount - likedUsers.length)
 
@@ -103,7 +63,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
     <div ref={likeButtonRef} className="flex flex-col items-center gap-3">
       <button
         type="button"
-        onClick={() => requireLogin(like, 'like')}
+        onClick={toggle}
         aria-label={liked ? operationT('unlike') : operationT('like')}
         aria-pressed={liked}
         title={liked ? operationT('unlike') : operationT('like')}

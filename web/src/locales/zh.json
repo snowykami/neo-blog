@@ -4146,6 +4146,9 @@
     "collapse_topbar": "收起顶栏"
   },
   "TopbarIsland": {
+    "hide_activity": "在顶栏隐藏",
+    "hidden_announce": "已在顶栏隐藏「{label}」，在站名上左右滑动可以恢复",
+    "restored_announce": "已恢复顶栏上隐藏的内容",
     "music_playing": "正在播放：{title}",
     "music_paused": "已暂停：{title}，点按继续播放",
     "music_now_playing": "开始播放：{title}",
@@ -4153,7 +4156,8 @@
     "reading_left": "{count, plural, =0 {即将读完} other {还剩 # 分钟}}",
     "reading_progress": "已读 {percent}%",
     "reading_to_comments": "去评论区",
-    "reading_finish": "读完啦～点个赞吧",
+    "reading_finish": "读完啦～点这里直接点赞",
+    "reading_finish_liked": "读完啦～谢谢你的点赞",
     "upload_text": "正在上传 {count} 个文件",
     "network_offline": "已离线",
     "network_offline_label": "网络已断开",

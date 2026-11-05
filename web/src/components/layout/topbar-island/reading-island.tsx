@@ -1,6 +1,7 @@
 'use client'
 
 import type { IslandActivity } from '@/contexts/topbar-island'
+import type { Post } from '@/models/post'
 import type { TocHeading } from '@/models/toc'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { ArrowUpIcon, MessageCircleIcon } from 'lucide-react'
@@ -9,6 +10,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { getScrollOffset } from '@/components/blog-post/post-toc.client'
 import { LikeIcon } from '@/contexts/theme-context'
 import { pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
+import { usePostLike } from '@/hooks/use-post-like'
 import { cn } from '@/lib/utils'
 import { IslandText, ProgressRing } from './island-parts'
 
@@ -63,10 +65,17 @@ function scrollToElement(id: string) {
 
 /**
  * 文章阅读进度（挂在文章页）：正文读到一半时胶囊显示进度环 + 当前章节 + 剩余时间，点按展开迷你目录
- * （移动端侧栏目录不显示，这里补上）；读到末尾时提示一次「读完啦」，点按跳到点赞
+ * （移动端侧栏目录不显示，这里补上）；读到末尾时提示一次「读完啦」：没赞过时点按提示直接点赞（未登录先快捷登录，登录后接着赞），
+ * 把「跳到点赞按钮 → 再点一次」压成一次；赞过时只道谢。点赞状态与页面上的点赞按钮共用（见 hooks/use-post-like.tsx）
  */
-export function ReadingIsland({ title, headings, minutes }: { title: string, headings: TocHeading[], minutes: number }) {
+export function ReadingIsland({ title, headings, minutes, post }: { title: string, headings: TocHeading[], minutes: number, post: Pick<Post, 'id' | 'isLiked' | 'likeCount'> }) {
   const t = useTranslations('TopbarIsland')
+  const postLike = usePostLike(post)
+  // 读完时按当时的点赞状态决定提示（订阅回调里读最新值）
+  const postLikeRef = useRef(postLike)
+  useEffect(() => {
+    postLikeRef.current = postLike
+  })
   const [store] = useState(createReadingStore)
   const phase = useSyncExternalStore(store.subscribe, () => store.get().phase, () => INITIAL.phase)
   const activeIndex = useSyncExternalStore(store.subscribe, () => store.get().activeIndex, () => INITIAL.activeIndex)
@@ -118,14 +127,22 @@ export function ReadingIsland({ title, headings, minutes }: { title: string, hea
     if (finishedRef.current || phase !== 'reading' || progress < FINISH_PROGRESS || scrollable < window.innerHeight * FINISH_MIN_SCROLL_RATIO)
       return
     finishedRef.current = true
-    pushIslandAlert({
-      key: 'reading-finish',
-      feature: 'readingFinish',
-      icon: <LikeIcon aria-hidden className="text-rose-400" />,
-      text: t('reading_finish'),
-      duration: FINISH_MS,
-      onPress: () => scrollToElement('post-actions'),
-    })
+    pushIslandAlert(postLikeRef.current.liked
+      ? {
+          key: 'reading-finish',
+          feature: 'readingFinish',
+          icon: <LikeIcon aria-hidden className="fill-current text-rose-400" />,
+          text: t('reading_finish_liked'),
+          duration: FINISH_MS,
+        }
+      : {
+          key: 'reading-finish',
+          feature: 'readingFinish',
+          icon: <LikeIcon aria-hidden className="text-rose-400" />,
+          text: t('reading_finish'),
+          duration: FINISH_MS,
+          onPress: () => postLikeRef.current.like(),
+        })
   }), [store, t])
 
   const chapter = activeIndex >= 0 ? headings[activeIndex].text : title
@@ -134,6 +151,7 @@ export function ReadingIsland({ title, headings, minutes }: { title: string, hea
     : {
         id: 'reading',
         feature: 'reading',
+        hideable: true,
         priority: READING_PRIORITY,
         label: t('reading_label', { chapter }),
         compact: (

@@ -1,6 +1,6 @@
 'use client'
 
-import type { IslandActivity } from '@/contexts/topbar-island'
+import type { IslandActivity, IslandGlow } from '@/contexts/topbar-island'
 import type { MusicTrack } from '@/models/music'
 import type { IslandSettings } from '@/utils/common/siteinfo'
 import { PlayIcon } from 'lucide-react'
@@ -14,10 +14,11 @@ import { SafeImage } from '@/components/common/safe-image'
 import { MusicBackground } from '@/components/music-page/music-background'
 import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
-import { useSongAccent } from '@/components/music-page/use-cover-accent'
+import { useCoverAccent, useSongAccent } from '@/components/music-page/use-cover-accent'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useSongChorus } from '@/contexts/song-chorus'
 import { dismissIslandAlert, pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
+import { lyricGlowAt } from '@/lib/lyrics/lyric-glow'
 import { backgroundLevel, rhythmContext } from '@/lib/lyrics/rhythm/effects'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 import { IslandSlot, IslandText } from './island-parts'
@@ -34,6 +35,7 @@ const PAUSE_SETTLE_MS = 350
 // 不需要订阅播放进度时的占位
 const noopSubscribe = () => () => {}
 const falseSnapshot = () => false
+const emptySnapshot = () => ''
 
 function trackTitle(track: MusicTrack) {
   return [track.name, track.artists.join(' / ')].filter(Boolean).join(' - ')
@@ -41,7 +43,7 @@ function trackTitle(track: MusicTrack) {
 
 /**
  * 音乐活动：播放时胶囊里是模糊封面底 + 旋转封面 + 歌词引擎的单行条（逐字擦除、强调特效、间奏圆点、副歌爆发都与播放器一致），
- * 右侧律动条跟随节拍；副歌段胶囊描边泛起封面主色；切歌时短暂显示歌名（不显示导语、热评等句子，岛上只放歌词）；
+ * 右侧律动条跟随节拍；副歌段胶囊描边发光，颜色随此刻在唱的歌词（强调短语的颜色、这一行情绪的辉光色），没有时取封面主色，唱到强调或点题句时辉光范围更大；切歌时短暂显示歌名（不显示导语、热评等句子，岛上只放歌词）；
  * 暂停后（本页播放过时）缩成封面 + 播放键，点按继续；点按展开与悬浮球相同的播放器弹层（从胶囊下方弹出）。播放器页本身就是完整播放器，不显示
  */
 export function MusicIsland({ settings }: { settings: IslandSettings }) {
@@ -63,8 +65,9 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
   }, [isPlaying])
   // 刚暂停的一小段时间内仍按播放中显示
   const showPlaying = isPlaying || (hasPlayed && !pauseSettled)
-  const accent = useSongAccent(currentTrack?.albumPic)
+  const coverAccent = useCoverAccent(currentTrack?.albumPic)
   const inChorus = useInChorus(isPlaying && settings.musicChorus ? currentTrack?.id ?? null : null)
+  const glow = useLyricGlow(inChorus, coverAccent)
   const lyricStarted = useLyricStarted(isPlaying)
   const title = currentTrack ? trackTitle(currentTrack) : ''
 
@@ -75,6 +78,8 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       return {
         id: 'music',
         feature: 'music',
+        hideable: true,
+        sessionKey: String(currentTrack.id),
         priority: PLAYING_PRIORITY,
         label: t('music_playing', { title }),
         compact: <MusicCompact beat={settings.musicBeat} />,
@@ -82,7 +87,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
         panel: <MiniPlayer />,
         panelClassName: MINI_PLAYER_POPOVER_CLASSNAME,
         panelStyle: MINI_PLAYER_POPOVER_STYLE,
-        glow: inChorus ? (accent ?? 'rgb(255 255 255)') : null,
+        glow,
       }
     }
     if (!hasPlayed)
@@ -90,6 +95,8 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
     return {
       id: 'music',
       feature: 'musicPaused',
+      hideable: true,
+      sessionKey: String(currentTrack.id),
       priority: PAUSED_PRIORITY,
       label: t('music_paused', { title }),
       compact: (
@@ -101,7 +108,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       minimal: <AlbumNavIcon />,
       onPress: play,
     }
-  }, [accent, currentTrack, hasPlayed, inChorus, onPlayerPage, play, settings.musicBeat, showPlaying, t, title])
+  }, [currentTrack, glow, hasPlayed, onPlayerPage, play, settings.musicBeat, showPlaying, t, title])
   useIslandActivity(activity)
 
   // 开始播放或切歌时短暂显示歌名（同一首只提示一次）；歌词已经在唱（如从中段继续播放）时不提示，直接显示歌词
@@ -143,6 +150,26 @@ function useLyricStarted(enabled: boolean) {
     [clock, lyricLines],
   )
   return useSyncExternalStore(enabled ? clock.subscribe : noopSubscribe, enabled ? getSnapshot : falseSnapshot, falseSnapshot)
+}
+
+/**
+ * 副歌描边的辉光（见 lib/lyrics/lyric-glow.ts）：颜色取此刻在唱的歌词，没有时取 fallback（封面主色）；enabled 为 false 时不订阅播放进度。
+ * 随播放时钟（约每秒 4 次）读取，只在颜色或强弱变化时重渲染
+ */
+function useLyricGlow(enabled: boolean, fallback: string | null): IslandGlow | null {
+  const { lyrics } = useMusic()
+  const clock = useMusicClockStore()
+  const getSnapshot = useCallback(() => {
+    const { color, strong } = lyricGlowAt(lyrics, clock.getSnapshot() * 1000)
+    return `${color ?? ''}|${strong ? 1 : 0}`
+  }, [clock, lyrics])
+  const key = useSyncExternalStore(enabled ? clock.subscribe : noopSubscribe, enabled ? getSnapshot : emptySnapshot, emptySnapshot)
+  return useMemo(() => {
+    if (!enabled)
+      return null
+    const [color, strong] = key.split('|')
+    return { color: color || fallback || 'rgb(255 255 255)', strong: strong === '1' }
+  }, [enabled, fallback, key])
 }
 
 /** 是否正在副歌段（网易云标出的高潮片段）；id 为空时不订阅播放进度 */
@@ -194,7 +221,7 @@ const BEAT_TINT_OPACITY = 0.22
 
 /**
  * 胶囊右侧的律动条：有可信的节拍模型时随拍跳动、随拍变亮，胶囊底色也随拍泛起封面主色（只变颜色，胶囊大小不随拍变化，避免整颗岛一抽一抽）；
- * 没有时（移动端不分析节拍、分析失败等）以错开的起伏模拟，不染色。逐帧直接写 DOM，不触发 React 渲染；暂停或减少动态效果时静止
+ * 没有时（关闭了歌词特效、浏览器开启省流量、分析失败等）以错开的起伏模拟，不染色。逐帧直接写 DOM，不触发 React 渲染；暂停或减少动态效果时静止
  */
 function BeatBars({ tintRef }: { tintRef: React.RefObject<HTMLSpanElement | null> }) {
   const { getAudio, isPlaying, lyrics, currentTrack } = useMusic()

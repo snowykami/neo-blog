@@ -166,7 +166,8 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
   return (
     <>
       {/* 顶栏灵动岛的阅读进度与迷你目录 */}
-      <ReadingIsland title={post.title} headings={headings} minutes={calculateReadingTime(content)} />
+      {/* 只传点赞需要的字段，不把整篇文章再序列化一遍给客户端 */}
+      <ReadingIsland title={post.title} headings={headings} minutes={calculateReadingTime(content)} post={{ id: post.id, isLiked: post.isLiked, likeCount: post.likeCount }} />
       {/* 文章配了背景就铺满非内容区，没配则沿用全站背景 */}
       <PostBackground background={post.background} />
       <SiteShell

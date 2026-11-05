@@ -4146,6 +4146,9 @@
     "collapse_topbar": "上部バーを隠す"
   },
   "TopbarIsland": {
+    "hide_activity": "トップバーから隠す",
+    "hidden_announce": "「{label}」をトップバーから隠しました。サイト名を左右にスワイプすると戻せます",
+    "restored_announce": "トップバーに隠した項目を戻しました",
     "music_playing": "再生中：{title}",
     "music_paused": "一時停止中：{title}。タップで再開",
     "music_now_playing": "再生開始：{title}",
@@ -4153,7 +4156,8 @@
     "reading_left": "{count, plural, =0 {まもなく読了} other {残り # 分}}",
     "reading_progress": "{percent}% 読了",
     "reading_to_comments": "コメントへ",
-    "reading_finish": "読了！いいねしませんか？",
+    "reading_finish": "読了！ここをタップしていいね",
+    "reading_finish_liked": "読了！いいねありがとう",
     "upload_text": "{count} 件のファイルをアップロード中",
     "network_offline": "オフライン",
     "network_offline_label": "ネットワークに接続されていません",

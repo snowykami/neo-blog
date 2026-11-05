@@ -4146,6 +4146,9 @@
     "collapse_topbar": "상단 바 접기"
   },
   "TopbarIsland": {
+    "hide_activity": "상단 바에서 숨기기",
+    "hidden_announce": "상단 바에서 「{label}」을(를) 숨겼습니다. 사이트 이름을 좌우로 밀면 다시 표시됩니다",
+    "restored_announce": "상단 바에 숨긴 항목을 다시 표시했습니다",
     "music_playing": "재생 중: {title}",
     "music_paused": "일시정지됨: {title}. 탭하면 다시 재생",
     "music_now_playing": "재생 시작: {title}",
@@ -4153,7 +4156,8 @@
     "reading_left": "{count, plural, =0 {곧 다 읽어요} other {# 분 남음}}",
     "reading_progress": "{percent}% 읽음",
     "reading_to_comments": "댓글로 이동",
-    "reading_finish": "다 읽었어요! 좋아요를 눌러 주실래요?",
+    "reading_finish": "다 읽었어요! 여기를 눌러 바로 좋아요",
+    "reading_finish_liked": "다 읽었어요! 좋아요 고마워요",
     "upload_text": "파일 {count}개 업로드 중",
     "network_offline": "오프라인",
     "network_offline_label": "네트워크 연결이 끊겼습니다",
