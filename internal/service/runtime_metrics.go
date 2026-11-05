@@ -5,19 +5,26 @@ import (
 	"os"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 // 运行时指标：多副本部署时每个后端实例定时把自己的快照写进共享状态，管理员查看时列出全部存活实例；
+// 前端（Next.js）实例配置了同一个 Redis 时也把快照写在 frontendMetricsKeyPrefix 下，一起列出。
 // 单实例（未配置 Redis）时只有本实例
 
 const (
-	runtimeMetricsKeyPrefix = "runtime_metrics:"
+	runtimeMetricsKeyPrefix  = "runtime_metrics:"
+	frontendMetricsKeyPrefix = "fe_runtime_metrics:" // 前端写入，键与格式见 web/src/lib/server-metrics.ts
+	// runtimeHistoryPoints 趋势线保留的上报次数（每 15 秒一次，共 10 分钟）
+	runtimeHistoryPoints = 40
 	// RuntimeMetricsInterval 各实例上报快照的间隔
 	RuntimeMetricsInterval = 15 * time.Second
 	// 快照过期时间：实例下线后最多这么久从列表中消失
@@ -76,24 +83,103 @@ func collectRuntimeMetrics() map[string]any {
 	}
 }
 
-// runtimeSnapshot 本实例的实时快照
-func runtimeSnapshot() dto.RuntimeInstanceDto {
-	return dto.RuntimeInstanceDto{
-		InstanceID: sharedstate.InstanceID(),
-		Hostname:   processHostname,
-		PID:        os.Getpid(),
-		StartedAt:  processStartedAt,
-		UpdatedAt:  time.Now(),
-		Metrics:    collectRuntimeMetrics(),
+// coreSampler 每次上报时按与上次上报之间的增量计算核心指标，并保留请求/秒的历史
+type coreSampler struct {
+	mu      sync.Mutex
+	at      time.Time
+	total   uint64
+	errors  uint64
+	nanos   uint64
+	cpu     time.Duration
+	core    dto.RuntimeCoreDto
+	history []float64
+}
+
+// 从进程启动开始计算第一次的增量
+var runtimeCore = &coreSampler{at: processStartedAt}
+
+func (s *coreSampler) sample(now time.Time) {
+	total, errCount, nanos, cpu := requestStats.total.Load(), requestStats.errors.Load(), requestStats.nanos.Load(), processCPUTime()
+	m := &runtime.MemStats{}
+	runtime.ReadMemStats(m)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	elapsed := now.Sub(s.at).Seconds()
+	core := dto.RuntimeCoreDto{MemoryRSS: processRSS(m.Sys), HeapInuse: m.HeapInuse}
+	if elapsed > 0 {
+		requests := total - s.total
+		core.RequestsPerSecond = float64(requests) / elapsed
+		core.CPUPercent = (cpu - s.cpu).Seconds() / elapsed * 100
+		if requests > 0 {
+			core.AvgLatencyMs = float64(nanos-s.nanos) / float64(requests) / 1e6
+			core.ErrorRate = float64(errCount-s.errors) / float64(requests)
+		}
+	}
+	if db := repo.GetDB(); db != nil {
+		if sqlDB, err := db.DB(); err == nil {
+			stats := sqlDB.Stats()
+			core.DBInUse, core.DBOpen = stats.InUse, stats.OpenConnections
+		}
+	}
+	s.at, s.total, s.errors, s.nanos, s.cpu, s.core = now, total, errCount, nanos, cpu, core
+	s.history = append(s.history, core.RequestsPerSecond)
+	if len(s.history) > runtimeHistoryPoints {
+		s.history = s.history[len(s.history)-runtimeHistoryPoints:]
 	}
 }
 
-// ReportRuntimeMetrics 把本实例的快照写进共享状态，由定时任务在每个实例上调用
+// snapshot 最近一次计算的核心指标；进行中的请求与 Goroutine 数取实时值
+func (s *coreSampler) snapshot() (dto.RuntimeCoreDto, []float64) {
+	s.mu.Lock()
+	core, history := s.core, slices.Clone(s.history)
+	s.mu.Unlock()
+	core.InflightRequests = requestStats.inflight.Load()
+	core.Goroutines = runtime.NumGoroutine()
+	if history == nil {
+		history = []float64{}
+	}
+	return core, history
+}
+
+// processRSS 进程实际占用的物理内存（Linux 读 /proc/self/statm）；取不到时返回 fallback
+func processRSS(fallback uint64) uint64 {
+	data, err := os.ReadFile("/proc/self/statm")
+	if err != nil {
+		return fallback
+	}
+	fields := strings.Fields(string(data))
+	if len(fields) < 2 {
+		return fallback
+	}
+	pages, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return pages * uint64(os.Getpagesize())
+}
+
+// runtimeSnapshot 本实例的实时快照
+func runtimeSnapshot() dto.RuntimeInstanceDto {
+	core, history := runtimeCore.snapshot()
+	return dto.RuntimeInstanceDto{
+		InstanceID:      sharedstate.InstanceID(),
+		Hostname:        processHostname,
+		PID:             os.Getpid(),
+		StartedAt:       processStartedAt,
+		UpdatedAt:       time.Now(),
+		Core:            core,
+		RequestsHistory: history,
+		Metrics:         collectRuntimeMetrics(),
+	}
+}
+
+// ReportRuntimeMetrics 计算本实例的核心指标并把快照写进共享状态，由定时任务在每个实例上调用
 func ReportRuntimeMetrics() error {
+	runtimeCore.sample(time.Now())
 	return sharedstate.SetJSON(runtimeMetricsKeyPrefix+sharedstate.InstanceID(), runtimeSnapshot(), runtimeMetricsTTL)
 }
 
-// ListRuntimeMetrics 全部存活实例的运行时指标；处理本次请求的实例使用实时数据，其余为最近一次上报的快照
+// ListRuntimeMetrics 全部存活前后端实例的运行时指标；处理本次请求的后端实例使用实时数据，其余为最近一次上报的快照
 func ListRuntimeMetrics() (*dto.RuntimeMetricsResp, *errs.ServiceError) {
 	values, err := sharedstate.Current().GetByPrefix(runtimeMetricsKeyPrefix)
 	if err != nil {
@@ -119,5 +205,34 @@ func ListRuntimeMetrics() (*dto.RuntimeMetricsResp, *errs.ServiceError) {
 		}
 		return strings.Compare(a.Hostname, b.Hostname)
 	})
-	return &dto.RuntimeMetricsResp{Shared: sharedstate.Shared(), Instances: instances}, nil
+	frontends, svcerr := listFrontendMetrics()
+	if svcerr != nil {
+		return nil, svcerr
+	}
+	return &dto.RuntimeMetricsResp{Shared: sharedstate.Shared(), Instances: instances, Frontends: frontends}, nil
+}
+
+// listFrontendMetrics 前端实例写进共享状态的快照，按启动时间排序
+func listFrontendMetrics() ([]dto.FrontendInstanceDto, *errs.ServiceError) {
+	values, err := sharedstate.Current().GetByPrefix(frontendMetricsKeyPrefix)
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err)
+	}
+	frontends := make([]dto.FrontendInstanceDto, 0, len(values))
+	for _, raw := range values {
+		var snap dto.FrontendInstanceDto
+		if json.Unmarshal([]byte(raw), &snap) == nil && snap.InstanceID != "" {
+			if snap.RequestsHistory == nil {
+				snap.RequestsHistory = []float64{}
+			}
+			frontends = append(frontends, snap)
+		}
+	}
+	slices.SortFunc(frontends, func(a, b dto.FrontendInstanceDto) int {
+		if c := a.StartedAt.Compare(b.StartedAt); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Hostname, b.Hostname)
+	})
+	return frontends, nil
 }

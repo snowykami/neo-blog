@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>系统运行 · 多副本观测 · 原型</title>
+<style>
+  /* 界面色板沿用前台 web/src/app/globals.css 的默认参数（hue 250）；图表色按 dataviz 规范单独定义 */
+  :root {
+    --hue: 250; --chroma: .14; --radius: .625rem;
+    color-scheme: light;
+    --background: oklch(.96 .01 var(--hue));
+    --foreground: oklch(.22 .02 var(--hue));
+    --card: oklch(1 0 0);
+    --secondary: oklch(.95 .025 var(--hue));
+    --secondary-foreground: oklch(.45 var(--chroma) var(--hue));
+    --muted: oklch(.95 .01 var(--hue));
+    --muted-foreground: oklch(.5 .02 var(--hue));
+    --border: oklch(.9 .01 var(--hue));
+    /* 图表：单一色相（蓝）表示大小；趋势线用退后的灰，当前点用强调色；状态色只用于 CPU 等有阈值的指标，并配图标与文字 */
+    --viz-accent: #2a78d6;
+    --viz-track: #cde2fb;
+    --viz-trend: #9a9890;
+    --viz-grid: #e4e3df;
+    --status-warning: #fab219;
+    --status-critical: #d03b3b;
+    --status-good: #0ca30c;
+  }
+  html.dark {
+    color-scheme: dark;
+    --background: oklch(.16 .014 var(--hue));
+    --foreground: oklch(.93 .01 var(--hue));
+    --card: oklch(.23 .015 var(--hue));
+    --secondary: oklch(.33 .035 var(--hue));
+    --secondary-foreground: oklch(.85 .08 var(--hue));
+    --muted: oklch(.27 .015 var(--hue));
+    --muted-foreground: oklch(.7 .015 var(--hue));
+    --border: oklch(1 0 0 / 10%);
+    --viz-accent: #3987e5;
+    --viz-track: #184f95;
+    --viz-trend: #7d7c76;
+    --viz-grid: #383835;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font: 14px/1.6 system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .muted { color: var(--muted-foreground); }
+  .num { font-variant-numeric: tabular-nums; font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* 原型外框 */
+  .topbar { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 24px; background: color-mix(in oklch, var(--background) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar h1 { margin: 0; font-size: 15px; }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--muted); }
+  .seg button { border: 0; background: transparent; padding: 4px 12px; border-radius: 8px; font-size: 13px; color: var(--muted-foreground); }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px oklch(0 0 0 / 12%); }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; display: grid; gap: 20px; }
+  .intro { margin: 0; padding-left: 18px; font-size: 13px; }
+  .intro li { margin: 2px 0; }
+
+  /* 卡片（对应 shadcn Card） */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); padding: 16px; display: grid; gap: 16px; }
+  .card-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 16px; }
+  .card-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .card-head p { margin: 2px 0 0; font-size: 13px; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border-radius: 999px; font-size: 12px; line-height: 20px; background: var(--secondary); color: var(--secondary-foreground); white-space: nowrap; }
+  .badge.outline { background: transparent; border: 1px solid var(--border); color: var(--muted-foreground); }
+
+  /* KPI 行 */
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .tile { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; display: grid; gap: 2px; min-width: 0; }
+  .tile .label { font-size: 12px; color: var(--muted-foreground); }
+  .tile .row { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+  .tile .value { font-size: 22px; font-weight: 600; line-height: 1.2; }
+  .tile .value small { font-size: 12px; font-weight: 400; color: var(--muted-foreground); margin-left: 2px; }
+  .tile .sub { font-size: 12px; color: var(--muted-foreground); }
+
+  /* 副本矩阵 */
+  .group { display: grid; gap: 6px; }
+  .group-head { display: flex; align-items: baseline; gap: 8px; }
+  .group-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  table { width: 100%; border-collapse: collapse; min-width: 980px; }
+  th, td { padding: 8px 10px; text-align: left; vertical-align: middle; }
+  thead th { font-size: 12px; font-weight: 500; color: var(--muted-foreground); background: color-mix(in oklch, var(--muted) 60%, transparent); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tbody tr + tr td { border-top: 1px solid var(--border); }
+  tbody tr:hover td { background: color-mix(in oklch, var(--muted) 45%, transparent); }
+  th.c, td.c { width: 1%; }
+  .replica { display: grid; gap: 1px; min-width: 150px; }
+  .replica .name { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+  .replica .meta { font-size: 12px; color: var(--muted-foreground); }
+
+  /* 单元格：数值 + 细条（同列内相对比较） */
+  .cell { display: grid; gap: 4px; min-width: 84px; outline: none; border-radius: 4px; }
+  .cell:focus-visible { box-shadow: 0 0 0 2px var(--viz-accent); }
+  .cell .v { font-size: 13px; white-space: nowrap; display: flex; align-items: center; gap: 4px; }
+  .cell .v small { font-size: 11px; color: var(--muted-foreground); }
+  .bar { height: 4px; border-radius: 2px; background: var(--viz-track); overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 2px; background: var(--viz-accent); }
+  .bar.warning > i { background: var(--status-warning); }
+  .bar.critical > i { background: var(--status-critical); }
+  .flag { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 500; color: var(--foreground); }
+  .flag svg { width: 13px; height: 13px; }
+  .flag.warning svg { color: var(--status-warning); }
+  .flag.critical svg { color: var(--status-critical); }
+
+  /* 迷你趋势线 */
+  .spark { display: flex; align-items: center; gap: 8px; min-width: 170px; }
+  .spark svg { display: block; overflow: visible; }
+  .spark .v { font-size: 13px; min-width: 44px; text-align: right; }
+
+  .note { font-size: 12px; color: var(--muted-foreground); margin: 0; }
+  .alert { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius); border: 1px solid color-mix(in oklch, var(--status-warning) 55%, var(--border)); background: color-mix(in oklch, var(--status-warning) 9%, var(--card)); font-size: 13px; }
+  .alert svg { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--status-warning); }
+
+  /* 可展开的原详细指标 */
+  .details-toggle { justify-self: start; display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; padding: 4px 8px; margin-left: -8px; border-radius: 6px; color: var(--muted-foreground); font-size: 13px; }
+  .details-toggle:hover { background: var(--muted); color: var(--foreground); }
+  .details-toggle svg { width: 16px; height: 16px; transition: transform .15s; }
+  .details-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .details { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .details[hidden] { display: none; }
+  .details h4 { margin: 0 0 6px; font-size: 13px; }
+  .details select { font: inherit; font-size: 12px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--foreground); margin-bottom: 8px; }
+  .details dl { margin: 0; display: grid; gap: 2px; font-size: 12px; }
+  .details dl div { display: flex; justify-content: space-between; gap: 12px; }
+  .details dt { color: var(--muted-foreground); }
+
+  /* 提示框：数值在前、名称在后 */
+  .tip { position: fixed; z-index: 50; pointer-events: none; background: var(--card); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px oklch(0 0 0 / 14%); padding: 6px 10px; font-size: 12px; display: grid; gap: 1px; max-width: 260px; }
+  .tip[hidden] { display: none; }
+  .tip strong { font-size: 13px; }
+
+  @media (max-width: 760px) {
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .details { grid-template-columns: 1fr; }
+    main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>系统运行 · 多副本观测（原型）</h1>
+  <span class="spacer"></span>
+  <div class="seg" id="scenario" role="group" aria-label="场景">
+    <button data-v="normal" aria-pressed="true">平时</button>
+    <button data-v="hot">有副本负载偏高</button>
+    <button data-v="noredis">前端没配 Redis</button>
+  </div>
+  <div class="seg" id="theme" role="group" aria-label="主题">
+    <button data-v="light" aria-pressed="true">浅色</button>
+    <button data-v="dark">深色</button>
+  </div>
+</header>
+
+<main>
+  <ul class="intro muted">
+    <li>一眼看全部副本：上面 4 个总数，下面前后端每个副本一行，同一列的条形互相比较，谁忙、谁卡一眼能看出来。</li>
+    <li>核心指标只留 6～8 个：请求/秒（带近 10 分钟趋势）、进行中请求、平均延迟、CPU、内存，后端再加 Goroutine 与数据库连接，前端再加连接数与事件循环延迟。</li>
+    <li>原来那一长串 Go / Node 运行时指标收进最下面的「全部指标」，点开才显示。</li>
+    <li>数据来源：前后端每个副本每 15 秒把快照写进 Redis，后台读取全部副本；数据都是模拟的，鼠标悬停（或键盘聚焦）可以看到详细数值。</li>
+  </ul>
+
+  <section class="card" aria-labelledby="runtime-title">
+    <div class="card-head">
+      <div>
+        <h2 id="runtime-title">系统运行</h2>
+        <p class="muted" id="runtime-sub"></p>
+      </div>
+      <span class="spacer"></span>
+      <span class="badge outline num" id="updated"></span>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+    <div id="alerts"></div>
+
+    <div class="group">
+      <div class="group-head"><h3>后端副本</h3><span class="muted">Go · Hertz</span></div>
+      <div class="table-wrap"><table id="backend"></table></div>
+    </div>
+    <div class="group">
+      <div class="group-head"><h3>前端副本</h3><span class="muted">Next.js · Node</span></div>
+      <div class="table-wrap"><table id="frontend"></table></div>
+    </div>
+    <p class="note">条形在同一列内比较（设有最小刻度，数值很小时不会画满），同一张表的趋势线也共用刻度；CPU 按 1 核 = 100%，超过 70% 标「偏高」，超过 90% 标「过高」。请求/秒是最近 15 秒的平均值，平均延迟只算这段时间内结束的请求。</p>
+
+    <button class="details-toggle" id="details-toggle" aria-expanded="false" aria-controls="details">
+      全部指标
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="details" id="details" hidden></div>
+  </section>
+</main>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+
+<script>
+// ---------- 模拟数据 ----------
+const POINTS = 40 // 15 秒一个点，共 10 分钟
+let seed = 7
+const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+const series = (base, wobble) => Array.from({ length: POINTS }, (_, i) => Math.max(0, base + Math.sin(i / 4 + base) * wobble + (rand() - .5) * wobble))
+
+function makeData(scenario) {
+  seed = 7
+  const backend = [
+    { host: 'luna-blog-backend-prod-d65c74dbf-dspjv', current: true, uptime: '18 分钟', age: 0, rps: series(3.1, 1.2), inflight: 2, latency: 18, cpu: 3, mem: 46, heap: 21, goroutines: 41, dbInUse: 1, dbOpen: 4 },
+    { host: 'luna-blog-backend-prod-d65c74dbf-xdwfc', current: false, uptime: '18 分钟', age: 9, rps: series(2.8, 1.1), inflight: 1, latency: 22, cpu: 2, mem: 43, heap: 19, goroutines: 37, dbInUse: 0, dbOpen: 3 },
+  ]
+  const frontend = [
+    { host: 'luna-blog-frontend-prod-77d5774f5c-65rwv', current: true, uptime: '17 分钟', age: 0, rps: series(1.4, .6), inflight: 1, latency: 132, cpu: 6, mem: 212, heap: 98, conns: 9, loop: 14 },
+    { host: 'luna-blog-frontend-prod-77d5774f5c-89bqd', current: false, uptime: '17 分钟', age: 4, rps: series(1.2, .5), inflight: 0, latency: 118, cpu: 5, mem: 198, heap: 91, conns: 7, loop: 12 },
+    { host: 'luna-blog-frontend-prod-77d5774f5c-m5rvc', current: false, uptime: '17 分钟', age: 11, rps: series(1.6, .7), inflight: 2, latency: 156, cpu: 8, mem: 231, heap: 104, conns: 12, loop: 18 },
+    { host: 'luna-blog-frontend-prod-77d5774f5c-qkwgw', current: false, uptime: '17 分钟', age: 6, rps: series(1.1, .5), inflight: 0, latency: 124, cpu: 4, mem: 187, heap: 86, conns: 6, loop: 11 },
+  ]
+  if (scenario === 'hot') {
+    Object.assign(frontend[2], { rps: series(1.6, .7).map((v, i) => (i > 30 ? v + (i - 30) * 1.1 : v)), inflight: 24, latency: 820, cpu: 86, mem: 512, heap: 301, conns: 63, loop: 140 })
+    Object.assign(backend[1], { goroutines: 1240, latency: 64, cpu: 34, dbInUse: 9, dbOpen: 10 })
+  }
+  if (scenario === 'noredis')
+    frontend.splice(1)
+  return { backend, frontend, redisOnFrontend: scenario !== 'noredis' }
+}
+
+// ---------- 格式化与刻度 ----------
+const fmt = {
+  rps: v => (v >= 10 ? v.toFixed(0) : v.toFixed(1)),
+  int: v => v.toLocaleString('zh-CN'),
+  ms: v => `${Math.round(v)}`,
+  pct: v => `${Math.round(v)}`,
+  mb: v => `${Math.round(v)}`,
+}
+// 每列的最小刻度：数值都很小时条形不会被放大成满格
+const FLOOR = { inflight: 5, latency: 200, mem: 256, goroutines: 200, db: 10, conns: 20, loop: 50 }
+const scaleOf = (rows, key, floor) => Math.max(floor, ...rows.map(r => r[key]))
+const short = host => host.split('-').slice(-1)[0]
+const kind = host => (host.includes('backend') ? '后端' : '前端')
+
+const ICON_WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>'
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag)
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') node.className = v
+    else if (k === 'html') node.innerHTML = v
+    else node.setAttribute(k, v)
+  }
+  for (const c of children) node.append(c)
+  return node
+}
+
+// 数值 + 细条；tip 为悬停 / 聚焦时的详细说明（数值在前）
+function barCell(text, unit, ratio, tip, level = '') {
+  const v = el('div', { class: 'v num' }, text, el('small', {}, unit))
+  if (level) {
+    v.append(el('span', { class: `flag ${level}`, html: ICON_WARN + (level === 'critical' ? '过高' : '偏高') }))
+  }
+  const bar = el('div', { class: `bar ${level}` }, el('i', { style: `width:${Math.max(2, Math.min(100, ratio * 100))}%` }))
+  const cell = el('div', { class: 'cell', tabindex: '0' }, v, bar)
+  cell.dataset.tip = JSON.stringify(tip)
+  return cell
+}
+
+// 迷你趋势线：退后的灰色折线 + 当前点强调色；悬停时竖线对齐最近的点。
+// 同一张表里的趋势线共用一个纵向刻度（scaleMax），副本之间的高低可以直接比较
+function sparkline(values, width = 120, height = 28, label = '', scaleMax = 0) {
+  const NS = 'http://www.w3.org/2000/svg'
+  const max = Math.max(1, scaleMax, ...values) * 1.1
+  const x = i => (i / (values.length - 1)) * width
+  const y = v => height - (v / max) * (height - 4) - 2
+  const svg = document.createElementNS(NS, 'svg')
+  svg.setAttribute('width', width)
+  svg.setAttribute('height', height)
+  svg.setAttribute('role', 'img')
+  svg.setAttribute('aria-label', `${label}近 10 分钟请求/秒，最低 ${fmt.rps(Math.min(...values))}，最高 ${fmt.rps(Math.max(...values))}，当前 ${fmt.rps(values.at(-1))}`)
+  const mk = (tag, a) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); svg.append(n); return n }
+  mk('line', { x1: 0, x2: width, y1: height - .5, y2: height - .5, stroke: 'var(--viz-grid)', 'stroke-width': 1 })
+  const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
+  mk('path', { d: `M0,${height} L${pts.join(' L')} L${width},${height} Z`, fill: 'var(--viz-accent)', 'fill-opacity': .1 })
+  mk('polyline', { points: pts.join(' '), fill: 'none', stroke: 'var(--viz-trend)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' })
+  mk('circle', { cx: x(values.length - 1), cy: y(values.at(-1)), r: 4, fill: 'var(--viz-accent)', stroke: 'var(--card)', 'stroke-width': 2 })
+  const cross = mk('line', { y1: 0, y2: height, stroke: 'var(--muted-foreground)', 'stroke-width': 1, opacity: 0 })
+  const dot = mk('circle', { r: 4, fill: 'var(--viz-accent)', stroke: 'var(--card)', 'stroke-width': 2, opacity: 0 })
+  // 命中区比线大：整块区域都响应
+  const hit = mk('rect', { x: -4, y: -6, width: width + 8, height: height + 12, fill: 'transparent' })
+  hit.addEventListener('pointermove', (e) => {
+    const rect = svg.getBoundingClientRect()
+    const i = Math.round(Math.min(1, Math.max(0, (e.clientX - rect.left) / width)) * (values.length - 1))
+    cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('opacity', .5)
+    dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(values[i])); dot.setAttribute('opacity', 1)
+    const ago = (values.length - 1 - i) * 15
+    showTip(e.clientX, e.clientY, { value: `${fmt.rps(values[i])} 次/秒`, lines: [label, ago ? `${Math.floor(ago / 60)} 分 ${ago % 60} 秒前` : '最近 15 秒'] })
+  })
+  hit.addEventListener('pointerleave', () => { cross.setAttribute('opacity', 0); dot.setAttribute('opacity', 0); hideTip() })
+  return svg
+}
+
+function replicaCell(r) {
+  const name = el('div', { class: 'name num', title: r.host }, short(r.host))
+  if (r.current) name.append(el('span', { class: 'badge' }, '处理本次请求'))
+  const meta = el('div', { class: 'meta' }, `运行 ${r.uptime}`, r.current ? '' : ` · 快照 ${r.age} 秒前`)
+  return el('div', { class: 'replica' }, name, meta)
+}
+
+function cpuCell(r) {
+  const level = r.cpu > 90 ? 'critical' : r.cpu > 70 ? 'warning' : ''
+  return barCell(fmt.pct(r.cpu), '%', r.cpu / 100, { value: `${r.cpu}%`, lines: ['CPU（1 核 = 100%）', `约 ${(r.cpu / 100).toFixed(2)} 核`] }, level)
+}
+
+function renderTable(table, rows, cols) {
+  table.replaceChildren()
+  const head = el('tr', {}, el('th', {}, '副本'), ...cols.map(c => el('th', {}, c.title)))
+  table.append(el('thead', {}, head))
+  const body = el('tbody')
+  for (const r of rows)
+    body.append(el('tr', {}, el('td', {}, replicaCell(r)), ...cols.map(c => el('td', {}, c.render(r)))))
+  table.append(body)
+}
+
+// 请求/秒列：同一张表共用纵向刻度
+const rpsColumn = rows => {
+  const max = Math.max(...rows.flatMap(r => r.rps))
+  return (r) => {
+    const label = `${kind(r.host)} ${short(r.host)}`
+    return el('div', { class: 'spark' }, sparkline(r.rps, 120, 28, label, max), el('span', { class: 'v num' }, fmt.rps(r.rps.at(-1))))
+  }
+}
+
+function render(scenario) {
+  const { backend, frontend, redisOnFrontend } = makeData(scenario)
+  const sum = list => list.reduce((a, b) => a + b, 0)
+  const sumSeries = rows => Array.from({ length: POINTS }, (_, i) => sum(rows.map(r => r.rps[i])))
+
+  document.getElementById('runtime-sub').textContent = `${backend.length + frontend.length}${redisOnFrontend ? '' : '+'} 个副本 · 每 15 秒上报一次 · 通过 Redis 汇总`
+  document.getElementById('updated').textContent = '3 秒前更新'
+
+  // KPI：4 个总数，前两个带合计的趋势
+  const kpis = document.getElementById('kpis')
+  kpis.replaceChildren()
+  const tile = (label, value, unit, sub, spark) => {
+    const row = el('div', { class: 'row' }, el('div', { class: 'value num' }, value, el('small', {}, unit)))
+    if (spark) row.append(spark)
+    return el('div', { class: 'tile' }, el('span', { class: 'label' }, label), row, el('span', { class: 'sub' }, sub))
+  }
+  const beSeries = sumSeries(backend)
+  const feSeries = sumSeries(frontend)
+  const peak = s => `近 10 分钟峰值 ${fmt.rps(Math.max(...s))}`
+  kpis.append(
+    tile('后端请求', fmt.rps(beSeries.at(-1)), '次/秒', peak(beSeries), sparkline(beSeries, 84, 26, '后端合计')),
+    tile('前端请求', fmt.rps(feSeries.at(-1)), '次/秒', redisOnFrontend ? peak(feSeries) : '只含处理本次请求的副本', sparkline(feSeries, 84, 26, '前端合计')),
+    tile('进行中请求', String(sum(backend.map(r => r.inflight)) + sum(frontend.map(r => r.inflight))), '个', `后端 ${sum(backend.map(r => r.inflight))} · 前端 ${sum(frontend.map(r => r.inflight))}`),
+    tile('副本', `${backend.length} + ${frontend.length}${redisOnFrontend ? '' : '+'}`, '', redisOnFrontend ? '后端 + 前端，全部正常上报' : '前端副本数未知'),
+  )
+
+  const alerts = document.getElementById('alerts')
+  alerts.replaceChildren()
+  if (!redisOnFrontend) {
+    alerts.append(el('div', { class: 'alert', html: `${ICON_WARN}<div>前端没有配置 <code>REDIS_URL</code>，只能看到处理本次请求的那个前端副本。给前端部署加上和后端相同的 <code>REDIS_URL</code> 后，所有前端副本都会出现在这里。</div>` }))
+  }
+
+  const be = {
+    inflight: scaleOf(backend, 'inflight', FLOOR.inflight), latency: scaleOf(backend, 'latency', FLOOR.latency),
+    mem: scaleOf(backend, 'mem', FLOOR.mem), goroutines: scaleOf(backend, 'goroutines', FLOOR.goroutines), db: scaleOf(backend, 'dbOpen', FLOOR.db),
+  }
+  renderTable(document.getElementById('backend'), backend, [
+    { title: '请求/秒 · 近 10 分钟', render: rpsColumn(backend) },
+    { title: '进行中', render: r => barCell(fmt.int(r.inflight), '个', r.inflight / be.inflight, { value: `${r.inflight} 个`, lines: ['正在处理的请求（含歌词流等长连接）'] }) },
+    { title: '平均延迟', render: r => barCell(fmt.ms(r.latency), 'ms', r.latency / be.latency, { value: `${r.latency} ms`, lines: ['最近 15 秒结束的请求的平均耗时'] }) },
+    { title: 'CPU', render: cpuCell },
+    { title: '内存', render: r => barCell(fmt.mb(r.mem), 'MB', r.mem / be.mem, { value: `${r.mem} MB`, lines: ['进程占用（RSS）', `其中 Go 堆 ${r.heap} MB`] }) },
+    { title: 'Goroutine', render: r => barCell(fmt.int(r.goroutines), '', r.goroutines / be.goroutines, { value: `${fmt.int(r.goroutines)} 个`, lines: ['持续上涨通常说明有泄漏'] }) },
+    { title: '数据库连接', render: r => barCell(`${r.dbInUse}/${r.dbOpen}`, '使用/打开', r.dbOpen / be.db, { value: `使用中 ${r.dbInUse} · 打开 ${r.dbOpen}`, lines: ['连接池'] }) },
+  ])
+
+  const fe = {
+    inflight: scaleOf(frontend, 'inflight', FLOOR.inflight), latency: scaleOf(frontend, 'latency', FLOOR.latency),
+    mem: scaleOf(frontend, 'mem', FLOOR.mem), conns: scaleOf(frontend, 'conns', FLOOR.conns), loop: scaleOf(frontend, 'loop', FLOOR.loop),
+  }
+  renderTable(document.getElementById('frontend'), frontend, [
+    { title: '请求/秒 · 近 10 分钟', render: rpsColumn(frontend) },
+    { title: '进行中', render: r => barCell(fmt.int(r.inflight), '个', r.inflight / fe.inflight, { value: `${r.inflight} 个`, lines: ['正在渲染或转发的请求'] }) },
+    { title: '平均延迟', render: r => barCell(fmt.ms(r.latency), 'ms', r.latency / fe.latency, { value: `${r.latency} ms`, lines: ['页面渲染与接口转发的平均耗时'] }) },
+    { title: 'CPU', render: cpuCell },
+    { title: '内存', render: r => barCell(fmt.mb(r.mem), 'MB', r.mem / fe.mem, { value: `${r.mem} MB`, lines: ['进程占用（RSS）', `其中 V8 堆 ${r.heap} MB`] }) },
+    { title: '连接数', render: r => barCell(fmt.int(r.conns), '个', r.conns / fe.conns, { value: `${r.conns} 个`, lines: ['当前打开的 HTTP 连接（含 keep-alive）'] }) },
+    { title: '事件循环延迟', render: r => barCell(fmt.ms(r.loop), 'ms', r.loop / fe.loop, { value: `p99 ${r.loop} ms`, lines: ['越高说明 Node 越忙，页面响应会变慢'] }, r.loop > 100 ? 'warning' : '') },
+  ])
+
+  // 原来的详细指标：按副本选择，收在「全部指标」里
+  const details = document.getElementById('details')
+  details.replaceChildren()
+  const list = (title, rows, entries) => {
+    const select = el('select', { 'aria-label': `${title}副本` }, ...rows.map(r => el('option', {}, short(r.host))))
+    const dl = el('dl', {}, ...entries.map(([k, v]) => el('div', {}, el('dt', {}, k), el('dd', { class: 'num' }, v))))
+    return el('div', {}, el('h4', {}, title), select, dl)
+  }
+  details.append(
+    list('后端运行时（Go）', backend, [['运行时间', '18 分钟'], ['Goroutine', '41'], ['系统内存', '46 MB'], ['堆分配', '21 MB'], ['堆空闲', '9 MB'], ['堆对象数', '183,402'], ['栈内存', '1.2 MB'], ['GC 次数', '37'], ['上次 GC 暂停', '0.21 ms'], ['GC CPU 占比', '0.08 %'], ['……', '共 29 项']]),
+    list('前端运行时（Node）', frontend, [['运行时间', '17 分钟'], ['Node 版本', 'v22.12.0'], ['CPU 核数', '4'], ['负载（1/5/15 分钟）', '6.2 / 5.8 / 5.1 %'], ['RSS', '212 MB'], ['堆总量', '131 MB'], ['堆使用', '98 MB'], ['外部内存', '4 MB'], ['V8 堆上限', '2.1 GB'], ['……', '共 21 项']]),
+  )
+}
+
+// ---------- 提示框 ----------
+const tip = document.getElementById('tip')
+function showTip(x, y, { value, lines }) {
+  tip.replaceChildren(el('strong', { class: 'num' }, value), ...lines.filter(Boolean).map(l => el('span', { class: 'muted' }, l)))
+  tip.hidden = false
+  const w = tip.offsetWidth
+  tip.style.left = `${Math.min(window.innerWidth - w - 8, x + 12)}px`
+  tip.style.top = `${y + 14}px`
+}
+function hideTip() { tip.hidden = true }
+document.addEventListener('pointermove', (e) => {
+  const cell = e.target.closest?.('.cell')
+  if (cell) showTip(e.clientX, e.clientY, JSON.parse(cell.dataset.tip))
+  else if (!e.target.closest?.('svg')) hideTip()
+})
+document.addEventListener('focusin', (e) => {
+  const cell = e.target.closest?.('.cell')
+  if (!cell) return
+  const r = cell.getBoundingClientRect()
+  showTip(r.left, r.bottom - 10, JSON.parse(cell.dataset.tip))
+})
+document.addEventListener('focusout', hideTip)
+
+// ---------- 原型控件 ----------
+function bindSeg(id, onChange) {
+  const seg = document.getElementById(id)
+  seg.addEventListener('click', (e) => {
+    const btn = e.target.closest('button')
+    if (!btn) return
+    seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)))
+    onChange(btn.dataset.v)
+  })
+}
+bindSeg('scenario', render)
+bindSeg('theme', v => document.documentElement.classList.toggle('dark', v === 'dark'))
+const toggle = document.getElementById('details-toggle')
+toggle.addEventListener('click', () => {
+  const open = toggle.getAttribute('aria-expanded') !== 'true'
+  toggle.setAttribute('aria-expanded', String(open))
+  document.getElementById('details').hidden = !open
+})
+render('normal')
+</script>
+</body>
+</html>

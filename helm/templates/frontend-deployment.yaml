@@ -55,6 +55,21 @@ spec:
               value: "http://{{(include "neo-blog.fullname" .)}}-backend:{{ .Values.service.port }}"
             - name: PORT
               value: "{{ .Values.service.port }}"
+            # 与后端共用 Redis：前端每个副本把运行时指标写进去，后台「系统运行」才能列出全部前端副本
+            {{- if .Values.redis.existingSecret }}
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.existingSecret | quote }}
+                  key: {{ .Values.redis.existingSecretKey | default "redis-url" | quote }}
+            {{- else if .Values.redis.url }}
+            - name: REDIS_URL
+              value: {{ .Values.redis.url | quote }}
+            {{- end }}
+            {{- if and (or .Values.redis.existingSecret .Values.redis.url) .Values.redis.keyPrefix }}
+            - name: REDIS_KEY_PREFIX
+              value: {{ .Values.redis.keyPrefix | quote }}
+            {{- end }}
           # 退出前先等几秒，让负载均衡摘掉本实例，再由 Next.js 处理完进行中的请求后退出
           lifecycle:
             preStop:

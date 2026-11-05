@@ -1,7 +1,7 @@
 import type { BackendMetricsData, FrontendMetrics, FrontendMetricsData, RssData, RuntimeMetrics, SitemapData } from '@/models/misc'
 import type { BaseResponse } from '@/models/resp'
 import type { SiteInfo } from '@/utils/common/siteinfo'
-import { camelToSnakeStr } from 'field-conv'
+import { camelToSnakeStr, snakeToCamelObj } from 'field-conv'
 import { formatDataSize } from '@/utils/common/datasize'
 import { formatDuration } from '@/utils/common/datetime'
 import axiosClient from './client'
@@ -44,16 +44,18 @@ export async function getRssData(): Promise<BaseResponse<RssData>> {
   return res.data
 }
 
-// 全部后端实例的运行时指标（多副本时各实例定时上报，处理本次请求的实例为实时数据）
-export async function getBackendMetrics(): Promise<BaseResponse<RuntimeMetrics>> {
+// 全部前后端实例的运行时指标（多副本时各实例每 15 秒把快照写进 Redis，处理本次请求的后端实例为实时数据）
+export async function getRuntimeMetrics(): Promise<BaseResponse<RuntimeMetrics>> {
   const res = await axiosClient.get<BaseResponse<RuntimeMetrics>>('/misc/metrics')
   return res.data
 }
 
-// 前端运行时指标：只反映处理本次请求的那个前端实例
+// 处理本次请求的前端实例：前端没有配置 Redis 时，后台只能用它显示一个前端实例。接口返回 snake_case，在这里转换
 export async function getFrontendMetrics(): Promise<FrontendMetrics> {
-  const { hostname, ...metrics } = await fetch('/api/fe-metrics').then(r => r.json()) as FrontendMetricsData & { hostname?: string }
-  return { hostname: String(hostname ?? ''), metrics: metrics as FrontendMetricsData }
+  const res = await fetch('/api/fe-metrics', { cache: 'no-store' })
+  if (!res.ok)
+    throw new Error(`HTTP ${res.status}`)
+  return snakeToCamelObj(await res.json()) as FrontendMetrics
 }
 
 export const backendMetricsHandler: Record<keyof BackendMetricsData, (value: number) => string> = {

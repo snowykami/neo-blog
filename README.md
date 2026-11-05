@@ -104,6 +104,7 @@ helm install neo-blog git.liteyuki.org/neo-blog
 - 数据库使用 Postgres（`DB_URL=postgres://…` 或 `DB_DRIVER=postgres`，SQLite 只支持单实例）
 - 文件存储使用 S3 / WebDAV，或为所有副本挂载同一个共享卷
 - 所有副本使用相同的 `JWT_SECRET` 与 `PASSWORD_SALT`
+- 前端也设置相同的 `REDIS_URL`（和 `REDIS_KEY_PREFIX`），每个前端副本才会把运行时指标写进 Redis，后台「系统运行」才能看到全部前端副本；不设置时只显示处理本次请求的那一个（Helm 会自动给前端加上）
 
 Helm Chart 会在缺少 Redis 或仍使用 SQLite 时拒绝渲染多副本部署（`database.existingSecret` 中的地址渲染时不可见，不做检查）。前端没有跨请求的进程内状态，可直接增加副本。
 

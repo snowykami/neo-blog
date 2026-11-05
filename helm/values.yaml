@@ -85,7 +85,8 @@ database:
   existingSecret: ""
   existingSecretKey: db-url
 
-# Redis 共享状态：在实例间共享第三方登录 state、邮箱验证码、限流计数、AI 摘要任务状态、分布式锁与缓存失效通知
+# Redis 共享状态：在实例间共享第三方登录 state、邮箱验证码、限流计数、AI 摘要任务状态、分布式锁与缓存失效通知；
+# 前端也会用同一个 Redis 上报运行时指标，后台「系统运行」据此列出全部前后端副本
 # 单副本可不配置（使用进程内存）；后端多副本（replicaCount > 1 或启用 autoscaling）时必须配置，
 # 同时数据库须为 Postgres，存储须为 S3 / WebDAV 或所有副本共享的卷
 redis:

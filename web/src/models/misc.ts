@@ -92,6 +92,33 @@ export type BackendMetricsData = Record<string, number> & {
   gcLastPauseNs: number // 最近一次GC暂停时间，单位纳秒
 }
 
+/** 后端实例的核心指标：速率类指标按最近两次上报（15 秒）之间的增量计算 */
+export interface BackendCoreMetrics {
+  requestsPerSecond: number
+  inflightRequests: number // 进行中的请求（含长连接）
+  avgLatencyMs: number
+  errorRate: number // 5xx 占比，0～1
+  cpuPercent: number // 1 核 = 100
+  memoryRss: number
+  heapInuse: number
+  goroutines: number
+  dbInUse: number
+  dbOpen: number
+}
+
+/** 前端实例的核心指标 */
+export interface FrontendCoreMetrics {
+  requestsPerSecond: number
+  inflightRequests: number
+  avgLatencyMs: number
+  errorRate: number
+  cpuPercent: number
+  memoryRss: number
+  heapUsed: number
+  connections: number // 当前打开的 HTTP 连接
+  eventLoopP99Ms: number
+}
+
 /** 一个后端实例的运行时指标快照 */
 export interface RuntimeInstance {
   instanceId: string
@@ -100,19 +127,34 @@ export interface RuntimeInstance {
   startedAt: string
   updatedAt: string // 快照时间；处理本次请求的实例为实时数据
   current: boolean // 是否为处理本次请求的实例
+  core: BackendCoreMetrics
+  requestsHistory: number[] // 最近若干次上报时的请求/秒，旧的在前
   metrics: BackendMetricsData
 }
 
-/** 全部存活后端实例的运行时指标；未配置 Redis 时只有本实例 */
+/** 一个前端实例的运行时指标快照 */
+export interface FrontendInstance {
+  instanceId: string
+  hostname: string
+  pid: number
+  startedAt: string
+  updatedAt: string
+  core: FrontendCoreMetrics
+  requestsHistory: number[]
+  metrics: FrontendMetricsData
+}
+
+/** 全部存活前后端实例的运行时指标；未配置 Redis 时只有本实例，前端没有配置 Redis 时 frontends 为空 */
 export interface RuntimeMetrics {
   shared: boolean
   instances: RuntimeInstance[]
+  frontends: FrontendInstance[]
 }
 
-/** 前端运行时指标：只反映处理本次请求的那个前端实例 */
+/** 处理本次请求的前端实例；shared 表示它配置了 Redis（全部前端实例会出现在 RuntimeMetrics.frontends 中） */
 export interface FrontendMetrics {
-  hostname: string
-  metrics: FrontendMetricsData
+  shared: boolean
+  instance: FrontendInstance
 }
 
 export type FrontendMetricsData = Record<string, number> & {

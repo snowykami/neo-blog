@@ -57,3 +57,63 @@ func TestListRuntimeMetrics(t *testing.T) {
 		})
 	}
 }
+
+// 核心指标按两次上报之间的增量计算：请求/秒、平均延迟、5xx 比例；探针不计入；趋势只保留最近的若干点
+func TestRuntimeCoreSampler(t *testing.T) {
+	sampler := &coreSampler{at: time.Now()}
+	before := requestStats.inflight.Load()
+	finish := []func(int){TrackRequest("/api/v1/post/list"), TrackRequest("/api/v1/post/list"), TrackRequest("/api/v1/user/me")}
+	skipped := TrackRequest("/readyz")
+	if got := requestStats.inflight.Load() - before; got != 3 {
+		t.Fatalf("inflight = %d, probes should not count", got)
+	}
+	core, _ := sampler.snapshot()
+	if core.InflightRequests-before != 3 || core.Goroutines == 0 {
+		t.Fatalf("live values = %+v", core)
+	}
+	time.Sleep(20 * time.Millisecond)
+	finish[0](200)
+	finish[1](503)
+	finish[2](200)
+	skipped(200)
+	sampler.at = sampler.at.Add(-2 * time.Second) // 让这段时间约为 2 秒
+	sampler.sample(time.Now())
+	core, history := sampler.snapshot()
+	if core.RequestsPerSecond < 1 || core.RequestsPerSecond > 1.6 {
+		t.Fatalf("rps = %v", core.RequestsPerSecond)
+	}
+	if core.AvgLatencyMs < 10 || core.ErrorRate < 0.3 || core.ErrorRate > 0.34 || core.MemoryRSS == 0 {
+		t.Fatalf("core = %+v", core)
+	}
+	if len(history) != 1 || history[0] != core.RequestsPerSecond {
+		t.Fatalf("history = %v", history)
+	}
+	for range runtimeHistoryPoints + 5 {
+		sampler.sample(time.Now())
+	}
+	if _, history := sampler.snapshot(); len(history) != runtimeHistoryPoints {
+		t.Fatalf("history length = %d", len(history))
+	}
+}
+
+// 前端实例写进共享状态的快照一起列出，按启动时间排序；过期后消失
+func TestListFrontendMetrics(t *testing.T) {
+	sharedstate.UseMemory()
+	t.Cleanup(sharedstate.UseMemory)
+	for _, fe := range []dto.FrontendInstanceDto{
+		{InstanceID: "fe-b", Hostname: "web-b", StartedAt: time.Now(), Core: dto.FrontendCoreDto{Connections: 3}},
+		{InstanceID: "fe-a", Hostname: "web-a", StartedAt: time.Now().Add(-time.Minute), RequestsHistory: []float64{1, 2}},
+	} {
+		if err := sharedstate.SetJSON(frontendMetricsKeyPrefix+fe.InstanceID, fe, time.Minute); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = sharedstate.Current().Set(frontendMetricsKeyPrefix+"broken", "{", time.Minute)
+	resp, svcerr := ListRuntimeMetrics()
+	if svcerr != nil || len(resp.Frontends) != 2 || resp.Frontends[0].Hostname != "web-a" || resp.Frontends[1].Core.Connections != 3 {
+		t.Fatalf("frontends = %+v %v", resp, svcerr)
+	}
+	if resp.Frontends[1].RequestsHistory == nil {
+		t.Fatal("history should never be null")
+	}
+}
