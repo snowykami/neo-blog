@@ -1,6 +1,7 @@
 import type { User } from '@/models/user'
 import type { IconType } from '@/types/icon'
 import {
+  Activity,
   AudioLines,
   Bot,
   ChartBarStackedIcon,
@@ -47,6 +48,8 @@ const dashboard: SidebarItem = { id: 'dashboard', title: 'dashboard.title', tabT
 const visits: SidebarItem = { id: 'visits', title: 'visits.title', url: consolePath.visit, icon: Footprints, permission: isAdmin }
 // 访客统计：推断地区、可信度、设备与语言分布
 const visitInsights: SidebarItem = { id: 'visit_insights', title: 'visit_insights.title', url: consolePath.visitInsights, icon: ChartPie, permission: isAdmin }
+// 系统运行：前后端各副本的负载与依赖服务（数据库、Redis），与概览分开，只在打开时轮询
+const runtime: SidebarItem = { id: 'runtime', title: 'dashboard.runtime_title', url: consolePath.runtime, icon: Activity, permission: isAdmin }
 const posts: SidebarItem = { id: 'posts', title: 'posts.title', url: consolePath.post, icon: Newspaper, permission: isEditor }
 const pages: SidebarItem = { id: 'pages', title: 'pages.title', url: consolePath.page, icon: NotebookText, permission: isEditor }
 const categories: SidebarItem = { id: 'categories', title: 'categories.title', url: consolePath.category, icon: ChartBarStackedIcon, permission: isEditor }
@@ -74,7 +77,7 @@ export const sidebarData: {
   navPersonal: SidebarMenu[]
 } = {
   navContent: [
-    { id: 'dashboard', title: 'dashboard.title', icon: Gauge, items: [dashboard, visits, visitInsights] },
+    { id: 'dashboard', title: 'dashboard.title', icon: Gauge, items: [dashboard, visits, visitInsights, runtime] },
     { id: 'content', title: 'menu.content', icon: Newspaper, items: [posts, pages] },
     { id: 'taxonomy', title: 'menu.taxonomy', icon: TagsIcon, items: [categories, labels] },
     { id: 'comments', title: 'comments.title', icon: MessageCircle, items: [comments] },

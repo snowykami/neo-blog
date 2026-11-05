@@ -6,7 +6,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { getDashboard } from '@/api/admin'
 import { PostListCard } from '@/components/console/dashboard/post-list-card'
 import { RecentCommentsCard } from '@/components/console/dashboard/recent-comments-card'
-import { RuntimeCard } from '@/components/console/dashboard/runtime-card'
 import { SourcesCard } from '@/components/console/dashboard/sources-card'
 import { StatCards } from '@/components/console/dashboard/stat-cards'
 import { TodoCard } from '@/components/console/dashboard/todo-card'
@@ -26,7 +25,8 @@ import { DASHBOARD_DAYS } from '@/models/dashboard'
  * 2. 走势如何，以及有哪些事情等我处理
  * 3. 什么内容受欢迎、读者在说什么
  * 4. 读者从哪里来、最近写了什么
- * 5. 站点累计与系统运行（背景信息，运行指标默认折叠）
+ * 5. 站点累计
+ * 系统运行（副本负载、依赖服务）单独在「系统运行」页，概览只放内容与读者互动
  * 权限由控制台布局统一校验（仅管理员可进入），后端接口同样只对管理员开放
  */
 export function Dashboard() {
@@ -92,7 +92,6 @@ export function Dashboard() {
             </div>
           )
         : !error && <DashboardSkeleton />}
-      <RuntimeCard />
     </div>
   )
 }

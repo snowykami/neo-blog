@@ -8,6 +8,7 @@ export const consolePath = {
   lyricEffect: '/console/lyric-effects',
   visit: '/console/visits',
   visitInsights: '/console/visit-insights',
+  runtime: '/console/runtime',
   file: '/console/files',
   global: '/console/global',
   storage: '/console/storages',
