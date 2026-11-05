@@ -407,6 +407,14 @@ func (r *aiAgentRepo) CountUserComments(userID uint, since time.Time) (int64, er
 	return n, GetDB().Model(&model.Comment{}).Where("user_id = ? AND created_at >= ?", userID, since).Count(&n).Error
 }
 
+// RecentUserComments 用户最近发表的评论内容，新的在前
+func (r *aiAgentRepo) RecentUserComments(userID uint, limit int) ([]string, error) {
+	var contents []string
+	err := GetDB().Model(&model.Comment{}).Where("user_id = ?", userID).
+		Order("created_at DESC").Limit(limit).Pluck("content", &contents).Error
+	return contents, err
+}
+
 // CountUserLikes 用户 since 之后的点赞数
 func (r *aiAgentRepo) CountUserLikes(userID uint, since time.Time) (int64, error) {
 	var n int64

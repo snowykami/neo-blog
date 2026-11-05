@@ -2368,7 +2368,7 @@
         "persona_desc": "1인칭, {max}자 이하",
         "too_long": "{max}자 이하로 입력하세요",
         "tone": "말투",
-        "tone_placeholder": "예: 정중하고 구체적이며, 먼저 공감한 뒤 보충함",
+        "tone_placeholder": "예: 편하고 말수가 적으며 가끔 딴지를 검",
         "interests": "관심사",
         "interests_desc": "추천 피드 매칭에 사용합니다. 한 줄에 하나씩",
         "expertise": "전문 분야",

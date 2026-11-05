@@ -18,5 +18,6 @@ func List() []*gormigrate.Migration {
 		lyricAnnotationPaceBeat(),
 		musicTTMLSources(),
 		clearUnknownGender(),
+		agentExpertTone(),
 	}
 }

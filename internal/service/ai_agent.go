@@ -36,6 +36,7 @@ const (
 	agentMaxActionsPerRun = 5 // 一次运行最多执行的动作数
 	agentExpertMaxSteps   = 8 // 专业型阅读阶段最多调用只读工具的轮数
 	agentRunMaxAttempts   = 3 // 租约过期后最多重试次数（含首次）
+	agentRecentComments   = 8 // 领取任务时附带的自己最近的评论条数，用于避免说话重复
 	agentPersonaMaxRunes  = 2000
 	agentShortTextRunes   = 200
 	agentListMaxItems     = 30
@@ -67,7 +68,8 @@ func DefaultAIAgentProfile(tier string) dto.AIAgentProfile {
 		WebFetch:      dto.AIAgentWebFetch{Enabled: false, AllowedDomains: []string{}},
 	}
 	if tier == constant.AIAgentTierExpert {
-		p.Tone = "礼貌、具体，先肯定再补充，不说教"
+		// 不写「先肯定再补充」这类结构要求，模型会照着写成固定的三段式
+		p.Tone = "具体、直给，像懂行的网友顺手补一句，不说教"
 		p.Activity = dto.AIAgentActivity{DailyActions: 1.5, ActiveHours: "9-12,14-18", Timezone: agentDefaultTimezone, WeekendFactor: 0.8}
 		p.Behavior = dto.AIAgentBehavior{Lurk: 0.3, Like: 0.3, Comment: 0.4, ReplyProbability: 0.8, DigOldPosts: 0.05, DelayMinMinutes: 10, DelayMaxMinutes: 90}
 		p.Limits = dto.AIAgentLimits{CommentsPerDay: 3, LikesPerDay: 10, CommentsPerPost: 1, CooldownMinutes: 60}

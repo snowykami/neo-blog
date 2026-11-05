@@ -2368,7 +2368,7 @@
         "persona_desc": "第一人稱，不超過 {max} 字",
         "too_long": "不能超過 {max} 個字元",
         "tone": "語氣",
-        "tone_placeholder": "例如：禮貌、具體，先肯定再補充",
+        "tone_placeholder": "例如：隨意、話少，偶爾吐槽",
         "interests": "興趣",
         "interests_desc": "用於推薦串流比對；每行一項",
         "expertise": "專長",

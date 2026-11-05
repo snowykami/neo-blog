@@ -196,6 +196,7 @@ func (e *execution) decide(ctx context.Context) (*decision, error) {
 		tools = append(tools, webFetchTool())
 	}
 
+	rewritten := false
 	for i := 0; ; i++ {
 		useTools := tools
 		if i >= steps {
@@ -226,6 +227,17 @@ func (e *execution) decide(ctx context.Context) (*decision, error) {
 		}
 		if err != nil {
 			return nil, err
+		}
+		// 去掉格式上的 AI 痕迹；还有 AI 腔的评论让模型重写一次，重写后不再检查
+		var issues []string
+		d.Actions, issues = humanizeActions(d.Actions, e.run.Agent.Profile.StyleSamples, e.run.Agent.Tier)
+		if len(issues) > 0 && !rewritten {
+			rewritten = true
+			e.step("humanize", clip(strings.Join(issues, "；"), 500))
+			content := res.Content
+			messages = append(messages, chatMessage{Role: "assistant", Content: &content}, textMessage("user", rewritePrompt(issues)))
+			steps = i + 1 // 不再提供工具
+			continue
 		}
 		e.step("llm", fmt.Sprintf("%d 个动作：%s", len(d.Actions), d.Reason))
 		return d, nil

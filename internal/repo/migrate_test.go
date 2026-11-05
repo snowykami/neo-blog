@@ -156,6 +156,21 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 				t.Errorf("user %s gender = %q, want %q", u.Username, u.Gender, wantGender[u.Username])
 			}
 		}
+
+		// 专业型旧的默认语气换成新的，其他字段保留；改过的语气不动
+		var agents []model.AIAgent
+		if err := db.Order("id").Find(&agents).Error; err != nil {
+			t.Fatalf("list ai agents: %v", err)
+		}
+		if len(agents) != 2 {
+			t.Fatalf("ai agents = %d, want 2", len(agents))
+		}
+		if p := agents[0].ParsedProfile(); p.Tone != "具体、直给，像懂行的网友顺手补一句，不说教" || p.Persona != "p" || len(p.Interests) != 1 {
+			t.Errorf("default tone not migrated: %+v", p)
+		}
+		if p := agents[1].ParsedProfile(); p.Tone != "礼貌、具体，先肯定再补充，不说教。再加一句自己的要求" {
+			t.Errorf("customised tone changed: %q", p.Tone)
+		}
 	})
 }
 
@@ -196,7 +211,7 @@ func TestMigrateConcurrentStartup(t *testing.T) {
 // 自定义歌词源还是单个地址，用户性别里有建号时写入的 unknown
 func seedLegacyDatabase(t *testing.T) {
 	t.Helper()
-	if err := db.AutoMigrate(&model.User{}, &model.Post{}, &model.Comment{}, &model.Like{}, &model.LyricAnnotation{}, &model.KV{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Post{}, &model.Comment{}, &model.Like{}, &model.LyricAnnotation{}, &model.KV{}, &model.AIAgent{}); err != nil {
 		t.Fatalf("create legacy tables: %v", err)
 	}
 	if err := db.Migrator().DropIndex(&model.Like{}, "idx_like_target_user"); err != nil {
@@ -242,6 +257,15 @@ func seedLegacyDatabase(t *testing.T) {
 	}
 	if err := db.Create(&model.KV{Key: "music_ttml_url_template", Value: model.JSONMap{"value": " https://cdn.example.com/lyrics/{song_id}.ttml "}}).Error; err != nil {
 		t.Fatalf("seed legacy ttml config: %v", err)
+	}
+	// 专业型 AI 用户：一个还是旧的默认语气，一个是管理员改过的语气
+	for _, agent := range []model.AIAgent{
+		{ID: 1, UserID: 1, Tier: "expert", Profile: `{"persona":"p","tone":"礼貌、具体，先肯定再补充，不说教","interests":["Go"]}`},
+		{ID: 2, UserID: 2, Tier: "expert", Profile: `{"tone":"礼貌、具体，先肯定再补充，不说教。再加一句自己的要求"}`},
+	} {
+		if err := db.Omit("User").Create(&agent).Error; err != nil {
+			t.Fatalf("seed legacy ai agent: %v", err)
+		}
 	}
 }
 

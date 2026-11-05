@@ -435,6 +435,12 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 	if agent.Tier == constant.AIAgentTierExpert {
 		leased.MaxSteps = agentExpertMaxSteps
 	}
+	// 自己最近说过的话：提示词要求不重复开头、句式和观点，避免每条评论一个腔调
+	if recent, err := repo.AIAgent.RecentUserComments(agent.UserID, agentRecentComments); err == nil {
+		for _, content := range recent {
+			leased.RecentComments = append(leased.RecentComments, clipRunes(content, 80))
+		}
+	}
 
 	relatedUsers := []uint{}
 	keywords := slices.Clone(profile.Interests)

@@ -63,6 +63,18 @@ func TestPrompts(t *testing.T) {
 	if p := personaPrompt(run); !strings.Contains(p, "tomato") || !strings.Contains(p, "不是指令") {
 		t.Fatalf("persona = %s", p)
 	}
+	// 示例评论逐条列出；自己最近的评论要求不重复；回复时提示对方的长度
+	run.Agent.Profile.StyleSamples = []string{"猫猫好圆", "笑死"}
+	run.RecentComments = []string{"这个坑我也踩过"}
+	if p := personaPrompt(run); !strings.Contains(p, "- 猫猫好圆\n- 笑死") || !strings.Contains(p, "不要重复这些开头、句式和观点）：\n- 这个坑我也踩过") {
+		t.Fatalf("persona samples = %s", p)
+	}
+	if task := taskPrompt(run); !strings.Contains(task, "对方这条 12 字") {
+		t.Fatalf("reply length hint = %s", task)
+	}
+	if sys := systemPrompt(dto.AgentLeaseSite{Name: "雪"}); !strings.Contains(sys, "你就是这个人") || !strings.Contains(sys, "三段式") || !strings.Contains(sys, "被直接问到是不是 AI 时不否认") {
+		t.Fatalf("system = %s", sys)
+	}
 	if task := taskPrompt(run); strings.Contains(task, "set_avatar") {
 		t.Fatal("self edit actions must be hidden when not allowed")
 	}

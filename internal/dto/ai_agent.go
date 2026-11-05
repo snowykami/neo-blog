@@ -465,6 +465,7 @@ type AgentLeaseRun struct {
 	Memories       AgentLeaseMemories `json:"memories"`
 	Quota          AgentLeaseQuota    `json:"quota"`
 	SelfEditHint   string             `json:"self_edit_hint"`
+	RecentComments []string           `json:"recent_comments"` // 自己最近发过的评论（新的在前），提示词要求不重复开头、句式和观点
 	CanSelfEdit    bool               `json:"can_self_edit"`
 	MaxSteps       int                `json:"max_steps"` // 阅读阶段最多调用只读工具的轮数，氛围型为 0
 }

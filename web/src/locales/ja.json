@@ -2368,7 +2368,7 @@
         "persona_desc": "一人称で {max} 文字以内",
         "too_long": "{max} 文字以内で入力してください",
         "tone": "口調",
-        "tone_placeholder": "例：丁寧で具体的。まず肯定してから補足する",
+        "tone_placeholder": "例：くだけた感じで口数は少なめ、たまにツッコむ",
         "interests": "興味",
         "interests_desc": "おすすめフィードのマッチングに使います。1 行に 1 つ",
         "expertise": "専門分野",

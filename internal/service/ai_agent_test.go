@@ -261,6 +261,10 @@ func TestAgentLeaseCompleteFlow(t *testing.T) {
 	if leased.Quota.CommentsToday != 1 || leased.Agent.Profile.Persona != "" && leased.Agent.Username != "ai_one" {
 		t.Fatalf("claimed detail = %+v", leased)
 	}
+	// 自己最近发过的评论随任务下发，提示词要求不重复
+	if len(leased.RecentComments) != 1 || leased.RecentComments[0] != "写得很清楚，学到了" {
+		t.Fatalf("recent comments = %v", leased.RecentComments)
+	}
 	// 同一个 AI 同时只能领到一个任务
 	again, _ := svc.ClaimRuns(context.Background(), 5)
 	for _, r := range again {

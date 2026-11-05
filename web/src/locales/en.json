@@ -2368,7 +2368,7 @@
         "persona_desc": "First person, at most {max} characters",
         "too_long": "Must be at most {max} characters",
         "tone": "Tone",
-        "tone_placeholder": "e.g. Polite and specific; acknowledges before adding",
+        "tone_placeholder": "e.g. Casual, few words, the odd wisecrack",
         "interests": "Interests",
         "interests_desc": "Used to match the feed. One per line",
         "expertise": "Expertise",

@@ -268,3 +268,72 @@ func TestAIAgentWorkersAcrossInstances(t *testing.T) {
 		t.Fatalf("llm called %d times for %d runs", n, len(runIDs))
 	}
 }
+
+// 评论带 AI 腔时让模型按设定重写一次，发表的是重写后的内容，运行轨迹里留下 humanize 记录
+func TestAIAgentHumanizeRewrite(t *testing.T) {
+	setupWorkerTest(t)
+	var mu sync.Mutex
+	var postID uint
+	llm := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		target := postID
+		mu.Unlock()
+		content := fmt.Sprintf(`{"actions":[{"type":"comment","target":"post:%d","content":"感谢分享！这篇文章写得非常好——学到了很多。"}],"reason":"喜欢","memory_note":""}`, target)
+		if strings.Contains(string(body), "AI 味太重") {
+			content = fmt.Sprintf(`{"actions":[{"type":"comment","target":"post:%d","content":"ip2region 我也在用，更新数据挺麻烦的"}],"reason":"喜欢","memory_note":""}`, target)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{"message": map[string]any{"role": "assistant", "content": content}}},
+			"usage":   map[string]any{"prompt_tokens": 100, "completion_tokens": 20},
+		})
+	}))
+	defer llm.Close()
+	for k, v := range map[string]any{"ai_agents_enabled": true, "ai_api_base_url": llm.URL, "ai_api_key": "sk-test", "ai_model": "m"} {
+		if err := repo.KV.SetKV(k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	admin := &model.User{Username: "admin", Email: "admin@test.local", Role: constant.RoleAdmin}
+	author := &model.User{Username: "author", Email: "author@test.local", Role: constant.RoleEditor}
+	repo.GetDB().Create(admin)
+	repo.GetDB().Create(author)
+	isPrivate := true
+	id, svcerr := service.NewPostService().CreatePost(context.WithValue(context.Background(), "user_id", author.ID), &dto.CreateOrUpdatePostReq{
+		PostBaseDto: dto.PostBaseDto{Title: "用 Go 写一个离线 IP 归属地查询", Content: "<p>正文：ip2region 的用法</p>"},
+		IsPrivate:   &isPrivate,
+	})
+	if svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	repo.GetDB().Model(&model.Post{}).Where("id = ?", id).Update("is_private", false)
+	mu.Lock()
+	postID = id
+	mu.Unlock()
+	profile := service.DefaultAIAgentProfile(constant.AIAgentTierAmbient)
+	profile.SelfEdit.Enabled = false
+	agent, svcerr := service.NewAIAgentService().Create(context.WithValue(context.Background(), "user_id", admin.ID), &dto.CreateAIAgentReq{Username: "ai_orange", Nickname: "小橘", Profile: &profile})
+	if svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	run := &model.AgentRun{AgentID: agent.ID, Kind: constant.AgentRunKindBrowse, Trigger: constant.AgentTriggerBrowse,
+		Feed: fmt.Sprintf("[%d]", id), Status: constant.AgentRunStatusQueued, ScheduledAt: time.Now()}
+	if err := repo.AIAgent.CreateRun(run); err != nil {
+		t.Fatal(err)
+	}
+	stop := startWorkers(t, 1)
+	defer stop()
+	got := waitRun(t, run.ID)
+	if got.Status != constant.AgentRunStatusDone || got.LLMCalls != 2 || !strings.Contains(got.Trace, "humanize") {
+		t.Fatalf("run = %+v", got)
+	}
+	var actions []dto.AgentActionDto
+	_ = json.Unmarshal([]byte(got.Actions), &actions)
+	if len(actions) != 1 || actions[0].Result != "ok" || actions[0].CommentID == 0 {
+		t.Fatalf("actions = %+v", actions)
+	}
+	comment, err := repo.Comment.GetComment(actions[0].CommentID)
+	if err != nil || comment.Content != "ip2region 我也在用，更新数据挺麻烦的" {
+		t.Fatalf("comment = %+v %v", comment, err)
+	}
+}

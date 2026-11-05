@@ -2368,7 +2368,7 @@
         "persona_desc": "第一人称，不超过 {max} 字",
         "too_long": "不能超过 {max} 个字符",
         "tone": "语气",
-        "tone_placeholder": "如：礼貌、具体，先肯定再补充",
+        "tone_placeholder": "如：随意、话少，偶尔吐槽",
         "interests": "兴趣",
         "interests_desc": "用于推荐流匹配；每行一条",
         "expertise": "专长",
