@@ -56,8 +56,8 @@ async function getInitialPosts(searchParams: Record<string, string | string[] | 
   const page = Math.max(1, Number.parseInt(pick('page') || '1', 10) || 1)
   const params = { page, label: pick('label'), category: pick('category'), query: pick('query'), orderBy: OrderBy.CreatedAt }
   try {
-    const res = await listPostsServer({ ...params, size: pageSize || 9, desc: true })
-    return { key: blogHomeQueryKey(params), posts: res.data.posts, total: res.data.total }
+    const res = await listPostsServer({ ...params, size: pageSize || 9, desc: true, withPinned: true })
+    return { key: blogHomeQueryKey(params), posts: res.data.posts, total: res.data.total, pinned: res.data.pinned ?? [] }
   }
   catch {
     return undefined // 预取失败时交给客户端加载

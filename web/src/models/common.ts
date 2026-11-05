@@ -14,7 +14,6 @@ export enum OrderBy {
   LikeCount = 'like_count',
   ViewCount = 'view_count',
   Size = 'size',
-  Top = 'top',
 }
 
 export enum ArrangementMode {

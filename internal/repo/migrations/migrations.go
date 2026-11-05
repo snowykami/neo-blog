@@ -19,5 +19,6 @@ func List() []*gormigrate.Migration {
 		musicTTMLSources(),
 		clearUnknownGender(),
 		agentExpertTone(),
+		postPinning(),
 	}
 }

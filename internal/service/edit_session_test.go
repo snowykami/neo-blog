@@ -14,7 +14,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
-// setupEditTest 使用临时 SQLite 数据库，创建作者、管理员、其他编辑者与一篇私密置顶带标签的文章
+// setupEditTest 使用临时 SQLite 数据库，创建作者、管理员、其他编辑者与一篇私密带标签的文章
 func setupEditTest(t *testing.T) (author, admin, other context.Context, post *model.Post, label *model.Label) {
 	t.Helper()
 	// 每个用例使用干净的共享状态（任务状态、限流计数等）
@@ -42,11 +42,10 @@ func setupEditTest(t *testing.T) (author, admin, other context.Context, post *mo
 	if err := repo.GetDB().Create(label).Error; err != nil {
 		t.Fatalf("create label: %v", err)
 	}
-	isPrivate, top := true, uint(5)
+	isPrivate := true
 	postID, svcerr := NewPostService().CreatePost(author, &dto.CreateOrUpdatePostReq{
 		PostBaseDto: dto.PostBaseDto{Title: "t", Content: "<p>v1</p>", LabelIds: []uint{label.ID}},
 		IsPrivate:   &isPrivate,
-		Top:         &top,
 	})
 	if svcerr != nil {
 		t.Fatalf("create post: %v", svcerr)
@@ -80,8 +79,8 @@ func TestUpdatePostDraftKeepsOtherFields(t *testing.T) {
 		t.Fatalf("save draft: %v", svcerr)
 	}
 	got := reloadPost(t, post.ID)
-	if !got.IsPrivate || got.Top != 5 || len(got.Labels) != 1 || got.Labels[0].ID != label.ID {
-		t.Fatalf("draft save reset fields: private=%v top=%d labels=%v", got.IsPrivate, got.Top, got.Labels)
+	if !got.IsPrivate || len(got.Labels) != 1 || got.Labels[0].ID != label.ID {
+		t.Fatalf("draft save reset fields: private=%v labels=%v", got.IsPrivate, got.Labels)
 	}
 	if got.DraftContent == nil || *got.DraftContent != "<p>draft</p>" {
 		t.Fatalf("draft not saved: %v", got.DraftContent)
@@ -97,8 +96,8 @@ func TestUpdatePostDraftKeepsOtherFields(t *testing.T) {
 		t.Fatalf("update meta: %v", svcerr)
 	}
 	got = reloadPost(t, post.ID)
-	if got.IsPrivate || len(got.Labels) != 0 || got.Top != 5 {
-		t.Fatalf("explicit update not applied: private=%v top=%d labels=%v", got.IsPrivate, got.Top, got.Labels)
+	if got.IsPrivate || len(got.Labels) != 0 {
+		t.Fatalf("explicit update not applied: private=%v labels=%v", got.IsPrivate, got.Labels)
 	}
 }
 

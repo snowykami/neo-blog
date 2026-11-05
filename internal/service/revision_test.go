@@ -77,7 +77,7 @@ func TestRevisionLifecycle(t *testing.T) {
 		t.Fatalf("restore: %v", svcerr)
 	}
 	restored := reloadPost(t, post.ID)
-	if restored.Title != "t" || restored.DraftContent == nil || *restored.DraftContent != "<p>v1</p>" || len(restored.Labels) != 1 || restored.Labels[0].ID != label.ID || restored.Top != 5 || !restored.IsPrivate {
+	if restored.Title != "t" || restored.DraftContent == nil || *restored.DraftContent != "<p>v1</p>" || len(restored.Labels) != 1 || restored.Labels[0].ID != label.ID || !restored.IsPrivate {
 		t.Fatalf("restore to session base failed: %+v", restored)
 	}
 	// 恢复前的状态一定有对应版本（新建备份，或与之相同的最新版本），恢复本身可以撤回
@@ -115,7 +115,7 @@ func TestRevisionLifecycle(t *testing.T) {
 		t.Fatalf("list should be newest first: %v %+v", svcerr, resp)
 	}
 	detail, svcerr := revisions.Get(author, constant.TargetTypePost, post.ID, base)
-	if svcerr != nil || detail.Content != "<p>v1</p>" || detail.Meta.Title != "t" || detail.Meta.Top != 5 || detail.Kind != RevisionKindSession {
+	if svcerr != nil || detail.Content != "<p>v1</p>" || detail.Meta.Title != "t" || detail.Kind != RevisionKindSession {
 		t.Fatalf("detail: %v %+v", svcerr, detail)
 	}
 

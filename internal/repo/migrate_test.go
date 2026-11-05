@@ -157,6 +157,28 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 			}
 		}
 
+		// 置顶级别最高的 3 篇转为置顶，级别越高置顶时间越晚；top 列与包含它的索引删除，列表索引按新定义重建
+		if db.Migrator().HasColumn(&model.Post{}, "top") {
+			t.Error("column top should be dropped")
+		}
+		if !db.Migrator().HasIndex(&model.Post{}, "idx_posts_list_created") || !db.Migrator().HasIndex(&model.Post{}, "PinnedAt") {
+			t.Error("list index or pinned_at index missing after migration")
+		}
+		var pinned []model.Post
+		if err := db.Unscoped().Where("pinned_at IS NOT NULL").Order("pinned_at DESC").Find(&pinned).Error; err != nil {
+			t.Fatalf("list pinned posts: %v", err)
+		}
+		if got := []uint{}; len(pinned) > 0 {
+			for _, p := range pinned {
+				got = append(got, p.ID)
+			}
+			if fmt.Sprint(got) != "[3 4 2]" {
+				t.Errorf("pinned posts = %v, want [3 4 2]", got)
+			}
+		} else {
+			t.Error("no pinned posts after migration")
+		}
+
 		// 专业型旧的默认语气换成新的，其他字段保留；改过的语气不动
 		var agents []model.AIAgent
 		if err := db.Order("id").Find(&agents).Error; err != nil {
@@ -220,6 +242,30 @@ func seedLegacyDatabase(t *testing.T) {
 	if err := db.Migrator().DropColumn(&model.Post{}, "content_hash"); err != nil {
 		t.Fatalf("drop content_hash: %v", err)
 	}
+	// 旧的置顶级别 top（带索引，列表组合索引也包含它），还没有置顶时间与到期时间
+	// SQLite 上前面删列会重建表，索引可能已经不在了
+	if db.Migrator().HasIndex(&model.Post{}, "PinnedAt") {
+		if err := db.Migrator().DropIndex(&model.Post{}, "PinnedAt"); err != nil {
+			t.Fatalf("drop pinned_at index: %v", err)
+		}
+	}
+	for _, column := range []string{"pinned_at", "pinned_until"} {
+		if err := db.Migrator().DropColumn(&model.Post{}, column); err != nil {
+			t.Fatalf("drop %s: %v", column, err)
+		}
+	}
+	if err := db.Migrator().AddColumn(&legacyPost{}, "Top"); err != nil {
+		t.Fatalf("add top: %v", err)
+	}
+	for _, sql := range []string{
+		"CREATE INDEX idx_posts_top ON posts (top)",
+		"CREATE INDEX idx_posts_list_created ON posts (is_private, top, created_at)",
+		"CREATE INDEX idx_posts_list_heat ON posts (is_private, top, heat)",
+	} {
+		if err := db.Exec(sql).Error; err != nil {
+			t.Fatalf("create legacy index: %v", err)
+		}
+	}
 	user := &model.User{Username: "legacy", Email: "legacy@test.local", Gender: "unknown"}
 	if err := db.Create(user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
@@ -241,6 +287,12 @@ func seedLegacyDatabase(t *testing.T) {
 	}{
 		{"INSERT INTO posts (id, title, content, like_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", []any{1, "first", "hello", 5, now, now}},
 		{"INSERT INTO posts (id, title, content, like_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", []any{2, "second", "world", 5, now, now}},
+		// 置顶级别：最高的 3 篇（同级别 id 大的在前）转为置顶，第 4 篇与已删除的不置顶
+		{"UPDATE posts SET top = ? WHERE id = ?", []any{2, 2}},
+		{"INSERT INTO posts (id, title, content, top, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", []any{3, "third", "c", 9, now, now}},
+		{"INSERT INTO posts (id, title, content, top, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", []any{4, "fourth", "d", 2, now, now}},
+		{"INSERT INTO posts (id, title, content, top, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", []any{5, "fifth", "e", 1, now, now}},
+		{"INSERT INTO posts (id, title, content, top, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)", []any{6, "deleted", "f", 5, now, now, now}},
 		{"INSERT INTO likes (target_type, target_id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", []any{"post", 1, user.ID, now, now}},
 		{"INSERT INTO likes (target_type, target_id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", []any{"post", 1, user.ID, now, now}},
 		{"INSERT INTO likes (target_type, target_id, user_id, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?)", []any{"post", 2, user.ID, now, now, now}},
@@ -268,6 +320,13 @@ func seedLegacyDatabase(t *testing.T) {
 		}
 	}
 }
+
+// legacyPost 置顶改版前的文章表里的置顶级别列
+type legacyPost struct {
+	Top uint `gorm:"default:0"`
+}
+
+func (legacyPost) TableName() string { return "posts" }
 
 func migrationIDs() []string {
 	var ids []string

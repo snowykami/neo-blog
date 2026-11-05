@@ -1240,7 +1240,6 @@
       "source_mode": "原始碼模式",
       "uncategorized": "未分類",
       "view_count": "瀏覽數",
-      "post_top": "置頂權重",
       "author": "作者",
       "only_mine": "只看我的",
       "image_caption_placeholder": "新增圖片註解（選填）",
@@ -1268,7 +1267,24 @@
       "horizontal_rule": "分隔線",
       "add_image": "新增",
       "title_required": "標題不能為空",
-      "edit_session_api_token_device": "API Token「{name}」"
+      "edit_session_api_token_device": "API Token「{name}」",
+      "pin_to_home": "置頂到首頁",
+      "pin_hint": "顯示在首頁第一頁最上方，後置頂的排在前面；首頁最多 {max} 篇",
+      "pin_status": "已置頂 · {date} 起",
+      "pin_expiry": "到期時間",
+      "pin_expiry_never": "不自動取消",
+      "pin_expiry_days": "{days} 天",
+      "pin_expiry_custom": "指定日期",
+      "pin_expiry_result": "將在 {date} 自動取消置頂",
+      "pin_expiry_result_never": "一直置頂，直到手動取消",
+      "pin_limit_title": "首頁已有 {max} 篇置頂文章，先取消其中一篇",
+      "pin_limit_hint": "首頁最多置頂 {max} 篇文章，開啟「僅看置頂」取消一篇後再試",
+      "pin_replaced": "已取消「{title}」的置頂，本文已置頂到首頁",
+      "pin_success": "已置頂到首頁",
+      "unpin_success": "已取消置頂",
+      "unpin_action": "取消置頂",
+      "pin_until": "至 {date}",
+      "only_pinned": "僅看置頂（最多 {max} 篇）"
     },
     "storages": {
       "title": "儲存供應商",
@@ -1599,8 +1615,6 @@
       "visibility_public": "公開",
       "visibility_private": "私人（僅自己與管理員可見）",
       "none": "無",
-      "not_top": "不置頂",
-      "top_weight": "權重 {top}",
       "nav_shown": "顯示 · 排序 {order}",
       "nav_hidden": "不顯示",
       "description_placeholder": "加入一句話摘要（選填）",
@@ -1788,7 +1802,6 @@
       "cover_hint": "建議使用 16:9 的橫向圖片",
       "private": "私人",
       "private_hint": "開啟後僅自己與管理員可見",
-      "top_hint": "0 表示不置頂；數值越大越靠前",
       "show_in_nav_hint": "在網站導覽列中顯示此頁面",
       "nav_order_hint": "導覽中的排序值",
       "insert_table": "表格",
@@ -1977,7 +1990,9 @@
       "layout_reading": "閱讀（正文 + 目錄）",
       "layout_wide": "寬螢幕（正文佔滿整行）",
       "fullscreen": "全螢幕",
-      "fullscreen_hint": "內文佔滿整個視窗，頂欄收起為頂部的小橫條，滑鼠移到頂部或點擊橫條時展開；適合播放器、作品展示等沉浸式頁面"
+      "fullscreen_hint": "內文佔滿整個視窗，頂欄收起為頂部的小橫條，滑鼠移到頂部或點擊橫條時展開；適合播放器、作品展示等沉浸式頁面",
+      "pinned": "已置頂",
+      "not_pinned": "未置頂"
     },
     "menu": {
       "content": "文章與頁面",
@@ -2815,7 +2830,6 @@
     "size": "大小",
     "updated_at": "更新時間",
     "view_count": "瀏覽數",
-    "top": "置頂",
     "sort_by": "排序依據",
     "direction": "順序",
     "desc": "降冪",
@@ -3194,7 +3208,9 @@
       "invalid_ai_agent_count": "一次可匯入 1～200 個 AI 使用者",
       "invalid_ai_agent_profile": "性格檔案中有欄位的類型不正確",
       "invalid_preferred_color": "主題色不在站點可選的配色中",
-      "ai_agent_username_taken": "使用者名稱已被一般使用者占用，請換一個"
+      "ai_agent_username_taken": "使用者名稱已被一般使用者占用，請換一個",
+      "pinned_posts_limit": "首頁最多置頂 3 篇文章，先取消其中一篇",
+      "pinned_until_in_past": "到期時間要晚於現在"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的參數不符合要求} other {請求參數不符合要求}}",

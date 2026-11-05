@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
@@ -239,12 +240,10 @@ func (p *postRepo) ListPosts(currentUserID uint, includeAllPrivate bool, query [
 	}
 
 	// 后台管理视图（includeAllPrivate）不做私密过滤
-	switch {
-	case includeAllPrivate:
-	case currentUserID > 0:
-		q = q.Where("is_private = ? OR (is_private = ? AND user_id = ?)", false, true, currentUserID)
-	default:
-		q = q.Where("is_private = ?", false)
+	q = visiblePosts(q, currentUserID, includeAllPrivate)
+	// 首页默认列表：置顶文章另外返回，这里排除，置顶不占分页名额也不重复出现
+	if req.HomeListing() {
+		q = q.Where("NOT ("+activePinnedCondition+")", time.Now())
 	}
 
 	if req.Label != "" {
@@ -288,12 +287,12 @@ func (p *postRepo) ListPosts(currentUserID uint, includeAllPrivate bool, query [
 	// 列表不读取草稿和完整正文，只截取摘要所需的前 201 个字符（摘要截断为 200 字）
 	columns := []string{"posts.id", "posts.created_at", "posts.updated_at", "posts.deleted_at", "posts.user_id",
 		"posts.category_id", "posts.cover", "posts.description", "posts.is_private", "posts.slug", "posts.title",
-		"posts.type", "posts.top", "posts.like_count", "posts.comment_count", "posts.view_count", "posts.heat",
+		"posts.type", "posts.pinned_at", "posts.pinned_until", "posts.like_count", "posts.comment_count", "posts.view_count", "posts.heat",
 		"posts.content_hash", "posts.ai_summary", "posts.ai_summary_source_hash", "posts.ai_summary_at"}
 	if !req.NoContent {
 		columns = append(columns, "substr(posts.content, 1, 201) AS content")
 	}
-	items, err := paginate[model.Post](q.Select(columns).Order("posts.top DESC"), req.Page, req.Size, "posts."+req.OrderBy, req.Desc)
+	items, err := paginate[model.Post](q.Select(columns), req.Page, req.Size, "posts."+req.OrderBy, req.Desc)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -323,4 +322,45 @@ func (p *postRepo) ListCategories() ([]model.Category, error) {
 	var categories []model.Category
 	err := GetDB().Order("id DESC").Find(&categories).Error
 	return categories, err
+}
+
+// activePinnedCondition 此刻置顶在首页：已置顶且没有到期（参数为当前时间）
+const activePinnedCondition = "posts.pinned_at IS NOT NULL AND (posts.pinned_until IS NULL OR posts.pinned_until > ?)"
+
+// visiblePosts 当前用户能看到的文章：公开的，加上自己的私密文章；后台管理视图不过滤
+func visiblePosts(q *gorm.DB, currentUserID uint, includeAllPrivate bool) *gorm.DB {
+	switch {
+	case includeAllPrivate:
+		return q
+	case currentUserID > 0:
+		return q.Where("is_private = ? OR (is_private = ? AND user_id = ?)", false, true, currentUserID)
+	default:
+		return q.Where("is_private = ?", false)
+	}
+}
+
+// ListPinnedPosts 此刻置顶在首页、当前用户能看到的文章，后置顶的在前；只读取列表需要的字段
+func (p *postRepo) ListPinnedPosts(currentUserID uint, includeAllPrivate bool, now time.Time, limit int) ([]model.Post, error) {
+	var posts []model.Post
+	q := GetDB().Model(&model.Post{}).Preload("User").Preload("Category").Preload("Labels").
+		Omit("draft_content").
+		Where(activePinnedCondition, now)
+	err := visiblePosts(q, currentUserID, includeAllPrivate).
+		Order("posts.pinned_at DESC").Order("posts.id DESC").
+		Limit(limit).
+		Find(&posts).Error
+	return posts, err
+}
+
+// CountPinnedPosts 此刻置顶在首页的文章数（含私密文章），不计 excludeID
+func (p *postRepo) CountPinnedPosts(now time.Time, excludeID uint) (int64, error) {
+	var count int64
+	err := GetDB().Model(&model.Post{}).Where(activePinnedCondition, now).Where("id <> ?", excludeID).Count(&count).Error
+	return count, err
+}
+
+// SetPostPin 写入文章的置顶时间与到期时间（都为 nil 表示取消置顶）
+func (p *postRepo) SetPostPin(id uint, pinnedAt, pinnedUntil *time.Time) error {
+	return GetDB().Model(&model.Post{}).Where("id = ?", id).
+		UpdateColumns(map[string]any{"pinned_at": pinnedAt, "pinned_until": pinnedUntil}).Error
 }

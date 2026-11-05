@@ -49,9 +49,9 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
     <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
       <PostStats withIcons words={countWords(content)} minutes={calculateReadingTime(content)} views={post.viewCount || 0} likes={post.likeCount || 0} comments={post.commentCount || 0} className="mb-3" />
 
-      {(post.top > 0 || post.isPrivate) && (
+      {(post.pinned || post.isPrivate) && (
         <div className="mb-3 flex flex-wrap gap-2">
-          {post.top > 0 && (
+          {post.pinned && (
             <Badge variant="secondary" className="rounded-md">
               <PinnedIcon />
               {t('pinned')}

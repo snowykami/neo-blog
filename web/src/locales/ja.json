@@ -1240,7 +1240,6 @@
       "source_mode": "ソースモード",
       "uncategorized": "未分類",
       "view_count": "閲覧数",
-      "post_top": "固定表示の重み",
       "author": "作成者",
       "only_mine": "自分のみ",
       "image_caption_placeholder": "キャプションを追加（任意）",
@@ -1268,7 +1267,24 @@
       "horizontal_rule": "区切り線",
       "add_image": "追加",
       "title_required": "タイトルは必須です",
-      "edit_session_api_token_device": "API トークン「{name}」"
+      "edit_session_api_token_device": "API トークン「{name}」",
+      "pin_to_home": "トップページに固定",
+      "pin_hint": "トップページ 1 ページ目の一番上に表示され、後から固定したものが先に並びます。最大 {max} 件",
+      "pin_status": "{date} から固定中",
+      "pin_expiry": "期限",
+      "pin_expiry_never": "自動で解除しない",
+      "pin_expiry_days": "{days} 日",
+      "pin_expiry_custom": "日付を指定",
+      "pin_expiry_result": "{date} に自動で固定を解除します",
+      "pin_expiry_result_never": "手動で解除するまで固定します",
+      "pin_limit_title": "すでに {max} 件固定されています。先に 1 件解除してください",
+      "pin_limit_hint": "固定できるのは最大 {max} 件です。「固定のみ」をオンにして 1 件解除してから、もう一度お試しください",
+      "pin_replaced": "「{title}」の固定を解除し、この記事をトップページに固定しました",
+      "pin_success": "トップページに固定しました",
+      "unpin_success": "固定を解除しました",
+      "unpin_action": "固定を解除",
+      "pin_until": "{date} まで",
+      "only_pinned": "固定のみ（最大 {max} 件）"
     },
     "storages": {
       "title": "ストレージプロバイダ",
@@ -1599,8 +1615,6 @@
       "visibility_public": "公開",
       "visibility_private": "非公開（自分と管理者のみ）",
       "none": "なし",
-      "not_top": "固定しない",
-      "top_weight": "重み {top}",
       "nav_shown": "表示 · 順序 {order}",
       "nav_hidden": "非表示",
       "description_placeholder": "ひとこと要約を追加（任意）",
@@ -1788,7 +1802,6 @@
       "cover_hint": "16:9 の横長画像を推奨",
       "private": "非公開",
       "private_hint": "オンにすると自分と管理者のみ閲覧できます",
-      "top_hint": "0 は固定なし。値が大きいほど上に表示",
       "show_in_nav_hint": "サイトのナビゲーションにこのページを表示",
       "nav_order_hint": "ナビゲーションでの並び順",
       "insert_table": "表",
@@ -1977,7 +1990,9 @@
       "layout_reading": "読書（本文 + 目次）",
       "layout_wide": "ワイド（全幅）",
       "fullscreen": "全画面",
-      "fullscreen_hint": "本文がウィンドウ全体に表示され、上部バーは小さなハンドルに収納されます。ポインターを上端に移動するかハンドルをクリックすると展開します。プレーヤーや作品紹介など、没入型のページに向いています"
+      "fullscreen_hint": "本文がウィンドウ全体に表示され、上部バーは小さなハンドルに収納されます。ポインターを上端に移動するかハンドルをクリックすると展開します。プレーヤーや作品紹介など、没入型のページに向いています",
+      "pinned": "固定中",
+      "not_pinned": "固定していません"
     },
     "menu": {
       "content": "記事とページ",
@@ -2815,7 +2830,6 @@
     "size": "サイズ",
     "updated_at": "更新日時",
     "view_count": "閲覧数",
-    "top": "固定表示",
     "sort_by": "並べ替え基準",
     "direction": "順序",
     "desc": "降順",
@@ -3194,7 +3208,9 @@
       "invalid_ai_agent_count": "一度にインポートできる AI ユーザーは 1〜200 人です",
       "invalid_ai_agent_profile": "性格プロフィールに型の正しくない項目があります",
       "invalid_preferred_color": "テーマカラーがサイトで選べる配色にありません",
-      "ai_agent_username_taken": "このユーザー名は一般ユーザーが使用しています。別の名前にしてください"
+      "ai_agent_username_taken": "このユーザー名は一般ユーザーが使用しています。別の名前にしてください",
+      "pinned_posts_limit": "トップページに固定できるのは最大 3 件です。先に 1 件解除してください",
+      "pinned_until_in_past": "期限は現在より後にしてください"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」が正しくありません} resource {{resource}のパラメーターが正しくありません} other {リクエストのパラメーターが正しくありません}}",

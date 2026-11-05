@@ -1240,7 +1240,6 @@
       "source_mode": "Source mode",
       "uncategorized": "Uncategorized",
       "view_count": "Views",
-      "post_top": "Pin weight",
       "author": "Author",
       "only_mine": "Only mine",
       "image_caption_placeholder": "Add a caption (optional)",
@@ -1268,7 +1267,24 @@
       "horizontal_rule": "Horizontal rule",
       "add_image": "Add",
       "title_required": "Title is required",
-      "edit_session_api_token_device": "API token “{name}”"
+      "edit_session_api_token_device": "API token “{name}”",
+      "pin_to_home": "Pin to home page",
+      "pin_hint": "Shown at the top of the first home page, most recently pinned first; up to {max} posts",
+      "pin_status": "Pinned since {date}",
+      "pin_expiry": "Expires",
+      "pin_expiry_never": "Never",
+      "pin_expiry_days": "{days, plural, one {# day} other {# days}}",
+      "pin_expiry_custom": "On a date",
+      "pin_expiry_result": "Will be unpinned automatically on {date}",
+      "pin_expiry_result_never": "Stays pinned until you unpin it",
+      "pin_limit_title": "{max} posts are already pinned. Unpin one first",
+      "pin_limit_hint": "Up to {max} posts can be pinned. Turn on \"Pinned only\", unpin one and try again",
+      "pin_replaced": "Unpinned \"{title}\" and pinned this post to the home page",
+      "pin_success": "Pinned to the home page",
+      "unpin_success": "Unpinned",
+      "unpin_action": "Unpin",
+      "pin_until": "until {date}",
+      "only_pinned": "Pinned only (up to {max})"
     },
     "storages": {
       "title": "Storage providers",
@@ -1599,8 +1615,6 @@
       "visibility_public": "Public",
       "visibility_private": "Private (only you and admins)",
       "none": "None",
-      "not_top": "Not pinned",
-      "top_weight": "Weight {top}",
       "nav_shown": "Shown · order {order}",
       "nav_hidden": "Hidden",
       "description_placeholder": "Add a one-line summary (optional)",
@@ -1788,7 +1802,6 @@
       "cover_hint": "A 16:9 landscape image is recommended",
       "private": "Private",
       "private_hint": "Only you and admins can see it",
-      "top_hint": "0 means not pinned; larger values rank higher",
       "show_in_nav_hint": "Show this page in the site navigation",
       "nav_order_hint": "Sort value in the navigation",
       "insert_table": "Table",
@@ -1977,7 +1990,9 @@
       "layout_reading": "Reading (content + TOC)",
       "layout_wide": "Wide (full-width content)",
       "fullscreen": "Fullscreen",
-      "fullscreen_hint": "Content fills the window and the top bar folds into a small handle at the top; it slides back when you move the pointer to the top or tap the handle. Good for players and showcase pages"
+      "fullscreen_hint": "Content fills the window and the top bar folds into a small handle at the top; it slides back when you move the pointer to the top or tap the handle. Good for players and showcase pages",
+      "pinned": "Pinned",
+      "not_pinned": "Not pinned"
     },
     "menu": {
       "content": "Posts & pages",
@@ -2815,7 +2830,6 @@
     "size": "Size",
     "updated_at": "Updated",
     "view_count": "Views",
-    "top": "Pinned",
     "sort_by": "Sort by",
     "direction": "Direction",
     "desc": "Descending",
@@ -3194,7 +3208,9 @@
       "invalid_ai_agent_count": "You can import 1 to 200 AI users at a time",
       "invalid_ai_agent_profile": "A field in the personality profile has the wrong type",
       "invalid_preferred_color": "The theme color is not one of the site’s color schemes",
-      "ai_agent_username_taken": "The username is taken by a regular user. Choose another one"
+      "ai_agent_username_taken": "The username is taken by a regular user. Choose another one",
+      "pinned_posts_limit": "Up to 3 posts can be pinned to the home page. Unpin one first",
+      "pinned_until_in_past": "The expiry time must be in the future"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field} \"{value}\" is invalid} resource {Invalid {resource} parameters} other {Invalid request parameters}}",

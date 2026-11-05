@@ -113,6 +113,18 @@ export async function listPostsAdmin({
   return res.data
 }
 
+/** 首页上的全部置顶文章（含私密文章），后置顶的在前 */
+export async function listPinnedPostsAdmin(): Promise<BaseResponse<{ posts: Post[], limit: number }>> {
+  const res = await axiosClient.get('/admin/posts/pinned')
+  return res.data
+}
+
+/** 置顶到首页或取消置顶；pinnedUntil 为空表示不自动取消。首页已满时返回 pinned_posts_limit */
+export async function setPostPin({ id, pinned, pinnedUntil = null }: { id: number, pinned: boolean, pinnedUntil?: string | null }): Promise<BaseResponse<Post>> {
+  const res = await axiosClient.put(`/admin/posts/${id}/pin`, { pinned, pinnedUntil })
+  return res.data
+}
+
 export interface KVItem {
   key: string
   value: unknown

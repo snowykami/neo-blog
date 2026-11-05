@@ -147,7 +147,17 @@ func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 		resps.Error(c, svcerr)
 		return
 	}
-	resps.Ok(c, resps.Success, utils.H{"posts": posts, "total": total})
+	resp := utils.H{"posts": posts, "total": total}
+	// 首页默认列表另外返回置顶文章（列表中已排除它们），total 不含置顶
+	if req.HomeListing() {
+		pinned, svcerr := p.service.ListPinnedPosts(ctx)
+		if svcerr != nil {
+			resps.Error(c, svcerr)
+			return
+		}
+		resp["pinned"] = pinned
+	}
+	resps.Ok(c, resps.Success, resp)
 }
 
 func (p *PostController) GetCategories(ctx context.Context, c *app.RequestContext) {

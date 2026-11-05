@@ -6,6 +6,7 @@ export interface BlogHomeInitialData {
   key: string
   posts: Post[]
   total: number
+  pinned: Post[] // 置顶文章，只在没有筛选时返回
 }
 
 // 列表查询参数的唯一标识，服务端与客户端共用，用于判断预取结果能否复用

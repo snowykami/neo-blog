@@ -34,13 +34,16 @@ export async function listPosts({
   label = '',
   category = '',
   userId = 0,
+  withPinned = false,
 }: {
   query?: string // 搜索查询，逗号分割
   label?: string // 标签，逗号分割
   category?: string
   userId?: number // 用户ID，管理员可查看指定用户的文章
   noContent?: boolean // 是否不返回内容，用于只需要列表时
-} & PaginationParams, options?: { headers?: Record<string, string> }): Promise<BaseResponse<{ posts: Post[], total: number }>> {
+  // 首页列表：没有筛选时另外返回置顶文章（pinned），并从 posts 中排除它们，total 不含置顶；有筛选时后端忽略
+  withPinned?: boolean
+} & PaginationParams, options?: { headers?: Record<string, string> }): Promise<BaseResponse<{ posts: Post[], total: number, pinned?: Post[] }>> {
   const res = await axiosClient.get('/post/list', {
     headers: options?.headers,
     params: {
@@ -53,6 +56,7 @@ export async function listPosts({
       category,
       noContent,
       userId,
+      withPinned: withPinned || undefined,
     },
   })
   return res.data

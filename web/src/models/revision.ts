@@ -15,7 +15,6 @@ export interface RevisionMeta {
   isPrivate: boolean
   categoryId?: number
   labelIds?: number[]
-  top?: number
   showInNav?: boolean
   navOrder?: number
   layout?: PageLayout

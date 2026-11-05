@@ -16,7 +16,6 @@ type RevisionMeta struct {
 	// 文章
 	CategoryID *uint  `json:"category_id,omitempty"`
 	LabelIds   []uint `json:"label_ids,omitempty"`
-	Top        uint   `json:"top,omitempty"`
 	// 页面
 	ShowInNav  bool   `json:"show_in_nav,omitempty"`
 	NavOrder   int    `json:"nav_order,omitempty"`

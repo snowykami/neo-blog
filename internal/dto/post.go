@@ -27,7 +27,6 @@ type PostBaseDto struct {
 	Labels       []LabelDto        `json:"labels"`
 	LabelIds     []uint            `json:"label_ids"`
 	IsPrivate    bool              `json:"is_private"`
-	Top          uint              `json:"top"` // 置顶级别，0表示不置顶，数值越大优先级越高
 }
 
 type PostDto struct {
@@ -36,13 +35,17 @@ type PostDto struct {
 	User          UserDto   `json:"user"`          // 发布者信息
 	Collaborators []UserDto `json:"collaborators"` // 协作者列表
 	PostBaseDto
-	IsLiked      bool      `json:"is_liked"`      // 当前用户是否点赞
-	LikeCount    uint64    `json:"like_count"`    // 点赞数
-	CommentCount uint64    `json:"comment_count"` // 评论数
-	ViewCount    uint64    `json:"view_count"`    // 浏览数
-	Heat         uint64    `json:"heat"`          // 热度
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"` // 更新时间
+	IsLiked bool `json:"is_liked"` // 当前用户是否点赞
+	// 置顶到首页：Pinned 为此刻是否置顶（已置顶且未到期）；PinnedUntil 为空表示不自动取消
+	Pinned       bool       `json:"pinned"`
+	PinnedAt     *time.Time `json:"pinned_at"`
+	PinnedUntil  *time.Time `json:"pinned_until"`
+	LikeCount    uint64     `json:"like_count"`    // 点赞数
+	CommentCount uint64     `json:"comment_count"` // 评论数
+	ViewCount    uint64     `json:"view_count"`    // 浏览数
+	Heat         uint64     `json:"heat"`          // 热度
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"` // 更新时间
 	// AI 摘要相关
 	DescriptionByAI bool       `json:"description_by_ai"`           // 当前摘要由 AI 生成且未被修改
 	AISummaryStale  bool       `json:"ai_summary_stale"`            // 正文在生成摘要后有更新，建议重新生成
@@ -78,9 +81,8 @@ type BatchAISummaryResultDto struct {
 type CreateOrUpdatePostReq struct {
 	ID uint `path:"id" json:"id"` // 文章ID，更新时需要
 	PostBaseDto
-	// 以下字段覆盖 PostBaseDto 同名字段，用指针区分“未传”与“零值”，避免只保存草稿时把私密、置顶重置
+	// 以下字段覆盖 PostBaseDto 同名字段，用指针区分“未传”与“零值”，避免只保存草稿时把私密重置
 	IsPrivate *bool `json:"is_private"`
-	Top       *uint `json:"top"`
 	// 摘要、封面传空字符串表示清空，未传则保持原值
 	Description *string `json:"description"`
 	Cover       *string `json:"cover"`
@@ -99,6 +101,13 @@ type ListPostReq struct {
 	Label    string `query:"label"`
 	Category string `query:"category"`
 	UserID   uint   `query:"user_id"` // 用户ID，管理员可查看指定用户的文章
+	// WithPinned 首页列表：没有任何筛选时另外返回置顶文章，并从列表中排除它们（置顶不占分页名额、不重复出现）；有筛选时忽略
+	WithPinned bool `query:"with_pinned"`
+}
+
+// HomeListing 是否为首页的默认列表（请求了置顶且没有搜索、标签、分类、作者筛选），只有这时置顶才生效
+func (r *ListPostReq) HomeListing() bool {
+	return r.WithPinned && r.Query == "" && r.Label == "" && r.Category == "" && r.UserID == 0
 }
 
 type ListPostResp struct {
@@ -106,4 +115,11 @@ type ListPostResp struct {
 	Total   uint64    `json:"total"`    // 总数
 	OrderBy string    `json:"order_by"` // 排序方式
 	Desc    bool      `json:"desc"`
+}
+
+// SetPostPinReq 置顶到首页或取消置顶（仅管理员）
+type SetPostPinReq struct {
+	ID          uint       `path:"id" json:"-"`
+	Pinned      bool       `json:"pinned"`
+	PinnedUntil *time.Time `json:"pinned_until"` // 到期时间，空表示不自动取消；只在置顶时使用
 }

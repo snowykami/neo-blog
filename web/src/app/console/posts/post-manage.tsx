@@ -13,7 +13,7 @@ import {
 } from 'nuqs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { listPostsAdmin } from '@/api/admin'
+import { listPinnedPostsAdmin, listPostsAdmin } from '@/api/admin'
 import { deletePost, listPosts, updatePost } from '@/api/post'
 import { HoverPopover } from '@/components/common/hover-popover'
 import { OrderSelector } from '@/components/common/orderby-selector'
@@ -40,10 +40,12 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { useToEditPost, useToPost } from '@/hooks/use-route'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
+import { PINNED_POSTS_LIMIT } from '@/models/post'
 import { isAdmin } from '@/utils/common/permission'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '../../../components/console/common/post-meta-dialog-form'
 import { AISummaryBadges, PostDescriptionLine, useAISummary, useAISummaryMenuLabel } from './post-ai-summary'
 import { PostAISummaryBatchButton } from './post-ai-summary-batch'
+import { usePinUntilText, usePostPinAction } from './post-pin'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
@@ -87,15 +89,24 @@ export function PostManage() {
     'only_mine',
     parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
   )
+  // 只看首页上的置顶文章（管理员），不分页
+  const [onlyPinned, setOnlyPinned] = useQueryState(
+    'only_pinned',
+    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
   const [createPostDialogOpen, setCreatePostDialogOpen] = useState(false)
   // 写操作后自增，作为缓存 key 的一部分强制重新拉取列表（reset 只清空状态，不会重新请求）
   const [refreshKey, setRefreshKey] = useState(0)
 
   // 使用 useAsyncTask 进行搜索并缓存结果
   const listPostsTask = useAsyncTask(
-    async (p: number, sz: number, ob: OrderBy, d: boolean, q: string, mine: boolean) => {
+    async (p: number, sz: number, ob: OrderBy, d: boolean, q: string, mine: boolean, pinned: boolean) => {
       if (!user)
         return { posts: [], total: 0 }
+      if (isAdminUser && pinned) {
+        const res = await listPinnedPostsAdmin()
+        return { posts: res.data.posts, total: res.data.posts.length }
+      }
       const params = { page: p, size: sz, orderBy: ob, desc: d, query: q }
       const res = isAdminUser
         ? await listPostsAdmin({ ...params, userId: mine ? user.id : 0 })
@@ -105,12 +116,12 @@ export function PostManage() {
     {
       // 当搜索参数变化时自动执行
       immediate: true,
-      dependencies: [page, size, orderBy, desc, debouncedQueryInput, onlyMine, user, refreshKey],
-      getArgs: () => [page, size, orderBy, desc, debouncedQueryInput, onlyMine] as const,
+      dependencies: [page, size, orderBy, desc, debouncedQueryInput, onlyMine, onlyPinned, user, refreshKey],
+      getArgs: () => [page, size, orderBy, desc, debouncedQueryInput, onlyMine, onlyPinned] as const,
       // 相同搜索条件在 10 秒内使用缓存，避免重复请求
       cacheTime: 10_000,
       // 根据搜索条件生成唯一的 cache key
-      taskKey: (p, sz, ob, d, q, mine) => `listPosts-${user?.id}-${isAdminUser}-${p}-${sz}-${ob}-${d}-${q}-${mine}-${refreshKey}`,
+      taskKey: (p, sz, ob, d, q, mine, pinned) => `listPosts-${user?.id}-${isAdminUser}-${p}-${sz}-${ob}-${d}-${q}-${mine}-${pinned}-${refreshKey}`,
       maxRetries: 1,
     },
   )
@@ -191,6 +202,19 @@ export function PostManage() {
               <Label htmlFor="post-manage-only-mine">{t('only_mine')}</Label>
             </div>
           )}
+          {isAdminUser && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Switch
+                id="post-manage-only-pinned"
+                checked={onlyPinned}
+                onCheckedChange={(checked) => {
+                  setOnlyPinned(checked)
+                  setPage(1)
+                }}
+              />
+              <Label htmlFor="post-manage-only-pinned">{t('only_pinned', { max: PINNED_POSTS_LIMIT })}</Label>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -198,7 +222,6 @@ export function PostManage() {
               value={{ orderBy, desc }}
               onOrderChange={onOrderChange}
               orderBys={[
-                OrderBy.Top,
                 OrderBy.CreatedAt,
                 OrderBy.UpdatedAt,
                 OrderBy.Heat,
@@ -227,13 +250,15 @@ export function PostManage() {
             post={post}
             showAuthor={isAdminUser}
             canConfigureAI={isAdminUser}
+            canPin={isAdminUser}
             onPostUpdate={onPostUpdate}
             onPostDelete={onPostDelete}
           />
           <Separator className="flex-1" />
         </div>
       ))}
-      <div className="flex justify-center items-center py-4">
+      {/* 只看置顶时最多 3 篇，不分页 */}
+      <div className="flex justify-center items-center py-4" hidden={isAdminUser && onlyPinned}>
         {total > 0 && (
           <PaginationController
             page={page}
@@ -260,12 +285,14 @@ function PostItem({
   post,
   showAuthor,
   canConfigureAI,
+  canPin,
   onPostUpdate,
   onPostDelete,
 }: {
   post: Post
   showAuthor: boolean
   canConfigureAI: boolean // 只有管理员可以在全局配置中配置 AI
+  canPin: boolean // 只有管理员可以置顶到首页
   onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
   onPostDelete: ({ postId }: { postId: number }) => void
 }) {
@@ -278,6 +305,7 @@ function PostItem({
   const clickToPost = useToPost()
   const [metaDialogOpen, setMetaDialogOpen] = useState(false)
   const aiSummary = useAISummary({ post, onPostUpdate, canConfigure: canConfigureAI })
+  const pinUntilText = usePinUntilText()
   return (
     <div>
       <div className="flex w-full items-center gap-3 py-3">
@@ -323,9 +351,11 @@ function PostItem({
                         className: 'bg-teal-100 text-teal-800',
                       }]
                     : []),
-                  ...(post.top > 0
+                  ...(post.pinned
                     ? [{
-                        value: `${postT('post_top')}: ${post.top}`,
+                        value: post.pinnedUntil
+                          ? `${commonT('pinned')} · ${postT('pin_until', { date: pinUntilText(post.pinnedUntil) })}`
+                          : commonT('pinned'),
                         className: 'bg-amber-100 text-amber-800',
                       }]
                     : []),
@@ -397,6 +427,7 @@ function PostItem({
           </Button>
           <PostDropdownMenu
             post={post}
+            canPin={canPin}
             onPostUpdate={onPostUpdate}
             onPostDelete={onPostDelete}
             setMetaDialogOpen={setMetaDialogOpen}
@@ -417,6 +448,7 @@ function PostItem({
 
 function PostDropdownMenu({
   post,
+  canPin,
   onPostUpdate,
   onPostDelete,
   setMetaDialogOpen,
@@ -424,6 +456,7 @@ function PostDropdownMenu({
   onTriggerAISummary,
 }: {
   post: Post
+  canPin: boolean
   onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
   onPostDelete: ({ postId }: { postId: number }) => void
   setMetaDialogOpen: (open: boolean) => void
@@ -435,7 +468,9 @@ function PostDropdownMenu({
   const clickToPostEdit = useToEditPost()
   const clickToPost = useToPost()
   const aiSummaryLabel = useAISummaryMenuLabel(post)
+  const postT = useTranslations('Console.post_edit')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const togglePin = usePostPinAction(post, state => onPostUpdate({ post: { id: post.id, ...state } }))
   const handleTogglePrivate = () => {
     // 只提交需要修改的字段：列表里的正文是截断后的摘要，整篇提交会覆盖原文
     updatePost({ post: { id: post.id, isPrivate: !post.isPrivate } })
@@ -503,6 +538,11 @@ function PostDropdownMenu({
           <DropdownMenuItem onClick={handleTogglePrivate} className="cursor-pointer">
             {operationT(post.isPrivate ? 'set_public' : 'set_private')}
           </DropdownMenuItem>
+          {canPin && (
+            <DropdownMenuItem onClick={togglePin} className="cursor-pointer">
+              {postT(post.pinned ? 'unpin_action' : 'pin_to_home')}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onSelect={() => setConfirmOpen(true)}
             className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer"

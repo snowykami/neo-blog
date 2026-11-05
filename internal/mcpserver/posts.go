@@ -49,14 +49,15 @@ type postSummary struct {
 
 type postDetail struct {
 	postSummary
-	Cover                 string `json:"cover,omitempty"`
-	Top                   uint   `json:"top" jsonschema:"pin level, 0 means not pinned"`
-	Version               string `json:"version" jsonschema:"which body is returned: draft or published"`
-	HasUnpublishedChanges bool   `json:"has_unpublished_changes" jsonschema:"the draft differs from the published body"`
-	ContentFormat         string `json:"content_format"`
-	Content               string `json:"content"`
-	PreviewURL            string `json:"preview_url,omitempty" jsonschema:"URL to preview the draft (author/admin only)"`
-	EditURL               string `json:"edit_url,omitempty" jsonschema:"console editor URL"`
+	Cover                 string     `json:"cover,omitempty"`
+	Pinned                bool       `json:"pinned" jsonschema:"true when the post is pinned to the top of the home page (only admins can pin, from the web console)"`
+	PinnedUntil           *time.Time `json:"pinned_until,omitempty" jsonschema:"when the pin expires; absent means it stays pinned until removed"`
+	Version               string     `json:"version" jsonschema:"which body is returned: draft or published"`
+	HasUnpublishedChanges bool       `json:"has_unpublished_changes" jsonschema:"the draft differs from the published body"`
+	ContentFormat         string     `json:"content_format"`
+	Content               string     `json:"content"`
+	PreviewURL            string     `json:"preview_url,omitempty" jsonschema:"URL to preview the draft (author/admin only)"`
+	EditURL               string     `json:"edit_url,omitempty" jsonschema:"console editor URL"`
 }
 
 type postWriteResult struct {
@@ -240,7 +241,8 @@ func getPost(ctx context.Context, _ *mcp.CallToolRequest, in getPostInput) (*mcp
 	detail := &postDetail{
 		postSummary:   toSummary(post),
 		Cover:         post.Cover,
-		Top:           post.Top,
+		Pinned:        post.Pinned,
+		PinnedUntil:   utils.Ternary(post.Pinned, post.PinnedUntil, nil),
 		Version:       versionPublished,
 		ContentFormat: format,
 	}

@@ -31,7 +31,10 @@ export interface Post {
   user: User
   isLiked: boolean // 当前用户是否点赞
   isPrivate: boolean
-  top: number
+  // 置顶到首页（只有管理员可以设置）：pinned 为此刻是否置顶（已置顶且未到期），pinnedUntil 为空表示不自动取消
+  pinned: boolean
+  pinnedAt: string | null
+  pinnedUntil: string | null
   likeCount: number
   commentCount: number
   viewCount: number
@@ -45,6 +48,9 @@ export interface Post {
   aiSummaryStatus?: 'queued' | 'running' | 'failed' // 生成任务状态，仅列表中有排队/进行中/失败的任务时返回
   aiSummaryError?: string // 最近一次生成失败的原因
 }
+
+/** 首页最多同时置顶的文章数，与后端 service.MaxPinnedPosts 一致 */
+export const PINNED_POSTS_LIMIT = 3
 
 export interface ListPostsParams {
   page?: number

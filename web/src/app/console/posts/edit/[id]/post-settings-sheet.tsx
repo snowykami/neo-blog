@@ -1,5 +1,6 @@
 'use client'
 
+import type { PostPinState } from '../../post-pin'
 import type { ContentMeta } from '@/hooks/use-content-editor'
 import type { Category } from '@/models/category'
 import type { Label } from '@/models/label'
@@ -24,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useResponseErrorDetailsT } from '@/hooks/use-translations'
 import { CONTENT_THEMES, resolveContentTheme } from '@/lib/content-theme'
+import { PostPinField } from '../../post-pin'
 
 interface PostSettingsValues {
   slug: string
@@ -38,7 +40,6 @@ interface PostSettingsValues {
   category: Category | null
   labels: Label[]
   isPrivate: boolean
-  top: number
 }
 
 function toValues(meta: ContentMeta): PostSettingsValues {
@@ -55,7 +56,6 @@ function toValues(meta: ContentMeta): PostSettingsValues {
     category: meta.category,
     labels: meta.labels,
     isPrivate: meta.isPrivate,
-    top: meta.top,
   }
 }
 
@@ -69,18 +69,20 @@ function isNumericSlug(value: string) {
 
 /**
  * 文章设置抽屉：访问路径、摘要（与画布同步）、封面、内容主题、分类、标签、私密、置顶
- * 修改校验通过后写入编辑器元信息，随正文一起自动保存
+ * 修改校验通过后写入编辑器元信息，随正文一起自动保存；置顶只有管理员能改，直接生效、不随草稿保存
  */
 export function PostSettingsSheet({
   open,
   onOpenChange,
   meta,
   onChange,
+  pin,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   meta: ContentMeta
   onChange: (patch: Partial<ContentMeta>) => void
+  pin?: { postId: number, state: PostPinState, onChange: (state: PostPinState) => void } // 管理员才传
 }) {
   const t = useTranslations('Console.editor')
   const postEditT = useTranslations('Console.post_edit')
@@ -194,7 +196,7 @@ export function PostSettingsSheet({
 
           <SettingsSection icon={SendIcon} title={t('settings_publish')}>
             <SwitchField form={form} name="isPrivate" label={t('private')} description={t('private_hint')} />
-            <NumberField form={form} name="top" min={0} label={postEditT('post_top')} description={t('top_hint')} />
+            {pin && <PostPinField postId={pin.postId} state={pin.state} onChange={pin.onChange} />}
           </SettingsSection>
         </form>
       </Form>

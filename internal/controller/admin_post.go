@@ -30,3 +30,28 @@ func (cc *AdminController) ListPosts(ctx context.Context, c *app.RequestContext)
 	}
 	resps.Ok(c, resps.Success, utils.H{"posts": posts, "total": total})
 }
+
+// ListPinnedPosts 首页上的全部置顶文章（含私密文章），供后台管理
+func (cc *AdminController) ListPinnedPosts(ctx context.Context, c *app.RequestContext) {
+	posts, svcerr := service.NewPostService().ListPinnedPostsAdmin(ctx)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"posts": posts, "limit": service.MaxPinnedPosts})
+}
+
+// SetPostPin 置顶到首页或取消置顶
+func (cc *AdminController) SetPostPin(ctx context.Context, c *app.RequestContext) {
+	req := &dto.SetPostPinReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	post, svcerr := service.NewPostService().SetPostPin(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, post)
+}

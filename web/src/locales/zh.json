@@ -1240,7 +1240,6 @@
       "source_mode": "源码模式",
       "uncategorized": "未分类",
       "view_count": "浏览数",
-      "post_top": "置顶权重",
       "author": "作者",
       "only_mine": "只看我的",
       "image_caption_placeholder": "添加图片注释（可选）",
@@ -1268,7 +1267,24 @@
       "horizontal_rule": "分割线",
       "add_image": "添加",
       "title_required": "标题不能为空",
-      "edit_session_api_token_device": "API Token「{name}」"
+      "edit_session_api_token_device": "API Token「{name}」",
+      "pin_to_home": "置顶到首页",
+      "pin_hint": "显示在首页第一页最上方，后置顶的排在前面；首页最多 {max} 篇",
+      "pin_status": "已置顶 · {date} 起",
+      "pin_expiry": "到期时间",
+      "pin_expiry_never": "不自动取消",
+      "pin_expiry_days": "{days} 天",
+      "pin_expiry_custom": "指定日期",
+      "pin_expiry_result": "将在 {date} 自动取消置顶",
+      "pin_expiry_result_never": "一直置顶，直到手动取消",
+      "pin_limit_title": "首页已有 {max} 篇置顶文章，先取消其中一篇",
+      "pin_limit_hint": "首页最多置顶 {max} 篇文章，打开「仅看置顶」取消一篇后再试",
+      "pin_replaced": "已取消「{title}」的置顶，本文已置顶到首页",
+      "pin_success": "已置顶到首页",
+      "unpin_success": "已取消置顶",
+      "unpin_action": "取消置顶",
+      "pin_until": "至 {date}",
+      "only_pinned": "仅看置顶（最多 {max} 篇）"
     },
     "storages": {
       "title": "存储供应商",
@@ -1599,8 +1615,6 @@
       "visibility_public": "公开",
       "visibility_private": "私密（仅自己与管理员可见）",
       "none": "无",
-      "not_top": "不置顶",
-      "top_weight": "权重 {top}",
       "nav_shown": "显示 · 排序 {order}",
       "nav_hidden": "不显示",
       "description_placeholder": "添加一句话摘要（可选）",
@@ -1788,7 +1802,6 @@
       "cover_hint": "建议使用 16:9 的横向图片",
       "private": "私密",
       "private_hint": "开启后仅自己与管理员可见",
-      "top_hint": "0 表示不置顶；数值越大越靠前",
       "show_in_nav_hint": "在站点导航栏中显示该页面",
       "nav_order_hint": "导航中的排序值",
       "insert_table": "表格",
@@ -1977,7 +1990,9 @@
       "layout_reading": "阅读（正文 + 目录）",
       "layout_wide": "宽屏（正文占满整行）",
       "fullscreen": "全屏",
-      "fullscreen_hint": "正文占满整个窗口，顶栏收起为顶部的小横条，鼠标移到顶部或点击横条时展开；适合播放器、作品展示等沉浸式页面"
+      "fullscreen_hint": "正文占满整个窗口，顶栏收起为顶部的小横条，鼠标移到顶部或点击横条时展开；适合播放器、作品展示等沉浸式页面",
+      "pinned": "已置顶",
+      "not_pinned": "未置顶"
     },
     "menu": {
       "content": "文章与页面",
@@ -2933,7 +2948,6 @@
     "size": "大小",
     "updated_at": "更新时间",
     "view_count": "浏览数",
-    "top": "置顶",
     "sort_by": "排序依据",
     "direction": "顺序",
     "desc": "降序",
@@ -3155,7 +3169,9 @@
       "invalid_ai_agent_count": "一次可导入 1～200 个 AI 用户",
       "invalid_ai_agent_profile": "性格档案中有字段的类型不正确",
       "invalid_preferred_color": "主题色不在站点可选的配色中",
-      "ai_agent_username_taken": "用户名已被普通用户占用，请换一个"
+      "ai_agent_username_taken": "用户名已被普通用户占用，请换一个",
+      "pinned_posts_limit": "首页最多置顶 3 篇文章，先取消其中一篇",
+      "pinned_until_in_past": "到期时间要晚于现在"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的参数不符合要求} other {请求参数不符合要求}}",

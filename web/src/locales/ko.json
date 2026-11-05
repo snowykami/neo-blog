@@ -1240,7 +1240,6 @@
       "source_mode": "소스 모드",
       "uncategorized": "미분류",
       "view_count": "조회수",
-      "post_top": "상단 고정 가중치",
       "author": "작성자",
       "only_mine": "내 글만",
       "image_caption_placeholder": "캡션 추가 (선택)",
@@ -1268,7 +1267,24 @@
       "horizontal_rule": "구분선",
       "add_image": "추가",
       "title_required": "제목은 필수입니다",
-      "edit_session_api_token_device": "API 토큰 “{name}”"
+      "edit_session_api_token_device": "API 토큰 “{name}”",
+      "pin_to_home": "홈에 고정",
+      "pin_hint": "홈 첫 페이지 맨 위에 표시되며, 나중에 고정한 글이 앞에 옵니다. 최대 {max}개",
+      "pin_status": "{date}부터 고정됨",
+      "pin_expiry": "만료",
+      "pin_expiry_never": "자동 해제 안 함",
+      "pin_expiry_days": "{days}일",
+      "pin_expiry_custom": "날짜 지정",
+      "pin_expiry_result": "{date}에 자동으로 고정이 해제됩니다",
+      "pin_expiry_result_never": "직접 해제할 때까지 고정됩니다",
+      "pin_limit_title": "이미 {max}개가 고정되어 있습니다. 먼저 하나를 해제하세요",
+      "pin_limit_hint": "최대 {max}개까지 고정할 수 있습니다. '고정된 글만'을 켜고 하나를 해제한 뒤 다시 시도하세요",
+      "pin_replaced": "'{title}'의 고정을 해제하고 이 글을 홈에 고정했습니다",
+      "pin_success": "홈에 고정했습니다",
+      "unpin_success": "고정을 해제했습니다",
+      "unpin_action": "고정 해제",
+      "pin_until": "{date}까지",
+      "only_pinned": "고정된 글만 (최대 {max}개)"
     },
     "storages": {
       "title": "저장소 공급자",
@@ -1599,8 +1615,6 @@
       "visibility_public": "공개",
       "visibility_private": "비공개 (나와 관리자만)",
       "none": "없음",
-      "not_top": "고정 안 함",
-      "top_weight": "가중치 {top}",
       "nav_shown": "표시 · 순서 {order}",
       "nav_hidden": "표시 안 함",
       "description_placeholder": "한 줄 요약 추가 (선택)",
@@ -1788,7 +1802,6 @@
       "cover_hint": "16:9 가로 이미지를 권장합니다",
       "private": "비공개",
       "private_hint": "켜면 나와 관리자만 볼 수 있습니다",
-      "top_hint": "0은 고정 안 함, 값이 클수록 위에 표시",
       "show_in_nav_hint": "사이트 내비게이션에 이 페이지 표시",
       "nav_order_hint": "내비게이션 정렬 값",
       "insert_table": "표",
@@ -1977,7 +1990,9 @@
       "layout_reading": "읽기 (본문 + 목차)",
       "layout_wide": "와이드 (전체 너비)",
       "fullscreen": "전체 화면",
-      "fullscreen_hint": "본문이 창 전체를 채우고 상단 바는 위쪽의 작은 핸들로 접힙니다. 포인터를 위로 옮기거나 핸들을 누르면 펼쳐집니다. 플레이어나 작품 전시 같은 몰입형 페이지에 적합합니다"
+      "fullscreen_hint": "본문이 창 전체를 채우고 상단 바는 위쪽의 작은 핸들로 접힙니다. 포인터를 위로 옮기거나 핸들을 누르면 펼쳐집니다. 플레이어나 작품 전시 같은 몰입형 페이지에 적합합니다",
+      "pinned": "고정됨",
+      "not_pinned": "고정 안 됨"
     },
     "menu": {
       "content": "글과 페이지",
@@ -2815,7 +2830,6 @@
     "size": "크기",
     "updated_at": "수정일",
     "view_count": "조회수",
-    "top": "상단 고정",
     "sort_by": "정렬 기준",
     "direction": "순서",
     "desc": "내림차순",
@@ -3194,7 +3208,9 @@
       "invalid_ai_agent_count": "한 번에 1~200명의 AI 사용자를 가져올 수 있습니다",
       "invalid_ai_agent_profile": "성격 프로필에 형식이 올바르지 않은 항목이 있습니다",
       "invalid_preferred_color": "테마 색상이 사이트에서 선택할 수 있는 색 구성에 없습니다",
-      "ai_agent_username_taken": "일반 사용자가 이미 사용 중인 사용자 이름입니다. 다른 이름을 사용하세요"
+      "ai_agent_username_taken": "일반 사용자가 이미 사용 중인 사용자 이름입니다. 다른 이름을 사용하세요",
+      "pinned_posts_limit": "홈에는 최대 3개까지 고정할 수 있습니다. 먼저 하나를 해제하세요",
+      "pinned_until_in_past": "만료 시간은 현재보다 이후여야 합니다"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field} \"{value}\"이(가) 올바르지 않습니다} resource {{resource} 매개변수가 올바르지 않습니다} other {요청 매개변수가 올바르지 않습니다}}",

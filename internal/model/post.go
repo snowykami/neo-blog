@@ -30,7 +30,6 @@ type PostBase struct {
 	Slug                *string `gorm:"type:text;index;uniqueIndex"` // 友好链接
 	Title               string  `gorm:"type:text;not null"`
 	Type                string  `gorm:"type:varchar(20);default:'html'"` // 文章类型，默认为 'markdown'，可为html或其他
-	Top                 uint    `gorm:"default:0;index"`                 // 置顶级别，0表示不置顶，数值越大优先级越高
 }
 type Post struct {
 	gorm.Model
@@ -38,6 +37,9 @@ type Post struct {
 	User          User   `gorm:"foreignKey:UserID;references:ID"`                                             // 关联的用户
 	Collaborators []User `gorm:"many2many:post_collaborators;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"` // 协作者列表
 	PostBase
+	// 置顶到首页（只有管理员可以设置）：PinnedAt 为置顶时间，越晚越靠前；PinnedUntil 为到期时间，空表示不自动取消
+	PinnedAt     *time.Time `gorm:"index"`
+	PinnedUntil  *time.Time
 	LikeCount    uint64
 	CommentCount uint64
 	ViewCount    uint64
@@ -60,6 +62,11 @@ func HashContent(content string) string {
 func (p *Post) BeforeSave(tx *gorm.DB) error {
 	p.ContentHash = HashContent(p.Content)
 	return nil
+}
+
+// IsPinned 此刻是否置顶在首页：已置顶且没有到期
+func (p *Post) IsPinned(now time.Time) bool {
+	return p.PinnedAt != nil && (p.PinnedUntil == nil || p.PinnedUntil.After(now))
 }
 
 // AISummaryStale 正文在生成摘要后又被修改过
@@ -101,7 +108,6 @@ func (p *Post) ToDto() *dto.PostDto {
 			Description:  p.Description,
 			DraftContent: p.DraftContent,
 			IsPrivate:    p.IsPrivate,
-			Top:          p.Top,
 			Labels: func() []dto.LabelDto {
 				labelDtos := make([]dto.LabelDto, len(p.Labels))
 				for i, label := range p.Labels {
@@ -111,6 +117,9 @@ func (p *Post) ToDto() *dto.PostDto {
 			}(),
 		},
 		IsLiked:      false, // 默认未点赞，需在业务逻辑中设置
+		Pinned:       p.IsPinned(time.Now()),
+		PinnedAt:     p.PinnedAt,
+		PinnedUntil:  p.PinnedUntil,
 		LikeCount:    p.LikeCount,
 		CommentCount: p.CommentCount,
 		ViewCount:    p.ViewCount,

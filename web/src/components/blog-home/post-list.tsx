@@ -29,8 +29,11 @@ function RowDivider() {
 // 列表容器：桌面端整个列表是一张卡片；移动端拆成独立卡片，卡片之间露出页面底色，边界更清晰
 const LIST_CLASS = 'grid gap-3 md:block md:overflow-hidden md:rounded-2xl md:bg-card'
 const ITEM_CLASS = 'overflow-hidden rounded-2xl bg-card md:overflow-visible md:rounded-none md:bg-transparent'
+// 首页置顶文章：同样的卡片加一层淡淡的主题色底
+const PINNED_ITEM_CLASS = 'overflow-hidden rounded-2xl bg-[color-mix(in_oklch,var(--primary)_5%,var(--card))] md:overflow-visible md:rounded-none md:bg-primary/4'
 
-export function PostListItem({ post, showAuthor = true }: { post: Post, showAuthor?: boolean }) {
+/** pinned：作为首页置顶文章显示（带置顶徽标）；文章在其他列表里按正常顺序出现时不显示 */
+export function PostListItem({ post, showAuthor = true, pinned = false }: { post: Post, showAuthor?: boolean, pinned?: boolean }) {
   const t = useTranslations()
   const url = getPostUrl({ post })
   const hasCover = !!post.cover
@@ -45,9 +48,9 @@ export function PostListItem({ post, showAuthor = true }: { post: Post, showAuth
           hasCover && 'md:w-[calc(72%-0.75rem)] md:pr-4',
         )}
       >
-        {(post.top > 0 || post.isPrivate) && (
+        {(pinned || post.isPrivate) && (
           <div className="mb-2 flex flex-wrap gap-2">
-            {post.top > 0 && (
+            {pinned && (
               <Badge variant="secondary" className="rounded-md">
                 <PinnedIcon />
                 {t('Common.pinned')}
@@ -150,6 +153,8 @@ export function PostListItemSkeleton() {
  */
 export function PostList({
   posts,
+  pinnedPosts = [],
+  listLabel,
   showPrivate = false,
   showAuthor = true,
   isLoading = false,
@@ -160,6 +165,8 @@ export function PostList({
   className,
 }: {
   posts: Post[]
+  pinnedPosts?: Post[] // 首页第一页最上方的置顶文章，后面用 listLabel 隔开普通文章
+  listLabel?: string
   showPrivate?: boolean
   showAuthor?: boolean
   isLoading?: boolean
@@ -200,7 +207,7 @@ export function PostList({
     )
   }
 
-  if (filteredPosts.length === 0) {
+  if (filteredPosts.length === 0 && pinnedPosts.length === 0) {
     return (
       <div className={cn(cardClass, 'flex flex-col items-center gap-2 px-6 py-14 text-center')}>
         <span aria-hidden className="mb-1 flex size-12 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
@@ -222,6 +229,17 @@ export function PostList({
 
   return (
     <div className={cn(LIST_CLASS, className)}>
+      {pinnedPosts.map((post, index) => (
+        <Fragment key={post.id}>
+          {index > 0 && <RowDivider />}
+          <div className={PINNED_ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} pinned /></div>
+        </Fragment>
+      ))}
+      {pinnedPosts.length > 0 && filteredPosts.length > 0 && (
+        <div className="flex items-center gap-3 px-1 pt-1 text-xs text-muted-foreground after:flex-1 after:border-t after:border-dashed after:border-foreground/10 md:px-8 md:pt-3">
+          {listLabel}
+        </div>
+      )}
       {filteredPosts.map((post, index) => (
         <Fragment key={post.id}>
           {index > 0 && <RowDivider />}

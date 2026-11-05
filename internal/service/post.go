@@ -59,7 +59,6 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			Labels:              labels,
 			Slug:                slug,
 			Title:               req.Title,
-			Top:                 utils.Deref(req.Top),
 			Type:                req.Type,
 		},
 	}
@@ -185,10 +184,6 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		if svcerr := NewEditSessionService().CheckContentWrite(constant.TargetTypePost, post.ID, req.EditSessionID); svcerr != nil {
 			return 0, svcerr
 		}
-	}
-	// 未传的字段保持原值，TOP 可以为 0
-	if req.Top != nil {
-		post.Top = *req.Top
 	}
 	utils.UpdateNonEmpty(&post.Title, req.Title)
 	utils.UpdateNonEmpty(&post.Type, req.Type)

@@ -271,9 +271,9 @@ func migrate() error {
 // createQueryIndexes 为常用查询补充组合索引（gorm.Model 内的字段无法通过标签声明组合索引）
 func createQueryIndexes() error {
 	indexes := []string{
-		// 文章列表：按可见性过滤，置顶优先后按时间或热度排序
-		"CREATE INDEX IF NOT EXISTS idx_posts_list_created ON posts (is_private, top, created_at)",
-		"CREATE INDEX IF NOT EXISTS idx_posts_list_heat ON posts (is_private, top, heat)",
+		// 文章列表：按可见性过滤后按时间或热度排序（2026110504 迁移删掉了旧的含 top 列的同名索引）
+		"CREATE INDEX IF NOT EXISTS idx_posts_list_created ON posts (is_private, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_posts_list_heat ON posts (is_private, heat)",
 		// 评论列表：按目标与层级查询并按时间排序
 		"CREATE INDEX IF NOT EXISTS idx_comments_target ON comments (target_type, target_id, depth, created_at)",
 		// 文件按哈希查找与引用计数

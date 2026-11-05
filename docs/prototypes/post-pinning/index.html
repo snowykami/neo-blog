@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文章置顶 · 原型</title>
+<style>
+  /* 界面色板沿用前台 web/src/app/globals.css 的默认参数（hue 250） */
+  :root {
+    --hue: 250; --chroma: .14; --radius: .625rem;
+    color-scheme: light;
+    --background: oklch(.96 .01 var(--hue));
+    --foreground: oklch(.22 .02 var(--hue));
+    --card: oklch(1 0 0);
+    --primary: oklch(.56 .15 var(--hue));
+    --primary-foreground: oklch(.99 0 0);
+    --secondary: oklch(.95 .025 var(--hue));
+    --secondary-foreground: oklch(.45 var(--chroma) var(--hue));
+    --muted: oklch(.95 .01 var(--hue));
+    --muted-foreground: oklch(.5 .02 var(--hue));
+    --border: oklch(.9 .01 var(--hue));
+    --warning: #c98a00;
+    --warning-bg: oklch(.97 .04 85);
+    --shadow: 0 1px 2px oklch(0 0 0 / 8%), 0 4px 16px oklch(0 0 0 / 6%);
+  }
+  html.dark {
+    color-scheme: dark;
+    --background: oklch(.16 .014 var(--hue));
+    --foreground: oklch(.93 .01 var(--hue));
+    --card: oklch(.23 .015 var(--hue));
+    --primary: oklch(.72 .13 var(--hue));
+    --primary-foreground: oklch(.18 .02 var(--hue));
+    --secondary: oklch(.33 .035 var(--hue));
+    --secondary-foreground: oklch(.85 .08 var(--hue));
+    --muted: oklch(.27 .015 var(--hue));
+    --muted-foreground: oklch(.7 .015 var(--hue));
+    --border: oklch(1 0 0 / 10%);
+    --warning: #f0b43c;
+    --warning-bg: oklch(.3 .05 85);
+    --shadow: 0 1px 2px oklch(0 0 0 / 30%);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font: 14px/1.6 system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  svg { flex: none; }
+  .muted { color: var(--muted-foreground); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* 原型外框 */
+  .topbar { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 24px; background: color-mix(in oklch, var(--background) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar h1 { margin: 0; font-size: 15px; }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; flex-wrap: wrap; padding: 3px; gap: 2px; border-radius: 10px; background: var(--muted); }
+  .seg button { border: 0; background: transparent; padding: 4px 12px; border-radius: 8px; font-size: 13px; color: var(--muted-foreground); }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px oklch(0 0 0 / 12%); }
+  main { max-width: 1120px; margin: 0 auto; padding: 24px; display: grid; gap: 20px; }
+  .intro { margin: 0; padding: 14px 18px 14px 34px; font-size: 13px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
+  .intro li { margin: 3px 0; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; font-size: 13px; }
+  .controls label { color: var(--muted-foreground); margin-right: 6px; }
+  .note { margin: 0; font-size: 12.5px; color: var(--muted-foreground); }
+  .view[hidden] { display: none; }
+  .view { display: grid; gap: 16px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 6px; font-size: 12px; line-height: 20px; background: var(--secondary); color: var(--secondary-foreground); white-space: nowrap; }
+  .badge svg { width: 13px; height: 13px; }
+  .badge.outline { background: transparent; border: 1px solid var(--border); color: var(--muted-foreground); }
+
+  /* ---------- 首页 ---------- */
+  .home { max-width: 820px; width: 100%; justify-self: center; display: grid; gap: 14px; }
+  .section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .section-title .title { display: flex; align-items: baseline; gap: 8px; font-size: 22px; font-weight: 700; }
+  .section-title .title .count { font-size: 15px; font-weight: 500; opacity: .5; }
+  .section-title .title .hl { color: var(--primary); }
+  .sort { display: inline-flex; gap: 4px; padding: 4px; border-radius: 10px; background: var(--card); }
+  .sort button { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--muted-foreground); font-size: 14px; }
+  .sort button[aria-pressed="true"] { background: color-mix(in oklch, var(--primary) 10%, transparent); color: var(--primary); }
+  .sort svg { width: 16px; height: 16px; }
+
+  .list { background: var(--card); border-radius: 18px; overflow: hidden; }
+  .row-divider { margin: 0 32px; border-top: 1px dashed color-mix(in oklch, var(--foreground) 10%, transparent); }
+  .post { position: relative; display: flex; gap: 16px; padding: 26px 32px 24px; }
+  .post.pinned { background: color-mix(in oklch, var(--primary) 4%, transparent); }
+  .post .body { flex: 1; min-width: 0; }
+  .post .badges { display: flex; gap: 8px; margin-bottom: 8px; }
+  .post h2 { margin: 0 0 10px; font-size: 26px; line-height: 1.3; font-weight: 700; opacity: .9; }
+  .post h2 a { color: inherit; text-decoration: none; }
+  .post:hover h2 { color: var(--primary); }
+  .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 8px; background: var(--muted); color: var(--muted-foreground); }
+  .chip .avatar { width: 18px; height: 18px; border-radius: 50%; background: linear-gradient(135deg, #8ec5fc, #e0c3fc); }
+  .summary { margin: 0 0 12px; color: color-mix(in oklch, var(--foreground) 75%, transparent); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .stats { display: flex; gap: 16px; font-size: 13px; color: color-mix(in oklch, var(--foreground) 30%, transparent); }
+  .stats span { display: inline-flex; align-items: center; gap: 4px; }
+  .stats svg { width: 14px; height: 14px; }
+  .cover { flex: none; width: 28%; min-height: 150px; border-radius: 12px; align-self: stretch; }
+  .group-label { display: flex; align-items: center; gap: 10px; padding: 10px 32px 0; font-size: 12px; color: var(--muted-foreground); }
+  .group-label::after { content: ""; flex: 1; border-top: 1px dashed color-mix(in oklch, var(--foreground) 12%, transparent); }
+
+  /* 精选区（方案 B） */
+  .featured { display: grid; gap: 10px; }
+  .featured-head { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; }
+  .featured-head svg { width: 16px; height: 16px; color: var(--primary); }
+  .featured-grid { display: grid; gap: 12px; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); }
+  .feature { position: relative; display: grid; grid-template-rows: auto 1fr; overflow: hidden; border-radius: 16px; background: var(--card); }
+  .feature .fcover { height: 110px; }
+  .feature.wide { grid-template-columns: 40% 1fr; grid-template-rows: none; }
+  .feature.wide .fcover { height: auto; min-height: 170px; }
+  .feature .fbody { padding: 12px 14px 14px; display: grid; gap: 6px; align-content: start; }
+  .feature h3 { margin: 0; font-size: 16px; line-height: 1.35; }
+  .feature.wide h3 { font-size: 22px; }
+  .feature .fsummary { margin: 0; font-size: 13px; color: var(--muted-foreground); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .feature .fmeta { font-size: 12px; color: var(--muted-foreground); }
+
+  .pager { display: flex; justify-content: center; gap: 6px; padding-top: 4px; }
+  .pager button { min-width: 36px; height: 36px; border: 0; border-radius: 9px; background: var(--card); color: var(--muted-foreground); }
+  .pager button[aria-current="page"] { background: var(--primary); color: var(--primary-foreground); }
+  .empty-hint { padding: 12px 16px; border-radius: 12px; border: 1px dashed var(--border); font-size: 13px; color: var(--muted-foreground); }
+
+  /* ---------- 文章设置 ---------- */
+  .settings-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; min-height: 560px; }
+  .editor-ghost { background: var(--background); padding: 28px; display: grid; align-content: start; gap: 12px; }
+  .ghost-line { height: 12px; border-radius: 6px; background: var(--muted); }
+  .sheet { background: var(--card); border-left: 1px solid var(--border); padding: 20px; display: grid; align-content: start; gap: 18px; }
+  .sheet h3 { margin: 0; font-size: 16px; }
+  .field { display: grid; gap: 6px; }
+  .field > .label { font-size: 13px; font-weight: 500; }
+  .fake-input { height: 36px; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; display: flex; align-items: center; color: var(--muted-foreground); font-size: 13px; }
+  .pin-box { border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: grid; gap: 12px; }
+  .pin-row { display: flex; gap: 12px; align-items: flex-start; }
+  .pin-row .text { flex: 1; display: grid; gap: 2px; }
+  .pin-row .text strong { font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+  .pin-row .text strong svg { width: 15px; height: 15px; color: var(--primary); }
+  .pin-row .text span { font-size: 12.5px; color: var(--muted-foreground); }
+  .switch { position: relative; width: 36px; height: 20px; border-radius: 999px; border: 0; background: var(--border); padding: 0; transition: background .15s; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: white; box-shadow: 0 1px 2px oklch(0 0 0 / 25%); transition: transform .15s; }
+  .switch[aria-checked="true"] { background: var(--primary); }
+  .switch[aria-checked="true"]::after { transform: translateX(16px); }
+  .expire { display: grid; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .expire .label { font-size: 13px; font-weight: 500; }
+  .expire input[type=date] { height: 34px; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; background: var(--card); color: var(--foreground); font: inherit; font-size: 13px; justify-self: start; }
+  .expire .result { font-size: 12.5px; color: var(--muted-foreground); }
+  .alert { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: var(--warning-bg); font-size: 13px; }
+  .alert .head { display: flex; gap: 6px; align-items: center; font-weight: 500; }
+  .alert .head svg { width: 15px; height: 15px; color: var(--warning); }
+  .alert ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  .alert li { display: flex; align-items: center; gap: 8px; }
+  .alert li .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); font-size: 12.5px; }
+  .btn.primary { background: var(--primary); color: var(--primary-foreground); border-color: transparent; }
+  .btn svg { width: 14px; height: 14px; }
+  .locked { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted-foreground); }
+  .locked svg { width: 15px; height: 15px; }
+
+  /* ---------- 后台文章列表 ---------- */
+  .console { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; display: grid; gap: 12px; }
+  .console-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .console table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .console th { text-align: left; font-weight: 500; color: var(--muted-foreground); padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .console td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .console tr:last-child td { border-bottom: 0; }
+  .console .ttl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .console .ttl .until { font-size: 12px; color: var(--muted-foreground); }
+  .menu-wrap { position: relative; }
+  .icon-btn { width: 30px; height: 30px; border-radius: 8px; border: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--muted-foreground); }
+  .icon-btn:hover { background: var(--muted); }
+  .icon-btn svg { width: 16px; height: 16px; }
+  .menu { position: absolute; right: 0; top: 34px; z-index: 10; min-width: 190px; padding: 4px; border-radius: 10px; background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow); display: grid; }
+  .menu button { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; text-align: left; padding: 7px 10px; border-radius: 7px; font-size: 13px; }
+  .menu button:hover { background: var(--muted); }
+  .menu button svg { width: 15px; height: 15px; color: var(--muted-foreground); }
+  .menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+  .menu .sub { padding: 2px 10px 6px 33px; font-size: 12px; color: var(--muted-foreground); }
+  .toast { position: fixed; right: 24px; bottom: 24px; z-index: 50; max-width: 340px; padding: 12px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow); font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
+  .toast svg { width: 16px; height: 16px; margin-top: 2px; color: var(--primary); }
+  .toast.warn svg { color: var(--warning); }
+
+  @media (max-width: 860px) {
+    .settings-wrap { grid-template-columns: 1fr; }
+    .editor-ghost { display: none; }
+    .sheet { border-left: 0; }
+  }
+  @media (max-width: 640px) {
+    main { padding: 16px; }
+    .post { flex-direction: column-reverse; padding: 18px 20px; }
+    .cover { width: 100%; min-height: 120px; }
+    .row-divider { display: none; }
+    .list { background: transparent; display: grid; gap: 12px; }
+    .list > .post, .list > .group-label { background: var(--card); border-radius: 18px; }
+    .list > .post.pinned { background: color-mix(in oklch, var(--primary) 6%, var(--card)); }
+    .group-label { background: transparent !important; padding: 4px 4px 0; }
+    .featured-grid { grid-template-columns: 1fr; }
+    .feature.wide { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .feature.wide .fcover { min-height: 120px; }
+    .console { overflow-x: auto; }
+    .console table { min-width: 640px; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>文章置顶 · 原型</h1>
+  <div class="seg" id="view-seg" role="group" aria-label="查看">
+    <button data-view="home" aria-pressed="true">首页（读者）</button>
+    <button data-view="settings" aria-pressed="false">文章设置</button>
+    <button data-view="console" aria-pressed="false">后台文章列表</button>
+  </div>
+  <span class="spacer"></span>
+  <div class="seg" id="theme-seg" role="group" aria-label="主题">
+    <button data-theme="light" aria-pressed="true">浅色</button>
+    <button data-theme="dark" aria-pressed="false">深色</button>
+  </div>
+</header>
+
+<main>
+  <ul class="intro">
+    <li><strong>只在首页生效</strong>：首页没有分类、标签、搜索筛选时，置顶文章出现在第一页最上方；归档、侧栏的最新 / 热门、搜索、作者页、后台列表都按正常顺序，不受置顶影响。</li>
+    <li><strong>不占分页名额、不重复</strong>：置顶文章另外查询，第一页照常显示 N 篇普通文章；置顶的文章不会在下面的列表里再出现一次。</li>
+    <li><strong>最多 3 篇，后置顶的在前</strong>；可以设到期时间，到期后自动不再置顶（适合公告）。</li>
+    <li><strong>只有管理员能设置</strong>：后端接口、文章设置里的开关、MCP 权限一致；编辑看不到这一项。</li>
+    <li>数据都是模拟的；界面配色沿用前台默认主题，可切换深色。</li>
+  </ul>
+
+  <!-- 首页 -->
+  <section class="view" id="view-home">
+    <div class="controls">
+      <span><label>展示方式</label><span class="seg" id="variant-seg"><button data-v="inline" aria-pressed="true">A 列表顶部（推荐）</button><button data-v="featured" aria-pressed="false">B 精选区</button></span></span>
+      <span><label>场景</label><span class="seg" id="scene-seg"><button data-s="3" aria-pressed="true">3 篇置顶</button><button data-s="1" aria-pressed="false">1 篇置顶</button><button data-s="0" aria-pressed="false">没有置顶</button><button data-s="page2" aria-pressed="false">翻到第 2 页</button><button data-s="filter" aria-pressed="false">按分类筛选</button></span></span>
+    </div>
+    <p class="note" id="home-note"></p>
+    <div class="home" id="home"></div>
+  </section>
+
+  <!-- 文章设置 -->
+  <section class="view" id="view-settings" hidden>
+    <div class="controls">
+      <span><label>身份 / 场景</label><span class="seg" id="role-seg"><button data-r="admin" aria-pressed="true">管理员</button><button data-r="pinned" aria-pressed="false">管理员 · 本文已置顶</button><button data-r="full" aria-pressed="false">管理员 · 首页已满 3 篇</button><button data-r="editor" aria-pressed="false">编辑</button></span></span>
+    </div>
+    <p class="note">编辑器右侧的「文章设置」面板，置顶放在分类、标签下面。打开开关才出现到期时间；首页已满时打开开关，直接在这里取消另一篇，不用跳走。</p>
+    <div class="settings-wrap">
+      <div class="editor-ghost" aria-hidden="true">
+        <div class="ghost-line" style="height:28px;width:60%"></div>
+        <div class="ghost-line" style="width:92%"></div><div class="ghost-line" style="width:88%"></div><div class="ghost-line" style="width:95%"></div>
+        <div class="ghost-line" style="width:70%"></div><div class="ghost-line" style="width:90%;margin-top:14px"></div><div class="ghost-line" style="width:84%"></div>
+      </div>
+      <aside class="sheet" id="sheet"></aside>
+    </div>
+  </section>
+
+  <!-- 后台文章列表 -->
+  <section class="view" id="view-console" hidden>
+    <p class="note">后台列表按所选方式正常排序，置顶的文章不再浮到最前；标题旁显示置顶标记与到期时间，行菜单里直接置顶 / 取消置顶。「已置顶」筛选用来管理首页上的那几篇。</p>
+    <div class="console" id="console"></div>
+  </section>
+</main>
+
+<div id="toast-root"></div>
+
+<script>
+const I = {
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>',
+  pinOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89"/><path d="m2 2 20 20"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  trend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg>',
+  heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>',
+  msg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+}
+
+const COVERS = [
+  'linear-gradient(135deg,#a1c4fd,#c2e9fb)', 'linear-gradient(135deg,#fbc2eb,#a6c1ee)', 'linear-gradient(135deg,#84fab0,#8fd3f4)',
+  'linear-gradient(135deg,#ffecd2,#fcb69f)', 'linear-gradient(135deg,#cfd9df,#e2ebf0)', 'linear-gradient(135deg,#d4fc79,#96e6a1)',
+  'linear-gradient(135deg,#f6d365,#fda085)', 'linear-gradient(135deg,#a18cd1,#fbc2eb)',
+]
+// 模拟数据：pinnedAt 越大越晚置顶（越靠前）；until 为到期时间
+const POSTS = [
+  { id: 31, title: '博客迁移完成：评论、订阅与站点地图说明', date: '2026-11-03', cat: '公告', labels: ['站务'], likes: 12, comments: 9, views: 860, heat: 300, pinnedAt: 3, until: '2026-11-30', summary: '新站已经切换完成。旧链接会自动跳转，RSS 订阅地址不变；如果评论里的头像显示异常，重新登录一次就好。' },
+  { id: 30, title: '深夜随笔：对互联网就业的一些建议', date: '2026-11-01', cat: '随笔', labels: ['求职', '经验'], likes: 48, comments: 21, views: 3120, heat: 980, pinnedAt: 2, until: '', summary: '回想起自己从大一刚入学到现在上岸的过程，其实也不是一帆风顺，便想把这些经历写下来，给后辈们一些参考。' },
+  { id: 12, title: '关于本站：写作约定与联系方式', date: '2025-08-14', cat: '关于', labels: ['站务'], likes: 30, comments: 6, views: 1980, heat: 420, pinnedAt: 1, until: '', summary: '这里记录本站的写作约定、转载规则和联系方式，也会不定期更新自己正在做的事情。' },
+  { id: 29, title: 'neo-blog 十月更新：歌词特效、AI 用户与多副本部署', date: '2026-10-28', cat: '项目', labels: ['neo-blog'], likes: 26, comments: 14, views: 1460, heat: 610, summary: '这个月主要做了三件事：歌词特效编辑器、由 AI 驱动的博客用户，以及让前后端都能多副本滚动更新。' },
+  { id: 28, title: '从 SRE 到开发：一次转岗的复盘', date: '2026-10-21', cat: '随笔', labels: ['职业'], likes: 33, comments: 18, views: 2210, heat: 720, summary: '转岗前我以为最难的是技术栈，真正花时间的却是重新建立对业务的直觉，以及学会写给别人看的设计文档。' },
+  { id: 27, title: '在 k3s 上用 Redis 做分布式锁的几个坑', date: '2026-10-15', cat: '技术', labels: ['Kubernetes', 'Redis'], likes: 19, comments: 7, views: 1320, heat: 450, summary: '锁过期时间、续期与实例退出时的释放顺序，任何一个没处理好都会让定时任务跑两遍。' },
+  { id: 25, title: 'Tiptap 自定义节点：从注解到歌词时间轴', date: '2026-10-02', cat: '技术', labels: ['前端', 'Tiptap'], likes: 15, comments: 4, views: 990, heat: 300, summary: '写编辑器扩展时最容易忽略的是复制粘贴和撤销重做，这篇记录了几个节点的实现细节。' },
+  { id: 24, title: 'dotNET / C# 程序的简单反编译', date: '2026-09-20', cat: '技术', labels: ['逆向'], likes: 22, comments: 11, views: 2680, heat: 590, summary: '用 ILSpy 和 dnSpy 看懂一个小工具的逻辑，顺便聊聊混淆与反混淆的基本思路。' },
+  { id: 22, title: '秋天的第一次骑行', date: '2026-09-12', cat: '随笔', labels: ['生活'], likes: 40, comments: 16, views: 1530, heat: 520, summary: '沿着江边骑了 40 公里，回来腿是软的，心情却很好。' },
+  { id: 20, title: 'Go 1.26 里我最喜欢的几个小改动', date: '2026-08-30', cat: '技术', labels: ['Go'], likes: 17, comments: 5, views: 1100, heat: 380, summary: 'strings.Lines、cmp.Or 这些小函数让日常代码少了很多样板。' },
+  { id: 19, title: '给博客加上 RSS 全文输出', date: '2026-08-11', cat: '项目', labels: ['neo-blog', 'RSS'], likes: 9, comments: 3, views: 760, heat: 210, summary: '全文输出要处理好图片、公式和自定义组件，这篇记录了净化与降级的做法。' },
+  { id: 16, title: '一年读书清单', date: '2026-07-01', cat: '随笔', labels: ['阅读'], likes: 28, comments: 12, views: 1640, heat: 470, summary: '今年读得不多，但有几本是真的改变了我看问题的方式。' },
+]
+const PAGE_SIZE = 5
+const TOTAL = 17 // 模拟全站文章总数（含置顶）
+
+const state = { view: 'home', variant: 'inline', scene: '3', sort: 'latest', role: 'admin', theme: 'light', settingsPin: false, expiry: 'never', customDate: '2026-11-20', fullAlert: false, consoleFilter: 'all', menu: null }
+// 后台列表与文章设置共用一份置顶状态（模拟数据库）
+const pins = new Map(POSTS.filter(p => p.pinnedAt).map(p => [p.id, { at: p.pinnedAt, until: p.until }]))
+let pinClock = 10
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const fmtDate = d => { const [y, m, day] = d.split('-').map(Number); return `${y}年${m}月${day}日` }
+const shortDate = d => { const [, m, day] = d.split('-').map(Number); return `${m}月${day}日` }
+const coverOf = p => COVERS[p.id % COVERS.length]
+const pinnedList = () => POSTS.filter(p => pins.has(p.id)).sort((a, b) => pins.get(b.id).at - pins.get(a.id).at)
+
+function postCard(p, pinned) {
+  return `<article class="post${pinned ? ' pinned' : ''}">
+    <div class="body">
+      ${pinned ? `<div class="badges"><span class="badge">${I.pin}置顶</span></div>` : ''}
+      <h2><a href="#" onclick="return false">${esc(p.title)}</a></h2>
+      <div class="meta"><span class="chip"><span class="avatar"></span>远野千束</span><span class="chip">${fmtDate(p.date)}</span><span class="chip">${esc(p.cat)}</span>${p.labels.map(l => `<span class="chip">#${esc(l)}</span>`).join('')}</div>
+      <p class="summary">${esc(p.summary)}</p>
+      <div class="stats num"><span>${I.heart}${p.likes}</span><span>${I.msg}${p.comments}</span><span>${I.eye}${p.views}</span></div>
+    </div>
+    <div class="cover" style="background:${coverOf(p)}"></div>
+  </article>`
+}
+
+function featureCard(p, wide) {
+  return `<article class="feature${wide ? ' wide' : ''}">
+    <div class="fcover" style="background:${coverOf(p)}"></div>
+    <div class="fbody">
+      <h3>${esc(p.title)}</h3>
+      ${wide ? `<p class="fsummary">${esc(p.summary)}</p>` : ''}
+      <span class="fmeta">${fmtDate(p.date)} · ${esc(p.cat)}</span>
+    </div>
+  </article>`
+}
+
+function renderHome() {
+  const scene = state.scene
+  const pinnedAll = POSTS.filter(p => p.pinnedAt).sort((a, b) => b.pinnedAt - a.pinnedAt)
+  // 第 2 页与筛选场景下仍有 3 篇置顶文章，只是不显示置顶区
+  const pinned = scene === '1' ? pinnedAll.slice(0, 1) : scene === '0' ? [] : pinnedAll
+  const pinnedIds = new Set(pinned.map(p => p.id))
+  const filter = scene === 'filter' ? '随笔' : null
+  let regular = POSTS.filter(p => !pinnedIds.has(p.id))
+  if (filter)
+    regular = POSTS.filter(p => p.cat === filter)
+  regular = [...regular].sort((a, b) => state.sort === 'latest' ? b.date.localeCompare(a.date) : b.heat - a.heat)
+  const page = scene === 'page2' ? 2 : 1
+  const pageItems = regular.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const showPinned = page === 1 && !filter && pinned.length > 0
+  const orderName = state.sort === 'latest' ? '最新文章' : '最热文章'
+  const count = filter ? POSTS.filter(p => p.cat === filter).length : TOTAL
+  const title = filter
+    ? `<span class="title"><span><span class="hl">${filter}</span> 分类下的${state.sort === 'latest' ? '最新' : '最热'}文章</span><span class="count num">${count}</span></span>`
+    : `<span class="title"><span>${orderName}</span><span class="count num">${count}</span></span>`
+  const sort = `<div class="sort" role="group" aria-label="排序"><button data-sort="latest" aria-pressed="${state.sort === 'latest'}">${I.clock}最新</button><button data-sort="heat" aria-pressed="${state.sort === 'heat'}">${I.trend}最热</button></div>`
+  const header = `<div class="section-title">${title}${sort}</div>`
+
+  let html = ''
+  if (state.variant === 'featured' && showPinned) {
+    const cols = pinned.length === 1 ? 1 : pinned.length
+    html += `<div class="featured"><div class="featured-head">${I.pin}置顶</div><div class="featured-grid" style="--cols:${cols}">${pinned.map(p => featureCard(p, pinned.length === 1)).join('')}</div></div>`
+  }
+  html += header
+  // 相邻两篇文章之间加虚线分隔，小标题前后不加
+  const parts = []
+  const push = (part, isCard) => {
+    if (isCard && parts.at(-1)?.isCard)
+      parts.push({ html: '<div class="row-divider"></div>' })
+    parts.push({ html: part, isCard })
+  }
+  if (state.variant === 'inline' && showPinned) {
+    pinned.forEach(p => push(postCard(p, true), true))
+    push(`<div class="group-label">${orderName}</div>`, false)
+  }
+  pageItems.forEach(p => push(postCard(p, false), true))
+  html += `<div class="list">${parts.map(part => part.html).join('')}</div>`
+  const pages = Math.ceil((filter ? count : TOTAL - pinned.length) / PAGE_SIZE)
+  html += `<nav class="pager num">${Array.from({ length: pages }, (_, i) => `<button aria-current="${i + 1 === page ? 'page' : 'false'}">${i + 1}</button>`).join('')}</nav>`
+  document.getElementById('home').innerHTML = html
+
+  const notes = {
+    3: '第一页最上方是 3 篇置顶（后置顶的在前），下面照常是 5 篇普通文章，置顶的不会再出现一次。标题上的数字仍是全站文章总数。',
+    1: '只有一篇置顶时同样放在最上方；方案 B 中单篇置顶显示为一张横向的大卡片。',
+    0: '没有置顶时首页和现在完全一样。',
+    page2: '翻到第 2 页不再显示置顶，只有普通文章；分页按普通文章计算（置顶不占名额）。',
+    filter: '按分类 / 标签筛选或搜索时不显示置顶区，列表按所选排序正常排列，置顶文章出现在它本来的位置。',
+  }
+  const variantNote = state.variant === 'inline'
+    ? '方案 A：置顶文章和普通文章同样的卡片，淡色底 + 置顶徽标，和下面的列表用一行小标题隔开。'
+    : '方案 B：置顶文章单独一块精选区（封面 + 标题），在列表标题上方，视觉上和普通列表分开；手机上竖排。'
+  document.getElementById('home-note').textContent = `${variantNote} ${notes[scene]} 切到「最热」时置顶区保持不变。`
+  document.querySelectorAll('#home [data-sort]').forEach(b => b.onclick = () => { state.sort = b.dataset.sort; renderHome() })
+}
+
+// ---------- 文章设置 ----------
+function addDays(n) { const d = new Date(2026, 10, 5 + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+function renderSheet() {
+  const role = state.role
+  const current = { id: 99, title: '新文章：在 Go 里优雅地关停 HTTP 服务' }
+  let pinBlock
+  if (role === 'editor') {
+    pinBlock = `<div class="pin-box"><div class="locked">${I.lock}<span>置顶到首页只有管理员可以设置。<br><span class="muted" style="font-size:12px">（实际界面中编辑看不到这一项，这里显示出来方便对比）</span></span></div></div>`
+  }
+  else {
+    const on = state.settingsPin
+    const pinnedOthers = pinnedList().filter(p => p.id !== current.id)
+    const full = role === 'full'
+    let expiry = ''
+    if (on) {
+      const until = state.expiry === 'never' ? '' : state.expiry === 'custom' ? state.customDate : addDays(Number(state.expiry))
+      expiry = `<div class="expire">
+        <span class="label">到期时间</span>
+        <span class="seg" id="expiry-seg"><button data-e="never" aria-pressed="${state.expiry === 'never'}">不自动取消</button><button data-e="7" aria-pressed="${state.expiry === '7'}">7 天</button><button data-e="30" aria-pressed="${state.expiry === '30'}">30 天</button><button data-e="custom" aria-pressed="${state.expiry === 'custom'}">指定日期</button></span>
+        ${state.expiry === 'custom' ? `<input type="date" id="expiry-date" value="${state.customDate}" min="2026-11-06">` : ''}
+        <span class="result">${until ? `将在 ${fmtDate(until)} 0 点自动取消置顶` : '一直置顶，直到手动取消'}</span>
+      </div>`
+    }
+    const status = role === 'pinned' && on ? `<span>已置顶 · 11月3日起，首页第 1 篇</span>` : '<span>显示在首页第一页最上方，后置顶的排在前面；首页最多 3 篇</span>'
+    let alert = ''
+    if (full && state.fullAlert) {
+      alert = `<div class="alert" role="alert">
+        <div class="head">${I.warn}首页已有 3 篇置顶文章，先取消其中一篇</div>
+        <ul>${pinnedOthers.map(p => `<li><span class="t">${esc(p.title)}</span><button class="btn" data-unpin="${p.id}">${I.pinOff}取消置顶</button></li>`).join('')}</ul>
+      </div>`
+    }
+    pinBlock = `<div class="pin-box">
+      <div class="pin-row">
+        <div class="text"><strong>${I.pin}置顶到首页</strong>${status}</div>
+        <button class="switch" role="switch" aria-checked="${on}" aria-label="置顶到首页" id="pin-switch"></button>
+      </div>
+      ${alert}
+      ${expiry}
+    </div>`
+  }
+  document.getElementById('sheet').innerHTML = `
+    <h3>文章设置</h3>
+    <div class="field"><span class="label">分类</span><div class="fake-input">技术</div></div>
+    <div class="field"><span class="label">标签</span><div class="fake-input">Go、HTTP</div></div>
+    <div class="field"><span class="label">置顶</span>${pinBlock}</div>
+    <div class="field"><span class="label">封面</span><div class="fake-input">未设置</div></div>`
+
+  const sw = document.getElementById('pin-switch')
+  if (sw) {
+    sw.onclick = () => {
+      if (!state.settingsPin && state.role === 'full' && pinnedList().length >= 3) {
+        state.fullAlert = true
+      }
+      else {
+        state.settingsPin = !state.settingsPin
+        state.fullAlert = false
+        if (!state.settingsPin)
+          state.expiry = 'never'
+      }
+      renderSheet()
+    }
+  }
+  document.querySelectorAll('#expiry-seg [data-e]').forEach(b => b.onclick = () => { state.expiry = b.dataset.e; renderSheet() })
+  const date = document.getElementById('expiry-date')
+  if (date)
+    date.onchange = () => { state.customDate = date.value || state.customDate; renderSheet() }
+  document.querySelectorAll('[data-unpin]').forEach(b => b.onclick = () => {
+    pins.delete(Number(b.dataset.unpin))
+    state.fullAlert = false
+    state.settingsPin = true
+    toast(`已取消「${POSTS.find(p => p.id === Number(b.dataset.unpin)).title}」的置顶，本文已置顶到首页`)
+    renderSheet()
+  })
+}
+
+// ---------- 后台文章列表 ----------
+function renderConsole() {
+  const all = [...POSTS].sort((a, b) => b.date.localeCompare(a.date))
+  const rows = state.consoleFilter === 'pinned' ? pinnedList() : all
+  const pinCount = pins.size
+  const html = `
+    <div class="console-bar">
+      <span class="seg" id="console-seg"><button data-f="all" aria-pressed="${state.consoleFilter === 'all'}">全部 <span class="num">${TOTAL}</span></button><button data-f="pinned" aria-pressed="${state.consoleFilter === 'pinned'}">已置顶 <span class="num">${pinCount}/3</span></button></span>
+      <span class="spacer"></span>
+      <span class="muted" style="font-size:12.5px">排序：发布时间（新→旧）</span>
+    </div>
+    <table>
+      <thead><tr><th>标题</th><th>分类</th><th>状态</th><th>发布时间</th><th class="num">浏览</th><th></th></tr></thead>
+      <tbody>${rows.map((p) => {
+        const pin = pins.get(p.id)
+        const mark = pin ? `<span class="badge">${I.pin}置顶</span>${pin.until ? `<span class="until">至 ${shortDate(pin.until)}</span>` : ''}` : ''
+        const menu = state.menu === p.id
+          ? `<div class="menu" role="menu">
+              <button role="menuitem">${I.edit}编辑</button>
+              ${pin
+                ? `<button role="menuitem" data-act="unpin" data-id="${p.id}">${I.pinOff}取消置顶</button>`
+                : `<button role="menuitem" data-act="pin" data-id="${p.id}">${I.pin}置顶到首页</button><div class="sub">不设到期；需要到期时间时在文章设置里改</div>`}
+              <hr><button role="menuitem" style="color:#d03b3b">${I.trash}删除</button>
+            </div>`
+          : ''
+        return `<tr>
+          <td><div class="ttl"><span>${esc(p.title)}</span>${mark}</div></td>
+          <td>${esc(p.cat)}</td><td>公开</td><td class="num">${p.date}</td><td class="num">${p.views}</td>
+          <td style="width:40px"><div class="menu-wrap"><button class="icon-btn" data-menu="${p.id}" aria-label="更多操作">${I.more}</button>${menu}</div></td>
+        </tr>`
+      }).join('')}</tbody>
+    </table>`
+  document.getElementById('console').innerHTML = html
+  document.querySelectorAll('#console-seg [data-f]').forEach(b => b.onclick = () => { state.consoleFilter = b.dataset.f; state.menu = null; renderConsole() })
+  document.querySelectorAll('[data-menu]').forEach(b => b.onclick = (e) => { e.stopPropagation(); const id = Number(b.dataset.menu); state.menu = state.menu === id ? null : id; renderConsole() })
+  document.querySelectorAll('[data-act]').forEach(b => b.onclick = (e) => {
+    e.stopPropagation()
+    const id = Number(b.dataset.id)
+    const post = POSTS.find(p => p.id === id)
+    state.menu = null
+    if (b.dataset.act === 'unpin') {
+      pins.delete(id)
+      toast(`已取消「${post.title}」的置顶`)
+    }
+    else if (pins.size >= 3) {
+      toast('首页最多 3 篇置顶。先在「已置顶」里取消一篇，再置顶这篇。', true)
+    }
+    else {
+      pins.set(id, { at: ++pinClock, until: '' })
+      toast(`已置顶「${post.title}」，现在排在首页第 1 篇`)
+    }
+    renderConsole()
+  })
+}
+document.addEventListener('click', () => { if (state.menu !== null) { state.menu = null; renderConsole() } })
+
+let toastTimer
+function toast(text, warn = false) {
+  const root = document.getElementById('toast-root')
+  root.innerHTML = `<div class="toast${warn ? ' warn' : ''}" role="status">${warn ? I.warn : I.check}<span>${esc(text)}</span></div>`
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { root.innerHTML = '' }, 3200)
+}
+
+// ---------- 外框切换 ----------
+function bindSeg(id, attr, apply) {
+  document.querySelectorAll(`#${id} button`).forEach(b => b.onclick = () => {
+    document.querySelectorAll(`#${id} button`).forEach(x => x.setAttribute('aria-pressed', String(x === b)))
+    apply(b.dataset[attr])
+  })
+}
+bindSeg('view-seg', 'view', (v) => { state.view = v; ['home', 'settings', 'console'].forEach(n => document.getElementById(`view-${n}`).hidden = n !== v) })
+bindSeg('theme-seg', 'theme', (v) => { document.documentElement.classList.toggle('dark', v === 'dark') })
+bindSeg('variant-seg', 'v', (v) => { state.variant = v; renderHome() })
+bindSeg('scene-seg', 's', (v) => { state.scene = v; renderHome() })
+bindSeg('role-seg', 'r', (v) => {
+  state.role = v
+  state.fullAlert = false
+  state.expiry = 'never'
+  state.settingsPin = v === 'pinned'
+  // 「首页已满」场景：恢复 3 篇置顶
+  if (v === 'full')
+    POSTS.filter(p => p.pinnedAt).forEach(p => pins.set(p.id, { at: p.pinnedAt, until: p.until }))
+  renderSheet()
+})
+
+renderHome()
+renderSheet()
+renderConsole()
+</script>
+</body>
+</html>

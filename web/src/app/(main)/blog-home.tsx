@@ -32,6 +32,8 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   )
   const [posts, setPosts] = useState<Post[]>(initialData?.posts ?? [])
   const [totalPosts, setTotalPosts] = useState(initialData?.total ?? 0)
+  // 置顶文章：只在没有筛选时由接口返回，显示在第一页最上方；它们不在 posts 里，也不计入 totalPosts
+  const [pinnedPosts, setPinnedPosts] = useState<Post[]>(initialData?.pinned ?? [])
   const initialKeyRef = useRef(initialData?.key)
   const [loading, setLoading] = useState(false)
   // 加载失败标记与重试计数：重试时自增以重新触发请求
@@ -83,10 +85,12 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
       query: query || undefined,
       label: labelSlug || undefined,
       category: categorySlug || undefined,
+      withPinned: true,
     })
       .then((res) => {
         setPosts(res.data.posts)
         setTotalPosts(res.data.total)
+        setPinnedPosts(res.data.pinned ?? [])
         setLoading(false)
       })
       .catch((err) => {
@@ -144,8 +148,9 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
                 })
               : t(order === 'latest' ? 'latest_posts' : 'hottest_posts')}
           </span>
-          {totalPosts > 0 && (
-            <span className="text-base font-medium text-foreground/50 tabular-nums">{totalPosts}</span>
+          {/* 全部文章数：普通文章加置顶文章（置顶只在没有筛选时返回） */}
+          {totalPosts + pinnedPosts.length > 0 && (
+            <span className="text-base font-medium text-foreground/50 tabular-nums">{totalPosts + pinnedPosts.length}</span>
           )}
           {filter && (
             <Button variant="ghost" size="icon-sm" className="text-foreground/50" aria-label={t('clear_filter')} title={t('clear_filter')} onClick={clearFilter}>
@@ -187,6 +192,8 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
 
       <PostList
         posts={posts}
+        pinnedPosts={page === 1 ? pinnedPosts : []}
+        listLabel={t(order === 'latest' ? 'latest_posts' : 'hottest_posts')}
         showPrivate={true}
         isLoading={loading}
         skeletonCount={siteInfo.postsPerPage || 9}

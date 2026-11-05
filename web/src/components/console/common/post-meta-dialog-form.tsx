@@ -39,7 +39,6 @@ interface PostMetaForm {
   cover: string
   category: Category | null
   labels: Label[]
-  top: number
   description: string
 }
 
@@ -86,7 +85,6 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           categoryId: data.category?.id ?? 0,
           description: data.description,
           labelIds: data.labels.map(l => l.id),
-          top: Number(data.top) || 0,
         },
       })
         .then(() => {
@@ -100,7 +98,6 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
               category: data.category,
               description: data.description,
               labels: data.labels,
-              top: Number(data.top) || 0,
               type: 'html',
             },
           })
@@ -121,7 +118,6 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           description: data.description,
           labelIds: data.labels.map(l => l.id),
           isPrivate: false,
-          top: Number(data.top) || 0,
           content: `<h1>${data.title}</h1>`,
           type: 'html',
         },
@@ -227,25 +223,6 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="top"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('post_top')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      autoFocus={false}
-                      min={0}
-                      type="number"
-                      {...field}
-                      onChange={e => field.onChange(Number(e.target.value) || 0)}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
             <PostCategorySelector
               category={form.watch('category')}
               onCategoryChange={category => form.setValue('category', category)}
@@ -282,7 +259,6 @@ function toFormValues(post: Post | null): PostMetaForm {
         cover: post.cover || '',
         category: post.category,
         labels: post.labels || [],
-        top: post.top || 0,
         description: post.description || '',
       }
     : {
@@ -291,7 +267,6 @@ function toFormValues(post: Post | null): PostMetaForm {
         cover: '',
         category: null,
         labels: [],
-        top: 0,
         description: '',
       }
 }

@@ -46,7 +46,6 @@ export interface ContentMeta {
   // 仅文章
   category: Category | null
   labels: Label[]
-  top: number
   // 仅页面
   showInNav: boolean
   navOrder: number
@@ -86,7 +85,6 @@ const EMPTY_META: ContentMeta = {
   isPrivate: false,
   category: null,
   labels: [],
-  top: 0,
   showInNav: false,
   navOrder: 0,
   layout: 'reading',
@@ -108,7 +106,6 @@ const postAdapter: ContentAdapter = {
       isPrivate: !!post.isPrivate,
       category: post.category ?? null,
       labels: post.labels ?? [],
-      top: post.top || 0,
     }
   },
   update: ({ id, draftContent, content, meta, sessionId }) => {
@@ -134,8 +131,6 @@ const postAdapter: ContentAdapter = {
       patch.contentTheme = meta.contentTheme
     if (meta.isPrivate !== undefined)
       patch.isPrivate = meta.isPrivate
-    if (meta.top !== undefined)
-      patch.top = Number(meta.top) || 0
     // 后端约定 categoryId 为 0 表示清空分类，未传表示不修改
     if (meta.category !== undefined)
       patch.categoryId = meta.category?.id ?? 0
@@ -195,7 +190,7 @@ const pageAdapter: ContentAdapter = {
     return updatePage({ page: patch, editSessionId: sessionId })
   },
   mergeMeta: (doc, meta) => {
-    const { category: _category, labels: _labels, top: _top, contentTheme: _contentTheme, ...rest } = meta
+    const { category: _category, labels: _labels, contentTheme: _contentTheme, ...rest } = meta
     return { ...(doc as PageModel), ...rest }
   },
 }
