@@ -51,7 +51,8 @@ export interface LyricPlayerOptions {
   compact?: boolean
   // 单行条（导航栏标题、文章内单曲卡收起时）：容器只有一行高，每个条目铺满容器（字号跟随容器），一次只显示一行；
   // 行不换行，超出宽度时跟随演唱位置横向滚动（见 utils/music-lyric.ts 的 getLyricMarqueeOffset）。
-  // 不显示翻译、音译与背景人声，没有聚光灯，不响应点击与滚动
+  // 对唱行右对齐；容器足够高时，背景和声或与焦点句同时在唱的另一句放在下层（见 STRIP_TIER_*）。
+  // 不显示翻译与音译，没有聚光灯，不响应点击与滚动
   strip?: boolean
   // 这首歌的节拍模型，每帧读取；分析完成前或不可用时返回 null，动效回退到固定快慢（见 rhythm/effects.ts）
   getRhythm?: () => RhythmModel | null
@@ -136,6 +137,8 @@ interface ItemView {
   dots: HTMLElement[]
   // 单行条的横向滚动（只有歌词行有）
   marquee: StripMarquee | null
+  // 背景和声所附着的主唱行（条目下标），其余条目为 -1
+  owner: number
   // 上次写入的样式，未变化时不重复写 DOM
   transform: string
   filter: string
@@ -211,6 +214,13 @@ function lyricColor(alpha: number) {
 
 // 单行条两侧的渐隐宽度：行的内边距之内开始渐隐
 const STRIP_FADE = '1.25em'
+
+// 单行条的上下两层：背景和声或与焦点句同时在唱的另一句（重叠的对唱等）放在下层。容器至少这么高才分层（导航栏 36px 可以，单曲卡 20px 不分层）；
+// 焦点句上移、缩小，下层句下移（按容器高度的比例）；背景和声的字号见 lyric-player.css（0.72em），重叠的主唱句与焦点句同样缩小
+const STRIP_TIER_MIN_HEIGHT_PX = 32
+const STRIP_TIER_TOP = -0.21
+const STRIP_TIER_BOTTOM = 0.24
+const STRIP_TIER_SCALE = 0.9
 
 /** 单行条超出宽度的行两侧的渐隐遮罩：滚动到头 / 尾时去掉对应一侧 */
 function stripFadeMask(fadeStart: boolean, fadeEnd: boolean) {
@@ -336,6 +346,9 @@ export class LyricPlayer {
   private spotView = -1
   private spot = 0
   private spotScale: number | null = null
+  // 行号到条目的映射；单行条此刻放在下层的条目（没有时为 -1）
+  private lineViews = new Map<number, number>()
+  private stripPair = -1
 
   private containerHeight = 0
   private narrow = false
@@ -487,6 +500,7 @@ export class LyricPlayer {
         rubyUnits: [],
         dots: [],
         marquee: null,
+        owner: -1,
         transform: '',
         filter: '',
         color: '',
@@ -565,6 +579,19 @@ export class LyricPlayer {
       }
       return view
     })
+    // 行号到条目的映射，背景和声附着到它之前最近的主唱行
+    this.lineViews = new Map()
+    let lastMain = -1
+    this.views.forEach((view, index) => {
+      if (view.item.kind !== 'line')
+        return
+      this.lineViews.set(view.item.line, index)
+      if (this.lyrics.lines[view.item.line]?.isBackground)
+        view.owner = lastMain
+      else
+        lastMain = index
+    })
+    this.stripPair = -1
     const spotlights = new Set(this.lyrics.spotlights)
     this.spotViews = new Map()
     this.views.forEach((view, index) => {
@@ -748,16 +775,36 @@ export class LyricPlayer {
       this.wake()
   }
 
-  /** 单行条不显示背景人声：焦点落在背景人声行上时改为它之前最近的主唱行 */
+  /**
+   * 单行条的焦点始终是主唱行：优先此刻在唱的第一句主唱行（上一句的和声还没唱完、下一句已经开唱时跟到下一句）；
+   * 只有背景和声在唱时为它所附着的主唱行
+   */
   private stripFocus(focus: number): number {
-    const isBackground = (index: number) => {
-      const item = this.items[index]
-      return item?.kind === 'line' && this.lyrics.lines[item.line]?.isBackground
+    const main = this.state.active.find(line => !this.lyrics.lines[line]?.isBackground)
+    if (main != null)
+      return this.lineViews.get(main) ?? focus
+    const owner = this.views[focus]?.owner ?? -1
+    return owner >= 0 ? owner : focus
+  }
+
+  /**
+   * 单行条放在下层的条目：焦点句附着的背景和声优先，其次是与焦点句同时在唱、离它最近的另一句（重叠的对唱、上一句没唱完的和声等）；
+   * 容器太矮或没有时为 -1
+   */
+  private stripPairOf(focus: number): number {
+    if (this.containerHeight < STRIP_TIER_MIN_HEIGHT_PX || this.items[focus]?.kind !== 'line')
+      return -1
+    let pair = -1
+    for (const line of this.state.active) {
+      const index = this.lineViews.get(line)
+      if (index == null || index === focus)
+        continue
+      if (this.views[index].owner === focus)
+        return index
+      if (pair < 0 || Math.abs(index - focus) < Math.abs(pair - focus))
+        pair = index
     }
-    let index = focus
-    while (index > 0 && isBackground(index))
-      index--
-    return index
+    return pair
   }
 
   /** 计算各条目的目标位置并推进弹簧；返回是否仍有动画在进行 */
@@ -779,7 +826,8 @@ export class LyricPlayer {
       animating ||= !expand.resting
     }
 
-    const heights = this.views.map(view => view.expand ? view.height * view.expand.position : view.height)
+    // 单行条的背景和声不占位置：跟着所附着的主唱行，唱到时放在下层
+    const heights = this.views.map(view => view.expand ? view.height * view.expand.position : this.options.strip && view.owner >= 0 ? 0 : view.height)
     const tops: number[] = []
     let total = 0
     for (const height of heights) {
@@ -807,6 +855,12 @@ export class LyricPlayer {
       spotScale = this.spotScale
     }
 
+    // 单行条的上下两层：焦点句上移、缩小，同时在唱的另一句放在下层
+    const strip = this.options.strip ?? false
+    const pair = strip ? this.stripPairOf(focus) : -1
+    this.stripPair = pair
+    const center = (tops[focus] ?? 0) - scroll
+
     // 阶梯入场：焦点因播放推进而变化时，从视口内第一个条目开始逐个增加延迟
     let delay = 0
     let step = LYRIC_STAGGER_BASE_S
@@ -814,7 +868,16 @@ export class LyricPlayer {
 
     for (let i = 0; i < this.views.length; i++) {
       const view = this.views[i]
-      const target = tops[i] - scroll + spotShift + (spotView >= 0 && i !== spotView ? Math.sign(i - spotView) * spotSpread : 0)
+      let target = tops[i] - scroll + spotShift + (spotView >= 0 && i !== spotView ? Math.sign(i - spotView) * spotSpread : 0)
+      if (strip) {
+        if (i === pair)
+          target = center + STRIP_TIER_BOTTOM * this.containerHeight
+        else if (i === focus && pair >= 0)
+          target += STRIP_TIER_TOP * this.containerHeight
+        // 没轮到的背景和声跟着所附着的主唱行（隐藏），唱到时原地淡入
+        else if (view.owner >= 0)
+          target = (tops[view.owner] ?? 0) - scroll + STRIP_TIER_BOTTOM * this.containerHeight
+      }
       // 单行条按容器本身判断：移出的上一行不排队，新行立即移入
       const overscan = this.options.strip ? 0 : LYRIC_OVERSCAN_PX
       const onScreen = target + heights[i] > -overscan && target < this.containerHeight + overscan
@@ -833,7 +896,9 @@ export class LyricPlayer {
 
       const highlighted = view.item.kind === 'line' ? this.activeLines.has(view.item.line) || i === focus : false
       const baseScale = view.item.kind === 'line' && !highlighted ? LYRIC_INACTIVE_SCALE : 1
-      const scaleTarget = i === spotView ? baseScale + (spotScale - baseScale) * spot : baseScale
+      // 分层时焦点句与下层的主唱句缩小（背景和声本身字号更小，不再缩放）
+      const tiered = pair >= 0 && (i === focus || (i === pair && view.owner < 0))
+      const scaleTarget = tiered ? STRIP_TIER_SCALE : i === spotView ? baseScale + (spotScale - baseScale) * spot : baseScale
       if (jump)
         view.scale.jump(scaleTarget)
       else
@@ -893,6 +958,13 @@ export class LyricPlayer {
 
       const item = view.item
       if (item.kind === 'line') {
+        if (this.options.strip && view.owner >= 0) {
+          const opacity = i === this.stripPair ? '' : '0'
+          if (opacity !== view.opacity) {
+            view.opacity = opacity
+            view.el.style.opacity = opacity
+          }
+        }
         const active = this.activeLines.has(item.line)
         const alpha = active ? 1 : inactiveAlpha
         const spotted = i === this.spotView

@@ -308,7 +308,8 @@
 
 /*
  * 单行条（导航栏标题、文章内单曲卡收起时）：容器只有一行高，字号与字重跟随容器；每个条目铺满容器、内容垂直居中，一次只显示一行。
- * 行不换行，原文按内容宽度排开，超出时由引擎横向滚动；不显示翻译、音译与背景人声，不可点击
+ * 行不换行，原文按内容宽度排开，超出时由引擎横向滚动；不显示翻译与音译，不可点击。
+ * 对唱行右对齐；背景和声只在唱到时由引擎放在下层显示（容器足够高时，见 lyric-player.ts 的 STRIP_TIER_*）
  */
 .lyric-player--strip .lyric-item {
   height: 100%;
@@ -331,14 +332,25 @@
 }
 
 .lyric-player--strip .lyric-line--duet {
-  transform-origin: left center;
+  transform-origin: right center;
+}
+
+/* 对唱行靠右：用自动外边距而不是 justify-content，超出宽度时自动外边距为 0，仍从行首开始横向滚动 */
+.lyric-player--strip .lyric-line--duet .lyric-main {
+  margin-inline-start: auto;
+}
+
+/* 背景和声：字号为单行条的 0.72 倍；不在下层时引擎把不透明度写为 0，唱到时恢复（同主样式的 0.75），淡入淡出 */
+.lyric-player--strip .lyric-line--bg {
+  padding-block: 0;
+  font-size: 0.72em;
+  transition: color 0.4s ease-out, opacity 0.25s ease-out;
 }
 
 .lyric-player--strip .lyric-main {
   flex: none;
 }
 
-.lyric-player--strip .lyric-line--bg,
 .lyric-player--strip .lyric-extra,
 .lyric-player--strip .lyric-ruby {
   display: none;
