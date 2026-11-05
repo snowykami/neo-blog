@@ -19,6 +19,11 @@ export interface SitemapData {
     slug: string
     updatedAt: string
   }[]
+  pages: { // 公开的独立页面（不含链接页面）
+    id: number
+    slug: string
+    updatedAt: string
+  }[]
   labels: {
     id: number
     slug: string

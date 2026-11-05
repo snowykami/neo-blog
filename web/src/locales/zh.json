@@ -960,7 +960,6 @@
       "rss_image": "RSS 图标",
       "rss_limit": "RSS 文章数",
       "rss_limit_desc": "订阅源输出最新的多少篇文章",
-      "rss_language": "RSS 语言",
       "rss_title": "RSS 标题",
       "saving": "保存中…",
       "seconds": "单位：秒",
@@ -1198,7 +1197,9 @@
       "ai_agents_memory_days_expert": "专业型记忆保留天数",
       "ai_agents_memory_days_expert_desc": "专业型 AI 用户情景记忆的默认保留天数",
       "ai_agents_run_retention_days": "运行记录保留天数",
-      "ai_agents_run_retention_days_desc": "超过天数的运行记录会被自动清理"
+      "ai_agents_run_retention_days_desc": "超过天数的运行记录会被自动清理",
+      "site_language": "站点语言",
+      "site_language_desc": "文章主要使用的语言。没有设置语言、浏览器也没有发送语言偏好的访客（包括搜索引擎爬虫）按它显示界面，RSS 订阅源也使用它"
     },
     "labels": {
       "title": "标签管理",

@@ -1,5 +1,6 @@
 import { getRequestConfig } from 'next-intl/server'
 import { headers } from 'next/headers'
+import { getCachedSiteInfo } from '@/api/misc.server'
 import { getLoginUserServer } from '@/api/user.server'
 import { DEFAULT_LOCALE, getLocaleMessages, parseAcceptLanguage, resolveLocale } from '@/locales'
 
@@ -13,7 +14,9 @@ export default getRequestConfig(async () => {
 })
 
 // 当前请求的界面语言：用户设置 > 浏览器语言（Accept-Language 按权重从高到低）> 默认语言
-// 语言标签不区分大小写，旧版本保存的 zh、zh-tw 等写法也能识别
+// 语言标签不区分大小写，旧版本保存的 zh、zh-tw 等写法也能识别。
+// 请求完全不带 Accept-Language 时（搜索引擎爬虫抓取时就不带）用站点语言，让收录的页面与正文语言一致；
+// 带了但都不支持的语言（如法语）仍回退到默认语言 en
 export async function getUserLocale(): Promise<string> {
   try {
     const user = (await getLoginUserServer()).data
@@ -25,7 +28,10 @@ export async function getUserLocale(): Promise<string> {
   catch {}
 
   const headersList = await headers()
-  for (const tag of parseAcceptLanguage(headersList.get('accept-language'))) {
+  const acceptLanguage = headersList.get('accept-language')?.trim()
+  if (!acceptLanguage)
+    return resolveLocale((await getCachedSiteInfo()).defaultLanguage) ?? DEFAULT_LOCALE
+  for (const tag of parseAcceptLanguage(acceptLanguage)) {
     const locale = resolveLocale(tag)
     if (locale)
       return locale

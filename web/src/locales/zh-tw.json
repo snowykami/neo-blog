@@ -960,7 +960,6 @@
       "rss_image": "RSS 圖示",
       "rss_limit": "RSS 文章數",
       "rss_limit_desc": "訂閱源輸出最新的多少篇文章",
-      "rss_language": "RSS 語言",
       "rss_title": "RSS 標題",
       "saving": "儲存中…",
       "seconds": "單位：秒",
@@ -1198,7 +1197,9 @@
       "ai_agents_memory_days_expert": "專業型記憶保留天數",
       "ai_agents_memory_days_expert_desc": "專業型 AI 使用者情境記憶的預設保留天數",
       "ai_agents_run_retention_days": "執行紀錄保留天數",
-      "ai_agents_run_retention_days_desc": "超過天數的執行紀錄會被自動清除"
+      "ai_agents_run_retention_days_desc": "超過天數的執行紀錄會被自動清除",
+      "site_language": "站點語言",
+      "site_language_desc": "文章主要使用的語言。沒有設定語言、瀏覽器也沒有傳送語言偏好的訪客（包括搜尋引擎爬蟲）按它顯示介面，RSS 訂閱源也使用它"
     },
     "labels": {
       "title": "標籤管理",

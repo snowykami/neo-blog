@@ -50,6 +50,7 @@ export interface SiteInfo {
   defaultColorScheme: string
   contentTheme?: string // 站点默认的文章内容主题，文章未单独选择时使用
   baseUrl?: string
+  defaultLanguage?: string // 站点语言（如 zh-cn）：没有语言偏好的访客（含搜索引擎爬虫）看到的界面语言
   metadata: {
     name: string
     icon: string

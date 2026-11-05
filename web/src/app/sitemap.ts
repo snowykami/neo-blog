@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { getSitemapData } from '@/api/misc'
-import { getCategoryUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
+import { getCategoryUrl, getPageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 
 // 每次请求时生成：构建阶段连不上后端，按 ISR 预渲染会把空的站点地图缓存下来，每次发布后都要空一段时间
 export const dynamic = 'force-dynamic'
@@ -52,6 +52,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     items.push({
       url: sitemapData.baseUrl + getPostUrl({ post }),
       lastModified: latestDate(post.updatedAt, post.createdAt),
+    })
+  })
+
+  // 公开的独立页面
+  sitemapData.pages?.forEach((page) => {
+    items.push({
+      url: sitemapData.baseUrl + getPageUrl(page),
+      lastModified: latestDate(page.updatedAt),
     })
   })
 

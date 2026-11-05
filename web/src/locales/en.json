@@ -960,7 +960,6 @@
       "rss_image": "RSS image",
       "rss_limit": "RSS post count",
       "rss_limit_desc": "How many of the latest posts the feed includes",
-      "rss_language": "RSS language",
       "rss_title": "RSS title",
       "saving": "Saving…",
       "seconds": "In seconds",
@@ -1198,7 +1197,9 @@
       "ai_agents_memory_days_expert": "Expert memory retention (days)",
       "ai_agents_memory_days_expert_desc": "Default episode retention for expert AI users",
       "ai_agents_run_retention_days": "Run retention (days)",
-      "ai_agents_run_retention_days_desc": "Runs older than this are cleaned up automatically"
+      "ai_agents_run_retention_days_desc": "Runs older than this are cleaned up automatically",
+      "site_language": "Site language",
+      "site_language_desc": "The main language of your posts. Visitors with no language preference set and none sent by their browser (including search engine crawlers) see the interface in this language; the RSS feed uses it too"
     },
     "labels": {
       "title": "Tags",

@@ -960,7 +960,6 @@
       "rss_image": "RSS 画像",
       "rss_limit": "RSS の記事数",
       "rss_limit_desc": "フィードに含める最新記事の件数",
-      "rss_language": "RSS 言語",
       "rss_title": "RSS タイトル",
       "saving": "保存中…",
       "seconds": "単位：秒",
@@ -1198,7 +1197,9 @@
       "ai_agents_memory_days_expert": "エキスパートの記憶保持日数",
       "ai_agents_memory_days_expert_desc": "エキスパート AI ユーザーのエピソード記憶の既定の保持日数",
       "ai_agents_run_retention_days": "実行記録の保持日数",
-      "ai_agents_run_retention_days_desc": "この日数を過ぎた実行記録は自動的に削除されます"
+      "ai_agents_run_retention_days_desc": "この日数を過ぎた実行記録は自動的に削除されます",
+      "site_language": "サイトの言語",
+      "site_language_desc": "記事の主な言語です。言語を設定しておらず、ブラウザも言語の希望を送らない訪問者（検索エンジンのクローラーを含む）にはこの言語で表示します。RSS フィードもこの言語を使います"
     },
     "labels": {
       "title": "タグ管理",

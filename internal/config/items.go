@@ -36,6 +36,9 @@ var sections = []*Section{
 		{Key: "site_name", Type: TypeString, Label: "site_name", Default: "Snowykami's Blog", siteInfoPath: path("metadata.name"), mirror: same},
 		{Key: "base_url", Type: TypeURL, Label: "base_url", Description: "base_url_desc", Default: constant.DefaultBaseUrl, Env: constant.EnvKeyBaseUrl, siteInfoPath: path("base_url"), mirror: same},
 		{Key: "site_description", Type: TypeText, Label: "site_description", Wide: true, Default: "A neo blog system", siteInfoPath: path("metadata.description"), mirror: same},
+		// 站点语言：文章主要使用的语言。没有语言偏好的访客（不带 Accept-Language 的请求，如搜索引擎爬虫）按它显示界面，
+		// 也是 RSS 订阅源的语言。取值与界面支持的语言对应（zh / zh-tw / ja / en / ko）
+		{Key: "default_language", Type: TypeEnum, Label: "site_language", Description: "site_language_desc", Options: options([]string{"zh-cn", "zh-tw", "en-us", "ja-jp", "ko-kr"}, ""), Default: "zh-cn"},
 		{Key: "site_icon", Type: TypeImage, Label: "site_icon", Default: "https://cdn.liteyuki.org/snowykami/avatar_alpha.png", siteInfoPath: path("metadata.icon"), mirror: same},
 		{Key: "keywords", Type: TypeStringList, Label: "keywords", PlaceholderKey: "keyword_placeholder", Default: []string{}, siteInfoPath: path("keywords")},
 		// 前台随机使用其中一张；RSS 的默认封面只支持单张，独立配置键只写第一张
@@ -191,8 +194,6 @@ var sections = []*Section{
 		{Key: "site_title", Type: TypeString, Label: "rss_title", Default: ""},
 		{Key: "site_author", Type: TypeString, Label: "rss_author", Default: ""},
 		{Key: "site_copyright", Type: TypeString, Label: "rss_copyright", Default: ""},
-		// RSS 语言代码，与界面支持的语言保持一致（zh / zh-tw / ja / en / ko）
-		{Key: "default_language", Type: TypeEnum, Label: "rss_language", Options: options([]string{"zh-cn", "zh-tw", "en-us", "ja-jp", "ko-kr"}, ""), Default: "zh-cn"},
 		{Key: "site_image", Type: TypeImage, Label: "rss_image", Default: ""},
 		{Key: "rss_limit", Type: TypeInt, Label: "rss_limit", Description: "rss_limit_desc", Min: num(1), Max: num(500), Default: constant.DefaultRssLimit, Env: constant.EnvKeyRssLimit},
 	}},

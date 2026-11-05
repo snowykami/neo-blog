@@ -32,13 +32,14 @@ func NewMiscController() *MiscController {
 func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext) {
 	// 已保存整体站点信息时直接返回，避免为默认值逐项查询配置
 	if value, err := repo.KV.GetKV(KeySiteInfo); err == nil {
-		// 设置了环境变量 BASE_URL 时站点地址以它为准（复制一份再改，不动缓存里的值）
 		if info, ok := value.(map[string]any); ok {
+			// 复制一份再改，不动缓存里的值：设置了环境变量 BASE_URL 时站点地址以它为准；站点语言是独立配置项，一并带上
+			info = maps.Clone(info)
 			if _, fromEnv := config.Lookup("base_url").EnvValue(); fromEnv {
-				info = maps.Clone(info)
 				info["base_url"] = tools.GetBaseUrl()
-				value = info
 			}
+			info["default_language"] = config.String("default_language")
+			value = info
 		}
 		resps.Ok(c, "", value)
 		return
@@ -71,7 +72,8 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 			"text": repo.KV.GetKVWithoutErr("footer_text", "Liteyuki ICP 114514"),
 			"link": repo.KV.GetKVWithoutErr("footer_link", "https://sfkm.me"),
 		}),
-		"base_url": tools.GetBaseUrl(),
+		"base_url":         tools.GetBaseUrl(),
+		"default_language": config.String("default_language"),
 	})
 	if err != nil {
 		resps.InternalError(c, err)
@@ -156,6 +158,15 @@ func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestCont
 		Limit(tools.GetSitemapLimit()).
 		Find(&categories)
 
+	// 公开的独立页面（链接页面只是导航入口，不列入）
+	var pages []model.Page
+	repo.GetDB().Model(&model.Page{}).
+		Select("id, slug, updated_at").
+		Where("is_private = ? AND kind <> ?", false, model.PageKindLink).
+		Order("updated_at DESC").
+		Limit(tools.GetSitemapLimit()).
+		Find(&pages)
+
 	var labels []model.Label
 	repo.GetDB().Model(&model.Label{}).
 		Select("id, name, slug, updated_at").
@@ -177,6 +188,17 @@ func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestCont
 	resps.Ok(c, "", utils.H{
 		"base_url": tools.GetBaseUrl(),
 		"archives": archives,
+		"pages": func() []map[string]any {
+			m := make([]map[string]any, 0, len(pages))
+			for _, page := range pages {
+				m = append(m, map[string]any{
+					"id":         page.ID,
+					"slug":       page.Slug,
+					"updated_at": page.UpdatedAt,
+				})
+			}
+			return m
+		}(),
 		"labels": func() []map[string]any {
 			m := make([]map[string]any, 0)
 			for _, label := range labels {
