@@ -1,7 +1,7 @@
 # neo-blog
 新的博客，前端由next驱动，后端由hertz驱动
 
-阅读：[DeepWiki Document / 文档](https://deepwiki.com/snowykami/neo-blog)
+阅读：[使用文档](https://docs.liteyuki.org/s/ea43142f-26e9-471a-b226-04a02c039c69/doc/neo-blog-uFghniQJdb) · [DeepWiki](https://deepwiki.com/snowykami/neo-blog)
 
 ![](./image/image.png)
 
@@ -9,7 +9,7 @@
 
 - [x] 支持Markdown，HTML，Text格式的文章
 - [x] 支持文章分类和标签
-- [ ] 支持文章置顶
+- [x] 支持文章置顶
 - [x] OIDC认证和注册
 - [x] 支持多用户
 - [x] 高级评论功能(后端已实装)
