@@ -1,14 +1,37 @@
 import enData from './en.json'
 import jaData from './ja.json'
 import koData from './ko.json'
+import { getFallbackChain, mergeLocaleMessages } from './registry'
+import zhHkData from './zh-hk.json'
+import zhMoData from './zh-mo.json'
+import zhSgData from './zh-sg.json'
 import zhTwData from './zh-tw.json'
 import zhData from './zh.json'
 
-// 界面语言只保留简中、繁中、日语、English、한국어；其他语言回退到 en
-export const localesData: Record<string, { name: string, data: Record<string, unknown> }> = {
-  'en': { name: 'English', data: enData },
-  'ja': { name: '日本語', data: jaData },
-  'ko': { name: '한국어', data: koData },
-  'zh': { name: '简体中文', data: zhData },
-  'zh-tw': { name: '繁體中文', data: zhTwData },
+export { DEFAULT_LOCALE, getFallbackChain, LOCALES, parseAcceptLanguage, resolveLocale, toServiceLanguage } from './registry'
+
+type Messages = Record<string, unknown>
+
+// 各语言自己的文案文件；地区变体（zh-SG、zh-HK、zh-MO）只含与上一级不同的 key
+export const LOCALE_DATA: Record<string, Messages> = {
+  'en': enData,
+  'ja': jaData,
+  'ko': koData,
+  'zh-CN': zhData,
+  'zh-SG': zhSgData,
+  'zh-TW': zhTwData,
+  'zh-HK': zhHkData,
+  'zh-MO': zhMoData,
+}
+
+const mergedMessages = new Map<string, Messages>()
+
+/** 按回退链合并后的完整文案，结果按语言缓存（文案随构建固定，不会变化） */
+export function getLocaleMessages(locale: string): Messages {
+  let messages = mergedMessages.get(locale)
+  if (!messages) {
+    messages = mergeLocaleMessages(getFallbackChain(locale).map(code => LOCALE_DATA[code] ?? {}))
+    mergedMessages.set(locale, messages)
+  }
+  return messages
 }

@@ -63,7 +63,8 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       siteName: siteInfo?.metadata.name || 'Site Name',
       // 分享图由 /p/{id}/share-image 生成，不直接用封面：社交平台上的卡片信息更完整
       images: [{ url: shareImage, width: 1080, height: 1350, alt: post.title || 'No Title' }],
-      locale,
+      // Open Graph 的 locale 写法为 language_TERRITORY，如 zh_TW
+      locale: locale.replace('-', '_'),
       type: 'article',
     },
     twitter: {

@@ -15,7 +15,7 @@ import { MusicProvider } from '@/contexts/music-context'
 import { NavProvider } from '@/contexts/nav-context'
 import { SiteInfoProvider } from '@/contexts/site-info-context'
 import { ThemeProvider } from '@/contexts/theme-context'
-import { getFirstLocale } from '@/i18n/request'
+import { getUserLocale } from '@/i18n/request'
 import { resolveActiveTheme, themeAttributes, themeCssVars } from '@/themes'
 import { themeInitScript } from '@/themes/init-script'
 import { resolvePreviewTheme } from '@/utils/server/theme-preview'
@@ -76,7 +76,7 @@ export default async function RootLayout({
     // 主题脚本会在水合前修改 class / style，需忽略根节点的属性差异
     <html
       suppressHydrationWarning
-      lang={(await getFirstLocale()) || 'en'}
+      lang={await getUserLocale()}
       className={`h-full ${inter.variable} ${sourceCodePro.variable}`}
       data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || 'blue'}
       // 主题色板以 CSS 自定义属性的形式注入，globals.css 里映射到既有 token

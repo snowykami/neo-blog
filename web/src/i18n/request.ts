@@ -1,78 +1,34 @@
-import deepmerge from 'deepmerge'
 import { getRequestConfig } from 'next-intl/server'
 import { headers } from 'next/headers'
 import { getLoginUserServer } from '@/api/user.server'
-import { localesData } from '@/locales'
+import { DEFAULT_LOCALE, getLocaleMessages, parseAcceptLanguage, resolveLocale } from '@/locales'
 
 export default getRequestConfig(async () => {
-  const locales = await getUserLocales()
-  // 低优先级先合并、高优先级覆盖；复制后再反转，避免改动 locales 导致 locale 取到最低优先级的语言
-  const messages = await Promise.all(
-    [...locales].reverse().map(async (locale) => {
-      return localesData[locale]?.data || {}
-    }),
-  ).then(msgs => msgs.reduce((acc, msg) => deepmerge(acc, msg), {}))
+  const locale = await getUserLocale()
+  // 地区变体缺少的文案按回退链补齐（见 locales/registry.ts）
   return {
-    locale: locales[0],
-    messages,
+    locale,
+    messages: getLocaleMessages(locale),
   }
 })
 
-// 用户语言偏好获取逻辑
-// 优先级：用户设置 > 浏览器语言，优先级从高到低排列
-export async function getUserLocales(): Promise<string[]> {
-  const locales: string[] = []
-
+// 当前请求的界面语言：用户设置 > 浏览器语言（Accept-Language 按权重从高到低）> 默认语言
+// 语言标签不区分大小写，旧版本保存的 zh、zh-tw 等写法也能识别
+export async function getUserLocale(): Promise<string> {
   try {
     const user = (await getLoginUserServer()).data
     // 站点只保留部分界面语言：用户设置的语言若已被移除，按浏览器语言回退
-    const preferred = (user?.language || '').trim().toLowerCase()
-    if (preferred && localesData[preferred]) {
-      locales.push(preferred)
-      locales.push(preferred.split('-')[0])
-    }
+    const preferred = resolveLocale(user?.language)
+    if (preferred)
+      return preferred
   }
   catch {}
 
   const headersList = await headers()
-  const acceptLanguage = headersList.get('accept-language')
-  if (acceptLanguage) {
-    acceptLanguage.split(',').forEach((lang) => {
-      const locale = lang.split(';')[0].trim()
-      if (locale) {
-        if (!locales.includes(locale) && localesData[locale]) {
-          locales.push(locale)
-        }
-        const localeWithoutRegion = locale.split('-')[0]
-        if (localeWithoutRegion) {
-          if (!locales.includes(localeWithoutRegion) && localesData[localeWithoutRegion]) {
-            locales.push(localeWithoutRegion)
-          }
-        }
-      }
-    })
+  for (const tag of parseAcceptLanguage(headersList.get('accept-language'))) {
+    const locale = resolveLocale(tag)
+    if (locale)
+      return locale
   }
-
-  // 有序去重、去空并归一化（小写）
-  const seen = new Set<string>()
-  const unique: string[] = []
-  for (const raw of locales) {
-    const v = (raw || '').trim().toLowerCase()
-    if (!v)
-      continue
-    if (!seen.has(v)) {
-      seen.add(v)
-      unique.push(v)
-    }
-  }
-
-  // 保证至少返回一个默认语言
-  if (unique.length === 0)
-    unique.push('en')
-  return unique
-}
-
-export async function getFirstLocale(): Promise<string> {
-  const locales = await getUserLocales()
-  return locales[0]
+  return DEFAULT_LOCALE
 }

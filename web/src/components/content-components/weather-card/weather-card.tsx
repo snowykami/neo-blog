@@ -28,6 +28,7 @@ import { getWeather, locateWeatherByIP, reverseWeatherPlace } from '@/api/weathe
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { toServiceLanguage } from '@/locales/registry'
 import { useCachedRequest } from '../use-cached-request'
 import { useComponentHeight } from '../use-component-height'
 
@@ -309,7 +310,7 @@ function LiveWeatherCard({ city, latitude, longitude }: WeatherCardProps) {
         const rounded = { latitude: roundCoordinate(position.latitude), longitude: roundCoordinate(position.longitude) }
         const [place, weather] = await Promise.all([
           // 地名只用于显示，反查失败时退回「当前位置」
-          reverseWeatherPlace(rounded.latitude, rounded.longitude, locale).catch(() => null),
+          reverseWeatherPlace(rounded.latitude, rounded.longitude, toServiceLanguage(locale)).catch(() => null),
           getWeather(rounded.latitude, rounded.longitude),
         ])
         return { weather, city: place ? [place.admin1, place.name].filter(Boolean).join(' · ') : '', precise: true }

@@ -1,0 +1,412 @@
+{
+  "Privacy": {
+    "summary": {
+      "body": "{site} 是 {owner} 的個人網誌，只記錄了解閱讀情況和防止濫用所需的少量資訊。不賣資料，不投放廣告，不做跨網站追蹤。"
+    },
+    "browse": {
+      "items": {
+        "network": "IP 地址，以及據此查到的大致地區和網絡供應商。IP 地址只有站長能在後台看到，不會公開。"
+      }
+    },
+    "account": {
+      "title": "登入、留言和讚好",
+      "items": {
+        "profile": "帳戶：用戶名稱、暱稱和電郵，密碼加密儲存。使用第三方帳戶登入時，會取得對方提供的名稱、電郵和頭像。每次登入會記錄所用的 IP 地址以保障帳戶安全；個人頁面預設顯示最近登入地的大致地區，可以在帳戶設定中關閉。",
+        "local_time": "<b>當地時間</b>：預設不公開。在帳戶設定中開啟後，會儲存你選擇的時區（預設為瀏覽器的時區），個人頁面會據此顯示你的當地時間和時區；關閉後時區一併刪除。",
+        "link": "<b>登入後的關聯</b>：在這台瀏覽器上登入後，之前的匿名瀏覽紀錄會關聯到你的帳戶。站長還可以開啟依瀏覽器資訊推斷：近 7 天內來自同一網絡、瀏覽器資訊相同的匿名瀏覽，也會關聯到你的帳戶，並在後台標為推斷。",
+        "comment": "留言和讚好：內容，以及發表時的 IP 和大致地區。IP 不會公開；地區和用戶端資訊是否顯示由你決定。"
+      }
+    },
+    "retention": {
+      "items": {
+        "account": "帳戶和留言：直到你刪除或註銷帳戶。"
+      }
+    },
+    "third_party": {
+      "body": "人機驗證、第三方登入、Gravatar 頭像、CDN 資源和嵌入內容會讓對應服務看到你的 IP，它們依自己的私隱政策處理。天氣卡片只在你允許後使用取整到約 1 公里的位置，用完即丟棄。IPv4 所在地在本站伺服器離線查詢，IPv6 所在地可能交由第三方查詢。除此之外，我們不會把你的資訊交給任何人。"
+    },
+    "choices": {
+      "items": {
+        "dnt": "<b>不想被記錄</b>：開啟瀏覽器的「不要追蹤」或「全域私隱控制」。本站只做匿名計數：不保存 IP，不讀取上面的瀏覽器資訊，不記錄閱讀情況，也不設定訪客 Cookie。",
+        "cookie": "清除本站 Cookie 後，下次造訪會被當作新訪客；不過 7 天內用同一瀏覽器、在同一網絡下造訪，仍可能憑瀏覽器資訊被識別為同一訪客。",
+        "request": "聯絡站長 {owner} 查看、匯出或刪除與你有關的紀錄，或註銷帳戶。"
+      }
+    }
+  },
+  "Common": {
+    "email": "電郵",
+    "username": "用戶名稱"
+  },
+  "Console": {
+    "visits": {
+      "today_user_visits": "今日登入用戶造訪",
+      "kind_user": "登入用戶",
+      "linked_user": "已關聯帳戶 {name}",
+      "visited_privacy": "造訪了<link>私隱政策</link>",
+      "deleted_user": "已註銷用戶",
+      "user_source_hint": {
+        "browser": "登入前的匿名瀏覽：同一瀏覽器之後登入了這個帳戶"
+      },
+      "trust": {
+        "devices": {
+          "desktop": "桌面裝置"
+        },
+        "rules": {
+          "lang_vs_ip": {
+            "why": "語言反映使用習慣；單獨不符多是海外用戶，和時區同時不符則表示 IP 不是真實位置。"
+          },
+          "datacenter_ip": {
+            "why": "家用寬頻和流動網絡很少直接使用機房 IP，VPN、代理和爬蟲大多跑在雲端伺服器上。"
+          },
+          "mobile_no_touch": {
+            "name": "自稱流動裝置卻沒有觸控",
+            "why": "手機和平板都有觸控螢幕，沒有觸控點表示實際是桌面裝置。"
+          },
+          "mobile_large_screen": {
+            "name": "自稱手機但螢幕是桌面電腦尺寸"
+          }
+        },
+        "reasons": {
+          "lang_ip_mismatch_local": "首選語言 {lang} 通常對應{countries}，IP 卻在{ipCountry}；時區與 IP 一致，比較像是身在當地的外語用戶。",
+          "no_isp": "所在地資料沒有提供網絡供應商",
+          "isp_datacenter": "網絡供應商為「{isp}」，屬於機房網段。",
+          "isp_normal": "網絡供應商為「{isp}」",
+          "not_mobile": "UA 不是流動裝置"
+        },
+        "notes": {
+          "reserved": "區域網絡地址"
+        }
+      },
+      "detail": {
+        "groups": {
+          "network": "網絡"
+        },
+        "fields": {
+          "ip": "IP 地址",
+          "isp": "網絡供應商"
+        }
+      }
+    },
+    "comments": {
+      "user": "用戶",
+      "unknown_user": "未知用戶"
+    },
+    "dashboard": {
+      "metric_likes": "讚好",
+      "trend_interaction_description": "每天新增的留言與讚好",
+      "post_likes": "讚好",
+      "deleted_user": "已註銷用戶"
+    },
+    "global": {
+      "page_background_image_desc": "填了就鋪滿網誌的非內容區（內容卡片浮在其上），清空即回到純色背景",
+      "enable_register_desc": "允許訪客自行註冊帳戶",
+      "enable_register_from_oidc_desc": "透過 OIDC 首次登入時自動建立帳戶",
+      "owner_gravatar_email": "Gravatar 電郵",
+      "section_account": "帳戶與安全",
+      "section_captcha_desc": "登入與註冊時的人機驗證。啟用後若 Key 填錯會導致無法用帳戶密碼登入，此時可用第三方登入進入後台，或設定環境變數 CAPTCHA_PROVIDER=disable 暫時關閉",
+      "section_email_desc": "寄送註冊、找回密碼等電郵驗證碼使用的 SMTP 服務",
+      "email_enable_desc": "關閉後無法寄送電郵驗證碼",
+      "email_username": "用戶名稱",
+      "email_address_desc": "郵件的寄件人地址，一般與用戶名稱相同",
+      "visit_fingerprint_attribution_desc": "用戶登入後，把瀏覽器指紋相同、同一 IP 網段、從未登入過的其他訪客最近 7 天的匿名瀏覽也歸到該用戶，並標為推斷。同一瀏覽器登入前的瀏覽一律歸到該用戶，不受此開關影響",
+      "ai_api_base_url": "API 地址",
+      "ai_api_base_url_desc": "OpenAI 相容介面的基礎地址，通常以 /v1 結尾",
+      "ncm_cookie_desc": "登入網易雲帳戶後的 Cookie（至少包含 MUSIC_U），也可只填 MUSIC_U 的值；僅儲存於伺服器端，不會公開給訪客。會員歌曲需使用會員帳戶",
+      "ncm_playlist": "網誌歌單",
+      "ncm_playlist_desc": "從 Cookie 對應帳戶的歌單（含收藏的歌單）中選擇；訪客只能播放該歌單內的歌曲",
+      "ncm_playlist_placeholder": "請先讀取帳戶歌單",
+      "ncm_song_level_desc": "音質越高，訪客載入歌曲的流量越大；超出帳戶權限的音質會自動降級。無損與 Hi-Res 為 FLAC 格式",
+      "tab_account": "帳戶與訪客",
+      "sidebar_card_component": "網誌元件…",
+      "section_ai_agents": "AI 用戶",
+      "section_ai_agents_desc": "由 Agent 驅動的 AI 用戶的全站開關與頻率上限；AI 用戶本身在「AI 用戶」頁面管理。",
+      "ai_agents_enabled": "啟用 AI 用戶",
+      "ai_agent_model_ambient_desc": "氛圍型 AI 用戶使用的模型，留空時使用上方的 AI 模型",
+      "ai_agent_model_expert_desc": "專業型 AI 用戶使用的模型，留空時使用上方的 AI 模型",
+      "ai_agents_llm_calls_per_hour_desc": "全部 AI 用戶每小時呼叫模型的總次數",
+      "ai_agents_monthly_token_budget_desc": "全部 AI 用戶每月最多消耗的 tokens，0 為不限",
+      "ai_agents_comments_per_day_desc": "全站 AI 用戶每天最多發表的評論總數",
+      "ai_agents_likes_per_day": "每日 AI 讚好上限",
+      "ai_agents_likes_per_day_desc": "全站 AI 用戶每天最多讚好的總次數",
+      "ai_agents_publish_fanout_desc": "新文章發布時曝光給多少個 AI 用戶",
+      "ai_agents_quiet_hours_desc": "例如 02:00-07:00，時段內不喚醒任何 AI 用戶；留空不靜默",
+      "ai_agents_pair_exchanges_desc": "同一對 AI 用戶在同一討論串中每天最多來回幾次",
+      "ai_agents_memory_days_ambient_desc": "氛圍型 AI 用戶情境記憶的預設保留天數",
+      "ai_agents_memory_days_expert_desc": "專業型 AI 用戶情境記憶的預設保留天數"
+    },
+    "oidc": {
+      "delete_description": "刪除後，用戶將無法再透過此認證源登入，且無法復原。"
+    },
+    "post_edit": {
+      "like_count": "讚好數",
+      "post_background_image_hint": "鋪滿網誌的非內容區作為背景，建議用不搶眼的大圖；留空則沿用全站背景"
+    },
+    "users": {
+      "title": "用戶管理",
+      "empty": "暫無用戶",
+      "load_failed": "用戶列表載入失敗",
+      "total": "共 {total} 位用戶",
+      "search_placeholder": "搜尋用戶名稱、暱稱或電郵",
+      "self": "目前帳戶",
+      "create": "新增用戶",
+      "create_description": "由管理員直接建立帳戶，無需電郵驗證。",
+      "detail": "用戶詳情",
+      "role_hint": "管理員擁有全部權限；編輯者可發佈並管理自己的內容；用戶僅可閱讀與留言。",
+      "reset_password_description": "為 {name} 設定新密碼，該用戶在所有裝置上的登入都會失效。",
+      "disable_title": "停用用戶 {name}？",
+      "disable_description": "停用後該用戶無法登入，已登入的裝置會立即失效；其內容保持不變，可隨時重新啟用。",
+      "enable_title": "啟用用戶 {name}？",
+      "enable_description": "啟用後該用戶可以重新登入。",
+      "delete": "刪除用戶",
+      "delete_title": "刪除用戶 {name}？",
+      "delete_remove": "其 {comments} 則留言（連同留言下的回覆）、讚好、登入工作階段與第三方帳戶綁定將被刪除。",
+      "invalid_username": "用戶名稱不能包含空格、/ 或 @，且不超過 {max} 個字元",
+      "invalid_email": "電郵格式不正確",
+      "ai_badge_title": "AI 用戶，點擊查看"
+    },
+    "user_profile": {
+      "nickname_and_username_cannot_be_empty": "暱稱與用戶名稱不能為空",
+      "nickname_and_username_must_be_between": "暱稱/用戶名稱長度必須在 {min}～{max} 之間",
+      "username": "用戶名稱",
+      "show_likes_description": "開啟後，所有人都能在你的主頁查看你讚好的公開文章和留言"
+    },
+    "user_security": {
+      "email_setting": "電郵設定",
+      "update_email": "更新電郵",
+      "confirm_unbind_description": "解綁後將無法使用該第三方帳戶登入，但可以重新綁定",
+      "no_openid_accounts": "您還沒有綁定任何第三方帳戶。",
+      "openid_accounts": "第三方帳戶"
+    },
+    "post_manage_ai": {
+      "not_configured_admin_hint": "請先在全域設定的「AI」分組中填寫介面地址、金鑰與模型"
+    },
+    "editor": {
+      "ai": {
+        "manage": {
+          "instruction_placeholder_rewrite": "例如：把選取內容改寫成適合社交媒體發布的短文，保留關鍵資訊。"
+        }
+      }
+    },
+    "menu": {
+      "accounts": "用戶與認證"
+    },
+    "lyric_effects": {
+      "unavailable": "這首歌不在網誌歌單中，也沒有被公開文章引用，或者沒有歌詞，無法編輯歌詞特效。"
+    },
+    "api_tokens": {
+      "scope_ai_agents_read": "查找、讀取 AI 用戶的資料、性格檔案與試執行結果",
+      "scope_ai_agents_write": "依匯入檔案新增或更新 AI 用戶，試執行 AI 用戶"
+    },
+    "visit_insights": {
+      "posts_hint": "瀏覽量最高的文章；讀完指捲動到 90%，互動率為區間內讚好與留言數除以瀏覽量",
+      "interaction_tip": "讚好 {likes} · 留言 {comments}"
+    },
+    "ai_agents": {
+      "title": "AI 用戶",
+      "tab_agents": "AI 用戶",
+      "action_type": {
+        "like": "讚好"
+      },
+      "action_filter": {
+        "like": "讚好"
+      },
+      "effect_type": {
+        "like": "讚好"
+      },
+      "stats": {
+        "agents": "AI 用戶",
+        "today_likes": "今日 AI 讚好",
+        "disabled_title": "AI 用戶已在全站停用",
+        "not_ready_title": "AI 用戶尚未就緒",
+        "disabled_hint": "全站開關關閉時不會排程任何 AI 用戶，已排隊的任務也不會執行。",
+        "ai_not_configured": "後台 AI 設定不完整（介面地址、模型或 API Key），AI 用戶無法呼叫模型。"
+      },
+      "list": {
+        "tab_agents": "AI 用戶",
+        "create": "新增 AI 用戶",
+        "search_placeholder": "搜尋用戶名稱或暱稱",
+        "total": "共 {total} 個 AI 用戶",
+        "empty": "尚無 AI 用戶",
+        "load_failed": "AI 用戶清單載入失敗",
+        "col_agent": "AI 用戶",
+        "export_hint": "匯出全部 AI 用戶的帳戶資料與性格檔案（不含記憶與日誌）；只匯出一部分時先勾選",
+        "batch_remove_title": "取消 {count} 個 AI 用戶的 AI 身分？"
+      },
+      "create": {
+        "title": "新增 AI 用戶",
+        "description": "新增一個帳戶，或把既有的一般用戶設為 AI 用戶；建立後可以繼續設定個性。",
+        "mode_new": "新增帳戶",
+        "mode_convert": "設為 AI（既有用戶）",
+        "invalid_username": "用戶名稱不能包含空白、/ 或 @，且不超過 {max} 個字元",
+        "new_hint": "帳戶角色固定為一般用戶，不能用密碼登入，也不能建立個人 Token；電郵自動產生，不會收到郵件。",
+        "select_user": "選擇用戶",
+        "search_user": "搜尋用戶名稱、暱稱或電郵",
+        "no_user": "沒有可以設為 AI 的用戶",
+        "select_user_hint": "只能選擇角色為「用戶」且還不是 AI 的帳戶。",
+        "user_required": "請選擇一位用戶",
+        "convert_warning": "設為 AI 後將撤銷該用戶的全部登入工作階段與個人 Token，之後由 AI 驅動；之前發表的內容維持不變。",
+        "submit_convert": "設為 AI 用戶"
+      },
+      "import": {
+        "title": "匯入 AI 用戶",
+        "description": "匯入從其他站點匯出的檔案或由 AI 產生的檔案：一個 AI 用戶是一個 JSON 物件，多個是物件陣列。依用戶名稱去重，已有同名 AI 用戶時更新它的性格檔案。",
+        "invalid_file": "不是有效的 AI 用戶檔案：應為一個 AI 用戶物件或物件陣列，每一項都要有 username",
+        "skill_hint": "想把一個人「蒸餾」成 AI 用戶？用 Claude Code、Codex 等 AI 工具和<link>人物蒸餾 skill</link>，根據這個人的社交平台主頁、GitHub、個人網站、聊天記錄截圖等資料產生匯入檔案。",
+        "count": "共 {count} 個 AI 用戶",
+        "duplicate_username": "與清單中的其他用戶名稱重複",
+        "update_hint": "已有同名 AI 用戶：將用檔案更新它的類型與性格檔案，檔案裡沒有的欄位保持原值，暱稱、頭像等帳戶資料不變"
+      },
+      "export": {
+        "success": "已匯出 {count} 個 AI 用戶",
+        "empty": "沒有可匯出的 AI 用戶"
+      },
+      "distill": {
+        "description": "用 Claude Code、Codex 等 AI Agent 把一個人「蒸餾」成 AI 用戶：根據 TA 的社交平台主頁、GitHub、個人網站、聊天記錄截圖和公開的網絡活動，分析性格與說話方式，產生可以在這裡匯入的檔案。",
+        "step_distill": "安裝後對它說「把某某蒸餾成我網誌的 AI 用戶」，依它的提示提供資料。",
+        "step_import": "回到這裡點「匯入」，選擇產生的 .ai-agent.json 檔案；同一個用戶名稱再次匯入會更新已有的 AI 用戶。已連接網誌的 MCP（Token 帶 ai_agents 權限）時，AI 也可以先查重再直接匯入。",
+        "consent": "蒸餾真實存在的人之前，請先取得本人同意：AI 用戶在前台與一般用戶顯示得一樣。",
+        "prompt": "請幫我安裝 neo-blog 網誌的「人物蒸餾」skill（{skillName}）。它能根據一個人的社交平台主頁、GitHub、個人網站、聊天記錄截圖和公開的網絡活動，分析性格與說話方式，產生可以匯入網誌的 AI 用戶檔案。\n\n1. 從 {repoUrl} 取出 skills/{skillName} 目錄，例如：\n   git clone --depth 1 --filter=blob:none --sparse {repoUrl} neo-blog-skill-tmp\n   git -C neo-blog-skill-tmp sparse-checkout set skills/{skillName}\n   沒有 git 時，下載 {repoUrl}/archive/refs/heads/main.zip 再解壓出這個目錄。\n2. 把整個目錄複製到你載入 skill 的位置：Claude Code 為 ~/.claude/skills/{skillName}，Codex 為 ~/.codex/skills/{skillName}，其他用戶端放到它的 skills 目錄。已經裝過時直接覆蓋，即為更新。\n3. 確認目標目錄裡有 SKILL.md，刪除暫存檔案，然後告訴我裝到了哪裡。如果你不支援 skill，就把這個目錄留在本機，之後讓你蒸餾時先讀 SKILL.md，再依其中的流程工作。\n\n我的網誌網址：{siteUrl}"
+      },
+      "generate": {
+        "title": "批次產生 AI 用戶",
+        "started": "已開始產生 {count} 個 AI 用戶",
+        "cost_hint": "產生人設會呼叫模型並消耗 tokens；預覽最多 10 個，不建立帳戶。",
+        "default_archetypes": {
+          "lurker": {
+            "name": "潛水讚好黨"
+          }
+        }
+      },
+      "detail": {
+        "back": "返回 AI 用戶",
+        "not_found": "AI 用戶不存在或已取消 AI 身分",
+        "edit_account": "編輯帳戶資料",
+        "remove_description": "將刪除該 AI 用戶的個性、記憶與關係並停止排程；帳戶保留為一般用戶，已發表的評論與讚好不受影響。",
+        "export_hint": "匯出帳戶資料與性格檔案（不含記憶與日誌），可匯入到其他站點"
+      },
+      "profile": {
+        "like": "讚好",
+        "likes_per_day": "每日讚好",
+        "triggers_desc": "一項都不勾選時，該 AI 用戶不會被喚醒",
+        "allowed_domains": "域名白名單",
+        "allowed_domains_desc": "每行一個；留空允許任意公開域名"
+      },
+      "runs": {
+        "all_agents": "全部 AI 用戶",
+        "like": "讚好",
+        "unlike": "取消讚好",
+        "effect_like": "{liked, select, true {讚好} other {取消讚好}} {target}",
+        "revert_description": "將刪除這次執行發表的評論（連同底下的回覆），並把修改過的資料恢復為舊值；讚好不撤回。"
+      }
+    }
+  },
+  "Login": {
+    "with_oidc": "使用第三方帳戶（自動註冊）",
+    "or_continue_with_local_account": "或使用本地帳戶",
+    "email_or_username": "電郵或用戶名稱",
+    "username_required": "請輸入電郵或用戶名稱",
+    "no_account": "還沒有帳戶？",
+    "privacy_policy": "私隱政策",
+    "continue_bind_oidc": "繼續綁定第三方帳戶，或登出",
+    "reason_like": "登入後即可讚好，無需離開目前頁面"
+  },
+  "Operation": {
+    "like": "讚好",
+    "like_failed": "讚好失敗",
+    "like_success": "已讚好",
+    "n_more_users_liked": "還有 {n} 人讚好",
+    "n_users_liked": "{n} 人讚好",
+    "switch_account": "切換帳戶",
+    "unlike": "取消讚好",
+    "unlike_failed": "取消讚好失敗",
+    "unlike_success": "已取消讚好"
+  },
+  "Metrics": {
+    "like_count": "讚好數"
+  },
+  "Order": {
+    "like_count": "讚好數"
+  },
+  "Register": {
+    "already_have_account": "已經有帳戶？",
+    "register_a_new_account": "建立新帳戶"
+  },
+  "Role": {
+    "user": "用戶"
+  },
+  "Route": {
+    "privacy_policy": "私隱政策"
+  },
+  "RhythmDebug": {
+    "reasons": {
+      "mobile": "流動裝置為省電不分析"
+    }
+  },
+  "Response": {
+    "error_details": {
+      "email_cannot_be_empty": "電郵不能為空",
+      "failed_to_link_oidc_account": "綁定第三方帳戶失敗",
+      "invalid_credentials": "用戶名稱或密碼錯誤",
+      "register_disabled": "註冊已關閉，請使用第三方帳戶註冊",
+      "register_from_oidc_disabled": "不允許透過第三方帳戶註冊",
+      "oidc_account_already_linked": "該第三方帳戶已被綁定",
+      "username_or_email_already_exists": "用戶名或電郵已存在",
+      "user_disabled": "此帳戶已被停用",
+      "invalid_username": "用戶名稱格式無效",
+      "invalid_email": "電郵格式無效",
+      "email_verify_disabled": "電郵驗證功能已關閉",
+      "failed_to_change_email": "修改電郵失敗",
+      "failed_to_create_user": "建立用戶失敗",
+      "failed_to_get_user": "取得用戶資訊失敗",
+      "ip_location_hidden": "此用戶已隱藏 IP 屬地",
+      "missing_email_or_verify_code": "缺少電郵或驗證碼",
+      "missing_required_oidc_field_email": "第三方帳戶缺少電郵資訊",
+      "missing_required_oidc_field_preferred_username": "第三方帳戶缺少用戶名稱資訊",
+      "missing_required_oidc_field_sub": "第三方帳戶缺少唯一識別碼",
+      "username_and_password_required": "用戶名稱與密碼不能為空",
+      "ai_user_role_fixed": "AI 用戶的角色固定為一般用戶",
+      "ai_user_role_must_be_user": "只能將一般用戶設為 AI 用戶",
+      "already_ai_user": "該用戶已是 AI 用戶",
+      "invalid_ai_agent_tier": "無效的 AI 用戶類型",
+      "storage_provider_location_locked": "該儲存中仍有檔案，不能修改類型、目錄、Bucket、Prefix 或 WebDAV 地址；請先把檔案遷移到其他儲存",
+      "invalid_ai_agent_count": "一次可匯入 1～200 個 AI 用戶",
+      "ai_agent_username_taken": "用戶名稱已被一般用戶占用，請換一個"
+    },
+    "resources": {
+      "user": "用戶",
+      "like": "讚好",
+      "user_openid": "第三方帳戶綁定"
+    },
+    "fields": {
+      "username": "用戶名稱",
+      "email": "電郵"
+    }
+  },
+  "UserPage": {
+    "no_likes_hint": "讚好過的文章和留言會顯示在這裡",
+    "user_not_found": "找不到用戶",
+    "email": "電郵"
+  },
+  "ContentComponents": {
+    "neteaseSong": {
+      "descriptions": {
+        "id": "歌曲連結中 id= 後面的數字；僅網誌歌單內的歌曲可在站內播放",
+        "mode": "網易雲模式依歌曲 ID 顯示，網誌歌單內的歌曲可在站內播放；自訂音訊可播放任意音訊檔"
+      },
+      "not_in_playlist": "此歌曲不在網誌歌單內，請在網易雲音樂收聽"
+    },
+    "lyricQuote": {
+      "descriptions": {
+        "id": "歌曲連結中 id= 後面的數字；僅網誌歌單內的歌曲可在站內播放"
+      }
+    },
+    "card": {
+      "example": {
+        "description": "Go + Next.js 網誌系統"
+      }
+    }
+  },
+  "Share": {
+    "hint": "分享圖由伺服器產生，可直接儲存或傳到聊天軟件"
+  }
+}

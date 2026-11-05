@@ -16,12 +16,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { toServiceLanguage } from '@/locales/registry'
 import { TierToggle } from './create-agent-dialog'
 import { linesToList, useAIAgentT } from './shared'
 
 // 头像使用 DiceBear 生成，这里列出适合做头像的风格
 const AVATAR_STYLES = ['notionists', 'notionists-neutral', 'adventurer', 'adventurer-neutral', 'lorelei', 'micah', 'open-peeps', 'personas', 'thumbs', 'fun-emoji', 'bottts', 'pixel-art']
-// 人设使用的语言，与界面支持的语言一致
+// 人设语言使用后端接口的语言代码：中文只分简繁，界面语言的地区变体归到对应的一种
 const PERSONA_LANGUAGES = ['zh', 'zh-tw', 'en', 'ja', 'ko']
 const DEFAULT_ARCHETYPES = ['lurker', 'reader', 'chatty', 'digger'] as const
 const DEFAULT_ARCHETYPE_VALUES: Record<(typeof DEFAULT_ARCHETYPES)[number], { ratio: number, min: number, max: number, comment: number }> = {
@@ -83,6 +84,7 @@ function GenerateFormBody({ onCancel, onGenerated }: { onCancel: () => void, onG
   const [preview, setPreview] = useState<AIAgentPreview[] | null>(null)
   const [pending, setPending] = useState<'preview' | 'generate' | null>(null)
   const languageNames = useMemo(() => new Intl.DisplayNames([locale], { type: 'language' }), [locale])
+  const personaLanguage = toServiceLanguage(locale)
   const form = useForm<GenerateForm>({
     defaultValues: {
       name: '',
@@ -102,7 +104,7 @@ function GenerateFormBody({ onCancel, onGenerated }: { onCancel: () => void, onG
       interests: '',
       blockedTopics: '',
       avatarStyle: 'notionists',
-      language: locale === 'zh-tw' ? 'zh-tw' : PERSONA_LANGUAGES.includes(locale) ? locale : 'zh',
+      language: PERSONA_LANGUAGES.includes(personaLanguage) ? personaLanguage : 'zh',
     },
   })
   const archetypes = useFieldArray({ control: form.control, name: 'archetypes' })

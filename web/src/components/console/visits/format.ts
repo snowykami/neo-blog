@@ -1,6 +1,7 @@
 import type { VisitRuleResult, WebVitalName } from '@/models/visit'
 import { useLocale, useTranslations } from 'next-intl'
 import { useCallback, useMemo } from 'react'
+import { toServiceLanguage } from '@/locales/registry'
 
 // 时区偏移（分钟，东正西负）显示为 UTC+8 / UTC−5 / UTC+5:30
 export function formatOffset(minutes: number | null | undefined): string {
@@ -54,7 +55,7 @@ export function ipDisplay(ip: string): string {
   return `${prefix.join(':')}::/64`
 }
 
-// 港澳台在简体中文下使用的名称
+// 港澳台在简体中文（含 zh-SG）下使用的名称
 const ZH_REGION_NAMES: Record<string, string> = { HK: '中国香港', MO: '中国澳门', TW: '中国台湾' }
 
 // 国家代码 → 当前语言下的名称（Intl.DisplayNames），无法识别时返回代码本身
@@ -71,7 +72,7 @@ export function useCountryName() {
     return (code: string) => {
       if (!code)
         return ''
-      if (locale === 'zh' && ZH_REGION_NAMES[code])
+      if (toServiceLanguage(locale) === 'zh' && ZH_REGION_NAMES[code])
         return ZH_REGION_NAMES[code]
       try {
         return names?.of(code) ?? code

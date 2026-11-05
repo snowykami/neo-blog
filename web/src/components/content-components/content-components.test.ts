@@ -5,7 +5,7 @@ import { DOMSerializer, DOMParser as PMDOMParser } from '@tiptap/pm/model'
 import { getSchema } from '@tiptap/react'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createContentExtensions } from '@/lib/tiptap-extensions'
-import { localesData } from '@/locales'
+import { getLocaleMessages, LOCALES } from '@/locales'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
 import { generate, outputFile } from '../../../scripts/gen-content-components.mjs'
 import { COMPONENT_HEIGHTS, componentHeightRem } from './layout'
@@ -76,8 +76,9 @@ describe('注册表', () => {
       ...(field.kind === 'select' ? field.options.map(option => `options.${field.name}.${option}`) : []),
       ...(field.kind === 'list' ? fieldKeys(field.fields) : []),
     ])
-    for (const [locale, { data }] of Object.entries(localesData)) {
-      const messages = (data as { ContentComponents: Record<string, unknown> }).ContentComponents
+    // 地区变体只含差异 key，按回退链合并后再检查
+    for (const locale of Object.keys(LOCALES)) {
+      const messages = (getLocaleMessages(locale) as { ContentComponents: Record<string, unknown> }).ContentComponents
       const get = (path: string) => path.split('.').reduce<unknown>((node, key) => (node as Record<string, unknown> | undefined)?.[key], messages)
       for (const def of CONTENT_COMPONENTS) {
         const keys = ['name', 'description', ...fieldKeys(describeFields(def.schema))]

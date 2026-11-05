@@ -4,21 +4,25 @@ import type { AbstractIntlMessages } from 'next-intl'
 import { NextIntlClientProvider } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { ErrorBoundaryPage } from '@/components/common/error-boundary-page'
+import { DEFAULT_LOCALE, getFallbackChain, LOCALES, mergeLocaleMessages, resolveLocale } from '@/locales/registry'
 import './globals.css'
 
 // 根布局本身出错时使用，此时没有 NextIntlClientProvider，按浏览器语言按需加载对应文案
-const SUPPORTED_LOCALES = ['en', 'ja', 'ko', 'zh', 'zh-tw']
-
 function detectLocale(): string {
-  for (const raw of navigator.languages ?? [navigator.language]) {
-    const lang = raw.toLowerCase()
-    if (SUPPORTED_LOCALES.includes(lang))
-      return lang
-    const base = lang.split('-')[0]
-    if (SUPPORTED_LOCALES.includes(base))
-      return base
+  for (const tag of navigator.languages ?? [navigator.language]) {
+    const locale = resolveLocale(tag)
+    if (locale)
+      return locale
   }
-  return 'en'
+  return DEFAULT_LOCALE
+}
+
+// 按回退链加载各语言的文案文件再合并，地区变体只含与上一级不同的 key
+async function loadMessages(locale: string): Promise<AbstractIntlMessages> {
+  const chain = await Promise.all(getFallbackChain(locale).map(code =>
+    import(`@/locales/${LOCALES[code].file}.json`).then(mod => mod.default as AbstractIntlMessages),
+  ))
+  return mergeLocaleMessages(chain)
 }
 
 export default function GlobalError({
@@ -32,8 +36,8 @@ export default function GlobalError({
 
   useEffect(() => {
     const locale = detectLocale()
-    import(`@/locales/${locale}.json`)
-      .then(mod => setIntl({ locale, messages: mod.default as AbstractIntlMessages }))
+    loadMessages(locale)
+      .then(messages => setIntl({ locale, messages }))
       .catch(() => import('@/locales/en.json').then(mod => setIntl({ locale: 'en', messages: mod.default as AbstractIntlMessages })))
   }, [])
 

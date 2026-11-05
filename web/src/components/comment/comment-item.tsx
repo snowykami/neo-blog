@@ -19,6 +19,7 @@ import { useSiteInfo } from '@/contexts/site-info-context'
 import { LikeIcon } from '@/contexts/theme-context'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
+import { toServiceLanguage } from '@/locales/registry'
 import { TargetType } from '@/models/types'
 import { formatDateTime } from '@/utils/common/datetime'
 import { formatLocation } from '@/utils/common/location'
@@ -232,6 +233,8 @@ function CommentBody({
   const { siteInfo } = useSiteInfo()
   const { user } = useAuth()
   const locale = useLocale()
+  // 评论翻译接口只区分简繁（zh / zh-tw），地区变体共用同一份译文
+  const targetLang = toServiceLanguage(locale)
   const t = useTranslations('Comment')
   const errorMessageT = useErrorMessageT()
   const roleT = useTranslations('Role')
@@ -245,7 +248,7 @@ function CommentBody({
   const [translation, setTranslation] = useState<{ source: string, data: CommentTranslation } | null>(null)
   const [showTranslation, setShowTranslation] = useState(false)
   const [translating, setTranslating] = useState(false)
-  const currentTranslation = translation?.source === comment.content && translation.data.targetLang === locale ? translation.data : null
+  const currentTranslation = translation?.source === comment.content && translation.data.targetLang === targetLang ? translation.data : null
   const translated = showTranslation && currentTranslation && !currentTranslation.sameLanguage ? currentTranslation : null
   // 评论语言：本页刚识别出的优先（内容未变时），否则用后端记录的；与界面语言相同时不显示翻译按钮
   const language = translation?.source === comment.content ? translation.data.sourceLang : comment.language
@@ -295,7 +298,7 @@ function CommentBody({
       return
     setTranslating(true)
     const source = comment.content
-    translateComment({ id: comment.id, targetLang: locale })
+    translateComment({ id: comment.id, targetLang })
       .then((res) => {
         // 等待期间评论被编辑时，原文对不上，译文不会显示
         setTranslation({ source, data: res.data })
@@ -417,7 +420,7 @@ function CommentBody({
               <LikeIcon className={cn('size-3.5', liked && 'fill-current')} />
               {likeCount > 0 && likeCount}
             </button>
-            {translatable && hasText && language !== locale && (
+            {translatable && hasText && language !== targetLang && (
               <button
                 type="button"
                 title={translating ? t('translating') : translated ? t('show_original') : t('translate')}

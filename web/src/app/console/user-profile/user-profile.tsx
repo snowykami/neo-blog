@@ -36,7 +36,7 @@ import { GenderInput } from '@/components/user/gender-input'
 import { useAuth } from '@/contexts/auth-context'
 import { useBrowserTimeZone } from '@/hooks/use-browser-time-zone'
 import { useErrorMessageT } from '@/hooks/use-translations'
-import { localesData } from '@/locales'
+import { LOCALES, resolveLocale } from '@/locales/registry'
 import { getFileUri } from '@/utils/client/file'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
 import { isValidTimeZone } from '@/utils/common/time-zone'
@@ -86,7 +86,8 @@ export function UserProfilePage() {
       nickname: user?.nickname ?? '',
       username: user?.username ?? '',
       gender: user?.gender ?? '',
-      language: user?.language ?? 'en',
+      // 旧版本保存的 zh、zh-tw 等写法按规范代码显示在选择器中
+      language: resolveLocale(user?.language) ?? user?.language ?? 'en',
       showIpLocation: user?.showIpLocation ?? true,
       showLikes: user?.showLikes ?? false,
       showLocalTime: user?.showLocalTime ?? false,
@@ -112,7 +113,7 @@ export function UserProfilePage() {
       values.nickname.trim() !== (user.nickname ?? '')
       || values.username.trim() !== (user.username ?? '')
       || values.gender.trim() !== (user.gender ?? '')
-      || values.language !== (user.language ?? '')
+      || values.language !== (resolveLocale(user.language) ?? user.language ?? '')
       || avatarUrl !== (user.avatarUrl ?? '')
       || backgroundUrl !== (user.backgroundUrl ?? '')
       || avatarCropped !== null
@@ -369,12 +370,11 @@ export function UserProfilePage() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {localesData
-                      && Object.keys(localesData).map(locale => (
-                        <SelectItem key={locale} value={locale}>
-                          {localesData[locale].name}
-                        </SelectItem>
-                      ))}
+                    {Object.entries(LOCALES).map(([code, { name }]) => (
+                      <SelectItem key={code} value={code}>
+                        {name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />
