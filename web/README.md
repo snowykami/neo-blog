@@ -1,59 +1,11 @@
-这是一个 [Next.js](https://nextjs.org) 项目，使用 [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app) 引导。
+# neo-blog 前端
 
-## 开始
-
-首先，运行开发服务器：
+Next.js App Router 前端，包管理器为 pnpm。
 
 ```bash
-pnpm i
-
-pnpm run dev
+pnpm install
+pnpm dev
+pnpm lint
 ```
 
-在浏览器中打开 [http://localhost:3000](http://localhost:3000)
-
-您可以通过修改 `app/page.tsx` 来开始编辑页面。该页面会在您编辑文件时自动更新。
-
-此项目使用 [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) 来自动优化和加载 [Geist](https://vercel.com/font)，这是 Vercel 的新字体系列。
-
-## 了解更多
-
-要了解有关 Next.js 的更多信息，请查看以下资源：
-
-- [Next.js Documentation](https://nextjs.org/docs) - 全面的 Next.js 文档。
-- [Learn Next.js](https://nextjs.org/learn) - 互动式 Next.js 教程。
-
-您可以查看 [Next.js GitHub 仓库](https://github.com/vercel/next.js) - 欢迎您的反馈和贡献！
-
-## 在 Vercel 上部署
-
-部署 Next.js 应用的最简单方法是使用 [Vercel 平台](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme)，这是 Next.js 的创建者提供的服务。
-
-有关更多详细信息，请查看我们的 [Next.js 部署文档](https://nextjs.org/docs/app/building-your-application/deploying)。
-
-## 项目结构解释
-- `api/` - 封装的类型完整的API请求函数。
-- `models/` - 模型类型定义。
-- `context/` - React上下文，管理全局状态。
-- `hooks/` - 自定义React钩子。
-- `app/` - [App Router](https://nextjs.org/docs/app)规范目录，基于文件的路由，包含各个页面。
-  - `(main)`为主路由组件夹，包含网站的主要页面。
-  - `console`为管理后台路由组件夹，包含后台管理页面。
-  - `api`为next服务器API路由组件夹，包含后端API接口。
-  - `auth`为认证页面，包括登录，注册和找回密码等页面。
-- `components/` - 可复用的React组件。
-  - `common/` - 通用组件。
-  - 其他文件夹按功能划分组件。
-- `locales/` - 国际化资源文件。
-- `types/` - 全局类型定义。
-- `utils/` `lib/` - 工具函数和帮助程序。
-
-## 规范化
-
-- 项目使用eslint进行格式化，运行`pnpm lint`进行检查，运行`pnpm lint:fix`进行自动修复。
-
-- 在风格相似的页面或组件，可以使用相同的tailwindcss类名。
-
-- 弹窗与反馈（Toast / Alert / Dialog / AlertDialog / Popconfirm / Sheet / Drawer）的选型与文案约定见 [前端弹窗与反馈使用规范](../docs/frontend-feedback-guidelines.md)。
-
-- 文章组件块（在文章 / 页面中插入内置 React 组件）的新增方式见 [文章组件块：新增组件指南](../docs/content-components.md)。
+开发说明见文档站的[本地开发](https://docs.liteyuki.org/s/ea43142f-26e9-471a-b226-04a02c039c69/doc/5pys5zyw5bya5yr-TD5RxLHlMQ)与[项目结构与约定](https://docs.liteyuki.org/s/ea43142f-26e9-471a-b226-04a02c039c69/doc/6ag555uu57ut5p6e5lio57qm5a6a-306WnVEWLD)。

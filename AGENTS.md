@@ -23,7 +23,8 @@
 - 前端 API：`web/src/api/`
 - 前端页面与组件：`web/src/app/`、`web/src/components/`
 - 国际化：`web/src/locales/`
-- 项目说明：`README.md`、`web/README.md`
+- 项目文档：[liteyuki 文档站](https://docs.liteyuki.org/s/ea43142f-26e9-471a-b226-04a02c039c69/doc/neo-blog-uFghniQJdb)（部署、配置、功能说明、开发约定都在这里）
+- 设计规格：`docs/music-player-spec.md`（音乐播放器，代码注释按章节号引用）、`docs/prototypes/`（交互原型）
 
 ## 3. 目录与分层约定
 
@@ -203,7 +204,7 @@ pnpm dlx shadcn@latest add <comp>
 
 ### Tailwind / 表单约定
 
-根据 `README.md` 与现有组件实现，优先沿用以下布局习惯：
+根据现有组件实现，优先沿用以下布局习惯：
 
 - 表单整体容器：`grid gap-4`
 - 单个表单项容器：`grid gap-2`
@@ -273,6 +274,7 @@ pnpm lint:fix
 - 不要在没有明确需求时引入新的状态管理、请求库、UI 方案或格式化工具
 - 不要绕过现有分层直接把业务逻辑塞进页面、controller 或 repo
 - 不要在没有明确要求时执行 `git commit`、`git push`、大范围重构或批量格式化
+- 不要在仓库里新增说明文档（使用、部署、配置、功能介绍等统一写在 liteyuki 文档站，README 只留简介与链接）；改动影响文档时，在结果说明里提醒同步文档站
 
 ## 10. Git 提交信息规范
 

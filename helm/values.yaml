@@ -98,7 +98,7 @@ redis:
   # 键前缀，多个应用共用一个 Redis 时区分
   keyPrefix: "neo-blog:"
 
-# AI 用户：任务由每个后端实例上的 worker 在进程内执行，多副本时自动分摊（见 docs/ai-agents.md）
+# AI 用户：任务由每个后端实例上的 worker 在进程内执行，多副本时自动分摊（见文档站「AI 用户」）
 aiAgent:
   # 每个实例同时执行的任务数，0 表示本实例不执行
   workers: 2
