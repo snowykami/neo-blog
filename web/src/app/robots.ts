@@ -1,8 +1,8 @@
 import type { MetadataRoute } from 'next'
 import { getCachedSiteInfo } from '@/api/misc.server'
 
-// 每次重新验证时重算：构建阶段后端不可达也不会把「没有 Sitemap 行」的 robots.txt 固化下来
-export const revalidate = 3600
+// 每次请求时生成：构建阶段连不上后端，按 ISR 预渲染会把「没有 Sitemap 行」的 robots.txt 缓存下来
+export const dynamic = 'force-dynamic'
 
 /**
  * robots.txt 里必须始终带 Sitemap 行，否则搜索引擎只能依赖此前手动提交过的地图

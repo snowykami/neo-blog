@@ -6,8 +6,9 @@ import { formatDisplayName } from '@/utils/common/username'
 import { renderMathHtml } from '@/utils/server/render-math'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
 
-// 订阅源 10 分钟重新生成一次
-export const revalidate = 600
+// 每次请求时生成：构建阶段连不上后端，按 ISR 预渲染会把 500 缓存下来，每次发布后订阅源都要失败一段时间；
+// 阅读器与 CDN 按下面的 Cache-Control 缓存 10 分钟
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const rssData = await getRssData()

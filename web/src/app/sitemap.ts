@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next'
 import { getSitemapData } from '@/api/misc'
 import { getCategoryUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 
-// 站点地图每小时重新生成一次
-export const revalidate = 3600
+// 每次请求时生成：构建阶段连不上后端，按 ISR 预渲染会把空的站点地图缓存下来，每次发布后都要空一段时间
+export const dynamic = 'force-dynamic'
 
 /**
  * 取一组时间里最晚的一个；全部无效时返回 undefined（该字段直接省略）
@@ -25,13 +25,8 @@ function latestDate(...dates: (string | null | undefined)[]): Date | undefined {
  * - 标签筛选页 /?label=xxx 的 canonical 指向首页，不属于规范 URL，故不列入
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const sitemapData = await getSitemapData()
-    .then(res => res.data)
-    .catch(() => null)
-
-  if (!sitemapData) {
-    return []
-  }
+  // 后端不可用时返回错误（500），不能返回空列表，否则搜索引擎会当作全站没有页面
+  const sitemapData = (await getSitemapData()).data
 
   const posts = sitemapData.posts || []
   // 首页与归档页的内容由文章列表构成，lastmod 取最新一篇的最后修改时间

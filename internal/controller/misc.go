@@ -241,13 +241,13 @@ func (mc *MiscController) GetRssData(ctx context.Context, c *app.RequestContext)
 	}
 
 	resps.Ok(c, "", map[string]any{
-		"title":              repo.KV.GetKVWithoutErr(constant.KeySiteTitle, "Neo Blog Default Title"),
-		"description":        repo.KV.GetKVWithoutErr(constant.KeySiteDescription, "The default description of Neo Blog."),
+		"title":              tools.GetRssTitle(),
+		"description":        tools.GetSiteDescription(),
 		"site_url":           tools.GetBaseUrl(),
 		"feed_url":           tools.GetBaseUrl() + "/rss.xml",
-		"author":             repo.KV.GetKVWithoutErr(constant.KeySiteAuthor, "Neo Bloger"),
-		"copyright":          repo.KV.GetKVWithoutErr(constant.KeySiteCopyright, "CC BY-NC-SA 4.0"),
-		"image_url":          repo.KV.GetKVWithoutErr(constant.KeySiteImage, ""),
+		"author":             tools.GetRssAuthor(),
+		"copyright":          tools.GetRssCopyright(),
+		"image_url":          tools.GetRssImage(),
 		"language":           config.String("default_language"),
 		"post_default_cover": repo.KV.GetKVWithoutErr(constant.KeyPostDefaultCover, "https://cdn.liteyuki.org/blog/background.png"),
 		"pub_date": func() time.Time {

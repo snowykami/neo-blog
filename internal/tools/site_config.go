@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"cmp"
 	"net/url"
 	"strconv"
 	"strings"
@@ -16,6 +17,16 @@ import (
 func GetSiteName() string        { return config.String("site_name") }
 func GetSiteIcon() string        { return config.String("site_icon") }
 func GetSiteDescription() string { return config.String("site_description") }
+
+// RSS 频道信息：后台「RSS」页单独填写的优先，留空时沿用站点名称、站长名称、页脚版权与站点图标
+func GetRssTitle() string  { return cmp.Or(config.String("site_title"), GetSiteName()) }
+func GetRssAuthor() string { return cmp.Or(config.String("site_author"), config.String("owner_name")) }
+func GetRssImage() string  { return cmp.Or(config.String("site_image"), GetSiteIcon()) }
+
+// GetRssCopyright 都没填写时沿用以往的默认协议
+func GetRssCopyright() string {
+	return cmp.Or(config.String("site_copyright"), config.String("copyright"), "CC BY-NC-SA 4.0")
+}
 
 // GetBaseUrl 站点地址：环境变量 BASE_URL 优先，其次后台配置
 func GetBaseUrl() string {

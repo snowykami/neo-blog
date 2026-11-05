@@ -120,3 +120,49 @@ func TestCaptchaAndEmailConfig(t *testing.T) {
 		t.Fatalf("email = %+v", got)
 	}
 }
+
+// RSS 频道信息：RSS 页留空时沿用站点名称、站长、页脚版权与站点图标，填写后以 RSS 页为准
+func TestRssChannelFallback(t *testing.T) {
+	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
+	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
+	if err := repo.InitDatabase(); err != nil {
+		t.Fatalf("init database: %v", err)
+	}
+	if err := repo.KV.SetKV("site_info", map[string]any{
+		"metadata": map[string]any{"name": "Kami Blog", "icon": "https://example.test/icon.png"},
+		"owner":    map[string]any{"name": "Kami"},
+	}); err != nil {
+		t.Fatalf("set site_info: %v", err)
+	}
+	if got := GetRssTitle(); got != "Kami Blog" {
+		t.Errorf("GetRssTitle() = %q, want site name", got)
+	}
+	if got := GetRssAuthor(); got != "Kami" {
+		t.Errorf("GetRssAuthor() = %q, want owner name", got)
+	}
+	if got := GetRssImage(); got != "https://example.test/icon.png" {
+		t.Errorf("GetRssImage() = %q, want site icon", got)
+	}
+	if got := GetRssCopyright(); got != "CC BY-NC-SA 4.0" {
+		t.Errorf("GetRssCopyright() = %q, want default license", got)
+	}
+
+	for key, value := range map[string]any{"site_title": "Kami Feed", "site_author": "Feed Author", "site_copyright": "CC BY 4.0", "site_image": "https://example.test/feed.png"} {
+		if err := repo.KV.SetKV(key, value); err != nil {
+			t.Fatalf("set %s: %v", key, err)
+		}
+	}
+	if got := GetRssTitle(); got != "Kami Feed" {
+		t.Errorf("GetRssTitle() = %q, want RSS title", got)
+	}
+	if got := GetRssAuthor(); got != "Feed Author" {
+		t.Errorf("GetRssAuthor() = %q, want RSS author", got)
+	}
+	if got := GetRssImage(); got != "https://example.test/feed.png" {
+		t.Errorf("GetRssImage() = %q, want RSS image", got)
+	}
+	if got := GetRssCopyright(); got != "CC BY 4.0" {
+		t.Errorf("GetRssCopyright() = %q, want RSS copyright", got)
+	}
+}
