@@ -6,6 +6,7 @@ import {
   getTimeZoneOffset,
   isValidTimeZone,
   listTimeZones,
+  resolveDisplayTimeZone,
   TIME_ZONE_PRESETS,
 } from './time-zone'
 
@@ -19,6 +20,12 @@ describe('time zone utils', () => {
       expect(isValidTimeZone(zone), zone).toBe(true)
     for (const zone of ['', 'Local', 'EST', 'PST8PDT', 'GMT', 'UTC+8', '北京时间', 'Asia/tokyo', 'asia/Tokyo', 'Mars/Olympus', 'Asia/Shanghai/'])
       expect(isValidTimeZone(zone), zone).toBe(false)
+  })
+
+  it('displays times in the browser time zone saved in the cookie, otherwise the default', () => {
+    expect(resolveDisplayTimeZone('America/New_York')).toBe('America/New_York')
+    for (const value of [undefined, null, '', 'UTC+8', 'Mars/Olympus', 'Asia/Shanghai; path=/'])
+      expect(resolveDisplayTimeZone(value), String(value)).toBe('Asia/Shanghai')
   })
 
   it('has valid, unique presets', () => {

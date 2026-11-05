@@ -8,6 +8,7 @@ import { getLoginUserServer } from '@/api/user.server'
 import { LoginDialogProvider } from '@/components/auth/login-dialog'
 import { AppUpdateChecker } from '@/components/common/app-update-checker'
 import { FloatingWidgets } from '@/components/common/main-floating-widgets'
+import { TimeZoneSync } from '@/components/common/time-zone-sync'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/auth-context'
 import { DeviceProvider } from '@/contexts/device-context'
@@ -93,6 +94,7 @@ export default async function RootLayout({
             <Toaster richColors position="top-center" offset={80} />
             <NextIntlClientProvider>
               <AppUpdateChecker />
+              <TimeZoneSync />
               <ThemeProvider theme={theme}>
                 <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
                   <LoginDialogProvider>

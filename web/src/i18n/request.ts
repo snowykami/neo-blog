@@ -1,8 +1,9 @@
 import { getRequestConfig } from 'next-intl/server'
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { getLoginUserServer } from '@/api/user.server'
 import { DEFAULT_LOCALE, getLocaleMessages, parseAcceptLanguage, resolveLocale } from '@/locales'
+import { resolveDisplayTimeZone, TIME_ZONE_COOKIE } from '@/utils/common/time-zone'
 
 export default getRequestConfig(async () => {
   const locale = await getUserLocale()
@@ -10,6 +11,8 @@ export default getRequestConfig(async () => {
   return {
     locale,
     messages: getLocaleMessages(locale),
+    // 时间按访客浏览器的时区显示；不设置时 next-intl 会用服务器所在的时区（线上是 UTC），浏览器里的时间就会差几个小时
+    timeZone: resolveDisplayTimeZone((await cookies()).get(TIME_ZONE_COOKIE)?.value),
   }
 })
 

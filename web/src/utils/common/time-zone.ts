@@ -14,6 +14,20 @@ export function getBrowserTimeZone(): string {
 // EST、PST8PDT 这类旧式缩写和 UTC+8、北京时间等写法都不算
 const TIME_ZONE_PATTERN = /^(?:UTC|[A-Z][A-Za-z]+(?:\/[A-Z][\w+-]*){1,2})$/
 
+/**
+ * 页面上的时间按访客浏览器的时区显示（接口统一返回带时区的 ISO 时间）：浏览器把自己的时区记在这个 cookie 里，
+ * 服务端渲染时按它格式化，与浏览器里一致，不受服务器所在时区影响（见 i18n/request.ts 与 TimeZoneSync）
+ */
+export const TIME_ZONE_COOKIE = 'time_zone'
+
+/** 还不知道浏览器时区时（第一次访问、搜索引擎爬虫）显示时间用的时区 */
+export const DEFAULT_TIME_ZONE = 'Asia/Shanghai'
+
+/** 显示时间用的时区：cookie 里记录的浏览器时区有效时用它，否则用默认时区 */
+export function resolveDisplayTimeZone(cookieValue: string | null | undefined): string {
+  return cookieValue && isValidTimeZone(cookieValue) ? cookieValue : DEFAULT_TIME_ZONE
+}
+
 /** 主流时区预设，id 对应 TimeZone.presets 下的城市名文案 */
 export const TIME_ZONE_PRESETS = [
   { id: 'utc', timeZone: 'UTC' },
