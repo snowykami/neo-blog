@@ -2833,7 +2833,7 @@
     "status_unavailable": "无法跟随节拍：{reason}",
     "reasons": {
       "unsupported_source": "不是站内代理的音频，读不到波形",
-      "mobile": "移动端为省电不分析",
+      "save_data": "浏览器开启了省流量，不额外下载音频分析",
       "unsupported_browser": "浏览器不支持音频分析",
       "fetch_failed": "下载音频失败",
       "decode_failed": "音频无法解码",

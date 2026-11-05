@@ -2987,7 +2987,7 @@
     "status_unavailable": "拍に合わせられません：{reason}",
     "reasons": {
       "unsupported_source": "サイト経由の音声ではないため波形を読めません",
-      "mobile": "モバイルでは省電力のため解析しません",
+      "save_data": "データセーバーが有効なため、解析用に音声を追加でダウンロードしません",
       "unsupported_browser": "ブラウザーが音声解析に対応していません",
       "fetch_failed": "音声のダウンロードに失敗しました",
       "decode_failed": "音声をデコードできません",

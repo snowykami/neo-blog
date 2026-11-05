@@ -2987,7 +2987,7 @@
     "status_unavailable": "無法跟隨節拍：{reason}",
     "reasons": {
       "unsupported_source": "不是站內代理的音訊，讀不到波形",
-      "mobile": "行動裝置為省電不分析",
+      "save_data": "瀏覽器開啟了節省數據，不額外下載音訊分析",
       "unsupported_browser": "瀏覽器不支援音訊分析",
       "fetch_failed": "下載音訊失敗",
       "decode_failed": "音訊無法解碼",

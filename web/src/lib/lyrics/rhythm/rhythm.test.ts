@@ -1,6 +1,6 @@
 import type { RhythmAnalysis } from './analysis'
 import { describe, expect, it } from 'vitest'
-import { analyzeRhythm } from './analysis'
+import { analyzeRhythm, mixToMono } from './analysis'
 import { backgroundLevel, breathScale, dissolveFadeMs, envelopeScale, glowLevel, heartbeatLevel, nearestFixedPace, particlePulses, pulsesIn, rhythmContext, shimmerCenter, waveLevels } from './effects'
 import { buildRhythmModel, trainOf } from './model'
 import { DEFAULT_RHYTHM_PARAMS } from './params'
@@ -180,5 +180,18 @@ describe('各动效的输出', () => {
     const beat = rhythmContext('beat', model)
     expect(backgroundLevel(beat, 1040 + 30 - lead)).toBeGreaterThan(0.7)
     expect(particlePulses(beat, 0, 1000, 1100)!.map(p => p.t)).toEqual([1040])
+  })
+})
+
+describe('mixToMono', () => {
+  it('各声道取平均，单声道原样返回', () => {
+    const left = Float32Array.from([1, 0.5, -1])
+    const right = Float32Array.from([0, 0.5, 1])
+    expect([...mixToMono([left, right])]).toEqual([0.5, 0.5, 0])
+    expect(mixToMono([left])).toBe(left)
+  })
+
+  it('声道长度不一时按最短的截断', () => {
+    expect(mixToMono([Float32Array.from([1, 1, 1]), Float32Array.from([1, 1])])).toHaveLength(2)
   })
 })

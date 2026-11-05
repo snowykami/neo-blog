@@ -10,8 +10,13 @@ import { cn } from '@/lib/utils'
  */
 export function MusicBackground({ cover, contained = false, imageClassName }: { cover?: string, contained?: boolean, imageClassName?: string }) {
   return (
-    // 播放器页副歌开唱时的镜头推近（--stage-push，见 MusicStageEffects），小窗没有这个变量
-    <div aria-hidden className={cn('pointer-events-none inset-0 overflow-hidden bg-neutral-950 [scale:calc(1+var(--stage-push,0)*0.06)]', contained ? 'absolute' : 'fixed')}>
+    // 播放器页副歌开唱时的镜头推近：data-stage-push 为推近到底时多放大的比例，由 MusicStageEffects 逐帧写入 scale；
+    // 单独成为合成层，缩放只改合成参数，不重绘模糊的封面；小窗不推近
+    <div
+      aria-hidden
+      data-stage-push={contained ? undefined : 0.06}
+      className={cn('pointer-events-none inset-0 overflow-hidden bg-neutral-950', contained ? 'absolute' : 'fixed will-change-[scale]')}
+    >
       {cover && (
         <SafeImage
           // 换封面时重新挂载以触发淡入

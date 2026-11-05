@@ -5,10 +5,11 @@ import { getRhythmParams, subscribeRhythmParams } from './params'
 
 /**
  * 每首歌的节拍分析（只在前端进行，后端不存）：播放时下载同一份音频，以 11025 Hz 单声道解码后交给 Worker 分析，结果按歌曲缓存在内存中。
- * 拿不到结果时（不是站内代理的音频、移动端为省电不分析、下载或解码失败、节拍不可信）动效回退到固定快慢（见 effects.ts 的 rhythmContext）
+ * 桌面端与移动端行为一致，只在开启歌词特效时分析（见 music-context.tsx）。
+ * 拿不到结果时（不是站内代理的音频、浏览器开启了省流量、下载或解码失败、节拍不可信）动效回退到固定快慢（见 effects.ts 的 rhythmContext）
  */
 
-export type RhythmUnavailableReason = 'unsupported_source' | 'mobile' | 'unsupported_browser' | 'fetch_failed' | 'decode_failed' | 'analysis_failed'
+export type RhythmUnavailableReason = 'unsupported_source' | 'save_data' | 'unsupported_browser' | 'fetch_failed' | 'decode_failed' | 'analysis_failed'
 
 export type RhythmState
   = | { status: 'loading', progress: number }
@@ -62,7 +63,8 @@ function readableSource(audioUrl: string | null | undefined) {
   return !!audioUrl && audioUrl.startsWith('/api/v1/music/song/')
 }
 
-function analyzeInWorker(samples: Float32Array, onProgress: (progress: number) => void): Promise<RhythmAnalysis> {
+/** 各声道的样本交给 Worker 混成单声道再分析（混音也不占主线程），样本的内存直接移交、不复制 */
+function analyzeInWorker(channels: Float32Array[], onProgress: (progress: number) => void): Promise<RhythmAnalysis> {
   worker ??= new Worker(new URL('./rhythm.worker.ts', import.meta.url), { type: 'module' })
   const id = ++requestId
   const current = worker
@@ -80,24 +82,25 @@ function analyzeInWorker(samples: Float32Array, onProgress: (progress: number) =
       else reject(new Error(event.data.error ?? 'analysis failed'))
     }
     current.addEventListener('message', onMessage)
-    current.postMessage({ id, samples, sampleRate: SAMPLE_RATE }, [samples.buffer])
+    current.postMessage({ id, channels, sampleRate: SAMPLE_RATE }, channels.map(channel => channel.buffer))
   })
 }
 
-async function decodeMono(buffer: ArrayBuffer): Promise<Float32Array> {
-  // 解码时直接重采样到 11025 Hz，再混成单声道
+/**
+ * 解码并重采样到 11025 Hz（浏览器在后台线程解码），取出各声道的样本。
+ * 主线程上只有 copyFromChannel 的原生内存复制（几毫秒）；混成单声道放到 Worker 里做（原来在主线程逐个样本累加，切歌时有一段约 100ms 的长任务）
+ */
+async function decodeChannels(buffer: ArrayBuffer): Promise<Float32Array[]> {
   const context = new OfflineAudioContext(1, 1, SAMPLE_RATE)
   const decoded = await context.decodeAudioData(buffer)
-  const samples = new Float32Array(decoded.length)
-  for (let c = 0; c < decoded.numberOfChannels; c++) {
-    const channel = decoded.getChannelData(c)
-    for (let i = 0; i < decoded.length; i++)
-      samples[i] += channel[i] / decoded.numberOfChannels
-  }
-  return samples
+  return Array.from({ length: decoded.numberOfChannels }, (_, c) => {
+    const channel = new Float32Array(decoded.length)
+    decoded.copyFromChannel(channel, c)
+    return channel
+  })
 }
 
-/** 开始分析这首歌（已有结果或正在分析时不重复）；只在桌面端分析站内代理的音频 */
+/** 开始分析这首歌（已有结果或正在分析时不重复）；只分析站内代理的音频，浏览器开启省流量时不再额外下载一份音频 */
 export function requestRhythm(songId: number, audioUrl: string | null | undefined) {
   if (states.has(songId))
     return
@@ -106,8 +109,8 @@ export function requestRhythm(songId: number, audioUrl: string | null | undefine
     return
   }
   const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData
-  if (!window.matchMedia('(pointer: fine)').matches || saveData) {
-    setState(songId, { status: 'unavailable', reason: 'mobile' })
+  if (saveData) {
+    setState(songId, { status: 'unavailable', reason: 'save_data' })
     return
   }
   if (typeof Worker === 'undefined' || typeof OfflineAudioContext === 'undefined') {
@@ -136,16 +139,16 @@ export function requestRhythm(songId: number, audioUrl: string | null | undefine
       return
     }
     progress(0.1)
-    let samples: Float32Array
+    let channels: Float32Array[]
     try {
-      samples = await decodeMono(buffer)
+      channels = await decodeChannels(buffer)
     }
     catch {
       setState(songId, { status: 'unavailable', reason: 'decode_failed' })
       return
     }
     try {
-      const analysis = await analyzeInWorker(samples, value => progress(0.1 + value * 0.9))
+      const analysis = await analyzeInWorker(channels, value => progress(0.1 + value * 0.9))
       setState(songId, { status: 'ready', model: buildRhythmModel(analysis, getRhythmParams()), elapsedMs: performance.now() - startedAt })
     }
     catch {

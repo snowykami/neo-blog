@@ -25,6 +25,9 @@ const BEAT_SEEK_GAP_MS = 500
 // 小窗（contained）：粒子缩小、数量减少，种类不变
 const CONTAINED_PARTICLES = { scale: 0.7, maxParticles: 80 }
 
+// 镜头推近的层：data-stage-push 为推近到底时多放大的比例（背景、歌词区与本层，越靠前越大）
+const STAGE_PUSH_SELECTOR = '[data-stage-push]'
+
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 function subscribeReducedMotion(listener: () => void) {
@@ -38,8 +41,9 @@ function subscribeReducedMotion(listener: () => void) {
  * 背景呼吸（唱到 swell / shake 强调时亮起，每段副歌开唱时更强烈地爆发一次）、背景染色（唱到带颜色的强调时泛起该颜色）、粒子场景（歌词标注的 scene）、
  * 聚光灯（唱到全曲最点题的一句时歌词区中央亮起暖光，歌词引擎同时把这一句移到中央放大）。
  * 背景还会跟随节拍轻轻呼吸、离散事件类粒子在拍点成簇出现（节拍预先分析，见 rhythm/；不跟随节拍时背景不呼吸、粒子均匀生成）；
- * 呼吸的颜色取封面主色（--lyric-accent）。播放器页（非 contained）在副歌开唱时还会「镜头推近」：把推近程度写入父元素的 --stage-push（0 ~ 1），
- * 背景、歌词区与本层各按不同倍数放大（越靠前放大越多，有景深感），见 music-player-page.tsx。
+ * 呼吸的颜色取封面主色（--lyric-accent）。播放器页（非 contained）在副歌开唱时还会「镜头推近」：推近程度（0 ~ 1）乘以各层 data-stage-push 的比例后
+ * 直接写入这些层的 scale（背景、歌词区与本层，越靠前放大越多，有景深感），见 music-player-page.tsx。
+ * 不写成父元素上的 CSS 变量：变量会被整页继承，每帧都要重算整页样式（实测副歌推近期间约 9 ms / 帧）。
  * 关闭歌词特效或系统要求减少动态效果时不渲染；逐帧更新直接写 DOM / canvas，不触发 React 渲染
  */
 export function MusicStageEffects({ contained = false }: { contained?: boolean }) {
@@ -75,10 +79,18 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
     let pulseOpacity = ''
     let tintOpacity = ''
     let tintColor = ''
-    let push = ''
+    let push = 0
     let spotlight = ''
-    // 镜头推近写到页面根元素上（小窗不推近）
-    const pushTarget = contained ? null : rootRef.current?.parentElement ?? null
+    // 镜头推近作用于页面中标了 data-stage-push 的层（小窗不推近）；每次推近开始时重新查找，推近期间复用
+    const pushRoot = contained ? null : rootRef.current?.parentElement ?? null
+    let pushTargets: HTMLElement[] = []
+    const writePush = (value: number) => {
+      if (push === 0)
+        pushTargets = pushRoot ? Array.from(pushRoot.querySelectorAll<HTMLElement>(STAGE_PUSH_SELECTOR)) : []
+      push = value
+      for (const el of pushTargets)
+        el.style.scale = value > 0 ? (1 + value * (Number(el.dataset.stagePush) || 0)).toFixed(4) : ''
+    }
     const tick = (now: number) => {
       // 切到后台再回来时不一次推进太久
       const dt = Math.min(0.05, (now - last) / 1000)
@@ -124,11 +136,9 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
         spotlight = nextSpotlight
         spotlightEl.style.opacity = nextSpotlight
       }
-      const nextPush = (signals?.push ?? 0).toFixed(3)
-      if (pushTarget && nextPush !== push) {
-        push = nextPush
-        pushTarget.style.setProperty('--stage-push', nextPush)
-      }
+      const nextPush = Math.round((signals?.push ?? 0) * 1000) / 1000
+      if (pushRoot && nextPush !== push)
+        writePush(nextPush)
       particles.update(dt, signals?.scene ?? null, isPlaying, particleRhythm)
       frame = requestAnimationFrame(tick)
     }
@@ -140,14 +150,19 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
       pulseEl.style.opacity = '0'
       tintEl.style.opacity = '0'
       spotlightEl.style.opacity = '0'
-      pushTarget?.style.removeProperty('--stage-push')
+      pushTargets.forEach(el => el.style.removeProperty('scale'))
     }
   }, [contained, enabled, getAudio])
 
   if (!enabled)
     return null
   return (
-    <div ref={rootRef} aria-hidden className={cn('pointer-events-none inset-0 overflow-hidden [scale:calc(1+var(--stage-push,0)*0.08)]', contained ? 'absolute' : 'fixed')}>
+    <div
+      ref={rootRef}
+      aria-hidden
+      data-stage-push={contained ? undefined : 0.08}
+      className={cn('pointer-events-none inset-0 overflow-hidden', contained ? 'absolute' : 'fixed will-change-[scale]')}
+    >
       {/* 三层的透明度逐帧变化：各自提升为合成层，只改合成参数，不必每帧重新光栅化整屏渐变 */}
       <div
         ref={tintRef}

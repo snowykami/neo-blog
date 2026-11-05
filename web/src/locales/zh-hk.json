@@ -339,7 +339,7 @@
   },
   "RhythmDebug": {
     "reasons": {
-      "mobile": "流動裝置為省電不分析"
+      "save_data": "瀏覽器開啟了節省數據，不額外下載音訊分析"
     }
   },
   "Response": {

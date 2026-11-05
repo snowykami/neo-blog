@@ -2987,7 +2987,7 @@
     "status_unavailable": "비트를 따를 수 없습니다: {reason}",
     "reasons": {
       "unsupported_source": "사이트를 거친 오디오가 아니어서 파형을 읽을 수 없습니다",
-      "mobile": "모바일에서는 배터리를 아끼려고 분석하지 않습니다",
+      "save_data": "데이터 절약 모드가 켜져 있어 분석용 오디오를 따로 내려받지 않습니다",
       "unsupported_browser": "브라우저가 오디오 분석을 지원하지 않습니다",
       "fetch_failed": "오디오를 내려받지 못했습니다",
       "decode_failed": "오디오를 디코딩할 수 없습니다",

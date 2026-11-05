@@ -18,9 +18,10 @@ import '@/lib/lyrics/lyric-fonts'
  * 只负责创建 / 销毁引擎，并在歌词、显示选项、播放状态与进度变化时通知它；逐帧动画全部在引擎内完成，不触发 React 渲染。
  * compact 为紧凑模式（悬浮播放器、文章内单曲卡）：同一套引擎与样式，只缩小字号与间距；
  * strip 为单行条（导航栏标题、单曲卡收起时）：容器只有一行高、字号跟随容器，一次显示一行，超出宽度时跟随演唱横向滚动，不显示翻译与音译；
- * themed 时文字跟随站点亮暗主题（单曲卡），否则为深色界面上的白色文字
+ * themed 时文字跟随站点亮暗主题（单曲卡），否则为深色界面上的白色文字；
+ * stagePush 为播放器页副歌镜头推近时歌词区多放大的比例（由 MusicStageEffects 写入 scale）
  */
-export function MusicLyricStage({ className, compact = false, strip = false, themed = false }: { className?: string, compact?: boolean, strip?: boolean, themed?: boolean }) {
+export function MusicLyricStage({ className, compact = false, strip = false, themed = false, stagePush }: { className?: string, compact?: boolean, strip?: boolean, themed?: boolean, stagePush?: number }) {
   const t = useTranslations('MusicPlayer')
   const pageT = useTranslations('MusicPage')
   const { lyrics, lyricStatus, showTranslation, showRomaji, showLyricEffects, isPlaying, getAudio, seek, play, refreshLyrics, lyricSourcesPending, currentTrack } = useMusic()
@@ -128,7 +129,9 @@ export function MusicLyricStage({ className, compact = false, strip = false, the
       // 单行条嵌在链接（导航栏标题）里，只是其中的文字，不单独成区
       role={strip ? undefined : 'region'}
       aria-label={strip ? undefined : pageT('lyrics_region')}
-      className={className}
+      data-stage-push={stagePush}
+      // 推近时单独成为合成层，缩放不重绘歌词
+      className={cn(stagePush != null && 'will-change-[scale]', className)}
       // 单行条只有一行，不做上下渐隐
       style={strip
         ? colorStyle

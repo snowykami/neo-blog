@@ -2987,7 +2987,7 @@
     "status_unavailable": "Can't follow the beat: {reason}",
     "reasons": {
       "unsupported_source": "the audio isn't served through this site, so its waveform can't be read",
-      "mobile": "not analyzed on mobile to save battery",
+      "save_data": "data saver is on, so the audio is not downloaded again for analysis",
       "unsupported_browser": "the browser doesn't support audio analysis",
       "fetch_failed": "failed to download the audio",
       "decode_failed": "the audio can't be decoded",

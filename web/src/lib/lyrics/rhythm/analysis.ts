@@ -103,6 +103,20 @@ export function percentile(values: ArrayLike<number>, q: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]
 }
 
+/** 各声道取平均混成单声道（同 Web Audio 的 0.5·(L+R)）；只有一个声道时直接返回 */
+export function mixToMono(channels: Float32Array[]): Float32Array {
+  if (channels.length === 1)
+    return channels[0]
+  const length = channels.reduce((min, channel) => Math.min(min, channel.length), Infinity)
+  const mono = new Float32Array(Number.isFinite(length) ? length : 0)
+  const scale = 1 / channels.length
+  for (const channel of channels) {
+    for (let i = 0; i < mono.length; i++)
+      mono[i] += channel[i] * scale
+  }
+  return mono
+}
+
 export function analyzeRhythm(samples: Float32Array, sampleRate: number, onProgress?: (progress: number) => void): RhythmAnalysis {
   const frameRate = sampleRate / HOP
   const frames = Math.max(0, Math.floor((samples.length - FFT_SIZE) / HOP) + 1)
