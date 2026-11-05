@@ -22,6 +22,30 @@ export interface PageBackground {
   decorations?: boolean
 }
 
+/**
+ * 顶栏灵动岛（实验性）的开关，后台「前台 → 顶栏灵动岛」配置；enabled 为总开关，关闭时标题区只显示站名。
+ * 各项含义见 contexts/topbar-island.ts 的 IslandFeature
+ */
+export interface IslandSettings {
+  enabled: boolean
+  expand: boolean
+  music: boolean
+  musicPeek: boolean
+  musicPaused: boolean
+  musicBeat: boolean
+  musicChorus: boolean
+  musicMoments: boolean
+  reading: boolean
+  readingFinish: boolean
+  feedback: boolean
+  upload: boolean
+  update: boolean
+  network: boolean
+  holiday: boolean
+  greeting: boolean
+  weather: boolean
+}
+
 export interface SiteInfo {
   colorSchemes: string[]
   defaultColorScheme: string
@@ -63,6 +87,7 @@ export interface SiteInfo {
   musicPlaylistUrl?: string // 悬浮音乐播放器歌单 JSON 地址（静态来源）
   enableThirdPartyScript?: boolean // 是否在前台加载全局第三方脚本
   pageBackground?: PageBackground // 前台全站背景（底色 / 背景图 / 模糊 / 节日装饰）
+  island?: IslandSettings // 顶栏灵动岛（实验性）的开关
 }
 
 export const fallbackSiteInfo: SiteInfo = {
@@ -106,6 +131,26 @@ export const fallbackSiteInfo: SiteInfo = {
     opacity: 1,
     veil: 0.72,
     decorations: true,
+  },
+  // 与后端 internal/config/items.go 的默认值一致：后台还没保存过时站点信息里没有这些字段
+  island: {
+    enabled: true,
+    expand: true,
+    music: true,
+    musicPeek: true,
+    musicPaused: true,
+    musicBeat: true,
+    musicChorus: true,
+    musicMoments: true,
+    reading: true,
+    readingFinish: true,
+    feedback: true,
+    upload: true,
+    update: true,
+    network: true,
+    holiday: true,
+    greeting: true,
+    weather: false,
   },
 }
 

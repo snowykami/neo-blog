@@ -18,7 +18,6 @@ import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useSongAccent } from '@/components/music-page/use-cover-accent'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
-import { useNav } from '@/contexts/nav-context'
 import { cn } from '@/lib/utils'
 import { shouldOptimize } from '@/utils/common/image'
 import { MarqueeText } from './marquee-text'
@@ -273,10 +272,10 @@ const ALBUM_ROTATE_CLASSNAME = 'animate-spin [animation-duration:30s]'
 const PLAYER_STYLE = { '--primary': 'oklch(0.97 0 0)', '--primary-foreground': 'oklch(0.2 0 0)' } as React.CSSProperties
 
 /**
- * 播放时替换导航栏图标的旋转封面：与悬浮球一致，只把封面裁成圆形，不加边框
- * 组件内部自行读取播放状态，曲目切换时无需重新 setNavIcon
+ * 顶栏灵动岛里的旋转封面（见 components/layout/topbar-island/music-island.tsx）：与悬浮球一致，只把封面裁成圆形，不加边框；
+ * 组件内部自行读取播放状态，暂停时停转，曲目切换时交叉淡入新封面
  */
-function AlbumNavIcon() {
+export function AlbumNavIcon() {
   const { currentTrack, isPlaying } = useMusic()
 
   // 没有封面时回退为音乐图标，避免导航栏出现占位块
@@ -293,29 +292,6 @@ function AlbumNavIcon() {
       className={cn('size-6', ALBUM_ROTATE_CLASSNAME)}
       imageClassName="object-cover rounded-full"
     />
-  )
-}
-
-/**
- * 导航栏标题处的歌词：一个以播放器背景（模糊封面 + 压暗）为底的圆角矩形，叠上悬浮小窗的舞台特效，
- * 里面是播放器的歌词引擎（单行条，见 MusicLyricStage）：配色、逐字擦除、强调特效、间奏与换行的弹簧都与播放器一致，
- * 浅色、深色主题下都清晰可辨；没有歌词可显示时不出现
- */
-function NavLyric() {
-  const { currentTrack, lyricLines, lyrics } = useMusic()
-  const accent = useSongAccent(currentTrack?.albumPic)
-  if (lyricLines.length === 0 && !lyrics.instrumental)
-    return null
-  return (
-    <span
-      className="relative isolate block h-9 w-[36ch] max-w-full overflow-hidden rounded-lg"
-      style={accent ? { '--lyric-accent': accent } as React.CSSProperties : undefined}
-    >
-      {/* 标题区域只有一行高，按播放器的模糊半径会糊成一片黑，改用小半径保留封面的颜色 */}
-      <MusicBackground cover={currentTrack?.albumPic} contained imageClassName="blur-md" />
-      <MusicStageEffects contained />
-      <MusicLyricStage strip className="relative h-full" />
-    </span>
   )
 }
 
@@ -378,7 +354,6 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
   const clock = useMusicClockStore()
   // 播放器页（/music）本身就是完整的播放器：不显示悬浮球，但歌单加载与进度保存照常进行
   const onPlayerPage = usePathname() === '/music'
-  const { setNavTitle, setNavIcon, resetNavIcon } = useNav()
   const themeColor = useAlbumThemeColor(currentTrack?.albumPic)
   const animatedThemeColor = useAnimatedThemeColor(themeColor)
   // 悬浮球可拖动；开始拖动时收起播放器
@@ -391,18 +366,6 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
   const restoredTrackIdRef = useRef<number | null>(null)
   // 节流写入存储，避免频繁 localStorage 写入
   const lastSavedTimeRef = useRef(0)
-
-  useEffect(() => {
-    setNavTitle(isPlaying
-      ? <NavLyric />
-      : '')
-    if (isPlaying) {
-      setNavIcon(<AlbumNavIcon />)
-    }
-    else {
-      resetNavIcon()
-    }
-  }, [isPlaying, resetNavIcon, setNavIcon, setNavTitle])
 
   // 拉取歌单后一次性以“存储的曲目 + 进度”初始化，不再先切到第 0 首再切回，避免多余的歌词请求与竞态
   useEffect(() => {

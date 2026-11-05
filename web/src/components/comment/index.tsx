@@ -3,11 +3,12 @@ import type { CommentSubmitPayload } from './comment-input'
 import type { ActiveInput } from './comment-item'
 import type { Comment } from '@/models/comment'
 import type { TargetType } from '@/models/types'
-import { Loader2 } from 'lucide-react'
+import { Loader2, MessageCircleHeartIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { createComment, deleteComment, getComment, listComments } from '@/api/comment'
+import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSiteInfo } from '@/contexts/site-info-context'
@@ -102,7 +103,7 @@ export function CommentSection({
         isPrivate,
         showClientInfo,
       })
-      toast.success(t('comment_success'))
+      notifySuccess(t('comment_success'), { key: 'comment', icon: <MessageCircleHeartIcon aria-hidden className="text-sky-400" /> })
       setTotalCommentCount(c => c + 1)
       setActiveInput(null)
       getComment({ id: res.data.id }).then((response) => {

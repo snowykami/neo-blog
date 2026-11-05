@@ -103,6 +103,27 @@ var sections = []*Section{
 		// 自定义 TTML 歌词源，按顺序探测（见 ttml_sources.go）
 		{Key: "music_ttml_sources", Type: TypeJSON, Widget: "ttml_sources", Label: "music_ttml_sources", Description: "music_ttml_sources_desc", Placeholder: "https://cdn.example.com/lyrics/{song_id}.ttml", Default: []MusicTTMLSource{}, Env: constant.EnvKeyMusicTTMLURL, decode: decodeMusicTTMLSources},
 	}},
+	// 顶栏灵动岛（实验性）：顶栏标题区按当前情境显示的内容，各项可单独关闭；总开关关闭时标题区只显示站名
+	{Tab: "frontend", Key: "island", Title: "section_island", Description: "section_island_desc", Items: []*Item{
+		{Key: "island_enabled", Type: TypeBool, Label: "island_enabled", Description: "island_enabled_desc", Default: true, siteInfoPath: path("island.enabled")},
+		{Key: "island_expand", Type: TypeBool, Label: "island_expand", Description: "island_expand_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.expand")},
+		{Key: "island_music", Type: TypeBool, Label: "island_music", Description: "island_music_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.music")},
+		{Key: "island_music_peek", Type: TypeBool, Label: "island_music_peek", Description: "island_music_peek_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.music_peek")},
+		{Key: "island_music_paused", Type: TypeBool, Label: "island_music_paused", Description: "island_music_paused_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.music_paused")},
+		{Key: "island_music_beat", Type: TypeBool, Label: "island_music_beat", Description: "island_music_beat_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.music_beat")},
+		{Key: "island_music_chorus", Type: TypeBool, Label: "island_music_chorus", Description: "island_music_chorus_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.music_chorus")},
+		{Key: "island_music_moments", Type: TypeBool, Label: "island_music_moments", Description: "island_music_moments_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.music_moments")},
+		{Key: "island_reading", Type: TypeBool, Label: "island_reading", Description: "island_reading_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.reading")},
+		{Key: "island_reading_finish", Type: TypeBool, Label: "island_reading_finish", Description: "island_reading_finish_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.reading_finish")},
+		{Key: "island_feedback", Type: TypeBool, Label: "island_feedback", Description: "island_feedback_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.feedback")},
+		{Key: "island_upload", Type: TypeBool, Label: "island_upload", Description: "island_upload_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.upload")},
+		{Key: "island_update", Type: TypeBool, Label: "island_update", Description: "island_update_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.update")},
+		{Key: "island_network", Type: TypeBool, Label: "island_network", Description: "island_network_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.network")},
+		{Key: "island_holiday", Type: TypeBool, Label: "island_holiday", Description: "island_holiday_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.holiday")},
+		{Key: "island_greeting", Type: TypeBool, Label: "island_greeting", Description: "island_greeting_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.greeting")},
+		// 问候时附带访客所在城市的天气：按 IP 粗略定位（城市级，不保存）并多一次天气请求，默认关闭
+		{Key: "island_weather", Type: TypeBool, Label: "island_weather", Description: "island_weather_desc", Default: false, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.weather")},
+	}},
 	{Tab: "frontend", Key: "weather", Title: "section_weather", Description: "section_weather_desc", Items: []*Item{
 		{Key: "qweather_api_host", Type: TypeString, Label: "qweather_api_host", Description: "qweather_api_host_desc", Placeholder: "abc123xyz.re.qweatherapi.com", Default: ""},
 		{Key: "qweather_api_key", Type: TypeSecret, Label: "qweather_api_key", Description: "qweather_api_key_desc", Default: ""},

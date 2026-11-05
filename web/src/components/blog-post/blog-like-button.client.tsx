@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { getLikedUsers, toggleLike } from '@/api/like'
 import { useRequireLogin } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
+import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import { LikeIcon } from '@/contexts/theme-context'
 import { useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
@@ -75,7 +76,11 @@ export function BlogLikeButton({ post }: { post: Post }) {
     // 传入期望状态：快捷登录后页面上的点赞状态可能已过期，避免把已赞的点成取消
     toggleLike({ targetType: TargetType.Post, targetId: post.id, liked: !likedPrev })
       .then((res) => {
-        toast.success(res.data.status ? operationT('like_success') : operationT('unlike_success'))
+        // 点赞时岛上的爱心（节日主题下为节日图形）随主题变化；取消点赞只给一句确认
+        if (res.data.status)
+          notifySuccess(operationT('like_success'), { key: 'like', icon: <LikeIcon aria-hidden className="fill-current text-rose-400" /> })
+        else
+          notifySuccess(operationT('unlike_success'), { key: 'unlike' })
         // 以服务端结果为准，校正乐观状态
         setLiked(res.data.status)
         setLikeCount(likeCountPrev + (res.data.status === likedPrev ? 0 : res.data.status ? 1 : -1))

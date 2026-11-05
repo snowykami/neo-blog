@@ -1,7 +1,7 @@
 import type { CommentSubmitPayload } from './comment-input'
 import type { Comment, CommentTranslation } from '@/models/comment'
 import type { User } from '@/models/user'
-import { ChevronDown, Ellipsis, Languages, Loader2, Lock, Reply } from 'lucide-react'
+import { ChevronDown, Ellipsis, Languages, Loader2, Lock, MessageCircleHeartIcon, Reply } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useCallback, useMemo, useState } from 'react'
@@ -11,6 +11,7 @@ import { toggleLike } from '@/api/like'
 import { useRequireLogin } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
 import { Popconfirm } from '@/components/common/popconfirm'
+import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -108,7 +109,7 @@ export function CommentItem({
       // 抛出以通知输入框保留内容
       throw error
     }
-    toast.success(t('comment_success'))
+    notifySuccess(t('comment_success'), { key: 'comment', icon: <MessageCircleHeartIcon aria-hidden className="text-sky-400" /> })
     setActiveInputId(null)
     onCountChange(1)
     await loadThread()

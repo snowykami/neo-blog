@@ -22,6 +22,7 @@ import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
 import { ComponentIslands } from '@/components/content-components/component-islands'
 import { SiteShell } from '@/components/layout/site-shell'
+import { ReadingIsland } from '@/components/layout/topbar-island/reading-island'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PinnedIcon } from '@/contexts/theme-context'
@@ -114,8 +115,8 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
 
       <CopyrightCard post={post} className="mt-8" />
 
-      {/* 点赞与分享 - Wrapped in Suspense for better performance */}
-      <div className="mt-8">
+      {/* 点赞与分享 - Wrapped in Suspense for better performance；id 供顶栏「读完啦」提示跳转 */}
+      <div id="post-actions" className="mt-8">
         <Suspense fallback={<LikeButtonSkeleton />}>
           <BlogLikeButton post={post} />
         </Suspense>
@@ -160,9 +161,12 @@ function CommentsSkeleton() {
 }
 
 export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?: boolean }) {
-  const { html, headings } = renderContentHtml((isDraft ? post.draftContent : post.content) || '<h1>No Content</h1>')
+  const content = (isDraft ? post.draftContent : post.content) || ''
+  const { html, headings } = renderContentHtml(content || '<h1>No Content</h1>')
   return (
     <>
+      {/* 顶栏灵动岛的阅读进度与迷你目录 */}
+      <ReadingIsland title={post.title} headings={headings} minutes={calculateReadingTime(content)} />
       {/* 文章配了背景就铺满非内容区，没配则沿用全站背景 */}
       <PostBackground background={post.background} />
       <SiteShell
@@ -179,8 +183,8 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
         )}
       >
         <PostArticle post={post} html={html} isDraft={isDraft} />
-        {/* Comments section wrapped in Suspense for better performance */}
-        <div className="rounded-2xl bg-card px-6 py-6 md:px-9 md:py-8">
+        {/* Comments section wrapped in Suspense for better performance；id 供顶栏迷你目录「去评论区」跳转 */}
+        <div id="comments" className="scroll-mt-[calc(var(--nav-h)+1rem)] rounded-2xl bg-card px-6 py-6 md:px-9 md:py-8">
           <Suspense fallback={<CommentsSkeleton />}>
             <CommentSection
               targetType={TargetType.Post}

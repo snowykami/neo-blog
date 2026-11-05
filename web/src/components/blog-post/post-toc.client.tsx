@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from 'react'
 import { SidebarCard } from '@/components/blog-sidebar/sidebar-card'
 import { cn } from '@/lib/utils'
 
-// 滚动到标题时预留导航栏高度（CSS 变量 --nav-h）与 1rem 间距
-function getScrollOffset() {
+// 滚动到标题时预留导航栏高度（CSS 变量 --nav-h）与 1rem 间距；顶栏灵动岛的阅读进度与迷你目录也用它
+export function getScrollOffset() {
   const style = getComputedStyle(document.documentElement)
   const rem = Number.parseFloat(style.fontSize) || 16
   const navH = Number.parseFloat(style.getPropertyValue('--nav-h')) || 4.5

@@ -1,9 +1,11 @@
 'use client'
 
+import { CopyCheckIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
+import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import copyToClipboard from '@/lib/clipboard'
 import hljs from '@/lib/highlight'
 import { languageMap } from '@/utils/common/post-render'
@@ -104,7 +106,7 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
           const text = pre.textContent
           const ok = await copyToClipboard(text)
           if (ok) {
-            toast.success(t('copy_success'))
+            notifySuccess(t('copy_success'), { key: 'copy', icon: <CopyCheckIcon aria-hidden className="text-emerald-400" />, countable: true })
             btn.textContent = t('copied')
             setTimeout(() => (btn.textContent = t('copy')), 1200)
           }

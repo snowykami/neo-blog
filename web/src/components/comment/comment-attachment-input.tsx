@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
 import { AssetPicker } from '@/components/common/asset-picker'
 import { SafeImage } from '@/components/common/safe-image'
+import { endIslandUpload, reportIslandUpload } from '@/components/layout/topbar-island/upload-island'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/auth-context'
 import { useCompressLevel } from '@/hooks/use-image-compress'
@@ -63,7 +64,9 @@ export function useCommentAttachments(initial: CommentAttachment[] = []) {
     try {
       // 先压缩以取得实际上传文件的名字与类型（PNG 可能转为 WebP），uploadFile 会复用同一结果
       const prepared = await compressImage(item.file, compressLevel)
-      const res = await uploadFile({ file: item.file, compressLevel, signal: item.controller.signal })
+      // 顶栏灵动岛同步显示上传进度（后台关闭时不显示）
+      reportIslandUpload(item.key, 0, t('attachment_uploading'))
+      const res = await uploadFile({ file: item.file, compressLevel, signal: item.controller.signal, onProgress: percent => reportIslandUpload(item.key, percent, t('attachment_uploading')) })
       const attachment: CommentAttachment = { id: res.data.id, url: getFileUri(res.data.id), name: prepared.name, mimeType: prepared.type, size: prepared.size }
       setItems(prev => prev.map(other => (other.key === item.key ? { ...other, attachment, controller: undefined } : other)))
     }
@@ -72,6 +75,9 @@ export function useCommentAttachments(initial: CommentAttachment[] = []) {
         return
       toast.error(`${t('attachment_upload_failed', { name: item.file.name })}: ${errorMessageT(error)}`)
       setItems(prev => prev.filter(other => other.key !== item.key))
+    }
+    finally {
+      endIslandUpload(item.key)
     }
   }
 

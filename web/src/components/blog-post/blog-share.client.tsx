@@ -1,12 +1,13 @@
 'use client'
 
 import type { Post } from '@/models/post'
-import { DownloadIcon, LinkIcon } from 'lucide-react'
+import { CopyCheckIcon, DownloadIcon, LinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { FaQq, FaTelegram, FaWeibo, FaWeixin, FaXTwitter } from 'react-icons/fa6'
 import { toast } from 'sonner'
+import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -78,7 +79,7 @@ export function BlogShare({ post }: { post: Post }) {
 
   const copyLink = (message = t('copy_success')) => {
     copyToClipboard(shareUrl)
-      .then(ok => (ok ? toast.success(message) : toast.error(t('copy_failed'))))
+      .then(ok => (ok ? notifySuccess(message, { key: 'copy', icon: <CopyCheckIcon aria-hidden className="text-emerald-400" />, countable: true }) : toast.error(t('copy_failed'))))
       .catch(() => toast.error(t('copy_failed')))
   }
 

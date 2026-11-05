@@ -30,6 +30,7 @@ import {
 import { ThemeModeToggle } from '@/components/common/theme-toggle'
 import { AvatarWithDropdownMenu } from '@/components/layout/nav/avatar-with-dropdown-menu'
 import { NavSearch } from '@/components/layout/nav/nav-search'
+import { TopbarIsland } from '@/components/layout/topbar-island/topbar-island'
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -39,8 +40,6 @@ import {
   NavigationMenuTrigger,
 } from '@/components/ui/navigation-menu'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { useNav } from '@/contexts/nav-context'
-import { useSiteInfo } from '@/contexts/site-info-context'
 import { cn } from '@/lib/utils'
 import { getPageUrl, mainPath } from '@/utils/common/route'
 
@@ -191,11 +190,8 @@ function useScrolled(threshold = 8) {
 }
 
 export default function Navbar() {
-  const { siteInfo } = useSiteInfo()
-  const { navTitle, navIcon } = useNav()
   const menuItems = useNavMenuItems()
   const scrolled = useScrolled()
-  const navTitleKey = typeof navTitle === 'string' ? navTitle || siteInfo.metadata.name : 'custom-nav-title'
   return (
     <nav
       className={cn(
@@ -203,29 +199,8 @@ export default function Navbar() {
         scrolled && 'shadow-sm',
       )}
     >
-      {/* 左侧：站名，min-w-0 保证在 flex 收缩时文本能 truncate */}
-      <div className="flex min-w-0 flex-1 items-center">
-        <Link
-          href="/"
-          className="flex h-11 min-w-0 items-center gap-2 rounded-lg px-2 text-lg font-bold max-[359px]:text-base sm:px-3 text-primary transition-[background-color,transform] duration-150 hover:bg-primary/10 active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {/* 窄屏省略图标，把空间留给站名 */}
-          <span className="nav-fade hidden shrink-0 items-center justify-center sm:flex">
-            {navIcon}
-          </span>
-          {/* 移动端不限制宽度，尽量完整显示站名；空间仍不足时再省略 */}
-          <span key={navTitleKey} className="nav-fade truncate md:max-w-[28ch] lg:max-w-[36ch]">
-            {navTitle || siteInfo.metadata.name}
-          </span>
-        </Link>
-        {/* 标题变化时（如音乐播放器替换为歌词）重新挂载并淡入，仅透明度过渡 */}
-        <style>
-          {`
-          @keyframes navFade { from { opacity: 0; } to { opacity: 1; } }
-          @media (prefers-reduced-motion: no-preference) { .nav-fade { animation: navFade 300ms ease-out; } }
-          `}
-        </style>
-      </div>
+      {/* 左侧：站名与灵动岛（按情境显示音乐、阅读进度、提示等），min-w-0 保证在 flex 收缩时文本能 truncate */}
+      <TopbarIsland />
 
       {/* 中间：主菜单，仅 md 及以上显示 */}
       <div className="hidden shrink-0 items-center md:flex">
