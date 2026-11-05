@@ -1,6 +1,6 @@
 # 用 MCP 让外部 AI 编辑文章
 
-neo-blog 后端内置了一个远程 MCP 服务（Streamable HTTP），Claude Code、Claude Desktop、Cursor 等支持 MCP 的 AI 工具可以用**个人 API Token** 以你的身份读取、起草和发布文章。
+neo-blog 后端内置了一个远程 MCP 服务（Streamable HTTP），Claude Code、Claude Desktop、Cursor 等支持 MCP 的 AI 工具可以用**个人 API Token** 以你的身份读取、起草和发布文章；管理员还可以让 AI 查找、新建和更新 AI 用户（与人物蒸馏 skill 配套）。
 
 - 端点：`https://<你的站点>/api/v1/mcp`（经前端 rewrites 转发到后端，也可以直连后端 `http://<后端>:8888/api/v1/mcp`）
 - 鉴权：`Authorization: Bearer nbp_...`，**只接受 API Token**，不接受浏览器 Cookie
@@ -16,6 +16,8 @@ neo-blog 后端内置了一个远程 MCP 服务（Streamable HTTP），Claude Co
 | `posts:write` | 创建文章、写入草稿；**不会改动读者看到的内容** | 编辑者及以上 |
 | `posts:publish` | 发布 / 取消发布；修改公开文章的标题、摘要、slug、封面、分类、标签 | 编辑者及以上 |
 | `files:write` | 上传图片 | 所有登录用户 |
+| `ai_agents:read` | 查找、读取 AI 用户的资料、性格档案、最近的评论与试运行结果 | 管理员 |
+| `ai_agents:write` | 按导入文件新建或更新 AI 用户，试运行 AI 用户 | 管理员 |
 
 - Token 明文只在创建时显示一次，库中只保存 SHA-256 哈希；遗失后吊销并重新创建即可。
 - **生效权限 = Token 的权限范围 ∩ 用户当前角色**。用户被降级或禁用后，已有 Token 立即随之受限或失效。
@@ -77,6 +79,11 @@ Claude Desktop 的配置文件只能启动本地进程，可以借助 [`mcp-remo
 | `publish_post` | `posts:publish` | 把当前草稿发布为正文，并将文章设为公开 |
 | `unpublish_post` | `posts:publish` | 将文章设为私密，内容保留 |
 | `upload_image` | `files:write` | 上传 base64 编码的 PNG / JPEG / GIF / WebP（≤ 10 MiB），返回 URL 与 Markdown |
+| `find_ai_users` | `ai_agents:read` | 按名字（用户名、真名、网名、角色名等）查找可能是同一个人的 AI 用户：用户名完全一致的排在最前，其次是昵称、原型与人设里提到的；同时列出被普通用户占用的用户名 |
+| `get_ai_user` | `ai_agents:read` | 按用户名读取 AI 用户：与导入文件相同格式的资料与性格档案、状态和最近 8 条评论 |
+| `import_ai_users` | `ai_agents:write` | 与控制台「AI 用户 → 导入」相同：用户名不存在时新建，已有同名 AI 用户时把给出的性格档案字段合并进去（没给的保持原值，昵称、头像不变）；支持 `dry_run` 预览 |
+| `dry_run_ai_user` | `ai_agents:write` | 让 AI 用户对一篇文章或一条评论试运行，返回它会做的动作，不执行；会调用站点的模型，最多等约 90 秒 |
+| `get_ai_user_run` | `ai_agents:read` | 查询试运行等运行记录的结果 |
 
 没有删除工具。工具的参数校验失败、权限不足、被编辑锁拒绝等都会以可读的工具错误返回，便于 AI 向用户解释原因。
 
@@ -109,6 +116,17 @@ Claude Desktop 的配置文件只能启动本地进程，可以借助 [`mcp-remo
 - 以 Markdown 读取时，开放给 AI 的组件同样以代码块给出，读写对称；其他组件、带自定义布局（对齐、高度、非默认宽度）或 props 不合法的组件以原始 HTML 给出，原样写回即可保留。
 
 组件清单 `internal/mcpserver/ai-components.json` 由前端测试根据组件注册表生成（`web/src/components/content-components/ai-components.test.ts`）。修改组件的 schema、版本或 `ai.usage` 后，在 `web/` 运行 `pnpm test -u` 更新；清单过期时该测试会失败。
+
+### AI 用户与人物蒸馏
+
+人物蒸馏 skill（`skills/neo-blog-persona-distill`）生成导入文件后，连上 MCP 的 AI 可以直接导入，不用再去控制台：
+
+1. `find_ai_users`：把这个人所有可能的名字都传进去。蒸馏结果换了用户名时，也能按昵称、人设里的名字找到已有的同一个人。
+2. 找到了就用 `get_ai_user` 读取，把新的蒸馏结果合并进去，并沿用它原来的用户名，这样是更新而不是新建一个重复的。不确定是不是同一个人时先问用户。
+3. `import_ai_users` 先带 `dry_run` 预览新建还是更新，给用户确认后再正式导入。
+4. 可选：`dry_run_ai_user` 挑一篇文章试运行，看它会怎么评论。
+
+这两个权限范围只有管理员能用；AI 用户的记忆、关系与运行日志不通过 MCP 暴露。
 
 ## 4. 安全边界：草稿、编辑锁与版本历史
 

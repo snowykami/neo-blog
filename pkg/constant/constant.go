@@ -111,10 +111,13 @@ const (
 	ScopePostsWrite   = "posts:write"   // 创建文章、写入草稿；不会改动任何公开可见的内容
 	ScopePostsPublish = "posts:publish" // 发布 / 取消发布，以及修改公开文章的元信息
 	ScopeFilesWrite   = "files:write"   // 上传图片
+
+	ScopeAIAgentsRead  = "ai_agents:read"  // 查找、读取 AI 用户的资料、性格档案与运行记录（仅管理员）
+	ScopeAIAgentsWrite = "ai_agents:write" // 按导入文件新建或更新 AI 用户、试运行（仅管理员）
 )
 
 // APITokenScopes 全部可选的 API Token 权限范围
-var APITokenScopes = []string{ScopePostsRead, ScopePostsWrite, ScopePostsPublish, ScopeFilesWrite}
+var APITokenScopes = []string{ScopePostsRead, ScopePostsWrite, ScopePostsPublish, ScopeFilesWrite, ScopeAIAgentsRead, ScopeAIAgentsWrite}
 
 // AI 用户：由 Agent 驱动、与普通用户同权限的账号（users.is_ai = true）
 const (

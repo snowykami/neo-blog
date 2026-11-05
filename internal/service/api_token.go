@@ -41,13 +41,15 @@ func HashAPIToken(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// RoleAllowsScope 角色能否使用某个权限范围：读取与上传图片对所有登录用户开放，写入与发布文章需要编辑及以上角色
+// RoleAllowsScope 角色能否使用某个权限范围：读取与上传图片对所有登录用户开放，写入与发布文章需要编辑及以上角色，管理 AI 用户只有管理员可以
 func RoleAllowsScope(role constant.Role, scope string) bool {
 	switch scope {
 	case constant.ScopePostsRead, constant.ScopeFilesWrite:
 		return true
 	case constant.ScopePostsWrite, constant.ScopePostsPublish:
 		return role == constant.RoleAdmin || role == constant.RoleEditor
+	case constant.ScopeAIAgentsRead, constant.ScopeAIAgentsWrite:
+		return role == constant.RoleAdmin
 	case constant.ScopeCommentsWrite, constant.ScopeLikesWrite, constant.ScopeProfileWrite:
 		// 普通用户在网页上本来就能评论、点赞、改资料；这些范围只授予执行中的 AI 用户运行
 		return true

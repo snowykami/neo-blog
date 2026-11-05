@@ -25,8 +25,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/contexts/auth-context'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import copyToClipboard from '@/lib/clipboard'
-import { API_TOKEN_SCOPES, EDITOR_ONLY_SCOPES } from '@/models/api-token'
-import { isEditor } from '@/utils/common/permission'
+import { ADMIN_ONLY_SCOPES, API_TOKEN_SCOPES, EDITOR_ONLY_SCOPES } from '@/models/api-token'
+import { isAdmin, isEditor } from '@/utils/common/permission'
 
 const NAME_MAX_LENGTH = 64
 const EXPIRY_OPTIONS = ['7', '30', '90', '365', 'never'] as const
@@ -48,6 +48,7 @@ export function CreateAPITokenDialog({ onCreated }: { onCreated: () => void }) {
   const errorMessageT = useErrorMessageT()
   const { user } = useAuth()
   const canWritePosts = Boolean(user && isEditor({ user }))
+  const canManageAIUsers = Boolean(user && isAdmin({ user }))
   const [open, setOpen] = useState(false)
   // 新建 Token 的明文只在本次弹窗中展示，关闭后无法再次查看
   const [createdToken, setCreatedToken] = useState<string | null>(null)
@@ -123,7 +124,10 @@ export function CreateAPITokenDialog({ onCreated }: { onCreated: () => void }) {
                           <FormLabel>{t('scopes')}</FormLabel>
                           <div className="grid gap-3">
                             {API_TOKEN_SCOPES.map((scope) => {
-                              const disabled = EDITOR_ONLY_SCOPES.includes(scope) && !canWritePosts
+                              const requires = ADMIN_ONLY_SCOPES.includes(scope) && !canManageAIUsers
+                                ? 'scope_requires_admin'
+                                : EDITOR_ONLY_SCOPES.includes(scope) && !canWritePosts ? 'scope_requires_editor' : null
+                              const disabled = requires !== null
                               return (
                                 <label key={scope} className="flex items-start gap-3 text-sm">
                                   <Checkbox
@@ -138,7 +142,7 @@ export function CreateAPITokenDialog({ onCreated }: { onCreated: () => void }) {
                                     <code className="font-mono text-xs font-medium">{scope}</code>
                                     <span className="text-muted-foreground">
                                       {t(`scope_${scope.replace(':', '_')}`)}
-                                      {disabled && ` ${t('scope_requires_editor')}`}
+                                      {requires && ` ${t(requires)}`}
                                     </span>
                                   </span>
                                 </label>

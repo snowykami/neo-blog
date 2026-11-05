@@ -58,13 +58,13 @@ func TestHashAPIToken(t *testing.T) {
 	}
 }
 
-// 生效权限 = Token 权限范围 ∩ 用户角色；普通用户不能写入或发布文章
+// 生效权限 = Token 权限范围 ∩ 用户角色；普通用户不能写入或发布文章，只有管理员能管理 AI 用户
 func TestEffectiveScopes(t *testing.T) {
-	all := []string{constant.ScopePostsRead, constant.ScopePostsWrite, constant.ScopePostsPublish, constant.ScopeFilesWrite, constant.ScopePostsRead}
+	all := []string{constant.ScopePostsRead, constant.ScopePostsWrite, constant.ScopePostsPublish, constant.ScopeFilesWrite, constant.ScopePostsRead, constant.ScopeAIAgentsRead, constant.ScopeAIAgentsWrite}
 	cases := map[constant.Role][]string{
 		constant.RoleUser:   {constant.ScopePostsRead, constant.ScopeFilesWrite},
 		constant.RoleEditor: {constant.ScopePostsRead, constant.ScopePostsWrite, constant.ScopePostsPublish, constant.ScopeFilesWrite},
-		constant.RoleAdmin:  {constant.ScopePostsRead, constant.ScopePostsWrite, constant.ScopePostsPublish, constant.ScopeFilesWrite},
+		constant.RoleAdmin:  {constant.ScopePostsRead, constant.ScopePostsWrite, constant.ScopePostsPublish, constant.ScopeFilesWrite, constant.ScopeAIAgentsRead, constant.ScopeAIAgentsWrite},
 		"unknown":           {constant.ScopePostsRead, constant.ScopeFilesWrite},
 	}
 	for role, want := range cases {

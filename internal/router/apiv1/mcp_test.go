@@ -92,7 +92,7 @@ func TestMCPEndpoint(t *testing.T) {
 		}
 	}
 	slices.Sort(names)
-	if got := strings.Join(names, ","); got != "create_post,get_post,get_writing_guide,list_posts,list_taxonomy,publish_post,unpublish_post,update_post,upload_image" {
+	if got := strings.Join(names, ","); got != "create_post,dry_run_ai_user,find_ai_users,get_ai_user,get_ai_user_run,get_post,get_writing_guide,import_ai_users,list_posts,list_taxonomy,publish_post,unpublish_post,update_post,upload_image" {
 		t.Fatalf("tools: %s", got)
 	}
 
@@ -129,4 +129,56 @@ func contentText(result *mcp.CallToolResult) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+// AI 用户的工具经官方客户端调用：结构化结果要通过各自输出 Schema 的校验
+func TestMCPAIUserTools(t *testing.T) {
+	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
+	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
+	if err := repo.InitDatabase(); err != nil {
+		t.Fatalf("init database: %v", err)
+	}
+	admin := &model.User{Username: "admin", Email: "admin@test.local", Role: constant.RoleAdmin}
+	repo.GetDB().Create(admin)
+	token, svcerr := service.NewAPITokenService().Create(context.WithValue(context.Background(), "user_id", admin.ID),
+		&dto.CreateAPITokenReq{Name: "distill", Scopes: []string{constant.ScopeAIAgentsRead, constant.ScopeAIAgentsWrite}})
+	if svcerr != nil {
+		t.Fatalf("create token: %v", svcerr)
+	}
+	ctx := context.Background()
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:             startServer(t),
+		HTTPClient:           &http.Client{Transport: bearerTransport{token.Token}},
+		DisableStandaloneSSE: true,
+		MaxRetries:           -1,
+	}, nil)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer session.Close()
+
+	call := func(name string, args map[string]any) map[string]any {
+		t.Helper()
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+		if err != nil || result.IsError {
+			t.Fatalf("%s: %v %+v", name, err, result)
+		}
+		out, _ := result.StructuredContent.(map[string]any)
+		return out
+	}
+	agent := map[string]any{"username": "furina_fontaine", "nickname": "芙宁娜", "profile": map[string]any{"persona": "我是芙宁娜", "style_samples": []string{"哼哼"}}}
+	if out := call("import_ai_users", map[string]any{"agents": []any{agent}, "dry_run": true}); fmt.Sprint(out["results"]) != "[map[action:create username:furina_fontaine]]" {
+		t.Fatalf("dry run = %v", out)
+	}
+	call("import_ai_users", map[string]any{"agents": []any{agent}})
+	found := call("find_ai_users", map[string]any{"names": []string{"芙宁娜", "admin"}})
+	if matches, _ := found["matches"].([]any); len(matches) != 1 || fmt.Sprint(found["taken_usernames"]) != "[admin]" {
+		t.Fatalf("find = %v", found)
+	}
+	got := call("get_ai_user", map[string]any{"username": "furina_fontaine"})
+	if profile, _ := got["agent"].(map[string]any)["profile"].(map[string]any); profile["persona"] != "我是芙宁娜" {
+		t.Fatalf("get = %v", got)
+	}
 }

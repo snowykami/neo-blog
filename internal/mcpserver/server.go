@@ -1,4 +1,4 @@
-// Package mcpserver 远程 MCP 服务：让外部 AI 工具（Claude Code、Claude Desktop、Cursor 等）通过个人 API Token 读写文章
+// Package mcpserver 远程 MCP 服务：让外部 AI 工具（Claude Code、Claude Desktop、Cursor 等）通过个人 API Token 读写文章，管理员还可以管理 AI 用户
 // 与 controller 同层：工具直接调用 service，复用其中的权限判断；鉴权由 middleware.UseAPIToken 完成
 package mcpserver
 
@@ -33,7 +33,9 @@ How posts work:
 - Metadata (title, description, slug, cover, category, labels) has no draft. On a public post those changes are visible immediately, so they need the posts:publish scope.
 - There is no delete tool. Every write is recorded in the post's version history and can be rolled back from the console.
 
-Typical flow: get_writing_guide -> list_posts or get_post -> update_post (draft) -> show the user the preview_url -> publish_post when the user agrees.`
+Typical flow: get_writing_guide -> list_posts or get_post -> update_post (draft) -> show the user the preview_url -> publish_post when the user agrees.
+
+AI users (admin only, scopes ai_agents:read and ai_agents:write): accounts whose comments and likes are driven by the site's AI model, each with a personality profile. They pair with the neo-blog-persona-distill skill, which "distills" a real person or a fictional character into an import file. Before importing, call find_ai_users with every name the person is known by: if an AI user for the same person already exists (even under another username), read it with get_ai_user, merge the new findings into it, and import under its existing username so it is updated instead of duplicated. Ask the user when a match is uncertain. Then import_ai_users with dry_run, show the user the result, import for real, and optionally dry_run_ai_user on a post to check how it would comment.`
 
 // NewHandler 创建 MCP 的 Streamable HTTP 处理器
 // 采用无状态 + JSON 响应：每个请求独立处理，便于经过 Next.js rewrites 等反向代理转发
@@ -55,6 +57,7 @@ func newServer() *mcp.Server {
 	registerGuideTools(server)
 	registerPostTools(server)
 	registerFileTools(server)
+	registerAIAgentTools(server)
 	return server
 }
 
@@ -71,17 +74,26 @@ func requireScope(ctx context.Context, scope string) error {
 
 // errorHints 常见业务错误码的可读说明，便于 AI 理解原因并告知用户
 var errorHints = map[string]string{
-	"login_required":          "authentication required",
-	"permission_denied":       "permission denied: only the author of a post or an admin can do this",
-	"target_not_found":        "not found",
-	"edit_session_in_use":     "the post is open in the console editor, so writes are locked to avoid overwriting a person's work. Ask the user to close the editor (the lock is released about 3 minutes after the editor is closed), then try again",
-	"edit_session_taken_over": "someone opened the post in the console editor while you were saving; nothing was written. Ask the user before trying again",
-	"slug_already_exists":     "another post already uses this slug",
-	"slug_cannot_be_numeric":  "slug cannot be purely numeric",
-	"category_not_found":      "category_id does not exist; call list_taxonomy to see valid ids",
-	"failed_to_get_target":    "server error while reading data",
-	"failed_to_update_target": "server error while saving",
-	"failed_to_create_target": "server error while creating",
+	"login_required":           "authentication required",
+	"permission_denied":        "permission denied: only the author of a post or an admin can do this",
+	"target_not_found":         "not found",
+	"edit_session_in_use":      "the post is open in the console editor, so writes are locked to avoid overwriting a person's work. Ask the user to close the editor (the lock is released about 3 minutes after the editor is closed), then try again",
+	"edit_session_taken_over":  "someone opened the post in the console editor while you were saving; nothing was written. Ask the user before trying again",
+	"slug_already_exists":      "another post already uses this slug",
+	"slug_cannot_be_numeric":   "slug cannot be purely numeric",
+	"category_not_found":       "category_id does not exist; call list_taxonomy to see valid ids",
+	"failed_to_get_target":     "server error while reading data",
+	"failed_to_update_target":  "server error while saving",
+	"failed_to_create_target":  "server error while creating",
+	"ai_agent_username_taken":  "this username belongs to a regular (non-AI) user; pick another username",
+	"invalid_ai_agent_profile": "the profile has an invalid field type or value; run skills/neo-blog-persona-distill/scripts/validate_agent_file.py on the file",
+	"invalid_ai_agent_tier":    "tier must be ambient or expert",
+	"invalid_timezone":         "activity.timezone must be an IANA time zone such as Asia/Shanghai",
+	"invalid_active_hours":     "activity.active_hours must look like 9-12,20-24",
+	"invalid_preferred_color":  "preferred_color is not one of the site's color schemes",
+	"invalid_ai_agent_count":   "pass 1 to 200 AI users",
+	"invalid_username":         "username must be 1-20 characters without spaces, / or @",
+	"invalid_nickname":         "nickname must be at most 20 characters",
 }
 
 // serviceError 将 service 层错误转为工具错误（以 isError 结果返回给模型，而不是协议错误）。
