@@ -362,7 +362,7 @@ func (s *AIAgentService) OnPostPublished(postID uint, now time.Time) {
 	notifyAgentRuns()
 }
 
-// OnCommentCreated 有人回复了 AI 用户的评论：决定这个 AI 是否、何时回应
+// OnCommentCreated 有人回复了 AI 用户的评论：未超出上限时安排这个 AI 何时看到这条回复
 func (s *AIAgentService) OnCommentCreated(commentID uint, now time.Time) {
 	cfg := tools.GetAIAgentConfig()
 	if !schedulerReady(cfg) {
@@ -405,7 +405,6 @@ func (s *AIAgentService) OnCommentCreated(commentID uint, now time.Time) {
 		skip("reply_depth")
 		return
 	}
-	probability := profile.Behavior.ReplyProbability
 	if comment.User.IsAI {
 		if !profile.AIInteraction.Enabled {
 			skip("ai_interaction_disabled")
@@ -419,12 +418,8 @@ func (s *AIAgentService) OnCommentCreated(commentID uint, now time.Time) {
 			skip("pair_exchange")
 			return
 		}
-		probability = profile.AIInteraction.BaseProbability * math.Pow(0.5, float64(depth))
 	}
-	if rand.Float64() >= probability {
-		skip("probability")
-		return
-	}
+	// 回不回由 AI 看过回复后自己决定：性格中的回应概率只作为倾向写进提示词（见 agentrunner 的 taskPrompt），程序只保留上面的硬性上限
 	if err := repo.AIAgent.CreateRun(&run); err != nil {
 		logrus.Warnf("create comment replied run: %v", err)
 		return

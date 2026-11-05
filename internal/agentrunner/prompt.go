@@ -2,6 +2,7 @@ package agentrunner
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -52,6 +53,28 @@ func tendency(v float64) string {
 		return "一般"
 	default:
 		return "很低"
+	}
+}
+
+// replyWillingness 被回复时回应的倾向：性格中的回应概率；对方是 AI（aiDepth > 0）时用回应 AI 的基础概率，按 0.5^深度 递减
+func replyWillingness(p dto.AIAgentProfile, aiDepth int) float64 {
+	if aiDepth > 0 {
+		return p.AIInteraction.BaseProbability * math.Pow(0.5, float64(aiDepth))
+	}
+	return p.Behavior.ReplyProbability
+}
+
+// replyHabit 把回应倾向写成一句性格描述，回不回由模型自己决定
+func replyHabit(v float64) string {
+	switch {
+	case v >= 0.8:
+		return "被人回复时你基本都会接话"
+	case v >= 0.5:
+		return "被人回复时你多半会接话"
+	case v >= 0.25:
+		return "被人回复时你有时接话，常常只点个赞或者不回"
+	default:
+		return "被人回复时你很少接话，多半看过就算了"
 	}
 }
 
@@ -192,6 +215,10 @@ func taskPrompt(run *dto.AgentLeaseRun) string {
 	case "comment.replied":
 		b.WriteString("触发：有人回复了你的评论。你可以回复对方、给对方的评论点赞，或者不回应（不必每次都回，聊完了就停）。\n")
 		if ev := run.Event; ev != nil && ev.Comment != nil {
+			fmt.Fprintf(&b, "%s，这次回不回由你自己决定；对方在回答你的问题或者问你问题时，一般会接一句。\n", replyHabit(replyWillingness(run.Agent.Profile, ev.AIDepth)))
+			if ev.AIDepth > 0 {
+				fmt.Fprintf(&b, "这串回复已经连着来回了 %d 条，没有新东西就不用再接了。\n", ev.AIDepth)
+			}
 			fmt.Fprintf(&b, "对方这条 %d 字，要回的话长度和对方差不多或更短。\n", utf8.RuneCountInString(strings.TrimSpace(ev.Comment.Content)))
 		}
 	case "post.published":

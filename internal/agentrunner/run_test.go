@@ -72,6 +72,17 @@ func TestPrompts(t *testing.T) {
 	if task := taskPrompt(run); !strings.Contains(task, "对方这条 12 字") {
 		t.Fatalf("reply length hint = %s", task)
 	}
+	// 回不回由模型决定：回应概率写成性格倾向；对方是 AI 时按深度递减，并提示已经来回了几条
+	run.Agent.Profile.Behavior.ReplyProbability = 0.8
+	run.Agent.Profile.AIInteraction.BaseProbability = 0.5
+	if task := taskPrompt(run); !strings.Contains(task, "被人回复时你基本都会接话，这次回不回由你自己决定") || strings.Contains(task, "连着来回") {
+		t.Fatalf("reply habit (human) = %s", task)
+	}
+	run.Event.AIDepth = 2
+	if task := taskPrompt(run); !strings.Contains(task, "被人回复时你很少接话") || !strings.Contains(task, "已经连着来回了 2 条") {
+		t.Fatalf("reply habit (ai) = %s", task)
+	}
+	run.Event.AIDepth = 0
 	if sys := systemPrompt(dto.AgentLeaseSite{Name: "雪"}); !strings.Contains(sys, "你就是这个人") || !strings.Contains(sys, "三段式") || !strings.Contains(sys, "被直接问到是不是 AI 时不否认") {
 		t.Fatalf("system = %s", sys)
 	}

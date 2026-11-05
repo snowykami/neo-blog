@@ -176,6 +176,34 @@ func TestAgentGuard(t *testing.T) {
 	_ = author
 }
 
+// 被回复时不在程序里掷骰子：回应概率为 0 也照样安排运行，回不回由 AI 看过回复后自己决定
+func TestAgentReplyDecidedByModel(t *testing.T) {
+	admin, author, ai1, _, postID := setupAgentTest(t)
+	svc := NewAIAgentService()
+	profile := ai1.Profile
+	profile.Behavior.ReplyProbability = 0
+	profile.AIInteraction.BaseProbability = 0
+	if _, svcerr := svc.Update(admin, &dto.UpdateAIAgentReq{ID: ai1.ID, Profile: &profile}); svcerr != nil {
+		t.Fatalf("update profile: %v", svcerr)
+	}
+	human, svcerr := createComment(author, postID, 0, false)
+	if svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	ctx, _ := leaseCtx(t, ai1.ID, constant.AgentRunKindBrowse)
+	aiComment, svcerr := svc.AgentCreateComment(ctx, "", 0, human, "这个坑我也踩过")
+	if svcerr != nil {
+		t.Fatalf("ai comment: %v", svcerr)
+	}
+	if _, svcerr := createComment(author, postID, aiComment, false); svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	runs, _, _ := repo.AIAgent.ListRuns(&dto.ListAgentRunsReq{AgentID: ai1.ID, Trigger: constant.AgentTriggerCommentReplied, PaginationParams: dto.PaginationParams{Page: 1, Size: 10}})
+	if len(runs) != 1 || runs[0].Status != constant.AgentRunStatusQueued {
+		t.Fatalf("runs = %+v", runs)
+	}
+}
+
 // AI 互动深度：深度达到上限后不能再回复；同一对 AI 往返次数受限
 func TestAgentChainDepth(t *testing.T) {
 	_, author, ai1, ai2, postID := setupAgentTest(t)
