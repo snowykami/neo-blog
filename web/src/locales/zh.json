@@ -1136,8 +1136,6 @@
       "island_music_beat_desc": "胶囊右侧显示律动条；能分析出节拍时随拍跳动，胶囊底色也随拍泛起封面主色（只变颜色，大小不变）",
       "island_music_chorus": "副歌光圈",
       "island_music_chorus_desc": "唱到网易云标出的副歌段时，胶囊描边泛起封面主色",
-      "island_music_moments": "前奏导语与尾奏热评",
-      "island_music_moments_desc": "歌词有标注时，前奏显示导语、尾奏显示热评（读者在播放器里关闭「评论与旁白」后不显示）",
       "island_reading": "文章阅读进度",
       "island_reading_desc": "阅读文章时显示进度环、当前章节与剩余时间，点按展开迷你目录",
       "island_reading_finish": "读完提示",

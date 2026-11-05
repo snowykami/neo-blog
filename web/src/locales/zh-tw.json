@@ -1136,8 +1136,6 @@
       "island_music_beat_desc": "膠囊右側顯示律動條；能分析出節拍時隨拍跳動，膠囊底色也隨拍泛起封面主色（只變顏色，大小不變）",
       "island_music_chorus": "副歌光圈",
       "island_music_chorus_desc": "唱到網易雲標出的副歌段時，膠囊描邊泛起封面主色",
-      "island_music_moments": "前奏導語與尾奏熱評",
-      "island_music_moments_desc": "歌詞有標註時，前奏顯示導語、尾奏顯示熱評（讀者在播放器裡關閉「評論與旁白」後不顯示）",
       "island_reading": "文章閱讀進度",
       "island_reading_desc": "閱讀文章時顯示進度環、目前章節與剩餘時間，點按展開迷你目錄",
       "island_reading_finish": "讀完提示",

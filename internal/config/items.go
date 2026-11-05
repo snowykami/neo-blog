@@ -112,7 +112,6 @@ var sections = []*Section{
 		{Key: "island_music_paused", Type: TypeBool, Label: "island_music_paused", Description: "island_music_paused_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.music_paused")},
 		{Key: "island_music_beat", Type: TypeBool, Label: "island_music_beat", Description: "island_music_beat_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.music_beat")},
 		{Key: "island_music_chorus", Type: TypeBool, Label: "island_music_chorus", Description: "island_music_chorus_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.music_chorus")},
-		{Key: "island_music_moments", Type: TypeBool, Label: "island_music_moments", Description: "island_music_moments_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.music_moments")},
 		{Key: "island_reading", Type: TypeBool, Label: "island_reading", Description: "island_reading_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.reading")},
 		{Key: "island_reading_finish", Type: TypeBool, Label: "island_reading_finish", Description: "island_reading_finish_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.reading_finish")},
 		{Key: "island_feedback", Type: TypeBool, Label: "island_feedback", Description: "island_feedback_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.feedback")},

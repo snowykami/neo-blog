@@ -1136,8 +1136,6 @@
       "island_music_beat_desc": "カプセルの右側にレベルバーを表示します。拍を解析できた曲では拍に合わせて跳ね、カプセルの背景もジャケットのメインカラーで光ります（色だけが変わり、大きさは変わりません）",
       "island_music_chorus": "サビの光彩",
       "island_music_chorus_desc": "NetEase Cloud Music が示すサビの区間では、カプセルの縁がジャケットのメインカラーで光ります",
-      "island_music_moments": "イントロの導入文とアウトロの人気コメント",
-      "island_music_moments_desc": "歌詞に注釈がある曲では、イントロで導入文、アウトロで人気コメントを表示します（読者がプレーヤーで「コメントとナレーション」をオフにすると表示しません）",
       "island_reading": "記事の読書進捗",
       "island_reading_desc": "記事を読んでいる間、進捗リング、現在の章、残り時間を表示します。タップでミニ目次を開きます",
       "island_reading_finish": "読了の案内",

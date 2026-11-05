@@ -1136,8 +1136,6 @@
       "island_music_beat_desc": "캡슐 오른쪽에 레벨 바를 표시합니다. 박자를 분석할 수 있으면 박자에 맞춰 튀고 캡슐 배경도 커버의 대표 색으로 빛납니다(색만 바뀌고 크기는 그대로)",
       "island_music_chorus": "후렴 광채",
       "island_music_chorus_desc": "NetEase Cloud Music이 표시한 후렴 구간에서 캡슐 테두리가 커버의 대표 색으로 빛납니다",
-      "island_music_moments": "전주 소개와 후주 인기 댓글",
-      "island_music_moments_desc": "가사에 주석이 있으면 전주에 소개 문구, 후주에 인기 댓글을 표시합니다(독자가 플레이어에서 '댓글과 내레이션'을 끄면 표시하지 않음)",
       "island_reading": "글 읽기 진행률",
       "island_reading_desc": "글을 읽는 동안 진행률 링, 현재 섹션, 남은 시간을 표시합니다. 탭하면 미니 목차가 열립니다",
       "island_reading_finish": "다 읽음 안내",

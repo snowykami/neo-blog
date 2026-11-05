@@ -34,7 +34,6 @@ export interface IslandSettings {
   musicPaused: boolean
   musicBeat: boolean
   musicChorus: boolean
-  musicMoments: boolean
   reading: boolean
   readingFinish: boolean
   feedback: boolean
@@ -141,7 +140,6 @@ export const fallbackSiteInfo: SiteInfo = {
     musicPaused: true,
     musicBeat: true,
     musicChorus: true,
-    musicMoments: true,
     reading: true,
     readingFinish: true,
     feedback: true,

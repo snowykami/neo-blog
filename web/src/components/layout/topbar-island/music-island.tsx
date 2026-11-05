@@ -21,7 +21,6 @@ import { useSongAccent } from '@/components/music-page/use-cover-accent'
 import { useCurrentLyric, useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useSongChorus } from '@/contexts/song-chorus'
 import { pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
-import { lyricMomentAt } from '@/lib/lyrics/moments'
 import { backgroundLevel, rhythmContext } from '@/lib/lyrics/rhythm/effects'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 
@@ -36,7 +35,6 @@ const PANEL_STYLE = { '--primary': 'oklch(0.97 0 0)', '--primary-foreground': 'o
 // 不需要订阅播放进度时的占位
 const noopSubscribe = () => () => {}
 const falseSnapshot = () => false
-const nullSnapshot = () => null
 
 function trackTitle(track: MusicTrack) {
   return [track.name, track.artists.join(' / ')].filter(Boolean).join(' - ')
@@ -44,7 +42,7 @@ function trackTitle(track: MusicTrack) {
 
 /**
  * 音乐活动：播放时胶囊里是模糊封面底 + 旋转封面 + 歌词引擎的单行条（逐字擦除、强调特效、间奏圆点、副歌爆发都与播放器一致），
- * 右侧律动条跟随节拍；副歌段胶囊描边泛起封面主色；前奏与尾奏显示导语和热评；切歌时短暂显示歌名；
+ * 右侧律动条跟随节拍；副歌段胶囊描边泛起封面主色；切歌时短暂显示歌名（不显示导语、热评等句子，岛上只放歌词）；
  * 暂停后（本页播放过时）缩成封面 + 播放键，点按继续；点按展开迷你播放器。播放器页本身就是完整播放器，不显示
  */
 export function MusicIsland({ settings }: { settings: IslandSettings }) {
@@ -68,7 +66,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
         feature: 'music',
         priority: PLAYING_PRIORITY,
         label: t('music_playing', { title }),
-        compact: <MusicCompact beat={settings.musicBeat} moments={settings.musicMoments} />,
+        compact: <MusicCompact beat={settings.musicBeat} />,
         minimal: <AlbumNavIcon />,
         panel: <MusicPanel />,
         glow: inChorus ? (accent ?? 'rgb(255 255 255)') : null,
@@ -90,7 +88,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       minimal: <AlbumNavIcon />,
       onPress: play,
     }
-  }, [accent, currentTrack, hasPlayed, inChorus, isPlaying, onPlayerPage, play, settings.musicBeat, settings.musicMoments, t, title])
+  }, [accent, currentTrack, hasPlayed, inChorus, isPlaying, onPlayerPage, play, settings.musicBeat, t, title])
   useIslandActivity(activity)
 
   // 开始播放或切歌时短暂显示歌名（同一首只提示一次）
@@ -126,10 +124,9 @@ function useInChorus(id: number | null) {
 }
 
 /** 胶囊里的播放内容：背景铺满整个胶囊（定位祖先为胶囊内容层） */
-function MusicCompact({ beat, moments }: { beat: boolean, moments: boolean }) {
+function MusicCompact({ beat }: { beat: boolean }) {
   const { currentTrack, lyricLines, lyrics } = useMusic()
   const accent = useSongAccent(currentTrack?.albumPic)
-  const moment = useIntroOutro(moments)
   const hasLyric = lyricLines.length > 0 || lyrics.instrumental
   // 随拍染色层：律动条逐帧写入不透明度
   const tintRef = useRef<HTMLSpanElement>(null)
@@ -141,32 +138,13 @@ function MusicCompact({ beat, moments }: { beat: boolean, moments: boolean }) {
       {beat && <span ref={tintRef} aria-hidden className="pointer-events-none absolute inset-0 bg-[color:var(--lyric-accent,#fff)] opacity-0" />}
       <span className="relative flex shrink-0 items-center"><AlbumNavIcon /></span>
       <span className="relative flex h-9 w-[36ch] max-w-full min-w-0 shrink items-center">
-        {moment
-          ? <MarqueeText className={moment.italic ? 'italic' : undefined}>{moment.text}</MarqueeText>
-          : hasLyric
-            ? <MusicLyricStage strip className="-mx-2.5 h-full w-full" />
-            : <MarqueeText>{currentTrack ? trackTitle(currentTrack) : ''}</MarqueeText>}
+        {hasLyric
+          ? <MusicLyricStage strip className="-mx-2.5 h-full w-full" />
+          : <MarqueeText>{currentTrack ? trackTitle(currentTrack) : ''}</MarqueeText>}
       </span>
       {beat && <BeatBars tintRef={tintRef} />}
     </span>
   )
-}
-
-/** 前奏导语与尾奏热评（歌词标注的「时刻」）；关键节点的旁白与歌词同时出现，单行放不下，不在胶囊里显示 */
-function useIntroOutro(enabled: boolean): { text: string, italic: boolean } | null {
-  const { lyrics, duration, showLyricMoments } = useMusic()
-  const clock = useMusicClockStore()
-  const active = enabled && showLyricMoments && !!(lyrics.intro || lyrics.outro)
-  const getMoment = useCallback(() => {
-    const moment = lyricMomentAt(lyrics, clock.getSnapshot() * 1000, duration == null ? null : duration * 1000)
-    return moment === 'intro' || moment === 'outro' ? moment : null
-  }, [clock, duration, lyrics])
-  const moment = useSyncExternalStore(active ? clock.subscribe : noopSubscribe, active ? getMoment : nullSnapshot, nullSnapshot)
-  if (moment === 'intro' && lyrics.intro)
-    return { text: lyrics.intro, italic: true }
-  if (moment === 'outro' && lyrics.outro)
-    return { text: `“${lyrics.outro.content}”`, italic: false }
-  return null
 }
 
 // 律动条的相对高度与相位：三根错开一点，避免整齐划一

@@ -1136,8 +1136,6 @@
       "island_music_beat_desc": "Shows level bars on the right of the capsule. When the beat can be detected they bounce to it and the capsule background glows in the cover's main color (color only, the size stays the same)",
       "island_music_chorus": "Chorus glow",
       "island_music_chorus_desc": "During the chorus marked by NetEase Cloud Music, the capsule outline glows in the cover's main color",
-      "island_music_moments": "Intro notes and outro comments",
-      "island_music_moments_desc": "For annotated lyrics, shows the intro note during the intro and a top comment during the outro (hidden when the reader turns off \"Comments & narration\" in the player)",
       "island_reading": "Reading progress",
       "island_reading_desc": "While reading a post, shows a progress ring, the current section and the time left; tap for a mini table of contents",
       "island_reading_finish": "Finished reading",
