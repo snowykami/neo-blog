@@ -160,6 +160,10 @@ var sections = []*Section{
 		{Key: "visit_log_retention_days", Type: TypeInt, Label: "visit_log_retention_days", Description: "visit_log_retention_days_desc", Min: num(1), Max: num(3650), Default: 90},
 		{Key: "visit_fingerprint_attribution", Type: TypeBool, Label: "visit_fingerprint_attribution", Description: "visit_fingerprint_attribution_desc", Default: true},
 	}},
+	{Tab: "account", Key: "error_report", Title: "section_error_report", Description: "section_error_report_desc", Items: []*Item{
+		{Key: "error_report_enabled", Type: TypeBool, Label: "error_report_enabled", Description: "error_report_enabled_desc", Default: true},
+		{Key: "error_report_retention_days", Type: TypeInt, Label: "error_report_retention_days", Description: "error_report_retention_days_desc", Min: num(1), Max: num(365), Default: 30},
+	}},
 
 	{Tab: "ai", Key: "ai", Title: "section_ai", Description: "section_ai_desc", Items: []*Item{
 		{Key: "ai_api_base_url", Type: TypeURL, Label: "ai_api_base_url", Description: "ai_api_base_url_desc", Placeholder: "https://api.openai.com/v1", Default: ""},

@@ -46,5 +46,13 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.GET("/visits/insights", adminController.GetVisitInsights)
 		consoleGroup.GET("/visits/:id", adminController.GetVisit)
 		consoleGroup.GET("/visitors/:id", adminController.GetVisitor)
+		// 错误报告：按问题聚合，可标记已解决 / 忽略
+		consoleGroup.GET("/errors", adminController.ListErrorIssues)
+		consoleGroup.GET("/errors/stats", adminController.GetErrorStats)
+		consoleGroup.GET("/errors/:id", adminController.GetErrorIssue)
+		consoleGroup.GET("/errors/:id/events", adminController.ListErrorEvents)
+		consoleGroup.PUT("/errors/:id/status", adminController.UpdateErrorIssueStatus)
+		consoleGroup.DELETE("/errors/:id", adminController.DeleteErrorIssue)
+		consoleGroup.GET("/error-events/:id", adminController.GetErrorEvent)
 	}
 }

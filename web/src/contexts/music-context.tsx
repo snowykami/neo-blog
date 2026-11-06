@@ -18,6 +18,7 @@ import { applyEmphasis } from '@/lib/lyrics/emphasis'
 import { toSingleLineLyrics } from '@/lib/lyrics/from-platform'
 import { LYRIC_SOURCE_KINDS } from '@/lib/lyrics/resolve'
 import { requestRhythm } from '@/lib/lyrics/rhythm/source'
+import { registerTelemetryContext } from '@/lib/telemetry/context'
 import { getCurrentLyricIndex, LYRIC_PLACEHOLDERS } from '@/utils/music-lyric'
 import { requestLyricAnnotations, useLyricAnnotations, useLyricAnnotationsGenerating } from './lyric-annotations'
 import { refreshSongLyrics, useResolvedSongLyrics } from './song-lyrics'
@@ -357,6 +358,13 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const currentTrack = currentIndex != null ? playlist[currentIndex] ?? null : null
   const currentTrackId = currentTrack?.id ?? null
   const getAudio = useCallback(() => audioRef.current, [])
+  // 错误报告与崩溃补报附带正在播放的歌曲与位置（见 lib/telemetry/context.ts）
+  useEffect(() => registerTelemetryContext('music', () => {
+    const audio = audioRef.current
+    return currentTrack
+      ? { track_id: currentTrack.id, track: currentTrack.name, position_s: audio ? Math.round(audio.currentTime) : null, playing: audio ? !audio.paused : false }
+      : null
+  }), [currentTrack])
 
   // 供事件回调读取最新值，避免闭包拿到过期的 playlist / index / mode
   const playlistRef = useRef(playlist)

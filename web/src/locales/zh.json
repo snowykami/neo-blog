@@ -15,6 +15,16 @@
       },
       "note": "我们用时区和语言核对 IP 所在地，判断访问是否经过代理或来自机器人，结果只用于统计。我们<b>不收集</b>画布、显卡、音频等设备指纹，也不收集字体列表或精确位置。搜索引擎爬虫和站长本人的访问不会被记录。"
     },
+    "errors": {
+      "title": "出错时记录什么",
+      "items": {
+        "what": "页面出错或崩溃时，会把错误信息、出错的代码位置、页面地址和浏览器版本发给本站，用来发现和修复问题。用开源的 Sentry SDK 采集，只发到本站服务器，<b>不经过</b> Sentry 或其他第三方。",
+        "context": "出错前的几十步操作：打开了哪些页面、点击了哪些按钮（只记按钮在页面上的位置，不记输入的内容）、页面发出的请求地址（不含查询参数），以及正在播放的歌曲和进度。",
+        "device": "设备信息：屏幕尺寸、语言、时区、深浅色偏好、内存和 CPU 核数、网络类型。IP 地址<b>不会</b>保存，只保存据此查到的大致地区；已登录时会关联到你的账号。",
+        "crash": "为了发现页面进程被系统直接结束（脚本来不及报错）的情况，页面会在本标签页的会话存储里定期写下心跳和上面的操作记录，正常关闭或离开页面时清除；下次打开时如果发现上次没有正常离开，会补报一条。"
+      },
+      "note": "开启「请勿追踪」或「全局隐私控制」时，仍会发送错误本身、页面地址和浏览器版本，但<b>不带</b>访客编号、账号和设备信息。"
+    },
     "account": {
       "title": "登录、评论和点赞",
       "items": {
@@ -37,6 +47,7 @@
       "items": {
         "visit": "访问与互动记录：{days} 天后自动删除。",
         "visitor": "访客汇总（最近一次的地区、设备和访问次数）：最后一次访问 1 年后删除。",
+        "error": "错误报告：{errorDays} 天后自动删除。",
         "account": "账号和评论：直到你删除或注销。"
       }
     },
@@ -47,7 +58,7 @@
     "choices": {
       "title": "你可以怎么做",
       "items": {
-        "dnt": "<b>不想被记录</b>：开启浏览器的「请勿追踪」或「全局隐私控制」。本站只做匿名计数：不保存 IP，不读取上面的浏览器信息，不记录阅读情况，也不设置访客 Cookie。",
+        "dnt": "<b>不想被记录</b>：开启浏览器的「请勿追踪」或「全局隐私控制」。本站只做匿名计数：不保存 IP，不读取上面的浏览器信息，不记录阅读情况，也不设置访客 Cookie。出错时仍会发送不带访客编号和设备信息的错误报告（见上文）。",
         "cookie": "清除本站 Cookie 后，下次访问会被当作新访客；不过 7 天内用同一浏览器、在同一网络下访问，仍可能凭浏览器信息被识别为同一访客。",
         "request": "联系站长 {owner} 查看、导出或删除与你有关的记录，或注销账号。"
       },
@@ -1018,6 +1029,12 @@
       "visit_log_retention_days_desc": "超过天数的访问记录会被自动清理",
       "visit_fingerprint_attribution": "按指纹推断登录前的浏览",
       "visit_fingerprint_attribution_desc": "用户登录后，把浏览器指纹相同、同一 IP 段、从未登录过的其他访客最近 7 天的匿名浏览也归到该用户，并标为推断。同一浏览器登录前的浏览总会归到该用户，不受此开关影响",
+      "section_error_report": "错误报告",
+      "section_error_report_desc": "浏览器、Next.js 服务端与后端的错误汇总到控制台的「错误报告」，按问题聚合",
+      "error_report_enabled": "接收错误报告",
+      "error_report_enabled_desc": "关闭后不再记录新的错误，已有记录保留",
+      "error_report_retention_days": "错误报告保留天数",
+      "error_report_retention_days_desc": "超过天数的现场会被自动清理，之后再没出现过的问题一并删除",
       "kv": {
         "search_key": "搜索键名",
         "new_item": "新建配置",
@@ -2277,6 +2294,82 @@
         "CLS": "布局偏移：页面元素会不会乱跳",
         "FCP": "首次内容绘制：多久看到第一块内容",
         "TTFB": "首字节时间：服务器多久开始响应"
+      }
+    },
+    "errors": {
+      "title": "错误报告",
+      "stats_unresolved": "未处理的问题",
+      "stats_active_24h": "最近 24 小时出现的问题",
+      "status_unresolved": "未处理",
+      "status_resolved": "已解决",
+      "status_ignored": "已忽略",
+      "status_all": "全部",
+      "source_all": "全部来源",
+      "source_browser": "浏览器",
+      "source_server": "Next 服务端",
+      "source_backend": "后端",
+      "kind_all": "全部类型",
+      "kind_error": "错误",
+      "kind_crash": "页面崩溃",
+      "kind_discarded": "后台回收",
+      "kind_message": "消息",
+      "kind_title_crash": "页面进程崩溃",
+      "kind_title_discarded": "页面在后台被系统回收",
+      "kind_hint_crash": "页面进程被系统直接结束（内存超限或浏览器引擎自身崩溃），脚本来不及报错，由读者下次打开页面时补报；现场里有崩溃前的页面、操作与播放状态。",
+      "kind_hint_discarded": "页面在后台时被系统回收，通常是设备内存紧张，不一定是本站的问题。",
+      "filter_source": "按来源筛选",
+      "filter_kind": "按类型筛选",
+      "search_placeholder": "搜索标题、出错位置或报告编号",
+      "loading": "加载中…",
+      "empty": "没有错误，一切正常",
+      "count": "{count} 次",
+      "last_seen": "最近 {time}",
+      "first_seen": "首次 {time}",
+      "detail": {
+        "title": "错误详情",
+        "back": "返回错误报告",
+        "not_found": "没有找到这条记录",
+        "events": "保存的现场（{count}）",
+        "no_events": "没有保存的现场",
+        "select_event": "选择左侧的一条现场查看详情",
+        "resolve": "标记已解决",
+        "ignore": "忽略",
+        "reopen": "重新打开",
+        "delete": "删除",
+        "cancel": "取消",
+        "delete_title": "删除这个问题？",
+        "delete_description": "问题和保存的全部现场都会被删除；之后再出现时会作为新问题记录。",
+        "updated": "已更新",
+        "update_failed": "操作失败，请稍后重试",
+        "deleted": "已删除",
+        "count": "出现次数",
+        "stored_events": "保存的现场",
+        "visitors": "涉及访客",
+        "first_seen": "首次出现",
+        "last_seen": "最近出现",
+        "release": "版本",
+        "browsers": "浏览器",
+        "os": "系统",
+        "paths": "页面",
+        "anonymous": "匿名",
+        "anonymous_hint": "读者开启了请勿追踪：没有关联访客与账号，也没有设备信息",
+        "time": "时间",
+        "report_id": "报告编号",
+        "page": "页面",
+        "device": "设备",
+        "location": "地区",
+        "who": "读者",
+        "view_visitor": "查看该访客的访问记录",
+        "stack": "调用栈",
+        "breadcrumbs": "出错前的操作",
+        "contexts": "上下文",
+        "tags": "标签",
+        "caused_by": "起因",
+        "unhandled": "未被捕获（{mechanism}）",
+        "handled": "已捕获（{mechanism}）",
+        "no_stack": "没有调用栈",
+        "show_library_frames": "显示依赖库的 {count} 帧",
+        "minified_hint": "还原前的压缩位置"
       }
     },
     "ai_agents": {

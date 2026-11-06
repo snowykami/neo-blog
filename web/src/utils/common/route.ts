@@ -9,6 +9,7 @@ export const consolePath = {
   visit: '/console/visits',
   visitInsights: '/console/visit-insights',
   runtime: '/console/runtime',
+  error: '/console/errors',
   file: '/console/files',
   global: '/console/global',
   storage: '/console/storages',

@@ -4,6 +4,7 @@ import {
   Activity,
   AudioLines,
   Bot,
+  Bug,
   ChartBarStackedIcon,
   ChartPie,
   Database,
@@ -50,6 +51,8 @@ const visits: SidebarItem = { id: 'visits', title: 'visits.title', url: consoleP
 const visitInsights: SidebarItem = { id: 'visit_insights', title: 'visit_insights.title', url: consolePath.visitInsights, icon: ChartPie, permission: isAdmin }
 // 系统运行：前后端各副本的负载与依赖服务（数据库、Redis），与概览分开，只在打开时轮询
 const runtime: SidebarItem = { id: 'runtime', title: 'dashboard.runtime_title', url: consolePath.runtime, icon: Activity, permission: isAdmin }
+// 错误报告：浏览器、Next.js 服务端与后端的错误按问题聚合
+const errors: SidebarItem = { id: 'errors', title: 'errors.title', url: consolePath.error, icon: Bug, permission: isAdmin }
 const posts: SidebarItem = { id: 'posts', title: 'posts.title', url: consolePath.post, icon: Newspaper, permission: isEditor }
 const pages: SidebarItem = { id: 'pages', title: 'pages.title', url: consolePath.page, icon: NotebookText, permission: isEditor }
 const categories: SidebarItem = { id: 'categories', title: 'categories.title', url: consolePath.category, icon: ChartBarStackedIcon, permission: isEditor }
@@ -77,7 +80,7 @@ export const sidebarData: {
   navPersonal: SidebarMenu[]
 } = {
   navContent: [
-    { id: 'dashboard', title: 'dashboard.title', icon: Gauge, items: [dashboard, visits, visitInsights, runtime] },
+    { id: 'dashboard', title: 'dashboard.title', icon: Gauge, items: [dashboard, visits, visitInsights, runtime, errors] },
     { id: 'content', title: 'menu.content', icon: Newspaper, items: [posts, pages] },
     { id: 'taxonomy', title: 'menu.taxonomy', icon: TagsIcon, items: [categories, labels] },
     { id: 'comments', title: 'comments.title', icon: MessageCircle, items: [comments] },

@@ -39,6 +39,12 @@ func GetAllowRegisterFromOidc() bool { return config.Bool("enable_register_from_
 // GetVisitFingerprintAttribution 用户登录后，是否按浏览器指纹与 IP 段把其他访客登录前的匿名访问也补记到该用户
 func GetVisitFingerprintAttribution() bool { return config.Bool("visit_fingerprint_attribution") }
 
+// GetErrorReportEnabled 是否接收错误报告（浏览器、Next.js 服务端与 Go 后端）
+func GetErrorReportEnabled() bool { return config.Bool("error_report_enabled") }
+
+// GetErrorReportRetentionDays 错误报告的保留天数
+func GetErrorReportRetentionDays() int { return config.Int("error_report_retention_days") }
+
 // GetVerifyCodeCoolDown 验证码发送冷却秒数
 func GetVerifyCodeCoolDown() int { return config.Int("verify_code_cool_down") }
 

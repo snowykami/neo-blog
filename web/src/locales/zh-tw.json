@@ -15,6 +15,16 @@
       },
       "note": "我們用時區和語言核對 IP 所在地，判斷造訪是否經過代理或來自機器人，結果只用於統計。我們<b>不收集</b>畫布、顯示卡、音訊等裝置指紋，也不收集字型清單或精確位置。搜尋引擎爬蟲和站長本人的造訪不會被記錄。"
     },
+    "errors": {
+      "title": "出錯時記錄什麼",
+      "items": {
+        "what": "頁面出錯或當掉時，會把錯誤訊息、出錯的程式碼位置、頁面網址與瀏覽器版本傳給本站，用來發現並修正問題。使用開源的 Sentry SDK 收集，只傳到本站伺服器，<b>不經過</b> Sentry 或其他第三方。",
+        "context": "出錯前的幾十步操作：開啟了哪些頁面、點了哪些按鈕（只記按鈕在頁面上的位置，不記輸入的內容）、頁面發出的請求網址（不含查詢參數），以及正在播放的歌曲與進度。",
+        "device": "裝置資訊：螢幕尺寸、語言、時區、深淺色偏好、記憶體與 CPU 核心數、網路類型。IP 位址<b>不會</b>保存，只保存據此查到的大致地區；已登入時會關聯到你的帳號。",
+        "crash": "為了發現頁面行程被系統直接結束（腳本來不及回報錯誤）的情況，頁面會在本分頁的工作階段儲存空間裡定期寫下心跳與上面的操作紀錄，正常關閉或離開頁面時清除；下次開啟時若發現上次沒有正常離開，會補報一筆。"
+      },
+      "note": "開啟「請勿追蹤」或「全球隱私控制」時，仍會傳送錯誤本身、頁面網址與瀏覽器版本，但<b>不帶</b>訪客編號、帳號與裝置資訊。"
+    },
     "account": {
       "title": "登入、留言和按讚",
       "items": {
@@ -37,6 +47,7 @@
       "items": {
         "visit": "造訪與互動紀錄：{days} 天後自動刪除。",
         "visitor": "訪客彙總（最近一次的地區、裝置和造訪次數）：最後一次造訪 1 年後刪除。",
+        "error": "錯誤報告：{errorDays} 天後自動刪除。",
         "account": "帳號和留言：直到你刪除或註銷帳號。"
       }
     },
@@ -47,7 +58,7 @@
     "choices": {
       "title": "你可以怎麼做",
       "items": {
-        "dnt": "<b>不想被記錄</b>：開啟瀏覽器的「不要追蹤」或「全域隱私控制」。本站只做匿名計數：不保存 IP，不讀取上面的瀏覽器資訊，不記錄閱讀情況，也不設定訪客 Cookie。",
+        "dnt": "<b>不想被記錄</b>：開啟瀏覽器的「不要追蹤」或「全域隱私控制」。本站只做匿名計數：不保存 IP，不讀取上面的瀏覽器資訊，不記錄閱讀情況，也不設定訪客 Cookie。出錯時仍會傳送不帶訪客編號與裝置資訊的錯誤報告（見上文）。",
         "cookie": "清除本站 Cookie 後，下次造訪會被當作新訪客；不過 7 天內用同一瀏覽器、在同一網路下造訪，仍可能憑瀏覽器資訊被識別為同一訪客。",
         "request": "聯絡站長 {owner} 查看、匯出或刪除與你有關的紀錄，或註銷帳號。"
       },
@@ -1018,6 +1029,12 @@
       "visit_log_retention_days_desc": "超過天數的造訪紀錄會被自動清理",
       "visit_fingerprint_attribution": "依指紋推斷登入前的瀏覽",
       "visit_fingerprint_attribution_desc": "使用者登入後，把瀏覽器指紋相同、同一 IP 網段、從未登入過的其他訪客最近 7 天的匿名瀏覽也歸到該使用者，並標為推斷。同一瀏覽器登入前的瀏覽一律歸到該使用者，不受此開關影響",
+      "section_error_report": "錯誤報告",
+      "section_error_report_desc": "瀏覽器、Next.js 伺服器端與後端的錯誤匯總到控制台的「錯誤報告」，依問題彙整",
+      "error_report_enabled": "接收錯誤報告",
+      "error_report_enabled_desc": "關閉後不再記錄新的錯誤，既有紀錄保留",
+      "error_report_retention_days": "錯誤報告保留天數",
+      "error_report_retention_days_desc": "超過天數的現場會被自動清理，之後再沒出現過的問題一併刪除",
       "kv": {
         "search_key": "搜尋鍵名",
         "new_item": "新增設定",
@@ -2277,6 +2294,82 @@
         "CLS": "版面位移：頁面元素會不會亂跳",
         "FCP": "首次內容繪製：多久看到第一塊內容",
         "TTFB": "首位元組時間：伺服器多久開始回應"
+      }
+    },
+    "errors": {
+      "title": "錯誤報告",
+      "stats_unresolved": "未處理的問題",
+      "stats_active_24h": "最近 24 小時出現的問題",
+      "status_unresolved": "未處理",
+      "status_resolved": "已解決",
+      "status_ignored": "已忽略",
+      "status_all": "全部",
+      "source_all": "全部來源",
+      "source_browser": "瀏覽器",
+      "source_server": "Next 伺服器端",
+      "source_backend": "後端",
+      "kind_all": "全部類型",
+      "kind_error": "錯誤",
+      "kind_crash": "頁面當掉",
+      "kind_discarded": "背景回收",
+      "kind_message": "訊息",
+      "kind_title_crash": "頁面行程當掉",
+      "kind_title_discarded": "頁面在背景被系統回收",
+      "kind_hint_crash": "頁面行程被系統直接結束（記憶體超限或瀏覽器引擎本身當掉），腳本來不及回報錯誤，由讀者下次開啟頁面時補報；現場裡有當掉前的頁面、操作與播放狀態。",
+      "kind_hint_discarded": "頁面在背景時被系統回收，通常是裝置記憶體吃緊，不一定是本站的問題。",
+      "filter_source": "依來源篩選",
+      "filter_kind": "依類型篩選",
+      "search_placeholder": "搜尋標題、出錯位置或報告編號",
+      "loading": "載入中…",
+      "empty": "沒有錯誤，一切正常",
+      "count": "{count} 次",
+      "last_seen": "最近 {time}",
+      "first_seen": "首次 {time}",
+      "detail": {
+        "title": "錯誤詳情",
+        "back": "返回錯誤報告",
+        "not_found": "找不到這筆紀錄",
+        "events": "保存的現場（{count}）",
+        "no_events": "沒有保存的現場",
+        "select_event": "選擇左側的一筆現場查看詳情",
+        "resolve": "標記為已解決",
+        "ignore": "忽略",
+        "reopen": "重新開啟",
+        "delete": "刪除",
+        "cancel": "取消",
+        "delete_title": "刪除這個問題？",
+        "delete_description": "問題與保存的全部現場都會被刪除；之後再出現時會作為新問題記錄。",
+        "updated": "已更新",
+        "update_failed": "操作失敗，請稍後再試",
+        "deleted": "已刪除",
+        "count": "出現次數",
+        "stored_events": "保存的現場",
+        "visitors": "涉及訪客",
+        "first_seen": "首次出現",
+        "last_seen": "最近出現",
+        "release": "版本",
+        "browsers": "瀏覽器",
+        "os": "系統",
+        "paths": "頁面",
+        "anonymous": "匿名",
+        "anonymous_hint": "讀者開啟了請勿追蹤：沒有關聯訪客與帳號，也沒有裝置資訊",
+        "time": "時間",
+        "report_id": "報告編號",
+        "page": "頁面",
+        "device": "裝置",
+        "location": "地區",
+        "who": "讀者",
+        "view_visitor": "查看該訪客的造訪紀錄",
+        "stack": "呼叫堆疊",
+        "breadcrumbs": "出錯前的操作",
+        "contexts": "情境",
+        "tags": "標籤",
+        "caused_by": "起因",
+        "unhandled": "未被捕捉（{mechanism}）",
+        "handled": "已捕捉（{mechanism}）",
+        "no_stack": "沒有呼叫堆疊",
+        "show_library_frames": "顯示相依套件的 {count} 個框架",
+        "minified_hint": "還原前的壓縮位置"
       }
     },
     "ai_agents": {

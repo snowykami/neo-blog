@@ -4,6 +4,8 @@ import { IMAGE_OPTIMIZE_HOSTS } from '@/utils/common/image'
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // 生成浏览器代码的 source map，供错误报告还原调用栈；构建后由 scripts/collect-sourcemaps.mjs 移出公开目录，不对外提供
+  productionBrowserSourceMaps: true,
   images: {
     // 只优化白名单内的 https 图床域名，保持 Next 默认的私网地址拦截，避免 /_next/image 被用作 SSRF 跳板
     // 站内文件使用相对路径（/api/v1/...），经 app/api/v1 路由转发到后端，不受此限制；其余外链由 SafeImage 交给浏览器直接加载

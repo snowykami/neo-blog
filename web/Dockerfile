@@ -45,6 +45,8 @@ RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# 浏览器代码的 source map（不在公开目录里），错误报告据此还原调用栈
+COPY --from=builder --chown=nextjs:nodejs /app/.next/sourcemaps ./.next/sourcemaps
 
 # (optional) install production deps if standalone didn't include them
 # COPY --from=builder /app/package.json ./package.json

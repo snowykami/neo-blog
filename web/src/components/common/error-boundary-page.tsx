@@ -7,21 +7,23 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import copyToClipboard from '@/lib/clipboard'
+import { captureBoundaryError } from '@/lib/telemetry/client'
 import { isChunkLoadError, reloadForChunkError } from '@/utils/client/chunk-error'
 
 // 复制后按钮显示「已复制」的时长
 const COPIED_MS = 2000
 
 /**
- * 错误详情：错误信息与调用栈，附上页面地址、浏览器与时间，方便读者在手机上复制后反馈（手机上没有开发者工具）。
+ * 错误详情：错误信息与调用栈，附上报告编号、页面地址、浏览器与时间，方便读者在手机上复制后反馈（手机上没有开发者工具）。
  * 只在展开时渲染（折叠内容收起时不挂载），只在浏览器中读取地址与浏览器信息
  */
-function errorDetails(error: Error & { digest?: string }) {
+function errorDetails(error: Error & { digest?: string }, reportId: string | null) {
   const summary = `${error.name}: ${error.message}`
   // Chromium 的调用栈第一行就是错误信息，去掉重复（Safari 的调用栈只有各帧）
   const stack = error.stack?.startsWith(summary) ? error.stack.slice(summary.length).replace(/^\n/, '') : error.stack
   return [
     summary,
+    reportId && `report: ${reportId}`,
     error.digest && `digest: ${error.digest}`,
     `url: ${location.href}`,
     `ua: ${navigator.userAgent}`,
@@ -30,9 +32,9 @@ function errorDetails(error: Error & { digest?: string }) {
   ].filter(Boolean).join('\n')
 }
 
-function ErrorDetails({ error }: { error: Error & { digest?: string } }) {
+function ErrorDetails({ error, reportId }: { error: Error & { digest?: string }, reportId: string | null }) {
   const t = useTranslations('ErrorPage')
-  const [details] = useState(() => errorDetails(error))
+  const [details] = useState(() => errorDetails(error, reportId))
   const [copied, setCopied] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -68,12 +70,17 @@ export function ErrorBoundaryPage({
 }) {
   const t = useTranslations('ErrorPage')
   const operationT = useTranslations('Operation')
+  // 错误报告的事件 ID：显示在错误详情里，读者反馈时据此在控制台找到这次错误
+  const [reportId, setReportId] = useState<string | null>(null)
 
   useEffect(() => {
     console.error(error)
-    // 新版本部署后旧页面加载代码块失败：刷新一次即可恢复
-    if (isChunkLoadError(error))
+    // 新版本部署后旧页面加载代码块失败：刷新一次即可恢复，不上报
+    if (isChunkLoadError(error)) {
       reloadForChunkError()
+      return
+    }
+    setReportId(captureBoundaryError(error))
   }, [error])
 
   return (
@@ -100,7 +107,7 @@ export function ErrorBoundaryPage({
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <ErrorDetails error={error} />
+            <ErrorDetails key={reportId} error={error} reportId={reportId} />
           </CollapsibleContent>
         </Collapsible>
       </div>

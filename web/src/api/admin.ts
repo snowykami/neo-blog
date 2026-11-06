@@ -2,6 +2,7 @@ import type { PaginationParams } from '../models/common'
 import type { Comment } from '@/models/comment'
 import type { ConfigSchema } from '@/models/config'
 import type { Dashboard, DashboardDays } from '@/models/dashboard'
+import type { ErrorEvent, ErrorEventSummary, ErrorIssue, ErrorIssueDetail, ErrorKind, ErrorReportStats, ErrorSource, ErrorStatus } from '@/models/error-report'
 import type { OidcConfig } from '@/models/oidc-config'
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
@@ -230,5 +231,46 @@ export async function getVisitStatsAdmin(): Promise<BaseResponse<VisitStats>> {
 
 export async function getVisitorAdmin(id: number): Promise<BaseResponse<Visitor>> {
   const res = await axiosClient.get(`/admin/visitors/${id}`)
+  return res.data
+}
+
+// 错误报告：问题列表（按状态、来源、类型筛选；q 匹配标题、出错位置或事件 ID）
+export async function listErrorIssuesAdmin({ status, source, kind, q, ...pagination }: {
+  status?: ErrorStatus
+  source?: ErrorSource
+  kind?: ErrorKind
+  q?: string
+} & PaginationParams): Promise<BaseResponse<{ issues: ErrorIssue[], total: number }>> {
+  const res = await axiosClient.get('/admin/errors', { params: { ...pagination, status, source, kind, q } })
+  return res.data
+}
+
+export async function getErrorStatsAdmin(): Promise<BaseResponse<ErrorReportStats>> {
+  const res = await axiosClient.get('/admin/errors/stats')
+  return res.data
+}
+
+export async function getErrorIssueAdmin(id: number): Promise<BaseResponse<ErrorIssueDetail>> {
+  const res = await axiosClient.get(`/admin/errors/${id}`)
+  return res.data
+}
+
+export async function listErrorEventsAdmin(issueId: number, pagination: PaginationParams): Promise<BaseResponse<{ events: ErrorEventSummary[], total: number }>> {
+  const res = await axiosClient.get(`/admin/errors/${issueId}/events`, { params: pagination })
+  return res.data
+}
+
+export async function getErrorEventAdmin(id: number): Promise<BaseResponse<ErrorEvent>> {
+  const res = await axiosClient.get(`/admin/error-events/${id}`)
+  return res.data
+}
+
+export async function updateErrorIssueStatusAdmin(id: number, status: ErrorStatus): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put(`/admin/errors/${id}/status`, { status })
+  return res.data
+}
+
+export async function deleteErrorIssueAdmin(id: number): Promise<BaseResponse<null>> {
+  const res = await axiosClient.delete(`/admin/errors/${id}`)
   return res.data
 }

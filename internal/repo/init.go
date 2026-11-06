@@ -240,6 +240,8 @@ var models = []any{
 	&model.CommentTranslation{},
 	&model.ContentRevision{},
 	&model.EditSession{},
+	&model.ErrorEvent{},
+	&model.ErrorIssue{},
 	&model.Label{},
 	&model.Like{},
 	&model.LyricAnnotation{},

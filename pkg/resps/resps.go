@@ -76,6 +76,10 @@ func writeError(c *app.RequestContext, err *errs.ServiceError, data any) {
 	})
 	c.Abort()
 	c.Set("error", err.Message)
+	// 原始错误供错误报告中间件记录（不返回给客户端）
+	if err.Err != nil {
+		c.Set("error_cause", err.Err)
+	}
 	entry := logrus.WithField("path", string(c.Path())).WithField("status", err.Code)
 	if err.Err != nil {
 		entry = entry.WithError(err.Err)

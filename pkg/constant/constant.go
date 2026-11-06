@@ -64,6 +64,28 @@ const (
 	VisitActionComment = "comment" // 评论文章/页面，目标为评论时即回复
 )
 
+// 错误报告的来源：浏览器（含页面进程崩溃）、Next.js 服务端、Go 后端
+const (
+	ErrorSourceBrowser = "browser"
+	ErrorSourceServer  = "server"
+	ErrorSourceBackend = "backend"
+)
+
+// 错误报告的类型：抛出的错误、页面进程崩溃（或在后台被系统回收）、其他消息
+const (
+	ErrorKindError     = "error"
+	ErrorKindCrash     = "crash"
+	ErrorKindDiscarded = "discarded" // 页面在后台时被系统回收（内存紧张时常见），严重程度低于崩溃
+	ErrorKindMessage   = "message"
+)
+
+// 错误问题的处理状态
+const (
+	ErrorStatusUnresolved = "unresolved"
+	ErrorStatusResolved   = "resolved" // 已解决：再次出现时自动回到未处理
+	ErrorStatusIgnored    = "ignored"  // 忽略：继续计数，但不再提醒
+)
+
 // 访问记录的用户归属来源：登录前的匿名访问在登录后补记到该用户，访问时已登录的记录为空
 const (
 	VisitUserSourceBrowser     = "browser"     // 同一浏览器（访客 Cookie）之后登录了该用户

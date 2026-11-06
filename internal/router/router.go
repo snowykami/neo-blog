@@ -62,7 +62,8 @@ func init() {
 		// 流式读取请求体：上传大文件时由 multipart 解析落盘，不再整体缓存在内存中
 		server.WithStreamBody(true),
 	)
-	h.Use(recovery.Recovery(), middleware.UseTrack(), middleware.UseFileLinks())
+	// panic 与 5xx 记为后端错误报告，可在控制台查看
+	h.Use(recovery.Recovery(recovery.WithRecoveryHandler(middleware.RecoveryHandler)), middleware.UseTrack(), middleware.UseErrorReport(), middleware.UseFileLinks())
 	apiv1.RegisterRoutes(h)
 	// 存活检查：进程能响应即可，不依赖数据库，避免数据库抖动时实例被反复重启
 	h.GET("/healthz", func(ctx context.Context, c *app.RequestContext) {

@@ -15,6 +15,16 @@
       },
       "note": "We check the IP location against your time zone and language to tell whether a visit went through a proxy or came from a bot, and use the result only for statistics. We <b>do not collect</b> device fingerprints such as canvas, graphics card, or audio, nor font lists or precise location. Visits from search engine crawlers and from the site owner are not recorded."
     },
+    "errors": {
+      "title": "What we record when something breaks",
+      "items": {
+        "what": "When a page errors or crashes, the error message, the code location, the page address and your browser version are sent to this site so the problem can be found and fixed. They are collected with the open-source Sentry SDK and sent only to this site’s server, <b>not</b> to Sentry or any other third party.",
+        "context": "The last few dozen actions before the error: which pages you opened, which buttons you clicked (only where the button is on the page, never what you typed), the addresses of requests the page made (without query parameters), and the song playing and its position.",
+        "device": "Device information: screen size, language, time zone, color scheme preference, memory and CPU cores, and network type. Your IP address is <b>not</b> stored, only the approximate region looked up from it. If you are signed in, the report is linked to your account.",
+        "crash": "To catch cases where the system kills the page process before any script can report it, the page regularly writes a heartbeat and the actions above to this tab’s session storage, and clears it when you close or leave the page normally. If the next visit finds that the last one did not end normally, one report is sent."
+      },
+      "note": "With Do Not Track or Global Privacy Control on, the error itself, the page address and your browser version are still sent, but <b>without</b> your visitor ID, account or device information."
+    },
     "account": {
       "title": "Sign-in, comments, and likes",
       "items": {
@@ -37,6 +47,7 @@
       "items": {
         "visit": "Visit and interaction records: deleted automatically after {days} days.",
         "visitor": "Visitor summary (latest region, device, and visit count): deleted 1 year after the last visit.",
+        "error": "Error reports: deleted automatically after {errorDays} days.",
         "account": "Accounts and comments: until you delete them or close your account."
       }
     },
@@ -47,7 +58,7 @@
     "choices": {
       "title": "What you can do",
       "items": {
-        "dnt": "<b>If you don’t want to be recorded</b>: turn on “Do Not Track” or “Global Privacy Control” in your browser. The site then only counts the visit anonymously: it doesn’t store your IP, read the browser information above, record reading activity, or set the visitor cookie.",
+        "dnt": "<b>If you don’t want to be recorded</b>: turn on “Do Not Track” or “Global Privacy Control” in your browser. The site then only counts the visit anonymously: it doesn’t store your IP, read the browser information above, record reading activity, or set the visitor cookie. Error reports are still sent when something breaks, without your visitor ID or device information (see above).",
         "cookie": "After you clear this site’s cookies, your next visit will be treated as a new visitor, though within 7 days, visits from the same browser on the same network may still be recognized as the same visitor from browser information.",
         "request": "Contact the site owner {owner} to view, export, or delete records about you, or to close your account."
       },
@@ -1018,6 +1029,12 @@
       "visit_log_retention_days_desc": "Visit records older than this are deleted automatically",
       "visit_fingerprint_attribution": "Infer pre-login browsing from fingerprints",
       "visit_fingerprint_attribution_desc": "After a user signs in, anonymous browsing from the last 7 days by other visitors who have never signed in and share the same browser fingerprint and IP range is also attributed to them and marked as inferred. Browsing before login on the same browser is always attributed, regardless of this setting",
+      "section_error_report": "Error reports",
+      "section_error_report_desc": "Errors from browsers, the Next.js server and the backend are grouped into issues under Error reports in the console",
+      "error_report_enabled": "Accept error reports",
+      "error_report_enabled_desc": "When off, new errors are no longer recorded. Existing records are kept.",
+      "error_report_retention_days": "Error report retention (days)",
+      "error_report_retention_days_desc": "Saved events older than this are deleted automatically, along with issues that have not occurred since",
       "kv": {
         "search_key": "Search keys",
         "new_item": "New entry",
@@ -2277,6 +2294,82 @@
         "CLS": "Cumulative Layout Shift: whether elements jump around",
         "FCP": "First Contentful Paint: how soon the first content appears",
         "TTFB": "Time to First Byte: how soon the server starts responding"
+      }
+    },
+    "errors": {
+      "title": "Error reports",
+      "stats_unresolved": "Unresolved issues",
+      "stats_active_24h": "Issues seen in the last 24 hours",
+      "status_unresolved": "Unresolved",
+      "status_resolved": "Resolved",
+      "status_ignored": "Ignored",
+      "status_all": "All",
+      "source_all": "All sources",
+      "source_browser": "Browser",
+      "source_server": "Next server",
+      "source_backend": "Backend",
+      "kind_all": "All types",
+      "kind_error": "Error",
+      "kind_crash": "Page crash",
+      "kind_discarded": "Discarded",
+      "kind_message": "Message",
+      "kind_title_crash": "Page process crashed",
+      "kind_title_discarded": "Page discarded in background",
+      "kind_hint_crash": "The system killed the page process (memory limit or a browser engine crash) before any script could report it. It was reported the next time the reader opened the page, with the page, recent actions and playback state from before the crash.",
+      "kind_hint_discarded": "The system discarded the page while it was in the background, usually because the device was low on memory. This is not necessarily a problem with the site.",
+      "filter_source": "Filter by source",
+      "filter_kind": "Filter by type",
+      "search_placeholder": "Search title, location or report ID",
+      "loading": "Loading…",
+      "empty": "No errors. All good.",
+      "count": "{count, plural, one {# time} other {# times}}",
+      "last_seen": "Last seen {time}",
+      "first_seen": "First seen {time}",
+      "detail": {
+        "title": "Error details",
+        "back": "Back to error reports",
+        "not_found": "Record not found",
+        "events": "Saved events ({count})",
+        "no_events": "No saved events",
+        "select_event": "Select an event on the left to see its details",
+        "resolve": "Mark resolved",
+        "ignore": "Ignore",
+        "reopen": "Reopen",
+        "delete": "Delete",
+        "cancel": "Cancel",
+        "delete_title": "Delete this issue?",
+        "delete_description": "The issue and all saved events will be deleted. If it happens again, it will be recorded as a new issue.",
+        "updated": "Updated",
+        "update_failed": "Something went wrong. Try again later.",
+        "deleted": "Deleted",
+        "count": "Occurrences",
+        "stored_events": "Saved events",
+        "visitors": "Visitors affected",
+        "first_seen": "First seen",
+        "last_seen": "Last seen",
+        "release": "Release",
+        "browsers": "Browsers",
+        "os": "Systems",
+        "paths": "Pages",
+        "anonymous": "Anonymous",
+        "anonymous_hint": "The reader has Do Not Track on: no visitor, account or device information is attached",
+        "time": "Time",
+        "report_id": "Report ID",
+        "page": "Page",
+        "device": "Device",
+        "location": "Region",
+        "who": "Reader",
+        "view_visitor": "View this visitor's visits",
+        "stack": "Stack trace",
+        "breadcrumbs": "Actions before the error",
+        "contexts": "Context",
+        "tags": "Tags",
+        "caused_by": "Caused by",
+        "unhandled": "Unhandled ({mechanism})",
+        "handled": "Handled ({mechanism})",
+        "no_stack": "No stack trace",
+        "show_library_frames": "Show {count} library frames",
+        "minified_hint": "Minified location before source mapping"
       }
     },
     "ai_agents": {
