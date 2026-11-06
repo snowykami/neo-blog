@@ -39,6 +39,8 @@ export interface IslandActivity {
   hideable?: boolean
   // 一段活动的标识（如当前曲目）：隐藏只在同一段内有效，换了（如切歌）重新出现；活动撤下后同样重新出现
   sessionKey?: string
+  // 待命：同样的内容此刻正在别处显示（如悬浮球的弹层开着时的音乐），暂时不上岛；与撤下不同，读者的隐藏与选中都保留
+  standby?: boolean
 }
 
 /** 胶囊的描边辉光：strong 时辉光范围更大、更亮（只变光，不改胶囊大小） */

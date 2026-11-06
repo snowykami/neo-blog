@@ -9,13 +9,13 @@ import { useTranslations } from 'next-intl'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { MarqueeText } from '@/components/common/marquee-text'
-import { AlbumNavIcon, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE, MiniPlayer, useMiniPlayerOpen } from '@/components/common/music-player'
+import { AlbumNavIcon, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE, MiniPlayer, useMiniPlayerHolding } from '@/components/common/music-player'
 import { SafeImage } from '@/components/common/safe-image'
 import { MusicBackground } from '@/components/music-page/music-background'
 import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useCoverAccent, useSongAccent } from '@/components/music-page/use-cover-accent'
-import { useCurrentLyric, useMusic, useMusicClockStore } from '@/contexts/music-context'
+import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useSongChorus } from '@/contexts/song-chorus'
 import { dismissIslandAlert, pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
 import { lyricGlowAt } from '@/lib/lyrics/lyric-glow'
@@ -44,12 +44,15 @@ function trackTitle(track: MusicTrack) {
 /**
  * 音乐活动：播放时胶囊里是模糊封面底 + 旋转封面 + 歌词引擎的单行条（逐字擦除、强调特效、间奏圆点、副歌爆发都与播放器一致），
  * 右侧律动条跟随节拍；副歌段胶囊描边发光，颜色随此刻在唱的歌词（强调短语的颜色、这一行情绪的辉光色），没有时取封面主色，唱到强调或点题句时辉光范围更大；切歌时短暂显示歌名（不显示导语、热评等句子，岛上只放歌词）；
- * 暂停后（本页播放过时）缩成封面 + 播放键，点按继续；点按展开与悬浮球相同的播放器弹层（从胶囊下方弹出）。播放器页本身就是完整播放器，不显示
+ * 暂停后（本页播放过时）缩成封面 + 播放键，点按继续；点按展开与悬浮球相同的播放器弹层（从胶囊下方弹出）。播放器页本身就是完整播放器，不显示；
+ * 悬浮球的弹层开着时同样不显示（待命，岛收起成没有音乐时的样子），关上后再出现
  */
 export function MusicIsland({ settings }: { settings: IslandSettings }) {
   const t = useTranslations('TopbarIsland')
   const { currentTrack, isPlaying, play } = useMusic()
   const onPlayerPage = usePathname() === '/music'
+  // 悬浮球的弹层开着：歌词与特效都在弹层里，岛上不再重复显示
+  const floatingOpen = useMiniPlayerHolding('floating')
   // 本页播放过才在暂停后保留：刚打开页面时歌单已恢复到上次的曲目，但读者还没听，不应常驻
   const [hasPlayed, setHasPlayed] = useState(false)
   if (isPlaying && !hasPlayed)
@@ -66,7 +69,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
   // 刚暂停的一小段时间内仍按播放中显示
   const showPlaying = isPlaying || (hasPlayed && !pauseSettled)
   const coverAccent = useCoverAccent(currentTrack?.albumPic)
-  const inChorus = useInChorus(isPlaying && settings.musicChorus ? currentTrack?.id ?? null : null)
+  const inChorus = useInChorus(isPlaying && settings.musicChorus && !floatingOpen ? currentTrack?.id ?? null : null)
   const glow = useLyricGlow(inChorus, coverAccent)
   const lyricStarted = useLyricStarted(isPlaying)
   const title = currentTrack ? trackTitle(currentTrack) : ''
@@ -80,6 +83,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
         feature: 'music',
         hideable: true,
         sessionKey: String(currentTrack.id),
+        standby: floatingOpen,
         priority: PLAYING_PRIORITY,
         label: t('music_playing', { title }),
         compact: <MusicCompact beat={settings.musicBeat} />,
@@ -97,6 +101,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       feature: 'musicPaused',
       hideable: true,
       sessionKey: String(currentTrack.id),
+      standby: floatingOpen,
       priority: PAUSED_PRIORITY,
       label: t('music_paused', { title }),
       compact: (
@@ -108,16 +113,17 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       minimal: <AlbumNavIcon />,
       onPress: play,
     }
-  }, [currentTrack, glow, hasPlayed, onPlayerPage, play, settings.musicBeat, showPlaying, t, title])
+  }, [currentTrack, floatingOpen, glow, hasPlayed, onPlayerPage, play, settings.musicBeat, showPlaying, t, title])
   useIslandActivity(activity)
 
-  // 开始播放或切歌时短暂显示歌名（同一首只提示一次）；歌词已经在唱（如从中段继续播放）时不提示，直接显示歌词
+  // 开始播放或切歌时短暂显示歌名（同一首只提示一次）；歌词已经在唱（如从中段继续播放）时不提示，直接显示歌词。
+  // 悬浮球的弹层开着时在弹层里切的歌，读者已经看到歌名，算作提示过
   const peekedRef = useRef<number | null>(null)
   useEffect(() => {
     if (!isPlaying || !currentTrack || onPlayerPage || peekedRef.current === currentTrack.id)
       return
     peekedRef.current = currentTrack.id
-    if (lyricStarted)
+    if (lyricStarted || floatingOpen)
       return
     pushIslandAlert({
       key: PEEK_KEY,
@@ -129,14 +135,14 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       announce: t('music_now_playing', { title: trackTitle(currentTrack) }),
       duration: PEEK_MS,
     })
-    // lyricStarted 不放进依赖：只在切歌、开始播放时判断一次，歌词开唱后由下面的 effect 撤下提示
+    // lyricStarted、floatingOpen 不放进依赖：只在切歌、开始播放时判断一次，歌词开唱后由下面的 effect 撤下提示
   }, [currentTrack, isPlaying, onPlayerPage, t])
 
-  // 歌词一开唱就撤下切歌提示
+  // 歌词一开唱、或打开了悬浮球的弹层，就撤下切歌提示
   useEffect(() => {
-    if (lyricStarted)
+    if (lyricStarted || floatingOpen)
       dismissIslandAlert(PEEK_KEY)
-  }, [currentTrack?.id, lyricStarted])
+  }, [currentTrack?.id, floatingOpen, lyricStarted])
 
   return null
 }
@@ -188,28 +194,28 @@ function MusicCompact({ beat }: { beat: boolean }) {
   const { currentTrack, lyricLines, lyrics } = useMusic()
   const accent = useSongAccent(currentTrack?.albumPic)
   const hasLyric = lyricLines.length > 0 || lyrics.instrumental
-  // 悬浮播放器（悬浮球或灵动岛的弹层）开着时，胶囊暂停自己的歌词引擎与特效，只显示此刻这一句的文字：
-  // 胶囊与弹层的两个歌词引擎、两套特效同时逐帧运行时，iOS 26 的 Safari（JavaScriptCore 优化编译时）会整页崩溃
-  // （实测 Sen Trope 的长间奏处必现）；弹层里已经有同样的歌词与特效
-  const suspended = useMiniPlayerOpen()
-  const currentLine = useCurrentLyric(suspended)
+  // 悬浮播放器（悬浮球或灵动岛的弹层）开着时胶囊不露面（悬浮球的弹层开着时音乐活动待命，灵动岛的面板盖在胶囊上），
+  // 由弹层演出歌词与特效，胶囊这边的暂停、停在此刻的画面：两套同时逐帧运行时 iOS 26 的 Safari 会整页崩溃（见 music-player.tsx 的 miniPlayerHolds）。
+  // 收起面板时歌词引擎先交还过来，在面板底下跟上此刻的进度，胶囊露面时已是正在唱的那一句
+  const effectsPaused = useMiniPlayerHolding('effects')
+  const lyricsPaused = useMiniPlayerHolding('lyrics')
   // 随拍染色层：律动条逐帧写入不透明度
   const tintRef = useRef<HTMLSpanElement>(null)
   return (
     <span className="contents" style={accent ? { '--lyric-accent': accent } as React.CSSProperties : undefined}>
       {/* 标题区域只有一行高，按播放器的模糊半径会糊成一片黑，改用小半径保留封面的颜色 */}
       <MusicBackground cover={currentTrack?.albumPic} contained imageClassName="blur-md" />
-      {!suspended && <MusicStageEffects contained />}
+      <MusicStageEffects contained paused={effectsPaused} />
       {beat && <span ref={tintRef} aria-hidden className="pointer-events-none absolute inset-0 bg-[color:var(--lyric-accent,#fff)] opacity-0" />}
       {/* 封面与歌词标了 data-island-morph：展开时封面放大飞到面板里的封面处，单行歌词带着样式飞到面板歌词区的焦点行（没有歌词时不飞，见 island-morph.ts） */}
       <IslandSlot morph="cover"><AlbumNavIcon /></IslandSlot>
       {/* 歌词与文字离封面、律动条各 10px：单行条自带 10px 内边距，左右各收回 6px */}
       <span data-island-morph={hasLyric ? 'lyrics' : undefined} className="relative flex h-9 w-[36ch] max-w-full min-w-0 shrink items-center">
-        {hasLyric && !suspended
-          ? <MusicLyricStage strip className="-mx-1.5 h-full min-w-0 flex-1" />
-          : <IslandText className="flex-1"><MarqueeText>{(suspended && currentLine) || (currentTrack ? trackTitle(currentTrack) : '')}</MarqueeText></IslandText>}
+        {hasLyric
+          ? <MusicLyricStage strip paused={lyricsPaused} className="-mx-1.5 h-full min-w-0 flex-1" />
+          : <IslandText className="flex-1"><MarqueeText>{currentTrack ? trackTitle(currentTrack) : ''}</MarqueeText></IslandText>}
       </span>
-      {beat && <IslandSlot><BeatBars tintRef={tintRef} /></IslandSlot>}
+      {beat && <IslandSlot><BeatBars tintRef={tintRef} paused={effectsPaused} /></IslandSlot>}
     </span>
   )
 }
@@ -227,9 +233,10 @@ const BEAT_TINT_OPACITY = 0.22
 
 /**
  * 胶囊右侧的律动条：有可信的节拍模型时随拍跳动、随拍变亮，胶囊底色也随拍泛起封面主色（只变颜色，胶囊大小不随拍变化，避免整颗岛一抽一抽）；
- * 没有时（关闭了歌词特效、浏览器开启省流量、分析失败等）以错开的起伏模拟，不染色。逐帧直接写 DOM，不触发 React 渲染；暂停或减少动态效果时静止
+ * 没有时（关闭了歌词特效、浏览器开启省流量、分析失败等）以错开的起伏模拟，不染色。逐帧直接写 DOM，不触发 React 渲染；暂停或减少动态效果时静止，
+ * paused 时（悬浮播放器开着）停在此刻
  */
-function BeatBars({ tintRef }: { tintRef: React.RefObject<HTMLSpanElement | null> }) {
+function BeatBars({ tintRef, paused }: { tintRef: React.RefObject<HTMLSpanElement | null>, paused: boolean }) {
   const { getAudio, isPlaying, lyrics, currentTrack } = useMusic()
   const reducedMotion = useReducedMotion()
   const rootRef = useRef<HTMLSpanElement>(null)
@@ -238,9 +245,15 @@ function BeatBars({ tintRef }: { tintRef: React.RefObject<HTMLSpanElement | null
     stateRef.current = { pace: lyrics.pace, trackId: currentTrack?.id ?? null }
   }, [currentTrack?.id, lyrics.pace])
 
+  // 停止播放或减少动态效果时撤掉随拍染色（paused 时保留，停在此刻）
+  useEffect(() => {
+    if (!isPlaying || reducedMotion)
+      tintRef.current?.style.removeProperty('opacity')
+  }, [isPlaying, reducedMotion, tintRef])
+
   useEffect(() => {
     const root = rootRef.current
-    if (!root || !isPlaying || reducedMotion)
+    if (!root || !isPlaying || reducedMotion || paused)
       return
     const bars = Array.from(root.children) as HTMLElement[]
     const tint = tintRef.current
@@ -264,12 +277,8 @@ function BeatBars({ tintRef }: { tintRef: React.RefObject<HTMLSpanElement | null
         tint.style.opacity = ctx.model ? (BEAT_TINT_OPACITY * backgroundLevel(ctx, timeMs)).toFixed(3) : ''
     }
     frame = requestAnimationFrame(tick)
-    return () => {
-      cancelAnimationFrame(frame)
-      if (tint)
-        tint.style.opacity = ''
-    }
-  }, [getAudio, isPlaying, reducedMotion, tintRef])
+    return () => cancelAnimationFrame(frame)
+  }, [getAudio, isPlaying, paused, reducedMotion, tintRef])
 
   return (
     <span ref={rootRef} aria-hidden className="flex h-4 items-center gap-[2px]">

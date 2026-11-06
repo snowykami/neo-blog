@@ -44,9 +44,10 @@ function subscribeReducedMotion(listener: () => void) {
  * 呼吸的颜色取封面主色（--lyric-accent）。播放器页（非 contained）在副歌开唱时还会「镜头推近」：推近程度（0 ~ 1）乘以各层 data-stage-push 的比例后
  * 直接写入这些层的 scale（背景、歌词区与本层，越靠前放大越多，有景深感），见 music-player-page.tsx。
  * 不写成父元素上的 CSS 变量：变量会被整页继承，每帧都要重算整页样式（实测副歌推近期间约 9 ms / 帧）。
- * 关闭歌词特效或系统要求减少动态效果时不渲染；逐帧更新直接写 DOM / canvas，不触发 React 渲染
+ * 关闭歌词特效或系统要求减少动态效果时不渲染；逐帧更新直接写 DOM / canvas，不触发 React 渲染。
+ * paused 时停在此刻的画面、不再逐帧运行（如顶栏灵动岛的胶囊藏在悬浮播放器后面时），恢复后接着演出
  */
-export function MusicStageEffects({ contained = false }: { contained?: boolean }) {
+export function MusicStageEffects({ contained = false, paused = false }: { contained?: boolean, paused?: boolean }) {
   const { lyrics, isPlaying, getAudio, showLyricEffects, currentTrack } = useMusic()
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(REDUCED_MOTION_QUERY).matches, () => true)
   const enabled = showLyricEffects && !reducedMotion
@@ -57,10 +58,19 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
   const rootRef = useRef<HTMLDivElement>(null)
   // 逐帧循环通过 ref 读取，不随渲染重启
   const stateRef = useRef({ lyrics, isPlaying, trackId: currentTrack?.id ?? null })
+  const pausedRef = useRef(paused)
+  // 恢复逐帧循环（由下面的循环在启动时写入）
+  const resumeRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     stateRef.current = { lyrics, isPlaying, trackId: currentTrack?.id ?? null }
   }, [currentTrack?.id, isPlaying, lyrics])
+
+  useEffect(() => {
+    pausedRef.current = paused
+    if (!paused)
+      resumeRef.current?.()
+  }, [paused])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -92,6 +102,9 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
         el.style.scale = value > 0 ? (1 + value * (Number(el.dataset.stagePush) || 0)).toFixed(4) : ''
     }
     const tick = (now: number) => {
+      frame = 0
+      if (pausedRef.current)
+        return
       // 切到后台再回来时不一次推进太久
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
@@ -142,8 +155,16 @@ export function MusicStageEffects({ contained = false }: { contained?: boolean }
       particles.update(dt, signals?.scene ?? null, isPlaying, particleRhythm)
       frame = requestAnimationFrame(tick)
     }
-    frame = requestAnimationFrame(tick)
+    const resume = () => {
+      if (frame)
+        return
+      last = performance.now()
+      frame = requestAnimationFrame(tick)
+    }
+    resumeRef.current = resume
+    resume()
     return () => {
+      resumeRef.current = null
       cancelAnimationFrame(frame)
       observer.disconnect()
       particles.clear()

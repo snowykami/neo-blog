@@ -368,6 +368,8 @@ export class LyricPlayer {
 
   private rafId = 0
   private lastFrame = 0
+  // 暂停期间不跑逐帧循环（见 setPaused）
+  private paused = false
   // 上一次重绘逐字效果的时间（见 LYRIC_DETAIL_FRAME_MS）
   private lastDetail = Number.NEGATIVE_INFINITY
   private lastTimeMs: number | null = null
@@ -483,9 +485,26 @@ export class LyricPlayer {
     this.wake()
   }
 
+  /**
+   * 暂停 / 恢复逐帧循环：暂停时画面停在此刻，期间的唤醒都不生效；恢复时直接跳到此刻的进度（不补播期间的换行动画）。
+   * 用于同一首歌的另一套歌词引擎正在显示时（如顶栏灵动岛的胶囊藏在悬浮播放器后面），不让两套同时逐帧运行
+   */
+  setPaused(paused: boolean) {
+    if (paused === this.paused)
+      return
+    this.paused = paused
+    if (paused) {
+      cancelAnimationFrame(this.rafId)
+      this.rafId = 0
+      return
+    }
+    this.teleport = true
+    this.wake()
+  }
+
   /** 唤醒逐帧循环：播放状态、进度、尺寸变化时调用 */
   wake() {
-    if (this.rafId)
+    if (this.rafId || this.paused)
       return
     this.lastFrame = performance.now()
     this.rafId = requestAnimationFrame(this.frame)

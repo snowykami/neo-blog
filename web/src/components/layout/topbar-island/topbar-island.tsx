@@ -3,6 +3,7 @@
 import type { Transition, Variants } from 'motion/react'
 import type { ReactNode } from 'react'
 import type { SwipeDirection } from './island-gestures'
+import type { IslandPanelPhase } from './island-panel-phase'
 import type { IslandActivity, IslandGlow, QueuedIslandAlert } from '@/contexts/topbar-island'
 import type { IslandSettings } from '@/utils/common/siteinfo'
 import { EyeOffIcon } from 'lucide-react'
@@ -21,7 +22,7 @@ import { AmbientIsland, NetworkIsland } from './ambient-island'
 import { continuousCapsulePath } from './continuous-capsule'
 import { useIslandGestures, usePanelSwipeUp } from './island-gestures'
 import { CROSSFADE_MS, morphIsland, nextFrame, waitForSettled } from './island-morph'
-import { IslandPanelReadyContext } from './island-panel-ready'
+import { IslandPanelPhaseContext } from './island-panel-phase'
 import { IslandSlot, IslandText } from './island-parts'
 import { MusicIsland } from './music-island'
 
@@ -186,7 +187,7 @@ function IslandStage({ settings }: { settings: IslandSettings }) {
   const [enterFrom, setEnterFrom] = useState<{ id: string, from: 1 | -1 } | null>(null)
   const [announce, setAnnounce] = useState('')
   const allowed = settings.enabled ? activities.filter(activity => settings[activity.feature]) : []
-  const visible = allowed.filter(activity => !(hidden.has(activity.id) && hidden.get(activity.id) === activity.sessionKey))
+  const visible = allowed.filter(activity => !activity.standby && !(hidden.has(activity.id) && hidden.get(activity.id) === activity.sessionKey))
   // 当前展开面板所属的活动与展开时的页面：活动撤下、换成别的活动或切换页面（如从面板进入播放器页）后自然失效，回来时不会自己再弹开；
   // 同时记下展开时的面板，展开期间活动换成没有面板的样子时接着用（见下面的 primary）
   const pathname = usePathname()
@@ -402,18 +403,18 @@ function useMergedRef<T>(first: React.Ref<T> | undefined, second: React.Ref<T> |
 }
 
 /**
- * 面板里形变时淡入淡出的内容层：挂载（Radix 打开）时把自己交给 onMount 播放展开，返回的函数在卸载时调用。
+ * 面板里形变时淡入淡出的内容层：挂载（Radix 打开）时把自己与切换阶段的函数交给 onMount 播放展开，返回的函数在卸载时调用。
  * 用自己的元素而不是外层的 ref：子组件的 layout effect 先于父元素的 ref 挂上，而面板就是它的父元素
  */
-function MorphContent({ onMount, children }: { onMount: (content: HTMLDivElement, onOpened: () => void) => (() => void) | void, children: ReactNode }) {
+function MorphContent({ onMount, children }: { onMount: (content: HTMLDivElement, setPhase: (phase: IslandPanelPhase) => void) => (() => void) | void, children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
-  // 展开播完后才挂载面板里开销大的部分（见 island-panel-ready.ts）
-  const [ready, setReady] = useState(false)
-  useLayoutEffect(() => (ref.current ? onMount(ref.current, () => setReady(true)) : undefined), [onMount])
+  // 面板所处的阶段（见 island-panel-phase.ts）：每次打开都重新挂载，从展开开始
+  const [phase, setPhase] = useState<IslandPanelPhase>('opening')
+  useLayoutEffect(() => (ref.current ? onMount(ref.current, setPhase) : undefined), [onMount])
   return (
-    <IslandPanelReadyContext value={ready}>
+    <IslandPanelPhaseContext value={phase}>
       <div ref={ref}>{children}</div>
-    </IslandPanelReadyContext>
+    </IslandPanelPhaseContext>
   )
 }
 
@@ -422,8 +423,8 @@ function MorphContent({ onMount, children }: { onMount: (content: HTMLDivElement
  * 展开途中收到的收起请求等展开播完；中途卸载时立即停止并清理
  */
 function usePanelMorph(capsuleRef: React.RefObject<HTMLButtonElement | null>, onOpenChange: (open: boolean) => void, setCapsuleHidden: (hidden: boolean) => void) {
-  // 当前打开的面板（Radix 的弹层内容）与其中的内容层，由 MorphContent 挂载时写入
-  const elementsRef = useRef<{ panel: HTMLElement, content: HTMLElement } | null>(null)
+  // 当前打开的面板（Radix 的弹层内容）与其中的内容层、切换面板阶段的函数，由 MorphContent 挂载时写入
+  const elementsRef = useRef<{ panel: HTMLElement, content: HTMLElement, setPhase: (phase: IslandPanelPhase) => void } | null>(null)
   const stateRef = useRef({ opening: false, closing: false, closeQueued: false })
   const onOpenChangeRef = useRef(onOpenChange)
   useEffect(() => {
@@ -444,8 +445,10 @@ function usePanelMorph(capsuleRef: React.RefObject<HTMLButtonElement | null>, on
       onOpenChangeRef.current(false)
       return
     }
-    const { panel, content } = elements
+    const { panel, content, setPhase } = elements
     state.closing = true
+    // 先告诉面板里的内容开始收起（如音乐把歌词引擎交还给胶囊，胶囊在面板底下跟上此刻的画面）
+    setPhase('closing')
     void morphIsland({ direction: 'close', capsule, panel, content }).then(async (result) => {
       // 缩回胶囊的形状后，胶囊先在面板底下显示，面板（此时就是带着播放器背景的胶囊形状）再淡出，两者交叉，不经过纯黑
       setCapsuleHidden(false)
@@ -462,14 +465,14 @@ function usePanelMorph(capsuleRef: React.RefObject<HTMLButtonElement | null>, on
     })
   }, [capsuleRef, setCapsuleHidden])
 
-  const runOpen = useCallback((content: HTMLDivElement, onOpened: () => void) => {
+  const runOpen = useCallback((content: HTMLDivElement, setPhase: (phase: IslandPanelPhase) => void) => {
     const panel = content.parentElement
     const capsule = capsuleRef.current
     if (!panel || !capsule) {
-      onOpened()
+      setPhase('open')
       return
     }
-    elementsRef.current = { panel, content }
+    elementsRef.current = { panel, content, setPhase }
     const state = stateRef.current
     state.opening = true
     state.closeQueued = false
@@ -488,7 +491,7 @@ function usePanelMorph(capsuleRef: React.RefObject<HTMLButtonElement | null>, on
       if (controller.signal.aborted)
         return
       state.opening = false
-      onOpened()
+      setPhase('open')
       if (state.closeQueued) {
         state.closeQueued = false
         requestClose()

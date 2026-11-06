@@ -8,7 +8,7 @@ import { usePathname } from 'next/navigation'
 import React, { useEffect, useRef, useState } from 'react'
 import { fetchPlaylist } from '@/api/music'
 import { SafeImage } from '@/components/common/safe-image'
-import { useIslandPanelReady } from '@/components/layout/topbar-island/island-panel-ready'
+import { useIslandPanelPhase } from '@/components/layout/topbar-island/island-panel-phase'
 import { LyricSourceBadge } from '@/components/music-page/lyric-source-badge'
 import { MusicBackground } from '@/components/music-page/music-background'
 import { MusicLyricMoments } from '@/components/music-page/music-lyric-moments'
@@ -494,25 +494,41 @@ function LyricLineStandIn() {
   )
 }
 
-// 正在显示的悬浮播放器（悬浮球与顶栏灵动岛的弹层共用 MiniPlayer）
-let openMiniPlayers = 0
+/**
+ * 正在显示的悬浮播放器（悬浮球与顶栏灵动岛的弹层共用 MiniPlayer），顶栏灵动岛据此让位（见 topbar-island/music-island.tsx）：
+ * - floating：悬浮球的弹层开着，灵动岛这时不显示音乐活动
+ * - effects：悬浮播放器挂着，舞台特效与律动条由它演出，胶囊的暂停
+ * - lyrics：悬浮播放器的歌词引擎在逐帧运行（灵动岛的面板只算展开完毕到开始收起之间），胶囊的暂停
+ * 同一首歌的两套歌词引擎、两套特效同时逐帧运行时，iOS 26 的 Safari（JavaScriptCore 优化编译时）会整页崩溃（实测 Sen Trope 的长间奏处必现），
+ * 所以同一时刻只让一处运行；暂停的一方停在此刻的画面，恢复时直接跳到此刻的进度
+ */
+type MiniPlayerHold = 'floating' | 'effects' | 'lyrics'
+const miniPlayerHolds: Record<MiniPlayerHold, number> = { floating: 0, effects: 0, lyrics: 0 }
 const miniPlayerListeners = new Set<() => void>()
 
-function subscribeMiniPlayerOpen(listener: () => void) {
+function subscribeMiniPlayerHolds(listener: () => void) {
   miniPlayerListeners.add(listener)
   return () => {
     miniPlayerListeners.delete(listener)
   }
 }
 
-function setMiniPlayerOpen(delta: number) {
-  openMiniPlayers += delta
-  miniPlayerListeners.forEach(listener => listener())
+function useMiniPlayerHold(hold: MiniPlayerHold, active: boolean) {
+  useEffect(() => {
+    if (!active)
+      return
+    const change = (delta: number) => {
+      miniPlayerHolds[hold] += delta
+      miniPlayerListeners.forEach(listener => listener())
+    }
+    change(1)
+    return () => change(-1)
+  }, [active, hold])
 }
 
-/** 是否有悬浮播放器开着（顶栏灵动岛的胶囊据此暂停自己的歌词引擎与特效，见 topbar-island/music-island.tsx） */
-export function useMiniPlayerOpen() {
-  return React.useSyncExternalStore(subscribeMiniPlayerOpen, () => openMiniPlayers > 0, () => false)
+/** 悬浮播放器此刻是否占着 hold 所指的那部分（见上方 miniPlayerHolds） */
+export function useMiniPlayerHolding(hold: MiniPlayerHold) {
+  return React.useSyncExternalStore(subscribeMiniPlayerHolds, () => miniPlayerHolds[hold] > 0, () => false)
 }
 
 /**
@@ -523,14 +539,16 @@ export function useMiniPlayerOpen() {
 export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
   const t = useTranslations('MusicPlayer')
   const { currentTrack, isPlaying } = useMusic()
-  // 从顶栏灵动岛展开时，形变期间歌词区先放当前这一句的替身（落点），展开完再挂载歌词引擎（排上千个字的开销不卡住展开动画）
-  const panelReady = useIslandPanelReady()
+  // 在顶栏灵动岛的面板里时所处的阶段（悬浮球的弹层里为 null）：形变期间歌词区先放当前这一句的替身（落点），
+  // 展开完再挂载歌词引擎（排上千个字的开销不卡住展开动画）；开始收起后歌词引擎停在此刻（前景随即淡出），交还给胶囊
+  const panelPhase = useIslandPanelPhase()
+  const panelReady = panelPhase !== 'opening'
+  const lyricsRunning = panelPhase == null || panelPhase === 'open'
+  useMiniPlayerHold('floating', panelPhase == null)
+  useMiniPlayerHold('effects', true)
+  useMiniPlayerHold('lyrics', lyricsRunning)
   // 与播放器页相同：主题色（模型选的颜色或封面主色）作为辉光与呼吸的默认颜色
   const accent = useSongAccent(currentTrack?.albumPic)
-  useEffect(() => {
-    setMiniPlayerOpen(1)
-    return () => setMiniPlayerOpen(-1)
-  }, [])
   if (!currentTrack)
     return null
 
@@ -579,7 +597,7 @@ export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
           {panelReady
             ? (
                 <>
-                  <MusicLyricStage compact className="h-full animate-in duration-200 fade-in-0" />
+                  <MusicLyricStage compact paused={!lyricsRunning} className="h-full animate-in duration-200 fade-in-0" />
                   <MusicLyricMoments compact className="absolute inset-x-0 bottom-1" />
                 </>
               )

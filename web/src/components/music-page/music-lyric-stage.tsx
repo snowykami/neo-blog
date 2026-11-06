@@ -19,9 +19,10 @@ import '@/lib/lyrics/lyric-fonts'
  * compact 为紧凑模式（悬浮播放器、文章内单曲卡）：同一套引擎与样式，只缩小字号与间距；
  * strip 为单行条（导航栏标题、单曲卡收起时）：容器只有一行高、字号跟随容器，一次显示一行，超出宽度时跟随演唱横向滚动，不显示翻译与音译；
  * themed 时文字跟随站点亮暗主题（单曲卡），否则为深色界面上的白色文字；
- * stagePush 为播放器页副歌镜头推近时歌词区多放大的比例（由 MusicStageEffects 写入 scale）
+ * stagePush 为播放器页副歌镜头推近时歌词区多放大的比例（由 MusicStageEffects 写入 scale）；
+ * paused 时引擎停在此刻的画面、不再逐帧运行，恢复时直接跳到此刻的进度（见 LyricPlayer.setPaused）
  */
-export function MusicLyricStage({ className, compact = false, strip = false, themed = false, stagePush }: { className?: string, compact?: boolean, strip?: boolean, themed?: boolean, stagePush?: number }) {
+export function MusicLyricStage({ className, compact = false, strip = false, themed = false, stagePush, paused = false }: { className?: string, compact?: boolean, strip?: boolean, themed?: boolean, stagePush?: number, paused?: boolean }) {
   const t = useTranslations('MusicPlayer')
   const pageT = useTranslations('MusicPage')
   const { lyrics, lyricStatus, showTranslation, showRomaji, showLyricEffects, isPlaying, getAudio, seek, play, refreshLyrics, lyricSourcesPending, currentTrack } = useMusic()
@@ -30,6 +31,7 @@ export function MusicLyricStage({ className, compact = false, strip = false, the
   const playerRef = useRef<LyricPlayer | null>(null)
   // 引擎每帧通过回调读取，不随渲染重建
   const isPlayingRef = useRef(isPlaying)
+  const pausedRef = useRef(paused)
   const trackIdRef = useRef(currentTrack?.id ?? null)
   useEffect(() => {
     trackIdRef.current = currentTrack?.id ?? null
@@ -57,6 +59,7 @@ export function MusicLyricStage({ className, compact = false, strip = false, the
       // 韵律动效：这首歌的节拍模型（分析完成前或不可用时为 null，回退到固定快慢）
       getRhythm: () => rhythmModelFor(trackIdRef.current),
     })
+    player.setPaused(pausedRef.current)
     playerRef.current = player
     // 暂停时拖动进度条等也要刷新：随播放时钟（约每秒 4 次）唤醒，引擎自身在静止时会停止逐帧循环
     const unsubscribe = clock.subscribe(() => player.wake())
@@ -66,6 +69,11 @@ export function MusicLyricStage({ className, compact = false, strip = false, the
       playerRef.current = null
     }
   }, [clock, compact, getAudio, hasLines, play, seek, strip])
+
+  useEffect(() => {
+    pausedRef.current = paused
+    playerRef.current?.setPaused(paused)
+  }, [paused])
 
   useEffect(() => {
     if (hasLines)
