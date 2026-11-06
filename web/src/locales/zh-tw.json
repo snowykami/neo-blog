@@ -3300,7 +3300,12 @@
     "title": "發生錯誤",
     "description": "頁面載入時發生問題，請稍後再試。",
     "digest": "錯誤編號：{digest}",
-    "retry": "重試"
+    "retry": "重試",
+    "details": "錯誤詳情",
+    "details_hint": "如果問題反覆出現，可以複製下面的資訊發給站長，方便排查。",
+    "copy": "複製",
+    "copied": "已複製",
+    "copy_failed": "複製失敗，請長按選取文字複製"
   },
   "TimeZone": {
     "placeholder": "選擇時區",

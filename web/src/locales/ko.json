@@ -3300,7 +3300,12 @@
     "title": "문제가 발생했습니다",
     "description": "페이지를 불러오는 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
     "digest": "오류 ID: {digest}",
-    "retry": "다시 시도"
+    "retry": "다시 시도",
+    "details": "오류 세부 정보",
+    "details_hint": "문제가 계속되면 아래 정보를 복사해 사이트 관리자에게 보내 주세요.",
+    "copy": "복사",
+    "copied": "복사됨",
+    "copy_failed": "복사하지 못했습니다. 길게 눌러 텍스트를 선택해 주세요."
   },
   "TimeZone": {
     "placeholder": "시간대 선택",

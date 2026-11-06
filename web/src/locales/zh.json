@@ -3300,7 +3300,12 @@
     "title": "出错了",
     "description": "页面加载时出现问题，请稍后重试。",
     "digest": "错误编号：{digest}",
-    "retry": "重试"
+    "retry": "重试",
+    "details": "错误详情",
+    "details_hint": "如果问题反复出现，可以复制下面的信息发给站长，方便排查。",
+    "copy": "复制",
+    "copied": "已复制",
+    "copy_failed": "复制失败，请长按选中文字复制"
   },
   "TimeZone": {
     "placeholder": "选择时区",

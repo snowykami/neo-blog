@@ -1,13 +1,63 @@
 'use client'
 
+import { CheckIcon, ChevronDownIcon, CopyIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import copyToClipboard from '@/lib/clipboard'
 import { isChunkLoadError, reloadForChunkError } from '@/utils/client/chunk-error'
 
+// 复制后按钮显示「已复制」的时长
+const COPIED_MS = 2000
+
 /**
- * 路由错误边界展示：提示出错并提供重试 / 返回首页
+ * 错误详情：错误信息与调用栈，附上页面地址、浏览器与时间，方便读者在手机上复制后反馈（手机上没有开发者工具）。
+ * 只在展开时渲染（折叠内容收起时不挂载），只在浏览器中读取地址与浏览器信息
+ */
+function errorDetails(error: Error & { digest?: string }) {
+  const summary = `${error.name}: ${error.message}`
+  // Chromium 的调用栈第一行就是错误信息，去掉重复（Safari 的调用栈只有各帧）
+  const stack = error.stack?.startsWith(summary) ? error.stack.slice(summary.length).replace(/^\n/, '') : error.stack
+  return [
+    summary,
+    error.digest && `digest: ${error.digest}`,
+    `url: ${location.href}`,
+    `ua: ${navigator.userAgent}`,
+    `time: ${new Date().toISOString()}`,
+    stack && `\n${stack}`,
+  ].filter(Boolean).join('\n')
+}
+
+function ErrorDetails({ error }: { error: Error & { digest?: string } }) {
+  const t = useTranslations('ErrorPage')
+  const [details] = useState(() => errorDetails(error))
+  const [copied, setCopied] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (copied == null)
+      return
+    const timer = window.setTimeout(setCopied, COPIED_MS, null)
+    return () => window.clearTimeout(timer)
+  }, [copied])
+
+  return (
+    <div className="grid gap-2 text-left">
+      <p className="text-xs text-muted-foreground">{t('details_hint')}</p>
+      <pre className="max-h-64 overflow-auto rounded-md border bg-muted/50 p-3 font-mono text-xs whitespace-pre-wrap break-all select-text">{details}</pre>
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => copyToClipboard(details).then(setCopied)}>
+          {copied ? <CheckIcon /> : <CopyIcon />}
+          {copied ? t('copied') : copied === false ? t('copy_failed') : t('copy')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 路由错误边界展示：提示出错并提供重试 / 返回首页，可展开查看错误详情
  */
 export function ErrorBoundaryPage({
   error,
@@ -42,6 +92,17 @@ export function ErrorBoundaryPage({
             <Link href="/">{operationT('back_to_home')}</Link>
           </Button>
         </div>
+        <Collapsible className="grid gap-2 mt-6">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="group justify-self-center text-muted-foreground">
+              {t('details')}
+              <ChevronDownIcon className="transition-transform group-data-[state=open]:rotate-180" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <ErrorDetails error={error} />
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </div>
   )

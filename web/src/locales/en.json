@@ -3300,7 +3300,12 @@
     "title": "Something went wrong",
     "description": "There was a problem loading this page. Please try again later.",
     "digest": "Error ID: {digest}",
-    "retry": "Retry"
+    "retry": "Retry",
+    "details": "Error details",
+    "details_hint": "If this keeps happening, copy the details below and send them to the site owner.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copy_failed": "Copy failed. Long-press to select the text instead."
   },
   "TimeZone": {
     "placeholder": "Select a time zone",
