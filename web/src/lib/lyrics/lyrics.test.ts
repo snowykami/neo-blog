@@ -6,7 +6,7 @@ import { preprocessLyricLines } from './preprocess'
 import { lyricTier, resolveLyrics } from './resolve'
 import { Spring } from './spring'
 import { isCreditText, stripCredits } from './strip-credits'
-import { buildTimeline, getTimelineState, getWordProgress } from './timeline'
+import { buildTimeline, getLineTextAt, getTimelineState, getWordProgress } from './timeline'
 
 function line(start: number, end: number, text = 'x'): LyricLine {
   return {
@@ -78,6 +78,20 @@ describe('时间线（8.6、8.7）', () => {
     const overlapItems = buildTimeline(overlapped)
     expect(getTimelineState(overlapped, overlapItems, 2500).active).toEqual([0, 1])
     expect(getTimelineState(overlapped, overlapItems, 4500)).toEqual({ active: [1], focus: 1, interlude: null })
+  })
+
+  it('某一时刻的那一句（静态显示用）：间奏、开唱前与曲末为空，背景和声取主唱行', () => {
+    const texts = [line(1000, 3000, 'a'), line(3000, 4500, 'b'), line(5000, 6000, 'c'), line(14000, 16000, 'd')]
+    const textItems = buildTimeline(texts)
+    expect(getLineTextAt(texts, textItems, 3500)).toBe('b')
+    // 句间短空隙内仍是刚唱完的那一句
+    expect(getLineTextAt(texts, textItems, 4700)).toBe('b')
+    expect(getLineTextAt(texts, textItems, 9000)).toBeNull()
+    expect(getLineTextAt(texts, textItems, 500)).toBeNull()
+    expect(getLineTextAt(texts, textItems, 20000)).toBeNull()
+    expect(getLineTextAt([], buildTimeline([]), 1000)).toBeNull()
+    const withBackground = [line(0, 3000, 'main'), { ...line(1000, 4000, 'bg'), isBackground: true }]
+    expect(getLineTextAt(withBackground, buildTimeline(withBackground), 3500)).toBe('main')
   })
 
   it('词进度', () => {

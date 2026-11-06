@@ -65,6 +65,23 @@ export function getTimelineState(lines: LyricLine[], items: TimelineItem[], time
   return { active: [previous], focus: itemOfLine(previous), interlude: null }
 }
 
+/**
+ * 某一时刻正在唱（或句间短空隙里刚唱完）的那一句主唱行的文字，用于静态显示（如暂停时的顶栏灵动岛）；
+ * 间奏（含前奏）、第一句开唱之前与最后一句唱完之后没有这一句，返回 null
+ */
+export function getLineTextAt(lines: LyricLine[], items: TimelineItem[], timeMs: number): string | null {
+  const { focus, interlude } = getTimelineState(lines, items, timeMs)
+  const item = items[focus]
+  if (interlude != null || item?.kind !== 'line' || timeMs < lines[0].start)
+    return null
+  // 焦点是背景和声时取它前面最近的主唱行
+  for (let i = item.line; i >= 0; i--) {
+    if (!lines[i].isBackground)
+      return lines[i].words.map(word => word.text).join('').trim() || null
+  }
+  return null
+}
+
 /** 某个词在 timeMs 时的演唱进度（0 ~ 1） */
 export function getWordProgress(start: number, end: number, timeMs: number): number {
   if (end <= start)
