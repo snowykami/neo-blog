@@ -148,20 +148,33 @@ func (w *agentWriteContext) checkComment(targetType string, targetID, replyID ui
 	if n, _ := repo.AIAgent.CountAIComments(today); n >= int64(w.cfg.CommentsPerDay) {
 		return errs.NewTooManyRequests("agent_global_comment_limit")
 	}
-	// 单篇上限：AI 评论数 ≤ max(基数, 真人评论数 × 比例)，且每个 AI 在同一篇下不超过个体上限
-	aiCount, humanCount, _ := repo.AIAgent.CountTargetComments(targetType, targetID)
-	postCap := max(int64(w.cfg.CommentsPerPost), int64(float64(humanCount)*w.cfg.AIRatio))
-	if aiCount >= postCap {
-		return errs.NewTooManyRequests("agent_post_comment_limit")
-	}
-	if n, _ := repo.AIAgent.CountUserCommentsOnTarget(userID, targetType, targetID); n >= int64(w.profile.Limits.CommentsPerPost) && replyID == 0 {
-		return errs.NewTooManyRequests("agent_post_comment_limit")
-	}
+	var parent *model.Comment
 	if replyID != 0 {
-		parent, err := repo.Comment.GetComment(replyID)
-		if err != nil {
+		var err error
+		if parent, err = repo.Comment.GetComment(replyID); err != nil {
 			return errs.NewNotFound("operation_target_not_found").WithResource("comment")
 		}
+	}
+	if parent != nil && !parent.User.IsAI {
+		// 回复真人单独计数：每条真人评论最多被 AI 直接回复几次，不占单篇的 AI 评论名额（单篇满了也能回应真人）
+		if n, _ := repo.AIAgent.CountAIRepliesTo(parent.ID); n >= int64(w.cfg.RepliesPerHuman) {
+			return errs.NewTooManyRequests("agent_human_reply_limit")
+		}
+	} else {
+		// 单篇上限：AI 的顶层评论与 AI 之间的回复合计 ≤ max(基数, 真人评论数 × 比例)
+		aiCount, humanCount, _ := repo.AIAgent.CountTargetComments(targetType, targetID)
+		postCap := max(int64(w.cfg.CommentsPerPost), int64(float64(humanCount)*w.cfg.AIRatio))
+		if aiCount >= postCap {
+			return errs.NewTooManyRequests("agent_post_comment_limit")
+		}
+	}
+	// 每个 AI 在同一篇下的顶层评论不超过个体上限（回复不计）
+	if replyID == 0 {
+		if n, _ := repo.AIAgent.CountUserRootCommentsOnTarget(userID, targetType, targetID); n >= int64(w.profile.Limits.CommentsPerPost) {
+			return errs.NewTooManyRequests("agent_post_comment_limit")
+		}
+	}
+	if parent != nil {
 		if parent.UserID == userID {
 			return errs.NewForbidden("agent_cannot_reply_self")
 		}

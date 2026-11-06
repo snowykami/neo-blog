@@ -123,8 +123,15 @@ func TestAIAgentQueries(t *testing.T) {
 		}
 		ai, humanCount, err := AIAgent.CountTargetComments("post", post.ID)
 		must(err)
-		if ai != 2 || humanCount != 1 {
+		// r1 是 AI 回复真人，单独计数，不算进单篇的 AI 评论数
+		if ai != 1 || humanCount != 1 {
 			t.Fatalf("target comments = %d %d", ai, humanCount)
+		}
+		if n, _ := AIAgent.CountAIRepliesTo(root.ID); n != 1 {
+			t.Fatalf("ai replies to root = %d", n)
+		}
+		if n, _ := AIAgent.CountUserRootCommentsOnTarget(aiUser.ID, "post", post.ID); n != 0 {
+			t.Fatalf("root comments of ai = %d", n)
 		}
 		if n, _ := AIAgent.CountPairReplies(aiUser2.ID, aiUser.ID, root.ID, since); n != 1 {
 			t.Fatalf("pair replies = %d", n)

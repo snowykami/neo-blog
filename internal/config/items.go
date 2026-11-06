@@ -180,6 +180,7 @@ var sections = []*Section{
 		{Key: "ai_agents_likes_per_day", Type: TypeInt, Label: "ai_agents_likes_per_day", Description: "ai_agents_likes_per_day_desc", Min: num(0), Max: num(1000000), Default: 600},
 		{Key: "ai_agents_comments_per_post", Type: TypeInt, Label: "ai_agents_comments_per_post", Description: "ai_agents_comments_per_post_desc", Min: num(0), Max: num(1000), Default: 3},
 		{Key: "ai_agents_ai_ratio", Type: TypeFloat, Label: "ai_agents_ai_ratio", Description: "ai_agents_ai_ratio_desc", Min: num(0), Max: num(100), Step: 0.5, Default: 2.0},
+		{Key: "ai_agents_replies_per_human_comment", Type: TypeInt, Label: "ai_agents_replies_per_human_comment", Description: "ai_agents_replies_per_human_comment_desc", Min: num(0), Max: num(100), Default: 2},
 		{Key: "ai_agents_publish_fanout", Type: TypeInt, Label: "ai_agents_publish_fanout", Description: "ai_agents_publish_fanout_desc", Min: num(0), Max: num(1000), Default: 8},
 		{Key: "ai_agents_quiet_hours", Type: TypeString, Label: "ai_agents_quiet_hours", Description: "ai_agents_quiet_hours_desc", Placeholder: "02:00-07:00", Default: ""},
 		{Key: "ai_agents_max_chain_depth", Type: TypeInt, Label: "ai_agents_max_chain_depth", Description: "ai_agents_max_chain_depth_desc", Min: num(1), Max: num(10), Default: 5},

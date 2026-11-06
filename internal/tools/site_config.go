@@ -217,6 +217,7 @@ type AIAgentConfig struct {
 	LikesPerDay        int
 	CommentsPerPost    int
 	AIRatio            float64
+	RepliesPerHuman    int // 每条真人评论最多被 AI 直接回复几次（单独计数，不占单篇的 AI 评论名额）
 	PublishFanout      int
 	QuietHours         string
 	MaxChainDepth      int
@@ -239,6 +240,7 @@ func GetAIAgentConfig() AIAgentConfig {
 		LikesPerDay:        config.Int("ai_agents_likes_per_day"),
 		CommentsPerPost:    config.Int("ai_agents_comments_per_post"),
 		AIRatio:            config.Float("ai_agents_ai_ratio"),
+		RepliesPerHuman:    config.Int("ai_agents_replies_per_human_comment"),
 		PublishFanout:      config.Int("ai_agents_publish_fanout"),
 		QuietHours:         strings.TrimSpace(config.String("ai_agents_quiet_hours")),
 		MaxChainDepth:      config.Int("ai_agents_max_chain_depth"),

@@ -445,15 +445,19 @@ func (r *aiAgentRepo) CountAILikes(since time.Time) (int64, error) {
 		Where("users.is_ai = ? AND likes.created_at >= ?", true, since).Count(&n).Error
 }
 
-// CountTargetComments 目标（文章 / 页面）下 AI 与真人的评论数
+// CountTargetComments 目标（文章 / 页面）下 AI 与真人的评论数（含回复）。
+// AI 回复真人评论的那些另有上限（见 CountAIRepliesTo），不计入这里的 AI 评论数
 func (r *aiAgentRepo) CountTargetComments(targetType string, targetID uint) (ai, human int64, err error) {
 	var rows []struct {
 		IsAI bool
 		N    int64
 	}
 	err = GetDB().Model(&model.Comment{}).Joins("JOIN users ON users.id = comments.user_id").
+		Joins("LEFT JOIN comments AS parents ON parents.id = comments.reply_id").
+		Joins("LEFT JOIN users AS parent_users ON parent_users.id = parents.user_id").
 		Select("users.is_ai AS is_ai, COUNT(*) AS n").
 		Where("comments.target_type = ? AND comments.target_id = ?", targetType, targetID).
+		Where("NOT (users.is_ai = ? AND comments.reply_id <> 0 AND COALESCE(parent_users.is_ai, ?) = ?)", true, true, false).
 		Group("users.is_ai").Scan(&rows).Error
 	for _, row := range rows {
 		if row.IsAI {
@@ -465,10 +469,17 @@ func (r *aiAgentRepo) CountTargetComments(targetType string, targetID uint) (ai,
 	return
 }
 
-// CountUserCommentsOnTarget 用户在目标下的评论数
-func (r *aiAgentRepo) CountUserCommentsOnTarget(userID uint, targetType string, targetID uint) (int64, error) {
+// CountUserRootCommentsOnTarget 用户在目标下的顶层评论数（不含回复）
+func (r *aiAgentRepo) CountUserRootCommentsOnTarget(userID uint, targetType string, targetID uint) (int64, error) {
 	var n int64
-	return n, GetDB().Model(&model.Comment{}).Where("user_id = ? AND target_type = ? AND target_id = ?", userID, targetType, targetID).Count(&n).Error
+	return n, GetDB().Model(&model.Comment{}).Where("user_id = ? AND target_type = ? AND target_id = ? AND reply_id = 0", userID, targetType, targetID).Count(&n).Error
+}
+
+// CountAIRepliesTo 直接回复这条评论的 AI 评论数
+func (r *aiAgentRepo) CountAIRepliesTo(commentID uint) (int64, error) {
+	var n int64
+	return n, GetDB().Model(&model.Comment{}).Joins("JOIN users ON users.id = comments.user_id").
+		Where("comments.reply_id = ? AND users.is_ai = ?", commentID, true).Count(&n).Error
 }
 
 // LastCommentAt 用户最近一次评论的时间
