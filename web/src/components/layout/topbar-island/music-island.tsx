@@ -9,13 +9,13 @@ import { useTranslations } from 'next-intl'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { MarqueeText } from '@/components/common/marquee-text'
-import { AlbumNavIcon, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE, MiniPlayer } from '@/components/common/music-player'
+import { AlbumNavIcon, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE, MiniPlayer, useMiniPlayerOpen } from '@/components/common/music-player'
 import { SafeImage } from '@/components/common/safe-image'
 import { MusicBackground } from '@/components/music-page/music-background'
 import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useCoverAccent, useSongAccent } from '@/components/music-page/use-cover-accent'
-import { useMusic, useMusicClockStore } from '@/contexts/music-context'
+import { useCurrentLyric, useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useSongChorus } from '@/contexts/song-chorus'
 import { dismissIslandAlert, pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
 import { lyricGlowAt } from '@/lib/lyrics/lyric-glow'
@@ -188,21 +188,26 @@ function MusicCompact({ beat }: { beat: boolean }) {
   const { currentTrack, lyricLines, lyrics } = useMusic()
   const accent = useSongAccent(currentTrack?.albumPic)
   const hasLyric = lyricLines.length > 0 || lyrics.instrumental
+  // 悬浮播放器（悬浮球或灵动岛的弹层）开着时，胶囊暂停自己的歌词引擎与特效，只显示此刻这一句的文字：
+  // 胶囊与弹层的两个歌词引擎、两套特效同时逐帧运行时，iOS 26 的 Safari（JavaScriptCore 优化编译时）会整页崩溃
+  // （实测 Sen Trope 的长间奏处必现）；弹层里已经有同样的歌词与特效
+  const suspended = useMiniPlayerOpen()
+  const currentLine = useCurrentLyric(suspended)
   // 随拍染色层：律动条逐帧写入不透明度
   const tintRef = useRef<HTMLSpanElement>(null)
   return (
     <span className="contents" style={accent ? { '--lyric-accent': accent } as React.CSSProperties : undefined}>
       {/* 标题区域只有一行高，按播放器的模糊半径会糊成一片黑，改用小半径保留封面的颜色 */}
       <MusicBackground cover={currentTrack?.albumPic} contained imageClassName="blur-md" />
-      <MusicStageEffects contained />
+      {!suspended && <MusicStageEffects contained />}
       {beat && <span ref={tintRef} aria-hidden className="pointer-events-none absolute inset-0 bg-[color:var(--lyric-accent,#fff)] opacity-0" />}
       {/* 封面与歌词标了 data-island-morph：展开时封面放大飞到面板里的封面处，单行歌词带着样式飞到面板歌词区的焦点行（没有歌词时不飞，见 island-morph.ts） */}
       <IslandSlot morph="cover"><AlbumNavIcon /></IslandSlot>
       {/* 歌词与文字离封面、律动条各 10px：单行条自带 10px 内边距，左右各收回 6px */}
       <span data-island-morph={hasLyric ? 'lyrics' : undefined} className="relative flex h-9 w-[36ch] max-w-full min-w-0 shrink items-center">
-        {hasLyric
+        {hasLyric && !suspended
           ? <MusicLyricStage strip className="-mx-1.5 h-full min-w-0 flex-1" />
-          : <IslandText className="flex-1"><MarqueeText>{currentTrack ? trackTitle(currentTrack) : ''}</MarqueeText></IslandText>}
+          : <IslandText className="flex-1"><MarqueeText>{(suspended && currentLine) || (currentTrack ? trackTitle(currentTrack) : '')}</MarqueeText></IslandText>}
       </span>
       {beat && <IslandSlot><BeatBars tintRef={tintRef} /></IslandSlot>}
     </span>

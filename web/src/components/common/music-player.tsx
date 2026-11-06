@@ -494,6 +494,27 @@ function LyricLineStandIn() {
   )
 }
 
+// 正在显示的悬浮播放器（悬浮球与顶栏灵动岛的弹层共用 MiniPlayer）
+let openMiniPlayers = 0
+const miniPlayerListeners = new Set<() => void>()
+
+function subscribeMiniPlayerOpen(listener: () => void) {
+  miniPlayerListeners.add(listener)
+  return () => {
+    miniPlayerListeners.delete(listener)
+  }
+}
+
+function setMiniPlayerOpen(delta: number) {
+  openMiniPlayers += delta
+  miniPlayerListeners.forEach(listener => listener())
+}
+
+/** 是否有悬浮播放器开着（顶栏灵动岛的胶囊据此暂停自己的歌词引擎与特效，见 topbar-island/music-island.tsx） */
+export function useMiniPlayerOpen() {
+  return React.useSyncExternalStore(subscribeMiniPlayerOpen, () => openMiniPlayers > 0, () => false)
+}
+
 /**
  * 悬浮播放器：播放器页（/music）的缩小版，共用歌词引擎（紧凑模式）、歌词来源标签、控制栏与全部特效（全屏特效为小窗精简版）；
  * 歌单为从歌单按钮弹出的小浮层，歌名与歌手过长时以跑马灯滚动；右上角的按钮进入完整的播放器页（onOpenPage 用于同时收起弹层）。
@@ -506,6 +527,10 @@ export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
   const panelReady = useIslandPanelReady()
   // 与播放器页相同：主题色（模型选的颜色或封面主色）作为辉光与呼吸的默认颜色
   const accent = useSongAccent(currentTrack?.albumPic)
+  useEffect(() => {
+    setMiniPlayerOpen(1)
+    return () => setMiniPlayerOpen(-1)
+  }, [])
   if (!currentTrack)
     return null
 
