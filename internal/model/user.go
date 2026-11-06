@@ -28,6 +28,8 @@ type User struct {
 	TimeZone       string        `gorm:"default:''"`    // IANA 时区，只在公开当地时间时保存，关闭时清空
 	Disabled       bool          `gorm:"default:false"` // 是否被管理员禁用，禁用后无法登录且已有会话失效
 	IsAI           bool          `gorm:"default:false"` // 是否为 AI 用户：由 Agent 驱动、与普通用户同权限，不能密码登录
+	// AI 写作的语言习惯：作者描述自己的口吻，编辑器 AI 写作与 MCP 写作指南会附上；只有本人可读写，不放进任何用户 DTO
+	AIWritingHabit string `gorm:"type:text;default:''"`
 }
 
 // ToDto 公开的用户信息，不包含邮箱等隐私字段

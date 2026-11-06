@@ -17,6 +17,7 @@ import (
 const (
 	aiPromptMaxLabelRune       = 30
 	aiPromptMaxInstructionRune = 1000
+	aiWritingHabitMaxRune      = 2000 // 语言习惯的长度上限，与系统提示词一起发送，避免挤占正文的上下文
 )
 
 // AIPromptService 编辑器 AI 快捷指令：平台指令由管理员维护，编辑者可维护自己的个人指令
@@ -148,4 +149,33 @@ func (s *AIPromptService) resolve(ctx context.Context, id uint, mode string) (*m
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
 	return prompt, nil
+}
+
+// GetWritingHabit 当前用户的 AI 写作语言习惯
+func (s *AIPromptService) GetWritingHabit(ctx context.Context) (*dto.AIWritingHabitDto, *errs.ServiceError) {
+	userID, ok := ctxutils.GetCurrentUserID(ctx)
+	if !ok {
+		return nil, errs.NewUnauthorized("login_required")
+	}
+	habit, err := repo.User.GetAIWritingHabit(userID)
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err)
+	}
+	return &dto.AIWritingHabitDto{Habit: habit}, nil
+}
+
+// UpdateWritingHabit 保存当前用户的语言习惯：只能改自己的，留空表示不使用
+func (s *AIPromptService) UpdateWritingHabit(ctx context.Context, req *dto.AIWritingHabitDto) (*dto.AIWritingHabitDto, *errs.ServiceError) {
+	userID, ok := ctxutils.GetCurrentUserID(ctx)
+	if !ok {
+		return nil, errs.NewUnauthorized("login_required")
+	}
+	habit := strings.TrimSpace(req.Habit)
+	if utf8.RuneCountInString(habit) > aiWritingHabitMaxRune {
+		return nil, errs.NewBadRequest("ai_input_too_long")
+	}
+	if err := repo.User.UpdateUserColumns(userID, map[string]any{"ai_writing_habit": habit}); err != nil {
+		return nil, errs.Internal("failed_to_update_target", err)
+	}
+	return &dto.AIWritingHabitDto{Habit: habit}, nil
 }

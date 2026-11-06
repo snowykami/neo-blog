@@ -1,14 +1,25 @@
 package service
 
 import (
+	"context"
 	"strings"
 
+	"github.com/snowykami/neo-blog/internal/ctxutils"
+	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/errs"
 )
 
-// BuildAgentWritingGuide 外部 AI 工具（MCP）的写作指南：站点写作风格、正文格式与可用组件
-// 格式规则与编辑器 AI 帮写共用同一份说明；componentList 由调用方按组件清单生成，为空时不介绍组件
-func BuildAgentWritingGuide(componentList string) string {
+// BuildAgentWritingGuide 外部 AI 工具（MCP）的写作指南：站点写作风格、当前用户（Token 持有人）的语言习惯、正文格式与可用组件
+// 格式与口吻规则与编辑器 AI 帮写共用同一份说明；componentList 由调用方按组件清单生成，为空时不介绍组件
+func BuildAgentWritingGuide(ctx context.Context, componentList string) (string, *errs.ServiceError) {
+	habit := ""
+	if userID, ok := ctxutils.GetCurrentUserID(ctx); ok {
+		var err error
+		if habit, err = repo.User.GetAIWritingHabit(userID); err != nil {
+			return "", errs.Internal("failed_to_get_target", err)
+		}
+	}
 	var sb strings.Builder
 	sb.WriteString("# 写作指南\n")
 	sb.WriteString("用 create_post / update_post 撰写或修改正文（content_format 为 markdown）时遵循以下规则。正文会被转换成站点编辑器的格式，读者看到的排版取决于这里的写法。\n")
@@ -18,9 +29,17 @@ func BuildAgentWritingGuide(componentList string) string {
 		sb.WriteString(style)
 		sb.WriteString("\n")
 	}
+	if habit != "" {
+		sb.WriteString("\n## 作者的语言习惯\n")
+		sb.WriteString(aiWritingHabitIntro)
+		sb.WriteString(habit)
+		sb.WriteString("\n")
+	}
+	sb.WriteString("\n## 去掉 AI 腔\n")
+	sb.WriteString(aiNaturalToneRules)
 	sb.WriteString("\n## 正文结构\n")
 	sb.WriteString(aiBlockFormatRule)
-	sb.WriteString("\n修改已有文章时，沿用原文的语言、人称、语气和排版习惯，保留原有格式，只改需要改的地方。\n")
+	sb.WriteString("\n修改已有文章时，沿用原文的语言、人称、语气和排版习惯（原文里看得出的习惯优先，其次是作者的语言习惯），保留原有格式，只改需要改的地方。\n")
 	sb.WriteString("\n## 平台格式\n")
 	sb.WriteString(aiPlatformFormatRules)
 	sb.WriteString("使用原则：格式服务于内容，少而准，满篇的格式反而让重点不突出。\n")
@@ -35,5 +54,5 @@ func BuildAgentWritingGuide(componentList string) string {
 		sb.WriteString(componentList)
 		sb.WriteString("\n")
 	}
-	return sb.String()
+	return sb.String(), nil
 }

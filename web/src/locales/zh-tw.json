@@ -1160,7 +1160,7 @@
       "qweather_api_key": "和風天氣 API Key",
       "qweather_api_key_desc": "僅儲存於伺服器端，不會公開給訪客",
       "ai_writing_style": "AI 寫作風格",
-      "ai_writing_style_desc": "編輯器 AI 幫寫與透過 MCP 連線的外部 AI 寫作時都會遵循，例如語氣、人稱、排版習慣與常用術語。作者每次的具體要求優先。最多 4000 字。",
+      "ai_writing_style_desc": "編輯器 AI 幫寫與透過 MCP 連線的外部 AI 寫作時都會遵循，例如語氣、人稱、排版習慣與常用術語。作者每次的具體要求、文章既有的口吻與作者自己設定的語言習慣優先。最多 4000 字。",
       "ai_writing_style_placeholder": "例如：用第一人稱、口語化但不賣萌；中英文之間加空格；程式碼範例優先用 Go；每篇結尾用兩三句話總結。",
       "section_ai_agents": "AI 使用者",
       "section_ai_agents_desc": "由 Agent 驅動的 AI 使用者的全站開關與頻率上限；AI 使用者本身在「AI 使用者」頁面管理。",
@@ -1506,7 +1506,8 @@
     "user_preference": {
       "title": "個人化",
       "color_scheme": "顏色主題",
-      "update_color_scheme_failed": "更新顏色風格失敗"
+      "update_color_scheme_failed": "更新顏色風格失敗",
+      "ai_writing": "AI 寫作"
     },
     "pages": {
       "title": "頁面管理",
@@ -1933,6 +1934,18 @@
           "platform_hint": "所有編輯者都能看到和使用，只有管理員可以修改",
           "admin_hint": "你可以管理平台指令和自己的指令",
           "editor_hint": "平台指令唯讀，你可以管理自己的指令"
+        },
+        "habit": {
+          "tab": "語言習慣",
+          "label": "我的語言習慣",
+          "hint": "AI 幫寫、續寫和潤飾時按你的口吻寫，透過 MCP 連線的外部 AI 寫作時也會參考。續寫和潤飾優先模仿文章裡既有的口吻，這裡作為補充；與網站的 AI 寫作風格衝突時以這裡為準。",
+          "description": "只用於你的文章：管理員用 AI 修改你的文章時也會按你的習慣寫。其他人看不到這裡的內容，留空表示不使用。",
+          "placeholder": "例如：第一人稱，說話直接，少用成語；常用「其實」「說白了」開頭；技術名詞保留英文；偶爾加顏文字；段落短，一段三四句。\n也可以貼一兩段自己寫的文字當作範例，AI 會模仿寫法，不會照抄內容。",
+          "save": "儲存",
+          "saved": "語言習慣已儲存",
+          "save_failed": "儲存語言習慣失敗",
+          "load_failed": "載入語言習慣失敗",
+          "too_long": "不能超過 {max} 個字"
         }
       },
       "context": {

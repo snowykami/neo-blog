@@ -1160,7 +1160,7 @@
       "qweather_api_key": "和风天气 API Key",
       "qweather_api_key_desc": "仅保存在服务端，不会公开给访客",
       "ai_writing_style": "AI 写作风格",
-      "ai_writing_style_desc": "编辑器 AI 帮写和通过 MCP 连接的外部 AI 写作时都会遵循，例如语气、人称、排版习惯和常用术语。作者每次的具体要求优先。最多 4000 字。",
+      "ai_writing_style_desc": "编辑器 AI 帮写和通过 MCP 连接的外部 AI 写作时都会遵循，例如语气、人称、排版习惯和常用术语。作者每次的具体要求、文章已有的口吻和作者自己设置的语言习惯优先。最多 4000 字。",
       "ai_writing_style_placeholder": "例如：用第一人称、口语化但不卖萌；中英文之间加空格；代码示例优先用 Go；每篇结尾用两三句话总结。",
       "section_ai_agents": "AI 用户",
       "section_ai_agents_desc": "由 Agent 驱动的 AI 用户的全站开关与频率上限；AI 用户本身在「AI 用户」页面管理。",
@@ -1506,7 +1506,8 @@
     "user_preference": {
       "title": "个性化",
       "color_scheme": "颜色风格",
-      "update_color_scheme_failed": "更新颜色风格失败"
+      "update_color_scheme_failed": "更新颜色风格失败",
+      "ai_writing": "AI 写作"
     },
     "pages": {
       "title": "页面管理",
@@ -1933,6 +1934,18 @@
           "platform_hint": "所有编辑者都能看到和使用，只有管理员可以修改",
           "admin_hint": "你可以管理平台指令和自己的指令",
           "editor_hint": "平台指令只读，你可以管理自己的指令"
+        },
+        "habit": {
+          "tab": "语言习惯",
+          "label": "我的语言习惯",
+          "hint": "AI 帮写、续写和润色时按你的口吻写，通过 MCP 连接的外部 AI 写作时也会参考。续写和润色优先模仿文章里已有的口吻，这里作为补充；与站点的 AI 写作风格冲突时以这里为准。",
+          "description": "只用于你的文章：管理员用 AI 修改你的文章时也按你的习惯写。其他人看不到这里的内容，留空表示不使用。",
+          "placeholder": "例如：第一人称，说话直接，少用成语；常用「其实」「说白了」开头；技术名词保留英文；偶尔加颜文字；段落短，一段三四句。\n也可以贴一两段自己写的文字作为示例，AI 会模仿写法，不会照抄内容。",
+          "save": "保存",
+          "saved": "语言习惯已保存",
+          "save_failed": "保存语言习惯失败",
+          "load_failed": "加载语言习惯失败",
+          "too_long": "不能超过 {max} 个字"
         }
       },
       "context": {

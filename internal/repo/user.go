@@ -157,6 +157,13 @@ func (user *userRepo) CountUserContent(userID uint) (posts, pages, comments int6
 	return
 }
 
+// GetAIWritingHabit 只查询用户的 AI 写作语言习惯
+func (user *userRepo) GetAIWritingHabit(userID uint) (string, error) {
+	var habit string
+	err := GetDB().Model(&model.User{}).Where("id = ?", userID).Select("ai_writing_habit").Scan(&habit).Error
+	return habit, err
+}
+
 // UpdateUserColumns 按列更新用户，map 形式允许把字段更新为零值（如清空昵称、启用用户）
 func (user *userRepo) UpdateUserColumns(userID uint, columns map[string]any) error {
 	return GetDB().Model(&model.User{}).Where("id = ?", userID).Updates(columns).Error

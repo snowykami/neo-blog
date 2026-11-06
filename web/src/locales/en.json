@@ -1160,7 +1160,7 @@
       "qweather_api_key": "QWeather API Key",
       "qweather_api_key_desc": "Stored on the server only and never exposed to visitors",
       "ai_writing_style": "AI writing style",
-      "ai_writing_style_desc": "Followed by the editor’s AI assistant and by external AI tools connected over MCP: tone, voice, formatting habits, preferred terms and so on. An author’s request for a specific edit takes priority. Up to 4000 characters.",
+      "ai_writing_style_desc": "Followed by the editor’s AI assistant and by external AI tools connected over MCP: tone, voice, formatting habits, preferred terms and so on. An author’s request for a specific edit, the voice already in the post and the author’s own writing voice take priority. Up to 4000 characters.",
       "ai_writing_style_placeholder": "e.g. First person, conversational but not cutesy; put spaces between Chinese and English; prefer Go for code samples; end each post with a two- or three-sentence summary.",
       "section_ai_agents": "AI users",
       "section_ai_agents_desc": "Site-wide switch and limits for agent-driven AI users. The AI users themselves are managed on the AI users page.",
@@ -1506,7 +1506,8 @@
     "user_preference": {
       "title": "Preferences",
       "color_scheme": "Color scheme",
-      "update_color_scheme_failed": "Failed to update color scheme"
+      "update_color_scheme_failed": "Failed to update color scheme",
+      "ai_writing": "AI writing"
     },
     "pages": {
       "title": "Pages",
@@ -1933,6 +1934,18 @@
           "platform_hint": "Visible to and usable by every editor; only admins can change it",
           "admin_hint": "You can manage platform prompts and your own",
           "editor_hint": "Platform prompts are read-only; you can manage your own"
+        },
+        "habit": {
+          "tab": "Writing voice",
+          "label": "My writing voice",
+          "hint": "The AI writes in your voice when drafting, continuing and rewriting, and external AI tools connected over MCP follow it too. Continuations and rewrites imitate the voice already in the post first and use this to fill in the rest; it takes priority over the site’s AI writing style.",
+          "description": "Applies to your posts: when an admin uses AI on one of them, it still follows your voice. Nobody else can see this. Leave it empty to turn it off.",
+          "placeholder": "e.g. First person, direct, few idioms; often opens with “honestly” or “in short”; keeps tech terms in English; the odd emoticon; short paragraphs of three or four sentences.\nYou can also paste a paragraph or two of your own writing as a sample: the AI imitates the style without copying the content.",
+          "save": "Save",
+          "saved": "Writing voice saved",
+          "save_failed": "Failed to save writing voice",
+          "load_failed": "Failed to load writing voice",
+          "too_long": "At most {max} characters"
         }
       },
       "context": {

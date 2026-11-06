@@ -19,7 +19,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
 import { useErrorMessageT } from '@/hooks/use-translations'
+import { cn } from '@/lib/utils'
 import { isAdmin } from '@/utils/common/permission'
+import { AIWritingHabitForm } from './ai-writing-habit-form'
 
 // 与后端 aiPromptMaxLabelRune / aiPromptMaxInstructionRune 一致
 const MAX_LABEL = 30
@@ -31,7 +33,7 @@ interface PromptFormValues {
   platform: boolean
 }
 
-/** AI 指令管理：平台指令由管理员增删改，编辑者管理自己的个人指令 */
+/** AI 指令管理：平台指令由管理员增删改，编辑者管理自己的个人指令与语言习惯 */
 export function AIPromptManagerDialog({ open, mode: initialMode, prompts, onOpenChange, onChanged }: {
   open: boolean
   mode: AIWriteMode
@@ -44,6 +46,8 @@ export function AIPromptManagerDialog({ open, mode: initialMode, prompts, onOpen
   const { user } = useAuth()
   const admin = !!user && isAdmin({ user })
   const [mode, setMode] = React.useState<AIWriteMode>(initialMode)
+  // 「语言习惯」标签页：编辑自己的语言习惯，不按模式区分
+  const [habitTab, setHabitTab] = React.useState(false)
   // 编辑视图：null 为列表，'new' 为新增，否则为正在编辑的指令
   const [editing, setEditing] = React.useState<AIPrompt | 'new' | null>(null)
   const form = useForm<PromptFormValues>({ defaultValues: { label: '', instruction: '', platform: false } })
@@ -52,6 +56,7 @@ export function AIPromptManagerDialog({ open, mode: initialMode, prompts, onOpen
   React.useEffect(() => {
     if (open) {
       setMode(initialMode)
+      setHabitTab(false)
       setEditing(null)
     }
   }, [open, initialMode])
@@ -79,6 +84,7 @@ export function AIPromptManagerDialog({ open, mode: initialMode, prompts, onOpen
     }
   }
 
+  const showHabit = habitTab && !editing
   const visible = prompts.filter(prompt => prompt.mode === mode)
   const groups = [
     { key: 'platform', title: t('manage.platform_group'), items: visible.filter(prompt => prompt.scope === 'platform') },
@@ -122,33 +128,46 @@ export function AIPromptManagerDialog({ open, mode: initialMode, prompts, onOpen
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid max-h-[85dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-4 sm:max-w-xl">
+      {/* 语言习惯标签页的保存按钮在表单内，不显示底栏 */}
+      <DialogContent className={cn('grid max-h-[85dvh] gap-4 sm:max-w-xl', showHabit ? 'grid-rows-[auto_minmax(0,1fr)]' : 'grid-rows-[auto_minmax(0,1fr)_auto]')}>
         <DialogHeader>
           <DialogTitle>{editing ? (editing === 'new' ? t('manage.create') : t('manage.edit')) : t('manage.title')}</DialogTitle>
-          <DialogDescription>{t('manage.description')}</DialogDescription>
+          <DialogDescription>{showHabit ? t('habit.hint') : t('manage.description')}</DialogDescription>
         </DialogHeader>
 
         {!editing && (
-          <div className="grid min-h-0 gap-3">
-            <Tabs value={mode} onValueChange={value => setMode(value as AIWriteMode)}>
+          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+            <Tabs
+              value={habitTab ? 'habit' : mode}
+              onValueChange={(value) => {
+                setHabitTab(value === 'habit')
+                if (value !== 'habit')
+                  setMode(value as AIWriteMode)
+              }}
+            >
               <TabsList className="w-full">
                 <TabsTrigger value="rewrite">{t('rewrite')}</TabsTrigger>
                 <TabsTrigger value="write">{t('write')}</TabsTrigger>
+                <TabsTrigger value="habit">{t('habit.tab')}</TabsTrigger>
               </TabsList>
             </Tabs>
-            <div className="-mx-2 grid min-h-0 content-start gap-3 overflow-y-auto px-2">
-              {groups.map(group => (
-                <section key={group.key} className="grid gap-1">
-                  <h3 className="px-3 text-xs font-medium text-muted-foreground">
-                    {group.title}
-                    <span className="ml-1 tabular-nums">{group.items.length}</span>
-                  </h3>
-                  {group.items.length > 0
-                    ? <ul className="grid gap-0.5">{group.items.map(renderRow)}</ul>
-                    : <p className="px-3 py-2 text-xs text-muted-foreground">{group.key === 'user' ? t('manage.empty_mine') : t('manage.empty_platform')}</p>}
-                </section>
-              ))}
-            </div>
+            {showHabit
+              ? <AIWritingHabitForm className="-mx-2 min-h-0 overflow-y-auto px-2 pb-0.5" />
+              : (
+                  <div className="-mx-2 grid min-h-0 content-start gap-3 overflow-y-auto px-2">
+                    {groups.map(group => (
+                      <section key={group.key} className="grid gap-1">
+                        <h3 className="px-3 text-xs font-medium text-muted-foreground">
+                          {group.title}
+                          <span className="ml-1 tabular-nums">{group.items.length}</span>
+                        </h3>
+                        {group.items.length > 0
+                          ? <ul className="grid gap-0.5">{group.items.map(renderRow)}</ul>
+                          : <p className="px-3 py-2 text-xs text-muted-foreground">{group.key === 'user' ? t('manage.empty_mine') : t('manage.empty_platform')}</p>}
+                      </section>
+                    ))}
+                  </div>
+                )}
           </div>
         )}
 
@@ -208,30 +227,32 @@ export function AIPromptManagerDialog({ open, mode: initialMode, prompts, onOpen
           </Form>
         )}
 
-        <DialogFooter className="gap-2 sm:justify-between">
-          {editing
-            ? (
-                <>
-                  <Button type="button" variant="outline" onClick={() => setEditing(null)}>
-                    <ArrowLeftIcon />
-                    {t('manage.back')}
-                  </Button>
-                  {/* 与“新增指令”按钮用不同的 key，避免复用同一 DOM 节点：点击新增后按钮变为 submit 会立即提交表单 */}
-                  <Button key="save" type="submit" form="ai-prompt-form" disabled={form.formState.isSubmitting}>
-                    {t('manage.save')}
-                  </Button>
-                </>
-              )
-            : (
-                <>
-                  <span className="hidden text-xs text-muted-foreground sm:block">{admin ? t('manage.admin_hint') : t('manage.editor_hint')}</span>
-                  <Button key="add" type="button" onClick={() => startEdit('new')}>
-                    <PlusIcon />
-                    {t('manage.add')}
-                  </Button>
-                </>
-              )}
-        </DialogFooter>
+        {!showHabit && (
+          <DialogFooter className="gap-2 sm:justify-between">
+            {editing
+              ? (
+                  <>
+                    <Button type="button" variant="outline" onClick={() => setEditing(null)}>
+                      <ArrowLeftIcon />
+                      {t('manage.back')}
+                    </Button>
+                    {/* 与“新增指令”按钮用不同的 key，避免复用同一 DOM 节点：点击新增后按钮变为 submit 会立即提交表单 */}
+                    <Button key="save" type="submit" form="ai-prompt-form" disabled={form.formState.isSubmitting}>
+                      {t('manage.save')}
+                    </Button>
+                  </>
+                )
+              : (
+                  <>
+                    <span className="hidden text-xs text-muted-foreground sm:block">{admin ? t('manage.admin_hint') : t('manage.editor_hint')}</span>
+                    <Button key="add" type="button" onClick={() => startEdit('new')}>
+                      <PlusIcon />
+                      {t('manage.add')}
+                    </Button>
+                  </>
+                )}
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )

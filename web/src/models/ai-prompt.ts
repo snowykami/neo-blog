@@ -11,3 +11,8 @@ export interface AIPrompt {
   instruction: string
   editable: boolean // 当前用户能否编辑、删除
 }
+
+// 作者的 AI 写作语言习惯：AI 帮写、润色与 MCP 外部写作时参考，为空表示不使用
+export interface AIWritingHabit {
+  habit: string
+}

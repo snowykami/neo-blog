@@ -65,3 +65,28 @@ func (a *aiPromptType) Delete(ctx context.Context, c *app.RequestContext) {
 	}
 	resps.Ok(c, resps.Success, nil)
 }
+
+// GetWritingHabit 当前用户的 AI 写作语言习惯
+func (a *aiPromptType) GetWritingHabit(ctx context.Context, c *app.RequestContext) {
+	habit, svcerr := a.service.GetWritingHabit(ctx)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, habit)
+}
+
+// UpdateWritingHabit 保存当前用户的 AI 写作语言习惯
+func (a *aiPromptType) UpdateWritingHabit(ctx context.Context, c *app.RequestContext) {
+	var req dto.AIWritingHabitDto
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	habit, svcerr := a.service.UpdateWritingHabit(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, habit)
+}

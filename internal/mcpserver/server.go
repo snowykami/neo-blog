@@ -24,7 +24,7 @@ const (
 
 const serverInstructions = `Tools for reading, drafting and publishing posts on a neo-blog site, acting as the user who owns the API token.
 
-Before writing or editing post content, call get_writing_guide once: it has the site owner's writing style, the formats the editor supports, and the custom components (callouts, code tabs, collapsibles, ...) you can insert.
+Before writing or editing post content, call get_writing_guide once: it has the site owner's writing style, the token owner's own voice habits, the formats the editor supports, and the custom components (callouts, code tabs, collapsibles, ...) you can insert.
 
 How posts work:
 - Post bodies are stored as HTML produced by a rich-text editor. Tools read and write Markdown by default; pass content_format "html" to work with the raw HTML instead. Components you may write appear as fenced code blocks whose language is component:<name>, holding one line of props JSON; other site components appear as raw HTML and must be kept as-is. Inline formats such as annotations, highlights and colors are written as small HTML tags (see the guide).

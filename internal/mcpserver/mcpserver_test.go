@@ -320,12 +320,16 @@ func TestWritingGuide(t *testing.T) {
 	if err := repo.KV.SetKV("ai_writing_style", "多用短句，结尾总结要点。"); err != nil {
 		t.Fatal(err)
 	}
+	// Token 持有人自己的语言习惯
+	if err := repo.User.UpdateUserColumns(env.author.ID, map[string]any{"ai_writing_habit": "常用「其实」开头。"}); err != nil {
+		t.Fatal(err)
+	}
 	result, _, err := getWritingGuide(reader, nil, struct{}{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	guide := result.Content[0].(*mcp.TextContent).Text
-	for _, want := range []string{"## 站点写作风格", "多用短句", "## 平台格式", "data-annotation", "```component:callout", "- codeTabs：", "props："} {
+	for _, want := range []string{"## 站点写作风格", "多用短句", "## 作者的语言习惯", "常用「其实」开头。", "## 去掉 AI 腔", "## 平台格式", "data-annotation", "```component:callout", "- codeTabs：", "props："} {
 		if !strings.Contains(guide, want) {
 			t.Errorf("guide missing %q", want)
 		}

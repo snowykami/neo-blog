@@ -18,3 +18,8 @@ type CreateOrUpdateAIPromptReq struct {
 	Label       string `json:"label"`
 	Instruction string `json:"instruction"`
 }
+
+// AIWritingHabitDto 作者的 AI 写作语言习惯，读取与保存共用；为空表示不使用
+type AIWritingHabitDto struct {
+	Habit string `json:"habit"`
+}

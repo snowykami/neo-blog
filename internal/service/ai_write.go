@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
@@ -87,7 +88,8 @@ func NewAIWriteService() *AIWriteService {
 // Prepare 校验权限与输入并构建提示词；出错时返回 ServiceError，由控制器按普通 JSON 响应返回
 func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetID uint, req *dto.AIWriteReq) (*AIWriteJob, *errs.ServiceError) {
 	// 与编辑会话相同：只有作者或管理员可以编辑该文章 / 页面
-	if svcerr := NewEditSessionService().checkEditPermission(ctx, targetType, targetID); svcerr != nil {
+	ownerID, svcerr := NewEditSessionService().editableTargetOwner(ctx, targetType, targetID)
+	if svcerr != nil {
 		return nil, svcerr
 	}
 	cfg := tools.GetAIConfig()
@@ -153,6 +155,11 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 		// 不附带全文：帮写仍需知道插入点位置，只保留附近的片段
 		before, after = truncateAIWriteContext(before, after, aiWriteLocalContextRune)
 	}
+	// 语言习惯取文章作者的：管理员改别人的文章时也按原作者的口吻写
+	habit, err := repo.User.GetAIWritingHabit(ownerID)
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err)
+	}
 	userID, _ := ctxutils.GetCurrentUserID(ctx)
 	prompt := &aiWritePrompt{
 		targetType:  targetType,
@@ -171,7 +178,7 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 		noContext:   !req.IncludeContext,
 		components:  components,
 	}
-	return &AIWriteJob{userID: userID, cfg: cfg, system: aiWriteSystemPromptWithStyle(tools.GetAIWritingStyle()), user: prompt.build()}, nil
+	return &AIWriteJob{userID: userID, cfg: cfg, system: aiWriteSystemPromptFor(tools.GetAIWritingStyle(), habit), user: prompt.build()}, nil
 }
 
 // aiWriteStartedChannel 有用户开始新的生成时通知其他实例，取消该用户在其他实例上未结束的生成（消息为用户 ID）

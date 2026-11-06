@@ -606,22 +606,96 @@ func TestAIWritePrepareComponents(t *testing.T) {
 	expectMessage(t, prepareErr(s, author, constant.TargetTypePost, post.ID, req), http.StatusBadRequest, "ai_input_too_long")
 }
 
-// 站点写作风格附在系统提示词末尾，未设置时与原提示词一致；外部 AI 的写作指南共用同一份格式说明
+// 站点写作风格与作者的语言习惯依次附在系统提示词末尾，都未设置时与原提示词一致；外部 AI 的写作指南共用同一份格式与口吻说明
 func TestAIWritingStyle(t *testing.T) {
-	if aiWriteSystemPromptWithStyle("") != aiWriteSystemPrompt {
+	if aiWriteSystemPromptFor("", "") != aiWriteSystemPrompt {
 		t.Fatal("empty style must not change the system prompt")
 	}
-	withStyle := aiWriteSystemPromptWithStyle("多用短句。")
-	if !strings.HasPrefix(withStyle, aiWriteSystemPrompt) || !strings.HasSuffix(withStyle, "# 站点写作风格\n"+aiWritingStyleIntro+"多用短句。\n") {
-		t.Fatalf("unexpected prompt tail: %q", withStyle[len(aiWriteSystemPrompt):])
+	if !strings.Contains(aiWriteSystemPrompt, "# 去掉 AI 腔\n"+aiNaturalToneRules) {
+		t.Fatal("system prompt must include the natural tone rules")
 	}
-	guide := BuildAgentWritingGuide("- callout：提示框")
-	for _, want := range []string{aiPlatformFormatRules, aiBlockFormatRule, aiComponentSyntaxRules, "- callout：提示框"} {
+	styleSection := "\n# 站点写作风格\n" + aiWritingStyleIntro + "多用短句。\n"
+	habitSection := "\n# 作者的语言习惯\n" + aiWritingHabitIntro + "常用「其实」开头。\n"
+	if got := aiWriteSystemPromptFor("多用短句。", ""); got != aiWriteSystemPrompt+styleSection {
+		t.Fatalf("unexpected prompt tail: %q", got[len(aiWriteSystemPrompt):])
+	}
+	if got := aiWriteSystemPromptFor("", "常用「其实」开头。"); got != aiWriteSystemPrompt+habitSection {
+		t.Fatalf("unexpected prompt tail: %q", got[len(aiWriteSystemPrompt):])
+	}
+	// 站点风格对所有人相同，放在因人而异的语言习惯之前
+	if got := aiWriteSystemPromptFor("多用短句。", "常用「其实」开头。"); got != aiWriteSystemPrompt+styleSection+habitSection {
+		t.Fatalf("unexpected prompt tail: %q", got[len(aiWriteSystemPrompt):])
+	}
+	guide, svcerr := BuildAgentWritingGuide(context.Background(), "- callout：提示框")
+	if svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	for _, want := range []string{aiPlatformFormatRules, aiBlockFormatRule, aiComponentSyntaxRules, aiNaturalToneRules, "- callout：提示框"} {
 		if !strings.Contains(guide, want) {
 			t.Fatalf("agent guide missing %q", want)
 		}
 	}
-	if strings.Contains(BuildAgentWritingGuide(""), "## 组件") {
-		t.Fatal("guide without components must not describe components")
+	if guide, _ = BuildAgentWritingGuide(context.Background(), ""); strings.Contains(guide, "## 组件") || strings.Contains(guide, "## 作者的语言习惯") {
+		t.Fatal("guide without components or habit must not describe them")
+	}
+}
+
+// 语言习惯：只读写自己的，保存时去掉首尾空白、超长拒绝、留空清除；AI 写作用文章作者的习惯，MCP 写作指南用 Token 持有人的
+func TestAIWritingHabit(t *testing.T) {
+	author, admin, other, post, _ := setupEditTest(t)
+	s := NewAIPromptService()
+	configureAI(t, "https://example.com/v1")
+
+	if got, svcerr := s.GetWritingHabit(author); svcerr != nil || got.Habit != "" {
+		t.Fatalf("new user should have no habit: %+v %v", got, svcerr)
+	}
+	expectMessage(t, func() *errs.ServiceError {
+		_, svcerr := s.GetWritingHabit(context.Background())
+		return svcerr
+	}(), http.StatusUnauthorized, "login_required")
+	_, svcerr := s.UpdateWritingHabit(author, &dto.AIWritingHabitDto{Habit: strings.Repeat("字", aiWritingHabitMaxRune+1)})
+	expectMessage(t, svcerr, http.StatusBadRequest, "ai_input_too_long")
+	if got, svcerr := s.UpdateWritingHabit(author, &dto.AIWritingHabitDto{Habit: "  常用「其实」开头，句子短。\n"}); svcerr != nil || got.Habit != "常用「其实」开头，句子短。" {
+		t.Fatalf("update habit: %+v %v", got, svcerr)
+	}
+	if _, svcerr := s.UpdateWritingHabit(admin, &dto.AIWritingHabitDto{Habit: "管理员的口吻"}); svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	// 各自独立：其他人看不到也改不到作者的习惯
+	if got, _ := s.GetWritingHabit(other); got.Habit != "" {
+		t.Fatalf("habit leaked to other user: %q", got.Habit)
+	}
+	if got, _ := s.GetWritingHabit(author); got.Habit != "常用「其实」开头，句子短。" {
+		t.Fatalf("habit not saved: %q", got.Habit)
+	}
+
+	// 作者本人和管理员改作者的文章，都按作者的口吻写
+	w := NewAIWriteService()
+	for name, ctx := range map[string]context.Context{"author": author, "admin": admin} {
+		job, svcerr := w.Prepare(ctx, constant.TargetTypePost, post.ID, writeReq("<p>前文"+aiWriteInsertMarker+"后文</p>"))
+		if svcerr != nil {
+			t.Fatalf("%s prepare: %v", name, svcerr)
+		}
+		if !strings.HasSuffix(job.system, "# 作者的语言习惯\n"+aiWritingHabitIntro+"常用「其实」开头，句子短。\n") || strings.Contains(job.system, "管理员的口吻") {
+			t.Fatalf("%s: system prompt should use the post author's habit:\n%s", name, job.system[len(aiWriteSystemPrompt):])
+		}
+	}
+
+	// MCP 写作指南附上当前用户自己的习惯
+	guide, svcerr := BuildAgentWritingGuide(author, "")
+	if svcerr != nil || !strings.Contains(guide, "## 作者的语言习惯\n"+aiWritingHabitIntro+"常用「其实」开头，句子短。") {
+		t.Fatalf("guide missing own habit: %v\n%s", svcerr, guide)
+	}
+	if guide, _ = BuildAgentWritingGuide(other, ""); strings.Contains(guide, "## 作者的语言习惯") {
+		t.Fatalf("guide must not include others' habit:\n%s", guide)
+	}
+
+	// 留空清除
+	if got, svcerr := s.UpdateWritingHabit(author, &dto.AIWritingHabitDto{Habit: "  "}); svcerr != nil || got.Habit != "" {
+		t.Fatalf("clear habit: %+v %v", got, svcerr)
+	}
+	job, _ := w.Prepare(author, constant.TargetTypePost, post.ID, writeReq("<p>前文"+aiWriteInsertMarker+"后文</p>"))
+	if strings.Contains(job.system, "# 作者的语言习惯") {
+		t.Fatal("cleared habit must not be added to the system prompt")
 	}
 }

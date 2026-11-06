@@ -1,4 +1,4 @@
-import type { AIPrompt, AIPromptScope } from '@/models/ai-prompt'
+import type { AIPrompt, AIPromptScope, AIWritingHabit } from '@/models/ai-prompt'
 import type { AIWriteMode } from '@/models/ai-write'
 import type { BaseResponse } from '@/models/resp'
 import axiosClient from './client'
@@ -28,5 +28,16 @@ export async function updateAIPrompt(id: number, input: AIPromptInput): Promise<
 
 export async function deleteAIPrompt(id: number): Promise<BaseResponse<null>> {
   const res = await axiosClient.delete(`/ai-prompt/p/${id}`)
+  return res.data
+}
+
+// 当前用户自己的 AI 写作语言习惯
+export async function getAIWritingHabit(): Promise<BaseResponse<AIWritingHabit>> {
+  const res = await axiosClient.get('/ai-prompt/habit')
+  return res.data
+}
+
+export async function updateAIWritingHabit(habit: string): Promise<BaseResponse<AIWritingHabit>> {
+  const res = await axiosClient.put('/ai-prompt/habit', { habit })
   return res.data
 }

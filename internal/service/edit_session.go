@@ -31,20 +31,26 @@ func NewEditSessionService() *EditSessionService {
 
 // checkEditPermission 只有作者或管理员可以编辑
 func (s *EditSessionService) checkEditPermission(ctx context.Context, targetType string, targetID uint) *errs.ServiceError {
+	_, svcerr := s.editableTargetOwner(ctx, targetType, targetID)
+	return svcerr
+}
+
+// editableTargetOwner 校验编辑权限（只有作者或管理员可以编辑）并返回作者ID
+func (s *EditSessionService) editableTargetOwner(ctx context.Context, targetType string, targetID uint) (uint, *errs.ServiceError) {
 	if targetID == 0 {
-		return errs.NewBadRequest("invalid_request_parameters")
+		return 0, errs.NewBadRequest("invalid_request_parameters")
 	}
 	ownerID, err := repo.EditSession.GetTargetOwnerID(targetType, targetID)
 	if err != nil {
-		return errs.Internal("failed_to_get_target", err)
+		return 0, errs.Internal("failed_to_get_target", err)
 	}
 	if ownerID == 0 {
-		return errs.NewNotFound("target_not_found")
+		return 0, errs.NewNotFound("target_not_found")
 	}
 	if !(ctxutils.IsOwnerOfTarget(ctx, ownerID) || ctxutils.IsAdmin(ctx)) {
-		return errs.NewForbidden("permission_denied")
+		return 0, errs.NewForbidden("permission_denied")
 	}
-	return nil
+	return ownerID, nil
 }
 
 // Acquire 开启新的编辑会话并顶掉旧会话，返回新会话ID

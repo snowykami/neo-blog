@@ -4,7 +4,9 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { updateUser } from '@/api/user'
+import { AIWritingHabitForm } from '@/components/tiptap-editor/ai-writing-habit-form'
 import { useAuth } from '@/contexts/auth-context'
+import { isEditor } from '@/utils/common/permission'
 import { ColorSchemeSelector } from '../../../components/console/common/color-scheme-selector'
 
 export function UserPreferencePage() {
@@ -46,6 +48,13 @@ export function UserPreferencePage() {
           <h2 className="text">{t('color_scheme')}</h2>
           {user && <ColorSchemeSelector color={color} onColorChange={onColorChange} />}
         </div>
+        {/* AI 写作只对编辑者与管理员开放 */}
+        {user && isEditor({ user }) && (
+          <div className="grid gap-2">
+            <h2 className="text">{t('ai_writing')}</h2>
+            <AIWritingHabitForm className="max-w-2xl" />
+          </div>
+        )}
       </div>
     </div>
   )
