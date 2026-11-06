@@ -62,3 +62,6 @@ next-env.d.ts
 
 # Outline 文档源文件与截图（体积大，只同步到 Outline）
 docs/handbook/
+
+# 本地压测工具、原始数据与报告（不提交，见 bench/run-all.sh）
+bench/
