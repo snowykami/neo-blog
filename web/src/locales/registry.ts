@@ -23,9 +23,9 @@ export const LOCALES: Record<string, LocaleMeta> = {
   'ko': { name: '한국어', file: 'ko', fallback: 'en' },
   'zh-CN': { name: '简体中文（中国）', file: 'zh', script: 'Hans', fallback: 'en' },
   'zh-SG': { name: '简体中文（新加坡）', file: 'zh-sg', script: 'Hans', fallback: 'zh-CN' },
-  'zh-TW': { name: '繁體中文（台灣）', file: 'zh-tw', script: 'Hant', fallback: 'zh-CN' },
-  'zh-HK': { name: '繁體中文（香港）', file: 'zh-hk', script: 'Hant', fallback: 'zh-TW' },
-  'zh-MO': { name: '繁體中文（澳門）', file: 'zh-mo', script: 'Hant', fallback: 'zh-HK' },
+  'zh-TW': { name: '繁體中文（中國台灣）', file: 'zh-tw', script: 'Hant', fallback: 'zh-CN' },
+  'zh-HK': { name: '繁體中文（中國香港）', file: 'zh-hk', script: 'Hant', fallback: 'zh-TW' },
+  'zh-MO': { name: '繁體中文（中國澳門）', file: 'zh-mo', script: 'Hant', fallback: 'zh-HK' },
 }
 
 // 不在注册表里的常见写法（小写）→ 界面语言：旧版本保存的 zh，以及只带文字代码的 zh-Hans / zh-Hant

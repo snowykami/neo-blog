@@ -55,8 +55,11 @@ export function ipDisplay(ip: string): string {
   return `${prefix.join(':')}::/64`
 }
 
-// 港澳台在简体中文（含 zh-SG）下使用的名称
-const ZH_REGION_NAMES: Record<string, string> = { HK: '中国香港', MO: '中国澳门', TW: '中国台湾' }
+// 港澳台在中文界面下使用的名称：简体（含 zh-SG）与繁体（zh-TW、zh-HK、zh-MO）
+const ZH_REGION_NAMES: Record<string, Record<string, string>> = {
+  'zh': { HK: '中国香港', MO: '中国澳门', TW: '中国台湾' },
+  'zh-tw': { HK: '中國香港', MO: '中國澳門', TW: '中國台灣' },
+}
 
 // 国家代码 → 当前语言下的名称（Intl.DisplayNames），无法识别时返回代码本身
 export function useCountryName() {
@@ -72,8 +75,9 @@ export function useCountryName() {
     return (code: string) => {
       if (!code)
         return ''
-      if (toServiceLanguage(locale) === 'zh' && ZH_REGION_NAMES[code])
-        return ZH_REGION_NAMES[code]
+      const zhName = ZH_REGION_NAMES[toServiceLanguage(locale)]?.[code]
+      if (zhName)
+        return zhName
       try {
         return names?.of(code) ?? code
       }
