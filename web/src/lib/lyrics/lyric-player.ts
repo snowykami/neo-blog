@@ -1,5 +1,6 @@
 import type { RhythmModel } from './rhythm/model'
 import type { RubyMetrics } from './ruby-layout'
+import type { StripLine, StripSlot } from './strip-slots'
 import type { TimelineItem, TimelineState } from './timeline'
 import type { LyricEmphasis, LyricWord, ResolvedLyrics } from './types'
 import type { LyricMarqueeWordBox, MusicLyricLine } from '@/utils/music-lyric'
@@ -36,6 +37,7 @@ import { dissolveFadeMs, envelopeScale, glowLevel, heartbeatLevel, nearestFixedP
 import { placeRuby, rubyGroups, rubyText } from './ruby-layout'
 import { Spring } from './spring'
 import { spotlightAt } from './stage-effects'
+import { placeStripLines } from './strip-slots'
 import { buildTimeline, getTimelineState, getWordProgress } from './timeline'
 import { EMPTY_LYRICS } from './types'
 import { holdVibrato, vibratoWave } from './vibrato'
@@ -51,7 +53,7 @@ export interface LyricPlayerOptions {
   compact?: boolean
   // 单行条（导航栏标题、文章内单曲卡收起时）：容器只有一行高，每个条目铺满容器（字号跟随容器），一次只显示一行；
   // 行不换行，超出宽度时跟随演唱位置横向滚动（见 utils/music-lyric.ts 的 getLyricMarqueeOffset）。
-  // 对唱行右对齐；容器足够高时，背景和声或与焦点句同时在唱的另一句放在下层（见 STRIP_TIER_*）。
+  // 对唱行右对齐；容器足够高时，背景和声或与焦点句同时在唱的另一句放在下层，两位歌手同时唱三句及以上时分成四格（见 strip-slots.ts、STRIP_TIER_*）。
   // 不显示翻译与音译，没有聚光灯，不响应点击与滚动
   strip?: boolean
   // 这首歌的节拍模型，每帧读取；分析完成前或不可用时返回 null，动效回退到固定快慢（见 rhythm/effects.ts）
@@ -112,7 +114,8 @@ interface StripMarquee {
   line: MusicLyricLine
   nextStart?: number
   boxes: LyricMarqueeWordBox[]
-  containerWidth: number
+  // 行的左右内边距之和；可视宽度按此刻占整行还是半行（四格）计算
+  padding: number
   contentWidth: number
   transform: string
   mask: string
@@ -141,6 +144,8 @@ interface ItemView {
   marquee: StripMarquee | null
   // 背景和声所附着的主唱行（条目下标），其余条目为 -1
   owner: number
+  // 单行条四格时占半行
+  half: boolean
   // 上次写入的样式，未变化时不重复写 DOM
   transform: string
   filter: string
@@ -217,8 +222,9 @@ function lyricColor(alpha: number) {
 // 单行条两侧的渐隐宽度：行的内边距之内开始渐隐
 const STRIP_FADE = '1.25em'
 
-// 单行条的上下两层：背景和声或与焦点句同时在唱的另一句（重叠的对唱等）放在下层。容器至少这么高才分层（导航栏 36px 可以，单曲卡 20px 不分层）；
-// 焦点句上移、缩小，下层句下移（按容器高度的比例）；背景和声的字号见 lyric-player.css（0.72em），重叠的主唱句与焦点句同样缩小
+// 单行条的上下两层：背景和声或与焦点句同时在唱的另一句（重叠的对唱等）放在下层，两位歌手同时唱三句及以上时分成四格（见 strip-slots.ts）。
+// 容器至少这么高才分层（导航栏 36px 可以，单曲卡 20px 不分层）；
+// 上层句上移、缩小，下层句下移（按容器高度的比例）；背景和声的字号见 lyric-player.css（0.72em），重叠的主唱句与焦点句同样缩小
 const STRIP_TIER_MIN_HEIGHT_PX = 32
 const STRIP_TIER_TOP = -0.21
 const STRIP_TIER_BOTTOM = 0.24
@@ -348,10 +354,11 @@ export class LyricPlayer {
   private spotView = -1
   private spot = 0
   private spotScale: number | null = null
-  // 行号到条目的映射；单行条此刻放在下层的条目（没有时为 -1）
+  // 行号到条目的映射；单行条此刻分层（或分成四格）显示的条目与位置，焦点句单独在唱时为空
   private lineViews = new Map<number, number>()
-  private stripPair = -1
+  private stripSlots = new Map<number, StripSlot>()
 
+  private containerWidth = 0
   private containerHeight = 0
   private narrow = false
   private fontSize = 16
@@ -503,6 +510,7 @@ export class LyricPlayer {
         dots: [],
         marquee: null,
         owner: -1,
+        half: false,
         transform: '',
         filter: '',
         color: '',
@@ -593,7 +601,7 @@ export class LyricPlayer {
       else
         lastMain = index
     })
-    this.stripPair = -1
+    this.stripSlots = new Map()
     const spotlights = new Set(this.lyrics.spotlights)
     this.spotViews = new Map()
     this.views.forEach((view, index) => {
@@ -667,7 +675,7 @@ export class LyricPlayer {
       },
       nextStart: this.lyrics.lines.slice(index + 1).find(next => !next.isBackground)?.start,
       boxes: [],
-      containerWidth: 0,
+      padding: 0,
       contentWidth: 0,
       transform: '',
       mask: '',
@@ -675,6 +683,7 @@ export class LyricPlayer {
   }
 
   private measure() {
+    this.containerWidth = this.container.clientWidth
     this.containerHeight = this.container.clientHeight
     if (this.options.strip)
       this.interludeHeight = this.containerHeight
@@ -694,9 +703,9 @@ export class LyricPlayer {
       }
       const marquee = view.marquee
       if (marquee) {
-        // 可视宽度为行的内容区；词的位置相对原文左边缘（offsetLeft 不受位移影响），去掉强调词四周的内边距
+        // 可视宽度为行的内容区（见 paintMarquee）；词的位置相对原文左边缘（offsetLeft 不受位移影响），去掉强调词四周的内边距
         const style = getComputedStyle(view.el)
-        marquee.containerWidth = view.el.clientWidth - (Number.parseFloat(style.paddingLeft) || 0) - (Number.parseFloat(style.paddingRight) || 0)
+        marquee.padding = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0)
         marquee.contentWidth = marquee.main.offsetWidth
         marquee.boxes = view.words.slice(0, marquee.line.items.length).map(word => ({
           left: word.el.offsetLeft - marquee.main.offsetLeft + word.pad,
@@ -789,24 +798,22 @@ export class LyricPlayer {
     return owner >= 0 ? owner : focus
   }
 
-  /**
-   * 单行条放在下层的条目：焦点句附着的背景和声优先，其次是与焦点句同时在唱、离它最近的另一句（重叠的对唱、上一句没唱完的和声等）；
-   * 容器太矮或没有时为 -1
-   */
-  private stripPairOf(focus: number): number {
+  /** 单行条此刻分层（或分成四格）显示的条目与位置（见 strip-slots.ts）；容器太矮或焦点不是歌词行时为空 */
+  private stripSlotsOf(focus: number): Map<number, StripSlot> {
     if (this.containerHeight < STRIP_TIER_MIN_HEIGHT_PX || this.items[focus]?.kind !== 'line')
-      return -1
-    let pair = -1
+      return new Map()
+    const stripLine = (index: number): StripLine => {
+      const item = this.items[index]
+      const line = item.kind === 'line' ? this.lyrics.lines[item.line] : undefined
+      return { index, duet: !!line?.isDuet, background: !!line?.isBackground, ownedByFocus: this.views[index].owner === focus }
+    }
+    const others: StripLine[] = []
     for (const line of this.state.active) {
       const index = this.lineViews.get(line)
-      if (index == null || index === focus)
-        continue
-      if (this.views[index].owner === focus)
-        return index
-      if (pair < 0 || Math.abs(index - focus) < Math.abs(pair - focus))
-        pair = index
+      if (index != null && index !== focus)
+        others.push(stripLine(index))
     }
-    return pair
+    return placeStripLines(stripLine(focus), others)
   }
 
   /** 计算各条目的目标位置并推进弹簧；返回是否仍有动画在进行 */
@@ -857,10 +864,10 @@ export class LyricPlayer {
       spotScale = this.spotScale
     }
 
-    // 单行条的上下两层：焦点句上移、缩小，同时在唱的另一句放在下层
+    // 单行条的上下两层：焦点句上移、缩小，同时在唱的另一句放在下层；两位歌手同时唱三句及以上时分成四格，每句占半行
     const strip = this.options.strip ?? false
-    const pair = strip ? this.stripPairOf(focus) : -1
-    this.stripPair = pair
+    const slots = strip ? this.stripSlotsOf(focus) : this.stripSlots
+    this.stripSlots = slots
     const center = (tops[focus] ?? 0) - scroll
 
     // 阶梯入场：焦点因播放推进而变化时，从视口内第一个条目开始逐个增加延迟
@@ -871,14 +878,19 @@ export class LyricPlayer {
     for (let i = 0; i < this.views.length; i++) {
       const view = this.views[i]
       let target = tops[i] - scroll + spotShift + (spotView >= 0 && i !== spotView ? Math.sign(i - spotView) * spotSpread : 0)
+      const slot = slots.get(i)
       if (strip) {
-        if (i === pair)
-          target = center + STRIP_TIER_BOTTOM * this.containerHeight
-        else if (i === focus && pair >= 0)
-          target += STRIP_TIER_TOP * this.containerHeight
+        if (slot)
+          target = center + (slot.row === 'top' ? STRIP_TIER_TOP : STRIP_TIER_BOTTOM) * this.containerHeight
         // 没轮到的背景和声跟着所附着的主唱行（隐藏），唱到时原地淡入
         else if (view.owner >= 0)
           target = (tops[view.owner] ?? 0) - scroll + STRIP_TIER_BOTTOM * this.containerHeight
+        // 四格时占半行：主唱在左、对唱在右（见 lyric-player.css），宽度不做过渡
+        const half = slot?.half ?? false
+        if (half !== view.half) {
+          view.half = half
+          view.el.classList.toggle('lyric-line--half', half)
+        }
       }
       // 单行条按容器本身判断：移出的上一行不排队，新行立即移入
       const overscan = this.options.strip ? 0 : LYRIC_OVERSCAN_PX
@@ -898,8 +910,8 @@ export class LyricPlayer {
 
       const highlighted = view.item.kind === 'line' ? this.activeLines.has(view.item.line) || i === focus : false
       const baseScale = view.item.kind === 'line' && !highlighted ? LYRIC_INACTIVE_SCALE : 1
-      // 分层时焦点句与下层的主唱句缩小（背景和声本身字号更小，不再缩放）
-      const tiered = pair >= 0 && (i === focus || (i === pair && view.owner < 0))
+      // 分层时上下两层的主唱句缩小（背景和声本身字号更小，不再缩放）
+      const tiered = slot != null && view.owner < 0
       const scaleTarget = tiered ? STRIP_TIER_SCALE : i === spotView ? baseScale + (spotScale - baseScale) * spot : baseScale
       if (jump)
         view.scale.jump(scaleTarget)
@@ -961,7 +973,7 @@ export class LyricPlayer {
       const item = view.item
       if (item.kind === 'line') {
         if (this.options.strip && view.owner >= 0) {
-          const opacity = i === this.stripPair ? '' : '0'
+          const opacity = this.stripSlots.has(i) ? '' : '0'
           if (opacity !== view.opacity) {
             view.opacity = opacity
             view.el.style.opacity = opacity
@@ -988,7 +1000,7 @@ export class LyricPlayer {
         }
         // 横向滚动只改合成层，逐帧更新；只算此刻在容器内的行
         if (view.marquee && y + view.height > 0 && y < this.containerHeight)
-          this.paintMarquee(view.marquee, view.el, timeMs)
+          this.paintMarquee(view.marquee, view.el, (view.half ? this.containerWidth / 2 : this.containerWidth) - view.marquee.padding, timeMs)
         if (!detail)
           continue
         this.paintWords(view, active, timeMs, feather, inactiveAlpha)
@@ -1032,14 +1044,14 @@ export class LyricPlayer {
    * 单行条的横向滚动：超出宽度的行跟随演唱位置（逐行歌词按行进度）匀变速地滚动，两侧按是否还有内容渐隐；
    * 唱完的行停在末尾，随弹簧移出时仍露出结尾。减少动态效果时不滚动，只渐隐右侧
    */
-  private paintMarquee(marquee: StripMarquee, el: HTMLElement, timeMs: number) {
-    const overflow = marquee.contentWidth - marquee.containerWidth
+  private paintMarquee(marquee: StripMarquee, el: HTMLElement, containerWidth: number, timeMs: number) {
+    const overflow = marquee.contentWidth - containerWidth
     const offset = overflow > 0 && !this.reducedMotion
       ? getLyricMarqueeOffset({
           line: marquee.line,
           nextLineStartTime: marquee.nextStart,
           currentTimeMs: timeMs,
-          containerWidth: marquee.containerWidth,
+          containerWidth,
           contentWidth: marquee.contentWidth,
           wordBoxes: this.lyrics.wordTimed ? marquee.boxes : undefined,
         })
