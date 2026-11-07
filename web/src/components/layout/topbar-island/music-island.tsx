@@ -231,8 +231,9 @@ function MusicCompact({ beat, paused = false, text }: { beat: boolean, paused?: 
       {beat && <span ref={tintRef} aria-hidden className="pointer-events-none absolute inset-0 bg-[color:var(--lyric-accent,#fff)] opacity-0" style={hdrStyle} />}
       {/* 封面与歌词标了 data-island-morph：展开时封面放大飞到面板里的封面处，单行歌词带着样式飞到面板歌词区的焦点行（没有歌词时不飞，见 island-morph.ts） */}
       <IslandSlot morph="cover"><AlbumNavIcon /></IslandSlot>
-      {/* 歌词与文字离封面、律动条各 10px：单行条自带 10px 内边距，左右各收回 6px */}
-      <span data-island-morph={hasLyric && !paused ? 'lyrics' : undefined} className={cn('relative flex h-9 min-w-0 shrink items-center', paused ? 'max-w-[36ch]' : 'w-[36ch] max-w-full')}>
+      {/* 歌词与文字离封面、律动条各 10px：单行条自带 10px 内边距，左右各收回 6px。
+          字号 16px（胶囊其他活动为 14px），歌词更好地占满胶囊高度；宽度按字号折算成 31.5ch，与 14px 时的 36ch 同宽，胶囊不因此变宽 */}
+      <span data-island-morph={hasLyric && !paused ? 'lyrics' : undefined} className={cn('relative flex h-9 min-w-0 shrink items-center text-base', paused ? 'max-w-[31.5ch]' : 'w-[31.5ch] max-w-full')}>
         {hasLyric && <MusicLyricStage strip paused={lyricsPaused} className={cn('-mx-1.5 h-full min-w-0 flex-1', paused && 'hidden')} />}
         {(paused || !hasLyric) && <IslandText className={paused ? undefined : 'flex-1'}><MarqueeText>{(paused && text) || title}</MarqueeText></IslandText>}
       </span>
