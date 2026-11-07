@@ -212,6 +212,30 @@ function spotlightFit(el: HTMLElement, max: number): number {
 }
 
 /**
+ * 一行歌词的不透明度与模糊（px）：按距焦点的行距分档模糊，焦点行与此刻在唱的行（重叠的对唱、背景和声、几位歌手同时唱的几句）清晰；
+ * 聚光灯亮起时（spot 为强度 0 ~ 1，spotted 为点题句本身）其余行变淡、变虚，但此刻在唱的行与焦点行保持原样（见 spec 7.2k）。
+ * noBlur（减少动态效果、手动滚动）时不模糊；blurFactor 为窄视口与紧凑模式的模糊系数
+ */
+export function lineAppearance({ active, distance, spotted, spot, inactiveAlpha, blurFactor, noBlur }: {
+  active: boolean
+  distance: number
+  spotted: boolean
+  spot: number
+  inactiveAlpha: number
+  blurFactor: number
+  noBlur: boolean
+}): { alpha: number, blur: number } {
+  const alpha = active ? 1 : inactiveAlpha
+  const clear = active || distance === 0
+  // 聚光灯只压低不在唱的其余行
+  const dimmed = spot > 0 && !spotted && !clear
+  return {
+    alpha: dimmed ? alpha + (Math.min(alpha, SPOTLIGHT_OTHERS_ALPHA) - alpha) * spot : alpha,
+    blur: noBlur || clear ? 0 : Math.max(Math.min(LYRIC_BLUR_MAX_PX, 1 + distance), dimmed ? SPOTLIGHT_BLUR_PX * spot : 0) * blurFactor,
+  }
+}
+
+/**
  * 歌词文字颜色：容器上的 --lyric-color（默认白色，播放器页与悬浮播放器为深色界面）按不透明度混合，
  * 文章内的单曲卡跟随站点亮暗主题时设为前景色
  */
@@ -999,19 +1023,13 @@ export class LyricPlayer {
           }
         }
         const active = this.activeLines.has(item.line)
-        const alpha = active ? 1 : inactiveAlpha
-        const spotted = i === this.spotView
-        // 聚光灯亮起时其余行变淡、变虚
-        const dimmed = spot > 0 && !spotted ? alpha + (Math.min(alpha, SPOTLIGHT_OTHERS_ALPHA) - alpha) * spot : alpha
-        const color = lyricColor(Math.round(dimmed * 100) / 100)
+        // 聚光灯亮起时其余不在唱的行变淡、变虚；同时在唱的行（对唱、背景和声）保持清晰
+        const { alpha, blur } = lineAppearance({ active, distance: Math.abs(i - focus), spotted: i === this.spotView, spot, inactiveAlpha, blurFactor, noBlur })
+        const color = lyricColor(Math.round(alpha * 100) / 100)
         if (color !== view.color) {
           view.color = color
           view.el.style.color = color
         }
-        const distance = Math.abs(i - focus)
-        let blur = noBlur || active || distance === 0 ? 0 : Math.min(LYRIC_BLUR_MAX_PX, 1 + distance) * blurFactor
-        if (spot > 0 && !spotted)
-          blur = Math.max(blur, SPOTLIGHT_BLUR_PX * spot * blurFactor)
         const filter = blur > 0 ? `blur(${blur.toFixed(1)}px)` : ''
         if (filter !== view.filter) {
           view.filter = filter
