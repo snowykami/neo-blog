@@ -24,6 +24,9 @@ const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const FADE_MS = 160
 // 面板（含外壳）在胶囊处淡入淡出的时长：展开时先在胶囊处淡入，盖严后胶囊再隐藏；收起后胶囊先在底下显示，面板再淡出（见 topbar-island.tsx）
 export const CROSSFADE_MS = 120
+// 展开时外壳与面板先保持胶囊的圆角，形状变到这个比例（按缓动后的进度，约 160ms，胶囊已经隐藏）之后才放大到面板的圆角：
+// 面板的圆角比胶囊的大，提前放大会在左上角露出底下还没隐藏的胶囊端头。收起时按比例同步缩小（胶囊在收起播完后才显示）
+const OPEN_RADIUS_HOLD = 0.9
 // move 型：对齐到面板元素里的哪个高度（歌词区的焦点行在上方三分之一附近）
 const MOVE_ANCHOR: Record<string, number> = { lyrics: 0.4, chapter: 0.5 }
 // ghost 型中按文字对齐的（面板里的真身是替身时也按文字对齐）
@@ -69,6 +72,12 @@ function insetFrom(outer: DOMRect, inner: DOMRect, radius: string) {
   const right = Math.max(0, outer.right - inner.right)
   const bottom = Math.max(0, outer.bottom - inner.bottom)
   return `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius})`
+}
+
+/** 两个矩形之间按比例 t 插值 */
+function lerpRect(a: DOMRect, b: DOMRect, t: number) {
+  const mix = (x: number, y: number) => x + (y - x) * t
+  return new DOMRect(mix(a.left, b.left), mix(a.top, b.top), mix(a.width, b.width), mix(a.height, b.height))
 }
 
 function unionOf(a: DOMRect, b: DOMRect) {
@@ -319,8 +328,18 @@ export async function morphIsland({ direction, capsule, panel, content, signal }
   setStyle(panel, { background: 'transparent', boxShadow: 'none', pointerEvents: 'none' })
 
   const animations: Animation[] = []
-  const shellFrames = [{ clipPath: insetFrom(union, capsuleRect, capsuleRadius) }, { clipPath: insetFrom(union, panelRect, panelRadius) }]
-  const clipFrames = [{ clipPath: insetFrom(panelRect, capsuleRect, capsuleRadius) }, { clipPath: `inset(0px 0px 0px 0px round ${panelRadius})` }]
+  // 展开时中途加一帧：形状照常（两端按比例插值），圆角仍是胶囊的
+  const held = lerpRect(capsuleRect, panelRect, OPEN_RADIUS_HOLD)
+  const shellFrames: Keyframe[] = [
+    { clipPath: insetFrom(union, capsuleRect, capsuleRadius) },
+    ...(opening ? [{ clipPath: insetFrom(union, held, capsuleRadius), offset: OPEN_RADIUS_HOLD }] : []),
+    { clipPath: insetFrom(union, panelRect, panelRadius) },
+  ]
+  const clipFrames: Keyframe[] = [
+    { clipPath: insetFrom(panelRect, capsuleRect, capsuleRadius) },
+    ...(opening ? [{ clipPath: insetFrom(panelRect, held, capsuleRadius), offset: OPEN_RADIUS_HOLD }] : []),
+    { clipPath: `inset(0px 0px 0px 0px round ${panelRadius})` },
+  ]
   // 前景在外壳长到一半前后淡入；收起时先淡出
   const fadeFrames = opening ? [{ opacity: 0 }, { opacity: 0, offset: 0.2 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0, offset: 0.55 }, { opacity: 0 }]
   const foreground = Array.from(content.querySelectorAll<HTMLElement>('[data-island-morph-fade]'))

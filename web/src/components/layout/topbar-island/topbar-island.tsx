@@ -45,6 +45,9 @@ const capsuleBodyClass = 'relative isolate flex h-full min-w-0 flex-1 items-cent
 const CAPSULE_RING = '0 0 0 1px rgb(255 255 255 / 0.1)'
 // 胶囊高度（h-9）：展开的面板向上偏移这么多，盖在胶囊上
 const CAPSULE_HEIGHT_PX = 36
+// 展开面板统一的圆角（32px，参考 Apple 灵动岛展开后的大圆角）：活动自带的弹层外观（如音乐用悬浮播放器的弹层）也换成它，形变按它计算；
+// 面板里贴边的内容按同心圆角留出边距（见下方「在顶栏隐藏」一行）
+const PANEL_RADIUS_CLASS = 'rounded-[2rem] overflow-hidden'
 // 描边辉光：1.5px 描边 + 外发光；高亮时外发光范围更大、更亮（只变光，胶囊大小不变）
 const GLOW = {
   normal: { blur: 18, spread: 2, mix: 55 },
@@ -709,7 +712,8 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
           // 默认深色与胶囊一致；活动可换成别处弹层的外观（如音乐用悬浮播放器的弹层）。阴影在形变结束后渐显；
           // 竖向拖动交给上滑收起（面板里可滚动的区域自己滚动）
           className={cn(
-            activity?.panelClassName ?? 'w-[min(22rem,calc(100vw-1.5rem))] rounded-3xl border-0 bg-neutral-950 p-4 text-white shadow-2xl ring-1 ring-white/10',
+            activity?.panelClassName ?? 'w-[min(22rem,calc(100vw-1.5rem))] border-0 bg-neutral-950 p-4 text-white shadow-2xl ring-1 ring-white/10',
+            PANEL_RADIUS_CLASS,
             // 不用弹层自带的进出场动画（缩放淡入淡出），由 island-morph 变换。要用 !important：tailwind-merge 不认识 animate-in / animate-out
             // 这两个插件类，普通的 animate-none 合并不掉它们；行内样式也不行（Radix 定位完成后会把行内的 animation 清掉）。
             // 没有出场动画时 Radix 立即卸载面板，收起播完不会再闪一次整张卡片
@@ -721,8 +725,8 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
           <MorphContent onMount={morph.runOpen}>
             {panel}
             {onHide && (
-              // 隐藏的等价操作（滑动之外）：面板底部一行；默认面板有 p-4，用负外边距贴到边缘
-              <div data-island-morph-fade className={cn('flex justify-end border-t border-white/10 px-3 py-1.5', !activity?.panelClassName && '-mx-4 -mb-4 mt-4')}>
+              // 隐藏的等价操作（滑动之外）：面板底部一行；默认面板有 p-4，用负外边距贴到边缘。按钮离右下角留够距离，不被大圆角裁掉
+              <div data-island-morph-fade className={cn('flex justify-end border-t border-white/10 px-4 py-2', !activity?.panelClassName && '-mx-4 -mb-4 mt-4')}>
                 <button
                   type="button"
                   onClick={onHide}
