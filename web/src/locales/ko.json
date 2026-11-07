@@ -1699,7 +1699,8 @@
         "strike": "취소선",
         "code": "인라인 코드",
         "superscript": "위 첨자",
-        "subscript": "아래 첨자"
+        "subscript": "아래 첨자",
+        "hdr": "HDR 텍스트"
       },
       "clear_formatting": "서식 지우기",
       "color": "글자 색과 강조",

@@ -1,0 +1,16 @@
+/* 正文 HDR 文字（见 content-hdr-text.tsx）：背景图与 clip 必须写在同一条规则里，否则会露出整块亮色矩形 */
+.content-hdr {
+  background-image: var(--content-hdr);
+  background-size: 100% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  // 文字颜色标记是内联 style，要压过它，否则 SDR 的字会盖在 HDR 背景上
+  color: transparent !important;
+  // 下划线等装饰线跟随字本来的颜色，不随文字一起透明
+  text-decoration-color: var(--content-hdr-color);
+  // 斜体的字形会伸出行内框，左右多铺一点背景，避免被截断
+  padding-inline: 0.1em;
+  margin-inline: -0.1em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}

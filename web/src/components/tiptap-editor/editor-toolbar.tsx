@@ -248,6 +248,7 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
     { type: 'label', key: 'label-more', label: t('group_more') },
     markEntry(editor, t, state, 'superscript'),
     markEntry(editor, t, state, 'subscript'),
+    markEntry(editor, t, state, 'hdr'),
     { type: 'separator', key: 'sep-clear' },
     {
       key: 'clear',

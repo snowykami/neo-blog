@@ -16,6 +16,7 @@ import {
   SquareCodeIcon,
   StrikethroughIcon,
   SubscriptIcon,
+  SunIcon,
   SuperscriptIcon,
   TextAlignCenterIcon,
   TextAlignEndIcon,
@@ -122,7 +123,7 @@ export function setBlockType(
   chain.run()
 }
 
-export type InlineMarkId = 'bold' | 'italic' | 'underline' | 'strike' | 'code' | 'superscript' | 'subscript'
+export type InlineMarkId = 'bold' | 'italic' | 'underline' | 'strike' | 'code' | 'superscript' | 'subscript' | 'hdr'
 
 export const INLINE_MARKS: Record<InlineMarkId, { icon: LucideIcon, shortcut: string }> = {
   bold: { icon: BoldIcon, shortcut: 'mod+b' },
@@ -132,6 +133,8 @@ export const INLINE_MARKS: Record<InlineMarkId, { icon: LucideIcon, shortcut: st
   code: { icon: CodeIcon, shortcut: 'mod+e' },
   superscript: { icon: SuperscriptIcon, shortcut: 'mod+.' },
   subscript: { icon: SubscriptIcon, shortcut: 'mod+,' },
+  // HDR 文字（见 tiptap-extension/hdr-text-extension.ts）
+  hdr: { icon: SunIcon, shortcut: 'mod+alt+h' },
 }
 
 // 固定工具栏与气泡菜单中直接展示的标记

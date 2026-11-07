@@ -452,3 +452,10 @@
     background-color: color-mix(in oklab, var(--primary) 10%, transparent);
   }
 }
+
+/* ---------- HDR 文字：编辑器里只用淡淡的辉光提示，真正的 HDR 只在前台渲染（见 components/blog-post/content-hdr-text.tsx） ---------- */
+.neo-editor-root .tiptap.ProseMirror [data-hdr] {
+  text-shadow:
+    0 0 6px color-mix(in oklab, currentColor 55%, transparent),
+    0 0 1px color-mix(in oklab, currentColor 40%, transparent);
+}

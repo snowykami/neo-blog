@@ -1699,7 +1699,8 @@
         "strike": "删除线",
         "code": "行内代码",
         "superscript": "上标",
-        "subscript": "下标"
+        "subscript": "下标",
+        "hdr": "HDR 文字"
       },
       "clear_formatting": "清除格式",
       "color": "文字颜色与高亮",

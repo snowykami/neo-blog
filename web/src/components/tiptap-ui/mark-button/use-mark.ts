@@ -16,6 +16,7 @@ export type Mark
     | 'underline'
     | 'superscript'
     | 'subscript'
+    | 'hdr'
 
 /**
  * Configuration for the mark functionality
@@ -48,6 +49,7 @@ export const MARK_SHORTCUT_KEYS: Record<Mark, string> = {
   code: 'mod+e',
   superscript: 'mod+.',
   subscript: 'mod+,',
+  hdr: 'mod+alt+h',
 }
 
 /**

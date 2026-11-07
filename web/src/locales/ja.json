@@ -1699,7 +1699,8 @@
         "strike": "取り消し線",
         "code": "インラインコード",
         "superscript": "上付き",
-        "subscript": "下付き"
+        "subscript": "下付き",
+        "hdr": "HDR テキスト"
       },
       "clear_formatting": "書式をクリア",
       "color": "文字色とハイライト",

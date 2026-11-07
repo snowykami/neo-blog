@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { useMemo } from 'react'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import { ContentFontLinks } from '@/components/blog-post/content-font-links'
+import { ContentHdrText } from '@/components/blog-post/content-hdr-text'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { SafeImage } from '@/components/common/safe-image'
@@ -71,6 +72,7 @@ export function PagePreviewDialog({
               <ComponentIslands containerId={CONTAINER_ID} />
               <ContentHoverCard containerId={CONTAINER_ID} />
               <ContentImageFallback containerId={CONTAINER_ID} />
+              <ContentHdrText containerId={CONTAINER_ID} />
             </>
           )}
         </div>

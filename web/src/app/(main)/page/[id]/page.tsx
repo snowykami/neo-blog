@@ -5,6 +5,7 @@ import { getCachedSiteInfo } from '@/api/misc.server'
 import { getPageById } from '@/api/page'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
 import { ContentFontLinks } from '@/components/blog-post/content-font-links'
+import { ContentHdrText } from '@/components/blog-post/content-hdr-text'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
@@ -85,6 +86,7 @@ export default async function Page({
       <ComponentIslands containerId="page-content" />
       <ContentHoverCard containerId="page-content" />
       <ContentImageFallback containerId="page-content" />
+      <ContentHdrText containerId="page-content" />
       <ContentImageViewer containerId="page-content" />
       <VisitReporter targetType="page" targetId={page.id} />
     </>

@@ -17,6 +17,7 @@ import { AIWriteHighlight } from '@/components/tiptap-extension/ai-write-extensi
 import { Annotation, LinkAutoMatch } from '@/components/tiptap-extension/annotation-extension'
 import { ContentFont } from '@/components/tiptap-extension/content-font-extension'
 import { EditorShortcuts } from '@/components/tiptap-extension/editor-shortcuts-extension'
+import { HdrText } from '@/components/tiptap-extension/hdr-text-extension'
 import { InlineCode } from '@/components/tiptap-extension/inline-code-extension'
 import { RemoteChangeHighlight } from '@/components/tiptap-extension/remote-change-extension'
 import { SelectionHighlight } from '@/components/tiptap-extension/selection-highlight-extension'
@@ -90,6 +91,8 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
     }),
     Superscript,
     Subscript,
+    // HDR 文字：在 HDR 屏幕上亮过 SDR 白（前台渲染见 content-hdr-text.tsx）
+    HdrText,
     CodeBlockLowlight.configure({ lowlight }),
     // 表格：不启用列宽拖拽，输出普通的 table 结构，与前台渲染一致
     TableKit.configure({ table: { resizable: false } }),

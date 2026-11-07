@@ -1699,7 +1699,8 @@
         "strike": "Strikethrough",
         "code": "Inline code",
         "superscript": "Superscript",
-        "subscript": "Subscript"
+        "subscript": "Subscript",
+        "hdr": "HDR text"
       },
       "clear_formatting": "Clear formatting",
       "color": "Text color & highlight",

@@ -9,6 +9,7 @@ import CopyrightCard from '@/components/blog-post/blog-copyright.client'
 import { BlogLikeButton } from '@/components/blog-post/blog-like-button.client'
 import { BlogShare } from '@/components/blog-post/blog-share.client'
 import { ContentFontLinks } from '@/components/blog-post/content-font-links'
+import { ContentHdrText } from '@/components/blog-post/content-hdr-text'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
@@ -111,6 +112,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
       {!isDraft && <VisitReporter targetType="post" targetId={post.id} />}
       <ContentHoverCard containerId="blog-content" />
       <ContentImageFallback containerId="blog-content" />
+      <ContentHdrText containerId="blog-content" />
       <ContentImageViewer containerId="blog-content" />
 
       <CopyrightCard post={post} className="mt-8" />
