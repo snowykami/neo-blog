@@ -406,6 +406,25 @@
   }
 }
 
+/* ---------- 只读观看：远端（AI 工具、其他设备）刚写入的块，高亮后淡出 ---------- */
+.neo-editor-root .tiptap.ProseMirror .neo-remote-change {
+  border-radius: 4px;
+  animation: neo-remote-change 4s ease-out both;
+}
+
+@keyframes neo-remote-change {
+  0%,
+  35% {
+    background-color: color-mix(in oklab, var(--primary) 14%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  to {
+    background-color: transparent;
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
 /* ---------- 专注模式：淡化非当前块 ---------- */
 .neo-focus-mode .neo-editor-root .tiptap.ProseMirror {
   > * {
@@ -425,5 +444,11 @@
     transition-duration: 0ms !important;
     animation-duration: 0ms !important;
     animation-iteration-count: 1 !important;
+  }
+
+  /* 不淡出，保持静态高亮到下一次同步 */
+  .neo-editor-shell .neo-remote-change {
+    animation-name: none !important;
+    background-color: color-mix(in oklab, var(--primary) 10%, transparent);
   }
 }

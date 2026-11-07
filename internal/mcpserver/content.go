@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/yuin/goldmark/extension"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 // 正文在库中是富文本编辑器（Tiptap）产出的 HTML；对外部 AI 工具默认以 Markdown 读写，也可直接读写 HTML
@@ -171,12 +173,132 @@ func normalizeFormat(format string) (string, error) {
 	return "", fmt.Errorf("content_format must be %q or %q", formatMarkdown, formatHTML)
 }
 
-// htmlToMarkdown 存储的 HTML 转为 Markdown 输出
+// htmlToMarkdown 存储的 HTML 转为 Markdown 输出（按顶层块转换，见 htmlToMarkdownBlocks）
 func htmlToMarkdown(content string) (string, error) {
+	markdown, _, err := htmlToMarkdownBlocks(content)
+	return markdown, err
+}
+
+// markdownBlock 正文的一个顶层节点，以及它在 Markdown 全文中的位置 [from, to)；空节点（空段落、空白文本）from == to
+type markdownBlock struct {
+	node     *html.Node
+	from, to int
+}
+
+// 相邻的同类列表之间的分隔：Markdown 中只隔一个空行的两个列表会被解析成同一个列表（与转换器整篇转换时的写法一致）
+const markdownListSeparator = "<!--THE END-->"
+
+// htmlToMarkdownBlocks 把正文按顶层块分别转换为 Markdown，块之间以空行分隔，返回全文与每个顶层节点的位置
+// get_post 的输出与 patch 的查找使用同一份结果：find_text 照抄 get_post 的内容即可命中，命中的位置也能对应回顶层块
+func htmlToMarkdownBlocks(content string) (string, []markdownBlock, error) {
 	if strings.TrimSpace(content) == "" {
-		return "", nil
+		return "", nil, nil
 	}
-	return htmlConverter.ConvertString(content)
+	nodes, err := html.ParseFragment(strings.NewReader(content), &html.Node{Type: html.ElementNode, Data: "body", DataAtom: atom.Body})
+	if err != nil {
+		return "", nil, err
+	}
+	var sb strings.Builder
+	blocks := make([]markdownBlock, 0, len(nodes))
+	var prev *html.Node
+	for _, n := range nodes {
+		md := ""
+		if n.Type == html.ElementNode {
+			var buf bytes.Buffer
+			if err := html.Render(&buf, n); err != nil {
+				return "", nil, err
+			}
+			if md, err = htmlConverter.ConvertString(buf.String()); err != nil {
+				return "", nil, err
+			}
+			md = strings.TrimSpace(md)
+		}
+		if md == "" {
+			blocks = append(blocks, markdownBlock{node: n, from: sb.Len(), to: sb.Len()})
+			continue
+		}
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n")
+			if prev != nil && (n.DataAtom == atom.Ul || n.DataAtom == atom.Ol) && prev.DataAtom == n.DataAtom {
+				sb.WriteString(markdownListSeparator + "\n\n")
+			}
+		}
+		from := sb.Len()
+		sb.WriteString(md)
+		blocks = append(blocks, markdownBlock{node: n, from: from, to: sb.Len()})
+		prev = n
+	}
+	return sb.String(), blocks, nil
+}
+
+func renderNodes(blocks []markdownBlock) (string, error) {
+	var buf bytes.Buffer
+	for _, b := range blocks {
+		if err := html.Render(&buf, b.node); err != nil {
+			return "", err
+		}
+	}
+	return buf.String(), nil
+}
+
+// findUnique 在 text 中查找 find，必须恰好出现一次
+func findUnique(text, find string) (int, error) {
+	switch n := strings.Count(text, find); {
+	case strings.TrimSpace(find) == "":
+		return 0, errors.New("find_text must not be empty")
+	case n == 0:
+		return 0, errors.New("find_text was not found in the current draft: someone may have changed that part, or the text was not copied exactly. Call get_post (same content_format) and copy the text verbatim")
+	case n > 1:
+		return 0, fmt.Errorf("find_text matches %d places in the draft; include more of the surrounding text so it matches exactly one", n)
+	}
+	return strings.Index(text, find), nil
+}
+
+// applyMarkdownPatch 在正文的 Markdown 中查找 findText（必须唯一），只把命中的顶层块换成替换后的 Markdown 转出的 HTML，
+// 其余块保持原样（包括 Markdown 表达不了的格式）；返回新的 HTML 与替换后这几个块的 Markdown（供调用方核对）
+func applyMarkdownPatch(content, findText, replacement string) (string, string, error) {
+	markdown, blocks, err := htmlToMarkdownBlocks(content)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to convert content: %w", err)
+	}
+	start, err := findUnique(markdown, findText)
+	if err != nil {
+		return "", "", err
+	}
+	end := start + len(findText)
+	first, last := -1, -1
+	for i, b := range blocks {
+		if b.to > b.from && b.to > start && b.from < end {
+			if first < 0 {
+				first = i
+			}
+			last = i
+		}
+	}
+	if first < 0 {
+		return "", "", errors.New("find_text must include some of the post's text, not only blank lines")
+	}
+	regionFrom, regionTo := blocks[first].from, blocks[last].to
+	region := markdown[regionFrom:start] + replacement + markdown[end:regionTo]
+	regionHTML := ""
+	if strings.TrimSpace(region) != "" {
+		if regionHTML, err = parseContent(region, formatMarkdown); err != nil {
+			return "", "", err
+		}
+	}
+	before, err := renderNodes(blocks[:first])
+	if err != nil {
+		return "", "", err
+	}
+	after, err := renderNodes(blocks[last+1:])
+	if err != nil {
+		return "", "", err
+	}
+	result := before + regionHTML + after
+	if strings.TrimSpace(result) == "" {
+		result = emptyContentHTML
+	}
+	return result, strings.TrimSpace(region), nil
 }
 
 // markdownToHTML Markdown 输入转为编辑器可加载的 HTML

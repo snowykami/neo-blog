@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
@@ -27,6 +29,25 @@ const (
 )
 
 var formatEnum = []any{formatMarkdown, formatHTML}
+
+// update_post 的正文写入方式，参考 Outline：优先局部写入，只改动需要改的部分
+const (
+	editModeReplace = "replace" // 整篇替换，必须带 base_version
+	editModeAppend  = "append"  // 追加到末尾
+	editModePrepend = "prepend" // 插入到开头
+	editModePatch   = "patch"   // 只替换 find_text 命中的部分
+)
+
+var editModeEnum = []any{editModePatch, editModeAppend, editModePrepend, editModeReplace}
+
+// 局部写入在服务端读取最新草稿后修改，期间草稿被其他人改动时重新读取再改，最多尝试的次数
+const editMaxAttempts = 3
+
+// 正文开头 / 末尾的空段落（编辑器的空段落为 <p></p>，可能带对齐等属性或一个换行）
+var (
+	reTrailingEmptyParagraphs = regexp.MustCompile(`(?:\s*<p(?:\s[^>]*)?>\s*(?:<br\s*/?>)?\s*</p>)+\s*$`)
+	reLeadingEmptyParagraphs  = regexp.MustCompile(`^\s*(?:<p(?:\s[^>]*)?>\s*(?:<br\s*/?>)?\s*</p>\s*)+`)
+)
 
 type taxonomyRef struct {
 	ID   uint   `json:"id"`
@@ -54,6 +75,7 @@ type postDetail struct {
 	PinnedUntil           *time.Time `json:"pinned_until,omitempty" jsonschema:"when the pin expires; absent means it stays pinned until removed"`
 	Version               string     `json:"version" jsonschema:"which body is returned: draft or published"`
 	HasUnpublishedChanges bool       `json:"has_unpublished_changes" jsonschema:"the draft differs from the published body"`
+	DraftVersion          *uint64    `json:"draft_version,omitempty" jsonschema:"version of the draft (author/admin only); pass it as base_version to update_post"`
 	ContentFormat         string     `json:"content_format"`
 	Content               string     `json:"content"`
 	PreviewURL            string     `json:"preview_url,omitempty" jsonschema:"URL to preview the draft (author/admin only)"`
@@ -61,13 +83,15 @@ type postDetail struct {
 }
 
 type postWriteResult struct {
-	ID         uint   `json:"id"`
-	Title      string `json:"title"`
-	IsPrivate  bool   `json:"is_private"`
-	URL        string `json:"url" jsonschema:"public URL (only reachable when the post is published)"`
-	PreviewURL string `json:"preview_url" jsonschema:"URL to preview the draft"`
-	EditURL    string `json:"edit_url" jsonschema:"console editor URL"`
-	Message    string `json:"message"`
+	ID           uint   `json:"id"`
+	Title        string `json:"title"`
+	IsPrivate    bool   `json:"is_private"`
+	DraftVersion uint64 `json:"draft_version" jsonschema:"version of the draft after this write; pass it as base_version next time"`
+	URL          string `json:"url" jsonschema:"public URL (only reachable when the post is published)"`
+	PreviewURL   string `json:"preview_url" jsonschema:"URL to preview the draft"`
+	EditURL      string `json:"edit_url" jsonschema:"console editor URL"`
+	Patched      string `json:"patched,omitempty" jsonschema:"for edit_mode patch: the changed part of the body as now saved, to check the result"`
+	Message      string `json:"message"`
 }
 
 func postURL(post *dto.PostDto) string {
@@ -106,13 +130,14 @@ func toSummary(post *dto.PostDto) postSummary {
 
 func writeResult(post *dto.PostDto, message string) *postWriteResult {
 	return &postWriteResult{
-		ID:         post.ID,
-		Title:      post.Title,
-		IsPrivate:  post.IsPrivate,
-		URL:        postURL(post),
-		PreviewURL: postURL(post) + "?type=" + versionDraft,
-		EditURL:    editURL(post.ID),
-		Message:    message,
+		ID:           post.ID,
+		Title:        post.Title,
+		IsPrivate:    post.IsPrivate,
+		DraftVersion: post.DraftVersion,
+		URL:          postURL(post),
+		PreviewURL:   postURL(post) + "?type=" + versionDraft,
+		EditURL:      editURL(post.ID),
+		Message:      message,
 	}
 }
 
@@ -147,17 +172,15 @@ func validateCover(cover *string) error {
 	return nil
 }
 
-// savePost 获取编辑会话后保存；编辑页正在编辑时由 AcquireForAPIToken 拒绝，不会覆盖他人的修改
-func savePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) error {
-	sessionID, svcerr := service.NewEditSessionService().AcquireForAPIToken(ctx, constant.TargetTypePost, req.ID)
+// savePost 保存文章，返回保存后的草稿版本号
+// 外部 AI 工具不使用编辑会话，可以与编辑页同时写入：写入正文时按草稿版本号原子校验，
+// 读取之后有其他写入则返回 draft_conflict，不会覆盖他人的修改；编辑页收到保存事件后把这次修改合并进来
+func savePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (uint64, error) {
+	result, svcerr := service.NewPostService().UpdatePost(ctx, req)
 	if svcerr != nil {
-		return serviceError(svcerr)
+		return 0, serviceError(svcerr)
 	}
-	req.EditSessionID = sessionID
-	if _, svcerr := service.NewPostService().UpdatePost(ctx, req); svcerr != nil {
-		return serviceError(svcerr)
-	}
-	return nil
+	return result.DraftVersion, nil
 }
 
 // ---- list_posts ----
@@ -252,6 +275,7 @@ func getPost(ctx context.Context, _ *mcp.CallToolRequest, in getPostInput) (*mcp
 		detail.HasUnpublishedChanges = draft != post.Content
 		detail.PreviewURL = postURL(post) + "?type=" + versionDraft
 		detail.EditURL = editURL(post.ID)
+		detail.DraftVersion = &post.DraftVersion
 		if in.Version != versionPublished {
 			body = draft
 			detail.Version = versionDraft
@@ -355,7 +379,7 @@ func createPost(ctx context.Context, _ *mcp.CallToolRequest, in createPostInput)
 	if svcerr != nil {
 		return nil, nil, serviceError(svcerr)
 	}
-	if err := savePost(ctx, &dto.CreateOrUpdatePostReq{ID: postID, PostBaseDto: dto.PostBaseDto{DraftContent: &content}}); err != nil {
+	if _, err := savePost(ctx, &dto.CreateOrUpdatePostReq{ID: postID, PostBaseDto: dto.PostBaseDto{DraftContent: &content}}); err != nil {
 		return nil, nil, fmt.Errorf("post %d was created but saving its draft failed: %w", postID, err)
 	}
 	post, err := loadPostByID(ctx, postID)
@@ -369,8 +393,11 @@ func createPost(ctx context.Context, _ *mcp.CallToolRequest, in createPostInput)
 
 type updatePostInput struct {
 	PostID        uint    `json:"post_id" jsonschema:"id of the post to update"`
-	Content       *string `json:"content,omitempty" jsonschema:"new full body, saved as an unpublished draft (readers keep seeing the published version until publish_post). Omit to keep the current draft"`
-	ContentFormat string  `json:"content_format,omitempty" jsonschema:"format of content: markdown (default) or html"`
+	Content       *string `json:"content,omitempty" jsonschema:"body content saved as an unpublished draft (readers keep seeing the published version until publish_post); what it does depends on edit_mode. Omit to keep the current draft"`
+	EditMode      string  `json:"edit_mode,omitempty" jsonschema:"how content is applied. patch (preferred for edits): replaces only find_text and keeps the rest of the body exactly as is; append / prepend: adds content to the end / beginning; replace (default): content becomes the whole body and base_version is required"`
+	FindText      string  `json:"find_text,omitempty" jsonschema:"required for patch: the text to replace, copied verbatim from get_post in the same content_format. It must match exactly one place and may span several paragraphs; content is its replacement (empty content deletes it)"`
+	BaseVersion   *uint64 `json:"base_version,omitempty" jsonschema:"draft_version from get_post that your change is based on. Required for replace, optional for other modes. If the draft has changed since, nothing is written and you get draft_conflict"`
+	ContentFormat string  `json:"content_format,omitempty" jsonschema:"format of content and find_text: markdown (default) or html"`
 	Title         *string `json:"title,omitempty"`
 	Description   *string `json:"description,omitempty" jsonschema:"short summary; empty string clears it"`
 	Slug          *string `json:"slug,omitempty" jsonschema:"friendly URL segment; empty string clears it"`
@@ -383,6 +410,51 @@ func (in *updatePostInput) hasMeta() bool {
 	return in.Title != nil || in.Description != nil || in.Slug != nil || in.Cover != nil || in.CategoryID != nil || in.LabelIDs != nil
 }
 
+func normalizeEditMode(mode string) (string, error) {
+	switch m := strings.ToLower(strings.TrimSpace(mode)); m {
+	case "":
+		return editModeReplace, nil
+	case editModeReplace, editModeAppend, editModePrepend, editModePatch:
+		return m, nil
+	}
+	return "", fmt.Errorf("edit_mode must be one of %v", editModeEnum)
+}
+
+// editContent 按写入方式把 content 应用到当前草稿 current 上，返回新的草稿 HTML；patch 还返回替换后的那部分（与 content 同一格式）
+func editContent(current, mode, format, content, findText string) (string, string, error) {
+	empty := strings.TrimSpace(current) == "" || current == emptyContentHTML
+	switch mode {
+	case editModePatch:
+		if format == formatHTML {
+			start, err := findUnique(current, findText)
+			if err != nil {
+				return "", "", err
+			}
+			result := current[:start] + content + current[start+len(findText):]
+			return utils.Ternary(strings.TrimSpace(result) == "", emptyContentHTML, result), content, nil
+		}
+		return applyMarkdownPatch(current, findText, content)
+	case editModeAppend, editModePrepend:
+		if strings.TrimSpace(content) == "" {
+			return "", "", fmt.Errorf("content is required for edit_mode %s", mode)
+		}
+		added, err := parseContent(content, format)
+		if err != nil {
+			return "", "", err
+		}
+		if empty {
+			return added, "", nil
+		}
+		// 编辑器保存的正文末尾常带一个空段落，追加 / 插入时去掉衔接处的空段落，避免中间多出空行
+		if mode == editModeAppend {
+			return reTrailingEmptyParagraphs.ReplaceAllString(current, "") + added, "", nil
+		}
+		return added + reLeadingEmptyParagraphs.ReplaceAllString(current, ""), "", nil
+	}
+	result, err := parseContent(content, format)
+	return result, "", err
+}
+
 func updatePost(ctx context.Context, _ *mcp.CallToolRequest, in updatePostInput) (*mcp.CallToolResult, *postWriteResult, error) {
 	if err := requireScope(ctx, constant.ScopePostsWrite); err != nil {
 		return nil, nil, err
@@ -393,6 +465,10 @@ func updatePost(ctx context.Context, _ *mcp.CallToolRequest, in updatePostInput)
 	post, err := loadPostByID(ctx, in.PostID)
 	if err != nil {
 		return nil, nil, err
+	}
+	// 只有作者或管理员可以修改，先于其他校验，不向无权限的调用方透露更多信息
+	if !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx)) {
+		return nil, nil, serviceError(errs.NewForbidden("permission_denied"))
 	}
 	// 元信息没有草稿，公开文章上的修改会立即对读者可见，因此视同发布
 	if in.hasMeta() && !post.IsPrivate {
@@ -417,28 +493,71 @@ func updatePost(ctx context.Context, _ *mcp.CallToolRequest, in updatePostInput)
 		Description: in.Description,
 		Cover:       in.Cover,
 	}
-	if in.Content != nil {
-		format, err := normalizeFormat(in.ContentFormat)
-		if err != nil {
+	if in.Content == nil {
+		if in.FindText != "" || in.EditMode != "" || in.BaseVersion != nil {
+			return nil, nil, errors.New("edit_mode, find_text and base_version only apply when content is given")
+		}
+		if _, err := savePost(ctx, req); err != nil {
 			return nil, nil, err
 		}
-		content, err := parseContent(*in.Content, format)
-		if err != nil {
+		if post, err = loadPostByID(ctx, post.ID); err != nil {
 			return nil, nil, err
 		}
-		req.DraftContent = &content
+		return nil, writeResult(post, "Metadata saved."), nil
 	}
-	if err := savePost(ctx, req); err != nil {
+
+	mode, err := normalizeEditMode(in.EditMode)
+	if err != nil {
 		return nil, nil, err
+	}
+	format, err := normalizeFormat(in.ContentFormat)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch {
+	case mode == editModeReplace && in.BaseVersion == nil:
+		return nil, nil, errors.New("base_version is required to replace the whole body: call get_post and pass its draft_version. To change only part of the body, use edit_mode patch with find_text")
+	case mode == editModePatch && in.FindText == "":
+		return nil, nil, errors.New("find_text is required for edit_mode patch")
+	case mode != editModePatch && in.FindText != "":
+		return nil, nil, errors.New("find_text only applies to edit_mode patch")
+	}
+	// 在最新的草稿上修改并按读取时的版本号保存；没有指定 base_version 时，期间被他人改动则重新读取再改
+	var patched string
+	for attempt := 1; ; attempt++ {
+		if in.BaseVersion != nil && *in.BaseVersion != post.DraftVersion {
+			return nil, nil, serviceError(errs.NewConflict("draft_conflict"))
+		}
+		current := currentDraft(post)
+		content, region, err := editContent(current, mode, format, *in.Content, in.FindText)
+		if err != nil {
+			return nil, nil, err
+		}
+		if content == current && !in.hasMeta() {
+			return nil, nil, errors.New("the update resulted in no changes to the draft; make sure content differs from what it replaces")
+		}
+		version := post.DraftVersion
+		req.DraftContent = &content
+		req.BaseDraftVersion = &version
+		_, svcerr := service.NewPostService().UpdatePost(ctx, req)
+		if svcerr != nil && svcerr.Message == "draft_conflict" && in.BaseVersion == nil && attempt < editMaxAttempts {
+			if post, err = loadPostByID(ctx, post.ID); err != nil {
+				return nil, nil, err
+			}
+			continue
+		}
+		if svcerr != nil {
+			return nil, nil, serviceError(svcerr)
+		}
+		patched = region
+		break
 	}
 	if post, err = loadPostByID(ctx, post.ID); err != nil {
 		return nil, nil, err
 	}
-	message := "Saved. Content changes are an unpublished draft; call publish_post to make them live."
-	if in.Content == nil {
-		message = "Metadata saved."
-	}
-	return nil, writeResult(post, message), nil
+	result := writeResult(post, "Saved. Content changes are an unpublished draft; call publish_post to make them live.")
+	result.Patched = patched
+	return nil, result, nil
 }
 
 // ---- publish_post / unpublish_post ----
@@ -460,10 +579,13 @@ func publishPost(ctx context.Context, _ *mcp.CallToolRequest, in postIDInput) (*
 		return nil, nil, fmt.Errorf("post %d has no content to publish", post.ID)
 	}
 	isPrivate := false
-	if err := savePost(ctx, &dto.CreateOrUpdatePostReq{
-		ID:          post.ID,
-		PostBaseDto: dto.PostBaseDto{Content: content, DraftContent: &content, Type: formatHTML},
-		IsPrivate:   &isPrivate,
+	// 按读取时的草稿版本号保存：读取之后草稿又被改动时拒绝，不会发布一份过期的草稿
+	version := post.DraftVersion
+	if _, err := savePost(ctx, &dto.CreateOrUpdatePostReq{
+		ID:               post.ID,
+		PostBaseDto:      dto.PostBaseDto{Content: content, DraftContent: &content, Type: formatHTML},
+		IsPrivate:        &isPrivate,
+		BaseDraftVersion: &version,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -482,7 +604,7 @@ func unpublishPost(ctx context.Context, _ *mcp.CallToolRequest, in postIDInput) 
 		return nil, nil, err
 	}
 	isPrivate := true
-	if err := savePost(ctx, &dto.CreateOrUpdatePostReq{ID: post.ID, IsPrivate: &isPrivate}); err != nil {
+	if _, err := savePost(ctx, &dto.CreateOrUpdatePostReq{ID: post.ID, IsPrivate: &isPrivate}); err != nil {
 		return nil, nil, err
 	}
 	if post, err = loadPostByID(ctx, post.ID); err != nil {
@@ -500,7 +622,7 @@ func registerPostTools(server *mcp.Server) {
 	}, listPosts)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_post",
-		Description: "Get one post with its metadata and body (Markdown by default). By default you get the latest draft if you are the author or an admin. Requires posts:read.",
+		Description: "Get one post with its metadata and body (Markdown by default). By default you get the latest draft and its draft_version if you are the author or an admin. Requires posts:read.",
 		InputSchema: inputSchema[getPostInput](map[string][]any{"version": {versionDraft, versionPublished}, "content_format": formatEnum}),
 		Annotations: &mcp.ToolAnnotations{Title: "Get post", ReadOnlyHint: true, OpenWorldHint: boolPtr(false)},
 	}, getPost)
@@ -517,11 +639,13 @@ func registerPostTools(server *mcp.Server) {
 	}, createPost)
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "update_post",
-		Description: "Update a post. content replaces the whole body and is saved as an unpublished draft; read it first with get_post and follow get_writing_guide. " +
-			"Metadata fields (title, description, slug, cover, category_id, label_ids) apply immediately; on a public post they also need posts:publish. " +
-			"Refused while the post is open in the console editor. Requires posts:write.",
-		InputSchema: inputSchema[updatePostInput](map[string][]any{"content_format": formatEnum}),
-		Annotations: &mcp.ToolAnnotations{Title: "Update post draft", DestructiveHint: boolPtr(false), IdempotentHint: true, OpenWorldHint: boolPtr(false)},
+		Description: "Update a post's draft and/or metadata; read it first with get_post and follow get_writing_guide. Content goes to an unpublished draft. " +
+			"IMPORTANT: to edit existing content, prefer edit_mode \"patch\" with find_text copied verbatim from get_post: it changes only the matched part and keeps the rest of the body (including formatting Markdown cannot express) untouched. " +
+			"Use \"append\" / \"prepend\" to add content, and \"replace\" (with base_version) only to rewrite the whole body. " +
+			"People may be editing the same post in the console editor at the same time; your writes show up there live and are merged with their edits. " +
+			"Metadata fields (title, description, slug, cover, category_id, label_ids) apply immediately; on a public post they also need posts:publish. Requires posts:write.",
+		InputSchema: inputSchema[updatePostInput](map[string][]any{"content_format": formatEnum, "edit_mode": editModeEnum}),
+		Annotations: &mcp.ToolAnnotations{Title: "Update post draft", DestructiveHint: boolPtr(false), OpenWorldHint: boolPtr(false)},
 	}, updatePost)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "publish_post",

@@ -1,27 +1,33 @@
 'use client'
 
+import type { Node as PMNode } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
 import type { AIWriterOpenOptions } from '@/components/tiptap-editor/use-ai-writer'
 import type { Category } from '@/models/category'
+import type { ContentSaveResult, EditEvent } from '@/models/edit-session'
 import type { Label } from '@/models/label'
 import type { PageLayout, PageModel } from '@/models/page'
 import type { Post, PostBackground } from '@/models/post'
+import type { BaseResponse } from '@/models/resp'
 import { EditorState } from '@tiptap/pm/state'
-import { useEditor } from '@tiptap/react'
+import { getHTMLFromFragment, useEditor } from '@tiptap/react'
 import { useFormatter, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { isEditSessionConflict } from '@/api/edit-session'
+import { isDraftConflict, isEditSessionConflict } from '@/api/edit-session'
 import { uploadFile } from '@/api/file'
 import { getPageById, updatePage } from '@/api/page'
 import { getPostById, updatePost } from '@/api/post'
 import { batchDeleteRevisions, deleteRevision, discardDraft, restoreRevision } from '@/api/revision'
 import { AI_PREVIEW_META } from '@/components/tiptap-extension/ai-write-extension'
+import { REMOTE_SYNC_META } from '@/components/tiptap-extension/remote-change-extension'
 import { buildSlashItems, filterSlashItems } from '@/components/tiptap-ui/slash-menu/slash-items'
+import { useEditEvents } from '@/hooks/use-edit-events'
 import { useEditSession } from '@/hooks/use-edit-session'
 import { useUnsavedChangesWarning } from '@/hooks/use-editor-helpers'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { createContentExtensions } from '@/lib/tiptap-extensions'
+import { mergeRemoteContent } from '@/lib/tiptap-remote-sync'
 
 /** 文章背景的默认值：全部留空即沿用全站背景 */
 export const EMPTY_BACKGROUND: PostBackground = { image: '', blur: 0, opacity: 1, veil: 0.72, veilColor: '' }
@@ -65,12 +71,14 @@ interface UpdateArgs {
   content?: string
   meta: Partial<ContentMeta>
   sessionId: string | null
+  // 保存正文时所基于的草稿版本号，草稿在此之后被他人改动过则保存被拒绝（draft_conflict）
+  baseDraftVersion?: number
 }
 
 interface ContentAdapter {
   load: (id: string) => Promise<ContentDoc | null>
   toMeta: (doc: ContentDoc) => ContentMeta
-  update: (args: UpdateArgs) => Promise<unknown>
+  update: (args: UpdateArgs) => Promise<BaseResponse<ContentSaveResult>>
   // 把保存成功的元信息合并回文档对象（用于预览地址、标题等展示）
   mergeMeta: (doc: ContentDoc, meta: Partial<ContentMeta>) => ContentDoc
 }
@@ -108,8 +116,8 @@ const postAdapter: ContentAdapter = {
       labels: post.labels ?? [],
     }
   },
-  update: ({ id, draftContent, content, meta, sessionId }) => {
-    const patch: Partial<Post> & Pick<Post, 'id'> = { id }
+  update: ({ id, draftContent, content, meta, sessionId, baseDraftVersion }) => {
+    const patch: Partial<Post> & Pick<Post, 'id'> & { baseDraftVersion?: number } = { id, baseDraftVersion }
     if (draftContent !== undefined)
       patch.draftContent = draftContent
     if (content !== undefined) {
@@ -161,8 +169,8 @@ const pageAdapter: ContentAdapter = {
       fullscreen: !!page.fullscreen,
     }
   },
-  update: ({ id, draftContent, content, meta, sessionId }) => {
-    const patch: Partial<PageModel> & Pick<PageModel, 'id'> = { id }
+  update: ({ id, draftContent, content, meta, sessionId, baseDraftVersion }) => {
+    const patch: Partial<PageModel> & Pick<PageModel, 'id'> & { baseDraftVersion?: number } = { id, baseDraftVersion }
     if (draftContent !== undefined)
       patch.draftContent = draftContent
     if (content !== undefined) {
@@ -231,6 +239,8 @@ export interface EditorUiActions {
  * 文章 / 页面编辑器的共用逻辑：
  * - 创建编辑器实例（共用扩展列表），加载草稿
  * - 编辑会话（申请 / 检查 / 被接管只读 / 接管）
+ * - 与外部 AI 工具同时编辑：保存正文时带上草稿版本号；收到他人保存的事件（或保存被拒绝）时拉取最新草稿，
+ *   按块三方合并进编辑器（双方改了同一块时保留本地版本），合并进来的块高亮，之后再保存
  * - 保存状态机 idle | dirty | saving | saved | error：停止输入约 2 秒后自动保存，10 秒定时兜底，⌘S 立即保存
  * - 标题、摘要与设置面板中的元信息与正文走同一保存路径，只提交有变化的字段
  * - 发布：草稿与正文一起提交
@@ -323,12 +333,17 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   }, [])
 
   // ---------- 加载 ----------
+  // 合并的基线：本地上次与服务端同步（载入、保存成功、合并）时的草稿版本号与正文
+  const baseVersionRef = useRef(0)
+  const baseDocRef = useRef<PMNode | null>(null)
   const applyDoc = useCallback((next: ContentDoc, ed: Editor) => {
     const draft = next.draftContent || next.content || ''
     // 载入内容不进入撤销历史，避免撤销到空文档后被自动保存成空草稿
     ed.chain().setMeta('addToHistory', false).setContent(draft, { emitUpdate: false }).run()
     // 清空撤销历史：恢复版本、放弃修改或接管后，撤销不能再回到载入前的内容
     ed.view.updateState(EditorState.create({ doc: ed.state.doc, plugins: ed.state.plugins }))
+    baseVersionRef.current = next.draftVersion ?? 0
+    baseDocRef.current = ed.state.doc
     const html = ed.getHTML()
     setSavedHtml(html)
     // 草稿与正文一致时视为已发布；否则记录服务端正文用于比较
@@ -371,6 +386,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
 
   // 被其他编辑会话顶掉后只读
   const readOnly = !doc || isTakenOver
+  const readOnlyRef = useRef(readOnly)
+  readOnlyRef.current = readOnly
   // AI 写作进行中（输入要求、生成、等待确认）：锁定编辑器，避免生成位置失效或保存半成品
   const [aiBusy, setAiBusyState] = useState(false)
   const aiBusyRef = useRef(false)
@@ -389,6 +406,10 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   savedHtmlRef.current = savedHtml
   const savingRef = useRef(false)
   const pendingSaveRef = useRef(false)
+  // 合并他人修改的状态（见下方 syncRemote）：进行中、期间又有新事件，以及最近一次远端保存来自哪个外部 AI 工具
+  const syncingRef = useRef(false)
+  const pendingSyncRef = useRef(false)
+  const remoteActorRef = useRef<string | undefined>(undefined)
   // 保存失败的元信息快照：未再修改前自动保存不再重复提交，避免持续报错（如 slug 冲突）
   const failedMetaRef = useRef<string | null>(null)
   const autosaveTimerRef = useRef<number | null>(null)
@@ -400,9 +421,16 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const isDirtyRef = useRef(isDirty)
   isDirtyRef.current = isDirty
 
+  // 草稿冲突时合并最新草稿（定义见下方），保存失败后调用
+  const syncRemoteRef = useRef<() => Promise<void>>(async () => {})
   const save = useCallback(async ({ manual = false }: { manual?: boolean } = {}): Promise<boolean> => {
     if (!editor || !doc || !canSave || aiBusyRef.current)
       return false
+    // 正在合并他人的修改：合并结束后会重新安排保存
+    if (syncingRef.current) {
+      pendingSaveRef.current = true
+      return false
+    }
     if (savingRef.current) {
       pendingSaveRef.current = true
       return false
@@ -412,6 +440,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       autosaveTimerRef.current = null
     }
     const html = editor.getHTML()
+    const savedDoc = editor.state.doc
     const contentChanged = html !== savedHtmlRef.current
     const currentMeta = metaRef.current
     let patch = diffMeta(currentMeta, savedMetaRef.current)
@@ -425,14 +454,21 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
 
     savingRef.current = true
     setSaving(true)
+    // 手动保存时总是提交草稿（与旧版“存草稿”一致）
+    const submitDraft = contentChanged || manual
     try {
-      await adapter.update({
+      const res = await adapter.update({
         id: doc.id,
-        // 手动保存时总是提交草稿（与旧版“存草稿”一致）
-        draftContent: contentChanged || manual ? html : undefined,
+        draftContent: submitDraft ? html : undefined,
         meta: patch ?? {},
         sessionId,
+        baseDraftVersion: submitDraft ? baseVersionRef.current : undefined,
       })
+      // 只有提交了正文时版本号才是本次保存的；只改元信息时不更新基线
+      if (submitDraft) {
+        baseVersionRef.current = res.data.draftVersion
+        baseDocRef.current = savedDoc
+      }
       setSavedHtml(html)
       savedHtmlRef.current = html
       if (patch) {
@@ -454,6 +490,12 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       // 已被其他编辑会话接管，切换为只读并提示
       if (isEditSessionConflict(error)) {
         markTakenOver()
+        return false
+      }
+      // 草稿在此期间被他人（外部 AI 工具）改过：合并最新草稿后会重新安排保存
+      if (isDraftConflict(error)) {
+        pendingSaveRef.current = true
+        void syncRemoteRef.current()
         return false
       }
       const message = errorMessageT(error)
@@ -497,8 +539,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     if (!editor)
       return
     const onUpdate = ({ transaction }: { transaction: { getMeta: (key: string) => unknown } }) => {
-      // AI 生成中的预览内容不算作修改
-      if (transaction.getMeta(AI_PREVIEW_META))
+      // AI 生成中的预览内容、合并进来的他人修改不算作本地修改
+      if (transaction.getMeta(AI_PREVIEW_META) || transaction.getMeta(REMOTE_SYNC_META))
         return
       setContentDirty(true)
       scheduleAutosave()
@@ -515,8 +557,10 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     // 立即锁定，随后的高亮事务即可让气泡菜单等按只读状态隐藏
     if (editor && !editor.isDestroyed)
       editor.setEditable(!readOnly && !busy, false)
-    // 会话期间跳过的自动保存在结束后补上
-    if (!busy && isDirtyRef.current)
+    // 会话期间延后的合并与跳过的自动保存在结束后补上
+    if (!busy && pendingSyncRef.current)
+      void syncRemoteRef.current()
+    else if (!busy && isDirtyRef.current)
       scheduleAutosave()
   }, [editor, readOnly, scheduleAutosave])
 
@@ -554,6 +598,108 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const hasUnsavedChanges = useCallback(() => isDirtyRef.current || savingRef.current, [])
   useUnsavedChangesWarning(hasUnsavedChanges)
 
+  // ---------- 合并他人的修改 ----------
+  // 他人（外部 AI 工具）保存后拉取最新草稿，按块三方合并进编辑器；本地有未保存的修改时合并后再保存
+  // 进行中的保存、输入法组字结束后再合并；编辑器内 AI 写作进行中时延后到结束
+  const waitForIdle = useCallback(async () => {
+    for (let i = 0; (savingRef.current || editor?.view.composing) && i < 300; i++)
+      await new Promise(resolve => window.setTimeout(resolve, 100))
+  }, [editor])
+  const syncRemote = useCallback(async () => {
+    if (!editor || !doc)
+      return
+    if (syncingRef.current || aiBusyRef.current) {
+      pendingSyncRef.current = true
+      return
+    }
+    syncingRef.current = true
+    try {
+      do {
+        pendingSyncRef.current = false
+        await waitForIdle()
+        const latest = await adapter.load(routeId).catch(() => null)
+        if (!latest || editor.isDestroyed || !baseDocRef.current)
+          break
+        // 拉取期间开始了编辑器内 AI 写作：结束后再合并
+        if (aiBusyRef.current) {
+          pendingSyncRef.current = true
+          break
+        }
+        // 正文：草稿版本比本地新时合并（只改了元信息时版本不变，正文不用合并）
+        let result: ReturnType<typeof mergeRemoteContent> | null = null
+        if ((latest.draftVersion ?? 0) > baseVersionRef.current) {
+          await waitForIdle()
+          result = mergeRemoteContent(editor, baseDocRef.current, latest.draftContent || latest.content || '')
+          baseDocRef.current = result.remoteDoc
+          baseVersionRef.current = latest.draftVersion ?? 0
+          // 没有本地修改时合并后与远端一致；有本地修改时以远端为已保存的内容，之后保存合并结果
+          const remoteHtml = result.localChanged ? getHTMLFromFragment(result.remoteDoc.content, editor.schema) : editor.getHTML()
+          setSavedHtml(remoteHtml)
+          savedHtmlRef.current = remoteHtml
+          setPublishedHtml(!latest.draftContent || latest.draftContent === latest.content ? remoteHtml : latest.content)
+          setContentDirty(result.localChanged || result.conflicts > 0)
+          if (result.localChanged)
+            pendingSaveRef.current = true
+        }
+        // 元信息：本地未保存的字段保留本地值，其余采用远端的值
+        const remoteMeta = adapter.toMeta(latest)
+        const localMetaPatch = diffMeta(metaRef.current, savedMetaRef.current)
+        setMetaState({ ...remoteMeta, ...localMetaPatch })
+        setSavedMeta(remoteMeta)
+        setDoc(latest)
+        if (localMetaPatch)
+          pendingSaveRef.current = true
+        if (!result)
+          continue
+        // 只读（被接管）时由提示条说明，不再弹出提示
+        if (!readOnlyRef.current && result.ranges.length > 0) {
+          const first = result.ranges[0].from
+          toast(t('remote.merged', { name: remoteActorRef.current || t('remote.someone'), count: result.ranges.length }), {
+            action: {
+              label: t('remote.view'),
+              onClick: () => {
+                const dom = editor.view.nodeDOM(first)
+                if (dom instanceof HTMLElement)
+                  dom.scrollIntoView({ block: 'center', behavior: 'smooth' })
+              },
+            },
+          })
+        }
+        if (!readOnlyRef.current && result.conflicts > 0)
+          toast.warning(t('remote.conflict', { count: result.conflicts }))
+      } while (pendingSyncRef.current)
+    }
+    finally {
+      syncingRef.current = false
+      if (pendingSaveRef.current && !readOnlyRef.current) {
+        pendingSaveRef.current = false
+        scheduleAutosaveRef.current()
+      }
+    }
+  }, [editor, doc, adapter, routeId, waitForIdle, t])
+  syncRemoteRef.current = syncRemote
+
+  // 编辑事件：他人保存（版本比本地新）或可能错过事件（重连、resync）时合并最新草稿；会话变化时尽快发现被接管
+  // 首次连上的 ready 不处理（内容刚载入）
+  const eventsConnectedRef = useRef(false)
+  useEditEvents(kind, doc?.id ?? 0, (event: EditEvent) => {
+    if (event.type === 'ready' && !eventsConnectedRef.current) {
+      eventsConnectedRef.current = true
+      return
+    }
+    if (event.type === 'session') {
+      checkEditSession()
+      return
+    }
+    // 持有会话时，不是外部 AI 工具的保存只可能是自己的（其他编辑页会先顶掉本页），不用处理；
+    // 外部 AI 工具只改元信息时版本号不变，仍要同步元信息
+    if (event.type === 'saved' && !event.apiTokenName && !readOnlyRef.current)
+      return
+    if (event.type === 'saved')
+      remoteActorRef.current = event.apiTokenName
+    void syncRemote()
+  })
+
   // ---------- 发布 ----------
   const publish = useCallback(async (): Promise<boolean> => {
     if (!editor || !doc || !canSave || publishing || aiBusyRef.current)
@@ -564,10 +710,13 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       return false
     }
     const html = editor.getHTML()
+    const savedDoc = editor.state.doc
     const patch = diffMeta(currentMeta, savedMetaRef.current)
     setPublishing(true)
     try {
-      await adapter.update({ id: doc.id, draftContent: html, content: html, meta: patch ?? {}, sessionId })
+      const res = await adapter.update({ id: doc.id, draftContent: html, content: html, meta: patch ?? {}, sessionId, baseDraftVersion: baseVersionRef.current })
+      baseVersionRef.current = res.data.draftVersion
+      baseDocRef.current = savedDoc
       setSavedHtml(html)
       setPublishedHtml(html)
       if (patch) {
@@ -590,6 +739,12 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
         markTakenOver()
         return false
       }
+      // 草稿刚被他人改过：合并后请作者确认再发布，不直接发布合并后的内容
+      if (isDraftConflict(error)) {
+        await syncRemoteRef.current()
+        toast.warning(t('remote.publish_conflict'))
+        return false
+      }
       const message = errorMessageT(error)
       toast.error(message ? `${operationT('publish_failed')}: ${message}` : operationT('publish_failed'))
       return false
@@ -597,7 +752,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     finally {
       setPublishing(false)
     }
-  }, [editor, doc, canSave, publishing, adapter, sessionId, operationT, postEditT, errorMessageT, markTakenOver])
+  }, [editor, doc, canSave, publishing, adapter, sessionId, operationT, postEditT, errorMessageT, markTakenOver, t])
 
   // ---------- 接管 ----------
   // 重新申请会话并加载服务端最新内容（本地未保存的内容以服务端为准）

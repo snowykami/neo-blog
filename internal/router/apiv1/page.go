@@ -22,6 +22,8 @@ func registerPageRoutes(group *route.RouterGroup) {
 		// 编辑会话：同时只允许最新打开编辑页的会话保存正文
 		postGroup.POST("/p/:id/edit-session", controller.EditSession.Acquire(constant.TargetTypePage))
 		postGroup.GET("/p/:id/edit-session", controller.EditSession.Current(constant.TargetTypePage))
+		// 编辑事件（SSE）：保存与会话变化时推送，编辑页据此合并外部 AI 工具的修改、尽快发现被接管
+		postGroup.GET("/p/:id/edit-events", controller.EditSession.Events(constant.TargetTypePage))
 		// 版本历史：列表、详情、恢复为草稿、删除（单个 / 批量）、放弃未发布的修改
 		postGroup.GET("/p/:id/revisions", controller.Revision.List(constant.TargetTypePage))
 		postGroup.GET("/p/:id/revisions/:rid", controller.Revision.Get(constant.TargetTypePage))

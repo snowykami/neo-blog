@@ -55,6 +55,8 @@ type Page struct {
 	UserID uint `gorm:"index"`
 	User   User `gorm:"foreignKey:UserID;references:ID"`
 	PageBase
+	// DraftVersion 草稿版本号：每次写入正文（保存草稿或发布）加一，保存时据此校验是否基于最新草稿，避免覆盖他人的修改
+	DraftVersion uint64 `gorm:"not null;default:0"`
 }
 
 type PageBase struct {
@@ -106,14 +108,16 @@ func (p *Page) ToDto() *dto.PageDto {
 			HTMLAspectRatio: p.HTMLAspectRatio,
 			HTMLHeight:      p.HTMLHeight,
 		},
-		CreatedAt: p.CreatedAt,
-		UpdatedAt: p.UpdatedAt,
+		CreatedAt:    p.CreatedAt,
+		UpdatedAt:    p.UpdatedAt,
+		DraftVersion: p.DraftVersion,
 	}
 }
 
 func (p *Page) ToDtoWithShortContent(contentLength int) *dto.PageDto {
 	pageDto := p.ToDto()
 	pageDto.DraftContent = nil // 列表等公开场景不返回草稿内容
+	pageDto.DraftVersion = 0
 	if contentLength <= 0 {
 		pageDto.Content = ""
 		return pageDto

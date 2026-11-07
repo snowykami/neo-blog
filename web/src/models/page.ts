@@ -54,6 +54,7 @@ export interface PageModel {
   cover: string
   content: string
   draftContent?: string | null // 仅单篇草稿模式返回，列表接口不包含
+  draftVersion?: number // 草稿版本号，随草稿一起返回；保存正文时作为 baseDraftVersion 传回
   type: 'markdown' | 'html'
   isPrivate: boolean
   showInNav: boolean

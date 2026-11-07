@@ -136,30 +136,32 @@ func (p *PageService) GetPageSlugOrID(ctx context.Context, slugOrID string) (*dt
 	return pageDto, nil
 }
 
-func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePageReq) (uint, *errs.ServiceError) {
+func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePageReq) (*dto.ContentSaveResult, *errs.ServiceError) {
 	page, err := repo.Page.GetPageByID(req.ID)
 	if err != nil {
-		return 0, errs.NewNotFound("target_not_found").WithResource("page")
+		return nil, errs.NewNotFound("target_not_found").WithResource("page")
 	}
 	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, page.UserID)) {
-		return 0, errs.NewForbidden("permission_denied")
+		return nil, errs.NewForbidden("permission_denied")
 	}
 	// HTML 页面只有管理员可以修改，也只有管理员可以把页面改为 HTML 页面
 	touchesHTML := model.NormalizePageKind(page.Kind) == model.PageKindHTML ||
 		(req.Kind != nil && model.NormalizePageKind(*req.Kind) == model.PageKindHTML)
 	if touchesHTML && !ctxutils.IsAdmin(ctx) {
-		return 0, errs.NewForbidden("permission_denied")
+		return nil, errs.NewForbidden("permission_denied")
 	}
-	// 保存正文时校验编辑会话，被其他编辑会话顶掉后不能再覆盖正文
-	if req.Content != "" || req.DraftContent != nil {
-		if svcerr := NewEditSessionService().CheckContentWrite(constant.TargetTypePage, page.ID, req.EditSessionID); svcerr != nil {
-			return 0, svcerr
+	// 保存正文时校验编辑会话与草稿版本号，见 checkContentWrite
+	contentWrite := req.Content != "" || req.DraftContent != nil
+	baseVersion := page.DraftVersion
+	if contentWrite {
+		if svcerr := checkContentWrite(ctx, constant.TargetTypePage, page.ID, req.EditSessionID, req.BaseDraftVersion, baseVersion); svcerr != nil {
+			return nil, svcerr
 		}
 	}
 	utils.UpdateNonEmpty(&page.Title, req.Title)
 	slug, svcerr := normalizeSlug(req.Slug)
 	if svcerr != nil {
-		return 0, svcerr
+		return nil, svcerr
 	}
 	utils.UpdateNonEmpty(&page.Slug, slug)
 	utils.UpdateNonEmpty(&page.Type, req.Type)
@@ -203,30 +205,41 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 		page.HTMLHeight = *req.HTMLHeight
 	}
 	if svcerr := normalizePageHTMLSize(page); svcerr != nil {
-		return 0, svcerr
+		return nil, svcerr
 	}
 	// 链接页面必须有合法的地址；正文页面不保留链接地址
 	if model.NormalizePageKind(page.Kind) == model.PageKindLink {
 		link, svcerr := normalizePageLink(page.LinkURL)
 		if svcerr != nil {
-			return 0, svcerr
+			return nil, svcerr
 		}
 		page.LinkURL = link
 	} else {
 		page.LinkURL = ""
 	}
 
-	if err := repo.Page.SavePage(page); err != nil {
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return 0, errs.AlreadyExists("page", "slug", slug)
+	// 写入正文时草稿版本号加一；读取之后有其他写入则拒绝，不覆盖对方的修改
+	if contentWrite {
+		err = repo.Page.SavePageWithDraftVersion(page, baseVersion)
+	} else {
+		err = repo.Page.SavePage(page)
+	}
+	if err != nil {
+		if errors.Is(err, repo.ErrDraftVersionConflict) {
+			return nil, errs.NewConflict("draft_conflict")
 		}
-		return 0, errs.Internal("failed_to_update_target", err).WithResource("page")
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, errs.AlreadyExists("page", "slug", slug)
+		}
+		return nil, errs.Internal("failed_to_update_target", err).WithResource("page")
 	}
 	// 发布或保存草稿后记录版本历史
 	if req.Content != "" || req.DraftContent != nil {
 		NewRevisionService().RecordAfterSave(ctx, constant.TargetTypePage, page.ID, req.Content != "", req.EditSessionID)
 	}
-	return page.ID, nil
+	// 通知打开了编辑页的客户端：编辑页据此合并他人（外部 AI 工具）的修改
+	publishSavedEvent(ctx, constant.TargetTypePage, page.ID, page.DraftVersion)
+	return &dto.ContentSaveResult{ID: page.ID, DraftVersion: page.DraftVersion}, nil
 }
 
 // normalizePageLink 链接页面的地址：站内路径（以单个 / 开头）或 http(s) 绝对地址；

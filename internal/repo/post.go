@@ -223,14 +223,34 @@ func (p *postRepo) SavePost(post *model.Post) error {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
 	defer InvalidatePostCache()
-	// Save 只会追加多对多关联，不会删除已移除的标签，需要显式 Replace
 	return GetDB().Transaction(func(tx *gorm.DB) error {
-		// 关联字段不随 Save 写入，否则已加载的 Category 会把清空的 category_id 写回去
-		if err := tx.Omit(clause.Associations).Save(post).Error; err != nil {
+		return savePostTx(tx, post)
+	})
+}
+
+// SavePostWithDraftVersion 保存文章并把草稿版本号从 expected 加一（写入正文时使用）
+// 版本号已不是 expected（读取之后有其他写入）时不保存，返回 ErrDraftVersionConflict；比较与加一在同一条语句中完成，多副本下同样可靠
+func (p *postRepo) SavePostWithDraftVersion(post *model.Post, expected uint64) error {
+	if post.ID == 0 {
+		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
+	}
+	defer InvalidatePostCache()
+	return GetDB().Transaction(func(tx *gorm.DB) error {
+		if err := bumpDraftVersion(tx, &model.Post{}, post.ID, expected); err != nil {
 			return err
 		}
-		return tx.Model(post).Association("Labels").Replace(post.Labels)
+		post.DraftVersion = expected + 1
+		return savePostTx(tx, post)
 	})
+}
+
+func savePostTx(tx *gorm.DB, post *model.Post) error {
+	// 关联字段不随 Save 写入，否则已加载的 Category 会把清空的 category_id 写回去
+	if err := tx.Omit(clause.Associations).Save(post).Error; err != nil {
+		return err
+	}
+	// Save 只会追加多对多关联，不会删除已移除的标签，需要显式 Replace
+	return tx.Model(post).Association("Labels").Replace(post.Labels)
 }
 
 // ListPosts 列出文章，includeAllPrivate 为 true 时不过滤他人的私密文章（仅供后台管理使用）

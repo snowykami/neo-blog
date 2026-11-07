@@ -18,6 +18,7 @@ import { Annotation, LinkAutoMatch } from '@/components/tiptap-extension/annotat
 import { ContentFont } from '@/components/tiptap-extension/content-font-extension'
 import { EditorShortcuts } from '@/components/tiptap-extension/editor-shortcuts-extension'
 import { InlineCode } from '@/components/tiptap-extension/inline-code-extension'
+import { RemoteChangeHighlight } from '@/components/tiptap-extension/remote-change-extension'
 import { SelectionHighlight } from '@/components/tiptap-extension/selection-highlight-extension'
 import { SlashCommand } from '@/components/tiptap-extension/slash-command-extension'
 import { ComponentBlock } from '@/components/tiptap-node/component-block-node'
@@ -113,5 +114,7 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
     EditorShortcuts.configure({ onOpenLink, onOpenAnnotation, onOpenAI }),
     // AI 写作的目标位置与生成内容高亮
     AIWriteHighlight,
+    // 只读观看时远端写入的块高亮
+    RemoteChangeHighlight,
   ]
 }

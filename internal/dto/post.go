@@ -52,6 +52,8 @@ type PostDto struct {
 	AISummaryAt     *time.Time `json:"ai_summary_at,omitempty"`     // 摘要生成时间
 	AISummaryStatus string     `json:"ai_summary_status,omitempty"` // 生成任务状态：running / failed
 	AISummaryError  string     `json:"ai_summary_error,omitempty"`  // 最近一次生成失败的原因
+	// 草稿版本号，只随草稿一起返回给作者与管理员；保存正文时作为 base_draft_version 传回
+	DraftVersion uint64 `json:"draft_version,omitempty"`
 }
 
 // AISummaryStatusDto AI 摘要生成任务状态
@@ -92,6 +94,14 @@ type CreateOrUpdatePostReq struct {
 	ContentTheme *string `json:"content_theme"`
 	// 编辑会话ID，保存正文时校验，见 EditSessionService
 	EditSessionID string `header:"X-Edit-Session" json:"-"`
+	// 本次修改所基于的草稿版本号：保存正文时与当前版本不一致（期间有其他写入）则拒绝，未传时不校验
+	BaseDraftVersion *uint64 `json:"base_draft_version"`
+}
+
+// ContentSaveResult 保存文章 / 页面的结果，DraftVersion 为保存后的草稿版本号
+type ContentSaveResult struct {
+	ID           uint   `json:"id"`
+	DraftVersion uint64 `json:"draft_version"`
 }
 
 type ListPostReq struct {

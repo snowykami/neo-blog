@@ -1,5 +1,6 @@
 import type { Category } from '@/models/category'
 import type { PaginationParams } from '@/models/common'
+import type { ContentSaveResult } from '@/models/edit-session'
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
 import { OrderBy } from '@/models/common'
@@ -75,9 +76,9 @@ export async function updatePost({
   post,
   editSessionId,
 }: {
-  post: Partial<Post> & Pick<Post, 'id'>
+  post: Partial<Post> & Pick<Post, 'id'> & { baseDraftVersion?: number }
   editSessionId?: string | null // 保存正文时携带，见 api/edit-session.ts
-}): Promise<BaseResponse<Post>> {
+}): Promise<BaseResponse<ContentSaveResult>> {
   const res = await axiosClient.put(`/post/p/${post.id}`, post, { headers: editSessionHeaders(editSessionId) })
   return res.data
 }

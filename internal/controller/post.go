@@ -87,6 +87,7 @@ func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 		post.DraftContent = utils2.Ternary(post.DraftContent == nil, &post.Content, post.DraftContent)
 	} else {
 		post.DraftContent = nil // 非草稿请求不返回草稿内容
+		post.DraftVersion = 0
 	}
 	resps.Ok(c, resps.Success, post)
 }
@@ -107,6 +108,7 @@ func (p *PostController) GetRandom(ctx context.Context, c *app.RequestContext) {
 	}
 	postDto := post.ToDto()
 	postDto.DraftContent = nil // 不返回草稿内容
+	postDto.DraftVersion = 0
 	resps.Ok(c, resps.Success, postDto)
 }
 
@@ -124,12 +126,13 @@ func (p *PostController) Update(ctx context.Context, c *app.RequestContext) {
 			return
 		}
 	}
-	postID, svcerr := p.service.UpdatePost(ctx, &req)
+	// 返回保存后的草稿版本号，编辑页下次保存正文时作为基线版本号
+	result, svcerr := p.service.UpdatePost(ctx, &req)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
-	resps.Ok(c, resps.Success, utils.H{"id": postID})
+	resps.Ok(c, resps.Success, result)
 }
 
 func (p *PostController) List(ctx context.Context, c *app.RequestContext) {

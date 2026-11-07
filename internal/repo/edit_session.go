@@ -1,8 +1,6 @@
 package repo
 
 import (
-	"time"
-
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -35,14 +33,6 @@ func (e *editSessionRepo) Get(targetType string, targetID uint) (*model.EditSess
 		return nil, err
 	}
 	return &session, nil
-}
-
-// TouchActive 刷新会话的最近活跃时间，距上次记录不足 interval 时不写库
-func (e *editSessionRepo) TouchActive(targetType string, targetID uint, sessionID string, now time.Time, interval time.Duration) error {
-	return GetDB().Model(&model.EditSession{}).
-		Where("target_type = ? AND target_id = ? AND session_id = ?", targetType, targetID, sessionID).
-		Where("active_at IS NULL OR active_at < ?", now.Add(-interval)).
-		UpdateColumn("active_at", now).Error
 }
 
 // GetTargetOwnerID 获取文章/页面的作者ID，仅查询作者字段，不影响浏览量等统计

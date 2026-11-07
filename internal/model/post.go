@@ -50,6 +50,8 @@ type Post struct {
 	AISummary           string     `gorm:"column:ai_summary;type:text"`
 	AISummarySourceHash string     `gorm:"column:ai_summary_source_hash;type:varchar(64)"`
 	AISummaryAt         *time.Time `gorm:"column:ai_summary_at"`
+	// DraftVersion 草稿版本号：每次写入正文（保存草稿或发布）加一，保存时据此校验是否基于最新草稿，避免覆盖他人的修改
+	DraftVersion uint64 `gorm:"not null;default:0"`
 }
 
 // HashContent 计算正文哈希
@@ -131,6 +133,7 @@ func (p *Post) ToDto() *dto.PostDto {
 		DescriptionByAI: p.AISummary != "" && p.Description == p.AISummary,
 		AISummaryStale:  p.AISummaryStale(),
 		AISummaryAt:     p.AISummaryAt,
+		DraftVersion:    p.DraftVersion,
 	}
 }
 
@@ -138,6 +141,7 @@ func (p *Post) ToDto() *dto.PostDto {
 func (p *Post) ToDtoWithShortContent(contentLength int) *dto.PostDto {
 	dtoPost := p.ToDto()
 	dtoPost.DraftContent = nil // 列表等公开场景不返回草稿内容
+	dtoPost.DraftVersion = 0
 	if contentLength <= 0 {
 		dtoPost.Content = ""
 		return dtoPost

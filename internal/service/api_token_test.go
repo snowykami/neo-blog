@@ -188,8 +188,8 @@ func apiTokenCtx(t *testing.T, raw string) context.Context {
 	return ctxutils.WithAPIToken(context.WithValue(context.Background(), "user_id", userID), info)
 }
 
-// 外部 AI 写入：编辑页活跃时拒绝，沿用自己的会话，编辑页闲置后才接管；版本记录 Token
-func TestAcquireForAPIToken(t *testing.T) {
+// 外部 AI 写入不受编辑会话限制，靠草稿版本号避免覆盖编辑页的修改；版本记录 Token
+func TestAPITokenContentWrites(t *testing.T) {
 	author, _, _, post, _ := setupEditTest(t)
 	authorUser := &model.User{}
 	repo.GetDB().First(authorUser, post.UserID)
@@ -197,53 +197,36 @@ func TestAcquireForAPIToken(t *testing.T) {
 	agent := apiTokenCtx(t, token.Token)
 	svc := NewEditSessionService()
 
-	// 没有任何会话时直接获取
-	sessionID, svcerr := svc.AcquireForAPIToken(agent, constant.TargetTypePost, post.ID)
-	if svcerr != nil || sessionID == "" {
-		t.Fatalf("first acquire: %v", svcerr)
+	// 作者在编辑页打开文章：浏览器的旧会话不能再写，Token 的写入不受影响
+	human, svcerr := svc.Acquire(author, constant.TargetTypePost, post.ID, "browser")
+	if svcerr != nil {
+		t.Fatalf("human acquire: %v", svcerr)
 	}
-	again, svcerr := svc.AcquireForAPIToken(agent, constant.TargetTypePost, post.ID)
-	if svcerr != nil || again != sessionID {
-		t.Fatalf("token should reuse its own session: %q %q %v", sessionID, again, svcerr)
+	if svcerr := saveDraft(author, post.ID, "<p>old tab</p>", "stale"); svcerr == nil || svcerr.Message != "edit_session_taken_over" {
+		t.Fatalf("stale browser session must be refused: %v", svcerr)
 	}
-	if svcerr := saveDraft(agent, post.ID, "<p>by agent</p>", sessionID); svcerr != nil {
-		t.Fatalf("agent save: %v", svcerr)
+	if svcerr := saveDraft(agent, post.ID, "<p>by agent</p>", ""); svcerr != nil {
+		t.Fatalf("agent save while the editor is open: %v", svcerr)
 	}
 	revisions, _, _ := repo.Revision.List(constant.TargetTypePost, post.ID, dto.PaginationParams{})
 	if len(revisions) == 0 || revisions[0].APITokenID == nil || *revisions[0].APITokenID != token.APIToken.ID || revisions[0].ToDto().APITokenName != "claude" {
 		t.Fatalf("latest revision should record the token: %+v", revisions)
 	}
-
-	// 作者在编辑页打开（顶掉 Token 会话），之后 Token 的写入被拒绝
-	human, svcerr := svc.Acquire(author, constant.TargetTypePost, post.ID, "browser")
-	if svcerr != nil {
-		t.Fatalf("human acquire: %v", svcerr)
-	}
-	if _, svcerr := svc.AcquireForAPIToken(agent, constant.TargetTypePost, post.ID); svcerr == nil || svcerr.Code != http.StatusConflict || svcerr.Message != "edit_session_in_use" {
-		t.Fatalf("agent must not take over an active editor: %v", svcerr)
-	}
-	if svcerr := saveDraft(agent, post.ID, "<p>clobber</p>", sessionID); svcerr == nil {
-		t.Fatalf("stale agent session must not write")
+	// Token 的写入不会顶掉编辑页的会话
+	if current, _ := svc.Current(author, constant.TargetTypePost, post.ID, human.SessionID); current == nil || !current.IsCurrent {
+		t.Fatalf("agent write must not take over the editor: %+v", current)
 	}
 
-	// 编辑页关闭（会话闲置）后可以接管，且编辑页的会话随之失效
-	stale := time.Now().Add(-editSessionIdleTimeout - time.Minute)
-	repo.GetDB().Model(&model.EditSession{}).Where("session_id = ?", human.SessionID).
-		Updates(map[string]any{"active_at": stale, "updated_at": stale})
-	taken, svcerr := svc.AcquireForAPIToken(agent, constant.TargetTypePost, post.ID)
-	if svcerr != nil || taken == human.SessionID {
-		t.Fatalf("agent should take over an idle session: %v", svcerr)
+	// 基于旧版本的写入（无论来自编辑页还是 Token）都被拒绝，草稿不变
+	stale := reloadPost(t, post.ID).DraftVersion - 1
+	for name, ctx := range map[string]context.Context{"editor": author, "agent": agent} {
+		content := "<p>clobber</p>"
+		_, svcerr := NewPostService().UpdatePost(ctx, &dto.CreateOrUpdatePostReq{ID: post.ID, PostBaseDto: dto.PostBaseDto{DraftContent: &content}, EditSessionID: human.SessionID, BaseDraftVersion: &stale})
+		if svcerr == nil || svcerr.Code != http.StatusConflict || svcerr.Message != "draft_conflict" {
+			t.Fatalf("%s: stale base version must conflict, got %v", name, svcerr)
+		}
 	}
-	if svcerr := saveDraft(author, post.ID, "<p>old tab</p>", human.SessionID); svcerr == nil || svcerr.Message != "edit_session_taken_over" {
-		t.Fatalf("old editor tab must be told it was taken over: %v", svcerr)
-	}
-	current, _ := svc.Current(author, constant.TargetTypePost, post.ID, "")
-	if current.APITokenName != "claude" {
-		t.Fatalf("session holder should show the token name, got %+v", current)
-	}
-
-	// 浏览器会话不能走 Token 专用的获取流程
-	if _, svcerr := svc.AcquireForAPIToken(author, constant.TargetTypePost, post.ID); svcerr == nil {
-		t.Fatalf("non-token ctx must be rejected")
+	if got := *reloadPost(t, post.ID).DraftContent; got != "<p>by agent</p>" {
+		t.Fatalf("draft changed by a refused write: %q", got)
 	}
 }

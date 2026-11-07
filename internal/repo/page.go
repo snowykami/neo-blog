@@ -82,6 +82,20 @@ func (p *pageRepo) SavePage(page *model.Page) error {
 	return GetDB().Save(page).Error
 }
 
+// SavePageWithDraftVersion 保存页面并把草稿版本号从 expected 加一（写入正文时使用），版本号已不是 expected 时返回 ErrDraftVersionConflict
+func (p *pageRepo) SavePageWithDraftVersion(page *model.Page, expected uint64) error {
+	if page.ID == 0 {
+		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
+	}
+	return GetDB().Transaction(func(tx *gorm.DB) error {
+		if err := bumpDraftVersion(tx, &model.Page{}, page.ID, expected); err != nil {
+			return err
+		}
+		page.DraftVersion = expected + 1
+		return tx.Save(page).Error
+	})
+}
+
 func (p *pageRepo) ListPages(currentUserID uint, req *dto.ListPageReq, query []string) ([]model.Page, int64, error) {
 	q := GetDB().Model(&model.Page{}).Preload(clause.Associations)
 

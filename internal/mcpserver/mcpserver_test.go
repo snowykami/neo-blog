@@ -154,8 +154,10 @@ func TestPostToolsFlow(t *testing.T) {
 		t.Fatalf("get draft: %v %+v", err, detail)
 	}
 
-	// 私密文章上改元信息只需要 posts:write
-	if _, _, err := updatePost(writer, nil, updatePostInput{PostID: created.ID, Title: ptr("Hello 2"), Content: ptr("Second")}); err != nil {
+	// 私密文章上改元信息只需要 posts:write；整篇替换必须带读取时的草稿版本号
+	_, _, err = updatePost(writer, nil, updatePostInput{PostID: created.ID, Content: ptr("Second")})
+	wantErr(t, err, "base_version is required")
+	if _, _, err := updatePost(writer, nil, updatePostInput{PostID: created.ID, Title: ptr("Hello 2"), Content: ptr("Second"), BaseVersion: detail.DraftVersion}); err != nil {
 		t.Fatalf("update private post: %v", err)
 	}
 	_, _, err = publishPost(writer, nil, postIDInput{PostID: created.ID})
@@ -170,7 +172,7 @@ func TestPostToolsFlow(t *testing.T) {
 	}
 
 	// 公开文章：正文只写草稿，读者看到的内容不变；元信息需要 posts:publish
-	if _, _, err := updatePost(writer, nil, updatePostInput{PostID: created.ID, Content: ptr("Third")}); err != nil {
+	if _, _, err := updatePost(writer, nil, updatePostInput{PostID: created.ID, EditMode: editModePatch, FindText: "Second", Content: ptr("Third")}); err != nil {
 		t.Fatalf("update draft: %v", err)
 	}
 	post = reload(t, created.ID)
@@ -192,20 +194,19 @@ func TestPostToolsFlow(t *testing.T) {
 	_, _, err = updatePost(otherWriter, nil, updatePostInput{PostID: created.ID, Content: ptr("hijack")})
 	wantErr(t, err, "permission_denied")
 	// 其他人看不到草稿
-	if _, d, _ := getPost(otherWriter, nil, getPostInput{Post: "1"}); d.Version != versionPublished || d.PreviewURL != "" {
+	if _, d, _ := getPost(otherWriter, nil, getPostInput{Post: "1"}); d.Version != versionPublished || d.PreviewURL != "" || d.DraftVersion != nil {
 		t.Fatalf("other user must not see the draft: %+v", d)
 	}
 
-	// 作者在编辑页打开文章后，AI 的写入被拒绝，正文不变
+	// 作者在编辑页打开文章时，AI 的写入不受编辑会话限制（编辑页会把修改合并进来）
 	if _, svcerr := service.NewEditSessionService().Acquire(env.authorCtx, constant.TargetTypePost, created.ID, "browser"); svcerr != nil {
 		t.Fatalf("human acquire: %v", svcerr)
 	}
-	_, _, err = updatePost(writer, nil, updatePostInput{PostID: created.ID, Content: ptr("clobber")})
-	wantErr(t, err, "edit_session_in_use")
-	_, _, err = unpublishPost(publisher, nil, postIDInput{PostID: created.ID})
-	wantErr(t, err, "edit_session_in_use")
-	if post := reload(t, created.ID); strings.Contains(*post.DraftContent, "clobber") || post.IsPrivate {
-		t.Fatalf("locked post was modified: %+v", post)
+	if _, _, err := updatePost(writer, nil, updatePostInput{PostID: created.ID, EditMode: editModeAppend, Content: ptr("Fourth")}); err != nil {
+		t.Fatalf("AI write while the editor is open: %v", err)
+	}
+	if post := reload(t, created.ID); !strings.Contains(*post.DraftContent, "Third") || !strings.Contains(*post.DraftContent, "Fourth") {
+		t.Fatalf("append should keep the draft: %+v", post)
 	}
 
 	_, list, err := listPosts(readOnly, nil, listPostsInput{Mine: true})

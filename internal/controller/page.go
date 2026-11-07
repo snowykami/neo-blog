@@ -61,6 +61,7 @@ func (p *pageType) Get(ctx context.Context, c *app.RequestContext) {
 		}
 	} else {
 		page.DraftContent = nil
+		page.DraftVersion = 0
 	}
 	resps.Ok(c, resps.Success, page)
 }
@@ -71,12 +72,13 @@ func (p *pageType) Update(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	pageID, svcerr := p.service.UpdatePage(ctx, &req)
+	// 返回保存后的草稿版本号，编辑页下次保存正文时作为基线版本号
+	result, svcerr := p.service.UpdatePage(ctx, &req)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
-	resps.Ok(c, resps.Success, utils.H{"id": pageID})
+	resps.Ok(c, resps.Success, result)
 }
 
 func (p *pageType) List(ctx context.Context, c *app.RequestContext) {

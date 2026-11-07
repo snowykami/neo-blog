@@ -155,6 +155,7 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 		postDto, svcerr := p.getPostSlugOrId(ctx, slugOrId)
 		if postDto != nil && isGuest(ctx) {
 			postDto.DraftContent = nil
+			postDto.DraftVersion = 0
 		}
 		return postDto, svcerr
 	})
@@ -181,19 +182,21 @@ func (p *PostService) getPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 	return postDto, nil
 }
 
-func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (uint, *errs.ServiceError) {
+func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePostReq) (*dto.ContentSaveResult, *errs.ServiceError) {
 	post, err := repo.Post.GetPostByID(req.ID)
 	if err != nil {
-		return 0, errs.NewNotFound("target_not_found").WithResource("post")
+		return nil, errs.NewNotFound("target_not_found").WithResource("post")
 	}
 
 	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, post.UserID)) {
-		return 0, errs.NewForbidden("permission_denied")
+		return nil, errs.NewForbidden("permission_denied")
 	}
-	// 保存正文时校验编辑会话，被其他编辑会话顶掉后不能再覆盖正文
-	if req.Content != "" || req.DraftContent != nil {
-		if svcerr := NewEditSessionService().CheckContentWrite(constant.TargetTypePost, post.ID, req.EditSessionID); svcerr != nil {
-			return 0, svcerr
+	// 保存正文时校验编辑会话与草稿版本号，见 checkContentWrite
+	contentWrite := req.Content != "" || req.DraftContent != nil
+	baseVersion := post.DraftVersion
+	if contentWrite {
+		if svcerr := checkContentWrite(ctx, constant.TargetTypePost, post.ID, req.EditSessionID, req.BaseDraftVersion, baseVersion); svcerr != nil {
+			return nil, svcerr
 		}
 	}
 	utils.UpdateNonEmpty(&post.Title, req.Title)
@@ -222,7 +225,7 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	if req.Slug != nil {
 		slug, svcerr := normalizePostSlug(req.Slug)
 		if svcerr != nil {
-			return 0, svcerr
+			return nil, svcerr
 		}
 		post.Slug = slug
 	}
@@ -230,7 +233,7 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	if req.CategoryID != nil {
 		categoryID, svcerr := normalizeCategoryID(req.CategoryID)
 		if svcerr != nil {
-			return 0, svcerr
+			return nil, svcerr
 		}
 		post.CategoryID = categoryID
 		post.Category = nil
@@ -245,25 +248,36 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		// 跳过不存在的标签
 		labels, err := repo.Label.GetLabelsByIDs(req.LabelIds)
 		if err != nil {
-			return 0, errs.Internal("failed_to_get_target", err).WithResource("label")
+			return nil, errs.Internal("failed_to_get_target", err).WithResource("label")
 		}
 		post.Labels = labels
 	}
-	if err := repo.Post.SavePost(post); err != nil {
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return 0, errs.AlreadyExists("post", "slug", utils.Deref(post.Slug))
+	// 写入正文时草稿版本号加一；读取之后有其他写入则拒绝，不覆盖对方的修改
+	if contentWrite {
+		err = repo.Post.SavePostWithDraftVersion(post, baseVersion)
+	} else {
+		err = repo.Post.SavePost(post)
+	}
+	if err != nil {
+		if errors.Is(err, repo.ErrDraftVersionConflict) {
+			return nil, errs.NewConflict("draft_conflict")
 		}
-		return 0, errs.Internal("failed_to_update_target", err).WithResource("post")
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, errs.AlreadyExists("post", "slug", utils.Deref(post.Slug))
+		}
+		return nil, errs.Internal("failed_to_update_target", err).WithResource("post")
 	}
 	// 发布或保存草稿后记录版本历史
 	if req.Content != "" || req.DraftContent != nil {
 		NewRevisionService().RecordAfterSave(ctx, constant.TargetTypePost, post.ID, req.Content != "", req.EditSessionID)
 	}
+	// 通知打开了编辑页的客户端：编辑页据此合并他人（外部 AI 工具）的修改
+	publishSavedEvent(ctx, constant.TargetTypePost, post.ID, post.DraftVersion)
 	// 私密 → 公开：首次发布时曝光给感兴趣的 AI 用户（同一篇只曝光一次，由调度器去重）
 	if wasPrivate && !post.IsPrivate {
 		NotifyPostPublished(post.ID)
 	}
-	return post.ID, nil
+	return &dto.ContentSaveResult{ID: post.ID, DraftVersion: post.DraftVersion}, nil
 }
 
 func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, *errs.ServiceError) {

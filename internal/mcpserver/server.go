@@ -29,11 +29,12 @@ Before writing or editing post content, call get_writing_guide once: it has the 
 How posts work:
 - Post bodies are stored as HTML produced by a rich-text editor. Tools read and write Markdown by default; pass content_format "html" to work with the raw HTML instead. Components you may write appear as fenced code blocks whose language is component:<name>, holding one line of props JSON; other site components appear as raw HTML and must be kept as-is. Inline formats such as annotations, highlights and colors are written as small HTML tags (see the guide).
 - Every content write goes to an unpublished draft. Readers only see the published version. Call publish_post to make the draft live.
-- A post that is open in the web console editor is locked: writes are refused while a person is editing it. Do not retry in a loop; tell the user and ask them to close the editor first.
+- People may be editing the same post in the web console editor while you work. Your writes are not blocked: they show up in their editor live and are merged with their edits. To keep that merge clean, change only what you need: prefer update_post with edit_mode "patch" (find_text copied verbatim from get_post), or "append" / "prepend". Rewriting the whole body (edit_mode "replace") needs the draft_version from get_post as base_version.
+- If the draft changed after you read it, a write based on the old version is refused with draft_conflict and nothing is saved. Call get_post again and redo your change on the latest content; do not retry blindly.
 - Metadata (title, description, slug, cover, category, labels) has no draft. On a public post those changes are visible immediately, so they need the posts:publish scope.
 - There is no delete tool. Every write is recorded in the post's version history and can be rolled back from the console.
 
-Typical flow: get_writing_guide -> list_posts or get_post -> update_post (draft) -> show the user the preview_url -> publish_post when the user agrees.
+Typical flow: get_writing_guide -> list_posts or get_post -> update_post (draft, preferably edit_mode "patch") -> show the user the preview_url -> publish_post when the user agrees.
 
 AI users (admin only, scopes ai_agents:read and ai_agents:write): accounts whose comments and likes are driven by the site's AI model, each with a personality profile. They pair with the neo-blog-persona-distill skill, which "distills" a real person or a fictional character into an import file. Before importing, call find_ai_users with every name the person is known by: if an AI user for the same person already exists (even under another username), read it with get_ai_user, merge the new findings into it, and import under its existing username so it is updated instead of duplicated. Ask the user when a match is uncertain. Then import_ai_users with dry_run, show the user the result, import for real, and optionally dry_run_ai_user on a post to check how it would comment.`
 
@@ -77,8 +78,7 @@ var errorHints = map[string]string{
 	"login_required":           "authentication required",
 	"permission_denied":        "permission denied: only the author of a post or an admin can do this",
 	"target_not_found":         "not found",
-	"edit_session_in_use":      "the post is open in the console editor, so writes are locked to avoid overwriting a person's work. Ask the user to close the editor (the lock is released about 3 minutes after the editor is closed), then try again",
-	"edit_session_taken_over":  "someone opened the post in the console editor while you were saving; nothing was written. Ask the user before trying again",
+	"draft_conflict":           "the draft changed after you read it (someone edited it in the console editor or with another tool), so nothing was written. Call get_post again and redo your change on the latest content and draft_version",
 	"slug_already_exists":      "another post already uses this slug",
 	"slug_cannot_be_numeric":   "slug cannot be purely numeric",
 	"category_not_found":       "category_id does not exist; call list_taxonomy to see valid ids",

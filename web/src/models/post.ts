@@ -19,6 +19,7 @@ export interface Post {
   content: string
   description: string // 描述
   draftContent?: string | null // 草稿内容，仅单篇草稿模式（作者/管理员）返回，列表与随机接口不包含
+  draftVersion?: number // 草稿版本号，随草稿一起返回；保存正文时作为 baseDraftVersion 传回
   cover: string | null // 封面可以为空
   background: PostBackground | null // 文章专属背景，整段留空表示沿用全站背景
   contentTheme: string // 文章内容主题（正文排版），空表示跟随站点默认

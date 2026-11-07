@@ -26,14 +26,6 @@ type EditSession struct {
 	BaseRevisionID uint
 }
 
-// LastActiveAt 最近活跃时间，旧数据没有 ActiveAt 时以开启时间为准
-func (e *EditSession) LastActiveAt() time.Time {
-	if e.ActiveAt != nil && e.ActiveAt.After(e.UpdatedAt) {
-		return *e.ActiveAt
-	}
-	return e.UpdatedAt
-}
-
 // ToDto 转换为 DTO，withSessionID 仅在申请会话时返回给申请者
 func (e *EditSession) ToDto(withSessionID bool) *dto.EditSessionDto {
 	ua := utils.ParseUA(e.UserAgent)

@@ -13,6 +13,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/middleware"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/router/apiv1"
+	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	"github.com/snowykami/neo-blog/pkg/utils"
@@ -46,6 +47,8 @@ func Run(ctx context.Context) error {
 				logrus.Infof("shutting down in %s", delay)
 				time.Sleep(delay)
 			}
+			// 编辑事件流是长连接，不会自行结束：先结束它们，客户端随即重连到其他实例，也不拖慢关停
+			service.CloseEditEventStreams()
 			return nil
 		case runErr = <-errCh:
 			return runErr

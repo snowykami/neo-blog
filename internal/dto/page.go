@@ -31,6 +31,8 @@ type PageDto struct {
 	HTMLBundle *PageHTMLBundleDto `json:"html_bundle,omitempty"` // HTML 页面当前生效的版本，仅单页详情返回，未上传时为空
 	CreatedAt  time.Time          `json:"created_at"`
 	UpdatedAt  time.Time          `json:"updated_at"`
+	// 草稿版本号，只随草稿一起返回给作者与管理员；保存正文时作为 base_draft_version 传回
+	DraftVersion uint64 `json:"draft_version,omitempty"`
 }
 
 type CreateOrUpdatePageReq struct {
@@ -53,6 +55,8 @@ type CreateOrUpdatePageReq struct {
 	Cover       *string `json:"cover"`
 	// 编辑会话ID，保存正文时校验，见 EditSessionService
 	EditSessionID string `header:"X-Edit-Session" json:"-"`
+	// 本次修改所基于的草稿版本号：保存正文时与当前版本不一致（期间有其他写入）则拒绝，未传时不校验
+	BaseDraftVersion *uint64 `json:"base_draft_version"`
 }
 
 type ListPageReq struct {
