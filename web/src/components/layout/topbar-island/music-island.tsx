@@ -17,6 +17,8 @@ import { useCoverAccent, useSongAccent } from '@/components/music-page/use-cover
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useSongChorus } from '@/contexts/song-chorus'
 import { dismissIslandAlert, pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
+import { useHdrHighlight } from '@/hooks/use-hdr-highlight'
+import { HDR_BRIGHTNESS } from '@/lib/hdr-color'
 import { lyricGlowAt } from '@/lib/lyrics/lyric-glow'
 import { backgroundLevel, rhythmContext } from '@/lib/lyrics/rhythm/effects'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
@@ -216,6 +218,9 @@ function MusicCompact({ beat, paused = false, text }: { beat: boolean, paused?: 
   const lyricsPaused = useMiniPlayerHolding('lyrics')
   // 随拍染色层：律动条逐帧写入不透明度
   const tintRef = useRef<HTMLSpanElement>(null)
+  // HDR 高光：染色层与律动条改由主色的 HDR 素材绘制，随拍时亮过 SDR 白（仍只改不透明度，不改大小）
+  const hdr = useHdrHighlight(beat ? accent ?? '#fff' : null, HDR_BRIGHTNESS.islandBeat)
+  const hdrStyle = hdr ? { backgroundImage: hdr } : undefined
   return (
     <span className="contents" style={accent ? { '--lyric-accent': accent } as React.CSSProperties : undefined}>
       {/* 标题区域只有一行高，按播放器的模糊半径会糊成一片黑，改用小半径保留封面的颜色 */}
@@ -223,7 +228,7 @@ function MusicCompact({ beat, paused = false, text }: { beat: boolean, paused?: 
       <span className={cn('transition-opacity duration-300', paused && 'opacity-0')}>
         <MusicStageEffects contained paused={effectsPaused || paused} />
       </span>
-      {beat && <span ref={tintRef} aria-hidden className="pointer-events-none absolute inset-0 bg-[color:var(--lyric-accent,#fff)] opacity-0" />}
+      {beat && <span ref={tintRef} aria-hidden className="pointer-events-none absolute inset-0 bg-[color:var(--lyric-accent,#fff)] opacity-0" style={hdrStyle} />}
       {/* 封面与歌词标了 data-island-morph：展开时封面放大飞到面板里的封面处，单行歌词带着样式飞到面板歌词区的焦点行（没有歌词时不飞，见 island-morph.ts） */}
       <IslandSlot morph="cover"><AlbumNavIcon /></IslandSlot>
       {/* 歌词与文字离封面、律动条各 10px：单行条自带 10px 内边距，左右各收回 6px */}
@@ -233,7 +238,7 @@ function MusicCompact({ beat, paused = false, text }: { beat: boolean, paused?: 
       </span>
       {paused
         ? <IslandSlot className="[&>svg]:size-3.5"><PlayIcon aria-hidden className="fill-current" /></IslandSlot>
-        : beat && <IslandSlot><BeatBars tintRef={tintRef} paused={effectsPaused} /></IslandSlot>}
+        : beat && <IslandSlot><BeatBars tintRef={tintRef} paused={effectsPaused} barStyle={hdrStyle} /></IslandSlot>}
     </span>
   )
 }
@@ -254,7 +259,7 @@ const BEAT_TINT_OPACITY = 0.22
  * 没有时（关闭了歌词特效、浏览器开启省流量、分析失败等）以错开的起伏模拟，不染色。逐帧直接写 DOM，不触发 React 渲染；暂停或减少动态效果时静止，
  * paused 时（悬浮播放器开着）停在此刻
  */
-function BeatBars({ tintRef, paused }: { tintRef: React.RefObject<HTMLSpanElement | null>, paused: boolean }) {
+function BeatBars({ tintRef, paused, barStyle }: { tintRef: React.RefObject<HTMLSpanElement | null>, paused: boolean, barStyle?: React.CSSProperties }) {
   const { getAudio, isPlaying, lyrics, currentTrack } = useMusic()
   const reducedMotion = useReducedMotion()
   const rootRef = useRef<HTMLSpanElement>(null)
@@ -305,7 +310,7 @@ function BeatBars({ tintRef, paused }: { tintRef: React.RefObject<HTMLSpanElemen
   return (
     <span ref={rootRef} aria-hidden className="flex h-4 items-center gap-[2px]">
       {BARS.map(bar => (
-        <span key={bar.freq} className="block h-full w-[2px] origin-center scale-y-50 rounded-full bg-[color:var(--lyric-accent,#fff)]" />
+        <span key={bar.freq} className="block h-full w-[2px] origin-center scale-y-50 rounded-full bg-[color:var(--lyric-accent,#fff)]" style={barStyle} />
       ))}
     </span>
   )

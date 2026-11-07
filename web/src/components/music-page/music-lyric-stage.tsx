@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useEffect, useRef } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
+import { useHdrEnabled } from '@/hooks/use-hdr-highlight'
 import { LyricPlayer } from '@/lib/lyrics/lyric-player'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 import { cn } from '@/lib/utils'
@@ -20,11 +21,13 @@ import '@/lib/lyrics/lyric-fonts'
  * strip 为单行条（导航栏标题、单曲卡收起时）：容器只有一行高、字号跟随容器，一次显示一行，超出宽度时跟随演唱横向滚动，不显示翻译与音译；
  * themed 时文字跟随站点亮暗主题（单曲卡），否则为深色界面上的白色文字；
  * stagePush 为播放器页副歌镜头推近时歌词区多放大的比例（由 MusicStageEffects 写入 scale）；
+ * 读者开着 HDR 高光且屏幕支持 HDR 时，正在唱的歌词亮过 SDR 白（themed 时不启用，见 LyricPlayerDisplay.hdr）；
  * paused 时引擎停在此刻的画面、不再逐帧运行，恢复时直接跳到此刻的进度（见 LyricPlayer.setPaused）
  */
 export function MusicLyricStage({ className, compact = false, strip = false, themed = false, stagePush, paused = false }: { className?: string, compact?: boolean, strip?: boolean, themed?: boolean, stagePush?: number, paused?: boolean }) {
   const t = useTranslations('MusicPlayer')
   const pageT = useTranslations('MusicPage')
+  const hdr = useHdrEnabled() && !themed
   const { lyrics, lyricStatus, showTranslation, showRomaji, showLyricEffects, isPlaying, getAudio, seek, play, refreshLyrics, lyricSourcesPending, currentTrack } = useMusic()
   const clock = useMusicClockStore()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -85,8 +88,8 @@ export function MusicLyricStage({ className, compact = false, strip = false, the
   const footerText = sourceLabel ? pageT('lyric_footer', { source: sourceLabel }) : ''
   useEffect(() => {
     // 单行条只有一行高，不显示翻译与音译
-    playerRef.current?.setDisplay({ showTranslation: showTranslation && !strip, showRomanization: showRomaji && !strip, footerText, effects: showLyricEffects })
-  }, [footerText, hasLines, showLyricEffects, showRomaji, showTranslation, strip])
+    playerRef.current?.setDisplay({ showTranslation: showTranslation && !strip, showRomanization: showRomaji && !strip, footerText, effects: showLyricEffects, hdr })
+  }, [footerText, hasLines, hdr, showLyricEffects, showRomaji, showTranslation, strip])
 
   const colorStyle = themed ? { '--lyric-color': 'var(--foreground)' } as React.CSSProperties : undefined
   // 单行条：加载中留空，没有歌词时只注明纯音乐（不放重新获取的按钮）

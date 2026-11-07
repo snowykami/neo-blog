@@ -1,8 +1,12 @@
 'use client'
 
+import type { HdrCanvasPresenter } from '@/lib/hdr-canvas'
 import type { StageParticleRhythm } from '@/lib/lyrics/stage-particles'
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMusic } from '@/contexts/music-context'
+import { useHdrEnabled } from '@/hooks/use-hdr-highlight'
+import { createHdrCanvasPresenter } from '@/lib/hdr-canvas'
+import { HDR_BRIGHTNESS } from '@/lib/hdr-color'
 import { LYRIC_COLORS } from '@/lib/lyrics/colors'
 import { backgroundLevel, particleHeartLevel, particlePulses, periodOf, rhythmContext } from '@/lib/lyrics/rhythm/effects'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
@@ -44,6 +48,8 @@ function subscribeReducedMotion(listener: () => void) {
  * 呼吸的颜色取封面主色（--lyric-accent）。播放器页（非 contained）在副歌开唱时还会「镜头推近」：推近程度（0 ~ 1）乘以各层 data-stage-push 的比例后
  * 直接写入这些层的 scale（背景、歌词区与本层，越靠前放大越多，有景深感），见 music-player-page.tsx。
  * 不写成父元素上的 CSS 变量：变量会被整页继承，每帧都要重算整页样式（实测副歌推近期间约 9 ms / 帧）。
+ * HDR 高光生效时（只在播放器页），粒子画在不显示的 float16 画布上、亮过 SDR 白，逐帧拷到页面上的 WebGPU canvas 以 HDR 显示（见 lib/hdr-canvas.ts）；
+ * 浏览器不支持或 GPU 设备丢失时退回普通 2D canvas。
  * 关闭歌词特效或系统要求减少动态效果时不渲染；逐帧更新直接写 DOM / canvas，不触发 React 渲染。
  * paused 时停在此刻的画面、不再逐帧运行（如顶栏灵动岛的胶囊藏在悬浮播放器后面时），恢复后接着演出
  */
@@ -51,6 +57,9 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
   const { lyrics, isPlaying, getAudio, showLyricEffects, currentTrack } = useMusic()
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(REDUCED_MOTION_QUERY).matches, () => true)
   const enabled = showLyricEffects && !reducedMotion
+  // 不支持 WebGPU 的 HDR 输出或设备丢失后，本次会话退回 2D
+  const [gpuFailed, setGpuFailed] = useState(false)
+  const hdr = useHdrEnabled() && !contained && !gpuFailed
   const pulseRef = useRef<HTMLDivElement>(null)
   const tintRef = useRef<HTMLDivElement>(null)
   const spotlightRef = useRef<HTMLDivElement>(null)
@@ -79,8 +88,27 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
     const spotlightEl = spotlightRef.current
     if (!enabled || !canvas || !pulseEl || !tintEl || !spotlightEl)
       return
-    const particles = new StageParticles(canvas, contained ? CONTAINED_PARTICLES : undefined)
-    const observer = new ResizeObserver(([entry]) => particles.resize(entry.contentRect.width, entry.contentRect.height))
+    // HDR：粒子画在不显示的画布上，WebGPU 输出就绪后逐帧拷到页面上的 canvas；就绪前不显示粒子
+    const drawCanvas = hdr ? document.createElement('canvas') : canvas
+    let presenter: HdrCanvasPresenter | null = null
+    const abort = new AbortController()
+    const particles = new StageParticles(drawCanvas, { ...(contained ? CONTAINED_PARTICLES : {}), hdrGain: hdr ? HDR_BRIGHTNESS.particles : 1 })
+    if (hdr) {
+      void createHdrCanvasPresenter(canvas, () => setGpuFailed(true), abort.signal).then((created) => {
+        if (abort.signal.aborted)
+          return
+        if (!created) {
+          setGpuFailed(true)
+          return
+        }
+        presenter = created
+        presenter.resize(drawCanvas.width, drawCanvas.height)
+      })
+    }
+    const observer = new ResizeObserver(([entry]) => {
+      particles.resize(entry.contentRect.width, entry.contentRect.height)
+      presenter?.resize(drawCanvas.width, drawCanvas.height)
+    })
     observer.observe(canvas)
 
     let frame = 0
@@ -152,7 +180,8 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       const nextPush = Math.round((signals?.push ?? 0) * 1000) / 1000
       if (pushRoot && nextPush !== push)
         writePush(nextPush)
-      particles.update(dt, signals?.scene ?? null, isPlaying, particleRhythm)
+      if (particles.update(dt, signals?.scene ?? null, isPlaying, particleRhythm))
+        presenter?.present(drawCanvas)
       frame = requestAnimationFrame(tick)
     }
     const resume = () => {
@@ -168,12 +197,14 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       cancelAnimationFrame(frame)
       observer.disconnect()
       particles.clear()
+      abort.abort()
+      presenter?.dispose()
       pulseEl.style.opacity = '0'
       tintEl.style.opacity = '0'
       spotlightEl.style.opacity = '0'
       pushTargets.forEach(el => el.style.removeProperty('scale'))
     }
-  }, [contained, enabled, getAudio])
+  }, [contained, enabled, getAudio, hdr])
 
   if (!enabled)
     return null
@@ -201,7 +232,8 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
         className="absolute inset-0 opacity-0 will-change-[opacity] [--spot-x:50%] lg:[--spot-x:62%]"
         style={{ background: `radial-gradient(42% 30% at ${contained ? '50%' : 'var(--spot-x)'} 50%, rgb(255 236 200 / ${SPOTLIGHT_WARM_OPACITY}), transparent 70%), radial-gradient(75% 60% at 50% 50%, transparent 40%, rgb(0 0 0 / ${SPOTLIGHT_DIM_OPACITY}) 100%)` }}
       />
-      <canvas ref={canvasRef} className="absolute inset-0 size-full" />
+      {/* key：HDR 与 2D 是不同的上下文，同一个 canvas 元素取过一种就不能再换，切换时换一个新元素 */}
+      <canvas key={hdr ? 'hdr' : '2d'} ref={canvasRef} className="absolute inset-0 size-full" />
     </div>
   )
 }

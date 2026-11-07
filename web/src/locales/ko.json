@@ -3115,7 +3115,9 @@
     "show_romaji": "발음 표시",
     "open_player_page": "플레이어 페이지 열기",
     "show_lyric_effects": "가사 효과",
-    "show_lyric_moments": "댓글과 내레이션"
+    "show_lyric_moments": "댓글과 내레이션",
+    "hdr_highlight": "HDR 하이라이트",
+    "hdr_unsupported": "화면이 HDR을 지원하지 않습니다"
   },
   "RhythmDebug": {
     "open": "리듬 디버거",

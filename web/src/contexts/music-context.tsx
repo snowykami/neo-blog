@@ -77,6 +77,9 @@ interface MusicContextValue {
   // 播放时出现的网易云热评与 AI 旁白（前奏导语、关键节点的时刻、尾奏热评）开关，播放器页与悬浮播放器共用
   showLyricMoments: boolean
   setShowLyricMoments: (show: boolean) => void
+  // HDR 高光（歌词已唱部分、灵动岛律动条与随拍染色亮过 SDR 白，只在 HDR 显示器上生效）开关，播放器页与悬浮播放器共用
+  hdr: boolean
+  setHdr: (enabled: boolean) => void
   setShowTranslation: (show: boolean) => void
   setShowRomaji: (show: boolean) => void
   hasTranslationLyric: boolean
@@ -179,6 +182,7 @@ const STORAGE_KEY_SHOW_TRANSLATION = 'music-show-translation'
 const STORAGE_KEY_SHOW_ROMAJI = 'music-show-romaji'
 const STORAGE_KEY_SHOW_LYRIC_EFFECTS = 'music-show-lyric-effects'
 const STORAGE_KEY_SHOW_LYRIC_MOMENTS = 'music-show-lyric-moments'
+const STORAGE_KEY_HDR = 'music-hdr'
 // 旧版的三选一歌词模式（none / romaji / translation），读取后迁移为两个开关
 const LEGACY_STORAGE_KEY_LYRIC_MODE = 'music-lyric-mode'
 
@@ -355,6 +359,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [showLyricEffects, setShowLyricEffectsState] = useState(true)
   // 热评与旁白默认显示，读者关掉后记在本地
   const [showLyricMoments, setShowLyricMomentsState] = useState(true)
+  // HDR 高光默认开启；若有读者反馈卡顿再改为默认关闭
+  const [hdr, setHdrState] = useState(true)
   const currentTrack = currentIndex != null ? playlist[currentIndex] ?? null : null
   const currentTrackId = currentTrack?.id ?? null
   const getAudio = useCallback(() => audioRef.current, [])
@@ -414,6 +420,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const storedMoments = readStoredBoolean(STORAGE_KEY_SHOW_LYRIC_MOMENTS)
       if (storedMoments != null)
         setShowLyricMomentsState(storedMoments)
+
+      const storedHdr = readStoredBoolean(STORAGE_KEY_HDR)
+      if (storedHdr != null)
+        setHdrState(storedHdr)
 
       const storedTranslation = readStoredBoolean(STORAGE_KEY_SHOW_TRANSLATION)
       const storedRomaji = readStoredBoolean(STORAGE_KEY_SHOW_ROMAJI)
@@ -808,6 +818,11 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     writeStored(STORAGE_KEY_SHOW_LYRIC_MOMENTS, show)
   }, [])
 
+  const setHdr = useCallback((enabled: boolean) => {
+    setHdrState(enabled)
+    writeStored(STORAGE_KEY_HDR, enabled)
+  }, [])
+
   const setShowRomaji = useCallback((show: boolean) => {
     setShowRomajiState(show)
     writeStored(STORAGE_KEY_SHOW_ROMAJI, show)
@@ -948,6 +963,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setShowLyricEffects,
     showLyricMoments,
     setShowLyricMoments,
+    hdr,
+    setHdr,
     hasTranslationLyric,
     hasRomajiLyric,
     getAudio,
@@ -997,6 +1014,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setShowLyricEffects,
     showLyricMoments,
     setShowLyricMoments,
+    hdr,
+    setHdr,
     hasTranslationLyric,
     hasRomajiLyric,
     getAudio,

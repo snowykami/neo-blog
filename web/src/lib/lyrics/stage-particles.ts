@@ -2,6 +2,7 @@ import type { Rgb } from './colors'
 import type { RhythmPulse } from './rhythm/model'
 import type { StageScene } from './stage-effects'
 import type { LyricColor, LyricScene, LyricSprite, LyricSpriteMotion } from './types'
+import { hdrCanvasColor } from '@/lib/hdr-color'
 import { hexToRgb, LYRIC_COLORS } from './colors'
 
 /**
@@ -59,6 +60,8 @@ export interface StageParticleRhythm {
 
 // 这一帧爱心随拍的缩放（update 中写入，绘制时读取）；不跟随节拍时为 null，爱心用缓慢起伏
 let heartBeat: number | null = null
+// 这一帧的 HDR 亮度倍数（update 中写入，rgba 读取）：大于 1 时颜色写成 color(srgb-linear …) 并乘以它，见 StageParticlesOptions.hdrGain
+let colorGain = 1
 
 const MAX_PARTICLES = 240
 const BASE_AREA = 1280 * 800
@@ -73,8 +76,11 @@ const TAU = Math.PI * 2
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
 const pick = <T>(items: readonly T[]) => items[Math.floor(Math.random() * items.length)]
 
-/** 带透明度的颜色 */
-const rgba = ([r, g, b]: Rgb, a: number) => `rgb(${r} ${g} ${b} / ${Math.max(0, a).toFixed(3)})`
+/** 带透明度的颜色；HDR 下亮过 SDR 白（只有 float16 画布存得下，见 lib/hdr-canvas.ts） */
+function rgba(color: Rgb, a: number) {
+  return hdrCanvasColor(color, colorGain, a)
+}
+
 /** 与白色混合 t（0 ~ 1） */
 const mixWhite = ([r, g, b]: Rgb, t: number): Rgb => [r + (255 - r) * t, g + (255 - g) * t, b + (255 - b) * t].map(Math.round) as Rgb
 
@@ -570,6 +576,8 @@ const sceneKey = (scene: StageScene | null) => (scene ? `${scene.name}:${scene.c
 export interface StageParticlesOptions {
   scale?: number
   maxParticles?: number
+  // HDR 亮度倍数：大于 1 时画布用 float16、颜色乘以它（画布须由 lib/hdr-canvas.ts 拷到 HDR 输出上才会显示为 HDR）
+  hdrGain?: number
 }
 
 export class StageParticles {
@@ -585,11 +593,14 @@ export class StageParticles {
   private painted = false
   private width = 0
   private height = 0
+  private hdrGain: number
 
-  constructor(private canvas: HTMLCanvasElement, { scale = 1, maxParticles = MAX_PARTICLES }: StageParticlesOptions = {}) {
-    this.ctx = canvas.getContext('2d')
+  constructor(private canvas: HTMLCanvasElement, { scale = 1, maxParticles = MAX_PARTICLES, hdrGain = 1 }: StageParticlesOptions = {}) {
+    // colorType 尚未进入 TypeScript 的 DOM 类型
+    this.ctx = canvas.getContext('2d', hdrGain > 1 ? { colorType: 'float16' } as CanvasRenderingContext2DSettings : undefined)
     this.scale = scale
     this.maxParticles = maxParticles
+    this.hdrGain = hdrGain
   }
 
   /** 画面尺寸变化时调用（CSS 像素），按设备像素比放大画布，最多 2 倍 */
@@ -607,12 +618,16 @@ export class StageParticles {
     return this.particles.length === 0 && this.density === 0
   }
 
-  /** 推进 dt 秒并绘制；scene 为当前场景与颜色主题（null 为无），active 为 false 时（暂停）不再生成；rhythm 为跟随节拍时的输入 */
-  update(dt: number, scene: StageScene | null, active: boolean, rhythm: StageParticleRhythm | null = null) {
+  /**
+   * 推进 dt 秒并绘制；scene 为当前场景与颜色主题（null 为无），active 为 false 时（暂停）不再生成；rhythm 为跟随节拍时的输入。
+   * 返回这一帧是否重画了画布（HDR 输出据此决定是否拷贝）
+   */
+  update(dt: number, scene: StageScene | null, active: boolean, rhythm: StageParticleRhythm | null = null): boolean {
     const ctx = this.ctx
     if (!ctx)
-      return
+      return false
     heartBeat = rhythm?.heart ?? null
+    colorGain = this.hdrGain
     const key = sceneKey(scene)
     // 换场景（或颜色主题）时先渐出旧场景，渐出完再渐入新场景
     if (key !== sceneKey(this.scene) && this.density === 0)
@@ -659,7 +674,7 @@ export class StageParticles {
     }
 
     if (this.particles.length === 0 && !this.painted)
-      return
+      return false
     ctx.clearRect(0, 0, this.width, this.height)
     this.particles = this.particles.filter((p) => {
       p.age += dt
@@ -677,6 +692,7 @@ export class StageParticles {
       return true
     })
     this.painted = this.particles.length > 0
+    return true
   }
 
   clear() {

@@ -3115,7 +3115,9 @@
     "show_romaji": "ローマ字を表示",
     "open_player_page": "プレーヤーページを開く",
     "show_lyric_effects": "歌詞エフェクト",
-    "show_lyric_moments": "コメントとナレーション"
+    "show_lyric_moments": "コメントとナレーション",
+    "hdr_highlight": "HDR ハイライト",
+    "hdr_unsupported": "画面が HDR に対応していません"
   },
   "RhythmDebug": {
     "open": "リズムデバッガー",

@@ -4,6 +4,7 @@ import type { StripLine, StripSlot } from './strip-slots'
 import type { TimelineItem, TimelineState } from './timeline'
 import type { LyricEmphasis, LyricWord, ResolvedLyrics } from './types'
 import type { LyricMarqueeWordBox, MusicLyricLine } from '@/utils/music-lyric'
+import { HDR_BRIGHTNESS, hdrColorUrl } from '@/lib/hdr-color'
 import { getLyricMarqueeOffset } from '@/utils/music-lyric'
 import { LYRIC_COLORS, MOOD_GLOW } from './colors'
 import {
@@ -66,6 +67,8 @@ export interface LyricPlayerDisplay {
   footerText: string
   // 强调特效（放大、辉光、波浪）；减少动态效果时始终关闭
   effects: boolean
+  // HDR 高光：正在唱的字亮过 SDR 白（只在深色界面、屏幕支持 HDR 时开启，见 lib/hdr-color.ts）
+  hdr: boolean
 }
 
 interface WordView {
@@ -152,6 +155,9 @@ interface ItemView {
   color: string
   opacity: string
   visible: boolean
+  // 是否正在唱（lyric-line--active）、是否是聚光灯下的点题句（lyric-line--spot）：HDR 高光据此给字上色，见 lyric-player.css
+  active: boolean
+  spotlit: boolean
 }
 
 // 字与字的错开比例、上浮提前开始的时长（参考 AMLL）；演出时长下限见 config.ts 的 LYRIC_EMPHASIS_MIN_MS
@@ -164,6 +170,26 @@ const EMPHASIS_FOCUS_CLEAR_RATIO = 0.6
 // 上色的峰值与唱过后保留的比例（高亮行内）
 const EMPHASIS_TINT_PEAK = 0.85
 const EMPHASIS_TINT_HOLD = 0.6
+
+// HDR 高光的亮度见 lib/hdr-color.ts 的 HDR_BRIGHTNESS
+// 聚光灯亮到这个程度时点题句换成更亮的一档（背景素材不能渐变，只能换档）
+const HDR_SPOT_THRESHOLD = 0.5
+// 流光光带在 HDR 高光下的颜色（同 SDR 下光带的暖白）
+const HDR_SHINE_COLOR = '#fffae6'
+
+/**
+ * 强调短语在 HDR 高光下的颜色：开始上色后固定为峰值的上色程度（色板颜色与白色混合，同 color-mix in srgb），不随演出逐帧变化——
+ * 每换一次颜色就换一张素材、整个字重新光栅化，频繁更换时偶尔露出没画完的色块；上色的起落交给辉光表现
+ */
+function hdrTint(tintColor: string | null, tint: number) {
+  if (!tintColor || tint <= 0.005)
+    return '#fff'
+  const t = EMPHASIS_TINT_PEAK
+  const hex = /^#([0-9a-f]{6})$/i.exec(tintColor)?.[1]
+  if (!hex)
+    return tintColor
+  return `#${[0, 2, 4].map(i => Math.round(255 * (1 - t) + Number.parseInt(hex.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('')}`
+}
 
 // 间奏条目展开后的高度：默认 / 紧凑模式
 const INTERLUDE_HEIGHT_PX = 56
@@ -370,13 +396,15 @@ export class LyricPlayer {
   private lyrics: ResolvedLyrics = EMPTY_LYRICS
   private items: TimelineItem[] = []
   private views: ItemView[] = []
-  private display: LyricPlayerDisplay = { showTranslation: true, showRomanization: true, footerText: '', effects: true }
+  private display: LyricPlayerDisplay = { showTranslation: true, showRomanization: true, footerText: '', effects: true, hdr: false }
   private state: TimelineState = { active: [], focus: 0, interlude: null }
   private activeLines = new Set<number>()
   // 聚光灯：点题句的行号到条目的映射、此刻演出的条目（没有时为 -1）、当前强度与放大倍数上限（开始亮起时按文字宽度测量）
   private spotViews = new Map<number, number>()
   private spotView = -1
   private spot = 0
+  // HDR 高光下按点题句亮度显示的条目（没有时为 -1）：聚光灯亮过一半时的那一句；单行条不演出聚光灯，只按聚光灯的时段换亮度
+  private hdrSpotView = -1
   private spotScale: number | null = null
   // 行号到条目的映射；单行条此刻分层（或分成四格）显示的条目与位置，焦点句单独在唱时为空
   private lineViews = new Map<number, number>()
@@ -489,10 +517,23 @@ export class LyricPlayer {
   }
 
   setDisplay(display: LyricPlayerDisplay) {
-    const { showTranslation, showRomanization, footerText, effects } = this.display
+    const { showTranslation, showRomanization, footerText, effects, hdr } = this.display
     this.display = display
-    if (effects && !display.effects)
+    // HDR 高光开关时强调词的字从头重写样式（背景、辉光的画法不同）
+    if ((effects && !display.effects) || display.hdr !== hdr)
       this.views.forEach(view => this.resetEmphasis(view))
+    // 碎屑（消散、破碎）刚出现时亮过 SDR 白、随时间熄灭（见 lyric-debris.ts）
+    this.debris.setHdr(display.hdr ? HDR_BRIGHTNESS.debris : 1)
+    if (display.hdr !== hdr) {
+      this.container.classList.toggle('lyric-player--hdr', display.hdr)
+      for (const [name, gain] of [['--lyric-hdr', HDR_BRIGHTNESS.lyric], ['--lyric-hdr-spot', this.spotGain()]] as const) {
+        const url = display.hdr ? hdrColorUrl('#fff', gain) : null
+        if (url)
+          this.container.style.setProperty(name, `url("${url}")`)
+        else
+          this.container.style.removeProperty(name)
+      }
+    }
     if (display.footerText !== footerText) {
       const footer = this.views.at(-1)
       if (footer?.item.kind === 'footer')
@@ -559,6 +600,8 @@ export class LyricPlayer {
         color: '',
         opacity: '',
         visible: true,
+        active: false,
+        spotlit: false,
       }
       const { el } = view
       el.classList.add('lyric-item')
@@ -652,6 +695,7 @@ export class LyricPlayer {
         this.spotViews.set(view.item.line, index)
     })
     this.spotView = -1
+    this.hdrSpotView = -1
     this.container.querySelectorAll(':scope > .lyric-item').forEach(el => el.remove())
     this.container.append(...this.views.map(view => view.el))
     this.layoutDirty = true
@@ -742,7 +786,8 @@ export class LyricPlayer {
       view.height = view.item.kind === 'interlude' ? this.interludeHeight : view.el.offsetHeight
       for (const word of view.words) {
         word.width = word.el.offsetWidth
-        word.pad = view.emphasis.length > 0 ? Number.parseFloat(getComputedStyle(word.el).paddingLeft) || 0 : 0
+        // 强调词四周、HDR 高光下所有词左右留有内边距（见 lyric-player.css）
+        word.pad = view.emphasis.length > 0 || this.display.hdr ? Number.parseFloat(getComputedStyle(word.el).paddingLeft) || 0 : 0
       }
       const marquee = view.marquee
       if (marquee) {
@@ -814,6 +859,13 @@ export class LyricPlayer {
     if (spotView !== this.spotView)
       this.spotScale = null
     this.spotView = spotView
+    if (this.options.strip) {
+      const lit = this.display.hdr && this.spotViews.size > 0 && this.display.effects ? spotlightAt(this.lyrics, timeMs) : null
+      this.hdrSpotView = lit && lit.level >= HDR_SPOT_THRESHOLD ? this.spotViews.get(lit.line) ?? -1 : -1
+    }
+    else {
+      this.hdrSpotView = this.spot >= HDR_SPOT_THRESHOLD ? spotView : -1
+    }
     const animating = this.layout(dt, now, focusChanged)
     const teleported = this.teleport
     this.teleport = false
@@ -991,7 +1043,8 @@ export class LyricPlayer {
   private paint(timeMs: number, detail: boolean) {
     const focus = this.state.focus
     const spot = this.spot
-    const inactiveAlpha = this.lyrics.wordTimed ? LYRIC_INACTIVE_ALPHA : LYRIC_INACTIVE_ALPHA_LINE_TIMED
+    // HDR 高光下已唱的字亮过 SDR 白，未唱的字与其余行也压得更暗，拉开对比
+    const inactiveAlpha = (this.lyrics.wordTimed ? LYRIC_INACTIVE_ALPHA : LYRIC_INACTIVE_ALPHA_LINE_TIMED) * (this.display.hdr ? HDR_BRIGHTNESS.dim : 1)
     const blurFactor = (this.narrow ? LYRIC_BLUR_NARROW_FACTOR : 1) * (this.options.compact ? COMPACT_BLUR_FACTOR : 1)
     const noBlur = this.reducedMotion || this.manual != null
     const feather = LYRIC_FEATHER_EM * this.fontSize
@@ -1030,7 +1083,8 @@ export class LyricPlayer {
           view.color = color
           view.el.style.color = color
         }
-        const filter = blur > 0 ? `blur(${blur.toFixed(1)}px)` : ''
+        // HDR 高光下仍带 lyric-line--active 的行（类名在细节帧才切换）先不模糊：行的滤镜与里面 background-clip: text 的字叠在一起时偶尔闪出白色矩形
+        const filter = blur > 0 && !(this.display.hdr && view.active) ? `blur(${blur.toFixed(1)}px)` : ''
         if (filter !== view.filter) {
           view.filter = filter
           view.el.style.filter = filter
@@ -1040,6 +1094,17 @@ export class LyricPlayer {
           this.paintMarquee(view.marquee, view.el, (view.half ? this.containerWidth / 2 : this.containerWidth) - view.marquee.padding, timeMs)
         if (!detail)
           continue
+        // 与下面的逐字样式在同一帧切换（HDR 高光的字色由类名决定，见 lyric-player.css）
+        if (active !== view.active) {
+          view.active = active
+          view.el.classList.toggle('lyric-line--active', active)
+        }
+        // 只在这一行还在唱时：聚光灯在行尾之后还要淡出一会儿（见 lyric-player.css）
+        const spotlit = active && i === this.hdrSpotView
+        if (spotlit !== view.spotlit) {
+          view.spotlit = spotlit
+          view.el.classList.toggle('lyric-line--spot', spotlit)
+        }
         this.paintWords(view, active, timeMs, feather, inactiveAlpha)
         if (view.emphasis.length > 0) {
           if (this.display.effects && !this.reducedMotion)
@@ -1154,10 +1219,18 @@ export class LyricPlayer {
    * 带下划线字形的组：每个字在自己所在音节的演唱时段内从左到右画出下划线（与逐字擦除同步）
    * 指定了颜色的组：字随演出逐渐上色（辉光也用该颜色），唱过后在高亮行内保留部分颜色
    */
+  /** 点题句的 HDR 亮度：单行条（灵动岛）与播放器页、悬浮小窗分开配置 */
+  private spotGain() {
+    return this.options.strip ? HDR_BRIGHTNESS.stripSpotlight : HDR_BRIGHTNESS.spotlight
+  }
+
   private paintEmphasis(view: ItemView, active: boolean, timeMs: number) {
     const bg = view.item.kind === 'line' && this.lyrics.lines[view.item.line]?.isBackground
     // 聚光灯下的点题句：辉光与字的放大随聚光灯强度收敛（见 SPOTLIGHT_EMPHASIS_GLOW）
     const spot = this.views[this.spotView] === view ? this.spot : 0
+    // HDR 高光：正在唱的行里强调词的字由该颜色的 HDR 素材绘制（流光为光带处透出 HDR 素材）
+    const hdr = this.display.hdr && active
+    const hdrGain = this.views[this.hdrSpotView] === view ? this.spotGain() : HDR_BRIGHTNESS.emphasis
     const glowScale = 1 - (1 - SPOTLIGHT_EMPHASIS_GLOW) * spot
     const growScale = 1 - (1 - SPOTLIGHT_EMPHASIS_SCALE) * spot
     // 柔光持续到这一行结束
@@ -1201,6 +1274,7 @@ export class LyricPlayer {
         let opacity = ''
         let drift = 0
         let crack = 0
+        let tint = 0
         if (group.effect === 'dissolve' && f > 0) {
           // 消散：字唱完后淡出、变虚并向右飘，同时生成颗粒；过一会儿慢慢恢复
           const dissolve = dissolveState(group.start, group.end, i, count, timeMs, this.seekAt, dissolveFadeMs(rhythm))
@@ -1241,7 +1315,7 @@ export class LyricPlayer {
             filter = `blur(${blur.toFixed(3)}em)`
         }
         if (tintColor) {
-          const tint = Math.max(v * EMPHASIS_TINT_PEAK, active && timeMs >= begin ? EMPHASIS_TINT_HOLD : 0)
+          tint = Math.max(v * EMPHASIS_TINT_PEAK, active && timeMs >= begin ? EMPHASIS_TINT_HOLD : 0)
           if (tint > 0.005)
             color = `color-mix(in srgb, ${tintColor} ${(tint * 100).toFixed(1)}%, currentColor)`
         }
@@ -1322,9 +1396,25 @@ export class LyricPlayer {
           // 流光：字的颜色改由背景绘制（裁剪到字形，见 lyric-player.css），叠上一道光带；文字本身透明，辉光会盖住背景所以不用
           const pos = (shine - i) * 100
           const base = color ? color.replace('currentColor', 'var(--lyric-color, #fff)') : 'var(--lyric-color, #fff)'
-          background = `linear-gradient(105deg, transparent ${(pos - 40).toFixed(1)}%, rgb(255 250 230 / 0.95) ${pos.toFixed(1)}%, transparent ${(pos + 40).toFixed(1)}%), linear-gradient(${base}, ${base})`
+          // HDR 高光下光带改为透出底下的 HDR 素材：光带以外由原色盖住，光带处亮过 SDR 白
+          const shineUrl = hdr ? hdrColorUrl(HDR_SHINE_COLOR, hdrGain) : null
+          background = shineUrl
+            ? `linear-gradient(105deg, ${base} ${(pos - 40).toFixed(1)}%, transparent ${pos.toFixed(1)}%, ${base} ${(pos + 40).toFixed(1)}%), url("${shineUrl}")`
+            : `linear-gradient(105deg, transparent ${(pos - 40).toFixed(1)}%, rgb(255 250 230 / 0.95) ${pos.toFixed(1)}%, transparent ${(pos + 40).toFixed(1)}%), linear-gradient(${base}, ${base})`
           color = 'transparent'
           shadow = ''
+        }
+        else if (hdr && (!filter || group.effect === 'focus')) {
+          // 字的颜色改由 HDR 素材绘制、裁剪到字形（见 lyric-player.css）。辉光不画：text-shadow 会盖在背景上，
+          // 改用 drop-shadow 等滤镜与 background-clip: text 叠在同一个元素上时，Chrome 偶尔按整个盒子而不是字形绘制，闪出白色矩形；
+          // HDR 的亮度本身代替辉光。消散时（带模糊、正在淡出）这个字退回 SDR 颜色；聚焦的模糊例外，整个词从头到尾都是 HDR——
+          // 逐字等模糊消失再切换会一个一个字跳亮，而单纯的 blur 与 background-clip: text 叠加实测渲染正常
+          const url = hdrColorUrl(hdrTint(tintColor, tint), hdrGain)
+          if (url) {
+            background = `url("${url}")`
+            color = 'transparent'
+            shadow = ''
+          }
         }
         if (transform !== char.transform) {
           char.transform = transform

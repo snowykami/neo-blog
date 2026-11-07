@@ -2961,7 +2961,9 @@
     "show_romaji": "显示音译",
     "open_player_page": "打开播放器页",
     "show_lyric_effects": "歌词特效",
-    "show_lyric_moments": "评论与旁白"
+    "show_lyric_moments": "评论与旁白",
+    "hdr_highlight": "HDR 高光",
+    "hdr_unsupported": "屏幕不支持 HDR"
   },
   "RhythmDebug": {
     "open": "韵律调试",

@@ -95,6 +95,64 @@
   background-clip: text;
 }
 
+/*
+ * HDR 高光：引擎在 HDR 显示器上开启时给容器加 lyric-player--hdr，并把 HDR 素材（lib/hdr-color.ts）放进 --lyric-hdr / --lyric-hdr-spot。
+ * 正在唱的行里，字的颜色改由素材绘制、裁剪到字形，亮过 SDR 白；聚光灯下的点题句（lyric-line--spot）用更亮的一档。
+ * 逐字擦除的遮罩与压暗照常作用在词上；逐行歌词没有词节点，整句一起亮。
+ * 强调词拆成逐个变换的单字，父元素的背景裁不进这些字，由引擎给每个字单独写入素材（带颜色，见 paintEmphasis）
+ */
+.lyric-player--hdr {
+  --lyric-hdr-pad: 0.15em;
+}
+
+/*
+ * 背景只画在盒子范围内：斜体等字形伸出盒子的部分没有背景、会被切掉。左右各留出内边距（负外边距抵消，不影响排版），
+ * 引擎测量逐字擦除的位置时会扣掉它（见 measure）。不只正在唱的行：内边距随行切换会改变测量结果
+ */
+.lyric-player--hdr .lyric-word:not(.lyric-word--emphasis),
+.lyric-player--hdr .lyric-char {
+  padding-inline: var(--lyric-hdr-pad);
+  margin-inline: calc(-1 * var(--lyric-hdr-pad));
+}
+
+.lyric-player--hdr .lyric-line--active .lyric-word:not(.lyric-word--emphasis),
+.lyric-player--hdr .lyric-line--active .lyric-main:not(:has(.lyric-word)) {
+  background-image: var(--lyric-hdr);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/*
+ * 点题句必须同时在唱：聚光灯在行尾之后还要淡出一会儿，只看 lyric-line--spot 时，唱完的行没有上面的 background-clip: text，
+ * 素材会把每个词的整个盒子画成一块极亮的白色矩形
+ */
+.lyric-player--hdr .lyric-line--active.lyric-line--spot .lyric-word:not(.lyric-word--emphasis),
+.lyric-player--hdr .lyric-line--active.lyric-line--spot .lyric-main:not(:has(.lyric-word)) {
+  background-image: var(--lyric-hdr-spot);
+}
+
+/*
+ * 单字的裁剪不跟随 lyric-line--active：字的素材由引擎写入，与类名的切换可能差一两帧，
+ * 若裁剪随类名先撤掉，素材会把整个字的盒子画成一块 HDR 白
+ */
+.lyric-player--hdr .lyric-char {
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* 下划线原本用 currentColor，HDR 下字本身透明：改用字的素材（没有素材时仍是 currentColor），并扣掉上面的内边距 */
+.lyric-player--hdr .lyric-word--underline .lyric-char:not(.lyric-char--space)::before {
+  left: calc(var(--lyric-hdr-pad) - 0.03em);
+  right: calc(var(--lyric-hdr-pad) - 0.03em);
+  background-image: inherit;
+}
+
+/* 间奏圆点 */
+.lyric-player--hdr .lyric-interlude span {
+  background: var(--lyric-hdr);
+}
+
 /* 消散与破碎特效的碎屑层（lyric-debris.ts） */
 .lyric-debris {
   position: absolute;

@@ -2,13 +2,16 @@
 
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+import type { IconType } from 'react-icons'
 import type { PlayMode } from '@/contexts/music-context'
 import { CaseSensitiveIcon, LanguagesIcon, ListMusicIcon, MessageSquareQuoteIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, SparklesIcon, Volume1Icon, Volume2Icon, VolumeXIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useMemo, useState } from 'react'
+import { TbHdr } from 'react-icons/tb'
 import { ProgressControl } from '@/components/common/controlled-progress'
 import { getNextPlayMode, useMusic, useMusicClock } from '@/contexts/music-context'
 import { useSongChorus } from '@/contexts/song-chorus'
+import { useHdrDisplay } from '@/hooks/use-hdr-highlight'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
 
@@ -23,7 +26,7 @@ export const MUSIC_ICON_BUTTON_CLASSNAME = 'inline-flex shrink-0 items-center ju
 
 /** 播放器页上的图标按钮：白色图标，激活时高亮，禁用时变暗 */
 function IconButton({ icon: Icon, label, onClick, active, disabled, className, iconClassName }: {
-  icon: LucideIcon
+  icon: LucideIcon | IconType
   label: string
   onClick: () => void
   active?: boolean
@@ -151,7 +154,10 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
     setShowLyricEffects,
     showLyricMoments,
     setShowLyricMoments,
+    hdr,
+    setHdr,
   } = useMusic()
+  const hdrDisplay = useHdrDisplay()
 
   return (
     <div className={cn('grid', compact ? 'gap-2' : 'gap-4', className)}>
@@ -187,10 +193,11 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
             onClick={() => setShowTranslation(!showTranslation)}
           />
           <IconButton
-            icon={SparklesIcon}
-            label={playerT('show_lyric_effects')}
-            active={showLyricEffects}
-            onClick={() => setShowLyricEffects(!showLyricEffects)}
+            icon={CaseSensitiveIcon}
+            label={hasRomajiLyric ? playerT('show_romaji') : playerT('no_extra_lyric')}
+            active={hasRomajiLyric && showRomaji}
+            disabled={!hasRomajiLyric}
+            onClick={() => setShowRomaji(!showRomaji)}
           />
           <IconButton
             icon={MessageSquareQuoteIcon}
@@ -199,11 +206,18 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
             onClick={() => setShowLyricMoments(!showLyricMoments)}
           />
           <IconButton
-            icon={CaseSensitiveIcon}
-            label={hasRomajiLyric ? playerT('show_romaji') : playerT('no_extra_lyric')}
-            active={hasRomajiLyric && showRomaji}
-            disabled={!hasRomajiLyric}
-            onClick={() => setShowRomaji(!showRomaji)}
+            icon={SparklesIcon}
+            label={playerT('show_lyric_effects')}
+            active={showLyricEffects}
+            onClick={() => setShowLyricEffects(!showLyricEffects)}
+          />
+          {/* HDR 高光：屏幕不支持 HDR 时置灰 */}
+          <IconButton
+            icon={TbHdr}
+            label={hdrDisplay ? playerT('hdr_highlight') : playerT('hdr_unsupported')}
+            active={hdrDisplay && hdr}
+            disabled={!hdrDisplay}
+            onClick={() => setHdr(!hdr)}
           />
         </div>
       </div>
