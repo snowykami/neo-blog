@@ -22,9 +22,12 @@ const PLAY_MODE_ICONS: Record<PlayMode, LucideIcon> = {
 }
 
 /** 播放器页图标按钮的样式（悬浮播放器里的链接按钮也使用） */
-export const MUSIC_ICON_BUTTON_CLASSNAME = 'inline-flex shrink-0 items-center justify-center rounded-full p-2 text-white/70 transition-[color,background-color,transform] hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none active:scale-95 disabled:pointer-events-none disabled:text-white/25'
+export const MUSIC_ICON_BUTTON_CLASSNAME = 'inline-flex shrink-0 items-center justify-center rounded-full p-2 text-white/70 transition-[color,background-color,transform] hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none active:scale-95 disabled:pointer-events-none disabled:text-white/15'
 
-/** 播放器页上的图标按钮：白色图标，激活时高亮，禁用时变暗 */
+/**
+ * 播放器页上的图标按钮：白色图标，禁用时变暗。
+ * 传了 active 的是开关（翻译、罗马音、HDR 等）：开启时纯白，关闭时明显变暗，两种状态一眼能分清
+ */
 function IconButton({ icon: Icon, label, onClick, active, disabled, className, iconClassName }: {
   icon: LucideIcon | IconType
   label: string
@@ -44,7 +47,8 @@ function IconButton({ icon: Icon, label, onClick, active, disabled, className, i
       onClick={onClick}
       className={cn(
         MUSIC_ICON_BUTTON_CLASSNAME,
-        active && 'text-white',
+        active === true && 'text-white',
+        active === false && 'text-white/35',
         className,
       )}
     >
