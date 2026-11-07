@@ -23,6 +23,7 @@ import { countWords } from '@/utils/common/post'
 import { renderContentHtml } from '@/utils/server/render-content'
 import '@/app/styles/content-themes/index.scss'
 import '@/components/tiptap-node/image-node/image-figure.scss'
+import '@/components/tiptap-node/inline-icon-node/inline-icon.scss'
 // 公式样式（约 4 KB）；KaTeX 字体只在页面用到公式时才下载
 import 'katex/dist/katex.min.css'
 
@@ -75,7 +76,7 @@ export default async function Page({
     )
   }
 
-  const { html, headings } = renderContentHtml(page.content)
+  const { html, headings } = await renderContentHtml(page.content)
   // 页面正文使用站点默认的内容主题
   const theme = resolveContentTheme(null, (await getCachedSiteInfo()).contentTheme)
   // 代码块工具栏 / 高亮、链接卡片、图片失效兜底与预览，与文章正文复用同一套增强

@@ -1,6 +1,7 @@
 'use client'
 
 import type { PublishSummaryItem } from './editor-app-bar'
+import type { InlineIconPickerTarget } from '@/components/tiptap-ui/inline-icon-picker'
 import type { ContentEditorController } from '@/hooks/use-content-editor'
 import { XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -11,6 +12,7 @@ import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EditSessionBanner } from '@/components/console/common/edit-session-banner'
 import { ComponentLibraryDialog } from '@/components/content-components/component-library-dialog'
 import { AnnotationPopover } from '@/components/tiptap-ui/annotation-popover'
+import { InlineIconPicker } from '@/components/tiptap-ui/inline-icon-picker'
 import { LinkPopover } from '@/components/tiptap-ui/link-popover'
 import { MathPopover } from '@/components/tiptap-ui/math-popover'
 import { Button } from '@/components/ui/button'
@@ -126,6 +128,8 @@ function LoadedShell({
   const [annotationOpen, setAnnotationOpen] = React.useState(false)
   // 正在编辑的公式节点位置
   const [mathPos, setMathPos] = React.useState<number | null>(null)
+  // 图标选择器：插入（pos 为 null）或更换某个图标
+  const [iconTarget, setIconTarget] = React.useState<InlineIconPickerTarget | null>(null)
   const [libraryOpen, setLibraryOpen] = React.useState(false)
   // 版本：确认放弃修改的弹窗与版本历史抽屉（由下拉菜单打开，使用受控模式）
   const [revisionConfirm, setRevisionConfirm] = React.useState<'session' | 'unpublished' | null>(null)
@@ -183,6 +187,22 @@ function LoadedShell({
       // 选中公式节点，弹层定位到它下方
       editor.commands.setNodeSelection(pos)
       setMathPos(pos)
+    },
+    openIconPicker: () => {
+      if (!editor.isEditable || !editor.can().insertInlineIcon('shapes'))
+        return
+      setLinkOpen(false)
+      setAnnotationOpen(false)
+      setIconTarget({ pos: null })
+    },
+    editIcon: (pos: number) => {
+      if (!editor.isEditable)
+        return
+      setLinkOpen(false)
+      setAnnotationOpen(false)
+      // 选中图标，选择器定位到它下方
+      editor.commands.setNodeSelection(pos)
+      setIconTarget({ pos })
     },
   }), [editor, openAI])
   React.useEffect(() => {
@@ -365,6 +385,7 @@ function LoadedShell({
         <LinkPopover editor={editor} open={linkOpen} onOpenChange={setLinkOpen} />
         <AnnotationPopover editor={editor} open={annotationOpen} onOpenChange={setAnnotationOpen} />
         <MathPopover editor={editor} pos={mathPos} onClose={() => setMathPos(null)} />
+        <InlineIconPicker editor={editor} target={iconTarget} onClose={() => setIconTarget(null)} />
         <ComponentLibraryDialog
           open={libraryOpen}
           onOpenChange={setLibraryOpen}

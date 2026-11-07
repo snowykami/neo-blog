@@ -22,6 +22,7 @@ import {
   PuzzleIcon,
   Rows3Icon,
   Settings2Icon,
+  ShapesIcon,
   SigmaIcon,
   SparklesIcon,
   SquareCodeIcon,
@@ -251,10 +252,23 @@ export function getComponentLibraryEntry(ct: Translate, state: EditorToolbarStat
   }
 }
 
-/** 插入下拉的完整菜单：基础插入项 + 组件库 */
-export function getInsertMenuEntries(editor: Editor, t: Translate, ct: Translate, state: EditorToolbarState, openLibrary: () => void): EditorMenuEntry[] {
+/** 行内图标：打开图标选择器，在光标处插入 */
+export function getIconEntry(editor: Editor, t: Translate, state: EditorToolbarState, openIconPicker: () => void): EditorMenuEntry {
+  return {
+    key: 'insert-icon',
+    icon: ShapesIcon,
+    label: t('icon.insert'),
+    hint: t('icon.insert_hint'),
+    disabled: !state.editable || !editor.can().insertInlineIcon('shapes'),
+    onSelect: openIconPicker,
+  }
+}
+
+/** 插入下拉的完整菜单：基础插入项 + 图标 + 组件库 */
+export function getInsertMenuEntries(editor: Editor, t: Translate, ct: Translate, state: EditorToolbarState, openLibrary: () => void, openIconPicker: () => void): EditorMenuEntry[] {
   return [
     ...getInsertEntries(editor, t, state),
+    getIconEntry(editor, t, state, openIconPicker),
     { type: 'separator', key: 'insert-sep-components' },
     getComponentLibraryEntry(ct, state, openLibrary),
   ]
@@ -391,7 +405,12 @@ export function FontMenu({ editor, state, tooltipSide }: { editor: Editor | null
 }
 
 /** 插入下拉：图片（上传）、分割线、代码块、表格与组件库 */
-export function InsertMenu({ editor, state, onOpenLibrary }: { editor: Editor | null, state: EditorToolbarState, onOpenLibrary: () => void }) {
+export function InsertMenu({ editor, state, onOpenLibrary, onOpenIconPicker }: {
+  editor: Editor | null
+  state: EditorToolbarState
+  onOpenLibrary: () => void
+  onOpenIconPicker: () => void
+}) {
   const t = useTranslations('Console.editor')
   const ct = useTranslations('ContentComponents')
   if (!editor)
@@ -408,7 +427,7 @@ export function InsertMenu({ editor, state, onOpenLibrary }: { editor: Editor | 
         </DropdownMenuTrigger>
       </EditorTooltip>
       <EditorMenuContent editor={editor}>
-        <EditorMenuEntries entries={getInsertMenuEntries(editor, t, ct, state, onOpenLibrary)} />
+        <EditorMenuEntries entries={getInsertMenuEntries(editor, t, ct, state, onOpenLibrary, onOpenIconPicker)} />
       </EditorMenuContent>
     </DropdownMenu>
   )

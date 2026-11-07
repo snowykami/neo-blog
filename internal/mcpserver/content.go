@@ -44,14 +44,37 @@ func newHTMLConverter() *converter.Converter {
 		strikethrough.NewStrikethroughPlugin(),
 		table.NewTablePlugin(),
 	))
-	// 公式节点没有子节点，空白折叠时会被当作不存在而吞掉后面的空格：先填入公式内容占位（输出时只读 data-latex）
+	// 公式与图标节点没有子节点，空白折叠时会被当作不存在而吞掉后面的空格：先填入占位文字（输出时只读属性）
 	conv.Register.PreRenderer(func(ctx converter.Context, doc *html.Node) {
 		for _, n := range dom.FindAllNodes(doc, isMathElement) {
 			if latex, _ := dom.GetAttribute(n, "data-latex"); n.FirstChild == nil && latex != "" {
 				n.AppendChild(&html.Node{Type: html.TextNode, Data: latex})
 			}
 		}
+		for _, n := range dom.FindAllNodes(doc, isIconElement) {
+			if name, _ := dom.GetAttribute(n, iconAttr); n.FirstChild == nil && name != "" {
+				n.AppendChild(&html.Node{Type: html.TextNode, Data: name})
+				n.Attr = append(n.Attr, html.Attribute{Key: iconPlaceholderAttr})
+			}
+		}
 	}, converter.PriorityStandard)
+	// 图标输出为空的 <span data-icon="…"></span>（与写入时的写法一致）；需先于下方「带属性的 span 原样保留」处理
+	conv.Register.Renderer(func(ctx converter.Context, w converter.Writer, n *html.Node) converter.RenderStatus {
+		if !isIconElement(n) {
+			return converter.RenderTryNext
+		}
+		if _, ok := dom.GetAttribute(n, iconPlaceholderAttr); !ok {
+			return converter.RenderTryNext
+		}
+		attrs := n.Attr[:0:0]
+		for _, attr := range n.Attr {
+			if attr.Key != iconPlaceholderAttr {
+				attrs = append(attrs, attr)
+			}
+		}
+		w.WriteString(openTag(&html.Node{Data: n.Data, Attr: attrs}) + "</span>")
+		return converter.RenderSuccess
+	}, converter.PriorityEarly-10)
 	// 公式节点输出为 $…$ / $$…$$；需先于下方「带属性的 span 原样保留」处理
 	conv.Register.Renderer(func(ctx converter.Context, w converter.Writer, n *html.Node) converter.RenderStatus {
 		if !isMathElement(n) {
@@ -328,6 +351,10 @@ func parseContent(content, format string) (string, error) {
 		}
 		if result, err = convertComponentFences(result); err != nil {
 			return "", fmt.Errorf("invalid component: %w (call get_writing_guide for the component list and props schemas)", err)
+		}
+		result = normalizeIconTags(result)
+		if err = validateIcons(result); err != nil {
+			return "", fmt.Errorf("invalid icon: %w (call get_writing_guide for the icon syntax)", err)
 		}
 	}
 	if strings.TrimSpace(result) == "" {

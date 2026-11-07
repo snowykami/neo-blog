@@ -33,6 +33,7 @@ import { calculateReadingTime, countWords } from '@/utils/common/post'
 import { renderContentHtml } from '@/utils/server/render-content'
 import '@/app/styles/content-themes/index.scss'
 import '@/components/tiptap-node/image-node/image-figure.scss'
+import '@/components/tiptap-node/inline-icon-node/inline-icon.scss'
 // 公式样式（约 4 KB）；KaTeX 字体只在页面用到公式时才下载
 import 'katex/dist/katex.min.css'
 
@@ -164,7 +165,7 @@ function CommentsSkeleton() {
 
 export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?: boolean }) {
   const content = (isDraft ? post.draftContent : post.content) || ''
-  const { html, headings } = renderContentHtml(content || '<h1>No Content</h1>')
+  const { html, headings } = await renderContentHtml(content || '<h1>No Content</h1>')
   return (
     <>
       {/* 顶栏灵动岛的阅读进度与迷你目录 */}

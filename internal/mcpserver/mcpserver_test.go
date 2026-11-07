@@ -330,7 +330,7 @@ func TestWritingGuide(t *testing.T) {
 		t.Fatal(err)
 	}
 	guide := result.Content[0].(*mcp.TextContent).Text
-	for _, want := range []string{"## 站点写作风格", "多用短句", "## 作者的语言习惯", "常用「其实」开头。", "## 去掉 AI 腔", "## 平台格式", "data-annotation", "```component:callout", "- codeTabs：", "props："} {
+	for _, want := range []string{"## 站点写作风格", "多用短句", "## 作者的语言习惯", "常用「其实」开头。", "## 去掉 AI 腔", "## 平台格式", "data-annotation", `<span data-icon="图标名"></span>`, "```component:callout", "- codeTabs：", "props："} {
 		if !strings.Contains(guide, want) {
 			t.Errorf("guide missing %q", want)
 		}

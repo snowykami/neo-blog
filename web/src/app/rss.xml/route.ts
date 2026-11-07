@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import RSS from 'rss'
 import { getRssData } from '@/api/misc'
+import { renderInlineIconsHtml } from '@/lib/inline-icon/icon'
 import { getPostUrl } from '@/utils/common/route'
 import { formatDisplayName } from '@/utils/common/username'
 import { renderMathHtml } from '@/utils/server/render-math'
@@ -34,12 +35,13 @@ export async function GET() {
     generator: 'Next.js with rss',
   })
 
-  rssData.posts.forEach((post) => {
+  // 订阅源同样输出净化后的正文
+  // 公式输出为 MathML、行内图标输出为带 1em 宽高的 SVG：阅读器不加载站点样式也能正常显示（不支持 SVG 的阅读器里图标不显示）
+  const descriptions = await Promise.all(rssData.posts.map(post => renderInlineIconsHtml(renderMathHtml(sanitizeContentHtml(post.content), 'mathml'))))
+  rssData.posts.forEach((post, index) => {
     rss.item({
       title: post.title,
-      // 订阅源同样输出净化后的正文
-      // 公式输出为 MathML：阅读器不加载 KaTeX 样式也能显示
-      description: renderMathHtml(sanitizeContentHtml(post.content), 'mathml'),
+      description: descriptions[index],
       url: rssData.siteUrl + getPostUrl({ post }),
       guid: post.slug || post.id.toString(),
       date: post.updatedAt,

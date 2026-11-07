@@ -26,6 +26,7 @@ import { ComponentBlock } from '@/components/tiptap-node/component-block-node'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-extension'
 import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
+import { InlineIcon } from '@/components/tiptap-node/inline-icon-node'
 import { createMathExtensions, skipInOpenMath } from '@/components/tiptap-node/math-node'
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
 
@@ -45,6 +46,8 @@ export interface ContentExtensionsOptions {
   onOpenAI?: () => void
   // 打开公式编辑弹层（点击公式、插入公式后）；pos 为公式节点的位置
   onEditMath?: (pos: number) => void
+  // 打开图标选择器更换图标（点击图标、选中图标后按 Enter）；pos 为图标节点的位置
+  onEditIcon?: (pos: number) => void
 }
 
 /**
@@ -52,7 +55,7 @@ export interface ContentExtensionsOptions {
  * 输出的 HTML 结构（图片 figure、注释 span、分割线等）需与前台渲染保持一致，修改时注意兼容旧内容
  */
 export function createContentExtensions(options: ContentExtensionsOptions): AnyExtension[] {
-  const { upload, placeholder, getSlashItems, onOpenLink, onOpenAnnotation, onOpenAI, onEditMath } = options
+  const { upload, placeholder, getSlashItems, onOpenLink, onOpenAnnotation, onOpenAI, onEditMath, onEditIcon } = options
   return [
     StarterKit.configure({
       horizontalRule: false,
@@ -100,6 +103,8 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
     ComponentBlock,
     // 数学公式（LaTeX）：行内 $…$、独立成块 $$…$$，用 KaTeX 渲染
     ...createMathExtensions(onEditMath),
+    // 行内图标（lucide）：只保存图标名，大小与颜色跟随文字
+    InlineIcon.configure({ onEdit: onEditIcon }),
     ImageUploadNode.configure({
       accept: 'image/*',
       maxSize: MAX_FILE_SIZE,

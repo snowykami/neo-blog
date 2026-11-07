@@ -1,0 +1,39 @@
+/* 行内图标（见 lib/inline-icon/icon.ts）：前台正文、本地预览与编辑器共用。大小与颜色跟随所在文字 */
+span[data-icon] {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  // 图标的视觉中心与小写字母的中部对齐
+  vertical-align: -0.125em;
+  line-height: 1;
+
+  > svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// 标题与加粗的文字字重更大，图标笔画随之加粗
+:is(h1, h2, h3, h4, h5, h6, strong, b) span[data-icon] > svg {
+  stroke-width: 2.5;
+}
+
+// 前台与预览：未知的图标名不显示（编辑器的节点视图带 contenteditable，显示占位图标，见 inline-icon-extension.ts）
+span[data-icon]:empty:not([contenteditable]) {
+  display: none;
+}
+
+.ProseMirror span[data-icon] {
+  cursor: pointer;
+  border-radius: 0.125em;
+
+  &.is-unknown {
+    opacity: 0.45;
+  }
+
+  &.ProseMirror-selectednode {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+  }
+}

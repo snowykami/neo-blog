@@ -9,6 +9,7 @@ import { ContentFontLinks } from '@/components/blog-post/content-font-links'
 import { ContentHdrText } from '@/components/blog-post/content-hdr-text'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
+import { ContentInlineIcons } from '@/components/blog-post/content-inline-icons'
 import { SafeImage } from '@/components/common/safe-image'
 import { ComponentIslands } from '@/components/content-components/component-islands'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -18,6 +19,7 @@ import { contentWebFonts, resolveContentTheme } from '@/lib/content-theme'
 import { renderMathInHtml } from '@/lib/math/latex'
 import '@/app/styles/content-themes/index.scss'
 import '@/components/tiptap-node/image-node/image-figure.scss'
+import '@/components/tiptap-node/inline-icon-node/inline-icon.scss'
 
 const CONTAINER_ID = 'page-preview-content'
 
@@ -72,6 +74,7 @@ export function PagePreviewDialog({
               <ComponentIslands containerId={CONTAINER_ID} />
               <ContentHoverCard containerId={CONTAINER_ID} />
               <ContentImageFallback containerId={CONTAINER_ID} />
+              <ContentInlineIcons containerId={CONTAINER_ID} />
               <ContentHdrText containerId={CONTAINER_ID} />
             </>
           )}

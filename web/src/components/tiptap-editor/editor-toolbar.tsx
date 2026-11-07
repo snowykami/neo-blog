@@ -5,7 +5,7 @@ import type { InlineMarkId } from './editor-commands'
 import type { EditorMenuEntry } from './editor-menus'
 import type { AIWriterOpenOptions } from './use-ai-writer'
 import type { EditorToolbarState } from './use-editor-toolbar-state'
-import { BaselineIcon, EllipsisIcon, LinkIcon, MessageSquareTextIcon, Redo2Icon, RemoveFormattingIcon, Undo2Icon } from 'lucide-react'
+import { BaselineIcon, EllipsisIcon, LinkIcon, MessageSquareTextIcon, Redo2Icon, RemoveFormattingIcon, ShapesIcon, Undo2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { ColorPopover } from '@/components/tiptap-custom/color-selector-popover'
@@ -38,6 +38,8 @@ export interface EditorToolbarActions {
   openAnnotation: () => void
   openAI: (options?: AIWriterOpenOptions) => void
   openComponentLibrary: () => void
+  // 打开图标选择器，在光标处插入
+  openIconPicker: () => void
 }
 
 /** 标记按钮组（粗体、斜体……），工具栏与气泡菜单共用 */
@@ -185,7 +187,19 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
       ],
     },
     { id: 'align', label: t('align'), content: <AlignMenu editor={editor} state={state} />, overflow: () => getAlignEntries(editor, t, state) },
-    { id: 'insert', label: t('insert'), content: <InsertMenu editor={editor} state={state} onOpenLibrary={actions.openComponentLibrary} />, overflow: () => getInsertMenuEntries(editor, t, ct, state, actions.openComponentLibrary) },
+    {
+      id: 'insert',
+      label: t('insert'),
+      content: (
+        <>
+          <InsertMenu editor={editor} state={state} onOpenLibrary={actions.openComponentLibrary} onOpenIconPicker={actions.openIconPicker} />
+          <EditorToolbarButton label={t('icon.insert')} disabled={!state.editable || !editor.can().insertInlineIcon('shapes')} onClick={actions.openIconPicker}>
+            <ShapesIcon />
+          </EditorToolbarButton>
+        </>
+      ),
+      overflow: () => getInsertMenuEntries(editor, t, ct, state, actions.openComponentLibrary, actions.openIconPicker),
+    },
     {
       id: 'ai',
       label: t('ai.open'),

@@ -55,7 +55,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useAIPrompts } from './ai-prompts-context'
 import { formatShortcut, INLINE_MARKS, setBlockType } from './editor-commands'
-import { getAIEntries, getBlockTypeEntries, getComponentLibraryEntry, getInsertEntries, getTableEntries } from './editor-menus'
+import { getAIEntries, getBlockTypeEntries, getComponentLibraryEntry, getIconEntry, getInsertEntries, getTableEntries } from './editor-menus'
 import { markEntry } from './editor-toolbar'
 import { useEditorToolbarState } from './use-editor-toolbar-state'
 
@@ -441,6 +441,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
         ...tableGroup(),
         { type: 'label', key: 'label-insert', label: t('insert') },
         ...getInsertEntries(editor, t, state, withFloating(() => setPicker({ mode: 'insert' }))),
+        getIconEntry(editor, t, state, withFloating(actions.openIconPicker)),
         getComponentLibraryEntry(ct, state, withFloating(actions.openComponentLibrary)),
         { type: 'separator', key: 'sep-insert' },
         turnInto(),

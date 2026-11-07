@@ -10,6 +10,7 @@ import { useFormatter, useTranslations } from 'next-intl'
 import * as React from 'react'
 import { toast } from 'sonner'
 import { getRevision, listRevisions } from '@/api/revision'
+import { ContentInlineIcons } from '@/components/blog-post/content-inline-icons'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -33,6 +34,7 @@ const KIND_BADGE: Record<RevisionKind, string> = {
 
 // 每次加载的版本数（接口上限）；默认保留上限内的版本一次即可加载完
 const PAGE_SIZE = 100
+const PREVIEW_ID = 'revision-preview-content'
 
 /** 用编辑器的 schema 重新解析版本正文：只保留编辑器认识的节点与属性，样式与编辑器一致 */
 function sanitizeContent(schema: Schema, html: string) {
@@ -331,10 +333,12 @@ export function EditorRevisionSheet({ open, onOpenChange, target, docId, schema,
                   <h2 className="text-2xl font-bold">{detail.meta.title || detail.title}</h2>
                   {detail.meta.description && <p className="text-sm text-muted-foreground">{detail.meta.description}</p>}
                   <div
+                    id={PREVIEW_ID}
                     className="neo-editor-content prose max-w-none dark:prose-invert"
                     // 正文已按编辑器 schema 重新解析，只包含编辑器认识的节点与属性
                     dangerouslySetInnerHTML={{ __html: previewHtml }}
                   />
+                  <ContentInlineIcons containerId={PREVIEW_ID} />
                 </article>
               )}
             </div>

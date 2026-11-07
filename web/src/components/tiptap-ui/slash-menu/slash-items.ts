@@ -1,6 +1,6 @@
 import type { BlockTypeId } from '@/components/tiptap-editor/editor-commands'
 import type { SlashCommandItem } from '@/components/tiptap-extension/slash-command-extension'
-import { CalendarIcon, ImageIcon, MinusIcon, PuzzleIcon, SigmaIcon, SparklesIcon, SquareSigmaIcon, TableIcon } from 'lucide-react'
+import { CalendarIcon, ImageIcon, MinusIcon, PuzzleIcon, ShapesIcon, SigmaIcon, SparklesIcon, SquareSigmaIcon, TableIcon } from 'lucide-react'
 import { CONTENT_COMPONENTS } from '@/components/content-components/registry'
 import { getBlockTypeDef, setBlockType } from '@/components/tiptap-editor/editor-commands'
 
@@ -10,7 +10,7 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
 type SlashGroup = 'ai' | 'basic' | 'list' | 'media' | 'other'
 
 interface SlashItemDef {
-  id: BlockTypeId | 'ai' | 'image' | 'table' | 'hr' | 'date' | 'blockMath' | 'inlineMath'
+  id: BlockTypeId | 'ai' | 'image' | 'table' | 'hr' | 'date' | 'blockMath' | 'inlineMath' | 'icon'
   group: SlashGroup
   // 中文 / 拼音 / 英文别名
   keywords: string[]
@@ -32,6 +32,7 @@ const SLASH_ITEM_DEFS: SlashItemDef[] = [
   { group: 'list', id: 'taskList', keywords: ['todo', 'task', 'check', 'renwu', 'rw', 'daiban', 'db', '待办', '任务', '清单', 'liebiao', '列表'] },
   { group: 'media', id: 'image', keywords: ['img', 'image', 'picture', 'photo', 'tupian', 'tp', 'zhaopian', '图片', '照片', '上传'] },
   { group: 'media', id: 'table', keywords: ['table', 'grid', 'biaoge', 'bg', '表格'] },
+  { group: 'media', id: 'icon', keywords: ['icon', 'icons', 'lucide', 'symbol', 'emoji', 'tubiao', 'tb', 'fuhao', '图标', '符号', '表情'] },
   { group: 'other', id: 'hr', keywords: ['hr', 'divider', 'line', 'separator', 'fengexian', 'fgx', 'fenge', '分割线', '---'] },
   { group: 'other', id: 'date', keywords: ['date', 'today', 'riqi', 'rq', 'jintian', '日期', '今天'] },
 ]
@@ -74,8 +75,9 @@ function buildComponentItems(t: Translate, ct: Translate, openLibrary: () => voi
  * @param formatDate 插入“今天的日期”时的格式化函数
  * @param openAI 打开 AI 帮写面板
  * @param openLibrary 打开组件库
+ * @param openIconPicker 打开图标选择器（在光标处插入）
  */
-export function buildSlashItems(t: Translate, ct: Translate, formatDate: (date: Date) => string, openAI: () => void, openLibrary: () => void): SlashCommandItem[] {
+export function buildSlashItems(t: Translate, ct: Translate, formatDate: (date: Date) => string, openAI: () => void, openLibrary: () => void, openIconPicker: () => void): SlashCommandItem[] {
   const items = SLASH_ITEM_DEFS.map((def): SlashCommandItem => {
     const base = {
       id: def.id,
@@ -112,6 +114,17 @@ export function buildSlashItems(t: Translate, ct: Translate, formatDate: (date: 
           // 沿用现有上传流程：插入图片上传块
           run: (editor, range) => {
             editor.chain().focus().deleteRange(range).insertContent({ type: 'imageUpload' }).run()
+          },
+        }
+      case 'icon':
+        return {
+          ...base,
+          title: t('icon.insert'),
+          icon: ShapesIcon,
+          // 删除 “/query” 后在光标处打开图标选择器
+          run: (editor, range) => {
+            editor.chain().focus().deleteRange(range).run()
+            openIconPicker()
           },
         }
       case 'hr':

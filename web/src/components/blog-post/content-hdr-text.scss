@@ -14,3 +14,17 @@
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
+
+/* HDR 文字中的行内图标：没有文字可裁剪，改用图标自身的形状作遮罩露出 HDR 背景（遮罩由 content-hdr-text.tsx 按图标的 SVG 生成） */
+span[data-icon].content-hdr {
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  -webkit-mask: var(--content-hdr-mask) center / 100% 100% no-repeat;
+  mask: var(--content-hdr-mask) center / 100% 100% no-repeat;
+  padding-inline: 0;
+  margin-inline: 0;
+
+  > svg {
+    visibility: hidden;
+  }
+}

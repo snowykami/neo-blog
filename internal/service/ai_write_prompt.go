@@ -99,6 +99,8 @@ const aiPlatformFormatRules = "编辑器只认识下面这些写法，其他写�
 	"- 高亮 <mark>文字</mark>；需要指定颜色时写 <mark data-color=\"var(--color-yellow-200)\">文字</mark>。\n" +
 	"- 文字颜色 <span style=\"color: var(--color-red-500)\">文字</span>。\n" +
 	"- 颜色只能从 red、orange、amber、yellow、green、teal、blue、indigo、purple、pink 中选，高亮用 -200 的浅色，文字用 -500。\n" +
+	"- 行内图标 <span data-icon=\"图标名\"></span>：图标名取 Lucide 图标库（https://lucide.dev/icons）的英文名，如 rocket、circle-check、triangle-alert、lightbulb；标签里不写文字。" +
+	"图标的大小和颜色跟随所在的文字：放进标题就和标题一样大，包在文字颜色、粗体等标签里就跟着变色、加粗。图标只作点缀，用在列表项或小标题开头、提示语前等少数地方，不要用图标代替文字。\n" +
 	"- 任务列表 - [ ] 待办 / - [x] 已完成；表格用 Markdown 表格。\n" +
 	"- 数学公式用 LaTeX：行内写成 $公式$（$ 与公式之间不留空格）；独立成行的公式单独写成一段 $$公式$$，多行公式写成单独一行的 $$、公式、单独一行的 $$；表示金额等的普通美元符号写成 \\$。\n" +
 	"- HTML 标签的属性值一律用英文双引号。\n"

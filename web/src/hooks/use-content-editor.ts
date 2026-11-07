@@ -233,6 +233,9 @@ export interface EditorUiActions {
   openAI?: (options?: AIWriterOpenOptions) => void
   openComponentLibrary?: () => void
   editMath?: (pos: number) => void
+  // 打开图标选择器在光标处插入；editIcon 为更换 pos 处的图标
+  openIconPicker?: () => void
+  editIcon?: (pos: number) => void
 }
 
 /**
@@ -296,7 +299,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const latestRef = useRef({ t, format, uploadImage })
   latestRef.current = { t, format, uploadImage }
   const slashItems = useMemo(
-    () => buildSlashItems(t, componentT, date => format.dateTime(date, { dateStyle: 'long' }), () => uiActionsRef.current.openAI?.({ mode: 'write' }), () => uiActionsRef.current.openComponentLibrary?.()),
+    () => buildSlashItems(t, componentT, date => format.dateTime(date, { dateStyle: 'long' }), () => uiActionsRef.current.openAI?.({ mode: 'write' }), () => uiActionsRef.current.openComponentLibrary?.(), () => uiActionsRef.current.openIconPicker?.()),
     [t, componentT, format],
   )
   const slashItemsRef = useRef(slashItems)
@@ -312,6 +315,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     onOpenAnnotation: () => uiActionsRef.current.openAnnotation?.(),
     onOpenAI: () => uiActionsRef.current.openAI?.(),
     onEditMath: pos => uiActionsRef.current.editMath?.(pos),
+    onEditIcon: pos => uiActionsRef.current.editIcon?.(pos),
   }), [])
 
   const editor = useEditor({
