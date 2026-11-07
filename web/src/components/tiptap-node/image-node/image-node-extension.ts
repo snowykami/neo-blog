@@ -1,9 +1,9 @@
 import type { ImageOptions } from '@tiptap/extension-image'
 import { Image as TiptapImage } from '@tiptap/extension-image'
 import { mergeAttributes, ReactNodeViewRenderer } from '@tiptap/react'
+import { parseMediaWidthPreset } from '../media-width'
 import { IMAGE_CAPTION_ATTR, IMAGE_FIGURE_CLASS, IMAGE_TOOLBAR_ATTR } from './image-node-constants'
 import { ImageNodeView } from './image-node-view'
-import { parseImageWidthPreset } from './image-width'
 
 export const Image = TiptapImage.extend<ImageOptions>({
   addAttributes() {
@@ -12,10 +12,10 @@ export const Image = TiptapImage.extend<ImageOptions>({
       'data-align': {
         default: null,
       },
-      // 宽度预设（占正文宽度的百分比，见 image-width.ts）；不是预设值时丢弃
+      // 宽度预设（占正文宽度的百分比，见 media-width.ts）；不是预设值时丢弃
       'data-width': {
         default: null,
-        parseHTML: element => parseImageWidthPreset(element.getAttribute('data-width')),
+        parseHTML: element => parseMediaWidthPreset(element.getAttribute('data-width')),
       },
       'caption': {
         default: null,
@@ -45,7 +45,7 @@ export const Image = TiptapImage.extend<ImageOptions>({
             'width': toNumber(img.getAttribute('width')),
             'height': toNumber(img.getAttribute('height')),
             'data-align': element.getAttribute('data-align') || img.getAttribute('data-align'),
-            'data-width': parseImageWidthPreset(element.getAttribute('data-width') || img.getAttribute('data-width')),
+            'data-width': parseMediaWidthPreset(element.getAttribute('data-width') || img.getAttribute('data-width')),
           }
         },
       },

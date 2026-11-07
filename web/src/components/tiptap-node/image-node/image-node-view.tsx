@@ -1,5 +1,5 @@
 import type { Editor, NodeViewProps } from '@tiptap/react'
-import type { ImageWidthPreset } from './image-width'
+import type { MediaWidthPreset } from '../media-width'
 import { NodeViewWrapper } from '@tiptap/react'
 import { Loader2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -8,9 +8,9 @@ import * as React from 'react'
 import { ImagePlaceholder } from '@/components/common/safe-image'
 import { useCompositionInput } from '@/hooks/use-composition-input'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { MEDIA_WIDTH_PERCENT, mediaWidthAttrs, parseMediaWidthPreset } from '../media-width'
 import { IMAGE_CAPTION_ATTR } from './image-node-constants'
 import { ImageNodeToolbar } from './image-node-toolbar'
-import { IMAGE_WIDTH_PERCENT, imageWidthAttrs, parseImageWidthPreset } from './image-width'
 import './image-node-view.scss'
 
 export interface ResizeParams {
@@ -29,7 +29,7 @@ export interface ResizableImageProps extends React.HTMLAttributes<HTMLDivElement
   align?: 'left' | 'center' | 'right'
   initialWidth?: number
   // 宽度预设（占正文宽度的百分比）；设置时忽略像素宽度，拖动调整后改回像素宽度
-  widthPreset?: ImageWidthPreset | null
+  widthPreset?: MediaWidthPreset | null
   onImageResize?: (width?: number) => void
   caption?: string | null
   selected?: boolean
@@ -78,7 +78,7 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   useEffect(() => {
     setWidth(initialWidth)
     if (wrapperRef.current)
-      wrapperRef.current.style.width = widthPreset ? IMAGE_WIDTH_PERCENT[widthPreset] : initialWidth ? `${initialWidth}px` : 'fit-content'
+      wrapperRef.current.style.width = widthPreset ? MEDIA_WIDTH_PERCENT[widthPreset] : initialWidth ? `${initialWidth}px` : 'fit-content'
   }, [initialWidth, widthPreset])
 
   // 使用 PointerEvent 支持触摸与鼠标
@@ -327,7 +327,7 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
         className="tiptap-image-container"
         style={{
           // 拖动调整时按像素跟随，松手后再写回节点属性
-          width: widthPreset && !resizeParams ? IMAGE_WIDTH_PERCENT[widthPreset] : width ? `${width}px` : 'fit-content',
+          width: widthPreset && !resizeParams ? MEDIA_WIDTH_PERCENT[widthPreset] : width ? `${width}px` : 'fit-content',
         }}
       >
         <div className="tiptap-image-content">
@@ -418,8 +418,8 @@ export function ImageNodeView(props: NodeViewProps) {
           editor={editor}
           align={node.attrs['data-align'] || 'center'}
           onAlignChange={align => updateAttributes({ 'data-align': align })}
-          width={parseImageWidthPreset(node.attrs['data-width']) ?? (node.attrs.width ? 'custom' : null)}
-          onWidthChange={preset => updateAttributes(imageWidthAttrs(preset))}
+          width={parseMediaWidthPreset(node.attrs['data-width']) ?? (node.attrs.width ? 'custom' : null)}
+          onWidthChange={preset => updateAttributes({ ...mediaWidthAttrs(preset), width: null, height: null })}
           onReplace={(src, name) => updateAttributes({ src, alt: name, title: name })}
           onDelete={deleteNode}
         />
@@ -430,7 +430,7 @@ export function ImageNodeView(props: NodeViewProps) {
       // 未设置对齐时与前台渲染保持一致，默认居中
       align={node.attrs['data-align'] || 'center'}
       initialWidth={node.attrs.width}
-      widthPreset={parseImageWidthPreset(node.attrs['data-width'])}
+      widthPreset={parseMediaWidthPreset(node.attrs['data-width'])}
       onImageResize={width => updateAttributes({ 'width': width, 'data-width': null })}
       caption={node.attrs.caption}
       selected={selected}

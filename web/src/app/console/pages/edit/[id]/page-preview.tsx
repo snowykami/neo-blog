@@ -19,6 +19,7 @@ import { contentWebFonts, resolveContentTheme } from '@/lib/content-theme'
 import { renderMathInHtml } from '@/lib/math/latex'
 import '@/app/styles/content-themes/index.scss'
 import '@/components/tiptap-node/image-node/image-figure.scss'
+import '@/components/tiptap-node/video-node/video-figure.scss'
 import '@/components/tiptap-node/inline-icon-node/inline-icon.scss'
 
 const CONTAINER_ID = 'page-preview-content'

@@ -1,0 +1,89 @@
+/* 前台渲染视频：无注释时为 <video>，有注释时为 <figure class="video-figure"><video/><figcaption/></figure>
+ * 与图片（image-figure.scss）保持同一套对齐 / 宽度预设约定：data-align 控制左右留白，data-width 为占正文宽度的百分比 */
+.prose video:not([data-component-root] *) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  /* 竖屏视频不撑出一屏高，超出的部分由 object-fit 留黑边 */
+  max-height: min(80vh, 46rem);
+  margin: 1rem auto;
+  border-radius: 0.75rem;
+  background-color: #000;
+  object-fit: contain;
+}
+
+.prose video[data-align="left"] {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.prose video[data-align="right"] {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.prose figure.video-figure {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 1rem auto;
+
+  &[data-align="left"] {
+    margin-left: 0;
+    margin-right: auto;
+  }
+
+  &[data-align="right"] {
+    margin-left: auto;
+    margin-right: 0;
+  }
+
+  > video {
+    width: 100%;
+    margin: 0;
+  }
+
+  // 宽度已写在 figure 上，里面的播放器撑满 figure（优先级高于下面的预设规则）
+  &[data-width] > video {
+    width: 100%;
+  }
+
+  > figcaption {
+    margin-top: 0.5rem;
+    font-size: 0.875em;
+    line-height: 1.5;
+    color: var(--muted-foreground);
+    text-align: center;
+  }
+
+  &[data-align="left"] > figcaption {
+    text-align: left;
+  }
+
+  &[data-align="right"] > figcaption {
+    text-align: right;
+  }
+}
+
+/* 宽度预设：窄屏一律满宽，640px 起按预设（与图片一致） */
+.prose :is(video, figure.video-figure)[data-width] {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .prose :is(video, figure.video-figure)[data-width="33"] {
+    width: 33.333%;
+  }
+
+  .prose :is(video, figure.video-figure)[data-width="50"] {
+    width: 50%;
+  }
+
+  .prose :is(video, figure.video-figure)[data-width="61.8"] {
+    width: 61.8%;
+  }
+
+  .prose :is(video, figure.video-figure)[data-width="75"] {
+    width: 75%;
+  }
+}

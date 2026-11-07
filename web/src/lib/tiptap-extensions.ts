@@ -25,15 +25,16 @@ import { SlashCommand } from '@/components/tiptap-extension/slash-command-extens
 import { ComponentBlock } from '@/components/tiptap-node/component-block-node'
 import Image from '@/components/tiptap-node/image-node/image-node-extension'
 import { ImagePaste } from '@/components/tiptap-node/image-node/image-paste-extension'
-import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node'
 import { InlineIcon } from '@/components/tiptap-node/inline-icon-node'
 import { createMathExtensions, skipInOpenMath } from '@/components/tiptap-node/math-node'
-import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
+import { ImageUploadNode, VideoUploadNode } from '@/components/tiptap-node/upload-node'
+import Video from '@/components/tiptap-node/video-node/video-node-extension'
+import { MAX_FILE_SIZE, MAX_VIDEO_FILE_SIZE } from '@/lib/tiptap-utils'
 
 const lowlight = createLowlight(common)
 
 export interface ContentExtensionsOptions {
-  // 上传图片并返回地址，失败时返回空字符串（由调用方负责提示）
+  // 上传图片 / 视频并返回地址，失败时返回空字符串（由调用方负责提示）
   upload: (file: File) => Promise<string>
   // 空段落 / 空标题的占位文案
   placeholder: (props: { nodeName: string, level?: number }) => string
@@ -52,7 +53,7 @@ export interface ContentExtensionsOptions {
 
 /**
  * 文章与页面编辑器共用的扩展列表
- * 输出的 HTML 结构（图片 figure、注释 span、分割线等）需与前台渲染保持一致，修改时注意兼容旧内容
+ * 输出的 HTML 结构（图片 / 视频 figure、注释 span、分割线等）需与前台渲染保持一致，修改时注意兼容旧内容
  */
 export function createContentExtensions(options: ContentExtensionsOptions): AnyExtension[] {
   const { upload, placeholder, getSlashItems, onOpenLink, onOpenAnnotation, onOpenAI, onEditMath, onEditIcon } = options
@@ -80,6 +81,7 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
     TaskItem.configure({ nested: true }),
     Highlight.configure({ multicolor: true }),
     Image,
+    Video,
     Annotation,
     LinkAutoMatch,
     // 打开注释、链接等弹窗时保留选区高亮
@@ -109,6 +111,14 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
       accept: 'image/*',
       maxSize: MAX_FILE_SIZE,
       limit: 3,
+      upload,
+      onError: error => console.error('Upload failed:', error),
+    }),
+    // 视频体积大，一次上传一个，完成后插入 video 节点
+    VideoUploadNode.configure({
+      accept: 'video/*',
+      maxSize: MAX_VIDEO_FILE_SIZE,
+      limit: 1,
       upload,
       onError: error => console.error('Upload failed:', error),
     }),

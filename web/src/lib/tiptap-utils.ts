@@ -2,7 +2,9 @@ import type { Node as TiptapNode } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
 import { NodeSelection, Selection, TextSelection } from '@tiptap/pm/state'
 
-export const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+export const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB，单张图片上限
+// 单个视频上限；编辑与管理员的实际请求体上限由后端 MAX_REQUEST_BODY_SIZE 控制
+export const MAX_VIDEO_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
 export const MAC_SYMBOLS: Record<string, string> = {
   mod: '⌘',

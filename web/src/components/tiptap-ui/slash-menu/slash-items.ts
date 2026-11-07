@@ -1,6 +1,6 @@
 import type { BlockTypeId } from '@/components/tiptap-editor/editor-commands'
 import type { SlashCommandItem } from '@/components/tiptap-extension/slash-command-extension'
-import { CalendarIcon, ImageIcon, MinusIcon, PuzzleIcon, ShapesIcon, SigmaIcon, SparklesIcon, SquareSigmaIcon, TableIcon } from 'lucide-react'
+import { CalendarIcon, ImageIcon, MinusIcon, PuzzleIcon, ShapesIcon, SigmaIcon, SparklesIcon, SquareSigmaIcon, TableIcon, VideoIcon } from 'lucide-react'
 import { CONTENT_COMPONENTS } from '@/components/content-components/registry'
 import { getBlockTypeDef, setBlockType } from '@/components/tiptap-editor/editor-commands'
 
@@ -10,7 +10,7 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
 type SlashGroup = 'ai' | 'basic' | 'list' | 'media' | 'other'
 
 interface SlashItemDef {
-  id: BlockTypeId | 'ai' | 'image' | 'table' | 'hr' | 'date' | 'blockMath' | 'inlineMath' | 'icon'
+  id: BlockTypeId | 'ai' | 'image' | 'video' | 'table' | 'hr' | 'date' | 'blockMath' | 'inlineMath' | 'icon'
   group: SlashGroup
   // 中文 / 拼音 / 英文别名
   keywords: string[]
@@ -31,6 +31,7 @@ const SLASH_ITEM_DEFS: SlashItemDef[] = [
   { group: 'list', id: 'orderedList', keywords: ['ol', 'ordered', 'number', 'list', 'youxu', 'yx', 'bianhao', 'liebiao', '列表', '有序', '编号'] },
   { group: 'list', id: 'taskList', keywords: ['todo', 'task', 'check', 'renwu', 'rw', 'daiban', 'db', '待办', '任务', '清单', 'liebiao', '列表'] },
   { group: 'media', id: 'image', keywords: ['img', 'image', 'picture', 'photo', 'tupian', 'tp', 'zhaopian', '图片', '照片', '上传'] },
+  { group: 'media', id: 'video', keywords: ['video', 'movie', 'film', 'mp4', 'webm', 'shipin', 'sp', '视频', '录像', '上传'] },
   { group: 'media', id: 'table', keywords: ['table', 'grid', 'biaoge', 'bg', '表格'] },
   { group: 'media', id: 'icon', keywords: ['icon', 'icons', 'lucide', 'symbol', 'emoji', 'tubiao', 'tb', 'fuhao', '图标', '符号', '表情'] },
   { group: 'other', id: 'hr', keywords: ['hr', 'divider', 'line', 'separator', 'fengexian', 'fgx', 'fenge', '分割线', '---'] },
@@ -114,6 +115,16 @@ export function buildSlashItems(t: Translate, ct: Translate, formatDate: (date: 
           // 沿用现有上传流程：插入图片上传块
           run: (editor, range) => {
             editor.chain().focus().deleteRange(range).insertContent({ type: 'imageUpload' }).run()
+          },
+        }
+      case 'video':
+        return {
+          ...base,
+          title: t('insert_video'),
+          icon: VideoIcon,
+          // 与图片一致：先插入上传占位块，选择文件后上传并替换为视频节点
+          run: (editor, range) => {
+            editor.chain().focus().deleteRange(range).insertContent({ type: 'videoUpload' }).run()
           },
         }
       case 'icon':

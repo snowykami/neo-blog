@@ -284,20 +284,21 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const uiActionsRef = useRef<EditorUiActions>({})
 
   // ---------- 编辑器 ----------
-  const uploadImage = useCallback(async (file: File) => {
+  // 图片与视频共用一个上传入口，失败提示按媒体类型区分
+  const uploadMedia = useCallback(async (file: File) => {
     try {
       const res = await uploadFile({ file })
       return res.data.url
     }
     catch {
-      toast.error(postEditT('image_upload_failed'))
+      toast.error(postEditT(file.type.startsWith('video/') ? 'video_upload_failed' : 'image_upload_failed'))
       return ''
     }
   }, [postEditT])
 
   // 扩展只创建一次，文案与回调通过 ref 读取最新值
-  const latestRef = useRef({ t, format, uploadImage })
-  latestRef.current = { t, format, uploadImage }
+  const latestRef = useRef({ t, format, uploadMedia })
+  latestRef.current = { t, format, uploadMedia }
   const slashItems = useMemo(
     () => buildSlashItems(t, componentT, date => format.dateTime(date, { dateStyle: 'long' }), () => uiActionsRef.current.openAI?.({ mode: 'write' }), () => uiActionsRef.current.openComponentLibrary?.(), () => uiActionsRef.current.openIconPicker?.()),
     [t, componentT, format],
@@ -306,7 +307,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   slashItemsRef.current = slashItems
 
   const extensions = useMemo(() => createContentExtensions({
-    upload: file => latestRef.current.uploadImage(file),
+    upload: file => latestRef.current.uploadMedia(file),
     placeholder: ({ nodeName, level }) => nodeName === 'heading'
       ? latestRef.current.t('heading_placeholder', { level: level ?? 1 })
       : latestRef.current.t('body_placeholder'),

@@ -30,6 +30,7 @@ import {
   TableIcon,
   Trash2Icon,
   TypeIcon,
+  VideoIcon,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
@@ -183,7 +184,7 @@ export function getFontEntries(editor: Editor, t: Translate, state: EditorToolba
 const TABLE_DEFAULT = { rows: 3, cols: 3, withHeaderRow: true }
 
 /**
- * 插入类菜单项：图片、分割线、代码块、表格
+ * 插入类菜单项：图片、视频、分割线、代码块、表格
  * onPickImage 传入时图片改为从资产库选择后直接插入（右键菜单），否则插入图片上传块
  */
 export function getInsertEntries(editor: Editor, t: Translate, state: EditorToolbarState, onPickImage?: () => void): EditorMenuEntry[] {
@@ -197,6 +198,15 @@ export function getInsertEntries(editor: Editor, t: Translate, state: EditorTool
       disabled: !state.editable,
       // 沿用现有上传流程：插入图片上传块（本地上传 / 文件库选择）
       onSelect: () => (onPickImage ? onPickImage() : insertImage(editor)),
+    },
+    {
+      key: 'insert-video',
+      icon: VideoIcon,
+      label: t('insert_video'),
+      hint: t('insert_video_hint'),
+      disabled: !state.editable || !editor.can().insertContent({ type: 'videoUpload' }),
+      // 与图片一致：插入视频上传块（本地上传 / 文件库选择）
+      onSelect: () => editor.chain().focus().insertContent({ type: 'videoUpload' }).run(),
     },
     {
       key: 'insert-hr',

@@ -4,7 +4,7 @@ import { getSchema } from '@tiptap/react'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createContentExtensions } from '@/lib/tiptap-extensions'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
-import { imageWidthAttrs, parseImageWidthPreset } from './image-width'
+import { mediaWidthAttrs, parseMediaWidthPreset } from './media-width'
 
 let schema: Schema
 
@@ -21,18 +21,18 @@ function roundTrip(html: string): HTMLElement {
   return container
 }
 
-describe('图片宽度预设', () => {
+describe('媒体宽度预设', () => {
   it('只接受五个预设值', () => {
-    expect(['33', '50', '61.8', '75', '100'].map(parseImageWidthPreset)).toEqual(['33', '50', '61.8', '75', '100'])
-    expect([null, '', '42', '61', 61.8, '100%'].map(parseImageWidthPreset)).toEqual([null, null, null, null, '61.8', null])
+    expect(['33', '50', '61.8', '75', '100'].map(parseMediaWidthPreset)).toEqual(['33', '50', '61.8', '75', '100'])
+    expect([null, '', '42', '61', 61.8, '100%'].map(parseMediaWidthPreset)).toEqual([null, null, null, null, '61.8', null])
   })
 
-  it('选择预设时清除像素宽高，恢复原始尺寸时清除预设', () => {
-    expect(imageWidthAttrs('61.8')).toEqual({ 'data-width': '61.8', 'width': null, 'height': null })
-    expect(imageWidthAttrs(null)).toEqual({ 'data-width': null, 'width': null, 'height': null })
+  it('选择预设时写入 data-width，恢复原始尺寸时清空', () => {
+    expect(mediaWidthAttrs('61.8')).toEqual({ 'data-width': '61.8' })
+    expect(mediaWidthAttrs(null)).toEqual({ 'data-width': null })
   })
 
-  it('保存与读回：无注释时写在 img 上，有注释时同时写在 figure 上；非预设值丢弃', () => {
+  it('图片：无注释时写在 img 上，有注释时同时写在 figure 上；非预设值丢弃', () => {
     const plain = roundTrip('<img src="/a.png" data-width="61.8" data-align="left">').querySelector('img')!
     expect([plain.getAttribute('data-width'), plain.getAttribute('data-align')]).toEqual(['61.8', 'left'])
 

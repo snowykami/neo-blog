@@ -2,7 +2,7 @@
 
 import type { Editor } from '@tiptap/react'
 import type { useTranslations as UseTranslations } from 'next-intl'
-import type { ImageWidthPreset } from './image-width'
+import type { MediaWidthPreset } from '../media-width'
 import type { EditorMenuEntry } from '@/components/tiptap-editor/editor-menus'
 import { DownloadIcon, MoveHorizontalIcon, ReplaceIcon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -11,8 +11,8 @@ import { EditorMenuContent, EditorMenuEntries } from '@/components/tiptap-editor
 import { EditorToolbarButton, EditorToolbarSeparator, EditorTooltip } from '@/components/tiptap-editor/editor-toolbar-button'
 import { downloadSelectedImage } from '@/components/tiptap-ui/image-download-button/use-image-download'
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { MEDIA_WIDTH_PRESETS } from '../media-width'
 import { IMAGE_TOOLBAR_ATTR } from './image-node-constants'
-import { IMAGE_WIDTH_PRESETS } from './image-width'
 
 export type ImageAlign = 'left' | 'center' | 'right'
 
@@ -23,12 +23,12 @@ const ALIGNS: { id: ImageAlign, icon: typeof TextAlignStartIcon }[] = [
 ]
 
 // 当前宽度：预设、拖动得到的像素宽度（custom）或原始尺寸（null）
-export type ImageWidthValue = ImageWidthPreset | 'custom' | null
+export type ImageWidthValue = MediaWidthPreset | 'custom' | null
 
 /** 宽度菜单项（图片浮动工具栏与右键菜单共用）：五个预设与原始尺寸，当前项打勾 */
-export function getImageWidthEntries(t: ReturnType<typeof UseTranslations>, current: ImageWidthValue, onSelect: (preset: ImageWidthPreset | null) => void): EditorMenuEntry[] {
+export function getImageWidthEntries(t: ReturnType<typeof UseTranslations>, current: ImageWidthValue, onSelect: (preset: MediaWidthPreset | null) => void): EditorMenuEntry[] {
   return [
-    ...IMAGE_WIDTH_PRESETS.map(preset => ({
+    ...MEDIA_WIDTH_PRESETS.map(preset => ({
       key: `image-width-${preset}`,
       label: t(`image_width_${preset.replace('.', '_')}`),
       hint: `${preset}%`,
@@ -45,7 +45,7 @@ export interface ImageNodeToolbarProps {
   align: ImageAlign
   onAlignChange: (align: ImageAlign) => void
   width: ImageWidthValue
-  onWidthChange: (preset: ImageWidthPreset | null) => void
+  onWidthChange: (preset: MediaWidthPreset | null) => void
   onReplace: (src: string, name: string) => void
   onDelete: () => void
 }

@@ -3,7 +3,8 @@ import DOMPurify from 'isomorphic-dompurify'
 /**
  * 文章 / 页面正文 HTML 净化（服务端渲染时调用）
  * - 正文由 editor / admin 通过 Tiptap 编辑器产出，但存储内容不可信（可绕过编辑器直接调接口写入）
- * - 保留编辑器合法产出：class、style、data-*（图片对齐/说明、注释、自动匹配等）、图片、figure、表格、代码块与高亮 span、任务列表等
+ * - 保留编辑器合法产出：class、style、data-*（图片对齐/说明、注释、自动匹配等）、图片、视频、figure、表格、代码块与高亮 span、任务列表等
+ * - 编辑器产出的视频是 <video controls>（有无注释分别为 <video> 与 <figure class="video-figure">），不要把它加进 FORBID_TAGS
  * - 移除 script、事件处理器（on*）、javascript: 等危险 URL；编辑器不产出 iframe / object / embed / form，一律移除
  * - 组件块占位 <div data-component data-props data-version> 依赖 ALLOW_DATA_ATTR 保留；props 只是 JSON 数据，
  *   由前台按组件注册表的 schema 校验后交给内置组件渲染，不会作为 HTML 或脚本执行

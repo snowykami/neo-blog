@@ -1,9 +1,10 @@
 'use client'
 
 import type { NodeViewProps } from '@tiptap/react'
+import type { UploadMediaType } from './upload-node-extension'
 import type { PickedAsset } from '@/components/common/asset-picker'
 import { NodeViewWrapper } from '@tiptap/react'
-import { CloudUploadIcon, FolderOpenIcon, ImageUpIcon, XIcon } from 'lucide-react'
+import { CloudUploadIcon, FolderOpenIcon, ImageUpIcon, VideoIcon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { AssetPicker } from '@/components/common/asset-picker'
@@ -40,8 +41,6 @@ export interface FileItem {
    */
   abortController?: AbortController
 }
-
-const DEFAULT_IMAGE_NAME = 'unknown'
 
 export interface UploadOptions {
   /**
@@ -208,12 +207,12 @@ function useFileUpload(options: UploadOptions) {
   }
 }
 
-interface ImageUploadDragAreaProps {
+interface UploadDragAreaProps {
   onFile: (files: File[]) => void
   children?: React.ReactNode
 }
 
-const ImageUploadDragArea: React.FC<ImageUploadDragAreaProps> = ({ onFile, children }) => {
+const UploadDragArea: React.FC<UploadDragAreaProps> = ({ onFile, children }) => {
   const [isDragOver, setIsDragOver] = React.useState(false)
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -252,7 +251,7 @@ const ImageUploadDragArea: React.FC<ImageUploadDragAreaProps> = ({ onFile, child
   )
 }
 
-interface ImageUploadPreviewProps {
+interface UploadPreviewProps {
   fileItem: FileItem
   onRemove: () => void
 }
@@ -267,7 +266,7 @@ function formatFileSize(bytes: number) {
 }
 
 /** 上传中的文件：文件名、大小与进度条 */
-const ImageUploadPreview: React.FC<ImageUploadPreviewProps> = ({ fileItem, onRemove }) => {
+const UploadPreview: React.FC<UploadPreviewProps> = ({ fileItem, onRemove }) => {
   const t = useTranslations('Console.editor')
   return (
     <div className="relative overflow-hidden rounded-xl border bg-card">
@@ -307,25 +306,29 @@ const ImageUploadPreview: React.FC<ImageUploadPreviewProps> = ({ fileItem, onRem
   )
 }
 
-const DropZoneContent: React.FC<{ maxSize: number, limit: number }> = ({ maxSize, limit }) => {
+const DropZoneContent: React.FC<{ mediaType: UploadMediaType, maxSize: number, limit: number }> = ({ mediaType, maxSize, limit }) => {
   const t = useTranslations('Console.editor')
+  const video = mediaType === 'video'
+  const Icon = video ? VideoIcon : ImageUpIcon
   return (
     <>
       <span className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary">
-        <ImageUpIcon className="size-5" />
+        <Icon className="size-5" />
       </span>
-      <span className="text-sm text-foreground/85">{t('upload_dropzone')}</span>
-      <span className="text-xs text-muted-foreground">{t('upload_limit', { count: limit, size: maxSize / 1024 / 1024 })}</span>
+      <span className="text-sm text-foreground/85">{t(video ? 'upload_dropzone_video' : 'upload_dropzone')}</span>
+      <span className="text-xs text-muted-foreground">{t(video ? 'upload_limit_video' : 'upload_limit', { count: limit, size: maxSize / 1024 / 1024 })}</span>
     </>
   )
 }
 
-export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
+export const UploadNode: React.FC<NodeViewProps> = (props) => {
   const { accept, limit, maxSize } = props.node.attrs
   const t = useTranslations('AssetPicker')
   const editorT = useTranslations('Console.editor')
   const inputRef = React.useRef<HTMLInputElement>(null)
   const extension = props.extension
+  const mediaType: UploadMediaType = extension.options.mediaType ?? 'image'
+  const video = mediaType === 'video'
 
   const uploadOptions: UploadOptions = {
     maxSize,
@@ -338,23 +341,19 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
 
   const { fileItems, uploadFiles, removeFileItem, clearAllFiles } = useFileUpload(uploadOptions)
 
-  const insertImages = (images: Array<{ url: string, name?: string }>) => {
-    if (images.length === 0) {
+  const insertMedia = (media: Array<{ url: string, name?: string }>) => {
+    if (media.length === 0) {
       return
     }
     const pos = props.getPos()
 
     if (isValidPosition(pos)) {
-      const imageNodes = images.map((image) => {
-        const filename = image.name?.replace(/\.[^/.]+$/, '') || DEFAULT_IMAGE_NAME
+      const nodes = media.map((item) => {
+        // 图片沿用文件名作为 alt / title，视频节点只有地址
+        const filename = item.name?.replace(/\.[^/.]+$/, '') || 'unknown'
         return {
           type: extension.options.type,
-          attrs: {
-            ...extension.options,
-            src: image.url,
-            alt: filename,
-            title: filename,
-          },
+          attrs: video ? { src: item.url } : { src: item.url, alt: filename, title: filename },
         }
       })
 
@@ -362,7 +361,7 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
         .chain()
         .focus()
         .deleteRange({ from: pos, to: pos + props.node.nodeSize })
-        .insertContentAt(pos, imageNodes)
+        .insertContentAt(pos, nodes)
         .run()
 
       focusNextNode(props.editor)
@@ -373,12 +372,12 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
     const urls = await uploadFiles(files)
 
     if (urls.length > 0) {
-      insertImages(urls.map((url, index) => ({ url, name: files[index]?.name })))
+      insertMedia(urls.map((url, index) => ({ url, name: files[index]?.name })))
     }
   }
 
   const handleAssetSelect = (assets: PickedAsset[]) => {
-    insertImages(assets.map(asset => ({ url: asset.url, name: asset.name })))
+    insertMedia(assets.map(asset => ({ url: asset.url, name: asset.name })))
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -400,10 +399,10 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
   const hasFiles = fileItems.length > 0
 
   return (
-    <NodeViewWrapper className="tiptap-image-upload my-6" tabIndex={0} onClick={handleClick}>
+    <NodeViewWrapper className="tiptap-upload my-6" tabIndex={0} onClick={handleClick}>
       {!hasFiles && (
-        <ImageUploadDragArea onFile={handleUpload}>
-          <DropZoneContent maxSize={maxSize} limit={limit} />
+        <UploadDragArea onFile={handleUpload}>
+          <DropZoneContent mediaType={mediaType} maxSize={maxSize} limit={limit} />
           {/* 弹层内的点击会沿 React 树冒泡到节点，阻止其触发本地文件选择 */}
           <div className="mt-1" onClick={e => e.stopPropagation()}>
             <AssetPicker accept={accept} multiple={limit > 1} max={limit} maxSize={maxSize} onSelect={handleAssetSelect}>
@@ -413,7 +412,7 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
               </Button>
             </AssetPicker>
           </div>
-        </ImageUploadDragArea>
+        </UploadDragArea>
       )}
 
       {hasFiles && (
@@ -435,7 +434,7 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
             </div>
           )}
           {fileItems.map(fileItem => (
-            <ImageUploadPreview
+            <UploadPreview
               key={fileItem.id}
               fileItem={fileItem}
               onRemove={() => removeFileItem(fileItem.id)}

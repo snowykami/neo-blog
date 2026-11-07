@@ -1,0 +1,98 @@
+.tiptap.ProseMirror {
+  /* ---------- 视频节点 ----------
+   * 与图片节点（image-node-view.scss / editor-content.scss）保持同一套外观：
+   * 对齐由 flex 控制，宽度预设写在容器行内样式上，注释与播放器左右外框对齐 */
+  .tiptap-video {
+    display: flex;
+    width: 100%;
+    margin: 1.75rem 0;
+
+    &[data-align="right"] {
+      text-align: right;
+      justify-content: flex-end;
+    }
+
+    &[data-align="center"] {
+      text-align: center;
+      justify-content: center;
+    }
+  }
+
+  // 选中视频时描边（播放器自身的点击交给浏览器，选中通过点击外框或方向键）
+  .ProseMirror-selectednode .tiptap-video .tiptap-video-container,
+  .ProseMirror-selectednode.tiptap-video .tiptap-video-container {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+    border-radius: 0.75rem;
+  }
+
+  .tiptap-video-container {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+
+    // 宽度预设：与前台一致，窄屏一律满宽（容器宽度由行内样式按预设写入）
+    @media (max-width: 639px) {
+      .tiptap-video[data-width-preset] & {
+        width: 100% !important;
+      }
+    }
+  }
+
+  .tiptap-video-media {
+    width: 100%;
+    max-height: 70vh;
+    margin: 0;
+    border-radius: 0.75rem;
+    background-color: #000;
+    object-fit: contain;
+  }
+
+  // 注释宽度为 0 + min-width: 100%，不参与容器宽度计算，始终与视频左右外框对齐
+  .tiptap-video-caption {
+    width: 0;
+    min-width: 100%;
+    margin-top: 0.6em;
+    padding: 2px 4px;
+    border: none;
+    outline: none;
+    border-radius: 6px;
+    background: transparent;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--muted-foreground);
+    text-align: left;
+    user-select: text;
+    cursor: text;
+    transition: background-color var(--dur-fast, 150ms);
+
+    &:hover,
+    &:focus {
+      background: var(--muted);
+    }
+
+    &::placeholder {
+      color: color-mix(in oklab, var(--foreground) 30%, transparent);
+    }
+  }
+
+  .tiptap-video[data-align="center"] .tiptap-video-caption {
+    text-align: center;
+  }
+
+  .tiptap-video[data-align="right"] .tiptap-video-caption {
+    text-align: right;
+  }
+
+  // 播放不了的地址：与图片占位块一样保留 16:9 的位置，并显示地址方便排查
+  .tiptap-video-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 0.75rem;
+    background-color: var(--muted);
+    color: var(--muted-foreground);
+  }
+}

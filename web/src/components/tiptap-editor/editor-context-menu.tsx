@@ -37,7 +37,7 @@ import * as React from 'react'
 import { toast } from 'sonner'
 import { AssetPicker } from '@/components/common/asset-picker'
 import { getImageWidthEntries } from '@/components/tiptap-node/image-node/image-node-toolbar'
-import { imageWidthAttrs, parseImageWidthPreset } from '@/components/tiptap-node/image-node/image-width'
+import { mediaWidthAttrs, parseMediaWidthPreset } from '@/components/tiptap-node/media-width'
 import { downloadSelectedImage } from '@/components/tiptap-ui/image-download-button/use-image-download'
 import { EDITOR_FLOATING_ATTR } from '@/components/tiptap-ui/link-popover/link-popover'
 import {
@@ -67,12 +67,13 @@ type ContextEntry
  * 右键位置的上下文：
  * - selection：在文字选区内右键
  * - cursor：光标处（可能位于表格内）
- * - image / codeBlock：在图片、代码块上右键
+ * - image / video / codeBlock：在图片、视频、代码块上右键
  */
 type MenuContext
   = | { type: 'selection' }
     | { type: 'cursor' }
     | { type: 'image', pos: number, node: PMNode }
+    | { type: 'video', pos: number, node: PMNode }
     | { type: 'codeBlock', pos: number, node: PMNode }
 
 // 代码块语言（lowlight common 中的名称），null 表示纯文本
@@ -103,6 +104,15 @@ const IMAGE_ALIGNS: { id: ImageAlign, icon: LucideIcon }[] = [
   { id: 'right', icon: TextAlignEndIcon },
 ]
 
+// 视频没有专门的下载图标按钮，直接触发浏览器的下载（同源文件带 Content-Disposition）
+function downloadVideo(src: string) {
+  const link = document.createElement('a')
+  link.href = src
+  link.download = ''
+  link.rel = 'noopener'
+  link.click()
+}
+
 function useCoarsePointer() {
   return React.useSyncExternalStore(
     () => () => {},
@@ -122,6 +132,8 @@ function resolveContext(editor: Editor, saved: Selection, point: { x: number, y:
     const node = state.doc.nodeAt(pos)
     if (node?.type.name === 'image')
       return { type: 'image', pos, node }
+    if (node?.type.name === 'video')
+      return { type: 'video', pos, node }
     return null
   }
   const codeContext = (pos: number): MenuContext | null => {
@@ -182,7 +194,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
   const state = useEditorToolbarState(editor)
   const coarsePointer = useCoarsePointer()
   const [context, setContext] = React.useState<MenuContext>({ type: 'cursor' })
-  const [picker, setPicker] = React.useState<{ mode: 'insert' } | { mode: 'replace', pos: number } | null>(null)
+  const [picker, setPicker] = React.useState<{ mode: 'insert' } | { mode: 'replace', pos: number, media: 'image' | 'video' } | null>(null)
   // 按下右键时的选区：浏览器与编辑器可能在 contextmenu 之前就改变了选区
   const savedSelectionRef = React.useRef<Selection | null>(null)
   // 键盘打开时派发的合成事件，按当前选区确定上下文
@@ -368,7 +380,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
       const src = String(node.attrs.src ?? '')
       const align = (node.attrs['data-align'] as ImageAlign | null) ?? 'center'
       entries.push(
-        { key: 'image-replace', icon: ReplaceIcon, label: t('context.image_replace'), onSelect: withFloating(() => setPicker({ mode: 'replace', pos })) },
+        { key: 'image-replace', icon: ReplaceIcon, label: t('context.image_replace'), onSelect: withFloating(() => setPicker({ mode: 'replace', pos, media: 'image' })) },
         {
           type: 'sub',
           key: 'image-align',
@@ -387,7 +399,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
           key: 'image-width',
           icon: MoveHorizontalIcon,
           label: t('image_width'),
-          entries: getImageWidthEntries(t, parseImageWidthPreset(node.attrs['data-width']) ?? (node.attrs.width ? 'custom' : null), preset => selectNode(pos).updateAttributes('image', imageWidthAttrs(preset)).run()),
+          entries: getImageWidthEntries(t, parseMediaWidthPreset(node.attrs['data-width']) ?? (node.attrs.width ? 'custom' : null), preset => selectNode(pos).updateAttributes('image', { ...mediaWidthAttrs(preset), width: null, height: null }).run()),
         },
         { key: 'image-copy-url', icon: LinkIcon, label: t('context.image_copy_url'), disabled: !src, onSelect: () => copyText(new URL(src, window.location.href).href) },
         { key: 'image-open', icon: ExternalLinkIcon, label: t('context.image_open'), disabled: !src, onSelect: () => window.open(src, '_blank', 'noopener,noreferrer') },
@@ -404,6 +416,40 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
         },
         { type: 'separator', key: 'sep-image' },
         { key: 'image-delete', icon: Trash2Icon, label: t('image_delete'), destructive: true, onSelect: () => selectNode(pos).deleteSelection().run() },
+      )
+      break
+    }
+    case 'video': {
+      const { pos, node } = context
+      const src = String(node.attrs.src ?? '')
+      const align = (node.attrs['data-align'] as ImageAlign | null) ?? 'center'
+      entries.push(
+        { key: 'video-replace', icon: ReplaceIcon, label: t('context.video_replace'), onSelect: withFloating(() => setPicker({ mode: 'replace', pos, media: 'video' })) },
+        {
+          type: 'sub',
+          key: 'video-align',
+          icon: TextAlignCenterIcon,
+          label: t('align'),
+          entries: IMAGE_ALIGNS.map(({ id, icon }) => ({
+            key: `video-align-${id}`,
+            icon,
+            label: t(`image_align_${id}`),
+            active: align === id,
+            onSelect: () => selectNode(pos).updateAttributes('video', { 'data-align': id }).run(),
+          })),
+        },
+        {
+          type: 'sub',
+          key: 'video-width',
+          icon: MoveHorizontalIcon,
+          label: t('image_width'),
+          entries: getImageWidthEntries(t, parseMediaWidthPreset(node.attrs['data-width']), preset => selectNode(pos).updateAttributes('video', mediaWidthAttrs(preset)).run()),
+        },
+        { key: 'video-copy-url', icon: LinkIcon, label: t('context.video_copy_url'), disabled: !src, onSelect: () => copyText(new URL(src, window.location.href).href) },
+        { key: 'video-open', icon: ExternalLinkIcon, label: t('context.video_open'), disabled: !src, onSelect: () => window.open(src, '_blank', 'noopener,noreferrer') },
+        { key: 'video-download', icon: DownloadIcon, label: t('video_download'), disabled: !src, onSelect: () => downloadVideo(src) },
+        { type: 'separator', key: 'sep-video' },
+        { key: 'video-delete', icon: Trash2Icon, label: t('video_delete'), destructive: true, onSelect: () => selectNode(pos).deleteSelection().run() },
       )
       break
     }
@@ -457,7 +503,9 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
     if (!asset || !current)
       return
     const name = asset.name.replace(/\.[^/.]+$/, '')
-    if (current.mode === 'replace')
+    if (current.mode === 'replace' && current.media === 'video')
+      selectNode(current.pos).updateAttributes('video', { src: asset.url }).run()
+    else if (current.mode === 'replace')
       selectNode(current.pos).updateAttributes('image', { src: asset.url, alt: name, title: name }).run()
     else
       editor.chain().focus().setImage({ src: asset.url, alt: name, title: name }).run()
@@ -494,7 +542,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
           if (!open)
             setPicker(null)
         }}
-        accept="image/*"
+        accept={picker?.mode === 'replace' && picker.media === 'video' ? 'video/*' : 'image/*'}
         onSelect={handlePicked}
       />
     </>
