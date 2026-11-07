@@ -4,6 +4,7 @@ import * as SheetPrimitive from '@radix-ui/react-dialog'
 import { XIcon } from 'lucide-react'
 import * as React from 'react'
 
+import { ignoreComposingEscape } from '@/lib/ime'
 import { cn } from '@/lib/utils'
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
@@ -42,6 +43,7 @@ function SheetContent({
   className,
   children,
   side = 'right',
+  onEscapeKeyDown,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: 'top' | 'right' | 'bottom' | 'left'
@@ -63,6 +65,7 @@ function SheetContent({
           && 'data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto border-t',
           className,
         )}
+        onEscapeKeyDown={ignoreComposingEscape(onEscapeKeyDown)}
         {...props}
       >
         {children}

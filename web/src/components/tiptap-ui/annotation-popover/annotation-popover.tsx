@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
+import { isComposingKey } from '@/lib/ime'
 
 export interface AnnotationPopoverProps {
   editor: Editor | null
@@ -103,7 +104,7 @@ export function AnnotationPopover({ editor, open, onOpenChange }: AnnotationPopo
           onChange={e => setNote(e.target.value)}
           onKeyDown={(event) => {
             // Ctrl/Cmd + Enter 应用，普通 Enter 换行
-            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !isComposingKey(event)) {
               event.preventDefault()
               apply()
             }

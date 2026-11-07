@@ -4,11 +4,12 @@ import type { LibraryNode } from './library-tree'
 import type { RegisteredContentComponent } from './types'
 import { ChevronRightIcon, FolderIcon, FolderOpenIcon, PlusIcon, SearchIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import { isComposingKey } from '@/lib/ime'
 import { cn } from '@/lib/utils'
 import { ContentComponentView } from './content-component-view'
 import { buildLibraryTree, filterLibraryTree, flattenLibraryTree } from './library-tree'
@@ -136,7 +137,9 @@ export function ComponentLibraryDialog({ open, onOpenChange, onInsert }: Compone
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
   const [selectedName, setSelectedName] = useState<string | null>(null)
 
-  const keyword = query.trim().toLowerCase()
+  // 过滤与预览跟随延后的关键字：新选中组件的预览要懒加载，同步渲染会挂起，
+  // 输入框的值迟迟提交不了，React 会先把输入框改回旧值，打断输入法组字（拼音中间态被写进去）
+  const keyword = useDeferredValue(query).trim().toLowerCase()
   const tree = useMemo(() => {
     if (!keyword)
       return FULL_TREE
@@ -178,7 +181,7 @@ export function ComponentLibraryDialog({ open, onOpenChange, onInsert }: Compone
             className="pl-9"
             onChange={e => setQuery(e.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && selected) {
+              if (event.key === 'Enter' && selected && !isComposingKey(event)) {
                 event.preventDefault()
                 insert(selected)
               }

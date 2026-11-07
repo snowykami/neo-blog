@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
+import { isComposingKey } from '@/lib/ime'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
 
@@ -57,7 +58,7 @@ export function NeteaseSongSearch({ value, onSelect }: { value: number, onSelect
           onChange={e => setQuery(e.target.value)}
           onKeyDown={(e) => {
             // 回车搜索，不提交属性表单
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+            if (e.key === 'Enter' && !isComposingKey(e)) {
               e.preventDefault()
               void search()
             }

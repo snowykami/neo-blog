@@ -10,6 +10,7 @@ import { getWeather, searchWeatherPlaces } from '@/api/weather'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
+import { isComposingKey } from '@/lib/ime'
 
 // 坐标保留两位小数（约 1 km），与后端缓存粒度一致，也避免保存过于精确的位置
 const roundCoordinate = (value: number) => Math.round(value * 100) / 100
@@ -89,7 +90,7 @@ export default function WeatherCardAction({ values, setValues }: ContentEditorAc
           onChange={e => setQuery(e.target.value)}
           onKeyDown={(e) => {
             // 回车搜索，不提交属性表单
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+            if (e.key === 'Enter' && !isComposingKey(e)) {
               e.preventDefault()
               void search()
             }

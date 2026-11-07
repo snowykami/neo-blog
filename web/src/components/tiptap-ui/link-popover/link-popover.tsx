@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
+import { isComposingKey } from '@/lib/ime'
 import { sanitizeUrl } from '@/lib/tiptap-utils'
 
 // 浮层标记：焦点位于带此属性的元素内时，气泡菜单不会因编辑器失焦而隐藏
@@ -144,7 +145,7 @@ export function LinkPopover({ editor, open, onOpenChange }: LinkPopoverProps) {
           autoComplete="off"
           onChange={e => setUrl(e.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+            if (event.key === 'Enter' && !isComposingKey(event)) {
               event.preventDefault()
               apply()
             }

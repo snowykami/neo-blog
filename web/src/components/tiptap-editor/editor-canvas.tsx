@@ -3,6 +3,7 @@
 import type { Editor } from '@tiptap/react'
 import { EditorContent } from '@tiptap/react'
 import * as React from 'react'
+import { isComposingKey } from '@/lib/ime'
 import { cn } from '@/lib/utils'
 import { EditorBlockHandle } from './editor-block-handle'
 
@@ -16,8 +17,6 @@ function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: st
     el.style.height = `${el.scrollHeight}px`
   }, [ref, value])
 }
-
-const isComposing = (event: React.KeyboardEvent) => event.nativeEvent.isComposing || event.keyCode === 229
 
 function focusEnd(el: HTMLTextAreaElement | null) {
   if (!el)
@@ -112,8 +111,11 @@ export function EditorCanvas({
         placeholder={titlePlaceholder}
         onChange={e => onTitleChange(e.target.value.replace(/\n/g, ' '))}
         onKeyDown={(event) => {
+          // 组字时的回车、方向键交给输入法（确认、切换候选词）
+          if (isComposingKey(event))
+            return
           const el = event.currentTarget
-          if ((event.key === 'Enter' && !isComposing(event)) || (event.key === 'ArrowDown' && el.selectionStart === el.value.length)) {
+          if (event.key === 'Enter' || (event.key === 'ArrowDown' && el.selectionStart === el.value.length)) {
             event.preventDefault()
             descRef.current?.focus()
           }
@@ -129,8 +131,10 @@ export function EditorCanvas({
         placeholder={descriptionPlaceholder}
         onChange={e => onDescriptionChange(e.target.value.replace(/\n/g, ' '))}
         onKeyDown={(event) => {
+          if (isComposingKey(event))
+            return
           const el = event.currentTarget
-          if ((event.key === 'Enter' && !isComposing(event)) || (event.key === 'ArrowDown' && el.selectionStart === el.value.length)) {
+          if (event.key === 'Enter' || (event.key === 'ArrowDown' && el.selectionStart === el.value.length)) {
             event.preventDefault()
             editor.commands.focus('start')
           }

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as React from 'react'
 import { ImagePlaceholder } from '@/components/common/safe-image'
+import { useCompositionInput } from '@/hooks/use-composition-input'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { IMAGE_CAPTION_ATTR } from './image-node-constants'
 import { ImageNodeToolbar } from './image-node-toolbar'
@@ -58,6 +59,8 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   const editorT = useTranslations('Console.editor')
   const isMobile = useIsMobile()
   const [captionFocused, setCaptionFocused] = useState(false)
+  // 注释写回节点属性要等 NodeView 下一次渲染，直接受控会打断输入法组字，交给 useCompositionInput 处理
+  const captionInput = useCompositionInput(caption ?? '', next => onCaptionChange?.(next || null))
   // 记录加载失败的地址，替换图片后自动恢复显示
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const [resizeParams, setResizeParams] = useState<ResizeParams | undefined>(undefined)
@@ -393,10 +396,9 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
           ? (caption || showHandles || selected || captionFocused) && (
               <input
                 {...{ [IMAGE_CAPTION_ATTR]: '' }}
+                {...captionInput}
                 className="tiptap-image-caption"
-                value={caption ?? ''}
                 placeholder={t('image_caption_placeholder')}
-                onChange={e => onCaptionChange?.(e.target.value || null)}
                 onFocus={() => setCaptionFocused(true)}
                 onBlur={() => setCaptionFocused(false)}
               />

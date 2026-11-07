@@ -11,6 +11,7 @@ import { EDITOR_FLOATING_ATTR, useSelectionAnchor } from '@/components/tiptap-ui
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
+import { isComposingKey } from '@/lib/ime'
 import { renderLatex } from '@/lib/math/latex'
 
 const KATEX_SYNTAX_URL = 'https://katex.org/docs/supported.html'
@@ -146,7 +147,7 @@ export function MathPopover({ editor, pos, onClose }: MathPopoverProps) {
           className="font-mono text-sm"
           onChange={e => setLatex(e.target.value)}
           onKeyDown={(event) => {
-            if (event.key !== 'Enter' || event.nativeEvent.isComposing)
+            if (event.key !== 'Enter' || isComposingKey(event))
               return
             // 行内公式不换行：Enter 即应用；公式块 Ctrl/⌘ + Enter 应用
             if (event.metaKey || event.ctrlKey || (!display && !event.shiftKey)) {

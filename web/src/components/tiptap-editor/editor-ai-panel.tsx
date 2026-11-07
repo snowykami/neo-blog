@@ -16,13 +16,12 @@ import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { isComposingKey } from '@/lib/ime'
 import { cn } from '@/lib/utils'
 import { AIPromptManageButton } from './ai-prompt-manager-dialog'
 import { useAIPrompts } from './ai-prompts-context'
 import { formatShortcut } from './editor-commands'
 import { AI_WRITER_BUSY_STATUSES } from './use-ai-writer'
-
-const isComposing = (event: React.KeyboardEvent) => event.nativeEvent.isComposing || event.keyCode === 229
 
 /**
  * AI 写作面板：贴在生成位置下方，宽度与正文列一致
@@ -171,7 +170,7 @@ export function EditorAIPanel({ editor, writer }: { editor: Editor, writer: AIWr
               className="max-h-40 min-h-16 resize-none text-sm"
               onChange={e => setDraft(e.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey && !isComposing(event)) {
+                if (event.key === 'Enter' && !event.shiftKey && !isComposingKey(event)) {
                   event.preventDefault()
                   submit()
                 }
