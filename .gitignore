@@ -66,3 +66,6 @@ docs/handbook/
 
 # 本地压测工具、原始数据与报告（不提交，见 bench/run-all.sh）
 bench/
+
+# 本地技术笔记（写博客用的素材，不提交）
+docs/notes/
