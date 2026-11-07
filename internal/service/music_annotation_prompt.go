@@ -24,6 +24,11 @@ type lyricAnnotationLocale struct {
 	ClimaxStart, ClimaxEnd string
 	// 歌词的开始与结束标签，有翻译 / 有长音时追加的说明；翻译：译文；长音：音节、秒数、句尾标记
 	Lyrics, LyricsEnd, TranslationNote, HeldNote, Translation, Held, HeldTail string
+	// 歌词结构（见 music_annotation_structure.go），各自出现时追加说明：每行唱多久（秒数）、重复行（组号）、署名行、
+	// 对唱（第二位歌手、合唱）、背景人声（文字）、没有人唱的时段（单独一行：前奏、间奏、尾奏的秒数）
+	DurationNote, Duration, RepeatNote, Repeat, RepeatVaried, CreditNote, Credit string
+	SingerNote, SingerSecond, SingerTogether, BackgroundNote, Background         string
+	GapNote, Intro, Break, Outro                                                 string
 	// 逐段标注：全曲规划的开始与结束标签、主题、方向、全曲字体、全曲节奏、意象标题、一个意象（原文、特效、颜色）、不上色
 	Plan, PlanEnd, Theme, Direction, Font, Pace, Imagery, ImageryItem, NoColor string
 	// 本段已标注的行（标题、一行：行号与标注）、副歌起点、副歌、情绪、聚光灯
@@ -46,6 +51,15 @@ var lyricAnnotationEN = lyricAnnotationLocale{
 	Lyrics: "\n<lyrics>\n", LyricsEnd: "</lyrics>\n",
 	TranslationNote: "〔译：…〕 is a Chinese translation, for understanding only.\n", HeldNote: "〔held: …〕 marks a long-held syllable.\n",
 	Translation: "　〔译：%s〕", Held: "　〔held: \"%s\" %.1fs%s〕", HeldTail: ", line end",
+	DurationNote: "〔Ns〕 is how long the line is sung.\n", Duration: "　〔%.1fs〕",
+	RepeatNote: "〔repeat N〕: the line is sung again elsewhere (same N, same line); \"varied\" means it returns with a word or two changed.\n",
+	Repeat:     "　〔repeat %d〕", RepeatVaried: "　〔repeat %d, varied〕",
+	CreditNote: "〔credits〕: a credit line, not sung; the player hides it.\n", Credit: "　〔credits〕",
+	SingerNote:   "〔singer 2〕 / 〔together〕: a duet line sung by the second singer / by both; unmarked lines are the lead.\n",
+	SingerSecond: "　〔singer 2〕", SingerTogether: "　〔together〕",
+	BackgroundNote: "〔bg: …〕: a background vocal sung with the line; it is not part of the line's text.\n", Background: "　〔bg: \"%s\"〕",
+	GapNote: "Unnumbered 〔intro / instrumental break / outro: Ns〕 lines mark stretches with no singing.\n",
+	Intro:   "〔intro: %ds〕\n", Break: "〔instrumental break: %ds〕\n", Outro: "〔outro: %ds〕\n",
 	Plan: "\n<plan>\n", PlanEnd: "</plan>\n", Theme: "Theme: ", Direction: "Direction: ", Font: "Song font: ", Pace: "Song pace: ",
 	Imagery: "Imagery:\n", ImageryItem: "- %s: %s, %s\n", NoColor: "no color",
 	Marks: "Marked lines in this chunk:\n", Mark: "line %d: %s\n", ChorusStart: "chorus start", ChorusLine: "chorus", Mood: "mood ", Spotlight: "spotlight",
@@ -57,7 +71,7 @@ const lyricAnnotationENHead = `You are a lyric performance director designing vi
 Input, in XML tags:
 - <song>: title, artists, and aliases / description, which often reveal the background.
 - <listener_comments> (may be absent): use the ones that match the song's feeling; jokes and off-topic comments say little about the song.
-- <lyrics>: one "index: original text" per line, possibly followed by 〔译：…〕 (a translation for understanding), 〔held: …〕 (a long-held syllable found from word timing) and 〔climax starts / ends〕 (the climax NetEase marks on its progress bar, usually one chorus).
+- <lyrics>: one "index: original text" per line, possibly followed by 〔译：…〕 (a translation for understanding), 〔held: …〕 (a long-held syllable found from word timing) and 〔climax starts / ends〕 (the climax NetEase marks on its progress bar, usually one chorus). Marks computed from the lyric file's timing and text show the song's structure: 〔Ns〕 how long the line is sung, 〔repeat N〕 lines whose text returns, 〔credits〕, duet parts, background vocals, and unnumbered lines for the intro, instrumental breaks and outro. They come from the timing, so they can be slightly off; when your knowledge of the song clearly disagrees, trust it.
 Copy phrases exactly as they appear in the original lyrics: the player finds each phrase by its text, so a rewritten or translated phrase cannot be located. Reply with one JSON object only, since the server parses your reply directly. Write intro and moment text in Simplified Chinese, the language of the site's readers.
 
 Emotion guide (adapt to the song; mark emotional turns with a change of color and scene):
@@ -82,14 +96,14 @@ const lyricAnnotationENPlan = `
 Task: plan the whole song. Phrases are annotated afterwards, chunk by chunk in parallel, following this plan — so this step outputs only the plan fields below. In order:
 1. theme: one or two sentences — what the song is about, to whom, and how the feeling moves.
 2. direction: the visual tone — 2-4 main colors, main effects, font usage, images suited to particle scenes. Every chunk follows it, which keeps the parallel parts looking like one art-directed show.
-3. chorus: using your knowledge of the song, repeated sections and the 〔climax〕 marks, set chorus_start on the first line of each chorus and chorus on chorus lines; the same lyrics elsewhere usually form the other choruses. A chorus start is an outburst, a good place to start or switch a scene.
+3. chorus: using your knowledge of the song, the 〔repeat〕 marks (a run of several repeated lines is usually a chorus) and the 〔climax〕 marks, set chorus_start on the first line of each chorus and chorus on chorus lines; the same lyrics elsewhere usually form the other choruses, and an instrumental break often comes just before one. A chorus start is an outburst, a good place to start or switch a scene.
 4. imagery: the song's recurring or title images (original words), each with one effect and color (color optional). Every chunk uses them as given, so an image looks the same each time it returns.
 5. Layout:
 - intro: a lead-in shown during the intro, at most 40 Chinese characters, like a late-night radio host's murmur. Hint at the background or mood in your own words; the lyrics themselves are better heard for the first time when they are sung.
 - outro_comment: the number of the comment shown during the outro, the one that best fits the song; omit it if none fits.
 - moments: 4-5, at emotional turns, chorus starts, the most moving line, the climax or ending (i = line index), spread out with several lines between so each one has room. Prefer comment (a comment number, each used once, other than the outro_comment); otherwise text, a narration of at most 40 Chinese characters in your own words, heartfelt and vivid.
 - font: song-wide font, optional (default sans).
-- spotlights: indices i of the moments that sum up the song — its title line or deepest confession, sung for at least ~2 seconds; at most 3 different lines and 6 indices in all. While one is sung it moves alone to the center, enlarged, with a warm light behind it and the other lines dimmed. Only the listed indices are lit: when the line repeats, pick the repeats where it lands hardest (often the final chorus or the last time it is sung), not every one, because a spotlight that comes every chorus stops feeling special. Add a second or third line only when it is just as essential; give [] if no line clearly stands out.
+- spotlights: indices i of the moments that sum up the song — its title line or deepest confession, sung for at least ~2 seconds (see 〔Ns〕); at most 3 different lines and 6 indices in all. While one is sung it moves alone to the center, enlarged, with a warm light behind it and the other lines dimmed. Only the listed indices are lit: when the line repeats, pick the repeats where it lands hardest (often the final chorus or the last time it is sung), not every one, because a spotlight that comes every chorus stops feeling special. Add a second or third line only when it is just as essential; give [] if no line clearly stands out.
 - accent: the song's theme color as #rrggbb, chosen freely from the song's feeling and imagery (not from the album cover). It tints the lyric glow and the breathing light behind the lyrics on a dark screen, so pick a color that glows well there.
 - pace: how fast the effects move, from the song's tempo and lightness — fast for upbeat, bouncy, energetic songs; slow for ballads, lyrical, tender or heavy songs; medium otherwise. It sets the speed of shake, wave, heartbeat, shimmer, dissolve and the held-note vibrato.
 - lines: mood (calm / bright / sad / intense) on emotionally clear lines; scene on lines describing a concrete image or starting a chorus (up to 6 per song), with optional scene_color (a color value, e.g. bauhinia for bauhinia petals) and scene_until: the index of the last line the scene should stay on — the end of the image's passage or of that chorus, so the scene fades as the image leaves the lyrics (a passing image may last 1-3 lines; a scene that opens a chorus usually lasts through it; at most 16 lines). The next scene also ends the previous one.

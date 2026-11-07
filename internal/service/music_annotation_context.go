@@ -35,7 +35,7 @@ const (
 var (
 	// 行头时间：LRC 的 [mm:ss.xx] 或 YRC / QRC 的 [开始,时长]，取第一个
 	lyricLRCTimeRe  = regexp.MustCompile(`^\[(\d+):(\d+)(?:[.:](\d+))?\]`)
-	lyricSpanTimeRe = regexp.MustCompile(`^\[(\d+),\d+\]`)
+	lyricSpanTimeRe = regexp.MustCompile(`^\[(\d+),(\d+)\]`)
 	whitespaceRe    = regexp.MustCompile(`\s+`)
 )
 
@@ -55,6 +55,8 @@ type lyricAnnotationInfo struct {
 	WordTimed bool
 	// 歌词所属的全站歌词版本（具体来源，如 ttml-amll、ncm-yrc），随标注保存
 	Source string
+	// 歌曲时长（毫秒，用于算尾奏）；未知时为 0
+	Duration int64
 }
 
 // lyricAnnotationComment 一条网易云热评
@@ -66,9 +68,22 @@ type lyricAnnotationComment struct {
 // lyricTimedLine 歌词的一行：开始时间（毫秒，没有时间时为 -1）与文字
 type lyricTimedLine struct {
 	Start int64
-	Text  string
+	// 这一行唱完的时间（毫秒）：逐字歌词为行头的「开始 + 时长」，TTML 为行与音节时间的最晚者（与前端一致）；
+	// 逐行歌词没有时为 0（不晚于 Start 即视为未知）
+	End  int64
+	Text string
 	// 这一行唱得最长的音节（逐字歌词中不短于 lyricHeldNoteMs 时），没有时为 nil
 	Held *lyricHeldNote
+	// TTML 的对唱：lyricSingerSecond 为第二位歌手，lyricSingerTogether 为合唱（与前端 parse-ttml.ts 的判断一致）；主唱与其他来源为空
+	Singer string
+	// TTML 中与这一行一起唱的背景人声（x-bg），没有时为 nil
+	Background *lyricBackground
+}
+
+// lyricBackground 背景人声：文字与演唱的起止时间（毫秒）
+type lyricBackground struct {
+	Text       string
+	Start, End int64
 }
 
 // lyricHeldNote 一个长音：音节文字、时长（毫秒），以及是否为这一行的最后一个音节（尾音）
@@ -95,7 +110,8 @@ func lyricTimedLines(raw string, maxLines int) []lyricTimedLine {
 		if runes := []rune(text); len(runes) > lyricAnnotationMaxLineRunes {
 			text = string(runes[:lyricAnnotationMaxLineRunes])
 		}
-		lines = append(lines, lyricTimedLine{Start: lyricHeadStart(head), Text: text, Held: lyricHeldNoteOf(line[len(head):])})
+		start, end := lyricHeadSpan(head)
+		lines = append(lines, lyricTimedLine{Start: start, End: end, Text: text, Held: lyricHeldNoteOf(line[len(head):])})
 		if maxLines > 0 && len(lines) >= maxLines {
 			break
 		}
@@ -164,6 +180,16 @@ func borrowHeldNotes(lines []lyricTimedLine, raw string) []lyricTimedLine {
 		}
 	}
 	return borrowed
+}
+
+// lyricHeadSpan 行头的开始与结束时间（毫秒）：YRC / QRC 的 [开始,时长] 两者都有，LRC 只有开始（结束为 0）；无法解析时开始为 -1
+func lyricHeadSpan(head string) (start, end int64) {
+	if m := lyricSpanTimeRe.FindStringSubmatch(head); m != nil {
+		start, _ = strconv.ParseInt(m[1], 10, 64)
+		duration, _ := strconv.ParseInt(m[2], 10, 64)
+		return start, start + duration
+	}
+	return lyricHeadStart(head), 0
 }
 
 // lyricHeadStart 行头的开始时间（毫秒）；无法解析时为 -1
@@ -365,39 +391,107 @@ func writeLyricAnnotationSong(b *strings.Builder, info lyricAnnotationInfo, albu
 }
 
 // writeLyricAnnotationLines 带行号的歌词（第 from～to 行，行号为全曲行号）：有翻译时在行末附上翻译，逐字歌词中唱得特别长的音节附上长音标记，
-// 网易云高潮片段的第一行与最后一行附上开始 / 结束标记（模型据此找到副歌，再认出其余重复的副歌）
+// 网易云高潮片段的第一行与最后一行附上开始 / 结束标记（模型据此找到副歌，再认出其余重复的副歌）；
+// 再附上从时间轴与文字算出的结构（见 music_annotation_structure.go）：每行唱多久、重复行、署名行、对唱与背景人声，
+// 前奏、间奏与尾奏单独成行（不带行号）
 func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lines []string, from, to int) {
 	text := lyricAnnotationText
 	from, to = max(0, from), min(len(lines)-1, to)
-	held := func(i int) *lyricHeldNote {
+	timed := func(i int) *lyricTimedLine {
 		if i < len(info.Timed) {
-			return info.Timed[i].Held
+			return &info.Timed[i]
 		}
 		return nil
 	}
-	hasTranslation, hasHeld := false, false
+	var structure lyricStructure
+	if len(info.Timed) == len(lines) {
+		structure = lyricStructureOf(info)
+	}
+	at := func(values []int64, i int) int64 {
+		if i < len(values) {
+			return values[i]
+		}
+		return 0
+	}
+	sung := func(i int) bool {
+		line := timed(i)
+		return line != nil && line.End > line.Start && line.Start >= 0 && !(i < len(structure.Credit) && structure.Credit[i])
+	}
+	var hasTranslation, hasHeld, hasDuration, hasRepeat, hasGap, hasSinger, hasBackground, hasCredit bool
 	for i := from; i <= to; i++ {
+		line := timed(i)
 		hasTranslation = hasTranslation || (i < len(info.Translations) && info.Translations[i] != "")
-		hasHeld = hasHeld || held(i) != nil
+		hasHeld = hasHeld || (line != nil && line.Held != nil)
+		hasDuration = hasDuration || sung(i)
+		hasRepeat = hasRepeat || (i < len(structure.Repeat) && structure.Repeat[i] > 0)
+		hasGap = hasGap || at(structure.GapBefore, i) > 0
+		hasSinger = hasSinger || (line != nil && line.Singer != "")
+		hasBackground = hasBackground || (line != nil && line.Background != nil)
+		hasCredit = hasCredit || (i < len(structure.Credit) && structure.Credit[i])
 	}
+	hasGap = hasGap || (to == len(lines)-1 && structure.Outro > 0)
 	b.WriteString(text.Lyrics)
-	if hasTranslation {
-		b.WriteString(text.TranslationNote)
+	for _, note := range []struct {
+		show bool
+		text string
+	}{
+		{hasTranslation, text.TranslationNote}, {hasHeld, text.HeldNote}, {hasDuration, text.DurationNote}, {hasRepeat, text.RepeatNote},
+		{hasCredit, text.CreditNote}, {hasSinger, text.SingerNote}, {hasBackground, text.BackgroundNote}, {hasGap, text.GapNote},
+	} {
+		if note.show {
+			b.WriteString(note.text)
+		}
 	}
-	if hasHeld {
-		b.WriteString(text.HeldNote)
+	// 前奏：这一段之前只有署名行（或没有行）
+	introAt := -1
+	for i := range lines {
+		if sung(i) {
+			introAt = i
+			break
+		}
 	}
 	for i := from; i <= to; i++ {
+		if gap := at(structure.GapBefore, i); gap > 0 {
+			if i == introAt {
+				fmt.Fprintf(b, text.Intro, lyricSeconds(gap))
+			} else {
+				fmt.Fprintf(b, text.Break, lyricSeconds(gap))
+			}
+		}
 		fmt.Fprintf(b, "%d: %s", i, lines[i])
+		line := timed(i)
+		if i < len(structure.Credit) && structure.Credit[i] {
+			b.WriteString(text.Credit)
+		} else if sung(i) {
+			fmt.Fprintf(b, text.Duration, float64(line.End-line.Start)/1000)
+		}
+		if i < len(structure.Repeat) && structure.Repeat[i] > 0 {
+			if structure.Varied[i] {
+				fmt.Fprintf(b, text.RepeatVaried, structure.Repeat[i])
+			} else {
+				fmt.Fprintf(b, text.Repeat, structure.Repeat[i])
+			}
+		}
+		if line != nil {
+			switch line.Singer {
+			case lyricSingerSecond:
+				b.WriteString(text.SingerSecond)
+			case lyricSingerTogether:
+				b.WriteString(text.SingerTogether)
+			}
+		}
 		if i < len(info.Translations) && info.Translations[i] != "" {
 			fmt.Fprintf(b, text.Translation, info.Translations[i])
 		}
-		if note := held(i); note != nil {
+		if line != nil && line.Held != nil {
 			tail := ""
-			if note.Tail {
+			if line.Held.Tail {
 				tail = text.HeldTail
 			}
-			fmt.Fprintf(b, text.Held, note.Text, float64(note.Duration)/1000, tail)
+			fmt.Fprintf(b, text.Held, line.Held.Text, float64(line.Held.Duration)/1000, tail)
+		}
+		if line != nil && line.Background != nil {
+			fmt.Fprintf(b, text.Background, truncateRunes(line.Background.Text, lyricBackgroundMaxRunes))
 		}
 		for _, climax := range info.Chorus {
 			if climax.From == i {
@@ -409,5 +503,16 @@ func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lin
 		}
 		b.WriteString("\n")
 	}
+	if to == len(lines)-1 && structure.Outro > 0 {
+		fmt.Fprintf(b, text.Outro, lyricSeconds(structure.Outro))
+	}
 	b.WriteString(text.LyricsEnd)
+}
+
+// 背景人声在提示词中最多显示的字数
+const lyricBackgroundMaxRunes = 40
+
+// lyricSeconds 毫秒换成整秒（四舍五入）
+func lyricSeconds(ms int64) int64 {
+	return (ms + 500) / 1000
 }

@@ -365,6 +365,7 @@ func (s *MusicService) annotationSource(ctx context.Context, track *dto.MusicTra
 		Timed:        version.Lines.Timed,
 		WordTimed:    version.Lines.WordTimed,
 		Source:       version.Lines.Source,
+		Duration:     track.Duration,
 	}
 	return version.Lines.Texts(), info, nil
 }

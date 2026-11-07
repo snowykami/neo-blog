@@ -168,7 +168,7 @@ func TestLyricHeldNotes(t *testing.T) {
 
 	// 用户消息中在行末标出长音
 	prompt := buildLyricAnnotationPrompt(lyricAnnotationInfo{Timed: lines}, []string{lines[0].Text, lines[1].Text, lines[2].Text})
-	for _, part := range []string{"marks a long-held syllable", "0: 連れ出した　〔held: \"た\" 2.1s, line end〕", "1: 啦啦啦　〔held: \"啦\" 3.5s〕", "2: 短句\n"} {
+	for _, part := range []string{"marks a long-held syllable", "0: 連れ出した　〔4.0s〕　〔held: \"た\" 2.1s, line end〕", "1: 啦啦啦　〔6.0s〕　〔held: \"啦\" 3.5s〕", "2: 短句　〔1.0s〕\n"} {
 		if !strings.Contains(prompt, part) {
 			t.Errorf("prompt missing %q:\n%s", part, prompt)
 		}

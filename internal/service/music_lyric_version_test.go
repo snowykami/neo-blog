@@ -79,6 +79,18 @@ func TestParseTTMLLyrics(t *testing.T) {
 	if got.Lines[0].Start != 10000 || got.Lines[1].Start != 13000 {
 		t.Fatalf("starts = %d, %d", got.Lines[0].Start, got.Lines[1].Start)
 	}
+	// 结束时间取行与音节的最晚者；背景人声不算进行的文字，单独记下文字与时间；只声明了一个 agent 时都是主唱
+	if got.Lines[0].End != 13000 || got.Lines[3].End != 22000 {
+		t.Fatalf("ends = %d, %d", got.Lines[0].End, got.Lines[3].End)
+	}
+	if bg := got.Lines[0].Background; bg == nil || *bg != (lyricBackground{Text: "(和声)", Start: 12000, End: 13000}) {
+		t.Fatalf("background = %+v", got.Lines[0].Background)
+	}
+	for _, line := range got.Lines {
+		if line.Singer != "" {
+			t.Fatalf("singer of %q = %q, want lead", line.Text, line.Singer)
+		}
+	}
 	// 翻译：行内的 x-translation 与 head 中按 key 提供的；音译只算拉丁字母的（只有假名的读音不算）
 	if !reflect.DeepEqual(got.Translations, []string{"Seeing off a guest", "Maple leaves and reed flowers rustle in autumn", "", ""}) {
 		t.Fatalf("translations = %q", got.Translations)

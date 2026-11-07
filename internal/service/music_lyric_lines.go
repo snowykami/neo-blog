@@ -215,6 +215,7 @@ func parseTTMLLyrics(raw string) ttmlLyrics {
 	}
 	translations := ttmlKeyedTexts(root)
 	romanized := ttmlKeyedRomanizations(root)
+	singerOf := ttmlSingerResolver(root)
 
 	type line struct {
 		timed       lyricTimedLine
@@ -227,7 +228,7 @@ func parseTTMLLyrics(raw string) ttmlLyrics {
 		}
 		begin, beginOK := parseTTMLTime(ttmlAttr(p, "begin"))
 		end, endOK := parseTTMLTime(ttmlAttr(p, "end"))
-		words, translation, romanization := readTTMLLine(p)
+		words, background, translation, romanization := readTTMLLine(p)
 		if len(words) == 0 {
 			if text := collapseLyricSpace(ttmlUntimedText(p)); text != "" && beginOK && endOK {
 				words = []ttmlWord{{text: text, start: begin, end: end}}
@@ -246,6 +247,8 @@ func parseTTMLLyrics(raw string) ttmlLyrics {
 		if !ok {
 			return false
 		}
+		timed.Singer = singerOf(ttmlAttr(p, "agent"))
+		timed.Background = ttmlBackground(background, begin)
 		lines = append(lines, line{timed: timed, translation: translation})
 		result.HasTranslation = result.HasTranslation || translation != ""
 		result.HasRomanization = result.HasRomanization || romanization
@@ -298,11 +301,70 @@ func ttmlTimedLine(words []ttmlWord, begin, end int64) (timed lyricTimedLine, wo
 	for _, word := range words {
 		wordTimed = wordTimed || (word.end > word.start && (word.start != start || word.end != finish))
 	}
-	return lyricTimedLine{Start: start, Text: text, Held: held}, wordTimed, true
+	return lyricTimedLine{Start: start, End: finish, Text: text, Held: held}, wordTimed, true
 }
 
-// readTTMLLine 一行的音节、翻译（x-translation）与是否有音译（x-roman）；背景人声（x-bg）整个跳过
-func readTTMLLine(p *ttmlNode) (words []ttmlWord, translation string, romanization bool) {
+// 对唱中这一行的歌手（lyricTimedLine.Singer）
+const (
+	lyricSingerSecond   = "second"
+	lyricSingerTogether = "together"
+)
+
+// ttmlSingerResolver 行的 agent 属性对应的歌手，与前端 parse-ttml.ts 的 buildSingerResolver 一致：
+// 文件中第一个不是群组的 agent 为主唱（返回空）；行的 agent 有多个或属于群组时为合唱，其余为第二位歌手；文件没有声明 agent 时都是主唱
+func ttmlSingerResolver(root *ttmlNode) func(attr string) string {
+	primary, hasPrimary := "", false
+	groups := map[string]bool{}
+	walkTTML(root, func(node *ttmlNode) bool {
+		if node.name != "agent" {
+			return true
+		}
+		id := ttmlAttr(node, "id")
+		if ttmlAttr(node, "type") == "group" {
+			groups[id] = true
+		} else if !hasPrimary {
+			primary, hasPrimary = id, true
+		}
+		return false
+	})
+	return func(attr string) string {
+		ids := strings.Fields(attr)
+		if len(ids) == 0 || (!hasPrimary && len(groups) == 0) {
+			return ""
+		}
+		if len(ids) > 1 || groups[ids[0]] {
+			return lyricSingerTogether
+		}
+		if hasPrimary && ids[0] == primary {
+			return ""
+		}
+		return lyricSingerSecond
+	}
+}
+
+// ttmlBackground 一行的背景人声：文字与起止时间取各音节（跳过 AMLL 的 00:00.000 占位音节，同 ttmlTimedLine）；没有文字时为 nil
+func ttmlBackground(words []ttmlWord, lineBegin int64) *lyricBackground {
+	var b strings.Builder
+	start, end := int64(-1), int64(-1)
+	for _, word := range words {
+		b.WriteString(word.text)
+		if word.start == 0 && word.end == 0 && lineBegin > 0 {
+			continue
+		}
+		if start < 0 || word.start < start {
+			start = word.start
+		}
+		end = max(end, word.end)
+	}
+	text := collapseLyricSpace(b.String())
+	if text == "" || start < 0 {
+		return nil
+	}
+	return &lyricBackground{Text: text, Start: start, End: end}
+}
+
+// readTTMLLine 一行的音节、背景人声（x-bg，不算进这一行的音节）的音节、翻译（x-translation）与是否有音译（x-roman）
+func readTTMLLine(p *ttmlNode) (words, background []ttmlWord, translation string, romanization bool) {
 	appendText := func(text string) {
 		if len(words) > 0 {
 			words[len(words)-1].text += text
@@ -331,6 +393,9 @@ func readTTMLLine(p *ttmlNode) (words []ttmlWord, translation string, romanizati
 			romanization = romanization || collapseLyricSpace(ttmlTextContent(child)) != ""
 			continue
 		case "x-bg":
+			if background == nil {
+				background, _, _, _ = readTTMLLine(child)
+			}
 			continue
 		}
 		start, startOK := parseTTMLTime(ttmlAttr(child, "begin"))
@@ -341,7 +406,7 @@ func readTTMLLine(p *ttmlNode) (words []ttmlWord, translation string, romanizati
 		}
 		words = append(words, ttmlWord{text: ttmlTextContent(child), start: start, end: max(start, end)})
 	}
-	return words, translation, romanization
+	return words, background, translation, romanization
 }
 
 // ttmlUntimedText 没有音节时间的行：直接的文字与没有 role 的子元素的文字
