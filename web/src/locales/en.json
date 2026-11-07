@@ -1712,6 +1712,9 @@
       "color_default": "Default",
       "color_history": "Recently used",
       "color_keep_open": "Keep panel open",
+      "hdr_level": "HDR brightness",
+      "hdr_off": "Off",
+      "hdr_level_value": "Level {level} · {gain}×",
       "colors": {
         "red": "Red",
         "orange": "Orange",

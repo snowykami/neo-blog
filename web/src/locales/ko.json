@@ -1712,6 +1712,9 @@
       "color_default": "기본",
       "color_history": "최근 사용",
       "color_keep_open": "패널 열어 두기",
+      "hdr_level": "HDR 밝기",
+      "hdr_off": "끄기",
+      "hdr_level_value": "{level}단계 · {gain}×",
       "colors": {
         "red": "빨강",
         "orange": "주황",

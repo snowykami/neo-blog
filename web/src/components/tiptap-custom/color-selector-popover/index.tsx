@@ -3,11 +3,14 @@
 import type { Editor } from '@tiptap/react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
+import { HDR_TEXT_LEVEL_COLORS, HDR_TEXT_LEVEL_COUNT } from '@/components/tiptap-extension/hdr-text-extension'
 import { EDITOR_FLOATING_ATTR } from '@/components/tiptap-ui/link-popover/link-popover'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Slider } from '@/components/ui/slider'
 import { useStoredState } from '@/hooks/use-storage-state'
+import { HDR_BRIGHTNESS } from '@/lib/hdr-color'
 import { cn } from '@/lib/utils'
 
 const HISTORY_LIMIT = 8
@@ -61,6 +64,9 @@ export interface ColorPopoverProps {
   // 当前文字颜色 / 高亮颜色，用于标记选中项
   textColor: string | null
   highlightColor: string | null
+  // 当前 HDR 文字档位（0 为未标记）与能否标记 HDR
+  hdrLevel: number
+  canHdr: boolean
   // 触发按钮（asChild）；不传时需提供 anchorRef，由外部控制打开
   children?: React.ReactElement
   anchorRef?: React.RefObject<HTMLElement | null>
@@ -70,9 +76,9 @@ export interface ColorPopoverProps {
 }
 
 /**
- * 文字颜色与背景高亮面板：最近使用、可选“保持打开”以连续调整
+ * 文字颜色与背景高亮面板：最近使用、可选“保持打开”以连续调整；底部为 HDR 亮度档位滑条（0 为关闭）
  */
-export function ColorPopover({ editor, textColor, highlightColor, children, anchorRef, defaultOpen = false, onClosed, align = 'start' }: ColorPopoverProps) {
+export function ColorPopover({ editor, textColor, highlightColor, hdrLevel, canHdr, children, anchorRef, defaultOpen = false, onClosed, align = 'start' }: ColorPopoverProps) {
   const t = useTranslations('Console.editor')
   const [open, setOpenState] = React.useState(defaultOpen)
   const setOpen = (next: boolean) => {
@@ -110,6 +116,14 @@ export function ColorPopover({ editor, textColor, highlightColor, children, anch
     }
     if (!keepOpen)
       setOpen(false)
+  }
+
+  // 拖动滑条时不聚焦编辑器：聚焦会让弹层因失焦关闭
+  const applyHdr = (level: number) => {
+    if (level > 0)
+      editor.chain().setMark('hdr', { level }).run()
+    else
+      editor.chain().unsetMark('hdr').run()
   }
 
   const isActive = (option: ColorOption) => option.type === 'text'
@@ -173,6 +187,29 @@ export function ColorPopover({ editor, textColor, highlightColor, children, anch
             {HIGHLIGHT_OPTIONS.map(option => renderSwatch(option, `bg-${option.label}`))}
           </div>
         </section>
+        <section className="grid gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <h4 className="text-xs font-medium text-muted-foreground">{t('hdr_level')}</h4>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
+              {hdrLevel > 0 && <HdrDot level={hdrLevel} />}
+              {hdrLevel > 0 ? t('hdr_level_value', { level: hdrLevel, gain: HDR_BRIGHTNESS.contentText[hdrLevel - 1] }) : t('hdr_off')}
+            </span>
+          </div>
+          <Slider
+            min={0}
+            max={HDR_TEXT_LEVEL_COUNT}
+            step={1}
+            value={[hdrLevel]}
+            disabled={!canHdr}
+            onValueChange={([level]) => applyHdr(level)}
+            aria-label={t('hdr_level')}
+          />
+          {/* 刻度：关闭 + 各档位色点（滑块直径 16px，两端刻度中心与滑块中心对齐） */}
+          <div className="flex justify-between px-[5px]" aria-hidden="true">
+            <i className="block size-1.5 rounded-full ring-1 ring-border ring-inset" />
+            {HDR_TEXT_LEVEL_COLORS.map((_, index) => <HdrDot key={index} level={index + 1} className="size-1.5" />)}
+          </div>
+        </section>
         <div className="flex items-center gap-2 border-t pt-2.5">
           <Checkbox id="editor-color-keep-open" checked={keepOpen} onCheckedChange={checked => setKeepOpen(checked === true)} />
           <Label htmlFor="editor-color-keep-open" className="text-xs font-normal text-muted-foreground">{t('color_keep_open')}</Label>
@@ -180,4 +217,10 @@ export function ColorPopover({ editor, textColor, highlightColor, children, anch
       </PopoverContent>
     </Popover>
   )
+}
+
+/** HDR 档位色点（与编辑器正文里 HDR 文字右上角的色点同色） */
+function HdrDot({ level, className }: { level: number, className?: string }) {
+  const color = HDR_TEXT_LEVEL_COLORS[level - 1]
+  return <i className={cn('block size-2 rounded-full', className)} style={{ background: color, boxShadow: `0 0 4px ${color}` }} />
 }

@@ -1712,6 +1712,9 @@
       "color_default": "預設",
       "color_history": "最近使用",
       "color_keep_open": "保持面板開啟",
+      "hdr_level": "HDR 亮度",
+      "hdr_off": "關閉",
+      "hdr_level_value": "{level} 檔 · {gain}×",
       "colors": {
         "red": "紅",
         "orange": "橙",

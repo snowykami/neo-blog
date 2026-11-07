@@ -14,6 +14,7 @@ import { canSetLink } from '@/components/tiptap-ui/link-popover/use-link-popover
 import { canToggleMark } from '@/components/tiptap-ui/mark-button/use-mark'
 import { canExecuteUndoRedoAction } from '@/components/tiptap-ui/undo-redo-button/use-undo-redo'
 import { isContentFont } from '@/lib/content-theme'
+import { hdrTextLevel } from '@/lib/hdr-color'
 import { getActiveMarkAttrs } from '@/lib/tiptap-advanced-utils'
 import { getActiveBlockType, getActiveTextAlign, INLINE_MARKS } from './editor-commands'
 
@@ -32,6 +33,8 @@ export interface EditorToolbarState {
   textColor: string | null
   highlightColor: string | null
   canColor: boolean
+  // 选区的 HDR 文字档位，0 为未标记 HDR（见 tiptap-extension/hdr-text-extension.ts）
+  hdrLevel: number
   // 选区的局部字体，null 为正文默认字体
   font: ContentFont | null
   canFont: boolean
@@ -57,6 +60,7 @@ const EMPTY_STATE: EditorToolbarState = {
   textColor: null,
   highlightColor: null,
   canColor: false,
+  hdrLevel: 0,
   font: null,
   canFont: false,
   isLink: false,
@@ -96,6 +100,7 @@ export function useEditorToolbarState(editor: Editor | null): EditorToolbarState
         textColor: (getActiveMarkAttrs(ed, 'textStyle')?.color as string | undefined) ?? null,
         highlightColor: ed.isActive('highlight') ? ((getActiveMarkAttrs(ed, 'highlight')?.color as string | undefined) ?? null) : null,
         canColor: !inCodeBlock && (canColorText(ed) || canColorHighlight(ed)),
+        hdrLevel: marks.hdr.active ? hdrTextLevel(String(getActiveMarkAttrs(ed, 'hdr')?.level ?? '')) : 0,
         font: fontOf(getActiveMarkAttrs(ed, CONTENT_FONT_MARK)?.font),
         canFont: editable && !inCodeBlock && ed.can().setContentFont('song'),
         isLink: editable && ed.isActive('link'),

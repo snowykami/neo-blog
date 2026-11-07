@@ -453,9 +453,30 @@
   }
 }
 
-/* ---------- HDR 文字：编辑器里只用淡淡的辉光提示，真正的 HDR 只在前台渲染（见 components/blog-post/content-hdr-text.tsx） ---------- */
+/* ---------- HDR 文字：编辑器里只用淡淡的辉光与右上角的档位色点提示，真正的 HDR 只在前台渲染（见 components/blog-post/content-hdr-text.tsx） ---------- */
 .neo-editor-root .tiptap.ProseMirror [data-hdr] {
   text-shadow:
     0 0 6px color-mix(in oklab, currentColor 55%, transparent),
     0 0 1px color-mix(in oklab, currentColor 40%, transparent);
+
+  // 档位色点：由浅黄到红，越暖越亮（与 hdr-text-extension.ts 的 HDR_TEXT_LEVEL_COLORS 一致）
+  &::after {
+    content: "";
+    display: inline-block;
+    width: 0.32em;
+    height: 0.32em;
+    margin-left: 0.08em;
+    vertical-align: 0.7em;
+    border-radius: 9999px;
+    background: var(--hdr-dot, #facc15);
+    box-shadow: 0 0 4px var(--hdr-dot, #facc15);
+    pointer-events: none;
+  }
+
+  $dots: #fde68a, #facc15, #f59e0b, #f97316, #ef4444;
+  @each $color in $dots {
+    &[data-hdr="#{index($dots, $color)}"] {
+      --hdr-dot: #{$color};
+    }
+  }
 }

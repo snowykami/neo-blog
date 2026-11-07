@@ -70,7 +70,7 @@ export function MarkButtons({ editor, state, marks = PRIMARY_MARKS, tooltipSide 
 export function ColorButton({ editor, state, tooltipSide }: { editor: Editor, state: EditorToolbarState, tooltipSide?: 'top' | 'bottom' }) {
   const t = useTranslations('Console.editor')
   return (
-    <ColorPopover editor={editor} textColor={state.textColor} highlightColor={state.highlightColor}>
+    <ColorPopover editor={editor} textColor={state.textColor} highlightColor={state.highlightColor} hdrLevel={state.hdrLevel} canHdr={state.marks.hdr.can}>
       <EditorToolbarButton
         label={t('color')}
         shortcut="mod+shift+h"
@@ -319,6 +319,8 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
           editor={editor}
           textColor={state.textColor}
           highlightColor={state.highlightColor}
+          hdrLevel={state.hdrLevel}
+          canHdr={state.marks.hdr.can}
           align="end"
           anchorRef={moreRef}
           defaultOpen

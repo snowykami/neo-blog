@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useHdrEnabled } from '@/hooks/use-hdr-highlight'
-import { HDR_BRIGHTNESS, hdrColorUrl } from '@/lib/hdr-color'
+import { HDR_BRIGHTNESS, hdrColorUrl, hdrTextLevel } from '@/lib/hdr-color'
 import './content-hdr-text.scss'
 
 const HDR_SELECTOR = '[data-hdr]'
@@ -10,7 +10,7 @@ const HDR_CLASS = 'content-hdr'
 
 /**
  * 正文 HDR 文字：编辑器里标记为 HDR 的文字（<span data-hdr>，见 tiptap-extension/hdr-text-extension.ts）
- * 在 HDR 屏幕上按字本来的颜色亮过 SDR 白（HDR_BRIGHTNESS.contentText 倍）。
+ * 在 HDR 屏幕上按字本来的颜色亮过 SDR 白，倍数按 data-hdr 的档位取 HDR_BRIGHTNESS.contentText。
  * 做法同音乐播放器的歌词：HDR PNG 作背景图 + background-clip: text，字本身透明（见 lib/hdr-color.ts）。
  * 复用播放器的 HDR 高光开关，且只在暗色模式下生效（亮色背景本身就接近 SDR 白，再亮只会刺眼）
  */
@@ -43,7 +43,9 @@ export function ContentHdrText({ containerId }: { containerId: string }) {
         return
       const colors = els.map(el => getComputedStyle(el).color)
       els.forEach((el, i) => {
-        const url = hdrColorUrl(colors[i], HDR_BRIGHTNESS.contentText)
+        // 后代跟随最近一层 HDR 标记的档位
+        const level = hdrTextLevel(el.closest(HDR_SELECTOR)?.getAttribute('data-hdr'))
+        const url = hdrColorUrl(colors[i], HDR_BRIGHTNESS.contentText[level - 1])
         if (!url)
           return
         el.style.setProperty('--content-hdr', `url("${url}")`)

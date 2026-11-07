@@ -1712,6 +1712,9 @@
       "color_default": "デフォルト",
       "color_history": "最近使った色",
       "color_keep_open": "パネルを開いたままにする",
+      "hdr_level": "HDR 輝度",
+      "hdr_off": "オフ",
+      "hdr_level_value": "{level} 段階 · {gain}×",
       "colors": {
         "red": "赤",
         "orange": "オレンジ",

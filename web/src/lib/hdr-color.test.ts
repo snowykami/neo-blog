@@ -1,6 +1,6 @@
 import { inflateSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
-import { encodeHdrPng, pqEncode, shimmerPosition } from './hdr-color'
+import { encodeHdrPng, HDR_TEXT_DEFAULT_LEVEL, hdrTextLevel, pqEncode, shimmerPosition } from './hdr-color'
 
 function chunks(png: Uint8Array) {
   const view = new DataView(png.buffer, png.byteOffset, png.byteLength)
@@ -41,5 +41,11 @@ describe('hdr-color', () => {
     const center = (pos: number) => -2 * Number.parseFloat(shimmerPosition(pos)) + 150
     for (const pos of [-80, 0, 50, 100, 180])
       expect(center(pos)).toBeCloseTo(pos, 0)
+  })
+
+  it('正文 HDR 文字档位：旧内容与无法识别的值取默认档位', () => {
+    expect(hdrTextLevel('4')).toBe(4)
+    for (const value of ['', null, undefined, '0', '6', 'abc'])
+      expect(hdrTextLevel(value)).toBe(HDR_TEXT_DEFAULT_LEVEL)
   })
 })

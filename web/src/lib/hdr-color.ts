@@ -29,11 +29,21 @@ export const HDR_BRIGHTNESS = {
   particles: 3,
   // 消散的颗粒、破碎的碎片刚出现时的亮度，随后按缓出曲线熄灭到 SDR 白再淡出（各处歌词都有）
   debris: 6,
-  // 文章正文里编辑器标记的 HDR 文字（只在暗色模式下生效）：比正文亮一截，长段落也不刺眼
-  contentText: 2.5,
+  // 文章正文里编辑器标记的 HDR 文字（只在暗色模式下生效），按档位 1 ~ 5 取（<span data-hdr="档位">，见 hdrTextLevel）：
+  // 低档比正文亮一截，长段落也不刺眼；高档只适合短语，大面积高亮会被屏幕压暗，彩色字也会被截得发白
+  contentText: [1.5, 2.5, 4, 6, 10],
   // 不是倍数：HDR 下未唱的字与其余行的不透明度再乘以它（亮的更亮、暗的更暗，拉开已唱与未唱的对比）
   dim: 0.6,
 } as const
+
+// 正文 HDR 文字的默认档位：快捷键开关、以及旧内容的 <span data-hdr="">
+export const HDR_TEXT_DEFAULT_LEVEL = 2
+
+/** 正文 HDR 文字的档位（data-hdr 的值）：1 ~ HDR_BRIGHTNESS.contentText.length，缺省或无法识别时为默认档位 */
+export function hdrTextLevel(value: string | null | undefined) {
+  const level = Number.parseInt(value ?? '', 10)
+  return level >= 1 && level <= HDR_BRIGHTNESS.contentText.length ? level : HDR_TEXT_DEFAULT_LEVEL
+}
 
 // sRGB（线性）→ BT.2020（线性）
 const SRGB_TO_BT2020 = [
