@@ -227,6 +227,56 @@ func (m *musicType) ListLyricAnnotations(ctx context.Context, c *app.RequestCont
 	resps.Ok(c, resps.Success, result)
 }
 
+// BatchDeleteLyricAnnotations 批量删除歌词标注（仅管理员）：这些歌曲所有歌词版本的标注，含手动编辑过的
+func (m *musicType) BatchDeleteLyricAnnotations(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricAnnotationBatchReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.DeleteLyricAnnotations(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// StartLyricAnnotationBatch 开始批量重新生成歌词标注（仅管理员），返回初始进度
+func (m *musicType) StartLyricAnnotationBatch(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricAnnotationBatchReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.StartLyricAnnotationBatch(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// LyricAnnotationBatch 最近一次批量重新生成的进度（仅管理员），没有时 data 为 null
+func (m *musicType) LyricAnnotationBatch(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.GetLyricAnnotationBatch(ctx)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// CancelLyricAnnotationBatch 取消批量重新生成（仅管理员）：进行中的歌曲生成完后结束
+func (m *musicType) CancelLyricAnnotationBatch(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.CancelLyricAnnotationBatch(ctx)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
 // LyricAnnotationEditor 后台编辑一首歌的歌词标注所需的数据：完整歌词与当前标注（仅管理员）
 func (m *musicType) LyricAnnotationEditor(ctx context.Context, c *app.RequestContext) {
 	result, svcerr := m.service.GetLyricAnnotationEditor(ctx, ctxutils.GetIDParam(c).Int64)

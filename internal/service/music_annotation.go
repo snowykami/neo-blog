@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"sort"
@@ -469,16 +470,21 @@ func (a *lyricAnnotationService) startLocked(key string, id int64, hash string, 
 }
 
 func (a *lyricAnnotationService) run(lease *sharedstate.Lease, key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) {
-	ok := false
+	_ = a.execute(lease, key, id, hash, lines, info, cfg)
+}
+
+// execute 持有任务租约生成并保存一首歌的标注，结束时释放租约；失败时先记下冷却期（期间读者访问不自动重试）再释放，
+// 查询方不会在两者之间看到「没有在生成」而立即重试
+func (a *lyricAnnotationService) execute(lease *sharedstate.Lease, key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("lyric annotation panic for song %d: %v", id, r)
+			err = fmt.Errorf("panic: %v", r)
 		}
-		// 先记下失败的冷却期再释放租约，查询方不会在两者之间看到「没有在生成」而立即重试
-		if !ok {
+		if err != nil {
 			_, failedKey := a.stateKeys(key)
-			if err := sharedstate.Current().Set(failedKey, "1", lyricAnnotationRetryAfter); err != nil {
-				logrus.Warnf("save lyric annotation failure %s: %v", key, err)
+			if setErr := sharedstate.Current().Set(failedKey, "1", lyricAnnotationRetryAfter); setErr != nil {
+				logrus.Warnf("save lyric annotation failure %s: %v", key, setErr)
 			}
 		}
 		lease.Release()
@@ -502,12 +508,12 @@ func (a *lyricAnnotationService) run(lease *sharedstate.Lease, key string, id in
 	raw, err := a.generate(id, cfg, info, lines)
 	if err != nil {
 		logrus.Warnf("lyric annotation failed for song %d: %v", id, err)
-		return
+		return err
 	}
 	annotated, err := sanitizeLyricAnnotations(lines, info.Comments, raw)
 	if err != nil {
 		logrus.Warnf("lyric annotation for song %d is invalid: %v", id, err)
-		return
+		return err
 	}
 	data, _ := json.Marshal(annotated)
 	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Data: string(data), Model: cfg.Model, Source: info.Source, CreatedAt: time.Now()}
@@ -518,9 +524,43 @@ func (a *lyricAnnotationService) run(lease *sharedstate.Lease, key string, id in
 	}
 	if err := repo.GetDB().Clauses(upsert).Create(record).Error; err != nil {
 		logrus.Errorf("save lyric annotation for song %d failed: %v", id, err)
-		return
+		return err
 	}
-	ok = true
+	return nil
+}
+
+// lyricAnnotationWaitPoll 批量任务等待同一首歌的另一次生成结束时，查询状态的间隔
+var lyricAnnotationWaitPoll = 2 * time.Second
+
+// errLyricAnnotationFailed 等待的另一次生成（其他实例或读者触发的）没有成功
+var errLyricAnnotationFailed = errors.New("lyric annotation failed")
+
+// regenerate 同步重新生成一首歌的标注（批量任务用）：与后台任务共用同一个任务租约，这份歌词已经在生成时等它结束，
+// 以它的结果为准（成功即算完成，不重复调用模型）
+func (a *lyricAnnotationService) regenerate(ctx context.Context, id int64, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) error {
+	key, hash := lyricAnnotationKey(id, lines)
+	jobKey, failedKey := a.stateKeys(key)
+	for {
+		lease, err := sharedstate.AcquireLease(jobKey, lyricAnnotationJobTTL)
+		if err != nil {
+			return err
+		}
+		if lease != nil {
+			_ = sharedstate.Current().Delete(failedKey)
+			return a.execute(lease, key, id, hash, lines, info, cfg)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(lyricAnnotationWaitPoll):
+		}
+		if running, coolingDown := a.jobState(key); !running {
+			if coolingDown {
+				return errLyricAnnotationFailed
+			}
+			return nil
+		}
+	}
 }
 
 // sanitizeLyricAnnotations 校验模型输出：行号必须存在、短语必须是该行原文的连续片段（忽略空白、标点与大小写）、

@@ -190,6 +190,48 @@ export async function listLyricAnnotations(): Promise<MusicLyricAnnotationSummar
   return res.data.data ?? []
 }
 
+// 批量删除歌词标注：这些歌曲所有歌词版本的标注（含手动编辑过的），返回删除了标注的歌曲数与记录数
+export async function batchDeleteLyricAnnotations(songIds: number[]): Promise<{ songs: number, records: number }> {
+  const res = await axiosClient.post<BaseResponse<{ songs: number, records: number }>>('/music/lyric/annotations/batch-delete', { songIds })
+  return res.data.data
+}
+
+export type MusicLyricAnnotationBatchItemStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
+
+// 批量重新生成的进度（后端保存在共享状态中）：reason 为跳过或失败的原因（错误码，edited 为手动编辑过）；
+// interrupted 为执行的实例已退出、等待其他实例接手，canceling 为已请求取消、等进行中的歌曲结束
+export interface MusicLyricAnnotationBatchStatus {
+  id: string
+  state: 'running' | 'done' | 'canceled'
+  overwriteEdited: boolean
+  total: number
+  done: number
+  failed: number
+  skipped: number
+  items: { songId: number, status: MusicLyricAnnotationBatchItemStatus, reason?: string }[]
+  startedAt: string
+  updatedAt: string
+  finishedAt?: string
+  interrupted?: boolean
+  canceling?: boolean
+}
+
+export async function startLyricAnnotationBatch(songIds: number[], overwriteEdited: boolean): Promise<MusicLyricAnnotationBatchStatus> {
+  const res = await axiosClient.post<BaseResponse<MusicLyricAnnotationBatchStatus>>('/music/lyric/annotations/batch-refresh', { songIds, overwriteEdited })
+  return res.data.data
+}
+
+// 最近一次批量重新生成的进度（结束后保留一段时间），没有时为 null
+export async function getLyricAnnotationBatch(): Promise<MusicLyricAnnotationBatchStatus | null> {
+  const res = await axiosClient.get<BaseResponse<MusicLyricAnnotationBatchStatus | null>>('/music/lyric/annotations/batch')
+  return res.data.data ?? null
+}
+
+export async function cancelLyricAnnotationBatch(): Promise<MusicLyricAnnotationBatchStatus | null> {
+  const res = await axiosClient.post<BaseResponse<MusicLyricAnnotationBatchStatus | null>>('/music/lyric/annotations/batch/cancel')
+  return res.data.data ?? null
+}
+
 // 后台编辑一首歌的歌词标注：lines 为完整歌词（按顺序、含重复的行），annotation 为当前标注（还没有时为 null）
 export interface MusicLyricAnnotationEditor {
   lines: string[]

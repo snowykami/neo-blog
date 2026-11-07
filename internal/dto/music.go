@@ -318,3 +318,57 @@ type MusicLyricAnnotationSummaryDto struct {
 	// 这首歌有手动编辑过、但属于旧歌词版本的标注（不再显示）时，最近一次编辑的时间
 	OutdatedEditedAt *time.Time `json:"outdated_edited_at,omitempty"`
 }
+
+// MusicLyricAnnotationBatchReq 后台批量操作歌词标注的歌曲（网易云歌曲 ID）：删除标注，或重新生成；
+// 重新生成时 overwrite_edited 为 false 则跳过手动编辑过的标注
+type MusicLyricAnnotationBatchReq struct {
+	SongIDs         []int64 `json:"song_ids"`
+	OverwriteEdited bool    `json:"overwrite_edited"`
+}
+
+// MusicLyricAnnotationBatchDeleteResp 批量删除的结果：删除了标注的歌曲数与记录数（同一首歌可能有多个歌词版本的标注）
+type MusicLyricAnnotationBatchDeleteResp struct {
+	Songs   int   `json:"songs"`
+	Records int64 `json:"records"`
+}
+
+// 批量重新生成中一首歌的状态
+const (
+	MusicLyricAnnotationBatchPending = "pending"
+	MusicLyricAnnotationBatchRunning = "running"
+	MusicLyricAnnotationBatchDone    = "done"
+	MusicLyricAnnotationBatchFailed  = "failed"
+	MusicLyricAnnotationBatchSkipped = "skipped"
+)
+
+// 批量重新生成任务的状态
+const (
+	MusicLyricAnnotationBatchStateRunning  = "running"
+	MusicLyricAnnotationBatchStateDone     = "done"
+	MusicLyricAnnotationBatchStateCanceled = "canceled"
+)
+
+// MusicLyricAnnotationBatchItem 批量重新生成中的一首歌：状态，以及跳过或失败的原因（错误码，如 lyric_annotations_unavailable、edited）
+type MusicLyricAnnotationBatchItem struct {
+	SongID int64  `json:"song_id"`
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// MusicLyricAnnotationBatchStatus 批量重新生成的进度：保存在共享状态中（配置 Redis 时多副本看到的一致），任务结束后保留一段时间；
+// interrupted 为执行的实例已退出、等待其他实例接手（读取时判断），canceling 为已请求取消、正在等进行中的歌曲结束
+type MusicLyricAnnotationBatchStatus struct {
+	ID              string                          `json:"id"`
+	State           string                          `json:"state"`
+	OverwriteEdited bool                            `json:"overwrite_edited"`
+	Total           int                             `json:"total"`
+	Done            int                             `json:"done"`
+	Failed          int                             `json:"failed"`
+	Skipped         int                             `json:"skipped"`
+	Items           []MusicLyricAnnotationBatchItem `json:"items"`
+	StartedAt       time.Time                       `json:"started_at"`
+	UpdatedAt       time.Time                       `json:"updated_at"`
+	FinishedAt      *time.Time                      `json:"finished_at,omitempty"`
+	Interrupted     bool                            `json:"interrupted,omitempty"`
+	Canceling       bool                            `json:"canceling,omitempty"`
+}

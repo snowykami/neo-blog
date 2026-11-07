@@ -39,6 +39,11 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroupWithAdmin.POST("/song/:id/lyric/annotations/refresh", controller.Music.RefreshLyricAnnotations)
 		// 后台歌词特效页：列表、编辑器数据与保存手动编辑的标注，仅管理员可用
 		musicGroupWithAdmin.GET("/lyric/annotations", controller.Music.ListLyricAnnotations)
+		// 批量操作：删除标注、后台重新生成（进度保存在共享状态中，见 music_annotation_batch.go）
+		musicGroupWithAdmin.POST("/lyric/annotations/batch-delete", controller.Music.BatchDeleteLyricAnnotations)
+		musicGroupWithAdmin.POST("/lyric/annotations/batch-refresh", controller.Music.StartLyricAnnotationBatch)
+		musicGroupWithAdmin.GET("/lyric/annotations/batch", controller.Music.LyricAnnotationBatch)
+		musicGroupWithAdmin.POST("/lyric/annotations/batch/cancel", controller.Music.CancelLyricAnnotationBatch)
 		musicGroupWithAdmin.GET("/song/:id/lyric/annotations/editor", controller.Music.LyricAnnotationEditor)
 		musicGroupWithAdmin.PUT("/song/:id/lyric/annotations", controller.Music.SaveLyricAnnotations)
 		// 歌词整体偏移对所有人生效，仅管理员可以调整
