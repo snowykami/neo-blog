@@ -1123,7 +1123,7 @@ export class LyricPlayer {
           view.el.style.opacity = opacity
         }
         // 间奏圆点：依次淡入、按拍倒计时点亮、呼吸，结束前放大后收拢在人声进入的那一拍（见 interlude.ts）；减少动态效果时只保留透明度
-        const dots = interludeDots(item.start, item.end, timeMs, view.dots.length, rhythmContext(this.lyrics.pace, this.rhythm))
+        const dots = interludeDots(item.start, item.end, timeMs, view.dots.length, rhythmContext(this.rhythm))
         view.dots.forEach((dot, index) => {
           const state = dots[index]
           const opacity = state.opacity.toFixed(3)
@@ -1240,7 +1240,7 @@ export class LyricPlayer {
     for (const { group, chars } of view.emphasis) {
       // 特效节奏：跟随节拍时由拍点驱动（心跳、重音、柔光呼吸、波浪、抖动的调幅、流光），固定快慢时按固定周期；
       // 起落曲线、消散的时长按基准周期 T_b 换算（见 rhythm/effects.ts）
-      const rhythm = rhythmContext(group.pace, this.rhythm)
+      const rhythm = rhythmContext(this.rhythm)
       const pace = nearestFixedPace(rhythm)
       const duration = Math.max(LYRIC_EMPHASIS_MIN_MS, group.end - group.start) * envelopeScale(rhythm)
       const f = group.factor

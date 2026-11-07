@@ -2,7 +2,7 @@
 
 import type { Lane } from './charts'
 import type { DebugEffect, FormulaSection } from './formulas'
-import type { LyricPace } from '@/lib/lyrics/pace'
+import type { FixedLyricPace } from '@/lib/lyrics/pace'
 import type { RhythmParams } from '@/lib/lyrics/rhythm/params'
 import type { LyricEffect, LyricEmphasis, ResolvedLyrics } from '@/lib/lyrics/types'
 import katex from 'katex'
@@ -15,7 +15,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
-import { LYRIC_PACES, PACE } from '@/lib/lyrics/pace'
+import { FIXED_LYRIC_PACES, PACE } from '@/lib/lyrics/pace'
 import { periodOf, pulsesIn, rhythmContext } from '@/lib/lyrics/rhythm/effects'
 import { getRhythmParams, resetRhythmParams, setRhythmParams, subscribeRhythmParams } from '@/lib/lyrics/rhythm/params'
 import { getRhythmState, subscribeRhythm } from '@/lib/lyrics/rhythm/source'
@@ -155,8 +155,9 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
     return clock.subscribe(update)
   }, [clock, getAudio, interludes, lyrics])
 
-  const songContext = rhythmContext(lyrics.pace, model, params)
-  const focusContext = focus.group ? rhythmContext(focus.group.pace, model, params) : songContext
+  // 动效快慢只有节拍一个来源：标注不再指定节奏，focus 与全曲用同一个上下文
+  const songContext = rhythmContext(model, params)
+  const focusContext = songContext
   const formulas = formulasFor(focus.effect, focusContext)
   const effectName = (effect: LyricEffect | DebugEffect) => t(`effects.${effect}`)
   // 输出栏：当前动效（或间奏）与背景呼吸；逐帧循环通过 ref 读取最新的组合
@@ -187,7 +188,7 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
         return
       lastDraw = now
       const timeMs = (getAudio()?.currentTime ?? 0) * 1000
-      const ctx = rhythmContext(lyrics.pace, model)
+      const ctx = rhythmContext(model)
       if (inputRef.current)
         drawInput(inputRef.current, timeMs, model, pulsesIn(ctx, 0, 0, timeMs - WINDOW_MS, timeMs + WINDOW_MS))
       const lanes = laneOf.current(timeMs)
@@ -202,7 +203,7 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [getAudio, lyrics.pace, model])
+  }, [getAudio, model])
 
   // 冲激响应与拍速图只在参数、档位或分析结果变化时重画
   const kernelTitles = KERNEL_ORDER.map(effect => effectName(effect)).join('|')
@@ -252,8 +253,7 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
   else if (rhythmState?.status === 'unavailable') {
     status = t('status_unavailable', { reason: t(`reasons.${rhythmState.reason}`) })
   }
-  const wanted = params.preview ?? focus.group?.pace ?? lyrics.pace ?? 'beat'
-  const fellBack = wanted === 'beat' && focusContext.pace !== 'beat'
+  const fellBack = params.preview === null && focusContext.pace !== 'beat'
 
   // 专业模式：通用参数 + 当前动效的参数
   const octaveDef = (group: 'heartbeat' | 'swell' | 'glow' | 'wave' | 'shake' | 'shimmer' | 'background', value: number): ParamDef => ({
@@ -341,10 +341,10 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
               size="sm"
               variant="outline"
               value={params.preview ?? 'auto'}
-              onValueChange={value => value && setRhythmParams({ preview: value === 'auto' ? null : value as LyricPace })}
+              onValueChange={value => value && setRhythmParams({ preview: value === 'auto' ? null : value as FixedLyricPace })}
             >
               <ToggleGroupItem value="auto" className="px-2.5 text-xs">{t('preview_auto')}</ToggleGroupItem>
-              {LYRIC_PACES.map(pace => <ToggleGroupItem key={pace} value={pace} className="px-2.5 text-xs">{t(`paces.${pace}`)}</ToggleGroupItem>)}
+              {FIXED_LYRIC_PACES.map(pace => <ToggleGroupItem key={pace} value={pace} className="px-2.5 text-xs">{t(`paces.${pace}`)}</ToggleGroupItem>)}
             </ToggleGroup>
           </div>
         </section>

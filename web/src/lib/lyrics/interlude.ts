@@ -86,7 +86,7 @@ export function interludePlan(start: number, end: number, count: number, rhythm:
 }
 
 /** 各圆点在 timeMs 时的透明度与缩放（时间点每帧算一次，各点共用）；间奏外为不可见。rhythm 为全曲节奏的演出上下文 */
-export function interludeDots(start: number, end: number, timeMs: number, count: number, rhythm: RhythmContext = rhythmContext(undefined, null)): InterludeDot[] {
+export function interludeDots(start: number, end: number, timeMs: number, count: number, rhythm: RhythmContext = rhythmContext(null)): InterludeDot[] {
   if (timeMs < start || timeMs >= end)
     return Array.from({ length: count }, () => ({ opacity: 0, scale: 1 }))
   const plan = interludePlan(start, end, count, rhythm)

@@ -1,14 +1,14 @@
-import type { FixedLyricPace, LyricPace } from '../pace'
+import type { FixedLyricPace } from '../pace'
 import type { RhythmModel, RhythmPulse } from './model'
 import type { RhythmParams } from './params'
 import { cubicBezier } from '../easing'
-import { DEFAULT_LYRIC_PACE, PACE } from '../pace'
+import { PACE } from '../pace'
 import { firstAtOrAfter, trainOf } from './model'
 import { getRhythmParams } from './params'
 
 /**
  * 韵律动效（信号与系统）：节拍决定「什么时候动」，歌词决定「哪里动、动多少」。
- * 输入为冲激串 x_e(t) = Σ a_k δ(t − t_k)：跟随节拍时为检测到的拍点（见 model.ts），固定快慢时为从 origin 起每 T_e 一个；
+ * 输入为冲激串 x_e(t) = Σ a_k δ(t − t_k)：跟随节拍时为检测到的拍点（见 model.ts），固定快慢（回退或调试覆盖）时为从 origin 起每 T_e 一个；
  * 输出 y_e(t) = Σ_{t_k ∈ W_e} a_k h_e(t + t_lead − t_k)，再由各消费方（lyric-player.ts、stage-effects.ts）映射到位移、缩放与辉光。
  * 时间均为毫秒；参数见 params.ts，公式与图示见播放器的调试面板
  */
@@ -26,16 +26,16 @@ export interface RhythmContext {
 }
 
 /**
- * 解析生效的节奏：短语或全曲为 beat（或未指定）时，节拍模型可用且可信才跟随节拍，否则回退到 params.fallback；
- * 指定了固定快慢时直接使用；调试面板的试听档位（params.preview）优先
+ * 解析生效的节奏：节拍模型可用且可信时跟随节拍，否则回退到 params.fallback；
+ * 调试面板的试听档位（params.preview）优先。歌词标注里的 pace 不再参与（节拍是唯一的速度来源）
  */
-export function rhythmContext(pace: LyricPace | undefined, model: RhythmModel | null | undefined, params = getRhythmParams()): RhythmContext {
-  const wanted = params.preview ?? pace ?? DEFAULT_LYRIC_PACE
+export function rhythmContext(model: RhythmModel | null | undefined, params = getRhythmParams()): RhythmContext {
+  const wanted: EffectivePace = params.preview ?? (model?.reliable ? 'beat' : params.fallback)
   if (wanted !== 'beat')
     return { pace: wanted, model: null, params, base: PACE.basePeriod[wanted] }
-  if (model?.reliable)
-    return { pace: 'beat', model, params, base: model.analysis.basePeriodMs }
-  return { pace: params.fallback, model: null, params, base: PACE.basePeriod[params.fallback] }
+  if (!model)
+    return { pace: params.fallback, model: null, params, base: PACE.basePeriod[params.fallback] }
+  return { pace: 'beat', model, params, base: model.analysis.basePeriodMs }
 }
 
 /** 动效的周期 T_e = 2^n·T_b */

@@ -67,11 +67,11 @@ export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number, rhythm: 
     }
     for (const group of line.emphasis ?? []) {
       if (group.effect === 'swell' || group.effect === 'shake') {
-        const duration = Math.max(PULSE_MIN_MS, group.end - group.start) * envelopeScale(rhythmContext(group.pace, rhythm))
+        const duration = Math.max(PULSE_MIN_MS, group.end - group.start) * envelopeScale(rhythmContext(rhythm))
         pulse = Math.max(pulse, swellCurve((timeMs - group.start) / duration) * group.factor)
       }
       else if (group.effect === 'heartbeat') {
-        pulse = Math.max(pulse, heartbeatLevel(rhythmContext(group.pace, rhythm), group.start, group.end, timeMs) * group.factor)
+        pulse = Math.max(pulse, heartbeatLevel(rhythmContext(rhythm), group.start, group.end, timeMs) * group.factor)
       }
       else if (group.effect === 'shatter') {
         pulse = Math.max(pulse, shatterFlash(group.end, timeMs) * group.factor)

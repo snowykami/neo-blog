@@ -1,12 +1,12 @@
-import type { FixedLyricPace, LyricPace } from '../pace'
+import type { FixedLyricPace } from '../pace'
 
 /**
  * 韵律动效的参数（时间均为毫秒）：默认值即线上效果，播放器的调试面板（专业模式）可以临时修改，只在当前页面生效。
  * octave 为各动效相对基准脉冲的八度倍数 n_e（T_e = 2^n·T_b）
  */
 export interface RhythmParams {
-  // 试听档位：调试面板中临时覆盖整首歌的节奏，为 null 时按标注
-  preview: LyricPace | null
+  // 试听档位：调试面板中临时覆盖整首歌的节奏（固定档），为 null 时按节拍（不可信时回退到 fallback）
+  preview: FixedLyricPace | null
   // 动效提前量 t_lead：视觉比声音略早一点更显得对拍
   leadMs: number
   // 节拍置信度低于它时不跟随节拍（自由节奏、纯钢琴、朗诵等），回退到 fallback

@@ -7,7 +7,7 @@ import { DEFAULT_RHYTHM_PARAMS } from './rhythm/params'
 
 // 10 秒的间奏：0 ~ 10000ms，固定中速（T_b = 750ms，网格从人声进入的 10000ms 往回排）
 const at = (t: number, i: number) => interludeDot(0, 10_000, t, i, 3)
-const fixed = rhythmContext(undefined, null)
+const fixed = rhythmContext(null)
 
 /** 跟随节拍的上下文：拍点为 first + k·period（各级按二分取偶数拍） */
 function beatContext(first: number, period: number, until: number): RhythmContext {

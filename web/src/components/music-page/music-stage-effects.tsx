@@ -159,7 +159,7 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       const signals = timeMs == null ? null : getStageSignals(lyrics, timeMs, model)
 
       // 跟随节拍：背景随拍呼吸；粒子取上一帧到这一帧之间经过的拍（拖动进度时不补）
-      const rhythm = rhythmContext(lyrics.pace, model)
+      const rhythm = rhythmContext(model)
       const beat = timeMs == null ? 0 : backgroundLevel(rhythm, timeMs)
       const since = lastTimeMs
       lastTimeMs = timeMs

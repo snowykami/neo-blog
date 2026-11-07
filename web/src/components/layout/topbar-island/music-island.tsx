@@ -261,13 +261,13 @@ const BEAT_TINT_OPACITY = 0.22
  * paused 时（悬浮播放器开着）停在此刻
  */
 function BeatBars({ tintRef, paused, barStyle }: { tintRef: React.RefObject<HTMLSpanElement | null>, paused: boolean, barStyle?: React.CSSProperties }) {
-  const { getAudio, isPlaying, lyrics, currentTrack } = useMusic()
+  const { getAudio, isPlaying, currentTrack } = useMusic()
   const reducedMotion = useReducedMotion()
   const rootRef = useRef<HTMLSpanElement>(null)
-  const stateRef = useRef({ pace: lyrics.pace, trackId: currentTrack?.id ?? null })
+  const stateRef = useRef({ trackId: currentTrack?.id ?? null })
   useEffect(() => {
-    stateRef.current = { pace: lyrics.pace, trackId: currentTrack?.id ?? null }
-  }, [currentTrack?.id, lyrics.pace])
+    stateRef.current = { trackId: currentTrack?.id ?? null }
+  }, [currentTrack?.id])
 
   // 停止播放、减少动态效果或律动条撤下时撤掉随拍染色（paused 时保留，停在此刻）
   useEffect(() => {
@@ -292,7 +292,7 @@ function BeatBars({ tintRef, paused, barStyle }: { tintRef: React.RefObject<HTML
       if (!audio)
         return
       const timeMs = audio.currentTime * 1000
-      const ctx = rhythmContext(stateRef.current.pace, rhythmModelFor(stateRef.current.trackId))
+      const ctx = rhythmContext(rhythmModelFor(stateRef.current.trackId))
       bars.forEach((bar, i) => {
         const { weight, lagMs, freq } = BARS[i]
         const level = ctx.model

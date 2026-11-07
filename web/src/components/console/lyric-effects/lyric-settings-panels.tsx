@@ -16,7 +16,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { canAddSpotlight, MAX_SPOTLIGHT_LINES, MAX_SPOTLIGHTS } from '@/lib/lyrics/annotation-edit'
 import { LYRIC_COLOR_NAMES, LYRIC_EFFECT_CATEGORIES, LYRIC_FONTS, LYRIC_INTRO_MAX, LYRIC_MOODS, LYRIC_SCENES, lyricEffectCategory } from '@/lib/lyrics/annotation-options'
 import { LYRIC_COLORS, MOOD_GLOW } from '@/lib/lyrics/colors'
-import { LYRIC_PACES } from '@/lib/lyrics/pace'
 import { SCENE_MAX_LINES } from '@/lib/lyrics/stage-effects'
 
 // 粒子场景可选的持续行数（含开始的一行，与后端上限一致）
@@ -66,23 +65,6 @@ export function SongSettingsPanel({ unique }: { unique: UniqueLine[] }) {
                 <SelectContent>
                   <SelectItem value={NONE}>{t('font_default')}</SelectItem>
                   {LYRIC_FONTS.map(font => <SelectItem key={font} value={font}>{optionT(`fonts.${font}`)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={control}
-          name="pace"
-          render={({ field }) => (
-            <FormItem className="grid gap-2">
-              <FormLabel>{t('pace')}</FormLabel>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {LYRIC_PACES.map(pace => <SelectItem key={pace} value={pace}>{optionT(`paces.${pace}`)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </FormItem>
