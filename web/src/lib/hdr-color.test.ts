@@ -21,14 +21,16 @@ describe('hdr-color', () => {
     expect(pqEncode(10000)).toBeCloseTo(1, 5)
   })
 
-  it('生成带 cICP 的 16 位 PNG，像素可解压', () => {
+  it('生成带 cICP 的 2×2 16 位 PNG，像素可解压', () => {
     const png = encodeHdrPng([255, 255, 255], 3)
     expect(Array.from(png.slice(0, 8))).toEqual([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
     const list = chunks(png)
     expect(list.map(c => c.type)).toEqual(['IHDR', 'cICP', 'IDAT', 'IEND'])
     expect(Array.from(list[1].data)).toEqual([9, 16, 0, 1])
+    // 2×2（Safari 把 1×1 的图片当纯色画，丢失 HDR）：两行，每行过滤字节 + 2 个像素 × 6 字节
+    expect(Array.from(list[0].data.slice(0, 8))).toEqual([0, 0, 0, 2, 0, 0, 0, 2])
     const raw = inflateSync(list[2].data)
-    expect(raw.length).toBe(7)
+    expect(raw.length).toBe(26)
     const sample = (raw[1] << 8) | raw[2]
     // 白色 × 3 ≈ 609 nits
     expect(sample / 0xFFFF).toBeCloseTo(pqEncode(203 * 3), 2)

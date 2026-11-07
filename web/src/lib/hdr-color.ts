@@ -1,6 +1,6 @@
 /**
  * HDR 颜色素材：CSS 颜色本身亮不过 SDR 白，但浏览器（Chrome 等）会以 HDR 显示带 cICP 块的 PQ 编码 PNG，
- * 把它当作 background-image 铺在元素上，元素就能亮过 SDR 白。这里按颜色现场生成 1×1 的 16 位 PNG（BT.2020 + PQ），
+ * 把它当作 background-image 铺在元素上，元素就能亮过 SDR 白。这里按颜色现场生成 2×2 的 16 位 PNG（BT.2020 + PQ），
  * 用 data URL 返回，不需要额外的静态资源；只在显示器支持 HDR 时使用（见 useHdrDisplay）
  */
 
@@ -85,16 +85,17 @@ function linearRgb(rgb: readonly [number, number, number], gain: number) {
 }
 
 /**
- * 生成一行 HDR 像素的 PNG（W×1，16 位 RGB，BT.2020 + PQ）：每个像素为线性 sRGB（1 为 SDR 白，可以大于 1）。
- * 不压缩（zlib 单个 stored 块），W 最多约 10000
+ * 生成 HDR 像素的 PNG（W×H，每行相同，16 位 RGB，BT.2020 + PQ）：每个像素为线性 sRGB（1 为 SDR 白，可以大于 1）。
+ * 不压缩（zlib 单个 stored 块），(1 + 6W) × H 不能超过 65535
  */
-function encodeHdrRow(pixels: readonly (readonly [number, number, number])[]): Uint8Array {
+function encodeHdrRow(pixels: readonly (readonly [number, number, number])[], height = 1): Uint8Array {
   const width = pixels.length
   // 扫描行：过滤类型 0 + 每个像素三个 16 位大端样本
-  const raw = [0, ...pixels.flatMap(linear => SRGB_TO_BT2020.flatMap((row) => {
+  const line = [0, ...pixels.flatMap(linear => SRGB_TO_BT2020.flatMap((row) => {
     const v = Math.round(pqEncode((row[0] * linear[0] + row[1] * linear[1] + row[2] * linear[2]) * SDR_WHITE_NITS) * 0xFFFF)
     return [v >>> 8, v & 0xFF]
   }))]
+  const raw = Array.from<number[]>({ length: height }).fill(line).flat()
   let a = 1
   let b = 0
   for (const byte of raw) {
@@ -105,8 +106,8 @@ function encodeHdrRow(pixels: readonly (readonly [number, number, number])[]): U
   const zlib = [0x78, 0x01, 0x01, len & 0xFF, len >>> 8, ~len & 0xFF, (~len >>> 8) & 0xFF, ...raw, b >>> 8, b & 0xFF, a >>> 8, a & 0xFF]
   return new Uint8Array([
     ...PNG_SIGNATURE,
-    // W×1，16 位，RGB
-    ...chunk('IHDR', [width >>> 24, (width >>> 16) & 0xFF, (width >>> 8) & 0xFF, width & 0xFF, 0, 0, 0, 1, 16, 2, 0, 0, 0]),
+    // W×H，16 位，RGB
+    ...chunk('IHDR', [width >>> 24, (width >>> 16) & 0xFF, (width >>> 8) & 0xFF, width & 0xFF, height >>> 24, (height >>> 16) & 0xFF, (height >>> 8) & 0xFF, height & 0xFF, 16, 2, 0, 0, 0]),
     // cICP：BT.2020 原色（9）、PQ 传递函数（16）、RGB（0）、全范围（1）
     ...chunk('cICP', [9, 16, 0, 1]),
     ...chunk('IDAT', zlib),
@@ -114,9 +115,13 @@ function encodeHdrRow(pixels: readonly (readonly [number, number, number])[]): U
   ])
 }
 
-/** 生成 1×1 的 HDR PNG：rgb 为 sRGB 0..255，gain 为相对 SDR 白的亮度倍数 */
+/**
+ * 生成纯色的 HDR PNG：rgb 为 sRGB 0..255，gain 为相对 SDR 白的亮度倍数。
+ * 用 2×2 而不是 1×1：Safari（WebKit）把 1×1 的图片当作纯色直接填充，走 SDR，HDR 信息丢失（实测 2×2 起 CSS 背景图与 background-clip: text 都能显示 HDR）
+ */
 export function encodeHdrPng(rgb: readonly [number, number, number], gain: number): Uint8Array {
-  return encodeHdrRow([linearRgb(rgb, gain)])
+  const pixel = linearRgb(rgb, gain)
+  return encodeHdrRow([pixel, pixel], 2)
 }
 
 const rgbCache = new Map<string, readonly [number, number, number] | null>()
