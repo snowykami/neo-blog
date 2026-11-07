@@ -81,8 +81,8 @@
     "close": "關閉"
   },
   "ContentCard": {
-    "loading": "載入中…",
-    "load_failed": "無法載入連結預覽"
+    "loading": "正在載入預覽…",
+    "load_failed": "暫時無法取得這個網頁的預覽，可以直接開啟連結瀏覽"
   },
   "Arrangement": {
     "arrangement": "配置",

@@ -81,8 +81,8 @@
     "close": "Close"
   },
   "ContentCard": {
-    "loading": "Loading…",
-    "load_failed": "Unable to load link preview"
+    "loading": "Loading preview…",
+    "load_failed": "Couldn't load a preview of this page. You can still open the link directly."
   },
   "Arrangement": {
     "arrangement": "Arrangement",
