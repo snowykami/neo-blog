@@ -211,8 +211,9 @@ function ReadingPanel({ store, headings, minutes }: { store: ReadingStore, headi
         </div>
       </div>
       {headings.length > 0 && (
-        <nav aria-label={commonT('table_of_contents')} className="-mx-1 max-h-[45dvh] overflow-y-auto px-1">
-          <ul className="grid gap-0.5 text-sm">
+        // 目录只上下滚动：列宽限制在面板内（grid 默认的列会被不换行的长标题撑宽，整块目录就能左右滑动），长标题省略；横向的拖动也不交给浏览器
+        <nav aria-label={commonT('table_of_contents')} className="-mx-1 max-h-[45dvh] touch-pan-y touch-pinch-zoom overflow-x-hidden overflow-y-auto overscroll-x-none px-1">
+          <ul className="grid grid-cols-[minmax(0,1fr)] gap-0.5 text-sm">
             {headings.map((heading, index) => (
               <li key={heading.id} style={{ paddingLeft: `${(heading.level - minLevel) * 0.75}rem` }}>
                 <PopoverPrimitive.Close asChild>
