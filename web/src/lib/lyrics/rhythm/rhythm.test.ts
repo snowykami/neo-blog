@@ -1,9 +1,13 @@
+import type { FixedLyricPace } from '../pace'
 import type { RhythmAnalysis } from './analysis'
 import { describe, expect, it } from 'vitest'
 import { analyzeRhythm, mixToMono } from './analysis'
 import { backgroundLevel, breathScale, dissolveFadeMs, envelopeScale, glowLevel, heartbeatLevel, nearestFixedPace, particlePulses, pulsesIn, rhythmContext, shimmerCenter, waveLevels } from './effects'
 import { buildRhythmModel, trainOf } from './model'
 import { DEFAULT_RHYTHM_PARAMS } from './params'
+
+/** 固定档的上下文：歌词标注已不指定节奏，固定档只来自回退与调试面板的试听档位 */
+const fixedPace = (pace: FixedLyricPace) => rhythmContext(null, { ...DEFAULT_RHYTHM_PARAMS, preview: pace })
 
 const RATE = 11025
 
@@ -54,9 +58,11 @@ describe('节拍分析', () => {
     expect(analysis.basePeriodMs).toBeGreaterThanOrEqual(480)
     expect(analysis.basePeriodMs).toBeLessThan(1000)
     expect(analysis.confidence).toBeGreaterThan(DEFAULT_RHYTHM_PARAMS.minConfidence)
-    // 拍点与击打的偏差在 30ms 内
+    // 每一击都要有拍点（不能一个都不剩），偏差在 40ms 内：93ms 的分析窗让谱通量的峰落在
+    // 击打之前最多约半个窗（实测约 29ms），播放时由 leadMs 提前量补回来
+    expect(analysis.beats.length).toBeGreaterThanOrEqual(50)
     const errors = analysis.beats.slice(2, -2).map(beat => Math.abs(((beat.t - 250) % 500 + 750) % 500 - 250))
-    expect(Math.max(...errors)).toBeLessThan(30)
+    expect(Math.max(...errors)).toBeLessThan(40)
   })
 
   it('太短的音频不分析', () => {
@@ -93,27 +99,28 @@ describe('节奏的解析与回退', () => {
   const model = buildRhythmModel(fakeAnalysis(Array.from({ length: 40 }, (_, i) => 400 + i * 640), 640), DEFAULT_RHYTHM_PARAMS)
   const unreliable = buildRhythmModel(fakeAnalysis([400, 1040], 640, 0.01), DEFAULT_RHYTHM_PARAMS)
 
-  it('跟随节拍：模型可信时用拍点，否则回退到中档；固定快慢直接使用', () => {
-    expect(rhythmContext(undefined, model).pace).toBe('beat')
-    expect(rhythmContext('beat', model).base).toBe(640)
-    expect(rhythmContext('beat', null).pace).toBe('medium')
-    expect(rhythmContext('beat', unreliable).pace).toBe('medium')
-    expect(rhythmContext('fast', model)).toMatchObject({ pace: 'fast', model: null, base: 520 })
-    expect(rhythmContext('slow', null).base).toBe(1000)
+  // 固定档只来自回退与调试面板的试听档位：歌词标注的 pace 已不参与（见 emphasis.ts）
+  it('跟随节拍：模型可信时用拍点，否则回退到中档；试听档位直接覆盖', () => {
+    expect(rhythmContext(model).pace).toBe('beat')
+    expect(rhythmContext(model).base).toBe(640)
+    expect(rhythmContext(null).pace).toBe('medium')
+    expect(rhythmContext(unreliable).pace).toBe('medium')
+    expect(rhythmContext(model, { ...DEFAULT_RHYTHM_PARAMS, preview: 'fast' })).toMatchObject({ pace: 'fast', model: null, base: 520 })
+    expect(fixedPace('slow').base).toBe(1000)
   })
 
   it('时长按基准周期换算：起落曲线、消散淡出；颤音取最接近的档位', () => {
-    expect(envelopeScale(rhythmContext('medium', null))).toBe(1)
-    expect(envelopeScale(rhythmContext('slow', null))).toBeCloseTo(1.333, 2)
-    expect(dissolveFadeMs(rhythmContext('fast', null))).toBeCloseTo(416)
-    expect(nearestFixedPace(rhythmContext('beat', model))).toBe('medium')
-    expect(nearestFixedPace(rhythmContext('slow', null))).toBe('slow')
+    expect(envelopeScale(rhythmContext(null))).toBe(1)
+    expect(envelopeScale(fixedPace('slow'))).toBeCloseTo(1.333, 2)
+    expect(dissolveFadeMs(fixedPace('fast'))).toBeCloseTo(416)
+    expect(nearestFixedPace(rhythmContext(model))).toBe('medium')
+    expect(nearestFixedPace(fixedPace('slow'))).toBe('slow')
   })
 
   it('固定快慢：从起点起每 T_e 一个脉冲；跟随节拍：取检测到的拍', () => {
-    expect(pulsesIn(rhythmContext('medium', null), 0, 1000, 1000, 3000).map(p => p.t)).toEqual([1000, 1750, 2500])
-    expect(pulsesIn(rhythmContext('medium', null), 1, 1000, 1000, 3000).map(p => p.t)).toEqual([1000, 2500])
-    expect(pulsesIn(rhythmContext('beat', model), 0, 1000, 1000, 3000).map(p => p.t)).toEqual([1040, 1680, 2320, 2960])
+    expect(pulsesIn(fixedPace('medium'), 0, 1000, 1000, 3000).map(p => p.t)).toEqual([1000, 1750, 2500])
+    expect(pulsesIn(fixedPace('medium'), 1, 1000, 1000, 3000).map(p => p.t)).toEqual([1000, 2500])
+    expect(pulsesIn(rhythmContext(model), 0, 1000, 1000, 3000).map(p => p.t)).toEqual([1040, 1680, 2320, 2960])
   })
 })
 
@@ -124,13 +131,13 @@ describe('各动效的输出', () => {
   const attack = DEFAULT_RHYTHM_PARAMS.heartbeat.attackMs
 
   it('心跳：每拍「扑通-扑通」，峰值在拍后 τ_a；跟随节拍时落在检测到的拍上而不是开唱时刻', () => {
-    const medium = rhythmContext('medium', null)
+    const medium = fixedPace('medium')
     // 中档从开唱（1000ms）起每 750ms 一拍
     expect(heartbeatLevel(medium, 1000, 3000, 1000 + attack - lead)).toBeGreaterThan(0.9)
     expect(heartbeatLevel(medium, 1000, 3000, 1000 + 500)).toBeLessThan(0.15)
     expect(heartbeatLevel(medium, 1000, 3000, 1750 + attack - lead)).toBeGreaterThan(0.9)
     // 跟随节拍：拍在 1040、1680……
-    const beat = rhythmContext('beat', model)
+    const beat = rhythmContext(model)
     expect(heartbeatLevel(beat, 1000, 3000, 1040 + attack - lead)).toBeGreaterThan(0.9)
     expect(heartbeatLevel(beat, 1000, 3000, 1680 + attack - lead)).toBeGreaterThan(0.9)
     // 开唱时刻（1000ms）还没到拍，不跳
@@ -138,7 +145,7 @@ describe('各动效的输出', () => {
   })
 
   it('柔光：开唱前渐亮、持续到行尾后熄灭，亮度随拍呼吸（峰值落在拍上）', () => {
-    const ctx = rhythmContext('beat', model)
+    const ctx = rhythmContext(model)
     expect(glowLevel(ctx, 1000, 4000, 700).gate).toBe(0)
     expect(glowLevel(ctx, 1000, 4000, 2000).gate).toBe(1)
     expect(glowLevel(ctx, 1000, 4000, 4500).gate).toBe(0)
@@ -149,7 +156,7 @@ describe('各动效的输出', () => {
   })
 
   it('波浪：拍后波峰从首字走到末字', () => {
-    const ctx = rhythmContext('medium', null)
+    const ctx = fixedPace('medium')
     const early = waveLevels(ctx, 1000, 3000, 4, 1000 + 80 - lead)
     expect(early[0]).toBeGreaterThan(early[3])
     const late = waveLevels(ctx, 1000, 3000, 4, 1000 + 400 - lead)
@@ -157,7 +164,7 @@ describe('各动效的输出', () => {
   })
 
   it('流光：从唱到时的第一拍起每拍扫一遍，扫两遍后停止', () => {
-    const ctx = rhythmContext('medium', null)
+    const ctx = fixedPace('medium')
     expect(shimmerCenter(ctx, 1000, 900, 4)).toBeNull()
     expect(shimmerCenter(ctx, 1000, 1000 - lead, 4)).toBe(-1)
     expect(shimmerCenter(ctx, 1000, 1000 + 375 - lead, 4)).toBeCloseTo(2)
@@ -166,7 +173,7 @@ describe('各动效的输出', () => {
   })
 
   it('间奏圆点：每个拍点在吸 / 呼之间翻转一次', () => {
-    const ctx = rhythmContext('medium', null)
+    const ctx = fixedPace('medium')
     // 中档 T_b = 750ms，八度取使 T_e 最接近 2 秒的 1（1500ms）
     expect(breathScale(ctx, 0, 20_000, 0)).toBe(1)
     expect(breathScale(ctx, 0, 20_000, 1400)).toBeCloseTo(1.2, 1)
@@ -174,10 +181,10 @@ describe('各动效的输出', () => {
   })
 
   it('背景呼吸与粒子只在跟随节拍时演出', () => {
-    const fixed = rhythmContext('medium', null)
+    const fixed = fixedPace('medium')
     expect(backgroundLevel(fixed, 1100)).toBe(0)
     expect(particlePulses(fixed, 0, 1000, 1100)).toBeNull()
-    const beat = rhythmContext('beat', model)
+    const beat = rhythmContext(model)
     expect(backgroundLevel(beat, 1040 + 30 - lead)).toBeGreaterThan(0.7)
     expect(particlePulses(beat, 0, 1000, 1100)!.map(p => p.t)).toEqual([1040])
   })

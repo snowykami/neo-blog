@@ -2,7 +2,8 @@
  * 音频节拍分析（纯函数，在 Web Worker 中运行，见 rhythm.worker.ts）：
  * 1. 谱通量起音强度（log 压缩幅度谱的半波整流差分），减去 0.4 秒滑动平均后归一化；同时记录响度
  * 2. 拍速：起音强度的自相关 R(τ)，按八度族 F(τ) = R(τ/2) + R(τ) + ½R(2τ) 在 [0.5, 1) 秒内找基准周期 τ_F，
- *    再用对数高斯先验（中心 0.5 秒）从 {τ_F/2, τ_F, 2τ_F} 中选出音乐拍长 T*；置信度 c = R(T*) / R(0)
+ *    再从 {τ_F/2, τ_F, 2τ_F} 中按"整数倍谐波的梳状和 × 对数高斯先验（中心 0.5 秒）"选出音乐拍长 T*；
+ *    置信度 c = R(T*) / R(0)。自相关在 T 的每个整数倍上都可能有峰，梳状和与先验一起判八度
  * 3. 拍点：动态规划（Ellis 2007）在起音强度上找间隔接近 T* 的拍点序列，去掉静音段的拍点
  * 输入为单声道、采样率 sampleRate 的样本（建议 11025 Hz），时间均以毫秒为单位
  */
@@ -36,6 +37,12 @@ const FFT_SIZE = 1024
 const HOP = 128
 const FLUX_GAMMA = 10
 const DP_ALPHA = 100
+// 拍点步长的允许范围（周期的倍数）：过宽会让拍点序列在歌曲中途漂到两倍/一半的网格
+const DP_WINDOW = 1.35
+// 拍速先验：人跟着数拍子最舒服在 0.5 秒（120 BPM）附近，偏一个八度就明显不自然。
+// 标准差按八度算：0.7 表示差一倍时权重降到 0.36，仍能被足够强的自相关峰压过去
+const TEMPO_PRIOR_PERIOD_S = 0.5
+const TEMPO_PRIOR_SIGMA = 0.7
 
 function makeFFT(n: number) {
   const rev = new Uint32Array(n)
@@ -117,6 +124,40 @@ export function mixToMono(channels: Float32Array[]): Float32Array {
   return mono
 }
 
+/**
+ * 动态规划找拍点（Ellis 2007）：score(t) = x(t) + max over τ of score(τ) − λ·log²((t−τ)/T)，
+ * 步长限制在 T / DP_WINDOW ~ T · DP_WINDOW 之间：原来允许 T/2 ~ 2T，序列容易在歌曲中途漂到
+ * 两倍或一半的网格上，导致"面板显示 100 BPM、实际按 50 BPM 跳"
+ */
+function trackBeats(onset: Float32Array, period: number, frames: number): number[] {
+  const score = new Float64Array(frames)
+  const back = new Int32Array(frames).fill(-1)
+  const longest = Math.max(1, Math.round(period * DP_WINDOW))
+  const shortest = Math.max(1, Math.round(period / DP_WINDOW))
+  for (let t = 0; t < frames; t++) {
+    let best = -Infinity
+    let arg = -1
+    for (let tau = Math.max(0, t - longest); tau <= t - shortest; tau++) {
+      const s = score[tau] - DP_ALPHA * Math.log((t - tau) / period) ** 2
+      if (s > best) {
+        best = s
+        arg = tau
+      }
+    }
+    score[t] = onset[t] + Math.max(0, best)
+    back[t] = best > 0 ? arg : -1
+  }
+  let end = frames - 1
+  for (let t = Math.max(0, frames - Math.round(period)); t < frames; t++) {
+    if (score[t] > score[end])
+      end = t
+  }
+  const beatFrames: number[] = []
+  for (let t = end; t >= 0; t = back[t])
+    beatFrames.push(t)
+  return beatFrames.reverse()
+}
+
 export function analyzeRhythm(samples: Float32Array, sampleRate: number, onProgress?: (progress: number) => void): RhythmAnalysis {
   const frameRate = sampleRate / HOP
   const frames = Math.max(0, Math.floor((samples.length - FFT_SIZE) / HOP) + 1)
@@ -192,41 +233,21 @@ export function analyzeRhythm(samples: Float32Array, sampleRate: number, onProgr
     if (family(tau) > family(familyBest))
       familyBest = tau
   }
-  const prior = (tau: number) => Math.exp(-0.5 * Math.log2(tau / frameRate / 0.5) ** 2)
+  const prior = (tau: number) => Math.exp(-0.5 * (Math.log2(tau / frameRate / TEMPO_PRIOR_PERIOD_S) / TEMPO_PRIOR_SIGMA) ** 2)
+  // 只数整数倍谐波的梳状和：真拍长在 T、2T、3T、4T 上都有能量，两倍的候选只有 2T、4T（缺 T 与 3T），
+  // 一半的候选只有 T/2、T、3T/2（缺 3T 与 4T）——这个不对称正是判八度的依据
+  const comb = (tau: number) => R(tau) + R(2 * tau) / 2 + R(3 * tau) / 3 + R(4 * tau) / 4
   const members = [familyBest / 2, familyBest, familyBest * 2].filter(tau => tau >= frameRate * 0.25 && tau <= frameRate * 1.5)
-  const period = members.reduce((best, tau) => (prior(tau) * R(tau) > prior(best) * R(best) ? tau : best))
+  const tempoScore = (tau: number) => prior(tau) * comb(tau)
+  const period = members.reduce((best, tau) => (tempoScore(tau) > tempoScore(best) ? tau : best))
   const confidence = autocorr[0] > 0 ? R(period) / autocorr[0] : 0
 
   // 3. 节拍：动态规划
   onProgress?.(0.94)
-  const score = new Float64Array(frames)
-  const back = new Int32Array(frames).fill(-1)
-  const longest = Math.round(2 * period)
-  const shortest = Math.round(period / 2)
-  for (let t = 0; t < frames; t++) {
-    let best = -Infinity
-    let arg = -1
-    for (let tau = Math.max(0, t - longest); tau <= t - shortest; tau++) {
-      const s = score[tau] - DP_ALPHA * Math.log((t - tau) / period) ** 2
-      if (s > best) {
-        best = s
-        arg = tau
-      }
-    }
-    score[t] = onset[t] + Math.max(0, best)
-    back[t] = best > 0 ? arg : -1
-  }
-  let end = frames - 1
-  for (let t = Math.max(0, frames - Math.round(period)); t < frames; t++) {
-    if (score[t] > score[end])
-      end = t
-  }
-  const beatFrames: number[] = []
-  for (let t = end; t >= 0; t = back[t])
-    beatFrames.push(t)
-  beatFrames.reverse()
-  // 静音段（低于 5% 分位 + 6 dB）的拍点去掉，由飞轮补拍（见 model.ts）
-  const loudFloor = percentile(loudSmooth, 0.05) + 6
+  const beatFrames = trackBeats(onset, period, frames)
+  // 静音段（低于 5% 分位 + 6 dB）的拍点去掉，由飞轮补拍（见 model.ts）。母带压得很狠（整首只有
+  // 两三 dB 动态）时这个门槛会高过所有拍点、整首一个都不剩，所以再夹一道"不高于中位数 − 3 dB"
+  const loudFloor = Math.min(percentile(loudSmooth, 0.05) + 6, percentile(loudSmooth, 0.5) - 3)
   const beats = beatFrames
     .filter(b => loudSmooth[b] > loudFloor)
     .map(b => ({ t: b * frameMs + frameOffsetMs, loud: loudSmooth[b], strength: onset[b] }))
