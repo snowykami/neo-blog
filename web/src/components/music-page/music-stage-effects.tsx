@@ -28,6 +28,8 @@ const BEAT_MAX_OPACITY = 0.12
 const BEAT_SEEK_GAP_MS = 500
 // 小窗（contained）：粒子缩小、数量减少，种类不变
 const CONTAINED_PARTICLES = { scale: 0.7, maxParticles: 80 }
+// HDR 粒子画布（float16 + WebGPU 输出）的分辨率比例：半分辨率、由 CSS 拉伸，像素数降到 1/4；粒子本身柔和，看不出差别
+const HDR_PARTICLE_RESOLUTION = 0.5
 
 // 镜头推近的层：data-stage-push 为推近到底时多放大的比例（背景、歌词区与本层，越靠前越大）
 const STAGE_PUSH_SELECTOR = '[data-stage-push]'
@@ -92,7 +94,20 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
     const drawCanvas = hdr ? document.createElement('canvas') : canvas
     let presenter: HdrCanvasPresenter | null = null
     const abort = new AbortController()
-    const particles = new StageParticles(drawCanvas, { ...(contained ? CONTAINED_PARTICLES : {}), hdrGain: hdr ? HDR_BRIGHTNESS.particles : 1 })
+    const particles = new StageParticles(drawCanvas, {
+      ...(contained ? CONTAINED_PARTICLES : {}),
+      ...(hdr ? { hdrGain: HDR_BRIGHTNESS.particles, resolution: HDR_PARTICLE_RESOLUTION } : {}),
+    })
+    // 粒子画布空闲释放时 HDR 输出一并释放，恢复时重新配置（见 StageParticles.suspended）
+    let outputSuspended = false
+    const syncOutput = () => {
+      if (!presenter || particles.suspended === outputSuspended)
+        return
+      outputSuspended = particles.suspended
+      presenter.setSuspended(outputSuspended)
+      if (!outputSuspended)
+        presenter.resize(drawCanvas.width, drawCanvas.height)
+    }
     if (hdr) {
       void createHdrCanvasPresenter(canvas, () => setGpuFailed(true), abort.signal).then((created) => {
         if (abort.signal.aborted)
@@ -107,7 +122,8 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
     }
     const observer = new ResizeObserver(([entry]) => {
       particles.resize(entry.contentRect.width, entry.contentRect.height)
-      presenter?.resize(drawCanvas.width, drawCanvas.height)
+      if (!outputSuspended)
+        presenter?.resize(drawCanvas.width, drawCanvas.height)
     })
     observer.observe(canvas)
 
@@ -180,7 +196,9 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       const nextPush = Math.round((signals?.push ?? 0) * 1000) / 1000
       if (pushRoot && nextPush !== push)
         writePush(nextPush)
-      if (particles.update(dt, signals?.scene ?? null, isPlaying, particleRhythm))
+      const drew = particles.update(dt, signals?.scene ?? null, isPlaying, particleRhythm)
+      syncOutput()
+      if (drew)
         presenter?.present(drawCanvas)
       frame = requestAnimationFrame(tick)
     }

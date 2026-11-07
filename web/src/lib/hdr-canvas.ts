@@ -10,6 +10,8 @@ export interface HdrCanvasPresenter {
   present: (source: HTMLCanvasElement) => void
   /** 页面上 canvas 的像素尺寸（与绘制画布一致） */
   resize: (width: number, height: number) => void
+  /** 暂时释放输出（注销上下文，交换链纹理随之释放）；恢复后需重新 resize */
+  setSuspended: (suspended: boolean) => void
   dispose: () => void
 }
 
@@ -81,21 +83,23 @@ export async function createHdrCanvasPresenter(canvas: HTMLCanvasElement, onLost
   const ctx = webgpuContext(canvas)
   if (!ctx)
     return null
-  ctx.configure({
+  const configuration: GPUCanvasConfiguration = {
     device,
     format: FORMAT,
     alphaMode: 'premultiplied',
     toneMapping: { mode: 'extended' },
     usage: CANVAS_USAGE,
-  })
+  }
+  ctx.configure(configuration)
   let disposed = false
+  let suspended = false
   void device.lost.then(() => {
     if (!disposed)
       onLost()
   })
   return {
     present(source) {
-      if (disposed || source.width === 0 || source.height === 0 || source.width !== canvas.width || source.height !== canvas.height)
+      if (disposed || suspended || source.width === 0 || source.height === 0 || source.width !== canvas.width || source.height !== canvas.height)
         return
       try {
         device.queue.copyExternalImageToTexture(
@@ -113,6 +117,19 @@ export async function createHdrCanvasPresenter(canvas: HTMLCanvasElement, onLost
     resize(width, height) {
       canvas.width = width
       canvas.height = height
+    },
+    setSuspended(value) {
+      if (disposed || value === suspended)
+        return
+      suspended = value
+      if (value) {
+        ctx.unconfigure()
+        canvas.width = 0
+        canvas.height = 0
+      }
+      else {
+        ctx.configure(configuration)
+      }
     },
     dispose() {
       // 设备全页共用，不销毁；也不 unconfigure：同一个 canvas 只有一个 webgpu 上下文，可能已被后来创建的输出重新配置（开发模式下 effect 会执行两遍）

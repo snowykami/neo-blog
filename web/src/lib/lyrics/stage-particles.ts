@@ -64,6 +64,8 @@ let heartBeat: number | null = null
 let colorGain = 1
 
 const MAX_PARTICLES = 240
+// 没有场景、画面也已清空这么久后释放画布（缩成 0×0），下次有场景时恢复
+const RELEASE_IDLE_S = 3
 const BASE_AREA = 1280 * 800
 // 场景渐入 / 渐出的速度（每秒）
 const DENSITY_IN = 0.6
@@ -578,6 +580,8 @@ export interface StageParticlesOptions {
   maxParticles?: number
   // HDR 亮度倍数：大于 1 时画布用 float16、颜色乘以它（画布须由 lib/hdr-canvas.ts 拷到 HDR 输出上才会显示为 HDR）
   hdrGain?: number
+  // 画布分辨率相对设备像素比的比例（HDR 的 float16 画布用 0.5 省显存，由 CSS 拉伸铺满）
+  resolution?: number
 }
 
 export class StageParticles {
@@ -594,23 +598,38 @@ export class StageParticles {
   private width = 0
   private height = 0
   private hdrGain: number
+  private resolution: number
+  // 空闲释放：画布已缩成 0×0（见 RELEASE_IDLE_S），以及已空闲的时长
+  private released = false
+  private idleFor = 0
 
-  constructor(private canvas: HTMLCanvasElement, { scale = 1, maxParticles = MAX_PARTICLES, hdrGain = 1 }: StageParticlesOptions = {}) {
+  constructor(private canvas: HTMLCanvasElement, { scale = 1, maxParticles = MAX_PARTICLES, hdrGain = 1, resolution = 1 }: StageParticlesOptions = {}) {
     // colorType 尚未进入 TypeScript 的 DOM 类型
     this.ctx = canvas.getContext('2d', hdrGain > 1 ? { colorType: 'float16' } as CanvasRenderingContext2DSettings : undefined)
     this.scale = scale
     this.maxParticles = maxParticles
     this.hdrGain = hdrGain
+    this.resolution = resolution
   }
 
-  /** 画面尺寸变化时调用（CSS 像素），按设备像素比放大画布，最多 2 倍 */
+  /** 画面尺寸变化时调用（CSS 像素），按设备像素比（最多 2 倍）乘以 resolution 设置画布；释放期间只记下尺寸 */
   resize(width: number, height: number) {
-    const ratio = Math.min(2, window.devicePixelRatio || 1)
     this.width = width
     this.height = height
-    this.canvas.width = Math.round(width * ratio)
-    this.canvas.height = Math.round(height * ratio)
+    if (!this.released)
+      this.applySize()
+  }
+
+  private applySize() {
+    const ratio = Math.min(2, window.devicePixelRatio || 1) * this.resolution
+    this.canvas.width = Math.round(this.width * ratio)
+    this.canvas.height = Math.round(this.height * ratio)
     this.ctx?.setTransform(ratio, 0, 0, ratio, 0, 0)
+  }
+
+  /** 画布是否已因空闲释放（HDR 输出据此一并释放、恢复） */
+  get suspended() {
+    return this.released
   }
 
   /** 是否还有需要绘制的内容（没有时可停止逐帧循环） */
@@ -626,6 +645,14 @@ export class StageParticles {
     const ctx = this.ctx
     if (!ctx)
       return false
+    // 空闲释放后，有场景要演出时恢复画布
+    if (this.released) {
+      if (!active || !scene)
+        return false
+      this.released = false
+      this.idleFor = 0
+      this.applySize()
+    }
     heartBeat = rhythm?.heart ?? null
     colorGain = this.hdrGain
     const key = sceneKey(scene)
@@ -673,8 +700,17 @@ export class StageParticles {
       this.pending = 0
     }
 
-    if (this.particles.length === 0 && !this.painted)
+    if (this.particles.length === 0 && !this.painted) {
+      // 没有场景、画面已清空：空闲够久就释放画布（缩成 0×0 即释放显存）
+      this.idleFor = this.density === 0 ? this.idleFor + dt : 0
+      if (this.idleFor >= RELEASE_IDLE_S) {
+        this.released = true
+        this.canvas.width = 0
+        this.canvas.height = 0
+      }
       return false
+    }
+    this.idleFor = 0
     ctx.clearRect(0, 0, this.width, this.height)
     this.particles = this.particles.filter((p) => {
       p.age += dt
