@@ -4,8 +4,8 @@ import { buildRhythmModel } from './model'
 import { getRhythmParams, subscribeRhythmParams } from './params'
 
 /**
- * 每首歌的节拍分析（只在前端进行，后端不存）：播放时下载同一份音频，以 11025 Hz 单声道解码后交给 Worker 分析，结果按歌曲缓存在内存中。
- * 桌面端与移动端行为一致，只在开启歌词特效时分析（见 music-context.tsx）。
+ * 每首歌的节拍分析（只在前端进行，后端不存）：播放时另外下载一份同样的音频（不经过 HTTP 缓存），以 11025 Hz 单声道解码后交给 Worker 分析，结果按歌曲缓存在内存中。
+ * 桌面端与移动端行为一致，只在开启歌词特效、这首歌已经出声且页面可见时分析（见 music-context.tsx）。
  * 拿不到结果时（不是站内代理的音频、浏览器开启了省流量、下载或解码失败、节拍不可信）动效回退到固定快慢（见 effects.ts 的 rhythmContext）
  */
 
@@ -129,7 +129,9 @@ export function requestRhythm(songId: number, audioUrl: string | null | undefine
   void (async () => {
     let buffer: ArrayBuffer
     try {
-      const response = await fetch(audioUrl!)
+      // 不经过 HTTP 缓存：Chrome 对同一地址的请求排队（缓存锁），整首下载完之前 <audio> 的 Range 请求一直等着，
+      // 切歌后要等这一整首下载完才出声（实测 1～15 秒），期间媒体会话没有在播的播放器，系统媒体控制随之断开
+      const response = await fetch(audioUrl!, { cache: 'no-store' })
       if (!response.ok)
         throw new Error(String(response.status))
       buffer = await response.arrayBuffer()

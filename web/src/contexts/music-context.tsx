@@ -501,10 +501,24 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [clock, currentTrackId])
 
-  // 节拍分析（韵律动效）：开启歌词特效时分析当前曲目，结果按歌曲缓存；拿不到时动效回退到固定快慢（见 lib/lyrics/rhythm/source.ts）
+  // 节拍分析（韵律动效）：开启歌词特效时分析当前曲目，结果按歌曲缓存；拿不到时动效回退到固定快慢（见 lib/lyrics/rhythm/source.ts）。
+  // 分析要另外下载一整首音频：等这首歌出声后再请求，不跟切歌后的首段缓冲抢带宽；页面不可见时（锁屏、后台用系统媒体控制切歌）
+  // 看不到动效，也不在后台下载、解码整首歌，回到前台后再分析
   useEffect(() => {
-    if (showLyricEffects && currentTrack)
-      requestRhythm(currentTrack.id, currentTrack.audio)
+    const audio = audioRef.current
+    if (!showLyricEffects || !currentTrack || !audio)
+      return
+    const request = () => {
+      if (!audio.paused && audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA && document.visibilityState === 'visible')
+        requestRhythm(currentTrack.id, currentTrack.audio)
+    }
+    request()
+    audio.addEventListener('playing', request)
+    document.addEventListener('visibilitychange', request)
+    return () => {
+      audio.removeEventListener('playing', request)
+      document.removeEventListener('visibilitychange', request)
+    }
   }, [currentTrack, showLyricEffects])
 
   // 切换到指定索引；目标与当前曲目相同时（如单曲歌单）直接从头播放，避免 effect 不触发导致停播
