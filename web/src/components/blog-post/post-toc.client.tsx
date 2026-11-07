@@ -98,8 +98,10 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
   let topIndex = 0
   return (
     <SidebarCard title={t('table_of_contents')} className={className}>
-      <nav aria-label={t('table_of_contents')} className="-mx-1 max-h-[calc(100dvh-var(--nav-h)-8rem)] overflow-y-auto px-1 hide-scrollbar">
-        <ul className="grid gap-0.5 text-sm">
+      {/* 目录只上下滚动：grid 的隐式列默认按内容的最宽处撑开（长标题是一整段不换行的文本），列宽要显式夹在卡片内，
+          否则整块目录能左右滑、长标题也省略不掉；触摸时横向的拖动不交给浏览器 */}
+      <nav aria-label={t('table_of_contents')} className="-mx-1 max-h-[calc(100dvh-var(--nav-h)-8rem)] touch-pan-y overflow-x-hidden overflow-y-auto overscroll-x-none px-1 hide-scrollbar">
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-0.5 text-sm">
           {headings.map((heading) => {
             const isTop = heading.level === minLevel
             if (isTop)
@@ -112,7 +114,7 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
                   onClick={e => scrollTo(e, heading.id)}
                   aria-current={active ? 'location' : undefined}
                   className={cn(
-                    'flex min-h-9 items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-primary/10 hover:text-primary',
+                    'flex w-full items-start gap-2 rounded-lg px-2 py-2 transition-colors duration-150 hover:bg-primary/10 hover:text-primary',
                     active ? 'bg-primary/10 font-medium text-primary' : 'text-foreground/75',
                   )}
                   title={heading.text}
@@ -129,8 +131,9 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
                           {topIndex}
                         </span>
                       )
-                    : <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', active ? 'bg-primary' : 'bg-foreground/20')} />}
-                  <span className="min-w-0 truncate">{heading.text}</span>
+                    : <span aria-hidden className={cn('mt-1.5 size-1.5 shrink-0 rounded-full', active ? 'bg-primary' : 'bg-foreground/20')} />}
+                  {/* 侧栏窄，一行只放得下十来个汉字：留两行再省略，既不会一条标题占满整块目录，也不用只靠 title 提示 */}
+                  <span className="line-clamp-2 min-w-0">{heading.text}</span>
                 </a>
               </li>
             )
