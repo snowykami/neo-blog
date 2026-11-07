@@ -1,6 +1,6 @@
 import { inflateSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
-import { encodeHdrPng, pqEncode } from './hdr-color'
+import { encodeHdrPng, pqEncode, shimmerPosition } from './hdr-color'
 
 function chunks(png: Uint8Array) {
   const view = new DataView(png.buffer, png.byteOffset, png.byteLength)
@@ -32,5 +32,12 @@ describe('hdr-color', () => {
     const sample = (raw[1] << 8) | raw[2]
     // 白色 × 3 ≈ 609 nits
     expect(sample / 0xFFFF).toBeCloseTo(pqEncode(203 * 3), 2)
+  })
+
+  it('流光横条的定位让光带中心落在 pos', () => {
+    // background-size 300%：p% 把横条左边放在 (100% - 300%) × p%，中心 = 左边 + 150%
+    const center = (pos: number) => -2 * Number.parseFloat(shimmerPosition(pos)) + 150
+    for (const pos of [-80, 0, 50, 100, 180])
+      expect(center(pos)).toBeCloseTo(pos, 0)
   })
 })

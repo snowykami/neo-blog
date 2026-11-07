@@ -141,6 +141,13 @@
   background-clip: text;
 }
 
+/* HDR 下的流光：上层是随光带移动的横条素材（宽 300%，不重复），下层是底色素材（横条移出字外时兜底），见 hdrShimmerUrl */
+.lyric-char--shine {
+  background-position: var(--lyric-shine-x, 50%) 0, 0 0;
+  background-size: 300% 100%, auto;
+  background-repeat: no-repeat, repeat;
+}
+
 /* 下划线原本用 currentColor，HDR 下字本身透明：改用字的素材（没有素材时仍是 currentColor），并扣掉上面的内边距 */
 .lyric-player--hdr .lyric-word--underline .lyric-char:not(.lyric-char--space)::before {
   left: calc(var(--lyric-hdr-pad) - 0.03em);

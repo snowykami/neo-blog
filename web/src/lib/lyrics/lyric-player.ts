@@ -4,7 +4,7 @@ import type { StripLine, StripSlot } from './strip-slots'
 import type { TimelineItem, TimelineState } from './timeline'
 import type { LyricEmphasis, LyricWord, ResolvedLyrics } from './types'
 import type { LyricMarqueeWordBox, MusicLyricLine } from '@/utils/music-lyric'
-import { HDR_BRIGHTNESS, hdrColorUrl } from '@/lib/hdr-color'
+import { HDR_BRIGHTNESS, hdrColorUrl, hdrShimmerUrl, shimmerPosition } from '@/lib/hdr-color'
 import { getLyricMarqueeOffset } from '@/utils/music-lyric'
 import { LYRIC_COLORS, MOOD_GLOW } from './colors'
 import {
@@ -107,6 +107,8 @@ interface CharView {
   // 流光的背景（光带 + 底色，裁剪到字形）与消散的不透明度
   background: string
   opacity: string
+  // HDR 高光下流光横条的位置（lyric-char--shine 的 --lyric-shine-x，见 lyric-player.css）；不在扫光时为空
+  shine: string
   // 消散 / 破碎：已为这个时刻生成过颗粒或碎片（往回拖动进度后重新生成）
   debrisAt: number | null
 }
@@ -383,7 +385,7 @@ function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[],
     charEl.textContent = char
     wordEl.append(charEl)
     if (char.trim()) {
-      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '', line: '', background: '', opacity: '', debrisAt: null, start: timing.start + step * k, end: timing.start + step * (k + 1) })
+      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '', line: '', background: '', opacity: '', shine: '', debrisAt: null, start: timing.start + step * k, end: timing.start + step * (k + 1) })
       k++
     }
     else {
@@ -1275,6 +1277,7 @@ export class LyricPlayer {
         let drift = 0
         let crack = 0
         let tint = 0
+        let shineX = ''
         if (group.effect === 'dissolve' && f > 0) {
           // 消散：字唱完后淡出、变虚并向右飘，同时生成颗粒；过一会儿慢慢恢复
           const dissolve = dissolveState(group.start, group.end, i, count, timeMs, this.seekAt, dissolveFadeMs(rhythm))
@@ -1395,12 +1398,19 @@ export class LyricPlayer {
         if (shine != null) {
           // 流光：字的颜色改由背景绘制（裁剪到字形，见 lyric-player.css），叠上一道光带；文字本身透明，辉光会盖住背景所以不用
           const pos = (shine - i) * 100
-          const base = color ? color.replace('currentColor', 'var(--lyric-color, #fff)') : 'var(--lyric-color, #fff)'
-          // HDR 高光下光带改为透出底下的 HDR 素材：光带以外由原色盖住，光带处亮过 SDR 白
-          const shineUrl = hdr ? hdrColorUrl(HDR_SHINE_COLOR, hdrGain) : null
-          background = shineUrl
-            ? `linear-gradient(105deg, ${base} ${(pos - 40).toFixed(1)}%, transparent ${pos.toFixed(1)}%, ${base} ${(pos + 40).toFixed(1)}%), url("${shineUrl}")`
-            : `linear-gradient(105deg, transparent ${(pos - 40).toFixed(1)}%, rgb(255 250 230 / 0.95) ${pos.toFixed(1)}%, transparent ${(pos + 40).toFixed(1)}%), linear-gradient(${base}, ${base})`
+          // HDR 高光：底色与光带都是 HDR——一张「底色 → 光带 → 底色」的横条素材随光带移动，底下再铺一层底色素材（横条移出字外时兜底）。
+          // CSS 不能给图片层加渐变遮罩，所以光带直接画进素材里（见 hdrShimmerUrl）；扫光期间整个字就是 HDR，扫完不会突然变亮
+          const hdrBase = hdr ? hdrTint(tintColor, tint) : null
+          const strip = hdrBase ? hdrShimmerUrl(hdrBase, hdrGain, HDR_SHINE_COLOR, Math.max(HDR_BRIGHTNESS.shimmer, hdrGain)) : null
+          const baseUrl = hdrBase ? hdrColorUrl(hdrBase, hdrGain) : null
+          if (strip && baseUrl) {
+            background = `url("${strip}"), url("${baseUrl}")`
+            shineX = shimmerPosition(pos)
+          }
+          else {
+            const base = color ? color.replace('currentColor', 'var(--lyric-color, #fff)') : 'var(--lyric-color, #fff)'
+            background = `linear-gradient(105deg, transparent ${(pos - 40).toFixed(1)}%, rgb(255 250 230 / 0.95) ${pos.toFixed(1)}%, transparent ${(pos + 40).toFixed(1)}%), linear-gradient(${base}, ${base})`
+          }
           color = 'transparent'
           shadow = ''
         }
@@ -1440,6 +1450,15 @@ export class LyricPlayer {
           char.background = background
           char.el.style.backgroundImage = background
         }
+        if (shineX !== char.shine) {
+          if (!shineX !== !char.shine)
+            char.el.classList.toggle('lyric-char--shine', !!shineX)
+          char.shine = shineX
+          if (shineX)
+            char.el.style.setProperty('--lyric-shine-x', shineX)
+          else
+            char.el.style.removeProperty('--lyric-shine-x')
+        }
         if (opacity !== char.opacity) {
           char.opacity = opacity
           char.el.style.opacity = opacity
@@ -1470,6 +1489,11 @@ export class LyricPlayer {
         if (char.background) {
           char.background = ''
           char.el.style.backgroundImage = ''
+        }
+        if (char.shine) {
+          char.shine = ''
+          char.el.classList.remove('lyric-char--shine')
+          char.el.style.removeProperty('--lyric-shine-x')
         }
         if (char.opacity) {
           char.opacity = ''

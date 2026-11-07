@@ -15,8 +15,10 @@ const SDR_WHITE_NITS = 203
 export const HDR_BRIGHTNESS = {
   // 正在唱的普通歌词（播放器页、悬浮小窗、灵动岛单行条）：长时间看也不刺眼
   lyric: 4,
-  // 强调短语（含彩色上色、流光的光带）
+  // 强调短语（含彩色上色、流光的底色）
   emphasis: 5,
+  // 流光扫过时光带中心的亮度（比字本身更亮；聚光灯下取两者中较亮的）
+  shimmer: 10,
   // 聚光灯下的点题句（播放器页、悬浮小窗）：要的就是晃眼，约 4000 nits，超过目前任何显示器的峰值
   spotlight: 20,
   // 灵动岛单行条唱到点题句（不演出聚光灯，只换亮度）
@@ -77,13 +79,22 @@ function chunk(type: string, data: number[]) {
   return [len >>> 24, (len >>> 16) & 0xFF, (len >>> 8) & 0xFF, len & 0xFF, ...body, crc >>> 24, (crc >>> 16) & 0xFF, (crc >>> 8) & 0xFF, crc & 0xFF]
 }
 
-/** 生成 1×1 的 HDR PNG：rgb 为 sRGB 0..255，gain 为相对 SDR 白的亮度倍数 */
-export function encodeHdrPng(rgb: readonly [number, number, number], gain: number): Uint8Array {
-  const linear = rgb.map(srgbToLinear)
-  const samples = SRGB_TO_BT2020.map(row => Math.round(pqEncode((row[0] * linear[0] + row[1] * linear[1] + row[2] * linear[2]) * SDR_WHITE_NITS * gain) * 0xFFFF))
-  // 扫描行：过滤类型 0 + 三个 16 位大端样本
-  const raw = [0, ...samples.flatMap(v => [v >>> 8, v & 0xFF])]
-  // zlib：不压缩的单个 stored 块
+/** sRGB 0..255 → 线性 sRGB（1 为 SDR 白）再乘以 gain */
+function linearRgb(rgb: readonly [number, number, number], gain: number) {
+  return rgb.map(c => srgbToLinear(c) * gain) as [number, number, number]
+}
+
+/**
+ * 生成一行 HDR 像素的 PNG（W×1，16 位 RGB，BT.2020 + PQ）：每个像素为线性 sRGB（1 为 SDR 白，可以大于 1）。
+ * 不压缩（zlib 单个 stored 块），W 最多约 10000
+ */
+function encodeHdrRow(pixels: readonly (readonly [number, number, number])[]): Uint8Array {
+  const width = pixels.length
+  // 扫描行：过滤类型 0 + 每个像素三个 16 位大端样本
+  const raw = [0, ...pixels.flatMap(linear => SRGB_TO_BT2020.flatMap((row) => {
+    const v = Math.round(pqEncode((row[0] * linear[0] + row[1] * linear[1] + row[2] * linear[2]) * SDR_WHITE_NITS) * 0xFFFF)
+    return [v >>> 8, v & 0xFF]
+  }))]
   let a = 1
   let b = 0
   for (const byte of raw) {
@@ -94,13 +105,18 @@ export function encodeHdrPng(rgb: readonly [number, number, number], gain: numbe
   const zlib = [0x78, 0x01, 0x01, len & 0xFF, len >>> 8, ~len & 0xFF, (~len >>> 8) & 0xFF, ...raw, b >>> 8, b & 0xFF, a >>> 8, a & 0xFF]
   return new Uint8Array([
     ...PNG_SIGNATURE,
-    // 1×1，16 位，RGB
-    ...chunk('IHDR', [0, 0, 0, 1, 0, 0, 0, 1, 16, 2, 0, 0, 0]),
+    // W×1，16 位，RGB
+    ...chunk('IHDR', [width >>> 24, (width >>> 16) & 0xFF, (width >>> 8) & 0xFF, width & 0xFF, 0, 0, 0, 1, 16, 2, 0, 0, 0]),
     // cICP：BT.2020 原色（9）、PQ 传递函数（16）、RGB（0）、全范围（1）
     ...chunk('cICP', [9, 16, 0, 1]),
     ...chunk('IDAT', zlib),
     ...chunk('IEND', []),
   ])
+}
+
+/** 生成 1×1 的 HDR PNG：rgb 为 sRGB 0..255，gain 为相对 SDR 白的亮度倍数 */
+export function encodeHdrPng(rgb: readonly [number, number, number], gain: number): Uint8Array {
+  return encodeHdrRow([linearRgb(rgb, gain)])
 }
 
 const rgbCache = new Map<string, readonly [number, number, number] | null>()
@@ -154,4 +170,43 @@ export function hdrColorUrl(color: string, gain: number): string | null {
   const url = rgb ? `data:image/png;base64,${btoa(String.fromCharCode(...encodeHdrPng(rgb, gain)))}` : null
   urlCache.set(key, url)
   return url
+}
+
+// 流光横条：宽度相当于 3 个字（光带在中间，两侧为底色），光带半宽为一个字宽的 40%，与 SDR 下的渐变光带一致
+const SHIMMER_WIDTH = 96
+const SHIMMER_SPAN = 3
+const SHIMMER_HALF_BAND = 0.4
+
+/**
+ * 流光的 HDR 横条素材（data URL）：底色 base（亮度 baseGain）中间一道光带 band（亮度 bandGain，线性光下按三角形权重与底色混合，峰值 95%，同 SDR 光带）。
+ * 用作 background-size: 300% 100%，按 shimmerPosition 移动光带（见 lyric-player.css 的 lyric-char--shine）；解析失败时返回 null
+ */
+export function hdrShimmerUrl(base: string, baseGain: number, band: string, bandGain: number): string | null {
+  const key = `shimmer|${base}|${baseGain}|${band}|${bandGain}`
+  const cached = urlCache.get(key)
+  if (cached !== undefined)
+    return cached
+  const baseRgb = parseCssColor(base)
+  const bandRgb = parseCssColor(band)
+  let url: string | null = null
+  if (baseRgb && bandRgb) {
+    const b0 = linearRgb(baseRgb, baseGain)
+    const b1 = linearRgb(bandRgb, bandGain)
+    const half = SHIMMER_HALF_BAND / SHIMMER_SPAN * SHIMMER_WIDTH
+    const pixels = Array.from({ length: SHIMMER_WIDTH }, (_, x) => {
+      const w = Math.max(0, 1 - Math.abs(x + 0.5 - SHIMMER_WIDTH / 2) / half) * 0.95
+      return b0.map((c, i) => c * (1 - w) + b1[i] * w) as [number, number, number]
+    })
+    url = `data:image/png;base64,${btoa(String.fromCharCode(...encodeHdrRow(pixels)))}`
+  }
+  urlCache.set(key, url)
+  return url
+}
+
+/**
+ * 流光横条的 background-position-x：pos 为光带中心在字宽上的位置（%，可以超出 0 ~ 100）。
+ * 横条宽 300%，p% 的定位把横条的左边放在 (100% - 300%) × p% 处，中心对齐 pos 时 p = 75 - pos / 2
+ */
+export function shimmerPosition(pos: number) {
+  return `${(75 - pos / 2).toFixed(1)}%`
 }
