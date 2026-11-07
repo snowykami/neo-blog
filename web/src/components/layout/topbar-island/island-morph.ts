@@ -324,8 +324,11 @@ export async function morphIsland({ direction, capsule, panel, content, signal }
   layer.insertBefore(shell, wrapper ?? null)
   overlays.push(shell)
   restore.push(() => shell.remove())
-  // 形变期间面板自身不画底色与阴影（由外壳画），不响应点击
+  // 形变期间面板自身不画底色与阴影（由外壳画），不响应点击；面板的投影画在外层（见 island-squircle.ts），
+  // 底色透明时它只会跟着文字与图片的 alpha 走，同样先撤掉
   setStyle(panel, { background: 'transparent', boxShadow: 'none', pointerEvents: 'none' })
+  if (wrapper)
+    setStyle(wrapper, { filter: 'none' })
 
   const animations: Animation[] = []
   // 展开时中途加一帧：形状照常（两端按比例插值），圆角仍是胶囊的

@@ -194,6 +194,9 @@ importers:
       field-conv:
         specifier: ^1.0.9
         version: 1.0.9
+      figma-squircle:
+        specifier: ^1.1.0
+        version: 1.1.0
       highlight.js:
         specifier: ^11.12.0
         version: 11.12.0
@@ -3618,6 +3621,9 @@ packages:
 
   field-conv@1.0.9:
     resolution: {integrity: sha512-e9yPUB6r67BSHw2D2cN1aruO8rTL5Ty2kvhnS5AGI0qGPkM5NARP78SiOB74OtAkQam/mLKuHSTt1GC7ollCMw==}
+
+  figma-squircle@1.1.0:
+    resolution: {integrity: sha512-3aa6bOurrsybsuYo1TMRuasBpXgVjgnmOUtZ40il6e1dJF2lhTRq89z7oy1uzKDspbH3630rLZD2UvJqXDiktA==}
 
   file-entry-cache@11.1.5:
     resolution: {integrity: sha512-+PFTHITI08JIGhnNpGNI8T8inUpgZfk3GNEqfT9R2zZV2iFXg3CvqzSl/uEhs7TSGujYRELEANyDvS8Fj7+S7Q==}
@@ -8738,6 +8744,8 @@ snapshots:
   field-conv@1.0.9:
     dependencies:
       '@types/node': 24.19.2
+
+  figma-squircle@1.1.0: {}
 
   file-entry-cache@11.1.5:
     dependencies:

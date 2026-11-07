@@ -24,6 +24,7 @@ import { useIslandGestures, usePanelSwipeUp } from './island-gestures'
 import { CROSSFADE_MS, morphIsland, nextFrame, waitForSettled } from './island-morph'
 import { IslandPanelPhaseContext } from './island-panel-phase'
 import { IslandSlot, IslandText } from './island-parts'
+import { useSquirclePanel } from './island-squircle'
 import { MusicIsland } from './music-island'
 
 /**
@@ -45,9 +46,10 @@ const capsuleBodyClass = 'relative isolate flex h-full min-w-0 flex-1 items-cent
 const CAPSULE_RING = '0 0 0 1px rgb(255 255 255 / 0.1)'
 // 胶囊高度（h-9）：展开的面板向上偏移这么多，盖在胶囊上
 const CAPSULE_HEIGHT_PX = 36
-// 展开面板统一的圆角（32px，参考 Apple 灵动岛展开后的大圆角）：活动自带的弹层外观（如音乐用悬浮播放器的弹层）也换成它，形变按它计算；
+// 展开面板的圆角（32px，参考 Apple 灵动岛展开后的大圆角）：活动自带的弹层外观（如音乐用悬浮播放器的弹层）也换成它，形变按它计算；
+// 实际轮廓由 useSquirclePanel 裁成连续曲率（见 island-squircle.ts），这里的 rounded-[2rem] 留给形变插值与裁剪失效时的回退，
 // 面板里贴边的内容按同心圆角留出边距（见下方「在顶栏隐藏」一行）
-const PANEL_RADIUS_CLASS = 'rounded-[2rem] overflow-hidden'
+const PANEL_RADIUS_CLASS = 'relative overflow-hidden rounded-[2rem]'
 // 描边辉光：1.5px 描边 + 外发光；高亮时外发光范围更大、更亮（只变光，胶囊大小不变）
 const GLOW = {
   normal: { blur: 18, spread: 2, mix: 55 },
@@ -568,6 +570,8 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
   // （layoutRoot 只对 position: fixed 的容器生效，吸顶的顶栏用不了）
   const layoutDependency = layoutKey ?? alert ?? activity
   const capsule = useContinuousCapsule(!isDot)
+  // 展开面板同样裁成连续曲率（Apple 的连续圆角），1px 细线沿用同一条路径
+  const squircle = useSquirclePanel()
   // 副歌辉光：描边 + 外发光，只改颜色与光的范围，不改胶囊大小（音乐相关的变化都不让岛的尺寸跟着起伏）
   const glowShadow = glow ? glowShadowOf(glow) : CAPSULE_RING
 
@@ -705,6 +709,7 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
       <PopoverTrigger asChild>{button}</PopoverTrigger>
       {panel && (
         <PopoverContent
+          ref={squircle.ref}
           align="start"
           // 面板盖在胶囊上（上边与胶囊上边对齐），由胶囊长成面板
           sideOffset={-CAPSULE_HEIGHT_PX}
@@ -712,8 +717,11 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
           // 默认深色与胶囊一致；活动可换成别处弹层的外观（如音乐用悬浮播放器的弹层）。阴影在形变结束后渐显；
           // 竖向拖动交给上滑收起（面板里可滚动的区域自己滚动）
           className={cn(
-            activity?.panelClassName ?? 'w-[min(22rem,calc(100vw-1.5rem))] border-0 bg-neutral-950 p-4 text-white shadow-2xl ring-1 ring-white/10',
+            activity?.panelClassName ?? 'w-[min(22rem,calc(100vw-1.5rem))] border-0 bg-neutral-950 p-4 text-white',
             PANEL_RADIUS_CLASS,
+            // 面板被裁成连续曲率后，自身的 box-shadow 与 ring 也一并被裁掉：阴影改由弹层外层的 drop-shadow 画（见 island-squircle.ts），
+            // 1px 细线由下面那条 <path> 描边画，所以这里清掉各活动自带的阴影、描边与边框
+            'border-0 shadow-none ring-0',
             // 不用弹层自带的进出场动画（缩放淡入淡出），由 island-morph 变换。要用 !important：tailwind-merge 不认识 animate-in / animate-out
             // 这两个插件类，普通的 animate-none 合并不掉它们；行内样式也不行（Radix 定位完成后会把行内的 animation 清掉）。
             // 没有出场动画时 Radix 立即卸载面板，收起播完不会再闪一次整张卡片
@@ -738,6 +746,12 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
               </div>
             )}
           </MorphContent>
+          {/* 连续曲率的 1px 细线：描边跨在边界上，外侧一半被面板的裁剪切掉，剩下 1px（与胶囊的描边同法） */}
+          {squircle.path && (
+            <svg aria-hidden className="pointer-events-none absolute inset-0 size-full">
+              <path d={squircle.path} fill="none" stroke="rgb(255 255 255 / 0.1)" strokeWidth={2} />
+            </svg>
+          )}
         </PopoverContent>
       )}
     </Popover>
