@@ -9,7 +9,6 @@ import React, { useEffect, useRef, useState } from 'react'
 import { fetchPlaylist } from '@/api/music'
 import { SafeImage } from '@/components/common/safe-image'
 import { useIslandPanelPhase } from '@/components/layout/topbar-island/island-panel-phase'
-import { LyricSourceBadge } from '@/components/music-page/lyric-source-badge'
 import { MusicBackground } from '@/components/music-page/music-background'
 import { MusicLyricMoments } from '@/components/music-page/music-lyric-moments'
 import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
@@ -571,16 +570,15 @@ export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
               ? <SafeImage src={currentTrack.albumPic} alt={currentTrack.album} fill sizes="56px" className="object-cover" />
               : <MusicIcon aria-hidden className="absolute inset-0 m-auto size-6 text-white/40" />}
           </span>
-          <div className="grid min-w-0 flex-1 gap-0.5">
+          <div className="grid min-w-0 flex-1 content-center gap-1">
             {/* key：切歌时重新测量并从头滚动 */}
-            <MarqueeText key={`name-${currentTrack.id}`} className="text-sm font-semibold">
+            <MarqueeText key={`name-${currentTrack.id}`} className="text-base leading-snug font-semibold">
               {currentTrack.name}
               {currentTrack.aliases.length > 0 && <span className="ml-1 font-normal text-white/50">{`(${currentTrack.aliases.join(', ')})`}</span>}
             </MarqueeText>
-            <MarqueeText key={`artist-${currentTrack.id}`} className="text-xs text-white/60">
+            <MarqueeText key={`artist-${currentTrack.id}`} className="text-sm leading-snug text-white/60">
               {[currentTrack.artists.join(' / '), currentTrack.album].filter(Boolean).join(' · ')}
             </MarqueeText>
-            <LyricSourceBadge className="mt-0.5 justify-self-start" />
           </div>
           <Link
             href="/music"
