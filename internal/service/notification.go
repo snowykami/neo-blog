@@ -109,7 +109,7 @@ func (s *NotificationService) Emit(ctx context.Context, tx *gorm.DB, ev *Notific
 }
 
 // RevokeLike 取消点赞：硬删对应的通知行（事件保留用于统计，见 3.2 规则 6）
-func (s *NotificationService) RevokeLike(ctx context.Context, actor, owner *model.User, targetType string, targetID uint) error {
+func (s *NotificationService) RevokeLike(ctx context.Context, tx *gorm.DB, actor, owner *model.User, targetType string, targetID uint) error {
 	if actor == nil || owner == nil {
 		return nil
 	}
@@ -127,5 +127,5 @@ func (s *NotificationService) RevokeLike(ctx context.Context, actor, owner *mode
 		// 没有对应事件说明当时没有产生通知，直接结束
 		return nil
 	}
-	return repo.Notification.DeleteNotificationByEvent(nil, event.ID, owner.ID)
+	return repo.Notification.DeleteNotificationByEvent(tx, event.ID, owner.ID)
 }

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/snowykami/neo-blog/internal/ctxutils"
+
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
@@ -92,7 +94,7 @@ func TestEmitNotification(t *testing.T) {
 	}
 
 	// 取消点赞：通知硬删，事件保留
-	if err := service.RevokeLike(ctx, fan, author, constant.TargetTypePost, 12); err != nil {
+	if err := service.RevokeLike(ctx, nil, fan, author, constant.TargetTypePost, 12); err != nil {
 		t.Fatalf("revoke like: %v", err)
 	}
 	var count int64
@@ -213,5 +215,79 @@ func TestEmitNotificationThreadAggregate(t *testing.T) {
 	}
 	if rows[0].EmailState != constant.NotificationEmailStateAttached && rows[0].EmailState != constant.NotificationEmailStateSkipped {
 		t.Fatalf("thread activity must never queue an email, got %s", rows[0].EmailState)
+	}
+}
+
+// 点赞走完整链路：点赞写事件与通知，取消点赞硬删通知，连续切换只留一条
+func TestToggleLikeEmitsNotification(t *testing.T) {
+	author, _, other, _, _ := setupEditTest(t)
+	authorID, _ := ctxutils.GetCurrentUserID(author)
+	otherID, _ := ctxutils.GetCurrentUserID(other)
+	postID := createPublicPost(t, author, nil)
+
+	liked, svcerr := NewLikeService().ToggleLike(other, postID, constant.TargetTypePost, nil)
+	if svcerr != nil || !liked {
+		t.Fatalf("like: %v", svcerr)
+	}
+	var notifications []model.Notification
+	if err := repo.GetDB().Where("user_id = ?", authorID).Find(&notifications).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(notifications) != 1 {
+		t.Fatalf("notifications = %d, want 1", len(notifications))
+	}
+	if notifications[0].Type != constant.NotificationTypePostLiked || notifications[0].ActorID != otherID {
+		t.Fatalf("unexpected notification: %+v", notifications[0])
+	}
+	if notifications[0].SubjectTitle != "public" {
+		t.Fatalf("subject title snapshot = %q", notifications[0].SubjectTitle)
+	}
+
+	// 取消点赞：通知硬删（连 Unscoped 也查不到），事件保留
+	if liked, svcerr = NewLikeService().ToggleLike(other, postID, constant.TargetTypePost, nil); svcerr != nil || liked {
+		t.Fatalf("unlike: %v", svcerr)
+	}
+	var count int64
+	repo.GetDB().Model(&model.Notification{}).Where("user_id = ?", authorID).Count(&count)
+	if count != 0 {
+		t.Fatalf("notifications after unlike = %d", count)
+	}
+	repo.GetDB().Model(&model.InteractionEvent{}).Count(&count)
+	if count != 1 {
+		t.Fatalf("events after unlike = %d, want the event kept", count)
+	}
+
+	// 再点一次：复用同一条事件，通知仍然只有一条
+	if _, svcerr = NewLikeService().ToggleLike(other, postID, constant.TargetTypePost, nil); svcerr != nil {
+		t.Fatalf("like again: %v", svcerr)
+	}
+	repo.GetDB().Model(&model.Notification{}).Where("user_id = ?", authorID).Count(&count)
+	if count != 1 {
+		t.Fatalf("notifications after re-like = %d", count)
+	}
+	repo.GetDB().Model(&model.InteractionEvent{}).Count(&count)
+	if count != 1 {
+		t.Fatalf("events after re-like = %d, want 1", count)
+	}
+}
+
+// 通知写入失败不影响点赞本身：把通知表改名让 Emit 必然失败
+func TestToggleLikeSurvivesNotificationFailure(t *testing.T) {
+	author, _, other, _, _ := setupEditTest(t)
+	postID := createPublicPost(t, author, nil)
+	if err := repo.GetDB().Migrator().DropTable(&model.Notification{}); err != nil {
+		t.Fatalf("drop notifications: %v", err)
+	}
+	liked, svcerr := NewLikeService().ToggleLike(other, postID, constant.TargetTypePost, nil)
+	if svcerr != nil {
+		t.Fatalf("like should survive notification failure: %v", svcerr)
+	}
+	if !liked {
+		t.Fatal("like state lost")
+	}
+	var count int64
+	repo.GetDB().Model(&model.Like{}).Count(&count)
+	if count != 1 {
+		t.Fatalf("likes = %d, want 1", count)
 	}
 }

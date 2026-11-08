@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"gorm.io/gorm"
 )
 
 type LikeService struct{}
@@ -22,21 +24,38 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 	if !ok {
 		return false, errs.NewUnauthorized("login_required")
 	}
-	// 只能给存在且自己看得到的目标点赞，避免产生孤儿点赞
-	var ownerID uint // 被点赞内容的作者，用于记录互动
+	// 只能给存在且自己看得到的目标点赞，避免产生孤儿点赞；顺带取出通知要用的快照
+	var ownerID uint // 被点赞内容的作者
+	var subjectType string
+	var subjectID uint
+	var subjectTitle, subjectSlug, quotedExcerpt string
 	switch targetType {
 	case constant.TargetTypePost:
 		post, err := repo.Post.GetPostMeta(targetID)
 		if err != nil || (post.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx))) {
 			return false, errs.NewNotFound("operation_target_not_found")
 		}
+		full, err := repo.Post.GetPostByID(targetID)
+		if err != nil {
+			return false, errs.NewNotFound("operation_target_not_found")
+		}
 		ownerID = post.UserID
+		subjectType, subjectID = constant.TargetTypePost, full.ID
+		subjectTitle, subjectSlug = full.Title, derefString(full.Slug)
 	case constant.TargetTypeComment:
 		comment, svcerr := NewCommentService().GetComment(ctx, targetID)
 		if svcerr != nil {
 			return false, svcerr
 		}
 		ownerID = comment.User.ID
+		// 被点赞的评论可能只是正文为空、只带附件的评论
+		quotedExcerpt = comment.Content
+		subjectType, subjectID = comment.TargetType, comment.TargetID
+		if briefs, err := repo.Comment.ListTargetBriefs(comment.TargetType, []uint{comment.TargetID}); err == nil {
+			if brief, ok := briefs[comment.TargetID]; ok {
+				subjectTitle, subjectSlug = brief.Title, derefString(brief.Slug)
+			}
+		}
 	default:
 		return false, errs.NewBadRequest("invalid_target_type")
 	}
@@ -49,7 +68,43 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 			return current, nil
 		}
 	}
-	state, err := repo.Like.ToggleLike(currentUser.ID, targetID, targetType, nil)
+	owner, err := repo.User.GetUserByID(ownerID)
+	if err != nil {
+		return false, errs.FromDB(err, "user", "failed_to_get_target")
+	}
+	// 点赞与互动通知写在同一个事务里：点赞成功就必须有通知，取消点赞必须撤掉通知
+	var state bool
+	err = repo.GetDB().Transaction(func(tx *gorm.DB) error {
+		var toggleErr error
+		state, toggleErr = repo.Like.ToggleLike(currentUser.ID, targetID, targetType, tx)
+		if toggleErr != nil {
+			return toggleErr
+		}
+		notifications := NewNotificationService()
+		if !state {
+			if revokeErr := notifications.RevokeLike(ctx, tx, currentUser, owner, targetType, targetID); revokeErr != nil {
+				logrus.Errorf("revoke like notification: %v", revokeErr)
+			}
+			return nil
+		}
+		// 通知是附属品，写失败不能让点赞失败（见 5.3）
+		if emitErr := notifications.Emit(ctx, tx, &NotificationEvent{
+			Type:          likeNotificationType(targetType),
+			Actor:         currentUser,
+			Owner:         owner,
+			TargetType:    targetType,
+			TargetID:      targetID,
+			SubjectType:   subjectType,
+			SubjectID:     subjectID,
+			SubjectTitle:  subjectTitle,
+			SubjectSlug:   subjectSlug,
+			QuotedExcerpt: quotedExcerpt,
+			DedupeKey:     likeDedupeKey(targetType, targetID, currentUser.ID),
+		}); emitErr != nil {
+			logrus.Errorf("emit like notification: %v", emitErr)
+		}
+		return nil
+	})
 	if err != nil {
 		return state, errs.Internal("failed_to_toggle_like", err)
 	}
@@ -158,4 +213,28 @@ func (ls *LikeService) ListUserLikes(ctx context.Context, req *dto.ListUserLikes
 		result = append(result, item)
 	}
 	return result, total, nil
+}
+
+// likeNotificationType 点赞事件类型：文章点赞与评论点赞
+func likeNotificationType(targetType string) string {
+	if targetType == constant.TargetTypeComment {
+		return constant.NotificationTypeCommentLiked
+	}
+	return constant.NotificationTypePostLiked
+}
+
+// likeDedupeKey 点赞事件的去重键
+func likeDedupeKey(targetType string, targetID, actorID uint) string {
+	if targetType == constant.TargetTypeComment {
+		return dedupeKeyCommentLiked(targetID, actorID)
+	}
+	return dedupeKeyPostLiked(targetID, actorID)
+}
+
+// derefString 取可空字符串的值，nil 时为空串
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
