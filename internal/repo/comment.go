@@ -236,7 +236,12 @@ func (cr *CommentRepo) DeleteComment(commentID uint) error {
 			}
 		}
 
-		// 5. 重新计算更新目标的评论数量
+		// 5. 引用这些评论的通知一并删掉，免得点进去是空锚点
+		if err := Notification.DeleteByCommentIDs(tx, append(deletedIDs, comment.ID)); err != nil {
+			return err
+		}
+
+		// 6. 重新计算更新目标的评论数量
 		return syncTargetCommentCount(tx, comment.TargetType, comment.TargetID)
 	})
 }

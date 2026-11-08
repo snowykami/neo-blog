@@ -148,6 +148,19 @@ func splitAggregateActors(value string) []string {
 	return names
 }
 
+// DeleteByCommentIDs 评论被删除后清掉引用它的通知：免得收件人点进一条已经消失的评论
+func (r *notificationRepo) DeleteByCommentIDs(tx *gorm.DB, commentIDs []uint) error {
+	if len(commentIDs) == 0 {
+		return nil
+	}
+	if tx == nil {
+		tx = GetDB()
+	}
+	return tx.Unscoped().
+		Where("(target_type = ? AND target_id IN ?) OR comment_id IN ?", constant.TargetTypeComment, commentIDs, commentIDs).
+		Delete(&model.Notification{}).Error
+}
+
 // DeleteNotificationByEvent 取消点赞时硬删对应的通知行（软删会撞唯一索引，见 4.4）
 func (r *notificationRepo) DeleteNotificationByEvent(tx *gorm.DB, eventID, userID uint) error {
 	if tx == nil {

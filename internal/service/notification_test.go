@@ -12,6 +12,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 func setupNotificationDB(t *testing.T) {
@@ -547,8 +548,8 @@ func TestCommentMentions(t *testing.T) {
 	// 评论正文里仍是纯文本 @用户名，mention ids 落库
 	var stored model.Comment
 	repo.GetDB().Where("id = ?", replyID).First(&stored)
-	// 被回复人与被 @ 的人都会写进提及列表（前者不会因此重复收通知）
-	if stored.Content != "同意 @mentioned 的说法" || len(stored.MentionUserIDs) != 2 {
+	// 正文里只写了 @mentioned，所以被回复人不会写进提及列表（他靠 comment.replied 收到通知）
+	if stored.Content != "同意 @mentioned 的说法" || len(stored.MentionUserIDs) != 1 || stored.MentionUserIDs[0] != mentioned.ID {
 		t.Fatalf("stored mention ids = %v", stored.MentionUserIDs)
 	}
 	// 文章作者收到了自己的评论通知，但不会被自己 @ 到
@@ -599,12 +600,22 @@ func TestResolveCommentMentions(t *testing.T) {
 	first := createNotificationUser(t, "first", nil)
 
 	// 去重 + 去掉自己
-	ids, svcerr := resolveCommentMentions([]uint{first.ID, first.ID, me.ID}, me.ID)
+	ids, svcerr := resolveCommentMentions([]uint{first.ID, first.ID, me.ID}, me.ID, "@first 你好")
 	if svcerr != nil || len(ids) != 1 || ids[0] != first.ID {
 		t.Fatalf("resolved = %v, %v", ids, svcerr)
 	}
+	// 正文里没写 @ 的 id 直接丢掉，防止只给 id 就能骚扰别人
+	if ids, svcerr = resolveCommentMentions([]uint{first.ID}, me.ID, "只是随便说说"); svcerr != nil || len(ids) != 0 {
+		t.Fatalf("mention without text = %v, %v", ids, svcerr)
+	}
+	if ids, svcerr = resolveCommentMentions([]uint{first.ID}, me.ID, "@firstabc 你好"); svcerr != nil || len(ids) != 0 {
+		t.Fatalf("longer username should not match: %v, %v", ids, svcerr)
+	}
+	if ids, svcerr = resolveCommentMentions([]uint{first.ID}, me.ID, "邮箱 a@first 不算"); svcerr != nil || len(ids) != 0 {
+		t.Fatalf("email-like mention should not match: %v, %v", ids, svcerr)
+	}
 	// 禁用账号不可被提及
-	if _, svcerr = resolveCommentMentions([]uint{disabled.ID}, me.ID); svcerr == nil || svcerr.Code != 400 {
+	if _, svcerr = resolveCommentMentions([]uint{disabled.ID}, me.ID, "@disabled 你好"); svcerr == nil || svcerr.Code != 400 {
 		t.Fatalf("disabled mention = %v", svcerr)
 	}
 	// 超过 3 个直接拒绝
@@ -612,7 +623,7 @@ func TestResolveCommentMentions(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		tooMany = append(tooMany, createNotificationUser(t, "extra"+string(rune('a'+i)), nil).ID)
 	}
-	if _, svcerr = resolveCommentMentions(tooMany, me.ID); svcerr == nil || svcerr.Message != "too_many_mentions" {
+	if _, svcerr = resolveCommentMentions(tooMany, me.ID, "@a @b @c @d"); svcerr == nil || svcerr.Message != "too_many_mentions" {
 		t.Fatalf("too many = %v", svcerr)
 	}
 }
@@ -656,5 +667,58 @@ func TestCommentMentionsFollowRename(t *testing.T) {
 	}
 	if len(list) != 1 || len(list[0].Mentions) != 1 || list[0].Mentions[0].Username != "newname" {
 		t.Fatalf("list mentions = %+v", list)
+	}
+}
+
+// 评论限流：同一用户短时间内发太多评论会被拒
+func TestCreateCommentRateLimit(t *testing.T) {
+	sharedstate.UseMemory()
+	author, _, other, _, _ := setupEditTest(t)
+	postID := createPublicPost(t, author, nil)
+	for i := 0; i < commentRateLimit; i++ {
+		if _, svcerr := createComment(other, postID, 0, false); svcerr != nil {
+			t.Fatalf("comment %d: %v", i, svcerr)
+		}
+	}
+	if _, svcerr := createComment(other, postID, 0, false); svcerr == nil || svcerr.Code != 429 {
+		t.Fatalf("over limit = %v, want 429", svcerr)
+	}
+}
+
+// 搜索限流：同一用户每分钟最多若干次
+func TestSearchUsersRateLimit(t *testing.T) {
+	sharedstate.UseMemory()
+	me := createNotificationUser(t, "searcher", nil)
+	ctx := context.WithValue(context.Background(), "user_id", me.ID)
+	for i := 0; i < userSearchRateLimit; i++ {
+		if _, svcerr := NewUserService().SearchUsers(ctx, &dto.SearchUsersReq{Query: "search"}); svcerr != nil {
+			t.Fatalf("search %d: %v", i, svcerr)
+		}
+	}
+	if _, svcerr := NewUserService().SearchUsers(ctx, &dto.SearchUsersReq{Query: "search"}); svcerr == nil || svcerr.Code != 429 {
+		t.Fatalf("over limit = %v, want 429", svcerr)
+	}
+}
+
+// 删除评论时，引用它的通知一并清掉
+func TestDeleteCommentCleansNotifications(t *testing.T) {
+	author, _, other, _, _ := setupEditTest(t)
+	postID := createPublicPost(t, author, nil)
+	commentID, svcerr := createComment(other, postID, 0, false)
+	if svcerr != nil {
+		t.Fatalf("comment: %v", svcerr)
+	}
+	var before int64
+	repo.GetDB().Model(&model.Notification{}).Where("comment_id = ?", commentID).Count(&before)
+	if before == 0 {
+		t.Fatal("expected a notification for the new comment")
+	}
+	if svcerr := NewCommentService().DeleteComment(other, commentID); svcerr != nil {
+		t.Fatalf("delete: %v", svcerr)
+	}
+	var after int64
+	repo.GetDB().Unscoped().Model(&model.Notification{}).Where("comment_id = ?", commentID).Count(&after)
+	if after != 0 {
+		t.Fatalf("notifications after delete = %d, want 0", after)
 	}
 }

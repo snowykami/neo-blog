@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/pkg/constant"
@@ -26,10 +28,19 @@ func NewCommentService() *CommentService {
 	return &CommentService{}
 }
 
+// 评论限流：同一用户 10 分钟内最多发这么多条。防的是拿评论当通知通道刷别人（提及会推站内通知）
+const (
+	commentRateLimit  = 20
+	commentRateWindow = 10 * time.Minute
+)
+
 func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateCommentReq) (uint, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return 0, errs.NewUnauthorized("login_required")
+	}
+	if !utils.AllowRequest("comment:"+strconv.FormatUint(uint64(currentUser.ID), 10), commentRateLimit, commentRateWindow) {
+		return 0, errs.NewTooManyRequests("too_many_requests")
 	}
 
 	target, svcerr := cs.getTarget(req.TargetID, req.TargetType)
@@ -68,7 +79,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 	if svcerr != nil {
 		return 0, svcerr
 	}
-	mentionUserIDs, svcerr := resolveCommentMentions(req.MentionUserIDs, currentUser.ID)
+	mentionUserIDs, svcerr := resolveCommentMentions(req.MentionUserIDs, currentUser.ID, content)
 	if svcerr != nil {
 		return 0, svcerr
 	}
@@ -168,7 +179,7 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	}
 	// 不传提及列表时保持原样（兼容不带该字段的旧客户端）
 	if req.MentionUserIDs != nil {
-		mentionUserIDs, svcerr := resolveCommentMentions(*req.MentionUserIDs, comment.UserID)
+		mentionUserIDs, svcerr := resolveCommentMentions(*req.MentionUserIDs, comment.UserID, content)
 		if svcerr != nil {
 			return svcerr
 		}
