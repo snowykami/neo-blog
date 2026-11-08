@@ -39,6 +39,7 @@ type Notification struct {
 
 	// 冗余快照：列表渲染不 join 事件表，目标被删除时不至于空白
 	ActorID       uint
+	Actor         User   `gorm:"foreignKey:ActorID"`
 	SubjectType   string `gorm:"size:16"`
 	SubjectID     uint
 	SubjectTitle  string `gorm:"size:255"`
@@ -49,8 +50,9 @@ type Notification struct {
 	Excerpt       string `gorm:"size:300"`
 	QuotedExcerpt string `gorm:"size:300"`
 
-	// 折叠行：只有 comment.thread_replied 用。点赞类靠明细行在渲染时归并，不写这几列
-	DedupeKey       string `gorm:"size:200;uniqueIndex:idx_notification_dedupe"` // 折叠行的 upsert 键（含自然日）
+	// 折叠行：只有 comment.thread_replied 用。点赞类靠明细行在渲染时归并，不写这几列。
+	// dedupe_key 在所有行上都写入（等于事件的去重键），(dedupe_key, user_id) 唯一索引同时充当散文幂等与折叠行 upsert 键
+	DedupeKey       string `gorm:"size:200;uniqueIndex:idx_notification_dedupe"` // 事件去重键；折叠行另含自然日
 	AggregateCount  int    `gorm:"default:0"`                                    // 0 = 普通行；折叠行插入时置 1，每来一条 +1
 	AggregateActors string `gorm:"size:120"`                                     // 前 2 个昵称，逗号分隔，用于「A、B 和另外 N 人」
 
