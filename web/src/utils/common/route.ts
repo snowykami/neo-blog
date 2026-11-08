@@ -32,6 +32,8 @@ export const mainPath = {
   category: '/c',
   random: '/random',
   privacy: '/privacy',
+  notifications: '/notifications',
+  notificationSettings: '/notification-settings',
 }
 
 /**

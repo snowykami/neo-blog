@@ -1,11 +1,12 @@
 'use client'
 import type { AuthDialogMode } from '@/components/auth/login-dialog'
-import { ArrowLeftRightIcon, LogIn, LogOut, PanelLeft, User, UserPlus } from 'lucide-react'
+import { ArrowLeftRightIcon, Bell, LogIn, LogOut, PanelLeft, User, UserPlus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useCallback } from 'react'
 import { useAuthDialog } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
+import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,9 +17,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/auth-context'
+import { useUnreadNotificationCount } from '@/hooks/use-notification-unread'
 import { useOperationT } from '@/hooks/use-translations'
 import { Role } from '@/models/user'
-import { consolePath, getUserUrl } from '@/utils/common/route'
+import { consolePath, getUserUrl, mainPath } from '@/utils/common/route'
 import { formatDisplayName } from '@/utils/common/username'
 
 export function AvatarWithDropdownMenu({ className }: { className?: string }) {
@@ -26,6 +28,8 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
   const routeT = useTranslations('Route')
   const { user, logout } = useAuth()
   const openAuthDialog = useAuthDialog()
+  const { count: unreadCount } = useUnreadNotificationCount()
+  const notificationsT = useTranslations('Notifications')
 
   const handleLogout = () => {
     logout()
@@ -73,6 +77,21 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
 
         {user && (
           <>
+            <DropdownMenuGroup className="p-0">
+              {/* 通知是登录后最常回访的入口，放在第一项并带未读徽标 */}
+              <DropdownMenuItem asChild>
+                <Link href={mainPath.notifications}>
+                  <Bell />
+                  {notificationsT('title')}
+                  {unreadCount > 0 && (
+                    <Badge variant="destructive" className="ml-auto h-5 min-w-5 justify-center px-1 text-[10px] tabular-nums">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Badge>
+                  )}
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
             <DropdownMenuGroup className="p-0">
               <DropdownMenuItem asChild>
                 <Link href={getUserUrl(user)}>
