@@ -4299,6 +4299,38 @@
       "use_precise_location": "Use precise location",
       "retry": "Retry"
     },
+    "postRef": {
+      "name": "Post reference",
+      "description": "Reference another post of this blog, showing its title, summary and cover",
+      "fields": {
+        "postId": "Post",
+        "showCover": "Show cover"
+      },
+      "placeholders": {
+        "postId": "Post ID"
+      },
+      "descriptions": {
+        "postId": "Search and pick a post above, or fill in the post ID directly",
+        "showCover": "Turn off to show text only; narrow cards hide the cover automatically"
+      },
+      "label": "Referenced post",
+      "untitled": "Untitled",
+      "unavailable": "The referenced post is missing or not visible to you",
+      "load_failed": "Failed to load the referenced post",
+      "views": "Views",
+      "action": {
+        "title": "Pick a post",
+        "hint": "Search posts by title and click a result to reference it",
+        "search": "Search",
+        "search_placeholder": "Keywords in the post title",
+        "results": "Search results",
+        "no_results": "No matching post",
+        "failed": "Search failed, please try again later",
+        "selected": "Selected",
+        "current": "Referencing post #{id}",
+        "untitled": "Untitled"
+      }
+    },
     "layout": {
       "width": "Width",
       "width_33": "Small (33%)",

@@ -4299,6 +4299,38 @@
       "use_precise_location": "使用精确位置",
       "retry": "重试"
     },
+    "postRef": {
+      "name": "文章引用",
+      "description": "在正文中引用站内另一篇文章，显示标题、摘要与封面",
+      "fields": {
+        "postId": "文章",
+        "showCover": "显示封面"
+      },
+      "placeholders": {
+        "postId": "文章 ID"
+      },
+      "descriptions": {
+        "postId": "在上方搜索并选择文章；也可以直接填写文章 ID",
+        "showCover": "关闭后卡片只显示文字，窄卡片会自动收起封面"
+      },
+      "label": "引用文章",
+      "untitled": "无标题",
+      "unavailable": "引用的文章不存在或不可见",
+      "load_failed": "文章信息加载失败",
+      "views": "阅读量",
+      "action": {
+        "title": "选择文章",
+        "hint": "按标题搜索站内文章，点击结果填入引用",
+        "search": "搜索",
+        "search_placeholder": "输入文章标题关键词",
+        "results": "搜索结果",
+        "no_results": "没有找到匹配的文章",
+        "failed": "搜索失败，请稍后再试",
+        "selected": "已选择",
+        "current": "当前引用：文章 #{id}",
+        "untitled": "无标题"
+      }
+    },
     "layout": {
       "width": "宽度",
       "width_33": "小（33%）",

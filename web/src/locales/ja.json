@@ -4299,6 +4299,38 @@
       "use_precise_location": "正確な位置を使用",
       "retry": "再試行"
     },
+    "postRef": {
+      "name": "記事の引用",
+      "description": "本文中でサイト内の別の記事を引用し、タイトル・概要・カバー画像を表示します",
+      "fields": {
+        "postId": "記事",
+        "showCover": "カバー画像を表示"
+      },
+      "placeholders": {
+        "postId": "記事 ID"
+      },
+      "descriptions": {
+        "postId": "上で検索して記事を選択します。記事 ID を直接入力することもできます",
+        "showCover": "オフにするとカードはテキストのみになります。幅の狭いカードでは自動で非表示になります"
+      },
+      "label": "引用した記事",
+      "untitled": "無題",
+      "unavailable": "引用された記事が存在しないか、閲覧できません",
+      "load_failed": "記事情報の読み込みに失敗しました",
+      "views": "閲覧数",
+      "action": {
+        "title": "記事を選択",
+        "hint": "タイトルでサイト内の記事を検索し、結果をクリックして引用します",
+        "search": "検索",
+        "search_placeholder": "記事タイトルのキーワード",
+        "results": "検索結果",
+        "no_results": "一致する記事が見つかりません",
+        "failed": "検索に失敗しました。しばらくしてからお試しください",
+        "selected": "選択済み",
+        "current": "現在の引用：記事 #{id}",
+        "untitled": "無題"
+      }
+    },
     "layout": {
       "width": "幅",
       "width_33": "小（33%）",

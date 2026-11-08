@@ -4299,6 +4299,38 @@
       "use_precise_location": "使用精確位置",
       "retry": "重試"
     },
+    "postRef": {
+      "name": "文章引用",
+      "description": "在正文中引用站內另一篇文章，顯示標題、摘要與封面",
+      "fields": {
+        "postId": "文章",
+        "showCover": "顯示封面"
+      },
+      "placeholders": {
+        "postId": "文章 ID"
+      },
+      "descriptions": {
+        "postId": "在上方搜尋並選擇文章；也可以直接填寫文章 ID",
+        "showCover": "關閉後卡片只顯示文字，窄卡片會自動收起封面"
+      },
+      "label": "引用文章",
+      "untitled": "無標題",
+      "unavailable": "引用的文章不存在或無法檢視",
+      "load_failed": "文章資訊載入失敗",
+      "views": "閱讀量",
+      "action": {
+        "title": "選擇文章",
+        "hint": "依標題搜尋站內文章，點擊結果填入引用",
+        "search": "搜尋",
+        "search_placeholder": "輸入文章標題關鍵字",
+        "results": "搜尋結果",
+        "no_results": "找不到符合的文章",
+        "failed": "搜尋失敗，請稍後再試",
+        "selected": "已選擇",
+        "current": "目前引用：文章 #{id}",
+        "untitled": "無標題"
+      }
+    },
     "layout": {
       "width": "寬度",
       "width_33": "小（33%）",

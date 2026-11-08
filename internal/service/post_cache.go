@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"strconv"
+	"strings"
 
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -35,6 +37,19 @@ func guestCached[T any](ctx context.Context, key string, load func() (T, *errs.S
 		cache.SetJSON(repo.PostGuestCache, key, value, repo.PostGuestCacheTTL)
 	}
 	return value, svcerr
+}
+
+// postCardCacheKey 文章引用卡片批量查询的缓存键：按 id 列表区分
+func postCardCacheKey(ids []uint) string {
+	builder := strings.Builder{}
+	builder.WriteString("cards:")
+	for i, id := range ids {
+		if i > 0 {
+			builder.WriteString(",")
+		}
+		builder.WriteString(strconv.FormatUint(uint64(id), 10))
+	}
+	return builder.String()
 }
 
 // guestPostList 缓存中的一页文章

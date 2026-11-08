@@ -1,7 +1,7 @@
 import type { Category } from '@/models/category'
 import type { PaginationParams } from '@/models/common'
 import type { ContentSaveResult } from '@/models/edit-session'
-import type { Post } from '@/models/post'
+import type { Post, PostCard } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
 import { OrderBy } from '@/models/common'
 import axiosClient from './client'
@@ -22,6 +22,15 @@ export async function getPostById({
 
 export async function getRandomPost(): Promise<BaseResponse<Post>> {
   const res = await axiosClient.get('/post/random')
+  return res.data
+}
+
+/**
+ * 批量读取正文「文章引用」卡片：一次取多篇，避免每张卡片各发一次请求；
+ * 当前用户看不到的文章不会返回，由组件显示「内容不可访问」。与后端 service.MaxPostCardIDs 一致，最多 50 个
+ */
+export async function getPostCards(ids: number[]): Promise<BaseResponse<{ cards: PostCard[] }>> {
+  const res = await axiosClient.get('/post/cards', { params: { ids: ids.join(',') } })
   return res.data
 }
 

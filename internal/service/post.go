@@ -319,6 +319,57 @@ func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, inclu
 	return postDtos, total, nil
 }
 
+// MaxPostCardIDs 一次批量查询的文章引用卡片数上限：一篇正文里的引用远少于这个数，超出说明请求异常
+const MaxPostCardIDs = 50
+
+// ListPostCards 批量读取正文「文章引用」卡片的数据：去重后保持请求顺序，
+// 不存在 / 已删除 / 当前用户看不到的文章不出现在结果里，由前端显示「内容不可访问」
+func (p *PostService) ListPostCards(ctx context.Context, ids []uint) ([]dto.PostCardDto, *errs.ServiceError) {
+	ids = normalizePostCardIDs(ids)
+	if len(ids) == 0 {
+		return []dto.PostCardDto{}, nil
+	}
+	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
+	return guestCached(ctx, postCardCacheKey(ids), func() ([]dto.PostCardDto, *errs.ServiceError) {
+		posts, err := repo.Post.ListPostCardsByIDs(currentUserID, ids)
+		if err != nil {
+			return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
+		}
+		cards := make([]dto.PostCardDto, 0, len(posts))
+		byID := make(map[uint]dto.PostCardDto, len(posts))
+		for i := range posts {
+			byID[posts[i].ID] = posts[i].ToCardDto()
+		}
+		// 按请求顺序返回，避免卡片顺序跟随数据库返回顺序变动
+		for _, id := range ids {
+			if card, ok := byID[id]; ok {
+				cards = append(cards, card)
+			}
+		}
+		return cards, nil
+	})
+}
+
+// normalizePostCardIDs 去掉 0 与重复的 id，最多保留 MaxPostCardIDs 个，保持原有顺序
+func normalizePostCardIDs(ids []uint) []uint {
+	unique := make([]uint, 0, len(ids))
+	seen := make(map[uint]struct{}, len(ids))
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+		if len(unique) >= MaxPostCardIDs {
+			break
+		}
+	}
+	return unique
+}
+
 // ListCategories 全部文章分类
 func (p *PostService) ListCategories() ([]dto.CategoryDto, *errs.ServiceError) {
 	categories, err := repo.Post.ListCategories()

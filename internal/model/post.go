@@ -137,6 +137,27 @@ func (p *Post) ToDto() *dto.PostDto {
 	}
 }
 
+// ToCardDto 正文「文章引用」卡片：只含卡片展示需要的字段，不含正文与草稿
+func (p *Post) ToCardDto() dto.PostCardDto {
+	card := dto.PostCardDto{
+		ID:          p.ID,
+		Slug:        p.Slug,
+		Title:       p.Title,
+		Description: p.Description,
+		Cover:       p.Cover,
+		Type:        p.Type,
+		User:        p.User.ToDto(),
+		LikeCount:   p.LikeCount,
+		ViewCount:   p.ViewCount,
+		CreatedAt:   p.CreatedAt,
+		UpdatedAt:   p.UpdatedAt,
+	}
+	if p.Category != nil {
+		card.Category = p.Category.ToDto()
+	}
+	return card
+}
+
 // ToDtoWithShortContent 返回一个简化的 DTO，内容可以根据需要截断
 func (p *Post) ToDtoWithShortContent(contentLength int) *dto.PostDto {
 	dtoPost := p.ToDto()

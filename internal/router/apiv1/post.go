@@ -16,6 +16,7 @@ func registerPostRoutes(group *route.RouterGroup) {
 	{
 		postGroupPublic.GET("/p/:slug_or_id", postController.Get)        // 获取文章
 		postGroupPublic.GET("/list", postController.List)                // 获取文章列表
+		postGroupPublic.GET("/cards", postController.GetPostCards)       // 批量获取正文「文章引用」卡片
 		postGroupPublic.GET("/categories", postController.GetCategories) // 获取文章分类列表
 		postGroupPublic.GET("/random", postController.GetRandom)         // 获取随机文章ID
 		// 需要鉴权且有编辑权限

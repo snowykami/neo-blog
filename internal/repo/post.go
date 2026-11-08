@@ -325,6 +325,29 @@ func (p *postRepo) ListPosts(currentUserID uint, includeAllPrivate bool, query [
 	return items, total, nil
 }
 
+// postCardColumns 文章引用卡片需要的字段：不读正文、草稿与背景
+var postCardColumns = []string{
+	"posts.id", "posts.created_at", "posts.updated_at", "posts.user_id", "posts.category_id",
+	"posts.cover", "posts.description", "posts.slug", "posts.title", "posts.type",
+	"posts.like_count", "posts.view_count",
+}
+
+// ListPostCardsByIDs 按 id 批量读取文章引用卡片需要的数据（含作者与分类）
+// 与列表一致只返回当前用户能看到的文章：公开的，加上自己的私密文章；已删除的文章不在结果里
+func (p *postRepo) ListPostCardsByIDs(currentUserID uint, ids []uint) ([]model.Post, error) {
+	if len(ids) == 0 {
+		return []model.Post{}, nil
+	}
+	var posts []model.Post
+	q := GetDB().Model(&model.Post{}).Select(postCardColumns).
+		Preload("User").Preload("Category").
+		Where("posts.id IN ?", ids)
+	if err := visiblePosts(q, currentUserID, false).Find(&posts).Error; err != nil {
+		return nil, err
+	}
+	return posts, nil
+}
+
 func (p *postRepo) ToggleLikePost(postID uint, userID uint) (bool, error) {
 	if postID == 0 || userID == 0 {
 		return false, errs.NewBadRequest("id_cannot_be_empty_or_zero")

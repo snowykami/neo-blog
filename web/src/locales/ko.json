@@ -4299,6 +4299,38 @@
       "use_precise_location": "정확한 위치 사용",
       "retry": "다시 시도"
     },
+    "postRef": {
+      "name": "게시글 인용",
+      "description": "본문에서 사이트의 다른 게시글을 인용하고 제목, 요약, 표지를 표시합니다",
+      "fields": {
+        "postId": "게시글",
+        "showCover": "표지 표시"
+      },
+      "placeholders": {
+        "postId": "게시글 ID"
+      },
+      "descriptions": {
+        "postId": "위에서 검색해 게시글을 선택합니다. 게시글 ID를 직접 입력할 수도 있습니다",
+        "showCover": "끄면 카드에 글자만 표시되며, 폭이 좁은 카드에서는 표지가 자동으로 숨겨집니다"
+      },
+      "label": "인용한 게시글",
+      "untitled": "제목 없음",
+      "unavailable": "인용한 게시글이 없거나 볼 수 없습니다",
+      "load_failed": "게시글 정보를 불러오지 못했습니다",
+      "views": "조회수",
+      "action": {
+        "title": "게시글 선택",
+        "hint": "제목으로 사이트의 게시글을 검색하고 결과를 눌러 인용합니다",
+        "search": "검색",
+        "search_placeholder": "게시글 제목 키워드",
+        "results": "검색 결과",
+        "no_results": "일치하는 게시글이 없습니다",
+        "failed": "검색에 실패했습니다. 잠시 후 다시 시도해 주세요",
+        "selected": "선택됨",
+        "current": "현재 인용: 게시글 #{id}",
+        "untitled": "제목 없음"
+      }
+    },
     "layout": {
       "width": "너비",
       "width_33": "작게 (33%)",

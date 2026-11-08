@@ -53,6 +53,24 @@ export interface Post {
 /** 首页最多同时置顶的文章数，与后端 service.MaxPinnedPosts 一致 */
 export const PINNED_POSTS_LIMIT = 3
 
+/**
+ * 正文「文章引用」卡片的数据：只含卡片展示需要的字段，不含正文与草稿；
+ * 当前用户看不到的文章（私密的、已删除的）不会返回
+ */
+export interface PostCard {
+  id: number
+  slug: string | null
+  title: string
+  description: string
+  cover: string
+  category: Category | null
+  user: User
+  likeCount: number
+  viewCount: number
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ListPostsParams {
   page?: number
   size?: number

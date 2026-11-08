@@ -127,6 +127,29 @@ type ListPostResp struct {
 	Desc    bool      `json:"desc"`
 }
 
+// PostCardReq 正文「文章引用」卡片的批量查询，ids 为逗号分隔的文章 ID
+// 一篇正文可能引用多篇文章，前端合并成一次请求，避免每张卡片各取一次
+type PostCardReq struct {
+	IDs string `query:"ids"` // 文章 ID，逗号分隔
+}
+
+// PostCardDto 正文「文章引用」卡片所需的数据：不含正文、草稿与背景，
+// 避免为了一张卡片读出整篇文章；不可见或已删除的文章不会出现在结果里
+type PostCardDto struct {
+	ID          uint         `json:"id"`
+	Slug        *string      `json:"slug"`
+	Title       string       `json:"title"`
+	Description string       `json:"description"`
+	Cover       string       `json:"cover"`
+	Type        string       `json:"type"`
+	Category    *CategoryDto `json:"category"`
+	User        UserDto      `json:"user"`
+	LikeCount   uint64       `json:"like_count"`
+	ViewCount   uint64       `json:"view_count"`
+	CreatedAt   time.Time    `json:"created_at"`
+	UpdatedAt   time.Time    `json:"updated_at"`
+}
+
 // SetPostPinReq 置顶到首页或取消置顶（仅管理员）
 type SetPostPinReq struct {
 	ID          uint       `path:"id" json:"-"`

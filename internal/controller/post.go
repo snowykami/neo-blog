@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -161,6 +163,43 @@ func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 		resp["pinned"] = pinned
 	}
 	resps.Ok(c, resps.Success, resp)
+}
+
+// GetPostCards 批量读取正文「文章引用」卡片的数据（ids 逗号分隔），不可见的文章不返回
+func (p *PostController) GetPostCards(ctx context.Context, c *app.RequestContext) {
+	req := &dto.PostCardReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	ids, ok := parseIDList(req.IDs)
+	if !ok {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	cards, svcerr := p.service.ListPostCards(ctx, ids)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"cards": cards})
+}
+
+// parseIDList 解析逗号分隔的 id 列表，忽略空项；出现非法项时返回 false
+func parseIDList(raw string) ([]uint, bool) {
+	ids := make([]uint, 0, 8)
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.ParseUint(part, 10, 64)
+		if err != nil {
+			return nil, false
+		}
+		ids = append(ids, uint(id))
+	}
+	return ids, true
 }
 
 func (p *PostController) GetCategories(ctx context.Context, c *app.RequestContext) {
