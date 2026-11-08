@@ -614,6 +614,13 @@ func TestAIWritingStyle(t *testing.T) {
 	if !strings.Contains(aiWriteSystemPrompt, "# 去掉 AI 腔\n"+aiNaturalToneRules) {
 		t.Fatal("system prompt must include the natural tone rules")
 	}
+	if !strings.Contains(aiWriteSystemPrompt, "# 改动边界\n"+aiRewriteBoundaryRules) {
+		t.Fatal("system prompt must include the rewrite boundary rules")
+	}
+	// 清单要够用，但不能无限堆长：超过这个量级说明该拆出去而不是继续往里加
+	if n := len([]rune(aiNaturalToneRules)); n > 2500 {
+		t.Fatalf("natural tone rules grew to %d runes", n)
+	}
 	styleSection := "\n# 站点写作风格\n" + aiWritingStyleIntro + "多用短句。\n"
 	habitSection := "\n# 作者的语言习惯\n" + aiWritingHabitIntro + "常用「其实」开头。\n"
 	if got := aiWriteSystemPromptFor("多用短句。", ""); got != aiWriteSystemPrompt+styleSection {
@@ -630,7 +637,7 @@ func TestAIWritingStyle(t *testing.T) {
 	if svcerr != nil {
 		t.Fatal(svcerr)
 	}
-	for _, want := range []string{aiPlatformFormatRules, aiBlockFormatRule, aiComponentSyntaxRules, aiNaturalToneRules, "- callout：提示框"} {
+	for _, want := range []string{aiPlatformFormatRules, aiBlockFormatRule, aiComponentSyntaxRules, aiNaturalToneRules, aiRewriteBoundaryRules, "## 改动边界\n", "- callout：提示框"} {
 		if !strings.Contains(guide, want) {
 			t.Fatalf("agent guide missing %q", want)
 		}

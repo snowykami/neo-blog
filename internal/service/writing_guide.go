@@ -43,6 +43,9 @@ func BuildAgentWritingGuide(ctx context.Context, componentList string) (string, 
 	sb.WriteString("\n## 平台格式\n")
 	sb.WriteString(aiPlatformFormatRules)
 	sb.WriteString("使用原则：格式服务于内容，少而准，满篇的格式反而让重点不突出。\n")
+	sb.WriteString("\n## 改动边界\n")
+	sb.WriteString(aiRewriteBoundaryRules)
+	sb.WriteString("\n")
 	if componentList != "" {
 		sb.WriteString("\n## 组件\n")
 		sb.WriteString("需要时可以在段落之间插入下列组件，让内容更有层次，例如把注意事项放进提示框、把多语言示例放进代码组、把补充说明放进折叠块。\n")
