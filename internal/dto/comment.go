@@ -26,11 +26,21 @@ type CommentDto struct {
 	ShowClientInfo bool               `json:"show_client_info"`
 	// 附件按添加顺序展示在正文之后；已删除的文件不返回
 	Attachments []CommentAttachmentDto `json:"attachments"`
-	// MentionUserIDs 正文里被 @ 的用户，前端据此高亮（正文里仍是 @用户名 纯文本）
+	// MentionUserIDs 正文里被 @ 的用户 id，编辑评论时原样带回
 	MentionUserIDs []uint `json:"mention_user_ids,omitempty"`
+	// Mentions 被 @ 的人的当前用户名 / 昵称：正文里存的是评论当时的写法，
+	// 渲染时以这里的 id 为准（用户改名后显示新名字，不会链到占用了旧名字的陌生人）
+	Mentions []CommentMentionDto `json:"mentions,omitempty"`
 	// 以下只在主评论列表中返回：整个回复线程（不限层级）中当前用户可见的回复数，以及最早回复的几位用户（去重），供折叠时展示
 	ThreadCount uint64    `json:"thread_count,omitempty"`
 	ThreadUsers []UserDto `json:"thread_users,omitempty"`
+}
+
+// CommentMentionDto 被 @ 的用户
+type CommentMentionDto struct {
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+	Nickname string `json:"nickname"`
 }
 
 // CommentAttachmentDto 评论附件：URL 为站内文件的稳定链接，返回时由中间件改写为直链

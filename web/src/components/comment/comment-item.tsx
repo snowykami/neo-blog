@@ -431,7 +431,7 @@ function CommentBody({
                   {name(replyToUser)}
                 </Link>
               )}
-              {translated ? translated.content : <CommentContent content={comment.content} />}
+              {translated ? translated.content : <CommentContent content={comment.content} mentions={comment.mentions} />}
             </p>
           )}
           {translated && (
