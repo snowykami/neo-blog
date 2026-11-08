@@ -59,9 +59,11 @@ func createEmailUser(t *testing.T, name, language string) *model.User {
 func addNotification(t *testing.T, owner, actor *model.User, eventType, state string, at time.Time) *model.Notification {
 	t.Helper()
 	dedupeKey := eventType + ":" + at.Format(time.RFC3339Nano)
-	event, err := repo.Notification.CreateEvent(nil, &model.InteractionEvent{
+	event := &model.InteractionEvent{
 		Type: eventType, ActorID: actor.ID, OwnerID: owner.ID, DedupeKey: dedupeKey,
-	})
+	}
+	event.CreatedAt = at
+	event, err := repo.Notification.CreateEvent(nil, event)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,5 +290,46 @@ func TestSendNotificationEmailsRateLimit(t *testing.T) {
 	repo.GetDB().Where("id = ?", second.ID).First(&reloaded)
 	if reloaded.EmailState != constant.NotificationEmailStatePending || reloaded.EmailNextAt == nil || reloaded.EmailNextAt.Before(now.Add(50*time.Minute)) {
 		t.Fatalf("rate limited notification = %s / %v", reloaded.EmailState, reloaded.EmailNextAt)
+	}
+}
+
+// 保留期外的通知与事件被硬删，超搭车窗口的附带行置为 skipped
+func TestNotificationCleanup(t *testing.T) {
+	setupNotificationEmailDB(t)
+	recipient := createEmailUser(t, "owner", "zh")
+	actor := createEmailUser(t, "actor", "zh")
+	now := time.Now()
+	old := addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStateSent, now.AddDate(0, 0, -200))
+	recent := addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStateSent, now.Add(-time.Hour))
+	staleAttached := addNotification(t, recipient, actor, constant.NotificationTypePostLiked, constant.NotificationEmailStateAttached, now.Add(-48*time.Hour))
+
+	if _, _, err := repo.Notification.DeleteBefore(now.AddDate(0, 0, -180)); err != nil {
+		t.Fatalf("delete before: %v", err)
+	}
+	var count int64
+	repo.GetDB().Unscoped().Model(&model.Notification{}).Where("id = ?", old.ID).Count(&count)
+	if count != 0 {
+		t.Error("expired notification should be hard deleted")
+	}
+	if _, _, err := repo.Notification.DeleteBefore(now.AddDate(0, 0, -180)); err != nil {
+		t.Fatal(err)
+	}
+	repo.GetDB().Unscoped().Model(&model.Notification{}).Where("id = ?", recent.ID).Count(&count)
+	if count != 1 {
+		t.Error("recent notification should be kept")
+	}
+	// 事件一并清理（不算软删）
+	repo.GetDB().Unscoped().Model(&model.InteractionEvent{}).Where("id = ?", old.EventID).Count(&count)
+	if count != 0 {
+		t.Error("expired event should be removed")
+	}
+
+	if skipped, err := repo.Notification.SkipStaleAttachedEmails(now.Add(-24 * time.Hour)); err != nil || skipped != 1 {
+		t.Fatalf("skip stale = %d, err = %v", skipped, err)
+	}
+	var reloaded model.Notification
+	repo.GetDB().Where("id = ?", staleAttached.ID).First(&reloaded)
+	if reloaded.EmailState != constant.NotificationEmailStateSkipped {
+		t.Fatalf("stale attached state = %s", reloaded.EmailState)
 	}
 }

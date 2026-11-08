@@ -84,6 +84,8 @@ func main() {
 	tasks.StartMusicPlaylistWarm()
 	// 站内互动通知的邮件汇总投递（只有真人评论 / 回复触发发信，点赞等附带项搭车）
 	tasks.StartNotificationEmailWorker()
+	// 通知与互动事件按保留期清理，并处理长期没搭上车的附带行
+	tasks.StartNotificationCleanup()
 
 	err = router.Run(ctx)
 	// 已领取的 AI 用户任务尽量执行完，来不及的立即放回队列由其他实例接着执行
