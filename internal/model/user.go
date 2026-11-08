@@ -30,6 +30,8 @@ type User struct {
 	IsAI           bool          `gorm:"default:false"` // 是否为 AI 用户：由 Agent 驱动、与普通用户同权限，不能密码登录
 	// AI 写作的语言习惯：作者描述自己的口吻，编辑器 AI 写作与 MCP 写作指南会附上；只有本人可读写，不放进任何用户 DTO
 	AIWritingHabit string `gorm:"type:text;default:''"`
+	// 通知偏好（JSON 文本，空表示全默认）：站内 / 邮件允许的类型与 AI 互动开关，只有本人可读写
+	NotificationPrefs string `gorm:"type:text;default:''"`
 }
 
 // ToDto 公开的用户信息，不包含邮箱等隐私字段
