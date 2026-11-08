@@ -16,7 +16,6 @@ import React, {
 } from 'react'
 import { applyEmphasis } from '@/lib/lyrics/emphasis'
 import { toSingleLineLyrics } from '@/lib/lyrics/from-platform'
-import { LYRIC_SOURCE_KINDS } from '@/lib/lyrics/resolve'
 import { requestRhythm } from '@/lib/lyrics/rhythm/source'
 import { registerTelemetryContext } from '@/lib/telemetry/context'
 import { getCurrentLyricIndex, LYRIC_PLACEHOLDERS } from '@/utils/music-lyric'
@@ -48,18 +47,14 @@ interface MusicContextValue {
   lyricLines: MusicLyricLine[]
   // 当前曲目歌词的加载状态：loading 请求中；ready 有歌词；none 没有歌词或获取失败
   lyricStatus: 'loading' | 'ready' | 'none'
-  // 歌词引擎使用的数据模型（已预处理，见 lib/lyrics），按来源等级与读者固定的来源选出
+  // 歌词引擎使用的数据模型（已预处理，见 lib/lyrics），按全站歌词版本与来源等级选出
   lyrics: ResolvedLyrics
-  // 当前曲目已到达且有歌词的各来源（等级从高到低），当前显示的来源，以及读者为这首歌固定的来源
+  // 当前曲目已到达且有歌词的各来源（等级从高到低）与当前显示的来源
   lyricCandidates: LyricCandidate[]
   lyricKind: LyricSourceKind | null
   // 全站歌词版本的来源（后端选出，见 spec 7.2o），以及当前显示的是否就是它（歌词特效只叠加在全站版本上）
   lyricSiteKind: LyricSourceKind | null
   lyricIsSiteVersion: boolean
-  lyricPin: LyricSourceKind | null
-  setLyricPin: (pin: LyricSourceKind | null) => void
-  // 读者为某首歌固定的歌词来源（文章内的歌词摘录等按歌曲 id 取歌词时使用）
-  getLyricPin: (id: number) => LyricSourceKind | null
   // 仍有来源在请求中（已显示的歌词可能被更高等级的来源替换）
   lyricSourcesPending: boolean
   // 重新从所有来源获取当前曲目的歌词（获取失败或歌词不对时由读者手动触发）
@@ -175,9 +170,6 @@ export function getNextPlayMode(mode: PlayMode): PlayMode {
 const MEDIA_SESSION_MIN_INTERVAL_MS = 1000
 
 const STORAGE_KEY_PLAY_MODE = 'music-play-mode'
-// 读者按曲目固定的歌词来源：{ 曲目 id: 来源 }，最多保留 2000 首（参考 StarryPlayer），超出时淘汰最早固定的
-const STORAGE_KEY_LYRIC_PINS = 'music-lyric-pins'
-const MAX_LYRIC_PINS = 2000
 const STORAGE_KEY_SHOW_TRANSLATION = 'music-show-translation'
 const STORAGE_KEY_SHOW_ROMAJI = 'music-show-romaji'
 const STORAGE_KEY_SHOW_LYRIC_EFFECTS = 'music-show-lyric-effects'
@@ -213,12 +205,11 @@ export function useMusic(): MusicContextValue {
 
 /** 播放时钟本身：需要在回调中读取进度（如定期保存进度）而不想因此重渲染时使用 */
 /**
- * 按歌曲 id 取最终显示的歌词（与播放器、导航栏同一套来源与选择规则，并遵循读者为这首歌固定的来源）；
+ * 按歌曲 id 取最终显示的歌词（与播放器、导航栏同一套来源与选择规则，读者不参与来源选择，一律按全站版本）；
  * id 为空时不请求。track 用于去掉「歌名 - 歌手」等署名行
  */
 export function useSongLyrics(id: number | null, track?: LyricTrackInfo | null) {
-  const { getLyricPin } = useMusic()
-  return useResolvedSongLyrics(id, id == null ? null : getLyricPin(id), track)
+  return useResolvedSongLyrics(id, track)
 }
 
 export function useMusicClockStore(): MusicClock {
@@ -350,9 +341,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [bufferedPercent, setBufferedPercent] = useState<number>(0)
   const [volume, setVolumeState] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
-  // 原始歌词响应，与所属曲目 id 绑定；只有 trackId 与当前曲目一致时才会被使用
-  // 各歌词来源的原始结果，与所属曲目 id 绑定：undefined 为请求中，null 为没有或失败
-  const [lyricPins, setLyricPins] = useState<Record<string, LyricSourceKind>>({})
   // 翻译与音译默认都打开；读者切换后的选择保存在本地，以读者的选择为准
   const [showTranslation, setShowTranslationState] = useState(true)
   const [showRomaji, setShowRomajiState] = useState(true)
@@ -408,10 +396,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const storedPlayMode = JSON.parse(localStorage.getItem(STORAGE_KEY_PLAY_MODE) ?? 'null')
       if (PLAY_MODES.includes(storedPlayMode))
         setPlayModeState(storedPlayMode)
-
-      const storedPins = JSON.parse(localStorage.getItem(STORAGE_KEY_LYRIC_PINS) ?? 'null')
-      if (storedPins && typeof storedPins === 'object')
-        setLyricPins(Object.fromEntries(Object.entries(storedPins).filter(([, value]) => LYRIC_SOURCE_KINDS.includes(value as LyricSourceKind))) as Record<string, LyricSourceKind>)
 
       const storedEffects = readStoredBoolean(STORAGE_KEY_SHOW_LYRIC_EFFECTS)
       if (storedEffects != null)
@@ -633,10 +617,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // 当前曲目的歌词：与文章内的单曲卡、歌词摘录共用同一份来源与选择结果（见 contexts/song-lyrics.ts）；
   // 去掉署名行时用曲目信息判断「歌名 - 歌手」行
-  const lyricPin = currentTrackId != null ? lyricPins[currentTrackId] ?? null : null
-  const songLyrics = useResolvedSongLyrics(currentTrackId, lyricPin, currentTrack)
+  // 读者不参与歌词选择：一律按全站歌词版本（管理员为这首歌选定的来源，没有时按质量自动选择）
+  const songLyrics = useResolvedSongLyrics(currentTrackId, currentTrack)
   // 强调特效：按演唱时长规则计算，并叠加歌词标注（逐字歌词）。标注在读者播放到这首歌时才请求（懒处理），
-  // 关闭歌词特效、不是逐字歌词或读者固定了全站版本以外的来源时不请求。标注只按全站歌词版本生成，只在显示这一版本时叠加
+  // 关闭歌词特效、不是逐字歌词或显示的已不是全站版本（回退到了别的来源）时不请求。标注只按全站歌词版本生成，只在显示这一版本时叠加
   const wantsAnnotations = isPlaying && showLyricEffects && songLyrics.lyrics.wordTimed && songLyrics.isSiteVersion && currentTrackId != null && currentTrackId > 0
   useEffect(() => {
     if (wantsAnnotations && currentTrackId != null)
@@ -797,26 +781,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     writeStored(STORAGE_KEY_PLAY_MODE, mode)
   }, [])
 
-  const setLyricPin = useCallback((pin: LyricSourceKind | null) => {
-    if (currentTrackId == null)
-      return
-    const key = String(currentTrackId)
-    setLyricPins((prev) => {
-      const next = { ...prev }
-      delete next[key]
-      if (pin)
-        next[key] = pin
-      // 超出上限时淘汰最早固定的（对象按插入顺序遍历）
-      const keys = Object.keys(next)
-      for (const old of keys.slice(0, Math.max(0, keys.length - MAX_LYRIC_PINS)))
-        delete next[old]
-      writeStored(STORAGE_KEY_LYRIC_PINS, next)
-      return next
-    })
-  }, [currentTrackId])
-
-  const getLyricPin = useCallback((id: number) => lyricPins[id] ?? null, [lyricPins])
-
   const setShowTranslation = useCallback((show: boolean) => {
     setShowTranslationState(show)
     writeStored(STORAGE_KEY_SHOW_TRANSLATION, show)
@@ -962,9 +926,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     lyricKind,
     lyricSiteKind,
     lyricIsSiteVersion,
-    lyricPin,
-    setLyricPin,
-    getLyricPin,
     lyricSourcesPending: lyricsPending,
     refreshLyrics,
     lyricAnnotated,
@@ -1013,9 +974,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     lyricKind,
     lyricSiteKind,
     lyricIsSiteVersion,
-    lyricPin,
-    setLyricPin,
-    getLyricPin,
     lyricsPending,
     refreshLyrics,
     lyricAnnotated,

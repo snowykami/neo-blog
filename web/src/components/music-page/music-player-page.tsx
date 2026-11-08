@@ -11,9 +11,11 @@ import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
+import { useAuth } from '@/contexts/auth-context'
 import { useMusic } from '@/contexts/music-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { cn } from '@/lib/utils'
+import { isAdmin } from '@/utils/common/permission'
 import { LyricAnnotationRefresh } from './lyric-annotation-refresh'
 import { LyricOffsetControl } from './lyric-offset-control'
 import { LyricSourceBadge } from './lyric-source-badge'
@@ -36,6 +38,9 @@ const PAGE_STYLE = { '--primary': 'oklch(0.97 0 0)', '--primary-foreground': 'ok
 /** 封面与曲目信息：暂停时封面略微缩小（与播放状态呼应） */
 function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTrack, playing: boolean, onCoverClick: () => void, className?: string }) {
   const t = useTranslations('MusicPage')
+  const { user } = useAuth()
+  // 歌词来源、重新生成 AI 歌词特效与整体偏移都是站长的工具：读者只看全站版本，不显示这些按钮
+  const admin = !!user && isAdmin({ user })
   return (
     <div className={cn('flex min-h-0 flex-col justify-center gap-6', className)}>
       <button
@@ -61,11 +66,13 @@ function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTr
         <MarqueeText key={`artist-${track.id}`} className="text-base text-white/65">
           {[track.artists.join(' / '), track.album].filter(Boolean).join(' · ')}
         </MarqueeText>
-        <div className="mt-1 flex items-center gap-1.5 justify-self-center lg:justify-self-start">
-          <LyricSourceBadge />
-          <LyricAnnotationRefresh />
-          <LyricOffsetControl />
-        </div>
+        {admin && (
+          <div className="mt-1 flex items-center gap-1.5 justify-self-center lg:justify-self-start">
+            <LyricSourceBadge />
+            <LyricAnnotationRefresh />
+            <LyricOffsetControl />
+          </div>
+        )}
       </div>
     </div>
   )

@@ -23,8 +23,8 @@ import { useLyricOffsets, useLyricSitePin } from './lyric-settings'
  * - 来源的值：undefined 为请求中（或尚未请求），null 为没有或请求失败；失败的来源在下次需要时重试
  * - 歌词缓存（spec 7.2e）：某个来源还在请求中或失败时先用快照里的同一来源，所以打开时能立即显示全站版本，实时结果到达后原地替换
  * - 整体偏移（spec 7.2l）：管理员为某一来源保存的偏移在选出歌词后平移所有时间，所有播放这首歌的地方都按它显示
- * - 全站版本：读者自己在本地固定的来源优先，否则显示后端选出的全站版本（没有选出前按快照的来源，再其次按质量自动选择）；
- *   歌词特效只按全站版本生成，读者固定了其他来源时不叠加
+ * - 全站版本：所有人显示的都是后端选出的全站版本（管理员为这首歌设的全站默认来源优先，没有时按质量选择；没选出前按快照的来源）；
+ *   读者不参与来源选择，歌词特效只按全站版本生成
  */
 
 export interface SongLyricSources {
@@ -259,7 +259,7 @@ export function useSongLyricSources(id: number | null): SongLyricSources | null 
 }
 
 export interface SongLyrics {
-  // 按来源等级与固定的来源选出的歌词（已预处理）
+  // 按全站默认来源与来源等级选出的歌词（已预处理）
   lyrics: ResolvedLyrics
   // 已到达且有歌词的各来源（等级从高到低）与当前显示的来源
   candidates: LyricCandidate[]
@@ -286,8 +286,8 @@ function safely<T>(parse: () => T, label: string): T | null {
   }
 }
 
-/** 一首歌最终显示的歌词：获取各来源并按同一套规则选择；track 用于去掉「歌名 - 歌手」等署名行 */
-export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | null, track?: LyricTrackInfo | null): SongLyrics {
+/** 一首歌最终显示的歌词：获取各来源并按同一套规则选择（读者不选来源，一律按全站版本）；track 用于去掉「歌名 - 歌手」等署名行 */
+export function useResolvedSongLyrics(id: number | null, track?: LyricTrackInfo | null): SongLyrics {
   const fresh = useSongLyricSources(id)
   // 实时来源还在请求中或失败时，用缓存快照中的同一来源补位
   const sources = useMemo(() => withCachedSources(fresh), [fresh])
@@ -321,10 +321,9 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
   const sitePin = useLyricSitePin(id)
   const decided = sources?.decided
   const siteKind: LyricSourceKind | null = decided !== undefined ? (decided?.kind || null) : (sources?.cache?.kind ?? sitePin)
-  const effectivePin = pin ?? siteKind
 
   const result = useMemo<SongLyrics>(() => {
-    const resolution = resolveLyrics({ ttml: ttmlLyrics, ncm: ncmLyrics, ncmParsed, qq: qqLyrics, qqParsed, kugou: kugouLyrics, kugouParsed, pin: effectivePin })
+    const resolution = resolveLyrics({ ttml: ttmlLyrics, ncm: ncmLyrics, ncmParsed, qq: qqLyrics, qqParsed, kugou: kugouLyrics, kugouParsed, pin: siteKind })
     const pending = fresh != null && (fresh.ncm === undefined || fresh.ttml === undefined || fresh.qq === undefined || fresh.kugou === undefined)
     return {
       // 音译对齐到原文音节（逐字音译），再按这一来源的整体偏移平移时间
@@ -337,7 +336,7 @@ export function useResolvedSongLyrics(id: number | null, pin: LyricSourceKind | 
       siteKind,
       isSiteVersion: siteKind == null || resolution.kind === siteKind,
     }
-  }, [effectivePin, fresh, kugouLyrics, kugouParsed, ncmLyrics, ncmParsed, offsets, qqLyrics, qqParsed, siteKind, ttmlLyrics])
+  }, [fresh, kugouLyrics, kugouParsed, ncmLyrics, ncmParsed, offsets, qqLyrics, qqParsed, siteKind, ttmlLyrics])
   return result
 }
 
