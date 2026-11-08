@@ -158,7 +158,7 @@ var sections = []*Section{
 		{Key: "email_address", Type: TypeEmail, Label: "email_address", Description: "email_address_desc", Placeholder: "noreply@example.com", Default: "", Env: constant.EnvKeyEmailAddress},
 	}},
 	// 站内互动通知：站内通知始终即时送达，这里的配置只影响邮件汇总（见 docs/notification-spec.md）
-	{Tab: "account", Key: "notification", Title: "section_notification", Description: "section_notification_desc", Items: []*Item{
+	{Tab: "account", Key: "notification", Title: "section_notification", Description: "section_notification_desc", Widget: "notification_test", Items: []*Item{
 		{Key: "notification_email_enable", Type: TypeBool, Label: "notification_email_enable", Description: "notification_email_enable_desc", Default: false},
 		// 重要类型同时是用户可选的「上限」：用户只能在这个集合里关，不能开站点没开的类型；点赞与线程活动永远只是附带，不进这个列表
 		{Key: "notification_email_types", Type: TypeStringList, Label: "notification_email_types", Description: "notification_email_types_desc", Options: []Option{

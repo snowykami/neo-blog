@@ -290,3 +290,9 @@ export async function deleteErrorIssueAdmin(id: number): Promise<BaseResponse<nu
   const res = await axiosClient.delete(`/admin/errors/${id}`)
   return res.data
 }
+
+// 给自己发一条站内测试通知（管理员不能读别人的通知，只能这样确认链路可用）
+export async function sendTestNotification(): Promise<BaseResponse<null>> {
+  const res = await axiosClient.post('/admin/notifications/test')
+  return res.data
+}
