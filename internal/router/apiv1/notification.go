@@ -13,6 +13,8 @@ func registerNotificationRoutes(group *route.RouterGroup) {
 	{
 		notificationGroup.GET("", notificationController.ListNotifications)
 		notificationGroup.GET("/unread-count", notificationController.GetUnreadCount)
+		// SSE：新通知到达时推一条未读数
+		notificationGroup.GET("/stream", notificationController.StreamNotifications)
 		notificationGroup.POST("/read-all", notificationController.MarkAllRead)
 		notificationGroup.POST("/:id/read", notificationController.MarkRead)
 		// 展开聚合行：点赞组里具体是谁

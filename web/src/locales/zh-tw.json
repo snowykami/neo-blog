@@ -3024,7 +3024,7 @@
   "NotificationSettings": {
     "title": "通知設定",
     "description": "站內通知與郵件通知的開關都在這裡管理，變更即時生效",
-      "token_expired": "此連結已過期，請登入後繼續",
+    "token_expired": "此連結已過期，請登入後繼續",
     "login_required": "登入後即可管理你的通知偏好",
     "login": "登入",
     "load_failed": "載入通知偏好失敗",
@@ -3063,6 +3063,7 @@
     "empty_title": "還沒有通知",
     "empty_desc": "有人留言或按讚你的內容時，會出現在這裡",
     "loading_more": "正在載入…",
+    "new_notification": "有了新的互動",
     "unread": "未讀",
     "actor_separator": "、",
     "and_others": "和另外 {count} 人",

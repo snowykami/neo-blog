@@ -93,6 +93,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 	}
 	// 评论与互动通知写在同一个事务里：评论成功就必须留下通知，崩溃也不会只留下其中一半（5.2 方案 A）
 	var commentID uint
+	var notifiedUsers []uint
 	err := repo.GetDB().Transaction(func(tx *gorm.DB) error {
 		var createErr error
 		commentID, createErr = repo.Comment.CreateComment(comment, tools.GetMaximumReplyDepth(), tx)
@@ -100,9 +101,11 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 			return createErr
 		}
 		// 通知是附属品，写失败不能让评论失败（5.3）
-		if emitErr := emitCommentNotifications(ctx, tx, currentUser, comment, parent, target); emitErr != nil {
+		users, emitErr := emitCommentNotifications(ctx, tx, currentUser, comment, parent, target)
+		if emitErr != nil {
 			logrus.Errorf("emit comment notifications: %v", emitErr)
 		}
+		notifiedUsers = users
 		return nil
 	})
 
@@ -116,6 +119,10 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		return 0, errs.Internal("failed_to_create_target", err).WithResource("comment")
 	}
 
+	// 事务提交后再唤醒收件人的实时连接
+	for _, userID := range notifiedUsers {
+		NotificationHub.Notify(userID)
+	}
 	// 评论记入访客记录时间线：回复记在被回复的评论上，否则记在文章/页面上
 	if req.ReplyID != 0 {
 		NewVisitService().RecordInteraction(currentUser.ID, ownerID, constant.VisitActionComment, constant.TargetTypeComment, req.ReplyID, commentID)

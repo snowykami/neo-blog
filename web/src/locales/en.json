@@ -3024,7 +3024,7 @@
   "NotificationSettings": {
     "title": "Notification settings",
     "description": "In-app and email notifications are managed here; changes take effect immediately",
-      "token_expired": "This link has expired. Sign in to continue",
+    "token_expired": "This link has expired. Sign in to continue",
     "login_required": "Sign in to manage your notification preferences",
     "login": "Sign in",
     "load_failed": "Failed to load notification preferences",
@@ -3063,6 +3063,7 @@
     "empty_title": "No notifications yet",
     "empty_desc": "Comments and likes on your content will show up here",
     "loading_more": "Loading…",
+    "new_notification": "New activity",
     "unread": "Unread",
     "actor_separator": ", ",
     "and_others": " and {count} others",

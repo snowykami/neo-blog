@@ -82,6 +82,8 @@ func main() {
 	tasks.StartJobRecovery()
 	// 启动时预热歌单（网易云返回上千首、1～2MB，现拉十几秒；重启后进程内的歌单缓存会丢）
 	tasks.StartMusicPlaylistWarm()
+	// 站内通知的跨实例广播：任一实例写入通知后唤醒各实例上的 SSE 连接
+	service.StartNotificationHub()
 	// 站内互动通知的邮件汇总投递（只有真人评论 / 回复触发发信，点赞等附带项搭车）
 	tasks.StartNotificationEmailWorker()
 	// 通知与互动事件按保留期清理，并处理长期没搭上车的附带行

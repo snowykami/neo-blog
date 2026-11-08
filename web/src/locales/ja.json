@@ -3024,7 +3024,7 @@
   "NotificationSettings": {
     "title": "通知設定",
     "description": "アプリ内通知とメール通知の設定はここで管理します。変更はすぐに反映されます",
-      "token_expired": "このリンクの有効期限が切れました。ログインして続行してください",
+    "token_expired": "このリンクの有効期限が切れました。ログインして続行してください",
     "login_required": "ログインすると通知の設定を管理できます",
     "login": "ログイン",
     "load_failed": "通知設定を読み込めませんでした",
@@ -3063,6 +3063,7 @@
     "empty_title": "通知はまだありません",
     "empty_desc": "あなたの記事へのコメントやいいねがここに表示されます",
     "loading_more": "読み込み中…",
+    "new_notification": "新しい動きがあります",
     "unread": "未読",
     "actor_separator": "、",
     "and_others": "ほか {count} 人",

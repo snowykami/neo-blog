@@ -55,7 +55,7 @@ func TestEmitNotification(t *testing.T) {
 		SubjectType: constant.TargetTypePost, SubjectID: 12, SubjectTitle: "标题", SubjectSlug: "slug",
 		CommentID: 34, Excerpt: "正文", DedupeKey: dedupeKeyCommentCreated(constant.TargetTypePost, 12, 34),
 	}
-	if err := service.Emit(ctx, nil, comment); err != nil {
+	if _, err := service.Emit(ctx, nil, comment); err != nil {
 		t.Fatalf("emit comment: %v", err)
 	}
 	like := &NotificationEvent{
@@ -64,11 +64,11 @@ func TestEmitNotification(t *testing.T) {
 		SubjectType: constant.TargetTypePost, SubjectID: 12, SubjectTitle: "标题", SubjectSlug: "slug",
 		DedupeKey: dedupeKeyPostLiked(12, fan.ID),
 	}
-	if err := service.Emit(ctx, nil, like); err != nil {
+	if _, err := service.Emit(ctx, nil, like); err != nil {
 		t.Fatalf("emit like: %v", err)
 	}
 	// 重复点赞：通知行不会变成两条
-	if err := service.Emit(ctx, nil, like); err != nil {
+	if _, err := service.Emit(ctx, nil, like); err != nil {
 		t.Fatalf("emit like twice: %v", err)
 	}
 
@@ -116,21 +116,21 @@ func TestEmitNotificationSuppression(t *testing.T) {
 	ctx := context.Background()
 	service := NewNotificationService()
 
-	if err := service.Emit(ctx, nil, &NotificationEvent{
+	if _, err := service.Emit(ctx, nil, &NotificationEvent{
 		Type: constant.NotificationTypePostLiked, Actor: author, Owner: author,
 		TargetType: constant.TargetTypePost, TargetID: 1, DedupeKey: dedupeKeyPostLiked(1, author.ID),
 	}); err != nil {
 		t.Fatal(err)
 	}
 	aiOwner := createNotificationUser(t, "aiowner", func(u *model.User) { u.IsAI = true })
-	if err := service.Emit(ctx, nil, &NotificationEvent{
+	if _, err := service.Emit(ctx, nil, &NotificationEvent{
 		Type: constant.NotificationTypePostLiked, Actor: author, Owner: aiOwner,
 		TargetType: constant.TargetTypePost, TargetID: 1, DedupeKey: dedupeKeyPostLiked(1, author.ID),
 	}); err != nil {
 		t.Fatal(err)
 	}
 	disabled := createNotificationUser(t, "disabled", func(u *model.User) { u.Disabled = true })
-	if err := service.Emit(ctx, nil, &NotificationEvent{
+	if _, err := service.Emit(ctx, nil, &NotificationEvent{
 		Type: constant.NotificationTypePostLiked, Actor: author, Owner: disabled,
 		TargetType: constant.TargetTypePost, TargetID: 1, DedupeKey: dedupeKeyPostLiked(1, author.ID),
 	}); err != nil {
@@ -150,7 +150,7 @@ func TestEmitNotificationSuppression(t *testing.T) {
 		TargetType: constant.TargetTypePost, TargetID: 3, CommentID: 8, Excerpt: "AI 的评论",
 		DedupeKey: dedupeKeyCommentCreated(constant.TargetTypePost, 3, 8),
 	}
-	if err := service.Emit(ctx, nil, event); err != nil {
+	if _, err := service.Emit(ctx, nil, event); err != nil {
 		t.Fatal(err)
 	}
 	var notification model.Notification
@@ -169,7 +169,7 @@ func TestEmitNotificationSuppression(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := service.Emit(ctx, nil, &NotificationEvent{
+	if _, err := service.Emit(ctx, nil, &NotificationEvent{
 		Type: constant.NotificationTypeCommentCreated, Actor: aiActor, Owner: updated,
 		TargetType: constant.TargetTypePost, TargetID: 3, CommentID: 9, Excerpt: "第二条",
 		DedupeKey: dedupeKeyCommentCreated(constant.TargetTypePost, 3, 9),
@@ -193,7 +193,7 @@ func TestEmitNotificationThreadAggregate(t *testing.T) {
 	day := notificationDay(time.Now(), threadStarter.TimeZone)
 
 	for _, actor := range []*model.User{first, second} {
-		if err := service.Emit(ctx, nil, &NotificationEvent{
+		if _, err := service.Emit(ctx, nil, &NotificationEvent{
 			Type: constant.NotificationTypeCommentThreadReplied, Actor: actor, Owner: threadStarter,
 			TargetType: constant.TargetTypeComment, TargetID: 5, CommentID: 5,
 			SubjectType: constant.TargetTypePost, SubjectID: 12, SubjectTitle: "文章",

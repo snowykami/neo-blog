@@ -46,15 +46,16 @@ type NotificationEvent struct {
 }
 
 // Emit 写入事件与通知行。tx 非空时与业务写在同一个事务里（5.2 方案 A）。
-// 返回的错误由调用方记录日志即可，不能让点赞 / 评论因此失败（5.3）
-func (s *NotificationService) Emit(ctx context.Context, tx *gorm.DB, ev *NotificationEvent) error {
+// 返回的错误由调用方记录日志即可，不能让点赞 / 评论因此失败（5.3）。
+// 第二个返回值是收到通知的收件人：非零表示真的产生了通知，调用方应在事务提交后调 NotificationHub.Notify
+func (s *NotificationService) Emit(ctx context.Context, tx *gorm.DB, ev *NotificationEvent) (uint, error) {
 	if ev == nil || ev.Actor == nil || ev.Owner == nil {
-		return nil
+		return 0, nil
 	}
 	settings := resolveNotificationSettings(ev.Owner.NotificationPrefs, currentNotificationSiteConfig())
 	kind := decideNotification(ev.Actor, ev.Owner, ev.Type, settings)
 	if kind == notificationKindNone {
-		return nil
+		return 0, nil
 	}
 	at := time.Now()
 	event := &model.InteractionEvent{
@@ -75,7 +76,7 @@ func (s *NotificationService) Emit(ctx context.Context, tx *gorm.DB, ev *Notific
 	event.CreatedAt = at
 	stored, err := repo.Notification.CreateEvent(tx, event)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	notification := &model.Notification{
@@ -103,9 +104,15 @@ func (s *NotificationService) Emit(ctx context.Context, tx *gorm.DB, ev *Notific
 	}
 	if ev.ThreadAggregate {
 		notification.AggregateActors = ev.AggregateActor
-		return repo.Notification.UpsertThreadAggregate(tx, notification)
+		if err := repo.Notification.UpsertThreadAggregate(tx, notification); err != nil {
+			return 0, err
+		}
+		return ev.Owner.ID, nil
 	}
-	return repo.Notification.CreateNotification(tx, notification)
+	if err := repo.Notification.CreateNotification(tx, notification); err != nil {
+		return 0, err
+	}
+	return ev.Owner.ID, nil
 }
 
 // RevokeLike 取消点赞：硬删对应的通知行（事件保留用于统计，见 3.2 规则 6）
