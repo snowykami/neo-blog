@@ -180,7 +180,11 @@
     "attachment_too_large": "{name} 超过 {size}，已跳过",
     "remove_attachment": "移除附件 {name}",
     "view_attachment": "查看图片 {name}",
-    "download_attachment": "下载 {name}"
+    "download_attachment": "下载 {name}",
+    "mention_candidates": "选择要 @ 的人",
+    "mention_searching": "搜索中…",
+    "mention_empty": "没有匹配的用户",
+    "mention_profile": "查看 @{username} 的主页"
   },
   "Common": {
     "image_load_failed": "图片加载失败",
@@ -1040,6 +1044,7 @@
       "notification_email_types_desc": "只有重要消息会触发邮件；点赞、AI 互动与线程回复只会在下一次重要消息时一起提醒，用户只能在此范围内关闭",
       "notification_type_comment_created": "评论了我的文章或页面",
       "notification_type_comment_replied": "回复了我的评论",
+      "notification_type_comment_mentioned": "在评论里 @ 了我",
       "notification_email_interval": "汇总间隔",
       "notification_email_interval_desc": "这段时间内的多条重要消息合并成一封邮件，单位分钟，0 表示每轮（30 秒）就发",
       "notification_email_attach_hours": "附带提醒的搭车时限",
@@ -3068,6 +3073,7 @@
     "switch_comment": "有人评论我的文章或页面",
     "switch_reply": "有人回复我的评论，或在我参与的评论线程里回复",
     "switch_like": "有人点赞我的文章或评论",
+    "switch_mention": "有人 @ 我",
     "switch_ai": "AI 用户的互动",
     "switch_ai_desc": "关掉后 AI 的点赞与评论不再通知你；评论本身仍然存在，可以在文章页看到",
     "email_title": "邮件通知",
@@ -3079,7 +3085,8 @@
     "email_all_off": "全部关闭邮件",
     "list_separator": "、",
     "type_comment_created": "评论",
-    "type_comment_replied": "回复"
+    "type_comment_replied": "回复",
+    "type_comment_mentioned": "提及"
   },
   "Notifications": {
     "title": "通知",
@@ -3113,7 +3120,8 @@
       "post_liked": "{actors} 赞了你的文章《{subject}》",
       "comment_liked": "{actors} 赞了你的评论「{quoted}」",
       "comment_liked_without_quote": "{actors} 赞了你的评论",
-      "comment_thread_replied": "{actors} 在《{subject}》的评论区回复了"
+      "comment_thread_replied": "{actors} 在《{subject}》的评论区回复了",
+      "comment_mentioned": "{actors} 在《{subject}》的评论里 @ 了你：{excerpt}"
     }
   },
   "Login": {
@@ -3496,6 +3504,8 @@
       "cannot_delete_provider_in_use": "仍有文件在使用该存储提供者，无法删除",
       "storage_provider_in_use": "仍有文件在使用该存储提供者，无法删除",
       "captcha_verification_failed": "人机验证失败，请重试",
+      "too_many_mentions": "一条评论最多 @ 3 个人",
+      "invalid_mention": "被 @ 的用户不存在或不可用",
       "content_too_long": "内容过长",
       "too_many_attachments": "一条评论最多 9 个附件",
       "invalid_attachment": "附件不存在或无权使用",

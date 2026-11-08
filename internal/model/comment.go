@@ -29,6 +29,8 @@ type Comment struct {
 
 	// 附件的文件 ID，按展示顺序保存；文件被删除后不再展示
 	AttachmentIDs FileIDs `gorm:"type:text"`
+	// 正文里被 @ 的用户 ID（去重、最多 3 个）。正文只存 @用户名 这样的纯文本，通知用这里的 ID，用户改名不影响已发出的通知
+	MentionUserIDs UintIDs `gorm:"type:text"`
 }
 
 type CommentLocation struct {
@@ -40,10 +42,13 @@ type CommentLocation struct {
 	IDC       string
 }
 
-// FileIDs 以 JSON 文本存储的文件 ID 列表；为空时存 NULL
-type FileIDs []uint
+// UintIDs 以 JSON 文本存储的 uint 列表（附件文件、被 @ 的用户等）；为空时存 NULL
+type UintIDs []uint
 
-func (f FileIDs) Value() (driver.Value, error) {
+// FileIDs 附件的文件 ID 列表，按展示顺序保存
+type FileIDs = UintIDs
+
+func (f UintIDs) Value() (driver.Value, error) {
 	if len(f) == 0 {
 		return nil, nil
 	}
@@ -54,7 +59,7 @@ func (f FileIDs) Value() (driver.Value, error) {
 	return string(b), nil
 }
 
-func (f *FileIDs) Scan(src any) error {
+func (f *UintIDs) Scan(src any) error {
 	var data []byte
 	switch v := src.(type) {
 	case nil:

@@ -175,3 +175,9 @@ export async function getUserIpLocation(id: number): Promise<BaseResponse<IpData
   const res = await axiosClient.get(`/user/ip-location/${id}`)
   return res.data
 }
+
+// 提及功能的候选用户搜索：按用户名 / 昵称匹配，需要登录
+export async function searchUsers({ query, limit = 8 }: { query: string, limit?: number }): Promise<BaseResponse<{ users: User[] }>> {
+  const res = await axiosClient.get('/user/search', { params: { q: query, limit } })
+  return res.data
+}

@@ -10,6 +10,7 @@ export async function createComment({
   targetId,
   content,
   attachmentIds = [],
+  mentionUserIds = [],
   replyId = null,
   isPrivate = false,
   showClientInfo = true,
@@ -17,7 +18,8 @@ export async function createComment({
   targetType: TargetType
   targetId: number
   content: string
-  attachmentIds?: number[] // 附件的文件 ID，最多 9 个
+  attachmentIds?: number[]
+  mentionUserIds?: number[] // 被 @ 的用户，最多 3 个（正文里仍写 @用户名）
   replyId: number | null
   isPrivate: boolean
   showClientInfo: boolean
@@ -27,6 +29,7 @@ export async function createComment({
     targetId,
     content,
     attachmentIds,
+    mentionUserIds,
     replyId,
     isPrivate,
     showClientInfo,
@@ -38,18 +41,21 @@ export async function updateComment({
   id,
   content,
   attachmentIds,
+  mentionUserIds,
   isPrivate = false,
   showClientInfo = true,
 }: {
   id: number
   content: string
   attachmentIds?: number[] // 不传时保持原有附件，空数组清空
+  mentionUserIds?: number[] // 不传时保持原有提及，空数组清空
   isPrivate?: boolean // 可选字段，默认为 false
   showClientInfo?: boolean
 }): Promise<BaseResponse<Comment>> {
   const res = await axiosClient.put(`/comment/c/${id}`, {
     content,
     attachmentIds,
+    mentionUserIds,
     isPrivate,
     showClientInfo,
   })

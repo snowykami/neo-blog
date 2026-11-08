@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"gorm.io/gorm/clause"
 	"strings"
 
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -86,6 +87,36 @@ func (user *userRepo) CheckEmailExists(email string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// SearchUsers 按用户名或昵称搜索可被提及的用户：只返回可用账号，排除自己，完全匹配的排在前面。
+// 关键词按字面匹配（转义 LIKE 通配符），登录用户才能调用，见 UserService.SearchUsers
+func (user *userRepo) SearchUsers(keyword string, excludeID uint, limit int) ([]model.User, error) {
+	keyword = strings.ToLower(strings.TrimSpace(keyword))
+	if keyword == "" {
+		return []model.User{}, nil
+	}
+	if limit <= 0 || limit > 20 {
+		limit = 10
+	}
+	like := "%" + likeEscaper.Replace(keyword) + "%"
+	query := GetDB().Model(&model.User{}).
+		Where("disabled = ?", false).
+		Where("(LOWER(username) LIKE ? ESCAPE '\\' OR LOWER(nickname) LIKE ? ESCAPE '\\')", like, like)
+	if excludeID != 0 {
+		query = query.Where("id <> ?", excludeID)
+	}
+	var users []model.User
+	// 完全匹配用户名 / 昵称的排最前，其余按用户名排序，结果稳定
+	if err := query.
+		Order(clause.OrderBy{Expression: clause.Expr{
+			SQL:  "CASE WHEN LOWER(username) = ? OR LOWER(nickname) = ? THEN 0 ELSE 1 END, username ASC",
+			Vars: []any{keyword, keyword},
+		}}).
+		Limit(limit).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
 }
 
 func (user *userRepo) ListUsers(req *dto.AdminListUsersReq) ([]model.User, uint64, error) {

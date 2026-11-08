@@ -48,6 +48,7 @@ const (
 	NotificationTypePostLiked            = "post.liked"             // 赞了你的文章
 	NotificationTypeCommentLiked         = "comment.liked"          // 赞了你的评论
 	NotificationTypeCommentThreadReplied = "comment.thread_replied" // 你参与的评论线程里有人互相回复
+	NotificationTypeCommentMentioned     = "comment.mentioned"      // 在评论里 @ 了你
 )
 
 // 通知邮件渠道的状态机：pending 等发信，attached 只能搭下一封重要邮件的车（永不自己发信）

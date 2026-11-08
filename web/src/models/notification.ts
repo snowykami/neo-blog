@@ -8,6 +8,7 @@ export type NotificationType
     | 'post.liked'
     | 'comment.liked'
     | 'comment.thread_replied'
+    | 'comment.mentioned'
     | 'system.test'
 
 // 通知列表里的一行：普通通知是它自己，点赞类是多条明细在渲染时归并的一行

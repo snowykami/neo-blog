@@ -22,9 +22,18 @@ export interface Comment {
   location: CommentLocation
   showClientInfo: boolean
   attachments?: CommentAttachment[] // 附件按添加顺序展示在正文之后，已删除的文件不返回
+  // 正文里被 @ 的用户；正文本身仍是 @用户名 纯文本
+  mentionUserIds?: number[]
   // 只在主评论列表中返回：整个回复线程（不限层级）中可见的回复数，以及最早回复的几位用户
   threadCount?: number
   threadUsers?: User[]
+}
+
+// 评论里被 @ 的人，提交时与正文一起带上
+export interface CommentMention {
+  id: number
+  username: string
+  nickname: string
 }
 
 // 评论附件：站内文件

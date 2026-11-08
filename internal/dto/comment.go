@@ -26,6 +26,8 @@ type CommentDto struct {
 	ShowClientInfo bool               `json:"show_client_info"`
 	// 附件按添加顺序展示在正文之后；已删除的文件不返回
 	Attachments []CommentAttachmentDto `json:"attachments"`
+	// MentionUserIDs 正文里被 @ 的用户，前端据此高亮（正文里仍是 @用户名 纯文本）
+	MentionUserIDs []uint `json:"mention_user_ids,omitempty"`
 	// 以下只在主评论列表中返回：整个回复线程（不限层级）中当前用户可见的回复数，以及最早回复的几位用户（去重），供折叠时展示
 	ThreadCount uint64    `json:"thread_count,omitempty"`
 	ThreadUsers []UserDto `json:"thread_users,omitempty"`
@@ -54,6 +56,7 @@ type CreateCommentReq struct {
 	TargetType     string `json:"target_type" binding:"required"` // 目标类型，如 "post", "page"
 	Content        string `json:"content"`                        // 评论内容，没有附件时不能为空
 	AttachmentIDs  []uint `json:"attachment_ids"`                 // 附件的文件 ID，最多 9 个
+	MentionUserIDs []uint `json:"mention_user_ids"`               // 被 @ 的用户，最多 3 个；正文里仍写 @用户名
 	ReplyID        uint   `json:"reply_id"`                       // 回复的评论ID
 	IsPrivate      bool   `json:"is_private"`                     // 是否私密评论，默认false
 	RemoteAddr     string // 远程地址
@@ -65,6 +68,7 @@ type UpdateCommentReq struct {
 	ID             uint    `path:"id"`               // 评论ID
 	Content        string  `json:"content"`          // 评论内容，没有附件时不能为空
 	AttachmentIDs  *[]uint `json:"attachment_ids"`   // 附件的文件 ID，nil 不修改，空数组清空
+	MentionUserIDs *[]uint `json:"mention_user_ids"` // 被 @ 的用户，nil 不修改，空数组清空
 	IsPrivate      bool    `json:"is_private"`       // 是否私密
 	ShowClientInfo bool    `json:"show_client_info"` // 是否显示客户端信息
 }

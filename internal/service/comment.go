@@ -67,6 +67,10 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 	if svcerr != nil {
 		return 0, svcerr
 	}
+	mentionUserIDs, svcerr := resolveCommentMentions(req.MentionUserIDs, currentUser.ID)
+	if svcerr != nil {
+		return 0, svcerr
+	}
 	if content == "" && len(attachmentIDs) == 0 {
 		return 0, errs.NewBadRequest("content_cannot_be_empty")
 	}
@@ -82,6 +86,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		},
 		Content:        content,
 		AttachmentIDs:  attachmentIDs,
+		MentionUserIDs: mentionUserIDs,
 		ReplyID:        req.ReplyID,
 		TargetID:       req.TargetID,
 		TargetType:     req.TargetType,
@@ -159,6 +164,14 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 			return svcerr
 		}
 		comment.AttachmentIDs = attachmentIDs
+	}
+	// 不传提及列表时保持原样（兼容不带该字段的旧客户端）
+	if req.MentionUserIDs != nil {
+		mentionUserIDs, svcerr := resolveCommentMentions(*req.MentionUserIDs, comment.UserID)
+		if svcerr != nil {
+			return svcerr
+		}
+		comment.MentionUserIDs = mentionUserIDs
 	}
 	if content == "" && len(comment.AttachmentIDs) == 0 {
 		return errs.NewBadRequest("content_cannot_be_empty")
@@ -379,23 +392,24 @@ func (cs *CommentService) toGetCommentDto(comment *model.Comment, isLiked bool) 
 	}
 
 	return dto.CommentDto{
-		ID:         comment.ID,
-		Content:    comment.Content,
-		Language:   comment.Language,
-		TargetID:   comment.TargetID,
-		TargetType: comment.TargetType,
-		RootID:     comment.RootID,
-		ReplyID:    comment.ReplyID,
-		CreatedAt:  comment.CreatedAt,
-		UpdatedAt:  comment.UpdatedAt,
-		Depth:      comment.Depth,
-		User:       comment.User.ToDto(),
-		ReplyCount: comment.CommentCount,
-		LikeCount:  comment.LikeCount,
-		IsLiked:    isLiked,
-		IsPrivate:  comment.IsPrivate,
-		OS:         ua.OS + " " + ua.OSVersion,
-		Browser:    ua.Browser + " " + ua.BrowserVer,
+		ID:             comment.ID,
+		Content:        comment.Content,
+		MentionUserIDs: comment.MentionUserIDs,
+		Language:       comment.Language,
+		TargetID:       comment.TargetID,
+		TargetType:     comment.TargetType,
+		RootID:         comment.RootID,
+		ReplyID:        comment.ReplyID,
+		CreatedAt:      comment.CreatedAt,
+		UpdatedAt:      comment.UpdatedAt,
+		Depth:          comment.Depth,
+		User:           comment.User.ToDto(),
+		ReplyCount:     comment.CommentCount,
+		LikeCount:      comment.LikeCount,
+		IsLiked:        isLiked,
+		IsPrivate:      comment.IsPrivate,
+		OS:             ua.OS + " " + ua.OSVersion,
+		Browser:        ua.Browser + " " + ua.BrowserVer,
 		Location: dto.CommentLocationDto{
 			Country:   comment.Country,
 			Province:  comment.Province,

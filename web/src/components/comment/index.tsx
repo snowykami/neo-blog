@@ -92,6 +92,7 @@ export function CommentSection({
   const onCommentSubmitted = async ({
     commentContent,
     attachments,
+    mentionUserIds,
     isPrivate,
     showClientInfo,
   }: CommentSubmitPayload) => {
@@ -101,6 +102,7 @@ export function CommentSection({
         targetId,
         content: commentContent,
         attachmentIds: attachments.map(attachment => attachment.id),
+        mentionUserIds,
         replyId: null,
         isPrivate,
         showClientInfo,

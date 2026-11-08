@@ -30,6 +30,8 @@ func registerUserRoutes(group *route.RouterGroup) {
 		// 需要鉴权
 		userGroupWithAuth.POST("/logout", userController.Logout)
 		userGroupWithAuth.GET("/me", userController.GetLoginUser)
+		// 提及功能：登录用户按用户名 / 昵称搜索可被 @ 的人
+		userGroupWithAuth.GET("/search", userController.SearchUsers)
 		userGroupWithAuth.PUT("/u/:id", userController.UpdateUser)
 		userGroupWithAuth.PUT("/password/edit", userController.ChangePassword)
 		userGroupWithAuth.GET("/openids", userController.GetUserOpenIDList)      // 获取登录用户的OIDC列表

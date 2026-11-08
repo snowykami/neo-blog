@@ -103,6 +103,21 @@ func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, nil)
 }
 
+// SearchUsers 提及功能里的候选用户搜索
+func (u *UserController) SearchUsers(ctx context.Context, c *app.RequestContext) {
+	req := &dto.SearchUsersReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	users, svcerr := u.service.SearchUsers(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"users": users})
+}
+
 func (u *UserController) GetUser(ctx context.Context, c *app.RequestContext) {
 	userID := ctxutils.GetIDParam(c).Uint
 	resp, svcerr := u.service.GetUser(ctx, &dto.GetUserReq{UserID: userID})

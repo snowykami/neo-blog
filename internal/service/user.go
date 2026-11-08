@@ -464,3 +464,28 @@ func isValidPassword(password string) bool {
 	}
 	return true
 }
+
+// SearchUsers 提及功能里的候选用户搜索：只给登录用户用（评论本身要登录），
+// 只返回公开字段，排除已禁用账号与自己，避免成为用户名枚举工具
+func (s *UserService) SearchUsers(ctx context.Context, req *dto.SearchUsersReq) ([]dto.UserDto, *errs.ServiceError) {
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok {
+		return nil, errs.NewUnauthorized("login_required")
+	}
+	keyword := strings.TrimSpace(req.Query)
+	if len([]rune(keyword)) < 1 {
+		return []dto.UserDto{}, nil
+	}
+	if len([]rune(keyword)) > 20 {
+		keyword = string([]rune(keyword)[:20])
+	}
+	users, err := repo.User.SearchUsers(keyword, currentUser.ID, req.Limit)
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("user")
+	}
+	result := make([]dto.UserDto, 0, len(users))
+	for i := range users {
+		result = append(result, users[i].ToDto())
+	}
+	return result, nil
+}

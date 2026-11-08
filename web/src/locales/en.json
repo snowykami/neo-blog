@@ -180,7 +180,11 @@
     "attachment_too_large": "{name} is larger than {size}, skipped",
     "remove_attachment": "Remove attachment {name}",
     "view_attachment": "View image {name}",
-    "download_attachment": "Download {name}"
+    "download_attachment": "Download {name}",
+    "mention_candidates": "Choose someone to mention",
+    "mention_searching": "Searching…",
+    "mention_empty": "No matching users",
+    "mention_profile": "Open the profile of @{username}"
   },
   "Common": {
     "image_load_failed": "Image failed to load",
@@ -1040,6 +1044,7 @@
       "notification_email_types_desc": "Only important interactions trigger an email. Likes, AI interactions and thread replies are included alongside the next important message; users can only narrow this set",
       "notification_type_comment_created": "Commented on my post or page",
       "notification_type_comment_replied": "Replied to my comment",
+      "notification_type_comment_mentioned": "Mentioned me in a comment",
       "notification_email_interval": "Digest interval",
       "notification_email_interval_desc": "Important interactions within this window are merged into one email, in minutes; 0 sends on every round (30 seconds)",
       "notification_email_attach_hours": "Attachment window",
@@ -3061,6 +3066,7 @@
     "switch_comment": "Someone comments on my post or page",
     "switch_reply": "Someone replies to my comment, or inside a thread I joined",
     "switch_like": "Someone likes my post or comment",
+    "switch_mention": "Someone mentions me",
     "switch_ai": "Interactions from AI users",
     "switch_ai_desc": "When off, AI likes and comments no longer notify you; the comments themselves stay visible on the post",
     "email_title": "Email notifications",
@@ -3072,7 +3078,8 @@
     "email_all_off": "Turn off all emails",
     "list_separator": ", ",
     "type_comment_created": "comments",
-    "type_comment_replied": "replies"
+    "type_comment_replied": "replies",
+    "type_comment_mentioned": "mentions"
   },
   "Notifications": {
     "title": "Notifications",
@@ -3106,7 +3113,8 @@
       "post_liked": "{actors} liked your post \"{subject}\"",
       "comment_liked": "{actors} liked your comment \"{quoted}\"",
       "comment_liked_without_quote": "{actors} liked your comment",
-      "comment_thread_replied": "{actors} replied in the comments on \"{subject}\""
+      "comment_thread_replied": "{actors} replied in the comments on \"{subject}\"",
+      "comment_mentioned": "{actors} mentioned you in a comment on \"{subject}\": {excerpt}"
     }
   },
   "Login": {
@@ -3535,6 +3543,8 @@
       "cannot_delete_provider_in_use": "This storage provider is still used by files and cannot be deleted",
       "storage_provider_in_use": "This storage provider is still used by files and cannot be deleted",
       "captcha_verification_failed": "Captcha verification failed, please try again",
+      "too_many_mentions": "You can mention at most 3 people per comment",
+      "invalid_mention": "The mentioned user does not exist or is unavailable",
       "content_too_long": "Content is too long",
       "too_many_attachments": "A comment can have up to 9 attachments",
       "invalid_attachment": "The attachment does not exist or you are not allowed to use it",

@@ -71,6 +71,11 @@ func dedupeKeyCommentLiked(commentID, actorID uint) string {
 	return fmt.Sprintf("comment.liked:comment:%d:user:%d", commentID, actorID)
 }
 
+// dedupeKeyCommentMentioned 提及：同一条评论对同一个人只提醒一次
+func dedupeKeyCommentMentioned(commentID, mentionedID uint) string {
+	return fmt.Sprintf("comment.mentioned:comment:%d:user:%d", commentID, mentionedID)
+}
+
 // dedupeKeyThreadReplied 线程活动是折叠行：同一天同一线程同一收件人只有一行
 func dedupeKeyThreadReplied(rootCommentID uint, day string, recipientID uint) string {
 	return fmt.Sprintf("comment.thread_replied:comment:%d:day:%s:user:%d", rootCommentID, day, recipientID)

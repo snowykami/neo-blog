@@ -187,7 +187,7 @@ func (cr *CommentRepo) UpdateComment(comment *model.Comment) error {
 	}
 
 	return GetDB().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Select("IsPrivate", "ShowClientInfo", "Content", "Language", "AttachmentIDs").Updates(comment).Error; err != nil {
+		if err := tx.Select("IsPrivate", "ShowClientInfo", "Content", "Language", "AttachmentIDs", "MentionUserIDs").Updates(comment).Error; err != nil {
 			return err
 		}
 		// 内容变化后旧译文全部作废

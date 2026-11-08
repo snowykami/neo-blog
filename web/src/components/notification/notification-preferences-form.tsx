@@ -18,12 +18,14 @@ const INAPP_GROUPS: { key: string, label: string, types: NotificationType[] }[] 
   { key: 'comment', label: 'switch_comment', types: ['comment.created'] },
   { key: 'reply', label: 'switch_reply', types: ['comment.replied', 'comment.thread_replied'] },
   { key: 'like', label: 'switch_like', types: ['post.liked', 'comment.liked'] },
+  { key: 'mention', label: 'switch_mention', types: ['comment.mentioned'] },
 ]
 
 interface PreferencesFormValues {
   comment: boolean
   reply: boolean
   like: boolean
+  mention: boolean
   aiInteractions: boolean
   email: boolean
 }
@@ -59,7 +61,7 @@ export function NotificationPreferencesForm({ initial, token }: {
   const submit = async (values: PreferencesFormValues) => {
     setSaving(true)
     try {
-      const inapp = INAPP_GROUPS.filter(group => values[group.key as 'comment' | 'reply' | 'like'])
+      const inapp = INAPP_GROUPS.filter(group => values[group.key as 'comment' | 'reply' | 'like' | 'mention'])
         .flatMap(group => group.types)
         .filter(type => preferences.availableTypes.includes(type))
       // 邮件只有一个总开关：打开即接受站点开放的全部类型，关闭即清空（用户只能关不能开）
@@ -114,7 +116,7 @@ export function NotificationPreferencesForm({ initial, token }: {
                 <FormField
                   key={group.key}
                   control={form.control}
-                  name={group.key as 'comment' | 'reply' | 'like'}
+                  name={group.key as 'comment' | 'reply' | 'like' | 'mention'}
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center justify-between gap-4">
                       <FormLabel className="font-normal">{t(group.label)}</FormLabel>
@@ -195,6 +197,7 @@ function toFormValues(preferences: NotificationPreferences): PreferencesFormValu
     comment: has(INAPP_GROUPS[0].types),
     reply: has(INAPP_GROUPS[1].types),
     like: has(INAPP_GROUPS[2].types),
+    mention: has(INAPP_GROUPS[3].types),
     aiInteractions: preferences.aiInteractions,
     email: preferences.email.length > 0,
   }

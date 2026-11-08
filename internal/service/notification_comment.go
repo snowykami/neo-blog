@@ -53,6 +53,8 @@ func emitCommentNotifications(ctx context.Context, tx *gorm.DB, actor *model.Use
 			CommentID: comment.ID, Excerpt: excerpt,
 			DedupeKey: dedupeKeyCommentCreated(comment.TargetType, comment.TargetID, comment.ID),
 		}))
+		// 根评论也要把被 @ 的人叫来（评论通知与提及通知互不替代）
+		notifiedUsers = append(notifiedUsers, emitCommentMentions(ctx, tx, actor, comment, target, subjectTitle, subjectSlug, excerpt, notified)...)
 		return notifiedUsers, firstErr
 	}
 	if parent == nil {
@@ -72,6 +74,13 @@ func emitCommentNotifications(ctx context.Context, tx *gorm.DB, actor *model.Use
 		CommentID: comment.ID, Excerpt: excerpt, QuotedExcerpt: parent.Content,
 		DedupeKey: dedupeKeyCommentReplied(parent.ID, comment.ID),
 	}))
+
+	// 被 @ 的人：真人直接点名，按重要消息处理（触发邮件）；已收到回复通知的人不重复发
+	mentionNotified := emitCommentMentions(ctx, tx, actor, comment, target, subjectTitle, subjectSlug, excerpt, notified)
+	notifiedUsers = append(notifiedUsers, mentionNotified...)
+	for _, id := range mentionNotified {
+		notified[id] = true
+	}
 
 	// 规则 8：线程活动只给线程发起人与主题作者，同一天同一线程同一收件人折叠成一行
 	rootID := comment.RootID
@@ -181,4 +190,42 @@ func itoaRunes(value int) string {
 		value /= 10
 	}
 	return string(digits)
+}
+
+// emitCommentMentions 给被 @ 的人写通知，返回成功写入的收件人；
+// skip 里已经收到评论 / 回复通知的人不再重复（同一条评论只提醒一次）
+func emitCommentMentions(ctx context.Context, tx *gorm.DB, actor *model.User, comment *model.Comment, target *commentTarget,
+	subjectTitle, subjectSlug, excerpt string, skip map[uint]bool) []uint {
+	if len(comment.MentionUserIDs) == 0 {
+		return nil
+	}
+	ids := []uint(comment.MentionUserIDs)
+	// 私密评论只通知目标作者与参与过该线程的人
+	if comment.IsPrivate {
+		ids = filterMentionRecipients(ids, target.ownerID, comment.RootID)
+	}
+	notifications := NewNotificationService()
+	notified := make([]uint, 0, len(ids))
+	for _, recipientID := range ids {
+		if recipientID == actor.ID || skip[recipientID] {
+			continue
+		}
+		recipient, err := repo.User.GetUserByID(recipientID)
+		if err != nil {
+			continue
+		}
+		if _, err := notifications.Emit(ctx, tx, &NotificationEvent{
+			Type: constant.NotificationTypeCommentMentioned, Actor: actor, Owner: recipient,
+			TargetType: constant.TargetTypeComment, TargetID: comment.ID,
+			SubjectType: comment.TargetType, SubjectID: comment.TargetID,
+			SubjectTitle: subjectTitle, SubjectSlug: subjectSlug,
+			CommentID: comment.ID, Excerpt: excerpt,
+			DedupeKey: dedupeKeyCommentMentioned(comment.ID, recipientID),
+		}); err != nil {
+			logrus.Errorf("emit comment mention: %v", err)
+			continue
+		}
+		notified = append(notified, recipientID)
+	}
+	return notified
 }

@@ -111,6 +111,12 @@ type GetUserByUsernameReq struct {
 	Username string `json:"username"`
 }
 
+// SearchUsersReq 提及功能里的用户搜索：按用户名 / 昵称模糊匹配
+type SearchUsersReq struct {
+	Query string `query:"q"`
+	Limit int    `query:"limit" default:"8"` // 最多返回几个候选
+}
+
 type GetUserResp struct {
 	User UserDto `json:"user"` // 用户信息
 }

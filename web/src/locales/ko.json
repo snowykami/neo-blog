@@ -180,7 +180,11 @@
     "attachment_too_large": "{name}이(가) {size}를 초과하여 건너뛰었습니다",
     "remove_attachment": "첨부 파일 {name} 삭제",
     "view_attachment": "이미지 {name} 보기",
-    "download_attachment": "{name} 다운로드"
+    "download_attachment": "{name} 다운로드",
+    "mention_candidates": "@할 사람 선택",
+    "mention_searching": "검색 중…",
+    "mention_empty": "일치하는 사용자가 없습니다",
+    "mention_profile": "@{username} 님의 프로필 열기"
   },
   "Common": {
     "image_load_failed": "이미지를 불러오지 못했습니다",
@@ -1040,6 +1044,7 @@
       "notification_email_types_desc": "중요 알림만 메일을 발생시킵니다. 좋아요, AI 활동, 스레드 답글은 다음 중요 알림에 함께 실립니다. 사용자는 이 범위 안에서만 끌 수 있습니다",
       "notification_type_comment_created": "내 글·페이지에 댓글",
       "notification_type_comment_replied": "내 댓글에 답글",
+      "notification_type_comment_mentioned": "댓글에서 나를 @함",
       "notification_email_interval": "묶음 간격",
       "notification_email_interval_desc": "이 시간 안의 중요 알림을 한 통의 메일로 묶습니다(분). 0이면 매회(30초) 보냅니다",
       "notification_email_attach_hours": "동봉 가능 시간",
@@ -3061,6 +3066,7 @@
     "switch_comment": "내 글·페이지에 댓글",
     "switch_reply": "내 댓글에 답글, 또는 내가 참여한 스레드의 답글",
     "switch_like": "내 글·댓글에 좋아요",
+    "switch_mention": "나를 @한 경우",
     "switch_ai": "AI 사용자의 활동",
     "switch_ai_desc": "끄면 AI의 좋아요와 댓글이 더 이상 알림으로 오지 않습니다. 댓글 자체는 글 페이지에서 볼 수 있습니다",
     "email_title": "메일 알림",
@@ -3072,7 +3078,8 @@
     "email_all_off": "모든 메일 끄기",
     "list_separator": ", ",
     "type_comment_created": "댓글",
-    "type_comment_replied": "답글"
+    "type_comment_replied": "답글",
+    "type_comment_mentioned": "멘션"
   },
   "Notifications": {
     "title": "알림",
@@ -3106,7 +3113,8 @@
       "post_liked": "{actors} 님이 글 \"{subject}\"을 좋아합니다",
       "comment_liked": "{actors} 님이 내 댓글 \"{quoted}\"을 좋아합니다",
       "comment_liked_without_quote": "{actors} 님이 내 댓글을 좋아합니다",
-      "comment_thread_replied": "{actors} 님이 \"{subject}\"의 댓글에서 답글을 남겼습니다"
+      "comment_thread_replied": "{actors} 님이 \"{subject}\"의 댓글에서 답글을 남겼습니다",
+      "comment_mentioned": "{actors} 님이 \"{subject}\" 댓글에서 나를 @했습니다: {excerpt}"
     }
   },
   "Login": {
@@ -3535,6 +3543,8 @@
       "cannot_delete_provider_in_use": "이 스토리지 공급자를 사용하는 파일이 있어 삭제할 수 없습니다",
       "storage_provider_in_use": "이 스토리지 공급자를 사용하는 파일이 있어 삭제할 수 없습니다",
       "captcha_verification_failed": "캡차 인증에 실패했습니다. 다시 시도하세요",
+      "too_many_mentions": "댓글 하나에서 최대 3명까지 @할 수 있습니다",
+      "invalid_mention": "@한 사용자가 없거나 사용할 수 없습니다",
       "content_too_long": "내용이 너무 깁니다",
       "too_many_attachments": "댓글 하나에 최대 9개까지 첨부할 수 있습니다",
       "invalid_attachment": "첨부 파일이 없거나 사용할 권한이 없습니다",

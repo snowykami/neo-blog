@@ -27,6 +27,7 @@ import { formatLocation } from '@/utils/common/location'
 import { isAdmin } from '@/utils/common/permission'
 import { getUserUrl } from '@/utils/common/route'
 import { CommentAttachments } from './comment-attachments'
+import { CommentContent } from './comment-content'
 import { CommentInput } from './comment-input'
 
 export type ActiveInput = { id: number, type: 'reply' | 'edit' } | null
@@ -101,13 +102,14 @@ export function CommentItem({
     ? t('thread_by', { name: threadUsers[0].nickname || threadUsers[0].username, more: threadUsers.length - 1 })
     : ''
 
-  const onReply = async (target: Comment, { commentContent, attachments, isPrivate, showClientInfo }: CommentSubmitPayload) => {
+  const onReply = async (target: Comment, { commentContent, attachments, mentionUserIds, isPrivate, showClientInfo }: CommentSubmitPayload) => {
     try {
       await createComment({
         targetType: root.targetType,
         targetId: root.targetId,
         content: commentContent,
         attachmentIds: attachments.map(attachment => attachment.id),
+        mentionUserIds,
         replyId: target.id,
         isPrivate,
         showClientInfo,
@@ -347,9 +349,16 @@ function CommentBody({
     setActiveInputId(active ? null : { id: comment.id, type: 'reply' })
   }, 'reply')
 
-  const onEdit = async ({ commentContent, attachments, isPrivate, showClientInfo }: CommentSubmitPayload) => {
+  const onEdit = async ({ commentContent, attachments, mentionUserIds, isPrivate, showClientInfo }: CommentSubmitPayload) => {
     try {
-      await updateComment({ id: comment.id, content: commentContent, attachmentIds: attachments.map(attachment => attachment.id), isPrivate, showClientInfo })
+      await updateComment({
+        id: comment.id,
+        content: commentContent,
+        attachmentIds: attachments.map(attachment => attachment.id),
+        mentionUserIds,
+        isPrivate,
+        showClientInfo,
+      })
       toast.success(t('edit_success'))
       getComment({ id: comment.id }).then(res => onUpdated({ ...comment, ...res.data })).catch(() => {})
       setActiveInputId(null)
@@ -422,7 +431,7 @@ function CommentBody({
                   {name(replyToUser)}
                 </Link>
               )}
-              {translated ? translated.content : comment.content}
+              {translated ? translated.content : <CommentContent content={comment.content} />}
             </p>
           )}
           {translated && (
@@ -485,6 +494,7 @@ function CommentBody({
             autoFocus
             isUpdate
             initContent={comment.content}
+            initMentions={comment.mentionUserIds}
             initAttachments={comment.attachments}
             initIsPrivate={comment.isPrivate}
             initShowClientInfo={comment.showClientInfo}

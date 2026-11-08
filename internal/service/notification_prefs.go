@@ -25,6 +25,7 @@ var notificationAllTypes = []string{
 	constant.NotificationTypeCommentLiked,
 	constant.NotificationTypePostLiked,
 	constant.NotificationTypeCommentThreadReplied,
+	constant.NotificationTypeCommentMentioned,
 }
 
 // notificationSiteConfig 站点级通知配置：邮件总开关与「重要」类型白名单（同时是用户可选的上限，见 N2）
@@ -114,7 +115,8 @@ func notificationKind(eventType string, actorIsAI bool) string {
 		return notificationKindAttached
 	}
 	switch eventType {
-	case constant.NotificationTypeCommentCreated, constant.NotificationTypeCommentReplied:
+	// 真人直接点名你，和评论、回复一样会触发邮件
+	case constant.NotificationTypeCommentCreated, constant.NotificationTypeCommentReplied, constant.NotificationTypeCommentMentioned:
 		return notificationKindImportant
 	default:
 		return notificationKindAttached

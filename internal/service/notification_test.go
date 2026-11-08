@@ -489,3 +489,130 @@ func TestNotificationPreferences(t *testing.T) {
 		t.Fatalf("test notification not visible: %d/%d", total, len(items))
 	}
 }
+
+// 提及：被 @ 的人收到 comment.mentioned（重要消息，会触发邮件）；自己与被回复人不会重复收
+func TestCommentMentions(t *testing.T) {
+	author, admin, other, _, _ := setupEditTest(t)
+	authorID, _ := ctxutils.GetCurrentUserID(author)
+	otherID, _ := ctxutils.GetCurrentUserID(other)
+	postID := createPublicPost(t, author, nil)
+	mentioned := createNotificationUser(t, "mentioned", nil)
+	// 站点开启通知邮件：提及属于重要消息，应当排队等发信
+	if err := repo.KV.SetKV("notification_email_enable", true); err != nil {
+		t.Fatal(err)
+	}
+
+	comment := func(ctx context.Context, replyID uint, content string, mentionIDs []uint) uint {
+		t.Helper()
+		id, svcerr := NewCommentService().CreateComment(ctx, &dto.CreateCommentReq{
+			TargetID: postID, TargetType: constant.TargetTypePost, Content: content,
+			ReplyID: replyID, MentionUserIDs: mentionIDs,
+		})
+		if svcerr != nil {
+			t.Fatalf("create comment: %v", svcerr)
+		}
+		return id
+	}
+
+	// 根评论里 @ 了第三个人：他收到提及通知；自己 @ 自己会被忽略
+	rootID := comment(other, 0, "@mentioned 来看看", []uint{mentioned.ID, otherID})
+	var rows []model.Notification
+	repo.GetDB().Where("user_id = ? AND type = ?", mentioned.ID, constant.NotificationTypeCommentMentioned).Find(&rows)
+	if len(rows) != 1 {
+		t.Fatalf("mention notifications = %d, want 1", len(rows))
+	}
+	if rows[0].CommentID != rootID || rows[0].EmailState != constant.NotificationEmailStatePending {
+		t.Fatalf("mention notification = %+v", rows[0])
+	}
+	var selfCount int64
+	repo.GetDB().Model(&model.Notification{}).Where("user_id = ?", otherID).Count(&selfCount)
+	if selfCount != 0 {
+		t.Fatalf("self mention should not notify, got %d", selfCount)
+	}
+
+	// 回复时 @ 被回复人：只收到 comment.replied，不重复收提及
+	repo.GetDB().Model(&model.Notification{}).Where("user_id = ?", otherID).Delete(&model.Notification{})
+	replyID := comment(author, rootID, "同意 @mentioned 的说法", []uint{otherID, mentioned.ID})
+	var otherRows []model.Notification
+	repo.GetDB().Where("user_id = ?", otherID).Find(&otherRows)
+	if len(otherRows) != 1 || otherRows[0].Type != constant.NotificationTypeCommentReplied {
+		t.Fatalf("replied user rows = %+v", otherRows)
+	}
+	// 新评论里又 @ 了 author 之外的 mentioned：他再收到一条（同一条评论只提醒一次）
+	var mentionRows []model.Notification
+	repo.GetDB().Where("user_id = ? AND type = ? AND comment_id = ?", mentioned.ID, constant.NotificationTypeCommentMentioned, replyID).Find(&mentionRows)
+	if len(mentionRows) != 1 {
+		t.Fatalf("reply mention = %d", len(mentionRows))
+	}
+	// 评论正文里仍是纯文本 @用户名，mention ids 落库
+	var stored model.Comment
+	repo.GetDB().Where("id = ?", replyID).First(&stored)
+	// 被回复人与被 @ 的人都会写进提及列表（前者不会因此重复收通知）
+	if stored.Content != "同意 @mentioned 的说法" || len(stored.MentionUserIDs) != 2 {
+		t.Fatalf("stored mention ids = %v", stored.MentionUserIDs)
+	}
+	// 文章作者收到了自己的评论通知，但不会被自己 @ 到
+	var authorRows []model.Notification
+	repo.GetDB().Where("user_id = ?", authorID).Find(&authorRows)
+	for _, row := range authorRows {
+		if row.Type == constant.NotificationTypeCommentMentioned {
+			t.Fatal("actor should not mention themselves")
+		}
+	}
+	_ = admin
+}
+
+// 私密评论：只把目标作者与参与过该线程的人留给通知
+func TestCommentMentionsOnPrivateComment(t *testing.T) {
+	author, _, other, _, _ := setupEditTest(t)
+	otherID, _ := ctxutils.GetCurrentUserID(other)
+	postID := createPublicPost(t, author, nil)
+	outsider := createNotificationUser(t, "outsider", nil)
+
+	id, svcerr := NewCommentService().CreateComment(other, &dto.CreateCommentReq{
+		TargetID: postID, TargetType: constant.TargetTypePost, Content: "@outsider 悄悄话",
+		IsPrivate: true, MentionUserIDs: []uint{outsider.ID},
+	})
+	if svcerr != nil {
+		t.Fatalf("create private comment: %v", svcerr)
+	}
+	// 正文里的提及照常保存，但不相干的人不会收到通知
+	var stored model.Comment
+	repo.GetDB().Where("id = ?", id).First(&stored)
+	if len(stored.MentionUserIDs) != 1 {
+		t.Fatalf("mention ids should still be stored: %v", stored.MentionUserIDs)
+	}
+	var count int64
+	repo.GetDB().Model(&model.Notification{}).
+		Where("user_id = ? AND type = ?", outsider.ID, constant.NotificationTypeCommentMentioned).Count(&count)
+	if count != 0 {
+		t.Fatalf("outsider should not be notified about a private comment, got %d", count)
+	}
+	_ = otherID
+}
+
+// 提及校验：最多 3 个，id 必须存在且未被禁用
+func TestResolveCommentMentions(t *testing.T) {
+	setupNotificationDB(t)
+	me := createNotificationUser(t, "me", nil)
+	disabled := createNotificationUser(t, "disabled", func(u *model.User) { u.Disabled = true })
+	first := createNotificationUser(t, "first", nil)
+
+	// 去重 + 去掉自己
+	ids, svcerr := resolveCommentMentions([]uint{first.ID, first.ID, me.ID}, me.ID)
+	if svcerr != nil || len(ids) != 1 || ids[0] != first.ID {
+		t.Fatalf("resolved = %v, %v", ids, svcerr)
+	}
+	// 禁用账号不可被提及
+	if _, svcerr = resolveCommentMentions([]uint{disabled.ID}, me.ID); svcerr == nil || svcerr.Code != 400 {
+		t.Fatalf("disabled mention = %v", svcerr)
+	}
+	// 超过 3 个直接拒绝
+	tooMany := make([]uint, 0, 4)
+	for i := 0; i < 4; i++ {
+		tooMany = append(tooMany, createNotificationUser(t, "extra"+string(rune('a'+i)), nil).ID)
+	}
+	if _, svcerr = resolveCommentMentions(tooMany, me.ID); svcerr == nil || svcerr.Message != "too_many_mentions" {
+		t.Fatalf("too many = %v", svcerr)
+	}
+}

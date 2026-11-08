@@ -164,7 +164,8 @@ var sections = []*Section{
 		{Key: "notification_email_types", Type: TypeStringList, Label: "notification_email_types", Description: "notification_email_types_desc", Options: []Option{
 			{Value: constant.NotificationTypeCommentCreated, Label: "notification_type_comment_created"},
 			{Value: constant.NotificationTypeCommentReplied, Label: "notification_type_comment_replied"},
-		}, Default: []string{constant.NotificationTypeCommentCreated, constant.NotificationTypeCommentReplied}},
+			{Value: constant.NotificationTypeCommentMentioned, Label: "notification_type_comment_mentioned"},
+		}, Default: []string{constant.NotificationTypeCommentCreated, constant.NotificationTypeCommentReplied, constant.NotificationTypeCommentMentioned}},
 		{Key: "notification_email_interval", Type: TypeInt, Label: "notification_email_interval", Description: "notification_email_interval_desc", Min: num(0), Max: num(1440), Default: 10},
 		{Key: "notification_email_attach_hours", Type: TypeInt, Label: "notification_email_attach_hours", Description: "notification_email_attach_hours_desc", Min: num(1), Max: num(720), Default: 24},
 		{Key: "notification_email_attach_max", Type: TypeInt, Label: "notification_email_attach_max", Description: "notification_email_attach_max_desc", Min: num(0), Max: num(50), Default: 5},

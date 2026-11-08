@@ -3,7 +3,7 @@ import { Loader2, Lock, LogIn, Monitor, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useLoginDialog } from '@/components/auth/login-dialog'
 import { OidcProviderButtons, useOidcProviders } from '@/components/auth/oidc-providers'
@@ -18,6 +18,8 @@ import { useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { getUserUrl } from '@/utils/common/route'
 import { CommentAttachmentButton, CommentAttachmentList, useCommentAttachments } from './comment-attachment-input'
+import { MentionCandidates } from './mention-candidates'
+import { useMention } from './use-mention'
 
 /**
  * 评论框：未登录时显示登录邀请卡片；登录后为带工具栏的输入框（附件、私密、显示设备信息、⌘/Ctrl + Enter 发布）。
@@ -27,6 +29,7 @@ import { CommentAttachmentButton, CommentAttachmentList, useCommentAttachments }
 export function CommentInput({
   onCommentSubmitted,
   initContent = '',
+  initMentions,
   initAttachments,
   initIsPrivate = false,
   placeholder = '',
@@ -40,6 +43,7 @@ export function CommentInput({
 }: {
   onCommentSubmitted: (payload: CommentSubmitPayload) => Promise<void> // 失败时需 reject，以便保留输入内容
   initContent?: string
+  initMentions?: number[] // 编辑已有评论时带入原来的被 @ 用户 id
   initAttachments?: CommentAttachment[]
   initIsPrivate?: boolean
   placeholder?: string
@@ -61,6 +65,18 @@ export function CommentInput({
   const [submitting, setSubmitting] = useState(false) // 提交中，防止重复提交
   const [focused, setFocused] = useState(false)
   const attachments = useCommentAttachments(initAttachments)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const mention = useMention({
+    value: commentContent,
+    textareaRef,
+    onChange: setCommentContent,
+  })
+  // 编辑已有评论时带上原来的提及，之后新选的会追加在后面
+  const [seeded, setSeeded] = useState(false)
+  if (!seeded && initMentions && initMentions.length > 0) {
+    mention.seed(initMentions)
+    setSeeded(true)
+  }
 
   if (!user)
     return <GuestInvite />
@@ -88,10 +104,17 @@ export function CommentInput({
     }
     setSubmitting(true)
     try {
-      await onCommentSubmitted({ commentContent, attachments: attachments.attachments, isPrivate, showClientInfo })
+      await onCommentSubmitted({
+        commentContent,
+        attachments: attachments.attachments,
+        isPrivate,
+        showClientInfo,
+        mentionUserIds: mention.mentions(),
+      })
       // 仅在提交成功后清空，失败时保留用户输入
       setCommentContent('')
       attachments.clear()
+      mention.reset()
       setFocused(false)
     }
     catch {
@@ -142,13 +165,23 @@ export function CommentInput({
           </span>
         )}
         <Textarea
+          ref={textareaRef}
           // 回复与编辑时打开即可输入
           autoFocus={autoFocus}
           placeholder={placeholder || (isPrivate ? t('private_placeholder') : t('placeholder'))}
           aria-label={placeholder || t('placeholder')}
           className={cn('resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent', expanded ? 'min-h-16' : 'min-h-10')}
           value={commentContent}
-          onChange={e => setCommentContent(e.target.value)}
+          onChange={(e) => {
+            setCommentContent(e.target.value)
+            // 光标位置要等 React 更新完 value 才准
+            window.setTimeout(mention.syncFromCursor, 0)
+          }}
+          onCompositionStart={() => mention.setComposing(true)}
+          onCompositionEnd={() => mention.setComposing(false)}
+          // 点击、方向键移动光标后重新判断是否还在 @片段 里
+          onClick={mention.syncFromCursor}
+          onKeyUp={mention.syncFromCursor}
           // 粘贴截图、图片或文件时作为附件上传，文字照常粘贴
           onPaste={(e) => {
             const files = pastedFilesOf(e.clipboardData)
@@ -158,12 +191,24 @@ export function CommentInput({
             attachments.addFiles(withPastedFileNames(files))
           }}
           onKeyDown={(e) => {
+            // 提及候选展开时优先让上下键与回车选中候选
+            if (mention.handleKeyDown(e))
+              return
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
               e.preventDefault()
               void handleCommentSubmit()
             }
           }}
         />
+        {mention.open && (
+          <MentionCandidates
+            candidates={mention.candidates}
+            activeIndex={mention.activeIndex}
+            loading={mention.loading}
+            onPick={mention.select}
+            onHover={mention.setActiveIndex}
+          />
+        )}
         <CommentAttachmentList state={attachments} />
         {expanded && (
           <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2">
@@ -211,6 +256,8 @@ export interface CommentSubmitPayload {
   attachments: CommentAttachment[]
   isPrivate: boolean
   showClientInfo: boolean
+  // 被 @ 的人（正文里仍是 @用户名），由后端校验后写库
+  mentionUserIds: number[]
 }
 
 // 未登录时的登录邀请：后台已启用的第三方登录与快捷登录按钮，不再显示游客用不了的输入框和选项
