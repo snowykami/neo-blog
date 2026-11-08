@@ -20,6 +20,7 @@ import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import { ConfigField, useConfigT } from './config-fields'
+import { EmailTestField } from './email-test-field'
 
 // 存为独立配置键的配置项，供「高级」Tab 的原始键值编辑快速选择
 const StandaloneKeysContext = createContext<string[]>([])
@@ -135,7 +136,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
               <TabsContent key={key} value={key} forceMount className="grid gap-4 data-[state=inactive]:hidden">
                 {schema.sections.filter(section => section.tab === key).map(section => (
                   <Section key={section.key} title={tr(section.title) ?? section.key} description={tr(section.description)}>
-                    {section.widget === 'theme_preview' && <ThemePackPreviewField />}
+                    <SectionWidget name={section.widget} />
                     {section.items.map(item => <VisibleField key={item.key} item={item} />)}
                   </Section>
                 ))}
@@ -165,6 +166,17 @@ function VisibleField({ item }: { item: ConfigItem }) {
   if (item.showWhen && !item.showWhen.values.includes(String(watched)))
     return null
   return <ConfigField item={item} />
+}
+
+// 组内最前面、不对应配置项的组件（后端 Section.Widget 声明，如主题包预览、发送测试邮件）
+function SectionWidget({ name }: { name?: string }) {
+  switch (name) {
+    case 'theme_preview':
+      return <ThemePackPreviewField />
+    case 'email_test':
+      return <EmailTestField />
+  }
+  return null
 }
 
 function Section({ title, description, children }: { title: string, description?: string, children: React.ReactNode }) {

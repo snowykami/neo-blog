@@ -12,7 +12,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
-	"github.com/snowykami/neo-blog/internal/static"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
@@ -189,22 +188,11 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 		return nil, errs.NewTooManyRequests("too_many_requests")
 	}
 	verifyCode := utils.RequestEmailVerify(req.Email)
-	template, err := static.RenderTemplate("email/verification-code.tmpl", map[string]interface{}{
-		"Title":      "NEO-BLOG",
-		"Email":      req.Email,
-		"VerifyCode": verifyCode,
-		"Expire":     10,
-		"Details":    "你正在验证电子邮件所有权",
-	})
-	if err != nil {
-		return nil, errs.Internal("failed_to_render_email", err)
-	}
 	if utils.IsDevMode {
 		logrus.Debugf("%s's verification code is %s", req.Email, verifyCode)
 	}
-	err = utils.Email.SendEmail(tools.GetEmailConfig(), req.Email, "验证你的电子邮件 / Verify your email", template, true)
-	if err != nil {
-		return nil, errs.Internal("failed_to_send_email", err)
+	if serr := sendVerifyCodeEmail(tools.GetEmailConfig(), req.Email, verifyCode, false); serr != nil {
+		return nil, serr
 	}
 	return &dto.VerifyEmailResp{Success: true}, nil
 }

@@ -18,6 +18,9 @@ const (
 	emailVerifyCodeLength  = 6
 )
 
+// EmailVerifyCodeTTL 验证码有效期：邮件正文里的说明取它，避免文案与实际有效期不一致
+func EmailVerifyCodeTTL() time.Duration { return emailVerifyCodeTTL }
+
 // RequestEmailVerify 生成验证码并存入共享状态（多实例部署时在任一实例都能校验）
 func RequestEmailVerify(email string) string {
 	email = strings.ToLower(email)

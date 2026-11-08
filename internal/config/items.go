@@ -147,7 +147,8 @@ var sections = []*Section{
 		{Key: "captcha_site_key", Type: TypeString, Label: "captcha_site_key", Description: "captcha_site_key_desc", Default: "", Env: constant.EnvKeyCaptchaSiteKey},
 		{Key: "captcha_secret_key", Type: TypeSecret, Label: "captcha_secret_key", Description: "captcha_secret_key_desc", Wide: true, Default: "", Env: constant.EnvKeyCaptchaSecreteKey},
 	}},
-	{Tab: "account", Key: "email", Title: "section_email", Description: "section_email_desc", Items: []*Item{
+	// 组内最前面是发送测试邮件的组件：用它确认当前填写的 SMTP 配置可用，不需要先保存
+	{Tab: "account", Key: "email", Title: "section_email", Description: "section_email_desc", Widget: "email_test", Items: []*Item{
 		{Key: "email_enable", Type: TypeBool, Label: "email_enable", Description: "email_enable_desc", Default: false, Env: constant.EnvKeyEmailEnable},
 		{Key: "email_host", Type: TypeString, Label: "email_host", Placeholder: "smtp.example.com", Default: "", Env: constant.EnvKeyEmailHost},
 		{Key: "email_port", Type: TypeInt, Label: "email_port", Description: "email_port_desc", Min: num(1), Max: num(65535), Default: 587, Env: constant.EnvKeyEmailPort},

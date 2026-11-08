@@ -148,6 +148,22 @@ export async function saveConfig(items: { key: string, value: unknown }[]): Prom
   return res.data
 }
 
+// 发送测试邮件：只传当前表单里改动过的 SMTP 字段，未填的由后端取已保存的配置，不会写入数据库
+export interface SendTestEmailParams {
+  host?: string
+  port?: number
+  ssl?: boolean
+  username?: string
+  password?: string
+  address?: string
+  to?: string
+}
+
+export async function sendTestEmail(params: SendTestEmailParams): Promise<BaseResponse<{ to: string }>> {
+  const res = await axiosClient.post('/admin/config/email/test', params, { timeout: 60000 })
+  return res.data
+}
+
 export async function setKV(item: KVItem): Promise<BaseResponse<null>> {
   const res = item.key
     ? await axiosClient.put(`/admin/kv/${encodeURIComponent(item.key)}`, item)
