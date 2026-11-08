@@ -77,6 +77,15 @@ func normalizeNotificationPrefs(prefs model.NotificationPrefs, site notification
 	}
 }
 
+// marshalNotificationPrefs 序列化为库里的 JSON 文本
+func marshalNotificationPrefs(prefs model.NotificationPrefs) (string, error) {
+	b, err := json.Marshal(prefs)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
 // notificationSettings 站点级配置与用户偏好的合并结果，写入路径只读它
 type notificationSettings struct {
 	InApp          map[string]bool // 允许产生站内通知的类型

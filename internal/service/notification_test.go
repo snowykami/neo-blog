@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/ctxutils"
+	"github.com/snowykami/neo-blog/internal/dto"
 
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
@@ -371,4 +372,120 @@ func TestCommentNotifications(t *testing.T) {
 		t.Fatalf("folded rows = %+v", foldedRows)
 	}
 	_ = adminID
+}
+
+// 越权读取别人的通知返回 404，未登录返回 401；一键已读只影响 before_id 之前的行
+func TestNotificationReadPermissions(t *testing.T) {
+	setupNotificationDB(t)
+	owner := createNotificationUser(t, "owner", nil)
+	other := createNotificationUser(t, "other", nil)
+	service := NewNotificationService()
+	ownerCtx := context.WithValue(context.Background(), "user_id", owner.ID)
+
+	makeRow := func(actorID uint, suffix string) *model.Notification {
+		event, err := repo.Notification.CreateEvent(nil, &model.InteractionEvent{
+			Type: constant.NotificationTypePostLiked, ActorID: actorID, OwnerID: owner.ID, DedupeKey: "test:" + suffix,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		notification := &model.Notification{
+			EventID: event.ID,
+			UserID:  owner.ID, ActorID: actorID, Type: constant.NotificationTypePostLiked,
+			SubjectType: constant.TargetTypePost, SubjectID: 1, TargetType: constant.TargetTypePost, TargetID: 1,
+			DedupeKey: "test:" + suffix,
+		}
+		if err := repo.Notification.CreateNotification(nil, notification); err != nil {
+			t.Fatal(err)
+		}
+		return notification
+	}
+	first := makeRow(other.ID, "a")
+	second := makeRow(other.ID, "b")
+
+	// 未登录
+	if _, _, svcerr := service.ListNotifications(context.Background(), &dto.ListNotificationsReq{}); svcerr == nil || svcerr.Code != 401 {
+		t.Fatalf("anonymous list = %v, want 401", svcerr)
+	}
+	// 别人的通知：404 而不是 403，不暴露存在性
+	otherCtx := context.WithValue(context.Background(), "user_id", other.ID)
+	if _, svcerr := service.MarkNotificationRead(otherCtx, first.ID); svcerr == nil || svcerr.Code != 404 {
+		t.Fatalf("reading someone else's notification = %v, want 404", svcerr)
+	}
+
+	// before_id 只标到该行
+	before := first.ID
+	affected, svcerr := service.MarkAllNotificationsRead(ownerCtx, &dto.MarkAllNotificationsReadReq{BeforeID: &before})
+	if svcerr != nil {
+		t.Fatalf("mark all: %v", svcerr)
+	}
+	if affected != 1 {
+		t.Fatalf("affected = %d, want 1", affected)
+	}
+	var unread int64
+	repo.GetDB().Model(&model.Notification{}).Where("user_id = ? AND read_at IS NULL", owner.ID).Count(&unread)
+	if unread != 1 {
+		t.Fatalf("unread = %d, want the newer row still unread", unread)
+	}
+	// 幂等：再标一次没有影响
+	if affected, svcerr = service.MarkNotificationRead(ownerCtx, second.ID); svcerr != nil || affected != 1 {
+		t.Fatalf("mark read = %d, %v", affected, svcerr)
+	}
+	if affected, svcerr = service.MarkNotificationRead(ownerCtx, second.ID); svcerr != nil || affected != 0 {
+		t.Fatalf("mark read twice = %d, %v", affected, svcerr)
+	}
+}
+
+// 偏好：邮件类型只能落在站点白名单内，一键退订清空邮件列表但保留站内；测试通知不产生未读以外的副作用
+func TestNotificationPreferences(t *testing.T) {
+	setupNotificationDB(t)
+	user := createNotificationUser(t, "prefuser", nil)
+	userCtx := context.WithValue(context.Background(), "user_id", user.ID)
+	service := NewNotificationService()
+
+	prefs, svcerr := service.GetNotificationPreferences(userCtx)
+	if svcerr != nil {
+		t.Fatalf("get preferences: %v", svcerr)
+	}
+	if !prefs.AIInteractions || len(prefs.InApp) != len(notificationAllTypes) {
+		t.Fatalf("defaults = %+v", prefs)
+	}
+
+	// 试图打开站点没开的类型（点赞永远不会进邮件白名单）会被裁掉
+	aiOff := false
+	saved, svcerr := service.UpdateNotificationPreferences(userCtx, &dto.UpdateNotificationPreferencesReq{
+		InApp:          []string{constant.NotificationTypeCommentCreated, constant.NotificationTypePostLiked, "unknown"},
+		Email:          []string{constant.NotificationTypePostLiked, constant.NotificationTypeCommentReplied},
+		AIInteractions: &aiOff,
+	})
+	if svcerr != nil {
+		t.Fatalf("update preferences: %v", svcerr)
+	}
+	if len(saved.InApp) != 2 || len(saved.Email) != 1 || saved.Email[0] != constant.NotificationTypeCommentReplied {
+		t.Fatalf("saved = %+v", saved)
+	}
+	if saved.AIInteractions {
+		t.Fatal("ai_interactions should be saved")
+	}
+
+	// 一键退订：邮件列表清空，站内保持
+	unsubscribed, svcerr := service.UnsubscribeAllNotifications(userCtx)
+	if svcerr != nil {
+		t.Fatalf("unsubscribe all: %v", svcerr)
+	}
+	if len(unsubscribed.Email) != 0 || len(unsubscribed.InApp) != 2 {
+		t.Fatalf("after unsubscribe = %+v", unsubscribed)
+	}
+
+	// 测试通知：管理员给自己发一条，别人看不到
+	if svcerr := service.SendTestNotification(userCtx); svcerr != nil {
+		t.Fatalf("send test notification: %v", svcerr)
+	}
+	items, total, svcerr := service.ListNotifications(userCtx, &dto.ListNotificationsReq{})
+	if svcerr != nil {
+		t.Fatalf("list after test: %v", svcerr)
+	}
+	if total != 1 || len(items) != 1 || items[0].Type != "system.test" {
+		t.Fatalf("test notification not visible: %d/%d", total, len(items))
+	}
 }

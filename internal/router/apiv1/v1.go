@@ -15,6 +15,7 @@ func RegisterRoutes(h *server.Hertz) {
     registerMCPRoutes(apiV1Group)
     registerMiscRoutes(apiV1Group)
     registerMusicRoutes(apiV1Group)
+    registerNotificationRoutes(apiV1Group)
     registerPageRoutes(apiV1Group)
     registerPostRoutes(apiV1Group)
     registerTelemetryRoutes(apiV1Group)
