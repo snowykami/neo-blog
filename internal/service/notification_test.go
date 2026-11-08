@@ -291,3 +291,84 @@ func TestToggleLikeSurvivesNotificationFailure(t *testing.T) {
 		t.Fatalf("likes = %d, want 1", count)
 	}
 }
+
+// 评论链路：根评论通知作者、回复通知被回复人、线程活动通知线程发起人（同一天折叠成一行）
+func TestCommentNotifications(t *testing.T) {
+	author, admin, other, _, _ := setupEditTest(t)
+	authorID, _ := ctxutils.GetCurrentUserID(author)
+	adminID, _ := ctxutils.GetCurrentUserID(admin)
+	otherID, _ := ctxutils.GetCurrentUserID(other)
+	postID := createPublicPost(t, author, nil)
+	notificationsOf := func(userID uint) []model.Notification {
+		t.Helper()
+		var rows []model.Notification
+		if err := repo.GetDB().Where("user_id = ?", userID).Order("id").Find(&rows).Error; err != nil {
+			t.Fatal(err)
+		}
+		return rows
+	}
+
+	// 1. 根评论 → 文章作者收到 comment.created
+	rootID, svcerr := createComment(other, postID, 0, false)
+	if svcerr != nil {
+		t.Fatalf("root comment: %v", svcerr)
+	}
+	rows := notificationsOf(authorID)
+	if len(rows) != 1 || rows[0].Type != constant.NotificationTypeCommentCreated {
+		t.Fatalf("author notifications = %+v", rows)
+	}
+	if rows[0].SubjectTitle != "public" || rows[0].CommentID != rootID {
+		t.Fatalf("unexpected snapshot: %+v", rows[0])
+	}
+
+	// 2. 作者回复 other 的评论 → other 收到 comment.replied
+	authorReplyID, svcerr := createComment(author, postID, rootID, false)
+	if svcerr != nil {
+		t.Fatalf("reply: %v", svcerr)
+	}
+	rows = notificationsOf(otherID)
+	if len(rows) != 1 || rows[0].Type != constant.NotificationTypeCommentReplied {
+		t.Fatalf("other notifications = %+v", rows)
+	}
+	if rows[0].QuotedExcerpt != "c" {
+		t.Fatalf("quoted excerpt = %q", rows[0].QuotedExcerpt)
+	}
+
+	// 3. admin 回复作者的那条回复 → 作者收到 comment.replied，线程发起人 other 收到线程活动；
+	//    直接父评论作者（作者）已经收过回复通知，不再重复收线程活动
+	if _, svcerr := createComment(admin, postID, authorReplyID, false); svcerr != nil {
+		t.Fatalf("thread reply: %v", svcerr)
+	}
+	var folded int
+	for _, row := range notificationsOf(otherID) {
+		if row.Type == constant.NotificationTypeCommentThreadReplied {
+			folded++
+			if row.AggregateCount != 1 || row.AggregateActors == "" {
+				t.Fatalf("folded row = %+v", row)
+			}
+		}
+	}
+	if folded != 1 {
+		t.Fatalf("thread rows for the starter = %d, want 1", folded)
+	}
+	var authorThread int
+	for _, row := range notificationsOf(authorID) {
+		if row.Type == constant.NotificationTypeCommentThreadReplied {
+			authorThread++
+		}
+	}
+	if authorThread != 0 {
+		t.Fatalf("parent author should not get a duplicated thread row, got %d", authorThread)
+	}
+
+	// 4. 再回复一次同一条 → 折叠行累加而不是新增
+	if _, svcerr := createComment(admin, postID, authorReplyID, false); svcerr != nil {
+		t.Fatalf("second thread reply: %v", svcerr)
+	}
+	var foldedRows []model.Notification
+	repo.GetDB().Where("user_id = ? AND type = ?", otherID, constant.NotificationTypeCommentThreadReplied).Find(&foldedRows)
+	if len(foldedRows) != 1 || foldedRows[0].AggregateCount != 2 {
+		t.Fatalf("folded rows = %+v", foldedRows)
+	}
+	_ = adminID
+}

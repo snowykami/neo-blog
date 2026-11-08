@@ -40,9 +40,11 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 	}
 	// 被评论内容的作者，用于记录互动：回复时为被回复评论的作者，否则为文章/页面作者
 	ownerID := target.ownerID
+	var parent *model.Comment
 	// 只能回复自己看得到的评论，防止通过回复加入私密评论树
 	if req.ReplyID != 0 {
-		parent, err := repo.Comment.GetComment(req.ReplyID)
+		var err error
+		parent, err = repo.Comment.GetComment(req.ReplyID)
 		if err != nil {
 			return 0, errs.NewNotFound("operation_target_not_found").WithResource("comment")
 		}
@@ -89,7 +91,20 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		UserAgent:      req.UserAgent,
 		ShowClientInfo: req.ShowClientInfo,
 	}
-	commentID, err := repo.Comment.CreateComment(comment, tools.GetMaximumReplyDepth(), nil)
+	// 评论与互动通知写在同一个事务里：评论成功就必须留下通知，崩溃也不会只留下其中一半（5.2 方案 A）
+	var commentID uint
+	err := repo.GetDB().Transaction(func(tx *gorm.DB) error {
+		var createErr error
+		commentID, createErr = repo.Comment.CreateComment(comment, tools.GetMaximumReplyDepth(), tx)
+		if createErr != nil {
+			return createErr
+		}
+		// 通知是附属品，写失败不能让评论失败（5.3）
+		if emitErr := emitCommentNotifications(ctx, tx, currentUser, comment, parent, target); emitErr != nil {
+			logrus.Errorf("emit comment notifications: %v", emitErr)
+		}
+		return nil
+	})
 
 	if err != nil {
 		// 回复深度超限、目标不一致等校验错误原样返回
