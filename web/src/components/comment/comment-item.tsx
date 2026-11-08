@@ -4,7 +4,7 @@ import type { User } from '@/models/user'
 import { ChevronDown, Ellipsis, Languages, Loader2, Lock, MessageCircleHeartIcon, Reply } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { createComment, deleteComment, getComment, listCommentThread, translateComment, updateComment } from '@/api/comment'
 import { toggleLike } from '@/api/like'
@@ -46,6 +46,8 @@ export function CommentItem({
   setActiveInputId,
   onCountChange,
   translatable = false,
+  focusRootId,
+  focusCommentId,
 }: {
   comment: Comment
   ownerId?: number // 不是评论的作者ID，而是文章的作者ID
@@ -54,6 +56,9 @@ export function CommentItem({
   setActiveInputId: (input: ActiveInput) => void
   onCountChange: (delta: number) => void // 评论区总数的变化
   translatable?: boolean // 后端已配置 AI，显示翻译按钮
+  // 通知深链：这条线程被定位时自动展开，focusCommentId 是具体的评论（根或某个回复）
+  focusRootId?: number
+  focusCommentId?: number
 }) {
   const t = useTranslations('Comment')
   const errorMessageT = useErrorMessageT()
@@ -143,27 +148,51 @@ export function CommentItem({
     </div>
   )
 
+  // 通知深链落在这条线程上：直接展开整条线程，等回复加载完再滚到那条评论
+  const focused = focusRootId === root.id
+  useEffect(() => {
+    if (!focused || expanded)
+      return
+    void loadThread()
+    setExpanded(true)
+    setShown(Infinity)
+  }, [focused, expanded, loadThread])
+
+  useEffect(() => {
+    if (!focusCommentId || (focused && replies === null))
+      return
+    const node = document.getElementById(`comment-${focusCommentId}`)
+    if (!node)
+      return
+    // 等一帧，等线程展开后的布局稳定再滚动
+    const timer = window.setTimeout(() => node.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80)
+    return () => window.clearTimeout(timer)
+  }, [focusCommentId, focused, replies])
+
   const visibleReplies = expanded && replies ? replies.slice(0, shown) : []
+  const highlighted = focusCommentId === root.id
   return (
     // 不用 article：正文排版样式（article img 等）会作用到评论里的头像
     <div className="comment-root border-t border-dashed border-foreground/10 py-4 first:border-t-0">
-      <CommentBody
-        comment={root}
-        variant="root"
-        ownerId={ownerId}
-        activeInput={activeInput}
-        setActiveInputId={setActiveInputId}
-        onDelete={onCommentDelete}
-        onUpdated={setRoot}
-        translatable={translatable}
-      />
+      <div id={`comment-${root.id}`} className={cn(highlighted && 'comment-highlight')}>
+        <CommentBody
+          comment={root}
+          variant="root"
+          ownerId={ownerId}
+          activeInput={activeInput}
+          setActiveInputId={setActiveInputId}
+          onDelete={onCommentDelete}
+          onUpdated={setRoot}
+          translatable={translatable}
+        />
+      </div>
       {(threadCount > 0 || replying === root.id) && (
         <div className={cn('comment-thread', !expanded && 'is-collapsed')}>
           {visibleReplies.map((reply) => {
             // 只有回复的是另一条回复时才显示 @某人（被回复的那条不可见时不显示）
             const target = reply.replyId === root.id ? undefined : byId.get(reply.replyId)
             return (
-              <div key={reply.id}>
+              <div key={reply.id} id={`comment-${reply.id}`} className={cn(focusCommentId === reply.id && 'comment-highlight')}>
                 <div className="comment-reply">
                   <CommentBody
                     comment={reply}

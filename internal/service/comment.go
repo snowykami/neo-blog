@@ -377,6 +377,7 @@ func (cs *CommentService) toGetCommentDto(comment *model.Comment, isLiked bool) 
 		Language:   comment.Language,
 		TargetID:   comment.TargetID,
 		TargetType: comment.TargetType,
+		RootID:     comment.RootID,
 		ReplyID:    comment.ReplyID,
 		CreatedAt:  comment.CreatedAt,
 		UpdatedAt:  comment.UpdatedAt,
