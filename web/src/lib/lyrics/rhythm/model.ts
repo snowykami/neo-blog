@@ -1,5 +1,6 @@
 import type { RhythmAnalysis } from './analysis'
 import type { RhythmParams } from './params'
+import { basePeriodOf } from './params'
 
 /**
  * 输入信号：由分析得到的拍点构造各八度的冲激串 x(t) = Σ a_k δ(t − t_k)（时间为毫秒）。
@@ -88,7 +89,8 @@ export function buildRhythmModel(analysis: RhythmAnalysis, params: RhythmParams)
   return {
     analysis,
     trains,
-    baseK: Math.round(Math.log2(analysis.basePeriodMs / analysis.periodMs)),
+    // 0 级落在基准脉冲 T_b 上：T_b 被 pulseOctave 改判后，k_b 跟着平移，各动效的层级不变
+    baseK: Math.round(Math.log2(basePeriodOf(analysis.basePeriodMs, params) / analysis.periodMs)),
     reliable: analysis.confidence >= params.minConfidence && source.length > 0,
   }
 }

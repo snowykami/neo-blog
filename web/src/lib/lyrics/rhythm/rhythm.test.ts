@@ -122,6 +122,18 @@ describe('节奏的解析与回退', () => {
     expect(pulsesIn(fixedPace('medium'), 1, 1000, 1000, 3000).map(p => p.t)).toEqual([1000, 2500])
     expect(pulsesIn(rhythmContext(model), 0, 1000, 1000, 3000).map(p => p.t)).toEqual([1040, 1680, 2320, 2960])
   })
+
+  it('基准脉冲可按八度改判：T_b 与 0 级拍点一起换档，不动分析结果', () => {
+    // 拍速在八度上有歧义（见 analysis.ts），这里只验证“改判后各动效的层级仍然对齐 T_b”
+    const finer = { ...DEFAULT_RHYTHM_PARAMS, pulseOctave: -1 }
+    const finerModel = buildRhythmModel(fakeAnalysis(Array.from({ length: 40 }, (_, i) => 400 + i * 640), 640), finer)
+    expect(finerModel.baseK).toBe(-1)
+    expect(rhythmContext(finerModel, finer).base).toBe(320)
+    // 细一档取两根拍点之间的中点（合成脉冲，强弱为 0.85 倍）
+    expect(pulsesIn(rhythmContext(finerModel, finer), 0, 1000, 1000, 3000).map(p => p.t)).toEqual([1040, 1360, 1680, 2000, 2320, 2640, 2960])
+    // 分析结果本身不变：改判只作用于 T_b 与层级号
+    expect(finerModel.analysis.basePeriodMs).toBe(640)
+  })
 })
 
 describe('各动效的输出', () => {

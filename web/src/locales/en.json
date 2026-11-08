@@ -3367,6 +3367,8 @@
     },
     "preview": "Try a pace",
     "preview_auto": "Auto",
+    "pulse": "Base pulse",
+    "pulse_note": "Pulses faster than τ_F are synthesized midway between detected beats (not measured)",
     "current": "Current effect",
     "current_background": "No emphasis is playing; showing the background breathing",
     "current_interlude": "Interlude dots",
@@ -3390,7 +3392,7 @@
     "chart_kernels": "System h(t)",
     "chart_kernels_hint": "t = 0 is the beat; the axis spans −0.6 to 1.8 s",
     "chart_tempo": "Tempo",
-    "chart_tempo_hint": "Purple: autocorrelation weighted by the prior. Pink: chosen tempo. Gold dashed: base period τ_F. Top: the three fixed paces",
+    "chart_tempo_hint": "Purple: autocorrelation weighted by the prior. Pink: chosen tempo. Gold dashed: base period τ_F. Top: the three fixed paces and the tempo candidates",
     "formula_expand": "Show the full formula",
     "formula_collapse": "Hide the full formula",
     "sections": {

@@ -3367,6 +3367,8 @@
     },
     "preview": "試聽檔位",
     "preview_auto": "自動",
+    "pulse": "基準拍速",
+    "pulse_note": "比 τ_F 快的細分拍是兩拍之間的合成脈衝（未檢測）",
     "current": "目前動效",
     "current_background": "沒有正在演出的強調，展示背景呼吸",
     "current_interlude": "間奏圓點",
@@ -3390,7 +3392,7 @@
     "chart_kernels": "系統 h(t)",
     "chart_kernels_hint": "t = 0 為拍點，橫軸 −0.6 ~ 1.8 秒",
     "chart_tempo": "拍速",
-    "chart_tempo_hint": "紫線為自相關（乘以先驗），粉線為選中的拍速，金色虛線為基準週期 τ_F，頂部為固定三檔",
+    "chart_tempo_hint": "紫線為自相關（乘以先驗），粉線為選中的拍速，金色虛線為基準週期 τ_F，頂部為固定三檔與拍速候選",
     "formula_expand": "展開完整公式",
     "formula_collapse": "收起完整公式",
     "sections": {

@@ -4,7 +4,7 @@ import type { RhythmParams } from './params'
 import { cubicBezier } from '../easing'
 import { PACE } from '../pace'
 import { firstAtOrAfter, trainOf } from './model'
-import { getRhythmParams } from './params'
+import { basePeriodOf, getRhythmParams } from './params'
 
 /**
  * 韵律动效（信号与系统）：节拍决定「什么时候动」，歌词决定「哪里动、动多少」。
@@ -27,7 +27,8 @@ export interface RhythmContext {
 
 /**
  * 解析生效的节奏：节拍模型可用且可信时跟随节拍，否则回退到 params.fallback；
- * 调试面板的试听档位（params.preview）优先。歌词标注里的 pace 不再参与（节拍是唯一的速度来源）
+ * 调试面板的试听档位（params.preview）优先，基准脉冲的八度改判（params.pulseOctave）只平移 T_b。
+ * 歌词标注里的 pace 不再参与（节拍是唯一的速度来源）
  */
 export function rhythmContext(model: RhythmModel | null | undefined, params = getRhythmParams()): RhythmContext {
   const wanted: EffectivePace = params.preview ?? (model?.reliable ? 'beat' : params.fallback)
@@ -35,7 +36,7 @@ export function rhythmContext(model: RhythmModel | null | undefined, params = ge
     return { pace: wanted, model: null, params, base: PACE.basePeriod[wanted] }
   if (!model)
     return { pace: params.fallback, model: null, params, base: PACE.basePeriod[params.fallback] }
-  return { pace: 'beat', model, params, base: model.analysis.basePeriodMs }
+  return { pace: 'beat', model, params, base: basePeriodOf(model.analysis.basePeriodMs, params) }
 }
 
 /** 动效的周期 T_e = 2^n·T_b */

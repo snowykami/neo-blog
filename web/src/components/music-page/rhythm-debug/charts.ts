@@ -233,8 +233,11 @@ export function drawKernels(canvas: HTMLCanvasElement, panels: KernelPanel[]) {
   })
 }
 
-/** 拍速：起音强度的自相关 R(τ)（灰）与乘以先验后的 R（紫），粗线为选中的拍速，金色虚线为基准周期 τ_F；顶部标出固定三档 */
-export function drawTempo(canvas: HTMLCanvasElement, analysis: RhythmAnalysis, tiers: { label: string, periodMs: number }[]) {
+/**
+ * 拍速：起音强度的自相关 R(τ)（灰）与乘以先验后的 R（紫），粗线为选中的拍速，金色虚线为基准周期 τ_F；
+ * 顶部标出固定三档，以及 τ_F 八度族里的拍速候选（选中的那档加粗）
+ */
+export function drawTempo(canvas: HTMLCanvasElement, analysis: RhythmAnalysis, tiers: { label: string, periodMs: number }[], candidates: { bpm: number, selected: boolean }[] = []) {
   const view = prepare(canvas)
   if (!view)
     return
@@ -289,4 +292,15 @@ export function drawTempo(canvas: HTMLCanvasElement, analysis: RhythmAnalysis, t
   ctx.fillStyle = COLORS.text
   for (const tier of tiers)
     ctx.fillText(tier.label, bpmX(60000 / tier.periodMs) - 6, 11)
+  // 拍速候选：τ_F 的八度族，选中的那档用拍点的颜色加粗
+  for (const candidate of candidates) {
+    const x = bpmX(candidate.bpm)
+    ctx.strokeStyle = candidate.selected ? COLORS.pulse : COLORS.grid
+    ctx.lineWidth = candidate.selected ? 2.5 : 1
+    ctx.beginPath()
+    ctx.moveTo(x, 12)
+    ctx.lineTo(x, candidate.selected ? 26 : 20)
+    ctx.stroke()
+  }
+  ctx.lineWidth = 1
 }

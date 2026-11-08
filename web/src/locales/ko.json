@@ -3367,6 +3367,8 @@
     },
     "preview": "속도 체험",
     "preview_auto": "자동",
+    "pulse": "기준 펄스",
+    "pulse_note": "τ_F보다 빠른 세분 박은 검출된 박 사이에 합성한 펄스입니다(미검출)",
     "current": "현재 효과",
     "current_background": "연출 중인 강조가 없어 배경 호흡을 보여 줍니다",
     "current_interlude": "간주 점",
@@ -3390,7 +3392,7 @@
     "chart_kernels": "시스템 h(t)",
     "chart_kernels_hint": "t = 0이 비트이고 가로축은 −0.6 ~ 1.8초",
     "chart_tempo": "템포",
-    "chart_tempo_hint": "보라: 사전 분포를 곱한 자기상관. 분홍: 선택된 템포. 금색 점선: 기준 주기 τ_F. 위쪽: 고정된 세 단계",
+    "chart_tempo_hint": "보라: 사전 분포를 곱한 자기상관. 분홍: 선택된 템포. 금색 점선: 기준 주기 τ_F. 위쪽: 고정된 세 단계와 템포 후보",
     "formula_expand": "전체 수식 보기",
     "formula_collapse": "전체 수식 접기",
     "sections": {

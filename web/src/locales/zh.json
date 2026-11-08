@@ -3213,6 +3213,8 @@
     },
     "preview": "试听档位",
     "preview_auto": "自动",
+    "pulse": "基准拍速",
+    "pulse_note": "比 τ_F 快的细分拍是两拍之间的合成脉冲（未检测）",
     "current": "当前动效",
     "current_background": "没有正在演出的强调，展示背景呼吸",
     "current_interlude": "间奏圆点",
@@ -3236,7 +3238,7 @@
     "chart_kernels": "系统 h(t)",
     "chart_kernels_hint": "t = 0 为拍点，横轴 −0.6 ~ 1.8 秒",
     "chart_tempo": "拍速",
-    "chart_tempo_hint": "紫线为自相关（乘以先验），粉线为选中的拍速，金色虚线为基准周期 τ_F，顶部为固定三档",
+    "chart_tempo_hint": "紫线为自相关（乘以先验），粉线为选中的拍速，金色虚线为基准周期 τ_F，顶部为固定三档与拍速候选",
     "formula_expand": "展开完整公式",
     "formula_collapse": "收起完整公式",
     "sections": {

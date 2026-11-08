@@ -49,7 +49,9 @@ export function formulasFor(effect: DebugEffect, ctx: RhythmContext): FormulaSet
   const beat = ctx.pace === 'beat'
 
   const period = beat
-    ? `T_b=\\tau_F=\\mathop{\\arg\\max}_{\\tau\\in[0.5,\\,1)\\,\\mathrm{s}}\\Big[R\\big(\\tfrac{\\tau}{2}\\big)+R(\\tau)+\\tfrac12R(2\\tau)\\Big]=${s(ctx.base)},\\qquad T_e=2^{n_e}T_b=2^{${n}}\\times${s(ctx.base)}=${s(Te)}`
+    ? `T_b=${p.pulseOctave === 0 ? '\\tau_F' : `2^{${p.pulseOctave}}\\tau_F`}=${s(ctx.base)},\\qquad T_e=2^{n_e}T_b=2^{${n}}\\times${s(ctx.base)}=${s(Te)}${p.pulseOctave === 0
+      ? ''
+      : `,\\qquad \\tau_F=\\mathop{\\arg\\max}_{\\tau\\in[0.5,\\,1)\\,\\mathrm{s}}\\Big[R\\big(\\tfrac{\\tau}{2}\\big)+R(\\tau)+\\tfrac12R(2\\tau)\\Big]=${s(ctx.base / 2 ** p.pulseOctave)}`}`
     : `T_b=${s(ctx.base)}\\;(\\mathrm{${ctx.pace}}),\\qquad T_e=2^{n_e}T_b=2^{${n}}\\times${s(ctx.base)}=${s(Te)}`
   const input = beat
     ? `x_e(t)=\\sum_k a_k\\,\\delta(t-t_k),\\quad t_k\\in\\mathcal{R}_{k_b+n_e}\\{t_i\\},\\quad a_k=a_{\\min}+(1-a_{\\min})\\operatorname{clamp}\\!\\Big(\\frac{L(t_k)-L_{10}}{L_{95}-L_{10}}\\Big),\\ a_{\\min}=${num(p.accentMin)}`

@@ -17,7 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { FIXED_LYRIC_PACES, PACE } from '@/lib/lyrics/pace'
 import { periodOf, pulsesIn, rhythmContext } from '@/lib/lyrics/rhythm/effects'
-import { getRhythmParams, resetRhythmParams, setRhythmParams, subscribeRhythmParams } from '@/lib/lyrics/rhythm/params'
+import { basePeriodOf, getRhythmParams, PULSE_OCTAVES, resetRhythmParams, setRhythmParams, subscribeRhythmParams } from '@/lib/lyrics/rhythm/params'
 import { getRhythmState, subscribeRhythm } from '@/lib/lyrics/rhythm/source'
 import { buildTimeline } from '@/lib/lyrics/timeline'
 import { drawInput, drawKernels, drawLanes, drawTempo, WINDOW_MS } from './charts'
@@ -126,6 +126,10 @@ function ParamSlider({ def }: { def: ParamDef }) {
 const msFormat = (value: number) => `${Math.round(value)} ms`
 const fixed = (digits: number) => (value: number) => value.toFixed(digits)
 
+/** 基准脉冲八度的短标签（×1 为分析得到的 τ_F 本身）与它对应的拍速 */
+const PULSE_FACTOR: Record<number, string> = { [-2]: '×¼', [-1]: '×½', 0: '×1', 1: '×2', 2: '×4' }
+const bpmText = (periodMs: number) => String(Number((60000 / periodMs).toFixed(1)))
+
 export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
   const t = useTranslations('RhythmDebug')
   const { lyrics, currentTrack, getAudio } = useMusic()
@@ -232,12 +236,13 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
     if (!canvas || !model)
       return
     const [slow, medium, fast] = tierLabels.split('|')
-    const draw = () => drawTempo(canvas, model.analysis, [{ label: slow, periodMs: PACE.basePeriod.slow }, { label: medium, periodMs: PACE.basePeriod.medium }, { label: fast, periodMs: PACE.basePeriod.fast }])
+    const pulse = PULSE_OCTAVES.map(octave => ({ bpm: 60000 / (model.analysis.basePeriodMs * 2 ** octave), selected: octave === params.pulseOctave }))
+    const draw = () => drawTempo(canvas, model.analysis, [{ label: slow, periodMs: PACE.basePeriod.slow }, { label: medium, periodMs: PACE.basePeriod.medium }, { label: fast, periodMs: PACE.basePeriod.fast }], pulse)
     draw()
     const observer = new ResizeObserver(draw)
     observer.observe(canvas)
     return () => observer.disconnect()
-  }, [model, tierLabels])
+  }, [model, tierLabels, params.pulseOctave])
 
   // 分析状态
   let status = t('status_idle')
@@ -247,13 +252,19 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
   else if (rhythmState?.status === 'ready') {
     const analysis = rhythmState.model.analysis
     status = rhythmState.model.reliable
-      ? t('status_ready', { bpm: analysis.bpm.toFixed(1), pulse: (60000 / analysis.basePeriodMs).toFixed(1), confidence: analysis.confidence.toFixed(2), seconds: (rhythmState.elapsedMs / 1000).toFixed(1) })
+      ? t('status_ready', { bpm: analysis.bpm.toFixed(1), pulse: (60000 / basePeriodOf(analysis.basePeriodMs, params)).toFixed(1), confidence: analysis.confidence.toFixed(2), seconds: (rhythmState.elapsedMs / 1000).toFixed(1) })
       : t('status_unreliable', { confidence: analysis.confidence.toFixed(2), min: params.minConfidence.toFixed(2) })
   }
   else if (rhythmState?.status === 'unavailable') {
     status = t('status_unavailable', { reason: t(`reasons.${rhythmState.reason}`) })
   }
   const fellBack = params.preview === null && focusContext.pace !== 'beat'
+  // 拍速的八度歧义：以 τ_F 为 ×1 列出可选的基准脉冲（T_b = 2^n·τ_F），选中即改写整曲的拍点层级与动效周期。
+  // 试听档位不吃分析结果，此时不展示
+  const beatAnalysis = model?.analysis
+  const pulseChoices = beatAnalysis && params.preview === null
+    ? PULSE_OCTAVES.map(octave => ({ octave, periodMs: beatAnalysis.basePeriodMs * 2 ** octave }))
+    : []
 
   // 专业模式：通用参数 + 当前动效的参数
   const octaveDef = (group: 'heartbeat' | 'swell' | 'glow' | 'wave' | 'shake' | 'shimmer' | 'background', value: number): ParamDef => ({
@@ -347,6 +358,27 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
               {FIXED_LYRIC_PACES.map(pace => <ToggleGroupItem key={pace} value={pace} className="px-2.5 text-xs">{t(`paces.${pace}`)}</ToggleGroupItem>)}
             </ToggleGroup>
           </div>
+          {pulseChoices.length > 0 && (
+            <div className="grid gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Label className="text-xs text-white/60">{t('pulse')}</Label>
+                <ToggleGroup
+                  type="single"
+                  size="sm"
+                  variant="outline"
+                  value={String(params.pulseOctave)}
+                  onValueChange={value => value && setRhythmParams({ pulseOctave: Number(value) })}
+                >
+                  {pulseChoices.map(choice => (
+                    <ToggleGroupItem key={choice.octave} value={String(choice.octave)} className="px-2.5 text-xs tabular-nums">
+                      {`${PULSE_FACTOR[choice.octave]} · ${bpmText(choice.periodMs)}`}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </div>
+              {params.pulseOctave < 0 && <p className="text-white/50">{t('pulse_note')}</p>}
+            </div>
+          )}
         </section>
 
         <section className="grid gap-1.5">

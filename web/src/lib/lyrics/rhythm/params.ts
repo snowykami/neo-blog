@@ -7,6 +7,9 @@ import type { FixedLyricPace } from '../pace'
 export interface RhythmParams {
   // 试听档位：调试面板中临时覆盖整首歌的节奏（固定档），为 null 时按节拍（不可信时回退到 fallback）
   preview: FixedLyricPace | null
+  // 基准脉冲的八度改判：T_b = 2^n·τ_F，0 为不覆盖。拍速在八度上本来就有歧义（见 analysis.ts 的梳状和与先验），
+  // 这里只是手动改判，不改分析结果；只在跟随节拍时有效
+  pulseOctave: number
   // 动效提前量 t_lead：视觉比声音略早一点更显得对拍
   leadMs: number
   // 节拍置信度低于它时不跟随节拍（自由节奏、纯钢琴、朗诵等），回退到 fallback
@@ -27,6 +30,7 @@ export interface RhythmParams {
 
 export const DEFAULT_RHYTHM_PARAMS: RhythmParams = {
   preview: null,
+  pulseOctave: 0,
   leadMs: 20,
   minConfidence: 0.12,
   fallback: 'medium',
@@ -40,6 +44,14 @@ export const DEFAULT_RHYTHM_PARAMS: RhythmParams = {
   background: { octave: 0, attackMs: 30, decayMs: 150 },
   interlude: { targetMs: 2000, inhale: 1.2, exhale: 0.9 },
   particles: { octave: 0 },
+}
+
+/** 可选的基准脉冲八度（T_b = 2^n·τ_F）：与 model.ts 的 ±MAX_LEVEL 对齐，保证各动效的层级都在表内 */
+export const PULSE_OCTAVES: readonly number[] = [-2, -1, 0, 1, 2]
+
+/** 基准脉冲周期 T_b：分析得到的 τ_F 按 pulseOctave 平移（跟随节拍时拍点与动效的基准） */
+export function basePeriodOf(basePeriodMs: number, params: Pick<RhythmParams, 'pulseOctave'>): number {
+  return basePeriodMs * 2 ** params.pulseOctave
 }
 
 let current: RhythmParams = DEFAULT_RHYTHM_PARAMS

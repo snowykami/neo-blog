@@ -3367,6 +3367,8 @@
     },
     "preview": "速さを試す",
     "preview_auto": "自動",
+    "pulse": "基準パルス",
+    "pulse_note": "τ_F より速い細分は検出した拍の中間に合成したパルスです（未検出）",
     "current": "現在のエフェクト",
     "current_background": "演出中の強調がないため、背景のブリージングを表示しています",
     "current_interlude": "間奏のドット",
@@ -3390,7 +3392,7 @@
     "chart_kernels": "システム h(t)",
     "chart_kernels_hint": "t = 0 が拍、横軸は −0.6 〜 1.8 秒",
     "chart_tempo": "テンポ",
-    "chart_tempo_hint": "紫：事前分布を掛けた自己相関。ピンク：選ばれたテンポ。金の破線：基準周期 τ_F。上部：固定の 3 段階",
+    "chart_tempo_hint": "紫：事前分布を掛けた自己相関。ピンク：選ばれたテンポ。金の破線：基準周期 τ_F。上部：固定の 3 段階とテンポ候補",
     "formula_expand": "完全な数式を表示",
     "formula_collapse": "完全な数式を閉じる",
     "sections": {
