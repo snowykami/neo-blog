@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -372,13 +373,47 @@ func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUser
 		}
 	}
 	files := commentAttachmentFiles(comments)
+	mentions := commentMentionUsers(comments)
 	commentDtos := make([]dto.CommentDto, 0, len(comments))
 	for i := range comments {
 		commentDto := cs.toGetCommentDto(&comments[i], likedIDs[comments[i].ID])
 		commentDto.Attachments = toCommentAttachmentDtos(comments[i].AttachmentIDs, files)
+		// 被 @ 的人按 id 取当前用户名：正文里是评论当时的写法，渲染以这份为准
+		for _, id := range comments[i].MentionUserIDs {
+			if user, ok := mentions[id]; ok {
+				commentDto.Mentions = append(commentDto.Mentions, dto.CommentMentionDto{
+					ID: user.ID, Username: user.Username, Nickname: user.Nickname,
+				})
+			}
+		}
 		commentDtos = append(commentDtos, commentDto)
 	}
 	return commentDtos
+}
+
+// commentMentionUsers 一次查询这批评论里被 @ 的用户，按 id 索引
+func commentMentionUsers(comments []model.Comment) map[uint]model.User {
+	var ids []uint
+	for i := range comments {
+		for _, id := range comments[i].MentionUserIDs {
+			if !slices.Contains(ids, id) {
+				ids = append(ids, id)
+			}
+		}
+	}
+	result := make(map[uint]model.User, len(ids))
+	if len(ids) == 0 {
+		return result
+	}
+	users, err := repo.User.GetUsersByIDs(ids)
+	if err != nil {
+		logrus.Errorf("commentMentionUsers: GetUsersByIDs error: %s", err.Error())
+		return result
+	}
+	for _, user := range users {
+		result[user.ID] = user
+	}
+	return result
 }
 
 func (cs *CommentService) toGetCommentDto(comment *model.Comment, isLiked bool) dto.CommentDto {

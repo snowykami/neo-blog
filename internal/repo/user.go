@@ -37,6 +37,19 @@ func (user *userRepo) GetUserByEmail(email string) (*model.User, error) {
 	return &userModel, nil
 }
 
+// GetUsersByIDs 批量读取用户，用于一次补齐评论里被 @ 的人（列表接口避免 N+1 查询）
+func (user *userRepo) GetUsersByIDs(ids []uint) ([]model.User, error) {
+	if len(ids) == 0 {
+		return []model.User{}, nil
+	}
+	var users []model.User
+	if err := GetDB().Select("id, username, nickname, avatar_url, is_ai").
+		Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 func (user *userRepo) GetUserByID(id uint) (*model.User, error) {
 	var userModel model.User
 	if err := GetDB().Where("id = ?", id).First(&userModel).Error; err != nil {

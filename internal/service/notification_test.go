@@ -616,3 +616,45 @@ func TestResolveCommentMentions(t *testing.T) {
 		t.Fatalf("too many = %v", svcerr)
 	}
 }
+
+// 提及以 id 为准：用户改名后，评论列表返回的是他的当前用户名，正文里的旧名字保持原样
+func TestCommentMentionsFollowRename(t *testing.T) {
+	author, _, other, _, _ := setupEditTest(t)
+	postID := createPublicPost(t, author, nil)
+	mentioned := createNotificationUser(t, "oldname", nil)
+
+	id, svcerr := NewCommentService().CreateComment(other, &dto.CreateCommentReq{
+		TargetID: postID, TargetType: constant.TargetTypePost, Content: "@oldname 你好",
+		MentionUserIDs: []uint{mentioned.ID},
+	})
+	if svcerr != nil {
+		t.Fatalf("create comment: %v", svcerr)
+	}
+	// 改名
+	if err := repo.GetDB().Model(&model.User{}).Where("id = ?", mentioned.ID).Update("username", "newname").Error; err != nil {
+		t.Fatal(err)
+	}
+
+	comment, svcerr := NewCommentService().GetComment(other, id)
+	if svcerr != nil {
+		t.Fatalf("get comment: %v", svcerr)
+	}
+	if comment.Content != "@oldname 你好" {
+		t.Fatalf("content should stay as written, got %q", comment.Content)
+	}
+	if len(comment.Mentions) != 1 || comment.Mentions[0].Username != "newname" || comment.Mentions[0].ID != mentioned.ID {
+		t.Fatalf("mentions = %+v", comment.Mentions)
+	}
+
+	// 列表接口同样带出当前用户名
+	list, svcerr := NewCommentService().GetCommentList(other, &dto.GetCommentListReq{
+		PaginationParams: dto.PaginationParams{Page: 1, Size: 10, OrderBy: constant.OrderByCreatedAt},
+		TargetID:         postID, TargetType: constant.TargetTypePost,
+	})
+	if svcerr != nil {
+		t.Fatalf("list: %v", svcerr)
+	}
+	if len(list) != 1 || len(list[0].Mentions) != 1 || list[0].Mentions[0].Username != "newname" {
+		t.Fatalf("list mentions = %+v", list)
+	}
+}
