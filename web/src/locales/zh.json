@@ -3019,7 +3019,8 @@
     "privacy_policy": "隐私政策",
     "reason_like": "登录后即可点赞，无需离开当前页面",
     "reason_reply": "登录后即可回复，无需离开当前页面",
-    "reason_comment": "登录后即可发表评论，无需离开当前页面"
+    "reason_comment": "登录后即可发表评论，无需离开当前页面",
+    "sign_in_hint": "登录后可点赞、评论与收藏"
   },
   "MusicPlayer": {
     "loading_lyric": "歌词加载中...",

@@ -97,16 +97,17 @@ export default async function RootLayout({
               <TimeZoneSync />
               <ThemeProvider theme={theme}>
                 <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
-                  <LoginDialogProvider>
-                    <SiteInfoProvider initialData={siteInfo}>
+                  {/* 快捷登录弹窗里的注册表单要用到站点信息（验证码冷却），所以站点信息在弹窗外层 */}
+                  <SiteInfoProvider initialData={siteInfo}>
+                    <LoginDialogProvider>
                       <MusicProvider>
                         <NavProvider>
                           <FloatingWidgets />
                           {children}
                         </NavProvider>
                       </MusicProvider>
-                    </SiteInfoProvider>
-                  </LoginDialogProvider>
+                    </LoginDialogProvider>
+                  </SiteInfoProvider>
                 </AuthProvider>
               </ThemeProvider>
             </NextIntlClientProvider>

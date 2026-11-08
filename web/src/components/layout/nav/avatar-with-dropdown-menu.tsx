@@ -1,7 +1,10 @@
 'use client'
-import { ArrowLeftRightIcon, LogIn, LogOut, PanelLeft, User } from 'lucide-react'
+import type { AuthDialogMode } from '@/components/auth/login-dialog'
+import { ArrowLeftRightIcon, LogIn, LogOut, PanelLeft, User, UserPlus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
+import { useCallback } from 'react'
+import { useAuthDialog } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
 import {
   DropdownMenu,
@@ -13,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/auth-context'
-import { useToLogin } from '@/hooks/use-route'
 import { useOperationT } from '@/hooks/use-translations'
 import { Role } from '@/models/user'
 import { consolePath, getUserUrl } from '@/utils/common/route'
@@ -23,11 +25,17 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
   const operationT = useOperationT()
   const routeT = useTranslations('Route')
   const { user, logout } = useAuth()
-  const toLogin = useToLogin()
+  const openAuthDialog = useAuthDialog()
 
   const handleLogout = () => {
     logout()
   }
+
+  // 下拉菜单关闭时 Radix 会把焦点恢复到触发按钮，紧接着打开弹窗会被当成「点到了外面」而立刻关掉，
+  // 所以等这一轮事件处理结束再打开
+  const openDialog = useCallback((mode: AuthDialogMode) => {
+    window.setTimeout(openAuthDialog, 0, mode)
+  }, [openAuthDialog])
 
   return (
     <DropdownMenu modal={false}>
@@ -85,27 +93,32 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
           </>
         )}
         <DropdownMenuGroup className="p-0">
-          {user && (
-            <DropdownMenuItem onClick={toLogin}>
-              <ArrowLeftRightIcon />
-              {operationT('switch_account')}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={user ? handleLogout : toLogin}>
-            {user
-              ? (
-                  <>
+          {user
+            ? (
+                <>
+                  <DropdownMenuItem onSelect={() => openDialog('login')}>
+                    <ArrowLeftRightIcon />
+                    {operationT('switch_account')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={handleLogout}>
                     <LogOut />
                     {operationT('logout')}
-                  </>
-                )
-              : (
-                  <>
+                  </DropdownMenuItem>
+                </>
+              )
+            : (
+                <>
+                  {/* 顶栏的登录与注册都在当前页弹窗完成，不再跳转到登录页 / 注册页 */}
+                  <DropdownMenuItem onSelect={() => openDialog('login')}>
                     <LogIn />
                     {operationT('login')}
-                  </>
-                )}
-          </DropdownMenuItem>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => openDialog('register')}>
+                    <UserPlus />
+                    {operationT('register')}
+                  </DropdownMenuItem>
+                </>
+              )}
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

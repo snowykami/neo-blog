@@ -3012,7 +3012,8 @@
     "remember_me": "記住我",
     "reason_like": "登入後即可按讚，無需離開目前頁面",
     "reason_reply": "登入後即可回覆，無需離開目前頁面",
-    "reason_comment": "登入後即可發表留言，無需離開目前頁面"
+    "reason_comment": "登入後即可發表留言，無需離開目前頁面",
+    "sign_in_hint": "登入後可按讚、留言與收藏"
   },
   "Operation": {
     "back_to_home": "回到首頁",

@@ -3012,7 +3012,8 @@
     "remember_me": "Remember Me",
     "reason_like": "Sign in to like this — you will stay on this page",
     "reason_reply": "Sign in to reply — you will stay on this page",
-    "reason_comment": "Sign in to comment — you will stay on this page"
+    "reason_comment": "Sign in to comment — you will stay on this page",
+    "sign_in_hint": "Sign in to like, comment and bookmark"
   },
   "Operation": {
     "back_to_home": "Back to home",
