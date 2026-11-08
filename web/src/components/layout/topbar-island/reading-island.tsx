@@ -127,10 +127,14 @@ export function ReadingIsland({ title, headings, minutes, post }: { title: strin
     if (finishedRef.current || phase !== 'reading' || progress < FINISH_PROGRESS || scrollable < window.innerHeight * FINISH_MIN_SCROLL_RATIO)
       return
     finishedRef.current = true
+    // 消息类提示：带上 onPress，被反馈盖过后必须能回来（resume: restart），否则读者就永远失去这个入口
+    // （finishedRef 只触发一次）；停留时间长于默认值，因为它带着交互
     pushIslandAlert(postLikeRef.current.liked
       ? {
           key: 'reading-finish',
           feature: 'readingFinish',
+          layer: 'notice',
+          resume: 'restart',
           icon: <LikeIcon aria-hidden className="fill-current text-rose-400" />,
           text: t('reading_finish_liked'),
           duration: FINISH_MS,
@@ -138,6 +142,8 @@ export function ReadingIsland({ title, headings, minutes, post }: { title: strin
       : {
           key: 'reading-finish',
           feature: 'readingFinish',
+          layer: 'notice',
+          resume: 'restart',
           icon: <LikeIcon aria-hidden className="text-rose-400" />,
           text: t('reading_finish'),
           duration: FINISH_MS,

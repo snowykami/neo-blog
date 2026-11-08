@@ -86,6 +86,7 @@ export function AppUpdateChecker() {
   }, [t])
 
   // 发现新版本后：岛可用时常驻在岛上，否则（关闭、后台页面）常驻 toast；在两者之间切换页面时随之切换
+  // 活动层（见 contexts/topbar-island.ts 文件头）：新版本要一直看得到，所以不打时长；点击时直接刷新
   const activity = useMemo<IslandActivity | null>(() => updateAvailable && viaIsland
     ? {
         id: 'update',

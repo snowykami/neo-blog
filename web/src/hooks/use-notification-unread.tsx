@@ -3,9 +3,10 @@
 import { BellRing } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { getUnreadNotificationCount } from '@/api/notification'
-import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import { useAuth } from '@/contexts/auth-context'
+import { pushIslandAlert } from '@/contexts/topbar-island'
 
 // 兜底轮询间隔：SSE 连不上时（代理不支持长连接等）仍能更新徽标
 const POLL_INTERVAL_MS = 60_000
@@ -25,7 +26,21 @@ export function useUnreadNotificationCount() {
     setCount(total)
     // 数字变大说明来了新通知：在灵动岛上提一句（后台页没有顶栏时不显示，交给 toast）
     if (total > previous.current && previous.current >= 0 && user) {
-      notifySuccess(t('new_notification'), { key: 'notification', icon: <BellRing aria-hidden className="text-sky-400" /> })
+      // 消息类提示（layer: notice）：不插队、会被点赞/评论等反馈盖掉，被盖掉后回到队首重新计时
+      // TODO(通知内容化)：后端 SSE 目前只推未读组数，「有新通知」既不知道是什么也不能点；
+      // 改成推事件明细后这里换成「小明等 3 人赞了《x》」并补上 onPress（跳 /notifications）。
+      // 另外点赞按 类型:目标:自然日 聚合成一个未读组（internal/repo/notification.go 的分组表达式），
+      // 组数不涨的时候这里不会提示，这也是「点赞不上岛」的主要原因，一并解决
+      const shown = pushIslandAlert({
+        key: 'notification',
+        feature: 'feedback',
+        layer: 'notice',
+        resume: 'restart',
+        icon: <BellRing aria-hidden className="text-sky-400" />,
+        text: t('new_notification'),
+      })
+      if (!shown)
+        toast.info(t('new_notification'))
     }
     previous.current = total
   }, [t, user])

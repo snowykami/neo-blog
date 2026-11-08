@@ -49,11 +49,13 @@ function subscribeOnline(listener: () => void) {
 export function NetworkIsland() {
   const t = useTranslations('TopbarIsland')
   const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true)
+  // 活动层（见 contexts/topbar-island.ts 文件头）：不打时长，被提示盖住期间不暂停，露出时按当前的 online 重算
   const activity = useMemo<IslandActivity | null>(() => online
     ? null
     : {
         id: 'network',
         feature: 'network',
+        // 优先级最高：读者此刻最需要知道的就是网络断了
         priority: OFFLINE_PRIORITY,
         label: t('network_offline_label'),
         compact: (
@@ -75,7 +77,15 @@ export function NetworkIsland() {
     if (!wasOfflineRef.current)
       return
     wasOfflineRef.current = false
-    pushIslandAlert({ key: 'network', feature: 'network', icon: <WifiIcon aria-hidden className="text-emerald-400" />, text: t('network_online') })
+    pushIslandAlert({
+      key: 'network',
+      feature: 'network',
+      // 消息类：恢复连接值得读一眼，被反馈盖掉后回到队首重播（离线本身是常驻活动，见 OFFLINE_PRIORITY）
+      layer: 'notice',
+      resume: 'restart',
+      icon: <WifiIcon aria-hidden className="text-emerald-400" />,
+      text: t('network_online'),
+    })
   }, [online, t])
 
   return null
@@ -176,7 +186,16 @@ export function AmbientIsland({ settings }: { settings: IslandSettings }) {
         const mark = `${theme.id}:${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
         if (readStorage(() => localStorage, HOLIDAY_KEY) !== mark) {
           const HolidayIcon = getThemeIcon(theme.icons?.like) ?? PartyPopperIcon
-          if (pushIslandAlert({ key: 'holiday', feature: 'holiday', icon: <HolidayIcon aria-hidden />, text: t('holiday', { name: themeT(`names.${theme.id}`) }), duration: GREETING_MS })) {
+          if (pushIslandAlert({
+            key: 'holiday',
+            feature: 'holiday',
+            // 消息类，一天一次：被反馈盖掉后回到队首重播，不因一次插队就丢掉今天的问候
+            layer: 'notice',
+            resume: 'restart',
+            icon: <HolidayIcon aria-hidden />,
+            text: t('holiday', { name: themeT(`names.${theme.id}`) }),
+            duration: GREETING_MS,
+          })) {
             writeStorage(() => localStorage, HOLIDAY_KEY, mark)
             // 节日提示过了，这次就不再问候
             writeStorage(() => sessionStorage, GREETED_KEY, '1')
@@ -198,6 +217,9 @@ export function AmbientIsland({ settings }: { settings: IslandSettings }) {
       const pushed = pushIslandAlert({
         key: 'greeting',
         feature: 'greeting',
+        // 消息类，一个浏览会话一次：被反馈盖掉后回到队首重播（丢了就再也看不到今天的问候了）
+        layer: 'notice',
+        resume: 'restart',
         icon: <Icon aria-hidden className="text-amber-300" />,
         text: weather ? t('greeting_weather', { greeting, temperature }) : greeting,
         announce: weather ? t('greeting_weather_announce', { greeting, condition: weatherT(`options.condition.${weather.condition}`), temperature }) : greeting,

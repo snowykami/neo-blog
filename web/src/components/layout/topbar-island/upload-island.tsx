@@ -35,6 +35,7 @@ function subscribe(listener: () => void) {
 export function reportIslandUpload(key: string, percent: number, label: string) {
   uploads.set(key, Math.min(100, Math.max(0, percent)))
   if (!hide) {
+    // 活动层（见 contexts/topbar-island.ts 文件头）：不上时长、不允许读者滑走，也不会因为被提示盖住而丢进度
     hide = showIslandActivity({
       id: 'upload',
       feature: 'upload',

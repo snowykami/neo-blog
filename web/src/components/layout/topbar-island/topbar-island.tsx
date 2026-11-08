@@ -15,7 +15,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { SiteLogo } from '@/components/common/site-logo'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useSiteInfo } from '@/contexts/site-info-context'
-import { finishIslandAlert, setIslandSettings, useIslandState } from '@/contexts/topbar-island'
+import { alertDurationOf, finishIslandAlert, interruptIslandAlert, setIslandPanelOpen, setIslandSettings, useIslandAlert, useIslandState } from '@/contexts/topbar-island'
 import { cn } from '@/lib/utils'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import { AmbientIsland, NetworkIsland } from './ambient-island'
@@ -32,8 +32,7 @@ import { MusicIsland } from './music-island'
  * 刚度 = (2π / 响应时间)²，阻尼 = 4π × 阻尼比 / 响应时间（质量为 1），带一点回弹，像灵动岛那样「弹」开
  */
 const ISLAND_SPRING: Transition = { type: 'spring', mass: 1, stiffness: 273, damping: 25 }
-// 提示默认停留时长
-const ALERT_MS = 2400
+// 提示的默认停留时长与仲裁规则集中在 contexts/topbar-island.ts（FEEDBACK_ALERT_MS / NOTICE_ALERT_MS）
 // 手势切换内容：新内容从滑动的一侧移入的距离、方向保持的时长，隐藏 / 恢复的读屏播报保留时长
 const CONTENT_SHIFT_PX = 24
 const CONTENT_SWITCH_MS = 400
@@ -147,11 +146,14 @@ function useContinuousCapsule(enabled: boolean) {
 
 /**
  * 顶栏标题区（灵动岛，实验性）：左侧始终是回到首页的站点链接；有活动或提示时站名收起为图标，旁边弹出一枚胶囊。
- * - 活动按优先级仲裁：第一名占胶囊，第二名（有 minimal 时）缩成旁边的小圆点；提示短暂抢占胶囊，显示完回到原来的活动
+ * - 活动按优先级仲裁：第一名占胶囊，第二名（有 minimal 时）缩成旁边的小圆点
+ * - 提示的层与排队规则在 contexts/topbar-island.ts（反馈 > 消息，同层 FIFO），这里只负责渲染、计时与上报手势；
+ *   提示短暂抢占胶囊，显示完回到原来的活动。**改仲裁规则请改那边，不要在渲染层加判断**
  * - 点按胶囊：有面板时展开面板（后台可关闭），否则执行活动的 onPress；正在显示的提示被点按时立即结束
  * - 手势参考 Apple 灵动岛：长按展开，左右滑动轮换活动、滑走提示、隐藏唯一的活动（在站名上再滑一次恢复），面板上滑收起；见 IslandButton
- * - 悬停、聚焦或面板打开期间提示不计时（不会在读到一半时消失）
- * - 胶囊的无障碍名称为活动摘要，内容本身对读屏隐藏；提示通过 polite 播报区朗读一次
+ * - 悬停、聚焦只推迟消息类提示（读者正在看着它）；反馈类照常结束，它随时会来，不该被鼠标停留卡住
+ * - 面板展开期间不显示提示：反馈在入队时已回落 toast，消息类先排队、收起后再播
+ * - 胶囊的无障碍名称为活动摘要，内容本身对读屏隐藏；消息类提示通过 polite 播报区朗读一次（反馈不打断读屏）
  * - 形变由 motion 的布局动画完成，遵循系统「减少动态效果」设置（只保留淡入淡出）
  * 后台总开关关闭时只显示站名
  */
@@ -183,7 +185,9 @@ export function TopbarIsland() {
 
 function IslandStage({ settings }: { settings: IslandSettings }) {
   const t = useTranslations('TopbarIsland')
-  const { activities, alerts } = useIslandState()
+  const { activities } = useIslandState()
+  // 当前该显示哪条提示由仓库仲裁（反馈 > 消息，同层排队），这里只消费结果
+  const pickedAlert = useIslandAlert()
   // 读者滑走隐藏的活动：id → 隐藏时的 sessionKey（同一段活动内保持隐藏，活动撤下或 sessionKey 变化后重新出现）
   const [hidden, setHidden] = useState<ReadonlyMap<string, string | undefined>>(() => new Map())
   // 读者滑动、点小圆点选中的主活动；有新活动出现时回到按优先级仲裁
@@ -209,9 +213,12 @@ function IslandStage({ settings }: { settings: IslandSettings }) {
   const keep = panelOpen && current?.id === openId && !current.panel ? opened?.keep : undefined
   const primary = useMemo(() => current && keep?.panel ? { ...current, ...keep } : current, [current, keep])
   const secondary = visible.find(activity => activity.id !== primary?.id && activity.minimal)
-  // 悬停 / 聚焦在岛上时暂停提示计时
+  // 悬停 / 聚焦在岛上时暂停消息类提示的计时
   const [holding, setHolding] = useState(false)
-  const alert = settings.enabled && !panelOpen ? alerts[0] : undefined
+  // 面板展开期间不显示提示（反馈在入队时已回落 toast），消息类先排队、收起后再播
+  const alert = settings.enabled && !panelOpen ? pickedAlert : undefined
+  // 一条提示这次该停留多久：场上有持续活动时消息类更短；被盖过的（continue）扣掉已显示的部分
+  const alertMs = alert ? alertDurationOf(alert, !!primary) : 0
   // 小圆点在主活动展开成面板时先收起；小圆点空出来之后换一个共享布局的标识，之后再出现的小圆点原地出现，
   // 不会接着很久以前那一个的位置飞过来（只有对调时才新旧相接）
   const showDot = !!secondary && !panelOpen
@@ -222,11 +229,29 @@ function IslandStage({ settings }: { settings: IslandSettings }) {
   }, [showDot])
 
   useEffect(() => {
-    if (!alert || holding)
+    if (!alert)
       return
-    const timer = window.setTimeout(finishIslandAlert, alert.duration ?? ALERT_MS, alert.seq)
+    // 悬停 / 聚焦只推迟消息类提示：反馈随时会来，不该被鼠标停留卡住而一直占领胶囊
+    if (holding && alert.layer === 'notice')
+      return
+    const timer = window.setTimeout(finishIslandAlert, alertMs, alert.seq)
     return () => window.clearTimeout(timer)
-  }, [alert, holding])
+  }, [alert, alertMs, holding])
+
+  // 面板展开状态同步给仓库：展开期间反馈直接回落 toast，不攒到收起后连环弹
+  useEffect(() => {
+    setIslandPanelOpen(panelOpen)
+  }, [panelOpen])
+
+  // 记下当前显示的是哪条、从什么时候开始：显示项被更高优先的提示顶掉时，按它自己的 resume 策略退回队列
+  // （自然播完、读者点掉 / 滑走的走不到这里，那时它已经出队；面板收起后的恢复也不计一次打断）
+  const shownAlertRef = useRef<{ seq: number, at: number } | null>(null)
+  useEffect(() => {
+    const previous = shownAlertRef.current
+    if (alert && previous && previous.seq !== alert.seq)
+      interruptIslandAlert(previous.seq, Date.now() - previous.at)
+    shownAlertRef.current = alert ? { seq: alert.seq, at: Date.now() } : null
+  }, [alert])
 
   // 有新活动登记时让优先级重新生效；撤下的活动不再记着隐藏
   const idsRef = useRef<string[]>([])
@@ -347,9 +372,9 @@ function IslandStage({ settings }: { settings: IslandSettings }) {
           />
         )}
       </AnimatePresence>
-      {/* 读屏播报：提示出现时朗读一次；隐藏、恢复活动后说明怎么找回 */}
+      {/* 读屏播报：消息类提示出现时朗读一次；反馈类不念（自己刚做的操作不需要再听一遍）；隐藏、恢复活动后说明怎么找回 */}
       <span role="status" aria-live="polite" className="sr-only">
-        {alert ? (alert.announce ?? alert.text) : announce}
+        {alert && alert.layer === 'notice' ? (alert.announce ?? alert.text) : announce}
       </span>
     </div>
   )

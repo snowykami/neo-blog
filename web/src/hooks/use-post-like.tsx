@@ -54,6 +54,9 @@ export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
     toggleLike({ targetType: TargetType.Post, targetId: post.id, liked })
       .then((res) => {
         const status = res.data.status
+        // 操作反馈走岛上的 feedback 层（见 components/layout/topbar-island/island-feedback.tsx）：
+        // 能以约 1.4 秒的短提示盖过其他提示，开关关闭或后台页时自动回落 toast。
+        // 注意：乐观更新只作用于按钮状态，这句提示要等接口返回才上岛（失败时只弹 toast）
         // 点赞时岛上的爱心（节日主题下为节日图形）随主题变化；取消点赞只给一句确认
         if (status)
           notifySuccess(operationT('like_success'), { key: 'like', icon: <LikeIcon aria-hidden className="fill-current text-rose-400" /> })

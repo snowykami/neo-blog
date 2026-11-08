@@ -129,6 +129,9 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
     pushIslandAlert({
       key: PEEK_KEY,
       feature: 'musicPeek',
+      // 消息类提示，而且歌词一开唱就会被 dismiss（见下面的 effect）：被反馈盖掉时直接丢弃，不用重播
+      layer: 'notice',
+      resume: 'drop',
       // 与胶囊平时一样的圆形封面（播放时转动）
       icon: currentTrack.albumPic ? <AlbumNavIcon /> : undefined,
       text: trackTitle(currentTrack),
