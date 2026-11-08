@@ -13,31 +13,55 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/auth-context'
 
+// 邮件里的免登录凭据：只从地址栏读一次，不写进任何全局状态
+function readTokenFromUrl(): string {
+  if (typeof window === 'undefined')
+    return ''
+  return new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
+}
+
 /**
  * 通知设置页：站内与邮件通知的开关统一在这里管理（/console/user-preference 只放引导）。
- * 未登录时只显示提示与登录按钮，不渲染表单——避免出现点不动的开关
+ * 三种访问态：已登录（cookie）、邮件里的 token（受限身份）、未登录且无 token（只显示提示与登录按钮）
  */
 export function NotificationSettingsPage() {
   const t = useTranslations('NotificationSettings')
   const { user } = useAuth()
   const openLogin = useLoginDialog()
+  const [token, setToken] = useState('')
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'expired' | 'anonymous'>('loading')
 
   useEffect(() => {
-    if (!user) {
+    setToken(readTokenFromUrl())
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    // 已登录时以登录身份为准；没有登录时用一次性凭据
+    const useToken = user ? '' : token
+    if (!user && !useToken) {
       setPreferences(null)
+      setStatus('anonymous')
       return
     }
-    setLoading(true)
-    getNotificationPreferences().then((res) => {
+    setStatus('loading')
+    getNotificationPreferences({ token: useToken }).then((res) => {
+      if (cancelled)
+        return
       setPreferences(res.data)
+      setStatus('ready')
     }).catch(() => {
+      if (cancelled)
+        return
+      // 凭据过期或被改坏：提示登录后继续，不把页面顶到登录页
+      setStatus(user ? 'anonymous' : 'expired')
       toast.error(t('load_failed'))
-    }).finally(() => {
-      setLoading(false)
     })
-  }, [user, t])
+    return () => {
+      cancelled = true
+    }
+  }, [user, token, t])
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8">
@@ -46,29 +70,31 @@ export function NotificationSettingsPage() {
         <p className="text-muted-foreground text-sm text-balance">{t('description')}</p>
       </div>
 
-      {!user
+      {status === 'loading'
         ? (
-            <Empty className="border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <BellRing />
-                </EmptyMedia>
-                <EmptyTitle>{t('title')}</EmptyTitle>
-                <EmptyDescription>{t('login_required')}</EmptyDescription>
-              </EmptyHeader>
-              <Button type="button" onClick={() => openLogin({})}>
-                {t('login')}
-              </Button>
-            </Empty>
+            <div className="grid gap-4">
+              <Skeleton className="h-40 w-full rounded-xl" />
+              <Skeleton className="h-32 w-full rounded-xl" />
+            </div>
           )
-        : loading || !preferences
-          ? (
-              <div className="grid gap-4">
-                <Skeleton className="h-40 w-full rounded-xl" />
-                <Skeleton className="h-32 w-full rounded-xl" />
-              </div>
-            )
-          : <NotificationPreferencesForm initial={preferences} />}
+        : status === 'ready' && preferences
+          ? <NotificationPreferencesForm initial={preferences} token={user ? undefined : token} />
+          : (
+              <Empty className="border">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <BellRing />
+                  </EmptyMedia>
+                  <EmptyTitle>{t('title')}</EmptyTitle>
+                  <EmptyDescription>
+                    {status === 'expired' ? t('token_expired') : t('login_required')}
+                  </EmptyDescription>
+                </EmptyHeader>
+                <Button type="button" onClick={() => openLogin({})}>
+                  {t('login')}
+                </Button>
+              </Empty>
+            )}
     </div>
   )
 }

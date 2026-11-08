@@ -3031,6 +3031,7 @@
   "NotificationSettings": {
     "title": "通知设置",
     "description": "站内通知与邮件通知的开关都在这里管理，改动即时生效",
+      "token_expired": "此链接已过期，请登录后继续",
     "login_required": "登录后即可管理你的通知偏好",
     "login": "登录",
     "load_failed": "加载通知偏好失败",

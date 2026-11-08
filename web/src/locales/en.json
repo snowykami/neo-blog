@@ -3024,6 +3024,7 @@
   "NotificationSettings": {
     "title": "Notification settings",
     "description": "In-app and email notifications are managed here; changes take effect immediately",
+      "token_expired": "This link has expired. Sign in to continue",
     "login_required": "Sign in to manage your notification preferences",
     "login": "Sign in",
     "load_failed": "Failed to load notification preferences",

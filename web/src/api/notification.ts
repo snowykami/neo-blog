@@ -37,8 +37,13 @@ export async function markAllNotificationsRead({ beforeId }: { beforeId?: number
   return res.data
 }
 
-export async function getNotificationPreferences(): Promise<BaseResponse<NotificationPreferences>> {
-  const res = await axiosClient.get('/notifications/preferences')
+// 带 token 时用邮件里的免登录凭据（只能读写通知偏好，见 /notification-settings?token=）
+function prefsHeaders(token?: string) {
+  return token ? { headers: { 'X-Notify-Prefs-Token': token } } : {}
+}
+
+export async function getNotificationPreferences({ token }: { token?: string } = {}): Promise<BaseResponse<NotificationPreferences>> {
+  const res = await axiosClient.get('/notifications/preferences', prefsHeaders(token))
   return res.data
 }
 
@@ -46,17 +51,19 @@ export async function updateNotificationPreferences({
   inapp,
   email,
   aiInteractions,
+  token,
 }: {
   inapp: NotificationType[]
   email: NotificationType[]
   aiInteractions: boolean
+  token?: string
 }): Promise<BaseResponse<NotificationPreferences>> {
-  const res = await axiosClient.put('/notifications/preferences', { inapp, email, aiInteractions })
+  const res = await axiosClient.put('/notifications/preferences', { inapp, email, aiInteractions }, prefsHeaders(token))
   return res.data
 }
 
 // 一键关掉全部通知邮件（站内通知不受影响）
-export async function unsubscribeAllNotifications(): Promise<BaseResponse<NotificationPreferences>> {
-  const res = await axiosClient.post('/notifications/preferences/unsubscribe-all')
+export async function unsubscribeAllNotifications({ token }: { token?: string } = {}): Promise<BaseResponse<NotificationPreferences>> {
+  const res = await axiosClient.post('/notifications/preferences/unsubscribe-all', undefined, prefsHeaders(token))
   return res.data
 }

@@ -3024,6 +3024,7 @@
   "NotificationSettings": {
     "title": "通知設定",
     "description": "アプリ内通知とメール通知の設定はここで管理します。変更はすぐに反映されます",
+      "token_expired": "このリンクの有効期限が切れました。ログインして続行してください",
     "login_required": "ログインすると通知の設定を管理できます",
     "login": "ログイン",
     "load_failed": "通知設定を読み込めませんでした",

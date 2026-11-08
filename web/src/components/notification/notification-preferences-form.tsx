@@ -32,7 +32,11 @@ interface PreferencesFormValues {
  * 通知偏好表单：站内三个开关 + AI 互动 + 邮件总开关 + 一键关闭邮件。
  * 站点没开放的类型不显示（用户只能关不能开），邮件开关受站点总开关与白名单约束
  */
-export function NotificationPreferencesForm({ initial }: { initial: NotificationPreferences }) {
+export function NotificationPreferencesForm({ initial, token }: {
+  initial: NotificationPreferences
+  // 邮件里的免登录凭据：带 token 时保存请求也带上它
+  token?: string
+}) {
   const t = useTranslations('NotificationSettings')
   const errorMessageT = useErrorMessageT()
   const [saving, setSaving] = useState(false)
@@ -63,6 +67,7 @@ export function NotificationPreferencesForm({ initial }: { initial: Notification
         inapp,
         email: values.email ? emailTypes : [],
         aiInteractions: values.aiInteractions,
+        token,
       })
       setPreferences(res.data)
       form.reset(toFormValues(res.data))
@@ -79,7 +84,7 @@ export function NotificationPreferencesForm({ initial }: { initial: Notification
   const unsubscribeAll = async () => {
     setSaving(true)
     try {
-      const res = await unsubscribeAllNotifications()
+      const res = await unsubscribeAllNotifications({ token })
       setPreferences(res.data)
       form.reset(toFormValues(res.data))
       toast.success(t('email_all_off'))
