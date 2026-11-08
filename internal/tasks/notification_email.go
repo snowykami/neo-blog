@@ -1,7 +1,9 @@
 package tasks
 
 import (
+	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -20,7 +22,12 @@ const (
 	notificationEmailInterval = 30 * time.Second
 	// notificationEmailScanLimit 一次最多处理多少条到期通知，避免一轮占用太久
 	notificationEmailScanLimit = 500
+	// notificationEmailMaxAttempts 整批失败的重试次数上限，用完置为 failed 不再重试
+	notificationEmailMaxAttempts = 3
 )
+
+// notificationEmailBackoff 整批失败的退避间隔（第 1、2 次失败后等待的时间）
+var notificationEmailBackoff = []time.Duration{time.Minute, 5 * time.Minute, 30 * time.Minute}
 
 // StartNotificationEmailWorker 启动通知邮件投递任务；多实例部署时每轮只有一个实例执行
 func StartNotificationEmailWorker() {
@@ -60,9 +67,9 @@ func sendNotificationEmails(now time.Time) error {
 	return nil
 }
 
-// sendNotificationEmail 实际发信，测试里替换成假的发送器
-var sendNotificationEmail = func(cfg *utils.EmailConfig, to, subject, html string) error {
-	return utils.Email.SendEmail(cfg, to, subject, html, true)
+// sendNotificationEmail 实际发信（带批量标识头），测试里替换成假的发送器
+var sendNotificationEmail = func(cfg *utils.EmailConfig, to, subject, html string, headers map[string]string) error {
+	return utils.Email.SendEmailWithHeaders(cfg, to, subject, html, true, headers)
 }
 
 // deliverNotificationEmail 一个收件人的一批到期通知 = 一封邮件
@@ -78,6 +85,10 @@ func deliverNotificationEmail(userID uint, due []model.Notification, now time.Ti
 	}
 	if recipient.Disabled || recipient.Email == "" {
 		return repo.Notification.MarkEmailsSkipped(ids)
+	}
+	// 单用户每小时上限：超了就把这一批推迟一小时，既不影响送达也不给别人的邮箱刷屏
+	if !utils.AllowRequest("notify_email:"+itoaUint(userID), config.Int("notification_email_hourly_limit"), time.Hour) {
+		return repo.Notification.DeferEmails(ids, now.Add(time.Hour))
 	}
 
 	claimed, err := repo.Notification.ClaimEmailBatch(ids)
@@ -132,14 +143,42 @@ func deliverNotificationEmail(userID uint, due []model.Notification, now time.Ti
 		Now:          now,
 	})
 	if err != nil {
-		return repo.Notification.RescheduleEmails(claimedIDs, now.Add(time.Minute), err.Error(), false)
+		return rescheduleNotificationEmails(claimed, "render", err, now)
 	}
-	if err := sendNotificationEmail(tools.GetEmailConfig(), recipient.Email, content.Subject, content.HTML); err != nil {
-		return err
+	// 批次标识写进邮件头，排查重复投递时能对上代码里的这一轮
+	batchID := fmt.Sprintf("notif-%d-%d", now.Unix(), userID)
+	if err := sendNotificationEmail(tools.GetEmailConfig(), recipient.Email, content.Subject, content.HTML, map[string]string{
+		"X-NeoBlog-Notification-Batch": batchID,
+	}); err != nil {
+		return rescheduleNotificationEmails(claimed, batchID, err, now)
 	}
 	if err := repo.Notification.MarkEmailsSent(claimedIDs, now); err != nil {
 		return err
 	}
 	// 搭上车的附带行一起置为已发送；超出 attach_max 的继续挂着等下一封
 	return repo.Notification.MarkEmailsSent(attachedIDs, now)
+}
+
+// rescheduleNotificationEmails 整批失败：按 1m / 5m / 30m 退避，重试用尽后置为 failed 并记录原因
+func rescheduleNotificationEmails(claimed []model.Notification, batchID string, cause error, now time.Time) error {
+	ids := make([]uint, 0, len(claimed))
+	attempts := 1
+	for i := range claimed {
+		ids = append(ids, claimed[i].ID)
+		if next := claimed[i].EmailAttempts + 1; next > attempts {
+			attempts = next
+		}
+	}
+	if attempts >= notificationEmailMaxAttempts {
+		logrus.Warnf("notification email batch %s failed %d times, giving up: %v", batchID, attempts, cause)
+		return repo.Notification.RescheduleEmails(ids, now, cause.Error(), true)
+	}
+	delay := notificationEmailBackoff[min(attempts, len(notificationEmailBackoff))-1]
+	logrus.Infof("notification email batch %s failed (attempt %d), retry in %s: %v", batchID, attempts, delay, cause)
+	return repo.Notification.RescheduleEmails(ids, now.Add(delay), cause.Error(), false)
+}
+
+// itoaUint 限速键里的用户 id
+func itoaUint(value uint) string {
+	return strconv.FormatUint(uint64(value), 10)
 }

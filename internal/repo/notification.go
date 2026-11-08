@@ -489,6 +489,15 @@ func (r *notificationRepo) RescheduleEmails(ids []uint, nextAt time.Time, lastEr
 	}).Error
 }
 
+// DeferEmails 只推迟下一次尝试（限速时用），不计失败次数、不改状态
+func (r *notificationRepo) DeferEmails(ids []uint, nextAt time.Time) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return GetDB().Model(&model.Notification{}).Where("id IN ?", ids).
+		Update("email_next_at", nextAt).Error
+}
+
 // SkipStaleAttachedEmails 长期没有重要邮件的收件人：附带行超过搭车窗口后置为 skipped，不再积压
 func (r *notificationRepo) SkipStaleAttachedEmails(before time.Time) (int64, error) {
 	result := GetDB().Model(&model.Notification{}).

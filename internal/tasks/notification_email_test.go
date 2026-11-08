@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
@@ -36,7 +38,7 @@ func stubEmailSender(t *testing.T) *[]sentMail {
 	t.Helper()
 	sent := &[]sentMail{}
 	original := sendNotificationEmail
-	sendNotificationEmail = func(_ *utils.EmailConfig, to, subject, html string) error {
+	sendNotificationEmail = func(_ *utils.EmailConfig, to, subject, html string, _ map[string]string) error {
 		*sent = append(*sent, sentMail{to: to, subject: subject, html: html})
 		return nil
 	}
@@ -193,5 +195,98 @@ func TestSendNotificationEmailsSkipped(t *testing.T) {
 	repo.GetDB().Model(&model.Notification{}).Where("user_id = ?", disabled.ID).Pluck("email_state", &state)
 	if state != constant.NotificationEmailStateSkipped {
 		t.Fatalf("state = %s, want skipped", state)
+	}
+}
+
+// 整批失败按 1m / 5m / 30m 退避，第三次失败后置 failed 不再重试；退避期间不会被再次扫到
+func TestSendNotificationEmailsRetry(t *testing.T) {
+	setupNotificationEmailDB(t)
+	recipient := createEmailUser(t, "owner", "zh")
+	actor := createEmailUser(t, "actor", "zh")
+	now := time.Now()
+	notification := addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-time.Minute))
+
+	failures := 0
+	original := sendNotificationEmail
+	sendNotificationEmail = func(_ *utils.EmailConfig, _, _, _ string, _ map[string]string) error {
+		failures++
+		return errors.New("smtp down")
+	}
+	t.Cleanup(func() { sendNotificationEmail = original })
+
+	// 第一次失败：退回 pending 并推迟一分钟
+	if err := sendNotificationEmails(now); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	var reloaded model.Notification
+	repo.GetDB().Where("id = ?", notification.ID).First(&reloaded)
+	if reloaded.EmailState != constant.NotificationEmailStatePending || reloaded.EmailAttempts != 1 {
+		t.Fatalf("after first failure = %s / %d", reloaded.EmailState, reloaded.EmailAttempts)
+	}
+	if reloaded.EmailNextAt == nil || reloaded.EmailNextAt.Before(now.Add(50*time.Second)) {
+		t.Fatalf("retry should be delayed, got %v", reloaded.EmailNextAt)
+	}
+	if reloaded.EmailLastErr == "" {
+		t.Error("failure reason should be recorded")
+	}
+	// 退避未到期的这一轮不会再扫到
+	if err := sendNotificationEmails(now.Add(10 * time.Second)); err != nil {
+		t.Fatalf("send again: %v", err)
+	}
+	if failures != 1 {
+		t.Fatalf("failures = %d, want 1", failures)
+	}
+
+	// 一直失败：第三次之后置为 failed，不再重试
+	later := now.Add(5 * time.Minute)
+	if err := sendNotificationEmails(later); err != nil {
+		t.Fatal(err)
+	}
+	if err := sendNotificationEmails(later.Add(30 * time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	repo.GetDB().Where("id = ?", notification.ID).First(&reloaded)
+	if reloaded.EmailState != constant.NotificationEmailStateFailed {
+		t.Fatalf("state after max attempts = %s, want failed", reloaded.EmailState)
+	}
+	before := failures
+	if err := sendNotificationEmails(later.Add(3 * time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if failures != before {
+		t.Fatalf("failed notification should not be retried, failures = %d", failures)
+	}
+}
+
+// 超出单用户每小时上限时推迟而不丢弃
+func TestSendNotificationEmailsRateLimit(t *testing.T) {
+	setupNotificationEmailDB(t)
+	sharedstate.UseMemory()
+	if err := repo.KV.SetKV("notification_email_hourly_limit", 1); err != nil {
+		t.Fatal(err)
+	}
+	sent := stubEmailSender(t)
+	recipient := createEmailUser(t, "owner", "zh")
+	actor := createEmailUser(t, "actor", "zh")
+	now := time.Now()
+	// 第一封正常发出，用掉这一小时的额度
+	addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-2*time.Minute))
+	if err := sendNotificationEmails(now); err != nil {
+		t.Fatal(err)
+	}
+	if len(*sent) != 1 {
+		t.Fatalf("first mail = %d", len(*sent))
+	}
+	second := addNotification(t, recipient, actor, constant.NotificationTypeCommentReplied, constant.NotificationEmailStatePending, now.Add(-time.Minute))
+	if err := sendNotificationEmails(now); err != nil {
+		t.Fatal(err)
+	}
+	if len(*sent) != 1 {
+		t.Fatalf("rate limited mail should not be sent, total = %d", len(*sent))
+	}
+	var reloaded model.Notification
+	repo.GetDB().Where("id = ?", second.ID).First(&reloaded)
+	if reloaded.EmailState != constant.NotificationEmailStatePending || reloaded.EmailNextAt == nil || reloaded.EmailNextAt.Before(now.Add(50*time.Minute)) {
+		t.Fatalf("rate limited notification = %s / %v", reloaded.EmailState, reloaded.EmailNextAt)
 	}
 }

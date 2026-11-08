@@ -39,6 +39,11 @@ func (e *emailUtils) RenderTemplate(htmlTemplate string, data map[string]interfa
 
 // SendEmail 使用gomail库发送邮件
 func (e *emailUtils) SendEmail(emailConfig *EmailConfig, target, subject, content string, isHTML bool) error {
+	return e.SendEmailWithHeaders(emailConfig, target, subject, content, isHTML, nil)
+}
+
+// SendEmailWithHeaders 同 SendEmail，额外写入自定义邮件头（如通知批量标识，方便排查重复投递）
+func (e *emailUtils) SendEmailWithHeaders(emailConfig *EmailConfig, target, subject, content string, isHTML bool, headers map[string]string) error {
 	if !emailConfig.Enable {
 		return errors.New("邮箱服务未启用")
 	}
@@ -47,6 +52,11 @@ func (e *emailUtils) SendEmail(emailConfig *EmailConfig, target, subject, conten
 	m.SetHeader("From", emailConfig.Address)
 	m.SetHeader("To", target)
 	m.SetHeader("Subject", subject)
+	for key, value := range headers {
+		if key != "" && value != "" {
+			m.SetHeader(key, value)
+		}
+	}
 	// 设置内容类型
 	if isHTML {
 		m.SetBody("text/html", content)
