@@ -58,10 +58,13 @@ var (
 	qrcLineRe = regexp.MustCompile(`(?m)^\[\d+,\d+\]`)
 )
 
-// musicQQCacheEntry 缓存条目：Lyric.Lyric 为空表示没有匹配或没有歌词（仍可能有 mid，用于查 TTML）
+// musicQQCacheEntry 缓存条目：Lyric.Lyric 为空表示没有匹配或没有歌词（仍可能有 mid，用于查 TTML）；
+// 有歌词时 Hash 为歌词内容的摘要、CheckedAt 为上次与上游核对一致的时间（复核时比较摘要）
 type musicQQCacheEntry struct {
 	Lyric     dto.MusicQQLyricDto `json:"lyric"`
 	ExpiresAt int64               `json:"expires_at"`
+	Hash      string              `json:"hash,omitempty"`
+	CheckedAt int64               `json:"checked_at,omitempty"`
 }
 
 // GetQQLyric 按网易云歌曲 id 在 QQ 音乐匹配同一首歌并取歌词；没有匹配、也没有歌词时返回 404
@@ -99,15 +102,19 @@ func (s *MusicService) qqLyricWithTTML(ctx context.Context, id int64) (*dto.Musi
 	return &result, ttml, nil
 }
 
-// cachedQQLyric 先查缓存，再合并同一首歌的并发请求
+// cachedQQLyric 先查缓存，命中的缓存按 lyricRevalidateInterval 与上游复核；再合并同一首歌的并发请求
 func (s *MusicService) cachedQQLyric(ctx context.Context, id int64) (*dto.MusicQQLyricDto, *errs.ServiceError) {
-	if data, ok := musicQQCache.Get(uint(id)); ok {
-		var entry musicQQCacheEntry
-		// 刷新歌词时不使用「没有匹配或没有歌词」的缓存
-		if json.Unmarshal(data, &entry) == nil && time.Now().Unix() < entry.ExpiresAt && (entry.Lyric.Lyric != "" || !lyricRefreshing(ctx)) {
-			return &entry.Lyric, nil
+	cached, hasCached := loadQQCacheEntry(id)
+	// 管理员强制复核时连有效期也不信，直接从上游重新获取
+	if hasCached && !lyricForced(ctx) {
+		if cached.Lyric.Lyric == "" {
+			// 刷新歌词时不使用「没有匹配或没有歌词」的缓存
+			if !lyricRefreshing(ctx) {
+				return &cached.Lyric, nil
+			}
+		} else if !lyricCacheNeedsRevalidate(ctx, cached.CheckedAt, cached.Hash != "") {
+			return &cached.Lyric, nil
 		}
-		musicQQCache.Remove(uint(id))
 	}
 
 	value, err, _ := musicQQGroup.Do(strconv.FormatInt(id, 10), func() (any, error) {
@@ -130,12 +137,21 @@ func (s *MusicService) cachedQQLyric(ctx context.Context, id int64) (*dto.MusicQ
 				ttl = musicQQDegradedMissTTL
 			}
 		}
-		if data, err := json.Marshal(musicQQCacheEntry{Lyric: *lyric, ExpiresAt: time.Now().Add(ttl).Unix()}); err == nil {
+		entry := musicQQCacheEntry{Lyric: *lyric, ExpiresAt: time.Now().Add(ttl).Unix()}
+		if lyric.Lyric != "" {
+			entry.Hash = lyricContentDigest(*lyric)
+			entry.CheckedAt = time.Now().Unix()
+		}
+		if data, err := json.Marshal(entry); err == nil {
 			musicQQCache.Put(uint(id), data, ttl)
 		}
 		return lyric, nil
 	})
 	if err != nil {
+		// 复核时上游出错：继续用缓存里的歌词，不让临时故障把歌词换掉
+		if hasCached && cached.Lyric.Lyric != "" {
+			return &cached.Lyric, nil
+		}
 		var svcerr *errs.ServiceError
 		if errors.As(err, &svcerr) {
 			return nil, svcerr
@@ -143,6 +159,19 @@ func (s *MusicService) cachedQQLyric(ctx context.Context, id int64) (*dto.MusicQ
 		return nil, errs.New(http.StatusBadGateway, "music_lyric_source_failed", err)
 	}
 	return value.(*dto.MusicQQLyricDto), nil
+}
+
+// loadQQCacheEntry QQ 音乐歌词缓存（过期或无法解析时 ok 为 false）
+func loadQQCacheEntry(id int64) (musicQQCacheEntry, bool) {
+	data, found := musicQQCache.Get(uint(id))
+	if !found {
+		return musicQQCacheEntry{}, false
+	}
+	var entry musicQQCacheEntry
+	if json.Unmarshal(data, &entry) != nil || time.Now().Unix() >= entry.ExpiresAt {
+		return musicQQCacheEntry{}, false
+	}
+	return entry, true
 }
 
 // fetchQQLyric 搜索并匹配同一首歌，取它的歌词；没有匹配时返回空结果（不是错误）。

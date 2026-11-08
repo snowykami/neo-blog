@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -241,5 +242,92 @@ func TestIsTTMLDocument(t *testing.T) {
 		if got := isTTMLDocument([]byte(input)); got != want {
 			t.Errorf("isTTMLDocument(%q) = %v, want %v", input, got, want)
 		}
+	}
+}
+
+// seedTTMLHit 直接写入一条命中缓存，模拟之前取到的 TTML（checkedAgo 为上次与上游核对距现在的时间）
+func seedTTMLHit(id int64, ttml string, checkedAgo time.Duration) {
+	entry := musicTTMLCacheEntry{TTML: ttml, Hash: lyricContentDigest(ttml), CheckedAt: time.Now().Add(-checkedAgo).Unix()}
+	data, _ := json.Marshal(entry)
+	musicTTMLCache.Put(ttmlCacheKey(musicTTMLSourceAMLL, id), data, musicTTMLHitTTL)
+}
+
+func TestTTMLLyricRevalidatesAfterInterval(t *testing.T) {
+	// 上游只改了某个字的时间轴：歌词文本没变，正文摘要变了
+	updated := strings.Replace(testTTML, `begin="00:01.000" end="00:02.000"`, `begin="00:01.400" end="00:02.400"`, 1)
+	server, calls := ttmlServer(t, http.StatusOK, updated)
+	setupTTMLTest(t, "", server.URL)
+	seedTTMLHit(11, testTTML, 2*lyricRevalidateInterval)
+	s := NewMusicService()
+
+	// 超过复核间隔：重新请求，摘要不同则更新缓存
+	got, svcerr := s.GetTTMLLyric(context.Background(), 11, musicTTMLSourceAMLL)
+	if svcerr != nil || got.TTML != updated {
+		t.Fatalf("got %+v, %v, want updated ttml", got, svcerr)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("should revalidate once, calls = %d", calls.Load())
+	}
+	// 刚核对过：再取用缓存，不再请求
+	if got, svcerr = s.GetTTMLLyric(context.Background(), 11, musicTTMLSourceAMLL); svcerr != nil || got.TTML != updated {
+		t.Fatalf("cached = %+v, %v", got, svcerr)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("fresh cache should not be revalidated, calls = %d", calls.Load())
+	}
+}
+
+func TestTTMLLyricHitCacheSkipsRevalidate(t *testing.T) {
+	server, calls := ttmlServer(t, http.StatusOK, testTTML)
+	setupTTMLTest(t, "", server.URL)
+	seedTTMLHit(12, testTTML, 0)
+	s := NewMusicService()
+
+	for range 2 {
+		if got, svcerr := s.GetTTMLLyric(context.Background(), 12, musicTTMLSourceAMLL); svcerr != nil || got.TTML != testTTML {
+			t.Fatalf("hit = %+v, %v", got, svcerr)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("hit within interval should not request upstream, calls = %d", calls.Load())
+	}
+}
+
+func TestTTMLLyricRefreshRevalidatesHit(t *testing.T) {
+	body := strings.Replace(testTTML, "hi", "old", 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+	setupTTMLTest(t, "", server.URL)
+	s := NewMusicService()
+
+	if got, svcerr := s.GetTTMLLyric(context.Background(), 13, musicTTMLSourceAMLL); svcerr != nil || !strings.Contains(got.TTML, "old") {
+		t.Fatalf("first = %+v, %v", got, svcerr)
+	}
+	// 上游换了文件，但缓存还没到复核时间：不请求，仍是旧歌词
+	body = strings.Replace(testTTML, "hi", "new", 1)
+	if got, _ := s.GetTTMLLyric(context.Background(), 13, musicTTMLSourceAMLL); !strings.Contains(got.TTML, "old") {
+		t.Fatalf("cached = %q", got.TTML)
+	}
+	// 「重新获取歌词」：立即复核并更新
+	refreshCtx := WithLyricRefresh(context.Background(), "ttml", 13)
+	if got, svcerr := s.GetTTMLLyric(refreshCtx, 13, musicTTMLSourceAMLL); svcerr != nil || !strings.Contains(got.TTML, "new") {
+		t.Fatalf("refreshed = %+v, %v", got, svcerr)
+	}
+}
+
+func TestTTMLLyricRevalidateErrorKeepsCache(t *testing.T) {
+	failing, _ := ttmlServer(t, http.StatusBadGateway, "")
+	setupTTMLTest(t, "", failing.URL)
+	seedTTMLHit(14, testTTML, 2*lyricRevalidateInterval)
+
+	// 复核时上游出错：继续用已缓存的歌词，不把缓存清掉
+	got, svcerr := NewMusicService().GetTTMLLyric(context.Background(), 14, musicTTMLSourceAMLL)
+	if svcerr != nil || got.TTML != testTTML {
+		t.Fatalf("got %+v, %v, want cached ttml", got, svcerr)
+	}
+	if entry := loadTTMLCacheEntry(musicTTMLCache, ttmlCacheKey(musicTTMLSourceAMLL, 14)); !entry.ok || entry.entry.TTML != testTTML {
+		t.Fatalf("cache should be kept, entry = %+v", entry)
 	}
 }

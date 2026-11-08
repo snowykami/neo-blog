@@ -25,7 +25,8 @@ import (
 //   或静态目录前缀 {prefix}/{网易云歌曲 id}.ttml），优先级最高，按列表顺序先命中的采用
 // - AMLL TTML DB：按网易云歌曲 id 取 ncm-lyrics/{id}.ttml；多个镜像并发请求，先返回有效结果的采用。
 //   在 QQ 音乐匹配到同一首歌后，还会按 QQ 歌曲 mid 取 qq-lyrics/{mid}.ttml（见 music_qq.go）
-// 各来源并发探测；只把「确定没有」（3xx / 404 / 410、正文不是 TTML）记为未命中并缓存，超时与网络错误不缓存
+// 各来源并发探测；只把「确定没有」（3xx / 404 / 410、正文不是 TTML）记为未命中并缓存，超时与网络错误不缓存。
+// 命中的缓存在复核时按整个文件的正文摘要比较（上游只改某个字的时间轴也算改动），见 lyricRevalidateInterval
 
 const (
 	musicTTMLSourceCustom = "custom"
@@ -33,7 +34,7 @@ const (
 
 	musicTTMLTimeout  = 8 * time.Second
 	musicTTMLMaxBytes = 1 << 20
-	// 命中缓存 30 天（TTML 收录后基本不变），确定未命中 72 小时内不再探测
+	// 命中缓存 30 天，确定未命中 72 小时内不再探测；命中期间按 lyricRevalidateInterval 与上游复核
 	musicTTMLHitTTL  = 30 * 24 * time.Hour
 	musicTTMLMissTTL = 72 * time.Hour
 	// 各镜像是同一仓库的副本：这么多个镜像确定未命中时即可断定没有，不再等其余镜像
@@ -63,9 +64,12 @@ type ttmlProbe struct {
 	miss bool
 }
 
-// musicTTMLCacheEntry 缓存条目：TTML 为空表示确定未命中，MissUntil 之后重新探测
+// musicTTMLCacheEntry 缓存条目：TTML 为空表示确定未命中，MissUntil 之后重新探测；
+// TTML 有内容时 Hash 为整个文件正文的摘要（sha256），CheckedAt 为上次与上游核对一致的时间
 type musicTTMLCacheEntry struct {
 	TTML      string `json:"ttml"`
+	Hash      string `json:"hash,omitempty"`
+	CheckedAt int64  `json:"checked_at,omitempty"`
 	MissUntil int64  `json:"miss_until,omitempty"`
 }
 
@@ -162,20 +166,25 @@ func amllTTMLURLs(path string) []string {
 	return urls
 }
 
-// probeTTML 先查缓存，再合并同一文件的并发请求；出错时返回 nil
+// ttmlCachedEntry 缓存里的条目（ok 为 false 表示没有或无法解析）
+type ttmlCachedEntry struct {
+	entry musicTTMLCacheEntry
+	ok    bool
+}
+
+// probeTTML 先查缓存，命中的缓存在过期或需要复核时才重新请求；出错时返回 nil
 func probeTTML(ctx context.Context, store cache.IDCache, key uint, flight string, urls []string) *ttmlProbe {
-	if data, ok := store.Get(key); ok {
-		var entry musicTTMLCacheEntry
-		if json.Unmarshal(data, &entry) == nil {
-			if entry.TTML != "" {
-				return &ttmlProbe{ttml: entry.TTML}
-			}
+	cached := loadTTMLCacheEntry(store, key)
+	// 管理员强制复核时连有效期也不信，直接从上游重新探测
+	if cached.ok && !lyricForced(ctx) {
+		if cached.entry.TTML == "" {
 			// 刷新歌词时不信任「确定未命中」的缓存，重新探测
-			if time.Now().Unix() < entry.MissUntil && !lyricRefreshing(ctx) {
+			if time.Now().Unix() < cached.entry.MissUntil && !lyricRefreshing(ctx) {
 				return &ttmlProbe{miss: true}
 			}
+		} else if !ttmlNeedsRevalidate(ctx, &cached.entry) {
+			return &ttmlProbe{ttml: cached.entry.TTML}
 		}
-		store.Remove(key)
 	}
 
 	value, _, _ := musicTTMLGroup.Do(flight, func() (any, error) {
@@ -183,15 +192,50 @@ func probeTTML(ctx context.Context, store cache.IDCache, key uint, flight string
 		probe := fetchTTMLURLs(context.WithoutCancel(ctx), urls)
 		switch {
 		case probe == nil:
+			// 出错不写缓存；命中过缓存的继续用旧内容，下次再复核
 		case probe.ttml != "":
-			storeTTMLCache(store, key, musicTTMLCacheEntry{TTML: probe.ttml})
+			entry := ttmlCacheEntryOf(probe.ttml)
+			storeTTMLCache(store, key, entry)
+			// 缓存里已有内容且摘要不同：上游改了文件（可能只改了时间轴）
+			if cached.ok && cached.entry.Hash != "" && cached.entry.Hash != entry.Hash {
+				logrus.Infof("ttml changed upstream, cache updated: %s", flight)
+			} else {
+				logrus.Debugf("ttml revalidated: %s", flight)
+			}
 		case probe.miss:
 			storeTTMLCache(store, key, musicTTMLCacheEntry{MissUntil: time.Now().Add(musicTTMLMissTTL).Unix()})
 		}
 		return probe, nil
 	})
 	probe, _ := value.(*ttmlProbe)
+	// 复核时出错：继续用缓存里的歌词，不让上游的临时故障把歌词换掉
+	if probe == nil && cached.ok && cached.entry.TTML != "" {
+		return &ttmlProbe{ttml: cached.entry.TTML}
+	}
 	return probe
+}
+
+// loadTTMLCacheEntry 读缓存条目；没有或无法解析时 ok 为 false
+func loadTTMLCacheEntry(store cache.IDCache, key uint) ttmlCachedEntry {
+	data, found := store.Get(key)
+	if !found {
+		return ttmlCachedEntry{}
+	}
+	var entry musicTTMLCacheEntry
+	if json.Unmarshal(data, &entry) != nil {
+		return ttmlCachedEntry{}
+	}
+	return ttmlCachedEntry{entry: entry, ok: true}
+}
+
+// ttmlNeedsRevalidate 命中的缓存是否需要与上游复核（刷新歌词时立即复核，否则隔 lyricRevalidateInterval 一次）
+func ttmlNeedsRevalidate(ctx context.Context, entry *musicTTMLCacheEntry) bool {
+	return lyricCacheNeedsRevalidate(ctx, entry.CheckedAt, entry.Hash != "")
+}
+
+// ttmlCacheEntryOf 按这次取到的正文生成缓存条目：摘要用于与上次比较（相同表示上游没改，只是把核对时间往后推）
+func ttmlCacheEntryOf(ttml string) musicTTMLCacheEntry {
+	return musicTTMLCacheEntry{TTML: ttml, Hash: lyricContentDigest(ttml), CheckedAt: time.Now().Unix()}
 }
 
 func storeTTMLCache(store cache.IDCache, key uint, entry musicTTMLCacheEntry) {

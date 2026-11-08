@@ -19,7 +19,8 @@ export interface MusicLyrics {
 // 网易云歌单由后端提供；静态歌单直接读取 JSON 地址
 export async function fetchPlaylist(source: MusicSource): Promise<MusicTrack[]> {
   if (source.type === 'ncm') {
-    const res = await axiosClient.get<BaseResponse<MusicTrack[]>>('/music/playlist')
+    // 歌单是一次上千首的大响应：后端重启后第一次要现拉（十几二十秒），不能用默认的 10s 超时
+    const res = await axiosClient.get<BaseResponse<MusicTrack[]>>('/music/playlist', { timeout: 60000 })
     return res.data.data
   }
   const response = await fetch(source.url)

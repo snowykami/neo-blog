@@ -186,13 +186,13 @@ type MusicLyricAnnotationPhrase struct {
 	Pace string `json:"pace,omitempty"`
 }
 
-// MusicTTMLReq 只取某一来源（手动切换时），为空时自动选择
+// MusicTTMLReq 只取某一来源（手动切换时），为空时自动选择；refresh 同 MusicLyricReq
 type MusicTTMLReq struct {
 	Source  string `query:"source"`
 	Refresh bool   `query:"refresh"`
 }
 
-// MusicLyricReq 网易云 / QQ 音乐歌词：refresh 为读者「重新获取歌词」，跳过缓存中「没有歌词」的记录
+// MusicLyricReq 网易云 / QQ 音乐歌词：refresh 为读者「重新获取歌词」，跳过缓存里已有的记录、重新向上游获取（管理员触发时强制复核，见 music_lyric_refresh.go）
 type MusicLyricReq struct {
 	Refresh bool `query:"refresh"`
 }

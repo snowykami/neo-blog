@@ -431,3 +431,41 @@ func TestAnnotationHelpersUseSiteVersionLines(t *testing.T) {
 		t.Fatalf("lines = %+v", data.Lines)
 	}
 }
+
+// TestLyricVersionTimelineOnlyChange 上游只改了某个字的时间轴：歌词文本不变（lyric_hash 不变、标注照旧复用），
+// 但快照要换成新的时间轴，否则播放器一直按旧时间轴走
+func TestLyricVersionTimelineOnlyChange(t *testing.T) {
+	setupTTMLDB(t)
+	results := map[string]lyricSourceResult{
+		"ttml":  {data: &dto.MusicTTMLDto{Source: musicTTMLSourceAMLL, TTML: pipaTTML}, outcome: lyricOutcomeHit},
+		"ncm":   {outcome: lyricOutcomeMiss},
+		"qq":    {outcome: lyricOutcomeMiss, qqTTML: lyricOutcomeMiss},
+		"kugou": {outcome: lyricOutcomeMiss},
+	}
+	stubLyricSources(t, results)
+
+	if _, got := runLyricVersion(t, 7); got.Source != "ttml-amll" {
+		t.Fatalf("first = %+v", got)
+	}
+	var before model.LyricCache
+	repo.GetDB().Where("song_id = ?", 7).First(&before)
+
+	// 文本一字不改，只把译音的那个字往后挪 400ms
+	shifted := strings.Replace(pipaTTML, `begin="00:16.000" end="00:17.000"`, `begin="00:16.400" end="00:17.400"`, 1)
+	if shifted == pipaTTML {
+		t.Fatal("test fixture should contain the span")
+	}
+	results["ttml"] = lyricSourceResult{data: &dto.MusicTTMLDto{Source: musicTTMLSourceAMLL, TTML: shifted}, outcome: lyricOutcomeHit}
+	if _, got := runLyricVersion(t, 7); got.Source != "ttml-amll" {
+		t.Fatalf("second = %+v", got)
+	}
+
+	var after model.LyricCache
+	repo.GetDB().Where("song_id = ?", 7).First(&after)
+	if after.LyricHash != before.LyricHash {
+		t.Fatalf("lyric hash should stay the same: %s -> %s", before.LyricHash, after.LyricHash)
+	}
+	if !strings.Contains(after.Data, "00:16.400") {
+		t.Fatalf("snapshot should carry the new timeline: %s", after.Data)
+	}
+}

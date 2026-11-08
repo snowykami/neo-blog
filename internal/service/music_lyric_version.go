@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
@@ -363,7 +364,7 @@ func (s *MusicService) siteLyricVersion(ctx context.Context, id int64) (*lyricSi
 	if version := lyricSiteVersionOf(record); version != nil {
 		return version, nil
 	}
-	job := s.startLyricVersionJob(id, false)
+	job := s.startLyricVersionJob(id, false, false)
 	var timeout <-chan time.Time
 	if wait, ok := ctx.Value(lyricVersionWaitKey{}).(time.Duration); ok {
 		timer := time.NewTimer(wait)
@@ -387,7 +388,7 @@ func (s *MusicService) siteLyricVersion(ctx context.Context, id int64) (*lyricSi
 // 不论歌曲是否在公开范围内都保存
 func (s *MusicService) redecideLyricVersion(ctx context.Context, id int64) (*lyricSiteVersion, *errs.ServiceError) {
 	job := newLyricVersionJob()
-	go s.runLyricVersionJob(job, id, false, true)
+	go s.runLyricVersionJob(job, id, false, false, true)
 	select {
 	case <-job.done:
 		return job.version, nil
@@ -397,7 +398,7 @@ func (s *MusicService) redecideLyricVersion(ctx context.Context, id int64) (*lyr
 }
 
 // StreamLyrics 歌词流：先推送已保存的歌词缓存快照（cache，没有或已过期时不推送），再推送各来源（source，到达即推送）与全站版本（decided），
-// 最后推送 done；refresh 为读者「重新获取歌词」（各来源跳过缓存中「没有歌词」的记录，见 music_lyric_refresh.go）。
+// 最后推送 done；refresh 为读者「重新获取歌词」（各来源跳过缓存里已有的记录，管理员则强制向上游复核，见 music_lyric_refresh.go）。
 // send 出错（客户端断开）或 ctx 结束时停止推送，选择照常在后台完成
 func (s *MusicService) StreamLyrics(ctx context.Context, id int64, refresh bool, send func(event string, data any) error) {
 	if snapshot, svcerr := s.GetLyricCache(ctx, id); svcerr == nil {
@@ -405,7 +406,8 @@ func (s *MusicService) StreamLyrics(ctx context.Context, id int64, refresh bool,
 			return
 		}
 	}
-	job := s.startLyricVersionJob(id, refresh)
+	// 选择在后台协程里进行，身份只能在这里读一次再传下去；只有「重新获取歌词」才强制复核（平时打开歌曲不受影响）
+	job := s.startLyricVersionJob(id, refresh, refresh && ctxutils.IsAdmin(ctx))
 	if job.follow(ctx, func(event lyricStreamEvent) error { return send(event.name, event.data) }) != nil {
 		return
 	}
@@ -479,15 +481,15 @@ func (j *lyricVersionJob) follow(ctx context.Context, send func(lyricStreamEvent
 	}
 }
 
-// lyricVersionJobs 进行中的选择，按歌曲 id 与是否刷新区分（刷新要跳过来源缓存中「没有歌词」的记录，不能与普通请求合并）
+// lyricVersionJobs 进行中的选择，按歌曲 id 与是否刷新、是否强制复核区分（刷新要跳过各来源缓存里已有的记录，不能与普通请求合并）
 type lyricVersionJobs struct {
 	mu   sync.Mutex
 	jobs map[string]*lyricVersionJob
 }
 
 // startLyricVersionJob 开始一次选择；这首歌已有进行中的同类选择时加入它
-func (s *MusicService) startLyricVersionJob(id int64, refresh bool) *lyricVersionJob {
-	key := strconv.FormatInt(id, 10) + ":" + strconv.FormatBool(refresh)
+func (s *MusicService) startLyricVersionJob(id int64, refresh, force bool) *lyricVersionJob {
+	key := strconv.FormatInt(id, 10) + ":" + strconv.FormatBool(refresh) + ":" + strconv.FormatBool(force)
 	runs := lyricVersionRuns
 	runs.mu.Lock()
 	defer runs.mu.Unlock()
@@ -502,13 +504,13 @@ func (s *MusicService) startLyricVersionJob(id int64, refresh bool) *lyricVersio
 			delete(runs.jobs, key)
 			runs.mu.Unlock()
 		}()
-		s.runLyricVersionJob(job, id, refresh, false)
+		s.runLyricVersionJob(job, id, refresh, force, false)
 	}()
 	return job
 }
 
 // runLyricVersionJob 并发获取各来源，到达即推送；都到齐或超时后选出全站版本，推送 decided 并结束。不随任何请求取消
-func (s *MusicService) runLyricVersionJob(job *lyricVersionJob, id int64, refresh, forcePersist bool) {
+func (s *MusicService) runLyricVersionJob(job *lyricVersionJob, id int64, refresh, force, forcePersist bool) {
 	var version *lyricSiteVersion
 	defer func() {
 		if r := recover(); r != nil {
@@ -525,8 +527,8 @@ func (s *MusicService) runLyricVersionJob(job *lyricVersionJob, id int64, refres
 	for _, kind := range lyricSourceKinds {
 		go func(kind string) {
 			sourceCtx := ctx
-			if refresh {
-				sourceCtx = WithLyricRefresh(ctx, kind, id)
+			if refresh || force {
+				sourceCtx = withLyricRefresh(ctx, kind, id, force)
 			}
 			arrived <- fetch(s, sourceCtx, id, kind)
 		}(kind)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
 )
 
 // fakeNCMServer 模拟 NeteaseCloudMusicApi Enhanced 的几个接口，记录各接口的调用次数
@@ -355,5 +356,120 @@ func TestMusicSearchSongs(t *testing.T) {
 	songs, svcerr = s.SearchSongs(ctx, "旧")
 	if svcerr != nil || len(songs) != 1 || songs[0].Album != "专辑" || songs[0].Duration != 120000 || strings.Join(songs[0].Artists, ",") != "A" || calls["/search-fallback"].Load() != 1 {
 		t.Fatalf("fallback search: %v %+v", svcerr, songs)
+	}
+}
+
+// TestMusicLyricRevalidate 命中的网易云歌词缓存按 lyricRevalidateInterval 与上游复核：
+// 平台只改了某个字的时间轴（文本不变）也算改动，摘要不同才换掉缓存；复核出错时继续用缓存
+func TestMusicLyricRevalidate(t *testing.T) {
+	setupEditTest(t)
+	var body atomic.Value
+	body.Store("[00:01.00]你好")
+	var failing atomic.Bool
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if failing.Load() {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": 200, "lrc": map[string]any{"lyric": body.Load(), "version": 1}})
+	}))
+	t.Cleanup(server.Close)
+	original := musicLyricFallbackURL
+	musicLyricFallbackURL = server.URL + "/fallback"
+	t.Cleanup(func() { musicLyricFallbackURL = original })
+	setMusicKV(t, map[string]any{"ncm_api_base_url": server.URL, "ncm_cookie": "abc"})
+	musicLyricCache.Clear()
+	s := NewMusicService()
+	ctx := context.Background()
+
+	if lyric, svcerr := s.GetLyric(ctx, 201); svcerr != nil || lyric.Lrc.Lyric != "[00:01.00]你好" {
+		t.Fatalf("first = %+v, %v", lyric, svcerr)
+	}
+	if cached, ok := loadMusicLyricCacheEntry(201); !ok || cached.Hash == "" || cached.CheckedAt == 0 {
+		t.Fatalf("cache entry should carry digest and check time: %+v", cached)
+	}
+	// 缓存命中：不请求上游
+	before := calls.Load()
+	if _, svcerr := s.GetLyric(ctx, 201); svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	if calls.Load() != before {
+		t.Fatalf("fresh cache should not hit upstream, calls = %d", calls.Load()-before)
+	}
+	// 上游只改了时间轴，但还没到复核时间：仍是旧时间轴
+	body.Store("[00:01.40]你好")
+	if lyric, _ := s.GetLyric(ctx, 201); lyric.Lrc.Lyric != "[00:01.00]你好" {
+		t.Fatalf("cache should be used within interval: %+v", lyric)
+	}
+	// 到期复核：摘要不同，换成新时间轴
+	seedLyricCheckedAt(t, 201, 2*lyricRevalidateInterval)
+	if lyric, _ := s.GetLyric(ctx, 201); lyric.Lrc.Lyric != "[00:01.40]你好" {
+		t.Fatalf("revalidated = %+v", lyric)
+	}
+	// 「重新获取歌词」立即复核，不用等间隔
+	body.Store("[00:02.00]你好")
+	refreshCtx := WithLyricRefresh(ctx, "ncm", 201)
+	if lyric, _ := s.GetLyric(refreshCtx, 201); lyric.Lrc.Lyric != "[00:02.00]你好" {
+		t.Fatalf("refreshed = %+v", lyric)
+	}
+	// 复核时上游出错：继续用缓存里的歌词，不停把歌词换掉
+	failing.Store(true)
+	seedLyricCheckedAt(t, 201, 2*lyricRevalidateInterval)
+	if lyric, svcerr := s.GetLyric(ctx, 201); svcerr != nil || lyric.Lrc.Lyric != "[00:02.00]你好" {
+		t.Fatalf("error fallback = %+v, %v", lyric, svcerr)
+	}
+}
+
+// seedLyricCheckedAt 把缓存条目的核对时间往前推（模拟很久没复核）
+func seedLyricCheckedAt(t *testing.T, id int64, ago time.Duration) {
+	t.Helper()
+	entry, ok := loadMusicLyricCacheEntry(id)
+	if !ok {
+		t.Fatalf("no cache entry for %d", id)
+	}
+	entry.CheckedAt = time.Now().Add(-ago).Unix()
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	musicLyricCache.Put(uint(id), data, musicLyricHitTTL)
+}
+
+// jsonBytes 测试中序列化缓存条目
+func jsonBytes(t *testing.T, v any) []byte {
+	t.Helper()
+	data, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+// 歌单是一次上千首、1～2MB 的大响应，网易云 API 服务现拉要十几秒：它有自己的 musicPlaylistTimeout，
+// 不能被普通接口的 musicRequestTimeout 卡掉，否则冷启动（重启后共享缓存没命中）会一直 ncm_request_failed，
+// 播放器整页加载不出来、也就没有歌词
+func TestMusicPlaylistFetchOutlivesRequestTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(300 * time.Millisecond)
+		_, _ = w.Write([]byte(`{"code":200,"songs":[{"id":1,"name":"歌名","ar":[{"name":"歌手"}],"al":{"name":"专辑","picUrl":"http://p1.music.126.net/a.jpg"},"alia":["别名"],"dt":1000}],"privileges":[{"id":1,"st":0}]}`))
+	}))
+	defer server.Close()
+
+	original := musicRequestTimeout
+	musicRequestTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { musicRequestTimeout = original })
+
+	tracks, err := fetchNCMTracks(context.Background(), tools.NCMConfig{BaseURL: server.URL, Cookie: "MUSIC_U=x", PlaylistID: 1})
+	if err != nil {
+		t.Fatalf("playlist fetch should not be limited by musicRequestTimeout: %v", err)
+	}
+	if len(tracks) != 1 || tracks[0].ID != 1 || tracks[0].Name != "歌名" {
+		t.Fatalf("unexpected tracks: %+v", tracks)
+	}
+	if musicPlaylistTimeout <= musicRequestTimeout {
+		t.Fatalf("musicPlaylistTimeout %s should exceed musicRequestTimeout %s", musicPlaylistTimeout, musicRequestTimeout)
 	}
 }

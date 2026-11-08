@@ -248,3 +248,75 @@ func TestSearchQQSongDesktop(t *testing.T) {
 		t.Fatalf("other searches = %d", otherSearches.Load())
 	}
 }
+
+// TestQQLyricRevalidate 命中的 QQ 音乐歌词缓存按 lyricRevalidateInterval 复核，摘要变了（哪怕只是时间轴）就更新
+func TestQQLyricRevalidate(t *testing.T) {
+	setupTTMLDB(t)
+	var body atomic.Value
+	body.Store("[1000,1000]你(1000,500)好(1500,500)")
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/amll" {
+			http.NotFound(w, r)
+			return
+		}
+		qrc := `<?xml version="1.0"?><QrcInfos><LyricInfo LyricCount="1"><Lyric_1 LyricType="1" LyricContent="` + body.Load().(string) + "\n" + `"/></LyricInfo></QrcInfos>`
+		switch r.URL.Path {
+		case "/client/musicu.fcg":
+			_, _ = w.Write([]byte(`{"code":0,"req":{"code":0,"data":{"session":{"uid":"u1","sid":"s1"}}}}`))
+			return
+		case "/smartbox":
+			http.NotFound(w, r)
+			return
+		case "/client/musics.fcg":
+			_, _ = w.Write([]byte(`{"code":0,"req":{"code":0,"data":{"body":{"song":{"list":[
+				{"mid":"mid1","title":"歌","singer":[{"title":"歌手"}],"album":{"title":"专辑"},"interval":201}
+			]}}}}}`))
+			return
+		}
+		calls.Add(1)
+		data, _ := json.Marshal(map[string]any{"code": 0, "req": map[string]any{"code": 0, "data": map[string]any{
+			"lyric": encryptQRC(qrc),
+		}}})
+		_, _ = w.Write(data)
+	}))
+	t.Cleanup(server.Close)
+	stubQQEndpoints(t, server.URL)
+	setupTTMLTest(t, "", server.URL+"/amll")
+	musicQQCache.Clear()
+	musicSongCache.Put(uint(301), jsonBytes(t, dto.MusicSongDto{ID: 301, Name: "歌", Artists: []string{"歌手"}, Album: "专辑", Duration: 201000}), musicSongTTL)
+	t.Cleanup(func() { musicSongCache.Remove(uint(301)) })
+	s := NewMusicService()
+	ctx := context.Background()
+
+	first, svcerr := s.GetQQLyric(ctx, 301)
+	if svcerr != nil || !strings.Contains(first.Lyric, "]你(1000,500)") {
+		t.Fatalf("first = %+v, %v", first, svcerr)
+	}
+	if cached, ok := loadQQCacheEntry(301); !ok || cached.Hash == "" || cached.CheckedAt == 0 {
+		t.Fatalf("cache entry should carry digest and check time: %+v", cached)
+	}
+	// 上游只改了某个字的时间轴：未到复核时间时仍用缓存
+	body.Store("[1000,1000]你(1200,400)好(1600,400)")
+	if lyric, svcerr := s.GetQQLyric(ctx, 301); svcerr != nil || !strings.Contains(lyric.Lyric, "]你(1000,500)") {
+		t.Fatalf("should use cache within interval: %+v, %v", lyric, svcerr)
+	}
+	// 到期复核：摘要不同，换成新时间轴
+	cached, _ := loadQQCacheEntry(301)
+	cached.CheckedAt = time.Now().Add(-2 * lyricRevalidateInterval).Unix()
+	musicQQCache.Put(uint(301), jsonBytes(t, cached), musicQQHitTTL)
+	before := calls.Load()
+	lyric, svcerr := s.GetQQLyric(ctx, 301)
+	if svcerr != nil || !strings.Contains(lyric.Lyric, "你(1200,400)") {
+		t.Fatalf("revalidated = %+v, %v", lyric, svcerr)
+	}
+	if calls.Load() == before {
+		t.Fatal("revalidation should request upstream")
+	}
+	// 「重新获取歌词」立即复核（不等间隔）
+	body.Store("[1000,1000]你(1400,200)好(1600,400)")
+	refreshCtx := WithLyricRefresh(ctx, "qq", 301)
+	if lyric, svcerr := s.GetQQLyric(refreshCtx, 301); svcerr != nil || !strings.Contains(lyric.Lyric, "你(1400,200)") {
+		t.Fatalf("refreshed = %+v, %v", lyric, svcerr)
+	}
+}

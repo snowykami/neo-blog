@@ -10,7 +10,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
 )
@@ -121,5 +123,62 @@ func TestKugouLive(t *testing.T) {
 		if lyric.Lyric == "" {
 			t.Fatalf("%s: no lyric", song.Name)
 		}
+	}
+}
+
+// TestKugouLyricRevalidate 命中的酷狗歌词缓存同样按 lyricRevalidateInterval 复核
+func TestKugouLyricRevalidate(t *testing.T) {
+	setupTTMLDB(t)
+	var body atomic.Value
+	body.Store(testKRCText())
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/search":
+			_, _ = w.Write([]byte(`{"status":1,"data":{"info":[{"hash":"abc","songname":"歌","singername":"歌手","album_name":"专辑","duration":201}]}}`))
+		case "/lyric-search":
+			_, _ = w.Write([]byte(`{"candidates":[{"id":"42","accesskey":"key","krctype":1,"contenttype":0}]}`))
+		default:
+			calls.Add(1)
+			data, _ := json.Marshal(map[string]any{"content": base64.StdEncoding.EncodeToString(encryptKRC(body.Load().(string)))})
+			_, _ = w.Write(data)
+		}
+	}))
+	t.Cleanup(server.Close)
+	search, lyricSearch, download := musicKugouSearchURL, musicKugouLyricSearchURL, musicKugouDownloadURL
+	musicKugouSearchURL, musicKugouLyricSearchURL, musicKugouDownloadURL = server.URL+"/search", server.URL+"/lyric-search", server.URL+"/download"
+	t.Cleanup(func() {
+		musicKugouSearchURL, musicKugouLyricSearchURL, musicKugouDownloadURL = search, lyricSearch, download
+	})
+	musicKugouCache.Clear()
+	musicSongCache.Put(uint(302), jsonBytes(t, dto.MusicSongDto{ID: 302, Name: "歌", Artists: []string{"歌手"}, Album: "专辑", Duration: 201000}), musicSongTTL)
+	t.Cleanup(func() { musicSongCache.Remove(uint(302)) })
+	s := NewMusicService()
+	ctx := context.Background()
+
+	first, svcerr := s.GetKugouLyric(ctx, 302)
+	if svcerr != nil || !strings.HasPrefix(first.Lyric, "[1000,1200]私") {
+		t.Fatalf("first = %+v, %v", first, svcerr)
+	}
+	if cached, ok := loadKugouCacheEntry(302); !ok || cached.Hash == "" || cached.CheckedAt == 0 {
+		t.Fatalf("cache entry should carry digest and check time: %+v", cached)
+	}
+	// 上游只改了歌词时间轴，但未到复核时间：仍用缓存
+	body.Store(strings.Replace(testKRCText(), "[1000,1200]", "[1300,1200]", 1))
+	if lyric, svcerr := s.GetKugouLyric(ctx, 302); svcerr != nil || lyric.Lyric != first.Lyric {
+		t.Fatalf("should use cache within interval: %+v, %v", lyric, svcerr)
+	}
+	// 到期复核：摘要不同，换成新时间轴
+	cached, _ := loadKugouCacheEntry(302)
+	cached.CheckedAt = time.Now().Add(-2 * lyricRevalidateInterval).Unix()
+	musicKugouCache.Put(uint(302), jsonBytes(t, cached), musicKugouHitTTL)
+	if lyric, svcerr := s.GetKugouLyric(ctx, 302); svcerr != nil || !strings.HasPrefix(lyric.Lyric, "[1300,1200]私") {
+		t.Fatalf("revalidated = %+v, %v", lyric, svcerr)
+	}
+	// 「重新获取歌词」立即复核（不等间隔）
+	body.Store(strings.Replace(testKRCText(), "[1000,1200]", "[1500,1200]", 1))
+	refreshCtx := WithLyricRefresh(ctx, "kugou", 302)
+	if lyric, svcerr := s.GetKugouLyric(refreshCtx, 302); svcerr != nil || !strings.HasPrefix(lyric.Lyric, "[1500,1200]私") {
+		t.Fatalf("refreshed = %+v, %v", lyric, svcerr)
 	}
 }

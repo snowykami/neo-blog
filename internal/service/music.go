@@ -36,9 +36,15 @@ const (
 	musicPlaylistSharedTTL = 24 * time.Hour
 	// 其他实例正在刷新歌单时，本实例这么久后再检查共享缓存里的新歌单
 	musicPlaylistRecheck = 30 * time.Second
-	musicRequestTimeout  = 10 * time.Second
 	musicPlaylistMaxSize = 1000
 )
+
+// musicRequestTimeout 普通接口（歌词、播放地址、搜索等）的请求时限；可在测试里改小
+var musicRequestTimeout = 10 * time.Second
+
+// musicPlaylistTimeout 歌单是一次上千首、1～2MB 的大响应：网易云 API 服务没有缓存时要现拉，实测十几秒到二十几秒。
+// 用 musicRequestTimeout 会把首次获取（冷启动、重启后共享缓存没命中）直接判成失败，播放器整页加载不出来
+const musicPlaylistTimeout = 60 * time.Second
 
 // musicLyricFallbackURL 未配置 API 或 API 请求失败时，直接请求网易云的歌词接口
 var musicLyricFallbackURL = "https://music.163.com/api/song/lyric"
@@ -114,7 +120,8 @@ var musicFetchMu sync.Mutex
 // 歌词缓存：按歌曲 ID 保存序列化后的歌词（两级缓存：配置 Redis 时各实例共用、重启后仍在，见 pkg/cache/tiered.go）
 var musicLyricCache = cache.NewIDCache("music:lyric", 500, 16<<20)
 
-// 网易云歌词缓存时长（参考 StarryPlayer）：有歌词 30 天，没有歌词 1 天（之后可能补上）；请求出错不缓存
+// 网易云歌词缓存时长（参考 StarryPlayer）：有歌词 30 天，没有歌词 1 天（之后可能补上）；请求出错不缓存。
+// 有歌词的缓存命中期间按 lyricRevalidateInterval 与上游复核（比较歌词内容摘要，见 music_lyric_refresh.go）
 const (
 	musicLyricHitTTL  = 30 * 24 * time.Hour
 	musicLyricMissTTL = 24 * time.Hour
@@ -125,6 +132,9 @@ type musicLyricCacheEntry struct {
 	ExpiresAt int64             `json:"expires_at"`
 	// 没有歌词（占位歌词）：刷新歌词时不使用
 	Miss bool `json:"miss,omitempty"`
+	// 命中缓存的歌词摘要与上次与上游核对一致的时间（复核时比较摘要）
+	Hash      string `json:"hash,omitempty"`
+	CheckedAt int64  `json:"checked_at,omitempty"`
 }
 
 // miss 是否为「没有歌词」的缓存（旧条目没有 Miss 字段，按占位歌词判断）
@@ -220,7 +230,7 @@ func (s *MusicService) GetPlaylist(ctx context.Context) ([]dto.MusicTrackDto, *e
 	if tracks, ok := cachedPlaylist(key, cfg); ok {
 		return tracks, nil
 	}
-	if release, err := sharedstate.Lock(ctx, "music:playlist:fetch:"+musicConfigHash(key), musicRequestTimeout+5*time.Second); err == nil {
+	if release, err := sharedstate.Lock(ctx, "music:playlist:fetch:"+musicConfigHash(key), musicPlaylistTimeout+5*time.Second); err == nil {
 		defer release()
 		if tracks, ok := cachedPlaylist(key, cfg); ok {
 			return tracks, nil
@@ -353,7 +363,7 @@ func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackD
 		} `json:"privileges"`
 	}
 	params := url.Values{"id": {strconv.FormatInt(cfg.PlaylistID, 10)}, "limit": {strconv.Itoa(musicPlaylistMaxSize)}}
-	if err := ncmGet(ctx, cfg, "/playlist/track/all", params, &result); err != nil {
+	if err := ncmGetTimeout(ctx, cfg, "/playlist/track/all", params, &result, musicPlaylistTimeout); err != nil {
 		return nil, err
 	}
 
@@ -458,15 +468,69 @@ func (s *MusicService) GetLyric(ctx context.Context, id int64) (*dto.MusicLyricD
 	if id <= 0 {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
-	if data, ok := musicLyricCache.Get(uint(id)); ok {
-		var entry musicLyricCacheEntry
-		// 刷新歌词时不使用「没有歌词」的缓存
-		if json.Unmarshal(data, &entry) == nil && time.Now().Unix() < entry.ExpiresAt && (!entry.miss() || !lyricRefreshing(ctx)) {
-			return &entry.Lyric, nil
+	cached, hasCached := loadMusicLyricCacheEntry(id)
+	// 管理员强制复核时连有效期也不信，直接从上游重新获取
+	if hasCached && !lyricForced(ctx) {
+		if cached.miss() {
+			// 刷新歌词时不使用「没有歌词」的缓存
+			if !lyricRefreshing(ctx) {
+				return &cached.Lyric, nil
+			}
+		} else if !lyricCacheNeedsRevalidate(ctx, cached.CheckedAt, cached.Hash != "") {
+			return &cached.Lyric, nil
 		}
-		musicLyricCache.Remove(uint(id))
 	}
 
+	lyric, noLyric, svcerr := fetchNcmLyric(ctx, id)
+	if svcerr != nil {
+		// 复核时上游出错：继续用缓存里的歌词，不让临时故障把歌词换掉
+		if hasCached && !cached.miss() {
+			return &cached.Lyric, nil
+		}
+		return nil, svcerr
+	}
+
+	ttl := musicLyricHitTTL
+	miss := false
+	if lyric.Lrc == nil || strings.TrimSpace(lyric.Lrc.Lyric) == "" {
+		placeholder := "[00:00.00]no_lyric"
+		if noLyric {
+			placeholder = "[00:00.00]pure_music_without_lyric"
+		}
+		lyric.Lrc = &dto.MusicLyricPart{Lyric: placeholder, Version: 1}
+		ttl, miss = musicLyricMissTTL, true
+	}
+	storeMusicLyricCache(id, lyric, ttl, miss)
+	return lyric, nil
+}
+
+// loadMusicLyricCacheEntry 缓存的歌词与条目（过期或无法解析时 ok 为 false）
+func loadMusicLyricCacheEntry(id int64) (musicLyricCacheEntry, bool) {
+	data, found := musicLyricCache.Get(uint(id))
+	if !found {
+		return musicLyricCacheEntry{}, false
+	}
+	var entry musicLyricCacheEntry
+	if json.Unmarshal(data, &entry) != nil || time.Now().Unix() >= entry.ExpiresAt {
+		return musicLyricCacheEntry{}, false
+	}
+	return entry, true
+}
+
+// storeMusicLyricCache 写入歌词缓存：有歌词时顺便记下摘要与核对时间，共复核时比较
+func storeMusicLyricCache(id int64, lyric *dto.MusicLyricDto, ttl time.Duration, miss bool) {
+	entry := musicLyricCacheEntry{Lyric: *lyric, ExpiresAt: time.Now().Add(ttl).Unix(), Miss: miss}
+	if !miss {
+		entry.Hash = lyricContentDigest(*lyric)
+		entry.CheckedAt = time.Now().Unix()
+	}
+	if data, err := json.Marshal(entry); err == nil {
+		musicLyricCache.Put(uint(id), data, ttl)
+	}
+}
+
+// fetchNcmLyric 向配置的 API（未配置时直接向网易云）要一份歌词；noLyric 为网易云标记的「纯音乐」
+func fetchNcmLyric(ctx context.Context, id int64) (lyric *dto.MusicLyricDto, noLyric bool, svcerr *errs.ServiceError) {
 	var raw struct {
 		dto.MusicLyricDto
 		NoLyric bool `json:"nolyric"`
@@ -483,24 +547,10 @@ func (s *MusicService) GetLyric(ctx context.Context, id int64) (*dto.MusicLyricD
 		}
 		params.Set("cp", "false")
 		if err = musicGetJSON(ctx, musicLyricFallbackURL+"?"+params.Encode(), "", &raw); err != nil {
-			return nil, ncmRequestError(err)
+			return nil, false, ncmRequestError(err)
 		}
 	}
-
-	lyric := raw.MusicLyricDto
-	ttl := musicLyricHitTTL
-	if lyric.Lrc == nil || strings.TrimSpace(lyric.Lrc.Lyric) == "" {
-		placeholder := "[00:00.00]no_lyric"
-		if raw.NoLyric {
-			placeholder = "[00:00.00]pure_music_without_lyric"
-		}
-		lyric.Lrc = &dto.MusicLyricPart{Lyric: placeholder, Version: 1}
-		ttl = musicLyricMissTTL
-	}
-	if data, err := json.Marshal(musicLyricCacheEntry{Lyric: lyric, ExpiresAt: time.Now().Add(ttl).Unix(), Miss: ttl == musicLyricMissTTL}); err == nil {
-		musicLyricCache.Put(uint(id), data, ttl)
-	}
-	return &lyric, nil
+	return &raw.MusicLyricDto, raw.NoLyric, nil
 }
 
 // GetSong 单曲公开信息：优先使用配置的 API，失败时直接请求网易云；不携带 Cookie
@@ -697,6 +747,11 @@ func ncmCookieHeader(cookie string) string {
 
 // ncmGet 请求 NeteaseCloudMusicApi Enhanced 接口；Cookie 通过请求头传递，避免出现在请求地址与日志中
 func ncmGet(ctx context.Context, cfg tools.NCMConfig, path string, params url.Values, out any) error {
+	return ncmGetTimeout(ctx, cfg, path, params, out, musicRequestTimeout)
+}
+
+// ncmGetTimeout 同 ncmGet，超时可单独指定（歌单这类大响应见 musicPlaylistTimeout）
+func ncmGetTimeout(ctx context.Context, cfg tools.NCMConfig, path string, params url.Values, out any, timeout time.Duration) error {
 	if params == nil {
 		params = url.Values{}
 	}
@@ -706,12 +761,17 @@ func ncmGet(ctx context.Context, cfg tools.NCMConfig, path string, params url.Va
 	if cfg.Cookie != "" {
 		cookie = ncmCookieHeader(cfg.Cookie)
 	}
-	return musicGetJSON(ctx, cfg.BaseURL+path+"?"+params.Encode(), cookie, out)
+	return musicGetJSONTimeout(ctx, cfg.BaseURL+path+"?"+params.Encode(), cookie, out, timeout)
 }
 
 // musicGetJSON 发送 GET 请求并解析响应；响应中的 code 不为 200 时视为失败
 func musicGetJSON(ctx context.Context, endpoint, cookie string, out any) error {
-	ctx, cancel := context.WithTimeout(ctx, musicRequestTimeout)
+	return musicGetJSONTimeout(ctx, endpoint, cookie, out, musicRequestTimeout)
+}
+
+// musicGetJSONTimeout 同 musicGetJSON，超时可单独指定
+func musicGetJSONTimeout(ctx context.Context, endpoint, cookie string, out any, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {

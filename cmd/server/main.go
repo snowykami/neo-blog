@@ -80,6 +80,8 @@ func main() {
 	tasks.StartRuntimeMetricsReporter()
 	// 接手其他实例中途退出时没做完的 AI 摘要与存储迁移
 	tasks.StartJobRecovery()
+	// 启动时预热歌单（网易云返回上千首、1～2MB，现拉十几秒；重启后进程内的歌单缓存会丢）
+	tasks.StartMusicPlaylistWarm()
 
 	err = router.Run(ctx)
 	// 已领取的 AI 用户任务尽量执行完，来不及的立即放回队列由其他实例接着执行
