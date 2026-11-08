@@ -41,6 +41,15 @@ const (
 	DefaultMaxRequestBodySize  = 1000 << 20 // 默认请求体上限 1000MiB
 )
 
+// 站内互动通知的事件类型：谁对什么做了什么，点分小写，与 AgentTrigger* 同一命名风格
+const (
+	NotificationTypeCommentCreated       = "comment.created"        // 评论了你的文章 / 页面
+	NotificationTypeCommentReplied       = "comment.replied"        // 回复了你的评论
+	NotificationTypePostLiked            = "post.liked"             // 赞了你的文章
+	NotificationTypeCommentLiked         = "comment.liked"          // 赞了你的评论
+	NotificationTypeCommentThreadReplied = "comment.thread_replied" // 你参与的评论线程里有人互相回复
+)
+
 // HTML 页面上传的默认上限与保留的版本数
 const (
 	DefaultPageHTMLMaxTotalSize = 100 << 20 // 单个版本解压后的总大小 100MiB

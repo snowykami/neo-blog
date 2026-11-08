@@ -157,6 +157,22 @@ var sections = []*Section{
 		{Key: "email_password", Type: TypeSecret, Label: "email_password", Description: "email_password_desc", Default: "", Env: constant.EnvKeyEmailPassword},
 		{Key: "email_address", Type: TypeEmail, Label: "email_address", Description: "email_address_desc", Placeholder: "noreply@example.com", Default: "", Env: constant.EnvKeyEmailAddress},
 	}},
+	// 站内互动通知：站内通知始终即时送达，这里的配置只影响邮件汇总（见 docs/notification-spec.md）
+	{Tab: "account", Key: "notification", Title: "section_notification", Description: "section_notification_desc", Items: []*Item{
+		{Key: "notification_email_enable", Type: TypeBool, Label: "notification_email_enable", Description: "notification_email_enable_desc", Default: false},
+		// 重要类型同时是用户可选的「上限」：用户只能在这个集合里关，不能开站点没开的类型；点赞与线程活动永远只是附带，不进这个列表
+		{Key: "notification_email_types", Type: TypeStringList, Label: "notification_email_types", Description: "notification_email_types_desc", Options: []Option{
+			{Value: constant.NotificationTypeCommentCreated, Label: "notification_type_comment_created"},
+			{Value: constant.NotificationTypeCommentReplied, Label: "notification_type_comment_replied"},
+		}, Default: []string{constant.NotificationTypeCommentCreated, constant.NotificationTypeCommentReplied}},
+		{Key: "notification_email_interval", Type: TypeInt, Label: "notification_email_interval", Description: "notification_email_interval_desc", Min: num(0), Max: num(1440), Default: 10},
+		{Key: "notification_email_attach_hours", Type: TypeInt, Label: "notification_email_attach_hours", Description: "notification_email_attach_hours_desc", Min: num(1), Max: num(720), Default: 24},
+		{Key: "notification_email_attach_max", Type: TypeInt, Label: "notification_email_attach_max", Description: "notification_email_attach_max_desc", Min: num(0), Max: num(50), Default: 5},
+		{Key: "notification_email_max_items", Type: TypeInt, Label: "notification_email_max_items", Description: "notification_email_max_items_desc", Min: num(1), Max: num(50), Default: 10},
+		{Key: "notification_email_hourly_limit", Type: TypeInt, Label: "notification_email_hourly_limit", Description: "notification_email_hourly_limit_desc", Min: num(1), Max: num(1000), Default: 20},
+		{Key: "notification_thread_include_author", Type: TypeBool, Label: "notification_thread_include_author", Description: "notification_thread_include_author_desc", Default: true},
+		{Key: "notification_retention_days", Type: TypeInt, Label: "notification_retention_days", Description: "notification_retention_days_desc", Min: num(7), Max: num(3650), Default: 180},
+	}},
 	{Tab: "account", Key: "visit", Title: "section_visit", Items: []*Item{
 		{Key: "visit_log_retention_days", Type: TypeInt, Label: "visit_log_retention_days", Description: "visit_log_retention_days_desc", Min: num(1), Max: num(3650), Default: 90},
 		{Key: "visit_fingerprint_attribution", Type: TypeBool, Label: "visit_fingerprint_attribution", Description: "visit_fingerprint_attribution_desc", Default: true},
