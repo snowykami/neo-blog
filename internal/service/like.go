@@ -49,7 +49,7 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 			return current, nil
 		}
 	}
-	state, err := repo.Like.ToggleLike(currentUser.ID, targetID, targetType)
+	state, err := repo.Like.ToggleLike(currentUser.ID, targetID, targetType, nil)
 	if err != nil {
 		return state, errs.Internal("failed_to_toggle_like", err)
 	}

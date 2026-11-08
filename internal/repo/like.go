@@ -14,14 +14,15 @@ type likeRepo struct{}
 var Like = &likeRepo{}
 
 // ToggleLike 切换点赞状态。(target_type, target_id, user_id) 有唯一索引，并发重复点赞时以已点赞处理；
-// 点赞数每次按实际记录重新统计，不做增减，避免并发导致计数漂移甚至变成负数
-func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string) (bool, error) {
+// 点赞数每次按实际记录重新统计，不做增减，避免并发导致计数漂移甚至变成负数。
+// tx 非空时在调用方的事务里执行（点赞与互动通知要写在同一个事务里），为空时自己开事务
+func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string, tx *gorm.DB) (bool, error) {
 	err := l.checkTargetType(targetType)
 	if err != nil {
 		return false, err
 	}
 	var finalStatus bool
-	err = GetDB().Transaction(func(tx *gorm.DB) error {
+	toggle := func(tx *gorm.DB) error {
 		result := tx.Unscoped().Where("target_type = ? AND target_id = ? AND user_id = ?", targetType, targetID, userID).Delete(&model.Like{})
 		if result.Error != nil {
 			logrus.Error(result.Error)
@@ -39,7 +40,14 @@ func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string) (bool, e
 			finalStatus = true
 		}
 		return syncLikeCount(tx, targetType, targetID)
-	})
+	}
+	if tx != nil {
+		if err := toggle(tx); err != nil {
+			return finalStatus, err
+		}
+		return finalStatus, nil
+	}
+	err = GetDB().Transaction(toggle)
 	return finalStatus, err
 }
 

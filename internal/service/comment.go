@@ -89,7 +89,7 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		UserAgent:      req.UserAgent,
 		ShowClientInfo: req.ShowClientInfo,
 	}
-	commentID, err := repo.Comment.CreateComment(comment, tools.GetMaximumReplyDepth())
+	commentID, err := repo.Comment.CreateComment(comment, tools.GetMaximumReplyDepth(), nil)
 
 	if err != nil {
 		// 回复深度超限、目标不一致等校验错误原样返回
