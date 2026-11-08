@@ -50,6 +50,16 @@ const (
 	NotificationTypeCommentThreadReplied = "comment.thread_replied" // 你参与的评论线程里有人互相回复
 )
 
+// 通知邮件渠道的状态机：pending 等发信，attached 只能搭下一封重要邮件的车（永不自己发信）
+const (
+	NotificationEmailStatePending  = "pending"
+	NotificationEmailStateAttached = "attached"
+	NotificationEmailStateSending  = "sending"
+	NotificationEmailStateSent     = "sent"
+	NotificationEmailStateFailed   = "failed"
+	NotificationEmailStateSkipped  = "skipped"
+)
+
 // HTML 页面上传的默认上限与保留的版本数
 const (
 	DefaultPageHTMLMaxTotalSize = 100 << 20 // 单个版本解压后的总大小 100MiB
