@@ -403,3 +403,12 @@ func isLikeGroupType(eventType string) bool {
 	}
 	return false
 }
+
+// GetEventByDedupeKey 按去重键取事件，取不到即当时没有产生通知
+func (r *notificationRepo) GetEventByDedupeKey(dedupeKey string) (*model.InteractionEvent, error) {
+	var event model.InteractionEvent
+	if err := GetDB().Where("dedupe_key = ?", dedupeKey).First(&event).Error; err != nil {
+		return nil, err
+	}
+	return &event, nil
+}
