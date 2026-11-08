@@ -82,6 +82,8 @@ func main() {
 	tasks.StartJobRecovery()
 	// 启动时预热歌单（网易云返回上千首、1～2MB，现拉十几秒；重启后进程内的歌单缓存会丢）
 	tasks.StartMusicPlaylistWarm()
+	// 站内互动通知的邮件汇总投递（只有真人评论 / 回复触发发信，点赞等附带项搭车）
+	tasks.StartNotificationEmailWorker()
 
 	err = router.Run(ctx)
 	// 已领取的 AI 用户任务尽量执行完，来不及的立即放回队列由其他实例接着执行

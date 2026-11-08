@@ -3,9 +3,11 @@ package service
 import (
 	"encoding/json"
 	"slices"
+	"time"
 
 	"github.com/snowykami/neo-blog/internal/config"
 	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
@@ -170,4 +172,9 @@ func filterKnownTypes(types, allowed []string) []string {
 		}
 	}
 	return result
+}
+
+// NotificationSettingsURL 邮件底部的「通知设置」链接；带有限的免登录凭据，见 docs/notification-spec.md N11
+func NotificationSettingsURL(user *model.User, now time.Time) string {
+	return tools.GetBaseUrl() + "/notification-settings?token=" + SignNotificationPrefsToken(user.ID, now)
 }
