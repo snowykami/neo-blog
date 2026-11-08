@@ -2185,6 +2185,7 @@
       "not_pinned": "固定していません"
     },
     "menu": {
+      "notifications": "通知",
       "content": "記事とページ",
       "taxonomy": "カテゴリとラベル",
       "accounts": "ユーザーと認証",
@@ -3008,6 +3009,30 @@
         "view_agent": "性格設定を見る"
       }
     }
+  },
+  "NotificationDelivery": {
+    "title": "通知メールの配信",
+    "description": "配信状態とエラーだけを表示し、他の人の通知内容は表示しません。失敗したバッチは手動で再試行できます",
+    "state_attention": "要確認",
+    "state_failed": "失敗",
+    "state_pending": "送信待ち",
+    "state_sending": "送信中",
+    "state_sent": "送信済み",
+    "state_skipped": "スキップ",
+    "col_recipient": "宛先",
+    "col_type": "種類",
+    "col_state": "状態",
+    "col_attempts": "再試行",
+    "col_error": "最新のエラー",
+    "col_actions": "操作",
+    "retry": "再試行",
+    "retry_success": "再登録しました。次の実行で送信します",
+    "retry_failed": "再試行に失敗しました",
+    "load_failed": "配信記録を読み込めませんでした",
+    "empty_title": "対応が必要な配信はありません",
+    "empty_desc": "配信が正常なときはここに表示されません",
+    "prev": "前へ",
+    "next": "次へ"
   },
   "Copyright": {
     "author": "著者",

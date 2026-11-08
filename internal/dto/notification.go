@@ -4,8 +4,8 @@ import "time"
 
 // NotificationItemDto 通知列表里的一行：普通通知是它自己，点赞类是多条明细在渲染时归并的一行
 type NotificationItemDto struct {
-	ID   uint    `json:"id"`   // 代表行的 id，单条已读时用它；聚合行点开即整组已读
-	Type string  `json:"type"` // 见 constant.NotificationType*
+	ID    uint    `json:"id"`   // 代表行的 id，单条已读时用它；聚合行点开即整组已读
+	Type  string  `json:"type"` // 见 constant.NotificationType*
 	Actor UserDto `json:"actor"`
 	// ActorIsAI 前端给 AI 用户加一个小徽标
 	ActorIsAI bool `json:"actor_is_ai"`
@@ -67,4 +67,24 @@ type UpdateNotificationPreferencesReq struct {
 	InApp          []string `json:"inapp"`
 	Email          []string `json:"email"`
 	AIInteractions *bool    `json:"ai_interactions"`
+}
+
+// NotificationDeliveryDto 后台投递排查面板的一行
+type NotificationDeliveryDto struct {
+	ID           uint       `json:"id"`
+	UserID       uint       `json:"user_id"`
+	UserEmail    string     `json:"user_email"`
+	Type         string     `json:"type"`
+	SubjectTitle string     `json:"subject_title"`
+	EmailState   string     `json:"email_state"`
+	Attempts     int        `json:"attempts"`
+	NextAt       *time.Time `json:"next_at"`
+	LastError    string     `json:"last_error"`
+	CreatedAt    time.Time  `json:"created_at"`
+}
+
+// ListNotificationDeliveriesReq 投递排查查询参数
+type ListNotificationDeliveriesReq struct {
+	PaginationParams
+	State string `query:"state"` // failed / sending / pending / sent / skipped，空为「需要关注」
 }

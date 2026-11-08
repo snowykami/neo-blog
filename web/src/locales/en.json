@@ -2185,6 +2185,7 @@
       "not_pinned": "Not pinned"
     },
     "menu": {
+      "notifications": "Notifications",
       "content": "Posts & pages",
       "taxonomy": "Categories & labels",
       "accounts": "Users & auth",
@@ -3008,6 +3009,30 @@
         "view_agent": "View persona"
       }
     }
+  },
+  "NotificationDelivery": {
+    "title": "Notification email delivery",
+    "description": "Shows delivery state and errors only — never the notification content of other people. Failed batches can be retried",
+    "state_attention": "Needs attention",
+    "state_failed": "Failed",
+    "state_pending": "Pending",
+    "state_sending": "Sending",
+    "state_sent": "Sent",
+    "state_skipped": "Skipped",
+    "col_recipient": "Recipient",
+    "col_type": "Type",
+    "col_state": "State",
+    "col_attempts": "Attempts",
+    "col_error": "Last error",
+    "col_actions": "Actions",
+    "retry": "Retry",
+    "retry_success": "Queued again; the next round will try once more",
+    "retry_failed": "Retry failed",
+    "load_failed": "Failed to load deliveries",
+    "empty_title": "Nothing to fix",
+    "empty_desc": "Rows appear here only when delivery needs attention",
+    "prev": "Previous",
+    "next": "Next"
   },
   "Copyright": {
     "author": "Author",

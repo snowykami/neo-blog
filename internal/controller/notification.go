@@ -121,6 +121,31 @@ func (nc *NotificationController) UnsubscribeAll(ctx context.Context, c *app.Req
 	resps.Ok(c, resps.Success, prefs)
 }
 
+// ListDeliveries 管理员查看邮件投递状态
+func (nc *NotificationController) ListDeliveries(ctx context.Context, c *app.RequestContext) {
+	req := &dto.ListNotificationDeliveriesReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	items, total, svcerr := nc.service.ListNotificationDeliveries(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"deliveries": items, "total": total})
+}
+
+// RetryDelivery 管理员手动重试一条投递
+func (nc *NotificationController) RetryDelivery(ctx context.Context, c *app.RequestContext) {
+	id := ctxutils.GetIDParam(c).Uint
+	if svcerr := nc.service.RetryNotificationDelivery(ctx, id); svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
+}
+
 // SendTestNotification 管理员给自己发一条站内测试通知
 func (nc *NotificationController) SendTestNotification(ctx context.Context, c *app.RequestContext) {
 	if svcerr := nc.service.SendTestNotification(ctx); svcerr != nil {

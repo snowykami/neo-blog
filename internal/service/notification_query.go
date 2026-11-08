@@ -194,6 +194,48 @@ func saveNotificationPreferences(user *model.User, inApp, email []string, aiInte
 	return buildNotificationPreferences(user), nil
 }
 
+// ListNotificationDeliveries 管理员排查邮件投递：只看状态与错误，不读通知内容之外的个人数据
+func (s *NotificationService) ListNotificationDeliveries(ctx context.Context, req *dto.ListNotificationDeliveriesReq) ([]dto.NotificationDeliveryDto, int64, *errs.ServiceError) {
+	if !ctxutils.IsAdmin(ctx) {
+		return nil, 0, errs.NewForbidden("permission_denied")
+	}
+	rows, total, err := repo.Notification.ListEmailDeliveries(req.State, req.Page, req.Size)
+	if err != nil {
+		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("notification")
+	}
+	items := make([]dto.NotificationDeliveryDto, 0, len(rows))
+	for i := range rows {
+		item := dto.NotificationDeliveryDto{
+			ID:           rows[i].ID,
+			UserID:       rows[i].UserID,
+			Type:         rows[i].Type,
+			SubjectTitle: rows[i].SubjectTitle,
+			EmailState:   rows[i].EmailState,
+			Attempts:     rows[i].EmailAttempts,
+			NextAt:       rows[i].EmailNextAt,
+			LastError:    rows[i].EmailLastErr,
+			CreatedAt:    rows[i].CreatedAt,
+		}
+		// 只显示收件邮箱，便于确认发给了谁；查不到用户时留空
+		if user, err := repo.User.GetUserByID(rows[i].UserID); err == nil {
+			item.UserEmail = user.Email
+		}
+		items = append(items, item)
+	}
+	return items, total, nil
+}
+
+// RetryNotificationDelivery 管理员手动重试一条投递
+func (s *NotificationService) RetryNotificationDelivery(ctx context.Context, id uint) *errs.ServiceError {
+	if !ctxutils.IsAdmin(ctx) {
+		return errs.NewForbidden("permission_denied")
+	}
+	if err := repo.Notification.RetryEmail(id); err != nil {
+		return errs.Internal("failed_to_update_target", err).WithResource("notification")
+	}
+	return nil
+}
+
 // toNotificationItemDto 仓储的分组行 → 接口 DTO
 func toNotificationItemDto(group *repo.NotificationGroup) dto.NotificationItemDto {
 	notification := group.Notification

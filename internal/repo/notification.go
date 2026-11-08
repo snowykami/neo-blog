@@ -550,3 +550,37 @@ func (r *notificationRepo) ListGroupMembers(userID, id uint, timeZone string, li
 		Order("created_at DESC, id DESC").Limit(limit).Find(&rows).Error
 	return rows, err
 }
+
+// ListEmailDeliveries 后台排查：按状态列出邮件投递记录（附带收件人信息由调用方补齐）
+func (r *notificationRepo) ListEmailDeliveries(state string, page, size uint64) ([]model.Notification, int64, error) {
+	query := GetDB().Model(&model.Notification{})
+	if state != "" {
+		query = query.Where("email_state = ?", state)
+	} else {
+		// 默认只看需要人工注意的：失败与正在发送
+		query = query.Where("email_state IN ?", []string{constant.NotificationEmailStateFailed, constant.NotificationEmailStateSending})
+	}
+	var total int64
+	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if page < 1 {
+		page = 1
+	}
+	if size == 0 {
+		size = 20
+	}
+	var rows []model.Notification
+	err := query.Order("updated_at DESC, id DESC").Offset(int((page - 1) * size)).Limit(int(size)).Find(&rows).Error
+	return rows, total, err
+}
+
+// RetryEmail 后台手动重试一条投递：退回 pending 并立即可发
+func (r *notificationRepo) RetryEmail(id uint) error {
+	now := time.Now()
+	return GetDB().Model(&model.Notification{}).Where("id = ?", id).Updates(map[string]any{
+		"email_state":    constant.NotificationEmailStatePending,
+		"email_next_at":  now,
+		"email_attempts": 0,
+	}).Error
+}

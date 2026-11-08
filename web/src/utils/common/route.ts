@@ -19,6 +19,7 @@ export const consolePath = {
   userSecurity: '/console/user-security',
   userPreference: '/console/user-preference',
   apiToken: '/console/api-tokens',
+  notificationDelivery: '/console/notification-deliveries',
   aiAgent: '/console/ai-agents',
   aiAgentRun: '/console/ai-agents/runs',
 }

@@ -2185,6 +2185,7 @@
       "not_pinned": "고정 안 됨"
     },
     "menu": {
+      "notifications": "알림",
       "content": "글과 페이지",
       "taxonomy": "카테고리와 라벨",
       "accounts": "사용자와 인증",
@@ -3008,6 +3009,30 @@
         "view_agent": "성격 설정 보기"
       }
     }
+  },
+  "NotificationDelivery": {
+    "title": "알림 메일 발송",
+    "description": "발송 상태와 오류만 표시하며 다른 사람의 알림 내용은 볼 수 없습니다. 실패한 배치는 직접 재시도할 수 있습니다",
+    "state_attention": "확인 필요",
+    "state_failed": "실패",
+    "state_pending": "발송 대기",
+    "state_sending": "발송 중",
+    "state_sent": "발송됨",
+    "state_skipped": "건너뜀",
+    "col_recipient": "수신자",
+    "col_type": "종류",
+    "col_state": "상태",
+    "col_attempts": "재시도",
+    "col_error": "최근 오류",
+    "col_actions": "작업",
+    "retry": "재시도",
+    "retry_success": "다시 대기열에 넣었습니다. 다음 실행에서 발송합니다",
+    "retry_failed": "재시도에 실패했습니다",
+    "load_failed": "발송 기록을 불러오지 못했습니다",
+    "empty_title": "처리할 발송이 없습니다",
+    "empty_desc": "발송이 정상일 때는 여기에 표시되지 않습니다",
+    "prev": "이전",
+    "next": "다음"
   },
   "Copyright": {
     "author": "작성자",
