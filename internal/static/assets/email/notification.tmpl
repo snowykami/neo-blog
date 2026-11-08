@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="{{.Lang}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <title>{{.Heading}}</title>
+    <style>
+        /* 邮件客户端支持时生效：小屏收窄内边距、深色模式换底色；不支持时退回下面的行内样式 */
+        @media (max-width: 600px) {
+            .wrap { padding: 16px 12px !important; }
+            .card { border-radius: 12px !important; }
+            .pad { padding: 20px !important; }
+            .item { padding: 12px 0 !important; }
+        }
+        @media (prefers-color-scheme: dark) {
+            .page { background: #14161a !important; }
+            .card { background: #1c1f24 !important; border-color: #2b3037 !important; }
+            .title { color: #f5f6f7 !important; }
+            .text { color: #c6cad1 !important; }
+            .muted { color: #8b9099 !important; }
+            .item { border-color: #2b3037 !important; }
+            .brand { color: #9dc1ff !important; }
+            .attached { background: #232830 !important; border-color: #3a424e !important; }
+        }
+    </style>
+</head>
+<body class="page" style="margin:0;padding:0;background:#f4f5f7;-webkit-text-size-adjust:100%;">
+<!-- 收件箱里标题旁边的那行预览文字 -->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">{{.Preheader}}</div>
+
+<table role="presentation" class="page" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f5f7;padding:0;margin:0;">
+    <tr>
+        <td class="wrap" align="center" style="padding:32px 16px;">
+            <table role="presentation" class="card" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#ffffff;border:1px solid #e6e8eb;border-radius:16px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',Roboto,Helvetica,Arial,sans-serif;">
+                <!-- 站点标识 -->
+                <tr>
+                    <td class="pad" style="padding:24px 32px 0 32px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                {{if .SiteIcon}}
+                                <td style="padding-right:10px;">
+                                    <img src="{{.SiteIcon}}" width="32" height="32" alt="{{.SiteName}}" style="display:block;width:32px;height:32px;border-radius:8px;border:0;outline:none;text-decoration:none;">
+                                </td>
+                                {{end}}
+                                <td class="brand" style="font-size:15px;font-weight:600;color:#3b3f46;letter-spacing:0.2px;">{{.SiteName}}</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <!-- 标题与一句话汇总 -->
+                <tr>
+                    <td class="pad" style="padding:24px 32px 0 32px;">
+                        <h1 class="title" style="margin:0 0 8px 0;font-size:22px;line-height:30px;font-weight:600;color:#1a1d21;">{{.Heading}}</h1>
+                        <p class="text" style="margin:0;font-size:15px;line-height:24px;color:#4a4f57;">{{.Summary}}</p>
+                    </td>
+                </tr>
+
+                <!-- 主按钮：回站内看全部 -->
+                <tr>
+                    <td class="pad" style="padding:18px 32px 0 32px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td style="background:#3b6ef6;border-radius:10px;">
+                                    <a href="{{.InboxURL}}" style="display:inline-block;padding:11px 20px;font-size:14px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;">{{.CTALabel}}</a>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <!-- 重要互动：一条一行 -->
+                <tr>
+                    <td class="pad" style="padding:20px 32px 0 32px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            {{range .Items}}
+                            <tr>
+                                <td class="item" style="padding:14px 0;border-bottom:1px solid #eef0f3;">
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                        <tr>
+                                            <td width="36" valign="top" style="padding-right:12px;">
+                                                {{if .ActorAvatar}}
+                                                <img src="{{.ActorAvatar}}" width="36" height="36" alt="" style="display:block;width:36px;height:36px;border-radius:50%;border:0;outline:none;text-decoration:none;">
+                                                {{else}}
+                                                <div style="width:36px;height:36px;border-radius:50%;background:#dfe6f5;color:#3b3f46;font-size:15px;line-height:36px;text-align:center;font-weight:600;">{{.ActorInitial}}</div>
+                                                {{end}}
+                                            </td>
+                                            <td valign="top">
+                                                <a href="{{.URL}}" style="display:block;font-size:14px;line-height:22px;color:#1a1d21;text-decoration:none;">{{.Text}}</a>
+                                                <div class="muted" style="padding-top:4px;font-size:12px;line-height:18px;color:#9aa0a9;">{{.Time}}</div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            {{end}}
+                        </table>
+                    </td>
+                </tr>
+
+                {{if .MoreItems}}
+                <!-- 超出单封上限的重要互动只计数 -->
+                <tr>
+                    <td class="pad" style="padding:12px 32px 0 32px;">
+                        <p class="muted" style="margin:0;font-size:13px;line-height:20px;color:#8b9099;">{{.MoreItems}}</p>
+                    </td>
+                </tr>
+                {{end}}
+
+                {{if .AttachedLines}}
+                <!-- 附带互动（点赞、AI、线程活动）：只在这里出现，不会单独发信 -->
+                <tr>
+                    <td class="pad" style="padding:16px 32px 0 32px;">
+                        <table role="presentation" class="attached" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f7f8fa;border:1px solid #eaecef;border-radius:10px;">
+                            <tr>
+                                <td style="padding:14px 16px;">
+                                    <div class="muted" style="font-size:12px;line-height:18px;letter-spacing:0.4px;text-transform:uppercase;color:#7b8494;padding-bottom:6px;">{{.AttachedLabel}}</div>
+                                    {{range .AttachedLines}}
+                                    <div class="text" style="font-size:13px;line-height:21px;color:#4a4f57;">{{.}}</div>
+                                    {{end}}
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                {{end}}
+
+                <!-- 页脚：只有一个通知设置链接，避免被当成垃圾邮件 -->
+                <tr>
+                    <td style="padding:24px 32px 28px 32px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #eef0f3;">
+                            <tr>
+                                <td class="muted" style="padding-top:16px;font-size:12px;line-height:18px;color:#9aa0a9;">
+                                    <a href="{{.SiteURL}}" style="color:#5b7cc4;text-decoration:none;">{{.SiteName}}</a>
+                                    {{if .FooterNote}} · {{.FooterNote}}{{end}}
+                                    <div style="padding-top:6px;">
+                                        <a href="{{.SettingsURL}}" style="color:#5b7cc4;text-decoration:none;">{{.SettingsLabel}}</a>
+                                    </div>
+                                    <div style="padding-top:6px;">{{.SentBy}}</div>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>
