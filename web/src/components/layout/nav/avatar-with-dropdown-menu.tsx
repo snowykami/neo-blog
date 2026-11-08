@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { useCallback } from 'react'
 import { useAuthDialog } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
-import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,13 +49,22 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
           aria-label={user ? formatDisplayName(user) : operationT('login')}
           title={user ? formatDisplayName(user) : operationT('login')}
         >
-          {user
-            ? (
-                <UserAvatar user={user} size={64} alt="" className="size-7" />
-              )
-            : (
-                <User aria-hidden className="size-5" />
-              )}
+          <span className="relative inline-flex">
+            {user
+              ? (
+                  <UserAvatar user={user} size={64} alt="" className="size-7" />
+                )
+              : (
+                  <User aria-hidden className="size-5" />
+                )}
+            {/* 有未读通知时只在头像右上角点一个小圆点（跟随主题色），不显示数字：提示这里可以点开 */}
+            {user && unreadCount > 0 && (
+              <span
+                aria-hidden
+                className="bg-primary ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2"
+              />
+            )}
+          </span>
         </button>
       </DropdownMenuTrigger>
 
@@ -78,16 +86,11 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
         {user && (
           <>
             <DropdownMenuGroup className="p-0">
-              {/* 通知是登录后最常回访的入口，放在第一项并带未读徽标 */}
+              {/* 通知是登录后最常回访的入口，放在第一项；未读数只用头像上的小点示意，这里不显示数字 */}
               <DropdownMenuItem asChild>
                 <Link href={mainPath.notifications}>
                   <Bell />
                   {notificationsT('title')}
-                  {unreadCount > 0 && (
-                    <Badge variant="destructive" className="ml-auto h-5 min-w-5 justify-center px-1 text-[10px] tabular-nums">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </Badge>
-                  )}
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
