@@ -18,14 +18,22 @@ import (
 //  3. 回复 → comment.thread_replied 给线程发起人与主题作者（折叠行，排除 actor 与直接父评论作者）
 //
 // 与评论写在同一个事务里；调用方负责把错误只记日志，不让评论失败（5.3）
-func emitCommentNotifications(ctx context.Context, tx *gorm.DB, actor *model.User, comment *model.Comment, parent *model.Comment, target *commentTarget) error {
+func emitCommentNotifications(ctx context.Context, tx *gorm.DB, actor *model.User, comment *model.Comment, parent *model.Comment, target *commentTarget) ([]uint, error) {
 	subjectTitle, subjectSlug := commentSubject(comment)
 	excerpt := commentExcerpt(comment)
 	notifications := NewNotificationService()
 	var firstErr error
-	record := func(err error) {
-		if err != nil && firstErr == nil {
-			firstErr = err
+	// notifiedUsers 事务提交后需要推送实时通知的收件人
+	notifiedUsers := make([]uint, 0, 2)
+	record := func(userID uint, err error) {
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			return
+		}
+		if userID != 0 {
+			notifiedUsers = append(notifiedUsers, userID)
 		}
 	}
 	// 已经收到评论 / 回复通知的人不再重复收线程活动通知
@@ -34,7 +42,7 @@ func emitCommentNotifications(ctx context.Context, tx *gorm.DB, actor *model.Use
 	if comment.ReplyID == 0 {
 		owner, err := repo.User.GetUserByID(target.ownerID)
 		if err != nil {
-			return err
+			return notifiedUsers, err
 		}
 		notified[owner.ID] = true
 		record(notifications.Emit(ctx, tx, &NotificationEvent{
@@ -45,15 +53,15 @@ func emitCommentNotifications(ctx context.Context, tx *gorm.DB, actor *model.Use
 			CommentID: comment.ID, Excerpt: excerpt,
 			DedupeKey: dedupeKeyCommentCreated(comment.TargetType, comment.TargetID, comment.ID),
 		}))
-		return firstErr
+		return notifiedUsers, firstErr
 	}
 	if parent == nil {
-		return nil
+		return notifiedUsers, nil
 	}
 	// 规则 7：回复只通知被回复人
 	replied, err := repo.User.GetUserByID(parent.UserID)
 	if err != nil {
-		return err
+		return notifiedUsers, err
 	}
 	notified[replied.ID] = true
 	record(notifications.Emit(ctx, tx, &NotificationEvent{
@@ -68,12 +76,12 @@ func emitCommentNotifications(ctx context.Context, tx *gorm.DB, actor *model.Use
 	// 规则 8：线程活动只给线程发起人与主题作者，同一天同一线程同一收件人折叠成一行
 	rootID := comment.RootID
 	if rootID == 0 {
-		return firstErr
+		return notifiedUsers, firstErr
 	}
 	root, err := repo.Comment.GetComment(rootID)
 	if err != nil {
 		// 线程根已被删除：没有收件人可算，直接结束
-		return firstErr
+		return notifiedUsers, firstErr
 	}
 	recipientIDs := []uint{root.UserID}
 	if config.Bool("notification_thread_include_author") {
@@ -100,7 +108,7 @@ func emitCommentNotifications(ctx context.Context, tx *gorm.DB, actor *model.Use
 			AggregateActor:  actorName,
 		}))
 	}
-	return firstErr
+	return notifiedUsers, firstErr
 }
 
 // commentSubject 评论所在文章 / 页面的标题与 slug（标题被改过时通知里仍是当时的快照）

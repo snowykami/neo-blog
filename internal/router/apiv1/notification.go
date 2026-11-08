@@ -13,8 +13,12 @@ func registerNotificationRoutes(group *route.RouterGroup) {
 	{
 		notificationGroup.GET("", notificationController.ListNotifications)
 		notificationGroup.GET("/unread-count", notificationController.GetUnreadCount)
+		// SSE：新通知到达时推一条未读数
+		notificationGroup.GET("/stream", notificationController.StreamNotifications)
 		notificationGroup.POST("/read-all", notificationController.MarkAllRead)
 		notificationGroup.POST("/:id/read", notificationController.MarkRead)
+		// 展开聚合行：点赞组里具体是谁
+		notificationGroup.GET("/:id/members", notificationController.ListGroupMembers)
 	}
 	// 偏好：邮件里的链接带免登录凭据，因此挂在不强制登录的组上，由中间件补受限身份；
 	// 凭据只能作用于这三条接口（改不了昵称、密码、邮箱）

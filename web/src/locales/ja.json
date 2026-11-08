@@ -2185,6 +2185,7 @@
       "not_pinned": "固定していません"
     },
     "menu": {
+      "notifications": "通知",
       "content": "記事とページ",
       "taxonomy": "カテゴリとラベル",
       "accounts": "ユーザーと認証",
@@ -3009,6 +3010,30 @@
       }
     }
   },
+  "NotificationDelivery": {
+    "title": "通知メールの配信",
+    "description": "配信状態とエラーだけを表示し、他の人の通知内容は表示しません。失敗したバッチは手動で再試行できます",
+    "state_attention": "要確認",
+    "state_failed": "失敗",
+    "state_pending": "送信待ち",
+    "state_sending": "送信中",
+    "state_sent": "送信済み",
+    "state_skipped": "スキップ",
+    "col_recipient": "宛先",
+    "col_type": "種類",
+    "col_state": "状態",
+    "col_attempts": "再試行",
+    "col_error": "最新のエラー",
+    "col_actions": "操作",
+    "retry": "再試行",
+    "retry_success": "再登録しました。次の実行で送信します",
+    "retry_failed": "再試行に失敗しました",
+    "load_failed": "配信記録を読み込めませんでした",
+    "empty_title": "対応が必要な配信はありません",
+    "empty_desc": "配信が正常なときはここに表示されません",
+    "prev": "前へ",
+    "next": "次へ"
+  },
   "Copyright": {
     "author": "著者",
     "copyright_notice": "著作権表示",
@@ -3024,7 +3049,7 @@
   "NotificationSettings": {
     "title": "通知設定",
     "description": "アプリ内通知とメール通知の設定はここで管理します。変更はすぐに反映されます",
-      "token_expired": "このリンクの有効期限が切れました。ログインして続行してください",
+    "token_expired": "このリンクの有効期限が切れました。ログインして続行してください",
     "login_required": "ログインすると通知の設定を管理できます",
     "login": "ログイン",
     "load_failed": "通知設定を読み込めませんでした",
@@ -3063,6 +3088,7 @@
     "empty_title": "通知はまだありません",
     "empty_desc": "あなたの記事へのコメントやいいねがここに表示されます",
     "loading_more": "読み込み中…",
+    "new_notification": "新しい動きがあります",
     "unread": "未読",
     "actor_separator": "、",
     "and_others": "ほか {count} 人",
@@ -3070,6 +3096,8 @@
     "group_today": "今日",
     "group_yesterday": "昨日",
     "group_earlier": "それ以前",
+    "expand_members": "{count} 件すべて表示",
+    "collapse_members": "閉じる",
     "types": {
       "comment_created": "{actors} が記事「{subject}」にコメントしました：{excerpt}",
       "comment_created_page": "{actors} がページ「{subject}」にコメントしました：{excerpt}",

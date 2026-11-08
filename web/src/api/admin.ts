@@ -3,6 +3,7 @@ import type { Comment } from '@/models/comment'
 import type { ConfigSchema } from '@/models/config'
 import type { Dashboard, DashboardDays } from '@/models/dashboard'
 import type { ErrorEvent, ErrorEventSummary, ErrorIssue, ErrorIssueDetail, ErrorKind, ErrorReportStats, ErrorSource, ErrorStatus } from '@/models/error-report'
+import type { NotificationDelivery } from '@/models/notification'
 import type { OidcConfig } from '@/models/oidc-config'
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
@@ -294,5 +295,18 @@ export async function deleteErrorIssueAdmin(id: number): Promise<BaseResponse<nu
 // 给自己发一条站内测试通知（管理员不能读别人的通知，只能这样确认链路可用）
 export async function sendTestNotification(): Promise<BaseResponse<null>> {
   const res = await axiosClient.post('/admin/notifications/test')
+  return res.data
+}
+
+// 通知邮件投递排查：只看状态与错误，读不到别人的通知内容
+export async function listNotificationDeliveries({ state, page = 1, size = 20 }: {
+  state?: string
+} & Pick<PaginationParams, 'page' | 'size'>): Promise<BaseResponse<{ deliveries: NotificationDelivery[], total: number }>> {
+  const res = await axiosClient.get('/admin/notifications/deliveries', { params: { state, page, size } })
+  return res.data
+}
+
+export async function retryNotificationDelivery(id: number): Promise<BaseResponse<null>> {
+  const res = await axiosClient.post(`/admin/notifications/deliveries/${id}/retry`)
   return res.data
 }

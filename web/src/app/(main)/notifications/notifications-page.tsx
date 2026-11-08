@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { getUnreadNotificationCount, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/api/notification'
+import { getUnreadNotificationCount, listNotificationGroupMembers, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/api/notification'
 import { useLoginDialog } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
 import { Button } from '@/components/ui/button'
@@ -217,6 +217,28 @@ export function NotificationsPage() {
 }
 
 function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen: (item: NotificationItemModel) => void }) {
+  const [members, setMembers] = useState<NotificationItemModel[] | null>(null)
+  const [expanding, setExpanding] = useState(false)
+
+  // 聚合行可以展开看具体是谁；展开后仍只算一个未读
+  const toggleMembers = async () => {
+    if (members) {
+      setMembers(null)
+      return
+    }
+    setExpanding(true)
+    try {
+      const res = await listNotificationGroupMembers(item.id)
+      setMembers(res.data.notifications)
+    }
+    catch {
+      setMembers(null)
+    }
+    finally {
+      setExpanding(false)
+    }
+  }
+
   const t = useTranslations('Notifications')
   const commonT = useTranslations('Common')
   const locale = useLocale()
@@ -268,12 +290,50 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
     </div>
   )
 
-  if (!href)
-    return <div>{body}</div>
+  const expandable = item.aggregateCount > 1 && item.type !== 'comment.thread_replied'
+  const content = href
+    ? <Link href={href} onClick={() => onOpen(item)}>{body}</Link>
+    : body
+
   return (
-    <Link href={href} onClick={() => onOpen(item)}>
-      {body}
-    </Link>
+    <div className="grid gap-1">
+      {content}
+      {expandable && (
+        <div className="pl-14">
+          <button
+            type="button"
+            className="text-muted-foreground text-xs underline-offset-4 hover:underline"
+            disabled={expanding}
+            onClick={() => void toggleMembers()}
+          >
+            {members ? t('collapse_members') : t('expand_members', { count: item.aggregateCount })}
+          </button>
+          {members && (
+            <ul className="mt-2 grid gap-1">
+              {members.map(member => (
+                <li key={member.id} className="text-muted-foreground flex items-center gap-2 text-xs">
+                  <UserAvatar user={member.actor} size={48} className="size-5" />
+                  <span>{member.actor.nickname || member.actor.username}</span>
+                  <span>
+                    {formatDateTime({
+                      dateTimeString: member.createdAt,
+                      locale,
+                      convertShortAgo: true,
+                      unitI18n: {
+                        secondsAgo: commonT('secondsAgo'),
+                        minutesAgo: commonT('minutesAgo'),
+                        hoursAgo: commonT('hoursAgo'),
+                        daysAgo: commonT('daysAgo'),
+                      },
+                    })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

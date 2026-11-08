@@ -2185,6 +2185,7 @@
       "not_pinned": "Not pinned"
     },
     "menu": {
+      "notifications": "Notifications",
       "content": "Posts & pages",
       "taxonomy": "Categories & labels",
       "accounts": "Users & auth",
@@ -3009,6 +3010,30 @@
       }
     }
   },
+  "NotificationDelivery": {
+    "title": "Notification email delivery",
+    "description": "Shows delivery state and errors only — never the notification content of other people. Failed batches can be retried",
+    "state_attention": "Needs attention",
+    "state_failed": "Failed",
+    "state_pending": "Pending",
+    "state_sending": "Sending",
+    "state_sent": "Sent",
+    "state_skipped": "Skipped",
+    "col_recipient": "Recipient",
+    "col_type": "Type",
+    "col_state": "State",
+    "col_attempts": "Attempts",
+    "col_error": "Last error",
+    "col_actions": "Actions",
+    "retry": "Retry",
+    "retry_success": "Queued again; the next round will try once more",
+    "retry_failed": "Retry failed",
+    "load_failed": "Failed to load deliveries",
+    "empty_title": "Nothing to fix",
+    "empty_desc": "Rows appear here only when delivery needs attention",
+    "prev": "Previous",
+    "next": "Next"
+  },
   "Copyright": {
     "author": "Author",
     "copyright_notice": "Copyright",
@@ -3024,7 +3049,7 @@
   "NotificationSettings": {
     "title": "Notification settings",
     "description": "In-app and email notifications are managed here; changes take effect immediately",
-      "token_expired": "This link has expired. Sign in to continue",
+    "token_expired": "This link has expired. Sign in to continue",
     "login_required": "Sign in to manage your notification preferences",
     "login": "Sign in",
     "load_failed": "Failed to load notification preferences",
@@ -3063,6 +3088,7 @@
     "empty_title": "No notifications yet",
     "empty_desc": "Comments and likes on your content will show up here",
     "loading_more": "Loading…",
+    "new_notification": "New activity",
     "unread": "Unread",
     "actor_separator": ", ",
     "and_others": " and {count} others",
@@ -3070,6 +3096,8 @@
     "group_today": "Today",
     "group_yesterday": "Yesterday",
     "group_earlier": "Earlier",
+    "expand_members": "Show all {count}",
+    "collapse_members": "Collapse",
     "types": {
       "comment_created": "{actors} commented on your post \"{subject}\": {excerpt}",
       "comment_created_page": "{actors} commented on your page \"{subject}\": {excerpt}",

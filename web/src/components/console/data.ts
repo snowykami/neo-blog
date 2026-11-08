@@ -3,6 +3,7 @@ import type { IconType } from '@/types/icon'
 import {
   Activity,
   AudioLines,
+  BellRing,
   Bot,
   Bug,
   ChartBarStackedIcon,
@@ -67,6 +68,7 @@ const users: SidebarItem = { id: 'users', title: 'users.title', url: consolePath
 // AI 用户（由 Agent 驱动的普通账号）与行为日志：仅管理员可见
 const aiAgents: SidebarItem = { id: 'ai_agents', title: 'ai_agents.title', tabTitle: 'ai_agents.tab_agents', url: consolePath.aiAgent, icon: Bot, permission: isAdmin }
 const aiAgentRuns: SidebarItem = { id: 'ai_agent_runs', title: 'ai_agents.runs.title', url: consolePath.aiAgentRun, icon: ListTree, permission: isAdmin }
+const notificationDelivery: SidebarItem = { id: 'notification_delivery', title: 'menu.notifications', tabTitle: 'menu.notifications', url: consolePath.notificationDelivery, icon: BellRing, permission: isAdmin }
 const oidc: SidebarItem = { id: 'oidc', title: 'oidc.title', url: consolePath.oidc, icon: IdCard, permission: isAdmin }
 const userProfile: SidebarItem = { id: 'user_profile', title: 'user_profile.title', url: consolePath.userProfile, icon: UserPen, permission: () => true }
 const userSecurity: SidebarItem = { id: 'user_security', title: 'user_security.title', url: consolePath.userSecurity, icon: ShieldCheck, permission: () => true }
@@ -91,6 +93,7 @@ export const sidebarData: {
     { id: 'global', title: 'global.title', icon: Settings, items: [globalSettings] },
     { id: 'accounts', title: 'menu.accounts', icon: Users, items: [users, oidc] },
     { id: 'ai_agents', title: 'ai_agents.title', icon: Bot, items: [aiAgents, aiAgentRuns] },
+    { id: 'notifications', title: 'menu.notifications', icon: BellRing, items: [notificationDelivery] },
   ],
   navPersonal: [
     { id: 'personal', title: 'menu.personal_settings', icon: UserPen, items: [userProfile, userSecurity, userPreference, apiTokens] },

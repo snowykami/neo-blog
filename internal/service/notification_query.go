@@ -194,6 +194,48 @@ func saveNotificationPreferences(user *model.User, inApp, email []string, aiInte
 	return buildNotificationPreferences(user), nil
 }
 
+// ListNotificationDeliveries 管理员排查邮件投递：只看状态与错误，不读通知内容之外的个人数据
+func (s *NotificationService) ListNotificationDeliveries(ctx context.Context, req *dto.ListNotificationDeliveriesReq) ([]dto.NotificationDeliveryDto, int64, *errs.ServiceError) {
+	if !ctxutils.IsAdmin(ctx) {
+		return nil, 0, errs.NewForbidden("permission_denied")
+	}
+	rows, total, err := repo.Notification.ListEmailDeliveries(req.State, req.Page, req.Size)
+	if err != nil {
+		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("notification")
+	}
+	items := make([]dto.NotificationDeliveryDto, 0, len(rows))
+	for i := range rows {
+		item := dto.NotificationDeliveryDto{
+			ID:           rows[i].ID,
+			UserID:       rows[i].UserID,
+			Type:         rows[i].Type,
+			SubjectTitle: rows[i].SubjectTitle,
+			EmailState:   rows[i].EmailState,
+			Attempts:     rows[i].EmailAttempts,
+			NextAt:       rows[i].EmailNextAt,
+			LastError:    rows[i].EmailLastErr,
+			CreatedAt:    rows[i].CreatedAt,
+		}
+		// 只显示收件邮箱，便于确认发给了谁；查不到用户时留空
+		if user, err := repo.User.GetUserByID(rows[i].UserID); err == nil {
+			item.UserEmail = user.Email
+		}
+		items = append(items, item)
+	}
+	return items, total, nil
+}
+
+// RetryNotificationDelivery 管理员手动重试一条投递
+func (s *NotificationService) RetryNotificationDelivery(ctx context.Context, id uint) *errs.ServiceError {
+	if !ctxutils.IsAdmin(ctx) {
+		return errs.NewForbidden("permission_denied")
+	}
+	if err := repo.Notification.RetryEmail(id); err != nil {
+		return errs.Internal("failed_to_update_target", err).WithResource("notification")
+	}
+	return nil
+}
+
 // toNotificationItemDto 仓储的分组行 → 接口 DTO
 func toNotificationItemDto(group *repo.NotificationGroup) dto.NotificationItemDto {
 	notification := group.Notification
@@ -222,4 +264,32 @@ func toNotificationItemDto(group *repo.NotificationGroup) dto.NotificationItemDt
 		UpdatedAt:      notification.UpdatedAt,
 	}
 	return item
+}
+
+// ListNotificationGroupMembers 展开聚合行：点赞组列出具体是谁，折叠行只有它自己
+func (s *NotificationService) ListNotificationGroupMembers(ctx context.Context, id uint) ([]dto.NotificationItemDto, *errs.ServiceError) {
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok {
+		return nil, errs.NewUnauthorized("login_required")
+	}
+	rows, err := repo.Notification.ListGroupMembers(currentUser.ID, id, currentUser.TimeZone, 50)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errs.NewNotFound("operation_target_not_found").WithResource("notification")
+		}
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("notification")
+	}
+	items := make([]dto.NotificationItemDto, 0, len(rows))
+	for i := range rows {
+		group := repo.NotificationGroup{Notification: rows[i], Count: 1, UnreadCount: boolToInt(rows[i].ReadAt == nil)}
+		items = append(items, toNotificationItemDto(&group))
+	}
+	return items, nil
+}
+
+func boolToInt(value bool) int64 {
+	if value {
+		return 1
+	}
+	return 0
 }

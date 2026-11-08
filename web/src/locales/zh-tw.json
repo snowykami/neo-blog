@@ -2185,6 +2185,7 @@
       "not_pinned": "未置頂"
     },
     "menu": {
+      "notifications": "通知",
       "content": "文章與頁面",
       "taxonomy": "分類與標籤",
       "accounts": "使用者與認證",
@@ -3009,6 +3010,30 @@
       }
     }
   },
+  "NotificationDelivery": {
+    "title": "通知郵件投遞",
+    "description": "只顯示投遞狀態與錯誤原因，看不到別人的通知內容；失敗的批次可以手動重試",
+    "state_attention": "需要關注",
+    "state_failed": "失敗",
+    "state_pending": "等待寄送",
+    "state_sending": "寄送中",
+    "state_sent": "已寄送",
+    "state_skipped": "已略過",
+    "col_recipient": "收件者",
+    "col_type": "類型",
+    "col_state": "狀態",
+    "col_attempts": "重試次數",
+    "col_error": "最近錯誤",
+    "col_actions": "操作",
+    "retry": "重試",
+    "retry_success": "已重新排隊，下一輪會再寄一次",
+    "retry_failed": "重試失敗",
+    "load_failed": "載入投遞記錄失敗",
+    "empty_title": "沒有需要處理的投遞",
+    "empty_desc": "郵件寄送正常時這裡不會出現記錄",
+    "prev": "上一頁",
+    "next": "下一頁"
+  },
   "Copyright": {
     "author": "作者",
     "copyright_notice": "版權聲明",
@@ -3024,7 +3049,7 @@
   "NotificationSettings": {
     "title": "通知設定",
     "description": "站內通知與郵件通知的開關都在這裡管理，變更即時生效",
-      "token_expired": "此連結已過期，請登入後繼續",
+    "token_expired": "此連結已過期，請登入後繼續",
     "login_required": "登入後即可管理你的通知偏好",
     "login": "登入",
     "load_failed": "載入通知偏好失敗",
@@ -3063,6 +3088,7 @@
     "empty_title": "還沒有通知",
     "empty_desc": "有人留言或按讚你的內容時，會出現在這裡",
     "loading_more": "正在載入…",
+    "new_notification": "有了新的互動",
     "unread": "未讀",
     "actor_separator": "、",
     "and_others": "和另外 {count} 人",
@@ -3070,6 +3096,8 @@
     "group_today": "今天",
     "group_yesterday": "昨天",
     "group_earlier": "更早",
+    "expand_members": "查看這 {count} 人的互動",
+    "collapse_members": "收合",
     "types": {
       "comment_created": "{actors} 留言了你的文章《{subject}》：{excerpt}",
       "comment_created_page": "{actors} 留言了你的頁面《{subject}》：{excerpt}",

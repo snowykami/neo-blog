@@ -2185,6 +2185,7 @@
       "not_pinned": "고정 안 됨"
     },
     "menu": {
+      "notifications": "알림",
       "content": "글과 페이지",
       "taxonomy": "카테고리와 라벨",
       "accounts": "사용자와 인증",
@@ -3009,6 +3010,30 @@
       }
     }
   },
+  "NotificationDelivery": {
+    "title": "알림 메일 발송",
+    "description": "발송 상태와 오류만 표시하며 다른 사람의 알림 내용은 볼 수 없습니다. 실패한 배치는 직접 재시도할 수 있습니다",
+    "state_attention": "확인 필요",
+    "state_failed": "실패",
+    "state_pending": "발송 대기",
+    "state_sending": "발송 중",
+    "state_sent": "발송됨",
+    "state_skipped": "건너뜀",
+    "col_recipient": "수신자",
+    "col_type": "종류",
+    "col_state": "상태",
+    "col_attempts": "재시도",
+    "col_error": "최근 오류",
+    "col_actions": "작업",
+    "retry": "재시도",
+    "retry_success": "다시 대기열에 넣었습니다. 다음 실행에서 발송합니다",
+    "retry_failed": "재시도에 실패했습니다",
+    "load_failed": "발송 기록을 불러오지 못했습니다",
+    "empty_title": "처리할 발송이 없습니다",
+    "empty_desc": "발송이 정상일 때는 여기에 표시되지 않습니다",
+    "prev": "이전",
+    "next": "다음"
+  },
   "Copyright": {
     "author": "작성자",
     "copyright_notice": "저작권",
@@ -3024,7 +3049,7 @@
   "NotificationSettings": {
     "title": "알림 설정",
     "description": "사이트 내 알림과 메일 알림 설정을 여기서 관리합니다. 변경 사항은 즉시 적용됩니다",
-      "token_expired": "이 링크는 만료되었습니다. 로그인 후 계속하세요",
+    "token_expired": "이 링크는 만료되었습니다. 로그인 후 계속하세요",
     "login_required": "로그인하면 알림 설정을 관리할 수 있습니다",
     "login": "로그인",
     "load_failed": "알림 설정을 불러오지 못했습니다",
@@ -3063,6 +3088,7 @@
     "empty_title": "아직 알림이 없습니다",
     "empty_desc": "내 콘텐츠에 댓글이나 좋아요가 달리면 여기에 표시됩니다",
     "loading_more": "불러오는 중…",
+    "new_notification": "새로운 활동이 있습니다",
     "unread": "읽지 않음",
     "actor_separator": ", ",
     "and_others": " 외 {count}명",
@@ -3070,6 +3096,8 @@
     "group_today": "오늘",
     "group_yesterday": "어제",
     "group_earlier": "그 이전",
+    "expand_members": "{count}건 모두 보기",
+    "collapse_members": "접기",
     "types": {
       "comment_created": "{actors} 님이 글 \"{subject}\"에 댓글을 남겼습니다: {excerpt}",
       "comment_created_page": "{actors} 님이 페이지 \"{subject}\"에 댓글을 남겼습니다: {excerpt}",

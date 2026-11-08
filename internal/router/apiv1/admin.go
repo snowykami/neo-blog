@@ -30,6 +30,9 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.POST("/config/email/test", adminController.SendTestEmail)
 		// 通知：管理员不能读别人的通知，只能给自己发一条测试通知确认链路可用
 		consoleGroup.POST("/notifications/test", controller.NewNotificationController().SendTestNotification)
+		// 邮件投递排查：只看状态与错误，管理员读不到别人的通知内容
+		consoleGroup.GET("/notifications/deliveries", controller.NewNotificationController().ListDeliveries)
+		consoleGroup.POST("/notifications/deliveries/:id/retry", controller.NewNotificationController().RetryDelivery)
 		// 用户区
 		consoleGroup.GET("/users", adminController.ListUsers)
 		consoleGroup.POST("/users", adminController.CreateUser)

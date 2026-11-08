@@ -53,3 +53,17 @@ export interface NotificationPreferences {
   siteEmailTypes: NotificationType[]
   availableTypes: NotificationType[]
 }
+
+// 后台投递排查面板的一行
+export interface NotificationDelivery {
+  id: number
+  userId: number
+  userEmail: string
+  type: NotificationType
+  subjectTitle: string
+  emailState: 'pending' | 'attached' | 'sending' | 'sent' | 'failed' | 'skipped'
+  attempts: number
+  nextAt: string | null
+  lastError: string
+  createdAt: string
+}
