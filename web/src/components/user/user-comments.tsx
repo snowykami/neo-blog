@@ -8,6 +8,8 @@ import { parseAsInteger, useQueryState } from 'nuqs'
 import { Fragment, useEffect, useState } from 'react'
 import { listUserComments } from '@/api/comment'
 import { CommentAttachments } from '@/components/comment/comment-attachments'
+import { useCommentLimits } from '@/components/comment/comment-limits'
+import { CommentText } from '@/components/comment/comment-text'
 import { UserAvatar } from '@/components/common/avatar'
 import { PaginationController } from '@/components/common/pagination'
 import { SectionTitle } from '@/components/layout/site-shell'
@@ -36,6 +38,7 @@ function UserCommentItem({ comment }: { comment: UserComment }) {
   const t = useTranslations('UserPage')
   const commonT = useTranslations('Common')
   const locale = useLocale()
+  const { collapsedLines } = useCommentLimits()
 
   return (
     <article className="grid gap-3 px-6 py-5 md:px-8">
@@ -64,7 +67,8 @@ function UserCommentItem({ comment }: { comment: UserComment }) {
       </div>
       {comment.content.trim() && (
         <p className="rounded-xl bg-foreground/[.03] px-4 py-2 break-words whitespace-pre-wrap text-foreground/75">
-          {comment.content}
+          {/* 与文章评论区一致：超过配置行数先折叠 */}
+          <CommentText content={comment.content} lines={collapsedLines} />
         </p>
       )}
       <CommentAttachments attachments={comment.attachments} />

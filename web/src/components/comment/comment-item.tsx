@@ -27,8 +27,9 @@ import { formatLocation } from '@/utils/common/location'
 import { isAdmin } from '@/utils/common/permission'
 import { getUserUrl } from '@/utils/common/route'
 import { CommentAttachments } from './comment-attachments'
-import { CommentContent } from './comment-content'
 import { CommentInput } from './comment-input'
+import { useCommentLimits } from './comment-limits'
+import { CommentText } from './comment-text'
 
 export type ActiveInput = { id: number, type: 'reply' | 'edit' } | null
 
@@ -267,6 +268,7 @@ function CommentBody({
   translatable: boolean
 }) {
   const { siteInfo } = useSiteInfo()
+  const { collapsedLines } = useCommentLimits()
   const { user } = useAuth()
   const locale = useLocale()
   // 评论翻译接口只区分简繁（zh / zh-tw），地区变体共用同一份译文
@@ -421,17 +423,39 @@ function CommentBody({
           {/* 只有附件的评论没有正文，回复时仍显示 @某人 */}
           {(hasText || replyToUser) && (
             <p lang={translated?.targetLang} className={cn('mt-1 mb-0.5 break-words whitespace-pre-wrap text-foreground/85', !isRoot && 'text-[0.95em]')}>
-              {replyToUser && (
-                <Link
-                  href={getUserUrl(replyToUser)}
-                  data-user-color={userColor(replyToUser)}
-                  className="mr-1 font-semibold text-primary hover:underline"
-                >
-                  @
-                  {name(replyToUser)}
-                </Link>
-              )}
-              {translated ? translated.content : <CommentContent content={comment.content} mentions={comment.mentions} />}
+              {translated
+                ? (
+                    <>
+                      {replyToUser && (
+                        <Link
+                          href={getUserUrl(replyToUser)}
+                          data-user-color={userColor(replyToUser)}
+                          className="mr-1 font-semibold text-primary hover:underline"
+                        >
+                          @
+                          {name(replyToUser)}
+                        </Link>
+                      )}
+                      {translated.content}
+                    </>
+                  )
+                : (
+                    <CommentText
+                      content={comment.content}
+                      mentions={comment.mentions}
+                      lines={collapsedLines}
+                      prefix={replyToUser && (
+                        <Link
+                          href={getUserUrl(replyToUser)}
+                          data-user-color={userColor(replyToUser)}
+                          className="mr-1 font-semibold text-primary hover:underline"
+                        >
+                          @
+                          {name(replyToUser)}
+                        </Link>
+                      )}
+                    />
+                  )}
             </p>
           )}
           {translated && (

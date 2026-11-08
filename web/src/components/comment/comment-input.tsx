@@ -18,6 +18,8 @@ import { useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { getUserUrl } from '@/utils/common/route'
 import { CommentAttachmentButton, CommentAttachmentList, useCommentAttachments } from './comment-attachment-input'
+import { CommentLengthRing } from './comment-length-ring'
+import { commentCharCount, useCommentLimits } from './comment-limits'
 import { MentionCandidates } from './mention-candidates'
 import { useMention } from './use-mention'
 
@@ -63,6 +65,10 @@ export function CommentInput({
   const [showClientInfo, setShowClientInfo] = useState(initShowClientInfo)
   const [commentContent, setCommentContent] = useState(initContent)
   const [submitting, setSubmitting] = useState(false) // 提交中，防止重复提交
+  const { maxLength } = useCommentLimits()
+  // 与后端一致的字数（去首尾空白、按字符数），超出上限时不允许发布
+  const charCount = commentCharCount(commentContent)
+  const tooLong = charCount > maxLength
   const [focused, setFocused] = useState(false)
   const attachments = useCommentAttachments(initAttachments)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -96,6 +102,10 @@ export function CommentInput({
     }
     if (empty) {
       toast.error(t('content_required'))
+      return
+    }
+    if (tooLong) {
+      toast.error(t('length_over', { over: charCount - maxLength, max: maxLength }))
       return
     }
     if (unchanged) {
@@ -234,13 +244,14 @@ export function CommentInput({
               {t('show_client_info')}
             </Toggle>
             <span className="flex-1" />
+            <CommentLengthRing used={charCount} max={maxLength} />
             <Kbd className="hidden sm:inline-flex" title={t('submit_shortcut')}>⌘ ↵</Kbd>
             {onCancel && (
               <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
                 {operationT('cancel')}
               </Button>
             )}
-            <Button type="button" size="sm" onClick={handleCommentSubmit} disabled={submitting || empty || attachments.uploading || unchanged}>
+            <Button type="button" size="sm" onClick={handleCommentSubmit} disabled={submitting || empty || tooLong || attachments.uploading || unchanged}>
               {submitting && <Loader2 className="animate-spin" />}
               {isUpdate ? operationT('update') : replyTo ? t('reply') : t('publish')}
             </Button>

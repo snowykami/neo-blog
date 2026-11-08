@@ -67,6 +67,8 @@ export interface SiteInfo {
   }
   postsPerPage: number
   commentsPerPage: number
+  commentMaxLength: number // 单条评论的字数上限（后台可配置）
+  commentCollapsedLines: number // 评论正文超过多少行时先折叠
   verifyCodeCoolDown: number
   animationDurationSecond: number
   copyright?: string
@@ -110,6 +112,8 @@ export const fallbackSiteInfo: SiteInfo = {
   },
   postsPerPage: 10,
   commentsPerPage: 10,
+  commentMaxLength: 500,
+  commentCollapsedLines: 6,
   verifyCodeCoolDown: 60,
   animationDurationSecond: 0.3,
   copyright: 'CC BY-NC-SA 4.0',
