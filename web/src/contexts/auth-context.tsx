@@ -11,6 +11,8 @@ interface AuthContextValue {
   // 客户端仍在确认登录状态（服务端未能确定时补拉 /user/me 期间）
   loading: boolean
   setUser: (u: User | null) => void
+  // 重新拉取登录状态：第三方登录在小窗里完成（Cookie 已由后端写好）时用它刷新本页
+  refresh: () => Promise<User | null>
   logout: () => void
 }
 
@@ -54,6 +56,18 @@ export function AuthProvider({
     }
   }, [initialUser, isAnonymous])
 
+  const refresh = useCallback(async () => {
+    try {
+      const res = await getLoginUser()
+      setUser(res.data)
+      return res.data
+    }
+    catch {
+      setUser(null)
+      return null
+    }
+  }, [])
+
   const logout = useCallback(() => {
     userLogout()
       .then(() => {
@@ -64,7 +78,7 @@ export function AuthProvider({
         toast.error(commonT('logout_failed'))
       })
   }, [commonT])
-  const value = useMemo(() => ({ user, loading, setUser, logout }), [user, loading, logout])
+  const value = useMemo(() => ({ user, loading, setUser, refresh, logout }), [user, loading, refresh, logout])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

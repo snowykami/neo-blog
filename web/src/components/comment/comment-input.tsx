@@ -219,6 +219,7 @@ function GuestInvite() {
   const operationT = useOperationT()
   const openLogin = useLoginDialog()
   const pathname = usePathname()
+  const { refresh } = useAuth()
   // 读取失败时只显示登录按钮
   const { providers } = useOidcProviders()
 
@@ -230,8 +231,14 @@ function GuestInvite() {
         <p className="text-sm text-muted-foreground">{t('guest_desc')}</p>
       </div>
       <div className="flex w-full items-center gap-2 sm:w-auto">
-        {/* 第三方登录完成后回到当前页面 */}
-        <OidcProviderButtons providers={providers} redirectBack={pathname} variant="icon" />
+        {/* 第三方登录在小窗里完成，本页不离开（见 components/auth/oidc-popup.ts） */}
+        <OidcProviderButtons
+          providers={providers}
+          redirectBack={pathname}
+          variant="icon"
+          mode="popup"
+          onLoggedIn={() => refresh()}
+        />
         <Button type="button" className="flex-1 sm:flex-none" onClick={() => openLogin({ reason: 'comment' })}>
           <LogIn />
           {operationT('login')}

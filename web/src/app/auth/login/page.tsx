@@ -28,7 +28,7 @@ export default function LoginPage() {
 export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) {
   const t = useTranslations('Login')
   const errorMessageT = useErrorMessageT()
-  const { user } = useAuth()
+  const { user, refresh } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -69,8 +69,23 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
             </SectionDivider>
           )}
           <div className="grid gap-4">
-            {/* 已登录时为绑定第三方账号 */}
-            <OidcProviderButtons providers={providers} redirectBack={redirectBack} bind={!!user} className="gap-4" />
+            {/* 第三方登录在小窗里完成（见 components/auth/oidc-popup.ts）；已登录时为绑定第三方账号 */}
+            <OidcProviderButtons
+              providers={providers}
+              redirectBack={redirectBack}
+              bind={!!user}
+              mode="popup"
+              className="gap-4"
+              onLoggedIn={() => {
+                refresh().then((current) => {
+                  // 绑定场景本来已登录：刷新页面看到新绑定的账号；登录场景回到原页面
+                  if (user)
+                    window.location.reload()
+                  else if (current)
+                    router.replace(redirectBack)
+                })
+              }}
+            />
             <SectionDivider className="my-2">
               {t('or_continue_with_local_account')}
             </SectionDivider>

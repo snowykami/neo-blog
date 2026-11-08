@@ -2,9 +2,12 @@
 import type { OidcConfig } from '@/models/oidc-config'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { getOidcAuthorizeUrl, listOidcConfigs } from '@/api/user'
+import { openOidcPopup } from '@/components/auth/oidc-popup'
 import { ImageAvatar } from '@/components/common/avatar'
 import { Button } from '@/components/ui/button'
+import { useErrorMessageT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 
 // 列表只含展示信息，页面内共用一次请求（评论区邀请卡片与快捷登录弹窗同时用到），失败后下次重新请求
@@ -46,24 +49,53 @@ export function useOidcProviders() {
 
 /**
  * 第三方登录按钮：icon 为圆形图标按钮（评论区登录邀请），full 为带名称的整行按钮（登录页、快捷登录弹窗）。
- * 按钮是普通链接，点击时后端才生成 state，完成后回到 redirectBack；bind 为已登录用户绑定第三方账号
+ * 默认是普通链接，点击时后端才生成 state，完成后回到 redirectBack（离开当前页面）；
+ * mode 为 popup 时改为在小窗里完成认证（见 openOidcPopup），成功后调用 onLoggedIn，本页不离开。
+ * bind 为已登录用户绑定第三方账号
  */
 export function OidcProviderButtons({
   providers,
   redirectBack,
   bind = false,
   variant = 'full',
+  mode = 'redirect',
+  onLoggedIn,
   className,
 }: {
   providers: OidcConfig[]
   redirectBack: string
   bind?: boolean
   variant?: 'icon' | 'full'
+  mode?: 'redirect' | 'popup'
+  // 小窗登录成功后调用（Cookie 已写好，调用方负责重新拉取登录状态）
+  onLoggedIn?: () => void
   className?: string
 }) {
   const t = useTranslations('Login')
+  const errorMessageT = useErrorMessageT()
+  const [pending, setPending] = useState<string | null>(null)
+
   if (providers.length === 0)
     return null
+
+  const loginInPopup = (provider: OidcConfig) => {
+    setPending(provider.name)
+    openOidcPopup({ name: provider.name, bind })
+      .then((result) => {
+        if (result.ok) {
+          onLoggedIn?.()
+          return
+        }
+        if (result.blocked) {
+          // 小窗被拦截：退回整页跳转
+          window.location.href = getOidcAuthorizeUrl({ name: provider.name, redirectBack, bind })
+          return
+        }
+        if (result.error)
+          toast.error(`${t('oidc_login_failed')}: ${errorMessageT(result.error)}`)
+      })
+      .finally(() => setPending(null))
+  }
 
   return (
     <div className={cn(variant === 'icon' ? 'flex items-center gap-2' : 'grid gap-2', className)}>
@@ -71,18 +103,47 @@ export function OidcProviderButtons({
         const label = t('login_with', { name: provider.displayName })
         // nofollow：避免搜索引擎顺着链接反复发起登录
         const href = getOidcAuthorizeUrl({ name: provider.name, redirectBack, bind })
+        const icon = (
+          <ImageAvatar
+            src={provider.icon}
+            alt=""
+            fallback={provider.displayName.slice(0, 1)}
+            className={variant === 'icon' ? 'size-5' : 'size-6'}
+            fallbackClassName={variant === 'icon' ? 'text-[10px]' : 'text-xs'}
+          />
+        )
+
+        if (mode === 'popup') {
+          return (
+            <Button
+              key={provider.name}
+              type="button"
+              variant="outline"
+              className={variant === 'icon' ? 'shrink-0 rounded-full' : 'w-full'}
+              size={variant === 'icon' ? 'icon' : 'default'}
+              disabled={pending != null}
+              title={label}
+              aria-label={label}
+              onClick={() => loginInPopup(provider)}
+            >
+              {icon}
+              {variant === 'icon' ? <span className="sr-only">{label}</span> : label}
+            </Button>
+          )
+        }
+
         return variant === 'icon'
           ? (
               <Button key={provider.name} asChild variant="outline" size="icon" className="shrink-0 rounded-full">
                 <a href={href} rel="nofollow" title={label} aria-label={label}>
-                  <ImageAvatar src={provider.icon} alt="" fallback={provider.displayName.slice(0, 1)} className="size-5" fallbackClassName="text-[10px]" />
+                  {icon}
                 </a>
               </Button>
             )
           : (
               <Button key={provider.name} asChild variant="outline" className="w-full">
                 <a href={href} rel="nofollow">
-                  <ImageAvatar src={provider.icon} alt="" fallback={provider.displayName.slice(0, 1)} className="size-6" fallbackClassName="text-xs" />
+                  {icon}
                   {label}
                 </a>
               </Button>
