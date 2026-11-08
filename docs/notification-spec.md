@@ -26,7 +26,7 @@
 ### 1.2 非目标
 
 - 站内私信、关注/粉丝流、订阅式推送。都不做，但数据模型不阻碍将来加。
-- **@提及**（`comment.mentioned`）。v1 不做，15.1 里只留了占位（N7 已定）。
+- 全站广播、系统公告（下面两条已经在 P2 之后补齐：`@提及` 见 15.1 第 6 行）。
 - 全站广播 / 系统公告。这不是通知系统该干的事，不需要为此设计类型。
 - 桌面通知、WebPush。P2 之后再议，接口上留扩展位但不实现。
 - 管理台查看别人的通知。见第 9 节。
@@ -426,7 +426,7 @@ DTO 字段沿用仓库约定（后端 snake_case，前端 camelCase 由请求层
 | 键 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `notification_email_enable` | bool | false | 是否发送通知邮件（站内通知不受影响） |
-| `notification_email_types` | enum 列表 | 评论 + 回复 | 哪些类型算「重要」、允许触发邮件；点赞与线程活动永远只是附带，不进这个列表（见 16 章 N2） |
+| `notification_email_types` | enum 列表 | 评论 + 回复 + 提及 | 哪些类型算「重要」、允许触发邮件；点赞与线程活动永远只是附带，不进这个列表（见 16 章 N2） |
 | `notification_email_interval` | int（分钟） | 10 | 重要消息的汇总间隔；0 = 每轮（30 秒）即发 |
 | `notification_email_attach_hours` | int（小时） | 24 | 附带行（点赞 / AI）能搭车多久；超时未搭上就置 `skipped` |
 | `notification_email_attach_max` | int | 5 | 单封邮件里附带行最多几条，超出只显示「另有 N 个赞」 |
@@ -564,7 +564,7 @@ A1 → A2 → A3 → B1 → B2 → B3 → B4 / B5 → C1 → D1 → D2 → D3 / 
 | 3 | `comment.replied` | 回复了你的**评论** | `CreateComment`（`ReplyID≠0`） | `comment`（你的那条） | 被回复评论的作者 | `comment.replied:comment:<被回复ID>:comment:<newID>` | ✅ |
 | 4 | `post.liked` | 赞了你的**文章** | `LikeService.ToggleLike` | `post` | 文章作者 | `post.liked:post:<postID>:user:<actorID>` | ✅ |
 | 5 | `comment.liked` | 赞了你的**评论** | `LikeService.ToggleLike` | `comment` | 评论作者 | `comment.liked:comment:<commentID>:user:<actorID>` | ✅ |
-| 6 | `comment.mentioned` | 在评论里 **@** 了你 | `CreateComment`（v1 不做，见 16 章 N7） | `comment` | 被提及的人 | `comment.mentioned:comment:<commentID>:user:<mentionedID>` | ⬜ |
+| 6 | `comment.mentioned` | 在评论里 **@** 了你 | `CreateComment`（`MentionUserIDs`，见 17.4） | `comment` | 被提及的人 | `comment.mentioned:comment:<commentID>:user:<mentionedID>` | ✅ |
 | 7 | `comment.thread_replied` | 你发起的那串评论里，别人在互相回复 | `CreateComment`（回溯线程根） | `comment`（线程根） | 线程发起人 + 主题作者（后者可站点级关） | `comment.thread_replied:comment:<rootID>:day:<yyyymmdd>:user:<recipientID>` | ✅ P0（N6=c） |
 
 说明：
@@ -670,7 +670,7 @@ A1 → A2 → A3 → B1 → B2 → B3 → B4 / B5 → C1 → D1 → D2 → D3 / 
 | N1 | 点赞：站内通知发，**邮件永不单独发**（只搭车） | 3.1 / 6.2 |
 | N4 | 重要消息汇总间隔 10 分钟（`notification_email_interval`）；点赞按 N1 只搭车，不再有单独间隔 | 6.2 / 6.3 / 12 |
 | N5 | 已读：显式「全部标为已读」+ 点开单条即已读，不做进页面自动全读 | 7 |
-| N7 | v1 不做 @提及，`comment.mentioned` 只留占位 | 1.2 / 15.1 |
+| N7 | ~~v1 不做 @提及~~ → 已实现：`@` 触发候选搜索（按用户名 / 昵称），提及算**重要**消息并通知被提及的人，见 17.4 | 1.2 / 15.1 / 17.4 |
 | N8 | 入口：头像下拉菜单第一项 + 未读徽标，不加独立铃铛 | 10.1 |
 | N10 | 保留期 180 天，`notification_retention_days` 可配 | 6.4 / 12 |
 | N12 | 深链要定位 + 高亮 + 展开线程，`?comment=` 是 P0 前置小需求 | 10.3 |
@@ -715,3 +715,13 @@ A1 → A2 → A3 → B1 → B2 → B3 → B4 / B5 → C1 → D1 → D2 → D3 / 
 - Postgres 上的分组查询（`CASE WHEN … || …` 与 `make_interval`）只有 SQLite 实际跑过，`NEO_TEST_POSTGRES_DSN` 未配置。
 - 前端只做了构建与静态检查（`pnpm build`、`tsc`、`eslint`、`vitest`），没有在浏览器里点一遍完整流程（需要一份带数据的后端）。
 - 邮件在真实 SMTP 上只验证过验证码邮件（本轮复用同一发送函数），通知汇总邮件只跑了模板渲染与 worker 单测。
+
+### 17.4 @提及（P2 之后补做）
+
+- **输入**：评论框里输入 `@` 后，按光标前的片段搜索用户（防抖 250ms），上下键选择、回车或点击插入 `@用户名 `；中文输入法组词期间不触发
+- **搜索接口**：`GET /api/v1/user/search?q=&limit=`，登录才可，按用户名 / 昵称模糊匹配（关键词里的 LIKE 通配符按字面转义），只返回公开字段，排除已禁用账号与自己
+- **存储**：正文仍是纯文本 `@用户名`，另外把被 @ 的 id 存进 `comments.mention_user_ids`（JSON）。用户改名后正文里的名字不再高亮，但已发出的通知不受影响
+- **校验**：最多 3 人（`too_many_mentions`）、id 必须存在且未被禁用（`invalid_mention`）、去重、忽略自己
+- **通知**：`comment.mentioned` 属于**重要**消息（会触发邮件），同一条评论对同一个人只提醒一次；已经收到 `comment.replied` / `comment.created` 的人不重复收
+- **私密评论**：只把目标作者与参与过该线程的人留给通知，其他人只在正文里出现（不抛可见性错误，避免泄漏规则）
+- **渲染**：`@用户名` 渲染成指向 `/u/用户名` 的链接；译文中不解析（AI 译文里的名字不保证是用户名）
