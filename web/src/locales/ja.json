@@ -3013,6 +3013,38 @@
     "post_at": "投稿日",
     "unknown_date": "日付不明"
   },
+  "Notifications": {
+    "title": "通知",
+    "login_required": "ログインすると、あなたの記事へのコメントやいいねが確認できます",
+    "login": "ログイン",
+    "load_failed": "通知を読み込めませんでした",
+    "mark_all_read": "すべて既読にする",
+    "mark_all_failed": "操作に失敗しました。しばらくしてからお試しください",
+    "tab_all": "すべて",
+    "tab_unread": "未読",
+    "tab_reply": "返信",
+    "tab_like": "いいね",
+    "empty_title": "通知はまだありません",
+    "empty_desc": "あなたの記事へのコメントやいいねがここに表示されます",
+    "loading_more": "読み込み中…",
+    "unread": "未読",
+    "actor_separator": "、",
+    "and_others": "ほか {count} 人",
+    "deleted_subject": "（削除済み）",
+    "group_today": "今日",
+    "group_yesterday": "昨日",
+    "group_earlier": "それ以前",
+    "types": {
+      "comment_created": "{actors} が記事「{subject}」にコメントしました：{excerpt}",
+      "comment_created_page": "{actors} がページ「{subject}」にコメントしました：{excerpt}",
+      "comment_replied": "{actors} が「{subject}」のあなたのコメントに返信しました：{excerpt}",
+      "comment_replied_without_quote": "{actors} があなたのコメントに返信しました：{excerpt}",
+      "post_liked": "{actors} が記事「{subject}」にいいねしました",
+      "comment_liked": "{actors} があなたのコメント「{quoted}」にいいねしました",
+      "comment_liked_without_quote": "{actors} があなたのコメントにいいねしました",
+      "comment_thread_replied": "{actors} が「{subject}」のコメント欄に返信しました"
+    }
+  },
   "Login": {
     "captcha_error": "CAPTCHA 認証に失敗しました。もう一度お試しください。",
     "continue": "続行",

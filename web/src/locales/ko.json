@@ -3013,6 +3013,38 @@
     "post_at": "게시일",
     "unknown_date": "알 수 없는 날짜"
   },
+  "Notifications": {
+    "title": "알림",
+    "login_required": "로그인하면 내 콘텐츠에 달린 댓글과 좋아요를 볼 수 있습니다",
+    "login": "로그인",
+    "load_failed": "알림을 불러오지 못했습니다",
+    "mark_all_read": "모두 읽음으로 표시",
+    "mark_all_failed": "작업에 실패했습니다. 잠시 후 다시 시도해 주세요",
+    "tab_all": "전체",
+    "tab_unread": "읽지 않음",
+    "tab_reply": "답글",
+    "tab_like": "좋아요",
+    "empty_title": "아직 알림이 없습니다",
+    "empty_desc": "내 콘텐츠에 댓글이나 좋아요가 달리면 여기에 표시됩니다",
+    "loading_more": "불러오는 중…",
+    "unread": "읽지 않음",
+    "actor_separator": ", ",
+    "and_others": " 외 {count}명",
+    "deleted_subject": "(삭제됨)",
+    "group_today": "오늘",
+    "group_yesterday": "어제",
+    "group_earlier": "그 이전",
+    "types": {
+      "comment_created": "{actors} 님이 글 \"{subject}\"에 댓글을 남겼습니다: {excerpt}",
+      "comment_created_page": "{actors} 님이 페이지 \"{subject}\"에 댓글을 남겼습니다: {excerpt}",
+      "comment_replied": "{actors} 님이 \"{subject}\"의 내 댓글에 답글을 남겼습니다: {excerpt}",
+      "comment_replied_without_quote": "{actors} 님이 내 댓글에 답글을 남겼습니다: {excerpt}",
+      "post_liked": "{actors} 님이 글 \"{subject}\"을 좋아합니다",
+      "comment_liked": "{actors} 님이 내 댓글 \"{quoted}\"을 좋아합니다",
+      "comment_liked_without_quote": "{actors} 님이 내 댓글을 좋아합니다",
+      "comment_thread_replied": "{actors} 님이 \"{subject}\"의 댓글에서 답글을 남겼습니다"
+    }
+  },
   "Login": {
     "captcha_error": "캡차 오류, 다시 시도하세요.",
     "continue": "계속",

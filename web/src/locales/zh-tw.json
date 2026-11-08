@@ -3013,6 +3013,38 @@
     "post_at": "發布於",
     "unknown_date": "未知日期"
   },
+  "Notifications": {
+    "title": "通知",
+    "login_required": "登入後即可看到誰留言、按讚了你的內容",
+    "login": "登入",
+    "load_failed": "載入通知失敗",
+    "mark_all_read": "全部標為已讀",
+    "mark_all_failed": "操作失敗，請稍後再試",
+    "tab_all": "全部",
+    "tab_unread": "未讀",
+    "tab_reply": "回覆",
+    "tab_like": "按讚",
+    "empty_title": "還沒有通知",
+    "empty_desc": "有人留言或按讚你的內容時，會出現在這裡",
+    "loading_more": "正在載入…",
+    "unread": "未讀",
+    "actor_separator": "、",
+    "and_others": "和另外 {count} 人",
+    "deleted_subject": "（內容已刪除）",
+    "group_today": "今天",
+    "group_yesterday": "昨天",
+    "group_earlier": "更早",
+    "types": {
+      "comment_created": "{actors} 留言了你的文章《{subject}》：{excerpt}",
+      "comment_created_page": "{actors} 留言了你的頁面《{subject}》：{excerpt}",
+      "comment_replied": "{actors} 回覆了你在《{subject}》下的留言「{quoted}」：{excerpt}",
+      "comment_replied_without_quote": "{actors} 回覆了你的留言：{excerpt}",
+      "post_liked": "{actors} 對你的文章《{subject}》按讚",
+      "comment_liked": "{actors} 對你的留言「{quoted}」按讚",
+      "comment_liked_without_quote": "{actors} 對你的留言按讚",
+      "comment_thread_replied": "{actors} 在《{subject}》的留言區回覆了"
+    }
+  },
   "Login": {
     "captcha_error": "驗證碼錯誤，請重試。",
     "continue": "繼續",

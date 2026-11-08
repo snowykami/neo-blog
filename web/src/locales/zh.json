@@ -3020,6 +3020,38 @@
     "upload_file": "上传文件",
     "uploading": "上传中..."
   },
+  "Notifications": {
+    "title": "通知",
+    "login_required": "登录后即可看到谁评论、点赞了你的内容",
+    "login": "登录",
+    "load_failed": "加载通知失败",
+    "mark_all_read": "全部标为已读",
+    "mark_all_failed": "操作失败，请稍后再试",
+    "tab_all": "全部",
+    "tab_unread": "未读",
+    "tab_reply": "回复",
+    "tab_like": "点赞",
+    "empty_title": "还没有通知",
+    "empty_desc": "有人评论或点赞你的内容时，会出现在这里",
+    "loading_more": "正在加载…",
+    "unread": "未读",
+    "actor_separator": "、",
+    "and_others": "和另外 {count} 人",
+    "deleted_subject": "（内容已删除）",
+    "group_today": "今天",
+    "group_yesterday": "昨天",
+    "group_earlier": "更早",
+    "types": {
+      "comment_created": "{actors} 评论了你的文章《{subject}》：{excerpt}",
+      "comment_created_page": "{actors} 评论了你的页面《{subject}》：{excerpt}",
+      "comment_replied": "{actors} 回复了你在《{subject}》下的评论「{quoted}」：{excerpt}",
+      "comment_replied_without_quote": "{actors} 回复了你的评论：{excerpt}",
+      "post_liked": "{actors} 赞了你的文章《{subject}》",
+      "comment_liked": "{actors} 赞了你的评论「{quoted}」",
+      "comment_liked_without_quote": "{actors} 赞了你的评论",
+      "comment_thread_replied": "{actors} 在《{subject}》的评论区回复了"
+    }
+  },
   "Login": {
     "continue_bind_oidc": "继续绑定第三方账号，或退出登录",
     "captcha_error": "验证错误，请重试。",

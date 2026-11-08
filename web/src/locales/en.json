@@ -3013,6 +3013,38 @@
     "post_at": "Posted at",
     "unknown_date": "Unknown date"
   },
+  "Notifications": {
+    "title": "Notifications",
+    "login_required": "Sign in to see who commented on or liked your content",
+    "login": "Sign in",
+    "load_failed": "Failed to load notifications",
+    "mark_all_read": "Mark all as read",
+    "mark_all_failed": "Something went wrong, please try again",
+    "tab_all": "All",
+    "tab_unread": "Unread",
+    "tab_reply": "Replies",
+    "tab_like": "Likes",
+    "empty_title": "No notifications yet",
+    "empty_desc": "Comments and likes on your content will show up here",
+    "loading_more": "Loading…",
+    "unread": "Unread",
+    "actor_separator": ", ",
+    "and_others": " and {count} others",
+    "deleted_subject": "(deleted)",
+    "group_today": "Today",
+    "group_yesterday": "Yesterday",
+    "group_earlier": "Earlier",
+    "types": {
+      "comment_created": "{actors} commented on your post \"{subject}\": {excerpt}",
+      "comment_created_page": "{actors} commented on your page \"{subject}\": {excerpt}",
+      "comment_replied": "{actors} replied to your comment on \"{subject}\": {excerpt}",
+      "comment_replied_without_quote": "{actors} replied to your comment: {excerpt}",
+      "post_liked": "{actors} liked your post \"{subject}\"",
+      "comment_liked": "{actors} liked your comment \"{quoted}\"",
+      "comment_liked_without_quote": "{actors} liked your comment",
+      "comment_thread_replied": "{actors} replied in the comments on \"{subject}\""
+    }
+  },
   "Login": {
     "captcha_error": "Captcha error, try again.",
     "continue": "Continue",
