@@ -1556,6 +1556,9 @@
       "title": "Preferences",
       "color_scheme": "Color scheme",
       "update_color_scheme_failed": "Failed to update color scheme",
+      "notification": "Notification settings",
+      "notification_desc": "In-app and email notification switches are managed on the notification settings page.",
+      "notification_link": "Open notification settings →",
       "ai_writing": "AI writing"
     },
     "pages": {
@@ -3012,6 +3015,33 @@
     "original_link": "Original link",
     "post_at": "Posted at",
     "unknown_date": "Unknown date"
+  },
+  "NotificationSettings": {
+    "title": "Notification settings",
+    "description": "In-app and email notifications are managed here; changes take effect immediately",
+    "login_required": "Sign in to manage your notification preferences",
+    "login": "Sign in",
+    "load_failed": "Failed to load notification preferences",
+    "save": "Save settings",
+    "saved": "Saved",
+    "save_failed": "Failed to save",
+    "inapp_title": "In-app notifications",
+    "inapp_desc": "Kinds you turn off no longer appear in the notification list and are not sent by email either",
+    "switch_comment": "Someone comments on my post or page",
+    "switch_reply": "Someone replies to my comment, or inside a thread I joined",
+    "switch_like": "Someone likes my post or comment",
+    "switch_ai": "Interactions from AI users",
+    "switch_ai_desc": "When off, AI likes and comments no longer notify you; the comments themselves stay visible on the post",
+    "email_title": "Email notifications",
+    "email_desc": "Emails are batched: interactions from a time window are merged into a single message",
+    "email_unavailable": "Notification emails are disabled on this site; in-app notifications are unaffected",
+    "email_switch": "Receive email notifications",
+    "email_note": "Likes and AI interactions never send an email on their own; they ride along with the next comment or reply",
+    "email_open_types": "This site currently allows: {types}",
+    "email_all_off": "Turn off all emails",
+    "list_separator": ", ",
+    "type_comment_created": "comments",
+    "type_comment_replied": "replies"
   },
   "Notifications": {
     "title": "Notifications",

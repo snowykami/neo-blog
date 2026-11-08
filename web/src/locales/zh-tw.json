@@ -1556,6 +1556,9 @@
       "title": "個人化",
       "color_scheme": "顏色主題",
       "update_color_scheme_failed": "更新顏色風格失敗",
+      "notification": "通知設定",
+      "notification_desc": "站內與郵件通知的開關統一在通知設定頁裡管理。",
+      "notification_link": "前往通知設定 →",
       "ai_writing": "AI 寫作"
     },
     "pages": {
@@ -3012,6 +3015,33 @@
     "original_link": "原文連結",
     "post_at": "發布於",
     "unknown_date": "未知日期"
+  },
+  "NotificationSettings": {
+    "title": "通知設定",
+    "description": "站內通知與郵件通知的開關都在這裡管理，變更即時生效",
+    "login_required": "登入後即可管理你的通知偏好",
+    "login": "登入",
+    "load_failed": "載入通知偏好失敗",
+    "save": "儲存設定",
+    "saved": "已儲存",
+    "save_failed": "儲存失敗",
+    "inapp_title": "站內通知",
+    "inapp_desc": "關掉的類型不會再出現在通知列表裡，也不會進郵件",
+    "switch_comment": "有人留言我的文章或頁面",
+    "switch_reply": "有人回覆我的留言，或在我參與的留言討論串裡回覆",
+    "switch_like": "有人對我的文章或留言按讚",
+    "switch_ai": "AI 使用者的互動",
+    "switch_ai_desc": "關掉後 AI 的按讚與留言不再通知你；留言本身仍然存在，可以在文章頁看到",
+    "email_title": "郵件通知",
+    "email_desc": "郵件是分批彙整的：累積一段時間後把這段時間的互動合成一封",
+    "email_unavailable": "站點目前沒有開啟通知郵件，站內通知不受影響",
+    "email_switch": "接收郵件通知",
+    "email_note": "按讚與 AI 互動不會單獨寄信，會隨下一次留言或回覆一起提醒",
+    "email_open_types": "站點目前只開放這些類型：{types}",
+    "email_all_off": "全部關閉郵件",
+    "list_separator": "、",
+    "type_comment_created": "留言",
+    "type_comment_replied": "回覆"
   },
   "Notifications": {
     "title": "通知",

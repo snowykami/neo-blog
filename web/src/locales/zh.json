@@ -1556,6 +1556,9 @@
       "title": "个性化",
       "color_scheme": "颜色风格",
       "update_color_scheme_failed": "更新颜色风格失败",
+      "notification": "通知设置",
+      "notification_desc": "站内与邮件通知的开关统一在通知设置页里管理。",
+      "notification_link": "前往通知设置 →",
       "ai_writing": "AI 写作"
     },
     "pages": {
@@ -3019,6 +3022,33 @@
     "select_files": "选择文件",
     "upload_file": "上传文件",
     "uploading": "上传中..."
+  },
+  "NotificationSettings": {
+    "title": "通知设置",
+    "description": "站内通知与邮件通知的开关都在这里管理，改动即时生效",
+    "login_required": "登录后即可管理你的通知偏好",
+    "login": "登录",
+    "load_failed": "加载通知偏好失败",
+    "save": "保存设置",
+    "saved": "已保存",
+    "save_failed": "保存失败",
+    "inapp_title": "站内通知",
+    "inapp_desc": "关掉的类型不会再出现在通知列表里，也不会进邮件",
+    "switch_comment": "有人评论我的文章或页面",
+    "switch_reply": "有人回复我的评论，或在我参与的评论线程里回复",
+    "switch_like": "有人点赞我的文章或评论",
+    "switch_ai": "AI 用户的互动",
+    "switch_ai_desc": "关掉后 AI 的点赞与评论不再通知你；评论本身仍然存在，可以在文章页看到",
+    "email_title": "邮件通知",
+    "email_desc": "邮件是按批汇总的：攒够一段时间后把这条时间里的互动合成一封",
+    "email_unavailable": "站点当前没有开启通知邮件，站内通知不受影响",
+    "email_switch": "接收邮件通知",
+    "email_note": "点赞与 AI 互动不会单独发邮件，会随下一次评论或回复一起提醒",
+    "email_open_types": "站点当前只开放这些类型：{types}",
+    "email_all_off": "全部关闭邮件",
+    "list_separator": "、",
+    "type_comment_created": "评论",
+    "type_comment_replied": "回复"
   },
   "Notifications": {
     "title": "通知",

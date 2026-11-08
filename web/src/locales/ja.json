@@ -1556,6 +1556,9 @@
       "title": "カスタマイズ",
       "color_scheme": "カラースキーム",
       "update_color_scheme_failed": "カラースキームの更新に失敗しました",
+      "notification": "通知設定",
+      "notification_desc": "アプリ内通知とメール通知の設定は通知設定ページでまとめて管理します。",
+      "notification_link": "通知設定を開く →",
       "ai_writing": "AI 執筆"
     },
     "pages": {
@@ -3012,6 +3015,33 @@
     "original_link": "原文リンク",
     "post_at": "投稿日",
     "unknown_date": "日付不明"
+  },
+  "NotificationSettings": {
+    "title": "通知設定",
+    "description": "アプリ内通知とメール通知の設定はここで管理します。変更はすぐに反映されます",
+    "login_required": "ログインすると通知の設定を管理できます",
+    "login": "ログイン",
+    "load_failed": "通知設定を読み込めませんでした",
+    "save": "設定を保存",
+    "saved": "保存しました",
+    "save_failed": "保存できませんでした",
+    "inapp_title": "アプリ内通知",
+    "inapp_desc": "オフにした種類は通知一覧に表示されず、メールにも含まれません",
+    "switch_comment": "自分の記事・ページへのコメント",
+    "switch_reply": "自分のコメントへの返信、または参加したスレッド内の返信",
+    "switch_like": "自分の記事・コメントへのいいね",
+    "switch_ai": "AI ユーザーの操作",
+    "switch_ai_desc": "オフにすると AI のいいねやコメントは通知されません。コメント自体は記事ページで確認できます",
+    "email_title": "メール通知",
+    "email_desc": "メールはまとめて送信します。一定時間内の通知を 1 通にまとめます",
+    "email_unavailable": "このサイトでは通知メールが無効です。アプリ内通知には影響しません",
+    "email_switch": "メール通知を受け取る",
+    "email_note": "いいねや AI の操作だけでメールが送られることはありません。次のコメントや返信に同梱されます",
+    "email_open_types": "このサイトで許可されている種類：{types}",
+    "email_all_off": "メールをすべて停止",
+    "list_separator": "、",
+    "type_comment_created": "コメント",
+    "type_comment_replied": "返信"
   },
   "Notifications": {
     "title": "通知",

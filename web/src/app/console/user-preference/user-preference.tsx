@@ -1,12 +1,14 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
+import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { updateUser } from '@/api/user'
 import { AIWritingHabitForm } from '@/components/tiptap-editor/ai-writing-habit-form'
 import { useAuth } from '@/contexts/auth-context'
 import { isEditor } from '@/utils/common/permission'
+import { mainPath } from '@/utils/common/route'
 import { ColorSchemeSelector } from '../../../components/console/common/color-scheme-selector'
 
 export function UserPreferencePage() {
@@ -47,6 +49,16 @@ export function UserPreferencePage() {
         <div className="grid gap-2">
           <h2 className="text">{t('color_scheme')}</h2>
           {user && <ColorSchemeSelector color={color} onColorChange={onColorChange} />}
+        </div>
+        {/* 通知设置的开关都在独立页里管理，这里只放一句引导，避免两处都能改 */}
+        <div className="grid gap-2">
+          <h2 className="text">{t('notification')}</h2>
+          <p className="text-muted-foreground text-sm text-balance">{t('notification_desc')}</p>
+          <div>
+            <Link href={mainPath.notificationSettings} className="text-primary text-sm underline underline-offset-4 hover:opacity-80">
+              {t('notification_link')}
+            </Link>
+          </div>
         </div>
         {/* AI 写作只对编辑者与管理员开放 */}
         {user && isEditor({ user }) && (
