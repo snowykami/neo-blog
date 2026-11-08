@@ -47,13 +47,23 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  max-width: 100%;
   height: 1.875rem;
   margin: 0.125rem 0;
   padding: 0 0.75rem 0 0.375rem;
   border-radius: 9999px;
   background: var(--muted);
   font-size: 0.8125rem;
+  /* 高度固定，内容必须单行；昵称过长时由 .comment-thread-user 截断，不能靠换行 */
+  white-space: nowrap;
+  overflow: hidden;
   transition: background-color 150ms;
+}
+/* 药丸里带的回复者昵称：空间不够时省略号收尾，避免整颗药丸被挤成竖排文字 */
+.comment-thread-user {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .comment-thread-toggle:hover {
   background: color-mix(in oklch, var(--muted) 70%, var(--border));

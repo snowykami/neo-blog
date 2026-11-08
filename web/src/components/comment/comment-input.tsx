@@ -132,10 +132,10 @@ export function CommentInput({
         }}
       >
         {replyTo && (
-          <span className="mt-2 ml-2.5 inline-flex items-center gap-1 rounded-full bg-secondary py-0.5 pr-1 pl-2 text-xs text-secondary-foreground">
-            {t('reply_to', { name: replyTo })}
+          <span className="mt-2 ml-2.5 inline-flex max-w-[calc(100%-0.625rem)] items-center gap-1 rounded-full bg-secondary py-0.5 pr-1 pl-2 text-xs text-secondary-foreground">
+            <span className="truncate">{t('reply_to', { name: replyTo })}</span>
             {onCancel && (
-              <button type="button" onClick={onCancel} aria-label={t('cancel_reply')} className="rounded-full p-0.5 opacity-70 hover:opacity-100">
+              <button type="button" onClick={onCancel} aria-label={t('cancel_reply')} className="shrink-0 rounded-full p-0.5 opacity-70 hover:opacity-100">
                 <X className="size-3" />
               </button>
             )}

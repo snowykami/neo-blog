@@ -91,6 +91,10 @@ export function CommentItem({
     return [...seen.values()].slice(0, 3)
   }, [replies, root.threadUsers])
   const byId = useMemo(() => new Map((replies ?? []).map(reply => [reply.id, reply])), [replies])
+  // 折叠时药丸上会带第一个回复者的昵称，昵称可能很长，这里只负责文案，截断交给 CSS
+  const threadBy = !expanded && threadUsers[0]
+    ? t('thread_by', { name: threadUsers[0].nickname || threadUsers[0].username, more: threadUsers.length - 1 })
+    : ''
 
   const onReply = async (target: Comment, { commentContent, attachments, isPrivate, showClientInfo }: CommentSubmitPayload) => {
     try {
@@ -185,20 +189,20 @@ export function CommentItem({
           {replying === root.id && replyComposer(root)}
           {threadCount > 0 && (
             <button type="button" className="comment-thread-toggle" aria-expanded={expanded} onClick={toggleThread}>
-              <span className="flex">
+              <span className="flex shrink-0">
                 {threadUsers.map(u => (
                   <UserAvatar key={u.id} user={u} size={40} className="-ml-1.5 size-5 border-2 border-card first:ml-0" fallbackClassName="text-[9px]" />
                 ))}
               </span>
-              <span>{expanded ? t('collapse_thread') : t('thread_replies', { count: threadCount })}</span>
-              {!expanded && threadUsers[0] && (
-                <span className="text-muted-foreground">
+              <span className="shrink-0">{expanded ? t('collapse_thread') : t('thread_replies', { count: threadCount })}</span>
+              {threadBy && (
+                <span className="comment-thread-user text-muted-foreground" title={threadBy}>
                   ·
                   {' '}
-                  {t('thread_by', { name: threadUsers[0].nickname || threadUsers[0].username, more: threadUsers.length - 1 })}
+                  {threadBy}
                 </span>
               )}
-              <ChevronDown aria-hidden className={cn('size-3.5 text-muted-foreground transition-transform', expanded && 'rotate-180')} />
+              <ChevronDown aria-hidden className={cn('size-3.5 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} />
             </button>
           )}
         </div>
