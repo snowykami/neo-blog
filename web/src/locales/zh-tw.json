@@ -3070,6 +3070,8 @@
     "group_today": "今天",
     "group_yesterday": "昨天",
     "group_earlier": "更早",
+    "expand_members": "查看這 {count} 人的互動",
+    "collapse_members": "收合",
     "types": {
       "comment_created": "{actors} 留言了你的文章《{subject}》：{excerpt}",
       "comment_created_page": "{actors} 留言了你的頁面《{subject}》：{excerpt}",

@@ -46,6 +46,17 @@ func (nc *NotificationController) GetUnreadCount(ctx context.Context, c *app.Req
 	resps.Ok(c, resps.Success, count)
 }
 
+// ListGroupMembers 展开聚合行，返回组里的明细
+func (nc *NotificationController) ListGroupMembers(ctx context.Context, c *app.RequestContext) {
+	id := ctxutils.GetIDParam(c).Uint
+	items, svcerr := nc.service.ListNotificationGroupMembers(ctx, id)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"notifications": items})
+}
+
 // MarkRead 单条已读，幂等；聚合行整组已读
 func (nc *NotificationController) MarkRead(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint

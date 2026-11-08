@@ -3070,6 +3070,8 @@
     "group_today": "今日",
     "group_yesterday": "昨日",
     "group_earlier": "それ以前",
+    "expand_members": "{count} 件すべて表示",
+    "collapse_members": "閉じる",
     "types": {
       "comment_created": "{actors} が記事「{subject}」にコメントしました：{excerpt}",
       "comment_created_page": "{actors} がページ「{subject}」にコメントしました：{excerpt}",

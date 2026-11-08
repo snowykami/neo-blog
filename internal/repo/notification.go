@@ -531,3 +531,22 @@ func truncateBytes(text string, max int) string {
 	}
 	return text[:cut]
 }
+
+// ListGroupMembers 展开一条聚合行：返回同类型 + 同目标 + 同一自然日的全部明细（按时间倒序）。
+// 折叠行（线程活动）本身就是一行，直接返回它自己
+func (r *notificationRepo) ListGroupMembers(userID, id uint, timeZone string, limit int) ([]model.Notification, error) {
+	var notification model.Notification
+	if err := GetDB().Where("id = ? AND user_id = ?", id, userID).First(&notification).Error; err != nil {
+		return nil, err
+	}
+	if notification.AggregateCount > 0 || !isLikeGroupType(notification.Type) {
+		return []model.Notification{notification}, nil
+	}
+	start, end := notificationDayRange(notification.CreatedAt, timeZone)
+	var rows []model.Notification
+	err := GetDB().Preload("Actor").
+		Where("user_id = ? AND type = ? AND target_type = ? AND target_id = ? AND created_at >= ? AND created_at < ?",
+			userID, notification.Type, notification.TargetType, notification.TargetID, start, end).
+		Order("created_at DESC, id DESC").Limit(limit).Find(&rows).Error
+	return rows, err
+}

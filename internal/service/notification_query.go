@@ -223,3 +223,31 @@ func toNotificationItemDto(group *repo.NotificationGroup) dto.NotificationItemDt
 	}
 	return item
 }
+
+// ListNotificationGroupMembers 展开聚合行：点赞组列出具体是谁，折叠行只有它自己
+func (s *NotificationService) ListNotificationGroupMembers(ctx context.Context, id uint) ([]dto.NotificationItemDto, *errs.ServiceError) {
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok {
+		return nil, errs.NewUnauthorized("login_required")
+	}
+	rows, err := repo.Notification.ListGroupMembers(currentUser.ID, id, currentUser.TimeZone, 50)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errs.NewNotFound("operation_target_not_found").WithResource("notification")
+		}
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("notification")
+	}
+	items := make([]dto.NotificationItemDto, 0, len(rows))
+	for i := range rows {
+		group := repo.NotificationGroup{Notification: rows[i], Count: 1, UnreadCount: boolToInt(rows[i].ReadAt == nil)}
+		items = append(items, toNotificationItemDto(&group))
+	}
+	return items, nil
+}
+
+func boolToInt(value bool) int64 {
+	if value {
+		return 1
+	}
+	return 0
+}

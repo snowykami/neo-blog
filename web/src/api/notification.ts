@@ -25,6 +25,12 @@ export async function getUnreadNotificationCount(): Promise<BaseResponse<Notific
   return res.data
 }
 
+// 展开聚合行：点赞组里具体是谁
+export async function listNotificationGroupMembers(id: number): Promise<BaseResponse<{ notifications: NotificationItem[] }>> {
+  const res = await axiosClient.get(`/notifications/${id}/members`)
+  return res.data
+}
+
 // 单条已读，幂等；聚合行会整组置已读
 export async function markNotificationRead(id: number): Promise<BaseResponse<{ affected: number }>> {
   const res = await axiosClient.post(`/notifications/${id}/read`)

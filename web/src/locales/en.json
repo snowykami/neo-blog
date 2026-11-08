@@ -3070,6 +3070,8 @@
     "group_today": "Today",
     "group_yesterday": "Yesterday",
     "group_earlier": "Earlier",
+    "expand_members": "Show all {count}",
+    "collapse_members": "Collapse",
     "types": {
       "comment_created": "{actors} commented on your post \"{subject}\": {excerpt}",
       "comment_created_page": "{actors} commented on your page \"{subject}\": {excerpt}",

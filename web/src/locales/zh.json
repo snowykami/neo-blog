@@ -3077,6 +3077,8 @@
     "group_today": "今天",
     "group_yesterday": "昨天",
     "group_earlier": "更早",
+    "expand_members": "查看这 {count} 人的互动",
+    "collapse_members": "收起",
     "types": {
       "comment_created": "{actors} 评论了你的文章《{subject}》：{excerpt}",
       "comment_created_page": "{actors} 评论了你的页面《{subject}》：{excerpt}",

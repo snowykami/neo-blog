@@ -3070,6 +3070,8 @@
     "group_today": "오늘",
     "group_yesterday": "어제",
     "group_earlier": "그 이전",
+    "expand_members": "{count}건 모두 보기",
+    "collapse_members": "접기",
     "types": {
       "comment_created": "{actors} 님이 글 \"{subject}\"에 댓글을 남겼습니다: {excerpt}",
       "comment_created_page": "{actors} 님이 페이지 \"{subject}\"에 댓글을 남겼습니다: {excerpt}",
