@@ -26,11 +26,11 @@ export function resolveMentions(content: string, mentions: CommentMention[] = []
     return [{ type: 'text', text: content }]
   }
 
-  const unused = mentions.map((mention, index) => ({ mention, index }))
+  const unused = [...mentions]
   let cursor = 0
   tokens.forEach((token, tokenIndex) => {
     // 先按用户名精确匹配（改名前后都能对上的情况）
-    let picked = unused.find(entry => entry.mention.username === token.username)
+    let picked = unused.find(mention => mention.username === token.username)
     if (!picked) {
       // 名字变了：只有在「剩余人数与剩余 @ 数量一致」时才按顺序对齐，避免错位
       const remainingTokens = tokens.length - tokenIndex
@@ -43,7 +43,7 @@ export function resolveMentions(content: string, mentions: CommentMention[] = []
     unused.splice(unused.indexOf(picked), 1)
     if (token.start > cursor)
       segments.push({ type: 'text', text: content.slice(cursor, token.start) })
-    segments.push({ type: 'mention', id: picked.mention.id, username: picked.mention.username, nickname: picked.mention.nickname })
+    segments.push({ type: 'mention', id: picked.id, username: picked.username, nickname: picked.nickname })
     cursor = token.end
   })
   if (cursor < content.length)

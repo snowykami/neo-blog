@@ -1,7 +1,7 @@
 'use client'
 
 import type { RefObject } from 'react'
-import type { User } from '@/models/user'
+import type { UserBrief } from '@/models/user'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { searchUsers } from '@/api/user'
 
@@ -29,11 +29,11 @@ export function useMention({
   onChange: (next: string) => void
 }) {
   const [query, setQuery] = useState<MentionQuery | null>(null)
-  const [candidates, setCandidates] = useState<User[]>([])
+  const [candidates, setCandidates] = useState<UserBrief[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
   const [loading, setLoading] = useState(false)
   // 提交时只认仍然留在正文里的提及；seedIds 是编辑已有评论时原来就有的人
-  const [picked, setPicked] = useState<User[]>([])
+  const [picked, setPicked] = useState<UserBrief[]>([])
   const [seedIds, setSeedIds] = useState<number[]>([])
   const composing = useRef(false)
 
@@ -91,7 +91,7 @@ export function useMention({
   }, [query])
 
   // 选中候选：把 @片段 换成 @用户名 并补一个空格，光标落到空格之后
-  const select = useCallback((candidate: User) => {
+  const select = useCallback((candidate: UserBrief) => {
     if (!query)
       return
     const node = textareaRef.current
@@ -124,7 +124,9 @@ export function useMention({
       setActiveIndex(index => (index - 1 + candidates.length) % candidates.length)
       return true
     }
-    if (event.key === 'Enter' || event.key === 'Tab') {
+    // ⌘/Ctrl + Enter 是「发表评论」，不能拿来选候选
+    const withModifier = event.metaKey || event.ctrlKey || event.altKey
+    if (!withModifier && (event.key === 'Enter' || event.key === 'Tab')) {
       event.preventDefault()
       select(candidates[activeIndex])
       return true

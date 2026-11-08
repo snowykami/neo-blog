@@ -1,6 +1,6 @@
 import type { OidcConfig } from '@/models/oidc-config'
 import type { BaseResponse } from '@/models/resp'
-import type { IpData, OpenIdDto, User } from '@/models/user'
+import type { IpData, OpenIdDto, User, UserBrief } from '@/models/user'
 import type { CaptchaProvider } from '@/types/captcha'
 import axiosClient from './client'
 
@@ -177,7 +177,7 @@ export async function getUserIpLocation(id: number): Promise<BaseResponse<IpData
 }
 
 // 提及功能的候选用户搜索：按用户名 / 昵称匹配，需要登录
-export async function searchUsers({ query, limit = 8 }: { query: string, limit?: number }): Promise<BaseResponse<{ users: User[] }>> {
+export async function searchUsers({ query, limit = 8 }: { query: string, limit?: number }): Promise<BaseResponse<{ users: UserBrief[] }>> {
   const res = await axiosClient.get('/user/search', { params: { q: query, limit } })
   return res.data
 }

@@ -19,7 +19,8 @@ import { formatDateTime } from '@/utils/common/datetime'
 import { getPostUrl } from '@/utils/common/route'
 
 // 界面上把「评论了文章 / 页面、回复、线程活动」并成「回复」一组，点赞单独一组
-const REPLY_TYPES: NotificationType[] = ['comment.created', 'comment.replied', 'comment.thread_replied']
+// 提及也是「有人在评论里跟我说话」，并入回复 tab
+const REPLY_TYPES: NotificationType[] = ['comment.created', 'comment.replied', 'comment.mentioned', 'comment.thread_replied']
 const LIKE_TYPES: NotificationType[] = ['post.liked', 'comment.liked']
 
 type TabKey = 'all' | 'unread' | 'reply' | 'like'

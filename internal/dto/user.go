@@ -111,6 +111,15 @@ type GetUserByUsernameReq struct {
 	Username string `json:"username"`
 }
 
+// UserBriefDto 提及候选用的最小用户信息：不含邮箱哈希等可用于反推邮箱的字段
+type UserBriefDto struct {
+	ID        uint   `json:"id"`
+	Username  string `json:"username"`
+	Nickname  string `json:"nickname"`
+	AvatarUrl string `json:"avatar_url"`
+	IsAI      bool   `json:"is_ai"`
+}
+
 // SearchUsersReq 提及功能里的用户搜索：按用户名 / 昵称模糊匹配
 type SearchUsersReq struct {
 	Query string `query:"q"`

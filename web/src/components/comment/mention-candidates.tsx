@@ -1,6 +1,6 @@
 'use client'
 
-import type { User } from '@/models/user'
+import type { UserBrief } from '@/models/user'
 import { Loader2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { UserAvatar } from '@/components/common/avatar'
@@ -17,10 +17,10 @@ export function MentionCandidates({
   onPick,
   onHover,
 }: {
-  candidates: User[]
+  candidates: UserBrief[]
   activeIndex: number
   loading: boolean
-  onPick: (candidate: User) => void
+  onPick: (candidate: UserBrief) => void
   onHover: (index: number) => void
 }) {
   const t = useTranslations('Comment')
@@ -52,14 +52,17 @@ export function MentionCandidates({
                   onPick(candidate)
                 }}
               >
-                <UserAvatar user={candidate} size={48} className="size-6" />
+                <UserAvatar
+                  user={{ username: candidate.username, nickname: candidate.nickname, avatarUrl: candidate.avatarUrl, gravatarHash: '' }}
+                  size={48}
+                  className="size-6"
+                />
                 <span className="truncate">{candidate.nickname || candidate.username}</span>
                 <span className="text-muted-foreground truncate text-xs">
                   @
                   {candidate.username}
                 </span>
-                {/* 后端 is_ai 只对本人与管理员返回，这里按可选字段保守判断 */}
-                {(candidate as { isAi?: boolean }).isAi && (
+                {candidate.isAi && (
                   <span className="ml-auto rounded bg-muted px-1 text-[10px] font-medium">AI</span>
                 )}
               </button>

@@ -1,3 +1,12 @@
+// 提及候选用的最小用户信息（后端 UserBriefDto），不含邮箱哈希等字段
+export interface UserBrief {
+  id: number
+  username: string
+  nickname?: string
+  avatarUrl?: string
+  isAi?: boolean
+}
+
 export interface User {
   id: number
   username: string

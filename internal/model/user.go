@@ -53,6 +53,17 @@ func (user *User) ToDto() dto.UserDto {
 	}
 }
 
+// ToBriefDto 提及候选用的最小信息：不带邮箱哈希、角色等字段，避免被拿去反推账号
+func (user *User) ToBriefDto() dto.UserBriefDto {
+	return dto.UserBriefDto{
+		ID:        user.ID,
+		Username:  user.Username,
+		Nickname:  user.Nickname,
+		AvatarUrl: user.AvatarUrl,
+		IsAI:      user.IsAI,
+	}
+}
+
 // ToProfileDto 个人主页使用的公开信息：用户开启「公开当地时间」后才附带时区，评论、文章作者等其他场景不返回
 func (user *User) ToProfileDto() dto.UserDto {
 	userDto := user.ToDto()

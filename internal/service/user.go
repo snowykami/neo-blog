@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -465,16 +466,25 @@ func isValidPassword(password string) bool {
 	return true
 }
 
+// 提及候选搜索的限流：同一用户每分钟最多这么多次，避免被拿来按字符枚举全站用户
+const (
+	userSearchRateLimit  = 30
+	userSearchRateWindow = time.Minute
+)
+
 // SearchUsers 提及功能里的候选用户搜索：只给登录用户用（评论本身要登录），
-// 只返回公开字段，排除已禁用账号与自己，避免成为用户名枚举工具
-func (s *UserService) SearchUsers(ctx context.Context, req *dto.SearchUsersReq) ([]dto.UserDto, *errs.ServiceError) {
+// 只返回最小公开字段，排除已禁用账号与自己，避免成为用户名枚举工具
+func (s *UserService) SearchUsers(ctx context.Context, req *dto.SearchUsersReq) ([]dto.UserBriefDto, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return nil, errs.NewUnauthorized("login_required")
 	}
+	if !utils.AllowRequest("user_search:"+strconv.FormatUint(uint64(currentUser.ID), 10), userSearchRateLimit, userSearchRateWindow) {
+		return nil, errs.NewTooManyRequests("too_many_requests")
+	}
 	keyword := strings.TrimSpace(req.Query)
 	if len([]rune(keyword)) < 1 {
-		return []dto.UserDto{}, nil
+		return []dto.UserBriefDto{}, nil
 	}
 	if len([]rune(keyword)) > 20 {
 		keyword = string([]rune(keyword)[:20])
@@ -483,9 +493,9 @@ func (s *UserService) SearchUsers(ctx context.Context, req *dto.SearchUsersReq) 
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("user")
 	}
-	result := make([]dto.UserDto, 0, len(users))
+	result := make([]dto.UserBriefDto, 0, len(users))
 	for i := range users {
-		result = append(result, users[i].ToDto())
+		result = append(result, users[i].ToBriefDto())
 	}
 	return result, nil
 }
