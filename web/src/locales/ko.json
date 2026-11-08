@@ -3024,6 +3024,7 @@
   "NotificationSettings": {
     "title": "알림 설정",
     "description": "사이트 내 알림과 메일 알림 설정을 여기서 관리합니다. 변경 사항은 즉시 적용됩니다",
+      "token_expired": "이 링크는 만료되었습니다. 로그인 후 계속하세요",
     "login_required": "로그인하면 알림 설정을 관리할 수 있습니다",
     "login": "로그인",
     "load_failed": "알림 설정을 불러오지 못했습니다",

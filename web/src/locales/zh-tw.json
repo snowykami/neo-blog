@@ -3024,6 +3024,7 @@
   "NotificationSettings": {
     "title": "通知設定",
     "description": "站內通知與郵件通知的開關都在這裡管理，變更即時生效",
+      "token_expired": "此連結已過期，請登入後繼續",
     "login_required": "登入後即可管理你的通知偏好",
     "login": "登入",
     "load_failed": "載入通知偏好失敗",

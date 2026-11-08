@@ -15,9 +15,13 @@ func registerNotificationRoutes(group *route.RouterGroup) {
 		notificationGroup.GET("/unread-count", notificationController.GetUnreadCount)
 		notificationGroup.POST("/read-all", notificationController.MarkAllRead)
 		notificationGroup.POST("/:id/read", notificationController.MarkRead)
-		// 偏好：邮件里的免登录链接（带 token）在 P1 接入，这里先用登录身份
-		notificationGroup.GET("/preferences", notificationController.GetPreferences)
-		notificationGroup.PUT("/preferences", notificationController.UpdatePreferences)
-		notificationGroup.POST("/preferences/unsubscribe-all", notificationController.UnsubscribeAll)
+	}
+	// 偏好：邮件里的链接带免登录凭据，因此挂在不强制登录的组上，由中间件补受限身份；
+	// 凭据只能作用于这三条接口（改不了昵称、密码、邮箱）
+	prefsGroup := group.Group("/notifications/preferences", middleware.UseAuth(false), middleware.UseNotifyPrefsToken())
+	{
+		prefsGroup.GET("", notificationController.GetPreferences)
+		prefsGroup.PUT("", notificationController.UpdatePreferences)
+		prefsGroup.POST("/unsubscribe-all", notificationController.UnsubscribeAll)
 	}
 }

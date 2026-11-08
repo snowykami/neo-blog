@@ -412,3 +412,122 @@ func (r *notificationRepo) GetEventByDedupeKey(dedupeKey string) (*model.Interac
 	}
 	return &event, nil
 }
+
+// ---- 邮件投递（outbox：notifications.email_state 就是状态机，见 docs/notification-spec.md 6.3）----
+
+// ListDueEmailPending 取出已到期的重要通知，按收件人与 id 排序
+func (r *notificationRepo) ListDueEmailPending(now time.Time, limit int) ([]model.Notification, error) {
+	var notifications []model.Notification
+	err := GetDB().
+		Where("email_state = ? AND email_next_at IS NOT NULL AND email_next_at <= ?", constant.NotificationEmailStatePending, now).
+		Order("user_id ASC, id ASC").Limit(limit).Find(&notifications).Error
+	return notifications, err
+}
+
+// ClaimEmailBatch 条件更新 pending → sending，领到的行才是本封的主列表；被别的实例领走的行不会返回
+func (r *notificationRepo) ClaimEmailBatch(ids []uint) ([]model.Notification, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	if err := GetDB().Model(&model.Notification{}).
+		Where("id IN ? AND email_state = ?", ids, constant.NotificationEmailStatePending).
+		Update("email_state", constant.NotificationEmailStateSending).Error; err != nil {
+		return nil, err
+	}
+	var claimed []model.Notification
+	if err := GetDB().Where("id IN ? AND email_state = ?", ids, constant.NotificationEmailStateSending).
+		Order("id ASC").Find(&claimed).Error; err != nil {
+		return nil, err
+	}
+	return claimed, nil
+}
+
+// ListAttachedForEmail 收件人在时间窗口内的附带行（点赞、AI 互动、线程活动），按时间倒序
+func (r *notificationRepo) ListAttachedForEmail(userID uint, since time.Time, limit int) ([]model.Notification, error) {
+	var notifications []model.Notification
+	err := GetDB().
+		Where("user_id = ? AND email_state = ? AND created_at >= ?", userID, constant.NotificationEmailStateAttached, since).
+		Order("created_at DESC, id DESC").Limit(limit).Find(&notifications).Error
+	return notifications, err
+}
+
+// MarkEmailsSent 发送成功后置为已发送
+func (r *notificationRepo) MarkEmailsSent(ids []uint, now time.Time) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return GetDB().Model(&model.Notification{}).Where("id IN ?", ids).Updates(map[string]any{
+		"email_state":    constant.NotificationEmailStateSent,
+		"email_sent_at":  now,
+		"email_last_err": "",
+	}).Error
+}
+
+// MarkEmailsSkipped 不再发送（关闭邮件、超窗口、超限速）
+func (r *notificationRepo) MarkEmailsSkipped(ids []uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return GetDB().Model(&model.Notification{}).Where("id IN ?", ids).
+		Update("email_state", constant.NotificationEmailStateSkipped).Error
+}
+
+// RescheduleEmails 发送失败：整批退回 pending 并推迟到 nextAt；退避次数用尽时置为 failed
+func (r *notificationRepo) RescheduleEmails(ids []uint, nextAt time.Time, lastErr string, failed bool) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	state := constant.NotificationEmailStatePending
+	if failed {
+		state = constant.NotificationEmailStateFailed
+	}
+	return GetDB().Model(&model.Notification{}).Where("id IN ?", ids).Updates(map[string]any{
+		"email_state":    state,
+		"email_attempts": gorm.Expr("email_attempts + 1"),
+		"email_next_at":  nextAt,
+		"email_last_err": truncateBytes(lastErr, 255),
+	}).Error
+}
+
+// DeferEmails 只推迟下一次尝试（限速时用），不计失败次数、不改状态
+func (r *notificationRepo) DeferEmails(ids []uint, nextAt time.Time) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return GetDB().Model(&model.Notification{}).Where("id IN ?", ids).
+		Update("email_next_at", nextAt).Error
+}
+
+// SkipStaleAttachedEmails 长期没有重要邮件的收件人：附带行超过搭车窗口后置为 skipped，不再积压
+func (r *notificationRepo) SkipStaleAttachedEmails(before time.Time) (int64, error) {
+	result := GetDB().Model(&model.Notification{}).
+		Where("email_state = ? AND created_at < ?", constant.NotificationEmailStateAttached, before).
+		Update("email_state", constant.NotificationEmailStateSkipped)
+	return result.RowsAffected, result.Error
+}
+
+// DeleteBefore 保留期清理：硬删该时间之前的通知与互动事件
+func (r *notificationRepo) DeleteBefore(before time.Time) (notifications, events int64, err error) {
+	result := GetDB().Unscoped().Where("created_at < ?", before).Delete(&model.Notification{})
+	if result.Error != nil {
+		return 0, 0, result.Error
+	}
+	notifications = result.RowsAffected
+	result = GetDB().Unscoped().Where("created_at < ?", before).Delete(&model.InteractionEvent{})
+	if result.Error != nil {
+		return notifications, 0, result.Error
+	}
+	return notifications, result.RowsAffected, nil
+}
+
+// truncateBytes 按字节截断（错误信息列有长度上限），不截断多字节字符
+func truncateBytes(text string, max int) string {
+	if len(text) <= max {
+		return text
+	}
+	cut := max
+	for cut > 0 && text[cut]&0xC0 == 0x80 {
+		cut--
+	}
+	return text[:cut]
+}
