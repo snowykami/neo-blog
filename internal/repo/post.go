@@ -329,7 +329,7 @@ func (p *postRepo) ToggleLikePost(postID uint, userID uint) (bool, error) {
 	if postID == 0 || userID == 0 {
 		return false, errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
-	liked, err := Like.ToggleLike(userID, postID, constant.TargetTypePost)
+	liked, err := Like.ToggleLike(userID, postID, constant.TargetTypePost, nil)
 	if err != nil {
 		return false, err
 	}

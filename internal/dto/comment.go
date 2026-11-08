@@ -11,6 +11,7 @@ type CommentDto struct {
 	Content        string             `json:"content"`
 	Language       string             `json:"language"` // 评论语言（AI 翻译时识别），未知时为空；与界面语言相同时前端不显示翻译按钮
 	ReplyID        uint               `json:"reply_id"` // 回复的评论ID
+	RootID         uint               `json:"root_id"`  // 线程根评论ID：通知深链据此定位整条线程
 	Depth          int                `json:"depth"`    // 评论的层级深度
 	CreatedAt      time.Time          `json:"created_at"`
 	UpdatedAt      time.Time          `json:"updated_at"`

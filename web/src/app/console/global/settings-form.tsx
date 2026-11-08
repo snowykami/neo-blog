@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import { ConfigField, useConfigT } from './config-fields'
 import { EmailTestField } from './email-test-field'
+import { NotificationTestField } from './notification-test-field'
 
 // 存为独立配置键的配置项，供「高级」Tab 的原始键值编辑快速选择
 const StandaloneKeysContext = createContext<string[]>([])
@@ -175,6 +176,8 @@ function SectionWidget({ name }: { name?: string }) {
       return <ThemePackPreviewField />
     case 'email_test':
       return <EmailTestField />
+    case 'notification_test':
+      return <NotificationTestField />
   }
   return null
 }

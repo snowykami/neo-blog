@@ -116,10 +116,11 @@ func syncTargetCommentCount(tx *gorm.DB, targetType string, targetID uint) error
 		UpdateColumn("comment_count", count).Error
 }
 
-// CreateComment 创建评论，maxDepth 为允许的最大回复层级
-func (cr *CommentRepo) CreateComment(comment *model.Comment, maxDepth int) (uint, error) {
+// CreateComment 创建评论，maxDepth 为允许的最大回复层级。
+// tx 非空时在调用方的事务里执行（评论与互动通知要写在同一个事务里），为空时自己开事务
+func (cr *CommentRepo) CreateComment(comment *model.Comment, maxDepth int, tx *gorm.DB) (uint, error) {
 	var commentID uint
-	err := GetDB().Transaction(func(tx *gorm.DB) error {
+	create := func(tx *gorm.DB) error {
 		depth := 0
 		if comment.ReplyID != 0 {
 			isCircular, err := cr.isCircularReference(tx, comment.ID, comment.ReplyID)
@@ -172,7 +173,11 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment, maxDepth int) (uint
 		commentID = comment.ID // 记录主键
 		// 更新目标的评论数量
 		return syncTargetCommentCount(tx, comment.TargetType, comment.TargetID)
-	})
+	}
+	if tx != nil {
+		return commentID, create(tx)
+	}
+	err := GetDB().Transaction(create)
 	return commentID, err
 }
 

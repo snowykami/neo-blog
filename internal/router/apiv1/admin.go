@@ -28,6 +28,8 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.PUT("/config", adminController.SaveConfig)
 		// 请求体里带 SMTP 密码，用 POST 且不写进地址；只发信，不改动已保存的配置
 		consoleGroup.POST("/config/email/test", adminController.SendTestEmail)
+		// 通知：管理员不能读别人的通知，只能给自己发一条测试通知确认链路可用
+		consoleGroup.POST("/notifications/test", controller.NewNotificationController().SendTestNotification)
 		// 用户区
 		consoleGroup.GET("/users", adminController.ListUsers)
 		consoleGroup.POST("/users", adminController.CreateUser)

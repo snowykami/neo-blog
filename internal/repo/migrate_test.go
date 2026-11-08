@@ -52,6 +52,25 @@ func TestMigrateFreshDatabase(t *testing.T) {
 		if !db.Migrator().HasIndex(&model.Like{}, "idx_like_target_user") {
 			t.Error("missing index idx_like_target_user")
 		}
+		// 通知：两张新表与它们的唯一索引随建表创建
+		for _, check := range []struct {
+			value any
+			index string
+		}{
+			{&model.InteractionEvent{}, "idx_interaction_event_dedupe"},
+			{&model.Notification{}, "idx_notification_event_user"},
+			{&model.Notification{}, "idx_notification_dedupe"},
+		} {
+			if !db.Migrator().HasTable(check.value) {
+				t.Errorf("missing table for %T", check.value)
+			}
+			if !db.Migrator().HasIndex(check.value, check.index) {
+				t.Errorf("missing index %s", check.index)
+			}
+		}
+		if !db.Migrator().HasColumn(&model.User{}, "notification_prefs") {
+			t.Error("missing column users.notification_prefs")
+		}
 		if !db.Migrator().HasIndex(&model.Post{}, "idx_posts_list_created") {
 			t.Error("missing index idx_posts_list_created")
 		}
@@ -79,6 +98,16 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 		}
 		if !db.Migrator().HasIndex(&model.Like{}, "idx_like_target_user") {
 			t.Error("missing index idx_like_target_user")
+		}
+		// 旧库升级后同样补齐通知相关的新表、新列与唯一索引
+		if !db.Migrator().HasTable(&model.InteractionEvent{}) || !db.Migrator().HasTable(&model.Notification{}) {
+			t.Error("missing notification tables after upgrading a legacy database")
+		}
+		if !db.Migrator().HasIndex(&model.Notification{}, "idx_notification_dedupe") {
+			t.Error("missing index idx_notification_dedupe")
+		}
+		if !db.Migrator().HasColumn(&model.User{}, "notification_prefs") {
+			t.Error("missing column users.notification_prefs")
 		}
 		var posts []model.Post
 		if err := db.Unscoped().Order("id").Find(&posts).Error; err != nil {

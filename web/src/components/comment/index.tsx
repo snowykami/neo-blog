@@ -45,6 +45,8 @@ export function CommentSection({
   const [initialLoading, setInitialLoading] = useState(true) // 首屏加载中
   const [loadingMore, setLoadingMore] = useState(false) // 加载更多中
   const [translatable, setTranslatable] = useState(false) // 后端已配置 AI 时可翻译评论
+  // 通知深链：?comment=<id> 定位到那条评论所在的线程，展开并高亮
+  const [focus, setFocus] = useState<{ rootId: number, commentId: number } | null>(null)
   // 请求序号：排序或目标变化后，丢弃过期请求的结果
   const requestSeqRef = useRef(0)
   // 上次加载后本地删除的顶层评论数，非 0 时下一页的 offset 会错位
@@ -132,6 +134,42 @@ export function CommentSection({
     localDeletedRef.current += 1
   }
 
+  // 读取 ?comment= 深链：先查这条评论在哪个线程，再把线程根补进列表（它可能还没被翻到）
+  useEffect(() => {
+    if (typeof window === 'undefined')
+      return
+    const commentId = Number(new URLSearchParams(window.location.search).get('comment'))
+    if (!Number.isFinite(commentId) || commentId <= 0) {
+      setFocus(null)
+      return
+    }
+    let cancelled = false
+    getComment({ id: commentId }).then(async (response) => {
+      if (cancelled)
+        return
+      const target = response.data
+      const rootId = target.rootId || target.id
+      setFocus({ rootId, commentId: target.id })
+      if (rootId === target.id)
+        return
+      const rootResponse = await getComment({ id: rootId })
+      if (cancelled)
+        return
+      setComments((prev) => {
+        if (prev.some(comment => comment.id === rootResponse.data.id))
+          return prev
+        return [rootResponse.data, ...prev]
+      })
+    }).catch(() => {
+      // 评论可能已被删除：不打断页面，只是没有可定位的目标
+      if (!cancelled)
+        setFocus(null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [targetId, targetType])
+
   const handleLoadMore = () => {
     if (loadingMore || initialLoading)
       return
@@ -216,6 +254,8 @@ export function CommentSection({
                 onCountChange={onCountChange}
                 ownerId={ownerId}
                 translatable={translatable}
+                focusRootId={focus?.rootId}
+                focusCommentId={focus?.commentId}
               />
             ))}
         {!initialLoading && (needLoadMore

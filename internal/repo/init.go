@@ -242,12 +242,14 @@ var models = []any{
 	&model.EditSession{},
 	&model.ErrorEvent{},
 	&model.ErrorIssue{},
+	&model.InteractionEvent{},
 	&model.Label{},
 	&model.Like{},
 	&model.LyricAnnotation{},
 	&model.LyricCache{},
 	&model.LyricSetting{},
 	&model.LyricSongSetting{},
+	&model.Notification{},
 	&model.File{},
 	&model.StorageProviderModelAndDto{},
 	&model.KV{},
@@ -285,6 +287,8 @@ func createQueryIndexes() error {
 		"CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)",
 		// 访问去重：同一访客短时间内访问同一路径
 		"CREATE INDEX IF NOT EXISTS idx_visit_logs_dedup ON visit_logs (visitor_id, path, created_at)",
+		// 通知：未读徽标与未读列表（read_at 为 NULL 时的等值查询走索引前缀）
+		"CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications (user_id, read_at, id)",
 	}
 	for _, sql := range indexes {
 		if err := GetDB().Exec(sql).Error; err != nil {

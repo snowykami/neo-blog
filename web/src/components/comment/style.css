@@ -90,3 +90,17 @@
   margin-right: 0.5rem;
   opacity: 0.6;
 }
+
+/* 通知深链定位到的评论：短暂描边高亮，帮助从通知点进来的人立刻看到目标 */
+.comment-highlight {
+  animation: commentHighlight 2.4s var(--ease-out, ease-out);
+  border-radius: 0.75rem;
+}
+@keyframes commentHighlight {
+  from {
+    background-color: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
