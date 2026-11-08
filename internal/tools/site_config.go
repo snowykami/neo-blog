@@ -174,6 +174,22 @@ func normalizeAPIHost(raw string) string {
 
 func GetMaximumReplyDepth() int { return config.Int("max_reply_depth") }
 
+// GetCommentMaxLength 单条评论的字符上限（后台可配置，默认 500）
+func GetCommentMaxLength() int {
+	if n := config.Int("comment_max_length"); n > 0 {
+		return n
+	}
+	return config.CommentMaxLengthDefault
+}
+
+// GetCommentCollapsedLines 评论正文超过多少行时先折叠，其余展开阅读（后台可配置，默认 6）
+func GetCommentCollapsedLines() int {
+	if n := config.Int("comment_collapsed_lines"); n > 0 {
+		return n
+	}
+	return config.CommentCollapsedLinesDefault
+}
+
 // GetRssLimit RSS 输出的文章数
 func GetRssLimit() int { return config.Int("rss_limit") }
 

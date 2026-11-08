@@ -70,9 +70,9 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		ownerID = parent.UserID
 	}
 
-	// 内容校验：去首尾空白，字符数不超过 200；有附件时可以只发附件
+	// 内容校验：去首尾空白，字符数不超过后台配置的上限（默认 500）；有附件时可以只发附件
 	content := strings.TrimSpace(req.Content)
-	if len([]rune(content)) > 200 {
+	if len([]rune(content)) > tools.GetCommentMaxLength() {
 		return 0, errs.NewBadRequest("content_too_long")
 	}
 	attachmentIDs, svcerr := resolveCommentAttachments(ctx, req.AttachmentIDs, nil)
@@ -164,9 +164,9 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 		return errs.NewForbidden("forbidden")
 	}
 
-	// 内容校验：去首尾空白，字符数不超过 200；有附件时可以只保留附件
+	// 内容校验：去首尾空白，字符数不超过后台配置的上限（默认 500）；有附件时可以只保留附件
 	content := strings.TrimSpace(req.Content)
-	if len([]rune(content)) > 200 {
+	if len([]rune(content)) > tools.GetCommentMaxLength() {
 		return errs.NewBadRequest("content_too_long")
 	}
 	// 不传附件时保持原样（兼容不带附件字段的旧客户端）

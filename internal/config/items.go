@@ -15,6 +15,14 @@ const (
 	RevisionMaxKeepMax     = 500
 )
 
+// 评论正文的字符上限与折叠展示行数（后台可调，前台输入框与评论列表据此渲染）
+const (
+	CommentMaxLengthDefault      = 500
+	CommentMaxLengthMax          = 10000
+	CommentCollapsedLinesDefault = 6
+	CommentCollapsedLinesMax     = 50
+)
+
 // NCMSongLevels 网易云播放音质（song/url/v1 的 level），只提供浏览器可以直接播放的格式：
 // standard 128k、higher 192k、exhigh 320k（默认）、lossless 无损 FLAC、hires Hi-Res FLAC
 var NCMSongLevels = []string{"standard", "higher", "exhigh", "lossless", "hires"}
@@ -75,6 +83,8 @@ var sections = []*Section{
 	{Tab: "content", Key: "content", Title: "section_content", Items: []*Item{
 		{Key: "posts_per_page", Type: TypeInt, Label: "posts_per_page", Min: num(1), Max: num(100), Default: 10, siteInfoPath: path("posts_per_page")},
 		{Key: "comments_per_page", Type: TypeInt, Label: "comments_per_page", Min: num(1), Max: num(100), Default: 10, siteInfoPath: path("comments_per_page")},
+		{Key: "comment_max_length", Type: TypeInt, Label: "comment_max_length", Description: "comment_max_length_desc", Min: num(1), Max: num(CommentMaxLengthMax), Default: CommentMaxLengthDefault, siteInfoPath: path("comment_max_length")},
+		{Key: "comment_collapsed_lines", Type: TypeInt, Label: "comment_collapsed_lines", Description: "comment_collapsed_lines_desc", Min: num(1), Max: num(CommentCollapsedLinesMax), Default: CommentCollapsedLinesDefault, siteInfoPath: path("comment_collapsed_lines")},
 		{Key: "max_reply_depth", Type: TypeInt, Label: "max_reply_depth", Description: "max_reply_depth_desc", Min: num(1), Max: num(10), Default: constant.MaxReplyDepthDefault, Env: constant.EnvKeyMaxReplyDepth},
 		{Key: "revision_max_keep", Type: TypeInt, Label: "revision_max_keep", Description: "revision_max_keep_desc", Min: num(RevisionMaxKeepMin), Max: num(RevisionMaxKeepMax), Default: RevisionMaxKeepDefault},
 		// 站点地图协议单个文件最多 50000 条

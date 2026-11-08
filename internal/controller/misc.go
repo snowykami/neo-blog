@@ -39,6 +39,9 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 				info["base_url"] = tools.GetBaseUrl()
 			}
 			info["default_language"] = config.String("default_language")
+			// 评论的字数上限与折叠行数是后台可调的配置，直接给生效值，前台不必再判断缺省
+			info["comment_max_length"] = tools.GetCommentMaxLength()
+			info["comment_collapsed_lines"] = tools.GetCommentCollapsedLines()
 			value = info
 		}
 		resps.Ok(c, "", value)
@@ -66,6 +69,8 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 		},
 		"posts_per_page":            repo.KV.GetKVWithoutErr("posts_per_page", 10),
 		"comments_per_page":         repo.KV.GetKVWithoutErr("comments_per_page", 10),
+		"comment_max_length":        tools.GetCommentMaxLength(),
+		"comment_collapsed_lines":   tools.GetCommentCollapsedLines(),
 		"verify_code_cool_down":     repo.KV.GetKVWithoutErr("verify_code_cool_down", 60), // 单位秒
 		"animation_duration_second": repo.KV.GetKVWithoutErr("animation_duration_second", 0.618),
 		"footer": repo.KV.GetKVWithoutErr("footer", utils.H{
@@ -86,6 +91,7 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 var publicConfigKeys = []string{
 	KeySiteInfo, "site_name", "site_description", "site_icon", "base_url",
 	"posts_per_page", "comments_per_page", "max_reply_depth", "enable_register", "enable_register_from_oidc",
+	"comment_max_length", "comment_collapsed_lines",
 	"visit_log_retention_days",    // 隐私政策页展示访问记录保留天数
 	"error_report_retention_days", // 隐私政策页展示错误报告保留天数
 }
