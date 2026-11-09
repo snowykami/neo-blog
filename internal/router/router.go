@@ -66,7 +66,8 @@ func init() {
 		server.WithStreamBody(true),
 	)
 	// panic 与 5xx 记为后端错误报告，可在控制台查看
-	h.Use(recovery.Recovery(recovery.WithRecoveryHandler(middleware.RecoveryHandler)), middleware.UseTrack(), middleware.UseErrorReport(), middleware.UseFileLinks())
+	// 压缩注册在文件链接改写之前：先等其他中间件处理完响应体，再整体压缩
+	h.Use(recovery.Recovery(recovery.WithRecoveryHandler(middleware.RecoveryHandler)), middleware.UseCompress(), middleware.UseTrack(), middleware.UseErrorReport(), middleware.UseFileLinks())
 	apiv1.RegisterRoutes(h)
 	// 存活检查：进程能响应即可，不依赖数据库，避免数据库抖动时实例被反复重启
 	h.GET("/healthz", func(ctx context.Context, c *app.RequestContext) {
