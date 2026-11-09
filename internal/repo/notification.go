@@ -310,36 +310,55 @@ func (r *notificationRepo) UnreadGroupCount(userID uint, timeZone string) (int64
 	return total, byType, nil
 }
 
-// MarkRead 单条已读；若该行属于聚合组则整组一起置已读，返回受影响的条数
+// MarkRead 单条已读；若该行属于聚合组则整组一起置已读，返回受影响的条数。
+// 读过就不必再发信：同一批行的待发邮件（pending）一并置为 skipped
 func (r *notificationRepo) MarkRead(userID, id uint, timeZone string) (int64, error) {
 	var notification model.Notification
 	if err := GetDB().Where("id = ? AND user_id = ?", id, userID).First(&notification).Error; err != nil {
 		return 0, err
 	}
-	query := GetDB().Model(&model.Notification{}).Where("user_id = ? AND read_at IS NULL", userID)
-	switch {
-	case notification.AggregateCount > 0:
-		// 折叠行本身就是一组
-		query = query.Where("id = ?", notification.ID)
-	case isLikeGroupType(notification.Type):
-		start, end := notificationDayRange(notification.CreatedAt, timeZone)
-		query = query.Where("type = ? AND target_type = ? AND target_id = ? AND created_at >= ? AND created_at < ?",
-			notification.Type, notification.TargetType, notification.TargetID, start, end)
-	default:
-		query = query.Where("id = ?", notification.ID)
+	scoped := func() *gorm.DB {
+		query := GetDB().Model(&model.Notification{}).Where("user_id = ? AND read_at IS NULL", userID)
+		switch {
+		case notification.AggregateCount > 0:
+			// 折叠行本身就是一组
+			return query.Where("id = ?", notification.ID)
+		case isLikeGroupType(notification.Type):
+			start, end := notificationDayRange(notification.CreatedAt, timeZone)
+			return query.Where("type = ? AND target_type = ? AND target_id = ? AND created_at >= ? AND created_at < ?",
+				notification.Type, notification.TargetType, notification.TargetID, start, end)
+		default:
+			return query.Where("id = ?", notification.ID)
+		}
 	}
-	result := query.Update("read_at", time.Now())
+	if err := cancelPendingEmails(scoped()); err != nil {
+		return 0, err
+	}
+	result := scoped().Update("read_at", time.Now())
 	return result.RowsAffected, result.Error
 }
 
 // MarkAllRead 全部已读；beforeID 用于避免把请求期间新到的通知也标掉
 func (r *notificationRepo) MarkAllRead(userID uint, beforeID *uint) (int64, error) {
-	query := GetDB().Model(&model.Notification{}).Where("user_id = ? AND read_at IS NULL", userID)
-	if beforeID != nil && *beforeID > 0 {
-		query = query.Where("id <= ?", *beforeID)
+	scoped := func() *gorm.DB {
+		query := GetDB().Model(&model.Notification{}).Where("user_id = ? AND read_at IS NULL", userID)
+		if beforeID != nil && *beforeID > 0 {
+			query = query.Where("id <= ?", *beforeID)
+		}
+		return query
 	}
-	result := query.Update("read_at", time.Now())
+	if err := cancelPendingEmails(scoped()); err != nil {
+		return 0, err
+	}
+	result := scoped().Update("read_at", time.Now())
 	return result.RowsAffected, result.Error
+}
+
+// cancelPendingEmails 已读即视为不需要这封邮件：把同一批行里仍待发的（pending）直接置为 skipped。
+// 已进批次（sending）、已发（sent）与附带行（attached）不动：前者已在发送中，后两者不受已读影响
+func cancelPendingEmails(query *gorm.DB) error {
+	return query.Where("email_state = ?", constant.NotificationEmailStatePending).
+		Update("email_state", constant.NotificationEmailStateSkipped).Error
 }
 
 // GetByIDAndUser 读取本人的一条通知，用于单条已读与越权判断

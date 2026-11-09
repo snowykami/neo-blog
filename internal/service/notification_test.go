@@ -437,6 +437,89 @@ func TestNotificationReadPermissions(t *testing.T) {
 	}
 }
 
+// 已读即取消这封邮件：pending 置 skipped；已进批次（sending）与附带行（attached）不受影响
+func TestNotificationReadCancelsPendingEmail(t *testing.T) {
+	setupNotificationDB(t)
+	owner := createNotificationUser(t, "reader", nil)
+	other := createNotificationUser(t, "actor", nil)
+	ownerCtx := context.WithValue(context.Background(), "user_id", owner.ID)
+	service := NewNotificationService()
+
+	makeRow := func(suffix, state string) *model.Notification {
+		event, err := repo.Notification.CreateEvent(nil, &model.InteractionEvent{
+			Type: constant.NotificationTypeCommentCreated, ActorID: other.ID, OwnerID: owner.ID, DedupeKey: "read:" + suffix,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		notification := &model.Notification{
+			EventID: event.ID, UserID: owner.ID, ActorID: other.ID, Type: constant.NotificationTypeCommentCreated,
+			SubjectType: constant.TargetTypePost, SubjectID: 1, TargetType: constant.TargetTypePost, TargetID: 1,
+			DedupeKey: "read:" + suffix, EmailState: state,
+		}
+		if state == constant.NotificationEmailStatePending {
+			next := time.Now().Add(-time.Minute)
+			notification.EmailNextAt = &next
+		}
+		if err := repo.Notification.CreateNotification(nil, notification); err != nil {
+			t.Fatal(err)
+		}
+		return notification
+	}
+	stateOf := func(id uint) (string, bool) {
+		t.Helper()
+		var row model.Notification
+		if err := repo.GetDB().First(&row, id).Error; err != nil {
+			t.Fatalf("load notification %d: %v", id, err)
+		}
+		return row.EmailState, row.ReadAt != nil
+	}
+
+	waiting := makeRow("a", constant.NotificationEmailStatePending)
+	sending := makeRow("b", constant.NotificationEmailStateSending)
+	attached := makeRow("c", constant.NotificationEmailStateAttached)
+
+	// 单条已读：只有这一条待发的邮件被取消
+	if _, svcerr := service.MarkNotificationRead(ownerCtx, waiting.ID); svcerr != nil {
+		t.Fatalf("mark read: %v", svcerr)
+	}
+	if state, read := stateOf(waiting.ID); state != constant.NotificationEmailStateSkipped || !read {
+		t.Fatalf("read pending row = %s (read=%v), want skipped", state, read)
+	}
+	// 仍在发送中的批次不受影响（已经领走，取消也没用）
+	if _, svcerr := service.MarkNotificationRead(ownerCtx, sending.ID); svcerr != nil {
+		t.Fatalf("mark read: %v", svcerr)
+	}
+	if state, read := stateOf(sending.ID); state != constant.NotificationEmailStateSending || !read {
+		t.Fatalf("read sending row = %s (read=%v), want sending", state, read)
+	}
+	// 附带行（点赞、线程活动等）只是搭车，不因已读改变状态
+	if _, svcerr := service.MarkNotificationRead(ownerCtx, attached.ID); svcerr != nil {
+		t.Fatalf("mark read: %v", svcerr)
+	}
+	if state, read := stateOf(attached.ID); state != constant.NotificationEmailStateAttached || !read {
+		t.Fatalf("read attached row = %s (read=%v), want attached", state, read)
+	}
+
+	// 全部已读：再补两条待发，一次标记后都置为 skipped
+	leftover := makeRow("d", constant.NotificationEmailStatePending)
+	leftover2 := makeRow("e", constant.NotificationEmailStatePending)
+	if _, svcerr := service.MarkAllNotificationsRead(ownerCtx, &dto.MarkAllNotificationsReadReq{}); svcerr != nil {
+		t.Fatalf("mark all read: %v", svcerr)
+	}
+	for _, row := range []*model.Notification{leftover, leftover2} {
+		if state, read := stateOf(row.ID); state != constant.NotificationEmailStateSkipped || !read {
+			t.Fatalf("batch read row %d = %s (read=%v), want skipped", row.ID, state, read)
+		}
+	}
+	// 已经发出去的不动
+	var sent int64
+	repo.GetDB().Model(&model.Notification{}).Where("email_state = ?", constant.NotificationEmailStateSending).Count(&sent)
+	if sent != 1 {
+		t.Fatalf("sending rows = %d, want 1 untouched", sent)
+	}
+}
+
 // 偏好：邮件类型只能落在站点白名单内，一键退订清空邮件列表但保留站内；测试通知不产生未读以外的副作用
 func TestNotificationPreferences(t *testing.T) {
 	setupNotificationDB(t)
