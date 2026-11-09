@@ -27,8 +27,10 @@ const (
 	weightIReplied          = 0.15 // 我回复了对方
 	weightLikedTheirs       = 0.05 // 我赞了对方的内容
 	weightCommentedPost     = 0.05 // 我评论了对方的文章
-	memoryNoteMaxRunes      = 120
+	memoryNoteMaxRunes      = 120  // 情景记忆条目、对某个人的印象
 	memoryEpisodesInLease   = 5
+	// selfSummaryMaxRunes 自我摘要上限：提示词要求 ≤150 字，这里放宽到 300，模型偶尔写多也不丢关注点
+	selfSummaryMaxRunes = 300
 )
 
 var (
@@ -37,14 +39,14 @@ var (
 	reMemoryInstruction = regexp.MustCompile(`(?i)(ignore (all |the )?(previous|above)|system prompt|you must|from now on|以后(你|都)要|今后(你|都)要|忽略(之前|以上|前面)|无视(之前|以上)|系统提示|你必须)`)
 )
 
-// sanitizeMemoryNote 规整模型给出的记忆笔记：去掉链接，拒绝指令式内容
-func sanitizeMemoryNote(note string) string {
+// sanitizeMemoryNote 规整模型给出的记忆文本：去掉链接，拒绝指令式内容，再按 maxRunes 截断
+func sanitizeMemoryNote(note string, maxRunes int) string {
 	note = reMemoryURL.ReplaceAllString(note, "")
 	note = strings.Join(strings.Fields(note), " ")
 	if reMemoryInstruction.MatchString(note) {
 		return ""
 	}
-	return clipRunes(note, memoryNoteMaxRunes)
+	return clipRunes(note, maxRunes)
 }
 
 // currentFamiliarity 按当前时间衰减后的熟悉度
@@ -339,15 +341,15 @@ func (s *AIAgentService) ConsolidateMemories(ctx context.Context, agent *model.A
 		if err := json.Unmarshal([]byte(extractJSON(raw)), &out); err != nil {
 			return fmt.Errorf("parse consolidation: %w", err)
 		}
-		if summary := sanitizeMemoryNote(out.SelfSummary); summary != "" {
-			agent.SelfSummary = clipRunes(summary, 300)
+		if summary := sanitizeMemoryNote(out.SelfSummary, selfSummaryMaxRunes); summary != "" {
+			agent.SelfSummary = summary
 		}
 		for _, r := range out.Relations {
 			rel, err := repo.AIAgent.GetRelation(agent.ID, r.UserID)
 			if err != nil || rel == nil {
 				continue
 			}
-			if impression := sanitizeMemoryNote(r.Impression); impression != "" {
+			if impression := sanitizeMemoryNote(r.Impression, memoryNoteMaxRunes); impression != "" {
 				rel.Impression = clipRunes(impression, 60)
 			}
 			rel.Topics = mustJSON(cleanList(r.Topics, 5, 20))

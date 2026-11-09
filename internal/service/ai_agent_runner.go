@@ -263,7 +263,7 @@ func (s *AIAgentService) Complete(ctx context.Context, req *dto.AgentCompleteReq
 		req.Trace[i].Step = clipRunes(req.Trace[i].Step, 40)
 		req.Trace[i].Detail = clipRunes(req.Trace[i].Detail, 600)
 	}
-	note := sanitizeMemoryNote(req.MemoryNote)
+	note := sanitizeMemoryNote(req.MemoryNote, memoryNoteMaxRunes)
 	now := time.Now()
 	ok, err := repo.AIAgent.UpdateRunIf(run.ID, constant.AgentRunStatusLeased, map[string]any{
 		"status":      status,
