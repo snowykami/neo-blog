@@ -100,6 +100,21 @@ func newHTMLConverter() *converter.Converter {
 		}
 		return -1
 	}, converter.PriorityStandard)
+	// 图片 / 视频块：注释、宽度、对齐存在 figure 上（或带布局属性的 img），Markdown 没有对应语法，
+	// 原样保留为 HTML 块，写回时由编辑器的 figure 解析规则还原；无这些属性的图片仍按 Markdown 图片输出
+	keepMediaBlock := func(ctx converter.Context, w converter.Writer, n *html.Node) converter.RenderStatus {
+		if !isMediaBlock(n) {
+			return converter.RenderTryNext
+		}
+		var buf bytes.Buffer
+		if err := html.Render(&buf, n); err != nil {
+			return converter.RenderTryNext
+		}
+		// Markdown 的 HTML 块遇到空行即结束，去掉内部空行保证写回时整体仍是一个块
+		w.WriteString("\n\n" + reBlankLines.ReplaceAllString(buf.String(), "\n") + "\n\n")
+		return converter.RenderSuccess
+	}
+	conv.Register.Renderer(keepMediaBlock, converter.PriorityEarly)
 	// 站内组件块（<div data-component=...>）：对 AI 开放的组件输出为组件代码块（与写入时的写法一致），
 	// 其余组件在 Markdown 中没有对应语法，原样保留为 HTML，写回时不会丢失
 	conv.Register.Renderer(func(ctx converter.Context, w converter.Writer, n *html.Node) converter.RenderStatus {
@@ -170,6 +185,31 @@ func keepStyledBlock(n *html.Node) bool {
 	case "p", "h1", "h2", "h3", "h4", "h5", "h6":
 		_, ok := dom.GetAttribute(n, "style")
 		return ok
+	}
+	return false
+}
+
+// isMediaBlock 带注释 / 宽度 / 对齐的媒体块：编辑器输出的 <figure> 包裹的图片与视频，
+// 以及带布局属性的单独 <img>。这些属性在 Markdown 里没有对应语法，需要整块保留
+func isMediaBlock(n *html.Node) bool {
+	if n.Type != html.ElementNode {
+		return false
+	}
+	switch n.Data {
+	case "figure":
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			if child.Type == html.ElementNode && (child.Data == "img" || child.Data == "video") {
+				return true
+			}
+		}
+		return false
+	case "img":
+		for _, key := range []string{"data-width", "data-align"} {
+			if _, ok := dom.GetAttribute(n, key); ok {
+				return true
+			}
+		}
+		return false
 	}
 	return false
 }

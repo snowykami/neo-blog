@@ -5,6 +5,7 @@ import type { InlineIconPickerTarget } from '@/components/tiptap-ui/inline-icon-
 import type { ContentEditorController } from '@/hooks/use-content-editor'
 import { XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
 import * as React from 'react'
 import { toast } from 'sonner'
 import { ContentFontLinks } from '@/components/blog-post/content-font-links'
@@ -112,6 +113,7 @@ function LoadedShell({
   const postEditT = useTranslations('Console.post_edit')
   const editor = controller.editor!
   const { meta, updateMeta, readOnly, editSession } = controller
+  const router = useRouter()
   const { words } = useEditorStats(editor)
   const { siteInfo } = useSiteInfo()
 
@@ -218,6 +220,34 @@ function LoadedShell({
     })
   }, [editor])
 
+  // 切走 / 关闭标签页前把待保存的修改写掉（关闭前的提示由 beforeunload 负责）
+  const { flushSave } = controller
+  React.useEffect(() => {
+    const flush = () => {
+      void flushSave()
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden')
+        flush()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('pagehide', flush)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('pagehide', flush)
+    }
+  }, [flushSave])
+
+  // 点返回：先保存再跳转，保存失败时留在当前页（错误已由保存流程提示）
+  const handleBack = React.useCallback(async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    // 带修饰键或中键点击是「新标签页打开」，保持浏览器默认行为
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)
+      return
+    event.preventDefault()
+    if (await flushSave())
+      router.push(backHref)
+  }, [flushSave, router, backHref])
+
   // 全局快捷键：⌘⇧P 预览、⌘⇧. 专注模式、Esc 退出专注
   React.useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -272,6 +302,7 @@ function LoadedShell({
           className={chromeClass}
           backHref={backHref}
           backLabel={backLabel}
+          onBack={handleBack}
           crumbRoot={crumbRoot}
           title={meta.title.trim() || untitled}
           isPrivate={meta.isPrivate}
@@ -281,6 +312,7 @@ function LoadedShell({
           saveError={controller.saveError}
           lastSavedAt={controller.lastSavedAt}
           readOnly={readOnly}
+          aiBusy={controller.aiBusy}
           canSave={controller.canSave}
           publishing={controller.publishing}
           publishTitle={publishTitle}

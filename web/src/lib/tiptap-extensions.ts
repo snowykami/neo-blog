@@ -1,5 +1,6 @@
 import type { AnyExtension } from '@tiptap/react'
 import type { SlashCommandItem } from '@/components/tiptap-extension/slash-command-extension'
+import type { UploadFunction } from '@/components/tiptap-node/upload-node'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { Highlight } from '@tiptap/extension-highlight'
 import { HorizontalRule } from '@tiptap/extension-horizontal-rule'
@@ -34,8 +35,8 @@ import { MAX_FILE_SIZE, MAX_VIDEO_FILE_SIZE } from '@/lib/tiptap-utils'
 const lowlight = createLowlight(common)
 
 export interface ContentExtensionsOptions {
-  // 上传图片 / 视频并返回地址，失败时返回空字符串（由调用方负责提示）
-  upload: (file: File) => Promise<string>
+  // 上传图片 / 视频并返回地址，失败时返回空字符串（由调用方负责提示）；支持进度与取消
+  upload: UploadFunction
   // 空段落 / 空标题的占位文案
   placeholder: (props: { nodeName: string, level?: number }) => string
   // 斜杠命令的候选项（按输入过滤，文案已本地化）

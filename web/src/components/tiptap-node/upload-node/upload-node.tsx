@@ -153,7 +153,7 @@ function useFileUpload(options: UploadOptions) {
     }
   }
 
-  const uploadFiles = async (files: File[]): Promise<string[]> => {
+  const uploadFiles = async (files: File[]): Promise<(string | null)[]> => {
     if (!files || files.length === 0) {
       options.onError?.(new Error('No files to upload'))
       return []
@@ -166,12 +166,8 @@ function useFileUpload(options: UploadOptions) {
       return []
     }
 
-    // Upload all files concurrently
-    const uploadPromises = files.map(file => uploadFile(file))
-    const results = await Promise.all(uploadPromises)
-
-    // Filter out null results (failed uploads)
-    return results.filter((url): url is string => url !== null)
+    // 并发上传：结果与 files 一一对应，失败的为 null
+    return Promise.all(files.map(file => uploadFile(file)))
   }
 
   const removeFileItem = (fileId: string) => {
@@ -346,34 +342,34 @@ export const UploadNode: React.FC<NodeViewProps> = (props) => {
       return
     }
     const pos = props.getPos()
+    // 上传期间占位块可能已被删除（撤销、手动删除），位置失效时会误删其他内容
+    if (!isValidPosition(pos) || props.editor.state.doc.nodeAt(pos)?.type.name !== props.node.type.name)
+      return
 
-    if (isValidPosition(pos)) {
-      const nodes = media.map((item) => {
-        // 图片沿用文件名作为 alt / title，视频节点只有地址
-        const filename = item.name?.replace(/\.[^/.]+$/, '') || 'unknown'
-        return {
-          type: extension.options.type,
-          attrs: video ? { src: item.url } : { src: item.url, alt: filename, title: filename },
-        }
-      })
+    const nodes = media.map((item) => {
+      // 图片沿用文件名作为 alt / title，视频节点只有地址
+      const filename = item.name?.replace(/\.[^/.]+$/, '') || 'unknown'
+      return {
+        type: extension.options.type,
+        attrs: video ? { src: item.url } : { src: item.url, alt: filename, title: filename },
+      }
+    })
 
-      props.editor
-        .chain()
-        .focus()
-        .deleteRange({ from: pos, to: pos + props.node.nodeSize })
-        .insertContentAt(pos, nodes)
-        .run()
+    props.editor
+      .chain()
+      .focus()
+      .deleteRange({ from: pos, to: pos + props.node.nodeSize })
+      .insertContentAt(pos, nodes)
+      .run()
 
-      focusNextNode(props.editor)
-    }
+    focusNextNode(props.editor)
   }
 
   const handleUpload = async (files: File[]) => {
+    // 结果与 files 一一对应（失败为 null），避免按索引取文件名时错位
     const urls = await uploadFiles(files)
-
-    if (urls.length > 0) {
-      insertMedia(urls.map((url, index) => ({ url, name: files[index]?.name })))
-    }
+    const media = urls.flatMap((url, index) => (url ? [{ url, name: files[index]?.name }] : []))
+    insertMedia(media)
   }
 
   const handleAssetSelect = (assets: PickedAsset[]) => {
@@ -390,7 +386,8 @@ export const UploadNode: React.FC<NodeViewProps> = (props) => {
   }
 
   const handleClick = () => {
-    if (inputRef.current && fileItems.length === 0) {
+    // 上传中的文件不重复打开选择框；失败项保留在列表里，可以点占位区域重新选择
+    if (inputRef.current && !fileItems.some(item => item.status === 'uploading')) {
       inputRef.current.value = ''
       inputRef.current.click()
     }

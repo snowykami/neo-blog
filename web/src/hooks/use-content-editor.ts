@@ -284,14 +284,20 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const uiActionsRef = useRef<EditorUiActions>({})
 
   // ---------- 编辑器 ----------
-  // 图片与视频共用一个上传入口，失败提示按媒体类型区分
-  const uploadMedia = useCallback(async (file: File) => {
+  // 图片与视频共用一个上传入口，失败提示按媒体类型区分；onProgress / signal 用于上传进度与取消
+  const uploadMedia = useCallback(async (input: File, onProgress?: (event: { progress: number }) => void, signal?: AbortSignal) => {
     try {
-      const res = await uploadFile({ file })
+      const res = await uploadFile({
+        file: input,
+        onProgress: onProgress ? progress => onProgress({ progress }) : undefined,
+        signal,
+      })
       return res.data.url
     }
     catch {
-      toast.error(postEditT(file.type.startsWith('video/') ? 'video_upload_failed' : 'image_upload_failed'))
+      // 主动取消不提示
+      if (!signal?.aborted)
+        toast.error(postEditT(input.type.startsWith('video/') ? 'video_upload_failed' : 'image_upload_failed'))
       return ''
     }
   }, [postEditT])
@@ -307,7 +313,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   slashItemsRef.current = slashItems
 
   const extensions = useMemo(() => createContentExtensions({
-    upload: file => latestRef.current.uploadMedia(file),
+    upload: (file, onProgress, signal) => latestRef.current.uploadMedia(file, onProgress, signal),
     placeholder: ({ nodeName, level }) => nodeName === 'heading'
       ? latestRef.current.t('heading_placeholder', { level: level ?? 1 })
       : latestRef.current.t('body_placeholder'),
@@ -522,6 +528,24 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
 
   const saveRef = useRef(save)
   saveRef.current = save
+
+  // 离开编辑页前（隐藏/关闭标签页、点返回）把待保存的修改立即写入，不让防抖窗口内的编辑丢掉
+  // 返回 false 表示保存失败，调用方据此不跳转；其余情况（包括生成中/只读）一律允许离开
+  const flushSave = useCallback(async (): Promise<boolean> => {
+    // 没有修改，或只读 / 无会话 / AI 生成中（结束后会自行补保存）时没有可立即保存的内容
+    if (!isDirtyRef.current || !canSave || aiBusyRef.current)
+      return true
+    // 已有保存在进行：让它结束后再补一次（不阻塞跳转，SPA 跳转不会中断已发出的请求）
+    if (savingRef.current || syncingRef.current) {
+      pendingSaveRef.current = true
+      return true
+    }
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+    return saveRef.current()
+  }, [canSave])
 
   // 停止输入一段时间后自动保存
   const scheduleAutosave = useCallback(() => {
@@ -860,6 +884,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     saveError,
     lastSavedAt,
     save,
+    flushSave,
     canSave,
     publish,
     publishing,

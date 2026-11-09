@@ -8,6 +8,8 @@ import {
   Heading2Icon,
   Heading3Icon,
   Heading4Icon,
+  Heading5Icon,
+  Heading6Icon,
   ItalicIcon,
   ListIcon,
   ListOrderedIcon,
@@ -38,6 +40,8 @@ export type BlockTypeId
     | 'h2'
     | 'h3'
     | 'h4'
+    | 'h5'
+    | 'h6'
     | 'bulletList'
     | 'orderedList'
     | 'taskList'
@@ -48,7 +52,7 @@ export interface BlockTypeDef {
   id: BlockTypeId
   icon: LucideIcon
   shortcut: string
-  level?: 1 | 2 | 3 | 4
+  level?: 1 | 2 | 3 | 4 | 5 | 6
 }
 
 export const BLOCK_TYPES: BlockTypeDef[] = [
@@ -57,6 +61,8 @@ export const BLOCK_TYPES: BlockTypeDef[] = [
   { id: 'h2', icon: Heading2Icon, shortcut: 'mod+alt+2', level: 2 },
   { id: 'h3', icon: Heading3Icon, shortcut: 'mod+alt+3', level: 3 },
   { id: 'h4', icon: Heading4Icon, shortcut: 'mod+alt+4', level: 4 },
+  { id: 'h5', icon: Heading5Icon, shortcut: 'mod+alt+5', level: 5 },
+  { id: 'h6', icon: Heading6Icon, shortcut: 'mod+alt+6', level: 6 },
   { id: 'bulletList', icon: ListIcon, shortcut: 'mod+shift+8' },
   { id: 'orderedList', icon: ListOrderedIcon, shortcut: 'mod+shift+7' },
   { id: 'taskList', icon: ListTodoIcon, shortcut: 'mod+shift+9' },
@@ -74,7 +80,7 @@ export function getActiveBlockType(editor: Editor | null): BlockTypeId {
     return 'paragraph'
   if (editor.isActive('codeBlock'))
     return 'codeBlock'
-  for (const level of [1, 2, 3, 4] as const) {
+  for (const level of [1, 2, 3, 4, 5, 6] as const) {
     if (editor.isActive('heading', { level }))
       return `h${level}`
   }

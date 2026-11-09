@@ -123,8 +123,12 @@ export function EditorMenuContent({
       className={cn('min-w-52 rounded-xl p-1', className)}
       onCloseAutoFocus={(event) => {
         event.preventDefault()
-        if (shouldRestoreFocus?.() ?? true)
-          editor?.commands.focus()
+        // 总是调用一次：调用方借此复位「本次打开过浮层」的标记
+        const restore = shouldRestoreFocus?.() ?? true
+        // 菜单项打开了公式 / 图标等弹层时焦点归弹层，抢回编辑器会打断弹层里的输入
+        if (!restore)
+          return
+        editor?.commands.focus()
       }}
     >
       {children}
@@ -184,10 +188,11 @@ export function getFontEntries(editor: Editor, t: Translate, state: EditorToolba
 const TABLE_DEFAULT = { rows: 3, cols: 3, withHeaderRow: true }
 
 /**
- * 插入类菜单项：图片、视频、分割线、代码块、表格
+ * 插入类菜单项：图片、视频、分割线、代码块、表格、公式
  * onPickImage 传入时图片改为从资产库选择后直接插入（右键菜单），否则插入图片上传块
+ * onOpenFloating 在菜单项会打开编辑器弹层（公式编辑弹层）且操作成功后调用，用于让菜单不抢回焦点
  */
-export function getInsertEntries(editor: Editor, t: Translate, state: EditorToolbarState, onPickImage?: () => void): EditorMenuEntry[] {
+export function getInsertEntries(editor: Editor, t: Translate, state: EditorToolbarState, onPickImage?: () => void, onOpenFloating?: () => void): EditorMenuEntry[] {
   return [
     {
       key: 'insert-image',
@@ -236,7 +241,11 @@ export function getInsertEntries(editor: Editor, t: Translate, state: EditorTool
       label: t('math.block'),
       hint: t('math.block_hint'),
       disabled: !state.editable || !editor.can().insertMath({ display: true }),
-      onSelect: () => editor.chain().focus().insertMath({ display: true }).run(),
+      onSelect: () => {
+        // 插入成功后下一帧会打开公式编辑弹层，焦点要留给它
+        if (editor.chain().focus().insertMath({ display: true }).run())
+          onOpenFloating?.()
+      },
     },
     {
       key: 'insert-inline-math',
@@ -245,7 +254,10 @@ export function getInsertEntries(editor: Editor, t: Translate, state: EditorTool
       hint: t('math.inline_hint'),
       shortcut: 'mod+shift+m',
       disabled: !state.editable || !editor.can().insertMath({ display: false }),
-      onSelect: () => editor.chain().focus().insertMath({ display: false }).run(),
+      onSelect: () => {
+        if (editor.chain().focus().insertMath({ display: false }).run())
+          onOpenFloating?.()
+      },
     },
   ]
 }
@@ -274,11 +286,14 @@ export function getIconEntry(editor: Editor, t: Translate, state: EditorToolbarS
   }
 }
 
-/** 插入下拉的完整菜单：基础插入项 + 图标 + 组件库 */
-export function getInsertMenuEntries(editor: Editor, t: Translate, ct: Translate, state: EditorToolbarState, openLibrary: () => void, openIconPicker: () => void): EditorMenuEntry[] {
+/** 插入下拉的完整菜单：基础插入项 + 图标 + 组件库。onOpenFloating 见 getInsertEntries */
+export function getInsertMenuEntries(editor: Editor, t: Translate, ct: Translate, state: EditorToolbarState, openLibrary: () => void, openIconPicker: () => void, onOpenFloating?: () => void): EditorMenuEntry[] {
   return [
-    ...getInsertEntries(editor, t, state),
-    getIconEntry(editor, t, state, openIconPicker),
+    ...getInsertEntries(editor, t, state, undefined, onOpenFloating),
+    getIconEntry(editor, t, state, () => {
+      onOpenFloating?.()
+      openIconPicker()
+    }),
     { type: 'separator', key: 'insert-sep-components' },
     getComponentLibraryEntry(ct, state, openLibrary),
   ]
@@ -423,6 +438,11 @@ export function InsertMenu({ editor, state, onOpenLibrary, onOpenIconPicker }: {
 }) {
   const t = useTranslations('Console.editor')
   const ct = useTranslations('ContentComponents')
+  // 本次菜单里已经打开了公式 / 图标弹层，关闭菜单时不要把焦点抢回编辑器
+  const floatingRef = React.useRef(false)
+  const markFloating = React.useCallback(() => {
+    floatingRef.current = true
+  }, [])
   if (!editor)
     return null
   return (
@@ -436,8 +456,15 @@ export function InsertMenu({ editor, state, onOpenLibrary, onOpenIconPicker }: {
           </EditorToolbarButton>
         </DropdownMenuTrigger>
       </EditorTooltip>
-      <EditorMenuContent editor={editor}>
-        <EditorMenuEntries entries={getInsertMenuEntries(editor, t, ct, state, onOpenLibrary, onOpenIconPicker)} />
+      <EditorMenuContent
+        editor={editor}
+        shouldRestoreFocus={() => {
+          const restore = !floatingRef.current
+          floatingRef.current = false
+          return restore
+        }}
+      >
+        <EditorMenuEntries entries={getInsertMenuEntries(editor, t, ct, state, onOpenLibrary, onOpenIconPicker, markFloating)} />
       </EditorMenuContent>
     </DropdownMenu>
   )

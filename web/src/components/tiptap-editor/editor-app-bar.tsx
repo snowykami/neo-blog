@@ -47,6 +47,8 @@ export interface PublishSummaryItem {
 export interface EditorAppBarProps {
   backHref: string
   backLabel: string
+  // 点返回时先保存再跳转（不传则按普通链接跳转）
+  onBack?: (event: React.MouseEvent<HTMLAnchorElement>) => void
   crumbRoot: string
   title: string
   isPrivate: boolean
@@ -56,6 +58,8 @@ export interface EditorAppBarProps {
   saveError: string | null
   lastSavedAt: Date | null
   readOnly: boolean
+  // 编辑器内的 AI 写作进行中（正文锁定）：此时发布按钮不可用
+  aiBusy?: boolean
   canSave: boolean
   publishing: boolean
   publishTitle: string
@@ -86,6 +90,7 @@ export function EditorAppBar(props: EditorAppBarProps) {
   const {
     backHref,
     backLabel,
+    onBack,
     crumbRoot,
     title,
     isPrivate,
@@ -95,6 +100,7 @@ export function EditorAppBar(props: EditorAppBarProps) {
     saveError,
     lastSavedAt,
     readOnly,
+    aiBusy,
     canSave,
     publishing,
     isFullScreen,
@@ -129,7 +135,7 @@ export function EditorAppBar(props: EditorAppBarProps) {
     >
       <EditorTooltip label={backLabel}>
         <Button asChild variant="ghost" size="icon" className="size-9 text-foreground/75">
-          <Link href={backHref} aria-label={backLabel}>
+          <Link href={backHref} aria-label={backLabel} onClick={onBack}>
             <ArrowLeftIcon className="size-[18px]" />
           </Link>
         </Button>
@@ -222,7 +228,7 @@ export function EditorAppBar(props: EditorAppBarProps) {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <PublishPopover {...props} disabled={!canSave || publishing || readOnly} />
+      <PublishPopover {...props} disabled={!canSave || publishing || readOnly || !!aiBusy} />
     </header>
   )
 }

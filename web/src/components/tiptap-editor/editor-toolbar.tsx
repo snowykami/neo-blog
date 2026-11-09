@@ -143,11 +143,19 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
   // 从溢出菜单打开颜色面板时，锚定到 ⋯ 按钮
   const [colorFromOverflow, setColorFromOverflow] = React.useState(false)
   const moreRef = React.useRef<HTMLButtonElement>(null)
-  // 从溢出菜单打开 AI 面板时，关闭菜单后不把焦点抢回编辑器
-  const aiOpenedRef = React.useRef(false)
+  // 从溢出菜单打开编辑器浮层（AI 面板、链接与注释弹层、颜色面板、公式与图标弹层）时，关闭菜单后不把焦点抢回编辑器
+  const floatingOpenedRef = React.useRef(false)
   const aiPrompts = useAIPrompts()
+  const markFloating = React.useCallback(() => {
+    floatingOpenedRef.current = true
+  }, [])
+  /** 菜单项会打开编辑器浮层时用它包一层 */
+  const withFloating = (fn: () => void) => () => {
+    markFloating()
+    fn()
+  }
   const openAIFromMenu = (options: AIWriterOpenOptions) => {
-    aiOpenedRef.current = true
+    markFloating()
     actions.openAI(options)
   }
 
@@ -174,7 +182,7 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
       id: 'color',
       label: t('group_color'),
       content: <ColorButton editor={editor} state={state} />,
-      overflow: () => [{ key: 'color', icon: BaselineIcon, label: t('color_more'), disabled: !state.canColor, onSelect: () => setColorFromOverflow(true) }],
+      overflow: () => [{ key: 'color', icon: BaselineIcon, label: t('color_more'), disabled: !state.canColor, onSelect: withFloating(() => setColorFromOverflow(true)) }],
     },
     { id: 'font', label: t('font.label'), content: <FontMenu editor={editor} state={state} />, overflow: () => getFontEntries(editor, t, state) },
     {
@@ -182,8 +190,8 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
       label: t('group_link_annotation'),
       content: <LinkAnnotationButtons state={state} actions={actions} />,
       overflow: () => [
-        { key: 'link', icon: LinkIcon, label: t('link'), shortcut: 'mod+k', active: state.isLink, disabled: !state.canLink, onSelect: actions.openLink },
-        { key: 'annotation', icon: MessageSquareTextIcon, label: t('annotation'), shortcut: 'mod+alt+m', active: state.isAnnotation, disabled: !state.canAnnotate, onSelect: actions.openAnnotation },
+        { key: 'link', icon: LinkIcon, label: t('link'), shortcut: 'mod+k', active: state.isLink, disabled: !state.canLink, onSelect: withFloating(actions.openLink) },
+        { key: 'annotation', icon: MessageSquareTextIcon, label: t('annotation'), shortcut: 'mod+alt+m', active: state.isAnnotation, disabled: !state.canAnnotate, onSelect: withFloating(actions.openAnnotation) },
       ],
     },
     { id: 'align', label: t('align'), content: <AlignMenu editor={editor} state={state} />, overflow: () => getAlignEntries(editor, t, state) },
@@ -198,7 +206,7 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
           </EditorToolbarButton>
         </>
       ),
-      overflow: () => getInsertMenuEntries(editor, t, ct, state, actions.openComponentLibrary, actions.openIconPicker),
+      overflow: () => getInsertMenuEntries(editor, t, ct, state, actions.openComponentLibrary, actions.openIconPicker, markFloating),
     },
     {
       id: 'ai',
@@ -320,8 +328,8 @@ export function EditorToolbar({ editor, actions }: { editor: Editor, actions: Ed
           editor={editor}
           align="end"
           shouldRestoreFocus={() => {
-            const restore = !aiOpenedRef.current
-            aiOpenedRef.current = false
+            const restore = !floatingOpenedRef.current
+            floatingOpenedRef.current = false
             return restore
           }}
         >

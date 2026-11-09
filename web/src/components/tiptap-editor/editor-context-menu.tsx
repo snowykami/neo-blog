@@ -197,6 +197,15 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
   const [picker, setPicker] = React.useState<{ mode: 'insert' } | { mode: 'replace', pos: number, media: 'image' | 'video' } | null>(null)
   // 按下右键时的选区：浏览器与编辑器可能在 contextmenu 之前就改变了选区
   const savedSelectionRef = React.useRef<Selection | null>(null)
+  // 菜单打开后是否在菜单（含子菜单）内按过鼠标：没按过的 pointerup 是「打开菜单的那次手势」的松手，不算点击
+  const pointerDownInMenuRef = React.useRef(false)
+  const markPointerDownInMenu = React.useCallback(() => {
+    pointerDownInMenuRef.current = true
+  }, [])
+  const swallowOpeningPointerUp = React.useCallback((event: React.PointerEvent) => {
+    if (!pointerDownInMenuRef.current)
+      event.stopPropagation()
+  }, [])
   // 键盘打开时派发的合成事件，按当前选区确定上下文
   const keyboardRef = React.useRef(false)
   // 菜单项打开了其他浮层（AI 面板、资产库、链接弹层）时，关闭菜单后不把焦点还给编辑器
@@ -243,6 +252,8 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
   }
 
   const handleContextMenuCapture = (event: React.MouseEvent) => {
+    // 本次手势打开了菜单：菜单里的 pointerup 到此为止，不能再被当成点击（见 ContextMenuContent 的 onPointerUpCapture）
+    pointerDownInMenuRef.current = false
     const keyboard = keyboardRef.current
     keyboardRef.current = false
     if (!keyboard && (coarsePointer || isNativeTarget(event))) {
@@ -250,8 +261,9 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
       event.stopPropagation()
       return
     }
-    // 键盘触发的原生事件（坐标不可靠）改为在光标处重新派发
-    if (!keyboard && event.button !== 2) {
+    // 键盘触发的 contextmenu（菜单键 / Shift+F10）没有按下的鼠标键、坐标也不可用，改为在光标处重新派发；
+    // Ctrl + 左键（macOS 的替代右键）同样是 button 0，但按键仍按着、坐标有效，按点击位置处理
+    if (!keyboard && event.button !== 2 && event.buttons === 0) {
       event.preventDefault()
       event.stopPropagation()
       openAtCaret()
@@ -266,6 +278,11 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
   const withFloating = (fn: () => void) => () => {
     skipFocusRef.current = true
     fn()
+  }
+
+  // 菜单项打开了编辑器弹层（公式编辑弹层）：关闭菜单后不把焦点抢回编辑器
+  const markFloating = () => {
+    skipFocusRef.current = true
   }
 
   const clipboardCommand = (command: 'copy' | 'cut') => {
@@ -486,7 +503,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
         { type: 'separator', key: 'sep-ai' },
         ...tableGroup(),
         { type: 'label', key: 'label-insert', label: t('insert') },
-        ...getInsertEntries(editor, t, state, withFloating(() => setPicker({ mode: 'insert' }))),
+        ...getInsertEntries(editor, t, state, withFloating(() => setPicker({ mode: 'insert' })), markFloating),
         getIconEntry(editor, t, state, withFloating(actions.openIconPicker)),
         getComponentLibraryEntry(ct, state, withFloating(actions.openComponentLibrary)),
         { type: 'separator', key: 'sep-insert' },
@@ -523,6 +540,10 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
           {...{ [EDITOR_FLOATING_ATTR]: '' }}
           aria-label={t('context.aria')}
           className="min-w-56 rounded-xl p-1"
+          // 右键按下时菜单就已打开，松手的那一次 pointerup 会落在菜单项上：Radix 的 MenuItem 在没先收到
+          // pointerdown 时会自己补一个 click，于是「刚点右键」就选中一项。菜单内还没按过鼠标时吞掉它
+          onPointerDownCapture={markPointerDownInMenu}
+          onPointerUpCapture={swallowOpeningPointerUp}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             if (skipFocusRef.current)
@@ -531,7 +552,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
               editor.commands.focus()
           }}
         >
-          <ContextEntries entries={entries} />
+          <ContextEntries entries={entries} onPointerDownInMenu={markPointerDownInMenu} onPointerUpInMenu={swallowOpeningPointerUp} />
           <ContextMenuSeparator />
           <ContextMenuLabel className="px-2 py-1 text-[11px] font-normal text-muted-foreground/70">{t('context.native_hint')}</ContextMenuLabel>
         </ContextMenuContent>
@@ -549,7 +570,12 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
   )
 }
 
-function ContextEntries({ entries }: { entries: ContextEntry[] }) {
+function ContextEntries({ entries, onPointerDownInMenu, onPointerUpInMenu }: {
+  entries: ContextEntry[]
+  // 菜单（含子菜单）内按下过鼠标之后，pointerup 才算点击，见 EditorContextMenu
+  onPointerDownInMenu: () => void
+  onPointerUpInMenu: (event: React.PointerEvent) => void
+}) {
   return entries.map((entry) => {
     if (entry.type === 'label')
       return <ContextMenuLabel key={entry.key} className="text-xs font-medium text-muted-foreground">{entry.label}</ContextMenuLabel>
@@ -563,8 +589,13 @@ function ContextEntries({ entries }: { entries: ContextEntry[] }) {
             <Icon className="size-4" />
             <span className="min-w-0 flex-1 truncate">{entry.label}</span>
           </ContextMenuSubTrigger>
-          <ContextMenuSubContent {...{ [EDITOR_FLOATING_ATTR]: '' }} className="max-h-[min(24rem,var(--radix-context-menu-content-available-height))] min-w-48 overflow-y-auto rounded-xl p-1">
-            <ContextEntries entries={entry.entries} />
+          <ContextMenuSubContent
+            {...{ [EDITOR_FLOATING_ATTR]: '' }}
+            className="max-h-[min(24rem,var(--radix-context-menu-content-available-height))] min-w-48 overflow-y-auto rounded-xl p-1"
+            onPointerDownCapture={onPointerDownInMenu}
+            onPointerUpCapture={onPointerUpInMenu}
+          >
+            <ContextEntries entries={entry.entries} onPointerDownInMenu={onPointerDownInMenu} onPointerUpInMenu={onPointerUpInMenu} />
           </ContextMenuSubContent>
         </ContextMenuSub>
       )
