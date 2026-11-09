@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { withCommentAnchor } from './route'
+import { getUserUrl, withCommentAnchor } from './route'
+
+describe('getUserUrl', () => {
+  const user = { username: 'leo' }
+
+  it('默认文章标签不带 hash', () => {
+    expect(getUserUrl(user)).toBe('/u/leo')
+    expect(getUserUrl(user, 'posts')).toBe('/u/leo')
+  })
+
+  it('评论与喜欢用 hash 表达，便于从别处直接打开对应标签', () => {
+    expect(getUserUrl(user, 'comments')).toBe('/u/leo#comments')
+    expect(getUserUrl(user, 'likes')).toBe('/u/leo#likes')
+  })
+})
 
 describe('withCommentAnchor', () => {
   it('没有评论 id 时原样返回', () => {

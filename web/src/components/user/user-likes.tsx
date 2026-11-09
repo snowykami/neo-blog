@@ -37,7 +37,7 @@ function UserLikeItem({ like }: { like: UserLike }) {
   const isComment = like.targetType === TargetType.Comment
 
   const authorLink = () => (
-    <Link href={getUserUrl(like.author)} className="font-medium text-foreground/90 transition-colors hover:text-primary">
+    <Link href={getUserUrl(like.author, isComment ? 'comments' : 'posts')} className="font-medium text-foreground/90 transition-colors hover:text-primary">
       {like.author.nickname || like.author.username}
     </Link>
   )

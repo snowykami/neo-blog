@@ -20,7 +20,7 @@ export function CommentContent({ content, mentions }: { content: string, mention
         : (
             <Link
               key={`mention-${segment.id}-${index}`}
-              href={`/u/${segment.username}`}
+              href={`/u/${segment.username}#comments`}
               className="text-primary hover:underline"
               title={t('mention_profile', { username: segment.username })}
             >

@@ -70,7 +70,7 @@ function PostAuthorAvatarItem({ user }: { user: Post['user'] }) {
   const itemClass = 'flex min-w-0 items-center text-sm font-medium text-foreground/50'
 
   return user?.username
-    ? <Link href={getUserUrl(user)} className={cn(metaLinkClass, itemClass)}>{content}</Link>
+    ? <Link href={getUserUrl(user, 'posts')} className={cn(metaLinkClass, itemClass)}>{content}</Link>
     : <div className={itemClass}>{content}</div>
 }
 
@@ -103,7 +103,7 @@ export function PostMeta({
       {showAuthor && authorAvatar && <PostAuthorAvatarItem user={post.user} />}
       {showAuthor && !authorAvatar && (
         <PostMetaItem icon={PenLineIcon} label={t('Copyright.author')}>
-          <Link href={getUserUrl(post.user)} className={cn(metaLinkClass, 'block max-w-[16ch] truncate')}>
+          <Link href={getUserUrl(post.user, 'posts')} className={cn(metaLinkClass, 'block max-w-[16ch] truncate')}>
             {post.user.nickname || post.user.username || t('Common.unknown_author')}
           </Link>
         </PostMetaItem>

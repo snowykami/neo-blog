@@ -139,7 +139,7 @@ export function CommentInput({
     <div className="flex gap-3 fade-in-up">
       {showAvatar && (
         <Link
-          href={getUserUrl(user)}
+          href={getUserUrl(user, 'comments')}
           aria-label={t('view_user_profile', { name: user.nickname || user.username })}
           className="hidden size-10 shrink-0 sm:block"
         >

@@ -86,7 +86,7 @@ export function BlogLikeButton({ post }: { post: Post }) {
           {likedUsers.map(u => (
             <Link
               key={u.id}
-              href={getUserUrl(u)}
+              href={getUserUrl(u, 'posts')}
               aria-label={formatDisplayName(u)}
               title={formatDisplayName(u)}
               className="relative rounded-full ring-2 ring-card transition-transform duration-150 hover:z-10 hover:-translate-y-0.5 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-ring"

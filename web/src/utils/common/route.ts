@@ -82,8 +82,18 @@ export function getPostEditUrl<T extends { slug?: string | null, id?: string | n
   return `/console/posts/edit/${String(key)}`
 }
 
-export function getUserUrl<T extends { username: string }>(user: T): string {
-  return `/u/${user.username}`
+/** 用户主页的内容标签，同时是 URL hash（/u/leo_dev#comments） */
+export const USER_TABS = ['posts', 'comments', 'likes'] as const
+export type UserTab = typeof USER_TABS[number]
+
+/**
+ * 获取用户主页地址
+ * @param user 用户对象，至少包含 username
+ * @param tab 要直接打开的内容标签，默认「文章」不带 hash；
+ *           从评论区点进去带 #comments，从文章作者点进去就是文章（默认）
+ */
+export function getUserUrl<T extends { username: string }>(user: T, tab?: UserTab): string {
+  return `/u/${user.username}${tab && tab !== 'posts' ? `#${tab}` : ''}`
 }
 
 export function getCategoryUrl<T extends { slug: string }>(category: T): string {

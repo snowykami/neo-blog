@@ -68,7 +68,7 @@ function CopyrightCard({ post, className }: { post: Post, className?: string }) 
             <dt className="text-sm text-foreground/30">{copyrightT('author')}</dt>
             <dd>
               <Link
-                href={getUserUrl(post.user)}
+                href={getUserUrl(post.user, 'posts')}
                 className="block max-w-[20ch] truncate text-foreground/75 hover:text-primary"
                 title={formatDisplayName(post.user)}
               >
