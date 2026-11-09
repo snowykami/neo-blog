@@ -16,7 +16,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/auth-context'
 import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/utils/common/datetime'
-import { getPostUrl } from '@/utils/common/route'
+import { getPostUrl, withCommentAnchor } from '@/utils/common/route'
 
 // 界面上把「评论了文章 / 页面、回复、线程活动」并成「回复」一组，点赞单独一组
 // 提及也是「有人在评论里跟我说话」，并入回复 tab
@@ -352,7 +352,7 @@ function notificationLink(item: NotificationItemModel): string | null {
   if (item.type === 'post.liked')
     return base
   const commentId = item.targetType === 'comment' && item.targetId ? item.targetId : item.commentId
-  return commentId ? `${base}?comment=${commentId}` : base
+  return withCommentAnchor(base, commentId)
 }
 
 // actorLabel 聚合行的「A、B 和另外 N 人」，单条通知只有一个人

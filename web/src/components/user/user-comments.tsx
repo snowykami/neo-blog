@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { OrderBy } from '@/models/common'
 import { TargetType } from '@/models/types'
 import { formatDateTime } from '@/utils/common/datetime'
-import { getPageUrl, getPostUrl } from '@/utils/common/route'
+import { getPageUrl, getPostUrl, withCommentAnchor } from '@/utils/common/route'
 
 const PAGE_SIZE = 10
 const CARD_CLASS = 'overflow-hidden rounded-2xl bg-card'
@@ -31,7 +31,9 @@ function RowDivider() {
 
 function getTargetUrl(comment: UserComment) {
   const target = { id: comment.target.id, slug: comment.target.slug }
-  return comment.target.type === TargetType.Page ? getPageUrl(target) : getPostUrl({ post: target })
+  const url = comment.target.type === TargetType.Page ? getPageUrl(target) : getPostUrl({ post: target })
+  // 与通知深链同一套约定：带上 ?comment=<id>，打开后定位并高亮这条评论
+  return withCommentAnchor(url, comment.id)
 }
 
 function UserCommentItem({ comment }: { comment: UserComment }) {

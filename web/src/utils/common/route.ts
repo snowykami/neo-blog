@@ -102,6 +102,16 @@ export function getPageUrl<T extends { slug?: string | null, id?: string | numbe
   return `/page/${String(key)}`
 }
 
+/**
+ * 评论深链：在文章 / 独立页面的地址后带上 ?comment=<id>，打开后由评论组件定位并高亮那条评论
+ * 通知中心与用户主页的评论列表共用这套约定
+ */
+export function withCommentAnchor(url: string, commentId?: number | null): string {
+  if (!commentId)
+    return url
+  return `${url}${url.includes('?') ? '&' : '?'}comment=${commentId}`
+}
+
 export function getPageEditUrl<T extends { slug?: string | null, id?: string | number | null, kind?: string }>(page: T): string {
   // HTML 页面没有正文，编辑页为静态文件包的上传与版本管理
   if (page.kind === 'html' && page.id)
