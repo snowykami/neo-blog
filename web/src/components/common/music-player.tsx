@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import React, { useEffect, useRef, useState } from 'react'
-import { fetchPlaylist } from '@/api/music'
+import { fetchNcmPlaylist, fetchPlaylist, fetchPlaylistVersion } from '@/api/music'
 import { SafeImage } from '@/components/common/safe-image'
 import { useIslandPanelPhase } from '@/components/layout/topbar-island/island-panel-phase'
 import { MusicBackground } from '@/components/music-page/music-background'
@@ -18,6 +18,7 @@ import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useSongAccent } from '@/components/music-page/use-cover-accent'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useCurrentLyric, useMusic, useMusicClockStore } from '@/contexts/music-context'
+import { readPlaylistCache, writePlaylistCache } from '@/lib/music-playlist-cache'
 import { cn } from '@/lib/utils'
 import { shouldOptimize } from '@/utils/common/image'
 import { MarqueeText } from './marquee-text'
@@ -373,24 +374,67 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
   const restoredTrackIdRef = useRef<number | null>(null)
   // 节流写入存储，避免频繁 localStorage 写入
   const lastSavedTimeRef = useRef(0)
+  // 后台换上新版本歌单时，用它把当前曲目定位到新歌单里（effect 里的闭包拿不到最新的曲目）
+  const currentTrackIdRef = useRef<number | null>(null)
+  useEffect(() => {
+    currentTrackIdRef.current = currentTrack?.id ?? null
+  }, [currentTrack])
 
-  // 拉取歌单后一次性以“存储的曲目 + 进度”初始化，不再先切到第 0 首再切回，避免多余的歌词请求与竞态
+  // 拉取歌单后一次性以“存储的曲目 + 进度”初始化，不再先切到第 0 首再切回，避免多余的歌词请求与竞态。
+  // 网易云歌单有本地缓存：先用缓存渲染（悬浮球立刻出现、直接恢复上次的曲目），再只校验版本，内容没变就不再下载整份歌单
   useEffect(() => {
     let cancelled = false
-    fetchPlaylist(source).then((playlist) => {
-      if (cancelled)
-        return
-      const { index, time } = getRestoredPlayback(playlist)
-      restoredTrackIdRef.current = playlist[index]?.id ?? null
-      replacePlaylist(playlist, index, time)
+    // 首次应用：恢复上次的曲目与进度
+    const applyRestored = (tracks: MusicTrack[]) => {
+      const { index, time } = getRestoredPlayback(tracks)
+      restoredTrackIdRef.current = tracks[index]?.id ?? null
+      replacePlaylist(tracks, index, time)
       restoredRef.current = true
-    }).catch((error) => {
+    }
+    // 后台拿到新版本（站长增删了歌曲）：只换歌单数据，把当前曲目定位到新歌单里继续放，不重置进度
+    const applyUpdated = (tracks: MusicTrack[]) => {
+      const playingId = currentTrackIdRef.current ?? restoredTrackIdRef.current
+      const index = tracks.findIndex(track => track.id === playingId)
+      replacePlaylist(tracks, index < 0 ? 0 : index)
+    }
+    const cached = source.type === 'ncm' ? readPlaylistCache() : null
+    if (cached)
+      applyRestored(cached.tracks)
+
+    const sync = async () => {
+      if (source.type !== 'ncm') {
+        const tracks = await fetchPlaylist(source)
+        if (!cancelled)
+          applyRestored(tracks)
+        return
+      }
+      if (cached) {
+        const version = await fetchPlaylistVersion()
+        if (cancelled || version === cached.version)
+          return
+        const fresh = await fetchNcmPlaylist()
+        if (cancelled)
+          return
+        writePlaylistCache(fresh.version, fresh.tracks)
+        applyUpdated(fresh.tracks)
+        return
+      }
+      const fresh = await fetchNcmPlaylist()
       if (cancelled)
         return
-      // 拉取失败时使用示例曲目兜底，但不开启存储写回，避免覆盖用户已保存的曲目与进度
-      replacePlaylist([
-        sampleTrack,
-      ])
+      writePlaylistCache(fresh.version, fresh.tracks)
+      applyRestored(fresh.tracks)
+    }
+
+    sync().catch((error) => {
+      if (cancelled)
+        return
+      // 有本地缓存时继续用缓存；没有时用示例曲目兜底，但不开启存储写回，避免覆盖用户已保存的曲目与进度
+      if (!cached) {
+        replacePlaylist([
+          sampleTrack,
+        ])
+      }
       console.error('Failed to fetch playlist:', error)
     })
     return () => {

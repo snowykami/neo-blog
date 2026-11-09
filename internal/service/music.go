@@ -83,6 +83,7 @@ var musicState = struct {
 	key        string
 	fetchedAt  time.Time
 	tracks     []dto.MusicTrackDto
+	version    string    // 歌单内容的指纹，见 playlistVersion
 	refreshing bool      // 正在后台刷新歌单
 	recheckAt  time.Time // 其他实例正在刷新时，到这个时间再检查共享缓存
 	songURLs   map[musicSongURLKey]musicSongURL
@@ -96,6 +97,8 @@ var musicShared = cache.NewTiered("music:ncm", 200, 32<<20)
 type musicSharedPlaylist struct {
 	FetchedAt time.Time           `json:"fetched_at"`
 	Tracks    []dto.MusicTrackDto `json:"tracks"`
+	// Version 歌单内容的指纹；旧条目没有这个字段，读出后按内容补算
+	Version string `json:"version"`
 }
 
 // musicSharedSongURL 共享缓存中的播放地址
@@ -112,6 +115,17 @@ func musicConfigHash(parts ...string) string {
 
 func musicPlaylistCacheKey(key string) string {
 	return "playlist:" + musicConfigHash(key)
+}
+
+// playlistVersion 歌单内容的指纹：内容不变时不变（后端每 10 分钟重新拉一遍歌单也不会变），
+// 前端缓存了歌单后用它判断要不要重新获取，比整份歌单小得多。按内容计算，各实例对同一份歌单得到同一个值
+func playlistVersion(tracks []dto.MusicTrackDto) string {
+	data, err := json.Marshal(tracks)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:12])
 }
 
 // musicFetchMu 同一时间只向 API 获取一次歌单
@@ -213,56 +227,67 @@ func (s *MusicService) ListNCMPlaylists(ctx context.Context, req *dto.NCMPlaylis
 
 // GetPlaylist 博客歌单的曲目，缓存一段时间
 func (s *MusicService) GetPlaylist(ctx context.Context) ([]dto.MusicTrackDto, *errs.ServiceError) {
+	tracks, _, svcerr := s.GetPlaylistWithVersion(ctx)
+	return tracks, svcerr
+}
+
+// GetPlaylistVersion 歌单版本（内容指纹）：前端在本地有歌单时只取它，一致就不再下载整份歌单
+func (s *MusicService) GetPlaylistVersion(ctx context.Context) (string, *errs.ServiceError) {
+	_, version, svcerr := s.GetPlaylistWithVersion(ctx)
+	return version, svcerr
+}
+
+// GetPlaylistWithVersion 歌单曲目与它的版本，一次取出（歌单与版本总是成对使用）
+func (s *MusicService) GetPlaylistWithVersion(ctx context.Context) ([]dto.MusicTrackDto, string, *errs.ServiceError) {
 	cfg := tools.GetNCMConfig()
 	if !cfg.Configured() {
-		return nil, errs.NewNotFound("ncm_not_configured")
+		return nil, "", errs.NewNotFound("ncm_not_configured")
 	}
 	key := fmt.Sprintf("%s\n%s\n%d", cfg.BaseURL, cfg.Cookie, cfg.PlaylistID)
 
 	// 已有同一配置的数据时直接返回；过期则在后台刷新，避免访客等待大歌单的获取
-	if tracks, ok := cachedPlaylist(key, cfg); ok {
-		return tracks, nil
+	if tracks, version, ok := cachedPlaylist(key, cfg); ok {
+		return tracks, version, nil
 	}
 
 	// 首次获取（或配置变化）：同一时间只获取一次，等待中的请求复用结果；多个实例同时启动时也只有一个向网易云获取，其余等它写入共享缓存
 	musicFetchMu.Lock()
 	defer musicFetchMu.Unlock()
-	if tracks, ok := cachedPlaylist(key, cfg); ok {
-		return tracks, nil
+	if tracks, version, ok := cachedPlaylist(key, cfg); ok {
+		return tracks, version, nil
 	}
 	if release, err := sharedstate.Lock(ctx, "music:playlist:fetch:"+musicConfigHash(key), musicPlaylistTimeout+5*time.Second); err == nil {
 		defer release()
-		if tracks, ok := cachedPlaylist(key, cfg); ok {
-			return tracks, nil
+		if tracks, version, ok := cachedPlaylist(key, cfg); ok {
+			return tracks, version, nil
 		}
 	}
 	tracks, err := fetchNCMTracks(ctx, cfg)
 	if err != nil {
-		return nil, ncmRequestError(err)
+		return nil, "", ncmRequestError(err)
 	}
-	storePlaylist(key, tracks)
-	return tracks, nil
+	return tracks, storePlaylist(key, tracks), nil
 }
 
 // cachedPlaylist 读取同一配置下的缓存：本实例没有时读共享缓存（其他实例或重启前获取的）；
 // 过期时触发一次后台刷新并先返回旧数据
-func cachedPlaylist(key string, cfg tools.NCMConfig) ([]dto.MusicTrackDto, bool) {
+func cachedPlaylist(key string, cfg tools.NCMConfig) ([]dto.MusicTrackDto, string, bool) {
 	musicState.Lock()
 	missing := musicState.key != key || musicState.tracks == nil
 	musicState.Unlock()
 	if missing && !adoptSharedPlaylist(key, time.Time{}) {
-		return nil, false
+		return nil, "", false
 	}
 	musicState.Lock()
 	defer musicState.Unlock()
 	if musicState.key != key || musicState.tracks == nil {
-		return nil, false
+		return nil, "", false
 	}
 	if time.Since(musicState.fetchedAt) >= musicPlaylistTTL && !musicState.refreshing && time.Now().After(musicState.recheckAt) {
 		musicState.refreshing = true
 		go refreshPlaylist(key, cfg)
 	}
-	return musicState.tracks, true
+	return musicState.tracks, musicState.version, true
 }
 
 // adoptSharedPlaylist 共享缓存里有比 newerThan 新的歌单时用它更新本实例的缓存，返回是否更新
@@ -274,12 +299,17 @@ func adoptSharedPlaylist(key string, newerThan time.Time) bool {
 	if !ok || shared.Tracks == nil || !shared.FetchedAt.After(newerThan) {
 		return false
 	}
+	// 旧条目没有版本：按内容补算，避免与版本接口给出不同的值（在加锁前算，不占着锁序列化整份歌单）
+	version := shared.Version
+	if version == "" {
+		version = playlistVersion(shared.Tracks)
+	}
 	musicState.Lock()
 	defer musicState.Unlock()
 	if musicState.key != key {
 		musicState.songURLs = nil
 	}
-	musicState.key, musicState.fetchedAt, musicState.tracks = key, shared.FetchedAt, shared.Tracks
+	musicState.key, musicState.fetchedAt, musicState.tracks, musicState.version = key, shared.FetchedAt, shared.Tracks, version
 	return true
 }
 
@@ -326,18 +356,20 @@ func refreshPlaylist(key string, cfg tools.NCMConfig) {
 	storePlaylist(key, tracks)
 }
 
-// storePlaylist 写入本实例与共享缓存
-func storePlaylist(key string, tracks []dto.MusicTrackDto) {
+// storePlaylist 写入本实例与共享缓存，返回歌单内容的指纹
+func storePlaylist(key string, tracks []dto.MusicTrackDto) string {
 	now := time.Now()
+	version := playlistVersion(tracks)
 	musicState.Lock()
 	if musicState.key != key {
 		musicState.songURLs = nil
 	}
-	musicState.key, musicState.fetchedAt, musicState.tracks, musicState.refreshing = key, now, tracks, false
+	musicState.key, musicState.fetchedAt, musicState.tracks, musicState.version, musicState.refreshing = key, now, tracks, version, false
 	musicState.Unlock()
 	if sharedstate.Shared() {
-		cache.SetJSON(musicShared, musicPlaylistCacheKey(key), musicSharedPlaylist{FetchedAt: now, Tracks: tracks}, musicPlaylistSharedTTL)
+		cache.SetJSON(musicShared, musicPlaylistCacheKey(key), musicSharedPlaylist{FetchedAt: now, Tracks: tracks, Version: version}, musicPlaylistSharedTTL)
 	}
+	return version
 }
 
 // fetchNCMTracks 获取歌单全部曲目，过滤已下架的歌曲

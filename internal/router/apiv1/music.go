@@ -15,6 +15,8 @@ func registerMusicRoutes(group *route.RouterGroup) {
 	musicGroupWithEditor := group.Group("/music").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleEditor))
 	{
 		musicGroup.GET("/playlist", controller.Music.Playlist)
+		// 歌单版本（内容指纹）：前端在本地缓存了歌单后只取它，一致就不再下载整份歌单
+		musicGroup.GET("/playlist/version", controller.Music.PlaylistVersion)
 		musicGroup.GET("/song/:id", controller.Music.Song)
 		musicGroup.GET("/song/:id/audio", controller.Music.SongAudio)
 		// 同一播放地址以 JSON 返回（允许跨源读取），供需要按字节范围只加载片段的页面使用（如沙箱中的歌词特效演示页）

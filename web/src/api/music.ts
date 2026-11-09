@@ -19,15 +19,27 @@ export interface MusicLyrics {
 // 网易云歌单由后端提供；静态歌单直接读取 JSON 地址
 export async function fetchPlaylist(source: MusicSource): Promise<MusicTrack[]> {
   if (source.type === 'ncm') {
-    // 歌单是一次上千首的大响应：后端重启后第一次要现拉（十几二十秒），不能用默认的 10s 超时
-    const res = await axiosClient.get<BaseResponse<MusicTrack[]>>('/music/playlist', { timeout: 60000 })
-    return res.data.data
+    return (await fetchNcmPlaylist()).tracks
   }
   const response = await fetch(source.url)
   if (!response.ok) {
     throw new Error('Network response was not ok')
   }
   return snakeToCamelObj(await response.json())
+}
+
+// 网易云歌单与它的版本（后端在响应头里给出歌单内容的指纹，供本地缓存判断是否需要重新获取）
+export async function fetchNcmPlaylist(): Promise<{ tracks: MusicTrack[], version: string }> {
+  // 歌单是一次上千首的大响应：后端重启后第一次要现拉（十几二十秒），不能用默认的 10s 超时
+  const res = await axiosClient.get<BaseResponse<MusicTrack[]>>('/music/playlist', { timeout: 60000 })
+  const version = res.headers['x-playlist-version']
+  return { tracks: res.data.data, version: typeof version === 'string' ? version : '' }
+}
+
+// 歌单版本（内容指纹）：本地有歌单时只取它（几十字节），一致就不用重新下载整份歌单
+export async function fetchPlaylistVersion(): Promise<string> {
+  const res = await axiosClient.get<BaseResponse<string>>('/music/playlist/version')
+  return res.data.data
 }
 
 // refresh：读者「重新获取歌词」，后端跳过缓存中「没有歌词」的记录（各来源相同）

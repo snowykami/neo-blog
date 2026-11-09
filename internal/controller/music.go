@@ -25,12 +25,26 @@ var streamLyrics = (*service.MusicService).StreamLyrics
 
 // Playlist 博客歌单的曲目
 func (m *musicType) Playlist(ctx context.Context, c *app.RequestContext) {
-	tracks, svcerr := m.service.GetPlaylist(ctx)
+	tracks, version, svcerr := m.service.GetPlaylistWithVersion(ctx)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
+	// 歌单内容的指纹：前端缓存了歌单后用它判断要不要重新获取（不是 HTTP 缓存校验器，不支持 If-None-Match）
+	if version != "" {
+		c.Header("X-Playlist-Version", version)
+	}
 	resps.Ok(c, resps.Success, tracks)
+}
+
+// PlaylistVersion 歌单版本（内容指纹）：前端在本地有歌单时只取它（响应只有几十字节），一致就不再下载整份歌单
+func (m *musicType) PlaylistVersion(ctx context.Context, c *app.RequestContext) {
+	version, svcerr := m.service.GetPlaylistVersion(ctx)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, version)
 }
 
 // Song 单曲公开信息（文章内的单曲卡）
