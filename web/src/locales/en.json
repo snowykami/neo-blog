@@ -2582,6 +2582,7 @@
         "browse": "Browsing",
         "post_published": "New post",
         "comment_replied": "Reply received",
+        "comment_mentioned": "Mentioned in a comment",
         "dry_run": "Dry run"
       },
       "action_type": {

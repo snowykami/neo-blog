@@ -45,7 +45,7 @@ const (
 )
 
 var (
-	agentTriggers       = []string{constant.AgentTriggerBrowse, constant.AgentTriggerPostPublished, constant.AgentTriggerCommentReplied}
+	agentTriggers       = []string{constant.AgentTriggerBrowse, constant.AgentTriggerPostPublished, constant.AgentTriggerCommentReplied, constant.AgentTriggerCommentMentioned}
 	agentSelfEditFields = []string{"avatar", "background", "nickname", "preferred_color"}
 )
 

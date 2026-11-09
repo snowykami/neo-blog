@@ -405,3 +405,93 @@ func TestAgentPureFunctions(t *testing.T) {
 		t.Fatalf("blank timezone should fall back to default, got %q %v", p.Activity.Timezone, svcerr)
 	}
 }
+
+// 评论里 @ 了 AI 用户：给它安排一次运行（根评论、回复都可以）。
+// 私密评论、没开启该触发方式、暂停中的 AI 不投；同一条评论对同一个 AI 只安排一次
+func TestAgentMentionTrigger(t *testing.T) {
+	admin, author, ai1, ai2, postID := setupAgentTest(t)
+	svc := NewAIAgentService()
+	mention := func(content string, private bool, replyID uint, ids ...uint) uint {
+		t.Helper()
+		id, svcerr := NewCommentService().CreateComment(author, &dto.CreateCommentReq{
+			TargetID: postID, TargetType: constant.TargetTypePost, ReplyID: replyID,
+			Content: content, IsPrivate: private, MentionUserIDs: ids,
+		})
+		if svcerr != nil {
+			t.Fatalf("create comment: %v", svcerr)
+		}
+		return id
+	}
+	mentionedRuns := func(agentID uint) []model.AgentRun {
+		t.Helper()
+		runs, _, err := repo.AIAgent.ListRuns(&dto.ListAgentRunsReq{
+			AgentID: agentID, Trigger: constant.AgentTriggerCommentMentioned, PaginationParams: dto.PaginationParams{Page: 1, Size: 50},
+		})
+		if err != nil {
+			t.Fatalf("list runs: %v", err)
+		}
+		return runs
+	}
+
+	// 根评论里同时 @ 两个 AI：各安排一次，目标就是这条评论
+	commentID := mention("想听听 @ai_one 和 @ai_two 的看法", false, 0, ai1.User.ID, ai2.User.ID)
+	for _, agent := range []*dto.AIAgentDto{ai1, ai2} {
+		runs := mentionedRuns(agent.ID)
+		if len(runs) != 1 || runs[0].Status != constant.AgentRunStatusQueued || runs[0].TargetID != commentID || runs[0].Kind != constant.AgentRunKindEvent {
+			t.Fatalf("agent %d mentioned runs = %+v", agent.ID, runs)
+		}
+	}
+
+	// 同一条评论再算一次（重复事件）不会多排任务
+	svc.OnCommentMentioned(commentID, time.Now())
+	if runs := mentionedRuns(ai1.ID); len(runs) != 1 {
+		t.Fatalf("duplicate mention should not queue again: %+v", runs)
+	}
+
+	// 私密评论不投：AI 的回应是公开的
+	mention("@ai_one 私下问你个事", true, 0, ai1.User.ID)
+	if runs := mentionedRuns(ai1.ID); len(runs) != 1 {
+		t.Fatalf("private comment should not trigger: %+v", runs)
+	}
+
+	// 没开启「评论里被 @」这个触发方式的 AI 不投
+	pausedProfile := ai2.Profile
+	pausedProfile.Triggers = []string{constant.AgentTriggerBrowse}
+	if _, svcerr := svc.Update(admin, &dto.UpdateAIAgentReq{ID: ai2.ID, Profile: &pausedProfile}); svcerr != nil {
+		t.Fatalf("update profile: %v", svcerr)
+	}
+	mention("@ai_two 再来一条", false, 0, ai2.User.ID)
+	if runs := mentionedRuns(ai2.ID); len(runs) != 1 {
+		t.Fatalf("agent without mention trigger should not queue: %+v", runs)
+	}
+
+	// 暂停中的 AI 不投
+	if _, svcerr := svc.Batch(admin, &dto.BatchAIAgentsReq{IDs: []uint{ai1.ID}, Action: "pause"}); svcerr != nil {
+		t.Fatalf("pause: %v", svcerr)
+	}
+	mention("@ai_one 你还在吗", false, 0, ai1.User.ID)
+	if runs := mentionedRuns(ai1.ID); len(runs) != 1 {
+		t.Fatalf("paused agent should not queue: %+v", runs)
+	}
+
+	// 回复 AI 的评论时 @ 它：已经因为「被回复」排过任务，不再重复
+	mention("@ai_one 还没睡呢", false, 0, ai1.User.ID) // 先恢复一次：仍然是暂停状态，不产生
+	if _, svcerr := svc.Batch(admin, &dto.BatchAIAgentsReq{IDs: []uint{ai1.ID}, Action: "resume"}); svcerr != nil {
+		t.Fatalf("resume: %v", svcerr)
+	}
+	ctx, _ := leaseCtx(t, ai1.ID, constant.AgentRunKindBrowse)
+	aiComment, svcerr := svc.AgentCreateComment(ctx, constant.TargetTypePost, postID, 0, "半夜还在写代码的人不少")
+	if svcerr != nil {
+		t.Fatalf("ai comment: %v", svcerr)
+	}
+	replyID := mention("@ai_one 你说的对", false, aiComment, ai1.User.ID)
+	replied, _, _ := repo.AIAgent.ListRuns(&dto.ListAgentRunsReq{AgentID: ai1.ID, Trigger: constant.AgentTriggerCommentReplied, PaginationParams: dto.PaginationParams{Page: 1, Size: 10}})
+	if len(replied) != 1 || replied[0].TargetID != replyID {
+		t.Fatalf("replied runs = %+v", replied)
+	}
+	for _, run := range mentionedRuns(ai1.ID) {
+		if run.TargetID == replyID {
+			t.Fatalf("mention should not duplicate the replied run: %+v", run)
+		}
+	}
+}

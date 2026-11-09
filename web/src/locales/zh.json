@@ -2582,6 +2582,7 @@
         "browse": "主动浏览",
         "post_published": "新文章发布",
         "comment_replied": "有人回复",
+        "comment_mentioned": "评论里被 @",
         "dry_run": "试运行"
       },
       "action_type": {

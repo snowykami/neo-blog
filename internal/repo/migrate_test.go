@@ -7,12 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/go-gormigrate/gormigrate/v2"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo/migrations"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -222,6 +224,13 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 		if p := agents[1].ParsedProfile(); p.Tone != "礼貌、具体，先肯定再补充，不说教。再加一句自己的要求" {
 			t.Errorf("customised tone changed: %q", p.Tone)
 		}
+		// 新增的「评论里被 @」触发补进已有触发列表；没有 triggers 字段的档案不动
+		if p := agents[0].ParsedProfile(); !slices.Contains(p.Triggers, constant.AgentTriggerCommentMentioned) || len(p.Triggers) != 4 {
+			t.Errorf("mention trigger not appended: %v", p.Triggers)
+		}
+		if p := agents[1].ParsedProfile(); p.Triggers != nil {
+			t.Errorf("profile without triggers should stay untouched: %v", p.Triggers)
+		}
 	})
 }
 
@@ -339,9 +348,10 @@ func seedLegacyDatabase(t *testing.T) {
 	if err := db.Create(&model.KV{Key: "music_ttml_url_template", Value: model.JSONMap{"value": " https://cdn.example.com/lyrics/{song_id}.ttml "}}).Error; err != nil {
 		t.Fatalf("seed legacy ttml config: %v", err)
 	}
-	// 专业型 AI 用户：一个还是旧的默认语气，一个是管理员改过的语气
+	// 专业型 AI 用户：一个还是旧的默认语气，一个是管理员改过的语气；
+	// id=1 带着旧的触发方式列表（缺「评论里被 @」），id=2 没有 triggers 字段
 	for _, agent := range []model.AIAgent{
-		{ID: 1, UserID: 1, Tier: "expert", Profile: `{"persona":"p","tone":"礼貌、具体，先肯定再补充，不说教","interests":["Go"]}`},
+		{ID: 1, UserID: 1, Tier: "expert", Profile: `{"persona":"p","tone":"礼貌、具体，先肯定再补充，不说教","interests":["Go"],"triggers":["browse","post.published","comment.replied"]}`},
 		{ID: 2, UserID: 2, Tier: "expert", Profile: `{"tone":"礼貌、具体，先肯定再补充，不说教。再加一句自己的要求"}`},
 	} {
 		if err := db.Omit("User").Create(&agent).Error; err != nil {

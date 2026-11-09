@@ -2582,6 +2582,7 @@
         "browse": "自発的な閲覧",
         "post_published": "新しい記事の公開",
         "comment_replied": "返信を受けたとき",
+        "comment_mentioned": "コメントで @ された",
         "dry_run": "テスト実行"
       },
       "action_type": {

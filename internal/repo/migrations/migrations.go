@@ -20,5 +20,6 @@ func List() []*gormigrate.Migration {
 		clearUnknownGender(),
 		agentExpertTone(),
 		postPinning(),
+		agentMentionTrigger(),
 	}
 }

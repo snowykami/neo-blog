@@ -8,11 +8,11 @@ export type AIAgentTier = (typeof AI_AGENT_TIERS)[number]
 export const AI_AGENT_STATUSES = ['active', 'paused'] as const
 export type AIAgentStatus = (typeof AI_AGENT_STATUSES)[number]
 
-export const AI_AGENT_TRIGGERS = ['browse', 'post.published', 'comment.replied'] as const
+export const AI_AGENT_TRIGGERS = ['browse', 'post.published', 'comment.replied', 'comment.mentioned'] as const
 export type AIAgentTrigger = (typeof AI_AGENT_TRIGGERS)[number]
 
 // 运行记录的触发方式（比性格档案的触发方式多一个试运行）
-export const AGENT_RUN_TRIGGERS = ['browse', 'post.published', 'comment.replied', 'dry_run'] as const
+export const AGENT_RUN_TRIGGERS = ['browse', 'post.published', 'comment.replied', 'comment.mentioned', 'dry_run'] as const
 export type AgentRunTrigger = (typeof AGENT_RUN_TRIGGERS)[number]
 
 export const AGENT_RUN_KINDS = ['browse', 'event', 'dry_run'] as const

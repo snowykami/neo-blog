@@ -222,6 +222,12 @@ func taskPrompt(run *dto.AgentLeaseRun) string {
 			}
 			fmt.Fprintf(&b, "对方这条 %d 字，要回的话长度和对方差不多或更短。\n", utf8.RuneCountInString(strings.TrimSpace(ev.Comment.Content)))
 		}
+	case "comment.mentioned":
+		b.WriteString("触发：有人在评论里 @ 了你，点名想听听你的想法。\n")
+		b.WriteString("要接话就回复那条评论；没什么想说的可以不回，被点名也不必每次都回。\n")
+		if ev := run.Event; ev != nil && ev.Comment != nil {
+			fmt.Fprintf(&b, "对方这条 %d 字，要接的话长度和对方差不多或更短。\n", utf8.RuneCountInString(strings.TrimSpace(ev.Comment.Content)))
+		}
 	case "post.published":
 		b.WriteString("触发：博客发布了新文章，你刷到了它。\n")
 	case "dry_run":

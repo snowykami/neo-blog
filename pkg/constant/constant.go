@@ -178,10 +178,11 @@ const (
 	AgentRunKindEvent  = "event"   // 事件触发：新文章、被回复
 	AgentRunKindDryRun = "dry_run" // 后台试运行：只输出操作列表，不执行
 
-	AgentTriggerBrowse         = "browse"
-	AgentTriggerPostPublished  = "post.published"
-	AgentTriggerCommentReplied = "comment.replied"
-	AgentTriggerDryRun         = "dry_run"
+	AgentTriggerBrowse           = "browse"
+	AgentTriggerPostPublished    = "post.published"
+	AgentTriggerCommentReplied   = "comment.replied"
+	AgentTriggerCommentMentioned = "comment.mentioned" // 评论里被 @ 了
+	AgentTriggerDryRun           = "dry_run"
 
 	AgentRunStatusQueued  = "queued"
 	AgentRunStatusLeased  = "leased"

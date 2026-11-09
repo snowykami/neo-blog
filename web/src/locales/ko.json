@@ -2582,6 +2582,7 @@
         "browse": "자발적 탐색",
         "post_published": "새 글 게시",
         "comment_replied": "답글 받음",
+        "comment_mentioned": "댓글에서 @됨",
         "dry_run": "테스트 실행"
       },
       "action_type": {

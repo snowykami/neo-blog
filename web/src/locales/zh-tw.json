@@ -2582,6 +2582,7 @@
         "browse": "主動瀏覽",
         "post_published": "新文章發布",
         "comment_replied": "有人回覆",
+        "comment_mentioned": "留言裡被 @",
         "dry_run": "試執行"
       },
       "action_type": {

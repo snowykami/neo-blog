@@ -302,9 +302,15 @@ func NotifyPostPublished(postID uint) {
 	safeGo("ai agent post published", func() { NewAIAgentService().OnPostPublished(postID, time.Now()) })
 }
 
-// NotifyCommentCreated 有新评论时调用（异步）
+// NotifyCommentCreated 有新评论时调用（异步）：被回复的 AI 与评论里被 @ 的 AI 都在这一次处理里安排，
+// 放在同一个 goroutine 里按顺序处理，避免两边各自查到「还没有任务」而把同一条评论排两遍
 func NotifyCommentCreated(commentID uint) {
-	safeGo("ai agent comment created", func() { NewAIAgentService().OnCommentCreated(commentID, time.Now()) })
+	safeGo("ai agent comment created", func() {
+		svc := NewAIAgentService()
+		now := time.Now()
+		svc.OnCommentCreated(commentID, now)
+		svc.OnCommentMentioned(commentID, now)
+	})
 }
 
 // OnPostPublished 新文章首次公开：按兴趣加权抽样若干 AI，计划时间分散在 48 小时内
@@ -426,6 +432,80 @@ func (s *AIAgentService) OnCommentCreated(commentID uint, now time.Time) {
 	}
 	if !run.ScheduledAt.After(now) {
 		notifyAgentRuns()
+	}
+}
+
+// OnCommentMentioned 有人在评论里 @ 了 AI 用户：给每个被点名的活跃 AI 安排一次运行。
+// 与「被回复」共用同一套硬性上限（回复深度、AI 对话深度、AI 互聊次数）；
+// 同一条评论对同一个 AI 只安排一次（这条评论恰是对它的回复时不再重复）
+func (s *AIAgentService) OnCommentMentioned(commentID uint, now time.Time) {
+	cfg := tools.GetAIAgentConfig()
+	if !schedulerReady(cfg) {
+		return
+	}
+	comment, err := repo.Comment.GetComment(commentID)
+	// 私密评论不投：AI 的回应是公开的，会把私密内容带出去
+	if err != nil || comment.IsPrivate || len(comment.MentionUserIDs) == 0 {
+		return
+	}
+	for _, mentionUserID := range comment.MentionUserIDs {
+		agent, err := repo.AIAgent.GetByUserID(mentionUserID)
+		if err != nil || agent.Status != constant.AIAgentStatusActive || agent.User.Disabled {
+			continue
+		}
+		// 自己 @ 自己（AI 用户之间）不安排
+		if agent.UserID == comment.UserID {
+			continue
+		}
+		profile := agent.ParsedProfile()
+		if !slices.Contains(profile.Triggers, constant.AgentTriggerCommentMentioned) {
+			continue
+		}
+		// 这条评论已经为它排过任务（比如它本来就是对这条 AI 用户评论的回复）
+		if exists, err := repo.AIAgent.RunExistsForAgent(agent.ID, constant.TargetTypeComment, comment.ID); err != nil || exists {
+			continue
+		}
+		run := model.AgentRun{
+			AgentID: agent.ID, Kind: constant.AgentRunKindEvent, Trigger: constant.AgentTriggerCommentMentioned,
+			TargetType: constant.TargetTypeComment, TargetID: comment.ID, Status: constant.AgentRunStatusQueued,
+			ScheduledAt: now.Add(randomDelay(profile)),
+		}
+		skip := func(reason string) {
+			run.Status, run.SkipReason, run.FinishedAt = constant.AgentRunStatusSkipped, reason, &now
+			if err := repo.AIAgent.CreateRun(&run); err != nil {
+				logrus.Warnf("record skipped agent run: %v", err)
+			}
+		}
+		if comment.Depth >= tools.GetMaximumReplyDepth() {
+			skip("reply_depth")
+			continue
+		}
+		// AI 互动深度：这条评论所在回复链已有的连续 AI 评论数，回应后会再加一
+		if depth := aiChainDepth(comment.ID); depth+1 > cfg.MaxChainDepth {
+			skip("chain_depth")
+			continue
+		}
+		if comment.User.IsAI {
+			if !profile.AIInteraction.Enabled {
+				skip("ai_interaction_disabled")
+				continue
+			}
+			rootID := comment.RootID
+			if rootID == 0 {
+				rootID = comment.ID
+			}
+			if n, _ := repo.AIAgent.CountPairReplies(agent.UserID, comment.UserID, rootID, dayStart(now)); n >= int64(cfg.PairExchanges) {
+				skip("pair_exchange")
+				continue
+			}
+		}
+		if err := repo.AIAgent.CreateRun(&run); err != nil {
+			logrus.Warnf("create comment mentioned run: %v", err)
+			continue
+		}
+		if !run.ScheduledAt.After(now) {
+			notifyAgentRuns()
+		}
 	}
 }
 

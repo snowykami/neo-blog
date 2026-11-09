@@ -315,6 +315,14 @@ func (r *aiAgentRepo) TriggerExists(trigger, targetType string, targetID uint) (
 	return n > 0, err
 }
 
+// RunExistsForAgent 该 AI 是否已为这个目标排过任务（同一目标不重复触发，如一条评论既是对它的回复又 @ 了它）
+func (r *aiAgentRepo) RunExistsForAgent(agentID uint, targetType string, targetID uint) (bool, error) {
+	var n int64
+	err := GetDB().Model(&model.AgentRun{}).Where("agent_id = ? AND target_type = ? AND target_id = ?", agentID, targetType, targetID).
+		Limit(1).Count(&n).Error
+	return n > 0, err
+}
+
 func (r *aiAgentRepo) CountRunsByStatus(status string) (int64, error) {
 	var n int64
 	return n, GetDB().Model(&model.AgentRun{}).Where("status = ?", status).Count(&n).Error

@@ -117,12 +117,16 @@ func (s *AIAgentService) recordRunMemory(run *model.AgentRun, note string, now t
 	var facts []string
 	targetType, targetID := run.TargetType, run.TargetID
 
-	// 被回复：对方主动找我说话，无论我是否回应都更熟一点
-	if run.Trigger == constant.AgentTriggerCommentReplied {
+	// 被回复 / 被点名：对方主动找我说话，无论我是否回应都更熟一点
+	if run.Trigger == constant.AgentTriggerCommentReplied || run.Trigger == constant.AgentTriggerCommentMentioned {
 		if c, err := repo.Comment.GetComment(run.TargetID); err == nil {
 			subject = c.UserID
 			s.bumpRelation(agent, profile, c.UserID, weightRepliedToMe, run.ID, now)
-			facts = append(facts, fmt.Sprintf("@%s 回复我：%s", displayName(&c.User), clipRunes(c.Content, 40)))
+			if run.Trigger == constant.AgentTriggerCommentMentioned {
+				facts = append(facts, fmt.Sprintf("@%s 在评论里 @ 我：%s", displayName(&c.User), clipRunes(c.Content, 40)))
+			} else {
+				facts = append(facts, fmt.Sprintf("@%s 回复我：%s", displayName(&c.User), clipRunes(c.Content, 40)))
+			}
 		}
 	}
 	for _, e := range effects {
@@ -179,7 +183,7 @@ func (s *AIAgentService) recordRunMemory(run *model.AgentRun, note string, now t
 		content = note + "（" + strings.Join(facts, "；") + "）"
 	}
 	importance := 0.5
-	if run.Trigger == constant.AgentTriggerCommentReplied {
+	if run.Trigger == constant.AgentTriggerCommentReplied || run.Trigger == constant.AgentTriggerCommentMentioned {
 		importance = 0.7
 	} else if len(effects) > 0 && note == "" && !strings.Contains(content, "评论") && !strings.Contains(content, "回复") {
 		importance = 0.3
