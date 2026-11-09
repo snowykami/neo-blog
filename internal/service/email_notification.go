@@ -27,6 +27,7 @@ type notificationEmailTexts struct {
 	subjects       map[string]string // 单条邮件的主题，{actor} {site}
 	lists          map[string]string // 列表项，{actor} {subject} {excerpt} {quoted}
 	deletedSubject string            // 标题快照为空时的降级文案
+	unknownActor   string            // 作者资料读不到时的降级称呼（不能把「—」写进句子）
 	moreItems      string            // {count}
 	attachedLikes  string            // {count}
 	attachedReply  string            // {count}
@@ -36,6 +37,7 @@ type notificationEmailTexts struct {
 var notificationEmailTextsByLanguage = map[string]notificationEmailTexts{
 	"zh": {
 		deletedSubject: "（内容已删除）",
+		unknownActor:   "有人",
 		heading:        "你有新的互动",
 		summary:        "过去 {interval} 有 {count} 条新互动",
 		cta:            "在站内查看全部",
@@ -62,6 +64,7 @@ var notificationEmailTextsByLanguage = map[string]notificationEmailTexts{
 	},
 	"zh-tw": {
 		deletedSubject: "（內容已刪除）",
+		unknownActor:   "有人",
 		heading:        "你有新的互動",
 		summary:        "過去 {interval} 有 {count} 則新互動",
 		cta:            "在站內查看全部",
@@ -88,6 +91,7 @@ var notificationEmailTextsByLanguage = map[string]notificationEmailTexts{
 	},
 	"en": {
 		deletedSubject: "(deleted)",
+		unknownActor:   "Someone",
 		heading:        "You have new activity",
 		summary:        "{count} new interactions in the last {interval}",
 		cta:            "View all on the site",
@@ -114,6 +118,7 @@ var notificationEmailTextsByLanguage = map[string]notificationEmailTexts{
 	},
 	"ja": {
 		deletedSubject: "（削除済み）",
+		unknownActor:   "誰か",
 		heading:        "新しい動きがあります",
 		summary:        "過去 {interval} に {count} 件の新しい動きがありました",
 		cta:            "サイトで確認する",
@@ -140,6 +145,7 @@ var notificationEmailTextsByLanguage = map[string]notificationEmailTexts{
 	},
 	"ko": {
 		deletedSubject: "(삭제됨)",
+		unknownActor:   "누군가",
 		heading:        "새로운 활동이 있습니다",
 		summary:        "지난 {interval} 동안 새 활동 {count}건",
 		cta:            "사이트에서 모두 보기",
@@ -248,7 +254,7 @@ func RenderNotificationEmail(input *NotificationEmailInput) (*NotificationEmailC
 	texts := notificationEmailTextsForLanguage(input.Recipient.Language)
 	vars := func(n *model.Notification) map[string]string {
 		return map[string]string{
-			"actor":   notificationActorDisplay(n),
+			"actor":   notificationActorDisplay(n, texts.unknownActor),
 			"subject": notificationSubjectText(texts, n),
 			"excerpt": NotificationSummary(n.Excerpt, notificationExcerptMaxRunes),
 			"quoted":  NotificationSummary(n.QuotedExcerpt, notificationQuotedMaxRunes),
@@ -260,9 +266,9 @@ func RenderNotificationEmail(input *NotificationEmailInput) (*NotificationEmailC
 		n := &input.Important[i]
 		tpl := notificationItemTemplate(texts, n)
 		items = append(items, notificationEmailItem{
-			ActorName:    notificationActorDisplay(n),
+			ActorName:    notificationActorDisplay(n, texts.unknownActor),
 			ActorAvatar:  n.Actor.AvatarUrl,
-			ActorInitial: notificationActorInitial(n),
+			ActorInitial: notificationActorInitial(n, texts.unknownActor),
 			Text:         renderNotificationText(tpl, vars(n)),
 			URL:          notificationDeepLink(n),
 			Time:         notificationTimeText(n.CreatedAt, input.Recipient.TimeZone, input.Now),
@@ -293,7 +299,7 @@ func RenderNotificationEmail(input *NotificationEmailInput) (*NotificationEmailC
 	subject := renderNotificationText(texts.multiSubject, map[string]string{"count": fmt.Sprintf("%d", count), "site": data.SiteName})
 	if len(input.Important) == 1 && count == 1 {
 		subject = renderNotificationText(notificationSubjectTemplate(texts, &input.Important[0]), map[string]string{
-			"actor": notificationActorDisplay(&input.Important[0]),
+			"actor": notificationActorDisplay(&input.Important[0], texts.unknownActor),
 			"site":  data.SiteName,
 		})
 	}
@@ -348,21 +354,25 @@ func notificationSubjectTemplate(texts notificationEmailTexts, n *model.Notifica
 	return "{actor} · {site}"
 }
 
-// notificationActorDisplay 通知里的称呼：昵称优先，其次用户名，超长截断
-func notificationActorDisplay(n *model.Notification) string {
+// notificationActorDisplay 通知里的称呼：昵称优先，其次用户名，超长截断；
+// 作者资料读不到（已注销、关联未加载）时用该语言的「有人」兜底，不能把「—」写进句子
+func notificationActorDisplay(n *model.Notification, unknownActor string) string {
 	name := strings.TrimSpace(n.Actor.Nickname)
 	if name == "" {
 		name = n.Actor.Username
 	}
 	if name == "" {
-		return "—"
+		if unknownActor != "" {
+			return unknownActor
+		}
+		return "someone"
 	}
 	return truncateRunes(name, notificationActorMaxRunes)
 }
 
 // notificationActorInitial 没有头像时的首字兜底
-func notificationActorInitial(n *model.Notification) string {
-	name := notificationActorDisplay(n)
+func notificationActorInitial(n *model.Notification, unknownActor string) string {
+	name := notificationActorDisplay(n, unknownActor)
 	for _, r := range name {
 		return strings.ToUpper(string(r))
 	}

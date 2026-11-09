@@ -67,6 +67,37 @@ func TestRenderNotificationEmail(t *testing.T) {
 	}
 }
 
+// 作者资料读不到（已注销、关联未加载）时用该语言的「有人」兜底，不能把「—」写进句子
+func TestRenderNotificationEmailActorFallback(t *testing.T) {
+	setupNotificationDB(t)
+	render := func(language string) *NotificationEmailContent {
+		t.Helper()
+		content, err := RenderNotificationEmail(&NotificationEmailInput{
+			Recipient: &model.User{Language: language},
+			Important: []model.Notification{{
+				Type:        constant.NotificationTypeCommentCreated,
+				SubjectType: constant.TargetTypePost, SubjectID: 1, SubjectTitle: "标题", SubjectSlug: "slug",
+				CommentID: 2, Excerpt: "正文",
+			}},
+			ImportantAll: 1, Interval: 10 * time.Minute, Now: time.Now(),
+		})
+		if err != nil {
+			t.Fatalf("render: %v", err)
+		}
+		return content
+	}
+	zh := render("zh")
+	if !strings.Contains(zh.HTML, "有人 评论了你的文章") || !strings.Contains(zh.Subject, "有人") {
+		t.Fatalf("zh fallback actor missing: subject=%q", zh.Subject)
+	}
+	if strings.Contains(zh.HTML, "— 评论了") {
+		t.Error("fallback actor should not be a dash")
+	}
+	if en := render("en"); !strings.Contains(en.Subject, "Someone") {
+		t.Errorf("en fallback actor = %q", en.Subject)
+	}
+}
+
 func TestNotificationEmailTextsForLanguage(t *testing.T) {
 	cases := map[string]string{
 		"":        "en",

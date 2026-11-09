@@ -466,8 +466,11 @@ func (r *notificationRepo) ClaimEmailBatch(ids []uint) ([]model.Notification, er
 		Update("email_state", constant.NotificationEmailStateSending).Error; err != nil {
 		return nil, err
 	}
+	// 邮件正文要渲染作者昵称与头像：这里必须带出 Actor，否则昵称与头像都是空的
 	var claimed []model.Notification
-	if err := GetDB().Where("id IN ? AND email_state = ?", ids, constant.NotificationEmailStateSending).
+	if err := GetDB().Preload("Actor", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, username, nickname, avatar_url, is_ai")
+	}).Where("id IN ? AND email_state = ?", ids, constant.NotificationEmailStateSending).
 		Order("id ASC").Find(&claimed).Error; err != nil {
 		return nil, err
 	}

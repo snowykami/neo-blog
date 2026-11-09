@@ -90,6 +90,14 @@ func TestSendNotificationEmails(t *testing.T) {
 	sent := stubEmailSender(t)
 	recipient := createEmailUser(t, "owner", "zh")
 	actor := createEmailUser(t, "actor", "zh")
+	// 昵称与头像要出现在邮件正文里（Actor 关联必须预加载）
+	actor.Nickname = "小明同学"
+	actor.AvatarUrl = "https://cdn.example.com/actor.png"
+	if err := repo.GetDB().Model(actor).Updates(map[string]any{
+		"nickname": actor.Nickname, "avatar_url": actor.AvatarUrl,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now()
 	// 两条重要通知 + 3 条点赞 + 1 条线程活动
 	addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-20*time.Minute))
@@ -111,6 +119,13 @@ func TestSendNotificationEmails(t *testing.T) {
 	}
 	if !strings.Contains(mail.subject, "2") {
 		t.Errorf("subject should count important items only: %q", mail.subject)
+	}
+	if !strings.Contains(mail.html, actor.Nickname) || !strings.Contains(mail.html, actor.AvatarUrl) {
+		t.Errorf("邮件里缺少作者昵称或头像：nickname=%v avatar=%v",
+			strings.Contains(mail.html, actor.Nickname), strings.Contains(mail.html, actor.AvatarUrl))
+	}
+	if strings.Contains(mail.html, "— 评论了") {
+		t.Error("作者昵称不应退化成破折号")
 	}
 	if !strings.Contains(mail.html, "另有 3 个赞") {
 		t.Error("attached likes should be summarised")
@@ -149,6 +164,14 @@ func TestSendNotificationEmailsAttachWindow(t *testing.T) {
 	sent := stubEmailSender(t)
 	recipient := createEmailUser(t, "owner", "zh")
 	actor := createEmailUser(t, "actor", "zh")
+	// 昵称与头像要出现在邮件正文里（Actor 关联必须预加载）
+	actor.Nickname = "小明同学"
+	actor.AvatarUrl = "https://cdn.example.com/actor.png"
+	if err := repo.GetDB().Model(actor).Updates(map[string]any{
+		"nickname": actor.Nickname, "avatar_url": actor.AvatarUrl,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now()
 	addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-10*time.Minute))
 	// 窗口内的 3 条点赞：只能搭 2 条
@@ -184,6 +207,14 @@ func TestSendNotificationEmailsSkipped(t *testing.T) {
 	disabled := createEmailUser(t, "disabled", "zh")
 	repo.GetDB().Model(&model.User{}).Where("id = ?", disabled.ID).Update("disabled", true)
 	actor := createEmailUser(t, "actor", "zh")
+	// 昵称与头像要出现在邮件正文里（Actor 关联必须预加载）
+	actor.Nickname = "小明同学"
+	actor.AvatarUrl = "https://cdn.example.com/actor.png"
+	if err := repo.GetDB().Model(actor).Updates(map[string]any{
+		"nickname": actor.Nickname, "avatar_url": actor.AvatarUrl,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now()
 	addNotification(t, disabled, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-time.Minute))
 
@@ -205,6 +236,14 @@ func TestSendNotificationEmailsRetry(t *testing.T) {
 	setupNotificationEmailDB(t)
 	recipient := createEmailUser(t, "owner", "zh")
 	actor := createEmailUser(t, "actor", "zh")
+	// 昵称与头像要出现在邮件正文里（Actor 关联必须预加载）
+	actor.Nickname = "小明同学"
+	actor.AvatarUrl = "https://cdn.example.com/actor.png"
+	if err := repo.GetDB().Model(actor).Updates(map[string]any{
+		"nickname": actor.Nickname, "avatar_url": actor.AvatarUrl,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now()
 	notification := addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-time.Minute))
 
@@ -270,6 +309,14 @@ func TestSendNotificationEmailsRateLimit(t *testing.T) {
 	sent := stubEmailSender(t)
 	recipient := createEmailUser(t, "owner", "zh")
 	actor := createEmailUser(t, "actor", "zh")
+	// 昵称与头像要出现在邮件正文里（Actor 关联必须预加载）
+	actor.Nickname = "小明同学"
+	actor.AvatarUrl = "https://cdn.example.com/actor.png"
+	if err := repo.GetDB().Model(actor).Updates(map[string]any{
+		"nickname": actor.Nickname, "avatar_url": actor.AvatarUrl,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now()
 	// 第一封正常发出，用掉这一小时的额度
 	addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-2*time.Minute))
@@ -298,6 +345,14 @@ func TestNotificationCleanup(t *testing.T) {
 	setupNotificationEmailDB(t)
 	recipient := createEmailUser(t, "owner", "zh")
 	actor := createEmailUser(t, "actor", "zh")
+	// 昵称与头像要出现在邮件正文里（Actor 关联必须预加载）
+	actor.Nickname = "小明同学"
+	actor.AvatarUrl = "https://cdn.example.com/actor.png"
+	if err := repo.GetDB().Model(actor).Updates(map[string]any{
+		"nickname": actor.Nickname, "avatar_url": actor.AvatarUrl,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now()
 	old := addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStateSent, now.AddDate(0, 0, -200))
 	recent := addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStateSent, now.Add(-time.Hour))
