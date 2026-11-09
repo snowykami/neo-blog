@@ -36,6 +36,13 @@ export async function fetchNcmPlaylist(): Promise<{ tracks: MusicTrack[], versio
   return { tracks: res.data.data, version: typeof version === 'string' ? version : '' }
 }
 
+// 预取下一首的临时播放地址：切歌时后端要现向网易云要地址（实测接近 1 秒），提前问好之后
+// 按「下一首」只需等 CDN 的首字节。与 SongAudio 使用同一音质，后端才命中同一份缓存
+export async function fetchSongAudioURL(id: number): Promise<string> {
+  const res = await axiosClient.get<BaseResponse<{ url: string }>>(`/music/song/${id}/audio/url`)
+  return res.data.data.url
+}
+
 // 歌单版本（内容指纹）：本地有歌单时只取它（几十字节），一致就不用重新下载整份歌单
 export async function fetchPlaylistVersion(): Promise<string> {
   const res = await axiosClient.get<BaseResponse<string>>('/music/playlist/version')

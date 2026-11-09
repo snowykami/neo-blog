@@ -14,6 +14,7 @@ import React, {
   useState,
   useSyncExternalStore,
 } from 'react'
+import { fetchSongAudioURL } from '@/api/music'
 import { applyEmphasis } from '@/lib/lyrics/emphasis'
 import { toSingleLineLyrics } from '@/lib/lyrics/from-platform'
 import { requestRhythm } from '@/lib/lyrics/rhythm/source'
@@ -504,6 +505,39 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       document.removeEventListener('visibilitychange', request)
     }
   }, [currentTrack, showLyricEffects])
+
+  // 已经预取过播放地址的歌曲：页面可见性变化、同一首反复触发时不重复请求（地址在后端缓存 10 分钟，过期后切歌会重新现取）
+  const prefetchedTrackIds = useRef<Set<number>>(new Set())
+
+  // 预取下一首的播放地址：切歌时后端要现向网易云要地址（实测接近 1 秒），提前问好之后按「下一首」只需等 CDN 的首字节。
+  // 与节奏分析一样等这首歌真的出声后再要，不和切歌后的首段缓冲抢；页面不可见时不预取（后台切歌看不到，也别浪费上游额度）。
+  // 随机模式下的下一首不确定，不预取
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!currentTrack || !audio)
+      return
+    const request = () => {
+      if (audio.paused || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA || document.visibilityState !== 'visible')
+        return
+      if (playModeRef.current === 'shuffle')
+        return
+      const nextIndex = getAdjacentIndex(playlistRef.current, currentIndexRef.current, playModeRef.current, 1)
+      const next = nextIndex == null ? null : playlistRef.current[nextIndex]
+      // 单曲歌单、单曲循环时下一首就是当前曲目：播放地址已经取过了
+      if (!next || next.id === currentTrack.id || prefetchedTrackIds.current.has(next.id))
+        return
+      prefetchedTrackIds.current.add(next.id)
+      // 失败时删掉标记，切到它时重新现取（只是白预取一次，不影响播放）
+      fetchSongAudioURL(next.id).catch(() => prefetchedTrackIds.current.delete(next.id))
+    }
+    request()
+    audio.addEventListener('playing', request)
+    document.addEventListener('visibilitychange', request)
+    return () => {
+      audio.removeEventListener('playing', request)
+      document.removeEventListener('visibilitychange', request)
+    }
+  }, [currentTrack])
 
   // 切换到指定索引；目标与当前曲目相同时（如单曲歌单）直接从头播放，避免 effect 不触发导致停播
   // startTime 为可选的起始进度（秒），在不切歌时立即跳转，切歌时等元数据就绪后再跳转
