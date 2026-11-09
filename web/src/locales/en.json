@@ -3726,6 +3726,7 @@
     "no_comments": "No comments yet",
     "no_public_comments": "There are no publicly visible comments here yet",
     "commented_on": "Commented on",
+    "view_comment": "View comment",
     "comments_load_failed": "Failed to load comments",
     "tab_likes": "Likes",
     "likes": "Liked",

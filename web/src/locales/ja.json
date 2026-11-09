@@ -3726,6 +3726,7 @@
     "no_comments": "コメントはまだありません",
     "no_public_comments": "公開されているコメントはまだありません",
     "commented_on": "コメント先",
+    "view_comment": "コメントを見る",
     "comments_load_failed": "コメントの読み込みに失敗しました",
     "tab_likes": "いいね",
     "likes": "いいねした内容",

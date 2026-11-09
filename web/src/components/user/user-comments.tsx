@@ -1,7 +1,7 @@
 'use client'
 
 import type { UserComment } from '@/models/comment'
-import { FileTextIcon, LockIcon, MessageSquareOffIcon, RotateCwIcon } from 'lucide-react'
+import { ArrowRightIcon, FileTextIcon, LockIcon, MessageSquareOffIcon, RotateCwIcon } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { parseAsInteger, useQueryState } from 'nuqs'
@@ -74,13 +74,21 @@ function UserCommentItem({ comment }: { comment: UserComment }) {
         </p>
       )}
       <CommentAttachments attachments={comment.attachments} />
-      <p className="flex min-w-0 items-center gap-1.5 text-sm text-foreground/50">
+      {/* 整行都是链接：点标题或右侧提示都能跳到目标页面并定位到这条评论 */}
+      <Link
+        href={getTargetUrl(comment)}
+        className="group -mx-2 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-foreground/50 transition-colors hover:bg-foreground/[.05] hover:text-foreground/70"
+      >
         <FileTextIcon aria-hidden className="size-3.5 shrink-0" />
         <span className="shrink-0">{t('commented_on')}</span>
-        <Link href={getTargetUrl(comment)} className="truncate font-medium text-foreground/75 transition-colors hover:text-primary">
+        <span className="truncate font-medium text-foreground/75 transition-colors group-hover:text-primary">
           {comment.target.title}
-        </Link>
-      </p>
+        </span>
+        <span className="ml-auto flex shrink-0 items-center gap-0.5 pl-2 text-xs text-foreground/40 transition-colors group-hover:text-primary">
+          <span className="hidden sm:inline">{t('view_comment')}</span>
+          <ArrowRightIcon aria-hidden className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+        </span>
+      </Link>
     </article>
   )
 }

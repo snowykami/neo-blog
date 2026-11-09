@@ -3726,6 +3726,7 @@
     "no_comments": "아직 댓글이 없습니다",
     "no_public_comments": "공개된 댓글이 아직 없습니다",
     "commented_on": "댓글 단 글",
+    "view_comment": "댓글 보기",
     "comments_load_failed": "댓글을 불러오지 못했습니다",
     "tab_likes": "좋아요",
     "likes": "좋아요한 콘텐츠",
