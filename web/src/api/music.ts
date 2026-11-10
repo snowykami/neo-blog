@@ -36,6 +36,17 @@ export async function fetchNcmPlaylist(): Promise<{ tracks: MusicTrack[], versio
   return { tracks: res.data.data, version: typeof version === 'string' ? version : '' }
 }
 
+// 页面加载恢复播放时只取一首（完整歌单约 90 KB gzip，等开始播放、打开播放器 / 歌单或切歌时再取）：
+// ids 为候选歌曲 id（按优先级：分享地址里的、本地存储的上次播放的），返回第一首在歌单内的，都不在时为歌单第一首，歌单为空时为 null
+export async function fetchPlaylistTrack(ids: number[]): Promise<MusicTrack | null> {
+  const res = await axiosClient.get<BaseResponse<MusicTrack | null>>('/music/playlist/track', {
+    params: ids.length > 0 ? { ids: ids.join(',') } : undefined,
+    // 与完整歌单共用后端缓存：后端重启后第一次同样要现拉整份歌单
+    timeout: 60000,
+  })
+  return res.data.data
+}
+
 // 预取下一首的临时播放地址：切歌时后端要现向网易云要地址（实测接近 1 秒），提前问好之后
 // 按「下一首」只需等 CDN 的首字节。与 SongAudio 使用同一音质，后端才命中同一份缓存
 export async function fetchSongAudioURL(id: number): Promise<string> {

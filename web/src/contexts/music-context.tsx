@@ -87,6 +87,15 @@ interface MusicContextValue {
   replacePlaylist: (tracks: MusicTrack[], startIndex?: number, startTime?: number) => void
   // 只换歌单数据（后台拿到新版本歌单）：不换当前曲目、不动进度与待恢复的进度，当前曲目已被移出歌单时留在原位（见 rebasePlaylist）
   updatePlaylist: (tracks: MusicTrack[]) => void
+  // 歌单是否已取全：页面加载恢复播放时可能只取了要恢复的那一首（见 MusicPlayer），完整歌单在开始出声、打开播放器 / 歌单
+  // 或切歌时由 ensurePlaylist 补上；上一首 / 下一首（含自动下一首与系统媒体控制）在补全之后再算
+  playlistComplete: boolean
+  // 登记完整歌单的获取函数（MusicPlayer 调用）。partial 为 true：现有歌单只有要恢复的那一首，切歌要先等它；
+  // 为 false：现有歌单可用、只是可能不是最新版本（本地缓存的版本已过期），需要时在后台换上
+  deferPlaylist: (load: () => Promise<MusicTrack[]>, partial: boolean) => void
+  // 需要完整歌单时调用（打开播放器页、悬浮播放器）：有待取的歌单时获取并换上（同一时间只取一次），没有时立即完成；
+  // 恢复用的那一首还在请求中（还没登记获取函数）时记下这次需要，登记后立即获取。获取失败时保留现有歌单，下次调用再试
+  ensurePlaylist: () => Promise<void>
 
   // 播放控制
   // startTime：可选的起始播放进度（秒），用于从歌词摘录等位置开始播放
@@ -543,6 +552,63 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [currentTrackAudio, currentTrackId, showLyricEffects])
 
+  const updatePlaylist = useCallback((tracks: MusicTrack[]) => {
+    const index = currentIndexRef.current
+    const current = index == null ? null : playlistRef.current[index] ?? null
+    const next = rebasePlaylist(tracks, current, index)
+    playlistRef.current = next.tracks
+    currentIndexRef.current = next.index
+    setPlaylist(next.tracks)
+    setCurrentIndex(next.index)
+  }, [])
+
+  // 待取的完整歌单（见 deferPlaylist）：取到后换上（不换歌、不动进度，见 updatePlaylist）
+  const [playlistComplete, setPlaylistComplete] = useState(true)
+  const playlistCompleteRef = useRef(true)
+  const deferredPlaylistRef = useRef<(() => Promise<MusicTrack[]>) | null>(null)
+  const playlistLoadingRef = useRef<Promise<void> | null>(null)
+  // 还没登记获取函数时（恢复用的那一首、版本校验还在请求中）就有人要完整歌单（如直接打开播放器页）：记下来，登记时立即获取
+  const playlistWantedRef = useRef(false)
+
+  const ensurePlaylist = useCallback((): Promise<void> => {
+    const load = deferredPlaylistRef.current
+    if (!load) {
+      playlistWantedRef.current = true
+      return Promise.resolve()
+    }
+    if (playlistLoadingRef.current)
+      return playlistLoadingRef.current
+    const loading = load()
+      .then((tracks) => {
+        // 期间换了歌单来源（重新登记了获取函数）时丢弃这次的结果
+        if (deferredPlaylistRef.current !== load)
+          return
+        deferredPlaylistRef.current = null
+        playlistWantedRef.current = false
+        updatePlaylist(tracks)
+        playlistCompleteRef.current = true
+        setPlaylistComplete(true)
+      })
+      .catch((error) => {
+        console.error('Failed to fetch playlist:', error)
+      })
+      .finally(() => {
+        if (playlistLoadingRef.current === loading)
+          playlistLoadingRef.current = null
+      })
+    playlistLoadingRef.current = loading
+    return loading
+  }, [updatePlaylist])
+
+  const deferPlaylist = useCallback((load: () => Promise<MusicTrack[]>, partial: boolean) => {
+    deferredPlaylistRef.current = load
+    playlistLoadingRef.current = null
+    playlistCompleteRef.current = !partial
+    setPlaylistComplete(!partial)
+    if (playlistWantedRef.current)
+      void ensurePlaylist()
+  }, [ensurePlaylist])
+
   // 预取过播放地址的歌曲与预取时间：页面可见性变化、同一首反复触发时不重复请求；
   // 地址在后端缓存 10 分钟，过了这段时间（列表循环回来、再次经过）重新预取
   const prefetchedTrackIds = useRef<Map<number, number>>(new Map())
@@ -555,7 +621,15 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!currentTrack || !audio)
       return
     const request = () => {
-      if (audio.paused || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA || document.visibilityState !== 'visible')
+      if (audio.paused || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA)
+        return
+      // 恢复播放时可能只取了这一首：出声后再取完整歌单（不和切歌后的首段缓冲抢），之后的切歌、自动下一首不用再等；
+      // 后台（锁屏）也要取，系统媒体控制的下一首同样要用。换上后 currentTrack 换成新歌单里的对象，这里重新执行并预取下一首
+      if (deferredPlaylistRef.current) {
+        void ensurePlaylist()
+        return
+      }
+      if (document.visibilityState !== 'visible')
         return
       if (playModeRef.current === 'shuffle')
         return
@@ -575,7 +649,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       audio.removeEventListener('playing', request)
       document.removeEventListener('visibilitychange', request)
     }
-  }, [currentTrack])
+  }, [currentTrack, ensurePlaylist])
 
   // 切换到指定索引；目标与当前曲目相同时（如单曲歌单）直接从头播放，避免 effect 不触发导致停播
   // startTime 为可选的起始进度（秒），在不切歌时立即跳转，切歌时等元数据就绪后再跳转
@@ -615,6 +689,17 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     currentIndexRef.current = index
     setCurrentIndex(index)
   }, [clock])
+
+  // 上一首 / 下一首：歌单还没取全时先取完整歌单再算（只有恢复的那一首时算出来的就是它自己）；
+  // 取不到时按现有歌单处理（从头播放当前这首），不让按钮失灵
+  const step = useCallback((direction: 1 | -1) => {
+    const go = () => goTo(getAdjacentIndex(playlistRef.current, currentIndexRef.current, playModeRef.current, direction), true)
+    if (playlistCompleteRef.current) {
+      go()
+      return
+    }
+    void ensurePlaylist().then(go)
+  }, [ensurePlaylist, goTo])
 
   // 统一通过 audio 事件驱动上下文状态（isPlaying / time / duration / buffered）
   useEffect(() => {
@@ -665,7 +750,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         void audio.play().catch(() => { })
         return
       }
-      goTo(getAdjacentIndex(playlistRef.current, currentIndexRef.current, playModeRef.current, 1), true)
+      step(1)
     }
 
     audio.addEventListener('play', onPlay)
@@ -685,7 +770,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       audio.removeEventListener('progress', updateBuffered)
       audio.removeEventListener('ended', onEnded)
     }
-  }, [clock, goTo])
+  }, [clock, step])
 
   // 当前曲目的歌词：与文章内的单曲卡、歌词摘录共用同一份来源与选择结果（见 contexts/song-lyrics.ts）；
   // 去掉署名行时用曲目信息判断「歌名 - 歌手」行
@@ -746,16 +831,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentIndex(index)
   }, [])
 
-  const updatePlaylist = useCallback((tracks: MusicTrack[]) => {
-    const index = currentIndexRef.current
-    const current = index == null ? null : playlistRef.current[index] ?? null
-    const next = rebasePlaylist(tracks, current, index)
-    playlistRef.current = next.tracks
-    currentIndexRef.current = next.index
-    setPlaylist(next.tracks)
-    setCurrentIndex(next.index)
-  }, [])
-
   const playTrack = useCallback((index: number, startTime?: number) => {
     if (index < 0 || index >= playlistRef.current.length)
       return
@@ -813,13 +888,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [])
 
-  const next = useCallback(() => {
-    goTo(getAdjacentIndex(playlistRef.current, currentIndexRef.current, playModeRef.current, 1), true)
-  }, [goTo])
+  const next = useCallback(() => step(1), [step])
 
-  const prev = useCallback(() => {
-    goTo(getAdjacentIndex(playlistRef.current, currentIndexRef.current, playModeRef.current, -1), true)
-  }, [goTo])
+  const prev = useCallback(() => step(-1), [step])
 
   const seek = useCallback((seconds: number) => {
     const audio = audioRef.current
@@ -1027,6 +1098,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getAudio,
     replacePlaylist,
     updatePlaylist,
+    playlistComplete,
+    deferPlaylist,
+    ensurePlaylist,
     playTrack,
     playSong,
     play,
@@ -1076,6 +1150,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getAudio,
     replacePlaylist,
     updatePlaylist,
+    playlistComplete,
+    deferPlaylist,
+    ensurePlaylist,
     playTrack,
     playSong,
     play,

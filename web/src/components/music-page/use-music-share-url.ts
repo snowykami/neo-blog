@@ -16,7 +16,7 @@ const SEEK_TOLERANCE_S = 1
  * - 之后实时把当前曲目与进度写进地址（replaceState，不产生历史记录），方便复制分享
  */
 export function useMusicShareUrl() {
-  const { playlist, currentTrack, replacePlaylist, seek } = useMusic()
+  const { playlist, playlistComplete, currentTrack, replacePlaylist, seek } = useMusic()
   const clock = useMusicClockStore()
   const appliedRef = useRef(false)
   const [ready, setReady] = useState(false)
@@ -24,9 +24,12 @@ export function useMusicShareUrl() {
   useEffect(() => {
     if (appliedRef.current || playlist.length === 0)
       return
-    appliedRef.current = true
     const shared = parseMusicShareParams(window.location.search)
     const index = shared.id == null ? -1 : playlist.findIndex(track => track.id === shared.id)
+    // 歌单还没取全（恢复播放时只取了一首，播放器页会补全）：分享的歌曲不在现有歌单里时等完整歌单到了再判断
+    if (index < 0 && shared.id != null && !playlistComplete)
+      return
+    appliedRef.current = true
     if (index >= 0) {
       if (currentTrack?.id !== shared.id)
         replacePlaylist(playlist, index, shared.start ?? 0)
@@ -34,7 +37,7 @@ export function useMusicShareUrl() {
         seek(shared.start)
     }
     setReady(true)
-  }, [clock, currentTrack?.id, playlist, replacePlaylist, seek])
+  }, [clock, currentTrack?.id, playlist, playlistComplete, replacePlaylist, seek])
 
   const trackId = currentTrack?.id ?? null
   useEffect(() => {

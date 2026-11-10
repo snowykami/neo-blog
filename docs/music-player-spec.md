@@ -251,6 +251,7 @@
 | 接口 | 用途 |
 |---|---|
 | `GET /api/v1/music/playlist` | 歌单曲目（含时长，静态歌单可无） |
+| `GET /api/v1/music/playlist/track` | 页面加载恢复播放时只取一首：`?ids=` 为候选歌曲 id（逗号分隔、最多 3 个，按优先级：分享地址里的、本地存储的上次播放的），返回第一首在歌单内的，都不在时为歌单第一首，歌单为空时为 null；只返回歌单内的曲目。完整歌单在开始出声、打开播放器页 / 悬浮播放器或切歌时再取 |
 | `GET /api/v1/music/song/:id/audio` | 播放地址，302 跳转到网易云临时地址；只对白名单内的歌曲开放（见 7.1a）。可选 `?level=standard\|higher` 要求较低音质（试听片段用 192k 的 higher，加载更快），只能低于或等于后台设置的音质，地址按歌曲与音质分别缓存 |
 | `GET /api/v1/music/song/:id/audio/url` | 同一播放地址以 JSON 返回（`{url}`，同样只对白名单内的歌曲开放、支持 `?level=`），带 `Access-Control-Allow-Origin: *`：页面可以直接向网易云 CDN 按字节范围只加载需要的片段（如沙箱中的歌词特效演示页，见 `docs/prototypes/lyric-effects/showcase.html`） |
 | `GET /api/v1/music/song/:id/lyric` | 网易云歌词（`lrc` / `tlyric` / `romalrc` / `yrc` / `ytlrc` / `yromalrc`），即平台等级的歌词 |

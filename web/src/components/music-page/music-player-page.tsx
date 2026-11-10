@@ -4,7 +4,7 @@ import type { MusicTrack } from '@/models/music'
 import { ArrowLeftIcon, BugIcon, Disc3Icon, MicVocalIcon, MusicIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import dynamic from 'next/dynamic'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { MarqueeText } from '@/components/common/marquee-text'
 import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
@@ -102,7 +102,11 @@ export function MusicPlayerPage() {
   const t = useTranslations('MusicPage')
   const router = useRouter()
   const { siteInfo } = useSiteInfo()
-  const { playlist, currentTrack, isPlaying } = useMusic()
+  const { playlist, currentTrack, isPlaying, ensurePlaylist } = useMusic()
+  // 播放器页要用完整歌单（歌单抽屉、上一首 / 下一首、分享地址定位）：恢复播放时可能只取了一首，进入时补全
+  useEffect(() => {
+    void ensurePlaylist()
+  }, [ensurePlaylist])
   // 移动端在歌词与封面两个视图之间切换，默认先看歌词
   const [view, setView] = useState<'cover' | 'lyrics'>('lyrics')
   const [playlistOpen, setPlaylistOpen] = useState(false)

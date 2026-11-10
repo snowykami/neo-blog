@@ -88,6 +88,6 @@
 
 ### 其他（不影响点击即开，可并行）
 
-- [ ] motion 瘦身或换 CSS（374 KB 解析 → 目标 100 KB 内）
-- [ ] 歌单接口：恢复播放只取上一首（首屏省 91 KB gzip）
-- [ ] `/_next/static` 上对象存储 + `assetPrefix`，顺带消灭滚动更新后的 chunk 404
+- [x] motion 瘦身或换 CSS（374 KB 解析 → 目标 100 KB 内）（灵动岛与沉浸式顶栏改用 `LazyMotion` + `m`，动画特性（domMax，含布局动画）在水合后按需加载（`lib/motion`）；主题分段的滑动高亮改为纯 CSS 位移，弹簧采样成 `linear()` 缓动；`next.config.ts` 用 `turbopack.resolveAlias` 把 `motion/react` 指到它自带的 framer-motion：motion 的入口用 `import * as fm` 转出全部导出，Turbopack 摇不掉，只用 `m` 也会把 motion 组件与全部特性打进首屏。实测（生产构建，按 source map 把压缩后的字节归到包）：各页首屏 JS 里的 motion 138.4 KB → 45.5 KB；首页首屏 JS 1763 KB → 1672 KB（gzip 576 → 546 KB），文章页 2248 → 2157 KB（gzip 703 → 673 KB）；特性块 93.7 KB（gzip 31.5 KB）在水合后加载。灵动岛胶囊长出与形变、沉浸式顶栏展开收起、主题分段滑动的逐帧采样与改前一致）
+- [x] 歌单接口：恢复播放只取上一首（首屏省 91 KB gzip）（新增 `GET /music/playlist/track?ids=`：候选为分享地址里的与本地存储的上次播放的歌曲，返回第一首在歌单内的，否则为歌单第一首，只会返回歌单内的曲目；没有本地歌单缓存时只取这一首，完整歌单在开始出声、打开播放器页 / 悬浮播放器（含灵动岛面板）或切歌时再取，上一首 / 下一首（含自动下一首与系统媒体控制）在补全后再算；本地缓存版本过期时缓存照常可用，新版本在同样的时机于后台换上。实测首次访问：歌单请求 311 KB（gzip 约 84～96 KB）→ 461 B；有本地缓存时仍只取版本号（79 B）。把完整歌单拖慢 2 秒时点「下一首」，等它到达后切到完整歌单里的下一首；打开歌单显示完整的 791 首；刷新后恢复曲目与进度、分享地址定位与改前一致）
+- [ ] `/_next/static` 上对象存储 + `assetPrefix`，顺带消灭滚动更新后的 chunk 404（没做：要对象存储桶、CI 构建后上传 `.next/static`（且保留旧版本的文件）、构建期注入 `assetPrefix`、CDN 与跨域配置，属于部署链路改动；仓库里的存储驱动（S3 / WebDAV）是运行时给上传文件用的，没有可复用的构建产物上传与配置项。做的时候：`web/Dockerfile` 加构建参数传 `ASSET_PREFIX`，CI 在 `collect-sourcemaps` 之后上传（source map 不能传上去），错误报告还原调用栈按 `/_next/static/...` 建索引（`lib/telemetry/symbolicate.ts`、`collect-sourcemaps.mjs`），要先去掉 CDN 前缀再查）

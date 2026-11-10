@@ -1,11 +1,12 @@
 'use client'
 
 import type { Transition } from 'motion/react'
-import { motion } from 'motion/react'
+import { LazyMotion, m } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Navbar from '@/components/layout/nav/navbar-or-side'
 import { useNav } from '@/contexts/nav-context'
+import { loadMotionFeatures } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 /**
@@ -91,8 +92,9 @@ function ImmersiveHeader() {
   }, [cancelCollapse, expanded, scheduleCollapse])
 
   return (
-    <>
-      <motion.header
+    // 动画特性按需加载（见 lib/motion）：收起状态由 initial={false} 直接按终值渲染，不等特性
+    <LazyMotion features={loadMotionFeatures} strict>
+      <m.header
         ref={headerRef}
         initial={false}
         animate={{ y: expanded ? 0 : '-115%' }}
@@ -112,9 +114,9 @@ function ImmersiveHeader() {
         <div className="relative before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-6 before:bg-card">
           <Navbar />
         </div>
-      </motion.header>
+      </m.header>
       {/* 手势条：与背景做差值混合，在浅色与深色页面上都清晰可见 */}
-      <motion.button
+      <m.button
         type="button"
         aria-label={t('expand_topbar')}
         aria-expanded={expanded}
@@ -132,8 +134,8 @@ function ImmersiveHeader() {
         )}
       >
         <span className="h-1.5 w-14 rounded-full bg-white/70 transition-[width,background-color] duration-200 group-hover:w-20 group-hover:bg-white/90 group-focus-visible:w-20 group-focus-visible:bg-white" />
-      </motion.button>
-    </>
+      </m.button>
+    </LazyMotion>
   )
 }
 

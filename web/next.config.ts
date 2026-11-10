@@ -1,11 +1,24 @@
 import type { NextConfig } from 'next'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import process from 'node:process'
 import createNextIntlPlugin from 'next-intl/plugin'
 import { IMAGE_OPTIMIZE_HOSTS } from '@/utils/common/image'
 
+// motion/react 的入口写成 `import * as fm from 'framer-motion'` + `export *` + `const motion = fm.motion`：命名空间导入让 Turbopack
+// 摇不掉任何导出，只用 LazyMotion + m 也会把 motion 组件连同全部动画特性（约 133 KB）打进首屏。它的导出与 framer-motion 完全相同，
+// 这里把 motion/react 直接指到 motion 自己依赖的那份 framer-motion（同一份文件，不新增依赖），摇树后首屏只剩 m 组件，
+// 动画特性由 LazyMotion 按需加载（见 src/lib/motion）。路径按 web 目录解析（同 cacheHandler），pnpm 下为 .pnpm 里的真实目录
+const requireFromMotion = createRequire(createRequire(path.join(process.cwd(), 'package.json')).resolve('motion/package.json'))
+const framerMotionDir = path.relative(process.cwd(), path.dirname(requireFromMotion.resolve('framer-motion/package.json')))
+
 const nextConfig: NextConfig = {
   output: 'standalone',
+  turbopack: {
+    resolveAlias: {
+      'motion/react': `./${framerMotionDir}`,
+    },
+  },
   // 生成浏览器代码的 source map，供错误报告还原调用栈；构建后由 scripts/collect-sourcemaps.mjs 移出公开目录，不对外提供
   productionBrowserSourceMaps: true,
   // 增量缓存（ISR 页面与 unstable_cache 的取数结果）：按后端的缓存标签版本号失效；配置 REDIS_URL 时存进 Redis、多个副本共用，

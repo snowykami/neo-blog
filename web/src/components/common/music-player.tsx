@@ -5,7 +5,7 @@ import { Maximize2Icon, MusicIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import dynamic from 'next/dynamic'
 import React, { useEffect, useRef, useState } from 'react'
-import { fetchNcmPlaylist, fetchPlaylist, fetchPlaylistVersion } from '@/api/music'
+import { fetchNcmPlaylist, fetchPlaylist, fetchPlaylistTrack, fetchPlaylistVersion } from '@/api/music'
 import { SafeImage } from '@/components/common/safe-image'
 import { useIslandPanelPhase } from '@/components/layout/topbar-island/island-panel-phase'
 import { MusicBackground } from '@/components/music-page/music-background'
@@ -231,12 +231,29 @@ function getRestoredPlayback(tracks: MusicTrack[]): { index: number, time?: numb
   return { index: 0 }
 }
 
+/**
+ * 恢复播放时只取一首的候选歌曲 id（按优先级）：带分享参数的播放器页里的、本地存储的上次播放的。
+ * 只存了索引的旧数据返回 null：要按索引定位就得有完整歌单
+ */
+function getRestoreCandidates(): number[] | null {
+  const ids: number[] = []
+  const shared = readMusicShareParamsFromLocation()
+  if (shared?.id != null)
+    ids.push(shared.id)
+  const storedTrackId = readStoredNumber(STORAGE_KEY_TRACK_ID)
+  if (storedTrackId != null && storedTrackId > 0 && !ids.includes(storedTrackId))
+    ids.push(storedTrackId)
+  else if (storedTrackId == null && readStoredNumber(STORAGE_KEY_INDEX) != null)
+    return null
+  return ids
+}
+
 export function MusicPlayer({ source }: { source: MusicSource }) {
   const t = useTranslations('MusicPlayer')
   const {
     currentTrack,
     replacePlaylist,
-    updatePlaylist,
+    deferPlaylist,
     sampleTrack,
     currentIndex,
     duration,
@@ -259,7 +276,8 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
   const lastSavedTimeRef = useRef(0)
 
   // 拉取歌单后一次性以“存储的曲目 + 进度”初始化，不再先切到第 0 首再切回，避免多余的歌词请求与竞态。
-  // 网易云歌单有本地缓存：先用缓存渲染（悬浮球立刻出现、直接恢复上次的曲目），再只校验版本，内容没变就不再下载整份歌单
+  // 网易云歌单有本地缓存：先用缓存渲染（悬浮球立刻出现、直接恢复上次的曲目），再只校验版本，版本变了在需要时再下载整份歌单；
+  // 没有缓存时只取要恢复的那一首（几百字节，完整歌单约 90 KB gzip），完整歌单等开始出声、打开播放器 / 歌单或切歌时再取（见 music-context 的 ensurePlaylist）
   useEffect(() => {
     let cancelled = false
     // 首次应用：恢复上次的曲目与进度
@@ -269,10 +287,12 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
       replacePlaylist(tracks, index, time)
       restoredRef.current = true
     }
-    // 后台拿到新版本（站长增删了歌曲）：只换歌单数据，不换歌、不动进度（包括还没应用的恢复进度，iOS 上要等读者点播放才加载元数据）；
+    // 取完整歌单并写入本地缓存。换上时只换歌单数据，不换歌、不动进度（包括还没应用的恢复进度，iOS 上要等读者点播放才加载元数据）；
     // 当前曲目被移出歌单时留在原位，读者切到别的歌后才消失（见 music-context 的 rebasePlaylist）
-    const applyUpdated = (tracks: MusicTrack[]) => {
-      updatePlaylist(tracks)
+    const loadFull = async () => {
+      const fresh = await fetchNcmPlaylist()
+      writePlaylistCache(fresh.version, fresh.tracks)
+      return fresh.tracks
     }
     const cached = source.type === 'ncm' ? readPlaylistCache() : null
     if (cached)
@@ -294,18 +314,32 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
           touchPlaylistCache(cached.version)
           return
         }
-        const fresh = await fetchNcmPlaylist()
-        if (cancelled)
-          return
-        writePlaylistCache(fresh.version, fresh.tracks)
-        applyUpdated(fresh.tracks)
+        // 站长增删了歌曲：缓存的歌单照常可用（切歌不用等），新版本在需要时于后台换上
+        deferPlaylist(loadFull, false)
         return
       }
-      const fresh = await fetchNcmPlaylist()
+      const candidates = getRestoreCandidates()
+      // 只存了索引的旧数据：按索引定位要有完整歌单
+      if (candidates == null) {
+        const tracks = await loadFull()
+        if (!cancelled)
+          applyRestored(tracks)
+        return
+      }
+      // 取不到（如前端先于后端升级、接口还不存在）时退回整份下载
+      const track = await fetchPlaylistTrack(candidates).catch(() => undefined)
       if (cancelled)
         return
-      writePlaylistCache(fresh.version, fresh.tracks)
-      applyRestored(fresh.tracks)
+      if (track === undefined) {
+        const tracks = await loadFull()
+        if (!cancelled)
+          applyRestored(tracks)
+        return
+      }
+      // 候选都不在歌单里时拿到的是歌单第一首，getRestoredPlayback 按「存储的曲目已不在歌单中」从头开始、不恢复进度
+      applyRestored(track ? [track] : [])
+      if (track)
+        deferPlaylist(loadFull, true)
     }
 
     sync().catch((error) => {
@@ -323,7 +357,7 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
       cancelled = true
     }
     // sampleTrack 每次渲染都会重新创建，不放入依赖，只在歌单来源变化时重新拉取
-  }, [source, replacePlaylist, updatePlaylist])
+  }, [source, replacePlaylist, deferPlaylist])
 
   // 曲目变化时保存索引与曲目 id；切到新曲目时进度清零，保证进度始终属于已保存的曲目
   const currentTrackId = currentTrack?.id ?? null
@@ -426,7 +460,11 @@ function LyricLineStandIn() {
  */
 export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
   const t = useTranslations('MusicPlayer')
-  const { currentTrack, isPlaying } = useMusic()
+  const { currentTrack, isPlaying, ensurePlaylist } = useMusic()
+  // 打开悬浮播放器时补全歌单（恢复播放时可能只取了一首），歌单浮层与上一首 / 下一首都要用
+  useEffect(() => {
+    void ensurePlaylist()
+  }, [ensurePlaylist])
   // 在顶栏灵动岛的面板里时所处的阶段（悬浮球的弹层里为 null）：形变期间歌词区先放当前这一句的替身（落点），
   // 展开完再挂载歌词引擎（排上千个字的开销不卡住展开动画）；开始收起后歌词引擎停在此刻（前景随即淡出），交还给胶囊
   const panelPhase = useIslandPanelPhase()

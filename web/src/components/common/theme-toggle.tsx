@@ -1,11 +1,13 @@
 import type React from 'react'
 import { Contrast, Moon, Sun } from 'lucide-react'
-import { motion } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { useDevice } from '@/contexts/device-context'
 import { cn } from '@/lib/utils'
 
 type ThemeMode = 'light' | 'dark' | 'system'
+
+// 滑动高亮块的弹簧（刚度 400、阻尼 30、质量 1，阻尼比 0.75，约 0.39 秒停稳）采样成 CSS linear() 缓动，观感同原来 motion 的弹簧
+const SEGMENT_SPRING_EASING = 'linear(0, 0.044, 0.1489, 0.2829, 0.424, 0.558, 0.6766, 0.7762, 0.8558, 0.9167, 0.9611, 0.9917, 1.0112, 1.0223, 1.0274, 1.0283, 1.0265, 1.0233, 1.0194, 1.0154, 1.0117, 1.0085, 1.0058, 1.0036, 1)'
 
 // PC端：三状态轮换按钮
 export function ThemeModeCycleButton({
@@ -64,13 +66,12 @@ export function ThemeModeSegmented(
   return (
     <div className={cn('theme-mode-segmented-wrapper', className)} style={style} {...rest}>
       <div className={baseCls}>
-        {/* 滑动高亮块 */}
-        <motion.div
-          layout
-          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          className="absolute top-1 z-1 h-8 w-12 rounded-md bg-card shadow-sm"
+        {/* 滑动高亮块：纯 CSS 位移过渡，减少动态效果时直接跳到目标位置 */}
+        <div
+          className="absolute top-1 left-1 z-1 h-8 w-12 rounded-md bg-card shadow-sm transition-transform duration-[386ms] motion-reduce:transition-none"
           style={{
-            left: `calc(0.25rem + ${activeIndex} * (3rem + 0.25rem))`,
+            transform: `translateX(calc(${activeIndex} * (3rem + 0.25rem)))`,
+            transitionTimingFunction: SEGMENT_SPRING_EASING,
           }}
         />
         {modes.map(m => (

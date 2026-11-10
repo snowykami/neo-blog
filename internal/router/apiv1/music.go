@@ -17,6 +17,8 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroup.GET("/playlist", controller.Music.Playlist)
 		// 歌单版本（内容指纹）：前端在本地缓存了歌单后只取它，一致就不再下载整份歌单
 		musicGroup.GET("/playlist/version", controller.Music.PlaylistVersion)
+		// 页面加载恢复播放时只取要恢复的那一首（只返回歌单内的曲目），完整歌单等读者开始播放、打开歌单或切歌时再取
+		musicGroup.GET("/playlist/track", controller.Music.PlaylistTrack)
 		musicGroup.GET("/song/:id", controller.Music.Song)
 		musicGroup.GET("/song/:id/audio", controller.Music.SongAudio)
 		// 同一播放地址以 JSON 返回（允许跨源读取），供需要按字节范围只加载片段的页面使用（如沙箱中的歌词特效演示页）

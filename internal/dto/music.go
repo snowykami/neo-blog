@@ -16,6 +16,12 @@ type MusicTrackDto struct {
 	Duration int64    `json:"duration,omitempty"` // 时长（毫秒）；静态歌单可不提供
 }
 
+// MusicPlaylistTrackReq 页面加载恢复播放时只取一首：IDs 为候选歌曲 id，逗号分隔、按优先级排列
+// （分享地址里的、本地存储的上次播放的），最多 3 个；可以为空（取歌单第一首）
+type MusicPlaylistTrackReq struct {
+	IDs string `query:"ids"`
+}
+
 // MusicSongDto 单曲信息（文章内的网易云单曲卡）；只含公开的元信息，不含播放地址
 type MusicSongDto struct {
 	ID       int64    `json:"id"`

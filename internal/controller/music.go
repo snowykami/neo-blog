@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
@@ -45,6 +47,47 @@ func (m *musicType) PlaylistVersion(ctx context.Context, c *app.RequestContext) 
 		return
 	}
 	resps.Ok(c, resps.Success, version)
+}
+
+// PlaylistTrack 页面加载恢复播放时只取一首（候选中第一首在歌单内的，否则为歌单第一首；歌单为空时为 null），完整歌单之后再取
+func (m *musicType) PlaylistTrack(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicPlaylistTrackReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	ids, ok := parseMusicTrackIDs(req.IDs)
+	if !ok {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	track, svcerr := m.service.GetPlaylistTrack(ctx, ids)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, track)
+}
+
+// parseMusicTrackIDs 解析逗号分隔的候选歌曲 id：只接受正整数，最多 service.MusicPlaylistTrackMaxCandidates 个，空串为没有候选
+func parseMusicTrackIDs(raw string) ([]int64, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, true
+	}
+	parts := strings.Split(raw, ",")
+	if len(parts) > service.MusicPlaylistTrackMaxCandidates {
+		return nil, false
+	}
+	ids := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
+		if err != nil || id <= 0 {
+			return nil, false
+		}
+		ids = append(ids, id)
+	}
+	return ids, true
 }
 
 // Song 单曲公开信息（文章内的单曲卡）

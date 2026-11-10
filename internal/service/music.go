@@ -270,6 +270,32 @@ func (s *MusicService) GetPlaylistWithVersion(ctx context.Context) ([]dto.MusicT
 	return tracks, storePlaylist(key, tracks), nil
 }
 
+// MusicPlaylistTrackMaxCandidates 恢复播放时一次最多接受的候选歌曲数
+const MusicPlaylistTrackMaxCandidates = 3
+
+// GetPlaylistTrack 页面加载恢复播放时只取一首（完整歌单约 90 KB gzip，等读者开始播放、打开歌单或切歌时前端再取）：
+// 返回候选中第一首在歌单内的歌曲，都不在时返回歌单第一首，歌单为空时返回 nil。
+// 只会返回博客歌单内的曲目（与 /playlist 公开的内容相同），不会借此查询任意歌曲的信息
+func (s *MusicService) GetPlaylistTrack(ctx context.Context, ids []int64) (*dto.MusicTrackDto, *errs.ServiceError) {
+	tracks, _, svcerr := s.GetPlaylistWithVersion(ctx)
+	if svcerr != nil {
+		return nil, svcerr
+	}
+	for _, id := range ids {
+		for i := range tracks {
+			if tracks[i].ID == id {
+				track := tracks[i]
+				return &track, nil
+			}
+		}
+	}
+	if len(tracks) == 0 {
+		return nil, nil
+	}
+	track := tracks[0]
+	return &track, nil
+}
+
 // cachedPlaylist 读取同一配置下的缓存：本实例没有时读共享缓存（其他实例或重启前获取的）；
 // 过期时触发一次后台刷新并先返回旧数据
 func cachedPlaylist(key string, cfg tools.NCMConfig) ([]dto.MusicTrackDto, string, bool) {

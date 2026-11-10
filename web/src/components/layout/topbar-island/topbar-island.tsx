@@ -7,7 +7,7 @@ import type { IslandPanelPhase } from './island-panel-phase'
 import type { IslandActivity, IslandGlow, QueuedIslandAlert } from '@/contexts/topbar-island'
 import type { IslandSettings } from '@/utils/common/siteinfo'
 import { EyeOffIcon } from 'lucide-react'
-import { AnimatePresence, motion, MotionConfig } from 'motion/react'
+import { AnimatePresence, LazyMotion, m, MotionConfig } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { SiteLogo } from '@/components/common/site-logo'
@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { alertDurationOf, finishIslandAlert, interruptIslandAlert, setIslandPanelOpen, setIslandSettings, useIslandAlert, useIslandState } from '@/contexts/topbar-island'
 import { Link, usePathname } from '@/i18n/navigation'
+import { loadMotionFeatures } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import { AmbientIsland, NetworkIsland } from './ambient-island'
@@ -168,17 +169,20 @@ export function TopbarIsland() {
   return (
     // 不包 LayoutGroup：AnimatePresence 里的退场全部播完时会调用它的 forceRender，让组里所有元素无视 layoutDependency 重新测量；
     // 胶囊内容的交叉淡入一结束就会触发一次，而此时胶囊还在形变，从半途测出的位置重新起动画，切换活动时就会「走两遍」。
-    // 小圆点跟着胶囊重新测量改由它的 layoutKey 完成
-    <MotionConfig reducedMotion="user">
-      <IslandStage settings={settings} />
-      {settings.enabled && (
-        <>
-          {settings.music && <MusicIsland settings={settings} />}
-          {settings.network && <NetworkIsland />}
-          {(settings.greeting || settings.holiday) && <AmbientIsland settings={settings} />}
-        </>
-      )}
-    </MotionConfig>
+    // 小圆点跟着胶囊重新测量改由它的 layoutKey 完成。
+    // 动画特性按需加载（见 lib/motion）：首屏只带 m 组件，水合后再取布局动画等特性，取到之前站名与胶囊照常显示、只是没有动画
+    <LazyMotion features={loadMotionFeatures} strict>
+      <MotionConfig reducedMotion="user">
+        <IslandStage settings={settings} />
+        {settings.enabled && (
+          <>
+            {settings.music && <MusicIsland settings={settings} />}
+            {settings.network && <NetworkIsland />}
+            {(settings.greeting || settings.holiday) && <AmbientIsland settings={settings} />}
+          </>
+        )}
+      </MotionConfig>
+    </LazyMotion>
   )
 }
 
@@ -391,7 +395,7 @@ function SiteLink({ ref, onRestore }: { ref?: React.Ref<HTMLDivElement>, onResto
   const gestures = useIslandGestures({ onSwipe: onRestore ? () => onRestore() : undefined, follow: () => linkRef.current })
   const setRef = useMergedRef(ref, gestures.ref)
   return (
-    <motion.div
+    <m.div
       ref={setRef}
       initial={{ opacity: 0, filter: 'blur(4px)' }}
       animate={{ opacity: 1, filter: 'blur(0px)' }}
@@ -415,7 +419,7 @@ function SiteLink({ ref, onRestore }: { ref?: React.Ref<HTMLDivElement>, onResto
         </span>
         <span className="truncate md:max-w-[28ch] lg:max-w-[36ch]">{name}</span>
       </Link>
-    </motion.div>
+    </m.div>
   )
 }
 
@@ -634,7 +638,7 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
   const panelSwipe = usePanelSwipeUp(morph.requestClose)
 
   const button = (
-    <motion.button
+    <m.button
       ref={setRef}
       type="button"
       layout
@@ -692,7 +696,7 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
         </svg>
       )}
       {/* 药丸本体：形变时同样由 motion 修正圆角与阴影；静止时由 useContinuousCapsule 裁剪成连续曲率（自身的阴影随之被裁掉，改由上面的轮廓画出） */}
-      <motion.span
+      <m.span
         ref={capsule.bodyRef}
         layout
         layoutDependency={layoutDependency}
@@ -701,7 +705,7 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
         className={cn(capsuleBodyClass, isDot && 'justify-center')}
       >
         <AnimatePresence initial={false} mode="popLayout" custom={enterFrom}>
-          <motion.span
+          <m.span
             key={contentKey}
             ref={(node: HTMLSpanElement | null) => {
               if (node)
@@ -720,10 +724,10 @@ function IslandButton({ ref, shape, activity, alert, expandable, open, onOpenCha
             className={cn('flex h-full min-w-0 items-center', isDot ? 'justify-center' : 'gap-1.5 px-1.5')}
           >
             {content}
-          </motion.span>
+          </m.span>
         </AnimatePresence>
-      </motion.span>
-    </motion.button>
+      </m.span>
+    </m.button>
   )
 
   // 有没有面板都包一层弹层并以按钮为触发器：结构不随活动变化，切换活动（如播放中 ⇄ 暂停、点小圆点换过来）时按钮不会重新挂载，
