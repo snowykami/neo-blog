@@ -3,7 +3,6 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   createGraph,
-  dynamicKeyPaths,
   messagePathsOfClosure,
   moduleClosure,
   readCatalog,
@@ -11,16 +10,15 @@ import {
   resolvePath,
   routeSegments,
   SRC_ROOT,
-  WEB_ROOT,
+  unitOf,
 } from '../../scripts/i18n-graph.mjs'
-import { computeScopes, pathsForClosure, SCOPE_DIRS, scopeKey } from '../../scripts/i18n-scopes.mjs'
-import { scopePaths } from './scopes'
+import { checkConfigKeys, computeScopes, KEY_TABLES, keyTablePaths, SCOPE_DIRS, scopeKey } from '../../scripts/i18n-scopes.mjs'
+import { scopePaths, unitOfPath } from './scopes'
 import { SCOPES } from './scopes.generated'
 
 const manifest = SCOPES as Record<string, readonly string[]>
 
 const APP_ROOT = join(SRC_ROOT, 'app')
-const DYNAMIC_FILES = ['src/components/console/data.ts']
 const byDepth = [...SCOPE_DIRS].sort((a, b) => b.length - a.length)
 
 const within = (dir: string, scope: string) => scope === '' || dir === scope || dir.startsWith(`${scope}/`)
@@ -30,22 +28,34 @@ const nearestScopeDir = (dir: string) => byDepth.find(scope => within(dir, scope
 
 const segmentDir = (segment: string) => (segment === APP_ROOT ? '' : segment.slice(APP_ROOT.length + 1))
 
-// Docker 构建上下文只有 web/，读不到后端配置表时算出来的清单是降级的，此时跳过这些用例
-const configKeysAvailable = computeScopes().configKeysAvailable
-
-describe.skipIf(!configKeysAvailable)('i18n 作用域', () => {
+describe('i18n 作用域', () => {
   const graph = createGraph()
   const segments = routeSegments()
   const catalog = readCatalog('en')
+  // 全量解析 src 的模块图，比单元测试慢得多，只算一次
+  const computed = computeScopes()
 
-  // 全量解析 src 的模块图，比单元测试慢得多，给足超时
   it('生成物与源码同步（重新运行 pnpm i18n:scopes）', { timeout: 60_000 }, () => {
-    const { scopes } = computeScopes()
     for (const dir of SCOPE_DIRS) {
       const key = scopeKey(dir)
-      expect(scopes.get(dir), `${key} 的清单已过期`).toEqual([...scopePaths(key as keyof typeof SCOPES)])
+      expect(computed.scopes.get(dir), `${key} 的清单已过期`).toEqual([...scopePaths(key as keyof typeof SCOPES)])
     }
     expect(Object.keys(manifest).sort()).toEqual(SCOPE_DIRS.map(scopeKey).sort())
+  })
+
+  it('没有只能下发整份文案的用法', () => {
+    expect(computed.errors).toEqual([])
+  })
+
+  it('清单按整棵命名空间下发：除键表外每条都是一个下发单元', () => {
+    const tablePaths = new Set(KEY_TABLES.flatMap(table => [...keyTablePaths(catalog, table)]))
+    const strays = Object.values(manifest).flat().filter(path => unitOf(path) !== path && !tablePaths.has(path))
+    expect(strays).toEqual([])
+  })
+
+  it('运行时与生成器对下发单元的划分一致', () => {
+    for (const path of ['Comment', 'Comment.reply', 'Console', 'Console.global', 'Console.global.title', 'Console.editor.ai.habit', 'Response.error_details.x'])
+      expect(unitOfPath(path)).toBe(unitOf(path))
   })
 
   it('每个作用域都有挂了对应 scope 的 layout', () => {
@@ -57,26 +67,18 @@ describe.skipIf(!configKeysAvailable)('i18n 作用域', () => {
     }
   })
 
-  it('清单覆盖这一层能渲染到的全部文案', { timeout: 60_000 }, () => {
-    const dynamicPaths = dynamicKeyPaths(catalog, DYNAMIC_FILES)
-    const dynamicFiles = DYNAMIC_FILES.map(file => join(WEB_ROOT, file))
+  it('清单覆盖这一层模块闭包用到的全部下发单元', { timeout: 60_000 }, () => {
     const missing: string[] = []
-
     for (const scope of SCOPE_DIRS) {
-      const needed = new Set<string>()
+      const list = scopePaths(scopeKey(scope) as keyof typeof SCOPES)
       for (const [segment, entries] of segments) {
         if (nearestScopeDir(segmentDir(segment)) !== scope)
           continue
-        const closure = moduleClosure(entries, graph)
-        const { paths, prefixes, open } = messagePathsOfClosure(closure, graph)
-        const dynamicFile = dynamicFiles.find(file => closure.has(file))
-        for (const path of pathsForClosure({ closure, paths, prefixes, open, catalog, dynamicPaths, dynamicFile: dynamicFile ?? '' }))
-          needed.add(path)
-      }
-      const list = scopePaths(scopeKey(scope) as keyof typeof SCOPES)
-      for (const path of needed) {
-        if (!list.some(item => path === item || path.startsWith(`${item}.`)))
-          missing.push(`${scopeKey(scope)} 缺少 ${path}`)
+        const { units } = messagePathsOfClosure(moduleClosure(entries, graph), graph)
+        for (const unit of units.keys()) {
+          if (!list.some(item => unit === item || unit.startsWith(`${item}.`)))
+            missing.push(`${scopeKey(scope)} 缺少 ${unit}`)
+        }
       }
     }
     expect(missing).toEqual([])
@@ -93,14 +95,18 @@ describe.skipIf(!configKeysAvailable)('i18n 作用域', () => {
     expect(broken).toEqual([])
   })
 
+  it('后端配置表的文案键齐全且由全局配置页作用域下发', () => {
+    expect(checkConfigKeys(catalog, computed.scopes)).toEqual([])
+  })
+
   it('用了文案的路由段都落在某个作用域之下', () => {
     const strays: string[] = []
     for (const [segment, entries] of segments) {
       const dir = segmentDir(segment)
       if (dir === '' || nearestScopeDir(dir) !== '')
         continue
-      const { paths, open } = messagePathsOfClosure(moduleClosure(entries, graph), graph)
-      if (paths.size > 0 || open.size > 0)
+      const { units, shallow } = messagePathsOfClosure(moduleClosure(entries, graph), graph)
+      if (units.size > 0 || shallow.size > 0)
         strays.push(dir)
     }
     expect(strays).toEqual([])

@@ -2,6 +2,7 @@ import { getRequestConfig } from 'next-intl/server'
 import { cookies, headers } from 'next/headers'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { getLoginUserServer } from '@/api/user.server'
+import { messagePath, readableFallback, reportIntlError } from '@/i18n/fallback'
 import { DEFAULT_LOCALE, getLocaleMessages, parseAcceptLanguage, resolveLocale } from '@/locales'
 import { resolveDisplayTimeZone, TIME_ZONE_COOKIE } from '@/utils/common/time-zone'
 
@@ -13,6 +14,9 @@ export default getRequestConfig(async () => {
     messages: getLocaleMessages(locale),
     // 时间按访客浏览器的时区显示；不设置时 next-intl 会用服务器所在的时区（线上是 UTC），浏览器里的时间就会差几个小时
     timeZone: resolveDisplayTimeZone((await cookies()).get(TIME_ZONE_COOKIE)?.value),
+    // 服务端拿的是完整文案，缺失只可能是文案没补：同样只记一次日志、显示可读文本而不是原始键路径（见 i18n/fallback.ts）
+    onError: error => reportIntlError(error, 'server'),
+    getMessageFallback: ({ namespace, key }) => readableFallback(messagePath(namespace, key)),
   }
 })
 

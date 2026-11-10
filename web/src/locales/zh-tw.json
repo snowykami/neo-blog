@@ -1904,6 +1904,7 @@
       "upload_clear_all": "全部清除",
       "upload_remove": "移除",
       "upload_failed_item": "上傳失敗",
+      "upload_unsupported_file": "不支援插入這類檔案：{names}",
       "status_words": "字數 {count}",
       "status_reading": "預計閱讀 {count} 分鐘",
       "status_block": "目前：{type}",
@@ -3130,8 +3131,13 @@
       "comment_liked": "{actors} 對你的留言「{quoted}」按讚",
       "comment_liked_without_quote": "{actors} 對你的留言按讚",
       "comment_thread_replied": "{actors} 在《{subject}》的留言區回覆了",
-      "comment_mentioned": "{actors} 在《{subject}》的留言裡 @ 了你：{excerpt}"
-    }
+      "comment_mentioned": "{actors} 在《{subject}》的留言裡 @ 了你：{excerpt}",
+      "system_test": "這是一則測試通知：能看到它，代表站內通知鏈路是通的"
+    },
+    "attachment_image": "[圖片]",
+    "attachment_images": "[圖片 ×{count}]",
+    "attachment_file": "[附件]",
+    "attachment_files": "[附件 ×{count}]"
   },
   "Login": {
     "captcha_error": "驗證碼錯誤，請重試。",
@@ -3632,7 +3638,8 @@
       "pinned_posts_limit": "首頁最多置頂 3 篇文章，先取消其中一篇",
       "pinned_until_in_past": "到期時間要晚於現在",
       "lyric_annotation_batch_running": "已有批次重新生成歌詞特效的任務正在進行",
-      "lyric_annotation_batch_too_large": "一次最多選擇 1000 首歌"
+      "lyric_annotation_batch_too_large": "一次最多選擇 1000 首歌",
+      "notification_delivery_not_retryable": "這筆投遞目前的狀態不能重試（只有失敗或逾時卡住的投遞可以重試）"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的參數不符合要求} other {請求參數不符合要求}}",

@@ -1904,6 +1904,7 @@
       "upload_clear_all": "Clear all",
       "upload_remove": "Remove",
       "upload_failed_item": "Upload failed",
+      "upload_unsupported_file": "This file type can’t be inserted: {names}",
       "status_words": "Chars {count}",
       "status_reading": "{count} min read",
       "status_block": "Current: {type}",
@@ -3130,8 +3131,13 @@
       "comment_liked": "{actors} liked your comment \"{quoted}\"",
       "comment_liked_without_quote": "{actors} liked your comment",
       "comment_thread_replied": "{actors} replied in the comments on \"{subject}\"",
-      "comment_mentioned": "{actors} mentioned you in a comment on \"{subject}\": {excerpt}"
-    }
+      "comment_mentioned": "{actors} mentioned you in a comment on \"{subject}\": {excerpt}",
+      "system_test": "This is a test notification. If you can see it, in-site notifications are working."
+    },
+    "attachment_image": "[Image]",
+    "attachment_images": "[{count} images]",
+    "attachment_file": "[Attachment]",
+    "attachment_files": "[{count} attachments]"
   },
   "Login": {
     "captcha_error": "Captcha error, try again.",
@@ -3632,7 +3638,8 @@
       "pinned_posts_limit": "Up to 3 posts can be pinned to the home page. Unpin one first",
       "pinned_until_in_past": "The expiry time must be in the future",
       "lyric_annotation_batch_running": "A batch regeneration of lyric effects is already running",
-      "lyric_annotation_batch_too_large": "Select at most 1000 songs at a time"
+      "lyric_annotation_batch_too_large": "Select at most 1000 songs at a time",
+      "notification_delivery_not_retryable": "This delivery cannot be retried in its current state (only failed or stuck deliveries can be retried)"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field} \"{value}\" is invalid} resource {Invalid {resource} parameters} other {Invalid request parameters}}",

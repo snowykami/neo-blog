@@ -1,5 +1,5 @@
 import type { I18nScope } from './scopes.generated'
-import { SCOPE_PARENT, SCOPES } from './scopes.generated'
+import { SCOPE_PARENT, SCOPES, SPLIT_NAMESPACES } from './scopes.generated'
 
 const cache = new Map<string, readonly string[]>()
 
@@ -31,4 +31,14 @@ export function scopePaths(scope: I18nScope): readonly string[] {
   const resolved = collapse(chain.reverse().flatMap(level => SCOPES[level] as readonly string[]))
   cache.set(scope, resolved)
   return resolved
+}
+
+/**
+ * 文案路径所在的下发单元：顶层命名空间（`Comment.reply` → `Comment`），
+ * 按子命名空间拆分的 Console 取两层（`Console.global.title` → `Console.global`）。与 scripts/i18n-graph.mjs 的 unitOf 一致
+ */
+export function unitOfPath(path: string): string {
+  const segments = path.split('.')
+  const depth = (SPLIT_NAMESPACES as readonly string[]).includes(segments[0]) ? 2 : 1
+  return segments.slice(0, depth).join('.')
 }

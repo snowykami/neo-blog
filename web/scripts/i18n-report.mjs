@@ -25,7 +25,7 @@ function bytesOf(paths) {
   }, 0)
 }
 
-const { scopes, catalog, dynamicNamespaces } = computeScopes()
+const { scopes, catalog, wholes } = computeScopes()
 const fullBytes = Buffer.byteLength(JSON.stringify(messages))
 
 console.log(`语言 ${locale}：整份文案 ${KB(fullBytes)}，${Object.keys(messages).length} 个顶层命名空间\n`)
@@ -54,7 +54,7 @@ for (const [scope, paths] of scopes) {
 if (missing.length > 0)
   console.log(`\n⚠ 这些路径在 en.json（基准语言）里不存在：\n  ${missing.sort().join('\n  ')}`)
 
-if (dynamicNamespaces.length > 0) {
-  console.log(`\n键由变量决定、按「该层标量 + data.ts 展开」补全的位置（共 ${dynamicNamespaces.length} 处）：`)
-  console.log(`  ${[...new Set(dynamicNamespaces)].sort().join('\n  ')}`)
+if (wholes.length > 0) {
+  console.log(`\n命名空间太浅、键又是变量，已整棵下发的位置（共 ${wholes.length} 处）：`)
+  console.log(`  ${wholes.join('\n  ')}`)
 }

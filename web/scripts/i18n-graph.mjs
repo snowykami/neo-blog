@@ -4,9 +4,9 @@
  * 做两件事：
  *   1) 用 TypeScript 编译器解析 src 下每个文件的 import / export / 动态 import（解析 @/ 别名与相对路径），
  *      从路由入口求模块闭包，得到「这个路由段渲染时会用到哪些文案」
- *   2) 解析每个文件里实际取用的文案键：`const t = useTranslations('Comment')` + `t('reply')`
- *      → 命名空间路径 `Comment`；`const c = useTranslations('Console')` + `c('global.title')`
- *      → 深层路径 `Console.global.title`，只带这些键，不会把整个 Console 拖进来
+ *   2) 解析每个文件用到的「下发单元」：`useTranslations('Comment')` → 整棵 `Comment`；
+ *      Console 太大，再按子命名空间拆：`useTranslations('Console')` + `c('global.title')` → `Console.global`。
+ *      单元内具体取哪些键不再关心，变量键（`t(option.label)`）自然被覆盖
  *
  * 组件被别的目录引用也会被带进来，所以结果不依赖目录约定。
  * 供 scripts/i18n-scopes.mjs 与 src/locales/coverage.test.ts 共用。
@@ -23,11 +23,7 @@ export const MESSAGES_DIR = join(SRC_ROOT, 'locales')
 const ENTRY_FILES = new Set(['page.tsx', 'layout.tsx', 'template.tsx', 'error.tsx', 'not-found.tsx', 'loading.tsx', 'global-error.tsx'])
 const SCRIPT_EXT = /\.(?:tsx|ts)$/
 const RESOLVE_SUFFIXES = ['', '.ts', '.tsx', '/index.ts', '/index.tsx']
-const stringLiteralCache = new Map()
 const TRANSLATOR_HOOKS = new Set(['useTranslations', 'getTranslations', 'useFormatterT'])
-
-/** 文案在运行时由变量决定取哪个键的文件：把里面能对上文案的字符串字面量整体算作需要（如控制台菜单标题） */
-const DYNAMIC_KEY_FILES = ['src/components/console/data.ts']
 
 /** src 下所有脚本文件（跳过测试与生成物） */
 export function listSourceFiles() {
@@ -65,37 +61,45 @@ function collectStringLiterals(node) {
   return []
 }
 
-/** 文件里出现的全部字符串字面量（给动态键做兜底匹配用） */
-export function stringLiteralsOfFile(file) {
-  const cache = stringLiteralCache.get(file)
-  if (cache)
-    return cache
-  const out = new Set()
-  const visit = (node) => {
-    if (ts.isStringLiteralLike(node))
-      out.add(node.text)
-    ts.forEachChild(node, visit)
-  }
-  visit(parseFile(file))
-  stringLiteralCache.set(file, out)
-  return out
+/**
+ * 按「下发单元」切分时，哪些顶层命名空间要再往下拆一层：
+ * Console 有 40+ KB，各控制台页面只用其中一两棵子树，所以按 Console.<子命名空间> 整棵下发；
+ * 其余命名空间都不大，整棵下发即可（与按单条键下发相比只多几 KB，却不再怕动态键漏掉）
+ */
+export const SPLIT_NAMESPACES = ['Console']
+
+/** 下发单元的层数：Console 下是两层（Console.global），其余一层（Comment） */
+const unitDepth = path => (SPLIT_NAMESPACES.includes(path.split('.')[0]) ? 2 : 1)
+
+/** 某条路径所在的下发单元：顶层命名空间，或 Console.<子命名空间> */
+export function unitOf(path) {
+  return path.split('.').slice(0, unitDepth(path)).join('.')
+}
+
+/** 命名空间本身是否已经能确定下发单元（'Comment'、'Console.global' 可以；''、'Console' 不行） */
+function isUnitDeep(namespace) {
+  return namespace !== '' && namespace.split('.').length >= unitDepth(namespace)
 }
 
 /**
- * 文件里取用的文案路径：`useTranslations('Comment')` + `t('reply')` → `Comment.reply`；
- * `useTranslations('Console')` + `c('global.title')` → `Console.global.title`。
- * 键不是字面量时：模板串记下前缀，其余（变量键、翻译函数被传出、helper hook 返回翻译函数）记进 open。
- * 返回 { paths, prefixes, open }：具体路径、模板串前缀、键空间未知（要整棵带上）的命名空间
+ * 文件里取用的文案落在哪些下发单元：
+ *   `useTranslations('Comment')` 之后不管取什么键都是 `Comment`；
+ *   `useTranslations('Console')` + `c('global.title')` → `Console.global`。
+ * 命名空间不足以确定单元、键又不是字面量（`consoleT(item.title)`、翻译函数被传出）时，
+ * 记进 shallow，交给生成器整棵带上（或由声明过的键表覆盖，见 i18n-scopes.mjs 的 KEY_TABLES）。
+ * 返回 { units, shallow }
  */
 export function messagePathsOfFile(file, graph) {
   const sf = parseFile(file)
-  const paths = new Set()
-  // 模板串前缀（`` t(`trend_${x}`) `` → 'trend_'）：具体键交给生成器按文案里的叶子键展开
-  const prefixes = new Set()
-  // helper hook 直接返回翻译函数（useAIAgentT 之类）：调用方用它取哪些键无从得知，整棵子树都要带上
-  const open = new Set()
+  const units = new Set()
+  const shallow = new Set()
+  const useDynamic = (namespace) => {
+    if (isUnitDeep(namespace))
+      units.add(unitOf(namespace))
+    else
+      shallow.add(namespace)
+  }
 
-  // 按调用点向上找最近的同名声明，避免同一文件里不同组件各自 `const t = useTranslations('X')` / `useTranslations()` 相互污染
   // import 进来的 helper（useCommonT/useConfigT…）→ 命名空间
   const helperAliases = new Map()
   if (graph) {
@@ -115,6 +119,7 @@ export function messagePathsOfFile(file, graph) {
     }
   }
 
+  // 按调用点向上找最近的同名声明，避免同一文件里不同组件各自 `const t = useTranslations('X')` 相互污染
   const findTranslatorNamespace = (idNode) => {
     const name = idNode.text
     for (let node = idNode.parent; node; node = node.parent) {
@@ -148,54 +153,41 @@ export function messagePathsOfFile(file, graph) {
     return { found: false, namespace: '' }
   }
 
-  // 翻译函数被整体传出（作为参数、return、放进 useCallback）时，取哪些键无法静态确定
-  const declaredNamespaces = new Map() // 变量名 → 命名空间
-  const passedAround = new Set() // 变量名集合：出现过「整体传出」的用法
   const hookCalls = []
-
-  const visitCalls = (node) => {
+  const visit = (node) => {
     if (ts.isCallExpression(node)) {
       const callee = node.expression
-      // t('key') / t.rich('key') / t.markup('key')
+      // t('key') / t.rich('key') / t.markup('key') / t.has('key')
       const target = ts.isPropertyAccessExpression(callee) ? callee.expression : callee
-      if (ts.isIdentifier(target)) {
-        if (TRANSLATOR_HOOKS.has(target.text) && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0])) {
-          hookCalls.push({ node, namespace: node.arguments[0].text })
-        }
-        else {
-          const { found, namespace } = findTranslatorNamespace(target)
-          if (found) {
-            const arg = node.arguments[0]
-            const literals = collectStringLiterals(arg)
-            if (arg && ts.isStringLiteralLike(arg)) {
-              paths.add(namespace ? `${namespace}.${arg.text}` : arg.text)
-            }
-            else if (literals.length > 0) {
-              // t(a ? 'x' : 'y') 这类：分支都是字面量，逐条精确取
-              for (const key of literals)
-                paths.add(namespace ? `${namespace}.${key}` : key)
-            }
-            else if (arg && ts.isTemplateExpression(arg)) {
-              // 模板串：`` t(`trend_${x}`) ``、`` t(`platforms.${id}`) `` —— 前缀是确定的，
-              // 具体键由生成器在文案里按前缀挑叶子键（见 pathsForClosure）
-              prefixes.add(`${namespace}::${arg.head.text}`)
-            }
-            else {
-              passedAround.add(target.text)
-            }
-            declaredNamespaces.set(target.text, namespace)
+      if (ts.isIdentifier(target) && TRANSLATOR_HOOKS.has(target.text)) {
+        const arg = node.arguments[0]
+        hookCalls.push({ node, namespace: arg && ts.isStringLiteralLike(arg) ? arg.text : '' })
+      }
+      else if (ts.isIdentifier(target)) {
+        const { found, namespace } = findTranslatorNamespace(target)
+        if (found) {
+          const arg = node.arguments[0]
+          const literals = collectStringLiterals(arg)
+          if (isUnitDeep(namespace)) {
+            units.add(unitOf(namespace))
+          }
+          else if (literals.length > 0) {
+            for (const key of literals)
+              units.add(unitOf(namespace ? `${namespace}.${key}` : key))
+          }
+          else if (arg && ts.isTemplateExpression(arg) && arg.head.text.includes('.')) {
+            // `` t(`global.${key}`) ``：模板串里确定的那几段足够定位单元时按单元取
+            const head = arg.head.text.slice(0, arg.head.text.lastIndexOf('.'))
+            useDynamic(namespace ? `${namespace}.${head}` : head)
+          }
+          else {
+            useDynamic(namespace)
           }
         }
       }
     }
-    ts.forEachChild(node, visitCalls)
-  }
-  visitCalls(sf)
-
-  // 翻译函数被当成值传出去（foo(…, t)、props 里的 t、return t）：
-  // 接收方会用它取哪些键无从得知，文件里的字面量键由生成器兜底（见 pathsForClosure）
-  const visitIdentifiers = (node) => {
-    if (ts.isIdentifier(node)) {
+    // 翻译函数被当成值传出去（foo(t)、props 里的 t、return t）：接收方取哪些键无从得知
+    else if (ts.isIdentifier(node)) {
       const parent = node.parent
       const isCallee = parent && ts.isCallExpression(parent)
         && (parent.expression === node || (ts.isPropertyAccessExpression(parent.expression) && parent.expression.expression === node))
@@ -203,18 +195,16 @@ export function messagePathsOfFile(file, graph) {
       const isPropertyName = parent && ts.isPropertyAccessExpression(parent) && parent.name === node
       if (!isCallee && !isDeclarationName && !isPropertyName) {
         const { found, namespace } = findTranslatorNamespace(node)
-        if (found) {
-          passedAround.add(node.text)
-          declaredNamespaces.set(node.text, namespace)
-        }
+        if (found)
+          useDynamic(namespace)
       }
     }
-    ts.forEachChild(node, visitIdentifiers)
+    ts.forEachChild(node, visit)
   }
-  visitIdentifiers(sf)
+  visit(sf)
 
-  // 变量声明以外的地方调用 useTranslations：helper hook 直接返回翻译函数（useOperationT 之类），
-  // 调用方用它取哪些键无从得知，整棵命名空间都要带上
+  // useTranslations 的结果没有赋给变量（helper hook 直接返回翻译函数，如 useOperationT）：
+  // 调用方用它取哪些键无从得知
   for (const { node, namespace } of hookCalls) {
     // `const t = await getTranslations('X')` 的父节点是 AwaitExpression，不能只看上一层
     let top = node
@@ -225,15 +215,10 @@ export function messagePathsOfFile(file, graph) {
     }
     const declared = parent && ts.isVariableDeclaration(parent) && parent.initializer === top
     if (!declared)
-      open.add(namespace)
-  }
-  // 显式声明了变量，但翻译函数被传出（formatApiError(t, …)）：同样按整棵命名空间处理
-  for (const name of passedAround) {
-    if (declaredNamespaces.has(name))
-      open.add(declaredNamespaces.get(name))
+      useDynamic(namespace)
   }
 
-  return { paths, prefixes, open }
+  return { units, shallow }
 }
 
 /**
@@ -364,30 +349,24 @@ export function moduleClosure(entries, graph = createGraph()) {
   return seen
 }
 
-/** 闭包里需要的文案路径，返回「路径 → 文件集合」便于排查 */
+/**
+ * 闭包里用到的下发单元，以及「命名空间太浅、键又是变量」的用法。
+ * 都返回「单元 / 命名空间 → 文件集合」，便于排查
+ */
 export function messagePathsOfClosure(closure, graph = createGraph()) {
-  const out = new Map()
-  const prefixes = new Map()
-  const open = new Map()
-  for (const file of closure) {
-    const { paths, prefixes: filePrefixes, open: fileOpen } = graph.paths(file)
-    for (const path of paths) {
-      if (!out.has(path))
-        out.set(path, new Set())
-      out.get(path).add(file)
-    }
-    for (const prefix of filePrefixes) {
-      if (!prefixes.has(prefix))
-        prefixes.set(prefix, new Set())
-      prefixes.get(prefix).add(file)
-    }
-    for (const ns of fileOpen ?? []) {
-      if (!open.has(ns))
-        open.set(ns, new Set())
-      open.get(ns).add(file)
-    }
+  const units = new Map()
+  const shallow = new Map()
+  const record = (map, key, file) => {
+    if (!map.has(key))
+      map.set(key, new Set())
+    map.get(key).add(file)
   }
-  return { paths: out, prefixes, open }
+  for (const file of closure) {
+    const result = graph.paths(file)
+    for (const unit of result.units) record(units, unit, file)
+    for (const ns of result.shallow) record(shallow, ns, file)
+  }
+  return { units, shallow }
 }
 
 /** 路由入口分组：目录 → 该目录下的入口文件 */
@@ -402,39 +381,6 @@ export function routeSegments(files = listSourceFiles()) {
     segments.get(dir).push(file)
   }
   return segments
-}
-
-/**
- * 文案由变量决定取哪个键的地方（如控制台菜单标题）：把文件里能对上文案的字符串字面量全部算进来。
- * catalog 传入某个语言的文案，只有真实存在的路径才会被保留。
- */
-export function dynamicKeyPaths(catalog, files = DYNAMIC_KEY_FILES) {
-  const out = new Set()
-  // 只认叶子键：`id: 'dashboard'` 这类值会撞上 Console.dashboard 这棵子树，把整棵带进来没有意义
-  const exists = (path) => {
-    let node = catalog
-    for (const part of path.split('.')) {
-      if (!node || typeof node !== 'object' || !(part in node))
-        return false
-      node = node[part]
-    }
-    return typeof node === 'string'
-  }
-  for (const rel of files) {
-    const sf = parseFile(join(WEB_ROOT, rel))
-    const visit = (node) => {
-      if (ts.isStringLiteralLike(node)) {
-        for (const prefix of ['', 'Console.', 'Common.']) {
-          const candidate = prefix + node.text
-          if (node.text.includes('.') && exists(candidate))
-            out.add(candidate)
-        }
-      }
-      ts.forEachChild(node, visit)
-    }
-    visit(sf)
-  }
-  return out
 }
 
 export function relativePath(file) {

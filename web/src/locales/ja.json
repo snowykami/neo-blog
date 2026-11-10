@@ -1904,6 +1904,7 @@
       "upload_clear_all": "すべてクリア",
       "upload_remove": "削除",
       "upload_failed_item": "アップロードに失敗しました",
+      "upload_unsupported_file": "この種類のファイルは挿入できません：{names}",
       "status_words": "文字数 {count}",
       "status_reading": "約 {count} 分で読めます",
       "status_block": "現在：{type}",
@@ -3130,8 +3131,13 @@
       "comment_liked": "{actors} があなたのコメント「{quoted}」にいいねしました",
       "comment_liked_without_quote": "{actors} があなたのコメントにいいねしました",
       "comment_thread_replied": "{actors} が「{subject}」のコメント欄に返信しました",
-      "comment_mentioned": "{actors} が「{subject}」のコメントであなたを @ しました：{excerpt}"
-    }
+      "comment_mentioned": "{actors} が「{subject}」のコメントであなたを @ しました：{excerpt}",
+      "system_test": "これはテスト通知です。表示されていればサイト内通知は正常に動作しています"
+    },
+    "attachment_image": "[画像]",
+    "attachment_images": "[画像 ×{count}]",
+    "attachment_file": "[添付ファイル]",
+    "attachment_files": "[添付ファイル ×{count}]"
   },
   "Login": {
     "captcha_error": "CAPTCHA 認証に失敗しました。もう一度お試しください。",
@@ -3632,7 +3638,8 @@
       "pinned_posts_limit": "トップページに固定できるのは最大 3 件です。先に 1 件解除してください",
       "pinned_until_in_past": "期限は現在より後にしてください",
       "lyric_annotation_batch_running": "歌詞エフェクトの一括再生成が実行中です",
-      "lyric_annotation_batch_too_large": "一度に選択できるのは 1000 曲までです"
+      "lyric_annotation_batch_too_large": "一度に選択できるのは 1000 曲までです",
+      "notification_delivery_not_retryable": "この配信は現在の状態では再試行できません（失敗または停止した配信のみ再試行できます）"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」が正しくありません} resource {{resource}のパラメーターが正しくありません} other {リクエストのパラメーターが正しくありません}}",

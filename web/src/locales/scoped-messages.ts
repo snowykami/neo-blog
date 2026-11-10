@@ -31,21 +31,15 @@ function resolvePath(source: Messages, path: string): unknown {
 }
 
 /**
- * 某个作用域需要的文案，按语言回退链合并后缓存
+ * 按路径挑出文案，沿语言回退链逐层合并
  *
- * 只取作用域列出的路径：整棵命名空间（`Comment`）或单独一条键（`Console.global.title`）。
+ * 路径是整棵命名空间（`Comment`）、子命名空间（`Console.global`）或单独一条键（键表里的菜单标题）。
  * 语言变体是稀疏覆盖（zh-HK 只写与 zh-TW 不同的条目），所以同一路径要沿回退链逐层合并，
  * 直接取第一个能查到的值会丢掉上级语言里其余键。
  */
-export function getScopedMessages(locale: string, scope: I18nScope): Messages {
-  const key = `${locale}\u0000${scope}`
-  const cached = cache.get(key)
-  if (cached)
-    return cached
-
-  const paths = scopePaths(scope)
+export function pickMessages(locale: string, paths: readonly string[]): Messages {
   const chain = getFallbackChain(locale).map(code => LOCALE_DATA[code] ?? {})
-  const messages = mergeLocaleMessages(chain.map((data) => {
+  return mergeLocaleMessages(chain.map((data) => {
     const slice: Messages = {}
     for (const path of paths) {
       const value = resolvePath(data as Messages, path)
@@ -54,7 +48,15 @@ export function getScopedMessages(locale: string, scope: I18nScope): Messages {
     }
     return slice
   }))
+}
 
+/** 某个作用域需要的文案（清单见 scopes.generated.ts），按语言缓存 */
+export function getScopedMessages(locale: string, scope: I18nScope): Messages {
+  const key = `${locale}\u0000${scope}`
+  const cached = cache.get(key)
+  if (cached)
+    return cached
+  const messages = pickMessages(locale, scopePaths(scope))
   cache.set(key, messages)
   return messages
 }

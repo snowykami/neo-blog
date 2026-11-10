@@ -1,0 +1,57 @@
+name: Test
+
+# 在完整检出上跑校验：前端镜像的构建上下文只有 web/，后端的配置表与 Go 测试只能在这里检查
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # 版本取自 packageManager 字段
+          package_json_file: web/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 作用域清单、layout、配置表文案键（config-keys.generated.json）任一项不通过都会失败
+      - name: Check i18n scopes
+        run: pnpm i18n:scopes:check
+
+      - name: Unit tests
+        run: pnpm test
+
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # 包含 internal/config 的文案键清单校验：配置表改动后 web/src/locales/config-keys.generated.json 必须同步
+      - name: Go tests
+        run: go test ./...

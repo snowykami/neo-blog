@@ -1904,6 +1904,7 @@
       "upload_clear_all": "全部清除",
       "upload_remove": "移除",
       "upload_failed_item": "上传失败",
+      "upload_unsupported_file": "不支持插入这类文件：{names}",
       "status_words": "字数 {count}",
       "status_reading": "预计阅读 {count} 分钟",
       "status_block": "当前：{type}",
@@ -3137,8 +3138,13 @@
       "comment_liked": "{actors} 赞了你的评论「{quoted}」",
       "comment_liked_without_quote": "{actors} 赞了你的评论",
       "comment_thread_replied": "{actors} 在《{subject}》的评论区回复了",
-      "comment_mentioned": "{actors} 在《{subject}》的评论里 @ 了你：{excerpt}"
-    }
+      "comment_mentioned": "{actors} 在《{subject}》的评论里 @ 了你：{excerpt}",
+      "system_test": "这是一条测试通知：能看到它，说明站内通知链路是通的"
+    },
+    "attachment_image": "[图片]",
+    "attachment_images": "[图片 ×{count}]",
+    "attachment_file": "[附件]",
+    "attachment_files": "[附件 ×{count}]"
   },
   "Login": {
     "continue_bind_oidc": "继续绑定第三方账号，或退出登录",
@@ -3593,7 +3599,8 @@
       "pinned_posts_limit": "首页最多置顶 3 篇文章，先取消其中一篇",
       "pinned_until_in_past": "到期时间要晚于现在",
       "lyric_annotation_batch_running": "已有批量重新生成歌词特效的任务在进行中",
-      "lyric_annotation_batch_too_large": "一次最多选择 1000 首歌"
+      "lyric_annotation_batch_too_large": "一次最多选择 1000 首歌",
+      "notification_delivery_not_retryable": "这条投递当前的状态不能重试（只有失败或超时卡住的投递可以重试）"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的参数不符合要求} other {请求参数不符合要求}}",
