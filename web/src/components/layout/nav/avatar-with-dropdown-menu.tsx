@@ -15,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/auth-context'
 import { useUnreadNotificationCount } from '@/hooks/use-notification-unread'
 import { useOperationT } from '@/hooks/use-translations'
@@ -25,7 +26,7 @@ import { formatDisplayName } from '@/utils/common/username'
 export function AvatarWithDropdownMenu({ className }: { className?: string }) {
   const operationT = useOperationT()
   const routeT = useTranslations('Route')
-  const { user, logout } = useAuth()
+  const { user, loading, logout } = useAuth()
   const openAuthDialog = useAuthDialog()
   const { count: unreadCount } = useUnreadNotificationCount()
   const notificationsT = useTranslations('Notifications')
@@ -48,15 +49,20 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
           className={className}
           aria-label={user ? formatDisplayName(user) : operationT('login')}
           title={user ? formatDisplayName(user) : operationT('login')}
+          // 登录状态在浏览器里确认（服务端外壳对所有人一致），确认前显示与头像同尺寸的占位，避免先出现登录菜单
+          disabled={loading}
+          aria-busy={loading || undefined}
         >
           <span className="relative inline-flex">
-            {user
-              ? (
-                  <UserAvatar user={user} size={64} alt="" className="size-7" />
-                )
-              : (
-                  <User aria-hidden className="size-5" />
-                )}
+            {loading
+              ? <Skeleton aria-hidden className="size-7 rounded-full" />
+              : user
+                ? (
+                    <UserAvatar user={user} size={64} alt="" className="size-7" />
+                  )
+                : (
+                    <User aria-hidden className="size-5" />
+                  )}
             {/* 有未读通知时只在头像右上角点一个小圆点（跟随主题色），不显示数字：提示这里可以点开 */}
             {user && unreadCount > 0 && (
               <span

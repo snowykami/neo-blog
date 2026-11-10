@@ -37,12 +37,12 @@
 
 现状：根布局为了登录态、偏好色、时区读 cookie 并查当前用户，全站 48 个路由都因此动态渲染，预取只能拿空壳。
 
-- [ ] 登录状态改到客户端：服务端只渲染「未登录」外壳，浏览器取 `/user/me` 后补头像、菜单、管理入口（用占位避免跳动）
-- [ ] 主题色 / 配色：服务端输出站点默认配色，用户偏好存 localStorage，页面加载前用内联脚本应用；登录后与账号同步
-- [ ] 时区：服务端统一输出 UTC 时间戳，浏览器按本地时区显示；去掉时区 cookie
-- [ ] 节日主题与当前日期：按天缓存（`cacheLife('days')`）或在浏览器判断，不在每次请求里 `new Date()`
-- [ ] 文章页不读 `searchParams`：`?comment=` 定位交给浏览器，草稿预览已在阶段零迁走
-- [ ] 验收：根布局与前台页面不再调用 `cookies()` / `headers()` / 当前用户
+- [x] 登录状态改到客户端：服务端只渲染「确认中」外壳，浏览器取 `/user/me` 后补头像、菜单、管理入口（用占位避免跳动）；后端登录时另写脚本可读的 `logged_in` 标记 Cookie，访客不请求 `/user/me`
+- [x] 主题色 / 配色：服务端输出站点默认配色，用户偏好存 localStorage，页面加载前用内联脚本应用；登录后以账号偏好为准并写回 localStorage
+- [x] 时区：服务端按固定时区（Asia/Shanghai）渲染并带 `<time datetime>`，水合后浏览器按本机时区重新格式化；去掉时区 cookie
+- [x] 节日主题与当前日期：服务端跨请求缓存 10 分钟（`unstable_cache`，迁 Cache Components 后换 `cacheLife`），浏览器挂载后按本机时间再判断；页脚年份、next-intl `now` 不再在服务端按请求取
+- [x] 文章页不读 `searchParams`：`?comment=` 定位交给浏览器，草稿预览已在阶段零迁走
+- [x] 验收：根布局与前台页面不再调用 `cookies()` / `headers()` / 当前用户（只剩 `i18n/request.ts` 按语言 Cookie 与 `accept-language` 选语言，阶段二去掉；在此之前全站仍是 ƒ）
 
 ### 阶段二：语言放进 URL
 
@@ -55,6 +55,7 @@
 - [ ] i18n 作用域生成器适配 `[locale]` 路径层级，重新生成清单
 - [ ] sitemap 与页面 `<head>` 加 `hreflang` 互相指向
 - [ ] 语言 JSON 文件内容不动
+- [ ] 静态化前置（阶段一实验构建把语言写死后发现）：`/auth/*` 页面的 `useSearchParams` 要包进 Suspense，否则预渲染报错；`/`、`/a`、`/c/[slug]` 读 `searchParams`、`/p/[id]` 等动态段没有 `generateStaticParams`，仍是 ƒ，留给阶段三～五
 
 ### 阶段三：点击即开（体感提升最大）
 

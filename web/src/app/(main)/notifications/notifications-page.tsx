@@ -33,7 +33,7 @@ const PAGE_SIZE = 10
 
 export function NotificationsPage() {
   const t = useTranslations('Notifications')
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const openLogin = useLoginDialog()
   const [tab, setTab] = useState<TabKey>('all')
   const [items, setItems] = useState<NotificationItemModel[]>([])
@@ -73,6 +73,9 @@ export function NotificationsPage() {
 
   // 切换 tab 或登录状态变化时重新拉第一屏
   useEffect(() => {
+    // 登录状态在浏览器里确认，确认前保持骨架屏
+    if (authLoading)
+      return
     if (!user) {
       setItems([])
       setTotal(0)
@@ -80,7 +83,7 @@ export function NotificationsPage() {
       return
     }
     void load(1, true)
-  }, [load, user])
+  }, [authLoading, load, user])
 
   // 触底加载
   useEffect(() => {
@@ -121,7 +124,7 @@ export function NotificationsPage() {
     })
   }
 
-  if (!user) {
+  if (!user && !authLoading) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-10">
         <Empty className="border">

@@ -1,21 +1,23 @@
 import type { ComponentType, ReactNode } from 'react'
 import type { Post } from '@/models/post'
 import {
-  CalendarClockIcon,
-  CalendarDaysIcon,
   ClockIcon,
   FileTextIcon,
   FolderIcon,
   HashIcon,
   PenLineIcon,
 } from 'lucide-react'
-import { useFormatter, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { Fragment } from 'react'
 import { UserAvatar } from '@/components/common/avatar'
 import { CommentIcon, LikeIcon, ViewIcon } from '@/contexts/theme-context'
 import { cn } from '@/lib/utils'
 import { getCategoryUrl, getLabelUrl, getUserUrl } from '@/utils/common/route'
+import { PostMetaDates } from './post-meta-dates'
+import { PostMetaItem } from './post-meta-item'
+
+export { PostMetaItem }
 
 /*
  * 文章元信息（参考 Fuwari 的 PostMetadata，MIT License, saicaca/fuwari）
@@ -25,31 +27,6 @@ import { getCategoryUrl, getLabelUrl, getUserUrl } from '@/utils/common/route'
 
 // 元信息中的链接：位于整卡链接（stretched link）之上，需提升层级
 const metaLinkClass = 'relative z-10 rounded-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-
-/** 图标块 + 文本的元信息项；label 仅供读屏 */
-export function PostMetaItem({
-  icon: Icon,
-  label,
-  children,
-  className,
-}: {
-  icon: ComponentType<{ className?: string }>
-  label: string
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <div className={cn('flex min-w-0 items-center', className)}>
-      <span aria-hidden className="mr-2 flex size-7 shrink-0 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
-        <Icon className="size-4" />
-      </span>
-      <span className="sr-only">{label}</span>
-      <div className="min-w-0 text-sm font-medium text-foreground/50">{children}</div>
-    </div>
-  )
-}
-
-const DATE_FORMAT = { year: 'numeric', month: '2-digit', day: '2-digit' } as const
 
 /** 头像 + 昵称的作者项（列表），整体链接到作者主页 */
 function PostAuthorAvatarItem({ user }: { user: Post['user'] }) {
@@ -91,12 +68,7 @@ export function PostMeta({
   className?: string
 }) {
   const t = useTranslations()
-  const format = useFormatter()
   const labels = post.labels ?? []
-  const created = post.createdAt ? new Date(post.createdAt) : null
-  const updated = post.updatedAt ? new Date(post.updatedAt) : null
-  const createdText = created ? format.dateTime(created, DATE_FORMAT) : ''
-  const updatedText = updated ? format.dateTime(updated, DATE_FORMAT) : ''
 
   return (
     <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-2', className)}>
@@ -108,16 +80,8 @@ export function PostMeta({
           </Link>
         </PostMetaItem>
       )}
-      {created && (
-        <PostMetaItem icon={CalendarDaysIcon} label={t('Copyright.post_at')}>
-          <time dateTime={post.createdAt} className="tabular-nums">{createdText}</time>
-        </PostMetaItem>
-      )}
-      {showUpdated && updated && updatedText !== createdText && (
-        <PostMetaItem icon={CalendarClockIcon} label={t('Common.updated_at')}>
-          <time dateTime={post.updatedAt} className="tabular-nums" title={t('Common.updated_at')}>{updatedText}</time>
-        </PostMetaItem>
-      )}
+      {/* 发布 / 更新日期按访客本机时区显示，交给客户端组件（服务端组件格式化出的文本水合后不会变） */}
+      <PostMetaDates createdAt={post.createdAt} updatedAt={post.updatedAt} showUpdated={showUpdated} />
       <PostMetaItem icon={FolderIcon} label={t('Route.category')}>
         {post.category
           ? (

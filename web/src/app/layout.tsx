@@ -1,13 +1,12 @@
 import type { Metadata, Viewport } from 'next'
+import { getLocale } from 'next-intl/server'
 import { Inter, Source_Code_Pro } from 'next/font/google'
-import { cookies } from 'next/headers'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { getCachedSiteInfo } from '@/api/misc.server'
-import { getLoginUserServer } from '@/api/user.server'
 import { LoginDialogProvider } from '@/components/auth/login-dialog'
 import { AppUpdateChecker } from '@/components/common/app-update-checker'
 import { FloatingWidgets } from '@/components/common/main-floating-widgets'
-import { TimeZoneSync } from '@/components/common/time-zone-sync'
+import { UserPreferenceSync } from '@/components/common/user-preference-sync'
 import { I18nScope } from '@/components/i18n-scope'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/auth-context'
@@ -16,8 +15,8 @@ import { MusicProvider } from '@/contexts/music-context'
 import { NavProvider } from '@/contexts/nav-context'
 import { SiteInfoProvider } from '@/contexts/site-info-context'
 import { ThemeProvider } from '@/contexts/theme-context'
-import { getUserLocale } from '@/i18n/request'
-import { resolveActiveTheme, themeAttributes, themeCssVars } from '@/themes'
+import { themeAttributes, themeCssVars } from '@/themes'
+import { getActiveTheme } from '@/themes/active-theme.server'
 import { themeInitScript } from '@/themes/init-script'
 import './globals.css'
 
@@ -58,29 +57,19 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // 没有任何登录凭据时可确定为访客，客户端无需再请求 /user/me（避免每次访问都产生 401）
-  const cookieStore = await cookies()
-  const hasAuthCookie = cookieStore.has('token') || cookieStore.has('refresh_token')
-  // 用户与站点信息互不依赖，并行取（站点信息已跨请求缓存，通常直接命中）
-  const [user, siteInfo] = await Promise.all([
-    hasAuthCookie
-      ? getLoginUserServer()
-          .then(res => res.data)
-          .catch(() => null)
-      : Promise.resolve(null),
-    getCachedSiteInfo(),
-  ])
-  // 节日 / 季节性主题：只按当前日期计算，不读用户偏好，因此服务端渲染结果稳定；
-  // 用户关闭主题的偏好、管理员的预览主题都在客户端处理（见 themeInitScript、ThemeProvider），服务端不读这两个 cookie
-  // （注意：本布局仍要读登录 cookie、取当前用户，整站依旧是动态渲染）
-  const theme = resolveActiveTheme()
+  // 根布局对所有人输出同一份外壳：不读 Cookie、不查当前用户。
+  // 登录状态、配色偏好、时区都在浏览器里补（见 AuthProvider、themeInitScript、ClientI18nProvider）；
+  // 节日 / 季节性主题只按日期计算且跨请求缓存，用户关闭主题的偏好、管理员的预览主题在客户端处理
+  // 界面语言仍按请求解析（i18n/request.ts，阶段二改为放进 URL）
+  const [siteInfo, theme, locale] = await Promise.all([getCachedSiteInfo(), getActiveTheme(), getLocale()])
   return (
     // 主题脚本会在水合前修改 class / style，需忽略根节点的属性差异
     <html
       suppressHydrationWarning
-      lang={await getUserLocale()}
+      lang={locale}
       className={`h-full ${inter.variable} ${sourceCodePro.variable}`}
-      data-user-color={user?.preferredColor || siteInfo?.defaultColorScheme || 'blue'}
+      // 站点默认配色；访客 / 用户自己选的配色存在 localStorage，由 themeInitScript 在首帧前换上
+      data-user-color={siteInfo?.defaultColorScheme || 'blue'}
       // 主题色板以 CSS 自定义属性的形式注入，globals.css 里映射到既有 token
       style={themeCssVars(theme) as React.CSSProperties}
       {...themeAttributes(theme)}
@@ -96,12 +85,13 @@ export default async function RootLayout({
             {/* 只下发根布局这一层用到的文案，其余由各路由段的作用域补齐（见 scripts/i18n-scopes.mjs） */}
             <I18nScope scope="root">
               <AppUpdateChecker />
-              <TimeZoneSync />
               {/* ThemeProvider 要按登录用户的角色决定是否应用管理员的主题预览，所以放在 AuthProvider 里面 */}
-              <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
+              <AuthProvider>
                 <ThemeProvider theme={theme}>
                   {/* 快捷登录弹窗里的注册表单要用到站点信息（验证码冷却），所以站点信息在弹窗外层 */}
                   <SiteInfoProvider initialData={siteInfo}>
+                    {/* 登录后把账号里的界面语言、配色同步到本浏览器（要用站点信息里的可选配色，所以放在这里） */}
+                    <UserPreferenceSync />
                     <LoginDialogProvider>
                       <MusicProvider>
                         <NavProvider>

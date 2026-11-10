@@ -1,6 +1,6 @@
 import type { AbstractIntlMessages } from 'next-intl'
 import type { I18nScope as I18nScopeKey } from '@/locales/scopes.generated'
-import { getLocale, getNow, getTimeZone } from 'next-intl/server'
+import { getLocale, getTimeZone } from 'next-intl/server'
 import { ClientI18nProvider } from '@/components/i18n-scope.client'
 import { getScopedMessages } from '@/locales/scoped-messages'
 
@@ -15,13 +15,13 @@ import { getScopedMessages } from '@/locales/scoped-messages'
  */
 export async function I18nScope({ scope, children }: { scope: I18nScopeKey, children: React.ReactNode }) {
   const locale = await getLocale()
-  // 客户端 Provider 不会像服务端版本那样自动从请求配置取时区/时间基准，这里补上，避免日期渲染随环境漂移
-  const [timeZone, now] = await Promise.all([getTimeZone(), getNow()])
+  // 客户端 Provider 不会像服务端版本那样自动从请求配置取时区，这里补上服务端渲染用的固定时区，保证水合前后一致。
+  // 不传 now：它是每个请求不同的「现在」，会让页面因人因时而异；用到「现在」的组件在浏览器里自己取（如 useNow）
+  const timeZone = await getTimeZone()
   return (
     <ClientI18nProvider
       locale={locale}
       timeZone={timeZone}
-      now={now ?? undefined}
       messages={getScopedMessages(locale, scope) as AbstractIntlMessages}
       scope={scope}
     >

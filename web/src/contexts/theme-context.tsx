@@ -5,6 +5,7 @@ import type { ThemeDefinition, ThemeIconSlot } from '@/themes/types'
 import { EyeIcon, HeartIcon, MessageCircleIcon, PinIcon, Share2Icon } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
+import { resolveActiveTheme } from '@/themes'
 import { applyThemeToDocument } from '@/themes/apply'
 import { getThemeIcon } from '@/themes/icons'
 import { clearModeOverride, THEME_PACK_EVENT } from '@/themes/mode'
@@ -13,7 +14,7 @@ import { resolvePreviewThemeClient } from '@/themes/preview'
 /**
  * 主题包的客户端状态。
  *
- * 首屏由布局服务端按日期算好并通过 <html data-theme> 渲染，用户关闭主题的偏好只存在本地，
+ * 首屏由布局服务端按日期算好（跨请求缓存）并通过 <html data-theme> 渲染，挂载后按本机时间再确认一次；用户关闭主题的偏好只存在本地，
  * 服务端读不到：因此首帧后由 themeInitScript 先摘掉属性（避免闪一下），这里再把状态对齐，
  * 让顶栏的开关与页面显示保持一致。
  */
@@ -76,7 +77,9 @@ export function ThemeProvider({
   const [enabled, setEnabledState] = useState(Boolean(theme))
 
   const refreshTheme = useCallback(() => {
-    const resolved = resolvePreviewThemeClient(theme, role ? { role } : null)
+    // 服务端给的是跨请求缓存的结果（见 themes/active-theme.server.ts），跨天前后可能还是昨天的主题：按本机时间再判断一次
+    const dated = resolveActiveTheme()
+    const resolved = resolvePreviewThemeClient(dated, role ? { role } : null)
     setActiveTheme(resolved.theme)
     // 预览成具体主题时视为「生效」（管理员就是要看效果），预览「从不使用」则不套
     const active = Boolean(resolved.theme) && (resolved.override || !readStoredDisabled())
@@ -84,7 +87,7 @@ export function ThemeProvider({
     applyThemeToDocument(active ? resolved.theme : null)
     if (!active)
       clearModeOverride()
-  }, [role, theme])
+  }, [role])
 
   // 挂载后（以及登录状态变化后）按本地偏好 + 预览 cookie 对齐一次；服务端渲染阶段默认按「生效」输出
   useEffect(() => {

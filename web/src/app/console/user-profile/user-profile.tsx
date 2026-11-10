@@ -36,6 +36,7 @@ import { GenderInput } from '@/components/user/gender-input'
 import { useAuth } from '@/contexts/auth-context'
 import { useBrowserTimeZone } from '@/hooks/use-browser-time-zone'
 import { useErrorMessageT } from '@/hooks/use-translations'
+import { writeLocaleCookie } from '@/i18n/locale-cookie'
 import { LOCALES, resolveLocale } from '@/locales/registry'
 import { getFileUri } from '@/utils/client/file'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
@@ -170,6 +171,10 @@ export function UserProfilePage() {
         // 关闭时不再上报时区，后端会一并清空已保存的时区
         timeZone: values.showLocalTime ? values.timeZone : '',
       })
+      // 服务端按语言 Cookie 选界面语言（不再查当前用户），先写好再刷新，刷新后直接是新语言
+      const nextLocale = resolveLocale(values.language)
+      if (nextLocale)
+        writeLocaleCookie(nextLocale)
       window.location.reload()
     }
     catch (error: unknown) {

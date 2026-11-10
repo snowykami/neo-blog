@@ -173,11 +173,14 @@ export function AmbientIsland({ settings }: { settings: IslandSettings }) {
   const themeT = useTranslations('ThemePack')
   const weatherT = useTranslations('ContentComponents.weatherCard')
   const locale = useLocale()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const { theme, enabled: themeEnabled } = useTheme()
   const name = user?.nickname || user?.username || ''
 
   useEffect(() => {
+    // 登录状态在浏览器里确认，确认后再问候，避免先按访客问候、取到用户后又问候一遍
+    if (authLoading)
+      return
     let cancelled = false
     const timer = window.setTimeout(async () => {
       // 节日：有日期规则的主题即节日 / 季节主题
@@ -232,7 +235,7 @@ export function AmbientIsland({ settings }: { settings: IslandSettings }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [locale, name, settings.greeting, settings.holiday, settings.weather, t, theme, themeEnabled, themeT, weatherT])
+  }, [authLoading, locale, name, settings.greeting, settings.holiday, settings.weather, t, theme, themeEnabled, themeT, weatherT])
 
   return null
 }

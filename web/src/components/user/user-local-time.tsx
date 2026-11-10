@@ -1,7 +1,8 @@
 'use client'
 import { Clock } from 'lucide-react'
 import { useFormatter, useLocale, useNow, useTranslations } from 'next-intl'
-import { PostMetaItem } from '@/components/blog-post/post-meta'
+import { PostMetaItem } from '@/components/blog-post/post-meta-item'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useBrowserTimeZone } from '@/hooks/use-browser-time-zone'
 import { formatUtcOffset, getDateInTimeZone, getTimeZoneDisplayName, getTimeZoneOffset, isValidTimeZone } from '@/utils/common/time-zone'
 
@@ -15,12 +16,19 @@ export function UserLocalTime({ timeZone }: { timeZone: string }) {
 
   if (!isValidTimeZone(timeZone))
     return null
+  // 「现在」只在浏览器里取（服务端不下发 now，页面对所有人一致）：服务端渲染与水合阶段先占位，避免两边时间不同导致水合不一致
+  if (!viewerTimeZone) {
+    return (
+      <PostMetaItem icon={Clock} label={t('local_time')}>
+        <Skeleton aria-hidden className="h-4 w-40" />
+      </PostMetaItem>
+    )
+  }
 
   const offset = getTimeZoneOffset(timeZone, now)
   const zoneName = getTimeZoneDisplayName(timeZone, locale, now)
-  // 未取到访问者时区（服务端渲染）时不比较
-  const diff = viewerTimeZone ? offset - getTimeZoneOffset(viewerTimeZone, now) : 0
-  const sameDay = !viewerTimeZone || getDateInTimeZone(timeZone, now) === getDateInTimeZone(viewerTimeZone, now)
+  const diff = offset - getTimeZoneOffset(viewerTimeZone, now)
+  const sameDay = getDateInTimeZone(timeZone, now) === getDateInTimeZone(viewerTimeZone, now)
   // 全局未配置 timeZone 时 next-intl 会用服务器时区，这里必须显式传入用户的时区
   const time = format.dateTime(now, sameDay
     ? { timeZone, timeStyle: 'short' }

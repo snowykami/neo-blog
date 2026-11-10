@@ -1,13 +1,20 @@
 'use client'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
+import { useSyncExternalStore } from 'react'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { mainPath } from '@/utils/common/route'
 
 const footerLinkClass = 'rounded-sm underline decoration-dashed underline-offset-4 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
+const subscribeNever = () => () => {}
+const currentYear = () => new Date().getFullYear()
+// 服务端渲染不取当前日期（页面对所有人、任何时候都一致）：年份在浏览器里补上，水合阶段先不显示
+const serverYear = () => null
+
 export default function Footer() {
   const { siteInfo } = useSiteInfo()
+  const year = useSyncExternalStore(subscribeNever, currentYear, serverYear)
   const routeT = useTranslations('Route')
   if (!siteInfo)
     return null
@@ -23,8 +30,7 @@ export default function Footer() {
           <span>
             ©
             {' '}
-            {new Date().getFullYear()}
-            {' '}
+            {year !== null && `${year} `}
             {siteInfo?.metadata?.name}
           </span>
           <span>

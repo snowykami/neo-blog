@@ -15,17 +15,14 @@ export function getBrowserTimeZone(): string {
 const TIME_ZONE_PATTERN = /^(?:UTC|[A-Z][A-Za-z]+(?:\/[A-Z][\w+-]*){1,2})$/
 
 /**
- * 页面上的时间按访客浏览器的时区显示（接口统一返回带时区的 ISO 时间）：浏览器把自己的时区记在这个 cookie 里，
- * 服务端渲染时按它格式化，与浏览器里一致，不受服务器所在时区影响（见 i18n/request.ts 与 TimeZoneSync）
+ * 服务端渲染时间用的固定时区（所有访客一致，页面可以按「所有人一样」缓存）；没有 JS 的搜索引擎爬虫看到的也是它。
+ * 浏览器水合后改按本机时区重新格式化（见 components/i18n-scope.client.tsx），访客最终看到的是自己当地的时间
  */
-export const TIME_ZONE_COOKIE = 'time_zone'
-
-/** 还不知道浏览器时区时（第一次访问、搜索引擎爬虫）显示时间用的时区 */
 export const DEFAULT_TIME_ZONE = 'Asia/Shanghai'
 
-/** 显示时间用的时区：cookie 里记录的浏览器时区有效时用它，否则用默认时区 */
-export function resolveDisplayTimeZone(cookieValue: string | null | undefined): string {
-  return cookieValue && isValidTimeZone(cookieValue) ? cookieValue : DEFAULT_TIME_ZONE
+/** 页面显示时间用的时区：浏览器报告的时区有效时用它，否则（服务端渲染、水合阶段、取不到）用服务端渲染时的时区 */
+export function resolveDisplayTimeZone(browserTimeZone: string | null | undefined, fallback: string = DEFAULT_TIME_ZONE): string {
+  return browserTimeZone && isValidTimeZone(browserTimeZone) ? browserTimeZone : fallback
 }
 
 /** 主流时区预设，id 对应 TimeZone.presets 下的城市名文案 */

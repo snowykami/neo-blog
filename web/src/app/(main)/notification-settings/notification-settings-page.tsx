@@ -26,7 +26,7 @@ function readTokenFromUrl(): string {
  */
 export function NotificationSettingsPage() {
   const t = useTranslations('NotificationSettings')
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const openLogin = useLoginDialog()
   const [token, setToken] = useState('')
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null)
@@ -37,6 +37,9 @@ export function NotificationSettingsPage() {
   }, [])
 
   useEffect(() => {
+    // 登录状态在浏览器里确认，确认前保持加载状态
+    if (authLoading)
+      return
     let cancelled = false
     // 已登录时以登录身份为准；没有登录时用一次性凭据
     const useToken = user ? '' : token
@@ -61,7 +64,7 @@ export function NotificationSettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [user, token, t])
+  }, [authLoading, user, token, t])
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8">

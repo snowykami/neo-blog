@@ -57,6 +57,11 @@ func TestAuthCookieMaxAge(t *testing.T) {
 	plain := login(false)
 	expectMaxAge(plain["token"], 300*time.Second)
 	expectMaxAge(plain["refresh_token"], 7*day)
+	// 登录标记与刷新令牌同时到期，且脚本可读（前端据此决定是否请求 /user/me）
+	expectMaxAge(plain["logged_in"], 7*day)
+	if plain["logged_in"].HttpOnly || plain["logged_in"].Value != "1" {
+		t.Fatalf("logged_in cookie = %+v, want readable marker", plain["logged_in"])
+	}
 	remembered := login(true)
 	expectMaxAge(remembered["refresh_token"], 30*day)
 
@@ -74,6 +79,19 @@ func TestAuthCookieMaxAge(t *testing.T) {
 	renewed := cookiesByName(resp)
 	expectMaxAge(renewed["token"], 300*time.Second)
 	expectMaxAge(renewed["refresh_token"], 30*day)
+	expectMaxAge(renewed["logged_in"], 30*day)
+
+	// 登出时登录标记随令牌一起清掉
+	logoutReq, _ := http.NewRequest(http.MethodPost, base+"/user/logout", nil)
+	logoutReq.AddCookie(renewed["token"])
+	logoutResp, err := http.DefaultClient.Do(logoutReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = logoutResp.Body.Close()
+	if c := cookiesByName(logoutResp)["logged_in"]; c == nil || c.MaxAge >= 0 {
+		t.Fatalf("logout logged_in cookie = %+v, want cleared", c)
+	}
 
 	// 后台修改后对新登录生效
 	_ = repo.KV.SetKV("token_duration", 120)

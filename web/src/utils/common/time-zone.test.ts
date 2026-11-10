@@ -22,10 +22,13 @@ describe('time zone utils', () => {
       expect(isValidTimeZone(zone), zone).toBe(false)
   })
 
-  it('displays times in the browser time zone saved in the cookie, otherwise the default', () => {
+  it('displays times in the browser time zone, otherwise the server rendering time zone', () => {
     expect(resolveDisplayTimeZone('America/New_York')).toBe('America/New_York')
-    for (const value of [undefined, null, '', 'UTC+8', 'Mars/Olympus', 'Asia/Shanghai; path=/'])
+    expect(resolveDisplayTimeZone('Asia/Calcutta', 'UTC')).toBe('Asia/Calcutta')
+    // 服务端渲染与水合阶段取不到浏览器时区（空字符串），用服务端渲染时的时区，保证水合前后一致
+    for (const value of [undefined, null, '', 'Etc/Unknown', 'UTC+8', 'Mars/Olympus'])
       expect(resolveDisplayTimeZone(value), String(value)).toBe('Asia/Shanghai')
+    expect(resolveDisplayTimeZone('', 'UTC')).toBe('UTC')
   })
 
   it('has valid, unique presets', () => {

@@ -12,36 +12,18 @@ import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useTheme } from '@/contexts/theme-context'
 import { cn } from '@/lib/utils'
+import {
+  applyColorScheme,
+  pickColorScheme,
+  readStoredColorScheme,
+  writeStoredColorScheme,
+} from '@/themes/color-scheme'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
-// 访客也能切换配色：选择结果保存在 localStorage；登录用户额外同步到账号偏好
-export const COLOR_SCHEME_STORAGE_KEY = 'color-scheme'
-
-function applyColorScheme(scheme: string) {
-  if (typeof document !== 'undefined')
-    document.documentElement.setAttribute('data-user-color', scheme)
-}
-
-function readStoredColorScheme(): string | null {
-  try {
-    return localStorage.getItem(COLOR_SCHEME_STORAGE_KEY)
-  }
-  catch {
-    return null
-  }
-}
-
-function writeStoredColorScheme(scheme: string) {
-  try {
-    localStorage.setItem(COLOR_SCHEME_STORAGE_KEY, scheme)
-  }
-  catch {
-    // 隐私模式等场景写入失败时忽略，仅影响下次访问的默认配色
-  }
-}
+// 访客也能切换配色：选择结果保存在 localStorage；登录用户额外同步到账号偏好（存储与选择规则见 themes/color-scheme.ts）
 
 /**
- * 当前配色及其切换逻辑：优先级为「本地保存 > 账号偏好 > 站点默认配色」
+ * 当前配色及其切换逻辑：优先级为「账号偏好（登录后）> 本地保存 > 站点默认配色」
  * 配色通过 html 的 data-user-color 生效，与后台个性化设置保持同一套机制
  */
 export function useColorScheme() {
@@ -56,11 +38,14 @@ export function useColorScheme() {
   const defaultColorScheme = siteInfo.defaultColorScheme || fallbackSiteInfo.defaultColorScheme
   const [color, setColor] = useState(defaultColorScheme)
 
-  // 服务端渲染读不到 localStorage，挂载后再按优先级确定一次当前配色
+  // 服务端渲染读不到 localStorage，挂载后（以及登录状态变化后）再按优先级确定一次当前配色
   useEffect(() => {
-    const stored = readStoredColorScheme()
-    const next = [stored, user?.preferredColor, defaultColorScheme]
-      .find(item => !!item && colorSchemes.includes(item))
+    const next = pickColorScheme({
+      account: user?.preferredColor,
+      stored: readStoredColorScheme(),
+      fallback: defaultColorScheme,
+      allowed: colorSchemes,
+    })
     if (!next)
       return
     setColor(next)

@@ -10,6 +10,7 @@ import { OidcProviderButtons, useOidcProviders } from '@/components/auth/oidc-pr
 import { GuestAvatar, UserAvatar } from '@/components/common/avatar'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { Toggle } from '@/components/ui/toggle'
 import { useAuth } from '@/contexts/auth-context'
@@ -57,7 +58,7 @@ export function CommentInput({
   replyTo?: string // 回复对象的名字
   onCancel?: () => void
 }) {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const t = useTranslations('Comment')
   const operationT = useOperationT()
 
@@ -84,6 +85,9 @@ export function CommentInput({
     setSeeded(true)
   }
 
+  // 登录状态在浏览器里确认，确认前显示占位，避免先闪出登录邀请
+  if (authLoading)
+    return <Skeleton aria-hidden className="h-24 w-full rounded-xl" />
   if (!user)
     return <GuestInvite />
 

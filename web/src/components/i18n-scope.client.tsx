@@ -2,10 +2,12 @@
 
 import type { AbstractIntlMessages, IntlError } from 'next-intl'
 import deepmerge from 'deepmerge'
-import { NextIntlClientProvider } from 'next-intl'
+import { IntlErrorCode, NextIntlClientProvider } from 'next-intl'
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { useBrowserTimeZone } from '@/hooks/use-browser-time-zone'
 import { isMissingMessage, loadMessageUnit, messagePath, readableFallback, reportIntlError } from '@/i18n/fallback'
 import { unitOfPath } from '@/locales/scopes'
+import { resolveDisplayTimeZone } from '@/utils/common/time-zone'
 
 /**
  * 客户端的文案 Provider：文案由服务端按作用域切好传进来（见 i18n-scope.tsx）
@@ -17,21 +19,22 @@ import { unitOfPath } from '@/locales/scopes'
  */
 export function ClientI18nProvider({
   locale,
-  timeZone,
-  now,
+  timeZone: serverTimeZone,
   messages,
   scope,
   children,
 }: {
   locale: string
-  /** 时区与「现在」由服务端按请求算好传进来，避免日期在客户端与服务端渲染出不同结果 */
+  /** 服务端渲染用的固定时区：水合阶段沿用它，保证与服务端 HTML 一致 */
   timeZone: string
-  now?: Date
   messages: AbstractIntlMessages
   scope: string
   children: React.ReactNode
 }) {
   // 补加载的文案按语言记录：切换语言后旧语言补来的文案不能混进来
+  // 时间按访客本机时区显示：水合阶段 useBrowserTimeZone 返回空字符串，沿用服务端时区；水合后立刻换成本机时区重新格式化。
+  // 本机时区与服务端相同（多数访客）时取值不变，不会引起重新渲染
+  const timeZone = resolveDisplayTimeZone(useBrowserTimeZone(), serverTimeZone)
   const [extra, setExtra] = useState<{ locale: string, messages: AbstractIntlMessages } | null>(null)
   const requested = useRef(new Set<string>())
 
@@ -64,7 +67,13 @@ export function ClientI18nProvider({
     }, 0)
   }, [locale])
 
-  const onError = useCallback((error: IntlError) => reportIntlError(error, scope), [scope])
+  // 不再下发全局 now（见 i18n-scope.tsx）：浏览器里 relativeTime 未传 now 时按格式化那一刻的时间算，这正是想要的，不算错误。
+  // 这类数据都是挂载后在浏览器里取的，不参与服务端渲染，不会造成水合不一致（服务端的同类错误照常记录）
+  const onError = useCallback((error: IntlError) => {
+    if (error.code === IntlErrorCode.ENVIRONMENT_FALLBACK)
+      return
+    reportIntlError(error, scope)
+  }, [scope])
 
   const getMessageFallback = useCallback(({ namespace, key, error }: { namespace?: string, key: string, error: IntlError }) => {
     const path = messagePath(namespace, key)
@@ -77,7 +86,6 @@ export function ClientI18nProvider({
     <NextIntlClientProvider
       locale={locale}
       timeZone={timeZone}
-      now={now}
       messages={merged}
       onError={onError}
       getMessageFallback={getMessageFallback}
