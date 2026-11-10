@@ -387,6 +387,8 @@ function notificationText(
       return quoted ? t('types.comment_liked', { actors, quoted }) : t('types.comment_liked_without_quote', { actors })
     case 'comment.thread_replied':
       return t('types.comment_thread_replied', { actors, subject })
+    case 'comment.mentioned':
+      return t('types.comment_mentioned', { actors, subject, excerpt })
     default:
       return `${actors} ${item.subjectTitle}`
   }

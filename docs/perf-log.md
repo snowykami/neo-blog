@@ -29,6 +29,27 @@ cd .next/standalone && BACKEND_URL=http://localhost:8888 PORT=3100 node server.j
 
 ---
 
+## 004 补齐两处漏掉的文案：配置项枚举值、通知事件（2026-11-10）
+
+线上 `/notifications` 的整页事件文案、控制台「全局配置」里音乐音质等下拉选项都是原始键名。
+
+两个不同的漏法（都是「生成器看不到」的类型）：
+
+1. **后端枚举字段的选项文案**：`internal/config/items.go` 里用 `options(NCMSongLevels, "ncm_song_level_")`
+   现拼键名（`ncm_song_level_exhigh`），前端只写 `t(option.label)`，静态分析看不到具体键。
+   生成器现在会解析 `options(值列表, "前缀")`，把文案里该前缀下的键全部带上（顺带覆盖
+   `content_theme_*`、`captcha_provider_*`）。
+2. **翻译函数被当参数传出、而键带点**：`notifications-page.tsx` 把 `t` 传给 `notificationText()` 等函数，
+   函数体里 `t('types.comment_created')` 用的是形参；之前的兜底只收集不含点的字面量，于是整组
+   `Notifications.types.*` 都没进作用域。现在字面量兜底也接受带点的子路径（在文案里解得开才收）。
+
+顺带补了 `comment.mentioned` 类型缺的文案分支（`types.comment_mentioned` 一直有文案但没人用）。
+
+影响：`(main)/notifications` 作用域 +18 条（Notifications 的 events 与 tab 文案）；
+控制台全局配置 +9 条（音质 6 个、内容主题 6 个、验证码来源 4 个里的一部分）。
+
+---
+
 ## 003 zod 移出访客首屏（2026-11-10）
 
 ### 改动

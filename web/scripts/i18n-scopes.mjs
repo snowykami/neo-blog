@@ -119,8 +119,10 @@ export function pathsForClosure({ closure, paths, prefixes, open, catalog, dynam
     }
     for (const file of files ?? []) {
       for (const literal of stringLiteralsOfFile(file)) {
-        if (!literal || literal.includes('.') || literal.length > 60)
+        if (!literal || literal.length > 80)
           continue
+        // 字面量可能本身就是带点的子路径（`t('types.comment_created')` 传给被调函数的那种），
+        // 只要在文案里解得开就收下；解不开的（类名、URL）自然会被筛掉
         const candidate = `${ns}.${literal}`
         if (typeof resolvePath(catalog, candidate) === 'string')
           needed.add(candidate)
@@ -192,6 +194,20 @@ export function configNamespacePaths(catalog, namespace = 'Console.global') {
     const path = `${namespace}.${match[1]}`
     if (typeof resolvePath(catalog, path) === 'string')
       paths.add(path)
+  }
+
+  // 枚举型字段的选项文案：后端用 options(值列表, "前缀") 现拼键名（如 ncm_song_level_exhigh）,
+  // 前端只写 t(option.label)，静态分析看不到具体键，按前缀把文案里已有的选项全带上
+  const prefixes = new Set()
+  // 第一个参数本身可能带逗号（options([]string{"a", "b"}, "前缀")），所以不能排除逗号
+  for (const match of source.matchAll(/options\([\s\S]*?,\s*"([^"]+)"\)/g))
+    prefixes.add(match[1])
+  if (prefixes.size > 0) {
+    const subtree = resolvePath(catalog, namespace) ?? {}
+    for (const key of Object.keys(subtree)) {
+      if ([...prefixes].some(prefix => key.startsWith(prefix)))
+        paths.add(`${namespace}.${key}`)
+    }
   }
   return paths
 }
