@@ -31,7 +31,6 @@ jobs:
           build-args: |
             APP_VERSION=${{ github.sha }}
             IMAGE_OPTIMIZE_HOSTS=${{ vars.IMAGE_OPTIMIZE_HOSTS }}
-            NEXT_PUBLIC_BACKEND_URL=${{ vars.NEXT_PUBLIC_BACKEND_URL }}
 
   build-and-push-backend:
     runs-on: ubuntu-latest

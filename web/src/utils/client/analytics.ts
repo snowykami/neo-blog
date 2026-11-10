@@ -1,6 +1,5 @@
 import type { VisitTargetType } from '@/models/visit'
 import { init, track } from '@plausible-analytics/tracker'
-import { apiUrl } from '@/utils/common/api-url'
 import { doNotTrack, getFingerprint } from './fingerprint'
 import { collectVisitSignals } from './visit-signals'
 
@@ -18,7 +17,7 @@ function ensureTracker() {
   initialized = true
   init({
     domain: window.location.hostname,
-    endpoint: apiUrl('/api/v1/event'),
+    endpoint: '/api/v1/event',
     autoCapturePageviews: false, // 由 VisitReporter 在路由变化后上报，附带文章ID与浏览器信号
     outboundLinks: true,
     fileDownloads: true,
