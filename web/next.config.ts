@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      // 文件名带构建 hash，内容不会变：让浏览器/CDN 长期缓存（不设 immutable 的话回访仍会回源校验）
+      {
+        source: '/_next/static/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
       // 文章网页字体（scripts/gen-webfonts.mjs 生成）：分片目录带字体包版本号，可以长期缓存；字体 CSS 地址固定，缓存一天
       {
         source: '/fonts/:font/:version/:file',

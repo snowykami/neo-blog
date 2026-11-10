@@ -61,12 +61,15 @@ export default async function RootLayout({
   // 没有任何登录凭据时可确定为访客，客户端无需再请求 /user/me（避免每次访问都产生 401）
   const cookieStore = await cookies()
   const hasAuthCookie = cookieStore.has('token') || cookieStore.has('refresh_token')
-  const user = hasAuthCookie
-    ? await getLoginUserServer()
-        .then(res => res.data)
-        .catch(() => null)
-    : null
-  const siteInfo = await getCachedSiteInfo()
+  // 用户与站点信息互不依赖，并行取（站点信息已跨请求缓存，通常直接命中）
+  const [user, siteInfo] = await Promise.all([
+    hasAuthCookie
+      ? getLoginUserServer()
+          .then(res => res.data)
+          .catch(() => null)
+      : Promise.resolve(null),
+    getCachedSiteInfo(),
+  ])
   // 节日 / 季节性主题：只按当前日期计算，不读用户偏好，因此服务端渲染结果稳定；
   // 用户关闭主题的偏好、管理员的预览主题都在客户端处理（见 themeInitScript、ThemeProvider、
   // ThemePreviewApplier）——服务端读这两个 cookie 会让整站无法静态化

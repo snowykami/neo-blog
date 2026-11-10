@@ -37,15 +37,14 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const { id } = await params
   // 参数需与页面中的调用完全一致，才能命中 React cache，避免重复请求；浏览量由前台访问上报计数，与此无关
   const { type } = await searchParams
-  const post = await getCachedPost(id, type)
+  // 文章与站点信息并行取（站点信息已跨请求缓存）；locale 与它们也互不依赖
+  const [post, siteInfo, locale] = await Promise.all([getCachedPost(id, type), getCachedSiteInfo(), getLocale()])
   // 元信息在流式渲染开始前解析完成，404 与永久重定向必须在这里判定：
   // 页面里有 loading.tsx，外壳一旦流出，页面内再 notFound() / redirect() 就只能返回 200，对爬虫是软 404
   if (!post)
     notFound()
   if (post.slug && post.slug !== id)
     permanentRedirect(getPostUrl({ post, type }))
-  const locale = (await getLocale()) || 'en'
-  const siteInfo = await getCachedSiteInfo()
   const shareImage = getPostShareImageUrl(post)
   return {
     title: post.title || 'No Title',
@@ -93,8 +92,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 export default async function PostPage({ params, searchParams }: Props) {
   const { id } = await params
   const { type } = await searchParams
-  const post = await getCachedPost(id, type)
-  const siteInfo = await getCachedSiteInfo()
+  const [post, siteInfo] = await Promise.all([getCachedPost(id, type), getCachedSiteInfo()])
   if (!post)
     return notFound()
   // 如果当前访问的 id 不是 post 的 slug，则永久重定向到正确的 URL（metadata 中已处理，这里兜底）
