@@ -56,7 +56,8 @@ export default function Footer() {
               </Link>
             )
           })}
-          <Link href={mainPath.feed} className={footerLinkClass}>RSS</Link>
+          {/* RSS 是接口不是页面，预取只会白白让服务端生成一遍订阅内容 */}
+          <Link href={mainPath.feed} prefetch={false} className={footerLinkClass}>RSS</Link>
           <Link href={mainPath.privacy} className={footerLinkClass}>{routeT('privacy_policy')}</Link>
           <LocaleSwitcher className={footerLinkClass} />
         </div>

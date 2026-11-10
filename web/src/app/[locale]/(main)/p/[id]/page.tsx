@@ -1,32 +1,15 @@
 import type { Metadata } from 'next'
 import type { Article, WithContext } from 'schema-dts'
 import { getLocale } from 'next-intl/server'
-import { notFound } from 'next/navigation'
-import { cache } from 'react'
 import { getCachedSiteInfo } from '@/api/misc.server'
-import { getPostByIdServer } from '@/api/post.server'
 import { localeAlternates } from '@/i18n/alternates'
-import { permanentRedirect } from '@/i18n/navigation'
 import { localizePath } from '@/i18n/routing'
-import { isNotFoundLikeError } from '@/utils/common/error'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostShareImageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 import { safeMetadataBase } from '@/utils/common/siteinfo'
 import { formatDisplayName as formatFullName } from '@/utils/common/username'
 import { BlogPost } from './blog-post'
-
-// Cache the post fetch to avoid duplicate requests during SSR
-// 不带登录身份，所有人看到的一样：私密文章对所有人 404，草稿在后台预览里看（/console/posts/preview/[id]）
-const getCachedPost = cache(async (id: string) => {
-  return getPostByIdServer({ id })
-    .then(res => res.data)
-    .catch((error) => {
-      // 仅在后端明确表示不存在 / 无权查看 / 参数非法时视为 404，其余错误交给错误边界，避免把 500、超时显示成 404
-      if (isNotFoundLikeError(error))
-        return null
-      throw error
-    })
-})
+import { getCanonicalPost } from './post-data'
 
 // 这个是app router固定的传入格式，无法更改
 interface Props {
@@ -38,16 +21,9 @@ export const revalidate = 60
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  // 参数需与页面中的调用完全一致，才能命中 React cache，避免重复请求；浏览量由前台访问上报计数，与此无关
-  // 文章与站点信息并行取（站点信息已跨请求缓存）；locale 与它们也互不依赖
-  const [post, siteInfo, locale] = await Promise.all([getCachedPost(id), getCachedSiteInfo(), getLocale()])
-  // 元信息在流式渲染开始前解析完成，404 与永久重定向必须在这里判定：
-  // 页面里有 loading.tsx，外壳一旦流出，页面内再 notFound() / redirect() 就只能返回 200，对爬虫是软 404
-  if (!post)
-    notFound()
-  // 跳转保持当前语言：/en/p/123 → /en/p/slug
-  if (post.slug && post.slug !== id)
-    permanentRedirect({ href: getPostUrl({ post }), locale })
+  // 与 layout、页面共用同一次文章请求（post-data.ts 的 React cache）；浏览量由前台访问上报计数，与此无关
+  // 文章与站点信息并行取（站点信息已跨请求缓存）；locale 与它们也互不依赖。404 与 slug 跳转已在 layout 判定，这里只是同样的兜底
+  const [post, siteInfo, locale] = await Promise.all([getCanonicalPost(id), getCachedSiteInfo(), getLocale()])
   // 分享图上的文字跟随页面语言
   const shareImage = localizePath(getPostShareImageUrl(post), locale)
   return {
@@ -93,13 +69,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PostPage({ params }: Props) {
   const { id } = await params
-  const [post, siteInfo, locale] = await Promise.all([getCachedPost(id), getCachedSiteInfo(), getLocale()])
-  if (!post)
-    return notFound()
-  // 如果当前访问的 id 不是 post 的 slug，则永久重定向到正确的 URL（metadata 中已处理，这里兜底）
-  if (post.slug && post.slug !== id) {
-    permanentRedirect({ href: getPostUrl({ post }), locale })
-  }
+  // 404 与 slug 跳转在 layout 判定（见 layout.tsx），这里拿到的一定是规范地址上的公开文章
+  const [post, siteInfo, locale] = await Promise.all([getCanonicalPost(id), getCachedSiteInfo(), getLocale()])
 
   const jsonLd: WithContext<Article> = {
     '@context': 'https://schema.org',

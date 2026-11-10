@@ -12,6 +12,22 @@ import { UserHeader } from '@/components/user/user-header'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { getErrorStatus } from '@/utils/common/error'
 
+/** 用户主页骨架：浏览器取到用户资料前显示，路由切换时的 loading.tsx 也用它，两段加载看起来是同一个骨架 */
+export function UserPageSkeleton() {
+  return (
+    <SiteShell>
+      <div className="flex flex-col items-center gap-5 rounded-2xl bg-card p-6 md:flex-row md:gap-6 md:p-8" aria-busy="true">
+        <Skeleton className="size-28 shrink-0 rounded-full md:size-32" />
+        <div className="grid w-full max-w-sm gap-3">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-7 w-64" />
+        </div>
+      </div>
+    </SiteShell>
+  )
+}
+
 export function UserPage() {
   const { username } = useParams() as { username: string }
   const commonT = useCommonT()
@@ -50,20 +66,8 @@ export function UserPage() {
     )
   }
 
-  if (!user) {
-    return (
-      <SiteShell>
-        <div className="flex flex-col items-center gap-5 rounded-2xl bg-card p-6 md:flex-row md:gap-6 md:p-8" aria-busy="true">
-          <Skeleton className="size-28 shrink-0 rounded-full md:size-32" />
-          <div className="grid w-full max-w-sm gap-3">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-7 w-64" />
-          </div>
-        </div>
-      </SiteShell>
-    )
-  }
+  if (!user)
+    return <UserPageSkeleton />
   return (
     <SiteShell>
       <UserHeader user={user} />

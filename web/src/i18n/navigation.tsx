@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ComponentType } from 'react'
 import { createNavigation } from 'next-intl/navigation'
 import NextLink from 'next/link'
 import { isLocalizedHref, routing } from './routing'
@@ -14,10 +14,17 @@ export const { getPathname, permanentRedirect, redirect, usePathname } = intl
 
 export { useRouter } from './navigation.client'
 
-type LinkProps = ComponentProps<typeof intl.Link>
+// next-intl 的 Link 类型里没有列出 unstable_dynamicOnHover，运行时会和其他属性一起原样交给 next/link（见 next-intl 的 BaseLink）
+type LinkProps = ComponentProps<typeof intl.Link> & { unstable_dynamicOnHover?: boolean }
+const IntlLink = intl.Link as ComponentType<LinkProps>
 
-export function Link({ href, locale, ...props }: LinkProps) {
+/**
+ * 前台链接的预取（见 next.config.ts 的 experimental.dynamicOnHover / staleTimes）：
+ * 进入视口时按默认方式预取，动态页面只拿到最近的 loading.tsx 骨架为止；悬停或按下（touchstart）时升级为完整预取，
+ * 点击时直接用缓存出内容。不想预取的链接照常传 prefetch={false}（悬停也不会预取）
+ */
+export function Link({ href, locale, unstable_dynamicOnHover = true, ...props }: LinkProps) {
   if (typeof href === 'string' && !isLocalizedHref(href))
     return <NextLink href={href} {...props} />
-  return <intl.Link href={href} locale={locale} {...props} />
+  return <IntlLink href={href} locale={locale} unstable_dynamicOnHover={unstable_dynamicOnHover} {...props} />
 }

@@ -1,24 +1,10 @@
 import type { Metadata } from 'next'
-import { getLocale, getTranslations } from 'next-intl/server'
-import { notFound } from 'next/navigation'
-import { cache } from 'react'
-import { getUserByUsername } from '@/api/user'
+import { getLocale } from 'next-intl/server'
 import { localeAlternates } from '@/i18n/alternates'
-import { isNotFoundLikeError } from '@/utils/common/error'
 import { getUserUrl } from '@/utils/common/route'
 import { formatDisplayName } from '@/utils/common/username'
 import { UserPage } from './user'
-
-// 元信息与页面共享同一次请求；仅明确不存在时当作 404，其余错误交给错误边界
-const getCachedUser = cache(async (username: string) => {
-  return getUserByUsername(username)
-    .then(r => r.data)
-    .catch((error) => {
-      if (isNotFoundLikeError(error))
-        return null
-      throw error
-    })
-})
+import { getExistingUser } from './user-data'
 
 export async function generateMetadata({
   params,
@@ -26,19 +12,13 @@ export async function generateMetadata({
   params: Promise<{ username: string }>
 }): Promise<Metadata> {
   const { username } = await params
-  const user = await getCachedUser(username)
-  if (user)
-    return { title: formatDisplayName(user), alternates: localeAlternates(getUserUrl(user), await getLocale()) }
-  const t = await getTranslations('UserPage')
-  return { title: t('user_not_found') }
+  // 与 layout 共用同一次请求；不存在的用户已在 layout 判定 404（见 layout.tsx）
+  const user = await getExistingUser(username)
+  return { title: formatDisplayName(user), alternates: localeAlternates(getUserUrl(user), await getLocale()) }
 }
 
-// 用户页主体在客户端拉取，但存在性必须在这里服务端判定：否则 /u/任意字符串 都会返回 200（软 404）
-export default async function Page({ params }: { params: Promise<{ username: string }> }) {
-  const { username } = await params
-  const user = await getCachedUser(username)
-  if (!user)
-    notFound()
+// 用户页主体在客户端拉取；存在性在 layout 里服务端判定
+export default function Page() {
   return (
     <div>
       <UserPage />

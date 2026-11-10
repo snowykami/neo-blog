@@ -104,8 +104,11 @@ export function segmentDir(segment) {
  */
 export const CONFIG_KEYS_FILE = join(SRC_ROOT, 'locales', 'config-keys.generated.json')
 
-/** 这些作用域的 layout 是手写的（要带上页面外壳），生成器只写清单、不覆盖文件 */
-export const MANUAL_SCOPE_DIRS = new Set(['', '(main)', '(player)', 'console', 'auth'])
+/**
+ * 这些作用域的 layout 是手写的，生成器只写清单、不覆盖文件：
+ * 要带上页面外壳的；以及要在 loading.tsx 的骨架流出之前判定 404 / 跳转的动态页（文章、用户、分类，见各自的 layout.tsx）
+ */
+export const MANUAL_SCOPE_DIRS = new Set(['', '(main)', '(player)', 'console', 'auth', '(main)/p/[id]', '(main)/u/[username]', '(main)/c/[slug]'])
 
 /**
  * 键表：只放文案键的数据文件，导入它的组件用 `t(变量)` 取其中的键。

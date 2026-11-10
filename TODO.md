@@ -61,9 +61,11 @@
 
 ### 阶段三：点击即开（体感提升最大）
 
-- [ ] 完整预取：文章卡片、上一篇/下一篇、导航在悬停或进入视口时预取整页（`router.prefetch` 完整模式 + `staleTimes`）→ 点击 0.7s → 约 40ms
-- [ ] 加回 `loading.tsx` 骨架（`/p/[id]`、`/u/[username]`、`/c/[slug]`）：没预取到的点击也立刻切到骨架；404 与 slug 跳转判定留在 generateMetadata
-- [ ] 去掉重复预取：标签链接 `prefetch={false}`（首页同一页预取 6 次）；预取不触发 generateMetadata 打后端
+- [x] 完整预取：文章卡片、上一篇/下一篇、导航在悬停或进入视口时预取整页（`router.prefetch` 完整模式 + `staleTimes`）→ 点击 0.7s → 约 40ms（用 Next 自带的 `experimental.dynamicOnHover`：`@/i18n/navigation` 的 Link 默认 `unstable_dynamicOnHover`，进入视口只预取到 loading 骨架，悬停或 touchstart 时升级为完整预取；`staleTimes` 改为 static 60 秒、dynamic 30 秒；目前没有上一篇/下一篇接口与组件，未做）
+- [x] 加回 `loading.tsx` 骨架（`/p/[id]`、`/u/[username]`、`/c/[slug]`）：没预取到的点击也立刻切到骨架；404 与 slug 跳转判定留在 generateMetadata（实测加骨架后 generateMetadata 里判定一律变成 200，改为在各自手写的 layout 里判定：layout 在 loading 边界之外，判定完才开始流式输出；layout、generateMetadata、页面共用一次取数）
+- [x] 去掉重复预取：标签链接 `prefetch={false}`（首页同一页预取 6 次）；预取不触发 generateMetadata 打后端（标签链接与页脚 RSS 链接不再预取；同一请求内 layout、generateMetadata、页面的取数用 React cache 去重，悬停的完整预取只打 1 次后端；视口预取仍会跑一次 layout + 元信息，见遗留）
+- 验收（2026-11 生产构建 + 本机后端，Chrome 模拟 150ms 往返）：改前点击到正文出现 640～660ms、没有骨架；改后悬停 1.5 秒再点击 55～60ms（点击时不再发请求），只有视口预取的点击（键盘回车）8～12ms 出骨架、约 325ms 出正文，从没预取过的首屏外链接约 190ms 出骨架、约 520ms 出正文；首页加载的预取请求 16 个（8 个 `_tree` + 8 个到骨架为止），预取引起的后端请求 8 次，与改前相同；每悬停一张卡片多 1 个请求、1 次后端；文章页上的标签预取改前每篇 6 个请求（3 个标签 × 2），改后 0；文章、用户、分类不存在时浏览器、Googlebot、Twitterbot 都是 404，`/p/{id}`、`/en/p/{id}` 有 slug 时 308 到规范地址（与改前一致）；一次文章页文档请求只打 1 次后端
+- 遗留：视口预取「到骨架为止」的请求里，Next 16.4（未开 Cache Components）总会完整取元信息，每个可见的文章 / 用户 / 分类链接仍有 1 次后端请求（首页一屏约 8 次，与改前持平）；要去掉只能放弃视口预取（键盘点击没有即时骨架）或给取数加跨请求缓存，留给阶段五
 
 ### 阶段四：页面数据瘦身（慢网与移动端收益最大）
 

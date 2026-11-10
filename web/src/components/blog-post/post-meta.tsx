@@ -98,7 +98,8 @@ export function PostMeta({
             {labels.map((label, index) => (
               <Fragment key={label.id}>
                 {index > 0 && <span aria-hidden className="mx-1.5 text-foreground/30">/</span>}
-                <Link href={getLabelUrl(label)} className={metaLinkClass}>
+                {/* 标签页是带 ?label= 的首页，同一页上同一标签会出现在多篇文章里，不预取 */}
+                <Link href={getLabelUrl(label)} prefetch={false} className={metaLinkClass}>
                   {label.name}
                 </Link>
               </Fragment>

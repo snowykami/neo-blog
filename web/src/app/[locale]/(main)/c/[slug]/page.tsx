@@ -1,8 +1,6 @@
 import type { Metadata } from 'next'
 import { getLocale, getTranslations } from 'next-intl/server'
-import { notFound } from 'next/navigation'
-import { cache } from 'react'
-import { getCategories, listPosts } from '@/api/post'
+import { listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
 import BlogSidebar from '@/components/blog-sidebar'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
@@ -17,17 +15,14 @@ import { localeAlternates } from '@/i18n/alternates'
 import { localizePath } from '@/i18n/routing'
 import { OrderBy } from '@/models/common'
 import { getCategoryUrl } from '@/utils/common/route'
+import { findCategoryOr404 } from './category-data'
 
 const PAGE_SIZE = 20
 
-// 没有按 slug 查询分类的接口，从分类列表中查找；metadata 与页面共享同一次请求
-const getCachedCategories = cache(async () => {
-  return getCategories().then(res => res.data.categories).catch(() => null)
-})
-
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const category = (await getCachedCategories())?.find(c => c.slug === slug)
+  // 与 layout、页面共用同一次请求；不存在的分类已在 layout 判定 404（见 layout.tsx）
+  const category = await findCategoryOr404(slug)
   const archiveT = await getTranslations('Archive')
   return {
     title: archiveT('filter_category', { name: category?.name || slug }),
@@ -50,11 +45,7 @@ export default async function CategoryDetailPage({
   const operationT = await getTranslations('Operation')
   const locale = await getLocale()
 
-  const categories = await getCachedCategories()
-  const category = categories?.find(c => c.slug === slug)
-  // 分类列表获取成功但不存在该 slug 时返回 404
-  if (categories && !category)
-    notFound()
+  const category = await findCategoryOr404(slug)
 
   const { posts, total } = await listPosts({
     page,

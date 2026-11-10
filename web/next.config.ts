@@ -9,6 +9,14 @@ const nextConfig: NextConfig = {
   experimental: {
     // 根布局在 [locale] 段下，全站兜底的 404 由 app/global-not-found.tsx 提供（见该文件）
     globalNotFound: true,
+    // 前台链接悬停 / 按下时把预取升级为完整预取（i18n/navigation.tsx 的 Link 默认开启 unstable_dynamicOnHover），点击即开
+    dynamicOnHover: true,
+    // 客户端路由缓存：完整预取的结果与 loading 骨架保留 60 秒（与文章页 revalidate 对齐，默认 5 分钟）；
+    // 访问过的动态页面 30 秒内再点链接回去直接用缓存（默认 0，每次都重新请求）。页面已对所有人一致，缓存不会串号
+    staleTimes: {
+      dynamic: 30,
+      static: 60,
+    },
   },
   images: {
     // 只优化白名单内的 https 图床域名，保持 Next 默认的私网地址拦截，避免 /_next/image 被用作 SSRF 跳板
