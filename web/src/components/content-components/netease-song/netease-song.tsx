@@ -2,8 +2,9 @@
 
 import type { NeteaseSongProps } from './schema'
 import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import { getMusicSong } from '@/api/music'
-import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
+import { prefetchMusicPlayer } from '@/components/music-page/prefetch-music-player'
 import { useCurrentLyric, useMusic, useMusicClock } from '@/contexts/music-context'
 import { songToTrack } from '@/models/music'
 import { LYRIC_PLACEHOLDERS } from '@/utils/music-lyric'
@@ -23,6 +24,9 @@ export default function MusicCard(props: NeteaseSongProps) {
  * 不在歌单内但可以在站内播放时（公开文章引用的歌曲、登录的管理员与编辑，由后端白名单判断），点播放时插到当前曲目之后播放；
  * 都不满足时只展示公开信息并链接到网易云，不在站内提供播放地址
  */
+// 歌词引擎较重，卡片真的出现在正文里时再按需加载
+const MusicLyricStage = dynamic(() => import('@/components/music-page/music-lyric-stage').then(m => m.MusicLyricStage), { ssr: false })
+
 function NeteaseSongCard({ id }: { id: number }) {
   const t = useTranslations('ContentComponents.neteaseSong')
   const { playlist, currentTrack, isPlaying, duration, playTrack, playSong, togglePlay, seek } = useMusic()
@@ -52,11 +56,16 @@ function NeteaseSongCard({ id }: { id: number }) {
       ? <MusicLyricStage strip themed className="-mx-2.5 h-5 min-w-0 text-sm" />
       : <p className="truncate text-sm text-muted-foreground">{[song.artists.join(' / '), song.album].filter(Boolean).join(' · ')}</p>
 
-  const action = track
-    ? <MusicPlayButton status={playing ? 'playing' : 'idle'} onClick={() => (isCurrent ? togglePlay() : playTrack(index))} />
-    : fetched?.playable
-      ? <MusicPlayButton status="idle" onClick={() => playSong(songToTrack(fetched))} />
-      : <NeteaseOpenButton href={link} />
+  // 指针移到播放键上就先取回播放器与歌词引擎的代码块，点下去不用等下载
+  const action = (
+    <span className="contents" onPointerEnter={prefetchMusicPlayer} onFocus={prefetchMusicPlayer}>
+      {track
+        ? <MusicPlayButton status={playing ? 'playing' : 'idle'} onClick={() => (isCurrent ? togglePlay() : playTrack(index))} />
+        : fetched?.playable
+          ? <MusicPlayButton status="idle" onClick={() => playSong(songToTrack(fetched))} />
+          : <NeteaseOpenButton href={link} />}
+    </span>
+  )
 
   return (
     <MusicCardView

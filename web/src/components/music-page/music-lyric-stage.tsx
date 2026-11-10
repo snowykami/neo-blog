@@ -6,13 +6,13 @@ import { useEffect, useRef } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useHdrEnabled } from '@/hooks/use-hdr-highlight'
+// 歌词字体的网页字体回退（只声明 @font-face，用到时才下载）
+import { loadLyricFonts } from '@/lib/lyrics/lyric-fonts'
 import { LyricPlayer } from '@/lib/lyrics/lyric-player'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 import { cn } from '@/lib/utils'
 import { lyricSourceLabel } from './lyric-source-badge'
 import '@/lib/lyrics/lyric-player.css'
-// 歌词字体的网页字体回退（只声明 @font-face，用到时才下载）
-import '@/lib/lyrics/lyric-fonts'
 
 /**
  * 播放器页的歌词舞台：歌词引擎（lib/lyrics/lyric-player.ts）的 React 包装。
@@ -40,6 +40,11 @@ export function MusicLyricStage({ className, compact = false, strip = false, the
     trackIdRef.current = currentTrack?.id ?? null
   }, [currentTrack?.id])
   const hasLines = lyricStatus !== 'loading' && lyrics.lines.length > 0
+
+  // 歌词字体样式表（约 580 KB 的 unicode-range 分片表）只在舞台真正挂载后注入
+  useEffect(() => {
+    loadLyricFonts()
+  }, [])
 
   useEffect(() => {
     isPlayingRef.current = isPlaying

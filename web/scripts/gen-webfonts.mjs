@@ -29,6 +29,16 @@ export const WEBFONTS = {
   'dancing-script': { pkg: '@fontsource/dancing-script', css: ['400.css'] },
 }
 
+/**
+ * 只给歌词舞台用的额外字重：正文的宋体只带 400（加粗由浏览器合成），
+ * 而歌词按 700 排版，单列一份 700 的 CSS 让歌词保持原有字形
+ */
+export const LYRIC_FONTS = {
+  'noto-serif-sc-bold': { pkg: '@fontsource/noto-serif-sc', css: ['700.css'] },
+}
+
+const ALL_FONTS = { ...WEBFONTS, ...LYRIC_FONTS }
+
 const FONT_FACE = /@font-face\s*\{[^}]*\}/g
 const WOFF2_URL = /url\((['"]?)\.\/files\/([\w.-]+\.woff2)\1\)\s*format\((['"])woff2\3\)/
 
@@ -57,7 +67,7 @@ function packageVersion(pkg) {
 
 function stamp() {
   const hash = createHash('sha1').update(readFileSync(fileURLToPath(import.meta.url)))
-  for (const { pkg } of Object.values(WEBFONTS))
+  for (const { pkg } of Object.values(ALL_FONTS))
     hash.update(`${pkg}@${packageVersion(pkg)}`)
   return hash.digest('hex')
 }
@@ -65,7 +75,7 @@ function stamp() {
 function generate() {
   rmSync(outputDir, { recursive: true, force: true })
   let fileCount = 0
-  for (const [key, { pkg, css }] of Object.entries(WEBFONTS)) {
+  for (const [key, { pkg, css }] of Object.entries(ALL_FONTS)) {
     const version = packageVersion(pkg)
     const baseUrl = `/fonts/${key}/${version}`
     const fileDir = join(outputDir, key, version)
@@ -88,5 +98,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(0)
   const fileCount = generate()
   writeFileSync(stampFile, current)
-  console.log(`webfonts: ${Object.keys(WEBFONTS).length} fonts, ${fileCount} files`)
+  console.log(`webfonts: ${Object.keys(ALL_FONTS).length} fonts, ${fileCount} files`)
 }

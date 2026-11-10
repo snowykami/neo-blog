@@ -29,6 +29,55 @@ cd .next/standalone && BACKEND_URL=http://localhost:8888 PORT=3100 node server.j
 
 ---
 
+## 002 歌词字体与歌词引擎移出首屏（2026-11-10）
+
+### 改动
+
+1. **歌词网页字体改为按需注入**：`lib/lyrics/lyric-fonts.ts` 原来是 6 行静态 `import '@fontsource/…'`，
+   被歌词舞台引入、舞台又被根布局的播放器引入，于是每个页面都要下载 6 份 `@font-face` 分片表（约 580 KB）。
+   现在改成 `loadLyricFonts()` 在舞台挂载时注入 `<link>`，文件来自已有的 `public/fonts/<字体>.css`（`gen-webfonts.mjs` 生成；
+   歌词按 700 排版，所以额外生成了一份 `noto-serif-sc-bold.css`）。
+2. **歌词渲染引擎改为按需加载**：`music-lyric-stage` 在播放器、灵动岛、单曲卡三处都改成 `next/dynamic`，
+   引擎（`lib/lyrics/lyric-player.ts` + 舞台粒子）单独成 chunk，首页与文章页都不再引用。
+3. **播放器改为空闲挂载**：`FloatingWidgets` 用 `requestIdleCallback`（2 s 兜底）再挂 `MusicPlayer`，
+   歌单加载与播放进度恢复照常执行，只是不挡首屏。
+4. **hover 预取**：单曲卡的播放键上 `onPointerEnter`/`onFocus` 触发 `prefetchMusicPlayer()`，
+   点下去不用等 chunk 下载（移动端无 hover，仅首次多点几十毫秒）。
+
+### 首页冷启动（gzip 传输 / 解析后）
+
+| 项 | 改前 | 改后 | 变化 |
+| --- | ---: | ---: | ---: |
+| JS | 575 KB / 1751 KB | 569 KB / 1731 KB | −6 KB / −20 KB |
+| CSS | 204 KB / 728 KB | **42 KB / 246 KB** | **−162 KB / −482 KB** |
+| 字体 woff2 | 69 KB | 69 KB | 不变（只下实际出现的字） |
+| 接口 | 380 KB（本地未压缩；线上压后约 150 KB） | 380 KB | 不变（见「遗留」） |
+| **整页合计** | **1250 KB** | **1082 KB** | **−168 KB（−13.4%）** |
+
+CSS 文件数从 9 个降到 3 个（剩下的是 `globals.css` 与两个小组件样式）。
+
+### 代价转移到该付的页面
+
+播放器页 `/music`：字体样式表 147 KB 传输 / 472 KB 解析，6 个文件；woff2 实测 0 个——
+系统字体够用时一个字形分片都不用下，只有歌词里出现系统没有的字才会取。
+
+### 功能验证
+
+- `/music` 点播放：歌词引擎 chunk 按需加载、舞台正常挂载、无控制台报错
+- 字体样式表注入 6 个 `<link>`（带 `data-lyric-fonts` 标记），只在舞台挂载后请求
+- 播放器空闲挂载后歌单与进度恢复逻辑照旧执行（`MusicPlayer` 仍是唯一加载歌单的地方）
+
+### 为什么 JS 只降了 6 KB
+
+原以为歌词引擎是大头，实测渲染器 chunk 只有 46.8 KB——首屏 JS 的真正大头在别处（motion 约 374 KB 解析、zod 约 112 KB、react-dom 与框架约 155 KB），
+而且播放器状态机（`music-context` 里的解析、强调、节奏）由根布局的 `MusicProvider` 需要，本来就得在首屏。
+
+### 遗留
+
+- 歌单接口仍随播放器空闲挂载拉取（线上压后约 91 KB）。要再省得把「恢复上次播放」改成只取上一首、歌单等真正播放时再取。
+
+---
+
 ## 001 i18n 文案按路由作用域下发（2026-11-10）
 
 ### 改动
@@ -105,11 +154,11 @@ JS 40 个、CSS 9 个全部命中浏览器缓存（传输 0 字节），整页�
 
 | 项 | 传输 | 解析 | 来源 |
 | --- | ---: | ---: | --- |
-| `/_next/static` JS（40 个） | 575 KB | 1751 KB | 其中 motion 约 374 KB、zod 约 112 KB、歌词引擎约 140 KB |
-| `/_next/static` CSS（9 个） | 204 KB | 728 KB | 其中歌词网页字体 `@font-face` ×5 约 476 KB |
+| `/_next/static` JS（40 个） | 569 KB | 1731 KB | 其中 motion 约 374 KB、zod 约 112 KB、react-dom 与框架约 155 KB |
+| `/_next/static` CSS（3 个） | 42 KB | 246 KB | `globals.css` 占 241 KB 解析 |
 | 接口 | 线上压后约 150 KB | — | 歌单 91 KB 是单个最大 |
 
-按收益排序：歌词字体 CSS（−130 KB 传输 / −476 KB 解析）→ 歌词引擎与播放器延后加载（−140 KB 解析）→ zod 剔除（−112 KB 解析）→ motion 替换（−110 KB 传输 / −374 KB 解析）。做完前三项预计首屏 JS 575→约 400 KB、CSS 204→约 70 KB。
+~~歌词字体 CSS~~、~~歌词引擎与播放器延后加载~~ 已在 002 完成。剩下按收益排序：zod 剔除（−35 KB 传输 / −112 KB 解析）→ motion 替换（−110 KB 传输 / −374 KB 解析）→ 歌单恢复逻辑改造（−91 KB 首屏接口）→ i18n 的 `Response.error_details`（−10 KB 原始/页）。
 
 ---
 

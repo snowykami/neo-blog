@@ -6,12 +6,12 @@ import type { IslandSettings } from '@/utils/common/siteinfo'
 import { PlayIcon } from 'lucide-react'
 import { useReducedMotion } from 'motion/react'
 import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { MarqueeText } from '@/components/common/marquee-text'
 import { AlbumNavIcon, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE, MiniPlayer, useMiniPlayerHolding } from '@/components/common/music-player'
 import { MusicBackground } from '@/components/music-page/music-background'
-import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useCoverAccent, useSongAccent } from '@/components/music-page/use-cover-accent'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
@@ -25,6 +25,9 @@ import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 import { buildTimeline, getLineTextAt } from '@/lib/lyrics/timeline'
 import { cn } from '@/lib/utils'
 import { IslandSlot, IslandText } from './island-parts'
+
+// 灵动岛里的单行歌词同样用歌词引擎，延后到真正需要时再加载（岛本身一直都在）
+const MusicLyricStage = dynamic(() => import('@/components/music-page/music-lyric-stage').then(m => m.MusicLyricStage), { ssr: false })
 
 // 优先级：播放中高于文章阅读进度（读者主动开启的音乐更有个性），暂停后低于一切
 const PLAYING_PRIORITY = 50

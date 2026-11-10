@@ -3,6 +3,7 @@
 import type { MusicSource, MusicTrack } from '@/models/music'
 import { Maximize2Icon, MusicIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import React, { useEffect, useRef, useState } from 'react'
@@ -11,7 +12,6 @@ import { SafeImage } from '@/components/common/safe-image'
 import { useIslandPanelPhase } from '@/components/layout/topbar-island/island-panel-phase'
 import { MusicBackground } from '@/components/music-page/music-background'
 import { MusicLyricMoments } from '@/components/music-page/music-lyric-moments'
-import { MusicLyricStage } from '@/components/music-page/music-lyric-stage'
 import { MUSIC_ICON_BUTTON_CLASSNAME, MusicPageControls } from '@/components/music-page/music-page-controls'
 import { readMusicShareParamsFromLocation } from '@/components/music-page/music-share-params'
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
@@ -24,6 +24,9 @@ import { shouldOptimize } from '@/utils/common/image'
 import { MarqueeText } from './marquee-text'
 import { MusicMiniPlaylist } from './music-mini-playlist'
 import { useFloatingBall } from './use-floating-ball'
+
+// 歌词引擎（含歌词字体样式表）比播放器本身重得多，等轻量外壳渲染出来再加载
+const MusicLyricStage = dynamic(() => import('@/components/music-page/music-lyric-stage').then(m => m.MusicLyricStage), { ssr: false })
 
 const DEFAULT_MUSIC_THEME_RGB = '59 130 246'
 const ALBUM_TRANSITION_DURATION_MS = 500
