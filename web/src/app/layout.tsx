@@ -71,8 +71,8 @@ export default async function RootLayout({
     getCachedSiteInfo(),
   ])
   // 节日 / 季节性主题：只按当前日期计算，不读用户偏好，因此服务端渲染结果稳定；
-  // 用户关闭主题的偏好、管理员的预览主题都在客户端处理（见 themeInitScript、ThemeProvider、
-  // ThemePreviewApplier）——服务端读这两个 cookie 会让整站无法静态化
+  // 用户关闭主题的偏好、管理员的预览主题都在客户端处理（见 themeInitScript、ThemeProvider），服务端不读这两个 cookie
+  // （注意：本布局仍要读登录 cookie、取当前用户，整站依旧是动态渲染）
   const theme = resolveActiveTheme()
   return (
     // 主题脚本会在水合前修改 class / style，需忽略根节点的属性差异
@@ -97,8 +97,9 @@ export default async function RootLayout({
             <I18nScope scope="root">
               <AppUpdateChecker />
               <TimeZoneSync />
-              <ThemeProvider theme={theme}>
-                <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
+              {/* ThemeProvider 要按登录用户的角色决定是否应用管理员的主题预览，所以放在 AuthProvider 里面 */}
+              <AuthProvider initialUser={user} isAnonymous={!hasAuthCookie}>
+                <ThemeProvider theme={theme}>
                   {/* 快捷登录弹窗里的注册表单要用到站点信息（验证码冷却），所以站点信息在弹窗外层 */}
                   <SiteInfoProvider initialData={siteInfo}>
                     <LoginDialogProvider>
@@ -110,8 +111,8 @@ export default async function RootLayout({
                       </MusicProvider>
                     </LoginDialogProvider>
                   </SiteInfoProvider>
-                </AuthProvider>
-              </ThemeProvider>
+                </ThemeProvider>
+              </AuthProvider>
             </I18nScope>
           </DeviceProvider>
         </NuqsAdapter>

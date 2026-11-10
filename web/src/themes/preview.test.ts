@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { Role } from '@/models/user'
 import { BUILTIN_THEMES } from './index'
 import {
+  canPreviewTheme,
   isPreviewableThemeId,
   isPreviewNever,
   readPreviewCookie,
@@ -49,22 +51,44 @@ describe('节日主题预览 cookie', () => {
   })
 })
 
+const admin = { role: Role.ADMIN }
+
 describe('按 cookie 解析实际生效的主题（客户端）', () => {
   it('未设置或自动时沿用布局按日期算出的主题', () => {
     const fallback = BUILTIN_THEMES[0]
-    expect(resolvePreviewThemeClient(fallback)).toEqual({ theme: fallback, override: false })
+    expect(resolvePreviewThemeClient(fallback, admin)).toEqual({ theme: fallback, override: false })
     writePreviewCookie(THEME_PREVIEW_AUTO)
-    expect(resolvePreviewThemeClient(fallback)).toEqual({ theme: fallback, override: false })
+    expect(resolvePreviewThemeClient(fallback, admin)).toEqual({ theme: fallback, override: false })
   })
 
   it('指定具体主题时用它覆盖', () => {
     const target = BUILTIN_THEMES.at(-1)!
     writePreviewCookie(target.id)
-    expect(resolvePreviewThemeClient(BUILTIN_THEMES[0])).toEqual({ theme: target, override: true })
+    expect(resolvePreviewThemeClient(BUILTIN_THEMES[0], admin)).toEqual({ theme: target, override: true })
   })
 
   it('「从不使用」时不套节日主题', () => {
     writePreviewCookie(THEME_PREVIEW_NEVER)
-    expect(resolvePreviewThemeClient(BUILTIN_THEMES[0])).toEqual({ theme: null, override: true })
+    expect(resolvePreviewThemeClient(BUILTIN_THEMES[0], admin)).toEqual({ theme: null, override: true })
+  })
+})
+
+describe('预览只对管理员生效', () => {
+  it('只有 admin 角色可以预览', () => {
+    expect(canPreviewTheme(admin)).toBe(true)
+    expect(canPreviewTheme({ role: Role.EDITOR })).toBe(false)
+    expect(canPreviewTheme({ role: Role.USER })).toBe(false)
+    expect(canPreviewTheme(null)).toBe(false)
+    expect(canPreviewTheme(undefined)).toBe(false)
+  })
+
+  it('访客、普通用户手写了 cookie 也不会被应用', () => {
+    const fallback = BUILTIN_THEMES[0]
+    writePreviewCookie(BUILTIN_THEMES.at(-1)!.id)
+    expect(resolvePreviewThemeClient(fallback, null)).toEqual({ theme: fallback, override: false })
+    expect(resolvePreviewThemeClient(fallback, { role: Role.USER })).toEqual({ theme: fallback, override: false })
+    writePreviewCookie(THEME_PREVIEW_NEVER)
+    expect(resolvePreviewThemeClient(fallback, { role: Role.EDITOR })).toEqual({ theme: fallback, override: false })
+    expect(resolvePreviewThemeClient(null)).toEqual({ theme: null, override: false })
   })
 })

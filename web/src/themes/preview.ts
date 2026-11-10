@@ -1,14 +1,17 @@
 import type { ThemeDefinition } from './types'
+import type { User } from '@/models/user'
+import { Role } from '@/models/user'
 import { BUILTIN_THEME_MAP } from './index'
 
 /**
  * 节日主题预览（后台调试用）。
  *
  * 背景：节日主题按日期自动触发，一年只有几天能看到效果，改配色时几乎没法验证。
- * 所以给管理员留一个「强制指定当前主题」的开关，把选择存进 cookie：
- * - 用 cookie 而不是 localStorage，是为了让**服务端渲染**就能拿到，首帧直接是对的，
- *   刷新/打开任何页面都不闪，控制台里的其它页面也能立刻看到效果；
- * - 只在管理员角色下生效（见 utils/server/theme-preview.ts），普通访客即使手写了 cookie 也没用；
+ * 所以给管理员留一个「强制指定当前主题」的开关，把选择存进 cookie（按站点路径共享，打开任何页面都生效）：
+ * - 只在客户端应用（ThemeProvider 挂载后按 cookie 覆盖布局按日期算出的主题）：服务端读这个 cookie 会让根布局依赖它；
+ *   代价是预览时会先闪一下日期主题，仅调试场景，可以接受；
+ * - 只在当前登录用户是管理员时生效（见 canPreviewTheme）：普通用户、访客手写了 cookie 也不会被应用。
+ *   这只是界面层面的限制——预览本来就只改本浏览器的外观，不涉及任何数据或权限，所以不需要后端再判一次；
  * - 与「节日主题开关」（localStorage 的 theme-pack）互相独立：预览只决定「用哪一个主题」，
  *   是否启用仍由顶栏配色弹层里的那个开关决定。
  */
@@ -40,7 +43,7 @@ export function isPreviewChoice(value?: string | null): value is string {
   return value === THEME_PREVIEW_AUTO || value === THEME_PREVIEW_NEVER || isPreviewableThemeId(value)
 }
 
-/** 读取当前浏览器上的预览选择（仅用于界面回显，真正的判定在服务端） */
+/** 读取当前浏览器上的预览选择（不判断角色；是否应用见 resolvePreviewThemeClient） */
 export function readPreviewCookie(): string {
   if (typeof document === 'undefined')
     return THEME_PREVIEW_AUTO
@@ -56,15 +59,21 @@ export function readPreviewCookie(): string {
   return THEME_PREVIEW_AUTO
 }
 
+/** 是否允许应用预览 cookie：保守授权，只有管理员（未登录、普通用户、编辑等一律不行） */
+export function canPreviewTheme(user?: Pick<User, 'role'> | null): boolean {
+  return user?.role === Role.ADMIN
+}
+
 /**
  * 按预览 cookie 决定实际生效的主题（客户端）：
+ * - 当前用户不是管理员（见 canPreviewTheme）→ 忽略 cookie，用传入的主题
  * - 'never' → 不套节日主题
  * - 具体主题 id → 用它
  * - 自动 / 未设置 → 用传入的（布局按日期算出的）主题
- *
- * 放在客户端执行：服务端读这个 cookie 会让根布局依赖 cookie，整站无法静态化。
  */
-export function resolvePreviewThemeClient(fallback: ThemeDefinition | null): { theme: ThemeDefinition | null, override: boolean } {
+export function resolvePreviewThemeClient(fallback: ThemeDefinition | null, user?: Pick<User, 'role'> | null): { theme: ThemeDefinition | null, override: boolean } {
+  if (!canPreviewTheme(user))
+    return { theme: fallback, override: false }
   const choice = readPreviewCookie()
   if (isPreviewNever(choice))
     return { theme: null, override: true }

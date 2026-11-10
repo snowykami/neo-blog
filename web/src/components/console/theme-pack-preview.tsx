@@ -12,8 +12,8 @@ import { readPreviewCookie, THEME_PREVIEW_AUTO, THEME_PREVIEW_NEVER, writePrevie
  * 节日主题预览（控制台 → 全局设置 → 外观）。
  *
  * 节日主题按日期自动触发，一年只有几天能看到效果，改配色时几乎没法验证，
- * 所以这里给管理员一个强制指定主题的入口，选择写进 cookie，由 ThemePreviewApplier 在客户端应用
- * （服务端读这个 cookie 会让整站无法静态化）。只对本浏览器生效，不影响访客。
+ * 所以这里给管理员一个强制指定主题的入口，选择写进 cookie，由 ThemeProvider 在客户端应用
+ * （只在当前登录用户是管理员时生效，见 themes/preview.ts）。只对本浏览器生效，不影响访客。
  */
 export function ThemePackPreviewField() {
   const t = useTranslations('Console.global')

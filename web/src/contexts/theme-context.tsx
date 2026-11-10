@@ -4,6 +4,7 @@ import type { SVGProps } from 'react'
 import type { ThemeDefinition, ThemeIconSlot } from '@/themes/types'
 import { EyeIcon, HeartIcon, MessageCircleIcon, PinIcon, Share2Icon } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { useAuth } from '@/contexts/auth-context'
 import { applyThemeToDocument } from '@/themes/apply'
 import { getThemeIcon } from '@/themes/icons'
 import { clearModeOverride, THEME_PACK_EVENT } from '@/themes/mode'
@@ -23,7 +24,7 @@ export const THEME_PACK_STORAGE_KEY = 'theme-pack'
 const DISABLED_VALUE = 'off'
 
 interface ThemeContextValue {
-  /** 当前实际生效的主题：服务端按日期算出，客户端再用预览 cookie 覆盖 */
+  /** 当前实际生效的主题：服务端按日期算出，管理员的预览 cookie 在客户端覆盖 */
   theme: ThemeDefinition | null
   /** 当前是否生效（用户可关闭） */
   enabled: boolean
@@ -67,12 +68,15 @@ export function ThemeProvider({
   theme: ThemeDefinition | null
   children: React.ReactNode
 }) {
-  // 服务端只按日期算主题；管理员的预览主题在客户端按 cookie 覆盖，避免服务端读 cookie
+  // 服务端只按日期算主题；管理员的预览主题在客户端按 cookie 覆盖，避免服务端读 cookie。
+  // 只有当前登录用户是管理员时才应用预览（见 themes/preview.ts 的 canPreviewTheme）；登录、登出后重新解析
+  const { user } = useAuth()
+  const role = user?.role
   const [activeTheme, setActiveTheme] = useState<ThemeDefinition | null>(theme)
   const [enabled, setEnabledState] = useState(Boolean(theme))
 
   const refreshTheme = useCallback(() => {
-    const resolved = resolvePreviewThemeClient(theme)
+    const resolved = resolvePreviewThemeClient(theme, role ? { role } : null)
     setActiveTheme(resolved.theme)
     // 预览成具体主题时视为「生效」（管理员就是要看效果），预览「从不使用」则不套
     const active = Boolean(resolved.theme) && (resolved.override || !readStoredDisabled())
@@ -80,9 +84,9 @@ export function ThemeProvider({
     applyThemeToDocument(active ? resolved.theme : null)
     if (!active)
       clearModeOverride()
-  }, [theme])
+  }, [role, theme])
 
-  // 挂载后按本地偏好 + 预览 cookie 对齐一次；服务端渲染阶段默认按「生效」输出
+  // 挂载后（以及登录状态变化后）按本地偏好 + 预览 cookie 对齐一次；服务端渲染阶段默认按「生效」输出
   useEffect(() => {
     refreshTheme()
   }, [refreshTheme])
