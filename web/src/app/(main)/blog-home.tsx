@@ -194,7 +194,6 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
         posts={posts}
         pinnedPosts={page === 1 ? pinnedPosts : []}
         listLabel={t(order === 'latest' ? 'latest_posts' : 'hottest_posts')}
-        showPrivate={true}
         isLoading={loading}
         skeletonCount={siteInfo.postsPerPage || 9}
         error={loadError}

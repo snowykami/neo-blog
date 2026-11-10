@@ -3,7 +3,7 @@ import type { ArchiveGroup } from './archive'
 import type { Post } from '@/models/post'
 import process from 'node:process'
 import { getTranslations } from 'next-intl/server'
-import { listPostsServer } from '@/api/post.server'
+import { listPosts } from '@/api/post'
 import { OrderBy } from '@/models/common'
 import { getPostUrl } from '@/utils/common/route'
 import { Archive } from './archive'
@@ -51,7 +51,7 @@ export default async function ArchivesPage({
 }) {
   // 支持 ?label=xxx / ?category=xxx 只看某个标签或分类的归档
   const { label = '', category = '' } = await searchParams
-  const posts = await listPostsServer({ page: 1, size: 500, orderBy: OrderBy.CreatedAt, desc: true, noContent: true, label, category })
+  const posts = await listPosts({ page: 1, size: 500, orderBy: OrderBy.CreatedAt, desc: true, noContent: true, label, category })
     .then(res => res.data.posts)
     .catch(() => [])
 

@@ -53,6 +53,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
     <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
       <PostStats withIcons words={countWords(content)} minutes={calculateReadingTime(content)} views={post.viewCount || 0} likes={post.likeCount || 0} comments={post.commentCount || 0} className="mb-3" />
 
+      {/* 私密徽标只会出现在后台预览里：前台接口不返回私密文章 */}
       {(post.pinned || post.isPrivate) && (
         <div className="mb-3 flex flex-wrap gap-2">
           {post.pinned && (
@@ -164,6 +165,7 @@ function CommentsSkeleton() {
   )
 }
 
+// isDraft：后台预览（/console/posts/preview/[id]）渲染草稿正文，不上报访问、不显示分享；前台文章页不传
 export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?: boolean }) {
   const content = (isDraft ? post.draftContent : post.content) || ''
   const { html, headings } = await renderContentHtml(content || '<h1>No Content</h1>')

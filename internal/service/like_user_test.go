@@ -112,12 +112,11 @@ func TestListUserLikesVisibility(t *testing.T) {
 		}
 	}
 
-	// 管理员：可见私密目标，已删除的目标仍被过滤
+	// 管理员：用户主页在前台，私密文章只在后台可见，私密文章及其下的评论同样被过滤；已删除的目标仍被过滤
 	likes, _, ok = list(admin)
 	if !ok {
 		t.Fatal("admin should be allowed")
 	}
-	want = sorted(append(want, key(constant.TargetTypePost, laterPrivate), key(constant.TargetTypeComment, onLaterPrivate))...)
 	if got := keys(likes); !slices.Equal(got, want) {
 		t.Errorf("admin: want %v, got %v", want, got)
 	}
@@ -135,5 +134,30 @@ func TestListUserLikesVisibility(t *testing.T) {
 		if got := keys(likes); !slices.Equal(got, publicWant) {
 			t.Errorf("%s: want %v, got %v", name, publicWant, got)
 		}
+	}
+}
+
+// 点赞状态接口：前台文章页对所有人一致，登录用户的点赞状态由浏览器另取；只回答自己的点赞状态
+func TestIsLiked(t *testing.T) {
+	author, _, other, _, _ := setupEditTest(t)
+	postID := createPublicPost(t, author, nil)
+	svc := NewLikeService()
+	if _, svcerr := svc.IsLiked(context.Background(), postID, constant.TargetTypePost); svcerr == nil || svcerr.Code != http.StatusUnauthorized {
+		t.Fatalf("guest: want 401, got %v", svcerr)
+	}
+	if _, svcerr := svc.IsLiked(other, postID, "user"); svcerr == nil || svcerr.Code != http.StatusBadRequest {
+		t.Fatalf("invalid target type: want 400, got %v", svcerr)
+	}
+	if liked, svcerr := svc.IsLiked(other, postID, constant.TargetTypePost); svcerr != nil || liked {
+		t.Fatalf("before like: %v %v", liked, svcerr)
+	}
+	if _, svcerr := svc.ToggleLike(other, postID, constant.TargetTypePost, nil); svcerr != nil {
+		t.Fatalf("like: %v", svcerr)
+	}
+	if liked, svcerr := svc.IsLiked(other, postID, constant.TargetTypePost); svcerr != nil || !liked {
+		t.Fatalf("after like: %v %v", liked, svcerr)
+	}
+	if liked, _ := svc.IsLiked(author, postID, constant.TargetTypePost); liked {
+		t.Fatal("another user's like must not count as mine")
 	}
 }

@@ -3,7 +3,7 @@ import type { WebSite, WithContext } from 'schema-dts'
 import type { BlogHomeInitialData } from './blog-home-query'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { getCachedSiteInfo } from '@/api/misc.server'
-import { listPostsServer } from '@/api/post.server'
+import { listPosts } from '@/api/post'
 import { OrderBy } from '@/models/common'
 import { safeMetadataBase } from '@/utils/common/siteinfo'
 import BlogHome from './blog-home'
@@ -50,13 +50,13 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-// 服务端预取首屏文章（默认按最新排序），客户端参数一致时直接复用
+// 服务端预取首屏文章（默认按最新排序），客户端参数一致时直接复用；不带登录身份，只含公开文章
 async function getInitialPosts(searchParams: Record<string, string | string[] | undefined>, pageSize: number): Promise<BlogHomeInitialData | undefined> {
   const pick = (key: string) => (typeof searchParams[key] === 'string' ? searchParams[key] as string : undefined)
   const page = Math.max(1, Number.parseInt(pick('page') || '1', 10) || 1)
   const params = { page, label: pick('label'), category: pick('category'), query: pick('query'), orderBy: OrderBy.CreatedAt }
   try {
-    const res = await listPostsServer({ ...params, size: pageSize || 9, desc: true, withPinned: true })
+    const res = await listPosts({ ...params, size: pageSize || 9, desc: true, withPinned: true })
     return { key: blogHomeQueryKey(params), posts: res.data.posts, total: res.data.total, pinned: res.data.pinned ?? [] }
   }
   catch {

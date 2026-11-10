@@ -551,7 +551,8 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 		if err != nil {
 			return nil, err
 		}
-		if len(posts) == 0 {
+		// 私密文章只在后台可见，不交给 AI（领取前已按 eventTargetSkipReason 跳过，这里兜底）
+		if len(posts) == 0 || posts[0].IsPrivate {
 			return nil, errors.New("target post not found")
 		}
 		ref := postRef(&posts[0], baseURL)
@@ -575,7 +576,7 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 		}
 		event := &dto.AgentLeaseEvent{TargetType: constant.TargetTypeComment, TargetID: c.ID, Comment: ref, AIDepth: aiChainDepth(c.ID)}
 		if c.TargetType == constant.TargetTypePost {
-			if posts, err := repo.AIAgent.PostsByIDs([]uint{c.TargetID}); err == nil && len(posts) > 0 {
+			if posts, err := repo.AIAgent.PostsByIDs([]uint{c.TargetID}); err == nil && len(posts) > 0 && !posts[0].IsPrivate {
 				p := postRef(&posts[0], baseURL)
 				event.Post = &p
 				keywords = append(keywords, p.Labels...)

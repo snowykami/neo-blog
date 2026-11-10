@@ -11,7 +11,7 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/componen
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { getPostEditUrl, getPostUrl } from '@/utils/common/route'
+import { getPostEditUrl, getPostViewUrl } from '@/utils/common/route'
 
 // 每个标签页右侧突出展示的数值：区间浏览、累计热度、发布时间或更新时间
 export type PostListMetric = 'periodViews' | 'heat' | 'createdAt' | 'updatedAt'
@@ -73,7 +73,7 @@ function PostRow({ post, rank, metric }: { post: DashboardPost, rank: number, me
       </span>
       <div className="grid min-w-0 flex-1 gap-1">
         <div className="flex min-w-0 items-center gap-2">
-          <Link href={getPostUrl({ post })} target="_blank" prefetch={false} className="truncate text-sm font-medium hover:text-primary hover:underline">
+          <Link href={getPostViewUrl(post)} target="_blank" prefetch={false} className="truncate text-sm font-medium hover:text-primary hover:underline">
             {post.title}
           </Link>
           {post.isPrivate && <Badge variant="secondary" className="shrink-0">{t('badge_private')}</Badge>}

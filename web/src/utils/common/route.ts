@@ -22,6 +22,8 @@ export const consolePath = {
   notificationDelivery: '/console/notification-deliveries',
   aiAgent: '/console/ai-agents',
   aiAgentRun: '/console/ai-agents/runs',
+  // 文章预览：按前台文章页的样子渲染草稿与私密文章，不套后台外壳（见 app/console/console-shell.tsx）
+  postPreview: '/console/posts/preview',
 }
 
 export const mainPath = {
@@ -38,24 +40,31 @@ export const mainPath = {
 }
 
 /**
- * 获取文章的 URL优先使用 slug，没有则使用 id
- * @param options Object containing post and optional type
+ * 获取文章的前台 URL，优先使用 slug，没有则使用 id；私密文章与草稿不在前台出现，用 getPostPreviewUrl
+ * @param options Object containing post
  * @param options.post 文章对象，必须包含 slug 或 id 属性
- * @param options.type 可选的文章类型，如 'draft'
  * @returns string
  */
 export function getPostUrl<T extends { slug?: string | null, id?: string | number | null }>({
   post,
-  type,
 }: {
   post: T
-  type?: 'draft'
 }): string {
   const key = post.slug || post.id
   if (key == null) {
     throw new Error('toPostUrl: object must contain slug or id')
   }
-  return `/p/${String(key)}${type ? `?type=${type}` : ''}`
+  return `/p/${String(key)}`
+}
+
+/** 后台的文章预览（草稿与私密文章，仅作者本人与管理员）：用 id，编辑中改了 slug 也不受影响 */
+export function getPostPreviewUrl<T extends { id: string | number }>(post: T): string {
+  return `${consolePath.postPreview}/${String(post.id)}`
+}
+
+/** 在后台查看文章：私密文章前台 404，转到后台预览；公开文章打开前台文章页 */
+export function getPostViewUrl<T extends { slug?: string | null, id: string | number, isPrivate?: boolean }>(post: T): string {
+  return post.isPrivate ? getPostPreviewUrl(post) : getPostUrl({ post })
 }
 
 /*

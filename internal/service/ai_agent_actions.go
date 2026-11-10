@@ -417,6 +417,10 @@ func (s *AIAgentService) AgentListComments(ctx context.Context, targetType strin
 	if !ctxutils.HasAPITokenScope(ctx, constant.ScopePostsRead) {
 		return nil, errs.NewForbidden("api_token_scope_insufficient")
 	}
+	// AI 用户只读前台能看到的内容：私密或已删除的文章 / 页面当作不存在，即使账号有更高的角色
+	if reason := contentTargetSkipReason(targetType, targetID); reason != "" {
+		return nil, errs.NewNotFound("target_not_found").WithResource(targetType)
+	}
 	limit = clampInt(limit, 1, 50)
 	depth := 0
 	req := &dto.GetCommentListReq{

@@ -3,9 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useOperationT } from '@/hooks/use-translations'
-import { getPostUrl } from '@/utils/common/route'
+import { getPostPreviewUrl } from '@/utils/common/route'
 
-// iframe 草稿预览器
+// iframe 草稿预览器：加载后台的文章预览页（按前台文章页的样子渲染草稿，私密文章同样可看），不走前台路由
 export function PostPreviewDialog({
   post,
   open,
@@ -42,7 +42,7 @@ export function PostPreviewDialog({
       <DialogContent className="h-[90vh] w-[90vw] !max-w-none overflow-hidden rounded-2xl border-0 p-0">
         <DialogTitle className="sr-only">{operationT('preview')}</DialogTitle>
         {ready
-          ? <iframe src={getPostUrl({ post, type: 'draft' })} className="size-full" />
+          ? <iframe src={getPostPreviewUrl(post)} className="size-full" />
           : <Skeleton className="size-full rounded-2xl" />}
       </DialogContent>
     </Dialog>

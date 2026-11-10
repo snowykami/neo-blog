@@ -71,6 +71,7 @@ export const SCOPE_DIRS = [
   'console/pages/html/[id]',
   'console/posts',
   'console/posts/edit/[id]',
+  'console/posts/preview/[id]',
   'console/runtime',
   'console/storages',
   'console/user-preference',
@@ -114,6 +115,8 @@ export const KEY_TABLES = [
  */
 export const RENDERED_BY_SCOPE = {
   '(main)': ['src/components/layout/topbar-island'],
+  // 后台的文章预览自带前台外壳（MainShell），顶栏同样挂在这一层
+  'console/posts/preview/[id]': ['src/components/layout/topbar-island'],
 }
 
 /** 键表文件里能在文案中解析为叶子键的字符串字面量 → 完整路径 */

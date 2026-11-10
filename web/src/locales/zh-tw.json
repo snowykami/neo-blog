@@ -108,7 +108,6 @@
     "clear_filter": "清除篩選",
     "no_posts": "暫無文章",
     "no_posts_found": "沒有找到任何文章",
-    "no_public_posts_found": "沒有找到公開的文章",
     "load_failed": "文章載入失敗",
     "retry": "重試"
   },

@@ -124,6 +124,22 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 	return state, nil
 }
 
+// IsLiked 当前用户是否点赞了目标；只回答自己的点赞状态，不涉及目标内容
+func (ls *LikeService) IsLiked(ctx context.Context, targetID uint, targetType string) (bool, *errs.ServiceError) {
+	currentUserID, ok := ctxutils.GetCurrentUserID(ctx)
+	if !ok {
+		return false, errs.NewUnauthorized("login_required")
+	}
+	if !(targetType == constant.TargetTypePost || targetType == constant.TargetTypeComment) {
+		return false, errs.NewBadRequest("invalid_target_type")
+	}
+	liked, err := repo.Like.IsLiked(currentUserID, targetID, targetType)
+	if err != nil {
+		return false, errs.Internal("failed_to_get_target", err)
+	}
+	return liked, nil
+}
+
 func (ls *LikeService) GetLikedUsers(ctx context.Context, targetID uint, targetType string, limit int) ([]dto.UserDto, *errs.ServiceError) {
 	users, err := repo.Like.GetLikedUsers(targetID, targetType, limit)
 	if err != nil {

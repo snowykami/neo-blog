@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"slices"
 	"strconv"
@@ -78,7 +79,7 @@ type postDetail struct {
 	DraftVersion          *uint64    `json:"draft_version,omitempty" jsonschema:"version of the draft (author/admin only); pass it as base_version to update_post"`
 	ContentFormat         string     `json:"content_format"`
 	Content               string     `json:"content"`
-	PreviewURL            string     `json:"preview_url,omitempty" jsonschema:"URL to preview the draft (author/admin only)"`
+	PreviewURL            string     `json:"preview_url,omitempty" jsonschema:"console page that previews the draft as readers would see it (author/admin only, requires signing in)"`
 	EditURL               string     `json:"edit_url,omitempty" jsonschema:"console editor URL"`
 }
 
@@ -88,7 +89,7 @@ type postWriteResult struct {
 	IsPrivate    bool   `json:"is_private"`
 	DraftVersion uint64 `json:"draft_version" jsonschema:"version of the draft after this write; pass it as base_version next time"`
 	URL          string `json:"url" jsonschema:"public URL (only reachable when the post is published)"`
-	PreviewURL   string `json:"preview_url" jsonschema:"URL to preview the draft"`
+	PreviewURL   string `json:"preview_url" jsonschema:"console page that previews the draft as readers would see it (requires signing in)"`
 	EditURL      string `json:"edit_url" jsonschema:"console editor URL"`
 	Patched      string `json:"patched,omitempty" jsonschema:"for edit_mode patch: the changed part of the body as now saved, to check the result"`
 	Message      string `json:"message"`
@@ -104,6 +105,11 @@ func postURL(post *dto.PostDto) string {
 
 func editURL(id uint) string {
 	return fmt.Sprintf("%s/console/posts/edit/%d", tools.GetBaseUrl(), id)
+}
+
+// previewURL 后台的草稿预览（按前台文章页的样子渲染），私密文章与草稿不在前台出现
+func previewURL(id uint) string {
+	return fmt.Sprintf("%s/console/posts/preview/%d", tools.GetBaseUrl(), id)
 }
 
 func toSummary(post *dto.PostDto) postSummary {
@@ -135,15 +141,38 @@ func writeResult(post *dto.PostDto, message string) *postWriteResult {
 		IsPrivate:    post.IsPrivate,
 		DraftVersion: post.DraftVersion,
 		URL:          postURL(post),
-		PreviewURL:   postURL(post) + "?type=" + versionDraft,
+		PreviewURL:   previewURL(post.ID),
 		EditURL:      editURL(post.ID),
 		Message:      message,
 	}
 }
 
-// loadPost 按 ID 或 slug 读取文章，私密文章的可见性由 service 判断
+// isAgentRun 当前调用来自 AI 用户的运行：AI 用户只读前台能看到的内容（公开文章、已发布正文），即使账号有更高的角色
+func isAgentRun(ctx context.Context) bool {
+	_, ok := ctxutils.GetAgentRun(ctx)
+	return ok
+}
+
+// canSeeDraft 作者本人与管理员通过 API Token 写作时可以读私密文章与草稿（MCP 不是前台页面）；AI 用户的运行不行
+func canSeeDraft(ctx context.Context, ownerID uint) bool {
+	return !isAgentRun(ctx) && (ctxutils.IsOwnerOfTarget(ctx, ownerID) || ctxutils.IsAdmin(ctx))
+}
+
+// loadPost 按 ID 或 slug 读取文章：作者本人与管理员读后台视图（含私密文章与草稿），其他人只能读到公开文章
 func loadPost(ctx context.Context, slugOrID string) (*dto.PostDto, error) {
-	post, svcerr := service.NewPostService().GetPostSlugOrId(ctx, strings.TrimSpace(slugOrID))
+	key := strings.TrimSpace(slugOrID)
+	postService := service.NewPostService()
+	if !isAgentRun(ctx) {
+		post, svcerr := postService.GetPostForEdit(ctx, key)
+		if svcerr == nil {
+			return post, nil
+		}
+		// 不是作者也不是管理员：退回前台视图（私密文章因此当作不存在）
+		if !(svcerr.Code == http.StatusForbidden || svcerr.Code == http.StatusUnauthorized) {
+			return nil, serviceError(svcerr)
+		}
+	}
+	post, svcerr := postService.GetPostSlugOrId(ctx, key)
 	if svcerr != nil {
 		return nil, serviceError(svcerr)
 	}
@@ -223,8 +252,16 @@ func listPosts(ctx context.Context, _ *mcp.CallToolRequest, in listPostsInput) (
 		req.UserID, _ = ctxutils.GetCurrentUserID(ctx)
 	}
 	postService := service.NewPostService()
-	// 管理员可以看到所有人的私密文章，其他用户只能看到公开文章与自己的私密文章
-	list := utils.Ternary(ctxutils.IsAdmin(ctx), postService.ListPostsAdmin, postService.ListPosts)
+	// 管理员可以看到所有人的私密文章，作者用 mine 看自己的全部文章（含私密），其余只列公开文章；
+	// AI 用户的运行一律只列公开文章
+	list := postService.ListPosts
+	switch {
+	case isAgentRun(ctx):
+	case ctxutils.IsAdmin(ctx):
+		list = postService.ListPostsAdmin
+	case in.Mine:
+		list = postService.ListMyPosts
+	}
 	posts, total, svcerr := list(ctx, req)
 	if svcerr != nil {
 		return nil, nil, serviceError(svcerr)
@@ -259,8 +296,8 @@ func getPost(ctx context.Context, _ *mcp.CallToolRequest, in getPostInput) (*mcp
 	if err != nil {
 		return nil, nil, err
 	}
-	// 草稿仅作者本人或管理员可见，与文章接口一致
-	canSeeDraft := ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx)
+	// 草稿仅作者本人或管理员可见，与后台接口一致
+	authorView := canSeeDraft(ctx, post.UserID)
 	detail := &postDetail{
 		postSummary:   toSummary(post),
 		Cover:         post.Cover,
@@ -270,10 +307,10 @@ func getPost(ctx context.Context, _ *mcp.CallToolRequest, in getPostInput) (*mcp
 		ContentFormat: format,
 	}
 	body := post.Content
-	if canSeeDraft {
+	if authorView {
 		draft := currentDraft(post)
 		detail.HasUnpublishedChanges = draft != post.Content
-		detail.PreviewURL = postURL(post) + "?type=" + versionDraft
+		detail.PreviewURL = previewURL(post.ID)
 		detail.EditURL = editURL(post.ID)
 		detail.DraftVersion = &post.DraftVersion
 		if in.Version != versionPublished {

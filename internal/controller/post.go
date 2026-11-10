@@ -62,9 +62,9 @@ func (p *PostController) Delete(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, nil)
 }
 
+// Get 前台读取文章：只返回公开文章的已发布内容；私密文章对所有人 404，草稿在后台读取（见 GetForEdit）
 func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 	slugOrId := c.Param("slug_or_id") // 此处不用ctxutils bind是因为允许slug string类型
-	isDraft := c.Query("type") == "draft"
 	if slugOrId == "" {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
@@ -75,21 +75,20 @@ func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 		resps.Error(c, svcerr)
 		return
 	}
-	if post == nil {
-		resps.NotFound(c, resps.ErrNotFound)
+	resps.Ok(c, resps.Success, post)
+}
+
+// GetForEdit 后台编辑器与预览读取文章（含私密文章与草稿），仅作者本人与管理员；路径参数可以是 id 或 slug
+func (p *PostController) GetForEdit(ctx context.Context, c *app.RequestContext) {
+	slugOrId := c.Param("id")
+	if slugOrId == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-
-	if isDraft {
-		// 草稿请求仅允许作者本人或者管理员查看
-		if !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx)) {
-			resps.Forbidden(c, resps.ErrForbidden)
-			return
-		}
-		post.DraftContent = utils2.Ternary(post.DraftContent == nil, &post.Content, post.DraftContent)
-	} else {
-		post.DraftContent = nil // 非草稿请求不返回草稿内容
-		post.DraftVersion = 0
+	post, svcerr := p.service.GetPostForEdit(ctx, slugOrId)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
 	}
 	resps.Ok(c, resps.Success, post)
 }
@@ -163,6 +162,25 @@ func (p *PostController) List(ctx context.Context, c *app.RequestContext) {
 		resp["pinned"] = pinned
 	}
 	resps.Ok(c, resps.Success, resp)
+}
+
+// ListMine 后台「我的文章」：当前用户自己的全部文章（含私密文章）
+func (p *PostController) ListMine(ctx context.Context, c *app.RequestContext) {
+	req := &dto.ListPostReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if !slices.Contains(constant.OrderByEnumPost, req.OrderBy) {
+		resps.BadRequest(c, "invalid_order_by")
+		return
+	}
+	posts, total, svcerr := p.service.ListMyPosts(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"posts": posts, "total": total})
 }
 
 // GetPostCards 批量读取正文「文章引用」卡片的数据（ids 逗号分隔），不可见的文章不返回

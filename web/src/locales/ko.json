@@ -108,7 +108,6 @@
     "clear_filter": "필터 해제",
     "no_posts": "아직 글이 없습니다",
     "no_posts_found": "글을 찾을 수 없습니다",
-    "no_public_posts_found": "공개된 글을 찾을 수 없습니다",
     "load_failed": "게시물을 불러오지 못했습니다",
     "retry": "다시 시도"
   },

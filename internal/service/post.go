@@ -146,38 +146,54 @@ func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.Service
 	return nil
 }
 
+// GetPostSlugOrId 前台读取文章：只返回公开文章的已发布内容，不带草稿。
+// 私密文章只在后台可见，对所有人（含作者与管理员）都当作不存在；作者在后台预览里看（见 GetPostForEdit）
 func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dto.PostDto, *errs.ServiceError) {
 	if slugOrId == "" {
 		return nil, errs.NewBadRequest("missing_request_parameters")
 	}
-	// 访客读取的文章先读短时缓存（访客看不到草稿，缓存里也不存草稿）
+	// 访客读取的文章先读短时缓存（缓存里不存草稿）
 	return guestCached(ctx, "detail:"+slugOrId, func() (*dto.PostDto, *errs.ServiceError) {
-		postDto, svcerr := p.getPostSlugOrId(ctx, slugOrId)
-		if postDto != nil && isGuest(ctx) {
-			postDto.DraftContent = nil
-			postDto.DraftVersion = 0
-		}
-		return postDto, svcerr
+		return p.getPublicPost(ctx, slugOrId)
 	})
 }
 
-func (p *PostService) getPostSlugOrId(ctx context.Context, slugOrId string) (*dto.PostDto, *errs.ServiceError) {
+func (p *PostService) getPublicPost(ctx context.Context, slugOrId string) (*dto.PostDto, *errs.ServiceError) {
 	post, err := repo.Post.GetPostBySlugOrID(slugOrId)
-	if err != nil {
+	if err != nil || post.IsPrivate {
 		return nil, errs.NewNotFound("target_not_found").WithResource("post")
 	}
-	currentUser, userOk := ctxutils.GetCurrentUser(ctx)
-	// 私密文章只有自己和管理员能看
-	if post.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx)) {
-		return nil, errs.NewForbidden("permission_denied")
-	}
-	// 检测用户是否点赞
 	postDto := post.ToDto()
-	if userOk {
+	postDto.DraftContent = nil
+	postDto.DraftVersion = 0
+	// 检测用户是否点赞
+	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
 		liked, err := repo.Like.IsLiked(currentUser.ID, post.ID, constant.TargetTypePost)
 		if err == nil {
 			postDto.IsLiked = liked
 		}
+	}
+	return postDto, nil
+}
+
+// GetPostForEdit 后台编辑器与预览读取文章：含私密文章与草稿（没有草稿时取已发布的正文），仅作者本人与管理员可用
+func (p *PostService) GetPostForEdit(ctx context.Context, slugOrId string) (*dto.PostDto, *errs.ServiceError) {
+	if slugOrId == "" {
+		return nil, errs.NewBadRequest("missing_request_parameters")
+	}
+	if _, ok := ctxutils.GetCurrentUser(ctx); !ok {
+		return nil, errs.NewUnauthorized("login_required")
+	}
+	post, err := repo.Post.GetPostBySlugOrID(slugOrId)
+	if err != nil {
+		return nil, errs.NewNotFound("target_not_found").WithResource("post")
+	}
+	if !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx)) {
+		return nil, errs.NewForbidden("permission_denied")
+	}
+	postDto := post.ToDto()
+	if postDto.DraftContent == nil {
+		postDto.DraftContent = &postDto.Content
 	}
 	return postDto, nil
 }
@@ -302,6 +318,7 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	return &dto.ContentSaveResult{ID: post.ID, DraftVersion: post.DraftVersion}, nil
 }
 
+// ListPosts 前台文章列表（首页、标签、分类、归档、搜索、用户主页）：只含公开文章，不看当前用户是谁
 func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, *errs.ServiceError) {
 	page, svcerr := guestCached(ctx, postListCacheKey(req), func() (guestPostList, *errs.ServiceError) {
 		posts, total, svcerr := p.listPosts(ctx, req, false)
@@ -318,24 +335,34 @@ func (p *PostService) ListPostsAdmin(ctx context.Context, req *dto.ListPostReq) 
 	return p.listPosts(ctx, req, true)
 }
 
-func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, includeAllPrivate bool) ([]*dto.PostDto, int64, *errs.ServiceError) {
+// ListMyPosts 后台「我的文章」：当前用户自己的全部文章（含私密文章），供没有管理员权限的作者管理自己的文章
+func (p *PostService) ListMyPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, *errs.ServiceError) {
+	currentUserID, ok := ctxutils.GetCurrentUserID(ctx)
+	if !ok {
+		return nil, 0, errs.NewUnauthorized("login_required")
+	}
+	req.UserID = currentUserID
+	return p.listPosts(ctx, req, true)
+}
+
+// listPosts includePrivate 为 true 时是后台管理视图（含私密文章、带 AI 摘要任务状态）
+func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, includePrivate bool) ([]*dto.PostDto, int64, *errs.ServiceError) {
 	postDtos := make([]*dto.PostDto, 0)
-	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
 	queryArray := make([]string, 0)
 	if req.Query != "" {
 		for _, q := range strings.Split(req.Query, ",") {
 			queryArray = append(queryArray, strings.TrimSpace(q))
 		}
 	}
-	posts, total, err := repo.Post.ListPosts(currentUserID, includeAllPrivate, queryArray, req)
+	posts, total, err := repo.Post.ListPosts(includePrivate, queryArray, req)
 	if err != nil {
 		return nil, total, errs.Internal("failed_to_get_target", err).WithResource("post")
 	}
 	for _, post := range posts {
 		postDtos = append(postDtos, post.ToDtoWithShortContent(200))
 	}
-	// 后台管理列表展示 AI 摘要任务的进行中 / 失败状态
-	if includeAllPrivate || currentUserID != 0 {
+	// 后台管理列表展示 AI 摘要任务的进行中 / 失败状态；前台列表对所有人一致，不带
+	if includePrivate {
 		NewAISummaryService().FillListStatus(postDtos)
 	}
 	return postDtos, total, nil
@@ -345,15 +372,14 @@ func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, inclu
 const MaxPostCardIDs = 50
 
 // ListPostCards 批量读取正文「文章引用」卡片的数据：去重后保持请求顺序，
-// 不存在 / 已删除 / 当前用户看不到的文章不出现在结果里，由前端显示「内容不可访问」
+// 不存在 / 已删除 / 私密的文章不出现在结果里（不看当前用户是谁），由前端显示「内容不可访问」
 func (p *PostService) ListPostCards(ctx context.Context, ids []uint) ([]dto.PostCardDto, *errs.ServiceError) {
 	ids = normalizePostCardIDs(ids)
 	if len(ids) == 0 {
 		return []dto.PostCardDto{}, nil
 	}
-	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
 	return guestCached(ctx, postCardCacheKey(ids), func() ([]dto.PostCardDto, *errs.ServiceError) {
-		posts, err := repo.Post.ListPostCardsByIDs(currentUserID, ids)
+		posts, err := repo.Post.ListPostCardsByIDs(ids)
 		if err != nil {
 			return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
 		}

@@ -108,7 +108,6 @@
     "clear_filter": "フィルターを解除",
     "no_posts": "記事はまだありません",
     "no_posts_found": "記事が見つかりません",
-    "no_public_posts_found": "公開記事が見つかりません",
     "load_failed": "記事の読み込みに失敗しました",
     "retry": "再試行"
   },

@@ -108,7 +108,6 @@
     "clear_filter": "清除筛选",
     "no_posts": "暂无文章",
     "no_posts_found": "没有找到任何文章",
-    "no_public_posts_found": "没有找到公开的文章",
     "load_failed": "文章加载失败",
     "retry": "重试"
   },

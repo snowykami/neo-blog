@@ -21,14 +21,13 @@ const MaxPinnedPosts = 3
 
 const postPinLockTTL = 10 * time.Second
 
-// ListPinnedPosts 首页的置顶文章（当前用户能看到的），后置顶的在前
+// ListPinnedPosts 首页的置顶文章（只含公开文章，不看当前用户是谁），后置顶的在前
 func (p *PostService) ListPinnedPosts(ctx context.Context) ([]*dto.PostDto, *errs.ServiceError) {
-	return guestCached(ctx, "pinned", func() ([]*dto.PostDto, *errs.ServiceError) { return p.listPinnedPosts(ctx) })
+	return guestCached(ctx, "pinned", func() ([]*dto.PostDto, *errs.ServiceError) { return p.listPinnedPosts() })
 }
 
-func (p *PostService) listPinnedPosts(ctx context.Context) ([]*dto.PostDto, *errs.ServiceError) {
-	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
-	posts, err := repo.Post.ListPinnedPosts(currentUserID, false, time.Now(), MaxPinnedPosts)
+func (p *PostService) listPinnedPosts() ([]*dto.PostDto, *errs.ServiceError) {
+	posts, err := repo.Post.ListPinnedPosts(false, time.Now(), MaxPinnedPosts)
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
 	}
@@ -44,7 +43,7 @@ func (p *PostService) ListPinnedPostsAdmin(ctx context.Context) ([]*dto.PostDto,
 	if !ctxutils.IsAdmin(ctx) {
 		return nil, errs.NewForbidden("permission_denied")
 	}
-	posts, err := repo.Post.ListPinnedPosts(0, true, time.Now(), MaxPinnedPosts)
+	posts, err := repo.Post.ListPinnedPosts(true, time.Now(), MaxPinnedPosts)
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
 	}

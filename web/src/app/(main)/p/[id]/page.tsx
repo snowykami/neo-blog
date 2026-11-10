@@ -13,8 +13,9 @@ import { formatDisplayName as formatFullName } from '@/utils/common/username'
 import { BlogPost } from './blog-post'
 
 // Cache the post fetch to avoid duplicate requests during SSR
-const getCachedPost = cache(async (id: string, type?: 'draft' | undefined) => {
-  return getPostByIdServer({ id, type })
+// 不带登录身份，所有人看到的一样：私密文章对所有人 404，草稿在后台预览里看（/console/posts/preview/[id]）
+const getCachedPost = cache(async (id: string) => {
+  return getPostByIdServer({ id })
     .then(res => res.data)
     .catch((error) => {
       // 仅在后端明确表示不存在 / 无权查看 / 参数非法时视为 404，其余错误交给错误边界，避免把 500、超时显示成 404
@@ -27,24 +28,22 @@ const getCachedPost = cache(async (id: string, type?: 'draft' | undefined) => {
 // 这个是app router固定的传入格式，无法更改
 interface Props {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ type: 'draft' | undefined }>
 }
 
 // Enable ISR with 60 seconds revalidation for better performance
 export const revalidate = 60
 
-export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   // 参数需与页面中的调用完全一致，才能命中 React cache，避免重复请求；浏览量由前台访问上报计数，与此无关
-  const { type } = await searchParams
   // 文章与站点信息并行取（站点信息已跨请求缓存）；locale 与它们也互不依赖
-  const [post, siteInfo, locale] = await Promise.all([getCachedPost(id, type), getCachedSiteInfo(), getLocale()])
+  const [post, siteInfo, locale] = await Promise.all([getCachedPost(id), getCachedSiteInfo(), getLocale()])
   // 元信息在流式渲染开始前解析完成，404 与永久重定向必须在这里判定：
   // 页面里有 loading.tsx，外壳一旦流出，页面内再 notFound() / redirect() 就只能返回 200，对爬虫是软 404
   if (!post)
     notFound()
   if (post.slug && post.slug !== id)
-    permanentRedirect(getPostUrl({ post, type }))
+    permanentRedirect(getPostUrl({ post }))
   const shareImage = getPostShareImageUrl(post)
   return {
     title: post.title || 'No Title',
@@ -73,31 +72,28 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       description: stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
       images: [shareImage],
     },
-    robots: type === 'draft'
-      ? { index: false, follow: false }
-      : {
-          index: true,
-          follow: true,
-          googleBot: {
-            'index': true,
-            'follow': true,
-            'max-video-preview': -1,
-            'max-image-preview': 'large',
-            'max-snippet': -1,
-          },
-        },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        'index': true,
+        'follow': true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
+    },
   }
 }
 
-export default async function PostPage({ params, searchParams }: Props) {
+export default async function PostPage({ params }: Props) {
   const { id } = await params
-  const { type } = await searchParams
-  const [post, siteInfo] = await Promise.all([getCachedPost(id, type), getCachedSiteInfo()])
+  const [post, siteInfo] = await Promise.all([getCachedPost(id), getCachedSiteInfo()])
   if (!post)
     return notFound()
   // 如果当前访问的 id 不是 post 的 slug，则永久重定向到正确的 URL（metadata 中已处理，这里兜底）
   if (post.slug && post.slug !== id) {
-    permanentRedirect(getPostUrl({ post, type }))
+    permanentRedirect(getPostUrl({ post }))
   }
 
   const jsonLd: WithContext<Article> = {
@@ -133,7 +129,7 @@ export default async function PostPage({ params, searchParams }: Props) {
 
   return (
     <div className="flex flex-col h-100vh">
-      <BlogPost post={post} isDraft={type === 'draft'} />
+      <BlogPost post={post} />
       {/* 结构化数据必须直接出现在 SSR 的 HTML 里：用 next/script 只会进 __next_s 队列，需执行 JS 才注入 */}
       <script
         id="json-ld"

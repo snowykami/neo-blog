@@ -1,7 +1,7 @@
 'use client'
 
 import type { Post } from '@/models/post'
-import { ChevronRightIcon, FileSearchIcon, LockIcon, RotateCwIcon, XIcon } from 'lucide-react'
+import { ChevronRightIcon, FileSearchIcon, RotateCwIcon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { Fragment } from 'react'
@@ -48,20 +48,13 @@ export function PostListItem({ post, showAuthor = true, pinned = false }: { post
           hasCover && 'md:w-[calc(72%-0.75rem)] md:pr-4',
         )}
       >
-        {(pinned || post.isPrivate) && (
+        {/* 前台列表只有公开文章（私密文章只在后台可见），只需要置顶徽标 */}
+        {pinned && (
           <div className="mb-2 flex flex-wrap gap-2">
-            {pinned && (
-              <Badge variant="secondary" className="rounded-md">
-                <PinnedIcon />
-                {t('Common.pinned')}
-              </Badge>
-            )}
-            {post.isPrivate && (
-              <Badge variant="secondary" className="rounded-md">
-                <LockIcon aria-hidden />
-                {t('Common.private')}
-              </Badge>
-            )}
+            <Badge variant="secondary" className="rounded-md">
+              <PinnedIcon />
+              {t('Common.pinned')}
+            </Badge>
           </div>
         )}
 
@@ -155,7 +148,6 @@ export function PostList({
   posts,
   pinnedPosts = [],
   listLabel,
-  showPrivate = false,
   showAuthor = true,
   isLoading = false,
   skeletonCount = 6,
@@ -167,7 +159,6 @@ export function PostList({
   posts: Post[]
   pinnedPosts?: Post[] // 首页第一页最上方的置顶文章，后面用 listLabel 隔开普通文章
   listLabel?: string
-  showPrivate?: boolean
   showAuthor?: boolean
   isLoading?: boolean
   skeletonCount?: number
@@ -177,7 +168,6 @@ export function PostList({
   className?: string
 }) {
   const t = useTranslations('BlogHome')
-  const filteredPosts = showPrivate ? posts : posts.filter(post => !post.isPrivate)
   const cardClass = cn('overflow-hidden rounded-2xl bg-card', className)
 
   if (isLoading) {
@@ -207,7 +197,7 @@ export function PostList({
     )
   }
 
-  if (filteredPosts.length === 0 && pinnedPosts.length === 0) {
+  if (posts.length === 0 && pinnedPosts.length === 0) {
     return (
       <div className={cn(cardClass, 'flex flex-col items-center gap-2 px-6 py-14 text-center')}>
         <span aria-hidden className="mb-1 flex size-12 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
@@ -215,7 +205,7 @@ export function PostList({
         </span>
         <p className="text-lg font-medium text-foreground/75">{t('no_posts')}</p>
         <p className="text-sm text-foreground/50">
-          {showPrivate ? t('no_posts_found') : t('no_public_posts_found')}
+          {t('no_posts_found')}
         </p>
         {onClearFilter && (
           <Button variant="secondary" className="mt-2" onClick={onClearFilter}>
@@ -235,12 +225,12 @@ export function PostList({
           <div className={PINNED_ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} pinned /></div>
         </Fragment>
       ))}
-      {pinnedPosts.length > 0 && filteredPosts.length > 0 && (
+      {pinnedPosts.length > 0 && posts.length > 0 && (
         <div className="flex items-center gap-3 px-1 pt-1 text-xs text-muted-foreground after:flex-1 after:border-t after:border-dashed after:border-foreground/10 md:px-8 md:pt-3">
           {listLabel}
         </div>
       )}
-      {filteredPosts.map((post, index) => (
+      {posts.map((post, index) => (
         <Fragment key={post.id}>
           {index > 0 && <RowDivider />}
           <div className={ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} /></div>

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -501,5 +502,32 @@ func TestAgentMentionTrigger(t *testing.T) {
 		if run.TargetID == replyID {
 			t.Fatalf("mention should not duplicate the replied run: %+v", run)
 		}
+	}
+}
+
+// AI 用户只读前台能看到的内容：私密文章下的评论读不到，即使 AI 用户的账号被改成了管理员
+func TestAgentListCommentsSkipsPrivatePosts(t *testing.T) {
+	_, author, ai1, _, postID := setupAgentTest(t)
+	isPrivate := true
+	privateID, svcerr := NewPostService().CreatePost(author, &dto.CreateOrUpdatePostReq{
+		PostBaseDto: dto.PostBaseDto{Title: "secret", Content: "<p>secret</p>"},
+		IsPrivate:   &isPrivate,
+	})
+	if svcerr != nil {
+		t.Fatalf("create private post: %v", svcerr)
+	}
+	if _, svcerr := createComment(author, privateID, 0, false); svcerr != nil {
+		t.Fatalf("comment on private post: %v", svcerr)
+	}
+	if err := repo.GetDB().Model(&model.User{}).Where("id = ?", ai1.User.ID).Update("role", constant.RoleAdmin).Error; err != nil {
+		t.Fatalf("promote ai user: %v", err)
+	}
+	ctx, _ := leaseCtx(t, ai1.ID, constant.AgentRunKindDryRun)
+	svc := NewAIAgentService()
+	if _, svcerr := svc.AgentListComments(ctx, constant.TargetTypePost, privateID, 0, 20); svcerr == nil || svcerr.Code != http.StatusNotFound {
+		t.Fatalf("private post comments: want 404, got %v", svcerr)
+	}
+	if _, svcerr := svc.AgentListComments(ctx, constant.TargetTypePost, postID, 0, 20); svcerr != nil {
+		t.Fatalf("public post comments: %v", svcerr)
 	}
 }

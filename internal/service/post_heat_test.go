@@ -50,7 +50,7 @@ func TestViewCountFromVisitReport(t *testing.T) {
 	}
 
 	// 读取文章（含编辑器加载草稿）不再计数
-	if _, svcerr := NewPostService().GetPostSlugOrId(author, strconv.Itoa(int(post.ID))); svcerr != nil || views() != 0 {
+	if _, svcerr := NewPostService().GetPostForEdit(author, strconv.Itoa(int(post.ID))); svcerr != nil || views() != 0 {
 		t.Fatalf("get post should not count view: err=%v views=%d", svcerr, views())
 	}
 

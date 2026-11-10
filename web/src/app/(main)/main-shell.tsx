@@ -9,10 +9,13 @@ import { PageBackground } from '@/components/layout/page-background'
 import { useNav } from '@/contexts/nav-context'
 import { PageBackgroundProvider } from '@/contexts/page-background-context'
 
+// reportVisits：后台的文章预览也套这层外壳（见 console/posts/preview/[id]），预览不上报访问与性能数据
 export function MainShell({
   children,
+  reportVisits = true,
 }: Readonly<{
   children: React.ReactNode
+  reportVisits?: boolean
 }>) {
   const commonT = useTranslations('Common')
   // 全屏页面：顶栏收起为手势条、不显示页脚
@@ -25,8 +28,12 @@ export function MainShell({
         <PageBackground />
         <div className="relative z-10 flex min-h-screen flex-col">
           {/* 访问上报；文章 / 自定义页面详情页带 ID 自行上报 */}
-          <VisitReporter skipPrefixes={['/p/', '/page/']} />
-          <WebVitalsReporter />
+          {reportVisits && (
+            <>
+              <VisitReporter skipPrefixes={['/p/', '/page/']} />
+              <WebVitalsReporter />
+            </>
+          )}
 
           {/* 键盘用户可跳过导航直达正文 */}
           <a

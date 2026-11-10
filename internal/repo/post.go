@@ -265,8 +265,8 @@ func updatePostTx(tx *gorm.DB, post *model.Post, columns []string, replaceLabels
 	return tx.Model(post).Association("Labels").Replace(post.Labels)
 }
 
-// ListPosts 列出文章，includeAllPrivate 为 true 时不过滤他人的私密文章（仅供后台管理使用）
-func (p *postRepo) ListPosts(currentUserID uint, includeAllPrivate bool, query []string, req *dto.ListPostReq) ([]model.Post, int64, error) {
+// ListPosts 列出文章；includePrivate 为 true 时包含私密文章，仅供后台管理（全站或限定 req.UserID 为本人），前台一律传 false
+func (p *postRepo) ListPosts(includePrivate bool, query []string, req *dto.ListPostReq) ([]model.Post, int64, error) {
 	if !slices.Contains(constant.OrderByEnumPost, req.OrderBy) {
 		return nil, 0, errs.NewBadRequest("invalid_request_parameters")
 	}
@@ -277,8 +277,7 @@ func (p *postRepo) ListPosts(currentUserID uint, includeAllPrivate bool, query [
 		q = q.Where("posts.user_id = ?", req.UserID)
 	}
 
-	// 后台管理视图（includeAllPrivate）不做私密过滤
-	q = visiblePosts(q, currentUserID, includeAllPrivate)
+	q = visiblePosts(q, includePrivate)
 	// 首页默认列表：置顶文章另外返回，这里排除，置顶不占分页名额也不重复出现
 	if req.HomeListing() {
 		q = q.Where("NOT ("+activePinnedCondition+")", time.Now())
@@ -345,8 +344,8 @@ var postCardColumns = []string{
 }
 
 // ListPostCardsByIDs 按 id 批量读取文章引用卡片需要的数据（含作者与分类）
-// 与列表一致只返回当前用户能看到的文章：公开的，加上自己的私密文章；已删除的文章不在结果里
-func (p *postRepo) ListPostCardsByIDs(currentUserID uint, ids []uint) ([]model.Post, error) {
+// 卡片出现在前台正文里，只返回公开文章，不看当前用户是谁；私密与已删除的文章不在结果里
+func (p *postRepo) ListPostCardsByIDs(ids []uint) ([]model.Post, error) {
 	if len(ids) == 0 {
 		return []model.Post{}, nil
 	}
@@ -354,7 +353,7 @@ func (p *postRepo) ListPostCardsByIDs(currentUserID uint, ids []uint) ([]model.P
 	q := GetDB().Model(&model.Post{}).Select(postCardColumns).
 		Preload("User").Preload("Category").
 		Where("posts.id IN ?", ids)
-	if err := visiblePosts(q, currentUserID, false).Find(&posts).Error; err != nil {
+	if err := visiblePosts(q, false).Find(&posts).Error; err != nil {
 		return nil, err
 	}
 	return posts, nil
@@ -388,25 +387,22 @@ func (p *postRepo) ListCategories() ([]model.Category, error) {
 // activePinnedCondition 此刻置顶在首页：已置顶且没有到期（参数为当前时间）
 const activePinnedCondition = "posts.pinned_at IS NOT NULL AND (posts.pinned_until IS NULL OR posts.pinned_until > ?)"
 
-// visiblePosts 当前用户能看到的文章：公开的，加上自己的私密文章；后台管理视图不过滤
-func visiblePosts(q *gorm.DB, currentUserID uint, includeAllPrivate bool) *gorm.DB {
-	switch {
-	case includeAllPrivate:
+// visiblePosts 私密文章只在后台出现：前台查询（includePrivate 为 false）只留公开文章，不论当前用户是谁，
+// 前台数据因此对所有人一致；后台管理视图不过滤
+func visiblePosts(q *gorm.DB, includePrivate bool) *gorm.DB {
+	if includePrivate {
 		return q
-	case currentUserID > 0:
-		return q.Where("is_private = ? OR (is_private = ? AND user_id = ?)", false, true, currentUserID)
-	default:
-		return q.Where("is_private = ?", false)
 	}
+	return q.Where("posts.is_private = ?", false)
 }
 
-// ListPinnedPosts 此刻置顶在首页、当前用户能看到的文章，后置顶的在前；只读取列表需要的字段
-func (p *postRepo) ListPinnedPosts(currentUserID uint, includeAllPrivate bool, now time.Time, limit int) ([]model.Post, error) {
+// ListPinnedPosts 此刻置顶在首页的文章，后置顶的在前；includePrivate 为 false（前台）时只含公开文章；只读取列表需要的字段
+func (p *postRepo) ListPinnedPosts(includePrivate bool, now time.Time, limit int) ([]model.Post, error) {
 	var posts []model.Post
 	q := GetDB().Model(&model.Post{}).Preload("User").Preload("Category").Preload("Labels").
 		Omit("draft_content").
 		Where(activePinnedCondition, now)
-	err := visiblePosts(q, currentUserID, includeAllPrivate).
+	err := visiblePosts(q, includePrivate).
 		Order("posts.pinned_at DESC").Order("posts.id DESC").
 		Limit(limit).
 		Find(&posts).Error

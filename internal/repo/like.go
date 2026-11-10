@@ -161,8 +161,9 @@ func (l *likeRepo) GetLikedUsers(targetID uint, targetType string, limit int) ([
 }
 
 // ListLikesByUser 列出某用户的点赞记录（用户主页使用），只保留目标仍存在且可见的记录，按点赞时间倒序
-//   - viewAll：管理员查看，未删除的目标全部可见
-//   - isSelf：本人查看，文章、页面需公开或本人所有；
+// 私密文章只在后台可见：文章与文章下的评论一律只保留公开文章上的，不论谁在查看
+//   - viewAll：管理员查看，未删除的页面全部可见
+//   - isSelf：本人查看，页面需公开或本人所有；
 //     私密评论需本人参与过该评论树（含本人发表），或本人是评论所在文章/页面的作者
 //   - 其他人查看（用户已公开点赞记录）：只保留公开文章、页面及其下的公开评论
 func (l *likeRepo) ListLikesByUser(userID uint, viewAll, isSelf bool, page, size uint64) ([]model.Like, int64, error) {
@@ -178,9 +179,12 @@ func (l *likeRepo) ListLikesByUser(userID uint, viewAll, isSelf bool, page, size
 		}
 		return sub
 	}
+	publicPosts := func() *gorm.DB {
+		return GetDB().Model(&model.Post{}).Select("id").Where("is_private = ?", false)
+	}
 	visibleComments := GetDB().Model(&model.Comment{}).Select("id").
 		Where("((target_type = ? AND target_id IN (?)) OR (target_type = ? AND target_id IN (?)))",
-			constant.TargetTypePost, visibleTargets(&model.Post{}),
+			constant.TargetTypePost, publicPosts(),
 			constant.TargetTypePage, visibleTargets(&model.Page{}))
 	switch {
 	case viewAll:
@@ -200,7 +204,7 @@ func (l *likeRepo) ListLikesByUser(userID uint, viewAll, isSelf bool, page, size
 	query := GetDB().Model(&model.Like{}).
 		Where("user_id = ?", userID).
 		Where("((target_type = ? AND target_id IN (?)) OR (target_type = ? AND target_id IN (?)))",
-			constant.TargetTypePost, visibleTargets(&model.Post{}),
+			constant.TargetTypePost, publicPosts(),
 			constant.TargetTypeComment, visibleComments)
 	return PaginateQuery[model.Like](query, page, size, constant.OrderByCreatedAt, true)
 }

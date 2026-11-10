@@ -78,6 +78,10 @@ export function ConsoleShell({
     }
   }
 
+  // 文章预览按前台文章页的样子渲染（页面自带前台外壳），不套后台的侧栏与顶栏；权限由后端接口判定
+  if (pathname.startsWith(`${consolePath.postPreview}/`))
+    return children
+
   return (
     <SidebarProvider
       style={

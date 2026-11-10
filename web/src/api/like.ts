@@ -22,6 +22,20 @@ export async function toggleLike({
   return res.data
 }
 
+// 当前用户是否点赞了目标（需登录）：前台页面对所有人一致，登录用户的点赞状态由浏览器另取
+export async function getLikeStatus({
+  targetType,
+  targetId,
+}: {
+  targetType: TargetType
+  targetId: number
+}): Promise<BaseResponse<{ liked: boolean }>> {
+  const res = await axiosClient.get('/like/status', {
+    params: { targetType, targetId },
+  })
+  return res.data
+}
+
 export async function getLikedUsers({
   targetType,
   targetId,

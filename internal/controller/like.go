@@ -37,6 +37,21 @@ func (lc *LikeController) ToggleLike(ctx context.Context, c *app.RequestContext)
 	resps.Ok(c, resps.Success, utils.H{"status": liked})
 }
 
+// GetLikeStatus 当前用户是否点赞了目标
+func (lc *LikeController) GetLikeStatus(ctx context.Context, c *app.RequestContext) {
+	var req dto.ToggleLikeOrIsLikedOrLikedUsersReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	liked, svcerr := lc.service.IsLiked(ctx, req.TargetID, req.TargetType)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"liked": liked})
+}
+
 func (lc *LikeController) GetLikedUsers(ctx context.Context, c *app.RequestContext) {
 	var req dto.ToggleLikeOrIsLikedOrLikedUsersReq
 	if err := c.BindAndValidate(&req); err != nil {

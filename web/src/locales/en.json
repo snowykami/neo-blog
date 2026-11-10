@@ -108,7 +108,6 @@
     "clear_filter": "Clear filter",
     "no_posts": "No posts yet",
     "no_posts_found": "No posts found",
-    "no_public_posts_found": "No public posts found",
     "load_failed": "Failed to load posts",
     "retry": "Retry"
   },

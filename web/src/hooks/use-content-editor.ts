@@ -18,7 +18,7 @@ import axiosClient from '@/api/client'
 import { editSessionHeaders, isDraftConflict, isEditSessionConflict } from '@/api/edit-session'
 import { deleteFile, uploadFile } from '@/api/file'
 import { getPageById, updatePage } from '@/api/page'
-import { getPostById, updatePost } from '@/api/post'
+import { getPostForEdit, updatePost } from '@/api/post'
 import { batchDeleteRevisions, deleteRevision, discardDraft, restoreRevision } from '@/api/revision'
 import { AI_PREVIEW_META } from '@/components/tiptap-extension/ai-write-extension'
 import { REMOTE_SYNC_META } from '@/components/tiptap-extension/remote-change-extension'
@@ -125,7 +125,7 @@ const EMPTY_META: ContentMeta = {
 }
 
 const postAdapter: ContentAdapter = {
-  load: id => getPostById({ id, type: 'draft' }).then(res => res.data),
+  load: id => getPostForEdit({ id }).then(res => res.data),
   toMeta: (doc) => {
     const post = doc as Post
     return {

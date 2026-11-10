@@ -1,6 +1,6 @@
 import type { Post } from '@/models/post'
 import { usePathname, useRouter } from 'next/navigation'
-import { consolePath, getPostUrl, getUserUrl } from '@/utils/common/route'
+import { consolePath, getPostViewUrl, getUserUrl } from '@/utils/common/route'
 
 /**
  * 用于跳转到登录页并自动带上 redirect_back 参数
@@ -26,10 +26,11 @@ export function useToUserProfile() {
   }
 }
 
+// 后台的「查看」：私密文章只在后台可见，打开后台预览；公开文章打开前台文章页
 export function useToPost() {
   const router = useRouter()
   return ({ post }: { post: Post }) => {
-    router.push(getPostUrl({ post }))
+    router.push(getPostViewUrl(post))
   }
 }
 

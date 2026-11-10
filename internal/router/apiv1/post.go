@@ -14,6 +14,7 @@ func registerPostRoutes(group *route.RouterGroup) {
 	postGroupWithAuth := group.Group("/post").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleEditor))
 	postGroupPublic := group.Group("/post").Use(middleware.UseAuth(false))
 	{
+		// 前台接口只返回公开文章，不认登录身份放开私密文章；私密文章与草稿只在下方的后台接口返回
 		postGroupPublic.GET("/p/:slug_or_id", postController.Get)        // 获取文章
 		postGroupPublic.GET("/list", postController.List)                // 获取文章列表
 		postGroupPublic.GET("/cards", postController.GetPostCards)       // 批量获取正文「文章引用」卡片
@@ -23,6 +24,9 @@ func registerPostRoutes(group *route.RouterGroup) {
 		postGroupWithAuth.POST("/p", postController.Create)       // 创建文章
 		postGroupWithAuth.PUT("/p/:id", postController.Update)    // 更新文章
 		postGroupWithAuth.DELETE("/p/:id", postController.Delete) // 删除文章
+		// 后台读取：编辑器与预览读取文章（含私密文章与草稿），作者本人的文章列表（含私密文章）
+		postGroupWithAuth.GET("/p/:id/draft", postController.GetForEdit)
+		postGroupWithAuth.GET("/mine", postController.ListMine)
 		// 编辑会话：同时只允许最新打开编辑页的会话保存正文
 		postGroupWithAuth.POST("/p/:id/edit-session", controller.EditSession.Acquire(constant.TargetTypePost))
 		postGroupWithAuth.GET("/p/:id/edit-session", controller.EditSession.Current(constant.TargetTypePost))

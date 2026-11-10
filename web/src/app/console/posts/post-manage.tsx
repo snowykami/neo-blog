@@ -14,7 +14,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { listPinnedPostsAdmin, listPostsAdmin } from '@/api/admin'
-import { deletePost, listPosts, updatePost } from '@/api/post'
+import { deletePost, listMyPosts, updatePost } from '@/api/post'
 import { HoverPopover } from '@/components/common/hover-popover'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
@@ -110,7 +110,7 @@ export function PostManage() {
       const params = { page: p, size: sz, orderBy: ob, desc: d, query: q }
       const res = isAdminUser
         ? await listPostsAdmin({ ...params, userId: mine ? user.id : 0 })
-        : await listPosts({ ...params, userId: user.id })
+        : await listMyPosts(params)
       return { posts: res.data.posts, total: res.data.total }
     },
     {
@@ -420,8 +420,8 @@ function PostItem({
             variant="ghost"
             size="icon-sm"
             onClick={() => clickToPost({ post })}
-            aria-label={operationT('view')}
-            title={operationT('view')}
+            aria-label={operationT(post.isPrivate ? 'preview' : 'view')}
+            title={operationT(post.isPrivate ? 'preview' : 'view')}
           >
             <Eye className="size-4" />
           </Button>
@@ -525,8 +525,9 @@ function PostDropdownMenu({
           <DropdownMenuItem onClick={() => setMetaDialogOpen(true)} className="cursor-pointer">
             {operationT('setting')}
           </DropdownMenuItem>
+          {/* 私密文章只在后台可见：「查看」打开后台预览 */}
           <DropdownMenuItem onClick={() => clickToPost({ post })} className="cursor-pointer">
-            {operationT('view')}
+            {operationT(post.isPrivate ? 'preview' : 'view')}
           </DropdownMenuItem>
           {/* 生成中禁用，避免重复触发 */}
           <DropdownMenuItem disabled={aiSummaryRunning} onClick={onTriggerAISummary} className="cursor-pointer">

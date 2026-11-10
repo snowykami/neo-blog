@@ -217,6 +217,49 @@ func TestPostToolsFlow(t *testing.T) {
 	wantErr(t, err, "order_by")
 }
 
+// 私密文章：作者本人用 API Token 写作时可以读到自己的私密文章与草稿，预览地址指向后台；
+// 其他编辑者与 AI 用户的运行只能读到公开文章，即使 AI 用户的账号是管理员
+func TestPrivatePostVisibility(t *testing.T) {
+	env := setupTest(t)
+	writer := tokenCtx(t, env.author, constant.ScopePostsRead, constant.ScopePostsWrite)
+	_, created, err := createPost(writer, nil, createPostInput{Title: "Secret", Content: "hidden **draft**"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if !strings.HasSuffix(created.PreviewURL, "/console/posts/preview/1") || strings.Contains(created.PreviewURL, "type=draft") {
+		t.Fatalf("preview url should point to the console: %q", created.PreviewURL)
+	}
+	readOnly := tokenCtx(t, env.author, constant.ScopePostsRead)
+	if _, d, err := getPost(readOnly, nil, getPostInput{Post: "1"}); err != nil || d.Version != versionDraft || !strings.HasSuffix(d.PreviewURL, "/console/posts/preview/1") {
+		t.Fatalf("author should read the private draft: %v %+v", err, d)
+	}
+	if _, list, err := listPosts(readOnly, nil, listPostsInput{Mine: true}); err != nil || list.Total != 1 {
+		t.Fatalf("author mine should include the private post: %v %+v", err, list)
+	}
+	if _, list, err := listPosts(readOnly, nil, listPostsInput{}); err != nil || list.Total != 0 {
+		t.Fatalf("listing without mine shows public posts only: %v %+v", err, list)
+	}
+
+	otherReader := tokenCtx(t, env.other, constant.ScopePostsRead)
+	_, _, err = getPost(otherReader, nil, getPostInput{Post: "1"})
+	wantErr(t, err, "target_not_found")
+
+	// AI 用户的运行（账号即使是管理员）只读公开内容
+	aiAdmin := &model.User{Username: "ai", Email: "ai@test.local", Role: constant.RoleAdmin, IsAI: true}
+	if err := repo.GetDB().Create(aiAdmin).Error; err != nil {
+		t.Fatalf("create ai user: %v", err)
+	}
+	// 与 service.AgentRunContext 构造的上下文一致
+	agentCtx := ctxutils.WithUserCache(context.WithValue(context.Background(), "user_id", aiAdmin.ID))
+	agentCtx = ctxutils.WithAPIToken(agentCtx, &ctxutils.APITokenInfo{Name: "ai-agent", Scopes: service.EffectiveScopes([]string{constant.ScopePostsRead}, aiAdmin.Role)})
+	agentCtx = ctxutils.WithAgentRun(agentCtx, &ctxutils.AgentRunInfo{RunID: 1, AgentID: 1, UserID: aiAdmin.ID})
+	_, _, err = getPost(agentCtx, nil, getPostInput{Post: "1"})
+	wantErr(t, err, "target_not_found")
+	if _, list, err := listPosts(agentCtx, nil, listPostsInput{}); err != nil || list.Total != 0 {
+		t.Fatalf("agent run must not list private posts: %v %+v", err, list)
+	}
+}
+
 func TestUploadImage(t *testing.T) {
 	env := setupTest(t)
 	reader := tokenCtx(t, env.author, constant.ScopePostsRead)

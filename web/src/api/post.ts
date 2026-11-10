@@ -7,16 +7,12 @@ import { OrderBy } from '@/models/common'
 import axiosClient from './client'
 import { editSessionHeaders } from './edit-session'
 
-export async function getPostById({
-  id,
-  type = 'normal',
-}: {
-  id: string
-  type?: 'draft' | 'normal'
-}): Promise<BaseResponse<Post | null>> {
-  const res = await axiosClient.get(`/post/p/${id}`, {
-    params: { type },
-  })
+/**
+ * 后台读取文章（编辑器加载、预览）：含私密文章与草稿（没有草稿时 draftContent 为已发布的正文），仅作者本人与管理员。
+ * 前台读取文章走 api/post.server.ts 的 getPostByIdServer，只返回公开文章
+ */
+export async function getPostForEdit({ id }: { id: string }): Promise<BaseResponse<Post>> {
+  const res = await axiosClient.get(`/post/p/${id}/draft`)
   return res.data
 }
 
@@ -49,13 +45,13 @@ export async function listPosts({
   query?: string // 搜索查询，逗号分割
   label?: string // 标签，逗号分割
   category?: string
-  userId?: number // 用户ID，管理员可查看指定用户的文章
+  userId?: number // 只看某位作者的文章（用户主页）
   noContent?: boolean // 是否不返回内容，用于只需要列表时
   // 首页列表：没有筛选时另外返回置顶文章（pinned），并从 posts 中排除它们，total 不含置顶；有筛选时后端忽略
   withPinned?: boolean
-} & PaginationParams, options?: { headers?: Record<string, string> }): Promise<BaseResponse<{ posts: Post[], total: number, pinned?: Post[] }>> {
+} & PaginationParams): Promise<BaseResponse<{ posts: Post[], total: number, pinned?: Post[] }>> {
+  // 前台列表只含公开文章，不论谁在看；后台管理用 listMyPosts / listPostsAdmin
   const res = await axiosClient.get('/post/list', {
-    headers: options?.headers,
     params: {
       page,
       size,
@@ -68,6 +64,20 @@ export async function listPosts({
       userId,
       withPinned: withPinned || undefined,
     },
+  })
+  return res.data
+}
+
+// 后台「我的文章」：当前用户自己的全部文章（含私密文章）
+export async function listMyPosts({
+  page = 1,
+  size = 10,
+  orderBy = OrderBy.CreatedAt,
+  desc = true,
+  query = '',
+}: { query?: string } & PaginationParams): Promise<BaseResponse<{ posts: Post[], total: number }>> {
+  const res = await axiosClient.get('/post/mine', {
+    params: { page, size, orderBy, desc, query },
   })
   return res.data
 }

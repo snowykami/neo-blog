@@ -51,8 +51,8 @@ type postCardsResp struct {
 	} `json:"data"`
 }
 
-// 正文「文章引用」卡片的批量接口：一次请求取多篇，只返回当前用户能看到的文章，
-// 已删除与不可见的文章不返回，返回顺序与请求一致
+// 正文「文章引用」卡片的批量接口：一次请求取多篇，只返回公开文章（不看当前用户是谁），
+// 已删除与私密的文章不返回，返回顺序与请求一致
 func TestPostCardsRoute(t *testing.T) {
 	sharedstate.UseMemory()
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
@@ -63,8 +63,10 @@ func TestPostCardsRoute(t *testing.T) {
 	}
 	author := &model.User{Username: "author", Email: "author@test.local", Role: constant.RoleEditor}
 	other := &model.User{Username: "other", Email: "other@test.local", Role: constant.RoleEditor}
+	admin := &model.User{Username: "admin", Email: "admin@test.local", Role: constant.RoleAdmin}
 	repo.GetDB().Create(author)
 	repo.GetDB().Create(other)
+	repo.GetDB().Create(admin)
 
 	create := func(user *model.User, title string, isPrivate bool) uint {
 		ctx := context.WithValue(context.Background(), "user_id", user.ID)
@@ -99,25 +101,21 @@ func TestPostCardsRoute(t *testing.T) {
 		t.Fatalf("guest card carries content: %+v", guest.Data.Cards[0])
 	}
 
-	var authorView postCardsResp
-	getJSONAs(t, url, loginCookie(t, author), &authorView)
-	wantOrder := []uint{privateID, publicID}
-	if len(authorView.Data.Cards) != len(wantOrder) {
-		t.Fatalf("author cards = %+v, want %v", authorView.Data.Cards, wantOrder)
-	}
-	for i, id := range wantOrder {
-		if authorView.Data.Cards[i].ID != id {
-			t.Fatalf("author cards order = %+v, want %v", authorView.Data.Cards, wantOrder)
+	// 私密文章只在后台可见：作者本人与管理员读取卡片同样只拿到公开文章，前台数据对所有人一致
+	for name, user := range map[string]*model.User{"author": author, "other": other, "admin": admin} {
+		var view postCardsResp
+		getJSONAs(t, url, loginCookie(t, user), &view)
+		if len(view.Data.Cards) != 1 || view.Data.Cards[0].ID != publicID {
+			t.Fatalf("%s cards = %+v, want only the public post %d", name, view.Data.Cards, publicID)
 		}
 	}
 
-	// 别人的私密文章对普通用户同样不可见
-	var otherView postCardsResp
-	getJSONAs(t, url, loginCookie(t, other), &otherView)
-	for _, card := range otherView.Data.Cards {
-		if card.ID == privateID {
-			t.Fatalf("other user sees the author's private post: %+v", otherView.Data.Cards)
-		}
+	// 请求顺序：多篇公开文章按请求顺序返回
+	secondID := create(other, "second", false)
+	var ordered postCardsResp
+	getJSONAs(t, base+"/post/cards?ids="+joinIDs(secondID, privateID, publicID), "", &ordered)
+	if len(ordered.Data.Cards) != 2 || ordered.Data.Cards[0].ID != secondID || ordered.Data.Cards[1].ID != publicID {
+		t.Fatalf("ordered cards = %+v, want [%d %d]", ordered.Data.Cards, secondID, publicID)
 	}
 
 	// 非法 id 与空参数

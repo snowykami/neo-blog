@@ -63,7 +63,6 @@ export function UserPosts({ userId }: { userId: number }) {
       </SectionTitle>
       <PostList
         posts={posts}
-        showPrivate={true}
         showAuthor={false}
         isLoading={loading}
         skeletonCount={pageSize}
