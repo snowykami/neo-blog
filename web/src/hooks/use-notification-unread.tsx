@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { getUnreadNotificationCount } from '@/api/notification'
 import { useAuth } from '@/contexts/auth-context'
 import { pushIslandAlert } from '@/contexts/topbar-island'
+import { apiUrl, PUBLIC_BACKEND_URL } from '@/utils/common/api-url'
 
 // 兜底轮询间隔：SSE 连不上时（代理不支持长连接等）仍能更新徽标
 const POLL_INTERVAL_MS = 60_000
@@ -78,7 +79,10 @@ export function useUnreadNotificationCount() {
     // SSE：浏览器会自动重连，这里只需要把收到的未读数写进状态
     let source: EventSource | null = null
     if (typeof EventSource !== 'undefined') {
-      source = new EventSource('/api/v1/notifications/stream')
+      source = new EventSource(apiUrl('/api/v1/notifications/stream'), {
+        // 直连后端时是跨源 SSE，必须显式带上 cookie
+        withCredentials: Boolean(PUBLIC_BACKEND_URL),
+      })
       source.addEventListener('unread', (event) => {
         try {
           const payload = JSON.parse((event as MessageEvent<string>).data) as { total?: number }

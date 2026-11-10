@@ -67,13 +67,19 @@ func init() {
 	)
 	// panic 与 5xx 记为后端错误报告，可在控制台查看
 	// 压缩注册在文件链接改写之前：先等其他中间件处理完响应体，再整体压缩
-	h.Use(recovery.Recovery(recovery.WithRecoveryHandler(middleware.RecoveryHandler)), middleware.UseCompress(), middleware.UseTrack(), middleware.UseErrorReport(), middleware.UseFileLinks())
+	// CORS 放最前：跨源预检直接 204 返回，不进业务链路；未配置 CORS_ALLOW_ORIGINS 时什么都不做
+	h.Use(recovery.Recovery(recovery.WithRecoveryHandler(middleware.RecoveryHandler)), middleware.UseCORS(), middleware.UseCompress(), middleware.UseTrack(), middleware.UseErrorReport(), middleware.UseFileLinks())
 	apiv1.RegisterRoutes(h)
 	// 存活检查：进程能响应即可，不依赖数据库，避免数据库抖动时实例被反复重启
 	h.GET("/healthz", func(ctx context.Context, c *app.RequestContext) {
 		resps.Ok(c, "ok", nil)
 	})
 	h.GET("/readyz", readyz)
+	// 跨源预检发的是 OPTIONS，业务路由上没有对应方法，会落到 NoRoute：
+	// 这里同样过一遍 CORS，否则预检拿到的是 404，浏览器会判定跨源请求失败
+	h.NoRoute(middleware.UseCORS(), func(ctx context.Context, c *app.RequestContext) {
+		c.String(http.StatusNotFound, "Not Found")
+	})
 }
 
 // readyz 就绪检查：正在关停或连不上数据库时返回 503，负载均衡据此不再把请求转给本实例；

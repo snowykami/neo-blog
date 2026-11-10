@@ -1,6 +1,7 @@
 import process from 'node:process'
 import axios from 'axios'
 import { camelToSnakeObj, snakeToCamelObj } from 'field-conv'
+import { PUBLIC_BACKEND_URL } from '@/utils/common/api-url'
 
 // 去掉末尾的 /，避免与 /api/v1 拼出 //api/v1
 export const BACKEND_URL
@@ -13,8 +14,13 @@ const isServer = typeof window === 'undefined'
 
 const API_SUFFIX = '/api/v1'
 
+// 浏览器侧：配置了 PUBLIC_BACKEND_URL 就直连后端，否则走同源的 /api/v1 代理
+const CLIENT_API_BASE = PUBLIC_BACKEND_URL ? PUBLIC_BACKEND_URL + API_SUFFIX : API_SUFFIX
+
 const axiosClient = axios.create({
-  baseURL: isServer ? BACKEND_URL + API_SUFFIX : API_SUFFIX,
+  baseURL: isServer ? BACKEND_URL + API_SUFFIX : CLIENT_API_BASE,
+  // 直连时是跨源请求，cookie 需要显式允许携带；同源代理时浏览器本来就会带
+  withCredentials: Boolean(PUBLIC_BACKEND_URL),
   timeout: 10000,
 })
 

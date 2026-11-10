@@ -46,4 +46,5 @@ const (
 	EnvKeyRedisKeyPrefix                   = "REDIS_KEY_PREFIX"                     // 环境变量：Redis 键前缀，多个应用共用一个 Redis 时区分，默认 neo-blog:
 	EnvKeyAIAgentWorkers                   = "AI_AGENT_WORKERS"                     // 环境变量：每个实例执行 AI 用户任务的 worker 数（并发），默认 2，设为 0 时本实例不执行
 	EnvKeyShutdownDelaySeconds             = "SHUTDOWN_DELAY_SECONDS"               // 环境变量：收到退出信号后先让就绪检查失败、等待多少秒再关停 HTTP 服务，默认 5（开发模式默认 0）
+	EnvKeyCorsAllowOrigins                 = "CORS_ALLOW_ORIGINS"                   // 环境变量：允许跨源直连后端的来源（逗号分隔，如 https://blog.example.com）；未设置时不启用 CORS
 )

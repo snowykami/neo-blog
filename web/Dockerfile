@@ -23,6 +23,9 @@ ENV NEXT_PUBLIC_APP_VERSION=${APP_VERSION}
 # 走 Next 图片优化的本站图床 / 对象存储域名，逗号分隔；未传入时只优化站内相对路径，其余外链由浏览器直连
 ARG IMAGE_OPTIMIZE_HOSTS=""
 ENV NEXT_PUBLIC_IMAGE_OPTIMIZE_HOSTS=${IMAGE_OPTIMIZE_HOSTS}
+# 浏览器直连后端的地址（可选）：配置后前端请求不再经 app/api/v1 代理；跨源时后端需返回 CORS 头
+ARG NEXT_PUBLIC_BACKEND_URL=""
+ENV NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
 # 这里用 lint 而不是 lint:fix：格式不合规应当直接失败，避免 CI 静默重排代码导致镜像内容与仓库不一致
 RUN pnpm run lint && pnpm run build
 
