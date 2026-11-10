@@ -85,12 +85,19 @@ func (r *notificationRepo) UpsertThreadAggregate(tx *gorm.DB, notification *mode
 	}
 	notification.AggregateCount = 1
 	now := time.Now()
+	notification.ActivityAt = now
 	if err := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "dedupe_key"}, {Name: "user_id"}},
 		DoUpdates: clause.Assignments(map[string]any{
 			"aggregate_count": gorm.Expr("notifications.aggregate_count + 1"),
 			"updated_at":      now,
-			"read_at":         gorm.Expr("NULL"),
+			// 列表按最近活动排序：有新回复的折叠行回到顶部
+			"activity_at": now,
+			"read_at":     gorm.Expr("NULL"),
+			// 已发过（或因已读跳过）的折叠行有了新回复，重新挂回附带状态，搭下一封邮件的车；
+			// 新状态取本次写入算出的值（收件人已关闭邮件时仍是 skipped），其余状态（attached / sending）保持不变
+			"email_state": gorm.Expr("CASE WHEN notifications.email_state IN (?, ?) THEN excluded.email_state ELSE notifications.email_state END",
+				constant.NotificationEmailStateSent, constant.NotificationEmailStateSkipped),
 		}),
 	}).Create(notification).Error; err != nil {
 		return err
@@ -158,12 +165,16 @@ func (r *notificationRepo) DeleteByCommentIDs(tx *gorm.DB, commentIDs []uint) er
 		Delete(&model.Notification{}).Error
 }
 
-// DeleteNotificationByEvent 取消点赞时硬删对应的通知行（软删会撞唯一索引，见 4.4）
-func (r *notificationRepo) DeleteNotificationByEvent(tx *gorm.DB, eventID, userID uint) error {
+// DeleteNotificationByDedupe 取消点赞时硬删对应的通知行（软删会撞唯一索引，见 4.4）。
+// 直接按通知行自己的 (dedupe_key, user_id) 删除，不经过事件表：事件可能已被保留期清理，
+// 经事件反查会漏删，下次点赞再撞上 (dedupe_key, user_id) 唯一索引而写不进新通知
+func (r *notificationRepo) DeleteNotificationByDedupe(tx *gorm.DB, dedupeKey string, userID uint) error {
 	if tx == nil {
 		tx = GetDB()
 	}
-	return tx.Unscoped().Where("event_id = ? AND user_id = ?", eventID, userID).Delete(&model.Notification{}).Error
+	return tx.Unscoped().
+		Where("dedupe_key = ? AND user_id = ? AND type IN ?", dedupeKey, userID, likeGroupTypes).
+		Delete(&model.Notification{}).Error
 }
 
 // List 一屏通知：点赞类按「类型 + 目标 + 自然日」归并，其余类型一行一组，
@@ -197,7 +208,8 @@ func (r *notificationRepo) List(filter *NotificationFilter) ([]NotificationGroup
 	err := base().
 		Select(groupKey + " AS group_key, MAX(id) AS max_id, COUNT(*) AS count, SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) AS unread_count").
 		Group(groupKey).
-		Order("MAX(created_at) DESC, MAX(id) DESC").
+		// 按组内最近活动排序：折叠行有新回复时 activity_at 会刷新，点赞组取最新一条的时间
+		Order("MAX(activity_at) DESC, MAX(id) DESC").
 		Offset(int((filter.Page - 1) * filter.Size)).
 		Limit(int(filter.Size)).
 		Scan(&rows).Error
@@ -351,11 +363,15 @@ func (r *notificationRepo) MarkAllRead(userID uint, beforeID *uint) (int64, erro
 	return result.RowsAffected, result.Error
 }
 
-// cancelPendingEmails 已读即视为不需要这封邮件：把同一批行里仍待发的（pending）直接置为 skipped。
-// 已进批次（sending）、已发（sent）与附带行（attached）不动：前者已在发送中，后两者不受已读影响
+// cancelPendingEmails 已读即视为不需要邮件：同一批行里待发（pending）与等搭车（attached）的直接置为 skipped。
+// 已进批次（sending）与已发（sent）不动：前者正在发送中，后者已经送达。
+// 这里只是提前清掉，发信前 worker 仍会按 read_at 再复核一次（标记已读与领取可能并发）
 func cancelPendingEmails(query *gorm.DB) error {
-	return query.Where("email_state = ?", constant.NotificationEmailStatePending).
-		Update("email_state", constant.NotificationEmailStateSkipped).Error
+	return query.Where("email_state IN ?", []string{constant.NotificationEmailStatePending, constant.NotificationEmailStateAttached}).
+		Updates(map[string]any{
+			"email_state":    constant.NotificationEmailStateSkipped,
+			"email_last_err": NotificationEmailSkipRead,
+		}).Error
 }
 
 // GetByIDAndUser 读取本人的一条通知，用于单条已读与越权判断
@@ -433,16 +449,15 @@ func isLikeGroupType(eventType string) bool {
 	return false
 }
 
-// GetEventByDedupeKey 按去重键取事件，取不到即当时没有产生通知
-func (r *notificationRepo) GetEventByDedupeKey(dedupeKey string) (*model.InteractionEvent, error) {
-	var event model.InteractionEvent
-	if err := GetDB().Where("dedupe_key = ?", dedupeKey).First(&event).Error; err != nil {
-		return nil, err
-	}
-	return &event, nil
-}
-
 // ---- 邮件投递（outbox：notifications.email_state 就是状态机，见 docs/notification-spec.md 6.3）----
+
+// 跳过原因：skipped 的行把原因写进 email_last_err，后台排查时能看出为什么没发
+const (
+	NotificationEmailSkipRead          = "skip:read"           // 收件人已读
+	NotificationEmailSkipUnsubscribed  = "skip:unsubscribed"   // 收件人关掉了该类型或全部通知邮件
+	NotificationEmailSkipRecipientGone = "skip:recipient_gone" // 收件人已注销、被禁用或没有邮箱
+	NotificationEmailSkipOverdue       = "skip:overdue"        // 逾期太久（站点邮件关闭期间积压），不再补发
+)
 
 // ListDueEmailPending 取出已到期的重要通知，按收件人与 id 排序
 func (r *notificationRepo) ListDueEmailPending(now time.Time, limit int) ([]model.Notification, error) {
@@ -453,14 +468,18 @@ func (r *notificationRepo) ListDueEmailPending(now time.Time, limit int) ([]mode
 	return notifications, err
 }
 
-// ClaimEmailBatch 条件更新 pending → sending，领到的行才是本封的主列表；被别的实例领走的行不会返回
-func (r *notificationRepo) ClaimEmailBatch(ids []uint) ([]model.Notification, error) {
+// ClaimEmailBatch 条件更新 pending → sending 并记下领取时间，领到的行才是本封的主列表；
+// 被别的实例领走或已被标记已读而跳过的行不会返回
+func (r *notificationRepo) ClaimEmailBatch(ids []uint, now time.Time) ([]model.Notification, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
 	if err := GetDB().Model(&model.Notification{}).
 		Where("id IN ? AND email_state = ?", ids, constant.NotificationEmailStatePending).
-		Update("email_state", constant.NotificationEmailStateSending).Error; err != nil {
+		Updates(map[string]any{
+			"email_state":      constant.NotificationEmailStateSending,
+			"email_claimed_at": now,
+		}).Error; err != nil {
 		return nil, err
 	}
 	// 邮件正文要渲染作者昵称与头像：这里必须带出 Actor，否则昵称与头像都是空的
@@ -474,13 +493,47 @@ func (r *notificationRepo) ClaimEmailBatch(ids []uint) ([]model.Notification, er
 	return claimed, nil
 }
 
-// ListAttachedForEmail 收件人在时间窗口内的附带行（点赞、AI 互动、线程活动），按时间倒序
-func (r *notificationRepo) ListAttachedForEmail(userID uint, since time.Time, limit int) ([]model.Notification, error) {
-	var notifications []model.Notification
-	err := GetDB().
-		Where("user_id = ? AND email_state = ? AND created_at >= ?", userID, constant.NotificationEmailStateAttached, since).
-		Order("created_at DESC, id DESC").Limit(limit).Find(&notifications).Error
-	return notifications, err
+// ClaimAttachedForEmail 领取收件人在时间窗口内、仍未读的附带行（点赞、AI 互动、线程活动），按时间倒序，最多 limit 条。
+// 与主列表一样条件更新 attached → sending：领取期间被标记已读的行不会被带上，也不会被另一封邮件重复带上。
+// 附带行领取后 email_next_at 仍为空，收回超时批次时据此把它们退回 attached 而不是 pending
+func (r *notificationRepo) ClaimAttachedForEmail(userID uint, since time.Time, limit int, now time.Time) ([]model.Notification, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	var candidates []uint
+	if err := GetDB().Model(&model.Notification{}).
+		Where("user_id = ? AND email_state = ? AND read_at IS NULL AND created_at >= ?", userID, constant.NotificationEmailStateAttached, since).
+		Order("created_at DESC, id DESC").Limit(limit).Pluck("id", &candidates).Error; err != nil {
+		return nil, err
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+	if err := GetDB().Model(&model.Notification{}).
+		Where("id IN ? AND email_state = ? AND read_at IS NULL", candidates, constant.NotificationEmailStateAttached).
+		Updates(map[string]any{
+			"email_state":      constant.NotificationEmailStateSending,
+			"email_claimed_at": now,
+		}).Error; err != nil {
+		return nil, err
+	}
+	var claimed []model.Notification
+	err := GetDB().Where("id IN ? AND email_state = ?", candidates, constant.NotificationEmailStateSending).
+		Order("created_at DESC, id DESC").Find(&claimed).Error
+	return claimed, err
+}
+
+// ReleaseAttachedEmails 这封没发出去：领到的附带行退回 attached，等下一封
+func (r *notificationRepo) ReleaseAttachedEmails(ids []uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return GetDB().Model(&model.Notification{}).
+		Where("id IN ? AND email_state = ?", ids, constant.NotificationEmailStateSending).
+		Updates(map[string]any{
+			"email_state":      constant.NotificationEmailStateAttached,
+			"email_claimed_at": nil,
+		}).Error
 }
 
 // MarkEmailsSent 发送成功后置为已发送
@@ -495,13 +548,15 @@ func (r *notificationRepo) MarkEmailsSent(ids []uint, now time.Time) error {
 	}).Error
 }
 
-// MarkEmailsSkipped 不再发送（关闭邮件、超窗口、超限速）
-func (r *notificationRepo) MarkEmailsSkipped(ids []uint) error {
+// MarkEmailsSkipped 不再发送（已读、退订、收件人不可用、逾期），reason 见 NotificationEmailSkip*
+func (r *notificationRepo) MarkEmailsSkipped(ids []uint, reason string) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	return GetDB().Model(&model.Notification{}).Where("id IN ?", ids).
-		Update("email_state", constant.NotificationEmailStateSkipped).Error
+	return GetDB().Model(&model.Notification{}).Where("id IN ?", ids).Updates(map[string]any{
+		"email_state":    constant.NotificationEmailStateSkipped,
+		"email_last_err": reason,
+	}).Error
 }
 
 // RescheduleEmails 发送失败：整批退回 pending 并推迟到 nextAt；退避次数用尽时置为 failed
@@ -514,20 +569,76 @@ func (r *notificationRepo) RescheduleEmails(ids []uint, nextAt time.Time, lastEr
 		state = constant.NotificationEmailStateFailed
 	}
 	return GetDB().Model(&model.Notification{}).Where("id IN ?", ids).Updates(map[string]any{
-		"email_state":    state,
-		"email_attempts": gorm.Expr("email_attempts + 1"),
-		"email_next_at":  nextAt,
-		"email_last_err": truncateBytes(lastErr, 255),
+		"email_state":      state,
+		"email_attempts":   gorm.Expr("email_attempts + 1"),
+		"email_next_at":    nextAt,
+		"email_last_err":   truncateBytes(lastErr, 255),
+		"email_claimed_at": nil,
 	}).Error
 }
 
-// DeferEmails 只推迟下一次尝试（限速时用），不计失败次数、不改状态
+// DeferEmails 已领取的行退回 pending 并推迟下一次尝试（限速时用），不计失败次数
 func (r *notificationRepo) DeferEmails(ids []uint, nextAt time.Time) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	return GetDB().Model(&model.Notification{}).Where("id IN ?", ids).
-		Update("email_next_at", nextAt).Error
+	return GetDB().Model(&model.Notification{}).Where("id IN ?", ids).Updates(map[string]any{
+		"email_state":      constant.NotificationEmailStatePending,
+		"email_next_at":    nextAt,
+		"email_claimed_at": nil,
+	}).Error
+}
+
+// SkipOverdueEmails 到期后迟迟没发出去的重要通知（站点邮件关闭期间积压、长期限速）超过 before 就不再补发，
+// 置为 skipped：重新打开邮件时只发近期的，不会把积压的旧通知一次性灌进收件箱
+func (r *notificationRepo) SkipOverdueEmails(before time.Time) (int64, error) {
+	result := GetDB().Model(&model.Notification{}).
+		Where("email_state = ? AND email_next_at IS NOT NULL AND email_next_at < ?", constant.NotificationEmailStatePending, before).
+		Updates(map[string]any{
+			"email_state":    constant.NotificationEmailStateSkipped,
+			"email_last_err": NotificationEmailSkipOverdue,
+		})
+	return result.RowsAffected, result.Error
+}
+
+// ReclaimStaleSendingEmails 收回领取时间早于 before 仍停在 sending 的行（发信实例中途退出）：
+// 附带行（email_next_at 为空）退回 attached；重要行算一次失败，次数用尽置 failed，否则退回 pending 立即重试
+func (r *notificationRepo) ReclaimStaleSendingEmails(before, now time.Time, maxAttempts int) (int64, error) {
+	stale := func() *gorm.DB {
+		return GetDB().Model(&model.Notification{}).
+			Where("email_state = ? AND (email_claimed_at IS NULL OR email_claimed_at < ?)", constant.NotificationEmailStateSending, before)
+	}
+	var total int64
+	result := stale().Where("email_next_at IS NULL").Updates(map[string]any{
+		"email_state":      constant.NotificationEmailStateAttached,
+		"email_claimed_at": nil,
+	})
+	if result.Error != nil {
+		return total, result.Error
+	}
+	total += result.RowsAffected
+	const reason = "sending timed out (instance exited?)"
+	result = stale().Where("email_next_at IS NOT NULL AND email_attempts + 1 >= ?", maxAttempts).Updates(map[string]any{
+		"email_state":      constant.NotificationEmailStateFailed,
+		"email_attempts":   gorm.Expr("email_attempts + 1"),
+		"email_last_err":   reason,
+		"email_claimed_at": nil,
+	})
+	if result.Error != nil {
+		return total, result.Error
+	}
+	total += result.RowsAffected
+	result = stale().Where("email_next_at IS NOT NULL").Updates(map[string]any{
+		"email_state":      constant.NotificationEmailStatePending,
+		"email_attempts":   gorm.Expr("email_attempts + 1"),
+		"email_next_at":    now,
+		"email_last_err":   reason,
+		"email_claimed_at": nil,
+	})
+	if result.Error != nil {
+		return total, result.Error
+	}
+	return total + result.RowsAffected, nil
 }
 
 // SkipStaleAttachedEmails 长期没有重要邮件的收件人：附带行超过搭车窗口后置为 skipped，不再积压
@@ -538,14 +649,18 @@ func (r *notificationRepo) SkipStaleAttachedEmails(before time.Time) (int64, err
 	return result.RowsAffected, result.Error
 }
 
-// DeleteBefore 保留期清理：硬删该时间之前的通知与互动事件
+// DeleteBefore 保留期清理：硬删该时间之前的通知，再删不再被任何通知引用的旧事件。
+// 取消点赞后再点赞会复用最早的那条事件（created_at 是第一次点赞的时间），而新通知行的 created_at 是最近一次；
+// 只按事件的 created_at 删会删掉仍被通知引用的事件，所以要排除被引用的
 func (r *notificationRepo) DeleteBefore(before time.Time) (notifications, events int64, err error) {
 	result := GetDB().Unscoped().Where("created_at < ?", before).Delete(&model.Notification{})
 	if result.Error != nil {
 		return 0, 0, result.Error
 	}
 	notifications = result.RowsAffected
-	result = GetDB().Unscoped().Where("created_at < ?", before).Delete(&model.InteractionEvent{})
+	referenced := GetDB().Unscoped().Model(&model.Notification{}).Select("1").
+		Where("notifications.event_id = interaction_events.id")
+	result = GetDB().Unscoped().Where("created_at < ? AND NOT EXISTS (?)", before, referenced).Delete(&model.InteractionEvent{})
 	if result.Error != nil {
 		return notifications, 0, result.Error
 	}
@@ -607,12 +722,40 @@ func (r *notificationRepo) ListEmailDeliveries(state string, page, size uint64) 
 	return rows, total, err
 }
 
-// RetryEmail 后台手动重试一条投递：退回 pending 并立即可发
-func (r *notificationRepo) RetryEmail(id uint) error {
-	now := time.Now()
-	return GetDB().Model(&model.Notification{}).Where("id = ?", id).Updates(map[string]any{
-		"email_state":    constant.NotificationEmailStatePending,
-		"email_next_at":  now,
-		"email_attempts": 0,
-	}).Error
+// RetryEmail 后台手动重试一条投递：只接受失败的行与超时仍停在 sending 的重要行，退回 pending 并立即可发。
+// 已发送、已跳过、等搭车的行不能重试（否则会重复发信或绕过收件人的退订）；返回是否真的退回了
+func (r *notificationRepo) RetryEmail(id uint, staleBefore, now time.Time) (bool, error) {
+	result := GetDB().Model(&model.Notification{}).
+		Where("id = ?", id).
+		Where("email_state = ? OR (email_state = ? AND email_next_at IS NOT NULL AND (email_claimed_at IS NULL OR email_claimed_at < ?))",
+			constant.NotificationEmailStateFailed, constant.NotificationEmailStateSending, staleBefore).
+		Updates(map[string]any{
+			"email_state":      constant.NotificationEmailStatePending,
+			"email_next_at":    now,
+			"email_attempts":   0,
+			"email_claimed_at": nil,
+		})
+	return result.RowsAffected > 0, result.Error
+}
+
+// GetEmailDelivery 读一条投递记录（不限收件人，只给管理员排查用）
+func (r *notificationRepo) GetEmailDelivery(id uint) (*model.Notification, error) {
+	var notification model.Notification
+	if err := GetDB().Where("id = ?", id).First(&notification).Error; err != nil {
+		return nil, err
+	}
+	return &notification, nil
+}
+
+// LatestActivity 收件人最近一条通知的 id 与活动时间：实时推送带上它，前端据此判断「来了新通知」。
+// 只看未读组数会漏掉点赞并入已有未读组、折叠行有新回复这类组数不变的情况
+func (r *notificationRepo) LatestActivity(userID uint) (uint, *time.Time, error) {
+	var latest model.Notification
+	err := GetDB().Select("id", "activity_at").Where("user_id = ?", userID).
+		Order("activity_at DESC, id DESC").Limit(1).Find(&latest).Error
+	if err != nil || latest.ID == 0 {
+		return 0, nil, err
+	}
+	at := latest.ActivityAt
+	return latest.ID, &at, nil
 }

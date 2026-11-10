@@ -159,11 +159,18 @@ func (nc *NotificationController) SendTestNotification(ctx context.Context, c *a
 // 避免客户端异常断开时在服务端留下一条永不结束的连接
 const notificationStreamMaxLifetime = 10 * time.Minute
 
-// StreamNotifications SSE：有新通知时推一条当前未读数；客户端断开或到点后由浏览器自动重连
+// StreamNotifications SSE：有新通知时推一条当前未读数与最近一条通知的标记（latest_id / latest_at）；
+// 客户端断开或到点后由浏览器自动重连
 func (nc *NotificationController) StreamNotifications(ctx context.Context, c *app.RequestContext) {
 	userID, ok := ctxutils.GetCurrentUserID(ctx)
 	if !ok {
 		resps.Unauthorized(c, "login_required")
+		return
+	}
+	// 每个用户的连接数有上限（跨实例合计）；名额满了返回 429，前端退回轮询
+	release, svcerr := nc.service.AcquireNotificationStream(userID)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	reader, writer := io.Pipe()
@@ -178,6 +185,7 @@ func (nc *NotificationController) StreamNotifications(ctx context.Context, c *ap
 	go func() {
 		defer func() {
 			unsubscribe()
+			release()
 			_ = writer.Close()
 		}()
 		writeEvent := func() bool {

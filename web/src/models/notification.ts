@@ -37,12 +37,17 @@ export interface NotificationItem {
   isRead: boolean
   createdAt: string
   updatedAt: string
+  // 最近一次活动时间：列表按它排序与分天，折叠行（线程活动）有新回复时会刷新
+  activityAt: string
 }
 
 // 未读徽标：总数与分类型都是「聚合组」的数量
 export interface NotificationUnreadCount {
   total: number
   byType: Record<string, number>
+  // 最近一条通知（按最近活动时间）的 id 与时间；没有通知时为 0 / null，用于判断「来了新通知」
+  latestId: number
+  latestAt: string | null
 }
 
 // 通知偏好；站点级字段用于隐藏站点没开放的类型（用户只能关不能开）

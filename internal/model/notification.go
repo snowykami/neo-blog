@@ -34,7 +34,8 @@ type Notification struct {
 	gorm.Model
 	EventID uint `gorm:"uniqueIndex:idx_notification_event_user"`
 	// user_id 参与两个唯一索引：事件 × 收件人的幂等、折叠行的 upsert 键
-	UserID uint   `gorm:"uniqueIndex:idx_notification_event_user;uniqueIndex:idx_notification_dedupe"`
+	// 另参与 (user_id, activity_at) 组合索引：通知列表按最近活动时间倒序
+	UserID uint   `gorm:"uniqueIndex:idx_notification_event_user;uniqueIndex:idx_notification_dedupe;index:idx_notification_user_activity,priority:1"`
 	Type   string `gorm:"size:32;index"` // 冗余事件类型，列表筛选不必 join
 
 	// 冗余快照：列表渲染不 join 事件表，目标被删除时不至于空白
@@ -56,6 +57,10 @@ type Notification struct {
 	AggregateCount  int    `gorm:"default:0"`                                    // 0 = 普通行；折叠行插入时置 1，每来一条 +1
 	AggregateActors string `gorm:"size:120"`                                     // 前 2 个昵称，逗号分隔，用于「A、B 和另外 N 人」
 
+	// ActivityAt 最近一次活动时间，列表按它排序：普通行等于 created_at，折叠行每来一条回复刷新一次。
+	// 不用 updated_at：已读、邮件状态这些与活动无关的更新也会刷新它
+	ActivityAt time.Time `gorm:"index:idx_notification_user_activity,priority:2"`
+
 	ReadAt    *time.Time // 为空即未读；未读单位是聚合行而非单条
 	InAppSent bool       `gorm:"default:false"`
 
@@ -64,7 +69,9 @@ type Notification struct {
 	EmailAttempts int        `gorm:"default:0"`
 	EmailNextAt   *time.Time `gorm:"index:idx_notification_email_due"`
 	EmailSentAt   *time.Time
-	EmailLastErr  string `gorm:"size:255"`
+	EmailLastErr  string `gorm:"size:255"` // 失败原因；skipped 时记录跳过原因（skip:read 等）
+	// EmailClaimedAt 进入 sending 的时间：发信实例中途退出时，超时仍停在 sending 的行由 worker 收回重发
+	EmailClaimedAt *time.Time
 }
 
 // NotificationPrefs 用户的渠道偏好，存在 users.notification_prefs 里（JSON 文本，空表示全默认）
@@ -72,4 +79,15 @@ type NotificationPrefs struct {
 	InApp          []string `json:"inapp"`           // 允许的站内通知类型
 	Email          []string `json:"email"`           // 允许的邮件类型，只能取站点级白名单的子集
 	AIInteractions bool     `json:"ai_interactions"` // 关掉后 AI 用户的互动连通知行都不产生
+}
+
+// BeforeCreate 没有显式给出最近活动时间时取创建时间，保证列表排序键不为空
+func (n *Notification) BeforeCreate(*gorm.DB) error {
+	if n.ActivityAt.IsZero() {
+		if n.CreatedAt.IsZero() {
+			n.CreatedAt = time.Now()
+		}
+		n.ActivityAt = n.CreatedAt
+	}
+	return nil
 }

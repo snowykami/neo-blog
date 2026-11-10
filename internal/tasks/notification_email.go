@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
@@ -24,22 +26,56 @@ const (
 	notificationEmailScanLimit = 500
 	// notificationEmailMaxAttempts 整批失败的重试次数上限，用完置为 failed 不再重试
 	notificationEmailMaxAttempts = 3
+	// notificationEmailRoundBudget 一轮最多跑多久：到点就停下，剩下的收件人留给下一轮。
+	// 必须明显短于 service.NotificationEmailSendingTimeout，否则还在发的批次会被当成中断而收回
+	notificationEmailRoundBudget = 5 * time.Minute
+	// notificationEmailLeaseTTL 一轮的执行租约：持有期间自动续期，实例退出后最多这么久即可由别的实例接手
+	notificationEmailLeaseTTL = time.Minute
 )
 
 // notificationEmailBackoff 整批失败的退避间隔（第 1、2 次失败后等待的时间）
 var notificationEmailBackoff = []time.Duration{time.Minute, 5 * time.Minute, 30 * time.Minute}
 
-// StartNotificationEmailWorker 启动通知邮件投递任务；多实例部署时每轮只有一个实例执行
+// StartNotificationEmailWorker 启动通知邮件投递任务。一轮可能远长于扫描间隔（同步发 SMTP），
+// 不能用固定有效期的 ClaimRound：改用自动续期的租约，同一时刻只有一个实例在发信
 func StartNotificationEmailWorker() {
-	runPeriodically("notification_email", notificationEmailInterval, func() {
-		if err := sendNotificationEmails(time.Now()); err != nil {
-			logrus.Errorf("notification email worker: %v", err)
+	go func() {
+		for {
+			runNotificationEmailRound()
+			time.Sleep(notificationEmailInterval)
 		}
-	})
+	}()
 }
 
-// sendNotificationEmails 扫一遍到期的重要通知，按收件人合并成邮件后发送
+// runNotificationEmailRound 拿到租约才执行一轮，执行完立即释放
+func runNotificationEmailRound() {
+	lease, err := sharedstate.AcquireLease("task_lease:notification_email", notificationEmailLeaseTTL)
+	if err != nil {
+		logrus.Warnf("notification email worker: acquire lease: %v", err)
+		return
+	}
+	if lease == nil {
+		return
+	}
+	defer lease.Release()
+	if err := sendNotificationEmails(time.Now()); err != nil {
+		logrus.Errorf("notification email worker: %v", err)
+	}
+}
+
+// sendNotificationEmails 扫一遍到期的重要通知，按收件人合并成邮件后发送。
+// 收回中断批次与丢弃逾期积压不受站点邮件开关影响，开关关闭期间也照常进行
 func sendNotificationEmails(now time.Time) error {
+	if reclaimed, err := repo.Notification.ReclaimStaleSendingEmails(now.Add(-service.NotificationEmailSendingTimeout), now, notificationEmailMaxAttempts); err != nil {
+		logrus.Errorf("notification email: reclaim stale sending rows: %v", err)
+	} else if reclaimed > 0 {
+		logrus.Warnf("notification email: reclaimed %d rows stuck in sending", reclaimed)
+	}
+	if skipped, err := repo.Notification.SkipOverdueEmails(now.Add(-service.NotificationEmailOverdueAfter())); err != nil {
+		logrus.Errorf("notification email: skip overdue rows: %v", err)
+	} else if skipped > 0 {
+		logrus.Infof("notification email: skipped %d overdue rows", skipped)
+	}
 	if !config.Bool("notification_email_enable") {
 		return nil
 	}
@@ -59,7 +95,12 @@ func sendNotificationEmails(now time.Time) error {
 		byUser[notification.UserID] = append(byUser[notification.UserID], notification)
 	}
 	sort.Slice(order, func(i, j int) bool { return order[i] < order[j] })
+	deadline := time.Now().Add(notificationEmailRoundBudget)
 	for _, userID := range order {
+		if time.Now().After(deadline) {
+			// 剩下的收件人留给下一轮，避免一轮占着租约太久
+			break
+		}
 		if err := deliverNotificationEmail(userID, byUser[userID], now); err != nil {
 			logrus.Errorf("notification email to user %d: %v", userID, err)
 		}
@@ -72,56 +113,81 @@ var sendNotificationEmail = func(cfg *utils.EmailConfig, to, subject, html strin
 	return utils.Email.SendEmailWithHeaders(cfg, to, subject, html, true, headers)
 }
 
-// deliverNotificationEmail 一个收件人的一批到期通知 = 一封邮件
+// deliverNotificationEmail 一个收件人的一批到期通知 = 一封邮件。
+// 先领取（pending → sending），再按收件人「当前」的偏好、已读状态复核，不该发的置 skipped 并记下原因
 func deliverNotificationEmail(userID uint, due []model.Notification, now time.Time) error {
 	ids := make([]uint, 0, len(due))
 	for _, notification := range due {
 		ids = append(ids, notification.ID)
 	}
-	recipient, err := repo.User.GetUserByID(userID)
-	if err != nil {
-		// 用户已注销：没有收件人了，直接跳过
-		return repo.Notification.MarkEmailsSkipped(ids)
-	}
-	if recipient.Disabled || recipient.Email == "" {
-		return repo.Notification.MarkEmailsSkipped(ids)
-	}
-	// 单用户每小时上限：超了就把这一批推迟一小时，既不影响送达也不给别人的邮箱刷屏
-	if !utils.AllowRequest("notify_email:"+itoaUint(userID), config.Int("notification_email_hourly_limit"), time.Hour) {
-		return repo.Notification.DeferEmails(ids, now.Add(time.Hour))
-	}
-
-	claimed, err := repo.Notification.ClaimEmailBatch(ids)
+	claimed, err := repo.Notification.ClaimEmailBatch(ids, now)
 	if err != nil {
 		return err
 	}
 	if len(claimed) == 0 {
-		// 被别的实例领走了
+		// 被别的实例领走，或领取前已被标记已读
 		return nil
 	}
-	claimedIDs := make([]uint, 0, len(claimed))
-	for _, notification := range claimed {
-		claimedIDs = append(claimedIDs, notification.ID)
+
+	recipient, err := repo.User.GetUserByID(userID)
+	if err != nil {
+		// 用户已注销：没有收件人了
+		recipient = nil
+	}
+	policy := service.NewNotificationEmailPolicy(recipient)
+	eligible := make([]model.Notification, 0, len(claimed))
+	skippedByReason := map[string][]uint{}
+	for i := range claimed {
+		if reason := policy.ImportantSkipReason(&claimed[i]); reason != "" {
+			skippedByReason[reason] = append(skippedByReason[reason], claimed[i].ID)
+			continue
+		}
+		eligible = append(eligible, claimed[i])
+	}
+	for reason, skippedIDs := range skippedByReason {
+		if err := repo.Notification.MarkEmailsSkipped(skippedIDs, reason); err != nil {
+			return err
+		}
+	}
+	if len(eligible) == 0 {
+		return nil
+	}
+	eligibleIDs := notificationIDs(eligible)
+
+	// 单用户每小时上限：超了就把这一批推迟一小时，既不影响送达也不给别人的邮箱刷屏
+	if !utils.AllowRequest("notify_email:"+itoaUint(userID), config.Int("notification_email_hourly_limit"), time.Hour) {
+		return repo.Notification.DeferEmails(eligibleIDs, now.Add(time.Hour))
 	}
 
-	// 附带行：搭车窗口内、最多 attach_max 条；窗口外的由清理任务置 skipped
+	// 附带行：搭车窗口内、仍未读、最多 attach_max 条；同样先领取再复核，窗口外的由清理任务置 skipped
 	attachHours := config.Int("notification_email_attach_hours")
 	attachMax := config.Int("notification_email_attach_max")
 	since := now.Add(-time.Duration(attachHours) * time.Hour)
-	attached, err := repo.Notification.ListAttachedForEmail(userID, since, attachMax)
+	attachedClaimed, err := repo.Notification.ClaimAttachedForEmail(userID, since, attachMax, now)
 	if err != nil {
-		return err
+		// 附带行领取失败不影响主列表：退回主列表，下一轮再来
+		return errors.Join(err, repo.Notification.DeferEmails(eligibleIDs, now))
 	}
-	attachedIDs := make([]uint, 0, len(attached))
+	attached := make([]model.Notification, 0, len(attachedClaimed))
+	attachedSkipped := map[string][]uint{}
+	for i := range attachedClaimed {
+		if reason := policy.AttachedSkipReason(&attachedClaimed[i]); reason != "" {
+			attachedSkipped[reason] = append(attachedSkipped[reason], attachedClaimed[i].ID)
+			continue
+		}
+		attached = append(attached, attachedClaimed[i])
+	}
+	for reason, skippedIDs := range attachedSkipped {
+		if err := repo.Notification.MarkEmailsSkipped(skippedIDs, reason); err != nil {
+			return err
+		}
+	}
+	attachedIDs := notificationIDs(attached)
 	likes, threads, hasAI := 0, 0, false
 	for i := range attached {
-		attachedIDs = append(attachedIDs, attached[i].ID)
 		switch attached[i].Type {
 		case constant.NotificationTypeCommentThreadReplied:
-			threads += attached[i].AggregateCount
-			if threads == 0 {
-				threads = 1
-			}
+			threads += max(attached[i].AggregateCount, 1)
 		case constant.NotificationTypePostLiked, constant.NotificationTypeCommentLiked:
 			likes++
 		default:
@@ -132,31 +198,38 @@ func deliverNotificationEmail(userID uint, due []model.Notification, now time.Ti
 
 	// 主列表：超出单封上限的只计数，不拆成第二封
 	maxItems := max(config.Int("notification_email_max_items"), 1)
-	limit := min(len(claimed), maxItems)
+	limit := min(len(eligible), maxItems)
 	content, err := service.RenderNotificationEmail(&service.NotificationEmailInput{
 		Recipient:    recipient,
-		Important:    claimed[:limit],
-		ImportantAll: len(claimed),
+		Important:    eligible[:limit],
+		ImportantAll: len(eligible),
 		Interval:     time.Duration(config.Int("notification_email_interval")) * time.Minute,
 		Attached:     service.NotificationAttachedSummary(recipient.Language, likes, threads, hasAI),
 		SettingsURL:  service.NotificationSettingsURL(recipient, now),
 		Now:          now,
 	})
 	if err != nil {
-		return rescheduleNotificationEmails(claimed, "render", err, now)
+		return errors.Join(rescheduleNotificationEmails(eligible, "render", err, now), repo.Notification.ReleaseAttachedEmails(attachedIDs))
 	}
 	// 批次标识写进邮件头，排查重复投递时能对上代码里的这一轮
 	batchID := fmt.Sprintf("notif-%d-%d", now.Unix(), userID)
 	if err := sendNotificationEmail(tools.GetEmailConfig(), recipient.Email, content.Subject, content.HTML, map[string]string{
 		"X-NeoBlog-Notification-Batch": batchID,
 	}); err != nil {
-		return rescheduleNotificationEmails(claimed, batchID, err, now)
+		// 附带行没搭上车：退回 attached 等下一封
+		return errors.Join(rescheduleNotificationEmails(eligible, batchID, err, now), repo.Notification.ReleaseAttachedEmails(attachedIDs))
 	}
-	if err := repo.Notification.MarkEmailsSent(claimedIDs, now); err != nil {
-		return err
+	// 主列表与搭上车的附带行一起置为已发送；超出 attach_max 的继续挂着等下一封
+	return repo.Notification.MarkEmailsSent(append(eligibleIDs, attachedIDs...), now)
+}
+
+// notificationIDs 取出一组通知的 id
+func notificationIDs(notifications []model.Notification) []uint {
+	ids := make([]uint, 0, len(notifications))
+	for i := range notifications {
+		ids = append(ids, notifications[i].ID)
 	}
-	// 搭上车的附带行一起置为已发送；超出 attach_max 的继续挂着等下一封
-	return repo.Notification.MarkEmailsSent(attachedIDs, now)
+	return ids
 }
 
 // rescheduleNotificationEmails 整批失败：按 1m / 5m / 30m 退避，重试用尽后置为 failed 并记录原因

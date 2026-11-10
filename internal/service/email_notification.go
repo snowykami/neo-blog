@@ -32,6 +32,15 @@ type notificationEmailTexts struct {
 	attachedLikes  string            // {count}
 	attachedReply  string            // {count}
 	attachedAI     string
+	// 汇总间隔的写法，{count} 为数值；*One 是数值为 1 时的写法（为空时用复数写法）
+	intervalHours     string
+	intervalHourOne   string
+	intervalMinutes   string
+	intervalMinuteOne string
+	attachmentImage   string // 纯附件评论的摘要：一张图片
+	attachmentImages  string // {count} 张图片
+	attachmentFile    string // 一个附件
+	attachmentFiles   string // {count} 个附件
 }
 
 var notificationEmailTextsByLanguage = map[string]notificationEmailTexts{
@@ -57,10 +66,18 @@ var notificationEmailTextsByLanguage = map[string]notificationEmailTexts{
 			"comment.replied":      "{actor} 回复了你在《{subject}》下的评论「{quoted}」：{excerpt}",
 			"comment.mentioned":    "{actor} 在《{subject}》的评论里 @ 了你：{excerpt}",
 		},
-		moreItems:     "还有 {count} 条，去站内查看",
-		attachedLikes: "另有 {count} 个赞",
-		attachedReply: "另有 {count} 条线程回复",
-		attachedAI:    "AI 助手 也回复了你",
+		moreItems:         "还有 {count} 条，去站内查看",
+		attachedLikes:     "另有 {count} 个赞",
+		attachedReply:     "另有 {count} 条线程回复",
+		attachedAI:        "AI 助手 也回复了你",
+		intervalHours:     "{count} 小时",
+		intervalHourOne:   "",
+		intervalMinutes:   "{count} 分钟",
+		intervalMinuteOne: "",
+		attachmentImage:   "[图片]",
+		attachmentImages:  "[图片 ×{count}]",
+		attachmentFile:    "[附件]",
+		attachmentFiles:   "[附件 ×{count}]",
 	},
 	"zh-tw": {
 		deletedSubject: "（內容已刪除）",
@@ -84,10 +101,18 @@ var notificationEmailTextsByLanguage = map[string]notificationEmailTexts{
 			"comment.replied":      "{actor} 回覆了你在《{subject}》下的留言「{quoted}」：{excerpt}",
 			"comment.mentioned":    "{actor} 在《{subject}》的留言裡 @ 了你：{excerpt}",
 		},
-		moreItems:     "還有 {count} 則，去站內查看",
-		attachedLikes: "另有 {count} 個讚",
-		attachedReply: "另有 {count} 則討論串回覆",
-		attachedAI:    "AI 助手 也回覆了你",
+		moreItems:         "還有 {count} 則，去站內查看",
+		attachedLikes:     "另有 {count} 個讚",
+		attachedReply:     "另有 {count} 則討論串回覆",
+		attachedAI:        "AI 助手 也回覆了你",
+		intervalHours:     "{count} 小時",
+		intervalHourOne:   "",
+		intervalMinutes:   "{count} 分鐘",
+		intervalMinuteOne: "",
+		attachmentImage:   "[圖片]",
+		attachmentImages:  "[圖片 ×{count}]",
+		attachmentFile:    "[附件]",
+		attachmentFiles:   "[附件 ×{count}]",
 	},
 	"en": {
 		deletedSubject: "(deleted)",
@@ -111,10 +136,18 @@ var notificationEmailTextsByLanguage = map[string]notificationEmailTexts{
 			"comment.replied":      "{actor} replied to your comment on \u201c{subject}\u201d: {excerpt}",
 			"comment.mentioned":    "{actor} mentioned you in a comment on \u201c{subject}\u201d: {excerpt}",
 		},
-		moreItems:     "{count} more — view them on the site",
-		attachedLikes: "{count} more likes",
-		attachedReply: "{count} more thread replies",
-		attachedAI:    "An AI assistant also replied to you",
+		moreItems:         "{count} more — view them on the site",
+		attachedLikes:     "{count} more likes",
+		attachedReply:     "{count} more thread replies",
+		attachedAI:        "An AI assistant also replied to you",
+		intervalHours:     "{count} hours",
+		intervalHourOne:   "1 hour",
+		intervalMinutes:   "{count} minutes",
+		intervalMinuteOne: "1 minute",
+		attachmentImage:   "[Image]",
+		attachmentImages:  "[{count} images]",
+		attachmentFile:    "[Attachment]",
+		attachmentFiles:   "[{count} attachments]",
 	},
 	"ja": {
 		deletedSubject: "（削除済み）",
@@ -138,10 +171,18 @@ var notificationEmailTextsByLanguage = map[string]notificationEmailTexts{
 			"comment.replied":      "{actor} が「{subject}」のあなたのコメントに返信しました：{excerpt}",
 			"comment.mentioned":    "{actor} が「{subject}」のコメントであなたを @ しました：{excerpt}",
 		},
-		moreItems:     "ほか {count} 件はサイトで確認できます",
-		attachedLikes: "ほかに {count} 件のいいね",
-		attachedReply: "ほかに {count} 件のスレッド返信",
-		attachedAI:    "AI アシスタントもあなたに返信しました",
+		moreItems:         "ほか {count} 件はサイトで確認できます",
+		attachedLikes:     "ほかに {count} 件のいいね",
+		attachedReply:     "ほかに {count} 件のスレッド返信",
+		attachedAI:        "AI アシスタントもあなたに返信しました",
+		intervalHours:     "{count} 時間",
+		intervalHourOne:   "",
+		intervalMinutes:   "{count} 分",
+		intervalMinuteOne: "",
+		attachmentImage:   "[画像]",
+		attachmentImages:  "[画像 ×{count}]",
+		attachmentFile:    "[添付ファイル]",
+		attachmentFiles:   "[添付ファイル ×{count}]",
 	},
 	"ko": {
 		deletedSubject: "(삭제됨)",
@@ -165,10 +206,18 @@ var notificationEmailTextsByLanguage = map[string]notificationEmailTexts{
 			"comment.replied":      "{actor} 님이 \u201c{subject}\u201d의 내 댓글에 답글을 남겼습니다: {excerpt}",
 			"comment.mentioned":    "{actor} 님이 \u201c{subject}\u201d 댓글에서 나를 @했습니다: {excerpt}",
 		},
-		moreItems:     "{count}건 더 있습니다. 사이트에서 확인하세요",
-		attachedLikes: "좋아요 {count}건 더",
-		attachedReply: "스레드 답글 {count}건 더",
-		attachedAI:    "AI 어시스턴트도 답글을 남겼습니다",
+		moreItems:         "{count}건 더 있습니다. 사이트에서 확인하세요",
+		attachedLikes:     "좋아요 {count}건 더",
+		attachedReply:     "스레드 답글 {count}건 더",
+		attachedAI:        "AI 어시스턴트도 답글을 남겼습니다",
+		intervalHours:     "{count}시간",
+		intervalHourOne:   "",
+		intervalMinutes:   "{count}분",
+		intervalMinuteOne: "",
+		attachmentImage:   "[이미지]",
+		attachmentImages:  "[이미지 {count}장]",
+		attachmentFile:    "[첨부 파일]",
+		attachmentFiles:   "[첨부 파일 {count}개]",
 	},
 }
 
@@ -256,8 +305,8 @@ func RenderNotificationEmail(input *NotificationEmailInput) (*NotificationEmailC
 		return map[string]string{
 			"actor":   notificationActorDisplay(n, texts.unknownActor),
 			"subject": notificationSubjectText(texts, n),
-			"excerpt": NotificationSummary(n.Excerpt, notificationExcerptMaxRunes),
-			"quoted":  NotificationSummary(n.QuotedExcerpt, notificationQuotedMaxRunes),
+			"excerpt": notificationExcerptText(texts, n.Excerpt, notificationExcerptMaxRunes),
+			"quoted":  notificationExcerptText(texts, n.QuotedExcerpt, notificationQuotedMaxRunes),
 		}
 	}
 
@@ -281,7 +330,7 @@ func RenderNotificationEmail(input *NotificationEmailInput) (*NotificationEmailC
 		SiteURL:       tools.GetBaseUrl(),
 		SiteIcon:      tools.GetSiteIcon(),
 		Heading:       texts.heading,
-		Summary:       renderNotificationText(texts.summary, map[string]string{"count": fmt.Sprintf("%d", max(input.ImportantAll, len(items))), "interval": notificationIntervalText(input.Interval)}),
+		Summary:       renderNotificationText(texts.summary, map[string]string{"count": fmt.Sprintf("%d", max(input.ImportantAll, len(items))), "interval": notificationIntervalText(texts, input.Interval)}),
 		CTALabel:      texts.cta,
 		InboxURL:      tools.GetBaseUrl() + "/notifications",
 		Items:         items,
@@ -431,13 +480,36 @@ func notificationTimeText(at time.Time, timeZone string, now time.Time) string {
 	return local.Format("2006-01-02 15:04")
 }
 
-// notificationIntervalText 汇总间隔的写法：整小时用小时，否则用分钟
-func notificationIntervalText(interval time.Duration) string {
+// notificationIntervalText 汇总间隔的写法：整小时用小时，否则用分钟（按收件人语言）
+func notificationIntervalText(texts notificationEmailTexts, interval time.Duration) string {
 	if interval <= 0 {
 		interval = time.Minute
 	}
+	plural, one, count := texts.intervalMinutes, texts.intervalMinuteOne, int(interval/time.Minute)
 	if interval%time.Hour == 0 {
-		return fmt.Sprintf("%d 小时", int(interval/time.Hour))
+		plural, one, count = texts.intervalHours, texts.intervalHourOne, int(interval/time.Hour)
 	}
-	return fmt.Sprintf("%d 分钟", int(interval/time.Minute))
+	if count == 1 && one != "" {
+		return one
+	}
+	return renderNotificationText(plural, map[string]string{"count": fmt.Sprintf("%d", count)})
+}
+
+// notificationExcerptText 邮件里的正文摘要：纯附件评论的占位标记按收件人语言渲染，其余压成单行并截断
+func notificationExcerptText(texts notificationEmailTexts, excerpt string, max int) string {
+	kind, count, ok := parseNotificationAttachmentMarker(excerpt)
+	if !ok {
+		return NotificationSummary(excerpt, max)
+	}
+	vars := map[string]string{"count": fmt.Sprintf("%d", count)}
+	switch {
+	case kind == notificationAttachmentImage && count == 1:
+		return texts.attachmentImage
+	case kind == notificationAttachmentImage:
+		return renderNotificationText(texts.attachmentImages, vars)
+	case count == 1:
+		return texts.attachmentFile
+	default:
+		return renderNotificationText(texts.attachmentFiles, vars)
+	}
 }

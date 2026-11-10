@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { getUnreadNotificationCount, listNotificationGroupMembers, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/api/notification'
 import { useLoginDialog } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
+import { attachmentMarkerMessage, parseAttachmentMarker } from '@/components/notification/attachment-marker'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -275,7 +276,7 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
         </p>
         <span className="text-muted-foreground text-xs">
           {formatDateTime({
-            dateTimeString: item.createdAt,
+            dateTimeString: item.activityAt || item.createdAt,
             locale,
             convertShortAgo: true,
             unitI18n: {
@@ -365,6 +366,15 @@ function actorLabel(t: ReturnType<typeof useTranslations>, item: NotificationIte
   return rest > 0 ? `${listed}${t('and_others', { count: rest })}` : listed
 }
 
+// excerptText 正文快照：纯附件评论存的是占位标记，按界面语言渲染成「[图片 ×3]」
+function excerptText(t: ReturnType<typeof useTranslations>, excerpt: string): string {
+  const marker = parseAttachmentMarker(excerpt)
+  if (!marker)
+    return excerpt
+  const { key, count } = attachmentMarkerMessage(marker)
+  return t(key, { count })
+}
+
 // notificationText 按类型拼一句话；缺字段时降级而不是显示空括号
 function notificationText(
   t: ReturnType<typeof useTranslations>,
@@ -372,8 +382,8 @@ function notificationText(
   actors: string,
 ): string {
   const subject = item.subjectTitle || t('deleted_subject')
-  const quoted = item.quotedExcerpt
-  const excerpt = item.excerpt
+  const quoted = excerptText(t, item.quotedExcerpt)
+  const excerpt = excerptText(t, item.excerpt)
   switch (item.type) {
     case 'comment.created':
       return t(item.subjectType === 'page' ? 'types.comment_created_page' : 'types.comment_created', { actors, subject, excerpt })
@@ -389,6 +399,8 @@ function notificationText(
       return t('types.comment_thread_replied', { actors, subject })
     case 'comment.mentioned':
       return t('types.comment_mentioned', { actors, subject, excerpt })
+    case 'system.test':
+      return t('types.system_test')
     default:
       return `${actors} ${item.subjectTitle}`
   }
@@ -405,10 +417,10 @@ function groupByDay(items: NotificationItemModel[]) {
     { key: 'earlier', items: [] },
   ]
   for (const item of items) {
-    const createdAt = new Date(item.createdAt)
-    if (createdAt >= today)
+    const at = new Date(item.activityAt || item.createdAt)
+    if (at >= today)
       groups[0].items.push(item)
-    else if (createdAt >= yesterday)
+    else if (at >= yesterday)
       groups[1].items.push(item)
     else
       groups[2].items.push(item)

@@ -12,6 +12,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"gorm.io/gorm"
 )
@@ -59,7 +60,11 @@ func (s *NotificationService) GetUnreadCount(ctx context.Context) (*dto.Notifica
 	if byType == nil {
 		byType = map[string]int64{}
 	}
-	return &dto.NotificationUnreadCountDto{Total: total, ByType: byType}, nil
+	latestID, latestAt, err := repo.Notification.LatestActivity(currentUser.ID)
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("notification")
+	}
+	return &dto.NotificationUnreadCountDto{Total: total, ByType: byType, LatestID: latestID, LatestAt: latestAt}, nil
 }
 
 // MarkNotificationRead 单条已读，幂等；聚合行会整组置已读
@@ -119,6 +124,9 @@ func (s *NotificationService) UnsubscribeAllNotifications(ctx context.Context) (
 	return saveNotificationPreferences(currentUser, nil, []string{}, nil)
 }
 
+// notificationTypeSystemTest 管理员自测用的站内通知类型，不进偏好与邮件
+const notificationTypeSystemTest = "system.test"
+
 // SendTestNotification 管理员给自己发一条站内测试通知，用来确认通知链路可用（不能读别人的通知，见第 9 节）
 func (s *NotificationService) SendTestNotification(ctx context.Context) *errs.ServiceError {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
@@ -128,21 +136,20 @@ func (s *NotificationService) SendTestNotification(ctx context.Context) *errs.Se
 	// 测试通知不经过 Emit（自己给自己发会被 3.2 规则 1 抑制），直接写一条事件 + 通知
 	dedupeKey := "system.test:user:" + itoaRunes(int(currentUser.ID)) + ":" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	event, err := repo.Notification.CreateEvent(nil, &model.InteractionEvent{
-		Type: "system.test", ActorID: currentUser.ID, OwnerID: currentUser.ID, DedupeKey: dedupeKey,
+		Type: notificationTypeSystemTest, ActorID: currentUser.ID, OwnerID: currentUser.ID, DedupeKey: dedupeKey,
 	})
 	if err != nil {
 		return errs.Internal("failed_to_create_target", err).WithResource("notification")
 	}
+	// 不存标题与正文快照：文案由前端按 type（system.test）用当前界面语言渲染，库里不留某一种语言的文字
 	notification := &model.Notification{
-		EventID:      event.ID,
-		UserID:       currentUser.ID,
-		ActorID:      currentUser.ID,
-		Type:         "system.test",
-		SubjectTitle: "测试通知",
-		Excerpt:      "如果你在通知列表里看到这一条，说明站内通知链路是通的。",
-		DedupeKey:    dedupeKey,
-		InAppSent:    true,
-		EmailState:   "skipped", // 测试通知不发邮件
+		EventID:    event.ID,
+		UserID:     currentUser.ID,
+		ActorID:    currentUser.ID,
+		Type:       notificationTypeSystemTest,
+		DedupeKey:  dedupeKey,
+		InAppSent:  true,
+		EmailState: constant.NotificationEmailStateSkipped, // 测试通知不发邮件
 	}
 	if err := repo.Notification.CreateNotification(nil, notification); err != nil {
 		return errs.Internal("failed_to_create_target", err).WithResource("notification")
@@ -230,10 +237,22 @@ func (s *NotificationService) RetryNotificationDelivery(ctx context.Context, id 
 	if !ctxutils.IsAdmin(ctx) {
 		return errs.NewForbidden("permission_denied")
 	}
-	if err := repo.Notification.RetryEmail(id); err != nil {
+	now := time.Now()
+	retried, err := repo.Notification.RetryEmail(id, now.Add(-NotificationEmailSendingTimeout), now)
+	if err != nil {
 		return errs.Internal("failed_to_update_target", err).WithResource("notification")
 	}
-	return nil
+	if retried {
+		return nil
+	}
+	// 没有退回：要么不存在，要么状态不允许重试（已发送、已跳过、等搭车、正在发送且未超时）
+	if _, err := repo.Notification.GetEmailDelivery(id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errs.NewNotFound("operation_target_not_found").WithResource("notification")
+		}
+		return errs.Internal("failed_to_get_target", err).WithResource("notification")
+	}
+	return errs.NewConflict("notification_delivery_not_retryable")
 }
 
 // toNotificationItemDto 仓储的分组行 → 接口 DTO
@@ -262,6 +281,7 @@ func toNotificationItemDto(group *repo.NotificationGroup) dto.NotificationItemDt
 		IsRead:         notification.ReadAt != nil,
 		CreatedAt:      notification.CreatedAt,
 		UpdatedAt:      notification.UpdatedAt,
+		ActivityAt:     notification.ActivityAt,
 	}
 	return item
 }
@@ -292,4 +312,17 @@ func boolToInt(value bool) int64 {
 		return 1
 	}
 	return 0
+}
+
+// AcquireNotificationStream 为一条 SSE 连接占用名额（每个用户跨实例合计最多 NotificationStreamMaxPerUser 条）；
+// 成功时返回的释放函数必须在连接结束时调用
+func (s *NotificationService) AcquireNotificationStream(userID uint) (func(), *errs.ServiceError) {
+	release, ok, err := NotificationHub.AcquireStreamSlot(userID)
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("notification")
+	}
+	if !ok {
+		return nil, errs.NewTooManyRequests("too_many_requests")
+	}
+	return release, nil
 }

@@ -255,7 +255,7 @@ func itoa(value uint) string {
 	return string(digits)
 }
 
-// 取消点赞：按事件硬删通知行，事件本身保留（事件是事实）
+// 取消点赞：按去重键硬删通知行，事件本身保留（事件是事实）
 func TestNotificationDeleteByEvent(t *testing.T) {
 	forEachDialect(t, func(t *testing.T) {
 		if err := migrate(); err != nil {
@@ -294,8 +294,8 @@ func TestNotificationDeleteByEvent(t *testing.T) {
 		if count != 1 {
 			t.Fatalf("notifications = %d, want 1", count)
 		}
-		if err := Notification.DeleteNotificationByEvent(nil, event.ID, owner.ID); err != nil {
-			t.Fatalf("DeleteNotificationByEvent: %v", err)
+		if err := Notification.DeleteNotificationByDedupe(nil, event.DedupeKey, owner.ID); err != nil {
+			t.Fatalf("DeleteNotificationByDedupe: %v", err)
 		}
 		// 硬删：连 Unscoped 都查不到，重复点赞才不会撞唯一索引
 		db.Unscoped().Model(&model.Notification{}).Where("user_id = ?", owner.ID).Count(&count)

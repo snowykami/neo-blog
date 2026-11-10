@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,7 +24,34 @@ const (
 var (
 	reNotificationTag   = regexp.MustCompile(`(?s)<[^>]+>`)
 	reNotificationSpace = regexp.MustCompile(`\s+`)
+	// reNotificationAttachment 纯附件评论的占位标记，整段摘要恰好是它时才按附件渲染
+	reNotificationAttachment = regexp.MustCompile(`^\[\[neo:attachment:(image|file):(\d+)\]\]$`)
 )
+
+// 纯附件评论的附件种类
+const (
+	notificationAttachmentImage = "image"
+	notificationAttachmentFile  = "file"
+)
+
+// NotificationAttachmentMarker 纯附件评论在通知快照里的占位标记（与语言无关），如 [[neo:attachment:image:3]]；
+// 前端（web/src/app/(main)/notifications）与邮件按收件人语言渲染，格式两边须保持一致
+func NotificationAttachmentMarker(kind string, count int) string {
+	return "[[neo:attachment:" + kind + ":" + strconv.Itoa(max(count, 1)) + "]]"
+}
+
+// parseNotificationAttachmentMarker 摘要是附件占位标记时返回种类与数量
+func parseNotificationAttachmentMarker(excerpt string) (kind string, count int, ok bool) {
+	match := reNotificationAttachment.FindStringSubmatch(strings.TrimSpace(excerpt))
+	if match == nil {
+		return "", 0, false
+	}
+	count, err := strconv.Atoi(match[2])
+	if err != nil {
+		return "", 0, false
+	}
+	return match[1], max(count, 1), true
+}
 
 // NotificationSummary 把评论正文压成单行纯文本并按字符截断，站内列表与邮件共用
 func NotificationSummary(content string, max int) string {

@@ -21,5 +21,6 @@ func List() []*gormigrate.Migration {
 		agentExpertTone(),
 		postPinning(),
 		agentMentionTrigger(),
+		notificationActivityClaim(),
 	}
 }

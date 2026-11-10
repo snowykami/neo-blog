@@ -29,6 +29,8 @@ type NotificationItemDto struct {
 	IsRead    bool      `json:"is_read"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	// ActivityAt 最近一次活动时间：列表按它排序与分天，折叠行有新回复时会刷新
+	ActivityAt time.Time `json:"activity_at"`
 }
 
 // ListNotificationsReq 通知列表查询参数；type 支持逗号分隔的多个事件类型（前端 tab 用）
@@ -42,6 +44,10 @@ type ListNotificationsReq struct {
 type NotificationUnreadCountDto struct {
 	Total  int64            `json:"total"`
 	ByType map[string]int64 `json:"by_type"`
+	// LatestID / LatestAt 最近一条通知（按最近活动时间）：前端在它变新时提示「来了新通知」。
+	// 未读组数不变的情况（点赞并入已有未读组、折叠行有新回复）只靠组数是看不出来的
+	LatestID uint       `json:"latest_id"`
+	LatestAt *time.Time `json:"latest_at"`
 }
 
 // MarkAllNotificationsReadReq 一键已读；before_id 避免把请求期间新到的通知也标掉

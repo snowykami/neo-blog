@@ -134,7 +134,8 @@ func commentSubject(comment *model.Comment) (string, string) {
 	return brief.Title, derefString(brief.Slug)
 }
 
-// commentExcerpt 通知里显示的正文：纯附件评论用占位文本代替（见 15.4）
+// commentExcerpt 通知里显示的正文：纯附件评论存一个与语言无关的占位标记（见 15.4），
+// 站内列表与邮件按收件人的语言渲染成「[图片 ×3]」之类的文字，见 NotificationAttachmentMarker
 func commentExcerpt(comment *model.Comment) string {
 	if strings.TrimSpace(comment.Content) != "" {
 		return comment.Content
@@ -145,7 +146,7 @@ func commentExcerpt(comment *model.Comment) string {
 	files, err := repo.File.ListByIDs(comment.AttachmentIDs)
 	if err != nil {
 		logrus.Errorf("comment attachment files: %v", err)
-		return "[附件]"
+		return NotificationAttachmentMarker(notificationAttachmentFile, 1)
 	}
 	images := 0
 	for _, file := range files {
@@ -155,15 +156,11 @@ func commentExcerpt(comment *model.Comment) string {
 	}
 	switch {
 	case len(files) == 0:
-		return "[附件]"
-	case images == len(files) && len(files) == 1:
-		return "[图片]"
+		return NotificationAttachmentMarker(notificationAttachmentFile, 1)
 	case images == len(files):
-		return "[图片 ×" + itoaRunes(len(files)) + "]"
-	case len(files) == 1:
-		return "[附件]"
+		return NotificationAttachmentMarker(notificationAttachmentImage, len(files))
 	default:
-		return "[附件 ×" + itoaRunes(len(files)) + "]"
+		return NotificationAttachmentMarker(notificationAttachmentFile, len(files))
 	}
 }
 

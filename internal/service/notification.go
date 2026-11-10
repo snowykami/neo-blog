@@ -131,7 +131,8 @@ func withNotificationSavepoint(tx *gorm.DB, fn func(tx *gorm.DB) error) error {
 	return tx.Transaction(fn)
 }
 
-// RevokeLike 取消点赞：硬删对应的通知行（事件保留用于统计，见 3.2 规则 6）
+// RevokeLike 取消点赞：硬删对应的通知行（事件保留用于统计，见 3.2 规则 6）。
+// 按通知行自己的去重键删除，不经过事件表：事件可能已被保留期清理，经事件反查会漏删
 func (s *NotificationService) RevokeLike(ctx context.Context, tx *gorm.DB, actor, owner *model.User, targetType string, targetID uint) error {
 	if actor == nil || owner == nil {
 		return nil
@@ -145,12 +146,7 @@ func (s *NotificationService) RevokeLike(ctx context.Context, tx *gorm.DB, actor
 	default:
 		return nil
 	}
-	event, err := repo.Notification.GetEventByDedupeKey(dedupeKey)
-	if err != nil {
-		// 没有对应事件说明当时没有产生通知，直接结束
-		return nil
-	}
 	return withNotificationSavepoint(tx, func(tx *gorm.DB) error {
-		return repo.Notification.DeleteNotificationByEvent(tx, event.ID, owner.ID)
+		return repo.Notification.DeleteNotificationByDedupe(tx, dedupeKey, owner.ID)
 	})
 }

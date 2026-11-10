@@ -388,3 +388,182 @@ func TestNotificationCleanup(t *testing.T) {
 		t.Fatalf("stale attached state = %s", reloaded.EmailState)
 	}
 }
+
+// 写入后才退订（邮件里的一键退订只改 users 表）：发信前按当前偏好复核，已排队的不再发出
+func TestSendNotificationEmailsUnsubscribedAfterPending(t *testing.T) {
+	setupNotificationEmailDB(t)
+	sent := stubEmailSender(t)
+	recipient := createEmailUser(t, "owner", "zh")
+	actor := createEmailUser(t, "actor", "zh")
+	now := time.Now()
+	row := addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-time.Minute))
+	if err := repo.GetDB().Model(&model.User{}).Where("id = ?", recipient.ID).
+		Update("notification_prefs", `{"inapp":["comment.created"],"email":[],"ai_interactions":true}`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := sendNotificationEmails(now); err != nil {
+		t.Fatal(err)
+	}
+	if len(*sent) != 0 {
+		t.Fatalf("unsubscribed recipient got %d mails", len(*sent))
+	}
+	var reloaded model.Notification
+	repo.GetDB().First(&reloaded, row.ID)
+	if reloaded.EmailState != constant.NotificationEmailStateSkipped || reloaded.EmailLastErr != repo.NotificationEmailSkipUnsubscribed {
+		t.Fatalf("state = %s / %q, want skipped / unsubscribed", reloaded.EmailState, reloaded.EmailLastErr)
+	}
+}
+
+// 站点邮件关闭期间积压的旧通知逾期后置 skipped；重新打开后只发近期的，不会一次性灌进收件箱
+func TestSendNotificationEmailsSiteSwitchBacklog(t *testing.T) {
+	setupNotificationEmailDB(t)
+	sent := stubEmailSender(t)
+	recipient := createEmailUser(t, "owner", "zh")
+	actor := createEmailUser(t, "actor", "zh")
+	now := time.Now()
+	stale := addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-3*24*time.Hour))
+	recent := addNotification(t, recipient, actor, constant.NotificationTypeCommentReplied, constant.NotificationEmailStatePending, now.Add(-10*time.Minute))
+	if err := repo.KV.SetKV("notification_email_enable", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := sendNotificationEmails(now); err != nil {
+		t.Fatal(err)
+	}
+	if len(*sent) != 0 {
+		t.Fatalf("site switch off but sent %d mails", len(*sent))
+	}
+	stateOf := func(id uint) model.Notification {
+		var row model.Notification
+		repo.GetDB().First(&row, id)
+		return row
+	}
+	if row := stateOf(stale.ID); row.EmailState != constant.NotificationEmailStateSkipped || row.EmailLastErr != repo.NotificationEmailSkipOverdue {
+		t.Fatalf("overdue row = %s / %q", row.EmailState, row.EmailLastErr)
+	}
+	if row := stateOf(recent.ID); row.EmailState != constant.NotificationEmailStatePending {
+		t.Fatalf("recent row = %s, want pending while switch is off", row.EmailState)
+	}
+	if err := repo.KV.SetKV("notification_email_enable", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := sendNotificationEmails(now); err != nil {
+		t.Fatal(err)
+	}
+	if len(*sent) != 1 || !strings.Contains((*sent)[0].subject, "回复了你的评论") {
+		t.Fatalf("after switching on: %d mails %+v", len(*sent), *sent)
+	}
+	if row := stateOf(recent.ID); row.EmailState != constant.NotificationEmailStateSent {
+		t.Fatalf("recent row = %s, want sent", row.EmailState)
+	}
+}
+
+// 已读的附带行不再搭车：「另有 N 个赞」只数仍未读的
+func TestSendNotificationEmailsExcludesReadAttachments(t *testing.T) {
+	setupNotificationEmailDB(t)
+	sent := stubEmailSender(t)
+	recipient := createEmailUser(t, "owner", "zh")
+	actor := createEmailUser(t, "actor", "zh")
+	now := time.Now()
+	addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-5*time.Minute))
+	addNotification(t, recipient, actor, constant.NotificationTypePostLiked, constant.NotificationEmailStateAttached, now.Add(-2*time.Minute))
+	// 与标记已读并发的情形：已读但状态还停在 attached
+	read := addNotification(t, recipient, actor, constant.NotificationTypePostLiked, constant.NotificationEmailStateAttached, now.Add(-3*time.Minute))
+	repo.GetDB().Model(&model.Notification{}).Where("id = ?", read.ID).UpdateColumn("read_at", now)
+	if err := sendNotificationEmails(now); err != nil {
+		t.Fatal(err)
+	}
+	if len(*sent) != 1 {
+		t.Fatalf("sent %d mails", len(*sent))
+	}
+	if !strings.Contains((*sent)[0].html, "另有 1 个赞") {
+		t.Error("read like should not be counted")
+	}
+	var reloaded model.Notification
+	repo.GetDB().First(&reloaded, read.ID)
+	if reloaded.EmailState != constant.NotificationEmailStateAttached {
+		t.Fatalf("read attached row = %s, should not ride along", reloaded.EmailState)
+	}
+}
+
+// 发信实例中途退出：超时仍停在 sending 的行被收回，重要行算一次失败后重发，附带行退回 attached 再搭车；
+// 未超时的 sending 行不动（可能还在别的实例上发）
+func TestSendNotificationEmailsReclaimStaleSending(t *testing.T) {
+	setupNotificationEmailDB(t)
+	sent := stubEmailSender(t)
+	recipient := createEmailUser(t, "owner", "zh")
+	other := createEmailUser(t, "other", "zh")
+	actor := createEmailUser(t, "actor", "zh")
+	now := time.Now()
+	staleAt := now.Add(-time.Hour)
+	freshAt := now.Add(-time.Minute)
+
+	important := addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-2*time.Hour))
+	like := addNotification(t, recipient, actor, constant.NotificationTypePostLiked, constant.NotificationEmailStateAttached, now.Add(-90*time.Minute))
+	fresh := addNotification(t, other, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-time.Hour))
+	for id, at := range map[uint]time.Time{important.ID: staleAt, like.ID: staleAt, fresh.ID: freshAt} {
+		if err := repo.GetDB().Model(&model.Notification{}).Where("id = ?", id).Updates(map[string]any{
+			"email_state": constant.NotificationEmailStateSending, "email_claimed_at": at,
+		}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := sendNotificationEmails(now); err != nil {
+		t.Fatal(err)
+	}
+	if len(*sent) != 1 || (*sent)[0].to != recipient.Email {
+		t.Fatalf("sent = %+v, want one mail to the reclaimed recipient", *sent)
+	}
+	if !strings.Contains((*sent)[0].html, "另有 1 个赞") {
+		t.Error("reclaimed attached row should ride along again")
+	}
+	var rows []model.Notification
+	repo.GetDB().Order("id").Find(&rows)
+	for _, row := range rows {
+		switch row.ID {
+		case important.ID:
+			if row.EmailState != constant.NotificationEmailStateSent || row.EmailAttempts != 1 {
+				t.Errorf("important = %s / attempts %d", row.EmailState, row.EmailAttempts)
+			}
+		case like.ID:
+			if row.EmailState != constant.NotificationEmailStateSent {
+				t.Errorf("like = %s", row.EmailState)
+			}
+		case fresh.ID:
+			if row.EmailState != constant.NotificationEmailStateSending {
+				t.Errorf("fresh sending row = %s, should be left alone", row.EmailState)
+			}
+		}
+	}
+
+	// 反复中断：重试次数用尽后置 failed，不会无限重发
+	repo.GetDB().Model(&model.Notification{}).Where("id = ?", fresh.ID).Updates(map[string]any{
+		"email_claimed_at": staleAt, "email_attempts": notificationEmailMaxAttempts - 1,
+	})
+	if _, err := repo.Notification.ReclaimStaleSendingEmails(now.Add(-30*time.Minute), now, notificationEmailMaxAttempts); err != nil {
+		t.Fatal(err)
+	}
+	var reloaded model.Notification
+	repo.GetDB().First(&reloaded, fresh.ID)
+	if reloaded.EmailState != constant.NotificationEmailStateFailed {
+		t.Fatalf("exhausted reclaimed row = %s, want failed", reloaded.EmailState)
+	}
+}
+
+// 英文收件人的汇总间隔用英文写，不再混进「分钟」
+func TestSendNotificationEmailsEnglishInterval(t *testing.T) {
+	setupNotificationEmailDB(t)
+	sent := stubEmailSender(t)
+	recipient := createEmailUser(t, "owner", "en")
+	actor := createEmailUser(t, "actor", "en")
+	now := time.Now()
+	addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-time.Minute))
+	if err := sendNotificationEmails(now); err != nil {
+		t.Fatal(err)
+	}
+	if len(*sent) != 1 {
+		t.Fatalf("sent %d", len(*sent))
+	}
+	if strings.Contains((*sent)[0].html, "分钟") || !strings.Contains((*sent)[0].html, "10 minutes") {
+		t.Error("interval should be rendered in the recipient's language")
+	}
+}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/snowykami/neo-blog/internal/config"
 	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
@@ -179,4 +180,76 @@ func filterKnownTypes(types, allowed []string) []string {
 // NotificationSettingsURL 邮件底部的「通知设置」链接；带有限的免登录凭据，见 docs/notification-spec.md N11
 func NotificationSettingsURL(user *model.User, now time.Time) string {
 	return tools.GetBaseUrl() + "/notification-settings?token=" + SignNotificationPrefsToken(user.ID, now)
+}
+
+// NotificationEmailSendingTimeout 一批邮件领取（sending）后多久仍没有结果就视为发信实例已退出：
+// worker 每轮会收回超时的行，后台也只允许手动重试超时的 sending 行。须明显长于一轮的执行上限
+const NotificationEmailSendingTimeout = 30 * time.Minute
+
+// NotificationEmailOverdueAfter 重要通知到期后超过多久仍没发出就不再补发（站点邮件关闭期间积压、长期限速）：
+// 至少一天，且不短于两个汇总间隔
+func NotificationEmailOverdueAfter() time.Duration {
+	interval := time.Duration(config.Int("notification_email_interval")) * time.Minute
+	return max(24*time.Hour, 2*interval)
+}
+
+// NotificationEmailPolicy 发信前按收件人「当前」的状态复核：偏好、站点开关、是否已读都以发信这一刻为准，
+// 写入时算出的 email_state 只是初始值（写入之后收件人可能退订、读过，站点也可能关过邮件）
+type NotificationEmailPolicy struct {
+	recipient *model.User
+	settings  notificationSettings
+}
+
+// NewNotificationEmailPolicy 读取当前的站点配置与收件人偏好
+func NewNotificationEmailPolicy(recipient *model.User) *NotificationEmailPolicy {
+	policy := &NotificationEmailPolicy{recipient: recipient}
+	if recipient != nil {
+		policy.settings = resolveNotificationSettings(recipient.NotificationPrefs, currentNotificationSiteConfig())
+	}
+	return policy
+}
+
+// RecipientSkipReason 整个收件人不该收信时的原因（为空表示可以发）
+func (p *NotificationEmailPolicy) RecipientSkipReason() string {
+	if p.recipient == nil || p.recipient.Disabled || p.recipient.IsAI || p.recipient.Email == "" {
+		return repo.NotificationEmailSkipRecipientGone
+	}
+	if !p.settings.EmailEnabled {
+		return repo.NotificationEmailSkipUnsubscribed
+	}
+	return ""
+}
+
+// ImportantSkipReason 一条重要通知不该进这封邮件的原因（为空表示可以发）
+func (p *NotificationEmailPolicy) ImportantSkipReason(n *model.Notification) string {
+	if reason := p.RecipientSkipReason(); reason != "" {
+		return reason
+	}
+	if n.ReadAt != nil {
+		return repo.NotificationEmailSkipRead
+	}
+	if !p.settings.Email[n.Type] {
+		return repo.NotificationEmailSkipUnsubscribed
+	}
+	return ""
+}
+
+// AttachedSkipReason 一条附带行不该搭这封邮件的原因（为空表示可以搭车）
+func (p *NotificationEmailPolicy) AttachedSkipReason(n *model.Notification) string {
+	if reason := p.RecipientSkipReason(); reason != "" {
+		return reason
+	}
+	if n.ReadAt != nil {
+		return repo.NotificationEmailSkipRead
+	}
+	// 附带行里的评论 / 回复 / 提及只可能来自 AI（真人的是重要行）：收件人关掉 AI 互动后不再提
+	if isNotificationImportantType(n.Type) && !p.settings.AIInteractions {
+		return repo.NotificationEmailSkipUnsubscribed
+	}
+	return ""
+}
+
+// isNotificationImportantType 真人触发时算重要消息的类型
+func isNotificationImportantType(eventType string) bool {
+	return notificationKind(eventType, false) == notificationKindImportant
 }

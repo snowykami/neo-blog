@@ -1,8 +1,10 @@
 package service
 
 import (
+	"fmt"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
@@ -58,16 +60,58 @@ func (h *notificationHub) publish(userID uint) {
 	}
 }
 
+// publishAll 唤醒本实例上的全部连接：与 Redis 的订阅中断后可能错过了任意用户的通知，只能全部刷新一次
+func (h *notificationHub) publishAll() {
+	h.mu.Lock()
+	channels := make([]chan struct{}, 0, len(h.subscribers))
+	for _, set := range h.subscribers {
+		for ch := range set {
+			channels = append(channels, ch)
+		}
+	}
+	h.mu.Unlock()
+	for _, ch := range channels {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+}
+
 // Notify 通知某个用户有新通知：本实例立即唤醒，其他实例通过共享状态广播
 func (h *notificationHub) Notify(userID uint) {
 	h.publish(userID)
 	sharedstate.Notify(notificationChannel, strconv.FormatUint(uint64(userID), 10))
 }
 
-// StartNotificationHub 订阅其他实例的通知广播；连接重建时会收到空消息，忽略即可（页面自身还有轮询兜底）
+// NotificationStreamMaxPerUser 每个用户同时保持的 SSE 连接上限（跨实例合计）：多开几个标签页够用，
+// 又不至于让一个账号占满服务端的长连接
+const NotificationStreamMaxPerUser = 5
+
+// notificationStreamSlotTTL 连接名额的租约有效期：连接存活期间自动续期，实例崩溃后最多这么久自动释放
+const notificationStreamSlotTTL = time.Minute
+
+// AcquireStreamSlot 为一条 SSE 连接占一个名额：名额是共享状态里的 N 个租约键，跨实例可见；
+// 连接结束时必须调用返回的释放函数。名额已满时 ok 为 false
+func (h *notificationHub) AcquireStreamSlot(userID uint) (release func(), ok bool, err error) {
+	for slot := 0; slot < NotificationStreamMaxPerUser; slot++ {
+		lease, err := sharedstate.AcquireLease(fmt.Sprintf("notification_stream:%d:%d", userID, slot), notificationStreamSlotTTL)
+		if err != nil {
+			return func() {}, false, err
+		}
+		if lease != nil {
+			return lease.Release, true, nil
+		}
+	}
+	return func() {}, false, nil
+}
+
+// StartNotificationHub 订阅其他实例的通知广播。连接重建时会收到空消息，表示期间可能错过了通知：
+// 唤醒本实例的全部连接各自重新推一次当前状态（AGENTS.md：收到空消息需全量刷新）
 func StartNotificationHub() {
 	sharedstate.OnNotify(notificationChannel, func(message string) {
 		if message == "" {
+			NotificationHub.publishAll()
 			return
 		}
 		userID, err := strconv.ParseUint(message, 10, 64)

@@ -493,12 +493,12 @@ func TestNotificationReadCancelsPendingEmail(t *testing.T) {
 	if state, read := stateOf(sending.ID); state != constant.NotificationEmailStateSending || !read {
 		t.Fatalf("read sending row = %s (read=%v), want sending", state, read)
 	}
-	// 附带行（点赞、线程活动等）只是搭车，不因已读改变状态
+	// 附带行（点赞、线程活动等）读过也不再搭车：否则下一封邮件里还会出现「另有 N 个赞」
 	if _, svcerr := service.MarkNotificationRead(ownerCtx, attached.ID); svcerr != nil {
 		t.Fatalf("mark read: %v", svcerr)
 	}
-	if state, read := stateOf(attached.ID); state != constant.NotificationEmailStateAttached || !read {
-		t.Fatalf("read attached row = %s (read=%v), want attached", state, read)
+	if state, read := stateOf(attached.ID); state != constant.NotificationEmailStateSkipped || !read {
+		t.Fatalf("read attached row = %s (read=%v), want skipped", state, read)
 	}
 
 	// 全部已读：再补两条待发，一次标记后都置为 skipped

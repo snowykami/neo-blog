@@ -231,6 +231,30 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 		if p := agents[1].ParsedProfile(); p.Triggers != nil {
 			t.Errorf("profile without triggers should stay untouched: %v", p.Triggers)
 		}
+
+		// 通知补上最近活动时间与领取时间：普通行取创建时间，折叠行取 updated_at，卡在 sending 的行记下领取时间以便超时收回
+		if !db.Migrator().HasIndex(&model.Notification{}, "idx_notification_user_activity") {
+			t.Error("missing index idx_notification_user_activity")
+		}
+		var notifications []model.Notification
+		if err := db.Order("id").Find(&notifications).Error; err != nil {
+			t.Fatalf("list notifications: %v", err)
+		}
+		if len(notifications) != 3 {
+			t.Fatalf("notifications = %d, want 3", len(notifications))
+		}
+		for _, n := range notifications {
+			want := n.CreatedAt
+			if n.AggregateCount > 0 {
+				want = n.UpdatedAt
+			}
+			if !n.ActivityAt.Equal(want) {
+				t.Errorf("notification %d activity_at = %v, want %v", n.ID, n.ActivityAt, want)
+			}
+			if (n.EmailState == "sending") != (n.EmailClaimedAt != nil) {
+				t.Errorf("notification %d (%s) email_claimed_at = %v", n.ID, n.EmailState, n.EmailClaimedAt)
+			}
+		}
 	})
 }
 
@@ -345,6 +369,7 @@ func seedLegacyDatabase(t *testing.T) {
 			t.Fatalf("seed legacy data: %v", err)
 		}
 	}
+	seedLegacyNotifications(t, now)
 	if err := db.Create(&model.KV{Key: "music_ttml_url_template", Value: model.JSONMap{"value": " https://cdn.example.com/lyrics/{song_id}.ttml "}}).Error; err != nil {
 		t.Fatalf("seed legacy ttml config: %v", err)
 	}
@@ -356,6 +381,42 @@ func seedLegacyDatabase(t *testing.T) {
 	} {
 		if err := db.Omit("User").Create(&agent).Error; err != nil {
 			t.Fatalf("seed legacy ai agent: %v", err)
+		}
+	}
+}
+
+// seedLegacyNotifications 2026111101 之前的通知表：还没有 activity_at、email_claimed_at 与 (user_id, activity_at) 索引。
+// 三行：普通行、updated_at 晚于创建时间的折叠行、卡在 sending 的行
+func seedLegacyNotifications(t *testing.T, now time.Time) {
+	t.Helper()
+	if err := db.AutoMigrate(&model.InteractionEvent{}, &model.Notification{}); err != nil {
+		t.Fatalf("create legacy notification tables: %v", err)
+	}
+	if db.Migrator().HasIndex(&model.Notification{}, "idx_notification_user_activity") {
+		if err := db.Migrator().DropIndex(&model.Notification{}, "idx_notification_user_activity"); err != nil {
+			t.Fatalf("drop activity index: %v", err)
+		}
+	}
+	for _, column := range []string{"activity_at", "email_claimed_at"} {
+		if err := db.Migrator().DropColumn(&model.Notification{}, column); err != nil {
+			t.Fatalf("drop %s: %v", column, err)
+		}
+	}
+	created := now.Add(-3 * time.Hour)
+	updated := now.Add(-time.Hour)
+	rows := []struct {
+		id        uint
+		aggregate int
+		state     string
+	}{
+		{1, 0, "sent"},
+		{2, 3, "attached"},
+		{3, 0, "sending"},
+	}
+	for _, row := range rows {
+		if err := db.Exec("INSERT INTO notifications (id, event_id, user_id, type, dedupe_key, aggregate_count, email_state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			row.id, row.id, 1, "comment.created", fmt.Sprintf("legacy:%d", row.id), row.aggregate, row.state, created, updated).Error; err != nil {
+			t.Fatalf("seed legacy notification: %v", err)
 		}
 	}
 }
