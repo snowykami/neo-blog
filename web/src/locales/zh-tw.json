@@ -1266,7 +1266,8 @@
       "ai_agents_run_retention_days": "執行紀錄保留天數",
       "ai_agents_run_retention_days_desc": "超過天數的執行紀錄會被自動清除",
       "site_language": "站點語言",
-      "site_language_desc": "文章主要使用的語言。沒有設定語言、瀏覽器也沒有傳送語言偏好的訪客（包括搜尋引擎爬蟲）按它顯示介面，RSS 訂閱源也使用它"
+      "site_language_desc": "文章主要使用的語言。沒有設定語言、瀏覽器也沒有傳送語言偏好的訪客（包括搜尋引擎爬蟲）按它顯示介面，RSS 訂閱源也使用它",
+      "refresh": "重新整理"
     },
     "labels": {
       "title": "標籤管理",

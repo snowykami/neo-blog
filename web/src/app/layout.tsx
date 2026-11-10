@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next'
-import { NextIntlClientProvider } from 'next-intl'
 import { Inter, Source_Code_Pro } from 'next/font/google'
 import { cookies } from 'next/headers'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
@@ -9,6 +8,7 @@ import { LoginDialogProvider } from '@/components/auth/login-dialog'
 import { AppUpdateChecker } from '@/components/common/app-update-checker'
 import { FloatingWidgets } from '@/components/common/main-floating-widgets'
 import { TimeZoneSync } from '@/components/common/time-zone-sync'
+import { I18nScope } from '@/components/i18n-scope'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/auth-context'
 import { DeviceProvider } from '@/contexts/device-context'
@@ -92,7 +92,8 @@ export default async function RootLayout({
           <DeviceProvider>
             {/* Toaster 读取 DeviceProvider 中的主题，需放在其内部 */}
             <Toaster richColors position="top-center" offset={80} />
-            <NextIntlClientProvider>
+            {/* 只下发根布局这一层用到的文案，其余由各路由段的作用域补齐（见 scripts/i18n-scopes.mjs） */}
+            <I18nScope scope="root">
               <AppUpdateChecker />
               <TimeZoneSync />
               <ThemeProvider theme={theme}>
@@ -110,7 +111,7 @@ export default async function RootLayout({
                   </SiteInfoProvider>
                 </AuthProvider>
               </ThemeProvider>
-            </NextIntlClientProvider>
+            </I18nScope>
           </DeviceProvider>
         </NuqsAdapter>
       </body>
