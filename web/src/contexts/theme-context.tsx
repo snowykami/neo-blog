@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { applyThemeToDocument } from '@/themes/apply'
 import { getThemeIcon } from '@/themes/icons'
 import { clearModeOverride, THEME_PACK_EVENT } from '@/themes/mode'
+import { resolvePreviewThemeClient } from '@/themes/preview'
 
 /**
  * 主题包的客户端状态。
@@ -22,16 +23,19 @@ export const THEME_PACK_STORAGE_KEY = 'theme-pack'
 const DISABLED_VALUE = 'off'
 
 interface ThemeContextValue {
-  /** 服务端按日期（或将来由用户自定义数据源）给定的主题 */
+  /** 当前实际生效的主题：服务端按日期算出，客户端再用预览 cookie 覆盖 */
   theme: ThemeDefinition | null
   /** 当前是否生效（用户可关闭） */
   enabled: boolean
   setEnabled: (enabled: boolean) => void
+  /** 重新按预览 cookie 解析并应用（控制台切换预览后调用） */
+  refreshTheme: () => void
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: null,
   enabled: false,
+  refreshTheme: () => {},
   setEnabled: () => {},
 })
 
@@ -63,30 +67,39 @@ export function ThemeProvider({
   theme: ThemeDefinition | null
   children: React.ReactNode
 }) {
+  // 服务端只按日期算主题；管理员的预览主题在客户端按 cookie 覆盖，避免服务端读 cookie
+  const [activeTheme, setActiveTheme] = useState<ThemeDefinition | null>(theme)
   const [enabled, setEnabledState] = useState(Boolean(theme))
 
-  // 挂载后按本地偏好对齐一次；服务端渲染阶段默认按「生效」输出
-  useEffect(() => {
-    const active = Boolean(theme) && !readStoredDisabled()
+  const refreshTheme = useCallback(() => {
+    const resolved = resolvePreviewThemeClient(theme)
+    setActiveTheme(resolved.theme)
+    // 预览成具体主题时视为「生效」（管理员就是要看效果），预览「从不使用」则不套
+    const active = Boolean(resolved.theme) && (resolved.override || !readStoredDisabled())
     setEnabledState(active)
-    applyThemeToDocument(active ? theme : null)
+    applyThemeToDocument(active ? resolved.theme : null)
     if (!active)
       clearModeOverride()
   }, [theme])
 
+  // 挂载后按本地偏好 + 预览 cookie 对齐一次；服务端渲染阶段默认按「生效」输出
+  useEffect(() => {
+    refreshTheme()
+  }, [refreshTheme])
+
   const setEnabled = useCallback((next: boolean) => {
-    const active = next && Boolean(theme)
+    const active = next && Boolean(activeTheme)
     setEnabledState(active)
-    applyThemeToDocument(active ? theme : null)
+    applyThemeToDocument(active ? activeTheme : null)
     writeStoredDisabled(!active)
     // 节日绑定的明暗由 DeviceProvider 落地：关掉主题时清掉手动覆盖、恢复用户自己的设置
     if (!active)
       clearModeOverride()
     window.dispatchEvent(new Event(THEME_PACK_EVENT))
-  }, [theme])
+  }, [activeTheme])
 
   return (
-    <ThemeContext.Provider value={{ theme, enabled, setEnabled }}>
+    <ThemeContext.Provider value={{ theme: activeTheme, enabled, setEnabled, refreshTheme }}>
       {children}
     </ThemeContext.Provider>
   )

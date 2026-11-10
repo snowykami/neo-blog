@@ -2,8 +2,7 @@
 
 import { MoonIcon, SparklesIcon, SunIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useRouter } from 'next/navigation'
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { THEME_PACK_STORAGE_KEY, useTheme } from '@/contexts/theme-context'
 import { BUILTIN_THEMES } from '@/themes'
@@ -13,17 +12,15 @@ import { readPreviewCookie, THEME_PREVIEW_AUTO, THEME_PREVIEW_NEVER, writePrevie
  * 节日主题预览（控制台 → 全局设置 → 外观）。
  *
  * 节日主题按日期自动触发，一年只有几天能看到效果，改配色时几乎没法验证，
- * 所以这里给管理员一个强制指定主题的入口，选择写进 cookie（服务端渲染即可读到，刷新不闪）。
- * 只对本浏览器生效，不影响访客；具体权限校验在 utils/server/theme-preview.ts。
+ * 所以这里给管理员一个强制指定主题的入口，选择写进 cookie，由 ThemePreviewApplier 在客户端应用
+ * （服务端读这个 cookie 会让整站无法静态化）。只对本浏览器生效，不影响访客。
  */
 export function ThemePackPreviewField() {
   const t = useTranslations('Console.global')
   const tPack = useTranslations('ThemePack')
   const tMode = useTranslations('ThemeMode')
-  const router = useRouter()
-  const { theme, enabled } = useTheme()
+  const { theme, enabled, refreshTheme } = useTheme()
   const [preview, setPreview] = useState(THEME_PREVIEW_AUTO)
-  const [, startTransition] = useTransition()
 
   // cookie 是浏览器端的，挂载后再回显，避免与静态结构不一致
   useEffect(() => {
@@ -39,7 +36,8 @@ export function ThemePackPreviewField() {
     // 「从不使用」本身就是要关掉，不需要清
     if (value !== THEME_PREVIEW_AUTO && value !== THEME_PREVIEW_NEVER)
       localStorage.removeItem(THEME_PACK_STORAGE_KEY)
-    startTransition(() => router.refresh())
+    // 立即在客户端应用，不需要等服务端重新渲染
+    refreshTheme()
   }
 
   return (

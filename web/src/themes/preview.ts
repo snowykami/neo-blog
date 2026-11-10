@@ -1,3 +1,4 @@
+import type { ThemeDefinition } from './types'
 import { BUILTIN_THEME_MAP } from './index'
 
 /**
@@ -53,6 +54,23 @@ export function readPreviewCookie(): string {
   if (isPreviewNever(value))
     return THEME_PREVIEW_NEVER
   return THEME_PREVIEW_AUTO
+}
+
+/**
+ * 按预览 cookie 决定实际生效的主题（客户端）：
+ * - 'never' → 不套节日主题
+ * - 具体主题 id → 用它
+ * - 自动 / 未设置 → 用传入的（布局按日期算出的）主题
+ *
+ * 放在客户端执行：服务端读这个 cookie 会让根布局依赖 cookie，整站无法静态化。
+ */
+export function resolvePreviewThemeClient(fallback: ThemeDefinition | null): { theme: ThemeDefinition | null, override: boolean } {
+  const choice = readPreviewCookie()
+  if (isPreviewNever(choice))
+    return { theme: null, override: true }
+  if (!isPreviewableThemeId(choice))
+    return { theme: fallback, override: false }
+  return { theme: BUILTIN_THEME_MAP.get(choice) ?? fallback, override: true }
 }
 
 /** 写入 / 清除预览选择；传 null 或 'auto' 表示恢复按日期自动切换，'never' 表示本浏览器永不用节日主题 */

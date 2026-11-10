@@ -19,7 +19,6 @@ import { ThemeProvider } from '@/contexts/theme-context'
 import { getUserLocale } from '@/i18n/request'
 import { resolveActiveTheme, themeAttributes, themeCssVars } from '@/themes'
 import { themeInitScript } from '@/themes/init-script'
-import { resolvePreviewTheme } from '@/utils/server/theme-preview'
 import './globals.css'
 
 // 字体通过 CSS 变量注入，在 globals.css 的 @theme 中组合中文回退字体（font-sans / font-mono）
@@ -69,10 +68,9 @@ export default async function RootLayout({
     : null
   const siteInfo = await getCachedSiteInfo()
   // 节日 / 季节性主题：只按当前日期计算，不读用户偏好，因此服务端渲染结果稳定；
-  // 用户关闭主题的偏好在客户端处理（见 themeInitScript 与 ThemeProvider）
-  // 管理员可在控制台强制指定主题用于预览/调试（cookie，仅 admin 生效，优先于日期）
-  const preview = await resolvePreviewTheme(user)
-  const theme = preview.override ? preview.theme : resolveActiveTheme()
+  // 用户关闭主题的偏好、管理员的预览主题都在客户端处理（见 themeInitScript、ThemeProvider、
+  // ThemePreviewApplier）——服务端读这两个 cookie 会让整站无法静态化
+  const theme = resolveActiveTheme()
   return (
     // 主题脚本会在水合前修改 class / style，需忽略根节点的属性差异
     <html
