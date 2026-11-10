@@ -28,7 +28,8 @@
 }
 
 /* 首屏一次性入场动画：纯 CSS，服务端渲染的内容无需等待水合即可播放，也不会被 JS 隐藏
- * 仅在用户未要求减少动态效果时启用；分层延迟：导航 0 / 侧栏 100ms / 内容 150ms */
+ * 仅在用户未要求减少动态效果时启用；分层延迟：导航 0 / 侧栏 100ms / 内容 150ms
+ * 首屏播完后根节点带上 data-entered（components/layout/entrance-once.tsx），客户端跳转新挂上的内容不再播放 */
 @keyframes enter-fade-up {
   from {
     opacity: 0;
@@ -66,6 +67,11 @@
 
   .enter-delay-150 {
     animation-delay: 150ms;
+  }
+
+  /* 首屏的动画已播完（fill-mode both 的终点即无动画时的样式），去掉动画不会有可见变化 */
+  :root[data-entered] :is(.enter-fade-up, .enter-fade-down) {
+    animation: none;
   }
 }
 

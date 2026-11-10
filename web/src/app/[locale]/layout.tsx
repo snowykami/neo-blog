@@ -9,6 +9,7 @@ import { AppUpdateChecker } from '@/components/common/app-update-checker'
 import { FloatingWidgets } from '@/components/common/main-floating-widgets'
 import { UserPreferenceSync } from '@/components/common/user-preference-sync'
 import { I18nScope } from '@/components/i18n-scope'
+import { EntranceOnce } from '@/components/layout/entrance-once'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/auth-context'
 import { DeviceProvider } from '@/contexts/device-context'
@@ -100,6 +101,8 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="font-sans">
+        {/* 入场动画只在首屏播放，客户端跳转不重播（见该组件） */}
+        <EntranceOnce />
         <NuqsAdapter>
           <DeviceProvider>
             {/* Toaster 读取 DeviceProvider 中的主题，需放在其内部 */}

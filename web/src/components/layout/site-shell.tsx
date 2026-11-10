@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
  * - 不传 sidebar 时为单栏
  * - stickySidebar 为 true（默认）时整个侧栏吸顶并限制在视口高度内滚动；
  *   为 false 时侧栏与正文等高，由侧栏内部自行决定吸顶的部分（如文章页只让目录吸顶）
- * 首屏入场动画为纯 CSS（见 styles/animation.css）：侧栏 100ms、正文 150ms
+ * 首屏入场动画为纯 CSS（见 styles/animation.css）：侧栏 100ms、正文 150ms；只在整页加载时播放，客户端跳转不重播
  */
 export function SiteShell({
   children,

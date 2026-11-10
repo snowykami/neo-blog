@@ -4,7 +4,7 @@ import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
 import { ChevronDownIcon, ChevronUpIcon, Eye } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { getLabels } from '@/api/label'
 import { listPosts } from '@/api/post'
 import { ImageAvatar } from '@/components/common/avatar'
@@ -266,5 +266,7 @@ export function SidebarComponentCard({ title, name, props, version }: { title: s
   if (!def || (version != null && version > def.version))
     return null
   const view = <ContentView component={def.component} props={props} className="my-0" />
-  return title ? <SidebarCard title={title}>{view}</SidebarCard> : view
+  // 组件本体由 next/dynamic 按需加载、不带 Suspense 边界：在这里接住挂起（整张卡片等组件代码到了再出现），
+  // 免得冒泡到路由的 loading 边界把整页换回骨架
+  return <Suspense fallback={null}>{title ? <SidebarCard title={title}>{view}</SidebarCard> : view}</Suspense>
 }
