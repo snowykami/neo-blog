@@ -3,7 +3,8 @@
  * 1. 谱通量起音强度（log 压缩幅度谱的半波整流差分），减去 0.4 秒滑动平均后归一化；同时记录响度
  * 2. 拍速：起音强度的自相关 R(τ)，按八度族 F(τ) = R(τ/2) + R(τ) + ½R(2τ) 在 [0.5, 1) 秒内找基准周期 τ_F，
  *    再从 {τ_F/2, τ_F, 2τ_F} 中按"整数倍谐波的梳状和 × 对数高斯先验（中心 0.5 秒）"选出音乐拍长 T*；
- *    置信度 c = R(T*) / R(0)。自相关在 T 的每个整数倍上都可能有峰，梳状和与先验一起判八度
+ *    置信度 c = R(T*) / R(0)。梳状和只能压住偏快的候选（细分弱时它的谐波落在半拍上），偏慢的候选
+ *    谐波全落在真拍的整数倍上、梳状和与真拍相当，八度主要由先验决定（见 tempo-fixtures.ts 的回归集）
  * 3. 拍点：动态规划（Ellis 2007）在起音强度上找间隔接近 T* 的拍点序列，去掉静音段的拍点
  * 输入为单声道、采样率 sampleRate 的样本（建议 11025 Hz），时间均以毫秒为单位
  */
@@ -43,6 +44,11 @@ const DP_WINDOW = 1.35
 // 标准差按八度算：0.7 表示差一倍时权重降到 0.36，仍能被足够强的自相关峰压过去
 const TEMPO_PRIOR_PERIOD_S = 0.5
 const TEMPO_PRIOR_SIGMA = 0.7
+// 拍长候选的范围（秒）与梳状和的谐波数：自相关要算到最长候选的 COMB_HARMONICS 倍（6 秒），
+// 否则长周期候选的高次谐波落在自相关范围外按 0 计，慢歌的正确候选平白少一截分数
+const MIN_PERIOD_S = 0.25
+const MAX_PERIOD_S = 1.5
+const COMB_HARMONICS = 4
 
 function makeFFT(n: number) {
   const rev = new Uint32Array(n)
@@ -214,7 +220,9 @@ export function analyzeRhythm(samples: Float32Array, sampleRate: number, onProgr
 
   // 2. 拍速：自相关后按八度族折叠
   onProgress?.(0.88)
-  const maxLag = Math.ceil(frameRate * 4)
+  // 每个候选的梳状和都要取满 COMB_HARMONICS 项：R(4·1.5 s) 也得在范围内。4 分钟的歌约 2 万帧，
+  // 滞后从 4 秒（345 帧）加到 6 秒（517 帧），乘加从约 710 万次增到约 1070 万次，相比谱通量的 FFT 可以忽略
+  const maxLag = Math.ceil(frameRate * MAX_PERIOD_S * COMB_HARMONICS)
   const autocorr = new Float32Array(maxLag + 2)
   for (let tau = 0; tau <= maxLag + 1; tau++) {
     let sum = 0
@@ -234,10 +242,16 @@ export function analyzeRhythm(samples: Float32Array, sampleRate: number, onProgr
       familyBest = tau
   }
   const prior = (tau: number) => Math.exp(-0.5 * (Math.log2(tau / frameRate / TEMPO_PRIOR_PERIOD_S) / TEMPO_PRIOR_SIGMA) ** 2)
-  // 只数整数倍谐波的梳状和：真拍长在 T、2T、3T、4T 上都有能量，两倍的候选只有 2T、4T（缺 T 与 3T），
-  // 一半的候选只有 T/2、T、3T/2（缺 3T 与 4T）——这个不对称正是判八度的依据
-  const comb = (tau: number) => R(tau) + R(2 * tau) / 2 + R(3 * tau) / 3 + R(4 * tau) / 4
-  const members = [familyBest / 2, familyBest, familyBest * 2].filter(tau => tau >= frameRate * 0.25 && tau <= frameRate * 1.5)
+  // 整数倍谐波的梳状和 Σ R(kτ)/k（k = 1 ~ 4）：一半的候选 T/2 有一半的谐波落在 T/2、3T/2 上，细分弱时
+  // 分数明显低于真拍 T；两倍的候选 2T 的谐波 2T、4T、6T、8T 全是真拍的整数倍，分数与 T 相当，
+  // 所以梳状和只能压住偏快的一侧，偏慢的一侧靠先验
+  const comb = (tau: number) => {
+    let sum = 0
+    for (let k = 1; k <= COMB_HARMONICS; k++)
+      sum += R(k * tau) / k
+    return sum
+  }
+  const members = [familyBest / 2, familyBest, familyBest * 2].filter(tau => tau >= frameRate * MIN_PERIOD_S && tau <= frameRate * MAX_PERIOD_S)
   const tempoScore = (tau: number) => prior(tau) * comb(tau)
   const period = members.reduce((best, tau) => (tempoScore(tau) > tempoScore(best) ? tau : best))
   const confidence = autocorr[0] > 0 ? R(period) / autocorr[0] : 0

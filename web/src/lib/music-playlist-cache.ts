@@ -50,6 +50,23 @@ export function writePlaylistCache(version: string, tracks: MusicTrack[]) {
   catch { }
 }
 
+/**
+ * 版本校验通过（内容没变）时刷新本地副本的保存时间：最长使用时间从最近一次确认起算，
+ * 否则每天都来的读者每过 24 小时都要重新下载一次整份歌单。本地副本已不是这个版本或读不出来时不处理
+ */
+export function touchPlaylistCache(version: string) {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw)
+      return
+    const stored = JSON.parse(raw) as StoredPlaylist | null
+    if (stored?.version !== version)
+      return
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...stored, savedAt: Date.now() }))
+  }
+  catch { }
+}
+
 // 只做形状校验：本地数据可能被旧版本写入或被其他脚本改坏，坏数据会让播放器直接崩掉
 function isTrack(track: unknown): track is MusicTrack {
   const value = track as MusicTrack | null

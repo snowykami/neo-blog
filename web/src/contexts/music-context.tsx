@@ -85,6 +85,8 @@ interface MusicContextValue {
   // 播放列表 操作
   // startTime：起始曲目的初始播放进度（秒），用于刷新后恢复进度，会在该曲目元数据就绪后应用
   replacePlaylist: (tracks: MusicTrack[], startIndex?: number, startTime?: number) => void
+  // 只换歌单数据（后台拿到新版本歌单）：不换当前曲目、不动进度与待恢复的进度，当前曲目已被移出歌单时留在原位（见 rebasePlaylist）
+  updatePlaylist: (tracks: MusicTrack[]) => void
 
   // 播放控制
   // startTime：可选的起始播放进度（秒），用于从歌词摘录等位置开始播放
@@ -272,6 +274,36 @@ function getAdjacentIndex(list: MusicTrack[], curr: number | null, mode: PlayMod
   if (curr == null)
     return direction === 1 ? 0 : list.length - 1
   return (curr + direction + list.length) % list.length
+}
+
+// 播放地址在后端缓存 10 分钟：预取过的歌曲超过这个时间再经过时重新预取
+export const PREFETCH_TTL_MS = 10 * 60 * 1000
+
+/** 是否需要预取这首歌的播放地址：没预取过，或上次预取已超过后端缓存的有效期 */
+export function shouldPrefetch(prefetched: Map<number, number>, id: number, now: number): boolean {
+  const at = prefetched.get(id)
+  if (at != null && now - at < PREFETCH_TTL_MS)
+    return false
+  // 顺手清掉过期的记录，循环播放很久也不会一直变大
+  for (const [key, time] of prefetched) {
+    if (now - time >= PREFETCH_TTL_MS)
+      prefetched.delete(key)
+  }
+  return true
+}
+
+/**
+ * 换上新版本的歌单时重新定位当前曲目，保证不换歌：当前曲目在新歌单中时取新歌单中的位置；
+ * 已被移出歌单时把它留在原来的位置（读者切到别的歌之后，下次加载歌单就不再有它），不跳到第一首
+ */
+export function rebasePlaylist(tracks: MusicTrack[], current: MusicTrack | null, currentIndex: number | null): { tracks: MusicTrack[], index: number | null } {
+  if (!current)
+    return { tracks, index: tracks.length > 0 ? 0 : null }
+  const index = tracks.findIndex(track => track.id === current.id)
+  if (index >= 0)
+    return { tracks, index }
+  const insertAt = Math.max(0, Math.min(currentIndex ?? 0, tracks.length))
+  return { tracks: [...tracks.slice(0, insertAt), current, ...tracks.slice(insertAt)], index: insertAt }
 }
 
 /** MediaSession 封面：无封面时返回空数组，避免浏览器因空 src 报错 */
@@ -489,25 +521,31 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 节拍分析（韵律动效）：开启歌词特效时分析当前曲目，结果按歌曲缓存；拿不到时动效回退到固定快慢（见 lib/lyrics/rhythm/source.ts）。
   // 分析要另外下载一整首音频：等这首歌出声后再请求，不跟切歌后的首段缓冲抢带宽；页面不可见时（锁屏、后台用系统媒体控制切歌）
   // 看不到动效，也不在后台下载、解码整首歌，回到前台后再分析
+  // 切歌、关闭特效时取消这首的分析（中止下载、丢弃解码结果、终止 Worker），不和下一首的 <audio> 抢带宽与内存；
+  // 依赖只用 id 与音频地址：后台换上新版本歌单时曲目对象会换成新的，但不是换歌，不能把进行到一半的分析取消掉
+  const currentTrackAudio = currentTrack?.audio ?? null
   useEffect(() => {
     const audio = audioRef.current
-    if (!showLyricEffects || !currentTrack || !audio)
+    if (!showLyricEffects || currentTrackId == null || !audio)
       return
+    const controller = new AbortController()
     const request = () => {
       if (!audio.paused && audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA && document.visibilityState === 'visible')
-        requestRhythm(currentTrack.id, currentTrack.audio)
+        requestRhythm(currentTrackId, currentTrackAudio, controller.signal)
     }
     request()
     audio.addEventListener('playing', request)
     document.addEventListener('visibilitychange', request)
     return () => {
+      controller.abort()
       audio.removeEventListener('playing', request)
       document.removeEventListener('visibilitychange', request)
     }
-  }, [currentTrack, showLyricEffects])
+  }, [currentTrackAudio, currentTrackId, showLyricEffects])
 
-  // 已经预取过播放地址的歌曲：页面可见性变化、同一首反复触发时不重复请求（地址在后端缓存 10 分钟，过期后切歌会重新现取）
-  const prefetchedTrackIds = useRef<Set<number>>(new Set())
+  // 预取过播放地址的歌曲与预取时间：页面可见性变化、同一首反复触发时不重复请求；
+  // 地址在后端缓存 10 分钟，过了这段时间（列表循环回来、再次经过）重新预取
+  const prefetchedTrackIds = useRef<Map<number, number>>(new Map())
 
   // 预取下一首的播放地址：切歌时后端要现向网易云要地址（实测接近 1 秒），提前问好之后按「下一首」只需等 CDN 的首字节。
   // 与节奏分析一样等这首歌真的出声后再要，不和切歌后的首段缓冲抢；页面不可见时不预取（后台切歌看不到，也别浪费上游额度）。
@@ -524,9 +562,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const nextIndex = getAdjacentIndex(playlistRef.current, currentIndexRef.current, playModeRef.current, 1)
       const next = nextIndex == null ? null : playlistRef.current[nextIndex]
       // 单曲歌单、单曲循环时下一首就是当前曲目：播放地址已经取过了
-      if (!next || next.id === currentTrack.id || prefetchedTrackIds.current.has(next.id))
+      if (!next || next.id === currentTrack.id || !shouldPrefetch(prefetchedTrackIds.current, next.id, Date.now()))
         return
-      prefetchedTrackIds.current.add(next.id)
+      prefetchedTrackIds.current.set(next.id, Date.now())
       // 失败时删掉标记，切到它时重新现取（只是白预取一次，不影响播放）
       fetchSongAudioURL(next.id).catch(() => prefetchedTrackIds.current.delete(next.id))
     }
@@ -706,6 +744,16 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     currentIndexRef.current = index
     setPlaylist(tracks)
     setCurrentIndex(index)
+  }, [])
+
+  const updatePlaylist = useCallback((tracks: MusicTrack[]) => {
+    const index = currentIndexRef.current
+    const current = index == null ? null : playlistRef.current[index] ?? null
+    const next = rebasePlaylist(tracks, current, index)
+    playlistRef.current = next.tracks
+    currentIndexRef.current = next.index
+    setPlaylist(next.tracks)
+    setCurrentIndex(next.index)
   }, [])
 
   const playTrack = useCallback((index: number, startTime?: number) => {
@@ -978,6 +1026,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     hasRomajiLyric,
     getAudio,
     replacePlaylist,
+    updatePlaylist,
     playTrack,
     playSong,
     play,
@@ -1026,6 +1075,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     hasRomajiLyric,
     getAudio,
     replacePlaylist,
+    updatePlaylist,
     playTrack,
     playSong,
     play,
