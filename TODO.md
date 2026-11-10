@@ -48,14 +48,16 @@
 
 现状：服务端读用户设置、语言 cookie 与 `accept-language` 决定界面语言，同一个 URL 不同人返回不同语言，CDN 与缓存都用不了，搜索引擎只能收录一种语言。
 
-- [ ] 前台页面目录挪进 `app/[locale]/`；`/console`、`/api`、`rss.xml`、`sitemap`、`robots` 不带语言前缀
-- [ ] next-intl `defineRouting` + `localePrefix: 'as-needed'`：中文不带前缀（旧链接与 SEO 不变），其他语言 `/en`、`/ja`、`/ko`、`/zh-tw`
-- [ ] `i18n/request.ts` 改为只读 URL 里的语言；新增 `proxy.ts`，只在首次访问时按偏好跳转
-- [ ] 前台的 `next/link`、`useRouter` 换成 next-intl 的版本；语言切换改为跳转 URL
-- [ ] i18n 作用域生成器适配 `[locale]` 路径层级，重新生成清单
-- [ ] sitemap 与页面 `<head>` 加 `hreflang` 互相指向
-- [ ] 语言 JSON 文件内容不动
-- [ ] 静态化前置（阶段一实验构建把语言写死后发现）：`/auth/*` 页面的 `useSearchParams` 要包进 Suspense，否则预渲染报错；`/`、`/a`、`/c/[slug]` 读 `searchParams`、`/p/[id]` 等动态段没有 `generateStaticParams`，仍是 ƒ，留给阶段三～五
+- [x] 前台页面目录挪进 `app/[locale]/`；`/console`、`/api`、`rss.xml`、`sitemap`、`robots` 不带语言前缀（根布局即 `[locale]/layout.tsx`；后台也放进 `[locale]` 共用根布局，前台与后台之间仍是客户端跳转、音乐不断，地址不带前缀，由 proxy 按偏好改写语言段，`force-dynamic`；`app/` 根目录只剩接口、RSS、sitemap、robots、healthz 与 global-error / global-not-found）
+- [x] next-intl `defineRouting` + `localePrefix: 'as-needed'`：中文不带前缀（旧链接与 SEO 不变），其他语言 `/en`、`/ja`、`/ko`、`/zh-tw`（zh-HK / zh-MO / zh-SG 有自己的文案，同样各有前缀 `/zh-hk`、`/zh-mo`、`/zh-sg`；路由参数用注册表代码 zh-TW，对外小写前缀，见 `i18n/routing.ts`）
+- [x] `i18n/request.ts` 改为只读 URL 里的语言（`next/root-params`，Route Handler 显式传 locale）；新增 `proxy.ts`，只在首次访问时按偏好跳转（只对浏览器打开页面、地址不带前缀、偏好非默认语言时 307，跳转响应 `private, no-store`；客户端路由取数不跳；不写 Cookie，不带前缀的 200 响应对所有人一致；`Accept-Language: *` 视为无偏好）
+- [x] 前台的 `next/link`、`useRouter` 换成 next-intl 的版本；语言切换改为跳转 URL（`@/i18n/navigation` 包一层：后台 / 接口地址原样交给 next；页脚新增语言切换，写 NEXT_LOCALE 后整页跳到目标语言地址；账号语言只在新设或首次同步时生效，之后本浏览器自己选的语言优先；文章 slug 跳转、链接页跳转、分页、分享链接、分享图、OIDC 回跳地址都带当前语言）
+- [x] i18n 作用域生成器适配 `[locale]` 路径层级，重新生成清单（作用域名不变，清单无变化）
+- [x] sitemap 与页面 `<head>` 加 `hreflang` 互相指向（每种语言一条 `<url>` + xhtml:link，含 x-default；canonical 指向当前语言；根布局统一 `metadataBase`；robots 屏蔽各语言的 `/auth/`）
+- [x] 语言 JSON 文件内容不动
+- [x] 静态化前置（阶段一实验构建把语言写死后发现）：`/auth/*` 页面的 `useSearchParams` 要包进 Suspense，否则预渲染报错（已包，骨架占位）；`/`、`/a`、`/c/[slug]` 读 `searchParams`、`/p/[id]` 等动态段没有 `generateStaticParams`，仍是 ƒ，留给阶段三～五
+- 验收（2026-11 构建）：构建期不预渲染（`[locale]` 的 `generateStaticParams` 返回空数组），镜像构建连不上后端也不会把「Fail to fetch name」这类兜底内容固化进页面；`/privacy`、`/c`、`/l`、`/music`、`/random`、`/notifications`、`/notification-settings`、`/auth/*` 每种语言在第一次访问时用真实数据生成并按 ISR 缓存（30 秒，根布局 `revalidate = 30`）；站点信息、隐私页配置、分类 / 标签列表取不到时抛错而不是用兜底内容渲染：已有缓存继续提供，没有缓存时本次返回 500 且不进缓存（robots.txt、分享图仍用兜底站点信息）；`/`、`/a` 读 `searchParams`，显式 `force-dynamic`（构建期不渲染就判断不出动态，运行时会报 static to dynamic）；`/c/[slug]`、`/p/[id]`、`/page/[id]`、`/u/[username]`、后台仍按请求渲染
+- 遗留：后台「站点语言」设置不再决定不带前缀地址的界面语言（固定简体中文），文案说明暂未改（本阶段不动语言 JSON）；文章正文里的站内链接是普通 `<a>`，不带语言前缀，靠 proxy 按偏好跳转；CDN 若缓存不带前缀的 200 响应会跳过首次访问跳转，阶段五配缓存时再定
 
 ### 阶段三：点击即开（体感提升最大）
 

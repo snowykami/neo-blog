@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { ImageAvatar } from '@/components/common/avatar'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { Link } from '@/i18n/navigation'
 import { getFallbackAvatarFromUsername } from '@/utils/common/username'
 
 export function AuthHeader() {

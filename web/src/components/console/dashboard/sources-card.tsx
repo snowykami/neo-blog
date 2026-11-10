@@ -1,10 +1,10 @@
 import type { VisitSourceCount } from '@/models/visit'
 import { useFormatter, useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { SourceIcon, SourceName } from '@/components/console/visit-icons'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Progress } from '@/components/ui/progress'
+import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { consolePath } from '@/utils/common/route'
 

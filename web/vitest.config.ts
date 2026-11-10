@@ -12,5 +12,7 @@ export default defineConfig({
     environment: 'happy-dom',
     include: ['src/**/*.test.ts'],
     css: false,
+    // next-intl 的中间件以不带扩展名的 next/server 导入 next，交给 Vite 解析（proxy.test.ts 用到）
+    server: { deps: { inline: ['next-intl'] } },
   },
 })

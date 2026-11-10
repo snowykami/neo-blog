@@ -1,6 +1,6 @@
 'use client'
 import type { OidcConfig } from '@/models/oidc-config'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getOidcAuthorizeUrl, listOidcConfigs } from '@/api/user'
@@ -8,6 +8,7 @@ import { openOidcPopup } from '@/components/auth/oidc-popup'
 import { ImageAvatar } from '@/components/common/avatar'
 import { Button } from '@/components/ui/button'
 import { useErrorMessageT } from '@/hooks/use-translations'
+import { localizePath } from '@/i18n/routing'
 import { cn } from '@/lib/utils'
 
 // 列表只含展示信息，页面内共用一次请求（评论区邀请卡片与快捷登录弹窗同时用到），失败后下次重新请求
@@ -74,6 +75,8 @@ export function OidcProviderButtons({
   const t = useTranslations('Login')
   const errorMessageT = useErrorMessageT()
   const [pending, setPending] = useState<string | null>(null)
+  // 整页跳转登录后由后端带回这个地址：带上当前语言前缀，回来时仍是同一种语言
+  const localizedRedirectBack = localizePath(redirectBack, useLocale())
 
   if (providers.length === 0)
     return null
@@ -88,7 +91,7 @@ export function OidcProviderButtons({
         }
         if (result.blocked) {
           // 小窗被拦截：退回整页跳转
-          window.location.href = getOidcAuthorizeUrl({ name: provider.name, redirectBack, bind })
+          window.location.href = getOidcAuthorizeUrl({ name: provider.name, redirectBack: localizedRedirectBack, bind })
           return
         }
         if (result.error)
@@ -102,7 +105,7 @@ export function OidcProviderButtons({
       {providers.map((provider) => {
         const label = t('login_with', { name: provider.displayName })
         // nofollow：避免搜索引擎顺着链接反复发起登录
-        const href = getOidcAuthorizeUrl({ name: provider.name, redirectBack, bind })
+        const href = getOidcAuthorizeUrl({ name: provider.name, redirectBack: localizedRedirectBack, bind })
         const icon = (
           <ImageAvatar
             src={provider.icon}

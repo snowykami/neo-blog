@@ -1,5 +1,6 @@
 import type { Post } from '@/models/post'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter } from '@/i18n/navigation'
+import { splitLocalePrefix } from '@/i18n/routing'
 import { consolePath, getPostViewUrl, getUserUrl } from '@/utils/common/route'
 
 /**
@@ -10,6 +11,15 @@ export const authPath = '/auth'
 export const loginPath = `${authPath}/login`
 export const registerPath = `${authPath}/register`
 export const resetPasswordPath = `${authPath}/reset-password`
+
+/**
+ * 登录 / 注册后回到的地址（查询参数 redirect_back）：不带语言前缀的站内路径，跳转时由导航按当前语言补上前缀。
+ * 万一带了前缀（/en/p/x）先去掉，避免跳到 /en/en/p/x
+ */
+export function readRedirectBack(searchParams: Pick<URLSearchParams, 'get'>): string {
+  const value = searchParams.get('redirect_back') || '/'
+  return value.startsWith('/') && !value.startsWith('//') ? splitLocalePrefix(value).pathname : value
+}
 
 export function useToLogin() {
   const router = useRouter()

@@ -2,7 +2,6 @@
 import type { User } from '@/models/user'
 import type { CaptchaProps } from '@/types/captcha'
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -16,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/auth-context'
 import { resetPasswordPath } from '@/hooks/use-route'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { Link } from '@/i18n/navigation'
 
 interface LoginValues {
   username: string

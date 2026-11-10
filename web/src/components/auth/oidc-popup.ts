@@ -2,6 +2,7 @@
 
 import { getOidcAuthorizeUrl } from '@/api/user'
 import { loginPath } from '@/hooks/use-route'
+import { splitLocalePrefix } from '@/i18n/routing'
 
 /** 小窗登录完成（成功或取消）后由 /auth/oidc-callback 在关窗前发给本页 */
 export const OIDC_POPUP_MESSAGE = 'neo-blog:oidc-login-done'
@@ -80,7 +81,8 @@ export function openOidcPopup({ name, bind = false }: { name: string, bind?: boo
       // 小窗被导航到身份提供商时读不到地址（跨域），回到本站后才能读到
       try {
         const { pathname, searchParams } = new URL(popup.location.href)
-        const error = pathname === loginPath ? searchParams.get('oidc_error') : null
+        // 后端带错误码回到的登录页可能被 proxy 按语言偏好加了前缀（/en/auth/login）
+        const error = splitLocalePrefix(pathname).pathname === loginPath ? searchParams.get('oidc_error') : null
         if (error) {
           popup.close()
           finish({ ok: false, error })

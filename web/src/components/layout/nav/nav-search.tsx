@@ -2,10 +2,10 @@
 
 import { SearchIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { useRouter } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { mainPath } from '@/utils/common/route'
 

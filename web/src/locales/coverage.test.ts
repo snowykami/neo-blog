@@ -9,24 +9,20 @@ import {
   relativePath,
   resolvePath,
   routeSegments,
-  SRC_ROOT,
   unitOf,
 } from '../../scripts/i18n-graph.mjs'
-import { checkConfigKeys, computeScopes, KEY_TABLES, keyTablePaths, SCOPE_DIRS, scopeKey } from '../../scripts/i18n-scopes.mjs'
+import { APP_ROOT, checkConfigKeys, computeScopes, KEY_TABLES, keyTablePaths, SCOPE_DIRS, scopeKey, segmentDir } from '../../scripts/i18n-scopes.mjs'
 import { scopePaths, unitOfPath } from './scopes'
 import { SCOPES } from './scopes.generated'
 
 const manifest = SCOPES as Record<string, readonly string[]>
 
-const APP_ROOT = join(SRC_ROOT, 'app')
 const byDepth = [...SCOPE_DIRS].sort((a, b) => b.length - a.length)
 
 const within = (dir: string, scope: string) => scope === '' || dir === scope || dir.startsWith(`${scope}/`)
 
 /** 某个目录最终由哪个作用域提供文案：它所在目录最深的作用域祖先 */
 const nearestScopeDir = (dir: string) => byDepth.find(scope => within(dir, scope)) ?? ''
-
-const segmentDir = (segment: string) => (segment === APP_ROOT ? '' : segment.slice(APP_ROOT.length + 1))
 
 describe('i18n 作用域', () => {
   const graph = createGraph()
@@ -72,7 +68,8 @@ describe('i18n 作用域', () => {
     for (const scope of SCOPE_DIRS) {
       const list = scopePaths(scopeKey(scope) as keyof typeof SCOPES)
       for (const [segment, entries] of segments) {
-        if (nearestScopeDir(segmentDir(segment)) !== scope)
+        const dir = segmentDir(segment)
+        if (dir === null || nearestScopeDir(dir) !== scope)
           continue
         const { units } = messagePathsOfClosure(moduleClosure(entries, graph), graph)
         for (const unit of units.keys()) {
@@ -103,7 +100,7 @@ describe('i18n 作用域', () => {
     const strays: string[] = []
     for (const [segment, entries] of segments) {
       const dir = segmentDir(segment)
-      if (dir === '' || nearestScopeDir(dir) !== '')
+      if (dir === null || dir === '' || nearestScopeDir(dir) !== '')
         continue
       const { units, shallow } = messagePathsOfClosure(moduleClosure(entries, graph), graph)
       if (units.size > 0 || shallow.size > 0)

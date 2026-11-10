@@ -2,7 +2,6 @@
 
 import type { SidebarMenu as SidebarMenuData } from './data'
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -12,6 +11,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/contexts/auth-context'
+import { Link } from '@/i18n/navigation'
 import { permittedItems } from './data'
 
 export function NavGroup({

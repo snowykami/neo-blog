@@ -3,7 +3,6 @@
 import type { User } from '@/models/user'
 import type { CaptchaProvider } from '@/types/captcha'
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getCaptchaConfig, requestEmailVerifyCode, userRegister } from '@/api/user'
@@ -16,6 +15,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { loginPath } from '@/hooks/use-route'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { Link } from '@/i18n/navigation'
 
 /**
  * 用户名 + 密码 + 邮箱验证码注册，含人机验证；注册页与快捷登录弹窗的注册视图共用。

@@ -1,9 +1,12 @@
+import { localizePath, splitLocalePrefix } from './routing'
+
 /**
- * 登录用户在账号里设置的界面语言，记在本浏览器的 Cookie 里，服务端按它选语言（见 i18n/request.ts）。
+ * 本浏览器选定的界面语言，记在 Cookie 里。前台页面的语言只看地址（见 i18n/routing.ts），这个 Cookie 只用来：
+ * - 打开不带语言前缀的前台地址时，proxy.ts 据此跳到对应语言的地址（首次访问的跳转）
+ * - 后台（/console）不带语言前缀，proxy.ts 据此决定后台的界面语言
  *
- * 服务端渲染不再查当前用户：以前按账号设置选语言要先请求 /user/me，现在由浏览器取到用户后写进这个 Cookie
- * （见 components/common/user-preference-sync.tsx，个人资料保存语言时也会写）。
- * 名字沿用 next-intl 的默认 Cookie 名：阶段二把语言放进 URL 后，首次访问按偏好跳转时继续用它。
+ * 只由浏览器写：语言切换（switchLocale）、个人资料保存语言、登录后同步账号语言（components/common/user-preference-sync.tsx）。
+ * 名字沿用 next-intl 的默认 Cookie 名
  */
 export const LOCALE_COOKIE = 'NEXT_LOCALE'
 
@@ -25,4 +28,34 @@ export function readLocaleCookie(cookie: string): string {
   catch {
     return ''
   }
+}
+
+/**
+ * 切换界面语言：记进语言 Cookie，再打开当前页面在目标语言下的地址（/p/x → /en/p/x）。
+ * 语言在根布局所在的 [locale] 段里，换语言本来就是整页加载，直接整页跳转；
+ * 后台地址不带语言前缀，跳转后由 proxy.ts 按新的 Cookie 选语言
+ */
+export function switchLocale(locale: string) {
+  writeLocaleCookie(locale)
+  const { pathname, search, hash } = window.location
+  window.location.assign(localizePath(`${splitLocalePrefix(pathname).pathname}${search}${hash}`, locale))
+}
+
+/** 上次同步到本浏览器的账号语言（localStorage）：账号语言没变时，本浏览器自己选的语言优先 */
+const SYNCED_ACCOUNT_LOCALE_KEY = 'synced_account_locale'
+
+export function readSyncedAccountLocale(): string | null {
+  try {
+    return localStorage.getItem(SYNCED_ACCOUNT_LOCALE_KEY)
+  }
+  catch {
+    return null
+  }
+}
+
+export function writeSyncedAccountLocale(locale: string) {
+  try {
+    localStorage.setItem(SYNCED_ACCOUNT_LOCALE_KEY, locale)
+  }
+  catch {}
 }

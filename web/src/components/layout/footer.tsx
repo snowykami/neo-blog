@@ -1,8 +1,9 @@
 'use client'
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { useSyncExternalStore } from 'react'
+import { LocaleSwitcher } from '@/components/layout/locale-switcher'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { Link } from '@/i18n/navigation'
 import { mainPath } from '@/utils/common/route'
 
 const footerLinkClass = 'rounded-sm underline decoration-dashed underline-offset-4 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -57,6 +58,7 @@ export default function Footer() {
           })}
           <Link href={mainPath.feed} className={footerLinkClass}>RSS</Link>
           <Link href={mainPath.privacy} className={footerLinkClass}>{routeT('privacy_policy')}</Link>
+          <LocaleSwitcher className={footerLinkClass} />
         </div>
       </div>
     </footer>

@@ -1,8 +1,6 @@
 'use client'
 import type { User } from '@/models/user'
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import { createContext, use, useCallback, useState } from 'react'
 import { LocalLoginForm } from '@/components/auth/local-login-form'
 import { LocalRegisterForm } from '@/components/auth/local-register-form'
@@ -10,6 +8,7 @@ import { OidcProviderButtons, useOidcProviders } from '@/components/auth/oidc-pr
 import { SectionDivider } from '@/components/common/section-divider'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/contexts/auth-context'
+import { Link, usePathname } from '@/i18n/navigation'
 import { mainPath } from '@/utils/common/route'
 
 /** 触发快捷登录的操作，决定弹窗里的提示文案 */

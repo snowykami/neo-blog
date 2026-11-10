@@ -29,7 +29,15 @@ const loadSiteInfo = unstable_cache(
   { revalidate: SITE_INFO_REVALIDATE_SECONDS },
 )
 
-/** 获取失败时回退到 fallbackSiteInfo，避免页面因站点信息缺失而 500（失败不写缓存） */
-export const getCachedSiteInfo = cache(async (): Promise<SiteInfo> => {
+/**
+ * 页面渲染用：取不到时直接抛错，不拿兜底内容渲染（失败不写缓存）。
+ * 前台页面按 ISR 缓存（见 app/[locale]/layout.tsx）：拿 fallbackSiteInfo 渲染出来的页面会被缓存下来，
+ * 访客与 CDN 拿到的是「Fail to fetch name」这类兜底内容。抛错时 Next 继续提供上一份成功生成的页面、下一次请求再重试；
+ * 还没有成功生成过时这次请求返回错误页，错误页不进缓存
+ */
+export const getCachedSiteInfo = cache(async (): Promise<SiteInfo> => loadSiteInfo())
+
+/** 结果不进页面缓存的地方（robots.txt、分享图）：取不到时回退到 fallbackSiteInfo，不让爬虫拿到 500 */
+export const getCachedSiteInfoOrFallback = cache(async (): Promise<SiteInfo> => {
   return loadSiteInfo().catch(() => fallbackSiteInfo)
 })

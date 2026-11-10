@@ -2,12 +2,12 @@
 
 import type { AIAgentStats } from '@/models/ai-agent'
 import { Activity, Bot, Coins, Heart, MessageCircle, Power, Settings2, TriangleAlert, Zap } from 'lucide-react'
-import Link from 'next/link'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { consolePath } from '@/utils/common/route'
 import { useAIAgentT, useCompactNumber } from './shared'

@@ -1,13 +1,13 @@
+import { hasLocale } from 'next-intl'
 import { getRequestConfig } from 'next-intl/server'
-import { cookies, headers } from 'next/headers'
-import { getCachedSiteInfo } from '@/api/misc.server'
+import { locale as rootLocale } from 'next/root-params'
 import { messagePath, readableFallback, reportIntlError } from '@/i18n/fallback'
-import { LOCALE_COOKIE } from '@/i18n/locale-cookie'
-import { DEFAULT_LOCALE, getLocaleMessages, parseAcceptLanguage, resolveLocale } from '@/locales'
+import { routing } from '@/i18n/routing'
+import { getLocaleMessages } from '@/locales'
 import { DEFAULT_TIME_ZONE } from '@/utils/common/time-zone'
 
-export default getRequestConfig(async () => {
-  const locale = await getUserLocale()
+export default getRequestConfig(async ({ locale: requested }) => {
+  const locale = hasLocale(routing.locales, requested) ? requested : await urlLocale()
   // 地区变体缺少的文案按回退链补齐（见 locales/registry.ts）
   return {
     locale,
@@ -21,25 +21,18 @@ export default getRequestConfig(async () => {
   }
 })
 
-// 当前请求的界面语言：账号设置（浏览器取到用户后写进语言 Cookie）> 浏览器语言（Accept-Language 按权重从高到低）> 默认语言
-// 语言标签不区分大小写，旧版本保存的 zh、zh-tw 等写法也能识别。
-// 服务端不查当前用户；按请求选语言是最后一处「因人而异」，阶段二把语言放进 URL 后去掉。
-// 请求完全不带 Accept-Language 时（搜索引擎爬虫抓取时就不带）用站点语言，让收录的页面与正文语言一致；
-// 带了但都不支持的语言（如法语）仍回退到默认语言 en
-export async function getUserLocale(): Promise<string> {
-  // 站点只保留部分界面语言：用户设置的语言若已被移除，按浏览器语言回退
-  const preferred = resolveLocale((await cookies()).get(LOCALE_COOKIE)?.value)
-  if (preferred)
-    return preferred
-
-  const headersList = await headers()
-  const acceptLanguage = headersList.get('accept-language')?.trim()
-  if (!acceptLanguage)
-    return resolveLocale((await getCachedSiteInfo()).defaultLanguage) ?? DEFAULT_LOCALE
-  for (const tag of parseAcceptLanguage(acceptLanguage)) {
-    const locale = resolveLocale(tag)
-    if (locale)
-      return locale
+/**
+ * 界面语言只看 URL：根布局所在的 [locale] 段（前台由地址前缀决定，后台由 proxy.ts 按偏好改写进来），
+ * 同一个地址对所有人返回同一种语言，不读 Cookie 与 Accept-Language，页面因此可以静态化。
+ * Route Handler 里取不到根参数（Next 暂不支持），调用方应显式传 locale（如 getTranslations({ locale })），
+ * 否则回退到默认语言
+ */
+async function urlLocale(): Promise<string> {
+  try {
+    const value = await rootLocale()
+    if (hasLocale(routing.locales, value))
+      return value
   }
-  return DEFAULT_LOCALE
+  catch {}
+  return routing.defaultLocale
 }

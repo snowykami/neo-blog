@@ -2,18 +2,20 @@
 
 import { LogOut } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import React from 'react'
 import { UserAvatar } from '@/components/common/avatar'
 import { SectionDivider } from '@/components/common/section-divider'
 import { useAuth } from '@/contexts/auth-context'
+import { readRedirectBack } from '@/hooks/use-route'
+import { useRouter } from '@/i18n/navigation'
 import { formatDisplayName } from '@/utils/common/username'
 
 export function CurrentLogged() {
   const t = useTranslations('Login')
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectBack = searchParams.get('redirect_back') || '/'
+  const redirectBack = readRedirectBack(searchParams)
   const { user, logout } = useAuth()
 
   const handleLoggedContinue = () => {

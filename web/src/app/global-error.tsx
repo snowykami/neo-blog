@@ -4,11 +4,18 @@ import type { AbstractIntlMessages } from 'next-intl'
 import { NextIntlClientProvider } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { ErrorBoundaryPage } from '@/components/common/error-boundary-page'
+import { isConsolePath, routing, splitLocalePrefix } from '@/i18n/routing'
 import { DEFAULT_LOCALE, getFallbackChain, LOCALES, mergeLocaleMessages, resolveLocale } from '@/locales/registry'
 import './globals.css'
 
-// 根布局本身出错时使用，此时没有 NextIntlClientProvider，按浏览器语言按需加载对应文案
+// 根布局本身出错时使用，此时没有 NextIntlClientProvider，按需加载对应文案：
+// 前台按地址里的语言（不带前缀就是默认语言），后台地址不带语言，按浏览器语言
 function detectLocale(): string {
+  const { locale, pathname } = splitLocalePrefix(window.location.pathname)
+  if (locale)
+    return locale
+  if (!isConsolePath(pathname))
+    return routing.defaultLocale
   for (const tag of navigator.languages ?? [navigator.language]) {
     const locale = resolveLocale(tag)
     if (locale)

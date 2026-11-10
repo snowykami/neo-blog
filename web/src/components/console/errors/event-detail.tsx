@@ -2,7 +2,6 @@
 
 import type { ErrorBreadcrumb, ErrorEvent, ErrorException, ErrorFrame } from '@/models/error-report'
 import { useFormatter, useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { getErrorEventAdmin } from '@/api/admin'
 import { UserAvatar } from '@/components/common/avatar'
@@ -10,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { consolePath, getUserUrl } from '@/utils/common/route'
 

@@ -2,11 +2,11 @@
 
 import type { MusicSource } from '@/models/music'
 import dynamic from 'next/dynamic'
-import { usePathname } from 'next/navigation'
 import Script from 'next/script'
 import { useEffect, useMemo, useState } from 'react'
 import ScrollToTopButton from '@/components/common/scroll-to-top'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { usePathname } from '@/i18n/navigation'
 
 // 播放器体积不小（歌词引擎、封面取色、舞台特效），不挡首屏：空闲时再挂载，
 // 功能不变——歌单加载与播放进度恢复照常执行，只比之前晚一两秒

@@ -1,7 +1,6 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { SiteLogo } from '@/components/common/site-logo'
 import {
   Sidebar,
@@ -13,6 +12,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { Link } from '@/i18n/navigation'
 import { ThemeModeToggle } from '../common/theme-toggle'
 import { sidebarData } from './data'
 import { NavGroup } from './nav-group'

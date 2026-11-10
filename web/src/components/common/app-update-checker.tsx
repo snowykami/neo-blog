@@ -3,11 +3,11 @@
 import type { IslandActivity } from '@/contexts/topbar-island'
 import { RefreshCwIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { IslandSlot, IslandText } from '@/components/layout/topbar-island/island-parts'
 import { useIslandAccepts, useIslandActivity } from '@/contexts/topbar-island'
+import { usePathname } from '@/i18n/navigation'
 import { isChunkLoadError, reloadForChunkError } from '@/utils/client/chunk-error'
 
 // 构建时注入的版本（commit）；未注入（本地开发、未传构建参数）时不检查

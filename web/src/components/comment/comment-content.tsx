@@ -2,7 +2,7 @@
 
 import type { CommentMention } from '@/models/comment'
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
+import { Link } from '@/i18n/navigation'
 import { resolveMentions } from '@/utils/common/mention'
 
 /**

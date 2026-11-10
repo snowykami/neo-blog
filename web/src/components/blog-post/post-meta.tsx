@@ -8,10 +8,10 @@ import {
   PenLineIcon,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { Fragment } from 'react'
 import { UserAvatar } from '@/components/common/avatar'
 import { CommentIcon, LikeIcon, ViewIcon } from '@/contexts/theme-context'
+import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { getCategoryUrl, getLabelUrl, getUserUrl } from '@/utils/common/route'
 import { PostMetaDates } from './post-meta-dates'

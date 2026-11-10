@@ -2,7 +2,7 @@
 
 import type { Post } from '@/models/post'
 import { CopyCheckIcon, DownloadIcon, LinkIcon } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { FaQq, FaTelegram, FaWeibo, FaWeixin, FaXTwitter } from 'react-icons/fa6'
@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { ShareIcon } from '@/contexts/theme-context'
+import { localizePath } from '@/i18n/routing'
 import copyToClipboard from '@/lib/clipboard'
 import { getPostShareImageUrl, getPostUrl } from '@/utils/common/route'
 
@@ -36,8 +37,10 @@ interface SharePlatform {
 
 export function BlogShare({ post }: { post: Post }) {
   const t = useTranslations('Share')
+  const locale = useLocale()
   const { siteInfo } = useSiteInfo()
-  const imagePath = getPostShareImageUrl(post)
+  // 分享链接与分享图都用当前语言的地址，与页面的 canonical、og:image 一致
+  const imagePath = localizePath(getPostShareImageUrl(post), locale)
   const base = siteInfo.baseUrl?.replace(/\/+$/, '') ?? ''
   const [absoluteBase, setAbsoluteBase] = useState(base)
   const [canNativeShare, setCanNativeShare] = useState(false)
@@ -48,7 +51,7 @@ export function BlogShare({ post }: { post: Post }) {
     setCanNativeShare(typeof navigator.share === 'function')
   }, [base])
 
-  const shareUrl = `${absoluteBase}${getPostUrl({ post })}`
+  const shareUrl = `${absoluteBase}${localizePath(getPostUrl({ post }), locale)}`
   const imageUrl = `${absoluteBase}${imagePath}`
   const title = post.title || siteInfo.metadata.name
   const description = post.description || siteInfo.metadata.description

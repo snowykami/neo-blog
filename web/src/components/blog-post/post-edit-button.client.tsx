@@ -2,10 +2,10 @@
 
 import type { Post } from '@/models/post'
 import { PencilLineIcon } from 'lucide-react'
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/auth-context'
 import { useOperationT } from '@/hooks/use-translations'
+import { Link } from '@/i18n/navigation'
 import { isAdmin } from '@/utils/common/permission'
 import { getPostEditUrl } from '@/utils/common/route'
 

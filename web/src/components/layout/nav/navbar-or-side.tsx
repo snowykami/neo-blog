@@ -17,8 +17,6 @@ import {
 } from 'lucide-react'
 
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import * as React from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { listPages } from '@/api/page'
@@ -40,6 +38,7 @@ import {
   NavigationMenuTrigger,
 } from '@/components/ui/navigation-menu'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Link, usePathname } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { getPageUrl, mainPath } from '@/utils/common/route'
 

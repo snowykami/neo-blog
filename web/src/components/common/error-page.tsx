@@ -1,8 +1,8 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { Link } from '@/i18n/navigation'
 
 export default function ErrorPage({ status, message }: { status: number, message: string }) {
   const t = useTranslations()

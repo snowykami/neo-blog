@@ -20,8 +20,8 @@ vi.mock('next-intl', () => ({
     number: (value: number) => String(value),
   }),
 }))
-vi.mock('next/link', () => ({
-  default: ({ href, children }: { href: string, children: ReactNode }) => createElement('a', { href }, children),
+vi.mock('@/i18n/navigation', () => ({
+  Link: ({ href, children }: { href: string, children: ReactNode }) => createElement('a', { href }, children),
 }))
 vi.mock('@/components/common/safe-image', () => ({ SafeImage: () => createElement('img', { alt: '' }) }))
 vi.mock('@/components/common/avatar', () => ({ UserAvatar: () => createElement('span', null, 'avatar') }))

@@ -2,8 +2,8 @@
 
 import type { SidebarItem } from './data'
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Link } from '@/i18n/navigation'
 
 /**
  * 同一菜单下多个页面之间的切换：每个 Tab 对应一个路由，切换即跳转，书签与浏览器后退保持可用

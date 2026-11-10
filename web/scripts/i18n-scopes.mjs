@@ -31,7 +31,7 @@ import {
   WEB_ROOT,
 } from './i18n-graph.mjs'
 
-/** 需要单独一层作用域的目录（相对 src/app）；'' 是根布局 */
+/** 需要单独一层作用域的目录（相对 src/app/[locale]）；'' 是根布局 */
 export const SCOPE_DIRS = [
   '',
   '(main)',
@@ -84,7 +84,19 @@ export const SCOPE_DIRS = [
 ]
 
 const SCOPES_FILE = join(SRC_ROOT, 'locales', 'scopes.generated.ts')
-const APP_ROOT = join(SRC_ROOT, 'app')
+
+/**
+ * 作用域目录的根：根布局在 [locale] 段下（前台与后台都在里面），作用域名仍按 [locale] 以下的相对路径取，不带语言段。
+ * app/ 根目录只剩接口、RSS、sitemap 与 global-error / global-not-found：它们不在任何作用域里，自带文案或不用文案
+ */
+export const APP_ROOT = join(SRC_ROOT, 'app', '[locale]')
+
+/** 路由段目录 → 相对 APP_ROOT 的作用域目录；不在 APP_ROOT 下时返回 null */
+export function segmentDir(segment) {
+  if (segment === APP_ROOT)
+    return ''
+  return segment.startsWith(`${APP_ROOT}/`) ? segment.slice(APP_ROOT.length + 1) : null
+}
 
 /**
  * 后端配置表（internal/config/items.go）用到的 Console.global 文案键，由 Go 测试生成并校验与配置表一致
@@ -171,8 +183,9 @@ export function computeScopes() {
   const nearestScopeDir = dir => byDepth.find(scope => within(dir, scope)) ?? ''
   const entriesByScope = new Map(SCOPE_DIRS.map(dir => [dir, []]))
   for (const [segment, entries] of segments) {
-    const dir = segment === APP_ROOT ? '' : segment.slice(APP_ROOT.length + 1)
-    entriesByScope.get(nearestScopeDir(dir))?.push(...entries)
+    const dir = segmentDir(segment)
+    if (dir !== null)
+      entriesByScope.get(nearestScopeDir(dir))?.push(...entries)
   }
 
   const own = new Map()

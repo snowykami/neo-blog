@@ -2,8 +2,8 @@ import type { Dashboard } from '@/models/dashboard'
 import type { IconType } from '@/types/icon'
 import { Eye, Folder, MessageCircle, Newspaper, NotebookText, Users } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Link } from '@/i18n/navigation'
 import { consolePath } from '@/utils/common/route'
 
 // 站点累计：不随统计区间变化，作为背景信息放在靠后的位置

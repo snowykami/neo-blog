@@ -1,8 +1,8 @@
 'use client'
 
 import type { VisitTargetType } from '@/models/visit'
-import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
+import { usePathname } from '@/i18n/navigation'
 import { trackPageview } from '@/utils/client/analytics'
 
 // 站内跳转时以上一个页面作为来源，首次进入时使用 document.referrer
@@ -29,7 +29,8 @@ export function VisitReporter({
   useEffect(() => {
     if (skipKey.split(',').some(prefix => prefix && pathname.startsWith(prefix)))
       return
-    const path = `${pathname}${window.location.search}`
+    // pathname 已去掉语言前缀（用于匹配 skipPrefixes）；上报的是地址栏里的真实地址，带语言前缀（/en/p/x）
+    const path = `${window.location.pathname}${window.location.search}`
     const referrer = previousPath ? `${window.location.origin}${previousPath}` : document.referrer
     previousPath = path
     trackPageview({ url: `${window.location.origin}${path}`, referrer, targetType, targetId })

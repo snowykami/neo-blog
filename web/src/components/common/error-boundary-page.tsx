@@ -2,10 +2,10 @@
 
 import { CheckIcon, ChevronDownIcon, CopyIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Link } from '@/i18n/navigation'
 import copyToClipboard from '@/lib/clipboard'
 import { captureBoundaryError } from '@/lib/telemetry/client'
 import { isChunkLoadError, reloadForChunkError } from '@/utils/client/chunk-error'

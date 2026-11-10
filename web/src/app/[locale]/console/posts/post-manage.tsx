@@ -1,0 +1,557 @@
+'use client'
+import type { Post } from '@/models/post'
+import type { BaseResponseError } from '@/models/resp'
+import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
+import { useAsyncTask } from '@snowykami/use-async-task'
+import { Ellipsis, Eye } from 'lucide-react'
+import { useTranslations } from 'next-intl'
+import {
+  parseAsBoolean,
+  parseAsInteger,
+  parseAsStringEnum,
+  useQueryState,
+} from 'nuqs'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
+import { listPinnedPostsAdmin, listPostsAdmin } from '@/api/admin'
+import { deletePost, listMyPosts, updatePost } from '@/api/post'
+import { HoverPopover } from '@/components/common/hover-popover'
+import { OrderSelector } from '@/components/common/orderby-selector'
+import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
+import { Popconfirm } from '@/components/common/popconfirm'
+import { SafeImage } from '@/components/common/safe-image'
+import { CreateOrUpdatePostMetaDialogWithoutButton } from '@/components/console/common/post-meta-dialog-form'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
+import { useAuth } from '@/contexts/auth-context'
+import { useDevice } from '@/contexts/device-context'
+import { useDebouncedState } from '@/hooks/use-debounce'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { useToEditPost, useToPost } from '@/hooks/use-route'
+import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { OrderBy } from '@/models/common'
+import { PINNED_POSTS_LIMIT } from '@/models/post'
+import { isAdmin } from '@/utils/common/permission'
+import { AISummaryBadges, PostDescriptionLine, useAISummary, useAISummaryMenuLabel } from './post-ai-summary'
+import { PostAISummaryBatchButton } from './post-ai-summary-batch'
+import { usePinUntilText, usePostPinAction } from './post-pin'
+
+const PAGE_SIZE = 15
+const MOBILE_PAGE_SIZE = 10
+
+export function PostManage() {
+  const t = useTranslations('Console.post_edit')
+  const commonT = useCommonT()
+  const metricsT = useTranslations('Metrics')
+  const { isMobile } = useDevice()
+  const { user } = useAuth()
+  // 管理员可管理所有文章，编辑者只能管理自己的文章
+  const isAdminUser = !!user && isAdmin({ user })
+  const [posts, setPosts] = useState<Post[]>([])
+  const [total, setTotal] = useState(0)
+  const [orderBy, setOrderBy] = useQueryState(
+    'order_by',
+    parseAsStringEnum<OrderBy>(Object.values(OrderBy))
+      .withDefault(OrderBy.CreatedAt)
+      .withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [desc, setDesc] = useQueryState(
+    'desc',
+    parseAsBoolean.withDefault(true).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [page, setPage] = useQueryState(
+    'page',
+    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [size, setSize] = useQueryState(
+    'size',
+    parseAsInteger
+      .withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE)
+      .withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  // 搜索词用本地状态管理，不通过 URL
+  const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState(
+    '',
+    200,
+  )
+  const [onlyMine, setOnlyMine] = useQueryState(
+    'only_mine',
+    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  // 只看首页上的置顶文章（管理员），不分页
+  const [onlyPinned, setOnlyPinned] = useQueryState(
+    'only_pinned',
+    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [createPostDialogOpen, setCreatePostDialogOpen] = useState(false)
+  // 写操作后自增，作为缓存 key 的一部分强制重新拉取列表（reset 只清空状态，不会重新请求）
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // 使用 useAsyncTask 进行搜索并缓存结果
+  const listPostsTask = useAsyncTask(
+    async (p: number, sz: number, ob: OrderBy, d: boolean, q: string, mine: boolean, pinned: boolean) => {
+      if (!user)
+        return { posts: [], total: 0 }
+      if (isAdminUser && pinned) {
+        const res = await listPinnedPostsAdmin()
+        return { posts: res.data.posts, total: res.data.posts.length }
+      }
+      const params = { page: p, size: sz, orderBy: ob, desc: d, query: q }
+      const res = isAdminUser
+        ? await listPostsAdmin({ ...params, userId: mine ? user.id : 0 })
+        : await listMyPosts(params)
+      return { posts: res.data.posts, total: res.data.total }
+    },
+    {
+      // 当搜索参数变化时自动执行
+      immediate: true,
+      dependencies: [page, size, orderBy, desc, debouncedQueryInput, onlyMine, onlyPinned, user, refreshKey],
+      getArgs: () => [page, size, orderBy, desc, debouncedQueryInput, onlyMine, onlyPinned] as const,
+      // 相同搜索条件在 10 秒内使用缓存，避免重复请求
+      cacheTime: 10_000,
+      // 根据搜索条件生成唯一的 cache key
+      taskKey: (p, sz, ob, d, q, mine, pinned) => `listPosts-${user?.id}-${isAdminUser}-${p}-${sz}-${ob}-${d}-${q}-${mine}-${pinned}-${refreshKey}`,
+      maxRetries: 1,
+    },
+  )
+
+  // 更新本地状态
+  useEffect(() => {
+    if (listPostsTask.data) {
+      setPosts(listPostsTask.data.posts)
+      setTotal(listPostsTask.data.total)
+    }
+  }, [listPostsTask.data])
+
+  // 防抖后的搜索词真正变化时才重置分页，避免挂载时把 URL 中的页码重置为 1
+  const prevQueryRef = useRef(debouncedQueryInput)
+  useEffect(() => {
+    if (prevQueryRef.current === debouncedQueryInput)
+      return
+    prevQueryRef.current = debouncedQueryInput
+    setPage(1)
+  }, [debouncedQueryInput, setPage])
+
+  const onPostCreate = useCallback(() => {
+    // 创建新文章后重新拉取列表，新文章需要后端分配的 ID 与排序位置
+    setRefreshKey(k => k + 1)
+  }, [])
+
+  const onPostUpdate = useCallback(
+    ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
+      setPosts(prev => prev.map(p => (p.id === post.id ? { ...p, ...post } : p)))
+    },
+    [setPosts],
+  )
+
+  const onPostDelete = useCallback(
+    ({ postId }: { postId: number }) => {
+      setPosts(prev => prev.filter(p => p.id !== postId))
+      setTotal(prev => Math.max(0, prev - 1))
+    },
+    [setPosts],
+  )
+
+  const onOrderChange = useCallback(
+    ({ orderBy, desc }: { orderBy: OrderBy, desc: boolean }) => {
+      setOrderBy(orderBy)
+      setDesc(desc)
+      setPage(1)
+    },
+    [setOrderBy, setDesc, setPage],
+  )
+
+  const onPageChange = useCallback(
+    (p: number) => {
+      setPage(p)
+    },
+    [setPage],
+  )
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-x-3 gap-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            type="search"
+            placeholder={commonT('search')}
+            value={queryInput}
+            onChange={e => setQueryInput(e.target.value)}
+          />
+          {isAdminUser && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Switch
+                id="post-manage-only-mine"
+                checked={onlyMine}
+                onCheckedChange={(checked) => {
+                  setOnlyMine(checked)
+                  setPage(1)
+                }}
+              />
+              <Label htmlFor="post-manage-only-mine">{t('only_mine')}</Label>
+            </div>
+          )}
+          {isAdminUser && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Switch
+                id="post-manage-only-pinned"
+                checked={onlyPinned}
+                onCheckedChange={(checked) => {
+                  setOnlyPinned(checked)
+                  setPage(1)
+                }}
+              />
+              <Label htmlFor="post-manage-only-pinned">{t('only_pinned', { max: PINNED_POSTS_LIMIT })}</Label>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <OrderSelector
+              value={{ orderBy, desc }}
+              onOrderChange={onOrderChange}
+              orderBys={[
+                OrderBy.CreatedAt,
+                OrderBy.UpdatedAt,
+                OrderBy.Heat,
+                OrderBy.CommentCount,
+                OrderBy.LikeCount,
+                OrderBy.ViewCount,
+              ]}
+            />
+            {isAdminUser && <PostAISummaryBatchButton onQueued={() => setRefreshKey(k => k + 1)} />}
+            <Button size="sm" onClick={() => setCreatePostDialogOpen(true)}>
+              {t('create_post')}
+            </Button>
+            <CreateOrUpdatePostMetaDialogWithoutButton
+              open={createPostDialogOpen}
+              onOpenChange={setCreatePostDialogOpen}
+              post={null}
+              onPostChange={onPostCreate}
+            />
+          </div>
+        </div>
+      </div>
+      <Separator className="flex-1" />
+      {posts.map(post => (
+        <div key={post.id}>
+          <PostItem
+            post={post}
+            showAuthor={isAdminUser}
+            canConfigureAI={isAdminUser}
+            canPin={isAdminUser}
+            onPostUpdate={onPostUpdate}
+            onPostDelete={onPostDelete}
+          />
+          <Separator className="flex-1" />
+        </div>
+      ))}
+      {/* 只看置顶时最多 3 篇，不分页 */}
+      <div className="flex justify-center items-center py-4" hidden={isAdminUser && onlyPinned}>
+        {total > 0 && (
+          <PaginationController
+            page={page}
+            onPageChange={onPageChange}
+            total={total}
+            pageSize={size}
+          />
+        )}
+        <PageSizeSelector
+          size={size}
+          onSizeChange={(s) => {
+            setSize(s)
+            setPage(1)
+          }}
+        />
+        {' '}
+        {metricsT('per_page')}
+      </div>
+    </div>
+  )
+}
+
+function PostItem({
+  post,
+  showAuthor,
+  canConfigureAI,
+  canPin,
+  onPostUpdate,
+  onPostDelete,
+}: {
+  post: Post
+  showAuthor: boolean
+  canConfigureAI: boolean // 只有管理员可以在全局配置中配置 AI
+  canPin: boolean // 只有管理员可以置顶到首页
+  onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
+  onPostDelete: ({ postId }: { postId: number }) => void
+}) {
+  const commonT = useTranslations('Common')
+  const isMobile = useIsMobile()
+  const labelCount = isMobile ? 1 : 3
+  const postT = useTranslations('Console.post_edit')
+  const stateT = useTranslations('State')
+  const operationT = useOperationT()
+  const clickToPost = useToPost()
+  const [metaDialogOpen, setMetaDialogOpen] = useState(false)
+  const aiSummary = useAISummary({ post, onPostUpdate, canConfigure: canConfigureAI })
+  const pinUntilText = usePinUntilText()
+  return (
+    <div>
+      <div className="flex w-full items-center gap-3 py-3">
+        {/* left：占满剩余宽度且可收缩，长描述不会把右侧操作挤出 */}
+        <div className="flex min-w-0 flex-1 justify-start items-center gap-4">
+          {/* avatar */}
+          <div className="flex-shrink-0 w-16 h-9 rounded-md overflow-hidden">
+            {/* 没有封面或封面失效时显示占位 */}
+            <SafeImage
+              src={post.cover}
+              alt={post.title}
+              width={64} // 和 w-16 (4rem=64px) 保持一致
+              height={36} // 和 h-9 (2.25rem=36px) 保持一致
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium">{post.title}</div>
+            <PostDescriptionLine post={post} />
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              {(() => {
+                const labels = post.labels || []
+                // 标签超过可展示数量时折叠为 +n，悬停/点击查看全部
+                const labelsTruncated = labels.length > labelCount
+                const labelsValue
+                  = labels.length === 0
+                    ? postT('no_label')
+                    : !labelsTruncated
+                        ? `${postT('labels')}: ${labels.map(l => l.name).join(' | ')}`
+                        : `${postT('labels')}: ${labels
+                          .slice(0, labelCount)
+                          .map(l => l.name)
+                          .join(' | ')} ... (+${labels.length - labelCount})`
+
+                const items: { value: string, className: string, popover?: React.ReactNode }[] = [
+                  {
+                    value: `${commonT('id')}: ${post.id}`,
+                    className: 'bg-indigo-100 text-indigo-800',
+                  },
+                  ...(showAuthor && post.user
+                    ? [{
+                        value: `${postT('author')}: ${post.user.nickname || post.user.username}`,
+                        className: 'bg-teal-100 text-teal-800',
+                      }]
+                    : []),
+                  ...(post.pinned
+                    ? [{
+                        value: post.pinnedUntil
+                          ? `${commonT('pinned')} · ${postT('pin_until', { date: pinUntilText(post.pinnedUntil) })}`
+                          : commonT('pinned'),
+                        className: 'bg-amber-100 text-amber-800',
+                      }]
+                    : []),
+                  {
+                    value: stateT(post.isPrivate ? 'private' : 'public'),
+                    className: post.isPrivate
+                      ? 'bg-orange-100 text-orange-800'
+                      : 'bg-green-100 text-green-800',
+                  },
+                  {
+                    value: post.category
+                      ? `${postT('category')}: ${post.category?.name}`
+                      : postT('uncategorized'),
+                    className: post.category
+                      ? 'bg-pink-100 text-pink-800'
+                      : 'bg-gray-100 text-gray-800',
+                  },
+                  {
+                    value: labelsValue,
+                    className:
+                      post.labels && post.labels.length > 0
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-gray-100 text-gray-800',
+                    popover: labelsTruncated
+                      ? (
+                          <div className="grid gap-2">
+                            <div className="text-xs text-muted-foreground">{`${postT('labels')} (${labels.length})`}</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {labels.map(label => (
+                                <Badge key={label.id} className="text-xs bg-blue-100 text-blue-800" variant="secondary">
+                                  {label.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      : undefined,
+                  },
+                ]
+                return items.map((item, idx) => {
+                  const badge = (
+                    <Badge key={idx} className={`text-xs ${item.className}`} variant="secondary">
+                      {item.value}
+                    </Badge>
+                  )
+                  return item.popover
+                    ? (
+                        <HoverPopover key={idx} content={item.popover} contentClassName="w-auto max-w-72 p-3">
+                          {badge}
+                        </HoverPopover>
+                      )
+                    : badge
+                })
+              })()}
+              <AISummaryBadges post={post} onRetry={aiSummary.trigger} />
+            </div>
+          </div>
+        </div>
+        {/* right */}
+        <div className="flex items-center ml-auto">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => clickToPost({ post })}
+            aria-label={operationT(post.isPrivate ? 'preview' : 'view')}
+            title={operationT(post.isPrivate ? 'preview' : 'view')}
+          >
+            <Eye className="size-4" />
+          </Button>
+          <PostDropdownMenu
+            post={post}
+            canPin={canPin}
+            onPostUpdate={onPostUpdate}
+            onPostDelete={onPostDelete}
+            setMetaDialogOpen={setMetaDialogOpen}
+            aiSummaryRunning={aiSummary.running}
+            onTriggerAISummary={aiSummary.trigger}
+          />
+          <CreateOrUpdatePostMetaDialogWithoutButton
+            post={post}
+            onPostChange={onPostUpdate}
+            open={metaDialogOpen}
+            onOpenChange={setMetaDialogOpen}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PostDropdownMenu({
+  post,
+  canPin,
+  onPostUpdate,
+  onPostDelete,
+  setMetaDialogOpen,
+  aiSummaryRunning,
+  onTriggerAISummary,
+}: {
+  post: Post
+  canPin: boolean
+  onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
+  onPostDelete: ({ postId }: { postId: number }) => void
+  setMetaDialogOpen: (open: boolean) => void
+  aiSummaryRunning: boolean
+  onTriggerAISummary: () => void
+}) {
+  const operationT = useOperationT()
+  const errorMessageT = useErrorMessageT()
+  const clickToPostEdit = useToEditPost()
+  const clickToPost = useToPost()
+  const aiSummaryLabel = useAISummaryMenuLabel(post)
+  const postT = useTranslations('Console.post_edit')
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const togglePin = usePostPinAction(post, state => onPostUpdate({ post: { id: post.id, ...state } }))
+  const handleTogglePrivate = () => {
+    // 只提交需要修改的字段：列表里的正文是截断后的摘要，整篇提交会覆盖原文
+    updatePost({ post: { id: post.id, isPrivate: !post.isPrivate } })
+      .then(() => {
+        toast.success(operationT('update_success'))
+        onPostUpdate({ post: { id: post.id, isPrivate: !post.isPrivate } })
+      })
+      .catch((error: BaseResponseError) => {
+        toast.error(
+          `${operationT('update_failed')}: ${errorMessageT(error)}`,
+        )
+      })
+  }
+
+  // 失败时抛出，由 Popconfirm 统一提示并保持打开
+  const handleDelete = async () => {
+    await deletePost({ id: post.id })
+    toast.success(operationT('delete_success'))
+    onPostDelete({ postId: post.id })
+  }
+
+  return (
+    <DropdownMenu>
+      {/* 菜单项关闭菜单后，删除确认气泡以菜单按钮为锚点就地弹出 */}
+      <Popconfirm
+        anchorOnly
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={post.title ? operationT('delete_confirm_title', { name: post.title }) : operationT('confirm_delete')}
+        description={operationT('delete_description')}
+        confirmText={operationT('delete')}
+        errorText={operationT('delete_failed')}
+        destructive
+        onConfirm={handleDelete}
+      >
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
+            <Ellipsis className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+      </Popconfirm>
+      <DropdownMenuContent
+        className="min-w-36"
+        align="end"
+        // 打开删除确认时不把焦点还给菜单按钮，焦点交给气泡
+        onCloseAutoFocus={e => confirmOpen && e.preventDefault()}
+      >
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => clickToPostEdit({ post })} className="cursor-pointer">
+            {operationT('edit')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setMetaDialogOpen(true)} className="cursor-pointer">
+            {operationT('setting')}
+          </DropdownMenuItem>
+          {/* 私密文章只在后台可见：「查看」打开后台预览 */}
+          <DropdownMenuItem onClick={() => clickToPost({ post })} className="cursor-pointer">
+            {operationT(post.isPrivate ? 'preview' : 'view')}
+          </DropdownMenuItem>
+          {/* 生成中禁用，避免重复触发 */}
+          <DropdownMenuItem disabled={aiSummaryRunning} onClick={onTriggerAISummary} className="cursor-pointer">
+            {aiSummaryLabel}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={handleTogglePrivate} className="cursor-pointer">
+            {operationT(post.isPrivate ? 'set_public' : 'set_private')}
+          </DropdownMenuItem>
+          {canPin && (
+            <DropdownMenuItem onClick={togglePin} className="cursor-pointer">
+              {postT(post.pinned ? 'unpin_action' : 'pin_to_home')}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            onSelect={() => setConfirmOpen(true)}
+            className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer"
+          >
+            {operationT('delete')}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
