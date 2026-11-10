@@ -29,6 +29,45 @@ cd .next/standalone && BACKEND_URL=http://localhost:8888 PORT=3100 node server.j
 
 ---
 
+## 003 zod 移出访客首屏（2026-11-10）
+
+### 改动
+
+首页带 zod 只有一条链：侧栏的「组件卡片」→ `content-components/props.ts` → 组件注册表 → 17 个
+`*.content.ts` 各自的 schema → zod。
+
+- `sidebar-cards.ts` 只留类型、常量与运行时轻量整理（补默认值、截断越界高度、拒绝非 http(s) 地址、预设去重），
+  不再 import zod，也不再 import 注册表
+- 新增 `sidebar-cards-schema.ts`：zod schema 与 `parseSidebarCard`，只在后台「全局配置 → 侧边栏卡片」保存时使用
+- `gen-content-components.mjs` 多生成一份 `runtime-registry.generated.ts`（组件名 → `import()`），
+  `--check` 同时校验两份产物；`ContentComponentView` 抽出只吃 `component + props` 的 `ContentView`
+- 侧栏组件卡片按需加载组件定义：只有真的配了组件卡片、并且渲染到它时才拉那个模块（那时才会带上 zod）
+
+### 首页冷启动（gzip 传输 / 解析后）
+
+| 项 | 改前 | 改后 | 变化 |
+| --- | ---: | ---: | ---: |
+| JS chunk 数 | 40 | 38 | −2 |
+| JS | 569 KB / 1731 KB | **530 KB / 1599 KB** | **−39 KB / −132 KB** |
+| 其中 zod | 114 KB 原始 / 32.7 KB gzip | 0 | 移出 |
+| CSS | 42 KB / 246 KB | 42 KB / 246 KB | 不变 |
+| **整页合计** | **1082 KB** | **1029 KB** | −53 KB |
+
+i18n 载荷不变：`(main)` 仍是 26.5 KB 原始 / 10.0 KB gzip，根作用域反而从 22.3 KB 降到 19.0 KB。
+
+### 验证
+
+- 首页 38 个 chunk 里没有任何一个含 zod 特征码；侧栏的预设卡片与 iframe 卡片渲染正常
+- 新增两条单测：运行时注册表与生成物同步、每个组件都有按需加载入口
+- 侧栏测试重写成两套语义：运行时宽松（补默认值、越界截断），保存时严格（未知组件 / 版本过高 / 非法地址一律拒绝）
+
+### 遗留
+
+文章页仍带 zod（32.3 KB gzip），来源是 `component-islands` 在客户端解析 `data-props` 时做校验。
+要清掉得让服务端校验完再下发、客户端只渲染。
+
+---
+
 ## 002 歌词字体与歌词引擎移出首屏（2026-11-10）
 
 ### 改动
@@ -158,7 +197,7 @@ JS 40 个、CSS 9 个全部命中浏览器缓存（传输 0 字节），整页�
 | `/_next/static` CSS（3 个） | 42 KB | 246 KB | `globals.css` 占 241 KB 解析 |
 | 接口 | 线上压后约 150 KB | — | 歌单 91 KB 是单个最大 |
 
-~~歌词字体 CSS~~、~~歌词引擎与播放器延后加载~~ 已在 002 完成。剩下按收益排序：zod 剔除（−35 KB 传输 / −112 KB 解析）→ motion 替换（−110 KB 传输 / −374 KB 解析）→ 歌单恢复逻辑改造（−91 KB 首屏接口）→ i18n 的 `Response.error_details`（−10 KB 原始/页）。
+~~歌词字体 CSS~~、~~歌词引擎~~（002）、~~zod~~（003）已完成。剩下按收益排序：motion 替换（−110 KB 传输 / −374 KB 解析）→ 歌单恢复逻辑改造（−91 KB 首屏接口）→ 文章页 `component-islands` 的 zod（−32 KB）→ i18n 的 `Response.error_details`（−10 KB 原始/页）。
 
 ---
 

@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const componentsDir = join(root, 'src/components')
 export const outputFile = join(componentsDir, 'content-components/registry.generated.ts')
+/** 运行时按需加载组件定义用（名字 → import），不含 schema，供访客侧渲染组件卡片等场景 */
+export const runtimeOutputFile = join(componentsDir, 'content-components/runtime-registry.generated.ts')
 const DEFINITION_SUFFIX = /\.content\.tsx?$/
 
 function walk(dir) {
@@ -41,6 +43,38 @@ function identifier(path) {
     .join('')
 }
 
+/** 从定义文件里读组件名：defineContentComponent({ name: 'card', … }) */
+function componentName(file) {
+  const match = readFileSync(file, 'utf8').match(/\bname:\s*'([^']+)'/)
+  if (!match)
+    throw new Error(`${relative(root, file)} 里找不到 name: '…'，无法生成运行时注册表`)
+  return match[1]
+}
+
+export function generateRuntime() {
+  const entries = walk(componentsDir)
+    .map((file) => {
+      const importPath = `@/components/${relative(componentsDir, file).split(sep).join('/').replace(/\.tsx?$/, '')}`
+      return { name: componentName(file), importPath }
+    })
+    .sort((a, b) => (a.name < b.name ? -1 : 1))
+
+  const duplicated = entries.filter((entry, index) => index > 0 && entries[index - 1].name === entry.name)
+  if (duplicated.length > 0)
+    throw new Error(`组件名重复：${duplicated.map(entry => entry.name).join(', ')}`)
+
+  return [
+    '// 此文件由 scripts/gen-content-components.mjs 生成，请勿手动修改',
+    '// 组件名 → 按需加载定义模块（只取 component 字段渲染，schema 与 zod 留在后台/编辑器侧）',
+    'import type { AnyContentComponentDef } from \'./types\'',
+    '',
+    'export const CONTENT_COMPONENT_LOADERS: Record<string, () => Promise<{ default: AnyContentComponentDef }>> = {',
+    ...entries.map(entry => `  ${/^[A-Z_$][\w$]*$/i.test(entry.name) ? entry.name : `'${entry.name}'`}: () => import('${entry.importPath}'),`),
+    '}',
+    '',
+  ].join('\n')
+}
+
 export function generate() {
   const entries = walk(componentsDir)
     .map((file) => {
@@ -64,20 +98,27 @@ export function generate() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const content = generate()
-  let current = ''
-  try {
-    current = readFileSync(outputFile, 'utf8')
-  }
-  catch {}
-  if (process.argv.includes('--check')) {
-    if (current !== content) {
-      console.error('registry.generated.ts 不是最新的，请运行 pnpm gen:content')
-      process.exit(1)
+  const outputs = [
+    { file: outputFile, content: generate(), label: 'registry.generated.ts' },
+    { file: runtimeOutputFile, content: generateRuntime(), label: 'runtime-registry.generated.ts' },
+  ]
+  let stale = 0
+  for (const { file, content, label } of outputs) {
+    let current = ''
+    try {
+      current = readFileSync(file, 'utf8')
     }
+    catch {}
+    if (current === content)
+      continue
+    if (process.argv.includes('--check')) {
+      console.error(`${label} 不是最新的，请运行 pnpm gen:content`)
+      stale += 1
+      continue
+    }
+    writeFileSync(file, content)
+    console.log(`content components: ${label} 已更新`)
   }
-  else if (current !== content) {
-    writeFileSync(outputFile, content)
-    console.log(`content components: ${content.match(/ path: /g)?.length ?? 0} registered`)
-  }
+  if (stale > 0)
+    process.exit(1)
 }

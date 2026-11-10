@@ -7,11 +7,12 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { createContentExtensions } from '@/lib/tiptap-extensions'
 import { getLocaleMessages, LOCALES } from '@/locales'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
-import { generate, outputFile } from '../../../scripts/gen-content-components.mjs'
+import { generate, generateRuntime, outputFile, runtimeOutputFile } from '../../../scripts/gen-content-components.mjs'
 import { COMPONENT_HEIGHTS, componentHeightRem } from './layout'
 import { buildLibraryTree, filterLibraryTree, flattenLibraryTree } from './library-tree'
 import { getDefaultProps, parsePropsAttr, resolveComponent, resolveComponentElement, serializePropsAttr } from './props'
 import { CONTENT_COMPONENTS, getContentComponent } from './registry'
+import { CONTENT_COMPONENT_LOADERS } from './runtime-registry.generated'
 import { describeFields } from './schema-fields'
 
 let schema: Schema
@@ -257,5 +258,17 @@ describe('编辑器节点', () => {
     expect(parsePropsAttr(el.getAttribute('data-props'))).toEqual({ a: 1 })
     expect(el.innerHTML).toContain('<p>保留我</p>')
     expect(el.innerHTML).not.toContain('onerror')
+  })
+})
+
+describe('运行时注册表', () => {
+  it('生成物是最新的', () => {
+    expect(readFileSync(runtimeOutputFile, 'utf8')).toBe(generateRuntime())
+  })
+
+  it('每个组件都能在运行时按名字加载（访客侧渲染组件卡片依赖它）', () => {
+    for (const def of CONTENT_COMPONENTS) {
+      expect(typeof CONTENT_COMPONENT_LOADERS[def.name], `${def.name} 没有按需加载入口`).toBe('function')
+    }
   })
 })

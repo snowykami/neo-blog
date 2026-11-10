@@ -1,4 +1,5 @@
 'use client'
+import type { AnyContentComponentDef } from '@/components/content-components/types'
 import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
 import { ChevronDownIcon, ChevronUpIcon, Eye } from 'lucide-react'
@@ -10,8 +11,8 @@ import { getLabels } from '@/api/label'
 import { listPosts } from '@/api/post'
 import { ImageAvatar } from '@/components/common/avatar'
 import { SafeImage } from '@/components/common/safe-image'
-import { ContentComponentView } from '@/components/content-components/content-component-view'
-import { resolveComponent } from '@/components/content-components/props'
+import { ContentView } from '@/components/content-components/content-component-view'
+import { CONTENT_COMPONENT_LOADERS } from '@/components/content-components/runtime-registry.generated'
 import { Button } from '@/components/ui/button'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { LikeIcon } from '@/contexts/theme-context'
@@ -245,9 +246,26 @@ export function SidebarIframeCard({ title, url, height }: { title: string, url: 
 
 // 文章组件块作为侧边栏卡片：有标题时放在标准卡片内，否则直接展示组件（如天气卡、仓库卡）
 export function SidebarComponentCard({ title, name, props, version }: { title: string, name: string, props: Record<string, unknown>, version?: number }) {
-  const resolved = resolveComponent(name, props, version)
-  if (!resolved.ok)
+  // 组件定义（连带 schema 与 zod）按需加载：侧边栏里没配组件卡片时，这段代码不会进首屏包
+  const [def, setDef] = useState<AnyContentComponentDef | null>(null)
+  useEffect(() => {
+    const load = CONTENT_COMPONENT_LOADERS[name]
+    if (!load)
+      return
+    let cancelled = false
+    load()
+      .then((module) => {
+        if (!cancelled)
+          setDef(module.default)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [name])
+  // 组件被删除或版本过高时不渲染（保存配置时已校验过，这里只是兜底）
+  if (!def || (version != null && version > def.version))
     return null
-  const view = <ContentComponentView def={resolved.def} props={resolved.props} className="my-0" />
+  const view = <ContentView component={def.component} props={props} className="my-0" />
   return title ? <SidebarCard title={title}>{view}</SidebarCard> : view
 }
