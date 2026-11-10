@@ -3,16 +3,23 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 func TestWithLyricRefreshThrottle(t *testing.T) {
 	ctx := context.Background()
+	t.Cleanup(func() {
+		_ = sharedstate.Current().Delete(lyricRefreshKeyPrefix+"test:42", lyricRefreshKeyPrefix+"other:42")
+	})
 	if lyricRefreshing(ctx) {
 		t.Fatal("plain context should not refresh")
 	}
@@ -23,7 +30,10 @@ func TestWithLyricRefreshThrottle(t *testing.T) {
 	if lyricRefreshing(WithLyricRefresh(ctx, "test", 42)) || !lyricRefreshing(WithLyricRefresh(ctx, "other", 42)) {
 		t.Fatal("refresh should be throttled per source and song")
 	}
-	lyricRefreshAt.Store("test:42", time.Now().Add(-lyricRefreshInterval-time.Second))
+	// 节流记在 sharedstate：键过期（这里直接删除）后可以再绕过一次
+	if err := sharedstate.Current().Delete(lyricRefreshKeyPrefix + "test:42"); err != nil {
+		t.Fatal(err)
+	}
 	if !lyricRefreshing(WithLyricRefresh(ctx, "test", 42)) {
 		t.Fatal("refresh should be allowed again after the interval")
 	}
@@ -49,22 +59,17 @@ func TestProbeTTMLRefreshSkipsMiss(t *testing.T) {
 	}
 }
 
-func TestLyricCacheNeedsRevalidate(t *testing.T) {
-	ctx := context.Background()
+func TestLyricCacheStale(t *testing.T) {
 	now := time.Now()
 	// 没有摘要的旧条目：复核一次
-	if !lyricCacheNeedsRevalidate(ctx, now.Unix(), false) {
+	if !lyricCacheStale(now.Unix(), false) {
 		t.Fatal("entry without digest should be revalidated")
 	}
-	if lyricCacheNeedsRevalidate(ctx, now.Unix(), true) {
+	if lyricCacheStale(now.Unix(), true) {
 		t.Fatal("fresh cache should not be revalidated")
 	}
-	if !lyricCacheNeedsRevalidate(ctx, now.Add(-lyricRevalidateInterval-time.Minute).Unix(), true) {
+	if !lyricCacheStale(now.Add(-lyricRevalidateInterval-time.Minute).Unix(), true) {
 		t.Fatal("cache older than the interval should be revalidated")
-	}
-	// 刷新歌词时立即复核
-	if !lyricCacheNeedsRevalidate(WithLyricRefresh(ctx, "test", 7), now.Unix(), true) {
-		t.Fatal("refresh should revalidate immediately")
 	}
 }
 
@@ -174,6 +179,234 @@ func TestStreamLyricsAdminRefreshForces(t *testing.T) {
 	for _, kind := range lyricSourceKinds {
 		if refreshing[kind] || forced[kind] {
 			t.Fatalf("opening a song should not refresh %s: refreshing=%t forced=%t", kind, refreshing[kind], forced[kind])
+		}
+	}
+}
+
+// resetLyricSharedState 换一份新的进程内 sharedstate：读者刷新的节流、后台复核的占用与退避不在测试之间残留
+func resetLyricSharedState(t *testing.T) {
+	t.Helper()
+	sharedstate.UseMemory()
+	t.Cleanup(sharedstate.UseMemory)
+}
+
+// waitLyricCondition 轮询等待后台复核的结果（最多 3 秒）
+func waitLyricCondition(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// waitLyricRevalidateIdle 等本实例的后台复核全部结束
+func waitLyricRevalidateIdle(t *testing.T) {
+	t.Helper()
+	waitLyricCondition(t, "background revalidation to finish", func() bool { return lyricRevalidateRunning.Load() == 0 })
+}
+
+// TestRevalidateLyricInBackgroundDedupe 同一个 key 的并发复核只执行一次；成功后释放占用，之后可以再次复核
+func TestRevalidateLyricInBackgroundDedupe(t *testing.T) {
+	resetLyricSharedState(t)
+	release := make(chan struct{})
+	var runs atomic.Int32
+	run := func(ctx context.Context) error {
+		runs.Add(1)
+		if _, ok := ctx.Deadline(); !ok {
+			t.Error("background revalidation should carry a deadline")
+		}
+		<-release
+		return nil
+	}
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			revalidateLyricInBackground("test:dedupe", run)
+		}()
+	}
+	wg.Wait()
+	waitLyricCondition(t, "the first run", func() bool { return runs.Load() == 1 })
+	// 跨实例的占用记在 sharedstate
+	if _, ok, _ := sharedstate.Current().Get(lyricRevalidateKeyPrefix + "test:dedupe"); !ok {
+		t.Fatal("revalidation should hold a shared claim while running")
+	}
+	close(release)
+	waitLyricRevalidateIdle(t)
+	if runs.Load() != 1 {
+		t.Fatalf("concurrent revalidations should run once, runs = %d", runs.Load())
+	}
+	if _, ok, _ := sharedstate.Current().Get(lyricRevalidateKeyPrefix + "test:dedupe"); ok {
+		t.Fatal("successful revalidation should release the claim")
+	}
+	revalidateLyricInBackground("test:dedupe", run)
+	waitLyricRevalidateIdle(t)
+	if runs.Load() != 2 {
+		t.Fatalf("revalidation should run again after release, runs = %d", runs.Load())
+	}
+}
+
+// TestRevalidateLyricInBackgroundBackoff 复核失败（出错或 panic）后进入退避：占用保留，期间不再复核；其他 key 不受影响
+func TestRevalidateLyricInBackgroundBackoff(t *testing.T) {
+	resetLyricSharedState(t)
+	var runs atomic.Int32
+	failing := func(context.Context) error {
+		runs.Add(1)
+		return errors.New("upstream down")
+	}
+	panicking := func(context.Context) error {
+		runs.Add(1)
+		panic("boom")
+	}
+	revalidateLyricInBackground("test:error", failing)
+	revalidateLyricInBackground("test:panic", panicking)
+	waitLyricCondition(t, "both runs", func() bool { return runs.Load() == 2 })
+	waitLyricRevalidateIdle(t)
+	for range 5 {
+		revalidateLyricInBackground("test:error", failing)
+		revalidateLyricInBackground("test:panic", panicking)
+	}
+	waitLyricRevalidateIdle(t)
+	if runs.Load() != 2 {
+		t.Fatalf("failed revalidation should back off, runs = %d", runs.Load())
+	}
+	for _, key := range []string{"test:error", "test:panic"} {
+		if _, ok, _ := sharedstate.Current().Get(lyricRevalidateKeyPrefix + key); !ok {
+			t.Fatalf("%s should keep the backoff claim", key)
+		}
+	}
+	// 退避过期（这里直接删除）后再次复核
+	_ = sharedstate.Current().Delete(lyricRevalidateKeyPrefix + "test:error")
+	revalidateLyricInBackground("test:error", func(context.Context) error { runs.Add(1); return nil })
+	waitLyricRevalidateIdle(t)
+	if runs.Load() != 3 {
+		t.Fatalf("revalidation should run after backoff expires, runs = %d", runs.Load())
+	}
+}
+
+// TestMusicLyricStaleWhileRevalidate 缓存到了复核时间、上游很慢：请求立即拿到缓存，不等上游；
+// 并发请求只触发一次上游请求，后台复核完成后缓存换成新内容
+func TestMusicLyricStaleWhileRevalidate(t *testing.T) {
+	setupEditTest(t)
+	resetLyricSharedState(t)
+	var body atomic.Value
+	body.Store("[00:01.00]你好")
+	release := make(chan struct{})
+	var blocking atomic.Bool
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		if blocking.Load() {
+			<-release
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": 200, "lrc": map[string]any{"lyric": body.Load(), "version": 1}})
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() {
+		if blocking.Load() {
+			close(release)
+		}
+	})
+	original := musicLyricFallbackURL
+	musicLyricFallbackURL = server.URL + "/fallback"
+	t.Cleanup(func() { musicLyricFallbackURL = original })
+	setMusicKV(t, map[string]any{"ncm_api_base_url": server.URL, "ncm_cookie": "abc"})
+	musicLyricCache.Clear()
+	s := NewMusicService()
+
+	if lyric, svcerr := s.GetLyric(context.Background(), 203); svcerr != nil || lyric.Lrc.Lyric != "[00:01.00]你好" {
+		t.Fatalf("first = %+v, %v", lyric, svcerr)
+	}
+	seedLyricCheckedAt(t, 203, 2*lyricRevalidateInterval)
+	body.Store("[00:01.50]你好")
+	blocking.Store(true)
+	before := calls.Load()
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start := time.Now()
+			lyric, svcerr := s.GetLyric(context.Background(), 203)
+			if svcerr != nil || lyric.Lrc.Lyric != "[00:01.00]你好" {
+				t.Errorf("stale = %+v, %v", lyric, svcerr)
+			}
+			if elapsed := time.Since(start); elapsed > time.Second {
+				t.Errorf("stale read should not wait for upstream, took %v", elapsed)
+			}
+		}()
+	}
+	wg.Wait()
+	waitLyricCondition(t, "upstream request", func() bool { return calls.Load() > before })
+	time.Sleep(50 * time.Millisecond)
+	if got := calls.Load() - before; got != 1 {
+		t.Fatalf("concurrent stale reads should trigger one upstream request, got %d", got)
+	}
+	blocking.Store(false)
+	close(release)
+	waitLyricCondition(t, "cache update", func() bool {
+		entry, ok := loadMusicLyricCacheEntry(203)
+		return ok && entry.Lyric.Lrc.Lyric == "[00:01.50]你好" && !lyricCacheStale(entry.CheckedAt, entry.Hash != "")
+	})
+	waitLyricRevalidateIdle(t)
+}
+
+// TestMusicLyricRefreshAuthorization 「重新获取歌词」：访客只能让「没有歌词」的缓存重新探测，且按 sharedstate 节流；
+// 管理员每次都强制复核
+func TestMusicLyricRefreshAuthorization(t *testing.T) {
+	_, admin, _, _, _ := setupEditTest(t)
+	resetLyricSharedState(t)
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": 200, "lrc": map[string]any{"lyric": "[00:01.00]你好", "version": 1}})
+	}))
+	t.Cleanup(server.Close)
+	original := musicLyricFallbackURL
+	musicLyricFallbackURL = server.URL + "/fallback"
+	t.Cleanup(func() { musicLyricFallbackURL = original })
+	setMusicKV(t, map[string]any{"ncm_api_base_url": server.URL, "ncm_cookie": "abc"})
+	musicLyricCache.Clear()
+	s := NewMusicService()
+	guest := context.Background()
+	seedMiss := func() {
+		storeMusicLyricCache(204, &dto.MusicLyricDto{Lrc: &dto.MusicLyricPart{Lyric: "[00:00.00]no_lyric", Version: 1}}, musicLyricMissTTL, true)
+	}
+
+	seedMiss()
+	if lyric, _ := s.GetLyric(guest, 204); lyric.Lrc.Lyric != "[00:00.00]no_lyric" || calls.Load() != 0 {
+		t.Fatalf("plain read should use the miss cache: %+v, calls = %d", lyric, calls.Load())
+	}
+	// 访客刷新：重新探测「没有歌词」的缓存
+	if lyric, _ := s.GetLyric(WithLyricRefresh(guest, "ncm", 204), 204); lyric.Lrc.Lyric != "[00:01.00]你好" || calls.Load() != 1 {
+		t.Fatalf("guest refresh should refetch the miss: %+v, calls = %d", lyric, calls.Load())
+	}
+	if _, ok, _ := sharedstate.Current().Get(lyricRefreshKeyPrefix + "ncm:204"); !ok {
+		t.Fatal("guest refresh throttle should be recorded in sharedstate")
+	}
+	// 节流期间再刷新：照常读缓存，不请求上游
+	seedMiss()
+	if lyric, _ := s.GetLyric(WithLyricRefresh(guest, "ncm", 204), 204); lyric.Lrc.Lyric != "[00:00.00]no_lyric" || calls.Load() != 1 {
+		t.Fatalf("throttled guest refresh should not refetch: %+v, calls = %d", lyric, calls.Load())
+	}
+	// 访客刷新不让命中的歌词提前复核（复核间隔内）
+	_ = sharedstate.Current().Delete(lyricRefreshKeyPrefix + "ncm:204")
+	storeMusicLyricCache(204, &dto.MusicLyricDto{Lrc: &dto.MusicLyricPart{Lyric: "[00:02.00]旧", Version: 1}}, musicLyricHitTTL, false)
+	if lyric, _ := s.GetLyric(WithLyricRefresh(guest, "ncm", 204), 204); lyric.Lrc.Lyric != "[00:02.00]旧" || calls.Load() != 1 {
+		t.Fatalf("guest refresh should not revalidate a fresh hit: %+v, calls = %d", lyric, calls.Load())
+	}
+	// 管理员：不节流，每次都问上游
+	for i := range 3 {
+		seedMiss()
+		if lyric, _ := s.GetLyric(WithLyricRefresh(admin, "ncm", 204), 204); lyric.Lrc.Lyric != "[00:01.00]你好" || calls.Load() != int32(2+i) {
+			t.Fatalf("admin refresh %d should force: %+v, calls = %d", i, lyric, calls.Load())
 		}
 	}
 }

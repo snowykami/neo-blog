@@ -172,7 +172,7 @@ type ttmlCachedEntry struct {
 	ok    bool
 }
 
-// probeTTML 先查缓存，命中的缓存在过期或需要复核时才重新请求；出错时返回 nil
+// probeTTML 先查缓存：命中的缓存立即返回，到了复核时间在后台与上游复核；没有缓存或刷新时才同步请求。出错时返回 nil
 func probeTTML(ctx context.Context, store cache.IDCache, key uint, flight string, urls []string) *ttmlProbe {
 	cached := loadTTMLCacheEntry(store, key)
 	// 管理员强制复核时连有效期也不信，直接从上游重新探测
@@ -182,17 +182,36 @@ func probeTTML(ctx context.Context, store cache.IDCache, key uint, flight string
 			if time.Now().Unix() < cached.entry.MissUntil && !lyricRefreshing(ctx) {
 				return &ttmlProbe{miss: true}
 			}
-		} else if !ttmlNeedsRevalidate(ctx, &cached.entry) {
+		} else {
+			// 命中的歌词立即返回，到了复核时间就在后台与上游核对（不让读者等上游）
+			if ttmlNeedsRevalidate(&cached.entry) {
+				revalidateLyricInBackground("ttml:"+flight, func(ctx context.Context) error {
+					if refetchTTML(ctx, store, key, flight, urls, cached) == nil {
+						return errors.New("ttml request failed")
+					}
+					return nil
+				})
+			}
 			return &ttmlProbe{ttml: cached.entry.TTML}
 		}
 	}
 
+	// 请求合并后由多个调用方共享结果，不随第一个调用方的请求取消
+	probe := refetchTTML(context.WithoutCancel(ctx), store, key, flight, urls, cached)
+	// 强制复核时出错：继续用缓存里的歌词，不让上游的临时故障把歌词换掉
+	if probe == nil && cached.ok && cached.entry.TTML != "" {
+		return &ttmlProbe{ttml: cached.entry.TTML}
+	}
+	return probe
+}
+
+// refetchTTML 向上游重新探测并写入缓存（出错不写缓存，返回 nil）；同一文件的并发请求（前台获取与后台复核）合并为一次
+func refetchTTML(ctx context.Context, store cache.IDCache, key uint, flight string, urls []string, cached ttmlCachedEntry) *ttmlProbe {
 	value, _, _ := musicTTMLGroup.Do(flight, func() (any, error) {
-		// 请求合并后由多个调用方共享结果，不随第一个调用方的请求取消
-		probe := fetchTTMLURLs(context.WithoutCancel(ctx), urls)
+		probe := fetchTTMLURLs(ctx, urls)
 		switch {
 		case probe == nil:
-			// 出错不写缓存；命中过缓存的继续用旧内容，下次再复核
+			// 出错不写缓存；命中过缓存的继续用旧内容，退避后再复核
 		case probe.ttml != "":
 			entry := ttmlCacheEntryOf(probe.ttml)
 			storeTTMLCache(store, key, entry)
@@ -208,10 +227,6 @@ func probeTTML(ctx context.Context, store cache.IDCache, key uint, flight string
 		return probe, nil
 	})
 	probe, _ := value.(*ttmlProbe)
-	// 复核时出错：继续用缓存里的歌词，不让上游的临时故障把歌词换掉
-	if probe == nil && cached.ok && cached.entry.TTML != "" {
-		return &ttmlProbe{ttml: cached.entry.TTML}
-	}
 	return probe
 }
 
@@ -228,9 +243,9 @@ func loadTTMLCacheEntry(store cache.IDCache, key uint) ttmlCachedEntry {
 	return ttmlCachedEntry{entry: entry, ok: true}
 }
 
-// ttmlNeedsRevalidate 命中的缓存是否需要与上游复核（刷新歌词时立即复核，否则隔 lyricRevalidateInterval 一次）
-func ttmlNeedsRevalidate(ctx context.Context, entry *musicTTMLCacheEntry) bool {
-	return lyricCacheNeedsRevalidate(ctx, entry.CheckedAt, entry.Hash != "")
+// ttmlNeedsRevalidate 命中的缓存是否该在后台与上游复核（隔 lyricRevalidateInterval 一次）
+func ttmlNeedsRevalidate(entry *musicTTMLCacheEntry) bool {
+	return lyricCacheStale(entry.CheckedAt, entry.Hash != "")
 }
 
 // ttmlCacheEntryOf 按这次取到的正文生成缓存条目：摘要用于与上次比较（相同表示上游没改，只是把核对时间往后推）

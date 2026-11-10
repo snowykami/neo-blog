@@ -50,6 +50,7 @@ func setupTTMLDB(t *testing.T) {
 func setupTTMLTest(t *testing.T, customPrefix string, mirrors ...string) {
 	t.Helper()
 	setupTTMLDB(t)
+	resetLyricSharedState(t)
 	t.Setenv("MUSIC_TTML_URL_PREFIX", customPrefix)
 	original := musicTTMLMirrors
 	musicTTMLMirrors = mirrors
@@ -260,11 +261,15 @@ func TestTTMLLyricRevalidatesAfterInterval(t *testing.T) {
 	seedTTMLHit(11, testTTML, 2*lyricRevalidateInterval)
 	s := NewMusicService()
 
-	// 超过复核间隔：重新请求，摘要不同则更新缓存
+	// 超过复核间隔：先返回缓存（不等上游），后台复核发现摘要不同后更新缓存
 	got, svcerr := s.GetTTMLLyric(context.Background(), 11, musicTTMLSourceAMLL)
-	if svcerr != nil || got.TTML != updated {
-		t.Fatalf("got %+v, %v, want updated ttml", got, svcerr)
+	if svcerr != nil || got.TTML != testTTML {
+		t.Fatalf("got %+v, %v, want stale ttml immediately", got, svcerr)
 	}
+	waitLyricCondition(t, "ttml background revalidation", func() bool {
+		entry := loadTTMLCacheEntry(musicTTMLCache, ttmlCacheKey(musicTTMLSourceAMLL, 11))
+		return entry.ok && entry.entry.TTML == updated
+	})
 	if calls.Load() != 1 {
 		t.Fatalf("should revalidate once, calls = %d", calls.Load())
 	}
@@ -310,22 +315,38 @@ func TestTTMLLyricRefreshRevalidatesHit(t *testing.T) {
 	if got, _ := s.GetTTMLLyric(context.Background(), 13, musicTTMLSourceAMLL); !strings.Contains(got.TTML, "old") {
 		t.Fatalf("cached = %q", got.TTML)
 	}
-	// 「重新获取歌词」：立即复核并更新
-	refreshCtx := WithLyricRefresh(context.Background(), "ttml", 13)
+	// 普通用户「重新获取歌词」不让命中的缓存提前复核
+	if got, _ := s.GetTTMLLyric(WithLyricRefresh(context.Background(), "ttml", 13), 13, musicTTMLSourceAMLL); !strings.Contains(got.TTML, "old") {
+		t.Fatalf("plain refresh = %q", got.TTML)
+	}
+	// 管理员「重新获取歌词」：立即复核并更新
+	refreshCtx := withLyricRefresh(context.Background(), "ttml", 13, true)
 	if got, svcerr := s.GetTTMLLyric(refreshCtx, 13, musicTTMLSourceAMLL); svcerr != nil || !strings.Contains(got.TTML, "new") {
 		t.Fatalf("refreshed = %+v, %v", got, svcerr)
 	}
 }
 
 func TestTTMLLyricRevalidateErrorKeepsCache(t *testing.T) {
-	failing, _ := ttmlServer(t, http.StatusBadGateway, "")
+	failing, calls := ttmlServer(t, http.StatusBadGateway, "")
 	setupTTMLTest(t, "", failing.URL)
 	seedTTMLHit(14, testTTML, 2*lyricRevalidateInterval)
 
-	// 复核时上游出错：继续用已缓存的歌词，不把缓存清掉
+	// 复核时上游出错：继续用已缓存的歌词，不把缓存清掉；之后按退避不再每次请求上游
 	got, svcerr := NewMusicService().GetTTMLLyric(context.Background(), 14, musicTTMLSourceAMLL)
 	if svcerr != nil || got.TTML != testTTML {
 		t.Fatalf("got %+v, %v, want cached ttml", got, svcerr)
+	}
+	waitLyricCondition(t, "ttml failed revalidation", func() bool { return calls.Load() > 0 })
+	waitLyricRevalidateIdle(t)
+	after := calls.Load()
+	for range 3 {
+		if got, svcerr := NewMusicService().GetTTMLLyric(context.Background(), 14, musicTTMLSourceAMLL); svcerr != nil || got.TTML != testTTML {
+			t.Fatalf("backoff = %+v, %v", got, svcerr)
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	if calls.Load() != after {
+		t.Fatalf("failed revalidation should back off, extra calls = %d", calls.Load()-after)
 	}
 	if entry := loadTTMLCacheEntry(musicTTMLCache, ttmlCacheKey(musicTTMLSourceAMLL, 14)); !entry.ok || entry.entry.TTML != testTTML {
 		t.Fatalf("cache should be kept, entry = %+v", entry)

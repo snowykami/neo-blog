@@ -301,21 +301,24 @@ func TestQQLyricRevalidate(t *testing.T) {
 	if lyric, svcerr := s.GetQQLyric(ctx, 301); svcerr != nil || !strings.Contains(lyric.Lyric, "]你(1000,500)") {
 		t.Fatalf("should use cache within interval: %+v, %v", lyric, svcerr)
 	}
-	// 到期复核：摘要不同，换成新时间轴
+	// 到期复核：先返回缓存（不等上游），后台复核发现摘要不同后换成新时间轴
 	cached, _ := loadQQCacheEntry(301)
 	cached.CheckedAt = time.Now().Add(-2 * lyricRevalidateInterval).Unix()
 	musicQQCache.Put(uint(301), jsonBytes(t, cached), musicQQHitTTL)
 	before := calls.Load()
-	lyric, svcerr := s.GetQQLyric(ctx, 301)
-	if svcerr != nil || !strings.Contains(lyric.Lyric, "你(1200,400)") {
-		t.Fatalf("revalidated = %+v, %v", lyric, svcerr)
+	if lyric, svcerr := s.GetQQLyric(ctx, 301); svcerr != nil || !strings.Contains(lyric.Lyric, "]你(1000,500)") {
+		t.Fatalf("stale cache should be returned immediately: %+v, %v", lyric, svcerr)
 	}
+	waitLyricCondition(t, "qq background revalidation", func() bool {
+		entry, ok := loadQQCacheEntry(301)
+		return ok && strings.Contains(entry.Lyric.Lyric, "你(1200,400)")
+	})
 	if calls.Load() == before {
 		t.Fatal("revalidation should request upstream")
 	}
-	// 「重新获取歌词」立即复核（不等间隔）
+	// 管理员「重新获取歌词」立即复核（不等间隔）
 	body.Store("[1000,1000]你(1400,200)好(1600,400)")
-	refreshCtx := WithLyricRefresh(ctx, "qq", 301)
+	refreshCtx := withLyricRefresh(ctx, "qq", 301, true)
 	if lyric, svcerr := s.GetQQLyric(refreshCtx, 301); svcerr != nil || !strings.Contains(lyric.Lyric, "你(1400,200)") {
 		t.Fatalf("refreshed = %+v, %v", lyric, svcerr)
 	}

@@ -24,6 +24,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
+	"golang.org/x/sync/singleflight"
 )
 
 // 网易云音乐歌单：通过 NeteaseCloudMusicApi Enhanced 服务读取用户歌单、歌曲播放地址与歌词
@@ -508,32 +509,64 @@ func (s *MusicService) GetLyric(ctx context.Context, id int64) (*dto.MusicLyricD
 			if !lyricRefreshing(ctx) {
 				return &cached.Lyric, nil
 			}
-		} else if !lyricCacheNeedsRevalidate(ctx, cached.CheckedAt, cached.Hash != "") {
+		} else {
+			// 命中的歌词立即返回，到了复核时间就在后台与上游核对（不让读者等上游）
+			if lyricCacheStale(cached.CheckedAt, cached.Hash != "") {
+				revalidateLyricInBackground("ncm:"+strconv.FormatInt(id, 10), func(ctx context.Context) error {
+					_, svcerr := refetchNcmLyric(ctx, id)
+					if svcerr != nil {
+						return svcerr
+					}
+					return nil
+				})
+			}
 			return &cached.Lyric, nil
 		}
 	}
 
-	lyric, noLyric, svcerr := fetchNcmLyric(ctx, id)
+	// 请求合并后由多个调用方共享结果，不随第一个调用方的请求取消
+	lyric, svcerr := refetchNcmLyric(context.WithoutCancel(ctx), id)
 	if svcerr != nil {
-		// 复核时上游出错：继续用缓存里的歌词，不让临时故障把歌词换掉
+		// 强制复核时上游出错：继续用缓存里的歌词，不让临时故障把歌词换掉
 		if hasCached && !cached.miss() {
 			return &cached.Lyric, nil
 		}
 		return nil, svcerr
 	}
-
-	ttl := musicLyricHitTTL
-	miss := false
-	if lyric.Lrc == nil || strings.TrimSpace(lyric.Lrc.Lyric) == "" {
-		placeholder := "[00:00.00]no_lyric"
-		if noLyric {
-			placeholder = "[00:00.00]pure_music_without_lyric"
-		}
-		lyric.Lrc = &dto.MusicLyricPart{Lyric: placeholder, Version: 1}
-		ttl, miss = musicLyricMissTTL, true
-	}
-	storeMusicLyricCache(id, lyric, ttl, miss)
 	return lyric, nil
+}
+
+// musicLyricGroup 合并同一首歌同时进行的网易云歌词请求（前台获取与后台复核共用）
+var musicLyricGroup singleflight.Group
+
+// refetchNcmLyric 向上游重新获取一首歌的歌词并写入缓存（没有歌词时写入占位歌词）；同一首歌的并发请求合并为一次
+func refetchNcmLyric(ctx context.Context, id int64) (*dto.MusicLyricDto, *errs.ServiceError) {
+	value, err, _ := musicLyricGroup.Do(strconv.FormatInt(id, 10), func() (any, error) {
+		lyric, noLyric, svcerr := fetchNcmLyric(ctx, id)
+		if svcerr != nil {
+			return nil, svcerr
+		}
+		ttl := musicLyricHitTTL
+		miss := false
+		if lyric.Lrc == nil || strings.TrimSpace(lyric.Lrc.Lyric) == "" {
+			placeholder := "[00:00.00]no_lyric"
+			if noLyric {
+				placeholder = "[00:00.00]pure_music_without_lyric"
+			}
+			lyric.Lrc = &dto.MusicLyricPart{Lyric: placeholder, Version: 1}
+			ttl, miss = musicLyricMissTTL, true
+		}
+		storeMusicLyricCache(id, lyric, ttl, miss)
+		return lyric, nil
+	})
+	if err != nil {
+		var svcerr *errs.ServiceError
+		if errors.As(err, &svcerr) {
+			return nil, svcerr
+		}
+		return nil, ncmRequestError(err)
+	}
+	return value.(*dto.MusicLyricDto), nil
 }
 
 // loadMusicLyricCacheEntry 缓存的歌词与条目（过期或无法解析时 ok 为 false）

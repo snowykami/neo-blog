@@ -102,7 +102,7 @@ func (s *MusicService) qqLyricWithTTML(ctx context.Context, id int64) (*dto.Musi
 	return &result, ttml, nil
 }
 
-// cachedQQLyric 先查缓存，命中的缓存按 lyricRevalidateInterval 与上游复核；再合并同一首歌的并发请求
+// cachedQQLyric 先查缓存，命中的缓存立即返回、到了复核时间在后台与上游复核；再合并同一首歌的并发请求
 func (s *MusicService) cachedQQLyric(ctx context.Context, id int64) (*dto.MusicQQLyricDto, *errs.ServiceError) {
 	cached, hasCached := loadQQCacheEntry(id)
 	// 管理员强制复核时连有效期也不信，直接从上游重新获取
@@ -112,14 +112,37 @@ func (s *MusicService) cachedQQLyric(ctx context.Context, id int64) (*dto.MusicQ
 			if !lyricRefreshing(ctx) {
 				return &cached.Lyric, nil
 			}
-		} else if !lyricCacheNeedsRevalidate(ctx, cached.CheckedAt, cached.Hash != "") {
+		} else {
+			// 命中的歌词立即返回，到了复核时间就在后台与上游核对（不让读者等上游）
+			if lyricCacheStale(cached.CheckedAt, cached.Hash != "") {
+				revalidateLyricInBackground("qq:"+strconv.FormatInt(id, 10), func(ctx context.Context) error {
+					_, err := s.refetchQQLyric(ctx, id)
+					return err
+				})
+			}
 			return &cached.Lyric, nil
 		}
 	}
 
+	// 请求合并后由多个调用方共享结果，不随第一个调用方的请求取消
+	lyric, err := s.refetchQQLyric(context.WithoutCancel(ctx), id)
+	if err != nil {
+		// 强制复核时上游出错：继续用缓存里的歌词，不让临时故障把歌词换掉
+		if hasCached && cached.Lyric.Lyric != "" {
+			return &cached.Lyric, nil
+		}
+		var svcerr *errs.ServiceError
+		if errors.As(err, &svcerr) {
+			return nil, svcerr
+		}
+		return nil, errs.New(http.StatusBadGateway, "music_lyric_source_failed", err)
+	}
+	return lyric, nil
+}
+
+// refetchQQLyric 向 QQ 音乐重新匹配并获取一首歌的歌词、写入缓存；同一首歌的并发请求（前台获取与后台复核）合并为一次
+func (s *MusicService) refetchQQLyric(ctx context.Context, id int64) (*dto.MusicQQLyricDto, error) {
 	value, err, _ := musicQQGroup.Do(strconv.FormatInt(id, 10), func() (any, error) {
-		// 请求合并后由多个调用方共享结果，不随第一个调用方的请求取消
-		ctx := context.WithoutCancel(ctx)
 		song, svcerr := s.GetSong(ctx, id)
 		if svcerr != nil {
 			return nil, svcerr
@@ -148,15 +171,7 @@ func (s *MusicService) cachedQQLyric(ctx context.Context, id int64) (*dto.MusicQ
 		return lyric, nil
 	})
 	if err != nil {
-		// 复核时上游出错：继续用缓存里的歌词，不让临时故障把歌词换掉
-		if hasCached && cached.Lyric.Lyric != "" {
-			return &cached.Lyric, nil
-		}
-		var svcerr *errs.ServiceError
-		if errors.As(err, &svcerr) {
-			return nil, svcerr
-		}
-		return nil, errs.New(http.StatusBadGateway, "music_lyric_source_failed", err)
+		return nil, err
 	}
 	return value.(*dto.MusicQQLyricDto), nil
 }

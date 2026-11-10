@@ -363,6 +363,7 @@ func TestMusicSearchSongs(t *testing.T) {
 // 平台只改了某个字的时间轴（文本不变）也算改动，摘要不同才换掉缓存；复核出错时继续用缓存
 func TestMusicLyricRevalidate(t *testing.T) {
 	setupEditTest(t)
+	resetLyricSharedState(t)
 	var body atomic.Value
 	body.Store("[00:01.00]你好")
 	var failing atomic.Bool
@@ -404,22 +405,49 @@ func TestMusicLyricRevalidate(t *testing.T) {
 	if lyric, _ := s.GetLyric(ctx, 201); lyric.Lrc.Lyric != "[00:01.00]你好" {
 		t.Fatalf("cache should be used within interval: %+v", lyric)
 	}
-	// 到期复核：摘要不同，换成新时间轴
+	// 到期复核：先返回缓存里的歌词（不等上游），后台复核发现摘要不同后换成新时间轴
 	seedLyricCheckedAt(t, 201, 2*lyricRevalidateInterval)
+	if lyric, _ := s.GetLyric(ctx, 201); lyric.Lrc.Lyric != "[00:01.00]你好" {
+		t.Fatalf("stale cache should be returned immediately: %+v", lyric)
+	}
+	waitLyricCondition(t, "ncm background revalidation", func() bool {
+		entry, ok := loadMusicLyricCacheEntry(201)
+		return ok && entry.Lyric.Lrc.Lyric == "[00:01.40]你好"
+	})
 	if lyric, _ := s.GetLyric(ctx, 201); lyric.Lrc.Lyric != "[00:01.40]你好" {
 		t.Fatalf("revalidated = %+v", lyric)
 	}
-	// 「重新获取歌词」立即复核，不用等间隔
+	// 普通用户「重新获取歌词」不让命中的缓存提前复核
 	body.Store("[00:02.00]你好")
-	refreshCtx := WithLyricRefresh(ctx, "ncm", 201)
-	if lyric, _ := s.GetLyric(refreshCtx, 201); lyric.Lrc.Lyric != "[00:02.00]你好" {
-		t.Fatalf("refreshed = %+v", lyric)
+	before = calls.Load()
+	if lyric, _ := s.GetLyric(WithLyricRefresh(ctx, "ncm", 201), 201); lyric.Lrc.Lyric != "[00:01.40]你好" || calls.Load() != before {
+		t.Fatalf("plain refresh should keep the hit cache: %+v, calls = %d", lyric, calls.Load()-before)
 	}
-	// 复核时上游出错：继续用缓存里的歌词，不停把歌词换掉
+	// 管理员强制复核：立即向上游确认
+	if lyric, _ := s.GetLyric(withLyricRefresh(ctx, "ncm", 201, true), 201); lyric.Lrc.Lyric != "[00:02.00]你好" {
+		t.Fatalf("forced = %+v", lyric)
+	}
+	// 复核时上游出错：继续用缓存里的歌词，并退避，故障期间后续请求不再去问上游
 	failing.Store(true)
 	seedLyricCheckedAt(t, 201, 2*lyricRevalidateInterval)
+	before = calls.Load()
 	if lyric, svcerr := s.GetLyric(ctx, 201); svcerr != nil || lyric.Lrc.Lyric != "[00:02.00]你好" {
 		t.Fatalf("error fallback = %+v, %v", lyric, svcerr)
+	}
+	waitLyricCondition(t, "ncm failed revalidation", func() bool { return calls.Load() > before })
+	waitLyricRevalidateIdle(t)
+	after := calls.Load()
+	for range 3 {
+		if lyric, svcerr := s.GetLyric(ctx, 201); svcerr != nil || lyric.Lrc.Lyric != "[00:02.00]你好" {
+			t.Fatalf("backoff = %+v, %v", lyric, svcerr)
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	if calls.Load() != after {
+		t.Fatalf("failed revalidation should back off, extra calls = %d", calls.Load()-after)
+	}
+	if entry, _ := loadMusicLyricCacheEntry(201); entry.Lyric.Lrc.Lyric != "[00:02.00]你好" {
+		t.Fatalf("cache should be kept on error: %+v", entry)
 	}
 }
 
