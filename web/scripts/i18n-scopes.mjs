@@ -227,6 +227,7 @@ export function computeScopes() {
   }
 
   // 控制台全局配置页的键由后端配置表决定（internal/config/items.go），整页按配置表补齐
+  // Docker 构建上下文只有 web/，读不到仓库根目录的 internal/config/items.go
   const configPaths = configNamespacePaths(catalog)
   const own = new Map()
   for (const dir of SCOPE_DIRS) {
@@ -271,7 +272,7 @@ export function computeScopes() {
   }
 
   // 核心 = 根作用域
-  return { scopes: resolved, catalog, dynamicNamespaces }
+  return { scopes: resolved, catalog, dynamicNamespaces, configKeysAvailable: configPaths !== null }
 }
 
 export function scopeKey(dir) {
@@ -333,7 +334,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
 function main() {
   const check = process.argv.includes('--check')
-  const { scopes, catalog, dynamicNamespaces } = computeScopes()
+  const { scopes, catalog, dynamicNamespaces, configKeysAvailable } = computeScopes()
+
+  if (!configKeysAvailable && check) {
+    console.log('· 跳过 i18n 作用域校验：当前目录树里没有 internal/config/items.go（Docker 构建上下文只有 web/），'
+      + '以仓库里已提交的 scopes.generated.ts 为准')
+    return
+  }
+  // 读不到后端配置表时算出来的清单是降级的：宁可报错也不覆盖生成物
+  if (!configKeysAvailable && !check) {
+    console.error('✗ 读不到 internal/config/items.go（控制台配置页的文案键来源）\n'
+      + '  请在仓库根目录的完整检出里运行 pnpm i18n:scopes；Docker 构建上下文只有 web/，构建时只跑 --check 并会自动跳过')
+    process.exit(1)
+  }
   const problems = []
 
   // 代码里用到但文案里没有的路径：多半是笔误，或文案还没补

@@ -30,7 +30,10 @@ const nearestScopeDir = (dir: string) => byDepth.find(scope => within(dir, scope
 
 const segmentDir = (segment: string) => (segment === APP_ROOT ? '' : segment.slice(APP_ROOT.length + 1))
 
-describe('i18n 作用域', () => {
+// Docker 构建上下文只有 web/，读不到后端配置表时算出来的清单是降级的，此时跳过这些用例
+const configKeysAvailable = computeScopes().configKeysAvailable
+
+describe.skipIf(!configKeysAvailable)('i18n 作用域', () => {
   const graph = createGraph()
   const segments = routeSegments()
   const catalog = readCatalog('en')
