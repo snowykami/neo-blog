@@ -15,7 +15,8 @@ import { ContentImageFallback } from '@/components/blog-post/content-image-fallb
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
 import { PostBackground } from '@/components/blog-post/post-background.client'
 import { PostEditButton } from '@/components/blog-post/post-edit-button.client'
-import { PostMeta, PostStats } from '@/components/blog-post/post-meta'
+import { PostLiveStats } from '@/components/blog-post/post-live-stats.client'
+import { PostMeta } from '@/components/blog-post/post-meta'
 import { PostToc } from '@/components/blog-post/post-toc.client'
 import { BlogSidebarAbout } from '@/components/blog-sidebar/blog-sidebar-card'
 import { CommentSection } from '@/components/comment'
@@ -51,7 +52,8 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
   const theme = resolveContentTheme(post.contentTheme, (await getCachedSiteInfo()).contentTheme)
   // 交给客户端组件（编辑入口、版权、点赞、分享）的只有这些字段：整篇 post 带着正文原文，传进去会在 RSC 里再发一份正文。
   // 几个组件共用同一个对象，RSC 里只序列化一次
-  const postInfo: Pick<Post, 'id' | 'slug' | 'title' | 'description' | 'createdAt' | 'updatedAt' | 'user' | 'isLiked' | 'likeCount'> = {
+  // 计数是页面缓存里的快照，统计行在浏览器里换成最新值（见 PostLiveStats）
+  const postInfo: Pick<Post, 'id' | 'slug' | 'title' | 'description' | 'createdAt' | 'updatedAt' | 'user' | 'isLiked' | 'likeCount' | 'viewCount' | 'commentCount'> = {
     id: post.id,
     slug: post.slug,
     title: post.title,
@@ -61,10 +63,12 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
     user: post.user,
     isLiked: post.isLiked,
     likeCount: post.likeCount,
+    viewCount: post.viewCount,
+    commentCount: post.commentCount,
   }
   return (
     <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
-      <PostStats withIcons words={countWords(content)} minutes={calculateReadingTime(content)} views={post.viewCount || 0} likes={post.likeCount || 0} comments={post.commentCount || 0} className="mb-3" />
+      <PostLiveStats post={postInfo} words={countWords(content)} minutes={calculateReadingTime(content)} className="mb-3" />
 
       {/* 私密徽标只会出现在后台预览里：前台接口不返回私密文章 */}
       {(post.pinned || post.isPrivate) && (

@@ -133,6 +133,17 @@ func (p *postRepo) ListPostsForAISummary() ([]model.Post, error) {
 	return posts, err
 }
 
+// GetPublicPostStats 公开文章的浏览量、点赞数、评论数：只读这三列；私密或不存在的文章返回 gorm.ErrRecordNotFound
+func (p *postRepo) GetPublicPostStats(id uint) (*dto.PostStatsDto, error) {
+	var stats dto.PostStatsDto
+	err := GetDB().Model(&model.Post{}).Select("view_count", "like_count", "comment_count").
+		Where("id = ? AND is_private = ?", id, false).Take(&stats).Error
+	if err != nil {
+		return nil, err
+	}
+	return &stats, nil
+}
+
 func (p *postRepo) GetPostByID(id uint) (*model.Post, error) {
 	var post model.Post
 	if err := GetDB().Preload(clause.Associations).First(&post, id).Error; err != nil {

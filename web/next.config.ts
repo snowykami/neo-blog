@@ -1,4 +1,6 @@
 import type { NextConfig } from 'next'
+import path from 'node:path'
+import process from 'node:process'
 import createNextIntlPlugin from 'next-intl/plugin'
 import { IMAGE_OPTIMIZE_HOSTS } from '@/utils/common/image'
 
@@ -6,6 +8,13 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   // 生成浏览器代码的 source map，供错误报告还原调用栈；构建后由 scripts/collect-sourcemaps.mjs 移出公开目录，不对外提供
   productionBrowserSourceMaps: true,
+  // 增量缓存（ISR 页面与 unstable_cache 的取数结果）：按后端的缓存标签版本号失效；配置 REDIS_URL 时存进 Redis、多个副本共用，
+  // 否则沿用 Next 自带的文件系统缓存（见 cache-handler.mjs）。在 web 目录下构建与启动，路径按当前目录解析
+  cacheHandler: path.join(process.cwd(), 'cache-handler.mjs'),
+  // ISR 页面过了 revalidate 之后最多再按旧内容提供多久（默认一年）：超过 1 小时没人访问的页面，下次访问先重新生成再返回，
+  // 而不是先给旧页面。响应头随之变为 s-maxage=<revalidate>, stale-while-revalidate=<3600 - revalidate>，CDN 同样受这个上限约束。
+  // 后端修改会按缓存标签让页面立即失效（见 cache-handler.mjs），这里兜住轮询失败、CDN 上存着的旧页面（如已改为私密的文章）
+  expireTime: 3600,
   experimental: {
     // 根布局在 [locale] 段下，全站兜底的 404 由 app/global-not-found.tsx 提供（见该文件）
     globalNotFound: true,

@@ -1,7 +1,7 @@
 import type { Category } from '@/models/category'
 import type { PaginationParams } from '@/models/common'
 import type { ContentSaveResult } from '@/models/edit-session'
-import type { Post, PostCard } from '@/models/post'
+import type { Post, PostCard, PostStats } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
 import { OrderBy } from '@/models/common'
 import axiosClient from './client'
@@ -13,6 +13,15 @@ import { editSessionHeaders } from './edit-session'
  */
 export async function getPostForEdit({ id }: { id: string }): Promise<BaseResponse<Post>> {
   const res = await axiosClient.get(`/post/p/${id}/draft`)
+  return res.data
+}
+
+/**
+ * 公开文章的浏览量、点赞数、评论数（不需要登录）：文章页按 ISR 缓存，里面的计数是生成页面时的快照，
+ * 浏览器进入文章页后取一次最新值（见 hooks/use-post-stats.ts）
+ */
+export async function getPostStats(id: number): Promise<BaseResponse<PostStats>> {
+  const res = await axiosClient.get(`/post/p/${id}/stats`)
   return res.data
 }
 

@@ -152,13 +152,14 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 	if slugOrId == "" {
 		return nil, errs.NewBadRequest("missing_request_parameters")
 	}
-	// 访客读取的文章先读短时缓存（缓存里不存草稿）
-	return guestCached(ctx, "detail:"+slugOrId, func() (*dto.PostDto, *errs.ServiceError) {
-		return p.getPublicPost(ctx, slugOrId)
+	// 先读短时缓存（缓存里不存草稿）：返回内容对所有人一致，登录用户与访客共用
+	return publicCached("detail:"+slugOrId, func() (*dto.PostDto, *errs.ServiceError) {
+		return p.getPublicPost(slugOrId)
 	})
 }
 
-func (p *PostService) getPublicPost(ctx context.Context, slugOrId string) (*dto.PostDto, *errs.ServiceError) {
+// getPublicPost 不看当前用户是谁：is_liked 恒为 false，登录用户的点赞状态由浏览器另取（GET /like/status）
+func (p *PostService) getPublicPost(slugOrId string) (*dto.PostDto, *errs.ServiceError) {
 	post, err := repo.Post.GetPostBySlugOrID(slugOrId)
 	if err != nil || post.IsPrivate {
 		return nil, errs.NewNotFound("target_not_found").WithResource("post")
@@ -166,14 +167,23 @@ func (p *PostService) getPublicPost(ctx context.Context, slugOrId string) (*dto.
 	postDto := post.ToDto()
 	postDto.DraftContent = nil
 	postDto.DraftVersion = 0
-	// 检测用户是否点赞
-	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
-		liked, err := repo.Like.IsLiked(currentUser.ID, post.ID, constant.TargetTypePost)
-		if err == nil {
-			postDto.IsLiked = liked
-		}
-	}
 	return postDto, nil
+}
+
+// GetPublicPostStats 公开文章的浏览量、点赞数、评论数（不看当前用户是谁，不缓存）：
+// 前台文章页按 ISR 缓存，里面的计数是生成页面时的快照，浏览器进入文章页后用它补上最新值；私密文章与不存在的文章 404
+func (p *PostService) GetPublicPostStats(id uint) (*dto.PostStatsDto, *errs.ServiceError) {
+	if id == 0 {
+		return nil, errs.NewBadRequest("missing_request_parameters")
+	}
+	stats, err := repo.Post.GetPublicPostStats(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errs.NewNotFound("target_not_found").WithResource("post")
+		}
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
+	}
+	return stats, nil
 }
 
 // GetPostForEdit 后台编辑器与预览读取文章：含私密文章与草稿（没有草稿时取已发布的正文），仅作者本人与管理员可用
@@ -320,7 +330,7 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 
 // ListPosts 前台文章列表（首页、标签、分类、归档、搜索、用户主页）：只含公开文章，不看当前用户是谁
 func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, *errs.ServiceError) {
-	page, svcerr := guestCached(ctx, postListCacheKey(req), func() (guestPostList, *errs.ServiceError) {
+	page, svcerr := publicCached(postListCacheKey(req), func() (guestPostList, *errs.ServiceError) {
 		posts, total, svcerr := p.listPosts(ctx, req, false)
 		return guestPostList{Posts: posts, Total: total}, svcerr
 	})
@@ -378,7 +388,7 @@ func (p *PostService) ListPostCards(ctx context.Context, ids []uint) ([]dto.Post
 	if len(ids) == 0 {
 		return []dto.PostCardDto{}, nil
 	}
-	return guestCached(ctx, postCardCacheKey(ids), func() ([]dto.PostCardDto, *errs.ServiceError) {
+	return publicCached(postCardCacheKey(ids), func() ([]dto.PostCardDto, *errs.ServiceError) {
 		posts, err := repo.Post.ListPostCardsByIDs(ids)
 		if err != nil {
 			return nil, errs.Internal("failed_to_get_target", err).WithResource("post")

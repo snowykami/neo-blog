@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { getLocale } from 'next-intl/server'
+import { unstable_cache } from 'next/cache'
 import { notFound, redirect } from 'next/navigation'
 import { cache } from 'react'
 import { getCachedSiteInfo } from '@/api/misc.server'
@@ -20,6 +21,7 @@ import { FullscreenChrome } from '@/components/layout/fullscreen-chrome'
 import { SiteShell } from '@/components/layout/site-shell'
 import { localeAlternates } from '@/i18n/alternates'
 import { localizePath } from '@/i18n/routing'
+import { CacheTag, DETAIL_REVALIDATE_SECONDS, nullIfNotFound, UncachedNotFound } from '@/lib/cache-tags'
 import { contentWebFonts, resolveContentTheme } from '@/lib/content-theme'
 import { isNotFoundLikeError } from '@/utils/common/error'
 import { countWords } from '@/utils/common/post'
@@ -32,16 +34,28 @@ import '@/components/tiptap-node/inline-icon-node/inline-icon.scss'
 // 公式样式（约 4 KB）；KaTeX 字体只在页面用到公式时才下载
 import 'katex/dist/katex.min.css'
 
-// 同一次渲染内复用页面数据；仅明确不存在 / 无权查看时返回 null，其余错误交给错误边界
-const getCachedPage = cache(async (id: string) => {
-  return getPageById({ id })
+// 跨请求缓存（按 id / slug 分条，各语言共用）：页面按 ISR 缓存，视口预取与重新生成先读这里；页面增删改时 pages 标签失效。
+// 仅明确不存在 / 无权查看时返回 null（不缓存，见 UncachedNotFound），其余错误交给错误边界、同样不进缓存
+const loadPage = unstable_cache(
+  async (id: string) => getPageById({ id })
     .then(res => res.data)
     .catch((error) => {
       if (isNotFoundLikeError(error))
-        return null
+        throw new UncachedNotFound()
       throw error
-    })
-})
+    }),
+  ['page-detail'],
+  { revalidate: DETAIL_REVALIDATE_SECONDS, tags: [CacheTag.Pages] },
+)
+
+// 同一次渲染内 generateMetadata 与页面共用一次读取
+const getCachedPage = cache((id: string) => loadPage(id).catch(nullIfNotFound))
+
+// 构建时不预渲染（返回空数组）：每个页面在第一次被访问时生成，之后按 ISR 缓存（根布局 revalidate = 30），
+// 后台修改页面后 pages 标签失效、下次访问重新生成
+export function generateStaticParams() {
+  return []
+}
 
 export async function generateMetadata({
   params,

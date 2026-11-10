@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { getLocale, getTranslations } from 'next-intl/server'
-import { listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
 import BlogSidebar from '@/components/blog-sidebar'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
@@ -13,11 +12,8 @@ import {
 } from '@/components/ui/pagination'
 import { localeAlternates } from '@/i18n/alternates'
 import { localizePath } from '@/i18n/routing'
-import { OrderBy } from '@/models/common'
 import { getCategoryUrl } from '@/utils/common/route'
-import { findCategoryOr404 } from './category-data'
-
-const PAGE_SIZE = 20
+import { CATEGORY_PAGE_SIZE, findCategoryOr404, listCategoryPosts } from './category-data'
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
@@ -47,15 +43,9 @@ export default async function CategoryDetailPage({
 
   const category = await findCategoryOr404(slug)
 
-  const { posts, total } = await listPosts({
-    page,
-    size: PAGE_SIZE,
-    category: slug,
-    orderBy: OrderBy.CreatedAt,
-    desc: true,
-  }).then(res => ({ posts: res.data.posts || [], total: res.data.total || 0 })).catch(() => ({ posts: [], total: 0 }))
+  const { posts, total } = await listCategoryPosts(slug, page).catch(() => ({ posts: [], total: 0 }))
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / CATEGORY_PAGE_SIZE))
   const baseUrl = category ? getCategoryUrl(category) : `/c/${encodeURIComponent(slug)}`
   // 分页是普通 <a>，自己带上语言前缀
   const pageUrl = (p: number) => localizePath(p <= 1 ? baseUrl : `${baseUrl}?page=${p}`, locale)

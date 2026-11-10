@@ -23,7 +23,7 @@ const postPinLockTTL = 10 * time.Second
 
 // ListPinnedPosts 首页的置顶文章（只含公开文章，不看当前用户是谁），后置顶的在前
 func (p *PostService) ListPinnedPosts(ctx context.Context) ([]*dto.PostDto, *errs.ServiceError) {
-	return guestCached(ctx, "pinned", func() ([]*dto.PostDto, *errs.ServiceError) { return p.listPinnedPosts() })
+	return publicCached("pinned", func() ([]*dto.PostDto, *errs.ServiceError) { return p.listPinnedPosts() })
 }
 
 func (p *PostService) listPinnedPosts() ([]*dto.PostDto, *errs.ServiceError) {

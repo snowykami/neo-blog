@@ -61,6 +61,12 @@ export function proxy(request: NextRequest) {
     const locale = preferredLocale(request)
     if (locale && locale !== routing.defaultLocale)
       return redirectTo(request, localizePath(pathname, locale))
+    // 不带前缀的页面对偏好别的语言的人会跳转（上面），这份 200 响应其实因人而异：ISR 页面带着 s-maxage，
+    // CDN 若把它存下来，之后偏好别的语言的访客就拿不到跳转了。用 CDN-Cache-Control（RFC 9213，浏览器不认）只让共享缓存不存；
+    // 带前缀的地址与客户端路由取数（地址带 _rsc）对所有人一致，照常按 Cache-Control 缓存
+    const response = handleI18nRouting(request)
+    response.headers.set('CDN-Cache-Control', 'no-store')
+    return response
   }
 
   return handleI18nRouting(request)

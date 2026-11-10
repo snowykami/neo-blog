@@ -36,6 +36,13 @@ describe('proxy 语言路由', () => {
     expect(location(prefixed)).toBeNull()
   })
 
+  it('不带前缀的页面因人而异（可能跳转），不让 CDN 存下来；带前缀的地址与客户端路由取数照常缓存', () => {
+    expect(proxy(request('/p/hello')).headers.get('cdn-cache-control')).toBe('no-store')
+    expect(proxy(request('/p/hello', { 'sec-fetch-dest': 'document' })).headers.get('cdn-cache-control')).toBe('no-store')
+    expect(proxy(request('/en/p/hello', { 'sec-fetch-dest': 'document' })).headers.get('cdn-cache-control')).toBeNull()
+    expect(proxy(request('/p/hello', { 'sec-fetch-dest': 'empty' })).headers.get('cdn-cache-control')).toBeNull()
+  })
+
   it('小写前缀改写到注册表里的语言代码，多余的默认语言前缀跳回规范地址', () => {
     expect(rewrite(proxy(request('/zh-tw/p/hello')))).toBe('https://blog.example.com/zh-TW/p/hello')
     expect(location(proxy(request('/zh-cn/p/hello')))).toBe('https://blog.example.com/p/hello')

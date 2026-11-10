@@ -69,10 +69,13 @@ func (user *userRepo) GetUserByUsernameOrEmail(usernameOrEmail string) (*model.U
 	return &userModel, nil
 }
 
+// 用户的增删改都让前端带 users 标签的缓存失效（用户主页，见 cache_tag.go）
+
 func (user *userRepo) CreateUser(userModel *model.User) error {
 	if err := GetDB().Create(userModel).Error; err != nil {
 		return err
 	}
+	TouchCacheTags(CacheTagUsers)
 	return nil
 }
 
@@ -80,6 +83,7 @@ func (user *userRepo) UpdateUser(userModel *model.User) error {
 	if err := GetDB().Updates(userModel).Error; err != nil {
 		return err
 	}
+	TouchCacheTags(CacheTagUsers)
 	return nil
 }
 
@@ -210,7 +214,11 @@ func (user *userRepo) GetAIWritingHabit(userID uint) (string, error) {
 
 // UpdateUserColumns 按列更新用户，map 形式允许把字段更新为零值（如清空昵称、启用用户）
 func (user *userRepo) UpdateUserColumns(userID uint, columns map[string]any) error {
-	return GetDB().Model(&model.User{}).Where("id = ?", userID).Updates(columns).Error
+	if err := GetDB().Model(&model.User{}).Where("id = ?", userID).Updates(columns).Error; err != nil {
+		return err
+	}
+	TouchCacheTags(CacheTagUsers)
+	return nil
 }
 
 // DeleteUser 删除用户：文章、页面、文件（含已软删除的）、修订记录转交给 transferTo，
@@ -219,6 +227,11 @@ func (user *userRepo) DeleteUser(userID, transferTo uint) error {
 	if userID == 0 || transferTo == 0 || userID == transferTo {
 		return errs.NewBadRequest("invalid_target")
 	}
+	// 文章与页面转交给了别人，作者信息随之变化：文章的访客缓存一并作废
+	defer func() {
+		InvalidatePostCache()
+		TouchCacheTags(CacheTagUsers, CacheTagPages)
+	}()
 	return GetDB().Transaction(func(tx *gorm.DB) error {
 		for _, m := range []any{&model.Post{}, &model.Page{}, &model.File{}} {
 			if err := tx.Unscoped().Model(m).Where("user_id = ?", userID).UpdateColumn("user_id", transferTo).Error; err != nil {
@@ -311,7 +324,12 @@ func (user *userRepo) DeleteUser(userID, transferTo uint) error {
 
 // FillAvatarIfEmpty 仅在用户尚未设置头像时写入头像地址
 func (user *userRepo) FillAvatarIfEmpty(userID uint, avatarUrl string) error {
-	return GetDB().Model(&model.User{}).
+	result := GetDB().Model(&model.User{}).
 		Where("id = ? AND (avatar_url = '' OR avatar_url IS NULL)", userID).
-		UpdateColumn("avatar_url", avatarUrl).Error
+		UpdateColumn("avatar_url", avatarUrl)
+	// 每次第三方登录都会调用，只有真的写入了头像才让前端缓存失效
+	if result.Error == nil && result.RowsAffected > 0 {
+		TouchCacheTags(CacheTagUsers)
+	}
+	return result.Error
 }

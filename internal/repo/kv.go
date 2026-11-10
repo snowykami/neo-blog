@@ -60,10 +60,11 @@ func (k *kvRepo) resetCache() {
 	k.mu.Unlock()
 }
 
-// changed 写入后清除本实例缓存并通知其他实例
+// changed 写入后清除本实例缓存并通知其他实例；前端带 site 标签的缓存（站点信息与全部前台页面）一并失效
 func (k *kvRepo) changed(key string) {
 	k.invalidate(key)
 	sharedstate.Notify(kvChangedChannel, key)
+	TouchCacheTags(CacheTagSite)
 }
 
 // ListenChanges 订阅其他实例的配置写入，及时清除本实例缓存；与 Redis 断线重连后清空全部缓存

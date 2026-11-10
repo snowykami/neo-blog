@@ -2,7 +2,6 @@
 import type { CommentSubmitPayload } from './comment-input'
 import type { ActiveInput } from './comment-item'
 import type { Comment } from '@/models/comment'
-import type { TargetType } from '@/models/types'
 import { Loader2, MessageCircleHeartIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState } from 'react'
@@ -12,8 +11,10 @@ import { notifySuccess } from '@/components/layout/topbar-island/island-feedback
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { usePostStats } from '@/hooks/use-post-stats'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
+import { TargetType } from '@/models/types'
 import { OrderSelector } from '../common/orderby-selector'
 import { SectionTitle } from '../layout/site-shell'
 import { CommentInput } from './comment-input'
@@ -39,6 +40,12 @@ export function CommentSection({
   const [activeInput, setActiveInput] = useState<ActiveInput>(null)
   const [page, setPage] = useState(1) // 当前页码
   const [totalCommentCount, setTotalCommentCount] = useState(totalCount) // 评论总数
+  // 文章页按 ISR 缓存，传进来的总数是快照：换成浏览器另取的最新值（与统计行共用一次请求，见 hooks/use-post-stats.ts）
+  const liveCommentCount = usePostStats(targetType === TargetType.Post ? targetId : 0)?.commentCount
+  useEffect(() => {
+    if (liveCommentCount !== undefined)
+      setTotalCommentCount(liveCommentCount)
+  }, [liveCommentCount])
   const [needLoadMore, setNeedLoadMore] = useState(false) // 是否需要加载更多，当最后一次获取的评论数小于分页大小时设为false
   const [orderBy, setOrderBy] = useState<OrderBy>(OrderBy.CreatedAt) // 排序字段，默认按创建时间
   const [desc, setDesc] = useState(true) // 是否降序，默认降序

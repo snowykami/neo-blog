@@ -17,12 +17,16 @@ type pageRepo struct{}
 
 var Page = &pageRepo{}
 
+// 页面的增删改都让前端带 pages 标签的缓存失效（见 cache_tag.go）
+
 func (p *pageRepo) CreatePage(page *model.Page) error {
+	defer TouchCacheTags(CacheTagPages)
 	return GetDB().Create(page).Error
 }
 
 // DeletePage 软删除页面，同时清理评论与点赞，并释放 slug 以便新页面复用
 func (p *pageRepo) DeletePage(id uint) error {
+	defer TouchCacheTags(CacheTagPages)
 	return GetDB().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&model.Page{}).Where("id = ?", id).
 			UpdateColumn("slug", gorm.Expr("? || slug", fmt.Sprintf("deleted-%d-", id))).Error; err != nil {
@@ -72,6 +76,7 @@ func (p *pageRepo) GetPageBySlugOrID(slugOrID string) (*model.Page, error) {
 
 // SetHTMLVersion 切换 HTML 页面当前生效的版本
 func (p *pageRepo) SetHTMLVersion(pageID, versionID uint) error {
+	defer TouchCacheTags(CacheTagPages)
 	return GetDB().Model(&model.Page{}).Where("id = ?", pageID).Update("html_version_id", versionID).Error
 }
 
@@ -81,6 +86,7 @@ func (p *pageRepo) SavePage(page *model.Page, columns []string) error {
 	if page.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
+	defer TouchCacheTags(CacheTagPages)
 	return updatePageTx(GetDB(), page, columns)
 }
 
@@ -89,6 +95,7 @@ func (p *pageRepo) SavePageWithDraftVersion(page *model.Page, expected uint64, c
 	if page.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
+	defer TouchCacheTags(CacheTagPages)
 	return GetDB().Transaction(func(tx *gorm.DB) error {
 		if err := bumpDraftVersion(tx, &model.Page{}, page.ID, expected); err != nil {
 			return err

@@ -78,6 +78,17 @@ func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, post)
 }
 
+// GetStats 公开文章的浏览量、点赞数、评论数：前台文章页的计数是缓存快照，浏览器进入文章页后用它补上最新值
+func (p *PostController) GetStats(ctx context.Context, c *app.RequestContext) {
+	id := ctxutils.GetIDParam(c).Uint
+	stats, svcerr := p.service.GetPublicPostStats(id)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, stats)
+}
+
 // GetForEdit 后台编辑器与预览读取文章（含私密文章与草稿），仅作者本人与管理员；路径参数可以是 id 或 slug
 func (p *PostController) GetForEdit(ctx context.Context, c *app.RequestContext) {
 	slugOrId := c.Param("id")

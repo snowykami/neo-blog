@@ -57,6 +57,13 @@ export const PINNED_POSTS_LIMIT = 3
  * 正文「文章引用」卡片的数据：只含卡片展示需要的字段，不含正文与草稿；
  * 当前用户看不到的文章（私密的、已删除的）不会返回
  */
+/** 文章的计数：前台文章页按 ISR 缓存的是快照，浏览器进入页面后另取最新值（GET /post/p/:id/stats） */
+export interface PostStats {
+  viewCount: number
+  likeCount: number
+  commentCount: number
+}
+
 export interface PostCard {
   id: number
   slug: string | null

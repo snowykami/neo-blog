@@ -16,6 +16,8 @@ func registerMiscRoutes(group *route.RouterGroup) {
 		miscGroup.GET("/public-config", miscController.GetPublicConfig) // 用于公开的键值对
 		miscGroup.GET("/sitemap-data", miscController.GetSitemapData)   // 用于sitemap
 		miscGroup.GET("/rss-data", miscController.GetRssData)           // 用于rss
+		// 前端服务端缓存的失效标签版本号：前端每个实例每隔几秒轮询一次，只暴露各类数据最近一次变化的版本
+		miscGroup.GET("/cache-tags", miscController.GetCacheTags)
 		// 文章内 GitHub 仓库卡：只返回公开仓库信息，后端缓存
 		miscGroup.GET("/github/repos/:owner/:repo", controller.Github.Repo)
 		// 文章内天气卡：接受经纬度 / 城市名；按访客 IP 估计城市、按坐标反查地名（均不保存）用于实时卡跟随访客所在地

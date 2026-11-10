@@ -42,6 +42,16 @@ function setState(id: number, state: PostLikeState) {
   listeners.forEach(listener => listener())
 }
 
+/**
+ * 用浏览器另取的最新点赞数（见 use-post-stats.ts）替换页面里的快照；本页已经点过赞或请求进行中时以本地为准
+ */
+export function syncPostLikeCount(id: number, count: number) {
+  const current = states.get(id)
+  if (current && (current.pending || current.version > 0))
+    return
+  setState(id, { liked: current?.liked ?? false, count, pending: false, version: 0 })
+}
+
 export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
   const operationT = useOperationT()
   const requireLogin = useRequireLogin()

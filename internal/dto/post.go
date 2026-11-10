@@ -56,6 +56,13 @@ type PostDto struct {
 	DraftVersion uint64 `json:"draft_version,omitempty"`
 }
 
+// PostStatsDto 文章的计数：前台页面缓存的是快照，浏览器进入文章页后用它补上最新值
+type PostStatsDto struct {
+	ViewCount    uint64 `json:"view_count"`
+	LikeCount    uint64 `json:"like_count"`
+	CommentCount uint64 `json:"comment_count"`
+}
+
 // AISummaryStatusDto AI 摘要生成任务状态
 type AISummaryStatusDto struct {
 	Status      string     `json:"status"` // idle / queued / running / succeeded / failed

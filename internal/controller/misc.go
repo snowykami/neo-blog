@@ -29,6 +29,16 @@ func NewMiscController() *MiscController {
 	return &MiscController{}
 }
 
+// GetCacheTags 前端服务端缓存各失效标签的版本号，供前端实例轮询（见 service.CacheTagVersions）
+func (mc *MiscController) GetCacheTags(ctx context.Context, c *app.RequestContext) {
+	versions, svcerr := service.CacheTagVersions()
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"tags": versions})
+}
+
 func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext) {
 	// 已保存整体站点信息时直接返回，避免为默认值逐项查询配置
 	if value, err := repo.KV.GetKV(KeySiteInfo); err == nil {

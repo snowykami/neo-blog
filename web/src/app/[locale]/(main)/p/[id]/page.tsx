@@ -16,8 +16,15 @@ interface Props {
   params: Promise<{ id: string }>
 }
 
-// Enable ISR with 60 seconds revalidation for better performance
+// 文章页按 ISR 缓存：构建时不预渲染（返回空数组），每篇文章（每种语言）在第一次被访问时生成，之后文档请求与预取都直接用缓存。
+// 后台修改文章 / 分类 / 标签、站点配置后，posts / site 标签失效（见 lib/cache-tags.ts），下次访问重新生成；
+// slug 跳转（308，在 layout 判定）同样被缓存，改 slug 时一并失效；不存在的文章（404）不缓存，每次向后端确认。
+// revalidate 只是标签失效没送到时的兜底（根布局为 30 秒，取两者中较小的）；浏览量、点赞数是快照，浏览器进入页面后另取最新值
 export const revalidate = 60
+
+export function generateStaticParams() {
+  return []
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params

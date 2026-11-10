@@ -16,6 +16,7 @@ func registerPostRoutes(group *route.RouterGroup) {
 	{
 		// 前台接口只返回公开文章，不认登录身份放开私密文章；私密文章与草稿只在下方的后台接口返回
 		postGroupPublic.GET("/p/:slug_or_id", postController.Get)        // 获取文章
+		postGroupPublic.GET("/p/:id/stats", postController.GetStats)     // 文章的浏览量、点赞数、评论数（前台页面缓存的是快照，浏览器另取最新值）
 		postGroupPublic.GET("/list", postController.List)                // 获取文章列表
 		postGroupPublic.GET("/cards", postController.GetPostCards)       // 批量获取正文「文章引用」卡片
 		postGroupPublic.GET("/categories", postController.GetCategories) // 获取文章分类列表
