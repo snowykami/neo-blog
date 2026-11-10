@@ -34,6 +34,19 @@ export function scopePaths(scope: I18nScope): readonly string[] {
 }
 
 /**
+ * 某个作用域相对父作用域多出来的文案路径（父作用域已覆盖的不再列出）。
+ * 客户端的嵌套 Provider 会并上外层 Provider 的文案（见 components/i18n-scope.client.tsx），
+ * 所以每层只需下发这一部分：客户端跳转时重新渲染的作用域 layout 不会把祖先的文案再发一遍
+ */
+export function scopeOwnPaths(scope: I18nScope): readonly string[] {
+  const parent = SCOPE_PARENT[scope]
+  if (!parent)
+    return scopePaths(scope)
+  const inherited = scopePaths(parent)
+  return scopePaths(scope).filter(path => !inherited.some(item => covers(item, path)))
+}
+
+/**
  * 文案路径所在的下发单元：顶层命名空间（`Comment.reply` → `Comment`），
  * 按子命名空间拆分的 Console 取两层（`Console.global.title` → `Console.global`）。与 scripts/i18n-graph.mjs 的 unitOf 一致
  */

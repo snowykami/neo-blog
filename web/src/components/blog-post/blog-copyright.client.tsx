@@ -18,7 +18,7 @@ import { formatDisplayName } from '@/utils/common/username'
  * 版权卡片（参考 Fuwari 的 License，MIT License, saicaca/fuwari）：
  * 标题 + 原文链接，作者 / 发布于 / 许可协议三栏，右侧浅色 CC 水印
  */
-function CopyrightCard({ post, className }: { post: Post, className?: string }) {
+function CopyrightCard({ post, className }: { post: Pick<Post, 'id' | 'slug' | 'title' | 'createdAt' | 'user'>, className?: string }) {
   const { siteInfo } = useSiteInfo()
   const copyrightT = useTranslations('Copyright')
   const format = useFormatter()

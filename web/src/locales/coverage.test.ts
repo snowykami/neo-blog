@@ -12,8 +12,8 @@ import {
   unitOf,
 } from '../../scripts/i18n-graph.mjs'
 import { APP_ROOT, checkConfigKeys, computeScopes, KEY_TABLES, keyTablePaths, SCOPE_DIRS, scopeKey, segmentDir } from '../../scripts/i18n-scopes.mjs'
-import { scopePaths, unitOfPath } from './scopes'
-import { SCOPES } from './scopes.generated'
+import { scopeOwnPaths, scopePaths, unitOfPath } from './scopes'
+import { SCOPE_PARENT, SCOPES } from './scopes.generated'
 
 const manifest = SCOPES as Record<string, readonly string[]>
 
@@ -90,6 +90,18 @@ describe('i18n 作用域', () => {
       }
     }
     expect(broken).toEqual([])
+  })
+
+  it('每层只下发父作用域之外的部分，沿父链并起来与完整清单一致', () => {
+    const covers = (a: string, b: string) => a === b || b.startsWith(`${a}.`)
+    for (const scope of Object.keys(manifest) as (keyof typeof SCOPES)[]) {
+      const own = scopeOwnPaths(scope)
+      const parent = SCOPE_PARENT[scope]
+      const inherited = parent ? scopePaths(parent) : []
+      expect(own.filter(path => inherited.some(item => covers(item, path))), `${scope} 重复下发了父作用域的文案`).toEqual([])
+      const chained = [...inherited, ...own]
+      expect(scopePaths(scope).filter(path => !chained.some(item => covers(item, path))), `${scope} 沿父链合并后缺少文案`).toEqual([])
+    }
   })
 
   it('后端配置表的文案键齐全且由全局配置页作用域下发', () => {

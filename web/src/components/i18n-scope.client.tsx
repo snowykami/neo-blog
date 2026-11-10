@@ -3,14 +3,17 @@
 import type { AbstractIntlMessages, IntlError } from 'next-intl'
 import deepmerge from 'deepmerge'
 import { IntlErrorCode, NextIntlClientProvider } from 'next-intl'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { createContext, use, useCallback, useMemo, useRef, useState } from 'react'
 import { useBrowserTimeZone } from '@/hooks/use-browser-time-zone'
 import { isMissingMessage, loadMessageUnit, messagePath, readableFallback, reportIntlError } from '@/i18n/fallback'
 import { unitOfPath } from '@/locales/scopes'
 import { resolveDisplayTimeZone } from '@/utils/common/time-zone'
 
+/** 外层作用域合并后的文案：嵌套的 Provider 并上它，服务端每层只需下发自己多出来的部分（见 i18n-scope.tsx） */
+const ScopeMessagesContext = createContext<AbstractIntlMessages | null>(null)
+
 /**
- * 客户端的文案 Provider：文案由服务端按作用域切好传进来（见 i18n-scope.tsx）
+ * 客户端的文案 Provider：文案由服务端按作用域切好传进来（见 i18n-scope.tsx），并上外层作用域已有的文案
  *
  * 作用域清单是构建期静态分析出来的，万一漏了某个命名空间（例如键由变量决定、分析没跟上），这里兜底：
  *   - 显示由键名转成的可读文本，不显示原始键路径；每条缺失只记一次日志（带作用域名，便于定位）
@@ -27,6 +30,7 @@ export function ClientI18nProvider({
   locale: string
   /** 服务端渲染用的固定时区：水合阶段沿用它，保证与服务端 HTML 一致 */
   timeZone: string
+  /** 这一层相对父作用域多出来的文案；根作用域为完整文案 */
   messages: AbstractIntlMessages
   scope: string
   children: React.ReactNode
@@ -37,11 +41,12 @@ export function ClientI18nProvider({
   const timeZone = resolveDisplayTimeZone(useBrowserTimeZone(), serverTimeZone)
   const [extra, setExtra] = useState<{ locale: string, messages: AbstractIntlMessages } | null>(null)
   const requested = useRef(new Set<string>())
+  const inherited = use(ScopeMessagesContext)
 
-  const merged = useMemo(
-    () => (extra && extra.locale === locale ? deepmerge(messages, extra.messages) : messages),
-    [messages, extra, locale],
-  )
+  const merged = useMemo(() => {
+    const scoped = inherited ? deepmerge(inherited, messages) : messages
+    return extra && extra.locale === locale ? deepmerge(scoped, extra.messages) : scoped
+  }, [inherited, messages, extra, locale])
 
   const requestUnit = useCallback((path: string) => {
     // 服务端渲染时不加载：首屏先显示可读文本，水合后由浏览器补齐
@@ -83,14 +88,16 @@ export function ClientI18nProvider({
   }, [requestUnit])
 
   return (
-    <NextIntlClientProvider
-      locale={locale}
-      timeZone={timeZone}
-      messages={merged}
-      onError={onError}
-      getMessageFallback={getMessageFallback}
-    >
-      {children}
-    </NextIntlClientProvider>
+    <ScopeMessagesContext value={merged}>
+      <NextIntlClientProvider
+        locale={locale}
+        timeZone={timeZone}
+        messages={merged}
+        onError={onError}
+        getMessageFallback={getMessageFallback}
+      >
+        {children}
+      </NextIntlClientProvider>
+    </ScopeMessagesContext>
   )
 }

@@ -35,7 +35,7 @@ interface SharePlatform {
   href: string
 }
 
-export function BlogShare({ post }: { post: Post }) {
+export function BlogShare({ post }: { post: Pick<Post, 'id' | 'slug' | 'title' | 'description' | 'updatedAt'> }) {
   const t = useTranslations('Share')
   const locale = useLocale()
   const { siteInfo } = useSiteInfo()

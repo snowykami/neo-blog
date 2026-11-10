@@ -49,6 +49,19 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
   const content = (isDraft ? post.draftContent : post.content) || ''
   // 文章未选内容主题时跟随站点默认；只加载主题与局部字体实际用到的网页字体
   const theme = resolveContentTheme(post.contentTheme, (await getCachedSiteInfo()).contentTheme)
+  // 交给客户端组件（编辑入口、版权、点赞、分享）的只有这些字段：整篇 post 带着正文原文，传进去会在 RSC 里再发一份正文。
+  // 几个组件共用同一个对象，RSC 里只序列化一次
+  const postInfo: Pick<Post, 'id' | 'slug' | 'title' | 'description' | 'createdAt' | 'updatedAt' | 'user' | 'isLiked' | 'likeCount'> = {
+    id: post.id,
+    slug: post.slug,
+    title: post.title,
+    description: post.description,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+    user: post.user,
+    isLiked: post.isLiked,
+    likeCount: post.likeCount,
+  }
   return (
     <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
       <PostStats withIcons words={countWords(content)} minutes={calculateReadingTime(content)} views={post.viewCount || 0} likes={post.likeCount || 0} comments={post.commentCount || 0} className="mb-3" />
@@ -78,7 +91,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
 
       <div className="mb-5 flex items-start justify-between gap-3 border-b border-dashed border-foreground/10 pb-5">
         <PostMeta post={post} showAuthor showUpdated />
-        <PostEditButton post={post} />
+        <PostEditButton post={postInfo} />
       </div>
 
       {/* 封面：仅在设置了封面时显示，不使用随机默认封面占位 */}
@@ -118,17 +131,17 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
       <ContentHdrText containerId="blog-content" />
       <ContentImageViewer containerId="blog-content" />
 
-      <CopyrightCard post={post} className="mt-8" />
+      <CopyrightCard post={postInfo} className="mt-8" />
 
       {/* 点赞与分享 - Wrapped in Suspense for better performance；id 供顶栏「读完啦」提示跳转 */}
       <div id="post-actions" className="mt-8">
         <Suspense fallback={<LikeButtonSkeleton />}>
-          <BlogLikeButton post={post} />
+          <BlogLikeButton post={postInfo} />
         </Suspense>
         {/* 草稿预览不对外分享 */}
         {!isDraft && (
           <div className="mt-6 flex justify-center">
-            <BlogShare post={post} />
+            <BlogShare post={postInfo} />
           </div>
         )}
       </div>

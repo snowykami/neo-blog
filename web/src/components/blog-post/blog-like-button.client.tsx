@@ -15,7 +15,7 @@ import { formatDisplayName } from '@/utils/common/username'
 
 const MAX_LIKED_USERS = 5
 
-export function BlogLikeButton({ post }: { post: Post }) {
+export function BlogLikeButton({ post }: { post: Pick<Post, 'id' | 'isLiked' | 'likeCount'> }) {
   const operationT = useOperationT()
   // 与顶栏灵动岛的「读完啦」提示共用点赞状态（见 hooks/use-post-like.tsx）：在岛上点赞后这里同步变化
   const { liked, count: likeCount, version: likedUsersVersion, toggle } = usePostLike(post)

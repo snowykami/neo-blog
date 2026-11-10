@@ -93,6 +93,17 @@ describe('前台渲染', () => {
     expect(rendered).toContain('class="katex"')
     expect(rendered).toContain('class="katex-display"')
     expect(rendered).toContain('data-latex="x^2"')
+    // 只输出 HTML，读屏用外层的 role="math" + aria-label（LaTeX 源码）
+    expect(rendered).not.toContain('<math')
+    expect(rendered).toContain('role="math"')
+    expect(rendered).toContain('aria-label="a<b"')
+  })
+
+  it('输出给 RSS 时只有 MathML', () => {
+    const rendered = renderMathHtml(stored, 'mathml')
+    expect(rendered).toContain('<math')
+    expect(rendered).not.toContain('katex-html')
+    expect(rendered).not.toContain('role="math"')
   })
 
   it('没有公式时原样返回', () => {

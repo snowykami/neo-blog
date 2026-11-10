@@ -1,7 +1,7 @@
 import type { I18nScope } from './scopes.generated'
 import { getFallbackChain, LOCALE_DATA } from '.'
 import { mergeLocaleMessages } from './registry'
-import { scopePaths } from './scopes'
+import { scopeOwnPaths } from './scopes'
 import 'server-only'
 
 type Messages = Record<string, unknown>
@@ -50,13 +50,16 @@ export function pickMessages(locale: string, paths: readonly string[]): Messages
   }))
 }
 
-/** 某个作用域需要的文案（清单见 scopes.generated.ts），按语言缓存 */
-export function getScopedMessages(locale: string, scope: I18nScope): Messages {
+/**
+ * 某个作用域这一层要下发的文案（清单见 scopes.generated.ts），按语言缓存。
+ * 只含父作用域之外的部分，祖先的文案由客户端外层 Provider 并入（见 scopeOwnPaths）
+ */
+export function getScopeOwnMessages(locale: string, scope: I18nScope): Messages {
   const key = `${locale}\u0000${scope}`
   const cached = cache.get(key)
   if (cached)
     return cached
-  const messages = pickMessages(locale, scopePaths(scope))
+  const messages = pickMessages(locale, scopeOwnPaths(scope))
   cache.set(key, messages)
   return messages
 }
