@@ -244,6 +244,8 @@ type AIAgentConfig struct {
 	QuietHours         string
 	MaxChainDepth      int
 	PairExchanges      int
+	MentionsPerPair    int // 同一用户每天 @ 同一个 AI 最多唤醒几次（管理员不受限）
+	MentionsPerUser    int // 同一用户每小时 @ 全部 AI 最多唤醒几次（管理员不受限）
 	ProfileSelfEdit    bool
 	MemoryDaysAmbient  int
 	MemoryDaysExpert   int
@@ -267,6 +269,8 @@ func GetAIAgentConfig() AIAgentConfig {
 		QuietHours:         strings.TrimSpace(config.String("ai_agents_quiet_hours")),
 		MaxChainDepth:      config.Int("ai_agents_max_chain_depth"),
 		PairExchanges:      config.Int("ai_agents_pair_exchanges"),
+		MentionsPerPair:    config.Int("ai_agents_mentions_per_pair_per_day"),
+		MentionsPerUser:    config.Int("ai_agents_mentions_per_user_per_hour"),
 		ProfileSelfEdit:    config.Bool("ai_agents_profile_self_edit"),
 		MemoryDaysAmbient:  config.Int("ai_agents_memory_days_ambient"),
 		MemoryDaysExpert:   config.Int("ai_agents_memory_days_expert"),

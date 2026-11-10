@@ -179,10 +179,12 @@ func TestNotificationThreadAggregateUpsert(t *testing.T) {
 			t.Fatalf("migrate: %v", err)
 		}
 		owner := notificationTestUser(t, "owner")
+		// actor_id 在 Postgres 上有外键，必须指向真实用户
+		actor := notificationTestUser(t, "actor")
 		now := time.Now().Truncate(time.Second)
 		readAt := now.Add(-time.Hour)
 		first := &model.Notification{
-			UserID: owner.ID, Type: constant.NotificationTypeCommentThreadReplied,
+			UserID: owner.ID, ActorID: actor.ID, Type: constant.NotificationTypeCommentThreadReplied,
 			TargetType: constant.TargetTypeComment, TargetID: 5, CommentID: 5,
 			DedupeKey:       "comment.thread_replied:comment:5:day:20261108:user:" + itoa(owner.ID),
 			AggregateActors: "甲",
@@ -192,7 +194,7 @@ func TestNotificationThreadAggregateUpsert(t *testing.T) {
 		}
 		for _, name := range []string{"乙", "丙"} {
 			next := &model.Notification{
-				UserID: owner.ID, Type: constant.NotificationTypeCommentThreadReplied,
+				UserID: owner.ID, ActorID: actor.ID, Type: constant.NotificationTypeCommentThreadReplied,
 				TargetType: constant.TargetTypeComment, TargetID: 5, CommentID: 5,
 				DedupeKey:       first.DedupeKey,
 				AggregateActors: name,
@@ -221,7 +223,7 @@ func TestNotificationThreadAggregateUpsert(t *testing.T) {
 			t.Fatal(err)
 		}
 		again := &model.Notification{
-			UserID: owner.ID, Type: constant.NotificationTypeCommentThreadReplied,
+			UserID: owner.ID, ActorID: actor.ID, Type: constant.NotificationTypeCommentThreadReplied,
 			TargetType: constant.TargetTypeComment, TargetID: 5, CommentID: 5,
 			DedupeKey: first.DedupeKey, AggregateActors: "丁",
 		}
@@ -277,7 +279,7 @@ func TestNotificationDeleteByEvent(t *testing.T) {
 			t.Fatalf("duplicate event = %+v, err = %v", again, err)
 		}
 		notification := &model.Notification{
-			EventID: event.ID, UserID: owner.ID, Type: constant.NotificationTypePostLiked,
+			EventID: event.ID, UserID: owner.ID, ActorID: actor.ID, Type: constant.NotificationTypePostLiked,
 			TargetType: constant.TargetTypePost, TargetID: 12, DedupeKey: event.DedupeKey,
 		}
 		// 唯一索引让重复写入变成空操作

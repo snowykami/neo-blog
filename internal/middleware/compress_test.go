@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -73,5 +74,88 @@ func TestCompress(t *testing.T) {
 	// 请求头声明只要事件流时（EventSource）不压缩
 	if w := get("/api/v1/big", gzipHeader, ut.Header{Key: "Accept", Value: "text/event-stream"}); w.Header().Get("Content-Encoding") != "" {
 		t.Fatalf("event stream accept: encoding = %q", w.Header().Get("Content-Encoding"))
+	}
+}
+
+// countingReader 记录被读了多少字节，用来确认压缩中间件没有把流式响应体读进内存
+type countingReader struct {
+	r    io.Reader
+	read int
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.read += n
+	return n, err
+}
+
+// 流式响应体、HEAD、Range 请求与 206 / Content-Range 响应都不压缩，也不读取流式响应体
+func TestCompressSkipsStreamAndRange(t *testing.T) {
+	big := strings.Repeat("<p>hello neo-blog</p>", 200)
+	var stream *countingReader
+	readBeforeWrite := -1
+	engine := route.NewEngine(config.NewOptions(nil))
+	// 外层探针：压缩中间件返回后、响应写出前，流式响应体应当一个字节都没被读过
+	engine.Use(func(ctx context.Context, c *app.RequestContext) {
+		c.Next(ctx)
+		if stream != nil {
+			readBeforeWrite = stream.read
+			if !c.Response.IsBodyStream() {
+				t.Errorf("body stream was consumed by compress middleware")
+			}
+		}
+	}, UseCompress())
+	engine.GET("/api/v1/page-html/1/video.html", func(ctx context.Context, c *app.RequestContext) {
+		stream = &countingReader{r: strings.NewReader(big)}
+		c.Response.Header.SetContentType("text/html; charset=utf-8")
+		c.Response.SetBodyStream(stream, len(big))
+	})
+	engine.GET("/api/v1/big", func(ctx context.Context, c *app.RequestContext) {
+		c.Data(200, "text/html; charset=utf-8", []byte(big))
+	})
+	engine.HEAD("/api/v1/big", func(ctx context.Context, c *app.RequestContext) {
+		c.Data(200, "text/html; charset=utf-8", []byte(big))
+	})
+	engine.GET("/api/v1/partial", func(ctx context.Context, c *app.RequestContext) {
+		c.Response.Header.Set("Content-Range", "bytes 0-"+strconv.Itoa(len(big)-1)+"/99999")
+		c.Data(206, "text/html; charset=utf-8", []byte(big))
+	})
+	engine.GET("/api/v1/content-range", func(ctx context.Context, c *app.RequestContext) {
+		c.Response.Header.Set("Content-Range", "bytes 0-"+strconv.Itoa(len(big)-1)+"/"+strconv.Itoa(len(big)))
+		c.Data(200, "text/html; charset=utf-8", []byte(big))
+	})
+
+	gzipHeader := ut.Header{Key: "Accept-Encoding", Value: "gzip"}
+
+	// 流式响应体：不压缩、不提前读取，写出时内容完整
+	w := ut.PerformRequest(engine, "GET", "/api/v1/page-html/1/video.html", nil, gzipHeader)
+	if readBeforeWrite != 0 {
+		t.Fatalf("stream read %d bytes before response was written", readBeforeWrite)
+	}
+	if w.Header().Get("Content-Encoding") != "" || w.Body.String() != big {
+		t.Fatalf("stream: encoding = %q, body length = %d", w.Header().Get("Content-Encoding"), w.Body.Len())
+	}
+	stream = nil
+
+	// HEAD 请求不压缩
+	if w := ut.PerformRequest(engine, "HEAD", "/api/v1/big", nil, gzipHeader); w.Header().Get("Content-Encoding") != "" {
+		t.Fatalf("head: encoding = %q", w.Header().Get("Content-Encoding"))
+	}
+
+	// 带 Range 的请求不压缩
+	if w := ut.PerformRequest(engine, "GET", "/api/v1/big", nil, gzipHeader, ut.Header{Key: "Range", Value: "bytes=0-"}); w.Header().Get("Content-Encoding") != "" || w.Body.String() != big {
+		t.Fatalf("range request: encoding = %q, body length = %d", w.Header().Get("Content-Encoding"), w.Body.Len())
+	}
+
+	// 206 与带 Content-Range 的响应不压缩
+	for _, path := range []string{"/api/v1/partial", "/api/v1/content-range"} {
+		if w := ut.PerformRequest(engine, "GET", path, nil, gzipHeader); w.Header().Get("Content-Encoding") != "" || w.Body.String() != big {
+			t.Fatalf("%s: encoding = %q, body length = %d", path, w.Header().Get("Content-Encoding"), w.Body.Len())
+		}
+	}
+
+	// 对照：同样的内容在普通 GET 下仍然压缩
+	if w := ut.PerformRequest(engine, "GET", "/api/v1/big", nil, gzipHeader); w.Header().Get("Content-Encoding") != "gzip" {
+		t.Fatalf("big html: encoding = %q", w.Header().Get("Content-Encoding"))
 	}
 }

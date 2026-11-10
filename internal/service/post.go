@@ -199,11 +199,23 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			return nil, svcerr
 		}
 	}
-	utils.UpdateNonEmpty(&post.Title, req.Title)
-	utils.UpdateNonEmpty(&post.Type, req.Type)
-	utils.UpdateNonEmpty(&post.Content, req.Content)
+	// 只写入本次请求改动的列：post 是请求开始时读到的快照，整行写回会覆盖期间他人写入的正文、草稿与计数
+	var columns []string
+	if req.Title != "" {
+		post.Title = req.Title
+		columns = append(columns, "title")
+	}
+	if req.Type != "" {
+		post.Type = req.Type
+		columns = append(columns, "type")
+	}
+	if req.Content != "" {
+		post.Content = req.Content
+		columns = append(columns, "content")
+	}
 	if req.Cover != nil {
 		post.Cover = *req.Cover
+		columns = append(columns, "cover")
 	}
 	// 背景整段覆盖：传了就按传入值重写（空对象即清空，回到全站背景）
 	if req.Background != nil {
@@ -213,14 +225,20 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		post.BackgroundOpacity = background.Opacity
 		post.BackgroundVeil = background.Veil
 		post.BackgroundVeilColor = background.VeilColor
+		columns = append(columns, "background_image", "background_blur", "background_opacity", "background_veil", "background_veil_color")
 	}
 	if req.ContentTheme != nil {
 		post.ContentTheme = config.NormalizeContentTheme(*req.ContentTheme)
+		columns = append(columns, "content_theme")
 	}
 	if req.Description != nil {
 		post.Description = *req.Description
+		columns = append(columns, "description")
 	}
-	utils.UpdatePtrNonZero(&post.DraftContent, req.DraftContent)
+	if req.DraftContent != nil && *req.DraftContent != "" {
+		post.DraftContent = req.DraftContent
+		columns = append(columns, "draft_content")
+	}
 	// 传了 slug 才更新，空字符串表示清除 slug
 	if req.Slug != nil {
 		slug, svcerr := normalizePostSlug(req.Slug)
@@ -228,6 +246,7 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			return nil, svcerr
 		}
 		post.Slug = slug
+		columns = append(columns, "slug")
 	}
 	// 传了 category_id 才更新，0 表示取消分类
 	if req.CategoryID != nil {
@@ -237,14 +256,17 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		}
 		post.CategoryID = categoryID
 		post.Category = nil
+		columns = append(columns, "category_id")
 	}
 	wasPrivate := post.IsPrivate
 	if req.IsPrivate != nil {
 		post.IsPrivate = *req.IsPrivate
+		columns = append(columns, "is_private")
 	}
 
 	// 只有传了 label_ids 才更新标签（传空数组表示清空），只保存草稿时保持原标签
-	if req.LabelIds != nil {
+	replaceLabels := req.LabelIds != nil
+	if replaceLabels {
 		// 跳过不存在的标签
 		labels, err := repo.Label.GetLabelsByIDs(req.LabelIds)
 		if err != nil {
@@ -254,9 +276,9 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	}
 	// 写入正文时草稿版本号加一；读取之后有其他写入则拒绝，不覆盖对方的修改
 	if contentWrite {
-		err = repo.Post.SavePostWithDraftVersion(post, baseVersion)
+		err = repo.Post.SavePostWithDraftVersion(post, baseVersion, columns, replaceLabels)
 	} else {
-		err = repo.Post.SavePost(post)
+		err = repo.Post.SavePost(post, columns, replaceLabels)
 	}
 	if err != nil {
 		if errors.Is(err, repo.ErrDraftVersionConflict) {

@@ -227,6 +227,14 @@ function diffMeta(next: ContentMeta, saved: ContentMeta): Partial<ContentMeta> |
   return Object.keys(patch).length ? patch : null
 }
 
+/**
+ * 服务端草稿是否与本地基线不同步：版本号不同就要按最新草稿合并并重置基线。
+ * 只判断「更新」不够：服务端版本号比基线小（如被旧数据写回）时，保存会一直 draft_conflict 而合并永远不触发
+ */
+export function remoteDraftDiverged(latestVersion: number | undefined, baseVersion: number): boolean {
+  return (latestVersion ?? 0) !== baseVersion
+}
+
 export interface EditorUiActions {
   openLink?: () => void
   openAnnotation?: () => void
@@ -654,9 +662,9 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
           pendingSyncRef.current = true
           break
         }
-        // 正文：草稿版本比本地新时合并（只改了元信息时版本不变，正文不用合并）
+        // 正文：草稿版本与本地基线不同时合并（只改了元信息时版本不变，正文不用合并）
         let result: ReturnType<typeof mergeRemoteContent> | null = null
-        if ((latest.draftVersion ?? 0) > baseVersionRef.current) {
+        if (remoteDraftDiverged(latest.draftVersion, baseVersionRef.current)) {
           await waitForIdle()
           result = mergeRemoteContent(editor, baseDocRef.current, latest.draftContent || latest.content || '')
           baseDocRef.current = result.remoteDoc

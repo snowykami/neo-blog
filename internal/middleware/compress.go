@@ -9,6 +9,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	hertzcompress "github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 // 响应压缩（gzip）：只压文本类的大响应，用最快级别
@@ -23,6 +24,10 @@ import (
 //     而接口的大部分响应都不到 1 KB
 //   - 非文本内容（图片、音视频、PDF、压缩包、字体本身已经压过）；文件下载另按路径排除，见 compressExcludedPath
 //   - SSE 长连接（歌词流、编辑事件、通知）：响应在处理过程中已经逐条写出，结束时不能再整体压缩
+//   - 流式响应体（SetBodyStream，如页面 HTML 包里的音视频文件）：Body() 会把整个流读进内存再关闭流，
+//     几百 MB 的视频会在发出第一个字节前全部读完，所以必须在碰 Body() 之前先判断 IsBodyStream
+//   - HEAD 请求：没有响应体，读 Body() 只会白白读取文件
+//   - Range 请求与 206 / Content-Range 响应：Content-Range 指的是原始字节，压缩后断点续传与拖动进度会错位
 const (
 	compressMinLength = 1024
 	compressLevel     = flate.BestSpeed
@@ -40,11 +45,18 @@ func UseCompress() app.HandlerFunc {
 		}
 		c.Next(ctx)
 
-		body := c.Response.Body()
-		if len(body) < compressMinLength ||
+		// 以下判断都不能读响应体：流式响应体一旦调用 Body() 就会被整体读进内存
+		if c.Response.IsBodyStream() ||
+			c.Request.Header.IsHead() ||
+			len(c.Request.Header.Peek("Range")) > 0 ||
+			c.Response.StatusCode() == consts.StatusPartialContent ||
+			len(c.Response.Header.Peek("Content-Range")) > 0 ||
 			len(c.Response.Header.Peek("Content-Encoding")) > 0 ||
-			c.Response.IsBodyStream() ||
 			!compressibleContentType(c.Response.Header.ContentType()) {
+			return
+		}
+		body := c.Response.Body()
+		if len(body) < compressMinLength {
 			return
 		}
 		compressed := hertzcompress.AppendGzipBytesLevel(nil, body, compressLevel)

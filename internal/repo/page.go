@@ -75,15 +75,17 @@ func (p *pageRepo) SetHTMLVersion(pageID, versionID uint) error {
 	return GetDB().Model(&model.Page{}).Where("id = ?", pageID).Update("html_version_id", versionID).Error
 }
 
-func (p *pageRepo) SavePage(page *model.Page) error {
+// SavePage 更新已有页面的元信息：只写入 columns 中的列（数据库列名）
+// 不整行保存：page 是请求开始时读到的快照，整行写回会用旧值覆盖期间其他请求写入的正文、草稿、版本号与 HTML 版本
+func (p *pageRepo) SavePage(page *model.Page, columns []string) error {
 	if page.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
-	return GetDB().Save(page).Error
+	return updatePageTx(GetDB(), page, columns)
 }
 
 // SavePageWithDraftVersion 保存页面并把草稿版本号从 expected 加一（写入正文时使用），版本号已不是 expected 时返回 ErrDraftVersionConflict
-func (p *pageRepo) SavePageWithDraftVersion(page *model.Page, expected uint64) error {
+func (p *pageRepo) SavePageWithDraftVersion(page *model.Page, expected uint64, columns []string) error {
 	if page.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
@@ -92,8 +94,17 @@ func (p *pageRepo) SavePageWithDraftVersion(page *model.Page, expected uint64) e
 			return err
 		}
 		page.DraftVersion = expected + 1
-		return tx.Save(page).Error
+		return updatePageTx(tx, page, columns)
 	})
+}
+
+// updatePageTx 按列更新页面
+func updatePageTx(tx *gorm.DB, page *model.Page, columns []string) error {
+	if len(columns) == 0 {
+		return nil
+	}
+	selected := append([]string{"updated_at"}, columns...)
+	return tx.Model(page).Omit(clause.Associations).Select(selected).Updates(page).Error
 }
 
 func (p *pageRepo) ListPages(currentUserID uint, req *dto.ListPageReq, query []string) ([]model.Page, int64, error) {

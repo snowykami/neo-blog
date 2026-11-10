@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 // 调度：后端决定“谁、何时、能不能”，Runner 决定“说什么”。
@@ -435,9 +437,74 @@ func (s *AIAgentService) OnCommentCreated(commentID uint, now time.Time) {
 	}
 }
 
+// @ 唤醒的计数键（共享状态，多副本共用）
+const (
+	mentionDedupeTTL = 7 * 24 * time.Hour
+)
+
+func mentionDedupeKey(commentID, agentID uint) string {
+	return fmt.Sprintf("ai:mention:c:%d:a:%d", commentID, agentID)
+}
+
+func mentionPairKey(mentionerID, agentUserID uint, now time.Time) string {
+	return fmt.Sprintf("ai:mention:p:%d:%d:%s", mentionerID, agentUserID, dayStart(now).Format("20060102"))
+}
+
+func mentionUserHourKey(mentionerID uint, now time.Time) string {
+	return fmt.Sprintf("ai:mention:u:%d:%s", mentionerID, now.Format("2006010215"))
+}
+
+// takeMentionSlots 占用一次 @ 唤醒名额：同一用户每天 @ 同一 AI、同一用户每小时 @ 全部 AI 各有上限，超出时返回跳过原因。
+// 管理员不受限；计数在共享状态中原子递增，多实例同时处理也不会超出
+func takeMentionSlots(mentioner *model.User, agentUserID uint, cfg tools.AIAgentConfig, now time.Time) string {
+	if mentioner.Role == constant.RoleAdmin {
+		return ""
+	}
+	store := sharedstate.Current()
+	pairKey := mentionPairKey(mentioner.ID, agentUserID, now)
+	hourKey := mentionUserHourKey(mentioner.ID, now)
+	used := func(key string) int64 {
+		v, ok, _ := store.Get(key)
+		if !ok {
+			return 0
+		}
+		n, _ := strconv.ParseInt(v, 10, 64)
+		return n
+	}
+	// 先只读判断，避免已满的一项白白占掉另一项的名额
+	if used(pairKey) >= int64(cfg.MentionsPerPair) {
+		return "mention_pair_limit"
+	}
+	if used(hourKey) >= int64(cfg.MentionsPerUser) {
+		return "mention_user_limit"
+	}
+	// 共享状态不可用时按已满处理（保守）
+	n, err := store.Incr(pairKey, 48*time.Hour)
+	if err != nil || n > int64(cfg.MentionsPerPair) {
+		return "mention_pair_limit"
+	}
+	n, err = store.Incr(hourKey, 2*time.Hour)
+	if err != nil || n > int64(cfg.MentionsPerUser) {
+		return "mention_user_limit"
+	}
+	return ""
+}
+
+// agentCommentQuotaExhausted 这个 AI 今天的评论额度（个人上限或全站上限）是否已经用完：
+// 被回复、被 @ 的运行目的就是回一条评论，额度用完时不必再调用模型
+func agentCommentQuotaExhausted(agent *model.AIAgent, profile dto.AIAgentProfile, cfg tools.AIAgentConfig, now time.Time) bool {
+	today := dayStart(now)
+	if n, _ := repo.AIAgent.CountUserComments(agent.UserID, today); n >= int64(profile.Limits.CommentsPerDay) {
+		return true
+	}
+	n, _ := repo.AIAgent.CountAIComments(today)
+	return n >= int64(cfg.CommentsPerDay)
+}
+
 // OnCommentMentioned 有人在评论里 @ 了 AI 用户：给每个被点名的活跃 AI 安排一次运行。
 // 与「被回复」共用同一套硬性上限（回复深度、AI 对话深度、AI 互聊次数）；
-// 同一条评论对同一个 AI 只安排一次（这条评论恰是对它的回复时不再重复）
+// 同一条评论对同一个 AI 只安排一次（这条评论恰是对它的回复时不再重复）。
+// 另有成本上限：AI 今天的评论额度已用完不安排；同一用户 @ 同一 AI 每天、@ 全部 AI 每小时都有次数上限
 func (s *AIAgentService) OnCommentMentioned(commentID uint, now time.Time) {
 	cfg := tools.GetAIAgentConfig()
 	if !schedulerReady(cfg) {
@@ -463,6 +530,10 @@ func (s *AIAgentService) OnCommentMentioned(commentID uint, now time.Time) {
 		}
 		// 这条评论已经为它排过任务（比如它本来就是对这条 AI 用户评论的回复）
 		if exists, err := repo.AIAgent.RunExistsForAgent(agent.ID, constant.TargetTypeComment, comment.ID); err != nil || exists {
+			continue
+		}
+		// 跨实例去重：同一条评论对同一个 AI 只处理一次（数据库查询与写入之间可能有其他实例插入）
+		if ok, err := sharedstate.Current().SetNX(mentionDedupeKey(comment.ID, agent.ID), "1", mentionDedupeTTL); err != nil || !ok {
 			continue
 		}
 		run := model.AgentRun{
@@ -498,6 +569,16 @@ func (s *AIAgentService) OnCommentMentioned(commentID uint, now time.Time) {
 				skip("pair_exchange")
 				continue
 			}
+		}
+		// 今天的评论额度已用完：回应不了，不必调用模型
+		if agentCommentQuotaExhausted(agent, profile, cfg, now) {
+			skip("daily_comment_limit")
+			continue
+		}
+		// 次数上限放在最后：前面任何一项跳过都不占名额
+		if reason := takeMentionSlots(&comment.User, agent.UserID, cfg, now); reason != "" {
+			skip(reason)
+			continue
 		}
 		if err := repo.AIAgent.CreateRun(&run); err != nil {
 			logrus.Warnf("create comment mentioned run: %v", err)

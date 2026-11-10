@@ -74,9 +74,22 @@ func (s *NotificationService) Emit(ctx context.Context, tx *gorm.DB, ev *Notific
 		DedupeKey:     ev.DedupeKey,
 	}
 	event.CreatedAt = at
+	// 通知写在业务事务里的一个 savepoint 中：出错只回滚通知本身，评论 / 点赞照常提交（5.3）。
+	// Postgres 下事务内任一语句失败都会让整个事务作废，不隔离的话一次通知冲突就会连带评论一起丢失
+	if err := withNotificationSavepoint(tx, func(tx *gorm.DB) error {
+		return s.writeNotification(tx, ev, event, kind, settings, at)
+	}); err != nil {
+		return 0, err
+	}
+	return ev.Owner.ID, nil
+}
+
+// writeNotification 写入事件与通知行（普通行或折叠行）
+func (s *NotificationService) writeNotification(tx *gorm.DB, ev *NotificationEvent, event *model.InteractionEvent,
+	kind string, settings notificationSettings, at time.Time) error {
 	stored, err := repo.Notification.CreateEvent(tx, event)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	notification := &model.Notification{
@@ -104,15 +117,18 @@ func (s *NotificationService) Emit(ctx context.Context, tx *gorm.DB, ev *Notific
 	}
 	if ev.ThreadAggregate {
 		notification.AggregateActors = ev.AggregateActor
-		if err := repo.Notification.UpsertThreadAggregate(tx, notification); err != nil {
-			return 0, err
-		}
-		return ev.Owner.ID, nil
+		return repo.Notification.UpsertThreadAggregate(tx, notification)
 	}
-	if err := repo.Notification.CreateNotification(tx, notification); err != nil {
-		return 0, err
+	return repo.Notification.CreateNotification(tx, notification)
+}
+
+// withNotificationSavepoint tx 为业务事务时用嵌套事务（SAVEPOINT）包住通知写入，失败时回滚到 savepoint；
+// tx 为空时自己开一个事务
+func withNotificationSavepoint(tx *gorm.DB, fn func(tx *gorm.DB) error) error {
+	if tx == nil {
+		tx = repo.GetDB()
 	}
-	return ev.Owner.ID, nil
+	return tx.Transaction(fn)
 }
 
 // RevokeLike 取消点赞：硬删对应的通知行（事件保留用于统计，见 3.2 规则 6）
@@ -134,5 +150,7 @@ func (s *NotificationService) RevokeLike(ctx context.Context, tx *gorm.DB, actor
 		// 没有对应事件说明当时没有产生通知，直接结束
 		return nil
 	}
-	return repo.Notification.DeleteNotificationByEvent(tx, event.ID, owner.ID)
+	return withNotificationSavepoint(tx, func(tx *gorm.DB) error {
+		return repo.Notification.DeleteNotificationByEvent(tx, event.ID, owner.ID)
+	})
 }

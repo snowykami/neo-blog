@@ -158,42 +158,71 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 			return nil, svcerr
 		}
 	}
-	utils.UpdateNonEmpty(&page.Title, req.Title)
+	// 只写入本次请求改动的列：page 是请求开始时读到的快照，整行写回会覆盖期间他人写入的正文、草稿与 HTML 版本
+	var columns []string
+	if req.Title != "" {
+		page.Title = req.Title
+		columns = append(columns, "title")
+	}
 	slug, svcerr := normalizeSlug(req.Slug)
 	if svcerr != nil {
 		return nil, svcerr
 	}
-	utils.UpdateNonEmpty(&page.Slug, slug)
-	utils.UpdateNonEmpty(&page.Type, req.Type)
-	utils.UpdateNonEmpty(&page.Content, req.Content)
+	if slug != "" {
+		page.Slug = slug
+		columns = append(columns, "slug")
+	}
+	if req.Type != "" {
+		page.Type = req.Type
+		columns = append(columns, "type")
+	}
+	if req.Content != "" {
+		page.Content = req.Content
+		columns = append(columns, "content")
+	}
 	if req.Cover != nil {
 		page.Cover = *req.Cover
+		columns = append(columns, "cover")
 	}
 	if req.Description != nil {
 		page.Description = *req.Description
+		columns = append(columns, "description")
 	}
-	utils.UpdatePtrNonZero(&page.DraftContent, req.DraftContent)
+	if req.DraftContent != nil && *req.DraftContent != "" {
+		page.DraftContent = req.DraftContent
+		columns = append(columns, "draft_content")
+	}
 	// 未传的字段保持原值，只保存草稿时不会重置私密与导航设置
 	if req.IsPrivate != nil {
 		page.IsPrivate = *req.IsPrivate
+		columns = append(columns, "is_private")
 	}
 	if req.ShowInNav != nil {
 		page.ShowInNav = *req.ShowInNav
+		columns = append(columns, "show_in_nav")
 	}
 	if req.NavOrder != nil {
 		page.NavOrder = *req.NavOrder
+		columns = append(columns, "nav_order")
 	}
 	if req.Layout != nil {
 		page.Layout = model.NormalizePageLayout(*req.Layout)
+		columns = append(columns, "layout")
 	}
 	if req.Fullscreen != nil {
 		page.Fullscreen = *req.Fullscreen
+		columns = append(columns, "fullscreen")
 	}
 	if req.Kind != nil {
 		page.Kind = model.NormalizePageKind(*req.Kind)
+		columns = append(columns, "kind")
 	}
 	if req.LinkURL != nil {
 		page.LinkURL = *req.LinkURL
+	}
+	// 尺寸字段一起校验与写入：改了其中任一项，规范化后的三项都要落库
+	if req.HTMLSizeMode != nil || req.HTMLAspectRatio != nil || req.HTMLHeight != nil {
+		columns = append(columns, "html_size_mode", "html_aspect_ratio", "html_height")
 	}
 	if req.HTMLSizeMode != nil {
 		page.HTMLSizeMode = *req.HTMLSizeMode
@@ -217,12 +246,16 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	} else {
 		page.LinkURL = ""
 	}
+	// 改了类型或链接地址时写入规范化后的链接地址（改为正文页面时清空）
+	if req.Kind != nil || req.LinkURL != nil {
+		columns = append(columns, "link_url")
+	}
 
 	// 写入正文时草稿版本号加一；读取之后有其他写入则拒绝，不覆盖对方的修改
 	if contentWrite {
-		err = repo.Page.SavePageWithDraftVersion(page, baseVersion)
+		err = repo.Page.SavePageWithDraftVersion(page, baseVersion, columns)
 	} else {
-		err = repo.Page.SavePage(page)
+		err = repo.Page.SavePage(page, columns)
 	}
 	if err != nil {
 		if errors.Is(err, repo.ErrDraftVersionConflict) {

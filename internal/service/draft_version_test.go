@@ -16,7 +16,7 @@ func TestSaveWithDraftVersion(t *testing.T) {
 	stale := reloadPost(t, post.ID)
 	content := "<p>stale</p>"
 	stale.DraftContent = &content
-	if err := repo.Post.SavePostWithDraftVersion(stale, base+1); !errors.Is(err, repo.ErrDraftVersionConflict) {
+	if err := repo.Post.SavePostWithDraftVersion(stale, base+1, []string{"draft_content"}, false); !errors.Is(err, repo.ErrDraftVersionConflict) {
 		t.Fatalf("wrong expected version must conflict, got %v", err)
 	}
 	if got := reloadPost(t, post.ID); got.DraftVersion != base || (got.DraftContent != nil && *got.DraftContent == content) {
@@ -37,7 +37,7 @@ func TestSaveWithDraftVersion(t *testing.T) {
 				c = "<p>other writer</p>"
 			}
 			p.DraftContent = &c
-			err := repo.Post.SavePostWithDraftVersion(p, base)
+			err := repo.Post.SavePostWithDraftVersion(p, base, []string{"draft_content"}, false)
 			mu.Lock()
 			defer mu.Unlock()
 			switch {

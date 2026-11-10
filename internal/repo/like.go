@@ -7,6 +7,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type likeRepo struct{}
@@ -15,7 +16,9 @@ var Like = &likeRepo{}
 
 // ToggleLike 切换点赞状态。(target_type, target_id, user_id) 有唯一索引，并发重复点赞时以已点赞处理；
 // 点赞数每次按实际记录重新统计，不做增减，避免并发导致计数漂移甚至变成负数。
-// tx 非空时在调用方的事务里执行（点赞与互动通知要写在同一个事务里），为空时自己开事务
+// tx 非空时在调用方的事务里执行（点赞与互动通知要写在同一个事务里），为空时自己开事务。
+// 先锁住被点赞的目标行，同一目标上的点赞 / 取消依次进行：重新统计时能看到其它事务已提交的点赞，
+// 也不会出现两个事务同时插入同一条点赞
 func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string, tx *gorm.DB) (bool, error) {
 	err := l.checkTargetType(targetType)
 	if err != nil {
@@ -23,6 +26,9 @@ func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string, tx *gorm
 	}
 	var finalStatus bool
 	toggle := func(tx *gorm.DB) error {
+		if err := lockLikeTarget(tx, targetType, targetID); err != nil {
+			return err
+		}
 		result := tx.Unscoped().Where("target_type = ? AND target_id = ? AND user_id = ?", targetType, targetID, userID).Delete(&model.Like{})
 		if result.Error != nil {
 			logrus.Error(result.Error)
@@ -34,7 +40,11 @@ func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string, tx *gorm
 				TargetID:   targetID,
 				UserID:     userID,
 			}
-			if err := tx.Create(like).Error; err != nil && !errors.Is(err, gorm.ErrDuplicatedKey) {
+			// 兜底：万一仍有并发写入，冲突由 ON CONFLICT DO NOTHING 吸收，不能让语句失败（Postgres 下会让整个事务作废）
+			if err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "target_type"}, {Name: "target_id"}, {Name: "user_id"}},
+				DoNothing: true,
+			}).Create(like).Error; err != nil {
 				return err
 			}
 			finalStatus = true
@@ -49,6 +59,17 @@ func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string, tx *gorm
 	}
 	err = GetDB().Transaction(toggle)
 	return finalStatus, err
+}
+
+// lockLikeTarget 用一条不改值的 UPDATE 锁住被点赞的文章 / 评论行，直到事务结束（SQLite 下即取得写锁）
+func lockLikeTarget(tx *gorm.DB, targetType string, targetID uint) error {
+	switch targetType {
+	case constant.TargetTypePost:
+		return tx.Model(&model.Post{}).Where("id = ?", targetID).UpdateColumn("like_count", gorm.Expr("like_count")).Error
+	case constant.TargetTypeComment:
+		return tx.Model(&model.Comment{}).Where("id = ?", targetID).UpdateColumn("like_count", gorm.Expr("like_count")).Error
+	}
+	return nil
 }
 
 // syncLikeCount 按实际点赞记录回写计数；文章热度由定时任务重算

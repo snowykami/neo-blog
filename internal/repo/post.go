@@ -218,19 +218,21 @@ func (p *postRepo) ListTopPosts(limit int) ([]model.Post, error) {
 	return posts, nil
 }
 
-func (p *postRepo) SavePost(post *model.Post) error {
+// SavePost 更新已有文章的元信息：只写入 columns 中的列（数据库列名），replaceLabels 为 true 时按 post.Labels 重写标签
+// 不整行保存：post 是请求开始时读到的快照，整行写回会用旧值覆盖期间其他请求写入的正文、草稿、版本号与计数
+func (p *postRepo) SavePost(post *model.Post, columns []string, replaceLabels bool) error {
 	if post.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
 	defer InvalidatePostCache()
 	return GetDB().Transaction(func(tx *gorm.DB) error {
-		return savePostTx(tx, post)
+		return updatePostTx(tx, post, columns, replaceLabels)
 	})
 }
 
-// SavePostWithDraftVersion 保存文章并把草稿版本号从 expected 加一（写入正文时使用）
+// SavePostWithDraftVersion 保存文章并把草稿版本号从 expected 加一（写入正文时使用），columns 与 replaceLabels 同 SavePost
 // 版本号已不是 expected（读取之后有其他写入）时不保存，返回 ErrDraftVersionConflict；比较与加一在同一条语句中完成，多副本下同样可靠
-func (p *postRepo) SavePostWithDraftVersion(post *model.Post, expected uint64) error {
+func (p *postRepo) SavePostWithDraftVersion(post *model.Post, expected uint64, columns []string, replaceLabels bool) error {
 	if post.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
@@ -240,16 +242,26 @@ func (p *postRepo) SavePostWithDraftVersion(post *model.Post, expected uint64) e
 			return err
 		}
 		post.DraftVersion = expected + 1
-		return savePostTx(tx, post)
+		return updatePostTx(tx, post, columns, replaceLabels)
 	})
 }
 
-func savePostTx(tx *gorm.DB, post *model.Post) error {
-	// 关联字段不随 Save 写入，否则已加载的 Category 会把清空的 category_id 写回去
-	if err := tx.Omit(clause.Associations).Save(post).Error; err != nil {
-		return err
+// updatePostTx 按列更新文章；写入正文时一并写入正文哈希（由 BeforeSave 计算），只改标签时也刷新更新时间
+func updatePostTx(tx *gorm.DB, post *model.Post, columns []string, replaceLabels bool) error {
+	if len(columns) > 0 || replaceLabels {
+		selected := append([]string{"updated_at"}, columns...)
+		if slices.Contains(columns, "content") {
+			selected = append(selected, "content_hash")
+		}
+		// 关联字段不随更新写入，否则已加载的 Category 会把清空的 category_id 写回去
+		if err := tx.Model(post).Omit(clause.Associations).Select(selected).Updates(post).Error; err != nil {
+			return err
+		}
 	}
-	// Save 只会追加多对多关联，不会删除已移除的标签，需要显式 Replace
+	if !replaceLabels {
+		return nil
+	}
+	// 关联只会追加不会删除已移除的标签，需要显式 Replace
 	return tx.Model(post).Association("Labels").Replace(post.Labels)
 }
 

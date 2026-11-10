@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"slices"
 	"strconv"
 	"sync"
@@ -195,8 +196,20 @@ func (s *AIAgentService) claimRuns(ctx context.Context, maxRuns int) ([]dto.Agen
 			case agent.User.Disabled:
 				reason = "user_disabled"
 			}
+			if reason == "" {
+				reason = eventTargetSkipReason(run)
+			}
+			if reason == "" && isUserTriggeredRun(run) && agentCommentQuotaExhausted(agent, agent.ParsedProfile(), cfg, now) {
+				reason = "daily_comment_limit"
+			}
 			if reason != "" {
 				_, _ = repo.AIAgent.UpdateRunIf(run.ID, constant.AgentRunStatusQueued, map[string]any{"status": constant.AgentRunStatusSkipped, "skip_reason": reason, "finished_at": now})
+				continue
+			}
+			// 给文章发布与主动浏览留出调用额度：本小时调用数到达预留线后，由评论触发的运行顺延到下个小时
+			if isUserTriggeredRun(run) && userTriggeredBudgetReached(cfg, now) {
+				next := now.Truncate(time.Hour).Add(time.Hour + time.Duration(rand.IntN(10*60))*time.Second)
+				_, _ = repo.AIAgent.UpdateRunIf(run.ID, constant.AgentRunStatusQueued, map[string]any{"scheduled_at": next})
 				continue
 			}
 		}
@@ -223,6 +236,74 @@ func (s *AIAgentService) claimRuns(ctx context.Context, maxRuns int) ([]dto.Agen
 		result = append(result, *leased)
 	}
 	return result, nil
+}
+
+// agentUserTriggeredBudgetShare 由评论触发（被回复、被 @）的运行每小时最多占用全站模型调用上限的比例，其余留给文章发布与主动浏览
+const agentUserTriggeredBudgetShare = 0.8
+
+// isUserTriggeredRun 由别人的评论触发的运行（被回复、被 @）：频率取决于其他用户，需要额外的成本与隐私约束
+func isUserTriggeredRun(run *model.AgentRun) bool {
+	return run.Kind == constant.AgentRunKindEvent &&
+		(run.Trigger == constant.AgentTriggerCommentReplied || run.Trigger == constant.AgentTriggerCommentMentioned)
+}
+
+// userTriggeredBudgetReached 本小时的模型调用是否已到评论触发运行的预留线
+func userTriggeredBudgetReached(cfg tools.AIAgentConfig, now time.Time) bool {
+	if cfg.LLMCallsPerHour <= 0 {
+		return false
+	}
+	return float64(hourLLMCalls(now)) >= float64(cfg.LLMCallsPerHour)*agentUserTriggeredBudgetShare
+}
+
+// eventTargetSkipReason 执行前重新核对事件的目标：入队后评论可能被删除或改为私密，文章 / 页面可能被删除或取消公开。
+// AI 的回应公开可见、读到的内容还会写进记忆，目标不再公开时一律不执行；查询出错（非不存在）时交给后续构建处理
+func eventTargetSkipReason(run *model.AgentRun) string {
+	if run.Kind != constant.AgentRunKindEvent {
+		return ""
+	}
+	switch run.TargetType {
+	case constant.TargetTypePost:
+		return contentTargetSkipReason(constant.TargetTypePost, run.TargetID)
+	case constant.TargetTypeComment:
+		c, err := repo.Comment.GetComment(run.TargetID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "comment_deleted"
+		}
+		if err != nil {
+			return ""
+		}
+		if c.IsPrivate {
+			return "comment_private"
+		}
+		return contentTargetSkipReason(c.TargetType, c.TargetID)
+	}
+	return ""
+}
+
+// contentTargetSkipReason 评论所在的文章 / 页面已删除或不公开时返回跳过原因
+func contentTargetSkipReason(targetType string, targetID uint) string {
+	var (
+		meta *repo.PostMeta
+		err  error
+	)
+	switch targetType {
+	case constant.TargetTypePost:
+		meta, err = repo.Post.GetPostMeta(targetID)
+	case constant.TargetTypePage:
+		meta, err = repo.Page.GetPageMeta(targetID)
+	default:
+		return "target_unsupported"
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "target_deleted"
+	}
+	if err != nil {
+		return ""
+	}
+	if meta.IsPrivate {
+		return "target_private"
+	}
+	return ""
 }
 
 // Heartbeat 续期租约
@@ -486,8 +567,9 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 			ID: c.ID, Content: c.Content, AuthorID: c.UserID, AuthorName: displayName(&c.User),
 			TargetType: c.TargetType, TargetID: c.TargetID, ReplyID: c.ReplyID, RootID: c.RootID,
 		}
+		// 被回复的是私密评论时不把它的内容交给 AI
 		if c.ReplyID != 0 {
-			if parent, err := repo.Comment.GetComment(c.ReplyID); err == nil {
+			if parent, err := repo.Comment.GetComment(c.ReplyID); err == nil && !parent.IsPrivate {
 				ref.ReplyToContent = parent.Content
 			}
 		}

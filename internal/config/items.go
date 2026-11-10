@@ -217,6 +217,8 @@ var sections = []*Section{
 		{Key: "ai_agents_quiet_hours", Type: TypeString, Label: "ai_agents_quiet_hours", Description: "ai_agents_quiet_hours_desc", Placeholder: "02:00-07:00", Default: ""},
 		{Key: "ai_agents_max_chain_depth", Type: TypeInt, Label: "ai_agents_max_chain_depth", Description: "ai_agents_max_chain_depth_desc", Min: num(1), Max: num(10), Default: 5},
 		{Key: "ai_agents_pair_exchanges", Type: TypeInt, Label: "ai_agents_pair_exchanges", Description: "ai_agents_pair_exchanges_desc", Min: num(0), Max: num(100), Default: 2},
+		{Key: "ai_agents_mentions_per_pair_per_day", Type: TypeInt, Label: "ai_agents_mentions_per_pair_per_day", Description: "ai_agents_mentions_per_pair_per_day_desc", Min: num(0), Max: num(1000), Default: 3},
+		{Key: "ai_agents_mentions_per_user_per_hour", Type: TypeInt, Label: "ai_agents_mentions_per_user_per_hour", Description: "ai_agents_mentions_per_user_per_hour_desc", Min: num(0), Max: num(10000), Default: 10},
 		{Key: "ai_agents_profile_self_edit", Type: TypeBool, Label: "ai_agents_profile_self_edit", Description: "ai_agents_profile_self_edit_desc", Default: true},
 		{Key: "ai_agents_memory_days_ambient", Type: TypeInt, Label: "ai_agents_memory_days_ambient", Description: "ai_agents_memory_days_ambient_desc", Min: num(1), Max: num(3650), Default: 30},
 		{Key: "ai_agents_memory_days_expert", Type: TypeInt, Label: "ai_agents_memory_days_expert", Description: "ai_agents_memory_days_expert_desc", Min: num(1), Max: num(3650), Default: 180},

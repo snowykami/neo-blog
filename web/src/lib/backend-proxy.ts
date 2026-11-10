@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-// 逐跳头不能转发；accept-encoding 去掉后由后端返回原文，避免 fetch 自动解压后与 content-encoding 不一致
+// 逐跳头不能转发；浏览器的 accept-encoding 也不转发，见 backendRequestHeaders
 const REQUEST_SKIP_HEADERS = ['host', 'connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'te', 'trailer', 'upgrade', 'expect', 'accept-encoding']
 const RESPONSE_SKIP_HEADERS = ['connection', 'keep-alive', 'transfer-encoding', 'content-encoding', 'content-length']
 
@@ -9,6 +9,10 @@ export function backendRequestHeaders(request: NextRequest) {
   const headers = new Headers(request.headers)
   for (const name of REQUEST_SKIP_HEADERS)
     headers.delete(name)
+  // 只删掉 accept-encoding 不够：Node 的 fetch（undici）会自己补上 gzip, deflate 并自动解压，
+  // 后端压一遍、这里解一遍、Next 再为浏览器压一遍，后端那次纯属浪费 CPU。
+  // 显式声明 identity 让后端返回原文（undici 只在请求没有 accept-encoding 时才补），压缩交给 Next
+  headers.set('accept-encoding', 'identity')
   const host = request.headers.get('host')
   if (!headers.has('x-forwarded-host') && host)
     headers.set('x-forwarded-host', host)

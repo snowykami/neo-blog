@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +8,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type notificationRepo struct{}
@@ -41,74 +41,71 @@ type NotificationGroup struct {
 	ActorNames []string
 }
 
-// CreateEvent 写入互动事件；同一去重键已存在时复用已有事件（取消点赞后再点赞不重复记事件）
+// CreateEvent 写入互动事件；同一去重键已存在时复用已有事件（取消点赞后再点赞不重复记事件）。
+// 运行在调用方的事务里：Postgres 下任何失败语句都会让整个事务作废，所以冲突用 ON CONFLICT DO NOTHING 吸收，
+// 不能先插入、撞唯一索引后再接着查
 func (r *notificationRepo) CreateEvent(tx *gorm.DB, event *model.InteractionEvent) (*model.InteractionEvent, error) {
 	if tx == nil {
 		tx = GetDB()
 	}
+	result := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "dedupe_key"}},
+		DoNothing: true,
+	}).Create(event)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected > 0 {
+		return event, nil
+	}
+	// 去重键已存在（含并发写入）：以库里已有的为准
 	var existing model.InteractionEvent
-	err := tx.Where("dedupe_key = ?", event.DedupeKey).First(&existing).Error
-	if err == nil {
-		return &existing, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := tx.Where("dedupe_key = ?", event.DedupeKey).First(&existing).Error; err != nil {
 		return nil, err
 	}
-	if err := tx.Create(event).Error; err != nil {
-		// 并发写入同一去重键时以已在库里的为准
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			if err := tx.Where("dedupe_key = ?", event.DedupeKey).First(&existing).Error; err == nil {
-				return &existing, nil
-			}
-		}
-		return nil, err
-	}
-	return event, nil
+	return &existing, nil
 }
 
-// CreateNotification 写入通知行；(event_id, user_id) 与 (dedupe_key, user_id) 唯一，重复写入直接忽略（幂等）
+// CreateNotification 写入通知行；(event_id, user_id) 与 (dedupe_key, user_id) 唯一，重复写入直接忽略（幂等）。
+// 不指定冲突列：两个唯一索引任一冲突都视为已写入，且语句本身不会失败（不会让调用方的事务作废）
 func (r *notificationRepo) CreateNotification(tx *gorm.DB, notification *model.Notification) error {
 	if tx == nil {
 		tx = GetDB()
 	}
-	err := tx.Create(notification).Error
-	if err != nil && errors.Is(err, gorm.ErrDuplicatedKey) {
-		return nil
-	}
-	return err
+	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(notification).Error
 }
 
 // UpsertThreadAggregate 折叠行（comment.thread_replied）：同一天同一线程同一收件人只有一行，
-// 后续回复做 count+1、补 actor 名单、刷新 updated_at，并把 read_at 置回 NULL（有新活动就重新变未读）
+// 后续回复做 count+1、补 actor 名单、刷新 updated_at，并把 read_at 置回 NULL（有新活动就重新变未读）。
+// 计数用 ON CONFLICT (dedupe_key, user_id) DO UPDATE 一条语句完成，并发回复也不会撞唯一索引；
+// 该语句会锁住这一行直到事务结束，随后的「读 actor 名单 → 合并 → 回写」因此不会与其它事务交错
 func (r *notificationRepo) UpsertThreadAggregate(tx *gorm.DB, notification *model.Notification) error {
 	if tx == nil {
 		tx = GetDB()
 	}
 	notification.AggregateCount = 1
-	for attempt := 0; attempt < 2; attempt++ {
-		var existing model.Notification
-		err := tx.Where("dedupe_key = ? AND user_id = ?", notification.DedupeKey, notification.UserID).First(&existing).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			err = tx.Create(notification).Error
-			if err == nil {
-				return nil
-			}
-			if !errors.Is(err, gorm.ErrDuplicatedKey) {
-				return err
-			}
-			continue // 并发插入：改成更新已有行
-		}
-		if err != nil {
-			return err
-		}
-		return tx.Model(&model.Notification{}).Where("id = ?", existing.ID).Updates(map[string]any{
-			"aggregate_count":  gorm.Expr("aggregate_count + 1"),
-			"aggregate_actors": mergeAggregateActors(existing.AggregateActors, notification.AggregateActors),
-			"updated_at":       time.Now(),
-			"read_at":          nil,
-		}).Error
+	now := time.Now()
+	if err := tx.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "dedupe_key"}, {Name: "user_id"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"aggregate_count": gorm.Expr("notifications.aggregate_count + 1"),
+			"updated_at":      now,
+			"read_at":         gorm.Expr("NULL"),
+		}),
+	}).Create(notification).Error; err != nil {
+		return err
 	}
-	return nil
+	var existing model.Notification
+	if err := tx.Select("id", "aggregate_actors").
+		Where("dedupe_key = ? AND user_id = ?", notification.DedupeKey, notification.UserID).
+		First(&existing).Error; err != nil {
+		return err
+	}
+	merged := mergeAggregateActors(existing.AggregateActors, notification.AggregateActors)
+	if merged == existing.AggregateActors {
+		return nil
+	}
+	return tx.Model(&model.Notification{}).Where("id = ?", existing.ID).UpdateColumn("aggregate_actors", merged).Error
 }
 
 // mergeAggregateActors 折叠行只保留前两个昵称，其余折成「和另外 N 人」
