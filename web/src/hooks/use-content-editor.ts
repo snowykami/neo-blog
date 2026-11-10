@@ -14,8 +14,9 @@ import { getHTMLFromFragment, useEditor } from '@tiptap/react'
 import { useFormatter, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { isDraftConflict, isEditSessionConflict } from '@/api/edit-session'
-import { uploadFile } from '@/api/file'
+import axiosClient from '@/api/client'
+import { editSessionHeaders, isDraftConflict, isEditSessionConflict } from '@/api/edit-session'
+import { deleteFile, uploadFile } from '@/api/file'
 import { getPageById, updatePage } from '@/api/page'
 import { getPostById, updatePost } from '@/api/post'
 import { batchDeleteRevisions, deleteRevision, discardDraft, restoreRevision } from '@/api/revision'
@@ -73,6 +74,8 @@ interface UpdateArgs {
   sessionId: string | null
   // 保存正文时所基于的草稿版本号，草稿在此之后被他人改动过则保存被拒绝（draft_conflict）
   baseDraftVersion?: number
+  // 页面隐藏 / 关闭前的保存：用 keepalive 请求发出，标签页关闭后请求仍会送达（见 putContent）
+  keepalive?: boolean
 }
 
 interface ContentAdapter {
@@ -81,6 +84,28 @@ interface ContentAdapter {
   update: (args: UpdateArgs) => Promise<BaseResponse<ContentSaveResult>>
   // 把保存成功的元信息合并回文档对象（用于预览地址、标题等展示）
   mergeMeta: (doc: ContentDoc, meta: Partial<ContentMeta>) => ContentDoc
+}
+
+// 浏览器对进行中的 keepalive 请求合计限制 64KB 请求体，留出余量（请求层转成 snake_case 后略有变长）
+const KEEPALIVE_BODY_LIMIT = 60 * 1024
+
+/** 请求体能否用 keepalive 发出；超出时退回普通请求（标签页关闭时可能被取消，关闭前的提示由 beforeunload 负责） */
+export function fitsKeepalive(body: unknown): boolean {
+  return new TextEncoder().encode(JSON.stringify(body)).length <= KEEPALIVE_BODY_LIMIT
+}
+
+/**
+ * 页面隐藏 / 关闭前的保存：与 updatePost / updatePage 相同的接口与请求头（编辑会话、草稿版本号），
+ * 改用 fetch keepalive 发出。sendBeacon 不能带编辑会话请求头，也拿不到 draft_conflict 等响应，不适用；
+ * axios 的 fetch 适配器默认不带 cookie，需要显式 withCredentials（同源）
+ */
+function putContent(path: string, body: object, sessionId: string | null): Promise<BaseResponse<ContentSaveResult>> {
+  return axiosClient.put(path, body, {
+    headers: editSessionHeaders(sessionId),
+    adapter: 'fetch',
+    withCredentials: true,
+    fetchOptions: { keepalive: true },
+  }).then(res => res.data)
 }
 
 const EMPTY_META: ContentMeta = {
@@ -116,7 +141,7 @@ const postAdapter: ContentAdapter = {
       labels: post.labels ?? [],
     }
   },
-  update: ({ id, draftContent, content, meta, sessionId, baseDraftVersion }) => {
+  update: ({ id, draftContent, content, meta, sessionId, baseDraftVersion, keepalive }) => {
     const patch: Partial<Post> & Pick<Post, 'id'> & { baseDraftVersion?: number } = { id, baseDraftVersion }
     if (draftContent !== undefined)
       patch.draftContent = draftContent
@@ -144,6 +169,8 @@ const postAdapter: ContentAdapter = {
       patch.categoryId = meta.category?.id ?? 0
     if (meta.labels !== undefined)
       patch.labelIds = meta.labels.map(label => label.id)
+    if (keepalive && fitsKeepalive(patch))
+      return putContent(`/post/p/${id}`, patch, sessionId)
     return updatePost({ post: patch, editSessionId: sessionId })
   },
   mergeMeta: (doc, meta) => {
@@ -169,7 +196,7 @@ const pageAdapter: ContentAdapter = {
       fullscreen: !!page.fullscreen,
     }
   },
-  update: ({ id, draftContent, content, meta, sessionId, baseDraftVersion }) => {
+  update: ({ id, draftContent, content, meta, sessionId, baseDraftVersion, keepalive }) => {
     const patch: Partial<PageModel> & Pick<PageModel, 'id'> & { baseDraftVersion?: number } = { id, baseDraftVersion }
     if (draftContent !== undefined)
       patch.draftContent = draftContent
@@ -195,6 +222,8 @@ const pageAdapter: ContentAdapter = {
       patch.layout = meta.layout
     if (meta.fullscreen !== undefined)
       patch.fullscreen = meta.fullscreen
+    if (keepalive && fitsKeepalive(patch))
+      return putContent(`/page/p/${id}`, patch, sessionId)
     return updatePage({ page: patch, editSessionId: sessionId })
   },
   mergeMeta: (doc, meta) => {
@@ -233,6 +262,14 @@ function diffMeta(next: ContentMeta, saved: ContentMeta): Partial<ContentMeta> |
  */
 export function remoteDraftDiverged(latestVersion: number | undefined, baseVersion: number): boolean {
   return (latestVersion ?? 0) !== baseVersion
+}
+
+// 等待进行中的保存 / 合并结束：最多等待约 20 秒（保存请求超时为 10 秒，合并还要拉取最新草稿）
+const SAVE_SETTLE_POLL_MS = 50
+const SAVE_SETTLE_MAX_POLLS = 400
+export async function waitForSaveSettled(busy: () => boolean, pollMs = SAVE_SETTLE_POLL_MS): Promise<void> {
+  for (let i = 0; busy() && i < SAVE_SETTLE_MAX_POLLS; i++)
+    await new Promise(resolve => setTimeout(resolve, pollMs))
 }
 
 export interface EditorUiActions {
@@ -293,13 +330,32 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
 
   // ---------- 编辑器 ----------
   // 图片与视频共用一个上传入口，失败提示按媒体类型区分；onProgress / signal 用于上传进度与取消
+  // 取消（占位块被删除、撤销、离开编辑页）：文件还没传完时中断请求，服务端不会保存；
+  // 已经传完时服务端可能正在保存，中断会留下拿不到 id 的孤儿文件，改为等响应后删掉刚保存的文件（每次上传都是新记录，删除不影响其他内容）
   const uploadMedia = useCallback(async (input: File, onProgress?: (event: { progress: number }) => void, signal?: AbortSignal) => {
+    if (signal?.aborted)
+      return ''
+    const request = new AbortController()
+    let sent = false
+    const onAbort = () => {
+      if (!sent)
+        request.abort()
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
     try {
       const res = await uploadFile({
         file: input,
-        onProgress: onProgress ? progress => onProgress({ progress }) : undefined,
-        signal,
+        onProgress: (progress) => {
+          if (progress >= 100)
+            sent = true
+          onProgress?.({ progress })
+        },
+        signal: request.signal,
       })
+      if (signal?.aborted) {
+        void deleteFile({ id: res.data.id }).catch(() => {})
+        return ''
+      }
       return res.data.url
     }
     catch {
@@ -307,6 +363,9 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       if (!signal?.aborted)
         toast.error(postEditT(input.type.startsWith('video/') ? 'video_upload_failed' : 'image_upload_failed'))
       return ''
+    }
+    finally {
+      signal?.removeEventListener('abort', onAbort)
     }
   }, [postEditT])
 
@@ -350,6 +409,15 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     },
     extensions,
   }, [])
+
+  // 拖入不支持的文件时提示（拖入处理见 image-paste-extension.ts）
+  useEffect(() => {
+    if (!editor || editor.isDestroyed)
+      return
+    editor.storage.imagePaste.onUnsupportedFiles = (files) => {
+      toast.error(latestRef.current.t('upload_unsupported_file', { names: files.map(file => file.name).join(', ') }))
+    }
+  }, [editor])
 
   // ---------- 加载 ----------
   // 合并的基线：本地上次与服务端同步（载入、保存成功、合并）时的草稿版本号与正文
@@ -434,6 +502,10 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const autosaveTimerRef = useRef<number | null>(null)
   // 保存进行中又有新修改时，保存结束后重新安排一次自动保存
   const scheduleAutosaveRef = useRef<() => void>(() => {})
+  // 编辑页已卸载（SPA 跳走）：不再安排定时器，未保存的修改由卸载时的 flushSave 立即提交；
+  // 编辑器随后会被销毁（销毁后无法再取 HTML），卸载时先留下正文快照供这次保存使用
+  const unmountedRef = useRef(false)
+  const leaveSnapshotRef = useRef<{ html: string, doc: PMNode } | null>(null)
 
   const metaDirty = useMemo(() => diffMeta(meta, savedMeta) !== null, [meta, savedMeta])
   const isDirty = contentDirty || metaDirty
@@ -442,9 +514,12 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
 
   // 草稿冲突时合并最新草稿（定义见下方），保存失败后调用
   const syncRemoteRef = useRef<() => Promise<void>>(async () => {})
-  const save = useCallback(async ({ manual = false }: { manual?: boolean } = {}): Promise<boolean> => {
+  const save = useCallback(async ({ manual = false, keepalive = false }: { manual?: boolean, keepalive?: boolean } = {}): Promise<boolean> => {
     if (!editor || !doc || !canSave || aiBusyRef.current)
       return false
+    if (editor.isDestroyed && !leaveSnapshotRef.current)
+      return false
+    const readContent = () => leaveSnapshotRef.current ?? { html: editor.getHTML(), doc: editor.state.doc }
     // 正在合并他人的修改：合并结束后会重新安排保存
     if (syncingRef.current) {
       pendingSaveRef.current = true
@@ -458,8 +533,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       window.clearTimeout(autosaveTimerRef.current)
       autosaveTimerRef.current = null
     }
-    const html = editor.getHTML()
-    const savedDoc = editor.state.doc
+    const { html, doc: savedDoc } = readContent()
     const contentChanged = html !== savedHtmlRef.current
     const currentMeta = metaRef.current
     let patch = diffMeta(currentMeta, savedMetaRef.current)
@@ -482,6 +556,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
         meta: patch ?? {},
         sessionId,
         baseDraftVersion: submitDraft ? baseVersionRef.current : undefined,
+        keepalive,
       })
       // 只有提交了正文时版本号才是本次保存的；只改元信息时不更新基线
       if (submitDraft) {
@@ -492,6 +567,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       savedHtmlRef.current = html
       if (patch) {
         const appliedPatch = patch
+        // 同步更新 ref：卸载后不再重新渲染，紧接着的补存要据此判断哪些字段已保存
+        savedMetaRef.current = { ...savedMetaRef.current, ...appliedPatch }
         setSavedMeta(prev => ({ ...prev, ...appliedPatch }))
         setDoc(prev => (prev ? adapter.mergeMeta(prev, appliedPatch) : prev))
       }
@@ -499,7 +576,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       setSaveError(null)
       setLastSavedAt(new Date())
       setChangedSinceOpen(true)
-      if (editor.getHTML() === html)
+      if (readContent().html === html)
         setContentDirty(false)
       if (manual)
         toast.success(operationT('save_success'))
@@ -513,6 +590,11 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       }
       // 草稿在此期间被他人（外部 AI 工具）改过：合并最新草稿后会重新安排保存
       if (isDraftConflict(error)) {
+        // 已离开编辑页：编辑器不在了，无法合并，只能提示保存失败
+        if (unmountedRef.current) {
+          toast.error(operationT('save_failed'))
+          return false
+        }
         pendingSaveRef.current = true
         void syncRemoteRef.current()
         return false
@@ -537,26 +619,30 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const saveRef = useRef(save)
   saveRef.current = save
 
-  // 离开编辑页前（隐藏/关闭标签页、点返回）把待保存的修改立即写入，不让防抖窗口内的编辑丢掉
+  // 离开编辑页前（隐藏/关闭标签页、点返回、SPA 跳走卸载）把待保存的修改立即写入，不让防抖窗口内的编辑丢掉
   // 返回 false 表示保存失败，调用方据此不跳转；其余情况（包括生成中/只读）一律允许离开
-  const flushSave = useCallback(async (): Promise<boolean> => {
-    // 没有修改，或只读 / 无会话 / AI 生成中（结束后会自行补保存）时没有可立即保存的内容
-    if (!isDirtyRef.current || !canSave || aiBusyRef.current)
+  // keepalive：页面隐藏 / 关闭时用 keepalive 请求发出，标签页关闭后请求仍会送达
+  const flushSave = useCallback(async ({ keepalive = false }: { keepalive?: boolean } = {}): Promise<boolean> => {
+    // 只读 / 无会话 / AI 生成中（结束后会自行补保存）时没有可立即保存的内容
+    if (!canSave || aiBusyRef.current)
       return true
-    // 已有保存在进行：让它结束后再补一次（不阻塞跳转，SPA 跳转不会中断已发出的请求）
-    if (savingRef.current || syncingRef.current) {
-      pendingSaveRef.current = true
-      return true
-    }
     if (autosaveTimerRef.current) {
       window.clearTimeout(autosaveTimerRef.current)
       autosaveTimerRef.current = null
     }
-    return saveRef.current()
+    // 已有保存 / 合并在进行：等它结束后接着保存剩下的修改，不依赖结束后的定时器（卸载后定时器不再安排）
+    if (savingRef.current || syncingRef.current)
+      await waitForSaveSettled(() => savingRef.current || syncingRef.current)
+    // 是否真有修改由 save 比较正文与已保存的内容判断（卸载后不再渲染，isDirtyRef 可能是旧值），没有修改时不发请求
+    return saveRef.current({ keepalive })
   }, [canSave])
+  const flushSaveRef = useRef(flushSave)
+  flushSaveRef.current = flushSave
 
   // 停止输入一段时间后自动保存
   const scheduleAutosave = useCallback(() => {
+    if (unmountedRef.current)
+      return
     if (autosaveTimerRef.current)
       window.clearTimeout(autosaveTimerRef.current)
     autosaveTimerRef.current = window.setTimeout(() => {
@@ -566,9 +652,23 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   }, [])
   scheduleAutosaveRef.current = scheduleAutosave
 
-  useEffect(() => () => {
-    if (autosaveTimerRef.current)
-      window.clearTimeout(autosaveTimerRef.current)
+  // 卸载（SPA 跳走，包括浏览器后退）时立即提交防抖窗口内的修改：已发出的请求不会因 SPA 跳转中断
+  const editorRef = useRef(editor)
+  editorRef.current = editor
+  useEffect(() => {
+    unmountedRef.current = false
+    leaveSnapshotRef.current = null
+    return () => {
+      unmountedRef.current = true
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current)
+        autosaveTimerRef.current = null
+      }
+      const ed = editorRef.current
+      if (ed && !ed.isDestroyed)
+        leaveSnapshotRef.current = { html: ed.getHTML(), doc: ed.state.doc }
+      void flushSaveRef.current()
+    }
   }, [])
 
   // 正文变化：标记未保存并安排自动保存

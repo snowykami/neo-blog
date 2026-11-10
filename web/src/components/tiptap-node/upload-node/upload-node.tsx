@@ -10,6 +10,7 @@ import * as React from 'react'
 import { AssetPicker } from '@/components/common/asset-picker'
 import { Button } from '@/components/ui/button'
 import { focusNextNode, isValidPosition } from '@/lib/tiptap-utils'
+import { takeQueuedUploadFiles, UploadControllers } from './upload-queue'
 
 export interface FileItem {
   /**
@@ -87,6 +88,13 @@ export interface UploadOptions {
  */
 function useFileUpload(options: UploadOptions) {
   const [fileItems, setFileItems] = React.useState<FileItem[]>([])
+  // 进行中的上传：节点视图销毁（占位块被删除、撤销、离开编辑页）时全部取消，避免留下无人引用的文件
+  const controllersRef = React.useRef<UploadControllers | null>(null)
+  controllersRef.current ??= new UploadControllers()
+  React.useEffect(() => {
+    const controllers = controllersRef.current
+    return () => controllers?.abortAll()
+  }, [])
 
   const uploadFile = async (file: File): Promise<string | null> => {
     if (file.size > options.maxSize) {
@@ -97,7 +105,8 @@ function useFileUpload(options: UploadOptions) {
       return null
     }
 
-    const abortController = new AbortController()
+    const controllers = controllersRef.current ?? new UploadControllers()
+    const abortController = controllers.start()
     const fileId = crypto.randomUUID()
 
     const newFileItem: FileItem = {
@@ -151,6 +160,9 @@ function useFileUpload(options: UploadOptions) {
       }
       return null
     }
+    finally {
+      controllers.finish(abortController)
+    }
   }
 
   const uploadFiles = async (files: File[]): Promise<(string | null)[]> => {
@@ -173,24 +185,14 @@ function useFileUpload(options: UploadOptions) {
   const removeFileItem = (fileId: string) => {
     setFileItems((prev) => {
       const fileToRemove = prev.find(item => item.id === fileId)
-      if (fileToRemove?.abortController) {
-        fileToRemove.abortController.abort()
-      }
-      if (fileToRemove?.url) {
-        URL.revokeObjectURL(fileToRemove.url)
-      }
+      fileToRemove?.abortController?.abort()
       return prev.filter(item => item.id !== fileId)
     })
   }
 
   const clearAllFiles = () => {
     fileItems.forEach((item) => {
-      if (item.abortController) {
-        item.abortController.abort()
-      }
-      if (item.url) {
-        URL.revokeObjectURL(item.url)
-      }
+      item.abortController?.abort()
     })
     setFileItems([])
   }
@@ -371,6 +373,21 @@ export const UploadNode: React.FC<NodeViewProps> = (props) => {
     const media = urls.flatMap((url, index) => (url ? [{ url, name: files[index]?.name }] : []))
     insertMedia(media)
   }
+
+  // 拖入的文件（见 upload-queue.ts）：挂载后自动开始上传；延后一拍，StrictMode 的挂载—卸载—挂载不会取走文件后又被取消
+  const uploadId = props.node.attrs.uploadId as string | null
+  const handleUploadRef = React.useRef(handleUpload)
+  handleUploadRef.current = handleUpload
+  React.useEffect(() => {
+    if (!uploadId)
+      return
+    const timer = window.setTimeout(() => {
+      const files = takeQueuedUploadFiles(uploadId)
+      if (files?.length)
+        void handleUploadRef.current(files)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [uploadId])
 
   const handleAssetSelect = (assets: PickedAsset[]) => {
     insertMedia(assets.map(asset => ({ url: asset.url, name: asset.name })))

@@ -111,6 +111,12 @@ export function createUploadNode(config: UploadNodeConfig) {
         maxSize: {
           default: this.options.maxSize,
         },
+        // 拖入文件时由插入方暂存的待上传文件（见 upload-queue.ts），只在内存中有效，不写入 HTML
+        uploadId: {
+          default: null,
+          rendered: false,
+          parseHTML: () => null,
+        },
       }
     },
 

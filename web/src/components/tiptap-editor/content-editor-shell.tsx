@@ -220,11 +220,12 @@ function LoadedShell({
     })
   }, [editor])
 
-  // 切走 / 关闭标签页前把待保存的修改写掉（关闭前的提示由 beforeunload 负责）
+  // 切走 / 关闭标签页前把待保存的修改写掉（关闭前的提示由 beforeunload 负责）：用 keepalive 请求，标签页关闭后仍会送达
+  // SPA 跳走（含浏览器后退）由编辑器卸载时的保存负责
   const { flushSave } = controller
   React.useEffect(() => {
     const flush = () => {
-      void flushSave()
+      void flushSave({ keepalive: true })
     }
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden')
