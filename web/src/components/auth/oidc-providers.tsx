@@ -82,6 +82,12 @@ export function OidcProviderButtons({
     return null
 
   const loginInPopup = (provider: OidcConfig) => {
+    // 触屏设备（iOS Safari 等）把小窗当成新标签页打开，跳到身份提供商再回来后与本页的关联会断开，
+    // 本页收不到「登录完成」，只能手动刷新：直接整页跳转，登录后回到当前页面
+    if (window.matchMedia('(pointer: coarse)').matches) {
+      window.location.href = getOidcAuthorizeUrl({ name: provider.name, redirectBack: localizedRedirectBack, bind })
+      return
+    }
     setPending(provider.name)
     openOidcPopup({ name: provider.name, bind })
       .then((result) => {

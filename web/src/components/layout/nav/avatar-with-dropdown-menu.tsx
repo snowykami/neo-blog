@@ -74,7 +74,9 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent className="w-auto no-animate" align="end">
+      {/* 非模态菜单在 iOS 上轻点打开后，焦点随即落回触发按钮，被当成「焦点移出菜单」立刻关掉（菜单一闪而过）：
+          不按焦点移出关闭，点到菜单外仍会关闭 */}
+      <DropdownMenuContent className="w-auto no-animate" align="end" onFocusOutside={event => event.preventDefault()}>
         {user && (
           <>
             <DropdownMenuLabel>

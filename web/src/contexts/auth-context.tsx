@@ -6,7 +6,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { toast } from 'sonner'
 import { getLoginUser, userLogout } from '@/api/user'
 import { useCommonT } from '@/hooks/use-translations'
-import { needsLoginUserFetch, rememberLoginState } from '@/utils/client/session-hint'
+import { hasLoggedInCookie, needsLoginUserFetch, rememberLoginState } from '@/utils/client/session-hint'
 
 interface AuthContextValue {
   user: User | null
@@ -82,6 +82,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null
     }
   }, [setUser])
+
+  // 页面回到前台（切回标签页、从往返缓存恢复）时补一次：别的标签页里完成了登录（如第三方登录在新标签页里回跳），
+  // 浏览器已经有登录标记、本页却还是访客时重新拉取登录状态，不必手动刷新
+  useEffect(() => {
+    if (loading || user)
+      return
+    const sync = () => {
+      if (document.visibilityState === 'visible' && hasLoggedInCookie(document.cookie))
+        void refresh()
+    }
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted)
+        sync()
+    }
+    document.addEventListener('visibilitychange', sync)
+    window.addEventListener('focus', sync)
+    window.addEventListener('pageshow', onPageShow)
+    return () => {
+      document.removeEventListener('visibilitychange', sync)
+      window.removeEventListener('focus', sync)
+      window.removeEventListener('pageshow', onPageShow)
+    }
+  }, [loading, user, refresh])
 
   const logout = useCallback(() => {
     userLogout()
