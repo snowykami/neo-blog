@@ -1,6 +1,6 @@
 ## 功能
 
-- [ ] 支持 AI 预算管理，AI调用统计，Token输入输出，缓存写入缓存读取
+- [x] 支持 AI 预算管理，AI调用统计，Token输入输出，缓存写入缓存读取
 - [ ] 支持 AI 生成文章，AI 生成文章摘要，AI 生成文章标题，AI 生成文章标签
 - [ ] 全套可观测支持，指标/链路/日志。
 
@@ -99,11 +99,13 @@
 
 ### 第五批：运维与构建
 
-- [ ] 前端镜像基础镜像可切换镜像源（今天两次 docker.io EOF）；运行阶段去掉 corepack；字体改 `next/font/local`，构建不再依赖 Google Fonts
-- [ ] CI：build 依赖 test 通过；buildx 缓存；后端镜像固定 alpine 版本并补 `.dockerignore`
-- [ ] 可观测性：访问日志与请求 ID（透传 Next 转发）、可抓取的指标端点；所有 LLM 调用统一记录用量与预算（含摘要、写作、翻译、歌词标注）
-- [ ] 后端 5xx / panic 每次都开 goroutine 写错误报告，数据库故障时放大写入；按指纹限频
-- [ ] 共享状态出错时限流一律放行，Redis 故障期间登录防爆破失效（待确认取舍）
+- [x] 前端镜像基础镜像可切换镜像源（今天两次 docker.io EOF）；运行阶段去掉 corepack；字体改 `next/font/local`，构建不再依赖 Google Fonts（构建参数 `NODE_IMAGE`；三款字体全部 unicode 子集随仓库提供（OFL），产物里的字体文件与原来逐个一致，字体族名改为 const 名、渲染不变）
+- [x] CI：build 依赖 test 通过；buildx 缓存；后端镜像固定 alpine 版本并补 `.dockerignore`（`alpine:3.24`，后端构建上下文从数 GB 降到约 25MB；`web/.dockerignore` 排除 `.env*`）
+- [x] 可观测性：访问日志与请求 ID（透传 Next 转发）、可抓取的指标端点；所有 LLM 调用统一记录用量与预算（含摘要、写作、翻译、歌词标注）（`X-Request-ID` 进日志与错误报告；`/metrics` 需配置 `METRICS_TOKEN`；用量表 `llm_usages` 保留 13 个月；全站每月 token 预算默认不限，AI 用户只看自己的预算；系统运行页新增 AI 用量卡片）
+- [x] 后端 5xx / panic 每次都开 goroutine 写错误报告，数据库故障时放大写入；按指纹限频（同一指纹 1 分钟写一次、期间次数合并；写库并发上限 4）
+- [x] 共享状态出错时限流一律放行，Redis 故障期间登录防爆破失效（改为退回本实例计数 `utils.IncrCounter`，多副本时上限按副本数放宽）
+- [ ] 遗留：后端 Dockerfile 的 golang / alpine 基础镜像还没有镜像源参数
+- [ ] 遗留：只有 LLM 调用有用量统计，链路追踪（trace）未做
 
 ### 第六批：打磨、可访问性、i18n 与清理
 
