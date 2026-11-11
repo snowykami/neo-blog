@@ -21,10 +21,37 @@ export function backendRequestHeaders(request: NextRequest) {
   return headers
 }
 
+/**
+ * 事件流（SSE）的响应体：上游中途断开（浏览器关掉页面时同步中止了到后端的请求、后端重启）时正常结束，而不是让流出错。
+ * 出错的流会被 Next 记成服务端错误（failed to pipe response）上报；SSE 断开是常态，浏览器的 EventSource 会自动重连
+ */
+function endQuietlyOnError(body: ReadableStream<Uint8Array>) {
+  const reader = body.getReader()
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read()
+        if (done)
+          controller.close()
+        else
+          controller.enqueue(value)
+      }
+      catch {
+        controller.close()
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason).catch(() => {})
+    },
+  })
+}
+
 /** 把后端的响应原样交回浏览器（去掉逐跳头与编码相关的头） */
 export function backendResponse(upstream: Response) {
   const headers = new Headers(upstream.headers)
   for (const name of RESPONSE_SKIP_HEADERS)
     headers.delete(name)
-  return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers })
+  const isEventStream = headers.get('content-type')?.includes('text/event-stream')
+  const body = isEventStream && upstream.body ? endQuietlyOnError(upstream.body) : upstream.body
+  return new Response(body, { status: upstream.status, statusText: upstream.statusText, headers })
 }

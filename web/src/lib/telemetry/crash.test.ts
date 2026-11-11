@@ -54,4 +54,26 @@ describe('startCrashDetector', () => {
     ;(await start())()
     expect(captured).toHaveLength(0)
   })
+
+  it('复制进新标签页的状态属于仍然活着的页面时不补报，原页面不应答时照常补报', async () => {
+    const previous = { url: 'http://x/p/a', startedAt: 1000, beatAt: 41000, hidden: false, crumbs: [], contexts: {} }
+    // 模拟另一个标签页里还活着的原页面
+    const original = new BroadcastChannel('nb_page_alive')
+    original.onmessage = (event) => {
+      if (event.data?.type === 'ping' && event.data.id === 'alive-page')
+        original.postMessage({ type: 'pong', id: 'alive-page' })
+    }
+    sessionStorage.setItem(KEY, JSON.stringify({ ...previous, id: 'alive-page' }))
+    const stop = await start()
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(captured).toHaveLength(0)
+    stop()
+
+    sessionStorage.setItem(KEY, JSON.stringify({ ...previous, id: 'crashed-page' }))
+    ;(await start())()
+    await new Promise(resolve => setTimeout(resolve, 1200))
+    expect(captured).toHaveLength(1)
+    expect(captured[0]).toMatchObject({ tags: { kind: 'crash' } })
+    original.close()
+  })
 })

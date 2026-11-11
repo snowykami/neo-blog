@@ -92,7 +92,8 @@ func (r *errorReportRepo) IssueBreakdown(issueID uint, top int) (*dto.ErrorIssue
 		return nil, err
 	}
 	group := func(column string) ([]dto.NamedCount, error) {
-		var rows []dto.NamedCount
+		// 没有数据时也返回空数组（JSON 为 []，不是 null），前端按数组读取
+		rows := []dto.NamedCount{}
 		err := events().Select(column + " AS name, COUNT(*) AS count").Where(column + " <> ''").
 			Group(column).Order("count DESC").Limit(top).Scan(&rows).Error
 		return rows, err

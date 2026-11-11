@@ -202,9 +202,9 @@ function Stat({ label, value }: { label: string, value: React.ReactNode }) {
 function BreakdownCard({ issue }: { issue: ErrorIssueDetail }) {
   const t = useTranslations('Console.errors.detail')
   const groups: { key: string, items: NamedCount[] }[] = [
-    { key: 'browsers', items: issue.browsers },
-    { key: 'os', items: issue.os },
-    { key: 'paths', items: issue.paths },
+    { key: 'browsers', items: issue.browsers ?? [] },
+    { key: 'os', items: issue.os ?? [] },
+    { key: 'paths', items: issue.paths ?? [] },
   ].filter(group => group.items.length > 0)
   if (groups.length === 0)
     return null
