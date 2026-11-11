@@ -23,11 +23,13 @@ export const SEVERITY_STYLES: Record<VisitSeverity, string> = {
 
 export function TrustBadge({ trust, className }: { trust: VisitTrust, className?: string }) {
   const t = useTranslations('Console.visits.trust')
-  const { icon: Icon, badge } = TRUST_STYLES[trust]
+  // 旧版本写入的结论（如 human）不在当前取值里：按「信号不足」显示，不让整页进入错误边界
+  const known: VisitTrust = trust in TRUST_STYLES ? trust : 'unknown'
+  const { icon: Icon, badge } = TRUST_STYLES[known]
   return (
     <Badge variant="outline" className={cn(badge, className)}>
       <Icon aria-hidden="true" />
-      {t(`verdicts.${trust}.label`)}
+      {t(`verdicts.${known}.label`)}
     </Badge>
   )
 }
