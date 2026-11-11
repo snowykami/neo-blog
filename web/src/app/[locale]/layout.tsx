@@ -101,7 +101,7 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="font-sans">
-        {/* 入场动画只在首屏播放，客户端跳转不重播（见该组件） */}
+        {/* 首屏播完完整入场动画后，客户端跳转改播轻快版（见该组件） */}
         <EntranceOnce />
         <NuqsAdapter>
           <DeviceProvider>
