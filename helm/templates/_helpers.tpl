@@ -97,3 +97,28 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+镜像拉取策略：image.pullPolicy 留空时，latest 标签用 Always（节点上已有旧的 latest 时也重新拉取），其他标签用 IfNotPresent。
+用法：include "neo-blog.pullPolicy" (dict "root" . "tag" $tag)
+*/}}
+{{- define "neo-blog.pullPolicy" -}}
+{{- if .root.Values.image.pullPolicy }}
+{{- .root.Values.image.pullPolicy }}
+{{- else if eq (toString .tag) "latest" }}
+{{- "Always" }}
+{{- else }}
+{{- "IfNotPresent" }}
+{{- end }}
+{{- end }}
+
+{{/*
+生产模式必须提供 JWT_SECRET 与 PASSWORD_SALT（明文或 backend.secrets.existingSecret），否则后端启动即退出
+*/}}
+{{- define "neo-blog.validateSecrets" -}}
+{{- if and (eq (toString .Values.backend.env.MODE) "prod") (not .Values.backend.secrets.existingSecret) }}
+{{- if not (and .Values.backend.env.JWT_SECRET .Values.backend.env.PASSWORD_SALT) }}
+{{- fail "生产模式（backend.env.MODE=prod）必须设置 JWT_SECRET 与 PASSWORD_SALT：推荐用 backend.secrets.existingSecret 从 Secret 读取，或在 backend.env 中填写" }}
+{{- end }}
+{{- end }}
+{{- end }}

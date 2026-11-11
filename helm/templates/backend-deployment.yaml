@@ -1,4 +1,7 @@
 {{- include "neo-blog.validateReplicas" . }}
+{{- include "neo-blog.validateSecrets" . }}
+{{- $secretKeys := .Values.backend.secrets.keys | default dict }}
+{{- $fromSecret := .Values.backend.secrets.existingSecret }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,12 +47,25 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.image.registry }}/{{ .Values.image.backend }}:{{ .Values.image.backendTag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- $tag := .Values.image.backendTag | default .Chart.AppVersion }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.backend }}:{{ $tag }}"
+          imagePullPolicy: {{ include "neo-blog.pullPolicy" (dict "root" . "tag" $tag) }}
           env:
             {{- range $key, $val := .Values.backend.env }}
+            {{- if not (and $fromSecret (hasKey $secretKeys $key)) }}
             - name: {{ $key | quote }}
               value: {{ $val | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if $fromSecret }}
+            {{- range $key, $secretKey := $secretKeys }}
+            - name: {{ $key | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fromSecret | quote }}
+                  key: {{ $secretKey | quote }}
+                  optional: true
+            {{- end }}
             {{- end }}
             {{- if .Values.database.existingSecret }}
             - name: DB_URL

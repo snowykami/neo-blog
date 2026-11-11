@@ -14,13 +14,16 @@ terminationGracePeriodSeconds: 30
 frontendPreStopSleepSeconds: 5
 
 # 镜像设置
+# 建议固定为某次提交的镜像标签（CI 同时推送 latest 与提交 sha 两个标签）：标签变化时 helm upgrade 才会滚动更新，也能回滚；
+# 前后端要一起升级（前端缓存依赖后端的缓存标签接口），两个标签保持同一次提交
 image:
   registry: docker.io
   backend: snowykami/neo-blog-backend
   backendTag: latest
   frontend: snowykami/neo-blog-frontend
   frontendTag: latest
-  pullPolicy: IfNotPresent
+  # 留空时自动选择：标签为 latest 时 Always（否则节点上已有旧的 latest 不会重新拉取），其他标签 IfNotPresent
+  pullPolicy: ""
 
 # 是否启用前端
 frontend:
@@ -71,10 +74,22 @@ backend:
 
     # 后端端口，无需替换
     PORT: "80"
+    # 生产模式（MODE: prod）必须设置 JWT_SECRET 与 PASSWORD_SALT，否则后端启动即退出；
+    # 建议改用下面的 backend.secrets.existingSecret 从 Secret 读取，不在 values 里写明文
     PASSWORD_SALT: ""
     JWT_SECRET: ""
     TOKEN_DURATION: "3600"
     REFRESH_TOKEN_DURATION: "604800"
+
+  # 敏感配置从已有 Secret 读取（设置后优先于 backend.env 里的同名明文；Secret 里没有的键会被跳过）
+  secrets:
+    existingSecret: ""
+    # 环境变量名 → Secret 中的键
+    keys:
+      JWT_SECRET: jwt-secret
+      PASSWORD_SALT: password-salt
+      EMAIL_PASSWORD: email-password
+      CAPTCHA_SECRET_KEY: captcha-secret-key
 
 # 数据库连接地址（DB_URL）：设置后完全以它为准，backend.env 中的 DB_* 全部忽略；驱动由 scheme 决定
 database:
@@ -170,21 +185,22 @@ ingress:
   #      - chart-example.local
 
 # 资源配置
+# 资源请求按常驻用量估计，限制留出突发余量（构建期之外，前端的页面缓存在 Redis 里时内存更省）
 resources:
   backend:
     limits:
       cpu: 2
       memory: 2Gi
     requests:
-      cpu: 2
-      memory: 2Gi
+      cpu: 250m
+      memory: 512Mi
   frontend:
     limits:
-      cpu: 64
-      memory: 64Gi
+      cpu: 2
+      memory: 1536Mi
     requests:
-      cpu: 64
-      memory: 64Gi
+      cpu: 250m
+      memory: 512Mi
 
 
 # 自动扩缩容

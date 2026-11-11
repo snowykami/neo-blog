@@ -27,7 +27,10 @@ jobs:
         with:
           context: ./web
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-frontend:latest
+          # 同时推送提交 sha 标签：部署时固定版本，才能按版本滚动更新与回滚
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-frontend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-frontend:${{ github.sha }}
           build-args: |
             APP_VERSION=${{ github.sha }}
             IMAGE_OPTIMIZE_HOSTS=${{ vars.IMAGE_OPTIMIZE_HOSTS }}
@@ -51,4 +54,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-backend:latest
+          # 同时推送提交 sha 标签：部署时固定版本，才能按版本滚动更新与回滚
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-backend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-backend:${{ github.sha }}

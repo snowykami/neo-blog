@@ -44,8 +44,9 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.image.registry }}/{{ .Values.image.frontend }}:{{ .Values.image.frontendTag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- $tag := .Values.image.frontendTag | default .Chart.AppVersion }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.frontend }}:{{ $tag }}"
+          imagePullPolicy: {{ include "neo-blog.pullPolicy" (dict "root" . "tag" $tag) }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
