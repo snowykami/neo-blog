@@ -30,7 +30,7 @@ func RecoveryHandler(ctx context.Context, c *app.RequestContext, err any, stack 
 		Method: string(c.Method()),
 		Path:   string(c.Path()),
 	}
-	go service.NewErrorReportService().RecordBackendError(context.WithoutCancel(ctx), report)
+	service.NewErrorReportService().ReportBackendErrorAsync(context.WithoutCancel(ctx), report)
 	resps.Error(c, errs.Internal("internal_server_error", fmt.Errorf("panic: %v", err)))
 }
 
@@ -56,6 +56,6 @@ func UseErrorReport() app.HandlerFunc {
 				report.Cause = err.Error()
 			}
 		}
-		go service.NewErrorReportService().RecordBackendError(context.WithoutCancel(ctx), report)
+		service.NewErrorReportService().ReportBackendErrorAsync(context.WithoutCancel(ctx), report)
 	}
 }

@@ -75,6 +75,11 @@ func UseMemory() {
 	replace(newMemoryStore(), false)
 }
 
+// UseStore 换成指定的存储，按多实例共享处理；只用于测试（如注入模拟 Redis 故障的存储），业务代码请用 Init / UseMemory
+func UseStore(store Store) {
+	replace(store, true)
+}
+
 func replace(store Store, isShared bool) {
 	mu.Lock()
 	old := current

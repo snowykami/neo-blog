@@ -290,3 +290,71 @@ func TestErrorEnvelopeCaps(t *testing.T) {
 		t.Fatal("exception should be kept")
 	}
 }
+
+// 后端错误按指纹限频：同一指纹在窗口内只写一次库，其余只累计次数，窗口过后并入下一次写库；不同指纹各写一次
+func TestRecordBackendErrorThrottle(t *testing.T) {
+	setupEditTest(t)
+	svc := NewErrorReportService()
+	dbDown := BackendError{Status: 500, Code: "failed_to_get_target", Cause: "dial tcp 10.0.0.5:5432: connection refused", Method: "GET", Path: "/api/v1/post/p/1"}
+	for i := 0; i < 3; i++ {
+		e := dbDown
+		e.Path = fmt.Sprintf("/api/v1/post/p/%d", i) // 同一栏目、只有数字不同，指纹相同
+		svc.RecordBackendError(context.Background(), e)
+	}
+	other := BackendError{Status: 500, Code: "failed_to_list_comments", Cause: "timeout", Method: "GET", Path: "/api/v1/comment/list"}
+	svc.RecordBackendError(context.Background(), other)
+
+	issues, total, _ := svc.ListIssues(context.Background(), &dto.ListErrorIssuesReq{Source: constant.ErrorSourceBackend})
+	if total != 2 {
+		t.Fatalf("backend issues = %d, want 2", total)
+	}
+	var throttled *dto.ErrorIssueDto
+	for _, issue := range issues {
+		if strings.HasPrefix(issue.Title, "failed_to_get_target") {
+			throttled = issue
+		} else if issue.Count != 1 {
+			t.Fatalf("other issue count = %d", issue.Count)
+		}
+	}
+	if throttled == nil || throttled.Count != 1 || countEvents(t, throttled.ID) != 1 {
+		t.Fatalf("throttled issue should be written once: %+v", throttled)
+	}
+
+	// 窗口过后再出现：写库一次，并把窗口内只计数的 2 次并进去
+	report := &errorReport{Source: constant.ErrorSourceBackend, Kind: constant.ErrorKindError, Type: dbDown.Code, Value: dbDown.Cause, Method: dbDown.Method, Path: dbDown.Path}
+	if err := sharedstate.Current().Delete("error_report_backend_throttle:" + errorFingerprint(report)); err != nil {
+		t.Fatal(err)
+	}
+	svc.RecordBackendError(context.Background(), dbDown)
+	issue, _ := svc.GetIssue(context.Background(), throttled.ID)
+	if issue.Count != 4 || countEvents(t, throttled.ID) != 2 {
+		t.Fatalf("after window: count = %d, events = %d", issue.Count, countEvents(t, throttled.ID))
+	}
+}
+
+// 后台写错误报告的协程数已满时直接丢弃，不再起新协程
+func TestReportBackendErrorAsyncBounded(t *testing.T) {
+	setupEditTest(t)
+	for i := 0; i < backendErrorMaxWriters; i++ {
+		backendErrorWriters <- struct{}{}
+	}
+	before, warnedBefore := backendErrorDropped.Load(), backendErrorDropWarnAt.Load()
+	NewErrorReportService().ReportBackendErrorAsync(context.Background(), BackendError{Status: 500, Code: "dropped", Method: "GET", Path: "/x"})
+	for i := 0; i < backendErrorMaxWriters; i++ {
+		<-backendErrorWriters
+	}
+	// 丢弃时计数加一，或刚好输出了汇总告警（计数随之清零）
+	if backendErrorDropped.Load() == before && backendErrorDropWarnAt.Load() == warnedBefore {
+		t.Fatal("report should be dropped when writers are full")
+	}
+	if countIssues(t) != 0 {
+		t.Fatal("dropped report should not be written")
+	}
+}
+
+func countEvents(t *testing.T, issueID uint) int64 {
+	t.Helper()
+	var n int64
+	repo.GetDB().Model(&model.ErrorEvent{}).Where("issue_id = ?", issueID).Count(&n)
+	return n
+}

@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -48,6 +49,18 @@ const (
 	errorTitleLimit            = 512
 	errorStackTextLimit        = 16 << 10
 	MaxErrorEnvelopeSize       = 256 << 10 // 一次上报的请求体上限
+
+	backendErrorThrottleWindow = time.Minute    // 同一指纹的后端错误在窗口内只写一次库，其余只累计次数
+	backendErrorPendingTTL     = 24 * time.Hour // 只计数未写库的次数最多保留多久（并入同一指纹的下一次写库）
+	backendErrorMaxWriters     = 4              // 同时在后台写错误报告的协程数上限，超出直接丢弃
+	backendErrorDropWarnPeriod = time.Minute    // 丢弃告警的日志间隔
+)
+
+var (
+	// backendErrorWriters 后台写错误报告的有界信号量：数据库故障、写库变慢时不会每个失败请求各堆一个协程
+	backendErrorWriters    = make(chan struct{}, backendErrorMaxWriters)
+	backendErrorDropped    atomic.Int64 // 上次告警以来因并发已满而丢弃的条数
+	backendErrorDropWarnAt atomic.Int64 // 上次输出丢弃告警的时间（UnixNano）
 )
 
 type ErrorReportService struct{}
@@ -77,6 +90,7 @@ type errorReport struct {
 	Release    string
 	UserAgent  string
 	At         time.Time
+	Count      int64 // 本次累计到问题的次数（含限频期间只计数未写库的），0 表示一次
 	Exceptions []sentryException
 	Detail     map[string]any
 }
@@ -125,7 +139,33 @@ type BackendError struct {
 	Path   string
 }
 
-// RecordBackendError 记录 Go 后端的 panic 与 5xx（直接写库，不经过上报接口）；记录失败只写日志，不影响请求
+// ReportBackendErrorAsync 在后台记录后端错误（请求处理路径用，不阻塞响应）：同时在写的协程数有上限，
+// 已满时直接丢弃并计数，日志按间隔汇总告警
+func (s *ErrorReportService) ReportBackendErrorAsync(ctx context.Context, e BackendError) {
+	select {
+	case backendErrorWriters <- struct{}{}:
+	default:
+		backendErrorDropped.Add(1)
+		warnDroppedBackendErrors()
+		return
+	}
+	go func() {
+		defer func() { <-backendErrorWriters }()
+		s.RecordBackendError(ctx, e)
+	}()
+}
+
+func warnDroppedBackendErrors() {
+	now := time.Now().UnixNano()
+	last := backendErrorDropWarnAt.Load()
+	if now-last < int64(backendErrorDropWarnPeriod) || !backendErrorDropWarnAt.CompareAndSwap(last, now) {
+		return
+	}
+	logrus.Warnf("dropped %d backend error reports: too many concurrent writes (limit %d)", backendErrorDropped.Swap(0), backendErrorMaxWriters)
+}
+
+// RecordBackendError 记录 Go 后端的 panic 与 5xx（直接写库，不经过上报接口）；记录失败只写日志，不影响请求。
+// 同一指纹按 backendErrorThrottleWindow 限频，数据库故障时不会每个失败请求都再写一次库
 func (s *ErrorReportService) RecordBackendError(ctx context.Context, e BackendError) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -156,9 +196,32 @@ func (s *ErrorReportService) RecordBackendError(ctx context.Context, e BackendEr
 		report.Type = firstNonEmpty(e.Code, "internal_server_error")
 		report.Value = utils.Truncate(e.Cause, errorTextLimit)
 	}
+	count, write := throttleBackendError(errorFingerprint(report))
+	if !write {
+		return
+	}
+	report.Count = count
 	if err := s.record(ctx, report, ErrorReportClient{UserAgent: ""}); err != nil {
 		logrus.Warnf("record backend error failed: %v", err)
 	}
+}
+
+// throttleBackendError 按指纹限频：同一指纹在窗口内只有第一次真正写库，其余只在共享状态里累计次数，
+// 并入该指纹窗口过后的下一次写库（之后不再出现的那部分次数不会写入）。返回这次是否写库与应累计的次数。
+// 窗口计数在共享状态出错时按本机计数限频；累计次数在共享状态出错时直接丢弃（只影响次数统计）
+func throttleBackendError(fingerprint string) (count int64, write bool) {
+	pendingKey := "error_report_backend_pending:" + fingerprint
+	if utils.IncrCounter("error_report_backend_throttle:"+fingerprint, backendErrorThrottleWindow) > 1 {
+		_, _ = sharedstate.Current().Incr(pendingKey, backendErrorPendingTTL)
+		return 0, false
+	}
+	count = 1
+	if value, ok, err := sharedstate.Current().Take(pendingKey); err == nil && ok {
+		if n, err := strconv.ParseInt(value, 10, 64); err == nil && n > 0 {
+			count += n
+		}
+	}
+	return count, true
 }
 
 // reportFromSentry 把 SDK 上报的事件归一化：来源（Next 服务端由 instrumentation.ts 以 node 平台上报）、类型（崩溃补报带 kind 标签）与页面路径
@@ -230,15 +293,14 @@ func reportFromSentry(event *sentryEvent, userAgent string, now time.Time) *erro
 }
 
 // allowNewIssue 公开上报（浏览器、Next 服务端经 envelope 上报）新建问题的全站上限：已有的问题照常累计；
-// 计数出错时放行。Go 后端自身的错误不经过这里，不会被刷出来的新问题挤掉
+// 共享状态出错时按本机计数。Go 后端自身的错误不经过这里，不会被刷出来的新问题挤掉
 func allowNewIssue(report *errorReport) bool {
 	exists, err := repo.ErrorReport.IssueExists(errorFingerprint(report))
 	if err != nil || exists {
 		return true
 	}
 	hour := report.At.Truncate(time.Hour).Unix()
-	created, err := sharedstate.Current().Incr(fmt.Sprintf("error_report_new_issues:%d", hour), time.Hour)
-	return err != nil || created <= errorNewIssuesPerHour
+	return utils.IncrCounter(fmt.Sprintf("error_report_new_issues:%d", hour), time.Hour) <= errorNewIssuesPerHour
 }
 
 // capErrorDetail 现场超出上限时按次要程度依次丢弃字段（自定义数据、标签、上下文、面包屑、SDK 信息），保留异常本身
@@ -263,6 +325,7 @@ func (s *ErrorReportService) record(ctx context.Context, report *errorReport, cl
 		Title:       utils.Truncate(errorTitle(report), errorTitleLimit),
 		Culprit:     utils.Truncate(errorCulprit(report), errorTitleLimit),
 		LastRelease: report.Release,
+		Count:       report.Count,
 		FirstSeenAt: report.At,
 		LastSeenAt:  report.At,
 	})
@@ -270,8 +333,7 @@ func (s *ErrorReportService) record(ctx context.Context, report *errorReport, cl
 		return err
 	}
 	hour := report.At.Truncate(time.Hour).Unix()
-	saved, err := sharedstate.Current().Incr(fmt.Sprintf("error_report_events:%d:%d", issue.ID, hour), time.Hour)
-	if err == nil && saved > errorEventsPerIssuePerHour {
+	if utils.IncrCounter(fmt.Sprintf("error_report_events:%d:%d", issue.ID, hour), time.Hour) > errorEventsPerIssuePerHour {
 		return nil
 	}
 

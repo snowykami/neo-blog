@@ -61,10 +61,9 @@ func loadAgentWriteContext(ctx context.Context, scope string) (*agentWriteContex
 	return &agentWriteContext{run: run, agent: agent, profile: agent.ParsedProfile(), cfg: tools.GetAIAgentConfig(), now: time.Now()}, nil
 }
 
-// takeWriteSlot 每次运行最多 agentMaxActionsPerRun 次写操作
+// takeWriteSlot 每次运行最多 agentMaxActionsPerRun 次写操作（共享状态出错时按本机计数）
 func (w *agentWriteContext) takeWriteSlot() *errs.ServiceError {
-	n, err := sharedstate.Current().Incr(fmt.Sprintf("ai:run:%d:writes", w.run.RunID), AgentRunMaxDuration+agentLeaseDuration)
-	if err == nil && n > agentMaxActionsPerRun {
+	if utils.IncrCounter(fmt.Sprintf("ai:run:%d:writes", w.run.RunID), AgentRunMaxDuration+agentLeaseDuration) > agentMaxActionsPerRun {
 		return errs.NewTooManyRequests("agent_run_action_limit")
 	}
 	return nil

@@ -16,9 +16,12 @@ type errorReportRepo struct{}
 
 var ErrorReport = &errorReportRepo{}
 
-// UpsertIssue 按指纹新建问题或累计一次：已解决的问题再次出现时回到未处理；返回最新的问题
+// UpsertIssue 按指纹新建问题或累计次数（issue.Count，未设置时为一次；限频时合并了此前只计数未写库的次数）：
+// 已解决的问题再次出现时回到未处理；返回最新的问题
 func (r *errorReportRepo) UpsertIssue(issue *model.ErrorIssue) (*model.ErrorIssue, error) {
-	issue.Count = 1
+	if issue.Count < 1 {
+		issue.Count = 1
+	}
 	if issue.Status == "" {
 		issue.Status = constant.ErrorStatusUnresolved
 	}
@@ -26,7 +29,7 @@ func (r *errorReportRepo) UpsertIssue(issue *model.ErrorIssue) (*model.ErrorIssu
 	err := GetDB().Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "fingerprint"}},
 		DoUpdates: clause.Assignments(map[string]any{
-			"count":        gorm.Expr("error_issues.count + 1"),
+			"count":        gorm.Expr("error_issues.count + ?", issue.Count),
 			"last_seen_at": issue.LastSeenAt,
 			"last_release": gorm.Expr("CASE WHEN ? <> '' THEN ? ELSE error_issues.last_release END", issue.LastRelease, issue.LastRelease),
 			"status":       gorm.Expr("CASE WHEN error_issues.status = ? THEN ? ELSE error_issues.status END", constant.ErrorStatusResolved, constant.ErrorStatusUnresolved),
