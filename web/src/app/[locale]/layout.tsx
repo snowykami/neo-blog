@@ -62,7 +62,8 @@ export async function generateMetadata(): Promise<Metadata> {
       default: siteInfo.metadata.name,
       template: `%s - ${siteInfo.metadata.name}`,
     },
-    icons: [{ rel: 'icon', url: siteInfo.metadata.icon }],
+    // 没有配置站点图标时不输出 icon 链接，浏览器使用 /favicon.ico
+    icons: siteInfo.metadata.icon ? [{ rel: 'icon', url: siteInfo.metadata.icon }] : undefined,
   }
 }
 

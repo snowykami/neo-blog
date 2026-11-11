@@ -5,7 +5,7 @@ import { Bell, CheckCheck, Loader2 } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { getUnreadNotificationCount, listNotificationGroupMembers, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/api/notification'
+import { listNotificationGroupMembers, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/api/notification'
 import { useLoginDialog } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
 import { attachmentMarkerMessage, parseAttachmentMarker } from '@/components/notification/attachment-marker'
@@ -14,6 +14,8 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/auth-context'
+import { decreaseUnreadSnapshot, requestUnreadRefresh } from '@/hooks/notification-unread-store'
+import { useUnreadNotificationSnapshot } from '@/hooks/use-notification-unread'
 import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/utils/common/datetime'
@@ -34,7 +36,11 @@ const PAGE_SIZE = 10
 export function NotificationsPage() {
   const t = useTranslations('Notifications')
   const { user, loading: authLoading } = useAuth()
+  // 只跟随账号变化：用户对象在改资料、改配色时也会换新，不必因此重新拉列表
+  const userId = user?.id ?? null
   const openLogin = useLoginDialog()
+  // 真实的未读组数（顶栏实时连接维护）：「全部已读」是否可点按它，不按当前 tab 已加载的条目
+  const unread = useUnreadNotificationSnapshot()
   const [tab, setTab] = useState<TabKey>('all')
   const [items, setItems] = useState<NotificationItemModel[]>([])
   const [total, setTotal] = useState(0)
@@ -43,6 +49,14 @@ export function NotificationsPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [markingAll, setMarkingAll] = useState(false)
   const sentinel = useRef<HTMLDivElement | null>(null)
+  // 请求序号：切 tab、换账号时递增，旧请求晚到的结果直接丢弃，不覆盖新列表
+  const requestSeq = useRef(0)
+  // 打开页面以来看到过的最大通知 id（含当时未读状态里最新的一条）：「全部已读」只标到这里，之后新到的保持未读
+  const seen = useRef<{ userId: number | null, maxId: number }>({ userId: null, maxId: 0 })
+  const unreadRef = useRef(unread)
+  useEffect(() => {
+    unreadRef.current = unread
+  }, [unread])
 
   const query = useMemo(() => {
     const types = tab === 'reply' ? REPLY_TYPES : tab === 'like' ? LIKE_TYPES : undefined
@@ -50,45 +64,60 @@ export function NotificationsPage() {
   }, [tab])
 
   const load = useCallback(async (nextPage: number, replace: boolean) => {
+    // 重新拉第一屏开启新的一轮，之前未完成的请求（含加载更多）作废；加载更多沿用当前这一轮
+    const seq = replace ? ++requestSeq.current : requestSeq.current
     if (replace) {
       setLoading(true)
+      setLoadingMore(false)
     }
     else {
       setLoadingMore(true)
     }
     try {
       const res = await listNotifications({ ...query, page: nextPage, size: PAGE_SIZE })
+      if (seq !== requestSeq.current)
+        return
       setItems(prev => replace ? res.data.notifications : [...prev, ...res.data.notifications])
       setTotal(res.data.total)
       setPage(nextPage)
+      seen.current.maxId = Math.max(seen.current.maxId, unreadRef.current?.latestId ?? 0, ...res.data.notifications.map(item => item.id))
     }
     catch {
-      toast.error(t('load_failed'))
+      if (seq === requestSeq.current)
+        toast.error(t('load_failed'))
     }
     finally {
-      setLoading(false)
-      setLoadingMore(false)
+      if (seq === requestSeq.current) {
+        setLoading(false)
+        setLoadingMore(false)
+      }
     }
   }, [query, t])
 
-  // 切换 tab 或登录状态变化时重新拉第一屏
+  // 切换 tab 或账号变化时重新拉第一屏
   useEffect(() => {
     // 登录状态在浏览器里确认，确认前保持骨架屏
     if (authLoading)
       return
-    if (!user) {
+    // 换账号：「看到过的」从头算
+    if (seen.current.userId !== userId)
+      seen.current = { userId, maxId: 0 }
+    if (userId === null) {
+      // 作废进行中的请求：登出前发出的请求晚到时不能把上一个账号的通知显示出来
+      requestSeq.current++
       setItems([])
       setTotal(0)
       setLoading(false)
+      setLoadingMore(false)
       return
     }
     void load(1, true)
-  }, [authLoading, load, user])
+  }, [authLoading, load, userId])
 
   // 触底加载
   useEffect(() => {
     const node = sentinel.current
-    if (!node || !user)
+    if (!node || userId === null)
       return
     const observer = new IntersectionObserver((entries) => {
       if (entries[0]?.isIntersecting && !loading && !loadingMore && items.length < total) {
@@ -97,12 +126,14 @@ export function NotificationsPage() {
     })
     observer.observe(node)
     return () => observer.disconnect()
-  }, [items.length, total, page, loading, loadingMore, load, user])
+  }, [items.length, total, page, loading, loadingMore, load, userId])
 
   const handleMarkAll = async () => {
     setMarkingAll(true)
     try {
-      await markAllNotificationsRead()
+      // 只标打开页面以来看到过的；还什么都没看到时不限（与旧行为一致）
+      await markAllNotificationsRead({ beforeId: seen.current.maxId || undefined })
+      requestUnreadRefresh()
       await load(1, true)
     }
     catch {
@@ -113,16 +144,22 @@ export function NotificationsPage() {
     }
   }
 
-  // 点开即已读；聚合行由后端整组置已读，本地同步整行状态
+  // 点开即已读；聚合行由后端整组置已读，本地同步整行状态。
+  // 头像上的未读数先乐观减一（一行就是一个未读组），请求结束后再让顶栏取一次真实值；失败时同样以服务端为准
   const handleOpen = (item: NotificationItemModel) => {
-    if (item.isRead)
+    if (item.isRead || userId === null)
       return
     setItems(prev => prev.map(row => row.id === item.id ? { ...row, isRead: true } : row))
-    markNotificationRead(item.id).catch(() => {
-      setItems(prev => prev.map(row => row.id === item.id ? { ...row, isRead: false } : row))
-      getUnreadNotificationCount().catch(() => {})
-    })
+    decreaseUnreadSnapshot(userId, 1)
+    markNotificationRead(item.id)
+      .catch(() => {
+        setItems(prev => prev.map(row => row.id === item.id ? { ...row, isRead: false } : row))
+      })
+      .finally(() => requestUnreadRefresh())
   }
+
+  // 还没取到真实未读数时（顶栏的请求还在路上）按已加载的条目判断
+  const hasUnread = unread ? unread.total > 0 : items.some(item => !item.isRead)
 
   if (!user && !authLoading) {
     return (
@@ -153,7 +190,7 @@ export function NotificationsPage() {
           type="button"
           variant="outline"
           size="sm"
-          disabled={markingAll || items.every(item => item.isRead)}
+          disabled={markingAll || !hasUnread}
           onClick={() => void handleMarkAll()}
         >
           {markingAll ? <Loader2 className="animate-spin" /> : <CheckCheck />}

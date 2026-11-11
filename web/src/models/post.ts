@@ -16,7 +16,8 @@ export interface Post {
   // 可编辑字段
   title: string
   slug: string | null
-  content: string
+  content: string // 正文 HTML；列表接口不返回（为空），摘要用 excerpt
+  excerpt?: string // 已发布正文的纯文本摘要（最多 200 字，截断时带省略号），由后端保存时生成
   description: string // 描述
   draftContent?: string | null // 草稿内容，仅单篇草稿模式（作者/管理员）返回，列表与随机接口不包含
   draftVersion?: number // 草稿版本号，随草稿一起返回；保存正文时作为 baseDraftVersion 传回

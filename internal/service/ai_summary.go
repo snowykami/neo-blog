@@ -674,6 +674,15 @@ var reasoningEffortUnsupported sync.Map
 // 空为不指定，由模型默认）。思考型模型默认会先输出大量思考内容，任务简单时调低能快数倍。
 // 不支持该参数的接口返回 400 时，去掉参数重试一次并记住
 func chatCompletionWithReasoning(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) (string, error) {
+	data, err := chatCompletionRaw(ctx, cfg, system, user, temperature, effort)
+	if err != nil {
+		return "", err
+	}
+	return parseChatCompletion(data)
+}
+
+// chatCompletionRaw 同 chatCompletionWithReasoning，返回上游的原始响应体（需要读取 usage 用量时使用）
+func chatCompletionRaw(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) ([]byte, error) {
 	payload := map[string]any{
 		"model":       cfg.Model,
 		"messages":    chatMessages(system, user),
@@ -693,14 +702,10 @@ func chatCompletionWithReasoning(ctx context.Context, cfg tools.AIConfig, system
 		resp, err = postChatCompletions(ctx, cfg, payload)
 	}
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return "", err
-	}
-	return parseChatCompletion(data)
+	return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 }
 
 func chatMessages(system, user string) []map[string]string {

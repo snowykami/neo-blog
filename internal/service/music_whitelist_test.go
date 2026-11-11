@@ -86,3 +86,63 @@ func TestSongPlayableWhitelist(t *testing.T) {
 		t.Fatal("newly published song should be found after rescanning")
 	}
 }
+
+// 公开的文章或页面变化（repo.TouchCacheTags）后立即作废文章引用的歌曲，不用等重新扫描的间隔
+func TestArticleSongsInvalidatedOnContentChange(t *testing.T) {
+	setupEditTest(t)
+	resetArticleSongs()
+	t.Cleanup(resetArticleSongs)
+	ListenMusicWhitelistChanges()
+	s := NewMusicService()
+	anonymous := context.Background()
+	if s.SongPlayable(anonymous, 301) {
+		t.Fatal("song 301 is not referenced yet")
+	}
+	if err := repo.GetDB().Create(&model.Post{PostBase: model.PostBase{Title: "t", Content: songComponent("neteaseSong", `{"id":301}`)}}).Error; err != nil {
+		t.Fatal(err)
+	}
+	repo.TouchCacheTags(repo.CacheTagPosts)
+	if !s.SongPlayable(anonymous, 301) {
+		t.Fatal("published song should be playable right after the content change")
+	}
+	// 改为私密后同样立即失效
+	if err := repo.GetDB().Model(&model.Post{}).Where("1 = 1").Update("is_private", true).Error; err != nil {
+		t.Fatal(err)
+	}
+	repo.TouchCacheTags(repo.CacheTagPosts)
+	if s.SongPlayable(anonymous, 301) {
+		t.Fatal("private post should no longer whitelist the song")
+	}
+}
+
+// 换取播放地址不依赖整份歌单：歌单接口出错时，公开文章引用的歌曲仍可播放，其他歌曲照样拒绝
+func TestSongURLWithoutPlaylist(t *testing.T) {
+	setupEditTest(t)
+	resetArticleSongs()
+	t.Cleanup(resetArticleSongs)
+	srv, calls := fakeNCMServer(t)
+	// 歌单不存在：歌单接口返回错误
+	setMusicKV(t, map[string]any{"ncm_api_base_url": srv.URL, "ncm_cookie": "MUSIC_U=abc", "ncm_playlist_id": float64(99), "ncm_song_level": ""})
+	s := NewMusicService()
+	ctx := context.Background()
+	if _, svcerr := s.GetPlaylist(ctx); svcerr == nil {
+		t.Fatal("playlist should fail")
+	}
+	if err := repo.GetDB().Create(&model.Post{PostBase: model.PostBase{Title: "t", Content: songComponent("neteaseSong", `{"id":1}`)}}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if songURL, svcerr := s.GetSongURL(ctx, 1, "higher"); svcerr != nil || songURL == "" {
+		t.Fatalf("referenced song url = %q %v", songURL, svcerr)
+	}
+	if _, svcerr := s.GetSongURL(ctx, 12345, ""); svcerr == nil || svcerr.Message != "music_song_not_found" {
+		t.Fatalf("unreferenced song = %v", svcerr)
+	}
+	if calls["/song/url/v1"].Load() > 1 {
+		t.Fatalf("song url calls = %d", calls["/song/url/v1"].Load())
+	}
+	// 网易云未配置时不提供
+	setMusicKV(t, map[string]any{"ncm_api_base_url": ""})
+	if _, svcerr := s.GetSongURL(ctx, 1, ""); svcerr == nil || svcerr.Message != "ncm_not_configured" {
+		t.Fatalf("not configured = %v", svcerr)
+	}
+}

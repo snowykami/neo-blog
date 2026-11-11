@@ -274,14 +274,19 @@ func (m *musicType) RefreshLyricAnnotations(ctx context.Context, c *app.RequestC
 	resps.Ok(c, resps.Success, result)
 }
 
-// ListLyricAnnotations 后台歌词特效列表：已有标注的歌曲与生成 / 编辑时间（仅管理员）
+// ListLyricAnnotations 后台歌词特效列表（分页）：博客歌单中的歌曲与已有标注的歌曲，标注状态与生成 / 编辑时间（仅管理员）
 func (m *musicType) ListLyricAnnotations(ctx context.Context, c *app.RequestContext) {
-	result, svcerr := m.service.ListLyricAnnotations(ctx)
+	var req dto.MusicLyricAnnotationListReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	items, total, svcerr := m.service.ListLyricAnnotations(ctx, &req)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
-	resps.Ok(c, resps.Success, result)
+	resps.Ok(c, resps.Success, map[string]any{"items": items, "total": total})
 }
 
 // BatchDeleteLyricAnnotations 批量删除歌词标注（仅管理员）：这些歌曲所有歌词版本的标注，含手动编辑过的

@@ -26,7 +26,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title: routeT('homepage'),
     description: siteInfo.metadata.description,
     metadataBase: safeMetadataBase(siteInfo?.baseUrl),
-    icons: [{ rel: 'icon', url: siteInfo.metadata.icon }],
+    // 没有配置站点图标时不输出 icon 链接，浏览器使用 /favicon.ico
+    icons: siteInfo.metadata.icon ? [{ rel: 'icon', url: siteInfo.metadata.icon }] : undefined,
     keywords: siteInfo.keywords,
     openGraph: {
       title: `${routeT('homepage')} - ${siteInfo.metadata.name}`,

@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"slices"
 	"sync"
 	"time"
@@ -20,7 +22,10 @@ import (
 //   - 删除：删除这些歌曲的全部标注（所有歌词版本，含手动编辑），之后读者播放时按需重新生成
 //   - 重新生成：后台任务逐首生成，同时最多 concurrency 首（每首歌内部的模型调用还会各自排队等待全局 AI 并发名额）。
 //     进度保存在共享状态中（配置 Redis 时多副本看到的一致）；任务令牌（租约）随执行续期，执行的实例退出（滚动更新、崩溃）后
-//     由 job_recovery 定时接手剩下的歌曲；全站同时只有一个批量任务
+//     由 job_recovery 定时接手剩下的歌曲；全站同时只有一个批量任务。租约丢失（例如长时间连不上 Redis，期间已被其他实例接手）后
+//     本实例不再开始新的歌曲、不再写进度，交给接手的实例
+//   - 结果：成功为完成；不需要生成的（没有逐字歌词、不在歌单、手动编辑过、生成期间被删除）为跳过；
+//     内部错误、上游出错、等不到全站歌词版本与模型失败为失败（可以再次批量重试）
 const (
 	lyricAnnotationBatchMaxSongs    = 1000
 	lyricAnnotationBatchConcurrency = 2
@@ -31,8 +36,11 @@ const (
 	lyricAnnotationBatchVersionWait = 30 * time.Second
 )
 
-// 跳过的原因：当前歌词版本的标注手动编辑过（没有勾选覆盖）
-const lyricAnnotationBatchSkipEdited = "edited"
+// 跳过的原因：当前歌词版本的标注手动编辑过（没有勾选覆盖，或在生成期间被手动编辑）；生成期间这首歌的标注被删除
+const (
+	lyricAnnotationBatchSkipEdited  = "edited"
+	lyricAnnotationBatchSkipDeleted = "deleted"
+)
 
 type lyricAnnotationBatchRunner struct {
 	// 共享状态键的前缀
@@ -42,6 +50,8 @@ type lyricAnnotationBatchRunner struct {
 	prepare     func(ctx context.Context, id int64) ([]string, lyricAnnotationInfo, tools.AIConfig, *errs.ServiceError)
 	edited      func(id int64, lines []string) bool
 	concurrency int
+	// leaseTTL 任务令牌的有效期（为 0 时为 lyricAnnotationBatchLeaseTTL，测试时缩短）
+	leaseTTL time.Duration
 	// done 一次执行结束时调用（测试用），可为 nil
 	done func()
 }
@@ -57,6 +67,12 @@ var lyricAnnotationBatch = &lyricAnnotationBatchRunner{
 }
 
 func (r *lyricAnnotationBatchRunner) statusKey() string { return r.name + ":status" }
+func (r *lyricAnnotationBatchRunner) ttl() time.Duration {
+	if r.leaseTTL > 0 {
+		return r.leaseTTL
+	}
+	return lyricAnnotationBatchLeaseTTL
+}
 func (r *lyricAnnotationBatchRunner) activeKey() string { return r.name + ":active" }
 func (r *lyricAnnotationBatchRunner) cancelKey() string { return r.name + ":cancel" }
 
@@ -87,22 +103,18 @@ func normalizeLyricAnnotationSongIDs(ids []int64) ([]int64, *errs.ServiceError) 
 	return result, nil
 }
 
-// DeleteLyricAnnotations 批量删除歌词标注（仅管理员）：这些歌曲所有歌词版本的标注，含手动编辑过的
+// DeleteLyricAnnotations 批量删除歌词标注（仅管理员）：这些歌曲所有歌词版本的标注，含手动编辑过的；
+// 正在进行的生成（读者触发、单首或批量重新生成）结束后不再把结果写回（见 lyricAnnotationService.deleteSongs）
 func (s *MusicService) DeleteLyricAnnotations(ctx context.Context, req *dto.MusicLyricAnnotationBatchReq) (*dto.MusicLyricAnnotationBatchDeleteResp, *errs.ServiceError) {
 	ids, svcerr := normalizeLyricAnnotationSongIDs(req.SongIDs)
 	if svcerr != nil {
 		return nil, svcerr
 	}
-	db := repo.GetDB().WithContext(ctx)
-	var songs int64
-	if err := db.Model(&model.LyricAnnotation{}).Where("song_id IN ?", ids).Distinct("song_id").Count(&songs).Error; err != nil {
-		return nil, errs.Internal("failed_to_get_target", err)
+	songs, records, err := lyricAnnotations.deleteSongs(ctx, ids)
+	if err != nil {
+		return nil, errs.Internal("failed_to_delete_target", err)
 	}
-	result := db.Where("song_id IN ?", ids).Delete(&model.LyricAnnotation{})
-	if result.Error != nil {
-		return nil, errs.Internal("failed_to_delete_target", result.Error)
-	}
-	return &dto.MusicLyricAnnotationBatchDeleteResp{Songs: int(songs), Records: result.RowsAffected}, nil
+	return &dto.MusicLyricAnnotationBatchDeleteResp{Songs: int(songs), Records: records}, nil
 }
 
 // StartLyricAnnotationBatch 开始批量重新生成（仅管理员），返回初始进度；已有批量任务在执行时返回 409
@@ -133,7 +145,7 @@ func (r *lyricAnnotationBatchRunner) start(songIDs []int64, overwriteEdited bool
 	if svcerr != nil {
 		return nil, svcerr
 	}
-	lease, err := sharedstate.AcquireLease(r.activeKey(), lyricAnnotationBatchLeaseTTL)
+	lease, err := sharedstate.AcquireLease(r.activeKey(), r.ttl())
 	if err != nil {
 		return nil, errs.Internal("failed_to_update_target", err)
 	}
@@ -190,7 +202,7 @@ func (r *lyricAnnotationBatchRunner) cancel() (*dto.MusicLyricAnnotationBatchSta
 		return status, nil
 	}
 	// 执行的实例已退出、还没有被接手：直接结束
-	if lease, err := sharedstate.AcquireLease(r.activeKey(), lyricAnnotationBatchLeaseTTL); err == nil && lease != nil {
+	if lease, err := sharedstate.AcquireLease(r.activeKey(), r.ttl()); err == nil && lease != nil {
 		defer lease.Release()
 		r.finish(status, true)
 		if err := r.save(status); err != nil {
@@ -210,7 +222,7 @@ func (r *lyricAnnotationBatchRunner) resume() {
 	if found, err := sharedstate.GetJSON(r.statusKey(), &status); err != nil || !found || status.State != dto.MusicLyricAnnotationBatchStateRunning {
 		return
 	}
-	lease, err := sharedstate.AcquireLease(r.activeKey(), lyricAnnotationBatchLeaseTTL)
+	lease, err := sharedstate.AcquireLease(r.activeKey(), r.ttl())
 	if err != nil || lease == nil {
 		return
 	}
@@ -252,15 +264,35 @@ func (r *lyricAnnotationBatchRunner) canceled() bool {
 	return err == nil && ok
 }
 
-// run 持有任务令牌执行：上次中断时进行中的歌曲重新排队，最多 concurrency 首并行，每首结束即保存进度
+// run 持有任务令牌执行：上次中断时进行中的歌曲重新排队，最多 concurrency 首并行，每首结束即保存进度。
+// 开始每首歌、写入进度前确认仍持有任务令牌：丢失后（已被其他实例接手）不再开始新的歌曲、不再写进度，进行中的生成随之取消
 func (r *lyricAnnotationBatchRunner) run(lease *sharedstate.Lease, status *dto.MusicLyricAnnotationBatchStatus) {
+	ctx, stop := context.WithCancel(context.Background())
 	defer func() {
+		stop()
 		lease.Release()
 		if r.done != nil {
 			r.done()
 		}
 	}()
+	go func() {
+		select {
+		case <-lease.Lost():
+			stop()
+		case <-ctx.Done():
+		}
+	}()
 	var mu sync.Mutex
+	lost := false
+	// held 是否仍持有任务令牌，调用方须持有 mu；丢失后不再恢复
+	held := func() bool {
+		if !lost && !lease.Held() {
+			lost = true
+			stop()
+			logrus.Warnf("lyric annotation batch %s: lease lost, leaving the rest to the instance that took over", status.ID)
+		}
+		return !lost
+	}
 	for i := range status.Items {
 		if status.Items[i].Status == dto.MusicLyricAnnotationBatchRunning {
 			status.Items[i].Status = dto.MusicLyricAnnotationBatchPending
@@ -277,6 +309,9 @@ func (r *lyricAnnotationBatchRunner) run(lease *sharedstate.Lease, status *dto.M
 	take := func() int {
 		mu.Lock()
 		defer mu.Unlock()
+		if !held() {
+			return -1
+		}
 		if canceled = canceled || r.canceled(); canceled {
 			return -1
 		}
@@ -296,10 +331,12 @@ func (r *lyricAnnotationBatchRunner) run(lease *sharedstate.Lease, status *dto.M
 	for range max(1, r.concurrency) {
 		wg.Go(func() {
 			for i := take(); i >= 0; i = take() {
-				result, reason := r.process(status.Items[i].SongID, status.OverwriteEdited)
+				result, reason := r.process(ctx, status.Items[i].SongID, status.OverwriteEdited)
 				mu.Lock()
-				status.Items[i].Status, status.Items[i].Reason = result, reason
-				save()
+				if held() {
+					status.Items[i].Status, status.Items[i].Reason = result, reason
+					save()
+				}
 				mu.Unlock()
 			}
 		})
@@ -307,30 +344,49 @@ func (r *lyricAnnotationBatchRunner) run(lease *sharedstate.Lease, status *dto.M
 	wg.Wait()
 	mu.Lock()
 	defer mu.Unlock()
+	if !held() {
+		return
+	}
 	r.finish(status, canceled)
 	save()
 	_ = sharedstate.Current().Delete(r.cancelKey())
 }
 
-// process 重新生成一首歌，返回状态与原因（跳过或失败时）
-func (r *lyricAnnotationBatchRunner) process(id int64, overwriteEdited bool) (status, reason string) {
+// process 重新生成一首歌，返回状态与原因（跳过或失败时）；parent 结束（任务令牌丢失）时中止
+func (r *lyricAnnotationBatchRunner) process(parent context.Context, id int64, overwriteEdited bool) (status, reason string) {
 	defer func() {
 		if v := recover(); v != nil {
 			logrus.Errorf("lyric annotation batch panic for song %d: %v", id, v)
 			status, reason = dto.MusicLyricAnnotationBatchFailed, "lyric_annotations_failed"
 		}
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), lyricAnnotationBatchVersionWait+lyricAnnotationTimeout+time.Minute)
+	ctx, cancel := context.WithTimeout(parent, lyricAnnotationBatchVersionWait+lyricAnnotationTimeout+time.Minute)
 	defer cancel()
 	lines, info, cfg, svcerr := r.prepare(ctx, id)
 	if svcerr != nil {
+		if lyricAnnotationBatchFailure(svcerr) {
+			return dto.MusicLyricAnnotationBatchFailed, svcerr.Message
+		}
 		return dto.MusicLyricAnnotationBatchSkipped, svcerr.Message
 	}
 	if !overwriteEdited && r.edited(id, lines) {
 		return dto.MusicLyricAnnotationBatchSkipped, lyricAnnotationBatchSkipEdited
 	}
-	if err := r.annotations.regenerate(ctx, id, lines, info, cfg); err != nil {
+	err := r.annotations.regenerate(ctx, id, lines, info, cfg, overwriteEdited)
+	switch {
+	case err == nil:
+		return dto.MusicLyricAnnotationBatchDone, ""
+	case errors.Is(err, errLyricAnnotationEdited):
+		return dto.MusicLyricAnnotationBatchSkipped, lyricAnnotationBatchSkipEdited
+	case errors.Is(err, errLyricAnnotationDeleted):
+		return dto.MusicLyricAnnotationBatchSkipped, lyricAnnotationBatchSkipDeleted
+	default:
 		return dto.MusicLyricAnnotationBatchFailed, "lyric_annotations_failed"
 	}
-	return dto.MusicLyricAnnotationBatchDone, ""
+}
+
+// lyricAnnotationBatchFailure 准备阶段的错误是否算失败（而不是跳过）：等不到全站歌词版本、内部错误与上游出错（5xx）是暂时的，
+// 记为失败便于再次批量重试；其余（没有逐字歌词、不在歌单、没有歌词等）是这首歌本身不需要生成，记为跳过
+func lyricAnnotationBatchFailure(svcerr *errs.ServiceError) bool {
+	return svcerr == errLyricVersionPending || svcerr.Code >= http.StatusInternalServerError
 }

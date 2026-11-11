@@ -85,6 +85,19 @@ func (h *notificationHub) Notify(userID uint) {
 	sharedstate.Notify(notificationChannel, strconv.FormatUint(uint64(userID), 10))
 }
 
+// notifyNotificationUsers 通知变化（新增、删除、已读）后唤醒这些用户的实时连接：每人推一次最新的未读状态，
+// 徽标与其他标签页随之同步。必须在事务提交后调用
+func notifyNotificationUsers(userIDs []uint) {
+	seen := make(map[uint]bool, len(userIDs))
+	for _, userID := range userIDs {
+		if userID == 0 || seen[userID] {
+			continue
+		}
+		seen[userID] = true
+		NotificationHub.Notify(userID)
+	}
+}
+
 // NotificationStreamMaxPerUser 每个用户同时保持的 SSE 连接上限（跨实例合计）：多开几个标签页够用，
 // 又不至于让一个账号占满服务端的长连接
 const NotificationStreamMaxPerUser = 5

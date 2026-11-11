@@ -81,10 +81,14 @@ func (s *NotificationService) MarkNotificationRead(ctx context.Context, id uint)
 		}
 		return 0, errs.Internal("failed_to_update_target", err).WithResource("notification")
 	}
+	// 有通知变为已读时推送一次：本人其他标签页的徽标随之更新
+	if affected > 0 {
+		NotificationHub.Notify(currentUser.ID)
+	}
 	return affected, nil
 }
 
-// MarkAllNotificationsRead 全部已读
+// MarkAllNotificationsRead 全部已读；before_id 为页面打开时已看到的最大通知 id，之后新到的通知保持未读
 func (s *NotificationService) MarkAllNotificationsRead(ctx context.Context, req *dto.MarkAllNotificationsReadReq) (int64, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
@@ -93,6 +97,9 @@ func (s *NotificationService) MarkAllNotificationsRead(ctx context.Context, req 
 	affected, err := repo.Notification.MarkAllRead(currentUser.ID, req.BeforeID)
 	if err != nil {
 		return 0, errs.Internal("failed_to_update_target", err).WithResource("notification")
+	}
+	if affected > 0 {
+		NotificationHub.Notify(currentUser.ID)
 	}
 	return affected, nil
 }
@@ -154,6 +161,8 @@ func (s *NotificationService) SendTestNotification(ctx context.Context) *errs.Se
 	if err := repo.Notification.CreateNotification(nil, notification); err != nil {
 		return errs.Internal("failed_to_create_target", err).WithResource("notification")
 	}
+	// 与真实通知一样走实时推送，测试通知因此也能验证 SSE 链路（含跨实例广播）
+	NotificationHub.Notify(currentUser.ID)
 	return nil
 }
 

@@ -405,7 +405,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
 		// 已过期：先返回旧结果，在后台重新生成（失败冷却期内不重试，继续使用旧结果）；管理员手动编辑过的不自动重新生成
 		if !running && !coolingDown && record.EditedAt == nil && time.Since(record.CreatedAt) > ttl {
-			a.startLocked(key, id, hash, lines, info, cfg)
+			a.startLocked(key, id, hash, lines, info, cfg, false)
 			running = true
 		}
 		result.Stale = running
@@ -418,28 +418,33 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 	if coolingDown {
 		return nil, errs.NewNotFound("lyric_annotations_failed")
 	}
-	a.startLocked(key, id, hash, lines, info, cfg)
+	a.startLocked(key, id, hash, lines, info, cfg, false)
 	return &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusPending, Lines: []dto.MusicLyricAnnotationLine{}}, nil
 }
 
-// refresh 强制开始重新生成（已在生成时不重复开始），立即返回 pending
+// refresh 强制开始重新生成（已在生成时不重复开始），立即返回 pending；管理员明确要求，覆盖生成开始前的手动编辑
 func (a *lyricAnnotationService) refresh(id int64, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) *dto.MusicLyricAnnotationsDto {
 	key, hash := lyricAnnotationKey(id, lines)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if running, _ := a.jobState(key); !running {
-		a.startLocked(key, id, hash, lines, info, cfg)
+		a.startLocked(key, id, hash, lines, info, cfg, true)
 	}
 	return &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusPending, Lines: []dto.MusicLyricAnnotationLine{}}
 }
 
-func (a *lyricAnnotationService) stateKeys(key string) (job, failed string) {
+// prefix 共享状态键的前缀
+func (a *lyricAnnotationService) prefix() string {
 	a.initOnce.Do(func() {
 		if a.name == "" {
 			a.name = "lyric_annotation_" + utils.Strings.GenerateRandomString(8)
 		}
 	})
-	return a.name + ":job:" + key, a.name + ":failed:" + key
+	return a.name
+}
+
+func (a *lyricAnnotationService) stateKeys(key string) (job, failed string) {
+	return a.prefix() + ":job:" + key, a.prefix() + ":failed:" + key
 }
 
 // jobState 这份歌词文本是否正在生成标注（包括在其他实例上）、是否在失败后的冷却期内
@@ -455,8 +460,8 @@ func (a *lyricAnnotationService) jobState(key string) (running, coolingDown bool
 	return running, coolingDown
 }
 
-// startLocked 开始后台生成任务，调用方须持有 a.mu；其他实例刚好抢先开始时不重复生成
-func (a *lyricAnnotationService) startLocked(key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) {
+// startLocked 开始后台生成任务，调用方须持有 a.mu；其他实例刚好抢先开始时不重复生成。overwrite 见 saveGenerated
+func (a *lyricAnnotationService) startLocked(key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig, overwrite bool) {
 	jobKey, failedKey := a.stateKeys(key)
 	lease, err := sharedstate.AcquireLease(jobKey, lyricAnnotationJobTTL)
 	if err != nil || lease == nil {
@@ -466,22 +471,23 @@ func (a *lyricAnnotationService) startLocked(key string, id int64, hash string, 
 		return
 	}
 	_ = sharedstate.Current().Delete(failedKey)
-	go a.run(lease, key, id, hash, lines, info, cfg)
+	go a.run(lease, key, id, hash, lines, info, cfg, overwrite)
 }
 
-func (a *lyricAnnotationService) run(lease *sharedstate.Lease, key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) {
-	_ = a.execute(lease, key, id, hash, lines, info, cfg)
+func (a *lyricAnnotationService) run(lease *sharedstate.Lease, key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig, overwrite bool) {
+	_ = a.execute(lease, key, id, hash, lines, info, cfg, overwrite)
 }
 
 // execute 持有任务租约生成并保存一首歌的标注，结束时释放租约；失败时先记下冷却期（期间读者访问不自动重试）再释放，
-// 查询方不会在两者之间看到「没有在生成」而立即重试
-func (a *lyricAnnotationService) execute(lease *sharedstate.Lease, key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) (err error) {
+// 查询方不会在两者之间看到「没有在生成」而立即重试。结果因手动编辑或删除而不写回（errLyricAnnotationEdited / errLyricAnnotationDeleted）不算失败
+func (a *lyricAnnotationService) execute(lease *sharedstate.Lease, key string, id int64, hash string, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig, overwrite bool) (err error) {
+	startedAt := time.Now()
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("lyric annotation panic for song %d: %v", id, r)
 			err = fmt.Errorf("panic: %v", r)
 		}
-		if err != nil {
+		if err != nil && !errors.Is(err, errLyricAnnotationEdited) && !errors.Is(err, errLyricAnnotationDeleted) {
 			_, failedKey := a.stateKeys(key)
 			if setErr := sharedstate.Current().Set(failedKey, "1", lyricAnnotationRetryAfter); setErr != nil {
 				logrus.Warnf("save lyric annotation failure %s: %v", key, setErr)
@@ -516,17 +522,114 @@ func (a *lyricAnnotationService) execute(lease *sharedstate.Lease, key string, i
 		return err
 	}
 	data, _ := json.Marshal(annotated)
-	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Data: string(data), Model: cfg.Model, Source: info.Source, CreatedAt: time.Now()}
-	// 重新生成（过期或手动刷新）时覆盖旧结果，手动编辑的内容随之被覆盖（清空 edited_at）
-	upsert := clause.OnConflict{
-		Columns:   []clause.Column{{Name: "song_id"}, {Name: "lyric_hash"}},
-		DoUpdates: clause.AssignmentColumns([]string{"data", "model", "source", "created_at", "edited_at"}),
-	}
-	if err := repo.GetDB().Clauses(upsert).Create(record).Error; err != nil {
-		logrus.Errorf("save lyric annotation for song %d failed: %v", id, err)
+	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Data: string(data), Model: cfg.Model, Source: info.Source, Phrases: lyricAnnotationPhraseCount(annotated.Lines), CreatedAt: time.Now()}
+	if err := a.saveGenerated(record, startedAt, overwrite); err != nil {
+		if errors.Is(err, errLyricAnnotationEdited) || errors.Is(err, errLyricAnnotationDeleted) {
+			logrus.Infof("lyric annotation for song %d discarded: %v", id, err)
+		} else {
+			logrus.Errorf("save lyric annotation for song %d failed: %v", id, err)
+		}
 		return err
 	}
 	return nil
+}
+
+const (
+	// 写回生成结果与批量删除互斥的锁：持有上限与等待上限
+	lyricAnnotationWriteLockTTL  = 30 * time.Second
+	lyricAnnotationWriteLockWait = 30 * time.Second
+	// 删除记录保留多久：生成开始后被删除的歌曲，结果不写回；须长于一次生成可能的耗时
+	lyricAnnotationDeletedTTL = time.Hour
+)
+
+var (
+	// errLyricAnnotationEdited 这份标注手动编辑过（不覆盖时），或在生成期间被手动编辑：生成结果不写回，以手动编辑为准
+	errLyricAnnotationEdited = errors.New("lyric annotation edited")
+	// errLyricAnnotationDeleted 生成期间管理员删除了这首歌的标注：生成结果不写回
+	errLyricAnnotationDeleted = errors.New("lyric annotation deleted")
+)
+
+func (a *lyricAnnotationService) writeLockKey() string { return a.prefix() + ":write" }
+func (a *lyricAnnotationService) deletedKey() string   { return a.prefix() + ":deleted" }
+
+// saveGenerated 写回生成结果（见 docs/music-player-spec.md 7.2b「手动编辑」）：
+//   - 与批量删除互斥（共享状态中的锁）：生成开始后这首歌的标注被删除时不写回（errLyricAnnotationDeleted）
+//   - 已有记录时只覆盖没有手动编辑过的；overwrite（管理员明确要求重新生成：单首「AI 重新生成」或批量勾选覆盖）时也覆盖
+//     生成开始前的手动编辑。生成期间保存的手动编辑一律保留（errLyricAnnotationEdited），由数据库条件保证，不依赖事先检查
+func (a *lyricAnnotationService) saveGenerated(record *model.LyricAnnotation, startedAt time.Time, overwrite bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), lyricAnnotationWriteLockWait)
+	defer cancel()
+	release, err := sharedstate.Lock(ctx, a.writeLockKey(), lyricAnnotationWriteLockTTL)
+	if err != nil {
+		return err
+	}
+	defer release()
+	var deleted map[int64]int64
+	if _, err := sharedstate.GetJSON(a.deletedKey(), &deleted); err != nil {
+		return err
+	}
+	if at, ok := deleted[record.SongID]; ok && at >= startedAt.UnixNano() {
+		return errLyricAnnotationDeleted
+	}
+	condition := clause.Expr{SQL: "lyric_annotations.edited_at IS NULL"}
+	if overwrite {
+		condition = clause.Expr{SQL: "(lyric_annotations.edited_at IS NULL OR lyric_annotations.edited_at <= ?)", Vars: []any{startedAt}}
+	}
+	// 覆盖时清空 edited_at（重新生成后不再算手动编辑）
+	upsert := clause.OnConflict{
+		Columns:   []clause.Column{{Name: "song_id"}, {Name: "lyric_hash"}},
+		DoUpdates: clause.AssignmentColumns([]string{"data", "model", "source", "phrases", "created_at", "edited_at"}),
+		Where:     clause.Where{Exprs: []clause.Expression{condition}},
+	}
+	result := repo.GetDB().Clauses(upsert).Create(record)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errLyricAnnotationEdited
+	}
+	return nil
+}
+
+// deleteSongs 删除这些歌曲所有歌词版本的标注，返回删除了标注的歌曲数与记录数。与写回生成结果互斥，并记下删除时间：
+// 正在进行的生成（读者触发、单首或批量重新生成）结束后不再把结果写回
+func (a *lyricAnnotationService) deleteSongs(ctx context.Context, ids []int64) (songs, records int64, err error) {
+	release, err := sharedstate.Lock(ctx, a.writeLockKey(), lyricAnnotationWriteLockTTL)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer release()
+	deleted := map[int64]int64{}
+	if _, err := sharedstate.GetJSON(a.deletedKey(), &deleted); err != nil {
+		return 0, 0, err
+	}
+	now := time.Now()
+	for id, at := range deleted {
+		if now.Sub(time.Unix(0, at)) > lyricAnnotationDeletedTTL {
+			delete(deleted, id)
+		}
+	}
+	for _, id := range ids {
+		deleted[id] = now.UnixNano()
+	}
+	if err := sharedstate.SetJSON(a.deletedKey(), deleted, lyricAnnotationDeletedTTL); err != nil {
+		return 0, 0, err
+	}
+	db := repo.GetDB().WithContext(ctx)
+	if err := db.Model(&model.LyricAnnotation{}).Where("song_id IN ?", ids).Distinct("song_id").Count(&songs).Error; err != nil {
+		return 0, 0, err
+	}
+	result := db.Where("song_id IN ?", ids).Delete(&model.LyricAnnotation{})
+	return songs, result.RowsAffected, result.Error
+}
+
+// lyricAnnotationPhraseCount 各行短语的总数（写入时存到 phrases 列，后台列表不读 Data）
+func lyricAnnotationPhraseCount(lines []dto.MusicLyricAnnotationLine) int {
+	count := 0
+	for _, line := range lines {
+		count += len(line.Phrases)
+	}
+	return count
 }
 
 // lyricAnnotationWaitPoll 批量任务等待同一首歌的另一次生成结束时，查询状态的间隔
@@ -536,8 +639,8 @@ var lyricAnnotationWaitPoll = 2 * time.Second
 var errLyricAnnotationFailed = errors.New("lyric annotation failed")
 
 // regenerate 同步重新生成一首歌的标注（批量任务用）：与后台任务共用同一个任务租约，这份歌词已经在生成时等它结束，
-// 以它的结果为准（成功即算完成，不重复调用模型）
-func (a *lyricAnnotationService) regenerate(ctx context.Context, id int64, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) error {
+// 以它的结果为准（成功即算完成，不重复调用模型）。overwrite 见 saveGenerated
+func (a *lyricAnnotationService) regenerate(ctx context.Context, id int64, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig, overwrite bool) error {
 	key, hash := lyricAnnotationKey(id, lines)
 	jobKey, failedKey := a.stateKeys(key)
 	for {
@@ -547,7 +650,7 @@ func (a *lyricAnnotationService) regenerate(ctx context.Context, id int64, lines
 		}
 		if lease != nil {
 			_ = sharedstate.Current().Delete(failedKey)
-			return a.execute(lease, key, id, hash, lines, info, cfg)
+			return a.execute(lease, key, id, hash, lines, info, cfg, overwrite)
 		}
 		select {
 		case <-ctx.Done():

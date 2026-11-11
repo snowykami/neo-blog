@@ -216,9 +216,19 @@ export interface MusicLyricAnnotationSummary {
   outdatedEditedAt?: string
 }
 
-export async function listLyricAnnotations(): Promise<MusicLyricAnnotationSummary[]> {
-  const res = await axiosClient.get<BaseResponse<MusicLyricAnnotationSummary[]>>('/music/lyric/annotations')
-  return res.data.data ?? []
+// 后台歌词特效列表中的一首歌：track 为博客歌单中的曲目（不在歌单中时没有），summary 为已有标注的概况（还没有标注时没有）；
+// orphaned 为已不在歌单、也没有被公开内容引用（读者无法播放，AI 不会再为它生成，仍可手动编辑或删除）
+export interface MusicLyricAnnotationListItem {
+  songId: number
+  track?: MusicTrack
+  summary?: MusicLyricAnnotationSummary
+  orphaned?: boolean
+}
+
+// 分页取后台歌词特效列表：歌单中的歌曲（按歌单顺序）在前，其他已有标注的歌曲按最近生成时间倒序；q 按歌名、歌手或 ID 筛选
+export async function listLyricAnnotations(params: { page: number, size: number, q?: string }): Promise<{ items: MusicLyricAnnotationListItem[], total: number }> {
+  const res = await axiosClient.get<BaseResponse<{ items: MusicLyricAnnotationListItem[] | null, total: number }>>('/music/lyric/annotations', { params })
+  return { items: res.data.data.items ?? [], total: res.data.data.total }
 }
 
 // 批量删除歌词标注：这些歌曲所有歌词版本的标注（含手动编辑过的），返回删除了标注的歌曲数与记录数
@@ -263,7 +273,8 @@ export async function cancelLyricAnnotationBatch(): Promise<MusicLyricAnnotation
   return res.data.data ?? null
 }
 
-// 后台编辑一首歌的歌词标注：lines 为完整歌词（按顺序、含重复的行），annotation 为当前标注（还没有时为 null）
+// 后台编辑一首歌的歌词标注：lines 为完整歌词（按顺序、含重复的行），annotation 为当前标注（还没有时为 null）；
+// generating 为 AI 正在生成（期间不能保存，后端返回 409 lyric_annotation_generating）；orphaned 为已不在歌单、也没有被公开内容引用
 export interface MusicLyricAnnotationEditor {
   lines: string[]
   annotation: MusicLyricAnnotations | null
@@ -271,6 +282,7 @@ export interface MusicLyricAnnotationEditor {
   generatedAt?: string
   model?: string
   generating: boolean
+  orphaned?: boolean
 }
 
 // 手动编辑可改的部分：全曲字体、节奏、导语、主题色、聚光灯与各行（时刻与尾奏热评保持原样）

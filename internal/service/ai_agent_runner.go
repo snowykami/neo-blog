@@ -437,13 +437,8 @@ func (s *AIAgentService) AgentChat(ctx context.Context, runID uint, payload map[
 		return nil, errs.NewUnavailable("ai_not_configured")
 	}
 	cfg := tools.GetAIAgentConfig()
-	now := time.Now()
-	if cfg.MonthlyTokenBudget > 0 && monthTokensCached(now) >= int64(cfg.MonthlyTokenBudget) {
-		return nil, fmt.Errorf("%w: monthly token budget", ErrAgentLLMBudget)
-	}
-	calls, err := sharedstate.Current().Incr(hourKey(now), 2*time.Hour)
-	if err == nil && cfg.LLMCallsPerHour > 0 && calls > int64(cfg.LLMCallsPerHour) {
-		return nil, fmt.Errorf("%w: hourly call limit", ErrAgentLLMBudget)
+	if err := reserveAgentLLMCall(cfg, time.Now()); err != nil {
+		return nil, err
 	}
 	modelName := agentModel(agent, agent.ParsedProfile(), cfg, aiCfg)
 	body := map[string]any{"stream": false}
@@ -467,6 +462,28 @@ func (s *AIAgentService) AgentChat(ctx context.Context, runID uint, payload map[
 	if err != nil {
 		return nil, err
 	}
+	prompt, cached, completion := parseLLMUsage(data)
+	if err := repo.AIAgent.AddRunUsage(run.ID, modelName, prompt, cached, completion); err != nil {
+		logrus.Warnf("record llm usage for run %d: %v", run.ID, err)
+	}
+	return data, nil
+}
+
+// reserveAgentLLMCall AI 用户相关的每次模型调用前的统一检查：本月 token 预算已用完、或本小时调用次数（计入这一次）超出上限时
+// 返回 ErrAgentLLMBudget。worker 的调用（AgentChat）与后台任务（backgroundAgentChat）共用
+func reserveAgentLLMCall(cfg tools.AIAgentConfig, now time.Time) error {
+	if cfg.MonthlyTokenBudget > 0 && monthTokensCached(now) >= int64(cfg.MonthlyTokenBudget) {
+		return fmt.Errorf("%w: monthly token budget", ErrAgentLLMBudget)
+	}
+	calls, err := sharedstate.Current().Incr(hourKey(now), 2*time.Hour)
+	if err == nil && cfg.LLMCallsPerHour > 0 && calls > int64(cfg.LLMCallsPerHour) {
+		return fmt.Errorf("%w: hourly call limit", ErrAgentLLMBudget)
+	}
+	return nil
+}
+
+// parseLLMUsage 从 OpenAI 兼容响应中读取用量：输入、其中命中缓存的、输出 token
+func parseLLMUsage(data []byte) (prompt, cached, completion int) {
 	var usage struct {
 		Usage struct {
 			PromptTokens        int `json:"prompt_tokens"`
@@ -478,11 +495,34 @@ func (s *AIAgentService) AgentChat(ctx context.Context, runID uint, payload map[
 		} `json:"usage"`
 	}
 	_ = json.Unmarshal(data, &usage)
-	cached := max(usage.Usage.PromptTokensDetails.CachedTokens, usage.Usage.PromptCacheHitTokens)
-	if err := repo.AIAgent.AddRunUsage(run.ID, modelName, usage.Usage.PromptTokens, cached, usage.Usage.CompletionTokens); err != nil {
-		logrus.Warnf("record llm usage for run %d: %v", run.ID, err)
+	return usage.Usage.PromptTokens, max(usage.Usage.PromptTokensDetails.CachedTokens, usage.Usage.PromptCacheHitTokens), usage.Usage.CompletionTokens
+}
+
+// backgroundAgentChat 后台任务（记忆整理、人设生成）调用模型：与 worker 的调用走同一套全站预算（本月 token、每小时调用次数），
+// 并把这次调用记成一条「后台任务」运行记录（record 给出归属：AI 用户与触发方式），用量因此计入全站统计；
+// 记忆整理记在对应 AI 用户名下，人设生成不属于任何 AI 用户（AgentID 为 0）。预算不足时不调用模型、不留记录
+func backgroundAgentChat(ctx context.Context, record model.AgentRun, aiCfg tools.AIConfig, system, user string, temperature float64, effort string) (string, error) {
+	start := time.Now()
+	if err := reserveAgentLLMCall(tools.GetAIAgentConfig(), start); err != nil {
+		return "", err
 	}
-	return data, nil
+	data, err := chatCompletionRaw(ctx, aiCfg, system, user, temperature, effort)
+	finished := time.Now()
+	record.Kind, record.ScheduledAt, record.FinishedAt = constant.AgentRunKindBackground, start, &finished
+	record.Model, record.LLMCalls = aiCfg.Model, 1
+	if err != nil {
+		record.Status, record.Error = constant.AgentRunStatusFailed, clipRunes(err.Error(), 1000)
+	} else {
+		record.Status = constant.AgentRunStatusDone
+		record.PromptTokens, record.CachedTokens, record.CompletionTokens = parseLLMUsage(data)
+	}
+	if cerr := repo.AIAgent.CreateRun(&record); cerr != nil {
+		logrus.Warnf("record background llm usage (%s): %v", record.Trigger, cerr)
+	}
+	if err != nil {
+		return "", err
+	}
+	return parseChatCompletion(data)
 }
 
 // ---------- 构建运行内容 ----------

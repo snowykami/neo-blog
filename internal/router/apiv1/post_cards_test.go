@@ -83,7 +83,7 @@ func TestPostCardsRoute(t *testing.T) {
 	privateID := create(author, "private", true)
 	otherPrivateID := create(other, "other private", true)
 	deletedID := create(author, "deleted", false)
-	if err := repo.Post.DeletePost(deletedID); err != nil {
+	if _, err := repo.Post.DeletePost(deletedID); err != nil {
 		t.Fatalf("delete post: %v", err)
 	}
 

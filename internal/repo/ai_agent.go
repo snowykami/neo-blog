@@ -194,6 +194,17 @@ func (r *aiAgentRepo) ListGroups() ([]model.AIAgentGroup, error) {
 	return groups, GetDB().Order("id DESC").Find(&groups).Error
 }
 
+// ListGroupsByStatus 指定状态的群体（如仍在生成中的），按 id 先后
+func (r *aiAgentRepo) ListGroupsByStatus(status string) ([]model.AIAgentGroup, error) {
+	var groups []model.AIAgentGroup
+	return groups, GetDB().Where("status = ?", status).Order("id").Find(&groups).Error
+}
+
+// IncrGroupCreated 群体的已创建数原子加一（生成进度，中断后据此续做）
+func (r *aiAgentRepo) IncrGroupCreated(id uint) error {
+	return GetDB().Model(&model.AIAgentGroup{}).Where("id = ?", id).UpdateColumn("created", gorm.Expr("created + 1")).Error
+}
+
 // GroupCounts 各群体的 AI 用户总数与启用数
 func (r *aiAgentRepo) GroupCounts() (map[uint][2]int64, error) {
 	var rows []struct {
@@ -348,7 +359,8 @@ func (r *aiAgentRepo) ListRuns(req *dto.ListAgentRunsReq) ([]model.AgentRun, int
 	case "profile":
 		db = db.Where("effects LIKE ?", `%"type":"profile"%`)
 	case "none":
-		db = db.Where("status = ? AND (effects = '' OR effects = '[]' OR effects IS NULL)", constant.AgentRunStatusDone)
+		// 后台任务（记忆整理、人设生成）本来就没有动作，不算「无视」
+		db = db.Where("status = ? AND kind <> ? AND (effects = '' OR effects = '[]' OR effects IS NULL)", constant.AgentRunStatusDone, constant.AgentRunKindBackground)
 	}
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
@@ -431,6 +443,33 @@ func (r *aiAgentRepo) RecentUserComments(userID uint, limit int) ([]string, erro
 	err := GetDB().Model(&model.Comment{}).Where("user_id = ?", userID).
 		Order("created_at DESC").Limit(limit).Pluck("content", &contents).Error
 	return contents, err
+}
+
+// CountCommentsByUsers 各用户 since 之后发表的评论数（后台列表一次查出整页，没有评论的用户不在结果中）
+func (r *aiAgentRepo) CountCommentsByUsers(userIDs []uint, since time.Time) (map[uint]int64, error) {
+	return countByUsers(&model.Comment{}, userIDs, since)
+}
+
+// CountLikesByUsers 各用户 since 之后的点赞数
+func (r *aiAgentRepo) CountLikesByUsers(userIDs []uint, since time.Time) (map[uint]int64, error) {
+	return countByUsers(&model.Like{}, userIDs, since)
+}
+
+func countByUsers(table any, userIDs []uint, since time.Time) (map[uint]int64, error) {
+	result := map[uint]int64{}
+	if len(userIDs) == 0 {
+		return result, nil
+	}
+	var rows []struct {
+		UserID uint
+		Total  int64
+	}
+	err := GetDB().Model(table).Select("user_id, COUNT(*) AS total").
+		Where("user_id IN ? AND created_at >= ?", userIDs, since).Group("user_id").Scan(&rows).Error
+	for _, row := range rows {
+		result[row.UserID] = row.Total
+	}
+	return result, err
 }
 
 // CountUserLikes 用户 since 之后的点赞数

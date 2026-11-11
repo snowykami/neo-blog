@@ -301,6 +301,7 @@ type MusicLyricAnnotationsEditReq struct {
 
 // MusicLyricAnnotationEditorDto 后台编辑一首歌的歌词标注所需的数据：lines 为送去标注的完整歌词（按顺序、含重复的行），
 // annotation 为当前标注（还没有时为空）；edited_at 为手动编辑时间，generated_at / model 为最近一次 AI 生成的时间与模型，generating 为正在生成
+// （生成期间不能保存）；orphaned 为这首歌已不在博客歌单、也没有被公开内容引用（读者无法播放，AI 不会再为它生成，仍可手动编辑）
 type MusicLyricAnnotationEditorDto struct {
 	Lines       []string                  `json:"lines"`
 	Annotation  *MusicLyricAnnotationsDto `json:"annotation"`
@@ -308,6 +309,22 @@ type MusicLyricAnnotationEditorDto struct {
 	GeneratedAt *time.Time                `json:"generated_at,omitempty"`
 	Model       string                    `json:"model,omitempty"`
 	Generating  bool                      `json:"generating"`
+	Orphaned    bool                      `json:"orphaned,omitempty"`
+}
+
+// MusicLyricAnnotationListReq 后台歌词特效列表：分页（size 最大 100），q 按歌名、歌手或歌曲 ID 筛选
+type MusicLyricAnnotationListReq struct {
+	PaginationParams
+	Query string `query:"q"`
+}
+
+// MusicLyricAnnotationListItemDto 后台歌词特效列表中的一首歌：track 为博客歌单中的曲目信息（不在歌单中时为空），
+// summary 为已有标注的概况（还没有标注时为空）；orphaned 为已不在歌单、也没有被公开内容引用（读者无法播放，AI 不会再为它生成）
+type MusicLyricAnnotationListItemDto struct {
+	SongID   int64                           `json:"song_id"`
+	Track    *MusicTrackDto                  `json:"track,omitempty"`
+	Summary  *MusicLyricAnnotationSummaryDto `json:"summary,omitempty"`
+	Orphaned bool                            `json:"orphaned,omitempty"`
 }
 
 // MusicLyricAnnotationSummaryDto 后台歌词特效列表中的一条：已有标注的歌曲、短语数与生成 / 编辑时间

@@ -347,8 +347,10 @@ func (s *AIAgentService) List(ctx context.Context, req *dto.AdminListAIAgentsReq
 	}
 	groupIDs := make([]uint, 0)
 	agentIDs := make([]uint, 0, len(agents))
+	userIDs := make([]uint, 0, len(agents))
 	for _, a := range agents {
 		agentIDs = append(agentIDs, a.ID)
+		userIDs = append(userIDs, a.UserID)
 		if a.GroupID != nil {
 			groupIDs = append(groupIDs, *a.GroupID)
 		}
@@ -356,11 +358,14 @@ func (s *AIAgentService) List(ctx context.Context, req *dto.AdminListAIAgentsReq
 	names, _ := repo.AIAgent.GroupNames(groupIDs)
 	now := time.Now()
 	tokens, _ := repo.AIAgent.SumTokensByAgent(agentIDs, monthStart(now))
+	// 今日评论与点赞按用户分组一次查出整页，不逐个查询
+	comments, _ := repo.AIAgent.CountCommentsByUsers(userIDs, dayStart(now))
+	likes, _ := repo.AIAgent.CountLikesByUsers(userIDs, dayStart(now))
 	result := make([]dto.AIAgentDto, 0, len(agents))
 	for i := range agents {
 		d := s.toDto(&agents[i], names, false)
-		d.TodayComments, _ = repo.AIAgent.CountUserComments(agents[i].UserID, dayStart(now))
-		d.TodayLikes, _ = repo.AIAgent.CountUserLikes(agents[i].UserID, dayStart(now))
+		d.TodayComments = comments[agents[i].UserID]
+		d.TodayLikes = likes[agents[i].UserID]
 		d.MonthTokens = tokens[agents[i].ID]
 		result = append(result, d)
 	}
@@ -955,6 +960,22 @@ func (s *AIAgentService) groupDto(g *model.AIAgentGroup, counts map[uint][2]int6
 	}
 }
 
+// markInterrupted 生成中、但没有实例持有任务令牌的群体（执行的实例已退出，等待 job_recovery 接手）
+func markInterrupted(list []dto.AIAgentGroupDto) {
+	ids := make([]uint, 0)
+	for _, g := range list {
+		if g.Status == groupStatusGen {
+			ids = append(ids, g.ID)
+		}
+	}
+	active := groupGenerationActive(ids)
+	for i := range list {
+		if list[i].Status == groupStatusGen {
+			list[i].Interrupted = !active[list[i].ID]
+		}
+	}
+}
+
 func (s *AIAgentService) ListGroups(ctx context.Context) ([]dto.AIAgentGroupDto, *errs.ServiceError) {
 	if _, svcerr := requireAdmin(ctx); svcerr != nil {
 		return nil, svcerr
@@ -968,6 +989,7 @@ func (s *AIAgentService) ListGroups(ctx context.Context) ([]dto.AIAgentGroupDto,
 	for i := range groups {
 		result = append(result, s.groupDto(&groups[i], counts))
 	}
+	markInterrupted(result)
 	return result, nil
 }
 
@@ -980,8 +1002,9 @@ func (s *AIAgentService) GetGroup(ctx context.Context, id uint) (*dto.AIAgentGro
 		return nil, errs.NewNotFound("target_not_found").WithResource("ai_agent_group")
 	}
 	counts, _ := repo.AIAgent.GroupCounts()
-	d := s.groupDto(g, counts)
-	return &d, nil
+	list := []dto.AIAgentGroupDto{s.groupDto(g, counts)}
+	markInterrupted(list)
+	return &list[0], nil
 }
 
 func (s *AIAgentService) SetGroupStatus(ctx context.Context, req *dto.UpdateAIAgentGroupStatusReq) *errs.ServiceError {

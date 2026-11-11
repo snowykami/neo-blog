@@ -190,6 +190,12 @@ export async function generateAIAgentGroup(data: GenerateAIAgentGroupReq): Promi
   return res.data
 }
 
+// 生成失败的群体从已创建的数量继续生成
+export async function resumeAIAgentGroup(id: number): Promise<BaseResponse<AIAgentGroup>> {
+  const res = await axiosClient.post(`/admin/ai-agent-groups/${id}/resume`)
+  return res.data
+}
+
 // 整组暂停 / 恢复
 export async function updateAIAgentGroupStatus(id: number, status: AIAgentStatus): Promise<BaseResponse<null>> {
   const res = await axiosClient.put(`/admin/ai-agent-groups/${id}/status`, { status })

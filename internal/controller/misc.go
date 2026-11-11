@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -39,62 +38,18 @@ func (mc *MiscController) GetCacheTags(ctx context.Context, c *app.RequestContex
 	resps.Ok(c, resps.Success, utils.H{"tags": versions})
 }
 
+// GetSiteInfo 前台站点信息：后台保存的整体站点信息补上缺少的注册项，从未保存过时全部按配置注册表的生效值与默认值（见 config.SiteInfo）
 func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext) {
-	// 已保存整体站点信息时直接返回，避免为默认值逐项查询配置
-	if value, err := repo.KV.GetKV(KeySiteInfo); err == nil {
-		if info, ok := value.(map[string]any); ok {
-			// 复制一份再改，不动缓存里的值：设置了环境变量 BASE_URL 时站点地址以它为准；站点语言是独立配置项，一并带上
-			info = maps.Clone(info)
-			if _, fromEnv := config.Lookup("base_url").EnvValue(); fromEnv {
-				info["base_url"] = tools.GetBaseUrl()
-			}
-			info["default_language"] = config.String("default_language")
-			// 评论的字数上限与折叠行数是后台可调的配置，直接给生效值，前台不必再判断缺省
-			info["comment_max_length"] = tools.GetCommentMaxLength()
-			info["comment_collapsed_lines"] = tools.GetCommentCollapsedLines()
-			value = info
-		}
-		resps.Ok(c, "", value)
-		return
+	info := config.SiteInfo()
+	// 设置了环境变量 BASE_URL 时站点地址以它为准；站点语言是独立配置项，一并带上
+	if _, fromEnv := config.Lookup("base_url").EnvValue(); fromEnv {
+		info["base_url"] = tools.GetBaseUrl()
 	}
-	value, err := repo.KV.GetKV(KeySiteInfo, utils.H{
-		"metadata": utils.H{
-			"name":        tools.GetSiteName(),
-			"icon":        tools.GetSiteIcon(),
-			"description": tools.GetSiteDescription(),
-		},
-		"color_schemes":        repo.KV.GetKVWithoutErr("color_schemes", []string{"blue", "green", "orange", "red", "rose", "pink", "violet", "yellow"}),
-		"default_color_scheme": repo.KV.GetKVWithoutErr("default_color_scheme", "blue"),
-		"default_cover": repo.KV.GetKVWithoutErr("default_cover", []string{
-			"https://cdn.liteyuki.org/snowykami/image/1759709826590.webp",
-			"https://cdn.liteyuki.org/snowykami/image/1759710439228.webp",
-			"https://cdn.liteyuki.org/snowykami/image/1759710339517.webp",
-			"https://cdn.liteyuki.org/snowykami/image/furina.png",
-			"https://cdn.liteyuki.org/snowykami/image/1759710500693.webp",
-		}),
-		"owner": utils.H{
-			"name":        repo.KV.GetKVWithoutErr("owner_name", "SnowyKami"),
-			"description": repo.KV.GetKVWithoutErr("owner_description", "A full-stack developer."),
-			"avatar":      repo.KV.GetKVWithoutErr("owner_avatar", "https://cdn.liteyuki.org/snowykami/avatar.jpg"),
-		},
-		"posts_per_page":            repo.KV.GetKVWithoutErr("posts_per_page", 10),
-		"comments_per_page":         repo.KV.GetKVWithoutErr("comments_per_page", 10),
-		"comment_max_length":        tools.GetCommentMaxLength(),
-		"comment_collapsed_lines":   tools.GetCommentCollapsedLines(),
-		"verify_code_cool_down":     repo.KV.GetKVWithoutErr("verify_code_cool_down", 60), // 单位秒
-		"animation_duration_second": repo.KV.GetKVWithoutErr("animation_duration_second", 0.618),
-		"footer": repo.KV.GetKVWithoutErr("footer", utils.H{
-			"text": repo.KV.GetKVWithoutErr("footer_text", "Liteyuki ICP 114514"),
-			"link": repo.KV.GetKVWithoutErr("footer_link", "https://sfkm.me"),
-		}),
-		"base_url":         tools.GetBaseUrl(),
-		"default_language": config.String("default_language"),
-	})
-	if err != nil {
-		resps.InternalError(c, err)
-		return
-	}
-	resps.Ok(c, "", value)
+	info["default_language"] = config.String("default_language")
+	// 评论的字数上限与折叠行数是后台可调的配置，直接给生效值，前台不必再判断缺省
+	info["comment_max_length"] = tools.GetCommentMaxLength()
+	info["comment_collapsed_lines"] = tools.GetCommentCollapsedLines()
+	resps.Ok(c, "", info)
 }
 
 // publicConfigKeys 允许匿名读取的配置键

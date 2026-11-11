@@ -22,5 +22,8 @@ func List() []*gormigrate.Migration {
 		postPinning(),
 		agentMentionTrigger(),
 		notificationActivityClaim(),
+		lyricAnnotationPhrases(),
+		postExcerpt(),
+		siteInfoOldDefaults(),
 	}
 }

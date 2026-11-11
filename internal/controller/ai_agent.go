@@ -346,6 +346,20 @@ func (cc *AIAgentController) GenerateGroup(ctx context.Context, c *app.RequestCo
 	resps.Ok(c, resps.Success, resp)
 }
 
+// ResumeGroup 生成失败的群体从已创建的数量继续生成
+func (cc *AIAgentController) ResumeGroup(ctx context.Context, c *app.RequestContext) {
+	id, ok := idParam(c)
+	if !ok {
+		return
+	}
+	group, svcerr := cc.service.ResumeGroup(ctx, id)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, group)
+}
+
 func (cc *AIAgentController) SetGroupStatus(ctx context.Context, c *app.RequestContext) {
 	req := &dto.UpdateAIAgentGroupStatusReq{}
 	if err := c.BindAndValidate(req); err != nil || req.ID == 0 {

@@ -380,6 +380,31 @@ func Save(changes []Change) *errs.ServiceError {
 	return nil
 }
 
+// SiteInfo 前台读取的站点信息：已保存的整体站点信息（副本）补上其中缺少的注册项，未保存过时全部由注册表给出
+// （各项的生效值：同名独立配置键 > 默认值，见 dbValue）。前台的兜底值（web/src/utils/common/siteinfo.ts）只在取不到时使用，与这里的默认值一致
+func SiteInfo() map[string]any {
+	info := map[string]any{}
+	if saved, ok := repo.KV.GetKVWithoutErr(siteInfoKey, nil).(map[string]any); ok {
+		if raw, err := json.Marshal(saved); err == nil {
+			_ = json.Unmarshal(raw, &info)
+		}
+	}
+	for _, section := range sections {
+		for _, it := range section.Items {
+			if len(it.siteInfoPath) == 0 {
+				continue
+			}
+			if _, ok := getPath(info, it.siteInfoPath); ok {
+				continue
+			}
+			if v := it.dbValue(); v != nil {
+				setPath(info, it.siteInfoPath, v)
+			}
+		}
+	}
+	return info
+}
+
 // siteInfoForWrite 待修改的站点信息副本（不改动缓存中的值）；还没保存过时按各项当前的值补全，避免前台读到缺字段的站点信息
 func siteInfoForWrite() map[string]any {
 	if info, ok := repo.KV.GetKVWithoutErr(siteInfoKey, nil).(map[string]any); ok {

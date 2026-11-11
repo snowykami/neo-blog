@@ -88,16 +88,24 @@ func deleteCommentLikes(tx *gorm.DB, commentIDs []uint) error {
 		constant.VisitActionVisit, constant.TargetTypeComment, commentIDs, commentIDs).Delete(&model.VisitLog{}).Error
 }
 
-// deleteTargetComments 删除文章或页面时一并删除其下全部评论及评论点赞
-func deleteTargetComments(tx *gorm.DB, targetType string, targetID uint) error {
+// deleteTargetComments 删除文章或页面时一并删除其下全部评论、评论点赞，以及发生在它上面的通知（含文章点赞通知）；
+// 返回被删通知的收件人，调用方在事务提交后推送
+func deleteTargetComments(tx *gorm.DB, targetType string, targetID uint) ([]uint, error) {
 	var ids []uint
 	if err := tx.Model(&model.Comment{}).Where("target_type = ? AND target_id = ?", targetType, targetID).Pluck("id", &ids).Error; err != nil {
-		return err
+		return nil, err
 	}
 	if err := deleteCommentLikes(tx, ids); err != nil {
-		return err
+		return nil, err
 	}
-	return tx.Where("target_type = ? AND target_id = ?", targetType, targetID).Delete(&model.Comment{}).Error
+	notified, err := Notification.DeleteBySubject(tx, targetType, targetID, ids)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Where("target_type = ? AND target_id = ?", targetType, targetID).Delete(&model.Comment{}).Error; err != nil {
+		return nil, err
+	}
+	return notified, nil
 }
 
 // syncTargetCommentCount 重新统计目标的评论数；页面没有评论计数字段，无需维护
@@ -201,12 +209,14 @@ func (cr *CommentRepo) SetLanguage(commentID uint, content, language string) err
 	return GetDB().Model(&model.Comment{}).Where("id = ? AND content = ?", commentID, content).UpdateColumn("language", language).Error
 }
 
-func (cr *CommentRepo) DeleteComment(commentID uint) error {
+// DeleteComment 删除评论及其整棵子树；返回被删通知的收件人，调用方在事务提交后推送
+func (cr *CommentRepo) DeleteComment(commentID uint) ([]uint, error) {
 	if commentID == 0 {
-		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
+		return nil, errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
 
-	return GetDB().Transaction(func(tx *gorm.DB) error {
+	var notified []uint
+	err := GetDB().Transaction(func(tx *gorm.DB) error {
 		var comment model.Comment
 
 		// 1. 查找主评论
@@ -237,13 +247,17 @@ func (cr *CommentRepo) DeleteComment(commentID uint) error {
 		}
 
 		// 5. 引用这些评论的通知一并删掉，免得点进去是空锚点
-		if err := Notification.DeleteByCommentIDs(tx, append(deletedIDs, comment.ID)); err != nil {
+		if notified, err = Notification.DeleteByCommentIDs(tx, append(deletedIDs, comment.ID)); err != nil {
 			return err
 		}
 
 		// 6. 重新计算更新目标的评论数量
 		return syncTargetCommentCount(tx, comment.TargetType, comment.TargetID)
 	})
+	if err != nil {
+		return nil, err
+	}
+	return notified, nil
 }
 
 // HasUserCommentedInTree 用户是否参与过某棵评论树（参与者可以看到树内的私密评论）

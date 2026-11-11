@@ -1261,8 +1261,8 @@
       "ai_agents_max_chain_depth_desc": "回复链上 AI 之间连续互动的最大层数，实际不超过「最大回复层级」",
       "ai_agents_pair_exchanges": "同一对 AI 每日往返次数",
       "ai_agents_pair_exchanges_desc": "同一对 AI 用户在同一线程中每天最多来回几次",
-      "ai_agents_mentions_per_pair_per_day": "同一用户每日 @ 同一 AI 的次数",
-      "ai_agents_mentions_per_pair_per_day_desc": "同一用户每天最多通过 @ 唤醒同一个 AI 用户几次；0 为不响应 @；管理员不受限",
+      "ai_agents_mentions_per_pair_per_day": "同一用户每日找同一 AI 的次数",
+      "ai_agents_mentions_per_pair_per_day_desc": "同一用户每天最多通过 @ 或回复唤醒同一个 AI 用户几次（两者共用名额）；0 为不响应 @ 与回复；管理员不受限",
       "ai_agents_mentions_per_user_per_hour": "同一用户每小时 @ AI 的次数",
       "ai_agents_mentions_per_user_per_hour_desc": "同一用户每小时最多通过 @ 唤醒 AI 用户几次（所有 AI 合计）；0 为不响应 @；管理员不受限",
       "ai_agents_profile_self_edit": "允许 AI 自行修改资料",
@@ -2240,6 +2240,8 @@
       "status_outdated_hint": "全站歌词版本已更换，这份特效不再显示，下次播放时按新版本重新生成",
       "status_outdated_edit": "有旧版本的手动编辑",
       "status_outdated_edit_hint": "这首歌有手动编辑过的特效属于旧的歌词版本，已不再显示；把全站歌词来源切换回去即可恢复",
+      "status_orphaned": "已不在歌单",
+      "status_orphaned_hint": "这首歌已不在博客歌单，也没有被公开文章引用：读者无法播放，AI 不会再为它生成；仍可手动编辑或删除特效",
       "preview": "在播放器中试听",
       "back": "返回列表",
       "generated_at": "AI 生成于 {time} · {model}",
@@ -2251,11 +2253,15 @@
       "regenerate_description": "会覆盖这首歌当前的歌词特效，包括手动编辑的内容和未保存的修改。",
       "regenerate_started": "已开始重新生成，完成后自动载入",
       "regenerate_failed": "重新生成失败",
+      "regenerate_orphaned": "这首歌已不在博客歌单，不能让 AI 重新生成",
       "save": "保存",
       "saved": "已保存",
       "save_failed": "保存失败",
+      "save_blocked_generating": "AI 正在生成这首歌的特效，生成结束后才能保存；你的修改仍保留在编辑器中",
+      "generation_finished": "AI 已生成完毕，已载入新的特效",
+      "generation_finished_unsaved": "AI 已生成完毕。你有未保存的修改，保存后以你的修改为准",
       "unsaved": "有未保存的修改",
-      "unavailable": "这首歌不在博客歌单中，也没有被公开文章引用，或者没有歌词，不能编辑歌词特效。",
+      "unavailable": "这首歌没有逐字歌词（或没有歌词），不能编辑歌词特效。",
       "load_failed": "加载失败",
       "retry": "重试",
       "canvas_hint": "选中歌词中的文字添加特效，点击已有的特效修改或删除，悬停可以预览动效。同一文本的行共用特效；短语在行内每次出现时都会演出。歌词与时间轴不能修改。",
@@ -2312,7 +2318,7 @@
       "phrases_empty": "这一行还没有特效，选中歌词即可添加",
       "legend": "特效分类",
       "legend_hint": "没有标注的词唱满 1 秒时，播放器也会自动轻微放大。",
-      "select_all": "全选列表中的歌曲",
+      "select_all": "全选本页的歌曲",
       "select_song": "选择 {name}",
       "selected": "已选 {count} 首",
       "clear_selection": "取消选择",
@@ -2345,7 +2351,8 @@
       "batch_item_failed": "生成失败",
       "batch_item_skipped": "已跳过",
       "batch_item_with_reason": "{status}：{reason}",
-      "batch_reason_edited": "手动编辑过"
+      "batch_reason_edited": "手动编辑过",
+      "batch_reason_deleted": "生成期间特效被删除"
     },
     "api_tokens": {
       "title": "API Token",
@@ -2590,14 +2597,35 @@
       "run_kind": {
         "browse": "主动浏览",
         "event": "事件触发",
-        "dry_run": "试运行"
+        "dry_run": "试运行",
+        "background": "后台任务"
       },
       "trigger": {
         "browse": "主动浏览",
         "post_published": "新文章发布",
         "comment_replied": "有人回复",
         "comment_mentioned": "评论里被 @",
-        "dry_run": "试运行"
+        "dry_run": "试运行",
+        "memory_consolidate": "整理记忆",
+        "group_generate": "生成人设"
+      },
+      "skip_reason": {
+        "chain_depth": "AI 互动深度已到上限",
+        "reply_depth": "回复层级已到上限",
+        "ai_interaction_disabled": "没有开启与其他 AI 互动",
+        "pair_exchange": "今天与这个 AI 的来回次数已到上限",
+        "daily_comment_limit": "今天的评论额度已用完",
+        "mention_pair_limit": "同一用户今天 @ 或回复这个 AI 的次数已到上限",
+        "mention_user_limit": "同一用户本小时 @ AI 的次数已到上限",
+        "reply_pair_limit": "同一用户今天 @ 或回复这个 AI 的次数已到上限",
+        "target_private": "文章 / 页面已设为私密",
+        "target_deleted": "文章 / 页面已删除",
+        "target_unsupported": "目标类型不支持",
+        "comment_private": "评论已设为私密",
+        "comment_deleted": "评论已删除",
+        "disabled": "AI 用户功能已关闭",
+        "agent_paused": "AI 用户已暂停",
+        "user_disabled": "账号已被禁用"
       },
       "action_type": {
         "like": "点赞",
@@ -2826,8 +2854,12 @@
         "status": {
           "generating": "生成中",
           "done": "已完成",
-          "failed": "失败"
-        }
+          "failed": "失败",
+          "interrupted": "等待接手"
+        },
+        "interrupted_hint": "执行的实例已退出，约一分钟内由其他实例接着生成",
+        "resume_generation": "继续生成",
+        "resume_started": "已开始继续生成"
       },
       "detail": {
         "title": "性格设置",
@@ -2998,6 +3030,7 @@
         "ignored": "无视",
         "reverted": "已撤回",
         "no_target": "推荐流",
+        "background_task": "后台任务",
         "kind": "类型",
         "scheduled_at": "计划时间",
         "finished_at": "完成时间",
@@ -3592,6 +3625,7 @@
       "invalid_name": "名称无效",
       "invalid_status": "无效的状态",
       "persona_generation_failed": "人设生成失败，请检查 AI 配置后重试",
+      "ai_agent_group_not_failed": "只有生成失败的群体可以继续生成",
       "storage_migration_running": "已有迁移任务在进行，请等待完成或先取消",
       "storage_migration_not_running": "当前没有进行中的迁移",
       "storage_provider_location_locked": "该存储中仍有文件，不能修改类型、目录、Bucket、Prefix 或 WebDAV 地址；请先把文件迁移到其他存储",
@@ -3608,6 +3642,7 @@
       "pinned_until_in_past": "到期时间要晚于现在",
       "lyric_annotation_batch_running": "已有批量重新生成歌词特效的任务在进行中",
       "lyric_annotation_batch_too_large": "一次最多选择 1000 首歌",
+      "lyric_annotation_generating": "AI 正在生成这首歌的歌词特效，生成结束后才能保存",
       "notification_delivery_not_retryable": "这条投递当前的状态不能重试（只有失败或超时卡住的投递可以重试）"
     },
     "reasons": {

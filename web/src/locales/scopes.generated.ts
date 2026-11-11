@@ -198,7 +198,9 @@ export const SCOPES = {
     'Console.labels',
   ],
   'console/lyric-effects': [
+    'Components',
     'Console.lyric_effects',
+    'Metrics',
   ],
   'console/lyric-effects/[id]': [
     'LyricOptions',

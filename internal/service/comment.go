@@ -163,6 +163,9 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	if !(ctxutils.IsAdmin(ctx) || ctxutils.IsOwnerOfTarget(ctx, comment.UserID)) {
 		return errs.NewForbidden("forbidden")
 	}
+	// 编辑前的可见性与提及列表：编辑后据此收回 / 补发通知
+	wasPrivate := comment.IsPrivate
+	previousMentions := slices.Clone([]uint(comment.MentionUserIDs))
 
 	// 内容校验：去首尾空白，字符数不超过后台配置的上限（默认 500）；有附件时可以只保留附件
 	content := strings.TrimSpace(req.Content)
@@ -201,6 +204,8 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 		logrus.Errorf("UpdateComment error: %s", err.Error())
 		return errs.Internal("failed_to_update_target", err).WithResource("comment")
 	}
+	// 改为私密后收回无权查看者的通知、新加的 @ 补发提及通知，再唤醒相关收件人的实时连接
+	notifyNotificationUsers(syncCommentNotificationsAfterEdit(ctx, comment, wasPrivate, previousMentions))
 	return nil
 }
 
@@ -229,10 +234,12 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 		return errs.NewForbidden("permission_denied")
 	}
 
-	if err := repo.Comment.DeleteComment(commentID); err != nil {
+	notified, err := repo.Comment.DeleteComment(commentID)
+	if err != nil {
 		logrus.Errorf("DeleteComment error: %s", err.Error())
 		return errs.Internal("failed_to_delete_target", err).WithResource("comment")
 	}
+	notifyNotificationUsers(notified)
 	return nil
 }
 

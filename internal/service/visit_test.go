@@ -24,7 +24,9 @@ func countVisitLogs(t *testing.T) int64 {
 }
 
 func TestVisitReport(t *testing.T) {
-	author, admin, _, post, _ := setupEditTest(t)
+	author, admin, _, _, _ := setupEditTest(t)
+	// 访问目标只认公开文章（私密文章前台 404，不记为目标）
+	post := reloadPost(t, createPublicPost(t, author, nil))
 	svc := NewVisitService()
 	anon := context.Background()
 	postReq := func(fp string) *dto.ReportVisitReq {

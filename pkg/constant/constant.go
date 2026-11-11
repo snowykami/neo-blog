@@ -177,12 +177,16 @@ const (
 	AgentRunKindBrowse = "browse"  // 时间引擎唤醒，主动浏览
 	AgentRunKindEvent  = "event"   // 事件触发：新文章、被回复
 	AgentRunKindDryRun = "dry_run" // 后台试运行：只输出操作列表，不执行
+	// 后台任务（记忆整理、人设生成）的模型调用：不由 worker 执行，只为把用量计入全站预算而记一条运行记录
+	AgentRunKindBackground = "background"
 
-	AgentTriggerBrowse           = "browse"
-	AgentTriggerPostPublished    = "post.published"
-	AgentTriggerCommentReplied   = "comment.replied"
-	AgentTriggerCommentMentioned = "comment.mentioned" // 评论里被 @ 了
-	AgentTriggerDryRun           = "dry_run"
+	AgentTriggerBrowse            = "browse"
+	AgentTriggerPostPublished     = "post.published"
+	AgentTriggerCommentReplied    = "comment.replied"
+	AgentTriggerCommentMentioned  = "comment.mentioned" // 评论里被 @ 了
+	AgentTriggerDryRun            = "dry_run"
+	AgentTriggerMemoryConsolidate = "memory.consolidate" // 后台任务：夜间整理记忆
+	AgentTriggerGroupGenerate     = "group.generate"     // 后台任务：人设工厂生成人设
 
 	AgentRunStatusQueued  = "queued"
 	AgentRunStatusLeased  = "leased"

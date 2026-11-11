@@ -43,6 +43,8 @@ func main() {
 	repo.KV.ListenChanges()
 	tasks.ListenStorageProviderChanges()
 	service.ListenFileLinkChanges()
+	// 公开的文章与页面变化后，各实例作废音乐白名单中文章引用的歌曲
+	service.ListenMusicWhitelistChanges()
 
 	err = repo.InitDatabase()
 	if err != nil {
@@ -82,6 +84,8 @@ func main() {
 	tasks.StartJobRecovery()
 	// 启动时预热歌单（网易云返回上千首、1～2MB，现拉十几秒；重启后进程内的歌单缓存会丢）
 	tasks.StartMusicPlaylistWarm()
+	// 定期清理超过保留期的旧版本歌词标注（手动编辑过的保留）
+	tasks.StartLyricAnnotationCleanup()
 	// 站内通知的跨实例广播：任一实例写入通知后唤醒各实例上的 SSE 连接
 	service.StartNotificationHub()
 	// 站内互动通知的邮件汇总投递（只有真人评论 / 回复触发发信，点赞等附带项搭车）

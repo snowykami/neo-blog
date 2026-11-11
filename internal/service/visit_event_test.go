@@ -14,7 +14,9 @@ func int64Ptr(n int64) *int64 { return &n }
 
 // 兼容 Plausible 的事件上报：pageview 记为访问，engagement 累计到该访问，外链与 Web Vitals 写入事件表
 func TestVisitHandleEvent(t *testing.T) {
-	_, admin, _, post, _ := setupEditTest(t)
+	author, admin, _, _, _ := setupEditTest(t)
+	// 访问目标只认公开文章（私密文章前台 404，不记为目标）
+	post := reloadPost(t, createPublicPost(t, author, nil))
 	svc := NewVisitService()
 	anon := context.Background()
 	client := VisitClient{IP: testIP, UserAgent: testChromeUA, AcceptLanguage: "zh-CN,zh;q=0.9", CHUA: `"Chromium";v="141"`, CHUAMobile: "?0", CHUAPlatform: `"Windows"`}

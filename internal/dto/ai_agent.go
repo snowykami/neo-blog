@@ -351,16 +351,18 @@ type AIAgentGroupTemplate struct {
 }
 
 type AIAgentGroupDto struct {
-	ID          uint                 `json:"id"`
-	Name        string               `json:"name"`
-	Template    AIAgentGroupTemplate `json:"template"`
-	Status      string               `json:"status"` // generating / done / failed
-	Total       int                  `json:"total"`
-	Created     int                  `json:"created"`
-	Error       string               `json:"error"`
-	AgentCount  int64                `json:"agent_count"`
-	ActiveCount int64                `json:"active_count"`
-	CreatedAt   time.Time            `json:"created_at"`
+	ID       uint                 `json:"id"`
+	Name     string               `json:"name"`
+	Template AIAgentGroupTemplate `json:"template"`
+	Status   string               `json:"status"` // generating / done / failed
+	Total    int                  `json:"total"`
+	Created  int                  `json:"created"`
+	Error    string               `json:"error"`
+	// 生成中但执行的实例已退出：等待其他实例接手（job_recovery，约一分钟内），之后从 created 继续
+	Interrupted bool      `json:"interrupted"`
+	AgentCount  int64     `json:"agent_count"`
+	ActiveCount int64     `json:"active_count"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type GenerateAIAgentGroupReq struct {

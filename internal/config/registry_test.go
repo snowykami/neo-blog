@@ -75,7 +75,7 @@ func TestRuntimeValues(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if Int("email_port") != 25 || String("site_name") != "Snowykami's Blog" || Int("revision_max_keep") != RevisionMaxKeepMin {
+	if Int("email_port") != 25 || String("site_name") != "My Blog" || Int("revision_max_keep") != RevisionMaxKeepMin {
 		t.Fatalf("db values: port=%d name=%q keep=%d", Int("email_port"), String("site_name"), Int("revision_max_keep"))
 	}
 	// 单选不在可选值内时回退默认；多选去掉已下线的取值
@@ -117,6 +117,55 @@ func TestSiteInfoValues(t *testing.T) {
 	}
 	if String("owner_name") != "Snowy" || !reflect.DeepEqual(Strings("default_cover"), []string{"https://a.png"}) {
 		t.Fatalf("site_info: %q %v", String("owner_name"), Strings("default_cover"))
+	}
+}
+
+// 前台站点信息：未保存过时全部来自注册表（独立配置键 > 默认值，与后台表单显示的一致），已保存时补上缺少的项、已有的值不动
+func TestSiteInfo(t *testing.T) {
+	setupDB(t)
+	if err := repo.KV.SetKV("site_name", "旧站名"); err != nil {
+		t.Fatal(err)
+	}
+	info := SiteInfo()
+	for _, section := range sections {
+		for _, it := range section.Items {
+			if len(it.siteInfoPath) == 0 || it.Default == nil {
+				continue
+			}
+			got, ok := getPath(info, it.siteInfoPath)
+			if !ok {
+				t.Errorf("%s missing from site info", it.Key)
+				continue
+			}
+			if want := it.dbValue(); !reflect.DeepEqual(got, want) {
+				t.Errorf("%s = %#v, want %#v", it.Key, got, want)
+			}
+		}
+	}
+	if info["metadata"].(map[string]any)["name"] != "旧站名" {
+		t.Errorf("standalone key ignored: %v", info["metadata"])
+	}
+	// 开源默认值是中性占位，不带作者的个人信息与备案号
+	if String("owner_name") != "Blogger" || String("footer_text") != "" || String("owner_avatar") != "" || len(Strings("default_cover")) != 0 {
+		t.Errorf("defaults should be neutral: owner=%q footer=%q avatar=%q cover=%v", String("owner_name"), String("footer_text"), String("owner_avatar"), Strings("default_cover"))
+	}
+
+	if err := repo.KV.SetKV(siteInfoKey, map[string]any{"owner": map[string]any{"name": "Snowy"}, "footer": map[string]any{"text": "备案号"}, "legacy_field": "x"}); err != nil {
+		t.Fatal(err)
+	}
+	info = SiteInfo()
+	owner := info["owner"].(map[string]any)
+	footer := info["footer"].(map[string]any)
+	if owner["name"] != "Snowy" || footer["text"] != "备案号" || info["legacy_field"] != "x" {
+		t.Errorf("saved values changed: %v", info)
+	}
+	if _, ok := owner["avatar"]; !ok || footer["links"] == nil || info["animation_duration_second"] != 0.618 {
+		t.Errorf("missing fields not filled from registry: %v", info)
+	}
+	// 返回的是副本，修改不影响缓存中的站点信息
+	owner["name"] = "changed"
+	if String("owner_name") != "Snowy" {
+		t.Error("SiteInfo should return a copy")
 	}
 }
 

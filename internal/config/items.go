@@ -39,30 +39,26 @@ var tabs = []Tab{
 // 站点内置的配色方案，对应前端 app/styles 下的主题文件
 var colorSchemes = []string{"blue", "green", "orange", "red", "pink", "rose", "violet", "yellow"}
 
+// 站点信息相关的默认值是开源项目的中性占位（站名、站长、图标、封面、页脚等），新站点在后台填写自己的信息；
+// 已保存过站点信息的站点不受默认值变化影响（升级前的默认值由迁移 2026111150 补进已保存的站点信息）
 var sections = []*Section{
 	{Tab: "site", Key: "site", Title: "section_site", Description: "section_site_desc", Items: []*Item{
-		{Key: "site_name", Type: TypeString, Label: "site_name", Default: "Snowykami's Blog", siteInfoPath: path("metadata.name"), mirror: same},
+		{Key: "site_name", Type: TypeString, Label: "site_name", Default: "My Blog", siteInfoPath: path("metadata.name"), mirror: same},
 		{Key: "base_url", Type: TypeURL, Label: "base_url", Description: "base_url_desc", Default: constant.DefaultBaseUrl, Env: constant.EnvKeyBaseUrl, siteInfoPath: path("base_url"), mirror: same},
 		{Key: "site_description", Type: TypeText, Label: "site_description", Wide: true, Default: "A neo blog system", siteInfoPath: path("metadata.description"), mirror: same},
 		// 站点语言：文章主要使用的语言。没有语言偏好的访客（不带 Accept-Language 的请求，如搜索引擎爬虫）按它显示界面，
 		// 也是 RSS 订阅源的语言。取值与界面支持的语言对应（zh / zh-tw / ja / en / ko）
 		{Key: "default_language", Type: TypeEnum, Label: "site_language", Description: "site_language_desc", Options: options([]string{"zh-cn", "zh-tw", "en-us", "ja-jp", "ko-kr"}, ""), Default: "zh-cn"},
-		{Key: "site_icon", Type: TypeImage, Label: "site_icon", Default: "https://cdn.liteyuki.org/snowykami/avatar_alpha.png", siteInfoPath: path("metadata.icon"), mirror: same},
+		{Key: "site_icon", Type: TypeImage, Label: "site_icon", Default: "", siteInfoPath: path("metadata.icon"), mirror: same},
 		{Key: "keywords", Type: TypeStringList, Label: "keywords", PlaceholderKey: "keyword_placeholder", Default: []string{}, siteInfoPath: path("keywords")},
 		// 前台随机使用其中一张；RSS 的默认封面只支持单张，独立配置键只写第一张
-		{Key: "default_cover", Type: TypeImageList, Label: "default_covers", Description: "default_covers_desc", Default: []string{
-			"https://cdn.liteyuki.org/snowykami/image/1759709826590.webp",
-			"https://cdn.liteyuki.org/snowykami/image/1759710439228.webp",
-			"https://cdn.liteyuki.org/snowykami/image/1759710339517.webp",
-			"https://cdn.liteyuki.org/snowykami/image/furina.png",
-			"https://cdn.liteyuki.org/snowykami/image/1759710500693.webp",
-		}, siteInfoPath: path("default_cover"), mirror: first},
+		{Key: "default_cover", Type: TypeImageList, Label: "default_covers", Description: "default_covers_desc", Default: []string{}, siteInfoPath: path("default_cover"), mirror: first},
 	}},
 	{Tab: "site", Key: "owner", Title: "section_owner", Items: []*Item{
-		{Key: "owner_name", Type: TypeString, Label: "owner_name", Default: "SnowyKami", siteInfoPath: path("owner.name")},
+		{Key: "owner_name", Type: TypeString, Label: "owner_name", Default: "Blogger", siteInfoPath: path("owner.name")},
 		{Key: "owner_motto", Type: TypeString, Label: "owner_motto", Default: "", siteInfoPath: path("owner.motto")},
-		{Key: "owner_description", Type: TypeText, Label: "owner_description", Wide: true, Default: "A full-stack developer.", siteInfoPath: path("owner.description")},
-		{Key: "owner_avatar", Type: TypeImage, Label: "owner_avatar", Default: "https://cdn.liteyuki.org/snowykami/avatar.jpg", siteInfoPath: path("owner.avatar")},
+		{Key: "owner_description", Type: TypeText, Label: "owner_description", Wide: true, Default: "", siteInfoPath: path("owner.description")},
+		{Key: "owner_avatar", Type: TypeImage, Label: "owner_avatar", Default: "", siteInfoPath: path("owner.avatar")},
 		{Key: "owner_gravatar_email", Type: TypeEmail, Label: "owner_gravatar_email", Description: "owner_gravatar_email_desc", Default: "", siteInfoPath: path("owner.gravatar_email")},
 	}},
 
@@ -93,12 +89,12 @@ var sections = []*Section{
 		{Key: "copyright_link", Type: TypeURL, Label: "copyright_link", Default: "", siteInfoPath: path("copyright_link")},
 	}},
 	{Tab: "content", Key: "footer", Title: "section_footer", Items: []*Item{
-		{Key: "footer_text", Type: TypeString, Label: "footer_text", Wide: true, Default: "Liteyuki ICP 114514", siteInfoPath: path("footer.text")},
+		{Key: "footer_text", Type: TypeString, Label: "footer_text", Wide: true, Default: "", siteInfoPath: path("footer.text")},
 		{Key: "footer_links", Type: TypeLinkList, Label: "footer_links", Default: []map[string]any{}, siteInfoPath: path("footer.links")},
 	}},
 
 	{Tab: "frontend", Key: "personalize", Title: "section_personalize", Description: "section_personalize_desc", Items: []*Item{
-		{Key: "about_background", Type: TypeImage, Label: "about_background", Description: "empty_to_hide", Default: "https://cdn.liteyuki.org/snowykami/dark_2.png", siteInfoPath: path("about_background")},
+		{Key: "about_background", Type: TypeImage, Label: "about_background", Description: "empty_to_hide", Default: "", siteInfoPath: path("about_background")},
 		{Key: "enable_third_party_script", Type: TypeBool, Label: "enable_third_party_script", Description: "enable_third_party_script_desc", Default: true, siteInfoPath: path("enable_third_party_script")},
 	}},
 	{Tab: "frontend", Key: "sidebar", Title: "section_sidebar", Description: "section_sidebar_desc", Items: []*Item{

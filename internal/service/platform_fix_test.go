@@ -287,8 +287,12 @@ func TestListPostsLightweightColumns(t *testing.T) {
 	if got.DraftContent != nil || len(got.Labels) != 1 || got.User.Username != "author" {
 		t.Fatalf("unexpected list item: draft=%v labels=%d user=%q", got.DraftContent, len(got.Labels), got.User.Username)
 	}
-	if got.Content != strings.Repeat("长", 200)+"..." {
-		t.Fatalf("summary should be first 200 runes with ellipsis, got %d runes", len([]rune(got.Content)))
+	// 列表不读正文，摘要是保存时生成的纯文本（前 200 字加省略号）
+	if got.Content != "" {
+		t.Fatalf("list should not return content, got %d runes", len([]rune(got.Content)))
+	}
+	if got.Excerpt != strings.Repeat("长", 200)+"…" {
+		t.Fatalf("excerpt should be first 200 runes with ellipsis, got %d runes", len([]rune(got.Excerpt)))
 	}
 }
 

@@ -1261,8 +1261,8 @@
       "ai_agents_max_chain_depth_desc": "回覆鏈上 AI 之間連續互動的最大層數，實際不超過「最大回覆層級」",
       "ai_agents_pair_exchanges": "同一對 AI 每日往返次數",
       "ai_agents_pair_exchanges_desc": "同一對 AI 使用者在同一討論串中每天最多來回幾次",
-      "ai_agents_mentions_per_pair_per_day": "同一使用者每日 @ 同一 AI 的次數",
-      "ai_agents_mentions_per_pair_per_day_desc": "同一使用者每天最多透過 @ 喚醒同一個 AI 使用者幾次；0 為不回應 @；管理員不受限",
+      "ai_agents_mentions_per_pair_per_day": "同一使用者每日找同一 AI 的次數",
+      "ai_agents_mentions_per_pair_per_day_desc": "同一使用者每天最多透過 @ 或回覆喚醒同一個 AI 使用者幾次（兩者共用名額）；0 為不回應 @ 與回覆；管理員不受限",
       "ai_agents_mentions_per_user_per_hour": "同一使用者每小時 @ AI 的次數",
       "ai_agents_mentions_per_user_per_hour_desc": "同一使用者每小時最多透過 @ 喚醒 AI 使用者幾次（所有 AI 合計）；0 為不回應 @；管理員不受限",
       "ai_agents_profile_self_edit": "允許 AI 自行修改資料",
@@ -2240,6 +2240,8 @@
       "status_outdated_hint": "全站歌詞版本已更換，這份特效不再顯示，下次播放時依新版本重新產生",
       "status_outdated_edit": "有舊版本的手動編輯",
       "status_outdated_edit_hint": "這首歌有手動編輯過的特效屬於舊的歌詞版本，已不再顯示；把全站歌詞來源切換回去即可恢復",
+      "status_orphaned": "已不在歌單",
+      "status_orphaned_hint": "這首歌已不在部落格歌單，也沒有被公開文章引用：讀者無法播放，AI 不會再為它生成；仍可手動編輯或刪除特效",
       "preview": "在播放器中試聽",
       "back": "返回列表",
       "generated_at": "AI 產生於 {time} · {model}",
@@ -2251,11 +2253,15 @@
       "regenerate_description": "會覆蓋這首歌目前的歌詞特效，包括手動編輯的內容和未儲存的修改。",
       "regenerate_started": "已開始重新產生，完成後自動載入",
       "regenerate_failed": "重新產生失敗",
+      "regenerate_orphaned": "這首歌已不在部落格歌單，無法讓 AI 重新生成",
       "save": "儲存",
       "saved": "已儲存",
       "save_failed": "儲存失敗",
+      "save_blocked_generating": "AI 正在生成這首歌的特效，生成結束後才能儲存；你的修改仍保留在編輯器中",
+      "generation_finished": "AI 已生成完畢，已載入新的特效",
+      "generation_finished_unsaved": "AI 已生成完畢。你有未儲存的修改，儲存後以你的修改為準",
       "unsaved": "有未儲存的修改",
-      "unavailable": "這首歌不在部落格歌單中，也沒有被公開文章引用，或者沒有歌詞，無法編輯歌詞特效。",
+      "unavailable": "這首歌沒有逐字歌詞（或沒有歌詞），無法編輯歌詞特效。",
       "load_failed": "載入失敗",
       "retry": "重試",
       "canvas_hint": "選取歌詞中的文字新增特效，點擊已有的特效修改或刪除，懸停可以預覽動效。同一文字的行共用特效；短語在行內每次出現時都會演出。歌詞與時間軸無法修改。",
@@ -2312,7 +2318,7 @@
       "phrases_empty": "這一行還沒有特效，選取歌詞即可新增",
       "legend": "特效分類",
       "legend_hint": "沒有標註的詞唱滿 1 秒時，播放器也會自動輕微放大。",
-      "select_all": "全選列表中的歌曲",
+      "select_all": "全選本頁的歌曲",
       "select_song": "選擇 {name}",
       "selected": "已選 {count} 首",
       "clear_selection": "取消選擇",
@@ -2345,7 +2351,8 @@
       "batch_item_failed": "生成失敗",
       "batch_item_skipped": "已略過",
       "batch_item_with_reason": "{status}：{reason}",
-      "batch_reason_edited": "手動編輯過"
+      "batch_reason_edited": "手動編輯過",
+      "batch_reason_deleted": "生成期間特效被刪除"
     },
     "api_tokens": {
       "title": "API Token",
@@ -2590,14 +2597,35 @@
       "run_kind": {
         "browse": "主動瀏覽",
         "event": "事件觸發",
-        "dry_run": "試執行"
+        "dry_run": "試執行",
+        "background": "背景任務"
       },
       "trigger": {
         "browse": "主動瀏覽",
         "post_published": "新文章發布",
         "comment_replied": "有人回覆",
         "comment_mentioned": "留言裡被 @",
-        "dry_run": "試執行"
+        "dry_run": "試執行",
+        "memory_consolidate": "整理記憶",
+        "group_generate": "生成人設"
+      },
+      "skip_reason": {
+        "chain_depth": "AI 互動深度已達上限",
+        "reply_depth": "回覆層級已達上限",
+        "ai_interaction_disabled": "沒有開啟與其他 AI 互動",
+        "pair_exchange": "今天與這個 AI 的來回次數已達上限",
+        "daily_comment_limit": "今天的留言額度已用完",
+        "mention_pair_limit": "同一使用者今天 @ 或回覆這個 AI 的次數已達上限",
+        "mention_user_limit": "同一使用者本小時 @ AI 的次數已達上限",
+        "reply_pair_limit": "同一使用者今天 @ 或回覆這個 AI 的次數已達上限",
+        "target_private": "文章 / 頁面已設為私密",
+        "target_deleted": "文章 / 頁面已刪除",
+        "target_unsupported": "目標類型不支援",
+        "comment_private": "留言已設為私密",
+        "comment_deleted": "留言已刪除",
+        "disabled": "AI 使用者功能已關閉",
+        "agent_paused": "AI 使用者已暫停",
+        "user_disabled": "帳號已被停用"
       },
       "action_type": {
         "like": "按讚",
@@ -2826,8 +2854,12 @@
         "status": {
           "generating": "產生中",
           "done": "已完成",
-          "failed": "失敗"
-        }
+          "failed": "失敗",
+          "interrupted": "等待接手"
+        },
+        "interrupted_hint": "執行的實例已退出，約一分鐘內由其他實例接著生成",
+        "resume_generation": "繼續生成",
+        "resume_started": "已開始繼續生成"
       },
       "detail": {
         "title": "個性設定",
@@ -2998,6 +3030,7 @@
         "ignored": "無視",
         "reverted": "已撤回",
         "no_target": "推薦串流",
+        "background_task": "背景任務",
         "kind": "類型",
         "scheduled_at": "排定時間",
         "finished_at": "完成時間",
@@ -3631,6 +3664,7 @@
       "invalid_name": "名稱無效",
       "invalid_status": "無效的狀態",
       "persona_generation_failed": "人設生成失敗，請檢查 AI 設定後重試",
+      "ai_agent_group_not_failed": "只有生成失敗的群體可以繼續生成",
       "storage_migration_running": "已有遷移任務在進行，請等待完成或先取消",
       "storage_migration_not_running": "目前沒有進行中的遷移",
       "storage_provider_location_locked": "該儲存中仍有檔案，不能修改類型、目錄、Bucket、Prefix 或 WebDAV 位址；請先把檔案遷移到其他儲存",
@@ -3647,6 +3681,7 @@
       "pinned_until_in_past": "到期時間要晚於現在",
       "lyric_annotation_batch_running": "已有批次重新生成歌詞特效的任務正在進行",
       "lyric_annotation_batch_too_large": "一次最多選擇 1000 首歌",
+      "lyric_annotation_generating": "AI 正在生成這首歌的歌詞特效，生成結束後才能儲存",
       "notification_delivery_not_retryable": "這筆投遞目前的狀態不能重試（只有失敗或逾時卡住的投遞可以重試）"
     },
     "reasons": {

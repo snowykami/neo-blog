@@ -31,7 +31,7 @@ func TestSiteConfigTypedValues(t *testing.T) {
 		t.Errorf("GetAllowRegister() = false, want true")
 	}
 	// 类型不符时回退默认值
-	if got := GetSiteName(); got != "Snowykami's Blog" {
+	if got := GetSiteName(); got != "My Blog" {
 		t.Errorf("GetSiteName() = %q, want default", got)
 	}
 	// 未设置时使用默认值

@@ -37,7 +37,9 @@ func TestPostHeatScore(t *testing.T) {
 }
 
 func TestViewCountFromVisitReport(t *testing.T) {
-	author, admin, _, post, _ := setupEditTest(t)
+	author, admin, _, _, _ := setupEditTest(t)
+	// 只有公开文章计浏览量（私密文章前台 404，见 TestVisitReportTargetVisibility）
+	post := reloadPost(t, createPublicPost(t, author, nil))
 	svc := NewVisitService()
 	anon := context.Background()
 	views := func() uint64 { return reloadPost(t, post.ID).ViewCount }

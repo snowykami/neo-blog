@@ -2,12 +2,15 @@ package agentrunner
 
 import (
 	"context"
+	"fmt"
 	"math/rand/v2"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
 )
 
@@ -95,7 +98,8 @@ func workLoop(ctx context.Context, workers int) {
 						defer inflight.Delete(run.RunID)
 						defer func() {
 							if r := recover(); r != nil {
-								logrus.Errorf("agent run %d panic: %v", run.RunID, r)
+								logrus.Errorf("agent run %d panic: %v\n%s", run.RunID, r, debug.Stack())
+								reportPanic(run.RunID, r)
 							}
 							busy.Add(-1)
 							select {
@@ -116,5 +120,18 @@ func workLoop(ctx context.Context, workers int) {
 		case <-ticker.C:
 		case <-finished:
 		}
+	}
+}
+
+// reportPanic 执行中 panic 的运行立即记为失败并写入 panic 摘要，不必等租约过期后重试（同样的输入多半还会 panic）
+func reportPanic(runID uint, r any) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Errorf("report panic of agent run %d: %v", runID, r)
+		}
+	}()
+	result := &dto.AgentCompleteReq{ID: runID, Status: "failed", Error: fmt.Sprintf("panic: %v", r)}
+	if svcerr := service.NewAIAgentService().Complete(context.Background(), result); svcerr != nil {
+		logrus.Warnf("report panic of agent run %d: %v", runID, svcerr)
 	}
 }

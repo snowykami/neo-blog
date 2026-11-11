@@ -6,7 +6,8 @@ import "time"
 // 按网易云歌曲 id 与歌词文本的哈希保存，歌词文本变化后重新标注；Data 为标注结果的 JSON，只引用歌词文本，不含任何时间。
 // CreatedAt 为本次标注的生成时间：超过有效期或管理员手动刷新后重新生成，覆盖 Data、Model 与 CreatedAt。
 // EditedAt 为管理员在后台手动编辑的时间（未编辑时为空）：编辑过的标注不再因过期自动重新生成，只有管理员手动刷新时覆盖（同时清空 EditedAt）。
-// Source 为生成时全站歌词版本的具体来源（如 ttml-amll、ncm-yrc，旧数据为空），只作记录：标注按歌词文本哈希查找，文本相同的来源共用一份
+// Source 为生成时全站歌词版本的具体来源（如 ttml-amll、ncm-yrc，旧数据为空），只作记录：标注按歌词文本哈希查找，文本相同的来源共用一份。
+// Phrases 为 Data 中短语（特效）的总数，写入 Data 时同步计算：后台列表只读这些短列，不读 Data
 type LyricAnnotation struct {
 	ID        uint   `gorm:"primaryKey"`
 	SongID    int64  `gorm:"not null;uniqueIndex:idx_lyric_annotation_song_hash"`
@@ -14,6 +15,7 @@ type LyricAnnotation struct {
 	Data      string `gorm:"type:text;not null"`
 	Model     string `gorm:"type:varchar(128)"`
 	Source    string `gorm:"type:varchar(32);not null;default:''"`
+	Phrases   int    `gorm:"not null;default:0"`
 	CreatedAt time.Time
 	EditedAt  *time.Time
 }

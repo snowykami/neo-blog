@@ -37,7 +37,8 @@ export function PostListItem({ post, showAuthor = true, pinned = false }: { post
   const t = useTranslations()
   const url = getPostUrl({ post })
   const hasCover = !!post.cover
-  const summary = stripInlineMarkdown(post.description) || htmlToText(post.content || '').slice(0, 200)
+  // 摘要：作者填写的描述优先，其次是后端生成的纯文本摘要；后端尚未返回 excerpt 时（旧版本）退回自己从正文提取
+  const summary = stripInlineMarkdown(post.description) || post.excerpt || htmlToText(post.content || '').slice(0, 200)
 
   return (
     // 整行可点：标题链接的伪元素铺满整行（stretched link），分类 / 标签链接层级更高

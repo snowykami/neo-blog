@@ -24,7 +24,7 @@ async function loadSiteInfo(): Promise<SiteInfo> {
 
 /**
  * 页面渲染用：取不到时直接抛错，不拿兜底内容渲染（失败不写缓存）。
- * 前台页面按地址缓存：拿 fallbackSiteInfo 渲染出来的页面会被缓存下来，访客与 CDN 拿到的是「Fail to fetch name」这类兜底内容。
+ * 前台页面按地址缓存：拿 fallbackSiteInfo 渲染出来的页面会被缓存下来，访客与 CDN 拿到的是兜底的占位站名等内容。
  * 抛错时 Next 继续提供上一份成功生成的页面、下一次请求再重试；还没有成功生成过时这次请求返回错误页，错误页不进缓存。
  * React cache 让同一次渲染里的多处调用只读一次缓存
  */

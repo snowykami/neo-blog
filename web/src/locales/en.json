@@ -1261,8 +1261,8 @@
       "ai_agents_max_chain_depth_desc": "Max consecutive AI-to-AI exchanges in a reply chain; never deeper than the max reply depth",
       "ai_agents_pair_exchanges": "Daily exchanges per AI pair",
       "ai_agents_pair_exchanges_desc": "How many times the same two AI users may go back and forth in one thread per day",
-      "ai_agents_mentions_per_pair_per_day": "Daily @-wakes per user and AI",
-      "ai_agents_mentions_per_pair_per_day_desc": "How many times one user may wake the same AI user by @-mentioning it per day; 0 disables @-wakes; admins are exempt",
+      "ai_agents_mentions_per_pair_per_day": "Daily wakes per user and AI",
+      "ai_agents_mentions_per_pair_per_day_desc": "How many times one user may wake the same AI user per day by @-mentioning or replying to it (shared quota); 0 ignores @-mentions and replies; admins are exempt",
       "ai_agents_mentions_per_user_per_hour": "Hourly @-wakes per user",
       "ai_agents_mentions_per_user_per_hour_desc": "How many times one user may wake AI users by @-mentioning them per hour, across all AI users; 0 disables @-wakes; admins are exempt",
       "ai_agents_profile_self_edit": "Allow AI users to edit their profiles",
@@ -2240,6 +2240,8 @@
       "status_outdated_hint": "The site-wide lyric version has changed. These effects are no longer shown and will be regenerated for the new version on the next play",
       "status_outdated_edit": "Manual edits on an old version",
       "status_outdated_edit_hint": "This song has hand-edited effects for an older lyric version that are no longer shown. Switch the site-wide lyric source back to restore them",
+      "status_orphaned": "No longer in playlist",
+      "status_orphaned_hint": "This song is no longer in the blog playlist or referenced by a public post: readers cannot play it and AI will not generate effects for it again. You can still edit or delete its effects",
       "preview": "Preview in player",
       "back": "Back to list",
       "generated_at": "AI generated {time} · {model}",
@@ -2251,11 +2253,15 @@
       "regenerate_description": "This replaces the current lyric effects, including hand edits and unsaved changes.",
       "regenerate_started": "Regeneration started; results load automatically",
       "regenerate_failed": "Regeneration failed",
+      "regenerate_orphaned": "This song is no longer in the blog playlist, so AI cannot regenerate its effects",
       "save": "Save",
       "saved": "Saved",
       "save_failed": "Save failed",
+      "save_blocked_generating": "AI is generating effects for this song. You can save once it finishes; your changes are kept in the editor",
+      "generation_finished": "AI has finished generating; the new effects are loaded",
+      "generation_finished_unsaved": "AI has finished generating. You have unsaved changes; saving will keep your changes",
       "unsaved": "Unsaved changes",
-      "unavailable": "This song is not in the blog playlist or referenced by a public post, or has no lyrics, so its lyric effects cannot be edited.",
+      "unavailable": "This song has no word-timed lyrics (or no lyrics at all), so its lyric effects cannot be edited.",
       "load_failed": "Failed to load",
       "retry": "Retry",
       "canvas_hint": "Select text in the lyrics to add an effect; click an effect to change or remove it; hover to preview. Lines with the same text share effects, and a phrase plays wherever it appears in the line. Lyrics and timing cannot be changed.",
@@ -2312,7 +2318,7 @@
       "phrases_empty": "No effects yet. Select lyrics to add one.",
       "legend": "Effect categories",
       "legend_hint": "Words sung for a full second are gently enlarged automatically even without an effect.",
-      "select_all": "Select all songs in the list",
+      "select_all": "Select all songs on this page",
       "select_song": "Select {name}",
       "selected": "{count} selected",
       "clear_selection": "Clear selection",
@@ -2345,7 +2351,8 @@
       "batch_item_failed": "Failed",
       "batch_item_skipped": "Skipped",
       "batch_item_with_reason": "{status}: {reason}",
-      "batch_reason_edited": "manually edited"
+      "batch_reason_edited": "manually edited",
+      "batch_reason_deleted": "effects deleted during generation"
     },
     "api_tokens": {
       "title": "API tokens",
@@ -2590,14 +2597,35 @@
       "run_kind": {
         "browse": "Browse",
         "event": "Event",
-        "dry_run": "Dry run"
+        "dry_run": "Dry run",
+        "background": "Background task"
       },
       "trigger": {
         "browse": "Browsing",
         "post_published": "New post",
         "comment_replied": "Reply received",
         "comment_mentioned": "Mentioned in a comment",
-        "dry_run": "Dry run"
+        "dry_run": "Dry run",
+        "memory_consolidate": "Memory consolidation",
+        "group_generate": "Persona generation"
+      },
+      "skip_reason": {
+        "chain_depth": "AI chain depth limit reached",
+        "reply_depth": "Reply depth limit reached",
+        "ai_interaction_disabled": "Interaction with other AIs is off",
+        "pair_exchange": "Daily exchange limit with this AI reached",
+        "daily_comment_limit": "Daily comment quota used up",
+        "mention_pair_limit": "This user's daily @-mentions and replies to this AI reached the limit",
+        "mention_user_limit": "This user's hourly @-mentions of AIs reached the limit",
+        "reply_pair_limit": "This user's daily @-mentions and replies to this AI reached the limit",
+        "target_private": "Post or page is private",
+        "target_deleted": "Post or page was deleted",
+        "target_unsupported": "Unsupported target type",
+        "comment_private": "Comment is private",
+        "comment_deleted": "Comment was deleted",
+        "disabled": "AI users are turned off",
+        "agent_paused": "AI user is paused",
+        "user_disabled": "Account is disabled"
       },
       "action_type": {
         "like": "Like",
@@ -2826,8 +2854,12 @@
         "status": {
           "generating": "Generating",
           "done": "Done",
-          "failed": "Failed"
-        }
+          "failed": "Failed",
+          "interrupted": "Waiting to resume"
+        },
+        "interrupted_hint": "The instance running it exited; another instance will continue within about a minute",
+        "resume_generation": "Continue generating",
+        "resume_started": "Generation resumed"
       },
       "detail": {
         "title": "Persona",
@@ -2998,6 +3030,7 @@
         "ignored": "Ignored",
         "reverted": "Reverted",
         "no_target": "Feed",
+        "background_task": "Background task",
         "kind": "Kind",
         "scheduled_at": "Scheduled",
         "finished_at": "Finished",
@@ -3631,6 +3664,7 @@
       "invalid_name": "Invalid name",
       "invalid_status": "Invalid status",
       "persona_generation_failed": "Failed to generate personas; check the AI settings and retry",
+      "ai_agent_group_not_failed": "Only groups whose generation failed can be continued",
       "storage_migration_running": "A migration is already running. Wait for it to finish or cancel it first.",
       "storage_migration_not_running": "No migration is running",
       "storage_provider_location_locked": "This storage still holds files, so its type, directory, bucket, prefix or WebDAV address can’t change. Migrate the files to another storage first.",
@@ -3647,6 +3681,7 @@
       "pinned_until_in_past": "The expiry time must be in the future",
       "lyric_annotation_batch_running": "A batch regeneration of lyric effects is already running",
       "lyric_annotation_batch_too_large": "Select at most 1000 songs at a time",
+      "lyric_annotation_generating": "AI is generating lyric effects for this song. Save again once it finishes",
       "notification_delivery_not_retryable": "This delivery cannot be retried in its current state (only failed or stuck deliveries can be retried)"
     },
     "reasons": {

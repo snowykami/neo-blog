@@ -325,7 +325,9 @@ func (s *AIAgentService) ConsolidateMemories(ctx context.Context, agent *model.A
 		b.WriteString("</people>")
 		modelName := agentModel(agent, profile, tools.GetAIAgentConfig(), aiCfg)
 		callCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		raw, err := chatCompletionWithReasoning(callCtx, tools.AIConfig{BaseURL: aiCfg.BaseURL, APIKey: aiCfg.APIKey, Model: modelName}, consolidateSystemPrompt, b.String(), 0.3, "low")
+		// 与 worker 的调用共用全站预算，用量记在这个 AI 用户名下；预算不足时本轮不整理，下一轮再试
+		raw, err := backgroundAgentChat(callCtx, model.AgentRun{AgentID: agent.ID, Trigger: constant.AgentTriggerMemoryConsolidate},
+			tools.AIConfig{BaseURL: aiCfg.BaseURL, APIKey: aiCfg.APIKey, Model: modelName}, consolidateSystemPrompt, b.String(), 0.3, "low")
 		cancel()
 		if err != nil {
 			return err

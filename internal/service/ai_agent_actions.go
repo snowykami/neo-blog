@@ -19,6 +19,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/config"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -70,14 +71,18 @@ func (w *agentWriteContext) takeWriteSlot() *errs.ServiceError {
 }
 
 // recordEffect 把实际写入追加到运行记录，撤回时据此回滚
+// 写入已经发生，记录失败时只打日志（撤回时会缺这一项，需要人工处理）
 func recordEffect(runID uint, effect dto.AgentEffectDto) {
 	run, err := repo.AIAgent.GetRun(runID)
 	if err != nil {
+		logrus.Warnf("record effect of agent run %d (%s): load run: %v", runID, effect.Type, err)
 		return
 	}
 	effects := parseJSONOr(run.Effects, []dto.AgentEffectDto{})
 	effects = append(effects, effect)
-	_ = repo.AIAgent.UpdateRun(runID, map[string]any{"effects": mustJSON(effects)})
+	if err := repo.AIAgent.UpdateRun(runID, map[string]any{"effects": mustJSON(effects)}); err != nil {
+		logrus.Warnf("record effect of agent run %d (%s): %v", runID, effect.Type, err)
+	}
 }
 
 // aiChainDepth 评论所在回复链的 AI 互动深度：从这条评论开始向上，连续的 AI 评论条数（遇到真人即停）
@@ -226,26 +231,43 @@ func (s *AIAgentService) AgentCreateComment(ctx context.Context, targetType stri
 	if ok, err := sharedstate.Current().SetNX(slotKey, "1", AgentRunMaxDuration+agentLeaseDuration); err == nil && !ok {
 		return 0, errs.NewConflict("agent_duplicate_comment_in_run")
 	}
-	if svcerr := w.checkComment(targetType, targetID, replyID, content); svcerr != nil {
+	// 全站、单篇、单个 AI 的评论上限都是「先数再写」：检查与写入放在同一把锁里，多个 AI（多个实例）同时评论也不会超出
+	release, err := sharedstate.Lock(ctx, agentCommentLockKey, agentCommentLockTTL)
+	if err != nil {
 		_ = sharedstate.Current().Delete(slotKey)
-		return 0, svcerr
+		return 0, errs.NewTooManyRequests("agent_comment_busy")
 	}
-	if svcerr := w.takeWriteSlot(); svcerr != nil {
-		return 0, svcerr
-	}
-	commentID, svcerr := NewCommentService().CreateComment(ctx, &dto.CreateCommentReq{
-		TargetID:   targetID,
-		TargetType: targetType,
-		Content:    content,
-		ReplyID:    replyID,
-		UserAgent:  "neo-blog-agent",
-	})
+	commentID, svcerr := w.createCommentLocked(ctx, targetType, targetID, replyID, content)
+	release()
 	if svcerr != nil {
 		_ = sharedstate.Current().Delete(slotKey)
 		return 0, svcerr
 	}
 	recordEffect(w.run.RunID, dto.AgentEffectDto{Type: "comment", CommentID: commentID, TargetType: targetType, TargetID: targetID})
 	return commentID, nil
+}
+
+// AI 评论上限检查与写入的全局锁：持有上限覆盖一次评论写入（含审核等），实例崩溃时自动过期
+const (
+	agentCommentLockKey = "ai:comment_quota"
+	agentCommentLockTTL = 30 * time.Second
+)
+
+// createCommentLocked 在评论锁内检查上限并写入
+func (w *agentWriteContext) createCommentLocked(ctx context.Context, targetType string, targetID, replyID uint, content string) (uint, *errs.ServiceError) {
+	if svcerr := w.checkComment(targetType, targetID, replyID, content); svcerr != nil {
+		return 0, svcerr
+	}
+	if svcerr := w.takeWriteSlot(); svcerr != nil {
+		return 0, svcerr
+	}
+	return NewCommentService().CreateComment(ctx, &dto.CreateCommentReq{
+		TargetID:   targetID,
+		TargetType: targetType,
+		Content:    content,
+		ReplyID:    replyID,
+		UserAgent:  "neo-blog-agent",
+	})
 }
 
 // AgentSetLike AI 用户点赞 / 取消点赞（幂等：设为指定状态）

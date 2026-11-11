@@ -1261,8 +1261,8 @@
       "ai_agents_max_chain_depth_desc": "返信の連鎖で AI 同士が続けて交流できる最大の段数。「最大返信階層」を超えることはありません",
       "ai_agents_pair_exchanges": "同じ AI 同士の 1 日の往復回数",
       "ai_agents_pair_exchanges_desc": "同じ 2 人の AI ユーザーが 1 つのスレッドで 1 日に往復できる回数",
-      "ai_agents_mentions_per_pair_per_day": "同じ AI への 1 日の @ 呼び出し回数",
-      "ai_agents_mentions_per_pair_per_day_desc": "1 人のユーザーが同じ AI ユーザーを @ で呼び出せる 1 日の回数。0 で @ 呼び出しを無効化。管理者は対象外",
+      "ai_agents_mentions_per_pair_per_day": "同じ AI への 1 日の呼び出し回数",
+      "ai_agents_mentions_per_pair_per_day_desc": "1 人のユーザーが同じ AI ユーザーを @ または返信で呼び出せる 1 日の回数（共通の枠）。0 で @ と返信に応答しません。管理者は対象外",
       "ai_agents_mentions_per_user_per_hour": "1 時間あたりの @ 呼び出し回数",
       "ai_agents_mentions_per_user_per_hour_desc": "1 人のユーザーがすべての AI ユーザーを @ で呼び出せる 1 時間あたりの合計回数。0 で @ 呼び出しを無効化。管理者は対象外",
       "ai_agents_profile_self_edit": "AI によるプロフィール変更を許可",
@@ -2240,6 +2240,8 @@
       "status_outdated_hint": "サイト全体の歌詞バージョンが変わったため、このエフェクトは表示されません。次回の再生時に新しいバージョンで再生成されます",
       "status_outdated_edit": "旧バージョンの手動編集あり",
       "status_outdated_edit_hint": "この曲には旧い歌詞バージョン向けに手動編集したエフェクトがあり、現在は表示されていません。サイト全体の歌詞ソースを元に戻すと復元されます",
+      "status_orphaned": "プレイリスト外",
+      "status_orphaned_hint": "この曲はブログのプレイリストになく、公開記事でも引用されていません。読者は再生できず、AI がエフェクトを再生成することもありません。手動での編集や削除は可能です",
       "preview": "プレーヤーで試聴",
       "back": "一覧に戻る",
       "generated_at": "{time}に AI が生成 · {model}",
@@ -2251,11 +2253,15 @@
       "regenerate_description": "手動で編集した内容や未保存の変更を含め、この曲の歌詞エフェクトが上書きされます。",
       "regenerate_started": "再生成を開始しました。完了すると自動で読み込みます",
       "regenerate_failed": "再生成に失敗しました",
+      "regenerate_orphaned": "この曲はブログのプレイリストにないため、AI で再生成できません",
       "save": "保存",
       "saved": "保存しました",
       "save_failed": "保存に失敗しました",
+      "save_blocked_generating": "AI がこの曲のエフェクトを生成中です。生成が終わってから保存してください。変更はエディターに残っています",
+      "generation_finished": "AI の生成が完了し、新しいエフェクトを読み込みました",
+      "generation_finished_unsaved": "AI の生成が完了しました。未保存の変更があります。保存すると変更が優先されます",
       "unsaved": "未保存の変更があります",
-      "unavailable": "この曲はブログのプレイリストになく、公開記事でも引用されていないか、歌詞がないため、歌詞エフェクトを編集できません。",
+      "unavailable": "この曲には単語単位のタイミング付き歌詞（または歌詞そのもの）がないため、歌詞エフェクトを編集できません。",
       "load_failed": "読み込みに失敗しました",
       "retry": "再試行",
       "canvas_hint": "歌詞の文字を選択してエフェクトを追加し、既存のエフェクトをクリックして変更・削除します。ホバーでプレビューできます。同じ文字列の行はエフェクトを共有し、フレーズは行内に現れるたびに再生されます。歌詞とタイミングは変更できません。",
@@ -2312,7 +2318,7 @@
       "phrases_empty": "まだエフェクトはありません。歌詞を選択すると追加できます",
       "legend": "エフェクトの分類",
       "legend_hint": "エフェクトのない語も、1 秒以上歌われるとプレーヤーが自動で少し拡大します。",
-      "select_all": "一覧の曲をすべて選択",
+      "select_all": "このページの曲をすべて選択",
       "select_song": "{name} を選択",
       "selected": "{count} 曲を選択中",
       "clear_selection": "選択を解除",
@@ -2345,7 +2351,8 @@
       "batch_item_failed": "生成失敗",
       "batch_item_skipped": "スキップ",
       "batch_item_with_reason": "{status}：{reason}",
-      "batch_reason_edited": "手動編集あり"
+      "batch_reason_edited": "手動編集あり",
+      "batch_reason_deleted": "生成中にエフェクトが削除されました"
     },
     "api_tokens": {
       "title": "API トークン",
@@ -2590,14 +2597,35 @@
       "run_kind": {
         "browse": "閲覧",
         "event": "イベント",
-        "dry_run": "テスト実行"
+        "dry_run": "テスト実行",
+        "background": "バックグラウンド処理"
       },
       "trigger": {
         "browse": "自発的な閲覧",
         "post_published": "新しい記事の公開",
         "comment_replied": "返信を受けたとき",
         "comment_mentioned": "コメントで @ された",
-        "dry_run": "テスト実行"
+        "dry_run": "テスト実行",
+        "memory_consolidate": "記憶の整理",
+        "group_generate": "ペルソナ生成"
+      },
+      "skip_reason": {
+        "chain_depth": "AI 同士のやり取りの深さが上限に達しました",
+        "reply_depth": "返信の階層が上限に達しました",
+        "ai_interaction_disabled": "他の AI とのやり取りがオフです",
+        "pair_exchange": "この AI との今日のやり取り回数が上限に達しました",
+        "daily_comment_limit": "今日のコメント枠を使い切りました",
+        "mention_pair_limit": "同じユーザーが今日この AI に @ または返信した回数が上限に達しました",
+        "mention_user_limit": "同じユーザーがこの 1 時間に AI を @ した回数が上限に達しました",
+        "reply_pair_limit": "同じユーザーが今日この AI に @ または返信した回数が上限に達しました",
+        "target_private": "記事 / ページが非公開です",
+        "target_deleted": "記事 / ページが削除されました",
+        "target_unsupported": "対応していない対象です",
+        "comment_private": "コメントが非公開です",
+        "comment_deleted": "コメントが削除されました",
+        "disabled": "AI ユーザー機能がオフです",
+        "agent_paused": "AI ユーザーは一時停止中です",
+        "user_disabled": "アカウントが無効化されています"
       },
       "action_type": {
         "like": "いいね",
@@ -2826,8 +2854,12 @@
         "status": {
           "generating": "生成中",
           "done": "完了",
-          "failed": "失敗"
-        }
+          "failed": "失敗",
+          "interrupted": "引き継ぎ待ち"
+        },
+        "interrupted_hint": "実行中のインスタンスが終了しました。1 分ほどで別のインスタンスが続きを生成します",
+        "resume_generation": "生成を続ける",
+        "resume_started": "生成を再開しました"
       },
       "detail": {
         "title": "性格設定",
@@ -2998,6 +3030,7 @@
         "ignored": "スルー",
         "reverted": "取り消し済み",
         "no_target": "おすすめフィード",
+        "background_task": "バックグラウンド処理",
         "kind": "種類",
         "scheduled_at": "予定日時",
         "finished_at": "完了日時",
@@ -3631,6 +3664,7 @@
       "invalid_name": "名前が無効です",
       "invalid_status": "無効なステータスです",
       "persona_generation_failed": "ペルソナの生成に失敗しました。AI 設定を確認して再試行してください",
+      "ai_agent_group_not_failed": "生成に失敗したグループだけ続きを生成できます",
       "storage_migration_running": "別の移行が実行中です。完了を待つか、先にキャンセルしてください",
       "storage_migration_not_running": "実行中の移行はありません",
       "storage_provider_location_locked": "このストレージにはまだファイルがあるため、種類・ディレクトリ・Bucket・Prefix・WebDAV アドレスは変更できません。先にファイルを別のストレージへ移行してください",
@@ -3647,6 +3681,7 @@
       "pinned_until_in_past": "期限は現在より後にしてください",
       "lyric_annotation_batch_running": "歌詞エフェクトの一括再生成が実行中です",
       "lyric_annotation_batch_too_large": "一度に選択できるのは 1000 曲までです",
+      "lyric_annotation_generating": "AI がこの曲の歌詞エフェクトを生成中です。生成が終わってから保存してください",
       "notification_delivery_not_retryable": "この配信は現在の状態では再試行できません（失敗または停止した配信のみ再試行できます）"
     },
     "reasons": {

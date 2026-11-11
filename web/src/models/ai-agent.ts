@@ -11,11 +11,12 @@ export type AIAgentStatus = (typeof AI_AGENT_STATUSES)[number]
 export const AI_AGENT_TRIGGERS = ['browse', 'post.published', 'comment.replied', 'comment.mentioned'] as const
 export type AIAgentTrigger = (typeof AI_AGENT_TRIGGERS)[number]
 
-// 运行记录的触发方式（比性格档案的触发方式多一个试运行）
-export const AGENT_RUN_TRIGGERS = ['browse', 'post.published', 'comment.replied', 'comment.mentioned', 'dry_run'] as const
+// 运行记录的触发方式（比性格档案的触发方式多试运行，以及后台任务：记忆整理、人设生成）
+export const AGENT_RUN_TRIGGERS = ['browse', 'post.published', 'comment.replied', 'comment.mentioned', 'dry_run', 'memory.consolidate', 'group.generate'] as const
 export type AgentRunTrigger = (typeof AGENT_RUN_TRIGGERS)[number]
 
-export const AGENT_RUN_KINDS = ['browse', 'event', 'dry_run'] as const
+// background：后台任务的模型调用（不由 worker 执行，只为把用量计入全站预算而记录）
+export const AGENT_RUN_KINDS = ['browse', 'event', 'dry_run', 'background'] as const
 export type AgentRunKind = (typeof AGENT_RUN_KINDS)[number]
 
 export const AGENT_RUN_STATUSES = ['queued', 'leased', 'done', 'skipped', 'failed'] as const
@@ -268,6 +269,7 @@ export interface AIAgentGroup {
   total: number
   created: number
   error: string
+  interrupted: boolean // 生成中但执行的实例已退出：等待其他实例接手后从 created 继续
   agentCount: number
   activeCount: number
   createdAt: string

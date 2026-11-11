@@ -1261,8 +1261,8 @@
       "ai_agents_max_chain_depth_desc": "답글 체인에서 AI끼리 연속으로 주고받을 수 있는 최대 단계. 「최대 답글 깊이」를 넘지 않습니다",
       "ai_agents_pair_exchanges": "같은 AI 쌍의 일일 주고받기 횟수",
       "ai_agents_pair_exchanges_desc": "같은 두 AI 사용자가 한 스레드에서 하루에 주고받을 수 있는 횟수",
-      "ai_agents_mentions_per_pair_per_day": "같은 AI 일일 @ 호출 횟수",
-      "ai_agents_mentions_per_pair_per_day_desc": "한 사용자가 같은 AI 사용자를 @로 불러낼 수 있는 하루 횟수, 0이면 @ 호출을 끕니다. 관리자는 제외됩니다",
+      "ai_agents_mentions_per_pair_per_day": "같은 AI 일일 호출 횟수",
+      "ai_agents_mentions_per_pair_per_day_desc": "한 사용자가 같은 AI 사용자를 @ 또는 답글로 불러낼 수 있는 하루 횟수(공용 한도), 0이면 @와 답글에 응답하지 않습니다. 관리자는 제외됩니다",
       "ai_agents_mentions_per_user_per_hour": "시간당 @ 호출 횟수",
       "ai_agents_mentions_per_user_per_hour_desc": "한 사용자가 모든 AI 사용자를 @로 불러낼 수 있는 시간당 합계 횟수, 0이면 @ 호출을 끕니다. 관리자는 제외됩니다",
       "ai_agents_profile_self_edit": "AI의 프로필 수정 허용",
@@ -2240,6 +2240,8 @@
       "status_outdated_hint": "사이트 전체 가사 버전이 바뀌어 이 효과는 더 이상 표시되지 않으며, 다음 재생 때 새 버전으로 다시 생성됩니다",
       "status_outdated_edit": "이전 버전의 직접 편집 있음",
       "status_outdated_edit_hint": "이 곡에는 이전 가사 버전용으로 직접 편집한 효과가 있으며 지금은 표시되지 않습니다. 사이트 전체 가사 출처를 되돌리면 복원됩니다",
+      "status_orphaned": "재생목록에 없음",
+      "status_orphaned_hint": "이 곡은 더 이상 블로그 재생목록에 없고 공개 글에서도 인용되지 않습니다. 독자는 재생할 수 없고 AI도 다시 생성하지 않습니다. 직접 편집하거나 효과를 삭제할 수는 있습니다",
       "preview": "플레이어에서 미리 듣기",
       "back": "목록으로",
       "generated_at": "{time} AI 생성 · {model}",
@@ -2251,11 +2253,15 @@
       "regenerate_description": "직접 편집한 내용과 저장하지 않은 변경을 포함해 현재 가사 효과를 덮어씁니다.",
       "regenerate_started": "다시 생성을 시작했습니다. 완료되면 자동으로 불러옵니다",
       "regenerate_failed": "다시 생성하지 못했습니다",
+      "regenerate_orphaned": "이 곡은 블로그 재생목록에 없어 AI로 다시 생성할 수 없습니다",
       "save": "저장",
       "saved": "저장했습니다",
       "save_failed": "저장하지 못했습니다",
+      "save_blocked_generating": "AI가 이 곡의 효과를 생성하는 중입니다. 생성이 끝난 뒤 저장하세요. 수정한 내용은 편집기에 남아 있습니다",
+      "generation_finished": "AI 생성이 끝나 새 효과를 불러왔습니다",
+      "generation_finished_unsaved": "AI 생성이 끝났습니다. 저장하지 않은 수정이 있으며, 저장하면 수정한 내용이 우선합니다",
       "unsaved": "저장하지 않은 변경 사항",
-      "unavailable": "이 곡은 블로그 재생목록에 없고 공개 글에서도 인용되지 않았거나 가사가 없어 가사 효과를 편집할 수 없습니다.",
+      "unavailable": "이 곡에는 단어 단위 타이밍 가사(또는 가사 자체)가 없어 가사 효과를 편집할 수 없습니다.",
       "load_failed": "불러오지 못했습니다",
       "retry": "다시 시도",
       "canvas_hint": "가사의 텍스트를 선택해 효과를 추가하고, 기존 효과를 클릭해 수정하거나 삭제합니다. 마우스를 올리면 미리 볼 수 있습니다. 같은 텍스트의 줄은 효과를 공유하며, 구절은 줄 안에 나올 때마다 재생됩니다. 가사와 타이밍은 수정할 수 없습니다.",
@@ -2312,7 +2318,7 @@
       "phrases_empty": "아직 효과가 없습니다. 가사를 선택해 추가하세요",
       "legend": "효과 분류",
       "legend_hint": "효과가 없는 단어도 1초 이상 부르면 플레이어가 자동으로 살짝 확대합니다.",
-      "select_all": "목록의 곡 모두 선택",
+      "select_all": "이 페이지의 곡 모두 선택",
       "select_song": "{name} 선택",
       "selected": "{count}곡 선택됨",
       "clear_selection": "선택 해제",
@@ -2345,7 +2351,8 @@
       "batch_item_failed": "생성 실패",
       "batch_item_skipped": "건너뜀",
       "batch_item_with_reason": "{status}: {reason}",
-      "batch_reason_edited": "직접 편집됨"
+      "batch_reason_edited": "직접 편집됨",
+      "batch_reason_deleted": "생성 중 효과가 삭제됨"
     },
     "api_tokens": {
       "title": "API 토큰",
@@ -2590,14 +2597,35 @@
       "run_kind": {
         "browse": "탐색",
         "event": "이벤트",
-        "dry_run": "테스트 실행"
+        "dry_run": "테스트 실행",
+        "background": "백그라운드 작업"
       },
       "trigger": {
         "browse": "자발적 탐색",
         "post_published": "새 글 게시",
         "comment_replied": "답글 받음",
         "comment_mentioned": "댓글에서 @됨",
-        "dry_run": "테스트 실행"
+        "dry_run": "테스트 실행",
+        "memory_consolidate": "기억 정리",
+        "group_generate": "페르소나 생성"
+      },
+      "skip_reason": {
+        "chain_depth": "AI 대화 깊이 한도에 도달했습니다",
+        "reply_depth": "답글 단계 한도에 도달했습니다",
+        "ai_interaction_disabled": "다른 AI와의 상호작용이 꺼져 있습니다",
+        "pair_exchange": "오늘 이 AI와의 주고받기 횟수 한도에 도달했습니다",
+        "daily_comment_limit": "오늘의 댓글 한도를 다 썼습니다",
+        "mention_pair_limit": "같은 사용자가 오늘 이 AI를 @하거나 답글한 횟수가 한도에 도달했습니다",
+        "mention_user_limit": "같은 사용자가 이번 시간에 AI를 @한 횟수가 한도에 도달했습니다",
+        "reply_pair_limit": "같은 사용자가 오늘 이 AI를 @하거나 답글한 횟수가 한도에 도달했습니다",
+        "target_private": "글 / 페이지가 비공개입니다",
+        "target_deleted": "글 / 페이지가 삭제되었습니다",
+        "target_unsupported": "지원하지 않는 대상입니다",
+        "comment_private": "댓글이 비공개입니다",
+        "comment_deleted": "댓글이 삭제되었습니다",
+        "disabled": "AI 사용자 기능이 꺼져 있습니다",
+        "agent_paused": "AI 사용자가 일시 중지되었습니다",
+        "user_disabled": "계정이 비활성화되었습니다"
       },
       "action_type": {
         "like": "좋아요",
@@ -2826,8 +2854,12 @@
         "status": {
           "generating": "생성 중",
           "done": "완료",
-          "failed": "실패"
-        }
+          "failed": "실패",
+          "interrupted": "이어받기 대기"
+        },
+        "interrupted_hint": "실행하던 인스턴스가 종료되었습니다. 약 1분 안에 다른 인스턴스가 이어서 생성합니다",
+        "resume_generation": "이어서 생성",
+        "resume_started": "생성을 이어서 시작했습니다"
       },
       "detail": {
         "title": "성격 설정",
@@ -2998,6 +3030,7 @@
         "ignored": "무시",
         "reverted": "되돌림",
         "no_target": "추천 피드",
+        "background_task": "백그라운드 작업",
         "kind": "종류",
         "scheduled_at": "예약 시간",
         "finished_at": "완료 시간",
@@ -3631,6 +3664,7 @@
       "invalid_name": "이름이 잘못되었습니다",
       "invalid_status": "잘못된 상태입니다",
       "persona_generation_failed": "페르소나 생성에 실패했습니다. AI 설정을 확인한 뒤 다시 시도하세요",
+      "ai_agent_group_not_failed": "생성에 실패한 그룹만 이어서 생성할 수 있습니다",
       "storage_migration_running": "이미 진행 중인 이전 작업이 있습니다. 완료를 기다리거나 먼저 취소하세요",
       "storage_migration_not_running": "진행 중인 이전 작업이 없습니다",
       "storage_provider_location_locked": "이 스토리지에 아직 파일이 있어 유형, 디렉터리, Bucket, Prefix, WebDAV 주소를 바꿀 수 없습니다. 먼저 파일을 다른 스토리지로 이전하세요",
@@ -3647,6 +3681,7 @@
       "pinned_until_in_past": "만료 시간은 현재보다 이후여야 합니다",
       "lyric_annotation_batch_running": "가사 효과 일괄 다시 생성 작업이 이미 진행 중입니다",
       "lyric_annotation_batch_too_large": "한 번에 최대 1000곡까지 선택할 수 있습니다",
+      "lyric_annotation_generating": "AI가 이 곡의 가사 효과를 생성하는 중입니다. 생성이 끝난 뒤 저장하세요",
       "notification_delivery_not_retryable": "현재 상태에서는 이 발송을 재시도할 수 없습니다 (실패했거나 멈춘 발송만 재시도할 수 있습니다)"
     },
     "reasons": {

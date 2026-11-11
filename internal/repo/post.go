@@ -27,14 +27,17 @@ func (p *postRepo) CreatePost(post *model.Post) error {
 	return nil
 }
 
-// DeletePost 软删除文章，同时清理评论、点赞和标签关联，并释放 slug 以便新文章复用
-func (p *postRepo) DeletePost(id uint) error {
+// DeletePost 软删除文章，同时清理评论、点赞、相关通知和标签关联，并释放 slug 以便新文章复用；
+// 返回被删通知的收件人，调用方在事务提交后推送，让他们的未读徽标随之更新
+func (p *postRepo) DeletePost(id uint) ([]uint, error) {
 	defer InvalidatePostCache()
-	return GetDB().Transaction(func(tx *gorm.DB) error {
+	var notified []uint
+	err := GetDB().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&model.Post{}).Where("id = ?", id).UpdateColumn("slug", nil).Error; err != nil {
 			return err
 		}
-		if err := deleteTargetComments(tx, constant.TargetTypePost, id); err != nil {
+		var err error
+		if notified, err = deleteTargetComments(tx, constant.TargetTypePost, id); err != nil {
 			return err
 		}
 		if err := tx.Unscoped().Where("target_type = ? AND target_id = ?", constant.TargetTypePost, id).Delete(&model.Like{}).Error; err != nil {
@@ -45,6 +48,10 @@ func (p *postRepo) DeletePost(id uint) error {
 		}
 		return tx.Where("id = ?", id).Delete(&model.Post{}).Error
 	})
+	if err != nil {
+		return nil, err
+	}
+	return notified, nil
 }
 
 // helper: 批量查询 labels 对应的 post 数量（返回 map[labelID]count）
@@ -235,10 +242,11 @@ func (p *postRepo) SavePost(post *model.Post, columns []string, replaceLabels bo
 	if post.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
-	defer InvalidatePostCache()
-	return GetDB().Transaction(func(tx *gorm.DB) error {
+	err := GetDB().Transaction(func(tx *gorm.DB) error {
 		return updatePostTx(tx, post, columns, replaceLabels)
 	})
+	invalidateAfterPostSave(err, columns, replaceLabels)
+	return err
 }
 
 // SavePostWithDraftVersion 保存文章并把草稿版本号从 expected 加一（写入正文时使用），columns 与 replaceLabels 同 SavePost
@@ -247,14 +255,41 @@ func (p *postRepo) SavePostWithDraftVersion(post *model.Post, expected uint64, c
 	if post.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
-	defer InvalidatePostCache()
-	return GetDB().Transaction(func(tx *gorm.DB) error {
+	err := GetDB().Transaction(func(tx *gorm.DB) error {
 		if err := bumpDraftVersion(tx, &model.Post{}, post.ID, expected); err != nil {
 			return err
 		}
 		post.DraftVersion = expected + 1
 		return updatePostTx(tx, post, columns, replaceLabels)
 	})
+	invalidateAfterPostSave(err, columns, replaceLabels)
+	return err
+}
+
+// draftOnlyContentColumns 只有后台编辑器看得到的列（草稿正文）：前台的文章、页面接口与缓存都不含它们
+var draftOnlyContentColumns = []string{"draft_content"}
+
+// touchesPublicColumns 本次保存是否写入了前台可见的数据：改了标签，或写入了草稿之外的任何列。
+// 按「草稿列白名单」反向判断：以后新增的列默认当作公开字段，宁可多失效一次也不让前台停在旧数据上
+func touchesPublicColumns(columns []string, replaceLabels bool) bool {
+	if replaceLabels {
+		return true
+	}
+	for _, column := range columns {
+		if !slices.Contains(draftOnlyContentColumns, column) {
+			return true
+		}
+	}
+	return false
+}
+
+// invalidateAfterPostSave 保存成功且写入了公开字段时才让文章缓存失效：编辑器自动保存草稿很频繁，
+// 每次都清空全站文章缓存（含跨实例广播与前端缓存标签）会让写作期间首页、归档一直重新渲染；
+// 保存失败（含草稿版本冲突）时库里没有变化，也不失效
+func invalidateAfterPostSave(err error, columns []string, replaceLabels bool) {
+	if err == nil && touchesPublicColumns(columns, replaceLabels) {
+		InvalidatePostCache()
+	}
 }
 
 // updatePostTx 按列更新文章；写入正文时一并写入正文哈希（由 BeforeSave 计算），只改标签时也刷新更新时间
@@ -262,7 +297,7 @@ func updatePostTx(tx *gorm.DB, post *model.Post, columns []string, replaceLabels
 	if len(columns) > 0 || replaceLabels {
 		selected := append([]string{"updated_at"}, columns...)
 		if slices.Contains(columns, "content") {
-			selected = append(selected, "content_hash")
+			selected = append(selected, "content_hash", "excerpt")
 		}
 		// 关联字段不随更新写入，否则已加载的 Category 会把清空的 category_id 写回去
 		if err := tx.Model(post).Omit(clause.Associations).Select(selected).Updates(post).Error; err != nil {
@@ -332,13 +367,10 @@ func (p *postRepo) ListPosts(includePrivate bool, query []string, req *dto.ListP
 		return nil, 0, err
 	}
 
-	// 列表不读取草稿和完整正文，只截取摘要所需的前 201 个字符（摘要截断为 200 字）
-	columns := []string{"posts.id", "posts.created_at", "posts.updated_at", "posts.deleted_at", "posts.user_id",
-		"posts.category_id", "posts.cover", "posts.description", "posts.is_private", "posts.slug", "posts.title",
-		"posts.type", "posts.pinned_at", "posts.pinned_until", "posts.like_count", "posts.comment_count", "posts.view_count", "posts.heat",
-		"posts.content_hash", "posts.ai_summary", "posts.ai_summary_source_hash", "posts.ai_summary_at"}
+	// 列表不读取草稿和正文，摘要用保存时生成的纯文本摘要列（见 model.Post.Excerpt）
+	columns := slices.Clone(postListColumns)
 	if !req.NoContent {
-		columns = append(columns, "substr(posts.content, 1, 201) AS content")
+		columns = append(columns, "posts.excerpt")
 	}
 	items, err := paginate[model.Post](q.Select(columns), req.Page, req.Size, "posts."+req.OrderBy, req.Desc)
 	if err != nil {
@@ -346,6 +378,12 @@ func (p *postRepo) ListPosts(includePrivate bool, query []string, req *dto.ListP
 	}
 	return items, total, nil
 }
+
+// postListColumns 文章列表需要的字段：不读正文与草稿（摘要另读 posts.excerpt）
+var postListColumns = []string{"posts.id", "posts.created_at", "posts.updated_at", "posts.deleted_at", "posts.user_id",
+	"posts.category_id", "posts.cover", "posts.description", "posts.is_private", "posts.slug", "posts.title",
+	"posts.type", "posts.pinned_at", "posts.pinned_until", "posts.like_count", "posts.comment_count", "posts.view_count", "posts.heat",
+	"posts.content_hash", "posts.ai_summary", "posts.ai_summary_source_hash", "posts.ai_summary_at"}
 
 // postCardColumns 文章引用卡片需要的字段：不读正文、草稿与背景
 var postCardColumns = []string{
@@ -407,11 +445,11 @@ func visiblePosts(q *gorm.DB, includePrivate bool) *gorm.DB {
 	return q.Where("posts.is_private = ?", false)
 }
 
-// ListPinnedPosts 此刻置顶在首页的文章，后置顶的在前；includePrivate 为 false（前台）时只含公开文章；只读取列表需要的字段
+// ListPinnedPosts 此刻置顶在首页的文章，后置顶的在前；includePrivate 为 false（前台）时只含公开文章；只读取列表需要的字段（不含正文）
 func (p *postRepo) ListPinnedPosts(includePrivate bool, now time.Time, limit int) ([]model.Post, error) {
 	var posts []model.Post
 	q := GetDB().Model(&model.Post{}).Preload("User").Preload("Category").Preload("Labels").
-		Omit("draft_content").
+		Select(append(slices.Clone(postListColumns), "posts.excerpt")).
 		Where(activePinnedCondition, now)
 	err := visiblePosts(q, includePrivate).
 		Order("posts.pinned_at DESC").Order("posts.id DESC").

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -13,6 +14,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -20,7 +22,9 @@ import (
 
 // 后台手动编辑歌词标注（见 docs/music-player-spec.md 7.2b「手动编辑」）：管理员在后台的歌词特效页查看与修改 AI 生成的标注，
 // 只能改短语（选区与特效、颜色、字体、字形、节奏）、各行的情绪、副歌与粒子场景，以及全曲字体、节奏、导语与聚光灯，不能改歌词文本与时间轴；
-// 时刻与尾奏热评保持原样。编辑过的标注记下 edited_at，不再因过期自动重新生成（管理员手动刷新时覆盖）
+// 时刻与尾奏热评保持原样。编辑过的标注记下 edited_at，不再因过期自动重新生成（管理员手动刷新时覆盖）。
+// 正在生成时不能保存（409，避免与生成结果互相覆盖）；生成写回只覆盖没有手动编辑过的标注（见 lyricAnnotationService.saveGenerated），
+// 生成期间保存的编辑不会被生成结果覆盖。已移出歌单的歌曲仍可打开编辑器（只是不再由 AI 生成，见 editorLines）
 
 const (
 	// 手动编辑时每行最多的短语数与短语长度（比模型宽松，仍防止异常数据）
@@ -31,17 +35,35 @@ const (
 // errInvalidLyricAnnotation 手动编辑的标注不合法
 var errInvalidLyricAnnotation = errs.NewBadRequest("invalid_lyric_annotation")
 
+// errLyricAnnotationGenerating 这首歌正在由 AI 生成标注，生成结束后才能保存手动编辑
+var errLyricAnnotationGenerating = errs.NewConflict("lyric_annotation_generating")
+
+// lyricAnnotationListMaxSize 后台歌词特效列表每页最多的歌曲数
+const lyricAnnotationListMaxSize = 100
+
+// editorLines 后台编辑器用的歌词与上下文：除了可以生成标注的歌曲（见 annotatableTrack），已移出歌单、也没有被公开内容引用的歌曲
+// 也能打开（编辑器仅管理员可用，只读写已有的标注、不调用模型；歌词仍取全站歌词版本）；orphaned 为这种歌曲：读者无法播放，AI 不会再为它生成
+func (s *MusicService) editorLines(ctx context.Context, id int64) ([]string, lyricAnnotationInfo, bool, *errs.ServiceError) {
+	track := s.annotatableTrack(ctx, id)
+	orphaned := track == nil
+	if orphaned {
+		track = &dto.MusicTrackDto{ID: id}
+	}
+	lines, info, svcerr := s.annotationSource(ctx, track)
+	return lines, info, orphaned, svcerr
+}
+
 // GetLyricAnnotationEditor 后台编辑一首歌的歌词标注所需的数据：完整歌词与当前标注（还没有时 annotation 为空）
 func (s *MusicService) GetLyricAnnotationEditor(ctx context.Context, id int64) (*dto.MusicLyricAnnotationEditorDto, *errs.ServiceError) {
 	if id <= 0 {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
-	lines, _, svcerr := s.annotationLines(ctx, id)
+	lines, _, orphaned, svcerr := s.editorLines(ctx, id)
 	if svcerr != nil {
 		return nil, svcerr
 	}
 	key, hash := lyricAnnotationKey(id, lines)
-	result := &dto.MusicLyricAnnotationEditorDto{Lines: lines, Generating: lyricAnnotations.running(key)}
+	result := &dto.MusicLyricAnnotationEditorDto{Lines: lines, Generating: lyricAnnotations.running(key), Orphaned: orphaned}
 	var record model.LyricAnnotation
 	err := repo.GetDB().WithContext(ctx).Where("song_id = ? AND lyric_hash = ?", id, hash).First(&record).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -58,16 +80,20 @@ func (s *MusicService) GetLyricAnnotationEditor(ctx context.Context, id int64) (
 	return result, nil
 }
 
-// SaveLyricAnnotations 保存管理员手动编辑的歌词标注：校验后覆盖可编辑的部分，保留时刻与尾奏热评，记下编辑时间
+// SaveLyricAnnotations 保存管理员手动编辑的歌词标注：校验后覆盖可编辑的部分，保留时刻与尾奏热评，记下编辑时间。
+// 这份歌词正在生成标注（包括在其他实例上）时返回 409 lyric_annotation_generating
 func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *dto.MusicLyricAnnotationsEditReq) (*dto.MusicLyricAnnotationEditorDto, *errs.ServiceError) {
 	if id <= 0 || req == nil {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
-	lines, info, svcerr := s.annotationLines(ctx, id)
+	lines, info, _, svcerr := s.editorLines(ctx, id)
 	if svcerr != nil {
 		return nil, svcerr
 	}
-	_, hash := lyricAnnotationKey(id, lines)
+	key, hash := lyricAnnotationKey(id, lines)
+	if lyricAnnotations.running(key) {
+		return nil, errLyricAnnotationGenerating
+	}
 	db := repo.GetDB().WithContext(ctx)
 	var existing model.LyricAnnotation
 	err := db.Where("song_id = ? AND lyric_hash = ?", id, hash).First(&existing).Error
@@ -90,10 +116,10 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 		record.Model, record.CreatedAt = existing.Model, existing.CreatedAt
 	}
 	raw, _ := json.Marshal(data)
-	record.Data = string(raw)
+	record.Data, record.Phrases = string(raw), lyricAnnotationPhraseCount(data.Lines)
 	upsert := clause.OnConflict{
 		Columns:   []clause.Column{{Name: "song_id"}, {Name: "lyric_hash"}},
-		DoUpdates: clause.AssignmentColumns([]string{"data", "source", "edited_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"data", "source", "phrases", "edited_at"}),
 	}
 	if err := db.Clauses(upsert).Create(record).Error; err != nil {
 		logrus.Errorf("save edited lyric annotation for song %d failed: %v", id, err)
@@ -102,18 +128,94 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 	return s.GetLyricAnnotationEditor(ctx, id)
 }
 
-// ListLyricAnnotations 后台歌词特效列表：每首歌一条，按生成或编辑时间倒序。同一首歌可能有多份标注（歌词或全站歌词版本变化后），
-// 优先显示属于当前全站歌词版本的那份；没有时显示最近的一份并标为过时（下次播放时按新版本重新生成）。
-// 手动编辑过、但属于旧版本的标注不再显示在播放器里，记下最近的编辑时间提醒管理员
-func (s *MusicService) ListLyricAnnotations(ctx context.Context) ([]dto.MusicLyricAnnotationSummaryDto, *errs.ServiceError) {
+// ListLyricAnnotations 后台歌词特效列表（分页）：博客歌单中的歌曲（按歌单顺序）与其他已有标注的歌曲（如文章引用的、已移出歌单的，
+// 按最近一次生成时间倒序）；query 按歌名、歌手或歌曲 ID 筛选（不在歌单中的歌曲只能按 ID）。只读标注的短列，不读 Data。
+// 歌单取不到（静态歌单、网易云出错）时只列出已有标注的歌曲，此时不判断是否已移出歌单
+func (s *MusicService) ListLyricAnnotations(ctx context.Context, req *dto.MusicLyricAnnotationListReq) ([]dto.MusicLyricAnnotationListItemDto, int64, *errs.ServiceError) {
+	db := repo.GetDB().WithContext(ctx)
+	var annotated []int64
+	if err := db.Model(&model.LyricAnnotation{}).Group("song_id").Order("MAX(created_at) DESC, song_id DESC").Pluck("song_id", &annotated).Error; err != nil {
+		return nil, 0, errs.Internal("failed_to_get_target", err)
+	}
+	var tracks []dto.MusicTrackDto
+	playlistKnown := false
+	if tools.GetNCMConfig().Configured() {
+		if list, svcerr := s.GetPlaylist(ctx); svcerr == nil {
+			tracks, playlistKnown = list, true
+		}
+	}
+
+	type row struct {
+		id    int64
+		track *dto.MusicTrackDto
+	}
+	keyword := strings.ToLower(strings.TrimSpace(req.Query))
+	matches := func(id int64, track *dto.MusicTrackDto) bool {
+		if keyword == "" || strings.Contains(strconv.FormatInt(id, 10), keyword) {
+			return true
+		}
+		if track == nil {
+			return false
+		}
+		return strings.Contains(strings.ToLower(track.Name), keyword) || slices.ContainsFunc(track.Artists, func(artist string) bool {
+			return strings.Contains(strings.ToLower(artist), keyword)
+		})
+	}
+	rows := []row{}
+	inPlaylist := make(map[int64]bool, len(tracks))
+	for i := range tracks {
+		if inPlaylist[tracks[i].ID] {
+			continue
+		}
+		inPlaylist[tracks[i].ID] = true
+		if matches(tracks[i].ID, &tracks[i]) {
+			rows = append(rows, row{id: tracks[i].ID, track: &tracks[i]})
+		}
+	}
+	for _, id := range annotated {
+		if !inPlaylist[id] && matches(id, nil) {
+			rows = append(rows, row{id: id})
+		}
+	}
+
+	total := int64(len(rows))
+	size := min(max(req.Size, 1), lyricAnnotationListMaxSize)
+	offset := min((max(req.Page, 1)-1)*size, uint64(len(rows)))
+	rows = rows[offset:min(offset+size, uint64(len(rows)))]
+	ids := make([]int64, len(rows))
+	for i, r := range rows {
+		ids[i] = r.id
+	}
+	summaries, svcerr := lyricAnnotationSummaries(ctx, ids)
+	if svcerr != nil {
+		return nil, 0, svcerr
+	}
+	items := make([]dto.MusicLyricAnnotationListItemDto, len(rows))
+	for i, r := range rows {
+		items[i] = dto.MusicLyricAnnotationListItemDto{SongID: r.id, Track: r.track, Summary: summaries[r.id]}
+		// 已移出歌单、也没有被公开内容引用：读者无法播放，AI 不会再为它生成（仍可手动编辑或删除）
+		items[i].Orphaned = playlistKnown && r.track == nil && !articleSongReferenced(r.id)
+	}
+	return items, total, nil
+}
+
+// lyricAnnotationSummaries 这些歌曲的标注概况：同一首歌可能有多份标注（歌词或全站歌词版本变化后），优先显示属于当前全站歌词版本的那份；
+// 没有时显示最近的一份并标为过时（下次播放时按新版本重新生成）。手动编辑过、但属于旧版本的标注不再显示在播放器里，记下最近的编辑时间提醒管理员。
+// 只读短列（短语数在写入时算好），不读 Data
+func lyricAnnotationSummaries(ctx context.Context, ids []int64) (map[int64]*dto.MusicLyricAnnotationSummaryDto, *errs.ServiceError) {
+	result := make(map[int64]*dto.MusicLyricAnnotationSummaryDto, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
 	db := repo.GetDB().WithContext(ctx)
 	var records []model.LyricAnnotation
-	if err := db.Order("created_at DESC").Find(&records).Error; err != nil {
+	if err := db.Select("id", "song_id", "lyric_hash", "phrases", "model", "source", "created_at", "edited_at").
+		Where("song_id IN ?", ids).Order("created_at DESC").Order("id DESC").Find(&records).Error; err != nil {
 		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	// 当前全站歌词版本的哈希；还没有选出版本、或旧数据没有记录哈希的歌曲不判断是否过时
 	var versions []model.LyricCache
-	if err := db.Select("song_id", "lyric_hash").Where("lyric_hash <> ''").Find(&versions).Error; err != nil {
+	if err := db.Select("song_id", "lyric_hash").Where("song_id IN ? AND lyric_hash <> ''", ids).Find(&versions).Error; err != nil {
 		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	current := make(map[int64]string, len(versions))
@@ -124,7 +226,6 @@ func (s *MusicService) ListLyricAnnotations(ctx context.Context) ([]dto.MusicLyr
 	type songRecords struct {
 		shown, outdatedEdit *model.LyricAnnotation
 	}
-	order := []int64{}
 	bySong := map[int64]*songRecords{}
 	for i := range records {
 		record := &records[i]
@@ -132,7 +233,6 @@ func (s *MusicService) ListLyricAnnotations(ctx context.Context) ([]dto.MusicLyr
 		if song == nil {
 			song = &songRecords{shown: record}
 			bySong[record.SongID] = song
-			order = append(order, record.SongID)
 		}
 		hash, known := current[record.SongID]
 		if known && record.LyricHash == hash && song.shown.LyricHash != hash {
@@ -142,22 +242,16 @@ func (s *MusicService) ListLyricAnnotations(ctx context.Context) ([]dto.MusicLyr
 			song.outdatedEdit = record
 		}
 	}
-	result := []dto.MusicLyricAnnotationSummaryDto{}
-	for _, id := range order {
-		song := bySong[id]
-		phrases := 0
-		for _, line := range parseLyricAnnotationData(song.shown.Data).Lines {
-			phrases += len(line.Phrases)
-		}
+	for id, song := range bySong {
 		hash, known := current[id]
-		summary := dto.MusicLyricAnnotationSummaryDto{
-			SongID: id, Phrases: phrases, GeneratedAt: song.shown.CreatedAt, EditedAt: song.shown.EditedAt, Model: song.shown.Model,
+		summary := &dto.MusicLyricAnnotationSummaryDto{
+			SongID: id, Phrases: song.shown.Phrases, GeneratedAt: song.shown.CreatedAt, EditedAt: song.shown.EditedAt, Model: song.shown.Model,
 			Source: song.shown.Source, Outdated: known && song.shown.LyricHash != hash,
 		}
 		if song.outdatedEdit != nil && song.outdatedEdit != song.shown {
 			summary.OutdatedEditedAt = song.outdatedEdit.EditedAt
 		}
-		result = append(result, summary)
+		result[id] = summary
 	}
 	return result, nil
 }

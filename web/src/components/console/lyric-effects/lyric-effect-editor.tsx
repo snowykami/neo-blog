@@ -21,6 +21,7 @@ import { reloadAnnotations } from '@/contexts/lyric-annotations'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
 import { fromAnnotationForm, toAnnotationForm, uniqueLyricLines } from '@/lib/lyrics/annotation-edit'
+import { getErrorBody } from '@/utils/common/error'
 import { consolePath } from '@/utils/common/route'
 import { LyricCanvas } from './lyric-canvas'
 import { EffectLegendPanel, LineSettingsPanel, SongSettingsPanel } from './lyric-settings-panels'
@@ -34,7 +35,8 @@ const EMPTY_FORM: AnnotationForm = { font: '', pace: 'beat', intro: '', accent: 
 
 /**
  * 后台歌词特效编辑器（见 spec 7.2b「手动编辑」）：查看并手动修改一首歌的 AI 歌词标注。只能选区加特效、改各行与全曲的设置，
- * 不能改歌词与时间轴；保存后记为手动编辑，不再因过期自动重新生成。也可以让 AI 重新生成（覆盖手动编辑的内容）
+ * 不能改歌词与时间轴；保存后记为手动编辑，不再因过期自动重新生成。也可以让 AI 重新生成（覆盖手动编辑的内容）。
+ * AI 正在生成时（含批量任务、其他管理员触发的）不能保存：后端返回 409，编辑器保留修改并等生成结束；已不在歌单的歌曲仍可编辑，但不能让 AI 重新生成
  */
 export function LyricEffectEditor() {
   const t = useTranslations('Console.lyric_effects')
@@ -52,6 +54,8 @@ export function LyricEffectEditor() {
   const [regenerating, setRegenerating] = React.useState(false)
   const form = useForm<AnnotationForm>({ defaultValues: EMPTY_FORM })
   const { isDirty, isSubmitting } = form.formState
+  const dirtyRef = React.useRef(isDirty)
+  dirtyRef.current = isDirty
   const unique = React.useMemo(() => uniqueLyricLines(data?.lines ?? []), [data?.lines])
 
   const apply = React.useCallback((editor: MusicLyricAnnotationEditor) => {
@@ -96,9 +100,43 @@ export function LyricEffectEditor() {
       toast.success(t('saved'))
     }
     catch (error) {
+      // AI 正在生成（打开编辑器之后才开始的，如批量任务）：不能保存，修改保留在编辑器中，等生成结束后再保存
+      if (getErrorBody(error)?.code === 'lyric_annotation_generating') {
+        setData(prev => prev && { ...prev, generating: true })
+        toast.error(t('save_blocked_generating'))
+        return
+      }
       toast.error(`${t('save_failed')}: ${errorMessageT(error as BaseResponseError)}`)
     }
   })
+
+  // 生成进行中、但不是本页发起的重新生成（打开时已在生成，或保存时才发现）：定时确认是否结束。
+  // 结束后没有未保存的修改时载入新结果；有修改时只解除禁用、保留修改（再保存会以手动编辑为准）
+  const waitingGeneration = !!data?.generating && !regenerating
+  React.useEffect(() => {
+    if (!waitingGeneration)
+      return
+    let stopped = false
+    const timer = window.setInterval(async () => {
+      const editor = await fetchLyricAnnotationEditor(songId).catch(() => undefined)
+      if (stopped || !editor || editor.generating)
+        return
+      stopped = true
+      window.clearInterval(timer)
+      if (dirtyRef.current) {
+        setData(prev => prev && { ...prev, generating: false })
+        toast.info(t('generation_finished_unsaved'))
+        return
+      }
+      apply(editor)
+      reloadAnnotations(songId)
+      toast.info(t('generation_finished'))
+    }, POLL_MS)
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+    }
+  }, [apply, songId, t, waitingGeneration])
 
   // AI 重新生成：后台开始生成后轮询，生成完成（不再 generating）时载入新结果
   const regenerate = async () => {
@@ -160,6 +198,7 @@ export function LyricEffectEditor() {
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {song && <span className="truncate">{song.artists.join(' / ')}</span>}
               {generating && <Badge className="bg-violet-100 text-violet-800 motion-safe:animate-pulse">{t('generating')}</Badge>}
+              {data.orphaned && <Badge className="bg-amber-100 text-amber-800" title={t('status_orphaned_hint')}>{t('status_orphaned')}</Badge>}
               {!generating && !data.annotation && <Badge variant="outline">{t('status_none')}</Badge>}
               {data.editedAt && <span>{t('edited_at', { time: ago(data.editedAt) })}</span>}
               {!data.editedAt && data.generatedAt && <span>{t('generated_at', { time: ago(data.generatedAt), model: data.model ?? '' })}</span>}
@@ -180,7 +219,7 @@ export function LyricEffectEditor() {
               confirmVariant="destructive"
               onConfirm={() => void regenerate()}
             >
-              <Button type="button" size="sm" variant="outline" disabled={generating}>
+              <Button type="button" size="sm" variant="outline" disabled={generating || data.orphaned} title={data.orphaned ? t('regenerate_orphaned') : undefined}>
                 <RefreshCwIcon className={generating ? 'size-4 motion-safe:animate-spin' : 'size-4'} />
                 {t('regenerate')}
               </Button>

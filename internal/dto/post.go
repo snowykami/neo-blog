@@ -36,6 +36,8 @@ type PostDto struct {
 	Collaborators []UserDto `json:"collaborators"` // 协作者列表
 	PostBaseDto
 	IsLiked bool `json:"is_liked"` // 当前用户是否点赞
+	// Excerpt 已发布正文的纯文本摘要（最多 200 字，截断时带省略号）：列表不返回正文，摘要与 meta description 用它
+	Excerpt string `json:"excerpt"`
 	// 置顶到首页：Pinned 为此刻是否置顶（已置顶且未到期）；PinnedUntil 为空表示不自动取消
 	Pinned       bool       `json:"pinned"`
 	PinnedAt     *time.Time `json:"pinned_at"`

@@ -458,11 +458,12 @@ func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackD
 	return tracks, nil
 }
 
-// GetSongURL 歌单内歌曲的临时播放地址；地址有有效期，缓存时间短于有效期。
-// level 为试听等场景要求的较低音质（如 higher 192k，加载更快），只能低于或等于后台设置的音质，为空或无效时用后台设置
+// GetSongURL 白名单内歌曲的临时播放地址；地址有有效期，缓存时间短于有效期。
+// level 为试听等场景要求的较低音质（如 higher 192k，加载更快），只能低于或等于后台设置的音质，为空或无效时用后台设置。
+// 只要求网易云已配置，不要求取到整份歌单：歌单接口出错时，公开内容引用的歌曲（文章单曲卡）与管理员仍可播放（见 SongPlayable）
 func (s *MusicService) GetSongURL(ctx context.Context, id int64, level string) (string, *errs.ServiceError) {
-	if _, svcerr := s.GetPlaylist(ctx); svcerr != nil {
-		return "", svcerr
+	if !tools.GetNCMConfig().Configured() {
+		return "", errs.NewNotFound("ncm_not_configured")
 	}
 	// 只对白名单内的歌曲换取播放地址（歌单、公开文章引用的歌曲、管理员与编辑，见 music_whitelist.go）
 	if !s.SongPlayable(ctx, id) {

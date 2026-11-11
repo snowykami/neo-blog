@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -16,6 +17,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
@@ -66,7 +68,9 @@ func generatePersonas(ctx context.Context, slots []personaSlot, tpl dto.AIAgentG
 	})
 	callCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	raw, err := chatCompletionWithReasoning(callCtx, tools.AIConfig{BaseURL: aiCfg.BaseURL, APIKey: aiCfg.APIKey, Model: modelName}, personaSystemPrompt, user, 0.9, "low")
+	// 与 worker 的调用共用全站预算；人设生成不属于任何 AI 用户，用量记为「后台任务」
+	raw, err := backgroundAgentChat(callCtx, model.AgentRun{Trigger: constant.AgentTriggerGroupGenerate},
+		tools.AIConfig{BaseURL: aiCfg.BaseURL, APIKey: aiCfg.APIKey, Model: modelName}, personaSystemPrompt, user, 0.9, "low")
 	if err != nil {
 		return nil, err
 	}
@@ -220,11 +224,101 @@ func (s *AIAgentService) GenerateGroup(ctx context.Context, req *dto.GenerateAIA
 	if err := repo.AIAgent.CreateGroup(group); err != nil {
 		return nil, errs.Internal("failed_to_create_target", err).WithResource("ai_agent_group")
 	}
-	tpl := req.Template
-	safeGo("ai agent group generation", func() { s.runGroupGeneration(group.ID, req.Count, tpl) })
+	// 拿不到任务令牌（共享状态出错）时群体仍是「生成中」，由 job_recovery 接手
+	s.startGroupGeneration(group.ID)
 	counts := map[uint][2]int64{}
 	d := s.groupDto(group, counts)
 	return &dto.GenerateAIAgentGroupResp{Group: &d}, nil
+}
+
+// 群体生成的任务令牌：生成期间由执行的实例持有并自动续期；实例退出（滚动更新、崩溃）后最多 groupLeaseTTL 过期，
+// 由 job_recovery 的 ResumeAIAgentGroups 在任意实例上接着生成。
+// 待办与进度就是群体这一行（状态为生成中、已创建数 created）：数据库是持久的，未配置 Redis 时进程重启也不会丢
+const groupLeaseTTL = 90 * time.Second
+
+func groupLeaseKey(groupID uint) string {
+	return fmt.Sprintf("ai_agent_group:active:%d", groupID)
+}
+
+// startGroupGeneration 抢占任务令牌并在后台继续生成；令牌已被占用（正在别处生成）时返回 false
+func (s *AIAgentService) startGroupGeneration(groupID uint) bool {
+	lease, err := sharedstate.AcquireLease(groupLeaseKey(groupID), groupLeaseTTL)
+	if err != nil {
+		logrus.Warnf("acquire lease of ai agent group %d: %v", groupID, err)
+		return false
+	}
+	if lease == nil {
+		return false
+	}
+	safeGo("ai agent group generation", func() {
+		defer lease.Release()
+		s.runGroupGeneration(groupID)
+	})
+	return true
+}
+
+// groupGenerationActive 群体是否正在某个实例上生成（任务令牌存在）
+func groupGenerationActive(ids []uint) map[uint]bool {
+	result := map[uint]bool{}
+	if len(ids) == 0 {
+		return result
+	}
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = groupLeaseKey(id)
+	}
+	values, err := sharedstate.Current().GetMany(keys...)
+	if err != nil {
+		// 读不到时按正在生成处理，不误报中断
+		for _, id := range ids {
+			result[id] = true
+		}
+		return result
+	}
+	for i, id := range ids {
+		_, result[id] = values[keys[i]]
+	}
+	return result
+}
+
+// ResumeAIAgentGroups 接手中途中断的群体生成（由 job_recovery 定时调用）：状态仍为生成中、任务令牌已过期的群体在本实例继续
+func ResumeAIAgentGroups() {
+	if !tools.GetAIConfig().Configured() {
+		return
+	}
+	groups, err := repo.AIAgent.ListGroupsByStatus(groupStatusGen)
+	if err != nil {
+		logrus.Warnf("list generating ai agent groups: %v", err)
+		return
+	}
+	svc := NewAIAgentService()
+	for i := range groups {
+		if svc.startGroupGeneration(groups[i].ID) {
+			logrus.Infof("resumed interrupted ai agent group generation %d (%d/%d)", groups[i].ID, groups[i].Created, groups[i].Total)
+		}
+	}
+}
+
+// ResumeGroup 生成失败（如模型连续出错、预算用完）的群体从已创建的数量继续生成
+func (s *AIAgentService) ResumeGroup(ctx context.Context, id uint) (*dto.AIAgentGroupDto, *errs.ServiceError) {
+	if _, svcerr := requireAdmin(ctx); svcerr != nil {
+		return nil, svcerr
+	}
+	if !tools.GetAIConfig().Configured() {
+		return nil, errs.NewUnavailable("ai_not_configured")
+	}
+	group, err := repo.AIAgent.GetGroup(id)
+	if err != nil {
+		return nil, errs.NewNotFound("target_not_found").WithResource("ai_agent_group")
+	}
+	if group.Status != groupStatusFailed {
+		return nil, errs.NewConflict("ai_agent_group_not_failed")
+	}
+	if err := repo.AIAgent.UpdateGroup(id, map[string]any{"status": groupStatusGen, "error": ""}); err != nil {
+		return nil, errs.Internal("failed_to_update_target", err).WithResource("ai_agent_group")
+	}
+	s.startGroupGeneration(id)
+	return s.GetGroup(ctx, id)
 }
 
 func (s *AIAgentService) generateBatch(ctx context.Context, archs []dto.AIAgentArchetype, tpl dto.AIAgentGroupTemplate) ([]dto.AIAgentPreview, error) {
@@ -243,17 +337,39 @@ func (s *AIAgentService) generateBatch(ctx context.Context, archs []dto.AIAgentA
 	return personas, nil
 }
 
-// runGroupGeneration 后台分批生成并创建账号
-func (s *AIAgentService) runGroupGeneration(groupID uint, count int, tpl dto.AIAgentGroupTemplate) {
+// runGroupGeneration 后台分批生成并创建账号，调用方持有任务令牌。
+// 从群体已创建的数量继续：剩余名额按原型占比重新分配（首次生成时分配后已打乱，已完成的部分相当于随机抽样，剩余按占比分配与原计划一致）。
+// 每创建一个账号就把群体的已创建数原子加一，实例中途退出时接手的实例据此算出剩余名额
+func (s *AIAgentService) runGroupGeneration(groupID uint) {
 	ctx := context.Background()
-	slots := allocateSlots(tpl.Archetypes, count)
-	created := 0
+	group, err := repo.AIAgent.GetGroup(groupID)
+	if err != nil || group.Status != groupStatusGen {
+		return
+	}
+	tpl := parseJSONOr(group.Template, dto.AIAgentGroupTemplate{})
+	remaining := group.Total - group.Created
+	if remaining <= 0 || len(tpl.Archetypes) == 0 {
+		_ = repo.AIAgent.UpdateGroup(groupID, map[string]any{"status": groupStatusDone})
+		return
+	}
+	slots := allocateSlots(tpl.Archetypes, remaining)
 	for start := 0; start < len(slots); start += groupBatchSize {
+		// 再读一次进度：万一令牌过期后被其他实例接手（如长时间连不上 Redis），已满时不再多建
+		current, err := repo.AIAgent.GetGroup(groupID)
+		if err != nil || current.Status != groupStatusGen {
+			return
+		}
+		if current.Created >= current.Total {
+			break
+		}
 		batch := slots[start:min(start+groupBatchSize, len(slots))]
 		var personas []dto.AIAgentPreview
-		var err error
 		for attempt := 0; attempt < groupBatchRetries; attempt++ {
 			if personas, err = s.generateBatch(ctx, batch, tpl); err == nil && len(personas) > 0 {
+				break
+			}
+			// 预算或频率上限：重试也不会成功
+			if errors.Is(err, ErrAgentLLMBudget) {
 				break
 			}
 		}
@@ -262,7 +378,7 @@ func (s *AIAgentService) runGroupGeneration(groupID uint, count int, tpl dto.AIA
 			if err != nil {
 				msg = err.Error()
 			}
-			_ = repo.AIAgent.UpdateGroup(groupID, map[string]any{"status": groupStatusFailed, "error": clipRunes(msg, 500), "created": created})
+			_ = repo.AIAgent.UpdateGroup(groupID, map[string]any{"status": groupStatusFailed, "error": clipRunes(msg, 500)})
 			return
 		}
 		for i, p := range personas {
@@ -287,9 +403,10 @@ func (s *AIAgentService) runGroupGeneration(groupID uint, count int, tpl dto.AIA
 				logrus.Warnf("group %d: create agent: %v", groupID, err)
 				continue
 			}
-			created++
+			if err := repo.AIAgent.IncrGroupCreated(groupID); err != nil {
+				logrus.Warnf("group %d: update progress: %v", groupID, err)
+			}
 		}
-		_ = repo.AIAgent.UpdateGroup(groupID, map[string]any{"created": created})
 	}
-	_ = repo.AIAgent.UpdateGroup(groupID, map[string]any{"status": groupStatusDone, "created": created})
+	_ = repo.AIAgent.UpdateGroup(groupID, map[string]any{"status": groupStatusDone})
 }

@@ -387,16 +387,64 @@ func TestListLyricAnnotationsOutdated(t *testing.T) {
 	db.Create(&model.LyricCache{SongID: 1, Kind: "ttml", Source: "ttml-amll", LyricHash: "new", Data: "{}", UpdatedAt: now})
 	db.Create(&model.LyricAnnotation{SongID: 1, LyricHash: "old", Data: `{"lines":[]}`, Model: "manual", CreatedAt: now.Add(-2 * time.Hour), EditedAt: &edited})
 	db.Create(&model.LyricAnnotation{SongID: 2, LyricHash: "legacy", Data: `{"lines":[]}`, CreatedAt: now.Add(-3 * time.Hour)})
-	got, svcerr := NewMusicService().ListLyricAnnotations(context.Background())
+	list := func() []dto.MusicLyricAnnotationListItemDto {
+		t.Helper()
+		items, total, svcerr := NewMusicService().ListLyricAnnotations(context.Background(), &dto.MusicLyricAnnotationListReq{PaginationParams: dto.PaginationParams{Page: 1, Size: 20}})
+		if svcerr != nil || total != int64(len(items)) {
+			t.Fatalf("list = %+v %d %v", items, total, svcerr)
+		}
+		for _, item := range items {
+			if item.Summary == nil || item.Track != nil || item.Orphaned {
+				t.Fatalf("item = %+v", item)
+			}
+		}
+		return items
+	}
+	got := list()
 	// 只有旧版本的手动编辑：显示它并标为过时；没有记录全站版本哈希的歌曲不判断
-	if svcerr != nil || len(got) != 2 || !got[0].Outdated || got[0].EditedAt == nil || got[1].Outdated {
-		t.Fatalf("before regeneration = %+v %v", got, svcerr)
+	if len(got) != 2 || got[0].SongID != 1 || !got[0].Summary.Outdated || got[0].Summary.EditedAt == nil || got[1].Summary.Outdated {
+		t.Fatalf("before regeneration = %+v", got)
 	}
 	// 按新版本重新生成后显示新的一份，旧版本的手动编辑另外提示
 	db.Create(&model.LyricAnnotation{SongID: 1, LyricHash: "new", Data: `{"lines":[]}`, Source: "ttml-amll", CreatedAt: now})
-	got, _ = NewMusicService().ListLyricAnnotations(context.Background())
-	if got[0].Outdated || got[0].Source != "ttml-amll" || got[0].OutdatedEditedAt == nil || got[0].OutdatedEditedAt.Sub(edited).Abs() > time.Second {
-		t.Fatalf("after regeneration = %+v", got[0])
+	got = list()
+	if summary := got[0].Summary; summary.Outdated || summary.Source != "ttml-amll" || summary.OutdatedEditedAt == nil || summary.OutdatedEditedAt.Sub(edited).Abs() > time.Second {
+		t.Fatalf("after regeneration = %+v", summary)
+	}
+}
+
+// 后台歌词特效列表分页：只读短列（短语数取自 phrases 列，不解析 Data），按最近生成时间倒序，按 ID 筛选
+func TestListLyricAnnotationsPaging(t *testing.T) {
+	setupTTMLDB(t)
+	db := repo.GetDB()
+	now := time.Now()
+	for i, id := range []int64{11, 12, 13} {
+		// Data 故意不合法：列表不应读取它
+		db.Create(&model.LyricAnnotation{SongID: id, LyricHash: "h", Data: "not json", Phrases: int(id), CreatedAt: now.Add(time.Duration(i) * time.Minute)})
+	}
+	db.Create(&model.LyricAnnotation{SongID: 11, LyricHash: "h2", Data: "not json", Phrases: 1, CreatedAt: now.Add(-time.Hour)})
+	s := NewMusicService()
+	page := func(page, size uint64, q string) ([]dto.MusicLyricAnnotationListItemDto, int64) {
+		t.Helper()
+		items, total, svcerr := s.ListLyricAnnotations(context.Background(), &dto.MusicLyricAnnotationListReq{PaginationParams: dto.PaginationParams{Page: page, Size: size}, Query: q})
+		if svcerr != nil {
+			t.Fatal(svcerr)
+		}
+		return items, total
+	}
+	items, total := page(1, 2, "")
+	if total != 3 || len(items) != 2 || items[0].SongID != 13 || items[1].SongID != 12 || items[0].Summary.Phrases != 13 {
+		t.Fatalf("page 1 = %+v %d", items, total)
+	}
+	items, total = page(2, 2, "")
+	if total != 3 || len(items) != 1 || items[0].SongID != 11 || items[0].Summary.Phrases != 11 {
+		t.Fatalf("page 2 = %+v %d", items, total)
+	}
+	if items, total = page(3, 2, ""); total != 3 || len(items) != 0 {
+		t.Fatalf("page 3 = %+v %d", items, total)
+	}
+	if items, total = page(1, 20, "12"); total != 1 || items[0].SongID != 12 {
+		t.Fatalf("query = %+v %d", items, total)
 	}
 }
 

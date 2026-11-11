@@ -123,6 +123,13 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 			if post.ContentHash != model.HashContent(post.Content) {
 				t.Errorf("post %d content_hash = %q, want hash of content", post.ID, post.ContentHash)
 			}
+			// 纯文本摘要列按已发布正文回填（含软删除的文章）
+			if post.Excerpt != model.PostExcerpt(post.Content) {
+				t.Errorf("post %d excerpt = %q, want %q", post.ID, post.Excerpt, model.PostExcerpt(post.Content))
+			}
+			if post.ID == 5 && post.Excerpt != "测试音频 & 正文" {
+				t.Errorf("post 5 excerpt = %q, want plain text", post.Excerpt)
+			}
 		}
 		// 编辑过的保留 medium / slow；模型生成的改为跟随节拍（短语的节奏不变）；更早的数组记录转成对象
 		wantPace := map[uint]struct {
@@ -160,6 +167,13 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 		}
 		if got := annotations[3].Data; !json.Valid([]byte(got)) {
 			t.Errorf("legacy annotation should become an object, got %q", got)
+		}
+		// 短语数列按已有的 Data 回填（后台列表不再读 Data）
+		wantPhrases := map[uint]int{1: 0, 2: 0, 3: 1, 4: 0, 5: 3}
+		for _, a := range annotations {
+			if a.Phrases != wantPhrases[a.ID] {
+				t.Errorf("annotation %d phrases = %d, want %d", a.ID, a.Phrases, wantPhrases[a.ID])
+			}
 		}
 		// 单个自定义歌词源地址转为列表中一个没有名称的源，旧配置键删除
 		var kvs []model.KV
@@ -304,6 +318,13 @@ func seedLegacyDatabase(t *testing.T) {
 	if err := db.Migrator().DropColumn(&model.Post{}, "content_hash"); err != nil {
 		t.Fatalf("drop content_hash: %v", err)
 	}
+	// 2026111130 之前没有纯文本摘要列
+	if err := db.Migrator().DropColumn(&model.Post{}, "excerpt"); err != nil {
+		t.Fatalf("drop excerpt: %v", err)
+	}
+	if err := db.Migrator().DropColumn(&model.LyricAnnotation{}, "phrases"); err != nil {
+		t.Fatalf("drop lyric annotation phrases: %v", err)
+	}
 	// 旧的置顶级别 top（带索引，列表组合索引也包含它），还没有置顶时间与到期时间
 	// SQLite 上前面删列会重建表，索引可能已经不在了
 	if db.Migrator().HasIndex(&model.Post{}, "PinnedAt") {
@@ -353,7 +374,8 @@ func seedLegacyDatabase(t *testing.T) {
 		{"UPDATE posts SET top = ? WHERE id = ?", []any{2, 2}},
 		{"INSERT INTO posts (id, title, content, top, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", []any{3, "third", "c", 9, now, now}},
 		{"INSERT INTO posts (id, title, content, top, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", []any{4, "fourth", "d", 2, now, now}},
-		{"INSERT INTO posts (id, title, content, top, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", []any{5, "fifth", "e", 1, now, now}},
+		// 正文带属性里有 > 的标签：摘要回填为纯文本
+		{"INSERT INTO posts (id, title, content, top, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", []any{5, "fifth", `<p><span data-hdr="a>b">测试音频</span> &amp; 正文</p>`, 1, now, now}},
 		{"INSERT INTO posts (id, title, content, top, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)", []any{6, "deleted", "f", 5, now, now, now}},
 		{"INSERT INTO likes (target_type, target_id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", []any{"post", 1, user.ID, now, now}},
 		{"INSERT INTO likes (target_type, target_id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", []any{"post", 1, user.ID, now, now}},
@@ -363,6 +385,8 @@ func seedLegacyDatabase(t *testing.T) {
 		{"INSERT INTO lyric_annotations (id, song_id, lyric_hash, data, created_at, edited_at) VALUES (?, ?, ?, ?, ?, ?)", []any{2, 2, "h2", `{"pace":"slow","lines":[]}`, now, now}},
 		{"INSERT INTO lyric_annotations (id, song_id, lyric_hash, data, created_at) VALUES (?, ?, ?, ?, ?)", []any{3, 3, "h3", `{"pace":"fast","lines":[{"text":"心跳","phrases":[{"text":"心跳","effect":"heartbeat","pace":"slow"}]}]}`, now}},
 		{"INSERT INTO lyric_annotations (id, song_id, lyric_hash, data, created_at, edited_at) VALUES (?, ?, ?, ?, ?, ?)", []any{4, 4, "h4", `[{"text":"旧"}]`, now, now}},
+		// 2026111120 之前没有短语数列：回填为各行短语的总数
+		{"INSERT INTO lyric_annotations (id, song_id, lyric_hash, data, created_at) VALUES (?, ?, ?, ?, ?)", []any{5, 5, "h5", `{"lines":[{"text":"甲","phrases":[{"text":"甲","effect":"glow"}]},{"text":"乙丙","phrases":[{"text":"乙","effect":"swell"},{"text":"丙","effect":"wave"}]}]}`, now}},
 	}
 	for _, s := range statements {
 		if err := db.Exec(s.sql, s.args...).Error; err != nil {
@@ -508,5 +532,60 @@ func useTestDB(t *testing.T, d *gorm.DB) {
 			_ = sqlDB.Close()
 		}
 		db = prev
+	})
+}
+
+// 站点信息默认值改为中性占位：已保存过的站点信息里缺少的项（也没有同名独立配置键）补上旧默认值，保持现状；
+// 已有的值、有独立配置键的项不动；从未保存过站点信息的库不新建
+func TestMigrateSiteInfoOldDefaults(t *testing.T) {
+	forEachDialect(t, func(t *testing.T) {
+		seedLegacyDatabase(t)
+		info := map[string]any{
+			"metadata": map[string]any{"name": "我的小站", "icon": "https://example.com/icon.png"},
+			"owner":    map[string]any{"name": "站长"},
+			"footer":   map[string]any{"links": []any{}},
+		}
+		for _, kv := range []model.KV{
+			{Key: "site_info", Value: model.JSONMap{"value": info}},
+			// 关于卡片背景存在独立配置键（旧数据），生效值以它为准，不补
+			{Key: "about_background", Value: model.JSONMap{"value": ""}},
+		} {
+			if err := db.Create(&kv).Error; err != nil {
+				t.Fatalf("seed %s: %v", kv.Key, err)
+			}
+		}
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		var row model.KV
+		if err := db.Where("key = ?", "site_info").First(&row).Error; err != nil {
+			t.Fatalf("load site_info: %v", err)
+		}
+		got, _ := json.Marshal(row.Value["value"])
+		var saved struct {
+			Metadata        map[string]any `json:"metadata"`
+			Owner           map[string]any `json:"owner"`
+			Footer          map[string]any `json:"footer"`
+			DefaultCover    []string       `json:"default_cover"`
+			AboutBackground *string        `json:"about_background"`
+		}
+		if err := json.Unmarshal(got, &saved); err != nil {
+			t.Fatalf("parse site_info %s: %v", got, err)
+		}
+		if saved.Metadata["name"] != "我的小站" || saved.Metadata["icon"] != "https://example.com/icon.png" || saved.Owner["name"] != "站长" {
+			t.Errorf("existing values changed: %s", got)
+		}
+		if saved.Owner["description"] != "A full-stack developer." || saved.Owner["avatar"] != "https://cdn.liteyuki.org/snowykami/avatar.jpg" {
+			t.Errorf("missing owner fields not backfilled: %s", got)
+		}
+		if saved.Footer["text"] != "Liteyuki ICP 114514" || saved.Footer["links"] == nil {
+			t.Errorf("footer = %v", saved.Footer)
+		}
+		if len(saved.DefaultCover) != 5 {
+			t.Errorf("default_cover = %v", saved.DefaultCover)
+		}
+		if saved.AboutBackground != nil {
+			t.Errorf("about_background has a standalone key and should not be backfilled: %q", *saved.AboutBackground)
+		}
 	})
 }

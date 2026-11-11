@@ -260,6 +260,51 @@ func TestLease(t *testing.T) {
 	}
 }
 
+// 租约丢失：键被他人占用（过期后被其他实例接手）时 Held 返回 false，续期时发现后关闭 Lost；释放后同样不再持有
+func TestLeaseLost(t *testing.T) {
+	for name, use := range stores(t) {
+		t.Run(name, func(t *testing.T) {
+			use()
+			l, err := AcquireLease("lease_lost", 90*time.Millisecond)
+			if err != nil || l == nil {
+				t.Fatalf("acquire = %v %v", l, err)
+			}
+			if !l.Held() {
+				t.Fatal("fresh lease should be held")
+			}
+			select {
+			case <-l.Lost():
+				t.Fatal("fresh lease reported lost")
+			default:
+			}
+			// 模拟其他实例接手
+			if err := Current().Set("lease_lost", "other", time.Minute); err != nil {
+				t.Fatal(err)
+			}
+			if l.Held() {
+				t.Fatal("lease taken by another holder should not be held")
+			}
+			select {
+			case <-l.Lost():
+			case <-time.After(time.Second):
+				t.Fatal("lost channel not closed")
+			}
+			l.Release()
+			// 释放时不能删掉他人持有的值
+			if value, ok, _ := Current().Get("lease_lost"); !ok || value != "other" {
+				t.Fatalf("release removed another holder's value: %q %v", value, ok)
+			}
+			_ = Current().Delete("lease_lost")
+
+			released, _ := AcquireLease("lease_lost", time.Minute)
+			released.Release()
+			if released.Held() {
+				t.Fatal("released lease should not be held")
+			}
+		})
+	}
+}
+
 // 依赖服务统计：未使用 Redis 时不提供；使用 Redis 时读取 INFO，并按键名第一段统计本应用的键
 func TestServerInfoAndCountKeys(t *testing.T) {
 	for name, use := range stores(t) {

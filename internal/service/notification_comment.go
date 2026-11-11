@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -225,4 +226,94 @@ func emitCommentMentions(ctx context.Context, tx *gorm.DB, actor *model.User, co
 		notified = append(notified, recipientID)
 	}
 	return notified
+}
+
+// syncCommentNotificationsAfterEdit 评论编辑后同步通知，返回需要推送的收件人（调用方在写库后推送）：
+//  1. 公开改为私密：收回看不到这条私密评论的人收到的通知（评论、回复、提及都带着正文快照）。
+//     选择直接删除而不是在发信前复核可见性：站内列表同样会露出正文快照，只拦邮件不够
+//  2. 新加的 @：按与发表评论时相同的规则补发提及通知；去重键与发表时一致，重复编辑不会重复通知
+//
+// 通知是附属品：任何一步失败只记日志，不让编辑失败（5.3）
+func syncCommentNotificationsAfterEdit(ctx context.Context, comment *model.Comment, wasPrivate bool, previousMentions []uint) []uint {
+	target, svcerr := NewCommentService().getTarget(comment.TargetID, comment.TargetType)
+	if svcerr != nil {
+		return nil
+	}
+	var notified []uint
+	if comment.IsPrivate && !wasPrivate {
+		revoked, err := revokeHiddenCommentNotifications(comment, target)
+		if err != nil {
+			logrus.Errorf("revoke notifications of private comment %d: %v", comment.ID, err)
+		}
+		notified = append(notified, revoked...)
+	}
+
+	var added []uint
+	for _, id := range comment.MentionUserIDs {
+		if !slices.Contains(previousMentions, id) {
+			added = append(added, id)
+		}
+	}
+	if len(added) == 0 {
+		return notified
+	}
+	// 提及以评论作者的名义发出（管理员代为编辑时也是）
+	actor, err := repo.User.GetUserByID(comment.UserID)
+	if err != nil {
+		logrus.Errorf("load comment author %d: %v", comment.UserID, err)
+		return notified
+	}
+	// 与发表时一致：已经因这条评论收到评论 / 回复通知的人不再收提及
+	skip := map[uint]bool{}
+	if comment.ReplyID == 0 {
+		skip[target.ownerID] = true
+	} else if parent, err := repo.Comment.GetComment(comment.ReplyID); err == nil {
+		skip[parent.UserID] = true
+	}
+	edited := *comment
+	edited.MentionUserIDs = added
+	subjectTitle, subjectSlug := commentSubject(comment)
+	notified = append(notified, emitCommentMentions(ctx, nil, actor, &edited, target, subjectTitle, subjectSlug, commentExcerpt(comment), skip)...)
+	return notified
+}
+
+// revokeHiddenCommentNotifications 删除引用这条（已改为私密的）评论、但收件人看不到它的通知，返回被删通知的收件人。
+// 能看到私密评论的人与 canViewComment 一致：目标作者、管理员、评论作者、参与过该线程的人
+func revokeHiddenCommentNotifications(comment *model.Comment, target *commentTarget) ([]uint, error) {
+	rows, err := repo.Notification.ListByCommentID(comment.ID)
+	if err != nil {
+		return nil, err
+	}
+	visible := map[uint]bool{}
+	var hidden []uint
+	for _, row := range rows {
+		canView, checked := visible[row.UserID]
+		if !checked {
+			canView, err = canUserViewPrivateComment(row.UserID, comment, target)
+			if err != nil {
+				return nil, err
+			}
+			visible[row.UserID] = canView
+		}
+		if !canView {
+			hidden = append(hidden, row.ID)
+		}
+	}
+	return repo.Notification.DeleteByIDs(nil, hidden)
+}
+
+// canUserViewPrivateComment 某个用户（不是当前请求的用户）能否看到这条私密评论，规则同 canViewComment
+func canUserViewPrivateComment(userID uint, comment *model.Comment, target *commentTarget) (bool, error) {
+	if userID == target.ownerID || userID == comment.UserID {
+		return true, nil
+	}
+	user, err := repo.User.GetUserByID(userID)
+	if err != nil {
+		// 用户已不存在：通知没有意义，一并收回
+		return false, nil
+	}
+	if user.IsAdmin() {
+		return true, nil
+	}
+	return repo.Comment.HasUserCommentedInTree(comment.RootID, userID)
 }

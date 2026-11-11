@@ -220,7 +220,7 @@ func TestLyricAnnotationRegenerateWaits(t *testing.T) {
 	lease, _ := sharedstate.AcquireLease(jobKey, time.Minute)
 	result := make(chan error, 1)
 	go func() {
-		result <- annotations.regenerate(context.Background(), 7, lines, lyricAnnotationInfo{}, tools.AIConfig{})
+		result <- annotations.regenerate(context.Background(), 7, lines, lyricAnnotationInfo{}, tools.AIConfig{}, false)
 	}()
 	time.Sleep(50 * time.Millisecond)
 	_ = sharedstate.Current().Set(failedKey, "1", time.Minute)

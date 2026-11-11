@@ -427,6 +427,19 @@ func (s *AIAgentService) OnCommentCreated(commentID uint, now time.Time) {
 			return
 		}
 	}
+	// 今天的评论额度已用完：回应不了，不必占名额、调用模型
+	if agentCommentQuotaExhausted(agent, profile, cfg, now) {
+		skip("daily_comment_limit")
+		return
+	}
+	// 同一用户每天找同一个 AI 的次数（与 @ 共用一份名额）放在最后：前面任何一项跳过都不占名额。
+	// AI 之间的来回另有 pair_exchange 上限，不占这里的名额
+	if !comment.User.IsAI {
+		if reason := takePairSlot(&comment.User, agent.UserID, cfg, now, "reply_pair_limit"); reason != "" {
+			skip(reason)
+			return
+		}
+	}
 	// 回不回由 AI 看过回复后自己决定：性格中的回应概率只作为倾向写进提示词（见 agentrunner 的 taskPrompt），程序只保留上面的硬性上限
 	if err := repo.AIAgent.CreateRun(&run); err != nil {
 		logrus.Warnf("create comment replied run: %v", err)
@@ -454,38 +467,53 @@ func mentionUserHourKey(mentionerID uint, now time.Time) string {
 	return fmt.Sprintf("ai:mention:u:%d:%s", mentionerID, now.Format("2006010215"))
 }
 
+func sharedCount(key string) int64 {
+	v, ok, _ := sharedstate.Current().Get(key)
+	if !ok {
+		return 0
+	}
+	n, _ := strconv.ParseInt(v, 10, 64)
+	return n
+}
+
 // takeMentionSlots 占用一次 @ 唤醒名额：同一用户每天 @ 同一 AI、同一用户每小时 @ 全部 AI 各有上限，超出时返回跳过原因。
 // 管理员不受限；计数在共享状态中原子递增，多实例同时处理也不会超出
 func takeMentionSlots(mentioner *model.User, agentUserID uint, cfg tools.AIAgentConfig, now time.Time) string {
 	if mentioner.Role == constant.RoleAdmin {
 		return ""
 	}
-	store := sharedstate.Current()
-	pairKey := mentionPairKey(mentioner.ID, agentUserID, now)
 	hourKey := mentionUserHourKey(mentioner.ID, now)
-	used := func(key string) int64 {
-		v, ok, _ := store.Get(key)
-		if !ok {
-			return 0
-		}
-		n, _ := strconv.ParseInt(v, 10, 64)
-		return n
-	}
 	// 先只读判断，避免已满的一项白白占掉另一项的名额
-	if used(pairKey) >= int64(cfg.MentionsPerPair) {
+	if sharedCount(mentionPairKey(mentioner.ID, agentUserID, now)) >= int64(cfg.MentionsPerPair) {
 		return "mention_pair_limit"
 	}
-	if used(hourKey) >= int64(cfg.MentionsPerUser) {
+	if sharedCount(hourKey) >= int64(cfg.MentionsPerUser) {
 		return "mention_user_limit"
+	}
+	if reason := takePairSlot(mentioner, agentUserID, cfg, now, "mention_pair_limit"); reason != "" {
+		return reason
 	}
 	// 共享状态不可用时按已满处理（保守）
-	n, err := store.Incr(pairKey, 48*time.Hour)
-	if err != nil || n > int64(cfg.MentionsPerPair) {
-		return "mention_pair_limit"
-	}
-	n, err = store.Incr(hourKey, 2*time.Hour)
+	n, err := sharedstate.Current().Incr(hourKey, 2*time.Hour)
 	if err != nil || n > int64(cfg.MentionsPerUser) {
 		return "mention_user_limit"
+	}
+	return ""
+}
+
+// takePairSlot 占用一次「同一用户每天找同一个 AI」的名额：被 @ 与被回复共用这一份计数（上限为 ai_agents_mentions_per_pair_per_day），
+// 超出时返回 reason。管理员不受限；计数在共享状态中原子递增，共享状态不可用时按已满处理（保守）
+func takePairSlot(user *model.User, agentUserID uint, cfg tools.AIAgentConfig, now time.Time, reason string) string {
+	if user.Role == constant.RoleAdmin {
+		return ""
+	}
+	key := mentionPairKey(user.ID, agentUserID, now)
+	if sharedCount(key) >= int64(cfg.MentionsPerPair) {
+		return reason
+	}
+	n, err := sharedstate.Current().Incr(key, 48*time.Hour)
+	if err != nil || n > int64(cfg.MentionsPerPair) {
+		return reason
 	}
 	return ""
 }

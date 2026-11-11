@@ -24,19 +24,25 @@ func (p *pageRepo) CreatePage(page *model.Page) error {
 	return GetDB().Create(page).Error
 }
 
-// DeletePage 软删除页面，同时清理评论与点赞，并释放 slug 以便新页面复用
-func (p *pageRepo) DeletePage(id uint) error {
+// DeletePage 软删除页面，同时清理评论、点赞与相关通知，并释放 slug 以便新页面复用；返回被删通知的收件人（同 DeletePost）
+func (p *pageRepo) DeletePage(id uint) ([]uint, error) {
 	defer TouchCacheTags(CacheTagPages)
-	return GetDB().Transaction(func(tx *gorm.DB) error {
+	var notified []uint
+	err := GetDB().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&model.Page{}).Where("id = ?", id).
 			UpdateColumn("slug", gorm.Expr("? || slug", fmt.Sprintf("deleted-%d-", id))).Error; err != nil {
 			return err
 		}
-		if err := deleteTargetComments(tx, constant.TargetTypePage, id); err != nil {
+		var err error
+		if notified, err = deleteTargetComments(tx, constant.TargetTypePage, id); err != nil {
 			return err
 		}
 		return tx.Where("id = ?", id).Delete(&model.Page{}).Error
 	})
+	if err != nil {
+		return nil, err
+	}
+	return notified, nil
 }
 
 // GetPageMeta 只读取权限判断需要的字段
@@ -86,8 +92,9 @@ func (p *pageRepo) SavePage(page *model.Page, columns []string) error {
 	if page.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
-	defer TouchCacheTags(CacheTagPages)
-	return updatePageTx(GetDB(), page, columns)
+	err := updatePageTx(GetDB(), page, columns)
+	touchPagesAfterSave(err, columns)
+	return err
 }
 
 // SavePageWithDraftVersion 保存页面并把草稿版本号从 expected 加一（写入正文时使用），版本号已不是 expected 时返回 ErrDraftVersionConflict
@@ -95,14 +102,22 @@ func (p *pageRepo) SavePageWithDraftVersion(page *model.Page, expected uint64, c
 	if page.ID == 0 {
 		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
-	defer TouchCacheTags(CacheTagPages)
-	return GetDB().Transaction(func(tx *gorm.DB) error {
+	err := GetDB().Transaction(func(tx *gorm.DB) error {
 		if err := bumpDraftVersion(tx, &model.Page{}, page.ID, expected); err != nil {
 			return err
 		}
 		page.DraftVersion = expected + 1
 		return updatePageTx(tx, page, columns)
 	})
+	touchPagesAfterSave(err, columns)
+	return err
+}
+
+// touchPagesAfterSave 与文章相同（见 invalidateAfterPostSave）：只保存草稿或保存失败时不让前端页面缓存失效
+func touchPagesAfterSave(err error, columns []string) {
+	if err == nil && touchesPublicColumns(columns, false) {
+		TouchCacheTags(CacheTagPages)
+	}
 }
 
 // updatePageTx 按列更新页面

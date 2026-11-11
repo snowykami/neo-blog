@@ -1,7 +1,9 @@
 package repo
 
 import (
+	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -29,7 +31,20 @@ var CacheTags = []string{CacheTagPosts, CacheTagPages, CacheTagUsers, CacheTagSi
 // cacheTagKeyPrefix 版本号在共享状态中的键前缀：多副本时任何一个后端实例的修改，前端都能从任意实例读到
 const cacheTagKeyPrefix = "cache_tag:"
 
-// TouchCacheTags 标记这些标签的数据已变化：写入新的版本号（当前时间，只用于比较是否变化，不参与时间计算）。
+var (
+	cacheTagListenersMu sync.RWMutex
+	cacheTagListeners   []func(tags []string)
+)
+
+// OnCacheTagsTouched 订阅本实例的数据变化（TouchCacheTags 时同步调用，参数为变化的标签）：后端自己的进程内缓存
+// 依赖同一类数据时（如音乐白名单依赖公开文章与页面），据此失效并按需通知其他实例；回调应很快返回，不能再调用 TouchCacheTags
+func OnCacheTagsTouched(listener func(tags []string)) {
+	cacheTagListenersMu.Lock()
+	cacheTagListeners = append(cacheTagListeners, listener)
+	cacheTagListenersMu.Unlock()
+}
+
+// TouchCacheTags 标记这些标签的数据已变化：写入新的版本号（当前时间，只用于比较是否变化，不参与时间计算），并调用 OnCacheTagsTouched 的订阅者。
 // 写入失败只记日志：前端缓存最多按各页面的 revalidate 过期
 func TouchCacheTags(tags ...string) {
 	version := strconv.FormatInt(time.Now().UnixNano(), 36)
@@ -37,6 +52,12 @@ func TouchCacheTags(tags ...string) {
 		if err := sharedstate.Current().Set(cacheTagKeyPrefix+tag, version, 0); err != nil {
 			logrus.Warnf("touch cache tag %s failed: %v", tag, err)
 		}
+	}
+	cacheTagListenersMu.RLock()
+	listeners := slices.Clone(cacheTagListeners)
+	cacheTagListenersMu.RUnlock()
+	for _, listener := range listeners {
+		listener(tags)
 	}
 }
 

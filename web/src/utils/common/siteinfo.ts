@@ -92,21 +92,23 @@ export interface SiteInfo {
   island?: IslandSettings // 顶栏灵动岛（实验性）的开关
 }
 
+// 取不到站点信息时的兜底，也用来补全站点信息里缺少的字段：取值与后端配置注册表（internal/config/items.go）的默认值一致。
+// 开源默认值是中性占位，不放任何人的个人信息
 export const fallbackSiteInfo: SiteInfo = {
-  colorSchemes: ['blue', 'green', 'orange', 'red', 'pink', 'rose', 'violet', 'yellow'],
+  colorSchemes: ['blue', 'green', 'orange', 'red', 'rose', 'pink', 'violet', 'yellow'],
   defaultColorScheme: 'blue',
   contentTheme: 'default',
   metadata: {
-    name: 'Fail to fetch name',
-    icon: 'https://cdn.liteyuki.org/snowykami/avatar_alpha.png',
-    description: 'Failed to fetch site info from server.',
+    name: 'My Blog',
+    icon: '',
+    description: 'A neo blog system',
   },
-  keywords: ['blog', 'neo-blog', 'snowykami', '博客', '个人博客', '远野千束'],
-  defaultCover: 'https://cdn.liteyuki.org/blog/background.png',
+  keywords: [],
+  defaultCover: [],
   owner: {
-    name: 'Fail to fetch owner',
-    description: 'This is an error description.',
-    motto: 'This is a default motto.',
+    name: 'Blogger',
+    description: '',
+    motto: '',
     avatar: '',
     gravatarEmail: '',
   },
@@ -115,17 +117,16 @@ export const fallbackSiteInfo: SiteInfo = {
   commentMaxLength: 500,
   commentCollapsedLines: 6,
   verifyCodeCoolDown: 60,
-  animationDurationSecond: 0.3,
+  animationDurationSecond: 0.618,
   copyright: 'CC BY-NC-SA 4.0',
-  copyrightLink: 'https://creativecommons.org/licenses/by/4.0/',
+  // 链接不单独兜底：站点信息缺这个字段时（如只保存过协议名称）不能补上别的协议的链接，名称是兜底值时由版权卡片配上对应链接
+  copyrightLink: '',
   footer: {
-    text: 'Default footer text',
+    text: '',
     // 默认不展示额外链接，由后台「页脚链接」配置
     links: [],
   },
-  aboutBackground: 'https://cdn.liteyuki.org/snowykami/dark_2.png',
-  sidebarIframeUrl: 'https://lab.liteyuki.org/embed/user-timeline/a2utaz241qx60001?maxHeight=700&border=false',
-  sidebarIframeTitle: 'Misskey',
+  aboutBackground: '',
   musicPlaylistUrl: 'https://cdn.liteyuki.org/snowykami/music/playlists/favorite.json',
   enableThirdPartyScript: true,
   pageBackground: {

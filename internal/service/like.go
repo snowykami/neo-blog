@@ -75,7 +75,7 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 	}
 	// 点赞与互动通知写在同一个事务里：点赞成功就必须有通知，取消点赞必须撤掉通知
 	var state bool
-	var notified uint
+	var notified uint // 事务提交后需要推送的收件人：点赞时是新通知的收件人，取消点赞时是被撤掉通知的收件人
 	err = repo.GetDB().Transaction(func(tx *gorm.DB) error {
 		var toggleErr error
 		state, toggleErr = repo.Like.ToggleLike(currentUser.ID, targetID, targetType, tx)
@@ -86,6 +86,9 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 		if !state {
 			if revokeErr := notifications.RevokeLike(ctx, tx, currentUser, owner, targetType, targetID); revokeErr != nil {
 				logrus.Errorf("revoke like notification: %v", revokeErr)
+			} else if owner.ID != currentUser.ID {
+				// 撤掉的通知可能还未读：推送一次，作者的徽标与列表随之更新
+				notified = owner.ID
 			}
 			return nil
 		}
@@ -112,7 +115,7 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 	if err != nil {
 		return state, errs.Internal("failed_to_toggle_like", err)
 	}
-	// 事务提交后再唤醒前端的实时连接，回滚时不会亮起未读
+	// 事务提交后再唤醒前端的实时连接，回滚时不会亮起未读（也不会提前熄灭）
 	if notified != 0 {
 		NotificationHub.Notify(notified)
 	}

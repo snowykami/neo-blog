@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -19,6 +20,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/ipregion"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
@@ -85,10 +87,7 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 	if isRandomPath(path) {
 		return visitorKey, nil
 	}
-	targetType, targetID := req.TargetType, req.TargetID
-	if !(targetType == constant.TargetTypePost || targetType == constant.TargetTypePage) || targetID == 0 {
-		targetType, targetID = "other", 0
-	}
+	targetType, targetID := publicVisitTarget(req.TargetType, req.TargetID)
 
 	ua := utils.ParseUA(userAgent)
 	// 爬虫与自动化工具不记录
@@ -150,9 +149,15 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 	if svcerr != nil {
 		return "", svcerr
 	}
-	// 登录后把登录前的匿名访问补记到该用户；放在去重之前：登录后常常回到刚看过的页面，这次上报会被去重
+	// 登录后把登录前的匿名访问补记到该用户；放在去重之前：登录后常常回到刚看过的页面，这次上报会被去重。
+	// 同一访客登录同一用户期间只做一次（共享状态记一个带过期的标记），不必每浏览一页都查一遍
 	if userID != nil {
-		attributeAnonymousVisits(visitor.ID, *userID, fingerprint, ip, now)
+		if claimVisitAttribution(visitor.ID, *userID) {
+			attributeAnonymousVisits(visitor.ID, *userID, fingerprint, ip, now)
+		}
+	} else if visitor.ID != 0 && visitor.UserID != nil {
+		// 登出后的匿名浏览：清掉标记，下次登录时把这段补记上
+		resetVisitAttribution(visitor.ID)
 	}
 
 	// 去重：刷新页面不重复记录，只更新最近活跃时间
@@ -180,9 +185,9 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 	visitor.LastLocation = location
 	visitor.LastCountry = log.IPCountry
 	visitor.OS, visitor.Browser, visitor.DeviceType = ua.OS, ua.Browser, log.DeviceType
-	visitor.VisitCount++
 	visitor.LastSeenAt = now
-	if err := repo.Visit.SaveVisitor(visitor); err != nil {
+	// 访问次数原子加一：同一访客的并发上报（多标签页）各自整行保存会互相覆盖、丢计数
+	if err := repo.Visit.SaveVisitorAndCount(visitor); err != nil {
 		return "", errs.NewInternalServer("failed_to_update_target")
 	}
 
@@ -194,6 +199,59 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 	}
 	countPostView(log)
 	return visitor.VisitorKey, nil
+}
+
+// publicVisitTarget 只把公开的文章 / 页面记为访问目标：不存在或私密的（前台对所有人 404）按「其他页面」记录，不加浏览量。
+// 上报内容来自浏览器，不能信任；查询出错时同样按其他页面处理（保守）
+func publicVisitTarget(targetType string, targetID uint) (string, uint) {
+	if targetID == 0 {
+		return "other", 0
+	}
+	var (
+		meta *repo.PostMeta
+		err  error
+	)
+	switch targetType {
+	case constant.TargetTypePost:
+		meta, err = repo.Post.GetPostMeta(targetID)
+	case constant.TargetTypePage:
+		meta, err = repo.Page.GetPageMeta(targetID)
+	default:
+		return "other", 0
+	}
+	if err != nil || meta.IsPrivate {
+		return "other", 0
+	}
+	return targetType, targetID
+}
+
+// 登录后补记匿名访问的标记：记下这个访客上一次补记时登录的用户，同一用户在有效期内不再重复补记；
+// 换了用户登录、或登出后又有匿名浏览（清掉标记）时会再补记一次
+const visitAttributionTTL = 12 * time.Hour
+
+func visitAttributionKey(visitorID uint) string {
+	return fmt.Sprintf("visit:attributed:%d", visitorID)
+}
+
+// claimVisitAttribution 是否需要为这个访客补记（新访客还没有 ID，总要做一次）；共享状态出错时照常补记
+func claimVisitAttribution(visitorID, userID uint) bool {
+	if visitorID == 0 {
+		return true
+	}
+	key, user := visitAttributionKey(visitorID), strconv.FormatUint(uint64(userID), 10)
+	if v, ok, err := sharedstate.Current().Get(key); err == nil && ok && v == user {
+		return false
+	}
+	if err := sharedstate.Current().Set(key, user, visitAttributionTTL); err != nil {
+		logrus.Warnf("mark visit attribution of visitor %d: %v", visitorID, err)
+	}
+	return true
+}
+
+func resetVisitAttribution(visitorID uint) {
+	if err := sharedstate.Current().Delete(visitAttributionKey(visitorID)); err != nil {
+		logrus.Warnf("reset visit attribution of visitor %d: %v", visitorID, err)
+	}
 }
 
 // countPostView 记录了一次新的文章访问（已去重、排除爬虫、疑似自动化与管理员）后累加文章浏览量；失败只打日志

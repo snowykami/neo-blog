@@ -36,6 +36,7 @@ func registerAIAgentRoutes(group *route.RouterGroup) {
 		admin.POST("/ai-agent-groups/generate", cc.GenerateGroup)
 		admin.GET("/ai-agent-groups/:id", cc.GetGroup)
 		admin.PUT("/ai-agent-groups/:id/status", cc.SetGroupStatus)
+		admin.POST("/ai-agent-groups/:id/resume", cc.ResumeGroup)
 		admin.POST("/users/:id/ai", cc.ConvertUser)
 	}
 }

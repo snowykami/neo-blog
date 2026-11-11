@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { Article, WithContext } from 'schema-dts'
+import type { Post } from '@/models/post'
 import { getLocale } from 'next-intl/server'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { localeAlternates } from '@/i18n/alternates'
@@ -8,9 +9,16 @@ import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostShareImageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 import { safeMetadataBase } from '@/utils/common/siteinfo'
+import { htmlToText } from '@/utils/common/string'
 import { formatDisplayName as formatFullName } from '@/utils/common/username'
 import { BlogPost } from './blog-post'
 import { getCanonicalPost } from './post-data'
+
+// metaDescription 页面描述（meta / Open Graph / 结构化数据）：作者填写的描述优先，其次是正文的纯文本摘要，取前 160 字；
+// 不能直接截正文 HTML（会把标签与属性写进描述）。后端尚未返回 excerpt 时（旧版本）退回自己从正文提取
+function metaDescription(post: Post): string {
+  return stripInlineMarkdown(post.description) || (post.excerpt || htmlToText(post.content)).slice(0, 160)
+}
 
 // 这个是app router固定的传入格式，无法更改
 interface Props {
@@ -35,7 +43,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const shareImage = localizePath(getPostShareImageUrl(post), locale)
   return {
     title: post.title || 'No Title',
-    description: stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
+    description: metaDescription(post) || post.title || 'No Description',
     metadataBase: safeMetadataBase(siteInfo?.baseUrl),
     alternates: localeAlternates(getPostUrl({ post }), locale),
     authors: post.user ? [{ name: formatFullName(post.user) }] : undefined,
@@ -43,8 +51,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     keywords: post.labels?.map(label => label.name) || undefined,
     openGraph: {
       title: post.title || 'No Title',
-      description:
-        stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
+      description: metaDescription(post) || post.title || 'No Description',
       url: localizePath(getPostUrl({ post }), locale),
       siteName: siteInfo?.metadata.name || 'Site Name',
       // 分享图由 /p/{id}/share-image 生成，不直接用封面：社交平台上的卡片信息更完整
@@ -57,7 +64,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       // 分享图是竖版卡片，用 summary 卡片避免被裁成横图
       card: 'summary',
       title: post.title || 'No Title',
-      description: stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title || 'No Description',
+      description: metaDescription(post) || post.title || 'No Description',
       images: [shareImage],
     },
     robots: {
@@ -102,7 +109,7 @@ export default async function PostPage({ params }: Props) {
         'url': siteInfo?.metadata.icon || 'favicon.ico',
       },
     },
-    'description': stripInlineMarkdown(post.description) || post.content.slice(0, 160) || post.title,
+    'description': metaDescription(post) || post.title,
     // mainEntityOfPage 指向文章自身，而不是站点根地址
     'mainEntityOfPage': {
       '@type': 'WebPage',

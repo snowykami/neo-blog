@@ -152,17 +152,56 @@ func splitAggregateActors(value string) []string {
 	return names
 }
 
-// DeleteByCommentIDs 评论被删除后清掉引用它的通知：免得收件人点进一条已经消失的评论
-func (r *notificationRepo) DeleteByCommentIDs(tx *gorm.DB, commentIDs []uint) error {
+// DeleteByCommentIDs 评论被删除后清掉引用它的通知：免得收件人点进一条已经消失的评论。
+// 返回被删通知的收件人（去重），调用方在事务提交后推送，让他们的未读徽标随之更新
+func (r *notificationRepo) DeleteByCommentIDs(tx *gorm.DB, commentIDs []uint) ([]uint, error) {
 	if len(commentIDs) == 0 {
-		return nil
+		return nil, nil
 	}
+	return deleteNotificationsWhere(tx, "(target_type = ? AND target_id IN ?) OR comment_id IN ?", constant.TargetTypeComment, commentIDs, commentIDs)
+}
+
+// DeleteBySubject 文章 / 页面被删除后清掉发生在它上面的全部通知（文章点赞、评论、回复、提及、线程活动、评论点赞），
+// 以及引用 commentIDs（它下面被一并删除的评论）的通知。返回被删通知的收件人（去重）
+func (r *notificationRepo) DeleteBySubject(tx *gorm.DB, subjectType string, subjectID uint, commentIDs []uint) ([]uint, error) {
+	if len(commentIDs) == 0 {
+		return deleteNotificationsWhere(tx, "subject_type = ? AND subject_id = ?", subjectType, subjectID)
+	}
+	return deleteNotificationsWhere(tx, "(subject_type = ? AND subject_id = ?) OR (target_type = ? AND target_id IN ?) OR comment_id IN ?",
+		subjectType, subjectID, constant.TargetTypeComment, commentIDs, commentIDs)
+}
+
+// DeleteByIDs 按 id 硬删本人的若干通知（评论改为私密后收回无权查看者的通知），返回被删通知的收件人（去重）
+func (r *notificationRepo) DeleteByIDs(tx *gorm.DB, ids []uint) ([]uint, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return deleteNotificationsWhere(tx, "id IN ?", ids)
+}
+
+// ListByCommentID 引用某条评论（comment_id）的通知：只读收件人与类型，用于按可见性收回
+func (r *notificationRepo) ListByCommentID(commentID uint) ([]model.Notification, error) {
+	var rows []model.Notification
+	err := GetDB().Select("id", "user_id", "type").Where("comment_id = ?", commentID).Find(&rows).Error
+	return rows, err
+}
+
+// deleteNotificationsWhere 先取出收件人再硬删（软删会撞唯一索引，见 4.4）；两步在同一事务里
+func deleteNotificationsWhere(tx *gorm.DB, query string, args ...any) ([]uint, error) {
 	if tx == nil {
 		tx = GetDB()
 	}
-	return tx.Unscoped().
-		Where("(target_type = ? AND target_id IN ?) OR comment_id IN ?", constant.TargetTypeComment, commentIDs, commentIDs).
-		Delete(&model.Notification{}).Error
+	var userIDs []uint
+	if err := tx.Model(&model.Notification{}).Where(query, args...).Distinct().Pluck("user_id", &userIDs).Error; err != nil {
+		return nil, err
+	}
+	if len(userIDs) == 0 {
+		return nil, nil
+	}
+	if err := tx.Unscoped().Where(query, args...).Delete(&model.Notification{}).Error; err != nil {
+		return nil, err
+	}
+	return userIDs, nil
 }
 
 // DeleteNotificationByDedupe 取消点赞时硬删对应的通知行（软删会撞唯一索引，见 4.4）。

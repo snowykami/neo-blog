@@ -108,9 +108,11 @@ func (p *PageService) DeletePage(ctx context.Context, pageID uint) *errs.Service
 	if !(ctxutils.IsOwnerOfTarget(ctx, page.UserID) || ctxutils.IsAdmin(ctx)) {
 		return errs.NewForbidden("permission_denied")
 	}
-	if err := repo.Page.DeletePage(pageID); err != nil {
+	notified, err := repo.Page.DeletePage(pageID)
+	if err != nil {
 		return errs.Internal("failed_to_delete_target", err).WithResource("page")
 	}
+	notifyNotificationUsers(notified)
 	if err := repo.Revision.DeleteByTarget(constant.TargetTypePage, pageID); err != nil {
 		logrus.Warnf("delete revisions of page %d failed: %v", pageID, err)
 	}

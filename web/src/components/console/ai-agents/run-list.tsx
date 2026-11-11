@@ -110,7 +110,8 @@ export function AgentRunList({ filters, page, size, onPageChange, onSizeChange, 
 function ActionSummary({ run }: { run: AgentRun }) {
   const t = useAIAgentT()
   const actions = run.actions ?? []
-  if (run.status !== 'done')
+  // 后台任务（记忆整理、人设生成）只记录模型用量，没有动作
+  if (run.status !== 'done' || run.kind === 'background')
     return null
   if (actions.length === 0)
     return <Badge variant="secondary">{t('runs.ignored')}</Badge>
@@ -132,6 +133,8 @@ function ActionSummary({ run }: { run: AgentRun }) {
 // 运行目标：摘要行（位于展开按钮内）只显示文字，展开后的详情中文章标题可点击跳转
 function RunTarget({ run, link = false }: { run: AgentRun, link?: boolean }) {
   const t = useAIAgentT()
+  if (run.kind === 'background')
+    return <span className="text-muted-foreground">{t('runs.background_task')}</span>
   if (!run.targetType || !run.targetId)
     return <span className="text-muted-foreground">{t('runs.no_target')}</span>
   const title = run.targetTitle || `${t(`target_type.${run.targetType === 'comment' ? 'comment' : 'post'}`)} #${run.targetId}`
@@ -203,6 +206,8 @@ export function RunDetailBody({ run, onChanged, showRaw = false }: { run: AgentR
   const operationT = useOperationT()
   const format = useFormatter()
   const [revertOpen, setRevertOpen] = useState(false)
+  // 跳过原因是后端代号：认识的显示文案，新增而前端还没有文案的原样显示
+  const skipReasonLabel = (reason: string) => (t.has(`skip_reason.${reason}`) ? t(`skip_reason.${reason}`) : reason)
   const actions = run.actions ?? []
   const effects = run.effects ?? []
   const trace = run.trace ?? []
@@ -229,7 +234,7 @@ export function RunDetailBody({ run, onChanged, showRaw = false }: { run: AgentR
         <span>{t('runs.completion_tokens', { count: run.completionTokens })}</span>
         <span>{t('runs.llm_calls', { count: run.llmCalls })}</span>
       </div>
-      {run.skipReason && <Field label={t('runs.skip_reason')}>{run.skipReason}</Field>}
+      {run.skipReason && <Field label={t('runs.skip_reason')}>{skipReasonLabel(run.skipReason)}</Field>}
       {run.error && (
         <Field label={t('runs.error')}>
           <span className="text-destructive">{run.error}</span>
@@ -241,7 +246,7 @@ export function RunDetailBody({ run, onChanged, showRaw = false }: { run: AgentR
       <div className="grid gap-2">
         <div className="text-xs text-muted-foreground">{t('runs.actions')}</div>
         {actions.length === 0
-          ? <p className="text-sm text-muted-foreground">{run.status === 'done' ? t('runs.no_actions') : '-'}</p>
+          ? <p className="text-sm text-muted-foreground">{run.status === 'done' && run.kind !== 'background' ? t('runs.no_actions') : '-'}</p>
           : <ActionTable actions={actions} />}
       </div>
 

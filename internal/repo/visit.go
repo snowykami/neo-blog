@@ -82,8 +82,29 @@ func (v *visitRepo) TouchVisitor(visitorID uint, at time.Time) error {
 	return GetDB().Model(&model.Visitor{}).Where("id = ?", visitorID).UpdateColumn("last_seen_at", at).Error
 }
 
-func (v *visitRepo) SaveVisitor(visitor *model.Visitor) error {
-	return GetDB().Omit("User").Save(visitor).Error
+// SaveVisitorAndCount 记录一次访问时保存访客：新访客直接创建（次数为 1）；已有访客更新最近信息，
+// 访问次数用 visit_count + 1 原子累加，同一访客并发上报时不会因整行覆盖而丢计数
+func (v *visitRepo) SaveVisitorAndCount(visitor *model.Visitor) error {
+	if visitor.ID == 0 {
+		visitor.VisitCount = 1
+		return GetDB().Omit("User").Create(visitor).Error
+	}
+	err := GetDB().Model(&model.Visitor{}).Where("id = ?", visitor.ID).Updates(map[string]any{
+		"fingerprint":   visitor.Fingerprint,
+		"user_id":       visitor.UserID,
+		"last_ip":       visitor.LastIP,
+		"last_location": visitor.LastLocation,
+		"last_country":  visitor.LastCountry,
+		"os":            visitor.OS,
+		"browser":       visitor.Browser,
+		"device_type":   visitor.DeviceType,
+		"last_seen_at":  visitor.LastSeenAt,
+		"visit_count":   gorm.Expr("visit_count + 1"),
+	}).Error
+	if err == nil {
+		visitor.VisitCount++
+	}
+	return err
 }
 
 // HasRecentVisit 访客在指定时间之后是否已访问过该路径，用于去重

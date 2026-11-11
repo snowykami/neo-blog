@@ -46,6 +46,9 @@ type Post struct {
 	Heat         uint64
 	// ContentHash 已发布正文的哈希，保存时自动计算，用于判断 AI 摘要是否过期
 	ContentHash string `gorm:"type:varchar(64)"`
+	// Excerpt 已发布正文的纯文本摘要（前 PostExcerptRunes 个字），保存时自动生成：
+	// 列表只读这一列，不必为了摘要读出整篇正文，也不会出现截在标签中间的残缺 HTML
+	Excerpt string `gorm:"type:text"`
 	// AI 摘要：最近一次生成的摘要文本、生成时依据的正文哈希与生成时间
 	AISummary           string     `gorm:"column:ai_summary;type:text"`
 	AISummarySourceHash string     `gorm:"column:ai_summary_source_hash;type:varchar(64)"`
@@ -60,9 +63,18 @@ func HashContent(content string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// BeforeSave 保存时同步正文哈希
+// PostExcerptRunes 文章纯文本摘要的最大字数（超出时另加省略号）
+const PostExcerptRunes = 200
+
+// PostExcerpt 由正文 HTML 生成纯文本摘要
+func PostExcerpt(content string) string {
+	return utils.HTMLExcerpt(content, PostExcerptRunes)
+}
+
+// BeforeSave 保存时同步正文哈希与纯文本摘要
 func (p *Post) BeforeSave(tx *gorm.DB) error {
 	p.ContentHash = HashContent(p.Content)
+	p.Excerpt = PostExcerpt(p.Content)
 	return nil
 }
 
@@ -119,6 +131,7 @@ func (p *Post) ToDto() *dto.PostDto {
 			}(),
 		},
 		IsLiked:      false, // 默认未点赞，需在业务逻辑中设置
+		Excerpt:      p.Excerpt,
 		Pinned:       p.IsPinned(time.Now()),
 		PinnedAt:     p.PinnedAt,
 		PinnedUntil:  p.PinnedUntil,

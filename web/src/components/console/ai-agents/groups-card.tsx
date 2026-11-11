@@ -1,11 +1,11 @@
 'use client'
 
 import type { AIAgentGroup } from '@/models/ai-agent'
-import { Pause, Play, Users } from 'lucide-react'
+import { Pause, Play, RotateCw, Users } from 'lucide-react'
 import { useFormatter } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { listAIAgentGroups, updateAIAgentGroupStatus } from '@/api/ai-agent'
+import { listAIAgentGroups, resumeAIAgentGroup, updateAIAgentGroupStatus } from '@/api/ai-agent'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -16,7 +16,7 @@ import { TierBadge, useAIAgentT } from './shared'
 
 const POLL_INTERVAL = 3000
 
-// 群体列表：生成中的群体轮询进度，可整组暂停 / 恢复，点击查看成员
+// 群体列表：生成中的群体轮询进度（执行的实例退出时显示等待接手，由后端自动续做），生成失败的可以继续生成；可整组暂停 / 恢复，点击查看成员
 export function AIAgentGroupsPanel({ refreshKey, onViewMembers, onChanged }: {
   refreshKey: number
   onViewMembers: (group: AIAgentGroup) => void
@@ -76,6 +76,21 @@ export function AIAgentGroupsPanel({ refreshKey, onViewMembers, onChanged }: {
     }
   }
 
+  const resume = async (group: AIAgentGroup) => {
+    setBusyId(group.id)
+    try {
+      await resumeAIAgentGroup(group.id)
+      toast.success(t('groups.resume_started'))
+      await fetchGroups()
+    }
+    catch (error) {
+      toast.error(errorMessageT(error, operationT('operation_failed')))
+    }
+    finally {
+      setBusyId(null)
+    }
+  }
+
   if (!groups)
     return <Skeleton className="h-32 w-full" />
 
@@ -120,11 +135,12 @@ export function AIAgentGroupsPanel({ refreshKey, onViewMembers, onChanged }: {
                   <div className="grid gap-1">
                     <div className="flex items-center gap-2 text-xs">
                       <Badge variant={group.status === 'failed' ? 'destructive' : group.status === 'done' ? 'outline' : 'secondary'}>
-                        {t(`groups.status.${group.status}`)}
+                        {t(group.status === 'generating' && group.interrupted ? 'groups.status.interrupted' : `groups.status.${group.status}`)}
                       </Badge>
                       <span className="text-muted-foreground tabular-nums">{`${group.created} / ${group.total}`}</span>
                     </div>
                     {group.status === 'generating' && <Progress value={percent} className="h-1.5" />}
+                    {group.status === 'generating' && group.interrupted && <span className="text-xs text-muted-foreground">{t('groups.interrupted_hint')}</span>}
                     {group.error && <span className="text-xs text-destructive">{group.error}</span>}
                   </div>
                 </TableCell>
@@ -133,6 +149,12 @@ export function AIAgentGroupsPanel({ refreshKey, onViewMembers, onChanged }: {
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-1">
+                    {group.status === 'failed' && (
+                      <Button size="sm" variant="ghost" disabled={busyId === group.id} onClick={() => resume(group)}>
+                        <RotateCw />
+                        {t('groups.resume_generation')}
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => onViewMembers(group)}>
                       <Users />
                       {t('groups.view_members')}

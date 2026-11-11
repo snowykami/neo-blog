@@ -137,9 +137,12 @@ func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.Service
 	if !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx)) {
 		return errs.NewForbidden("permission_denied")
 	}
-	if err := repo.Post.DeletePost(postId); err != nil {
+	notified, err := repo.Post.DeletePost(postId)
+	if err != nil {
 		return errs.Internal("failed_to_delete_target", err).WithResource("post")
 	}
+	// 文章上的通知随文章一起删除：唤醒这些收件人的实时连接，未读徽标随之更新
+	notifyNotificationUsers(notified)
 	if err := repo.Revision.DeleteByTarget(constant.TargetTypePost, postId); err != nil {
 		logrus.Warnf("delete revisions of post %d failed: %v", postId, err)
 	}
