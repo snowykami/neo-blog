@@ -4,7 +4,7 @@ import { ListMusicIcon, SearchIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MUSIC_ICON_BUTTON_CLASSNAME } from '@/components/music-page/music-page-controls'
-import { MusicPlaylistItem } from '@/components/music-page/music-playlist-sheet'
+import { MusicPlaylistItem, PlaylistPendingState } from '@/components/music-page/music-playlist-sheet'
 import { filterPlaylist } from '@/components/music-page/playlist-filter'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils'
  */
 export function MusicMiniPlaylist() {
   const t = useTranslations('MusicPage')
-  const { playlist, currentIndex, isPlaying, playTrack } = useMusic()
+  const { playlist, playlistComplete, currentIndex, isPlaying, playTrack, ensurePlaylist } = useMusic()
   const [open, setOpen] = useState(false)
   const [keyword, setKeyword] = useState('')
   const listRef = useRef<HTMLOListElement>(null)
@@ -28,6 +28,12 @@ export function MusicMiniPlaylist() {
     setOpen(false)
     setKeyword('')
   }, [playTrack])
+
+  // 打开时补全歌单（上次补全失败时借此重试）
+  useEffect(() => {
+    if (open)
+      void ensurePlaylist()
+  }, [open, ensurePlaylist])
 
   useEffect(() => {
     if (!open)
@@ -59,7 +65,8 @@ export function MusicMiniPlaylist() {
         className="dark z-1001 grid w-72 max-w-[calc(100vw-1rem)] gap-2 rounded-xl border-white/10 bg-neutral-900/95 p-2 text-white shadow-2xl backdrop-blur-xl"
       >
         <div className="flex items-center justify-between px-1.5 pt-0.5 text-xs font-medium text-white/60">
-          {t('playlist_title', { count: playlist.length })}
+          {/* 没取全时不显示数量（只有恢复的那一首） */}
+          {playlistComplete ? t('playlist_title', { count: playlist.length }) : t('open_playlist')}
         </div>
         <div className="relative">
           <SearchIcon aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-white/50" />
@@ -69,26 +76,29 @@ export function MusicMiniPlaylist() {
             onChange={event => setKeyword(event.target.value)}
             placeholder={t('search_placeholder')}
             aria-label={t('search_placeholder')}
+            disabled={!playlistComplete}
             className="h-8 border-white/15 bg-white/10 pl-8 text-xs text-white placeholder:text-white/40 md:text-xs"
           />
         </div>
-        {results.length > 0
-          ? (
-              <ol ref={listRef} className="grid max-h-72 content-start gap-0.5 overflow-y-auto overscroll-contain">
-                {results.map(({ track, index }) => (
-                  <MusicPlaylistItem
-                    key={track.id}
-                    track={track}
-                    index={index}
-                    active={index === currentIndex}
-                    playing={index === currentIndex && isPlaying}
-                    onSelect={handleSelect}
-                    compact
-                  />
-                ))}
-              </ol>
-            )
-          : <p className="px-2 py-6 text-center text-xs text-white/50">{t(playlist.length > 0 ? 'search_empty' : 'playlist_empty')}</p>}
+        {!playlistComplete
+          ? <PlaylistPendingState compact />
+          : results.length > 0
+            ? (
+                <ol ref={listRef} className="grid max-h-72 content-start gap-0.5 overflow-y-auto overscroll-contain">
+                  {results.map(({ track, index }) => (
+                    <MusicPlaylistItem
+                      key={track.id}
+                      track={track}
+                      index={index}
+                      active={index === currentIndex}
+                      playing={index === currentIndex && isPlaying}
+                      onSelect={handleSelect}
+                      compact
+                    />
+                  ))}
+                </ol>
+              )
+            : <p className="px-2 py-6 text-center text-xs text-white/50">{t(playlist.length > 0 ? 'search_empty' : 'playlist_empty')}</p>}
       </PopoverContent>
     </Popover>
   )

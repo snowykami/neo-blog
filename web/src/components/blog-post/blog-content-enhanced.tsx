@@ -73,8 +73,9 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
 
       const btn = document.createElement('button')
       btn.type = 'button'
+      // 能悬停的设备（鼠标）悬停代码块时才显示；触屏手机、平板不能悬停，始终显示，手机上加大到 36px 高
       btn.className
-        = 'px-2 py-1 rounded-md text-xs text-white/70 hover:text-white hover:bg-white/10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity'
+        = 'px-2 py-1 rounded-md text-xs text-white/70 hover:text-white hover:bg-white/10 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 max-sm:h-9 max-sm:px-3 max-sm:-mr-2'
       btn.textContent = t('copy')
       toolbar.appendChild(btn)
 

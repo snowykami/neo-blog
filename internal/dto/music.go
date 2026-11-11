@@ -2,7 +2,7 @@ package dto
 
 import "time"
 
-// MusicTrackDto 悬浮音乐播放器的曲目，与静态歌单 JSON 的结构一致
+// MusicTrackDto 音乐播放器歌单中的曲目（来自网易云歌单）
 type MusicTrackDto struct {
 	ID       int64    `json:"id"`
 	Name     string   `json:"name"`
@@ -13,7 +13,7 @@ type MusicTrackDto struct {
 	Lyric    string   `json:"lyric"`
 	Link     string   `json:"link"`
 	Aliases  []string `json:"aliases"`
-	Duration int64    `json:"duration,omitempty"` // 时长（毫秒）；静态歌单可不提供
+	Duration int64    `json:"duration,omitempty"` // 时长（毫秒）
 }
 
 // MusicPlaylistTrackReq 页面加载恢复播放时只取一首：IDs 为候选歌曲 id，逗号分隔、按优先级排列

@@ -229,15 +229,35 @@ function LoadedShell({
     }
   }, [flushSave])
 
-  // 点返回：先保存再跳转，保存失败时留在当前页（错误已由保存流程提示）
-  const handleBack = React.useCallback(async (event: React.MouseEvent<HTMLAnchorElement>) => {
+  // 点返回：先保存再跳转，保存失败时留在当前页（错误已由保存流程提示）；等待保存期间返回按钮显示加载中
+  // 上次保存失败的元信息（如 slug 冲突）也重新提交一次：自动保存会跳过它，不重试的话会被当作没有修改直接离开
+  // 有文件正在上传时先确认：离开后上传会取消（未完成的占位块不会存进草稿，见 use-content-editor 的 snapshotContent）
+  const { hasActiveUploads } = controller
+  const [leaving, setLeaving] = React.useState(false)
+  const [confirmLeaveUploading, setConfirmLeaveUploading] = React.useState(false)
+  const leave = React.useCallback(async () => {
+    setLeaving(true)
+    try {
+      if (await flushSave({ retryFailedMeta: true }))
+        router.push(backHref)
+    }
+    finally {
+      setLeaving(false)
+    }
+  }, [flushSave, router, backHref])
+  const handleBack = React.useCallback((event: React.MouseEvent<HTMLAnchorElement>) => {
     // 带修饰键或中键点击是「新标签页打开」，保持浏览器默认行为
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)
       return
     event.preventDefault()
-    if (await flushSave())
-      router.push(backHref)
-  }, [flushSave, router, backHref])
+    if (leaving)
+      return
+    if (hasActiveUploads()) {
+      setConfirmLeaveUploading(true)
+      return
+    }
+    void leave()
+  }, [leaving, hasActiveUploads, leave])
 
   // 全局快捷键：⌘⇧P 预览、⌘⇧. 专注模式、Esc 退出专注
   React.useEffect(() => {
@@ -294,6 +314,7 @@ function LoadedShell({
           backHref={backHref}
           backLabel={backLabel}
           onBack={handleBack}
+          backPending={leaving}
           crumbRoot={crumbRoot}
           title={meta.title.trim() || untitled}
           isPrivate={meta.isPrivate}
@@ -323,6 +344,15 @@ function LoadedShell({
           onRevertSession={() => setRevisionConfirm('session')}
           onDiscardUnpublished={() => setRevisionConfirm('unpublished')}
           onOpenHistory={() => setHistoryOpen(true)}
+        />
+
+        <ConfirmDialog
+          open={confirmLeaveUploading}
+          onOpenChange={setConfirmLeaveUploading}
+          title={t('leave_uploading_title')}
+          description={t('leave_uploading_description')}
+          confirmLabel={t('leave_uploading_confirm')}
+          onConfirm={() => void leave()}
         />
 
         <ConfirmDialog

@@ -108,12 +108,12 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
     ...createMathExtensions(onEditMath),
     // 行内图标（lucide）：只保存图标名，大小与颜色跟随文字
     InlineIcon.configure({ onEdit: onEditIcon }),
+    // maxSize 只用于界面说明与资产库筛选：大小按压缩后的文件在 upload（编辑页的 uploadMedia）里统一校验并提示，粘贴 / 拖入同样适用
     ImageUploadNode.configure({
       accept: 'image/*',
       maxSize: MAX_FILE_SIZE,
       limit: 3,
       upload,
-      onError: error => console.error('Upload failed:', error),
     }),
     // 视频体积大，一次上传一个，完成后插入 video 节点
     VideoUploadNode.configure({
@@ -121,7 +121,6 @@ export function createContentExtensions(options: ContentExtensionsOptions): AnyE
       maxSize: MAX_VIDEO_FILE_SIZE,
       limit: 1,
       upload,
-      onError: error => console.error('Upload failed:', error),
     }),
     Placeholder.configure({
       includeChildren: false,

@@ -589,3 +589,51 @@ func TestMigrateSiteInfoOldDefaults(t *testing.T) {
 		}
 	})
 }
+
+// 音乐播放器只用网易云歌单：已保存的站点信息里的歌单来源与静态歌单地址删掉，同名独立配置键一并删除；
+// 站点信息的其他项与网易云配置不动
+func TestMigrateDropMusicStaticPlaylist(t *testing.T) {
+	forEachDialect(t, func(t *testing.T) {
+		seedLegacyDatabase(t)
+		info := map[string]any{
+			"metadata":           map[string]any{"name": "我的小站"},
+			"music_source":       "static",
+			"music_playlist_url": "https://example.com/playlist.json",
+		}
+		for _, kv := range []model.KV{
+			{Key: "site_info", Value: model.JSONMap{"value": info}},
+			{Key: "music_playlist_url", Value: model.JSONMap{"value": "https://example.com/old.json"}},
+			{Key: "ncm_playlist_id", Value: model.JSONMap{"value": 123}},
+		} {
+			if err := db.Create(&kv).Error; err != nil {
+				t.Fatalf("seed %s: %v", kv.Key, err)
+			}
+		}
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		var row model.KV
+		if err := db.Where("key = ?", "site_info").First(&row).Error; err != nil {
+			t.Fatalf("load site_info: %v", err)
+		}
+		saved, _ := row.Value["value"].(map[string]any)
+		if _, ok := saved["music_source"]; ok {
+			t.Errorf("music_source should be removed from site_info: %v", saved)
+		}
+		if _, ok := saved["music_playlist_url"]; ok {
+			t.Errorf("music_playlist_url should be removed from site_info: %v", saved)
+		}
+		if metadata, _ := saved["metadata"].(map[string]any); metadata["name"] != "我的小站" {
+			t.Errorf("other site_info fields changed: %v", saved)
+		}
+		var count int64
+		db.Model(&model.KV{}).Where("key = ?", "music_playlist_url").Count(&count)
+		if count != 0 {
+			t.Errorf("standalone music_playlist_url should be deleted, count = %d", count)
+		}
+		db.Model(&model.KV{}).Where("key = ?", "ncm_playlist_id").Count(&count)
+		if count != 1 {
+			t.Errorf("ncm_playlist_id should be kept, count = %d", count)
+		}
+	})
+}

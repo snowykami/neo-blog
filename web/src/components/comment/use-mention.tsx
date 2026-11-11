@@ -2,22 +2,31 @@
 
 import type { RefObject } from 'react'
 import type { UserBrief } from '@/models/user'
+import type { MentionQuery } from '@/utils/common/mention'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { searchUsers } from '@/api/user'
-
-// 正在输入的提及片段：start 是 @ 的位置，query 是 @ 之后已经输入的字符
-interface MentionQuery {
-  start: number
-  query: string
-}
+import { detectMentionQuery, mentionsUser } from '@/utils/common/mention'
 
 // 触发搜索的最少字符数与防抖间隔
-const MENTION_MIN_CHARS = 1
-const MENTION_DEBOUNCE_MS = 250
+export const MENTION_MIN_CHARS = 1
+export const MENTION_DEBOUNCE_MS = 250
+
+// 提交时用到的被 @ 的人：只需要 id 与用户名（判断是否仍留在正文里）
+interface MentionUser {
+  id: number
+  username: string
+}
+
+const EMPTY: UserBrief[] = []
+
+function sameQuery(a: MentionQuery | null, b: MentionQuery | null) {
+  return a === b || (a !== null && b !== null && a.start === b.start && a.query === b.query)
+}
 
 /**
  * 评论框里的 @ 提及：检测光标前的 @片段，防抖搜索用户，支持键盘上下选择与回车确认。
  * 中文输入法组词期间不触发（composition），否则打「@」后继续打拼音会一直弹候选。
+ * 片段（位置与文字）没变时不重新搜索：方向键、点击只移动光标，不会把选中项重置回第一个
  */
 export function useMention({
   value,
@@ -29,66 +38,57 @@ export function useMention({
   onChange: (next: string) => void
 }) {
   const [query, setQuery] = useState<MentionQuery | null>(null)
-  const [candidates, setCandidates] = useState<UserBrief[]>([])
+  // 搜索结果连同它对应的关键词：关键词变了、新结果还没回来时仍显示上一次的候选，并视为搜索中
+  const [results, setResults] = useState<{ term: string, users: UserBrief[] } | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [loading, setLoading] = useState(false)
-  // 提交时只认仍然留在正文里的提及；seedIds 是编辑已有评论时原来就有的人
-  const [picked, setPicked] = useState<UserBrief[]>([])
-  const [seedIds, setSeedIds] = useState<number[]>([])
+  // 提交时只认仍然留在正文里的提及；seeds 是编辑已有评论时原来就有的人
+  const [picked, setPicked] = useState<MentionUser[]>([])
+  const [seeds, setSeeds] = useState<MentionUser[]>([])
   const composing = useRef(false)
-
-  // 检查光标前是否正在输入一个 mention
-  const detect = useCallback((text: string, cursor: number): MentionQuery | null => {
-    const before = text.slice(0, cursor)
-    const at = before.lastIndexOf('@')
-    if (at < 0)
-      return null
-    const fragment = before.slice(at + 1)
-    // @ 必须在开头或空白之后，且片段里不能有空白（否则是邮箱或普通文本）
-    if (at > 0 && !/\s/.test(before[at - 1]))
-      return null
-    if (/\s/.test(fragment) || fragment.length > 20)
-      return null
-    return { start: at, query: fragment }
-  }, [])
+  // 按 Esc 收起的片段：片段没变（例如 Esc 的 keyup、方向键）时不再弹出，继续输入后照常弹出
+  const dismissed = useRef<MentionQuery | null>(null)
 
   const syncFromCursor = useCallback(() => {
     const node = textareaRef.current
     if (!node || composing.current)
       return
-    const detected = detect(node.value, node.selectionStart ?? 0)
-    setQuery(detected)
-    if (!detected)
-      setCandidates([])
-  }, [detect, textareaRef])
+    let detected = detectMentionQuery(node.value, node.selectionStart ?? 0)
+    if (detected && sameQuery(detected, dismissed.current))
+      detected = null
+    else
+      dismissed.current = null
+    // 片段没变时保留原对象，不触发重新搜索
+    setQuery(prev => (sameQuery(prev, detected) ? prev : detected))
+  }, [textareaRef])
 
-  // 关键词变化后防抖搜索
+  // 关键词变化后防抖搜索；只依赖片段文字，光标在片段内移动不会重新搜索
+  const term = query && query.query.length >= MENTION_MIN_CHARS ? query.query : null
   useEffect(() => {
-    if (!query || query.query.length < MENTION_MIN_CHARS) {
-      setCandidates([])
+    if (term === null) {
+      setResults(null)
       return
     }
     let cancelled = false
-    setLoading(true)
     const timer = window.setTimeout(() => {
-      searchUsers({ query: query.query }).then((res) => {
+      searchUsers({ query: term }).then((res) => {
         if (cancelled)
           return
-        setCandidates(res.data.users ?? [])
+        setResults({ term, users: res.data.users ?? [] })
         setActiveIndex(0)
       }).catch(() => {
         if (!cancelled)
-          setCandidates([])
-      }).finally(() => {
-        if (!cancelled)
-          setLoading(false)
+          setResults({ term, users: [] })
       })
     }, MENTION_DEBOUNCE_MS)
     return () => {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [query])
+  }, [term])
+  const candidates = term === null ? EMPTY : results?.users ?? EMPTY
+  const loading = term !== null && results?.term !== term
+
+  const close = useCallback(() => setQuery(null), [])
 
   // 选中候选：把 @片段 换成 @用户名 并补一个空格，光标落到空格之后
   const select = useCallback((candidate: UserBrief) => {
@@ -100,18 +100,27 @@ export function useMention({
     const next = value.slice(0, query.start) + inserted + value.slice(cursor)
     onChange(next)
     setPicked(prev => (prev.some(item => item.id === candidate.id) ? prev : [...prev, candidate]))
-    setQuery(null)
-    setCandidates([])
+    close()
     // 等 React 更新 value 之后再放光标
     window.setTimeout(() => {
       const caret = query.start + inserted.length
       node?.focus()
       node?.setSelectionRange(caret, caret)
     }, 0)
-  }, [onChange, query, textareaRef, value])
+  }, [close, onChange, query, textareaRef, value])
 
-  // 键盘：展开时拦截上下键与回车
+  const open = term !== null
+
+  // 键盘：有候选时拦截上下键与回车；候选列表打开时 Esc 收起
   const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    if (!open)
+      return false
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      dismissed.current = query
+      close()
+      return true
+    }
     if (candidates.length === 0)
       return false
     if (event.key === 'ArrowDown') {
@@ -128,28 +137,24 @@ export function useMention({
     const withModifier = event.metaKey || event.ctrlKey || event.altKey
     if (!withModifier && (event.key === 'Enter' || event.key === 'Tab')) {
       event.preventDefault()
-      select(candidates[activeIndex])
-      return true
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      setQuery(null)
-      setCandidates([])
+      select(candidates[Math.min(activeIndex, candidates.length - 1)])
       return true
     }
     return false
-  }, [activeIndex, candidates, select])
+  }, [activeIndex, candidates, close, open, query, select])
 
-  // 提交时的提及 id：编辑前已有的人 + 这次新选的人；正文里已被删掉的这次新选不再提交
+  // 提交时的提及 id：编辑前已有的人 + 这次新选的人，都只保留正文里仍写着 @用户名 的（规则与后端一致），
+  // 否则删掉的人仍会提交，可能超过上限被后端拒绝
   const mentions = useCallback((): number[] => {
-    const ids = picked
-      .filter(candidate => value.includes(`@${candidate.username}`))
-      .map(candidate => candidate.id)
-    return [...new Set([...seedIds, ...ids])]
-  }, [picked, seedIds, value])
+    const ids = [...seeds, ...picked]
+      .filter(user => mentionsUser(value, user.username))
+      .map(user => user.id)
+    return [...new Set(ids)]
+  }, [picked, seeds, value])
 
   return {
-    open: candidates.length > 0 && query !== null,
+    // 打开后先显示「搜索中」，结果为空时显示「没有匹配」
+    open,
     loading,
     candidates,
     activeIndex,
@@ -159,19 +164,17 @@ export function useMention({
     syncFromCursor,
     setComposing: (next: boolean) => {
       composing.current = next
-      if (next) {
-        setQuery(null)
-        setCandidates([])
-      }
+      if (next)
+        close()
     },
     mentions,
     reset: () => {
       setPicked([])
-      setSeedIds([])
-      setQuery(null)
-      setCandidates([])
+      setSeeds([])
+      dismissed.current = null
+      close()
     },
-    // seed 把编辑前已有的提及 id 带回来，提交时一并写回
-    seed: (ids: number[]) => setSeedIds(ids),
+    // seed 把编辑前已有的提及（id 与当前用户名）带回来，提交时仍留在正文里的一并写回
+    seed: (users: MentionUser[]) => setSeeds(users),
   }
 }

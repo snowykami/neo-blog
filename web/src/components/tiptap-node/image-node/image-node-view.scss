@@ -83,6 +83,13 @@
     transform: translateY(-50%);
     z-index: 10;
 
+    // 手柄只有 6px 宽：透明伪元素把按下区域左右各扩 9px（24px，WCAG 2.2 最小目标尺寸），外观不变
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0 -9px;
+    }
+
     &.tiptap-image-handle-left {
       left: 4px;
     }
@@ -100,6 +107,11 @@
       border-radius: 50%;
       cursor: nwse-resize;
       transform: none;
+
+      // 手机上的角手柄 24px：按下区域四周各扩 10px（44px，触屏建议尺寸）
+      &::before {
+        inset: -10px;
+      }
     }
   }
 }

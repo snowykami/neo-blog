@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 export default function Loading() {
   return (
     <SiteShell
+      skeleton
       sidebar={<BlogSidebarSkeleton />}
     >
       <div className="grid gap-1 px-4 md:px-2">

@@ -16,12 +16,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import axiosClient from '@/api/client'
 import { editSessionHeaders, isDraftConflict, isEditSessionConflict } from '@/api/edit-session'
-import { deleteFile, uploadFile } from '@/api/file'
+import { uploadFile } from '@/api/file'
 import { getPageForEdit, updatePage } from '@/api/page'
 import { getPostForEdit, updatePost } from '@/api/post'
 import { batchDeleteRevisions, deleteRevision, discardDraft, restoreRevision } from '@/api/revision'
 import { AI_PREVIEW_META } from '@/components/tiptap-extension/ai-write-extension'
 import { REMOTE_SYNC_META } from '@/components/tiptap-extension/remote-change-extension'
+import { stripUploadingPlaceholders } from '@/components/tiptap-node/upload-node/upload-queue'
 import { buildSlashItems, filterSlashItems } from '@/components/tiptap-ui/slash-menu/slash-items'
 import { useEditEvents } from '@/hooks/use-edit-events'
 import { useEditSession } from '@/hooks/use-edit-session'
@@ -29,6 +30,9 @@ import { useUnsavedChangesWarning } from '@/hooks/use-editor-helpers'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { createContentExtensions } from '@/lib/tiptap-extensions'
 import { mergeRemoteContent } from '@/lib/tiptap-remote-sync'
+import { MAX_FILE_SIZE, MAX_VIDEO_FILE_SIZE } from '@/lib/tiptap-utils'
+import { compressImage, DEFAULT_COMPRESS_LEVEL } from '@/utils/client/image-compress'
+import { formatDataSize } from '@/utils/common/datasize'
 
 /** 文章背景的默认值：全部留空即沿用全站背景 */
 export const EMPTY_BACKGROUND: PostBackground = { image: '', blur: 0, opacity: 1, veil: 0.72, veilColor: '' }
@@ -66,6 +70,17 @@ export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 interface SavedContent {
   html: string
   doc: PMNode
+}
+
+/**
+ * 编辑器当前要保存的正文：剔除正在上传的占位块（见 upload-node/upload-queue.ts）。
+ * 离开编辑页时上传会被取消，不剔除的话草稿里会留下一个空的占位块；上传完成后插入图片 / 视频，随后的自动保存会把它们存进去
+ */
+function snapshotContent(ed: Editor): SavedContent {
+  const stripped = stripUploadingPlaceholders(ed.state.doc)
+  return stripped
+    ? { html: getHTMLFromFragment(stripped.content, ed.schema), doc: stripped }
+    : { html: ed.getHTML(), doc: ed.state.doc }
 }
 
 // 停止输入后自动保存的延迟；定时器作为兜底，同时用于检查编辑会话
@@ -336,45 +351,46 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const uiActionsRef = useRef<EditorUiActions>({})
 
   // ---------- 编辑器 ----------
-  // 图片与视频共用一个上传入口，失败提示按媒体类型区分；onProgress / signal 用于上传进度与取消
-  // 取消（占位块被删除、撤销、离开编辑页）：文件还没传完时中断请求，服务端不会保存；
-  // 已经传完时服务端可能正在保存，中断会留下拿不到 id 的孤儿文件，改为等响应后删掉刚保存的文件（每次上传都是新记录，删除不影响其他内容）
+  // 图片与视频共用一个上传入口（上传占位块、粘贴 / 拖入图片都走这里），失败提示按媒体类型区分；onProgress / signal 用于上传进度与取消
+  // 大小限制在这里统一按压缩后的文件校验：图片先按默认档位压缩（uploadFile 会复用同一结果），超限时提示并返回空地址
+  // 取消（占位块被删除、撤销、离开编辑页）由 uploadFile 处理：没传完时中断请求，已传完时等响应后删掉刚保存的文件
+  // 进行中的上传数用于离开前确认（见 hasActiveUploads）
+  const activeUploadsRef = useRef(0)
   const uploadMedia = useCallback(async (input: File, onProgress?: (event: { progress: number }) => void, signal?: AbortSignal) => {
     if (signal?.aborted)
       return ''
-    const request = new AbortController()
-    let sent = false
-    const onAbort = () => {
-      if (!sent)
-        request.abort()
-    }
-    signal?.addEventListener('abort', onAbort, { once: true })
+    const video = input.type.startsWith('video/')
+    activeUploadsRef.current++
     try {
-      const res = await uploadFile({
-        file: input,
-        onProgress: (progress) => {
-          if (progress >= 100)
-            sent = true
-          onProgress?.({ progress })
-        },
-        signal: request.signal,
-      })
-      if (signal?.aborted) {
-        void deleteFile({ id: res.data.id }).catch(() => {})
+      const prepared = await compressImage(input, DEFAULT_COMPRESS_LEVEL)
+      const maxSize = video ? MAX_VIDEO_FILE_SIZE : MAX_FILE_SIZE
+      if (prepared.size > maxSize) {
+        toast.error(t(video ? 'upload_video_too_large' : 'upload_image_too_large', { name: input.name, size: formatDataSize({ size: maxSize }) }))
         return ''
       }
+      if (signal?.aborted)
+        return ''
+      const res = await uploadFile({
+        file: input,
+        onProgress: progress => onProgress?.({ progress }),
+        signal,
+      })
       return res.data.url
     }
-    catch {
+    catch (error) {
       // 主动取消不提示
-      if (!signal?.aborted)
-        toast.error(postEditT(input.type.startsWith('video/') ? 'video_upload_failed' : 'image_upload_failed'))
+      if (!signal?.aborted) {
+        const message = errorMessageT(error)
+        const title = postEditT(video ? 'video_upload_failed' : 'image_upload_failed')
+        toast.error(message ? `${title}: ${message}` : title)
+      }
       return ''
     }
     finally {
-      signal?.removeEventListener('abort', onAbort)
+      activeUploadsRef.current--
     }
-  }, [postEditT])
+  }, [t, postEditT, errorMessageT])
+  const hasActiveUploads = useCallback(() => activeUploadsRef.current > 0, [])
 
   // 扩展只创建一次，文案与回调通过 ref 读取最新值
   const latestRef = useRef({ t, format, uploadMedia })
@@ -536,12 +552,13 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   // 草稿冲突时合并最新草稿（定义见下方），保存失败后调用
   const syncRemoteRef = useRef<() => Promise<void>>(async () => {})
   // content：要保存的正文快照（离开编辑页时编辑器随后会被销毁，由调用方先取下）；未传时读取编辑器，AI 写作中读取打开面板时的正文
-  const save = useCallback(async ({ manual = false, keepalive = false, content }: { manual?: boolean, keepalive?: boolean, content?: SavedContent } = {}): Promise<boolean> => {
+  // retryFailedMeta：重新提交上次保存失败的元信息（点返回离开前用：自动保存会跳过它，不重试的话会当作没有修改直接离开，丢掉这些修改）
+  const save = useCallback(async ({ manual = false, keepalive = false, content, retryFailedMeta = false }: { manual?: boolean, keepalive?: boolean, content?: SavedContent, retryFailedMeta?: boolean } = {}): Promise<boolean> => {
     if (!doc || !canSave)
       return false
     const source = content ?? (aiBusyRef.current ? aiBaseRef.current : null)
     // 编辑器在保存过程中可能被销毁（离开编辑页），此时读不到内容
-    const readContent = (): SavedContent | null => source ?? (editor && !editor.isDestroyed && !editorStaleRef.current ? { html: editor.getHTML(), doc: editor.state.doc } : null)
+    const readContent = (): SavedContent | null => source ?? (editor && !editor.isDestroyed && !editorStaleRef.current ? snapshotContent(editor) : null)
     const current = aiBusyRef.current && !source ? null : readContent()
     if (!current)
       return false
@@ -563,7 +580,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     const currentMeta = metaRef.current
     let patch = diffMeta(currentMeta, savedMetaRef.current)
     const metaKey = patch ? JSON.stringify(patch) : null
-    if (!manual && metaKey && metaKey === failedMetaRef.current)
+    if (!manual && !retryFailedMeta && metaKey && metaKey === failedMetaRef.current)
       patch = null
     if (!manual && !contentChanged && !patch) {
       setContentDirty(false)
@@ -648,7 +665,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   // 返回 false 表示保存失败，调用方据此不跳转；其余情况（包括生成中/只读）一律允许离开
   // keepalive：页面隐藏 / 关闭时用 keepalive 请求发出，标签页关闭后请求仍会送达
   // content：离开编辑页时取下的正文快照（见 save）
-  const flushSave = useCallback(async ({ keepalive = false, content }: { keepalive?: boolean, content?: SavedContent } = {}): Promise<boolean> => {
+  // retryFailedMeta：见 save
+  const flushSave = useCallback(async ({ keepalive = false, content, retryFailedMeta = false }: { keepalive?: boolean, content?: SavedContent, retryFailedMeta?: boolean } = {}): Promise<boolean> => {
     // 只读 / 无会话时没有可立即保存的内容；AI 写作中保存打开面板时的正文
     if (!canSave)
       return true
@@ -663,7 +681,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     if (savingRef.current || syncingRef.current)
       await waitForSaveSettled(() => savingRef.current || syncingRef.current)
     // 是否真有修改由 save 比较正文与已保存的内容判断（卸载后不再渲染，isDirtyRef 可能是旧值），没有修改时不发请求
-    return saveNow({ keepalive, content })
+    return saveNow({ keepalive, content, retryFailedMeta })
   }, [canSave])
   const flushSaveRef = useRef(flushSave)
   flushSaveRef.current = flushSave
@@ -699,7 +717,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
         // AI 写作中编辑器里是生成中的预览，补存打开面板时的正文
         const content = aiBusyRef.current
           ? aiBaseRef.current
-          : (ed && !ed.isDestroyed ? { html: ed.getHTML(), doc: ed.state.doc } : null)
+          : (ed && !ed.isDestroyed ? snapshotContent(ed) : null)
         if (content)
           leaveFlushRef.current = flushSaveRef.current({ content })
       }
@@ -737,7 +755,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     // 打开 AI 面板时（预览写入编辑器之前）留下当前正文：面板打开期间的保存与离开时的补存都提交它，
     // 并立即保存一次，打开面板前还在防抖窗口内的修改不会因为面板打开、随后离开编辑页而丢失
     if (busy && !aiBusyRef.current)
-      aiBaseRef.current = editor && !editor.isDestroyed && !editorStaleRef.current ? { html: editor.getHTML(), doc: editor.state.doc } : null
+      aiBaseRef.current = editor && !editor.isDestroyed && !editorStaleRef.current ? snapshotContent(editor) : null
     if (!busy)
       aiBaseRef.current = null
     aiBusyRef.current = busy
@@ -784,8 +802,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  // 有未保存修改时关闭标签页前提示
-  const hasUnsavedChanges = useCallback(() => isDirtyRef.current || savingRef.current, [])
+  // 有未保存修改或上传进行中时关闭标签页前提示（关闭后上传会中断）
+  const hasUnsavedChanges = useCallback(() => isDirtyRef.current || savingRef.current || activeUploadsRef.current > 0, [])
   useUnsavedChangesWarning(hasUnsavedChanges)
 
   // ---------- 合并他人的修改 ----------
@@ -901,8 +919,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       toast.error(postEditT('title_required'))
       return false
     }
-    const html = editor.getHTML()
-    const savedDoc = editor.state.doc
+    // 正在上传的占位块不发布（与保存一致）
+    const { html, doc: savedDoc } = snapshotContent(editor)
     const patch = diffMeta(currentMeta, savedMetaRef.current)
     setPublishing(true)
     try {
@@ -921,7 +939,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       setSaveError(null)
       setLastSavedAt(new Date())
       setChangedSinceOpen(true)
-      if (editor.getHTML() === html)
+      if (snapshotContent(editor).html === html)
         setContentDirty(false)
       toast.success(operationT('publish_success'))
       return true
@@ -1049,6 +1067,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     save,
     flushSave,
     canSave,
+    hasActiveUploads,
     publish,
     publishing,
     hasUnpublishedChanges,

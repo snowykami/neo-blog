@@ -102,13 +102,12 @@ var sections = []*Section{
 		{Key: "sidebar_cards", Type: TypeJSON, Widget: "sidebar_cards", Label: "sidebar_cards", Description: "sidebar_cards_desc", Default: nil, siteInfoPath: path("sidebar_cards")},
 	}},
 	{Tab: "frontend", Key: "music", Title: "section_music", Description: "section_music_desc", Items: []*Item{
-		{Key: "music_source", Type: TypeEnum, Label: "music_source", Options: []Option{{Value: "static", Label: "music_source_static"}, {Value: "ncm", Label: "music_source_ncm"}}, Default: "static", siteInfoPath: path("music_source")},
-		{Key: "music_playlist_url", Type: TypeURL, Label: "music_playlist_url", Description: "music_playlist_url_desc", Default: "https://cdn.liteyuki.org/snowykami/music/playlists/favorite.json", ShowWhen: when("music_source", "static"), siteInfoPath: path("music_playlist_url")},
-		{Key: "ncm_api_base_url", Type: TypeURL, Label: "ncm_api_base_url", Description: "ncm_api_base_url_desc", Placeholder: "https://ncm-api.example.com", Default: "", ShowWhen: when("music_source", "ncm")},
-		{Key: "ncm_cookie", Type: TypeSecret, Label: "ncm_cookie", Description: "ncm_cookie_desc", Placeholder: "MUSIC_U=...", Wide: true, Default: "", ShowWhen: when("music_source", "ncm")},
+		// 歌单只来自网易云：填好 API 地址并选定歌单后前台才显示音乐播放器（站点信息的 music_enabled，见 controller/misc.go）
+		{Key: "ncm_api_base_url", Type: TypeURL, Label: "ncm_api_base_url", Description: "ncm_api_base_url_desc", Placeholder: "https://ncm-api.example.com", Default: ""},
+		{Key: "ncm_cookie", Type: TypeSecret, Label: "ncm_cookie", Description: "ncm_cookie_desc", Placeholder: "MUSIC_U=...", Wide: true, Default: ""},
 		// 用当前填写的 API 地址与 Cookie 读取账号歌单，选择其一作为博客歌单
-		{Key: "ncm_playlist_id", Type: TypeInt, Widget: "ncm_playlist", Label: "ncm_playlist", Description: "ncm_playlist_desc", Min: num(0), Default: 0, ShowWhen: when("music_source", "ncm")},
-		{Key: "ncm_song_level", Type: TypeEnum, Label: "ncm_song_level", Description: "ncm_song_level_desc", Options: options(NCMSongLevels, "ncm_song_level_"), Default: "exhigh", ShowWhen: when("music_source", "ncm")},
+		{Key: "ncm_playlist_id", Type: TypeInt, Widget: "ncm_playlist", Label: "ncm_playlist", Description: "ncm_playlist_desc", Min: num(0), Default: 0},
+		{Key: "ncm_song_level", Type: TypeEnum, Label: "ncm_song_level", Description: "ncm_song_level_desc", Options: options(NCMSongLevels, "ncm_song_level_"), Default: "exhigh"},
 		// 自定义 TTML 歌词源，按顺序探测（见 ttml_sources.go）
 		{Key: "music_ttml_sources", Type: TypeJSON, Widget: "ttml_sources", Label: "music_ttml_sources", Description: "music_ttml_sources_desc", Placeholder: "https://cdn.example.com/lyrics/{song_id}.ttml", Default: []MusicTTMLSource{}, Env: constant.EnvKeyMusicTTMLURL, decode: decodeMusicTTMLSources},
 	}},

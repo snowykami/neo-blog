@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { IconType } from 'react-icons'
 import type { PlayMode } from '@/contexts/music-context'
-import { CaseSensitiveIcon, LanguagesIcon, ListMusicIcon, MessageSquareQuoteIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, SparklesIcon, Volume1Icon, Volume2Icon, VolumeXIcon } from 'lucide-react'
+import { CaseSensitiveIcon, LanguagesIcon, ListMusicIcon, Loader2Icon, MessageSquareQuoteIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, SparklesIcon, Volume1Icon, Volume2Icon, VolumeXIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useMemo, useState } from 'react'
 import { TbHdr } from 'react-icons/tb'
@@ -21,19 +21,25 @@ const PLAY_MODE_ICONS: Record<PlayMode, LucideIcon> = {
   'shuffle': ShuffleIcon,
 }
 
-/** 播放器页图标按钮的样式（悬浮播放器里的链接按钮也使用） */
-export const MUSIC_ICON_BUTTON_CLASSNAME = 'inline-flex shrink-0 items-center justify-center rounded-full p-2 text-white/70 transition-[color,background-color,transform] hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none active:scale-95 disabled:pointer-events-none disabled:text-white/15'
+/**
+ * 播放器页图标按钮的样式（悬浮播放器里的链接按钮也使用）。
+ * 触屏（pointer-coarse）上从 36px 加大到 40px，配合第二排加大的间距（4px → 6px），不容易点到隔壁。
+ * 不再加大：第二排共 6 个按钮，320px 宽的手机上悬浮播放器（内容区约 272px）正好放下
+ */
+export const MUSIC_ICON_BUTTON_CLASSNAME = 'inline-flex shrink-0 items-center justify-center rounded-full p-2 pointer-coarse:p-2.5 text-white/70 transition-[color,background-color,transform] hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none active:scale-95 disabled:pointer-events-none disabled:text-white/15'
 
 /**
  * 播放器页上的图标按钮：白色图标，禁用时变暗。
  * 传了 active 的是开关（翻译、罗马音、HDR 等）：开启时纯白，关闭时明显变暗，两种状态一眼能分清
  */
-function IconButton({ icon: Icon, label, onClick, active, disabled, className, iconClassName }: {
+function IconButton({ icon: Icon, label, onClick, active, disabled, busy, className, iconClassName }: {
   icon: LucideIcon | IconType
   label: string
   onClick: () => void
   active?: boolean
   disabled?: boolean
+  // 忙碌态（上一首 / 下一首在等歌单补全）：图标换成转圈，按钮仍可点
+  busy?: boolean
   className?: string
   iconClassName?: string
 }) {
@@ -43,6 +49,7 @@ function IconButton({ icon: Icon, label, onClick, active, disabled, className, i
       aria-label={label}
       title={label}
       aria-pressed={active}
+      aria-busy={busy || undefined}
       disabled={disabled}
       onClick={onClick}
       className={cn(
@@ -52,7 +59,9 @@ function IconButton({ icon: Icon, label, onClick, active, disabled, className, i
         className,
       )}
     >
-      <Icon aria-hidden className={cn('size-5', iconClassName)} />
+      {busy
+        ? <Loader2Icon aria-hidden className={cn('size-5', iconClassName, 'animate-spin fill-none')} />
+        : <Icon aria-hidden className={cn('size-5', iconClassName)} />}
     </button>
   )
 }
@@ -146,6 +155,7 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
     togglePlay,
     prev,
     next,
+    pendingStep,
     playMode,
     setPlayMode,
     showTranslation,
@@ -168,7 +178,7 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
       <ProgressRow />
       <div className={cn('flex items-center', compact ? 'justify-between' : 'justify-center gap-3 sm:gap-5')}>
         <IconButton icon={PLAY_MODE_ICONS[playMode]} label={playerT(`play_mode_${playMode}`)} onClick={() => setPlayMode(getNextPlayMode(playMode))} />
-        <IconButton icon={SkipBackIcon} label={playerT('previous')} onClick={prev} iconClassName={cn(compact ? 'size-5' : 'size-7', 'fill-current')} />
+        <IconButton icon={SkipBackIcon} label={playerT('previous')} onClick={prev} busy={pendingStep === -1} iconClassName={cn(compact ? 'size-5' : 'size-7', 'fill-current')} />
         <button
           type="button"
           aria-label={playerT(isPlaying ? 'pause' : 'play')}
@@ -183,12 +193,13 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
             ? <PauseIcon aria-hidden className={cn(compact ? 'size-5' : 'size-7', 'fill-current')} />
             : <PlayIcon aria-hidden className={cn(compact ? 'size-5' : 'size-7', 'translate-x-0.5 fill-current')} />}
         </button>
-        <IconButton icon={SkipForwardIcon} label={playerT('next')} onClick={next} iconClassName={cn(compact ? 'size-5' : 'size-7', 'fill-current')} />
+        <IconButton icon={SkipForwardIcon} label={playerT('next')} onClick={next} busy={pendingStep === 1} iconClassName={cn(compact ? 'size-5' : 'size-7', 'fill-current')} />
         {playlistSlot ?? <IconButton icon={ListMusicIcon} label={t('open_playlist')} onClick={() => onOpenPlaylist?.()} />}
       </div>
       <div className="flex items-center justify-between gap-2">
         <VolumeControl compact={compact} />
-        <div className="flex items-center gap-1">
+        {/* 次要按钮：触屏上间距加大（按钮也加大，见 MUSIC_ICON_BUTTON_CLASSNAME） */}
+        <div className="flex items-center gap-1 pointer-coarse:gap-1.5">
           <IconButton
             icon={LanguagesIcon}
             label={hasTranslationLyric ? playerT('show_translation') : playerT('no_extra_lyric')}

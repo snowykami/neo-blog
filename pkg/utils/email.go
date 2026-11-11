@@ -24,6 +24,11 @@ type EmailConfig struct {
 	SSL      bool   // 是否使用SSL
 }
 
+// Usable 邮件服务是否可用：已启用且填写了服务器与发件地址（只说明配置齐全，不保证 SMTP 一定连得上）
+func (c *EmailConfig) Usable() bool {
+	return c != nil && c.Enable && c.Host != "" && c.Address != ""
+}
+
 func (e *emailUtils) RenderTemplate(htmlTemplate string, data map[string]interface{}) (string, error) {
 	// 使用Go的模板系统处理HTML模板
 	tmpl, err := template.New("email").Parse(htmlTemplate)

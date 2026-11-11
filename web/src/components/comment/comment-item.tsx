@@ -3,7 +3,7 @@ import type { Comment, CommentTranslation } from '@/models/comment'
 import type { User } from '@/models/user'
 import { ChevronDown, Ellipsis, Languages, Loader2, Lock, MessageCircleHeartIcon, Reply } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { createComment, deleteComment, getComment, listCommentThread, translateComment, updateComment } from '@/api/comment'
 import { toggleLike } from '@/api/like'
@@ -151,26 +151,37 @@ export function CommentItem({
     </div>
   )
 
-  // 通知深链落在这条线程上：直接展开整条线程，等回复加载完再滚到那条评论
+  // 通知深链落在这条线程上：直接展开整条线程，等回复加载完再滚到那条评论。
+  // 展开与滚动对每个目标只做一次（ref 记录，Activity 隐藏再显示也保留）：之后读者收起线程、加载更多、展开别的线程都不再被拉回
   const focused = focusRootId === root.id
+  const autoExpandedRef = useRef<number | null>(null)
   useEffect(() => {
-    if (!focused || expanded)
+    if (!focused || !focusCommentId || autoExpandedRef.current === focusCommentId)
       return
+    autoExpandedRef.current = focusCommentId
     void loadThread()
     setExpanded(true)
     setShown(Infinity)
-  }, [focused, expanded, loadThread])
+  }, [focused, focusCommentId, loadThread])
 
+  const scrolledRef = useRef<number | null>(null)
   useEffect(() => {
-    if (!focusCommentId || (focused && replies === null))
+    // 只由目标所在的线程负责滚动；目标是回复时等回复加载完
+    if (!focused || !focusCommentId || scrolledRef.current === focusCommentId)
       return
-    const node = document.getElementById(`comment-${focusCommentId}`)
+    if (focusCommentId !== root.id && replies === null)
+      return
+    // 回复已不可见（被删除、私密）时退回到线程根
+    const node = document.getElementById(`comment-${focusCommentId}`) ?? document.getElementById(`comment-${root.id}`)
     if (!node)
       return
-    // 等一帧，等线程展开后的布局稳定再滚动
-    const timer = window.setTimeout(() => node.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80)
+    // 等一帧，等线程展开后的布局稳定再滚动；滚动后才记为已完成，等待期间依赖变化会重新安排
+    const timer = window.setTimeout(() => {
+      scrolledRef.current = focusCommentId
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 80)
     return () => window.clearTimeout(timer)
-  }, [focusCommentId, focused, replies])
+  }, [focusCommentId, focused, replies, root.id])
 
   const visibleReplies = expanded && replies ? replies.slice(0, shown) : []
   const highlighted = focusCommentId === root.id
@@ -465,24 +476,26 @@ function CommentBody({
             </p>
           )}
           <CommentAttachments attachments={comment.attachments} className="mt-1.5 mb-1" />
-          <div className="-ml-2 flex items-center gap-0.5 text-xs text-muted-foreground">
+          {/* 手机上按钮加大到 36px、拉开间距，避免误触相邻的按钮 */}
+          <div className="-ml-2 flex items-center gap-0.5 text-xs text-muted-foreground max-sm:gap-1.5">
             <button
               type="button"
               title={t('reply')}
               aria-label={t('reply')}
               onClick={toggleReply}
               aria-pressed={replyActive}
-              className={cn('inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground', replyActive && 'text-primary')}
+              className={cn('inline-flex h-7 min-w-7 max-sm:h-9 max-sm:min-w-9 items-center justify-center rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground', replyActive && 'text-primary')}
             >
               <Reply aria-hidden className="size-3.5" />
             </button>
             <button
               type="button"
+              // 状态由 aria-pressed 表达，名称保持「点赞」不随状态变化
               title={liked ? operationT('unlike') : operationT('like')}
-              aria-label={liked ? operationT('unlike') : operationT('like')}
+              aria-label={operationT('like')}
               aria-pressed={liked}
               onClick={handleToggleLike}
-              className={cn('inline-flex h-7 min-w-7 items-center gap-1 rounded-md px-2 tabular-nums transition-colors hover:bg-muted hover:text-foreground', liked && 'text-primary hover:text-primary')}
+              className={cn('inline-flex h-7 min-w-7 max-sm:h-9 max-sm:min-w-9 items-center gap-1 rounded-md px-2 tabular-nums transition-colors hover:bg-muted hover:text-foreground', liked && 'text-primary hover:text-primary')}
             >
               <LikeIcon className={cn('size-3.5', liked && 'fill-current')} />
               {likeCount > 0 && likeCount}
@@ -496,7 +509,7 @@ function CommentBody({
                 aria-busy={translating}
                 disabled={translating}
                 onClick={toggleTranslation}
-                className={cn('inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground disabled:cursor-wait', translated && 'text-primary hover:text-primary')}
+                className={cn('inline-flex h-7 min-w-7 max-sm:h-9 max-sm:min-w-9 items-center justify-center rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground disabled:cursor-wait', translated && 'text-primary hover:text-primary')}
               >
                 {translating
                   ? <Loader2 aria-hidden className="size-3.5 animate-spin" />
@@ -504,8 +517,8 @@ function CommentBody({
               </button>
             )}
             {user && (user.id === comment.user.id || isAdmin({ user })) && (
-              // 桌面端悬停时才显示「更多」，触屏设备始终显示
-              <span className="ml-auto sm:opacity-0 sm:transition-opacity sm:group-focus-within/comment:opacity-100 sm:group-hover/comment:opacity-100">
+              // 能悬停的设备（鼠标）悬停时才显示「更多」；触屏手机、平板不能悬停，始终显示
+              <span className="ml-auto transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within/comment:opacity-100 [@media(hover:hover)]:group-hover/comment:opacity-100">
                 <CommentDropdownMenu comment={comment} setActiveInputId={setActiveInputId} onCommentDelete={onDelete} />
               </span>
             )}
@@ -518,7 +531,7 @@ function CommentBody({
             autoFocus
             isUpdate
             initContent={comment.content}
-            initMentions={comment.mentionUserIds}
+            initMentions={comment.mentions}
             initAttachments={comment.attachments}
             initIsPrivate={comment.isPrivate}
             initShowClientInfo={comment.showClientInfo}
@@ -572,7 +585,7 @@ function CommentDropdownMenu({
       <span className="inline-flex">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="size-7 text-muted-foreground" aria-label={t('more_actions')}>
+            <Button variant="ghost" size="icon-sm" className="size-7 text-muted-foreground max-sm:size-9" aria-label={t('more_actions')}>
               <Ellipsis className="size-4" />
             </Button>
           </PopoverTrigger>

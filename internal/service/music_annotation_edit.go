@@ -130,7 +130,7 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 
 // ListLyricAnnotations 后台歌词特效列表（分页）：博客歌单中的歌曲（按歌单顺序）与其他已有标注的歌曲（如文章引用的、已移出歌单的，
 // 按最近一次生成时间倒序）；query 按歌名、歌手或歌曲 ID 筛选（不在歌单中的歌曲只能按 ID）。只读标注的短列，不读 Data。
-// 歌单取不到（静态歌单、网易云出错）时只列出已有标注的歌曲，此时不判断是否已移出歌单
+// 歌单取不到（未配置网易云歌单、网易云出错）时只列出已有标注的歌曲，此时不判断是否已移出歌单
 func (s *MusicService) ListLyricAnnotations(ctx context.Context, req *dto.MusicLyricAnnotationListReq) ([]dto.MusicLyricAnnotationListItemDto, int64, *errs.ServiceError) {
 	db := repo.GetDB().WithContext(ctx)
 	var annotated []int64

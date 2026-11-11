@@ -5,7 +5,7 @@ import type { Post } from '@/models/post'
 import { Clock, TrendingUp, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { parseAsInteger, useQueryState } from 'nuqs'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
 import BlogSidebar from '@/components/blog-sidebar'
@@ -16,6 +16,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useStoredState } from '@/hooks/use-storage-state'
 import { OrderBy } from '@/models/common'
+import { parseHighlightTerms } from '@/utils/common/highlight'
 import { blogHomeQueryKey } from './blog-home-query'
 
 export default function BlogHome({ initialData }: { initialData?: BlogHomeInitialData }) {
@@ -144,6 +145,8 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
       : query
         ? { key: 'filtered_by_query', name: query }
         : null
+  // 搜索结果里高亮搜索词（只在按搜索词筛选时）
+  const highlightTerms = useMemo(() => parseHighlightTerms(query), [query])
   const clearFilter = () => {
     setLabelSlug(null)
     setCategorySlug(null)
@@ -232,6 +235,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
         error={loadError}
         onRetry={() => setReloadKey(k => k + 1)}
         onClearFilter={filter ? clearFilter : undefined}
+        highlight={highlightTerms}
       />
 
       {totalPosts > 0 && !loadError && (

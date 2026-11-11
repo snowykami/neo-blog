@@ -170,8 +170,7 @@ export function PostLabelSelector({
     }
   }
 
-  const remove = (label: Label, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const remove = (label: Label) => {
     onSelectedLabelsChange((labels ?? []).filter(l => l.id !== label.id))
   }
 
@@ -196,18 +195,18 @@ export function PostLabelSelector({
                           <div className="text-muted-foreground">{t('select_labels')}</div>
                         )
                       : (
+                          // 整个标签都是移除按钮（之前只有内部 12px 的图标能点、键盘按 Enter 删不掉）
                           safeLabels.map(l => (
                             <button
                               key={l.id}
                               type="button"
-                              className="inline-flex items-center gap-2 px-2 py-0.5 rounded-lg bg-muted text-sm hover:opacity-90"
-                              title={l.name}
+                              onClick={() => remove(l)}
+                              aria-label={operationT('remove_named', { name: l.name })}
+                              title={operationT('remove_named', { name: l.name })}
+                              className="inline-flex items-center gap-2 px-2 py-0.5 rounded-lg bg-muted text-sm hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                             >
                               <span>{l.name}</span>
-                              <XIcon
-                                onClick={e => remove(l, e)}
-                                className="w-3 h-3 text-muted-foreground"
-                              />
+                              <XIcon aria-hidden className="w-3 h-3 text-muted-foreground" />
                             </button>
                           ))
                         )}

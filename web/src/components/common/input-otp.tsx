@@ -5,7 +5,14 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
  * 验证码输入框
  * 传入 value 时为受控模式（父组件可清空），否则内部自管理
  */
-export function InputOTPControlled({ value: controlledValue, onChange, id }: { value?: string, onChange: (value: string) => void, id?: string }) {
+export function InputOTPControlled({ value: controlledValue, onChange, id, ...aria }: {
+  'value'?: string
+  'onChange': (value: string) => void
+  'id'?: string
+  // 放在 FormControl 里时由它传入，指向错误提示
+  'aria-invalid'?: boolean
+  'aria-describedby'?: string
+}) {
   const [innerValue, setInnerValue] = useState('')
   const isControlled = controlledValue !== undefined
   const value = isControlled ? controlledValue : innerValue
@@ -17,6 +24,7 @@ export function InputOTPControlled({ value: controlledValue, onChange, id }: { v
     <div className="space-y-2">
       <InputOTP
         id={id}
+        {...aria}
         maxLength={6}
         value={value}
         onChange={(v) => {

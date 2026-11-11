@@ -119,9 +119,10 @@ export function AgentMemoriesPanel({ agentId, subject, onSubjectChange }: {
             </TabsList>
           </Tabs>
           {subject && (
-            <Badge variant="secondary" className="gap-1">
+            // 清除按钮的图标只有 12px：透明伪元素把热区四周各扩 6px（24px），Badge 不裁切溢出才点得到
+            <Badge variant="secondary" className="gap-1 overflow-visible">
               {t('memories.about', { name: subject.name })}
-              <button type="button" aria-label={t('list.clear_filters')} className="cursor-pointer" onClick={() => onSubjectChange(null)}>
+              <button type="button" aria-label={t('list.clear_filters')} className="relative cursor-pointer rounded-sm after:absolute after:-inset-1.5" onClick={() => onSubjectChange(null)}>
                 <X className="size-3" />
               </button>
             </Badge>

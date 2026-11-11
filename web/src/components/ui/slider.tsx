@@ -31,7 +31,8 @@ function Slider({
       min={min}
       max={max}
       className={cn(
-        'relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',
+        // 根元素只有轨道的 6px 高（拇指绝对定位，不撑高）：透明伪元素把按下区域沿轨道两侧各扩 9px（24px，WCAG 2.2 最小目标尺寸），外观不变
+        'relative flex w-full touch-none items-center select-none before:absolute data-[orientation=horizontal]:before:inset-x-0 data-[orientation=horizontal]:before:-inset-y-[9px] data-[orientation=vertical]:before:inset-y-0 data-[orientation=vertical]:before:-inset-x-[9px] data-[disabled]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',
         className,
       )}
       {...props}

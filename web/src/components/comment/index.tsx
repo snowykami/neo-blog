@@ -61,6 +61,14 @@ export function CommentSection({
   const localDeletedRef = useRef(0)
   // 深链定位的线程根：它可能不在已加载的页里，列表（首屏、重新拉取）晚到时要合并进去，不能被覆盖掉
   const pinnedRootRef = useRef<Comment | null>(null)
+  // 深链里的评论 id：读到后立即从地址里去掉 ?comment=（之后刷新、分享、返回都不再重复定位），以这里记的为准
+  const deepLinkRef = useRef<{ target: string, commentId: number } | null>(null)
+  // 已经解析过的深链（含身份）：Activity 重新显示时不重复请求、不重复定位
+  const resolvedLinkRef = useRef<string | null>(null)
+  // 已加载列表对应的条件（目标、排序、身份），以及已加载到第几页：Activity 重新显示时条件没变，就保留已加载的内容只在后台刷新
+  const loadedKeyRef = useRef<string | null>(null)
+  const pageRef = useRef(1)
+  pageRef.current = page
 
   // 登出或换账号：上一个账号能看到的私密评论、点赞状态、展开的回复都要清掉，按新身份重新拉取。
   // 渲染期间就清空并换掉列表的 key（重新挂载每条评论），不让旧内容再画一帧。
@@ -76,19 +84,26 @@ export function CommentSection({
       setFocus(null)
       setActiveInput(null)
       setInitialLoading(true)
+      // 上一个账号看到的线程根（可能是私密评论）不能留到新身份下，深链按新身份重新解析
+      pinnedRootRef.current = null
     }
   }
   const viewerEpoch = viewer.epoch
 
-  // 加载0/顶层评论
+  // 加载顶层评论。条件（目标、排序、身份）变化时从第一页重新加载并显示骨架；
+  // 条件没变（Activity 隐藏后重新显示，effect 会重跑）时保留已加载的各页，在后台一次取回同样多的条数替换，页面高度不跳
   useEffect(() => {
+    const key = JSON.stringify([targetType, targetId, pageSize, orderBy, desc, viewerEpoch])
     const seq = ++requestSeqRef.current
-    // Reset pagination state when target changes
-    setPage(1)
-    setNeedLoadMore(false)
-    setInitialLoading(true)
+    const background = loadedKeyRef.current === key
+    const pages = background ? pageRef.current : 1
     setLoadingMore(false)
-    localDeletedRef.current = 0
+    if (!background) {
+      setPage(1)
+      setNeedLoadMore(false)
+      setInitialLoading(true)
+      localDeletedRef.current = 0
+    }
 
     listComments({
       targetType,
@@ -97,18 +112,22 @@ export function CommentSection({
       orderBy,
       desc,
       page: 1,
-      size: pageSize,
+      size: pageSize * pages,
       commentId: 0,
     }).then((response) => {
       if (seq !== requestSeqRef.current)
         return
       const list: Comment[] = response.data.comments || []
+      loadedKeyRef.current = key
+      // 一次取回了从第一页到当前页的全部，本地删除造成的 offset 错位随之消除
+      localDeletedRef.current = 0
       setComments(withPinnedRoot(list, pinnedRootRef.current))
       setTranslatable(Boolean(response.data.translatable))
-      // If we got fewer comments than requested, no more pages
-      setNeedLoadMore(list.length >= pageSize)
+      // 取回的条数少于请求的条数时，没有更多了
+      setNeedLoadMore(list.length >= pageSize * pages)
     }).catch((error) => {
-      if (seq !== requestSeqRef.current)
+      // 后台刷新失败时保留已有内容，不打扰读者
+      if (seq !== requestSeqRef.current || background)
         return
       toast.error(`${t('load_failed')}: ${errorMessageT(error)}`)
     }).finally(() => {
@@ -166,16 +185,26 @@ export function CommentSection({
     localDeletedRef.current += 1
   }
 
-  // 读取 ?comment= 深链：先查这条评论在哪个线程，再把线程根补进列表（它可能还没被翻到）
+  // 读取 ?comment= 深链：先查这条评论在哪个线程，再把线程根补进列表（它可能还没被翻到）。
+  // 参数读到后立即从地址里去掉，定位只做一次：之后加载更多、展开别的线程、收起目标线程都不会被拉回
   useEffect(() => {
     if (typeof window === 'undefined')
       return
-    pinnedRootRef.current = null
-    const commentId = Number(new URLSearchParams(window.location.search).get('comment'))
-    if (!Number.isFinite(commentId) || commentId <= 0) {
+    const targetKey = `${targetType}:${targetId}`
+    const fromUrl = takeCommentParam()
+    if (fromUrl > 0)
+      deepLinkRef.current = { target: targetKey, commentId: fromUrl }
+    const commentId = deepLinkRef.current?.target === targetKey ? deepLinkRef.current.commentId : 0
+    if (commentId <= 0) {
+      pinnedRootRef.current = null
+      resolvedLinkRef.current = null
       setFocus(null)
       return
     }
+    const resolveKey = `${targetKey}:${commentId}:${viewerEpoch}`
+    if (resolvedLinkRef.current === resolveKey)
+      return
+    pinnedRootRef.current = null
     let cancelled = false
     getComment({ id: commentId }).then(async (response) => {
       if (cancelled)
@@ -183,6 +212,7 @@ export function CommentSection({
       const target = response.data
       // 只定位本页目标下的评论：手改 ?comment= 不能把别的文章的线程插进来
       if (target.targetType !== targetType || target.targetId !== targetId) {
+        resolvedLinkRef.current = resolveKey
         setFocus(null)
         return
       }
@@ -191,12 +221,15 @@ export function CommentSection({
       const root = rootId === target.id ? target : (await getComment({ id: rootId })).data
       if (cancelled || root.targetType !== targetType || root.targetId !== targetId)
         return
+      resolvedLinkRef.current = resolveKey
       pinnedRootRef.current = root
       setComments(prev => withPinnedRoot(prev, root))
     }).catch(() => {
       // 评论可能已被删除：不打断页面，只是没有可定位的目标
-      if (!cancelled)
+      if (!cancelled) {
+        resolvedLinkRef.current = resolveKey
         setFocus(null)
+      }
     })
     return () => {
       cancelled = true
@@ -307,11 +340,26 @@ export function CommentSection({
               </div>
             )
           : (
-              <p className="my-4 text-center text-sm text-foreground/30">{t('no_more')}</p>
+              <p className="my-4 text-center text-sm text-foreground/30">{comments.length === 0 ? t('empty') : t('no_more')}</p>
             ))}
       </div>
     </div>
   )
+}
+
+/**
+ * 读出地址里的 ?comment= 并把它去掉。用原生 history.replaceState 且 state 传 null（Next 推荐的写法）：
+ * Next 会把新地址同步进路由状态并保留内部的历史状态；传入现有的 history.state（带 __NA）会被当成 Next 自己的调用而跳过同步
+ */
+function takeCommentParam(): number {
+  const url = new URL(window.location.href)
+  const raw = url.searchParams.get('comment')
+  if (raw === null)
+    return 0
+  url.searchParams.delete('comment')
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  const id = Number(raw)
+  return Number.isInteger(id) && id > 0 ? id : 0
 }
 
 /** 把深链定位的线程根放在列表最前面；列表里已经有它时保持原样 */

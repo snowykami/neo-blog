@@ -165,18 +165,19 @@ export default function VisitsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {source && (
-            <Badge variant="secondary" className="gap-1">
+            // 清除按钮的图标只有 12px：透明伪元素把热区四周各扩 6px（24px），Badge 不裁切溢出才点得到
+            <Badge variant="secondary" className="gap-1 overflow-visible">
               <SourceIcon source={source} className="size-3" />
               <SourceName source={source} host={sourceHost ?? ''} />
-              <button type="button" aria-label={t('clear')} className="cursor-pointer" onClick={() => selectSource(null)}>
+              <button type="button" aria-label={t('clear')} className="relative cursor-pointer rounded-sm after:absolute after:-inset-1.5" onClick={() => selectSource(null)}>
                 <XIcon className="size-3" />
               </button>
             </Badge>
           )}
           {visitorId && (
-            <Badge variant="secondary" className="gap-1">
+            <Badge variant="secondary" className="gap-1 overflow-visible">
               {t('viewing_visitor', { id: visitorId })}
-              <button type="button" aria-label={t('clear')} className="cursor-pointer" onClick={() => selectVisitor(null)}>
+              <button type="button" aria-label={t('clear')} className="relative cursor-pointer rounded-sm after:absolute after:-inset-1.5" onClick={() => selectVisitor(null)}>
                 <XIcon className="size-3" />
               </button>
             </Badge>

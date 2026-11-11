@@ -85,7 +85,7 @@ export default function ErrorsPage() {
           </Card>
           <Card className="gap-1 px-4 py-3">
             <div className="text-xs text-muted-foreground">{t('stats_active_24h')}</div>
-            <div className="text-2xl font-semibold tabular-nums">{stats.active24h}</div>
+            <div className="text-2xl font-semibold tabular-nums">{stats.activeLastDay}</div>
           </Card>
         </div>
       )}

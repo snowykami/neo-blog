@@ -167,7 +167,8 @@ export function AISummaryBadges({ post, onRetry }: { post: Post, onRetry: () => 
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge asChild variant="outline" className="cursor-pointer border-destructive/40 text-xs text-destructive">
+          {/* 可点的 Badge 只有约 22px 高：透明伪元素把热区上下各扩 2px（不裁切溢出才点得到） */}
+          <Badge asChild variant="outline" className="relative cursor-pointer overflow-visible border-destructive/40 text-xs text-destructive after:absolute after:-inset-y-0.5 after:inset-x-0">
             <button type="button" onClick={onRetry}>
               <AlertCircleIcon aria-hidden />
               {t('failed_badge')}

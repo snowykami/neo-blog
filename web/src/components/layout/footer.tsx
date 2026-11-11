@@ -6,7 +6,8 @@ import { useSiteInfo } from '@/contexts/site-info-context'
 import { Link } from '@/i18n/navigation'
 import { mainPath } from '@/utils/common/route'
 
-const footerLinkClass = 'rounded-sm underline decoration-dashed underline-offset-4 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+// 手机上链接上下各加 4px 内边距（行内的「Neo Blog」改为行内块，内边距才算进排版），热区到 28px，不易点偏（桌面端不变）
+const footerLinkClass = 'rounded-sm underline decoration-dashed underline-offset-4 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:inline-block max-sm:py-1'
 
 const subscribeNever = () => () => {}
 const currentYear = () => new Date().getFullYear()

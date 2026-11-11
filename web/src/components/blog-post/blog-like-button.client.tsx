@@ -64,7 +64,8 @@ export function BlogLikeButton({ post }: { post: Pick<Post, 'id' | 'isLiked' | '
       <button
         type="button"
         onClick={toggle}
-        aria-label={liked ? operationT('unlike') : operationT('like')}
+        // 状态由 aria-pressed 表达，名称保持「点赞」不随状态变化
+        aria-label={operationT('like')}
         aria-pressed={liked}
         title={liked ? operationT('unlike') : operationT('like')}
         className={cn(
@@ -80,9 +81,9 @@ export function BlogLikeButton({ post }: { post: Pick<Post, 'id' | 'isLiked' | '
       <div className="text-sm text-foreground/50">
         {operationT('n_users_liked', { n: likeCount })}
       </div>
-      {/* 最近点赞的人在前，头像互相压住一点；超出的人数用末尾的「+N」表示 */}
+      {/* 最近点赞的人在前，头像只压住一点点（手机上不重叠、留出间距，避免点错人）；超出的人数用末尾的「+N」表示 */}
       {likedUsers.length > 0 && (
-        <div className="flex justify-center -space-x-2">
+        <div className="flex justify-center gap-1.5 sm:-space-x-1 sm:gap-0">
           {likedUsers.map(u => (
             <Link
               key={u.id}

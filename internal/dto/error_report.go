@@ -72,8 +72,9 @@ type ErrorEventDto struct {
 	Detail    map[string]any `json:"detail"`
 }
 
-// ErrorReportStats 控制台顶部的汇总：未处理的问题数与最近 24 小时内出现过的问题数
+// ErrorReportStats 控制台顶部的汇总：未处理的问题数与最近 24 小时内出现过的问题数。
+// 字段名不用 active_24h：前端请求层的 snake→camel 转换不处理下划线后接数字，会原样留下 active_24h，前端读不到
 type ErrorReportStats struct {
-	Unresolved int64 `json:"unresolved"`
-	Active24h  int64 `json:"active_24h"`
+	Unresolved    int64 `json:"unresolved"`
+	ActiveLastDay int64 `json:"active_last_day"`
 }

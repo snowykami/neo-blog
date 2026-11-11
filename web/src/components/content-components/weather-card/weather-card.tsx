@@ -367,9 +367,10 @@ function LiveWeatherCard({ city, latitude, longitude }: WeatherCardProps) {
         live: true,
       }}
       placeAction={showPreciseAction && (
+        // 按钮只有 18×18：透明伪元素把热区四周各扩 8px（34px），外观不变
         <button
           type="button"
-          className="-my-0.5 shrink-0 rounded-full p-0.5 text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none"
+          className="relative -my-0.5 shrink-0 rounded-full p-0.5 after:absolute after:-inset-2 after:rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none"
           aria-label={t('use_precise_location')}
           title={t('use_precise_location')}
           onClick={switchToPreciseLocation}

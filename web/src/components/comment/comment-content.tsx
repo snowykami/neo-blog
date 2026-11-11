@@ -4,6 +4,7 @@ import type { CommentMention } from '@/models/comment'
 import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { resolveMentions } from '@/utils/common/mention'
+import { getUserUrl } from '@/utils/common/route'
 
 /**
  * 评论正文：纯文本，只把被 @ 的人渲染成指向个人主页的链接。
@@ -20,7 +21,7 @@ export function CommentContent({ content, mentions }: { content: string, mention
         : (
             <Link
               key={`mention-${segment.id}-${index}`}
-              href={`/u/${segment.username}#comments`}
+              href={getUserUrl(segment, 'comments')}
               className="text-primary hover:underline"
               title={t('mention_profile', { username: segment.username })}
             >

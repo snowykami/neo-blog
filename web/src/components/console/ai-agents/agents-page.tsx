@@ -315,8 +315,11 @@ export function AIAgentsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-10">
+                  {/* 复选框所在的整个单元格都可点（label 铺满单元格，复选框叠在上面） */}
+                  <TableHead className="relative w-10">
+                    <label htmlFor="agents-select-page" aria-hidden className="absolute inset-0 cursor-pointer" />
                     <Checkbox
+                      id="agents-select-page"
                       checked={pageAllSelected}
                       disabled={loading || pageIds.length === 0}
                       aria-label={t('list.select_page')}
@@ -368,8 +371,10 @@ export function AIAgentsPage() {
                 )}
                 {!loading && !error && agents.map(agent => (
                   <TableRow key={agent.id} data-state={selected.has(agent.id) ? 'selected' : undefined}>
-                    <TableCell>
+                    <TableCell className="relative">
+                      <label htmlFor={`agents-select-${agent.id}`} aria-hidden className="absolute inset-0 cursor-pointer" />
                       <Checkbox
+                        id={`agents-select-${agent.id}`}
                         checked={selected.has(agent.id)}
                         aria-label={t('list.select_agent', { name: agent.user.nickname || agent.user.username })}
                         onCheckedChange={checked => setChecked([agent.id], checked === true)}

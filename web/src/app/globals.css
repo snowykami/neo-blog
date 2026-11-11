@@ -67,6 +67,15 @@
     @apply bg-background text-foreground;
   }
 
+  /* 音乐悬浮球停靠在底部时（--floating-ball-reserve 由 components/common/music-player.tsx 设置），
+   * 页面底部留出悬浮球的高度：页面最末尾的内容（页脚、注册页底部的「隐私政策」）滚到底时能停在悬浮球上方。
+   * 只在 lg 以下：手机与平板上内容贴着屏幕两侧，桌面端内容居中、两侧留白，悬浮球不压内容 */
+  @media (width < 64rem) {
+    body {
+      padding-bottom: var(--floating-ball-reserve, 0px);
+    }
+  }
+
   /* 控制台内容区：grid 默认单列、列宽可以收缩到 0。不指定列时 grid 的隐式列按内容最小宽度撑开，
    * 长标题、不换行的文字、宽表格会把整个页面撑宽（宽表格在自己的容器里左右滚动）。
    * 放在 base 层，grid-cols-*（含响应式）照常覆盖；按列排布（grid-flow-col）的不改 */

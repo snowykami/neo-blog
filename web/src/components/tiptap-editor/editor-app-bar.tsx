@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Spinner } from '@/components/ui/spinner'
 import { useOperationT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
@@ -49,6 +50,8 @@ export interface EditorAppBarProps {
   backLabel: string
   // 点返回时先保存再跳转（不传则按普通链接跳转）
   onBack?: (event: React.MouseEvent<HTMLAnchorElement>) => void
+  // 点返回后正在等待保存：返回按钮显示加载中
+  backPending?: boolean
   crumbRoot: string
   title: string
   isPrivate: boolean
@@ -91,6 +94,7 @@ export function EditorAppBar(props: EditorAppBarProps) {
     backHref,
     backLabel,
     onBack,
+    backPending = false,
     crumbRoot,
     title,
     isPrivate,
@@ -135,8 +139,8 @@ export function EditorAppBar(props: EditorAppBarProps) {
     >
       <EditorTooltip label={backLabel}>
         <Button asChild variant="ghost" size="icon" className="size-9 text-foreground/75">
-          <Link href={backHref} aria-label={backLabel} onClick={onBack}>
-            <ArrowLeftIcon className="size-[18px]" />
+          <Link href={backHref} aria-label={backLabel} aria-busy={backPending || undefined} aria-disabled={backPending || undefined} onClick={onBack}>
+            {backPending ? <Spinner className="size-[18px]" /> : <ArrowLeftIcon className="size-[18px]" />}
           </Link>
         </Button>
       </EditorTooltip>

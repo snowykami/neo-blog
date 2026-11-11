@@ -53,7 +53,8 @@ export function NavSearch({ className, onNavigate }: { className?: string, onNav
         />
         <CommandList>
           {keyword && (
-            <CommandGroup>
+            // 分组与其中的项都要 forceMount：只给项加时，cmdk 仍按过滤结果把整个分组标成 hidden，输入后下拉什么都不显示
+            <CommandGroup forceMount>
               {/* 始终显示该项，不参与 cmdk 的内置过滤 */}
               <CommandItem forceMount value="search-posts" onSelect={submit}>
                 <SearchIcon />

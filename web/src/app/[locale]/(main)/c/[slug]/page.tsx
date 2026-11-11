@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { Suspense } from 'react'
 import { PostList } from '@/components/blog-home/post-list'
@@ -8,11 +9,10 @@ import {
   Pagination,
   PaginationContent,
   PaginationItem,
-  PaginationNext,
-  PaginationPrevious,
+  PaginationLink,
 } from '@/components/ui/pagination'
 import { localeAlternates } from '@/i18n/alternates'
-import { localizePath } from '@/i18n/routing'
+import { Link } from '@/i18n/navigation'
 import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
 import { getCategoryUrl } from '@/utils/common/route'
 import { CATEGORY_PAGE_SIZE, findCategoryOr404, listCategoryPosts } from './category-data'
@@ -85,12 +85,12 @@ async function CategoryTotal({ slug, searchParams }: { slug: string, searchParam
 async function CategoryPosts({ slug, baseUrl, searchParams }: { slug: string, baseUrl: string, searchParams: Promise<{ page?: string }> }) {
   const { page: pageParam } = await searchParams
   const page = readPage(pageParam)
-  const [operationT, locale] = await Promise.all([getTranslations('Operation'), getLocale()])
+  const operationT = await getTranslations('Operation')
   const { posts, total } = await listCategoryPosts(slug, page).catch(() => ({ posts: [], total: 0 }))
 
   const totalPages = Math.max(1, Math.ceil(total / CATEGORY_PAGE_SIZE))
-  // 分页是普通 <a>，自己带上语言前缀
-  const pageUrl = (p: number) => localizePath(p <= 1 ? baseUrl : `${baseUrl}?page=${p}`, locale)
+  // 翻页用站内 Link（自动带语言前缀）：客户端跳转，不整页刷新、音乐不中断；预取沿用默认（进入视口取外壳、悬停取整页）
+  const pageUrl = (p: number) => (p <= 1 ? baseUrl : `${baseUrl}?page=${p}`)
 
   return (
     <>
@@ -100,7 +100,11 @@ async function CategoryPosts({ slug, baseUrl, searchParams }: { slug: string, ba
           <PaginationContent>
             {page > 1 && (
               <PaginationItem>
-                <PaginationPrevious href={pageUrl(page - 1)} aria-label={operationT('previous')} />
+                <PaginationLink asChild size="default" className="px-2.5">
+                  <Link href={pageUrl(page - 1)} aria-label={operationT('previous')}>
+                    <ChevronLeftIcon aria-hidden />
+                  </Link>
+                </PaginationLink>
               </PaginationItem>
             )}
             <PaginationItem>
@@ -112,7 +116,11 @@ async function CategoryPosts({ slug, baseUrl, searchParams }: { slug: string, ba
             </PaginationItem>
             {page < totalPages && (
               <PaginationItem>
-                <PaginationNext href={pageUrl(page + 1)} aria-label={operationT('next')} />
+                <PaginationLink asChild size="default" className="px-2.5">
+                  <Link href={pageUrl(page + 1)} aria-label={operationT('next')}>
+                    <ChevronRightIcon aria-hidden />
+                  </Link>
+                </PaginationLink>
               </PaginationItem>
             )}
           </PaginationContent>

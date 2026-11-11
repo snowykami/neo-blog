@@ -1,11 +1,11 @@
 'use client'
 
-import type { MusicSource, MusicTrack } from '@/models/music'
+import type { MusicTrack } from '@/models/music'
 import { Maximize2Icon, MusicIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import dynamic from 'next/dynamic'
 import React, { useEffect, useRef, useState } from 'react'
-import { fetchNcmPlaylist, fetchPlaylist, fetchPlaylistTrack, fetchPlaylistVersion } from '@/api/music'
+import { fetchNcmPlaylist, fetchPlaylistTrack, fetchPlaylistVersion } from '@/api/music'
 import { SafeImage } from '@/components/common/safe-image'
 import { useIslandPanelPhase } from '@/components/layout/topbar-island/island-panel-phase'
 import { MusicBackground } from '@/components/music-page/music-background'
@@ -17,9 +17,11 @@ import { useSongAccent } from '@/components/music-page/use-cover-accent'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useCurrentLyric, useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { Link, usePathname } from '@/i18n/navigation'
+import { isConsolePath } from '@/i18n/routing'
 import { readPlaylistCache, touchPlaylistCache, writePlaylistCache } from '@/lib/music-playlist-cache'
 import { cn } from '@/lib/utils'
 import { shouldOptimize } from '@/utils/common/image'
+import { isConsolePreviewPath } from '@/utils/common/route'
 import { MarqueeText } from './marquee-text'
 import { MusicMiniPlaylist } from './music-mini-playlist'
 import { ALBUM_ROTATE_CLASSNAME, ALBUM_TRANSITION_DURATION_MS, CrossfadeAlbumImage, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE, useMiniPlayerHold } from './music-player-shared'
@@ -248,20 +250,26 @@ function getRestoreCandidates(): number[] | null {
   return ids
 }
 
-export function MusicPlayer({ source }: { source: MusicSource }) {
+/** 全局音乐播放器（悬浮球）：歌单只来自后台配置的网易云歌单，未配置时不挂载（见 FloatingWidgets） */
+export function MusicPlayer() {
   const t = useTranslations('MusicPlayer')
   const {
     currentTrack,
     replacePlaylist,
     deferPlaylist,
-    sampleTrack,
+    markPlaylistFailed,
     currentIndex,
     duration,
     isPlaying,
   } = useMusic()
   const clock = useMusicClockStore()
   // 播放器页（/music）本身就是完整的播放器：不显示悬浮球，但歌单加载与进度保存照常进行
-  const onPlayerPage = usePathname() === '/music'
+  const pathname = usePathname()
+  const onPlayerPage = pathname === '/music'
+  // 后台也不显示悬浮球：后台的保存栏、编辑器状态、仪表盘卡片都贴着右下角，悬浮球停在哪都会挡住操作；
+  // 后台的播放器入口在顶栏右侧（见 components/console/console-music-button.tsx）。文章 / 页面预览用的是前台外壳（有灵动岛），照常显示
+  const inConsole = isConsolePath(pathname) && !isConsolePreviewPath(pathname)
+  const showBall = Boolean(currentTrack) && !onPlayerPage && !inConsole
   const themeColor = useAlbumThemeColor(currentTrack?.albumPic)
   const animatedThemeColor = useAnimatedThemeColor(themeColor)
   // 悬浮球可拖动；开始拖动时收起播放器
@@ -276,7 +284,7 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
   const lastSavedTimeRef = useRef(0)
 
   // 拉取歌单后一次性以“存储的曲目 + 进度”初始化，不再先切到第 0 首再切回，避免多余的歌词请求与竞态。
-  // 网易云歌单有本地缓存：先用缓存渲染（悬浮球立刻出现、直接恢复上次的曲目），再只校验版本，版本变了在需要时再下载整份歌单；
+  // 歌单有本地缓存：先用缓存渲染（悬浮球立刻出现、直接恢复上次的曲目），再只校验版本，版本变了在需要时再下载整份歌单；
   // 没有缓存时只取要恢复的那一首（几百字节，完整歌单约 90 KB gzip），完整歌单等开始出声、打开播放器 / 歌单或切歌时再取（见 music-context 的 ensurePlaylist）
   useEffect(() => {
     let cancelled = false
@@ -294,17 +302,11 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
       writePlaylistCache(fresh.version, fresh.tracks)
       return fresh.tracks
     }
-    const cached = source.type === 'ncm' ? readPlaylistCache() : null
+    const cached = readPlaylistCache()
     if (cached)
       applyRestored(cached.tracks)
 
     const sync = async () => {
-      if (source.type !== 'ncm') {
-        const tracks = await fetchPlaylist(source)
-        if (!cancelled)
-          applyRestored(tracks)
-        return
-      }
       if (cached) {
         const version = await fetchPlaylistVersion()
         if (cancelled)
@@ -345,19 +347,16 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
     sync().catch((error) => {
       if (cancelled)
         return
-      // 有本地缓存时继续用缓存；没有时用示例曲目兜底，但不开启存储写回，避免覆盖用户已保存的曲目与进度
-      if (!cached) {
-        replacePlaylist([
-          sampleTrack,
-        ])
-      }
+      // 有本地缓存时继续用缓存；没有时不显示悬浮球（不再用假曲目兜底），播放器页显示加载失败。
+      // 不开启存储写回，不会覆盖读者已保存的曲目与进度
+      if (!cached)
+        markPlaylistFailed()
       console.error('Failed to fetch playlist:', error)
     })
     return () => {
       cancelled = true
     }
-    // sampleTrack 每次渲染都会重新创建，不放入依赖，只在歌单来源变化时重新拉取
-  }, [source, replacePlaylist, deferPlaylist])
+  }, [replacePlaylist, deferPlaylist, markPlaylistFailed])
 
   // 曲目变化时保存索引与曲目 id；切到新曲目时进度清零，保证进度始终属于已保存的曲目
   const currentTrackId = currentTrack?.id ?? null
@@ -390,7 +389,19 @@ export function MusicPlayer({ source }: { source: MusicSource }) {
     })
   }, [clock, currentTrackId, duration])
 
-  if (!currentTrack || onPlayerPage) {
+  // 悬浮球停靠在底部时给页面底部留出它的高度（见 useFloatingBall 的 reserve 与 globals.css 的 --floating-ball-reserve）
+  const reserve = showBall && ball.ready ? ball.reserve : 0
+  useEffect(() => {
+    if (!reserve)
+      return
+    const root = document.documentElement
+    root.style.setProperty('--floating-ball-reserve', `${reserve}px`)
+    return () => {
+      root.style.removeProperty('--floating-ball-reserve')
+    }
+  }, [reserve])
+
+  if (!currentTrack || !showBall) {
     return null
   }
 

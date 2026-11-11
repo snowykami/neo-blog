@@ -256,8 +256,15 @@ export function EditorRevisionSheet({ open, onOpenChange, target, docId, schema,
                   return (
                     <div key={revision.id} className="flex items-start gap-1">
                       {/* 选择模式：可删除的版本显示复选框（Shift 连选），受保护的版本显示锁并说明原因 */}
+                      {/* 复选框所在的整列（与整行等高）都可点，点到列内空白处同样切换选中（Shift 连选）；与右侧「选中版本」按钮是相邻的两个元素，互不重叠 */}
                       {canSelect && (
-                        <div className="flex h-9 w-6 shrink-0 items-center justify-center">
+                        <div
+                          className={cn('flex min-h-9 w-7 shrink-0 items-start justify-center self-stretch pt-2.5', !revision.protected && 'cursor-pointer')}
+                          onClick={(event) => {
+                            if (!revision.protected && event.target === event.currentTarget)
+                              toggleChecked(revision.id, event.shiftKey)
+                          }}
+                        >
                           {revision.protected
                             ? (
                                 <Tooltip>

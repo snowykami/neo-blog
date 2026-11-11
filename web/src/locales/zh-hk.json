@@ -329,7 +329,10 @@
   },
   "Register": {
     "already_have_account": "已經有帳戶？",
-    "register_a_new_account": "建立新帳戶"
+    "register_a_new_account": "建立新帳戶",
+    "email_unavailable": "網站尚未設定電郵服務，收不到驗證碼，暫時無法註冊。請聯絡管理員。",
+    "email_required": "請輸入電郵",
+    "email_invalid": "電郵格式不正確"
   },
   "Role": {
     "user": "用戶"
@@ -370,7 +373,8 @@
       "invalid_ai_agent_tier": "無效的 AI 用戶類型",
       "storage_provider_location_locked": "該儲存中仍有檔案，不能修改類型、目錄、Bucket、Prefix 或 WebDAV 地址；請先把檔案遷移到其他儲存",
       "invalid_ai_agent_count": "一次可匯入 1～200 個 AI 用戶",
-      "ai_agent_username_taken": "用戶名稱已被一般用戶占用，請換一個"
+      "ai_agent_username_taken": "用戶名稱已被一般用戶占用，請換一個",
+      "email_service_unavailable": "網站未設定電郵服務，暫時無法發送驗證碼，請聯絡管理員"
     },
     "resources": {
       "user": "用戶",
@@ -408,5 +412,11 @@
   },
   "Share": {
     "hint": "分享圖由伺服器產生，可直接儲存或傳到聊天軟件"
+  },
+  "ResetPassword": {
+    "email_unavailable": "網站尚未設定電郵服務，收不到驗證碼，暫時無法透過電郵找回密碼。請聯絡管理員。",
+    "verify_disabled": "網站關閉了電郵驗證，無法透過電郵找回密碼。請聯絡管理員。",
+    "email_required": "請輸入電郵",
+    "email_invalid": "電郵格式不正確"
   }
 }

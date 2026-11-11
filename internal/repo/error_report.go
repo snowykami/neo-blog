@@ -162,7 +162,7 @@ func (r *errorReportRepo) Stats(since time.Time) (*dto.ErrorReportStats, error) 
 	if err := GetDB().Model(&model.ErrorIssue{}).Where("status = ?", constant.ErrorStatusUnresolved).Count(&stats.Unresolved).Error; err != nil {
 		return nil, err
 	}
-	if err := GetDB().Model(&model.ErrorIssue{}).Where("last_seen_at >= ?", since).Count(&stats.Active24h).Error; err != nil {
+	if err := GetDB().Model(&model.ErrorIssue{}).Where("last_seen_at >= ?", since).Count(&stats.ActiveLastDay).Error; err != nil {
 		return nil, err
 	}
 	return stats, nil

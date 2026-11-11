@@ -101,6 +101,12 @@ export function useFloatingBall({ onDragStart }: { onDragStart?: () => void } = 
     ? { x: side === 'left' ? bounds.minX : bounds.maxX, y: bounds.minY + ratio * (bounds.maxY - bounds.minY) }
     : null
   const position = dragPosition ?? restingPosition
+  // 停靠在视口底部（离底边不到一个球的距离）时，页面底部要留出的高度：从悬浮球顶边到视口底边。
+  // 页面最末尾的内容（页脚、注册页底部的「隐私政策」）滚到底也只能停在视口底部，不留出这段就永远被压住；
+  // 停在中间时末尾内容在它下面露得出来，不需要留
+  const reserve = viewport && restingPosition && viewport.height - restingPosition.y - viewport.size <= viewport.size
+    ? Math.ceil(viewport.height - restingPosition.y)
+    : 0
 
   const onPointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (event.button !== 0 || !position)
@@ -169,6 +175,7 @@ export function useFloatingBall({ onDragStart }: { onDragStart?: () => void } = 
     // 弹层朝屏幕中较宽敞的方向展开
     side,
     upperHalf: position != null && viewport != null && position.y + viewport.size / 2 < viewport.height / 2,
+    reserve,
     handlers: { onPointerDown, onPointerMove, onPointerUp: finishDrag, onPointerCancel: finishDrag, onClick, onDragStart: preventNativeDrag },
   }
 }

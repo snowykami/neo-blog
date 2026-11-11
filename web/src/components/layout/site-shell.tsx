@@ -6,20 +6,25 @@ import { cn } from '@/lib/utils'
  * - stickySidebar 为 true（默认）时整个侧栏吸顶并限制在视口高度内滚动；
  *   为 false 时侧栏与正文等高，由侧栏内部自行决定吸顶的部分（如文章页只让目录吸顶）
  * 首屏入场动画为纯 CSS（见 styles/animation.css）：侧栏 100ms、正文 150ms；客户端跳转播放轻快版（侧栏 0、正文 50ms，250ms）
+ * - skeleton：加载骨架（loading.tsx、Suspense 的占位）。骨架换成正文时，正文接着骨架的入场动画往下播、不再从头播一遍
+ *   （见 components/layout/entrance-once.tsx 的 entranceContinueScript）
  */
 export function SiteShell({
   children,
   sidebar,
   stickySidebar = true,
+  skeleton = false,
   className,
 }: {
   children: React.ReactNode
   sidebar?: React.ReactNode
   stickySidebar?: boolean
+  skeleton?: boolean
   className?: string
 }) {
   return (
     <div
+      data-site-shell={skeleton ? 'skeleton' : 'page'}
       className={cn(
         // 显式声明 minmax(0,1fr) 轨道：隐式 auto 轨道会被长代码行等不可折行内容撑宽
         'mx-auto grid w-full max-w-[var(--page-w)] grid-cols-[minmax(0,1fr)] gap-4 px-0 py-6 md:px-4 md:py-8',

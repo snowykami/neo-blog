@@ -1,9 +1,8 @@
 'use client'
 
-import type { MusicSource } from '@/models/music'
 import dynamic from 'next/dynamic'
 import Script from 'next/script'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import ScrollToTopButton from '@/components/common/scroll-to-top'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { usePathname } from '@/i18n/navigation'
@@ -35,19 +34,14 @@ export function FloatingWidgets() {
   const playerReady = useIdleMounted()
   // 第三方脚本仅在前台加载，且可在后台关闭；空闲时再加载，避免阻塞首屏
   const isConsole = pathname?.startsWith('/console')
-  // 歌单来源：网易云歌单由后端提供；静态来源未填写地址时为空
-  const { musicSource: sourceType, musicPlaylistUrl } = siteInfo
-  const musicSource = useMemo<MusicSource | null>(() => {
-    if (sourceType === 'ncm')
-      return { type: 'ncm' }
-    return musicPlaylistUrl ? { type: 'static', url: musicPlaylistUrl } : null
-  }, [sourceType, musicPlaylistUrl])
+  // 歌单只来自后台配置的网易云歌单：没配好（API 地址或歌单为空）时不挂载播放器，也不发任何歌单请求
+  const musicEnabled = Boolean(siteInfo.musicEnabled)
   return (
     <>
       {siteInfo.enableThirdPartyScript && !isConsole && <Script src={THIRD_PARTY_SCRIPT_SRC} strategy="lazyOnload" />}
       <ScrollToTopButton positionClass="bottom-30 right-3 md:right-3 lg:right-12" />
       {/* 未配置歌单时不显示音乐播放器；空闲挂载，避免播放器进首屏关键路径 */}
-      {musicSource && playerReady && <MusicPlayer source={musicSource} />}
+      {musicEnabled && playerReady && <MusicPlayer />}
     </>
   )
 }

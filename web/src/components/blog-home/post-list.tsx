@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CommentIcon, LikeIcon, PinnedIcon, ViewIcon } from '@/contexts/theme-context'
 import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
+import { splitHighlight } from '@/utils/common/highlight'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostUrl } from '@/utils/common/route'
 import { htmlToText } from '@/utils/common/string'
@@ -32,8 +33,21 @@ const ITEM_CLASS = 'overflow-hidden rounded-2xl bg-card md:overflow-visible md:r
 // 首页置顶文章：同样的卡片加一层淡淡的主题色底
 const PINNED_ITEM_CLASS = 'overflow-hidden rounded-2xl bg-[color-mix(in_oklch,var(--primary)_5%,var(--card))] md:overflow-visible md:rounded-none md:bg-primary/4'
 
-/** pinned：作为首页置顶文章显示（带置顶徽标）；文章在其他列表里按正常顺序出现时不显示 */
-export function PostListItem({ post, showAuthor = true, pinned = false }: { post: Post, showAuthor?: boolean, pinned?: boolean }) {
+// 搜索结果里命中的关键词：淡主色底，文字颜色不变（标题悬停变主色时仍可读）
+function Highlighted({ text, terms }: { text: string, terms?: string[] }) {
+  if (!terms?.length)
+    return text
+  return splitHighlight(text, terms).map((part, index) => part.match
+    // 片段由同一段文本按顺序切出，用下标作 key 即可
+    ? <mark key={index} className="rounded-sm bg-primary/15 text-inherit">{part.text}</mark>
+    : part.text)
+}
+
+/**
+ * pinned：作为首页置顶文章显示（带置顶徽标）；文章在其他列表里按正常顺序出现时不显示
+ * highlight：搜索结果中要高亮的关键词（标题与摘要）
+ */
+export function PostListItem({ post, showAuthor = true, pinned = false, highlight }: { post: Post, showAuthor?: boolean, pinned?: boolean, highlight?: string[] }) {
   const t = useTranslations()
   const url = getPostUrl({ post })
   const hasCover = !!post.cover
@@ -64,7 +78,7 @@ export function PostListItem({ post, showAuthor = true, pinned = false }: { post
             href={url}
             className="rounded-sm outline-none after:absolute after:inset-0 after:rounded-2xl focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
           >
-            {post.title}
+            <Highlighted text={post.title} terms={highlight} />
           </Link>
         </h2>
 
@@ -73,7 +87,7 @@ export function PostListItem({ post, showAuthor = true, pinned = false }: { post
         {summary && (
           // 最多 4 行，超出显示省略号；max-h 兜底：浏览器忽略 line-clamp 时也只露出 4 行
           // 关闭 text-autospace：Safari 默认开启而 Chrome 不开启，保持一致，也避免其影响截断
-          <p className="mb-3.5 line-clamp-4 max-h-[4lh] text-foreground/75 [text-autospace:no-autospace]">{summary}</p>
+          <p className="mb-3.5 line-clamp-4 max-h-[4lh] text-foreground/75 [text-autospace:no-autospace]"><Highlighted text={summary} terms={highlight} /></p>
         )}
 
         {/* 列表正文已被接口截断，字数 / 阅读时长只在文章页按完整正文展示 */}
@@ -144,6 +158,7 @@ export function PostListItemSkeleton() {
  * - error + onRetry：加载失败时显示错误态与重试
  * - onClearFilter：空列表时提供「清除筛选」操作
  * - showAuthor：显示作者头像与昵称（用户主页中均为同一作者，可关闭）
+ * - highlight：搜索结果中要高亮的关键词
  */
 export function PostList({
   posts,
@@ -155,6 +170,7 @@ export function PostList({
   error = false,
   onRetry,
   onClearFilter,
+  highlight,
   className,
 }: {
   posts: Post[]
@@ -166,6 +182,7 @@ export function PostList({
   error?: boolean
   onRetry?: () => void
   onClearFilter?: () => void
+  highlight?: string[]
   className?: string
 }) {
   const t = useTranslations('BlogHome')
@@ -223,7 +240,7 @@ export function PostList({
       {pinnedPosts.map((post, index) => (
         <Fragment key={post.id}>
           {index > 0 && <RowDivider />}
-          <div className={PINNED_ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} pinned /></div>
+          <div className={PINNED_ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} pinned highlight={highlight} /></div>
         </Fragment>
       ))}
       {pinnedPosts.length > 0 && posts.length > 0 && (
@@ -234,7 +251,7 @@ export function PostList({
       {posts.map((post, index) => (
         <Fragment key={post.id}>
           {index > 0 && <RowDivider />}
-          <div className={ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} /></div>
+          <div className={ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} highlight={highlight} /></div>
         </Fragment>
       ))}
     </div>

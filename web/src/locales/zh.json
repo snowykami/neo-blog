@@ -141,6 +141,7 @@
     "edit_success": "评论已更新",
     "load_more": "加载更多",
     "no_more": "没有更多了!",
+    "empty": "还没有评论，来说点什么吧",
     "placeholder": "写下你的评论...",
     "private": "私密评论",
     "private_placeholder": "悄悄地说一句...",
@@ -1108,8 +1109,6 @@
       "section_personalize_desc": "前台侧边栏与第三方脚本等资源，留空即隐藏对应组件",
       "about_background": "「关于我」卡片背景图",
       "empty_to_hide": "留空则不显示",
-      "music_playlist_url": "音乐播放器歌单地址",
-      "music_playlist_url_desc": "歌单 JSON 文件地址，留空则不显示悬浮音乐播放器",
       "enable_third_party_script": "加载全局第三方脚本",
       "enable_third_party_script_desc": "在前台页面空闲时加载 CDN 信息脚本，控制台页面不加载",
       "section_ai": "AI",
@@ -1127,10 +1126,7 @@
       "lyric_annotation_ttl_days": "歌词特效有效期（天）",
       "lyric_annotation_ttl_days_desc": "AI 歌词特效的缓存天数（1～365）；过期后读者仍先看到旧特效，后台自动重新生成",
       "section_music": "音乐播放器",
-      "section_music_desc": "前台悬浮音乐播放器的歌单来源",
-      "music_source": "歌单来源",
-      "music_source_static": "静态歌单 JSON",
-      "music_source_ncm": "网易云音乐歌单",
+      "section_music_desc": "前台音乐播放器使用的网易云歌单；填好 API 地址并选定歌单后才显示播放器",
       "ncm_api_base_url": "网易云 API 地址",
       "ncm_api_base_url_desc": "自行部署的 NeteaseCloudMusicApi Enhanced 服务地址，用于读取歌单、播放地址与歌词",
       "ncm_cookie": "网易云 Cookie",
@@ -2211,7 +2207,14 @@
       "fullscreen": "全屏",
       "fullscreen_hint": "正文占满整个窗口，顶栏收起为顶部的小横条，鼠标移到顶部或点击横条时展开；适合播放器、作品展示等沉浸式页面",
       "pinned": "已置顶",
-      "not_pinned": "未置顶"
+      "not_pinned": "未置顶",
+      "upload_too_many": "一次最多上传 {count} 张图片",
+      "upload_too_many_video": "一次只能上传 {count} 个视频",
+      "upload_image_too_large": "「{name}」压缩后仍超过 {size}，无法上传",
+      "upload_video_too_large": "「{name}」超过 {size}，无法上传",
+      "leave_uploading_title": "还有文件在上传",
+      "leave_uploading_description": "现在离开会取消上传，还没传完的图片或视频不会保存到草稿。确定要离开吗？",
+      "leave_uploading_confirm": "仍要离开"
     },
     "menu": {
       "notifications": "通知",
@@ -3236,6 +3239,8 @@
     "open_search": "打开搜索",
     "no_matching_tracks": "没有匹配的歌曲",
     "no_tracks": "暂无歌曲",
+    "playback_failed": "这首歌暂时无法播放",
+    "playlist_load_failed": "歌单加载失败，暂时切不了歌，请稍后再试",
     "previous": "上一首",
     "next": "下一首",
     "play": "播放",
@@ -3392,6 +3397,7 @@
     "view": "查看",
     "fetch_failed": "获取失败",
     "confirm": "确认",
+    "remove_named": "移除「{name}」",
     "more": "更多操作",
     "operation_failed": "操作失败",
     "delete_confirm_title": "删除「{name}」？"
@@ -3436,7 +3442,14 @@
     "send_verify_code_success": "注册验证码已发送",
     "captcha_error": "验证错误，请重试。",
     "fetch_captcha_config_failed": "获取人机验证配置失败，请稍后重试。",
-    "by_registering_you_agree_to_our": "注册即表示你同意我们的"
+    "by_registering_you_agree_to_our": "注册即表示你同意我们的",
+    "email_unavailable": "站点还没有配置邮件服务，收不到验证码，暂时无法注册。请联系管理员。",
+    "username_required": "请输入用户名",
+    "password_required": "请输入密码",
+    "password_length": "密码长度为 {min}–{max} 个字符",
+    "email_required": "请输入邮箱",
+    "email_invalid": "邮箱格式不正确",
+    "verify_code_required": "请输入 6 位验证码"
   },
   "ResetPassword": {
     "title": "重置密码",
@@ -3447,7 +3460,18 @@
     "send_verify_code": "发送验证码",
     "send_verify_code_failed": "发送验证码失败",
     "send_verify_code_success": "重置密码验证码已发送",
-    "verify_code": "验证码"
+    "verify_code": "验证码",
+    "email_unavailable": "站点还没有配置邮件服务，收不到验证码，暂时无法通过邮箱找回密码。请联系管理员。",
+    "verify_disabled": "站点关闭了邮箱验证，无法通过邮箱找回密码。请联系管理员。",
+    "email_required": "请输入邮箱",
+    "email_invalid": "邮箱格式不正确",
+    "verify_code_required": "请输入 6 位验证码",
+    "new_password_required": "请输入新密码",
+    "password_length": "密码长度为 {min}–{max} 个字符",
+    "confirm_password": "确认新密码",
+    "confirm_password_required": "请再输入一次新密码",
+    "password_mismatch": "两次输入的密码不一致",
+    "resetting": "正在重置…"
   },
   "Response": {
     "error": {
@@ -3643,7 +3667,8 @@
       "lyric_annotation_batch_running": "已有批量重新生成歌词特效的任务在进行中",
       "lyric_annotation_batch_too_large": "一次最多选择 1000 首歌",
       "lyric_annotation_generating": "AI 正在生成这首歌的歌词特效，生成结束后才能保存",
-      "notification_delivery_not_retryable": "这条投递当前的状态不能重试（只有失败或超时卡住的投递可以重试）"
+      "notification_delivery_not_retryable": "这条投递当前的状态不能重试（只有失败或超时卡住的投递可以重试）",
+      "email_service_unavailable": "站点未配置邮件服务，暂时无法发送验证码，请联系管理员"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的参数不符合要求} other {请求参数不符合要求}}",
@@ -4455,9 +4480,12 @@
     "playlist_empty": "歌单为空",
     "loading": "正在加载歌单",
     "not_configured_title": "尚未配置歌单",
-    "not_configured_description": "在后台「全局配置」中设置歌单来源后，就可以在这里播放了",
+    "not_configured_description": "在后台「全局配置」中填好网易云 API 地址并选定歌单后，就可以在这里播放了",
     "failed_title": "歌单加载失败",
     "failed_description": "请稍后刷新页面重试",
+    "empty_description": "后台配置的网易云歌单里还没有歌曲",
+    "empty_title": "歌单为空",
+    "retry": "重试",
     "lyrics_region": "歌词",
     "lyric_badge_label": "歌词来源",
     "lyric_source_ncm": "网易云",

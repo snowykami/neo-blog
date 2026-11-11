@@ -13,6 +13,7 @@ const COMMENT_SKELETON_ITEMS = Array.from({ length: 2 })
 export default function Loading() {
   return (
     <SiteShell
+      skeleton
       stickySidebar={false}
       sidebar={(
         <div className="flex h-full flex-col gap-4">

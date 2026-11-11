@@ -25,5 +25,6 @@ func List() []*gormigrate.Migration {
 		lyricAnnotationPhrases(),
 		postExcerpt(),
 		siteInfoOldDefaults(),
+		dropMusicStaticPlaylist(),
 	}
 }

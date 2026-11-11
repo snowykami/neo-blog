@@ -18,6 +18,11 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useIsMobile } from '@/hooks/use-mobile'
+
+// 手机上按钮之间留 8px（桌面 4px），减少误触；按钮数随之减到 5 个页码，保证一行放得下
+const CONTENT_CLASS = 'select-none gap-2 md:gap-1'
+const MOBILE_MAX_BUTTONS = 5
 
 interface PaginationControllerProps extends React.HTMLAttributes<HTMLDivElement> {
   /** 总条目数（数据项个数，不是页数） */
@@ -68,11 +73,12 @@ export const PaginationController = forwardRef<
     ref,
   ) => {
     const t = useTranslations('Components.pagination')
-    // 规范化 maxButtons: 至少5 且为奇数 (便于居中)
+    const isMobile = useIsMobile()
+    // 规范化 maxButtons: 至少5 且为奇数 (便于居中)；手机上最多 5 个
     const maxBtns = useMemo(() => {
       const m = Math.max(5, maxButtons || 7)
-      return m % 2 === 0 ? m + 1 : m
-    }, [maxButtons])
+      return Math.min(isMobile ? MOBILE_MAX_BUTTONS : Infinity, m % 2 === 0 ? m + 1 : m)
+    }, [maxButtons, isMobile])
     const totalPages = useMemo(
       () => Math.max(1, Math.ceil(total / Math.max(1, pageSize))),
       [total, pageSize],
@@ -159,7 +165,7 @@ export const PaginationController = forwardRef<
       return (
         <div className={className} {...rest}>
           <Pagination>
-            <PaginationContent className="select-none">
+            <PaginationContent className={CONTENT_CLASS}>
               <PaginationItem>
                 <PaginationLink isActive aria-current="page">
                   1
@@ -198,7 +204,7 @@ export const PaginationController = forwardRef<
     return (
       <div className={className} {...rest}>
         <Pagination>
-          <PaginationContent className="select-none">
+          <PaginationContent className={CONTENT_CLASS}>
             <PaginationItem>
               <PaginationPrevious
                 aria-disabled={prevDisabled}

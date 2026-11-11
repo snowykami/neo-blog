@@ -102,6 +102,8 @@ export function ComponentBlockView({ editor, node, selected, updateAttributes, d
           className={cn(
             // 位于组件上方，不遮挡组件自身的按钮；靠左的窄组件从左侧展开，避免超出正文
             'absolute bottom-[calc(100%+6px)] z-10 flex whitespace-nowrap',
+            // 透明桥接：填上工具栏与组件之间 6px 的空隙。否则鼠标从组件上移时经过空隙会失去悬停，工具栏变回不可点，移上去也不再出现
+            'after:absolute after:inset-x-0 after:top-full after:h-1.5',
             align === 'left' ? 'left-0' : 'right-0',
             'items-center gap-0.5 rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg transition-opacity',
             selected ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover/component:pointer-events-auto group-hover/component:opacity-100',

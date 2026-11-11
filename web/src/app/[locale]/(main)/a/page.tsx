@@ -76,7 +76,7 @@ async function ArchiveContent({ searchParams }: { searchParams: Promise<{ label?
 // 归档到达前的占位：时间线卡片里画几行
 function ArchiveSkeleton() {
   return (
-    <SiteShell sidebar={<BlogSidebarSkeleton />}>
+    <SiteShell skeleton sidebar={<BlogSidebarSkeleton />}>
       <div className="grid gap-4 rounded-2xl bg-card px-4 py-6 md:px-8" aria-busy="true">
         <Skeleton className="h-8 w-32" />
         <Skeleton className="h-5 w-full" />

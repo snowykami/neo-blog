@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 export default function Loading() {
   return (
     <SiteShell
+      skeleton
       stickySidebar={false}
       sidebar={(
         <div className="hidden rounded-2xl bg-card p-4 lg:block">

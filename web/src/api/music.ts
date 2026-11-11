@@ -1,7 +1,7 @@
 import type { LyricAnnotations } from '@/lib/lyrics/emphasis'
 import type { LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricSource } from '@/lib/lyrics/types'
-import type { MusicSearchSong, MusicSong, MusicSource, MusicTrack, NCMPlaylists } from '@/models/music'
+import type { MusicSearchSong, MusicSong, MusicTrack, NCMPlaylists } from '@/models/music'
 import type { BaseResponse } from '@/models/resp'
 import { isAxiosError } from 'axios'
 import { snakeToCamelObj } from 'field-conv'
@@ -16,19 +16,7 @@ export interface MusicLyrics {
   yromalrc?: { lyric: string, version: number } | null
 }
 
-// 网易云歌单由后端提供；静态歌单直接读取 JSON 地址
-export async function fetchPlaylist(source: MusicSource): Promise<MusicTrack[]> {
-  if (source.type === 'ncm') {
-    return (await fetchNcmPlaylist()).tracks
-  }
-  const response = await fetch(source.url)
-  if (!response.ok) {
-    throw new Error('Network response was not ok')
-  }
-  return snakeToCamelObj(await response.json())
-}
-
-// 网易云歌单与它的版本（后端在响应头里给出歌单内容的指纹，供本地缓存判断是否需要重新获取）
+// 博客歌单（只来自后台配置的网易云歌单）与它的版本（后端在响应头里给出歌单内容的指纹，供本地缓存判断是否需要重新获取）
 export async function fetchNcmPlaylist(): Promise<{ tracks: MusicTrack[], version: string }> {
   // 歌单是一次上千首的大响应：后端重启后第一次要现拉（十几二十秒），不能用默认的 10s 超时
   const res = await axiosClient.get<BaseResponse<MusicTrack[]>>('/music/playlist', { timeout: 60000 })

@@ -310,7 +310,8 @@ export function UserManagePage() {
                       </button>
                       {/* AI 用户标识仅在管理后台显示，点击跳到 AI 用户管理 */}
                       {user.isAi && (
-                        <Badge variant="secondary" asChild>
+                        // 可点的 Badge 只有约 22px 高：透明伪元素把热区上下各扩 2px（不裁切溢出才点得到）
+                        <Badge variant="secondary" asChild className="relative overflow-visible after:absolute after:-inset-y-0.5 after:inset-x-0">
                           <Link href={`${consolePath.aiAgent}?query=${encodeURIComponent(user.username)}`} title={t('ai_badge_title')}>
                             <Bot />
                             {t('ai_badge')}

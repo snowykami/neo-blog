@@ -2,6 +2,7 @@ import { SiGithub } from 'react-icons/si'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
+import { ConsoleMusicButton } from './console-music-button'
 
 export function SiteHeader({ title }: { title?: string }) {
   return (
@@ -11,6 +12,8 @@ export function SiteHeader({ title }: { title?: string }) {
         <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
         <h1 className="text-base font-medium">{title}</h1>
         <div className="ml-auto flex items-center gap-2">
+          {/* 后台不显示音乐悬浮球，播放器入口放在这里 */}
+          <ConsoleMusicButton />
           <Button variant="ghost" className=" h-8 w-8" asChild>
             {/* 站外链接用普通 <a>：交给 Link（URL 对象）时会被当成站内的 /snowykami/neo-blog 预取，每次进后台都白白渲染一次 404 */}
             <a

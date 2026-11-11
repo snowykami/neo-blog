@@ -7,10 +7,11 @@ import { NodeViewWrapper } from '@tiptap/react'
 import { CloudUploadIcon, FolderOpenIcon, ImageUpIcon, VideoIcon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
+import { toast } from 'sonner'
 import { AssetPicker } from '@/components/common/asset-picker'
 import { Button } from '@/components/ui/button'
 import { focusNextNode, isValidPosition } from '@/lib/tiptap-utils'
-import { takeQueuedUploadFiles, UploadControllers } from './upload-queue'
+import { markUploadingPlaceholder, takeQueuedUploadFiles, UploadControllers } from './upload-queue'
 
 export interface FileItem {
   /**
@@ -45,13 +46,13 @@ export interface FileItem {
 
 export interface UploadOptions {
   /**
-   * Maximum allowed file size in bytes
-   */
-  maxSize: number
-  /**
    * Maximum number of files that can be uploaded
    */
   limit: number
+  /**
+   * 一次选择的文件超过 limit 时调用（由节点视图负责本地化提示）
+   */
+  onTooMany: (limit: number) => void
   /**
    * String specifying acceptable file types (MIME types or extensions)
    * @example ".jpg,.png,image/jpeg" or "image/*"
@@ -96,15 +97,8 @@ function useFileUpload(options: UploadOptions) {
     return () => controllers?.abortAll()
   }, [])
 
+  // 大小不在这里校验：图片要按压缩后的大小判断，由 options.upload（编辑页的 uploadMedia）统一校验并提示，返回空地址
   const uploadFile = async (file: File): Promise<string | null> => {
-    if (file.size > options.maxSize) {
-      const error = new Error(
-        `File size exceeds maximum allowed (${options.maxSize / 1024 / 1024}MB)`,
-      )
-      options.onError?.(error)
-      return null
-    }
-
     const controllers = controllersRef.current ?? new UploadControllers()
     const abortController = controllers.start()
     const fileId = crypto.randomUUID()
@@ -166,15 +160,11 @@ function useFileUpload(options: UploadOptions) {
   }
 
   const uploadFiles = async (files: File[]): Promise<(string | null)[]> => {
-    if (!files || files.length === 0) {
-      options.onError?.(new Error('No files to upload'))
+    if (!files || files.length === 0)
       return []
-    }
 
     if (options.limit && files.length > options.limit) {
-      options.onError?.(
-        new Error(`Maximum ${options.limit} file${options.limit === 1 ? '' : 's'} allowed`),
-      )
+      options.onTooMany(options.limit)
       return []
     }
 
@@ -329,8 +319,8 @@ export const UploadNode: React.FC<NodeViewProps> = (props) => {
   const video = mediaType === 'video'
 
   const uploadOptions: UploadOptions = {
-    maxSize,
     limit,
+    onTooMany: count => toast.error(editorT(video ? 'upload_too_many_video' : 'upload_too_many', { count })),
     accept,
     upload: extension.options.upload,
     onSuccess: extension.options.onSuccess,
@@ -338,6 +328,12 @@ export const UploadNode: React.FC<NodeViewProps> = (props) => {
   }
 
   const { fileItems, uploadFiles, removeFileItem, clearAllFiles } = useFileUpload(uploadOptions)
+
+  // 上传进行中的占位块：保存草稿时剔除（见 upload-queue.ts），上传结束后取消标记
+  const uploading = fileItems.some(item => item.status === 'uploading')
+  React.useEffect(() => {
+    markUploadingPlaceholder(props.node, uploading)
+  }, [props.node, uploading])
 
   const insertMedia = (media: Array<{ url: string, name?: string }>) => {
     if (media.length === 0) {
@@ -395,10 +391,8 @@ export const UploadNode: React.FC<NodeViewProps> = (props) => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
-    if (!files || files.length === 0) {
-      extension.options.onError?.(new Error('No file selected'))
+    if (!files || files.length === 0)
       return
-    }
     handleUpload(Array.from(files))
   }
 

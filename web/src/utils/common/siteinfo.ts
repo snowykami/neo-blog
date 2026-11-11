@@ -1,5 +1,4 @@
 import type { SidebarCardConfig } from '@/components/blog-sidebar/sidebar-cards'
-import type { MusicSourceType } from '@/models/music'
 
 /**
  * 全站背景（前台）。值都存在站点信息 KV 里，因此后端无需改动。
@@ -70,6 +69,10 @@ export interface SiteInfo {
   commentMaxLength: number // 单条评论的字数上限（后台可配置）
   commentCollapsedLines: number // 评论正文超过多少行时先折叠
   verifyCodeCoolDown: number
+  // 注册、找回密码是否需要邮箱验证码（后端环境变量 ENABLE_EMAIL_VERIFY）；缺省按需要处理
+  emailVerifyEnabled?: boolean
+  // 站点是否配置好了邮件服务（只有布尔值，见 controller/misc.go）；为 false 时发不出验证码，界面提示联系管理员
+  emailAvailable?: boolean
   animationDurationSecond: number
   copyright?: string
   copyrightLink?: string
@@ -85,8 +88,7 @@ export interface SiteInfo {
   sidebarCards?: SidebarCardConfig[] // 文章列表页侧边栏卡片（按顺序），未配置时使用默认卡片
   sidebarIframeUrl?: string // 旧配置：侧边栏嵌入页面地址，仅在未配置 sidebarCards 时生效
   sidebarIframeTitle?: string // 旧配置：侧边栏嵌入卡片标题
-  musicSource?: MusicSourceType // 悬浮音乐播放器的歌单来源，默认为静态 JSON
-  musicPlaylistUrl?: string // 悬浮音乐播放器歌单 JSON 地址（静态来源）
+  musicEnabled?: boolean // 后台已配置网易云歌单（API 地址与歌单），为 false 时不挂载音乐播放器（后端按配置算出，见 controller/misc.go）
   enableThirdPartyScript?: boolean // 是否在前台加载全局第三方脚本
   pageBackground?: PageBackground // 前台全站背景（底色 / 背景图 / 模糊 / 节日装饰）
   island?: IslandSettings // 顶栏灵动岛（实验性）的开关
@@ -127,7 +129,7 @@ export const fallbackSiteInfo: SiteInfo = {
     links: [],
   },
   aboutBackground: '',
-  musicPlaylistUrl: 'https://cdn.liteyuki.org/snowykami/music/playlists/favorite.json',
+  musicEnabled: false,
   enableThirdPartyScript: true,
   pageBackground: {
     // 有背景图（或自定义底色）即生效；没有图时这一层不会渲染

@@ -328,7 +328,7 @@ func (s *MusicService) annotatableTrack(ctx context.Context, id int64) *dto.Musi
 	return &dto.MusicTrackDto{ID: song.ID, Name: song.Name, Artists: song.Artists, Album: song.Album, AlbumPic: song.AlbumPic, Link: song.Link, Duration: song.Duration}
 }
 
-// playlistTrack 博客歌单中的这首歌；只有网易云歌单由后端提供，静态歌单无法校验，视为不在歌单内（返回 nil）
+// playlistTrack 博客歌单中的这首歌；未配置网易云歌单或歌单取不到时视为不在歌单内（返回 nil）
 func (s *MusicService) playlistTrack(ctx context.Context, id int64) *dto.MusicTrackDto {
 	if !tools.GetNCMConfig().Configured() {
 		return nil

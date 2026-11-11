@@ -133,7 +133,8 @@ export function ThemePackSection() {
   return (
     <div className="mt-3 grid gap-2 border-t border-border pt-3 text-xs">
       <div className="font-medium text-muted-foreground">{t('title')}</div>
-      <div className="flex items-center justify-between gap-3">
+      {/* 整行是开关的 label：点主题名同样切换（之前只有开关本体可点） */}
+      <label className="-mx-1 flex cursor-pointer items-center justify-between gap-3 rounded-md px-1 py-1 hover:bg-accent/50">
         <span className="flex min-w-0 items-center gap-1.5">
           <SparklesIcon aria-hidden className="size-3.5 shrink-0 text-primary" />
           <span className="truncate">{name}</span>
@@ -152,7 +153,7 @@ export function ThemePackSection() {
           aria-label={t('title')}
           title={enabled ? t('disable') : t('enable')}
         />
-      </div>
+      </label>
     </div>
   )
 }

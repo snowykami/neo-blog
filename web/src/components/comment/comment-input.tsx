@@ -1,7 +1,7 @@
-import type { CommentAttachment } from '@/models/comment'
+import type { CommentAttachment, CommentMention } from '@/models/comment'
 import { Loader2, Lock, LogIn, Monitor, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useRef, useState } from 'react'
+import { useRef, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 import { useLoginDialog } from '@/components/auth/login-dialog'
 import { OidcProviderButtons, useOidcProviders } from '@/components/auth/oidc-providers'
@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { pastedFilesOf, withPastedFileNames } from '@/hooks/use-clipboard-file-paste'
 import { useOperationT } from '@/hooks/use-translations'
 import { Link, usePathname } from '@/i18n/navigation'
+import { isMac } from '@/lib/tiptap-utils'
 import { cn } from '@/lib/utils'
 import { getUserUrl } from '@/utils/common/route'
 import { CommentAttachmentButton, CommentAttachmentList, useCommentAttachments } from './comment-attachment-input'
@@ -45,7 +46,7 @@ export function CommentInput({
 }: {
   onCommentSubmitted: (payload: CommentSubmitPayload) => Promise<void> // 失败时需 reject，以便保留输入内容
   initContent?: string
-  initMentions?: number[] // 编辑已有评论时带入原来的被 @ 用户 id
+  initMentions?: CommentMention[] // 编辑已有评论时带入原来被 @ 的人（id 与当前用户名）
   initAttachments?: CommentAttachment[]
   initIsPrivate?: boolean
   placeholder?: string
@@ -72,6 +73,7 @@ export function CommentInput({
   const [focused, setFocused] = useState(false)
   const attachments = useCommentAttachments(initAttachments)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const mac = useIsMac()
   const mention = useMention({
     value: commentContent,
     textareaRef,
@@ -103,10 +105,9 @@ export function CommentInput({
       toast.warning(t('attachments_uploading'))
       return
     }
-    if (empty) {
-      toast.error(t('content_required'))
+    // 内容为空时发布按钮已禁用，⌘/Ctrl + Enter 也静默忽略，不弹错误
+    if (empty)
       return
-    }
     if (tooLong) {
       toast.error(t('length_over', { over: charCount - maxLength, max: maxLength }))
       return
@@ -231,7 +232,7 @@ export function CommentInput({
               variant="outline"
               pressed={isPrivate}
               onPressedChange={setIsPrivate}
-              className="h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground data-[state=on]:border-transparent data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground"
+              className="h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground data-[state=on]:border-transparent data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground max-sm:h-9 max-sm:px-3"
             >
               <Lock className="size-3.5" />
               {t('private')}
@@ -241,14 +242,14 @@ export function CommentInput({
               variant="outline"
               pressed={showClientInfo}
               onPressedChange={setShowClientInfo}
-              className="h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground data-[state=on]:border-transparent data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground"
+              className="h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground data-[state=on]:border-transparent data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground max-sm:h-9 max-sm:px-3"
             >
               <Monitor className="size-3.5" />
               {t('show_client_info')}
             </Toggle>
             <span className="flex-1" />
             <CommentLengthRing used={charCount} max={maxLength} />
-            <Kbd className="hidden sm:inline-flex" title={t('submit_shortcut')}>⌘ ↵</Kbd>
+            <Kbd className="hidden sm:inline-flex" title={t('submit_shortcut')}>{mac ? '⌘ ↵' : 'Ctrl ↵'}</Kbd>
             {onCancel && (
               <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
                 {operationT('cancel')}
@@ -263,6 +264,13 @@ export function CommentInput({
       </div>
     </div>
   )
+}
+
+const noopSubscribe = () => () => {}
+
+/** 是否 macOS（快捷键提示显示 ⌘ 还是 Ctrl）；服务端渲染时按非 Mac，水合后再按实际平台 */
+function useIsMac() {
+  return useSyncExternalStore(noopSubscribe, isMac, () => false)
 }
 
 export interface CommentSubmitPayload {

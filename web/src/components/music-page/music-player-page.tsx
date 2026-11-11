@@ -78,8 +78,8 @@ function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTr
   )
 }
 
-/** 歌单未配置、加载中或加载失败时的占位 */
-function PlayerPlaceholder({ state }: { state: 'not_configured' | 'loading' | 'failed' }) {
+/** 歌单未配置、加载中、加载失败或为空时的占位 */
+function PlayerPlaceholder({ state }: { state: 'not_configured' | 'loading' | 'failed' | 'empty' }) {
   const t = useTranslations('MusicPage')
   if (state === 'loading')
     return <Spinner className="m-auto size-8 text-white/70" aria-label={t('loading')} />
@@ -102,7 +102,8 @@ export function MusicPlayerPage() {
   const t = useTranslations('MusicPage')
   const router = useRouter()
   const { siteInfo } = useSiteInfo()
-  const { playlist, currentTrack, isPlaying, ensurePlaylist } = useMusic()
+  const { user } = useAuth()
+  const { playlist, playlistState, currentTrack, isPlaying, ensurePlaylist } = useMusic()
   // 播放器页要用完整歌单（歌单抽屉、上一首 / 下一首、分享地址定位）：恢复播放时可能只取了一首，进入时补全
   useEffect(() => {
     void ensurePlaylist()
@@ -116,10 +117,17 @@ export function MusicPlayerPage() {
   // 地址实时带上当前曲目与进度（?id=…&start=…），打开带参数的地址时定位到该曲目与进度
   useMusicShareUrl()
 
-  const configured = siteInfo.musicSource === 'ncm' || Boolean(siteInfo.musicPlaylistUrl)
-  // 歌单获取失败时全局播放器会以示例曲目（id 为 0）兜底
-  const failed = playlist.length > 0 && playlist.every(track => track.id === 0)
-  const placeholder = !configured ? 'not_configured' : failed ? 'failed' : !currentTrack ? 'loading' : null
+  // 歌单只来自后台配置的网易云歌单（未配置时全局播放器不挂载，见 FloatingWidgets）
+  const configured = Boolean(siteInfo.musicEnabled)
+  const placeholder = !configured
+    ? 'not_configured'
+    : playlistState === 'failed'
+      ? 'failed'
+      : playlistState === 'loaded' && playlist.length === 0
+        ? 'empty'
+        : !currentTrack ? 'loading' : null
+  // 韵律调试面板（节拍分析的波形、公式与参数）是调试工具，只对管理员显示，与歌词来源、偏移等站长工具一致
+  const canDebug = !!user && isAdmin({ user })
   // 主题色（标注中模型选的颜色，没有时取封面主色）：作为歌词辉光与背景呼吸的默认颜色
   const accent = useSongAccent(placeholder ? undefined : currentTrack?.albumPic)
 
@@ -157,24 +165,26 @@ export function MusicPlayerPage() {
               {view === 'cover' ? <MicVocalIcon aria-hidden className="size-4" /> : <Disc3Icon aria-hidden className="size-4" />}
               {t(view === 'cover' ? 'show_lyrics' : 'show_cover')}
             </button>
-            {/* 韵律调试：节拍、动效的波形与公式 */}
-            <button
-              type="button"
-              onClick={() => setDebugOpen(open => !open)}
-              aria-label={debugT('open')}
-              aria-pressed={debugOpen}
-              title={debugT('open')}
-              className={cn(
-                'inline-flex size-10 items-center justify-center rounded-full text-white backdrop-blur transition-colors focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none',
-                debugOpen ? 'bg-white/25' : 'bg-white/10 hover:bg-white/20',
-              )}
-            >
-              <BugIcon aria-hidden className="size-5" />
-            </button>
+            {/* 韵律调试：节拍、动效的波形与公式（只对管理员显示） */}
+            {canDebug && (
+              <button
+                type="button"
+                onClick={() => setDebugOpen(open => !open)}
+                aria-label={debugT('open')}
+                aria-pressed={debugOpen}
+                title={debugT('open')}
+                className={cn(
+                  'inline-flex size-10 items-center justify-center rounded-full text-white backdrop-blur transition-colors focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none',
+                  debugOpen ? 'bg-white/25' : 'bg-white/10 hover:bg-white/20',
+                )}
+              >
+                <BugIcon aria-hidden className="size-5" />
+              </button>
+            )}
           </div>
         )}
       </header>
-      {debugOpen && !placeholder && <RhythmDebugPanel onClose={() => setDebugOpen(false)} />}
+      {debugOpen && canDebug && !placeholder && <RhythmDebugPanel onClose={() => setDebugOpen(false)} />}
 
       {placeholder || !currentTrack
         ? <PlayerPlaceholder state={placeholder ?? 'loading'} />

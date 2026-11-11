@@ -67,13 +67,14 @@ function PostRow({ post, rank, metric }: { post: DashboardPost, rank: number, me
     { key: 'comments', icon: MessageCircle, value: post.commentCount },
   ]
   return (
-    <li className="group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/60">
+    // 整行可点：标题链接的伪元素铺满整行（stretched link），编辑按钮叠在它上面
+    <li className="group relative flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/60">
       <span className={cn('w-5 shrink-0 text-center text-sm font-semibold tabular-nums', rank <= 3 ? 'text-primary' : 'text-muted-foreground')}>
         {rank}
       </span>
       <div className="grid min-w-0 flex-1 gap-1">
         <div className="flex min-w-0 items-center gap-2">
-          <Link href={getPostViewUrl(post)} target="_blank" prefetch={false} className="truncate text-sm font-medium hover:text-primary hover:underline">
+          <Link href={getPostViewUrl(post)} target="_blank" prefetch={false} className="truncate text-sm font-medium after:absolute after:inset-0 after:rounded-md hover:text-primary hover:underline">
             {post.title}
           </Link>
           {post.isPrivate && <Badge variant="secondary" className="shrink-0">{t('badge_private')}</Badge>}
@@ -90,7 +91,8 @@ function PostRow({ post, rank, metric }: { post: DashboardPost, rank: number, me
         </div>
       </div>
       <PostMetric post={post} metric={metric} />
-      <Button asChild variant="ghost" size="icon" className="size-7 shrink-0 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">
+      {/* 能悬停的设备（鼠标）悬停整行时才显示；触屏手机、平板不能悬停，始终显示 */}
+      <Button asChild variant="ghost" size="icon" className="relative z-10 size-7 shrink-0 text-muted-foreground max-sm:size-9 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100">
         {/* 不预取：编辑器路由按请求渲染，视口预取每次进看板都会拉编辑器约 600 KB（gzip）的 JS，并因 [id] 段是「可升级的回退外壳」
             反复重取同一段（Next 每 2 秒重试 3 次，每次约 90 KB）；点击后由 posts/loading.tsx 先出编辑器骨架 */}
         <Link href={getPostEditUrl(post)} prefetch={false} aria-label={t('edit_post')} title={t('edit_post')}>

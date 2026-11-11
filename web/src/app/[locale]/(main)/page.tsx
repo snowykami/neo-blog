@@ -96,6 +96,7 @@ async function HomePosts({ searchParams }: { searchParams: Promise<HomeSearchPar
 function HomeSkeleton() {
   return (
     <SiteShell
+      skeleton
       sidebar={<BlogSidebarSkeleton />}
     >
       <div className="grid gap-1 px-4 md:px-2" aria-busy="true">

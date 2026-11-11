@@ -340,16 +340,19 @@ function LyricEffectItem({ row, now, selected, onSelectedChange, batchItem }: {
   const editUrl = `${consolePath.lyricEffect}/${row.songId}`
   return (
     <div className="flex w-full items-center gap-3 py-3">
-      <Checkbox
-        checked={selected}
-        onCheckedChange={checked => onSelectedChange(checked === true)}
-        aria-label={t('select_song', { name: track?.name ?? String(row.songId) })}
-      />
-      <span className="relative size-11 shrink-0 overflow-hidden rounded-md bg-muted">
-        {track?.albumPic
-          ? <SafeImage src={track.albumPic} alt="" fill sizes="44px" className="object-cover" />
-          : <Music2Icon className="absolute inset-0 m-auto size-4 text-muted-foreground" />}
-      </span>
+      {/* 复选框与封面包在同一个 label 里，并上下铺满整行高度：点封面或它上下的空白都能切换选中（歌名是编辑链接，不在其中） */}
+      <label className="-my-3 flex shrink-0 cursor-pointer items-center gap-3 self-stretch py-3">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={checked => onSelectedChange(checked === true)}
+          aria-label={t('select_song', { name: track?.name ?? String(row.songId) })}
+        />
+        <span className="relative size-11 shrink-0 overflow-hidden rounded-md bg-muted">
+          {track?.albumPic
+            ? <SafeImage src={track.albumPic} alt="" fill sizes="44px" className="object-cover" />
+            : <Music2Icon className="absolute inset-0 m-auto size-4 text-muted-foreground" />}
+        </span>
+      </label>
       <div className="min-w-0">
         <Link href={editUrl} className="block truncate text-sm font-medium hover:underline">
           {track?.name ?? t('unknown_song', { id: row.songId })}

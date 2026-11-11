@@ -7,6 +7,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SafeImage } from '@/components/common/safe-image'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useMusic } from '@/contexts/music-context'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
@@ -52,10 +53,47 @@ export const MusicPlaylistItem = memo(({ track, index, active, playing, onSelect
   )
 })
 
+/**
+ * 歌单还没取全时的列表区（抽屉与悬浮播放器的小歌单共用）：恢复播放时可能只取了一首，不能把这一首当成整个歌单
+ * （先显示「1 首」再突然变成上千首）。补全中显示骨架；补全失败（没在补全又没取全）时说明并可重试
+ */
+export function PlaylistPendingState({ compact = false }: { compact?: boolean }) {
+  const t = useTranslations('MusicPage')
+  const { playlistLoading, ensurePlaylist } = useMusic()
+  if (!playlistLoading) {
+    return (
+      <div className={cn('grid justify-items-center gap-2 text-center text-white/50', compact ? 'px-2 py-6 text-xs' : 'px-4 py-10 text-sm')}>
+        <p>{t('failed_title')}</p>
+        <button
+          type="button"
+          onClick={() => void ensurePlaylist()}
+          className="rounded-full bg-white/10 px-4 py-1.5 font-medium text-white transition-colors hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none"
+        >
+          {t('retry')}
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div role="status" aria-busy className={cn('grid content-start gap-0.5 overflow-hidden', compact ? 'max-h-72' : 'min-h-0 flex-1 px-2 pb-4')}>
+      <span className="sr-only">{t('loading')}</span>
+      {Array.from({ length: compact ? 5 : 8 }, (_, i) => (
+        <div key={i} aria-hidden className={cn('flex items-center', compact ? 'gap-2.5 px-1.5 py-1.5' : 'gap-3 px-2 py-2')}>
+          <Skeleton className={cn('shrink-0 bg-white/10', compact ? 'size-9 rounded-md' : 'size-11 rounded-lg')} />
+          <div className="grid flex-1 gap-1.5">
+            <Skeleton className="h-3.5 w-3/5 bg-white/10" />
+            <Skeleton className="h-3 w-2/5 bg-white/10" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** 歌单面板：桌面端从右侧滑出，移动端从底部滑出；打开时滚动到当前曲目，点击即播放 */
 export function MusicPlaylistSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
   const t = useTranslations('MusicPage')
-  const { playlist, currentIndex, isPlaying, playTrack } = useMusic()
+  const { playlist, playlistComplete, currentIndex, isPlaying, playTrack, ensurePlaylist } = useMusic()
   const isMobile = useIsMobile(1024)
   const [keyword, setKeyword] = useState('')
   const listRef = useRef<HTMLOListElement>(null)
@@ -66,6 +104,12 @@ export function MusicPlaylistSheet({ open, onOpenChange }: { open: boolean, onOp
     onOpenChange(false)
     setKeyword('')
   }, [onOpenChange, playTrack])
+
+  // 打开时补全歌单（上次补全失败时借此重试）
+  useEffect(() => {
+    if (open)
+      void ensurePlaylist()
+  }, [open, ensurePlaylist])
 
   // 打开时滚动到当前曲目（等弹层内容挂载后）
   useEffect(() => {
@@ -95,7 +139,8 @@ export function MusicPlaylistSheet({ open, onOpenChange }: { open: boolean, onOp
         )}
       >
         <SheetHeader className="gap-3 pb-2">
-          <SheetTitle className="text-white">{t('playlist_title', { count: playlist.length })}</SheetTitle>
+          {/* 没取全时不显示数量（只有恢复的那一首） */}
+          <SheetTitle className="text-white">{playlistComplete ? t('playlist_title', { count: playlist.length }) : t('open_playlist')}</SheetTitle>
           <SheetDescription className="sr-only">{t('playlist_description')}</SheetDescription>
           <div className="relative">
             <SearchIcon aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-white/50" />
@@ -105,26 +150,29 @@ export function MusicPlaylistSheet({ open, onOpenChange }: { open: boolean, onOp
               onChange={event => setKeyword(event.target.value)}
               placeholder={t('search_placeholder')}
               aria-label={t('search_placeholder')}
+              disabled={!playlistComplete}
               className="border-white/15 bg-white/10 pl-9 text-white placeholder:text-white/40"
             />
           </div>
         </SheetHeader>
-        {results.length > 0
-          ? (
-              <ol ref={listRef} className="grid min-h-0 flex-1 content-start gap-0.5 overflow-y-auto px-2 pb-4">
-                {results.map(({ track, index }) => (
-                  <MusicPlaylistItem
-                    key={track.id}
-                    track={track}
-                    index={index}
-                    active={index === currentIndex}
-                    playing={index === currentIndex && isPlaying}
-                    onSelect={handleSelect}
-                  />
-                ))}
-              </ol>
-            )
-          : <p className="px-4 py-10 text-center text-sm text-white/50">{t(playlist.length > 0 ? 'search_empty' : 'playlist_empty')}</p>}
+        {!playlistComplete
+          ? <PlaylistPendingState />
+          : results.length > 0
+            ? (
+                <ol ref={listRef} className="grid min-h-0 flex-1 content-start gap-0.5 overflow-y-auto px-2 pb-4">
+                  {results.map(({ track, index }) => (
+                    <MusicPlaylistItem
+                      key={track.id}
+                      track={track}
+                      index={index}
+                      active={index === currentIndex}
+                      playing={index === currentIndex && isPlaying}
+                      onSelect={handleSelect}
+                    />
+                  ))}
+                </ol>
+              )
+            : <p className="px-4 py-10 text-center text-sm text-white/50">{t(playlist.length > 0 ? 'search_empty' : 'playlist_empty')}</p>}
       </SheetContent>
     </Sheet>
   )

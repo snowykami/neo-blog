@@ -52,7 +52,8 @@ export function UserHeader({ user }: { user: User }) {
       {/* 有背景图时顶部对齐，头像的负外边距才能真正上移压住背景图边缘；否则垂直居中 */}
       <div className={cn('flex flex-col items-center gap-5 p-6 md:flex-row md:gap-6 md:p-8', user.backgroundUrl ? 'md:items-start' : 'md:items-center')}>
         {/* 头像：有背景图时上移约一半压在背景图边缘 */}
-        <UserAvatar user={user} size={256} className={cn('size-28 shrink-0 ring-4 ring-card md:size-32', user.backgroundUrl && '-mt-20 md:-mt-24')} fallbackClassName="text-3xl" />
+        {/* 首帧（服务端渲染）里头像图片还没加载：先显示占位底色，加载完直接换上图片，不先闪一下首字母 */}
+        <UserAvatar user={user} size={256} className={cn('size-28 shrink-0 bg-muted ring-4 ring-card md:size-32', user.backgroundUrl && '-mt-20 md:-mt-24')} fallbackClassName="text-3xl" fallbackDelayMs={600} />
 
         <div className="grid min-w-0 gap-3 text-center md:text-left">
           <div className="grid gap-1">

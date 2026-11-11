@@ -9,6 +9,7 @@ import { AppUpdateChecker } from '@/components/common/app-update-checker'
 import { FloatingWidgets } from '@/components/common/main-floating-widgets'
 import { UserPreferenceSync } from '@/components/common/user-preference-sync'
 import { I18nScope } from '@/components/i18n-scope'
+import { entranceContinueScript } from '@/components/layout/entrance-continue'
 import { EntranceOnce } from '@/components/layout/entrance-once'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/auth-context'
@@ -97,6 +98,8 @@ export default async function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {/* 骨架换成正文时入场动画接着播、不重播（见该脚本）；要在正文流式替换骨架之前就开始观察，所以放在 head */}
+        <script dangerouslySetInnerHTML={{ __html: entranceContinueScript }} />
       </head>
       <body className="font-sans">
         {/* 首屏播完完整入场动画后，客户端跳转改播轻快版（见该组件） */}

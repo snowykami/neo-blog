@@ -49,7 +49,8 @@ const (
 	verifyEmailIPLimit    = 10 // 同一 IP 每小时最多发送验证码次数
 )
 
-func emailVerifyEnabled() bool {
+// EmailVerifyEnabled 是否开启邮箱验证（环境变量 ENABLE_EMAIL_VERIFY，默认开启）：开启时注册、找回密码、改邮箱都要邮箱验证码
+func EmailVerifyEnabled() bool {
 	return utils.Env.GetAsBool(constant.EnvKeyEnableEmailVerify, true)
 }
 
@@ -112,8 +113,11 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 	if !isValidPassword(req.Password) {
 		return nil, errs.NewBadRequest("invalid_password_format")
 	}
+	if !isValidEmail(req.Email) {
+		return nil, errs.NewBadRequest("invalid_email").WithField("email", req.Email)
+	}
 	// 开启邮箱验证时，注册必须验证邮箱所有权，防止抢注他人邮箱
-	if emailVerifyEnabled() && !utils.VerifyEmailCode(req.Email, req.VerifyCode) {
+	if EmailVerifyEnabled() && !utils.VerifyEmailCode(req.Email, req.VerifyCode) {
 		return nil, errs.NewUnauthorized("invalid_verify_code")
 	}
 	// 检查用户名或邮箱是否已存在
@@ -177,12 +181,22 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 }
 
 func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEmailResp, *errs.ServiceError) {
-	if !emailVerifyEnabled() {
+	if !EmailVerifyEnabled() {
 		return nil, errs.NewForbidden("email_verify_disabled")
+	}
+	// 邮箱格式不对时不发送，也不占用冷却时间
+	if !isValidEmail(req.Email) {
+		return nil, errs.NewBadRequest("invalid_email").WithField("email", req.Email)
+	}
+	// 站点没有配置邮件服务：这是站点的设置而不是后端故障，按业务错误返回（不记入错误报告），前台据此提示联系管理员
+	emailConfig := tools.GetEmailConfig()
+	if !emailConfig.Usable() {
+		return nil, errs.NewForbidden("email_service_unavailable")
 	}
 	// 同一邮箱按冷却时间限制发送频率，同一 IP 每小时最多发送若干次，防止邮件轰炸
 	coolDown := time.Duration(tools.GetVerifyCodeCoolDown()) * time.Second
-	if !utils.AllowRequest("verify_email:"+strings.ToLower(req.Email), 1, coolDown) {
+	emailKey := "verify_email:" + strings.ToLower(req.Email)
+	if !utils.AllowRequest(emailKey, 1, coolDown) {
 		return nil, errs.NewTooManyRequests("too_many_requests")
 	}
 	if !utils.AllowRequest("verify_email_ip:"+req.UserIP, verifyEmailIPLimit, time.Hour) {
@@ -192,7 +206,9 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 	if utils.IsDevMode {
 		logrus.Debugf("%s's verification code is %s", req.Email, verifyCode)
 	}
-	if serr := sendVerifyCodeEmail(tools.GetEmailConfig(), req.Email, verifyCode, false); serr != nil {
+	if serr := sendVerifyCodeEmail(emailConfig, req.Email, verifyCode, false); serr != nil {
+		// 没发出去不算一次发送：清掉这个邮箱的冷却，用户可以立即重试（同一 IP 的每小时上限仍然计数）
+		utils.ResetFailures(emailKey)
 		return nil, serr
 	}
 	return &dto.VerifyEmailResp{Success: true}, nil

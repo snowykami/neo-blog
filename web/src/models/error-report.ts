@@ -111,5 +111,5 @@ export interface ErrorEvent extends ErrorEventSummary {
 
 export interface ErrorReportStats {
   unresolved: number
-  active24h: number
+  activeLastDay: number
 }

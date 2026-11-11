@@ -8,7 +8,7 @@ export interface MusicTrack {
   lyric: string
   link: string
   aliases: string[]
-  duration?: number // 时长（毫秒）；静态歌单可不提供
+  duration?: number // 时长（毫秒）
 }
 
 // 单曲公开信息（文章内的单曲卡），不含播放地址
@@ -39,11 +39,6 @@ export function songToTrack(song: MusicSong): MusicTrack {
     duration: song.duration,
   }
 }
-
-// 悬浮播放器的歌单来源：静态 JSON 地址，或后台配置的网易云歌单
-export type MusicSourceType = 'static' | 'ncm'
-
-export type MusicSource = { type: 'ncm' } | { type: 'static', url: string }
 
 // 网易云播放音质（与后端 tools.NCMSongLevels 一致），只包含浏览器可以直接播放的格式
 export const NCM_SONG_LEVELS = ['standard', 'higher', 'exhigh', 'lossless', 'hires'] as const

@@ -51,7 +51,9 @@ func resolveCommentMentions(ids []uint, selfID uint, content string) (model.Uint
 	return mentioned, nil
 }
 
-// mentionsUser 正文里是否写了 @用户名（前面是行首、空白或常见前置标点，名字后面不再接用户名字符）
+// mentionsUser 正文里是否写了 @用户名：前面是行首、空白或常见标点；@ 后是完整的用户名，
+// 后面不能紧跟字母、数字（含下划线与组合附加符号），允许接标点，所以句末的「@alice.」也算。
+// 规则与前端 web/src/utils/common/mention.ts 一致，两边共用 testdata/mention_boundary_cases.json 的用例
 func mentionsUser(content, username string) bool {
 	if username == "" {
 		return false
@@ -71,10 +73,10 @@ func mentionsUser(content, username string) bool {
 				continue
 			}
 		}
-		// 后面不能再接用户名字符，避免 @zhang 命中 @zhangyu
+		// 后面不能紧跟字母或数字，避免 @zhang 命中 @zhangyu；标点（含 . -）可以
 		if rest := content[offset:]; rest != "" {
 			next, _ := utf8.DecodeRuneInString(rest)
-			if isMentionNameRune(next) {
+			if isMentionContinuation(next) {
 				continue
 			}
 		}
@@ -88,9 +90,9 @@ func isMentionBoundary(r rune) bool {
 	return unicode.IsSpace(r) || strings.ContainsRune("（(【[「,，.。:：;；!！?？>", r)
 }
 
-// isMentionNameRune 用户名里允许出现的字符，与前端高亮的正则保持一致
-func isMentionNameRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '.' || r == '-'
+// isMentionContinuation @用户名 后面紧跟这些字符时，说明写的是另一个更长的名字，不算提及
+func isMentionContinuation(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsMark(r) || r == '_'
 }
 
 // filterMentionRecipients 私密评论的收件人只能是目标作者或参与过该线程的人

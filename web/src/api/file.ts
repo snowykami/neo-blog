@@ -1,8 +1,15 @@
 import type { FileModel, StorageMigrationStatus, StorageProviderConfig, StorageProviderUsage } from '@/models/file'
 import type { BaseResponse } from '@/models/resp'
+import { CanceledError } from 'axios'
 import { compressImage, DEFAULT_COMPRESS_LEVEL } from '@/utils/client/image-compress'
 import axiosClient from './client'
 
+/**
+ * 上传文件
+ * - 不使用全局 10 秒超时：上传耗时取决于文件大小与网速（视频可达 100MB），只能由调用方通过 signal 取消
+ * - 取消：请求体还没发完时直接中断请求，服务端不会保存；已经发完时服务端可能正在保存，中断会留下拿不到 id 的孤儿文件，
+ *   改为等响应回来后删掉刚保存的文件（每次上传都是新记录，删除不影响其他内容），再按取消抛出（调用方据 signal.aborted 判断）
+ */
 export async function uploadFile({
   file,
   name,
@@ -35,6 +42,8 @@ export async function uploadFile({
 
   // 仅对 JPEG / PNG / WebP 图片且 compressLevel > 0 时压缩；界面预览过的会直接复用缓存的结果
   file = await compressImage(file, compressLevel)
+  if (signal?.aborted)
+    throw new CanceledError()
 
   const formData = new FormData()
   formData.append('file', file)
@@ -43,13 +52,35 @@ export async function uploadFile({
   // 仅管理员可指定存储源，未指定时不传该字段
   if (providerId)
     formData.append('provider_id', providerId)
-  const res = await axiosClient.post('/file/f', formData, {
-    signal,
-    onUploadProgress: onProgress
-      ? event => event.total && onProgress(Math.round((event.loaded / event.total) * 100))
-      : undefined,
-  })
-  return res.data
+
+  const request = new AbortController()
+  let sent = false
+  const onAbort = () => {
+    if (!sent)
+      request.abort()
+  }
+  signal?.addEventListener('abort', onAbort, { once: true })
+  try {
+    const res = await axiosClient.post<BaseResponse<{ hash: string, id: number, url: string }>>('/file/f', formData, {
+      signal: request.signal,
+      timeout: 0,
+      onUploadProgress: (event) => {
+        if (!event.total)
+          return
+        if (event.loaded >= event.total)
+          sent = true
+        onProgress?.(Math.round((event.loaded / event.total) * 100))
+      },
+    })
+    if (signal?.aborted) {
+      void deleteFile({ id: res.data.data.id }).catch(() => {})
+      throw new CanceledError()
+    }
+    return res.data
+  }
+  finally {
+    signal?.removeEventListener('abort', onAbort)
+  }
 }
 
 export async function deleteFile({ id }: { id: number }): Promise<BaseResponse<null>> {

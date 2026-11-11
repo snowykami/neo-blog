@@ -214,7 +214,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errs.Internal("failed_to_get_user", err)
 	}
-	if localUser != nil && !(userInfo.IsEmailVerified() && emailVerifyEnabled()) {
+	if localUser != nil && !(userInfo.IsEmailVerified() && EmailVerifyEnabled()) {
 		// 邮箱已被本地账户占用但无法确认归属：不关联，新建账户时也不使用该邮箱
 		localUser = nil
 		userInfo.Email = fmt.Sprintf("%s@replace-to-your-email", utils.Strings.GenerateRandomString(10))

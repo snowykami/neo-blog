@@ -1,4 +1,5 @@
 import type { Button } from '@/components/ui/button'
+import { Slot } from '@radix-ui/react-slot'
 import { ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon } from 'lucide-react'
 
 import * as React from 'react'
@@ -31,14 +32,17 @@ function PaginationItem({ ...props }: React.ComponentProps<'li'>) {
   return <li data-slot="pagination-item" {...props} />
 }
 
+// asChild：把样式交给子元素，如包住 @/i18n/navigation 的 Link 做客户端跳转（翻页不整页刷新、音乐不中断）
 type PaginationLinkProps = {
   isActive?: boolean
+  asChild?: boolean
 } & Pick<React.ComponentProps<typeof Button>, 'size'>
 & React.ComponentProps<'a'>
 
-function PaginationLink({ className, isActive, size = 'icon', ...props }: PaginationLinkProps) {
+function PaginationLink({ className, isActive, size = 'icon', asChild = false, ...props }: PaginationLinkProps) {
+  const Comp = asChild ? Slot : 'a'
   return (
-    <a
+    <Comp
       aria-current={isActive ? 'page' : undefined}
       data-slot="pagination-link"
       data-active={isActive}

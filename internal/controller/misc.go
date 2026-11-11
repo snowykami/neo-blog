@@ -49,6 +49,11 @@ func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext
 	// 评论的字数上限与折叠行数是后台可调的配置，直接给生效值，前台不必再判断缺省
 	info["comment_max_length"] = tools.GetCommentMaxLength()
 	info["comment_collapsed_lines"] = tools.GetCommentCollapsedLines()
+	// 歌单只来自网易云：填好 API 地址并选定歌单才显示音乐播放器，前台据此决定是否挂载播放器（不暴露 API 地址本身）
+	info["music_enabled"] = tools.GetNCMConfig().Configured()
+	// 注册、找回密码要不要邮箱验证码、邮件服务能不能发信：只给布尔值，前台据此隐藏验证码或提示联系管理员（不暴露任何邮件配置）
+	info["email_verify_enabled"] = service.EmailVerifyEnabled()
+	info["email_available"] = tools.GetEmailConfig().Usable()
 	resps.Ok(c, "", info)
 }
 

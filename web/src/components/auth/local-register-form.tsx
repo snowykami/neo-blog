@@ -2,23 +2,35 @@
 
 import type { User } from '@/models/user'
 import type { CaptchaProvider } from '@/types/captcha'
+import { MailWarningIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { getCaptchaConfig, requestEmailVerifyCode, userRegister } from '@/api/user'
 import Captcha from '@/components/common/captcha'
 import { InputOTPControlled } from '@/components/common/input-otp'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/auth-context'
-import { useSiteInfo } from '@/contexts/site-info-context'
 import { loginPath } from '@/hooks/use-route'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { useVerifyCodeSender } from '@/hooks/use-verify-code-sender'
 import { Link } from '@/i18n/navigation'
+import { isValidEmail, isValidPassword, PASSWORD_MAX, PASSWORD_MIN } from '@/utils/common/account'
+
+interface RegisterValues {
+  username: string
+  password: string
+  email: string
+  verifyCode: string
+}
 
 /**
  * 用户名 + 密码 + 邮箱验证码注册，含人机验证；注册页与快捷登录弹窗的注册视图共用。
+ * 站点关闭邮箱验证时不显示验证码；要求验证码但站点没有配置邮件服务时提示联系管理员（不改变验证策略，见 useVerifyCodeSender）。
  * 成功后已写入登录状态，onSuccess 只负责后续动作（跳转、关闭弹窗等）；
  * 传了 onSwitchToLogin 时「已经有账号？」渲染为按钮（弹窗内切换视图），否则为跳转登录页的链接
  */
@@ -33,12 +45,17 @@ export function LocalRegisterForm({
   onSwitchToLogin?: () => void
 }) {
   const { setUser } = useAuth()
-  const { siteInfo } = useSiteInfo()
   const t = useTranslations('Register')
   // 后端 message 若有对应翻译则显示翻译，否则原样显示（网络错误等）
   const translateErrorDetails = useErrorMessageT()
   const commonT = useCommonT()
   const operationT = useOperationT()
+  const form = useForm<RegisterValues>({ defaultValues: { username: '', password: '', email: '', verifyCode: '' } })
+  const { isSubmitting } = form.formState
+  const sender = useVerifyCodeSender()
+  const { verifyRequired, emailUnavailable } = sender
+  // 要求验证码却发不出邮件：注册无法完成，禁用提交并说明原因
+  const blocked = verifyRequired && emailUnavailable
   const [captchaProps, setCaptchaProps] = useState<{
     provider: CaptchaProvider
     siteKey: string
@@ -46,22 +63,6 @@ export function LocalRegisterForm({
   } | null>(null)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [refreshCaptchaKey, setRefreshCaptchaKey] = useState(0)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [email, setEmail] = useState('')
-  const [verifyCode, setVerifyCode] = useState('')
-  const [sendingVerifyCode, setSendingVerifyCode] = useState(false)
-  const [registering, setRegistering] = useState(false)
-  const [coolDown, setCoolDown] = useState(0)
-
-  useEffect(() => {
-    if (coolDown <= 0)
-      return
-    const id = setInterval(() => {
-      setCoolDown(c => (c > 1 ? c - 1 : 0))
-    }, 1000)
-    return () => clearInterval(id)
-  }, [coolDown])
 
   useEffect(() => {
     getCaptchaConfig()
@@ -83,117 +84,125 @@ export function LocalRegisterForm({
     }, 1500)
   }
 
-  const handleSendVerifyCode = () => {
-    if (!email || coolDown > 0 || sendingVerifyCode)
+  // 先校验邮箱再发送：格式不对时在邮箱下方提示，不发请求
+  const handleSendVerifyCode = async () => {
+    if (!(await form.trigger('email')))
       return
-    setSendingVerifyCode(true)
-    requestEmailVerifyCode({ email, captchaToken: captchaToken || '' })
-      .then(() => {
+    const email = form.getValues('email').trim()
+    try {
+      if (await sender.send(() => requestEmailVerifyCode({ email, captchaToken: captchaToken || '' })))
         toast.success(t('send_verify_code_success'))
-      })
-      .catch((error: unknown) => {
-        toast.error(
-          `${t('send_verify_code_failed')}: ${translateErrorDetails(error)}`,
-        )
-      })
-      .finally(() => {
-        setSendingVerifyCode(false)
-        setCoolDown(siteInfo.verifyCodeCoolDown || 60)
-      })
+    }
+    catch (error) {
+      toast.error(`${t('send_verify_code_failed')}: ${translateErrorDetails(error)}`)
+    }
   }
 
-  const handleRegister = () => {
-    if (!username || !password || !email) {
-      toast.error(t('please_fill_in_all_required_fields'))
+  const onSubmit = form.handleSubmit(async ({ username, password, email, verifyCode }) => {
+    if (!captchaToken || blocked)
       return
+    try {
+      const res = await userRegister({ username: username.trim(), password, email: email.trim(), verifyCode: verifyRequired ? verifyCode : '', captchaToken })
+      toast.success(
+        `${t('register_success')} ${res.data.user.nickname || res.data.user.username}`,
+      )
+      setUser(res.data.user)
+      onSuccess?.(res.data.user)
     }
-    if (!captchaToken) {
-      return
+    catch (error) {
+      toast.error(
+        `${t('register_failed')}: ${translateErrorDetails(error)}`,
+      )
+      setRefreshCaptchaKey(k => k + 1)
+      setCaptchaToken(null)
     }
-    setRegistering(true)
-    userRegister({ username, password, email, verifyCode, captchaToken })
-      .then((res) => {
-        toast.success(
-          `${t('register_success')} ${res.data.user.nickname || res.data.user.username}`,
-        )
-        setUser(res.data.user)
-        onSuccess?.(res.data.user)
-      })
-      .catch((error: unknown) => {
-        toast.error(
-          `${t('register_failed')}: ${translateErrorDetails(error)}`,
-        )
-        setRefreshCaptchaKey(k => k + 1)
-        setCaptchaToken(null)
-      })
-      .finally(() => {
-        setRegistering(false)
-      })
-  }
+  })
 
   return (
-    <form>
-      <div className="grid gap-4">
-        {/* 用户名 */}
-        <div className="grid gap-2">
-          <div className="flex items-center">
-            <Label htmlFor="register-username">{commonT('username')}</Label>
-          </div>
-          <Input
-            id="register-username"
-            type="text"
-            autoComplete="username"
-            required
-            value={username}
-            onChange={e => setUsername(e.target.value)}
+    <Form {...form}>
+      <form onSubmit={onSubmit} className="grid gap-4" noValidate>
+        {blocked && (
+          <Alert>
+            <MailWarningIcon />
+            <AlertDescription>{t('email_unavailable')}</AlertDescription>
+          </Alert>
+        )}
+        <FormField
+          control={form.control}
+          name="username"
+          rules={{ validate: v => Boolean(v.trim()) || t('username_required') }}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{commonT('username')}</FormLabel>
+              <FormControl>
+                <Input type="text" autoComplete="username" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="password"
+          rules={{
+            required: t('password_required'),
+            validate: v => isValidPassword(v) || t('password_length', { min: PASSWORD_MIN, max: PASSWORD_MAX }),
+          }}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{commonT('password')}</FormLabel>
+              <FormControl>
+                <Input type="password" autoComplete="new-password" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="email"
+          rules={{
+            required: t('email_required'),
+            validate: v => isValidEmail(v.trim()) || t('email_invalid'),
+          }}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{commonT('email')}</FormLabel>
+              <FormControl>
+                <Input type="email" inputMode="email" placeholder="example@liteyuki.org" autoComplete="email" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        {verifyRequired && (
+          <FormField
+            control={form.control}
+            name="verifyCode"
+            rules={{ validate: v => v.length === 6 || t('verify_code_required') }}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{commonT('verify_code')}</FormLabel>
+                <div className="flex justify-between gap-3">
+                  <FormControl>
+                    <InputOTPControlled value={field.value} onChange={field.onChange} />
+                  </FormControl>
+                  <Button
+                    onClick={() => void handleSendVerifyCode()}
+                    disabled={emailUnavailable || sender.coolDown > 0 || sender.sending}
+                    variant="outline"
+                    className="border-2"
+                    type="button"
+                  >
+                    {commonT('obtain')}
+                    {sender.coolDown > 0 ? `(${sender.coolDown})` : ''}
+                  </Button>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
           />
-        </div>
-        {/* 密码 */}
-        <div className="grid gap-2">
-          <div className="flex items-center">
-            <Label htmlFor="register-password">{commonT('password')}</Label>
-          </div>
-          <Input
-            id="register-password"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-          />
-        </div>
-        {/* 邮箱 */}
-        <div className="grid gap-2">
-          <Label htmlFor="register-email">{commonT('email')}</Label>
-          <div className="flex gap-3">
-            <Input
-              id="register-email"
-              type="text"
-              placeholder="example@liteyuki.org"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-            />
-          </div>
-        </div>
-        {/* 邮箱验证码 */}
-        <div className="grid gap-2">
-          <Label htmlFor="register-email">{commonT('verify_code')}</Label>
-          <div className="flex justify-between">
-            <InputOTPControlled onChange={value => setVerifyCode(value)} />
-            <Button
-              onClick={handleSendVerifyCode}
-              disabled={!email || coolDown > 0 || sendingVerifyCode}
-              variant="outline"
-              className="border-2"
-              type="button"
-            >
-              {commonT('obtain')}
-              {coolDown > 0 ? `(${coolDown})` : ''}
-            </Button>
-          </div>
-        </div>
+        )}
         {captchaProps && (
           <div className="flex w-full items-center justify-center">
             <Captcha
@@ -205,19 +214,11 @@ export function LocalRegisterForm({
           </div>
         )}
         <Button
-          type="button"
+          type="submit"
           className="w-full"
-          onClick={handleRegister}
-          disabled={
-            !captchaToken
-            || registering
-            || !username
-            || !password
-            || !email
-            || !(verifyCode.length === 6)
-          }
+          disabled={!captchaToken || isSubmitting || blocked}
         >
-          {registering ? t('registering') : operationT('register')}
+          {isSubmitting ? t('registering') : operationT('register')}
         </Button>
         {/* 已经有账号：弹窗里切换回登录视图，页面里跳登录页 */}
         <div className="text-center text-sm">
@@ -238,7 +239,7 @@ export function LocalRegisterForm({
                 </Link>
               )}
         </div>
-      </div>
-    </form>
+      </form>
+    </Form>
   )
 }

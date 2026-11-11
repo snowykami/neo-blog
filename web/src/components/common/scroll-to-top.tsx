@@ -32,7 +32,9 @@ export default function ScrollToTopButton({
       const maxScroll = height - window.innerHeight
       const p = maxScroll <= 0 ? 0 : Math.min(1, scrollTop / maxScroll)
       setProgress(p)
-      setVisible(p > threshold)
+      // 还要往下滚过一整屏才出现：注册页这类只比一屏略长的页面滚到底也用不着回到顶部，
+      // 按比例算却会出现，压在底部的表单按钮上
+      setVisible(p > threshold && scrollTop > window.innerHeight)
       rafRef.current = null
     }
 

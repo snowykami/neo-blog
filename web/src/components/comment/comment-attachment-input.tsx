@@ -151,7 +151,7 @@ export function CommentAttachmentButton({ state }: { state: CommentAttachmentsSt
         disabled={remaining <= 0}
         title={remaining <= 0 ? t('attachments_max', { count: MAX_COMMENT_ATTACHMENTS }) : t('add_attachment_hint')}
         aria-label={t('add_attachment')}
-        className="h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground"
+        className="h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground max-sm:h-9 max-sm:px-3"
       >
         <Paperclip className="size-3.5" />
         {state.items.length > 0 && <span className="tabular-nums">{`${state.items.length}/${MAX_COMMENT_ATTACHMENTS}`}</span>}
@@ -195,11 +195,12 @@ function AttachmentThumb({ item, onRemove }: { item: AttachmentItem, onRemove: (
           <Loader2 className="size-4 animate-spin text-foreground/70" />
         </div>
       )}
+      {/* 圆点保持 20px，按下区域用伪元素扩到 32px（向缩略图内部延伸，不被 overflow-hidden 裁掉） */}
       <button
         type="button"
         aria-label={t('remove_attachment', { name })}
         onClick={onRemove}
-        className="absolute top-0.5 right-0.5 grid size-5 place-items-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+        className="absolute top-0.5 right-0.5 grid size-5 place-items-center rounded-full bg-black/60 text-white transition-colors after:absolute after:-right-0.5 after:-top-0.5 after:size-8 after:content-[''] hover:bg-black/80 max-sm:size-6"
       >
         <X className="size-3" />
       </button>
