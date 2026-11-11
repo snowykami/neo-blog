@@ -312,7 +312,8 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 		}
 		for i := range commentDtos {
 			commentDtos[i].ThreadCount = uint64(counts[commentDtos[i].ID])
-			commentDtos[i].ThreadUsers = model.ToUserDtos(repliers[commentDtos[i].ID])
+			// 公开接口：参与回复的用户只给公开信息（不含邮箱）
+			commentDtos[i].ThreadUsers = model.ToPublicUserDtos(repliers[commentDtos[i].ID])
 		}
 	}
 	return commentDtos, nil

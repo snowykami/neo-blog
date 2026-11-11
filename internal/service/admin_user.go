@@ -133,7 +133,7 @@ func (s *AdminUserService) ListUsers(ctx context.Context, req *dto.AdminListUser
 		logrus.Errorln("Failed to list users:", err)
 		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("user")
 	}
-	return model.ToUserDtos(users), total, nil
+	return model.ToAdminUserDtos(users), total, nil
 }
 
 func (s *AdminUserService) GetUserDetail(ctx context.Context, userID uint) (*dto.AdminUserDetailResp, *errs.ServiceError) {

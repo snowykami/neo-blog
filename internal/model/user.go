@@ -137,11 +137,20 @@ func (uo *UserOpenID) ToDto() dto.UserOpenIDDto {
 	}
 }
 
-// ToUserDtos 管理后台使用，包含邮箱
-func ToUserDtos(users []User) []dto.UserDto {
+// ToAdminUserDtos 管理后台使用，包含邮箱；公开接口一律用 ToPublicUserDtos
+func ToAdminUserDtos(users []User) []dto.UserDto {
 	dtos := make([]dto.UserDto, len(users))
 	for i, u := range users {
 		dtos[i] = u.ToPrivateDto()
+	}
+	return dtos
+}
+
+// ToPublicUserDtos 公开的用户信息列表，不包含邮箱等隐私字段
+func ToPublicUserDtos(users []User) []dto.UserDto {
+	dtos := make([]dto.UserDto, len(users))
+	for i, u := range users {
+		dtos[i] = u.ToDto()
 	}
 	return dtos
 }
