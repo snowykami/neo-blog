@@ -76,6 +76,19 @@
 - [ ] 编辑器上传：超限只打 console 且文案为硬编码英文；两条上传路径的图片大小校验不一致；离开时取消上传但占位块被存进草稿；返回按钮等待保存时无加载态
 - [ ] 骨架换成正文时入场动画可能播两遍（待确认）
 
+- [ ] 点击热区（WCAG 2.2 至少 24×24，触屏建议 44×44；先改共性组件，一处覆盖全站）：
+  - [ ] 手机文章卡片标签链接换行后上下贴住（实测违反 2.5.8），点偏直接进文章：标签扩大热区（`after:-inset-*`）、容器加 `gap-y-2`（`post-meta.tsx:97/103`）
+  - [ ] 音乐进度条 / 音量条只有 8px 高（`controlled-progress.tsx:184-195`），音量条离静音按钮 6px：扩大按下区域到 24px（手机 44px）
+  - [ ] Sheet / Dialog / 搜索弹窗的关闭 X 只有 16×16（`ui/sheet.tsx:72`、`ui/dialog.tsx:65-71`），手机全屏 Sheet 里是唯一关闭方式
+  - [ ] 后台 12px 的小 X：文章元信息标签 chip 的 onClick 只在内部图标上、键盘删不掉（`post-meta-category-and-label-selector.tsx:200-213`）；访客筛选、AI 记忆的清除 X（`visits-page.tsx:171/179`、`memories-panel.tsx:124`）
+  - [ ] 顶栏「文章 / 页面」悬停菜单与触发器之间 6px 空隙，慢速斜移或停在空隙里会关闭（`ui/navigation-menu.tsx:92`）：加透明桥接
+  - [ ] 评论操作（回复 / 点赞 / 翻译）28px 高、间距 2px，手机易误触（`comment-item.tsx:468-499`）
+  - [ ] hover 才显示的按钮在触屏平板（≥640px）上永远透明：代码块复制、评论「更多」、仪表盘编辑按钮，改用 `(hover:hover)` 条件
+  - [ ] 组件块 hover 工具栏与块之间 6px 空隙，鼠标上移时变回不可点（`component-block-view.tsx:102-107`，待实测）
+  - [ ] Checkbox 本体 16px、部分没有可点的 label（文件、歌词特效、AI 用户、版本历史的行选择）；节日主题开关只有本体可点（`color-scheme-picker.tsx:136-153`）
+  - [ ] 天气卡「使用精确位置」18×18；整行有 hover 背景却不能整行点（仪表盘文章列表、`ui/table.tsx` 的 16 个表格）
+  - [ ] 低优先级：手机分页 / 播放器次要按钮 36px 且间距 4px、点赞头像堆叠重叠、页脚链接偏小、评论附件删除 20px、InfoTooltip 20px 贴着 label、Switch / Slider / 可点 Badge 偏矮、图片缩放手柄 6px 宽
+
 ### 第五批：运维与构建
 
 - [ ] 前端镜像基础镜像可切换镜像源（今天两次 docker.io EOF）；运行阶段去掉 corepack；字体改 `next/font/local`，构建不再依赖 Google Fonts
