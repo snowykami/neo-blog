@@ -5,13 +5,14 @@ import type { ComponentAlign, ComponentHeight, ComponentWidth } from '@/componen
 import { NodeViewWrapper } from '@tiptap/react'
 import { MoveHorizontalIcon, MoveVerticalIcon, PuzzleIcon, Settings2Icon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { ComponentPropsDialog } from '@/components/content-components/component-props-dialog'
 import { ContentComponentView } from '@/components/content-components/content-component-view'
 import { COMPONENT_WIDTHS, componentHeightRem, componentLayoutAttrs, parseComponentAlign, parseComponentHeight, parseComponentWidth } from '@/components/content-components/layout'
 import { resolveComponent } from '@/components/content-components/props'
 import { EditorToolbarButton, EditorToolbarSeparator, EditorTooltip } from '@/components/tiptap-editor/editor-toolbar-button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { COMPONENT_BLOCK_TOOLBAR_ATTR } from './component-block-constants'
 import { consumePendingComponentEdit } from './pending-edit'
@@ -78,13 +79,18 @@ export function ComponentBlockView({ editor, node, selected, updateAttributes, d
     >
       {resolved.ok
         ? (
-            <ContentComponentView
-              def={resolved.def}
-              props={resolved.props}
-              height={height}
-              className="my-0"
-              errorFallback={<BlockNotice title={t('render_failed')} hint={t('edit_hint')} />}
-            />
+            // 组件本体是 next/dynamic 按需加载的（不带 Suspense 边界），必须在节点视图里接住加载中的挂起：
+            // 否则挂起穿过 portal 冒泡到路由的 loading 边界，整个编辑页被隐藏，EditorContent 随之卸载节点视图；
+            // 节点视图没了挂起解除、页面恢复后又重建节点视图再次挂起，这个循环全在微任务里，组件代码的加载事件永远轮不到，标签页卡死
+            <Suspense fallback={<Skeleton className="h-28 w-full rounded-xl" style={height ? { height: `${componentHeightRem(height)}rem` } : undefined} />}>
+              <ContentComponentView
+                def={resolved.def}
+                props={resolved.props}
+                height={height}
+                className="my-0"
+                errorFallback={<BlockNotice title={t('render_failed')} hint={t('edit_hint')} />}
+              />
+            </Suspense>
           )
         : <BlockNotice title={resolved.reason === 'unknown' ? t('unknown', { name: label }) : label} hint={resolved.reason === 'unknown' ? t('unknown_hint') : t('invalid')} />}
 

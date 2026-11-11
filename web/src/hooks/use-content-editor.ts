@@ -62,6 +62,12 @@ export interface ContentMeta {
 
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 
+/** 待保存的正文：HTML 与对应的文档（保存成功后作为合并基线） */
+interface SavedContent {
+  html: string
+  doc: PMNode
+}
+
 // 停止输入后自动保存的延迟；定时器作为兜底，同时用于检查编辑会话
 const AUTOSAVE_DEBOUNCE_MS = 2000
 const AUTOSAVE_INTERVAL_MS = 10_000
@@ -292,7 +298,8 @@ export interface EditorUiActions {
  * - 保存状态机 idle | dirty | saving | saved | error：停止输入约 2 秒后自动保存，10 秒定时兜底，⌘S 立即保存
  * - 标题、摘要与设置面板中的元信息与正文走同一保存路径，只提交有变化的字段
  * - 发布：草稿与正文一起提交
- * - AI 写作期间锁定编辑器并暂停保存，生成中的预览内容不算作修改，接受后再进入正常的保存流程
+ * - AI 写作期间锁定编辑器，保存只提交打开面板时的正文，生成中的预览内容不算作修改，接受后再进入正常的保存流程
+ * - 编辑页被 Activity 隐藏（SPA 跳走）时补存并清空草稿，再次显示时重新载入（见下方离开编辑页的 effect）
  */
 export function useContentEditor(kind: ContentKind, routeId: string) {
   const adapter = ADAPTERS[kind]
@@ -423,6 +430,14 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   // 合并的基线：本地上次与服务端同步（载入、保存成功、合并）时的草稿版本号与正文
   const baseVersionRef = useRef(0)
   const baseDocRef = useRef<PMNode | null>(null)
+  // 编辑器里的内容是否还不代表草稿：尚未载入，或编辑页被 Activity 隐藏过（隐藏时 tiptap 销毁编辑器，再次显示时换成一个空的新编辑器）。
+  // 为 true 时不从编辑器读取正文保存、不合并他人的修改，直到重新载入（applyDoc）
+  const editorStaleRef = useRef(true)
+  // 离开（隐藏 / 卸载）编辑页时补存的请求：再次显示时等它结束再载入，避免载入到补存前的草稿、
+  // 或重新申请的编辑会话让这次补存被当成「已被接管」拒绝
+  const leaveFlushRef = useRef<Promise<boolean> | null>(null)
+  // 编辑事件是否已连上过：首次连上的 ready 不处理（内容刚载入），见下方 useEditEvents
+  const eventsConnectedRef = useRef(false)
   const applyDoc = useCallback((next: ContentDoc, ed: Editor) => {
     const draft = next.draftContent || next.content || ''
     // 载入内容不进入撤销历史，避免撤销到空文档后被自动保存成空草稿
@@ -442,12 +457,17 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     setSaveError(null)
     setChangedSinceOpen(false)
     setDoc(next)
+    editorStaleRef.current = false
   }, [adapter])
 
   const [pendingDoc, setPendingDoc] = useState<ContentDoc | null>(null)
   const load = useCallback(() => {
     setLoadFailed(false)
-    adapter.load(routeId)
+    const leaveFlush = leaveFlushRef.current
+    leaveFlushRef.current = null
+    Promise.resolve(leaveFlush)
+      .catch(() => false)
+      .then(() => adapter.load(routeId))
       .then((res) => {
         if (!res)
           throw new Error('not found')
@@ -502,10 +522,11 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const autosaveTimerRef = useRef<number | null>(null)
   // 保存进行中又有新修改时，保存结束后重新安排一次自动保存
   const scheduleAutosaveRef = useRef<() => void>(() => {})
-  // 编辑页已卸载（SPA 跳走）：不再安排定时器，未保存的修改由卸载时的 flushSave 立即提交；
-  // 编辑器随后会被销毁（销毁后无法再取 HTML），卸载时先留下正文快照供这次保存使用
+  // 编辑页已卸载或被隐藏（SPA 跳走）：不再安排定时器，未保存的修改由离开时的 flushSave 立即提交；
+  // 编辑器随后会被销毁（销毁后无法再取 HTML），离开时先取下正文快照交给这次保存
   const unmountedRef = useRef(false)
-  const leaveSnapshotRef = useRef<{ html: string, doc: PMNode } | null>(null)
+  // AI 写作期间编辑器里是生成中的预览：打开面板时留下当时的正文，这期间的保存（含离开时的补存）提交它
+  const aiBaseRef = useRef<SavedContent | null>(null)
 
   const metaDirty = useMemo(() => diffMeta(meta, savedMeta) !== null, [meta, savedMeta])
   const isDirty = contentDirty || metaDirty
@@ -514,12 +535,16 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
 
   // 草稿冲突时合并最新草稿（定义见下方），保存失败后调用
   const syncRemoteRef = useRef<() => Promise<void>>(async () => {})
-  const save = useCallback(async ({ manual = false, keepalive = false }: { manual?: boolean, keepalive?: boolean } = {}): Promise<boolean> => {
-    if (!editor || !doc || !canSave || aiBusyRef.current)
+  // content：要保存的正文快照（离开编辑页时编辑器随后会被销毁，由调用方先取下）；未传时读取编辑器，AI 写作中读取打开面板时的正文
+  const save = useCallback(async ({ manual = false, keepalive = false, content }: { manual?: boolean, keepalive?: boolean, content?: SavedContent } = {}): Promise<boolean> => {
+    if (!doc || !canSave)
       return false
-    if (editor.isDestroyed && !leaveSnapshotRef.current)
+    const source = content ?? (aiBusyRef.current ? aiBaseRef.current : null)
+    // 编辑器在保存过程中可能被销毁（离开编辑页），此时读不到内容
+    const readContent = (): SavedContent | null => source ?? (editor && !editor.isDestroyed && !editorStaleRef.current ? { html: editor.getHTML(), doc: editor.state.doc } : null)
+    const current = aiBusyRef.current && !source ? null : readContent()
+    if (!current)
       return false
-    const readContent = () => leaveSnapshotRef.current ?? { html: editor.getHTML(), doc: editor.state.doc }
     // 正在合并他人的修改：合并结束后会重新安排保存
     if (syncingRef.current) {
       pendingSaveRef.current = true
@@ -533,7 +558,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       window.clearTimeout(autosaveTimerRef.current)
       autosaveTimerRef.current = null
     }
-    const { html, doc: savedDoc } = readContent()
+    const { html, doc: savedDoc } = current
     const contentChanged = html !== savedHtmlRef.current
     const currentMeta = metaRef.current
     let patch = diffMeta(currentMeta, savedMetaRef.current)
@@ -576,7 +601,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       setSaveError(null)
       setLastSavedAt(new Date())
       setChangedSinceOpen(true)
-      if (readContent().html === html)
+      if (readContent()?.html === html)
         setContentDirty(false)
       if (manual)
         toast.success(operationT('save_success'))
@@ -622,19 +647,23 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   // 离开编辑页前（隐藏/关闭标签页、点返回、SPA 跳走卸载）把待保存的修改立即写入，不让防抖窗口内的编辑丢掉
   // 返回 false 表示保存失败，调用方据此不跳转；其余情况（包括生成中/只读）一律允许离开
   // keepalive：页面隐藏 / 关闭时用 keepalive 请求发出，标签页关闭后请求仍会送达
-  const flushSave = useCallback(async ({ keepalive = false }: { keepalive?: boolean } = {}): Promise<boolean> => {
-    // 只读 / 无会话 / AI 生成中（结束后会自行补保存）时没有可立即保存的内容
-    if (!canSave || aiBusyRef.current)
+  // content：离开编辑页时取下的正文快照（见 save）
+  const flushSave = useCallback(async ({ keepalive = false, content }: { keepalive?: boolean, content?: SavedContent } = {}): Promise<boolean> => {
+    // 只读 / 无会话时没有可立即保存的内容；AI 写作中保存打开面板时的正文
+    if (!canSave)
       return true
     if (autosaveTimerRef.current) {
       window.clearTimeout(autosaveTimerRef.current)
       autosaveTimerRef.current = null
     }
+    // 先取下当前的 save 再等待：等待期间编辑页可能已隐藏 / 卸载，编辑器被销毁后重新渲染，saveRef 会换成 editor 为 null、
+    // 草稿已清空的闭包，再读 saveRef 会直接放弃这次保存
+    const saveNow = saveRef.current
     // 已有保存 / 合并在进行：等它结束后接着保存剩下的修改，不依赖结束后的定时器（卸载后定时器不再安排）
     if (savingRef.current || syncingRef.current)
       await waitForSaveSettled(() => savingRef.current || syncingRef.current)
     // 是否真有修改由 save 比较正文与已保存的内容判断（卸载后不再渲染，isDirtyRef 可能是旧值），没有修改时不发请求
-    return saveRef.current({ keepalive })
+    return saveNow({ keepalive, content })
   }, [canSave])
   const flushSaveRef = useRef(flushSave)
   flushSaveRef.current = flushSave
@@ -652,12 +681,13 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   }, [])
   scheduleAutosaveRef.current = scheduleAutosave
 
-  // 卸载（SPA 跳走，包括浏览器后退）时立即提交防抖窗口内的修改：已发出的请求不会因 SPA 跳转中断
+  // 离开编辑页（SPA 跳走、浏览器后退；开启 Cache Components 后页面不卸载，而是被 Activity 隐藏）时立即提交防抖窗口内的修改：
+  // 已发出的请求不会因 SPA 跳转中断。隐藏后 tiptap 会销毁编辑器，再次显示时换成空的新编辑器，所以这里同时清空草稿并标记待重新载入：
+  // 再次显示时载入 effect 重新执行，等这次补存结束后取最新草稿；载入完成前编辑器只读、不保存、不合并他人的修改（否则会用空正文三方合并）
   const editorRef = useRef(editor)
   editorRef.current = editor
   useEffect(() => {
     unmountedRef.current = false
-    leaveSnapshotRef.current = null
     return () => {
       unmountedRef.current = true
       if (autosaveTimerRef.current) {
@@ -665,9 +695,24 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
         autosaveTimerRef.current = null
       }
       const ed = editorRef.current
-      if (ed && !ed.isDestroyed)
-        leaveSnapshotRef.current = { html: ed.getHTML(), doc: ed.state.doc }
-      void flushSaveRef.current()
+      if (!editorStaleRef.current) {
+        // AI 写作中编辑器里是生成中的预览，补存打开面板时的正文
+        const content = aiBusyRef.current
+          ? aiBaseRef.current
+          : (ed && !ed.isDestroyed ? { html: ed.getHTML(), doc: ed.state.doc } : null)
+        if (content)
+          leaveFlushRef.current = flushSaveRef.current({ content })
+      }
+      editorStaleRef.current = true
+      baseDocRef.current = null
+      // 再次显示后重新连上编辑事件时，第一次 ready 同样不处理（内容随后重新载入）
+      eventsConnectedRef.current = false
+      // AI 面板随编辑器一起卸载、不会再通知结束：解除锁定，否则重新载入后一直无法保存
+      aiBusyRef.current = false
+      aiBaseRef.current = null
+      setAiBusyState(false)
+      setPendingDoc(null)
+      setDoc(null)
     }
   }, [])
 
@@ -689,8 +734,16 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   }, [editor, scheduleAutosave])
 
   const setAiBusy = useCallback((busy: boolean) => {
+    // 打开 AI 面板时（预览写入编辑器之前）留下当前正文：面板打开期间的保存与离开时的补存都提交它，
+    // 并立即保存一次，打开面板前还在防抖窗口内的修改不会因为面板打开、随后离开编辑页而丢失
+    if (busy && !aiBusyRef.current)
+      aiBaseRef.current = editor && !editor.isDestroyed && !editorStaleRef.current ? { html: editor.getHTML(), doc: editor.state.doc } : null
+    if (!busy)
+      aiBaseRef.current = null
     aiBusyRef.current = busy
     setAiBusyState(busy)
+    if (busy && aiBaseRef.current)
+      void flushSaveRef.current()
     // 立即锁定，随后的高亮事务即可让气泡菜单等按只读状态隐藏
     if (editor && !editor.isDestroyed)
       editor.setEditable(!readOnly && !busy, false)
@@ -743,7 +796,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       await new Promise(resolve => window.setTimeout(resolve, 100))
   }, [editor])
   const syncRemote = useCallback(async () => {
-    if (!editor || !doc)
+    // 内容尚未（重新）载入：编辑器是空的，不能拿它和基线三方合并
+    if (!editor || !doc || editorStaleRef.current)
       return
     if (syncingRef.current || aiBusyRef.current) {
       pendingSyncRef.current = true
@@ -755,7 +809,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
         pendingSyncRef.current = false
         await waitForIdle()
         const latest = await adapter.load(routeId).catch(() => null)
-        if (!latest || editor.isDestroyed || !baseDocRef.current)
+        if (!latest || editor.isDestroyed || editorStaleRef.current || !baseDocRef.current)
           break
         // 拉取期间开始了编辑器内 AI 写作：结束后再合并
         if (aiBusyRef.current) {
@@ -766,6 +820,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
         let result: ReturnType<typeof mergeRemoteContent> | null = null
         if (remoteDraftDiverged(latest.draftVersion, baseVersionRef.current)) {
           await waitForIdle()
+          if (editor.isDestroyed || editorStaleRef.current || !baseDocRef.current)
+            break
           result = mergeRemoteContent(editor, baseDocRef.current, latest.draftContent || latest.content || '')
           baseDocRef.current = result.remoteDoc
           baseVersionRef.current = latest.draftVersion ?? 0
@@ -818,7 +874,6 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
 
   // 编辑事件：他人保存（版本比本地新）或可能错过事件（重连、resync）时合并最新草稿；会话变化时尽快发现被接管
   // 首次连上的 ready 不处理（内容刚载入）
-  const eventsConnectedRef = useRef(false)
   useEditEvents(kind, doc?.id ?? 0, (event: EditEvent) => {
     if (event.type === 'ready' && !eventsConnectedRef.current) {
       eventsConnectedRef.current = true

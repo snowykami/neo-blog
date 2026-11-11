@@ -6,7 +6,7 @@ import type { AnyContentComponentDef } from './types'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowDownIcon, ArrowUpIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useCallback, useEffect, useMemo } from 'react'
+import { Suspense, useCallback, useEffect, useMemo } from 'react'
 import { useFieldArray, useForm, useFormContext, useWatch } from 'react-hook-form'
 import { AssetField } from '@/components/common/asset-picker'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -164,7 +165,12 @@ function EditorExtensionFields({ def, fields, t }: { def: AnyContentComponentDef
 
   return (
     <>
-      {Action && <Action values={values} setValues={setValues} />}
+      {/* 自定义动作按需加载：就地接住挂起，不让整个编辑页退回 loading（见 component-block-view.tsx） */}
+      {Action && (
+        <Suspense fallback={<Skeleton className="h-9 w-full" />}>
+          <Action values={values} setValues={setValues} />
+        </Suspense>
+      )}
       {fields.filter(field => !isFieldVisible || isFieldVisible(field.name, values)).map(field => (
         <SchemaField key={field.name} field={field} path={field.name} component={def.name} t={t} />
       ))}

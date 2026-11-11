@@ -70,7 +70,7 @@ export function PostEditor() {
         />
       )}
       renderPreview={panel => post && (
-        <PostPreviewDialog {...panel} post={post} onBeforePreview={() => controller.save()} />
+        <PostPreviewDialog {...panel} post={post} onBeforePreview={() => controller.flushSave()} />
       )}
     />
   )

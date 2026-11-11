@@ -4,11 +4,12 @@ import type { LibraryNode } from './library-tree'
 import type { RegisteredContentComponent } from './types'
 import { ChevronRightIcon, FolderIcon, FolderOpenIcon, PlusIcon, SearchIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useDeferredValue, useMemo, useState } from 'react'
+import { Suspense, useDeferredValue, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { isComposingKey } from '@/lib/ime'
 import { cn } from '@/lib/utils'
 import { ContentComponentView } from './content-component-view'
@@ -113,7 +114,12 @@ function ComponentDetail({ def, t, onInsert }: { def: RegisteredContentComponent
         <span className="text-xs font-medium text-muted-foreground">{t('library.preview')}</span>
         <div className="rounded-xl border border-dashed bg-background p-4">
           {example
-            ? <ContentComponentView key={def.name} def={def} props={example} className="my-0" errorFallback={<p className="text-sm text-muted-foreground">{t('render_failed')}</p>} />
+            ? (
+                // 组件按需加载：就地接住挂起，不让整个编辑页退回 loading（见 component-block-view.tsx）
+                <Suspense key={def.name} fallback={<Skeleton className="h-24 w-full rounded-xl" />}>
+                  <ContentComponentView def={def} props={example} className="my-0" errorFallback={<p className="text-sm text-muted-foreground">{t('render_failed')}</p>} />
+                </Suspense>
+              )
             : <p className="text-sm text-muted-foreground">{t('library.no_preview')}</p>}
         </div>
       </div>
