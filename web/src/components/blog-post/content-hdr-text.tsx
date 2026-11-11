@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useHdrEnabled } from '@/hooks/use-hdr-highlight'
 import { HDR_BRIGHTNESS, hdrColorUrl, hdrTextLevel } from '@/lib/hdr-color'
 import { INLINE_ICON_SELECTOR } from '@/lib/inline-icon/constants'
+import { getVisibleElementById } from '@/utils/client/dom'
 import './content-hdr-text.scss'
 
 const HDR_SELECTOR = '[data-hdr]'
@@ -33,7 +34,7 @@ export function ContentHdrText({ containerId }: { containerId: string }) {
   const enabled = useHdrEnabled()
 
   useEffect(() => {
-    const container = document.getElementById(containerId)
+    const container = getVisibleElementById(containerId)
     if (!container)
       return
     const root = document.documentElement

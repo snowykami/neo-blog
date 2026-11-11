@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import { getLocale, getTranslations } from 'next-intl/server'
+import { cacheLife, cacheTag } from 'next/cache'
 import { getPublicConfig } from '@/api/misc'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { SiteShell } from '@/components/layout/site-shell'
 import { localeAlternates } from '@/i18n/alternates'
+import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { mainPath } from '@/utils/common/route'
 
 // 隐私政策（简版）：内容需与后端实际行为保持一致，涉及访客记录（internal/service/visit.go、visit_trust.go）、
@@ -30,9 +32,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: routeT('privacy_policy'), alternates: localeAlternates(mainPath.privacy, await getLocale()) }
 }
 
-// 访问记录与错误报告的保留天数来自全局配置，读取失败或非法时使用默认值
+// 访问记录与错误报告的保留天数来自全局配置（跨请求缓存，站点配置变化时 site 标签失效），配置值非法时使用默认值
 async function getRetentionDays() {
-  // 取不到时抛错，不拿默认天数渲染：页面按 ISR 缓存，错误时 Next 继续提供上一份成功生成的页面（见 api/misc.server.ts）
+  'use cache'
+  cacheLife('site')
+  cacheTag(CacheTag.Site)
+  // 取不到时抛错，不拿默认天数渲染：页面按地址缓存，错误时 Next 继续提供上一份成功生成的页面（见 api/misc.server.ts）
   const config = await getPublicConfig({ visitLogRetentionDays: DEFAULT_RETENTION_DAYS, errorReportRetentionDays: DEFAULT_ERROR_RETENTION_DAYS })
     .then(res => res.data)
   const valid = (value: unknown, fallback: number) => {
@@ -46,6 +51,7 @@ async function getRetentionDays() {
 }
 
 export default async function PrivacyPage() {
+  skipBackendAtBuild()
   const [t, routeT, siteInfo, { days, errorDays }] = await Promise.all([
     getTranslations('Privacy'),
     getTranslations('Route'),

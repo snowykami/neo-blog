@@ -4,6 +4,7 @@ import { getLocale } from 'next-intl/server'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { localeAlternates } from '@/i18n/alternates'
 import { localizePath } from '@/i18n/routing'
+import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostShareImageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 import { safeMetadataBase } from '@/utils/common/siteinfo'
@@ -16,20 +17,19 @@ interface Props {
   params: Promise<{ id: string }>
 }
 
-// 文章页按 ISR 缓存：构建时不预渲染（返回空数组），每篇文章（每种语言）在第一次被访问时生成，之后文档请求与预取都直接用缓存。
-// 后台修改文章 / 分类 / 标签、站点配置后，posts / site 标签失效（见 lib/cache-tags.ts），下次访问重新生成；
-// slug 跳转（308，在 layout 判定）同样被缓存，改 slug 时一并失效；不存在的文章（404）不缓存，每次向后端确认。
-// revalidate 只是标签失效没送到时的兜底（根布局为 30 秒，取两者中较小的）；浏览量、点赞数是快照，浏览器进入页面后另取最新值
-export const revalidate = 60
-
+// 文章页按地址缓存：构建时只预渲染占位参数（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），每篇文章（每种语言）在第一次被访问时
+// 整页生成，之后文档请求与悬停时的按链接预取都直接用缓存。后台修改文章 / 分类 / 标签、站点配置后，posts / site 标签失效
+// （见 lib/cache-tags.ts），下次访问重新生成；slug 跳转（308）同样被缓存，改 slug 时一并失效；不存在的文章（404）不缓存，每次向后端确认。
+// 地址参数只在页面里读：layout 与 loading.tsx 的骨架不依赖地址，属于所有文章共用的 App Shell，键盘 / 轻点的点击立刻出骨架。
+// 浏览量、点赞数是快照，浏览器进入页面后另取最新值
 export function generateStaticParams() {
-  return []
+  return [{ id: BUILD_PLACEHOLDER_PARAM }]
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  // 与 layout、页面共用同一次文章请求（post-data.ts 的 React cache）；浏览量由前台访问上报计数，与此无关
-  // 文章与站点信息并行取（站点信息已跨请求缓存）；locale 与它们也互不依赖。404 与 slug 跳转已在 layout 判定，这里只是同样的兜底
+  // 与页面共用同一次文章读取（post-data.ts 的 React cache）；浏览量由前台访问上报计数，与此无关
+  // 文章与站点信息并行取（都已跨请求缓存）；locale 与它们也互不依赖。404 与 slug 跳转与页面同样判定
   const [post, siteInfo, locale] = await Promise.all([getCanonicalPost(id), getCachedSiteInfo(), getLocale()])
   // 分享图上的文字跟随页面语言
   const shareImage = localizePath(getPostShareImageUrl(post), locale)
@@ -76,7 +76,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PostPage({ params }: Props) {
   const { id } = await params
-  // 404 与 slug 跳转在 layout 判定（见 layout.tsx），这里拿到的一定是规范地址上的公开文章
+  // 不存在 → 404，用 id 访问有 slug 的文章 → 308（见 post-data.ts）；之后拿到的一定是规范地址上的公开文章
   const [post, siteInfo, locale] = await Promise.all([getCanonicalPost(id), getCachedSiteInfo(), getLocale()])
 
   const jsonLd: WithContext<Article> = {

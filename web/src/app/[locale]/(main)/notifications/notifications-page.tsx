@@ -409,8 +409,11 @@ function notificationText(
   }
 }
 
-// groupByDay 今天 / 昨天 / 更早，列表本身已按时间倒序
+// groupByDay 今天 / 昨天 / 更早，列表本身已按时间倒序。
+// 没有通知时不取当前时间：服务端预渲染时列表还是空的（在浏览器里取），Cache Components 下渲染期间取当前时间会让预渲染报错
 function groupByDay(items: NotificationItemModel[]) {
+  if (items.length === 0)
+    return []
   const today = startOfDay(new Date())
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)

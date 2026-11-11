@@ -8,6 +8,7 @@ import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constan
 import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import copyToClipboard from '@/lib/clipboard'
 import hljs from '@/lib/highlight'
+import { getVisibleElementById } from '@/utils/client/dom'
 import { languageMap } from '@/utils/common/post-render'
 import 'highlight.js/styles/github-dark.css'
 
@@ -39,7 +40,7 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
     hljs.highlightAll()
   }, [])
   useEffect(() => {
-    const container = document.getElementById(containerId)
+    const container = getVisibleElementById(containerId)
     if (!container)
       return
 

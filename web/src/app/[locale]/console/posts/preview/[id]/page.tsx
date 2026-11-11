@@ -7,6 +7,9 @@ import { MainShell } from '@/app/[locale]/(main)/main-shell'
 import { BlogPost } from '@/app/[locale]/(main)/p/[id]/blog-post'
 import { isNotFoundLikeError } from '@/utils/common/error'
 
+// 后台按请求渲染，不做即时导航校验（见 app/[locale]/console/layout.tsx）
+export const instant = false
+
 /*
  * 后台的文章预览：按前台文章页的样子渲染草稿与私密文章，仅作者本人与管理员（由后端接口判定）。
  * 私密文章与草稿不在前台出现，编辑器的「预览」与文章管理的「查看」（私密文章）都打开这里

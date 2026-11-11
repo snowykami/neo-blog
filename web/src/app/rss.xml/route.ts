@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { connection, NextResponse } from 'next/server'
 import RSS from 'rss'
 import { getRssData } from '@/api/misc'
 import { renderInlineIconsHtml } from '@/lib/inline-icon/icon'
@@ -7,11 +7,11 @@ import { formatDisplayName } from '@/utils/common/username'
 import { renderMathHtml } from '@/utils/server/render-math'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
 
-// 每次请求时生成：构建阶段连不上后端，按 ISR 预渲染会把 500 缓存下来，每次发布后订阅源都要失败一段时间；
+// 每次请求时生成（见 GET 开头的 connection()）：构建阶段连不上后端，预渲染会把 500 缓存下来，每次发布后订阅源都要失败一段时间；
 // 阅读器与 CDN 按下面的 Cache-Control 缓存 10 分钟
-export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  await connection()
   const rssData = await getRssData()
     .then(res => res.data)
     .catch(() => null)

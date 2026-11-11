@@ -8,7 +8,7 @@ const COMMENT_SKELETON_ITEMS = Array.from({ length: 2 })
 /*
  * 文章页骨架：没预取到的点击立刻切到这里，正文到了再替换；版式与 blog-post.tsx 一致（正文卡片 + 评论卡片，侧栏为关于卡与目录）。
  * 关于卡直接用真实组件（只读站点信息，不发请求）；不画封面占位：多数文章没有封面，画了反而在正文到达时大幅跳动。
- * 404 与 slug 跳转在 page.tsx 的 generateMetadata 里判定，见那里的说明
+ * 不依赖地址参数：属于所有文章共用的 App Shell，没预取到正文的点击（键盘回车、手机轻点）立刻显示；404 与 slug 跳转在页面里判定（见 post-data.ts）
  */
 export default function Loading() {
   return (

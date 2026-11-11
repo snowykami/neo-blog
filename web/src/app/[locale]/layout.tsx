@@ -18,6 +18,7 @@ import { NavProvider } from '@/contexts/nav-context'
 import { SiteInfoProvider } from '@/contexts/site-info-context'
 import { ThemeProvider } from '@/contexts/theme-context'
 import { routing } from '@/i18n/routing'
+import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
 import { themeAttributes, themeCssVars } from '@/themes'
 import { getActiveTheme } from '@/themes/active-theme.server'
 import { themeInitScript } from '@/themes/init-script'
@@ -45,15 +46,11 @@ export const viewport: Viewport = {
   ],
 }
 
-// 静态的前台页面按 ISR 缓存，最多每 30 秒重新生成一次（与站点信息的缓存时长一致）：后台改了站点配置、分类、标签后前台随之更新。
-// 各页面自己声明的更短间隔优先；页面有动态段或读请求数据时仍按请求渲染
-export const revalidate = 30
-
-// 构建时不预渲染任何语言（返回空数组）：镜像构建连不上后端，预渲染只能把兜底内容固化进页面。
-// 每种语言的页面在第一次被访问时用真实的后端数据生成并缓存（dynamicParams 默认开启）；
+// 构建期只返回占位参数（不是任何语言，下面直接 404）：Cache Components 要求根参数至少有一个值，但镜像构建连不上后端，
+// 预渲染只能把兜底内容固化进页面。真实语言的页面在第一次被访问时用真实的后端数据生成并缓存（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM）；
 // 取数失败时直接抛错（见 api/misc.server.ts），错误页不进缓存，已有的页面继续提供
 export function generateStaticParams() {
-  return []
+  return [{ locale: BUILD_PLACEHOLDER_PARAM }]
 }
 
 export async function generateMetadata(): Promise<Metadata> {

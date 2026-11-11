@@ -6,6 +6,7 @@ import { LinkPreviewCard } from '@/components/common/link-preview-card'
 import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
 import { ANNOTATION_ATTR } from '@/components/tiptap-extension/annotation-constants'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
+import { getVisibleElementById } from '@/utils/client/dom'
 import './content-hover-card.scss'
 
 type HoverTarget
@@ -41,7 +42,7 @@ export function ContentHoverCard({ containerId }: { containerId: string }) {
   }, [target])
 
   useEffect(() => {
-    const container = document.getElementById(containerId)
+    const container = getVisibleElementById(containerId)
     if (!container)
       return
 

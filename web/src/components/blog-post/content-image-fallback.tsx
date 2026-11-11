@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ImagePlaceholder } from '@/components/common/safe-image'
 import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
+import { getVisibleElementById } from '@/utils/client/dom'
 
 interface FailedImage {
   id: number
@@ -24,7 +25,7 @@ export function ContentImageFallback({ containerId }: { containerId: string }) {
   const defaultLabel = t('image_load_failed')
 
   useEffect(() => {
-    const container = document.getElementById(containerId)
+    const container = getVisibleElementById(containerId)
     if (!container)
       return
 

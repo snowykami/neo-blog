@@ -19,9 +19,10 @@ type LinkProps = ComponentProps<typeof intl.Link> & { unstable_dynamicOnHover?: 
 const IntlLink = intl.Link as ComponentType<LinkProps>
 
 /**
- * 前台链接的预取（见 next.config.ts 的 experimental.dynamicOnHover / staleTimes）：
- * 进入视口时按默认方式预取，动态页面只拿到最近的 loading.tsx 骨架为止；悬停或按下（touchstart）时升级为完整预取，
- * 点击时直接用缓存出内容。不想预取的链接照常传 prefetch={false}（悬停也不会预取）
+ * 前台链接的预取（局部预取，见 next.config.ts 的 partialPrefetching / experimental.dynamicOnHover）：
+ * 进入视口时只预取目标路由的 App Shell（站点外壳 + 骨架，同一路由的所有链接共用一份）；悬停或按下（touchstart）时升级为
+ * 按链接预取，连同按地址缓存的正文一起取下来，点击时直接用缓存出内容。
+ * 只要外壳、不必按链接取内容的传 unstable_dynamicOnHover={false}；完全不想预取的照常传 prefetch={false}（悬停也不会预取）
  */
 export function Link({ href, locale, unstable_dynamicOnHover = true, ...props }: LinkProps) {
   if (typeof href === 'string' && !isLocalizedHref(href))

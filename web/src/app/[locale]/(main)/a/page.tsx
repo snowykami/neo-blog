@@ -3,17 +3,20 @@ import type { ArchiveGroup } from './archive'
 import type { Post } from '@/models/post'
 import process from 'node:process'
 import { getLocale, getTranslations } from 'next-intl/server'
+import { cacheLife, cacheTag } from 'next/cache'
+import { Suspense } from 'react'
 import { listPosts } from '@/api/post'
+import { BlogSidebarSkeleton } from '@/components/blog-sidebar/sidebar-skeleton'
+import { SiteShell } from '@/components/layout/site-shell'
+import { Skeleton } from '@/components/ui/skeleton'
 import { localeAlternates } from '@/i18n/alternates'
+import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { OrderBy } from '@/models/common'
 import { getPostUrl, mainPath } from '@/utils/common/route'
 import { Archive } from './archive'
 
 // 归档日期按站点时区计算，与后端容器的 TZ 保持一致；在服务端算好再传给客户端，避免水合时因时区不同而错位
 const ARCHIVE_TIME_ZONE = process.env.TZ || 'Asia/Chongqing'
-
-// 读 searchParams（标签、分类筛选），按请求渲染；必须显式声明，原因见首页（app/[locale]/(main)/page.tsx）
-export const dynamic = 'force-dynamic'
 
 export async function generateMetadata(): Promise<Metadata> {
   const routeT = await getTranslations('Route')
@@ -48,16 +51,50 @@ function groupByYear(posts: Post[]): ArchiveGroup[] {
   return groups.sort((a, b) => b.year - a.year)
 }
 
-export default async function ArchivesPage({
+function fetchArchivePosts(label: string, category: string): Promise<Post[]> {
+  return listPosts({ page: 1, size: 500, orderBy: OrderBy.CreatedAt, desc: true, noContent: true, label, category })
+    .then(res => res.data.posts)
+}
+
+// 不筛选的归档（最常见）跨请求缓存，文章、分类、标签变化时 posts 标签失效；带 ?label= / ?category= 的组合来自地址栏，照常每次向后端取
+async function loadAllPosts(): Promise<Post[]> {
+  'use cache'
+  cacheLife('site')
+  cacheTag(CacheTag.Posts)
+  return fetchArchivePosts('', '')
+}
+
+// 读地址查询参数的部分：放在 Suspense 里按请求渲染，外面的部分属于归档页的 App Shell
+async function ArchiveContent({ searchParams }: { searchParams: Promise<{ label?: string, category?: string }> }) {
+  // 支持 ?label=xxx / ?category=xxx 只看某个标签或分类的归档
+  const { label = '', category = '' } = await searchParams
+  skipBackendAtBuild()
+  const posts = await (label || category ? fetchArchivePosts(label, category) : loadAllPosts()).catch(() => [])
+  return <Archive groups={groupByYear(posts)} filter={{ label, category }} />
+}
+
+// 归档到达前的占位：时间线卡片里画几行
+function ArchiveSkeleton() {
+  return (
+    <SiteShell sidebar={<BlogSidebarSkeleton />}>
+      <div className="grid gap-4 rounded-2xl bg-card px-4 py-6 md:px-8" aria-busy="true">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-5 w-full" />
+        <Skeleton className="h-5 w-4/5" />
+        <Skeleton className="h-5 w-3/5" />
+      </div>
+    </SiteShell>
+  )
+}
+
+export default function ArchivesPage({
   searchParams,
 }: {
   searchParams: Promise<{ label?: string, category?: string }>
 }) {
-  // 支持 ?label=xxx / ?category=xxx 只看某个标签或分类的归档
-  const { label = '', category = '' } = await searchParams
-  const posts = await listPosts({ page: 1, size: 500, orderBy: OrderBy.CreatedAt, desc: true, noContent: true, label, category })
-    .then(res => res.data.posts)
-    .catch(() => [])
-
-  return <Archive groups={groupByYear(posts)} filter={{ label, category }} />
+  return (
+    <Suspense fallback={<ArchiveSkeleton />}>
+      <ArchiveContent searchParams={searchParams} />
+    </Suspense>
+  )
 }

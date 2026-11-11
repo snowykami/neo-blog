@@ -1,16 +1,17 @@
 import type { NextRequest } from 'next/server'
+import { connection } from 'next/server'
 import { BACKEND_URL } from '@/api/client'
 import { backendRequestHeaders, backendResponse } from '@/lib/backend-proxy'
 
 // 浏览器请求的 /api/v1/* 在运行时转发到后端。
 // 不用 next.config 的 rewrites：standalone 构建会把 rewrites 目标写死进产物，部署时设置的 BACKEND_URL 不生效；
-// 也不用 proxy.ts：它会把请求体整体缓冲进内存（默认上限 10MB），大文件上传会被截断。
-export const dynamic = 'force-dynamic'
+// 也不用 proxy.ts：它会把请求体整体缓冲进内存（默认上限 10MB），大文件上传会被截断。按请求处理（见 forward 开头的 connection()）
 
 // AI 用户 Runner 的接口与 AI 用户专用 MCP 只供 Runner 直连后端，不经前端转发
 const DIRECT_ONLY = /^\/api\/v1\/(?:agent-runner|agent-mcp)(?:\/|$)/
 
 async function forward(request: NextRequest) {
+  await connection()
   const { pathname, search } = request.nextUrl
   if (DIRECT_ONLY.test(pathname))
     return new Response('Not Found', { status: 404 })

@@ -4,6 +4,7 @@ import type { ComponentHeight } from './layout'
 import type { AnyContentComponentDef } from './types'
 import { Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { getVisibleElementById } from '@/utils/client/dom'
 import { COMPONENT_FALLBACK_ATTR, COMPONENT_ROOT_ATTR } from './constants'
 import { ContentComponentView } from './content-component-view'
 import { parseComponentHeight } from './layout'
@@ -40,7 +41,7 @@ export function ComponentIslands({ containerId }: { containerId: string }) {
   const [islands, setIslands] = useState<Island[]>([])
 
   useEffect(() => {
-    const container = document.getElementById(containerId)
+    const container = getVisibleElementById(containerId)
     if (!container)
       return
     const found: Island[] = []

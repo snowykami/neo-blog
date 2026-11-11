@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { INLINE_ICON_ATTR, INLINE_ICON_SELECTOR, loadIconSvg } from '@/lib/inline-icon/icon'
+import { getVisibleElementById } from '@/utils/client/dom'
 
 /**
  * 在浏览器里渲染的正文（页面本地预览、版本历史预览）中填入行内图标的 SVG，按需加载用到的图标
@@ -9,7 +10,7 @@ import { INLINE_ICON_ATTR, INLINE_ICON_SELECTOR, loadIconSvg } from '@/lib/inlin
  */
 export function ContentInlineIcons({ containerId }: { containerId: string }) {
   useEffect(() => {
-    const container = document.getElementById(containerId)
+    const container = getVisibleElementById(containerId)
     if (!container)
       return
     let cancelled = false

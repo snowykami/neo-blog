@@ -98,8 +98,9 @@ export function PostMeta({
             {labels.map((label, index) => (
               <Fragment key={label.id}>
                 {index > 0 && <span aria-hidden className="mx-1.5 text-foreground/30">/</span>}
-                {/* 标签页是带 ?label= 的首页，同一页上同一标签会出现在多篇文章里，不预取 */}
-                <Link href={getLabelUrl(label)} prefetch={false} className={metaLinkClass}>
+                {/* 标签页是带 ?label= 的首页：进入视口只预取首页的 App Shell（与其他首页链接共用一份，点击立刻出骨架）；
+                    悬停不升级为按链接预取（带筛选的列表不进取数缓存，每次悬停都要打后端） */}
+                <Link href={getLabelUrl(label)} unstable_dynamicOnHover={false} className={metaLinkClass}>
                   {label.name}
                 </Link>
               </Fragment>

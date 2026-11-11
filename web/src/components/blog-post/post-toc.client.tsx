@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState } from 'react'
 import { SidebarCard } from '@/components/blog-sidebar/sidebar-card'
 import { cn } from '@/lib/utils'
+import { getVisibleElementById } from '@/utils/client/dom'
 
 // 滚动到标题时预留导航栏高度（CSS 变量 --nav-h）与 1rem 间距；顶栏灵动岛的阅读进度与迷你目录也用它
 export function getScrollOffset() {
@@ -29,7 +30,7 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
     if (headings.length < 2)
       return
     const elements = headings
-      .map(heading => document.getElementById(heading.id))
+      .map(heading => getVisibleElementById(heading.id))
       .filter((el): el is HTMLElement => !!el)
     if (elements.length === 0)
       return
@@ -79,7 +80,7 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
   const minLevel = Math.min(...headings.map(heading => heading.level))
 
   const scrollTo = (event: React.MouseEvent<HTMLAnchorElement>, id: string) => {
-    const el = document.getElementById(id)
+    const el = getVisibleElementById(id)
     if (!el)
       return
     event.preventDefault()

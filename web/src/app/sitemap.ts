@@ -1,11 +1,11 @@
 import type { MetadataRoute } from 'next'
+import { connection } from 'next/server'
 import { getSitemapData } from '@/api/misc'
 import { languageAlternates } from '@/i18n/alternates'
 import { localizePath, routing } from '@/i18n/routing'
 import { getCategoryUrl, getPageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 
-// 每次请求时生成：构建阶段连不上后端，按 ISR 预渲染会把空的站点地图缓存下来，每次发布后都要空一段时间
-export const dynamic = 'force-dynamic'
+// 每次请求时生成（见函数开头的 connection()）：构建阶段连不上后端，预渲染会把空的站点地图缓存下来，每次发布后都要空一段时间
 
 /**
  * 取一组时间里最晚的一个；全部无效时返回 undefined（该字段直接省略）
@@ -28,6 +28,7 @@ function latestDate(...dates: (string | null | undefined)[]): Date | undefined {
  * - 每种界面语言一条地址（简体中文不带前缀，其余如 /en/p/x），互相用 xhtml:link hreflang 指向，见 i18n/alternates.ts
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  await connection()
   // 后端不可用时返回错误（500），不能返回空列表，否则搜索引擎会当作全站没有页面
   const sitemapData = (await getSitemapData()).data
   const baseUrl = sitemapData.baseUrl.replace(/\/+$/, '')

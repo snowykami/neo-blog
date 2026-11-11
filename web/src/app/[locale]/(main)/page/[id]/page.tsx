@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
+import type { PageModel } from '@/models/page'
 import { getLocale } from 'next-intl/server'
-import { unstable_cache } from 'next/cache'
+import { cacheLife, cacheTag } from 'next/cache'
 import { notFound, redirect } from 'next/navigation'
 import { cache } from 'react'
 import { getCachedSiteInfo } from '@/api/misc.server'
@@ -21,7 +22,7 @@ import { FullscreenChrome } from '@/components/layout/fullscreen-chrome'
 import { SiteShell } from '@/components/layout/site-shell'
 import { localeAlternates } from '@/i18n/alternates'
 import { localizePath } from '@/i18n/routing'
-import { CacheTag, DETAIL_REVALIDATE_SECONDS, nullIfNotFound, UncachedNotFound } from '@/lib/cache-tags'
+import { BUILD_PLACEHOLDER_PARAM, CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { contentWebFonts, resolveContentTheme } from '@/lib/content-theme'
 import { isNotFoundLikeError } from '@/utils/common/error'
 import { countWords } from '@/utils/common/post'
@@ -34,27 +35,33 @@ import '@/components/tiptap-node/inline-icon-node/inline-icon.scss'
 // 公式样式（约 4 KB）；KaTeX 字体只在页面用到公式时才下载
 import 'katex/dist/katex.min.css'
 
-// 跨请求缓存（按 id / slug 分条，各语言共用）：页面按 ISR 缓存，视口预取与重新生成先读这里；页面增删改时 pages 标签失效。
-// 仅明确不存在 / 无权查看时返回 null（不缓存，见 UncachedNotFound），其余错误交给错误边界、同样不进缓存
-const loadPage = unstable_cache(
-  async (id: string) => getPageById({ id })
-    .then(res => res.data)
-    .catch((error) => {
-      if (isNotFoundLikeError(error))
-        throw new UncachedNotFound()
+// 跨请求缓存（按 id / slug 分条，各语言共用）：页面按地址缓存，按链接预取与重新生成先读这里；页面增删改时 pages 标签失效。
+// 仅明确不存在 / 无权查看时返回 null（不缓存，见 CacheTag.NoStore），其余错误交给错误边界、同样不进缓存
+async function loadPage(id: string): Promise<PageModel | null> {
+  'use cache'
+  cacheLife('detail')
+  cacheTag(CacheTag.Pages)
+  try {
+    return (await getPageById({ id })).data
+  }
+  catch (error) {
+    if (!isNotFoundLikeError(error))
       throw error
-    }),
-  ['page-detail'],
-  { revalidate: DETAIL_REVALIDATE_SECONDS, tags: [CacheTag.Pages] },
-)
+    cacheTag(CacheTag.NoStore)
+    return null
+  }
+}
 
 // 同一次渲染内 generateMetadata 与页面共用一次读取
-const getCachedPage = cache((id: string) => loadPage(id).catch(nullIfNotFound))
+const getCachedPage = cache((id: string) => {
+  skipBackendAtBuild()
+  return loadPage(id)
+})
 
-// 构建时不预渲染（返回空数组）：每个页面在第一次被访问时生成，之后按 ISR 缓存（根布局 revalidate = 30），
-// 后台修改页面后 pages 标签失效、下次访问重新生成
+// 页面按地址缓存：构建时只预渲染占位参数（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），每个页面在第一次被访问时生成，
+// 后台修改页面后 pages 标签失效、下次访问重新生成；404 与链接页的跳转（307）在生成过程中判定（loading.tsx 的骨架里面，见 p/[id]/post-data.ts 的说明）
 export function generateStaticParams() {
-  return []
+  return [{ id: BUILD_PLACEHOLDER_PARAM }]
 }
 
 export async function generateMetadata({

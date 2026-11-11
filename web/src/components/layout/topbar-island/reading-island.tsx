@@ -12,6 +12,7 @@ import { LikeIcon } from '@/contexts/theme-context'
 import { pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
 import { usePostLike } from '@/hooks/use-post-like'
 import { cn } from '@/lib/utils'
+import { getVisibleElementById } from '@/utils/client/dom'
 import { IslandText, ProgressRing } from './island-parts'
 
 // 低于播放中的音乐：同时存在时阅读进度缩成旁边的进度环
@@ -58,7 +59,7 @@ function createReadingStore() {
 type ReadingStore = ReturnType<typeof createReadingStore>
 
 function scrollToElement(id: string) {
-  const el = document.getElementById(id)
+  const el = getVisibleElementById(id)
   if (el)
     window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - getScrollOffset(), behavior: 'smooth' })
 }
@@ -81,9 +82,11 @@ export function ReadingIsland({ title, headings, minutes, post }: { title: strin
   const activeIndex = useSyncExternalStore(store.subscribe, () => store.get().activeIndex, () => INITIAL.activeIndex)
 
   useEffect(() => {
-    const article = document.getElementById('blog-content')
+    const article = getVisibleElementById('blog-content')
     if (!article)
       return
+    // 标题都在正文里：在这一篇的正文里找（之前看过的文章被隐藏保留在文档里，可能有同名的 id）
+    const headingEls = headings.map(heading => article.querySelector<HTMLElement>(`[id="${CSS.escape(heading.id)}"]`))
     let frame = 0
     const measure = () => {
       frame = 0
@@ -93,8 +96,8 @@ export function ReadingIsland({ title, headings, minutes, post }: { title: strin
       const read = offset - rect.top
       const progress = Math.min(1, Math.max(0, scrollable > 0 ? read / scrollable : read >= 0 ? 1 : 0))
       let activeIndex = -1
-      for (let i = 0; i < headings.length; i++) {
-        const el = document.getElementById(headings[i].id)
+      for (let i = 0; i < headingEls.length; i++) {
+        const el = headingEls[i]
         if (!el || el.getBoundingClientRect().top - offset - 1 > 0)
           break
         activeIndex = i

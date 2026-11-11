@@ -1,17 +1,15 @@
-// @ts-check
 /*
- * Next.js 的增量缓存处理器（next.config.ts 的 cacheHandler）：ISR 页面与 unstable_cache 的取数结果都存在这里。
+ * Next.js 的页面缓存处理器（next.config.ts 的 cacheHandler）：按地址生成的完整页面（ISR）与各路由的 App Shell、
+ * 按段拆开的预取数据都存在这里。'use cache' 的取数结果不在这里，见 use-cache-handler.mjs（cacheHandlers.default）。
  *
- * 1. 失效：后端数据变化时换掉对应标签的版本号（internal/repo/cache_tag.go），本进程每 3 秒读一次（GET /misc/cache-tags）。
- *    写入条目时在它的标签里记下「当时已知的版本号」（形如 neo-ver:posts:<版本>），读取时与最新的版本号比较，不同就当作没有缓存，
- *    下次访问重新取数、重新生成。按版本号而不是按时间比较：几个副本得知修改有先后，还没得知的副本即使在别的副本之后
- *    写入了旧内容，它记下的也是旧版本号，其他副本一读就知道已经过期；也不受各台机器时钟误差的影响。
- *    用轮询而不是后端主动通知：后端不用知道前端地址、不用共享密钥，多个前端副本各自轮询，没有 Redis 时也都能失效。
- *    标签只到数据种类（见 src/lib/cache-tags.ts），接口不透露具体是哪篇文章。
- * 2. 存储：配置了 REDIS_URL（与后端、运行时指标共用，键前缀 REDIS_KEY_PREFIX）时条目存进 Redis，多个前端副本共用，
- *    一个副本生成过的页面其他副本直接用。没配置时沿用 Next 自带的文件系统缓存（内存 LRU + .next 目录），只在本进程内有效；
+ * 1. 失效：按后端缓存标签的版本号（轮询与比较见 cache-tag-versions.mjs）。页面条目的标签由 Next 从页面里用到的 'use cache'
+ *    汇总而来（x-next-cache-tags），写入时把当时已知的版本号以标签的形式（neo-ver:posts:<版本>）混在里面一起保存，
+ *    读取时与最新的版本号比较，不同就当作没有缓存，下次访问重新生成（页面的标签不会发给浏览器）。
+ * 2. 存储：配置了 REDIS_URL 时条目存进 Redis，多个前端副本共用，一个副本生成过的页面其他副本直接用。
+ *    没配置时沿用 Next 自带的文件系统缓存（内存 LRU + .next 目录），只在本进程内有效；
  *    上次运行时留下的条目同样按版本号判断，期间后端改过的不会再用。
- * 3. 代码里调用 revalidateTag / revalidatePath（目前没有）时按时间失效，配置了 Redis 时写进 Redis 让其他副本在下一次轮询时看到。
+ * 3. 404 页面与用到「不存在」取数结果的页面不缓存（任意地址都能拼出来，缓存会无限增长）。
+ * 4. 代码里调用 revalidateTag / revalidatePath（目前没有）时按时间失效，配置了 Redis 时写进 Redis 让其他副本在下一次轮询时看到。
  *
  * 构建（next build）时也会加载这个文件：构建期不轮询、不连 Redis，行为与 Next 自带的缓存相同。
  * 这个文件不经过打包，由 Next 在运行时直接 import，standalone 输出会自动带上它和 ioredis。
@@ -19,181 +17,40 @@
  */
 import { Buffer } from 'node:buffer'
 import { readFileSync } from 'node:fs'
-import http from 'node:http'
-import https from 'node:https'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import process from 'node:process'
 import { gunzipSync, gzipSync } from 'node:zlib'
-import { Redis } from 'ioredis'
+import {
+  expireTags,
+  forgetRead,
+  isBuildPhase,
+  isTagExpiredSince,
+  isVersionStale,
+  logError,
+  NO_STORE_TAG,
+  rememberRead,
+  startTagSync,
+  tagState,
+  versionsForWrite,
+} from './cache-tag-versions.mjs'
 
 const require = createRequire(import.meta.url)
 /** @type {any} */
 const FileSystemCache = require('next/dist/server/lib/incremental-cache/file-system-cache.js').default
 
-const SYNC_INTERVAL_MS = 3000
-// 首次读取版本号的最长等待：在此之前的缓存读取先等它，避免刚启动时把已经过期的条目当成有效
-const FIRST_SYNC_TIMEOUT_MS = 1500
-const REQUEST_TIMEOUT_MS = 2000
-// 读取到写入之间记下的版本号最多保留多久：一次渲染不会比这更久，过期的说明这次读取之后没有重新生成
-const PENDING_TTL_MS = 30_000
 // Redis 中条目的最长保存时间：长时间没人访问的页面过期后重新生成
 const MAX_ENTRY_TTL_SECONDS = 24 * 3600
-const ERROR_LOG_INTERVAL_MS = 60_000
-const DEFAULT_REDIS_PREFIX = 'neo-blog:'
 const CACHE_TAGS_HEADER = 'x-next-cache-tags'
-// 依赖后端数据的标签，与 src/lib/cache-tags.ts 的 CacheTag、后端 repo.CacheTags 一致
-const BACKEND_TAGS = ['posts', 'pages', 'users', 'site']
-// 记录版本号的标签前缀：混在条目自己的标签里，随条目一起保存（页面的标签不会发给浏览器）
+// 记录版本号的标签前缀：混在条目自己的标签里，随条目一起保存
 const VERSION_TAG_PREFIX = 'neo-ver:'
+// 与 'use cache' 的键区分开（读取时记下的版本号放在同一张表里）
+const PENDING_PREFIX = 'page:'
 
-// 与 src/api/client.ts 的 BACKEND_URL 一致
-const BACKEND_URL = (process.env.BACKEND_URL
-  || (process.env.NODE_ENV === 'production' ? 'http://neo-blog-backend:8888' : 'http://localhost:8888')).replace(/\/+$/, '')
-
-/**
- * 每个请求都会 new 一个处理器，跨请求的状态放在 globalThis 上
- * @typedef {{
- *   started: boolean,
- *   ready: Promise<void>,
- *   redis: Redis | null,
- *   prefix: string,
- *   buildId: string,
- *   versions: Record<string, string> | null,
- *   pending: Map<string, { versions: Record<string, string> | null, at: number }>,
- *   expiredAt: Map<string, number>,
- *   lastErrorAt: number,
- * }} HandlerState
- */
-const STATE_KEY = Symbol.for('neo-blog.cache-handler')
-
-/** @returns {HandlerState} 本进程共用的状态 */
-function state() {
-  const holder = /** @type {Record<symbol, HandlerState | undefined>} */ (/** @type {unknown} */ (globalThis))
-  holder[STATE_KEY] ??= {
-    started: false,
-    ready: Promise.resolve(),
-    redis: null,
-    prefix: process.env.REDIS_KEY_PREFIX || DEFAULT_REDIS_PREFIX,
-    buildId: '',
-    // 后端各标签的最新版本号；还没取到时为 null，此时不按版本号判断
-    versions: null,
-    // 读取时记下的版本号，写入同一个键时用它（见 set）
-    pending: new Map(),
-    // revalidateTag 的失效时间
-    expiredAt: new Map(),
-    lastErrorAt: 0,
-  }
-  return holder[STATE_KEY]
-}
-
-/** @param {unknown} err */
-function logError(err) {
-  const s = state()
-  if (Date.now() - s.lastErrorAt < ERROR_LOG_INTERVAL_MS)
-    return
-  s.lastErrorAt = Date.now()
-  console.warn('[cache-handler]', err instanceof Error ? err.message : err)
-}
+// 构建号：Redis 里的页面键带上它，滚动更新期间新旧版本共用一个 Redis，旧版本生成的页面引用的是旧的 JS 文件，不能给新版本用
+let buildId = ''
 
 /**
- * 读后端的标签版本号。不用全局 fetch：Next 会改写它并接入请求级缓存，轮询不在任何请求里
- * @returns {Promise<Record<string, string>>} 标签 → 版本号（从未变化过的标签不在里面）
- */
-function fetchTagVersions() {
-  const url = new URL(`${BACKEND_URL}/api/v1/misc/cache-tags`)
-  const client = url.protocol === 'https:' ? https : http
-  return new Promise((resolve, reject) => {
-    const req = client.get(url, { timeout: REQUEST_TIMEOUT_MS }, (res) => {
-      let body = ''
-      res.setEncoding('utf8')
-      res.on('data', (chunk) => {
-        body += chunk
-      })
-      res.on('end', () => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`GET /misc/cache-tags: HTTP ${res.statusCode}`))
-          return
-        }
-        try {
-          resolve(JSON.parse(body)?.data?.tags ?? {})
-        }
-        catch (err) {
-          reject(err)
-        }
-      })
-    })
-    req.on('timeout', () => req.destroy(new Error('GET /misc/cache-tags: timeout')))
-    req.on('error', reject)
-  })
-}
-
-function expiredTagsKey() {
-  return `${state().prefix}next_cache:expired_tags`
-}
-
-/** 读一次后端的版本号；配置了 Redis 时顺带读其他副本 revalidateTag 的失效时间 */
-async function syncOnce() {
-  const s = state()
-  try {
-    s.versions = await fetchTagVersions()
-  }
-  catch (err) {
-    // 取不到时沿用上一次的版本号，条目最多按各自的 revalidate 过期
-    logError(err)
-  }
-  if (s.redis) {
-    try {
-      const shared = await s.redis.hgetall(expiredTagsKey())
-      for (const [tag, at] of Object.entries(shared)) {
-        if (Number(at) > (s.expiredAt.get(tag) ?? 0))
-          s.expiredAt.set(tag, Number(at))
-      }
-    }
-    catch (err) {
-      logError(err)
-    }
-  }
-  const now = Date.now()
-  for (const [key, pending] of s.pending) {
-    if (now - pending.at > PENDING_TTL_MS)
-      s.pending.delete(key)
-  }
-}
-
-/** @param {{ serverDistDir?: string }} ctx */
-function start(ctx) {
-  const s = state()
-  if (s.started)
-    return
-  s.started = true
-  // 构建期：不轮询、不连 Redis（镜像构建时连不上后端），与 Next 自带的缓存相同
-  if (process.env.NEXT_PHASE === 'phase-production-build')
-    return
-  try {
-    s.buildId = ctx.serverDistDir ? readFileSync(path.join(ctx.serverDistDir, '..', 'BUILD_ID'), 'utf8').trim() : ''
-  }
-  catch {
-    s.buildId = ''
-  }
-  const url = process.env.REDIS_URL
-  if (url) {
-    // 连不上 Redis 时不影响页面：读取当作没有缓存、写入丢弃，限频记日志
-    s.redis = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1, enableOfflineQueue: false, commandTimeout: 1000 })
-    s.redis.on('error', logError)
-  }
-  const first = (s.redis ? s.redis.connect().catch(logError) : Promise.resolve()).then(syncOnce)
-  s.ready = Promise.race([first, new Promise(resolve => setTimeout(resolve, FIRST_SYNC_TIMEOUT_MS).unref())]).then(() => {})
-  first.finally(() => {
-    const timer = setInterval(() => {
-      void syncOnce()
-    }, SYNC_INTERVAL_MS)
-    timer.unref()
-  })
-}
-
-/**
- * 条目自己的标签：取数结果是保存时的标签，页面与路由是生成时汇总的标签
+ * 条目自己的标签：取数结果（FETCH，Cache Components 下已不用）是保存时的标签，页面与路由是生成时汇总的标签
  * @param {any} data
  * @returns {string[]} 标签列表
  */
@@ -210,50 +67,33 @@ function entryTags(data) {
  * @param {any} ctx
  */
 function isExpired(data, ctx) {
-  const s = state()
   const tags = entryTags(data)
-  if (s.versions) {
-    /** @type {Map<string, string>} */
-    const recorded = new Map()
-    for (const tag of tags) {
-      if (tag.startsWith(VERSION_TAG_PREFIX)) {
-        const rest = tag.slice(VERSION_TAG_PREFIX.length)
-        const sep = rest.indexOf(':')
-        recorded.set(rest.slice(0, sep), rest.slice(sep + 1))
-      }
-    }
-    // 没有记下版本号的（本功能上线前写入的）同样当作过期
-    for (const tag of tags) {
-      if (BACKEND_TAGS.includes(tag) && recorded.get(tag) !== (s.versions[tag] ?? ''))
-        return true
+  /** @type {Record<string, string>} */
+  const recorded = {}
+  for (const tag of tags) {
+    if (tag.startsWith(VERSION_TAG_PREFIX)) {
+      const rest = tag.slice(VERSION_TAG_PREFIX.length)
+      const sep = rest.indexOf(':')
+      recorded[rest.slice(0, sep)] = rest.slice(sep + 1)
     }
   }
-  if (s.expiredAt.size === 0)
-    return false
+  if (isVersionStale(tags, recorded))
+    return true
   const lastModified = typeof data.lastModified === 'number' ? data.lastModified : 0
   const all = data?.value?.kind === 'FETCH' ? [...tags, ...(ctx?.tags ?? []), ...(ctx?.softTags ?? [])] : tags
-  return all.some((tag) => {
-    const at = s.expiredAt.get(tag)
-    return at !== undefined && at > lastModified
-  })
+  return isTagExpiredSince(all, lastModified)
 }
 
 /**
- * 给要写入的条目记下版本号：用这个键上一次读取（缓存没命中或已过期，随后重新生成）时已知的版本号，
- * 而不是写入此刻的——生成期间才得知的修改，生成用的数据未必包含；记旧了只会让条目早一点过期
+ * 给要写入的条目记下版本号：用这个键上一次读取（缓存没命中或已过期，随后重新生成）时已知的版本号
  * @param {string} key
  * @param {string[]} tags 条目自己的标签
  * @returns {string[]} 加上版本号标签后的标签
  */
 function withVersionTags(key, tags) {
-  const s = state()
-  const pending = s.pending.get(key)
-  s.pending.delete(key)
-  const versions = pending && Date.now() - pending.at <= PENDING_TTL_MS ? pending.versions : s.versions
   const plain = tags.filter(tag => !tag.startsWith(VERSION_TAG_PREFIX))
-  const backend = plain.filter(tag => BACKEND_TAGS.includes(tag))
-  // 还不知道版本号（后端一直没连上）时记为「?」：之后取到版本号就会过期
-  return [...plain, ...backend.map(tag => `${VERSION_TAG_PREFIX}${tag}:${versions ? (versions[tag] ?? '') : '?'}`)]
+  const versions = versionsForWrite(PENDING_PREFIX + key, plain)
+  return [...plain, ...Object.entries(versions).map(([tag, version]) => `${VERSION_TAG_PREFIX}${tag}:${version}`)]
 }
 
 /**
@@ -269,10 +109,25 @@ function stampVersions(key, data, ctx) {
     return { data: { ...data, tags }, ctx: { ...ctx, tags } }
   }
   const header = data?.headers?.[CACHE_TAGS_HEADER]
-  if (typeof header !== 'string' || !header)
+  if (typeof header !== 'string' || !header) {
+    forgetRead(PENDING_PREFIX + key)
     return { data, ctx }
+  }
   const tags = withVersionTags(key, header.split(','))
   return { data: { ...data, headers: { ...data.headers, [CACHE_TAGS_HEADER]: tags.join(',') } }, ctx }
+}
+
+/**
+ * 不写进缓存的页面：404（不存在的地址可以随手拼出无数个），以及用到了「不存在」取数结果的页面（见 src/lib/cache-tags.ts 的 CacheTag.NoStore）
+ * @param {any} data
+ */
+function shouldSkip(data) {
+  if (data?.kind !== 'APP_PAGE')
+    return false
+  if (data.status === 404)
+    return true
+  const header = data.headers?.[CACHE_TAGS_HEADER]
+  return typeof header === 'string' && header.split(',').includes(NO_STORE_TAG)
 }
 
 // Redis 里的条目是 gzip 压缩的 JSON（文章页每种语言一条约 500 KB，压缩后约 180 KB，解压不到 1 毫秒）：
@@ -300,9 +155,7 @@ function reviver(_key, value) {
 
 /** @param {string} key */
 function entryKey(key) {
-  const s = state()
-  // 带上构建号：滚动更新期间新旧版本共用一个 Redis，旧版本生成的页面引用的是旧的 JS 文件，不能给新版本用
-  return `${s.prefix}next_cache:${s.buildId}:${key}`
+  return `${tagState().prefix}next_cache:${buildId}:${key}`
 }
 
 /** @param {any} data @param {any} ctx */
@@ -317,17 +170,23 @@ export default class NeoCacheHandler extends FileSystemCache {
   /** @param {any} ctx */
   constructor(ctx) {
     super(ctx)
-    start(ctx)
+    startTagSync()
+    if (!buildId && !isBuildPhase) {
+      try {
+        buildId = ctx.serverDistDir ? readFileSync(path.join(ctx.serverDistDir, '..', 'BUILD_ID'), 'utf8').trim() : ''
+      }
+      catch {
+        buildId = ''
+      }
+    }
   }
 
   /** @param {string} key @param {any} ctx */
   async get(key, ctx) {
-    const s = state()
+    const s = tagState()
     await s.ready
-    // 记下此刻已知的版本号，这个键接下来重新生成并写入时用（同一个键在一次生成期间可能被读多次，保留最早的那次）
-    const pending = s.pending.get(key)
-    if (!pending || Date.now() - pending.at > PENDING_TTL_MS)
-      s.pending.set(key, { versions: s.versions, at: Date.now() })
+    // 记下此刻已知的版本号，这个键接下来重新生成并写入时用
+    rememberRead(PENDING_PREFIX + key)
     let data = null
     if (s.redis) {
       try {
@@ -352,13 +211,13 @@ export default class NeoCacheHandler extends FileSystemCache {
   /** @param {string} key @param {any} data @param {any} ctx */
   async set(key, data, ctx) {
     // 404 页面不缓存：不存在的地址可以随手拼出无数个，缓存它们会让条目（文件系统模式下是 .next 里的文件）无限增长；
-    // 每次照常渲染、向后端确认（不存在的数据同样不进取数缓存，见 src/lib/cache-tags.ts 的 UncachedNotFound）
-    if (data?.kind === 'APP_PAGE' && data.status === 404) {
-      state().pending.delete(key)
+    // 每次照常渲染、向后端确认（不存在的数据同样不进取数缓存，见 src/lib/cache-tags.ts 的 CacheTag.NoStore）
+    if (shouldSkip(data)) {
+      forgetRead(PENDING_PREFIX + key)
       return
     }
     const stamped = stampVersions(key, data, ctx)
-    const s = state()
+    const s = tagState()
     if (!s.redis)
       return super.set(key, stamped.data, stamped.ctx)
     try {
@@ -389,18 +248,6 @@ export default class NeoCacheHandler extends FileSystemCache {
     await super.revalidateTag(tags, durations)
     if (durations?.expire)
       return
-    const list = typeof tags === 'string' ? [tags] : tags
-    const s = state()
-    const now = Date.now()
-    for (const tag of list)
-      s.expiredAt.set(tag, now)
-    if (s.redis && list.length > 0) {
-      try {
-        await s.redis.hset(expiredTagsKey(), ...list.flatMap(tag => [tag, String(now)]))
-      }
-      catch (err) {
-        logError(err)
-      }
-    }
+    await expireTags(typeof tags === 'string' ? [tags] : tags)
   }
 }

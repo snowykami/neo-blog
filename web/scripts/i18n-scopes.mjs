@@ -105,10 +105,11 @@ export function segmentDir(segment) {
 export const CONFIG_KEYS_FILE = join(SRC_ROOT, 'locales', 'config-keys.generated.json')
 
 /**
- * 这些作用域的 layout 是手写的，生成器只写清单、不覆盖文件：
- * 要带上页面外壳的；以及要在 loading.tsx 的骨架流出之前判定 404 / 跳转的动态页（文章、用户、分类，见各自的 layout.tsx）
+ * 这些作用域的 layout 是手写的，生成器只写清单、不覆盖文件：要带上页面外壳的。
+ * 文章、用户、分类页的 404 / 跳转改在页面里判定（迁到 Cache Components 后 layout 不能读地址参数，否则 App Shell 里没有骨架），
+ * 它们的 layout 回到生成的写法
  */
-export const MANUAL_SCOPE_DIRS = new Set(['', '(main)', '(player)', 'console', 'auth', '(main)/p/[id]', '(main)/u/[username]', '(main)/c/[slug]'])
+export const MANUAL_SCOPE_DIRS = new Set(['', '(main)', '(player)', 'console', 'auth'])
 
 /**
  * 键表：只放文案键的数据文件，导入它的组件用 `t(变量)` 取其中的键。
@@ -309,10 +310,17 @@ export type I18nScope = keyof typeof SCOPES
 
 function scopeLayoutSource(dir) {
   const key = scopeKey(dir)
+  // 后台按请求渲染、不做即时导航校验（见 app/[locale]/console/layout.tsx），下面各层同样声明，否则开发时每个后台页面都提示「无法校验」
+  const instant = dir.startsWith('console/')
+    ? `
+// 后台按请求渲染，不做即时导航校验（见 app/[locale]/console/layout.tsx）
+export const instant = false
+`
+    : ''
   return `// 由 pnpm i18n:scopes 生成，请勿手改
 // 只为这一层子树准备它用到的文案，避免整份语言表随页面下发（见 src/components/i18n-scope.tsx）
 import { I18nScope as I18nScopeProvider } from '@/components/i18n-scope'
-
+${instant}
 export default function Layout({ children }: { children: React.ReactNode }) {
   return <I18nScopeProvider scope="${key}">{children}</I18nScopeProvider>
 }

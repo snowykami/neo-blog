@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
 import { cn } from '@/lib/utils'
+import { getVisibleElementById } from '@/utils/client/dom'
 import './content-image-viewer.scss'
 
 export interface ViewerImage {
@@ -43,7 +44,7 @@ export function ContentImageViewer({ containerId }: { containerId: string }) {
 
   // 点击正文图片打开预览，链接内的图片保持原有跳转
   useEffect(() => {
-    const container = document.getElementById(containerId)
+    const container = getVisibleElementById(containerId)
     if (!container)
       return
     const onClick = (event: MouseEvent) => {
