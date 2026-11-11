@@ -12,6 +12,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 // envelope 按 SDK 的格式拼一个信封：信封头一行，之后每个条目为条目头与内容
@@ -238,5 +239,54 @@ func TestFirstAppFunction(t *testing.T) {
 	}
 	if got := firstAppFunction("/usr/local/go/src/runtime/panic.go:12 (0x1)\n\tgopanic: x\n"); got != "" {
 		t.Fatalf("no app frame: %q", got)
+	}
+}
+
+// 公开上报的量级上限：一次上报最多处理几条事件；每小时新建问题数有上限，已有问题照常累计；现场超出上限时丢次要字段
+func TestErrorEnvelopeCaps(t *testing.T) {
+	_, admin, _, _, _ := setupEditTest(t)
+	svc := NewErrorReportService()
+	client := ErrorReportClient{IP: "10.9.9.9", UserAgent: testChromeUA}
+
+	items := make([]any, 0, errorEventsPerEnvelope+3)
+	for i := 0; i < errorEventsPerEnvelope+3; i++ {
+		items = append(items, browserError("", fmt.Sprintf("capped %d", i), fmt.Sprintf("capFn%d", i)))
+	}
+	if svcerr := svc.IngestEnvelope(admin, envelope(t, items...), client); svcerr != nil {
+		t.Fatalf("ingest: %v", svcerr)
+	}
+	_, total, _ := svc.ListIssues(context.Background(), &dto.ListErrorIssuesReq{})
+	if total != errorEventsPerEnvelope {
+		t.Fatalf("issues after one envelope = %d, want %d", total, errorEventsPerEnvelope)
+	}
+
+	// 本小时新建问题的名额用完：新的指纹不再建问题，已有的问题照常累计
+	key := fmt.Sprintf("error_report_new_issues:%d", time.Now().Truncate(time.Hour).Unix())
+	for i := 0; i < errorNewIssuesPerHour; i++ {
+		_, _ = sharedstate.Current().Incr(key, time.Hour)
+	}
+	_ = svc.IngestEnvelope(admin, envelope(t, browserError("", "brand new", "brandNewFn")), ErrorReportClient{IP: "10.9.9.10", UserAgent: testChromeUA})
+	_ = svc.IngestEnvelope(admin, envelope(t, browserError("", "capped 0", "capFn0")), ErrorReportClient{IP: "10.9.9.11", UserAgent: testChromeUA})
+	issues, total, _ := svc.ListIssues(context.Background(), &dto.ListErrorIssuesReq{})
+	if total != errorEventsPerEnvelope {
+		t.Fatalf("new issue should be dropped after the hourly cap, total = %d", total)
+	}
+	counted := false
+	for _, issue := range issues {
+		if issue.Count == 2 {
+			counted = true
+		}
+	}
+	if !counted {
+		t.Fatal("existing issue should still be counted after the hourly cap")
+	}
+
+	// 现场过大时先丢自定义数据，异常保留
+	detail := capErrorDetail(map[string]any{"exception": []string{"boom"}, "extra": strings.Repeat("x", 1000)}, 200)
+	if _, ok := detail["extra"]; ok {
+		t.Fatal("extra should be dropped when detail is too large")
+	}
+	if _, ok := detail["exception"]; !ok {
+		t.Fatal("exception should be kept")
 	}
 }

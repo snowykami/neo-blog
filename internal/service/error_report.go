@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -35,7 +36,11 @@ import (
 const (
 	errorReportRateLimit       = 30 // 每个 IP 每分钟最多上报次数
 	errorReportRateWindow      = time.Minute
-	errorEventsPerIssuePerHour = 10 // 每个问题每小时最多保存的完整事件数
+	errorReportHourlyLimit     = 300      // 每个 IP 每小时最多上报次数（每分钟的限制挡突发，这里挡持续刷）
+	errorEventsPerEnvelope     = 5        // 一次上报最多处理的事件数，其余丢弃
+	errorNewIssuesPerHour      = 100      // 公开上报每小时最多新建的问题数（全站合计）：任何人都能编出无数个新指纹
+	errorDetailLimit           = 32 << 10 // 一条事件保存的现场（JSON）上限，超出时按次要程度丢弃部分字段
+	errorEventsPerIssuePerHour = 10       // 每个问题每小时最多保存的完整事件数
 	errorBreadcrumbLimit       = 50
 	errorFrameLimit            = 60 // 每个异常最多保存的调用栈帧数（保留出错处附近的）
 	errorExceptionLimit        = 5
@@ -81,12 +86,16 @@ func (s *ErrorReportService) IngestEnvelope(ctx context.Context, body []byte, cl
 	if !tools.GetErrorReportEnabled() {
 		return nil
 	}
-	if !utils.AllowRequest("error_report:"+client.IP, errorReportRateLimit, errorReportRateWindow) {
+	if !utils.AllowRequest("error_report:"+client.IP, errorReportRateLimit, errorReportRateWindow) ||
+		!utils.AllowRequest("error_report_hour:"+client.IP, errorReportHourlyLimit, time.Hour) {
 		return errs.NewTooManyRequests("too_many_requests")
 	}
 	events, err := parseSentryEnvelope(body)
 	if err != nil {
 		return errs.NewBadRequest("invalid_request_parameters")
+	}
+	if len(events) > errorEventsPerEnvelope {
+		events = events[:errorEventsPerEnvelope]
 	}
 	// 爬虫与自动化工具执行脚本时的报错没有排查价值
 	if utils.ParseUA(client.UserAgent).DeviceType == utils.DeviceBot {
@@ -95,6 +104,9 @@ func (s *ErrorReportService) IngestEnvelope(ctx context.Context, body []byte, cl
 	now := time.Now()
 	for i := range events {
 		report := reportFromSentry(&events[i], client.UserAgent, now)
+		if !allowNewIssue(report) {
+			continue
+		}
 		if err := s.record(ctx, report, client); err != nil {
 			logrus.Warnf("record error report failed: %v", err)
 		}
@@ -213,8 +225,32 @@ func reportFromSentry(event *sentryEvent, userAgent string, now time.Time) *erro
 	if event.Environment != "" {
 		detail["environment"] = event.Environment
 	}
-	report.Detail = detail
+	report.Detail = capErrorDetail(detail, errorDetailLimit)
 	return report
+}
+
+// allowNewIssue 公开上报（浏览器、Next 服务端经 envelope 上报）新建问题的全站上限：已有的问题照常累计；
+// 计数出错时放行。Go 后端自身的错误不经过这里，不会被刷出来的新问题挤掉
+func allowNewIssue(report *errorReport) bool {
+	exists, err := repo.ErrorReport.IssueExists(errorFingerprint(report))
+	if err != nil || exists {
+		return true
+	}
+	hour := report.At.Truncate(time.Hour).Unix()
+	created, err := sharedstate.Current().Incr(fmt.Sprintf("error_report_new_issues:%d", hour), time.Hour)
+	return err != nil || created <= errorNewIssuesPerHour
+}
+
+// capErrorDetail 现场超出上限时按次要程度依次丢弃字段（自定义数据、标签、上下文、面包屑、SDK 信息），保留异常本身
+func capErrorDetail(detail map[string]any, limit int) map[string]any {
+	for _, key := range []string{"extra", "tags", "contexts", "breadcrumbs", "sdk"} {
+		data, err := json.Marshal(detail)
+		if err != nil || len(data) <= limit {
+			return detail
+		}
+		delete(detail, key)
+	}
+	return detail
 }
 
 // record 累计到问题，并在未超出每小时的保存上限时保存这次现场

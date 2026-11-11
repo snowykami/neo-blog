@@ -156,10 +156,14 @@ export async function symbolicateServerFrames(frames: Frame[]) {
   }))
 }
 
-/** 还原一条错误事件中全部异常的调用栈 */
+// 上报内容来自公开接口：一次只还原有限的事件与帧，避免被构造的超长调用栈占满 CPU（后端保存时也只留这么多，见 errorFrameLimit / errorEventsPerEnvelope）
+const MAX_EVENTS = 5
+const MAX_FRAMES_PER_EXCEPTION = 60
+
+/** 还原一条错误事件中全部异常的调用栈：每个异常只还原最靠近出错处的帧（Sentry 的帧按调用顺序排列，出错处在末尾） */
 async function symbolicateEvent(event: { exception?: { values?: { stacktrace?: { frames?: Frame[] } }[] } }) {
   const index = await loadIndex()
-  const frames = (event.exception?.values ?? []).flatMap(value => value.stacktrace?.frames ?? [])
+  const frames = (event.exception?.values ?? []).flatMap(value => (value.stacktrace?.frames ?? []).slice(-MAX_FRAMES_PER_EXCEPTION))
   await Promise.all(frames.map(frame => symbolicateFrame(frame, index)))
 }
 
@@ -174,6 +178,7 @@ export async function symbolicateEnvelope(body: string): Promise<string> {
     return body
   const out: string[] = [buffer.subarray(0, offset).toString('utf8')]
   offset++
+  let events = 0
   while (offset < buffer.length) {
     let end = buffer.indexOf(0x0A, offset)
     if (end < 0)
@@ -202,7 +207,8 @@ export async function symbolicateEnvelope(body: string): Promise<string> {
       continue
     }
     const event = JSON.parse(payload.toString('utf8'))
-    await symbolicateEvent(event)
+    if (events++ < MAX_EVENTS)
+      await symbolicateEvent(event)
     delete header.length
     out.push(JSON.stringify(header), JSON.stringify(event))
   }

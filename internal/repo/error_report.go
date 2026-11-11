@@ -43,6 +43,13 @@ func (r *errorReportRepo) UpsertIssue(issue *model.ErrorIssue) (*model.ErrorIssu
 	return &saved, nil
 }
 
+// IssueExists 指纹对应的问题是否已经存在（新建问题的数量有上限，见 service 的 errorNewIssuesPerHour）
+func (r *errorReportRepo) IssueExists(fingerprint string) (bool, error) {
+	var count int64
+	err := GetDB().Model(&model.ErrorIssue{}).Where("fingerprint = ?", fingerprint).Limit(1).Count(&count).Error
+	return count > 0, err
+}
+
 func (r *errorReportRepo) CreateEvent(event *model.ErrorEvent) error {
 	return GetDB().Omit("User").Create(event).Error
 }
