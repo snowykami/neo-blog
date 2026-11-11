@@ -1,7 +1,8 @@
 ## 功能
 
 - [x] 支持 AI 预算管理，AI调用统计，Token输入输出，缓存写入缓存读取
-- [ ] 支持 AI 生成文章，AI 生成文章摘要，AI 生成文章标题，AI 生成文章标签
+- [x] 支持 AI 生成文章（编辑器帮写 / 润色）、AI 生成文章摘要
+- [ ] 支持 AI 生成文章标题、文章标签
 - [ ] 全套可观测支持，指标/链路/日志。
 
 ## 优化方向
@@ -10,7 +11,7 @@
 - [ ] 博客AI编辑优化，去AI味
 - [x] i18n 按命名空间拆分（NextIntlClientProvider 只传当前页用到的命名空间）→ 首屏省约 65 KB gzip，RSC 导航省约 55 KB gzip。收益最大、改动集中在一处。
 - [x] 歌词字体的 CSS 移出全局图（改成 MusicLyricStage 内部动态 import，或者干脆用 <link> 按需插）→ 每页省 486 KB CSS 解析、约 130 KB 传输。
-- [ ] motion 从 layout 摘掉（导航/灵动岛改 CSS 过渡）→ 每页省 374 KB JS 解析。
+- [x] ~~motion 从 layout 摘掉（导航/灵动岛改 CSS 过渡）~~ → 改为 LazyMotion 瘦身（首屏 motion 138 KB → 46 KB），见下方「其他」中的 motion 条目
 - [x] zod 从客户端共享 chunk 里剔除（侧栏运行时不再引组件注册表）→ 首页 JS −39 KB 传输 / −132 KB 解析。
 - [ ] meilisearch 可选支持:针对多种权限生成租户令牌
 
@@ -109,18 +110,25 @@
 
 ### 第六批：打磨、可访问性、i18n 与清理
 
-- [ ] 「站点语言」说明与行为不符（现只影响 RSS 与系统邮件）、选项无文案、`default_language` 无人读；改完同步文档站
-- [ ] i18n：ko `'{title}'` 被 ICU 转义；en / ja / ko 的 `comment_replied` 缺 `{quoted}`；补按 ICU 解析比对各语言参数的测试；AI 运行跳过原因缺文案；硬编码英文（`No Content`、`Toggle Sidebar`、配色名 `BLUE`、元信息兜底等）
-- [ ] 可访问性：正文注释与链接悬停卡片键盘不可达；登录页「以当前账号继续」/ 登出是 div / svg 点击；首页 Tab 先聚焦悬浮播放器；未读点、@ 候选、上传占位、预览 iframe 缺 aria / title
-- [ ] 对比度：卡片统计数字 `text-foreground/30`（约 1.9:1）、元信息 `/50`、版权卡 `dt`
-- [ ] 双十一节日主题点赞与评论都换成礼物图标，分不清
-- [ ] 评论默认公开浏览器与系统信息且 macOS 版本固定为 10.15.7
-- [ ] 手机后台表格（评论、用户）操作列在屏幕外
-- [ ] 文案与小交互：通知设置「即时生效」与「保存设置」矛盾；登录页无第三方时仍有分隔线；0 条评论显示「没有更多了!」；空通知时「全部标为已读」可点；标签页显示 0 篇文章的标签且重复一份标签云；行内代码两侧反引号；分享图加载空白；评论管理「目标」列显示 `post #6`；英文「Hottest」；快捷键提示固定 ⌘；后台日期数字不跟界面语言
-- [ ] 站点图标存绝对地址，换域名失效
-- [ ] 死代码与依赖：`@snowykami/use-async-task`、`@uidotdev/usehooks` 无引用；无人引用的文件与导出（含不写 `logged_in` 的 `ctxutils.SetTokenCookie`）；`PUT /misc/public-config` 可写任意键且前端未用；`h-100vh` 不是有效类名
-- [ ] TODO.md 自身：「AI 摘要」已做未勾；两条 motion 条目状态矛盾；引用了不进 git 的本地笔记
-- [ ] 其余低优先级见四份审查报告（迁移 2026110901 用了会变的常量、点赞通知自然日分组 SQL 与 Go 不一致、邮件退订凭据 72 小时、通知 / 投递列表 size 无上限、`ToggleLike` 读整篇文章等）
+- [x] 「站点语言」说明与行为不符（现只影响 RSS 与系统邮件）、选项无文案、`default_language` 无人读；改完同步文档站（仍用于 RSS 与验证码邮件，保留配置，改正说明与选项文案；site-info 不再返回该字段）
+- [x] i18n：ko `'{title}'` 被 ICU 转义；en / ja / ko 的 `comment_replied` 缺 `{quoted}`；补按 ICU 解析比对各语言参数的测试；AI 运行跳过原因缺文案；硬编码英文（`No Content`、`Toggle Sidebar`、配色名 `BLUE`、元信息兜底等）（新增 placeholders.test.ts 按 ICU 比对各语言参数；跳过原因文案前几批已补）
+- [x] 可访问性：正文注释与链接悬停卡片键盘不可达；登录页「以当前账号继续」/ 登出是 div / svg 点击；首页 Tab 先聚焦悬浮播放器；未读点、@ 候选、上传占位、预览 iframe 缺 aria / title（播放器移到 DOM 末尾；注释 / 链接卡片支持 Tab、Enter、Esc）
+- [x] 对比度：卡片统计数字 `text-foreground/30`（约 1.9:1）、元信息 `/50`、版权卡 `dt`（统一改为 text-muted-foreground，明暗模式实测约 5.2:1 以上）
+- [x] 双十一节日主题点赞与评论都换成礼物图标，分不清（评论改为购物袋；同类的情人节、教师节、程序员节、国庆、儿童节、清明一并修复，测试断言三个图标互不相同）
+- [x] 评论默认公开浏览器与系统信息且 macOS 版本固定为 10.15.7（默认关闭「展示客户端信息」；冻结版本只显示系统名；管理员后台始终可见；旧评论未批量改为不公开）
+- [x] 手机后台表格（评论、用户）操作列在屏幕外（操作列 sticky 固定在右侧，所有后台表格统一）
+- [x] 文案与小交互：通知设置「即时生效」与「保存设置」矛盾；登录页无第三方时仍有分隔线；0 条评论显示「没有更多了!」；空通知时「全部标为已读」可点；标签页显示 0 篇文章的标签且重复一份标签云；行内代码两侧反引号；分享图加载空白；评论管理「目标」列显示 `post #6`；英文「Hottest」；快捷键提示固定 ⌘；后台日期数字不跟界面语言（⌘ 与 0 条评论、空通知已在前几批修复；目标列显示文章标题并链接）
+- [x] 站点图标存绝对地址，换域名失效（上传返回相对路径、写入时去掉本站域名、迁移 2026111170 转换已有数据；RSS 与结构化数据补成绝对地址）
+- [x] 死代码与依赖：`@snowykami/use-async-task`、`@uidotdev/usehooks` 无引用；无人引用的文件与导出（含不写 `logged_in` 的 `ctxutils.SetTokenCookie`）；`PUT /misc/public-config` 可写任意键且前端未用；`h-100vh` 不是有效类名（h-100vh 直接删除：换成 h-screen 会把长文固定为一屏高）
+- [x] TODO.md 自身：「AI 摘要」已做未勾；两条 motion 条目状态矛盾；引用了不进 git 的本地笔记（拆分 AI 生成条目并勾选已做部分；motion 条目以 LazyMotion 瘦身为准；去掉指向本地笔记的引用）
+- [x] 其余低优先级见四份审查报告（迁移 2026110901 用了会变的常量、点赞通知自然日分组 SQL 与 Go 不一致、邮件退订凭据 72 小时、通知 / 投递列表 size 无上限、`ToggleLike` 读整篇文章等）（退订凭据 180 天并加一键退订；列表 size 上限 50；点赞自然日分组统一；ToggleLike 只取标题与 slug；迁移 2026110901 测试改用字面量）
+- [x] AI 识图：全局配置「启用识图」（默认关闭，需支持视觉的模型），AI 摘要与 AI 用户读文章附带正文图片（每次最多 6 张、单张 4MB、合计 8MB），模型拒收时退回纯文本并 6 小时内不再发图；AI 写作不接入
+- [ ] 遗留：发布文章、新评论触发 AI 用户是进程内异步，滚动更新瞬间的事件可能丢失（需写库加补扫）
+- [ ] 遗留：已有评论的设备信息仍按旧默认公开（分不清是否评论者主动开启，未批量改）
+- [ ] 遗留：站点在升级前已换过域名时，旧域名下的站内文件链接不会被迁移改写
+- [ ] 遗留：已无引用的文案键（如 `FileSelector` 命名空间、`UserPage.user_not_found`）未清理；`pkg/constant` 的 `KeyDefaultLanguage` 等无引用常量
+- [ ] 遗留：歌词行按钮缺可读名称（第三方歌词引擎生成）；验证码输入框的 Label 关联；文章作者无法在前台删除自己文章下的评论；编辑器只读时拖入文件、IME 组字期间自动保存等
+- [ ] 待定：站点语言是否作为不带前缀地址的默认界面语言（影响路由、SEO 与缓存）
 
 ## 性能：让点击即开
 
@@ -189,7 +197,7 @@
 - [x] 点赞状态、编辑按钮、评论区放进客户端小块或 Suspense，正文保持所有人一致（阶段零 / 一已做完：编辑入口按浏览器里的登录用户判断，点赞状态由 `/like/status` 补，评论区在浏览器里取；本阶段核对无剩余，只把计数换成最新值，见下一条）
 - [x] 浏览量、点赞数：缓存里放快照，浏览器再补一次最新值（新增公开接口 `GET /post/p/:id/stats`，进入文章页取一次，统计行、点赞按钮与灵动岛、评论区标题共用这一次请求（`hooks/use-post-stats.ts`）；列表卡片仍是快照，不逐个请求）
 - [x] 多实例共用缓存：Redis cache handler，后端数据变更时按 cacheTag 失效（`web/cache-handler.mjs`：配置了 `REDIS_URL` 时条目存进 Redis（gzip，键带构建号），没配置时沿用 Next 的文件系统缓存。失效不靠后端推送：后端在文章 / 分类 / 标签、页面、用户、站点配置变化时换标签版本号（`internal/repo/cache_tag.go`），每个前端实例每 3 秒轮询 `GET /misc/cache-tags`；条目写入时记下当时的版本号、读取时比较，几个副本得知修改有先后也不会把旧内容当新的。不需要新的环境变量或 helm 配置）
-- [x] 全量开启 Cache Components + 局部预取（2026-11，Next 16.4.6，没等它变成默认）：`cacheComponents` + `partialPrefetching`；去掉全部 `dynamic` / `revalidate` 与 `unstable_cache`，取数改为 `'use cache'` + `cacheLife`（`site` / `detail` / `theme` 三档）+ `cacheTag`（标签名不变）。构建期仍不连后端：根参数 `[locale]` 与文章 / 用户 / 分类 / 页面 / `[...rest]` 的 `generateStaticParams` 只返回占位值 `_`（根布局直接 404），服务端取数入口构建期一律 404（`skipBackendAtBuild`），路由处理器用 `connection()` 按请求处理。404 / 308 的判定从 layout 挪进页面（loading 骨架里面），layout 不读地址参数，骨架成为同类页面共用的 App Shell；状态码仍是真的：语言参数从不在构建期生成，文档请求一律先整页生成再发送，生成期间的 `notFound()` / `permanentRedirect()` 照样设置状态码。首页、归档、分类页读查询参数的部分放进 Suspense，默认视图进取数缓存。缓存与失效：页面缓存仍走 `cache-handler.mjs`，`'use cache'` 走新增的 `use-cache-handler.mjs`（`cacheHandlers.default`：配 `REDIS_URL` 存 Redis，否则进程内 LRU），两边共用 `cache-tag-versions.mjs` 的版本号轮询；不存在的内容打 `neo-nostore` 标签、不写缓存。预取：视口只取 App Shell，悬停 / 按下仍由 `dynamicOnHover` 升级为按链接预取；文章页标签链接改为只取首页外壳。Activity（隐藏保留访问过的页面）下同 id 的正文可能并存，正文增强、目录、阅读进度改按「显示着的那份」找。后台按请求渲染（`connection()` + `instant = false`，同改前 `force-dynamic`）。抉择与细节见 docs/notes/perf-decisions.md「Cache Components 迁移」
+- [x] 全量开启 Cache Components + 局部预取（2026-11，Next 16.4.6，没等它变成默认）：`cacheComponents` + `partialPrefetching`；去掉全部 `dynamic` / `revalidate` 与 `unstable_cache`，取数改为 `'use cache'` + `cacheLife`（`site` / `detail` / `theme` 三档）+ `cacheTag`（标签名不变）。构建期仍不连后端：根参数 `[locale]` 与文章 / 用户 / 分类 / 页面 / `[...rest]` 的 `generateStaticParams` 只返回占位值 `_`（根布局直接 404），服务端取数入口构建期一律 404（`skipBackendAtBuild`），路由处理器用 `connection()` 按请求处理。404 / 308 的判定从 layout 挪进页面（loading 骨架里面），layout 不读地址参数，骨架成为同类页面共用的 App Shell；状态码仍是真的：语言参数从不在构建期生成，文档请求一律先整页生成再发送，生成期间的 `notFound()` / `permanentRedirect()` 照样设置状态码。首页、归档、分类页读查询参数的部分放进 Suspense，默认视图进取数缓存。缓存与失效：页面缓存仍走 `cache-handler.mjs`，`'use cache'` 走新增的 `use-cache-handler.mjs`（`cacheHandlers.default`：配 `REDIS_URL` 存 Redis，否则进程内 LRU），两边共用 `cache-tag-versions.mjs` 的版本号轮询；不存在的内容打 `neo-nostore` 标签、不写缓存。预取：视口只取 App Shell，悬停 / 按下仍由 `dynamicOnHover` 升级为按链接预取；文章页标签链接改为只取首页外壳。Activity（隐藏保留访问过的页面）下同 id 的正文可能并存，正文增强、目录、阅读进度改按「显示着的那份」找。后台按请求渲染（`connection()` + `instant = false`，同改前 `force-dynamic`）。
 - [ ] 预期：每次请求服务端再省 30～95ms，服务器负载下降（本机后端往返只有约 1ms：文章文档请求 10.0ms → 2.8ms（文件系统缓存）/ 5.6ms（Redis），用户页 5.5ms → 1.9ms，命中时不打后端；生产环境的毫秒数没有验证）
 - 验收（2026-11，生产构建（standalone）+ 本机后端的数据库副本，中间加计数代理统计后端请求；Redis 用 docker 起的 redis:7）：首页（6 个可见链接）加载的视口预取 12 个请求 → 7 个（每个 ISR 链接只取一次路由树，约 1 KB），预取引起的后端请求 6 次 → 0（冷缓存时每个链接第一次生成各 1 次）；文章 / 用户 / 页面第二次文档请求 `x-nextjs-cache: HIT`、0 次后端请求，`/en/p/x` 等其他语言第一次生成也不打后端（共用取数缓存）；`/p/{id}`、`/en/p/{id}` 308，不存在的文章 / 用户 / 页面 / 分类 404，链接页 307，与改前一致；后台改标题、私密化、删除、改站点名后前台更新用时 0.1～3.0 秒（轮询间隔 3 秒），私密化后两个副本交替请求不再出现 200；两个 Redis 实例：一个生成的页面另一个直接 HIT，取数缓存同样共用，文章页每种语言一条约 180 KB（gzip 后）；文章页统计行、点赞数、评论数在浏览器里换成了最新值（直接改库让快照与最新值不同来验证）；Chrome 模拟 150ms 往返：悬停后点击约 175ms、键盘回车约 795ms 出正文，与改前相同
 - 遗留：视口预取只取路由树，没有悬停的点击（键盘回车）不再先出骨架（已解决：Cache Components + 局部预取后视口预取取各路由共用的 App Shell，键盘回车 / 手机轻点 20～30ms 出骨架，见下方 Cache Components 的验收）。第一次生成（MISS）的 308 响应带两个相同的 `Location` 头（Next 的行为，命中缓存时只有一个，Chrome 正常跟随）。失效粒度只到数据种类：编辑器自动保存草稿也会让全部文章页在下次访问时各重新生成一次（与改前每次都渲染相比不更差）
@@ -210,7 +218,7 @@
 - [x] 后台链接悬停完整预取：`@/i18n/navigation` 的 Link 对 `/console` 地址也默认 `unstable_dynamicOnHover`。实测侧栏菜单的页面段都是静态的，悬停升级不多取东西（预取新鲜时悬停 11 个菜单 0 个请求，过期后 31 个，改前改后相同，后端 0 次），效果在 `[id]` 详情类链接上
 - [x] 数据保留上次结果、后台刷新：`hooks/use-console-query.ts`（模块级缓存，按用户 + 参数，最多 60 条，每次挂载都重新请求）；文章、页面、分类、标签、评论、用户、文件、看板、访问统计、访客、错误 11 个页面改用它。经 axiosClient 的非 GET 请求（含登录、登出，占用编辑会话除外）发出与完成时清空全部缓存，写操作期间取回的读结果不写回；`@snowykami/use-async-task` 没有清空缓存的接口，文章 / 文件列表也换掉（依赖没删）
 - [x] 编辑器入口：文章 / 页面列表「更多」菜单的「编辑」改成 `Link prefetch`（菜单打开即完整预取编辑器页面与 JS；页面的「编辑」原来是整页刷新的 `<a>`）；看板的编辑按钮不预取（改前每次进看板都下载编辑器 JS，并因 `[id]` 段是「可升级的回退外壳」每 2 秒重取 3 次，每次 92 KB）；顶栏 GitHub 链接改 `<a>`（交给 Link 时被当成站内 `/snowykami/neo-blog` 预取，每次进后台服务端白渲染一次 404）
-- [ ] 后台外壳静态化（`connection()` 挪进页面）：没做。后台内切换时 console layout 是共用段、不重新请求，静态化对切换没有收益；`[id]` 页要占位 `generateStaticParams` 才不 500，会按任意 id 生成页面缓存。只对从前台进后台、整页打开后台有用，见 docs/notes/perf-decisions.md「后台切换优化」
+- [ ] 后台外壳静态化（`connection()` 挪进页面）：没做。后台内切换时 console layout 是共用段、不重新请求，静态化对切换没有收益；`[id]` 页要占位 `generateStaticParams` 才不 500，会按任意 id 生成页面缓存。只对从前台进后台、整页打开后台有用
 - [ ] 重页面拆小（next/dynamic）：没做。除编辑器（约 600 KB gzip，本来就是独立路由）与文章预览（217 KB，在 iframe 里整页打开）外，各页面独有 JS 都在 140 KB gzip 以内，且随视口预取提前下载，切换时没有页面在等 JS；看板图表（recharts）在看板独有的 137 KB 里，拆出去反而让看板多等一次下载
 - 验收（2026-11，/tmp 副本生产构建（standalone）+ 后端数据库副本 + 计数代理，Chrome 模拟 150ms 往返，每项 3 轮，改前为 bb214a03；改后副本连不上 Google Fonts，next/font 换成空实现，仓库没改）：
   - 第一次切到某页：改前改后相同（预取新鲜 25～55ms 换页、190～220ms 出数据；过期直接点击 170～200ms 换页、340～410ms 出数据）
