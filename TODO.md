@@ -20,14 +20,15 @@
 
 ### 第一批：紧急（安全、崩溃、丢数据）
 
-- [ ] 公开评论列表泄露回复者邮箱：`ThreadUsers` 用了带邮箱的 `model.ToUserDtos`（`service/comment.go:315`），生产已实测
-- [ ] 通知 SSE 订阅中心竞态：解锁后才发送、取消订阅时 `close` 通道，交错时往已关闭通道发送导致 panic（`service/notification_hub.go`）；sharedstate 广播回调没有 recover
-- [ ] 编辑器打开含 githubRepo / postRef 组件块的文章卡死标签页（NodeView 请求返回后 setState 引发反复重建）
-- [ ] 编辑器丢内容：离开时正在保存则补存被跳过；Activity 重新显示时先出现空正文、可能被存为草稿并顶掉其他设备的会话；AI 面板打开期间屏蔽保存（待确认）
-- [ ] 定时任务与通知邮件 worker 没有 recover，一次 panic 打挂实例（`tasks/periodic.go`）
-- [ ] 删除用户不清理 `notifications` / `interaction_events`，Postgres 上撞 `actor_id` 外键（待确认）
-- [ ] 后台「认证源」页未配置 OIDC 时崩溃（接口返回 `null`，`oidc-manage.tsx:101/162`）
-- [ ] helm 默认值装不起来：前端请求 64 核 / 64Gi；JWT_SECRET 等为空时生产模式直接退出且只能写明文；镜像只推 `latest` 配 `IfNotPresent`，升级不滚动、无法回滚
+- [x] 公开评论列表泄露回复者邮箱：`ThreadUsers` 用了带邮箱的 `model.ToUserDtos`（`service/comment.go:315`），生产已实测
+- [x] 通知 SSE 订阅中心竞态：解锁后才发送、取消订阅时 `close` 通道，交错时往已关闭通道发送导致 panic（`service/notification_hub.go`）；sharedstate 广播回调没有 recover
+- [x] 编辑器打开含 githubRepo / postRef 组件块的文章卡死标签页（NodeView 请求返回后 setState 引发反复重建）
+- [x] 编辑器丢内容：离开时正在保存则补存被跳过；Activity 重新显示时先出现空正文、可能被存为草稿并顶掉其他设备的会话；AI 面板打开期间屏蔽保存（待确认）
+- [x] 定时任务与通知邮件 worker 没有 recover，一次 panic 打挂实例（`tasks/periodic.go`）
+- [x] 删除用户不清理 `notifications` / `interaction_events`，Postgres 上撞 `actor_id` 外键（待确认）
+- [x] 后台「认证源」页未配置 OIDC 时崩溃（接口返回 `null`，`oidc-manage.tsx:101/162`）
+- [x] helm 默认值装不起来：前端请求 64 核 / 64Gi；JWT_SECRET 等为空时生产模式直接退出且只能写明文；镜像只推 `latest` 配 `IfNotPresent`，升级不滚动、无法回滚
+- [x] 移动端登录后要刷新才有登录态：iOS Safari 把第三方登录小窗开成新标签页，回跳后与原页面失去关联；触屏设备改为整页跳转，页面回到前台时有登录标记而无登录态则自动重新拉取；头像菜单在 iOS 上轻点后一闪而过（焦点落回触发按钮被当成移出）一并修复
 
 ### 第二批：权限与隐私一致性
 
