@@ -1,7 +1,30 @@
+# 前端镜像（web/Dockerfile）的构建上下文：依赖与构建产物都在镜像里重新生成，不发送本地的副本
+
+# 依赖与构建产物
+node_modules
+.pnpm-store
+.next
+out
+build
+coverage
+*.tsbuildinfo
+next-env.d.ts
+# scripts/gen-webfonts.mjs 在构建时重新生成
+public/fonts
+
+# 本地环境变量（可能含密钥或本机专用开关；镜像构建需要的值通过 --build-arg 传入）
+.env*
+
+# 版本控制、编辑器与日志
+.git
+.vscode
+.idea
+**/.DS_Store
+npm-debug.log*
+.pnpm-debug.log*
+
+# Docker 自身与说明文档
 Dockerfile
 .dockerignore
-node_modules
-npm-debug.log
 README.md
-.next
-.git
+AGENTS.md

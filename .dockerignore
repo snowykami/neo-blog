@@ -1,0 +1,45 @@
+# 后端镜像（根目录 Dockerfile）的构建上下文：只需要 go.mod、go.sum 与 cmd/、internal/、pkg/ 下的 Go 源码和 go:embed 资源，
+# 其余目录不发送给 Docker，既缩小上下文、提高缓存命中，也避免本地的 .env、数据库与配置进入镜像构建层。
+# 前端镜像以 web/ 为上下文单独构建，规则见 web/.dockerignore
+
+# 版本控制与编辑器
+.git
+.gitignore
+.gitea
+.github
+.claude
+.idea
+.vscode
+**/.DS_Store
+
+# 前端、文档、部署与其他非 Go 内容（bench/ 是单独的 Go module）
+web
+docs
+helm
+bench
+image
+skills
+node_modules
+*.md
+LICENSE
+Makefile
+
+# 本地运行数据、配置与密钥（.env.example 只是示例，同样不需要）
+data
+configs
+.env
+.env.*
+**/*.pem
+
+# 构建与测试产物
+bin
+/server
+/main
+__debug_bin*
+**/*.test
+**/*.out
+**/coverage.*
+
+# Docker 自身
+Dockerfile
+.dockerignore

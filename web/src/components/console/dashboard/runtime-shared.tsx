@@ -1,18 +1,14 @@
 'use client'
 
 import type { useTranslations } from 'next-intl'
-import { JetBrains_Mono } from 'next/font/google'
 
 // 「系统运行」各部分共用的字体、格式与小组件
 
 /** 各实例上报、依赖服务采集的间隔 */
 export const REPORT_INTERVAL_SECONDS = 15
 
-export const jetBrainsMono = JetBrains_Mono({
-  variable: '--font-jet-mono',
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-})
+// 等宽字体（字体文件随仓库提供，见 src/fonts/jetbrains-mono.ts）
+export { jetBrainsMono } from '@/fonts/jetbrains-mono'
 
 /** 指标达到阈值时的级别：偏高 / 过高（将满） */
 export type Level = 'warning' | 'critical' | null

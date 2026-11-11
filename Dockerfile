@@ -1,4 +1,5 @@
 # build
+# Go 版本与 go.mod 的 toolchain 一致，升级 Go 时两处一起改
 FROM golang:1.26.10-alpine3.24 AS builder
 
 ENV TZ=Asia/Chongqing
@@ -16,7 +17,8 @@ COPY . .
 RUN go build -o server ./cmd/server
 
 # production
-FROM alpine:latest AS prod
+# 固定 Alpine 小版本（与构建阶段的 golang:*-alpine3.24 一致），避免 latest 跨大版本漂移；3.24 标签会跟随补丁版本更新
+FROM alpine:3.24 AS prod
 
 ENV TZ=Asia/Chongqing
 

@@ -1,12 +1,11 @@
 name: Test
 
 # 在完整检出上跑校验：前端镜像的构建上下文只有 web/，后端的配置表与 Go 测试只能在这里检查
+# 推送到 main 时由 build.yaml 先调用本工作流，测试通过后才构建并推送镜像，所以这里不再单独监听 push
 on:
-  push:
-    branches:
-      - main
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   web:

@@ -3,8 +3,12 @@
 # For Bun or yarn, refer to the Dockerfile.bun instead
 # -----------------------------------------------------------------------------
 
+# 基础镜像（构建与运行两个阶段共用）。默认是 Docker Hub 官方镜像；拉取 docker.io 慢或失败时，可以通过构建参数换成
+# 镜像站或私有仓库里的同一镜像，例如 --build-arg NODE_IMAGE=docker.m.daocloud.io/library/node:24-alpine
+ARG NODE_IMAGE=node:24-alpine
+
 # Use official Node image and pnpm
-FROM node:24-alpine AS builder
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 ARG PNPM_VERSION=10.23.0
 
@@ -27,16 +31,13 @@ ENV NEXT_PUBLIC_IMAGE_OPTIMIZE_HOSTS=${IMAGE_OPTIMIZE_HOSTS}
 RUN pnpm run lint && pnpm run build
 
 # production image
-FROM node:24-alpine AS runner
+# 运行时只执行 standalone 产物里的 node server.js，依赖已打包进 .next/standalone，不需要 pnpm
+FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
-ARG PNPM_VERSION=10.23.0
 
 ENV NODE_ENV=production \
   PORT=3000 \
   HOSTNAME="0.0.0.0"
-
-# enable corepack for pnpm in runner
-RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
 # create non-root user
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
@@ -47,11 +48,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # 浏览器代码的 source map（不在公开目录里），错误报告据此还原调用栈
 COPY --from=builder --chown=nextjs:nodejs /app/.next/sourcemaps ./.next/sourcemaps
-
-# (optional) install production deps if standalone didn't include them
-# COPY --from=builder /app/package.json ./package.json
-# COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
-# RUN pnpm install --prod --frozen-lockfile --reporter=silent
 
 USER nextjs
 

@@ -7,7 +7,12 @@ on:
   workflow_dispatch:
 
 jobs:
+  # 先跑测试（test.yaml），任一项失败都不构建、不推送镜像
+  test:
+    uses: ./.github/workflows/test.yaml
+
   build-and-push-frontend:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -34,8 +39,12 @@ jobs:
           build-args: |
             APP_VERSION=${{ github.sha }}
             IMAGE_OPTIMIZE_HOSTS=${{ vars.IMAGE_OPTIMIZE_HOSTS }}
+          # 构建缓存存在 GitHub Actions 缓存里，依赖没变时跳过 pnpm install；前后端用不同 scope，互不覆盖
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
 
   build-and-push-backend:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -58,3 +67,5 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-backend:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-backend:${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend

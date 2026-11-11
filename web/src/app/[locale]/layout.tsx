@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next'
 import { hasLocale } from 'next-intl'
-import { Inter, Source_Code_Pro } from 'next/font/google'
 import { notFound } from 'next/navigation'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { getCachedSiteInfo } from '@/api/misc.server'
@@ -18,6 +17,8 @@ import { MusicProvider } from '@/contexts/music-context'
 import { NavProvider } from '@/contexts/nav-context'
 import { SiteInfoProvider } from '@/contexts/site-info-context'
 import { ThemeProvider } from '@/contexts/theme-context'
+// 字体通过 CSS 变量注入，在 globals.css 的 @theme 中组合中文回退字体（font-sans / font-mono）；字体文件随仓库提供，见 src/fonts
+import { inter, sourceCodePro } from '@/fonts'
 import { routing } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
 import { themeAttributes, themeCssVars } from '@/themes'
@@ -25,19 +26,6 @@ import { getActiveTheme } from '@/themes/active-theme.server'
 import { themeInitScript } from '@/themes/init-script'
 import { safeMetadataBase } from '@/utils/common/siteinfo'
 import '@/app/globals.css'
-
-// 字体通过 CSS 变量注入，在 globals.css 的 @theme 中组合中文回退字体（font-sans / font-mono）
-const sourceCodePro = Source_Code_Pro({
-  variable: '--font-source-code-pro',
-  subsets: ['latin'],
-  display: 'swap',
-})
-
-const inter = Inter({
-  variable: '--font-inter',
-  subsets: ['latin'],
-  display: 'swap',
-})
 
 // 浏览器地址栏 / 状态栏颜色跟随系统明暗，与顶部导航卡片同色（暗色取默认色相下的 --card 近似值）
 export const viewport: Viewport = {
