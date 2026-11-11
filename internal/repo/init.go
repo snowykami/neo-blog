@@ -245,6 +245,7 @@ var models = []any{
 	&model.InteractionEvent{},
 	&model.Label{},
 	&model.Like{},
+	&model.LLMUsage{},
 	&model.LyricAnnotation{},
 	&model.LyricCache{},
 	&model.LyricSetting{},

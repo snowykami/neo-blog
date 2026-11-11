@@ -193,6 +193,8 @@ var sections = []*Section{
 		{Key: "ai_model", Type: TypeString, Label: "ai_model", Description: "ai_model_desc", Placeholder: "gpt-4o-mini / deepseek-chat", Default: ""},
 		{Key: "ai_api_key", Type: TypeSecret, Label: "ai_api_key", Description: "ai_api_key_desc", Wide: true, Default: ""},
 		{Key: "ai_summary_concurrency", Type: TypeInt, Label: "ai_summary_concurrency", Description: "ai_summary_concurrency_desc", Min: num(1), Max: num(20), Default: 3},
+		// 全站 AI 月度预算：摘要、写作、翻译、歌词标注等非 AI 用户的调用在本月全站用量（含 AI 用户）达到后被拒绝；默认 0 不限
+		{Key: "ai_monthly_token_budget", Type: TypeInt, Label: "ai_monthly_token_budget", Description: "ai_monthly_token_budget_desc", Min: num(0), Max: num(1e12), Default: 0},
 		{Key: "ai_writing_style", Type: TypeText, Label: "ai_writing_style", Description: "ai_writing_style_desc", PlaceholderKey: "ai_writing_style_placeholder", Rows: 6, Wide: true, Default: ""},
 		{Key: "lyric_annotation_ttl_days", Type: TypeInt, Label: "lyric_annotation_ttl_days", Description: "lyric_annotation_ttl_days_desc", Min: num(1), Max: num(365), Default: 7},
 	}},

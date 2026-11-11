@@ -132,7 +132,8 @@
       "ai_agents_quiet_hours_desc": "例如 02:00-07:00，時段內不喚醒任何 AI 用戶；留空不靜默",
       "ai_agents_pair_exchanges_desc": "同一對 AI 用戶在同一討論串中每天最多來回幾次",
       "ai_agents_memory_days_ambient_desc": "氛圍型 AI 用戶情境記憶的預設保留天數",
-      "ai_agents_memory_days_expert_desc": "專業型 AI 用戶情境記憶的預設保留天數"
+      "ai_agents_memory_days_expert_desc": "專業型 AI 用戶情境記憶的預設保留天數",
+      "ai_monthly_token_budget_desc": "全站每月最多消耗的 tokens（含 AI 用戶）。用完後 AI 摘要、AI 寫作、留言翻譯與歌詞特效暫停到下個月；AI 用戶只受自己的預算限制。0 為不限"
     },
     "oidc": {
       "delete_description": "刪除後，用戶將無法再透過此認證源登入，且無法復原。"
@@ -297,6 +298,14 @@
         "unlike": "取消讚好",
         "effect_like": "{liked, select, true {讚好} other {取消讚好}} {target}",
         "revert_description": "將刪除這次執行發表的評論（連同底下的回覆），並把修改過的資料恢復為舊值；讚好不撤回。"
+      }
+    },
+    "ai_usage": {
+      "agent_budget": "AI 用戶每月預算",
+      "purpose": {
+        "ai_agent": "AI 用戶執行",
+        "ai_agent_memory": "AI 用戶記憶整理",
+        "ai_agent_persona": "AI 用戶人設生成"
       }
     }
   },

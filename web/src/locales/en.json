@@ -1123,6 +1123,8 @@
       "hide_secret": "Hide",
       "ai_summary_concurrency": "AI concurrency",
       "ai_summary_concurrency_desc": "Maximum number of simultaneous model requests (1–20), shared by AI summaries and AI writing in the editor; extra requests queue in order, with AI writing served first",
+      "ai_monthly_token_budget": "Site-wide monthly token budget",
+      "ai_monthly_token_budget_desc": "Tokens the whole site may use per month (AI users included). Once used up, AI summaries, AI writing, comment translation and lyric effects pause until next month; AI users are limited only by their own budget. 0 means unlimited",
       "lyric_annotation_ttl_days": "Lyric effects lifetime (days)",
       "lyric_annotation_ttl_days_desc": "How long AI lyric effects are cached (1–365); after expiry readers keep seeing the old effects while new ones are generated in the background",
       "section_music": "Music player",
@@ -3074,6 +3076,40 @@
         "reverted_hint": "Comments and profile changes from this run have been reverted",
         "view_agent": "View persona"
       }
+    },
+    "ai_usage": {
+      "title": "AI usage",
+      "description": "Model calls across the site in {month}, by purpose (failed calls included)",
+      "description_loading": "Model calls across the site, by purpose",
+      "refresh": "Refresh",
+      "load_failed": "Failed to load AI usage",
+      "month_tokens": "Tokens this month",
+      "month_calls": "{count, plural, one {# call} other {# calls}}",
+      "site_budget": "Site monthly budget",
+      "agent_budget": "AI users monthly budget",
+      "unlimited": "Unlimited",
+      "empty": "No model calls this month yet",
+      "column_purpose": "Purpose",
+      "column_calls": "Calls",
+      "column_failed": "Failed",
+      "column_prompt": "Input",
+      "column_cached": "Cache hits",
+      "column_completion": "Output",
+      "column_total": "Total",
+      "trend_title": "Last 30 days",
+      "trend_tokens": "Tokens",
+      "trend_calls": "Calls",
+      "trend_empty": "No model calls in the last 30 days",
+      "purpose": {
+        "summary": "AI summary",
+        "writing": "AI writing",
+        "translation": "Comment translation",
+        "lyric_annotation": "Lyric effects",
+        "ai_agent": "AI user runs",
+        "ai_agent_memory": "AI user memory",
+        "ai_agent_persona": "AI user personas",
+        "other": "Other"
+      }
     }
   },
   "NotificationDelivery": {
@@ -3590,6 +3626,7 @@
       "ai_input_too_long": "Input is too long. Shorten the selection or prompt and try again",
       "ai_write_empty_selection": "The selection is empty",
       "ai_timeout": "AI response timed out",
+      "ai_budget_exceeded": "The site's AI budget for this month has been used up. Try again next month or contact the administrator",
       "ai_empty_response": "AI returned no content",
       "ai_interrupted": "Connection lost before generation finished",
       "ncm_invalid_api_url": "Invalid NetEase API URL; it must be an http(s) URL",

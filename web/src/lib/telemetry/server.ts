@@ -1,12 +1,15 @@
 import type { Instrumentation } from 'next'
 import process from 'node:process'
 import { BACKEND_URL } from '@/api/client'
+import { REQUEST_ID_HEADER, requestIdOf } from '@/lib/backend-proxy'
 import { symbolicateServerFrames } from './symbolicate'
 
 /**
  * Next.js 服务端的错误报告：服务端组件、路由处理函数、Server Action 中抛出的错误由 instrumentation.ts 的 onRequestError 交给这里，
  * 按 Sentry envelope 格式（platform 为 node，后端据此记为服务端错误）直接发给后端，不经过浏览器。
- * 读者的 IP、UA 与请求标识（DNT / GPC）随请求头转给后端，与浏览器上报一致；Cookie 只转发访客与登录凭据
+ * 读者的 IP、UA 与请求标识（DNT / GPC）随请求头转给后端，与浏览器上报一致；Cookie 只转发访客与登录凭据。
+ * 请求 ID：出错的请求带有合法的 X-Request-ID（前面的反向代理生成）时沿用，否则新生成；记在事件标签 request_id 里，
+ * 并作为这次上报请求的 X-Request-ID，后端访问日志里能找到对应的上报
  */
 
 const REPORT_TIMEOUT_MS = 3000
@@ -53,6 +56,7 @@ export async function reportServerError(...[error, request, context]: Parameters
   const digest = (err as Error & { digest?: string }).digest
   const eventId = crypto.randomUUID().replaceAll('-', '')
   const userAgent = header(request.headers, 'user-agent') ?? ''
+  const requestId = requestIdOf(header(request.headers, REQUEST_ID_HEADER))
   const frames = parseStack(err.stack)
   await symbolicateServerFrames(frames).catch(() => {})
   const event = {
@@ -63,12 +67,12 @@ export async function reportServerError(...[error, request, context]: Parameters
     release: process.env.NEXT_PUBLIC_APP_VERSION?.trim() || undefined,
     environment: process.env.NODE_ENV,
     exception: { values: [{ type: err.name, value: err.message, stacktrace: { frames } }] },
-    tags: { source: 'server', method: request.method, route_type: context.routeType, ...(digest && { digest }) },
+    tags: { source: 'server', method: request.method, route_type: context.routeType, request_id: requestId, ...(digest && { digest }) },
     request: { url: request.path, headers: { 'User-Agent': userAgent } },
     contexts: { next: { router_kind: context.routerKind, route_path: context.routePath, route_type: context.routeType, render_source: context.renderSource } },
   }
   const body = `${JSON.stringify({ event_id: eventId, sent_at: new Date().toISOString() })}\n${JSON.stringify({ type: 'event' })}\n${JSON.stringify(event)}\n`
-  const headers = new Headers({ 'content-type': 'text/plain;charset=UTF-8' })
+  const headers = new Headers({ 'content-type': 'text/plain;charset=UTF-8', [REQUEST_ID_HEADER]: requestId })
   for (const name of FORWARD_HEADERS) {
     const value = header(request.headers, name)
     if (value)

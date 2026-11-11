@@ -16,6 +16,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
@@ -111,6 +112,9 @@ func (s *CommentTranslateService) Translate(ctx context.Context, req *dto.Transl
 	if utf8.RuneCountInString(comment.Content) > commentTranslateMaxInputRune {
 		return nil, errs.NewBadRequest("ai_input_too_long")
 	}
+	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
+		return nil, svcerr
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, commentTranslateTimeout)
 	defer cancel()
@@ -184,6 +188,8 @@ func (s *CommentTranslateService) translate(ctx context.Context, cfg tools.AICon
 	}
 	defer s.limiter.release()
 	user := fmt.Sprintf("目标语言：%s（%s）\n\n<comment>\n%s\n</comment>", langName, targetLang, content)
+	userID, _ := ctxutils.GetCurrentUserID(ctx)
+	ctx = withLLMPurpose(ctx, constant.LLMPurposeTranslation, userID)
 	for attempt := 0; attempt < 2; attempt++ {
 		raw, err := s.complete(ctx, cfg, commentTranslateSystemPrompt, user)
 		if err != nil {
@@ -197,10 +203,14 @@ func (s *CommentTranslateService) translate(ctx context.Context, cfg tools.AICon
 	return "", "", errs.NewUnavailable("ai_translate_failed")
 }
 
-// commentTranslateError 超时与其他模型调用错误分别提示，具体原因只写日志
+// commentTranslateError 超时与其他模型调用错误分别提示，具体原因只写日志；业务错误（如全站 AI 预算已用完）原样返回
 func commentTranslateError(ctx context.Context, err error) *errs.ServiceError {
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return errs.NewUnavailable("ai_timeout")
+	}
+	var svcerr *errs.ServiceError
+	if errors.As(err, &svcerr) {
+		return svcerr
 	}
 	logrus.Warnf("comment translate failed: %v", err)
 	return errs.NewUnavailable("ai_translate_failed")

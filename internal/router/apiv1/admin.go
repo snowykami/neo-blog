@@ -63,5 +63,7 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.PUT("/errors/:id/status", adminController.UpdateErrorIssueStatus)
 		consoleGroup.DELETE("/errors/:id", adminController.DeleteErrorIssue)
 		consoleGroup.GET("/error-events/:id", adminController.GetErrorEvent)
+		// AI 用量：全站模型调用按用途的本月合计、近 30 天趋势与预算
+		consoleGroup.GET("/ai-usage", adminController.GetAIUsage)
 	}
 }

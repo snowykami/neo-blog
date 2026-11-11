@@ -1123,6 +1123,8 @@
       "hide_secret": "隐藏",
       "ai_summary_concurrency": "AI 并发数",
       "ai_summary_concurrency_desc": "同时调用模型的请求数上限（1～20），AI 摘要与编辑器 AI 写作共用；超出时排队依次执行，AI 写作优先",
+      "ai_monthly_token_budget": "全站每月 token 预算",
+      "ai_monthly_token_budget_desc": "全站每月最多消耗的 tokens（含 AI 用户）。用完后 AI 摘要、AI 写作、评论翻译与歌词特效暂停到下个月；AI 用户只受自己的预算限制。0 为不限",
       "lyric_annotation_ttl_days": "歌词特效有效期（天）",
       "lyric_annotation_ttl_days_desc": "AI 歌词特效的缓存天数（1～365）；过期后读者仍先看到旧特效，后台自动重新生成",
       "section_music": "音乐播放器",
@@ -3074,6 +3076,40 @@
         "reverted_hint": "这次运行产生的评论与资料修改已撤回",
         "view_agent": "查看性格设置"
       }
+    },
+    "ai_usage": {
+      "title": "AI 用量",
+      "description": "{month} 全站模型调用，按用途统计（含失败的调用）",
+      "description_loading": "全站模型调用，按用途统计",
+      "refresh": "刷新",
+      "load_failed": "AI 用量加载失败",
+      "month_tokens": "本月 token",
+      "month_calls": "共 {count} 次调用",
+      "site_budget": "全站每月预算",
+      "agent_budget": "AI 用户每月预算",
+      "unlimited": "不限",
+      "empty": "本月还没有模型调用",
+      "column_purpose": "用途",
+      "column_calls": "调用",
+      "column_failed": "失败",
+      "column_prompt": "输入",
+      "column_cached": "缓存命中",
+      "column_completion": "输出",
+      "column_total": "合计",
+      "trend_title": "近 30 天",
+      "trend_tokens": "token",
+      "trend_calls": "调用次数",
+      "trend_empty": "近 30 天没有模型调用",
+      "purpose": {
+        "summary": "AI 摘要",
+        "writing": "AI 写作",
+        "translation": "评论翻译",
+        "lyric_annotation": "歌词特效",
+        "ai_agent": "AI 用户运行",
+        "ai_agent_memory": "AI 用户记忆整理",
+        "ai_agent_persona": "AI 用户人设生成",
+        "other": "其他"
+      }
     }
   },
   "NotificationDelivery": {
@@ -3551,6 +3587,7 @@
       "ai_input_too_long": "内容过长，请缩短选区或要求后重试",
       "ai_write_empty_selection": "选中的内容为空",
       "ai_timeout": "AI 响应超时",
+      "ai_budget_exceeded": "本月全站 AI 用量已达预算上限，请下个月再试或联系管理员",
       "ai_empty_response": "AI 没有返回内容",
       "ai_interrupted": "连接中断，生成未完成",
       "ncm_invalid_api_url": "网易云 API 地址无效，需为 http(s) 地址",

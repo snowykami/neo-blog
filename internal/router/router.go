@@ -10,6 +10,8 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/sirupsen/logrus"
+	controller "github.com/snowykami/neo-blog/internal/controller"
+	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/middleware"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/router/apiv1"
@@ -65,10 +67,15 @@ func init() {
 		// 流式读取请求体：上传大文件时由 multipart 解析落盘，不再整体缓存在内存中
 		server.WithStreamBody(true),
 	)
+	// 用 logrus.WithContext(ctx) 写的日志自动带上请求 ID
+	logrus.AddHook(ctxutils.RequestIDLogHook{})
+	// 请求 ID 与访问日志注册在最外层：panic 时也能记下 recovery 写出的 500，recovery 与错误报告拿到的 ctx 已带请求 ID
 	// panic 与 5xx 记为后端错误报告，可在控制台查看
 	// 压缩注册在文件链接改写之前：先等其他中间件处理完响应体，再整体压缩
-	h.Use(recovery.Recovery(recovery.WithRecoveryHandler(middleware.RecoveryHandler)), middleware.UseCompress(), middleware.UseTrack(), middleware.UseErrorReport(), middleware.UseFileLinks())
+	h.Use(middleware.UseRequestLog(), recovery.Recovery(recovery.WithRecoveryHandler(middleware.RecoveryHandler)), middleware.UseCompress(), middleware.UseTrack(), middleware.UseErrorReport(), middleware.UseFileLinks())
 	apiv1.RegisterRoutes(h)
+	// Prometheus 指标：只在设置了 METRICS_TOKEN 时可用（Bearer 鉴权），否则 404；不经前端转发，由 Prometheus 直接按实例抓取
+	h.GET("/metrics", controller.Metrics.Prometheus)
 	// 存活检查：进程能响应即可，不依赖数据库，避免数据库抖动时实例被反复重启
 	h.GET("/healthz", func(ctx context.Context, c *app.RequestContext) {
 		resps.Ok(c, "ok", nil)

@@ -82,6 +82,9 @@ func GetAIConfig() AIConfig {
 // GetAISummaryConcurrency AI 摘要同时进行的任务数
 func GetAISummaryConcurrency() int { return config.Int("ai_summary_concurrency") }
 
+// GetAIMonthlyTokenBudget 全站 AI 月度 token 预算，0 为不限
+func GetAIMonthlyTokenBudget() int64 { return int64(config.Int("ai_monthly_token_budget")) }
+
 // GetLyricAnnotationTTLDays 歌词特效（歌词标注）的有效期天数，过期后在后台重新生成
 func GetLyricAnnotationTTLDays() int { return config.Int("lyric_annotation_ttl_days") }
 

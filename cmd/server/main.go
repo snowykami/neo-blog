@@ -70,6 +70,8 @@ func main() {
 	tasks.StartVisitLogCleanup()
 	// 定期清理超过保留期的错误报告
 	tasks.StartErrorReportCleanup()
+	// 定期清理超过保留期的模型调用用量记录
+	tasks.StartLLMUsageCleanup()
 	// 定期重算文章热度（随时间衰减）
 	tasks.StartPostHeatRefresh()
 	// 定期清理过期会话

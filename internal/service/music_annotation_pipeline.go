@@ -14,6 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
 // 歌词标注的生成流程（见 docs/music-player-spec.md 7.2b）：一次输出整首歌的标注太慢（输出越长越慢），拆成两步——
@@ -88,7 +89,8 @@ func extractJSONObject(raw string) (string, error) {
 func (a *lyricAnnotationService) call(cfg tools.AIConfig, system, user string) (string, error) {
 	_ = a.limiter.acquire(context.Background(), a.concurrency, false, nil)
 	defer a.limiter.release()
-	ctx, cancel := context.WithTimeout(context.Background(), lyricAnnotationTimeout)
+	// 歌词标注由访客打开歌词触发，不记触发用户
+	ctx, cancel := context.WithTimeout(withLLMPurpose(context.Background(), constant.LLMPurposeLyricAnnotation, 0), lyricAnnotationTimeout)
 	defer cancel()
 	return a.complete(ctx, cfg, system, user)
 }

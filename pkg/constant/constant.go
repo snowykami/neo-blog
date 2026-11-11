@@ -203,3 +203,26 @@ const (
 	AgentMemoryKindEpisode   = "episode"   // 情景记忆：一次互动
 	AgentMemoryKindMilestone = "milestone" // 里程碑：如成为熟人
 )
+
+// 模型调用的用途：所有调用模型的入口都按用途记一条用量（llm_usages）
+const (
+	LLMPurposeSummary         = "summary"          // 文章 AI 摘要
+	LLMPurposeWriting         = "writing"          // 编辑器 AI 写作（帮写 / 润色）
+	LLMPurposeTranslation     = "translation"      // 评论翻译
+	LLMPurposeLyricAnnotation = "lyric_annotation" // 歌词标注
+	LLMPurposeAIAgent         = "ai_agent"         // AI 用户的运行（worker 调用）
+	LLMPurposeAIAgentMemory   = "ai_agent_memory"  // AI 用户的记忆整理（后台任务）
+	LLMPurposeAIAgentPersona  = "ai_agent_persona" // AI 用户的人设生成（后台任务）
+	LLMPurposeOther           = "other"            // 未标明用途的调用（不应出现，出现时说明有入口漏标）
+)
+
+// LLMPurposes 全部用途，用量统计按此顺序输出
+var LLMPurposes = []string{
+	LLMPurposeSummary, LLMPurposeWriting, LLMPurposeTranslation, LLMPurposeLyricAnnotation,
+	LLMPurposeAIAgent, LLMPurposeAIAgentMemory, LLMPurposeAIAgentPersona, LLMPurposeOther,
+}
+
+// IsAIAgentLLMPurpose AI 用户相关的调用：有自己的预算（ai_agents_monthly_token_budget），不受全站 AI 预算拦截
+func IsAIAgentLLMPurpose(purpose string) bool {
+	return purpose == LLMPurposeAIAgent || purpose == LLMPurposeAIAgentMemory || purpose == LLMPurposeAIAgentPersona
+}

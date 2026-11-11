@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { BACKEND_URL } from '@/api/client'
-import { backendRequestHeaders, backendResponse } from '@/lib/backend-proxy'
+import { backendRequestHeaders, backendResponse, REQUEST_ID_HEADER } from '@/lib/backend-proxy'
 import { createRateBudget } from '@/lib/rate-budget'
 import { symbolicateEnvelope } from '@/lib/telemetry/symbolicate'
 
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   headers.delete('content-length')
   try {
     const upstream = await fetch(`${BACKEND_URL}/api/v1/telemetry/envelope`, { method: 'POST', headers, body, cache: 'no-store' })
-    return backendResponse(upstream)
+    return backendResponse(upstream, headers.get(REQUEST_ID_HEADER) ?? undefined)
   }
   catch {
     return new Response('Bad Gateway', { status: 502 })

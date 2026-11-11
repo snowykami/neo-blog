@@ -1123,6 +1123,8 @@
       "hide_secret": "非表示",
       "ai_summary_concurrency": "AI の同時実行数",
       "ai_summary_concurrency_desc": "モデルへの同時リクエスト数の上限（1～20）。AI 要約とエディターの AI ライティングで共有し、超えた分は順番に待機します（AI ライティングを優先）",
+      "ai_monthly_token_budget": "サイト全体の月間トークン予算",
+      "ai_monthly_token_budget_desc": "サイト全体で 1 か月に使えるトークン（AI ユーザーを含む）。使い切ると AI 要約・AI ライティング・コメント翻訳・歌詞エフェクトは翌月まで停止します。AI ユーザーには自身の予算だけが適用されます。0 で無制限",
       "lyric_annotation_ttl_days": "歌詞エフェクトの有効期間（日）",
       "lyric_annotation_ttl_days_desc": "AI 歌詞エフェクトのキャッシュ日数（1～365）。期限切れ後も新しいエフェクトがバックグラウンドで生成されるまで古いものを表示します",
       "section_music": "音楽プレーヤー",
@@ -3074,6 +3076,40 @@
         "reverted_hint": "この実行によるコメントとプロフィール変更は取り消されています",
         "view_agent": "性格設定を見る"
       }
+    },
+    "ai_usage": {
+      "title": "AI 使用量",
+      "description": "{month} のサイト全体のモデル呼び出し（用途別、失敗を含む）",
+      "description_loading": "サイト全体のモデル呼び出し（用途別）",
+      "refresh": "更新",
+      "load_failed": "AI 使用量を読み込めませんでした",
+      "month_tokens": "今月のトークン",
+      "month_calls": "計 {count} 回の呼び出し",
+      "site_budget": "サイトの月間予算",
+      "agent_budget": "AI ユーザーの月間予算",
+      "unlimited": "無制限",
+      "empty": "今月はまだモデル呼び出しがありません",
+      "column_purpose": "用途",
+      "column_calls": "呼び出し",
+      "column_failed": "失敗",
+      "column_prompt": "入力",
+      "column_cached": "キャッシュヒット",
+      "column_completion": "出力",
+      "column_total": "合計",
+      "trend_title": "直近 30 日",
+      "trend_tokens": "トークン",
+      "trend_calls": "呼び出し回数",
+      "trend_empty": "直近 30 日間にモデル呼び出しはありません",
+      "purpose": {
+        "summary": "AI 要約",
+        "writing": "AI ライティング",
+        "translation": "コメント翻訳",
+        "lyric_annotation": "歌詞エフェクト",
+        "ai_agent": "AI ユーザーの実行",
+        "ai_agent_memory": "AI ユーザーの記憶整理",
+        "ai_agent_persona": "AI ユーザーの人物設定生成",
+        "other": "その他"
+      }
     }
   },
   "NotificationDelivery": {
@@ -3590,6 +3626,7 @@
       "ai_input_too_long": "入力が長すぎます。選択範囲や指示を短くして再試行してください",
       "ai_write_empty_selection": "選択範囲が空です",
       "ai_timeout": "AI の応答がタイムアウトしました",
+      "ai_budget_exceeded": "今月のサイトの AI 予算を使い切りました。来月もう一度お試しいただくか、管理者にお問い合わせください",
       "ai_empty_response": "AI から内容が返されませんでした",
       "ai_interrupted": "接続が切れ、生成が完了しませんでした",
       "ncm_invalid_api_url": "NetEase API の URL が無効です。http(s) の URL を指定してください",

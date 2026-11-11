@@ -49,6 +49,8 @@
     "ai_api_key_desc",
     "ai_model",
     "ai_model_desc",
+    "ai_monthly_token_budget",
+    "ai_monthly_token_budget_desc",
     "ai_summary_concurrency",
     "ai_summary_concurrency_desc",
     "ai_writing_style",

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
@@ -95,6 +97,9 @@ func (s *AIWriteService) Prepare(ctx context.Context, targetType string, targetI
 	cfg := tools.GetAIConfig()
 	if !cfg.Configured() {
 		return nil, errs.NewBadRequest("ai_not_configured")
+	}
+	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
+		return nil, svcerr
 	}
 	if !(req.Mode == aiWriteModeWrite || req.Mode == aiWriteModeRewrite) {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
@@ -274,7 +279,7 @@ func (s *AIWriteService) Stream(ctx context.Context, job *AIWriteJob, emit func(
 		produced = true
 		return send(AIWriteEventDelta, map[string]string{"text": text})
 	}
-	err := s.stream(ctx, job.cfg, job.system, job.user, func(content, reasoning string) error {
+	err := s.stream(withLLMPurpose(ctx, constant.LLMPurposeWriting, job.userID), job.cfg, job.system, job.user, func(content, reasoning string) error {
 		text, inThink := filter.push(content)
 		if (reasoning != "" || inThink) && !thinking && !produced {
 			thinking = true
@@ -311,36 +316,70 @@ func (s *AIWriteService) fail(ctx context.Context, send func(string, any) error,
 	_ = send(AIWriteEventError, map[string]string{"message": err.Error()})
 }
 
+// streamUsageUnsupported 不接受 stream_options（带上时返回 400）的接口与模型，之后不再携带
+var streamUsageUnsupported sync.Map
+
 // chatCompletionStream 以 stream: true 调用 OpenAI 兼容接口
-// 不发送 temperature 等采样参数，使用模型默认值，兼容不接受自定义采样参数的模型
+// 不发送 temperature 等采样参数，使用模型默认值，兼容不接受自定义采样参数的模型。
+// 请求最后一块带上用量（stream_options.include_usage），调用前检查全站 AI 预算、结束后记一条用量（失败也记）
 func chatCompletionStream(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content, reasoning string) error) error {
-	resp, err := postChatCompletions(ctx, cfg, map[string]any{
+	finish, err := beginLLMCall(ctx, cfg.Model)
+	if err != nil {
+		return err
+	}
+	usage, err := chatCompletionStreamCall(ctx, cfg, system, user, onChunk)
+	finish(usage, err)
+	return err
+}
+
+func chatCompletionStreamCall(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content, reasoning string) error) (llmUsage, error) {
+	payload := map[string]any{
 		"model":    cfg.Model,
 		"messages": chatMessages(system, user),
 		"stream":   true,
-	})
+	}
+	key := cfg.BaseURL + "\x00" + cfg.Model
+	if _, unsupported := streamUsageUnsupported.Load(key); !unsupported {
+		payload["stream_options"] = map[string]any{"include_usage": true}
+	}
+	resp, err := postChatCompletions(ctx, cfg, payload)
+	var statusErr *chatStatusError
+	if _, sent := payload["stream_options"]; sent && errors.As(err, &statusErr) && statusErr.code == http.StatusBadRequest {
+		logrus.Warnf("chat completion stream rejected stream_options, retrying without it: %v", err)
+		streamUsageUnsupported.Store(key, true)
+		delete(payload, "stream_options")
+		resp, err = postChatCompletions(ctx, cfg, payload)
+	}
 	if err != nil {
-		return err
+		return llmUsage{}, err
 	}
 	defer resp.Body.Close()
 	// 少数兼容接口忽略 stream 参数直接返回完整 JSON，按非流式结果处理
 	if strings.Contains(resp.Header.Get("Content-Type"), "application/json") {
 		data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 		if err != nil {
-			return err
+			return llmUsage{}, err
 		}
+		usage := parseLLMUsageDetail(data)
 		content, err := parseChatCompletion(data)
 		if err != nil {
-			return err
+			return usage, err
 		}
-		return onChunk(content, "")
+		return usage, onChunk(content, "")
 	}
-	return parseChatStream(resp.Body, onChunk)
+	var usage llmUsage
+	err = parseChatStreamUsage(resp.Body, onChunk, func(u llmUsage) { usage = u })
+	return usage, err
 }
 
 // parseChatStream 解析 SSE 流：逐行读取 data 行，遇到 [DONE] 或流结束时返回
 // reasoning_content（DeepSeek 等）/ reasoning（部分兼容实现）只作为思考信号，不并入正文
 func parseChatStream(r io.Reader, onChunk func(content, reasoning string) error) error {
+	return parseChatStreamUsage(r, onChunk, nil)
+}
+
+// parseChatStreamUsage 同 parseChatStream，带 usage 的块（通常是最后一块，choices 为空）交给 onUsage
+func parseChatStreamUsage(r io.Reader, onChunk func(content, reasoning string) error, onUsage func(llmUsage)) error {
 	reader := bufio.NewReader(r)
 	for {
 		line, readErr := reader.ReadString('\n')
@@ -358,6 +397,7 @@ func parseChatStream(r io.Reader, onChunk func(content, reasoning string) error)
 						Reasoning        string `json:"reasoning"`
 					} `json:"delta"`
 				} `json:"choices"`
+				Usage *openAIUsage `json:"usage"`
 				Error *struct {
 					Message string `json:"message"`
 				} `json:"error"`
@@ -367,6 +407,9 @@ func parseChatStream(r io.Reader, onChunk func(content, reasoning string) error)
 			}
 			if chunk.Error != nil {
 				return fmt.Errorf("upstream error: %s", chunk.Error.Message)
+			}
+			if chunk.Usage != nil && onUsage != nil {
+				onUsage(chunk.Usage.detail())
 			}
 			if len(chunk.Choices) > 0 {
 				delta := chunk.Choices[0].Delta

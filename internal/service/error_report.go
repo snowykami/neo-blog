@@ -184,6 +184,10 @@ func (s *ErrorReportService) RecordBackendError(ctx context.Context, e BackendEr
 		At:     time.Now(),
 		Detail: map[string]any{"status": e.Status, "request": map[string]any{"method": e.Method, "path": e.Path}},
 	}
+	// 请求 ID：按它在访问日志里找到同一个请求
+	if id := ctxutils.RequestID(ctx); id != "" {
+		report.Detail["request_id"] = id
+	}
 	if e.Panic {
 		report.Level = "fatal"
 		report.Type = "panic"

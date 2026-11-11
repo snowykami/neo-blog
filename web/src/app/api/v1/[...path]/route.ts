@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { connection } from 'next/server'
 import { BACKEND_URL } from '@/api/client'
-import { backendRequestHeaders, backendResponse } from '@/lib/backend-proxy'
+import { backendRequestHeaders, backendResponse, REQUEST_ID_HEADER } from '@/lib/backend-proxy'
 
 // 浏览器请求的 /api/v1/* 在运行时转发到后端。
 // 不用 next.config 的 rewrites：standalone 构建会把 rewrites 目标写死进产物，部署时设置的 BACKEND_URL 不生效；
@@ -29,7 +29,9 @@ async function forward(request: NextRequest) {
   if (DIRECT_ONLY.test(pathname))
     return new Response('Not Found', { status: 404 })
 
+  // 请求 ID 随转发带给后端（后端沿用并写回响应头），转发失败时也回给浏览器，便于对照前后端日志
   const headers = backendRequestHeaders(request)
+  const requestId = headers.get(REQUEST_ID_HEADER) ?? ''
   const hasBody = !['GET', 'HEAD'].includes(request.method)
   let upstream: Response
   try {
@@ -47,14 +49,14 @@ async function forward(request: NextRequest) {
   }
   catch (error) {
     if (request.signal.aborted)
-      return new Response(null, { status: 499 })
-    console.error(`Failed to proxy ${request.method} ${pathname} to ${BACKEND_URL}`, error)
-    return new Response('Bad Gateway', { status: 502 })
+      return new Response(null, { status: 499, headers: { [REQUEST_ID_HEADER]: requestId } })
+    console.error(`Failed to proxy ${request.method} ${pathname} to ${BACKEND_URL} (request id ${requestId})`, error)
+    return new Response('Bad Gateway', { status: 502, headers: { [REQUEST_ID_HEADER]: requestId } })
   }
 
   if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && upstream.ok)
     await syncCacheTagsNow()
-  return backendResponse(upstream)
+  return backendResponse(upstream, requestId)
 }
 
 export {

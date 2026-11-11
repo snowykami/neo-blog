@@ -284,6 +284,9 @@ func (s *MusicService) RefreshLyricAnnotations(ctx context.Context, id int64) (*
 	if svcerr != nil {
 		return nil, svcerr
 	}
+	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
+		return nil, svcerr
+	}
 	return lyricAnnotations.refresh(id, lines, info, cfg), nil
 }
 
@@ -404,7 +407,8 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 		data := parseLyricAnnotationData(record.Data)
 		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
 		// 已过期：先返回旧结果，在后台重新生成（失败冷却期内不重试，继续使用旧结果）；管理员手动编辑过的不自动重新生成
-		if !running && !coolingDown && record.EditedAt == nil && time.Since(record.CreatedAt) > ttl {
+		// 全站 AI 预算已用完时不重新生成，继续使用旧结果
+		if !running && !coolingDown && record.EditedAt == nil && time.Since(record.CreatedAt) > ttl && checkSiteAIBudget(time.Now()) == nil {
 			a.startLocked(key, id, hash, lines, info, cfg, false)
 			running = true
 		}
@@ -417,6 +421,9 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 	}
 	if coolingDown {
 		return nil, errs.NewNotFound("lyric_annotations_failed")
+	}
+	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
+		return nil, svcerr
 	}
 	a.startLocked(key, id, hash, lines, info, cfg, false)
 	return &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusPending, Lines: []dto.MusicLyricAnnotationLine{}}, nil

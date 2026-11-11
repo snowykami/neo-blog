@@ -1,4 +1,5 @@
 import type { PaginationParams } from '../models/common'
+import type { AIUsageStats } from '@/models/ai-usage'
 import type { Comment } from '@/models/comment'
 import type { ConfigSchema } from '@/models/config'
 import type { Dashboard, DashboardDays } from '@/models/dashboard'
@@ -14,6 +15,12 @@ import axiosClient from './client'
 
 export async function getDashboard(days: DashboardDays): Promise<BaseResponse<Dashboard>> {
   const res = await axiosClient.get('/admin/dashboard', { params: { days } })
+  return res.data
+}
+
+/** 全站模型调用用量：本月按用途分组、近 30 天趋势与预算（仅管理员） */
+export async function getAIUsage(): Promise<BaseResponse<AIUsageStats>> {
+  const res = await axiosClient.get('/admin/ai-usage')
   return res.data
 }
 

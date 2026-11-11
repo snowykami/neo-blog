@@ -23,6 +23,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
@@ -395,8 +396,12 @@ func (s *AISummaryService) Trigger(ctx context.Context, postID uint) *errs.Servi
 	if strings.TrimSpace(htmlToPlainText(post.Content)) == "" {
 		return errs.NewBadRequest("ai_summary_empty_content")
 	}
+	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
+		return svcerr
+	}
 
-	queued, err := s.enqueue(post, cfg)
+	userID, _ := ctxutils.GetCurrentUserID(ctx)
+	queued, err := s.enqueue(post, cfg, userID)
 	if err != nil {
 		return errs.Internal("failed_to_create_target", err)
 	}
@@ -416,10 +421,14 @@ func (s *AISummaryService) TriggerAll(ctx context.Context, overwriteManual bool)
 	if !cfg.Configured() {
 		return nil, errs.NewBadRequest("ai_not_configured")
 	}
+	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
+		return nil, svcerr
+	}
 	posts, err := repo.Post.ListPostsForAISummary()
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err)
 	}
+	userID, _ := ctxutils.GetCurrentUserID(ctx)
 	result := &dto.BatchAISummaryResultDto{}
 	for i := range posts {
 		post := &posts[i]
@@ -431,7 +440,7 @@ func (s *AISummaryService) TriggerAll(ctx context.Context, overwriteManual bool)
 		case !overwriteManual && post.Description != "" && post.Description != post.AISummary:
 			result.SkippedManual++
 		default:
-			queued, err := s.enqueue(post, cfg)
+			queued, err := s.enqueue(post, cfg, userID)
 			if err != nil {
 				return nil, errs.Internal("failed_to_create_target", err)
 			}
@@ -445,8 +454,9 @@ func (s *AISummaryService) TriggerAll(ctx context.Context, overwriteManual bool)
 	return result, nil
 }
 
-// enqueue 登记任务并在后台执行；该文章已有任务在排队或生成中（包括在其他实例）时返回 false
-func (s *AISummaryService) enqueue(post *model.Post, cfg tools.AIConfig) (bool, error) {
+// enqueue 登记任务并在后台执行；该文章已有任务在排队或生成中（包括在其他实例）时返回 false。
+// userID 为触发生成的用户（记入模型调用用量），中断后由其他实例接手时为 0
+func (s *AISummaryService) enqueue(post *model.Post, cfg tools.AIConfig, userID uint) (bool, error) {
 	data, _ := json.Marshal(aiSummaryJob{Status: aiSummaryStatusQueued})
 	claimed, err := sharedstate.Current().SetNX(aiSummaryActiveKey(post.ID), string(data), aiSummaryActiveTTL)
 	if err != nil || !claimed {
@@ -459,7 +469,7 @@ func (s *AISummaryService) enqueue(post *model.Post, cfg tools.AIConfig) (bool, 
 	}
 
 	// 以触发时的正文为准，生成期间正文再被修改会在完成后显示为「需要重新生成」
-	go s.run(startAISummaryTracker(post.ID), cfg, post.Title, post.Content, model.HashContent(post.Content))
+	go s.run(startAISummaryTracker(post.ID), cfg, userID, post.Title, post.Content, model.HashContent(post.Content))
 	return true, nil
 }
 
@@ -490,7 +500,7 @@ func (s *AISummaryService) ResumePending() {
 			_ = sharedstate.Current().Delete(key)
 			continue
 		}
-		if queued, err := s.enqueue(post, cfg); err != nil {
+		if queued, err := s.enqueue(post, cfg, 0); err != nil {
 			logrus.Warnf("resume ai summary for post %d: %v", postID, err)
 		} else if queued {
 			logrus.Infof("resumed interrupted ai summary for post %d", postID)
@@ -503,7 +513,7 @@ func ResumePendingAISummaries() {
 	aiSummaryService.ResumePending()
 }
 
-func (s *AISummaryService) run(job *aiSummaryTracker, cfg tools.AIConfig, title, content, sourceHash string) {
+func (s *AISummaryService) run(job *aiSummaryTracker, cfg tools.AIConfig, userID uint, title, content, sourceHash string) {
 	postID := job.postID
 	// 排队等待并发名额，拿到后才开始计算超时
 	_ = s.limiter.acquire(context.Background(), s.concurrency, false, nil)
@@ -516,7 +526,7 @@ func (s *AISummaryService) run(job *aiSummaryTracker, cfg tools.AIConfig, title,
 			job.finish(aiSummaryStatusFailed, "internal_error")
 		}
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), aiSummaryTimeout)
+	ctx, cancel := context.WithTimeout(withLLMPurpose(context.Background(), constant.LLMPurposeSummary, userID), aiSummaryTimeout)
 	defer cancel()
 
 	// 少数模型偶尔返回空内容（或只有思考过程），空结果时重试一次
@@ -681,8 +691,24 @@ func chatCompletionWithReasoning(ctx context.Context, cfg tools.AIConfig, system
 	return parseChatCompletion(data)
 }
 
-// chatCompletionRaw 同 chatCompletionWithReasoning，返回上游的原始响应体（需要读取 usage 用量时使用）
+// chatCompletionRaw 同 chatCompletionWithReasoning，返回上游的原始响应体（需要读取 usage 用量时使用）。
+// 调用前按 ctx 上标明的用途检查全站 AI 预算，调用后记一条用量（失败也记）
 func chatCompletionRaw(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) ([]byte, error) {
+	finish, err := beginLLMCall(ctx, cfg.Model)
+	if err != nil {
+		return nil, err
+	}
+	data, err := chatCompletionRawCall(ctx, cfg, system, user, temperature, effort)
+	var usage llmUsage
+	if err == nil {
+		usage = parseLLMUsageDetail(data)
+	}
+	finish(usage, err)
+	return data, err
+}
+
+// chatCompletionRawCall 实际发送非流式请求；不支持 reasoning_effort 的接口去掉参数重试一次（只记一次用量）
+func chatCompletionRawCall(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) ([]byte, error) {
 	payload := map[string]any{
 		"model":       cfg.Model,
 		"messages":    chatMessages(system, user),

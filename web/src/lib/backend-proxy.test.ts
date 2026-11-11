@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
-import { backendRequestHeaders, backendResponse } from './backend-proxy'
+import { backendRequestHeaders, backendResponse, isValidRequestId } from './backend-proxy'
 
 function fakeRequest(headers: Record<string, string>) {
   return {
@@ -26,6 +26,16 @@ describe('backendRequestHeaders', () => {
     expect(headers.get('range')).toBe('bytes=0-')
     expect(headers.get('x-forwarded-host')).toBe('blog.example.com')
     expect(headers.get('x-forwarded-proto')).toBe('https')
+  })
+
+  it('请求 ID：合法的沿用，没有或不合法时生成新的', () => {
+    expect(backendRequestHeaders(fakeRequest({ 'x-request-id': 'lb-req-0123456789' })).get('x-request-id')).toBe('lb-req-0123456789')
+    for (const given of [undefined, 'short', 'has space 0123456789', 'x'.repeat(65)]) {
+      const id = backendRequestHeaders(fakeRequest(given ? { 'x-request-id': given } : {})).get('x-request-id')
+      expect(id).not.toBe(given)
+      expect(id).toMatch(/^[0-9a-f]{32}$/)
+      expect(isValidRequestId(id)).toBe(true)
+    }
   })
 })
 
@@ -60,5 +70,11 @@ describe('backendResponse', () => {
     expect(res.headers.has('content-encoding')).toBe(false)
     expect(res.headers.has('content-length')).toBe(false)
     expect(res.headers.get('x-a')).toBe('1')
+  })
+
+  it('后端回写的请求 ID 原样交回，没有时补上转发用的', () => {
+    const echoed = backendResponse(new Response('x', { headers: { 'x-request-id': 'from-backend-1234' } }), 'forwarded-12345678')
+    expect(echoed.headers.get('x-request-id')).toBe('from-backend-1234')
+    expect(backendResponse(new Response('x'), 'forwarded-12345678').headers.get('x-request-id')).toBe('forwarded-12345678')
   })
 })

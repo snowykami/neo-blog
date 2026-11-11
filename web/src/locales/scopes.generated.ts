@@ -282,6 +282,7 @@ export const SCOPES = {
     'TopbarIsland',
   ],
   'console/runtime': [
+    'Console.ai_usage',
     'Console.dashboard',
   ],
   'console/storages': [
