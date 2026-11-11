@@ -192,7 +192,9 @@ export function ProgressControl({
         aria-valuetext={ariaValueText}
         onPointerDown={handlePointerDown}
         onKeyDown={handleKeyDown}
-        className={`relative touch-none select-none ${disabled ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}`}
+        // 轨道只有 8px 高：用透明伪元素把按下区域上下各扩 8px（共 24px，WCAG 2.2 最小目标尺寸），视觉不变；
+        // 位置换算只用横坐标（clientXToPercent），不受影响。不再扩大：再大会盖住紧挨着的时间与按钮
+        className={`relative touch-none select-none before:absolute before:inset-x-0 before:-inset-y-2 ${disabled ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}`}
       >
         <Progress value={percent} />
         {marks?.map(mark => (

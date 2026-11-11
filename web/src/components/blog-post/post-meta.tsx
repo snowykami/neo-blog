@@ -25,8 +25,10 @@ export { PostMetaItem }
  * 因此首页列表（客户端）与文章页（服务端）共用同一套实现
  */
 
-// 元信息中的链接：位于整卡链接（stretched link）之上，需提升层级
-const metaLinkClass = 'relative z-10 rounded-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+// 元信息中的链接：位于整卡链接（stretched link）之上，需提升层级。
+// 文字只有约 20px 高，用透明伪元素把热区上下各扩 4px、左右各扩 4px（视觉不变），达到 WCAG 2.2 的 24px；
+// 点偏了会落到整卡链接上直接进入文章，所以热区要够大，相邻标签之间也留出间距（见下方 gap-y-2）
+const metaLinkClass = 'relative z-10 rounded-sm transition-colors after:absolute after:-inset-x-1 after:-inset-y-1 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 /** 头像 + 昵称的作者项（列表），整体链接到作者主页 */
 function PostAuthorAvatarItem({ user }: { user: Post['user'] }) {
@@ -94,7 +96,8 @@ export function PostMeta({
       {labels.length > 0 && (
         <PostMetaItem icon={HashIcon} label={t('Route.label')}>
           {/* 多个标签用 / 分隔 */}
-          <span className="flex flex-wrap items-center">
+          {/* gap-y-2：手机上换行后上下两行标签的热区不重叠 */}
+          <span className="flex flex-wrap items-center gap-y-2">
             {labels.map((label, index) => (
               <Fragment key={label.id}>
                 {index > 0 && <span aria-hidden className="mx-1.5 text-foreground/30">/</span>}

@@ -67,7 +67,9 @@ function NavigationMenuTrigger({
   return (
     <NavigationMenuPrimitive.Trigger
       data-slot="navigation-menu-trigger"
-      className={cn(navigationMenuTriggerStyle(), 'group', className)}
+      // 展开时从触发项底部向下伸出一条透明「桥」盖住与下拉内容之间的 6px 空隙（内容在 viewport=false 时 mt-1.5）：
+      // 鼠标从触发项移向内容的途中仍算悬停在触发项上，慢速斜移或停在空隙里不会关闭菜单
+      className={cn(navigationMenuTriggerStyle(), 'group relative after:absolute after:inset-x-0 after:top-full after:hidden after:h-2 data-[state=open]:after:block', className)}
       {...props}
     >
       {children}
